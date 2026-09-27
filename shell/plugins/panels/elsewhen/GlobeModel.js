@@ -1,25 +1,15 @@
 .pragma library
 
-// Orthographic globe maths: projection, the day/night terminator, and label
-// placement. Kept free of QML types so tests/globe_check.js can exercise it.
+// Orthographic globe math: projection, the day/night terminator, the moon,
+// and label placement.
 
 var DEG = Math.PI / 180
 
-// Earth's obliquity: the tilt of its rotation axis against the plane of its
-// orbit. The subsolar calculation below uses it to place the sun; the hero
-// icon uses it to sit at the angle the real thing does.
+// Earth's obliquity, also the hero icon's lean.
 var AXIAL_TILT = 23.44
 
-// Every other vertex of a coastline ring, for drawing while the globe is
-// scaled down mid-transition.
-//
-// The canvas always paints at full size and the item is scaled by a
-// transform, so during the zoom the panel is drawing 1337 coastline points
-// and then shrinking the result to a few dozen pixels across. Half of them
-// land on the same pixel. Rings shorter than the floor are returned whole -
-// below it a shape stops being an island and becomes a triangle.
-//
-// `ring` is flat [lon, lat, lon, lat, ...], and so is the result.
+// Every `keepEvery`th vertex of a flat [lon, lat, ...] ring, for drawing while
+// the globe is scaled down. Rings at or under `minPoints` are returned whole.
 function decimateRing(ring, keepEvery, minPoints) {
   var step = keepEvery === undefined ? 2 : keepEvery
   var floor = minPoints === undefined ? 8 : minPoints
@@ -27,26 +17,15 @@ function decimateRing(ring, keepEvery, minPoints) {
   if (step < 2 || n <= floor) return ring
   var out = []
   for (var i = 0; i < n; i += step) out.push(ring[i * 2], ring[i * 2 + 1])
-  // Keep the ring closed on the vertex the original ended on, so the coast
-  // does not develop a straight chord back to the start.
+  // End on the original last vertex, not a chord back to the start.
   var lastI = (n - 1) * 2
   if (out[out.length - 2] !== ring[lastI] || out[out.length - 1] !== ring[lastI + 1])
     out.push(ring[lastI], ring[lastI + 1])
   return out
 }
 
-// A drawn pixel constant that follows the shell's UI scale.
-//
-// The large globe's radius, padding and labels all scale with the shell's
-// base font size, but its stroke widths and marker radii were fixed pixel
-// literals. Raising the base size therefore grew the globe and its names
-// while the lines and dots stayed put, so they read as proportionally
-// thinner - the small globe already avoided this by deriving its widths
-// from its own radius, which the large globe cannot do because its radius
-// is hundreds of pixels.
-//
-// The floor is what the small globe uses: below one pixel a stroke stops
-// being a thin line and starts dropping out of the raster altogether.
+// A drawn pixel size that follows the shell's UI scale, floored so hairlines
+// do not drop out of the raster.
 function scalePx(px, scale, minPx) {
   var s = (typeof scale === "number" && isFinite(scale) && scale > 0) ? scale : 1
   var n = px * s
@@ -54,8 +33,7 @@ function scalePx(px, scale, minPx) {
   return n < floor ? floor : n
 }
 
-// Orthographic projection of a lat/lon onto a disc of radius r, as seen from
-// a viewpoint over (viewLat, spin). `visible` is false for the far hemisphere.
+// Orthographic projection onto a disc of radius r seen from over (viewLat, spin).
 function project(lat, lon, spin, viewLat, r) {
   var phi = lat * DEG
   var lam = (lon - spin) * DEG
@@ -69,9 +47,7 @@ function project(lat, lon, spin, viewLat, r) {
   }
 }
 
-// The point on Earth with the sun directly overhead. Low-precision solar
-// position: good to a fraction of a degree, which is far finer than a globe
-// a few hundred pixels across can show.
+// The point with the sun directly overhead, good to a fraction of a degree.
 function subsolarPoint(ms) {
   var d = new Date(ms)
   var jd = ms / 86400000 + 2440587.5
@@ -93,17 +69,14 @@ function subsolarPoint(ms) {
   return { lat: decl, lon: lon }
 }
 
-// The sun's angle above the horizon, in degrees. Negative below it: about
-// -6 at the end of civil twilight, -18 at full night.
+// Degrees above the horizon, negative below it.
 function solarElevation(lat, lon, sub) {
   var cosz = Math.sin(lat * DEG) * Math.sin(sub.lat * DEG)
            + Math.cos(lat * DEG) * Math.cos(sub.lat * DEG) * Math.cos((lon - sub.lon) * DEG)
   return Math.asin(Math.max(-1, Math.min(1, cosz))) / DEG
 }
 
-// True where the sun is above the horizon. The threshold is -0.833 degrees
-// rather than 0 to allow for refraction and the sun's disc - the same
-// convention sunrise tables use.
+// -0.833 allows for refraction and the sun's disc, as sunrise tables do.
 function isDaylight(lat, lon, sub) {
   return solarElevation(lat, lon, sub) > -0.833
 }
@@ -137,12 +110,8 @@ function norm(v) {
   return [v[0] / m, v[1] / m, v[2] / m]
 }
 
-// Thin out points that crowd each other on screen. Offered in priority order,
-// a point is kept only if it clears everything already kept by minDist pixels
-// - so a dense region like western Europe keeps a few cities instead of a
-// smear of overlapping dots, and the survivors change as the globe turns or
-// resizes. Priority is caller-supplied, which is how tracked cities and
-// the current selection always survive.
+// Keep points, in priority order, that clear every kept point by minDist.
+// Points marked `keep` always survive.
 function declutter(points, minDist) {
   var kept = []
   for (var i = 0; i < points.length; i++) {
@@ -157,12 +126,9 @@ function declutter(points, minDist) {
   return kept
 }
 
-// ------------------------------------------------------------------ the moon
-//
-// Enough to draw a phase, not enough to predict an eclipse: the mean synodic
-// month against a known new moon. Good to a few hours, which is far finer
-// than a dot a few pixels across can show.
+// ---- the moon
 
+// The mean synodic month against a known new moon: good to a few hours.
 var SYNODIC_MONTH = 29.530588853          // days
 var KNOWN_NEW_MOON_JD = 2451550.1         // 2000-01-06 18:14 UTC
 
@@ -174,55 +140,8 @@ function moonPhase(ms) {
   return p < 0 ? p + 1 : p
 }
 
-// Fraction of the disc lit, 0 at new and 1 at full.
-function moonIllumination(phase) {
-  return (1 - Math.cos(2 * Math.PI * Number(phase))) / 2
-}
-
-// What people call the shape in the sky.
-//
-// The four principal phases are instants, not eighths of a cycle: the moon is
-// exactly full for a moment and then it is waning. But nobody says "waning
-// gibbous" about a disc that is 99.9% lit, so each principal phase is given a
-// day either side of its instant and the crescents and gibbous phases fill the
-// gaps between. A day is what the eye cannot tell apart at this size, and it is
-// also roughly how long people go on saying "full moon" for.
-//
-// Every cut here is a convention rather than a fact, which is why the width is
-// stated once as a named constant instead of being spread through the tests.
-var PRINCIPAL_DAYS = 1.0
-
-function moonPhaseName(phase) {
-  var p = Number(phase)
-  if (!isFinite(p)) return ""
-  p = p % 1
-  if (p < 0) p += 1
-
-  var w = PRINCIPAL_DAYS / SYNODIC_MONTH
-  var near = function(target) {
-    var d = Math.abs(p - target)
-    if (d > 0.5) d = 1 - d
-    return d <= w
-  }
-
-  if (near(0)) return "New moon"
-  if (near(0.25)) return "First quarter"
-  if (near(0.5)) return "Full moon"
-  if (near(0.75)) return "Last quarter"
-  if (p < 0.25) return "Waxing crescent"
-  if (p < 0.5) return "Waxing gibbous"
-  if (p < 0.75) return "Waning gibbous"
-  return "Waning crescent"
-}
-
-// The outline of the lit part of the moon, as points on a disc of radius r
-// centred on the origin.
-//
-// Two arcs: the limb on the lit side, and the terminator returning. The
-// terminator is the same semicircle squashed horizontally by cos(2*pi*phase),
-// which is signed - positive gives a crescent bulging away from the limb,
-// negative a gibbous bulging past the centre - so one construction covers
-// every phase without special cases.
+// The lit part of the moon on a disc of radius r at the origin: the limb, then
+// the terminator back, a semicircle squashed by the signed cos(2*pi*phase).
 function moonLitOutline(phase, r, steps) {
   var n = steps || 24
   var theta = 2 * Math.PI * Number(phase)
@@ -241,14 +160,9 @@ function moonLitOutline(phase, r, steps) {
   return out
 }
 
-// ------------------------------------------------------- clipping to the disc
-//
-// Shared by both globes. The maths lived in MiniGlobe first; the large globe
-// was dropping points at the limb with no interpolation, so its coastlines
-// and graticule snapped by up to a segment as it turned.
+// ---- clipping to the disc
 
-// The exact point where a segment crosses the horizon, by bisection on the
-// projection's own visibility test. Points are [lat, lon].
+// Where a [lat, lon] segment crosses the horizon, by bisection.
 function limbCrossing(a, b, spin, viewLat, r) {
   // Segments spanning the antimeridian cannot be interpolated in lat/lon.
   if (Math.abs(b[1] - a[1]) > 180) return null
@@ -261,8 +175,7 @@ function limbCrossing(a, b, spin, viewLat, r) {
   return project(a[0] + (b[0] - a[0]) * lo, a[1] + (b[1] - a[1]) * lo, spin, viewLat, r)
 }
 
-// A polyline split into the runs that are on the near side, each beginning
-// and ending exactly on the horizon rather than at the last vertex before it.
+// The near-side runs of a polyline, each ending exactly on the horizon.
 function visibleSegments(pts, spin, viewLat, r) {
   var out = [], run = [], prev = null, prevVis = false
   function flush() { if (run.length > 1) out.push(run); run = [] }
@@ -287,13 +200,8 @@ function visibleSegments(pts, spin, viewLat, r) {
   return out
 }
 
-// One closed polygon for a ring clipped to the visible hemisphere.
-//
-// Sutherland-Hodgman, keeping the ring whole: splitting it into visible runs
-// and closing each separately makes self-intersecting shapes whose area jumps
-// as runs split, which reads as continents morphing at the limb. Where the
-// shape leaves and re-enters the horizon the limb is followed round rather
-// than cut across. `ring` is flat [lon, lat, lon, lat, ...].
+// A flat [lon, lat, ...] ring clipped to the visible hemisphere as one polygon
+// that follows the limb, so its area changes smoothly as the globe turns.
 function clipRingToDisc(ring, spin, viewLat, r) {
   var pts = []
   for (var k = 0; k < ring.length; k += 2) pts.push([ring[k + 1], ring[k]])
@@ -333,17 +241,8 @@ function clipRingToDisc(ring, spin, viewLat, r) {
   return res
 }
 
-// Greedy label placement. Cities are offered in rank order, nearest the disc
-// centre first, and a label is kept only if its box clears every label
-// already placed - so spinning the globe reveals and hides names instead of
-// piling them on top of each other.
-// `maxX` is the half-width of the drawing area, in the same centred
-// coordinates as the candidates. A label that would run off the right edge is
-// placed to the left of its dot instead of being allowed to overflow the
-// panel - names near the right limb read inward.
-// `gap` is the distance from a city's dot to its name. It defaults to the
-// 6px this used before it was a parameter, so any caller that does not scale
-// its drawing keeps exactly the layout it had.
+// Greedy label placement by rank, then nearest the disc center; a label that
+// would pass `maxX` flips to the left of its dot. `gap` is dot to name.
 function layoutLabels(candidates, charWidth, lineHeight, limit, maxX, gap) {
   var g = (typeof gap === "number" && isFinite(gap) && gap > 0) ? gap : 6
   var placed = []
@@ -370,4 +269,32 @@ function layoutLabels(candidates, charWidth, lineHeight, limit, maxX, gap) {
     if (limit && placed.length >= limit) break
   }
   return placed
+}
+
+// Signed degrees in (-180, 180] to turn from one longitude to another.
+function shortestTurn(from, to) {
+  var d = ((to - from) % 360 + 360) % 360
+  return d > 180 ? d - 360 : d
+}
+
+if (typeof module !== "undefined") {
+  module.exports = {
+    AXIAL_TILT: AXIAL_TILT,
+    SYNODIC_MONTH: SYNODIC_MONTH,
+    decimateRing: decimateRing,
+    scalePx: scalePx,
+    project: project,
+    subsolarPoint: subsolarPoint,
+    solarElevation: solarElevation,
+    isDaylight: isDaylight,
+    terminator: terminator,
+    declutter: declutter,
+    moonPhase: moonPhase,
+    moonLitOutline: moonLitOutline,
+    limbCrossing: limbCrossing,
+    visibleSegments: visibleSegments,
+    clipRingToDisc: clipRingToDisc,
+    layoutLabels: layoutLabels,
+    shortestTurn: shortestTurn
+  }
 }

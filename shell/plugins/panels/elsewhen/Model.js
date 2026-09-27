@@ -1,45 +1,27 @@
-.pragma library
-
-// Pure helpers for the world clock. Kept free of QML types so they can be
-// exercised from plain JS in tests/.
-//
-// Qt's QML engine has no Intl, so there is no way to ask JavaScript for the
-// time in an arbitrary IANA zone. What we can do is ask `date` once for each
-// zone's current UTC offset, then tick locally against that offset. Offsets
-// only move at a DST boundary, and the offsets are refetched whenever the
-// panel opens and every few minutes while it is open, so the displayed time
-// stays honest without spawning a process per second.
+// QML has no Intl, so each zone's UTC offset comes from a `date` probe and the
+// clocks tick locally against it.
 
 var DEFAULT_ZONES = "Los Angeles|America/Los_Angeles, Paris|Europe/Paris, Tokyo|Asia/Tokyo"
 
 var WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
-// "Los Angeles|America/Los_Angeles, Tokyo|Asia/Tokyo" -> [{label, id}, ...]
-// A bare "Asia/Tokyo" is accepted too and labelled from its last path segment.
-// What a zone id may contain. Ids are handed to `date` as arguments, never
-// interpolated into a script, so this is not an injection guard - it keeps
-// the list free of entries that could never name a zone.
+// Keeps the list free of entries that could never name a zone.
 var ZONE_ID = /^[A-Za-z0-9_+\-\/]+$/
 
-// Labels are stored in a "Label|Zone, Label|Zone" string, so a label may not
-// carry either delimiter: "Tokyo, Japan" would otherwise come back from
-// shell.json as two rows called "Tokyo" and "Japan".
+// Labels live in a "Label|Zone, Label|Zone" string, so they may not carry either delimiter.
 function cleanLabel(label) {
   return String(label || "").replace(/[,|]/g, " ").replace(/\s+/g, " ").trim()
 }
 
+// "Los Angeles|America/Los_Angeles, Asia/Tokyo" -> [{label, id}, ...]. Empty means a fresh install.
 function parseZones(spec) {
-  // An empty setting is a fresh install, not a request for the old hardcoded
-  // trio: it returns nothing so the panel knows to seed itself. DEFAULT_ZONES
-  // survives only as the last resort if even the local zone cannot be read.
   var text = String(spec === undefined || spec === null ? "" : spec)
   var out = []
   var parts = text.split(",")
   for (var i = 0; i < parts.length; i++) {
     var entry = parts[i].trim()
     if (entry === "") continue
-    // "Label|Zone". Zone ids never contain a pipe, so splitting on it is safe.
     var fields = entry.split("|")
     var label = ""
     var id = ""
@@ -57,7 +39,19 @@ function parseZones(spec) {
   return out
 }
 
-// "-0700" -> -420. Returns null for anything unparseable.
+// ---- the date probe
+
+// argv for one `date` per zone, printing "Asia/Tokyo|JST|+0900". Zones are
+// arguments, never script text. `withLocal` adds "LOCAL|<zone>" plus that zone's own line.
+function probeCommand(ids, withLocal) {
+  var script = "for z in \"$@\"; do TZ=\"$z\" date \"+$z|%Z|%z\"; done"
+  if (withLocal)
+    script = "tz=$(timedatectl show -p Timezone --value); "
+      + "printf 'LOCAL|%s\\n' \"$tz\"; TZ=\"$tz\" date \"+$tz|%Z|%z\"; " + script
+  return ["bash", "-c", script, "bash"].concat(ids || [])
+}
+
+// "-0700" -> -420, or null.
 function parseOffset(text) {
   var m = /^([+-])(\d{2})(\d{2})$/.exec(String(text || "").trim())
   if (!m) return null
@@ -65,7 +59,6 @@ function parseOffset(text) {
   return m[1] === "-" ? -minutes : minutes
 }
 
-// One "America/Los_Angeles|PDT|-0700" line from the probe.
 function parseProbeLine(line) {
   var fields = String(line || "").split("|")
   if (fields.length < 3) return null
@@ -75,9 +68,6 @@ function parseProbeLine(line) {
   return { id: id, abbr: fields[1].trim(), offsetMinutes: offset }
 }
 
-// The system's own IANA zone. The probe emits it as a "LOCAL|<zone>" line;
-// parseProbe ignores that line because it carries no offset, so the two
-// parsers can share one process without stepping on each other.
 function localZoneFromProbe(text) {
   var lines = String(text || "").split("\n")
   for (var i = 0; i < lines.length; i++) {
@@ -87,17 +77,18 @@ function localZoneFromProbe(text) {
   return ""
 }
 
-// Whole probe stdout -> { "America/Los_Angeles": {abbr, offsetMinutes}, ... }
-// "UTC+2", "UTC-3:30", and plain "UTC" at Greenwich.
-//
-// Whole hours drop the minutes: most zones are whole hours, and ":00" on
-// every one of them is noise. The odd ones keep them, because a zone that is
-// three quarters of an hour off is exactly the case somebody is reading this
-// line to find out about.
-//
-// Not the same thing as the offset on a row. That one is relative to where
-// you are - "+9h" means nine hours from here - and this one is absolute,
-// because a city you have not added yet has no relationship to you yet.
+// Probe stdout -> { "America/Los_Angeles": {abbr, offsetMinutes}, ... }
+function parseProbe(text) {
+  var map = {}
+  var lines = String(text || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var parsed = parseProbeLine(lines[i])
+    if (parsed) map[parsed.id] = { abbr: parsed.abbr, offsetMinutes: parsed.offsetMinutes }
+  }
+  return map
+}
+
+// Absolute offset: "UTC+2", "UTC-3:30", "UTC". Minutes only when they are not zero.
 function utcOffsetLabel(minutes) {
   if (minutes === undefined || minutes === null) return ""
   var total = Number(minutes)
@@ -111,18 +102,9 @@ function utcOffsetLabel(minutes) {
        + (mins === 0 ? "" : ":" + (mins < 10 ? "0" : "") + mins)
 }
 
-function parseProbe(text) {
-  var map = {}
-  var lines = String(text || "").split("\n")
-  for (var i = 0; i < lines.length; i++) {
-    var parsed = parseProbeLine(lines[i])
-    if (parsed) map[parsed.id] = { abbr: parsed.abbr, offsetMinutes: parsed.offsetMinutes }
-  }
-  return map
-}
+// ---- clock faces
 
-// Shift the instant by the zone offset, then read it back with the UTC
-// getters — that yields the wall-clock fields as that zone would show them.
+// Shifting the instant by the offset and reading UTC getters gives the zone's wall clock.
 function zoneParts(nowMs, offsetMinutes) {
   var d = new Date(Number(nowMs) + Number(offsetMinutes) * 60000)
   return {
@@ -147,8 +129,7 @@ function localParts(nowMs) {
   }
 }
 
-// Whole days between two date triples, as seen from `from`. Uses UTC
-// arithmetic on the calendar fields alone so DST cannot skew the count.
+// Calendar fields only, so DST cannot skew the count.
 function dayDelta(parts, reference) {
   var a = Date.UTC(parts.year, parts.month, parts.day)
   var b = Date.UTC(reference.year, reference.month, reference.day)
@@ -177,19 +158,22 @@ function meridiem(parts) {
   return parts.hour < 12 ? "AM" : "PM"
 }
 
+// "14:05" or "2:05 PM" at a zone offset; "" before the offset is known.
+function formatClock(nowMs, offsetMinutes, hour24) {
+  if (offsetMinutes === undefined || offsetMinutes === null) return ""
+  var parts = zoneParts(nowMs, offsetMinutes)
+  return formatTime(parts, hour24) + (hour24 ? "" : " " + meridiem(parts))
+}
+
 function formatDate(parts) {
   return WEEKDAYS[parts.weekday].slice(0, 3) + " " + MONTHS[parts.month] + " " + parts.day
 }
 
-// A rough day/night read, used only to pick the row's icon.
 function isDaytime(parts) {
   return parts.hour >= 6 && parts.hour < 18
 }
 
-// Which part of the day a city is in. This is clock-based, not astronomical:
-// without a latitude and a network round trip there is no real sunrise to
-// consult, so the panel commits to fixed civil hours and says so rather than
-// implying a precision it does not have.
+// Fixed civil hours, used until a city's real sunrise is known.
 var DAY_START = 6
 var DAY_END = 18
 var DAWN_END = 8
@@ -210,28 +194,19 @@ function phaseLabel(phase) {
   return "daytime"
 }
 
-// Where the city sits in its own 24 hours, 0..1. Drives the marker on the
-// row's daylight strip.
 function dayProgress(parts) {
   return (parts.hour * 60 + parts.minute) / 1440
 }
 
-// The lit span of the strip, as two 0..1 fractions.
 function daylightStart() { return DAY_START / 24 }
 function daylightEnd() { return DAY_END / 24 }
 
-// Whether the marker sits inside the lit band. Deliberately geometric rather
-// than derived from phaseFor(): the band is 06-18, but "dusk" runs to 20:00,
-// so a phase test would colour the dot as daylight while it sat visibly out
-// in the dark end of the strip.
+// Geometric, not phaseFor(): "dusk" runs past the end of the lit band.
 function inDaylight(progress) {
   return progress >= daylightStart() && progress < daylightEnd()
 }
 
-// Offset relative to the viewer's own clock, e.g. "+9h" or "-3.5h". A zone on
-// the viewer's own offset gets no label at all: "same time" is the one case
-// where the reader already knows the answer, and printing it only widens the
-// line and pushes the zone abbreviation away from the edge.
+// "+9h" or "-3.5h" from the viewer's clock; "" on the viewer's own offset.
 function relativeOffsetLabel(zoneOffsetMinutes, localOffsetMinutes) {
   var diff = Number(zoneOffsetMinutes) - Number(localOffsetMinutes)
   if (diff === 0) return ""
@@ -240,7 +215,7 @@ function relativeOffsetLabel(zoneOffsetMinutes, localOffsetMinutes) {
   return (diff > 0 ? "+" : "") + text + "h"
 }
 
-// Everything a row needs, or null when the zone has not been probed yet.
+// Everything a row needs; `ready` is false until the zone has been probed.
 function rowFor(zone, probe, nowMs, localOffsetMinutes, hour24) {
   var info = probe ? probe[zone.id] : null
   if (!info) return { label: zone.label, id: zone.id, ready: false }
@@ -254,8 +229,6 @@ function rowFor(zone, probe, nowMs, localOffsetMinutes, hour24) {
     abbr: info.abbr,
     offsetMinutes: info.offsetMinutes,
     time: formatTime(parts, hour24),
-    // The local hour on its own, for anything that has to say something about
-    // the time of day rather than print it - the greeting, so far.
     hour: parts.hour,
     meridiem: hour24 ? "" : meridiem(parts),
     date: formatDate(parts),
@@ -276,22 +249,9 @@ function rows(zones, probe, nowMs, localOffsetMinutes, hour24) {
   return out
 }
 
-// ---------------------------------------------------------------- editing
-//
-// Cities are added and removed from the panel, so the zone list has to make
-// the round trip back into the `zones` setting that parseZones() reads.
+// ---- editing
 
-// Which row of the list, if any, is the city the globe just selected.
-//
-// The two views index different things: a row is an index into `zones`, while
-// the globe's `selected` indexes its own catalogue of every city it draws.
-// The pair that survives the crossing is (label, zone id) - the globe's
-// tracked entries are built from exactly those two fields, so matching on
-// them needs no shared index space.
-//
-// Returns -1 for a city the globe can draw but the list does not track, which
-// is the common case: the globe knows every zone's main city and the list
-// knows only the handful you chose.
+// Rows and globe cities share no index space, so they meet on (label, zone id).
 function indexOfZone(zones, label, id) {
   var list = zones || []
   for (var i = 0; i < list.length; i++)
@@ -299,14 +259,7 @@ function indexOfZone(zones, label, id) {
   return -1
 }
 
-// The same crossing as indexOfZone, from the key a caller has been holding on
-// to rather than from a label and an id. Used for the list's focus, which has
-// to survive `zones` being replaced under it by a reorder or a removal: an
-// index into a binding is not an identity, and this project has now been bitten
-// by that twice - once on the globe's selection, once here.
-//
-// An unknown key is -1, which is the same answer as "nothing is focused", and
-// is what a removed city should give.
+// Focus is held as a key so it follows the city when `zones` is replaced.
 function indexOfZoneKey(zones, key) {
   var list = zones || []
   if (!key) return -1
@@ -319,7 +272,6 @@ function labelForZoneId(id) {
   return String(id || "").split("/").pop().replace(/_/g, " ")
 }
 
-// [{label, id}] -> "Los Angeles|America/Los_Angeles, Paris|Europe/Paris"
 function serializeZones(zones) {
   var parts = []
   for (var i = 0; i < zones.length; i++) {
@@ -330,18 +282,14 @@ function serializeZones(zones) {
   return parts.join(", ")
 }
 
-// Two cities may share a zone, so a listed entry is identified by its label
-// and its zone together.
+// Two cities may share a zone, so an entry is its label and zone together.
 function hasEntry(zones, id, label) {
   for (var i = 0; i < zones.length; i++)
     if (zones[i].id === id && zones[i].label === label) return true
   return false
 }
 
-// Appends unless the zone is already listed; returns the same array when
-// there is nothing to do so callers can skip a needless write. The picker
-// only ever offers catalogue zones, but the IPC `add` takes whatever it is
-// given, so the id and label are held to what parseZones will read back.
+// Returns the same array when nothing changes, so callers can skip the write.
 function addZone(zones, id, label) {
   var zoneId = String(id || "").trim()
   if (zoneId === "" || !ZONE_ID.test(zoneId)) return zones
@@ -353,8 +301,7 @@ function addZone(zones, id, label) {
   return out
 }
 
-// Removal is by position: with two rows on the same zone, an id is no longer
-// enough to say which one the user clicked.
+// By position: with two rows on one zone, an id cannot say which was clicked.
 function removeZoneAt(zones, index) {
   if (zones.length <= 1 || index < 0 || index >= zones.length) return zones
   var out = zones.slice()
@@ -362,9 +309,6 @@ function removeZoneAt(zones, index) {
   return out
 }
 
-// Move a city to a new position. Used by drag-to-reorder, which commits once
-// on release rather than shuffling the list as the pointer moves - changing
-// the model mid-drag would rebuild the delegates and drop the gesture.
 function moveZone(zones, from, to) {
   var n = zones.length
   if (from === to || from < 0 || from >= n || to < 0 || to >= n) return zones
@@ -373,8 +317,7 @@ function moveZone(zones, from, to) {
   return out
 }
 
-// The last city is never removed — an empty panel has nothing to show and no
-// obvious way back.
+// The last city is never removed.
 function removeZone(zones, id) {
   if (zones.length <= 1) return zones
   var out = []
@@ -382,9 +325,7 @@ function removeZone(zones, id) {
   return out.length === zones.length ? zones : out
 }
 
-// `timedatectl list-timezones` output -> dropdown options. The city is the
-// label and the full IANA name the description, so a search for either
-// "tokyo" or "asia" finds it.
+// `timedatectl list-timezones` plus CITY_ALIASES -> picker options, minus `existing`.
 function zoneOptions(text, existing) {
   var lines = String(text || "").split("\n")
   var seen = {}
@@ -410,10 +351,7 @@ function zoneOptions(text, existing) {
   return out
 }
 
-// Filter the zone catalog for the inline picker. Matches the city name and
-// the full IANA id, so "tokyo", "asia", and "asia/tok" all land on Tokyo.
-// Prefix matches on the city sort first — typing "par" should reach Paris
-// before Valparaiso.
+// Matches city name or IANA id; city-name prefixes sort first.
 function searchZones(options, query, limit) {
   var q = String(query || "").trim().toLowerCase()
   var max = limit === undefined ? 6 : limit
@@ -431,14 +369,33 @@ function searchZones(options, query, limit) {
   return starts.concat(contains).slice(0, max)
 }
 
-// ---------------------------------------------------------------- aliases
-//
-// The tz database ships one representative city per zone, so most places a
-// person actually thinks of are missing from `timedatectl list-timezones` —
-// there is no Miami, only America/New_York. These are extra search entries
-// pointing at the zone that already governs them. Adding a city here is a
-// one-line change; the only rule is that the zone must be the one that place
-// actually observes, DST rules included.
+// Keyboard selection in a result list, wrapping at both ends.
+function moveSelection(index, delta, count) {
+  if (count === 0) return 0
+  return ((index + delta) % count + count) % count
+}
+
+// Globe cities as [name, zone, lat, lon, rank]: home first, then the rest,
+// first name wins. Tracked and session cities need coordinates.
+function mergeCities(home, builtIn, tracked, session) {
+  var out = []
+  var seen = {}
+  function add(city, needsCoords) {
+    if (needsCoords && (city[2] === null || city[2] === undefined)) return
+    var key = String(city[0]).toLowerCase()
+    if (seen[key]) return
+    seen[key] = true
+    out.push(city)
+  }
+  if (home && home.length > 0 && home[2] !== undefined) add(home, false)
+  var i
+  for (i = 0; i < (builtIn || []).length; i++) add(builtIn[i], false)
+  for (i = 0; i < (tracked || []).length; i++) add(tracked[i], true)
+  for (i = 0; i < (session || []).length; i++) add(session[i], true)
+  return out
+}
+
+// Places people think of that the tz database files under another city's zone.
 var CITY_ALIASES = [
   // US Eastern
   { label: "Miami", id: "America/New_York" },
@@ -546,24 +503,14 @@ var CITY_ALIASES = [
   { label: "Alexandria", id: "Africa/Cairo" }
 ]
 
-// ------------------------------------------------- temperature and currency
-//
-// worldclock-data.py returns a map keyed by "label|zone" holding a Celsius
-// temperature (`c`), an ISO 4217 code (`ccy`), and what one unit of that
-// currency is worth in US dollars (`usd`). US cities carry no `ccy` at all —
-// quoting dollars in dollars says nothing.
+// ---- weather
 
+// worldclock-data.py answers keyed by "label|zone".
 function factsKey(zone) {
   return String(zone.label) + "|" + String(zone.id)
 }
 
-// Which unit to print in. An explicit setting wins; anything else - unset,
-// empty, or a value nobody recognises - falls through to what the system
-// measures in, so a fresh install reads in the units of the place it is
-// running rather than in the author's.
-//
-// Kept here rather than inline in the panel because it is the part with rules:
-// the panel's job is only to ask Qt what the measurement system is.
+// An explicit "C" or "F" wins; anything else follows the system.
 function resolveUnits(setting, auto) {
   var explicit = String(setting === undefined || setting === null ? "" : setting)
     .trim().toUpperCase()
@@ -571,25 +518,14 @@ function resolveUnits(setting, auto) {
   return String(auto).toUpperCase() === "F" ? "F" : "C"
 }
 
-// Twelve or twenty-four, read off the system's own short time format. Qt's
-// pattern is something like "h:mm AP" or "HH:mm"; the AM/PM designator is the
-// only 'a' or 'A' the grammar has, once quoted literal text is stripped - some
-// locales write their hour separator as "H'h'mm".
-//
-// The designator rather than the case of the hour letter: 'h' means 1-12 and
-// 'H' means 0-23, which is the same answer, but a locale is free to spell a
-// 24-hour clock with either while a designator only ever belongs to a
-// 12-hour one.
+// Only a 12-hour pattern has an AM/PM designator once quoted literals are stripped.
 function usesTwentyFourHour(timeFormat) {
   var pattern = String(timeFormat === undefined || timeFormat === null ? "" : timeFormat)
     .replace(/'[^']*'/g, "")
   return !/[Aa]/.test(pattern)
 }
 
-// As with the units: an explicit setting wins, anything else follows the
-// system. A stored `false` is an explicit twelve-hour clock and must not fall
-// through to the automatic answer, so the boolean is checked before the
-// emptiness.
+// An explicit setting wins, and a stored `false` is explicit.
 function resolveHour24(setting, auto) {
   if (setting === true || setting === false) return setting
   var text = String(setting === undefined || setting === null ? "" : setting)
@@ -605,38 +541,32 @@ function formatTemp(celsius, units) {
   return Math.round(celsius * 9 / 5 + 32) + "°F"
 }
 
-// Currencies span four orders of magnitude against the dollar, so a fixed
-// number of decimals either wastes room on the euro or rounds the yen to
-// nothing. Show two decimals where that carries real information and four
-// where it does not.
-function formatMoney(usd) {
-  if (usd === undefined || usd === null || !isFinite(usd) || usd <= 0) return ""
-  if (usd >= 0.01) return "$" + usd.toFixed(2)
-  return "$" + usd.toFixed(4)
-}
-
-function currencyLabel(facts) {
-  if (!facts || !facts.ccy) return ""
-  var money = formatMoney(facts.usd)
-  return money === "" ? facts.ccy : facts.ccy + " " + money
-}
-
 function tempLabel(facts, units) {
   return facts ? formatTemp(facts.c, units) : ""
 }
 
-// ------------------------------------------------------------- scrubbing
-//
-// The scrubber answers "if I move the clock, what happens to everyone". It
-// lives or dies on getting circular time right, so it is computed in
-// minutes-of-day with explicit wrap handling rather than by juggling Date
-// objects.
+// WMO present-weather codes collapsed to the five glyphs a row can show.
+function weatherKind(code) {
+  // Number(null) is 0, which means "clear".
+  if (code === null || code === undefined || code === "") return ""
+  var c = Number(code)
+  if (!isFinite(c)) return ""
+  if (c <= 1) return "sunny"
+  if (c === 2) return "partly"
+  if (c === 3 || c === 45 || c === 48) return "cloudy"
+  if (c >= 71 && c <= 77) return "snow"
+  if (c === 85 || c === 86) return "snow"
+  if (c >= 51 && c <= 67) return "rain"
+  if (c >= 80 && c <= 82) return "rain"
+  if (c >= 95 && c <= 99) return "rain"
+  return ""
+}
+
+// ---- scrubbing
 
 var DAY_MINUTES = 1440
 
-// How far to move the clock when the pointer lands at `fraction` across a
-// city's strip. Picks the nearest occurrence of that local time - dragging
-// slightly left of now should mean an hour ago, never twenty-three hours on.
+// The nearest occurrence of the local time under the pointer, in (-720, 720].
 function scrubDeltaMinutes(fraction, cityLocalMinutes) {
   var target = Math.max(0, Math.min(1, fraction)) * DAY_MINUTES
   var delta = target - cityLocalMinutes
@@ -645,14 +575,7 @@ function scrubDeltaMinutes(fraction, cityLocalMinutes) {
   return delta
 }
 
-// Round to a whole minute *before* splitting it, and wrap after.
-//
-// Flooring the hour and rounding the minute independently has no carry between
-// them, so a value 12 seconds short of the hour printed "6:60 AM" - an hour
-// that reads as the one before and a minute that does not exist. The inputs
-// were whole minutes when this was written and are not any more: sunrise and
-// sunset land wherever they land, and 23:59:42 has to roll the day as well as
-// the hour, which is why the wrap comes after the rounding rather than before.
+// Round before splitting into hour and minute, and wrap after, so 419.8 is "7:00".
 function formatMinuteOfDay(minute, hour24) {
   var m = Math.round(Number(minute))
   m = ((m % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES
@@ -661,64 +584,7 @@ function formatMinuteOfDay(minute, hour24) {
     + (hour24 ? "" : (hour < 12 ? " AM" : " PM"))
 }
 
-// ----------------------------------------------- the strip's sunrise arrows
-//
-// Where an arrow's hit box sits along the bar, and whether the now-marker is
-// standing on it. One implementation used twice: to place the arrow, and to
-// hide it while the marker is over it.
-//
-// Here rather than inline in the delegate so the placement is testable: the
-// glyph has to land outside the band it points at, and that is a claim about
-// arithmetic, not about how it looks.
-
-function arrowBox(fraction, barWidth, boxWidth, tuck, rising) {
-  var at = barWidth * fraction
-  var pos = rising ? at - boxWidth + tuck : at - tuck
-  return Math.round(Math.max(0, Math.min(barWidth - boxWidth, pos)))
-}
-
-// The marker covers the arrow when their centres are within a marker's radius
-// of each other, plus a little air.
-function arrowCovered(boxX, boxWidth, markerCentre, markerWidth, slack) {
-  return Math.abs(markerCentre - (boxX + boxWidth / 2)) < markerWidth / 2 + slack
-}
-
-// ------------------------------------------------- the row's popup chips
-//
-// A row can show one chip at a time - sunrise or sunset - held as the slot that
-// is showing, or NO_CHIP for none. Two rules, because two different things can
-// decide it during a single click.
-//
-// The arrows sit over the strip's scrub area and over the row's reorder grab.
-// A press on an arrow does not reach either of them - measured with synthetic
-// mouse events in tests/qml/tst_arrows.qml, after a long stretch of assuming it
-// must - but a press on the row body does reach the grab, which dismisses, so
-// the two decisions can still meet on one click.
-//
-// Neither rule reads the live value, then. Both are answered from what was
-// showing when the press began, which is the same number whichever of them runs
-// first; the delivery order is Qt's business and not worth depending on.
-// tests/selection_check.js plays both orders through every case.
-//
-// Written for any number of slots, though only two are drawn. The moon's phase
-// was a third for a day - see the note on the scrub area in Panel.qml.
-var NO_CHIP = -1
-
-// A tap on the arrow in `slot`: it closes that chip if it was the
-// one already open, and opens it otherwise.
-function chipAfterTap(shownAtPress, slot) {
-  return shownAtPress === slot ? NO_CHIP : slot
-}
-
-// A release on the row body or the bar. It clears the chip, unless something
-// else has already changed it during this same press - in which case that
-// decision stands and this one keeps out of the way.
-function chipAfterRelease(shownNow, shownAtPress) {
-  return shownNow === shownAtPress ? NO_CHIP : shownNow
-}
-
-// "+3h", "-45m", "" for now. Shown while scrubbing so the offset from the
-// real present is never ambiguous.
+// "+3h", "-45m", "" for now.
 function formatScrubDelta(minutes) {
   var m = Math.round(minutes)
   if (m === 0) return ""
@@ -729,42 +595,88 @@ function formatScrubDelta(minutes) {
   return sign + h + "h" + (rem ? " " + rem + "m" : "")
 }
 
-// --------------------------------------------------------------- weather
-//
-// Open-Meteo reports WMO present-weather codes: nearly a hundred of them,
-// separating drizzle from freezing drizzle from rain showers. A row has space
-// for one glyph, so they collapse to the five states worth telling apart at a
-// glance. Fog joins cloud rather than getting its own icon - at this size the
-// distinction is not worth a symbol nobody can read.
-function weatherKind(code) {
-  // Number(null) is 0, which is a valid code meaning "clear" - so a missing
-  // reading would quietly render a sun. Rejected explicitly first.
-  if (code === null || code === undefined || code === "") return ""
-  var c = Number(code)
-  if (!isFinite(c)) return ""
-  if (c <= 1) return "sunny"                      // clear, mainly clear
-  if (c === 2) return "partly"                    // partly cloudy
-  if (c === 3 || c === 45 || c === 48) return "cloudy"   // overcast, fog
-  if (c >= 71 && c <= 77) return "snow"           // snow fall, snow grains
-  if (c === 85 || c === 86) return "snow"         // snow showers
-  if (c >= 51 && c <= 67) return "rain"           // drizzle, rain, freezing
-  if (c >= 80 && c <= 82) return "rain"           // rain showers
-  if (c >= 95 && c <= 99) return "rain"           // thunderstorms
-  return ""
+// ---- the strip's sunrise arrows
+
+function arrowBox(fraction, barWidth, boxWidth, tuck, rising) {
+  var at = barWidth * fraction
+  var pos = rising ? at - boxWidth + tuck : at - tuck
+  return Math.round(Math.max(0, Math.min(barWidth - boxWidth, pos)))
 }
 
-// ------------------------------------------------------------ first run
-//
-// A fresh install should look like a world clock straight away, without
-// asking anyone to configure anything. It gets the city you are in plus four
-// more, and those four are chosen relative to *you* rather than being a fixed
-// list - a constant list would hand someone in Paris two Parises, and would
-// give a reader in Tokyo a spread that is really a spread around California.
+function arrowCovered(boxX, boxWidth, markerCenter, markerWidth, slack) {
+  return Math.abs(markerCenter - (boxX + boxWidth / 2)) < markerWidth / 2 + slack
+}
 
-var SEED_SEPARATION_MIN = 120     // keep seeds at least two hours off home
+// One chip shows at a time. Both rules read what showed at press time, so a
+// click comes out the same whichever handler Qt runs first.
+var NO_CHIP = -1
 
-// Well-known destinations, wide enough apart to cover the dial. Rank 1 is
-// used only to break ties when two cities sit equally near a target.
+function chipAfterTap(shownAtPress, slot) {
+  return shownAtPress === slot ? NO_CHIP : slot
+}
+
+// Clears the chip unless something else changed it during this press.
+function chipAfterRelease(shownNow, shownAtPress) {
+  return shownNow === shownAtPress ? NO_CHIP : shownNow
+}
+
+// ---- globe transition and row drag
+
+// Rows are knocked aside one after another as `zoom` runs 0..1, alternating sides.
+var KNOCK_STAGGER = 0.09
+var KNOCK_MAX_LEAD = 0.5
+var KNOCK_TILT = 14
+var KNOCK_SHRINK = 0.18
+
+function knockAt(index, zoom) {
+  var lead = Math.min(KNOCK_MAX_LEAD, index * KNOCK_STAGGER)
+  return Math.max(0, Math.min(1, (zoom - lead) / (1 - lead)))
+}
+
+function knockSide(index) { return index % 2 === 0 ? -1 : 1 }
+
+function knockX(index, zoom, throwX) { return knockAt(index, zoom) * knockSide(index) * throwX }
+
+// Squared, so rows accelerate as they fall.
+function knockY(index, zoom, fall) {
+  var p = knockAt(index, zoom)
+  return p * p * fall
+}
+
+function knockTilt(index, zoom) { return knockAt(index, zoom) * knockSide(index) * KNOCK_TILT }
+function knockShrink(index, zoom) { return 1 - KNOCK_SHRINK * knockAt(index, zoom) }
+
+// Rows the pointer must travel past the held slot before the target moves.
+var DRAG_HYSTERESIS = 0.6
+
+function dragTargetFor(dragIndex, dragOffset, rowPitch, heldTarget, count) {
+  if (dragIndex < 0 || rowPitch <= 0) return -1
+  var raw = dragOffset / rowPitch
+  var held = heldTarget < 0 ? 0 : heldTarget - dragIndex
+  var next = Math.abs(raw - held) >= DRAG_HYSTERESIS ? Math.round(raw) : held
+  return Math.max(0, Math.min(count - 1, dragIndex + next))
+}
+
+// The dragged row follows the pointer; rows it has passed step aside by one pitch.
+function rowShift(index, dragIndex, dragTarget, dragOffset, rowPitch) {
+  if (dragIndex < 0) return 0
+  if (index === dragIndex) return dragOffset
+  if (dragIndex < dragTarget && index > dragIndex && index <= dragTarget) return -rowPitch
+  if (dragIndex > dragTarget && index >= dragTarget && index < dragIndex) return rowPitch
+  return 0
+}
+
+// Opaque blend of two colors: a Qt color inside QML, {r, g, b, a} under node.
+function mix(from, to, t) {
+  var r = from.r + (to.r - from.r) * t
+  var g = from.g + (to.g - from.g) * t
+  var b = from.b + (to.b - from.b) * t
+  return typeof Qt !== "undefined" ? Qt.rgba(r, g, b, 1) : { r: r, g: g, b: b, a: 1 }
+}
+
+// ---- first run
+
+// Home plus four well-known cities spread round the clock from it. Rank breaks ties.
 var SEED_CANDIDATES = [
   { label: "Honolulu", id: "Pacific/Honolulu", rank: 3 },
   { label: "Anchorage", id: "America/Anchorage", rank: 3 },
@@ -808,8 +720,7 @@ function seedCandidateZones() {
   return out
 }
 
-// Hours east of home, wrapped to a single turn of the clock: a city 20 hours
-// ahead and one 4 hours behind are the same place on a dial.
+// Minutes east of home, wrapped to one turn of the dial.
 function eastOf(offsetMinutes, homeMinutes) {
   var d = (offsetMinutes - homeMinutes) % DAY_MINUTES
   return d < 0 ? d + DAY_MINUTES : d
@@ -820,52 +731,38 @@ function dialDistance(a, b) {
   return Math.min(d, DAY_MINUTES - d)
 }
 
-// Recognisable cities first, kept far enough apart to be worth having.
-//
-// The alternative - spacing four cities evenly round the dial and taking
-// whoever is nearest each mark - gives a tidier spread but a stranger list:
-// from Los Angeles it produces Sao Paulo, Cairo, Bangkok and Auckland, which
-// is even but reads like a lottery. Going by fame and enforcing a gap gives
-// New York, London, Dubai and Tokyo, which is both recognisable and spread,
-// because the gap does the spreading.
+// Best-ranked candidates first, each at least `gap` minutes from home and from every pick.
 function pickSeedAt(home, offsets, count, gap) {
   var homeOff = offsets[home.id]
   var homeLabel = String(home.label || "").toLowerCase()
   var picked = []
-  for (var i = 0; i < SEED_CANDIDATES.length && picked.length < count; i++) {
-    // Left un-sorted and swept once per rank, so ties fall out in the order
-    // the table is written - which is west to east, and stable.
-    for (var r = 1; r <= 3; r++) {
-      for (var j = 0; j < SEED_CANDIDATES.length && picked.length < count; j++) {
-        var c = SEED_CANDIDATES[j]
-        if (c.rank !== r) continue
-        var off = offsets[c.id]
-        if (off === undefined || off === null) continue
-        if (c.id === home.id) continue
-        if (String(c.label).toLowerCase() === homeLabel) continue
-        var east = eastOf(off, homeOff)
-        if (Math.min(east, DAY_MINUTES - east) < gap) continue
-        var clash = false
-        for (var k = 0; k < picked.length; k++)
-          if (dialDistance(picked[k].east, east) < gap) { clash = true; break }
-        if (clash) continue
-        picked.push({ label: c.label, id: c.id, east: east })
-      }
+  for (var r = 1; r <= 3; r++) {
+    for (var j = 0; j < SEED_CANDIDATES.length && picked.length < count; j++) {
+      var c = SEED_CANDIDATES[j]
+      if (c.rank !== r) continue
+      var off = offsets[c.id]
+      if (off === undefined || off === null) continue
+      if (c.id === home.id) continue
+      if (String(c.label).toLowerCase() === homeLabel) continue
+      var east = eastOf(off, homeOff)
+      if (Math.min(east, DAY_MINUTES - east) < gap) continue
+      var clash = false
+      for (var k = 0; k < picked.length; k++)
+        if (dialDistance(picked[k].east, east) < gap) { clash = true; break }
+      if (clash) continue
+      picked.push({ label: c.label, id: c.id, east: east })
     }
-    break
   }
   return picked
 }
 
-// `offsets` maps zone id to minutes east of UTC, and must include home's own.
+// `offsets` maps zone id to minutes east of UTC and must include home's.
 function pickSeedZones(home, offsets, count) {
   var n = count === undefined ? 4 : count
   if (!home || !home.id || !offsets) return []
   if (offsets[home.id] === undefined || offsets[home.id] === null) return []
 
-  // Three hours apart is the goal. Somewhere like Sydney has half the world
-  // sitting within a couple of hours of it, so the gap relaxes rather than
-  // handing back a short list.
+  // Relax the gap where half the world sits within a couple of hours of home.
   var picked = []
   var gaps = [180, 120, 60]
   for (var g = 0; g < gaps.length; g++) {
@@ -873,8 +770,6 @@ function pickSeedZones(home, offsets, count) {
     if (picked.length >= n) break
   }
 
-  // Sorted eastward from home, so the starting list reads as a journey round
-  // the world rather than in the order the picker happened to find them.
   picked.sort(function (a, b) { return a.east - b.east })
 
   var out = []
@@ -883,11 +778,70 @@ function pickSeedZones(home, offsets, count) {
   return out
 }
 
-// The whole starting list: the city you are in, then the spread.
 function seedZones(home, offsets, count) {
   if (!home || !home.id) return []
   var out = [{ label: home.label, id: home.id }]
   var rest = pickSeedZones(home, offsets, count)
   for (var i = 0; i < rest.length; i++) out.push(rest[i])
   return out
+}
+
+if (typeof module !== "undefined") {
+  module.exports = {
+    DEFAULT_ZONES: DEFAULT_ZONES,
+    NO_CHIP: NO_CHIP,
+    SEED_CANDIDATES: SEED_CANDIDATES,
+    parseZones: parseZones,
+    probeCommand: probeCommand,
+    parseOffset: parseOffset,
+    parseProbe: parseProbe,
+    localZoneFromProbe: localZoneFromProbe,
+    utcOffsetLabel: utcOffsetLabel,
+    relativeOffsetLabel: relativeOffsetLabel,
+    zoneParts: zoneParts,
+    localParts: localParts,
+    formatTime: formatTime,
+    meridiem: meridiem,
+    formatClock: formatClock,
+    daylightStart: daylightStart,
+    daylightEnd: daylightEnd,
+    rows: rows,
+    indexOfZone: indexOfZone,
+    indexOfZoneKey: indexOfZoneKey,
+    labelForZoneId: labelForZoneId,
+    serializeZones: serializeZones,
+    addZone: addZone,
+    removeZoneAt: removeZoneAt,
+    moveZone: moveZone,
+    removeZone: removeZone,
+    zoneOptions: zoneOptions,
+    searchZones: searchZones,
+    moveSelection: moveSelection,
+    mergeCities: mergeCities,
+    factsKey: factsKey,
+    resolveUnits: resolveUnits,
+    usesTwentyFourHour: usesTwentyFourHour,
+    resolveHour24: resolveHour24,
+    formatTemp: formatTemp,
+    tempLabel: tempLabel,
+    weatherKind: weatherKind,
+    scrubDeltaMinutes: scrubDeltaMinutes,
+    formatMinuteOfDay: formatMinuteOfDay,
+    formatScrubDelta: formatScrubDelta,
+    arrowBox: arrowBox,
+    arrowCovered: arrowCovered,
+    chipAfterTap: chipAfterTap,
+    chipAfterRelease: chipAfterRelease,
+    knockAt: knockAt,
+    knockX: knockX,
+    knockY: knockY,
+    knockTilt: knockTilt,
+    knockShrink: knockShrink,
+    dragTargetFor: dragTargetFor,
+    rowShift: rowShift,
+    mix: mix,
+    seedCandidateZones: seedCandidateZones,
+    pickSeedZones: pickSeedZones,
+    seedZones: seedZones
+  }
 }

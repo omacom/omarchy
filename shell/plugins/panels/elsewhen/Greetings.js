@@ -1,52 +1,7 @@
-.pragma library
-
-// What people actually say to each other at this hour, where this clock is
-// pointing.
-//
-// The point of the panel is that 8pm is a different social object in Tokyo
-// than it is at home, and a number cannot say that. "18:40" is the same
-// symbol everywhere; "konbanwa" is the evening itself.
-//
-// Baked, never fetched. Greetings do not change and a network round trip for
-// a hover would be absurd - and the panel's rule is that nothing here needs
-// the network to draw.
-//
-// GENERATED IN PART. The language tables and the country map below are hand
-// written; the zone-to-country map is derived from the system's own
-// `zone.tab`, with the aliases (`Asia/Calcutta`, `US/Pacific`, and 178 more)
-// resolved by matching their compiled zoneinfo against a canonical zone's.
-// The picker offers every zone `timedatectl list-timezones` returns, which is
-// where the first version of this file went wrong: it covered the 74 cities in
-// `cities.json` and quietly greeted the other 500-odd zones in English. Tel
-// Aviv said "Good morning".
-//
-// Three levels, because a flat zone-to-language map of 600 entries explains
-// nothing: a zone belongs to a country, a country is greeted in a language,
-// and a handful of cities override the country because being right about the
-// country would be wrong about the city.
-//
-// Two things this deliberately does not do:
-//
-// - It does not pick a language from a country's official list. It picks the
-//   one you would actually hear said out loud there, which is why Brussels is
-//   French, Dublin is Irish, Hong Kong is Cantonese, Singapore is Malay and
-//   Paraguay is Guarani. Where a colonial language really is the everyday one,
-//   it says so rather than reaching for something more picturesque.
-// - It does not invent an hourly split where the language has none. Burmese
-//   greets you with mingalaba at any hour, Tongan with malo e lelei; those
-//   tables are one band long on purpose, and a short table is information
-//   about the language rather than a gap in the data.
-//
-// Bands run in local hours, ascending, and the first always starts at 0. The
-// boundaries are where the language moves, not where a clock does: Spanish in
-// Madrid holds "buenas tardes" until 21:00 while Spanish in Lima gives it up
-// at 19:00, and that difference is the most interesting thing in this file.
-//
-// `roman` is a pronunciation, given only where the script is not Latin. It is
-// not a translation and it is not a fallback for a missing font - it is there
-// so the greeting can be said aloud, which is the only thing a greeting is
-// for.
-
+// What people say to each other at this hour where a clock points: zone ->
+// country -> the language you would hear spoken there, with a few city
+// overrides. Bands are local hours ascending from 0; `roman` is a
+// pronunciation, given only where the script is not Latin.
 
 var LANGUAGES = {
   en: { name: "English", bands: [
@@ -661,8 +616,6 @@ var LANGUAGES = {
   ] }
 }
 
-// The language a country is greeted in. Judgement calls, every one of them;
-// see the note at the top about which way they lean.
 var COUNTRIES = {
   "AD": "ca", "AE": "ar", "AF": "prs", "AG": "en", "AI": "en", "AL": "sq",
   "AM": "hy", "AO": "pt", "AQ": "en", "AR": "es", "AS": "sm", "AT": "deAT",
@@ -708,34 +661,15 @@ var COUNTRIES = {
   "ZW": "sn"
 }
 
-// Cities whose own language is not their country's. Kept short on purpose.
+// Cities whose own language is not their country's.
 var OVERRIDES = {
   "America/Montreal": "fr",
   "Asia/Kolkata": "hi",
   "Pacific/Honolulu": "haw"
 }
 
-// Aliases the generator put in the wrong country.
-//
-// ZONE_COUNTRY below was built by matching each zone's *compiled* zoneinfo file
-// against the ones in zone.tab. That works for real zones and fails for the
-// legacy aliases, because an alias shares its rules with whatever zone the tz
-// database linked it to - which is chosen for having identical rules, not for
-// being anywhere near it. `Iceland` keeps the same time as Abidjan all year, so
-// it matched Burkina Faso and greeted people in French. `NZ` matched Antarctica,
-// `Asia/Rangoon` the Cocos Islands, `Africa/Asmera` Djibouti.
-//
-// Following the tz link table instead does not fix it: that hands back the
-// country of the *canonical* zone, which for `Iceland` is Côte d'Ivoire and for
-// `Pacific/Truk` is Papua New Guinea. There is no rule here, only places. These
-// fifteen are named by hand, each one the country the place is actually in.
-//
-// Two that look wrong and are not: `Antarctica/South_Pole` really is AQ, and
-// `Pacific/Ponape` really is FM, though the link table says NZ and SB. And
-// `Europe/Simferopol` stays UA, which is a choice rather than a lookup - the
-// tz database has moved it to RU, and this greets Crimea in Ukrainian.
-//
-// tests/greetings_check.js pins every one of these.
+// Legacy aliases that matching compiled zoneinfo put in the wrong country.
+// Europe/Simferopol stays UA in ZONE_COUNTRY by choice.
 var ALIAS_COUNTRY = {
   "Africa/Asmera": "ER",          // Asmara, Eritrea
   "Africa/Timbuktu": "ML",        // Timbuktu, Mali
@@ -755,10 +689,7 @@ var ALIAS_COUNTRY = {
   "US/Arizona": "US"
 }
 
-// Every zone the picker can offer, from the system's own zone.tab, aliases
-// included. Baked rather than read at runtime: the panel draws without
-// touching the disk, and a zone list that changed under a running shell
-// would be a stranger bug than a stale one.
+// Every zone the picker can offer, baked from the system's zone.tab.
 var ZONE_COUNTRY = {
   "Africa/Abidjan": "CI", "Africa/Accra": "GH", "Africa/Addis_Ababa": "ET",
   "Africa/Algiers": "DZ", "Africa/Asmara": "ER", "Africa/Asmera": "DJ",
@@ -985,28 +916,21 @@ var ZONE_COUNTRY = {
 
 var FALLBACK = "en"
 
-// The language key a zone is greeted in: the city's own if it has one, its
-// country's otherwise. Zones with no country at all - Etc/GMT+5, UTC and the
-// rest - are not places and have nobody to greet you; they get the fallback.
+// Offset-only zones such as Etc/GMT+5 have no country and get the fallback.
 function languageFor(zoneId) {
   var id = String(zoneId)
   if (OVERRIDES[id] && LANGUAGES[OVERRIDES[id]]) return OVERRIDES[id]
-  // Through countryFor, not the raw table: the alias corrections above are what
-  // make Iceland Icelandic, and reading ZONE_COUNTRY directly walked straight
-  // past them.
+  // countryFor, not ZONE_COUNTRY, so the alias corrections apply.
   var key = COUNTRIES[countryFor(id)]
   return (key && LANGUAGES[key]) ? key : FALLBACK
 }
 
-// The greeting for a zone at a local hour: { text, roman, language, key }.
-// `roman` is "" where the script is already Latin, and callers show it only
-// when it is there rather than testing the language.
+// { text, roman, language, key } for a zone at a local hour.
 function greeting(zoneId, hour) {
   var key = languageFor(zoneId)
   var bands = LANGUAGES[key].bands
   var h = Math.max(0, Math.min(23, Math.floor(Number(hour))))
   if (!isFinite(h)) h = 0
-  // Bands ascend from 0, so the last one that has started is the one in force.
   var band = bands[0]
   for (var i = 1; i < bands.length; i++) {
     if (bands[i].from > h) break
@@ -1015,7 +939,6 @@ function greeting(zoneId, hour) {
   return { text: band.text, roman: band.roman, language: LANGUAGES[key].name, key: key }
 }
 
-// For the tests, which check every table rather than a sample of them.
 function languageKeys() {
   var out = []
   for (var key in LANGUAGES) out.push(key)
@@ -1028,9 +951,7 @@ function zoneIds() {
   return out
 }
 
-// The country a zone belongs to, "" for the offset-only zones that are not
-// places at all. Exposed so the tests can tell a deliberate English from an
-// accidental one: English is only ever right when a country asked for it.
+// "" for the offset-only zones.
 function countryFor(zoneId) {
   var id = String(zoneId)
   return ALIAS_COUNTRY[id] || ZONE_COUNTRY[id] || ""
@@ -1043,3 +964,15 @@ function countryCodes() {
 }
 
 function bandsOf(key) { return LANGUAGES[key].bands }
+
+if (typeof module !== "undefined") {
+  module.exports = {
+    greeting: greeting,
+    languageFor: languageFor,
+    countryFor: countryFor,
+    languageKeys: languageKeys,
+    zoneIds: zoneIds,
+    countryCodes: countryCodes,
+    bandsOf: bandsOf
+  }
+}

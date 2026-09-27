@@ -25,4 +25,6 @@ if [[ -L $user_plugin && $(readlink "$user_plugin") == /usr/share/omarchy/* ]]; 
   rm "$user_plugin"
 fi
 
+rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/omacom-elsewhen"
+
 omarchy-pkg-drop elsewhen

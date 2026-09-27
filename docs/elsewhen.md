@@ -2,7 +2,7 @@
 
 A world clock for the Omarchy shell: a globe in the bar that opens a panel of clocks, one row per city, with a spinnable globe behind it. It lives in `shell/plugins/panels/elsewhen/` under the plugin id `omarchy.elsewhen`, and file names below are relative to that directory. Its checks live in `test/shell.d/elsewhen/` and run as part of `./test/shell` through `test/shell.d/elsewhen-test.sh`.
 
-Everything it needs is already on an Omarchy install: `date` and `timedatectl` for zone offsets, and `python3` (standard library only) for the temperature and currency script. That script is the only thing that touches the network, and it fetches from [Open-Meteo](https://open-meteo.com) (geocoding, weather) and [open.er-api.com](https://www.exchangerate-api.com/docs/free) (exchange rates) without an API key; results are cached under `~/.cache/omacom-elsewhen/`. The globe's coastlines are [Natural Earth](https://www.naturalearthdata.com) 110m (public domain), shipped as `world.json`. Settings live inline on the widget's `shell.json` entry; see [Settings](#settings).
+Everything it needs is already on an Omarchy install: `date` and `timedatectl` for zone offsets, and `python3` (standard library only) for the weather script. That script is the only thing that touches the network, and it fetches from [Open-Meteo](https://open-meteo.com) (geocoding, weather) without an API key; results are cached in `${XDG_CACHE_HOME:-~/.cache}/omarchy/elsewhen.json`. The globe's coastlines are [Natural Earth](https://www.naturalearthdata.com) 110m (public domain), shipped as `world.json`. Settings live inline on the widget's `shell.json` entry; see [Settings](#settings).
 
 ## Why it shells out to `date`
 
@@ -12,15 +12,15 @@ Qt's QML engine has no `Intl`, so JavaScript cannot be asked for the time in an 
 
 Grab the body of a row and drag it up or down. The row lifts and follows the pointer while the ones it passes step aside by exactly one row; the new order is written to `shell.json` on release.
 
-Three things make it feel solid, each of which was wrong first time:
+Three things make it feel solid:
 
 **The pointer is measured in the Column, not in the row.** The grab area sits inside the row, and the row is translated as it is dragged - so reading `mouse.y` directly is a feedback loop: the local frame slides out from under a stationary pointer, the offset chases itself, and the row stutters. `mapToItem` into the (never-moving) Column gives a stable reading.
 
-**The target slot has hysteresis.** Recomputing it freely means a pointer resting near a boundary flips between two slots on sub-pixel movement. The target now only changes once the pointer is 0.6 of a row past the current slot, so jitter at a midpoint holds steady.
+**The target slot has hysteresis.** Recomputing it freely means a pointer resting near a boundary flips between two slots on sub-pixel movement. The target only changes once the pointer is 0.6 of a row past the current slot, so jitter at a midpoint holds steady.
 
 **The drop is animated.** On release the row glides the remaining distance into its slot and the reorder commits when it arrives, rather than the row vanishing from under the pointer. Rows making room ease aside too - but the dragged row itself is excluded from that easing, or it lags the cursor.
 
-The list itself is **not** touched while the pointer moves - rows are displaced with a `Translate` transform, which is purely visual and leaves the Column's layout alone. Reordering the model mid-drag would replace the array the Repeater is built from, rebuild every delegate, and drop the gesture half-way through. That is exactly the bug that once made the time scrubber behave like a click.
+The list itself is **not** touched while the pointer moves - rows are displaced with a `Translate` transform, which is purely visual and leaves the Column's layout alone. Reordering the model mid-drag would replace the array the Repeater is built from, rebuild every delegate, and drop the gesture half-way through.
 
 The grab area stops above the daylight strip, so vertical reordering never competes with the strip's horizontal scrub, and it is declared before the remove button so that keeps its taps. A few pixels of slack are required before a drag arms, so a click is never a reorder.
 
@@ -28,9 +28,9 @@ The grab area stops above the daylight strip, so vertical reordering never compe
 
 A fresh install has no configuration and asks for none. The first time the panel opens it writes its own starting list: **the city you are in, plus four well-known destinations spread round the clock from it** - five rows, so it looks like a world clock immediately rather than an empty box with an "add a city" button.
 
-The four are chosen **relative to home**, which is the whole point. A fixed list would hand someone in Paris a second Paris, and would give a reader in Tokyo a spread that is really a spread around California. From Los Angeles the list comes out as New York, London, Dubai, Tokyo; from Copenhagen as Delhi, Tokyo, Los Angeles, New York.
+The four are chosen **relative to home**. A fixed list would hand someone in Paris a second Paris, and would give a reader in Tokyo a spread that is really a spread around California. From Los Angeles the list comes out as New York, London, Dubai, Tokyo; from Copenhagen as Delhi, Tokyo, Los Angeles, New York.
 
-Candidates are taken in order of how well known they are, and one is kept only if it is at least three hours from home *and* from every city already picked - so the gap does the spreading rather than a rule about spacing. The obvious alternative, spacing four cities evenly round the dial and taking whoever is nearest each mark, gives a tidier spread but a stranger list: from Los Angeles it produces Sao Paulo, Cairo, Bangkok and Auckland, which is even but reads like a lottery. If somewhere has too little of the world far enough away - the Pacific, mostly - the three-hour gap relaxes rather than returning a short list. The result is sorted eastward, so the list walks round the world.
+Candidates are taken in order of how well known they are, and one is kept only if it is at least three hours from home *and* from every city already picked - so the gap does the spreading rather than a rule about spacing. Spacing four cities evenly round the dial and taking whoever is nearest each mark gives a tidier spread but a stranger list: from Los Angeles it produces Sao Paulo, Cairo, Bangkok and Auckland, which is even but reads like a lottery. If somewhere has too little of the world far enough away - the Pacific, mostly - the three-hour gap relaxes rather than returning a short list. The result is sorted eastward, so the list walks round the world.
 
 It costs one process: the same `date` probe that reads the local zone also prices the candidate cities on that first run, and never again. The local zone is emitted twice in that probe - once as the `LOCAL` marker and once as an ordinary row - so home's own offset is available like any other city's, which the picker needs and cannot ask for in advance.
 
@@ -38,26 +38,23 @@ Everything is written to `shell.json` as a normal list, so the first thing anyon
 
 ## Adding and removing cities
 
-The search is driven from the keyboard: type, walk the results with the up and down arrows, Return adds the highlighted one, Escape closes. The selection starts on the first match, so the common case - type three letters, press Return - never needs an arrow at all, and it wraps at both ends because the list is six long and entirely on screen, with no edge worth protecting anyone from. A changed query puts the selection back on the first row: the list under it has been replaced, and Return should not add a city nobody looked at.
+`+ Add a city` opens an inline search over the system's zone list. Clicking a result adds it; hovering a row reveals a `×` in its top-right corner to remove it. The last row cannot be removed. Changes are written straight back to this widget's entry in `~/.config/omarchy/shell.json`, so they survive a restart.
 
-Hover and keyboard selection are drawn as two different marks rather than sharing one. If they shared, a mouse resting anywhere over the results while someone typed would drag the selection out from under the arrow keys.
+The search is driven from the keyboard: type, walk the results with the up and down arrows, Return adds the highlighted one, Escape closes. The selection starts on the first match, so the common case - type three letters, press Return - never needs an arrow at all, and it wraps at both ends because the list is six long and entirely on screen. A changed query puts the selection back on the first row: the list under it has been replaced, and Return should not add a city nobody looked at.
 
 Both lists name the zone and say where it is: `Asia/Kathmandu  UTC+5:45`. The name alone does not settle it - half a dozen entries share `America/Los_Angeles`, and `Asia/Kolkata` tells you nothing about India being half an hour off the hour until it says `UTC+5:30`. The offset is absolute rather than relative to you, unlike the `+9h` on a tracked row: a city you have not added yet has no relationship to you yet.
 
-Search results are not covered by the probe that feeds the rows - that one only knows the cities you track - so the offsets come from a second `date` call over whatever the list is currently showing, at most six zones, coalesced while one is in flight. The answers are merged into what is already known rather than replacing it, because replacing blanked the column on every keystroke and read as flicker.
+Search results are not covered by the probe that feeds the rows - that one only knows the cities you track - so the offsets come from a second `date` call over whatever the list is currently showing, at most six zones, coalesced while one is in flight. The answers are merged into what is already known rather than replacing it, so the column does not blank on every keystroke.
 
-The globe's own **jump box** works the same way, for the same reasons - arrows, Return, Escape, selection on the first match, wrapping over five results. Its results grow upward out of the field rather than down from it, but the first match is still at the top of them, so Down moves down the screen and down the list at once and nothing needed inverting. It was already committing the label alongside the zone, so it never had the bug below: typing "Ber" and pressing Return on the fifth result goes to Cologne rather than to Berlin.
+The globe's own **jump box** works the same way - arrows, Return, Escape, selection on the first match, wrapping over five results. Its results grow upward out of the field rather than down from it, but the first match is still at the top of them, so Down moves down the screen and down the list at once.
 
-**A zone is not a city**, and this is where that bites. Six of the picker's entries share `America/Los_Angeles`; the name is the only thing telling Oakland from Las Vegas from Los Angeles. Committing a choice used to pass the zone alone, so picking Oakland put "Los Angeles" on the list - true of clicking too, and quietly wrong for as long as the picker has existed. It took keyboard selection to make it obvious, because the highlight says out loud which row you chose. `Model.addZone` had always accepted a label; the panel was dropping it on the way in.
+**A zone is not a city.** Six of the picker's entries share `America/Los_Angeles`; the name is the only thing telling Oakland from Las Vegas from Los Angeles. Committing a choice passes the label alongside the zone, so picking Oakland puts "Oakland" on the list rather than "Los Angeles".
 
+The `×` is placed from the corner rather than centered in its target, so how tucked-in it reads does not depend on how big the target is. The target itself is anchored flush into the corner and is larger than the mark, because a corner is the easiest place on a row to hit.
 
-`+ Add a city` opens an inline search over the system's zone list. Clicking a result adds it; hovering a row reveals a `×` in its top-right corner to remove it. The last row cannot be removed.
+The search is rendered inline rather than in a dropdown popup: the shared `SearchableDropdown` only ever opens downward, and this panel hangs off a vertical bar low on the screen, so its list would run off the bottom edge.
 
-The `×` is placed from the corner rather than centred in its target, so how tucked-in it reads does not depend on how big the target is. The target itself is anchored flush into the corner and is larger than the mark, because a corner is the easiest place on a row to hit. Changes are written straight back to this widget's entry in `~/.config/omarchy/shell.json`, so they survive a restart.
-
-The search is rendered inline rather than in a dropdown popup on purpose: the shared `SearchableDropdown` only ever opens downward, and this panel hangs off a vertical bar low on the screen, so its list ran off the bottom edge.
-
-Inline, the list grows the panel instead - but only up to the card's cap, the screen's height or `space(680)`, whichever is smaller. Past that the column used to keep growing and paint straight over the border, which is what the search results made obvious and what a long enough list of cities would have done on its own. The content is now clipped to the card and scrolls, and while the search is open the panel follows the results down so the last one is not left clipped against the bottom edge.
+Inline, the list grows the panel instead - but only up to the card's cap, the screen's height or `space(680)`, whichever is smaller. Past that the content is clipped to the card and scrolls, and while the search is open the panel follows the results down so the last one is not left clipped against the bottom edge.
 
 Scrolling is the wheel only. The rows own the pointer - drag-to-reorder and the scrub strip are `MouseArea`s with `preventStealing` - so an interactive `Flickable` would be fighting them for every gesture.
 
@@ -67,27 +64,21 @@ The tz database ships one representative city per zone, so most places people ac
 
 Two cities may share a zone (Miami and Boca Raton are both `America/New_York`), so a row is identified by its label and zone together, and removal is by position.
 
-## Day and night
-
-Each row carries a strip showing that city's own 24 hours, midnight to midnight. The civil-daylight window is lit, and a marker sits at the city's current time — so reading down the column shows who is awake: markers inside the lit band are in daylight, markers out at the dark ends are not. Rows are also filled by phase, lightest at midday and darkest at night, and the marker turns gold while it is inside the lit band and stays white outside it.
-
-Whether the marker is "in daylight" is decided geometrically, from its position against the band, not from the phase name: the band ends at 18:00 but `dusk` runs to 20:00, so a phase test would paint the dot gold while it sat visibly out in the dark end of the strip. The gold is a literal colour rather than a theme role, because several themes map the palette name `yellow` to something that isn't yellow (this one uses it for a green).
-
-The lit band is fixed civil hours (06:00-18:00), not real sunrise. Without a latitude and a network call there is no true sunrise to plot, and inventing one would be worse than an honest convention.
-
 ## The daylight strip
 
-Each row carries a 24-hour bar, midnight to midnight in that city's own clock, with the daylight lit and a marker at now. Read down the column and you can see who is awake.
+Each row carries a 24-hour bar, midnight to midnight in that city's own clock, with the daylight lit and a marker at now. Read down the column and you can see who is awake: markers inside the lit band are in daylight, markers out at the dark ends are not. Rows are also filled by phase, lightest at midday and darkest at night.
 
-The lit band is the city's real day. It was a fixed 06-18 convention for a long time, which was honest while the panel had no coordinates - but the fetcher geocodes every city for the weather, so they were already there. Reykjavik's four-hour December day and Auckland's long January one are different shapes, and that difference is most of what a daylight bar is worth looking at. A city the geocoder has not placed yet keeps the old fixed band, so a row without coordinates looks like the old convention rather than like a broken new feature.
+The lit band is the city's real day, from the coordinates the weather script already geocodes. Reykjavik's four-hour December day and Auckland's long January one are different shapes, and that difference is most of what a daylight bar is worth looking at. A city the geocoder has not placed yet gets a fixed 06:00-18:00 band until its coordinates arrive.
 
-`Sun.js` computes it, built on the globe's own `subsolarPoint` rather than a second copy of the astronomy. Declination comes straight off that function and the equation of time is recovered from it - `subsolarPoint` builds its meridian as `lon = -15 * (utcHours - 12) - eot`, so running that relation backwards hands the correction back with nothing new to keep in step. Local solar noon is found by iterating: the subsolar meridian sweeps west at a steady 15 degrees an hour, so the gap between where the sun is and where you want it converts straight into a time correction, and three passes put the residual under a second.
+The marker turns gold while it is inside the lit band and stays white outside it. That is decided geometrically, from the same span the band draws, not from the phase name - so the sun can never be painted sitting in the dark half of its own bar. The gold is a literal color rather than a theme role, because several themes map the palette name `yellow` to something that isn't yellow.
+
+`Sun.js` computes the day, built on the globe's own `subsolarPoint` rather than a second copy of the astronomy. Declination comes straight off that function and the equation of time is recovered from it - `subsolarPoint` builds its meridian as `lon = -15 * (utcHours - 12) - eot`, so running that relation backwards hands the correction back with nothing new to keep in step. Local solar noon is found by iterating: the subsolar meridian sweeps west at a steady 15 degrees an hour, so the gap between where the sun is and where you want it converts straight into a time correction, and three passes put the residual under a second.
 
 `test/shell.d/elsewhen/sun_check.js` checks it against Open-Meteo's published sunrise and sunset for thirteen cities - both hemispheres, both solstices, the equator, and Kashgar, which runs on Beijing time and sees the sun rise at 08:23 by the clock. The reference rows are held in the test verbatim so it stays offline.
 
-Inside a minute at mid-latitudes, and about four minutes at Nuuk and Anadyr, both a little past 64 degrees north. That is the shared low-precision solar position doing what it says: it is good to a fraction of a degree, and near the poles the sun crosses the horizon at such a shallow angle that a fraction of a degree is minutes of time. Four minutes is invisible on a three-pixel bar, but the chip prints a time, so the two high-latitude cities are in the test with the tolerance they actually need rather than left out to keep the number tidy.
+It is inside a minute at mid-latitudes, and about four minutes at Nuuk and Anadyr, both a little past 64 degrees north. That is the shared low-precision solar position doing what it says: it is good to a fraction of a degree, and near the poles the sun crosses the horizon at such a shallow angle that a fraction of a degree is minutes of time. The two high-latitude cities are in the test with the tolerance they actually need rather than left out.
 
-A bar can be lit at both ends, and that is not a drawing fault. Reykjavik on the June solstice sets four minutes after midnight, so the first four minutes of the same day are lit too - by the sun that rose the morning before. The band was clipped to the bar at first, with a comment explaining that a bar lit at both ends reads as two days; the reasoning was wrong, and it drew the sun below the horizon at an hour when the solar model puts it at -0.689 degrees, above it. The day is now drawn where it falls and again a day either side, and only the parts that land on the bar survive.
+A bar can be lit at both ends, and that is not a drawing fault. Reykjavik on the June solstice sets four minutes after midnight, so the first four minutes of the same day are lit too - by the sun that rose the morning before. The day is drawn where it falls and again a day either side, and only the parts that land on the bar survive.
 
 The arrows do not wrap with it. A sunset at 00:04 belongs to the next bar along, and a mark pinned to this one's edge would claim the sun set at midnight.
 
@@ -95,55 +86,49 @@ Above the Arctic circle there is no sunrise to plot, and that is a real answer r
 
 ### The arrows
 
-An up arrow just before the band and a down arrow just after it, shown while the pointer is on that row and outside the lit part rather than on its edge - a mark sitting on the boundary reads as part of the band and gets lost in it, and the arrow's job is to point at that boundary. The band already says how long the day is; the arrows say which end is which, which is the one thing a bare band cannot. They keep off the resting state: five rows each carrying two arrows all the time is a lot of furniture for something looked up rarely.
+An up arrow just before the band and a down arrow just after it, shown while the pointer is on that row and outside the lit part rather than on its edge - a mark sitting on the boundary reads as part of the band and gets lost in it. The band already says how long the day is; the arrows say which end is which. They keep off the resting state: five rows each carrying two arrows all the time is a lot of furniture for something looked up rarely.
 
-They are tucked in close to the band. The tap target is finger-sized and the glyph sits in the middle of it, so a box placed flush against the crossing left the arrow itself half a box away, pointing at the boundary from across a gap. The nudge closes most of that without letting the glyph touch the band - which is the one thing it must not do, since a mark on the edge reads as part of it.
+They are tucked in close to the band. The tap target is finger-sized and the glyph sits in the middle of it, so a box placed flush against the crossing would leave the arrow half a box away. A nudge closes most of that without letting the glyph touch the band.
 
-Sunrise sits two pixels high and sunset two pixels low. The glyphs are the same height and the same shape reversed, which is the pair the eye is worst at telling apart at this size - it has to stop and read the arrowhead. The offset gives a second, coarser cue that needs no reading: the one above the line is the one going up. The asymmetry is the information.
+Sunrise sits two pixels high and sunset two pixels low. The glyphs are the same height and the same shape reversed, which is the pair the eye is worst at telling apart at this size. The offset gives a second, coarser cue that needs no reading: the one above the line is the one going up.
 
-Click one and it prints `Sunrise 6:16 AM` in a small dark chip above the bar - named, not just numbered, because a bare time floating over a row that already has a clock on it has to be worked out from which arrow was clicked. One at a time, and it clears when the pointer leaves the row: five rows each printing two more clock times is a table, and this panel is not one.
+Click one and it prints `Sunrise 6:16 AM` in a small dark chip above the bar - named, not just numbered, because a bare time floating over a row that already has a clock on it has to be worked out from which arrow was clicked. One at a time, and it clears when the pointer leaves the row.
 
-Above and not below, because below is where the pointer is - the hand cursor that just clicked the arrow lands squarely on top of the answer. The chip floats over the date line, which is why it has a ground of its own: text over text is unreadable whatever the two colours are.
-
-The chip was opaque from the start and still had the zone line showing through it. That was stacking, not transparency: `sunArrows` is declared before `timeBlock`, so the offset painted over the top of it. `z: 1` on the arrows fixes the paint order without touching the tap order, which still comes from declaration order. Worth remembering that a stacking bug and an alpha bug are the same picture from the reader's side. Its two colours are literal rather than theme roles, because a tooltip is inverted everywhere - a dark chip with light text is the same shape in a light theme as in a dark one, while the theme's own foreground would be dark text on a dark chip half the time.
+Above and not below, because below is where the pointer is. The chip floats over the date line, which is why it has a ground of its own, and its colors are inverted in every theme the way a tooltip is. The arrows carry `z: 1` so the chip paints over the row's time block, which is declared after them.
 
 They are declared after the strip's scrub `MouseArea`. That one covers the whole bar to drag time, and an earlier sibling would never see a press - the same later-sibling rule the remove button relies on.
 
-An arrow hides while the marker is standing on it. Two things drawn at the same point read as a printing fault rather than as two things at the same place, and the arrow is the one that can be spared: it marks a boundary that is not going anywhere, while the marker is the only thing on the bar that says when now is. It follows `nowMarker.x` and not the row's progress, so the arrow comes back exactly as the sun clears it rather than while the sun is still sliding over - the marker's motion is eased, and progress is where it is going, not where it is. Hidden rather than faded, because invisible is also untappable: a click on the sun should scrub time the way it does everywhere else on the bar. If the marker covers an arrow whose time is open, the chip closes with it.
+An arrow hides while the marker is standing on it. Two things drawn at the same point read as a printing fault, and the arrow is the one that can be spared: it marks a boundary that is not going anywhere, while the marker is the only thing on the bar that says when now is. It follows `nowMarker.x` and not the row's progress, so the arrow comes back exactly as the sun clears it - the marker's motion is eased, and progress is where it is going, not where it is. Hidden rather than faded, because invisible is also untappable: a click on the sun should scrub time the way it does everywhere else on the bar. If the marker covers an arrow whose time is open, the chip closes with it.
 
-### Naming the moon (built, then taken out)
+Clicking the marker itself does not name the moon's phase: the marker is also the scrub handle, so aiming at a ten-pixel dot to read a label would nudge the whole list off the hour on every miss. Shift-clicking the moon runs the phase animation instead, which is a deliberate gesture rather than one you land on by aiming badly.
 
-Clicking the marker named the moon's phase in the same chip. It lasted a day. The marker is also the scrub handle, so aiming at a ten-pixel dot to read a label meant nudging the whole list two minutes off the hour on every miss - and the scrub cursor sitting over the marker is a promise about what a press there does. The label was worth less than the accident cost.
+Clicking anywhere else on the row puts the chip away. A tooltip that can only be dismissed by hitting the same few pixels that opened it is a trap.
 
-Shift-clicking the moon still runs the phase animation. That is a deliberate gesture rather than one you land on by aiming badly.
+A click on an arrow stops at the arrow: the scrub bar and the row's reorder grab underneath record no press at all, so the scrub bar needs no guard against the arrows drawn on top of it. That is measured rather than reasoned - see [Testing what the pointer does](#testing-what-the-pointer-does).
 
-`moonPhaseName` stays in `GlobeModel.js`, tested and unused: the naming was never the part that was wrong. It is checked in `test/shell.d/elsewhen/moon_check.js` against the same eclipses that pin the phase itself - a solar eclipse can only happen at new moon and a lunar one only at full, so the name at those instants is not a matter of taste. The four principal phases are instants rather than eighths of a cycle, so each is given a day either side; nobody says "waning gibbous" about a disc that is 99.9% lit.
-
-Clicking anywhere else on the row puts the chip away. A tooltip that can only be dismissed by hitting the same few pixels that opened it is a trap - clicking elsewhere is what everyone tries first.
-
-The arrows sit over the strip's scrub area and over the row's reorder grab, so it looked as though a press on an arrow would reach all three, and that clicking "sunrise" would drag every clock in the list back to sunrise. It does not: a click on the arrow stops at the arrow, and the bar underneath records no press at all. That is measured rather than reasoned - see **Testing what the pointer does** below - and it means the scrub bar needs no guard against the arrows drawn on top of it.
-
-A press on the row body does still reach the grab, which dismisses, so the two decisions can meet on one click. So neither rule reads the live value. Both are answered from what was showing when the press began, which is the same number whichever runs first. The two rules are `Model.chipAfterTap` and `Model.chipAfterRelease`, and `test/shell.d/elsewhen/selection_check.js` plays a click through both delivery orders across every case: opening, closing, swapping one chip for another, and a release that must not undo a chip opened during the same press.
-
-The marker reads its lit state from the same span the band draws, so the sun can never be painted sitting in the dark half of its own bar.
+A press on the row body does still reach the grab, which dismisses, so the two decisions can meet on one click. Neither rule reads the live value; both are answered from what was showing when the press began, which is the same number whichever runs first. The two rules are `Model.chipAfterTap` and `Model.chipAfterRelease`, and `test/shell.d/elsewhen/selection_check.js` plays a click through both delivery orders across every case: opening, closing, swapping one chip for another, and a release that must not undo a chip opened during the same press.
 
 ## Weather
 
-Each row shows one glyph beside its temperature: sun, partly cloudy, cloud, rain, or snow. It sits with the temperature because the two are the same fact about being outside.
+Each row shows the current temperature beside the city name, and one glyph beside it: sun, partly cloudy, cloud, rain, or snow. The glyph sits with the temperature because the two are the same fact about being outside.
 
 Open-Meteo reports WMO present-weather codes - nearly a hundred of them, separating drizzle from freezing drizzle from rain showers. `Model.weatherKind` collapses them to those five, which is all a row has space for; fog joins cloud rather than getting a symbol nobody could read at this size. The code travels with the temperature in the same reading, so the two cannot disagree.
 
-The sun is `white-balance-sunny`, not `weather-sunny`. The obvious one is a hollow ring inside a six-point burst, which at eleven pixels is a snowflake - sitting directly beside an actual snowflake. Candidates were rendered at the real size and compared before choosing; the one in use is a solid disc with short rays, which cannot be mistaken for anything else in the set.
+The sun is `white-balance-sunny`, not `weather-sunny`. The obvious one is a hollow ring inside a six-point burst, which at eleven pixels reads as a snowflake - sitting directly beside an actual snowflake. The one in use is a solid disc with short rays, which cannot be mistaken for anything else in the set.
 
-One trap worth naming, caught by `test/shell.d/elsewhen/weather_check.js`: `Number(null)` is `0`, and `0` is the WMO code for *clear sky* - so a missing reading would have quietly rendered a sun. Absent values are rejected before the conversion.
+`Number(null)` is `0`, and `0` is the WMO code for *clear sky* - so a missing reading would quietly render a sun. Absent values are rejected before the conversion; `test/shell.d/elsewhen/weather_check.js` covers it.
+
+`worldclock-data.py` fetches it. The panel passes the rows as a JSON list of `{label, id}` in the first argument, and the script prints `{"cities": {"label|id": {lat, lon, c, w}}}`, leaving out any field it does not know. Geocodes are cached forever (a city does not move) and weather for twenty minutes (the resolution the source offers), so the panel can call it on every open: a warm run does no network at all and returns in about 40ms. Nothing here is fatal - a failed fetch falls back to the cached value, and failing that the row simply renders without it.
+
+Cities are geocoded by their **label**, not their zone, which matters for aliases: Miami and Boca Raton share `America/New_York` but resolve to their own Florida coordinates and report genuinely different temperatures. Where a label cannot be geocoded, the zone's representative coordinates from `/usr/share/zoneinfo/zone1970.tab` are the fallback.
 
 ## The hour's greeting
 
 Point at a row and its date line turns into what people there would actually be saying to each other at that moment: Tokyo at midday says こんにちは, at eight in the evening こんばんは, at three in the morning おやすみ. The pronunciation follows it in grey, because a greeting you cannot say out loud is only a decoration.
 
-This exists because the number is the one thing about a time zone that does not travel. "18:40" is the same symbol in every city on the list and says nothing about what 18:40 *is* there. The greeting is the hour as the people in it experience it, and it turns a column of digits into six places where the evening is arriving at different times.
+The number is the one thing about a time zone that does not travel. "18:40" is the same symbol in every city on the list and says nothing about what 18:40 *is* there. The greeting is the hour as the people in it experience it.
 
-The table is three levels deep - a zone belongs to a country, a country is greeted in a language, and a handful of cities override their country - and it is baked into `Greetings.js` and never fetched. Greetings do not change, and a network round trip on a hover would be absurd - the panel's standing rule is that nothing it draws needs the network.
+The table is three levels deep - a zone belongs to a country, a country is greeted in a language, and a handful of cities override their country - and it is baked into `Greetings.js` and never fetched. Greetings do not change, and nothing the panel draws on hover should need the network.
 
 Two decisions inside it are judgement calls, and are meant to be:
 
@@ -151,11 +136,11 @@ Two decisions inside it are judgement calls, and are meant to be:
 
 **It does not invent an hourly split where a language has none.** Burmese greets you with မင်္ဂလာပါ at any hour and Thai barely moves, so those tables are one and two bands long. A short table is a fact about the language, not a gap in the data.
 
-The boundaries are where the language moves rather than where a clock does, and the most interesting thing in the file is that the same language disagrees with itself: Spanish in Madrid is still saying *buenas tardes* at 20:00, while Spanish in Lima gave it up an hour earlier. Vienna gets *Grüß Gott* and Zurich *Grüezi* where Berlin gets *Guten Tag*. Indonesian has five bands where English has four - *siang* and *sore* split an afternoon English keeps whole.
+The boundaries are where the language moves rather than where a clock does, and the same language disagrees with itself: Spanish in Madrid is still saying *buenas tardes* at 20:00, while Spanish in Lima gave it up an hour earlier. Vienna gets *Grüß Gott* and Zurich *Grüezi* where Berlin gets *Guten Tag*. Indonesian has five bands where English has four - *siang* and *sore* split an afternoon English keeps whole.
 
 The panel's own monospace family carries none of these scripts. Fontconfig substitutes per character, so a Japanese greeting is set in whatever the system has for Japanese and only the Latin ones stay monospaced; Arabic sits right-to-left with its pronunciation in a separate item beside it, which is what keeps the two from being reordered into each other.
 
-**The bug that shaped the file.** The first version mapped the 74 cities in `cities.json` and greeted everything else in English, which held up until somebody added Tel Aviv and was wished "Good morning". The picker does not offer `cities.json`; it offers every zone `timedatectl list-timezones` returns, which is 598 of them. The fix was the whole list, by way of the system's own `zone.tab` - and the more useful half of the fix was in the test, which had been checking coverage against the wrong list and passing. English is now checked at the source rather than in the result: a zone may only be greeted in English because some country asked for English, and a zone missing from the table is a failure rather than a silent fall-through.
+**Every zone the picker offers is covered.** The picker offers every zone `timedatectl list-timezones` returns - 598 of them, not just the 74 in `cities.json` - so the table is built from the system's own `zone.tab`. English is checked at the source rather than in the result: a zone may only be greeted in English because some country asked for English, and a zone missing from the table is a failure rather than a silent fall-through to English.
 
 The overrides earn their place by being few. Honolulu is Hawaiian though the United States is English, Montreal is French though Canada is not, and that is nearly the whole list - the country is the right answer almost everywhere.
 
@@ -163,33 +148,21 @@ The overrides earn their place by being few. Honolulu is Hawaiian though the Uni
 
 ### The legacy aliases
 
-The zone table was built by matching each zone's *compiled* zoneinfo file against the ones in `zone.tab`. That is exact for real zones and quietly wrong for the legacy aliases, because an alias shares its rules with whatever zone the tz database linked it to - chosen for keeping identical time, not for being anywhere near it. `Iceland` keeps Abidjan's clock all year, so it matched Burkina Faso and said *Bonjour*. `NZ` matched Antarctica, `Asia/Rangoon` the Cocos Islands, `Africa/Asmera` Djibouti. Twenty zones were in the wrong country.
+The zone table matches each zone's *compiled* zoneinfo file against the ones in `zone.tab`. That is exact for real zones and wrong for the legacy aliases, because an alias shares its rules with whatever zone the tz database linked it to - chosen for keeping identical time, not for being anywhere near it. `Iceland` keeps Abidjan's clock all year, so it would match Burkina Faso and say *Bonjour*; `NZ` would match Antarctica, `Asia/Rangoon` the Cocos Islands, `Africa/Asmera` Djibouti.
 
-Following the tz link table instead does not fix it: that returns the country of the *canonical* zone, which for `Iceland` is Côte d'Ivoire and for `Pacific/Truk` is Papua New Guinea. There is no rule available here, only places, so the fifteen are named by hand in `ALIAS_COUNTRY` and `countryFor` reads that first.
+Following the tz link table instead does not help: that returns the country of the *canonical* zone, which for `Iceland` is Côte d'Ivoire and for `Pacific/Truk` is Papua New Guinea. There is no rule available here, only places, so the fifteen are named by hand in `ALIAS_COUNTRY` and `countryFor` reads that first.
 
 Two that look like mistakes and are not: `Antarctica/South_Pole` really is in Antarctica and `Pacific/Ponape` really is in Micronesia, whatever zones they share their rules with. `Europe/Simferopol` stays Ukrainian, which is a choice rather than a lookup.
 
-The test checks each alias against the canonical zone for the *same place* - `Iceland` against `Atlantic/Reykjavik`, `Pacific/Truk` against `Pacific/Chuuk` - which is an answer that does not come from the table being tested. The previous alias tests only checked that the aliases were present.
-
-## Temperature and currency
-
-Each row shows the current temperature beside the city name. It can also show what one unit of the local currency buys in US dollars (`DKK $0.16` reads "one krone is sixteen cents"), which is **off by default** - set `showCurrency` to `true` to bring it back. US cities never show a currency: quoting dollars in dollars says nothing, the same reasoning that drops the offset for your own zone. With currency off the panel passes `--no-fx` and skips the rate request entirely.
-
-`worldclock-data.py` gathers both and caches each on disk with its own TTL, so the panel can call it on every open without hammering anyone: geocodes are kept forever (a city does not move), currency for six hours (published once a day), weather for twenty minutes (the resolution the source offers). A warm run does no network at all and returns in about 40ms. Nothing here is fatal - a failed fetch falls back to the cached value, and failing that the row simply renders without it.
-
-Cities are geocoded by their **label**, not their zone, which matters for aliases: Miami and Boca Raton share `America/New_York` but resolve to their own Florida coordinates and report genuinely different temperatures. Where a label cannot be geocoded, the zone's representative coordinates from `/usr/share/zoneinfo/zone1970.tab` are the fallback.
-
-Sources are Open-Meteo (geocoding and weather) and open.er-api.com (rates); neither needs an API key.
-
-Country-to-currency is a table in `worldclock-data.py`, validated by `test/shell.d/elsewhen/currency_check.py` against the system's iso-codes data and the live rate feed. Run it after editing that table - it is what caught Bulgaria, whose euro adoption retired BGN while the FX feed still publishes a legacy peg rate for it.
+The test checks each alias against the canonical zone for the *same place* - `Iceland` against `Atlantic/Reykjavik`, `Pacific/Truk` against `Pacific/Chuuk` - which is an answer that does not come from the table being tested.
 
 ## Time scrubber
 
-Drag any row's daylight strip and **every** clock moves together, so you can ask "if I propose 3pm, what am I doing to Auckland?" and see the answer rather than compute it. The header shows the shifted time in the accent colour with the offset from now (`+3h`), so a scrubbed clock can never be mistaken for the real one. Release and it holds for a couple of seconds - long enough to read - then returns to the present. Closing the panel also returns it.
+Drag any row's daylight strip and **every** clock moves together, so you can ask "if I propose 3pm, what am I doing to Auckland?" and see the answer rather than compute it. The header shows the shifted time in the accent color with the offset from now (`+3h`), so a scrubbed clock can never be mistaken for the real one. Release and it holds for a couple of seconds - long enough to read - then returns to the present. Closing the panel also returns it.
 
 The drag maps *absolutely*: the pointer's position across the strip is a local time-of-day for that city, measured against the unscrubbed present, so a drag cannot accumulate drift. It resolves to the nearest occurrence of that time, so dragging slightly left means an hour ago, never twenty-three hours on.
 
-The rows are modelled on the zone list rather than on the computed clock rows. That matters: the clock rows are a binding on the scrubbable, ticking time, so using them as the model rebuilt every delegate on every tick - and destroyed the MouseArea mid-gesture the moment scrubbing began, which turned every drag into a single click.
+The rows are modelled on the zone list rather than on the computed clock rows. The clock rows are a binding on the scrubbable, ticking time, so using them as the model would rebuild every delegate on every tick and destroy the `MouseArea` mid-gesture, turning every drag into a single click.
 
 `test/shell.d/elsewhen/scrub_check.js` covers the scrub arithmetic, including scrub direction and the short way round midnight.
 
@@ -197,27 +170,27 @@ The rows are modelled on the zone list rather than on the computed clock rows. T
 
 Tapping the globe in the header does not swap one view for another: the globe **grows out of the little circle** and shoves the rows aside, and the panel opens out around it. Tapping the cross that takes its place in the circle reverses the whole thing.
 
-One number, `zoom`, runs from 0 (the list) to 1 (the globe). Everything is a function of it - the stage's height, each row's displacement and fade, the globe's scale and position, the cross in the header, the globe's own footer and search bar - so no part of the transition can fall out of step with any other. The animation is on `zoom` alone: 800ms `OutQuart` opening, which spends its speed early and then settles, and a brisker 500ms `InOutCubic` coming back.
+One number, `zoom`, runs from 0 (the list) to 1 (the globe). Everything is a function of it - the stage's height, each row's displacement, the globe's scale and position, the cross in the header, the globe's own footer and search bar - so no part of the transition can fall out of step with any other. The animation is on `zoom` alone: 800ms `OutQuart` opening, which spends its speed early and then settles, and a brisker 500ms `InOutCubic` coming back.
 
-**Hold Shift while clicking** to run the whole thing at a third speed - the gesture macOS has used for slow-motion window animations for years, and free here because every Hyprland binding is SUPER-prefixed. Because one number drives everything, slowing that number slows the rows, the fades and the globe's chrome with it; there is no second thing to keep in step.
+**Hold Shift while clicking** to run the whole thing at a third speed - the gesture macOS uses for slow-motion window animations, and free here because every Hyprland binding is SUPER-prefixed. Because one number drives everything, slowing that number slows the rows, the fades and the globe's chrome with it.
 
 The duration and easing are set *before* `globeMode` is flipped, never derived from it. Deriving them from `globeMode` inside the animation is a race - it is the very property whose change starts the animation - and losing that race means an opening transition runs with the closing duration. Every path into globe mode goes through `setGlobeMode` for that reason.
 
-The globe is scaled about **the centre of its own disc**, not the centre of its box, so it grows from where it is drawn; the translation then carries that centre between the little circle and the middle of the stage. The two globes trade places with a quick crossfade while they are still the same size and in the same spot, so there is never a moment with two of them on screen.
+The globe is scaled about **the center of its own disc**, not the center of its box, so it grows from where it is drawn; the translation then carries that center between the little circle and the middle of the stage. The two globes trade places with a quick crossfade while they are still the same size and in the same spot, so there is never a moment with two of them on screen.
 
 Rows are shoved in sequence rather than together - each waits its turn, then covers the rest of the distance - so it reads as something arriving from above rather than the list simply leaving. They tilt, shrink, and are thrown a long way sideways in alternating directions.
 
-They do not fade at all: they fall **clear off the bottom of the panel**. The distance is measured from the list at rest plus a margin, so even the topmost row - which has the whole list below it to fall past - is gone by the end. The fall is squared against the zoom so it accelerates rather than easing out; rows are dropped, and a dropped thing does not slow down on the way. Anything that dims on the way reads as dissolving in place rather than dropping into the dark.
+They do not fade at all: they fall **clear off the bottom of the panel**. The distance is measured from the list at rest plus a margin, so even the topmost row - which has the whole list below it to fall past - is gone by the end. The fall is squared against the zoom so it accelerates rather than easing out, the way a dropped thing does.
 
-Everything involved is **opaque**. The globe's ocean and the row cards were all painted as low-alpha foreground over the panel background - the right tone, but see-through, so during the transition the rows showed straight through the globe and through each other. They now mix the same tones against the background and return a colour with no alpha, which looks identical at rest and correct in motion: the globe arrives as a solid object in front of the list rather than as a tinted pane over it.
+Everything involved is **opaque**. The globe's ocean and the row cards mix their tones against the panel background and return a color with no alpha, rather than painting low-alpha foreground over it. That looks identical at rest and correct in motion: the globe arrives as a solid object in front of the list rather than as a tinted pane the rows show through.
 
-Two other details that are easy to get wrong: the **stage is not clipped**, because at the start of the flight the globe is still up in the header above it and clipping would cut it in half exactly when it is meant to look like the little circle. The rows are clipped instead, by a separate item, so they slide out of the panel rather than piling up past its edge. And the globe is **loaded on hover**, not on click, so reading its two data files never lands in the middle of the animation.
+The **stage is not clipped**, because at the start of the flight the globe is still up in the header above it and clipping would cut it in half exactly when it is meant to look like the little circle. The rows are clipped instead, by a separate item, so they slide out of the panel rather than piling up past its edge. The globe is **loaded on hover**, not on click, so reading its two data files never lands in the middle of the animation.
 
 ### What it shows
 
-Tapping the globe in the panel's hero swaps the list for a spinnable orthographic globe: coastlines, a graticule, the day/night terminator, and a major city for every time zone. Drag to spin (it keeps going and eases to a stop), drag vertically to tilt, and tap a city to read its local time in the footer. Tapping the hero globe again returns to the list, and closing the panel returns to it too - the list stays the way in.
+A spinnable orthographic globe: coastlines, a graticule, the day/night terminator, and a major city for every time zone. Drag to spin (it keeps going and eases to a stop), drag vertically to tilt, and tap a city to read its local time in the footer. Tapping the hero globe again returns to the list, and closing the panel returns to it too - the list stays the way in.
 
-City names are drawn **in two tones**: light over the sea, dark over the land. They are painted twice - once light over everything, then again dark through a clip of the continents - so a name straddling a coastline comes out dark on its land half and light on its sea half, and every part of it sits against something it contrasts with. An outline cannot do this; it only fattens the letters and dulls both halves, which is why the names were still hard to read when they were white-with-a-black-outline. Tracked and home cities keep their distinction through weight and their dot rings rather than label colour.
+City names are drawn **in two tones**: light over the sea, dark over the land. They are painted twice - once light over everything, then again dark through a clip of the continents - so a name straddling a coastline comes out dark on its land half and light on its sea half, and every part of it sits against something it contrasts with. An outline cannot do this; it only fattens the letters and dulls both halves. Tracked and home cities keep their distinction through weight and their dot rings rather than label color.
 
 Names are placed to the left of their dot when placing them to the right would run off the panel, so nothing is truncated at the edge.
 
@@ -231,9 +204,9 @@ It is one element carrying two facts rather than a new thing on the row, which i
 
 City dots on the globe use the same rule as the list: gold in daylight, pale at night.
 
-**The city you are in is always on the globe**, always labelled, and drawn the way the panel globe draws it - the dot in the accent colour, a dark edge so it does not vanish into the land, and a halo. It is merged in ahead of everything else, so a built-in or a tracked row of the same name cannot shadow it.
+**The city you are in is always on the globe**, always labelled, and drawn the way the panel globe draws it - the dot in the accent color, a dark edge so it does not vanish into the land, and a halo. It is merged in ahead of everything else, so a built-in or a tracked row of the same name cannot shadow it.
 
-**Cities the list is tracking** get an accent ring around the dot, and first claim on a label slot so they are always named. Matching is by city name, not zone - tracking Miami does not light up New York, because they are different cities that happen to share `America/New_York`. A tracked city that is not one of the globe's own built-ins is merged in using the coordinates the fetcher already geocoded, so a city in the list can never be missing from the globe.
+**Cities the list is tracking** get an accent ring around the dot, and first claim on a label slot so they are always named. Matching is by city name, not zone - tracking Miami does not light up New York, because they are different cities that happen to share `America/New_York`. A tracked city that is not one of the globe's own built-ins is merged in using the coordinates the weather script already geocoded, so a city in the list can never be missing from the globe.
 
 Dots are thinned in screen space before anything is drawn: candidates are offered in priority order and one is kept only if it clears the others by a minimum distance, so a dense region like western Europe shows a few legible cities instead of a smear of overlapping dots. Tracked cities and the current selection are exempt and always survive. The survivors change as the globe turns or the panel resizes, since the test is in pixels rather than degrees.
 
@@ -241,15 +214,15 @@ Labels are then placed greedily over the survivors with collision avoidance, so 
 
 **A city's label is part of its click target.** A two-pixel dot is a hard thing to hit, so label boxes are tested first - before dots - because a label sits beside its own dot and would otherwise lose the proximity test to a neighbouring city.
 
-**A moving globe is drawn with less in it.** A full paint measured about 14ms on this machine - already over a 120Hz frame at 8.3ms - and the globe was managing roughly 20 paints a second whenever it moved, whether it was riding the zoom, being dragged, or coasting after a throw. Every frame of movement repaints the whole canvas, because the projection changes.
+**A moving globe is drawn with less in it.** A full paint measures about 14ms - already over a 120Hz frame at 8.3ms - and every frame of movement repaints the whole canvas, because the projection changes, whether the globe is riding the zoom, being dragged, or coasting after a throw.
 
-Two things dominated that paint: the city names, which cost a layout pass and two passes of text, one of them through a clip rebuilt from every coastline ring; and the graticule, 17 stroked polylines. Both are dropped while the globe is in motion and come back the moment it settles, which roughly halved the cost. Nothing is lost that could be read - names on a turning globe are a smear, and mid-zoom the whole thing is a few dozen pixels across.
+Two things dominate that paint: the city names, which cost a layout pass and two passes of text, one of them through a clip built from every coastline ring; and the graticule, 17 stroked polylines. Both are dropped while the globe is in motion and come back the moment it settles, which roughly halves the cost. Nothing is lost that could be read - names on a turning globe are a smear, and mid-zoom the whole thing is a few dozen pixels across.
 
-Below half size the coastline is drawn at half its vertices as well. That one is tied to how big the globe is being drawn rather than to whether it is transitioning, because the zoom's ease-out spends its slow tail near full size, where the missing islands would be visible and would then snap back in. The fast early frames, where the drops actually were, happen down small.
+Below half size the coastline is drawn at half its vertices as well. That one is tied to how big the globe is being drawn rather than to whether it is transitioning, because the zoom's ease-out spends its slow tail near full size, where the missing islands would be visible and would then snap back in.
 
 Measured over the open transition, with `smoothMotion` off and on: average paint 11.6ms to 7ms, and the worst gap between frames 105ms to 45ms. Set `smoothMotion` to `false` to draw everything, always.
 
-**Everything drawn scales with the shell.** Stroke widths and marker radii go through `GlobeModel.scalePx` rather than being pixel literals, because the globe's radius and its labels already follow the shell's base font size - so literals meant that raising that size grew the globe and its names while the lines and dots stayed put, and they read as proportionally thinner. The small globe never had this problem: it derives its widths from its own radius, which the large globe cannot do, its radius being hundreds of pixels rather than tens. Widths are floored at one pixel, below which a stroke stops reading as a thin line and starts dropping out of the raster.
+**Everything drawn scales with the shell.** Stroke widths and marker radii go through `GlobeModel.scalePx` rather than being pixel literals, because the globe's radius and its labels already follow the shell's base font size, and literal widths would read as proportionally thinner as that size grows. The small globe derives its widths from its own radius, which the large globe cannot do, its radius being hundreds of pixels rather than tens. Widths are floored at one pixel, below which a stroke stops reading as a thin line and starts dropping out of the raster.
 
 Nothing here touches the network at runtime. The coastlines are Natural Earth 110m, simplified with Douglas-Peucker to 68 rings and 1337 points (14 KB), and the cities were geocoded once at build time - both are plain data files in the plugin. Zone offsets come from the same `date` probe the list uses.
 
@@ -259,53 +232,43 @@ Nothing here touches the network at runtime. The coastlines are Natural Earth 11
 
 The list and the globe are two views of the same choice, so they hold it together. Clicking a row and then opening the globe lands on that city rather than resetting to home, and picking a city on the globe moves the list's focus so the header and the small globe are already on it when the globe closes.
 
-Picking a city on the globe also brings it round to face you. Every other way of choosing one already did - opening the globe flies to the city you are in, and the jump box centres what it finds - so the click was the odd one out, and a city chosen near the limb sat where the projection is most foreshortened and was the least legible thing on screen. Only a hit turns the globe: a tap on open ocean clears the selection and leaves the view alone, because turning it for a miss would be answering a gesture nobody made.
+Picking a city on the globe also brings it round to face you, as opening the globe does for home and the jump box does for what it finds - a city chosen near the limb would otherwise sit where the projection is most foreshortened. Only a hit turns the globe: a tap on open ocean clears the selection and leaves the view alone.
 
 The pick is `pickAt(x, y)` on the globe's root rather than a body inside the `MouseArea`, so the same code the pointer runs can be driven from a test or over IPC. This desktop cannot inject a pointer at all, and a copy of the logic in a test would be free to drift from the one the mouse actually reaches.
 
 A globe city the list does not track is the ordinary case - the globe draws every zone's main city, the list holds the handful you chose - and it leaves the list where it was. There is no row to focus, and sending the list home would move it somewhere nobody asked to go. Clicking empty ocean is the same story from the other side: it clears the globe's selection, but the globe's "no city" and the list's "home" are different states and forwarding one as the other would be a lie.
 
-The list's own focus is held the same way. `focusKey` is the city's `label|zone` and the row number is derived from it, because `zones` is a binding too - replaced wholesale on a reorder or a removal - so a stored index silently comes to mean a different city. Focus Tokyo, drag the row above it to the end, and the header, the small globe and the next globe opening all used to follow the number to whoever now sat in that slot. Deriving the index means a reorder carries the focus with the city and removing the focused city drops it back to home, neither of which anyone has to remember to do. Verified on the running panel: focused Tokyo at row 3, moved Chicago to the end, focus followed to row 2.
+The list's own focus is held the same way. `focusKey` is the city's `label|zone` and the row number is derived from it, because `zones` is a binding too - replaced wholesale on a reorder or a removal - so a stored index would silently come to mean a different city. Deriving the index means a reorder carries the focus with the city and removing the focused city drops it back to home.
 
-The crossing is made on `label|zone`, not on an index. The two views index different things - a row is an index into the settings list, the globe's selection is an index into its own catalogue of everything it draws - and that catalogue is a binding, rebuilt whenever the home row, a tracked city's coordinates or a session city lands. An index into it silently comes to mean a different city: the globe would fly to Auckland and the footer would name Honolulu. A key survives the rebuild. `test/shell.d/elsewhen/selection_check.js` covers the crossing, including the untracked city and the case where both fields have to agree.
+The crossing is made on `label|zone`, not on an index. The two views index different things - a row is an index into the settings list, the globe's selection is an index into its own catalogue of everything it draws - and that catalogue is a binding, rebuilt whenever the home row, a tracked city's coordinates or a session city lands. A key survives the rebuild. `test/shell.d/elsewhen/selection_check.js` covers the crossing, including the untracked city and the case where both fields have to agree.
 
 ### Jumping to a city
 
-The bar at the bottom searches the whole zone catalogue - every IANA city plus the aliases - and turns the globe to whatever is picked, centring it by setting the spin to the city's longitude and `viewLat` to its latitude, taking the short way round.
+The bar at the bottom searches the whole zone catalogue - every IANA city plus the aliases - and turns the globe to whatever is picked, centering it by setting the spin to the city's longitude and `viewLat` to its latitude, taking the short way round.
 
-A city already on the globe is flown to immediately. One that is not is added **for this session only**: the panel asks the fetcher to geocode it, and the globe flies there once the coordinates arrive. Nothing is written to `shell.json`, which is the point - no saved list means no delete affordance, no ordering, no migration. Want it again, type it again.
+A city already on the globe is flown to immediately. One that is not is added **for this session only**: the panel asks the weather script to geocode it, and the globe flies there once the coordinates arrive. Nothing is written to `shell.json`, so there is no saved list to delete from, order, or migrate. Want it again, type it again.
 
 Results are drawn over the globe rather than growing the panel, so the globe does not resize under the pointer while a search is being typed.
 
 ### Turning it off
 
-Set `globeEnabled` to `false` on the widget's `shell.json` entry. The hero stops being a button and the Loader never activates; nothing else changes.
-
-To remove it outright:
-
-```bash
-cd "$OMARCHY_PATH/shell/plugins/panels/elsewhen"
-rm Globe.qml GlobeModel.js world.json cities.json
-rm "$OMARCHY_PATH/test/shell.d/elsewhen/globe_check.js"
-```
-
-then in `Panel.qml` delete the `globeEnabled`/`globeMode` properties, the `trackedNames`/`trackedCities` properties, the `HoverHandler`/`TapHandler` on `heroIcon`, the `globeMode` ternary in the hero subtitle, the two `visible: !root.globeMode` lines, the `Loader` block, and the `globe` and `globeStatus` IPC methods. Everything else is independent of it.
+Set `globeEnabled` to `false` on the widget's `shell.json` entry. The hero stops being a button and the globe's Loader never activates; nothing else changes.
 
 ### The footer under the globe
 
-Two lines: the city with its time, and under it the zone with its offset. It named nothing at all when the globe first opened - it flew to the city you are in without selecting it, so the marker sat plainly on a city with an empty line beneath it, which reads as a broken footer rather than as "nothing is selected". Opening now selects home.
+Two lines: the city with its time, and under it the zone with its offset. Opening the globe selects home, so the footer is never empty under a marker sitting plainly on a city.
 
-A mark sits against the city's name, the same one the rows carry on their strips: a lit dot by day, tonight's moon by night. It is judged by this globe's own daylight - real solar geometry rather than the rows' fixed civil hours - so it agrees with the dot drawn on that same city an inch above it. The two definitions disagree near sunrise, and of the two possible disagreements the visible one is worse.
+A mark sits against the city's name, the same one the rows carry on their strips: a lit dot by day, tonight's moon by night. It is judged by this globe's own daylight, so it agrees with the dot drawn on that same city an inch above it.
 
-It is sized off the name it stands next to rather than set in pixels, and it stands on the same baseline, so it occupies exactly the band the capital does - never above the cap, never below the letters. `tightBoundingRect` on a capital M gives the ink of the glyph; the mark is one pixel under that, which is what rasterises to the same 14 device pixels, because a circle's antialiased edge reads a pixel wider than a glyph's stem. All of that was counted off a screenshot rather than judged by eye - by eye, two pixels under the cap looked fine and was not: it had turned the moon into a bullet point, and a crescent needs room to be a crescent.
+It is sized off the name it stands next to rather than set in pixels, and it stands on the same baseline, so it occupies exactly the band the capital does - never above the cap, never below the letters. `tightBoundingRect` on a capital M gives the ink of the glyph; the mark is one pixel under that, which rasterises to the same 14 device pixels, because a circle's antialiased edge reads a pixel wider than a glyph's stem. Any smaller and the moon reads as a bullet point; a crescent needs room to be a crescent.
 
-Getting it onto the baseline is where the interesting failure was. `anchors.baseline` is the obvious tool and is the wrong one: inside a Row, anchoring to a sibling whose own position depends on the Row's height is a loop, and QML settled it by dropping the dot onto the line below, on top of the zone name. A Row leaves `y` alone, so both items start at its top and the dot's underside can be placed on the baseline directly - `Text.baselineOffset` is the ascent of its first line, the same number the glyph itself is drawn from.
+It is not placed with `anchors.baseline`: inside a Row, anchoring to a sibling whose own position depends on the Row's height is a loop, and QML settles it by dropping the dot onto the line below. A Row leaves `y` alone, so both items start at its top and the dot's underside is placed on the baseline directly - `Text.baselineOffset` is the ascent of its first line, the same number the glyph itself is drawn from.
 
 The mark and the name are their own Row inside the line, so the gap between them can be tighter than the gaps after them - the mark belongs to the name, not to the row of facts.
 
-It used to say "daylight" or "night" after the time as well. The globe already draws that - the city markers and the terminator say it in the picture - so the word was the picture repeated in text. It wants to be one line and cannot be - "Johannesburg Africa/Johannesburg UTC+2 7:50 PM daylight" runs off the end of the panel - but the footer's reserved height already held two caption lines, so nothing above it moved to make room.
+There is no "daylight" or "night" word after the time: the city markers and the terminator already say it in the picture. The line cannot fit on one row - "Johannesburg Africa/Johannesburg UTC+2 7:50 PM" runs off the end of the panel - so it is two caption lines, which the footer's reserved height already holds.
 
-Worth knowing if you touch it: the parts of that line used to reach the footer through `parent.parent`, which was exactly true while the line was a single Row. Wrapping it in a Column put the chain a step short, and QML resolves that to `undefined` in silence rather than complaining - the name and the time simply stopped rendering while "tracked" carried on, because "tracked" asked `root` directly. They are anchored to a named `footer` id now.
+The parts of that line are anchored to a named `footer` id rather than reached through `parent.parent`, because QML resolves a chain that falls a step short to `undefined` in silence.
 
 ## The hero globe
 
@@ -313,73 +276,73 @@ The globe in the header is drawn, not a glyph, by `MiniGlobe.qml`. A glyph canno
 
 Landmasses are filled rather than outlined, and only rings above a size threshold are drawn: at icon size an outline is a scribble and an island is a speck of dirt on the lens. The rim is stroked last so nothing spills over it.
 
-Both globes fill their continents from the same clipping code in `GlobeModel.js`. Neither strokes a coastline over the fill: the fill's own edge *is* the coastline, and that second pass over every ring turned out to be the expensive half. Measured on the large globe, per repaint: outlines only 8.1ms, fill plus outline 13.4ms, **fill alone 9.1ms** - so the filled look costs about 1ms over the outlines it replaced, against a 16.7ms frame budget.
+Both globes fill their continents from the same clipping code in `GlobeModel.js`. Neither strokes a coastline over the fill: the fill's own edge *is* the coastline, and a second pass over every ring is the expensive half. Measured on the large globe, per repaint: outlines only 8.1ms, fill plus outline 13.4ms, **fill alone 9.1ms** - so the filled look costs about 1ms over outlines, against a 16.7ms frame budget.
 
-Filling also means labels and city dots now cross light land as often as dark ocean, so labels are outlined and every dot carries a dark edge.
+Filling means labels and city dots cross light land as often as dark ocean, so labels are outlined and every dot carries a dark edge.
 
-Clipping a coastline to the visible hemisphere has to produce **one** polygon per ring. The obvious approach - keep each visible run and close it - makes self-intersecting shapes whose area jumps whenever a run splits, and that is visible: continents morph and pulse at the limb, worst as the spin slows and there is time to watch. Sutherland-Hodgman against the hemisphere keeps the ring whole, and walking the limb between an exit and the next entry (rather than cutting straight across) makes the silhouette continuous. Measured over a full rotation, the worst area change per quarter-degree of spin goes from 356 px^2 (split runs) to 278 (whole ring, chords) to **3.5** (whole ring, limb arcs) on a 2463 px^2 disc. `test/shell.d/elsewhen/clip_check.js` holds it there.
+Clipping a coastline to the visible hemisphere has to produce **one** polygon per ring. Keeping each visible run and closing it makes self-intersecting shapes whose area jumps whenever a run splits, and that is visible: continents morph and pulse at the limb, worst as the spin slows. Sutherland-Hodgman against the hemisphere keeps the ring whole, and walking the limb between an exit and the next entry (rather than cutting straight across) makes the silhouette continuous. Measured over a full rotation, the worst area change per quarter-degree of spin goes from 356 px^2 (split runs) to 278 (whole ring, chords) to **3.5** (whole ring, limb arcs) on a 2463 px^2 disc. `test/shell.d/elsewhen/clip_check.js` holds it there.
 
 The globe leans by `GlobeModel.AXIAL_TILT` - 23.44 degrees, the real obliquity, and the same constant the subsolar calculation uses.
 
-It is drawn at full strength and oversized rather than sitting at text weight: as the centrepiece a dimmed thin globe just reads as washed out.
+It is drawn at full strength and oversized rather than sitting at text weight: as the centerpiece a dimmed thin globe just reads as washed out.
 
-A marker shows the city you are in, in the accent colour. It carries a dark edge: the marker can be nearly the same lightness as the filled continents, and without one the dot dissolves into whichever landmass it is sitting on.
+A marker shows the city you are in, in the accent color. It carries a dark edge: the marker can be nearly the same lightness as the filled continents, and without one the dot dissolves into whichever landmass it is sitting on.
 
 **The globe opens on the city you are in.** It flies there as the panel zooms out, so the two motions - growing out of the header and turning round to home - land together rather than one after the other. If your coordinates have not arrived yet, which happens on a cold geocode cache, the request is held and runs the moment they do.
 
 **Clicking a city row turns the globe to it** and marks it - so a tap on Tokyo swings the globe round and drops the marker on Japan. It takes the shortest way round rather than always turning forward: Los Angeles to Tokyo is 102 degrees west, not 258 east.
 
-While the globe is showing somewhere else, clicking the header line brings it home. The whole line is the target, not just the name - it is a small piece of text to have to hit exactly - and it is only live while the globe is away, so it is never a dead click target. Reopening the panel also returns it home.
+While the globe is showing somewhere else, clicking the header line brings it home. The whole line is the target, not just the name, and it is only live while the globe is away, so it is never a dead click target. Reopening the panel also returns it home.
 
-The opening spin **lands on home** - the animation runs from `homeLon - 1080` to `homeLon`, which is three whole turns that finish with your own meridian facing you rather than stopping wherever the arithmetic left it. At rest a `Binding` holds the globe there, standing down while the animation is writing the property. Until the fetcher has geocoded your city the marker is hidden and it rests on Greenwich.
+The opening spin **lands on home** - the animation runs from `homeLon - 1080` to `homeLon`, three whole turns that finish with your own meridian facing you. At rest a `Binding` holds the globe there, standing down while the animation is writing the property. Until the weather script has geocoded your city the marker is hidden and it rests on Greenwich.
+
+`Easing.OutQuart` over 1250ms puts most of the rotation in the first third and lets the rest coast out, which is what a globe flicked by hand does rather than a motor driving it at a constant rate.
 
 The sidebar icon carries the same tilt, via `WidgetButton.textRotation`.
 
-Opening the panel spins it three turns. `Easing.OutQuart` over 1250ms puts most of the rotation in the first third and lets the rest coast out, which is what a globe flicked by hand does rather than a motor driving it at a constant rate.
-
 ## Where "here" is
 
-The header reads "It's 10:28 AM here in Los Angeles." rather than a bare "here", which names your own city without spending a row on it. The zone comes from the same `date` probe the rows use - one extra `LOCAL|<zone>` line, from `timedatectl` with the `/etc/localtime` symlink as fallback - so it costs no additional process and follows a time-zone change on the next refresh.
+The header reads "It's 10:28 AM here in Los Angeles." rather than a bare "here", which names your own city without spending a row on it. The zone comes from the same `date` probe the rows use - one extra `LOCAL|<zone>` line, from `timedatectl` - so it costs no additional process and follows a time-zone change on the next refresh.
 
 The city name is the zone's last segment, and the tz database names zones after a *representative* city: someone in Boca Raton would read "here in New York". Set `homeCity` to override it.
 
 ## Two offsets, one line
 
-A row's offset reads `+2h` - how far that city is from you - until you click it, and then every row reads `UTC-5` instead. Both are the same fact from different ends, and neither is the useful one twice running: the relative offset answers "how far ahead are they", the absolute one answers "where is this place", and the click is cheaper than printing both and doubling the width of the line.
+A row's offset reads `+2h` - how far that city is from you - until you click it, and then every row reads `UTC-5` instead. Both are the same fact from different ends: the relative offset answers "how far ahead are they", the absolute one answers "where is this place", and the click is cheaper than printing both and doubling the width of the line.
 
 It is one setting for the whole list rather than one per row. A column where each row had picked its own units would be unreadable, and the point of a column is that it can be read down. The choice is stored, so it survives a restart.
 
-The tap target sits on the offset itself, and works because it is declared late: the drag handle covers the whole body of the row, and later siblings win the tap - the same rule the remove button already relies on.
+The tap target sits on the offset itself, and works because it is declared late: the drag handle covers the whole body of the row, and later siblings win the tap - the same rule the remove button relies on.
 
-The globe's footer reads the same setting and offers the same click, so the offset under the globe is never in different units from the offset in the list you just came from, and flipping it in either place flips it in both. There the target is the zone name as well as the number: on your own home city the relative offset is blank - "same time" is the one answer the reader already has - and a control that disappears on one city out of the list is not a control.
+The globe's footer reads the same setting and offers the same click, so the offset under the globe is never in different units from the offset in the list you just came from, and flipping it in either place flips it in both. There the target is the zone name as well as the number: on your own home city the relative offset is blank, and a control that disappears on one city out of the list is not a control.
 
-The globe does not own the setting. It publishes `offsetModeToggleRequested` and the panel flips it; the new mode arrives back down the same binding as every other property. A child that wrote the setting itself would be a second place the mode could live, and the two could disagree.
+The globe does not own the setting. It publishes `offsetModeToggleRequested` and the panel flips it; the new mode arrives back down the same binding as every other property, so there is only one place the mode can live.
 
 ## Units and notation, on a click
 
 The temperature and the time are both controls. Click any temperature to swap the whole list between Celsius and Fahrenheit; click any time to swap it between 12- and 24-hour. Both work the way the offset does - one setting for every row, changed where you are already reading rather than in a settings pane, and written straight to `shell.json` so it survives a restart.
 
-One setting for all rows, not one per row, for the same reason the offsets move together: every clock here exists to be read against the others, and a single row in different units would be the one thing on screen that could not be compared.
+One setting for all rows, not one per row, for the same reason the offsets move together: every clock here exists to be read against the others.
 
-The starting notation follows the machine too. With `hour24` unset, the locale's own short time format decides: `Qt.locale().timeFormat` gives `h:mm Ap` for `en_US` and `en_AU`, `HH:mm` for `en_GB`, `de_DE`, `fr_FR` and `zh_CN`, `H:mm` for `ja_JP` and `H.mm` for `fi_FI`. The test is the AM/PM designator rather than the case of the hour letter - `h` means 1-12 and `H` means 0-23, which is the same answer, but a locale may spell a 24-hour clock with either while a designator only ever belongs to a 12-hour one. Quoted literal text is stripped first, because some locales write the separator as `H'h'mm`.
+The starting notation follows the machine. With `hour24` unset, the locale's own short time format decides: `Qt.locale().timeFormat` gives `h:mm Ap` for `en_US` and `en_AU`, `HH:mm` for `en_GB`, `de_DE`, `fr_FR` and `zh_CN`, `H:mm` for `ja_JP` and `H.mm` for `fi_FI`. The test is the AM/PM designator rather than the case of the hour letter - `h` means 1-12 and `H` means 0-23, which is the same answer, but a locale may spell a 24-hour clock with either while a designator only ever belongs to a 12-hour one. Quoted literal text is stripped first, because some locales write the separator as `H'h'mm`.
 
-Those patterns were read off the running shell, not assumed, and the ones that matter are in `test/shell.d/elsewhen/weather_check.js` verbatim - including the detail that Qt spells the designator `Ap` and puts U+202F in front of it, not a space.
+Those patterns were read off the running shell, and the ones that matter are in `test/shell.d/elsewhen/weather_check.js` verbatim - including the detail that Qt spells the designator `Ap` and puts U+202F in front of it, not a space.
 
-The starting unit follows the machine rather than the author. With `units` unset, `Qt.locale().measurementSystem` decides: the US system means Fahrenheit and everything else means Celsius. `F` was the default while this ran on one desktop and is the wrong default for almost everywhere else. Measured, not assumed - `en_US` reports `ImperialUSSystem`, `en_GB` reports `ImperialUKSystem` and `de_DE` and `ja_JP` report `MetricSystem`, so the rule gives Britain Celsius, which is what Britain uses for weather whatever else it measures in miles.
+The starting unit follows the machine too. With `units` unset, `Qt.locale().measurementSystem` decides: the US system means Fahrenheit and everything else means Celsius. `en_US` reports `ImperialUSSystem`, `en_GB` reports `ImperialUKSystem` and `de_DE` and `ja_JP` report `MetricSystem`, so the rule gives Britain Celsius, which is what Britain uses for weather whatever else it measures in miles.
 
 The rule is Qt's CLDR data and it is not a survey of thermometers: Liberia, which does use Fahrenheit day to day, reports as metric. That is what the click is for. An explicit `C` or `F` always wins over the automatic answer, so one click is the whole escape hatch, and `""` puts it back on the system's units. `Model.resolveUnits` holds those rules and `test/shell.d/elsewhen/weather_check.js` covers them, including the junk values a hand-edited `shell.json` can produce.
 
 ## Testing what the pointer does
 
-For most of this project's life the interactions were reasoned about rather than tried: no pointer can be injected into the running shell, so handler questions were settled by reading Qt's documentation. That was a mistake. `qmltestrunner` synthesises real mouse events into an offscreen window, and the structures worth checking are small enough to rebuild in a test:
+No pointer can be injected into the running shell, but `qmltestrunner` synthesises real mouse events into an offscreen window, and the structures worth checking are small enough to rebuild in a test:
 
 ```bash
 QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -input test/shell.d/elsewhen/qml
 ```
 
-Use that full path. `/usr/bin/qmltestrunner` is the Qt5 binary; it exits 0 having run nothing and printed nothing, which looks exactly like success - the same trap as `qml` versus `qml6` on this machine.
+Use that full path. `/usr/bin/qmltestrunner` is the Qt5 binary; it exits 0 having run nothing and printed nothing, which looks exactly like success.
 
-`test/shell.d/elsewhen/qml/tst_arrows.qml` is the first of these, and it settled a question that had been answered wrongly twice: whether a click on an item in front also reaches a `MouseArea` behind it. It does not.
+`test/shell.d/elsewhen/qml/tst_arrows.qml` settles whether a click on an item in front also reaches a `MouseArea` behind it. It does not.
 
 ## Keys
 
@@ -393,11 +356,9 @@ Use that full path. `/usr/bin/qmltestrunner` is the Qt5 binary; it exits 0 havin
 | `Esc` | closes the search, then leaves the globe, then closes the panel |
 | arrows, Return | walk and pick a search result |
 
-Space was a door rather than a switch for a while: it opened the globe and pressing it again did nothing, because Escape was already the way back and one key per direction is easier to hold in the head than one key that depends on where you are. That is a sound argument about the keyboard as a system and the wrong one about the hand, which is already on the space bar and has nowhere to go for the round trip. Space toggles now. Escape still unwinds the whole ladder - search, globe, panel - so nothing was given up to allow it.
+The key catcher reports Space as "activate" and reports Return as a return *and then* an activate, so Return marks itself on the way past and the activate behind it stands down - otherwise Return would work the globe too.
 
-The key catcher reports Space as "activate" and reports Return as a return *and then* an activate, so Return marks itself on the way past and the activate behind it stands down - otherwise Return would quietly work the globe too.
-
-Escape unwinds one layer per press rather than closing outright, so the way out of the globe is the same key as the way out of everything else. Getting that right needed the globe's search to hand the keyboard back when it closes: a hidden item keeps its focus, so the field that had been taking the keys went on swallowing them, and the second Escape went nowhere.
+Escape unwinds one layer per press rather than closing outright, so the way out of the globe is the same key as the way out of everything else. The globe's search hands the keyboard back when it closes: a hidden item keeps its focus, so otherwise the field would go on swallowing keys and the second Escape would go nowhere.
 
 ## Settings
 
@@ -405,19 +366,19 @@ Inline on the widget's `shell.json` entry:
 
 | Key      | Meaning                                              |
 |----------|------------------------------------------------------|
-| `zones`  | `Label\|IANA name`, comma separated                   |
-| `hour24` | `true` or `false`; blank (the default) follows the system's time format. Click any row's time to flip it |
+| `zones`  | `Label\|IANA name`, comma separated; blank seeds on first run |
+| `hour24` | `true` or `false`; unset (the default) follows the system's time format. Click any row's time to flip it |
 | `offsetMode` | `home` for the offset from you (default), `utc` for the absolute one |
 | `units`  | `F` or `C`; blank (the default) follows the system's measurement units. Click any temperature to flip it |
+| `globeEnabled` | `false` to remove the globe entry point (default on) |
 | `homeCity` | your city for the header (blank = from the system zone) |
 | `smoothMotion` | drop labels and detail while the globe moves (default true) |
-| `showCurrency` | `true` to show local currency value in USD (default off) |
-| `globeEnabled` | `false` to remove the globe entry point (default on)     |
 
 ## IPC
 
 ```bash
 omarchy-shell omarchy.elsewhen toggle
+omarchy-shell omarchy.elsewhen globe                            # switch between list and globe
 omarchy-shell omarchy.elsewhen times                            # JSON, one entry per row
 omarchy-shell omarchy.elsewhen add America/New_York Miami
 omarchy-shell omarchy.elsewhen remove America/New_York

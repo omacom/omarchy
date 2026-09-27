@@ -87,10 +87,13 @@ migration="$ROOT/migrations/1790528634.sh"
 plugin="$test_dir/home/.config/omarchy/plugins/omacom.elsewhen"
 mkdir -p "${plugin%/*}"
 
+mkdir -p "$test_dir/home/.cache/omacom-elsewhen"
+touch "$test_dir/home/.cache/omacom-elsewhen/data.json"
 run
 [[ $(cat "$CALL_LOG") == "drop elsewhen" ]] || fail "the package is dropped" "$(cat "$CALL_LOG")"
 [[ ! -e $test_dir/home/.config/omarchy/shell.json ]] || fail "a missing config is not created"
-pass "the retired package is dropped"
+[[ ! -e $test_dir/home/.cache/omacom-elsewhen ]] || fail "the old cache is removed"
+pass "the retired package and its old cache are removed"
 
 config="$test_dir/home/.config/omarchy/shell.json"
 cat >"$config" <<'JSON'

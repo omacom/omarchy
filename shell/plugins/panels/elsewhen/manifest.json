@@ -19,17 +19,14 @@
     "aliases": [
       "worldclock",
       "world clock",
-      "timezones",
-      "clock"
+      "timezones"
     ],
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
       "zones": "",
-      "hour24": "",
       "offsetMode": "home",
       "units": "",
-      "showCurrency": false,
       "globeEnabled": true,
       "homeCity": "",
       "smoothMotion": true
@@ -44,8 +41,7 @@
       {
         "key": "hour24",
         "type": "boolean",
-        "label": "24-hour time (leave unset to follow the system)",
-        "defaultValue": ""
+        "label": "24-hour time (unset follows the system)"
       },
       {
         "key": "offsetMode",
@@ -58,12 +54,6 @@
         "type": "string",
         "label": "Temperature units (F or C; blank follows the system)",
         "defaultValue": ""
-      },
-      {
-        "key": "showCurrency",
-        "type": "boolean",
-        "label": "Show local currency value in USD",
-        "defaultValue": false
       },
       {
         "key": "globeEnabled",
