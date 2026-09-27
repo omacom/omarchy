@@ -22,8 +22,7 @@ touch "$root_dir/shell/shell.qml"
 # The shell names its socket after its config and display, as omarchy-shell
 # derives it.
 display="test-display"
-socket_id=$(printf '%s\n%s' "$root_dir/shell" "$display" | md5sum)
-socket="$run_dir/omarchy-shell-${socket_id:0:16}.sock"
+socket=$(XDG_RUNTIME_DIR="$run_dir" WAYLAND_DISPLAY="$display" shell_ipc_socket "$root_dir")
 
 # qs is the fallback: it records that it ran and answers.
 cat >"$stub_bin/qs" <<'SH'
