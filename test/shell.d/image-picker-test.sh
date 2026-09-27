@@ -51,4 +51,37 @@ assert(
   /source: item\.sourceActivated && item\.thumbnailPath \? Util\.fileUrl\(item\.thumbnailPath\) : ""[\s\S]*asynchronous: false/.test(imagePickerQml),
   'image picker loads activated thumbnails synchronously to avoid carousel flicker'
 )
+assert(
+  imagePickerQml.includes('alignmentSteps') &&
+    imagePickerQml.includes('cycleStep(-1)') &&
+    imagePickerQml.includes('cycleStep(1)') &&
+    imagePickerQml.includes('background-alignments.json') &&
+    imagePickerQml.includes('id: alignmentBar') &&
+    imagePickerQml.includes('hoverEnabled: true') &&
+    /showAlignment: alignable && !showLabels && !filterable/.test(imagePickerQml),
+  'image picker provides stepped background alignment bar with persistence, hover feedback, and keyboard cycling'
+)
+assert(
+  /source: \(item\.selected && item\.filePath\)[\s\S]*Util\.isVideoPath\(item\.filePath\)[\s\S]*item\.thumbnailPath \? Util\.fileUrl\(item\.thumbnailPath\) : ""[\s\S]*Util\.fileUrl\(item\.filePath\)/.test(imagePickerQml) &&
+    imagePickerQml.includes('!isCurrentVideo'),
+  'image picker uses generated thumbnail preview for video backgrounds and hides alignment deck'
+)
+assert(
+  imagePickerQml.includes('alignMenuExpanded') &&
+    imagePickerQml.includes('id: alignTab') &&
+    imagePickerQml.includes('id: drawerContainer') &&
+    imagePickerQml.includes('event.key === Qt.Key_A') &&
+    imagePickerQml.includes('alignMenuExpanded = false'),
+  'image picker alignment options collapse into an Align tab that slides open via A key, Down arrow, or click'
+)
+assert(
+  imagePickerQml.includes('id: transitionTab') &&
+    imagePickerQml.includes('event.key === Qt.Key_T') &&
+    imagePickerQml.includes('intervalSteps') &&
+    imagePickerQml.includes('cycleInterval(-1)') &&
+    imagePickerQml.includes('cycleInterval(1)') &&
+    imagePickerQml.includes('background-slideshow.json') &&
+    imagePickerQml.includes('id: intervalRow'),
+  'image picker provides a retro styled Transition tab [T] and slideshow interval configuration drawer'
+)
 JS

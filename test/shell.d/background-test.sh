@@ -18,4 +18,18 @@ assert(
     !backgroundQml.includes('pendingThemeVersion !== backgroundVersion'),
   'background theme transition applies pending colors even if image reveal stalls'
 )
+
+const mediaQml = fs.readFileSync(path.join(root, 'shell/Ui/BackgroundMedia.qml'), 'utf8')
+const lockQml = fs.readFileSync(path.join(root, 'shell/plugins/lock/LockView.qml'), 'utf8')
+assert(
+  backgroundQml.includes('background-alignments.json') &&
+    backgroundQml.includes('function positionFor(path, map)') &&
+    backgroundQml.includes('alignRatio: root.positionFor(root.displayedBackground, root.alignments)') &&
+    lockQml.includes('background-alignments.json') &&
+    lockQml.includes('function positionFor(path, map)') &&
+    lockQml.includes('alignRatio: root.positionFor(root.backgroundPath, root.alignments)') &&
+    mediaQml.includes('property real alignRatio: 0.5') &&
+    mediaQml.includes('-root.alignRatio * Math.max(0, width - parent.width)'),
+  'desktop background, lock screen, and media renderer apply stepped horizontal alignment from saved configuration'
+)
 JS

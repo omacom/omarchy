@@ -8,6 +8,7 @@ Item {
 
   property string path: ""
   property int version: 0
+  property real alignRatio: 0.5
   readonly property var current: imageLoader.item
   readonly property bool ready: current ? current.ready : false
   readonly property bool video: Util.isVideoPath(path)
@@ -25,14 +26,28 @@ Item {
   Component {
     id: imageComponent
 
-    Image {
-      readonly property bool ready: status === Image.Ready
-      source: root.imageUrl
-      fillMode: Image.PreserveAspectCrop
-      asynchronous: true
-      cache: root.version === 0
-      sourceSize.width: root.version > 0 ? width : 0
-      sourceSize.height: root.version > 0 ? height : 0
+    Item {
+      anchors.fill: parent
+      clip: true
+      readonly property bool ready: img.status === Image.Ready
+
+      Image {
+        id: img
+        source: root.imageUrl
+        asynchronous: true
+        cache: root.version === 0
+        smooth: true
+        sourceSize.width: root.version > 0 ? parent.width : 0
+        sourceSize.height: root.version > 0 ? parent.height : 0
+
+        readonly property real scaleFactor: (implicitWidth > 0 && implicitHeight > 0)
+          ? Math.max(parent.width / implicitWidth, parent.height / implicitHeight) : 1.0
+        width: Math.ceil(implicitWidth * scaleFactor)
+        height: Math.ceil(implicitHeight * scaleFactor)
+
+        x: Math.round(-root.alignRatio * Math.max(0, width - parent.width))
+        y: Math.round(-0.5 * Math.max(0, height - parent.height))
+      }
     }
   }
 }

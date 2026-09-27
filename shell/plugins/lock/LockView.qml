@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Effects
+import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
@@ -22,6 +24,49 @@ Item {
   property bool powerSaverActive: false
   property string passwordText: ""
   property bool syncingPasswordText: false
+
+  readonly property string home: Quickshell.env("HOME")
+  readonly property string alignmentsPath: home + "/.config/omarchy/background-alignments.json"
+  property var alignments: ({})
+
+  FileView {
+    id: alignmentsFile
+    path: root.alignmentsPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.loadAlignments()
+    onLoadFailed: function(error) { root.alignments = ({}) }
+    onFileChanged: reload()
+  }
+
+  function loadAlignments() {
+    var raw = alignmentsFile.text() || ""
+    if (!raw.trim()) {
+      alignments = ({})
+      return
+    }
+    try {
+      var parsed = JSON.parse(raw)
+      alignments = (parsed && typeof parsed === "object") ? parsed : ({})
+    } catch (e) {
+      alignments = ({})
+    }
+  }
+
+  function positionFor(path, map) {
+    if (!path || Util.isVideoPath(path)) return 0.5
+    var filename = String(path).split("/").pop()
+    var val = (map && (map[path] !== undefined ? map[path] : map[filename]))
+    if (val === undefined || val === null || val === "") return 0.5
+    var s = String(val).toLowerCase().trim()
+    if (s === "left") return 0.0
+    if (s === "center") return 0.5
+    if (s === "right") return 1.0
+    var num = parseFloat(s)
+    if (isNaN(num)) return 0.5
+    if (s.indexOf("%") !== -1 || num > 1.0) num = num / 100.0
+    return Math.max(0.0, Math.min(1.0, num))
+  }
 
   readonly property string placeholderText: "Enter Password"
   readonly property int fieldWidth: 381
@@ -72,6 +117,7 @@ Item {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
   Component.onCompleted: {
+    loadAlignments()
     syncPasswordText()
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
@@ -96,6 +142,7 @@ Item {
       anchors.fill: parent
       path: root.loadBackground ? (root.video ? root.videoPosterPath : root.backgroundPath) : ""
       version: root.backgroundVersion
+      alignRatio: root.positionFor(root.backgroundPath, root.alignments)
     }
 
     MultiEffect {
