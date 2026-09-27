@@ -43,6 +43,7 @@ matching guide before starting:
 
 - [`hyprland.md`](hyprland.md) - keybindings, monitors, window rules, and other Hyprland config
 - [`plugins.md`](plugins.md) - the Omarchy shell: bar layout, widgets, plugins, idle behavior
+- [`bluetooth.md`](bluetooth.md) - Bluetooth keyboard pairing, agent prompts, and connection state
 - [`theming.md`](theming.md) - themes, backgrounds, and fonts
 - [`hooks.md`](hooks.md) - automation hooks that run on system events
 - [`capture.md`](capture.md) - screenshots, screen recordings, OCR text capture, and file sharing
