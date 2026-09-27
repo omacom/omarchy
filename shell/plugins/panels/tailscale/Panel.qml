@@ -711,6 +711,7 @@ Panel {
                 Accessible.name: "Show offline peers"
                 Accessible.checked: checked
                 Accessible.onPressAction: root.toggleOfflinePeers()
+                Accessible.onToggleAction: root.toggleOfflinePeers()
                 onToggled: root.toggleOfflinePeers()
 
                 PanelToolTip {

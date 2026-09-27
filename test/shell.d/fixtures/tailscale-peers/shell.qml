@@ -95,6 +95,19 @@ ShellRoot {
     var service = panel.testService
     check(!panel.testOfflineSwitch.checked && panel.bar.shell.writes === 2, "keyboard shortcut persists the same setting")
     check(service.peers.length === 1 && panel.peerIndex === 0, "hiding offline row clamps keyboard cursor")
+    panel.testOfflineSwitch.Accessible.toggleAction()
+    Qt.callLater(accessibleShownChecks)
+  }
+  function accessibleShownChecks() {
+    check(panel.settings.showOfflinePeers === true && panel.bar.shell.writes === 3, "accessible toggle persists enabled setting exactly once")
+    check(panel.testOfflineSwitch.checked && panel.testService.peers.length === 2, "accessible toggle updates switch and peer list")
+    panel.testOfflineSwitch.Accessible.toggleAction()
+    Qt.callLater(accessibleHiddenChecks)
+  }
+  function accessibleHiddenChecks() {
+    var service = panel.testService
+    check(panel.settings.showOfflinePeers === false && panel.bar.shell.writes === 4, "accessible toggle persists disabled setting exactly once")
+    check(!panel.testOfflineSwitch.checked && service.peers.length === 1, "accessible toggle hides offline peers and resets switch")
     panel.settings = { showOfflinePeers: true }
     service.parseStatus(JSON.stringify({ BackendState: "Running", Peer: {
       only: { HostName: "old", DNSName: "sleeping.tailnet.ts.net.", Online: false }
