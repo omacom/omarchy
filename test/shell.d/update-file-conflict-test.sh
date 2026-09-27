@@ -147,6 +147,21 @@ if run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
   fail "a conflict from an unrelated package is auto-resolved"
 fi
 pass "a conflict from a non-Omarchy package is left for a human"
+grep -qF "some-other-pkg: $stray exists in filesystem" "$test_tmp/err" ||
+  fail "a conflict left for a human names the file in the way" "$(<"$test_tmp/err")"
+grep -q "only moves files no package owns" "$test_tmp/err" ||
+  fail "a conflict left for a human says why it was not cleared" "$(<"$test_tmp/err")"
+pass "a conflict left for a human names the file and why it was left"
+
+# Not a file conflict at all: pacman already said why, so add nothing.
+fresh_work
+write_raw_report "error: failed to retrieve some files"
+if run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
+  fail "a failed download passes for an upgrade"
+fi
+! grep -q "in the way of the upgrade" "$test_tmp/err" ||
+  fail "a failed download is reported as files in the way" "$(<"$test_tmp/err")"
+pass "a failure that is not a file conflict gets no conflict explanation"
 
 # The path is used literally, so glob characters in a name mean nothing.
 fresh_work

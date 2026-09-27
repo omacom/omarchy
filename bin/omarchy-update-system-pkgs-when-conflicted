@@ -81,6 +81,20 @@ if grep -q 'unresolvable package conflicts detected' "$errors"; then
   exit 0
 fi
 
+# Any other failure, such as a download, is already explained by pacman above.
+grep -q ' exists in filesystem' "$errors" || exit 1
+
+# Whatever this can't clear safely goes back to the person updating. Name the
+# files, or every later update stops on the same generic failure with no clue.
+leave_for_person() {
+  echo -e "\e[33m\nThese files are in the way of the upgrade:\e[0m" >&2
+  grep ' exists in filesystem' "$errors" | sed 's/^/  /' >&2
+  echo -e "\nomarchy update only moves files no package owns that one of Omarchy's own" >&2
+  echo "packages is installing. Check where these came from, move aside any that" >&2
+  echo "nothing else needs, then run omarchy update again." >&2
+  exit 1
+}
+
 # Paths one of these packages installs that pacman doesn't own. Moving them out
 # of the way is what lets the upgrade through, and works on a leftover directory
 # as well as a file.
@@ -92,11 +106,11 @@ mapfile -t leftovers < <(
   grep -oP '^omarchy(-dev|-settings|-settings-dev)?: \K.+(?= exists in filesystem$)' "$errors" |
     while IFS= read -r path; do pacman -Qo "$path" &>/dev/null || echo "$path"; done
 )
-((${#leftovers[@]})) || exit 1
+((${#leftovers[@]})) || leave_for_person
 
 # All of them or none: moving a subset leaves the retry blocked by the rest, and
 # the moved files inactive for nothing.
-((${#leftovers[@]} == $(grep -c ' exists in filesystem' "$errors"))) || exit 1
+((${#leftovers[@]} == $(grep -c ' exists in filesystem' "$errors"))) || leave_for_person
 
 echo -e "\e[33m\nTaking over files pacman doesn't own yet:\e[0m"
 for path in "${leftovers[@]}"; do
