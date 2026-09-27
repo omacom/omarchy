@@ -1516,9 +1516,9 @@ ShellRoot {
 
   // ------------------------------------------------------ global shortcuts
   //
-  // Bindings that open a menu route or panel dispatch these through Hyprland,
-  // so a keypress reaches the shell without spawning an omarchy-shell IPC
-  // client. The list is shared with default/hypr/helpers.lua, which binds a
+  // Bindings that open a menu route or panel, or step the volume, dispatch
+  // these through Hyprland, so a keypress reaches the shell without spawning
+  // an IPC client or script. The list is shared with default/hypr/helpers.lua, which binds a
   // route or panel missing from it through the command instead.
 
   function parseShortcuts(raw) {
@@ -1526,17 +1526,22 @@ ShellRoot {
     var lines = String(raw || "").split("\n")
     for (var i = 0; i < lines.length; i++) {
       var match = /^([A-Za-z]+)\s+(\S+)\s*$/.exec(lines[i])
-      if (match && (match[1] === "menu" || match[1] === "panel"))
+      if (match && (match[1] === "menu" || match[1] === "panel" || match[1] === "audio"))
         entries.push({ kind: match[1], target: match[2], name: match[1] + "." + match[2] })
     }
     return entries
   }
 
   function runShortcut(entry) {
-    if (entry.kind === "menu")
+    if (entry.kind === "menu") {
       shell.toggle("omarchy.menu", JSON.stringify({ menu: entry.target }))
-    else
+    } else if (entry.kind === "audio") {
+      var media = shell.serviceFor("omarchy.media")
+      if (!media || !media.handleVolumeKey(entry.target))
+        Util.execArgv(["omarchy-audio-output-volume", entry.target])
+    } else {
       shell.toggle(entry.target, "{}")
+    }
   }
 
   FileView {
@@ -1554,7 +1559,7 @@ ShellRoot {
 
       appid: "omarchy"
       name: modelData.name
-      description: modelData.kind === "menu" ? "Toggle the " + modelData.target + " menu" : "Toggle the " + modelData.target + " panel"
+      description: modelData.kind === "audio" ? "Volume " + modelData.target : "Toggle the " + modelData.target + " " + modelData.kind
       onPressed: shell.runShortcut(modelData)
     }
   }

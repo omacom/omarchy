@@ -98,6 +98,8 @@ local function command_from(value, description)
     return shell_dispatcher("menu", value.menu, "omarchy-menu toggle " .. shell_quote(value.menu))
   elseif value.panel then
     return shell_dispatcher("panel", value.panel, "omarchy-shell shell toggle " .. shell_quote(value.panel))
+  elseif value.audio then
+    return shell_dispatcher("audio", value.audio, "omarchy-audio-output-volume " .. shell_quote(value.audio))
   elseif value.focus and value.launch then
     return o.launch_sole(value.focus, value.launch)
   elseif value.launch then

@@ -1,9 +1,10 @@
 # Hyprland global shortcuts the Omarchy shell registers, one per line: a menu
-# route to toggle, or a panel plugin to toggle. A binding written as
-# o.bind(keys, description, { menu = "theme" }) or { panel = "omarchy.emojis" }
-# dispatches the matching shortcut straight to the shell, with no IPC client to
-# spawn per keypress. A route or panel missing here still binds, through the
-# omarchy-menu or omarchy-shell command instead.
+# route to toggle, a panel plugin to toggle, or a volume key. A binding written
+# as o.bind(keys, description, { menu = "theme" }), { panel = "omarchy.emojis" }
+# or { audio = "raise" } dispatches the matching shortcut straight to the
+# shell, with no process to spawn per keypress. Anything missing here still
+# binds, through the omarchy-menu, omarchy-shell or omarchy-audio-output-volume
+# command instead.
 menu root
 menu apps
 menu capture
@@ -22,3 +23,6 @@ panel omarchy.monitor
 panel omarchy.clock
 panel omarchy.network
 panel omarchy.power
+audio raise
+audio lower
+audio mute-toggle

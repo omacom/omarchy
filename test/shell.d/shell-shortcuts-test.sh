@@ -55,8 +55,10 @@ o.bind("A", "listed menu", { menu = "theme" })
 o.bind("B", "unlisted menu", { menu = "setup.power" })
 o.bind("C", "listed panel", { panel = "omarchy.emojis" })
 o.bind("D", "unlisted panel", { panel = "omarchy.wifiqr" })
+o.bind("E", "listed audio", { audio = "raise" })
+o.bind("F", "unlisted audio", { audio = "+1" })
 
-for _, file in ipairs({ "utilities", "clipboard" }) do
+for _, file in ipairs({ "utilities", "clipboard", "media" }) do
   dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bindings/" .. file .. ".lua")
 end
 LUA
@@ -74,6 +76,8 @@ expect_binding $'global\tomarchy:menu.theme\tlisted menu' "a listed menu route b
 expect_binding $'exec\tomarchy-menu toggle \'setup.power\'\tunlisted menu' "an unlisted menu route falls back to the command"
 expect_binding $'global\tomarchy:panel.omarchy.emojis\tlisted panel' "a listed panel binds its global shortcut"
 expect_binding $'exec\tomarchy-shell shell toggle \'omarchy.wifiqr\'\tunlisted panel' "an unlisted panel falls back to the command"
+expect_binding $'global\tomarchy:audio.raise\tlisted audio' "a listed volume key binds its global shortcut"
+expect_binding $'exec\tomarchy-audio-output-volume \'+1\'\tunlisted audio' "an unlisted volume step falls back to the script"
 pass "shell bindings use global shortcuts only for what the shell registers"
 
 # Every default binding that toggles a listed route or panel goes through its
@@ -83,12 +87,15 @@ pass "shell bindings use global shortcuts only for what the shell registers"
 expect_binding $'global\tomarchy:menu.root\tOmarchy menu' "SUPER+SPACE opens the menu through its shortcut"
 expect_binding $'global\tomarchy:menu.theme\tTheme menu' "the theme menu binding uses its shortcut"
 expect_binding $'global\tomarchy:panel.omarchy.clipboard\tClipboard manager' "the clipboard binding uses its shortcut"
+expect_binding $'global\tomarchy:audio.raise\tVolume up' "the volume up key steps the volume in the shell"
+expect_binding $'global\tomarchy:audio.lower\tVolume down' "the volume down key steps the volume in the shell"
+expect_binding $'global\tomarchy:audio.mute-toggle\tMute' "the mute key toggles mute in the shell"
 pass "default bindings toggle menus and panels through global shortcuts"
 
 # The shell and the helpers read the same list, in the same format.
 while IFS= read -r line; do
   [[ -z $line || $line == \#* ]] && continue
-  [[ $line =~ ^(menu|panel)\ [^[:space:]]+$ ]] || fail "shortcuts lines are a kind and a target: $line"
+  [[ $line =~ ^(menu|panel|audio)\ [^[:space:]]+$ ]] || fail "shortcuts lines are a kind and a target: $line"
 done <"$shortcuts"
 grep -q 'path: shell.omarchyPath + "/default/omarchy/shortcuts"' "$ROOT/shell/shell.qml" ||
   fail "the shell registers the shortcuts the helpers bind"
