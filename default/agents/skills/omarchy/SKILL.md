@@ -7,7 +7,7 @@ description: >
   Triggers: Hyprland, window rules, animations, keybindings, monitors, gaps, borders,
   blur, opacity, omarchy-shell, bar, terminal config, themes, background,
   night light, idle, lock screen, screenshots, reminders, layer rules, workspace
-  settings, display config, and user-facing omarchy commands. Excludes Omarchy
+  settings, display config, Bluetooth keyboard pairing, and user-facing omarchy commands. Excludes Omarchy
   source development through `omarchy dev link` workflows.
 ---
 
