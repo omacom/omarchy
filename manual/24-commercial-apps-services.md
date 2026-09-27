@@ -32,6 +32,10 @@ It gets a panel in the bar, a web app for the admin console, and Taildrop for se
 
 [ONCE](https://once.com/) is 37signals' line of software you buy once and run on your own server, like the Campfire chat system. Select _Install > Service > ONCE_ from the Omarchy menu to install it, which enables its background service and drops you into the ONCE terminal interface to take it from there.
 
+## ZeroTier
+
+[ZeroTier](https://www.zerotier.com/) is a mesh VPN in the same family as Tailscale, built around network IDs you join rather than accounts you log into. To set it up, select _Install > Service > ZeroTier_ from the Omarchy menu. That installs the daemon and enables it, so it comes back on every boot — see [networking](35-networking.md) for joining a network.
+
 ## NordVPN
 
 [NordVPN](https://nordvpn.com/) is a standard VPN service that lets you exit your traffic from most regions around the world. To set it up, select _Install > Service > NordVPN_ from the Omarchy menu. After the reboot it asks for, run `nordvpn login` to authenticate.

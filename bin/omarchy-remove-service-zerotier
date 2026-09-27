@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Remove ZeroTier.
+# omarchy:requires-sudo=true
+
+sudo systemctl disable --now zerotier-one.service 2>/dev/null || true
+omarchy-pkg-drop zerotier-one
+
+echo ""
+echo "ZeroTier has been removed."
