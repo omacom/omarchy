@@ -10,6 +10,9 @@ SHELL_TEST_DIR="$ROOT/test/shell.d"
 
 export ROOT
 
+# A session override for a local Chromium must not leak into the suite.
+unset OMARCHY_WEBAPP_CHROMIUM
+
 pass() {
   printf 'ok - %s\n' "$1"
 }

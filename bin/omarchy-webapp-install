@@ -236,6 +236,11 @@ fi
 
 chmod +x "$DESKTOP_FILE"
 
+# Best-effort: when Chromium supports --install-and-launch-app, record the
+# real web-app id so omarchy-launch-webapp can use --app-id= next time.
+# Stock extra/chromium has no such switch, so this is a no-op there.
+"$(dirname -- "$0")/omarchy-webapp-promote" "$APP_URL" || true
+
 if [[ $INTERACTIVE_MODE == "true" ]]; then
   echo -e "You can now find $APP_NAME using the app launcher (SUPER + SPACE)\n"
 fi
