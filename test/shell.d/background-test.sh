@@ -7,8 +7,9 @@ const fs = require('fs')
 const backgroundQml = fs.readFileSync(path.join(root, 'shell/plugins/background/Background.qml'), 'utf8')
 
 assert(
-  /theme=\$\(omarchy-theme-switcher\); \[\[ -n \$theme \]\] && omarchy-theme-set \\"\$theme\\" >\/dev\/null 2>&1 &/.test(backgroundQml),
-  'background theme switcher starts theme application asynchronously after selection'
+  /function openThemeSwitcher\(\) \{[\s\S]*if \(!root\.shell \|\| !root\.shell\.summon\("omarchy\.image-picker", payload\)\)\s*Util\.execArgv\(\["omarchy-shell", "shell", "summon", "omarchy\.image-picker", payload\]\)/.test(backgroundQml) &&
+    !backgroundQml.includes('omarchy-theme-switcher'),
+  'background opens the in-shell theme picker instead of spawning the switcher script'
 )
 
 assert(
