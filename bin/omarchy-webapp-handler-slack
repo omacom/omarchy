@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# omarchy:summary=Open Slack links in the Slack web app
+# omarchy:args=[url]
+
+url="${1:-}"
+web_url="https://app.slack.com/client"
+
+query_param() {
+  local wanted="$1"
+  local query item
+  local -a params
+
+  [[ $url == *\?* ]] || return 0
+  query=${url#*\?}
+  query=${query%%#*}
+  IFS='&' read -ra params <<<"$query"
+
+  for item in "${params[@]}"; do
+    if [[ ${item%%=*} == "$wanted" ]]; then
+      printf '%s' "${item#*=}"
+      return 0
+    fi
+  done
+}
+
+if [[ $url =~ ^slack:// ]]; then
+  action=${url#slack://}
+  action=${action%%[/?#]*}
+  team=$(query_param team)
+  id=$(query_param id)
+  message=$(query_param message)
+
+  [[ $team =~ ^[TE][A-Z0-9]+$ ]] || team=""
+  [[ $id =~ ^[A-Z][A-Z0-9]+$ ]] || id=""
+  [[ $message =~ ^[0-9]+\.[0-9]+$ ]] || message=""
+
+  case $action in
+  open)
+    [[ -n $team ]] && web_url="$web_url/$team"
+    ;;
+  app | channel | user)
+    if [[ -n $team && -n $id ]]; then
+      web_url="$web_url/$team/$id"
+      [[ -n $message ]] && web_url="$web_url/$message"
+    fi
+    ;;
+  esac
+fi
+
+exec omarchy-launch-webapp "$web_url"
