@@ -101,6 +101,13 @@ pass "-y is what marks an update unattended, not the update itself"
 [[ $(cat "$test_tmp/steps.orphan-args") == "-y" ]] || fail "a confirmed update approves orphan removal"
 pass "a confirmed update approves orphan removal"
 
+run_update --confirmed </dev/null || fail "an update confirmed by its caller reports a failure"
+diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
+  fail "--confirmed still asks the person to confirm the update" "$(cat "$test_tmp/order")"
+grep -q '^omarchy-update-restart unattended=$' "$test_tmp/steps" ||
+  fail "--confirmed marks the update unattended, so the reboot offer is skipped"
+pass "--confirmed skips the update question but keeps the reboot offer"
+
 # Migrations ship with the packages the upgrade installs and are written against
 # them. Running them against what is still on disk is the failure this ordering
 # exists to prevent, so the update stops where the packages did.
