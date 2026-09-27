@@ -10,6 +10,24 @@ const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
 const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
 const defaultMenuJsonc = fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8')
 
+assertDeepEqual(
+  menu.summonAction("omarchy-shell shell summon omarchy.speedtest"),
+  { id: 'omarchy.speedtest', payload: '{}' },
+  'menu runs a bare summon action in-process'
+)
+assertDeepEqual(
+  menu.summonAction(`omarchy-shell shell summon omarchy.image-picker '{"source":"themes"}'`),
+  { id: 'omarchy.image-picker', payload: '{"source":"themes"}' },
+  'menu keeps a single-quoted summon payload'
+)
+assertEqual(menu.summonAction("omarchy-shell shell summon omarchy.speedtest && echo done"), null, 'menu leaves compound summon commands to bash')
+assertEqual(menu.summonAction(`omarchy-shell shell summon omarchy.x "$(id)"`), null, 'menu leaves shell-expanded payloads to bash')
+assertEqual(menu.summonAction("omarchy-theme-set nord"), null, 'menu leaves ordinary actions to bash')
+assert(
+  /var summon = MenuModel\.summonAction\(command\)\s*if \(summon && root\.shell && root\.shell\.summon\(summon\.id, summon\.payload\)\) return\s*Util\.execDetached\(command\)/.test(menuQml),
+  'menu falls back to bash when an in-process summon is refused'
+)
+
 const parsed = menu.parseMenuJsonc(`
 {
   // comment

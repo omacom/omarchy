@@ -43,7 +43,10 @@ assert_scoped_channel() {
 import sys
 events = open(sys.argv[1]).read().splitlines()
 assert events[0] == 'sudo -k', events
-sudo = [event for event in events if event.startswith('sudo ')]
+# The switch itself authorizes command by command. The update it hands off to
+# starts cold and authorizes once for its own phases.
+auth = events.index('sudo /usr/bin/true')
+sudo = [event for event in events[:auth] if event.startswith('sudo ')]
 assert all(event in ('sudo -h', 'sudo -k') or event.startswith('sudo -N ') for event in sudo), events
 hooks = [i for i, event in enumerate(events) if event.startswith('step:omarchy-hook ')]
 assert len(hooks) == 2, events
@@ -51,8 +54,8 @@ assert events[hooks[0]] == 'step:omarchy-hook pre-refresh-pacman', events
 assert events[hooks[1]] == 'step:omarchy-hook post-update', events
 assert events[hooks[0] - 1] == 'sudo -k' and events[hooks[0] + 1] == 'sudo -k', events
 transaction = next(i for i, event in enumerate(events) if event.startswith('step:pacman '))
-assert hooks[0] < transaction, events
-assert not any(event.startswith('sudo -N ') for event in events[hooks[1]:]), events
+assert hooks[0] < transaction < auth < hooks[1], events
+assert 'sudo -k' in events[transaction:auth], events
 PY
 }
 
@@ -63,7 +66,7 @@ for channel in stable rc edge dev; do
   reset_boundary
   run_channel "$channel" || fail "$channel failed" "$(<"$boundary_tmp/output")"
   assert_scoped_channel "$channel"
-  pass "$channel starts cold, authorizes only individual commands, runs the refresh hook cold before its transaction and exits cold"
+  pass "$channel starts cold, authorizes the switch per command, runs the refresh hook cold, hands off to one update authorization and exits cold"
 done
 
 reset_boundary
@@ -81,7 +84,7 @@ pass "a stale dev checkout is rejected before linking or privileged work"
 reset_boundary
 OMARCHY_PATH="$SUDO_TEST_HOME/omarchy" run_channel stable || fail "leaving dev failed" "$(<"$boundary_tmp/output")"
 assert_scoped_channel "dev to stable"
-pass "leaving dev preserves no-update sudo through unlink and the packaged update"
+pass "leaving dev preserves no-update sudo through unlink and hands off to the packaged update"
 
 # A packaged destination that predates the wrapper cannot be checked before its
 # package is installed. Its updater authenticates without --no-update, so the
@@ -107,6 +110,7 @@ pass "an older packaged destination stops the switch cold with instructions inst
 # without the wrapper. From then on a bare sudo would be the real one, so no
 # privileged step may follow either transaction without checking first. A decoy
 # sudo in the package bin catches any such call instead of reaching the host.
+rm "$SUDO_TEST_ROOT/bin/sudo"
 cat >"$SUDO_TEST_ROOT/bin/sudo" <<'STUB'
 #!/bin/bash
 printf 'unwrapped-sudo %s\n' "$*" >>"$SUDO_TEST_LOG"
@@ -135,6 +139,7 @@ PY
   pass "a transaction that removes the wrapper stops the switch before any further sudo ($pattern)"
 done
 rm "$SUDO_TEST_ROOT/bin/sudo"
+ln -s ../mock/sudo "$SUDO_TEST_ROOT/bin/sudo"
 
 mkdir "$boundary_tmp/user tools"
 cat >"$boundary_tmp/user tools/channel-user-tool" <<'STUB'
@@ -146,8 +151,13 @@ for command in omarchy-hook omarchy-update-mise; do
   rm "$SUDO_TEST_ROOT/bin/$command"
   cat >"$SUDO_TEST_ROOT/bin/$command" <<'STUB'
 #!/bin/bash
-[[ ! -e $SUDO_TEST_CACHE ]] || exit 91
-[[ $(command -v sudo) == "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 92
+if [[ ${1:-} == "pre-refresh-pacman" ]]; then
+  [[ ! -e $SUDO_TEST_CACHE ]] || exit 91
+  [[ $(command -v sudo) == "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 92
+else
+  [[ -e $SUDO_TEST_CACHE ]] || exit 94
+  [[ $(command -v sudo) != "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 95
+fi
 channel-user-tool "${0##*/}" "$@"
 STUB
   chmod +x "$SUDO_TEST_ROOT/bin/$command"
@@ -161,7 +171,7 @@ assert_boundary_cold "channel user PATH"
 for command in omarchy-hook omarchy-update-mise; do
   ln -sfn test-step "$SUDO_TEST_ROOT/bin/$command"
 done
-pass "channel switching preserves user tools behind the wrapper for both hooks and mise"
+pass "channel switching preserves user tools for both hooks and mise"
 
 for step in pacman omarchy-update-system-pkgs omarchy-hook; do
   reset_boundary

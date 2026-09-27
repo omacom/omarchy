@@ -15,6 +15,13 @@ omarchy_security_require_privileged_bash_startup || exit 126
 set -e
 omarchy_security_sanitize_bash_environment "$0" "$@"
 omarchy_security_require_source_root "$0"
+# omarchy update authorizes once and revokes when it is done. Revoking here
+# would throw that away and prompt again for the rest of the update.
+update_sudo_session=0
+if [[ ${OMARCHY_UPDATE_SUDO_SESSION:-} == "1" ]]; then
+  update_sudo_session=1
+  omarchy_security_revoke_sudo_timestamp() { :; }
+fi
 # Traps first, so a signal or failure during the entry revocation still
 # exits through the cleanup path.
 omarchy_security_install_sudo_cleanup_traps
@@ -461,8 +468,9 @@ start_locked() {
   trap cleanup_pending_launch EXIT
   atomic_write_state "$launch_control_file" "active $token" || return 1
 
-  # The child is identifiable before it publishes state, including before exec.
-  # exec -a retains that identity without keeping an extra shell alive.
+  # The child is identifiable by the token in its arguments from the moment it
+  # starts. It stays a shell so stop's TERM ends it with a clean exit, since
+  # systemd-inhibit reports a child killed by a signal as an error.
   local hold_command=(
     /usr/bin/systemd-inhibit --what=sleep:idle --who=omarchy-update
     --why="Omarchy update in progress [$token]" --mode=block
@@ -474,7 +482,6 @@ start_locked() {
       token=$2
       owner=$3
       control=$4
-      expected="--why=Omarchy update in progress [$token]"
       temporary=""
       cleanup() { [[ -z $temporary ]] || /usr/bin/rm -f -- "$temporary"; }
       trap cleanup EXIT
@@ -493,7 +500,9 @@ start_locked() {
       /usr/bin/flock -u "$control_fd"
       exec {control_fd}>&-
       trap - EXIT
-      exec -a "$expected" /usr/bin/sleep infinity
+      trap "kill \$!; exit 0" TERM
+      /usr/bin/sleep infinity &
+      wait
     ' "--why=Omarchy update in progress [$token]" "$state_dir" "$token" "$caller_uid" "$launch_control_file"
   )
 
@@ -504,11 +513,15 @@ start_locked() {
       exec "${hold_command[@]}"
     ) &
     launcher_pid=$!
-  elif [[ -t 0 ]]; then
+  elif [[ -t 0 ]] || { (( update_sudo_session )) && /usr/bin/sudo -n -N /usr/bin/true 2>/dev/null; }; then
+    # Inside an update without a terminal, reuse its authorization
+    # non-interactively rather than asking again through polkit.
+    sudo_options=(-N -b)
+    [[ -t 0 ]] || sudo_options=(-n -N -b)
     if ! (
       [[ -z ${OMARCHY_UPDATE_LOCK_FD:-} ]] || exec {OMARCHY_UPDATE_LOCK_FD}>&-
       exec {state_lock_fd}>&-
-      exec /usr/bin/sudo -N -b -- "${hold_command[@]}"
+      exec /usr/bin/sudo "${sudo_options[@]}" -- "${hold_command[@]}"
     ); then
       return 1
     fi
@@ -535,7 +548,7 @@ start_locked() {
       return 1
     fi
     (( readiness_attempts += 1 ))
-    if [[ -t 0 ]] && (( EUID != 0 && readiness_attempts >= 100 )); then
+    if [[ -z $launcher_pid ]] && (( EUID != 0 && readiness_attempts >= 100 )); then
       echo "The update sleep inhibitor did not become ready." >&2
       return 1
     fi
