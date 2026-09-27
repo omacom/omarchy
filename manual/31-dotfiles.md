@@ -28,7 +28,7 @@ If you want something to run every time you log in — a sync daemon, a chat app
 o.launch_on_start("my-service")
 ```
 
-That starts the command as part of the session, so it's properly cleaned up when you log out again.
+That starts the command as part of the session, so it's properly cleaned up when you log out again. Autostarted apps wait for the Omarchy shell to come up first, so apps that check for a notification service when they start (browsers, web apps, Electron apps) find it and send their notifications through Omarchy.
 
 ### Running scripts on system events
 
