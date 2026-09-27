@@ -298,8 +298,6 @@ The opening spin **lands on home** - the animation runs from `homeLon - 1080` to
 
 `Easing.OutQuart` over 1250ms puts most of the rotation in the first third and lets the rest coast out, which is what a globe flicked by hand does rather than a motor driving it at a constant rate.
 
-The sidebar icon carries the same tilt, via `WidgetButton.textRotation`.
-
 ## Where "here" is
 
 The header reads "It's 10:28 AM here in Los Angeles." rather than a bare "here", which names your own city without spending a row on it. The zone comes from the same `date` probe the rows use - one extra `LOCAL|<zone>` line, from `timedatectl` - so it costs no additional process and follows a time-zone change on the next refresh.

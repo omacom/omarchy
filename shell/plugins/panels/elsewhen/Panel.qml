@@ -589,7 +589,6 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     text: "󰇧"
-    textRotation: Solar.AXIAL_TILT
     tooltipText: "World clock"
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton || buttonCode === Qt.MiddleButton) root.refresh()
