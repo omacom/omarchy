@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.elsewhen",
+  "name": "Elsewhen",
+  "version": "1.0.0",
+  "author": "Jason Fried",
+  "license": "MIT",
+  "description": "A world clock for the Omarchy shell: the time in several cities at once, with a spinnable globe.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Elsewhen",
+    "description": "A world clock: one row per city, and a globe.",
+    "category": "Time",
+    "aliases": [
+      "worldclock",
+      "world clock",
+      "timezones",
+      "clock"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "zones": "",
+      "hour24": "",
+      "offsetMode": "home",
+      "units": "",
+      "showCurrency": false,
+      "globeEnabled": true,
+      "showEarth": false,
+      "workStartHour": 9,
+      "workEndHour": 17,
+      "showOverlap": false,
+      "homeCity": "",
+      "skyTint": false,
+      "smoothMotion": true
+    },
+    "schema": [
+      {
+        "key": "zones",
+        "type": "string",
+        "label": "Zones (Label|IANA name, comma separated; blank seeds on first run)",
+        "defaultValue": ""
+      },
+      {
+        "key": "hour24",
+        "type": "boolean",
+        "label": "24-hour time (leave unset to follow the system)",
+        "defaultValue": ""
+      },
+      {
+        "key": "offsetMode",
+        "type": "string",
+        "label": "Row offsets: home (distance from you) or utc",
+        "defaultValue": "home"
+      },
+      {
+        "key": "units",
+        "type": "string",
+        "label": "Temperature units (F or C; blank follows the system)",
+        "defaultValue": ""
+      },
+      {
+        "key": "showCurrency",
+        "type": "boolean",
+        "label": "Show local currency value in USD",
+        "defaultValue": false
+      },
+      {
+        "key": "showEarth",
+        "type": "boolean",
+        "label": "The Earth's own row at the foot of the list (shelved)",
+        "defaultValue": false
+      },
+      {
+        "key": "globeEnabled",
+        "type": "boolean",
+        "label": "Globe mode (tap the hero globe)",
+        "defaultValue": true
+      },
+      {
+        "key": "workStartHour",
+        "type": "integer",
+        "label": "Working hours start (local)",
+        "min": 0,
+        "max": 23,
+        "defaultValue": 9
+      },
+      {
+        "key": "workEndHour",
+        "type": "integer",
+        "label": "Working hours end (local)",
+        "min": 1,
+        "max": 24,
+        "defaultValue": 17
+      },
+      {
+        "key": "showOverlap",
+        "type": "boolean",
+        "label": "Overlap band and briefcase toggles",
+        "defaultValue": false
+      },
+      {
+        "key": "homeCity",
+        "type": "string",
+        "label": "Your city (blank = from the system time zone)",
+        "defaultValue": ""
+      },
+      {
+        "key": "skyTint",
+        "type": "boolean",
+        "label": "Tint city names by their sky",
+        "defaultValue": false
+      },
+      {
+        "key": "smoothMotion",
+        "type": "boolean",
+        "label": "Drop labels and detail while the globe moves",
+        "defaultValue": true
+      }
+    ]
+  }
+}
