@@ -35,6 +35,9 @@ run_logged "$OMARCHY_INSTALL/hardware/apple/fix-spi-keyboard.sh"
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-suspend-nvme.sh"
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-t2.sh"
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-brcmfmac-supplicant.sh"
+run_logged "$OMARCHY_INSTALL/hardware/apple/fix-brcmfmac-suspend.sh"
+run_logged "$OMARCHY_INSTALL/hardware/apple/fix-bcm43602-nvram.sh"
+run_logged "$OMARCHY_INSTALL/hardware/apple/fix-brcmfmac-5ghz.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/fix-yoga-pro7-bass-speakers.sh"
 

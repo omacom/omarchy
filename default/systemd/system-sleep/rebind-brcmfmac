@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# Rebind the Broadcom Wi-Fi device around system sleep. The brcmfmac firmware
+# on these parts does not reliably survive a long suspend: after wake it stops
+# answering msgbuf commands (the kernel logs "Timeout on response for query
+# command" for every request), the interface never recovers, and only a reboot
+# brings Wi-Fi back. Unbinding before sleep and rebinding after wake forces the
+# firmware to reload cleanly, so NetworkManager sees a fresh interface and
+# reconnects on its own.
+# Only BCM4350/BCM43602 use this lifecycle (omacom/omarchy#7333). T2-era
+# radios require separate comparison; a supplicant workaround is not evidence
+# that the same pre-sleep unbind is appropriate for them.
+
+set -euo pipefail
+umask 077
+
+driver=/sys/bus/pci/drivers/brcmfmac
+state_file=${OMARCHY_BRCMFMAC_SLEEP_STATE:-/run/omarchy-brcmfmac-sleep}
+
+case "${1:-}" in pre|post) ;; *) exit 0 ;; esac
+[[ ! -L $state_file && ! -L $state_file.lock ]] || exit 1
+exec 9>"$state_file.lock"
+flock 9
+
+failed=0
+case "$1" in
+  pre)
+    # Keep pending devices across repeated pre calls. Record intent before
+    # unbinding so interruption cannot strand a device without recovery state.
+    touch "$state_file"
+    for bound in "$driver"/0000:*; do
+      [[ -L $bound ]] || continue
+      [[ -r $bound/vendor && -r $bound/device ]] || continue
+      [[ $(cat "$bound/vendor" 2>/dev/null) == "0x14e4" ]] || continue
+      case "$(cat "$bound/device" 2>/dev/null)" in
+        0x43a3|0x43ba|0x43bb|0x43bc) ;;
+        *) continue ;;
+      esac
+      device=${bound##*/}
+      [[ $device =~ ^0000:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]$ ]] || continue
+      if ! grep -Fxq "$device" "$state_file"; then
+        printf '%s\n' "$device" >>"$state_file"
+      fi
+      if ! { printf '%s\n' "$device" >"$driver/unbind"; } 2>/dev/null; then
+        echo "brcmfmac: could not unbind $device; recovery state retained" >&2
+        failed=1
+      fi
+    done
+    ;;
+  post)
+    [[ -f $state_file ]] || exit 0
+    pending=$(mktemp "$state_file.XXXXXX")
+    trap 'rm -f "$pending"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    trap 'exit 129' HUP
+    while IFS= read -r device || [[ -n $device ]]; do
+      if [[ $device =~ ^0000:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]$ ]] &&
+        { [[ -L $driver/$device ]] || { printf '%s\n' "$device" >"$driver/bind"; } 2>/dev/null; }; then
+        continue
+      fi
+      echo "brcmfmac: could not restore $device; retry state retained" >&2
+      printf '%s\n' "$device" >>"$pending"
+      failed=1
+    done <"$state_file"
+    if [[ -s $pending ]]; then
+      mv "$pending" "$state_file"
+    else
+      rm -f "$state_file"
+    fi
+    ;;
+esac
+exit "$failed"
