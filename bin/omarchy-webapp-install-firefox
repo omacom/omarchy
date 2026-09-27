@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# omarchy:summary=Create a desktop launcher for a Firefox web app
+# omarchy:args=[name url icon [flavor [mime-types]]]
+# omarchy:examples=omarchy webapp install firefox YouTube https://youtube.com/ youtube zen
+
+# Thin wrapper around omarchy-webapp-install: same icons, validation, and
+# removal support, but the launcher runs the URL in an isolated
+# Firefox-based web app (see omarchy-launch-firefox-webapp) and the desktop
+# entry carries a StartupWMClass for taskbar grouping and focus-or-launch.
+
+set -e
+
+if (( $# < 3 )); then
+  echo "Usage: omarchy webapp install firefox [name url icon [flavor [mime-types]]]" >&2
+  echo "Flavors: firefox zen librewolf waterfox floorp (default: firefox)" >&2
+  exit 1
+fi
+
+app_name="$1"
+app_url="$2"
+icon_ref="$3"
+flavor="${4,,}"
+mime_types="${5:-}"
+
+if [[ -z $flavor ]]; then
+  flavor="firefox"
+fi
+
+# Reuse the launcher for flavor validation, URL normalization, and the stable
+# window class (DRY_RUN prints WM_CLASS without opening a window; it also
+# pre-creates the isolated profile).
+wm_class=""
+norm_url=""
+if dry_output=$(DRY_RUN=1 omarchy-launch-firefox-webapp --browser "$flavor" "$app_url" 2>/dev/null); then
+  wm_class=$(printf '%s\n' "$dry_output" | sed -n 's/^WM_CLASS=//p' | head -1)
+  norm_url=$(printf '%s\n' "$dry_output" | sed -n 's/^URL=//p' | head -1)
+fi
+if [[ -z $wm_class || -z $norm_url ]]; then
+  echo "Error: invalid flavor or URL (try a http(s) URL and flavor firefox zen librewolf waterfox floorp)." >&2
+  exit 1
+fi
+
+# Quote for the Exec line (custom exec is written verbatim by omarchy-webapp-install).
+exec_url=${norm_url//\\/\\\\}
+exec_url=${exec_url//\"/\\\"}
+if [[ $flavor == "firefox" ]]; then
+  custom_exec="omarchy-launch-firefox-webapp \"$exec_url\""
+else
+  custom_exec="omarchy-launch-firefox-webapp --browser $flavor \"$exec_url\""
+fi
+
+omarchy-webapp-install "$app_name" "$app_url" "$icon_ref" "$custom_exec" "$mime_types"
+
+desktop_file="$HOME/.local/share/applications/$app_name.desktop"
+if [[ -f $desktop_file ]]; then
+  if ! grep -q '^StartupWMClass=' "$desktop_file"; then
+    printf 'StartupWMClass=%s\n' "$wm_class" >>"$desktop_file"
+  fi
+fi
+
+if omarchy-cmd-present update-desktop-database; then
+  update-desktop-database "$HOME/.local/share/applications" &>/dev/null || true
+fi
