@@ -1,0 +1,101 @@
+#!/usr/bin/python3
+# omarchy:summary=Open optional web app links through the desktop default browser
+# omarchy:hidden=true
+
+"""Native messaging host for opt-in web-app external links."""
+
+import json
+import os
+import struct
+import subprocess
+import sys
+from pathlib import Path
+from urllib.parse import urlsplit
+
+
+def reply(message):
+    payload = json.dumps(message).encode("utf-8")
+    sys.stdout.buffer.write(struct.pack("<I", len(payload)) + payload)
+    sys.stdout.buffer.flush()
+
+
+def origin(url, config=False):
+    if not isinstance(url, str) or any(ord(char) <= 32 or char == "\\" for char in url):
+        raise ValueError("unsafe URL")
+    parsed = urlsplit(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username is not None:
+        raise ValueError("not an HTTP(S) origin")
+    port = parsed.port  # Validate numeric port syntax.
+    if config and (parsed.path not in ("", "/") or parsed.query or parsed.fragment):
+        raise ValueError("allowlist entry is not an origin")
+    host = parsed.hostname.lower().encode("idna").decode("ascii")
+    if ":" in host:
+        host = f"[{host}]"
+    if port is not None and port != (443 if parsed.scheme == "https" else 80):
+        host += f":{port}"
+    return f"{parsed.scheme}://{host}"
+
+
+def allowed_origins():
+    path = Path.home() / ".config/omarchy/webapp-links.json"
+    if not path.exists():
+        return {}
+    with path.open("rb") as file:
+        document = file.read(65537)
+    if len(document) > 65536:
+        raise ValueError("allowlist too large")
+    configured = json.loads(document)
+    if not isinstance(configured, dict):
+        raise ValueError("allowlist must map app origins to origin arrays")
+    groups = {}
+    for app, members in configured.items():
+        if not isinstance(members, list) or any(not isinstance(member, str) for member in members):
+            raise ValueError("allowlist members must be origins")
+        groups[origin(app, config=True)] = [origin(member, config=True) for member in members]
+    return groups
+
+
+def related(source, destination, groups):
+    return any(source in (app, *members) and destination in (app, *members)
+               for app, members in groups.items())
+
+
+def main():
+    length = sys.stdin.buffer.read(4)
+    if len(length) != 4:
+        return
+    size = struct.unpack("<I", length)[0]
+    if size == 0 or size > 8192:
+        reply({"opened": False})
+        return
+
+    try:
+        payload = sys.stdin.buffer.read(size)
+        if len(payload) != size:
+            raise ValueError("truncated message")
+        message = json.loads(payload)
+        if not isinstance(message, dict):
+            raise ValueError("message must be an object")
+        groups = allowed_origins()
+        if message.get("action") == "policy":
+            reply({"origins": groups})
+            return
+        url = message["url"]
+        source = origin(message["source"])
+        destination = origin(url)
+        if source == destination or related(source, destination, groups):
+            reply({"opened": False, "allowed": True})
+            return
+        environment = os.environ.copy()
+        environment.pop("BROWSER", None)  # Honour the desktop default, even when it is Chromium itself.
+        result = subprocess.run(
+            ["/usr/bin/xdg-open", url], env=environment, stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=False
+        )
+        reply({"opened": result.returncode == 0})
+    except (ValueError, TypeError, KeyError, UnicodeError, OSError, subprocess.TimeoutExpired):
+        reply({"opened": False})
+
+
+if __name__ == "__main__":
+    main()

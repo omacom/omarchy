@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# omarchy:summary=Route external web app links through the default browser (opt-in)
+# omarchy:args=[on|off|toggle]
+# omarchy:examples=omarchy toggle webapp-links on | omarchy toggle webapp-links off
+
+set -euo pipefail
+
+STATE="$HOME/.local/state/omarchy/toggles/webapp-links"
+EXTENSION="$OMARCHY_PATH/default/chromium/extensions/webapp-links"
+
+case ${1:-toggle} in
+  on) action=on ;;
+  off) action=off ;;
+  toggle)
+    if [[ -f $STATE ]]; then action=off; else action=on; fi
+    ;;
+  *) echo "Usage: omarchy-toggle-webapp-links [on|off|toggle]" >&2; exit 1 ;;
+esac
+
+# Only edit browser flag files that already exist. The option is remembered for
+# browsers installed later, and is reapplied when Omarchy refreshes Chromium.
+flag_files=(
+  "$HOME/.config/chromium-flags.conf"
+  "$HOME/.config/chrome-flags.conf"
+  "$HOME/.config/google-chrome-flags.conf"
+  "$HOME/.config/google-chrome-stable-flags.conf"
+  "$HOME/.config/google-chrome-beta-flags.conf"
+  "$HOME/.config/google-chrome-unstable-flags.conf"
+  "$HOME/.config/brave-flags.conf"
+  "$HOME/.config/brave-browser-flags.conf"
+  "$HOME/.config/brave-origin-flags.conf"
+  "$HOME/.config/brave-origin-beta-flags.conf"
+  "$HOME/.config/brave-origin-nightly-flags.conf"
+  "$HOME/.config/microsoft-edge-flags.conf"
+  "$HOME/.config/microsoft-edge-stable-flags.conf"
+  "$HOME/.config/microsoft-edge-dev-flags.conf"
+  "$HOME/.config/opera-flags.conf"
+  "$HOME/.config/vivaldi-flags.conf"
+  "$HOME/.config/helium-flags.conf"
+)
+
+if [[ $action == "on" ]]; then
+  omarchy-install-chromium-webapp-links
+fi
+
+python3 - "$action" "$EXTENSION" "${flag_files[@]}" <<'PY'
+import sys
+from pathlib import Path
+
+operation, extension, *files = sys.argv[1:]
+for filename in files:
+    path = Path(filename)
+    if not path.is_file():
+        continue
+    original = path.read_text()
+    lines = []
+    added = False
+    for line in original.splitlines(keepends=True):
+        if not line.startswith('--load-extension='):
+            lines.append(line)
+            continue
+        ending = '\n' if line.endswith('\n') else ''
+        entries = [
+            item for item in line[len('--load-extension='):].removesuffix('\n').split(',')
+            if item and not item.endswith('/default/chromium/extensions/webapp-links')
+        ]
+        if operation == 'on' and not added:
+            entries.append(extension)
+            added = True
+        if entries:
+            lines.append('--load-extension=' + ','.join(entries) + ending)
+    if operation == 'on' and not added:
+        if lines and not lines[-1].endswith('\n'):
+            lines.append('\n')
+        lines.append('--load-extension=' + extension + '\n')
+    updated = ''.join(lines)
+    if updated != original:
+        path.write_text(updated)
+PY
+
+if [[ $action == "on" ]]; then
+  mkdir -p "$(dirname "$STATE")"
+  touch "$STATE"
+else
+  rm -f "$STATE"
+  for dir in \
+    "$HOME/.config/chromium" \
+    "$HOME/.config/google-chrome" "$HOME/.config/google-chrome-beta" "$HOME/.config/google-chrome-unstable" \
+    "$HOME/.config/BraveSoftware/Brave-Browser" "$HOME/.config/BraveSoftware/Brave-Browser-Beta" \
+    "$HOME/.config/BraveSoftware/Brave-Browser-Nightly" "$HOME/.config/BraveSoftware/Brave-Origin" \
+    "$HOME/.config/BraveSoftware/Brave-Origin-Beta" "$HOME/.config/BraveSoftware/Brave-Origin-Nightly" \
+    "$HOME/.config/microsoft-edge" "$HOME/.config/microsoft-edge-dev"; do
+    rm -f "$dir/NativeMessagingHosts/com.omarchy.webapp_links.json"
+  done
+fi
+
+echo "Web app external links $([[ $action == 'on' ]] && echo enabled || echo disabled). Restart Chromium-family browsers to apply."
