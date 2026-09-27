@@ -4,6 +4,7 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 require_command jq
+require_command lua
 
 tmpdir=$(mktemp -d)
 cleanup() {
@@ -72,3 +73,20 @@ done
 grep -q 'hl.dsp.focus({ monitor = "DP-1" })' "$tmpdir/calls" ||
   fail "focus returns to the monitor that had it once the screensaver closes" "$(<"$tmpdir/calls")"
 pass "focus returns to the monitor that had it once the screensaver closes"
+
+# The launcher's workspace only holds for the first map. A terminal mapped again as it closes falls back to
+# the class rule, which must keep it off the regular workspaces where its fullscreen rule would take over.
+fallback=$(OMARCHY_PATH="$ROOT" lua <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+hl = setmetatable({
+  window_rule = function(rule)
+    if rule.match.class == "org.omarchy.screensaver" and rule.workspace then print(rule.workspace) end
+  end,
+}, { __index = function() return function() return {} end end })
+require("default.hypr.helpers")
+require("default.hypr.apps.system")
+LUA
+)
+[[ $fallback == "special:screensaver silent" ]] ||
+  fail "a screensaver mapped again as it closes stays off the regular workspaces" "workspace rule: ${fallback:-none}"
+pass "a screensaver mapped again as it closes stays off the regular workspaces"
