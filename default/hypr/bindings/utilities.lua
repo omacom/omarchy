@@ -16,7 +16,68 @@ o.bind("XF86Calculator", "Calculator", "omacalc")
 o.bind_toggle("SUPER + SHIFT + SPACE", "Toggle top bar", "bar")
 o.bind("SUPER + CTRL + SPACE", "Background switcher", "omarchy-menu toggle background")
 o.bind("SUPER + SHIFT + CTRL + SPACE", "Theme menu", "omarchy-menu toggle theme")
-o.bind("SUPER + BACKSPACE", "Toggle window transparency", "omarchy-hyprland-window-transparency-toggle")
+
+local function active_window_is_terminal(window)
+  if not window then
+    return false
+  end
+
+  for _, tag in ipairs(window.tags or {}) do
+    if tag:gsub("%*$", "") == "terminal" then
+      return true
+    end
+  end
+
+  return false
+end
+
+local deleting_line = false
+
+local function delete_to_beginning_of_line()
+  local window = hl.get_active_window()
+  if deleting_line or not window then
+    return
+  end
+
+  local events
+  if active_window_is_terminal(window) then
+    events = {
+      { mods = "CTRL", key = "U", state = "down" },
+      { mods = "CTRL", key = "U", state = "up" },
+    }
+  else
+    events = {
+      { mods = "SHIFT", key = "HOME", state = "down" },
+      { mods = "SHIFT", key = "HOME", state = "up" },
+      { mods = "", key = "BACKSPACE", state = "down" },
+      { mods = "", key = "BACKSPACE", state = "up" },
+    }
+  end
+
+  deleting_line = true
+  local function send(index)
+    -- Always release an injected key, but never start the next key press
+    -- after focus moves to another window. Ignore overlapping invocations.
+    local active = hl.get_active_window()
+    if events[index].state == "down" and (not active or active.address ~= window.address) then
+      deleting_line = false
+      return
+    end
+    hl.dispatch(hl.dsp.send_key_state(events[index]))
+    if index < #events then
+      hl.timer(function()
+        send(index + 1)
+      end, { timeout = 25, type = "oneshot" })
+    else
+      deleting_line = false
+    end
+  end
+
+  send(1)
+end
+
+o.bind("SUPER + BACKSPACE", "Delete to beginning of line", delete_to_beginning_of_line)
+o.bind("SUPER + ALT + BACKSPACE", "Toggle window transparency", "omarchy-hyprland-window-transparency-toggle")
 o.bind("SUPER + SHIFT + BACKSPACE", "Toggle window gaps", "omarchy-hyprland-window-gaps-toggle")
 o.bind("SUPER + CTRL + BACKSPACE", "Toggle single-window square aspect", "omarchy-hyprland-window-single-square-aspect-toggle")
 o.bind_toggle("SUPER + CTRL + ALT + F", "Toggle full screen desktop", "fullscreen-desktop")
