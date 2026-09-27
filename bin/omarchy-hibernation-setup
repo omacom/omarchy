@@ -29,6 +29,7 @@ fi
 MKINITCPIO_CONF="/etc/mkinitcpio.conf.d/omarchy_resume.conf"
 SWAP_FILE="/swap/swapfile"
 RESUME_DROP_IN="/etc/limine-entry-tool.d/resume.conf"
+UPOWER_DROP_IN="/etc/UPower/UPower.conf.d/70-omarchy-critical-hibernate.conf"
 
 install_root_file() {
   local source="$1"
@@ -59,6 +60,21 @@ safe_stage_path() {
   [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
 }
 
+# On a laptop, hibernate when the battery runs critically low instead of
+# suspending into it. Rerunning setup installs it on machines set up before.
+setup_critical_battery_hibernate() {
+  omarchy-battery-present || return 0
+  cmp -s "$OMARCHY_PATH/default/upower/omarchy-critical-hibernate.conf" "$UPOWER_DROP_IN" && return 0
+
+  echo "Hibernating on critical battery"
+  sudo mkdir -p "${UPOWER_DROP_IN%/*}"
+  if install_root_file "$OMARCHY_PATH/default/upower/omarchy-critical-hibernate.conf" "$UPOWER_DROP_IN" 0644; then
+    sudo systemctl try-restart upower.service
+  else
+    echo "Could not install the critical battery action" >&2
+  fi
+}
+
 # Check if hibernation is already configured
 if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
   # Fix empty resume_offset if btrfs map-swapfile failed during initial setup
@@ -72,6 +88,7 @@ if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; 
       fi
     fi
   fi
+  setup_critical_battery_hibernate
   echo "Hibernation is already set up"
   exit 0
 fi
@@ -150,6 +167,8 @@ if grep -q "\[s2idle\]" /sys/power/mem_sleep 2>/dev/null; then
     echo 'KERNEL_CMDLINE[default]+=" rtc_cmos.use_acpi_alarm=1"' | sudo tee "$LIMINE_DROP_IN" >/dev/null
   fi
 fi
+
+setup_critical_battery_hibernate
 
 if ! $NO_REBUILD; then
   # limine-mkinitcpio rebuilds initramfs/UKI for all kernels and updates the
