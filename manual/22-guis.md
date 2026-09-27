@@ -59,6 +59,12 @@ Omarchy's firewall is closed by default except for LocalSend's port, so this wor
 
 You start LibreOffice via the application launcher (`Super + Space`).
 
+## Hype
+
+[Hype](https://github.com/omacom/hype) is Omarchy's own dead-simple presentation app. Your deck is a single Markdown file with its images and videos beside it: write each slide below a live preview, drag slides into order, then present fullscreen or export to PDF and PowerPoint. It even picks up your Omarchy theme.
+
+You start Hype via the application launcher (`Super + Space`). Press `?` inside it to see every shortcut.
+
 ## Omacalc
 
 [Omacalc](https://github.com/omacom-io/omacalc) is Omarchy's own dead-simple calculator, which opens in a floating window.
