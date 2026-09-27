@@ -678,6 +678,11 @@ function formatScrubDelta(minutes) {
   return sign + h + "h" + (rem ? " " + rem + "m" : "")
 }
 
+// The arrow keys move the clocks an hour at a time, as far as the strip reaches.
+function stepScrub(minutes, step) {
+  return Math.max(-DAY_MINUTES / 2, Math.min(DAY_MINUTES / 2, Math.round(minutes) + step * 60))
+}
+
 // ---- the strip's sunrise arrows
 
 function arrowBox(fraction, barWidth, boxWidth, tuck, rising) {
@@ -901,6 +906,7 @@ if (typeof module !== "undefined") {
     zoneOptions: zoneOptions,
     searchZones: searchZones,
     moveSelection: moveSelection,
+    stepScrub: stepScrub,
     mergeCities: mergeCities,
     factsKey: factsKey,
     geocodeUrl: geocodeUrl,

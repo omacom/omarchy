@@ -23,6 +23,7 @@ panel omarchy.audio
 panel omarchy.bluetooth
 panel omarchy.monitor
 panel omarchy.clock
+panel omarchy.elsewhen
 panel omarchy.network
 panel omarchy.power
 audio raise

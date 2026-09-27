@@ -148,6 +148,9 @@ assertEqual(M.moveSelection(4, 1, 5), 0, 'elsewhen wraps the selection past the 
 assertEqual(M.moveSelection(0, -1, 5), 4, 'elsewhen wraps the selection past the start')
 assertEqual(M.moveSelection(3, 1, 0), 0, 'elsewhen resets the selection in an empty list')
 
+assertDeepEqual([M.stepScrub(0, 1), M.stepScrub(0, -1), M.stepScrub(45, 1)], [60, -60, 105], 'elsewhen arrow keys move the clocks an hour')
+assertDeepEqual([M.stepScrub(690, 1), M.stepScrub(-690, -1)], [720, -720], 'elsewhen arrow keys stop half a day either way')
+
 const home = ['Copenhagen', 'Europe/Copenhagen', 55.68, 12.57, 0]
 const merged = M.mergeCities(
   home,

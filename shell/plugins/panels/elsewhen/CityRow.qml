@@ -45,7 +45,9 @@ Rectangle {
   implicitHeight: (pad - panel.capGap) + rowLabels.implicitHeight + stripGap + strip.trackHeight + pad
   radius: Style.cornerRadius
   // Opaque: knocked-aside rows pass over one another and over the globe.
-  color: Model.mix(Color.popups.background, foreground, rowHover.hovered ? phaseFill + 0.05 : phaseFill)
+  // The picked city lights up like a hovered one, so the arrow keys show where they are.
+  readonly property bool lit: rowHover.hovered || panel.focusIndex === index
+  color: Model.mix(Color.popups.background, foreground, lit ? phaseFill + 0.05 : phaseFill)
 
   // Transforms leave the Column's layout alone: the knock that clears the
   // globe's way, then the drag offset.

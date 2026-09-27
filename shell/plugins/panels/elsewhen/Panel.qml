@@ -200,6 +200,12 @@ Panel {
 
   function endScrub() { scrubHold.restart() }
 
+  // Held until Escape or close: a key press has no release to time from.
+  function shiftHour(step) {
+    scrubHold.stop()
+    scrubMinutes = Model.stepScrub(scrubMinutes, step)
+  }
+
   // ---- the moon
   // Shift-click a moon marker to walk the phase through a lunation.
   property bool moonShowing: false
@@ -268,6 +274,23 @@ Panel {
     var from = hero.spin
     focusKey = index >= 0 && index < zones.length ? Model.factsKey(zones[index]) : ""
     if (focusKnown) hero.turn(from, focusLon)
+  }
+
+  // Up and down walk home and then each city, wrapping round like the search list.
+  function moveFocus(step) {
+    var next = Model.moveSelection(focusIndex + 1, step, zones.length + 1) - 1
+    focusOn(next)
+    if (globeMode) showFocusOnGlobe()
+    else scrollToRow(next)
+  }
+
+  function scrollToRow(index) {
+    var row = index >= 0 ? cityRows.itemAt(index) : null
+    if (!row) { scroller.scrollToTop(); return }
+    var top = row.mapToItem(content, 0, 0).y
+    if (top < scroller.contentY) scroller.scrollTo(top)
+    else if (top + row.height > scroller.contentY + scroller.height)
+      scroller.scrollTo(Math.min(scroller.maxScroll, top + row.height - scroller.height))
   }
 
   // Surrogate pairs rather than literal glyphs, which re-encoding can break.
@@ -669,10 +692,16 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       blocked: root.adding
-      // Escape unwinds one layer: search (its own field), globe, then panel.
+      // Escape unwinds one layer: search (its own field), a shifted time, globe, then panel.
       onCloseRequested: {
-        if (root.globeMode) root.setGlobeMode(false, false)
+        if (root.scrubMinutes !== 0) { scrubHold.stop(); root.scrubMinutes = 0 }
+        else if (root.globeMode) root.setGlobeMode(false, false)
         else root.close()
+      }
+      // Up and down pick a city; left and right move the clocks an hour.
+      onMoveRequested: function(dx, dy) {
+        if (dy !== 0) root.moveFocus(dy)
+        else root.shiftHour(dx)
       }
       // Space toggles the globe. Return also arrives as an activate, which it skips.
       property bool returnHandled: false
@@ -792,6 +821,7 @@ Panel {
                   // The zone list, not clockRows: that ticks, and would
                   // rebuild every delegate mid-drag.
                   Repeater {
+                    id: cityRows
                     model: root.zones
 
                     CityRow { panel: root }
