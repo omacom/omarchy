@@ -1,0 +1,871 @@
+#!/bin/bash -p
+
+# omarchy:hidden=true
+# omarchy:summary=Apply Omarchy's key-only SSH policy from a fixed root machine phase
+
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup for the SSH machine phase." >&2
+  exit 126
+fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+source "${security_entrypoint%/*}/omarchy-sshd-functions" || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+set -euo pipefail
+omarchy_security_sanitize_bash_environment "$0" "$@" || exit 126
+
+# Two interfaces only: the migration, without arguments, and setup's machine
+# phase for one account and the keys it has already authorized.
+usage() {
+  echo "Usage: omarchy-migrate-sshd-key-only" >&2
+  echo "       omarchy-migrate-sshd-key-only --setup UID -- KEY [KEY ...]" >&2
+  exit 2
+}
+
+mode=migrate
+setup_uid=""
+setup_keys=()
+if (( $# > 0 )); then
+  [[ $1 == "--setup" ]] && (( $# >= 4 )) && [[ $3 == "--" ]] || usage
+  mode=setup
+  setup_uid=$2
+  setup_keys=("${@:4}")
+fi
+(( EUID == 0 )) || {
+  echo "The SSH machine phase must run as root." >&2
+  exit 2
+}
+
+PATH=/usr/bin:/usr/sbin:/bin:/sbin
+export PATH
+unset BASH_ENV ENV CDPATH GLOBIGNORE
+
+root_prefix=""
+ssh_dir=$root_prefix/etc/ssh
+dropin_dir=$ssh_dir/sshd_config.d
+main_config=$ssh_dir/sshd_config
+legacy_config=$dropin_dir/10-omarchy-hardening.conf
+key_only_config=$dropin_dir/00-omarchy-key-only.conf
+passwd_file=$root_prefix/etc/passwd
+login_defs=$root_prefix/etc/login.defs
+marker_dir=$root_prefix/var/lib/omarchy/migrations
+completion_marker=$marker_dir/1788163637
+machine_lock=/run/omarchy-sshd-key-only-migration.lock
+eligible_names=()
+keyed_names=()
+declare -A keyed_homes=()
+
+runtime_owner_mode=$(/usr/bin/stat -Lc '%u:%a:%F' -- /run) || exit 1
+[[ ! -L /run && $(/usr/bin/readlink -e -- /run) == /run && $runtime_owner_mode == "0:755:directory" ]] || {
+  echo "Refusing an unsafe runtime directory for the SSH machine lock." >&2
+  exit 1
+}
+umask 077
+if [[ -e $machine_lock || -L $machine_lock ]]; then
+  [[ -f $machine_lock && ! -L $machine_lock && $(/usr/bin/stat -Lc '%u:%a:%h' -- "$machine_lock") == "0:600:1" ]] || {
+    echo "Refusing an unsafe SSH machine lock." >&2
+    exit 1
+  }
+fi
+exec {machine_lock_fd}>"$machine_lock"
+[[ $(/usr/bin/stat -Lc '%u:%a:%h' -- "$machine_lock") == "0:600:1" ]] || exit 1
+# Setup and the migration never change the machine at the same time. A busy
+# lock fails rather than waits, so a migration stays pending and retries.
+/usr/bin/flock -n "$machine_lock_fd" || {
+  echo "Another Omarchy SSH change is running; try again once it has finished." >&2
+  exit 75
+}
+
+service_active_state() {
+  local state
+  state=$(/usr/bin/systemctl is-active sshd.service 2>/dev/null) || true
+  case "$state" in
+    active | activating | reloading | deactivating) return 0 ;;
+    inactive | failed) return 1 ;;
+    *) return 2 ;;
+  esac
+}
+
+service_enabled_state() {
+  local state
+  state=$(/usr/bin/systemctl is-enabled sshd.service 2>/dev/null) || true
+  case "$state" in
+    # A runtime mask hides a persistent enablement that returns at boot, so
+    # it counts as enabled; disabling it leaves the mask and removes the rest.
+    enabled | enabled-runtime | linked | linked-runtime | alias | static | indirect | generated | transient | masked-runtime) return 0 ;;
+    # A missing unit, for example after openssh was removed, is not enabled.
+    disabled | masked | not-found) return 1 ;;
+    *) return 2 ;;
+  esac
+}
+
+disable_affected() {
+  local active_status enabled_status
+  service_active_state && active_status=0 || active_status=$?
+  service_enabled_state && enabled_status=0 || enabled_status=$?
+  if (( active_status == 2 || enabled_status == 2 )); then
+    echo "Could not determine whether sshd.service is active or enabled; refusing to complete the SSH migration." >&2
+    return 1
+  fi
+  (( active_status == 0 || enabled_status == 0 )) || return 0
+  if [[ $(/usr/bin/systemctl is-enabled sshd.service 2>/dev/null) == "masked-runtime" ]]; then
+    # systemctl disable ignores a masked unit and still succeeds, and lifting
+    # the runtime mask to disable it would expose the unit meanwhile. Mask it
+    # persistently on top instead, so the enablement beneath stays inert once
+    # a reboot clears the runtime mask.
+    /usr/bin/systemctl mask sshd.service && /usr/bin/systemctl stop sshd.service || {
+      echo "Could not mask the runtime-masked sshd.service; rerun omarchy-migrate with administrator privileges." >&2
+      exit 1
+    }
+  else
+    /usr/bin/systemctl disable --now sshd.service || {
+      echo "Could not disable SSH after key-only policy verification failed; rerun omarchy-migrate with administrator privileges." >&2
+      exit 1
+    }
+  fi
+  # Success from systemctl is not proof the unit can no longer start; ask.
+  service_enabled_state && enabled_status=0 || enabled_status=$?
+  (( enabled_status == 1 )) || {
+    echo "sshd.service can still start after disabling it; refusing to complete the SSH migration." >&2
+    exit 1
+  }
+  echo "Disabled sshd because a machine account with usable key-only access could not be proven. Run omarchy-setup-security-sshd to repair it (after systemctl unmask sshd.service if it was masked)."
+}
+
+legacy_is_omarchy_managed() {
+  [[ -f $legacy_config && ! -L $legacy_config ]] || return 1
+  [[ $(/usr/bin/awk '!/^[[:space:]]*(#|$)/ { print }' "$legacy_config") == $'PasswordAuthentication no\nKbdInteractiveAuthentication no' ]]
+}
+
+valid_login_shell() {
+  local shell=$1
+  [[ $shell == /* && -x $shell ]] || return 1
+  case "$shell" in
+    */nologin | */false) return 1 ;;
+  esac
+}
+
+# The account's home, .ssh and authorized_keys must be real, canonical, owned
+# by the account or root, and writable by no one else, or the keys in them
+# prove nothing about who can log in.
+authorized_keys_path_is_safe() {
+  local uid=$1 home=$2
+  local authorized_keys="$home/.ssh/authorized_keys" canonical home_owner home_mode ssh_owner ssh_mode key_owner key_mode probe
+
+  [[ -d $home && ! -L $home ]] || return 1
+  canonical=$(/usr/bin/realpath -e -- "$home" 2>/dev/null) || return 1
+  [[ $canonical == "$home" ]] || return 1
+  [[ -d $home/.ssh && ! -L $home/.ssh && -f $authorized_keys && ! -L $authorized_keys ]] || return 1
+  [[ $(/usr/bin/realpath -e -- "$home/.ssh") == "$home/.ssh" &&
+    $(/usr/bin/realpath -e -- "$authorized_keys") == "$authorized_keys" ]] || return 1
+  probe=$(/usr/bin/stat -Lc '%u %a' -- "$home") || return 1
+  read -r home_owner home_mode <<<"$probe"
+  probe=$(/usr/bin/stat -Lc '%u %a' -- "$home/.ssh") || return 1
+  read -r ssh_owner ssh_mode <<<"$probe"
+  probe=$(/usr/bin/stat -Lc '%u %a' -- "$authorized_keys") || return 1
+  read -r key_owner key_mode <<<"$probe"
+  [[ $home_owner == 0 || $home_owner == "$uid" ]] || return 1
+  [[ $ssh_owner == 0 || $ssh_owner == "$uid" ]] || return 1
+  [[ $key_owner == 0 || $key_owner == "$uid" ]] || return 1
+  [[ $home_mode =~ ^[0-7]+$ && $ssh_mode =~ ^[0-7]+$ && $key_mode =~ ^[0-7]+$ ]] || return 1
+  ! ((8#$home_mode & 022)) && ! ((8#$ssh_mode & 022)) && ! ((8#$key_mode & 022))
+}
+
+account_has_usable_key() {
+  local name=$1 uid=$2 home=$3 line
+  authorized_keys_path_is_safe "$uid" "$home" || return 1
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line =~ ^[[:space:]]*(#|$) ]] && continue
+    omarchy_sshd_key_line_permits_login "$line" || continue
+    /usr/bin/ssh-keygen -lf /dev/stdin <<<"$line" >/dev/null 2>&1 && return 0
+  done <"$home/.ssh/authorized_keys"
+  return 1
+}
+
+# A key that parses may still be refused for this account by its effective
+# policy; only a key sshd would accept proves an administrative login.
+account_has_accepted_key() {
+  local home=$1 dump=$2 line
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line =~ ^[[:space:]]*(#|$) ]] && continue
+    omarchy_sshd_key_line_accepted "$line" "$dump" && return 0
+  done <"$home/.ssh/authorized_keys"
+  return 1
+}
+
+valid_account_name() {
+  [[ $1 =~ ^[a-z_][a-z0-9_-]{0,30}[$]?$ ]]
+}
+
+account_is_admitted() {
+  local name=$1 dump=$2 directive token status_line status account_groups group admitted listing
+  local -a values groups
+
+  status_line=$(LC_ALL=C /usr/bin/passwd -S -- "$name" 2>/dev/null) || return 1
+  read -r token status _ <<<"$status_line"
+  [[ $token == "$name" && ( $status == "P" || $status == "NP" ) ]] || return 1
+
+  account_groups=$(/usr/bin/id -Gn -- "$name" 2>/dev/null) || return 1
+  read -r -a groups <<<"$account_groups"
+  ((${#groups[@]} > 0)) || return 1
+  for group in "${groups[@]}"; do valid_account_name "$group" || return 1; done
+
+  for directive in allowusers denyusers allowgroups denygroups; do
+    listing=$(/usr/bin/awk -v wanted="$directive" 'tolower($1) == wanted { for (i=2; i<=NF; i++) print $i }' <<<"$dump") || return 1
+    values=()
+    [[ -z $listing ]] || mapfile -t values <<<"$listing"
+    case "$directive" in
+      allowusers)
+        ((${#values[@]} == 0)) || {
+          admitted=0
+          for token in "${values[@]}"; do valid_account_name "$token" || return 1; [[ $token != "$name" ]] || admitted=1; done
+          ((admitted)) || return 1
+        }
+        ;;
+      denyusers)
+        for token in "${values[@]}"; do valid_account_name "$token" || return 1; [[ $token != "$name" ]] || return 1; done
+        ;;
+      allowgroups)
+        ((${#values[@]} == 0)) || {
+          admitted=0
+          for token in "${values[@]}"; do
+            valid_account_name "$token" || return 1
+            for group in "${groups[@]}"; do [[ $token != "$group" ]] || admitted=1; done
+          done
+          ((admitted)) || return 1
+        }
+        ;;
+      denygroups)
+        for token in "${values[@]}"; do
+          valid_account_name "$token" || return 1
+          for group in "${groups[@]}"; do [[ $token != "$group" ]] || return 1; done
+        done
+        ;;
+    esac
+  done
+}
+
+enumerate_login_accounts() {
+  local uid_min=1000 line name password uid gid gecos home shell extra
+  local configured_uid_min
+  configured_uid_min=$(/usr/bin/awk '$1 == "UID_MIN" && $2 ~ /^[0-9]+$/ { print $2; exit }' "$login_defs" 2>/dev/null || true)
+  [[ -z $configured_uid_min ]] || uid_min=$configured_uid_min
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ -n $line ]] || continue
+    IFS=: read -r name password uid gid gecos home shell extra <<<"$line"
+    # The UID and shell decide whether an entry matters, so they must parse.
+    [[ -z ${extra:-} && $uid =~ ^[0-9]+$ ]] || return 1
+    (( uid == 0 || (uid >= uid_min && uid != 65534) )) || continue
+    valid_login_shell "$shell" || continue
+    # Only login accounts reach sshd -T -C, so only they need names and homes
+    # it can be asked about; a system entry must not shut SSH down.
+    [[ $home == /* ]] || return 1
+    valid_account_name "$name" || return 1
+    eligible_names+=("$name")
+    if account_has_usable_key "$name" "$uid" "$home"; then
+      keyed_names+=("$name")
+      keyed_homes[$name]=$home
+    fi
+  done <"$passwd_file"
+  ((${#eligible_names[@]} > 0))
+}
+
+# Every directory from the system root down to DIR must be real, root-owned
+# and writable by no one else, so nothing below it can be swapped.
+trusted_directory() {
+  local dir=$1 owner mode probe top=${root_prefix:-/}
+  while :; do
+    [[ -d $dir && ! -L $dir ]] || return 1
+    probe=$(/usr/bin/stat -c '%u %a' -- "$dir") || return 1
+    read -r owner mode <<<"$probe"
+    [[ $owner == 0 && $mode =~ ^[0-7]+$ ]] && ! ((8#$mode & 022)) || return 1
+    [[ $dir != "$top" && $dir != "/" ]] || return 0
+    dir=${dir%/*}
+    [[ -n $dir ]] || dir=/
+  done
+}
+
+trusted_file() {
+  local file=$1 owner mode probe
+  [[ -f $file && ! -L $file ]] || return 1
+  probe=$(/usr/bin/stat -c '%u %a' -- "$file") || return 1
+  read -r owner mode <<<"$probe"
+  [[ $owner == 0 && $mode =~ ^[0-7]+$ ]] && ! ((8#$mode & 022)) || return 1
+  trusted_directory "${file%/*}"
+}
+
+# A configuration file anyone but root can change could change the policy
+# between its proof and the daemon reading it. The main file and everything
+# it includes, however deep, must be trusted files. Relative Include paths
+# are resolved from /etc/ssh, as sshd does. sshd also takes "Include=path"
+# and quoted or escaped arguments; only plain whitespace-separated patterns
+# are resolved here, and any other Include form is refused rather than
+# guessed at, since a pattern read wrongly would match nothing and leave the
+# real file unchecked.
+config_graph_is_trusted() {
+  local file=$1 depth=${2:-0} pattern match listing directory base ancestor
+  local -a patterns=() matches
+  (( depth <= 16 )) || return 1
+  trusted_file "$file" || return 1
+  listing=$(/usr/bin/awk '
+    {
+      line=$0; sub(/^[[:space:]]+/, "", line)
+      if (line == "" || substr(line, 1, 1) == "#") next
+      keyword=line; sub(/[[:space:]=].*/, "", keyword)
+      if (tolower(keyword) != "include") next
+      rest=substr(line, length(keyword) + 1); sub(/^[[:space:]]*=?[[:space:]]*/, "", rest); sub(/[[:space:]]+$/, "", rest)
+      if (rest == "" || rest ~ /["\047\\#]/) { print "\001"; next }
+      n=split(rest, f, /[[:space:]]+/); for (i=1; i<=n; i++) print f[i]
+    }
+  ' "$file") || return 1
+  [[ -z $listing ]] || mapfile -t patterns <<<"$listing"
+  for pattern in "${patterns[@]}"; do
+    [[ $pattern != $'\001' && $pattern != "~"* ]] || return 1
+    [[ $pattern == /* ]] || pattern=/etc/ssh/$pattern
+    # A match can appear later wherever the pattern points, so that place
+    # must be trusted even while nothing matches: the pattern's directory,
+    # or the nearest part of it that exists. Wildcards in the directory part
+    # could reach anywhere and are refused.
+    directory=${pattern%/*}
+    base=${pattern##*/}
+    [[ -n $base && $directory != *[*?[]* ]] || return 1
+    directory=$root_prefix${directory:-/}
+    ancestor=$directory
+    while [[ -n $ancestor && ! -e $ancestor && ! -L $ancestor ]]; do ancestor=${ancestor%/*}; done
+    trusted_directory "${ancestor:-/}" || return 1
+    # A directory that does not exist yet has no matches. One that does is
+    # listed in full, and a listing that fails is not taken as empty. find's
+    # -name matches dotfiles a shell glob would skip, so it checks more.
+    matches=()
+    if [[ -e $directory || -L $directory ]]; then
+      mapfile -d '' -t matches < <(/usr/bin/find "$directory" -mindepth 1 -maxdepth 1 -name "$base" -print0)
+      wait "$!" || return 1
+    fi
+    for match in "${matches[@]}"; do
+      config_graph_is_trusted "$match" $(( depth + 1 )) || return 1
+    done
+  done
+}
+
+# sshd takes "Keyword value" and "Keyword=value" alike, so the keyword ends
+# at whitespace or "=".
+precedence_is_provable() {
+  /usr/bin/awk '
+    { line=$0; sub(/[[:space:]]*#.*/, "", line); sub(/^[[:space:]]+/, "", line) }
+    line !~ /^[[:space:]]*$/ {
+      key=line; sub(/[[:space:]=].*/, "", key); key=tolower(key)
+      if (!included) {
+        if (key=="include" && line ~ /^[Ii][Nn][Cc][Ll][Uu][Dd][Ee][[:space:]]+\/etc\/ssh\/sshd_config\.d\/\*\.conf[[:space:]]*$/) included=1
+        else if (key=="include" || key=="match" || key=="passwordauthentication" || key=="kbdinteractiveauthentication" || key=="authenticationmethods" || key=="pubkeyauthentication" || key=="authorizedkeysfile") exit 1
+      }
+    }
+    END { if (!included) exit 1 }
+  ' "$main_config" || return 1
+  # Drop-ins are read in byte order; compare in it too, whatever the caller's
+  # locale, which could otherwise ignore punctuation such as a leading "0-".
+  local entry listing LC_ALL=C
+  listing=$(/usr/bin/find "$dropin_dir" -mindepth 1 -maxdepth 1 -name '*.conf' -printf '%f\n' | /usr/bin/sort) || return 1
+  while IFS= read -r entry; do
+    [[ -n $entry && $entry != "${key_only_config##*/}" ]] || continue
+    [[ $entry > "${key_only_config##*/}" ]] || return 1
+  done <<<"$listing"
+}
+
+dump_is_key_only() {
+  local dump=$1
+  /usr/bin/grep -qixF 'passwordauthentication no' <<<"$dump" &&
+    /usr/bin/grep -qixF 'kbdinteractiveauthentication no' <<<"$dump" &&
+    /usr/bin/grep -qixF 'authenticationmethods publickey' <<<"$dump" &&
+    /usr/bin/grep -qixF 'pubkeyauthentication yes' <<<"$dump" &&
+    /usr/bin/grep -qixF 'authorizedkeysfile .ssh/authorized_keys' <<<"$dump"
+}
+
+account_dump() {
+  /usr/bin/sshd -T -C "user=$1,host=localhost,addr=127.0.0.1,laddr=127.0.0.1,lport=22"
+}
+
+effective_is_key_only() {
+  local dump name keyed admitted_key=0
+  dump=$(/usr/bin/sshd -T) && dump_is_key_only "$dump" || return 1
+  for name in "${eligible_names[@]}"; do
+    dump=$(account_dump "$name") || return 1
+    dump_is_key_only "$dump" || return 1
+    for keyed in "${keyed_names[@]}"; do
+      if [[ $keyed == "$name" ]] && account_is_admitted "$name" "$dump" && omarchy_sshd_policy_allows_login "$dump" &&
+        account_has_accepted_key "${keyed_homes[$name]}" "$dump"; then admitted_key=1; fi
+    done
+  done
+  ((admitted_key))
+}
+
+key_only_policy() {
+  cat <<'CONF'
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+AuthenticationMethods publickey
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+Match all
+  PasswordAuthentication no
+  KbdInteractiveAuthentication no
+  AuthenticationMethods publickey
+  PubkeyAuthentication yes
+  AuthorizedKeysFile .ssh/authorized_keys
+CONF
+}
+
+migrate_machine() {
+  local created=0 active_status enabled_status
+
+  # Only repair the exact two-directive file emitted by old Omarchy. Preserve
+  # an administrator-authored file at either name byte-for-byte.
+  if [[ -e $legacy_config || -L $legacy_config ]]; then
+    legacy_is_omarchy_managed || exit 0
+  elif [[ ! -e $key_only_config && ! -L $key_only_config ]]; then
+    # No Omarchy file at all. Old setup enabled sshd before importing a key,
+    # so a daemon that is enabled or running may be accepting passwords;
+    # one that is neither needs nothing.
+    service_active_state && active_status=0 || active_status=$?
+    service_enabled_state && enabled_status=0 || enabled_status=$?
+    if (( active_status == 2 || enabled_status == 2 )); then
+      echo "Could not determine whether sshd.service is active or enabled; refusing to complete the SSH migration." >&2
+      exit 1
+    fi
+    (( active_status == 0 || enabled_status == 0 )) || exit 0
+  fi
+  if [[ -e $key_only_config || -L $key_only_config ]] && [[ ! -f $key_only_config || -L $key_only_config ]]; then
+    disable_affected
+    exit 0
+  fi
+
+  if ! enumerate_login_accounts || ((${#keyed_names[@]} == 0)) || ! config_graph_is_trusted "$main_config" || ! precedence_is_provable; then
+    disable_affected
+    exit 0
+  fi
+
+  if [[ ! -e $key_only_config ]]; then
+    { echo "# Written by Omarchy once an SSH key was already authorized."; key_only_policy; } |
+      /usr/bin/install -DT -o root -g root -m 0644 /dev/stdin "$key_only_config" || exit 1
+    created=1
+  fi
+  /usr/bin/ssh-keygen -A || { ((created)) && /usr/bin/rm -f "$key_only_config"; exit 1; }
+  if ! /usr/bin/sshd -t || ! effective_is_key_only; then
+    ((created)) && /usr/bin/rm -f "$key_only_config"
+    disable_affected
+    exit 0
+  fi
+
+  service_active_state && active_status=0 || active_status=$?
+  if (( active_status == 2 )); then
+    ((created)) && /usr/bin/rm -f "$key_only_config"
+    echo "Could not determine whether sshd.service is active; refusing to complete the SSH migration." >&2
+    exit 1
+  elif (( active_status == 0 )) && ! /usr/bin/systemctl reload sshd.service; then
+    disable_affected
+    exit 0
+  fi
+
+  if legacy_is_omarchy_managed; then
+    /usr/bin/rm -f -- "$legacy_config"
+  fi
+  # Only a validated, loaded conversion certifies completion. The key-only file
+  # alone does not: an interrupted setup can leave one behind.
+  /usr/bin/install -D -o root -g root -m 0644 /dev/null "$completion_marker"
+}
+
+# ---------------------------------------------------------------------------
+# Setup's machine phase. The caller has already authorized the keys, as the
+# account, in its own authorized_keys; nothing here changes that file.
+#
+# Guarantees: ordinary failures and delivered HUP/INT/QUIT/TERM/PIPE roll back
+# every armed change made before the commit, a further signal during cleanup
+# does not abandon it, and the completion marker is the commit point.
+# Deliberately not guaranteed: a finite deadline. A hung package, systemd,
+# UFW or filesystem operation, a stop, SIGKILL or power loss can leave the
+# change unfinished, and a caller whose sudo went away cannot assume this
+# phase stopped. No child is ever signalled by a stored PID.
+# ---------------------------------------------------------------------------
+
+setup_key_limit=128
+setup_key_bytes=8192
+setup_total_bytes=65536
+setup_name=""
+setup_gid=""
+setup_home=""
+service_was_active=false
+service_was_enabled=false
+service_started=false
+service_enabled=false
+firewall_rule_was_present=false
+firewall_rule_added=false
+hardening_was_present=false
+hardening_touched=false
+hardening_backup=""
+hardening_stage=""
+marker_stage=""
+setup_token=""
+commit_attempted=false
+setup_cleanup_active=false
+
+parse_setup_request() {
+  local LC_ALL=C key total=0
+
+  [[ $setup_uid =~ ^(0|[1-9][0-9]{0,9})$ ]] || {
+    echo "Refusing a malformed account UID for SSH setup." >&2
+    return 1
+  }
+  # sudo records who invoked it. Through sudo, only the caller's own account
+  # can be set up; a root shell without sudo may name any account.
+  if [[ -n ${SUDO_UID:-} && $SUDO_UID != "0" && $SUDO_UID != "$setup_uid" ]]; then
+    echo "Refusing SSH setup for an account other than the caller's." >&2
+    return 1
+  fi
+  (( ${#setup_keys[@]} <= setup_key_limit )) || {
+    echo "Refusing more than $setup_key_limit SSH keys." >&2
+    return 1
+  }
+  for key in "${setup_keys[@]}"; do
+    total=$(( total + ${#key} ))
+    if [[ -z $key || $key == *[$'\r\n']* ]] || (( ${#key} > setup_key_bytes )) ||
+      ! omarchy_sshd_key_line_permits_login "$key" || ! /usr/bin/ssh-keygen -lf /dev/stdin <<<"$key" >/dev/null 2>&1; then
+      echo "Refusing an unusable SSH public key for setup." >&2
+      return 1
+    fi
+  done
+  (( total <= setup_total_bytes )) || {
+    echo "Refusing SSH keys larger than $setup_total_bytes bytes in total." >&2
+    return 1
+  }
+}
+
+# Everything about the account comes from the user database, never from the
+# caller's environment or arguments beyond its UID.
+resolve_setup_account() {
+  local entry uid shell extra
+  entry=$(/usr/bin/getent passwd "$setup_uid") || {
+    echo "Could not resolve UID $setup_uid from the system user database." >&2
+    return 1
+  }
+  IFS=: read -r setup_name _ uid setup_gid _ setup_home shell extra <<<"$entry"
+  if [[ -n ${extra:-} || $uid != "$setup_uid" || ! $setup_gid =~ ^[0-9]+$ ]] || ! valid_account_name "$setup_name" ||
+    ! valid_login_shell "$shell" || [[ $setup_home != /* ]]; then
+    echo "The account for UID $setup_uid is not a login account SSH setup can make key-only." >&2
+    return 1
+  fi
+}
+
+# The keys must be in the account's authorized_keys, and the files holding
+# them safe. The file is read as the account, so a path the account swapped
+# after the check can never become a read with root's privileges.
+account_authorized_keys_hold() {
+  local key
+  authorized_keys_path_is_safe "$setup_uid" "$setup_home" || {
+    echo "$setup_home/.ssh/authorized_keys is not a safe, real file owned by $setup_name; refusing SSH setup." >&2
+    return 1
+  }
+  for key in "${setup_keys[@]}"; do
+    /usr/bin/setpriv --reuid="$setup_uid" --regid="$setup_gid" --init-groups --no-new-privs -- \
+      /usr/bin/env -i /usr/bin/grep -qxF -- "$key" "$setup_home/.ssh/authorized_keys" || {
+      echo "A collected key is not in $setup_home/.ssh/authorized_keys; refusing SSH setup." >&2
+      return 1
+    }
+  done
+}
+
+ensure_trusted_directory() {
+  local dir=$1
+  [[ -e $dir || -L $dir ]] || {
+    ensure_trusted_directory "${dir%/*}" || return 1
+    /usr/bin/install -d -o root -g root -m 0755 -- "$dir" || return 1
+  }
+  trusted_directory "$dir"
+}
+
+setup_destinations_are_safe() {
+  trusted_directory "$ssh_dir" && trusted_directory "$dropin_dir" && ensure_trusted_directory "$marker_dir" || {
+    echo "The SSH configuration or Omarchy migration directories are not safe root-owned directories; refusing SSH setup." >&2
+    return 1
+  }
+  if [[ -e $key_only_config || -L $key_only_config ]] && [[ ! -f $key_only_config || -L $key_only_config ]]; then
+    echo "$key_only_config is not a regular file; preserving it and refusing SSH setup." >&2
+    return 1
+  fi
+  if [[ -e $completion_marker || -L $completion_marker ]] && [[ ! -f $completion_marker || -L $completion_marker ]]; then
+    echo "$completion_marker is not a regular file; refusing SSH setup." >&2
+    return 1
+  fi
+  config_graph_is_trusted "$main_config" || {
+    echo "$main_config or a file it includes is not a root-owned file only root can write; refusing SSH setup." >&2
+    return 1
+  }
+}
+
+# 0 when the Omarchy rule is present, 1 when UFW proves it absent, 2 when UFW
+# could not be asked. An unanswered query must never read as "absent": the
+# rollback would then delete a rule the administrator already had.
+firewall_rule_state() {
+  local added
+  added=$(/usr/bin/ufw show added 2>/dev/null) || return 2
+  /usr/bin/grep -Eq "^ufw limit 22/tcp comment ['\"]?omarchy-sshd['\"]?$" <<<"$added" && return 0
+  return 1
+}
+
+record_existing_state() {
+  local active_status enabled_status firewall_status
+  service_active_state && active_status=0 || active_status=$?
+  service_enabled_state && enabled_status=0 || enabled_status=$?
+  if (( active_status == 2 || enabled_status == 2 )); then
+    echo "Could not determine the existing sshd.service state; refusing SSH setup." >&2
+    return 1
+  fi
+  ((active_status != 0)) || service_was_active=true
+  ((enabled_status != 0)) || service_was_enabled=true
+  if ! /usr/bin/omarchy-cmd-missing ufw; then
+    firewall_rule_state && firewall_status=0 || firewall_status=$?
+    if (( firewall_status == 2 )); then
+      echo "Could not determine the existing UFW rules; refusing SSH setup." >&2
+      return 1
+    fi
+    ((firewall_status != 0)) || firewall_rule_was_present=true
+  fi
+}
+
+# Staged beside the destination, never under a .conf name sshd would load,
+# then renamed into place.
+install_key_only_config() {
+  echo "Disabling SSH password authentication, now that a key is authorized..."
+  if [[ -e $key_only_config ]]; then
+    hardening_was_present=true
+    hardening_backup=$(/usr/bin/mktemp "$dropin_dir/.00-omarchy-key-only.backup.XXXXXX") || return 1
+    /usr/bin/cp -a -- "$key_only_config" "$hardening_backup" || return 1
+  fi
+  hardening_stage=$(/usr/bin/mktemp "$dropin_dir/.00-omarchy-key-only.XXXXXX") || return 1
+  {
+    echo "# Written by omarchy-setup-security-sshd once an SSH key was authorized."
+    echo "# Delete this file and reload sshd to allow password logins again."
+    key_only_policy
+  } >"$hardening_stage" || return 1
+  /usr/bin/chown root:root -- "$hardening_stage" && /usr/bin/chmod 0644 -- "$hardening_stage" || return 1
+  hardening_touched=true
+  /usr/bin/mv -fT -- "$hardening_stage" "$key_only_config" || return 1
+  hardening_stage=""
+}
+
+# sshd uses the first value it reads, so syntax alone proves nothing: the
+# effective policy, for the whole daemon and for this account, must be
+# key-only, admit the account, and accept one of its collected keys.
+prove_key_only_policy() {
+  local dump key revoked
+  precedence_is_provable || {
+    echo "sshd_config must include /etc/ssh/sshd_config.d/*.conf before authentication or Match directives, and $key_only_config must be the first drop-in." >&2
+    return 1
+  }
+  # Arch creates host keys on first daemon start. Generate them explicitly so
+  # the complete configuration can be validated without starting a listener.
+  /usr/bin/ssh-keygen -A || return 1
+  /usr/bin/sshd -t || {
+    echo "sshd rejected the key-only configuration." >&2
+    return 1
+  }
+  dump=$(/usr/bin/sshd -T) && dump_is_key_only "$dump" &&
+    dump=$(account_dump "$setup_name") && dump_is_key_only "$dump" && account_is_admitted "$setup_name" "$dump" || {
+    echo "sshd did not apply the password-authentication restrictions for $setup_name." >&2
+    return 1
+  }
+  omarchy_sshd_policy_allows_login "$dump" || {
+    echo "sshd refuses or forces a command for $setup_name." >&2
+    return 1
+  }
+  revoked=$(/usr/bin/awk 'tolower($1) == "revokedkeys" { print $2; exit }' <<<"$dump")
+  if [[ -n $revoked && ${revoked,,} != none ]] && ! trusted_file "$root_prefix$revoked"; then
+    echo "The RevokedKeys file $revoked is not a root-owned file only root can write; refusing SSH setup." >&2
+    return 1
+  fi
+  for key in "${setup_keys[@]}"; do
+    omarchy_sshd_key_line_accepted "$key" "$dump" && return 0
+  done
+  echo "sshd would not accept any of the collected keys for $setup_name (key algorithm, RSA size, or revocation)." >&2
+  return 1
+}
+
+publish_sshd() {
+  if [[ $service_was_active == "true" ]]; then
+    # Preserve established sessions while applying the validated policy.
+    /usr/bin/systemctl reload sshd.service || return 1
+  else
+    service_started=true
+    /usr/bin/systemctl start sshd.service || return 1
+  fi
+  if [[ $service_was_enabled != "true" ]]; then
+    service_enabled=true
+    /usr/bin/systemctl enable sshd.service || return 1
+  fi
+}
+
+open_firewall() {
+  if /usr/bin/omarchy-cmd-missing ufw; then
+    echo "UFW is not installed; skipping firewall rule."
+    return 0
+  fi
+  echo "Opening the SSH port in the firewall (rate limited against brute force)..."
+  if [[ $firewall_rule_was_present != "true" ]]; then
+    firewall_rule_added=true
+    /usr/bin/ufw limit 22/tcp comment "omarchy-sshd" >/dev/null || return 1
+    firewall_rule_state || {
+      echo "UFW did not publish the expected Omarchy SSH rule." >&2
+      return 1
+    }
+  fi
+  /usr/bin/ufw reload >/dev/null
+}
+
+# The rename of this invocation's marker is the commit: once it is in place
+# the setup is complete, whatever happens to this process afterwards.
+commit_setup_machine() {
+  setup_token="omarchy-setup-security-sshd $$ $EPOCHREALTIME $SRANDOM"
+  marker_stage=$(/usr/bin/mktemp "$marker_dir/.1788163637.XXXXXX") || return 1
+  printf '%s\n' "$setup_token" >"$marker_stage" || return 1
+  /usr/bin/chown root:root -- "$marker_stage" && /usr/bin/chmod 0644 -- "$marker_stage" || return 1
+  commit_attempted=true
+  /usr/bin/mv -fT -- "$marker_stage" "$completion_marker" || return 1
+  marker_stage=""
+}
+
+# 0 committed, 1 not committed, 2 unknown. Once the commit was attempted,
+# only a lookup that positively reports no such file means it did not happen;
+# any other failure to look is unknown.
+commit_outcome() {
+  local content lookup
+  [[ $commit_attempted == "true" ]] || return 1
+  if ! lookup=$(LC_ALL=C /usr/bin/stat -c %F -- "$completion_marker" 2>&1); then
+    [[ $lookup == *": No such file or directory" ]] && return 1
+    return 2
+  fi
+  [[ -f $completion_marker && ! -L $completion_marker ]] || return 2
+  content=$(<"$completion_marker") || return 2
+  [[ $content == "$setup_token" ]] && return 0
+  return 2
+}
+
+rollback_setup_machine() {
+  local failed=false keep_key_only=false firewall_status restored=false
+
+  if [[ $firewall_rule_added == "true" ]]; then
+    # Armed before the mutation. The rule was proven absent beforehand, so
+    # deleting it is always ours to do; a failed delete only counts when UFW
+    # does not then show it gone.
+    if ! /usr/bin/ufw --force delete limit 22/tcp comment "omarchy-sshd" >/dev/null 2>&1; then
+      firewall_rule_state && firewall_status=0 || firewall_status=$?
+      (( firewall_status == 1 )) || failed=true
+    fi
+    /usr/bin/ufw reload >/dev/null 2>&1 || failed=true
+  fi
+  if [[ $service_enabled == "true" && $service_was_enabled != "true" ]]; then
+    /usr/bin/systemctl disable sshd.service >/dev/null 2>&1 || { failed=true; keep_key_only=true; }
+  fi
+  if [[ $service_started == "true" && $service_was_active != "true" ]]; then
+    /usr/bin/systemctl stop sshd.service >/dev/null 2>&1 || { failed=true; keep_key_only=true; }
+  fi
+  if [[ $hardening_touched == "true" ]]; then
+    if [[ $keep_key_only == "true" ]]; then
+      # A daemon still running, or still enabled to start at boot, must not
+      # be left beneath a restored policy that may allow passwords.
+      echo "sshd could not be stopped or disabled; keeping the key-only configuration${hardening_backup:+ (previous file saved as $hardening_backup)}." >&2
+    elif [[ -n $hardening_backup ]]; then
+      # The backup is in the same root-owned directory, so rename restores
+      # the administrator's exact owner, group and mode atomically.
+      if /usr/bin/mv -fT -- "$hardening_backup" "$key_only_config"; then
+        hardening_backup=""
+        restored=true
+      else
+        failed=true
+      fi
+    elif [[ $hardening_was_present != "true" ]]; then
+      /usr/bin/rm -f -- "$key_only_config" && restored=true || failed=true
+    fi
+    # A daemon that was already running loaded our file; give it the restored
+    # configuration, or keep the key-only policy in memory if that is invalid.
+    if [[ $service_was_active == "true" && $restored == "true" ]]; then
+      if /usr/bin/sshd -t >/dev/null 2>&1; then
+        /usr/bin/systemctl reload sshd.service >/dev/null 2>&1 || failed=true
+      else
+        failed=true
+      fi
+    fi
+  elif [[ -n $hardening_backup ]]; then
+    # Stopped between taking the backup and replacing the configuration.
+    /usr/bin/rm -f -- "$hardening_backup" && hardening_backup="" || failed=true
+  fi
+  [[ $failed != "true" ]]
+}
+
+cleanup_setup_machine() {
+  local status=$setup_cleanup_status outcome
+  trap - EXIT
+  set +e
+  [[ -z $hardening_stage ]] || /usr/bin/rm -f -- "$hardening_stage"
+  [[ -z $marker_stage ]] || /usr/bin/rm -f -- "$marker_stage"
+  commit_outcome
+  outcome=$?
+  if (( outcome == 0 )); then
+    [[ -z $hardening_backup ]] || /usr/bin/rm -f -- "$hardening_backup" ||
+      echo "WARNING: SSH setup completed but could not remove $hardening_backup" >&2
+  elif (( outcome == 2 )); then
+    echo "CRITICAL: could not establish whether SSH setup completed; keeping the configuration and recovery files as they are. Inspect $key_only_config and $completion_marker${hardening_backup:+, and $hardening_backup}." >&2
+    (( status != 0 )) || status=1
+  elif ! rollback_setup_machine; then
+    echo "CRITICAL: SSH setup rollback was incomplete; inspect sshd.service, UFW, and $key_only_config immediately." >&2
+    (( status != 0 )) || status=1
+  fi
+  exit "$status"
+}
+
+handle_setup_machine_signal() {
+  [[ $setup_cleanup_active != "true" ]] || return 0
+  setup_cleanup_active=true
+  exit "$1"
+}
+
+setup_machine() {
+  parse_setup_request
+  resolve_setup_account
+  account_authorized_keys_hold
+
+  # One assignment-only command records the status and marks cleanup active,
+  # so no handler can run between the two. During cleanup a signal is held
+  # by a handler rather than ignored, so the commands it runs can still be
+  # stopped the ordinary way.
+  trap 'setup_cleanup_status=$? setup_cleanup_active=true; cleanup_setup_machine' EXIT
+  trap 'handle_setup_machine_signal 129' HUP
+  trap 'handle_setup_machine_signal 130' INT
+  trap 'handle_setup_machine_signal 131' QUIT
+  trap 'handle_setup_machine_signal 141' PIPE
+  trap 'handle_setup_machine_signal 143' TERM
+
+  # Install first: without the package the unit does not exist yet, and its
+  # state could not be recorded. Installing openssh neither enables nor starts
+  # it, and is not undone.
+  echo "Installing the OpenSSH server prerequisites..."
+  /usr/bin/omarchy-pkg-add openssh
+  setup_destinations_are_safe
+  record_existing_state
+  # Setup is about to change the SSH configuration, so an earlier
+  # certification no longer describes it.
+  /usr/bin/rm -f -- "$completion_marker"
+  install_key_only_config
+  prove_key_only_policy
+  # The account can change its own files at any time; check again right
+  # before publishing that the keys proven above are still there.
+  account_authorized_keys_hold
+  publish_sshd
+  open_firewall
+  commit_setup_machine
+}
+
+if [[ $mode == "setup" ]]; then
+  setup_machine
+else
+  migrate_machine
+fi

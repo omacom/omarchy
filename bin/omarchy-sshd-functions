@@ -1,0 +1,128 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Provide shared SSH authorization helpers for setup and migration
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  echo "omarchy-sshd-functions is an internal function library." >&2
+  exit 64
+fi
+
+# Key types sshd accepts as ordinary authorized keys. DSA is gone from current
+# OpenSSH, and certificate types only authenticate through cert-authority.
+omarchy_sshd_is_key_type() {
+  case "$1" in
+    ssh-ed25519 | ssh-rsa | ecdsa-sha2-nistp256 | ecdsa-sha2-nistp384 | ecdsa-sha2-nistp521 | \
+      sk-ssh-ed25519@openssh.com | sk-ecdsa-sha2-nistp256@openssh.com | \
+      ssh-mldsa44-ed25519@openssh.com) return 0 ;;
+  esac
+  return 1
+}
+
+# ssh-keygen -lf ignores the options field, so it accepts lines that sshd will
+# refuse or turn into something other than a login: cert-authority, command=,
+# from=, an expired expiry-time=, restrict or no-pty. Accept a line only when it
+# has no options, or only flag options that leave an interactive public-key
+# login intact. Anything carrying a value or a quote is refused unparsed.
+omarchy_sshd_key_line_permits_login() {
+  local line=$1 first option
+  local -a options
+
+  line=${line#"${line%%[![:space:]]*}"}
+  first=${line%%[[:space:]]*}
+  omarchy_sshd_is_key_type "$first" && return 0
+
+  [[ -n $first && $first != *[\"=]* ]] || return 1
+  IFS=, read -r -a options <<<"$first"
+  ((${#options[@]} > 0)) || return 1
+  for option in "${options[@]}"; do
+    case "${option,,}" in
+      no-agent-forwarding | no-port-forwarding | no-x11-forwarding | no-user-rc | \
+        agent-forwarding | port-forwarding | x11-forwarding | user-rc | pty | \
+        no-touch-required | verify-required) ;;
+      *) return 1 ;;
+    esac
+  done
+
+  line=${line#"$first"}
+  line=${line#"${line%%[![:space:]]*}"}
+  omarchy_sshd_is_key_type "${line%%[[:space:]]*}"
+}
+
+# Parsing a key proves nothing about whether sshd will accept it for this
+# account: a later drop-in can remove its algorithm from PubkeyAcceptedAlgorithms,
+# an RSA key can be shorter than RequiredRSASize, and RevokedKeys can list it.
+# Check the line against an effective `sshd -T -C` dump for the account. Run
+# as root, which can read a root-only KRL.
+omarchy_sshd_key_line_accepted() {
+  local line=$1 dump=$2 type key bits algorithms required revoked
+  local -a fields
+
+  omarchy_sshd_key_line_permits_login "$line" || return 1
+  read -r -a fields <<<"$line"
+  if omarchy_sshd_is_key_type "${fields[0]:-}"; then
+    type=${fields[0]} key=${fields[1]:-}
+  else
+    type=${fields[1]:-} key=${fields[2]:-}
+  fi
+  [[ -n $type && $key =~ ^[A-Za-z0-9+/]+=*$ ]] || return 1
+  bits=$(/usr/bin/ssh-keygen -lf /dev/stdin <<<"$type $key" 2>/dev/null) || return 1
+  bits=${bits%% *}
+  [[ $bits =~ ^[0-9]+$ ]] || return 1
+
+  algorithms=$(/usr/bin/awk 'tolower($1) == "pubkeyacceptedalgorithms" { print $2; exit }' <<<"$dump")
+  [[ -n $algorithms ]] || return 1
+  case "$type" in
+    ssh-rsa)
+      [[ ,$algorithms, == *,rsa-sha2-512,* || ,$algorithms, == *,rsa-sha2-256,* || ,$algorithms, == *,ssh-rsa,* ]] || return 1
+      required=$(/usr/bin/awk 'tolower($1) == "requiredrsasize" { print $2; exit }' <<<"$dump")
+      [[ -z $required || $required =~ ^[0-9]+$ ]] || return 1
+      (( bits >= ${required:-1024} )) || return 1
+      ;;
+    *) [[ ,$algorithms, == *,"$type",* ]] || return 1 ;;
+  esac
+
+  revoked=$(/usr/bin/awk 'tolower($1) == "revokedkeys" { print $2; exit }' <<<"$dump")
+  if [[ -n $revoked && ${revoked,,} != none ]]; then
+    omarchy_sshd_key_not_revoked "$revoked" "$type" "$key" || return 1
+  fi
+}
+
+# RevokedKeys is either an OpenSSH KRL or a text list of public keys; only the
+# KRL form is understood by ssh-keygen -Q. Any read or parse error fails closed.
+omarchy_sshd_key_not_revoked() {
+  local file=$1 type=$2 key=$3 magic listing line known_types
+  local -a fields
+  magic=$(/usr/bin/head -c 6 -- "$file" 2>/dev/null) || return 1
+  if [[ $magic == SSHKRL ]]; then
+    /usr/bin/ssh-keygen -Q -f "$file" /dev/stdin <<<"$type $key" >/dev/null 2>&1
+    return
+  fi
+  listing=$(/usr/bin/cat -- "$file" 2>/dev/null) || return 1
+  # sshd requires every other line to start with a public key of a type it
+  # knows, certificates included, and refuses authentication when one does
+  # not, so a malformed list revokes everything. Ask OpenSSH which types it
+  # knows and whether each line parses, as sshd itself does.
+  known_types=$(/usr/bin/ssh -Q key 2>/dev/null) || return 1
+  while IFS= read -r line; do
+    # sshd accepts CRLF line endings; the key data must not keep the CR.
+    line=${line%$'\r'}
+    [[ $line =~ ^[[:space:]]*(#|$) ]] && continue
+    read -r -a fields <<<"$line"
+    [[ -n ${fields[0]:-} && $'\n'$known_types$'\n' == *$'\n'"${fields[0]}"$'\n'* ]] || return 1
+    /usr/bin/ssh-keygen -lf /dev/stdin <<<"$line" >/dev/null 2>&1 || return 1
+    [[ ${fields[0]} == "$type" && ${fields[1]:-} == "$key" ]] && return 1
+  done <<<"$listing"
+  return 0
+}
+
+# An admitted account can still be refused outright by RefuseConnection, or
+# given a forced command instead of a login; neither proves administrative
+# access. OpenSSH releases without these keywords simply omit them.
+omarchy_sshd_policy_allows_login() {
+  local dump=$1 value
+  value=$(/usr/bin/awk 'tolower($1) == "refuseconnection" { print tolower($2); exit }' <<<"$dump")
+  [[ -z $value || $value == no ]] || return 1
+  value=$(/usr/bin/awk 'tolower($1) == "forcecommand" { print tolower($2); exit }' <<<"$dump")
+  [[ -z $value || $value == none ]]
+}
