@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Thunderbird and hand mailto: links back to the previous default.
+# omarchy:requires-sudo=true
+
+THUNDERBIRD_DESKTOP="org.mozilla.Thunderbird.desktop"
+FALLBACK_DESKTOP="HEY.desktop"
+MIMEAPPS_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/mimeapps.list"
+
+release_mailto_handler() {
+  # Only take mailto: back when Thunderbird still holds it. Anything else is a
+  # choice someone made after installing, so leave it alone.
+  if [[ $(xdg-mime query default x-scheme-handler/mailto) != "$THUNDERBIRD_DESKTOP" ]]; then
+    return
+  fi
+
+  if [[ -f "$HOME/.local/share/applications/$FALLBACK_DESKTOP" ]]; then
+    xdg-mime default "$FALLBACK_DESKTOP" x-scheme-handler/mailto
+    return
+  fi
+
+  # Nothing left to hand mailto: to, and xdg-mime cannot clear an association,
+  # so drop the lines it wrote rather than point mailto: at a desktop file that
+  # is about to be uninstalled. Lists naming other handlers too are left alone.
+  if [[ -f $MIMEAPPS_FILE ]]; then
+    sed -i "\|^x-scheme-handler/mailto=$THUNDERBIRD_DESKTOP;\?$|d" "$MIMEAPPS_FILE"
+  fi
+}
+
+release_mailto_handler
+omarchy-pkg-drop thunderbird
+
+echo ""
+echo "Thunderbird has been removed."
