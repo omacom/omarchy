@@ -46,7 +46,7 @@ EOF
 #!/bin/bash
 if [[ $1 == "post" ]]; then
   logger -t wifi-resume "Reloading brcmfmac after resume"
-  modprobe -r brcmfmac 2>/dev/null
+  modprobe -r brcmfmac_wcc brcmfmac 2>/dev/null
   modprobe brcmfmac || logger -t wifi-resume "Failed to reload brcmfmac"
 fi
 HOOK
