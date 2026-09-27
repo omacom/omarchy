@@ -59,14 +59,16 @@ mapfile -t dropped <"$pkg_log"
 dropped:  ${dropped[*]}"
 pass "Install and Remove Preinstalls cover the same packages"
 
+# Read the complete producer output: grep -q can exit early and SIGPIPE the
+# printf under pipefail, falsely reporting a present package as missing.
 for package in "${restored[@]}"; do
-  printf '%s\n' "${shipped[@]}" | grep -qxF "$package" ||
+  printf '%s\n' "${shipped[@]}" | grep -xF "$package" >/dev/null ||
     fail "every preinstall is shipped in omarchy-base.packages" "$package is not shipped"
 done
 pass "every preinstall is shipped in omarchy-base.packages"
 
 for package in omacut omacalc omawrite; do
-  printf '%s\n' "${restored[@]}" | grep -qxF "$package" ||
+  printf '%s\n' "${restored[@]}" | grep -xF "$package" >/dev/null ||
     fail "preinstalls cover the Omacom apps" "$package is missing"
 done
 pass "preinstalls cover the Omacom apps"
