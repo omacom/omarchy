@@ -2,6 +2,7 @@
 
 # omarchy:summary=Mirror the current theme to your herdr machines that run Omarchy
 # omarchy:args=[--dry-run]
+# omarchy:hidden=true
 
 # omarchy-theme-set runs this in the background after every theme change. A machine with the
 # theme-sync-off toggle neither sends its theme changes nor accepts them from other machines.
@@ -80,7 +81,7 @@ sync_machine() {
 
 # Serialize runs and send whichever theme is current once the lock is held,
 # so a slow earlier run can never overwrite a later theme change.
-exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-sync.lock"
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-herdr-machines.lock"
 flock 9
 
 THEME=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)

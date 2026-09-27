@@ -74,7 +74,7 @@ set_local_theme() {
 }
 
 run_sync() {
-  HOME="$local_home" XDG_RUNTIME_DIR="$SYNC_TEST/run" PATH="$stub_bin:$ROOT/bin:$PATH" omarchy-theme-sync "$@"
+  HOME="$local_home" XDG_RUNTIME_DIR="$SYNC_TEST/run" PATH="$stub_bin:$ROOT/bin:$PATH" omarchy-theme-set-herdr-machines "$@"
 }
 
 set_log() {

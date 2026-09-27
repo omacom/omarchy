@@ -442,7 +442,7 @@ if [[ $THEME_HEADLESS != "1" ]]; then
   omarchy-hook theme-set "$THEME_NAME" >/dev/null
 
   # Mirror the theme to herdr machines. SSH can take a while, so this never holds up the theme change.
-  setsid omarchy-theme-sync >>"$HOME/.local/state/omarchy/theme-sync.log" 2>&1 </dev/null &
+  setsid omarchy-theme-set-herdr-machines >>"$HOME/.local/state/omarchy/theme-set-herdr-machines.log" 2>&1 </dev/null &
 
   # Warm the background selector's thumbnails. The theme picker keeps its own
   # rows in the shell and refreshes them each time it opens.
