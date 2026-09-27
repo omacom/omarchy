@@ -86,17 +86,22 @@ done
     "no pattern in THEME_FILES matches: ${uncovered[*]}"
 pass "every colour file Omarchy generates can be shipped by a theme"
 
-# --- a listed name that is not the derived directory name -------------------
 
-# The catalog lists this one as "delta"; its repo is omarchy-dlt-theme, and the
-# directory has to be what this machine derives, because omarchy-theme-set and
-# every picker after it address a theme by directory name.
-output=$(omarchy-theme-install delta 2>&1)
-assert_contains "a disagreeing name is reported" "$output" "installing it as 'dlt'"
-[[ -d $MARKETPLACE_THEMES/dlt ]] || fail "the directory is the derived name"
-pass "the directory is the derived name"
+
+# --- a listed name that is not what the repo derives to ------------------
+
+# The catalog lists this one as "delta"; its repo is omarchy-dlt-theme. The
+# registry assigns the name and keeps it unique, so that is the directory, and
+# the name omarchy-theme-set and every picker after it address it by.
+marketplace_reset_calls
+omarchy-theme-install delta >/dev/null 2>&1
+[[ -d $MARKETPLACE_THEMES/delta ]] || fail "the directory is the listed name"
+pass "the directory is the listed name"
+[[ ! -e $MARKETPLACE_THEMES/dlt ]] || fail "nothing is installed under the name the repo derives to"
+pass "nothing is installed under the name the repo derives to"
+assert_contains "the listed name is applied" "$(marketplace_calls)" "theme-set delta"
 assert_equal "the marker keeps the listed name" \
-  "$(jq -r .name "$MARKETPLACE_THEMES/dlt/.marketplace")" "delta"
+  "$(jq -r .name "$MARKETPLACE_THEMES/delta/.marketplace")" "delta"
 
 # --- refusals ---------------------------------------------------------------
 
@@ -330,8 +335,7 @@ assert_equal "--search matches the artist"  "$(list_titles --search ada)" "Alpha
 assert_equal "--search ignores case"        "$(list_titles --search ADA)" "Alpha Delta Gamma "
 assert_equal "--new reads the listing dates" "$(list_titles --new)" "Alpha "
 
-# dlt on disk, delta in the catalog: the filter has to match on the catalog's
-# name, which is what the marker remembers.
+# The filter matches on the catalog's name, which is what the marker remembers.
 assert_equal "--installed matches the markers" "$(list_titles --installed)" "Alpha Delta "
 
 output=$(omarchy-theme-browse --dark --light --hue purple --print-name 2>&1 || true)
@@ -362,7 +366,7 @@ assert_contains "info shows the palette" "$output" "#cc6622"
 assert_contains "info spells out a validator code" "$output" "ships files Omarchy will not install"
 assert_contains "info warns what will not be installed" "$output" "kitty.conf"
 
-# delta is installed as dlt; the marker, not the directory, says it is here.
+# The marker, not the directory, says a theme is installed.
 assert_contains "info finds an installed theme by its listed name" \
   "$(omarchy-theme-info delta 2>&1)" "Installed"
 

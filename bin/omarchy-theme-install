@@ -133,7 +133,6 @@ install_from_catalog() {
   local entry
   local repo
   local commit
-  local derived
   local path
 
   entry=$(omarchy-theme-catalog --entry "$name") || return 1
@@ -148,20 +147,11 @@ install_from_catalog() {
 
   omarchy-git-url-check "$repo" || return 1
 
-  # omarchy-theme-set and every picker after it address a theme by directory
-  # name, so the directory is what this machine derives from the URL. The
-  # marketplace derives the same way; should they ever disagree, the marker
-  # keeps the listed name so the theme can still be found again.
-  derived=$(theme_name_from_url "$repo") || {
-    echo "Error: '$repo' does not give a usable theme name."
-    return 1
-  }
-
-  if [[ $derived != "$name" ]]; then
-    echo "Note: the marketplace lists this as '$name'; installing it as '$derived'."
-  fi
-
-  path="$THEMES_DIR/$derived"
+  # The directory is the name the marketplace lists. The registry assigns it
+  # and keeps it unique, so two artists whose repos derive the same name still
+  # install side by side. It has already passed looks_like_a_theme_name, which
+  # holds it to the same characters a name from a URL is held to.
+  path="$THEMES_DIR/$name"
   clone_listed_theme "$repo" "$path" || return 1
 
   if ! pin_theme "$path" "$commit"; then
@@ -171,7 +161,7 @@ install_from_catalog() {
   fi
 
   mark_theme "$path" "$name" "$repo" "$commit"
-  omarchy-theme-set "$derived"
+  omarchy-theme-set "$name"
 }
 
 install_from_url() {
