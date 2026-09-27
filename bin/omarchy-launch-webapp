@@ -3,6 +3,43 @@
 # omarchy:summary=Launch a URL as a web app in the default supported browser
 # omarchy:args=<url>
 
+set -euo pipefail
+
+if (( $# < 1 )); then
+  echo "Usage: omarchy-launch-webapp <url> [browser-flags...]" >&2
+  exit 1
+fi
+
+url=$1
+shift
+
+if [[ $url == -* ]]; then
+  echo "Error: web app URL must be http or https." >&2
+  exit 1
+fi
+
+if [[ $url =~ [[:space:]] ]]; then
+  echo "Error: web app URL must not contain whitespace." >&2
+  exit 1
+fi
+
+url_lc=$(printf '%s' "$url" | tr '[:upper:]' '[:lower:]')
+if [[ ! $url_lc =~ ^https?:// ]]; then
+  echo "Error: web app URL must be http or https." >&2
+  exit 1
+fi
+
+for flag in "$@"; do
+  if [[ $flag == -* && $flag != --* ]]; then
+    echo "Error: web app launcher refuses extra browser arguments that are not long options." >&2
+    exit 1
+  fi
+  if [[ $flag == --app=* || $flag == --gpu-launcher=* || $flag == --proxy-server=* || $flag == --type=* ]]; then
+    echo "Error: web app launcher refuses extra Chromium process flags." >&2
+    exit 1
+  fi
+done
+
 browser=$(xdg-settings get default-web-browser)
 
 case $browser in
@@ -10,4 +47,23 @@ google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
 *) browser="chromium.desktop" ;;
 esac
 
-exec setsid uwsm-app -- $(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1) --app="$1" "${@:2}"
+if [[ $browser == */* || $browser == *..* ]]; then
+  browser="chromium.desktop"
+fi
+
+browser_exec=""
+for desktop in \
+  "$HOME/.local/share/applications/$browser" \
+  "$HOME/.nix-profile/share/applications/$browser" \
+  "/usr/share/applications/$browser"; do
+  [[ -f $desktop ]] || continue
+  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$desktop" | head -1)
+  [[ -n $browser_exec ]] && break
+done
+
+if [[ -z $browser_exec ]]; then
+  echo "Error: no Chromium-family browser is installed to launch a web app." >&2
+  exit 1
+fi
+
+exec setsid uwsm-app -- "$browser_exec" --app="$url" "$@"
