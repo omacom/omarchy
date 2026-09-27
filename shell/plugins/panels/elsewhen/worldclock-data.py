@@ -96,25 +96,28 @@ def geocode(label, zone, cache):
     url = GEOCODE + "?" + urllib.parse.urlencode(
       {"name": label, "count": 10, "language": "en", "format": "json"})
     results = get_json(url).get("results") or []
-    # A hit in the row's own zone disambiguates cities that share a name.
-    best = next((r for r in results if r.get("timezone") == zone), None)
-    if best is None and results:
-      best = results[0]
-    if best:
-      found = {
-        "lat": best["latitude"],
-        "lon": best["longitude"],
-        "exact": best.get("timezone") == zone,
-      }
-      cache["geo"][key] = found
-      return found
   except Exception:
-    pass
+    results = None
+
+  # A hit in the row's own zone disambiguates cities that share a name.
+  best = next((r for r in results or [] if r.get("timezone") == zone), None)
+  if best is None and results:
+    best = results[0]
+  if best:
+    found = {
+      "lat": best["latitude"],
+      "lon": best["longitude"],
+      "exact": best.get("timezone") == zone,
+    }
+    cache["geo"][key] = found
+    return found
 
   fallback = zone_tab_coords(zone)
   if fallback:
     fallback["exact"] = False
-    cache["geo"][key] = fallback
+    # Only a geocoder answer is final; after a network error, ask again next time.
+    if results is not None:
+      cache["geo"][key] = fallback
     return fallback
   return None
 

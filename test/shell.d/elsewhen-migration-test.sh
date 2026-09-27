@@ -73,6 +73,20 @@ run SHELL_ABSENT=1 OMARCHY_SHELL_ABSENT_ATTEMPTS=1 || fail "an absent shell must
 grep -q "omarchy.elsewhen was not put on the bar" "$test_dir/output" || fail "an absent shell is reported" "$(cat "$test_dir/output")"
 pass "an absent shell leaves the update running"
 
+# An entry under the legacy id is left for the rename, not joined by a second widget.
+mkdir -p "$test_dir/home/.config/omarchy"
+printf '{"bar":{"layout":{"center":[{"id":"omacom.elsewhen","zones":"Tokyo|Asia/Tokyo"},"omarchy.clock"]}}}\n' \
+  >"$test_dir/home/.config/omarchy/shell.json"
+run
+[[ $(cat "$CALL_LOG") == "-q shell rescanPlugins" ]] || fail "a legacy entry skips placement" "$(cat "$CALL_LOG")"
+migration="$ROOT/migrations/1790528634.sh"
+run
+[[ $(jq -c '[.bar.layout.center[] | if type == "object" then .id else . end]' "$test_dir/home/.config/omarchy/shell.json") == '["omarchy.elsewhen","omarchy.clock"]' ]] ||
+  fail "the legacy entry becomes the only Elsewhen" "$(cat "$test_dir/home/.config/omarchy/shell.json")"
+rm "$test_dir/home/.config/omarchy/shell.json"
+migration="$ROOT/migrations/1790042972.sh"
+pass "a legacy entry is renamed rather than duplicated"
+
 # The first run of this migration was under 1789581661.sh, before a later
 # repair existed; that marker must not stop the renamed file from running there.
 state="$test_dir/state"
