@@ -4,9 +4,9 @@ description: >
   REQUIRED for end-user customization of Linux desktop, window manager, or system config.
   Use when editing ANY file in ~/.config/, ~/.config/hypr/, ~/.config/waybar/, ~/.config/walker/,
   ~/.config/alacritty/, ~/.config/foot/, ~/.config/kitty/, ~/.config/ghostty/, ~/.config/mako/,
-  or ~/.config/omarchy/. Triggers: Hyprland, window rules, animations, keybindings,
+  or ~/.config/omarchy/. Triggers: Hyprland, window rules, window behavior, animations, keybindings,
   monitors, gaps, borders, blur, opacity, waybar, walker, terminal config, themes,
-  fonts, background, night light, idle, lock screen, screenshots, reminders, layer
+  fonts, background, night light, idle, lock screen, screenshots, screen recording, reminders, layer
   rules, workspace settings, display config, appearance changes, and user-facing
   omarchy commands. Excludes Omarchy source development in ~/.local/share/omarchy/
   and `omarchy dev` workflows.
