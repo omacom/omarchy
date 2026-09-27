@@ -82,6 +82,70 @@ hl.on("layer.closed", function(layer)
   end
 end)
 
+-- Bare Ctrl does not deliver a tty byte, so omarchy-screensaver's `read -n1`
+-- loop never sees it (issue #10583). While a screensaver window is open, bind
+-- Control_L/R on press so a lone Ctrl tap sends SIGHUP to the same trap
+-- exit_screensaver already handles.
+--
+-- Use press + non_consuming rather than release=true: on Hyprland 0.56.2 bare
+-- modifier binds with release=true register but never dispatch (press works).
+-- non_consuming keeps Ctrl available to other binds/clients if needed; while
+-- the screensaver is up a Ctrl press is intended to wake it anyway.
+-- Scoped to screensaver windows only (mirrors the selection-layer bind pattern
+-- above); no global mouse wake — that path was removed in v3.3.0 for BT mice.
+local screensaver_windows = 0
+local screensaver_binds = {}
+
+local function is_screensaver_window(window)
+  if not window then
+    return false
+  end
+  local class = window.class or window.initialClass or ""
+  return class == "org.omarchy.screensaver"
+end
+
+local function bind_screensaver_wake()
+  if screensaver_windows ~= 1 then
+    return
+  end
+  local wake = hl.dsp.exec_cmd("pkill -HUP -f '[o]rg.omarchy.screensaver' || true")
+  screensaver_binds = {
+    hl.bind("Control_L", wake, { description = "Dismiss screensaver", non_consuming = true, locked = true }),
+    hl.bind("Control_R", wake, { description = "Dismiss screensaver", non_consuming = true, locked = true }),
+  }
+end
+
+local function unbind_screensaver_wake()
+  if screensaver_windows ~= 0 then
+    return
+  end
+  for _, keybind in ipairs(screensaver_binds) do
+    keybind:unbind()
+  end
+  screensaver_binds = {}
+end
+
+hl.on("window.open", function(window)
+  if is_screensaver_window(window) then
+    screensaver_windows = screensaver_windows + 1
+    bind_screensaver_wake()
+  end
+end)
+
+hl.on("window.close", function(window)
+  if is_screensaver_window(window) and screensaver_windows > 0 then
+    screensaver_windows = screensaver_windows - 1
+    unbind_screensaver_wake()
+  end
+end)
+
+hl.on("window.destroy", function(window)
+  if is_screensaver_window(window) and screensaver_windows > 0 then
+    screensaver_windows = screensaver_windows - 1
+    unbind_screensaver_wake()
+  end
+end)
+
 o.bind("SUPER + CTRL + S", "Share", "omarchy-menu toggle share")
 
 o.bind("SUPER + CTRL + PERIOD", "Transcode", "omarchy-transcode")
