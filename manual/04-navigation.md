@@ -2,6 +2,19 @@
 
 Everything in Omarchy happens via the keyboard — _EVERYTHING!_ When the system first starts, you literally can't do a thing with the mouse alone. But you can hit `Super + Space` to reveal the Omarchy Menu and from here you to do just about everything.
 
+The menu remembers the submenu you last visited for 15 seconds after you close it, including when you launch an action. Open it again within that time to continue from there, with back navigation preserved and an empty search field. After the time expires, it starts at the top. Shortcuts to specific submenus still open their requested destination.
+
+To change this, add a top-level `menu` block to `~/.config/omarchy/shell.json`:
+
+```json
+"menu": {
+  "memory": true,
+  "memorySeconds": 15
+}
+```
+
+Set `memory` to `false` to turn it off, or change `memorySeconds` to your preferred duration in seconds. A duration of `0` also turns it off. Changes apply live; restarting the shell clears the remembered location.
+
 But the Omarchy menu is not even intended to be the main way to operate the system most of the time. We can get faster than that! All the most important applications are bound directly to individual hotkeys. You start the terminal with `Super + Return` and a browser with `Super + Shift + Return`. Try doing one after the other, and you'll see the magic of Hyprland's tiling in action:
 
  ![navigation-browser-terminal](images/navigation-browser-terminal.webp)
