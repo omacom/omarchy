@@ -4,14 +4,14 @@
 # omarchy:args=[--available]
 # omarchy:hidden=true
 
-# omarchy-theme-set runs this in the background after every theme change. A machine with the
-# theme-sync-off toggle neither sends its theme changes nor accepts them from other machines.
+# omarchy-theme-set runs this in the background after every theme change. Sync is off until
+# the herdr-theme-sync toggle is turned on, and a machine only accepts themes with it on too.
 
 # Columns: id, label, SSH target, session, state.
 # This machine may be listed too, and it is already on the theme, so it needs no special case.
 targets=$(herdr machine list 2>/dev/null | awk -F '\t' '$5 == "enabled" { print $3 }')
 
-# The menu offers the toggle whenever there is a machine to sync to, even with sync turned off.
+# The menu offers the toggle whenever there is a machine to sync to, whether or not sync is on.
 if [[ $1 == "--available" ]]; then
   [[ -n $targets ]]
   exit
@@ -24,7 +24,7 @@ flock 9
 
 # A theme that arrived from another machine stops here, so machines never echo it back.
 # The toggle is checked once the lock is held, so turning sync off also stops a queued run.
-if [[ -n $OMARCHY_THEME_SYNC_FROM ]] || omarchy-toggle-enabled theme-sync-off; then
+if [[ -n $OMARCHY_THEME_SYNC_FROM ]] || ! omarchy-toggle-enabled herdr-theme-sync; then
   exit 0
 fi
 
@@ -32,11 +32,11 @@ theme=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
 
 # Runs on the remote machine under a login shell, so OMARCHY_PATH and PATH are set there.
 # SSH carries no desktop session, so the environment comes from the live Hyprland instance.
-# The flag is read directly because the remote may run an Omarchy without omarchy-toggle-enabled.
+# The flag is read directly, so an Omarchy that predates theme sync simply counts as off.
 # Braces make bash read the whole script before running it, so nothing it runs can consume the rest.
 read -r -d '' REMOTE_SCRIPT <<'EOF'
 {
-  if [[ -f ~/.local/state/omarchy/toggles/theme-sync-off ]]; then
+  if [[ ! -f ~/.local/state/omarchy/toggles/herdr-theme-sync ]]; then
     echo "theme sync is off"
     exit
   fi

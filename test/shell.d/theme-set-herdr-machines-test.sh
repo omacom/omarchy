@@ -66,8 +66,12 @@ reset_remotes() {
   for machine in alpha beta gamma local-box; do
     mkdir -p "$SYNC_TEST/remotes/$machine/.local/state/omarchy/current"
     echo "tokyo-night" >"$SYNC_TEST/remotes/$machine/.local/state/omarchy/current/theme.name"
+    mkdir -p "$SYNC_TEST/remotes/$machine/.local/state/omarchy/toggles"
+    touch "$SYNC_TEST/remotes/$machine/.local/state/omarchy/toggles/herdr-theme-sync"
   done
 }
+
+local_toggle="$local_home/.local/state/omarchy/toggles/herdr-theme-sync"
 
 set_local_theme() {
   echo "$1" >"$local_home/.local/state/omarchy/current/theme.name"
@@ -80,6 +84,15 @@ run_sync() {
 set_log() {
   cat "$SYNC_TEST/remotes/$1/set.log" 2>/dev/null || true
 }
+
+# Sync is off until it is turned on.
+reset_remotes
+set_local_theme lumon
+run_sync >/dev/null
+[[ ! -e $SYNC_TEST/ssh-calls ]] || fail "theme sync is off by default"
+pass "theme sync is off by default"
+mkdir -p "${local_toggle%/*}"
+touch "$local_toggle"
 
 # Syncs every enabled machine except this one, skipping machines already on the theme.
 reset_remotes
@@ -104,20 +117,18 @@ pass "connects to machines one at a time in order"
 
 # A machine with the toggle off refuses themes from other machines.
 reset_remotes
-mkdir -p "$SYNC_TEST/remotes/gamma/.local/state/omarchy/toggles"
-touch "$SYNC_TEST/remotes/gamma/.local/state/omarchy/toggles/theme-sync-off"
+rm "$SYNC_TEST/remotes/gamma/.local/state/omarchy/toggles/herdr-theme-sync"
 output=$(run_sync)
 [[ -z $(set_log gamma) && $output == *"gamma: theme sync is off"* ]] || fail "a remote with theme sync off keeps its theme"
 pass "a remote with theme sync off keeps its theme"
 
 # A machine with the toggle off sends nothing.
 reset_remotes
-mkdir -p "$local_home/.local/state/omarchy/toggles"
-touch "$local_home/.local/state/omarchy/toggles/theme-sync-off"
+rm "$local_toggle"
 run_sync >/dev/null
 [[ ! -e $SYNC_TEST/ssh-calls ]] || fail "theme sync off stops sending"
 pass "theme sync off stops sending"
-rm "$local_home/.local/state/omarchy/toggles/theme-sync-off"
+touch "$local_toggle"
 
 # Turning sync off also stops a run that is still waiting for an earlier one to finish.
 reset_remotes
@@ -126,12 +137,12 @@ flock 8
 run_sync >/dev/null &
 queued=$!
 sleep 0.5
-touch "$local_home/.local/state/omarchy/toggles/theme-sync-off"
+rm "$local_toggle"
 flock -u 8
 wait $queued
 [[ ! -e $SYNC_TEST/ssh-calls ]] || fail "turning sync off stops a queued run"
 pass "turning sync off stops a queued run"
-rm "$local_home/.local/state/omarchy/toggles/theme-sync-off"
+touch "$local_toggle"
 
 # A theme that arrived from another machine is never sent on.
 reset_remotes
@@ -147,9 +158,9 @@ run_sync >/dev/null
 [[ $(set_log alpha) == 'theme set demo$(touch "$HOME/injected") from=local-box session=wayland-1' ]] || fail "a theme name reaches the remote verbatim"
 pass "a theme name reaches the remote verbatim without running commands"
 
-# The menu shows Herdr Theme Sync only when herdr has an enabled machine, even with sync turned off,
-# so the toggle stays reachable to turn it back on.
-touch "$local_home/.local/state/omarchy/toggles/theme-sync-off"
+# The menu shows Herdr Theme Sync whenever herdr has an enabled machine, with sync on or off,
+# so the toggle is there to turn it on.
+rm "$local_toggle"
 run_sync --available || fail "an enabled herdr machine makes theme sync available"
 pass "an enabled herdr machine makes theme sync available while it is off"
 printf '#!/bin/bash\nprintf "1\\tretired\\tretired\\tdefault\\tdisabled\\n"\n' >"$stub_bin/herdr"
