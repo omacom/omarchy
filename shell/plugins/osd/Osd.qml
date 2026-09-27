@@ -112,7 +112,7 @@ Item {
     text: OsdModel.widestIcon
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "osd"
     function show(payloadJson: string): string {
       root.open(payloadJson)

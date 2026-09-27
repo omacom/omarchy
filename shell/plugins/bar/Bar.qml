@@ -1182,7 +1182,7 @@ Item {
   // changes land in quick succession, stranding the bar off screen until the
   // shell restarts. `omarchy-toggle-bar` nudges this after flipping the flag
   // so the probe re-reads it even when the watch has gone quiet.
-  IpcHandler {
+  ShellIpc {
     target: "omarchy.bar"
 
     // Start rather than restart: a probe already in flight was launched by the

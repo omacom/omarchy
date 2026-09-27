@@ -208,7 +208,7 @@ Item {
     }
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "background"
 
     function refresh(): void {

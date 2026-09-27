@@ -862,7 +862,7 @@ Item {
     return true
   }
 
-  IpcHandler {
+  ShellIpc {
     id: ipcHandler
     target: "notifications"
 

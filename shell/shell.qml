@@ -1579,6 +1579,40 @@ ShellRoot {
     }
   }
 
+  // ------------------------------------------------------------ IPC socket
+  //
+  // omarchy-shell reaches the shell here first: a qs ipc client costs ~45ms
+  // to start per call, socat ~5ms. A request is target, method and arguments
+  // separated by unit separators and ended by a record separator. The reply is
+  // "OK" and the output, or "SKIP" when nothing ran (no such target or
+  // function, or the wrong number of arguments), which omarchy-shell hands to
+  // qs ipc for its exact answer. The socket sits in XDG_RUNTIME_DIR, private
+  // to the user like qs ipc's own. Like qs ipc, it belongs to one shell: the
+  // one running this config on this display. omarchy-shell derives the same
+  // name from the same two values.
+  readonly property string ipcSocketPath: Quickshell.env("XDG_RUNTIME_DIR") + "/omarchy-shell-"
+    + Qt.md5(shell.omarchyPath + "/shell\n" + Quickshell.env("WAYLAND_DISPLAY")).slice(0, 16) + ".sock"
+
+  SocketServer {
+    active: shell.omarchyPath !== ""
+    path: shell.ipcSocketPath
+
+    handler: Socket {
+      id: connection
+
+      parser: SplitParser {
+        splitMarker: "\u001e"
+        onRead: function(data) {
+          var fields = String(data).split("\u001f")
+          var result = fields.length >= 2 ? IpcRegistry.call(fields[0], fields[1], fields.slice(2)) : { ran: false }
+          connection.write(result.ran ? "OK\u001f" + result.output + "\u001e" : "SKIP\u001e")
+          connection.flush()
+          connection.connected = false
+        }
+      }
+    }
+  }
+
   // --------------------------------------------------- image selector IPC
 
   function imagePickerItem() {
@@ -1586,7 +1620,7 @@ ShellRoot {
     return loader && loader.item ? loader.item : null
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "image-selector"
 
     function open(imageDirs: string,
@@ -1637,7 +1671,7 @@ ShellRoot {
 
   // ---------------------------------------------------------- shell IPC
 
-  IpcHandler {
+  ShellIpc {
     target: "shell"
 
     function ping(): string {

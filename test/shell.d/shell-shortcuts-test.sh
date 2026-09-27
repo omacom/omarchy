@@ -121,7 +121,7 @@ grep -q 'paths.omarchy_path .. "/default/omarchy/shortcuts"' "$ROOT/default/hypr
 for service in services/media notifications; do
   grep -Pzq 'function runShortcut\(method\) \{\n    if \(typeof ipcHandler\[method\] !== "function"\) return false\n    ipcHandler\[method\]\(\)' "$ROOT/shell/plugins/$service/Service.qml" ||
     fail "$service runs ipc shortcuts through its IPC handler"
-  grep -Pzq 'IpcHandler \{\n    id: ipcHandler' "$ROOT/shell/plugins/$service/Service.qml" ||
+  grep -Pzq '(IpcHandler|ShellIpc) \{\n    id: ipcHandler' "$ROOT/shell/plugins/$service/Service.qml" ||
     fail "$service names its IPC handler for shortcuts"
 done
 pass "the shell and the helpers share one shortcut list"

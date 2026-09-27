@@ -174,7 +174,7 @@ Panel {
     if (root.bar && root.bar.shell) root.bar.shell.updateEntryInline(root.moduleName, root.settings)
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "omarchy.power"
 
     function open() { root.open() }
