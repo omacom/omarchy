@@ -46,5 +46,10 @@ PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$user_path" \
   "$OMARCHY_PATH/bin/omarchy-hook" pre-refresh-pacman
 omarchy_security_revoke_sudo_timestamp
 
-# Reset all package DBs and then update
-omarchy-update-pacman -Syyuu --noconfirm
+# Reset all package DBs and then update. When rolling back to stable or rc,
+# accept replacing omarchy-dev and overwriting shared tree files.
+extra_args=()
+if [[ ($channel == "stable" || $channel == "rc") && -n $(compgen -G "/var/lib/pacman/local/omarchy-dev-*") ]]; then
+  extra_args=(--ask 4 --overwrite '/usr/share/omarchy/*')
+fi
+omarchy-update-pacman -Syyuu --noconfirm "${extra_args[@]}"
