@@ -41,16 +41,16 @@ HOME="$test_home" omarchy-toggle example toggle
 pass "generic toggle flips enabled state off"
 
 HOME="$test_home" omarchy-toggle-bar on
-[[ -f $bar_flag ]] || fail "bar on enables bar-off toggle"
-pass "bar on enables bar-off toggle"
+[[ ! -f $bar_flag ]] || fail "bar on shows the bar"
+pass "bar on shows the bar"
 
 HOME="$test_home" omarchy-toggle-bar on
-[[ -f $bar_flag ]] || fail "bar on is idempotent"
+[[ ! -f $bar_flag ]] || fail "bar on is idempotent"
 pass "bar on is idempotent"
 
 HOME="$test_home" omarchy-toggle-bar off
-[[ ! -f $bar_flag ]] || fail "bar off disables bar-off toggle"
-pass "bar off disables bar-off toggle"
+[[ -f $bar_flag ]] || fail "bar off hides the bar"
+pass "bar off hides the bar"
 
 # The gaps half of full screen copies a flag file in and reloads Hyprland, so
 # give it this checkout to copy from and a hyprctl that answers without a

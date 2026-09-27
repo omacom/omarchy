@@ -23,5 +23,8 @@ case $ACTION in
     ;;
 esac
 
-omarchy-toggle-bar "$ACTION"
+bar_action="off"
+[[ $ACTION == "off" ]] && bar_action="on"
+
+omarchy-toggle-bar "$bar_action"
 omarchy-hyprland-toggle window-no-gaps "$ACTION"
