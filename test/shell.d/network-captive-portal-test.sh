@@ -74,6 +74,12 @@ chmod +x "$stage/bin/noop"
 for command in omarchy-dns omarchy-network-band; do
   ln -s noop "$stage/bin/$command"
 done
+# The cellular probe shells out to the host's real mmcli/nmcli; a machine
+# with a connected modem would leak its GSM profiles into the fixture and
+# flip the panel's kind to wwan, overriding the mocked connectivity states
+# under test. Stub both so the probe reports no modem at all.
+ln -s noop "$stage/bin/mmcli"
+ln -s noop "$stage/bin/nmcli"
 # Preview uses only synthetic details, never the host's SSID or addresses.
 # Normal assertions keep the details empty to exercise missing-route handling.
 printf '#!/bin/bash\nif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then\n  printf "type\\twifi\\niface\\ttest-wifi\\nssid\\tGuest Wi-Fi\\nip\\t192.0.2.10\\ngateway\\t192.0.2.1\\n"\nfi\n' > "$stage/bin/omarchy-network-status"
