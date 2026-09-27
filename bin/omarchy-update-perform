@@ -1,13 +1,12 @@
 #!/bin/bash
 
+# omarchy:summary=Run the full Omarchy update pipeline
+# omarchy:requires-sudo=true
+
 set -e
 
 # Ensure screensaver/sleep doesn't set in during updates
-hyprctl dispatch tagwindow +noidle &>/dev/null || true
-
-# Capture update logs (CLICOLOR_FORCE keeps gum styled when stdout is piped through tee)
-export CLICOLOR_FORCE=1
-exec > >(tee "$HOME/.local/state/omarchy/update.log") 2>&1
+hyprctl dispatch 'hl.dsp.window.tag({ tag = "+noidle" })' &>/dev/null || hyprctl dispatch tagwindow +noidle &>/dev/null || true
 
 # Perform all update steps
 omarchy-update-keyring
@@ -20,7 +19,12 @@ omarchy-hook post-update
 
 omarchy-update-analyze-logs
 
+# Updates stay on the v3 tag series, so say how to get to Quattro. This has to
+# come before omarchy-update-restart, which may reboot the moment it is answered.
+echo
+echo -e "\e[33mYou're still running an older version of Omarchy. To upgrade to Omarchy Quattro, you'll need to run \e[1momarchy upgrade-to-quattro\e[0m\e[33m manually.\e[0m"
+
 omarchy-update-restart
 
 # Re-enable screensaver/sleep after updates
-hyprctl dispatch tagwindow -- -noidle &>/dev/null || true
+hyprctl dispatch 'hl.dsp.window.tag({ tag = "-noidle" })' &>/dev/null || hyprctl dispatch tagwindow -- -noidle &>/dev/null || true
