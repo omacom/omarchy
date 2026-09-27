@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Install Microsoft Outlook, Office, Teams, and OneDrive as web apps.
+
+set -e
+
+ICONS="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png"
+
+echo "Installing Microsoft Outlook..."
+omarchy-webapp-install "Microsoft Outlook" "https://outlook.office.com/mail/" "$ICONS/microsoft-outlook.png"
+
+echo "Installing Microsoft Office..."
+omarchy-webapp-install "Microsoft Office" "https://www.office.com/login" "$ICONS/microsoft-office.png"
+
+echo "Installing Microsoft Teams..."
+omarchy-webapp-install "Microsoft Teams" "https://teams.cloud.microsoft/" "$ICONS/microsoft-teams.png"
+
+echo "Installing Microsoft OneDrive..."
+omarchy-webapp-install "Microsoft OneDrive" "https://www.office.com/launch/onedrive" "$ICONS/microsoft-onedrive.png"
+
+echo ""
+echo "You can now find Microsoft Outlook, Office, Teams, and OneDrive using the app launcher (SUPER + SPACE)"

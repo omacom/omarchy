@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the Microsoft Outlook, Office, Teams, and OneDrive web apps.
+
+set -e
+
+for app in "Microsoft Outlook" "Microsoft Office" "Microsoft Teams" "Microsoft OneDrive"; do
+  if [[ -f "$HOME/.local/share/applications/$app.desktop" ]]; then
+    omarchy-webapp-remove "$app"
+  fi
+done
+
+echo ""
+echo "Microsoft Outlook, Office, Teams, and OneDrive have been removed."
