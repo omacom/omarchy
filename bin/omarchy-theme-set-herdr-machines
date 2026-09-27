@@ -1,12 +1,23 @@
 #!/bin/bash
 
 # omarchy:summary=Mirror the current theme to your herdr machines that run Omarchy
-# omarchy:args=[--dry-run]
+# omarchy:args=[--dry-run|--available]
 # omarchy:hidden=true
 
 # omarchy-theme-set runs this in the background after every theme change. A machine with the
 # theme-sync-off toggle neither sends its theme changes nor accepts them from other machines.
 # --dry-run reaches each machine's desktop session but leaves its theme alone.
+# --available succeeds when herdr has an enabled machine to sync to, whether or not sync is on.
+
+# Columns: id, label, SSH target, session, state.
+herdr_targets() {
+  herdr machine list 2>/dev/null | awk -F '\t' -v self="$(hostname)" '$5 == "enabled" && $2 != self { print $3 }'
+}
+
+if [[ $1 == "--available" ]]; then
+  [[ -n $(herdr_targets) ]]
+  exit
+fi
 
 DRY_RUN=0
 if [[ $1 == "--dry-run" ]]; then
@@ -89,8 +100,7 @@ if [[ -z $THEME ]]; then
   exit 0
 fi
 
-# Columns: id, label, SSH target, session, state.
-mapfile -t targets < <(herdr machine list 2>/dev/null | awk -F '\t' -v self="$(hostname)" '$5 == "enabled" && $2 != self { print $3 }')
+mapfile -t targets < <(herdr_targets)
 
 # An SSH agent such as 1Password remembers its approval per application, so connect one
 # machine at a time until one succeeds. Parallel connections before that would each ask.
