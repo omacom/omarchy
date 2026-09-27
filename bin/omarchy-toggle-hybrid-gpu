@@ -1,11 +1,10 @@
 #!/bin/bash
 
-# Toggle dedicated vs integrated GPU mode via supergfxd (for hybrid gpu laptops, like Asus G14).
-# Requires reboot to take effect.
+# omarchy:summary=Toggle dedicated vs integrated GPU mode via supergfxd (for hybrid gpu laptops, like Asus G14).
+# omarchy:requires-sudo=true
 
 NVIDIA_SLEEP_SERVICES="nvidia-suspend.service nvidia-resume.service nvidia-hibernate.service"
 
-# Ensure supergfxctl has been installed
 if omarchy-cmd-missing supergfxctl; then
   omarchy-pkg-add supergfxctl
 
