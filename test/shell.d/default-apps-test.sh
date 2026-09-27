@@ -68,6 +68,7 @@ omarchy-pkg-add|omarchy-pkg-aur-add)
   chromium) command=chromium ;;
   firefox) command=firefox ;;
   zen-browser-bin) command=zen-browser ;;
+  helium-browser-bin) command=helium-browser ;;
   cursor-bin) command=cursor ;;
   sublime-text-4) command=subl ;;
   vim) command=vim ;;
@@ -85,6 +86,7 @@ omarchy-install-browser)
   edge) command=microsoft-edge-stable ;;
   firefox) command=firefox ;;
   zen) command=zen-browser ;;
+  helium) command=helium-browser ;;
   esac
   ;;
 omarchy-install-terminal)
@@ -156,6 +158,7 @@ browser_cases=(
   'edge microsoft-edge-stable browser:edge'
   'firefox firefox browser:firefox'
   'zen zen-browser browser:zen'
+  'helium helium-browser browser:helium'
 )
 
 terminal_cases=(
@@ -199,6 +202,13 @@ for entry in "${browser_cases[@]}"; do
   [[ $(omarchy-default-browser) == "$selection" ]] || fail "$selection becomes the default browser after installation"
 done
 pass "browser defaults install every missing browser before selection"
+
+: >"$install_log"
+rm -f "$installed_dir/helium-browser"
+OMARCHY_TEST_REAL_BROWSER_INSTALL=true omarchy-default-browser --install helium >/dev/null
+[[ $(<"$install_log") == "pkg:helium-browser-bin" ]] || fail "Helium installs its actual package"
+[[ $(omarchy-default-browser) == "helium" ]] || fail "Helium becomes default after its installer succeeds"
+pass "Helium uses its package installer and desktop ID"
 
 : >"$install_log"
 : >"$setup_log"

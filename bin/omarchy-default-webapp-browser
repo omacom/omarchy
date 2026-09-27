@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# omarchy:summary=Choose a web app browser independently of the default browser
+# omarchy:args=[auto|chromium|chrome|brave|brave-origin|edge|helium|opera|vivaldi]
+# omarchy:examples=omarchy default webapp-browser helium | omarchy default webapp-browser auto
+
+set -e
+config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/webapp-browser"
+
+if (( $# == 0 )); then
+  if [[ -f $config ]]; then
+    cat "$config"
+  else
+    echo auto
+  fi
+  exit 0
+fi
+
+case "$1" in
+auto) desktop_id=auto ;;
+chromium) command=chromium; desktop_id=chromium.desktop ;;
+chrome) command=google-chrome-stable; desktop_id=google-chrome.desktop ;;
+brave) command=brave; desktop_id=brave-browser.desktop ;;
+brave-origin) command=brave-origin; desktop_id=brave-origin.desktop ;;
+edge) command=microsoft-edge-stable; desktop_id=microsoft-edge.desktop ;;
+helium) command=helium-browser; desktop_id=helium.desktop ;;
+opera) command=opera; desktop_id=opera.desktop ;;
+vivaldi) command=vivaldi-stable; desktop_id=vivaldi-stable.desktop ;;
+*)
+  echo "Usage: omarchy-default-webapp-browser <auto|chromium|chrome|brave|brave-origin|edge|helium|opera|vivaldi>" >&2
+  exit 1
+  ;;
+esac
+
+if [[ $desktop_id != "auto" ]] && omarchy-cmd-missing "$command"; then
+  echo "Install $1 before selecting it as the web app browser." >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$config")"
+temporary=$(mktemp "${config}.XXXXXX")
+trap 'rm -f "$temporary"' EXIT
+printf '%s\n' "$desktop_id" > "$temporary"
+mv -f "$temporary" "$config"
+omarchy-notification-send "Web app browser: $1"

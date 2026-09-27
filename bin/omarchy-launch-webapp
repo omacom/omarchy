@@ -3,11 +3,28 @@
 # omarchy:summary=Launch a URL as a web app in the default supported browser
 # omarchy:args=<url>
 
-browser=$(xdg-settings get default-web-browser)
+browser=$(omarchy-default-webapp-browser) || exit 1
+
+if [[ $browser == "auto" ]]; then
+  browser=$(env -u BROWSER xdg-settings get default-web-browser)
+  case $browser in
+  chromium* | google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
+  *) browser="chromium.desktop" ;;
+  esac
+fi
 
 case $browser in
-google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
-*) browser="chromium.desktop" ;;
+chromium* | google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
+*)
+  echo "Unsupported web app browser: $browser. Choose one with omarchy default webapp-browser." >&2
+  exit 1
+  ;;
 esac
 
-exec setsid uwsm-app -- $(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1) --app="$1" "${@:2}"
+browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "${XDG_DATA_HOME:-$HOME/.local/share}/applications/$browser" "$HOME/.nix-profile/share/applications/$browser" "/usr/local/share/applications/$browser" "/usr/share/applications/$browser" 2>/dev/null | head -1)
+if [[ -z $browser_exec ]] || omarchy-cmd-missing "$browser_exec"; then
+  echo "Web app browser is not installed: $browser. Choose another with omarchy default webapp-browser." >&2
+  exit 1
+fi
+
+exec setsid uwsm-app -- "$browser_exec" --app="$1" "${@:2}"

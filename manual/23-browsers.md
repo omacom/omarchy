@@ -1,12 +1,12 @@
 # Browsers
 
-Omarchy ships with [Chromium](https://www.chromium.org/) as the default browser. It's the plain open-source build, themed to match the rest of your system, and it's what `Super + Shift + Return` opens and what every [web app](25-web-apps.md) runs inside.
+Omarchy ships with [Chromium](https://www.chromium.org/) as the default browser. It's the plain open-source build, themed to match the rest of your system, and it's what `Super + Shift + Return` opens and the initial fallback for [web apps](25-web-apps.md). Web apps can use a separate browser preference.
 
-If Chromium isn't your taste, you're not stuck with it. Under _Install > Browser_ in the Omarchy menu you'll find Chrome, Edge, Brave, Brave Origin, Firefox, and [Zen](https://zen-browser.app/). Pick one and Omarchy installs it, sets up its policy directory, and applies your current theme to it.
+If Chromium isn't your taste, you're not stuck with it. Under _Setup > Defaults > Browser_ you can choose Chrome, Edge, Brave, Brave Origin, Firefox, [Zen](https://zen-browser.app/), or [Helium](https://helium.computer/). Omarchy installs a missing browser before selecting it.
 
 ## Making one the default
 
-Installing a browser doesn't promote it. Once it's on the machine, go to _Setup > Defaults > Browser_ and pick it — the menu only lists browsers you actually have installed, and marks the current default with a check.
+Go to _Setup > Defaults > Browser_ and pick a browser. The menu marks the current default with a check.
 
 From the terminal it's:
 
