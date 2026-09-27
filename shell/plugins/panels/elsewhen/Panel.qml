@@ -6,7 +6,6 @@ import qs.Commons
 import qs.Ui
 import "Model.js" as Model
 import "GlobeModel.js" as Solar
-import "Sky.js" as Sky
 import "Sun.js" as Sun
 import "Greetings.js" as Greet
 
@@ -66,11 +65,6 @@ Panel {
                                 : rowData.relative
   }
 
-  // The Earth's own row at the foot of the list: a 4.54-billion-year day
-  // reading a minute to midnight. Built, lived with, and switched off on
-  // 2026-08-29 - it did not land. Off by default, code and tests intact; the
-  // README says what was wrong with it.
-  readonly property bool showEarth: setting("showEarth", false) === true
   // Degrees in whichever unit the machine measures in, until someone says
   // otherwise by clicking a temperature. Qt reads the measurement system from
   // the system locale, and only the US system means Fahrenheit - the UK
@@ -88,15 +82,6 @@ Panel {
   // Off by default. The plumbing stays in place - flip this to true and the
   // currency comes back with no code change.
   readonly property bool showCurrency: setting("showCurrency", false) === true
-  // The overlap band and its briefcase toggles, shelved for now. All the
-  // machinery stays - flip this to true and it comes back whole. The time
-  // scrubber is independent and unaffected.
-  readonly property bool showOverlap: setting("showOverlap", false) === true
-  // Sky tint: colour each city name, and each dot on the globe, by the sky
-  // where it is. Shelved - the colours were pleasant but the rule was never
-  // visible from the interface, so they read as decoration. Set skyTint true
-  // to bring it back; Sky.js and its tests are untouched.
-  readonly property bool skyTint: setting("skyTint", false) === true
 
   property var probe: ({})
   property string zoneCatalogText: ""
@@ -323,11 +308,8 @@ Panel {
   readonly property double effectiveMs: nowMs + scrubMinutes * 60000
   readonly property string scrubLabel: Model.formatScrubDelta(scrubMinutes)
 
-  readonly property int workStart: Math.round(Number(setting("workStartHour", 9)) * 60)
-  readonly property int workEnd: Math.round(Number(setting("workEndHour", 17)) * 60)
   property int localOffsetMinutes: -(new Date().getTimezoneOffset())
   property string localZone: ""
-  property bool probed: false
   property bool probeQueued: false
 
   // The bar sizes a widget slot from its root's implicit size; a bare Item
@@ -344,37 +326,6 @@ Panel {
   // a green), and the dot is meant to read as daylight.
   readonly property color daylightMarker: "#E5C736"
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
-
-  // UTC minute ranges where every tracked city is inside its working window.
-  // Empty until every zone has been probed - a partial answer here would be
-  // wrong rather than merely incomplete.
-  // Only the cities with the briefcase toggled on. Tracking a city and
-  // having someone to work with there are different things.
-  readonly property var workZones: Model.workZones(zones)
-
-  readonly property var overlap: {
-    if (workZones.length < 2) return []
-    var offs = []
-    for (var i = 0; i < workZones.length; i++) {
-      var o = probe[workZones[i].id]
-      if (!o) return []
-      offs.push(o.offsetMinutes)
-    }
-    return Model.overlapRuns(offs, workStart, workEnd)
-  }
-
-  readonly property string overlapText: {
-    if (!showOverlap) return ""
-    if (workZones.length < 2) return ""
-    if (!probed) return ""
-    if (overlap.length === 0) return workZones.length + " cities, no shared hours"
-    var parts = []
-    for (var i = 0; i < overlap.length; i++) {
-      parts.push(Model.formatMinuteOfDay(overlap[i].start + localOffsetMinutes, hour24)
-        + " \u2013 " + Model.formatMinuteOfDay(overlap[i].end + localOffsetMinutes, hour24))
-    }
-    return workZones.length + " cities overlap " + parts.join(", ")
-  }
 
   // Lower-cased labels of the cities in the list, for the globe to highlight.
   // Matching is by name, not zone: tracking Miami should not light up New
@@ -396,10 +347,6 @@ Panel {
     }
     return out
   }
-
-  // Computed once per tick rather than per row. Follows the scrubber, so
-  // dragging time sweeps the names through dawn and dusk.
-  readonly property var subsolar: Solar.subsolarPoint(effectiveMs)
 
   // Tonight's moon, shared by every row - the phase is the same everywhere on
   // Earth. Follows the scrubber, so dragging time walks the moon through its
@@ -449,16 +396,6 @@ Panel {
     return ""
   }
 
-  // The sky over a city right now, or the plain foreground when the tint is
-  // off or the city has not been geocoded yet.
-  function skyColorFor(zone) {
-    if (!skyTint) return foreground
-    var f = facts[Model.factsKey(zone)]
-    if (!f || f.lat === undefined || f.lon === undefined) return foreground
-    var c = Sky.tint(Solar.solarElevation(f.lat, f.lon, subsolar))
-    return c === null ? foreground : c
-  }
-
   readonly property var clockRows: Model.rows(zones, probe, effectiveMs, localOffsetMinutes, hour24)
   // Where "here" is. Derived from the system zone, which names a
   // representative city - so a user in Boca Raton would read "New York".
@@ -506,17 +443,7 @@ Panel {
   // home longitude is what leaves your city facing you.
   readonly property real homeLon: homeKnown ? homePlace.lon : 0
 
-  // The sky over any city, as a hex string, or "" when it cannot be known.
-  function skyHexFor(zone) {
-    if (!skyTint || !zone || !zone.id) return ""
-    var f = facts[Model.factsKey(zone)]
-    if (!f || f.lat === undefined || f.lon === undefined) return ""
-    var c = Sky.tint(Solar.solarElevation(f.lat, f.lon, subsolar))
-    return c === null ? "" : c
-  }
-
   readonly property var homeZone: ({ label: homeCity, id: localZone })
-  readonly property string homeSkyHex: skyHexFor(homeZone)
 
   // Which city the globe is showing. Home is the empty key, which is where it
   // starts and where the header line sends it back to.
@@ -543,7 +470,6 @@ Panel {
   readonly property bool focusKnown: focusPlace !== null
   readonly property real focusLat: focusKnown ? focusPlace.lat : 0
   readonly property real focusLon: focusKnown ? focusPlace.lon : 0
-  readonly property string focusSkyHex: skyHexFor(focusZone)
 
   // Turn the globe to a city by the shortest way round, rather than always
   // forward - a neighbouring time zone should be a nudge, not a lap.
@@ -586,11 +512,7 @@ Panel {
     var runs = [{ text: "It's " + localTime + " here" }]
     if (homeCity !== "") {
       runs.push({ text: " in " })
-      // The name is the way back to your own city, and it is underlined to
-      // say so - but only when the sky tint is colouring it, since without
-      // the colour an underline on its own reads as a defect in the line.
-      runs.push({ text: homeCity, color: homeSkyHex,
-                  underline: homeSkyHex !== "" && focusIndex >= 0 })
+      runs.push({ text: homeCity })
     }
     // No full stop. The line is a caption on a curve rather than a sentence
     // in a paragraph, and a period hanging off the end of the arc reads as a
@@ -642,11 +564,6 @@ Panel {
     persistSettings({ zones: Model.serializeZones(next) })
     refresh()
     refreshFacts()
-  }
-
-  // Offsets do not change, so this skips the re-probe that setZones does.
-  function toggleWork(index) {
-    persistSettings({ zones: Model.serializeZones(Model.toggleWorkAt(zones, index)) })
   }
 
   // The label matters as much as the zone. Half a dozen cities share
@@ -739,8 +656,8 @@ Panel {
   // Temperature and currency. The script caches on disk with its own TTLs, so
   // calling this on every open is cheap - a warm run does no network at all.
   // What the fetcher is asked about: the tracked cities, plus the city you
-  // are in - it is not a row, but the header needs its coordinates to tint
-  // the name, and a geocode is cached forever anyway.
+  // are in - it is not a row, but the globe needs its coordinates to turn
+  // home, and a geocode is cached forever anyway.
   readonly property var factsRequest: {
     var out = []
     for (var i = 0; i < zones.length; i++)
@@ -947,7 +864,6 @@ Panel {
         root.probe = Model.parseProbe(text)
         var lz = Model.localZoneFromProbe(text)
         if (lz !== "") root.localZone = lz
-        root.probed = true
         if (root.needsSeed) root.seedFirstRun()
         root.tick()
         Qt.callLater(function() {
@@ -1374,10 +1290,6 @@ Panel {
                   showMarker: root.focusKnown
                   markerLat: root.focusLat
                   markerLon: root.focusLon
-                  // The same sky the header paints the city name with, so the
-                  // dot and the name agree about what time of day it is there.
-                  // Falls back to the accent when the tint is switched off.
-                  markerColor: root.focusSkyHex !== "" ? root.focusSkyHex : Color.accent
                 }
 
                 // One MouseArea rather than a HoverHandler plus a TapHandler:
@@ -1481,21 +1393,6 @@ Panel {
               color: root.hereColor
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
-            }
-
-            // The answer to "when can we all talk", in your own clock.
-            Text {
-              width: parent.width
-              visible: root.zoom < 1 && text !== ""
-              opacity: 1 - root.zoom
-              horizontalAlignment: Text.AlignHCenter
-              wrapMode: Text.WordWrap          // two windows is a long line
-              textFormat: Text.PlainText
-              text: root.overlapText
-              color: root.overlap.length === 0 ? root.fainter : Color.accent
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              topPadding: Style.space(3)
             }
           }
 
@@ -1760,25 +1657,6 @@ Panel {
                           }
                         }
 
-                        // The shared working window, drawn in this city's own local
-                        // hours. The same real interval lands at a different place on
-                        // every row - which is the point: one instant, many clocks.
-                        Repeater {
-                          model: root.showOverlap
-                            ? Model.localSegments(root.overlap, row.rowData.offsetMinutes)
-                            : []
-
-                          Rectangle {
-                            required property var modelData
-                            x: parent.width * modelData.x0
-                            width: Math.max(1, parent.width * (modelData.x1 - modelData.x0))
-                            height: parent.height
-                            radius: parent.radius
-                            color: Color.accent
-                            opacity: 0.75
-                          }
-                        }
-
                         Rectangle {
                           id: nowMarker
                           // Sun and moon are the same size. They are the same
@@ -1808,8 +1686,8 @@ Panel {
 
                       // Grab anywhere on the body of the row to reorder. Stops above
                       // the strip so it never competes with the time scrubber, and is
-                      // declared first so the briefcase and remove buttons - later
-                      // siblings - keep their taps.
+                      // declared first so the remove button - a later sibling - keeps
+                      // its taps.
                       MouseArea {
                         id: grab
                         anchors.left: parent.left
@@ -1919,7 +1797,7 @@ Panel {
                             // A label is whatever was typed or sent over
                             // IPC; drawn as text, never parsed as markup.
                             textFormat: Text.PlainText
-                            color: root.skyColorFor(row.modelData)
+                            color: root.foreground
                             font.family: root.fontFamily
                             font.pixelSize: Style.font.subtitle
                             font.weight: Font.DemiBold
@@ -2149,7 +2027,7 @@ Panel {
                       // Declared after the scrub MouseArea on purpose. That one
                       // covers the whole strip to drag time, and an earlier sibling
                       // would never see a press - the same later-sibling rule the
-                      // remove button and the briefcase rely on.
+                      // remove button relies on.
                       //
                       // Outside the band rather than on its edge. A mark sitting on
                       // the boundary reads as part of the band and gets lost in it,
@@ -2381,7 +2259,6 @@ Panel {
                         // The pointer, not the reorder grab's open hand: the whole
                         // row body is a drag handle, so without this the button
                         // that deletes a city looks like one more piece of it.
-                        // Matches the briefcase beside it.
                         HoverHandler {
                           id: removeHover
                           enabled: row.removable
@@ -2394,50 +2271,16 @@ Panel {
                         }
                       }
 
-                      // Briefcase: marks a city as one of the working group the
-                      // overlap band is computed from. Faint when off so it stays out
-                      // of the way, accent when on.
-                      Item {
-                        id: workSlot
-                        visible: root.showOverlap
-                        width: root.showOverlap ? Style.space(20) : 0
-                        anchors.right: removeSlot.left
-                        anchors.top: rowLabels.top
-                        anchors.bottom: rowLabels.bottom
-
-                        Text {
-                          anchors.centerIn: parent
-                          text: ""
-                          color: row.modelData.work ? Color.accent
-                               : (workHover.hovered ? root.dim
-                                  : Qt.rgba(root.foreground.r, root.foreground.g,
-                                            root.foreground.b, 0.22))
-                          font.family: root.fontFamily
-                          font.pixelSize: Style.font.bodySmall
-                        }
-
-                        HoverHandler { id: workHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: { root.toggleWork(row.index); row.dismissChips() } }
-                      }
-
                       Column {
                         id: timeBlock
                         // Flush with the row's own edge rather than tucked in
                         // behind the remove button's corner. The corner is a
                         // hit target that is only ever drawn on hover, and
                         // reserving column width for it all the time set every
-                        // city in from the right-hand edge - which was invisible
-                        // until the Earth row arrived without a remove button
-                        // and stood a clear 16px further out than the rest.
-                        // Nothing overlaps: the cross sits above the meridiem,
-                        // not beside it.
-                        //
-                        // The briefcase is the exception. It is a real item in
-                        // the line when the shelved overlap band is switched on,
-                        // so with that on the old inset stands.
+                        // city in from the right-hand edge. Nothing overlaps: the
+                        // cross sits above the meridiem, not beside it.
                         anchors.right: parent.right
-                        anchors.rightMargin: root.showOverlap ? Style.space(48)
-                                                              : Style.space(12)
+                        anchors.rightMargin: Style.space(12)
                         anchors.verticalCenter: rowLabels.verticalCenter
                         spacing: Style.space(1)
 
@@ -2493,7 +2336,7 @@ Panel {
                         //
                         // Declared after the drag handle, which covers the body
                         // of the row: later siblings win the tap, the same way
-                        // the remove button and the briefcase do.
+                        // the remove button does.
                         Row {
                           id: offsetLine
                           anchors.right: parent.right
@@ -2528,37 +2371,6 @@ Panel {
                   }
                 }
 
-                // ---- The Earth, last in the list and not one of the cities.
-                // Outside the Repeater rather than appended to the model: that
-                // is what makes it unremovable and permanently last without a
-                // special case in the drag, the remove button or the settings.
-                EarthRow {
-                  id: earthRow
-                  visible: root.showEarth && root.zoom < 1
-                  width: parent.width
-                  fontFamily: root.fontFamily
-                  foreground: root.foreground
-                  dim: root.dim
-                  fainter: root.fainter
-                  hour24: root.hour24
-                  capGap: root.capGap
-                  moonPhase: root.moonPhase
-                  // A city at a minute to midnight is the darkest row on the
-                  // list, and this row is at a minute to midnight. It earns its
-                  // shade by the same rule as everyone else.
-                  fill: root.solid(0.035)
-                  fillHover: root.solid(0.085)
-
-                  // Shoved aside after the cities and before the adder.
-                  readonly property int knockSlot: root.zones.length
-                  // Qualified by id: a Translate is a child object with its own
-                  // scope, so a bare `knockSlot` resolves to nothing there.
-                  transform: Translate {
-                    x: root.knockX(earthRow.knockSlot)
-                    y: root.knockY(earthRow.knockSlot)
-                  }
-                }
-
                 // ---- Add a city. Rendered inline rather than in a dropdown
                 // popup: this panel hangs off a vertical bar low on the screen, and
                 // the shared dropdown only ever opens downward, so its list ran off
@@ -2570,9 +2382,8 @@ Panel {
                   width: parent.width
                   spacing: Style.space(6)
 
-                  // Shoved aside last, after every row above it - including
-                  // the Earth, which sits between it and the cities.
-                  readonly property int knockSlot: root.zones.length + (root.showEarth ? 1 : 0)
+                  // Shoved aside last, after every row above it.
+                  readonly property int knockSlot: root.zones.length
                   transform: Translate {
                     x: root.knockX(adderColumn.knockSlot)
                     y: root.knockY(adderColumn.knockSlot)
@@ -2774,7 +2585,6 @@ Panel {
                     ? [root.homeCity, root.localZone, root.homeLat, root.homeLon, 0]
                     : []
                 })
-                item.skyTint = Qt.binding(function() { return root.skyTint })
                 item.offsetMode = Qt.binding(function() { return root.offsetMode })
                 item.homeOffsetMinutes = Qt.binding(function() { return root.localOffsetMinutes })
                 item.offsetModeToggleRequested.connect(function() { root.toggleOffsetMode() })

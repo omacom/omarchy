@@ -136,7 +136,7 @@ Item {
           ctx.arc(mp.x, mp.y, mr, 0, Math.PI * 2)
           ctx.fillStyle = root.markerColor
           ctx.fill()
-          // A dark edge, because a daylight sky is nearly the same lightness
+          // A dark edge, because the marker can be nearly the same lightness
           // as the filled continents and the dot would otherwise dissolve
           // into whichever landmass it happens to be sitting on.
           ctx.lineWidth = Math.max(1, r * 0.04)

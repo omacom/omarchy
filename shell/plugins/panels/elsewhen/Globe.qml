@@ -5,7 +5,6 @@ import qs.Commons
 import qs.Ui
 import "GlobeModel.js" as Globe
 import "Model.js" as Model
-import "Sky.js" as Sky
 
 // A spinnable orthographic globe: coastlines, a day/night terminator, and the
 // major cities of every time zone. Drag to spin; tap a city for its local
@@ -42,7 +41,6 @@ Item {
   // Cities the list is already tracking, lower-cased. They get the accent
   // colour and first claim on a label slot.
   property var trackedNames: []
-  property bool skyTint: false
   // Faded in near the end of the zoom: at a fraction of full size the footer
   // and the jump bar are illegible specks.
   property real chromeOpacity: 1
@@ -74,18 +72,9 @@ Item {
   property var jumpOptions: []          // the whole zone catalogue, unfiltered
 
   // The city you are in: always on the globe, always labelled, and drawn in
-  // its own sky the way the panel globe draws it - so "you" looks the same
-  // on both.
+  // the accent the way the panel globe draws it - so "you" looks the same on
+  // both.
   property var homeRow: []
-  // The home dot and its label; falls back to the accent when tinting is off.
-  readonly property color homeSky: {
-    for (var i = 0; i < allCities.length; i++) {
-      if (!isHome(i)) continue
-      var hex = skyOf(i)
-      return hex === "" ? Color.accent : hex
-    }
-    return Color.accent
-  }
   readonly property string homeName:
     homeRow.length > 0 ? String(homeRow[0]).toLowerCase() : ""
 
@@ -404,17 +393,6 @@ Item {
     var c = allCities[i]
     return c !== undefined
            && trackedNames.indexOf(String(c[0]).toLowerCase()) >= 0
-  }
-
-  // The sky over any city on the globe. Computed here rather than handed in:
-  // every city already carries its coordinates, so the panel does not need to
-  // ship a colour table alongside them.
-  function skyOf(i) {
-    if (!skyTint) return ""
-    var c = allCities[i]
-    if (c === undefined) return ""
-    var hex = Sky.tint(Globe.solarElevation(c[2], c[3], sub))
-    return hex === null ? "" : hex
   }
 
   // Guarded, along with the two below. These are read both from bindings and
@@ -742,25 +720,21 @@ Item {
         // Gold in daylight, dark at night - the same rule the daylight strips
         // in the list use. The night colour is a dark ink rather than a pale
         // one: the continents are filled bright, and a pale dot sitting on
-        // one reads as an empty ring. (With skyTint on, each dot takes its
-        // own sky instead.)
-        var sky = root.skyOf(i)
-        ctx.fillStyle = sky !== "" ? sky
-                      : (day ? root.daylightMarker : root.nightMarker)
+        // one reads as an empty ring.
+        ctx.fillStyle = day ? root.daylightMarker : root.nightMarker
         ctx.fill()
         // Every dot is edged so it survives whichever background it lands on:
         // a dark ring around a light dot, a light ring around a dark one.
-        var lightDot = sky !== "" || day
         ctx.lineWidth = root.scaled(1.2)
-        ctx.strokeStyle = lightDot ? Qt.rgba(0, 0, 0, 0.7)
-                                   : Qt.rgba(fg.r, fg.g, fg.b, 0.85)
+        ctx.strokeStyle = day ? Qt.rgba(0, 0, 0, 0.7)
+                              : Qt.rgba(fg.r, fg.g, fg.b, 0.85)
         ctx.stroke()
         if (root.isHome(i)) {
-          // Same treatment as the panel globe: the dot in its own sky, a dark
-          // edge so a daylight sky does not vanish into the land, and a halo.
+          // Same treatment as the panel globe: the dot in the accent, a dark
+          // edge so it does not vanish into the land, and a halo.
           ctx.beginPath()
           ctx.arc(p.x, p.y, root.scaled(3.4), 0, Math.PI * 2)
-          ctx.fillStyle = root.homeSky
+          ctx.fillStyle = Color.accent
           ctx.fill()
           ctx.lineWidth = root.scaled(1.2)
           ctx.strokeStyle = Qt.rgba(0, 0, 0, 0.5)
@@ -768,8 +742,8 @@ Item {
           ctx.beginPath()
           ctx.arc(p.x, p.y, root.scaled(6.4), 0, Math.PI * 2)
           ctx.lineWidth = root.scaled(1.4)
-          ctx.strokeStyle = Qt.rgba(root.homeSky.r, root.homeSky.g,
-                                    root.homeSky.b, 0.65)
+          ctx.strokeStyle = Qt.rgba(Color.accent.r, Color.accent.g,
+                                    Color.accent.b, 0.65)
           ctx.stroke()
         } else if (root.isTracked(i)) {
           ctx.beginPath()
@@ -955,7 +929,7 @@ Item {
         text: root.isHome(root.selected) ? "home" : "tracked"
         visible: footer.has
                  && (root.isHome(root.selected) || root.isTracked(root.selected))
-        color: root.isHome(root.selected) ? root.homeSky : Color.accent
+        color: Color.accent
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
       }

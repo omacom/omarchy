@@ -39,24 +39,20 @@ function parseZones(spec) {
   for (var i = 0; i < parts.length; i++) {
     var entry = parts[i].trim()
     if (entry === "") continue
-    // "Label|Zone" or "Label|Zone|w", where the third field marks a city as
-    // one of the working group the overlap band is computed from. Zone ids
-    // never contain a pipe, so splitting on it is safe.
+    // "Label|Zone". Zone ids never contain a pipe, so splitting on it is safe.
     var fields = entry.split("|")
     var label = ""
     var id = ""
-    var work = false
     if (fields.length >= 2) {
       label = fields[0].trim()
       id = fields[1].trim()
-      work = String(fields[2] || "").trim() === "w"
     } else {
       id = entry
       label = entry.split("/").pop().replace(/_/g, " ")
     }
     if (id === "" || !ZONE_ID.test(id)) continue
     if (label === "") label = id.split("/").pop().replace(/_/g, " ")
-    out.push({ label: label, id: id, work: work })
+    out.push({ label: label, id: id })
   }
   return out
 }
@@ -329,8 +325,7 @@ function serializeZones(zones) {
   for (var i = 0; i < zones.length; i++) {
     var z = zones[i]
     if (!z || !z.id) continue
-    var base = z.label && z.label !== "" ? z.label + "|" + z.id : z.id
-    parts.push(z.work ? base + "|w" : base)
+    parts.push(z.label && z.label !== "" ? z.label + "|" + z.id : z.id)
   }
   return parts.join(", ")
 }
@@ -354,29 +349,7 @@ function addZone(zones, id, label) {
   if (name === "") name = labelForZoneId(zoneId)
   if (hasEntry(zones, zoneId, name)) return zones
   var out = zones.slice()
-  out.push({ label: name, id: zoneId, work: false })
-  return out
-}
-
-// ------------------------------------------------------- the working group
-//
-// The overlap band is computed only from cities with the briefcase toggled -
-// tracking a city and having a colleague in it are different things.
-
-function toggleWorkAt(zones, index) {
-  if (index < 0 || index >= zones.length) return zones
-  var out = []
-  for (var i = 0; i < zones.length; i++) {
-    var z = zones[i]
-    out.push(i === index ? { label: z.label, id: z.id, work: !z.work }
-                         : { label: z.label, id: z.id, work: z.work })
-  }
-  return out
-}
-
-function workZones(zones) {
-  var out = []
-  for (var i = 0; i < zones.length; i++) if (zones[i].work) out.push(zones[i])
+  out.push({ label: name, id: zoneId })
   return out
 }
 
@@ -652,92 +625,14 @@ function tempLabel(facts, units) {
   return facts ? formatTemp(facts.c, units) : ""
 }
 
-// ----------------------------------------------- overlap band and scrubbing
+// ------------------------------------------------------------- scrubbing
 //
-// Two features share this arithmetic. The overlap band answers "when can we
-// all talk", and the scrubber answers "if I move the clock, what happens to
-// everyone". Both live or die on getting circular time right, so both are
-// computed in minutes-of-day with explicit wrap handling rather than by
-// juggling Date objects.
+// The scrubber answers "if I move the clock, what happens to everyone". It
+// lives or dies on getting circular time right, so it is computed in
+// minutes-of-day with explicit wrap handling rather than by juggling Date
+// objects.
 
 var DAY_MINUTES = 1440
-
-// Minutes east of UTC -> that zone's local minute-of-day for a given UTC
-// minute-of-day.
-function localMinuteOfDay(utcMinute, offsetMinutes) {
-  return ((utcMinute + offsetMinutes) % DAY_MINUTES + DAY_MINUTES) % DAY_MINUTES
-}
-
-// Is a local minute inside [start, end)? Windows may run past midnight
-// (start > end), which is what makes a naive comparison wrong.
-function withinWindow(minute, start, end) {
-  if (start === end) return false
-  if (start < end) return minute >= start && minute < end
-  return minute >= start || minute < end          // wraps midnight
-}
-
-// UTC minute ranges where every zone is inside its working window at once.
-//
-// Sampled a minute at a time rather than solved analytically: intersecting N
-// circular intervals has enough edge cases (wrapping windows, empty results,
-// two separate arcs) that 1440 cheap checks are worth more than clever code.
-// Runs that touch both ends of the day are merged, so a window spanning
-// midnight comes back as one range with end > 1440 rather than two.
-function overlapRuns(offsets, winStart, winEnd) {
-  if (!offsets || offsets.length === 0) return []
-  var inside = []
-  var any = false
-  for (var m = 0; m < DAY_MINUTES; m++) {
-    var all = true
-    for (var i = 0; i < offsets.length; i++) {
-      if (!withinWindow(localMinuteOfDay(m, offsets[i]), winStart, winEnd)) { all = false; break }
-    }
-    inside.push(all)
-    if (all) any = true
-  }
-  if (!any) return []
-
-  var runs = []
-  var start = -1
-  for (var k = 0; k < DAY_MINUTES; k++) {
-    if (inside[k] && start < 0) start = k
-    if (!inside[k] && start >= 0) { runs.push({ start: start, end: k }); start = -1 }
-  }
-  if (start >= 0) runs.push({ start: start, end: DAY_MINUTES })
-
-  // A run ending at midnight and one starting at midnight are one run.
-  if (runs.length > 1 && runs[0].start === 0 && runs[runs.length - 1].end === DAY_MINUTES) {
-    var last = runs.pop()
-    runs[0] = { start: last.start, end: DAY_MINUTES + runs[0].end }
-  }
-  return runs
-}
-
-// A UTC run drawn on one city's strip, as 0..1 fractions of its local day.
-// A run crossing that city's local midnight becomes two segments.
-function localSegments(runs, offsetMinutes) {
-  var out = []
-  for (var i = 0; i < runs.length; i++) {
-    var a = localMinuteOfDay(runs[i].start, offsetMinutes)
-    var span = runs[i].end - runs[i].start
-    if (span >= DAY_MINUTES) { out.push({ x0: 0, x1: 1 }); continue }
-    var b = a + span
-    if (b <= DAY_MINUTES) {
-      out.push({ x0: a / DAY_MINUTES, x1: b / DAY_MINUTES })
-    } else {
-      out.push({ x0: a / DAY_MINUTES, x1: 1 })
-      out.push({ x0: 0, x1: (b - DAY_MINUTES) / DAY_MINUTES })
-    }
-  }
-  return out
-}
-
-// Total minutes covered by the overlap, for "no overlap" vs "18 minutes".
-function overlapMinutes(runs) {
-  var total = 0
-  for (var i = 0; i < runs.length; i++) total += runs[i].end - runs[i].start
-  return total
-}
 
 // How far to move the clock when the pointer lands at `fraction` across a
 // city's strip. Picks the nearest occurrence of that local time - dragging
@@ -984,14 +879,14 @@ function pickSeedZones(home, offsets, count) {
 
   var out = []
   for (var m = 0; m < picked.length; m++)
-    out.push({ label: picked[m].label, id: picked[m].id, work: false })
+    out.push({ label: picked[m].label, id: picked[m].id })
   return out
 }
 
 // The whole starting list: the city you are in, then the spread.
 function seedZones(home, offsets, count) {
   if (!home || !home.id) return []
-  var out = [{ label: home.label, id: home.id, work: false }]
+  var out = [{ label: home.label, id: home.id }]
   var rest = pickSeedZones(home, offsets, count)
   for (var i = 0; i < rest.length; i++) out.push(rest[i])
   return out

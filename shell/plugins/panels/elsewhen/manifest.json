@@ -31,12 +31,7 @@
       "units": "",
       "showCurrency": false,
       "globeEnabled": true,
-      "showEarth": false,
-      "workStartHour": 9,
-      "workEndHour": 17,
-      "showOverlap": false,
       "homeCity": "",
-      "skyTint": false,
       "smoothMotion": true
     },
     "schema": [
@@ -71,50 +66,16 @@
         "defaultValue": false
       },
       {
-        "key": "showEarth",
-        "type": "boolean",
-        "label": "The Earth's own row at the foot of the list (shelved)",
-        "defaultValue": false
-      },
-      {
         "key": "globeEnabled",
         "type": "boolean",
         "label": "Globe mode (tap the hero globe)",
         "defaultValue": true
       },
       {
-        "key": "workStartHour",
-        "type": "integer",
-        "label": "Working hours start (local)",
-        "min": 0,
-        "max": 23,
-        "defaultValue": 9
-      },
-      {
-        "key": "workEndHour",
-        "type": "integer",
-        "label": "Working hours end (local)",
-        "min": 1,
-        "max": 24,
-        "defaultValue": 17
-      },
-      {
-        "key": "showOverlap",
-        "type": "boolean",
-        "label": "Overlap band and briefcase toggles",
-        "defaultValue": false
-      },
-      {
         "key": "homeCity",
         "type": "string",
         "label": "Your city (blank = from the system time zone)",
         "defaultValue": ""
-      },
-      {
-        "key": "skyTint",
-        "type": "boolean",
-        "label": "Tint city names by their sky",
-        "defaultValue": false
       },
       {
         "key": "smoothMotion",

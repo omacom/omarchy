@@ -15,7 +15,7 @@ const t = (k, a, b) => {
   if (JSON.stringify(a) !== JSON.stringify(b)) { f++; console.log("  FAIL", k, JSON.stringify(a), "!=", JSON.stringify(b)); }
 };
 
-const zones = M.parseZones("Paris|Europe/Paris, Tokyo|Asia/Tokyo|w, New York|America/New_York");
+const zones = M.parseZones("Paris|Europe/Paris, Tokyo|Asia/Tokyo, New York|America/New_York");
 
 // --- the crossing itself ---------------------------------------------------
 t("first row found", M.indexOfZone(zones, "Paris", "Europe/Paris"), 0);
@@ -69,7 +69,7 @@ t("labelForZoneId agrees", M.labelForZoneId("Europe/Rome"), added[0].label);
 
 // Reordering the list moves the row a globe selection resolves to; the pair
 // is positional in nothing, so it follows the city rather than the slot.
-const reordered = M.parseZones("Tokyo|Asia/Tokyo|w, Paris|Europe/Paris, New York|America/New_York");
+const reordered = M.parseZones("Tokyo|Asia/Tokyo, Paris|Europe/Paris, New York|America/New_York");
 t("selection follows the city, not the slot",
   M.indexOfZone(reordered, "Paris", "Europe/Paris"), 1);
 

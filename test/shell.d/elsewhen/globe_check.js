@@ -38,6 +38,14 @@ ok("noon UTC subsolar near Greenwich meridian", Math.abs(noonUTC.lon) < 5, noonU
 const sixUTC = G.subsolarPoint(Date.UTC(2026, 5, 21, 18, 0, 0));
 ok("18:00 UTC subsolar near 90W", Math.abs(sixUTC.lon + 90) < 5, sixUTC.lon);
 
+// ---- solar elevation ------------------------------------------------------
+ok("sun is overhead at the subsolar point", Math.abs(G.solarElevation(jun.lat, jun.lon, jun) - 90) < 0.01);
+ok("antipode is deepest night", G.solarElevation(-jun.lat, jun.lon + 180, jun) < -89);
+ok("isDaylight agrees at the subsolar point", G.isDaylight(jun.lat, jun.lon, jun) === true);
+ok("isDaylight agrees at the antipode", G.isDaylight(-jun.lat, jun.lon + 180, jun) === false);
+ok("elevation stays in range", [[0, 0], [51, 0], [-33, 151], [78, -68]]
+  .every(([la, lo]) => { const e = G.solarElevation(la, lo, jun); return e >= -90.01 && e <= 90.01; }));
+
 // ---- terminator -----------------------------------------------------------
 const sub = G.subsolarPoint(Date.now());
 const term = G.terminator(sub, 60);

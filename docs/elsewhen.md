@@ -22,7 +22,7 @@ Three things make it feel solid, each of which was wrong first time:
 
 The list itself is **not** touched while the pointer moves - rows are displaced with a `Translate` transform, which is purely visual and leaves the Column's layout alone. Reordering the model mid-drag would replace the array the Repeater is built from, rebuild every delegate, and drop the gesture half-way through. That is exactly the bug that once made the time scrubber behave like a click.
 
-The grab area stops above the daylight strip, so vertical reordering never competes with the strip's horizontal scrub, and it is declared before the briefcase and remove buttons so those keep their taps. A few pixels of slack are required before a drag arms, so a click is never a reorder.
+The grab area stops above the daylight strip, so vertical reordering never competes with the strip's horizontal scrub, and it is declared before the remove button so that keeps its taps. A few pixels of slack are required before a drag arms, so a click is never a reorder.
 
 ## The first run
 
@@ -107,7 +107,7 @@ Above and not below, because below is where the pointer is - the hand cursor tha
 
 The chip was opaque from the start and still had the zone line showing through it. That was stacking, not transparency: `sunArrows` is declared before `timeBlock`, so the offset painted over the top of it. `z: 1` on the arrows fixes the paint order without touching the tap order, which still comes from declaration order. Worth remembering that a stacking bug and an alpha bug are the same picture from the reader's side. Its two colours are literal rather than theme roles, because a tooltip is inverted everywhere - a dark chip with light text is the same shape in a light theme as in a dark one, while the theme's own foreground would be dark text on a dark chip half the time.
 
-They are declared after the strip's scrub `MouseArea`. That one covers the whole bar to drag time, and an earlier sibling would never see a press - the same later-sibling rule the remove button and the briefcase rely on.
+They are declared after the strip's scrub `MouseArea`. That one covers the whole bar to drag time, and an earlier sibling would never see a press - the same later-sibling rule the remove button relies on.
 
 An arrow hides while the marker is standing on it. Two things drawn at the same point read as a printing fault rather than as two things at the same place, and the arrow is the one that can be spared: it marks a boundary that is not going anywhere, while the marker is the only thing on the bar that says when now is. It follows `nowMarker.x` and not the row's progress, so the arrow comes back exactly as the sun clears it rather than while the sun is still sliding over - the marker's motion is eased, and progress is where it is going, not where it is. Hidden rather than faded, because invisible is also untappable: a click on the sun should scrub time the way it does everywhere else on the bar. If the marker covers an arrow whose time is open, the chip closes with it.
 
@@ -183,56 +183,6 @@ Sources are Open-Meteo (geocoding and weather) and open.er-api.com (rates); neit
 
 Country-to-currency is a table in `worldclock-data.py`, validated by `test/shell.d/elsewhen/currency_check.py` against the system's iso-codes data and the live rate feed. Run it after editing that table - it is what caught Bulgaria, whose euro adoption retired BGN while the FX feed still publishes a legacy peg rate for it.
 
-## The Earth's row (shelved)
-
-**Off by default since 2026-08-29, the day it was built.** The author's verdict after living with it: "as much as I like the earth concept, I don't think it lands quite right." Nothing was wrong with it mechanically - it is described here in the present tense because the code and its tests are intact and `showEarth: true` brings it straight back.
-
-Worth writing down what it might have been, since the idea itself is a good one and will come back in some other shape. The row is the only one in the list that cannot answer the question the list exists to answer. Every other row says what time it is somewhere you might call; this one says what time it is in a place nobody is, and having answered that once it has nothing further to say - it is the same row tomorrow and in three million years. In a panel whose whole subject is that time is different in different places *right now*, a row that never changes may simply be in the wrong room. The next attempt is probably one of the other deep-time sketches in `NOTES.md` - the ones that move, or that say something about the cities that are already there.
-
-At the foot of the list, under the cities, is one more row whose city is the planet. Its day is the whole 4.54 billion years, so its clock reads 11:59 PM, its date line says *Holocene · Meghalayan*, and its strip is banded by eon instead of by daylight. Everything else about it - the padding, the type, the strip, the marker - is deliberately identical to a city, because the whole point arrives on the second read: it looks like another row until you notice what it says.
-
-The division that makes it worth having is a single one:
-
-| one hour   | 189 million years |
-| one minute | 3.15 million years - the entire genus *Homo* |
-| one second | 52,500 years - longer than every city ever built |
-
-So all of recorded history is the last tenth of a second of the day, and everything you have ever heard of happened after the minute hand last moved. Pointing at the row swaps the epoch line for `one minute = 3.15 Myr`, which is the key to reading it at all.
-
-Three details that are not arbitrary:
-
-**The right-hand edge of the list is its doing.** Every city row used to set its time in from the panel's edge to keep the corner clear for a remove button that is only drawn on hover. Nobody noticed until this row arrived without one and stood 16px further out than everything above it; the fix was to bring the cities out to meet it rather than to push it back in, since the reserved column was buying nothing. The cross still sits in the corner, above the meridiem.
-
-**It is the darkest row on the list**, at the same fill a city gets in the small hours - because it *is* in the small hours, by the same rule. For the same reason its now-marker is the moon rather than the sun.
-
-**The marker hangs half off the right-hand end of the strip.** That is where we are, and pulling it inside to look tidy would have been a lie about the only thing the row is for.
-
-**Nothing on it ticks.** The minute hand last moved 3.15 million years ago and will not move again for another 3.15 million. A row that cannot tick is a strange thing to put in a clock, which is exactly why it is worth putting in a clock.
-
-It is not one of the cities. It lives outside the list model, which is what makes it permanently last and impossible to drag or remove without a special case anywhere in the drag, the remove button or the stored settings - and it would need one in all three, since the model carries a time-zone probe, weather and a currency behind every entry, none of which mean anything for a planet. `showEarth: false` is the way out if it wears thin.
-
-The timescale in `DeepTime.js` is the ICS chart (v2023/07) with its published boundaries rather than the round numbers people remember - 538.8 Ma for the base of the Cambrian, 251.902 for the Permian-Triassic, 66 for the asteroid. `test/shell.d/elsewhen/deeptime_check.js` checks that every division is contiguous with its neighbours and nested inside its parent, which is the property a hand-typed table loses silently: a gap between two eras looks like nothing at all until a moment falls into it. The clock anchors are worked out on paper from the division alone - 66/4540 of a day is 20.93 minutes, so the dinosaurs go at 23:39 - rather than by running the code and writing down what it said.
-
-## Overlap band (shelved)
-
-**Off by default.** Set `showOverlap` to `true` on the widget's `shell.json` entry and the whole feature returns - the headline, the briefcase toggles and the accent bands on every strip. Nothing was removed; the model functions and `test/shell.d/elsewhen/overlap_check.js` are intact. It was shelved because "overlap" leans on a definition of working hours that the interface never states, which made the line read as unexplained. If it comes back it probably wants to say what window it is using.
-
-The time scrubber below is a separate feature and is unaffected.
-
-### What it does
-
-Under the header, one line answers the question a world clock is usually for: **when can we all talk.**
-
-Which cities count is set per row by the **briefcase** toggle - tracking a city and having someone to work with there are different things, so the band is computed only from cities with the briefcase on. New cities start off; the line appears once at least two are toggled. The toggle is stored as a third field on the zone entry (`Label|Zone|w`), so it survives a restart and existing two-field entries keep parsing.
-
-The working windows of the toggled cities are intersected in UTC, and the result is shown in your own clock - "everyone overlaps 3:00 AM - 4:00 AM, 1:00 PM - 2:00 PM" - or "no overlapping working hours" when there is none, which for a genuinely spread-out set is the honest and useful answer.
-
-The same interval is drawn on **every** row's daylight strip - including cities outside the working group - in the accent colour, at **that city's own local hours**, so you can also see where the meeting lands for a city you merely track. One real instant lands in a different place on each row, which is the whole point: you can see at a glance that your 1pm is Tokyo's small hours.
-
-The intersection is sampled a minute at a time rather than solved analytically - intersecting N circular intervals has enough edge cases (windows that wrap midnight, empty results, two separate arcs) that 1440 cheap checks are worth more than clever code. A run that crosses midnight is merged into a single range rather than reported as two.
-
-Working hours default to 09:00-17:00 local and are set per widget with `workStartHour` and `workEndHour`. Those settings are inert while `showOverlap` is false.
-
 ## Time scrubber
 
 Drag any row's daylight strip and **every** clock moves together, so you can ask "if I propose 3pm, what am I doing to Auckland?" and see the answer rather than compute it. The header shows the shifted time in the accent colour with the offset from now (`+3h`), so a scrubbed clock can never be mistaken for the real one. Release and it holds for a couple of seconds - long enough to read - then returns to the present. Closing the panel also returns it.
@@ -241,7 +191,7 @@ The drag maps *absolutely*: the pointer's position across the strip is a local t
 
 The rows are modelled on the zone list rather than on the computed clock rows. That matters: the clock rows are a binding on the scrubbable, ticking time, so using them as the model rebuilt every delegate on every tick - and destroyed the MouseArea mid-gesture the moment scrubbing began, which turned every drag into a single click.
 
-`test/shell.d/elsewhen/overlap_check.js` covers the band, the scrub arithmetic and the briefcase flag, including windows that wrap midnight, runs that split across a city's local midnight, scrub direction, and round-tripping the work flag through the settings string.
+`test/shell.d/elsewhen/scrub_check.js` covers the scrub arithmetic, including scrub direction and the short way round midnight.
 
 ## Globe mode
 
@@ -281,9 +231,9 @@ It is one element carrying two facts rather than a new thing on the row, which i
 
 City dots on the globe use the same rule as the list: gold in daylight, pale at night.
 
-**The city you are in is always on the globe**, always labelled, and drawn the way the panel globe draws it - the dot in its own sky colour, a dark edge so a daylight sky does not vanish into the land, and a halo. It is merged in ahead of everything else, so a built-in or a tracked row of the same name cannot shadow it.
+**The city you are in is always on the globe**, always labelled, and drawn the way the panel globe draws it - the dot in the accent colour, a dark edge so it does not vanish into the land, and a halo. It is merged in ahead of everything else, so a built-in or a tracked row of the same name cannot shadow it.
 
-**Cities the list is tracking are painted in their own sky too**, so a city on the globe is the same colour as its row in the list: Tokyo violet at four in the morning, Copenhagen rose at dusk, Chicago blue at midday. They keep an accent ring around the dot, and they get first claim on a label slot so they are always named. Matching is by city name, not zone - tracking Miami does not light up New York, because they are different cities that happen to share `America/New_York`. A tracked city that is not one of the globe's own built-ins is merged in using the coordinates the fetcher already geocoded, so a city in the list can never be missing from the globe.
+**Cities the list is tracking** get an accent ring around the dot, and first claim on a label slot so they are always named. Matching is by city name, not zone - tracking Miami does not light up New York, because they are different cities that happen to share `America/New_York`. A tracked city that is not one of the globe's own built-ins is merged in using the coordinates the fetcher already geocoded, so a city in the list can never be missing from the globe.
 
 Dots are thinned in screen space before anything is drawn: candidates are offered in priority order and one is kept only if it clears the others by a minimum distance, so a dense region like western Europe shows a few legible cities instead of a smear of overlapping dots. Tracked cities and the current selection are exempt and always survive. The survivors change as the globe turns or the panel resizes, since the test is in pixels rather than degrees.
 
@@ -357,24 +307,6 @@ It used to say "daylight" or "night" after the time as well. The globe already d
 
 Worth knowing if you touch it: the parts of that line used to reach the footer through `parent.parent`, which was exactly true while the line was a single Row. Wrapping it in a Column put the chain a step short, and QML resolves that to `undefined` in silence rather than complaining - the name and the time simply stopped rendering while "tracked" carried on, because "tracked" asked `root` directly. They are anchored to a named `footer` id now.
 
-## Sky tint (shelved)
-
-**Off by default.** Set `skyTint` to `true` on the widget's `shell.json` entry and it returns everywhere at once - city names in the list, the header city, the panel globe's marker, and every dot on the large globe.
-
-It was shelved for a reason worth remembering: the colours were pleasant, but nothing in the interface ever *said* what they meant, so they read as decoration rather than information. Every other signal in the panel explains itself - a gold dot in a lit band is obviously daylight, a briefcase is obviously a toggle - and this one did not. If colour comes back it should arrive with something that teaches the rule.
-
-`Sky.js` and `test/shell.d/elsewhen/sky_check.js` are untouched.
-
-### What it did
-
-Each city name is coloured by the sky where it is: deep blue-violet at night, dusty rose through civil twilight, amber at golden hour, pale blue under a high sun. The list becomes a gradient of the world's light, and because the tint follows the scrubber, dragging time sweeps the names through dawn and dusk.
-
-The colour comes from the sun's actual elevation at that city's coordinates - `GlobeModel.solarElevation`, the same maths the globe's terminator uses - mapped through a ramp of literal colours in `Sky.js`. They are literal rather than theme roles because this is trying to look like the sky, and no palette role means "dawn"; they are kept fairly light so a name stays legible on a dark panel. Cities not yet geocoded fall back to the plain foreground.
-
-### Turning it off
-
-Set `skyTint` to `false`. To remove it outright, delete `Sky.js` and `test/shell.d/elsewhen/sky_check.js`, drop the `import "Sky.js"` and `import "GlobeModel.js"` lines from `Panel.qml`, and restore the city-name colour to `root.foreground` - the `skyColorFor` function and the `subsolar` property go with it. Note `GlobeModel.js` is also used by globe mode, so only remove the import, not the file.
-
 ## The hero globe
 
 The globe in the header is drawn, not a glyph, by `MiniGlobe.qml`. A glyph cannot spin: rotating a flat image about the vertical axis squashes it to a line and flips it, which reads as a coin. A sphere keeps its circular outline and moves only its surface across it - so the disc is constant and the graticule and coastlines are re-projected as the spin advances, using the same orthographic projection as globe mode and the same `world.json`.
@@ -391,13 +323,13 @@ The globe leans by `GlobeModel.AXIAL_TILT` - 23.44 degrees, the real obliquity, 
 
 It is drawn at full strength and oversized rather than sitting at text weight: as the centrepiece a dimmed thin globe just reads as washed out.
 
-A marker shows the city you are in, painted the same sky colour the header paints its name - so the dot and the name always agree about what time of day it is there. It carries a dark edge: a daylight sky is nearly the same lightness as the filled continents, and without one the dot dissolves into whichever landmass it is sitting on. With the tint switched off it falls back to the accent colour.
+A marker shows the city you are in, in the accent colour. It carries a dark edge: the marker can be nearly the same lightness as the filled continents, and without one the dot dissolves into whichever landmass it is sitting on.
 
 **The globe opens on the city you are in.** It flies there as the panel zooms out, so the two motions - growing out of the header and turning round to home - land together rather than one after the other. If your coordinates have not arrived yet, which happens on a cold geocode cache, the request is held and runs the moment they do.
 
-**Clicking a city row turns the globe to it**, marks it, and paints the marker with that city's sky - so a tap on Tokyo swings the globe round and drops a night-violet dot on Japan. It takes the shortest way round rather than always turning forward: Los Angeles to Tokyo is 102 degrees west, not 258 east.
+**Clicking a city row turns the globe to it** and marks it - so a tap on Tokyo swings the globe round and drops the marker on Japan. It takes the shortest way round rather than always turning forward: Los Angeles to Tokyo is 102 degrees west, not 258 east.
 
-While the globe is showing somewhere else, the city name in the header line is underlined; clicking that line brings it home. The whole line is the target, not just the name - it is a small piece of text to have to hit exactly - and it is only live while the globe is away, so it is never a dead click target. Reopening the panel also returns it home.
+While the globe is showing somewhere else, clicking the header line brings it home. The whole line is the target, not just the name - it is a small piece of text to have to hit exactly - and it is only live while the globe is away, so it is never a dead click target. Reopening the panel also returns it home.
 
 The opening spin **lands on home** - the animation runs from `homeLon - 1080` to `homeLon`, which is three whole turns that finish with your own meridian facing you rather than stopping wherever the arithmetic left it. At rest a `Binding` holds the globe there, standing down while the animation is writing the property. Until the fetcher has geocoded your city the marker is hidden and it rests on Greenwich.
 
@@ -417,7 +349,7 @@ A row's offset reads `+2h` - how far that city is from you - until you click it,
 
 It is one setting for the whole list rather than one per row. A column where each row had picked its own units would be unreadable, and the point of a column is that it can be read down. The choice is stored, so it survives a restart.
 
-The tap target sits on the offset itself, and works because it is declared late: the drag handle covers the whole body of the row, and later siblings win the tap - the same rule the remove button and the briefcase already rely on.
+The tap target sits on the offset itself, and works because it is declared late: the drag handle covers the whole body of the row, and later siblings win the tap - the same rule the remove button already relies on.
 
 The globe's footer reads the same setting and offers the same click, so the offset under the globe is never in different units from the offset in the list you just came from, and flipping it in either place flips it in both. There the target is the zone name as well as the number: on your own home city the relative offset is blank - "same time" is the one answer the reader already has - and a control that disappears on one city out of the list is not a control.
 
@@ -479,12 +411,8 @@ Inline on the widget's `shell.json` entry:
 | `units`  | `F` or `C`; blank (the default) follows the system's measurement units. Click any temperature to flip it |
 | `homeCity` | your city for the header (blank = from the system zone) |
 | `smoothMotion` | drop labels and detail while the globe moves (default true) |
-| `skyTint` | `true` to colour cities by their sky (default off, shelved)     |
 | `showCurrency` | `true` to show local currency value in USD (default off) |
 | `globeEnabled` | `false` to remove the globe entry point (default on)     |
-| `showEarth` | `true` to bring back the Earth's own row at the foot of the list (default off, shelved) |
-| `showOverlap` | `true` to restore the overlap band and briefcases (default off) |
-| `workStartHour` / `workEndHour` | working window for the overlap band (9 / 17) |
 
 ## IPC
 
