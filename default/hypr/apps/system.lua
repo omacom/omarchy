@@ -9,6 +9,7 @@ o.window(
     tag = "+floating-window",
   }
 )
+
 -- The portal only ever shows dialogs — file pickers, screen shares, permission
 -- prompts — so every one of its windows belongs in the floating treatment,
 -- whatever the app that asked for it titled it.
@@ -17,14 +18,24 @@ o.window({
   class = "(sublime_text|DesktopEditors|org.gnome.Nautilus)",
   title = "^(Open.*Files?|Open [F|f]older.*|Save.*Files?|Save.*As|Save|All Files|.*wants to [open|save].*|[C|c]hoose.*)",
 }, { tag = "+floating-window" })
-o.window("dev.tensaku.Tensaku", { float = true })
-o.window("dev.tensaku.Tensaku", { center = true })
-o.window("org.gnome.Calculator", { float = true })
+
+-- The About fastfetch layout needs more columns than the standard float provides.
+-- This size only covers the first launch: omarchy-launch-about measures the
+-- rendered content, remembers the size that hugs it, and applies that as its own
+-- rule before every later launch.
+o.window("org.omarchy.about", { float = true })
+o.window("org.omarchy.about", { center = true })
+o.window("org.omarchy.about", { size = { 920, 480 } })
+
+o.window("omacalc", { float = true })
 
 -- Fullscreen screensaver.
 o.window("org.omarchy.screensaver", { fullscreen = true })
 o.window("org.omarchy.screensaver", { float = true })
 o.window("org.omarchy.screensaver", { animation = "slide" })
+-- The launcher picks each screensaver's workspace. A terminal mapped again as it closes lands out of sight instead,
+-- where its fullscreen rule cannot take fullscreen from a window.
+o.window("org.omarchy.screensaver", { workspace = "special:screensaver silent" })
 
 -- No transparency on media windows.
 o.window(

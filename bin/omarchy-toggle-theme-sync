@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle mirroring theme changes to and from your herdr machines
+
+omarchy-toggle herdr-theme-sync
+
+if omarchy-toggle-enabled herdr-theme-sync; then
+  omarchy-notification-send -g 󰸌 "Herdr theme sync enabled"
+else
+  omarchy-notification-send -g 󰸌 "Herdr theme sync disabled"
+fi

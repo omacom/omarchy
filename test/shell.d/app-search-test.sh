@@ -55,6 +55,14 @@ const entries = [
   }
 ]
 
+// Keep the packaged launcher when upstream rebuilds register their own entry.
+const configuredHides = new Set(fs.readFileSync(path.join(root, 'default/omarchy/launcher.hides'), 'utf8').trim().split(/\n/))
+const hermesEntries = [{ name: 'Hermes', id: 'hermes' }, { name: 'Hermes', id: 'hermes-desktop' }]
+for (const query of ['', 'hermes']) {
+  const visible = search.sortedEntries(hermesEntries, query, entry => configuredHides.has(entry.id))
+  assertDeepEqual(visible.map(row => row.entry.id), ['hermes-desktop'], 'only the packaged Hermes launcher is visible')
+}
+
 const contactMatches = search.sortedEntries(entries, 'contact').map(row => search.entryName(row.entry))
 assertDeepEqual(contactMatches, ['Google Contacts'], 'contact search only returns direct contact matches')
 
@@ -99,9 +107,9 @@ assert(
 )
 
 assert(
-  /function launch\(desktopId, name\) \{[\s\S]*?gtk-launch[\s\S]*?\n  \}/.test(appLibraryQml) &&
-    appLibraryQml.includes('Util.execDetached("gtk-launch "'),
-  'app library runs desktop entry launch through the shell'
+  /function launch\(desktopId, name\) \{[\s\S]*?uwsm-app[\s\S]*?\n  \}/.test(appLibraryQml) &&
+    appLibraryQml.includes('Util.execDetached("uwsm-app -- gtk-launch "'),
+  'app library launches desktop entries through gtk-launch in their own scope'
 )
 
 assert(
@@ -112,6 +120,13 @@ assert(
 assert(
   /function iconIndexScanCommand\(\)[\s\S]*-path "\*\/apps\/\*" -o -path "\*\/devices\/\*"/.test(appLibraryQml),
   'app library fallback icon index includes device icons'
+)
+
+assert(
+  appLibraryQml.includes('command: ["bash", "-c", root.hiddenEntryScanCommand()]') &&
+    appLibraryQml.includes('command: ["bash", "-c", root.iconIndexScanCommand()]') &&
+    !appLibraryQml.includes('"-lc"'),
+  'app library scans avoid login shells whose profile activation retriggers the desktop-entry watcher'
 )
 
 assert(

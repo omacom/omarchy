@@ -17,9 +17,8 @@ chromium
 clang
 cliamp
 cups
-cups-browsed
 cups-filters
-cups-pdf
+cups-pk-helper
 ddcutil
 docker
 docker-buildx
@@ -42,7 +41,6 @@ fontconfig
 foot
 fzf
 git
-gnome-calculator
 gnome-keyring
 gnome-themes-extra
 grim
@@ -51,6 +49,8 @@ gum
 gvfs-mtp
 gvfs-nfs
 gvfs-smb
+herdr
+hype
 hyprland
 hyprland-guiutils
 hyprland-preview-share-picker
@@ -69,6 +69,7 @@ lazydocker
 lazygit
 less
 libsecret
+libvips
 libyaml
 libreoffice-fresh
 llvm
@@ -77,7 +78,8 @@ lua51
 luarocks
 man-db
 mariadb-libs
-mise
+mise-bin
+monologue
 moonlight-qt
 mpv
 mpv-mpris
@@ -91,9 +93,14 @@ nss-mdns
 nvim
 obs-studio
 obsidian
+omacalc
 omacut
 omawrite
 omarchy-nvim
+omasnap
+# OWE owns desktop video backgrounds and feeds the lock screen its frames.
+owe
+owe-lockfeed
 pacman-contrib
 pamixer
 pinta
@@ -103,14 +110,13 @@ postgresql-libs
 power-profiles-daemon
 python-gobject
 python-poetry-core
-python-terminaltexteffects
+ttfx
 qemu-user-static-binfmt
 qrencode
-quickshell-git
+qt6-imageformats
+quickshell
 ripgrep
 ruby
-rust
-tensaku
 sddm
 slurp
 socat
@@ -132,6 +138,7 @@ ufw-docker
 unzip
 usage
 uwsm
+vi
 whois
 wireless-regdb
 wireplumber
@@ -145,4 +152,5 @@ xournalpp
 yaru-icon-theme
 yay
 yt-dlp
+zbar
 zoxide

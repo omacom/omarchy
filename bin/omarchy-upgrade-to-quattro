@@ -51,11 +51,29 @@ valid_channel() {
   normalize_channel "$1" >/dev/null 2>&1
 }
 
+# The channel the legacy install is already on, read the way
+# omarchy-version-channel reads it. Order matters: mirror.omarchy.org is a
+# substring of both of the others.
+detect_installed_channel() {
+  [[ -f /etc/pacman.d/mirrorlist ]] || return 1
+
+  if grep -q 'https://stable-mirror.omarchy.org/' /etc/pacman.d/mirrorlist; then
+    echo stable
+  elif grep -q 'https://rc-mirror.omarchy.org/' /etc/pacman.d/mirrorlist; then
+    echo rc
+  elif grep -q 'https://mirror.omarchy.org/' /etc/pacman.d/mirrorlist; then
+    echo edge
+  else
+    return 1
+  fi
+}
+
 channel_override="${OMARCHY_UPGRADE_CHANNEL:-}"
 channel_override_cli=0
 target_user="${OMARCHY_INSTALL_USER:-}"
 yes=0
 auto_reboot=0
+boot_cmdline_unsafe=0
 use_dev_packages=${OMARCHY_UPGRADE_DEV:-0}
 
 while (($#)); do
@@ -97,16 +115,32 @@ case "$use_dev_packages" in
   *) fail "Invalid OMARCHY_UPGRADE_DEV value '$use_dev_packages'. Use 1/0, true/false, or pass --dev." ;;
 esac
 
+# Land on the Quattro equivalent of wherever the machine already is, unless the
+# caller said otherwise. Stable machines get the production packages off the
+# stable channel. rc and edge machines stay on their own mirror, but take the
+# dev packages, because that is where Quattro lives until it ships.
+if [[ -z $channel_override ]] && (( ! use_dev_packages )); then
+  case "$(detect_installed_channel || true)" in
+    stable) channel_override=stable ;;
+    rc) channel_override=rc use_dev_packages=1 ;;
+    edge) channel_override=edge use_dev_packages=1 ;;
+  esac
+fi
+
 if (( use_dev_packages )); then
-  if (( channel_override_cli )); then
+  # The dev packages are only published to the edge package repo, which the rc
+  # and edge channels both point at; only stable is incompatible. rc keeps its
+  # own Arch mirror either way.
+  if [[ -n $channel_override ]]; then
     if ! valid_channel "$channel_override"; then
       fail "Invalid channel '$channel_override'. Use stable, rc, or edge."
     fi
-    if [[ $(normalize_channel "$channel_override") != edge ]]; then
-      fail "--dev uses the edge channel; remove --channel or pass --channel edge."
+    if [[ $(normalize_channel "$channel_override") == stable ]]; then
+      fail "--dev needs the edge package repo; use --channel rc or --channel edge."
     fi
+  else
+    channel_override=edge
   fi
-  channel_override=edge
 fi
 
 if { [[ -n $channel_override ]] || (( channel_override_cli )); } && ! valid_channel "$channel_override"; then
@@ -141,7 +175,10 @@ target_home=$(getent passwd "$target_user" | cut -d: -f6)
 [[ -n $target_home && -d $target_home ]] || fail "Home directory for '$target_user' was not found."
 target_uid=$(id -u "$target_user")
 target_runtime_dir="/run/user/$target_uid"
-package_path="/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin:$target_home/.local/bin"
+# User-local commands are needed only after dropping to the target user. Never
+# expose their search path to commands run through as_root.
+root_path=/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin
+package_path="$root_path:$target_home/.local/bin"
 
 as_root() {
   if (( EUID == 0 )); then
@@ -295,9 +332,6 @@ case "$channel" in
 esac
 
 if (( ! yes )); then
-  package_mode="production Omarchy packages"
-  (( use_dev_packages )) && package_mode="dev packages [omarchy-dev / omarchy-settings-dev]"
-
   printf '\033[2J\033[3J\033[H' >/dev/tty
   cat <<EOF
 ████████▄   ███    █▄     ▄████████     ███         ███        ▄████████  ▄██████▄
@@ -321,6 +355,8 @@ fi
 
 sudo_keepalive_pid=""
 hyprland_config_reload_suppressed=0
+upgrade_started=0
+upgrade_completed=0
 
 cleanup_on_exit() {
   local exit_status=$?
@@ -331,6 +367,14 @@ cleanup_on_exit() {
 
   if [[ -n ${sudo_keepalive_pid:-} ]]; then
     kill "$sudo_keepalive_pid" 2>/dev/null || true
+  fi
+
+  # set -e aborts without a word, and the last thing on screen is a green
+  # progress line, so a half-finished upgrade otherwise reads as a finished one.
+  if (( exit_status != 0 && upgrade_started && ! upgrade_completed )); then
+    printf '\n\033[31mUpgrade incomplete - do NOT reboot.\033[0m\n' >&2
+    printf 'The system is part Omarchy 3 and part Omarchy quattro; rebooting now can leave it without a working network or desktop.\n' >&2
+    printf 'Fix the error reported above and run this script again. Re-running is safe and resumes the remaining steps.\n' >&2
   fi
 
   exit "$exit_status"
@@ -401,11 +445,16 @@ install_keyrings() {
   # database's checksum and abort --noconfirm transactions as "corrupted".
   as_root find /var/cache/pacman/pkg -maxdepth 1 -name 'omarchy-*' -delete 2>/dev/null || true
 
-  as_root pacman -Sy --noconfirm archlinux-keyring omarchy-keyring || {
+  # -Syy forces the database download. configure_pacman_channel just repointed
+  # the mirrors, and a plain -Sy keeps the legacy database whenever the new
+  # server's copy isn't newer, leaving stale checksums that no amount of
+  # re-downloading can satisfy.
+
+  as_root pacman -Syy --noconfirm archlinux-keyring omarchy-keyring || {
     warn "Keyring package install failed; attempting to trust the Omarchy packaging key directly."
     as_root pacman-key --recv-keys 40DFB630FF42BCFFB047046CF0134EE680CAC571 --keyserver keys.openpgp.org || true
     as_root pacman-key --lsign-key 40DFB630FF42BCFFB047046CF0134EE680CAC571 || true
-    as_root pacman -Sy --noconfirm archlinux-keyring omarchy-keyring
+    as_root pacman -Syy --noconfirm archlinux-keyring omarchy-keyring
   }
 }
 
@@ -471,6 +520,121 @@ normalize_limine_config() {
   fi
 }
 
+preserve_kernel_cmdline_root() {
+  local default_conf=/etc/default/limine
+  local cmdline param key root_source root_stack root_uuid subvol uki
+  local boot_params=()
+  local missing=()
+  local have_root=0 have_mount_mode=0 have_unlock=0
+
+  command -v limine-mkinitcpio >/dev/null 2>&1 || return 0
+  as_root test -f /boot/limine.conf || return 0
+
+  # The omarchy-defaults.conf drop-in appends to KERNEL_CMDLINE[default] with
+  # +=, which makes limine-entry-tool ignore /etc/kernel/cmdline and
+  # /proc/cmdline. Fresh installs pin root= in /etc/default/limine via the ISO;
+  # upgrades never created that file, so root= silently drops out and the next
+  # boot lands in an emergency shell. Ask the tool for its effective default
+  # cmdline — the key this function appends to — rather than parsing the config
+  # layers ourselves.
+  if as_root limine-entry-tool --get-cmdline default 2>/dev/null |
+    grep -qE '(^|[[:space:]])root='; then
+    return 0
+  fi
+
+  # Copy the boot-critical parameters of the running kernel verbatim, so a
+  # PARTUUID, a LABEL or a bare device node all survive.
+  cmdline=$(cat /proc/cmdline 2>/dev/null || true)
+  for param in $cmdline; do
+    key=${param%%=*}
+    case $key in
+      root)
+        have_root=1
+        boot_params+=("$param")
+        ;;
+      rw | ro)
+        have_mount_mode=1
+        boot_params+=("$param")
+        ;;
+      cryptdevice | cryptkey | rd.luks.name | rd.luks.uuid | rd.luks.options | rd.luks.key | rd.luks.crypttab | dm-mod.create)
+        have_unlock=1
+        boot_params+=("$param")
+        ;;
+      rootflags | rootfstype | rootwait | rootdelay | resume | resume_offset | rd.lvm.lv | rd.lvm.vg | rd.md.uuid | rd.dm.uuid)
+        boot_params+=("$param")
+        ;;
+    esac
+  done
+
+  # Already-broken system (booted through the emergency shell): derive root=
+  # from the mounted root instead. Refuse when the root sits on dm-crypt and
+  # the cmdline carries no unlock parameters, since root= alone would still not
+  # boot. lsblk -s walks the parents, where the crypt layer hides on
+  # LVM-on-LUKS; --nofsroot keeps findmnt from appending a btrfs subvolume
+  # lsblk cannot resolve; the capture keeps a SIGPIPE under pipefail from
+  # reading as "no crypt layer".
+  if ((!have_root)); then
+    root_source=$(findmnt -no SOURCE --nofsroot / 2>/dev/null || true)
+    root_stack=$(lsblk -nso TYPE "$root_source" 2>/dev/null || true)
+    if grep -qx crypt <<<"$root_stack" && ((!have_unlock)); then
+      warn "The root filesystem is on dm-crypt and the booted kernel cmdline carries no unlock parameters, so they cannot be recovered automatically. Add root= and the matching cryptdevice or rd.luks.* parameters to $default_conf by hand, then run limine-mkinitcpio."
+      boot_cmdline_unsafe=1
+      return 0
+    fi
+
+    root_uuid=$(findmnt -no UUID / 2>/dev/null || true)
+    if [[ -z $root_uuid ]]; then
+      warn "Could not determine the root filesystem UUID; the kernel cmdline was left untouched."
+      boot_cmdline_unsafe=1
+      return 0
+    fi
+
+    boot_params=("root=UUID=$root_uuid" "${boot_params[@]}")
+    ((have_mount_mode)) || boot_params+=(rw)
+
+    # Btrfs needs its subvolume too, or the initramfs mounts the wrong tree.
+    subvol=$(findmnt -no FSROOT / 2>/dev/null || true)
+    if [[ $(findmnt -no FSTYPE / 2>/dev/null) == "btrfs" && -n $subvol && $subvol != "/" ]]; then
+      boot_params+=("rootflags=subvol=${subvol#/}")
+    fi
+  fi
+
+  log "Preserving the kernel cmdline root parameters in $default_conf"
+  # omarchy:heredoc-expands paths=none -- ${boot_params[*]} is the kernel
+  # cmdline fragment assembled above from findmnt output (root=, rootflags=),
+  # not a filesystem path this script controls.
+  as_root tee -a "$default_conf" >/dev/null <<EOF
+# Written by omarchy-upgrade-to-quattro. The += drop-ins in
+# /etc/limine-entry-tool.d/ stop limine-entry-tool from reading
+# /etc/kernel/cmdline and /proc/cmdline, so the parameters identifying the
+# root filesystem have to be stated explicitly.
+KERNEL_CMDLINE[default]+=" ${boot_params[*]}"
+EOF
+
+  # Keep going on failure so the verification below still runs; the unsafe
+  # flag blocks the reboot at the end of the upgrade.
+  if ! as_root limine-mkinitcpio; then
+    warn "limine-mkinitcpio failed; the boot entries were not regenerated."
+    boot_cmdline_unsafe=1
+  fi
+
+  as_root grep -qE '(^|[[:space:]])root=' /boot/limine.conf || missing+=(/boot/limine.conf)
+
+  # The cmdline that boots is the one embedded in the UKIs, so check those too.
+  if command -v objcopy >/dev/null 2>&1; then
+    while read -r uki; do
+      [[ -n $uki ]] || continue
+      as_root objcopy -O binary --only-section=.cmdline "$uki" /dev/stdout 2>/dev/null |
+        tr -d '\0' | grep -E '(^|[[:space:]])root=' >/dev/null || missing+=("$uki")
+    done < <(as_root find /boot/EFI/Linux -maxdepth 1 -name 'omarchy_linux*.efi' 2>/dev/null)
+  fi
+
+  if ((${#missing[@]})); then
+    warn "root= is still missing from ${missing[*]}. Do not reboot until the kernel cmdline is repaired, or the system will drop to an emergency shell."
+    boot_cmdline_unsafe=1
+  fi
+}
+
 configure_snapper_policy() {
   local snapper_config_script=/usr/share/omarchy/install/config/snapper.sh
 
@@ -484,20 +648,32 @@ configure_snapper_policy() {
 }
 
 configure_lock_authentication() {
-  local setup_lock=/usr/share/omarchy/bin/omarchy-setup-lock
+  # The upgrade runs against whatever the channel currently ships, which can
+  # still predate the rename of omarchy-setup-lock to omarchy-apply-lock.
+  local apply_lock="" candidate
+  for candidate in /usr/share/omarchy/bin/omarchy-{apply,setup}-lock; do
+    if [[ -x $candidate ]]; then
+      apply_lock=$candidate
+      break
+    fi
+  done
 
-  [[ -x $setup_lock ]] || fail "$setup_lock is unavailable; lock screen authentication could not be configured."
+  [[ -n $apply_lock ]] || fail "Neither omarchy-apply-lock nor omarchy-setup-lock is available under /usr/share/omarchy/bin; lock screen authentication could not be configured."
 
   log "Configuring lock screen authentication"
   as_root env \
     OMARCHY_INSTALL_USER="$target_user" \
     OMARCHY_PATH=/usr/share/omarchy \
-    PATH="$package_path" \
-    "$setup_lock"
+    PATH="$root_path" \
+    "$apply_lock"
 }
 
 create_pre_upgrade_snapshot() {
-  omarchy-snapshot create || (($? == 127))
+  # 127 means Snapper is deliberately absent. Any other failure already said
+  # what went wrong, and a missing snapshot is not worth blocking the upgrade
+  # over, but it must not pass for one either.
+  omarchy-snapshot create || (($? == 127)) ||
+    echo -e "\e[33mContinuing the upgrade without a snapshot.\e[0m" >&2
 }
 
 remove_conflicting_legacy_packages() {
@@ -597,7 +773,7 @@ install_omarchy_quattro_packages() {
 install_hardware_transition_packages() {
   local hardware_packages=()
 
-  if lspci | grep -qiE '(Multimedia audio controller|Audio device).*Intel'; then
+  if lspci | grep -iE '(Multimedia audio controller|Audio device).*Intel' >/dev/null; then
     hardware_packages+=(sof-firmware)
   fi
 
@@ -775,40 +951,27 @@ legacy_hypr_config_active() {
 }
 
 populate_legacy_hypr_defaults() {
-  local shim_hypr_dir="$1" backup="$2" tmp_dir clone_dir archive_dir
+  local shim_hypr_dir="$1" backup="$2" tmp_dir archive_dir
 
   rm -rf "$shim_hypr_dir"
   mkdir -p "$shim_hypr_dir"
-  tmp_dir=$(mktemp -d)
-  clone_dir="$tmp_dir/omarchy"
-  archive_dir="$tmp_dir/archive"
 
-  if command -v git >/dev/null 2>&1; then
-    if git clone --depth 1 --branch master --single-branch --filter=blob:none --sparse https://github.com/basecamp/omarchy.git "$clone_dir" >/dev/null 2>&1 && \
-      git -C "$clone_dir" sparse-checkout set default/hypr >/dev/null 2>&1 && \
-      [[ -d $clone_dir/default/hypr ]]; then
-      cp -a "$clone_dir/default/hypr/." "$shim_hypr_dir/"
+  # The backup is the checkout the running session is sourcing right now, so it
+  # is both the correct content and already on disk. Only reach for the network
+  # when there is no backup, which means the legacy root was already a symlink.
+  if [[ -n $backup && -d $backup/default/hypr ]]; then
+    cp -a "$backup/default/hypr/." "$shim_hypr_dir/"
+  elif command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
+    tmp_dir=$(mktemp -d)
+    archive_dir="$tmp_dir/archive"
+    mkdir -p "$archive_dir"
+    if curl -fsSL https://github.com/omacom/omarchy/archive/refs/heads/master.tar.gz | tar -xz -C "$archive_dir" &&
+      [[ -d $archive_dir/omarchy-master/default/hypr ]]; then
+      cp -a "$archive_dir/omarchy-master/default/hypr/." "$shim_hypr_dir/"
     fi
+    rm -rf "$tmp_dir"
   fi
 
-  if ! find "$shim_hypr_dir" -type f -name '*.conf' -print -quit | grep -q .; then
-    if command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
-      mkdir -p "$archive_dir"
-      if curl -fsSL https://github.com/basecamp/omarchy/archive/refs/heads/master.tar.gz | tar -xz -C "$archive_dir"; then
-        if [[ -d $archive_dir/omarchy-master/default/hypr ]]; then
-          cp -a "$archive_dir/omarchy-master/default/hypr/." "$shim_hypr_dir/"
-        fi
-      fi
-    fi
-  fi
-
-  if ! find "$shim_hypr_dir" -type f -name '*.conf' -print -quit | grep -q .; then
-    if [[ -n $backup && -d $backup/default/hypr ]]; then
-      cp -a "$backup/default/hypr/." "$shim_hypr_dir/"
-    fi
-  fi
-
-  rm -rf "$tmp_dir"
   find "$shim_hypr_dir" -type f -name '*.conf' -print -quit | grep -q .
 }
 
@@ -918,11 +1081,9 @@ USER_UNITS
 cleanup_retired_services() {
   log "Disabling services retired by Omarchy quattro"
 
-  # Do not stop iwd or systemd-networkd mid-upgrade; disabling is enough and
-  # avoids dropping a running Wi-Fi connection before the user can reboot into
-  # NetworkManager.
-  as_root systemctl disable iwd.service >/dev/null 2>&1 || true
-
+  # iwd is retired alongside the NetworkManager enable it depends on. Do not
+  # stop systemd-networkd mid-upgrade; disabling is enough and avoids dropping a
+  # running connection before the user can reboot into NetworkManager.
   local networkd_unit
   for networkd_unit in \
     systemd-networkd.service \
@@ -942,50 +1103,9 @@ cleanup_retired_services() {
   fi
 }
 
-stop_retired_session_processes() {
-  log "Stopping retired Omarchy 3 session processes"
-
-  if [[ -S $target_runtime_dir/bus ]]; then
-    run_as_user_session systemctl --user stop "${retired_user_units[@]}" >/dev/null 2>&1 || true
-  fi
-
-  # Removed packages do not stop already-running processes. Stop the old UI
-  # only after the new Quickshell has been verified, so users are not left
-  # without a bar/launcher if current-session shell startup fails.
-  run_as_user pkill -x waybar >/dev/null 2>&1 || true
-  run_as_user pkill -x walker >/dev/null 2>&1 || true
-  run_as_user pkill -x elephant >/dev/null 2>&1 || true
-  run_as_user pkill -x mako >/dev/null 2>&1 || true
-  run_as_user pkill -x swayosd-server >/dev/null 2>&1 || true
-  run_as_user_session systemctl --user daemon-reload >/dev/null 2>&1 || true
-}
-
-start_omarchy_shell_session() {
-  # Omarchy quattro starts Quickshell from Hyprland autostart, not a user service.
-  # Reboot is still the real cutover, but start the new shell in the current
-  # Wayland session when possible so users do not sit without a bar after the
-  # retired waybar/walker/elephant processes are stopped.
-  local restart_shell_bin shell_log
-  command -v quickshell >/dev/null || { warn "quickshell is not available; Omarchy shell will start after reboot."; return 1; }
-  restart_shell_bin=/usr/share/omarchy/bin/omarchy-restart-shell
-  [[ -x $restart_shell_bin ]] || { warn "omarchy-restart-shell is not available; Omarchy shell will start after reboot."; return 1; }
-  [[ -f /usr/share/omarchy/shell/shell.qml ]] || { warn "/usr/share/omarchy/shell is missing; Omarchy shell will start after reboot."; return 1; }
-
-  shell_log="$target_home/.local/state/omarchy/omarchy-shell-upgrade.log"
-  run_as_user mkdir -p "$target_home/.local/state/omarchy" >/dev/null 2>&1 || true
-
-  log "Starting Omarchy shell in the current session"
-  run_as_user_wayland_session \
-    QT_QPA_PLATFORM=wayland \
-    'GDK_BACKEND=wayland,x11,*' \
-    bash -c '
-      restart_shell_bin=$1
-      shell_log=$2
-      : >"$shell_log"
-      "$restart_shell_bin" >>"$shell_log" 2>&1
-    ' bash "$restart_shell_bin" "$shell_log" \
-    || { warn "Could not start Omarchy shell in the current session (no live Hyprland session, or shell startup failed); it will start after reboot. See $shell_log"; return 1; }
-}
+# The Omarchy 3 session keeps its bar, launcher, and notifications until the
+# reboot, which is the real cutover. Swapping the UI out underneath a running
+# session buys nothing and only creates ways for the upgrade to look broken.
 
 # Run a command inside the user's live Wayland session. Fails if no session
 # can be discovered. Extra NAME=VALUE args extend the environment.
@@ -1015,31 +1135,49 @@ run_hyprctl_session() {
 }
 
 suppress_hyprland_config_reload() {
+  # Say so up front when the session cannot be reached at all. Otherwise this
+  # silently does nothing and the only evidence is the config error bar that
+  # shows up minutes later.
+  if ! run_as_user_wayland_session true >/dev/null 2>&1; then
+    warn "Could not reach the live Hyprland session; it will report config errors during the swap, and the Omarchy shell will start after reboot."
+    return 0
+  fi
+
   log "Suppressing live Hyprland reloads during the config swap"
+  set_hyprland_reload_state true
+  hyprland_config_reload_suppressed=1
+}
 
-  local changed=0
-  if run_hyprctl_session keyword misc:disable_autoreload true >/dev/null 2>&1; then
-    changed=1
-  fi
-  if run_hyprctl_session eval 'hl.config({ misc = { disable_autoreload = true }, debug = { suppress_errors = true } })' >/dev/null 2>&1; then
-    changed=1
-  fi
-  run_hyprctl_session keyword debug:suppress_errors true >/dev/null 2>&1 || true
+# Which API answers depends on the parser the running Hyprland was started
+# with: the legacy .conf parser only takes keyword, and Quattro's Lua parser
+# rejects it outright with "keyword can't work with non-legacy parsers". The
+# session being upgraded is the legacy one, but the hyprctl binary is whichever
+# the package transaction has installed by then, so ask both ways.
+set_hyprland_reload_state() {
+  local value="$1"
 
-  if (( changed )); then
-    hyprland_config_reload_suppressed=1
-  else
-    warn "Could not disable Hyprland auto-reload; the live session may briefly report config errors."
-  fi
+  run_hyprctl_session keyword misc:disable_autoreload "$value" >/dev/null 2>&1 || true
+  run_hyprctl_session keyword debug:suppress_errors "$value" >/dev/null 2>&1 || true
+  run_hyprctl_session eval \
+    "hl.config({ misc = { disable_autoreload = $value }, debug = { suppress_errors = $value } })" \
+    >/dev/null 2>&1 || true
 }
 
 restore_hyprland_config_reload() {
   (( hyprland_config_reload_suppressed )) || return 0
 
-  run_hyprctl_session keyword misc:disable_autoreload false >/dev/null 2>&1 || true
-  run_hyprctl_session eval 'hl.config({ misc = { disable_autoreload = false } })' >/dev/null 2>&1 || true
-  run_hyprctl_session keyword debug:suppress_errors false >/dev/null 2>&1 || true
-  run_hyprctl_session eval 'hl.config({ debug = { suppress_errors = false } })' >/dev/null 2>&1 || true
+  set_hyprland_reload_state false
+
+  # Backstop. An explicit hyprctl reload re-reads the config from disk, which
+  # resets both keywords above before it reports what it found, so suppression
+  # cannot survive one, and Hyprland keeps the resulting error bar up until a
+  # later clean reload that this script deliberately never performs. Callers
+  # that reload during the swap are supposed to check
+  # OMARCHY_UPGRADE_TO_QUATTRO_LIVE, but one slipping through should not leave
+  # an error bar on a finished upgrade. By now the shims have made the legacy
+  # config resolve again, so clearing the overlay is safe.
+  run_hyprctl_session seterror disable >/dev/null 2>&1 || true
+
   hyprland_config_reload_suppressed=0
 }
 
@@ -1055,11 +1193,19 @@ ensure_sleep_lock_service() {
 }
 
 run_post_upgrade_migrations() {
-  PATH="$package_path" command -v omarchy-migrate >/dev/null 2>&1 || return 0
+  local pending_status
 
   log "Running Omarchy migrations"
   if ! run_as_user_omarchy OMARCHY_UPGRADE_TO_QUATTRO_LIVE=1 omarchy-migrate; then
-    warn "Could not run Omarchy migrations; the user may be prompted to run them after login."
+    fail "Omarchy migrations did not complete. Fix the error above and rerun the upgrade before rebooting."
+  fi
+  if run_as_user_omarchy omarchy-migrate --pending >/dev/null; then
+    fail "Omarchy migrations are still pending. Rerun the upgrade before rebooting."
+  else
+    pending_status=$?
+    if (( pending_status != 1 )); then
+      fail "Could not verify that Omarchy migrations completed. Rerun the upgrade before rebooting."
+    fi
   fi
 }
 
@@ -1120,27 +1266,33 @@ run_post_upgrade_update_steps() {
   fi
 }
 
-
 enable_system_service() {
   local unit="$1"
   as_root systemctl enable "$unit" >/dev/null 2>&1 || warn "Could not enable $unit; it may not be installed on this system."
 }
 
 apply_firewall_defaults() {
+  # Run the packaged config script rather than a copy of it, the same way
+  # configure_snapper_policy and configure_lock_authentication already do. The
+  # copy this replaces had drifted: it never installed the ufw-docker rules, so
+  # upgraded machines came up without the Docker firewall protections a fresh
+  # install gets.
+  local firewall_script=/usr/share/omarchy/install/config/firewall.sh
+
   if ! command -v ufw >/dev/null 2>&1; then
     warn "ufw is not installed; skipping firewall defaults."
     return 0
   fi
 
+  if ! as_root test -f "$firewall_script"; then
+    warn "$firewall_script is unavailable; firewall defaults were not applied."
+    return 0
+  fi
+
   log "Applying Omarchy firewall defaults"
-  as_root ufw default deny incoming >/dev/null || true
-  as_root ufw default allow outgoing >/dev/null || true
-  as_root ufw allow 53317/udp >/dev/null || true
-  as_root ufw allow 53317/tcp >/dev/null || true
-  as_root ufw allow in proto udp from 172.16.0.0/12 to 172.17.0.1 port 53 comment 'allow-docker-dns' >/dev/null || true
-  as_root ufw allow in proto udp from 192.168.0.0/16 to 172.17.0.1 port 53 comment 'allow-docker-dns' >/dev/null || true
-  as_root sed -i 's/^ENABLED=.*/ENABLED=yes/' /etc/ufw/ufw.conf 2>/dev/null || true
-  enable_system_service ufw.service
+  as_root env OMARCHY_PATH=/usr/share/omarchy PATH="$root_path" \
+    bash -euo pipefail "$firewall_script" ||
+    warn "Could not apply firewall defaults; run 'sudo bash $firewall_script' after reboot."
 }
 
 root_filesystem_encrypted() {
@@ -1174,14 +1326,28 @@ apply_system_transition() {
     /usr/share/icons/Yaru/scalable/actions/go-next-symbolic.svg
   as_root gtk-update-icon-cache /usr/share/icons/Yaru >/dev/null 2>&1 || true
 
-  as_root install -d -m 0777 /etc/chromium/policies/managed
+  local browser_policy_helper=/usr/share/omarchy/install/helpers/browser-policy.sh
+  if ! as_root test -f "$browser_policy_helper"; then
+    warn "$browser_policy_helper is unavailable; Chromium policy directories were not hardened."
+  else
+    as_root env OMARCHY_PATH=/usr/share/omarchy \
+      bash -euo pipefail -c '
+        source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+        browser_policy_setup_dir /etc/chromium/policies/managed
+        for dir in "${BROWSER_POLICY_MANAGED_DIRS[@]}"; do
+          [[ $dir == "/etc/chromium/policies/managed" ]] && continue
+          [[ -d $dir || -L $dir ]] || continue
+          browser_policy_setup_dir "$dir"
+        done
+      '
+  fi
   as_root install -d -m 0755 /usr/lib/chromium
-  printf '%s\n' '{"browser":{"theme":{"color_scheme":0,"color_scheme2":0}}}' | \
+  printf '%s\n' '{"distribution":{"require_eula":false},"browser":{"theme":{"color_scheme":0,"color_scheme2":0}}}' | \
     as_root tee /usr/lib/chromium/initial_preferences >/dev/null
 
-  if getent group docker >/dev/null; then
-    as_root usermod -aG docker "$target_user"
-  fi
+  # Deliberately do NOT add the user to the docker group. That group is
+  # root-equivalent, so it is opt-in now (Setup > Security > Sudoless Docker);
+  # re-granting it on upgrade would silently undo that default for everyone.
 
   if [[ -f /usr/bin/powerprofilesctl ]]; then
     as_root sed -i '/env python3/ c\#!/bin/python3' /usr/bin/powerprofilesctl || true
@@ -1212,12 +1378,16 @@ EOF
   as_root systemctl disable docker.service >/dev/null 2>&1 || true
 
   enable_system_service cups.service
-  enable_system_service cups-browsed.service
   enable_system_service avahi-daemon.service
   enable_system_service linux-modules-cleanup.service
   enable_system_service docker.socket
   enable_system_service systemd-resolved.service
+  # NetworkManager replaces iwd, and both halves of that swap belong in one
+  # step: a machine that boots with both enabled has two daemons fighting over
+  # the Wi-Fi adapter. iwd is disabled but never stopped, so the running
+  # connection survives until the reboot.
   enable_system_service NetworkManager.service
+  as_root systemctl disable iwd.service >/dev/null 2>&1 || true
   enable_system_service bluetooth.service
   enable_system_service power-profiles-daemon.service
   enable_system_service sddm.service
@@ -1239,6 +1409,9 @@ EOF
       autologin_user=$(as_root awk -F= '/^User=/ { print $2; exit }' /etc/sddm.conf.d/autologin.conf 2>/dev/null || true)
     fi
     [[ -n ${autologin_user:-} ]] || autologin_user="$target_user"
+    # omarchy:heredoc-expands paths=none -- $autologin_user is a username, read
+    # back from the root-owned drop-in or falling back to $target_user. Same
+    # mechanism as the old getty override: a name expands, no path does.
     cat <<EOF | as_root tee /etc/sddm.conf.d/autologin.conf >/dev/null
 [Autologin]
 User=$autologin_user
@@ -1249,6 +1422,8 @@ EOF
   fi
 
   as_root install -d -m 0755 -o sddm -g sddm /var/lib/sddm 2>/dev/null || as_root install -d -m 0755 /var/lib/sddm
+  # omarchy:heredoc-expands paths=none -- $target_user is a username, not a
+  # path; SDDM's state file records who logged in last.
   cat <<EOF | as_root tee /var/lib/sddm/state.conf >/dev/null
 [Last]
 Session=omarchy.desktop
@@ -1394,7 +1569,6 @@ refresh	xournalpp/settings.xml	1c1a9efbf1b6dc7813bf3440fd5bf8409fc283e8d0192ca29
 # fastfetch/config.jsonc -> /etc/fastfetch/config.jsonc
 # fontconfig/fonts.conf -> /usr/share/fontconfig/conf.avail/50-omarchy.conf
 # mimeapps.list -> /usr/share/applications/mimeapps.list
-# omarchy.ttf -> /usr/share/fonts/omarchy/omarchy.ttf
 # systemd/user/bt-agent.service -> /usr/lib/systemd/user/bt-agent.service
 # systemd/user/omarchy-recover-internal-monitor.service -> /usr/lib/systemd/user/omarchy-recover-internal-monitor.service
 # systemd/user/omarchy-sleep-lock.service -> /usr/lib/systemd/user/omarchy-sleep-lock.service
@@ -1427,7 +1601,6 @@ retire	fontconfig/fonts.conf	6dec98b539388b95ecfdb3c7ab951001c712820eb0581002832
 retire	fontconfig/fonts.conf	3545f6c5a8c1465df7a4e251b3c2047d4ba03654c86636794f64cb0d8ea8ef63
 retire	fontconfig/fonts.conf	0f085b449f1cbe8eda3b59a6235bf2a3ddb6e982ab5d22fa642248916e63bafc
 retire	mimeapps.list	3b574cef135b5deb7a8a0c7e17139037cf1fe155300e3809f60bed0e04120975
-retire	omarchy.ttf	e55e67119e82f56f92d90cbf54b7ccc1b2946b32c535a29370439d7ef5215966
 retire	systemd/user/bt-agent.service	0406b577a1225dc2a9f86638d3c346eb3635168576f04050be50ebcc0be6be12
 retire	systemd/user/omarchy-recover-internal-monitor.service	b9b92cedc44cf3cb6216948629be55b53d16746e31896dc6469fd49ba55e82f4
 retire	systemd/user/omarchy-recover-internal-monitor.service	e1483079b9f2aefcd43b4722c75a31643e5f3bb5a2eada5f52f1d7d201e8c289
@@ -1649,82 +1822,6 @@ CHROMIUM_FLAGS_PATCH_PY
   done
 }
 
-# True if any Chromium-family browser that stores the Copy URL shortcut is running.
-browser_is_running() {
-  pgrep -x 'chromium|chrome|brave|msedge|vivaldi-bin|vivaldi|opera|helium' >/dev/null 2>&1
-}
-
-repair_chromium_copy_url_shortcuts() {
-  local profile_root preferences
-  local -a profile_roots=(
-    "$HOME/.config/chromium"
-    "$HOME/.config/google-chrome"
-    "$HOME/.config/google-chrome-beta"
-    "$HOME/.config/BraveSoftware/Brave-Browser"
-    "$HOME/.config/BraveSoftware/Brave-Browser-Beta"
-    "$HOME/.config/microsoft-edge"
-    "$HOME/.config/microsoft-edge-beta"
-    "$HOME/.config/vivaldi"
-    "$HOME/.config/opera"
-    "$HOME/.config/helium"
-  )
-  local -a pending=()
-
-  for profile_root in "${profile_roots[@]}"; do
-    [[ -d $profile_root ]] || continue
-
-    for preferences in "$profile_root"/*/Preferences; do
-      [[ -f $preferences ]] || continue
-      grep -qF 'bocglpkldciamkbmlphanhkfnhpmnbma' "$preferences" || continue
-      pending+=("$preferences")
-    done
-  done
-
-  (( ${#pending[@]} )) || return 0
-
-  # A running browser holds Preferences in memory and rewrites it on exit,
-  # which would revert this repair. Ask the user to close it first.
-  if browser_is_running && (( ! OMARCHY_UPGRADE_YES )) && [[ -r /dev/tty ]]; then
-    if ! gum confirm "Close all browser windows before the Copy URL shortcut is repaired, then continue" </dev/tty; then
-      echo "Skipped Copy URL shortcut repair; re-run after closing your browser." >&2
-      return 0
-    fi
-  fi
-
-  for preferences in "${pending[@]}"; do
-    python3 - "$preferences" "$preferences.omarchy-upgrade-to-quattro.$BACKUP_SUFFIX.bak" <<'CHROMIUM_SHORTCUTS_PATCH_PY'
-import json
-import shutil
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-backup_path = Path(sys.argv[2])
-old_id = "bocglpkldciamkbmlphanhkfnhpmnbma"
-new_id = "bgpiichlckmfanooecilcjemknkcpngb"
-preferences = json.loads(path.read_text())
-extensions = preferences.get("extensions", {})
-commands = extensions.get("commands", {})
-changed = False
-
-for command in commands.values():
-    if command.get("extension") == old_id and command.get("command_name") == "copy-url":
-        command["extension"] = new_id
-        changed = True
-
-if changed:
-    settings = extensions.get("settings", {})
-    old_command = settings.get(old_id, {}).get("commands", {}).get("copy-url", {})
-    new_command = settings.get(new_id, {}).get("commands", {}).get("copy-url", {})
-    old_command.pop("was_assigned", None)
-    if new_command:
-        new_command["was_assigned"] = True
-    shutil.copy2(path, backup_path)
-    path.write_text(json.dumps(preferences, separators=(",", ":")))
-CHROMIUM_SHORTCUTS_PATCH_PY
-  done
-}
-
 repair_sleep_lock_unit_override() {
   local unit="$HOME/.config/systemd/user/omarchy-sleep-lock.service"
   local legacy_exec='ExecStart=%h/.local/share/omarchy/bin/omarchy-system-sleep-monitor'
@@ -1821,7 +1918,6 @@ copy_missing_config_defaults "$root/config" "$HOME/.config"
 mark_removed_preinstalls_from_legacy_bindings
 copy_always_config_defaults
 repair_chromium_copy_url_extension_flags
-repair_chromium_copy_url_shortcuts
 
 # Carry over user-added backgrounds from the legacy git checkout backup, then
 # remove old symlinks that pointed ~/.config/omarchy/themes/* back into the
@@ -1877,11 +1973,11 @@ repair_sleep_lock_unit_override
 install_bash_startup
 
 mkdir -p "$HOME/.agents/skills" "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.pi/agent/skills"
-if [[ -d $root/default/omarchy-skill ]]; then
-  ln -sfn "$root/default/omarchy-skill" "$HOME/.agents/skills/omarchy"
-  ln -sfn "$root/default/omarchy-skill" "$HOME/.claude/skills/omarchy"
-  ln -sfn "$root/default/omarchy-skill" "$HOME/.codex/skills/omarchy"
-  ln -sfn "$root/default/omarchy-skill" "$HOME/.pi/agent/skills/omarchy"
+if [[ -d $root/default/agents/skills/omarchy ]]; then
+  ln -sfn "$root/default/agents/skills/omarchy" "$HOME/.agents/skills/omarchy"
+  ln -sfn "$root/default/agents/skills/omarchy" "$HOME/.claude/skills/omarchy"
+  ln -sfn "$root/default/agents/skills/omarchy" "$HOME/.codex/skills/omarchy"
+  ln -sfn "$root/default/agents/skills/omarchy" "$HOME/.pi/agent/skills/omarchy"
 fi
 
 mkdir -p "$HOME/.local/state/omarchy/toggles/hypr"
@@ -1983,7 +2079,10 @@ for file in \
 done
 ln -snf "$HOME/.local/state/omarchy/current/theme/btop.theme" "$HOME/.config/btop/themes/current.theme"
 if [[ ! -e $HOME/.local/state/omarchy/current/background && -d $HOME/.local/state/omarchy/current/theme/backgrounds ]]; then
-  background=$(find "$HOME/.local/state/omarchy/current/theme/backgrounds" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) | sort | head -n1)
+  background=$(find "$HOME/.local/state/omarchy/current/theme/backgrounds" -maxdepth 1 -type f \
+    \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \
+       -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \) \
+    | sort | head -n1)
   [[ -n ${background:-} ]] && ln -snf "$background" "$HOME/.local/state/omarchy/current/background"
 fi
 
@@ -2134,11 +2233,15 @@ if command -v xdg-mime >/dev/null 2>&1; then
   xdg-mime default HEY.desktop x-scheme-handler/mailto || true
 fi
 
-"$root/bin/omarchy-done" mark first-run-user
-rm -f "$state_dir/first-run-user.done"
-
-"$root/bin/omarchy-done" mark finalize-user
-rm -f "$state_dir/finalize-user.done"
+# This script is fetched from the branch and runs against whatever packaged
+# tree the channel currently serves, so the packaged tree can be older than the
+# script. The completion markers are written directly rather than through
+# omarchy-done, because a command missing from an older build would abort the
+# upgrade two thirds of the way through.
+done_dir="$state_dir/done"
+mkdir -p "$done_dir"
+touch "$done_dir/first-run-user" "$done_dir/finalize-user"
+rm -f "$state_dir/first-run-user.done" "$state_dir/finalize-user.done"
 USER_SETUP
 }
 
@@ -2236,7 +2339,16 @@ refresh_current_theme_after_upgrade() {
   # hooks because one of them runs `hyprctl reload`. Still poke terminal
   # emulators so the active upgrade terminal picks up generated theme files.
   run_as_user_omarchy omarchy-restart-terminal >/dev/null 2>&1 || true
+
+  # apply_system_transition purged user-owned color.json. Headless theme-set
+  # skipped omarchy-theme-set-browser, so rewrite the colour here.
+  run_as_user_omarchy omarchy-theme-set-browser >/dev/null 2>&1 ||
+    warn "Could not apply browser theme colour. Run 'omarchy theme set \"$theme_name\"' after reboot if Chromium's theme looks stale."
 }
+
+# Everything below mutates the system, so a non-zero exit from here on leaves a
+# half-upgraded machine that must not be rebooted.
+upgrade_started=1
 
 # Suppress live Hyprland reloads before anything touches the legacy config
 # trees; the swap windows otherwise surface transient "source= globbing error"
@@ -2251,6 +2363,7 @@ remove_conflicting_legacy_packages
 install_omarchy_quattro_packages
 install_hardware_transition_packages
 normalize_limine_config
+preserve_kernel_cmdline_root
 configure_snapper_policy
 configure_lock_authentication
 migrate_1password_beta_package
@@ -2258,13 +2371,17 @@ cleanup_legacy_user_paths
 apply_system_transition
 apply_user_transition
 apply_user_hardware_transition
-run_as_user_omarchy omarchy-refresh-applications
-run_as_user_omarchy omarchy-bar defaults
+run_as_user_omarchy omarchy-refresh-applications ||
+  warn "Could not refresh application launchers; run 'omarchy refresh applications' after reboot."
+run_as_user_omarchy omarchy-bar defaults ||
+  warn "Could not restore the default bar widgets; run 'omarchy bar defaults' after reboot."
 cleanup_retired_services
 ensure_sleep_lock_service
 remove_retired_default_packages
-run_post_upgrade_migrations
 run_final_system_package_upgrade
+# This also retires the stock ~/.local/share/fonts/omarchy.ttf missed by the
+# former ~/.config retirement entry, through migration 1788848726.
+run_post_upgrade_migrations
 run_post_upgrade_update_steps
 refresh_current_theme_after_upgrade
 # Do not force-reload Hyprland in the live upgraded session. The legacy
@@ -2272,11 +2389,8 @@ refresh_current_theme_after_upgrade
 # pre-reboot session can keep running safely; the reboot performs the real
 # Omarchy quattro Lua-config cutover.
 restore_hyprland_config_reload
-if start_omarchy_shell_session; then
-  stop_retired_session_processes
-else
-  warn "Leaving retired Omarchy 3 session processes running until reboot."
-fi
+
+upgrade_completed=1
 
 cat <<EOF
 
@@ -2284,7 +2398,9 @@ WARNING: You must address any errors in the above before rebooting.
 
 EOF
 
-if (( auto_reboot )); then
+if (( boot_cmdline_unsafe )); then
+  warn "Skipping reboot: root= could not be confirmed in the boot entries. Repair the kernel cmdline (see the warnings above) before rebooting, or the system will drop to an emergency shell."
+elif (( auto_reboot )); then
   log "Rebooting because --reboot was passed"
   as_root systemctl reboot
 elif gum confirm "Reboot to complete Quattro upgrade now?" </dev/tty; then

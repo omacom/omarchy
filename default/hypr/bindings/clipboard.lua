@@ -15,21 +15,21 @@ local function send_shortcut_once(mods, key)
   end
 end
 
-local terminal_classes = {
-  alacritty = true,
-  ["com.mitchellh.ghostty"] = true,
-  foot = true,
-  kitty = true,
-  wezterm = true,
-}
-
+-- Lean on the terminal tag from default/hypr/apps/terminals.lua so there's one
+-- definition of what counts as a terminal. Dynamic tags carry a trailing "*".
 local function active_window_is_terminal()
   local window = hl.get_active_window()
-  if not window or not window.class then
+  if not window then
     return false
   end
 
-  return terminal_classes[window.class:lower()] == true
+  for _, tag in ipairs(window.tags or {}) do
+    if tag:gsub("%*$", "") == "terminal" then
+      return true
+    end
+  end
+
+  return false
 end
 
 local function universal_clipboard_shortcut(default_mods, default_key, terminal_mods, terminal_key)
@@ -42,7 +42,8 @@ local function universal_clipboard_shortcut(default_mods, default_key, terminal_
   end
 end
 
-o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "C", "CTRL", "Insert"))
-o.bind("SUPER + V", "Universal paste", universal_clipboard_shortcut("CTRL", "V", "SHIFT", "Insert"))
+o.bind("SUPER + A", "Select all", send_shortcut_once("CTRL", "A"))
+o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "C", "CTRL SHIFT", "C"))
+o.bind("SUPER + V", "Universal paste", universal_clipboard_shortcut("CTRL", "V", "CTRL SHIFT", "V"))
 o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "X"))
-o.bind("SUPER + CTRL + V", "Clipboard manager", "omarchy-shell shell toggle omarchy.clipboard")
+o.bind("SUPER + CTRL + V", "Clipboard manager", { panel = "omarchy.clipboard" })
