@@ -93,6 +93,30 @@ while (( SECONDS < deadline )) && shell_instance_running; do
   sleep 0.1
 done
 
+# Quickshell's crash handler can relaunch without retaining `-p <configPath>`
+# (quickshell#1208). Those orphans keep drawing omarchy-* layers but escape
+# `quickshell kill -p`, so also reap bare quickshell processes that have no
+# path argument.
+reap_orphan_quickshell() {
+  local pid cmd
+  local proc_root=${OMARCHY_TEST_PROC_ROOT:-/proc}
+
+  for pid in "$proc_root"/[0-9]*; do
+    [[ -r $pid/cmdline ]] || continue
+    cmd=$(tr '\0' ' ' <"$pid/cmdline" 2>/dev/null)
+    [[ $cmd == *quickshell* ]] || continue
+    # Managed Omarchy shells always pass -p / --path; crash relaunches do not.
+    if [[ $cmd == *" -p "* || $cmd == *" --path "* ]]; then
+      continue
+    fi
+    # Match argv0 /usr/bin/quickshell or a lone `quickshell` token.
+    if [[ $cmd == quickshell\ * || $cmd == "quickshell" || $cmd == */quickshell\ * || $cmd == */quickshell ]]; then
+      kill "${pid##*/}" 2>/dev/null || true
+    fi
+  done
+}
+reap_orphan_quickshell
+
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.
 hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null

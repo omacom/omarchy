@@ -14,9 +14,30 @@
 # A package upgrade rewriting $OMARCHY_PATH/shell would otherwise reload it
 # against a half-written tree, and that failed reload leaves a second engine
 # generation behind that turns the next restart's IPC kill into a crash.
+#
+# Crash-relaunched Quickshell instances sometimes drop `-p` (quickshell#1208)
+# and draw a second bar; reap those bare processes before each supervised start.
+reap_orphan_quickshell() {
+  local pid cmd
+  local proc_root=${OMARCHY_TEST_PROC_ROOT:-/proc}
+
+  for pid in "$proc_root"/[0-9]*; do
+    [[ -r $pid/cmdline ]] || continue
+    cmd=$(tr '\0' ' ' <"$pid/cmdline" 2>/dev/null)
+    [[ $cmd == *quickshell* ]] || continue
+    if [[ $cmd == *" -p "* || $cmd == *" --path "* ]]; then
+      continue
+    fi
+    if [[ $cmd == quickshell\ * || $cmd == "quickshell" || $cmd == */quickshell\ * || $cmd == */quickshell ]]; then
+      kill "${pid##*/}" 2>/dev/null || true
+    fi
+  done
+}
+
 run_shell() {
   local startup_background
   startup_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
+  reap_orphan_quickshell
   OMARCHY_STARTUP_BACKGROUND="$startup_background" QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!

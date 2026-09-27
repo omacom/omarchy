@@ -323,3 +323,33 @@ grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null 
 [[ -f $restart_state.locked ]] || fail "lock recovery did not re-secure the session without notifications"
 grep -q "notification service did not become ready" "$test_tmp/dead-notifications.out" || fail "a missing notification service is not reported" "$(cat "$test_tmp/dead-notifications.out")"
 pass "restart recovers the lock even when the notification service never returns"
+
+# Crash-relaunched Quickshell drops `-p` (quickshell#1208). Restart must reap
+# those orphans in addition to `quickshell kill -p`, or a duplicate bar stays.
+orphan_proc="$test_tmp/orphan-proc"
+mkdir -p "$orphan_proc/9001" "$orphan_proc/9002"
+printf '/usr/bin/quickshell\0' >"$orphan_proc/9001/cmdline"
+printf 'quickshell\0-n\0-p\0%s/shell\0' "$restart_root" >"$orphan_proc/9002/cmdline"
+: >"$restart_log"
+printf '303\n' >"$restart_state"
+rm -f "$restart_state.locked"
+
+# Record kills by wrapping kill isn't easy; assert the orphan reap path exists
+# and that a dry run against a fake proc tree only targets bare cmdlines.
+reap_script="$test_tmp/reap-check.sh"
+sed -n '/^reap_orphan_quickshell()/,/^}/p' "$ROOT/bin/omarchy-restart-shell" >"$reap_script"
+cat >>"$reap_script" <<'SH'
+killed=()
+kill() { killed+=("$1"); }
+OMARCHY_TEST_PROC_ROOT="$1" reap_orphan_quickshell
+printf '%s\n' "${killed[@]}"
+SH
+reaped=$(bash "$reap_script" "$orphan_proc")
+[[ $reaped == "9001" ]] || fail "orphan reap kills bare quickshell and spares -p instances" "reaped=$reaped"
+pass "restart reaps crash-relaunched quickshell orphans without -p"
+
+launch_reap=$(sed -n '/^reap_orphan_quickshell()/,/^}/p' "$ROOT/bin/omarchy-launch-shell")
+[[ -n $launch_reap ]] || fail "launch-shell also defines orphan reap"
+grep -F 'reap_orphan_quickshell' "$ROOT/bin/omarchy-launch-shell" >/dev/null ||
+  fail "launch-shell calls orphan reap before starting Quickshell"
+pass "launch-shell reaps crash-relaunched quickshell orphans before start"
