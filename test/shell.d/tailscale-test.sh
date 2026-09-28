@@ -213,10 +213,10 @@ assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId:
 JS
 
 # The scan is the argv form plugins use (["which" or ['which', with optional
-# space). rg has to be present: `|| true` would treat a missing rg as no hits.
+# whitespace, including newlines). rg has to be present: `|| true` would treat a missing rg as no hits.
 require_command rg
 set +e
-which_hits=$(rg -n '\[[[:space:]]*["'\'']which["'\'']' "$ROOT/shell")
+which_hits=$(rg -nU '\[[[:space:]]*["'\'']which["'\'']' "$ROOT/shell")
 rg_status=$?
 set -e
 if ((rg_status > 1)); then
