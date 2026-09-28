@@ -206,7 +206,7 @@ STUB
 chmod +x "$status_dir/bin/curl" "$status_dir/bin/omarchy-weather-location"
 
 weather_status() {
-  HOME="$status_home" OMARCHY_PATH="$ROOT" PATH="$status_dir/bin:$PATH" LANG=${1:-} \
+  HOME="$status_home" OMARCHY_PATH="$ROOT" PATH="$status_dir/bin:$PATH" LANG=${1:-} LC_ALL=${2:-} LC_MESSAGES= \
     "$ROOT/bin/omarchy-weather-status"
 }
 
@@ -284,11 +284,57 @@ output=$(weather_status da_DK.UTF-8) || fail "weather status succeeds with an im
 [[ $output == "Malibu  ·  Temp 70°F  ·  Wind 9 mph" ]] || fail "weather status honors an imperial unit override over country and locale" "$output"
 pass "weather status honors an imperial unit override over country and locale"
 
+set_weather_unit " Imperial "
+output=$(weather_status da_DK.UTF-8) || fail "weather status succeeds with a padded override"
+[[ $output == "Malibu  ·  Temp 70°F  ·  Wind 9 mph" ]] || fail "weather status trims the unit override like the panel" "$output"
+pass "weather status trims the unit override like the panel"
+
+jq 'del(.version)' "$status_home/.config/omarchy/shell.json" >"$status_dir/unversioned.json"
+mv "$status_dir/unversioned.json" "$status_home/.config/omarchy/shell.json"
+output=$(weather_status da_DK.UTF-8) || fail "weather status succeeds with an unversioned shell.json"
+[[ $output == "Malibu  ·  Temp 21°C  ·  Wind 14 km/h" ]] || fail "weather status ignores a shell.json the shell rejects" "$output"
+pass "weather status ignores a shell.json the shell rejects"
+
+serve_report <<'JSON'
+{
+  "current_condition": [
+    { "temp_C": "21", "temp_F": "70", "windspeedKmph": "14", "windspeedMiles": "9" }
+  ],
+  "nearest_area": [
+    { "country": [ { "value": " United__States " } ] }
+  ]
+}
+JSON
+
 set_weather_unit metric
 output=$(weather_status en_US.UTF-8) || fail "weather status succeeds with a metric override"
 [[ $output == "Malibu  ·  Temp 21°C  ·  Wind 14 km/h" ]] || fail "weather status honors a metric unit override over country and locale" "$output"
 pass "weather status honors a metric unit override over country and locale"
 clear_weather_unit
+
+output=$(weather_status da_DK.UTF-8) || fail "weather status succeeds with a padded country"
+[[ $output == "Malibu  ·  Temp 70°F  ·  Wind 9 mph" ]] || fail "weather status normalizes the reported country like the panel" "$output"
+pass "weather status normalizes the reported country like the panel"
+
+serve_report <<'JSON'
+{
+  "current_condition": [
+    { "temp_C": "21", "temp_F": "70", "windspeedKmph": "14", "windspeedMiles": "9" }
+  ]
+}
+JSON
+
+output=$(weather_status en_US.UTF-8 C.UTF-8) || fail "weather status succeeds with LC_ALL set"
+[[ $output == "Malibu  ·  Temp 21°C  ·  Wind 14 km/h" ]] || fail "weather status lets LC_ALL beat LANG like Qt" "$output"
+pass "weather status lets LC_ALL beat LANG like Qt"
+
+serve_report <<'JSON'
+{ "current_condition": [ { "temp_C": "21", "windspeedKmph": "14" } ] }
+JSON
+
+output=$(weather_status en_US.UTF-8) && fail "weather status fails without the chosen unit's reading"
+[[ $output == "Weather unavailable" ]] || fail "weather status reports unavailability without the chosen unit's reading" "$output"
+pass "weather status reports unavailability without the chosen unit's reading"
 
 rm -f "$status_dir/report.json"
 output=$(weather_status en_US.UTF-8) && fail "weather status fails when wttr answers nothing"

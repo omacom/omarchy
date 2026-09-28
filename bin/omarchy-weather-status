@@ -17,36 +17,26 @@ if [[ -z $report ]]; then
   exit 1
 fi
 
-country=$(jq -r '.nearest_area[0].country[0].value // ""' <<<"$report")
+country=$(jq -r '.nearest_area[0].country[0].value // "" | gsub("^\\s+|\\s+$"; "") | gsub("[._-]+"; " ") | ascii_downcase' <<<"$report")
 temperature_c=$(jq -r '.current_condition[0].temp_C // ""' <<<"$report")
 temperature_f=$(jq -r '.current_condition[0].temp_F // ""' <<<"$report")
 wind_kmh=$(jq -r '.current_condition[0].windspeedKmph // ""' <<<"$report")
 wind_mph=$(jq -r '.current_condition[0].windspeedMiles // ""' <<<"$report")
-
-if [[ -z $temperature_c ]]; then
-  echo "Weather unavailable"
-  exit 1
-fi
 
 # Mirror the panel's unit decision (Model.js shouldUseImperial): an explicit
 # shell.json unit override wins, then wttr's reported country, then the
 # session locale — so this notification always agrees with what the widget's
 # popup shows.
 shell_config=$HOME/.config/omarchy/shell.json
-[[ -s $shell_config ]] || shell_config=$OMARCHY_PATH/config/omarchy/shell.json
+jq -e '.version == 1' "$shell_config" &>/dev/null || shell_config=$OMARCHY_PATH/config/omarchy/shell.json
 unit_override=$(jq -r '
   [(.bar.layout.left // [])[], (.bar.layout.center // [])[], (.bar.layout.right // [])[]]
   | map(select(type == "object" and .id == "omarchy.weather") | .unit // empty)
-  | first // ""
+  | first // "" | tostring | gsub("^\\s+|\\s+$"; "") | ascii_downcase
 ' "$shell_config" 2>/dev/null || echo "")
 
-country=${country//./ }
-country=${country//-/ }
-country=${country//_/ }
-country=${country,,}
-
 use_imperial=
-case ${unit_override,,} in
+case $unit_override in
   imperial) use_imperial=true ;;
   metric) use_imperial=false ;;
 esac
@@ -60,7 +50,7 @@ if [[ -z $use_imperial ]]; then
 fi
 
 if [[ -z $use_imperial ]]; then
-  locale=${LANG:-}
+  locale=${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}
   locale=${locale%%.*}
   locale=${locale//-/_}
   if [[ $locale =~ ^(en_US|en_LR|my)($|_) ]]; then
@@ -73,13 +63,20 @@ fi
 if [[ $use_imperial == true ]]; then
   temperature=$temperature_f
   unit=F
-  wind="$wind_mph mph"
+  wind_speed=$wind_mph
+  wind_unit=mph
 else
   temperature=$temperature_c
   unit=C
-  wind="$wind_kmh km/h"
+  wind_speed=$wind_kmh
+  wind_unit=km/h
+fi
+
+if [[ -z $temperature || -z $wind_speed ]]; then
+  echo "Weather unavailable"
+  exit 1
 fi
 
 place=${place^}
 
-echo "$place  ·  Temp $temperature°$unit  ·  Wind $wind"
+echo "$place  ·  Temp $temperature°$unit  ·  Wind $wind_speed $wind_unit"
