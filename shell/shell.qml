@@ -1020,8 +1020,13 @@ ShellRoot {
         ? shell.bar.panelWidgetIdAt(section, index)
         : ""
       if (!id) return "unknown"
-      return shell.bar && typeof shell.bar.toggleBarWidget === "function"
-        && shell.bar.toggleBarWidget(id) ? id : "unknown"
+      // A replacement bar cloned before toggleBarWidget existed still has the shell route.
+      if (typeof shell.bar.toggleBarWidget === "function") {
+        return shell.bar.toggleBarWidget(id) ? id : "unknown"
+      } else {
+        shell.toggle(id, "{}")
+        return id
+      }
     }
 
     function call(id: string, method: string, arg: string): string {

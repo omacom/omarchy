@@ -219,6 +219,10 @@ assert(
   /function togglePanelAt\(section: string, index: string\): string \{[\s\S]*?shell\.bar\.panelWidgetIdAt\(section, index\)[\s\S]*?shell\.bar\.toggleBarWidget\(id\)/.test(shellSource),
   'shell toggles a positional panel through its bar widget even when the plugin also has another surface'
 )
+assert(
+  /function togglePanelAt\(section: string, index: string\): string \{[\s\S]*?typeof shell\.bar\.toggleBarWidget === "function"[\s\S]*?\} else \{\s*shell\.toggle\(id, "\{\}"\)\s*return id\s*\}\s*\}/.test(shellSource),
+  'a replacement bar without toggleBarWidget still toggles its positional panels through the shell'
+)
 
 const clockSlot = { id: 'clock' }
 const traySlot = { id: 'tray' }
