@@ -15,6 +15,9 @@ BorderSurface {
   property string app: ""
   property string appIcon: ""
   property string summary: ""
+  // How many notifications a grouped toast stands for (see
+  // NotificationLogic.groupFromHints); shown after the summary past one.
+  property int groupCount: 1
   property string body: ""
   property string image: ""
   // Nerd Font glyph rendered in the icon slot when no real icon is set.
@@ -168,7 +171,7 @@ BorderSurface {
           textFormat: Text.PlainText
           Layout.fillWidth: true
           visible: root.summary.length > 0
-          text: root.summary
+          text: NotificationLogic.groupedSummary(root.summary, root.groupCount)
           font.family: "Liberation Sans"
           color: Color.notifications.text
           font.pixelSize: Style.font.title

@@ -197,3 +197,42 @@ send "Timed" -t 3000 >/dev/null
 load
 [[ ${args[12]} == "" && ${args[-1]} == "3000" ]] || fail "notification wrapper still parses a flag after the headline" "body=${args[12]} timeout=${args[-1]}"
 pass "notification wrapper still treats a known flag after the headline as an option"
+
+# Repeats of one thing share a toast the shell counts. The key rides as a hint,
+# not a replaces_id, which a restarted shell would not recognize.
+: >"$args_file"
+send "Process crashed: mldr" --group crash:mldr >/dev/null
+load
+[[ $(hint_value omarchy-group) == "crash:mldr" ]] || fail "notification wrapper sets the group hint from --group" "$(hint_value omarchy-group)"
+[[ ${args[9]} == "0" ]] || fail "notification wrapper leaves replaces_id unset for a group" "${args[9]}"
+pass "notification wrapper sends a group key as the omarchy-group hint"
+
+: >"$args_file"
+send "Grouped" --group=crash:foot >/dev/null
+load
+[[ $(hint_value omarchy-group) == "crash:foot" ]] || fail "notification wrapper accepts --group=key" "$(hint_value omarchy-group)"
+pass "notification wrapper accepts the --group=key form"
+
+: >"$args_file"
+send "Plain" >/dev/null
+load
+if has_hint omarchy-group || has_hint omarchy-expire-critical; then
+  fail "notification wrapper sets no group or expire-critical hint unless asked"
+fi
+pass "notification wrapper sets no group or expire-critical hint unless asked"
+
+: >"$args_file"
+send -u critical --expire-critical -t 60000 "Process crashed: mldr" "Click to diagnose with AI" >/dev/null
+load
+[[ $(hint_value omarchy-expire-critical) == "true" ]] || fail "notification wrapper sets the expire-critical hint" "$(hint_value omarchy-expire-critical)"
+[[ $(hint_value urgency) == "2" && ${args[-1]} == "60000" ]] || fail "notification wrapper keeps urgency and timeout beside expire-critical" "urgency=$(hint_value urgency) timeout=${args[-1]}"
+[[ ${args[12]} == "Click to diagnose with AI" ]] || fail "notification wrapper keeps the body beside expire-critical" "${args[12]}"
+pass "notification wrapper lets a critical toast opt in to its expire timeout"
+
+# A value-less flag in the description slot is an option, not the body.
+: >"$args_file"
+send "Process crashed: mldr" --expire-critical >/dev/null
+load
+[[ ${args[12]} == "" ]] || fail "notification wrapper reads --expire-critical after the headline as an option" "${args[12]}"
+has_hint omarchy-expire-critical || fail "notification wrapper sets expire-critical given after the headline"
+pass "notification wrapper treats --expire-critical after the headline as an option"

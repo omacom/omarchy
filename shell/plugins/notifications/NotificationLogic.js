@@ -180,6 +180,67 @@ function shouldRenderCompactGlyph(glyph, iconSource, singleLineToast) {
   return String(glyph || "").length > 0 && String(iconSource || "").length === 0 && !!singleLineToast
 }
 
+// The repeat a toast stands for, from omarchy-notification-send --group. A
+// notification carrying the key a toast on screen already holds takes that
+// toast's place and counts it, so a crash loop is one toast that says how many
+// times, not a pile of them.
+function groupFromHints(hints) {
+  return stringHint(hints, "omarchy-group")
+}
+
+// From omarchy-notification-send --expire-critical: a critical toast that still
+// honors its expire timeout. Critical toasts otherwise stay until handled, which
+// is right for an alert that needs an answer and wrong for a report the user
+// may not want to act on.
+function expireCriticalFromHints(hints) {
+  return stringHint(hints, "omarchy-expire-critical") === "true"
+}
+
+// Whether an incoming notification repeats a toast already on screen. Keyed by
+// sender too, so two apps that happen to pick the same key stay apart.
+function sameGroup(row, entry) {
+  var group = String((entry && entry.group) || "")
+  if (!group || !row) return false
+  return String(row.group || "") === group && String(row.app || "") === String(entry.app || "")
+}
+
+// The summary a grouped toast shows once it stands for more than one
+// notification.
+function groupedSummary(summary, groupCount) {
+  var text = String(summary || "")
+  var count = Number(groupCount || 0)
+  return count > 1 ? text + " (×" + count + ")" : text
+}
+
+var LOW_POPUP_DURATION = 5000
+var NORMAL_POPUP_DURATION = 8000
+var MAX_POPUP_DURATION = 30000
+// Longer than the ordinary cap: a critical toast that opted in to expiring is
+// still one worth the time to read and act on.
+var MAX_EXPIRING_CRITICAL_DURATION = 60000
+
+function requestedDuration(expireTimeout) {
+  // FreeDesktop notification spec (and Quickshell) report expireTimeout in
+  // milliseconds, so pass it through directly.
+  var ms = Number(expireTimeout || 0)
+  if (!isFinite(ms) || ms <= 0) return 0
+  return Math.round(ms)
+}
+
+// How long a popup stays on screen, in milliseconds; 0 keeps it until handled.
+// Critical toasts never expire unless the sender opted in with
+// --expire-critical and gave a timeout, so the timeouts other critical senders
+// pass keep meaning nothing.
+function popupDuration(urgency, expireTimeout, expireCritical, lowUrgency, criticalUrgency) {
+  var requested = requestedDuration(expireTimeout)
+  if (urgency === criticalUrgency) {
+    if (!expireCritical || requested === 0) return 0
+    return Math.min(MAX_EXPIRING_CRITICAL_DURATION, Math.max(NORMAL_POPUP_DURATION, requested))
+  }
+  var floor = urgency === lowUrgency ? LOW_POPUP_DURATION : NORMAL_POPUP_DURATION
+  return Math.min(MAX_POPUP_DURATION, Math.max(floor, requested))
+}
+
 function snapshotOf(notification, timestamp) {
   var n = notification || {}
   var id = n.id || 0
@@ -195,15 +256,19 @@ function snapshotOf(notification, timestamp) {
     image: n.image || "",
     glyph: glyphFromHints(n.hints),
     execArgv: execArgvFromHints(n.hints),
+    group: groupFromHints(n.hints),
+    groupCount: 1,
     urgency: n.urgency,
     expireTimeout: expireTimeout,
+    expireCritical: expireCriticalFromHints(n.hints),
     timestamp: timestamp === undefined ? Date.now() : timestamp
   }
 }
 
 // Everything the popup card draws, and therefore everything an in-place
-// update has to write through to the row and its file.
-var POPUP_ROLES = ["app", "appIcon", "summary", "body", "image", "glyph", "execArgv", "urgency", "expireTimeout"]
+// update has to write through to the row and its file. groupCount is not here:
+// it counts the toasts this one replaced, which no notification object knows.
+var POPUP_ROLES = ["app", "appIcon", "summary", "body", "image", "glyph", "execArgv", "group", "urgency", "expireTimeout", "expireCritical"]
 
 function popupRoles() {
   return POPUP_ROLES
@@ -246,8 +311,11 @@ function historyEntry(value, normalUrgency) {
     image: e.image || "",
     glyph: e.glyph || "",
     execArgv: e.execArgv || "",
+    group: e.group || "",
+    groupCount: Math.max(1, Number(e.groupCount) || 1),
     urgency: typeof e.urgency === "number" ? e.urgency : normalUrgency,
     expireTimeout: 0,
+    expireCritical: false,
     timestamp: e.timestamp || 0
   }
 }
@@ -286,6 +354,7 @@ function popupEntry(value, normalUrgency) {
   var expire = Number((value || {}).expireTimeout || 0)
   if (!isFinite(expire) || expire < 0) expire = 0
   entry.expireTimeout = expire
+  entry.expireCritical = (value || {}).expireCritical === true
   // Absolute expiry deadline, set only when a restore resets a surviving
   // popup's display lifetime. Kept out of the entry entirely when unset so
   // restored rows match the roles of freshly received ones.
@@ -383,7 +452,7 @@ function parsePopupFiles(raw, normalUrgency) {
 
 // A persisted popup whose lifetime already ran out would have expired on
 // screen had the shell kept running, so it is not restored. duration 0 means
-// the popup never expires (critical urgency) and always survives restarts.
+// the popup never expires (see popupDuration) and always survives restarts.
 // A restore-reset deadline outranks the original timestamp: without it, a
 // second restart would judge a re-shown toast by a clock that no longer
 // governs its display and drop it while it is still on screen.
@@ -459,6 +528,11 @@ if (typeof module !== "undefined") {
     execArgvFromHints: execArgvFromHints,
     parseExecArgv: parseExecArgv,
     shouldRenderCompactGlyph: shouldRenderCompactGlyph,
+    groupFromHints: groupFromHints,
+    expireCriticalFromHints: expireCriticalFromHints,
+    sameGroup: sameGroup,
+    groupedSummary: groupedSummary,
+    popupDuration: popupDuration,
     snapshotOf: snapshotOf,
     popupRoles: popupRoles,
     popupRowChanged: popupRowChanged,

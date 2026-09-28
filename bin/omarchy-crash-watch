@@ -14,14 +14,12 @@ readonly COREDUMP_MESSAGE_ID=fc2e22bc6ee647b6b90729ab34a250b1
 # nf-md-robot_dead, escaped so this file reads without a Nerd Font.
 readonly CRASH_GLYPH=$'\U000f16a1'
 
-# Crash loops dump core repeatedly, so announce each program at most once a
-# window.
-readonly dedupe_seconds=${OMARCHY_CRASH_DEDUPE_SECONDS:-60}
+# Long enough to notice and click, short enough that a crash nobody wants
+# diagnosed does not sit on screen until dismissed.
+readonly TOAST_MILLISECONDS=60000
 
 # Extended regex of process names never worth announcing.
 readonly ignore_pattern=${OMARCHY_CRASH_IGNORE:-}
-
-declare -A last_notified
 
 announce() {
   local comm=$1 pid=$2 exe=$3 signal=$4
@@ -37,8 +35,16 @@ announce() {
   # name, the only one shouldBypassDnd() lets through. Crash details ride as
   # discrete argv words, so a hostile process name can't be reparsed as a
   # command. --exec consumes the rest of the line, so it comes last.
+  #
+  # Crash loops dump core repeatedly, so every crash of one program shares a
+  # group: the shell keeps a single toast for it, counts the repeats, and
+  # points the click at the newest PID. The group survives a shell restart,
+  # which a replaces_id from an earlier server would not. --expire-critical
+  # lets the critical toast go after a minute like any report.
   omarchy-notification-send \
     --urgency critical \
+    --expire-critical --expire-time "$TOAST_MILLISECONDS" \
+    --group "crash:$comm" \
     --glyph "$CRASH_GLYPH" \
     "Process crashed: $comm" \
     "Click to diagnose with AI" \
@@ -99,11 +105,5 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # lift one without reading, rewriting and re-parsing the rest.
     omarchy-toggle-enabled "crash-ignore/$name" && continue
 
-    now=$EPOCHSECONDS
-    (((now - ${last_notified[$name]:-0}) < dedupe_seconds)) && continue
-
-    # Only a delivered toast starts the dedupe window. A failed send that
-    # counted would suppress the rest of a crash loop for a minute, and
-    # `journalctl -n 0` never replays what was missed.
-    announce "$name" "$pid" "$exe" "$signal" && last_notified[$name]=$now
+    announce "$name" "$pid" "$exe" "$signal"
   done
