@@ -77,21 +77,29 @@ Item {
     root.state = KeyboardBacklightModel.initialState(readBrightness(), root.maxLevel, readManualOff())
   }
 
+  // Picks up a level set by the keys since the last look. A reading taken
+  // while our own write is in flight isn't a user change.
+  function observe(now) {
+    if (setProcess.running || root.pendingLevel >= 0) return
+    root.state = KeyboardBacklightModel.observeBrightness(root.state, readBrightness(), now)
+  }
+
+  function saveManualOff(before) {
+    if (root.state.manualOffSince !== before) manualOffFile.setText(root.state.manualOffSince > 0 ? String(root.state.manualOffSince) : "")
+  }
+
   function step() {
     if (!root.active || !root.state || root.paused) return
 
     var now = Date.now()
     var manualOffBefore = root.state.manualOffSince
+    observe(now)
 
-    // A reading taken while our own write is in flight isn't a user change.
-    var writing = setProcess.running || root.pendingLevel >= 0
-    var observed = writing ? root.state : KeyboardBacklightModel.observeBrightness(root.state, readBrightness(), now)
-
-    var result = KeyboardBacklightModel.evaluate(observed, root.lux, now, root.tuning)
+    var result = KeyboardBacklightModel.evaluate(root.state, root.lux, now, root.tuning)
     root.state = result.state
 
     if (result.set !== null) setLevel(result.set)
-    if (root.state.manualOffSince !== manualOffBefore) manualOffFile.setText(root.state.manualOffSince > 0 ? String(root.state.manualOffSince) : "")
+    saveManualOff(manualOffBefore)
 
     if (result.nextCheckMs >= 0) {
       // Timer intervals are 32-bit.
@@ -112,7 +120,15 @@ Item {
     setProcess.running = true
   }
 
+  // A key press only shows up at the next sensor change or check, so take
+  // one last look before the blank: at this point the level is still the
+  // user's, and after the wake it's the session's.
   function pause() {
+    if (root.active && root.state && !root.paused) {
+      var manualOffBefore = root.state.manualOffSince
+      observe(Date.now())
+      saveManualOff(manualOffBefore)
+    }
     root.paused = true
     checkTimer.stop()
   }

@@ -12,6 +12,7 @@ egl-wayland
 gst-plugin-pipewire
 gtk4-layer-shell
 libpulse
+iio-sensor-proxy
 intel-ipu7-camera
 intel-lpmd
 intel-media-driver
