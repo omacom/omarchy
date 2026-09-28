@@ -89,6 +89,29 @@ assert(store.ownsSessionLock('omarchy.lock'), 'the store reports a service holdi
 assert(!store.ownsSessionLock('omarchy.polkit'), 'the store does not report a service without the lock')
 assert(!store.ownsSessionLock('missing'), 'the store does not report a service it does not hold')
 
+// ------------------------------------------------------- unloadPluginServices()
+// keepLoaded is read from the current registry, which has already dropped a
+// lock plugin removed mid-lock, so the spare must also go by ownership. Without
+// it the first reload after the removal leaves the lock alone and the second
+// destroys it.
+const unload = bodyOf(shellQml, 'unloadPluginServices', 'unload guard').replace(/\/\/[^\n]*/g, '')
+const unloadSpare = unload.match(/if \((.+?)\) \{\s*\n\s*next\[existingId\] = inst/)
+assert(unloadSpare, 'unloadPluginServices spares services into the next map')
+assertEqual(
+  unloadSpare[1].trim(),
+  'serviceKeepLoaded(existingId) || (inst && inst.sessionLockOwned === true)',
+  'unloadPluginServices spares a keepLoaded service or one that owns the session lock'
+)
+const unloadDestroy = unload.indexOf('inst.destroy()')
+assert(unloadDestroy !== -1, 'unloadPluginServices still destroys services it does not spare')
+assert(unloadSpare.index < unloadDestroy, 'no destroy in unloadPluginServices runs before the spare')
+
+const unloadAuthSkip = unload.indexOf('if (AuthServiceStore.ownsSessionLock(authenticationId)) continue')
+const unloadAuthDestroy = unload.indexOf('AuthServiceStore.destroy(authenticationId)')
+assert(unloadAuthSkip !== -1, 'unloadPluginServices skips an authentication service that owns the session lock')
+assert(unloadAuthDestroy !== -1, 'unloadPluginServices still destroys authentication services')
+assert(unloadAuthSkip < unloadAuthDestroy, 'no authentication-service destroy in unloadPluginServices runs before the skip')
+
 // ------------------------------------------------- lock service: sessionLockOwned
 // The signal the shell reads must be deterministic on a rebuilt service.
 // sessionLock.secure resolves through the process-wide session-lock manager,

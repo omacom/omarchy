@@ -1036,20 +1036,23 @@ ShellRoot {
   // keepLoaded services (lock, idle, polkit) must survive plugin hot-reload.
   // Destroying omarchy.lock drops the ext-session-lock client while Hyprland
   // still holds the lock, which surfaces the crashed-lockscreen fallback.
+  // keepLoaded is read from the current registry, which no longer lists a lock
+  // plugin removed mid-lock, so the lock owner is spared by ownership as well.
   function unloadPluginServices() {
     var next = ({})
     for (var existingId in _services) {
-      if (serviceKeepLoaded(existingId)) {
-        next[existingId] = _services[existingId]
+      var inst = _services[existingId]
+      if (serviceKeepLoaded(existingId) || (inst && inst.sessionLockOwned === true)) {
+        next[existingId] = inst
         continue
       }
-      var inst = _services[existingId]
       if (inst && typeof inst.destroy === "function") inst.destroy()
     }
     _services = next
     var authenticationIds = AuthServiceStore.ids()
     for (var ai = 0; ai < authenticationIds.length; ai++) {
       var authenticationId = authenticationIds[ai]
+      if (AuthServiceStore.ownsSessionLock(authenticationId)) continue
       if (!serviceKeepLoaded(authenticationId))
         AuthServiceStore.destroy(authenticationId)
     }
