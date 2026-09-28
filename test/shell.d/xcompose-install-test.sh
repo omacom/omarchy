@@ -25,7 +25,8 @@ pass "XCompose install creates the default file with the user's identity"
 printf '\n<Multi_key> <space> <x> : "custom"\n' >>"$home/.XCompose"
 before=$(sha256sum "$home/.XCompose")
 
-HOME="$home" bash -euo pipefail "$xcompose_install"
+env -u OMARCHY_USER_NAME -u OMARCHY_USER_EMAIL HOME="$home" \
+  bash -eE "$xcompose_install"
 
 [[ $(sha256sum "$home/.XCompose") == "$before" ]] ||
   fail "XCompose install preserves an existing user file" "$(cat "$home/.XCompose")"
