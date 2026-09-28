@@ -156,7 +156,7 @@ pass "service facades resolve enabled clones without widening replacement-bar ac
 require_compositor "plugin authentication boundary runtime test"
 
 if ! command -v quickshell >/dev/null 2>&1; then
-  pass "quickshell not installed; skipping plugin authentication boundary runtime test"
+  skip "quickshell not installed; skipping plugin authentication boundary runtime test"
   exit 0
 fi
 
