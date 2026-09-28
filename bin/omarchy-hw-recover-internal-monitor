@@ -3,7 +3,13 @@
 # omarchy:summary=Clear the internal-monitor-disable toggle if no external display is connected.
 
 TOGGLE="$HOME/.local/state/omarchy/toggles/hypr/internal-monitor-disable.lua"
+LID_CLOSED_TOGGLE="$HOME/.local/state/omarchy/toggles/hypr/internal-monitor-lid-closed.lua"
 
 if [[ -f $TOGGLE ]] && ! omarchy-hw-external-monitors; then
   rm -f "$TOGGLE"
+fi
+
+# Left behind when a 15" Radeon powered off with its lid shut; only lid-open clears it otherwise.
+if [[ -f $LID_CLOSED_TOGGLE ]] && ! omarchy-hw-laptop-closed; then
+  rm -f "$LID_CLOSED_TOGGLE"
 fi

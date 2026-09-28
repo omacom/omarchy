@@ -298,3 +298,21 @@ grep -Fq 'pps autodetect' "$test_tmp/pp.log" || fail "lid open restores the AC/b
   fail "lid open restores previous DPMS wake flags" "wake=$(cat "$test_tmp/wake")"
 [[ ! -e $lid_state/dpms-wake ]] || fail "lid open clears saved DPMS wake flags"
 pass "lid open brings the panel back and restores the remembered profile"
+
+# A 15-inch that powers off with the lid shut (battery flat, power held) never
+# sees lid-open, so session start must drop the flag or the next login is dark.
+recover_home="$test_tmp/recover-home"
+recover_toggles="$recover_home/.local/state/omarchy/toggles/hypr"
+mkdir -p "$recover_toggles" "$test_tmp/recover-stub"
+printf 'hl.monitor({ output = "eDP-1", disabled = true })\n' >"$recover_toggles/internal-monitor-lid-closed.lua"
+for command in omarchy-hw-laptop-closed omarchy-hw-external-monitors; do
+  printf '#!/bin/bash\nexit 1\n' >"$test_tmp/recover-stub/$command"
+done
+chmod +x "$test_tmp/recover-stub"/*
+HOME="$recover_home" PATH="$test_tmp/recover-stub:$PATH" "$ROOT/bin/omarchy-hw-recover-internal-monitor"
+[[ ! -e $recover_toggles/internal-monitor-lid-closed.lua ]] ||
+  fail "session start drops a lid-closed panel disable left from a closed-lid power-off"
+grep -Fxq 'ConditionPathExists=|%h/.local/state/omarchy/toggles/hypr/internal-monitor-lid-closed.lua' \
+  "$ROOT/default/systemd/user/omarchy-recover-internal-monitor.service" ||
+  fail "the recovery unit runs when only the lid-closed flag is left"
+pass "session start drops a lid-closed panel disable left from a closed-lid power-off"
