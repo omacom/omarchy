@@ -122,15 +122,20 @@ stop_legacy_services() {
   done
 }
 
-# Not moved yet: still on the old copy, run by a Node outside the runtime, or
-# running before and not now. Upstream's installer keeps the Node a service
-# already had, so a moved unit can run the runtime's code on the system Node
-# the old package depended on, which this one no longer does.
+# Still the old package's: its script, or the runtime's script on the old
+# package's Node. Upstream's installer keeps the Node a service already ran, so
+# a moved unit can end up running ~/.openclaw on /usr/bin/node, from the nodejs
+# package the seed no longer depends on. Any other Node or Bun is the user's.
+on_old_package() {
+  local program
+  program=$(sed -n 's/^ExecStart=//p' "$1" | head -1)
+  program=${program%% *}
+  unit_runs "$1" "/usr/lib/node_modules/openclaw/" || { [[ $program == "/usr/bin/node" ]] && unit_runs "$1" "$prefix/"; }
+}
+
+# Not moved yet: still on the old package, or running before and not now.
 unsettled() {
-  local unit words
-  unit=$(unit_path "$1")
-  read -ra words <<<"$(sed -n 's/^ExecStart=//p' "$unit" | head -1)"
-  unit_runs "$unit" "/usr/lib/node_modules/openclaw/" || [[ ${words[0]:-} != "$prefix/"* ]] ||
+  on_old_package "$(unit_path "$1")" ||
     { [[ " ${running[*]} " == *" $1 "* ]] && ! systemctl --user is-active --quiet "openclaw-$1.service"; }
 }
 
@@ -214,7 +219,7 @@ moving=()
 running=()
 stopped=()
 for role in gateway node; do
-  if [[ -f $(unit_path "$role") ]] && unit_runs "$(unit_path "$role")" "/usr/lib/node_modules/openclaw/"; then
+  if [[ -f $(unit_path "$role") ]] && on_old_package "$(unit_path "$role")"; then
     moving+=("$role")
     if systemctl --user is-active --quiet "openclaw-$role.service"; then
       running+=("$role")

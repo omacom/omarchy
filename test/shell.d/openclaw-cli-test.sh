@@ -249,6 +249,36 @@ run omarchy-install-openclaw-cli --now || fail "--now moves a gateway beside a r
   fail "--now moves a gateway beside a runtime that already runs" "$(cat "$events")"
 pass "a gateway beside a runtime that already runs is moved without seeding"
 
+# A move that stopped halfway left the runtime's code on the old package's
+# /usr/bin/node; the next run finishes it, and moves a node host the same way.
+new_home half-moved
+run omarchy-install-openclaw-cli --now || fail "--now sets OpenClaw up" "$(cat "$test_tmp/output")"
+mkdir -p "$test_home/.config/systemd/user"
+printf 'ExecStart=/usr/bin/node %s/.openclaw/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' "$test_home" >"$test_home/.config/systemd/user/openclaw-gateway.service"
+printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js node run\n' >"$test_home/.config/systemd/user/openclaw-node.service"
+touch "$test_home/active-openclaw-gateway.service" "$test_home/active-openclaw-node.service"
+: >"$events"
+run omarchy-install-openclaw-cli --now || fail "--now finishes a half-moved gateway" "$(cat "$test_tmp/output")"
+for role in gateway node; do
+  grep -Fxq "runtime $role install --force --runtime-path $test_home/.openclaw/tools/node-v24.19.0/bin/node" "$events" &&
+    sed -n 's/^ExecStart=\([^ ]*\).*/\1/p' "$test_home/.config/systemd/user/openclaw-$role.service" | grep -qx "$test_home/.openclaw/tools/node-v24.19.0/bin/node" ||
+    fail "--now finishes a half-moved $role on the runtime's own Node" "$(cat "$events")"
+done
+pass "a half-moved gateway and a node host end up on the runtime's own Node"
+
+# The runtime run by any other Node or by Bun is the user's choice, not the old
+# package's dependency.
+new_home bun
+run omarchy-install-openclaw-cli --now || fail "--now sets OpenClaw up" "$(cat "$test_tmp/output")"
+mkdir -p "$test_home/.config/systemd/user"
+printf 'ExecStart=/usr/bin/bun %s/.openclaw/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' "$test_home" >"$test_home/.config/systemd/user/openclaw-gateway.service"
+cp "$test_home/.config/systemd/user/openclaw-gateway.service" "$test_tmp/bun-unit"
+: >"$events"
+run omarchy-install-openclaw-cli --now || fail "--now leaves a Bun gateway alone" "$(cat "$test_tmp/output")"
+! grep -q "install --force\|^systemctl" "$events" && cmp -s "$test_tmp/bun-unit" "$test_home/.config/systemd/user/openclaw-gateway.service" ||
+  fail "--now leaves a Bun gateway alone" "$(cat "$events")"
+pass "a gateway the user runs on Bun is left alone"
+
 # The migration moves only machines that have the package, and waits for the
 # package that seeds.
 new_home migration-none
