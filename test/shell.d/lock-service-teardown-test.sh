@@ -187,6 +187,15 @@ assertEqual(
   'unlockSettled is emitted only from the wake exit'
 )
 
+// A destroy can still land mid-wake (a plugin change right after unlock), and
+// Quickshell kills the wake with the service. The service runs it again
+// detached, and only then: a detached wake on the normal path would run twice.
+assert(
+  lockCode.includes('Component.onDestruction: if (wakeProcess.running) wakeProcess.startDetached()'),
+  'the lock service reruns an interrupted wake detached when it is destroyed'
+)
+assertEqual((lockCode.match(/startDetached\(/g) || []).length, 1, 'the wake runs detached only from the destruction handler')
+
 // ------------------------------------------------- lock service: sessionLockOwned
 // The signal the shell reads must be deterministic on a rebuilt service.
 // sessionLock.secure resolves through the process-wide session-lock manager,

@@ -60,8 +60,8 @@ Item {
   readonly property bool sessionLockOwned: lockRequested || sessionLock.locked
 
   // Raised when an unlock's wake has finished, so the shell can collect a
-  // service it kept only because it owned the lock. Collecting it any earlier
-  // would kill omarchy-system-wake with it.
+  // service it kept only because it owned the lock without interrupting the
+  // wake; Component.onDestruction covers a destroy that still lands mid-wake.
   signal unlockSettled()
 
   function realScreenCount() {
@@ -656,6 +656,11 @@ Item {
     refreshFingerprintStatus()
     checkStrandedLock()
   }
+
+  // Quickshell kills a Process's child with the object, so a plugin change that
+  // collects a disabled lock right after unlock would cut the wake short. Run it
+  // again detached; every step of omarchy-system-wake is safe to repeat.
+  Component.onDestruction: if (wakeProcess.running) wakeProcess.startDetached()
 
   ShellIpc {
     target: "lock"
