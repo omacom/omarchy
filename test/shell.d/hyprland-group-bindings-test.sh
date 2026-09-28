@@ -6,7 +6,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
 require_command lua
 
-OMARCHY_PATH="$ROOT" lua <<'LUA'
+# `lua -`, not bare `lua`: Lua 5.5 exits 0 when a script it reads from a pipe errors.
+OMARCHY_PATH="$ROOT" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local function proxy()
