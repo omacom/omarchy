@@ -216,7 +216,7 @@ BarWidget {
   implicitHeight: root.vertical ? trayContent.implicitHeight : root.barSize
 
   Behavior on revealProgress {
-    NumberAnimation { duration: root.animationDuration; easing.type: Easing.OutCubic }
+    NumberAnimation { duration: Style.duration(root.animationDuration); easing.type: Easing.OutCubic }
   }
 
   Loader {

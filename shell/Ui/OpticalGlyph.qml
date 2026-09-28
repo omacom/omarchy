@@ -28,8 +28,10 @@ Item {
     textFormat: Text.PlainText
     // Keep the shared line box and baseline intact. Correcting only the
     // horizontal painted bounds avoids per-glyph vertical drift.
-    anchors.centerIn: parent
-    anchors.horizontalCenterOffset: root.horizontalCorrection
+    // The correction is fractional, so x is set exactly: centerIn would snap it
+    // to a whole pixel and undo it. y still snaps, keeping the baseline crisp.
+    x: (root.width - width) / 2 + root.horizontalCorrection
+    y: Math.round((root.height - height) / 2)
     text: root.text
     color: root.color
     font.family: root.fontFamily
