@@ -86,7 +86,7 @@ function modeLabel(device, onBattery, states) {
   var percentage = d.isPresent ? d.percentage : 0
   if (chargeThresholdActive(d, onBattery, states)) return "Threshold"
   if (d.state === states.Discharging) return "On battery"
-  if (d.state === states.Charging) return "Charging"
+  if (d.state === states.Charging) return percentage >= 1 ? "Fully charged" : "Charging"
   if (onBattery) return "On battery"
   if (percentage >= 1) return "Fully charged"
   return "Charging"
