@@ -336,6 +336,14 @@ output=$(weather_status en_US.UTF-8) && fail "weather status fails without the c
 [[ $output == "Weather unavailable" ]] || fail "weather status reports unavailability without the chosen unit's reading" "$output"
 pass "weather status reports unavailability without the chosen unit's reading"
 
+serve_report <<'JSON'
+{ "current_condition": [ { "temp_C": "21", "temp_F": "70", "windspeedKmph": "14" } ] }
+JSON
+
+output=$(weather_status en_US.UTF-8) && fail "weather status fails without the chosen unit's wind"
+[[ $output == "Weather unavailable" ]] || fail "weather status reports unavailability without the chosen unit's wind" "$output"
+pass "weather status reports unavailability without the chosen unit's wind"
+
 rm -f "$status_dir/report.json"
 output=$(weather_status en_US.UTF-8) && fail "weather status fails when wttr answers nothing"
 [[ $output == "Weather unavailable" ]] || fail "weather status reports unavailability when wttr answers nothing" "$output"
