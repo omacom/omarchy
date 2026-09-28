@@ -157,8 +157,10 @@ function pickDrawnSlot(slots) {
 // With every monitor unplugged, Qt substitutes a nameless placeholder screen
 // and Hyprland its headless FALLBACK output. A bar built for either outlives
 // the monitors' return: the compositor drops it onto whichever monitor comes
-// back first, where it stacks over that monitor's own bar until torn down. The
-// size check matters for the placeholder only; FALLBACK has a real mode.
+// back first, where it stacks over that monitor's own bar until torn down.
+// The name check alone rejects both the placeholder (no name) and FALLBACK;
+// the size check is for a real, already-named screen whose geometry hasn't
+// arrived yet.
 function isRealScreen(screen) {
   if (!screen || !screen.name || screen.name === "FALLBACK") return false
   return screen.width > 0 && screen.height > 0

@@ -25,7 +25,13 @@ pass "bar move outline has no post-release settling state"
 if rg -q 'model:\s*Quickshell\.screens' "$ROOT/shell/plugins/bar/Bar.qml"; then
   fail "bar surfaces must not be built for Qt's placeholder screen"
 fi
-if (( $(rg -c 'model:\s*root\.realScreens' "$ROOT/shell/plugins/bar/Bar.qml") != 3 )); then
+# `rg -c` prints nothing (not "0") when there are zero matches, which makes
+# `(( $(rg -c ...) != 3 ))` a bash arithmetic syntax error rather than a
+# false condition - the check would then silently never fail, even when
+# none of the three surfaces use the filter. Default the count so the
+# comparison stays numeric either way.
+realScreensCount=$(rg -c 'model:\s*root\.realScreens' "$ROOT/shell/plugins/bar/Bar.qml") || realScreensCount=0
+if (( realScreensCount != 3 )); then
   fail "bar, drag ghost and move ghost surfaces must all use the real-screen filter"
 fi
 if ! rg -q 'readonly property var realScreens: BarModel\.realScreens\(Quickshell\.screens\)' "$ROOT/shell/plugins/bar/Bar.qml"; then
