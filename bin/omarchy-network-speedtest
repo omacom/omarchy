@@ -52,7 +52,7 @@ iface_for_address() {
 }
 
 first_url=${fast_urls%%$'\n'*}
-local_ip=$(curl -fsS -o /dev/null -r 0-0 --max-time 10 -w '%{local_ip}' "$first_url" 2>/dev/null || true)
+local_ip=$(curl -fsS -o /dev/null -r 0-0 --max-time 3 -w '%{local_ip}' "$first_url" 2>/dev/null || true)
 
 iface=""
 if [[ -n $local_ip ]]; then
