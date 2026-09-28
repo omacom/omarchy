@@ -357,11 +357,22 @@ if ! omarchy-pkg-present hermes-desktop; then
   omarchy-pkg-add hermes-desktop
 fi
 
-if [[ ! -r /usr/share/hermes-desktop/install.sh || ! -r /usr/share/hermes-desktop/runtime.patch ]] ||
+if [[ ! -r /usr/share/hermes-desktop/install.sh ]] ||
   ! release_commit=$(jq -er 'select(.branch == "main") | .commit | select(test("^[0-9a-f]{40}$"))' /opt/hermes-desktop/resources/install-stamp.json 2>/dev/null); then
   echo "The installed Hermes package cannot prepare in-app updates. Run 'omarchy update', then try again." >&2
   exit 1
 fi
+
+# Upstream Hermes carries this guard itself now: scripts/desktop-update/posix.sh probes the
+# namespace sandbox before falling back to the setuid-helper path. On a release past that
+# point the packaged runtime patch is obsolete -- applying it would duplicate the line, and
+# refusing to seed because it no longer applies would strand an install whose runtime has
+# already moved beyond the packaged commit. "Satisfied" is therefore the guard's presence in
+# the runtime, not the patch's own apply state.
+runtime_patch_satisfied() {
+  git -C "$runtime" grep -qF 'unshare --user --map-root-user true' -- \
+    scripts/desktop-update/posix.sh 2>/dev/null
+}
 
 runtime_present=false
 if runtime_ready; then
@@ -404,7 +415,8 @@ refuse_unless_seedable() {
     echo "Hermes desktop sources have local changes. Run 'hermes desktop --build-only', then try again; existing files have been kept." >&2
     return 1
   fi
-  if ! git -C "$runtime" apply --check /usr/share/hermes-desktop/runtime.patch >/dev/null 2>&1 &&
+  if ! runtime_patch_satisfied &&
+    ! git -C "$runtime" apply --check /usr/share/hermes-desktop/runtime.patch >/dev/null 2>&1 &&
     ! git -C "$runtime" apply --reverse --check /usr/share/hermes-desktop/runtime.patch >/dev/null 2>&1; then
     echo "The Hermes Linux runtime patch conflicts with local changes. Existing files have been kept." >&2
     return 1
@@ -486,7 +498,9 @@ if [[ $runtime_commit == "$release_commit" ]]; then
   fi
   git -C "$runtime" switch -C main "$release_commit"
 
-  if git -C "$runtime" apply --check /usr/share/hermes-desktop/runtime.patch >/dev/null 2>&1; then
+  if runtime_patch_satisfied; then
+    : # guard already upstream on this release; the packaged patch is obsolete
+  elif git -C "$runtime" apply --check /usr/share/hermes-desktop/runtime.patch >/dev/null 2>&1; then
     git -C "$runtime" apply /usr/share/hermes-desktop/runtime.patch
   elif ! git -C "$runtime" apply --reverse --check /usr/share/hermes-desktop/runtime.patch >/dev/null 2>&1; then
     echo "The Hermes Linux runtime patch conflicts with local changes. Existing files have been kept." >&2
