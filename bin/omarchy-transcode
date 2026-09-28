@@ -171,7 +171,7 @@ main() {
     # The menu entry has no terminal, so an empty search needs a notification
     # rather than the stderr line omarchy-menu-file already printed.
     if (( menu_status == 2 )); then
-      omarchy-notification-send -g  "Nothing to transcode" "No pictures or videos under ${search_path//:/ }"
+      omarchy-notification-send -g 󰧸 "Nothing to transcode" "No pictures or videos under ${search_path//:/ }"
       return 1
     fi
   fi
