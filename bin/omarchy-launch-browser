@@ -9,7 +9,10 @@ if [[ -z $default_browser ]]; then
 fi
 browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
 
-if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
+# Detected by executable name rather than probing `--help`: Chrome's `--help`
+# execs `man` to show its manual page, and on an image without man-db that
+# exec fails with ENOENT and kills Chrome with SIGTRAP before it ever launches.
+if [[ $browser_exec =~ firefox|librewolf|zen|floorp ]]; then
   private_flag="--private-window"
 elif [[ $browser_exec =~ edge ]]; then
   private_flag="--inprivate"
