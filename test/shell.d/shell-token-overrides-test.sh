@@ -13,6 +13,9 @@ style="$ROOT/shell/Commons/Style.qml"
 bar_branch=$(awk '/section === "bar"/,/section === "spacing"/' "$style")
 [[ -n $bar_branch ]] || fail "the [bar] branch of applyShellValues is readable"
 
+tokens=$(grep -oE 'barToken\([[:space:]]*"[a-z-]+"' "$style" | grep -oE '"[a-z-]+"' | tr -d '"')
+[[ -n $tokens ]] || fail "Style.qml names the tokens it reads through barToken"
+
 while read -r token; do
   [[ -n $token ]] || continue
   case $token in
@@ -21,5 +24,5 @@ while read -r token; do
   if grep -qF "\"$token\"" <<<"$bar_branch"; then
     fail "[bar] accepts $token without naming it, so new tokens do not need parser changes"
   fi
-done < <(grep -oE 'barToken\("[a-z-]+"' "$style" | sed 's/barToken("//;s/"//')
+done <<<"$tokens"
 pass "every [bar] token Style reads can be set from shell.toml"
