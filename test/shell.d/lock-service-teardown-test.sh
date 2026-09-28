@@ -39,7 +39,8 @@ function bodyOf(src, name, label) {
 // enabled and service-declaring. It is reached straight from pluginsChanged, so
 // `omarchy plugin disable omarchy.lock` gets there with no reload at all.
 const sync = bodyOf(shellQml, '_syncServices', 'sync guard')
-const syncDestroy = sync.indexOf('.destroy()')
+// The teardown's own destroy; the capability-change branch above it destroys too.
+const syncDestroy = sync.indexOf('inst.destroy()')
 
 // Finding the property name is not enough: `inst.sessionLockOwned !== true`
 // reads as present, sits before the destroy, and continues on exactly the
