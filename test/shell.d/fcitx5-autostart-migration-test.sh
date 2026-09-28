@@ -20,6 +20,7 @@ cat >"$fake_bin/systemctl" <<'STUB'
 printf 'systemctl %s\n' "$*" >>"$CALLS"
 case $* in
   "--user is-active --quiet graphical-session.target") [[ ${ACTIVE_SESSION:-no} == "yes" ]] ;;
+  "--user is-active --quiet omarchy-fcitx5.service") [[ $SERVICE_ACTIVE == "yes" ]] ;;
   "--user show --property MainPID --value omarchy-fcitx5.service") echo "$SERVICE_PID" ;;
   *) exit 1 ;;
 esac
@@ -28,7 +29,10 @@ STUB
 cat >"$fake_bin/pgrep" <<'STUB'
 #!/bin/bash
 
-[[ -n $FCITX5_PIDS ]] && printf '%s\n' $FCITX5_PIDS
+# Another user's fcitx5 is always running; only an unscoped search sees it.
+pids=$FCITX5_PIDS
+[[ $1 == "-u" ]] || pids+=" 300"
+[[ -n ${pids// /} ]] && printf '%s\n' $pids
 STUB
 
 cat >"$fake_bin/omarchy-restart-xcompose" <<'STUB'
@@ -45,7 +49,8 @@ run_migration() {
   ACTIVE_SESSION="${1:-no}" \
     RESTART_FAIL="${2:-no}" \
     FCITX5_PIDS="${3-100 200}" \
-    SERVICE_PID="${4:-0}" \
+    SERVICE_PID="${4:-200}" \
+    SERVICE_ACTIVE="${5:-yes}" \
     CALLS="$calls" \
     HOME="$test_home" \
     PATH="$fake_bin:$PATH" \
@@ -97,6 +102,9 @@ Exec=fcitx5 --replace
 EOF
 action_entry_before=$(sha256sum "$autostart_dir/action-only.desktop")
 
+printf '[Desktop Entry]\nName=No final newline\nExec=fcitx5 -d' >"$autostart_dir/no-newline.desktop"
+printf '[Desktop Entry]\nExec=fcitx5\nHidden=false' >"$autostart_dir/no-newline-hidden.desktop"
+
 run_migration no
 
 grep -qxF 'Hidden=true' "$autostart_dir/fcitx5.desktop" ||
@@ -108,6 +116,11 @@ grep -qxF 'Hidden=true' "$autostart_dir/input-method.desktop" ||
 [[ $(grep -c '^Hidden=' "$autostart_dir/empty-hidden.desktop") == 1 ]] &&
   grep -qxF 'Hidden=true' "$autostart_dir/empty-hidden.desktop" ||
   fail "migration replaces an empty Hidden key without duplicating it"
+grep -qxF 'Hidden=true' "$autostart_dir/no-newline.desktop" ||
+  fail "migration reads an Exec key on a final line without a newline"
+[[ $(grep -c '^Hidden=' "$autostart_dir/no-newline-hidden.desktop") == 1 ]] &&
+  grep -qxF 'Hidden=true' "$autostart_dir/no-newline-hidden.desktop" ||
+  fail "migration replaces a Hidden key on a final line without a newline" "$(cat "$autostart_dir/no-newline-hidden.desktop")"
 pass "migration disables competing fcitx5 autostarts without deleting them"
 
 [[ $(sha256sum "$autostart_dir/org.fcitx.Fcitx5.desktop") == "$stock_mask_before" ]] ||
@@ -141,11 +154,7 @@ pass "fcitx5 autostart migration is idempotent and retryable"
 
 run_migration yes no 200 200
 if grep -qFx 'omarchy-restart-xcompose' "$calls"; then
-  fail "migration restarts fcitx5 when the service already owns the only instance"
-fi
-run_migration yes no ""
-if grep -qFx 'omarchy-restart-xcompose' "$calls"; then
-  fail "migration restarts fcitx5 when none is running"
+  fail "migration restarts fcitx5 when the service already owns this user's only instance"
 fi
 pass "migration leaves a healthy fcitx5 service running"
 
@@ -153,7 +162,8 @@ if run_migration yes yes; then
   fail "migration reports success when the fcitx5 service repair fails"
 fi
 
-run_migration yes
+# The failed repair already killed the competing fcitx5 and left the service down.
+run_migration yes no "" 0 no
 grep -qFx 'omarchy-restart-xcompose' "$calls" ||
   fail "migration retries the service repair after a failure" "$(cat "$calls")"
 pass "migration keeps a failed service repair retryable"
