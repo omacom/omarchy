@@ -102,6 +102,9 @@ internet_probes() {
   local ip seen="" probes=()
 
   for ip in $(configured_dns_servers) "${fallback_probes[@]}"; do
+    # resolvectl prints servers as addr[:port][%ifname][#name], and `omarchy dns`
+    # writes its DNS-over-TLS servers with the #name. IPv6 is rejected either way.
+    ip=${ip%%[:%#]*}
     is_public_ipv4 "$ip" || continue
     [[ $seen == *" $ip "* ]] && continue
 

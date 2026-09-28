@@ -51,6 +51,14 @@ EOF
   fail "configured public resolvers are probed" "got: $(probes_for 'Global: 8.8.8.8 8.8.4.4 9.9.9.9')"
 pass "configured public resolvers are probed"
 
+# `omarchy dns Cloudflare` configures DNS-over-TLS servers, which resolvectl
+# prints with their server name attached, as it does a port or an interface.
+probes=$(probes_for 'Global: 1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com 2606:4700:4700::1111#cloudflare-dns.com')
+[[ $probes == "1.1.1.1 1.0.0.1 8.8.8.8" ]] || fail "configured DNS-over-TLS resolvers are probed" "got: $probes"
+probes=$(probes_for 'Link 2 (eth0): 8.8.4.4:9953 9.9.9.9%eth0 149.112.112.112:853#dns.quad9.net')
+[[ $probes == "8.8.4.4 9.9.9.9 149.112.112.112" ]] || fail "resolvers with a port or interface are probed" "got: $probes"
+pass "configured resolvers are probed whatever resolvectl appends to them"
+
 # `omarchy dns DHCP` typically yields a resolver inside the LAN. Probing it
 # would report the internet as reachable whenever the router is up.
 [[ $(probes_for 'Link 2 (wlp3s0): 192.168.1.4') == "1.1.1.1 8.8.8.8 9.9.9.9" ]] ||
