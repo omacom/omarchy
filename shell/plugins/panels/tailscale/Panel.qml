@@ -363,7 +363,7 @@ Panel {
     function onAccountsAccessDeniedChanged() { root.ensureCursor() }
   }
 
-  IpcHandler {
+  ShellIpc {
     target: root.ipcTarget
     function open(): void { root.open() }
     function close(): void { root.close() }
@@ -498,6 +498,7 @@ Panel {
           }
 
           Text {
+            textFormat: Text.PlainText
             visible: tailscale.actionStatus !== "" || tailscale.lastError !== ""
             width: parent.width
             text: tailscale.actionStatus !== "" ? tailscale.actionStatus : tailscale.lastError
@@ -725,14 +726,14 @@ Panel {
     id: phraseSwap
     PropertyAnimation {
       target: hero; property: "metaOpacity"
-      to: 0.0; duration: 180; easing.type: Easing.OutQuad
+      to: 0.0; duration: Style.duration(180); easing.type: Easing.OutQuad
     }
     ScriptAction {
       script: root.phraseIndex = (root.phraseIndex + 1) % root.activePhrases.length
     }
     PropertyAnimation {
       target: hero; property: "metaOpacity"
-      to: 1.0; duration: 260; easing.type: Easing.InQuad
+      to: 1.0; duration: Style.duration(260); easing.type: Easing.InQuad
     }
   }
 
@@ -833,7 +834,7 @@ Panel {
         opacity: accountRow.switchingAccount ? 0.45 : 1.0
 
         SequentialAnimation on opacity {
-          running: accountRow.switchingAccount
+          running: accountRow.switchingAccount && !Style.reduceMotion
           NumberAnimation { to: 1.0; duration: 420; easing.type: Easing.InOutQuad }
           NumberAnimation { to: 0.45; duration: 420; easing.type: Easing.InOutQuad }
           loops: Animation.Infinite
@@ -841,6 +842,7 @@ Panel {
       }
 
       Text {
+        textFormat: Text.PlainText
         text: accountRow.accountText
         color: root.foreground
         font.family: root.fontFamily
@@ -933,6 +935,7 @@ Panel {
       spacing: Style.space(8)
 
       Text {
+        textFormat: Text.PlainText
         text: tailscale.osIcon(peer ? peer.OS : "")
         color: root.foreground
         font.family: root.fontFamily
@@ -946,6 +949,7 @@ Panel {
         spacing: Style.space(1)
 
         Text {
+          textFormat: Text.PlainText
           Layout.fillWidth: true
           text: peerRow.peerName
           color: root.foreground
@@ -955,6 +959,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           Layout.fillWidth: true
           text: {
             var parts = []
@@ -1087,6 +1092,7 @@ Panel {
       spacing: Style.space(10)
 
       Text {
+        textFormat: Text.PlainText
         Layout.fillWidth: true
         text: copyChoice.label
         color: root.foreground
@@ -1134,6 +1140,7 @@ Panel {
 
       Text {
         id: exitNodeGlyph
+        textFormat: Text.PlainText
         text: exitNodeRow.addMullvad ? "+" : (peer && peer.Mullvad === true ? "󰖂" : "󱇢")
         color: exitNodeRow.activeExitNode || exitNodeRow.settingExitNode || exitNodeRow.addMullvad ? root.foreground : root.dim
         font.family: root.fontFamily
@@ -1143,7 +1150,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
 
         NumberAnimation on rotation {
-          running: exitNodeRow.settingExitNode
+          running: exitNodeRow.settingExitNode && !Style.reduceMotion
           from: 0
           to: 360
           duration: 900
@@ -1154,6 +1161,7 @@ Panel {
       }
 
       Text {
+        textFormat: Text.PlainText
         text: exitNodeRow.peerName
         color: root.foreground
         font.family: root.fontFamily
@@ -1224,6 +1232,7 @@ Panel {
         spacing: Style.space(1)
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           text: regionRow.regionName
           color: root.foreground
@@ -1234,6 +1243,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           text: regionRow.regionDetail
           visible: text !== ""

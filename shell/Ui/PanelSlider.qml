@@ -62,7 +62,7 @@ Item {
 
     Behavior on width {
       enabled: !root.dragging
-      NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
     }
   }
 
@@ -93,11 +93,11 @@ Item {
 
     Behavior on x {
       enabled: !root.dragging
-      NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
     }
 
     Behavior on scale {
-      NumberAnimation { duration: 110; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Style.duration(110); easing.type: Easing.OutCubic }
     }
   }
 
