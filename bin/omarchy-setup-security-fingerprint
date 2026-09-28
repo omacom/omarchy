@@ -18,7 +18,7 @@ setup_pam_config() {
   # $OMARCHY_PATH trees but leaves /usr/bin untouched.
   #
   # quiet_log because the gate is a predicate, not an action: exit 1 just means
-  # "lid is open, carry on to pam_fprintd". Without it pam_exec writes a NOTICE
+  # "lid is open, carry on to pam_fprintd". Without it pam_exec logs an error
   # ("failed: exit code 1") on every open-lid sudo and pkexec. quiet alone only
   # suppresses the terminal echo.
   local fprintd_gate="auth      [success=1 default=ignore] pam_exec.so quiet quiet_log /usr/bin/omarchy-hw-laptop-closed"
