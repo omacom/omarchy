@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Services.Pam
 import Quickshell.Wayland
 import qs.Commons
+import "KeyboardStateModel.js" as KeyboardStateModel
 
 Item {
   id: root
@@ -45,6 +46,12 @@ Item {
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
+  // Keyboard state for the lock view's badges. Hyprland has no event for the
+  // lock keys, so they are polled while the lock screen (or its preview) is
+  // up, and on every key event the view sees.
+  property bool capsLockOn: false
+  property bool numLockOn: true
+  property string layoutLabel: ""
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
@@ -129,6 +136,17 @@ Item {
 
   function refreshFingerprintStatus() {
     if (!fingerprintCheckProc.running) fingerprintCheckProc.running = true
+  }
+
+  function refreshKeyboardState() {
+    if (!keyboardStateProcess.running) keyboardStateProcess.running = true
+  }
+
+  function applyKeyboardState(text) {
+    var state = KeyboardStateModel.keyboardStateFromDevices(text)
+    capsLockOn = state.capsLockOn
+    numLockOn = state.numLockOn
+    layoutLabel = state.layoutLabel
   }
 
   function logEvent(event) {
@@ -336,6 +354,10 @@ Item {
         onSubmitPassword: function(password) { root.submitPassword(password) }
         onClearFailureRequested: root.failureMessage = ""
         onWakeRequested: root.runWake()
+        capsLockOn: root.capsLockOn
+        numLockOn: root.numLockOn
+        layoutLabel: root.layoutLabel
+        onKeyboardActivity: root.refreshKeyboardState()
       }
 
     }
@@ -364,6 +386,9 @@ Item {
       loadBackground: root.previewVisible
       powerSaverActive: root.powerSaverActive
       passwordText: ""
+      capsLockOn: root.capsLockOn
+      numLockOn: root.numLockOn
+      layoutLabel: root.layoutLabel
     }
 
     MouseArea {
@@ -541,6 +566,23 @@ Item {
     }
   }
 
+  Process {
+    id: keyboardStateProcess
+    command: ["hyprctl", "devices", "-j"]
+    stdout: StdioCollector {
+      onStreamFinished: root.applyKeyboardState(text)
+    }
+  }
+
+  Timer {
+    id: keyboardStateTimer
+    interval: 400
+    repeat: true
+    triggeredOnStart: true
+    running: root.locked || root.previewVisible
+    onTriggered: root.refreshKeyboardState()
+  }
+
   Timer {
     id: idleBlankTimer
     interval: 5000
@@ -665,6 +707,7 @@ Item {
         passwordPam: root.passwordPamConfigured,
         fingerprint: root.fingerprintConfigured,
         authenticating: root.authenticating,
+        keyboard: { capsLock: root.capsLockOn, numLock: root.numLockOn, layout: root.layoutLabel },
         lastEvent: root.lastEvent,
         lastEventAt: root.lastEventAt
       })

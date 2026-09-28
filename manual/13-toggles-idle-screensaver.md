@@ -99,4 +99,6 @@ The logo it draws is yours to change, under _Style > Screensaver_. Upload a png 
 
 `Super + Ctrl + L` locks the machine. That runs the lock screen from the Omarchy shell, blanks the display, resets your keyboard layout to the first one so you're not typing your password in the wrong alphabet, and — if you have it running — locks 1Password on the way out.
 
+If something is set that changes what your keys type, the lock screen says so above the password field: Caps Lock on, Num Lock off, a held Ctrl, Alt or Super, a second keyboard layout, and Shift while you hold it. The badges only appear when there's something to say.
+
 The lock screen takes a password, and it'll take a fingerprint too once you've set one up. That, and the other ways to authenticate, are covered in [hardware authentication](37-hardware-authentication.md).
