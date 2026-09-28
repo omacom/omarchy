@@ -16,6 +16,7 @@ STUB
 
 cat >"$tmp_dir/bin/sudo" <<'STUB'
 #!/bin/bash
+printf 'sudo %s\n' "$*" >>"$STUB_CALLS"
 [[ $STUB_SUDO_FAILS == "yes" ]] && exit 1
 exec "$@"
 STUB
@@ -106,7 +107,13 @@ output=$(run_restart_bluetooth restart yes yes yes 2>&1) && fail "restart blueto
 grep -q 'Could not restart bluetooth.service' <<<"$output" || fail "restart bluetooth explains a restart it could not run"
 pass "restart bluetooth fails when the service restart fails"
 
-grep -q '^modprobe' "$tmp_dir/calls" && fail "restart bluetooth stops before btusb when the restart failed"
+# Same refusal with nothing listed, which is the only arrangement where the
+# reload is otherwise reachable: escalating would ask for the password it was
+# just denied, twice over. Counting sudo is what catches that.
+reset_stubs
+run_restart_bluetooth never yes yes yes >/dev/null 2>&1 && fail "restart bluetooth stops before btusb when the restart failed"
+sudo_calls=$(grep -c '^sudo ' "$tmp_dir/calls" || true)
+(( sudo_calls == 1 )) || fail "restart bluetooth stops before btusb when the restart failed"
 pass "restart bluetooth stops before btusb when the restart failed"
 
 # bluetooth.service carries ConditionPathIsDirectory=/sys/class/bluetooth, so a

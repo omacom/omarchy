@@ -39,8 +39,10 @@ rfkill list bluetooth
 # one first. The restart is what the summary has always promised.
 echo -e "\nRestarting bluetooth service...\n"
 
+# A restart systemd began but could not finish has already stopped bluetoothd,
+# so this cannot promise that nothing changed.
 if ! sudo systemctl restart bluetooth.service; then
-  echo "Could not restart bluetooth.service. Bluetooth is unblocked; nothing else was changed." >&2
+  echo "Could not restart bluetooth.service. Check 'systemctl status bluetooth.service'." >&2
   exit 1
 fi
 
