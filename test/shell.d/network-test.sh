@@ -94,6 +94,18 @@ assertEqual(network.connectionKind(false, false, false), 'disconnected', 'networ
 assertEqual(network.connectionKind(true, true, true), 'ethernet', 'network prefers ethernet when multiple devices are online')
 assertEqual(network.connectionKind(false, true, false), 'wifi', 'network reports wifi from a connected access point')
 assertEqual(network.connectionKind(false, false, true), 'wifi', 'network reports wifi from a connected device when access points are missing')
+assert(
+  /wifiStationConnected: !!\(wifiDevice && wifiDevice\.connected\s*&& wifiDevice\.mode === WifiDeviceMode\.Station\)/.test(panelSource),
+  'network counts a connected Wi-Fi device as online only in station mode, not while it runs a hotspot'
+)
+assert(
+  /kind: Model\.connectionKind\([\s\S]*?!!connectedWifiNetwork,\s*wifiStationConnected\s*\)/.test(panelSource),
+  'network keeps the bar on Wi-Fi when the device is connected but no access point object is'
+)
+assert(
+  /connectionKey: kind === "wifi" && wifiDevice\n/.test(panelSource),
+  'network rechecks connectivity when Wi-Fi comes up without an access point object'
+)
 assertEqual(network.connectionSignalStrength(0.78, true), 78, 'network maps access-point signal strength to percent')
 assertEqual(network.connectionSignalStrength(null, true), 0, 'network keeps connected wifi online when signal strength is unknown')
 assertEqual(network.connectionSignalStrength(null, false), -1, 'network has no signal strength while disconnected')

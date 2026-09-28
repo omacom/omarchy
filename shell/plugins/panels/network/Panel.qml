@@ -439,12 +439,15 @@ Panel {
   // when both are up, matching the default-route device. Some NetworkManager
   // backends report the Wi-Fi device as connected before exposing the current
   // access point in the scan list, so keep the bar online from device state.
+  // Only in station mode: a card running a hotspot is connected with no uplink.
   readonly property var wiredDevice: findDevice(DeviceType.Wired)
-  readonly property bool wifiConnected: !!connectedWifiNetwork || !!(wifiDevice && wifiDevice.connected)
+  readonly property bool wifiStationConnected: !!(wifiDevice && wifiDevice.connected
+    && wifiDevice.mode === WifiDeviceMode.Station)
+  readonly property bool wifiConnected: !!connectedWifiNetwork || wifiStationConnected
   readonly property string kind: Model.connectionKind(
     !!(wiredDevice && wiredDevice.connected),
     !!connectedWifiNetwork,
-    !!(wifiDevice && wifiDevice.connected)
+    wifiStationConnected
   )
   readonly property int signalStrength: Model.connectionSignalStrength(
     connectedWifiNetwork ? connectedWifiNetwork.signalStrength : null,
@@ -468,8 +471,8 @@ Panel {
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
   readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
-  readonly property string connectionKey: kind === "wifi" && wifiDevice && connectedWifiNetwork
-    ? kind + ":" + wifiDevice.name + ":" + connectedWifiNetwork.name
+  readonly property string connectionKey: kind === "wifi" && wifiDevice
+    ? kind + ":" + wifiDevice.name + ":" + (connectedWifiNetwork ? connectedWifiNetwork.name : "")
     : (kind === "ethernet" && wiredDevice ? kind + ":" + wiredDevice.name : "")
 
   onConnectionKeyChanged: Qt.callLater(checkConnectivity)
