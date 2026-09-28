@@ -201,6 +201,23 @@ grep -q 'gave up on 0000:05:00.0 after 3 attempts, enumerated but was never clai
   fail "giving up names an unclaimed card as a driver problem" "$(cat "$hook_log")"
 pass "giving up on an enumerated card names it a driver problem"
 
+# The card is taken off the bus only to be rescanned, so the last attempt must
+# leave it on. A FIFO held open here counts every write to remove.
+make_mock_pci 0
+rm "$card_dir/remove"
+mkfifo "$card_dir/remove"
+exec {removes}<>"$card_dir/remove"
+printf '0000:05:00.0 0000:00:1c.7 rtw89_8852be\n' >"$hook_state"
+run_hook post
+remove_count=0
+while read -r -t 0.1 -u "$removes" _; do
+  (( ++remove_count ))
+done
+exec {removes}<&-
+(( remove_count == 2 )) ||
+  fail "giving up leaves an enumerated card on the bus" "removed $remove_count times"
+pass "giving up leaves an enumerated card on the bus"
+
 make_mock_pci
 rm "$mock_pci/0000:05:00.0"
 printf '0000:05:00.0 0000:00:1c.7 rtw89_8852be\n' >"$hook_state"

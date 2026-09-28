@@ -110,7 +110,8 @@ resume_card() {
       # in dmesg rather than at power management.
       outcome="enumerated but was never claimed by ${module:-its driver}"
       log "post: $card enumerated but no netdev appeared on attempt $try"
-      poke 1 "$PCI_DEVICES/$card/remove"
+      # Only take it off for another try; after the last, leave it for a manual reload.
+      (( try < 3 )) && poke 1 "$PCI_DEVICES/$card/remove"
     else
       # Never came back: the slot is still unpowered or the link is down.
       outcome="never reappeared on the bus"
