@@ -26,11 +26,18 @@ pass "the migration reuses the install leaf"
 
 make_sysfs() {
   local root=$1 online=${2:-0}
+  chmod -R u+w "$root" 2>/dev/null || true
+  rm -rf "$root"
   mkdir -p "$root/class/powercap/intel-rapl:0" "$root/class/power_supply/ADP1" "$root/class/power_supply/BAT0" "$root/devices/system/cpu/intel_pstate"
   printf '0' >"$root/devices/system/cpu/intel_pstate/no_turbo"
   printf '100' >"$root/devices/system/cpu/intel_pstate/max_perf_pct"
+  # Writable limits at the firmware defaults of a MacBookPro16,1, plus the
+  # read-only hardware ceiling the helper must never target.
+  printf '100000000' >"$root/class/powercap/intel-rapl:0/constraint_0_power_limit_uw"
+  printf '125000000' >"$root/class/powercap/intel-rapl:0/constraint_1_power_limit_uw"
   printf '45000000' >"$root/class/powercap/intel-rapl:0/constraint_0_max_power_uw"
   printf '0' >"$root/class/powercap/intel-rapl:0/constraint_1_max_power_uw"
+  chmod a-w "$root/class/powercap/intel-rapl:0/constraint_0_max_power_uw" "$root/class/powercap/intel-rapl:0/constraint_1_max_power_uw"
   printf 'Mains' >"$root/class/power_supply/ADP1/type"
   printf '%s' "$online" >"$root/class/power_supply/ADP1/online"
   printf 'Battery' >"$root/class/power_supply/BAT0/type"
@@ -41,9 +48,15 @@ run_helper() {
 }
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+trap 'chmod -R u+w "$test_tmp"; rm -rf "$test_tmp"' EXIT
 sysfs="$test_tmp/sys"
 state_dir="$test_tmp/state"
+rapl="$sysfs/class/powercap/intel-rapl:0"
+
+reset_sysfs() {
+  chmod -R u+w "$sysfs" 2>/dev/null || true
+  rm -rf "$sysfs" "$state_dir"
+}
 
 make_sysfs "$sysfs" 0
 run_helper 0 >/dev/null
@@ -51,16 +64,20 @@ run_helper 0 >/dev/null
   fail "battery state disables turbo"
 [[ $(cat "$sysfs/devices/system/cpu/intel_pstate/max_perf_pct") == 50 ]] ||
   fail "battery state caps max performance at 50%"
-[[ $(cat "$sysfs/class/powercap/intel-rapl:0/constraint_0_max_power_uw") == 25000000 ]] ||
+[[ $(cat "$rapl/constraint_0_power_limit_uw") == 25000000 ]] ||
   fail "battery state caps PL1 at 25W"
-[[ $(cat "$sysfs/class/powercap/intel-rapl:0/constraint_1_max_power_uw") == 35000000 ]] ||
+[[ $(cat "$rapl/constraint_1_power_limit_uw") == 35000000 ]] ||
   fail "battery state caps PL2 at 35W"
+[[ $(cat "$rapl/constraint_0_max_power_uw") == 45000000 && $(cat "$rapl/constraint_1_max_power_uw") == 0 ]] ||
+  fail "battery state wrote the read-only RAPL ceiling instead of the limit"
 [[ $(cat "$state_dir/no-turbo") == 0 ]] ||
   fail "first cap saves the live AC no-turbo default"
 [[ $(cat "$state_dir/max-pct") == 100 ]] ||
   fail "first cap saves the live AC max-perf-pct default"
-[[ $(cat "$state_dir/pl1") == 45000000 ]] ||
-  fail "first cap saves the live AC PL1 default"
+[[ $(cat "$state_dir/pl1") == 100000000 ]] ||
+  fail "first cap saves the live AC PL1 limit, not the ceiling"
+[[ $(cat "$state_dir/pl2") == 125000000 ]] ||
+  fail "first cap saves the live AC PL2 limit"
 pass "battery state caps turbo, frequency, PL1, and PL2 and saves AC defaults"
 
 run_helper 1 >/dev/null
@@ -68,9 +85,9 @@ run_helper 1 >/dev/null
   fail "AC state restores no-turbo"
 [[ $(cat "$sysfs/devices/system/cpu/intel_pstate/max_perf_pct") == 100 ]] ||
   fail "AC state restores max-perf-pct"
-[[ $(cat "$sysfs/class/powercap/intel-rapl:0/constraint_0_max_power_uw") == 45000000 ]] ||
+[[ $(cat "$rapl/constraint_0_power_limit_uw") == 100000000 ]] ||
   fail "AC state restores PL1"
-[[ $(cat "$sysfs/class/powercap/intel-rapl:0/constraint_1_max_power_uw") == 0 ]] ||
+[[ $(cat "$rapl/constraint_1_power_limit_uw") == 125000000 ]] ||
   fail "AC state restores PL2"
 pass "AC state restores the saved policy"
 
@@ -83,13 +100,21 @@ run_helper >/dev/null
   fail "arg-less run re-reads the charging state"
 pass "arg-less runs follow the power-supply state"
 
-rm -rf "$sysfs" "$state_dir"
+reset_sysfs
 mkdir -p "$sysfs/class/power_supply/ADP1"
 printf 'Mains' >"$sysfs/class/power_supply/ADP1/type"
 run_helper 0 >/dev/null
 pass "helper stays inert without Intel pstate"
 
-rm -rf "$sysfs"
+reset_sysfs
+make_sysfs "$sysfs" 0
+rm "$sysfs/devices/system/cpu/intel_pstate/no_turbo"
+run_helper 0 >/dev/null || fail "helper fails where intel_pstate lacks no_turbo"
+[[ $(cat "$sysfs/devices/system/cpu/intel_pstate/max_perf_pct") == 100 ]] ||
+  fail "helper capped a machine whose intel_pstate lacks no_turbo"
+pass "helper stays inert without the intel_pstate knobs"
+
+reset_sysfs
 make_sysfs "$sysfs" 0
 rm -rf "$sysfs/class/power_supply/BAT0"
 run_helper 0 >/dev/null
@@ -100,34 +125,35 @@ pass "helper stays inert without a battery"
 if run_helper 2 >/dev/null 2>&1; then fail "helper rejects states other than 0/1"; fi
 pass "helper rejects invalid states"
 
-rm -rf "$sysfs" "$state_dir"
+reset_sysfs
 make_sysfs "$sysfs" 0
-chmod a-w "$sysfs/class/powercap/intel-rapl:0/constraint_0_max_power_uw" "$sysfs/class/powercap/intel-rapl:0/constraint_1_max_power_uw"
-run_helper 0 >/dev/null 2>"$test_tmp/stderr" || fail "read-only RAPL aborts the whole cap"
-grep -Fq 'PL1 not writable' "$test_tmp/stderr" || fail "read-only RAPL warns loudly"
+chmod a-w "$rapl/constraint_0_power_limit_uw" "$rapl/constraint_1_power_limit_uw"
+run_helper 0 >/dev/null 2>"$test_tmp/stderr" || fail "BIOS-locked RAPL aborts the whole cap"
+grep -Fq 'PL1 not writable' "$test_tmp/stderr" || fail "BIOS-locked RAPL warns loudly"
 [[ $(cat "$sysfs/devices/system/cpu/intel_pstate/no_turbo") == 1 ]] ||
-  fail "read-only RAPL skips the turbo and frequency cap"
+  fail "BIOS-locked RAPL skips the turbo cap"
 [[ $(cat "$sysfs/devices/system/cpu/intel_pstate/max_perf_pct") == 50 ]] ||
-  fail "read-only RAPL skips the frequency cap"
-run_helper 1 >/dev/null 2>&1
+  fail "BIOS-locked RAPL skips the frequency cap"
+run_helper 1 >/dev/null 2>&1 || fail "AC restore fails when RAPL is BIOS-locked"
 [[ $(cat "$sysfs/devices/system/cpu/intel_pstate/no_turbo") == 0 ]] ||
-  fail "AC restore fails when RAPL is read-only"
+  fail "AC restore skips no-turbo when RAPL is BIOS-locked"
 [[ $(cat "$sysfs/devices/system/cpu/intel_pstate/max_perf_pct") == 100 ]] ||
-  fail "AC restore fails when RAPL is read-only"
-pass "read-only RAPL warns but still caps turbo and frequency"
+  fail "AC restore skips max-perf-pct when RAPL is BIOS-locked"
+pass "BIOS-locked RAPL warns but still caps turbo and frequency"
 
-rm -rf "$sysfs" "$state_dir"
+reset_sysfs
 make_sysfs "$sysfs" 0
-rm "$sysfs/class/powercap/intel-rapl:0/constraint_0_max_power_uw" "$sysfs/class/powercap/intel-rapl:0/constraint_1_max_power_uw"
-run_helper 0 >/dev/null 2>&1 || fail "missing RAPL constraints abort the cap"
-[[ $(cat "$state_dir/pl1") == unwritable ]] ||
-  fail "missing RAPL constraints are recorded"
-[[ $(cat "$state_dir/pl2") == unwritable ]] ||
-  fail "missing RAPL constraints are recorded"
-run_helper 1 >/dev/null 2>&1 || fail "AC restore fails when RAPL was never readable"
-pass "missing RAPL constraints are recorded and skipped"
+rm -f "$rapl/"constraint_*
+run_helper 0 >/dev/null 2>"$test_tmp/stderr" || fail "missing RAPL aborts the cap"
+grep -Fq 'PL1 not available' "$test_tmp/stderr" || fail "missing RAPL warns"
+[[ ! -e $state_dir/pl1 && ! -e $state_dir/pl2 ]] ||
+  fail "missing RAPL saves a bogus AC limit"
+[[ $(cat "$sysfs/devices/system/cpu/intel_pstate/max_perf_pct") == 50 ]] ||
+  fail "missing RAPL skips the frequency cap"
+run_helper 1 >/dev/null 2>&1 || fail "AC restore fails without RAPL"
+pass "missing RAPL is skipped and never restored"
 
-rm -rf "$sysfs" "$state_dir"
+reset_sysfs
 make_sysfs "$sysfs" 0
 mkdir -p "$state_dir"
 printf '0' >"$state_dir/no-turbo"

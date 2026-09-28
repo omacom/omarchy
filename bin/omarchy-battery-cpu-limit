@@ -13,13 +13,17 @@
 # restores the saved AC policy when the charger returns.
 #
 # Invoked as root from the udev power-supply rule (with the Mains online
-# state), from the system-sleep hook (no args: re-reads the state), and from
-# the boot service. Exits quietly on machines without Intel pstate/RAPL or
+# state; its add event covers boot) and from the system-sleep hook (no args:
+# re-reads the state). Exits quietly on machines without Intel pstate or
 # without a battery, so the udev rule can ship everywhere.
 #
-# RAPL limits are best-effort: some firmware (e.g. Apple T2) exposes the
-# powercap constraints read-only, in which case no-turbo + max-perf-pct still
-# bound the draw and a warning is logged.
+# The RAPL package limits (PL1 long-term, PL2 short-term) are what actually
+# bound the draw: no-turbo and max-perf-pct only cap frequency, and an 8-core
+# i9 at base clock still pulls far more than a battery-safe 25-35W. They are
+# written through constraint_*_power_limit_uw; constraint_*_max_power_uw is
+# the read-only hardware ceiling. RAPL is best-effort: it can be absent, or
+# locked by the BIOS, in which case a warning is logged and the frequency cap
+# still applies.
 
 set -euo pipefail
 
@@ -28,8 +32,8 @@ state_dir="${OMARCHY_BATTERY_CPU_STATE_DIR:-/var/lib/omarchy/battery-cpu-limit}"
 
 pstate_no_turbo="$sys_root/devices/system/cpu/intel_pstate/no_turbo"
 pstate_max_pct="$sys_root/devices/system/cpu/intel_pstate/max_perf_pct"
-rapl_pl1="$sys_root/class/powercap/intel-rapl:0/constraint_0_max_power_uw"
-rapl_pl2="$sys_root/class/powercap/intel-rapl:0/constraint_1_max_power_uw"
+rapl_pl1="$sys_root/class/powercap/intel-rapl:0/constraint_0_power_limit_uw"
+rapl_pl2="$sys_root/class/powercap/intel-rapl:0/constraint_1_power_limit_uw"
 
 bat_max_pct=50
 bat_pl1=25000000
@@ -39,8 +43,6 @@ bat_pl2=35000000
 # state files exist.
 ac_no_turbo_fallback=0
 ac_max_pct_fallback=100
-ac_pl1_fallback=45000000
-ac_pl2_fallback=0
 
 fail() {
   echo "omarchy-battery-cpu-limit: error: $*" >&2
@@ -62,7 +64,7 @@ else
   done
 fi
 
-[[ -d "$sys_root/devices/system/cpu/intel_pstate" ]] || exit 0
+[[ -f $pstate_no_turbo && -f $pstate_max_pct ]] || exit 0
 
 battery_found=0
 for supply in "$sys_root"/class/power_supply/*; do
@@ -73,20 +75,19 @@ done
 # Save the AC policy before anything is capped: at that point the live values
 # are still the firmware/boot policy, including on a boot that starts on
 # battery. Each knob is saved individually so a later version that tracks a new
-# knob never re-snapshots (and contaminates) the knobs it already saved.
+# knob never re-snapshots (and contaminates) the knobs it already saved. PL1
+# and PL2 are only saved when RAPL exists, and only restored when saved.
 mkdir -p "$state_dir"
-if [[ ! -f $state_dir/no-turbo ]]; then
-  cat "$pstate_no_turbo" >"$state_dir/no-turbo"
-fi
-if [[ ! -f $state_dir/max-pct ]]; then
-  cat "$pstate_max_pct" >"$state_dir/max-pct"
-fi
-if [[ ! -f $state_dir/pl1 ]]; then
-  cat "$rapl_pl1" >"$state_dir/pl1" 2>/dev/null || printf 'unwritable' >"$state_dir/pl1"
-fi
-if [[ ! -f $state_dir/pl2 ]]; then
-  cat "$rapl_pl2" >"$state_dir/pl2" 2>/dev/null || printf 'unwritable' >"$state_dir/pl2"
-fi
+save_knob() {
+  local path=$1 name=$2
+  [[ -f $state_dir/$name ]] && return 0
+  [[ -r $path ]] || return 0
+  cat "$path" >"$state_dir/$name"
+}
+save_knob "$pstate_no_turbo" no-turbo
+save_knob "$pstate_max_pct" max-pct
+save_knob "$rapl_pl1" pl1
+save_knob "$rapl_pl2" pl2
 
 set_value() {
   local path=$1 value=$2 label=$3 actual
@@ -96,9 +97,13 @@ set_value() {
   echo "omarchy-battery-cpu-limit: $label=$actual"
 }
 
-# RAPL is firmware-locked read-only on some machines: try it, warn, move on.
+# RAPL can be absent or BIOS-locked: try it, warn, move on.
 try_rapl() {
   local path=$1 value=$2 label=$3 actual
+  if [[ ! -e $path ]]; then
+    echo "omarchy-battery-cpu-limit: warning: $label not available, skipping" >&2
+    return 0
+  fi
   if ! echo "$value" >"$path" 2>/dev/null; then
     echo "omarchy-battery-cpu-limit: warning: $label not writable, skipping" >&2
     return 0
@@ -124,18 +129,14 @@ else
   echo "omarchy-battery-cpu-limit: on AC, restoring saved policy"
   want_turbo=$ac_no_turbo_fallback
   want_pct=$ac_max_pct_fallback
-  want_pl1=$ac_pl1_fallback
-  want_pl2=$ac_pl2_fallback
   [[ -r $state_dir/no-turbo ]] && want_turbo=$(cat "$state_dir/no-turbo")
   [[ -r $state_dir/max-pct ]] && want_pct=$(cat "$state_dir/max-pct")
-  [[ -r $state_dir/pl1 ]] && want_pl1=$(cat "$state_dir/pl1")
-  [[ -r $state_dir/pl2 ]] && want_pl2=$(cat "$state_dir/pl2")
   set_value "$pstate_no_turbo" "$want_turbo" no-turbo
   set_value "$pstate_max_pct" "$want_pct" max-perf-pct
-  if [[ $want_pl1 != unwritable ]]; then
-    try_rapl "$rapl_pl1" "$want_pl1" PL1
+  if [[ -r $state_dir/pl1 ]]; then
+    try_rapl "$rapl_pl1" "$(cat "$state_dir/pl1")" PL1
   fi
-  if [[ $want_pl2 != unwritable ]]; then
-    try_rapl "$rapl_pl2" "$want_pl2" PL2
+  if [[ -r $state_dir/pl2 ]]; then
+    try_rapl "$rapl_pl2" "$(cat "$state_dir/pl2")" PL2
   fi
 fi

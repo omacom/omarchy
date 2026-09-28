@@ -4,5 +4,5 @@
 # caps frequency or package power, so cap the package while discharging and
 # restore the AC policy when the charger returns. add covers boot (fired by
 # systemd-udev-trigger), change covers plug/unplug. The helper exits quietly
-# on machines without Intel RAPL or without a battery.
+# on machines without Intel pstate or without a battery.
 SUBSYSTEM=="power_supply", ATTR{type}=="Mains", ACTION=="add|change", RUN+="/usr/bin/omarchy-battery-cpu-limit $attr{online}"
