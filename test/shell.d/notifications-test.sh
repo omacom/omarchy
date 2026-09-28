@@ -377,6 +377,12 @@ assert(
   !notifications.isDuplicatePopup(heyReminder, Object.assign({}, heyReminder, { originalId: 21, app: 'Slack' })),
   'notifications keep identical text from a different sender'
 )
+assert(
+  !notifications.isDuplicatePopup(
+    { originalId: 30, app: 'omarchy-action', summary: 'Screen recording saved', body: '', image: '/tmp/a.png', execArgv: '["mpv","--","/tmp/a.mp4"]' },
+    { originalId: 31, app: 'omarchy-action', summary: 'Screen recording saved', body: '', image: '/tmp/b.png', execArgv: '["mpv","--","/tmp/b.mp4"]' }),
+  'notifications keep same-text toasts that preview and open different files'
+)
 
 const settings = notifications.parseSettings(JSON.stringify({ version: 3, dnd: true }))
 assertEqual(settings.dnd, true, 'notifications parse the persisted DND state')
@@ -668,6 +674,10 @@ assert(
 assert(
   /removePopupsByOriginalId\(snapshot\.originalId, [^\n]*\)\n\s*removeDuplicatePopups\(snapshot\)\n\s*popupModel\.insert\(0, snapshot\)/.test(serviceQml),
   'notifications service replaces an on-screen duplicate before showing the new copy'
+)
+assert(
+  /isDuplicatePopup\(row, snapshot\) \|\| isRestoredRow\(row\)\) continue\n\s*var ref = liveRefs\[row\.originalId\]\n\s*if \(!ref\) continue/.test(serviceQml),
+  'notifications service only collapses duplicates of toasts still backed by a live notification'
 )
 assert(
   /if \(signal && typeof signal\.connect === "function"\) signal\.connect\(refresh\)/.test(serviceQml),

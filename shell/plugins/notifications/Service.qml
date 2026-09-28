@@ -315,21 +315,21 @@ Item {
   // same way a replaces_id update would: the newest copy stays, its timer
   // starts fresh, and history keeps a single entry. The superseded copy is
   // dismissed at the server so its sender stops holding it open.
+  // Only toasts with a live notification behind them qualify: a restored or
+  // replayed row shares its images with an entry already in history, and
+  // deleting its file here would leave that entry pointing at nothing.
   function removeDuplicatePopups(snapshot) {
     for (var i = popupModel.count - 1; i >= 0; i--) {
       var row = popupModel.get(i)
-      if (!NotificationLogic.isDuplicatePopup(row, snapshot)) continue
-      var restored = isRestoredRow(row)
-      var ref = restored ? null : liveRefs[row.originalId]
+      if (!NotificationLogic.isDuplicatePopup(row, snapshot) || isRestoredRow(row)) continue
+      var ref = liveRefs[row.originalId]
+      if (!ref) continue
       deletePopupFileFor(row)
-      if (restored) delete restoredPopups[NotificationLogic.popupFileName(row)]
       popupModel.remove(i)
-      if (ref) {
-        try {
-          if (ref.tracked) ref.dismiss()
-        } catch (e) {
-          // Object already torn down by the server — nothing to dismiss.
-        }
+      try {
+        if (ref.tracked) ref.dismiss()
+      } catch (e) {
+        // Object already torn down by the server — nothing to dismiss.
       }
     }
   }
