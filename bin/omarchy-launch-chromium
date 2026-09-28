@@ -16,18 +16,20 @@
 # See: https://github.com/basecamp/omarchy/issues/4901
 
 MESA_EGL=/usr/share/glvnd/egl_vendor.d/50_mesa.json
-if [[ -f $MESA_EGL ]]; then
-  export __EGL_VENDOR_LIBRARY_FILENAMES="$MESA_EGL"
-fi
 
-# Match VA-API to the GPU driving the display. Read sysfs rather than lspci,
-# which wakes a runtime-suspended NVIDIA GPU on every launch.
+# Steer EGL and VA-API only while an Intel/AMD GPU drives the display, so a
+# laptop later switched to NVIDIA-only keeps NVIDIA EGL. Read sysfs rather than
+# lspci, which wakes a runtime-suspended NVIDIA GPU on every launch.
 for device in /sys/bus/pci/devices/*; do
   [[ -f $device/boot_vga ]] && (( $(< "$device/boot_vga") == 1 )) || continue
   case $(< "$device/vendor") in
     0x8086) export LIBVA_DRIVER_NAME=iHD ;;
     0x1002) export LIBVA_DRIVER_NAME=radeonsi ;;
+    *) continue ;;
   esac
+  if [[ -f $MESA_EGL ]]; then
+    export __EGL_VENDOR_LIBRARY_FILENAMES="$MESA_EGL"
+  fi
 done
 
 exec /usr/bin/chromium "$@"
