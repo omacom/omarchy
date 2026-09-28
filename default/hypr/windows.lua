@@ -18,14 +18,6 @@ o.window(
   { no_focus = true }
 )
 
--- A fullscreen client that re-activates, or that inhibits shortcuts, takes
--- the keyboard back the moment the menu or an OSD opens. The overlay then
--- closes. Fullscreen does not get to do either.
-o.window({ fullscreen = true }, {
-  focus_on_activate = false,
-  no_shortcuts_inhibit = true,
-})
-
 -- App-specific tweaks (may remove default-opacity tag).
 require("default.hypr.apps")
 

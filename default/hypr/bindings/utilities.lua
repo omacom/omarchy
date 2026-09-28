@@ -1,4 +1,4 @@
-o.bind("SUPER + SPACE", "Omarchy menu", { menu = "root" }, { dont_inhibit = true })
+o.bind("SUPER + SPACE", "Omarchy menu", { menu = "root" })
 o.bind("SUPER + ALT + SPACE", "Apps menu", { menu = "apps" })
 o.bind("SUPER + CTRL + E", "Emojis", { panel = "omarchy.emojis" })
 o.bind("SUPER + CTRL + C", "Capture menu", { menu = "capture" })
