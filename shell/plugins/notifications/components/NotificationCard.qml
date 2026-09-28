@@ -64,10 +64,11 @@ BorderSurface {
     // Quickshell hands an absolute image-path hint over as image://icon/<path>.
     if (value.indexOf("image://icon//") === 0) return existingFileUrl(value.substring(13))
     if (value.indexOf("image://") === 0) return value
-    // Only percent-decode explicit file:// URIs; raw absolute paths are
+    // Only percent-decode explicit file: URIs; raw absolute paths are
     // already literal filesystem paths where %20 is a real filename char.
-    if (value.indexOf("file://") === 0) {
-      var pathStr = value.substring(7)
+    if (value.indexOf("file:/") === 0) {
+      // A raw ? or # starts the query or fragment; one in a filename arrives encoded.
+      var pathStr = value.replace(/^file:(\/\/)?/, "").replace(/[?#].*$/, "")
       try { pathStr = decodeURIComponent(pathStr) } catch (e) {}
       return existingFileUrl(pathStr)
     }
