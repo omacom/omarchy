@@ -308,10 +308,11 @@ run_cleanup 4433
   fail "the cleanup empties a symlinked config through the link" "$(cat "$test_tmp/real/brcmfmac.conf")"
 pass "the cleanup writes through a symlinked config"
 
-# The Intel Macs the quirk was written for still need it.
+# The Intel Macs the quirk was written for still need it. BCM4378 spans the T2
+# era too, so an Intel Mac can carry a part the cleanup's hardware gate admits.
 rm -rf "$test_tmp/etc"
 write_quirk_conf
-run_cleanup 4488 x86_64
+run_cleanup 4425 x86_64
 grep -qx 'options brcmfmac feature_disable=0x82000' "$conf" ||
   fail "an Intel Mac keeps the quirk" "$(cat "$conf")"
 [[ ! -s $calls ]] || fail "the cleanup escalates nothing on an Intel Mac" "$(cat "$calls")"
