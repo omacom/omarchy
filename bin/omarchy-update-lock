@@ -36,6 +36,8 @@ case "${1:-}" in
     fi
 
     export OMARCHY_UPDATE_LOCKED=1
+    # A closing terminal signals the whole group; hold the lock until the update's own cleanup finishes.
+    trap : HUP TERM
     "$@" {OMARCHY_UPDATE_LOCK_FD}>&-
     ;;
   *)

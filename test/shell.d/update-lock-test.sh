@@ -434,6 +434,31 @@ if run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-lock" held; then
 fi
 pass "omarchy-update-lock held is only true for the locked child"
 
+# Closing the terminal signals the wrapper and the update together. The wrapper
+# must keep the lock while the update runs its own hangup cleanup.
+hup_cleaning="$test_tmp/hup-cleaning"
+XDG_RUNTIME_DIR="$runtime_dir" setsid "$SUDO_TEST_ROOT/bin/omarchy-update-lock" run \
+  bash -c 'trap "touch \"\$1\"; sleep 1; exit 1" HUP; sleep 30 & wait' bash "$hup_cleaning" </dev/null >/dev/null 2>&1 &
+hup_wrapper_pid=$!
+for _ in {1..50}; do
+  pgrep -P "$hup_wrapper_pid" >/dev/null && break
+  sleep 0.02
+done
+sleep 0.2
+kill -HUP -- "-$hup_wrapper_pid"
+for _ in {1..50}; do
+  [[ -e $hup_cleaning ]] && break
+  sleep 0.02
+done
+[[ -e $hup_cleaning ]] || fail "locked child runs its hangup cleanup"
+if flock -n "$runtime_dir/$update_lock_name" true; then
+  fail "omarchy-update-lock keeps the lock while the child cleans up after a hangup"
+fi
+wait "$hup_wrapper_pid" 2>/dev/null || true
+flock -n "$runtime_dir/$update_lock_name" true ||
+  fail "omarchy-update-lock releases the lock once the child exits after a hangup"
+pass "omarchy-update-lock holds the lock through the update's hangup cleanup"
+
 # The hidden helper also establishes its own boundary when invoked directly.
 reset_boundary
 touch "$SUDO_TEST_CACHE"
