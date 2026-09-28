@@ -10,6 +10,9 @@ trap 'rm -rf "$test_tmp"' EXIT
 mock_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
 mkdir -p "$mock_bin" "$test_home/.local/share/applications"
+# Keep the launcher away from the running browser's singleton socket, which it
+# would otherwise hand these test URLs to.
+export XDG_CONFIG_HOME="$test_home/.config" XDG_DATA_HOME="$test_home/.local/share"
 
 cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
 [Desktop Entry]
@@ -79,3 +82,16 @@ grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
   fail "browser launcher focuses the browser resolved from the HTTPS handler"
 
 pass "browser launcher follows opened links to the browser workspace"
+
+rm -f "$launch_log"
+cat >"$mock_bin/omarchy-cmd-browser-handoff" <<'SH'
+#!/bin/bash
+[[ $1 == "chromium" && $2 == "https://example.test/running" ]]
+SH
+chmod +x "$mock_bin/omarchy-cmd-browser-handoff"
+
+HOME="$test_home" PATH="$mock_bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  OMARCHY_TEST_BROWSER_FOCUS="$focus_log" bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/running"
+
+[[ ! -e $launch_log ]] || fail "browser launcher starts no browser when the running one takes the URL"
+pass "browser launcher hands a URL to the running browser"
