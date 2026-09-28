@@ -61,6 +61,9 @@ linux-firmware-marvell
 dell-xps-touchpad-haptics
 dell-xps13-sidecar-amps
 
+# VMware guest support packages
+open-vm-tools
+
 # Speaker tunings (LV2 limiter every tuning ends in)
 lsp-plugins-lv2
 

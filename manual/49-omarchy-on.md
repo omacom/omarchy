@@ -14,7 +14,7 @@ VirtualBox is a popular VM runner. [You can run Omarchy inside that too](https:/
 
 ### VMware Workstation on Windows 11
 
-Another popular VM runner for Windows. [Omarchy has been setup inside of that as well](https://github.com/omacom/omarchy/discussions/572).
+Omarchy detects VMware guests. The installer adds `open-vm-tools` (display resizing, host time sync, host-driven power operations, shared folders) and starts the desktop at 1x, because the virtual display reports no physical size for Hyprland's automatic scaling to work from. Wayland apps run on software OpenGL (llvmpipe) inside VMware, because the vmwgfx driver hands Hyprland GPU buffers it cannot release, which kills every hardware-rendered app on its first frame until [hyprwm/aquamarine#360](https://github.com/hyprwm/aquamarine/issues/360) is fixed. Leave 3D acceleration enabled in the VM settings; Hyprland itself still uses it. The [original setup notes](https://github.com/omacom/omarchy/discussions/572) cover creating the VM on a Windows 11 host.
 
 ### Steam Deck
 
