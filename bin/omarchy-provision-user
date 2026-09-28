@@ -140,7 +140,10 @@ downloads_dir=$(xdg_user_dir DOWNLOAD Downloads)
 pictures_dir=$(xdg_user_dir PICTURES Pictures)
 videos_dir=$(xdg_user_dir VIDEOS Videos)
 
-mkdir -p "$downloads_dir" "$pictures_dir" "$videos_dir" ~/.config/gtk-3.0
+mkdir -p ~/.config/gtk-3.0
+# A configured directory can live on a drive that isn't mounted yet, and that
+# must not stop the rest of provisioning.
+mkdir -p "$downloads_dir" "$pictures_dir" "$videos_dir" || true
 xdg-user-dirs-update --set TEMPLATES "$HOME"
 xdg-user-dirs-update --set PUBLICSHARE "$HOME"
 xdg-user-dirs-update --set DESKTOP "$HOME"

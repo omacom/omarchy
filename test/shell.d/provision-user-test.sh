@@ -98,3 +98,15 @@ bookmarked "$custom_home" "$custom_home/media/my%20clips" Videos ||
   fail "omarchy-provision-user bookmarks the configured video directory, percent-encoded"
 
 pass "omarchy-provision-user bookmarks the configured XDG directories"
+
+# A configured directory that cannot be created, like one on a drive that is
+# not mounted, must not abort provisioning before the rest of it runs.
+locked_home="$test_tmp/locked"
+mkdir -p "$locked_home/.config" "$locked_home/nas"
+chmod 555 "$locked_home/nas"
+echo 'XDG_PICTURES_DIR="$HOME/nas/pics"' >"$locked_home/.config/user-dirs.dirs"
+
+provision "$locked_home" 2>/dev/null ||
+  fail "omarchy-provision-user finishes when a configured directory cannot be created"
+
+pass "omarchy-provision-user survives a configured directory it cannot create"
