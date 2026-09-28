@@ -92,6 +92,7 @@ if [[ $ac_online == "true" && -n $threshold_end ]]; then
   # adapter, or inhibit-charge. Only call it a hold when a real limit is
   # configured and the level sits inside its band.
   if [[ $state == "pending-charge" ]] &&
+    (( threshold_end >= 1 )) &&
     (( threshold_end < 99 )) &&
     (( percentage >= ${threshold_start:-0} && percentage <= threshold_end )); then
     charge_holding=true

@@ -109,6 +109,7 @@ if (typeof module !== "undefined") {
     parseProfiles: parseProfiles,
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
+    chargeLimitsInBand: chargeLimitsInBand,
     chargeThresholdActive: chargeThresholdActive,
     batteryIcon: batteryIcon,
     modeLabel: modeLabel

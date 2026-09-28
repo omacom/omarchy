@@ -142,9 +142,15 @@ Panel {
   function refresh() {
     if (!batteryPresent) return
 
-    if (!batteryProc.running) batteryProc.running = true
+    refreshBattery()
     if (!profilesProc.running) profilesProc.running = true
     if (!systemProc.running) systemProc.running = true
+  }
+
+  function refreshBattery() {
+    if (!batteryPresent) return
+
+    if (!batteryProc.running) batteryProc.running = true
   }
 
   function updateKeyValue(raw, targetName) {
@@ -206,7 +212,12 @@ Panel {
     }
   }
 
-  onBatteryPresentChanged: if (!batteryPresent) close()
+  onBatteryPresentChanged: {
+    if (!batteryPresent) close()
+    else refreshBattery()
+  }
+
+  Component.onCompleted: refreshBattery()
 
   visible: batteryPresent
   implicitWidth: batteryPresent ? button.implicitWidth : 0
@@ -236,6 +247,10 @@ Panel {
   }
 
   Timer { interval: 5000; running: root.opened; repeat: true; onTriggered: root.refresh() }
+
+  // The bar icon needs limits even while the panel is closed; poll the
+  // battery script only so a real PendingCharge hold shows correctly.
+  Timer { interval: 30000; running: root.batteryPresent && !root.opened; repeat: true; onTriggered: root.refreshBattery() }
 
   // Rotate the status phrase while the panel is open and we're in a
   // rotating state (charging or on battery). The text swap is wrapped in a
