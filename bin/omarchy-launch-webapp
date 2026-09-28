@@ -3,9 +3,7 @@
 # omarchy:summary=Launch a URL as a web app in the default supported browser
 # omarchy:args=<url>
 
-# The session sets BROWSER to omarchy-launch-browser, which sends xdg-settings
-# down a slower path (~100ms against ~30ms) to the same answer.
-browser=$(env -u BROWSER xdg-settings get default-web-browser)
+browser=$(omarchy-cmd-default-browser)
 
 case $browser in
 google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
