@@ -70,6 +70,7 @@ lazygit
 less
 libsecret
 libvips
+libvterm
 libyaml
 libreoffice-fresh
 llvm

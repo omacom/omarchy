@@ -2,6 +2,8 @@
 
 # omarchy:summary=Install Zed Editor and configure it with the current Omarchy theme
 
+set -e
+
 echo "Installing Zed Editor..."
 omarchy-pkg-add zed omazed
 
