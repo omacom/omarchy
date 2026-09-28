@@ -10,9 +10,10 @@ emoji="${1:-}"
 [[ -n $emoji ]] || exit
 
 # Copy the emoji to the clipboard. Without --foreground, wl-copy daemonizes
-# and the content persists — the previous --foreground + kill pattern cleared
-# the clipboard after 0.35s, leaving neither a paste nor a manual copy working.
-# Keep --sensitive so picks stay transient and out of clipboard history.
+# and stays the clipboard owner until something else is copied — the previous
+# --foreground + kill pattern cleared the clipboard after 0.35s, leaving
+# neither a paste nor a manual copy working. --sensitive only asks clipboard
+# managers to skip history; it does not withdraw the offer.
 printf '%s' "$emoji" | wl-copy --type text/plain --sensitive
 
 # Give the layer-shell surface time to release keyboard focus before typing.
