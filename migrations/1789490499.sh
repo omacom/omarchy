@@ -19,7 +19,7 @@ echo "Restore the input group for users who opted into Voxtype's evdev hotkey"
 
 if omarchy-cmd-present voxtype &&
   ! id -nG "$USER" | grep -qw input &&
-  [[ $(voxtype config get hotkey.enabled 2>/dev/null) == "true" ]]; then
+  [[ $(RUST_LOG=off voxtype config get hotkey.enabled 2>/dev/null) == "true" ]]; then
   sudo gpasswd -a "$USER" input >/dev/null
   echo "Restored $USER to the input group for the Voxtype hotkey. Log out and back in to apply."
   omarchy-state set reboot-required
