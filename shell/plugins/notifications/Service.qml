@@ -163,8 +163,15 @@ Item {
     // Guard the delete: a newer notification may have reused this originalId
     // (freedesktop replaces_id) and taken over the map slot.
     notification.closed.connect(function() {
+      // The server (usually the sender closing its own notification) is
+      // tearing this object down. Live refs must go, and so must the toast:
+      // there is no reason to keep showing a notification that no longer
+      // exists at the server. The popup file is archived (like any dismiss)
+      // so the entry appears in history, but no dismiss()/expire() call is
+      // made — the server object is already going away.
       if (service.liveRefs[snapshot.originalId] === notification)
         delete service.liveRefs[snapshot.originalId]
+      service.removePopupOnServerClose(snapshot)
     })
 
     // DND bypass rules: chat apps abuse urgency=critical to force
@@ -306,6 +313,32 @@ Item {
       // would silently kill a restored critical alert on an unrelated ping.
       if (isRestoredRow(row)) continue
       if (NotificationLogic.popupFileName(row) !== keepFileName) deletePopupFileFor(row)
+      popupModel.remove(i)
+    }
+  }
+
+  // A notification the server closed (its sender revoked it, or the daemon
+  // dropped it) takes its toast with it: keep showing a toast that no longer
+  // exists at the server would be a spec violation — the daemon advertises
+  // persistenceSupported yet ignores the sender's close and keeps drawing a
+  // notification the server has already forgotten.
+  //
+  // Unlike removePopup() there is no live server object left to interact
+  // with, so the row is archived and removed without touching liveRefs or
+  // invoking dismiss()/expire(). The snapshot's file name is the identity
+  // that survives every model/file round-trip, so a row only matches when
+  // both its originalId and its file line up with the snapshot's.
+  function removePopupOnServerClose(snapshot) {
+    var fileName = NotificationLogic.popupFileName(snapshot)
+    for (var i = popupModel.count - 1; i >= 0; i--) {
+      var row = popupModel.get(i)
+      if (!row || row.originalId !== snapshot.originalId) continue
+      if (NotificationLogic.popupFileName(row) !== fileName) continue
+      // A restored toast's old-generation id may belong to a fresh
+      // notification that happened to close — killing it here would
+      // silently murder a restored critical alert.
+      if (isRestoredRow(row)) continue
+      archivePopupFileFor(row)
       popupModel.remove(i)
     }
   }
