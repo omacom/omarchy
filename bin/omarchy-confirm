@@ -81,9 +81,12 @@ add_color hl "${GUM_CONFIRM_SELECTED_BACKGROUND:-}"
 add_color hl+ "${GUM_CONFIRM_SELECTED_FOREGROUND:-}"
 add_color pointer "${GUM_CONFIRM_SELECTED_BACKGROUND:-}"
 
-# gum confirm answers y/n/q immediately and toggles with the arrow keys.
+# gum confirm answers y/n/q immediately and toggles with the arrow keys,
+# h/l, and Tab. --sync waits until both rows and the load action exist, so a
+# key typed while the prompt is opening cannot accept the wrong row.
 # --no-input would otherwise swallow those keys, and Enter would accept Yes.
 fzf_args=(
+  --sync
   --no-input
   --height=6
   --reverse
@@ -93,7 +96,7 @@ fzf_args=(
   --prompt=""
   --bind "load:pos($start_pos)"
   --bind "left-click:accept"
-  --bind "y:pos(1)+accept,Y:pos(1)+accept,n:pos(2)+accept,N:pos(2)+accept,q:pos(2)+accept,left:up,right:down,tab:down"
+  --bind "y:pos(1)+accept,Y:pos(1)+accept,n:pos(2)+accept,N:pos(2)+accept,q:pos(2)+accept,left:up,right:down,tab:down,btab:up,h:up,l:down"
 )
 
 if [[ -n $color_spec ]]; then
@@ -102,7 +105,7 @@ fi
 
 # fzf is installed by the base package list, not declared on the omarchy package,
 # so a removed fzf must not turn every update prompt into a cancel.
-if ! command -v fzf >/dev/null 2>&1; then
+if ! omarchy-cmd-present fzf; then
   echo "omarchy-confirm: fzf is not installed, using gum confirm" >&2
   gum_args=(--affirmative "$affirmative" --negative "$negative")
   [[ $default == true ]] || gum_args+=(--default=false)
@@ -123,8 +126,9 @@ choice=$(
 ) || status=$?
 
 if ((status != 0)); then
-  # 130 is Esc / Ctrl-C, the same cancel gum confirm reports. Any other status
-  # is an fzf failure; mapping it to 130 made a broken fzf look like "No".
+  # fzf returns 130 for Esc and Ctrl-C. gum 2.x exits 1 on Esc and 130 only
+  # on Ctrl-C; callers treat both as cancel. Any other status is an fzf
+  # failure; mapping it to 130 made a broken fzf look like "No".
   if ((status != 130)); then
     echo "omarchy-confirm: fzf failed (exit $status)" >&2
   fi

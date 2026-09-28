@@ -51,7 +51,7 @@ SH
 chmod +x "$stub_bin/gum"
 
 run_confirm() {
-  OMARCHY_PATH="$ROOT" PATH="$stub_bin:$PATH" FZF_ARGS="$test_tmp/args" FZF_ENV="$test_tmp/env" \
+  OMARCHY_PATH="$ROOT" PATH="$stub_bin:$ROOT/bin:$PATH" FZF_ARGS="$test_tmp/args" FZF_ENV="$test_tmp/env" \
     GUM_ARGS="$test_tmp/gum-args" \
     "$ROOT/bin/omarchy-confirm" "$@"
 }
@@ -62,8 +62,12 @@ grep -Fq -- '--bind' "$test_tmp/args" || fail "confirm passes bind flags to fzf"
 grep -Fq -- 'left-click:accept' "$test_tmp/args" || fail "confirm asks fzf to accept a left click"
 grep -Fq -- '--no-input' "$test_tmp/args" || fail "confirm disables the fzf query line"
 grep -Fq -- 'load:pos(1)' "$test_tmp/args" || fail "confirm selects Yes after the list has loaded"
+grep -Fq -- '--sync' "$test_tmp/args" || fail "confirm waits for both rows before reading keys"
 grep -Fq -- 'n:pos(2)+accept' "$test_tmp/args" || fail "confirm binds n to No"
 grep -Fq -- 'y:pos(1)+accept' "$test_tmp/args" || fail "confirm binds y to Yes"
+grep -Fq -- 'h:up' "$test_tmp/args" || fail "confirm binds h like gum confirm"
+grep -Fq -- 'l:down' "$test_tmp/args" || fail "confirm binds l like gum confirm"
+grep -Fq -- 'btab:up' "$test_tmp/args" || fail "confirm binds shift-tab like gum confirm"
 grep -Fx 'OPTS=unset' "$test_tmp/env" >/dev/null || fail "confirm ignores FZF_DEFAULT_OPTS"
 grep -Fx 'FILE=unset' "$test_tmp/env" >/dev/null || fail "confirm ignores FZF_DEFAULT_OPTS_FILE"
 pass "confirm launches fzf with mouse accept, gum keys, and Yes selected"
@@ -100,6 +104,7 @@ pass "confirm --default=false selects No after the list has loaded"
 nofzf_bin="$test_tmp/nofzf-bin"
 mkdir -p "$nofzf_bin"
 ln -s "$stub_bin/gum" "$nofzf_bin/gum"
+ln -s "$ROOT/bin/omarchy-cmd-present" "$nofzf_bin/omarchy-cmd-present"
 ln -s "$(command -v awk)" "$nofzf_bin/awk"
 set +e
 GUM_EXIT=1 PATH="$nofzf_bin" OMARCHY_PATH="$ROOT" GUM_ARGS="$test_tmp/gum-args" \
@@ -115,10 +120,10 @@ grep -Fx 'Remove orphans?' "$test_tmp/gum-args" >/dev/null || fail "confirm fall
 pass "confirm falls back to gum when fzf is missing"
 
 if ! command -v fzf >/dev/null || ! command -v python3 >/dev/null; then
-  pass "real fzf keyboard check skipped"
+  skip "real fzf keyboard check skipped"
 else
   python3 - "$ROOT/bin/omarchy-confirm" <<'PY'
-import os, pty, sys, time, fcntl, termios, struct
+import os, pty, sys, time, fcntl, termios, struct, signal
 
 script = sys.argv[1]
 
@@ -129,20 +134,33 @@ def run(keys, args, extra=None):
         env.pop("OMARCHY_PATH", None)
         env.pop("FZF_DEFAULT_OPTS", None)
         env.pop("FZF_DEFAULT_OPTS_FILE", None)
+        root_bin = os.path.dirname(script)
+        env["PATH"] = root_bin + os.pathsep + env.get("PATH", "")
         if extra:
             env.update(extra)
         os.execvpe(script, [script, *args], env)
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
-    time.sleep(0.8)
-    os.write(fd, keys)
-    _, status = os.waitpid(pid, 0)
-    os.close(fd)
-    return os.waitstatus_to_exitcode(status)
+    try:
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
+        time.sleep(0.8)
+        os.write(fd, keys)
+        deadline = time.time() + 8
+        while True:
+            wpid, status = os.waitpid(pid, os.WNOHANG)
+            if wpid != 0:
+                return os.waitstatus_to_exitcode(status)
+            if time.time() > deadline:
+                os.kill(pid, signal.SIGTERM)
+                os.waitpid(pid, 0)
+                return 124
+            time.sleep(0.05)
+    finally:
+        os.close(fd)
 
 cases = [
     (b"n", ["Continue?"], None, 1),
     (b"y", ["Continue?"], None, 0),
     (b"q", ["Continue?"], None, 1),
+    (b"l\r", ["Continue?"], None, 1),
     (b"\r", ["--default=false", "Remove?"], None, 1),
     (b"\r", ["Continue?"], {"FZF_DEFAULT_OPTS": "--tac"}, 0),
 ]
@@ -154,5 +172,5 @@ for keys, args, extra, expect in cases:
         failed = True
 sys.exit(1 if failed else 0)
 PY
-  pass "confirm answers y, n, q, and the default row in real fzf"
+  pass "confirm answers y, n, q, l, and the default row in real fzf"
 fi
