@@ -290,7 +290,7 @@ set -e
 umask 022
 state="$XDG_RUNTIME_DIR/$LEGACY_STATE_NAME"
 mkdir -p "$state" "$SUDO_TEST_HOME/.local/state/omarchy/indicators"
-( exec {OMARCHY_UPDATE_LOCK_FD}>&-; exec sleep infinity ) &
+( [[ -z ${OMARCHY_UPDATE_LOCK_FD:-} ]] || exec {OMARCHY_UPDATE_LOCK_FD}>&-; exec sleep infinity ) &
 pid=$!
 printf "%s %s\n" "$pid" "$(awk '\''{ print $22 }'\'' /proc/$pid/stat)" >"$state/inhibit-pid"
 printf "%s:1:1\n" "$$" >"$state/idle-owner"
