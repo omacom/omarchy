@@ -188,6 +188,8 @@ function snapshotOf(notification, timestamp) {
   return {
     id: id,
     originalId: id,
+    duplicateCount: 1,
+    desktopEntry: stringHint(n.hints, "desktop-entry"),
     app: n.appName || "",
     appIcon: n.appIcon || "",
     summary: String(n.summary || ""),
@@ -203,7 +205,7 @@ function snapshotOf(notification, timestamp) {
 
 // Everything the popup card draws, and therefore everything an in-place
 // update has to write through to the row and its file.
-var POPUP_ROLES = ["app", "appIcon", "summary", "body", "image", "glyph", "execArgv", "urgency", "expireTimeout"]
+var POPUP_ROLES = ["desktopEntry", "app", "appIcon", "summary", "body", "image", "glyph", "execArgv", "urgency", "expireTimeout"]
 
 function popupRoles() {
   return POPUP_ROLES
@@ -239,6 +241,8 @@ function historyEntry(value, normalUrgency) {
   return {
     id: e.id || 0,
     originalId: e.originalId || e.id || 0,
+    duplicateCount: Math.max(1, Number(e.duplicateCount) || 1),
+    desktopEntry: e.desktopEntry || "",
     app: e.app || "",
     appIcon: e.appIcon || "",
     summary: e.summary || "",
@@ -446,6 +450,29 @@ function historyRows(raw, liveRows, normalUrgency, limit) {
   return out.slice(0, max)
 }
 
+// -1 groups until the popup leaves the screen; 0 disables grouping.
+function deduplicationWindow(value) {
+  if (typeof value !== "number" || !isFinite(value) || value < -1) return -1
+  return value
+}
+
+function sameContent(a, b) {
+  return !!a.app && a.app === b.app && a.desktopEntry === b.desktopEntry &&
+    a.summary === b.summary && a.body === b.body && a.urgency === b.urgency &&
+    a.execArgv === b.execArgv
+}
+
+function duplicateMatches(a, b, windowMs) {
+  windowMs = deduplicationWindow(windowMs)
+  var age = b.timestamp - a.timestamp
+  return a.originalId !== b.originalId && windowMs !== 0 &&
+    (windowMs === -1 || (age >= 0 && age <= windowMs)) && sameContent(a, b)
+}
+
+function countedSummary(summary, count) {
+  return summary + (count > 1 ? " (" + count + ")" : "")
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isChromiumDerived: isChromiumDerived,
@@ -459,6 +486,10 @@ if (typeof module !== "undefined") {
     execArgvFromHints: execArgvFromHints,
     parseExecArgv: parseExecArgv,
     shouldRenderCompactGlyph: shouldRenderCompactGlyph,
+    deduplicationWindow: deduplicationWindow,
+    sameContent: sameContent,
+    duplicateMatches: duplicateMatches,
+    countedSummary: countedSummary,
     snapshotOf: snapshotOf,
     popupRoles: popupRoles,
     popupRowChanged: popupRowChanged,
