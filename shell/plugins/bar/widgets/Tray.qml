@@ -767,25 +767,30 @@ BarWidget {
     id: trayIconRoot
     required property var icon
     readonly property bool symbolic: root.iconIsSymbolic(icon)
+    // Decode at physical pixels: IconImage uses the logical size,
+    // which leaves PNG icons upscaled and blurry on HiDPI displays.
+    readonly property int decodeSize: Math.round(Math.min(width, height) * Screen.devicePixelRatio)
 
+    // Drawn directly, since a layer would resample the physical-pixel decode.
+    Image {
+      anchors.fill: parent
+      fillMode: Image.PreserveAspectFit
+      sourceSize.width: trayIconRoot.decodeSize
+      sourceSize.height: trayIconRoot.decodeSize
+      source: root.trayIconSource(trayIconRoot.icon)
+      visible: !trayIconRoot.symbolic
+    }
+
+    // The effect's source, hidden and always layered: flipping layer.enabled when
+    // an icon changes symbolic state leaves the layer empty and the icon blank.
     Image {
       id: trayIconImage
       anchors.fill: parent
       fillMode: Image.PreserveAspectFit
-      // Decode at physical pixels: IconImage uses the logical size,
-      // which leaves PNG icons upscaled and blurry on HiDPI displays.
-      sourceSize.width: Math.round(Math.min(width, height) * Screen.devicePixelRatio)
-      sourceSize.height: Math.round(Math.min(width, height) * Screen.devicePixelRatio)
+      sourceSize.width: trayIconRoot.decodeSize
+      sourceSize.height: trayIconRoot.decodeSize
       source: root.trayIconSource(trayIconRoot.icon)
-      // Drawn directly for non-symbolic icons; hidden for symbolic ones, where
-      // the effect below samples the layer texture instead.
-      visible: !trayIconRoot.symbolic
-      // Must stay constant: an item that flips visible and layer.enabled
-      // together, as it does when an icon changes between a symbolic and a
-      // non-symbolic name, ends up with a layer that never gets populated, so
-      // the effect samples an empty texture and the icon silently disappears
-      // until the next shell restart. fcitx5 hit this on every input method
-      // switch, alternating between fcitx_bamboo and input-keyboard-symbolic.
+      visible: false
       layer.enabled: true
     }
 
