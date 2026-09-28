@@ -114,10 +114,8 @@ Cloning copies the whole plugin, so your `Service.qml` is frozen at the moment y
 
 ```
 diff ~/.config/omarchy/plugins/<username>.lock/Service.qml \
-     /usr/share/omarchy/shell/plugins/lock/Service.qml
+     $OMARCHY_PATH/shell/plugins/lock/Service.qml
 ```
-
-The clone rewrites the plugin id, so that shows up in the diff every time. Ignore it and read the rest.
 
 Preview your work without locking the machine:
 
@@ -126,7 +124,7 @@ omarchy-shell lock preview
 omarchy-shell lock hidePreview
 ```
 
-That draws the same view in an ordinary window, so a broken layout costs you nothing. Clicking it closes it.
+That draws the same view full-screen without locking the session, so a broken layout costs you nothing. Click anywhere to close it.
 
 Edits to the lock plugin don't land on save the way bar widgets do. Run `omarchy restart shell` to see them.
 
