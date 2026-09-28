@@ -61,6 +61,11 @@ done
 # Outside a graphical session the next login starts the sole remaining fcitx5
 # through systemd. Inside one, replace the competing process immediately so the
 # service stops flooding the journal and keeps the Compose table supervised.
+# Only when one is running: restarting the service's own fcitx5 drops every X11
+# client's input context for nothing.
 if $affected && systemctl --user is-active --quiet graphical-session.target; then
-  omarchy-restart-xcompose
+  service_pid=$(systemctl --user show --property MainPID --value omarchy-fcitx5.service)
+  if pgrep -x fcitx5 | grep -vxF "$service_pid" >/dev/null; then
+    omarchy-restart-xcompose
+  fi
 fi

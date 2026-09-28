@@ -18,7 +18,17 @@ cat >"$fake_bin/systemctl" <<'STUB'
 #!/bin/bash
 
 printf 'systemctl %s\n' "$*" >>"$CALLS"
-[[ $* == "--user is-active --quiet graphical-session.target" && ${ACTIVE_SESSION:-no} == "yes" ]]
+case $* in
+  "--user is-active --quiet graphical-session.target") [[ ${ACTIVE_SESSION:-no} == "yes" ]] ;;
+  "--user show --property MainPID --value omarchy-fcitx5.service") echo "$SERVICE_PID" ;;
+  *) exit 1 ;;
+esac
+STUB
+
+cat >"$fake_bin/pgrep" <<'STUB'
+#!/bin/bash
+
+[[ -n $FCITX5_PIDS ]] && printf '%s\n' $FCITX5_PIDS
 STUB
 
 cat >"$fake_bin/omarchy-restart-xcompose" <<'STUB'
@@ -34,6 +44,8 @@ run_migration() {
   : >"$calls"
   ACTIVE_SESSION="${1:-no}" \
     RESTART_FAIL="${2:-no}" \
+    FCITX5_PIDS="${3-100 200}" \
+    SERVICE_PID="${4:-0}" \
     CALLS="$calls" \
     HOME="$test_home" \
     PATH="$fake_bin:$PATH" \
@@ -126,6 +138,16 @@ after=$(find "$autostart_dir" -type f -print0 | sort -z | xargs -0 sha256sum)
 grep -qFx 'omarchy-restart-xcompose' "$calls" ||
   fail "migration keeps repairing the service when its prior restart may have failed" "$(cat "$calls")"
 pass "fcitx5 autostart migration is idempotent and retryable"
+
+run_migration yes no 200 200
+if grep -qFx 'omarchy-restart-xcompose' "$calls"; then
+  fail "migration restarts fcitx5 when the service already owns the only instance"
+fi
+run_migration yes no ""
+if grep -qFx 'omarchy-restart-xcompose' "$calls"; then
+  fail "migration restarts fcitx5 when none is running"
+fi
+pass "migration leaves a healthy fcitx5 service running"
 
 if run_migration yes yes; then
   fail "migration reports success when the fcitx5 service repair fails"
