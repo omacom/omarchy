@@ -338,9 +338,9 @@ Item {
   ParallelAnimation {
     id: flight
     NumberAnimation { id: flightSpin; target: root; property: "spin"
-                      duration: 800; easing.type: Easing.OutCubic }
+                      duration: Style.duration(800); easing.type: Easing.OutCubic }
     NumberAnimation { id: flightViewLat; target: root; property: "viewLat"
-                      duration: 800; easing.type: Easing.OutCubic }
+                      duration: Style.duration(800); easing.type: Easing.OutCubic }
   }
 
   // The throw: spin keeps going after the drag and eases to a stop.

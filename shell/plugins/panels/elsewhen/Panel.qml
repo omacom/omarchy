@@ -631,7 +631,7 @@ Panel {
   // Heavy on the way out, brisk on the way back.
   Behavior on zoom {
     NumberAnimation {
-      duration: root.zoomDuration
+      duration: Style.duration(root.zoomDuration)
       easing.type: root.zoomEasing
     }
   }
@@ -649,14 +649,14 @@ Panel {
 
   Behavior on moonDemo {
     enabled: root.moonShowing
-    NumberAnimation { duration: 460; easing.type: Easing.InOutSine }
+    NumberAnimation { duration: Style.duration(460); easing.type: Easing.InOutSine }
   }
 
   NumberAnimation {
     id: dropAnimation
     target: root
     property: "dragOffset"
-    duration: 150
+    duration: Style.duration(150)
     easing.type: Easing.OutCubic
     onFinished: root.commitRowDrag()
   }
@@ -805,7 +805,7 @@ Panel {
           id: scrollAnim
           target: scroller
           property: "contentY"
-          duration: 160
+          duration: Style.duration(160)
           easing.type: Easing.OutCubic
         }
 
