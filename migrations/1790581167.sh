@@ -4,4 +4,4 @@ echo "Fix Chromium EGL / DMA-BUF errors on hybrid NVIDIA + iGPU laptops"
 # The script is idempotent: it exits 0 when the host isn't hybrid NVIDIA + iGPU,
 # when Chromium isn't installed, or when the user already has their own
 # ~/.local/share/applications/chromium.desktop override.
-bash "$OMARCHY_PATH/install/user/hardware/fix-hybrid-chromium.sh"
+bash -e "$OMARCHY_PATH/install/user/hardware/fix-hybrid-chromium.sh"
