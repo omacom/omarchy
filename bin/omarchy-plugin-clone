@@ -130,6 +130,32 @@ IFS=$'\t' read -r source_dir source_manifest source_name <<<"$source_info"
 
 new_id="${USER:-$(id -un)}.${source_id#omarchy.}"
 display_name="My $source_name"
+
+# Guarantee the clone id can't shadow an existing plugin. The naive
+# "<user>.<plugin>" id collides with a built-in when the username matches a
+# built-in namespace: the stock Omarchy VM user is literally "omarchy", so
+# `omarchy plugin clone omarchy.weather` would otherwise generate the id
+# "omarchy.weather" -- the same id as the built-in it was cloned from, leaving
+# the two indistinguishable. Suffix a counter until the id collides with no
+# catalog id (built-in or already-cloned) and no directory is in the way.
+existing_ids=$(omarchy-plugin-catalog | jq -r '.[].id')
+id_is_taken() {
+  local candidate="$1" id
+  [[ -e $PLUGINS_DIR/$candidate || -L $PLUGINS_DIR/$candidate ]] && return 0
+  while IFS= read -r id; do
+    [[ -n $id && $id == "$candidate" ]] && return 0
+  done <<<"$existing_ids"
+  return 1
+}
+
+if id_is_taken "$new_id"; then
+  suffix=2
+  while id_is_taken "${new_id}${suffix}"; do
+    ((suffix++))
+  done
+  new_id="${new_id}${suffix}"
+fi
+
 target_dir="$PLUGINS_DIR/$new_id"
 [[ ! -e $target_dir && ! -L $target_dir ]] || fail "$target_dir already exists"
 
