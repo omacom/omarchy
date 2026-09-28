@@ -603,3 +603,39 @@ result=$(HOME="$INTERRUPTED_HOME" CODEX_HOME="$INTERRUPTED_HOME/.codex" XDG_CACH
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "9" ]] ||
   fail "Codex collector does not reuse a snapshot from an interrupted scan" "$result"
 pass "Codex collector does not cache an interrupted opencode scan"
+
+# Codex CLI can front any OpenAI-compatible backend (`--oss`, or a custom
+# model_provider in config.toml). Those rollouts land in the same sessions
+# directory but spend a local box or a third party, never this subscription.
+PROVIDER_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME" "$INTERRUPTED_HOME" "$PROVIDER_HOME"' EXIT
+mkdir -p "$PROVIDER_HOME/bin" "$PROVIDER_HOME/.codex/sessions/$(date +%Y/%m/%d)"
+cp "$TEST_HOME/bin/codex" "$PROVIDER_HOME/bin/codex"
+
+provider_session() {
+  local name=$1 meta=$2 model=$3 input=$4 output=$5
+  local file="$PROVIDER_HOME/.codex/sessions/$(date +%Y/%m/%d)/rollout-$name.jsonl"
+  [[ -n $meta ]] && echo "{\"timestamp\":\"$timestamp\",\"type\":\"session_meta\",\"payload\":{\"model_provider\":\"$meta\"}}" >"$file"
+  cat >>"$file" <<EOF
+{"timestamp":"$timestamp","type":"turn_context","payload":{"model":"$model"}}
+{"timestamp":"$timestamp","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":$input,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":$output,"reasoning_output_tokens":0}}}}
+EOF
+}
+
+provider_session native openai gpt-native 100 10
+provider_session ollama ollama qwen3-coder:30b 9000 900
+provider_session openrouter openrouter claude-test 5000 500
+# Rollouts written before Codex recorded the field carry no session_meta at
+# all; they must still count rather than silently drop a user's history.
+provider_session legacy "" gpt-legacy 40 0
+
+result=$(HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_HOME/.codex" XDG_CACHE_HOME="$PROVIDER_HOME/.cache" XDG_DATA_HOME="$PROVIDER_HOME/.local/share" \
+  PATH="$PROVIDER_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "150" ]] ||
+  fail "Codex collector counts only subscription-backed native sessions" "$result"
+[[ $(jq -r '.modelUsage | keys | join(",")' <<<"$result") == "gpt-legacy,gpt-native" ]] ||
+  fail "Codex collector excludes local and third-party providers from native sessions" "$result"
+[[ $(jq -r '.todaySessions' <<<"$result") == "2" ]] ||
+  fail "Codex collector excludes foreign-provider rollouts from the session count" "$result"
+pass "Codex collector ignores native sessions served by a non-OpenAI provider"
