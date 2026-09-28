@@ -75,11 +75,11 @@ run_launch() (
 )
 
 set +e
-output=$(run_launch 1 2>&1)
+output=$(run_launch 131 2>&1)
 status=$?
 set -e
 
-(( status == 1 )) || fail "Windows VM launch returns the RDP failure" "got status $status"
+(( status == 131 )) || fail "Windows VM launch returns the RDP failure" "got status $status"
 ! grep -qx down "$test_tmp/calls.log" ||
   fail "Windows VM stays running when RDP fails" "$(cat "$test_tmp/calls.log")"
 grep -qF 'RDP connection failed. Windows VM is still running.' <<<"$output" ||
@@ -93,6 +93,17 @@ run_launch 0 >/dev/null
 grep -qFx down "$test_tmp/calls.log" ||
   fail "Windows VM still stops after a successful RDP session" "$(cat "$test_tmp/calls.log")"
 pass "Windows VM keeps its automatic stop after a successful RDP session"
+
+# FreeRDP exits 2 when the user signs out of Windows: the session connected.
+: >"$test_tmp/calls.log"
+set +e
+run_launch 2 >/dev/null
+set -e
+
+grep -qFx down "$test_tmp/calls.log" ||
+  fail "Windows VM still stops after signing out of Windows" "$(cat "$test_tmp/calls.log")"
+pass "Windows VM keeps its automatic stop after signing out of Windows"
+
 # Tolerate either shell quoting of the argument -- what must not drift is the
 # title itself, since the Hyprland rule below matches on it.
 rg -q 'title:"?Windows VM - Omarchy"' "$windows_vm_command" ||
