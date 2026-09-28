@@ -61,7 +61,7 @@ PanelWindow {
   onRightValueChanged: expandScale(rightValue)
 
   Behavior on fullScale {
-    NumberAnimation { duration: 400; easing.type: Easing.OutCubic }
+    NumberAnimation { duration: Style.duration(400); easing.type: Easing.OutCubic }
   }
 
   // The scrim below is a fixed near-black regardless of theme, so text and
@@ -130,6 +130,7 @@ PanelWindow {
         spacing: Style.space(16)
 
         Text {
+          textFormat: Text.PlainText
           visible: root.title !== ""
           text: root.title.toUpperCase()
           color: root.onScrimDim
@@ -177,11 +178,12 @@ PanelWindow {
           onClicked: root.runAgainRequested()
 
           Behavior on opacity {
-            NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Style.duration(240); easing.type: Easing.OutCubic }
           }
         }
 
         Text {
+          textFormat: Text.PlainText
           visible: root.failed
           text: root.error
           color: root.onScrimUrgent
@@ -234,13 +236,13 @@ PanelWindow {
     opacity: engaged ? 1 : 0.5
 
     Behavior on opacity {
-      NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Style.duration(240); easing.type: Easing.OutCubic }
     }
 
     // Live readings land once a second; glide between them rather than snap.
     Behavior on shown {
       enabled: !ignition.running
-      NumberAnimation { duration: 600; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Style.duration(600); easing.type: Easing.OutCubic }
     }
 
     onValueChanged: {
@@ -255,8 +257,8 @@ PanelWindow {
     // the live figures take over.
     SequentialAnimation {
       id: ignition
-      NumberAnimation { target: dial; property: "shown"; to: dial.fullScale; duration: 550; easing.type: Easing.InOutCubic }
-      NumberAnimation { target: dial; property: "shown"; to: 0; duration: 650; easing.type: Easing.OutCubic }
+      NumberAnimation { target: dial; property: "shown"; to: dial.fullScale; duration: Style.duration(550); easing.type: Easing.InOutCubic }
+      NumberAnimation { target: dial; property: "shown"; to: 0; duration: Style.duration(650); easing.type: Easing.OutCubic }
       onFinished: dial.shown = dial.value
     }
 
@@ -368,6 +370,7 @@ PanelWindow {
       spacing: 0
 
       Text {
+        textFormat: Text.PlainText
         anchors.horizontalCenter: parent.horizontalCenter
         // Both branches go through the locale: a reading is a measurement, so
         // its separators follow the system's number conventions rather than the
@@ -383,6 +386,7 @@ PanelWindow {
       }
 
       Text {
+        textFormat: Text.PlainText
         anchors.horizontalCenter: parent.horizontalCenter
         text: root.unit
         color: root.onScrimDim
@@ -394,6 +398,7 @@ PanelWindow {
     // The 90° gap at the bottom of the scale is where a cluster prints its
     // unit; here it names the direction.
     Text {
+      textFormat: Text.PlainText
       anchors.horizontalCenter: parent.horizontalCenter
       anchors.bottom: parent.bottom
       text: dial.label
