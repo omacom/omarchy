@@ -38,9 +38,7 @@ grep -Fq 'action = "toggle"' "$DISPATCH_LOG" ||
   fail "popping a tiled window floats it" "$(cat "$DISPATCH_LOG")"
 grep -Fq 'window.resize' "$DISPATCH_LOG" ||
   fail "popping a tiled window sizes it" "$(cat "$DISPATCH_LOG")"
-if grep -cF 'window.pin' "$DISPATCH_LOG" | grep -qv '^1$'; then
-  fail "popping pins exactly once" "$(cat "$DISPATCH_LOG")"
-fi
+[[ $(grep -cF 'window.pin' "$DISPATCH_LOG") == 1 ]] || fail "popping pins exactly once" "$(cat "$DISPATCH_LOG")"
 grep -Fq '"+pop' "$DISPATCH_LOG" ||
   fail "popping tags the window" "$(cat "$DISPATCH_LOG")"
 pass "popping a tiled window floats, sizes, pins, and tags it"
