@@ -3,7 +3,7 @@
 # omarchy:summary=Launch a URL as a web app in the default supported browser
 # omarchy:args=<url>
 
-browser=$(xdg-settings get default-web-browser)
+browser=$(omarchy-cmd-default-browser)
 
 case $browser in
 google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;

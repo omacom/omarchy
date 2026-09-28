@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Install the Hermes desktop app
+# omarchy:requires-sudo=true
+
+set -e
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+# The same install the default agent gets, plus opening the window.
+omarchy-install-hermes-cli --now
+
+echo "Opening Hermes Desktop..."
+setsid uwsm-app -- /usr/bin/hermes-desktop >/dev/null 2>&1 &
+
+echo ""
+echo "Hermes Desktop has been installed."
