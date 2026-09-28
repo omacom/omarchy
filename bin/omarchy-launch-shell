@@ -3,18 +3,6 @@
 # omarchy:summary=Launch the Omarchy shell with its log kept in the journal
 # omarchy:hidden=true
 
-# Quickshell only logs to its instance runtime dir (tmpfs), so when the shell
-# dies the idle/lock event trail is gone after a reboot. The journal keeps it
-# across sessions, bounded and timestamped, under the omarchy-shell tag.
-#
-# Backgrounded because bash defers a trap until a foreground command returns but
-# interrupts wait. systemd-cat execs, so the job is Quickshell itself.
-#
-# Quickshell's own reloading is off; Omarchy restarts the shell deliberately.
-# A package upgrade rewriting $OMARCHY_PATH/shell would otherwise reload it
-# against a half-written tree, and that failed reload leaves a second engine
-# generation behind that turns the next restart's IPC kill into a crash.
-
 # Qt refuses threaded OpenGL rendering on the proprietary NVIDIA driver (the
 # QTBUG-95817 resize-freeze workaround in qtwayland), which drops Qt Quick to
 # the timer-driven basic render loop: every shell animation runs at ~60 fps
@@ -30,6 +18,8 @@
 # loop stays available, and forcing Vulkan would only add cross-GPU risk for
 # no benefit. Turing-or-newer (GSP) limits this to the current driver family
 # with a solid Wayland Vulkan WSI; legacy branches keep today's behavior.
+#
+# A backend the user set explicitly wins, so OpenGL stays one env var away.
 nvidia_is_primary_gpu() {
   local card
 
@@ -42,12 +32,23 @@ nvidia_is_primary_gpu() {
 }
 
 shell_render_env=()
-if [[ -f /usr/share/vulkan/icd.d/nvidia_icd.json ]] &&
+if [[ -z $QSG_RHI_BACKEND && -f /usr/share/vulkan/icd.d/nvidia_icd.json ]] &&
   "$OMARCHY_PATH/bin/omarchy-hw-nvidia-gsp" &&
   nvidia_is_primary_gpu; then
   shell_render_env=(QSG_RHI_BACKEND=vulkan)
 fi
 
+# Quickshell only logs to its instance runtime dir (tmpfs), so when the shell
+# dies the idle/lock event trail is gone after a reboot. The journal keeps it
+# across sessions, bounded and timestamped, under the omarchy-shell tag.
+#
+# Backgrounded because bash defers a trap until a foreground command returns but
+# interrupts wait. systemd-cat execs, so the job is Quickshell itself.
+#
+# Quickshell's own reloading is off; Omarchy restarts the shell deliberately.
+# A package upgrade rewriting $OMARCHY_PATH/shell would otherwise reload it
+# against a half-written tree, and that failed reload leaves a second engine
+# generation behind that turns the next restart's IPC kill into a crash.
 run_shell() {
   QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 env "${shell_render_env[@]}" \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
