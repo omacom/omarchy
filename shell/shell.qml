@@ -954,8 +954,10 @@ ShellRoot {
       if (_services[id]) {
         if (authenticationService) {
           // A service that gains a trusted authentication capability must move
-          // out of the host's public service map before it is recreated.
+          // out of the host's public service map before it is recreated. The
+          // session-lock owner moves on a later sync, once it has released it.
           var published = _services[id]
+          if (published && published.sessionLockOwned === true) continue
           if (published && typeof published.destroy === "function") published.destroy()
           var withoutPublished = ({})
           for (var publishedId in _services)

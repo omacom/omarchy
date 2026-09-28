@@ -79,6 +79,22 @@ assert(authSkip !== -1, '_syncServices skips an authentication service that owns
 assert(authDestroy !== -1, '_syncServices still destroys authentication services that went away')
 assert(authSkip < authDestroy, 'no authentication-service destroy runs before the ownership skip')
 
+// A published service that gains the authentication capability is destroyed
+// and recreated in AuthServiceStore. A lock copy that owns the session lock
+// must wait for a later sync instead. The reverse move needs no skip: the store
+// keeps an id trusted for the life of the process, so a service it holds never
+// loses the capability.
+const gainSkip = sync.match(/if \((.+?)\) continue\s*\n\s*if \(published && typeof published\.destroy/)
+assert(gainSkip, '_syncServices guards the capability-change destroy with a skip that continues')
+assertEqual(
+  gainSkip[1].trim(),
+  'published && published.sessionLockOwned === true',
+  'a published service gaining the authentication capability is kept while it owns the session lock'
+)
+const gainDestroy = sync.indexOf('published.destroy()')
+assert(gainDestroy !== -1, '_syncServices still moves a service that gains the authentication capability')
+assert(gainSkip.index < gainDestroy, 'no capability-change destroy runs before the ownership skip')
+
 const vm = require('vm')
 const store = {}
 vm.createContext(store)
