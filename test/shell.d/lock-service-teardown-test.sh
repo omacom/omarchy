@@ -128,6 +128,65 @@ assert(unloadAuthSkip !== -1, 'unloadPluginServices skips an authentication serv
 assert(unloadAuthDestroy !== -1, 'unloadPluginServices still destroys authentication services')
 assert(unloadAuthSkip < unloadAuthDestroy, 'no authentication-service destroy in unloadPluginServices runs before the skip')
 
+// ------------------------------------------------------ re-sync after unlock
+// The skips above keep an unwanted lock service alive, so something has to
+// collect it once the lock is gone, or its lock IPC target keeps answering.
+// The lock service signals that from its wake's exit, not from sessionLockOwned
+// changing: every unlock path gives up the lock before it starts the wake, and
+// destroying the service kills a wake still in flight.
+const ensure = bodyOf(shellQml, 'ensureService', 'unlock re-sync').replace(/\/\/[^\n]*/g, '')
+const settleConnect = ensure.search(
+  /if \("unlockSettled" in inst\)\s*\n\s*inst\.unlockSettled\.connect\(function\(\) \{ shell\.syncServicesAfterUnlock\(key, authenticationService\) \}\)/
+)
+assert(settleConnect !== -1, 'ensureService connects unlockSettled to the re-sync with the service id and map')
+assert(
+  settleConnect < ensure.indexOf('if (authenticationService) {'),
+  'the re-sync is connected before a service goes to either map'
+)
+
+// Run the real body: every normal unlock emits unlockSettled, and a full
+// _syncServices on each one would hand every third-party service a fresh
+// manifest copy, so it must re-sync only for a service no longer wanted where
+// it is -- and leave a reload in flight to do it.
+const resync = new Function(
+  'pluginId', 'authenticationService', 'pluginRegistry', 'shell', 'Qt',
+  bodyOf(shellQml, 'syncServicesAfterUnlock', 'unlock re-sync')
+)
+function resyncs(opts) {
+  let scheduled = false
+  const registry = {
+    installedPlugins: opts.installed === false ? {} : { 'omarchy.lock': {} },
+    isEnabled: () => opts.enabled !== false,
+  }
+  const host = {
+    pluginReloading: opts.reloading === true,
+    isAuthenticationService: () => opts.nowAuthentication !== false,
+    _syncServices() {},
+  }
+  resync('omarchy.lock', opts.placedAsAuthentication !== false, registry, host, {
+    callLater(fn) { scheduled = fn === host._syncServices },
+  })
+  return scheduled
+}
+assert(!resyncs({}), 'an unlock of a service still wanted where it is does not re-sync')
+assert(resyncs({ enabled: false }), 'an unlock of a disabled lock service re-syncs')
+assert(resyncs({ installed: false }), 'an unlock of a removed lock service re-syncs')
+assert(resyncs({ placedAsAuthentication: false }), 'an unlock of a lock service that gained the capability re-syncs')
+assert(!resyncs({ enabled: false, reloading: true }), 'an unlock during a reload leaves the re-sync to the reload')
+
+const lockCode = lockQml.replace(/\/\/[^\n]*/g, '')
+assert(/signal unlockSettled\(\)/.test(lockCode), 'the lock service declares unlockSettled')
+const wake = lockCode.match(/id: wakeProcess[\s\S]*?\n  \}/)
+assert(wake, 'the lock service defines wakeProcess')
+const settleEmit = wake[0].match(/onExited: if \((.+?)\) root\.unlockSettled\(\)/)
+assert(settleEmit, 'the wake emits unlockSettled when it exits')
+assertEqual(settleEmit[1].trim(), '!root.sessionLockOwned', 'unlockSettled fires only once the lock is released')
+assertEqual(
+  (lockCode.match(/(?<!signal )\bunlockSettled\(\)/g) || []).length,
+  1,
+  'unlockSettled is emitted only from the wake exit'
+)
+
 // ------------------------------------------------- lock service: sessionLockOwned
 // The signal the shell reads must be deterministic on a rebuilt service.
 // sessionLock.secure resolves through the process-wide session-lock manager,

@@ -921,6 +921,8 @@ ShellRoot {
       if ("manifest" in inst) inst.manifest = shell.publicPluginManifest(manifest)
       if ("barWidgetRegistry" in inst) inst.barWidgetRegistry = shell.pluginBarWidgetRegistryFor(manifest)
       if ("pluginRegistry" in inst) inst.pluginRegistry = shell.pluginRegistryFor(manifest)
+      if ("unlockSettled" in inst)
+        inst.unlockSettled.connect(function() { shell.syncServicesAfterUnlock(key, authenticationService) })
       if (authenticationService) {
         // Never publish lock/polkit through ShellRoot._services. The private JS
         // import retains their lifetime without adding a traversable property
@@ -1000,8 +1002,8 @@ ShellRoot {
       // that triggered the rescan. Destroying the service that holds the live
       // ext-session-lock abandons the compositor-side lock and drops Hyprland
       // into its lockscreen-died failsafe, so keep it until the lock is gone.
-      // Retention is indefinite: nothing re-runs this on unlock, and the
-      // instance is collected by whichever pluginsChanged lands next.
+      // The lock service re-runs this once its unlock has settled (see
+      // syncServicesAfterUnlock), and that pass collects the instance.
       // Duck-typed rather than keyed on "omarchy.lock" so a cloned lock plugin
       // is covered too.
       if (inst && inst.sessionLockOwned === true) continue
@@ -1027,6 +1029,17 @@ ShellRoot {
       if (AuthServiceStore.ownsSessionLock(authenticationId)) continue
       AuthServiceStore.destroy(authenticationId)
     }
+  }
+
+  // A lock service disabled, removed or reclassified while it owned the lock
+  // was kept by the skips above; this collects or moves it once it lets go,
+  // so it does not linger with its lock IPC target still answering. An unlock
+  // of a service still wanted where it is re-syncs nothing.
+  function syncServicesAfterUnlock(pluginId, authenticationService) {
+    var manifest = (pluginRegistry.installedPlugins || {})[pluginId]
+    if (manifest && pluginRegistry.isEnabled(pluginId)
+        && shell.isAuthenticationService(manifest, pluginId) === authenticationService) return
+    if (!shell.pluginReloading) Qt.callLater(shell._syncServices)
   }
 
   function serviceKeepLoaded(pluginId) {

@@ -59,6 +59,11 @@ Item {
   // session-lock manager, which an earlier teardown can leave dangling.
   readonly property bool sessionLockOwned: lockRequested || sessionLock.locked
 
+  // Raised when an unlock's wake has finished, so the shell can collect a
+  // service it kept only because it owned the lock. Collecting it any earlier
+  // would kill omarchy-system-wake with it.
+  signal unlockSettled()
+
   function realScreenCount() {
     var screens = Quickshell.screens || []
     var count = 0
@@ -517,6 +522,9 @@ Item {
   Process {
     id: wakeProcess
     command: ["bash", "-c", "omarchy-system-wake"]
+    // Every unlock path runs a wake after giving up the lock; a wake started
+    // while locked exits still owning it.
+    onExited: if (!root.sessionLockOwned) root.unlockSettled()
   }
 
   Process {
