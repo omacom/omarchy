@@ -23,7 +23,7 @@ pass "tmux emits mosh-compatible OSC 52 clipboard sequences"
 
 tmux -L "$socket" -f "$ROOT/config/tmux/tmux.conf" new-session -d
 
-copy_binding=$(tmux -L "$socket" list-keys -T copy-mode-vi y)
+copy_binding=$(tmux -L "$socket" list-keys -T copy-mode-vi | grep -E '^bind-key +-T copy-mode-vi +y ' || true)
 [[ $copy_binding == *"omarchy-tmux-osc52-copy"* ]] ||
   fail "tmux copy mode bypasses cached terminal capabilities" "$copy_binding"
 pass "tmux copy mode writes directly to the active client"
