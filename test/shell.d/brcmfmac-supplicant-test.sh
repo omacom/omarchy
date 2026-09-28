@@ -279,12 +279,24 @@ grep -qx 'options brcmfmac roamoff=1' "$conf" ||
   fail "the cleanup takes its own comments with a block that has lines after it" "$(cat "$conf")"
 pass "the cleanup strips the block when the user added lines after it"
 
-# A line the user merged another option onto is no longer the line Omarchy
-# wrote, and deleting it would take roamoff=1 with it. Not ours to edit.
-printf 'options brcmfmac feature_disable=0x82000 roamoff=1\n' >"$conf"
+# The earlier migration appends once per user who cannot read a root-only
+# config, so the block can be there twice, and either copy breaks the Wi-Fi.
+write_quirk_conf
+printf '\n%s\n' "$(cat "$conf")" >>"$conf"
 run_cleanup 4433
-grep -qx 'options brcmfmac feature_disable=0x82000 roamoff=1' "$conf" ||
+[[ ! -e $conf ]] || fail "the cleanup removes every copy of the block" "$(cat "$conf")"
+pass "the cleanup removes every copy of the block"
+
+# A line the user merged another option onto is no longer the line Omarchy
+# wrote, and deleting it would take roamoff=1 with it. Not ours to edit, even
+# under Omarchy's own comments.
+write_quirk_conf
+sed -i 's/^options brcmfmac feature_disable=0x82000$/& roamoff=1/' "$conf"
+cp "$conf" "$conf.before"
+run_cleanup 4433
+cmp -s "$conf" "$conf.before" ||
   fail "a merged options line is left alone" "$(cat "$conf")"
+rm -f "$conf.before"
 pass "a merged options line is left alone"
 
 # Same for a hand-written file that happens to set the same option: without

@@ -44,7 +44,13 @@ padded=$'\n'"$content"$'\n'
 # redundant once this lands, but removing that file is its owner's call.
 omarchy-state set reboot-required
 
-rest=${padded%%$'\n'"$block"$'\n'*}$'\n'${padded#*$'\n'"$block"$'\n'}
+# Every copy: 1786391100.sh appends again for each user who cannot read a
+# root-only config, and one left behind still breaks the Wi-Fi.
+while [[ $padded == *$'\n'"$block"$'\n'* ]]; do
+  padded=${padded%%$'\n'"$block"$'\n'*}$'\n'${padded#*$'\n'"$block"$'\n'}
+done
+
+rest=$padded
 while [[ $rest == $'\n'* ]]; do rest=${rest#$'\n'}; done
 while [[ $rest == *$'\n' ]]; do rest=${rest%$'\n'}; done
 
