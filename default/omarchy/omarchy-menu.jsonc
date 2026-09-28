@@ -73,6 +73,7 @@
   "trigger.tests": {"icon":"󰓅","label":"Speed Test"},
   "trigger.volume-up": {"icon":"","label":"Volume Up","action":"omarchy-audio-output-volume raise"},
   "trigger.volume-down": {"icon":"","label":"Volume Down","action":"omarchy-audio-output-volume lower"},
+  "trigger.mute": {"icon":"","label":"Mute","action":"omarchy-audio-output-volume mute-toggle"},
   "trigger.brightness-up": {"icon":"󰍹","label":"Brightness Up","action":"omarchy-brightness-display +5%"},
   "trigger.brightness-down": {"icon":"󰍹","label":"Brightness Down","action":"omarchy-brightness-display 5%-"},
   "trigger.hardware.laptop-display": {"icon":"󰛧","label":"Laptop Display","when":"omarchy-hw-laptop","action":"omarchy-hyprland-monitor-internal toggle"},
