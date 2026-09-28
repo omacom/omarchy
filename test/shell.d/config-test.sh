@@ -39,7 +39,7 @@ jq -e '
   ($ids | index("omarchy.elsewhen")) as $elsewhen |
   ($ids | index("omarchy.clock")) as $clock |
   $elsewhen != null and $clock == $elsewhen + 1
-' "$ROOT/config/omarchy/shell.json" >/dev/null
+' "$ROOT/config/omarchy/shell.json" >/dev/null || fail "default center layout puts elsewhen immediately before the clock"
 pass "default center layout puts elsewhen immediately before the clock"
 
 jq -e '
@@ -53,7 +53,7 @@ jq -e '
   ($ids | index("omarchy.tray")) as $tray |
   ($ids | index("omarchy.agents")) as $agents |
   $tray != null and $agents == $tray + 1
-' "$ROOT/config/omarchy/shell.json" >/dev/null
+' "$ROOT/config/omarchy/shell.json" >/dev/null || fail "default right layout keeps agents next to the tray"
 pass "default right layout keeps agents next to the tray"
 
 ROOT="$ROOT" python3 <<'PY'
