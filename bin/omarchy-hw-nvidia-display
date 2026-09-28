@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether NVIDIA drives the display (rather than a hybrid iGPU).
+
+# On hybrid laptops the display is usually wired to the integrated GPU while
+# the NVIDIA card only handles offloaded rendering. Forcing NVIDIA's VA-API and
+# GLX drivers globally then breaks Chromium-based browsers (black video with
+# audio still playing), so the Hyprland NVIDIA env only applies when NVIDIA is
+# the display GPU.
+#
+# sysfs exposes which VGA device drives the display via boot_vga. When no
+# device claims it (attribute missing or unreadable), assume NVIDIA is the
+# display GPU to preserve the current behavior on machines we cannot tell.
+#
+# Read the cached sysfs IDs rather than lspci, which reads PCI config space and
+# resumes runtime-suspended GPUs.
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+
+shopt -s nullglob
+
+nvidia_boot=0
+other_boot=0
+
+for device in "$pci_devices_path"/*; do
+  [[ $(< "$device/class") == 0x03* ]] || continue
+  boot_vga=0
+  if [[ -f $device/boot_vga ]]; then
+    boot_vga=$(< "$device/boot_vga")
+  fi
+  if [[ $(< "$device/vendor") == "0x10de" ]]; then
+    if (( boot_vga == 1 )); then
+      nvidia_boot=1
+    fi
+  else
+    if (( boot_vga == 1 )); then
+      other_boot=1
+    fi
+  fi
+done
+
+if (( other_boot == 1 && nvidia_boot == 0 )); then
+  exit 1
+else
+  exit 0
+fi
