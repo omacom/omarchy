@@ -473,6 +473,8 @@ assertEqual(
   'notifications resolve file URLs to copyable paths'
 )
 assertEqual(notifications.localImageFile('/tmp/avatar.png'), '/tmp/avatar.png', 'notifications treat absolute paths as copyable')
+assertEqual(notifications.localImageFile('image://icon//tmp/preview.png'), '/tmp/preview.png', 'notifications resolve Quickshell image-path URLs to copyable paths')
+assertEqual(notifications.localImageFile('image://icon/firefox'), '', 'notifications leave Quickshell themed icon URLs uncopied')
 assertEqual(notifications.localImageFile('mail'), '', 'notifications leave themed icon names uncopied')
 assertEqual(notifications.localImageFile('image://notifs/1'), '', 'notifications cannot copy in-process image URLs')
 
@@ -499,6 +501,36 @@ assertEqual(
   repersisted.entry.appIcon,
   'file:///state/images/2000-9-appIcon',
   'notifications keep a restored entry pointing at its existing copy'
+)
+
+// Picture files are previews worth a thumbnail; Chromium's extensionless
+// avatar files and in-process image:// URLs stay in the small icon slot.
+assertEqual(notifications.thumbnailPath('file:///home/me/Videos/rec%201.JPG'), '/home/me/Videos/rec 1.JPG', 'notifications draw picture files as thumbnails')
+assertEqual(notifications.thumbnailPath('/tmp/.org.chromium.Chromium.abc123'), '', 'notifications keep extensionless avatars as icons')
+assertEqual(notifications.thumbnailPath('image://notifs/1'), '', 'notifications keep in-process images as icons')
+assertEqual(notifications.thumbnailPath('camera-photo'), '', 'notifications keep themed icon names as icons')
+
+const thumbnailPersistable = notifications.persistablePopup(
+  { id: 4, originalId: 4, timestamp: 3000, appIcon: '/tmp/app.png', image: 'image://icon//tmp/preview.jpg' },
+  '/state/images/'
+)
+assertDeepEqual(
+  thumbnailPersistable.copies,
+  [
+    { from: '/tmp/app.png', to: '/state/images/3000-4-appIcon' },
+    { from: '/tmp/preview.jpg', to: '/state/images/3000-4-image.jpg' }
+  ],
+  'notifications keep the picture extension on image copies so restored toasts keep their thumbnail'
+)
+assertEqual(
+  notifications.thumbnailPath(thumbnailPersistable.entry.image),
+  '/state/images/3000-4-image.jpg',
+  'notifications draw a restored picture copy as a thumbnail'
+)
+assertDeepEqual(
+  notifications.persistablePopup(thumbnailPersistable.entry, '/state/images/').copies,
+  [],
+  'notifications do not re-copy a restored picture copy'
 )
 
 assertEqual(

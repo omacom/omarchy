@@ -333,13 +333,38 @@ function imageStem(entry) {
 
 // The filesystem path behind a file-backed image value, or "" for anything
 // a copy can't capture: themed icon names, in-process image:// URLs, empty.
+// Quickshell hands `image-path` files over as `image://icon//<absolute path>`
+// (the doubled slash marks a filesystem path, not a themed icon name).
 function localImageFile(value) {
   var s = String(value || "")
-  if (s.indexOf("file://") === 0) {
+  if (s.indexOf("image://icon//") === 0) {
+    s = s.slice("image://icon/".length)
+  } else if (s.indexOf("file://") === 0) {
     s = s.slice(7)
     try { s = decodeURIComponent(s) } catch (e) {}
   }
   return s.charAt(0) === "/" ? s : ""
+}
+
+// The picture extension of a file-backed image value, lowercased with its dot,
+// or "" when the value isn't a picture file on disk. Screenshot, recording and
+// download previews arrive as real picture files; Chromium avatars arrive as
+// extensionless /tmp files and in-process image:// URLs, so they stay icons.
+var THUMBNAIL_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif", ".bmp"]
+
+function thumbnailExtension(value) {
+  var path = localImageFile(value).toLowerCase()
+  for (var i = 0; i < THUMBNAIL_EXTENSIONS.length; i++) {
+    var ext = THUMBNAIL_EXTENSIONS[i]
+    if (path.length > ext.length && path.slice(-ext.length) === ext) return ext
+  }
+  return ""
+}
+
+// The picture file to draw as a notification's thumbnail, or "" to keep the
+// image in the small icon slot.
+function thumbnailPath(value) {
+  return thumbnailExtension(value) ? localImageFile(value) : ""
 }
 
 // The entry as it should hit the disk, plus the copies that make it true.
@@ -357,7 +382,9 @@ function persistablePopup(entry, imagesDir) {
     if (!value) continue
     var source = localImageFile(value)
     if (source) {
-      var copy = String(imagesDir || "") + imageStem(e) + "-" + role
+      // Picture copies keep their extension so a restored toast still
+      // renders its thumbnail.
+      var copy = String(imagesDir || "") + imageStem(e) + "-" + role + (role === "image" ? thumbnailExtension(source) : "")
       if (source !== copy) copies.push({ from: source, to: copy })
       out[role] = "file://" + copy
     } else if (value.indexOf("image://") === 0) {
@@ -488,6 +515,8 @@ if (typeof module !== "undefined") {
     popupFileName: popupFileName,
     imageStem: imageStem,
     localImageFile: localImageFile,
+    thumbnailExtension: thumbnailExtension,
+    thumbnailPath: thumbnailPath,
     persistablePopup: persistablePopup,
     serializePopup: serializePopup,
     parsePopupFiles: parsePopupFiles,

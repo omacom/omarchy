@@ -3,6 +3,7 @@
 // panel drives static rendering. Both use the same component.
 
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell
 import qs.Commons
@@ -34,9 +35,14 @@ BorderSurface {
 
   signal closeRequested()
   signal cardClicked()
+  // A picture file (screenshot, recording or download preview) is drawn as a
+  // thumbnail above the text; the small icon slot then falls back to the app
+  // icon. A thumbnail that fails to load drops back into the icon slot.
+  readonly property string thumbnailPath: NotificationLogic.thumbnailPath(image)
+  readonly property bool hasThumbnail: thumbnailPath.length > 0 && thumbnailImage.status !== Image.Error
   // Prefer per-notification media/avatar data, then fall back to the app icon.
   // The `check` flag avoids Qt's missing-texture placeholder for unknown names.
-  readonly property string smallIconSource: image.length > 0 ? image : iconSource(appIcon)
+  readonly property string smallIconSource: image.length > 0 && !hasThumbnail ? image : iconSource(appIcon)
   readonly property bool hasGlyph: glyph.length > 0
   readonly property bool compactGlyph: NotificationLogic.shouldRenderCompactGlyph(glyph, smallIconSource, singleLineToast)
   readonly property bool hasSmallIcon: smallIconSource.length > 0
@@ -98,6 +104,56 @@ BorderSurface {
     anchors.leftMargin: root.borderLeft
     anchors.rightMargin: root.borderRight
     spacing: 0
+
+    // Thumbnail strip. PreserveAspectCrop so the preview reads as a clean
+    // banner without letterboxing; the mask rounds its top corners to sit
+    // inside the card's rounded border.
+    Item {
+      id: thumbnailStrip
+      Layout.fillWidth: true
+      Layout.preferredHeight: Style.space(160)
+      visible: root.hasThumbnail
+      readonly property real innerRadius: Math.max(0, root.cornerRadius - root.borderTop)
+
+      Rectangle {
+        id: thumbnailMask
+        anchors.fill: parent
+        visible: false
+        layer.enabled: true
+        topLeftRadius: thumbnailStrip.innerRadius
+        topRightRadius: thumbnailStrip.innerRadius
+        color: "white"
+      }
+
+      Image {
+        id: thumbnailImage
+        anchors.fill: parent
+        layer.enabled: thumbnailStrip.innerRadius > 0
+        layer.smooth: true
+        layer.effect: MultiEffect {
+          maskEnabled: true
+          maskSource: thumbnailMask
+          maskThresholdMin: 0.3
+          maskSpreadAtMin: 0.3
+        }
+        source: root.thumbnailPath.length > 0 ? Util.fileUrl(root.thumbnailPath) : ""
+        sourceSize.width: width > 0 ? width * Screen.devicePixelRatio : 0
+        sourceSize.height: height > 0 ? height * Screen.devicePixelRatio : 0
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        smooth: true
+      }
+
+      // Divider matching the card border so the thumbnail is framed on the
+      // side the card border doesn't cover.
+      Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: Math.max(1, root.borderTop)
+        color: Color.notifications.border
+      }
+    }
 
     // Text content.
     RowLayout {
@@ -208,6 +264,15 @@ BorderSurface {
     opacity: root.hovered ? 1 : 0
 
     Behavior on opacity { NumberAnimation { duration: Style.duration(100) } }
+
+    // Backdrop so the close stays legible over a thumbnail.
+    Rectangle {
+      anchors.fill: parent
+      visible: root.hasThumbnail
+      radius: width / 2
+      color: Color.notifications.background
+      opacity: 0.8
+    }
 
     Text {
       anchors.centerIn: parent
