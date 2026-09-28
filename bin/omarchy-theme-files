@@ -26,27 +26,17 @@ set -uo pipefail
 # Quoted because these are patterns for git, and an unquoted one is a glob bash
 # would expand against this machine's own files.
 THEME_FILES=(
-  # Palette and mode. alacritty.toml is never staged, but it is where
-  # omarchy-theme-set derives colors.toml for themes written before it existed.
+  # Palette and mode. Every app's colours are generated from colors.toml
+  # (default/themed/*.tpl), so a listed theme ships none of those files.
+  # alacritty.toml is never staged, but it is where omarchy-theme-set derives
+  # colors.toml for themes written before it existed.
   "/colors.toml"
   "/alacritty.toml"
   "/light.mode"
 
-  # Colour for everything Omarchy themes beyond the palette.
-  "/btop.theme"
-  "/chromium.theme"
-  "/claude.json"
-  "/helix.toml"
-  "/hermes.yaml"
-  "/hyprland-preview-share-picker.css"
+  # The icon colour: the one choice colors.toml cannot make, so no template
+  # writes it. Without it the icons are Yaru-blue.
   "/icons.theme"
-  "/keyboard.rgb"
-  "/obsidian.css"
-  "/pi.json"
-  "/shell.toml"
-  "/shell.*.toml"
-  "/t3code.json"
-  "/vscode-theme.json"
 
   # The lock screen, and the image the theme is shown by.
   "/unlock.png"

@@ -60,7 +60,6 @@ warning_label() {
   BACKGROUND_FILENAME) echo "a background is named in a way Omarchy may not order" ;;
   BACKGROUND_SKIPPED) echo "a background was skipped as unreadable" ;;
   ICONS_THEME_UNKNOWN) echo "names an icon theme this machine may not have" ;;
-  KEYBOARD_RGB_INVALID) echo "its keyboard.rgb could not be read" ;;
   UNLOCK_PAIR) echo "ships only one half of the unlock images" ;;
   NO_LICENSE_FILE) echo "no LICENSE file" ;;
   REPO_NO_LICENSE) echo "no licence declared on the repository" ;;

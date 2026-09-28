@@ -38,6 +38,12 @@ Everything else a cloned theme ships is kept, including `btop.theme`,
 Omarchy tells a cloned theme from the user's own by the `.git` directory a clone
 leaves behind.
 
+A theme installed by name from the marketplace (`omarchy theme install <name>`)
+checks out less: only `colors.toml` (or `alacritty.toml` to derive one from),
+`light.mode`, `icons.theme`, the preview and unlock images, the wallpapers
+directly in `backgrounds/`, and its README and LICENSE (`omarchy-theme-files`).
+Every other colour file is generated from `colors.toml`.
+
 To change how Omarchy themes an app for every theme, write the template rather
 than the theme: `~/.config/omarchy/themed/<config-name>.tpl` overrides the
 built-in one. See `docs/theming.md` in the Omarchy repo.

@@ -40,9 +40,11 @@ assert_equal "the marker is not something theme staging would copy" \
 # A theme repo may carry a gallery, notes beside its wallpapers, or a file that
 # runs code. None of it has to be downloaded to apply the theme's colours.
 assert_equal "the files Omarchy reads are checked out" \
-  "$(cd "$MARKETPLACE_THEMES/alpha" && printf '%s ' colors.toml preview.png shell.lock.toml backgrounds/one.jpg | xargs -n1 test -f && echo present)" "present"
+  "$(cd "$MARKETPLACE_THEMES/alpha" && printf '%s ' colors.toml preview.png backgrounds/one.jpg | xargs -n1 test -f && echo present)" "present"
 
-for unread in docs/screenshot.png backgrounds/notes.txt neovim.lua; do
+# shell.lock.toml is a colour file Omarchy generates from colors.toml, so a
+# listed theme's own copy is left in its repo like the rest.
+for unread in docs/screenshot.png backgrounds/notes.txt neovim.lua shell.lock.toml; do
   [[ ! -e $MARKETPLACE_THEMES/alpha/$unread ]] ||
     fail "a theme repo's $unread is not checked out"
 done
@@ -53,38 +55,32 @@ pass "what Omarchy never reads is left in the repo"
 assert_equal "the checkout stays restricted afterwards" \
   "$(git -C "$MARKETPLACE_THEMES/alpha" config core.sparseCheckout)" "true"
 
-# A colour file Omarchy generates may also be shipped by a theme, so every one
-# of them needs a pattern; a new template upstream otherwise stops arriving
-# without anything failing. Derived from the templates and from theme-set's own
-# deny list so the three cannot drift apart.
-patterns=$(omarchy-theme-files | sed 's|^/||')
-denied=$(sed -n 's/^INSTALLED_THEME_DENIED=(\(.*\))$/\1/p' "$ROOT/bin/omarchy-theme-set")
+# Every colour file Omarchy generates comes from colors.toml, so a listed
+# theme's own copy is never checked out: the colours are always the palette's.
+# Derived from the templates so a new one upstream is covered without a change
+# here.
+patterns=$(omarchy-theme-files | sed 's|^/||' | grep -v '^!')
 
-uncovered=()
+shipped=()
 for tpl in "$ROOT"/default/themed/*.tpl; do
   generated=$(basename "$tpl" .tpl)
 
-  # A theme may ship neither Lua nor anything on the deny list, so neither
-  # needs a pattern.
-  [[ $generated == *.lua ]] && continue
-  [[ " $denied " == *" $generated "* ]] && continue
-
-  covered=0
   while IFS= read -r pattern; do
     # shellcheck disable=SC2053
     if [[ $generated == $pattern ]]; then
-      covered=1
+      shipped+=("$generated")
       break
     fi
   done <<<"$patterns"
-
-  (( covered )) || uncovered+=("$generated")
 done
 
-(( ${#uncovered[@]} == 0 )) ||
-  fail "every colour file Omarchy generates can be shipped by a theme" \
-    "no pattern in THEME_FILES matches: ${uncovered[*]}"
-pass "every colour file Omarchy generates can be shipped by a theme"
+# alacritty.toml is the one exception: checked out only so a theme without a
+# colors.toml has a palette to derive, and never staged.
+shipped=("${shipped[@]/alacritty.toml/}")
+[[ -z ${shipped[*]// /} ]] ||
+  fail "no colour file Omarchy generates is taken from a listed theme" \
+    "THEME_FILES still checks out: ${shipped[*]}"
+pass "no colour file Omarchy generates is taken from a listed theme"
 
 
 
