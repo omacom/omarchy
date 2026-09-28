@@ -356,7 +356,7 @@ Item {
   // dictation chrono, a volume OSD, a long copy) depend on it: they post a
   // long-lived notification, update it, and close it when the operation ends.
   // Without this the toast sits there until its own timeout, which for a
-  // deliberately persistent one (expire_timeout 0) means forever.
+  // critical one (durationFor gives it none) means forever.
   //
   // Only CloseRequested belongs here. Expired and Dismissed are this shell's
   // own paths — they arrive from inside removePopup() and would re-enter it.
