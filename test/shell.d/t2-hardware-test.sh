@@ -227,3 +227,50 @@ grep -Fxq 'limine-mkinitcpio' "$calls" ||
   fail "T2 rerun migration rebuilds the boot image"
 [[ -f $repair_marker ]] || fail "T2 rerun migration records the machine-wide repair"
 pass "T2 rerun migration repairs installs the broken hardware check skipped"
+
+cat >"$stub_bin/omarchy-state" <<'SH'
+#!/bin/bash
+
+printf 'omarchy-state' >>"$TEST_LOG"
+printf '\t%s' "$@" >>"$TEST_LOG"
+printf '\n' >>"$TEST_LOG"
+SH
+chmod +x "$stub_bin/omarchy-state"
+
+installed_touchpad_rule="$test_tmp/udev/99-omarchy-apple-t2-touchpad.rules"
+: >"$calls"
+
+PATH="$stub_bin:$PATH" \
+  TEST_LOG="$calls" \
+  T2_HARDWARE=0 \
+  OMARCHY_PATH="$ROOT" \
+  OMARCHY_T2_TOUCHPAD_RULE="$installed_touchpad_rule" \
+  bash -euo pipefail "$touchpad_migration" >/dev/null
+
+[[ ! -e $installed_touchpad_rule ]] || fail "non-T2 systems do not get the touchpad rule"
+[[ ! -s $calls ]] || fail "non-T2 systems skip the touchpad migration" "$(cat "$calls")"
+
+PATH="$stub_bin:$PATH" \
+  TEST_LOG="$calls" \
+  T2_HARDWARE=1 \
+  OMARCHY_PATH="$ROOT" \
+  OMARCHY_T2_TOUCHPAD_RULE="$installed_touchpad_rule" \
+  bash -euo pipefail "$touchpad_migration" >/dev/null
+
+cmp -s "$touchpad_rule" "$installed_touchpad_rule" || fail "T2 touchpad migration installs the rule"
+[[ $(stat -c %a "$installed_touchpad_rule") == "644" ]] ||
+  fail "T2 touchpad migration installs the rule with fixed permissions"
+grep -Fxq $'omarchy-state\tset\treboot-required' "$calls" ||
+  fail "T2 touchpad migration asks for the reboot libinput needs"
+
+: >"$calls"
+
+PATH="$stub_bin:$PATH" \
+  TEST_LOG="$calls" \
+  T2_HARDWARE=1 \
+  OMARCHY_PATH="$ROOT" \
+  OMARCHY_T2_TOUCHPAD_RULE="$installed_touchpad_rule" \
+  bash -euo pipefail "$touchpad_migration" >/dev/null
+
+[[ ! -s $calls ]] || fail "an installed touchpad rule is left unchanged" "$(cat "$calls")"
+pass "T2 touchpad migration installs the rule once, only on T2 hardware"
