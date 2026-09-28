@@ -22,8 +22,8 @@ printf 'pkg-add %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
 touch "$OMARCHY_TEST_ROOT/package-installed"
 SH
 # The user manager, as far as these tests need one: a service is active while
-# a marker says so. Stopping clears it, except for the unit named in
-# OMARCHY_TEST_STOP_FAIL.
+# a marker says so, and enabled likewise. Stopping clears it, except for the
+# unit named in OMARCHY_TEST_STOP_FAIL.
 cat >"$mock_bin/systemctl" <<'SH'
 #!/bin/bash
 case "$2" in
@@ -33,6 +33,11 @@ case "$2" in
     rm -f "$HOME/active-$3"
     ;;
   is-active) [[ -e $HOME/active-$4 ]] ;;
+  is-enabled) [[ -e $HOME/enabled-$4 ]] ;;
+  disable)
+    printf 'systemctl %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
+    rm -f "$HOME/enabled-$3"
+    ;;
 esac
 SH
 chmod +x "$mock_bin/"*
@@ -66,7 +71,7 @@ if [[ \${2:-} == "install" ]]; then
   fi
   printf 'ExecStart=%s $prefix/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js %s\n' "\$node" "\$1" >"\$unit"
   [[ -z "\${OMARCHY_TEST_START_FAIL:-}" ]] || exit 1
-  touch "\$HOME/active-openclaw-\$1.service"
+  touch "\$HOME/active-openclaw-\$1.service" "\$HOME/enabled-openclaw-\$1.service"
 fi
 exec true "$prefix/tools/node-v24.19.0/lib/node_modules/openclaw/dist/entry.js" "\$@"
 EOF
@@ -193,6 +198,7 @@ units="$test_home/.config/systemd/user"
 mkdir -p "$units"
 printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$units/openclaw-gateway.service"
 printf 'ExecStart=/opt/node /home/someone/openclaw/dist/index.js node run\n' >"$units/openclaw-node.service"
+touch "$test_home/active-openclaw-gateway.service" "$test_home/enabled-openclaw-gateway.service"
 OPENCLAW_PROFILE=work run omarchy-install-openclaw-cli --now || fail "--now moves the old package's services" "$(cat "$test_tmp/output")"
 order=$(grep -n -e '^systemctl --user stop openclaw-gateway.service$' -e '^install-cli ' -e '^runtime gateway install --force$' "$events" | cut -d: -f2- | cut -c1-11)
 [[ $order == $'systemctl -\ninstall-cli\nruntime gat' ]] ||
@@ -205,6 +211,17 @@ sed -n 's/^ExecStart=\([^ ]*\).*/\1/p' "$units/openclaw-gateway.service" | grep 
 grep -Fxq "runtime gateway install --force --runtime-path $test_home/.openclaw/tools/node-v24.19.0/bin/node" "$events" ||
   fail "--now pins the runtime's Node when the installer kept the system one" "$(cat "$events")"
 pass "a service the old package installed moves to the runtime, and only that one"
+
+# Installing a service enables and starts it, so one the user had left stopped
+# and disabled is moved and then put back that way.
+new_home dormant
+mkdir -p "$test_home/.config/systemd/user"
+printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
+run omarchy-install-openclaw-cli --now || fail "--now moves a dormant gateway" "$(cat "$test_tmp/output")"
+runs=$(sed -n 's/^ExecStart=\([^ ]*\).*/\1/p' "$test_home/.config/systemd/user/openclaw-gateway.service")
+[[ $runs == "$test_home/.openclaw/tools/node-v24.19.0/bin/node" && ! -e $test_home/active-openclaw-gateway.service && ! -e $test_home/enabled-openclaw-gateway.service ]] ||
+  fail "--now moves a dormant gateway and leaves it stopped and disabled" "$(cat "$events")"
+pass "a gateway the user left stopped and disabled is moved and stays that way"
 
 new_home stop-fails
 mkdir -p "$test_home/.config/systemd/user"

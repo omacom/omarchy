@@ -162,6 +162,14 @@ rehome_services() {
       echo "Could not move the OpenClaw $role service to $prefix. Finish with: openclaw $role install --force" >&2
       return 1
     fi
+    # Installing a service enables and starts it; one the user had left
+    # stopped or disabled goes back to that.
+    if [[ " ${running[*]} " != *" $role "* ]]; then
+      systemctl --user stop "openclaw-$role.service" || true
+    fi
+    if [[ " ${enabled[*]} " != *" $role "* ]]; then
+      systemctl --user disable "openclaw-$role.service" 2>/dev/null || true
+    fi
   done
 }
 
@@ -219,16 +227,20 @@ if [[ $seeding == "true" && ( ! -r $seed/install-cli.sh || ! -r $seed/openclaw.t
   exit 1
 fi
 
-# What the old package installed and what of it was running, read before
-# anything changes.
+# What the old package installed, and what of it was running and enabled, read
+# before anything changes.
 moving=()
 running=()
+enabled=()
 stopped=()
 for role in gateway node; do
   if [[ -f $(unit_path "$role") ]] && on_old_package "$(unit_path "$role")"; then
     moving+=("$role")
     if systemctl --user is-active --quiet "openclaw-$role.service"; then
       running+=("$role")
+    fi
+    if systemctl --user is-enabled --quiet "openclaw-$role.service"; then
+      enabled+=("$role")
     fi
   fi
 done
