@@ -8,7 +8,7 @@ Backgrounds can be videos as well as stills. Drop an `mp4`, `m4v`, `mov`, `webm`
 
 A still background can have a short boot intro that plays once per system boot and ends on the already-loaded image. Use _Style > Boot Intro > Set Intro_ to choose a video for the current background. Omarchy stores it separately from regular backgrounds, so it stays out of the background picker and never loops.
 
-Boot intros are bound to the exact contents of a background rather than only its filename. Replacing an image with a different one under the same name therefore cannot play a mismatched intro. _Remove Intro_ removes your intro and suppresses any default supplied by the theme; _Restore Default_ allows the theme's intro again. Use the _Enabled_ switch to turn all boot intros on or off.
+Boot intros are bound to the exact contents of a background rather than only its filename. Replacing an image with a different one under the same name therefore cannot play a mismatched intro. _Remove Intro_ removes your intro and suppresses any default supplied by the theme; _Restore Default_ allows the theme's intro again. Use the _Enabled_ switch to turn all boot intros on or off. Boot intros also stay off while animations are turned off (_Toggle > Animations_), which Omarchy does by default in a virtual machine.
 
 Theme authors can include a default intro such as `intros/0-winding-road.mp4` with a matching `intros/0-winding-road.sha256`. The checksum file contains the SHA-256 of `backgrounds/0-winding-road.webp`.
 

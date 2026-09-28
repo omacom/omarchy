@@ -212,14 +212,15 @@ Item {
   }
 
   // Also reports whether this boot's intro is still unplayed, using the same
-  // boot id and marker as omarchy-theme-bg-boot-intro. The launcher keeps the
-  // authoritative check; this answer only decides the cover.
+  // boot id, marker and off switches (the intros toggle, animations off) as
+  // omarchy-theme-bg-boot-intro. The launcher keeps the authoritative check;
+  // this answer only decides the cover.
   Process {
     id: readlinkProc
     command: [
       "bash", "-c",
-      "readlink -f \"$1\"; [[ $(cat \"$2\" 2>/dev/null) == \"${OMARCHY_BOOT_ID:-$(</proc/sys/kernel/random/boot_id)}\" ]] && echo played || echo unplayed",
-      "_", root.currentBackgroundLink, root.stateHome + "/omarchy/background-intro.boot-id"
+      "readlink -f \"$1\"; if [[ $(cat \"$2\" 2>/dev/null) == \"${OMARCHY_BOOT_ID:-$(</proc/sys/kernel/random/boot_id)}\" || -f $3 || $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r .bool 2>/dev/null) == false ]]; then echo played; else echo unplayed; fi",
+      "_", root.currentBackgroundLink, root.stateHome + "/omarchy/background-intro.boot-id", root.stateHome + "/omarchy/toggles/background-intros-off"
     ]
     stdout: StdioCollector {
       onStreamFinished: {

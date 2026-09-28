@@ -64,6 +64,12 @@ case ${1:-} in
 esac
 SH
 chmod +x "$command_bin/owe"
+cat >"$command_bin/hyprctl" <<'SH'
+#!/bin/bash
+printf '{"option":"animations:enabled","int":%s,"bool":%s}\n' \
+  "$([[ ${ANIMATIONS:-on} == on ]] && echo 1 || echo 0)" "$([[ ${ANIMATIONS:-on} == on ]] && echo true || echo false)"
+SH
+chmod +x "$command_bin/hyprctl"
 
 mkdir -p "$(dirname "$toggle")"
 touch "$toggle"
@@ -72,6 +78,11 @@ resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_
 rm "$toggle"
 resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OMARCHY_BOOT_ID=disabled-boot "$ROOT/bin/omarchy-theme-bg-boot-intro")
 [[ -z $resolved ]] || fail "enabling midway through a boot does not start a delayed intro" "$resolved"
+
+: >"$command_log"
+PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" ANIMATIONS=off OMARCHY_BOOT_ID=still-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"
+[[ $(<"$marker") == "still-boot" ]] || fail "with animations off the boot is consumed"
+! grep -q '^owe: intro ' "$command_log" || fail "with animations off no intro plays"
 
 rm "$marker"
 if PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_FAIL=rejected OMARCHY_BOOT_ID=retry-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"; then
@@ -208,11 +219,19 @@ const still = path.join(lookupDir, 'still.png')
 const link = path.join(lookupDir, 'background')
 fs.writeFileSync(still, '')
 fs.symlinkSync(still, link)
-const lookUp = () => execFileSync('bash', ['-c', lookup, '_', link, marker], {
-  env: { ...process.env, OMARCHY_BOOT_ID: 'boot-b' }
+const toggle = path.join(lookupDir, 'background-intros-off')
+const lookupBin = path.join(lookupDir, 'bin')
+fs.mkdirSync(lookupBin)
+fs.writeFileSync(path.join(lookupBin, 'hyprctl'), '#!/bin/bash\n[[ $ANIMATIONS == off ]] && echo \'{"bool":false}\' || echo \'{"bool":true}\'\n', { mode: 0o755 })
+const lookUp = (animations = 'on') => execFileSync('bash', ['-c', lookup, '_', link, marker, toggle], {
+  env: { ...process.env, OMARCHY_BOOT_ID: 'boot-b', ANIMATIONS: animations, PATH: `${lookupBin}:${process.env.PATH}` }
 }).toString().split('\n')
 
 assert(lookUp()[0] === still && lookUp()[1] === 'unplayed', 'the background lookup reports an unplayed boot without a marker')
+assert(lookUp('off')[1] === 'played', 'the background lookup skips the cover with animations off')
+fs.writeFileSync(toggle, '')
+assert(lookUp()[1] === 'played', 'the background lookup skips the cover with intros turned off')
+fs.rmSync(toggle)
 fs.writeFileSync(marker, 'boot-a\n')
 assert(lookUp()[1] === 'unplayed', 'the background lookup reports an unplayed boot after an earlier boot')
 fs.writeFileSync(marker, 'boot-b\n')

@@ -120,7 +120,13 @@ consume_boot() {
   trap - RETURN
 }
 
-if [[ -f $toggle ]]; then
+# With animations off, the desktop starts on the still: that is the default in
+# a VM, where Hyprland renders on the CPU and a video intro costs the most.
+animations_off() {
+  [[ $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r '.bool' 2>/dev/null) == "false" ]]
+}
+
+if [[ -f $toggle ]] || animations_off; then
   consume_boot
   exit 0
 fi
