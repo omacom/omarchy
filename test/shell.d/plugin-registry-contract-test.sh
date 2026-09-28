@@ -21,7 +21,7 @@ trap cleanup EXIT
 require_compositor "plugin registry contract test"
 
 if ! command -v quickshell >/dev/null 2>&1; then
-  pass "quickshell not installed; skipping plugin registry contract test"
+  skip "quickshell not installed; skipping plugin registry contract test"
   exit 0
 fi
 

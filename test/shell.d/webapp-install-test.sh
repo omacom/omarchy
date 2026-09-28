@@ -4,129 +4,121 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-require_command file
-require_command magick
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
 
-test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+home="$tmpdir/home"
+mkdir -p "$home/.local/share/applications"
 
-mock_bin="$test_tmp/bin"
-test_home="$test_tmp/home"
-fixture_dir="$test_tmp/fixtures"
-download_tmp="$test_tmp/downloads"
-mkdir -p "$mock_bin" "$test_home" "$fixture_dir" "$download_tmp"
-
-magick -size 4x4 xc:black "$fixture_dir/icon.png"
-magick -size 4x4 xc:black "$fixture_dir/icon.webp"
-printf 'not an image\n' >"$fixture_dir/invalid.txt"
-
-cat >"$mock_bin/curl" <<'SH'
-#!/bin/bash
-
-output=""
-url="${!#}"
-
-while (( $# > 0 )); do
-  case "$1" in
-  -o)
-    output="$2"
-    shift 2
-    ;;
-  *) shift ;;
-  esac
-done
-
-if [[ -z $output ]]; then
-  printf '<link rel="apple-touch-icon" href="/icon.webp">\n'
-  exit 0
-fi
-
-case "$url" in
-*/icon.png) cp "$ICON_PNG_FIXTURE" "$output" ;;
-*/icon.webp) cp "$ICON_WEBP_FIXTURE" "$output" ;;
-*/invalid.txt) cp "$INVALID_FIXTURE" "$output" ;;
-*) exit 1 ;;
-esac
-SH
-
-cat >"$mock_bin/gtk-update-icon-cache" <<'SH'
-#!/bin/bash
-exit 0
-SH
-
-chmod +x "$mock_bin"/*
-
-export HOME="$test_home"
-export ICON_PNG_FIXTURE="$fixture_dir/icon.png"
-export ICON_WEBP_FIXTURE="$fixture_dir/icon.webp"
-export INVALID_FIXTURE="$fixture_dir/invalid.txt"
-export OMARCHY_PATH="$ROOT"
-export PATH="$mock_bin:$PATH"
-export TMPDIR="$download_tmp"
-
-assert_png_icon() {
-  local name="$1"
-  local slug="$2"
-  local icon="$HOME/.local/share/icons/hicolor/256x256/apps/$slug.png"
-  local desktop="$HOME/.local/share/applications/$name.desktop"
-
-  [[ $(file -b --mime-type "$icon") == "image/png" ]] ||
-    fail "$name stores a real PNG icon"
-  grep -Fqx "Icon=$slug" "$desktop" ||
-    fail "$name desktop entry references its themed icon name"
-  pass "$name stores and references a real PNG icon"
+install_webapp() {
+  HOME="$home" "$ROOT/bin/omarchy-webapp-install" "$@"
 }
 
-"$ROOT/bin/omarchy-webapp-install" "Explicit WebP" https://example.com https://example.com/icon.webp
-assert_png_icon "Explicit WebP" explicit-webp
+desktop_for() {
+  printf '%s' "$home/.local/share/applications/$1.desktop"
+}
 
-"$ROOT/bin/omarchy-webapp-install" "Automatic WebP" https://example.com ""
-assert_png_icon "Automatic WebP" automatic-webp
-
-"$ROOT/bin/omarchy-webapp-install" "Explicit PNG" https://example.com https://example.com/icon.png
-assert_png_icon "Explicit PNG" explicit-png
-
-cat >"$mock_bin/omarchy-cmd-present" <<'SH'
-#!/bin/bash
-exit 1
-SH
-chmod +x "$mock_bin/omarchy-cmd-present"
-
-"$ROOT/bin/omarchy-webapp-install" "Unavailable Converter" https://example.com https://example.com/icon.webp
-fallback_icon="$HOME/.local/share/icons/hicolor/256x256/apps/unavailable-converter.png"
-fallback_desktop="$HOME/.local/share/applications/Unavailable Converter.desktop"
-[[ $(file -b --mime-type "$fallback_icon") == "image/webp" ]] ||
-  fail "web app installer preserves the original image when conversion is unavailable"
-grep -Fqx "Icon=unavailable-converter" "$fallback_desktop" ||
-  fail "web app installer creates a desktop entry when conversion is unavailable"
-pass "web app installer creates the app when icon conversion is unavailable"
-
-cat >"$mock_bin/mv" <<'SH'
-#!/bin/bash
-exit 1
-SH
-chmod +x "$mock_bin/mv"
-
-if "$ROOT/bin/omarchy-webapp-install" "Failed Icon Install" https://example.com https://example.com/icon.webp >"$test_tmp/failed-install-output"; then
-  fail "web app installer reports a failed fallback icon installation"
-fi
-[[ ! -e $HOME/.local/share/applications/Failed\ Icon\ Install.desktop ]] ||
-  fail "web app installer creates no desktop entry after a failed icon installation"
-pass "web app installer reports a failed fallback icon installation"
-
-if "$ROOT/bin/omarchy-webapp-install" "Invalid Icon" https://example.com https://example.com/invalid.txt >"$test_tmp/invalid-icon-output"; then
-  fail "web app installer rejects a non-image download"
+if install_webapp "Example" "https://example.com" "webapp" >"$tmpdir/out" 2>"$tmpdir/err"; then
+  :
+else
+  fail "webapp install accepts an https URL" "$(cat "$tmpdir/err")"
 fi
 
-[[ ! -e $HOME/.local/share/icons/hicolor/256x256/apps/invalid-icon.png ]] ||
-  fail "web app installer leaves no invalid destination file"
-[[ ! -e $HOME/.local/share/applications/Invalid\ Icon.desktop ]] ||
-  fail "web app installer creates no desktop entry after an invalid download"
-pass "web app installer rejects invalid downloads without leaving output"
+desktop=$(desktop_for Example)
+[[ -f $desktop ]] || fail "webapp install writes a desktop file"
+grep -Fxq 'Name=Example' "$desktop" || fail "webapp install writes the app name"
+grep -Fxq 'Exec=omarchy-launch-webapp "https://example.com"' "$desktop" ||
+  fail "webapp install launches the https URL" "$(cat "$desktop")"
+pass "webapp install writes an https desktop entry"
 
-shopt -s nullglob
-temporary_downloads=("$download_tmp"/*)
-shopt -u nullglob
-(( ${#temporary_downloads[@]} == 0 )) ||
-  fail "web app installer cleans up temporary downloads"
-pass "web app installer cleans up temporary downloads"
+if install_webapp "Plain" "example.org/app" "webapp" >"$tmpdir/out" 2>"$tmpdir/err"; then
+  :
+else
+  fail "webapp install prefixes a schemeless URL with https" "$(cat "$tmpdir/err")"
+fi
+grep -Fxq 'Exec=omarchy-launch-webapp "https://example.org/app"' "$(desktop_for Plain)" ||
+  fail "webapp install stores the prefixed https URL" "$(cat "$(desktop_for Plain)")"
+pass "webapp install prefixes a schemeless URL with https"
+
+if install_webapp "Local" "https://localhost:47990" "webapp" "omarchy-launch-webapp https://localhost:47990 --ignore-certificate-errors" >"$tmpdir/out" 2>"$tmpdir/err"; then
+  :
+else
+  fail "webapp install keeps a custom https exec" "$(cat "$tmpdir/err")"
+fi
+grep -Fxq 'Exec=omarchy-launch-webapp https://localhost:47990 --ignore-certificate-errors' "$(desktop_for Local)" ||
+  fail "webapp install writes the custom exec" "$(cat "$(desktop_for Local)")"
+pass "webapp install keeps a custom https exec"
+
+for url in "javascript:alert(1)" "file:///etc/passwd" "data:text/html,hi" "ftp://example.com" "ext://x"; do
+  if install_webapp "Bad" "$url" "webapp" >"$tmpdir/out" 2>"$tmpdir/err"; then
+    fail "webapp install refuses '$url'"
+  fi
+  grep -Fq 'must be http or https' "$tmpdir/err" ||
+    fail "webapp install names the scheme refusal for '$url'" "$(cat "$tmpdir/err")"
+  [[ ! -e $(desktop_for Bad) ]] || fail "webapp install does not write a desktop file for '$url'"
+done
+pass "webapp install refuses non-http(s) URLs"
+
+# Raw whitespace is not valid URL data, and before Exec argument quoting it
+# split browser flags or additional URLs into separate arguments.
+for url in \
+  " javascript:alert(1)" \
+  " file:///etc/passwd" \
+  "https://example.com data:text/html,hi" \
+  "https://example.com/ --user-agent=INJECTION_PROOF_MARKER_12345"; do
+  if install_webapp "Sneak" "$url" "webapp" >"$tmpdir/out" 2>"$tmpdir/err"; then
+    fail "webapp install refuses whitespace in '$url'" "$(cat "$(desktop_for Sneak)")"
+  fi
+  grep -Fq 'must not contain whitespace' "$tmpdir/err" ||
+    fail "webapp install names the whitespace refusal for '$url'" "$(cat "$tmpdir/err")"
+  [[ ! -e $(desktop_for Sneak) ]] || fail "webapp install writes no desktop file for '$url'"
+done
+pass "webapp install refuses a URL carrying whitespace"
+
+# Schemes are case-insensitive, and HTTPS://example.com installed before the
+# scheme test existed.
+if install_webapp "Upper" "HTTPS://example.com" "webapp" >"$tmpdir/out" 2>"$tmpdir/err"; then
+  :
+else
+  fail "webapp install accepts an uppercase scheme" "$(cat "$tmpdir/err")"
+fi
+grep -Fxq 'Exec=omarchy-launch-webapp "HTTPS://example.com"' "$(desktop_for Upper)" ||
+  fail "webapp install keeps the uppercase scheme" "$(cat "$(desktop_for Upper)")"
+pass "webapp install accepts an uppercase http scheme"
+
+# The interactive prompt fetches the site's icon, so a refused URL must be
+# refused before anything dereferences it.
+stubs="$tmpdir/stubs"
+mkdir -p "$stubs"
+
+cat >"$stubs/gum" <<'GUM'
+#!/bin/bash
+count=$(cat "$GUM_COUNT" 2>/dev/null || echo 0)
+count=$((count + 1))
+printf '%s\n' "$count" >"$GUM_COUNT"
+sed -n "${count}p" "$GUM_ANSWERS"
+GUM
+
+cat >"$stubs/curl" <<'CURL'
+#!/bin/bash
+printf '%s\n' "$*" >>"$CURL_LOG"
+exit 1
+CURL
+
+chmod +x "$stubs/gum" "$stubs/curl"
+
+printf 'Evil\nfile:///etc/passwd\n' >"$tmpdir/answers"
+: >"$tmpdir/gum-count"
+: >"$tmpdir/curl-log"
+
+if GUM_ANSWERS="$tmpdir/answers" GUM_COUNT="$tmpdir/gum-count" CURL_LOG="$tmpdir/curl-log" \
+  PATH="$stubs:$PATH" HOME="$home" "$ROOT/bin/omarchy-webapp-install" \
+  >"$tmpdir/out" 2>"$tmpdir/err"; then
+  fail "interactive webapp install refuses a file: URL" "$(cat "$tmpdir/out")"
+fi
+grep -Fq 'must be http or https' "$tmpdir/err" ||
+  fail "interactive webapp install names the scheme refusal" "$(cat "$tmpdir/err")"
+[[ ! -s $tmpdir/curl-log ]] ||
+  fail "interactive webapp install refuses before fetching the URL" "$(cat "$tmpdir/curl-log")"
+[[ ! -e $(desktop_for Evil) ]] || fail "interactive webapp install writes no desktop file"
+pass "interactive webapp install refuses a bad URL before fetching it"
