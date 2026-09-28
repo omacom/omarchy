@@ -12,5 +12,5 @@ ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x15d4",
 EOF
 
   sudo udevadm control --reload
-  sudo udevadm trigger --subsystem-match=pci --attr-match=vendor=0x8086 --attr-match=device=0x15d4
+  sudo udevadm trigger --action=add --subsystem-match=pci --attr-match=vendor=0x8086 --attr-match=device=0x15d4
 fi
