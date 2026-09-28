@@ -88,7 +88,7 @@ ShellRoot {
     panel.peerIndex = 0
     panel.moveCursor(0, 1)
     check(panel.peerIndex === 1, "keyboard reaches offline peer")
-    panel.testKeys.textKey("O")
+    panel.testKeys.textKey("O", 0)
     Qt.callLater(hiddenChecks)
   }
   function hiddenChecks() {
