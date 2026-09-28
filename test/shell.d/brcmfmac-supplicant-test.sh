@@ -219,7 +219,7 @@ run_cleanup() {
 }
 
 # Byte for byte what the leaf writes, which is also the ownership test the
-# cleanup applies: only content ending in exactly this block is Omarchy's.
+# cleanup applies: only exactly this block, on whole lines, is Omarchy's.
 write_quirk_conf() {
   mkdir -p "$(dirname "$conf")"
   cat >"$conf" <<'EOF'
@@ -266,6 +266,18 @@ grep -qx 'options brcmfmac roamoff=1' "$conf" ||
 ! grep -q '^# Broadcom' "$conf" ||
   fail "the cleanup takes its own comments with the block" "$(cat "$conf")"
 pass "the cleanup strips the appended block and keeps the rest"
+
+# A line added below the block since does not leave the option in place.
+write_quirk_conf
+printf 'options brcmfmac roamoff=1\n' >>"$conf"
+run_cleanup 4433
+grep -qx 'options brcmfmac roamoff=1' "$conf" ||
+  fail "the cleanup keeps what the user added below the block" "$(cat "$conf")"
+! grep -q 'feature_disable=0x82000' "$conf" ||
+  fail "the cleanup removes a block with lines after it" "$(cat "$conf")"
+! grep -q '^# Broadcom' "$conf" ||
+  fail "the cleanup takes its own comments with a block that has lines after it" "$(cat "$conf")"
+pass "the cleanup strips the block when the user added lines after it"
 
 # A line the user merged another option onto is no longer the line Omarchy
 # wrote, and deleting it would take roamoff=1 with it. Not ours to edit.

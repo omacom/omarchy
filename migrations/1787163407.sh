@@ -31,7 +31,10 @@ block="# Broadcom's firmware supplicant and authenticator fail the WPA four-way
 # both so wpa_supplicant performs the handshake instead.
 options brcmfmac feature_disable=0x82000"
 
-[[ $content == "$block" || $content == *$'\n'"$block" ]] || exit 0
+# Whole lines anywhere in the file: a line the user added below the block since
+# does not make the block any less Omarchy's, or the option any less broken.
+padded=$'\n'"$content"$'\n'
+[[ $padded == *$'\n'"$block"$'\n'* ]] || exit 0
 
 # Flag the reboot before touching the file: interrupted here, the worst case is
 # a spare reboot prompt rather than an edited config nothing asks to apply.
@@ -41,7 +44,8 @@ options brcmfmac feature_disable=0x82000"
 # redundant once this lands, but removing that file is its owner's call.
 omarchy-state set reboot-required
 
-rest=${content%"$block"}
+rest=${padded%%$'\n'"$block"$'\n'*}$'\n'${padded#*$'\n'"$block"$'\n'}
+while [[ $rest == $'\n'* ]]; do rest=${rest#$'\n'}; done
 while [[ $rest == *$'\n' ]]; do rest=${rest%$'\n'}; done
 
 if [[ -z $rest ]]; then
@@ -53,7 +57,7 @@ if [[ -z $rest ]]; then
     sudo rm -f "$conf"
   fi
 else
-  # Anything the user kept above the appended block survives. tee writes
-  # through a symlink where sed -i would replace it with a regular file.
+  # Anything the user kept around the block survives. tee writes through a
+  # symlink where sed -i would replace it with a regular file.
   printf '%s\n' "$rest" | sudo tee "$conf" >/dev/null
 fi
