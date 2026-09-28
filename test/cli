@@ -474,11 +474,13 @@ OMARCHY_PATH="$ROOT" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-templates"
 jq -e '.name == "omarchy-system" and .vars.custom == "yes"' "$NEXT_THEME/pi.json" >/dev/null
 pass "theme-specific pi.json overrides the default template"
 
-HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-pi"
+# Pin the agent directory: the suite runs in the developer's shell, where
+# PI_CODING_AGENT_DIR may already be exported.
+env -u PI_CODING_AGENT_DIR HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-pi"
 [[ ! -d $PI_TMPDIR/.pi ]] || fail "pi theme sync skips missing Pi agent when not activating"
 pass "pi theme sync skips missing Pi agent when not activating"
 
-HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-pi" --activate
+env -u PI_CODING_AGENT_DIR HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-pi" --activate
 [[ -f $PI_TMPDIR/.pi/agent/themes/omarchy-system.json ]] || fail "pi theme file is synced"
 pass "pi theme file is synced"
 [[ -f $PI_TMPDIR/.pi/agent/settings.json ]] || fail "pi settings file is generated"
@@ -490,9 +492,14 @@ pass "pi generated theme is activated"
 
 jq '.model = "keep-me"' "$PI_TMPDIR/.pi/agent/settings.json" >"$PI_TMPDIR/settings.json.tmp"
 mv "$PI_TMPDIR/settings.json.tmp" "$PI_TMPDIR/.pi/agent/settings.json"
-HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-pi" --activate
+env -u PI_CODING_AGENT_DIR HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-pi" --activate
 jq -e '.theme == "omarchy-system" and .model == "keep-me"' "$PI_TMPDIR/.pi/agent/settings.json" >/dev/null
 pass "pi theme activation preserves existing settings"
+
+PI_CODING_AGENT_DIR="$PI_TMPDIR/custom-pi" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-pi" --activate
+[[ -f $PI_TMPDIR/custom-pi/themes/omarchy-system.json ]] || fail "pi theme honours PI_CODING_AGENT_DIR"
+jq -e '.theme == "omarchy-system"' "$PI_TMPDIR/custom-pi/settings.json" >/dev/null
+pass "pi theme honours PI_CODING_AGENT_DIR"
 
 jq -e '.name == "Omarchy" and .base == "light" and .overrides.text == "#ffffff"' "$NEXT_THEME/claude.json" >/dev/null
 pass "claude theme template is generated from standard themed templates"
