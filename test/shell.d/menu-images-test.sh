@@ -152,12 +152,7 @@ while IFS=$'\t' read -r row_image row_thumbnail; do
 done <<<"$rows"
 pass "image menu prints its rows for the shell to hold"
 
-# A lazy run that falls back to the full-size image must leave the rows
-# uncached. `thumbnail_for` runs in a command substitution, so the
-# rows_cacheable=false it sets is discarded with the subshell; the comparison
-# below is the only thing that catches the placeholder in the parent. Filenames
-# are user data and may contain glob metacharacters, so the image has to be
-# compared as a string rather than as a pattern.
+# Filenames may contain glob characters; the fallback check must compare them as strings.
 rm -rf "$cache_home"
 mkdir -p "$cache_home"
 
