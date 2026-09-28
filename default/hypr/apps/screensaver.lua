@@ -9,13 +9,11 @@ o.window("org.omarchy.screensaver", { workspace = "special:screensaver silent" }
 -- Hyprland draws pinned windows in a pass of their own, after the workspace,
 -- so a pinned pop-out or picture-in-picture window stays on top of the
 -- fullscreen screensaver. No window rule changes that order. Drop the pin
--- while the screensaver is up and put it back when it goes away.
+-- while the screensaver is up and put it back when it goes away. Unpinned, a
+-- window is drawn with its workspace, under the screensaver's special one.
 --
--- The pin has to go before the screensaver takes fullscreen, because Hyprland
--- skips pinned windows when it hides the windows under a new fullscreen
--- window. That is why the first pass runs on window.open_early. The second
--- pass on window.open lowers whatever the first pass missed, which clears the
--- same "allowed over fullscreen" flag.
+-- The first pass runs on window.open_early, so that the screensaver's first
+-- frame already covers the window.
 
 local SCREENSAVER_CLASS = "org.omarchy.screensaver"
 
@@ -33,16 +31,10 @@ local function set_tag(window, tag)
   hl.dispatch(hl.dsp.window.tag({ tag = tag, window = window }))
 end
 
-local function set_zorder(window, mode)
-  hl.dispatch(hl.dsp.window.alter_zorder({ mode = mode, window = window }))
-end
-
 local function screensaver_windows()
   return hl.get_windows({ class = SCREENSAVER_CLASS })
 end
 
--- hl.get_windows returns the stack from the bottom up, which is the order the
--- windows need for the raise in restore_pins.
 local function unpinned_windows()
   return hl.get_windows({ tag = UNPINNED_TAG })
 end
@@ -60,20 +52,10 @@ local function unpin_pinned_windows()
   end
 end
 
--- Push anything the compositor still ranks above the screensaver below it.
-local function lower_unpinned()
-  for _, window in ipairs(unpinned_windows()) do
-    if window.allowed_over_fullscreen then
-      set_zorder(window, "bottom")
-    end
-  end
-end
-
--- Each raise lands the next window above the previous one, so the windows come
--- back in the order they had.
+-- Nothing moves the windows in the stack, so they come back in the order they
+-- had.
 local function restore_pins()
   for _, window in ipairs(unpinned_windows()) do
-    set_zorder(window, "top")
     set_pin(window, "on")
 
     -- Hyprland refuses the pin while a window is fullscreen. Keep the tag on
@@ -103,10 +85,8 @@ end)
 hl.on("window.open", function(window)
   if window.class == SCREENSAVER_CLASS then
     unpin_pinned_windows()
-    lower_unpinned()
   elseif window.pinned and #screensaver_windows() > 0 then
     unpin(window)
-    lower_unpinned()
   end
 end)
 
@@ -116,7 +96,6 @@ end)
 hl.on("window.pin", function(window)
   if window.pinned and window.class ~= SCREENSAVER_CLASS and #screensaver_windows() > 0 then
     unpin(window)
-    lower_unpinned()
   end
 end)
 
