@@ -144,6 +144,14 @@ assert(
   !/<br\/>/.test(cardQml),
   'the notification card does not rewrite newlines itself, which would leave tag syntax unchecked'
 )
+assert(
+  /Reserve room for the always-visible dismiss control\.[\s\S]{0,120}Layout\.rightMargin: Style\.space\(40\)/.test(cardQml),
+  'the notification card reserves text space for the always-visible dismiss control'
+)
+assert(
+  !/opacity: root\.hovered \? 1 : 0/.test(cardQml),
+  'the notification dismiss control remains visible without hovering the card'
+)
 
 assertEqual(
   notifications.sanitizeBody('trailing <img src="http://host/z.png"', 'Slack', ''),
