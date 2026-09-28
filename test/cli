@@ -591,7 +591,7 @@ EOF
 chmod +x "$FAKE_BIN/gsettings"
 
 GNOME_SYNC_LOG="$PI_TMPDIR/gnome-sync.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
-[[ $(sed -n '1p' "$PI_TMPDIR/gnome-sync.log") == "gdbus call --session --timeout 2 --dest org.freedesktop.portal.Desktop --object-path /org/freedesktop/portal/desktop --method org.freedesktop.portal.Settings.ReadOne org.freedesktop.appearance color-scheme" ]] || fail "gnome sync primes the Settings portal before changing color scheme"
+[[ $(sed -n '1p' "$PI_TMPDIR/gnome-sync.log") == "gdbus call --session --dest org.freedesktop.portal.Desktop --object-path /org/freedesktop/portal/desktop --method org.freedesktop.portal.Settings.ReadOne org.freedesktop.appearance color-scheme" ]] || fail "gnome sync primes the Settings portal before changing color scheme"
 pass "gnome sync primes the Settings portal before changing color scheme"
 grep -q 'gsettings set org.gnome.desktop.interface color-scheme prefer-light' "$PI_TMPDIR/gnome-sync.log" || fail "gnome sync reads mode from colors.toml"
 pass "gnome sync reads mode from colors.toml"

@@ -17,9 +17,9 @@ COLORS_FILE="$THEME_DIR/colors.toml"
 # legacy light.mode marker beside it, or background luminance for user themes.
 mode=$(omarchy-theme-color --file "$COLORS_FILE" mode)
 
-# Prime the selected Settings portal before changing color-scheme so it can
-# forward the resulting signal to already-running clients.
-gdbus call --session --timeout 2 \
+# Prime the Settings portal so it forwards the change to running clients. Bounded by
+# timeout, as gdbus's --timeout leaves out the introspection it does first.
+timeout 2 gdbus call --session \
   --dest org.freedesktop.portal.Desktop \
   --object-path /org/freedesktop/portal/desktop \
   --method org.freedesktop.portal.Settings.ReadOne \
