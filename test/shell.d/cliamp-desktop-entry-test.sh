@@ -26,6 +26,6 @@ pass "cliamp desktop override sets Terminal=false"
 # The keybinding uses the same app-id, so both paths produce the same window
 # class and window rules can match cliamp regardless of how it was launched.
 keybinding_file="$ROOT/default/hypr/bindings/applications.lua"
-grep -Fq 'cliamp' "$keybinding_file" ||
-  fail "cliamp keybinding exists for cross-reference"
+grep -Fq 'tui = "cliamp"' "$keybinding_file" ||
+  fail "cliamp keybinding launches through the TUI launcher, which derives org.omarchy.cliamp"
 pass "cliamp keybinding uses the same app-id as the desktop override"
