@@ -31,6 +31,11 @@ assertEqual(parsed.length, 3, 'menu parses JSONC with comments and trailing comm
 const withCommasInStrings = menu.parseMenuJsonc('{\n  "b": { "label": "x, ]y", "action": "mv f{.bak,}" },\n}')
 assertEqual(withCommasInStrings[0].label, 'x, ]y', 'menu keeps a comma before ] inside a label')
 assertEqual(withCommasInStrings[0].action, 'mv f{.bak,}', 'menu keeps a comma before } inside an action')
+
+assertEqual(menu.parseMenuJsonc('{"a": {"label": "A"}} // note').length, 1, 'menu strips an inline comment tail instead of dropping the whole file')
+assertEqual(menu.parseMenuJsonc('{ // opening note\n"a": {"label": "A"},\n} // closing note\n// final line').length, 1, 'menu strips full-line and inline comments in the same pass')
+assertEqual(menu.parseMenuJsonc('{"s": {"label": "A // B"}}')[0].label, 'A // B', 'menu preserves comment slashes inside a string literal')
+assertEqual(menu.parseMenuJsonc('{"a": {"label": "A"}} // }, "x": {"label": "X"}').length, 1, 'menu ignores JSON syntax carried inside a comment tail')
 assertDeepEqual(
   parsed.find(item => item.id === 'style.theme'),
   {
