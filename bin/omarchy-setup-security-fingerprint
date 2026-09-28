@@ -74,11 +74,25 @@ if ! omarchy-hw-fingerprint; then
   exit 1
 fi
 
-# libfprint-git tracks upstream ahead of the Arch release, so a new reader only
-# needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
-# --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
-# one transaction, so a failed install leaves the existing driver in place.
-if omarchy-pkg-missing libfprint-git fprintd usbutils; then
+# A Validity/Synaptics reader (e.g. the ThinkPad T480's 06cb:009a) can't be
+# driven by libfprint at all; it needs python-validity's reverse-engineered
+# driver, a fork of the fprint daemon it talks to. That stack comes from the
+# AUR, while everything else is served by libfprint-git, which tracks upstream
+# ahead of the Arch release, so a new reader only needs a pin bump in
+# omarchy-pkgs. Stock libfprint and libfprint-git conflict, and --noconfirm
+# answers that prompt with N; --ask 4 accepts the replacement in one
+# transaction, so a failed install leaves the existing driver in place.
+if omarchy-hw-fingerprint-validity; then
+  if omarchy-pkg-missing python-validity; then
+    echo "Installing the python-validity driver from the AUR..."
+    if ! omarchy-pkg-aur-add python-validity; then
+      echo -e "\e[31mFailed to install python-validity.\e[0m" >&2
+      exit 1
+    fi
+  fi
+  echo "Starting fingerprint daemons..."
+  sudo systemctl enable --now open-fprintd.service python3-validity.service python3-validity-suspend-hotfix.service
+elif omarchy-pkg-missing libfprint-git fprintd usbutils; then
   echo "Installing required packages..."
   sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
 fi

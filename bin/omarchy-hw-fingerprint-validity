@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true when the fingerprint reader is a python-validity (Validity/Synaptics) device
+# omarchy:hidden=true
+
+# libfprint cannot drive the Validity and Synaptics readers python-validity
+# supports, so the fingerprint setup needs a separate install path for them.
+# This is the exact device set from python-validity's SupportedDevices enum
+# (validitysensor/usb.py); bump it alongside a python-validity update that
+# grows support for another reader.
+validity_devices=" 138a:0090 138a:0097 138a:009d 06cb:009a "
+
+usb_devices_path="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
+
+for dev in "$usb_devices_path"/*; do
+  [[ -r $dev/idVendor && -r $dev/idProduct ]] || continue
+  vendor=$(<"$dev/idVendor")
+  product=$(<"$dev/idProduct")
+  [[ $validity_devices == *" $vendor:$product "* ]] && exit 0
+done
+
+exit 1
