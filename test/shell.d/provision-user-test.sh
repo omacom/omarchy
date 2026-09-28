@@ -73,11 +73,11 @@ pass "omarchy-provision-user uses the default directories when none are configur
 # A user who moved their XDG directories keeps them: provisioning must not
 # create an empty duplicate under the default name and bookmark that instead.
 custom_home="$test_tmp/custom"
-mkdir -p "$custom_home/.config" "$custom_home/inbox" "$custom_home/media/fotos" "$custom_home/media/clips"
+mkdir -p "$custom_home/.config" "$custom_home/inbox" "$custom_home/media/fotos" "$custom_home/media/my clips"
 cat >"$custom_home/.config/user-dirs.dirs" <<'DIRS'
 XDG_DOWNLOAD_DIR="$HOME/inbox"
 XDG_PICTURES_DIR="$HOME/media/fotos"
-XDG_VIDEOS_DIR="$HOME/media/clips"
+XDG_VIDEOS_DIR="$HOME/media/my clips"
 DIRS
 
 provision "$custom_home" || fail "omarchy-provision-user finishes with customized XDG directories"
@@ -93,7 +93,8 @@ bookmarked "$custom_home" "$custom_home/inbox" Downloads ||
   fail "omarchy-provision-user bookmarks the configured download directory"
 bookmarked "$custom_home" "$custom_home/media/fotos" Pictures ||
   fail "omarchy-provision-user bookmarks the configured picture directory"
-bookmarked "$custom_home" "$custom_home/media/clips" Videos ||
-  fail "omarchy-provision-user bookmarks the configured video directory"
+# GTK reads a bookmark up to its first space, so that space must be encoded.
+bookmarked "$custom_home" "$custom_home/media/my%20clips" Videos ||
+  fail "omarchy-provision-user bookmarks the configured video directory, percent-encoded"
 
 pass "omarchy-provision-user bookmarks the configured XDG directories"
