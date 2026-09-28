@@ -212,7 +212,12 @@ assert(/function close\(\) \{\s*\n\s*setCenterHoverRevealSuppressed\(false\)/.te
 assert(/width: Math\.max\(calendarScroll\.width, gridColumn\.width\)/.test(panelSource), 'calendar scrolls rather than clipping the grid on a narrow popup')
 assert(/enabled: !root\.viewingCurrentMonth/.test(panelSource) && /onClicked: root\.goToToday\(\)/.test(panelSource), 'calendar hero returns to today once the view has stepped away')
 assert(!/clampMonth/.test(panelSource), 'calendar steps freely into future months')
-assert(/Qt\.formatDate\(root\.today, "MMMM d"\)/.test(panelSource), 'calendar hero spells out today')
+assert(/Dates\.format\(root\.today, "MMMM d"\)/.test(panelSource), 'calendar hero spells out today')
+assert(/return Dates\.format\(date,/.test(widgetSource), 'clock label spells names in the shell locale rather than the C locale')
+assert(/Dates\.dayName\(weekday/.test(panelSource), 'calendar spells day names in the shell locale')
+const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
+assert(/Dates\.localeName = localeName \|\| "en_US"/.test(shellSource) && /shellConfig\.locale/.test(shellSource), 'shell hands shell.json locale to the date helpers, English by default')
+assert(!/Qt\.formatDate/.test(widgetSource) && !/Qt\.formatDate/.test(panelSource), 'clock never formats dates through the C locale')
 assert(/id: yearLabel/.test(panelSource) && /root\.yearDone/.test(panelSource), 'calendar panel shows the year progress bar')
 
 // The memento mori bar is opt-in: double-tapping the year bar asks for an age,
