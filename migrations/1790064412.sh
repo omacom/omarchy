@@ -9,7 +9,7 @@ echo "Scope the dev-link sudoers drop-in to the linking user"
 #
 # Only touch a file that is exactly what dev-link generated. An admin who wrote
 # their own secure_path there keeps it, and is told instead.
-sudoers_file=/etc/sudoers.d/omarchy-dev-path
+sudoers_file="${OMARCHY_DEV_SUDOERS_FILE:-/etc/sudoers.d/omarchy-dev-path}"
 
 # `sudo test -f` returns non-zero both when the file is absent and when sudo
 # could not be asked at all. Exiting 0 on the second case would have the runner
@@ -24,13 +24,20 @@ if ! sudo test -f "$sudoers_file"; then
   exit 1
 fi
 
-# grep exits 1 for "no lines matched" and greater than 1 for a real error. Only
-# the second means the inspection failed, and must not be read as an empty file.
-active=$(sudo grep -vE '^[[:space:]]*(#|$)' "$sudoers_file") && grep_status=0 || grep_status=$?
-if (( grep_status > 1 )); then
+# Read the file first, then filter it locally. A single `sudo grep` cannot tell
+# its own failures apart from an empty result: grep exits 1 for "no lines
+# matched", and sudo exits 1 when authentication or policy denies the command,
+# so a read that never happened looked exactly like a drop-in with no active
+# lines. That exited 0, the runner recorded the migration as applied, and the
+# global rule stayed for good. `cat` exits 0 for an empty file, so a non-zero
+# status here can only mean the read itself failed.
+if ! contents=$(sudo cat "$sudoers_file"); then
   echo "Could not read $sudoers_file. Leaving this migration pending so it retries." >&2
   exit 1
 fi
+
+# Now that the content is in hand, grep's "no lines matched" is unambiguous.
+active=$(printf '%s\n' "$contents" | grep -vE '^[[:space:]]*(#|$)') || true
 
 generated='^Defaults[[:space:]]+secure_path="([^"]*)/bin:/usr/local/sbin:/usr/local/bin:/usr/bin"$'
 
