@@ -2,6 +2,9 @@
 o.window("org.omarchy.screensaver", { fullscreen = true })
 o.window("org.omarchy.screensaver", { float = true })
 o.window("org.omarchy.screensaver", { animation = "slide" })
+-- The launcher picks each screensaver's workspace. A terminal mapped again as it closes lands out of sight instead,
+-- where its fullscreen rule cannot take fullscreen from a window.
+o.window("org.omarchy.screensaver", { workspace = "special:screensaver silent" })
 
 -- Hyprland draws pinned windows in a pass of their own, after the workspace,
 -- so a pinned pop-out or picture-in-picture window stays on top of the

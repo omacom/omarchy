@@ -1,5 +1,7 @@
 -- Shared helpers for Hyprland Lua configuration.
 
+local paths = require("default.hypr.paths")
+
 o = o or {}
 
 local function shell_quote(value)
@@ -53,6 +55,38 @@ function o.cmd_missing(command)
   return not o.cmd_present(command)
 end
 
+-- The global shortcuts the shell registers, read from the same list it reads.
+local shell_shortcuts = nil
+
+local function shell_shortcut_registered(name)
+  if not shell_shortcuts then
+    shell_shortcuts = {}
+    local file = io.open(paths.omarchy_path .. "/default/omarchy/shortcuts", "r")
+    if file then
+      for line in file:lines() do
+        local kind, target = line:match("^(%a+)%s+(%S+)%s*$")
+        if kind then
+          shell_shortcuts[kind .. "." .. target] = true
+        end
+      end
+      file:close()
+    end
+  end
+
+  return shell_shortcuts[name] == true
+end
+
+-- Reach the shell through its global shortcut when it registers one, so the
+-- keypress spawns nothing. Anything else runs the command as before.
+local function shell_dispatcher(kind, target, command)
+  local name = kind .. "." .. target
+  if shell_shortcut_registered(name) then
+    return hl.dsp.global("omarchy:" .. name)
+  end
+
+  return command
+end
+
 local function command_from(value, description)
   if type(value) ~= "table" then
     return value
@@ -60,6 +94,18 @@ local function command_from(value, description)
 
   if value.omarchy then
     return "omarchy-launch-" .. value.omarchy
+  elseif value.menu then
+    return shell_dispatcher("menu", value.menu, "omarchy-menu toggle " .. shell_quote(value.menu))
+  elseif value.panel then
+    return shell_dispatcher("panel", value.panel, "omarchy-shell shell toggle " .. shell_quote(value.panel))
+  elseif value.audio then
+    return shell_dispatcher("audio", value.audio, "omarchy-audio-output-volume " .. shell_quote(value.audio))
+  elseif value.brightness then
+    local step = value.brightness == "raise" and "+5%" or "5%-"
+    return shell_dispatcher("brightness", value.brightness, "omarchy-brightness-display " .. step)
+  elseif value.ipc then
+    local target, method = value.ipc:match("^([^.]+)%.(.+)$")
+    return shell_dispatcher("ipc", value.ipc, "omarchy-shell " .. shell_quote(target) .. " " .. shell_quote(method))
   elseif value.focus and value.launch then
     return o.launch_sole(value.focus, value.launch)
   elseif value.launch then
@@ -105,8 +151,33 @@ function o.bind(keys, description, dispatcher, options)
   hl.bind(keys, dispatcher, opts)
 end
 
+function o.rebind(keys, description, dispatcher, options)
+  hl.unbind(keys)
+  o.bind(keys, description, dispatcher, options)
+end
+
 function o.launch(command)
   return "uwsm-app -- " .. command
+end
+
+-- The command each function bind stands for, so the keybindings menu can still
+-- run a bind that Hyprland only reports as Lua.
+o.bind_commands = {}
+
+-- Hand the launcher the focused window's pid, which it would otherwise ask
+-- Hyprland for, to open the new terminal in that terminal's directory.
+function o.launch_terminal()
+  local function launch()
+    local window = hl.get_active_window()
+    if window and window.pid then
+      hl.exec_cmd("omarchy-launch-terminal --pid=" .. window.pid)
+    else
+      hl.exec_cmd("omarchy-launch-terminal")
+    end
+  end
+
+  o.bind_commands[launch] = "omarchy-launch-terminal"
+  return launch
 end
 
 function o.exec_on_start(command)
@@ -136,7 +207,7 @@ function o.bind_toggle(keys, description, toggle, options)
 end
 
 function o.notify(message)
-  return "notify-send -u low " .. shell_quote(message)
+  return "omarchy-notification-send -u low " .. shell_quote(message)
 end
 
 function o.window(match, rules)
