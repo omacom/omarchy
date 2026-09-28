@@ -164,6 +164,7 @@ function resyncs(opts) {
   }
   const host = {
     pluginReloading: opts.reloading === true,
+    _familyMountDeferred: opts.familyMountDeferred === true,
     isAuthenticationService: () => opts.nowAuthentication !== false,
     _syncServices() {},
   }
@@ -178,6 +179,10 @@ assert(resyncs({ installed: false }), 'an unlock of a removed lock service re-sy
 assert(resyncs({ serviceDropped: true }), 'an unlock of a lock plugin that no longer declares a service re-syncs')
 assert(resyncs({ placedAsAuthentication: false }), 'an unlock of a lock service that gained the capability re-syncs')
 assert(!resyncs({ enabled: false, reloading: true }), 'an unlock during a reload leaves the re-sync to the reload')
+assert(
+  resyncs({ familyMountDeferred: true }),
+  'an unlock of a service still wanted re-syncs when a family member was refused while it held the lock'
+)
 
 const lockCode = lockQml.replace(/\/\/[^\n]*/g, '')
 assert(/signal unlockSettled\(\)/.test(lockCode), 'the lock service declares unlockSettled')
@@ -209,7 +214,7 @@ assertEqual((lockCode.match(/startDetached\(/g) || []).length, 1, 'the wake runs
 // ensureService refuses a family member while another member holds the lock,
 // and records the family before it creates anything, so a removed clone still
 // matches after its manifest is gone.
-const familyBlock = ensure.indexOf('if (sessionLockHeldByFamily(key, family)) return null')
+const familyBlock = ensure.indexOf('if (sessionLockHeldByFamily(key, family)) {')
 const familyRecord = ensure.indexOf('_serviceFamilies[key] = family')
 const createAt = ensure.indexOf('Qt.createComponent(')
 assert(
@@ -219,6 +224,19 @@ assert(
 assert(familyBlock !== -1, 'ensureService refuses a family member while another member holds the lock')
 assert(familyRecord !== -1, 'ensureService records the family of every service it creates')
 assert(familyBlock < familyRecord && familyRecord < createAt, 'the family is checked, then recorded, before the service is created')
+
+// The holder may stay wanted (enabling a second clone disables the source, not
+// the holder), so its own unlock re-syncs nothing unless the refusal left a
+// mark: the refusal sets it, and each _syncServices pass clears it before it
+// mounts anything, so a member still refused on that pass sets it again.
+const refusal = ensure.slice(familyBlock, ensure.indexOf('}', familyBlock))
+assert(
+  /_familyMountDeferred = true\s*return null/.test(refusal),
+  'a refused family member marks the deferral before ensureService returns'
+)
+const clearAt = sync.indexOf('_familyMountDeferred = false')
+assert(clearAt !== -1, '_syncServices clears the deferral')
+assert(clearAt < sync.indexOf('ensureService('), '_syncServices clears the deferral before it mounts anything')
 
 const heldByFamily = new Function(
   'pluginId', 'family', '_services', 'AuthServiceStore', '_serviceFamilies',

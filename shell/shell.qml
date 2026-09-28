@@ -279,6 +279,10 @@ ShellRoot {
   // The clone family each service was created for: its clone source, or its
   // own id. Kept past a removal so a retained lock owner can still be matched.
   property var _serviceFamilies: ({})
+  // Set when ensureService refuses a family member because another holds the
+  // lock. That holder may stay wanted (enabling a second clone disables the
+  // source, not the holder), so its unlock re-syncs to mount the refused one.
+  property bool _familyMountDeferred: false
   property var _pluginShellApis: ({})
   property var _pluginShellApiDescriptors: ({})
   property var _pluginBarEntryShellApis: ({})
@@ -923,7 +927,10 @@ ShellRoot {
     if (authenticationService && AuthServiceStore.has(key)) return null
     var metadata = Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
     var family = Util.canonicalWidgetId(String(metadata && metadata.clonedFrom || key))
-    if (sessionLockHeldByFamily(key, family)) return null
+    if (sessionLockHeldByFamily(key, family)) {
+      _familyMountDeferred = true
+      return null
+    }
     _serviceFamilies[key] = family
 
     var comp = Qt.createComponent(url, Component.PreferSynchronous)
@@ -969,6 +976,8 @@ ShellRoot {
 
   function _syncServices() {
     if (!pluginRegistry || !pluginRegistry.installedPlugins) return
+    // A member still refused on this pass sets it again.
+    _familyMountDeferred = false
     var plugins = pluginRegistry.installedPlugins
     for (var id in plugins) {
       var m = plugins[id]
@@ -1058,13 +1067,14 @@ ShellRoot {
   // A lock service disabled, removed or reclassified while it owned the lock
   // was kept by the skips above; this collects or moves it once it lets go,
   // so it does not linger with its lock IPC target still answering. An unlock
-  // of a service still wanted where it is re-syncs nothing.
+  // of a service still wanted where it is re-syncs nothing, unless a family
+  // member was refused while it held the lock.
   function syncServicesAfterUnlock(pluginId, authenticationService) {
     var manifest = (pluginRegistry.installedPlugins || {})[pluginId]
     var stillService = manifest && Array.isArray(manifest.kinds)
       && manifest.kinds.indexOf("service") !== -1
       && manifest.entryPoints && manifest.entryPoints.service
-    if (stillService && pluginRegistry.isEnabled(pluginId)
+    if (!shell._familyMountDeferred && stillService && pluginRegistry.isEnabled(pluginId)
         && shell.isAuthenticationService(manifest, pluginId) === authenticationService) return
     if (!shell.pluginReloading) Qt.callLater(shell._syncServices)
   }
