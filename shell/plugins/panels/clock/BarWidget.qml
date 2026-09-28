@@ -119,6 +119,16 @@ BarWidget {
     onDateChanged: root.displayDate = date
   }
 
+  // SystemClock waits out the rest of the minute on a monotonic timer, which
+  // stops during suspend, so after a wake the label kept the time from before
+  // it for up to a minute. Check the minute every few seconds and catch up.
+  Timer {
+    interval: 5000
+    repeat: true
+    running: !root.showsSeconds
+    onTriggered: if (Model.clockMinuteIsStale(root.displayDate, new Date())) root.refresh()
+  }
+
   Loader {
     id: panelLoader
     active: true

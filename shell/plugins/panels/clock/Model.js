@@ -45,6 +45,11 @@ var VERTICAL_CLOCK_FORMATS = [
 // for the formats that show them. Quoted literals go first: the s in a 'Sat'
 // is text rather than a token, and an opening quote with no closing one runs
 // to the end of the format the way Qt reads it.
+// Whether a label showing `shown` is on a different minute than `now`.
+function clockMinuteIsStale(shown, now) {
+  return Math.floor(shown.getTime() / 60000) !== Math.floor(now.getTime() / 60000)
+}
+
 function clockNeedsSeconds(format) {
   var text = String(format === undefined || format === null ? "" : format)
   return /s/.test(text.replace(/'[^']*'?/g, ""))
@@ -280,6 +285,7 @@ function stepMonth(year, month, delta) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    clockMinuteIsStale: clockMinuteIsStale,
     dateKey: dateKey,
     keyForDate: keyForDate,
     normalizedWeekStart: normalizedWeekStart,

@@ -174,6 +174,16 @@ assertEqual(calendar.isoWeekLiteral(2026, 0, 5), '02', 'clock zero-pads the ISO 
 assert(calendar.clockNeedsSeconds('dddd HH:mm:ss'), 'clock sees seconds in the live preset')
 assert(calendar.clockNeedsSeconds('h:mm:ss AP'), 'clock sees seconds in an AM/PM format')
 assert(!calendar.clockNeedsSeconds('dddd HH:mm'), 'clock sees no seconds in a minute format')
+
+// After a suspend the minute timer still owes the rest of the minute it was
+// waiting out, so the label kept the pre-suspend time (#13504).
+const shownAt = new Date(2026, 8, 27, 14, 5, 0)
+assert(!calendar.clockMinuteIsStale(shownAt, new Date(2026, 8, 27, 14, 5, 59)), 'clock keeps a label from the current minute')
+assert(calendar.clockMinuteIsStale(shownAt, new Date(2026, 8, 27, 14, 6, 0)), 'clock sees a label from the previous minute as stale')
+assert(calendar.clockMinuteIsStale(shownAt, new Date(2026, 8, 27, 15, 42, 7)), 'clock sees a label from before a suspend as stale')
+const clockWidget = fs.readFileSync(root + '/shell/plugins/panels/clock/BarWidget.qml', 'utf8')
+assert(/Timer \{[^}]*running: !root\.showsSeconds[^}]*clockMinuteIsStale\(root\.displayDate, new Date\(\)\)\) root\.refresh\(\)/.test(clockWidget),
+  'clock checks for a stale minute and refreshes the label')
 assert(!calendar.clockNeedsSeconds("d MMMM 'W'ww yyyy"), 'clock sees no seconds in the long date format')
 assert(!calendar.clockNeedsSeconds("dd\nMMM\n'W'ww\n''yy"), 'clock sees no seconds in the stacked date format')
 assert(!calendar.clockNeedsSeconds("HH:mm 'since'"), 'clock reads an s inside a quoted literal as text')
