@@ -2270,6 +2270,15 @@ if [[ -d $legacy_icons_dir ]]; then
     [[ $icon == "$legacy_icons_dir"/* && ! -e $icon ]] || continue
     icon_name=$(basename "$icon")
     icon_name=$(printf '%s\n' "${icon_name%.*}" | tr '[:upper:]' '[:lower:]' | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//')
+    # Quattro ships no icon for some of them (GitHub), so install the backed-up
+    # PNG under that name, where omarchy-webapp-install puts user icons.
+    user_icon="$HOME/.local/share/icons/hicolor/256x256/apps/$icon_name.png"
+    if [[ ! -e $user_icon && -f $legacy_icons_backup/${icon##*/} ]] &&
+      ! compgen -G "/usr/share/icons/hicolor/*/apps/$icon_name.*" >/dev/null; then
+      mkdir -p "${user_icon%/*}"
+      cp "$legacy_icons_backup/${icon##*/}" "$user_icon"
+      gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+    fi
     # Compared and written through the environment so an icon name carrying
     # sed metacharacters cannot corrupt the entry.
     old="Icon=$icon" new="Icon=$icon_name" \
