@@ -24,11 +24,10 @@ WRAPPER="$OMARCHY_PATH/bin/omarchy-launch-chromium"
 [[ -x $WRAPPER ]] || exit 0
 [[ -f $USER_DESKTOP ]] && exit 0
 
-# Only act when NVIDIA discrete + non-NVIDIA iGPU are both present
-NVIDIA_GPU="$(lspci | grep -iE 'vga|3d|display' | grep -i 'nvidia')"
-IGPU="$(lspci | grep -iE 'vga|3d|display' | grep -iv 'nvidia' | grep -iE 'intel|amd|advanced micro devices|radeon|ati ')"
-
-[[ -n $NVIDIA_GPU && -n $IGPU ]] || exit 0
+# Only act when NVIDIA is present but the integrated GPU drives the display. A
+# desktop with an iGPU beside an NVIDIA display card composites on NVIDIA.
+omarchy-hw-nvidia || exit 0
+omarchy-hw-nvidia-display && exit 0
 
 mkdir -p "$(dirname "$USER_DESKTOP")"
 
