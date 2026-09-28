@@ -13,6 +13,7 @@ file first, if one exists.
 ~/.config/omarchy/hooks/
 ├── battery-low.d/          # Low battery (percentage in $1)
 ├── font-set.d/             # After font change (font name in $1)
+├── lock.d/                 # After the screen locks (runs in the background)
 ├── post-boot.d/            # After the desktop starts
 ├── post-update.d/          # At the end of `omarchy update`, after privileged work
 ├── pre-refresh-pacman.d/   # After `omarchy refresh pacman` re-syncs the package config, before it updates packages
