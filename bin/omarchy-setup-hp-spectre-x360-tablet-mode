@@ -19,6 +19,10 @@ if grep -q '^blacklist intel_hid$' "$BLACKLIST_FILE" 2>/dev/null; then
   exit 0
 fi
 
+# The switch is readable only by root and the input group, which users are no
+# longer in by default; authorize first so the password isn't typed mid-poll.
+sudo true
+
 # On the affected units, a faulty hinge sensor gets stuck reporting tablet
 # mode. intel_hid reacts to that by telling the EC to disable the keyboard
 # matrix and touchpad. A working sensor toggles the switch as the lid moves;
@@ -27,7 +31,7 @@ fi
 # not a universal flaw in the model.
 echo "Move the lid through a few positions over the next 15 seconds (open flat, folded back into tablet position, back to laptop position)..."
 
-verdict=$(omarchy-hw-hp-spectre-x360-tablet-mode-probe)
+verdict=$(sudo omarchy-hw-hp-spectre-x360-tablet-mode-probe)
 
 case "$verdict" in
 STUCK)
@@ -47,7 +51,7 @@ NOT_FOUND)
   exit 1
   ;;
 NO_PERMISSION)
-  echo -e "\e[31m\nNo permission to read the switch device. Your user should already be in the input group by default — try logging out and back in, then rerun this.\e[0m"
+  echo -e "\e[31m\nCouldn't read the switch device, even with sudo.\e[0m"
   exit 1
   ;;
 esac

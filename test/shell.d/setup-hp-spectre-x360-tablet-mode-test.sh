@@ -37,10 +37,15 @@ STUB
 # Stands in for the live sensor probe with a canned verdict. The probe's own
 # logic (proc discovery, EVIOCGSW decode, stuck/OK classification) is covered
 # directly in hw-hp-spectre-x360-tablet-mode-probe-test.sh; here we only need
-# the setup command's branch on each verdict it can return.
+# the setup command's branch on each verdict it can return. Like the real evdev
+# node, it is unreadable unless sudo ran it.
 cat >"$stub_bin/omarchy-hw-hp-spectre-x360-tablet-mode-probe" <<'STUB'
 #!/bin/bash
-printf '%s\n' "${STUB_VERDICT:-OK}"
+if [[ ${STUB_AS_ROOT:-} == 1 ]]; then
+  printf '%s\n' "${STUB_VERDICT:-OK}"
+else
+  printf 'NO_PERMISSION\n'
+fi
 STUB
 
 cat >"$stub_bin/gum" <<'STUB'
@@ -49,12 +54,14 @@ cat >"$stub_bin/gum" <<'STUB'
 [[ ${STUB_GUM_CONFIRM_YES:-1} == 1 ]]
 STUB
 
-# Only the whitelisted tee/mkinitcpio calls the real command is expected to
-# make are honored; anything else fails loudly instead of silently no-oping.
+# Only the whitelisted calls the real command is expected to make are honored;
+# anything else fails loudly instead of silently no-oping.
 cat >"$stub_bin/sudo" <<STUB
 #!/bin/bash
 printf '%s\n' "\$*" >>"$sudo_log"
 case "\$1" in
+  true) ;;
+  omarchy-hw-hp-spectre-x360-tablet-mode-probe) STUB_AS_ROOT=1 "\$@" ;;
   tee) cat >"$blacklist_file" ;;
   mkinitcpio) ;;
   *)
@@ -78,6 +85,15 @@ assert_no_sudo_calls() {
   [[ ! -s $sudo_log ]] || fail "$description" "$(cat "$sudo_log")"
 }
 
+# Reading the switch needs sudo too, so the branches that stop short of the fix
+# still call it; what they must not do is write or rebuild anything.
+assert_no_changes() {
+  local description="$1"
+
+  ! grep -qE '^(tee|mkinitcpio) ' "$sudo_log" 2>/dev/null || fail "$description" "$(cat "$sudo_log")"
+  [[ ! -e $blacklist_file ]] || fail "$description" "the blacklist file was written"
+}
+
 rm -f "$sudo_log" "$blacklist_file"
 if run 0; then
   fail "a machine that isn't a 2019 Spectre x360 exits 0"
@@ -97,29 +113,30 @@ rm -f "$sudo_log" "$blacklist_file"
 if run 1 OK; then
   fail "a sensor that isn't stuck exits 0"
 fi
-assert_no_sudo_calls "an unstuck sensor does not call sudo"
-pass "a sensor that toggles as the lid moves is left alone"
+assert_no_changes "an unstuck sensor changes nothing"
+grep -Fxq 'omarchy-hw-hp-spectre-x360-tablet-mode-probe' "$sudo_log" ||
+  fail "the setup did not read the switch through sudo" "$(cat "$sudo_log" 2>/dev/null)"
+pass "a sensor that toggles as the lid moves is read through sudo and left alone"
 
 rm -f "$sudo_log" "$blacklist_file"
 if run 1 NOT_FOUND; then
   fail "a missing switch device exits 0"
 fi
-assert_no_sudo_calls "a missing switch device does not call sudo"
-pass "a missing switch device is reported without touching sudo"
+assert_no_changes "a missing switch device changes nothing"
+pass "a missing switch device is reported without changing anything"
 
 rm -f "$sudo_log" "$blacklist_file"
 if run 1 NO_PERMISSION; then
   fail "unreadable switch device exits 0"
 fi
-assert_no_sudo_calls "unreadable switch device does not call sudo"
-pass "an unreadable switch device is reported without touching sudo"
+assert_no_changes "unreadable switch device changes nothing"
+pass "an unreadable switch device is reported without changing anything"
 
 rm -f "$sudo_log" "$blacklist_file"
 if ! run 1 STUCK 0; then
   fail "declining the fix on a stuck sensor exits non-zero"
 fi
-assert_no_sudo_calls "declining the fix does not call sudo"
-[[ ! -e $blacklist_file ]] || fail "declining the fix still wrote the blacklist file"
+assert_no_changes "declining the fix changes nothing"
 pass "a stuck sensor with a declined prompt makes no changes"
 
 rm -f "$sudo_log" "$blacklist_file"
