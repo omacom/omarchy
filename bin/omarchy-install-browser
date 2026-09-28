@@ -39,6 +39,7 @@ setup_zen_preferences() {
   local merged_policies tmp_merged
 
   browser_policy_setup_parent "$distribution_dir"
+  browser_policy_purge_dir "$distribution_dir"
 
   if [[ -f $distribution_dir/policies.json && ! -L $distribution_dir/policies.json ]] && omarchy-cmd-present jq; then
     merged_policies=$(jq -S --slurpfile omarchy "$omarchy_policies" '

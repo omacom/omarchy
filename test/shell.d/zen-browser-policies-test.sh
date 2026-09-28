@@ -81,6 +81,8 @@ PATH="$mock_bin:$PATH" OMARCHY_PATH="$ROOT" bash -c '
       "$@"
     fi
   }
+  # Fixtures are user-owned, so the non-root purge would delete them.
+  browser_policy_purge_dir() { :; }
   setup_zen_preferences "$2"
 ' bash "$ROOT" "$distribution"
 
@@ -119,6 +121,8 @@ PATH="$mock_bin:$PATH" OMARCHY_PATH="$ROOT" bash -c '
       "$@"
     fi
   }
+  # Fixtures are user-owned, so the non-root purge would delete them.
+  browser_policy_purge_dir() { :; }
   setup_zen_preferences "$2"
 ' bash "$ROOT" "$fresh_distribution"
 
