@@ -6,6 +6,10 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 upgrade_to_quattro="$ROOT/bin/omarchy-upgrade-to-quattro"
 
+function_body() {
+  awk -v name="$1" '$0 == name "() {" { inside = 1; next } inside && $0 == "}" { exit } inside' "$upgrade_to_quattro"
+}
+
 snapshot_line=$(grep -n '^create_pre_upgrade_snapshot$' "$upgrade_to_quattro" | cut -d: -f1)
 pacman_line=$(grep -n '^configure_pacman_channel$' "$upgrade_to_quattro" | cut -d: -f1)
 [[ -n $snapshot_line && -n $pacman_line ]] || fail "upgrade snapshot and first mutation calls exist"
@@ -32,6 +36,12 @@ grep -F 'run_post_upgrade_migrations' "$upgrade_to_quattro" >/dev/null
 grep -F 'omarchy-migrate' "$upgrade_to_quattro" >/dev/null
 grep -F 'dust' "$upgrade_to_quattro" >/dev/null
 grep -F 'satty' "$upgrade_to_quattro" >/dev/null
+final_upgrade_line=$(grep -n '^run_final_system_package_upgrade$' "$upgrade_to_quattro" | cut -d: -f1)
+migrations_line=$(grep -n '^run_post_upgrade_migrations$' "$upgrade_to_quattro" | cut -d: -f1)
+[[ -n $final_upgrade_line && -n $migrations_line ]] ||
+  fail "final package upgrade and migration calls exist"
+(( final_upgrade_line < migrations_line )) ||
+  fail "Omarchy migrations run after the final package upgrade"
 pass "Omarchy 4 upgrade applies packaged migrations"
 
 if grep -F 'skip-first-run-update-notification' "$upgrade_to_quattro" >/dev/null; then
@@ -67,6 +77,62 @@ grep -F 'OMARCHY_INSTALL_USER="$target_user"' "$upgrade_to_quattro" >/dev/null
 grep -F '"$apply_lock"' "$upgrade_to_quattro" >/dev/null
 pass "Omarchy 4 upgrade configures lock screen authentication for the target user"
 
+root_path_count=$(awk '/^root_path=/{ count++ } END { print count + 0 }' "$upgrade_to_quattro")
+(( root_path_count == 1 )) || fail "Omarchy 4 upgrade defines exactly one root command path"
+grep -Fx 'root_path=/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade limits root command lookup to trusted system directories"
+if grep -E '^root_path=.*(target_home|\.local/bin)' "$upgrade_to_quattro" >/dev/null; then
+  fail "Omarchy 4 upgrade does not put the target user's bin directory on the root command path"
+fi
+grep -Fx 'package_path="$root_path:$target_home/.local/bin"' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade retains the target user's bin directory for user commands"
+
+lock_authentication_body=$(function_body configure_lock_authentication)
+lock_path_assignment_count=$(awk '{ count += gsub(/(^|[[:space:]])PATH=/, "") } END { print count + 0 }' <<<"$lock_authentication_body")
+(( lock_path_assignment_count == 1 )) ||
+  fail "Omarchy 4 upgrade gives the privileged lock helper exactly one command path"
+grep -Fx '    PATH="$root_path" \' <<<"$lock_authentication_body" >/dev/null ||
+  fail "Omarchy 4 upgrade gives the privileged lock helper the trusted root path"
+if grep -E '(package_path|target_home|\.local/bin)' <<<"$lock_authentication_body" >/dev/null; then
+  fail "Omarchy 4 upgrade does not give the privileged lock helper the target user's path"
+fi
+
+firewall_body=$(function_body apply_firewall_defaults)
+firewall_path_assignment_count=$(awk '{ count += gsub(/(^|[[:space:]])PATH=/, "") } END { print count + 0 }' <<<"$firewall_body")
+(( firewall_path_assignment_count == 1 )) ||
+  fail "Omarchy 4 upgrade gives the privileged firewall helper exactly one command path"
+grep -Fx '  as_root env OMARCHY_PATH=/usr/share/omarchy PATH="$root_path" \' <<<"$firewall_body" >/dev/null ||
+  fail "Omarchy 4 upgrade gives the privileged firewall helper the trusted root path"
+if grep -E '(package_path|target_home|\.local/bin)' <<<"$firewall_body" >/dev/null; then
+  fail "Omarchy 4 upgrade does not give the privileged firewall helper the target user's path"
+fi
+
+user_omarchy_body=$(function_body run_as_user_omarchy)
+grep -F 'PATH="$package_path"' <<<"$user_omarchy_body" >/dev/null ||
+  fail "Omarchy 4 upgrade retains the package and user path for target-user commands"
+if grep -F 'PATH="$root_path"' <<<"$user_omarchy_body" >/dev/null; then
+  fail "Omarchy 4 upgrade does not narrow target-user commands to the root-only path"
+fi
+pass "Omarchy 4 upgrade separates privileged and target-user command paths"
+
+grep -F 'install/helpers/browser-policy.sh' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade uses the shared browser-policy helper"
+grep -F 'as_root test -f "$browser_policy_helper"' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade survives a packaged tree without the browser-policy helper"
+if grep -F 'browser_policy_setup_group' "$upgrade_to_quattro" >/dev/null; then
+  fail "Omarchy 4 upgrade does not create a browser-policy group"
+fi
+grep -F 'browser_policy_setup_dir /etc/chromium/policies/managed' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade creates a root-owned Chromium policy directory"
+grep -F 'BROWSER_POLICY_MANAGED_DIRS' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade hardens every Chromium-family policy directory"
+grep -F 'run_as_user_omarchy omarchy-theme-set-browser' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade rewrites browser theme colour after a headless theme-set"
+if grep -E 'install -d -m 0?[27]?777 /etc/.*/policies|chmod a\+rw|2775' "$upgrade_to_quattro" >/dev/null; then
+  fail "Omarchy 4 upgrade does not create a world-writable Chromium policy directory"
+fi
+pass "Omarchy 4 upgrade locks the Chromium policy directory to root"
+
 grep -F 'OMARCHY_UPGRADE_TO_QUATTRO_LIVE=1' "$upgrade_to_quattro" >/dev/null
 grep -F 'systemd-networkd.service' "$upgrade_to_quattro" >/dev/null
 grep -F 'systemd-networkd.socket' "$upgrade_to_quattro" >/dev/null
@@ -76,9 +142,52 @@ pass "Omarchy 4 upgrade retires systemd-networkd for NetworkManager"
 # Booting with both managers enabled leaves them fighting over the Wi-Fi
 # adapter, so enabling NetworkManager and disabling iwd cannot be separated by
 # any step that might abort in between.
-function_body() {
-  awk -v name="$1" '$0 == name "() {" { inside = 1; next } inside && $0 == "}" { exit } inside' "$upgrade_to_quattro"
+migrations_body=$(function_body run_post_upgrade_migrations)
+grep -F 'fail "Omarchy migrations did not complete.' <<<"$migrations_body" >/dev/null ||
+  fail "Omarchy 4 upgrade fails when a migration cannot complete"
+grep -F 'omarchy-migrate --pending' <<<"$migrations_body" >/dev/null ||
+  fail "Omarchy 4 upgrade verifies that migrations actually completed"
+grep -F 'fail "Omarchy migrations are still pending.' <<<"$migrations_body" >/dev/null ||
+  fail "Omarchy 4 upgrade fails when a successful migration command leaves pending work"
+grep -F 'pending_status != 1' <<<"$migrations_body" >/dev/null ||
+  fail "Omarchy 4 upgrade distinguishes no pending work from a failed verification"
+grep -F 'fail "Could not verify that Omarchy migrations completed.' <<<"$migrations_body" >/dev/null ||
+  fail "Omarchy 4 upgrade fails when it cannot verify migration state"
+if grep -F 'return 0' <<<"$migrations_body" >/dev/null || grep -F 'warn ' <<<"$migrations_body" >/dev/null; then
+  fail "Omarchy 4 upgrade does not continue past failed migrations"
+fi
+
+exercise_post_upgrade_migrations() {
+  local stub_migration_status="$1" stub_pending_status="$2"
+
+  (
+    log() { :; }
+    fail() { exit 1; }
+    run_as_user_omarchy() {
+      if [[ " $* " == *" --pending "* ]]; then
+        return "$stub_pending_status"
+      else
+        return "$stub_migration_status"
+      fi
+    }
+    eval "run_post_upgrade_migrations() { $migrations_body
+}"
+    run_post_upgrade_migrations
+  )
 }
+
+exercise_post_upgrade_migrations 0 1 >/dev/null 2>&1 ||
+  fail "Omarchy 4 upgrade accepts a completed migration queue"
+if exercise_post_upgrade_migrations 1 1 >/dev/null 2>&1; then
+  fail "Omarchy 4 upgrade accepts a failed migration"
+fi
+if exercise_post_upgrade_migrations 0 0 >/dev/null 2>&1; then
+  fail "Omarchy 4 upgrade accepts pending migrations"
+fi
+if exercise_post_upgrade_migrations 0 2 >/dev/null 2>&1; then
+  fail "Omarchy 4 upgrade accepts a failed pending-state check"
+fi
+pass "Omarchy 4 upgrade cannot finish with pending migrations"
 
 if function_body cleanup_retired_services | grep -F 'systemctl disable iwd' >/dev/null; then
   fail "Omarchy 4 upgrade does not retire iwd in a step separate from the NetworkManager enable"

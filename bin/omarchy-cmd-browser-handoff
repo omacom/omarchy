@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Hand a command line to the running Chromium-based browser
+# omarchy:args=<browser-command> [browser-args...]
+# omarchy:hidden=true
+
+# A second browser process spends ~165ms starting up only to pass its command
+# line to the running one over the profile's singleton socket, then exits. Send
+# it there directly, and fail when no browser acknowledges it so the caller can
+# launch one instead.
+config="${XDG_CONFIG_HOME:-$HOME/.config}"
+
+# Only the browsers themselves: a wrapper in their place may pick a profile or
+# add flags of its own, which only running it can honour.
+case $(type -P "$1") in
+/usr/bin/chromium) profile=chromium flags=chromium-flags.conf ;;
+/usr/bin/google-chrome-stable) profile=google-chrome flags=chrome-flags.conf ;;
+/usr/bin/brave) profile=BraveSoftware/Brave-Browser flags=brave-flags.conf ;;
+/usr/bin/brave-origin) profile=BraveSoftware/Brave-Origin flags=brave-origin-flags.conf ;;
+/usr/bin/microsoft-edge-stable) profile=microsoft-edge flags=microsoft-edge-stable-flags.conf ;;
+*) exit 1 ;;
+esac
+shift
+
+# The running browser already has the process flags Omarchy ships in the flags
+# file. Any other flag there may be meant for each launch, and a data directory
+# from the environment is another browser, so leave those to the launcher.
+if [[ -n ${CHROME_USER_DATA_DIR:-}${CHROME_CONFIG_HOME:-} ]] ||
+  cat "/etc/$flags" "$config/$flags" 2>/dev/null | sed 's/#.*//' | tr -s '[:space:]' '\n' |
+    grep -vE '^(--(ozone-platform|ozone-platform-hint|password-store|enable-features|load-extension)=.*)?$' | grep -q .; then
+  exit 1
+fi
+
+for arg in "$@"; do
+  [[ $arg == --user-data-dir* ]] && exit 1
+done
+
+# The socket lives in a /tmp dir, which another user could recreate once a
+# crashed browser's is cleaned away, so only a socket of our own gets the URL.
+socket="$config/$profile/SingletonSocket"
+[[ -S $socket && -O $socket ]] || exit 1
+
+reply=$({
+  printf 'START\0%s\0browser' "$PWD"
+  printf '\0%s' "$@"
+} | socat -t2 - "UNIX-CONNECT:$socket" 2>/dev/null)
+
+[[ $reply == "ACK" ]]
