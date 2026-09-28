@@ -42,18 +42,29 @@ chmod +x "$mock_bin/"*
 # it is asked. OMARCHY_TEST_INSTALL_BROKEN leaves a command that cannot run.
 # Like upstream, `<role> install --force` rewrites the unit onto the runtime
 # and starts it, OMARCHY_TEST_START_FAIL making the start fail, and the
-# installer does that itself for a gateway it finds loaded.
+# installer does that itself for a gateway it finds loaded. As upstream does
+# since 2026.9.6, a rewrite keeps the Node the unit already ran unless
+# --runtime-path pins one.
 cat >"$seed/install-cli.sh" <<'SH'
 printf 'install-cli %s%s\n' "$*" "${OPENCLAW_PROFILE:+ profile=$OPENCLAW_PROFILE}" >>"$OMARCHY_TEST_ROOT/events"
 prefix=$HOME/.openclaw
-mkdir -p "$prefix/bin" "$prefix/tools/node-v24.19.0"
+mkdir -p "$prefix/bin" "$prefix/tools/node-v24.19.0/bin"
+touch "$prefix/tools/node-v24.19.0/bin/node"
+ln -sfn "$prefix/tools/node-v24.19.0" "$prefix/tools/node"
 cat >"$prefix/bin/openclaw" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 [[ -z "\${OMARCHY_TEST_INSTALL_BROKEN:-}" ]] || exit 1
 printf 'runtime %s%s\n' "\$*" "\${OPENCLAW_PROFILE:+ profile=\$OPENCLAW_PROFILE}" >>"$OMARCHY_TEST_ROOT/events"
 if [[ \${2:-} == "install" ]]; then
-  printf 'ExecStart=$prefix/tools/node-v24.19.0/bin/node $prefix/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js %s\n' "\$1" >"\$HOME/.config/systemd/user/openclaw-\$1.service"
+  unit="\$HOME/.config/systemd/user/openclaw-\$1.service"
+  node=$prefix/tools/node-v24.19.0/bin/node
+  if [[ \${4:-} == "--runtime-path" ]]; then
+    node=\$5
+  elif [[ -f \$unit ]]; then
+    node=\$(sed -n 's/^ExecStart=\([^ ]*\).*/\1/p' "\$unit")
+  fi
+  printf 'ExecStart=%s $prefix/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js %s\n' "\$node" "\$1" >"\$unit"
   [[ -z "\${OMARCHY_TEST_START_FAIL:-}" ]] || exit 1
   touch "\$HOME/active-openclaw-\$1.service"
 fi
@@ -189,6 +200,10 @@ order=$(grep -n -e '^systemctl --user stop openclaw-gateway.service$' -e '^insta
 ! grep -q "runtime node install\|openclaw-node" "$events" || fail "--now leaves a service running another OpenClaw alone" "$(cat "$events")"
 ! grep -q "profile=work" <(grep -v -e '^runtime --version' "$events") ||
   fail "--now seeds and moves the default unit whatever profile the shell selects" "$(cat "$events")"
+sed -n 's/^ExecStart=\([^ ]*\).*/\1/p' "$units/openclaw-gateway.service" | grep -qx "$test_home/.openclaw/tools/node-v24.19.0/bin/node" ||
+  fail "--now leaves the moved gateway on the runtime's own Node" "$(cat "$units/openclaw-gateway.service")"
+grep -Fxq "runtime gateway install --force --runtime-path $test_home/.openclaw/tools/node-v24.19.0/bin/node" "$events" ||
+  fail "--now pins the runtime's Node when the installer kept the system one" "$(cat "$events")"
 pass "a service the old package installed moves to the runtime, and only that one"
 
 new_home stop-fails
@@ -230,7 +245,7 @@ printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gat
 touch "$test_home/active-openclaw-gateway.service"
 : >"$events"
 run omarchy-install-openclaw-cli --now || fail "--now moves a gateway beside a runtime that already runs" "$(cat "$test_tmp/output")"
-! grep -q '^install-cli' "$events" && grep -Fxq "runtime gateway install --force" "$events" && [[ -e $test_home/active-openclaw-gateway.service ]] ||
+! grep -q '^install-cli' "$events" && grep -Fxq "runtime gateway install --force --runtime-path $test_home/.openclaw/tools/node-v24.19.0/bin/node" "$events" && [[ -e $test_home/active-openclaw-gateway.service ]] ||
   fail "--now moves a gateway beside a runtime that already runs" "$(cat "$events")"
 pass "a gateway beside a runtime that already runs is moved without seeding"
 
@@ -255,6 +270,8 @@ run bash -euo pipefail "$test_tmp/migration.sh" || fail "the migration moves Ope
 grep -q "^install-cli " "$events" && grep -Fxq "runtime gateway install --force" "$events" ||
   fail "the migration seeds the runtime and moves the gateway to it" "$(cat "$events")"
 [[ $(readlink -- "$command") == "$runtime" ]] || fail "the migration points the command at the runtime"
+sed -n 's/^ExecStart=\([^ ]*\).*/\1/p' "$test_home/.config/systemd/user/openclaw-gateway.service" | grep -qx "$test_home/.openclaw/tools/node-v24.19.0/bin/node" ||
+  fail "the migration leaves the gateway on the runtime's own Node, not the old package's system Node" "$(cat "$test_home/.config/systemd/user/openclaw-gateway.service")"
 
 new_home migration-foreign
 touch "$test_tmp/package-installed"

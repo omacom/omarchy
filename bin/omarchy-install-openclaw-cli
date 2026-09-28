@@ -122,21 +122,30 @@ stop_legacy_services() {
   done
 }
 
-# Not moved yet: still on the old copy, or running before and not now.
+# Not moved yet: still on the old copy, run by a Node outside the runtime, or
+# running before and not now. Upstream's installer keeps the Node a service
+# already had, so a moved unit can run the runtime's code on the system Node
+# the old package depended on, which this one no longer does.
 unsettled() {
-  unit_runs "$(unit_path "$1")" "/usr/lib/node_modules/openclaw/" ||
+  local unit words
+  unit=$(unit_path "$1")
+  read -ra words <<<"$(sed -n 's/^ExecStart=//p' "$unit" | head -1)"
+  unit_runs "$unit" "/usr/lib/node_modules/openclaw/" || [[ ${words[0]:-} != "$prefix/"* ]] ||
     { [[ " ${running[*]} " == *" $1 "* ]] && ! systemctl --user is-active --quiet "openclaw-$1.service"; }
 }
 
 # Upstream's installer rewrites a loaded gateway itself, but only warns when
 # the restart fails, so whatever is still unsettled is installed again from the
-# runtime and then has to have settled.
+# runtime, on the runtime's own Node, and then has to have settled.
 rehome_services() {
-  local role
+  local role node pin=()
+  if node=$(realpath -e -- "$prefix/tools/node/bin/node" 2>/dev/null); then
+    pin=(--runtime-path "$node")
+  fi
   for role in "${moving[@]}"; do
     if unsettled "$role"; then
       echo "Moving the OpenClaw $role service to $prefix..."
-      "$runtime_command" "$role" install --force || true
+      "$runtime_command" "$role" install --force "${pin[@]}" || true
     fi
     if unsettled "$role"; then
       echo "Could not move the OpenClaw $role service to $prefix. Finish with: openclaw $role install --force" >&2
