@@ -7,7 +7,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 leaf="$ROOT/install/hardware/apple/fix-cs4208-audio.sh"
 all="$ROOT/install/hardware/all.sh"
 other_packages="$ROOT/install/omarchy-other.packages"
-migration="$ROOT/migrations/1786719479.sh"
+migration="$ROOT/migrations/1790562029.sh"
 
 grep -q 'apple/fix-cs4208-audio.sh' "$all" ||
   fail "the CS4208 audio fix runs during hardware setup"
