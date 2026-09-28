@@ -5,6 +5,7 @@ running_cmdline="${OMARCHY_RUNNING_CMDLINE:-/proc/cmdline}"
 repair_marker="${OMARCHY_SANDY_IDLE_REPAIR_MARKER:-/var/lib/omarchy/migrations/1787217354}"
 
 omarchy-hw-match "MacBookAir4," || exit 0
+omarchy-cmd-present limine-mkinitcpio || exit 0
 
 needs_rebuild=0
 
@@ -15,6 +16,8 @@ needs_rebuild=0
 # rebuild would bake nothing and still look repaired. This drop-in exists only
 # to carry this parameter, so reinstalling it whole is safe.
 if ! grep -Fxq 'KERNEL_CMDLINE[default]+=" intel_idle.max_cstate=1"' "$limine_conf" 2>/dev/null; then
+  # A marker from an earlier rebuild vouches for a drop-in that is gone.
+  sudo rm -f "$repair_marker"
   sudo install -Dm644 /dev/stdin "$limine_conf" <<'EOF'
 # 2011 MacBook Air (Sandy Bridge) hard-locks when idling into deep C-states
 KERNEL_CMDLINE[default]+=" intel_idle.max_cstate=1"

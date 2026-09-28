@@ -44,6 +44,14 @@ cat >"$stub_bin/limine-mkinitcpio" <<'SH'
 #!/bin/bash
 
 printf 'limine-mkinitcpio\n' >>"$TEST_LOG"
+[[ -z ${TEST_REBUILD_FAILS:-} ]]
+SH
+
+# Stubbed so a machine without Limine can be simulated on one that has it.
+cat >"$stub_bin/omarchy-cmd-present" <<'SH'
+#!/bin/bash
+
+[[ -z ${TEST_NO_LIMINE:-} ]]
 SH
 
 # Stubbed rather than run: the real one would write the running user's state.
@@ -167,6 +175,24 @@ run_migration "MacBookAir4,1" "quiet splash"
 grep -Fq 'limine-mkinitcpio' "$calls" ||
   fail "an interrupted rebuild is retried" "$(cat "$calls")"
 pass "an interrupted rebuild is retried"
+
+# A drop-in lost after an earlier rebuild must not be vouched for by that
+# rebuild's marker once it is reinstalled and the new rebuild fails.
+printf '#KERNEL_CMDLINE[default]+=" intel_idle.max_cstate=1"\n' >"$conf"
+[[ -e $marker ]] || fail "the earlier rebuild left its marker"
+if TEST_REBUILD_FAILS=1 run_migration "MacBookAir4,1" "quiet splash"; then
+  fail "a failed rebuild fails the migration"
+fi
+run_migration "MacBookAir4,1" "quiet splash"
+grep -Fq 'limine-mkinitcpio' "$calls" ||
+  fail "a rebuild that failed after reinstalling the drop-in is retried" "$(cat "$calls")"
+pass "a stale marker does not hide a failed rebuild"
+
+rm -rf "$test_tmp/etc" "$test_tmp/var"
+TEST_NO_LIMINE=1 run_migration "MacBookAir4,1" "quiet splash"
+[[ ! -e $conf && ! -s $calls ]] ||
+  fail "the migration skips machines without Limine" "$(cat "$calls")"
+pass "the migration skips machines without Limine"
 
 rm -rf "$test_tmp/etc" "$test_tmp/var"
 run_migration "Macmini6,1" "quiet splash"
