@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# omarchy:summary=Install T3 Code and point it at the Omarchy palette
+# omarchy:requires-sudo=true
+
+set -e
+
+T3CODE_HOME="${T3CODE_HOME:-$HOME/.t3}"
+T3CODE_STATE_DIR="$T3CODE_HOME/userdata"
+
+echo "Installing T3 Code..."
+omarchy-pkg-add t3code-bin
+
+echo "Matching T3 Code to the current theme..."
+mkdir -p "$T3CODE_STATE_DIR"
+
+# An updated user's current theme may have been staged before this template existed.
+if [[ ! -f $HOME/.local/state/omarchy/current/theme/t3code.json ]]; then
+  omarchy-theme-refresh
+fi
+
+omarchy-theme-set-t3code
+
+# The packaged CLI selects the published palette before the app's first launch.
+t3 theme set omarchy --base-dir "$T3CODE_HOME"
+
+echo "Opening T3 Code..."
+setsid uwsm-app -- gtk-launch t3code >/dev/null 2>&1 &
+
+echo ""
+echo "T3 Code has been installed."

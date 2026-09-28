@@ -189,6 +189,7 @@ Item {
     // Repeater is mid-incubation while we mutate its model.
     Qt.callLater(function() {
       removePopupsByOriginalId(snapshot.originalId, NotificationLogic.popupFileName(snapshot))
+      removeDuplicatePopups(service.currentContent(notification, snapshot))
       popupModel.insert(0, snapshot)
       // An update that arrived while the insert was deferred found no row to
       // write to, and a property that already changed will not change again.
@@ -310,6 +311,40 @@ Item {
     }
   }
 
+  // What the notification says now: a replaces_id update may have landed
+  // while its insert was deferred, and the snapshot still holds the original.
+  function currentContent(notification, snapshot) {
+    try {
+      return NotificationLogic.replacementSnapshot(notification, snapshot.originalId, snapshot.timestamp)
+    } catch (e) {
+      // Torn down by the server meanwhile — the snapshot is all there is.
+      return snapshot
+    }
+  }
+
+  // A notification repeating a toast already on screen takes its place, the
+  // same way a replaces_id update would: the newest copy stays, its timer
+  // starts fresh, and history keeps a single entry. The superseded copy is
+  // dismissed at the server so its sender stops holding it open.
+  // Only toasts with a live notification behind them qualify: a restored or
+  // replayed row shares its images with an entry already in history, and
+  // deleting its file here would leave that entry pointing at nothing.
+  function removeDuplicatePopups(snapshot) {
+    for (var i = popupModel.count - 1; i >= 0; i--) {
+      var row = popupModel.get(i)
+      if (!NotificationLogic.isDuplicatePopup(row, snapshot) || isRestoredRow(row)) continue
+      var ref = liveRefs[row.originalId]
+      if (!ref) continue
+      deletePopupFileFor(row)
+      popupModel.remove(i)
+      try {
+        if (ref.tracked) ref.dismiss()
+      } catch (e) {
+        // Object already torn down by the server — nothing to dismiss.
+      }
+    }
+  }
+
   function dismissPopup(index) {
     removePopup(index, "dismiss")
   }
@@ -353,18 +388,19 @@ Item {
   }
 
   // Run the popup's click action, then dismiss. Omarchy's own toasts carry the
-  // action as a command in the `exec` role (see execFromHints), which the
-  // persistence files preserve, so restored toasts stay clickable. Third-party
-  // clients register a libnotify action under the canonical identifier
-  // "default" instead; that one only works while the sender is still live.
+  // action as an argv vector in the `execArgv` role (see execArgvFromHints),
+  // which the persistence files preserve, so restored toasts stay clickable.
+  // Third-party clients register a libnotify action under the canonical
+  // identifier "default" instead; that one only works while the sender is live.
   function invokePopupDefault(index) {
     if (index < 0 || index >= popupModel.count) return
     var entry = popupModel.get(index)
-    var command = entry ? String(entry.exec || "") : ""
-    if (command) {
-      // Detached so the launched command outlives the shell process, which the
-      // installer toasts depend on: they restart the shell as their first act.
-      Util.execDetached(command)
+
+    // Run the argv (via Util.execArgv, no shell interpretation). Detached so it
+    // outlives the shell, which installer toasts depend on: they restart it.
+    var argv = NotificationLogic.parseExecArgv(entry ? entry.execArgv : "")
+    if (argv) {
+      Util.execArgv(argv)
       dismissPopup(index)
       return
     }
@@ -665,7 +701,7 @@ Item {
         body: row.body,
         image: row.image,
         glyph: row.glyph || "",
-        exec: row.exec || "",
+        execArgv: row.execArgv || "",
         urgency: row.urgency,
         timestamp: row.timestamp
       }, imagesDir).entry)
@@ -689,7 +725,7 @@ Item {
         body: "",
         image: "",
         glyph: "󰂚",
-        exec: "",
+        execArgv: "",
         urgency: NotificationUrgency.Low,
         expireTimeout: 0,
         timestamp: Date.now()
@@ -853,7 +889,16 @@ Item {
 
   // ---------------------------------------------------- IPC
 
-  IpcHandler {
+  // Keybindings reach these handlers as Hyprland global shortcuts, run here
+  // exactly as the IPC call would run them, with no client to spawn.
+  function runShortcut(method) {
+    if (typeof ipcHandler[method] !== "function") return false
+    ipcHandler[method]()
+    return true
+  }
+
+  ShellIpc {
+    id: ipcHandler
     target: "notifications"
 
     function dndState(): string {
