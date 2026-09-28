@@ -8,7 +8,8 @@ import Quickshell.Wayland
 // overlay mapped per open flashed blurry until the scale arrived. Closed, the
 // surface parks as a 1x1, input-less, content-less layer below windows: small
 // enough to cost nothing, off the overlay layer so it never blocks direct
-// scanout for fullscreen apps. Opening only resizes and raises it.
+// scanout for fullscreen apps. Assigning the monitor rebuilds the surface,
+// so the raise and the resize wait until the turn after that.
 PanelWindow {
   id: window
 
@@ -16,6 +17,10 @@ PanelWindow {
   property bool shown: false
   property int shownLayer: WlrLayer.Overlay
   property int shownKeyboardFocus: WlrKeyboardFocus.Exclusive
+
+  // True once the surface is on its monitor and can be grown on the overlay
+  // layer. Stays false for the turn that assigns the monitor.
+  property bool placed: false
 
   // The surface no longer lands on the focused output by being mapped there,
   // so it follows the focused monitor each time it is shown. Unset until the
@@ -32,17 +37,24 @@ PanelWindow {
     return null
   }
 
-  onShownChanged: if (shown) targetScreen = focusedScreen() || targetScreen
+  onShownChanged: {
+    if (!shown) {
+      placed = false
+      return
+    }
+    targetScreen = focusedScreen() || targetScreen
+    Qt.callLater(function() { if (window.shown) window.placed = true })
+  }
 
   visible: true
   screen: targetScreen
-  anchors { top: true; left: true; bottom: shown; right: shown }
+  anchors { top: true; left: true; bottom: placed; right: placed }
   implicitWidth: 1
   implicitHeight: 1
   mask: shown ? null : emptyRegion
   color: "transparent"
   exclusionMode: ExclusionMode.Ignore
-  WlrLayershell.layer: shown ? shownLayer : WlrLayer.Bottom
+  WlrLayershell.layer: placed ? shownLayer : WlrLayer.Bottom
   WlrLayershell.keyboardFocus: shown ? shownKeyboardFocus : WlrKeyboardFocus.None
 
   // Draw nothing until the surface has actually grown. A frame drawn while it
