@@ -78,8 +78,8 @@ pass "emoji insert helper copies emoji to clipboard"
 # Without --foreground, wl-copy daemonizes and the content persists instead of
 # being cleared after 0.35s by a kill — the root cause of both #7378 (keyboard)
 # and #7379 (mouse) where the emoji ended up in neither the clipboard nor the
-# target window.
-[[ $(<"$TMPDIR/copy.args") == "--type text/plain" ]] ||
+# target window. Keep --sensitive so picks stay out of clipboard history.
+[[ $(<"$TMPDIR/copy.args") == "--type text/plain --sensitive" ]] ||
   fail "emoji insert helper copies persistently without --foreground" "args: $(<"$TMPDIR/copy.args")"
 pass "emoji insert helper copies persistently without --foreground"
 
