@@ -117,7 +117,14 @@ fi
 omarchy-shell shell rescanPlugins >/dev/null
 
 if [[ -n $cloned_from && $was_enabled == "true" ]]; then
-  echo "Restored $cloned_from."
+  source_enabled=$(omarchy-shell shell listPlugins | jq -r --arg id "$cloned_from" '
+    .[] | select(.id == $id) | .enabled
+  ')
+  if [[ $source_enabled == "true" ]]; then
+    echo "Restored $cloned_from."
+  else
+    echo "$cloned_from is still disabled. Enable it with: omarchy plugin enable $cloned_from"
+  fi
 elif [[ $was_enabled == "true" ]]; then
   echo "Plugin was enabled and was unloaded from omarchy-shell."
 fi
