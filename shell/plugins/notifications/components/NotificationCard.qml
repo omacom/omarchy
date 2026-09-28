@@ -61,15 +61,24 @@ BorderSurface {
   function iconSource(icon) {
     var value = String(icon || "")
     if (value.length === 0) return ""
+    // Quickshell hands an absolute image-path hint over as image://icon/<path>.
+    if (value.indexOf("image://icon//") === 0) return existingFileUrl(value.substring(13))
     if (value.indexOf("image://") === 0) return value
     // Only percent-decode explicit file:// URIs; raw absolute paths are
     // already literal filesystem paths where %20 is a real filename char.
     if (value.indexOf("file://") === 0) {
       var pathStr = value.substring(7)
       try { pathStr = decodeURIComponent(pathStr) } catch (e) {}
-      return Quickshell.iconPath(pathStr, true)
+      return existingFileUrl(pathStr)
     }
+    if (value.charAt(0) === "/") return existingFileUrl(value)
     return Quickshell.iconPath(value, true)
+  }
+
+  // iconPath's check says whether the file exists; loading it as a file URL
+  // keeps a literal % in its name from being decoded by the icon provider.
+  function existingFileUrl(path) {
+    return Quickshell.iconPath(path, true).length > 0 ? Util.fileUrl(path) : ""
   }
 
   implicitWidth: Style.space(380)

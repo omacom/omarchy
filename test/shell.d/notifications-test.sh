@@ -12,6 +12,24 @@ assert(notifications.isChromiumDerived('Brave Browser', ''), 'notifications dete
 assert(notifications.isChromiumDerived('', 'microsoft-edge'), 'notifications detect chromium-derived apps by icon')
 assert(!notifications.isChromiumDerived('Slack', ''), 'notifications do not treat unrelated apps as chromium-derived')
 
+// iconSource is plain JavaScript inside the card, so run it against stand-ins for
+// Quickshell and Util where only the files named in `existing` are on disk.
+const cardSource = fs.readFileSync(path.join(root, 'shell/plugins/notifications/components/NotificationCard.qml'), 'utf8')
+const cardFunction = name => new RegExp(`function ${name}\\(\\w+\\) \\{[\\s\\S]*?\\n  \\}`).exec(cardSource)[0]
+const existing = ['/tmp/icon.png', '/tmp/lit%20name.png']
+const cardIconSource = new Function('Quickshell', 'Util', `${cardFunction('existingFileUrl')}\n${cardFunction('iconSource')}\nreturn iconSource`)(
+  { iconPath: (name, check) => (check && name.charAt(0) === '/' && !existing.includes(name) ? '' : `image://icon/${name}`) },
+  { fileUrl: p => 'file://' + p.split('/').map(encodeURIComponent).join('/') }
+)
+assertEqual(cardIconSource('image://icon//tmp/missing.png'), '', 'notification card drops a missing image-path file Quickshell resolved to image://icon/')
+assertEqual(cardIconSource('file:///tmp/missing.png'), '', 'notification card drops a missing file:// icon')
+assertEqual(cardIconSource('/tmp/missing.png'), '', 'notification card drops a missing absolute icon path')
+assertEqual(cardIconSource('image://icon//tmp/icon.png'), 'file:///tmp/icon.png', 'notification card loads an existing image-path file directly')
+assertEqual(cardIconSource('file:///tmp/lit%2520name.png'), 'file:///tmp/lit%2520name.png', 'notification card keeps a literal % in a file:// icon name')
+assertEqual(cardIconSource('/tmp/lit%20name.png'), 'file:///tmp/lit%2520name.png', 'notification card keeps a literal % in an absolute icon path')
+assertEqual(cardIconSource('image://qsimage/7'), 'image://qsimage/7', 'notification card passes image data through')
+assertEqual(cardIconSource('dialog-information'), 'image://icon/dialog-information', 'notification card resolves theme icon names')
+
 assertEqual(
   notifications.sanitizeBody('<img src="x">Hello', 'Slack', ''),
   'Hello',
