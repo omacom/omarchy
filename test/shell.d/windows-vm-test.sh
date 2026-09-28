@@ -51,6 +51,11 @@ cat >"$fake_bin/hyprctl" <<'STUB'
 echo '[{"focused":true,"scale":1}]'
 STUB
 
+cat >"$fake_bin/omarchy-notification-send" <<'STUB'
+#!/bin/bash
+printf 'notify %s\n' "$*" >>"$TEST_LOG"
+STUB
+
 cat >"$fake_bin/xfreerdp3" <<'STUB'
 #!/bin/bash
 exit "${RDP_STATUS:-0}"
@@ -79,6 +84,8 @@ set -e
   fail "Windows VM stays running when RDP fails" "$(cat "$test_tmp/calls.log")"
 grep -qF 'RDP connection failed. Windows VM is still running.' <<<"$output" ||
   fail "Windows VM explains how to reconnect after RDP fails" "$output"
+grep -q '^notify Windows VM Could not connect over RDP' "$test_tmp/calls.log" ||
+  fail "Windows VM tells a launcher without a terminal that RDP failed" "$(cat "$test_tmp/calls.log")"
 pass "Windows VM survives a failed RDP connection"
 
 run_launch 0 >/dev/null
