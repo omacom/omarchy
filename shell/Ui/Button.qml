@@ -125,7 +125,7 @@ BorderSurface {
   // dedicated selected border.
   borderSpec: _borderSpec
 
-  Behavior on color { ColorAnimation { duration: 120 } }
+  Behavior on color { ColorAnimation { duration: Style.duration(120) } }
 
   ToolTip {
     visible: root.tooltipText !== "" && mouseArea.containsMouse
@@ -138,6 +138,7 @@ BorderSurface {
       radius: 0
     }
     contentItem: Text {
+      textFormat: Text.PlainText
       text: root.tooltipText
       color: root.tooltipForeground
       font.family: root.fontFamily
@@ -158,6 +159,7 @@ BorderSurface {
     spacing: Style.spacing.controlGap
 
     Text {
+      textFormat: Text.PlainText
       visible: root.iconText !== ""
       text: root.iconText
       color: root.selected ? root._selectedColor : root.foreground
@@ -172,11 +174,12 @@ BorderSurface {
         to: 360
         duration: 900
         loops: Animation.Infinite
-        running: root.iconSpinning
+        running: root.iconSpinning && !Style.reduceMotion
       }
     }
 
     Text {
+      textFormat: Text.PlainText
       visible: root.text !== ""
       text: root.text
       color: root.selected ? root._selectedColor : root.foreground
