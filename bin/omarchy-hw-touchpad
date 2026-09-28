@@ -27,12 +27,13 @@ else
     raw=$(tr -d '\n' <"$event/device/name")
     [[ -n $raw ]] || continue
 
-    # Hyprland lowercases the kernel name and turns spaces into hyphens.
+    # Hyprland lowercases the kernel name, turns spaces and commas into hyphens
+    # and adds -N to a taken name; any other suffix is another device (-mouse).
     candidate=${raw,,}
-    candidate=${candidate// /-}
+    candidate=${candidate//[ ,]/-}
 
     for m in "${mice[@]}"; do
-      if [[ $m == "$candidate" || $m == "$candidate"-* ]]; then
+      if [[ $m == "$candidate" || ( $m == "$candidate"-* && ${m#"$candidate"-} =~ ^[0-9]+$ ) ]]; then
         printf '%s\n' "$m"
         exit 0
       fi

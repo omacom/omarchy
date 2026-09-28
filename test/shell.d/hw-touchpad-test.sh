@@ -118,6 +118,25 @@ assert_detects 'synaptics-tm3053-004-1' "a Hyprland duplicate-name suffix still 
 
 rm -rf "$input_dir" "$udev_dir"
 mkdir -p "$input_dir" "$udev_dir"
+write_hypr_mice 'acpi0c50:00-18d1:5028-mouse' 'acpi0c50:00-18d1:5028'
+add_event event7 'ACPI0C50:00 18D1:5028 Mouse' \
+  'ID_INPUT=1' \
+  'ID_INPUT_MOUSE=1'
+add_event event8 'ACPI0C50:00 18D1:5028' \
+  'ID_INPUT=1' \
+  'ID_INPUT_TOUCHPAD=1'
+assert_detects 'acpi0c50:00-18d1:5028' "the pad's mouse emulation node listed first is not taken for it"
+
+rm -rf "$input_dir" "$udev_dir"
+mkdir -p "$input_dir" "$udev_dir"
+write_hypr_mice 'acme--inc.-precision-pad'
+add_event event14 'Acme, Inc. Precision Pad' \
+  'ID_INPUT=1' \
+  'ID_INPUT_TOUCHPAD=1'
+assert_detects 'acme--inc.-precision-pad' "a comma in the kernel name maps to Hyprland's hyphen"
+
+rm -rf "$input_dir" "$udev_dir"
+mkdir -p "$input_dir" "$udev_dir"
 write_hypr_mice 'tpps/2-ibm-trackpoint' 'e-signal-dm360'
 add_event event15 'TPPS/2 IBM TrackPoint' \
   'ID_INPUT=1' \
