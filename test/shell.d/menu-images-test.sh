@@ -168,7 +168,7 @@ printf 'image-bracket' >"$glob_images/photo[1].png"
 glob_cache_key=$(printf '%s' "$glob_images" | md5sum | cut -d ' ' -f 1)
 
 PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
-  "$ROOT/bin/omarchy-menu-images" --lazy-thumbnails --preload "$glob_images"
+  "$ROOT/bin/omarchy-menu-images" --lazy-thumbnails --print-rows "$glob_images" >/dev/null
 
 cache_dir="$cache_home/omarchy/image-selector"
 [[ ! -e $cache_dir/$glob_cache_key.rows ]] ||
