@@ -3,12 +3,53 @@
 # omarchy:summary=Install the Tailscale mesh VPN service and a web app for the Tailscale Admin Console.
 # omarchy:requires-sudo=true
 
+# Hosted Tailscale is the default, so an ordinary install is unchanged.
+# OMARCHY_TAILSCALE_LOGIN_SERVER joins a self-hosted coordination server
+# (Headscale) instead of waiting on login.tailscale.com.
+# OMARCHY_TAILSCALE_AUTH_KEY supplies a pre-auth key, which self-hosted joins
+# usually need in place of the browser login.
+# OMARCHY_TAILSCALE_ADMIN_URL is the web app address when the coordination
+# server is not Tailscale's hosted admin console.
+
+login_server=${OMARCHY_TAILSCALE_LOGIN_SERVER:-}
+auth_key=${OMARCHY_TAILSCALE_AUTH_KEY:-}
+admin_url=${OMARCHY_TAILSCALE_ADMIN_URL:-}
+admin_icon="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/tailscale-light.png"
+
+valid_http_url() {
+  [[ $1 =~ ^https?://[^[:space:]/?#]+(/[^[:space:]]*)?$ ]]
+}
+
+if [[ -n $login_server ]] && ! valid_http_url "$login_server"; then
+  echo "OMARCHY_TAILSCALE_LOGIN_SERVER must be an http(s) URL, for example https://headscale.example.com." >&2
+  exit 1
+fi
+
+if [[ -n $auth_key && $auth_key =~ [[:space:]] ]]; then
+  echo "OMARCHY_TAILSCALE_AUTH_KEY must not contain whitespace." >&2
+  exit 1
+fi
+
+if [[ -n $admin_url ]] && ! valid_http_url "$admin_url"; then
+  echo "OMARCHY_TAILSCALE_ADMIN_URL must be an http(s) URL." >&2
+  exit 1
+fi
+
 echo -e "\nInstalling Tailscale..."
 omarchy-pkg-add tailscale
 
 echo -e "\nStarting Tailscale..."
 sudo systemctl enable --now tailscaled.service
-sudo tailscale up --accept-routes
+
+up_args=(--accept-routes)
+if [[ -n $login_server ]]; then
+  echo "Coordination server: $login_server"
+  up_args+=(--login-server="$login_server")
+fi
+if [[ -n $auth_key ]]; then
+  up_args+=(--auth-key="$auth_key")
+fi
+sudo tailscale up "${up_args[@]}"
 
 echo -e "\nAllowing $USER to manage Tailscale..."
 sudo tailscale set --operator="$USER"
@@ -19,4 +60,10 @@ systemctl --user enable --now omarchy-tailscale-receive.service
 echo -e "\nAdding Tailscale to the bar..."
 omarchy-plugin-enable omarchy.tailscale
 
-omarchy-webapp-install "Tailscale" "https://login.tailscale.com/admin/machines" https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/tailscale-light.png
+if [[ -n $admin_url ]]; then
+  omarchy-webapp-install "Tailscale" "$admin_url" "$admin_icon"
+elif [[ -z $login_server ]]; then
+  omarchy-webapp-install "Tailscale" "https://login.tailscale.com/admin/machines" "$admin_icon"
+else
+  echo "Skipping the hosted Tailscale admin web app. Set OMARCHY_TAILSCALE_ADMIN_URL if this coordination server has one."
+fi
