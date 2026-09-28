@@ -9,7 +9,9 @@ profile_open() {
   [[ -L $1/SingletonLock || -e $1/SingletonLock || -S $1/SingletonSocket ]]
 }
 
-if [[ -d $beta ]]; then
+# Omarchy's native messaging installers create the beta directory on every
+# install, so only one a browser has launched holds a profile worth moving.
+if [[ -f "$beta/Local State" ]]; then
   if profile_open "$beta" || { [[ -d $stable ]] && profile_open "$stable"; }; then
     echo "Brave is running — skipping profile migration." >&2
     echo "Quit Brave completely, then run: omarchy-update" >&2
