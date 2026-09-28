@@ -25,8 +25,9 @@ run_migration() {
   bash -euo pipefail "$migration" >/dev/null || fail "migration exits clean"
 }
 
-git config --global credential.https://github.com.helper "$versioned"
-git config --global --add credential.https://github.com.helper ''
+# gh auth setup-git writes the empty reset first; a helper before it would be cleared.
+git config --global credential.https://github.com.helper ''
+git config --global --add credential.https://github.com.helper "$versioned"
 git config --global credential.https://gist.github.com.helper "$wrapper"
 git config --global credential.helper store
 
@@ -36,10 +37,8 @@ git config --global --get-all credential.https://github.com.helper | grep -Fxq "
   fail "github helper rewritten to mise exec"
 git config --global --get-all credential.https://github.com.helper | grep -Fq 'mise/installs/gh/' &&
   fail "versioned github helper removed"
-# Empty values are a blank line from --get-all; check before capturing into a var
-# (command substitution strips a trailing empty line).
-git config --global --get-all credential.https://github.com.helper | grep -Fxq '' ||
-  fail "empty github helper entry preserved"
+[[ $(git config --global --get-all credential.https://github.com.helper | paste -sd '|') == "|$good" ]] ||
+  fail "github helper stays after the empty reset"
 git config --global --get-all credential.https://gist.github.com.helper | grep -Fxq "$good" ||
   fail "gist helper rewritten to mise exec"
 git config --global --get-all credential.https://gist.github.com.helper | grep -Fq '.local/bin/gh' &&
