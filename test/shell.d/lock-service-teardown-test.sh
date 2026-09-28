@@ -69,6 +69,24 @@ assert(
   '_syncServices does not key the skip on the first-party lock id'
 )
 
+// The first-party lock is an authentication service, retained in
+// AuthServiceStore rather than _services, so its teardown needs the same skip.
+const authSkip = sync.indexOf('if (AuthServiceStore.ownsSessionLock(authenticationId)) continue')
+const authDestroy = sync.indexOf('AuthServiceStore.destroy(authenticationId)')
+assert(authSkip !== -1, '_syncServices skips an authentication service that owns the session lock')
+assert(authDestroy !== -1, '_syncServices still destroys authentication services that went away')
+assert(authSkip < authDestroy, 'no authentication-service destroy runs before the ownership skip')
+
+const vm = require('vm')
+const store = {}
+vm.createContext(store)
+vm.runInContext(fs.readFileSync(path.join(root, 'shell/services/AuthServiceStore.js'), 'utf8'), store)
+store.put('omarchy.lock', { sessionLockOwned: true, destroy() {} })
+store.put('omarchy.polkit', { sessionLockOwned: false, destroy() {} })
+assert(store.ownsSessionLock('omarchy.lock'), 'the store reports a service holding the session lock')
+assert(!store.ownsSessionLock('omarchy.polkit'), 'the store does not report a service without the lock')
+assert(!store.ownsSessionLock('missing'), 'the store does not report a service it does not hold')
+
 // ------------------------------------------------- lock service: sessionLockOwned
 // The signal the shell reads must be deterministic on a rebuilt service.
 // sessionLock.secure resolves through the process-wide session-lock manager,

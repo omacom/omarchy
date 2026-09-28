@@ -1021,6 +1021,8 @@ ShellRoot {
         && authenticationManifest.entryPoints.service
       if (stillAuthenticationService && pluginRegistry.isEnabled(authenticationId)
           && shell.isAuthenticationService(authenticationManifest, authenticationId)) continue
+      // The first-party lock lives here, not in _services; same skip as above.
+      if (AuthServiceStore.ownsSessionLock(authenticationId)) continue
       AuthServiceStore.destroy(authenticationId)
     }
   }
