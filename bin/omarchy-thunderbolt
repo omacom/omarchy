@@ -38,6 +38,9 @@ if [[ -d $devices_dir ]]; then
     else
       device_names[$unique_id]="$unique_id"
     fi
+    # The attribute can also exist with an empty value; keep the unique id
+    # fallback so the toast and menu never show a blank name.
+    [[ -n ${device_names[$unique_id]} ]] || device_names[$unique_id]="$unique_id"
     if [[ -r ${device_path}vendor_name ]]; then
       device_vendors[$unique_id]=$(<"${device_path}vendor_name")
     else
@@ -63,7 +66,7 @@ for unique_id in "${waiting_ids[@]}"; do
   vendor=${device_vendors[$unique_id]}
   generation=${device_generations[$unique_id]}
 
-  gum style --bold "$name"
+  gum style --bold -- "$name"
   [[ -n $vendor ]] && gum style "  Vendor: $vendor"
   (( generation > 0 )) && gum style "  Generation: $generation"
   gum style "  ID: $unique_id"
@@ -103,7 +106,7 @@ for unique_id in "${waiting_ids[@]}"; do
   fi
 
   if (( boltctl_status == 0 && authorized_now != 0 )); then
-    gum style --foreground 2 "$name is authorized for this system."
+    gum style --foreground 2 -- "$name is authorized for this system."
 
     # Forget that this device was notified, so the next unauthorized event
     # starts fresh instead of staying silent.
@@ -118,7 +121,7 @@ for unique_id in "${waiting_ids[@]}"; do
     omarchy-notification-send -u normal -g ⚡ "Thunderbolt device authorized" \
       "$name is authorized and its ports are active." || true
   else
-    gum style --foreground 1 --bold "Failed to authorize $name (boltctl exit code $boltctl_status)."
-    gum style --foreground 1 "Check 'boltctl list' for the device state, then run omarchy-thunderbolt again."
+    gum style --foreground 1 --bold -- "Failed to authorize $name (boltctl exit code $boltctl_status)."
+    gum style --foreground 1 -- "Check 'boltctl list' for the device state, then run omarchy-thunderbolt again."
   fi
 done

@@ -1,9 +1,9 @@
 [Unit]
 Description=Watch the Thunderbolt bus for device changes
-# Best-effort instant trigger: PathChanged on the devices directory may fire
-# on some kernels when a Thunderbolt device connects, but kernfs does not
-# deliver create events reliably -- the 30s backstop timer is what guarantees
-# detection. This unit shortens the wait when the event does arrive.
+# Not a working instant trigger: Linux kernfs emits no fsnotify create event
+# when a device node appears, so on current kernels this unit does not fire on
+# connect. It is kept as a harmless best-effort for kernels that do deliver
+# events; the 30s backstop timer is what guarantees detection.
 After=graphical-session.target
 PartOf=graphical-session.target
 ConditionEnvironment=WAYLAND_DISPLAY

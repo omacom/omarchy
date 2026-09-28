@@ -42,6 +42,9 @@ for device_path in "$devices_dir"/*/; do
   else
     device_names[$unique_id]="$unique_id"
   fi
+  # The attribute can also exist with an empty value; keep the unique id
+  # fallback so the toast never shows a blank name.
+  [[ -n ${device_names[$unique_id]} ]] || device_names[$unique_id]="$unique_id"
   if [[ -r ${device_path}vendor_name ]]; then
     device_vendors[$unique_id]=$(<"${device_path}vendor_name")
   else
@@ -113,7 +116,10 @@ if (( handover_failed )); then
 fi
 
 # Drop ids that left sysfs or became authorized, so a future unauthorized event
-# for the same device notifies again instead of being silenced forever.
+# for the same device notifies again. The state persists across sessions (in
+# ~/.local/state), so a device toasted once stays quiet on later logins until
+# it disconnects or gets authorized -- intentional, it avoids re-nagging about
+# the same dock every session.
 declare -A unauthorized_lookup=()
 for unique_id in "${unauthorized_ids[@]}"; do
   unauthorized_lookup[$unique_id]=1
