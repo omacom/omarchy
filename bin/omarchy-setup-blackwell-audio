@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Manage the narrowly matched Blackwell/SteelSeries compatibility profile
+# omarchy:args=<status|on|off|auto>
+# omarchy:examples=omarchy setup blackwell-audio status | omarchy setup blackwell-audio off
+
+exec python3 "$OMARCHY_PATH/default/hardware/blackwell-audio/profile.py" "$@"
