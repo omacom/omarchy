@@ -21,7 +21,7 @@ fi
 # When --no-rebuild is set, the caller is responsible for the UKI rebuild
 # (e.g. running before limine-mkinitcpio-hook is installed during initial
 # install), so we only require limine-mkinitcpio when we'd invoke it ourselves.
-if ! $NO_REBUILD && ! command -v limine-mkinitcpio &>/dev/null; then
+if ! $NO_REBUILD && omarchy-cmd-missing limine-mkinitcpio; then
   echo "Skipping hibernation setup (requires Limine bootloader)"
   exit 0
 fi
@@ -29,6 +29,35 @@ fi
 MKINITCPIO_CONF="/etc/mkinitcpio.conf.d/omarchy_resume.conf"
 SWAP_FILE="/swap/swapfile"
 RESUME_DROP_IN="/etc/limine-entry-tool.d/resume.conf"
+
+install_root_file() {
+  local source="$1"
+  local destination="$2"
+  local mode="$3"
+  local stage
+
+  stage=$(sudo /usr/bin/mktemp -- "${destination%/*}/.${destination##*/}.omarchy.XXXXXX") || return 1
+  safe_stage_path "$stage" "$destination" || return 1
+
+  if sudo /usr/bin/install -m "$mode" -o root -g root -T "$source" "$stage" &&
+    sudo /usr/bin/mv -Tf -- "$stage" "$destination"; then
+    return 0
+  else
+    safe_stage_path "$stage" "$destination" && sudo /usr/bin/rm -f -- "$stage"
+    return 1
+  fi
+}
+
+safe_stage_path() {
+  local stage="$1"
+  local destination="$2"
+  local prefix suffix
+
+  prefix="${destination%/*}/.${destination##*/}.omarchy."
+  [[ $stage == "$prefix"* ]] || return 1
+  suffix=${stage#"$prefix"}
+  [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
+}
 
 # Check if hibernation is already configured
 if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
@@ -38,8 +67,9 @@ if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; 
     if [[ -n $RESUME_OFFSET ]]; then
       echo "Fixing empty resume_offset ($RESUME_OFFSET)"
       sudo sed -i "s/resume_offset=\"$/resume_offset=$RESUME_OFFSET\"/" "$RESUME_DROP_IN"
-      sudo sed -i "s/resume_offset=\"$/resume_offset=$RESUME_OFFSET\"/" /etc/default/limine
-      $NO_REBUILD || sudo limine-mkinitcpio
+      if ! $NO_REBUILD; then
+        sudo limine-mkinitcpio
+      fi
     fi
   fi
   echo "Hibernation is already set up"
@@ -82,13 +112,19 @@ if ! swapon --show | grep -q "$SWAP_FILE"; then
   sudo swapon -p 0 "$SWAP_FILE"
 fi
 
+# Ensure keyboard backlight doesn't prevent sleep
+# Install this before writing the resume marker so a failed install remains
+# retryable through the normal setup command.
+if ! install_root_file "$OMARCHY_PATH/default/systemd/system-sleep/keyboard-backlight" \
+  /usr/lib/systemd/system-sleep/keyboard-backlight 0755; then
+  echo "Could not install the keyboard-backlight system-sleep hook" >&2
+  exit 1
+fi
+
 # Add resume hook to mkinitcpio
 sudo mkdir -p /etc/mkinitcpio.conf.d
 echo "Adding resume hook to $MKINITCPIO_CONF"
 echo "HOOKS+=(resume)" | sudo tee "$MKINITCPIO_CONF" >/dev/null
-
-# Ensure keyboard backlight doesn't prevent sleep
-sudo cp -p "$OMARCHY_PATH/default/systemd/system-sleep/keyboard-backlight" /usr/lib/systemd/system-sleep/
 
 # Add resume= kernel parameters so the initramfs resume hook knows where to find the
 # hibernation image. Without these, resume happens late (after GPU drivers load) and fails.
@@ -100,7 +136,6 @@ if [[ ! -f $RESUME_DROP_IN ]]; then
   if [[ -n $RESUME_OFFSET ]]; then
     sudo mkdir -p /etc/limine-entry-tool.d
     echo "KERNEL_CMDLINE[default]+=\" resume=$RESUME_DEVICE resume_offset=$RESUME_OFFSET\"" | sudo tee "$RESUME_DROP_IN" >/dev/null
-    sudo tee -a /etc/default/limine < "$RESUME_DROP_IN" >/dev/null
   else
     echo "Warning: Could not determine resume offset for $SWAP_FILE" >&2
   fi
@@ -113,7 +148,6 @@ if grep -q "\[s2idle\]" /sys/power/mem_sleep 2>/dev/null; then
     echo "Enabling ACPI RTC alarm for s2idle suspend"
     sudo mkdir -p /etc/limine-entry-tool.d
     echo 'KERNEL_CMDLINE[default]+=" rtc_cmos.use_acpi_alarm=1"' | sudo tee "$LIMINE_DROP_IN" >/dev/null
-    sudo tee -a /etc/default/limine < "$LIMINE_DROP_IN" >/dev/null
   fi
 fi
 

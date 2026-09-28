@@ -6,8 +6,8 @@ o.window(".*", { suppress_event = "maximize" })
 o.window(".*", { tag = "+default-opacity" })
 
 -- Fix some dragging issues with XWayland.
-hl.window_rule({
-  match = {
+o.window(
+  {
     class = "^$",
     title = "^$",
     xwayland = true,
@@ -15,11 +15,11 @@ hl.window_rule({
     fullscreen = false,
     pin = false,
   },
-  no_focus = true,
-})
+  { no_focus = true }
+)
 
 -- App-specific tweaks (may remove default-opacity tag).
 require("default.hypr.apps")
 
 -- Apply default opacity after apps have had a chance to opt out.
-o.window({ tag = "default-opacity" }, { opacity = "0.97 0.9" })
+o.window({ tag = "default-opacity" }, { opacity = "0.985 0.96" })

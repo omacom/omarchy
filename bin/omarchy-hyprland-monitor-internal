@@ -7,18 +7,35 @@ TOGGLE="internal-monitor-disable"
 TOGGLE_FLAG="$HOME/.local/state/omarchy/toggles/hypr/$TOGGLE.lua"
 MIRROR_TOGGLE="internal-monitor-mirror"
 
-# Get internal monitor name dynamically
-INTERNAL=$(hyprctl monitors -j | jq -r '.[] | select(.name | contains("eDP")).name' | head -n 1)
+INTERNAL=$(omarchy-hyprland-monitor-laptop)
+
+wake() {
+  hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1 || true
+}
 
 on() {
   if omarchy-hyprland-toggle-enabled $TOGGLE; then
     omarchy-hyprland-toggle $TOGGLE off
     omarchy-notification-send -g 󰍹 "Laptop display enabled"
   fi
+
+  wake
 }
 
 off() {
-  if ! omarchy-hw-external-monitors; then
+  if [[ -z $INTERNAL ]]; then
+    omarchy-notification-send -g 󰍹 "No laptop display found"
+    exit 1
+  fi
+
+  # The name is written into generated Lua below, so only a plain connector
+  # name may pass; anything else could execute on the next reload.
+  if [[ ! $INTERNAL =~ ^[A-Za-z0-9._-]+$ ]]; then
+    omarchy-notification-send -g 󰍹 "Refusing unsafe monitor name"
+    exit 1
+  fi
+
+  if ! omarchy-hyprland-monitor-external-active; then
     omarchy-notification-send -g 󰍹 "Can't disable the only active display"
     exit 1
   fi
@@ -31,9 +48,14 @@ off() {
 }
 
 recover() {
-  if ! omarchy-hw-external-monitors && omarchy-hyprland-toggle-enabled $TOGGLE; then
-    omarchy-hyprland-toggle $TOGGLE off
-  fi
+  # Runs from the clamshell watcher every few seconds, so it must be a no-op
+  # unless it actually re-enables a display: an unconditional wake here undoes
+  # lock-screen blanking and races the resume modeset into a visible flash.
+  omarchy-hyprland-monitor-external-active && return 0
+  omarchy-hyprland-toggle-enabled $TOGGLE || return 0
+
+  omarchy-hyprland-toggle $TOGGLE off
+  wake
 }
 
 toggle() {
