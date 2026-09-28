@@ -276,6 +276,9 @@ ShellRoot {
   }
 
   property var _services: ({})
+  // The clone family each service was created for: its clone source, or its
+  // own id. Kept past a removal so a retained lock owner can still be matched.
+  property var _serviceFamilies: ({})
   property var _pluginShellApis: ({})
   property var _pluginShellApiDescriptors: ({})
   property var _pluginBarEntryShellApis: ({})
@@ -889,6 +892,23 @@ ShellRoot {
         && manifest.__hostCapabilities.indexOf("authentication") !== -1)
   }
 
+  // Whether a member of pluginId's clone family other than pluginId still holds
+  // the session lock. Enabling, disabling or removing a clone while locked
+  // swaps which member the registry wants, but the member holding the lock is
+  // kept until unlock. Mounting the other beside it would run a second lock
+  // service, which finds the lock held, takes it for stranded and re-locks
+  // over it -- an abort in Quickshell. The re-sync after unlock mounts it.
+  function sessionLockHeldByFamily(pluginId, family) {
+    var ids = Object.keys(_services).concat(AuthServiceStore.ids())
+    for (var i = 0; i < ids.length; i++) {
+      var other = ids[i]
+      if (other === pluginId || _serviceFamilies[other] !== family) continue
+      var inst = _services[other]
+      if ((inst && inst.sessionLockOwned === true) || AuthServiceStore.ownsSessionLock(other)) return true
+    }
+    return false
+  }
+
   function ensureService(pluginId) {
     var key = String(pluginId)
     if (_services[key]) return _services[key]
@@ -901,6 +921,10 @@ ShellRoot {
     if (!url) return null
     var authenticationService = shell.isAuthenticationService(manifest, key)
     if (authenticationService && AuthServiceStore.has(key)) return null
+    var metadata = Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
+    var family = Util.canonicalWidgetId(String(metadata && metadata.clonedFrom || key))
+    if (sessionLockHeldByFamily(key, family)) return null
+    _serviceFamilies[key] = family
 
     var comp = Qt.createComponent(url, Component.PreferSynchronous)
     function finalize() {

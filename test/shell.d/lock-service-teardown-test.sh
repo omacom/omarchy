@@ -196,6 +196,65 @@ assert(
 )
 assertEqual((lockCode.match(/startDetached\(/g) || []).length, 1, 'the wake runs detached only from the destruction handler')
 
+// ------------------------------------------------ one lock service per family
+// Enabling, disabling or removing a clone while locked swaps which member of
+// the clone family the registry wants, while the member holding the lock is
+// kept. A second lock service mounted beside it finds the lock held, takes it
+// for stranded and re-locks over it, which aborts in Quickshell. So
+// ensureService refuses a family member while another member holds the lock,
+// and records the family before it creates anything, so a removed clone still
+// matches after its manifest is gone.
+const familyBlock = ensure.indexOf('if (sessionLockHeldByFamily(key, family)) return null')
+const familyRecord = ensure.indexOf('_serviceFamilies[key] = family')
+const createAt = ensure.indexOf('Qt.createComponent(')
+assert(
+  ensure.includes('var family = Util.canonicalWidgetId(String(metadata && metadata.clonedFrom || key))'),
+  "ensureService derives the family from the clone source, else the plugin's own id"
+)
+assert(familyBlock !== -1, 'ensureService refuses a family member while another member holds the lock')
+assert(familyRecord !== -1, 'ensureService records the family of every service it creates')
+assert(familyBlock < familyRecord && familyRecord < createAt, 'the family is checked, then recorded, before the service is created')
+
+const heldByFamily = new Function(
+  'pluginId', 'family', '_services', 'AuthServiceStore', '_serviceFamilies',
+  bodyOf(shellQml, 'sessionLockHeldByFamily', 'family guard')
+)
+function held(pluginId, family, opts) {
+  const auth = opts.auth || {}
+  const store = {
+    ids: () => Object.keys(auth),
+    ownsSessionLock: (id) => auth[id] === true,
+  }
+  return heldByFamily(pluginId, family, opts.services || {}, store, opts.families || {})
+}
+assert(
+  held('user.lock-clone', 'omarchy.lock', { auth: { 'omarchy.lock': true }, families: { 'omarchy.lock': 'omarchy.lock' } }),
+  'a clone enabled while its source holds the lock waits'
+)
+assert(
+  held('omarchy.lock', 'omarchy.lock', { auth: { 'user.lock-clone': true }, families: { 'user.lock-clone': 'omarchy.lock' } }),
+  'a source restored while its clone holds the lock waits, even once the clone is removed'
+)
+assert(
+  held('omarchy.lock', 'omarchy.lock', {
+    services: { 'user.lock-copy': { sessionLockOwned: true } },
+    families: { 'user.lock-copy': 'omarchy.lock' },
+  }),
+  'a published family member holding the lock blocks the rest of the family'
+)
+assert(
+  !held('omarchy.polkit', 'omarchy.polkit', { auth: { 'omarchy.lock': true }, families: { 'omarchy.lock': 'omarchy.lock' } }),
+  'a plugin outside the family is not held back'
+)
+assert(
+  !held('omarchy.lock', 'omarchy.lock', { auth: { 'omarchy.lock': true }, families: { 'omarchy.lock': 'omarchy.lock' } }),
+  'a service does not block itself'
+)
+assert(
+  !held('user.lock-clone', 'omarchy.lock', { auth: { 'omarchy.lock': false }, families: { 'omarchy.lock': 'omarchy.lock' } }),
+  'a family member that has let go of the lock blocks nothing'
+)
+
 // ------------------------------------------------- lock service: sessionLockOwned
 // The signal the shell reads must be deterministic on a rebuilt service.
 // sessionLock.secure resolves through the process-wide session-lock manager,
