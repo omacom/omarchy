@@ -37,16 +37,24 @@ bookmarked() {
 }
 
 default_home="$test_tmp/home"
-mkdir -p "$default_home"
+mkdir -p "$default_home/.hermes/profiles/james"
 provision "$default_home" || fail "omarchy-provision-user finishes"
 
 for skill in omarchy diagnose-crash; do
   link="$default_home/.gemini/config/skills/$skill"
   [[ -L $link && $(readlink "$link") == "$ROOT/default/agents/skills/$skill" ]] ||
     fail "omarchy-provision-user provisions the $skill skill for Antigravity"
+
+  link="$default_home/.hermes/skills/$skill"
+  [[ -L $link && $(readlink "$link") == "$ROOT/default/agents/skills/$skill" ]] ||
+    fail "omarchy-provision-user provisions the $skill skill for Hermes"
+
+  link="$default_home/.hermes/profiles/james/skills/$skill"
+  [[ -L $link && $(readlink "$link") == "$ROOT/default/agents/skills/$skill" ]] ||
+    fail "omarchy-provision-user provisions the $skill skill for a Hermes profile"
 done
 
-pass "omarchy-provision-user provisions Antigravity skills"
+pass "omarchy-provision-user provisions Antigravity and Hermes skills"
 
 # With nothing configured, xdg-user-dir reports $HOME for every directory, and
 # the default names are what provisioning has to fall back to.
