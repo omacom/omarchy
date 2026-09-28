@@ -177,15 +177,18 @@ grep -Fq 'limine-mkinitcpio' "$calls" ||
 pass "an interrupted rebuild is retried"
 
 # A drop-in lost after an earlier rebuild must not be vouched for by that
-# rebuild's marker once it is reinstalled and the new rebuild fails.
-printf '#KERNEL_CMDLINE[default]+=" intel_idle.max_cstate=1"\n' >"$conf"
-[[ -e $marker ]] || fail "the earlier rebuild left its marker"
-if TEST_REBUILD_FAILS=1 run_migration "MacBookAir4,1" "quiet splash"; then
-  fail "a failed rebuild fails the migration"
-fi
-run_migration "MacBookAir4,1" "quiet splash"
-grep -Fq 'limine-mkinitcpio' "$calls" ||
-  fail "a rebuild that failed after reinstalling the drop-in is retried" "$(cat "$calls")"
+# rebuild's marker once it is reinstalled and the new rebuild fails, whether
+# or not the kernel still running booted with the cap.
+for booted in "quiet splash" "quiet splash intel_idle.max_cstate=1"; do
+  printf '#KERNEL_CMDLINE[default]+=" intel_idle.max_cstate=1"\n' >"$conf"
+  [[ -e $marker ]] || fail "the earlier rebuild left its marker" "$booted"
+  if TEST_REBUILD_FAILS=1 run_migration "MacBookAir4,1" "$booted"; then
+    fail "a failed rebuild fails the migration" "$booted"
+  fi
+  run_migration "MacBookAir4,1" "$booted"
+  grep -Fq 'limine-mkinitcpio' "$calls" ||
+    fail "a rebuild that failed after reinstalling the drop-in is retried" "$booted: $(cat "$calls")"
+done
 pass "a stale marker does not hide a failed rebuild"
 
 rm -rf "$test_tmp/etc" "$test_tmp/var"

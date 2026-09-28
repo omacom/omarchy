@@ -7,8 +7,6 @@ repair_marker="${OMARCHY_SANDY_IDLE_REPAIR_MARKER:-/var/lib/omarchy/migrations/1
 omarchy-hw-match "MacBookAir4," || exit 0
 omarchy-cmd-present limine-mkinitcpio || exit 0
 
-needs_rebuild=0
-
 # Installs that predate install/hardware/apple/fix-sandy-bridge-idle.sh never
 # got the drop-in from hardware setup. Check for the active setting rather
 # than the file: an interrupted first run can leave the drop-in truncated, and
@@ -22,20 +20,13 @@ if ! grep -Fxq 'KERNEL_CMDLINE[default]+=" intel_idle.max_cstate=1"' "$limine_co
 # 2011 MacBook Air (Sandy Bridge) hard-locks when idling into deep C-states
 KERNEL_CMDLINE[default]+=" intel_idle.max_cstate=1"
 EOF
-  needs_rebuild=1
 fi
 
 # The running kernel keeps its old command line until reboot, so a marker
 # records the machine-wide rebuild instead: another user's migration must not
 # repeat it before then, while a missing marker still retries an interrupted
 # rebuild.
-if [[ ! -e $repair_marker ]] &&
-  { [[ ! -r $running_cmdline ]] ||
-    ! grep -Eq '(^| )intel_idle\.max_cstate=1( |$)' "$running_cmdline"; }; then
-  needs_rebuild=1
-fi
-
-if (( needs_rebuild )); then
+if [[ ! -e $repair_marker ]]; then
   sudo limine-mkinitcpio
   sudo install -Dm644 /dev/null "$repair_marker"
 fi
