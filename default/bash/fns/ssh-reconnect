@@ -39,7 +39,7 @@ ssh() {
       command ssh "$@"
       rc=$?
       _ssh_disarm
-      (( SECONDS - attempt < 30 )) || _ssh_leave_alt_screen
+      (( rc != 255 || SECONDS - attempt < 30 )) || _ssh_leave_alt_screen
       (( rc != 255 )) && exit $rc
     done
   )

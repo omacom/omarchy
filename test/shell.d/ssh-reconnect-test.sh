@@ -118,6 +118,16 @@ pass "dropped session reconnects"
   fail "a dropped session leaves the alternate screen" "$out"
 pass "a dropped session leaves the alternate screen"
 
+out=$(run_case $'2 255\n2 0' host)
+[[ ${out#*Connection lost} != *"$leave_alt_screen"* ]] ||
+  fail "a reconnected session that exits cleanly leaves the alternate screen alone" "$out"
+pass "a reconnected session that exits cleanly leaves the alternate screen alone"
+
+out=$(run_case $'2 255\n2 255\n0 0' host)
+[[ ${out#*Connection lost} == *"$disarm$leave_alt_screen"* ]] ||
+  fail "a reconnected session that drops again leaves the alternate screen" "$out"
+pass "a reconnected session that drops again leaves the alternate screen"
+
 out=$(run_case $'2 255\n0 255\n0 0' host)
 [[ $out == *"rc=0"* ]] && (( $(attempts) == 3 )) ||
   fail "reconnecting keeps retrying while the server is still down" "$out"
