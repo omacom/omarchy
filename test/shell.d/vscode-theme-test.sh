@@ -54,7 +54,7 @@ mkdir -p "$CODIUM_BIN" "$CODIUM_CURRENT_THEME"
 
 cat >"$CODIUM_BIN/omarchy-cmd-present" <<'EOF'
 #!/bin/bash
-[[ $1 == codium ]]
+[[ $1 == "codium" ]]
 EOF
 
 cat >"$CODIUM_BIN/omarchy-toggle-enabled" <<'EOF'

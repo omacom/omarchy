@@ -121,7 +121,7 @@ set_theme() {
     fi
   fi
 
-  if [[ -z "$theme_name" && -f "$GENERATED_THEME" ]]; then
+  if [[ -z $theme_name && -f $GENERATED_THEME ]]; then
     # No preferred 3rd-party theme named (or the descriptor didn't resolve
     # one): fall back to the generated theme. VS Code only discovers local
     # color themes through an extension package.
