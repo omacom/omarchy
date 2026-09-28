@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# omarchy:summary=Install a supported browser
+# omarchy:args=<chromium|chrome|brave|brave-origin|edge|firefox|zen>
+# omarchy:examples=omarchy install browser chromium | omarchy install browser firefox
+
+set -e
+
+source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+
+setup_chromium_policy_directory() {
+  browser_policy_setup_dir "$1"
+}
+
+announce_browser_installed() {
+  echo ""
+  echo "$1 browser installed. Make it the default via Setup > Defaults > Browser."
+}
+
+copy_chromium_flags() {
+  mkdir -p ~/.config
+  cp -f "$OMARCHY_PATH/config/chromium-flags.conf" "$1"
+  omarchy-install-chromium-copy-url
+  omarchy-install-chromium-ytdlp
+}
+
+setup_firefox_wayland() {
+  mkdir -p ~/.config/environment.d
+  echo "MOZ_ENABLE_WAYLAND=1" > ~/.config/environment.d/omarchy-firefox-wayland.conf
+}
+
+case $1 in
+chromium)
+  echo "Installing Chromium..."
+  omarchy-pkg-add chromium
+
+  setup_chromium_policy_directory /etc/chromium/policies/managed
+  copy_chromium_flags ~/.config/chromium-flags.conf
+  omarchy-theme-set-browser
+  announce_browser_installed "Chromium"
+  ;;
+chrome)
+  echo "Installing Chrome..."
+  omarchy-pkg-aur-add google-chrome || exit 1
+
+  setup_chromium_policy_directory /etc/opt/chrome/policies/managed
+  copy_chromium_flags ~/.config/chrome-flags.conf
+  omarchy-theme-set-browser
+  announce_browser_installed "Chrome"
+  ;;
+edge)
+  echo "Installing Edge..."
+  omarchy-pkg-aur-add microsoft-edge-stable-bin || exit 1
+
+  setup_chromium_policy_directory /etc/opt/edge/policies/managed
+  copy_chromium_flags ~/.config/microsoft-edge-stable-flags.conf
+  omarchy-theme-set-browser
+  announce_browser_installed "Edge"
+  ;;
+brave)
+  echo "Installing Brave..."
+  omarchy-pkg-aur-add brave-bin || exit 1
+
+  setup_chromium_policy_directory /etc/brave/policies/managed
+  copy_chromium_flags ~/.config/brave-flags.conf
+  omarchy-theme-set-browser
+  announce_browser_installed "Brave"
+  ;;
+brave-origin)
+  echo "Installing Brave Origin..."
+  omarchy-pkg-aur-add brave-origin-bin || exit 1
+
+  setup_chromium_policy_directory /etc/brave/policies/managed
+  copy_chromium_flags ~/.config/brave-origin-flags.conf
+  omarchy-theme-set-browser
+  announce_browser_installed "Brave Origin"
+  ;;
+firefox)
+  echo "Installing Firefox..."
+  omarchy-pkg-add firefox || exit 1
+
+  browser_policy_setup_firefox_distribution /usr/lib/firefox/distribution
+  setup_firefox_wayland
+  announce_browser_installed "Firefox"
+  ;;
+zen)
+  echo "Installing Zen..."
+  omarchy-pkg-aur-add zen-browser-bin || exit 1
+
+  browser_policy_setup_firefox_distribution /opt/zen-browser/distribution
+  setup_firefox_wayland
+  announce_browser_installed "Zen"
+  ;;
+*)
+  echo "Usage: omarchy-install-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen>"
+  exit 1
+  ;;
+esac

@@ -1,6 +1,8 @@
 #!/bin/bash
 
-CURRENT_THEME_NAME=$(cat "$HOME/.config/omarchy/current/theme.name")
+# omarchy:summary=Open the current theme's user background folder
+
+CURRENT_THEME_NAME=$(cat "$HOME/.local/state/omarchy/current/theme.name")
 THEME_USER_BACKGROUNDS="$HOME/.config/omarchy/backgrounds/$CURRENT_THEME_NAME"
 
 mkdir -p "$THEME_USER_BACKGROUNDS"

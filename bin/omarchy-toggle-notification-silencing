@@ -1,11 +1,6 @@
 #!/bin/bash
 
-makoctl mode -t do-not-disturb
+# omarchy:summary=Toggle notification do-not-disturb mode
 
-if makoctl mode | grep -q 'do-not-disturb'; then
-  notify-send -u low "󰂛    Silenced notifications"
-else
-  notify-send -u low "󰂚    Enabled notifications"
-fi
-
-pkill -RTMIN+10 waybar
+state=$(omarchy-shell notifications toggleDnd 2>/dev/null || echo "")
+omarchy-shell -q omarchy.indicators refresh

@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Show a fuzzy-finder TUI for picking new AUR packages to install.
+# omarchy:summary=Show a fuzzy-finder TUI for picking new AUR packages to install.
+# omarchy:requires-sudo=true
 
 fzf_args=(
   --multi
@@ -23,6 +24,7 @@ if [[ -n $pkg_names ]]; then
   source omarchy-sudo-keepalive
 
   echo "$pkg_names" | sed 's/^/aur\//' | tr '\n' ' ' | xargs yay -S --noconfirm
-  sudo updatedb
-  omarchy-show-done
+  code=$?
+  sudo updatedb --prune-bind-mounts=no --add-prunepaths=/.snapshots
+  omarchy-show-done $code
 fi
