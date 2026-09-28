@@ -1,8 +1,4 @@
 if lspci | grep -qi 'nvidia'; then
-  # Check which kernel is installed and set appropriate headers package
-  KERNEL_PACKAGE=$(pacman -Qqs '^linux(-zen|-lts|-hardened|-t2|-ptl)?$' | head -1 || true)
-  [[ -n $KERNEL_PACKAGE ]] && omarchy-pkg-add "$KERNEL_PACKAGE-headers"
-
   if omarchy-hw-nvidia-gsp; then
     PACKAGES=(nvidia-open-dkms nvidia-utils lib32-nvidia-utils libva-nvidia-driver)
   elif omarchy-hw-nvidia-without-gsp; then

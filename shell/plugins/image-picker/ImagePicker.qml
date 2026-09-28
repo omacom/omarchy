@@ -5,6 +5,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import qs.Commons
+import qs.Ui
 import "ImagePickerModel.js" as ImagePickerModel
 
 Item {
@@ -30,6 +31,11 @@ Item {
   property string doneFile: ""
   property string filterText: ""
   property var doneFilesToRelease: []
+  // Themes open from rows the shell already holds, so the picker shows without
+  // waiting on omarchy-theme-switcher; each open refreshes them behind it.
+  property string themeRows: ""
+  property bool themeMode: false
+  property bool themeOpenPending: false
   // Bound to the central [image-picker] section in shell.toml via Color.qml.
   // `dimColor` tints unselected slices and text outlines on top of the scrim;
   // it intentionally tracks the foundational background, not a surface role.
@@ -151,6 +157,14 @@ Item {
 
   function applySelected() {
     var path = currentPath()
+
+    if (themeMode) {
+      themeMode = false
+      root.opened = false
+      if (path) Util.execArgv(["omarchy-theme-set", nameForPath(path)])
+      return
+    }
+
     if (!path || !selectionFile) {
       cancel()
       return
@@ -168,6 +182,8 @@ Item {
   }
 
   function cancel() {
+    themeOpenPending = false
+
     if (requestActive)
       finishDoneFile(doneFile)
 
@@ -179,6 +195,7 @@ Item {
 
   function closeSelector(nextDoneFile) {
     requestSerial += 1
+    themeOpenPending = false
 
     if (requestActive)
       finishDoneFile(doneFile)
@@ -212,6 +229,8 @@ Item {
       finishDoneFile(doneFile)
 
     requestSerial += 1
+    themeMode = false
+    themeOpenPending = false
 
     imageDirs = nextImageDirs
     imageRows = nextImageRows
@@ -254,6 +273,68 @@ Item {
   }
 
   property var imageArray: []
+
+
+  function currentThemePreview() {
+    var name = String(themeNameFile.text() || "").trim()
+    var images = ImagePickerModel.loadRows(themeRows)
+    for (var i = 0; i < images.length; i++) {
+      if (nameForPath(images[i].filePath) === name) return images[i].filePath
+    }
+    return ""
+  }
+
+  function openThemes() {
+    if (themeRows) {
+      openThemeRows()
+    } else {
+      // First open before the startup refresh has landed.
+      themeOpenPending = true
+    }
+    refreshThemeRows()
+  }
+
+  function openThemeRows() {
+    openSelector("", themeRows, currentThemePreview(), "", "", true, true)
+    themeMode = true
+  }
+
+  function refreshThemeRows() {
+    if (!themeRowsProc.running) themeRowsProc.running = true
+  }
+
+  function updateThemeRows(rows) {
+    var changed = rows !== themeRows
+    themeRows = rows
+
+    if (themeOpenPending) {
+      themeOpenPending = false
+      if (rows) openThemeRows()
+    } else if (changed && rows && themeMode && opened) {
+      // A theme was added or removed since the rows were last read. Keep the
+      // user's place in the carousel rather than jumping back to the current.
+      selectedImage = currentPath() || currentThemePreview()
+      imageRows = rows
+      loadRows(rows, false)
+    }
+  }
+
+  FileView {
+    id: themeNameFile
+    path: root.stateHome + "/omarchy/current/theme.name"
+    watchChanges: true
+    onFileChanged: reload()
+  }
+
+  Process {
+    id: themeRowsProc
+    command: [root.omarchyPath + "/bin/omarchy-theme-switcher", "--print-rows"]
+    stdout: StdioCollector {
+      onStreamFinished: root.updateThemeRows(String(text || "").trim())
+    }
+  }
+
+  Component.onCompleted: refreshThemeRows()
 
   function startImageScan(serial, dirs) {
     if (loadImagesProc.running) {
@@ -309,6 +390,10 @@ Item {
     if (payload) {
       try { args = JSON.parse(payload) || {} } catch (e) { args = {} }
     }
+    if (args.source === "themes") {
+      openThemes()
+      return
+    }
     var dirs = String(args.imageDirs || imageDirs)
     var rows = String(args.imageRows || "")
     var sel = String(args.selectedImage || selectedImage)
@@ -359,16 +444,11 @@ Item {
     onExited: root.releaseNextDoneFile()
   }
 
-  PanelWindow {
+  OverlayWindow {
     id: panel
-
-    visible: root.opened
-    anchors { top: true; bottom: true; left: true; right: true }
-    color: "transparent"
+    shown: root.opened
+    shownKeyboardFocus: root.imagesLoaded ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     WlrLayershell.namespace: "omarchy-image-selector"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: root.opened && root.imagesLoaded ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
-    exclusionMode: ExclusionMode.Ignore
 
     Rectangle {
       anchors.fill: parent
@@ -545,6 +625,7 @@ Item {
 
         Text {
           id: selectedLabel
+          textFormat: Text.PlainText
           visible: root.showLabels
           anchors.top: carousel.bottom
           anchors.topMargin: Style.space(16)
@@ -561,6 +642,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           visible: root.filterable && root.filterText
           anchors.top: selectedLabel.bottom
           anchors.topMargin: Style.space(8)
