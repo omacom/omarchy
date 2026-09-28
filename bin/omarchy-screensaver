@@ -38,13 +38,19 @@ exit_screensaver() {
   exit 0
 }
 
+# Above the source guard so a test can call it without starting ttfx.
+screensaver_apply_args() {
+  local arg
+  for arg in "$@"; do
+    [[ $arg == --idle ]] && screensaver_idle=1
+  done
+}
+
+screensaver_apply_args "$@"
+
 if [[ ${BASH_SOURCE[0]} != "$0" ]]; then
   return 0
 fi
-
-for arg in "$@"; do
-  [[ $arg == --idle ]] && screensaver_idle=1
-done
 
 # Exit the screensaver on signals and input from keyboard and mouse
 trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
