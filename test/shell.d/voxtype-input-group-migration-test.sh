@@ -22,6 +22,7 @@ STUB
 cat >"$stub_bin/voxtype" <<'STUB'
 #!/bin/bash
 [[ $1 == "config" && $2 == "get" && $3 == "hotkey.enabled" ]] || exit 2
+[[ ${STUB_VOXTYPE_FAILS:-0} == "0" ]] || exit 1
 printf '%s\n' "${STUB_HOTKEY_ENABLED:-false}"
 STUB
 cat >"$stub_bin/sudo" <<'STUB'
@@ -67,3 +68,8 @@ run_migration "wheel" true 0 >/dev/null
 [[ ! -e $gpasswd_calls ]] || fail "migration does nothing when Voxtype is not installed"
 [[ ! -e $state_calls ]] || fail "an absent Voxtype does not flag a reboot"
 pass "migration does nothing when Voxtype is not installed"
+
+STUB_VOXTYPE_FAILS=1 run_migration "wheel" >/dev/null
+[[ ! -e $gpasswd_calls ]] || fail "migration does not grant input when voxtype config get fails"
+[[ ! -e $state_calls ]] || fail "a failed voxtype query does not flag a reboot"
+pass "migration fails closed when the Voxtype config query fails"

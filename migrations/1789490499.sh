@@ -10,8 +10,9 @@ echo "Restore the input group for users who opted into Voxtype's evdev hotkey"
 # `[hotkey] enabled = false` and binds dictation through the compositor, which
 # needs no membership. Someone who set `enabled = true` reads /dev/input
 # directly, so their hotkey stopped responding while the daemon kept running and
-# reporting itself ready. A bare modifier such as RIGHTCTRL cannot be bound in
-# Hyprland at all, so that configuration has no compositor-side fallback.
+# reporting itself ready. Push-to-talk on a bare modifier such as RIGHTCTRL
+# can't be done with Hyprland binds (hyprwm/Hyprland#6946), so that
+# configuration has no compositor-side fallback.
 #
 # Gated on the opt-in rather than on the package: restoring the grant for every
 # Voxtype user would hand raw input access back to the majority who never
