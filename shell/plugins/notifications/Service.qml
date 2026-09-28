@@ -189,7 +189,7 @@ Item {
     // Repeater is mid-incubation while we mutate its model.
     Qt.callLater(function() {
       removePopupsByOriginalId(snapshot.originalId, NotificationLogic.popupFileName(snapshot))
-      removeDuplicatePopups(snapshot)
+      removeDuplicatePopups(service.currentContent(notification, snapshot))
       popupModel.insert(0, snapshot)
       // An update that arrived while the insert was deferred found no row to
       // write to, and a property that already changed will not change again.
@@ -308,6 +308,17 @@ Item {
       if (isRestoredRow(row)) continue
       if (NotificationLogic.popupFileName(row) !== keepFileName) deletePopupFileFor(row)
       popupModel.remove(i)
+    }
+  }
+
+  // What the notification says now: a replaces_id update may have landed
+  // while its insert was deferred, and the snapshot still holds the original.
+  function currentContent(notification, snapshot) {
+    try {
+      return NotificationLogic.replacementSnapshot(notification, snapshot.originalId, snapshot.timestamp)
+    } catch (e) {
+      // Torn down by the server meanwhile — the snapshot is all there is.
+      return snapshot
     }
   }
 

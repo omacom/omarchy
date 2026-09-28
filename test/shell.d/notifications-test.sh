@@ -672,7 +672,7 @@ assert(
   'notifications service watches a shown notification for in-place updates'
 )
 assert(
-  /removePopupsByOriginalId\(snapshot\.originalId, [^\n]*\)\n\s*removeDuplicatePopups\(snapshot\)\n\s*popupModel\.insert\(0, snapshot\)/.test(serviceQml),
+  /removePopupsByOriginalId\(snapshot\.originalId, [^\n]*\)\n\s*removeDuplicatePopups\(service\.currentContent\(notification, snapshot\)\)\n\s*popupModel\.insert\(0, snapshot\)/.test(serviceQml),
   'notifications service replaces an on-screen duplicate before showing the new copy'
 )
 assert(
