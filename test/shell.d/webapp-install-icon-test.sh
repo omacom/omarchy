@@ -18,6 +18,7 @@ mkdir -p "$mock_bin" "$test_home" "$fixture_dir" "$download_tmp"
 
 magick -size 4x4 xc:black "$fixture_dir/icon.png"
 magick -size 4x4 xc:black "$fixture_dir/icon.webp"
+magick -size 4x4 xc:black "$fixture_dir/icon.ico"
 printf 'not an image\n' >"$fixture_dir/invalid.txt"
 
 cat >"$mock_bin/curl" <<'SH'
@@ -44,6 +45,7 @@ fi
 case "$url" in
 */icon.png) cp "$ICON_PNG_FIXTURE" "$output" ;;
 */icon.webp) cp "$ICON_WEBP_FIXTURE" "$output" ;;
+*/icon.ico) cp "$ICON_ICO_FIXTURE" "$output" ;;
 */invalid.txt) cp "$INVALID_FIXTURE" "$output" ;;
 *) exit 1 ;;
 esac
@@ -59,6 +61,7 @@ chmod +x "$mock_bin"/*
 export HOME="$test_home"
 export ICON_PNG_FIXTURE="$fixture_dir/icon.png"
 export ICON_WEBP_FIXTURE="$fixture_dir/icon.webp"
+export ICON_ICO_FIXTURE="$fixture_dir/icon.ico"
 export INVALID_FIXTURE="$fixture_dir/invalid.txt"
 export OMARCHY_PATH="$ROOT"
 export PATH="$mock_bin:$PATH"
@@ -86,11 +89,14 @@ assert_png_icon "Automatic WebP" automatic-webp
 "$ROOT/bin/omarchy-webapp-install" "Explicit PNG" https://example.com https://example.com/icon.png
 assert_png_icon "Explicit PNG" explicit-png
 
-cat >"$mock_bin/omarchy-cmd-present" <<'SH'
+"$ROOT/bin/omarchy-webapp-install" "Explicit ICO" https://example.com https://example.com/icon.ico
+assert_png_icon "Explicit ICO" explicit-ico
+
+cat >"$mock_bin/magick" <<'SH'
 #!/bin/bash
 exit 1
 SH
-chmod +x "$mock_bin/omarchy-cmd-present"
+chmod +x "$mock_bin/magick"
 
 "$ROOT/bin/omarchy-webapp-install" "Unavailable Converter" https://example.com https://example.com/icon.webp
 fallback_icon="$HOME/.local/share/icons/hicolor/256x256/apps/unavailable-converter.png"
