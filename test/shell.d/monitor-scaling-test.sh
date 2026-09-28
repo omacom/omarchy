@@ -198,6 +198,7 @@ pass "monitor scaling sets GDK scale from the lowest monitor"
 # Asserting a position on scale change re-places the monitor (#7326).
 write_monitor_config
 run_scaling 1.25
+grep -F 'scale = 1.25' "$eval_out" >/dev/null || fail "monitor scaling re-declares the monitor at 1.25x"
 if grep -F 'position' "$eval_out" >/dev/null; then
   fail "monitor scaling must not assert a position"
 fi
