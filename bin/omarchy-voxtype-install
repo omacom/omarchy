@@ -15,8 +15,10 @@ if gum confirm "Install Voxtype + AI model (~150MB) to enable dictation?"; then
   cp "$OMARCHY_PATH/default/voxtype/config.toml" ~/.config/voxtype/
 
   voxtype setup --download --no-post-install
+  # The package post_install links the CPU binary. Switching it needs root,
+  # and a failed switch must not be reported as a finished GPU install.
   if omarchy-hw-vulkan; then
-    voxtype setup gpu --enable || true
+    sudo voxtype setup gpu --enable
   fi
   voxtype setup systemd
 
