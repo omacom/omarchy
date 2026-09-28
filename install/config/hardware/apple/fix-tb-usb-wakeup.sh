@@ -8,7 +8,7 @@ if [[ $sys_vendor == Apple* ]] && lspci -nn | grep -q "8086:15d4"; then
 
   cat <<'EOF' | sudo tee /etc/udev/rules.d/99-omarchy-apple-tb-usb-wakeup.rules >/dev/null
 # Intel JHL6540 Thunderbolt 3 USB xHCI (8086:15d4)
-ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x15d4", ATTR{power/control}="on", ATTR{d3cold_allowed}="0"
+ACTION=="add|bind", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x15d4", ATTR{power/control}="on", ATTR{d3cold_allowed}="0"
 EOF
 
   sudo udevadm control --reload
