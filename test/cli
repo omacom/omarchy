@@ -252,7 +252,7 @@ mkdir -p "$FONT_TMPDIR/.config/foot" "$FONT_TMPDIR/.config/kitty" \
   "$FONT_TMPDIR/.config/alacritty" "$FONT_TMPDIR/.config/ghostty" \
   "$FONT_TMPDIR/.config/fontconfig" "$FONT_TMPDIR/fake-bin"
 cat >"$FONT_TMPDIR/.config/foot/foot.ini" <<'EOF'
-font=JetBrainsMono Nerd Font:size=12
+font=JetBrainsMono Nerd Font:size=12, Noto Color Emoji:size=10
 EOF
 cat >"$FONT_TMPDIR/.config/kitty/kitty.conf" <<'EOF'
 font_family JetBrainsMono Nerd Font

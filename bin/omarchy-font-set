@@ -41,8 +41,8 @@ if [[ -f ~/.config/ghostty/config ]]; then
 fi
 
 if [[ -f ~/.config/foot/foot.ini ]]; then
-  # Preserve the configured size; Foot defaults to 9 when none is present.
-  foot_size="$(sed -n 's/^font=.*:size=\([0-9.]\+\).*/\1/p' ~/.config/foot/foot.ini | head -1)"
+  # Preserve the primary font's size, not a fallback's; Omarchy ships 9 when none is present.
+  foot_size="$(sed -n 's/^font=[^,]*:size=\([0-9.]\+\).*/\1/p' ~/.config/foot/foot.ini | head -1)"
   if [[ -z $foot_size ]]; then
     foot_size=9
   fi
