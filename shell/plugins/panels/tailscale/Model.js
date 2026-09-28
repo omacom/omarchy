@@ -88,6 +88,16 @@ function allPollsSettled(armedCycle, statusRunning, statusCycle, mullvadRunning,
   return !statusGuarded && !mullvadGuarded && !accountsGuarded
 }
 
+// A launch made while an older cycle held the watchdog never armed it, so once
+// that cycle settles the watchdog passes to the oldest poll still in flight.
+function oldestPollCycle(statusRunning, statusCycle, mullvadRunning, mullvadCycle, accountsRunning, accountsCycle) {
+  var cycles = []
+  if (statusRunning) cycles.push(statusCycle)
+  if (mullvadRunning) cycles.push(mullvadCycle)
+  if (accountsRunning) cycles.push(accountsCycle)
+  return cycles.length > 0 ? Math.min.apply(null, cycles) : 0
+}
+
 // Taildrop is a tailnet feature the admin can turn off, so the button for it
 // only makes sense when this profile actually carries the capability.
 function hasFileSharing(self) {
@@ -328,6 +338,7 @@ if (typeof module !== "undefined") {
     accountLabel: accountLabel,
     loginPlan: loginPlan,
     allPollsSettled: allPollsSettled,
+    oldestPollCycle: oldestPollCycle,
     hasFileSharing: hasFileSharing,
     isTaildropTarget: isTaildropTarget,
     isMullvadPeer: isMullvadPeer,

@@ -21,7 +21,8 @@ Item {
   property bool refreshing: false
   // Launch cycles for the poll watchdog: every refresh that starts at least
   // one poll bumps lastLaunchCycle and stamps its polls; the armed watchdog
-  // remembers its own cycle so settlePollWatchdog can ignore newer ones.
+  // remembers its own cycle, reaps only that cycle, and is handed on to newer
+  // ones by settlePollWatchdog.
   property int lastLaunchCycle: 0
   property int armedCycle: 0
   property string backendState: "Unknown"
@@ -214,7 +215,17 @@ Item {
       statusProcess.running, statusProcess.launchCycle,
       mullvadExitNodesProcess.running, mullvadExitNodesProcess.launchCycle,
       accountsProcess.running, accountsProcess.launchCycle)
-    if (settled) pollWatchdog.stop()
+    if (!settled) return
+    var next = Model.oldestPollCycle(
+      statusProcess.running, statusProcess.launchCycle,
+      mullvadExitNodesProcess.running, mullvadExitNodesProcess.launchCycle,
+      accountsProcess.running, accountsProcess.launchCycle)
+    if (next > 0) {
+      armedCycle = next
+      pollWatchdog.restart()
+    } else {
+      pollWatchdog.stop()
+    }
   }
 
   function elideStatus(text) {
@@ -455,9 +466,10 @@ Item {
     interval: 15000
     repeat: false
     onTriggered: {
-      if (statusProcess.running) statusProcess.running = false
-      if (mullvadExitNodesProcess.running) mullvadExitNodesProcess.running = false
-      if (accountsProcess.running) accountsProcess.running = false
+      if (statusProcess.running && statusProcess.launchCycle === root.armedCycle) statusProcess.running = false
+      if (mullvadExitNodesProcess.running && mullvadExitNodesProcess.launchCycle === root.armedCycle) mullvadExitNodesProcess.running = false
+      if (accountsProcess.running && accountsProcess.launchCycle === root.armedCycle) accountsProcess.running = false
+      root.settlePollWatchdog()
     }
   }
 

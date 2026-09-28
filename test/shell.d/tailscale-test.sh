@@ -214,6 +214,8 @@ assert(!tailscale.allPollsSettled(1, false, 0, true, 1, false, 0), 'tailscale ke
 assert(!tailscale.allPollsSettled(1, false, 0, false, 0, true, 1), 'tailscale keeps the poll watchdog armed while its own accounts launch is in flight')
 assert(tailscale.allPollsSettled(1, true, 2, false, 0, true, 2), 'tailscale stands the poll watchdog down when only newer-cycle relaunches remain in flight')
 assert(!tailscale.allPollsSettled(2, true, 2, false, 0, false, 0), 'tailscale keeps the watchdog of its own cycle armed across overlapping older cycles')
+assertEqual(tailscale.oldestPollCycle(false, 1, false, 1, false, 1), 0, 'tailscale has no poll cycle to hand the watchdog to once nothing is in flight')
+assertEqual(tailscale.oldestPollCycle(true, 3, true, 2, false, 1), 2, 'tailscale hands the watchdog to the oldest poll cycle still in flight')
 
 const serviceSource = fs.readFileSync(root + '/shell/plugins/panels/tailscale/Service.qml', 'utf8')
 
@@ -232,4 +234,9 @@ function guardedProcessStandsDown(processId) {
 assert(guardedProcessStandsDown('statusProcess'), 'tailscale stands the poll watchdog down when the status poll exits')
 assert(guardedProcessStandsDown('mullvadExitNodesProcess'), 'tailscale stands the poll watchdog down when the exit-node poll exits')
 assert(guardedProcessStandsDown('accountsProcess'), 'tailscale stands the poll watchdog down when the accounts poll exits')
+
+const watchdogBlock = serviceSource.split('id: pollWatchdog')[1].split('  Timer {')[0]
+for (const processId of ['statusProcess', 'mullvadExitNodesProcess', 'accountsProcess']) {
+  assert(watchdogBlock.includes(processId + '.running && ' + processId + '.launchCycle === root.armedCycle'), 'tailscale watchdog reaps only ' + processId + ' launched in its own cycle')
+}
 JS
