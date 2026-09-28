@@ -6,26 +6,32 @@ require_command python3
 
 # oauth_login reads two files that only ever exist side by side, so the plan it
 # settles on is exercised over a planted config directory: credentials for the
-# token, the CLI's profile for the account it belongs to. The profile sits
-# beside the directory by default and inside it when CLAUDE_CONFIG_DIR moved
-# the whole config elsewhere, so the caller says which shape to plant.
+# token, the CLI's profile for the account it belongs to. The profile sits in
+# $HOME by default and inside the config directory when CLAUDE_CONFIG_DIR moved
+# the whole config elsewhere, so the caller says which shape to plant, and may
+# leave a stale copy in the place the CLI does not read.
 SANDBOX=$(mktemp -d)
 trap 'rm -rf "$SANDBOX"' EXIT
 
 read_plan() {
-  local credentials="$1" profile="$2" where="${3:-beside}"
-  local dir plan
-  dir=$(mktemp -d "$SANDBOX/config.XXXXXX")
+  local credentials="$1" profile="$2" where="${3:-beside}" stray="${4:-}"
+  local home dir live other relocated plan
+  home=$(mktemp -d "$SANDBOX/home.XXXXXX")
+  dir="$home/.claude"
+  mkdir "$dir"
   printf '%s' "$credentials" >"$dir/.credentials.json"
-  if [[ -n $profile ]]; then
-    if [[ $where == "inside" ]]; then
-      printf '%s' "$profile" >"$dir/.claude.json"
-    else
-      printf '%s' "$profile" >"$dir.json"
-    fi
+  if [[ $where == "inside" ]]; then
+    live="$dir/.claude.json" other="$home/.claude.json" relocated="$dir"
+  elif [[ $where == "legacy" ]]; then
+    live="$dir/.config.json" other="$home/.claude.json" relocated=""
+  else
+    live="$home/.claude.json" other="$dir/.claude.json" relocated=""
   fi
+  [[ -n $profile ]] && printf '%s' "$profile" >"$live"
+  [[ -n $stray ]] && printf '%s' "$stray" >"$other"
 
-  plan=$(COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" CLAUDE_DIR="$dir" python3 - <<'PY'
+  plan=$(env -u CLAUDE_CONFIG_DIR ${relocated:+CLAUDE_CONFIG_DIR="$relocated"} HOME="$home" \
+    COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" CLAUDE_DIR="$dir" python3 - <<'PY'
 import importlib.machinery, importlib.util, os, pathlib
 
 loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
@@ -55,6 +61,16 @@ plan=$(read_plan "$credentials" "$upgraded" inside)
 [[ $plan == "Max 20x" ]] ||
   fail "Claude collector finds the profile inside a relocated config directory" "$plan"
 pass "Claude collector finds the profile inside a relocated config directory"
+
+# A copy of the profile in the place the CLI does not read is never refreshed,
+# so it must not outrank the live one, whichever way the config is laid out.
+stale='{"oauthAccount":{"organizationRateLimitTier":"default_claude_max_5x","userRateLimitTier":null}}'
+for where in beside inside legacy; do
+  plan=$(read_plan "$credentials" "$upgraded" "$where" "$stale")
+  [[ $plan == "Max 20x" ]] ||
+    fail "Claude collector reads only the profile the CLI keeps" "$where -> $plan"
+done
+pass "Claude collector reads only the profile the CLI keeps"
 
 # A seat with a tier of its own is limited by that tier, not by its org's.
 plan=$(read_plan "$credentials" '{"oauthAccount":{"organizationRateLimitTier":"default_claude_max_20x","userRateLimitTier":"default_claude_max_5x"}}')

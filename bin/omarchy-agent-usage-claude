@@ -600,19 +600,23 @@ def oauth_login(claude_dir: Path) -> tuple[str, int, str]:
 # an account moved to Max 20x keeps reading Max 5x. The CLI's own profile is
 # refreshed against the account, so the tier it states there is asked first.
 def profile_tier(claude_dir: Path) -> str:
-  for path in (claude_dir / ".claude.json", claude_dir.with_name(claude_dir.name + ".json")):
-    try:
-      account = json.loads(path.read_text(encoding="utf-8")).get("oauthAccount")
-    except Exception:
-      continue
-    if not isinstance(account, dict):
-      continue
-    # A seat with no tier of its own is limited by its organization, which is
-    # the shape a personal Max subscription takes.
-    for key in ("userRateLimitTier", "organizationRateLimitTier"):
-      tier = str(account.get(key) or "")
-      if tier:
-        return tier
+  # The CLI keeps it where it finds a legacy .config.json, else in
+  # $CLAUDE_CONFIG_DIR or $HOME; a copy anywhere else is never refreshed.
+  profile = claude_dir / ".config.json"
+  if not profile.exists():
+    profile = (claude_dir if os.environ.get("CLAUDE_CONFIG_DIR") else Path.home()) / ".claude.json"
+  try:
+    account = json.loads(profile.read_text(encoding="utf-8")).get("oauthAccount")
+  except Exception:
+    return ""
+  if not isinstance(account, dict):
+    return ""
+  # A seat with no tier of its own is limited by its organization, which is
+  # the shape a personal Max subscription takes.
+  for key in ("userRateLimitTier", "organizationRateLimitTier"):
+    tier = str(account.get(key) or "")
+    if tier:
+      return tier
   return ""
 
 
