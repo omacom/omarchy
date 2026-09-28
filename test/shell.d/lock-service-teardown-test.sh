@@ -155,7 +155,11 @@ const resync = new Function(
 function resyncs(opts) {
   let scheduled = false
   const registry = {
-    installedPlugins: opts.installed === false ? {} : { 'omarchy.lock': {} },
+    installedPlugins: opts.installed === false ? {} : {
+      'omarchy.lock': opts.serviceDropped === true
+        ? { kinds: ['bar-widget'], entryPoints: {} }
+        : { kinds: ['service'], entryPoints: { service: 'Service.qml' } },
+    },
     isEnabled: () => opts.enabled !== false,
   }
   const host = {
@@ -171,6 +175,7 @@ function resyncs(opts) {
 assert(!resyncs({}), 'an unlock of a service still wanted where it is does not re-sync')
 assert(resyncs({ enabled: false }), 'an unlock of a disabled lock service re-syncs')
 assert(resyncs({ installed: false }), 'an unlock of a removed lock service re-syncs')
+assert(resyncs({ serviceDropped: true }), 'an unlock of a lock plugin that no longer declares a service re-syncs')
 assert(resyncs({ placedAsAuthentication: false }), 'an unlock of a lock service that gained the capability re-syncs')
 assert(!resyncs({ enabled: false, reloading: true }), 'an unlock during a reload leaves the re-sync to the reload')
 

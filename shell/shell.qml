@@ -1061,7 +1061,10 @@ ShellRoot {
   // of a service still wanted where it is re-syncs nothing.
   function syncServicesAfterUnlock(pluginId, authenticationService) {
     var manifest = (pluginRegistry.installedPlugins || {})[pluginId]
-    if (manifest && pluginRegistry.isEnabled(pluginId)
+    var stillService = manifest && Array.isArray(manifest.kinds)
+      && manifest.kinds.indexOf("service") !== -1
+      && manifest.entryPoints && manifest.entryPoints.service
+    if (stillService && pluginRegistry.isEnabled(pluginId)
         && shell.isAuthenticationService(manifest, pluginId) === authenticationService) return
     if (!shell.pluginReloading) Qt.callLater(shell._syncServices)
   }
