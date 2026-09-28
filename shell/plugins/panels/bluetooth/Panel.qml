@@ -637,7 +637,7 @@ Panel {
     Quickshell.execDetached(["omarchy-bluetooth-power", adapter.enabled ? "off" : "on"])
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "omarchy.bluetooth"
 
     function open() { root.open() }
