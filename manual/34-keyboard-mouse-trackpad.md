@@ -59,7 +59,7 @@ On Dell XPS laptops with a haptic touchpad, you can also set the click strength 
 
 ### Typing ç on US International
 
-On the US International layout (`kb_variant = "intl"`), `'` followed by `c` gives ć rather than ç, because that's what the system's compose table maps it to. If you write French, Portuguese, or Catalan, override it in `~/.XCompose`:
+On the US International layout (`kb_variant = "intl"`), `'` followed by `c` gives ć rather than ç under most locales, including `en_US`, `fr_FR`, and `ca_ES`, because that's what their compose table maps it to. Portuguese locales (`pt_BR`, `pt_PT`) already give ç. If you write French, Portuguese, or Catalan and get ć, override it by adding these lines to the end of `~/.XCompose`, after its `include` line, since whatever comes later wins:
 
 ```
 <dead_acute> <c> : "ç"
