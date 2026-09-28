@@ -189,6 +189,7 @@ Item {
     // Repeater is mid-incubation while we mutate its model.
     Qt.callLater(function() {
       removePopupsByOriginalId(snapshot.originalId, NotificationLogic.popupFileName(snapshot))
+      removeDuplicatePopups(snapshot)
       popupModel.insert(0, snapshot)
       // An update that arrived while the insert was deferred found no row to
       // write to, and a property that already changed will not change again.
@@ -307,6 +308,29 @@ Item {
       if (isRestoredRow(row)) continue
       if (NotificationLogic.popupFileName(row) !== keepFileName) deletePopupFileFor(row)
       popupModel.remove(i)
+    }
+  }
+
+  // A notification repeating a toast already on screen takes its place, the
+  // same way a replaces_id update would: the newest copy stays, its timer
+  // starts fresh, and history keeps a single entry. The superseded copy is
+  // dismissed at the server so its sender stops holding it open.
+  function removeDuplicatePopups(snapshot) {
+    for (var i = popupModel.count - 1; i >= 0; i--) {
+      var row = popupModel.get(i)
+      if (!NotificationLogic.isDuplicatePopup(row, snapshot)) continue
+      var restored = isRestoredRow(row)
+      var ref = restored ? null : liveRefs[row.originalId]
+      deletePopupFileFor(row)
+      if (restored) delete restoredPopups[NotificationLogic.popupFileName(row)]
+      popupModel.remove(i)
+      if (ref) {
+        try {
+          if (ref.tracked) ref.dismiss()
+        } catch (e) {
+          // Object already torn down by the server — nothing to dismiss.
+        }
+      }
     }
   }
 
