@@ -71,6 +71,11 @@ cat >"$stub_bin/omarchy-hw-external-monitors" <<'SH'
 [[ ${OMARCHY_TEST_EXTERNAL_MONITORS:-false} == "true" ]]
 SH
 
+cat >"$stub_bin/omarchy-hw-apple-mbp15-dgpu" <<'SH'
+#!/bin/bash
+[[ ${OMARCHY_TEST_MBP15:-false} == "true" ]]
+SH
+
 chmod +x "$stub_bin"/*
 
 write_auto_monitor_config() {
@@ -222,6 +227,7 @@ run_clamshell() {
     OMARCHY_TEST_CLAMSHELL="${OMARCHY_TEST_CLAMSHELL:-false}" \
     OMARCHY_TEST_LID_CLOSED="${OMARCHY_TEST_LID_CLOSED:-false}" \
     OMARCHY_TEST_EXTERNAL_MONITORS="${OMARCHY_TEST_EXTERNAL_MONITORS:-false}" \
+    OMARCHY_TEST_MBP15="${OMARCHY_TEST_MBP15:-false}" \
     "$ROOT/bin/omarchy-hyprland-monitor-clamshell"
 }
 
@@ -371,7 +377,16 @@ done
 # monitorremoved event undoes that disable.
 write_auto_monitor_config
 : >"$eval_log"
-OMARCHY_TEST_INTERNAL_DISABLED=true OMARCHY_TEST_LID_CLOSED=true run_clamshell
+OMARCHY_TEST_MBP15=true OMARCHY_TEST_INTERNAL_DISABLED=true OMARCHY_TEST_LID_CLOSED=true run_clamshell
 ! grep -F 'hl.monitor' "$eval_log" >/dev/null ||
   fail "clamshell must not re-enable the internal panel while the lid is shut undocked" "$(cat "$eval_log")"
 pass "clamshell leaves a shut undocked internal panel alone"
+
+# Any other laptop suspends on an undocked lid close, and must go to sleep with
+# its panel back so the lock screen has an output to draw on (#13300).
+write_auto_monitor_config
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true OMARCHY_TEST_LID_CLOSED=true run_clamshell
+grep -F 'hl.monitor' "$eval_log" >/dev/null ||
+  fail "clamshell re-enables the internal panel on an undocked lid close off the 15-inch Radeon" "$(cat "$eval_log")"
+pass "clamshell re-enables the internal panel on an undocked lid close off the 15-inch Radeon"
