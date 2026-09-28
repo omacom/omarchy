@@ -339,6 +339,25 @@ grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-mouse", enabled = true })' "
 [[ ! -e $name_file ]] || fail "touchpad enable still clears persisted names when the devices query fails"
 pass "touchpad enable restores saved siblings when the devices query fails"
 
+cat >"$stub_dir/omarchy-hw-touchpad" <<'EOF'
+#!/bin/bash
+exit 1
+EOF
+chmod +x "$stub_dir/omarchy-hw-touchpad"
+printf '%s\n' 'msft0001:00-093a:0255-touchpad' 'msft0001:00-093a:0255-mouse' >"$name_file"
+: >"$log_file"
+set +e
+run_toggle touchpad on >/dev/null 2>&1
+status=$?
+set -e
+(( status != 0 )) || fail "enable still reports a missing touchpad"
+grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-touchpad", enabled = true })' "$log_file" >/dev/null ||
+  fail "touchpad enable restores the saved touchpad when the device query fails"
+grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-mouse", enabled = true })' "$log_file" >/dev/null ||
+  fail "touchpad enable restores the saved mouse sibling when the device query fails"
+[[ ! -e $name_file ]] || fail "touchpad enable still clears persisted names when the device query fails"
+pass "touchpad enable restores saved names when the device query fails"
+
 printf '%s\n' 'msft0001:00-093a:0255-touchpad' 'msft0001:00-093a:0255-mouse' >"$name_file"
 HOME="$home_dir" XDG_STATE_HOME="$xdg_decoy" OMARCHY_PATH="$ROOT" lua - <<'LUA'
 local seen = {}
