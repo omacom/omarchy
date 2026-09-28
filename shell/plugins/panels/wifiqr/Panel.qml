@@ -210,14 +210,9 @@ Item {
     }
   }
 
-  PanelWindow {
-    visible: root.opened
-    anchors { top: true; bottom: true; left: true; right: true }
-    color: "transparent"
-    exclusionMode: ExclusionMode.Ignore
+  OverlayWindow {
+    shown: root.opened
     WlrLayershell.namespace: "omarchy-network-qr"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
     // Deep scrim: the floating code needs the backdrop to carry the contrast
     // on any wallpaper.
@@ -257,6 +252,7 @@ Item {
           spacing: Style.space(16)
 
           Text {
+            textFormat: Text.PlainText
             text: (root.ssid || "Wi-Fi").toUpperCase()
             color: root.onScrimDim
             font.family: root.fontFamily
@@ -318,6 +314,7 @@ Item {
           }
 
           Text {
+            textFormat: Text.PlainText
             visible: root.error !== ""
             text: root.error
             color: root.onScrimUrgent
@@ -340,6 +337,7 @@ Item {
           }
 
           Text {
+            textFormat: Text.PlainText
             visible: root.showingQr && root.secured
             text: root.passwordError !== "" ? root.passwordError
               : root.passwordVisible ? root.password
