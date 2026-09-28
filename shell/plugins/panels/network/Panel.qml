@@ -207,7 +207,7 @@ Panel {
     Qt.callLater(function() { root.refresh(true) })
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "omarchy.network"
 
     function open() { root.open() }
