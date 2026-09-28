@@ -70,22 +70,29 @@ installed() {
   omarchy-pkg-present openclaw && runtime_runs && on_path
 }
 
-# Whether a unit's ExecStart runs a program from under a path: the program
-# itself, or the script it is handed. Later arguments and other lines can name
+# A unit's ExecStart, as the program and the script it is handed: the first
+# argument that is not an option. Later arguments and other lines can name
 # ~/.openclaw whichever OpenClaw the unit starts.
-unit_runs() {
+unit_program() {
+  local words
+  read -ra words <<<"$(sed -n 's/^ExecStart=//p' "$1" | head -1)"
+  echo "${words[0]:-}"
+}
+
+unit_script() {
   local words word
   read -ra words <<<"$(sed -n 's/^ExecStart=//p' "$1" | head -1)"
-  if [[ ${words[0]:-} == "$2"* ]]; then
-    return 0
-  fi
   for word in "${words[@]:1}"; do
     if [[ $word != -* ]]; then
-      [[ $word == "$2"* ]]
+      echo "$word"
       return
     fi
   done
-  return 1
+}
+
+# The runtime's own OpenClaw, as upstream's installer lays it out.
+runs_runtime() {
+  [[ $(unit_script "$1") == "$prefix"/tools/*/lib/node_modules/openclaw/* ]]
 }
 
 # A gateway service already running some other OpenClaw. Upstream's installer
@@ -94,7 +101,7 @@ unit_runs() {
 foreign_gateway() {
   local unit
   unit=$(unit_path gateway)
-  [[ -f $unit ]] && ! unit_runs "$unit" "$prefix/" && ! unit_runs "$unit" "/usr/lib/node_modules/openclaw/"
+  [[ -f $unit ]] && ! runs_runtime "$unit" && ! on_old_package "$unit"
 }
 
 # A service the openclaw package's own copy installed runs from
@@ -124,13 +131,12 @@ stop_legacy_services() {
 
 # Still the old package's: its script, or the runtime's script on the old
 # package's Node. Upstream's installer keeps the Node a service already ran, so
-# a moved unit can end up running ~/.openclaw on /usr/bin/node, from the nodejs
-# package the seed no longer depends on. Any other Node or Bun is the user's.
+# a moved unit can end up running the runtime's OpenClaw on /usr/bin/node, from
+# the nodejs package the seed no longer depends on. Any other Node, Bun or
+# script is the user's.
 on_old_package() {
-  local program
-  program=$(sed -n 's/^ExecStart=//p' "$1" | head -1)
-  program=${program%% *}
-  unit_runs "$1" "/usr/lib/node_modules/openclaw/" || { [[ $program == "/usr/bin/node" ]] && unit_runs "$1" "$prefix/"; }
+  [[ $(unit_script "$1") == /usr/lib/node_modules/openclaw/* ]] ||
+    { [[ $(unit_program "$1") == "/usr/bin/node" ]] && runs_runtime "$1"; }
 }
 
 # Not moved yet: still on the old package, or running before and not now.

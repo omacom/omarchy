@@ -255,7 +255,7 @@ new_home half-moved
 run omarchy-install-openclaw-cli --now || fail "--now sets OpenClaw up" "$(cat "$test_tmp/output")"
 mkdir -p "$test_home/.config/systemd/user"
 printf 'ExecStart=/usr/bin/node %s/.openclaw/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' "$test_home" >"$test_home/.config/systemd/user/openclaw-gateway.service"
-printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js node run\n' >"$test_home/.config/systemd/user/openclaw-node.service"
+printf 'ExecStart=/usr/bin/node %s/.openclaw/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js node run\n' "$test_home" >"$test_home/.config/systemd/user/openclaw-node.service"
 touch "$test_home/active-openclaw-gateway.service" "$test_home/active-openclaw-node.service"
 : >"$events"
 run omarchy-install-openclaw-cli --now || fail "--now finishes a half-moved gateway" "$(cat "$test_tmp/output")"
@@ -277,7 +277,13 @@ cp "$test_home/.config/systemd/user/openclaw-gateway.service" "$test_tmp/bun-uni
 run omarchy-install-openclaw-cli --now || fail "--now leaves a Bun gateway alone" "$(cat "$test_tmp/output")"
 ! grep -q "install --force\|^systemctl" "$events" && cmp -s "$test_tmp/bun-unit" "$test_home/.config/systemd/user/openclaw-gateway.service" ||
   fail "--now leaves a Bun gateway alone" "$(cat "$events")"
-pass "a gateway the user runs on Bun is left alone"
+printf 'ExecStart=/usr/bin/node %s/.openclaw/custom/bridge.js\n' "$test_home" >"$test_home/.config/systemd/user/openclaw-gateway.service"
+cp "$test_home/.config/systemd/user/openclaw-gateway.service" "$test_tmp/own-unit"
+: >"$events"
+run omarchy-install-openclaw-cli --now || fail "--now leaves a script of the user's alone" "$(cat "$test_tmp/output")"
+! grep -q "install --force\|^systemctl" "$events" && cmp -s "$test_tmp/own-unit" "$test_home/.config/systemd/user/openclaw-gateway.service" ||
+  fail "--now leaves a script of the user's alone" "$(cat "$events")"
+pass "a gateway the user runs on Bun, or a script of their own on /usr/bin/node, is left alone"
 
 # The migration moves only machines that have the package, and waits for the
 # package that seeds.
