@@ -33,5 +33,4 @@ elif command -v mkinitcpio &>/dev/null; then
 fi
 
 echo "Intel Kabylake HDMI audio fix applied. A reboot is required."
-# Mark reboot required if the helper exists
-command -v omarchy-reboot-required &>/dev/null && omarchy-reboot-required
+omarchy-state set reboot-required
