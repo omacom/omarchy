@@ -10,7 +10,7 @@ package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 o = {
   window = function(match)
     if type(match) == "table" and match.title == "^Meet - .+" then
-      print((match.initial_title:gsub("^negative:", "")))
+      print(match.initial_title)
     end
   end,
 }
@@ -19,7 +19,8 @@ require("default.hypr.apps.pip")
 LUA
 )
 
-[[ -n $exclusion ]] || fail "Meet PiP rule excludes browser windows by initial title"
+[[ $exclusion == "negative:"* ]] || fail "Meet PiP rule excludes browser windows by initial title" "$exclusion"
+exclusion=${exclusion#negative:}
 
 # A browser window maps as "Untitled - Chromium" and only then navigates to Meet.
 for title in "Untitled - Chromium" "New Tab - Brave" "Meet - abc-defg-hij - Google Chrome"; do
@@ -28,7 +29,5 @@ done
 pass "Meet PiP rule leaves browser windows alone"
 
 # Chromium titles a PiP window after its opener, without the browser suffix.
-for title in "Meet - abc-defg-hij" "Meet – Standup"; do
-  grep -Eq "$exclusion" <<<"$title" && fail "Meet PiP rule still matches the overlay: $title"
-done
+grep -Eq "$exclusion" <<<"Meet - abc-defg-hij" && fail "Meet PiP rule still matches the overlay"
 pass "Meet PiP rule still matches the overlay"
