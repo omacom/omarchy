@@ -38,7 +38,8 @@ function bodyOf(src, name, label) {
 // keepLoaded, whenever the registry stops listing a plugin as installed,
 // enabled and service-declaring. It is reached straight from pluginsChanged, so
 // `omarchy plugin disable omarchy.lock` gets there with no reload at all.
-const sync = bodyOf(shellQml, '_syncServices', 'sync guard')
+// Comments stripped, so a guard commented out does not still answer for the code.
+const sync = bodyOf(shellQml, '_syncServices', 'sync guard').replace(/\/\/[^\n]*/g, '')
 // The teardown's own destroy; the capability-change branch above it destroys too.
 const syncDestroy = sync.indexOf('inst.destroy()')
 
