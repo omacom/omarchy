@@ -21,7 +21,7 @@ echo 0 > "$led/brightness"
 echo 2 > "$led/max_brightness"
 : > "$TMPDIR/sensor"
 : > "$TMPDIR/writes"
-cp "$SHELL_TEST_DIR/fixtures/keyboard-backlight/shell.qml" "$TMPDIR/config/shell.qml"
+cp "$SHELL_TEST_DIR/fixtures/keyboard-backlight-auto/shell.qml" "$TMPDIR/config/shell.qml"
 
 cat > "$TMPDIR/bin/omarchy-hw-ambient-light" <<'EOF'
 #!/bin/bash
@@ -105,8 +105,10 @@ echo "=== Has ambient light sensor (value: 1.000000, unit: lux)" >> "$TMPDIR/sen
 sleep 0.4
 sense 0
 wait_for "turns on in the dark" writes_are "2"
-for lux in 1 0 1; do sense "$lux"; sleep 0.1; done
-sleep 0.3
+# One reading only: a stale read would record a phantom off here, and a later
+# reading would clear it again before the check.
+sense 1
+sleep 0.4
 manual_off_saved && fail "its own write is not taken as a manual off"
 pass "its own write is not taken as a manual off"
 
@@ -145,6 +147,33 @@ sense 70
 wait_for "decides again from the light after wake" writes_are "2 0 2 0"
 manual_off_saved && fail "the blank is not taken as a manual off"
 pass "decides again from the light after wake"
+
+# Steady dark, then the keys turn it off and the session locks before the
+# sensor reports anything new: the off is kept through blank and wake.
+sense 1
+sleep 0.4
+sense 0
+wait_for "turns on in the dark before locking" writes_are "2 0 2 0 2"
+echo 0 > "$led/brightness"
+ipc pause
+echo 0 > "$led/brightness"
+echo 0 > "$led/brightness"
+ipc resume
+sleep 1
+writes_are "2 0 2 0 2" || fail "a key press made just before locking is kept at wake" "writes: $(writes)"
+manual_off_saved || fail "a key press made just before locking is held as a manual off"
+pass "a key press made just before locking is kept at wake"
+
+# The keys turn it back on; then a wake restores an old level without a blank
+# before it. That level is the session's, so it decides again from the light.
+echo 2 > "$led/brightness"
+sense 1
+wait_for "turning it back on with the keys clears the hold" bash -c "! [[ -s $TMPDIR/home/.local/state/omarchy/keyboard-backlight-manual-off ]]"
+echo 0 > "$led/brightness"
+ipc resume
+wait_for "a restore without a blank is not taken as the user's" writes_are "2 0 2 0 2 2"
+manual_off_saved && fail "a restore without a blank is not held as a manual off"
+pass "a restore without a blank is not taken as the user's"
 
 # Toggling off still releases the sensor after the early restart
 touch "$TMPDIR/home/.local/state/omarchy/toggles/keyboard-backlight-auto-off"
