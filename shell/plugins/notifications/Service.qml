@@ -353,18 +353,19 @@ Item {
   }
 
   // Run the popup's click action, then dismiss. Omarchy's own toasts carry the
-  // action as a command in the `exec` role (see execFromHints), which the
-  // persistence files preserve, so restored toasts stay clickable. Third-party
-  // clients register a libnotify action under the canonical identifier
-  // "default" instead; that one only works while the sender is still live.
+  // action as an argv vector in the `execArgv` role (see execArgvFromHints),
+  // which the persistence files preserve, so restored toasts stay clickable.
+  // Third-party clients register a libnotify action under the canonical
+  // identifier "default" instead; that one only works while the sender is live.
   function invokePopupDefault(index) {
     if (index < 0 || index >= popupModel.count) return
     var entry = popupModel.get(index)
-    var command = entry ? String(entry.exec || "") : ""
-    if (command) {
-      // Detached so the launched command outlives the shell process, which the
-      // installer toasts depend on: they restart the shell as their first act.
-      Util.execDetached(command)
+
+    // Run the argv (via Util.execArgv, no shell interpretation). Detached so it
+    // outlives the shell, which installer toasts depend on: they restart it.
+    var argv = NotificationLogic.parseExecArgv(entry ? entry.execArgv : "")
+    if (argv) {
+      Util.execArgv(argv)
       dismissPopup(index)
       return
     }
@@ -665,7 +666,7 @@ Item {
         body: row.body,
         image: row.image,
         glyph: row.glyph || "",
-        exec: row.exec || "",
+        execArgv: row.execArgv || "",
         urgency: row.urgency,
         timestamp: row.timestamp
       }, imagesDir).entry)
@@ -689,7 +690,7 @@ Item {
         body: "",
         image: "",
         glyph: "󰂚",
-        exec: "",
+        execArgv: "",
         urgency: NotificationUrgency.Low,
         expireTimeout: 0,
         timestamp: Date.now()
@@ -853,7 +854,16 @@ Item {
 
   // ---------------------------------------------------- IPC
 
-  IpcHandler {
+  // Keybindings reach these handlers as Hyprland global shortcuts, run here
+  // exactly as the IPC call would run them, with no client to spawn.
+  function runShortcut(method) {
+    if (typeof ipcHandler[method] !== "function") return false
+    ipcHandler[method]()
+    return true
+  }
+
+  ShellIpc {
+    id: ipcHandler
     target: "notifications"
 
     function dndState(): string {

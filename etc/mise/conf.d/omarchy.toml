@@ -1,0 +1,4 @@
+# Keep Cursor optional while applying these options whenever mise installs it.
+# Expose only its launcher so the bundled Node cannot shadow the user's Node.
+[tool_alias]
+cursor-agent = 'http:cursor-agent[bin_path=bin,postinstall=mkdir -p "$MISE_TOOL_INSTALL_PATH/bin" && ln -sfn ../dist-package/cursor-agent "$MISE_TOOL_INSTALL_PATH/bin/cursor-agent"]'
