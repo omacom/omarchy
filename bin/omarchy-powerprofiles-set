@@ -1,22 +1,63 @@
 #!/bin/bash
 
-# Set the power profile to the requested level, falling back to balanced
-# if the requested profile isn't available on this machine.
-#
-# Usage: omarchy-powerprofiles-set <ac|battery>
+# omarchy:summary=Set and remember the power profile for AC or battery use
+# omarchy:args=[autodetect|ac|battery] [power-saver|balanced|performance]
 
-mapfile -t profiles < <(powerprofilesctl list | awk '/^\s*[* ]\s*[a-zA-Z0-9\-]+:$/ { gsub(/^[*[:space:]]+|:$/,""); print }')
+action="${1:-autodetect}"
+requested_profile="${2:-}"
 
-case "$1" in
-  ac)
-    # Prefer performance, fall back to balanced
-    if [[ " ${profiles[*]} " == *" performance "* ]]; then
-      powerprofilesctl set performance
+usage() {
+  echo "Usage: omarchy-powerprofiles-set [autodetect|ac|battery] [power-saver|balanced|performance]" >&2
+  exit 1
+}
+
+(( $# <= 2 )) || usage
+
+case "$action" in
+  autodetect)
+    # Use the same signal as the shell (UPower.onBattery) so every entry point
+    # saves and restores the profile under the same ac/battery key.
+    if [[ $(busctl get-property org.freedesktop.UPower /org/freedesktop/UPower org.freedesktop.UPower OnBattery 2>/dev/null) == "b true" ]]; then
+      action=battery
     else
-      powerprofilesctl set balanced
+      action=ac
     fi
     ;;
-  battery)
-    powerprofilesctl set balanced
-    ;;
+  ac | battery) ;;
+  *) usage ;;
 esac
+
+mapfile -t profiles < <(omarchy-powerprofiles-list)
+
+profile_available() {
+  [[ " ${profiles[*]} " == *" $1 "* ]]
+}
+
+state_dir="${OMARCHY_POWERPROFILES_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/powerprofiles}"
+state_file="$state_dir/$action"
+
+if [[ -n $requested_profile ]]; then
+  profile_available "$requested_profile" || {
+    echo "Power profile is not available: $requested_profile" >&2
+    exit 1
+  }
+
+  profile="$requested_profile"
+elif [[ -r $state_file ]]; then
+  profile=$(<"$state_file")
+fi
+
+if [[ -z ${profile:-} ]] || ! profile_available "$profile"; then
+  if [[ $action == "ac" ]] && profile_available performance; then
+    profile=performance
+  else
+    profile=balanced
+  fi
+fi
+
+powerprofilesctl set "$profile" || exit
+
+if [[ -n $requested_profile ]]; then
+  mkdir -p "$state_dir"
+  printf '%s\n' "$requested_profile" >"$state_file"
+fi

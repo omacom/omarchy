@@ -1,0 +1,129 @@
+_omarchy_complete() {
+  COMPREPLY=()
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+
+  local omarchy_path bin_dir
+  omarchy_path=$(command -v omarchy 2>/dev/null) || return 0
+  bin_dir=$(dirname -- "$(readlink -f -- "$omarchy_path" 2>/dev/null || printf '%s' "$omarchy_path")")
+  [[ -d $bin_dir ]] || return 0
+
+  local prefix="omarchy"
+  local i part
+  for ((i = 1; i < COMP_CWORD; i++)); do
+    part="${COMP_WORDS[i]}"
+    [[ -z $part || $part == -* ]] && continue
+    prefix+="-$part"
+  done
+
+  local -A seen=()
+  local candidates=()
+  local file basename rest next
+
+  shopt -s nullglob
+  for file in "$bin_dir/$prefix"-*; do
+    [[ -f $file && -x $file ]] || continue
+    basename="${file##*/}"
+    rest="${basename#"$prefix"-}"
+    next="${rest%%-*}"
+    if [[ -n $next && -z ${seen[$next]:-} ]]; then
+      seen[$next]=1
+      candidates+=("$next")
+    fi
+  done
+  shopt -u nullglob
+
+  if (( COMP_CWORD == 1 )); then
+    candidates+=("commands")
+  fi
+
+  if [[ ${COMP_WORDS[1]:-} == "commands" ]] && (( COMP_CWORD >= 2 )); then
+    candidates+=("--all" "--json" "--markdown" "--check")
+  fi
+
+  if (( ${#candidates[@]} == 0 )); then
+    local command_prefix command_path first_arg_index n j
+    for ((n = COMP_CWORD - 1; n >= 0; n--)); do
+      command_prefix="omarchy"
+      for ((j = 1; j <= n; j++)); do
+        part="${COMP_WORDS[j]}"
+        [[ -z $part || $part == -* ]] && continue
+        command_prefix+="-$part"
+      done
+
+      command_path="$bin_dir/$command_prefix"
+      if [[ -x $command_path ]]; then
+        first_arg_index=$((n + 1))
+        break
+      fi
+    done
+
+    if [[ -n ${command_path:-} && -x $command_path ]]; then
+      local args spec alt token actual alts value match current_arg_index
+      args=$(grep -m 1 '^# omarchy:args=' "$command_path" 2>/dev/null)
+      args="${args#*omarchy:args=}"
+      current_arg_index=$((COMP_CWORD - first_arg_index))
+
+      alts="${args// | /$'\n'}"
+      while IFS= read -r alt; do
+        read -r -a spec <<<"$alt"
+        match=true
+
+        for ((j = 0; j < current_arg_index; j++)); do
+          token="${spec[j]:-}"
+          actual="${COMP_WORDS[first_arg_index + j]:-}"
+          if [[ -z $token ]]; then
+            match=false
+            break
+          fi
+
+          if [[ $token == \<*\> || $token == \[*\] ]]; then
+            value="${token#<}"
+            value="${value#\[}"
+            value="${value%>}"
+            value="${value%\]}"
+            if [[ $value == *"|"* ]]; then
+              [[ " ${value//|/ } " == *" $actual "* ]] || match=false
+            fi
+          elif [[ $token != "$actual" ]]; then
+            match=false
+          fi
+        done
+
+        [[ $match == true ]] || continue
+
+        token="${spec[current_arg_index]:-}"
+        [[ -n $token ]] || continue
+
+        if [[ $token == \<*\> || $token == \[*\] ]]; then
+          value="${token#<}"
+          value="${value#\[}"
+          value="${value%>}"
+          value="${value%\]}"
+          if [[ $value == *"|"* ]]; then
+            read -r -a spec <<<"${value//|/ }"
+            for actual in "${spec[@]}"; do
+              [[ -n ${seen[$actual]:-} ]] && continue
+              seen[$actual]=1
+              candidates+=("$actual")
+            done
+          fi
+        else
+          [[ -n ${seen[$token]:-} ]] && continue
+          seen[$token]=1
+          candidates+=("$token")
+        fi
+      done <<<"$alts"
+    fi
+  fi
+
+  if (( ${#candidates[@]} > 0 )); then
+    local IFS=$'\n'
+    COMPREPLY=($(compgen -W "${candidates[*]}" -- "$cur"))
+  fi
+}
+
+complete -o default -F _omarchy_complete omarchy
+
+# Hide individual omarchy-* binaries from initial-word command completion;
+# the unified `omarchy` dispatcher is the user-facing entry point.
+complete -I -A command -X 'omarchy-*'

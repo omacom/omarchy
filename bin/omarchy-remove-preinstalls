@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Remove preinstalled Omarchy applications (web apps, TUIs, and selected packages).
-# This removes all web apps, TUIs, plus specific desktop applications.
+# omarchy:summary=Remove preinstalled Omarchy applications (web apps, TUIs, and selected packages).
 
 if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI wrappers, and desktop applications?"; then
   echo -e "Removing preinstalled Omarchy applications...\n"
@@ -9,28 +8,42 @@ if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI w
   omarchy-webapp-remove-all
   omarchy-tui-remove-all
 
-  cp ~/.config/hypr/bindings.conf ~/.config/hypr/bindings.conf.bak
-  cp "$OMARCHY_PATH/default/hypr/plain-bindings.conf" ~/.config/hypr/bindings.conf
+  mkdir -p ~/.local/state/omarchy
+  touch ~/.local/state/omarchy/preinstalls-removed
   hyprctl reload
 
-  # Remove npx stubs
-  rm -f ~/.local/bin/codex ~/.local/bin/gemini ~/.local/bin/copilot \
-       ~/.local/bin/opencode ~/.local/bin/playwright-cli ~/.local/bin/pi
+  # Remove mise stubs
+  rm -f ~/.local/bin/codex ~/.local/bin/claude ~/.local/bin/agy ~/.local/bin/copilot \
+       ~/.local/bin/gh ~/.local/bin/opencode ~/.local/bin/playwright ~/.local/bin/playwright-cli ~/.local/bin/pi \
+       ~/.local/bin/omp ~/.local/bin/ori ~/.local/bin/grok ~/.local/bin/crush ~/.local/bin/ghui ~/.local/bin/hunk
+
+  # Cursor's own installer links ~/.local/bin/cursor-agent as well, so only
+  # the mise wrapper omarchy-mise-install wrote is a preinstall.
+  if [[ -f ~/.local/bin/cursor-agent && ! -L ~/.local/bin/cursor-agent ]] &&
+    grep -Eq '^mise use -g .*"cursor-agent"' ~/.local/bin/cursor-agent; then
+    rm -f ~/.local/bin/cursor-agent
+  fi
+
+  # Preserve a user-managed Muse launcher at the same path.
+  if [[ -f ~/.local/bin/muse && ! -L ~/.local/bin/muse ]] &&
+    grep -Eq '^mise use -g .*"http:muse\[' ~/.local/bin/muse; then
+    rm -f ~/.local/bin/muse
+  fi
 
   omarchy-pkg-drop \
     aether \
-    typora \
-    spotify \
+    cliamp \
     libreoffice-fresh \
-    1password-beta \
-    1password-cli \
     xournalpp \
-    signal-desktop \
     pinta \
     obsidian \
     obs-studio \
     kdenlive \
+    moonlight-qt \
     lazydocker \
-    opencode \
-    claude-code
+    omacut \
+    monologue \
+    omacalc \
+    omawrite \
+    hype
 fi

@@ -1,54 +1,86 @@
 #!/bin/bash
 
-# Launch the Omarchy screensaver in the default terminal on the system with the correct font configuration.
+# omarchy:summary=Launch the Omarchy screensaver in the default terminal on the system with the correct font configuration.
 
-# Exit early if we don't have the tte show
-if ! command -v tte &>/dev/null; then
-  exit 1
-fi
-
-# Exit early if screensave is already running
-pgrep -f org.omarchy.screensaver && exit 0
+# Exit early if screensaver is already running
+pgrep -f '[o]rg.omarchy.screensaver' && exit 0
 
 # Allow screensaver to be turned off but also force started
-if [[ -f ~/.local/state/omarchy/toggles/screensaver-off ]] && [[ $1 != "force" ]]; then
+if omarchy-toggle-enabled screensaver-off && [[ $1 != "force" ]]; then
   exit 1
 fi
-
-# Silently quit Walker on overlay
-walker -q
 
 focused=$(omarchy-hyprland-monitor-focused)
 terminal=$(xdg-terminal-exec --print-id)
 
-for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
-  hyprctl dispatch focusmonitor $m
+case $terminal in
+*Alacritty* | *ghostty* | *foot* | *kitty*) ;;
+*)
+  omarchy-notification-send -g ✋ "Screensaver only runs in Alacritty, Foot, Ghostty, or Kitty"
+  exit 1
+  ;;
+esac
+
+hypr_focus_monitor() {
+  hyprctl dispatch "hl.dsp.focus({ monitor = \"$1\" })" >/dev/null 2>&1 || hyprctl dispatch focusmonitor "$1" >/dev/null
+}
+
+hypr_exec() {
+  local command
+  printf -v command '%q ' "$@"
+
+  hyprctl dispatch "hl.dsp.exec_cmd([[[workspace $workspace] $command]])" >/dev/null 2>&1 ||
+    hyprctl dispatch exec -- "[workspace $workspace]" bash -lc "$command" >/dev/null
+}
+
+SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+
+# Open Hyprland's event stream before spawning anything, so a terminal that maps
+# quickly can't emit its openwindow event before we are listening for it.
+exec {events}< <(socat -U - "UNIX-CONNECT:$SOCKET")
+
+# hypr_exec is async and a new window maps on whatever monitor is focused at that
+# moment. Block until this monitor's screensaver actually opens before moving
+# focus on -- otherwise slow-starting terminals all pile onto the last monitor.
+# The deadline is a safety net in case the window never appears.
+wait_for_screensaver_window() {
+  local line deadline=$((SECONDS + 5))
+  while ((SECONDS < deadline)) && IFS= read -r -t $((deadline - SECONDS)) -u "$events" line; do
+    [[ $line == openwindow\>\>*,org.omarchy.screensaver,* ]] && return 0
+  done
+}
+
+while read -r m special; do
+  hypr_focus_monitor "$m"
+  # Share a special workspace that is already showing, like the scratchpad, so it is still open afterwards.
+  workspace=${special:-special:screensaver-$m}
 
   case $terminal in
   *Alacritty*)
-    hyprctl dispatch exec -- \
-      alacritty --class=org.omarchy.screensaver \
-      --config-file ~/.local/share/omarchy/default/alacritty/screensaver.toml \
-      -e omarchy-cmd-screensaver
+    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -e omarchy-screensaver
     ;;
   *ghostty*)
-    hyprctl dispatch exec -- \
-      ghostty --class=org.omarchy.screensaver \
-      --config-file=~/.local/share/omarchy/default/ghostty/screensaver \
-      --font-size=18 \
-      -e omarchy-cmd-screensaver
+    hypr_exec ghostty --class=org.omarchy.screensaver --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --font-size=18 -e omarchy-screensaver
+    ;;
+  *foot*)
+    hypr_exec foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" -e omarchy-screensaver
     ;;
   *kitty*)
-    hyprctl dispatch exec -- \
-      kitty --class=org.omarchy.screensaver \
-      --override font_size=18 \
-      --override window_padding_width=0 \
-      -e omarchy-cmd-screensaver
-    ;;
-  *)
-    notify-send -u low "✋  Screensaver only runs in Alacritty, Ghostty, or Kitty"
+    hypr_exec kitty --class=org.omarchy.screensaver --override font_size=18 --override window_padding_width=0 -e omarchy-screensaver
     ;;
   esac
-done
 
-hyprctl dispatch focusmonitor $focused
+  wait_for_screensaver_window
+done < <(hyprctl monitors -j | jq -r '.[] | "\(.name) \(.specialWorkspace.name)"')
+
+hypr_focus_monitor "$focused"
+
+# Emptying a special workspace focuses its monitor, so the last screensaver to close would take focus
+# with it. Hand focus back to the monitor that had it once they are all gone.
+# The class goes through the environment, since in argv the screensaver's pgrep and pkill would match it.
+(
+  while hyprctl clients -j | SCREENSAVER=org.omarchy.screensaver jq -e 'any(.[]; .mapped and .class == env.SCREENSAVER)' >/dev/null; do
+    IFS= read -r -u "$events" line || exit
+  done
+  hypr_focus_monitor "$focused"
+) >/dev/null 2>&1 &

@@ -1,10 +1,9 @@
 #!/bin/bash
 
-# Display the Omarchy logo in the terminal using green color.
-# Used by various presentation scripts to show branding.
+# omarchy:summary=Display the Omarchy logo in the terminal using green color.
 
 clear
 echo -e "\033[32m"
-cat <~/.local/share/omarchy/logo.txt
+cat <$OMARCHY_PATH/logo.txt
 echo -e "\033[0m"
 echo
