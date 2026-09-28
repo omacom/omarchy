@@ -20,8 +20,10 @@ grep -Fx 'ConditionPathExists=/sys/bus/pci/drivers/brcmfmac' "$service" >/dev/nu
   fail "the Broadcom service only runs when the driver is available"
 grep -Fx 'ExecStart=/usr/bin/omarchy-hw-brcmfmac-suspend pre' "$service" >/dev/null ||
   fail "the Broadcom service runs the pre-sleep recovery helper"
-grep -Fx 'ExecStop=/usr/bin/omarchy-hw-brcmfmac-suspend post' "$service" >/dev/null ||
-  fail "the Broadcom service runs the post-wake recovery helper"
+grep -Fx 'ExecStopPost=/usr/bin/omarchy-hw-brcmfmac-suspend post' "$service" >/dev/null ||
+  fail "the Broadcom service runs the post-wake recovery helper, even after a failed pre"
+! grep -q '^ExecStop=' "$service" ||
+  fail "the Broadcom service does not rely on ExecStop, which a failed pre skips"
 grep -Fx 'WantedBy=sleep.target' "$service" >/dev/null ||
   fail "the Broadcom service joins every sleep transaction"
 pass "the Broadcom service resets the driver around sleep"
@@ -138,6 +140,17 @@ if run_helper pre 2>/dev/null; then
 fi
 [[ ! -s $driver_path/unbind ]] || fail "the pre-sleep helper leaves other devices bound"
 pass "the pre-sleep helper only detaches confirmed S3-dead chips"
+
+reset_pci
+setup_device "$pci_address" "0x43ba"
+rm -f "$driver_path/unbind"
+mkdir "$driver_path/unbind"
+if run_helper pre 2>/dev/null; then
+  fail "the pre-sleep helper reports a failed unbind"
+fi
+[[ $(<"$state_file") == "$pci_address" ]] ||
+  fail "a failed unbind leaves the device recorded for the post-wake rebind"
+pass "a failed unbind leaves the device recorded for the post-wake rebind"
 
 reset_pci
 setup_device "$pci_address" "0x43a3"

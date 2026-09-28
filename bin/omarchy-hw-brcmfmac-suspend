@@ -44,13 +44,13 @@ case "${1:-}" in
       is_affected_id "$(<"$device/device")" || continue
 
       pci_address="${device##*/}"
+      # Record before unbinding, so post rebinds it even if pre dies part-way.
+      printf '%s\n' "$pci_address" >>"$state_file"
       if [[ $(driver_name "$pci_address") == "brcmfmac" ]]; then
         if ! printf '%s' "$pci_address" >"$driver_path/unbind"; then
-          rm -f "$state_file"
           exit 1
         fi
       fi
-      printf '%s\n' "$pci_address" >>"$state_file"
     done
 
     if [[ ! -s $state_file ]]; then

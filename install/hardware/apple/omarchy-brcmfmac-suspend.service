@@ -8,7 +8,8 @@ ConditionPathExists=/sys/bus/pci/drivers/brcmfmac
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/bin/omarchy-hw-brcmfmac-suspend pre
-ExecStop=/usr/bin/omarchy-hw-brcmfmac-suspend post
+# ExecStop is skipped when pre fails or times out; ExecStopPost still rebinds.
+ExecStopPost=/usr/bin/omarchy-hw-brcmfmac-suspend post
 TimeoutStartSec=10s
 TimeoutStopSec=10s
 
