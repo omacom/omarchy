@@ -15,15 +15,15 @@ eval "$(sed -n '/^internet_probes()/,/^}$/p' "$STATUS")"
 fallback_probes=(1.1.1.1 8.8.8.8 9.9.9.9)
 max_probes=3
 
-for ip in 8.8.8.8 1.0.0.1 208.67.222.222 172.15.0.1 172.32.0.1 192.169.0.1 100.63.0.1; do
+for ip in 8.8.8.8 1.0.0.1 208.67.222.222 172.15.0.1 172.32.0.1 192.169.0.1 100.63.0.1 198.17.0.1 198.20.0.1; do
   is_public_ipv4 "$ip" || fail "public address is usable as a probe: $ip"
 done
 pass "public addresses are usable as probes"
 
-# A resolver on the LAN, on loopback, or outside unicast IPv4 proves nothing
-# about internet reachability.
+# A resolver on the LAN, on loopback, behind a fake-IP proxy, or outside
+# unicast IPv4 proves nothing about internet reachability.
 for ip in 127.0.0.53 192.168.1.4 10.0.0.1 172.16.5.5 172.31.255.1 169.254.1.1 \
-  100.64.0.1 0.0.0.0 224.0.0.1 2001:4860:4860::8888 999.1.1.1 8.8.8 abc ""; do
+  100.64.0.1 198.18.0.2 198.19.255.1 0.0.0.0 224.0.0.1 2001:4860:4860::8888 999.1.1.1 8.8.8 abc ""; do
   ! is_public_ipv4 "$ip" || fail "address is rejected as a probe: ${ip:-<empty>}"
 done
 pass "non-public and malformed addresses are rejected as probes"
