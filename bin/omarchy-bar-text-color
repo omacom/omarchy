@@ -121,8 +121,11 @@ right)
   ;;
 esac
 
+# Sample the first frame only. Without the selector a video background makes
+# ImageMagick decode the whole file and emit one value per frame, and the match
+# below then fails into the fallback colour.
 pixel=$(MAGICK_THREAD_LIMIT=2 magick -define "jpeg:size=$((sample_width * 2))x$((sample_height * 2))" \
-  "$background_path" -auto-orient \
+  "$background_path[0]" -auto-orient \
   -resize "${sample_width}x${sample_height}^" \
   -gravity center -extent "${sample_width}x${sample_height}" \
   -gravity NorthWest -crop "$crop" +repage \
