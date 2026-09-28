@@ -140,14 +140,6 @@ BarWidget {
     return String(icon || "")
   }
 
-  // Symbolic icons ship a fixed fill (often near-white) that the host is meant
-  // to recolor to its foreground; detect them by the freedesktop "-symbolic"
-  // name suffix so they can be tinted instead of rendered as-is.
-  function iconIsSymbolic(icon) {
-    var name = String(icon || "").split("?")[0]
-    return name.slice(-9) === "-symbolic"
-  }
-
   function trayTooltip(item) {
     return item.tooltipTitle || item.title || item.id || ""
   }
@@ -764,13 +756,12 @@ BarWidget {
     }
   }
 
-  // Renders a tray icon, recoloring symbolic icons to the bar foreground so
-  // they stay visible on any theme (a raw symbolic icon keeps its baked-in
-  // fill and disappears against a matching background).
+  // Recolor monochrome tray icons to the bar foreground so they stay visible
+  // on any theme. Preserve the colors of status and application icons.
   component TrayIcon: Item {
     id: trayIconRoot
     required property var icon
-    readonly property bool symbolic: root.iconIsSymbolic(icon)
+    readonly property bool tinted: TrayModel.iconNeedsTint(icon)
 
     Image {
       id: trayIconImage
@@ -782,14 +773,14 @@ BarWidget {
       sourceSize.height: Math.round(Math.min(width, height) * Screen.devicePixelRatio)
       source: root.trayIconSource(trayIconRoot.icon)
       // Kept as a hidden layer so the effect can sample it as a texture.
-      visible: !trayIconRoot.symbolic
-      layer.enabled: trayIconRoot.symbolic
+      visible: !trayIconRoot.tinted
+      layer.enabled: trayIconRoot.tinted
     }
 
     MultiEffect {
       anchors.fill: trayIconImage
       source: trayIconImage
-      visible: trayIconRoot.symbolic
+      visible: trayIconRoot.tinted
       colorization: 1.0
       colorizationColor: root.foreground
     }
