@@ -17,8 +17,9 @@ if lspci -nn | grep "106b:180[12]" >/dev/null ||
 fi
 
 # Only an active options line counts: someone who commented theirs out still
-# needs this. No install gets the quirk from the installer any more, so this is
-# the only path that applies it to an existing one.
+# needs this. T2 installs no longer get the quirk from the installer; on the
+# pre-T2 Macs this migration targets, the installer covers new installs and
+# this covers existing ones.
 if [[ -f $conf ]] &&
   grep -Eq '^[[:space:]]*options[[:space:]]+brcmfmac[[:space:]].*feature_disable=0x82000' "$conf"; then
   exit 0

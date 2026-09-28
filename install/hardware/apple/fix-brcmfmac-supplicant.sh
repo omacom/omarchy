@@ -4,7 +4,12 @@
 # four-way handshake never completes, and NetworkManager reports the password
 # as wrong. wpa_supplicant 2.11 made it worse on every brcmfmac part by
 # completing WPA state from the driver's authorization event, which broke
-# WPA2-PSK and WPA3-SAE association outright; Arch's 2.12 carries the fix.
+# WPA2-PSK and WPA3-SAE association outright. That change (hostap 41638606054a)
+# is still in hostap 2.12 and main; what clears it here is Arch's downstream
+# revert of it, patches/0008-Revert-Mark-authorization-completed-on-driver-
+# indica.patch taken from Fedora and first shipped in wpa_supplicant 2:2.12-1.
+# A wpa_supplicant release that drops that patch brings the breakage back, and
+# the T2 group below is where to notice it.
 #
 # Disabling the firmware supplicant (FWSUP, 0x2000) and SAE (0x80000) hands the
 # WPA2 handshake back to wpa_supplicant in software.
