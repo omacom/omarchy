@@ -11,7 +11,9 @@ fi
 pacman_write_repository_config "${OMARCHY_MIRROR:-stable}" "$pacman_config" "$mirrorlist" || return 1
 
 if [[ $(uname -m) == "aarch64" ]]; then
-  # Trust every installed keyring before the first signed sync.
+  # Clamp unbacked ARM RTC forward so pacman-key accepts keyrings offline
+  (( $(date +%Y) < 2025 )) && date -s "@$(stat -c %Y /etc/os-release 2>/dev/null || echo 1767225600)" >/dev/null 2>&1 || true
+
   pacman-key --init
   pacman-key --populate
 fi
