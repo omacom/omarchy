@@ -128,13 +128,7 @@ Item {
 
   function openFile(file) {
     if (!file || !file.path) return
-    Quickshell.execDetached(["uwsm-app", "--", "nautilus", "--select", fileUri(String(file.path))])
-  }
-
-  function fileUri(path) {
-    var parts = String(path || "").split("/")
-    for (var i = 0; i < parts.length; i++) parts[i] = encodeURIComponent(parts[i])
-    return "file://" + parts.join("/")
+    Quickshell.execDetached(Model.revealCommand(String(file.path)))
   }
 
   function openAuthUrlFrom(text) {
