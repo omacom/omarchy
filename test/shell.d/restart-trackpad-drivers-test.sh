@@ -11,6 +11,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/bin" "$scratch/drivers/i2c_hid_acpi" "$scratch/drivers/elan_i2c"
+# Real driver directories also hold these entries; they must never be rebound.
+touch "$scratch/drivers/"{i2c_hid_acpi,elan_i2c}/{bind,unbind,uevent}
 export CALL_LOG="$scratch/calls"
 export PATH="$scratch/bin:$PATH"
 
@@ -41,3 +43,11 @@ run_reset
 $scratch/drivers/i2c_hid_acpi/bind < i2c-SYNA2BA6:00" ]] ||
   fail "an i2c_hid_acpi touchpad is still unbound and rebound" "$(<"$CALL_LOG")"
 pass "an i2c_hid_acpi touchpad is still unbound and rebound"
+
+rmdir "$scratch/drivers/i2c_hid_acpi/i2c-SYNA2BA6:00"
+mkdir "$scratch/drivers/elan_i2c/0-0015"
+run_reset
+[[ $(<"$CALL_LOG") == "$scratch/drivers/elan_i2c/unbind < 0-0015
+$scratch/drivers/elan_i2c/bind < 0-0015" ]] ||
+  fail "an elan_i2c SMBus touchpad named <bus>-<addr> is unbound and rebound" "$(<"$CALL_LOG")"
+pass "an elan_i2c SMBus touchpad named <bus>-<addr> is unbound and rebound"
