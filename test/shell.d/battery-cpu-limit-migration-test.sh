@@ -190,14 +190,18 @@ pass "helper fails loudly when max-perf-pct cannot be written"
 mock_omarchy="$test_tmp/omarchy"
 rule_dest="$test_tmp/udev-rules/99-omarchy-battery-cpu-limit.rules"
 hook_dest="$test_tmp/system-sleep/battery-cpu-limit"
+dropin_dest="$test_tmp/systemd/thermald.service.d/battery-cpu-limit.conf"
 stub_bin="$test_tmp/bin"
 calls="$test_tmp/calls.log"
 mkdir -p "$mock_omarchy/default/udev" "$mock_omarchy/default/systemd/system-sleep" \
+  "$mock_omarchy/default/systemd/system/thermald.service.d" \
   "$mock_omarchy/install/hardware/intel" "$stub_bin"
 cp "$ROOT/default/udev/battery-cpu-limit.rules" "$mock_omarchy/default/udev/"
 cp "$ROOT/default/systemd/system-sleep/battery-cpu-limit" "$mock_omarchy/default/systemd/system-sleep/"
+cp "$ROOT/default/systemd/system/thermald.service.d/battery-cpu-limit.conf" "$mock_omarchy/default/systemd/system/thermald.service.d/"
 sed -e "s|/etc/udev/rules.d/99-omarchy-battery-cpu-limit.rules|$rule_dest|" \
   -e "s|/usr/lib/systemd/system-sleep/battery-cpu-limit|$hook_dest|" \
+  -e "s|/etc/systemd/system/thermald.service.d/battery-cpu-limit.conf|$dropin_dest|" \
   "$leaf" >"$mock_omarchy/install/hardware/intel/battery-cpu-limit.sh"
 
 cat >"$stub_bin/sudo" <<'SH'
@@ -207,6 +211,10 @@ SH
 cat >"$stub_bin/udevadm" <<SH
 #!/bin/bash
 printf 'udevadm %s\n' "\$*" >>"$calls"
+SH
+cat >"$stub_bin/systemctl" <<SH
+#!/bin/bash
+printf 'systemctl %s\n' "\$*" >>"$calls"
 SH
 cat >"$stub_bin/omarchy-hw-intel" <<SH
 #!/bin/bash
@@ -220,7 +228,7 @@ chmod +x "$stub_bin/"*
 
 run_migration() {
   : >"$calls"
-  rm -f "$rule_dest" "$hook_dest"
+  rm -f "$rule_dest" "$hook_dest" "$dropin_dest"
   HOME="$test_tmp/home" PATH="$stub_bin:$PATH" OMARCHY_PATH="$mock_omarchy" bash -euo pipefail "$migration" >/dev/null
 }
 
@@ -237,15 +245,26 @@ grep -Fq 'trigger --subsystem-match=power_supply' "$calls" ||
   fail "migration applies the cap immediately through a power-supply trigger"
 pass "migration publishes the cap on Intel laptops with a battery"
 
+[[ -f $dropin_dest ]] || fail "migration publishes the thermald drop-in"
+grep -Fq 'ExecStartPre=-' "$dropin_dest" ||
+  fail "thermald drop-in applies the cap before thermald starts without blocking it"
+grep -Fq '/usr/bin/omarchy-battery-cpu-limit' "$dropin_dest" ||
+  fail "thermald drop-in calls the cpu-limit helper"
+grep -Fq 'systemctl daemon-reload' "$calls" ||
+  fail "migration reloads systemd for the thermald drop-in"
+grep -Fq 'systemctl try-restart thermald.service' "$calls" ||
+  fail "migration re-baselines a running thermald on the cap"
+pass "migration makes thermald snapshot the capped PL1"
+
 : >"$calls"
 INTEL_HARDWARE=1 LAPTOP_BATTERY=1 HOME="$test_tmp/home" PATH="$stub_bin:$PATH" OMARCHY_PATH="$mock_omarchy" bash -euo pipefail "$migration" >/dev/null
 [[ ! -s $calls ]] || fail "migration repeats privileged work once the machine is repaired"
 pass "migration no-ops once the machine is repaired"
 
 INTEL_HARDWARE=0 LAPTOP_BATTERY=1 run_migration
-[[ ! -e $rule_dest && ! -e $hook_dest && ! -s $calls ]] ||
+[[ ! -e $rule_dest && ! -e $hook_dest && ! -e $dropin_dest && ! -s $calls ]] ||
   fail "migration touches non-Intel machines"
 INTEL_HARDWARE=1 LAPTOP_BATTERY=0 run_migration
-[[ ! -e $rule_dest && ! -e $hook_dest && ! -s $calls ]] ||
+[[ ! -e $rule_dest && ! -e $hook_dest && ! -e $dropin_dest && ! -s $calls ]] ||
   fail "migration touches machines without a battery"
 pass "migration stays inert where the cap does not apply"
