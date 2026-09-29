@@ -32,7 +32,31 @@ PanelWindow {
     return null
   }
 
-  onShownChanged: if (shown) targetScreen = focusedScreen() || targetScreen
+  // A screen object can be destroyed out from under a cached targetScreen:
+  // some GPU drivers recreate the output across suspend/resume (even a plain
+  // DPMS cycle on some hardware), and Hyprland reports its own placeholder
+  // "FALLBACK" monitor while the real one is briefly unavailable. Neither
+  // case leaves a name focusedScreen() can match, so the old fallback here
+  // kept whatever targetScreen already held -- including a reference to a
+  // screen that no longer exists, which the surface then silently fails to
+  // (re)map against on the next open. Background.qml doesn't have this
+  // problem: its Variants delegate is keyed directly off Quickshell.screens
+  // and Qt destroys/recreates it whenever that list changes. This window is
+  // a singleton with no such repeater, so it re-derives targetScreen by hand
+  // from the same signal, and only keeps the old value if it is still a
+  // member of the live list rather than trusting it unconditionally.
+  function liveOrNull(candidateScreen) {
+    return Quickshell.screens.indexOf(candidateScreen) !== -1 ? candidateScreen : null
+  }
+
+  Connections {
+    target: Quickshell
+    function onScreensChanged() {
+      window.targetScreen = window.focusedScreen() || window.liveOrNull(window.targetScreen)
+    }
+  }
+
+  onShownChanged: if (shown) targetScreen = focusedScreen() || liveOrNull(targetScreen)
 
   visible: true
   screen: targetScreen
