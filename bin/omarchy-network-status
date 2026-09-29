@@ -29,6 +29,14 @@ print_status() {
     return
   fi
 
+  # If the default route is a virtual interface (e.g. TUN, WireGuard, VPN),
+  # resolve the underlying physical uplink interface from table main if available.
+  if [[ -d /sys/devices/virtual/net/$device ]]; then
+    local physical_dev
+    physical_dev=$(ip route show table main default 2>/dev/null | awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }')
+    [[ -n $physical_dev ]] && device=$physical_dev
+  fi
+
   if [[ ! -d /sys/class/net/$device/wireless ]]; then
     printf 'ethernet\t%s\t\t\n' "$device"
     return
@@ -93,6 +101,21 @@ print_verbose() {
   src=$(jq -r '.[0].prefsrc // ""' <<<"$route_json" 2>/dev/null)
 
   [[ -z $iface ]] && return
+
+  # If the routed device is a virtual interface (e.g. TUN, WireGuard, VPN),
+  # resolve the underlying physical uplink interface from table main if available.
+  if [[ -d /sys/devices/virtual/net/$iface ]]; then
+    local physical_iface main_json main_gw main_src
+    physical_iface=$(ip route show table main default 2>/dev/null | awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }')
+    if [[ -n $physical_iface ]]; then
+      iface=$physical_iface
+      main_json=$(ip -j route show table main default 2>/dev/null)
+      main_gw=$(jq -r '.[0].gateway // ""' <<<"$main_json" 2>/dev/null)
+      [[ -n $main_gw ]] && gw=$main_gw
+      main_src=$(ip -j addr show "$iface" 2>/dev/null | jq -r '.[0].addr_info[]? | select(.family == "inet") | .local // ""' 2>/dev/null | head -n 1)
+      [[ -n $main_src ]] && src=$main_src
+    fi
+  fi
 
   prefix=$(ip -j addr show "$iface" 2>/dev/null | jq -r '.[0].addr_info[]? | select(.family == "inet") | .prefixlen // ""' 2>/dev/null | head -n 1)
 
