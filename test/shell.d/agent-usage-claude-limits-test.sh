@@ -80,7 +80,7 @@ CACHE_HOME=$(mktemp -d)
 trap 'rm -rf "$CACHE_HOME"' EXIT
 
 collect_limits() {
-  COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" TOKEN="$1" EXPIRES_AT="$2" CACHED="$3" \
+  COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" TOKEN="$1" EXPIRES_AT="$2" CACHED="$3" HAS_LOCAL="${4:-false}" \
     XDG_CACHE_HOME="$CACHE_HOME" python3 - <<'PY'
 import importlib.machinery, importlib.util, json, os, pathlib
 
@@ -100,7 +100,7 @@ def unreachable(request, timeout=None):
   raise OSError("no route to host")
 
 collector.urllib.request.urlopen = unreachable
-print(json.dumps(collector.collect_limits(os.environ["TOKEN"], int(os.environ["EXPIRES_AT"]), False)))
+print(json.dumps(collector.collect_limits(os.environ["TOKEN"], int(os.environ["EXPIRES_AT"]), False, has_local_stats=os.environ["HAS_LOCAL"] == "true")))
 PY
 }
 
@@ -145,6 +145,20 @@ signed_out=$(collect_limits "" 0 "$cache")
 [[ $(jq -c '[.limits[].label]' <<<"$signed_out") == '["Weekly (7-day)"]' ]] ||
   fail "Claude collector serves open cached windows without a token" "$signed_out"
 pass "Claude collector serves open cached windows without a token"
+
+# An API-key user has local usage but never an OAuth token, so there are no
+# cached limits to explain: the collector stays silent instead of nagging for
+# a login, the way the Codex collector does when its RPC yields no windows.
+api_user=$(collect_limits "" 0 "" true)
+[[ $(jq -r '.usageStatusText' <<<"$api_user") == "" && $(jq -c '.limits' <<<"$api_user") == "[]" ]] ||
+  fail "Claude collector stays silent for API usage without cached limits" "$api_user"
+pass "Claude collector stays silent for API usage without cached limits"
+
+# ... unless stale cached limits exist: they still need explaining.
+api_stale=$(collect_limits "" 0 "$cache" true)
+[[ $(jq -r '.usageStatusText' <<<"$api_stale") == "Waiting for auth" ]] ||
+  fail "Claude collector still explains stale cached limits when local usage exists" "$api_stale"
+pass "Claude collector still explains stale cached limits when local usage exists"
 
 # A live token that cannot reach the endpoint keeps the old contract: the open
 # window stands in, and the shell is asked to retry sooner than its interval.

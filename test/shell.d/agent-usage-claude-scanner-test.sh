@@ -29,9 +29,16 @@ pass "Claude collector counts each API message once"
   fail "Claude collector keeps mutually exclusive token categories" "$result"
 pass "Claude collector keeps mutually exclusive token categories"
 
-[[ $(jq -r '.id + "/" + .usageStatusText' <<<"$result") == "claude/Waiting for auth" ]] ||
-  fail "Claude collector identifies itself and reports missing auth" "$result"
-pass "Claude collector identifies itself and reports missing auth"
+[[ $(jq -r '.id' <<<"$result") == "claude" ]] ||
+  fail "Claude collector identifies itself" "$result"
+pass "Claude collector identifies itself"
+
+# An API-key user has local usage but never an OAuth token: no cached limits
+# to explain, so the collector stays silent instead of nagging for a login —
+# the way the Codex collector does when its RPC yields no windows.
+[[ $(jq -r '.usageStatusText' <<<"$result") == "" ]] ||
+  fail "Claude collector stays silent for API usage without cached limits" "$result"
+pass "Claude collector stays silent for API usage without cached limits"
 
 # A machine with no transcripts and no stats-cache still gets today's counts
 # from history.jsonl alone.
@@ -103,10 +110,69 @@ pass "Claude collector counts Anthropic usage, reasoning included, from opencode
   fail "Claude collector ignores prefix-colliding providers, user messages, and malformed rows" "$result"
 pass "Claude collector ignores prefix-colliding providers, user messages, and malformed rows"
 
+# An Anthropic API-key holder without an OAuth token is labelled as such
+# instead of falling through to the panel's "Subscription" default — with no
+# auth nag and no stale subscription windows.
+API_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$HISTORY_HOME" "$OPENCODE_HOME" "$API_HOME"' EXIT
+mkdir -p "$API_HOME/.local/share/opencode"
+
+python3 - "$API_HOME/.local/share/opencode/opencode.db" <<'PY'
+import json
+import sqlite3
+import sys
+import time
+from pathlib import Path
+
+db = Path(sys.argv[1])
+db.parent.mkdir(parents=True, exist_ok=True)
+conn = sqlite3.connect(db)
+conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+now_ms = int(time.time() * 1000)
+conn.execute("INSERT INTO message VALUES ('msg_1', 'ses_1', ?, ?, ?)", (now_ms, now_ms, json.dumps({
+  "role": "assistant",
+  "providerID": "anthropic",
+  "modelID": "claude-opus-5",
+  "tokens": {"input": 100, "output": 50},
+  "time": {"created": now_ms},
+})))
+conn.commit()
+conn.close()
+PY
+
+cat >"$API_HOME/.local/share/opencode/auth.json" <<'EOF'
+{"anthropic": {"type": "api", "key": "sk-test"}}
+EOF
+
+result=$(env -u ANTHROPIC_API_KEY HOME="$API_HOME" XDG_CACHE_HOME="$API_HOME/.cache" XDG_DATA_HOME="$API_HOME/.local/share" \
+  "$ROOT/bin/omarchy-agent-usage-claude" --force)
+
+[[ $(jq -r '.tierLabel' <<<"$result") == "API Platform" ]] ||
+  fail "Claude collector labels an opencode API-key holder as API Platform" "$result"
+[[ $(jq -r '.usageStatusText' <<<"$result") == "" && $(jq -c '.limits' <<<"$result") == "[]" ]] ||
+  fail "Claude collector stays silent with no subscription windows for API usage" "$result"
+pass "Claude collector labels opencode API-key usage as API Platform"
+
+# The same label applies when the key arrives via the environment rather than
+# opencode's auth store.
+ENV_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$HISTORY_HOME" "$OPENCODE_HOME" "$API_HOME" "$ENV_HOME"' EXIT
+mkdir -p "$ENV_HOME/.claude/projects/example"
+cat >"$ENV_HOME/.claude/projects/example/session.jsonl" <<EOF
+{"timestamp":"$timestamp","type":"assistant","sessionId":"session-1","uuid":"event-1","message":{"id":"message-1","role":"assistant","model":"claude-test","usage":{"input_tokens":10,"output_tokens":5}}}
+EOF
+
+result=$(ANTHROPIC_API_KEY="sk-test" HOME="$ENV_HOME" XDG_CACHE_HOME="$ENV_HOME/.cache" XDG_DATA_HOME="$ENV_HOME/.local/share" \
+  "$ROOT/bin/omarchy-agent-usage-claude" --force)
+
+[[ $(jq -r '.tierLabel' <<<"$result") == "API Platform" && $(jq -r '.usageStatusText' <<<"$result") == "" ]] ||
+  fail "Claude collector labels an ANTHROPIC_API_KEY holder as API Platform" "$result"
+pass "Claude collector labels ANTHROPIC_API_KEY usage as API Platform"
+
 # Pi and omp can both spend a Claude subscription without writing native
 # Claude Code transcripts. Their compatible JSONL sessions must be included.
 PI_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$HISTORY_HOME" "$OPENCODE_HOME" "$PI_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$HISTORY_HOME" "$OPENCODE_HOME" "$API_HOME" "$ENV_HOME" "$PI_HOME"' EXIT
 mkdir -p "$PI_HOME/.pi/agent/sessions/project" "$PI_HOME/.omp/agent/sessions/project"
 
 cat >"$PI_HOME/.pi/agent/sessions/project/pi.jsonl" <<EOF
