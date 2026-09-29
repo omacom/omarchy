@@ -42,6 +42,8 @@ if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI w
     moonlight-qt \
     lazydocker \
     omacut \
+    monologue \
     omacalc \
-    omawrite
+    omawrite \
+    hype
 fi

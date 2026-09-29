@@ -165,7 +165,7 @@ BarWidget {
     ? activeVerticalBlock.implicitHeight + inactiveVerticalArea.implicitHeight
     : Math.max(activeHorizontalBlock.implicitHeight, inactiveHorizontalArea.implicitHeight)
 
-  IpcHandler {
+  ShellIpc {
     target: "omarchy.indicators"
 
     function refresh(): void {

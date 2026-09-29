@@ -26,7 +26,6 @@ docker-compose
 dosfstools
 dotnet-runtime
 dua-cli
-elsewhen
 evince
 exfatprogs
 expac
@@ -51,6 +50,7 @@ gvfs-mtp
 gvfs-nfs
 gvfs-smb
 herdr
+hype
 hyprland
 hyprland-guiutils
 hyprland-preview-share-picker
@@ -79,6 +79,7 @@ luarocks
 man-db
 mariadb-libs
 mise-bin
+monologue
 moonlight-qt
 mpv
 mpv-mpris
