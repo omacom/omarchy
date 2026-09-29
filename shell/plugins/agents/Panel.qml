@@ -100,12 +100,15 @@ Panel {
   // A collector that already knows which window a limit belongs to says so,
   // and that beats reading it back out of the label: a model-scoped limit is
   // titled after its model, and a name like "Opus 5 (1M context)" would parse
-  // as a one-minute window.
-  function limitWindow(label, percent, resetAt, title) {
+  // as a one-minute window. The collector also flags a window with no cap as
+  // `unlimited: true` so the meter stays empty and the row labels itself
+  // "Unlimited" rather than printing a misleading "0%".
+  function limitWindow(label, percent, resetAt, title, unlimited) {
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: Number(percent),
-      resetAt: String(resetAt || "")
+      resetAt: String(resetAt || ""),
+      unlimited: unlimited === true
     }
   }
 
@@ -116,7 +119,7 @@ Panel {
     for (var i = 0; i < list.length; i++) {
       var entry = list[i] || {}
       var percent = Number(entry.percent)
-      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title))
+      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title, entry.unlimited))
     }
     return out
   }
@@ -705,7 +708,10 @@ Panel {
     id: limitRow
     property var window: null
 
-    readonly property bool alarming: window && window.percent >= 0.9
+    // An unlimited window has no cap, so its meter can never be "alarming".
+    // Empty (0.0) percent would otherwise look like the meter is full and
+    // the user is about to hit the wall, when there is no wall.
+    readonly property bool alarming: window && !window.unlimited && window.percent >= 0.9
 
     spacing: Style.space(6)
 
@@ -732,9 +738,11 @@ Panel {
       Text {
         id: limitValue
         textFormat: Text.PlainText
-        text: limitRow.window && limitRow.window.percent >= 0
-          ? Math.round(limitRow.window.percent * 100) + "%"
-          : "—"
+        text: limitRow.window && limitRow.window.unlimited
+          ? "Unlimited"
+          : limitRow.window && limitRow.window.percent >= 0
+            ? Math.round(limitRow.window.percent * 100) + "%"
+            : "—"
         color: limitRow.alarming ? root.urgent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
