@@ -95,12 +95,20 @@ mkdir -p "$STATE_DIR"
 # omarchy-upgrade-to-quattro and from the pending-migrations toast's click
 # action, which do not take that lock.
 #
+# Wait rather than exit: run_post_upgrade_migrations in omarchy-upgrade-to-quattro
+# treats a non-zero return as "migrations did not complete" and aborts the upgrade,
+# so declining the lock would have to be reported as a failure even though the work
+# is only in progress elsewhere. Bounded like the pacman wait above so a wedged
+# holder cannot hang a login forever.
+#
 # The lock lives in the state dir rather than XDG_RUNTIME_DIR because the upgrade
 # path reaches this script through `run_as_user_omarchy`, which sets HOME
-# explicitly and leaves XDG_RUNTIME_DIR pointing at root's runtime dir.
+# explicitly and leaves XDG_RUNTIME_DIR pointing at root's runtime dir. Markers
+# are only ever created from $MIGRATIONS_DIR/*.sh, so this cannot be mistaken for
+# one.
 exec {migrate_lock_fd}>"$STATE_DIR/.lock" || exit 0
-if ! flock -n "$migrate_lock_fd"; then
-  echo "Omarchy migrations are already running; skipping."
+if ! flock -w 900 "$migrate_lock_fd"; then
+  echo "Another Omarchy migration run is still going; migrations will retry on next login."
   exit 0
 fi
 
