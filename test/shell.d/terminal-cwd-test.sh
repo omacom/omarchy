@@ -6,105 +6,93 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command jq
 
-real_jq=$(command -v jq)
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
-
-mock_bin="$test_tmp/bin"
+stub_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
-runtime_dir="$test_tmp/runtime"
-work_dir="$test_tmp/work"
-calls="$test_tmp/calls"
+work_dir="$test_tmp/project dir"
 active_window="$test_tmp/active-window.json"
-mkdir -p "$mock_bin" "$test_home" "$runtime_dir" "$work_dir"
-: >"$calls"
+mkdir -p "$stub_bin" "$test_home" "$work_dir"
 
-cat >"$mock_bin/hyprctl" <<'SH'
-#!/bin/bash
-cat "$OMARCHY_TEST_ACTIVE_WINDOW"
-SH
+# A stand-in terminal whose newest child is a shell sitting in work_dir. The
+# trailing ":" keeps bash from exec'ing sleep, so the child stays a shell.
+bash -c '(cd "$1" && bash -c "sleep 30; :") & wait' _ "$work_dir" &
+terminal_pid=$!
 
-cat >"$mock_bin/jq" <<'SH'
-#!/bin/bash
-printf 'jq\n' >>"$OMARCHY_TEST_CALLS"
-exec "$OMARCHY_TEST_REAL_JQ" "$@"
-SH
+# Children first: killing a parent reparents its children out of reach.
+kill_tree() {
+  local child
+  for child in $(cat /proc/"$1"/task/*/children 2>/dev/null); do
+    kill_tree "$child"
+  done
+  kill "$1" 2>/dev/null || true
+}
+trap 'kill_tree "$terminal_pid"; wait "$terminal_pid" 2>/dev/null || true; rm -rf "$test_tmp"' EXIT
 
-cat >"$mock_bin/pgrep" <<'SH'
-#!/bin/bash
-printf 'pgrep %s\n' "$*" >>"$OMARCHY_TEST_CALLS"
-printf '4242\n'
-SH
+for _ in $(seq 50); do
+  [[ -n $(cat /proc/"$terminal_pid"/task/*/children 2>/dev/null) ]] && break
+  sleep 0.05
+done
 
-cat >"$mock_bin/readlink" <<'SH'
+cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
-case "$*" in
-  */cwd) printf '%s\n' "$OMARCHY_TEST_CWD" ;;
-  */exe) printf '/bin/bash\n' ;;
-  *) exit 1 ;;
-esac
-SH
-
-cat >"$mock_bin/grep" <<'SH'
-#!/bin/bash
-if [[ ${!#} == /etc/shells ]]; then
+if [[ ${1:-} == -j && ${2:-} == activewindow ]]; then
+  cat "$OMARCHY_TEST_ACTIVE_WINDOW"
   exit 0
 fi
-exec /usr/bin/grep "$@"
+exit 1
 SH
-
-chmod +x "$mock_bin"/*
+chmod +x "$stub_bin/hyprctl"
 
 run_cwd() {
   HOME="$test_home" \
-    XDG_RUNTIME_DIR="$runtime_dir" \
-    PATH="$mock_bin:$PATH" \
+    XDG_RUNTIME_DIR="$test_tmp" \
+    PATH="$stub_bin:$PATH" \
     OMARCHY_TEST_ACTIVE_WINDOW="$active_window" \
-    OMARCHY_TEST_CALLS="$calls" \
-    OMARCHY_TEST_REAL_JQ="$real_jq" \
-    OMARCHY_TEST_CWD="$work_dir" \
-    bash "$ROOT/bin/omarchy-cmd-terminal-cwd"
+    "$ROOT/bin/omarchy-cmd-terminal-cwd" "$@"
 }
 
-assert_single_active_window_jq() {
-  local count
-  count=$(grep -c '^jq$' "$calls" || true)
-  [[ $count -eq 1 ]] || fail "terminal cwd parses active-window metadata with one jq process" "jq calls: $count\n$(cat "$calls")"
-}
+printf '{"pid":%s,"class":"kitty","tags":["terminal*"]}\n' "$terminal_pid" >"$active_window"
+cwd=$(run_cwd)
+[[ $cwd == "$work_dir" ]] ||
+  fail "a dynamically tagged terminal inherits its shell directory" "got: $cwd"
+pass "a dynamically tagged terminal inherits its shell directory"
 
-# A non-terminal app may own a child shell (for example, a browser download
-# helper). That shell must not make SUPER+ENTER inherit its working directory.
-printf '%s\n' '{"pid":101,"class":"microsoft-edge","tags":[]}' >"$active_window"
-: >"$calls"
-result=$(run_cwd)
-[[ $result == "$test_home" ]] || fail "terminal cwd falls back to HOME for non-terminal focused windows" "expected: $test_home\nactual:   $result"
-assert_single_active_window_jq
-[[ $(grep -c '^pgrep ' "$calls" || true) -eq 0 ]] || fail "terminal cwd does not inspect child processes of non-terminal windows" "$(cat "$calls")"
-pass "terminal cwd ignores helper shells owned by non-terminal windows"
+printf '{"pid":%s,"class":"kitty","tags":["terminal"]}\n' "$terminal_pid" >"$active_window"
+cwd=$(run_cwd)
+[[ $cwd == "$work_dir" ]] ||
+  fail "a tagged terminal inherits its shell directory" "got: $cwd"
+pass "a tagged terminal inherits its shell directory"
 
-# Omarchy's terminal tag is the source of truth used by the Hyprland bindings.
-# Dynamic tags are reported with a trailing '*', so both forms must work.
-printf '%s\n' '{"pid":202,"class":"kitty","tags":["terminal*"]}' >"$active_window"
-: >"$calls"
-result=$(run_cwd)
-[[ $result == "$work_dir" ]] || fail "terminal cwd is inherited from a dynamically tagged terminal" "expected: $work_dir\nactual:   $result"
-assert_single_active_window_jq
-grep -q '^pgrep -P 202$' "$calls" || fail "terminal cwd inspects the tagged terminal process"
-pass "terminal cwd inherits cwd from dynamically tagged terminals"
+# A non-terminal app may own a helper shell. That shell must not make a new
+# terminal inherit the app's working directory.
+printf '{"pid":%s,"class":"microsoft-edge","tags":[]}\n' "$terminal_pid" >"$active_window"
+cwd=$(run_cwd)
+[[ $cwd == "$test_home" ]] ||
+  fail "a non-terminal focused window falls back to HOME" "got: $cwd"
+pass "a non-terminal focused window does not leak a helper shell cwd"
 
-printf '%s\n' '{"pid":303,"class":"kitty","tags":["terminal"]}' >"$active_window"
-: >"$calls"
-result=$(run_cwd)
-[[ $result == "$work_dir" ]] || fail "terminal cwd is inherited from a tagged terminal" "expected: $work_dir\nactual:   $result"
-assert_single_active_window_jq
-pass "terminal cwd inherits cwd from tagged terminals"
+printf '{"pid":%s,"class":"org.wezfurlong.wezterm","tags":[]}\n' "$terminal_pid" >"$active_window"
+cwd=$(run_cwd)
+[[ $cwd == "$work_dir" ]] ||
+  fail "WezTerm's canonical app-id keeps cwd inheritance" "got: $cwd"
+pass "WezTerm's canonical app-id keeps cwd inheritance"
 
-# Preserve cwd inheritance for WezTerm installations whose canonical Wayland
-# app_id has not yet been covered by the terminal tagging rule.
-printf '%s\n' '{"pid":404,"class":"org.wezfurlong.wezterm","tags":[]}' >"$active_window"
-: >"$calls"
-result=$(run_cwd)
-[[ $result == "$work_dir" ]] || fail "terminal cwd is inherited from WezTerm's canonical app_id" "expected: $work_dir\nactual:   $result"
-assert_single_active_window_jq
-grep -q '^pgrep -P 404$' "$calls" || fail "terminal cwd inspects the WezTerm process"
-pass "terminal cwd preserves WezTerm cwd inheritance before its terminal tag is present"
+printf '{}\n' >"$active_window"
+cwd=$(run_cwd)
+[[ $cwd == "$test_home" ]] ||
+  fail "with no focused terminal the new one opens in HOME" "got: $cwd"
+pass "with no focused terminal the new one opens in HOME, quietly"
+
+# The Super+Return binding hands over the focused terminal's pid, so the cwd
+# helper must preserve upstream's no-extra-Hyprland-query fast path.
+cat >"$stub_bin/hyprctl" <<'SH'
+#!/bin/bash
+echo "hyprctl was asked for the active window" >&2
+exit 1
+SH
+chmod +x "$stub_bin/hyprctl"
+
+cwd=$(run_cwd "$terminal_pid" 2>&1)
+[[ $cwd == "$work_dir" ]] ||
+  fail "a terminal pid passed in finds its shell directory without hyprctl" "got: $cwd"
+pass "a terminal pid passed in finds its shell directory without hyprctl"

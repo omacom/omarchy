@@ -66,7 +66,7 @@ BorderSurface {
       : "transparent")
   borderSpec: _borderSpec
 
-  Behavior on color { ColorAnimation { duration: 60 } }
+  Behavior on color { ColorAnimation { duration: Style.duration(60) } }
 
   Text {
     textFormat: Text.PlainText
