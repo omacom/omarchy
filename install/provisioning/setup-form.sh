@@ -127,16 +127,17 @@ omarchy_vconsole_value() {
 
   [[ -f $file ]] || return 0
 
-  awk -F= -v key="$key" '
-    $1 ~ "^[[:space:]]*" key "[[:space:]]*$" {
-      value = $2
-      sub(/^[[:space:]]*/, "", value)
-      sub(/[[:space:]]*$/, "", value)
-      sub(/[[:space:]]*#.*$/, "", value)
-      gsub(/^"/, "", value)
-      gsub(/"$/, "", value)
-      gsub(/^'"'"'/, "", value)
-      gsub(/'"'"'$/, "", value)
+  # Step for step with the Lua: the value runs to the end of the line (an `=`
+  # inside it is kept), a comment needs whitespace before its `#`, and quotes
+  # come off only as a matching pair, double first, then single.
+  awk -v key="$key" '
+    match($0, "^[[:space:]]*" key "[[:space:]]*=") {
+      value = substr($0, RLENGTH + 1)
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      sub(/[[:space:]]+#.*$/, "", value)
+      if (value ~ /^".*"$/) value = substr(value, 2, length(value) - 2)
+      if (value ~ /^'"'"'.*'"'"'$/) value = substr(value, 2, length(value) - 2)
       found = value
     }
     END { print found }

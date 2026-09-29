@@ -58,8 +58,7 @@ if [[ -f $kbd_map ]]; then
 fi
 
 # The keymaps kbd-model-map has no row for, from the installer's gap table.
-if [[ -z $layout && -f $OMARCHY_PATH/install/provisioning/setup-form.sh ]]; then
-  source "$OMARCHY_PATH/install/provisioning/setup-form.sh"
+if [[ -z $layout ]]; then
   gap=$(omarchy_keyboard_xkb "$keymap")
   if [[ -n $gap ]]; then
     layout=${gap%% *}
@@ -97,12 +96,14 @@ fi
 
 # A variant left by the keymap this replaces must not survive the new layout:
 # the readers take the last assignment, so an old variant appended under
-# would silently reshape the new keys. Drop it first, then append. Each step
-# is guarded by the next run's checks — a cancelled sudo prompt leaves either
-# the original file or a layout-less one, and the retry's XKBLAYOUT guard
-# still re-derives and rewrites instead of marking the migration complete.
-if grep -q '^[[:space:]]*XKBVARIANT[[:space:]]*=' "$vconsole"; then
-  sudo sed -i '/^[[:space:]]*XKBVARIANT[[:space:]]*=/d' "$vconsole"
+# would silently reshape the new keys. An empty XKBLAYOUT= goes with it, so
+# the layout is replaced rather than repeated. Drop them first, then append.
+# Each step is guarded by the next run's checks — a cancelled sudo prompt
+# leaves either the original file or a layout-less one, and the retry's
+# XKBLAYOUT guard still re-derives and rewrites instead of marking the
+# migration complete.
+if grep -q '^[[:space:]]*XKB\(LAYOUT\|VARIANT\)[[:space:]]*=' "$vconsole"; then
+  sudo sed -i '/^[[:space:]]*XKB\(LAYOUT\|VARIANT\)[[:space:]]*=/d' "$vconsole"
 fi
 payload="XKBLAYOUT=$layout"
 if [[ -n $variant ]]; then

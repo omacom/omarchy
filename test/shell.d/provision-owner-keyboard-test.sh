@@ -85,11 +85,12 @@ head -1 "$file" | grep -q '^# Written' || fail "the upsert leaves comments alone
 pass "the upsert preserves the rest of vconsole.conf"
 
 omarchy_write_xkb_layout "$file" "be" ""
-assert_equal "$(vconsole_value XKBLAYOUT "$file")" "be" "a present XKB layout is replaced in place"
+assert_equal "$(vconsole_value XKBLAYOUT "$file")" "be" "a present XKB layout is replaced"
+[[ $(grep -c 'XKBLAYOUT=' "$file") == 1 ]] || fail "a replaced layout is not duplicated" "$(cat "$file")"
 
 printf 'XKBVARIANT=old\n' >>"$file"
 omarchy_write_xkb_layout "$file" "us" "colemak"
-assert_equal "$(vconsole_value XKBVARIANT "$file")" "colemak" "a present variant is replaced in place"
+assert_equal "$(vconsole_value XKBVARIANT "$file")" "colemak" "a present variant is replaced"
 assert_equal "$(vconsole_value XKBLAYOUT "$file")" "us" "the layout rides along with a variant write"
 
 # A keymap without a variant must clear the previous keymap's one: kept
@@ -100,15 +101,23 @@ grep -q '^XKBVARIANT=' "$file" && fail "a stale variant is cleared when the keym
 assert_equal "$(vconsole_value XKBLAYOUT "$file")" "pl" "the layout lands beside the cleared variant"
 
 # The Lua readers accept leading whitespace on an assignment, so an indented
-# one is rewritten in place instead of duplicated after it.
+# one is replaced instead of left behind a new one.
 file="$TMPDIR/vconsole-indented"
 printf 'KEYMAP=pl\n  XKBLAYOUT=fr\n    XKBVARIANT=dvorak\n' >"$file"
 omarchy_write_xkb_layout "$file" "us" "colemak"
 [[ $(grep -c 'XKBLAYOUT=' "$file") == 1 && $(grep -c 'XKBVARIANT=' "$file") == 1 ]] ||
   fail "an indented assignment is replaced, not duplicated" "$(cat "$file")"
-grep -q '^  XKBLAYOUT=us$' "$file" || fail "an indented layout is rewritten in place" "$(cat "$file")"
-grep -q '^    XKBVARIANT=colemak$' "$file" || fail "an indented variant is rewritten in place" "$(cat "$file")"
-pass "an indented assignment is rewritten in place"
+assert_equal "$(omarchy_vconsole_value XKBLAYOUT "$file")" "us" "an indented layout is replaced"
+assert_equal "$(omarchy_vconsole_value XKBVARIANT "$file")" "colemak" "an indented variant is replaced"
+
+# A failed write must reach the caller, which reports it.
+file="$TMPDIR/vconsole-unwritable"
+printf 'KEYMAP=pl\n' >"$file"
+if (sed() { return 1; }; omarchy_write_xkb_layout "$file" "pl" ""); then
+  fail "a failed write is reported"
+fi
+grep -q 'XKBLAYOUT=' "$file" && fail "a failed delete appends nothing" "$(cat "$file")"
+pass "a failed write is reported"
 
 # ── omarchy_expose_xkb_layout ────────────────────────────────────────────────
 

@@ -224,6 +224,15 @@ cmp -s "$vconsole" "$TMPDIR/indented-layout.orig" ||
   fail "migration accepts an indented layout as present" "$(cat "$vconsole")"
 pass "migration accepts an indented layout as present"
 
+# An empty XKBLAYOUT= reads as absent, so the migration fills it — replacing
+# the empty line rather than appending a second assignment after it.
+vconsole="$TMPDIR/empty-layout.conf"
+printf 'KEYMAP=pl\nXKBLAYOUT=\nFONT=default8x16\n' >"$vconsole"
+run_migration "$vconsole"
+[[ $(value XKBLAYOUT "$vconsole") == "pl" ]] || fail "migration fills an empty layout" "$(cat "$vconsole")"
+[[ $(grep -c 'XKBLAYOUT=' "$vconsole") == 1 ]] || fail "migration replaces an empty layout line" "$(cat "$vconsole")"
+pass "migration replaces an empty layout line"
+
 # No keymap to derive a layout from: leave the file alone.
 vconsole="$TMPDIR/nokeymap.conf"
 printf 'FONT=default8x16\n' >"$vconsole"

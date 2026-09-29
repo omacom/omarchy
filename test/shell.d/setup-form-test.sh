@@ -273,6 +273,23 @@ pass "the vconsole reader matches whole keys only"
   fail "the vconsole reader answers empty for a missing file"
 pass "the vconsole reader answers empty for a missing key or file"
 
+cat >"$tmp_dir/vconsole-edges.conf" <<'EOF'
+KEYMAP=us#nocomment
+FONT=a=b
+XKBLAYOUT="
+XKBVARIANT='x"
+EOF
+
+[[ $(omarchy_vconsole_value KEYMAP "$tmp_dir/vconsole-edges.conf") == "us#nocomment" ]] ||
+  fail "the vconsole reader keeps a # with no whitespace before it"
+[[ $(omarchy_vconsole_value FONT "$tmp_dir/vconsole-edges.conf") == "a=b" ]] ||
+  fail "the vconsole reader keeps an = inside the value"
+[[ $(omarchy_vconsole_value XKBLAYOUT "$tmp_dir/vconsole-edges.conf") == '"' ]] ||
+  fail "the vconsole reader leaves a lone quote alone"
+[[ $(omarchy_vconsole_value XKBVARIANT "$tmp_dir/vconsole-edges.conf") == "'x\"" ]] ||
+  fail "the vconsole reader strips quotes only as a matching pair"
+pass "the vconsole reader matches the Lua readers on comment, = and quote edges"
+
 printf 'KEYMAP=pl' >"$tmp_dir/no-newline.conf"
 [[ $(omarchy_vconsole_value KEYMAP "$tmp_dir/no-newline.conf") == "pl" ]] ||
   fail "the vconsole reader reads a file with no trailing newline"
