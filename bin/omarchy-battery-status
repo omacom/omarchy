@@ -18,6 +18,462 @@ case "${1:-}" in
     ;;
 esac
 
+# A counter rate needs about a minute, so one charge quantum is not the whole span.
+battery_window_sec=60
+# No-counter UPower samples older than this start a new memory.
+battery_blend_sec=180
+# One run may correct by a few minutes, not by the whole gap to the target.
+battery_correction_cap_sec=180
+# Repeats spread across the blend window may spend this much correction together.
+battery_walk_sec=5400
+battery_quantum=1000
+
+# Seconds for the string the existing awk already printed. That text is what
+# the first look shows; a later look reprints it until the stored seconds change.
+battery_seconds_from_text() {
+  local text=$1
+
+  if [[ $text =~ ^([0-9]+)h[[:space:]]([0-9]+)m$ ]]; then
+    printf '%s' $((BASH_REMATCH[1] * 3600 + BASH_REMATCH[2] * 60))
+  elif [[ $text =~ ^([0-9]+)h$ ]]; then
+    printf '%s' $((BASH_REMATCH[1] * 3600))
+  elif [[ $text =~ ^([0-9]+)m$ ]]; then
+    printf '%s' $((BASH_REMATCH[1] * 60))
+  fi
+}
+
+battery_text_ok() {
+  [[ $1 =~ ^[0-9]+h([[:space:]][0-9]+m)?$ || $1 =~ ^[0-9]+m$ ]]
+}
+
+battery_format_seconds() {
+  local sec=$1
+  local hours minutes
+
+  if (( sec < 3600 )); then
+    printf '%dm' $((sec / 60))
+    return
+  fi
+
+  hours=$((sec / 3600))
+  minutes=$(((sec % 3600) / 60))
+  if (( minutes > 0 )); then
+    printf '%dh %dm' "$hours" "$minutes"
+  else
+    printf '%dh' "$hours"
+  fi
+}
+
+battery_read_counter() {
+  local raw="" file=""
+
+  counter=
+  counter_family=
+  if [[ -r $battery_path/energy_now ]]; then
+    file=$battery_path/energy_now
+    counter_family=energy
+  elif [[ -r $battery_path/charge_now ]]; then
+    file=$battery_path/charge_now
+    counter_family=charge
+  else
+    return 0
+  fi
+
+  raw=$(<"$file")
+  raw=${raw//[[:space:]]/}
+  if [[ $raw =~ ^[0-9]+$ ]]; then
+    counter=$raw
+  else
+    counter_family=
+  fi
+}
+
+# Full capacity has to stay in the same unit as the counter. energy_now is µWh
+# and charge_now is µAh, so a charge_full reading cannot scale an energy counter.
+battery_read_full() {
+  local raw="" file=""
+
+  [[ -n ${bt_full_ready:-} ]] && return 0
+  bt_full_ready=1
+  bt_full=
+  case $counter_family in
+    energy) file=$battery_path/energy_full ;;
+    charge) file=$battery_path/charge_full ;;
+    *) return 0 ;;
+  esac
+  [[ -r $file ]] || return 0
+  raw=$(<"$file")
+  raw=${raw//[[:space:]]/}
+  if [[ $raw =~ ^[0-9]+$ ]]; then
+    bt_full=$raw
+  fi
+}
+
+# Tests point this at a temp dir. With neither override nor XDG_RUNTIME_DIR,
+# skip the file rather than writing a shared temp path.
+battery_state_root() {
+  if [[ -n ${OMARCHY_BATTERY_STATE_DIR:-} ]]; then
+    printf '%s' "$OMARCHY_BATTERY_STATE_DIR"
+  elif [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+    printf '%s' "$XDG_RUNTIME_DIR/omarchy-battery-status"
+  fi
+}
+
+battery_time_is_idle() {
+  [[ $charge_holding == true ]] && return 0
+  case $state in
+    pending-charge|empty|unknown) return 0 ;;
+  esac
+  return 1
+}
+
+battery_load_series() {
+  local file=$1
+  local key a b c
+
+  bt_displayed=
+  bt_updated=
+  bt_counter=
+  bt_text=
+  bt_samples=()
+  [[ -f $file ]] || return 1
+
+  while read -r key a b c; do
+    [[ -z ${key:-} || $key == \#* ]] && continue
+    case $key in
+      displayed_sec)
+        [[ ${a:-} =~ ^[0-9]+$ ]] || return 1
+        bt_displayed=$a
+        ;;
+      displayed_text)
+        if [[ -n ${b:-} ]]; then
+          bt_text="$a $b"
+        else
+          bt_text=${a:-}
+        fi
+        [[ -z ${c:-} ]] || return 1
+        battery_text_ok "$bt_text" || return 1
+        ;;
+      updated_at)
+        [[ ${a:-} =~ ^[0-9]+$ ]] || return 1
+        bt_updated=$a
+        ;;
+      counter)
+        if [[ -z ${a:-} || $a == "-" ]]; then
+          bt_counter=
+        elif [[ $a =~ ^[0-9]+$ ]]; then
+          bt_counter=$a
+        else
+          return 1
+        fi
+        ;;
+      sample)
+        [[ ${a:-} =~ ^[0-9]+$ ]] || return 1
+        [[ ${b:-} == "-" || ${b:-} =~ ^[0-9]+$ ]] || return 1
+        [[ ${c:-} =~ ^[0-9]+$ ]] || return 1
+        bt_samples+=("$a $b $c")
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+  done <"$file"
+
+  [[ -n $bt_displayed && -n $bt_updated && -n $bt_text ]]
+}
+
+battery_write_series() {
+  local file=$1
+  local tmp=$file.tmp
+  local sample
+
+  mkdir -p -- "${file%/*}"
+  {
+    printf 'displayed_sec %s\n' "$bt_displayed"
+    printf 'displayed_text %s\n' "$bt_text"
+    printf 'updated_at %s\n' "$bt_updated"
+    if [[ -n $bt_counter ]]; then
+      printf 'counter %s\n' "$bt_counter"
+    else
+      printf 'counter -\n'
+    fi
+    for sample in "${bt_samples[@]}"; do
+      printf 'sample %s\n' "$sample"
+    done
+  } >"$tmp"
+  mv -f -- "$tmp" "$file"
+}
+
+battery_write_fresh() {
+  bt_displayed=$1
+  bt_updated=$2
+  bt_counter=$3
+  now=$2
+  counter=$3
+  seconds=$1
+  bt_samples=()
+  battery_append_sample
+  battery_write_series "$4"
+}
+
+battery_state_key() {
+  local sum
+
+  sum=$(printf '%s\n%s\n' "$power_supply_path" "$native_path" | sha256sum) || return 1
+  printf '%s' "${sum%% *}"
+}
+
+battery_try_lock() {
+  local root=$1
+
+  mkdir -p -- "$root" || return 1
+  exec {lock_fd}>"$root/lock" || return 1
+  flock -w 30 "$lock_fd"
+}
+
+battery_clear_memory() {
+  local root key
+
+  root=$(battery_state_root)
+  [[ -n $root ]] || return 0
+  key=$(battery_state_key)
+  [[ -n $key ]] || return 0
+  battery_try_lock "$root" || return 0
+  rm -rf -- "$root/$key"
+}
+
+battery_apply_coulomb() {
+  local prev=$bt_counter
+  local full remain_prev remain_now
+
+  [[ -n $counter && -n $prev ]] || return 0
+  [[ $counter =~ ^[0-9]+$ && $prev =~ ^[0-9]+$ ]] || return 0
+  (( prev > 0 )) || return 0
+
+  if [[ $series == discharging && $counter -lt $prev ]]; then
+    bt_displayed=$((bt_displayed * counter / prev))
+  elif [[ $series == charging && $counter -gt $prev ]]; then
+    battery_read_full
+    if [[ $bt_full =~ ^[0-9]+$ ]] && (( bt_full > counter && bt_full > prev )); then
+      remain_prev=$((bt_full - prev))
+      remain_now=$((bt_full - counter))
+      (( remain_prev > 0 )) && bt_displayed=$((bt_displayed * remain_now / remain_prev))
+    fi
+  fi
+  (( bt_displayed < 0 )) && bt_displayed=0
+}
+
+battery_append_sample() {
+  if [[ -n $counter ]]; then
+    bt_samples+=("$now $counter ${seconds:-0}")
+  else
+    bt_samples+=("$now - ${seconds:-0}")
+  fi
+}
+
+battery_prune_samples() {
+  local -a kept=()
+  local sample sample_t min_t
+
+  min_t=$((now - battery_blend_sec))
+  for sample in "${bt_samples[@]}"; do
+    read -r sample_t _ _ <<<"$sample"
+    (( sample_t >= min_t )) && kept+=("$sample")
+  done
+  bt_samples=("${kept[@]}")
+}
+
+battery_target() {
+  local sample sample_t sample_c sample_u age span delta
+  local best_age=999999
+  local anchor="" found=0 sum=0 count=0
+  local full remain
+
+  if [[ -n $counter ]]; then
+    for sample in "${bt_samples[@]}"; do
+      read -r sample_t sample_c sample_u <<<"$sample"
+      [[ $sample_c =~ ^[0-9]+$ ]] || continue
+      age=$((now - sample_t))
+      (( age >= battery_window_sec && age <= battery_blend_sec )) || continue
+      if (( age < best_age )); then
+        best_age=$age
+        anchor=$sample
+      fi
+    done
+    [[ -n $anchor ]] || return 1
+    read -r sample_t sample_c sample_u <<<"$anchor"
+    span=$((now - sample_t))
+    (( span > 0 )) || return 1
+
+    if [[ $series == discharging ]]; then
+      (( counter < sample_c )) || return 1
+      delta=$((sample_c - counter))
+      (( delta > battery_quantum )) || return 1
+      printf '%s' $((counter * span / delta))
+      return 0
+    fi
+
+    [[ $bt_full =~ ^[0-9]+$ ]] || return 1
+    (( counter > sample_c && bt_full > counter )) || return 1
+    delta=$((counter - sample_c))
+    (( delta > battery_quantum )) || return 1
+    remain=$((bt_full - counter))
+    printf '%s' $((remain * span / delta))
+    return 0
+  fi
+
+  for sample in "${bt_samples[@]}"; do
+    read -r sample_t sample_c sample_u <<<"$sample"
+    age=$((now - sample_t))
+    (( age >= battery_window_sec && age <= battery_blend_sec )) && found=1
+    sum=$((sum + sample_u))
+    count=$((count + 1))
+  done
+  (( found && count > 0 )) || return 1
+  printf '%s' $((sum / count))
+}
+
+battery_slew() {
+  local target=$1
+  local allowance=$2
+  local delta=$((target - bt_displayed))
+
+  if (( delta > allowance )); then
+    delta=$allowance
+  elif (( delta < -allowance )); then
+    delta=$((-allowance))
+  fi
+  bt_displayed=$((bt_displayed + delta))
+  (( bt_displayed < 0 )) && bt_displayed=0
+}
+
+battery_advance_series() {
+  local elapsed allowance target
+
+  if (( now < bt_updated )); then
+    elapsed=0
+  else
+    elapsed=$((now - bt_updated))
+  fi
+
+  if (( elapsed > battery_blend_sec )); then
+    if [[ -z $counter ]]; then
+      [[ -n $seconds ]] || return 0
+      bt_displayed=$seconds
+      bt_updated=$now
+      bt_counter=
+      bt_samples=()
+      battery_append_sample
+      return 0
+    fi
+
+    battery_apply_coulomb
+    bt_updated=$now
+    bt_counter=$counter
+    bt_samples=()
+    battery_append_sample
+    return 0
+  fi
+
+  battery_apply_coulomb
+  battery_append_sample
+  battery_prune_samples
+
+  if (( elapsed > 0 )); then
+    [[ $series == charging && -n $counter ]] && battery_read_full
+    allowance=$((battery_walk_sec * elapsed / battery_blend_sec))
+    (( allowance > battery_correction_cap_sec )) && allowance=$battery_correction_cap_sec
+    target=$(battery_target || true)
+    if [[ -n $target ]]; then
+      battery_slew "$target" "$allowance"
+    fi
+  fi
+
+  bt_updated=$now
+  bt_counter=$counter
+}
+
+# The panel starts a new process every few seconds. Keep the last duration so
+# one UPower sample cannot replace the hour. Sysfs watts stay on the rate field.
+battery_remember_time() {
+  local raw=$time_remaining
+  local seconds now root key dir series active active_file series_file
+  local shown_sec shown_text
+
+  if [[ $state == fully-charged ]]; then
+    battery_clear_memory
+    printf '%s' "$raw"
+    return 0
+  fi
+
+  if battery_time_is_idle; then
+    printf '%s' "$raw"
+    return 0
+  fi
+
+  case $state in
+    charging) series=charging ;;
+    discharging) series=discharging ;;
+    *)
+      printf '%s' "$raw"
+      return 0
+      ;;
+  esac
+
+  root=$(battery_state_root)
+  if [[ -z $root ]]; then
+    printf '%s' "$raw"
+    return 0
+  fi
+
+  seconds=$(battery_seconds_from_text "$raw")
+  battery_read_counter
+  if [[ ${OMARCHY_BATTERY_NOW:-} =~ ^[0-9]+$ ]]; then
+    now=$OMARCHY_BATTERY_NOW
+  else
+    now=$(date +%s)
+  fi
+
+  key=$(battery_state_key)
+  dir=$root/$key
+  series_file=$dir/$series
+  active_file=$dir/active
+
+  battery_try_lock "$root" || {
+    printf '%s' "$raw"
+    return 0
+  }
+
+  active=
+  [[ -f $active_file ]] && active=$(<"$active_file")
+  active=${active//[[:space:]]/}
+
+  if [[ $active != "$series" ]] || ! battery_load_series "$series_file"; then
+    if [[ -z $seconds ]]; then
+      printf '%s' "$raw"
+      return 0
+    fi
+    bt_text=$raw
+    battery_write_fresh "$seconds" "$now" "$counter" "$series_file"
+    printf '%s\n' "$series" >"$active_file"
+    printf '%s' "$raw"
+    return 0
+  fi
+
+  shown_sec=$bt_displayed
+  shown_text=$bt_text
+  battery_advance_series
+  if [[ $bt_displayed == "$shown_sec" ]]; then
+    bt_text=$shown_text
+  elif [[ -z $counter && -n $seconds && $bt_displayed == "$seconds" ]]; then
+    bt_text=$raw
+  else
+    bt_text=$(battery_format_seconds "$bt_displayed")
+  fi
+  battery_write_series "$series_file"
+  printf '%s' "$bt_text"
+}
+
 battery=$(upower -e 2>/dev/null | grep BAT | head -n 1)
 [[ -z $battery ]] && exit 0
 
@@ -95,6 +551,8 @@ if [[ $ac_online == "true" && -n $threshold_end ]]; then
     charge_holding=true
   fi
 fi
+
+time_remaining=$(battery_remember_time)
 
 if [[ $shell_output == "true" ]]; then
   printf 'percentage\t%s\n' "${percentage}%"
