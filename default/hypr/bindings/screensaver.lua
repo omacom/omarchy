@@ -1,13 +1,14 @@
--- A lone modifier press wakes from the screensaver, as on other desktops.
+-- A lone modifier tap wakes from the screensaver, as on other desktops.
 -- The screensaver only exits when a character reaches its terminal, so Shift,
 -- Ctrl, Alt and Super did nothing, and the character keys that do work get
 -- typed into whatever window takes focus next. Modifiers never produce a
 -- character, which makes them the wake keys that cannot leak.
 -- The binds are non-consuming and look for a screensaver window first, so an
--- ordinary modifier press costs one window lookup and still reaches the app.
+-- ordinary modifier tap costs one window lookup and still reaches the app.
+-- Hyprland matches these binds when the key is released.
 local function dismiss_screensaver()
   for _, window in ipairs(hl.get_windows({ class = "org.omarchy.screensaver" })) do
-    hl.dispatch(hl.dsp.window.close(window))
+    hl.dispatch(hl.dsp.window.close({ window = window }))
   end
 end
 
