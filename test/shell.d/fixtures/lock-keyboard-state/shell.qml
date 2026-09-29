@@ -105,6 +105,16 @@ ShellRoot {
           root.assertTrue(labels(view) === "SUPER", "a held Super shows its badge, got " + labels(view))
           view.trackModifiers(keyEvent(Qt.Key_Meta, 133, 0), false)
           root.assertTrue(!row.visible, "a Super release clears its badge")
+
+          // Right Alt is keycode 108 either way, but where the layout makes it
+          // AltGr it types characters and Qt reports it without Alt set.
+          view.trackModifiers(keyEvent(Qt.Key_Alt, 108, Qt.AltModifier), true)
+          root.assertTrue(labels(view) === "ALT", "a held Right Alt shows its badge, got " + labels(view))
+          view.trackModifiers(keyEvent(Qt.Key_Alt, 108, 0), false)
+
+          view.trackModifiers(keyEvent(Qt.Key_AltGr, 108, 0), true)
+          root.assertTrue(!row.visible, "holding AltGr raises no ALT warning, got " + labels(view))
+          view.trackModifiers(keyEvent(Qt.Key_AltGr, 108, 0), false)
         }
 
         view.destroy()

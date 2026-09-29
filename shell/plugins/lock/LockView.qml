@@ -82,6 +82,9 @@ Item {
   // in kb_options a Shift release arrives as Qt.Key_CapsLock with Shift still
   // set in event.modifiers, so keying off event.key leaves SHIFT lit.
   function modifierForKey(event) {
+    // Right Alt is AltGr on most layouts other than us, where it types
+    // password characters and is no more of a warning than Shift.
+    if (event.key === Qt.Key_AltGr) return 0
     switch (event.nativeScanCode) {
     case 50: case 62: return Qt.ShiftModifier
     case 37: case 105: return Qt.ControlModifier

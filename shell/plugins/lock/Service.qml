@@ -48,7 +48,7 @@ Item {
   property bool strandedLockResolved: false
   // Keyboard state for the lock view's badges. Hyprland has no event for the
   // lock keys, so they are polled while the lock screen (or its preview) is
-  // up, and on every key event the view sees.
+  // up and lit, and on every key event the view sees.
   property bool capsLockOn: false
   property bool numLockOn: true
   property string layoutLabel: ""
@@ -579,7 +579,9 @@ Item {
     interval: 400
     repeat: true
     triggeredOnStart: true
-    running: root.locked || root.previewVisible
+    // Nothing to show on a blanked display; waking restarts the timer, which
+    // reads the state straight away.
+    running: (root.locked && !root.displaysBlank) || root.previewVisible
     onTriggered: root.refreshKeyboardState()
   }
 
