@@ -40,6 +40,10 @@ HOME="$test_home" omarchy-toggle example toggle
 [[ ! -f $flag ]] || fail "generic toggle flips enabled state off"
 pass "generic toggle flips enabled state off"
 
+HOME="$test_home" omarchy-toggle-bar off
+[[ -f $bar_flag ]] || fail "bar off hides the bar"
+pass "bar off hides the bar"
+
 HOME="$test_home" omarchy-toggle-bar on
 [[ ! -f $bar_flag ]] || fail "bar on shows the bar"
 pass "bar on shows the bar"
@@ -72,7 +76,7 @@ HOME="$test_home" omarchy-toggle-fullscreen-desktop
 [[ ! -f $bar_flag && ! -f $gaps_flag ]] || fail "fullscreen toggle restores the bar and the gaps together"
 pass "fullscreen toggle restores the bar and the gaps together"
 
-HOME="$test_home" omarchy-toggle-bar on
+HOME="$test_home" omarchy-toggle-bar off
 HOME="$test_home" omarchy-toggle-fullscreen-desktop
 [[ -f $bar_flag && -f $gaps_flag ]] || fail "fullscreen toggle pulls a half-hidden desktop into full screen"
 pass "fullscreen toggle pulls a half-hidden desktop into full screen"
