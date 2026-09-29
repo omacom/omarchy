@@ -11,6 +11,7 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 
 - **Hero** — the mark, the tool, and the plan it runs on ("Max 20x", "Pro").
   Auth and endpoint problems replace the plan line and repeat in a card.
+- **Freshness** — shows when the selected agent's usage record last updated and warns if it is older than two refresh intervals (at least 30 minutes).
 - **Subscription switch** — one chip per enabled agent (`h`/`l` or click).
   It appears only when more than one agent is enabled.
 - **Limits** — the percentage of each allowance used, a matching meter, and
@@ -108,6 +109,7 @@ top-level keys can be set with
 | Key | Default | What it does |
 |---|---|---|
 | `refreshIntervalSec` | `900` | How often the usage records regenerate |
+| `lowRemainingPercent` | `10` | Alert once per shell session when a fresh rate limit or funded prepaid balance falls to this percentage or below; rearm after recovery |
 | `syncMode` | `"Off"` | `"On"` writes this machine's snapshot and merges the others |
 | `syncDir` | `""` | A folder synced by Syncthing, Dropbox, rsync, … |
 | `syncFileName` | `<hostname>.json` | This machine's snapshot file |

@@ -32,8 +32,8 @@ Panel {
 
   property bool cursorActive: false
 
-  // Countdowns and "updated" read this instead of Date.now() so the
-  // panel keeps telling the truth while it sits open.
+  // Countdowns and freshness read this instead of Date.now() so the
+  // panel and bar keep telling the truth while the shell runs.
   property double nowMs: Date.now()
 
   readonly property var limits: limitWindows(provider)
@@ -45,6 +45,8 @@ Panel {
   readonly property bool balanceAlarming: !!balance && balance.funded > 0
     && balance.remaining / balance.funded <= 0.1
   readonly property bool alarming: (!!headline && headline.percent >= 0.9) || balanceAlarming
+  readonly property int lowRemainingPercent: Math.max(1, Math.min(50, Number(setting("lowRemainingPercent", 10)) || 10))
+  property var notifiedProviders: ({})
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
   function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
@@ -165,6 +167,54 @@ Panel {
     var amount = Number(value)
     if (!isFinite(amount)) amount = 0
     return currencyPrefix(currency) + amount.toFixed(2)
+  }
+
+  function remainingPercent(w) {
+    return w ? Math.max(0, Math.min(100, Math.round((1 - w.percent) * 100))) : -1
+  }
+
+  function updatedAgeMs(p) {
+    var ms = p && p.updatedAt ? new Date(p.updatedAt).getTime() : NaN
+    return isFinite(ms) ? Math.max(0, nowMs - ms) : -1
+  }
+
+  function isStale(p) {
+    var age = updatedAgeMs(p)
+    return age < 0 || age > Math.max(1800000, usage.refreshIntervalSec * 2000)
+  }
+
+  function freshnessText(p) {
+    if (!p) return ""
+    var age = updatedAgeMs(p)
+    if (age < 0) return "Last update unknown"
+    var minutes = Math.floor(age / 60000)
+    var when = minutes < 1 ? "just now" : minutes < 60 ? minutes + "m ago"
+      : Math.floor(minutes / 60) + "h ago"
+    return (isStale(p) ? "Usage may be stale · " : "Updated ") + when
+  }
+
+  function checkLowAllowance() {
+    var next = Object.assign({}, notifiedProviders)
+    var changed = false
+    for (var i = 0; i < providers.length; i++) {
+      var p = providers[i]
+      var w = bindingWindow(p)
+      var b = p.balance
+      if ((!w && !(b && b.funded > 0)) || isStale(p) || p.usageStatusText !== "") continue
+      var left = w ? remainingPercent(w) : Math.max(0, Math.min(100, Math.round(b.remaining / b.funded * 100)))
+      if (left <= lowRemainingPercent && !next[p.providerId]) {
+        Quickshell.execDetached(["omarchy-notification-send", "--app-name", "Agent Usage",
+          "-u", "normal", p.providerName + " allowance low",
+          w ? left + "% left in " + w.title + (w.resetAt ? " · resets in " + formatDuration(resetMsFor(w)) : "")
+            : formatMoney(b.remaining, b.currency) + " prepaid credit left"])
+        next[p.providerId] = true
+        changed = true
+      } else if (left > lowRemainingPercent && next[p.providerId]) {
+        delete next[p.providerId]
+        changed = true
+      }
+    }
+    if (changed) notifiedProviders = next
   }
 
   function balanceDetailText(b) {
@@ -302,6 +352,7 @@ Panel {
   implicitHeight: button.implicitHeight
 
   onProviderIndexChanged: if (panelFlick) panelFlick.contentY = 0
+  onProvidersChanged: Qt.callLater(checkLowAllowance)
   onOpenedChanged: if (opened) {
     cursorActive = false
     nowMs = Date.now()
@@ -315,11 +366,10 @@ Panel {
     settings: root.settings
   }
 
-  // Cheap enough to keep running: it only re-evaluates text bindings, and a
-  // stale "resets in 2h" on a panel that is open is worse than a timer.
+  // Keep reset countdowns and data freshness current in both the panel and bar.
   Timer {
     interval: 30000
-    running: root.opened
+    running: true
     repeat: true
     onTriggered: root.nowMs = Date.now()
   }
@@ -341,6 +391,7 @@ Panel {
     bar: root.bar
     text: "󱚣"
     active: root.alarming
+    tooltipText: root.provider ? root.provider.providerName + " · " + root.freshnessText(root.provider) : ""
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) root.launchAgent()
       else if (buttonCode === Qt.MiddleButton) root.selectProvider(root.providerIndex + 1)
@@ -444,6 +495,16 @@ Panel {
                 }
               }
             }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            visible: !!root.provider
+            width: parent.width
+            text: root.freshnessText(root.provider)
+            color: root.isStale(root.provider) ? root.urgent : root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
           }
 
           Text {
