@@ -40,6 +40,14 @@ That gives you a Tailscale panel in the bar, which connects and disconnects the 
 
 Installing it also adds a web app for the Tailscale admin console.
 
+## Captive portals
+
+Hotel and airport Wi-Fi often sits behind a sign-in page. When NetworkManager notices one, the bar icon turns into a warning and the network panel shows _SIGN-IN REQUIRED_ with a button that opens the page in your browser. If you'd rather have the page open on its own the moment a portal is detected, the way phones do, set `autoSignIn` to `true` on the network widget in `shell.json`:
+
+```json
+{ "id": "omarchy.network", "autoSignIn": true }
+```
+
 ## When it stops working
 
 Before rebooting, try restarting the offending piece on its own. _Update > Hardware_ has Wi-Fi, Bluetooth, Audio, and Trackpad, and reloading one of those clears up most "it worked five minutes ago" situations. See [troubleshooting](45-troubleshooting.md).
