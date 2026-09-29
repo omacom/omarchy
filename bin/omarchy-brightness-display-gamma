@@ -1,13 +1,15 @@
 #!/bin/bash
 
 # omarchy:summary=Manage hyprsunset gamma for the display brightness range below 1%.
-# omarchy:args=<get|active|can-dim|set percentage|cleanup>
+# omarchy:args=<get|active|can-dim|prepare|release|step up|step down|set percentage|cleanup>
 # omarchy:hidden=true
 
 # Hyprsunset gamma is global: dimming the internal panel also dims other outputs.
 
 state_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.hyprsunset"
 gamma_state_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.gamma"
+warm_state_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.warm"
+start_lock_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.start.lock"
 
 running_pid() {
   pgrep -n -x hyprsunset 2>/dev/null
@@ -37,13 +39,24 @@ gamma_owned() {
 }
 
 cleanup() {
-  local pid gamma temperature config profile_count
+  local pid gamma temperature config profile_count device hardware warm_pid
   pid=$(owned_pid) || {
-    rm -f -- "$state_file"
+    rm -f -- "$state_file" "$warm_state_file"
     return 0
   }
   gamma=$(current_gamma) || return 0
   [[ $gamma == "100" || $gamma == "100.0" ]] || return 0
+  if [[ -e $warm_state_file ]]; then
+    read -r warm_pid <"$warm_state_file"
+    device=$(omarchy-hw-display 2>/dev/null) || device=""
+    if [[ $warm_pid == "$pid" && -n $device ]]; then
+      hardware=$(brightnessctl -d "$device" -m 2>/dev/null | awk -F, '{ gsub("%", "", $4); print $4 }')
+      if [[ $hardware =~ ^[0-9]+$ ]] && (( hardware <= 5 )); then
+        return 0
+      fi
+    fi
+    rm -f -- "$warm_state_file"
+  fi
   temperature=$(hyprctl hyprsunset temperature 2>/dev/null) || return 0
   [[ $temperature =~ ^[0-9]+$ ]] || return 0
   (( temperature >= 6000 )) || return 0
@@ -60,6 +73,83 @@ cleanup() {
 }
 
 case ${1:-} in
+prepare)
+  exec {start_fd}>"$start_lock_file"
+  flock "$start_fd"
+  if [[ -z $(running_pid) ]]; then
+    setsid uwsm-app -- hyprsunset {start_fd}>&- >/dev/null 2>&1 &
+    for _ in {1..20}; do
+      pid=$(running_pid) && break
+      sleep 0.05
+    done
+    [[ -n ${pid:-} ]] || exit 1
+    [[ $(current_gamma) == "100" ]] || exit 1
+    printf '%s\n' "$pid" >"$state_file"
+    printf '%s\n' "$pid" >"$warm_state_file"
+  fi
+  ;;
+release)
+  rm -f -- "$warm_state_file"
+  if gamma_owned; then
+    hyprctl hyprsunset gamma 100 >/dev/null 2>&1 || exit 1
+    [[ $(current_gamma) == "100" ]] || exit 1
+    rm -f -- "$gamma_state_file"
+  fi
+  cleanup
+  ;;
+step)
+  [[ ${2:-} == "up" || ${2:-} == "down" ]] || exit 1
+  # Wait for an in-flight prepare before reading ownership or starting a process.
+  exec {start_fd}>"$start_lock_file"
+  flock "$start_fd"
+  pid=$(running_pid) || pid=""
+  if [[ -n $pid ]]; then
+    gamma=$(current_gamma) || exit 1
+  else
+    gamma=100
+  fi
+  owned=0
+  if [[ -r $gamma_state_file ]]; then
+    read -r saved_pid saved_gamma <"$gamma_state_file"
+    if [[ $saved_pid == "$pid" && $saved_gamma == "$gamma" ]]; then
+      owned=1
+    fi
+  fi
+
+  if [[ $2 == "up" ]]; then
+    (( owned )) || exit 2
+  elif (( ! owned )) && [[ $gamma != "100" && $gamma != "100.0" ]]; then
+    exit 2
+  fi
+
+  tenth=$(awk -v gamma="$gamma" 'BEGIN { printf "%.0f", (gamma - 25) * 10 / 75 }')
+  if [[ $2 == "up" ]]; then
+    (( tenth < 10 )) && (( tenth += 1 ))
+  else
+    (( tenth > 0 )) && (( tenth -= 1 ))
+  fi
+  value=$(( 25 + (75 * tenth + 5) / 10 ))
+  if (( value == 100 )); then
+    hyprctl hyprsunset gamma 100 >/dev/null 2>&1 || exit 1
+    [[ $(current_gamma) == "100" ]] || exit 1
+    rm -f -- "$gamma_state_file"
+    cleanup
+  else
+    if [[ -z $pid ]]; then
+      setsid uwsm-app -- hyprsunset {start_fd}>&- >/dev/null 2>&1 &
+      for _ in {1..10}; do
+        pid=$(running_pid) && break
+        sleep 0.2
+      done
+      [[ -n $pid ]] || exit 1
+      printf '%s\n' "$pid" >"$state_file"
+    fi
+    hyprctl hyprsunset gamma "$value" >/dev/null 2>&1 || exit 1
+    [[ $(current_gamma) == "$value" ]] || exit 1
+    printf '%s %s\n' "$pid" "$value" >"$gamma_state_file"
+  fi
+  printf '%s.%s\n' "$(( tenth / 10 ))" "$(( tenth % 10 ))"
+  ;;
 get)
   if [[ -n $(running_pid) ]]; then
     current_gamma
@@ -80,16 +170,19 @@ can-dim)
 set)
   value=${2:-}
   [[ $value =~ ^[0-9]+$ ]] && (( value >= 25 && value <= 100 )) || exit 1
-
   if (( value == 100 )); then
     gamma_owned || exit 0
-  elif ! gamma_owned && [[ -n $(running_pid) ]]; then
+  fi
+  exec {start_fd}>"$start_lock_file"
+  flock "$start_fd"
+
+  if (( value != 100 )) && ! gamma_owned && [[ -n $(running_pid) ]]; then
     gamma=$(current_gamma) || exit 1
     [[ $gamma == "100" || $gamma == "100.0" ]] || exit 1
   fi
 
   if [[ -z $(running_pid) ]]; then
-    setsid uwsm-app -- hyprsunset >/dev/null 2>&1 &
+    setsid uwsm-app -- hyprsunset {start_fd}>&- >/dev/null 2>&1 &
     for _ in {1..10}; do
       pid=$(running_pid) && break
       sleep 0.2
