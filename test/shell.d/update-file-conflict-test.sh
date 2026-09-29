@@ -149,7 +149,8 @@ fi
 pass "a conflict from a non-Omarchy package is left for a human"
 grep -qF "some-other-pkg: $stray exists in filesystem" "$test_tmp/err" ||
   fail "a conflict left for a human names the file in the way" "$(<"$test_tmp/err")"
-grep -q "only moves files no package owns" "$test_tmp/err" ||
+grep -q "only moves a file that no package owns" "$test_tmp/err" &&
+  grep -q "omarchy-settings, or omarchy-settings-dev is installing" "$test_tmp/err" ||
   fail "a conflict left for a human says why it was not cleared" "$(<"$test_tmp/err")"
 pass "a conflict left for a human names the file and why it was left"
 
@@ -232,6 +233,17 @@ fi
 [[ -e $stray && ! -e $replaced$stray ]] ||
   fail "a healable conflict is moved even though another conflict dooms the retry"
 pass "nothing moves unless every reported conflict is healable"
+# The explanation lists only the file the person has to deal with; the one the
+# recovery takes itself would be a manual move for nothing. Pacman's own report
+# above it still names both, so look only at the explanation.
+sed -n '/in the way of the upgrade/,$p' "$test_tmp/err" >"$test_tmp/explained"
+grep -qF "some-package: $work/theirs exists in filesystem (owned by other-package)" "$test_tmp/explained" ||
+  fail "a mixed conflict names the file the person has to move" "$(<"$test_tmp/err")"
+! grep -qF "omarchy-settings-dev: $stray" "$test_tmp/explained" ||
+  fail "a mixed conflict asks the person to move a file the recovery would take" "$(<"$test_tmp/err")"
+grep -q "It will move the other 1 itself once these are gone" "$test_tmp/err" ||
+  fail "a mixed conflict says the rest will move on their own" "$(<"$test_tmp/err")"
+pass "a mixed conflict lists only the file left for the person"
 
 # The retry can still fail for an unrelated reason. Leave nothing inactive.
 fresh_work
