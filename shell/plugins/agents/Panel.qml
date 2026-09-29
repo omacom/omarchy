@@ -64,6 +64,31 @@ Panel {
     root.close()
   }
 
+  // The sign-in command for a provider: a known one per agent, else the first
+  // `backticked` command in the collector's help text.
+  readonly property var reauthCommands: ({
+    "claude": "claude auth login",
+    "codex": "codex login"
+  })
+
+  function reauthCommand(p) {
+    if (!p) return ""
+    var known = reauthCommands[p.providerId]
+    if (known) return known
+    var match = String(p.authHelpText || "").match(/`([^`]+)`/)
+    return match ? match[1] : ""
+  }
+
+  // Sign in from a floating terminal, then regenerate that agent's record so
+  // the panel clears the warning as soon as the login lands.
+  function reauth() {
+    var command = reauthCommand(provider)
+    if (!command) return
+    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation",
+      command + " && omarchy-agent-usage-update --force " + provider.providerId])
+    root.close()
+  }
+
   // ---------------------------------------------------------------- limits
   //
   // Both providers report the same two shapes: a short rolling session window
@@ -498,24 +523,41 @@ Panel {
           BorderSurface {
             visible: !!root.provider && String(root.provider.usageStatusText || "") !== ""
             width: parent.width
-            implicitHeight: statusText.implicitHeight + Style.spacing.xl * 2
+            implicitHeight: statusColumn.implicitHeight + Style.spacing.xl * 2
             color: root.alpha(root.urgent, 0.10)
             borderSpec: Border.flat(root.alpha(root.urgent, 0.35), 1)
             radius: Style.cornerRadius
 
-            Text {
-              id: statusText
-              textFormat: Text.PlainText
+            Column {
+              id: statusColumn
               anchors.left: parent.left
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
               anchors.leftMargin: Style.space(12)
               anchors.rightMargin: Style.space(12)
-              text: root.provider ? String(root.provider.authHelpText || "") : ""
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              wrapMode: Text.WordWrap
+              spacing: Style.space(10)
+
+              Text {
+                id: statusText
+                width: parent.width
+                textFormat: Text.PlainText
+                text: root.provider ? String(root.provider.authHelpText || "") : ""
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.WordWrap
+              }
+
+              Button {
+                visible: root.reauthCommand(root.provider) !== ""
+                text: "Sign in again"
+                bordered: true
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                fontSize: Style.font.bodySmall
+                verticalPadding: Style.spacing.controlPaddingY
+                onClicked: root.reauth()
+              }
             }
           }
 

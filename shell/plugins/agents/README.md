@@ -97,6 +97,9 @@ only adds the meter and the spent-of-funded line under the real figure.
 - Bar icon: left = panel, right = launch agent, middle = next subscription.
 - Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh,
   Tab moves to the neighboring bar panel, Esc closes.
+- Auth card: **Sign in again** runs the agent's login (`claude auth login`,
+  `codex login`, or the command in the collector's help text) in a floating
+  terminal, then regenerates that agent's record so the warning clears.
 - IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next>`.
 
 ## Settings
