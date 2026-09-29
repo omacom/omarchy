@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether a GPU is driven by the legacy radeon kernel driver.
+
+# radeon only binds pre-GCN (TeraScale and older) GPUs by default, which have no
+# Vulkan support. Read the sysfs driver links rather than lspci, which reads PCI
+# config space and resumes runtime-suspended GPUs.
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+
+shopt -s nullglob
+
+for device in "$pci_devices_path"/*; do
+  [[ $(< "$device/class") == 0x03* ]] || continue
+  [[ -L $device/driver ]] || continue
+  [[ $(basename "$(readlink "$device/driver")") == "radeon" ]] && exit 0
+done
+
+exit 1
