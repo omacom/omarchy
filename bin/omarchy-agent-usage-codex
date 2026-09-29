@@ -565,8 +565,13 @@ def fetch_codex_rpc():
       if entry:
         result["limits"].append(entry)
   except Exception as exc:
+    # rpc_request raises with the RPC method name as its message, which reads
+    # like a permission or sign-in problem in the panel. Say what happened.
     result["usageStatusText"] = "Codex limits unavailable"
-    result["authHelpText"] = str(exc)
+    if isinstance(exc, TimeoutError):
+      result["authHelpText"] = "Codex didn't answer the usage request in time. It will retry on the next refresh."
+    else:
+      result["authHelpText"] = "Couldn't read usage limits from Codex."
   finally:
     try:
       proc.terminate()

@@ -31,7 +31,8 @@ while read -r request; do
         jq -cn --argjson id "$id" '{id: $id, result: {account: {}}}'
       ;;
     account/rateLimits/read)
-      jq -cn --argjson id "$id" --argjson limits "${CODEX_RATE_LIMITS:-{\}}" '{id: $id, result: {rateLimits: $limits}}'
+      [[ -n ${CODEX_RATE_LIMITS_HANGS:-} ]] ||
+        jq -cn --argjson id "$id" --argjson limits "${CODEX_RATE_LIMITS:-{\}}" '{id: $id, result: {rateLimits: $limits}}'
       ;;
   esac
 done
@@ -616,3 +617,14 @@ result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_H
 [[ $(jq -c '{tierLabel, usageStatusText, limits: [.limits[] | {label, percent}]}' <<<"$result") == '{"tierLabel":"pro","usageStatusText":"","limits":[{"label":"Weekly (7-day)","percent":0.36}]}' ]] ||
   fail "Codex collector reads limits even when account/read never answers" "$result"
 pass "Codex collector reads limits even when account/read never answers"
+
+# A limits read that never answers must not surface the RPC method name: the
+# panel shows authHelpText as guidance, and "account/rateLimits/read" reads
+# like a sign-in problem.
+result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
+  CODEX_RATE_LIMITS_HANGS=1 "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+[[ $(jq -r '.usageStatusText' <<<"$result") == "Codex limits unavailable" ]] ||
+  fail "Codex collector reports unavailable limits when the read times out" "$result"
+[[ $(jq -r '.authHelpText' <<<"$result") != *"/"* ]] ||
+  fail "Codex collector keeps RPC method names out of the help text" "$result"
+pass "Codex collector keeps RPC method names out of the help text"
