@@ -13,7 +13,7 @@
   },
   "barWidget": {
     "displayName": "Agents",
-    "description": "One bar icon and one panel: rate-limit meters with pace, today, the last week, and the all-time model breakdown for every subscription.",
+    "description": "One bar icon and one panel: rate-limit meters with pace, today, the last week, and the all-time model breakdown for every subscription, with optional daily and limit metrics in the bar.",
     "category": "AI",
     "aliases": ["agents", "model-usage"],
     "allowMultiple": false,
@@ -23,6 +23,9 @@
         "codex": { "enabled": true },
         "fireworks": { "enabled": true }
       },
+      "showDailyUsage": false,
+      "showLimitPercentage": false,
+      "showLimitRemaining": false,
       "refreshIntervalSec": 900,
       "syncMode": "Off",
       "syncDir": "",
@@ -30,6 +33,9 @@
       "syncDeviceId": ""
     },
     "schema": [
+      { "key": "showDailyUsage", "type": "boolean", "label": "Show daily usage", "description": "Show today's token total in the status bar.", "defaultValue": false },
+      { "key": "showLimitPercentage", "type": "boolean", "label": "Show limit percentage", "description": "Show the fullest limit as a percentage in the status bar.", "defaultValue": false },
+      { "key": "showLimitRemaining", "type": "boolean", "label": "Show remaining", "description": "Display limit percentages as left instead of used.", "defaultValue": false },
       { "key": "refreshIntervalSec", "type": "integer", "label": "Refresh interval (seconds)", "min": 30, "max": 3600, "step": 30, "defaultValue": 900 },
       { "key": "syncMode", "type": "enum", "label": "Synced aggregation", "options": ["Off", "On"], "defaultValue": "Off", "description": "When On, write this machine's local usage snapshot and merge snapshots from other machines." },
       { "key": "syncDir", "type": "path", "label": "Sync folder", "defaultValue": "", "description": "A folder synced by Syncthing, Dropbox, rsync, etc." },

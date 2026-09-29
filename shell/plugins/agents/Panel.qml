@@ -17,6 +17,7 @@ Panel {
   readonly property color surface: Color.popups.background
   readonly property color track: Style.selectedFillFor(foreground, Color.accent)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+  readonly property string iconGlyph: "󱚣"
 
   readonly property var providers: usage.enabledProviders
   // The selection follows the provider, not the slot it happens to sit in: a
@@ -31,6 +32,11 @@ Panel {
   readonly property var provider: providers.length > 0 ? providers[providerIndex] : null
 
   property bool cursorActive: false
+  // Keep the optional bar metrics and the used/left mode in the widget entry
+  // so every bar instance and the panel use the same display choices.
+  readonly property bool showDailyUsage: setting("showDailyUsage", false) === true
+  readonly property bool showLimitPercentage: setting("showLimitPercentage", false) === true
+  readonly property bool showLimitRemaining: setting("showLimitRemaining", false) === true
 
   // Countdowns and "updated" read this instead of Date.now() so the
   // panel keeps telling the truth while it sits open.
@@ -45,6 +51,26 @@ Panel {
   readonly property bool balanceAlarming: !!balance && balance.funded > 0
     && balance.remaining / balance.funded <= 0.1
   readonly property bool alarming: (!!headline && headline.percent >= 0.9) || balanceAlarming
+
+  readonly property bool statusMetricsVisible: !!root.bar && root.bar.vertical !== true
+    && !!root.provider
+    && (root.showDailyUsage || (root.showLimitPercentage && !!root.headline && root.headline.percent >= 0))
+  readonly property string statusBarText: {
+    if (!root.statusMetricsVisible) return root.iconGlyph
+    var metrics = []
+    if (root.showDailyUsage && root.provider)
+      metrics.push("Today " + usage.formatTokenCount(Number(root.provider.todayTotalTokens || 0)) + " tokens")
+    if (root.showLimitPercentage && root.headline && root.headline.percent >= 0) {
+      var used = root.clamp(Number(root.headline.percent), 0, 1)
+      var displayed = root.showLimitRemaining ? 1 - used : used
+      metrics.push(Math.round(displayed * 100) + (root.showLimitRemaining ? "% left" : "% used"))
+    }
+    return metrics.length > 0 ? root.iconGlyph + " " + metrics.join(" · ") : root.iconGlyph
+  }
+  readonly property real statusBarWidth: root.statusMetricsVisible
+    ? Math.max(Style.bar.iconSlot, Math.ceil(statusBarMetrics.advanceWidth + Style.space(16)))
+    : Style.bar.iconSlot
+  readonly property real openPanelIndicatorWidth: root.statusMetricsVisible ? button.glyphPaintedWidth : 0
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
   function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
@@ -62,6 +88,26 @@ Panel {
   function launchAgent() {
     if (root.bar) root.bar.run("omarchy-agent --pick")
     root.close()
+  }
+
+  function setDisplaySetting(name, value) {
+    var next = Object.assign({}, root.settings)
+    next[name] = value
+    root.settings = next
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, next)
+  }
+
+  function toggleDailyUsage() {
+    root.setDisplaySetting("showDailyUsage", !root.showDailyUsage)
+  }
+
+  function toggleLimitPercentage() {
+    root.setDisplaySetting("showLimitPercentage", !root.showLimitPercentage)
+  }
+
+  function toggleLimitRemaining() {
+    root.setDisplaySetting("showLimitRemaining", !root.showLimitRemaining)
   }
 
   // ---------------------------------------------------------------- limits
@@ -335,11 +381,19 @@ Panel {
     function next(): string { root.selectProvider(root.providerIndex + 1); return "ok" }
   }
 
+  TextMetrics {
+    id: statusBarMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.bar.iconFont
+    text: root.statusBarText
+  }
+
   BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "󱚣"
+    text: root.statusBarText
+    slotSize: root.statusBarWidth
     active: root.alarming
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) root.launchAgent()
@@ -437,7 +491,7 @@ Panel {
                   textFormat: Text.PlainText
                   anchors.centerIn: parent
                   visible: heroMarkImage.status !== Image.Ready
-                  text: button.text
+                  text: root.iconGlyph
                   color: root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.display
@@ -494,7 +548,69 @@ Panel {
             }
           }
 
+          // ---------- Bar display ----------
+          PanelSeparator {
+            visible: !!root.provider
+            foreground: root.foreground
+          }
+
+          Column {
+            id: barDisplaySection
+            visible: !!root.provider
+            width: parent.width
+            spacing: Style.space(10)
+
+            PanelSectionHeader {
+              width: parent.width
+              text: "BAR DISPLAY"
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+            }
+            // PanelKeyCatcher owns this dashboard's keyboard navigation; the
+            // display rows are intentionally pointer-activated.
+
+            Toggle {
+              width: parent.width
+              label: "Show daily usage"
+              description: "Show today's token total in the status bar."
+              checked: root.showDailyUsage
+              foreground: root.foreground
+              accent: Color.accent
+              fontFamily: root.fontFamily
+              activeFocusOnTab: false
+              onClicked: root.toggleDailyUsage()
+              onHovered: function(isHovered) { if (isHovered) root.cursorActive = true }
+            }
+
+            Toggle {
+              width: parent.width
+              label: "Show limit percentage"
+              description: "Show the fullest limit as a percentage in the status bar."
+              checked: root.showLimitPercentage
+              foreground: root.foreground
+              accent: Color.accent
+              fontFamily: root.fontFamily
+              activeFocusOnTab: false
+              onClicked: root.toggleLimitPercentage()
+              onHovered: function(isHovered) { if (isHovered) root.cursorActive = true }
+            }
+
+            Toggle {
+              width: parent.width
+              label: "Show remaining"
+              description: "Display limit percentages as left instead of used."
+              checked: root.showLimitRemaining
+              foreground: root.foreground
+              accent: Color.accent
+              fontFamily: root.fontFamily
+              activeFocusOnTab: false
+              onClicked: root.toggleLimitRemaining()
+              onHovered: function(isHovered) { if (isHovered) root.cursorActive = true }
+            }
+          }
+
           // ---------- Status ----------
+
           BorderSurface {
             visible: !!root.provider && String(root.provider.usageStatusText || "") !== ""
             width: parent.width
@@ -704,8 +820,14 @@ Panel {
   component LimitRow: Column {
     id: limitRow
     property var window: null
+    readonly property real usedRatio: window && window.percent >= 0
+      ? root.clamp(window.percent, 0, 1)
+      : -1
+    readonly property real displayedRatio: usedRatio < 0
+      ? -1
+      : root.showLimitRemaining ? 1 - usedRatio : usedRatio
 
-    readonly property bool alarming: window && window.percent >= 0.9
+    readonly property bool alarming: usedRatio >= 0.9
 
     spacing: Style.space(6)
 
@@ -732,8 +854,8 @@ Panel {
       Text {
         id: limitValue
         textFormat: Text.PlainText
-        text: limitRow.window && limitRow.window.percent >= 0
-          ? Math.round(limitRow.window.percent * 100) + "%"
+        text: limitRow.displayedRatio >= 0
+          ? Math.round(limitRow.displayedRatio * 100) + (root.showLimitRemaining ? "% left" : "% used")
           : "—"
         color: limitRow.alarming ? root.urgent : root.foreground
         font.family: root.fontFamily
@@ -741,11 +863,19 @@ Panel {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
       }
+
+      MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        acceptedButtons: Qt.LeftButton
+        onClicked: root.toggleLimitRemaining()
+      }
     }
 
     Meter {
       width: parent.width
-      value: limitRow.window ? limitRow.window.percent : -1
+      value: limitRow.displayedRatio
       alarming: limitRow.alarming
     }
 
@@ -763,7 +893,7 @@ Panel {
     }
   }
 
-  // Rounded track showing the percentage of the allowance used.
+  // Rounded track showing the same used/left percentage as its row label.
   component Meter: Item {
     id: meter
     property real value: -1
