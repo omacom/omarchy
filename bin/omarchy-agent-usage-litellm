@@ -1,0 +1,539 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the LiteLLM proxy usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect a LiteLLM proxy's spend logs into one display-ready JSON record.
+
+Token stats come from the proxy's daily activity endpoint for the last 30
+days. An admin key is asked for /global/activity, which is the whole
+instance; a key that cannot read that route falls back to
+/user/daily/activity, which is only the key's own user. A max_budget on the
+key, or maxBudget in ~/.config/omarchy/agents/litellm.json, becomes the
+prepaid balance the agents panel already draws. The panel only ever reads
+the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "litellm"
+AGENT_NAME = "LiteLLM"
+AUTH_HELP = "Set LITELLM_BASE_URL and LITELLM_API_KEY, or write ~/.config/omarchy/agents/litellm.json."
+WINDOW_DAYS = 30
+
+
+class LiteLLMError(Exception):
+  def __init__(self, message: str, status: int = 0) -> None:
+    super().__init__(message)
+    self.status = status
+
+
+def number(value: Any) -> int:
+  try:
+    return max(0, round(float(value or 0)))
+  except (TypeError, ValueError):
+    return 0
+
+
+def money(value: Any) -> float:
+  try:
+    return max(0.0, float(value or 0))
+  except (TypeError, ValueError):
+    return 0.0
+
+
+def empty_bucket() -> dict[str, int]:
+  return {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  }
+
+
+def empty_stats() -> dict[str, Any]:
+  return {
+    "todayPrompts": 0,
+    "todaySessions": 0,
+    "todayTotalTokens": 0,
+    "todayTokensByModel": {},
+    "recentDays": [],
+    "totalPrompts": 0,
+    "totalSessions": 0,
+    "activeDays": 0,
+    "activeDates": [],
+    "modelUsage": {},
+  }
+
+
+def base_record(**overrides: Any) -> dict[str, Any]:
+  record: dict[str, Any] = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": False,
+    "hasLocalStats": False,
+    # Proxy spend is account-global: every machine that reads the same proxy
+    # reports the same truth, so aggregation must not sum the records.
+    "scope": "account",
+    # api_requests are gateway attempts, not coding-agent prompts. The panel
+    # would print "0 sessions" next to them, so leave that line off.
+    "hasPromptStats": False,
+    "tierLabel": "Proxy",
+    "usageStatusText": "",
+    "authHelpText": "",
+    "limits": [],
+  }
+  record.update(empty_stats())
+  record.update(overrides)
+  return record
+
+
+def metric_block(node: Any) -> dict[str, Any]:
+  # Current proxies nest the numbers under "metrics". Older daily-activity
+  # payloads put prompt_tokens on the model object itself.
+  if not isinstance(node, dict):
+    return {}
+  nested = node.get("metrics")
+  if isinstance(nested, dict):
+    return nested
+  return node
+
+
+def token_parts(metrics: dict[str, Any]) -> tuple[int, int, int, int, int]:
+  prompt = number(metrics.get("prompt_tokens"))
+  output = number(metrics.get("completion_tokens"))
+  cache_read = number(metrics.get("cache_read_input_tokens"))
+  cache_write = number(metrics.get("cache_creation_input_tokens"))
+  cache = cache_read + cache_write
+  # OpenAI-style rows include cache tokens inside prompt_tokens. Split them
+  # back out so the four panel buckets stay mutually exclusive. A row whose
+  # prompt is already smaller than its cache is left alone.
+  if cache and prompt >= cache:
+    uncached = prompt - cache
+  else:
+    uncached = prompt
+  total = uncached + cache_read + cache_write + output
+  return uncached, output, cache_read, cache_write, total
+
+
+MONTHS = {
+  "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+  "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+
+
+def parse_activity_date(raw: Any, end: date) -> str:
+  text = str(raw or "").strip()
+  if len(text) >= 10 and text[4] == "-" and text[7] == "-":
+    return text[:10]
+  # Older /global/activity rows use "Aug 25" with no year. The query window
+  # is at most 30 days, so a month past the window's end belongs to last year.
+  parts = text.replace(",", " ").split()
+  if len(parts) < 2:
+    return ""
+  month = MONTHS.get(parts[0][:3].lower())
+  if month is None:
+    return ""
+  try:
+    day = int(parts[1])
+    candidate = date(end.year, month, day)
+  except ValueError:
+    return ""
+  if candidate > end:
+    try:
+      candidate = date(end.year - 1, month, day)
+    except ValueError:
+      return ""
+  return candidate.isoformat()
+
+
+def summarize_activity(payload: dict[str, Any], today: date | None = None) -> dict[str, Any]:
+  today = today or datetime.now().astimezone().date()
+  rows = payload.get("results")
+  daily = payload.get("daily_data")
+  if isinstance(rows, list) and rows:
+    return summarize_results(payload, today)
+  if isinstance(daily, list):
+    return summarize_daily_data(payload, today)
+  return summarize_results(payload, today)
+
+
+def summarize_daily_data(payload: dict[str, Any], today: date) -> dict[str, Any]:
+  # LiteLLM's older global activity route is a day series of request and
+  # token totals. Model rows for that shape come from /global/activity/model.
+  recent_dates = [(today - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
+  recent = {day: 0 for day in recent_dates}
+  active_dates: set[str] = set()
+  total_requests = 0
+  today_requests = 0
+  today_tokens = 0
+  rows = payload.get("daily_data")
+  if not isinstance(rows, list):
+    rows = []
+  for raw_row in rows:
+    if not isinstance(raw_row, dict):
+      continue
+    day = parse_activity_date(raw_row.get("date"), today)
+    tokens = number(raw_row.get("total_tokens"))
+    requests = number(raw_row.get("api_requests"))
+    total_requests += requests
+    if tokens <= 0 and requests <= 0:
+      continue
+    if day:
+      active_dates.add(day)
+    if day in recent:
+      recent[day] += tokens
+    if day == today.isoformat():
+      today_requests += requests
+      today_tokens += tokens
+  return {
+    "todayPrompts": today_requests,
+    "todayTotalTokens": today_tokens,
+    "todayTokensByModel": {},
+    "recentDays": [{"date": day, "messageCount": recent[day]} for day in recent_dates],
+    "totalPrompts": total_requests,
+    "activeDays": len(active_dates),
+    "activeDates": sorted(active_dates),
+    "modelUsage": {},
+    "windowSpend": 0.0,
+  }
+
+
+def summarize_results(payload: dict[str, Any], today: date) -> dict[str, Any]:
+  recent_dates = [(today - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
+  recent = {day: 0 for day in recent_dates}
+  today_by_model: dict[str, int] = {}
+  model_usage: dict[str, dict[str, int]] = {}
+  active_dates: set[str] = set()
+  total_requests = 0
+  today_requests = 0
+  window_spend = 0.0
+
+  rows = payload.get("results")
+  if not isinstance(rows, list):
+    rows = []
+
+  for raw_row in rows:
+    if not isinstance(raw_row, dict):
+      continue
+    day = parse_activity_date(raw_row.get("date"), today)
+    metrics = metric_block(raw_row)
+    _, _, _, _, total = token_parts(metrics)
+    requests = number(metrics.get("api_requests") or metrics.get("successful_requests"))
+    window_spend += money(metrics.get("spend"))
+    total_requests += requests
+    if total <= 0 and requests <= 0:
+      continue
+    if day:
+      active_dates.add(day)
+    if day in recent:
+      recent[day] += total
+    if day == today.isoformat():
+      today_requests += requests
+
+    breakdown = raw_row.get("breakdown") if isinstance(raw_row.get("breakdown"), dict) else {}
+    models = breakdown.get("models") if isinstance(breakdown.get("models"), dict) else {}
+    if models:
+      for name, raw_model in models.items():
+        model_metrics = metric_block(raw_model)
+        uncached, output, cache_read, cache_write, model_total = token_parts(model_metrics)
+        if model_total <= 0:
+          continue
+        bucket = model_usage.setdefault(str(name), empty_bucket())
+        bucket["inputTokens"] += uncached
+        bucket["outputTokens"] += output
+        bucket["cacheReadInputTokens"] += cache_read
+        bucket["cacheCreationInputTokens"] += cache_write
+        if day == today.isoformat():
+          today_by_model[str(name)] = today_by_model.get(str(name), 0) + model_total
+    elif day == today.isoformat() and total > 0:
+      today_by_model["unknown"] = today_by_model.get("unknown", 0) + total
+
+  metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+  if money(metadata.get("total_spend")) > 0:
+    window_spend = money(metadata.get("total_spend"))
+
+  return {
+    "todayPrompts": today_requests,
+    "todayTotalTokens": sum(today_by_model.values()),
+    "todayTokensByModel": today_by_model,
+    "recentDays": [{"date": day, "messageCount": recent[day]} for day in recent_dates],
+    "totalPrompts": total_requests,
+    "activeDays": len(active_dates),
+    "activeDates": sorted(active_dates),
+    "modelUsage": model_usage,
+    "windowSpend": window_spend,
+  }
+
+
+def summarize_model_series(payload: dict[str, Any], today: date) -> dict[str, Any]:
+  # /global/activity/model on LiteLLM 1.82 reports one total per model. The
+  # panel's bar is the sum of the four buckets, so the combined total sits in
+  # inputTokens. Prompt, cache, and output stay zero because this route does
+  # not split them.
+  model_usage: dict[str, dict[str, int]] = {}
+  today_by_model: dict[str, int] = {}
+  rows = payload.get("results") if isinstance(payload.get("results"), list) else []
+  today_key = today.isoformat()
+  for raw in rows:
+    if not isinstance(raw, dict):
+      continue
+    name = str(raw.get("model") or "").strip()
+    if not name:
+      continue
+    daily = raw.get("daily_data") if isinstance(raw.get("daily_data"), list) else []
+    summed = 0
+    today_tokens = 0
+    for day_row in daily:
+      if not isinstance(day_row, dict):
+        continue
+      tokens = number(day_row.get("total_tokens"))
+      summed += tokens
+      if parse_activity_date(day_row.get("date"), today) == today_key:
+        today_tokens += tokens
+    total = number(raw.get("sum_total_tokens")) or summed
+    if total <= 0:
+      continue
+    bucket = empty_bucket()
+    bucket["inputTokens"] = total
+    model_usage[name] = bucket
+    if today_tokens > 0:
+      today_by_model[name] = today_tokens
+  return {"modelUsage": model_usage, "todayTokensByModel": today_by_model}
+
+
+def config_path() -> Path:
+  root = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+  return Path(root) / "omarchy" / "agents" / "litellm.json"
+
+
+def read_config() -> dict[str, Any]:
+  path = config_path()
+  if not path.is_file():
+    return {}
+  try:
+    parsed = json.loads(path.read_text())
+  except (OSError, json.JSONDecodeError):
+    return {}
+  return parsed if isinstance(parsed, dict) else {}
+
+
+def normalize_base_url(raw: str) -> str:
+  url = raw.strip().rstrip("/")
+  if url.endswith("/v1"):
+    url = url[: -len("/v1")]
+  parsed = urllib.parse.urlparse(url)
+  if parsed.scheme not in ("http", "https") or not parsed.hostname:
+    raise LiteLLMError("LiteLLM base URL must be http or https")
+  if parsed.username or parsed.password:
+    raise LiteLLMError("LiteLLM base URL must not carry credentials")
+  return urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path.rstrip("/"), "", "", ""))
+
+
+def credentials(config: dict[str, Any]) -> tuple[str, str, float | None]:
+  base = str(os.environ.get("LITELLM_BASE_URL") or config.get("baseUrl") or "").strip()
+  key = str(
+    os.environ.get("LITELLM_API_KEY")
+    or os.environ.get("LITELLM_MASTER_KEY")
+    or config.get("apiKey")
+    or ""
+  ).strip()
+  budget_raw = config.get("maxBudget")
+  budget = money(budget_raw) if budget_raw not in (None, "") else None
+  if budget == 0:
+    budget = None
+  return base, key, budget
+
+
+class SameOriginRedirectHandler(urllib.request.HTTPRedirectHandler):
+  def __init__(self, host: str) -> None:
+    super().__init__()
+    self.host = host
+
+  def redirect_request(self, req, fp, code, msg, headers, newurl):
+    parsed = urllib.parse.urlparse(newurl)
+    if parsed.scheme not in ("http", "https") or parsed.hostname != self.host:
+      raise urllib.error.HTTPError(newurl, code, "cross-origin redirect refused", headers, fp)
+    return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+class LiteLLMClient:
+  def __init__(self, base_url: str, api_key: str) -> None:
+    self.base_url = normalize_base_url(base_url)
+    self.api_key = api_key
+    self.host = urllib.parse.urlparse(self.base_url).hostname or ""
+
+  def get(self, path: str, query: dict[str, str] | None = None) -> dict[str, Any]:
+    url = self.base_url + path
+    if query:
+      url += "?" + urllib.parse.urlencode(query)
+    request = urllib.request.Request(
+      url,
+      headers={"Authorization": "Bearer " + self.api_key, "Accept": "application/json"},
+      method="GET",
+    )
+    opener = urllib.request.build_opener(SameOriginRedirectHandler(self.host))
+    try:
+      with opener.open(request, timeout=20) as response:
+        final = getattr(response, "geturl", lambda: url)()
+        if urllib.parse.urlparse(final).hostname != self.host:
+          raise LiteLLMError("LiteLLM redirected off the configured host")
+        payload = json.loads(response.read().decode("utf-8", errors="replace"))
+    except urllib.error.HTTPError as error:
+      if error.code in (401, 403):
+        raise LiteLLMError("LiteLLM rejected the API key", error.code) from error
+      raise LiteLLMError(f"LiteLLM returned HTTP {error.code}", error.code) from error
+    except LiteLLMError:
+      raise
+    except Exception as error:
+      raise LiteLLMError("LiteLLM did not respond") from error
+    if isinstance(payload, list):
+      return {"results": payload}
+    if not isinstance(payload, dict):
+      raise LiteLLMError("LiteLLM returned an unexpected payload")
+    return payload
+
+  def _paged(self, path: str, query: dict[str, str]) -> dict[str, Any]:
+    payload = self.get(path, query)
+    page = 1
+    while page < 20:
+      meta = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+      if not meta.get("has_more"):
+        break
+      page += 1
+      nxt = self.get(path, {**query, "page": str(page)})
+      rows = nxt.get("results")
+      if isinstance(rows, list):
+        payload.setdefault("results", [])
+        if isinstance(payload["results"], list):
+          payload["results"].extend(rows)
+      payload["metadata"] = nxt.get("metadata") if isinstance(nxt.get("metadata"), dict) else {}
+    return payload
+
+  def _has_usage(self, payload: dict[str, Any]) -> bool:
+    if isinstance(payload.get("daily_data"), list):
+      return True
+    if isinstance(payload.get("results"), list) and payload["results"]:
+      return True
+    return False
+
+  def activity(self, start_day: date, end_day: date) -> tuple[dict[str, Any], str]:
+    query = {"start_date": start_day.isoformat(), "end_date": end_day.isoformat()}
+    try:
+      payload = self._paged("/global/activity", query)
+    except LiteLLMError as error:
+      if error.status not in (403, 404):
+        raise
+      payload = None
+    if payload is not None and self._has_usage(payload):
+      return payload, "global"
+    return self._paged("/user/daily/activity", query), "user"
+
+  def model_series(self, start_day: date, end_day: date) -> dict[str, Any] | None:
+    query = {"start_date": start_day.isoformat(), "end_date": end_day.isoformat()}
+    try:
+      return self.get("/global/activity/model", query)
+    except LiteLLMError:
+      return None
+
+  def key_budget(self) -> tuple[float, float] | None:
+    try:
+      payload = self.get("/key/info")
+    except LiteLLMError:
+      return None
+    info = payload.get("info") if isinstance(payload.get("info"), dict) else payload
+    if not isinstance(info, dict) or info.get("max_budget") in (None, ""):
+      return None
+    funded = money(info.get("max_budget"))
+    if funded <= 0:
+      return None
+    return money(info.get("spend")), funded
+
+
+def balance_from(spent: float, funded: float | None, estimated: bool) -> dict[str, Any] | None:
+  if funded is None or funded <= 0:
+    return None
+  return {
+    "remaining": round(max(0.0, funded - spent), 4),
+    "funded": round(funded, 4),
+    "spent": round(spent, 4),
+    "currency": "USD",
+    "estimated": estimated,
+  }
+
+
+def scan(config: dict[str, Any] | None = None) -> dict[str, Any]:
+  config = read_config() if config is None else config
+  base_url, api_key, configured_budget = credentials(config)
+  if not base_url or not api_key:
+    return base_record(authHelpText=AUTH_HELP)
+
+  try:
+    client = LiteLLMClient(base_url, api_key)
+    today = datetime.now().astimezone().date()
+    start = today - timedelta(days=WINDOW_DAYS - 1)
+    payload, scope_name = client.activity(start, today)
+  except LiteLLMError as error:
+    return base_record(usageStatusText="LiteLLM unavailable", authHelpText=str(error))
+
+  stats = summarize_activity(payload, today)
+  if scope_name == "global" and not stats["modelUsage"]:
+    series = client.model_series(start, today)
+    if series:
+      models = summarize_model_series(series, today)
+      if models["modelUsage"]:
+        stats["modelUsage"] = models["modelUsage"]
+        stats["todayTokensByModel"] = models["todayTokensByModel"]
+  window_spend = float(stats.pop("windowSpend"))
+  record = base_record(
+    ready=True,
+    hasLocalStats=stats["todayTotalTokens"] > 0 or stats["totalPrompts"] > 0 or bool(stats["modelUsage"]),
+    tierLabel="Proxy" if scope_name == "global" else "This key",
+    **stats,
+  )
+
+  key_budget = client.key_budget()
+  if key_budget is not None:
+    spent, funded = key_budget
+    ledger = balance_from(spent, funded, estimated=False)
+  else:
+    ledger = balance_from(window_spend, configured_budget, estimated=True)
+  if ledger is not None:
+    record["balance"] = ledger
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the LiteLLM usage record as JSON")
+  # One activity request is the whole record, so there is no cache to force
+  # past and no faster limits-only path. The flags exist so every collector
+  # accepts the same invocation.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  parser.parse_args()
+
+  try:
+    record = scan()
+  except LiteLLMError as error:
+    record = base_record(usageStatusText="LiteLLM unavailable", authHelpText=str(error))
+  except Exception:
+    record = base_record(usageStatusText="LiteLLM unavailable", authHelpText="LiteLLM usage scan failed")
+    print("omarchy-agent-usage-litellm: scan failed", file=sys.stderr)
+  print(json.dumps(record, separators=(",", ":")))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
