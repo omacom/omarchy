@@ -1,0 +1,99 @@
+import QtQuick
+import QtTest
+Item {
+  id: root; width: 380; height: 1200
+  property color foreground: "white"
+  property color dim: "gray"
+  property color urgent: "red"
+  property color track: "#333"
+  property color surface: "#111"
+  property string fontFamily: "monospace"
+  property real nowMs: 1
+  property bool cursorActive: false
+  property int providerIndex: 0
+  property var providers: []
+  QtObject { id: testBorder; function flat(c,w) { return {} } }
+  QtObject { id: button; property string text: "A" }
+  QtObject { id: testStyle
+    property var font: ({caption:10,bodySmall:11,body:12,display:24})
+    property var spacing: ({sm:6,md:10,lg:16,xl:20,controlHeight:28,controlPaddingY:6})
+    property real cornerRadius: 4
+    function space(n) { return n }
+  }
+  QtObject { id: usage
+    property var pricing: QtObject {
+      function modelWindowPresentation(p) { return p ? p.presentation : {available:false, models:[], summaries:[]} }
+      function dailyRows(p) { return p ? p.recentDays : [] }
+      function dailyHeading() { return "TOKENS / COST" }
+    }
+    function formatTokenCount(n) { return String(n) }
+  }
+  component PanelHero: Item {
+    property string title; property string meta; property color foreground; property string fontFamily; property Component iconComponent
+    implicitHeight: 40
+  }
+  component Button: Item {
+    property string text; property bool selected; property bool hasCursor; property bool bordered
+    property color foreground; property string fontFamily; property real fontSize; property real verticalPadding
+    signal clicked(); signal hovered(bool isHovered)
+    implicitHeight: 26
+  }
+  component PanelSectionHeader: Text { property color foreground; property string fontFamily; font.pixelSize:10; topPadding:2 }
+  component PanelSeparator: Rectangle { property color foreground; height:1; width:parent.width }
+  component BorderSurface: Rectangle { property var borderSpec }
+  component PanelToolTip: Item { property string text; property string fontFamily }
+  function alpha(c,a) { return Qt.rgba(c.r,c.g,c.b,a) }
+  function clamp(v,a,b) { return Math.max(a,Math.min(b,v)) }
+  function limitWindows(p) { return p ? p.limits : [] }
+  function providerSupportsPricing(p) { return !!p }
+  function pricedModelRows(rows) { return rows }
+  function pricedSummaryRows(rows) { return rows }
+  function modelRows() { return [] }
+  function pricingLimitationText(p) { return p ? (p.note || "") : "" }
+  function heroMeta() { return "Subscription" }
+  function iconCandidatesForProvider() { return [] }
+  function footerText() { return "" }
+  function weekPeak() { return 100 }
+  function todayDate() { return "2026-09-11" }
+  function dayLabel() { return "Today" }
+  function dayTooltip() { return "" }
+  function modelTooltip() { return "" }
+  function resetMsFor() { return 10000 }
+  function formatDuration() { return "5m" }
+  function formatMoney() { return "$1.00" }
+  function balanceDetailText() { return "" }
+  function selectProvider(i) { providerIndex=i }
+  STACK
+  COMPONENTS
+  TestCase {
+    name: "ProviderPageSize"; when: windowShown
+    function fixture(name,models,limits) {
+      var rows=[], days=[], windows=[]
+      for(var i=0;i<models;i++) rows.push({name:"Model "+i,total:10,value:"12/$34.56",pricingPresentation:true})
+      for(var j=0;j<7;j++) days.push({date:"2026-09-11",value:"12/$34.56",tokens:12,pricingEnabled:true})
+      for(var k=0;k<limits;k++) windows.push({title:"Window "+k,percent:0.5,resetAt:""})
+      return {providerName:name,providerId:name,recentDays:days,limits:windows,note:"",presentation:{available:true,models:rows,summaries:rows.slice(0,3)}}
+    }
+    function test_emptyState() {
+      root.providers=[];wait(1)
+      verify(emptyState.visible)
+      verify(contentStack.implicitHeight>0,"empty-state message keeps a visible panel")
+    }
+    function test_largestUnselectedPage() {
+      root.providers=[fixture("small",1,1),fixture("large",6,3)]
+      wait(50)
+      var small=providerPages.itemAt(0),large=providerPages.itemAt(1)
+      verify(large.implicitHeight>640,"fixture exceeds old fixed cap")
+      verify(large.implicitHeight>small.implicitHeight)
+      compare(contentStack.implicitHeight,large.implicitHeight,"largest hidden page determines size before switching")
+      var height=contentStack.implicitHeight
+      root.providerIndex=1;wait(1)
+      compare(contentStack.implicitHeight,height,"switching must not resize")
+      compare(small.opacity,0);compare(large.opacity,1)
+      verify(!small.enabled && large.enabled,"hidden pages cannot intercept input")
+      root.providers=[fixture("small",2,1),fixture("large",6,3)];wait(1)
+      compare(providerPages.itemAt(0),small,"record refresh must preserve page instances")
+      compare(contentStack.implicitHeight,height,"same largest contents preserve height")
+    }
+  }
+}
