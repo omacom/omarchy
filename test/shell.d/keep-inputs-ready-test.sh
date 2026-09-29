@@ -20,6 +20,9 @@ grep -q 'name = omarchy/suspend-node.lua' "$conf" || fail "config loads the Omar
 grep -q 'hooks.node.suspend = disabled' "$conf" || fail "config replaces the stock suspend hook"
 grep -q 'hooks.node.suspend.omarchy = optional' "$conf" ||
   fail "a missing hook script cannot stop WirePlumber from starting"
+# An optional feature loads only when wanted; without this nothing suspends at all.
+grep -q 'provides = "policy.node"' "$conf" && grep -q 'wants = \[ hooks.node.suspend.omarchy \]' "$conf" ||
+  fail "the node policy wants the Omarchy suspend hook, so it loads"
 
 if command -v luac >/dev/null; then
   luac -p "$script" || fail "suspend hook is valid Lua"
