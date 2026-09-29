@@ -109,5 +109,11 @@ if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding l
   fail "network portal fixture has no QML errors" "$output"
 fi
 [[ -f $stage/browser.log ]] || fail "portal action launches the browser"
-[[ $(<"$stage/browser.log") == "http://ping.omacom.io/nm-check.txt" ]] || fail "portal opens exactly one fixed HTTP URL"
-pass "network portal, recovery, disabled checks, outage, disconnect, keyboard navigation, and browser argv work in QML"
+# The button's launch, then the automatic one, which asks the command to open
+# nothing if another screen's panel already started a sign-in.
+expected_launches=$'http://ping.omacom.io/nm-check.txt
+--auto
+http://ping.omacom.io/nm-check.txt'
+[[ $(<"$stage/browser.log") == "$expected_launches" ]] ||
+  fail "the button and auto sign-in each open the fixed HTTP URL exactly once" "$(<"$stage/browser.log")"
+pass "network portal, recovery, disabled checks, outage, disconnect, keyboard navigation, auto sign-in, and browser argv work in QML"
