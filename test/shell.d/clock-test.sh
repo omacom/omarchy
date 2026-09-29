@@ -181,6 +181,10 @@ const shownAt = new Date(2026, 8, 27, 14, 5, 0)
 assert(!calendar.clockMinuteIsStale(shownAt, new Date(2026, 8, 27, 14, 5, 59)), 'clock keeps a label from the current minute')
 assert(calendar.clockMinuteIsStale(shownAt, new Date(2026, 8, 27, 14, 6, 0)), 'clock sees a label from the previous minute as stale')
 assert(calendar.clockMinuteIsStale(shownAt, new Date(2026, 8, 27, 15, 42, 7)), 'clock sees a label from before a suspend as stale')
+// SystemClock can publish the next minute up to half a second before the wall
+// clock turns. A poll in that gap must not roll the label back a minute.
+assert(!calendar.clockMinuteIsStale(new Date(2026, 8, 27, 14, 6, 0), new Date(2026, 8, 27, 14, 5, 59, 700)), 'clock leaves a label SystemClock published just before the minute turned')
+assert(calendar.clockMinuteIsStale(new Date(2026, 8, 27, 15, 0, 0), new Date(2026, 8, 27, 14, 5, 30)), 'clock refreshes a label after the wall clock is set back')
 const clockWidget = fs.readFileSync(root + '/shell/plugins/panels/clock/BarWidget.qml', 'utf8')
 assert(/Timer \{[^}]*running: !root\.showsSeconds[^}]*clockMinuteIsStale\(root\.displayDate, new Date\(\)\)\) root\.refresh\(\)/.test(clockWidget),
   'clock checks for a stale minute and refreshes the label')
