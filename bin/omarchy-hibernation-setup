@@ -13,6 +13,11 @@ for arg in "$@"; do
   esac
 done
 
+if omarchy-sleep-disabled; then
+  echo "Hibernation is turned off on this machine" >&2
+  exit 0
+fi
+
 if [[ ! -f /sys/power/image_size ]]; then
   echo -e "Hibernation is not supported on your system" >&2
   exit 0
