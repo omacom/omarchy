@@ -2,7 +2,14 @@
 # sustains alone: the voltage droops until the BMS cuts all power (a hard
 # shutdown with nothing in the journal). power-saver only hints EPP, it never
 # caps frequency or package power, so cap the package while discharging and
-# restore the AC policy when the charger returns. add covers boot (fired by
-# systemd-udev-trigger), change covers plug/unplug. The helper exits quietly
-# on machines without Intel pstate or without a battery.
+# restore the AC policy when the charger returns. The helper exits quietly on
+# machines without Intel pstate or without a battery.
+
+# Boot (add, fired by systemd-udev-trigger) and plug/unplug (change).
 SUBSYSTEM=="power_supply", ATTR{type}=="Mains", ACTION=="add|change", RUN+="/usr/bin/omarchy-battery-cpu-limit $attr{online}"
+
+# The Mains add event can fire before intel_rapl_common registers the package
+# zone (~2s earlier on a MacBookPro16,1), leaving the PL1/PL2 writes without a
+# target, so the firmware limits stay in force for the whole boot. Re-apply
+# once the zone exists (no args: the helper re-reads the AC state).
+SUBSYSTEM=="powercap", KERNEL=="intel-rapl:0", ACTION=="add", RUN+="/usr/bin/omarchy-battery-cpu-limit"

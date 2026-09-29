@@ -13,8 +13,9 @@
 # restores the saved AC policy when the charger returns.
 #
 # Invoked as root from the udev power-supply rule (with the Mains online
-# state; its add event covers boot) and from the system-sleep hook (no args:
-# re-reads the state). Exits quietly on machines without Intel pstate or
+# state), from the udev powercap rule once the RAPL zone registers at boot, and
+# from the system-sleep hook (the last two with no args: they re-read the
+# state). Exits quietly on machines without Intel pstate or
 # without a battery, so the udev rule can ship everywhere.
 #
 # The RAPL package limits (PL1 long-term, PL2 short-term) are what actually

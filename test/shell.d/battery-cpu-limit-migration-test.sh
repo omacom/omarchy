@@ -153,6 +153,22 @@ grep -Fq 'PL1 not available' "$test_tmp/stderr" || fail "missing RAPL warns"
 run_helper 1 >/dev/null 2>&1 || fail "AC restore fails without RAPL"
 pass "missing RAPL is skipped and never restored"
 
+# Boot on battery: the Mains add event runs before intel_rapl_common registers
+# the package zone, then the powercap add event re-runs the helper with no args.
+reset_sysfs
+make_sysfs "$sysfs" 0
+mv "$rapl" "$test_tmp/rapl-late"
+run_helper 0 >/dev/null 2>&1 || fail "boot-time cap fails before RAPL registers"
+mv "$test_tmp/rapl-late" "$rapl"
+run_helper >/dev/null 2>&1 || fail "powercap add re-run fails"
+[[ $(cat "$rapl/constraint_0_power_limit_uw") == 25000000 && $(cat "$rapl/constraint_1_power_limit_uw") == 35000000 ]] ||
+  fail "late RAPL registration leaves the firmware PL1/PL2 in force"
+[[ $(cat "$state_dir/pl1") == 100000000 && $(cat "$state_dir/pl2") == 125000000 ]] ||
+  fail "late RAPL registration saves the capped limits as AC defaults"
+grep -Fq 'SUBSYSTEM=="powercap", KERNEL=="intel-rapl:0", ACTION=="add"' "$ROOT/default/udev/battery-cpu-limit.rules" ||
+  fail "udev rule does not re-apply once the RAPL zone registers"
+pass "a RAPL zone registered after the Mains event still gets capped"
+
 reset_sysfs
 make_sysfs "$sysfs" 0
 mkdir -p "$state_dir"
