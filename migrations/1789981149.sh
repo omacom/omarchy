@@ -7,4 +7,7 @@ echo "Install the Vivaldi theme hook for existing installs"
 omarchy-pkg-present vivaldi || exit 0
 
 omarchy-hook-install post-update "$OMARCHY_PATH/default/vivaldi/vivaldi-post-update"
-"$OMARCHY_PATH/default/vivaldi/vivaldi-post-update"
+# The repaint is cosmetic and the next theme change redoes it. Under
+# bash -euo pipefail a failure here would abort the migration queue with no
+# marker written, leaving later migrations unrun. The refresh reports itself.
+"$OMARCHY_PATH/default/vivaldi/vivaldi-post-update" || true
