@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Disable Chromium GPU compositing on legacy radeon GPUs
+# omarchy:summary=Disable Chromium GPU compositing on a pre-GCN radeon driving a display
 
 # Chromium's GPU compositor draws artifacts and glitches, or hangs the system,
 # on pre-GCN GPUs driven by radeon (see #3603, #13760). Software compositing

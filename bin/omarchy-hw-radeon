@@ -1,18 +1,68 @@
 #!/bin/bash
 
-# omarchy:summary=Detect whether a GPU is driven by the legacy radeon kernel driver.
+# omarchy:summary=Detect a pre-GCN radeon GPU that is driving a connected display.
 
-# radeon only binds pre-GCN (TeraScale and older) GPUs by default, which have no
-# Vulkan support. Read the sysfs driver links rather than lspci, which reads PCI
-# config space and resumes runtime-suspended GPUs.
+# Pre-GCN (TeraScale and older) GPUs have no Vulkan and Chromium's GPU compositor
+# misbehaves on them. Two things are needed to match:
+#
+#   1. The GPU drives a connected display. A radeon dGPU that sits idle while the
+#      panel runs on Intel (e.g. MacBookPro11,5) is not what Chromium renders on.
+#   2. The GPU is pre-GCN. radeon also binds SI/CIK (GCN 1.0/1.1) when forced with
+#      radeon.si_support=1 / cik_support=1; those have RADV and are excluded.
+#
+# Everything is read from sysfs. The PCI device ID and the connector status are
+# cached by the kernel, so this should not resume runtime-suspended GPUs.
+
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
 pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
 
 shopt -s nullglob
 
-for device in "$pci_devices_path"/*; do
-  [[ $(< "$device/class") == 0x03* ]] || continue
-  [[ -L $device/driver ]] || continue
-  [[ $(basename "$(readlink "$device/driver")") == "radeon" ]] && exit 0
+# GCN device IDs claimed by radeon (include/drm/drm_pciids.h). radeon gets no new
+# hardware, so this list is closed. 0x6840-0x6849 are TeraScale (Turks) and stay out.
+gcn_ranges=(
+  0x1304-0x131d # Kaveri
+  0x6600-0x666f # Oland, Bonaire, Hainan
+  0x6780-0x683f # Tahiti, Hawaii, Pitcairn, Verde
+  0x684c-0x684c # Pitcairn
+  0x9830-0x985f # Kabini, Mullins
+)
+
+is_gcn() {
+  local id=$(( $1 )) range
+  for range in "${gcn_ranges[@]}"; do
+    (( id >= ${range%-*} && id <= ${range#*-} )) && return 0
+  done
+  return 1
+}
+
+is_legacy_radeon() {
+  local device=$1
+  [[ -L $device/driver ]] || return 1
+  [[ $(basename "$(readlink "$device/driver")") == "radeon" ]] || return 1
+  [[ $(< "$device/vendor") == "0x1002" ]] || return 1
+  ! is_gcn "$(< "$device/device")"
+}
+
+# PCI devices behind a connected connector (card0-eDP-1, card1-HDMI-A-1, ...)
+declare -A displaying=()
+for connector in "$drm_path"/card*-*; do
+  [[ -r $connector/status && $(< "$connector/status") == "connected" ]] || continue
+  card=${connector##*/}; card=${card%%-*}
+  device=$(readlink -f "$drm_path/$card/device") || continue
+  displaying[$device]=1
+done
+
+# No connected connector (headless, or connector info unavailable): fall back to
+# the firmware's primary GPU rather than every GPU in the machine.
+if (( ${#displaying[@]} == 0 )); then
+  for device in "$pci_devices_path"/*; do
+    [[ -r $device/boot_vga && $(< "$device/boot_vga") == "1" ]] && displaying[$(readlink -f "$device")]=1
+  done
+fi
+
+for device in "${!displaying[@]}"; do
+  is_legacy_radeon "$device" && exit 0
 done
 
 exit 1
