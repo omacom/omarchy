@@ -1,0 +1,129 @@
+#!/bin/bash
+
+# omarchy:summary=End the agent session running on the remote machine
+# omarchy:args=[session]
+# omarchy:examples=omarchy agent stop | omarchy agent stop omarchy-agent-claude-Work
+
+# A remote agent outlives its window on purpose: closing the terminal leaves it
+# working on a machine that is still running fine. That bargain needs a way to
+# say "I am done with it" other than closing a window, or the sessions pile up
+# on the other machine, where nobody is looking.
+
+set -euo pipefail
+
+agent_host=$(omarchy-default-agent --host)
+
+if [[ -z $agent_host ]]; then
+  echo "The default agent runs on this machine, so there is no remote session to end." >&2
+  echo "Quit the agent in its own window instead." >&2
+  exit 1
+fi
+
+# Only sessions this launcher started. A tmux session someone else opened on
+# that machine is not ours to kill, whatever it is called.
+if [[ -n ${1:-} ]]; then
+  wanted=$1
+  [[ $wanted == omarchy-agent-* ]] || wanted="omarchy-agent-$wanted"
+else
+  wanted=""
+fi
+
+# Listed and ended on the far side in one go, so there is one connection to
+# fail rather than one per session. Each result is a tagged line, because an
+# interactive shell's startup files are free to print whatever they like.
+remote_script="wanted=${wanted@Q}
+$(
+  cat <<'REMOTE'
+# Probed by running it: the command being asked about is on the other machine,
+# where omarchy's helpers do not exist.
+if ! tmux -V >/dev/null 2>&1; then
+  exit 0
+fi
+
+# With no tmux server running there is nothing to end, which tmux reports as a
+# failure to connect. Anything else is a real failure and says so.
+if ! sessions=$(tmux list-sessions -F '#S' 2>&1); then
+  case $sessions in
+  *"no server running"* | *"error connecting"*) exit 0 ;;
+  esac
+
+  printf 'omarchy-agent-stop:error:%s\n' "$sessions"
+  exit 1
+fi
+
+status=0
+while read -r session; do
+  [[ $session == omarchy-agent-* ]] || continue
+  [[ -z $wanted || $session == "$wanted" ]] || continue
+
+  if tmux kill-session -t "=$session" 2>/dev/null; then
+    printf 'omarchy-agent-stop:ended:%s\n' "$session"
+  else
+    printf 'omarchy-agent-stop:failed:%s\n' "$session"
+    status=1
+  fi
+done <<<"$sessions"
+
+exit "$status"
+REMOTE
+)"
+
+# The same delivery as the launch: base64 in plain single quotes survives any
+# login shell, and -lic finds tmux on the same PATH the launch found it on.
+stderr=$(mktemp)
+trap 'rm -f "$stderr"' EXIT
+
+set +e
+output=$(ssh -o ConnectTimeout=10 \
+  -o ControlMaster=auto -o ControlPersist=10m \
+  -o "ControlPath=${XDG_RUNTIME_DIR:-/tmp}/omarchy-agent-ssh-%C" \
+  "$agent_host" -- "bash -lic 'eval \"\$(printf %s $(base64 -w0 <<<"$remote_script") | base64 -d)\"'" \
+  </dev/null 2>"$stderr")
+ssh_status=$?
+set -e
+
+if ((ssh_status == 255)); then
+  echo "Could not reach $agent_host to end the agent session." >&2
+  cat "$stderr" >&2
+  exit 1
+fi
+
+ended=0
+failed=0
+while IFS=: read -r tag result detail; do
+  [[ $tag == omarchy-agent-stop ]] || continue
+  detail=${detail%$'\r'}
+
+  case $result in
+  ended)
+    echo "Ended $detail on $agent_host."
+    ended=$((ended + 1))
+    ;;
+  failed)
+    echo "Could not end $detail on $agent_host." >&2
+    failed=$((failed + 1))
+    ;;
+  error)
+    echo "Could not list the agent sessions on $agent_host: $detail" >&2
+    failed=$((failed + 1))
+    ;;
+  esac
+done <<<"$output"
+
+# A remote exit that no tagged line explains is still a failure, not an idle
+# host: most likely the far side could not run the script at all.
+if ((ssh_status != 0 && failed == 0)); then
+  echo "Could not end the agent session on $agent_host." >&2
+  cat "$stderr" >&2
+  exit 1
+fi
+
+((failed == 0)) || exit 1
+
+if ((ended == 0)); then
+  if [[ -n $wanted ]]; then
+    echo "No agent session named $wanted is running on $agent_host."
+  else
+    echo "No agent session is running on $agent_host."
+  fi
+fi
