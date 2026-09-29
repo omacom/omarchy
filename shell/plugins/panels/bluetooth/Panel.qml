@@ -22,6 +22,8 @@ Panel {
   property var pendingActions: ({})
 
   readonly property var adapter: Bluetooth.defaultAdapter
+  property bool hadAdapter: false
+  onAdapterChanged: if (adapter !== null) hadAdapter = true
 
   // True while this instance owes BlueZ a StopDiscovery: set when it starts
   // discovery (or opens onto a session already running) and cleared once
@@ -56,7 +58,7 @@ Panel {
   readonly property var discoveredDevices: deviceGroups.discovered || []
 
   readonly property string icon: {
-    if (!adapter) return ""
+    if (!adapter) return hadAdapter ? "󰂲" : ""
     if (!adapter.enabled) return "󰂲"
     if (connectedDevices.length > 0) return "󰂱"
     return "󰂯"
@@ -75,7 +77,7 @@ Panel {
   ]
   readonly property bool rotatingPhrases: adapter && adapter.enabled
   readonly property string heroStatusText: {
-    if (!adapter) return "No adapter"
+    if (!adapter) return hadAdapter ? "Turned Off" : "No adapter"
     if (!adapter.enabled) return "Turned Off"
     return activePhrases[phraseIndex % activePhrases.length]
   }
@@ -497,20 +499,28 @@ Panel {
     if (selectedIndex < 0) selectedIndex = 0
   }
 
-  visible: adapter !== null
+  visible: adapter !== null || hadAdapter
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
   // BlueZ rejects StartDiscovery while the adapter is still powering up, and
   // discovery can also time out on its own. While the panel is open, keep
-  // nudging it back on so an enabled adapter is always scanning.
+  // nudging it back on so an enabled adapter is always scanning, backing off
+  // if BlueZ repeatedly rejects the request.
   Timer {
     id: discoveryRetry
     interval: 1000
     repeat: true
     triggeredOnStart: true
-    running: root.opened && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering
+    property int attempts: 0
+    running: root.opened && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering && attempts < 10
+    onRunningChanged: {
+      if (running) attempts = 0
+      interval = 1000
+    }
     onTriggered: {
+      attempts += 1
+      if (interval < 8000) interval = Math.min(8000, interval * 2)
       root.owesDiscoveryStop = true
       root.adapter.discovering = true
     }
@@ -633,7 +643,10 @@ Panel {
   // switch only moves once BlueZ catches up, so a second click inside that window
   // would re-read the old state and undo the first.
   function toggleBluetooth() {
-    if (!adapter) return
+    if (!adapter) {
+      Quickshell.execDetached(["omarchy-bluetooth-power", "on"])
+      return
+    }
     Quickshell.execDetached(["omarchy-bluetooth-power", adapter.enabled ? "off" : "on"])
   }
 
@@ -712,7 +725,7 @@ Panel {
           // header's only cursor target.
           ToggleSwitch {
             id: powerSwitch
-            visible: !!root.adapter
+            visible: !!root.adapter || root.hadAdapter
             checked: !!root.adapter && root.adapter.enabled
             hasCursor: root.headerHasCursor
             foreground: root.bar.foreground
