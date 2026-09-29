@@ -1,0 +1,115 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set the fcitx5 Hangul keyboard layout
+# omarchy:args=[layout|--list]
+# omarchy:examples=omarchy input hangul keyboard | omarchy input hangul keyboard --list | omarchy input hangul keyboard "Sebeolsik 390"
+
+set -euo pipefail
+
+HANGUL_URI="fcitx://config/addon/hangul"
+
+# Allowed values come from the HangulKeyboard enum in fcitx5-hangul
+# (src/engine.h) and are reported by GetConfig as the Keyboard Enum options.
+ALLOWED=(
+  "Dubeolsik"
+  "Dubeolsik Yetgeul"
+  "Sebeolsik 390"
+  "Sebeolsik Final"
+  "Sebeolsik Noshift"
+  "Sebeolsik Yetgeul"
+  "Sebeolsik Dubeol Layout"
+  "Romaja"
+  "Ahnmatae"
+)
+
+usage() {
+  echo "Usage: omarchy-input-hangul-keyboard [layout|--list]" >&2
+  echo "Layouts: Dubeolsik | Dubeolsik Yetgeul | Sebeolsik 390 | Sebeolsik Final | Sebeolsik Noshift | Sebeolsik Yetgeul | Sebeolsik Dubeol Layout | Romaja | Ahnmatae" >&2
+}
+
+list_layouts() {
+  local layout=""
+
+  for layout in "${ALLOWED[@]}"; do
+    printf '%s\n' "$layout"
+  done
+}
+
+current_keyboard() {
+  local output=""
+
+  if ! output=$(busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 GetConfig s "$HANGUL_URI" 2>/dev/null); then
+    echo "Error: fcitx5 is not reachable over D-Bus. Is it running?" >&2
+    return 1
+  fi
+
+  sed -n 's/.*"Keyboard" s "\([^"]*\)".*/\1/p' <<<"$output" | head -n1
+}
+
+is_allowed() {
+  local candidate="$1"
+  local layout=""
+
+  for layout in "${ALLOWED[@]}"; do
+    if [[ $candidate == "$layout" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ ${1:-} == "--list" ]]; then
+  list_layouts
+  exit 0
+fi
+
+if (($# == 0)); then
+  keyboard=$(current_keyboard) || exit 1
+  if [[ -z $keyboard ]]; then
+    echo "Error: could not read Hangul keyboard layout from fcitx5." >&2
+    exit 1
+  fi
+  printf '%s\n' "$keyboard"
+  exit 0
+fi
+
+# Join all args with spaces so `Sebeolsik 390` works even without quotes.
+# Anything not on the allowlist is rejected below.
+layout="$*"
+
+if ! is_allowed "$layout"; then
+  echo "Error: unknown Hangul keyboard layout: $layout" >&2
+  usage
+  exit 1
+fi
+
+current=$(current_keyboard) || exit 1
+if [[ $current == "$layout" ]]; then
+  printf '%s\n' "$layout"
+  exit 0
+fi
+
+# Do not edit ~/.config/fcitx5/conf/hangul.conf by hand while the daemon runs:
+# fcitx5-remote -r reloads only the global config, and the next input-method
+# switch triggers HangulEngine::activate() -> updateAction() -> safeSaveAsIni(),
+# overwriting the file with the stale in-memory value. SetConfig below updates
+# memory and file together, so no reload is needed. Keep `sv` as one token and
+# the variant inner signature (`a{sv}`) as its own argument.
+if ! busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 SetConfig sv "$HANGUL_URI" 'a{sv}' 1 Keyboard s "$layout" >/dev/null; then
+  echo "Error: failed to set Hangul keyboard layout via fcitx5 D-Bus." >&2
+  exit 1
+fi
+
+confirmed=$(current_keyboard) || exit 1
+if [[ $confirmed != "$layout" ]]; then
+  echo "Error: fcitx5 did not report back the new layout (got: $confirmed)." >&2
+  exit 1
+fi
+
+printf '%s\n' "$confirmed"

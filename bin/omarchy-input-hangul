@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# omarchy:summary=Show fcitx5 Hangul input method status
+# omarchy:args=[--json]
+# omarchy:examples=omarchy input hangul | omarchy input hangul --json
+
+set -euo pipefail
+
+HANGUL_URI="fcitx://config/addon/hangul"
+
+current_keyboard() {
+  local output=""
+
+  if ! output=$(busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 GetConfig s "$HANGUL_URI" 2>/dev/null); then
+    echo "Error: fcitx5 is not reachable over D-Bus. Is it running?" >&2
+    return 1
+  fi
+
+  sed -n 's/.*"Keyboard" s "\([^"]*\)".*/\1/p' <<<"$output" | head -n1
+}
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  echo "Usage: omarchy-input-hangul [--json]"
+  echo
+  echo "Shows the fcitx5 Hangul addon status (current keyboard layout and options)."
+  exit 0
+fi
+
+keyboard=$(current_keyboard) || exit 1
+
+if [[ -z $keyboard ]]; then
+  echo "Error: could not read Hangul keyboard layout from fcitx5." >&2
+  exit 1
+fi
+
+if [[ ${1:-} == "--json" ]]; then
+  printf '{"keyboard":"%s"}\n' "$keyboard"
+  exit 0
+fi
+
+if [[ $# -gt 0 ]]; then
+  echo "Usage: omarchy-input-hangul [--json]" >&2
+  exit 1
+fi
+
+printf 'keyboard\t%s\n' "$keyboard"
+printf 'available\t%s\n' "Dubeolsik | Dubeolsik Yetgeul | Sebeolsik 390 | Sebeolsik Final | Sebeolsik Noshift | Sebeolsik Yetgeul | Sebeolsik Dubeol Layout | Romaja | Ahnmatae"
