@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# This hook is called right after the screen locks, in the background.
+# This hook is called when the screen locks (once per lock, including before
+# suspend), in the background.
 # To put it into use, remove .sample from this file name.
 
 # Forget the passphrases gpg-agent has cached, so they are asked for again
