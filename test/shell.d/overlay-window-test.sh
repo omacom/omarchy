@@ -34,6 +34,10 @@ assert(
     overlay.includes('screen: targetScreen'),
   'overlay window follows the focused monitor each time it is shown'
 )
+assert(
+  /onFocusedMonitorChanged[\s\S]*?!window\.shown[\s\S]*?window\.targetScreen = next/.test(overlay),
+  'overlay window pre-parks on the focused monitor while closed'
+)
 
 const overlays = {
   'shell/plugins/menu/Menu.qml': 'shown: root.opened && root.rowsLoaded',

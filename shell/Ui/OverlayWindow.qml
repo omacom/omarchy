@@ -34,6 +34,16 @@ PanelWindow {
 
   onShownChanged: if (shown) targetScreen = focusedScreen() || targetScreen
 
+  Connections {
+    target: Hyprland
+    function onFocusedMonitorChanged() {
+      if (!window.shown) {
+        var next = window.focusedScreen()
+        if (next) window.targetScreen = next
+      }
+    }
+  }
+
   visible: true
   screen: targetScreen
   anchors { top: true; left: true; bottom: shown; right: shown }
