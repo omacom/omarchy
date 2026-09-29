@@ -17,6 +17,7 @@ BarWidget {
   property var activeTrayItem: null
   property var activeTrayAnchor: null
   readonly property color foreground: bar ? bar.foreground : Color.foreground
+  readonly property color iconForeground: bar ? bar.barForeground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var pinnedIds: settings.pinned instanceof Array ? settings.pinned : []
   readonly property var hiddenIds: settings.hidden instanceof Array ? settings.hidden : []
@@ -782,7 +783,7 @@ BarWidget {
       source: trayIconImage
       visible: trayIconRoot.tinted
       colorization: 1.0
-      colorizationColor: root.foreground
+      colorizationColor: root.iconForeground
     }
   }
 
