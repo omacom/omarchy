@@ -11,8 +11,12 @@ HANGUL_URI="fcitx://config/addon/hangul"
 current_keyboard() {
   local output=""
 
-  if ! output=$(busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 GetConfig s "$HANGUL_URI" 2>/dev/null); then
-    echo "Error: fcitx5 is not reachable over D-Bus. Is it running?" >&2
+  if ! output=$(busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 GetConfig s "$HANGUL_URI" 2>&1); then
+    if [[ $output == *"Addon does not exist"* ]]; then
+      echo "Error: Hangul input is not installed. Install fcitx5-hangul with omarchy pkg add fcitx5-hangul." >&2
+    else
+      echo "Error: fcitx5 is not reachable over D-Bus. Is it running?" >&2
+    fi
     return 1
   fi
 
@@ -26,6 +30,11 @@ if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
   exit 0
 fi
 
+if (( $# > 1 )) || { (( $# == 1 )) && [[ $1 != "--json" ]]; }; then
+  echo "Usage: omarchy-input-hangul [--json]" >&2
+  exit 1
+fi
+
 keyboard=$(current_keyboard) || exit 1
 
 if [[ -z $keyboard ]]; then
@@ -36,11 +45,6 @@ fi
 if [[ ${1:-} == "--json" ]]; then
   printf '{"keyboard":"%s"}\n' "$keyboard"
   exit 0
-fi
-
-if [[ $# -gt 0 ]]; then
-  echo "Usage: omarchy-input-hangul [--json]" >&2
-  exit 1
 fi
 
 printf 'keyboard\t%s\n' "$keyboard"

@@ -38,8 +38,12 @@ list_layouts() {
 current_keyboard() {
   local output=""
 
-  if ! output=$(busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 GetConfig s "$HANGUL_URI" 2>/dev/null); then
-    echo "Error: fcitx5 is not reachable over D-Bus. Is it running?" >&2
+  if ! output=$(busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 GetConfig s "$HANGUL_URI" 2>&1); then
+    if [[ $output == *"Addon does not exist"* ]]; then
+      echo "Error: Hangul input is not installed. Install fcitx5-hangul with omarchy pkg add fcitx5-hangul." >&2
+    else
+      echo "Error: fcitx5 is not reachable over D-Bus. Is it running?" >&2
+    fi
     return 1
   fi
 
@@ -65,6 +69,10 @@ if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
 fi
 
 if [[ ${1:-} == "--list" ]]; then
+  if (( $# != 1 )); then
+    usage
+    exit 1
+  fi
   list_layouts
   exit 0
 fi
