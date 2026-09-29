@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -e
+
+# The power-supply change event is not guaranteed to fire on resume, so the
+# udev rule alone cannot re-apply the battery CPU cap after suspend. Re-read
+# the AC state instead; the helper exits quietly where it does not apply.
+if [[ ${1:-} == post ]]; then
+  /usr/bin/omarchy-battery-cpu-limit
+fi
