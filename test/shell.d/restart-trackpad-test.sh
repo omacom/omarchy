@@ -56,12 +56,14 @@ touch "$drivers"/{i2c_hid_acpi,elan_i2c}/{bind,unbind,uevent}
 i2c_device i2c-DELL06CB:00 "ID_INPUT_TOUCHPAD=1"
 i2c_device i2c-HIMX5200:00 "ID_INPUT_TOUCHSCREEN=1"
 i2c_device i2c-NCT9640:00 "ID_INPUT_KEYBOARD=1"
-# ASUS laptops often drive the touchpad with elan_i2c instead.
-elan_device i2c-ELAN1000:00 "ID_INPUT_TOUCHPAD=1"
+# ASUS laptops often drive the touchpad with elan_i2c instead. Without an ACPI
+# companion, as for the ELAN SMBus companion psmouse creates, the device is
+# named <bus>-<addr>.
+elan_device 0-0015 "ID_INPUT_TOUCHPAD=1"
 
 WRITES="$writes" OMARCHY_I2C_DRIVERS_PATH="$drivers" PATH="$stub_bin:$PATH" bash "$restart" >/dev/null
 
-expected=$'i2c_hid_acpi/unbind i2c-DELL06CB:00\ni2c_hid_acpi/bind i2c-DELL06CB:00\nelan_i2c/unbind i2c-ELAN1000:00\nelan_i2c/bind i2c-ELAN1000:00'
+expected=$'i2c_hid_acpi/unbind i2c-DELL06CB:00\ni2c_hid_acpi/bind i2c-DELL06CB:00\nelan_i2c/unbind 0-0015\nelan_i2c/bind 0-0015'
 [[ $(<"$writes") == "$expected" ]] ||
   fail "only the touchpads are unbound and rebound, on either driver" "$(<"$writes")"
 pass "only the touchpads are unbound and rebound, on either driver"
