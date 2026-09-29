@@ -91,5 +91,8 @@ for pid in "${refresh_pids[@]}"; do
   wait "$pid"
 done
 
-"$OMARCHY_PATH/default/vivaldi/vivaldi-theme-refresh" || failed=1
+if ! "$OMARCHY_PATH/default/vivaldi/vivaldi-theme-refresh"; then
+  failed=1
+  echo "omarchy-theme-set-browser: Vivaldi theme refresh failed" >&2
+fi
 exit "$failed"
