@@ -85,6 +85,25 @@ wait_for_pacman_transaction
 mkdir -p "$STATE_DIR"
 [[ -d $MIGRATIONS_DIR ]] || exit 0
 
+# One runner at a time. Markers are touched only after a migration succeeds, so
+# two runners would both see every pending migration as unmarked and execute each
+# body twice, concurrently. Migrations are only required to be idempotent when run
+# in sequence, and their bodies do non-atomic work (in-place `sed -i`,
+# read-modify-write of config, appends to unit files), so interleaving them can
+# corrupt instead of merely duplicating. omarchy-update serialises itself with
+# omarchy-update-lock, but omarchy-migrate is also reachable from
+# omarchy-upgrade-to-quattro and from the pending-migrations toast's click
+# action, which do not take that lock.
+#
+# The lock lives in the state dir rather than XDG_RUNTIME_DIR because the upgrade
+# path reaches this script through `run_as_user_omarchy`, which sets HOME
+# explicitly and leaves XDG_RUNTIME_DIR pointing at root's runtime dir.
+exec {migrate_lock_fd}>"$STATE_DIR/.lock" || exit 0
+if ! flock -n "$migrate_lock_fd"; then
+  echo "Omarchy migrations are already running; skipping."
+  exit 0
+fi
+
 while IFS=$'\t' read -r name file marker <&3; do
   [[ -n $name ]] || continue
 
