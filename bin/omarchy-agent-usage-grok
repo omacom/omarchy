@@ -114,20 +114,22 @@ class SessionUsage:
     self.recent = {day: 0 for day in self.recent_dates}
     self.today_tokens_by_model: dict[str, int] = {}
     self.model_usage: dict[str, dict[str, int]] = {}
-    self.today_sessions: set[str] = set()
-    self.today_prompts = 0
+    self.today_prompts: dict[str, int] = {}
     self.today_total_tokens = 0
-    self.total_prompts = 0
-    self.total_sessions: set[str] = set()
+    self.total_prompts: dict[str, int] = {}
     self.active_days: set[str] = set()
     self.seen_turns: set[str] = set()
+    # Sessions a subagent ran in. Their tokens count, but no one typed their
+    # prompts or started them, so they stay out of the session and prompt
+    # totals. A parent can be scanned after its child, so these are left out
+    # when the totals are read rather than as turns arrive.
+    self.child_sessions: set[str] = set()
 
   def add_turn(self, day: str, session_key: str, per_model: list[tuple[str, int, int, int, int]]) -> None:
     # One completed turn is one prompt, however many models answered it.
     # Counting per model would inflate the prompt and session totals on any
     # turn that handed work to a secondary model.
-    self.total_prompts += 1
-    self.total_sessions.add(session_key)
+    self.total_prompts[session_key] = self.total_prompts.get(session_key, 0) + 1
     self.active_days.add(day)
 
     turn_total = 0
@@ -152,19 +154,23 @@ class SessionUsage:
       self.recent[day] += turn_total
 
     if day == self.today:
-      self.today_prompts += 1
-      self.today_sessions.add(session_key)
+      self.today_prompts[session_key] = self.today_prompts.get(session_key, 0) + 1
       self.today_total_tokens += turn_total
 
+  def typed(self, prompts: dict[str, int]) -> dict[str, int]:
+    return {session: count for session, count in prompts.items() if session not in self.child_sessions}
+
   def stats(self) -> dict[str, Any]:
+    today_prompts = self.typed(self.today_prompts)
+    total_prompts = self.typed(self.total_prompts)
     return {
-      "todayPrompts": self.today_prompts,
-      "todaySessions": len(self.today_sessions),
+      "todayPrompts": sum(today_prompts.values()),
+      "todaySessions": len(today_prompts),
       "todayTotalTokens": self.today_total_tokens,
       "todayTokensByModel": self.today_tokens_by_model,
       "recentDays": [{"date": day, "messageCount": self.recent[day]} for day in self.recent_dates],
-      "totalPrompts": self.total_prompts,
-      "totalSessions": len(self.total_sessions),
+      "totalPrompts": sum(total_prompts.values()),
+      "totalSessions": len(total_prompts),
       # Days with any recorded usage, for the all-time "N days" summary. The
       # dates travel too: merging snapshots from several machines needs their
       # union, which a count alone cannot give.
@@ -209,13 +215,21 @@ def scan_sessions(usage: SessionUsage) -> None:
           # Turn records are a thin minority of a transcript that also carries
           # every message and tool payload, so skip the rest before paying for
           # a parse.
-          if '"usage"' not in raw:
+          spawn = '"subagent_spawned"' in raw
+          if not spawn and '"usage"' not in raw:
             continue
           try:
             entry = json.loads(raw)
           except json.JSONDecodeError:
             continue
           update = (entry.get("params") or {}).get("update") or {}
+          # The child runs in a session directory of its own beside this one,
+          # named by its session id.
+          if update.get("sessionUpdate") == "subagent_spawned":
+            child = str(update.get("child_session_id") or "")
+            if child:
+              usage.child_sessions.add(child)
+            continue
           # Only the end-of-turn record carries usage, and it reports that turn
           # rather than a running total, so these sum rather than replace.
           if update.get("sessionUpdate") != "turn_completed":

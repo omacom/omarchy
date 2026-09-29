@@ -286,6 +286,33 @@ retried=$(run_collector)
   fail "Grok collector counts a retried turn whose cancelled attempt shared its id" "$retried"
 pass "Grok collector counts a retried turn whose cancelled attempt shared its id"
 
+# A subagent runs in a session directory of its own beside its parent's, and
+# the parent names it in a subagent_spawned record. The child's turns hold
+# tokens the parent never folded in, so they count, but nobody typed them: the
+# child is not a session or a prompt. The child sorts ahead of its parent, so
+# the scan meets it before the record that names it.
+mkdir -p "$GROK_HOME/sessions/%2Fhome%2Fdev%2Ffive/session-0child" \
+  "$GROK_HOME/sessions/%2Fhome%2Fdev%2Ffive/session-e"
+{
+  jq -cn --argjson ts "$now" \
+    '{timestamp: $ts, method: "_x.ai/session/update", params: {sessionId: "session-e", update: {
+      sessionUpdate: "subagent_spawned", subagent_id: "session-0child",
+      parent_session_id: "session-e", parent_prompt_id: "p5", child_session_id: "session-0child",
+      subagent_type: "general-purpose", model: "grok-4.5-build"}}}'
+  usage_line p5 '{"grok-4.5-build":{"inputTokens":30,"cachedReadTokens":0,"outputTokens":10,"totalTokens":40}}'
+} >"$GROK_HOME/sessions/%2Fhome%2Fdev%2Ffive/session-e/updates.jsonl"
+usage_line c1 '{"grok-4.5-build":{"inputTokens":50,"cachedReadTokens":0,"outputTokens":10,"totalTokens":60}}' \
+  >"$GROK_HOME/sessions/%2Fhome%2Fdev%2Ffive/session-0child/updates.jsonl"
+spawned=$(run_collector)
+
+[[ $(jq -r '.todayTotalTokens' <<<"$spawned") == "700" ]] &&
+  [[ $(jq -r '.todayPrompts' <<<"$spawned") == "5" ]] &&
+  [[ $(jq -r '.todaySessions' <<<"$spawned") == "4" ]] &&
+  [[ $(jq -r '.totalPrompts' <<<"$spawned") == "6" ]] &&
+  [[ $(jq -r '.totalSessions' <<<"$spawned") == "5" ]] ||
+  fail "Grok collector counts a subagent's tokens but not its session or prompts" "$spawned"
+pass "Grok collector counts a subagent's tokens but not its session or prompts"
+
 # No sessions and no grok is a machine that has never signed in: a full record
 # the update runner can write, with nothing in it for the panel to show.
 empty=$(GROK_HOME="$TEST_HOME/.grok-empty" HOME="$TEST_HOME" PATH="$TEST_HOME/empty-bin" \
