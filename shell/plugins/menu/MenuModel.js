@@ -1,7 +1,67 @@
 function stripJsonc(raw) {
-  return String(raw || "")
-    .replace(/^\s*\/\/[^\n]*(\n|$)/gm, "")
-    .replace(/,(\s*[}\]])/g, "$1")
+  var str = String(raw || "")
+  var out = ""
+  var inString = false
+  var quoteChar = ""
+  var escaped = false
+  var inLineComment = false
+  var inBlockComment = false
+
+  for (var i = 0; i < str.length; i++) {
+    var ch = str.charAt(i)
+    var next = str.charAt(i + 1)
+
+    if (inLineComment) {
+      if (ch === "\n") {
+        inLineComment = false
+        out += ch
+      }
+      continue
+    }
+
+    if (inBlockComment) {
+      if (ch === "*" && next === "/") {
+        inBlockComment = false
+        i++
+      }
+      continue
+    }
+
+    if (inString) {
+      out += ch
+      if (escaped) {
+        escaped = false
+      } else if (ch === "\\") {
+        escaped = true
+      } else if (ch === quoteChar) {
+        inString = false
+      }
+      continue
+    }
+
+    if (ch === '"' || ch === "'") {
+      inString = true
+      quoteChar = ch
+      out += ch
+      continue
+    }
+
+    if (ch === "/" && next === "/") {
+      inLineComment = true
+      i++
+      continue
+    }
+
+    if (ch === "/" && next === "*") {
+      inBlockComment = true
+      i++
+      continue
+    }
+
+    out += ch
+  }
+
+  return out.replace(/,(\s*[}\]])/g, "$1")
 }
 
 function normalizeAliases(value) {
@@ -49,7 +109,7 @@ function parseMenuJsonc(raw) {
   } catch (e) {
     return []
   }
-  if (typeof parsed !== "object" || parsed === null) return []
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return []
 
   var source = (parsed.items && typeof parsed.items === "object" && !Array.isArray(parsed.items))
     ? parsed.items
