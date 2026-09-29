@@ -67,6 +67,28 @@ run_migration "$vconsole"
   fail "migration exposes the colemak layout and variant" "$(cat "$vconsole")"
 pass "migration exposes the colemak layout and variant"
 
+# A stale variant from the repaired keymap must not survive the new layout
+# when the new keymap has no variant of its own: the session and greeter
+# would type under the old variant with no layout behind it.
+vconsole="$TMPDIR/polish-stale-variant.conf"
+printf 'KEYMAP=pl\nXKBVARIANT=dvorak\n' >"$vconsole"
+run_migration "$vconsole"
+[[ $(value XKBLAYOUT "$vconsole") == "pl" ]] ||
+  fail "migration exposes the polish layout past a stale variant" "$(cat "$vconsole")"
+grep -q '^XKBVARIANT=' "$vconsole" && fail "migration clears the stale variant" "$(cat "$vconsole")"
+pass "migration clears a stale variant when the new keymap has none"
+
+# When the new keymap has a variant, it replaces the old one: the readers
+# take the last assignment, so two XKBVARIANT lines would race over which wins.
+vconsole="$TMPDIR/colemak-stale-variant.conf"
+printf 'KEYMAP=colemak\nXKBVARIANT=dvorak\n' >"$vconsole"
+run_migration "$vconsole"
+[[ $(value XKBVARIANT "$vconsole") == "colemak" ]] ||
+  fail "migration replaces the stale variant" "$(cat "$vconsole")"
+[[ $(grep -c '^XKBVARIANT=' "$vconsole") == 1 ]] ||
+  fail "migration leaves a single variant line" "$(cat "$vconsole")"
+pass "migration replaces a stale variant"
+
 # A keymap systemd's own table converts: layout and variant come from there.
 if [[ -f /usr/share/systemd/kbd-model-map ]]; then
   vconsole="$TMPDIR/dvorak.conf"
@@ -189,6 +211,18 @@ run_migration "$vconsole"
 run_migration "$vconsole"
 cmp -s "$vconsole" "$TMPDIR/already.orig" || fail "migration leaves an exposed layout alone" "$(cat "$vconsole")"
 pass "migration leaves an exposed layout alone"
+
+# The same guard reads like the Lua readers do: leading whitespace on an
+# assignment is skipped and the last one wins, so an indented XKBLAYOUT must
+# satisfy the guard instead of gaining a duplicate line after it.
+vconsole="$TMPDIR/indented-layout.conf"
+printf 'KEYMAP=de\n  XKBLAYOUT=fr\nFONT=default8x16\n' >"$vconsole"
+cp "$vconsole" "$TMPDIR/indented-layout.orig"
+run_migration "$vconsole"
+run_migration "$vconsole"
+cmp -s "$vconsole" "$TMPDIR/indented-layout.orig" ||
+  fail "migration accepts an indented layout as present" "$(cat "$vconsole")"
+pass "migration accepts an indented layout as present"
 
 # No keymap to derive a layout from: leave the file alone.
 vconsole="$TMPDIR/nokeymap.conf"

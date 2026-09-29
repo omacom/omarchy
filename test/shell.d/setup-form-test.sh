@@ -237,3 +237,43 @@ TZ_GUESS=Europe/Copenhagen run_prompt omarchy_prompt_timezone "130:"
 assert_status "$OMARCHY_FORM_SIGNAL" "timezone prompt reports Ctrl+C as the caller's signal"
 assert_returned "timezone prompt survives Ctrl+C under set -e"
 pass "timezone prompt propagates Esc and Ctrl+C without dying under set -e"
+
+# vconsole.conf reading — the rules the Lua readers (default/hypr/input.lua,
+# default/sddm/hyprland.lua) apply, which every writer here must match.
+cat >"$tmp_dir/vconsole.conf" <<'EOF'
+# systemd-localed
+KEYMAP=de
+  XKBLAYOUT=fr
+XKBVARIANT="bepo" # user comment
+XKBLAYOUT=first
+XKBLAYOUT=second
+XKBLAYOUTX=noise
+EOF
+
+[[ $(omarchy_vconsole_value KEYMAP "$tmp_dir/vconsole.conf") == "de" ]] ||
+  fail "the vconsole reader reads a plain assignment"
+pass "the vconsole reader reads a plain assignment"
+
+[[ $(omarchy_vconsole_value XKBLAYOUT "$tmp_dir/vconsole.conf") == "second" ]] ||
+  fail "the vconsole reader skips leading whitespace and takes the last assignment"
+pass "the vconsole reader skips leading whitespace and takes the last assignment"
+
+[[ $(omarchy_vconsole_value XKBVARIANT "$tmp_dir/vconsole.conf") == "bepo" ]] ||
+  fail "the vconsole reader strips quotes and inline comments"
+pass "the vconsole reader strips quotes and inline comments"
+
+grep -q 'XKBLAYOUTX' "$tmp_dir/vconsole.conf" && ! [[ $(omarchy_vconsole_value XKBLAYOUT "$tmp_dir/vconsole.conf") == "noise" ]] ||
+  fail "the vconsole reader matches whole keys only"
+pass "the vconsole reader matches whole keys only"
+
+: >"$tmp_dir/absent.conf"
+[[ -z $(omarchy_vconsole_value KEYMAP "$tmp_dir/absent.conf") ]] ||
+  fail "the vconsole reader answers empty for a missing key"
+[[ -z $(omarchy_vconsole_value KEYMAP "$tmp_dir/no-such-file") ]] ||
+  fail "the vconsole reader answers empty for a missing file"
+pass "the vconsole reader answers empty for a missing key or file"
+
+printf 'KEYMAP=pl' >"$tmp_dir/no-newline.conf"
+[[ $(omarchy_vconsole_value KEYMAP "$tmp_dir/no-newline.conf") == "pl" ]] ||
+  fail "the vconsole reader reads a file with no trailing newline"
+pass "the vconsole reader reads a file with no trailing newline"

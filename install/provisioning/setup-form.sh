@@ -115,6 +115,34 @@ omarchy_keyboard_xkb() {
   return 0
 }
 
+# Read a variable out of a vconsole.conf the way the Lua readers do — the user
+# session (default/hypr/input.lua) and the SDDM greeter
+# (default/sddm/hyprland.lua) duplicate the same pattern: leading whitespace is
+# skipped, an inline `# comment` is stripped, surrounding quotes are removed,
+# and the last assignment of the key wins. Writers in this repo must accept
+# what this accepts and write what it reads, or the two disagree on what a
+# file already says.
+omarchy_vconsole_value() {
+  local key="$1" file="$2"
+
+  [[ -f $file ]] || return 0
+
+  awk -F= -v key="$key" '
+    $1 ~ "^[[:space:]]*" key "[[:space:]]*$" {
+      value = $2
+      sub(/^[[:space:]]*/, "", value)
+      sub(/[[:space:]]*$/, "", value)
+      sub(/[[:space:]]*#.*$/, "", value)
+      gsub(/^"/, "", value)
+      gsub(/"$/, "", value)
+      gsub(/^'"'"'/, "", value)
+      gsub(/'"'"'$/, "", value)
+      found = value
+    }
+    END { print found }
+  ' "$file"
+}
+
 OMARCHY_USERNAME_PATTERN='^[a-z_][a-z0-9_-]*[$]?$'
 OMARCHY_RESERVED_USERNAMES='^(root|bin|daemon|mail|ftp|http|nobody|dbus|systemd-coredump|systemd-network|systemd-oom|systemd-journal-remote|systemd-resolve|systemd-timesync|tss|uuidd|alpm|git|avahi|cups|lp|_talkd|polkitd|rtkit|qemu|brltty|gluster|rpc|libvirt-qemu|pcscd|nvidia-persistenced|sddm)$'
 OMARCHY_HOSTNAME_PATTERN='^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$'

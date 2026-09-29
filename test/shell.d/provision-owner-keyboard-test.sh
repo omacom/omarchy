@@ -92,6 +92,24 @@ omarchy_write_xkb_layout "$file" "us" "colemak"
 assert_equal "$(vconsole_value XKBVARIANT "$file")" "colemak" "a present variant is replaced in place"
 assert_equal "$(vconsole_value XKBLAYOUT "$file")" "us" "the layout rides along with a variant write"
 
+# A keymap without a variant must clear the previous keymap's one: kept
+# beside a layout that has none, it would silently reshape the new keys.
+printf 'KEYMAP=pl\nXKBVARIANT=dvorak\n' >"$file"
+omarchy_write_xkb_layout "$file" "pl" ""
+grep -q '^XKBVARIANT=' "$file" && fail "a stale variant is cleared when the keymap has none" "$(cat "$file")"
+assert_equal "$(vconsole_value XKBLAYOUT "$file")" "pl" "the layout lands beside the cleared variant"
+
+# The Lua readers accept leading whitespace on an assignment, so an indented
+# one is rewritten in place instead of duplicated after it.
+file="$TMPDIR/vconsole-indented"
+printf 'KEYMAP=pl\n  XKBLAYOUT=fr\n    XKBVARIANT=dvorak\n' >"$file"
+omarchy_write_xkb_layout "$file" "us" "colemak"
+[[ $(grep -c 'XKBLAYOUT=' "$file") == 1 && $(grep -c 'XKBVARIANT=' "$file") == 1 ]] ||
+  fail "an indented assignment is replaced, not duplicated" "$(cat "$file")"
+grep -q '^  XKBLAYOUT=us$' "$file" || fail "an indented layout is rewritten in place" "$(cat "$file")"
+grep -q '^    XKBVARIANT=colemak$' "$file" || fail "an indented variant is rewritten in place" "$(cat "$file")"
+pass "an indented assignment is rewritten in place"
+
 # ── omarchy_expose_xkb_layout ────────────────────────────────────────────────
 
 file="$TMPDIR/vconsole-gap"
@@ -111,6 +129,22 @@ file="$TMPDIR/vconsole-already"
 printf 'KEYMAP=de\nXKBLAYOUT=de\n' >"$file"
 omarchy_expose_xkb_layout "$file" "pl"
 assert_equal "$(vconsole_value XKBLAYOUT "$file")" "de" "a vconsole.conf that already carries a layout is untouched"
+
+# The guard reads like the Lua readers do: an indented assignment counts, so
+# a second exposure attempt must not append a duplicate after it.
+file="$TMPDIR/vconsole-indented-layout"
+printf 'KEYMAP=de\n  XKBLAYOUT=fr\n' >"$file"
+omarchy_expose_xkb_layout "$file" "pl"
+[[ $(grep -c 'XKBLAYOUT=' "$file") == 1 ]] || fail "an indented layout satisfies the exposure guard" "$(cat "$file")"
+grep -q '^  XKBLAYOUT=fr$' "$file" || fail "the guard leaves the indented layout alone" "$(cat "$file")"
+pass "an indented layout satisfies the exposure guard"
+
+# A stale variant must not survive an exposure for a keymap without one.
+file="$TMPDIR/vconsole-stale-variant"
+printf 'KEYMAP=pl\nXKBVARIANT=dvorak\n' >"$file"
+omarchy_expose_xkb_layout "$file" "pl"
+grep -q '^XKBVARIANT=' "$file" && fail "an exposure clears the stale variant" "$(cat "$file")"
+assert_equal "$(vconsole_value XKBLAYOUT "$file")" "pl" "an exposure lands beside the cleared variant"
 
 file="$TMPDIR/vconsole-nongap"
 printf 'KEYMAP=fr\n' >"$file"

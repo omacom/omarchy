@@ -16,18 +16,15 @@ hooks_conf="${OMARCHY_HOOKS_CONF:-/etc/mkinitcpio.conf.d/omarchy_hooks.conf}"
 
 [[ -f $vconsole ]] || exit 0
 
+# The gap table and the vconsole.conf assignment rules, shared with the
+# installer. The readers here (default/hypr/input.lua, default/sddm/
+# hyprland.lua) skip leading whitespace on an assignment and take the last
+# one, so an indented XKBLAYOUT counts — writes must accept the same shape or
+# a guarded variable gets duplicated instead of replaced.
+source "$OMARCHY_PATH/install/provisioning/setup-form.sh"
+
 vconsole_value() {
-  awk -F= -v key="$1" '
-    $1 == key {
-      value = $2
-      sub(/^[[:space:]]*/, "", value)
-      sub(/[[:space:]]*$/, "", value)
-      gsub(/^"/, "", value)
-      gsub(/"$/, "", value)
-      print value
-      exit
-    }
-  ' "$vconsole"
+  omarchy_vconsole_value "$1" "$vconsole"
 }
 
 # Idempotency: a vconsole.conf that already carries the layout (or no keymap to
@@ -98,8 +95,15 @@ if [[ $layout =~ ^(af|am|ara|bd|bg|by|et|ge|gr|il|in|iq|ir|kg|kh|kz|la|lk|mk|mm|
   fi
 fi
 
-# One write, so a failure (a cancelled sudo prompt, say) leaves nothing
-# half-applied for a retry's XKBLAYOUT guard to treat as complete.
+# A variant left by the keymap this replaces must not survive the new layout:
+# the readers take the last assignment, so an old variant appended under
+# would silently reshape the new keys. Drop it first, then append. Each step
+# is guarded by the next run's checks — a cancelled sudo prompt leaves either
+# the original file or a layout-less one, and the retry's XKBLAYOUT guard
+# still re-derives and rewrites instead of marking the migration complete.
+if grep -q '^[[:space:]]*XKBVARIANT[[:space:]]*=' "$vconsole"; then
+  sudo sed -i '/^[[:space:]]*XKBVARIANT[[:space:]]*=/d' "$vconsole"
+fi
 payload="XKBLAYOUT=$layout"
 if [[ -n $variant ]]; then
   payload+=$'\nXKBVARIANT='"$variant"

@@ -608,8 +608,12 @@ confirm_reboot() {
   gum confirm --affirmative "Yes, reboot" --negative "No, keep setting up" "Reboot this machine?"
 }
 
-# Set (or replace) the XKB layout — and variant, when there is one — in a
-# vconsole.conf, leaving every other line (KEYMAP, FONT, comments) alone.
+# Set (or replace) the XKB layout — and the variant alongside it, clearing a
+# stale one when the new keymap has none — in a vconsole.conf, leaving every
+# other line (KEYMAP, FONT, comments) alone. Detection uses the assignment
+# shape the Lua readers accept (default/hypr/input.lua, default/
+# sddm/hyprland.lua): leading whitespace is fine, so an indented assignment is
+# rewritten in place rather than duplicated after it.
 omarchy_write_xkb_layout() {
   local file="$1" layout="$2" variant="$3"
   local payload="XKBLAYOUT=$layout"
@@ -618,18 +622,25 @@ omarchy_write_xkb_layout() {
     payload+=$'\nXKBVARIANT='"$variant"
   fi
 
-  if grep -q '^XKBLAYOUT=' "$file"; then
-    sed -i "s/^XKBLAYOUT=.*/XKBLAYOUT=$layout/" "$file"
-    if [[ -n $variant ]]; then
-      if grep -q '^XKBVARIANT=' "$file"; then
-        sed -i "s/^XKBVARIANT=.*/XKBVARIANT=$variant/" "$file"
+  if grep -q '^[[:space:]]*XKBLAYOUT[[:space:]]*=' "$file"; then
+    sed -i 's/^\([[:space:]]*\)XKBLAYOUT[[:space:]]*=.*/\1XKBLAYOUT='"$layout"'/' "$file"
+    if grep -q '^[[:space:]]*XKBVARIANT[[:space:]]*=' "$file"; then
+      if [[ -n $variant ]]; then
+        sed -i 's/^\([[:space:]]*\)XKBVARIANT[[:space:]]*=.*/\1XKBVARIANT='"$variant"'/' "$file"
       else
-        printf 'XKBVARIANT=%s\n' "$variant" >>"$file"
+        # The old keymap's variant must not outlive it: kept beside a layout
+        # that has no variant, it would silently reshape the new keys.
+        sed -i '/^[[:space:]]*XKBVARIANT[[:space:]]*=/d' "$file"
       fi
+    elif [[ -n $variant ]]; then
+      printf 'XKBVARIANT=%s\n' "$variant" >>"$file"
     fi
   else
-    # Both values land with a single write, so a failure leaves nothing half
-    # set for a later run to treat as already exposed.
+    # A variant left by the previous keymap must not survive the new layout
+    # landing, or a keymap without a variant would inherit the old one. Both
+    # values land with a single write, so a failure leaves nothing half set
+    # for a later run to treat as already exposed.
+    sed -i '/^[[:space:]]*XKBVARIANT[[:space:]]*=/d' "$file"
     printf '%s\n' "$payload" >>"$file"
   fi
 }
@@ -644,7 +655,7 @@ omarchy_write_xkb_layout() {
 omarchy_expose_xkb_layout() {
   local vconsole="$1" keymap="$2" xkb xkb_layout xkb_variant
 
-  if grep -q '^XKBLAYOUT=' "$vconsole" 2>/dev/null; then
+  if [[ -n $(omarchy_vconsole_value XKBLAYOUT "$vconsole") ]]; then
     return 0
   fi
 
