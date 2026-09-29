@@ -46,7 +46,14 @@ record that lands in the directory regardless of who wrote it.
 
 Adding an agent therefore never touches this plugin: ship a collector that
 prints the record contract (see the `claude` and `codex` collectors in
-`bin/`), and the panel gains a tab. An `assets/<id>.svg` mark is optional —
+`bin/`), and the panel gains a tab. Drop it in
+`~/.config/omarchy/agents/collectors/omarchy-agent-usage-<agent>` and make it
+executable; `omarchy-agent-usage-update` runs it alongside the packaged ones,
+so it takes part in the panel's refresh timer, its refresh key, and the
+`--force` / `--limits-only` / `--except` flags rather than needing a timer of
+its own. A packaged collector of the same name wins, so dropping a file in
+extends the set instead of shadowing one Omarchy maintains. An
+`assets/<id>.svg` mark is optional —
 with an `assets/<id>-light.svg` twin if the mark needs a dark variant for
 light surfaces — and the bar glyph stands in when there is none.
 
