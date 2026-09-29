@@ -3,7 +3,6 @@ import Quickshell.Wayland
 import QtQuick
 import qs.Commons
 import qs.Ui
-import Quickshell.Io
 
 Item {
   id: root
@@ -26,13 +25,21 @@ Item {
   property int cardWidth: Math.min(Style.space(450), panel.width - Style.gapsOut * 2)
   property int cardHeight: Math.min(Math.max(noteTextEdit.implicitHeight + contentMargin * 2, Style.space(250)), panel.height - Style.gapsOut * 4)
 
-  Process {
-    id: readNoteProc
-    command: ["omarchy-notes", "--read"]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        noteTextEdit.text = text
+  FileView {
+    id: noteFile
+    path: Quickshell.env("HOME") + "/Documents/Notes/QuickNotes.md"
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      var loaded = text() || ""
+      if (noteTextEdit.text !== loaded) {
+        noteTextEdit.text = loaded
+        noteTextEdit.cursorPosition = noteTextEdit.length
+      }
+    }
+    onLoadFailed: {
+      if (noteTextEdit.text !== "") {
+        noteTextEdit.text = ""
       }
     }
   }
@@ -42,16 +49,20 @@ Item {
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
 
+    if (!root.opened) {
+      noteFile.reload()
+    }
     root.opened = true
-    readNoteProc.running = true
     Qt.callLater(function() { noteTextEdit.forceActiveFocus() })
   }
 
   function close() {
+    saveNote()
     root.opened = false
   }
 
   function dismiss() {
+    saveNote()
     root.opened = false
     if (root.shell && typeof root.shell.hide === "function")
       root.shell.hide((root.manifest && root.manifest.id) || "omarchy.notes")
@@ -62,10 +73,8 @@ Item {
     else root.open("{}")
   }
 
-  function submit() {
-    var args = ["omarchy-notes", noteTextEdit.text]
-    Quickshell.execDetached(args)
-    root.dismiss()
+  function saveNote() {
+    noteFile.setText(noteTextEdit.text)
   }
 
   PanelWindow {
@@ -85,7 +94,7 @@ Item {
 
     MouseArea {
       anchors.fill: parent
-      onClicked: root.submit()
+      onClicked: root.dismiss()
     }
 
     BorderSurface {
@@ -126,7 +135,7 @@ Item {
             Keys.priority: Keys.BeforeItem
             Keys.onPressed: function(event) {
               if (event.key === Qt.Key_Escape) {
-                root.submit()
+                root.dismiss()
                 event.accepted = true
               }
             }

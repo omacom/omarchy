@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # omarchy:summary=Take or view a single note
-# omarchy:args=[-i|--interactive|--read] | [message]
-# omarchy:examples=omarchy notes -i | omarchy notes "Buy milk"
+# omarchy:group=notes
+# omarchy:args=[-i|--interactive|--read] | [message...]
+# omarchy:examples=omarchy notes -i | omarchy notes Buy milk
 
 set -euo pipefail
 
@@ -22,7 +23,7 @@ read_note() {
 
 usage() {
   echo "Usage: omarchy-notes [-i|--interactive|--read]"
-  echo "       omarchy-notes [message]"
+  echo "       omarchy-notes [message...]"
 }
 
 case ${1:-} in
@@ -45,5 +46,4 @@ if (( $# == 0 )); then
   exit 1
 fi
 
-message="$1"
-printf "%s" "$message" > "$NOTES_FILE"
+echo "$*" >> "$NOTES_FILE"

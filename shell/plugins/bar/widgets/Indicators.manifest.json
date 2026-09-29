@@ -42,6 +42,11 @@
             "description": "Queued reminder status"
           },
           {
+            "value": "Notes",
+            "label": "Notes",
+            "description": "Quick notes scratchpad"
+          },
+          {
             "value": "NightLight",
             "label": "Night light",
             "description": "Blue-light filter"

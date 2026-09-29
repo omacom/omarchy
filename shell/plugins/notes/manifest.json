@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "omarchy.notes",
   "name": "Notes",
+  "version": "1.0.0",
   "description": "Interactive note taking flow",
   "kinds": [
     "overlay"
