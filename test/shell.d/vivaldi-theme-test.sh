@@ -8,10 +8,13 @@ trap 'rm -rf "$TEST_HOME"' EXIT
 FAKE_BIN="$TEST_HOME/bin"
 PREFS_DIR="$TEST_HOME/.config/vivaldi/Default"
 CHANNEL="$TEST_HOME/channel.json"
+PGREP_LOG="$TEST_HOME/pgrep.log"
+export PGREP_LOG
 mkdir -p "$FAKE_BIN" "$PREFS_DIR"
 
 cat >"$FAKE_BIN/pgrep" <<'EOF'
 #!/bin/bash
+printf '%s\n' "$*" >>"$PGREP_LOG"
 exit 1
 EOF
 
@@ -76,6 +79,9 @@ run_theme_set() {
 
 write_channel
 run_theme_set
+
+grep -Fxq -- "-u $UID -x vivaldi" "$PGREP_LOG" ||
+  fail "native theme scopes the running-browser check to the current user"
 
 [[ $(stat -c '%a' "$prefs") == "600" ]] || fail "native theme keeps the profile file mode"
 
