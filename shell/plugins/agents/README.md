@@ -49,6 +49,8 @@ prints the record contract (see the `claude` and `codex` collectors in
 `bin/`), and the panel gains a tab. An `assets/<id>.svg` mark is optional —
 with an `assets/<id>-light.svg` twin if the mark needs a dark variant for
 light surfaces — and the bar glyph stands in when there is none.
+Collectors or plugins can also provide an explicit `icon` (and `iconLight`)
+path in the JSON record, or place marks in `~/.config/omarchy/agents/assets/<id>.svg`.
 
 | Collector | Limits | Local stats |
 |---|---|---|
