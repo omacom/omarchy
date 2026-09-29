@@ -72,7 +72,7 @@ Item {
   readonly property real contentOffset: reserveSpace ? (drawerExtent - revealExtent) : 0
 
   Behavior on revealProgress {
-    NumberAnimation { duration: root.animationDuration; easing.type: Easing.OutCubic }
+    NumberAnimation { duration: Style.duration(root.animationDuration); easing.type: Easing.OutCubic }
   }
 
   implicitWidth: vertical ? barSize : Math.round(chevron.implicitWidth + reservedExtent)

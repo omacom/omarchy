@@ -86,8 +86,15 @@ assert(/if \(slot\.isGroup \|\| !slot\.draggable\) continue/.test(barSource), 'a
 // The shared collapsible is registered and reuses the tray drawer motion.
 assert(/BarCollapsible 1\.0 BarCollapsible\.qml/.test(uiQmldir), 'the shared collapsible is registered in the Ui module')
 assert(
-  /duration:\s*root\.animationDuration[\s\S]*?easing\.type:\s*Easing\.OutCubic/.test(collapsibleSource),
+  /easing\.type:\s*Easing\.OutCubic/.test(collapsibleSource),
   'the collapsible animates its reveal with an OutCubic curve'
+)
+// Style.duration() collapses to 0 under reduceMotion, which is on by default in
+// VMs. The tray drawer routed its own animation through it before the motion
+// moved here, so the shared collapsible has to keep honoring it.
+assert(
+  /duration:\s*Style\.duration\(root\.animationDuration\)/.test(collapsibleSource),
+  'the collapsible honors the shell no-animations mode'
 )
 assert(/animationDuration:\s*600/.test(collapsibleSource), 'the collapsible matches the tray drawer duration')
 
