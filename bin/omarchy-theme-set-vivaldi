@@ -16,7 +16,8 @@
 
 set -eu
 
-if pgrep -x vivaldi >/dev/null 2>&1 || pgrep -x vivaldi-bin >/dev/null 2>&1; then
+if pgrep -u "$UID" -x vivaldi >/dev/null 2>&1 ||
+  pgrep -u "$UID" -x vivaldi-bin >/dev/null 2>&1; then
   exit 0
 fi
 
