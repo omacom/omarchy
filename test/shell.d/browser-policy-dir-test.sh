@@ -323,6 +323,16 @@ fi
 if run_browser_theme_set 1 1; then
   fail "omarchy-theme-set-browser preserves both failures"
 fi
+run_browser_theme_set 0 0 ||
+  fail "omarchy-theme-set-browser succeeds when policy and Vivaldi refresh both succeed"
+vivaldi_stderr=$(
+  POLICY_STATUS=0 VIVALDI_STATUS=1 \
+    HOME="$integration_root/home" OMARCHY_PATH="$integration_omarchy" \
+    PATH="$integration_bin:/usr/bin:/bin" \
+    bash "$ROOT/bin/omarchy-theme-set-browser" 2>&1 >/dev/null || true
+)
+[[ $vivaldi_stderr == *"Vivaldi theme refresh failed"* ]] ||
+  fail "omarchy-theme-set-browser names a failed Vivaldi refresh"
 pass "omarchy-theme-set-browser aggregates policy and Vivaldi failures"
 
 # Bash 5.3 adopts the EXIT trap's last status as the script's exit status, so a

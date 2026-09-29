@@ -21,6 +21,7 @@ STUB
 cat >"$test_dir/omarchy/default/vivaldi/vivaldi-post-update" <<'STUB'
 #!/bin/bash
 printf 'ran\n' >"$POST_UPDATE_LOG"
+exit "${POST_UPDATE_STATUS:-0}"
 STUB
 
 chmod +x "$test_dir/bin"/* "$test_dir/omarchy/default/vivaldi/vivaldi-post-update"
@@ -29,7 +30,8 @@ run_migration() {
   HOME="$test_dir/home" OMARCHY_PATH="$test_dir/omarchy" \
     PATH="$test_dir/bin:$PATH" HOOK_INSTALL_LOG="$test_dir/hook-install" \
     POST_UPDATE_LOG="$test_dir/post-update" \
-    VIVALDI_INSTALLED="$1" bash -euo pipefail "$migration"
+    VIVALDI_INSTALLED="$1" POST_UPDATE_STATUS="${2:-0}" \
+    bash -euo pipefail "$migration"
 }
 
 run_migration 0 || fail "migration succeeds without Vivaldi installed"
@@ -41,5 +43,11 @@ run_migration 1 || fail "migration succeeds with Vivaldi installed"
   "post-update $test_dir/omarchy/default/vivaldi/vivaldi-post-update" ]] ||
   fail "migration installs the post-update hook"
 [[ -f $test_dir/post-update ]] || fail "migration re-injects the loader once"
+
+# A failed repaint must not abort the migration queue or skip the marker.
+rm -f "$test_dir/post-update"
+run_migration 1 1 || fail "migration tolerates a failed Vivaldi repaint"
+[[ -f $test_dir/post-update ]] ||
+  fail "migration still runs the loader injection when the repaint fails"
 
 pass "Vivaldi migration adopts existing installs"
