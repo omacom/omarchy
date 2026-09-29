@@ -32,6 +32,7 @@ chmod +x "$tmp/bin/pw-play"
 # Offscreen QML and a fake player exercise Process lifecycle without playing
 # sound or connecting to the user's desktop/audio session.
 PATH="$tmp/bin:$PATH" OUTPUT_TEST_ARGS="$tmp/args" OUTPUT_TEST_PIDS="$tmp/pids" \
+  OMARCHY_PATH="$ROOT" \
   XDG_RUNTIME_DIR="$tmp/runtime" QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= \
   QT_STYLE_OVERRIDE= QT_QUICK_BACKEND=software \
   timeout 20 quickshell -p "$tmp/config" --no-color >"$tmp/log" 2>&1 || {
@@ -53,5 +54,5 @@ mapfile -t args <"$tmp/args"
 [[ ${args[0]} == "--target" && ${args[1]} == "test-sink" ]] || fail "playback targets the selected output"
 [[ ${args[2]} == "--volume" && ${args[3]} == "0.5" ]] || fail "test sound uses a modest stream volume"
 [[ ${args[4]} == "--properties" && ${args[5]} == *"node.dont-fallback=true node.dont-reconnect=true" ]] || fail "playback cannot fall back to another output"
-[[ ${args[6]} == "/usr/share/sounds/alsa/Front_Center.wav" ]] || fail "output test uses the installed short sample"
+[[ ${args[6]} == "$ROOT/shell/sounds/omakase-seasonal.wav" && -s ${args[6]} ]] || fail "output test uses the bundled Omakase Seasonal chime"
 pass "output test targets the selected device without fallback and plays the short sample"

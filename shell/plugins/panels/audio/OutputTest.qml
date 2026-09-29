@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import Quickshell.Io
 
 Item {
@@ -15,12 +16,12 @@ Item {
     error = ""
     expectedStop = false
     // Use the selected sink, including any speaker tuning or effects, and
-    // never fall back to another output if it disappears. alsa-utils ships
-    // this short spoken sample as part of Omarchy's base package set.
+    // never fall back to another output if it disappears. The bundled chime
+    // is credited in shell/sounds/README.md.
     playback.command = [
       "pw-play", "--target", target, "--volume", "0.5",
       "--properties", "application.name=\"Output test\" media.name=\"Output test\" node.dont-fallback=true node.dont-reconnect=true",
-      "/usr/share/sounds/alsa/Front_Center.wav"
+      Quickshell.env("OMARCHY_PATH") + "/shell/sounds/omakase-seasonal.wav"
     ]
     playback.running = true
   }
