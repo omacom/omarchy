@@ -5,10 +5,12 @@ omarchy-cmd-present vivaldi-stable || exit 0
 
 JSON=${VIVALDI_OMARCHY_JSON:-/opt/vivaldi/resources/vivaldi/style/omarchy.json}
 
-bg=$(omarchy-theme-color background)
-fg=$(omarchy-theme-color foreground)
-accent=$(omarchy-theme-color accent)
-lighter_bg=$(omarchy-theme-color lighter_background)
+# A palette key can be absent (accent is optional); under set -e a missing key
+# must fall through to the guard below, not abort the refresh.
+bg=$(omarchy-theme-color background || true)
+fg=$(omarchy-theme-color foreground || true)
+accent=$(omarchy-theme-color accent || true)
+lighter_bg=$(omarchy-theme-color lighter_background || true)
 [[ -n $bg && -n $fg && -n $accent && -n $lighter_bg ]] || exit 0
 
 # Capture the effective Hyprland look-and-feel. Hyprland is the source of truth

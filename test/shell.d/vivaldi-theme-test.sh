@@ -147,4 +147,25 @@ before=$(cat "$prefs")
 run_theme_set
 [[ $(cat "$prefs") == "$before" ]] || fail "native theme skips writing while Vivaldi runs"
 
+# A theme without accent must not abort the refresh under set -e; it has to
+# fall through to the no-op guard exactly like the native writer does.
+cat >"$FAKE_BIN/omarchy-cmd-present" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+cat >"$FAKE_BIN/omarchy-theme-color" <<'EOF'
+#!/bin/bash
+case $1 in
+  background) echo "#1e1e2e" ;;
+  foreground) echo "#cdd6f4" ;;
+  accent) exit 1 ;;
+  lighter_background) echo "#313244" ;;
+esac
+EOF
+chmod +x "$FAKE_BIN"/*
+if ! HOME="$TEST_HOME" PATH="$FAKE_BIN:$PATH" VIVALDI_OMARCHY_JSON="$CHANNEL" \
+  bash "$ROOT/default/vivaldi/vivaldi-theme-refresh"; then
+  fail "a theme without accent does not abort the Vivaldi refresh"
+fi
+
 pass "Vivaldi native theme follows the Omarchy theme"
