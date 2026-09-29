@@ -105,8 +105,19 @@ Panel {
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: Number(percent),
-      resetAt: String(resetAt || "")
+      resetAt: String(resetAt || ""),
+      spanMs: windowSpanMs(label)
     }
+  }
+
+  // Where usage would sit if the allowance were spent evenly across the window:
+  // the elapsed share of it. -1 when the span is unknown, or when the reset is
+  // further off than the span allows (a label like "(1M context)" misparsed).
+  function paceFor(w) {
+    if (!w || !(w.spanMs > 0)) return -1
+    var remaining = resetMsFor(w)
+    if (remaining < 0 || remaining > w.spanMs) return -1
+    return clamp(1 - remaining / w.spanMs, 0, 1)
   }
 
   function limitWindows(p) {
@@ -746,6 +757,7 @@ Panel {
     Meter {
       width: parent.width
       value: limitRow.window ? limitRow.window.percent : -1
+      pace: root.paceFor(limitRow.window)
       alarming: limitRow.alarming
     }
 
@@ -755,7 +767,13 @@ Panel {
       width: parent.width
       text: {
         var remainingMs = root.resetMsFor(limitRow.window)
-        return remainingMs > 0 ? "Resets in " + root.formatDuration(remainingMs) : ""
+        if (!(remainingMs > 0)) return ""
+        var line = "Resets in " + root.formatDuration(remainingMs)
+        var pace = root.paceFor(limitRow.window)
+        if (pace < 0) return line
+        var delta = Math.round((limitRow.window.percent - pace) * 100)
+        return line + " · pace " + Math.round(pace * 100) + "%"
+          + (delta > 0 ? " (+" + delta + " ahead)" : delta < 0 ? " (" + delta + " under)" : " (on track)")
       }
       color: root.dim
       font.family: root.fontFamily
@@ -767,6 +785,7 @@ Panel {
   component Meter: Item {
     id: meter
     property real value: -1
+    property real pace: -1
     property bool alarming: false
     property real thickness: Math.max(Style.space(4), Math.round(Style.spacing.controlHeight * 0.14))
 
@@ -792,6 +811,25 @@ Panel {
       }
     }
 
+    // Pace tick: where usage should be by now to last until the reset. A
+    // surface-colored halo keeps it readable over both the fill and the track.
+    Rectangle {
+      visible: meter.pace >= 0
+      width: Style.space(4)
+      height: meter.thickness + Style.space(8)
+      radius: width / 2
+      anchors.verticalCenter: meterTrack.verticalCenter
+      x: root.clamp(meterTrack.width * meter.pace - width / 2, 0, meterTrack.width - width)
+      color: root.surface
+
+      Rectangle {
+        anchors.centerIn: parent
+        width: Style.space(2)
+        height: parent.height - Style.space(2)
+        radius: width / 2
+        color: root.foreground
+      }
+    }
   }
 
   // One row per day: label, bar, tokens. Today is picked out in full
