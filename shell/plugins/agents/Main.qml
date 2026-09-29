@@ -239,10 +239,24 @@ Item {
     }
   }
 
+  // Collectors stamp every usage record with updatedAt; prefer the numeric
+  // twin when present, otherwise parse the ISO string so the panel can age it.
+  function recordUpdatedAtMs(record) {
+    if (!record) return 0
+    var ms = Number(record.updatedAtMs)
+    if (isFinite(ms) && ms > 0) return ms
+    if (record.updatedAt) {
+      var parsed = new Date(String(record.updatedAt)).getTime()
+      if (isFinite(parsed) && parsed > 0) return parsed
+    }
+    return 0
+  }
+
   function displayProvider(record) {
     var stats = syncedStatsFor(String(record.id))
     var synced = !!stats
     var deviceCount = synced ? Number(stats.deviceCount || aggregateData.deviceCount || 0) : 0
+    var updatedAtMs = recordUpdatedAtMs(record)
 
     return {
       providerId: String(record.id),
@@ -268,6 +282,11 @@ Item {
       modelUsage: synced ? (stats.modelUsage || ({})) : (record.modelUsage || ({})),
       hasLocalStats: synced ? (stats.hasLocalStats !== false) : (record.hasLocalStats !== false),
       hasPromptStats: synced ? (stats.hasPromptStats !== false) : (record.hasPromptStats !== false),
+
+      // Local record freshness first; sync aggregate timestamp stays available
+      // for cross-device panels that never wrote a local collector file.
+      updatedAt: String(record.updatedAt || ""),
+      updatedAtMs: updatedAtMs,
 
       syncEnabled: synced,
       syncDeviceCount: deviceCount,
