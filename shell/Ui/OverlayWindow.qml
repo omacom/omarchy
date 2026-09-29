@@ -34,6 +34,35 @@ PanelWindow {
 
   onShownChanged: if (shown) targetScreen = focusedScreen() || targetScreen
 
+  // The compositor closes a layer surface whose output goes away, and
+  // Quickshell answers by hiding the window for good. Unplugging the monitor
+  // an overlay last opened on -- or the last monitor, leaving no output at all
+  // -- would otherwise leave that overlay dead until the shell restarted. Map
+  // it again once a real screen is there to hold it; Qt's placeholder screen
+  // is not one, and the compositor would only close the surface again.
+  function hasRealScreen() {
+    for (var i = 0; i < Quickshell.screens.length; i++) {
+      var candidate = Quickshell.screens[i]
+      if (candidate && candidate.name && candidate.width > 0 && candidate.height > 0) return true
+    }
+    return false
+  }
+
+  function remap() {
+    if (visible || !hasRealScreen()) return
+    if (Quickshell.screens.indexOf(targetScreen) < 0) targetScreen = null
+    visible = true
+  }
+
+  // Deferred: showing the window again inside the close would reuse the
+  // surface Qt is still tearing down.
+  onVisibleChanged: if (!visible) Qt.callLater(remap)
+
+  Connections {
+    target: Quickshell
+    function onScreensChanged() { window.remap() }
+  }
+
   visible: true
   screen: targetScreen
   anchors { top: true; left: true; bottom: shown; right: shown }
