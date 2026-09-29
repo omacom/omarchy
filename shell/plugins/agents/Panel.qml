@@ -30,14 +30,20 @@ Panel {
   }
   readonly property var provider: providers.length > 0 ? providers[providerIndex] : null
 
+  // The radar replaces the per-agent view while it is picked. `shown` is the
+  // agent the page is about: the selected one, or none while the radar is up.
+  property bool radarActive: false
+  readonly property bool showRadar: radarActive && radarAvailable
+  readonly property var shown: showRadar ? null : provider
+
   property bool cursorActive: false
 
   // Countdowns and "updated" read this instead of Date.now() so the
   // panel keeps telling the truth while it sits open.
   property double nowMs: Date.now()
 
-  readonly property var limits: limitWindows(provider)
-  readonly property var models: modelRows(provider)
+  readonly property var limits: limitWindows(shown)
+  readonly property var models: modelRows(shown)
   readonly property var headline: bindingWindow(provider)
   readonly property var balance: provider ? (provider.balance || null) : null
   // A prepaid account runs low the way a subscription window fills up: the
@@ -53,6 +59,7 @@ Panel {
     if (providers.length === 0) return
     var wrapped = ((index % providers.length) + providers.length) % providers.length
     selectedProviderId = providers[wrapped].providerId
+    radarActive = false
   }
 
   function refreshNow() {
@@ -172,6 +179,83 @@ Panel {
     var text = formatMoney(b.spent, b.currency) + " spent of " + formatMoney(b.funded, b.currency) + " funded"
     if (b.estimated) text += " · estimated"
     return text
+  }
+
+  // ---------------------------------------------------------------- radar
+  //
+  // With more than one subscription the question stops being "how much of
+  // Claude is left" and becomes "which one do I use next". The radar puts
+  // every agent that reports an allowance on one list, ranked by what is left
+  // in the window that would stop it this week.
+  //
+  // Each agent contributes one window: the fullest plain Weekly or Monthly
+  // allowance, since that is what ends the week. An agent that splits its
+  // allowance by model family instead (Cursor, Antigravity) stays usable
+  // while any family has room, so its roomiest pool speaks for it. A session
+  // window only stands in when the agent reports nothing longer: it refills
+  // in hours. A prepaid ledger ranks by the share of credit still left.
+  // Spent allowances sink to the bottom, the one that comes back soonest
+  // first.
+
+  readonly property var radarRows: radarRanking(providers, nowMs)
+  readonly property bool radarAvailable: radarRows.length > 1
+
+  function radarWindow(p) {
+    var plain = null, scoped = null, session = null
+    var windows = limitWindows(p)
+    for (var i = 0; i < windows.length; i++) {
+      var w = windows[i]
+      if (w.title === "Weekly" || w.title === "Monthly") {
+        if (!plain || w.percent > plain.percent) plain = w
+      } else if (w.title.toLowerCase().indexOf("session") >= 0) {
+        if (!session || w.percent > session.percent) session = w
+      } else if (!scoped || w.percent < scoped.percent) {
+        scoped = w
+      }
+    }
+    return plain || scoped || session
+  }
+
+  function radarRow(p, now) {
+    var w = radarWindow(p)
+    var b = p.balance || null
+    if (!w && !(b && b.funded > 0)) return null
+    var percent = w ? w.percent : 1 - clamp(b.remaining / b.funded, 0, 1)
+    var resetMs = -1
+    if (w && w.resetAt !== "") {
+      var at = new Date(w.resetAt).getTime()
+      if (isFinite(at)) resetMs = at - now
+    }
+    var spent = percent >= 1
+    var label = spent ? "spent" : Math.round((1 - percent) * 100) + "% left"
+    if (!w) label = formatMoney(b.remaining, b.currency) + " left"
+    var when = resetMs > 0 ? (spent ? "Back in " : "Resets in ") + formatDuration(resetMs) : ""
+    return {
+      providerId: p.providerId,
+      name: String(p.providerName || p.providerId),
+      window: w && w.title !== "Weekly" && w.title !== "Monthly" ? w.title.replace(/\s+(weekly|monthly)$/i, "") : "",
+      percent: percent,
+      resetMs: resetMs,
+      spent: spent,
+      alarming: percent >= 0.9,
+      label: label,
+      when: when
+    }
+  }
+
+  function radarRanking(list, now) {
+    var rows = []
+    for (var i = 0; i < list.length; i++) {
+      var row = list[i] ? radarRow(list[i], now) : null
+      if (row) rows.push(row)
+    }
+    function soonest(r) { return r.resetMs > 0 ? r.resetMs : Infinity }
+    rows.sort(function(a, b) {
+      if (a.spent !== b.spent) return a.spent ? 1 : -1
+      if (!a.spent && a.percent !== b.percent) return a.percent - b.percent
+      return soonest(a) - soonest(b)
+    })
+    return rows
   }
 
   // ---------------------------------------------------------------- content
@@ -397,17 +481,17 @@ Panel {
           // ---------- Hero: provider mark · name · plan ----------
           PanelHero {
             id: hero
-            visible: !!root.provider
+            visible: !!root.shown
             width: parent.width
-            title: root.provider ? root.provider.providerName : ""
-            meta: root.heroMeta(root.provider)
+            title: root.shown ? root.shown.providerName : ""
+            meta: root.heroMeta(root.shown)
             foreground: root.foreground
             fontFamily: root.fontFamily
 
             iconComponent: Component {
               Item {
                 id: heroMark
-                property var candidates: root.iconCandidatesForProvider(root.provider, root.surface)
+                property var candidates: root.iconCandidatesForProvider(root.shown, root.surface)
                 // Provider objects are rebuilt on every refresh, which churns the
                 // array's identity without changing its content. Restart the fallback
                 // walk only when the URLs change: re-pointing source at a URL whose
@@ -459,15 +543,30 @@ Panel {
           }
 
           // ---------- Provider switch ----------
-          Row {
+          // Wraps at four, so a fifth agent does not crush every label.
+          Grid {
             id: providerSwitch
             visible: root.providers.length > 1
             width: parent.width
-            spacing: Style.spacing.md
+            columnSpacing: Style.spacing.md
+            rowSpacing: Style.spacing.sm
 
-            readonly property real cellWidth: root.providers.length > 0
-              ? (width - spacing * (root.providers.length - 1)) / root.providers.length
-              : 0
+            readonly property int cells: root.providers.length + (root.radarAvailable ? 1 : 0)
+            columns: Math.max(1, Math.min(cells, 4))
+            readonly property real cellWidth: (width - columnSpacing * (columns - 1)) / columns
+
+            Button {
+              visible: root.radarAvailable
+              width: providerSwitch.cellWidth
+              text: "Radar"
+              selected: root.showRadar
+              bordered: true
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              fontSize: Style.font.bodySmall
+              verticalPadding: Style.spacing.controlPaddingY
+              onClicked: root.radarActive = true
+            }
 
             Repeater {
               model: root.providers
@@ -478,8 +577,8 @@ Panel {
 
                 width: providerSwitch.cellWidth
                 text: modelData.providerName
-                selected: index === root.providerIndex
-                hasCursor: root.cursorActive && index === root.providerIndex
+                selected: !root.showRadar && index === root.providerIndex
+                hasCursor: root.cursorActive && !root.showRadar && index === root.providerIndex
                 bordered: true
                 foreground: root.foreground
                 fontFamily: root.fontFamily
@@ -494,9 +593,35 @@ Panel {
             }
           }
 
+          // ---------- Radar ----------
+          Column {
+            id: radarSection
+            visible: root.showRadar
+            width: parent.width
+            spacing: Style.space(10)
+
+            PanelSectionHeader {
+              text: "USE NEXT"
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+            }
+
+            Repeater {
+              model: root.showRadar ? root.radarRows : []
+
+              RadarRow {
+                required property var modelData
+                required property int index
+                width: radarSection.width
+                row: modelData
+                rank: index + 1
+              }
+            }
+          }
+
           // ---------- Status ----------
           BorderSurface {
-            visible: !!root.provider && String(root.provider.usageStatusText || "") !== ""
+            visible: !!root.shown && String(root.shown.usageStatusText || "") !== ""
             width: parent.width
             implicitHeight: statusText.implicitHeight + Style.spacing.xl * 2
             color: root.alpha(root.urgent, 0.10)
@@ -511,7 +636,7 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
               anchors.leftMargin: Style.space(12)
               anchors.rightMargin: Style.space(12)
-              text: root.provider ? String(root.provider.authHelpText || "") : ""
+              text: root.shown ? String(root.shown.authHelpText || "") : ""
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
@@ -527,7 +652,7 @@ Panel {
 
           Column {
             id: balanceSection
-            visible: !!root.balance
+            visible: !!root.balance && !root.showRadar
             width: parent.width
             spacing: Style.space(10)
 
@@ -619,12 +744,12 @@ Panel {
 
           Column {
             id: usageSection
-            visible: !!root.provider && root.provider.recentDays && root.provider.recentDays.length > 0
+            visible: !!root.shown && root.shown.recentDays && root.shown.recentDays.length > 0
             width: parent.width
             spacing: Style.spacing.md
 
-            readonly property var days: root.provider ? (root.provider.recentDays || []) : []
-            readonly property real peak: Math.max(1, root.weekPeak(root.provider))
+            readonly property var days: root.shown ? (root.shown.recentDays || []) : []
+            readonly property real peak: Math.max(1, root.weekPeak(root.shown))
 
             PanelSectionHeader {
               width: parent.width
@@ -697,6 +822,62 @@ Panel {
           }
         }
       }
+    }
+  }
+
+  // One agent on the radar: rank and name with what is left, the same meter
+  // the limits use, and when the window comes back.
+  component RadarRow: Column {
+    id: radarRow
+    property var row: null
+    property int rank: 0
+
+    spacing: Style.space(6)
+
+    Item {
+      width: parent.width
+      implicitHeight: Math.max(radarName.implicitHeight, radarLabel.implicitHeight)
+
+      Text {
+        id: radarName
+        textFormat: Text.PlainText
+        anchors.left: parent.left
+        anchors.right: radarLabel.left
+        anchors.rightMargin: Style.space(8)
+        anchors.verticalCenter: parent.verticalCenter
+        text: radarRow.row ? radarRow.rank + "  " + radarRow.row.name + (radarRow.row.window !== "" ? " · " + radarRow.row.window : "") : ""
+        color: radarRow.row && radarRow.row.spent ? root.dim : root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+        font.bold: radarRow.rank === 1 && !!radarRow.row && !radarRow.row.alarming
+        elide: Text.ElideRight
+      }
+
+      Text {
+        id: radarLabel
+        textFormat: Text.PlainText
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        text: radarRow.row ? radarRow.row.label : ""
+        color: radarRow.row && radarRow.row.alarming ? root.urgent : root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+    }
+
+    Meter {
+      width: parent.width
+      value: radarRow.row ? radarRow.row.percent : 0
+      alarming: !!radarRow.row && radarRow.row.alarming
+    }
+
+    Text {
+      textFormat: Text.PlainText
+      visible: text !== ""
+      text: radarRow.row ? radarRow.row.when : ""
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
     }
   }
 
