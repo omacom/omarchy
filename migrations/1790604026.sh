@@ -8,7 +8,7 @@ busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DB
 # name. Hand it back to the unit; leave a healthy unit alone, since restarting
 # it drops every X11 client's input context for nothing.
 if systemctl --user is-active --quiet graphical-session.target; then
-  owner=$(busctl --user status org.fcitx.Fcitx5 2>/dev/null | sed -n 's/^PID=//p')
+  owner=$(busctl --user status org.fcitx.Fcitx5 2>/dev/null | sed -n 's/^PID=//p') || true
   main=$(systemctl --user show --property MainPID --value omarchy-fcitx5.service)
   if [[ -n $owner && $owner != "$main" ]]; then
     omarchy-restart-xcompose
