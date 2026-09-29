@@ -2,11 +2,18 @@
 
 # omarchy:summary=Open a captive portal's sign-in window, pausing any Tailscale exit node until online
 # omarchy:group=network
-# omarchy:args=<url>
+# omarchy:args=[--auto] <url>
 
 set -euo pipefail
 
-url=${1:?Usage: omarchy-network-captive-portal <url>}
+# --auto marks a launch made on detection rather than by a click. Every
+# screen's network panel sees the same portal, so only the first opens a window.
+auto=0
+if [[ ${1:-} == --auto ]]; then
+  auto=1
+  shift
+fi
+url=${1:?Usage: omarchy-network-captive-portal [--auto] <url>}
 tailscale_socket=/var/run/tailscale/tailscaled.sock
 lock=${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy-network-captive-portal.lock
 paused_exit_node=0
@@ -117,7 +124,8 @@ if flock -n 9; then
   wait_until_online
   close_portal_window
 else
-  # An earlier click is already holding the pause and watching for the
-  # sign-in, so this one only brings the portal back up.
-  open_portal_window
+  # An earlier launch is already holding the pause and watching for the
+  # sign-in. A click only brings the portal back up; an automatic launch, made
+  # by another screen's panel for the same portal, adds nothing.
+  (( auto )) || open_portal_window
 fi

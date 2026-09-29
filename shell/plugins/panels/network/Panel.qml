@@ -508,6 +508,13 @@ Panel {
   }, connectivityChecksEnabled)
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
+  // Opt-in: "autoSignIn": true on the omarchy.network entry in shell.json opens
+  // the sign-in page the moment a portal is detected, the way phones do,
+  // instead of waiting for the button. Same fixed URL and argv launch as the
+  // button; the state flips once per portal. Every screen's panel sees the
+  // same portal, so the launch says --auto and the command opens a window
+  // only for the first of them.
+  readonly property bool autoSignIn: setting("autoSignIn", false) === true
   readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
   // Keyed on the device rather than the SSID: on an OWE transition-mode
   // network the listed network comes and goes with every scan while the link
@@ -519,6 +526,10 @@ Panel {
   onConnectionKeyChanged: Qt.callLater(checkConnectivity)
   onConnectivityChecksEnabledChanged: Qt.callLater(checkConnectivity)
   onHasCaptivePortalChanged: {
+    if (hasCaptivePortal && autoSignIn && passwordSsid === "") {
+      openCaptivePortal(true)
+      return
+    }
     if (hasCaptivePortal && opened && passwordSsid === "") {
       focusSection = "portal"
       cursorActive = true
@@ -536,13 +547,15 @@ Panel {
     if (connectivityChecksEnabled && kind !== "disconnected") Networking.checkConnectivity()
   }
 
-  function openCaptivePortal() {
+  function openCaptivePortal(automatic) {
     if (!hasCaptivePortal) return
     // Explicit user action only. argv (not a shell string), and a fixed HTTP
     // URL: let the browser handle the redirect without trusting portal input.
     // The command pauses a Tailscale exit node and re-checks quickly until the
     // sign-in completes.
-    Quickshell.execDetached(["omarchy-network-captive-portal", Model.captivePortalUrl])
+    Quickshell.execDetached(automatic === true
+      ? ["omarchy-network-captive-portal", "--auto", Model.captivePortalUrl]
+      : ["omarchy-network-captive-portal", Model.captivePortalUrl])
     close()
   }
 

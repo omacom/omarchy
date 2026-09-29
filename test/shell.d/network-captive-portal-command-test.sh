@@ -46,7 +46,7 @@ run_portal() {
   rm -f "$stage/log" "$stage/webapp" "$stage/count" "$stage/closed" "$stage/looks"
   TEST_LOG="$stage/log" TEST_WEBAPP_LOG="$stage/webapp" TEST_NMCLI_COUNT="$stage/count" TEST_CLOSED="$stage/closed" TEST_LOOKS="$stage/looks" XDG_RUNTIME_DIR="$stage" \
     TEST_TAILSCALE_STATUS="$1" TEST_CURL_STATUS="${2:-0}" LC_ALL=C.UTF-8 \
-    OMARCHY_PATH="$ROOT" PATH="$stage/bin:$ROOT/bin:$PATH" timeout 20 "$ROOT/bin/omarchy-network-captive-portal" "http://ping.omacom.io/nm-check.txt"
+    OMARCHY_PATH="$ROOT" PATH="$stage/bin:$ROOT/bin:$PATH" timeout 20 "$ROOT/bin/omarchy-network-captive-portal" ${TEST_AUTO:+--auto} "http://ping.omacom.io/nm-check.txt"
 }
 
 toggle="http://local-tailscaled.sock/localapi/v0/set-use-exit-node-enabled"
@@ -95,6 +95,21 @@ run_portal '{"ExitNodeStatus":{"ID":"node","Online":true}}'
 exec 8>&-
 portal_opened && [[ ! -e $stage/log ]] || fail "a second click only reopens the portal" "$(<"$stage/log")"
 pass "a second click only reopens the portal"
+
+# A launch made on detection runs the whole sign-in when it is the first...
+TEST_AUTO=1 run_portal '{"ExitNodeStatus":null}'
+portal_opened && [[ $(<"$stage/log") == "$close" ]] || fail "the first automatic launch opens the portal and closes it once online" "$(<"$stage/log")"
+pass "the first automatic launch opens the portal and closes it once online"
+
+# ...and opens nothing while another is already watching: every screen's
+# network panel makes one for the same portal.
+exec 8>"$stage/omarchy-network-captive-portal.lock"
+flock -n 8
+TEST_AUTO=1 run_portal '{"ExitNodeStatus":{"ID":"node","Online":true}}'
+exec 8>&-
+/usr/bin/sleep 0.5
+[[ ! -e $stage/webapp && ! -e $stage/log ]] || fail "a later automatic launch opens no second window" "$(cat "$stage/webapp" "$stage/log" 2>/dev/null)"
+pass "a later automatic launch opens no second window"
 
 # Online before the browser maps its window: the window still closes.
 TEST_WINDOW_AFTER=4 TEST_NMCLI_PORTAL_CHECKS=0 run_portal '{"ExitNodeStatus":null}'
