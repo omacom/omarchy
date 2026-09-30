@@ -128,6 +128,8 @@ done
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
+# The default browser is read from the mimeapps.list of the test home, not the caller's.
+unset XDG_CONFIG_HOME XDG_DATA_HOME
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_INSTALLED_DIR="$installed_dir"
