@@ -24,11 +24,14 @@ run_update() {
 
 # A hardened kernel can disable user namespaces, and with them the only root here.
 if unshare --user --map-root-user true 2>/dev/null; then
-  for logged in '' 1; do
-    if run_update unshare --user --map-root-user env OMARCHY_UPDATE_LOGGED="$logged"; then
+  # Plain sudo resets the environment, so root usually arrives without OMARCHY_PATH.
+  for root_env in 'OMARCHY_UPDATE_LOGGED=' 'OMARCHY_UPDATE_LOGGED=1' '-u OMARCHY_PATH'; do
+    read -ra env_args <<<"$root_env"
+    if run_update unshare --user --map-root-user env "${env_args[@]}"; then
       fail "root-run updates fail" "$(cat "$test_tmp/output")"
     fi
     [[ ! -s $test_tmp/calls ]] || fail "root updates never start logging or mutate user state" "$(cat "$test_tmp/calls")"
+    [[ ! -s $SUDO_TEST_LOG ]] || fail "root updates are refused before touching sudo" "$(cat "$SUDO_TEST_LOG")"
     grep -q 'without sudo' "$test_tmp/output" || fail "root updates explain the correct invocation" "$(cat "$test_tmp/output")"
   done
   pass "root is rejected before logging, locking, packages and migrations"
@@ -37,5 +40,5 @@ else
 fi
 
 run_update env -u OMARCHY_UPDATE_LOGGED || fail "normal desktop users enter the update flow" "$(cat "$test_tmp/output")"
-[[ $(<"$test_tmp/calls") == script ]] || fail "normal desktop users enter the update flow" "$(cat "$test_tmp/calls")"
+[[ $(<"$test_tmp/calls") == "script" ]] || fail "normal desktop users enter the update flow" "$(cat "$test_tmp/calls")"
 pass "normal users retain the update entry point"

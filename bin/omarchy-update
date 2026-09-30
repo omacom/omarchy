@@ -16,7 +16,12 @@ source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
 omarchy_security_require_privileged_bash_startup || exit 126
 set -e
 omarchy_security_sanitize_bash_environment "$0" "$@"
+if (( EUID == 0 )); then
+  echo "Run omarchy update as your normal desktop user, without sudo. Individual update steps request privileges when needed." >&2
+  exit 1
+fi
 omarchy_security_require_source_root "$0"
+
 # Logging and lock acquisition re-exec this command with a sanitized PATH.
 # Preserve the caller's path only for the later hook/mise phases.
 user_path=${OMARCHY_UPDATE_USER_PATH:-$PATH}
@@ -82,11 +87,6 @@ cleanup_update() {
   fi
   omarchy_security_exit_with_revoked_sudo "$status"
 }
-
-if (( EUID == 0 )); then
-  echo "Run omarchy update as your normal desktop user, without sudo. Individual update steps request privileges when needed." >&2
-  exit 1
-fi
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
