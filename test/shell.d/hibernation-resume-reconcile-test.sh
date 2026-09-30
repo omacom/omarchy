@@ -57,6 +57,14 @@ fi
 cmp -s "$test_tmp/before" "$test_tmp/resume.conf" || fail "custom settings survive"
 pass "custom drop-ins are preserved"
 
+# Earlier setups wrote these when findmnt or map-swapfile came back empty.
+for legacy in 'resume= resume_offset=123' 'resume=/dev/mapper/root resume_offset='; do
+  printf 'KERNEL_CMDLINE[default]+=" %s"\n' "$legacy" >"$test_tmp/resume.conf"
+  bash "$test_tmp/setup" --no-rebuild >"$test_tmp/output" 2>&1 || fail "setup repairs '$legacy'"
+  grep -Fqx 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=456"' "$test_tmp/resume.conf" || fail "'$legacy' is replaced"
+done
+pass "empty device or offset from an earlier setup is repaired"
+
 rm "$test_tmp/resume.conf"
 if TEST_REBUILD_STATUS=1 bash "$test_tmp/setup" >"$test_tmp/output" 2>&1; then
   fail "rebuild failures are reported"
