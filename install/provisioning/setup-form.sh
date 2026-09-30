@@ -124,15 +124,17 @@ omarchy_prompt_language() {
   [[ -n $choice ]] || choice="$OMARCHY_LANGUAGE_DEFAULT"
 
   language_label="$choice"
+  # Matching on the label omarchy-locale-list built, rather than on one rebuilt
+  # here, is what makes this lookup single-valued: the label is disambiguated
+  # there precisely so that reading one back off the screen names one locale.
+  #
   # No `exit` after the match: omarchy-locale-list is upstream in the pipe, and
   # leaving early hands it a SIGPIPE that a `set -e` caller reads as failure.
-  language=$(omarchy-locale-list | awk -F'\t' -v c="$choice" '
-    { label = $2 ($3 != "" ? " (" $3 ")" : "") }
-    label == c && !found { found = 1; print $1 }')
+  language=$(omarchy-locale-list | awk -F'\t' -v c="$choice" '$4 == c && !found { found = 1; print $1 }')
 }
 
 omarchy_language_labels() {
-  omarchy-locale-list | awk -F'\t' '{ print $2 ($3 != "" ? " (" $3 ")" : "") }' | sort
+  omarchy-locale-list | awk -F'\t' '{ print $4 }' | sort
 }
 
 omarchy_prompt_username() {

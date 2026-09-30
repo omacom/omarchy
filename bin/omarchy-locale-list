@@ -4,7 +4,7 @@
 # omarchy:group=setup
 # omarchy:hidden=true
 
-# Emits "name<TAB>language<TAB>territory", one per line.
+# Emits "name<TAB>language<TAB>territory<TAB>label", one per line.
 #
 # The name is /usr/share/i18n/SUPPORTED's first field, verbatim. That field is
 # what systemd-localed compares a requested locale against before agreeing to
@@ -16,15 +16,36 @@
 # The names come from each locale's own LC_IDENTIFICATION block, so this
 # tracks whatever glibc ships rather than a hand-kept list. C.UTF-8 names no
 # language and is left out: it is a fallback, not a language to offer.
+#
+# The label is what a picker puts on screen: "language (territory)", qualified
+# where those two fields alone name two different locales. Pickers should show
+# this field rather than rebuild it from the two before it, so that every one
+# of them disambiguates the same way and a label read back off the screen still
+# identifies one locale.
 
 set -euo pipefail
 
-SUPPORTED=/usr/share/i18n/SUPPORTED
-LOCALES=/usr/share/i18n/locales
+I18N=${OMARCHY_I18N_PATH:-/usr/share/i18n}
+SUPPORTED="$I18N/SUPPORTED"
+LOCALES="$I18N/locales"
 
 [[ -f $SUPPORTED ]] || exit 0
 
 awk -v locales="$LOCALES" '
+  # The written form, for the one language whose own data cannot say it.
+  # LC_IDENTIFICATION has no script field, and all four Chinese locales call
+  # their language "Chinese", so which of Simplified and Traditional a
+  # territory implies is knowledge that has to be supplied from outside. glibc
+  # does supply it where it feels like it -- pt_BR is "Brazilian Portuguese"
+  # and pt_PT is "European Portuguese" -- just not here. Every other language
+  # on the list is written one way, so this table stays four entries long.
+  BEGIN {
+    script["zh_CN"] = "Simplified"
+    script["zh_HK"] = "Traditional"
+    script["zh_SG"] = "Simplified"
+    script["zh_TW"] = "Traditional"
+  }
+
   $2 == "UTF-8" {
     name = $1
     base = name
@@ -47,6 +68,53 @@ awk -v locales="$LOCALES" '
     }
     close(file)
 
-    if (language != "") print name "\t" language "\t" territory
+    if (language == "") next
+
+    rows++
+    names[rows] = name
+    languages[rows] = language
+    territories[rows] = territory
+    labels[rows] = language (territory != "" ? " (" territory ")" : "")
+    sharing[labels[rows]]++
+  }
+
+  # Both qualifiers land in the same slot, because they are one problem wearing
+  # two hats: the label drops a distinction the locale name keeps. A modifier
+  # can be read off the name; a script cannot be read off anything.
+  #
+  # The modifier is appended only where the label is shared, so the rows that
+  # already name one locale stay short. Every modifier-bearing locale glibc
+  # ships today does share its label, but the test is the ambiguity rather than
+  # the modifier: a future locale that is the only one of its language and
+  # territory should keep the shorter label.
+  END {
+    for (i = 1; i <= rows; i++) {
+      bare = names[i]
+      sub(/\.UTF-8$/, "", bare)
+      modifier = ""
+      if (bare ~ /@/) {
+        modifier = bare
+        sub(/^[^@]*@/, "", modifier)
+        sub(/@.*$/, "", bare)
+      }
+
+      qualifier = ""
+      if (bare in script) {
+        qualifier = script[bare]
+      } else if (sharing[labels[i]] > 1 && modifier != "") {
+        qualifier = toupper(substr(modifier, 1, 1)) substr(modifier, 2)
+      }
+
+      label = labels[i]
+      if (qualifier != "") {
+        if (territories[i] != "") {
+          label = languages[i] " (" territories[i] ", " qualifier ")"
+        } else {
+          label = languages[i] " (" qualifier ")"
+        }
+      }
+
+      print names[i] "\t" languages[i] "\t" territories[i] "\t" label
+    }
   }
 ' "$SUPPORTED"

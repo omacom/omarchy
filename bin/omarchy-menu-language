@@ -13,10 +13,7 @@ current=$(localectl status 2>/dev/null | sed -n 's/.*LANG=\([^ ]*\).*/\1/p' | he
 # subtext and comes back as the stable key.
 language=$(omarchy-locale-list |
   awk -F'\t' -v current="$current" '
-    {
-      label = $2 ($3 != "" ? " (" $3 ")" : "")
-      printf "%s\t%s\t%s\n", ($1 == current ? "󰄬" : "󰗊"), label, $1
-    }' |
+    { printf "%s\t%s\t%s\n", ($1 == current ? "󰄬" : "󰗊"), $4, $1 }' |
   sort -t$'\t' -k2,2 |
   omarchy-menu-select "Set language" -- --width 520 --maxheight 520) || exit 1
 

@@ -46,12 +46,12 @@ EOF
 # against the host would be asserting that glibc still ships sr_RS@latin.
 cat >"$tmp_dir/omarchy-locale-list" <<'EOF'
 #!/bin/bash
-printf '%s\t%s\t%s\n' \
-  'en_US.UTF-8' 'American English' 'United States' \
-  'sl_SI.UTF-8' 'Slovenian' 'Slovenia' \
-  'sr_RS' 'Serbian' 'Serbia' \
-  'sr_RS@latin' 'Serbian' 'Serbia' \
-  'zh_TW.UTF-8' 'Chinese' 'Taiwan'
+printf '%s\t%s\t%s\t%s\n' \
+  'en_US.UTF-8' 'American English' 'United States' 'American English (United States)' \
+  'sl_SI.UTF-8' 'Slovenian' 'Slovenia' 'Slovenian (Slovenia)' \
+  'sr_RS' 'Serbian' 'Serbia' 'Serbian (Serbia)' \
+  'sr_RS@latin' 'Serbian' 'Serbia' 'Serbian (Serbia, Latin)' \
+  'zh_TW.UTF-8' 'Chinese' 'Taiwan' 'Chinese (Taiwan, Traditional)'
 EOF
 
 # Calls one prompt bare under `set -euo pipefail` — the shape that makes the
@@ -235,6 +235,35 @@ assert_status 0 "language prompt accepts a choice"
 [[ $(field language_label) == "Slovenian (Slovenia)" ]] || fail "language prompt keeps the label for the summary"
 [[ $(head -n 1 "$GUM_ARGS") == filter* ]] || fail "language prompt filters rather than paging three hundred options"
 pass "language prompt returns the locale name behind the label"
+
+# What reaches gum is the label the locale list built, not one rebuilt here from
+# the two fields before it. Compared as a set through the same sort, because
+# where punctuation lands is the collation's business and moves with the locale
+# the form runs under; that the list is sorted at all is asserted separately.
+offered=$(sort <"$tmp_dir/stdin.1")
+expected=$(printf '%s\n' \
+  'American English (United States)' \
+  'Chinese (Taiwan, Traditional)' \
+  'Serbian (Serbia)' \
+  'Serbian (Serbia, Latin)' \
+  'Slovenian (Slovenia)' | sort)
+[[ $offered == "$expected" ]] || fail "language prompt offers the labels the locale list built" "$offered"
+pass "language prompt offers the labels the locale list built"
+
+sort -c "$tmp_dir/stdin.1" 2>/dev/null || fail "language prompt offers the labels in order" "$(<"$tmp_dir/stdin.1")"
+pass "language prompt offers the labels in order"
+
+# The pair that language and territory alone cannot tell apart. Rebuilding the
+# label here rather than reading the one the list disambiguated would make both
+# of these "Serbian (Serbia)", and whichever came first would win both times.
+run_prompt omarchy_prompt_language "0:Serbian (Serbia, Latin)"
+assert_status 0 "language prompt accepts a label only a modifier distinguishes"
+[[ $(field language) == "sr_RS@latin" ]] || fail "language prompt reaches the locale only a modifier names" "actual: $(field language)"
+pass "language prompt reaches the locale only a modifier names"
+
+run_prompt omarchy_prompt_language "0:Serbian (Serbia)"
+[[ $(field language) == "sr_RS" ]] || fail "language prompt keeps the plain label on the unmodified locale" "actual: $(field language)"
+pass "language prompt keeps the plain label on the unmodified locale"
 
 run_prompt omarchy_prompt_language "0:"
 assert_status 0 "language prompt accepts an empty selection"
