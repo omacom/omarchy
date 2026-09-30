@@ -9,12 +9,11 @@ trap 'rm -rf "$scratch"' EXIT
 
 mock_bin="$scratch/bin"
 test_home="$scratch/home"
-system_apps="$scratch/usr/share/applications"
+system_apps="$scratch/usr/local/share/applications"
 export TEST_LOG="$scratch/calls"
 mkdir -p "$mock_bin" "$test_home/.local/share/applications" "$system_apps"
 
-# Read desktop entries from the scratch tree instead of the host's /usr/share.
-sed "s|,/usr}|,$scratch/usr}|" "$ROOT/bin/omarchy-launch-webapp" >"$mock_bin/omarchy-launch-webapp"
+cp "$ROOT/bin/omarchy-launch-webapp" "$mock_bin/omarchy-launch-webapp"
 
 cat >"$mock_bin/omarchy-cmd-default-browser" <<'STUB'
 #!/bin/bash
@@ -36,7 +35,7 @@ cat >"$mock_bin/omarchy-notification-send" <<'STUB'
 printf 'notify:%s\n' "$*" >>"$TEST_LOG"
 STUB
 
-for browser in zen helium brave; do
+for browser in zen helium brave vivaldi-stable; do
   printf '#!/bin/bash\n' >"$mock_bin/$browser"
 done
 chmod +x "$mock_bin/"*
@@ -47,7 +46,8 @@ desktop_entry() {
 
 launch_webapp() {
   : >"$TEST_LOG"
-  TEST_DEFAULT_BROWSER="$1" HOME="$test_home" PATH="$mock_bin:$PATH" \
+  TEST_DEFAULT_BROWSER="$1" HOME="$test_home" PATH="$mock_bin:$PATH" XDG_DATA_HOME= \
+    XDG_DATA_DIRS="$scratch/usr/local/share" \
     "$mock_bin/omarchy-launch-webapp" https://example.test/app --flag >/dev/null 2>"$scratch/err"
 }
 
@@ -74,3 +74,12 @@ launch_webapp brave-browser.desktop || fail "web app launch uses the default bro
 grep -Fxq 'launch:uwsm-app -- brave --app=https://example.test/app --flag' "$TEST_LOG" ||
   fail "web app prefers a Chromium-based default browser" "$(cat "$TEST_LOG")"
 pass "web app prefers a Chromium-based default browser"
+
+# A wrapper entry cannot receive --app; the next installed browser is used.
+desktop_entry "$system_apps/google-chrome.desktop" "env CHROME_FLAG=1 google-chrome-stable"
+desktop_entry "$system_apps/vivaldi-stable.desktop" vivaldi-stable
+rm "$system_apps/helium.desktop" "$system_apps/brave-browser.desktop"
+launch_webapp zen.desktop || fail "web app launch skips wrapper entries" "$(cat "$scratch/err")"
+grep -Fxq 'launch:uwsm-app -- vivaldi-stable --app=https://example.test/app --flag' "$TEST_LOG" ||
+  fail "web app skips a desktop entry that starts with a wrapper" "$(cat "$TEST_LOG")"
+pass "web app skips a desktop entry that starts with a wrapper"

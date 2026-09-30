@@ -14,14 +14,28 @@ esac
 
 browsers+=(chromium.desktop google-chrome.desktop brave-browser.desktop brave-origin.desktop microsoft-edge.desktop vivaldi-stable.desktop opera.desktop helium.desktop)
 
+# Desktop entries are looked up as xdg does, the first one found winning, plus
+# the Nix profile the other launchers read. A browser counts as installed when
+# that entry's command resolves. An entry that starts with a wrapper such as env
+# cannot take --app on the browser's behalf, so it is skipped.
+IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}:$HOME/.nix-profile/share"
+
+browser_command() {
+  local data_dir command
+
+  for data_dir in "${data_dirs[@]}"; do
+    [[ -r $data_dir/applications/$1 ]] || continue
+    command=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$data_dir/applications/$1" | head -1)
+    [[ -n $command && $command != env ]] && command -v "$command" >/dev/null && echo "$command"
+    return
+  done
+
+  return 1
+}
+
+browser_exec=""
 for browser in "${browsers[@]}"; do
-  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)
-
-  if [[ -n $browser_exec ]] && command -v "$browser_exec" >/dev/null; then
-    break
-  fi
-
-  browser_exec=""
+  browser_exec=$(browser_command "$browser") && break
 done
 
 if [[ -z $browser_exec ]]; then
