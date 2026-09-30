@@ -8,6 +8,7 @@
 source omarchy-restart-gum
 
 cmd="$*"
+# 130 is the user bailing with Ctrl-C; anything else gets the Done/Failed prompt.
 presentation_script="omarchy-show-logo
 (
 $cmd
