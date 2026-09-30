@@ -51,7 +51,9 @@ ShellRoot {
       var index = test.rowIndex("Phone Hotspot")
       test.check(index >= 0 && !panel.wifiNetworks[index].known, "hotspot is listed before its profile attaches")
       test.check(index > test.rowIndex("Neighbor"), "unsaved rows sort by signal")
-      // The list itself is unchanged; only the listed network's flag flips.
+      // The cursor is on the hotspot when its profile attaches. The list itself
+      // is unchanged; only the listed network's flag flips.
+      panel.selectedIndex = index
       NetworkMock.hotspot.known = true
       attached.start()
     }
@@ -64,7 +66,7 @@ ShellRoot {
       var index = test.rowIndex("Phone Hotspot")
       test.check(index >= 0 && panel.wifiNetworks[index].known, "attached profile marks the listed row known")
       test.check(index < test.rowIndex("Neighbor"), "attached profile moves the row into known networks")
-      panel.selectedIndex = index
+      test.check(panel.selectedIndex === index, "the cursor moves with the hotspot's row")
       panel.activateSelected()
       test.check(panel.passwordSsid === "", "activating the saved network does not ask for its password")
       test.check(NetworkMock.hotspot.connects === 1, "activating the saved network connects with its profile")

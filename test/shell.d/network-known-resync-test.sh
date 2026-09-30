@@ -25,6 +25,11 @@ assert(
     /onKnownWifiKeyChanged: Qt\.callLater\(syncWifiNetworks\)/.test(panelSource),
   'network resyncs wifi rows when a listed network gains or loses its saved profile'
 )
+assert(
+  /cursorSsid = selected \? selected\.ssid : ""\s*wifiNetworks = /.test(panelSource) &&
+    /selectedIndex = wifiIndexForSsid\(cursorSsid\)/.test(panelSource),
+  'network keeps the cursor on its network when a rebuild re-sorts the rows'
+)
 JS
 
 require_compositor "network known-resync runtime test"
@@ -64,4 +69,4 @@ output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
 if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign' <<< "$output"; then
   fail "network known-resync fixture has no QML errors" "$output"
 fi
-pass "a saved profile attaching to a listed network moves its row into known networks and connects without a password prompt"
+pass "a saved profile attaching to a listed network moves its row and the cursor into known networks and connects without a password prompt"

@@ -116,6 +116,9 @@ Panel {
 
   // Index into `wifiNetworks` for keyboard navigation. -1 = no selection.
   property int selectedIndex: -1
+  // SSID under the cursor when the rows were last rebuilt. Rows re-sort on
+  // every rebuild, so the cursor follows its network rather than its slot.
+  property string cursorSsid: ""
   property bool wifiActionFocused: false
   property bool cursorActive: false
 
@@ -375,6 +378,8 @@ Panel {
         selectedIndex = passwordIndex
         focusSection = "wifi"
       }
+    } else if (cursorSsid !== "" && wifiIndexForSsid(cursorSsid) >= 0) {
+      selectedIndex = wifiIndexForSsid(cursorSsid)
     } else if (selectedIndex >= wifiNetworks.length) {
       selectedIndex = wifiNetworks.length - 1
     } else if (selectedIndex < 0 && opened) {
@@ -663,6 +668,8 @@ Panel {
       var row = Model.wifiRow(network)
       if (row) nets.push(row)
     }
+    var selected = wifiNetworks[selectedIndex]
+    cursorSsid = selected ? selected.ssid : ""
     wifiNetworks = Model.sortWifiRows(nets)
     wifiStationAvailable = !!wifiDevice
     scanning = false
