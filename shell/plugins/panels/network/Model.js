@@ -324,6 +324,15 @@ function requiresCredentials(security, openSecurity, oweSecurity) {
   return security !== openSecurity && security !== oweSecurity
 }
 
+// NetworkManager saves an open network without an 802-11-wireless-security
+// setting, and Quickshell 0.3.1 reports that profile as Unknown
+// (quickshell-mirror/quickshell#1229). Secured profiles always carry the
+// setting, so a saved network with Unknown security is open.
+function wifiSecurity(network, unknownSecurity, openSecurity) {
+  if (network.known && network.security === unknownSecurity) return openSecurity
+  return network.security
+}
+
 function canForgetNetwork(network) {
   return !!(network && network.known && !network.connected)
 }
@@ -390,6 +399,7 @@ if (typeof module !== "undefined") {
     sortWifiRows: sortWifiRows,
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
+    wifiSecurity: wifiSecurity,
     canForgetNetwork: canForgetNetwork,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,
