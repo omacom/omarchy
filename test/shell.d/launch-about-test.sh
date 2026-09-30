@@ -166,8 +166,8 @@ grid="45 140"
 resized=false
 logo_stamp=$(stat -c %Y "$HOME/.config/omarchy/branding/about.txt")
 
-# 1000 GiB, which fastfetch would draw in GiB, so the quantum is 0.01 of a GiB
-# and 536870900000 used is exactly 50000 of them. Every value below is that
+# 1000 GiB, with 536870900000 used, which fastfetch draws as 500.00 GiB: 50000
+# hundredths of a GiB. Every value below is that
 # figure plus something, so the difference being tested is the difference. df is
 # the one stood in for rather than storage_stamp, because it is df that hands over
 # bytes and storage_stamp that turns them into the figure the row is drawn from —
@@ -191,7 +191,7 @@ df_output="Filesystem 1B-blocks Used
 a line that is not a filesystem
 /dev/sda1 $df_size $df_used"
 stamp=$(storage_stamp)
-[[ $stamp == "/dev/sda1 50000" ]] ||
+[[ $stamp == "/dev/sda1 1073741824 50000" ]] ||
   fail "the stamp is one quantized figure per filesystem, header dropped" "$(printf '%q' "$stamp")"
 pass "the stamp is one quantized figure per filesystem, header dropped"
 
@@ -200,19 +200,19 @@ pass "the stamp is one quantized figure per filesystem, header dropped"
 df_output="Filesystem 1B-blocks Used
 /dev/sda1 $df_size $(( df_used + 12000 ))"
 if content_changed; then
-  fail "a change below the quantum leaves the render alone"
+  fail "a change below the printed hundredth leaves the render alone"
 else
-  pass "a change below the quantum leaves the render alone"
+  pass "a change below the printed hundredth leaves the render alone"
 fi
 
-# A whole quantum has to move it. Anything short of one lands on the figure the
-# render was drawn against, so it must not.
+# fastfetch rounds the hundredths rather than cutting them off, so 0.01 GiB more
+# is a different row: 500.00 GiB becomes 500.01 GiB.
 df_output="Filesystem 1B-blocks Used
 /dev/sda1 $df_size $(( df_used + 10737417 ))"
 if content_changed; then
-  fail "a change short of a whole quantum leaves the render alone"
+  pass "a change that moves the printed hundredth redraws"
 else
-  pass "a change short of a whole quantum leaves the render alone"
+  fail "a change that moves the printed hundredth redraws"
 fi
 
 df_output="Filesystem 1B-blocks Used
@@ -252,15 +252,22 @@ df() { printf '%s\n' "$df_output"; }
 df_output="Filesystem 1B-blocks Used
 /dev/sda1 $df_size $df_used"
 
-# The quantum is read off the size, because a 900 MB disk and a 900 GB one do not
-# round at the same byte — and one of them redrawing for a change the other
-# swallowed is how a real change goes unnoticed.
-for sized in "104857600 10485" "1073741824000 10737418" "974646272000000 10995116277"; do
-  read -r size_bytes expected_quantum <<<"$sized"
-  [[ $(storage_quantum "$size_bytes") == "$expected_quantum" ]] ||
-    fail "the quantum is read off the size of the filesystem" "$size_bytes bytes gave $(storage_quantum "$size_bytes"), expected $expected_quantum"
-done
-pass "the quantum is read off the size of the filesystem"
+# fastfetch picks the unit for each figure on its own. A 2 TB drive's total is
+# drawn in TiB, but 500 GiB used on it is drawn in GiB, so deleting 2 GiB moves
+# the row from 500.00 GiB to 498.00 GiB.
+df_output="Filesystem 1B-blocks Used
+/dev/nvme0n1p2 1999844147200 536870912000"
+storage_at_render=$(storage_stamp)
+df_output="Filesystem 1B-blocks Used
+/dev/nvme0n1p2 1999844147200 $(( 536870912000 - 2147483648 ))"
+if content_changed; then
+  pass "deleting 2 GiB on a 2 TB drive redraws"
+else
+  fail "deleting 2 GiB on a 2 TB drive redraws" "stamp before: $storage_at_render, after: $(storage_stamp)"
+fi
+df_output="Filesystem 1B-blocks Used
+/dev/sda1 $df_size $df_used"
+storage_at_render=$(storage_stamp)
 
 # The memory filesystems move on their own all day, and a redraw the machine's
 # own bookkeeping asks for is one nobody wanted. A stubbed df cannot see whether
@@ -273,7 +280,7 @@ for excluded in tmpfs devtmpfs squashfs overlay; do
 done
 pass "the probe leaves the memory filesystems out"
 
-# A resize and a rebrand outrank the quantum, because neither is a figure that
+# A resize and a rebrand outrank the storage figure, because neither is a figure that
 # can settle.
 grid="40 140"
 if content_changed; then

@@ -286,24 +286,19 @@ build_sheen() {
   sheen_build "$LOGO_FILE" "$LOGO_ROW" "$LOGO_COLUMN" "${ESC}[0m${LOGO_COLOR}" "$(( cols - LOGO_COLUMN + 1 ))"
 }
 
-# The smallest change in used bytes that the storage row could show, worked out
-# from the size of the filesystem it is drawn on. 10**STORAGE_DECIMALS of
-# whatever unit fastfetch would pick for that size: a 900 MB disk and a 900 GB
-# one do not round at the same byte, and assuming one of them is how a real
-# change goes unnoticed.
-storage_quantum() {
-  local bytes="$1" unit=1 quantum
+# The used figure as fastfetch prints it: the unit comes from the used bytes, not
+# the size of the filesystem (a 2 TB disk is drawn in TiB, but 500 GiB used on it
+# is drawn in GiB), and the hundredths are rounded, not cut off.
+storage_figure() {
+  local bytes="$1" unit=1 scale=$(( 10 ** STORAGE_DECIMALS ))
 
-  # Capped at PiB so an absurd size cannot walk the multiply off the end of the
-  # integer, and floored at a byte so the divide below is never by nothing.
-  while (( bytes >= 1024 && unit < 1125899906842624 )); do
-    bytes=$(( bytes / 1024 ))
+  # Capped at PiB so an absurd figure cannot walk the multiply off the end of the
+  # integer.
+  while (( bytes / unit >= 1024 && unit < 1125899906842624 )); do
     unit=$(( unit * 1024 ))
   done
 
-  quantum=$(( unit / 10 ** STORAGE_DECIMALS ))
-  (( quantum < 1 )) && quantum=1
-  printf '%d\n' "$quantum"
+  printf '%d %d\n' "$unit" "$(( bytes / unit * scale + (bytes % unit * scale + unit / 2) / unit ))"
 }
 
 # Every local filesystem on real storage, rather than the one fastfetch reads the
@@ -319,7 +314,7 @@ storage_stamp() {
     # is not a count. Catching both here keeps a divide by an empty field off the
     # path rather than answering a question with a shell error.
     [[ -n $size && -n $used && $size != *[!0-9]* && $used != *[!0-9]* ]] || continue
-    printf '%s %s\n' "$source" "$(( used / $(storage_quantum "$size") ))"
+    printf '%s %s\n' "$source" "$(storage_figure "$used")"
   done < <(df -l -B1 --output=source,size,used -x tmpfs -x devtmpfs -x squashfs -x overlay 2>/dev/null)
 }
 
