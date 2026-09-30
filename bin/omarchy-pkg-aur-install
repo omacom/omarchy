@@ -24,6 +24,7 @@ if [[ -n $pkg_names ]]; then
   source omarchy-sudo-keepalive
 
   echo "$pkg_names" | sed 's/^/aur\//' | tr '\n' ' ' | xargs yay -S --noconfirm
+  code=$?
   sudo updatedb --prune-bind-mounts=no --add-prunepaths=/.snapshots
-  omarchy-show-done
+  omarchy-show-done $code
 fi

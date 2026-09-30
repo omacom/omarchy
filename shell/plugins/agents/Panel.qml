@@ -324,7 +324,7 @@ Panel {
     onTriggered: root.nowMs = Date.now()
   }
 
-  IpcHandler {
+  ShellIpc {
     target: root.ipcTarget
     function open(): void { root.open() }
     function close(): void { root.close() }
@@ -788,7 +788,7 @@ Panel {
       color: meter.alarming ? root.urgent : root.foreground
 
       Behavior on width {
-        NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic }
       }
     }
 
@@ -837,7 +837,7 @@ Panel {
         color: dayRow.today ? root.foreground : root.alpha(root.foreground, 0.55)
 
         Behavior on width {
-          NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+          NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic }
         }
       }
     }
@@ -894,7 +894,7 @@ Panel {
       color: root.alpha(root.foreground, 0.14)
 
       Behavior on width {
-        NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic }
       }
     }
 
