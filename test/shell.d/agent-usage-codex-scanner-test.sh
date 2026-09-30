@@ -24,6 +24,10 @@ while read -r request; do
   case "$method" in
     initialize)
       jq -cn --argjson id "$id" '{id: $id, result: {}}'
+      if [[ -n ${CODEX_INTERLEAVED_NOTIFICATIONS:-} ]]; then
+        printf '{"method":"remoteControl/status/changed","params":{}}\n'
+        printf '{"method":"account/updated","params":{"authMode":"chatgpt","planType":"plus"}}\n'
+      fi
       ;;
     account/read)
       # Codex 0.158 can leave this one unanswered for good.
@@ -616,3 +620,12 @@ result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_H
 [[ $(jq -c '{tierLabel, usageStatusText, limits: [.limits[] | {label, percent}]}' <<<"$result") == '{"tierLabel":"pro","usageStatusText":"","limits":[{"label":"Weekly (7-day)","percent":0.36}]}' ]] ||
   fail "Codex collector reads limits even when account/read never answers" "$result"
 pass "Codex collector reads limits even when account/read never answers"
+
+# Codex app-server can interleave notifications in the stdout stream right after
+# initialize, which must not block rpc_request from reading subsequent replies.
+result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
+  CODEX_INTERLEAVED_NOTIFICATIONS=1 CODEX_RATE_LIMITS='{"planType":"plus","primary":{"usedPercent":15,"windowDurationMins":300}}' \
+  "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+[[ $(jq -c '{tierLabel, usageStatusText, limits: [.limits[] | {label, percent}]}' <<<"$result") == '{"tierLabel":"plus","usageStatusText":"","limits":[{"label":"5h window","percent":0.15}]}' ]] ||
+  fail "Codex collector reads limits when notifications are interleaved" "$result"
+pass "Codex collector reads limits when notifications are interleaved"

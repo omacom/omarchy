@@ -15,12 +15,14 @@ import fcntl
 import hashlib
 import json
 import os
+import queue
 import select
 import shutil
 import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -474,17 +476,37 @@ def _cached_local_stats(max_age):
     return stats
 
 
-def rpc_request(proc, request_id, method, params=None, timeout=8):
+def start_rpc_reader(proc):
+  lines = queue.Queue()
+
+  def pump():
+    try:
+      for line in proc.stdout:
+        lines.put(line)
+    except Exception:
+      pass
+    finally:
+      lines.put(None)
+
+  reader = threading.Thread(target=pump, daemon=True)
+  reader.start()
+  return lines
+
+
+def rpc_request(proc, lines, request_id, method, params=None, timeout=8):
   payload = {"id": request_id, "method": method, "params": params or {}}
   proc.stdin.write(json.dumps(payload) + "\n")
   proc.stdin.flush()
   deadline = time.time() + timeout
-  while time.time() < deadline:
-    ready, _, _ = select.select([proc.stdout], [], [], 0.25)
-    if not ready:
-      continue
-    line = proc.stdout.readline()
-    if not line:
+  while True:
+    remaining = deadline - time.time()
+    if remaining <= 0:
+      break
+    try:
+      line = lines.get(timeout=remaining)
+    except queue.Empty:
+      break
+    if line is None:
       break
     try:
       message = json.loads(line)
@@ -540,11 +562,13 @@ def fetch_codex_rpc():
     result["authHelpText"] = str(exc)
     return result
 
+  lines = start_rpc_reader(proc)
+
   try:
-    rpc_request(proc, 1, "initialize", {"clientInfo": {"name": "omarchy-agent-usage", "version": "1"}}, timeout=8)
+    rpc_request(proc, lines, 1, "initialize", {"clientInfo": {"name": "omarchy-agent-usage", "version": "1"}}, timeout=8)
     proc.stdin.write(json.dumps({"method": "initialized", "params": {}}) + "\n")
     proc.stdin.flush()
-    limits_msg = rpc_request(proc, 2, "account/rateLimits/read", timeout=8)
+    limits_msg = rpc_request(proc, lines, 2, "account/rateLimits/read", timeout=8)
     limits = (limits_msg.get("result") or {}).get("rateLimits") or {}
     plan = limits.get("planType") or ""
 
@@ -553,7 +577,7 @@ def fetch_codex_rpc():
     # app-server can leave it unanswered for good.
     if not plan:
       try:
-        account_msg = rpc_request(proc, 3, "account/read", timeout=2)
+        account_msg = rpc_request(proc, lines, 3, "account/read", timeout=2)
         account = (account_msg.get("result") or {}).get("account") or {}
         plan = account.get("planType") or account.get("type") or ""
       except TimeoutError:
