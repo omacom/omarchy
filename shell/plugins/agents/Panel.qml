@@ -64,28 +64,19 @@ Panel {
     root.close()
   }
 
-  // The sign-in command for a provider: a known one per agent, else the first
-  // `backticked` command in the collector's help text.
-  readonly property var reauthCommands: ({
-    "claude": "claude auth login",
-    "codex": "codex login"
-  })
+  // Agents that omarchy-agent-reauth can sign back in. The help text is never
+  // parsed for a command: collectors put exception messages there.
+  readonly property var reauthAgents: ["claude", "codex"]
 
-  function reauthCommand(p) {
-    if (!p) return ""
-    var known = reauthCommands[p.providerId]
-    if (known) return known
-    var match = String(p.authHelpText || "").match(/`([^`]+)`/)
-    return match ? match[1] : ""
+  function canReauth(p) {
+    return !!p && reauthAgents.indexOf(p.providerId) !== -1
   }
 
-  // Sign in from a floating terminal, then regenerate that agent's record so
-  // the panel clears the warning as soon as the login lands.
+  // Sign in from a floating terminal; the helper then regenerates the record
+  // so the warning clears as soon as the login lands.
   function reauth() {
-    var command = reauthCommand(provider)
-    if (!command) return
-    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation",
-      command + " && omarchy-agent-usage-update --force " + provider.providerId])
+    if (!canReauth(provider)) return
+    Util.execArgv(["omarchy-agent-reauth", provider.providerId])
     root.close()
   }
 
@@ -549,7 +540,7 @@ Panel {
               }
 
               Button {
-                visible: root.reauthCommand(root.provider) !== ""
+                visible: root.canReauth(root.provider)
                 text: "Sign in again"
                 bordered: true
                 foreground: root.foreground

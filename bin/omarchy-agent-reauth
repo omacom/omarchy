@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Sign an AI agent back in from a floating terminal and refresh its usage
+# omarchy:args=<claude|codex>
+# omarchy:examples=omarchy agent reauth claude | omarchy agent reauth codex
+
+# The agents panel's "Sign in again" button calls this with the selected
+# agent's id. The floating terminal runs its command through `bash -c`, so
+# only fixed strings from this allowlist ever reach it — never the id itself.
+
+case "$1" in
+claude) login="claude auth login" ;;
+codex) login="codex login" ;;
+*)
+  echo "Usage: omarchy-agent-reauth <claude|codex>" >&2
+  exit 1
+  ;;
+esac
+
+exec omarchy-launch-floating-terminal-with-presentation "$login && omarchy-agent-usage-update --force $1"
