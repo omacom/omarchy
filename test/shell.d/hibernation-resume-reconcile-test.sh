@@ -75,3 +75,33 @@ cmp -s "$test_tmp/before" "$test_tmp/resume.conf" || fail "failed rebuild restor
 TEST_OFFSET=999 bash "$test_tmp/setup" >"$test_tmp/output"
 [[ $(wc -l <"$test_tmp/rebuilds") == 5 ]] || fail "retry rebuilds existing configuration after failure"
 pass "existing parameters survive failed rebuilds and retries rebuild again"
+
+# The installer runs first-time setup with --force --no-rebuild and aborts on failure.
+mkdir -p "$test_tmp/mkinitcpio.conf.d" "$test_tmp/system-sleep"
+touch "$test_tmp/fstab"
+sed -e "s|/sys/power/image_size|$test_tmp/image_size|g" \
+  -e "s|/etc/mkinitcpio.conf.d|$test_tmp/mkinitcpio.conf.d|g" \
+  -e "s|/etc/limine-entry-tool.d/resume.conf|$test_tmp/resume.conf|g" \
+  -e "s|/etc/fstab|$test_tmp/fstab|g" \
+  -e "s|/usr/lib/systemd/system-sleep|$test_tmp/system-sleep|g" \
+  -e "s|/sys/power/mem_sleep|$test_tmp/mem_sleep|g" \
+  -e "s|/swap/swapfile|$test_tmp/swapfile|g" \
+  "$ROOT/bin/omarchy-hibernation-setup" >"$test_tmp/fresh-setup"
+swapon() { :; }
+export -f swapon
+
+rm -f "$test_tmp/resume.conf"
+OMARCHY_PATH=$ROOT bash "$test_tmp/fresh-setup" --force --no-rebuild >"$test_tmp/output"
+grep -Fqx 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=456"' "$test_tmp/resume.conf" || fail "first-time setup writes resume parameters"
+pass "first-time setup writes resume parameters"
+
+rm -f "$test_tmp/resume.conf" "$test_tmp/mkinitcpio.conf.d/omarchy_resume.conf"
+if ! TEST_OFFSET=invalid OMARCHY_PATH=$ROOT bash "$test_tmp/fresh-setup" --force --no-rebuild >"$test_tmp/output" 2>&1; then
+  fail "first-time setup survives an unreadable swapfile mapping"
+fi
+grep -q 'Continuing without resume parameters' "$test_tmp/output" || fail "first-time setup warns about the unreadable mapping"
+grep -qx 'HOOKS+=(resume)' "$test_tmp/mkinitcpio.conf.d/omarchy_resume.conf" || fail "first-time setup still writes the resume hook"
+[[ ! -e $test_tmp/resume.conf ]] || fail "unreadable mappings write no resume parameters"
+OMARCHY_PATH=$ROOT bash "$test_tmp/fresh-setup" --force --no-rebuild >"$test_tmp/output"
+grep -q 'resume_offset=456' "$test_tmp/resume.conf" || fail "a later setup adds the missing resume parameters"
+pass "first-time setup warns on an unreadable mapping and a later setup repairs it"

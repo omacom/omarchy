@@ -170,8 +170,10 @@ if ! install_root_file "$OMARCHY_PATH/default/systemd/system-sleep/keyboard-back
   exit 1
 fi
 
-# Validate and install resume parameters before writing the setup marker.
-reconcile_resume_parameters || exit 1
+# Warn rather than fail: the installer aborts on failure, and rerunning setup adds missing parameters.
+if ! reconcile_resume_parameters; then
+  echo "Warning: Continuing without resume parameters; rerun omarchy hibernation setup to add them" >&2
+fi
 
 # Add resume hook to mkinitcpio
 sudo mkdir -p /etc/mkinitcpio.conf.d
