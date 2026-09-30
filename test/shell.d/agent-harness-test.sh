@@ -55,7 +55,17 @@ if HOME="$home" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-plugin-validate" "$plugi
 fi
 pass "plugins may use only documented harness placeholders"
 
-jq '.agentHarness.install.package = "npm:@acme/agent" | .agentHarness.launch.command = ["acme-agent", "{project}"] | .agentHarness.aliases = ["afk"]' "$plugin/manifest.json" >"$plugin/invalid.json"
+jq '.agentHarness.install = {type: "mise", package: "npm:@acme/agent", command: "acme-agent"} | .agentHarness.launch.command = ["different-agent", "{project}"] | .agentHarness.launch.promptCommand = ["different-agent", "{project}", "{prompt}"]' "$plugin/manifest.json" >"$plugin/invalid.json"
+mv "$plugin/invalid.json" "$plugin/manifest.json"
+if HOME="$home" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-plugin-validate" "$plugin" >/dev/null 2>&1; then
+  fail "plugin validation accepts a launch command other than its installed command"
+fi
+catalog=$(HOME="$home" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-agent-catalog")
+! jq -e '.[] | select(.id == "acme-agent")' <<<"$catalog" >/dev/null ||
+  fail "agent catalog accepts a harness with a different launch command"
+pass "plugins launch the command their harness installs"
+
+jq '.agentHarness.install.package = "npm:@acme/agent" | .agentHarness.launch.command = ["acme-agent", "{project}"] | .agentHarness.launch.promptCommand = ["acme-agent", "{project}", "{prompt}"] | .agentHarness.aliases = ["afk"]' "$plugin/manifest.json" >"$plugin/invalid.json"
 mv "$plugin/invalid.json" "$plugin/manifest.json"
 if HOME="$home" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-agent-catalog" "$plugin/manifest.json" >/dev/null 2>&1; then
   fail "agent catalog accepts a harness alias that conflicts with a built-in id"

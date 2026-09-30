@@ -53,7 +53,7 @@ result=$(jq -s '
      else
        select(valid_plugin and (.agentHarness | type == "object"))
        | . as $plugin
-       | .agentHarness | select(valid_harness and .install.type == "mise")
+       | .agentHarness | select(valid_harness and .install.type == "mise" and (.install.command as $command | (.launch.command | index($command)) and ((.launch.promptCommand // .launch.command) | index($command))))
        | . + {firstParty: false, pluginId: $plugin.id, source: $source}
      end]
   | . as $harnesses

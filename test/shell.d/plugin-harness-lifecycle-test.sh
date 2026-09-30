@@ -11,12 +11,14 @@ plugins="$home/.config/omarchy/plugins"
 agent_file="$home/.config/omarchy/defaults/agent"
 mock_bin="$test_tmp/bin"
 mkdir -p "$plugins" "$(dirname "$agent_file")" "$mock_bin"
+SHELL_CALLS="$test_tmp/shell-calls"
+touch "$SHELL_CALLS"
 
 cat >"$mock_bin/omarchy-shell" <<'SH'
 #!/bin/bash
 case "$*" in
-  "shell listPlugins") echo '[]' ;;
-  *) echo ok ;;
+  "shell listPlugins") echo "${SHELL_PLUGINS:-[]}" ;;
+  *) printf '%s\n' "$*" >>"$SHELL_CALLS"; echo ok ;;
 esac
 SH
 cat >"$mock_bin/omarchy-plugin-validate" <<'SH'
@@ -31,6 +33,7 @@ chmod +x "$mock_bin"/*
 
 export HOME="$home"
 export OMARCHY_PATH="$ROOT"
+export SHELL_CALLS
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 
 write_manifest() {
@@ -54,6 +57,16 @@ write_manifest() {
   ' >"$dir/manifest.json"
 }
 
+selected="$plugins/acme.selected"
+ignored_duplicate="$plugins/zeta.ignored"
+mkdir -p "$selected" "$ignored_duplicate"
+write_manifest "$selected" "duplicate-agent"
+write_manifest "$ignored_duplicate" "duplicate-agent"
+printf '%s\n' duplicate-agent >"$agent_file"
+omarchy-plugin-remove zeta.ignored --yes >/dev/null
+[[ $(<"$agent_file") == duplicate-agent ]] || fail "plugin removal clears a default backed by an earlier duplicate harness"
+pass "plugin removal preserves a selected harness when removing an ignored duplicate"
+
 removed="$plugins/acme.removed"
 mkdir -p "$removed"
 write_manifest "$removed" "removed-agent"
@@ -69,7 +82,11 @@ git init --quiet "$seed"
 git -C "$seed" config user.email test@example.com
 git -C "$seed" config user.name Test
 write_manifest "$seed" "stable-agent"
+jq '.kinds = ["service"] | .entryPoints = {service: "Service.qml"}' "$seed/manifest.json" >"$seed/updated.json"
+mv "$seed/updated.json" "$seed/manifest.json"
+touch "$seed/Service.qml"
 git -C "$seed" add manifest.json
+git -C "$seed" add Service.qml
 git -C "$seed" commit --quiet -m initial
 git init --bare --quiet "$origin"
 git -C "$origin" symbolic-ref HEAD refs/heads/main
@@ -79,6 +96,7 @@ git -C "$seed" push --quiet -u origin HEAD:main
 git clone --quiet "$origin" "$plugins/acme.updated"
 git -C "$plugins/acme.updated" checkout --quiet main
 printf '%s\n' stable-agent >"$agent_file"
+export SHELL_PLUGINS='[{"id":"acme.updated","enabled":true}]'
 
 write_manifest "$seed" "changed-agent"
 git -C "$seed" add manifest.json
@@ -87,6 +105,9 @@ git -C "$seed" push --quiet origin HEAD:main
 omarchy-plugin-update acme.updated --yes >/dev/null
 [[ ! -e $agent_file ]] || fail "plugin update preserves a changed default harness"
 pass "plugin update clears a changed selected harness"
+grep -Fqx 'shell setPluginEnabled acme.updated false' "$SHELL_CALLS" ||
+  fail "plugin update leaves an enabled plugin active after it becomes metadata-only"
+pass "plugin update disables an enabled plugin that becomes metadata-only"
 
 printf '%s\n' unrelated-agent >"$agent_file"
 write_manifest "$seed" "changed-agent"
