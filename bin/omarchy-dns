@@ -182,7 +182,7 @@ set_connection_dns() {
     networkmanager_dns_connection "$type" || continue
     # Bridge/bond/team ports inherit IP configuration from their controller.
     # A port can still have the same Ethernet type as a standalone profile.
-    controller=$(nmcli -g connection.controller connection show "$uuid")
+    controller=$(nmcli -g connection.controller connection show "$uuid") || continue
     [[ -z $controller ]] || continue
 
     # Set each family on its own: a profile with IPv6 disabled rejects IPv6 DNS
@@ -202,7 +202,7 @@ clear_connection_dns() {
     networkmanager_dns_connection "$type" || continue
     # Bridge/bond/team ports inherit IP configuration from their controller.
     # A port can still have the same Ethernet type as a standalone profile.
-    controller=$(nmcli -g connection.controller connection show "$uuid")
+    controller=$(nmcli -g connection.controller connection show "$uuid") || continue
     [[ -z $controller ]] || continue
 
     nmcli connection modify "$uuid" \

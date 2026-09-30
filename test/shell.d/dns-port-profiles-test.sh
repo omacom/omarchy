@@ -11,7 +11,7 @@ nmcli() {
   case "$*" in
     '-t -f UUID,TYPE connection show')
       if [[ ${reject_profiles:-no} == "yes" ]]; then
-        printf '%s\n' 'link-local:802-3-ethernet' 'disabled:802-3-ethernet' 'ignore:802-3-ethernet'
+        printf '%s\n' 'vanished:802-3-ethernet' 'link-local:802-3-ethernet' 'disabled:802-3-ethernet' 'ignore:802-3-ethernet'
       fi
       printf '%s\n' 'wifi:802-11-wireless' 'bridge-port:802-3-ethernet' 'bond-port:802-3-ethernet' 'team-port:802-3-ethernet' 'ethernet:802-3-ethernet' 'bridge:bridge'
       if [[ ${reject_profiles:-no} == "yes" ]]; then
@@ -21,6 +21,7 @@ nmcli() {
     '-g connection.controller connection show bridge-port') echo br0 ;;
     '-g connection.controller connection show bond-port') echo bond0 ;;
     '-g connection.controller connection show team-port') echo team0 ;;
+    '-g connection.controller connection show vanished') echo 'Error: vanished - no such connection profile.' >&2; return 10 ;;
     '-g connection.controller connection show wifi'|'-g connection.controller connection show ethernet') ;;
     '-g connection.controller connection show link-local'|'-g connection.controller connection show disabled'|'-g connection.controller connection show ignore'|'-g connection.controller connection show rejected-last') ;;
     'connection modify link-local '*|'connection modify disabled '*|'connection modify ignore '*)
