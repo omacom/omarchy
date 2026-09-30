@@ -119,6 +119,20 @@ function osdMessage(player, fallback) {
   return label || fallback
 }
 
+// What a volume key does to the output, by omarchy-audio-output-volume's rules:
+// raise and lower step 5 and clamp to 0..100 (so a boosted sink drops to 100
+// on raise), unmuting as they go; mute-toggle flips mute and keeps the volume.
+function volumeKeyStep(action, percent, muted) {
+  if (action === "raise") return { percent: Math.min(percent + 5, 100), muted: false }
+  if (action === "lower") return { percent: Math.max(percent - 5, 0), muted: false }
+  if (action === "mute-toggle") return { percent: percent, muted: !muted }
+  return null
+}
+
+function volumeOsdIcon(percent, muted) {
+  return muted || percent === 0 ? "volume-muted" : "volume-high"
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isProxyPlayer: isProxyPlayer,
@@ -137,6 +151,8 @@ if (typeof module !== "undefined") {
     trackSignature: trackSignature,
     trackChanged: trackChanged,
     labelFor: labelFor,
-    osdMessage: osdMessage
+    osdMessage: osdMessage,
+    volumeKeyStep: volumeKeyStep,
+    volumeOsdIcon: volumeOsdIcon
   }
 }

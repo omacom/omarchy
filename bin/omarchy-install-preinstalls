@@ -23,8 +23,10 @@ if gum confirm "Are you sure you want to restore all preinstalled web apps, TUI 
     moonlight-qt \
     lazydocker \
     omacut \
+    monologue \
     omacalc \
-    omawrite; then
+    omawrite \
+    hype; then
     echo -e "\nPreinstalls are still marked as removed. Fix the errors above and try again."
     exit 1
   fi
