@@ -26,10 +26,18 @@ while read -r request; do
       jq -cn --argjson id "$id" '{id: $id, result: {}}'
       ;;
     account/read)
-      jq -cn --argjson id "$id" '{id: $id, result: {account: {}}}'
+      if [[ -n ${CODEX_SIGNED_OUT:-} ]]; then
+        jq -cn --argjson id "$id" '{id: $id, result: {account: null, requiresOpenaiAuth: true}}'
+      else
+        jq -cn --argjson id "$id" '{id: $id, result: {account: {}}}'
+      fi
       ;;
     account/rateLimits/read)
-      jq -cn --argjson id "$id" '{id: $id, result: {rateLimits: {}}}'
+      if [[ -n ${CODEX_SIGNED_OUT:-} ]]; then
+        jq -cn --argjson id "$id" '{id: $id, error: {code: -32600, message: "codex account authentication required to read rate limits"}}'
+      else
+        jq -cn --argjson id "$id" '{id: $id, result: {rateLimits: {}}}'
+      fi
       ;;
   esac
 done
@@ -67,6 +75,20 @@ pass "Codex collector does not double-count cache or reasoning tokens"
 [[ $(jq -c '.id + "/" + (.limits|tostring)' <<<"$result") == '"codex/[]"' ]] ||
   fail "Codex collector identifies itself with an empty limits list" "$result"
 pass "Codex collector identifies itself with an empty limits list"
+
+[[ $(jq -r '.needsSignIn // false' <<<"$result") == "false" ]] ||
+  fail "Codex collector does not ask a signed-in account to sign in" "$result"
+pass "Codex collector does not ask a signed-in account to sign in"
+
+# Signed out, the app-server has no account and refuses the limits read. That
+# used to leave the record with no status at all, so the panel said nothing.
+signed_out=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" CODEX_SIGNED_OUT=1 XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
+  "$ROOT/bin/omarchy-agent-usage-codex")
+[[ $(jq -r '.usageStatusText' <<<"$signed_out") == "Signed out" && $(jq -r '.needsSignIn' <<<"$signed_out") == "true" ]] ||
+  fail "Codex collector reports a signed-out account" "$signed_out"
+[[ $(jq -r '.authHelpText' <<<"$signed_out") == *"codex login"* ]] ||
+  fail "Codex collector says how to sign a signed-out account in" "$signed_out"
+pass "Codex collector reports a signed-out account"
 
 # Pi and omp can both spend a Codex subscription without creating native
 # Codex sessions. Their compatible JSONL transcripts must be included.

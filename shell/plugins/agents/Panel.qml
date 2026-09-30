@@ -68,8 +68,10 @@ Panel {
   // parsed for a command: collectors put exception messages there.
   readonly property var reauthAgents: ["claude", "codex"]
 
+  // Only offered when the collector says signing in is the fix, not for an
+  // outage or a rate limit that happens to share the status card.
   function canReauth(p) {
-    return !!p && reauthAgents.indexOf(p.providerId) !== -1
+    return !!p && p.needsSignIn && reauthAgents.indexOf(p.providerId) !== -1
   }
 
   // Sign in from a floating terminal; the helper then regenerates the record

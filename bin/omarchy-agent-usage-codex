@@ -545,9 +545,18 @@ def fetch_codex_rpc():
     proc.stdin.write(json.dumps({"method": "initialized", "params": {}}) + "\n")
     proc.stdin.flush()
     account_msg = rpc_request(proc, 2, "account/read", timeout=4)
+    account_result = account_msg.get("result") or {}
+
+    # Signed out, the app-server reports no account and refuses the limits
+    # read, which would otherwise leave the panel with nothing to say.
+    if account_result.get("account") is None and account_result.get("requiresOpenaiAuth"):
+      result["usageStatusText"] = "Signed out"
+      result["needsSignIn"] = True
+      return result
+
     limits_msg = rpc_request(proc, 3, "account/rateLimits/read", timeout=4)
 
-    account = (account_msg.get("result") or {}).get("account") or {}
+    account = account_result.get("account") or {}
     limits = (limits_msg.get("result") or {}).get("rateLimits") or {}
     plan = limits.get("planType") or account.get("planType") or account.get("type") or ""
     result["tierLabel"] = str(plan) if plan else ""

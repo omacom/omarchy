@@ -155,6 +155,48 @@ unreachable=$(collect_limits "token" 0 "$cache")
   fail "Claude collector advises a retry after a transport failure" "$unreachable"
 pass "Claude collector falls back to cache when the probe cannot connect"
 
+# The panel offers "Sign in again" on needsSignIn alone, so it has to mean
+# that signing in is the fix — never an outage that shares the status card.
+probe_status() {
+  COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" CODE="$1" CACHED="$2" \
+    XDG_CACHE_HOME="$CACHE_HOME" python3 - <<'PY'
+import importlib.machinery, importlib.util, json, os
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+
+(collector.cache_root() / "claude-limits.json").write_text(os.environ["CACHED"], encoding="utf-8")
+
+def urlopen(request, timeout=None):
+  raise collector.urllib.error.HTTPError(request.full_url, int(os.environ["CODE"]), "status", {}, None)
+
+collector.urllib.request.urlopen = urlopen
+print(json.dumps(collector.collect_limits("token", 0, True)))
+PY
+}
+
+for state in "$expired" "$signed_out"; do
+  [[ $(jq -r '.needsSignIn' <<<"$state") == "true" ]] ||
+    fail "Claude collector asks for a sign-in when the token is missing or expired" "$state"
+done
+pass "Claude collector asks for a sign-in when the token is missing or expired"
+
+# A rejected token is said out loud even while the last limits stay on screen.
+rejected=$(probe_status 401 "$cache")
+[[ $(jq -r '.usageStatusText' <<<"$rejected") == "Sign-in rejected" && $(jq -r '.needsSignIn' <<<"$rejected") == "true" ]] ||
+  fail "Claude collector asks for a sign-in when the endpoint rejects the token" "$rejected"
+[[ $(jq -c '[.limits[].label]' <<<"$rejected") == '["Weekly (7-day)"]' ]] ||
+  fail "Claude collector keeps open cached windows after a rejected token" "$rejected"
+pass "Claude collector asks for a sign-in when the endpoint rejects the token"
+
+for state in "$unreachable" "$(probe_status 429 "$cache")" "$(probe_status 500 '{}')"; do
+  [[ $(jq -r '.needsSignIn // false' <<<"$state") == "false" ]] ||
+    fail "Claude collector does not ask for a sign-in on an outage or rate limit" "$state"
+done
+pass "Claude collector does not ask for a sign-in on an outage or rate limit"
+
 # Reuse and --force are decided against a cache that is fresh by the clock, so
 # the probe is answered rather than refused: what matters is whether it ran.
 probe_with_cache() {

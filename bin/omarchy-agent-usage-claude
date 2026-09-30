@@ -722,6 +722,13 @@ def probe_limits(access_token: str) -> dict[str, Any]:
       payload = json.loads(response.read().decode("utf-8", errors="replace"))
   except urllib.error.HTTPError as error:
     retry_after = error.headers.get("retry-after", "") if error.headers else ""
+    # A rejected token is the one failure signing in again fixes.
+    if error.code == 401:
+      return {
+        "ok": False,
+        "auth": True,
+        "helpText": "Anthropic rejected Claude Code's saved sign-in. Run `claude auth login` to sign in again.",
+      }
     if error.code == 429:
       help_text = "Anthropic's usage endpoint is rate limiting checks right now" + (
         f" (retry after {retry_after}s)" if retry_after else ""
@@ -809,10 +816,12 @@ def collect_limits(access_token: str, expires_at_ms: int, force: bool) -> dict[s
   if access_token == "":
     result["limits"] = fallback
     result["usageStatusText"] = "Waiting for auth"
+    result["needsSignIn"] = True
     return result
   if expires_at_ms > 0 and expires_at_ms <= time.time() * 1000:
     result["limits"] = fallback
     result["usageStatusText"] = "Sign-in expired"
+    result["needsSignIn"] = True
     result["authHelpText"] = (
       "Claude Code's saved sign-in expired"
       + (" — showing the last known limits." if fallback else ".")
@@ -832,6 +841,15 @@ def collect_limits(access_token: str, expires_at_ms: int, force: bool) -> dict[s
   if probe["ok"]:
     result["limits"] = probe["limits"]
     write_json(probe_cache, {"fetchedAtMs": round(time.time() * 1000), "limits": probe["limits"]})
+    return result
+
+  # Unlike an outage, a rejected sign-in is worth saying even while the last
+  # known limits are still on screen.
+  if probe.get("auth"):
+    result["limits"] = fallback
+    result["usageStatusText"] = "Sign-in rejected"
+    result["authHelpText"] = probe["helpText"]
+    result["needsSignIn"] = True
     return result
 
   # The first probe after login often fires before DHCP has handed out a
@@ -896,6 +914,8 @@ def main() -> int:
   }
   if limits.get("retryAdvised"):
     record["retryAdvised"] = True
+  if limits.get("needsSignIn"):
+    record["needsSignIn"] = True
   record.update(stats)
   print(json.dumps(record, separators=(",", ":"), sort_keys=True))
   return 0
