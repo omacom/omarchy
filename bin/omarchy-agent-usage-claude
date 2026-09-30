@@ -47,7 +47,17 @@ def expand_path(value: str) -> Path:
 
 def cache_root() -> Path:
   root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "omarchy" / "agent-usage"
-  root.mkdir(parents=True, exist_ok=True)
+  root.mkdir(parents=True, exist_ok=True, mode=0o700)
+  # mkdir(exist_ok=True) leaves an already-open tree alone, and older runs
+  # wrote world-readable files. Clamp both so plan/usage details stay private.
+  try:
+    if root.stat().st_mode & 0o077:
+      root.chmod(0o700)
+    for path in root.iterdir():
+      if not path.is_symlink() and path.is_file() and path.stat().st_mode & 0o077:
+        path.chmod(0o600)
+  except OSError:
+    pass
   return root
 
 
@@ -240,8 +250,8 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
   try:
     with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
       handle.write(json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n")
-    # mkstemp opens at 0600; these caches were world-readable before.
-    tmp.chmod(0o644)
+    # mkstemp opens at 0600 — keep caches owner-only (usage may include
+    # model/plan details from the local agent config).
     tmp.replace(path)
   except BaseException:
     tmp.unlink(missing_ok=True)
@@ -797,7 +807,16 @@ def collect_limits(access_token: str, expires_at_ms: int, force: bool) -> dict[s
   # A panel that is opened and shut repeatedly must not turn into a request
   # per flick, so recent probe results are reused for a short window — and
   # kept as the answer of record when a later probe fails.
-  probe_cache = cache_root() / "claude-limits.json"
+  # Keyed by config_dir so two CLAUDE_CONFIG_DIR accounts never share a
+  # probe. The old fixed name is deleted so a leftover world-readable file
+  # cannot keep leaking the last account that wrote it.
+  root = cache_root()
+  digest = hashlib.sha1(str(config_dir()).encode("utf-8")).hexdigest()[:16]
+  probe_cache = root / f"claude-limits-{digest}.json"
+  try:
+    (root / "claude-limits.json").unlink(missing_ok=True)
+  except OSError:
+    pass
   cached = read_fresh_json(probe_cache, float("inf")) or {}
   fallback = usable_cached_limits(cached)
 

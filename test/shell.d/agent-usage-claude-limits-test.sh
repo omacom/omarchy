@@ -89,7 +89,8 @@ spec = importlib.util.spec_from_loader(loader.name, loader)
 collector = importlib.util.module_from_spec(spec)
 loader.exec_module(collector)
 
-cache = collector.cache_root() / "claude-limits.json"
+digest = __import__("hashlib").sha1(str(collector.config_dir()).encode("utf-8")).hexdigest()[:16]
+cache = collector.cache_root() / f"claude-limits-{digest}.json"
 cached = os.environ["CACHED"]
 if cached:
   cache.write_text(cached, encoding="utf-8")
@@ -167,7 +168,8 @@ spec = importlib.util.spec_from_loader(loader.name, loader)
 collector = importlib.util.module_from_spec(spec)
 loader.exec_module(collector)
 
-cache = collector.cache_root() / "claude-limits.json"
+digest = __import__("hashlib").sha1(str(collector.config_dir()).encode("utf-8")).hexdigest()[:16]
+cache = collector.cache_root() / f"claude-limits-{digest}.json"
 cache.write_text(os.environ["CACHED"], encoding="utf-8")
 
 probes = []
@@ -211,6 +213,64 @@ pass "Claude collector re-probes on --force despite a fresh cache"
 [[ $(jq -c '[.cached.limits[].percent]' <<<"$forced") == "[0.44]" ]] ||
   fail "Claude collector caches a successful probe" "$forced"
 pass "Claude collector caches a successful probe"
+
+# Two CLAUDE_CONFIG_DIR accounts must not share a limits cache: each config
+# directory gets its own digests file, and a leftover unkeyed file is dropped
+# so it cannot keep leaking the last account that wrote it.
+isolate_limits=$(COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" XDG_CACHE_HOME="$CACHE_HOME" python3 - <<'PY'
+import hashlib
+import importlib.machinery
+import importlib.util
+import io
+import json
+import os
+from pathlib import Path
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+
+root = Path(os.environ["XDG_CACHE_HOME"]) / "omarchy" / "agent-usage"
+root.mkdir(parents=True, exist_ok=True)
+legacy = root / "claude-limits.json"
+legacy.write_text('{"fetchedAtMs":1,"limits":[{"label":"Weekly (7-day)","percent":0.99,"resetsAt":""}]}', encoding="utf-8")
+legacy.chmod(0o644)
+
+def payload_for(percent):
+  return json.dumps({"five_hour": {"utilization": percent}}).encode()
+
+paths = []
+for name, percent in (("account-a", 10.0), ("account-b", 80.0)):
+  config = Path(os.environ["XDG_CACHE_HOME"]) / name
+  config.mkdir(parents=True, exist_ok=True)
+  os.environ["CLAUDE_CONFIG_DIR"] = str(config)
+  collector.urllib.request.urlopen = lambda request, timeout=None, percent=percent: io.BytesIO(payload_for(percent))
+  collector.collect_limits("token", 0, True)
+  digest = hashlib.sha1(str(collector.config_dir()).encode("utf-8")).hexdigest()[:16]
+  path = root / f"claude-limits-{digest}.json"
+  paths.append(str(path))
+  assert path.is_file(), path
+  assert (path.stat().st_mode & 0o777) == 0o600, oct(path.stat().st_mode)
+  cached = json.loads(path.read_text(encoding="utf-8"))
+  assert cached["limits"][0]["percent"] == percent / 100.0, cached
+
+print(json.dumps({
+  "paths": paths,
+  "distinct": paths[0] != paths[1],
+  "legacyGone": not legacy.exists(),
+  "dirMode": oct(root.stat().st_mode & 0o777),
+}))
+PY
+)
+
+[[ $(jq -r '.distinct' <<<"$isolate_limits") == "true" ]] ||
+  fail "Claude collector keys limits caches by CLAUDE_CONFIG_DIR" "$isolate_limits"
+[[ $(jq -r '.legacyGone' <<<"$isolate_limits") == "true" ]] ||
+  fail "Claude collector removes the unkeyed limits cache" "$isolate_limits"
+[[ $(jq -r '.dirMode' <<<"$isolate_limits") == "0o700" ]] ||
+  fail "Claude collector keeps the usage cache directory owner-only" "$isolate_limits"
+pass "Claude collector isolates limits caches across CLAUDE_CONFIG_DIR"
 
 # The panel reads a window out of a label, and that guess cannot survive a
 # model name — "Opus 5 (1M context)" parses as a one-minute window. A collector
