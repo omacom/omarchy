@@ -44,7 +44,9 @@ kernel_prompted() {
 }
 
 mkdir -p "$TEST_MODULES/7.2.1-arch1-1" "$TEST_MODULES/7.2.2-arch1-1"
-touch "$TEST_MODULES/7.2.1-arch1-1/"{pkgbase,vmlinuz} "$TEST_MODULES/7.2.2-arch1-1/"{pkgbase,vmlinuz}
+touch "$TEST_MODULES/7.2.1-arch1-1/vmlinuz" "$TEST_MODULES/7.2.2-arch1-1/vmlinuz"
+echo linux >"$TEST_MODULES/7.2.1-arch1-1/pkgbase"
+echo linux >"$TEST_MODULES/7.2.2-arch1-1/pkgbase"
 if kernel_prompted 7.2.1-arch1-1 7.2.1-arch1-1; then
   fail "running package kernel does not request a reboot" "$(cat "$TEST_LOG")"
 fi
@@ -63,3 +65,10 @@ if kernel_prompted 7.2.1-custom 7.2.2-arch1-1; then
   fail "kernel installed outside pacman does not request a reboot" "$(cat "$TEST_LOG")"
 fi
 pass "kernel installed outside pacman does not request a reboot"
+
+mkdir -p "$TEST_MODULES/7.2.1-manual"
+echo linux-manual >"$TEST_MODULES/7.2.1-manual/pkgbase"
+if kernel_prompted 7.2.1-manual 7.2.2-arch1-1; then
+  fail "kernel installed outside pacman with a pkgbase marker does not request a reboot" "$(cat "$TEST_LOG")"
+fi
+pass "kernel installed outside pacman with a pkgbase marker does not request a reboot"
