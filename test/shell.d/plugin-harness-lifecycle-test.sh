@@ -67,6 +67,16 @@ omarchy-plugin-remove zeta.ignored --yes >/dev/null
 [[ $(<"$agent_file") == duplicate-agent ]] || fail "plugin removal clears a default backed by an earlier duplicate harness"
 pass "plugin removal preserves a selected harness when removing an ignored duplicate"
 
+chosen_duplicate="$plugins/acme.chosen"
+remaining_duplicate="$plugins/zeta.remaining"
+mkdir -p "$chosen_duplicate" "$remaining_duplicate"
+write_manifest "$chosen_duplicate" "chosen-agent"
+write_manifest "$remaining_duplicate" "chosen-agent"
+printf '%s\n' chosen-agent >"$agent_file"
+omarchy-plugin-remove acme.chosen --yes >/dev/null
+[[ ! -e $agent_file ]] || fail "plugin removal switches a default to a duplicate harness"
+pass "plugin removal clears a default backed by the removed duplicate"
+
 removed="$plugins/acme.removed"
 mkdir -p "$removed"
 write_manifest "$removed" "removed-agent"

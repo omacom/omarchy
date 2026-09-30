@@ -33,8 +33,8 @@ valid_plugin_id() {
   [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]
 }
 
-selected_harness_exists() {
-  omarchy-agent-catalog | jq -e --arg id "$1" 'any(.[]; .id == $id)' >/dev/null
+selected_harness_source() {
+  omarchy-agent-catalog --sources | jq -r --arg id "$1" '.[] | select(.id == $id) | .pluginId // empty' | head -n1
 }
 
 id=""
@@ -90,6 +90,12 @@ if [[ -f $target/manifest.json ]]; then
   harness_id=$(jq -r '.agentHarness.id // empty' "$target/manifest.json")
 fi
 
+selected_harness_plugin=""
+agent_file="$HOME/.config/omarchy/defaults/agent"
+if [[ -n $harness_id && -f $agent_file && $(<"$agent_file") == "$harness_id" ]]; then
+  selected_harness_plugin=$(selected_harness_source "$harness_id")
+fi
+
 if [[ -L $target ]]; then
   confirm "$(omarchy-i18n plugin.confirmUnlink "$id" "$(readlink "$target")")" || fail "aborted"
 elif [[ -d $target/.git ]]; then
@@ -123,7 +129,7 @@ fi
 omarchy-shell shell rescanPlugins >/dev/null
 
 agent_file="$HOME/.config/omarchy/defaults/agent"
-if [[ -n $harness_id && -f $agent_file && $(<"$agent_file") == "$harness_id" ]] && ! selected_harness_exists "$harness_id"; then
+if [[ -n $harness_id && -f $agent_file && $(<"$agent_file") == "$harness_id" && $selected_harness_plugin == "$id" ]]; then
   rm -f "$agent_file"
   echo "Cleared default coding agent $harness_id because its integration was removed."
 fi
