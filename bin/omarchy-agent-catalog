@@ -8,9 +8,14 @@ set -euo pipefail
 
 source_file="$OMARCHY_PATH/default/agents/harnesses.json"
 plugin_dir="$HOME/.config/omarchy/plugins"
+include_sources=false
+if [[ ${1:-} == "--sources" ]]; then
+  include_sources=true
+  shift
+fi
 candidate="${1:-}"
 [[ -z $candidate || -f $candidate ]] || { echo "omarchy-agent-catalog: manifest not found: $candidate" >&2; exit 1; }
-(( $# <= 1 )) || { echo "Usage: omarchy-agent-catalog [candidate-manifest]" >&2; exit 1; }
+(( $# <= 1 )) || { echo "Usage: omarchy-agent-catalog [--sources] [candidate-manifest]" >&2; exit 1; }
 
 inputs=("$source_file")
 candidate_present=false
@@ -84,4 +89,8 @@ else
   jq -r '.conflicts[] | .message' <<<"$result" | sort -u |
     while IFS= read -r conflict; do echo "omarchy-agent-catalog: ignoring conflicting installed harness: $conflict" >&2; done
 fi
-jq '.catalog | map(del(.pluginId, .source))' <<<"$result"
+if [[ $include_sources == "true" ]]; then
+  jq '.catalog | map(del(.source))' <<<"$result"
+else
+  jq '.catalog | map(del(.pluginId, .source))' <<<"$result"
+fi
