@@ -49,7 +49,7 @@ if [[ -n $prompt ]]; then
 else
   template=$(jq -c '.launch.command' <<<"$harness")
 fi
-mapfile -d '' command < <(jq -jr --arg project "$PWD" --arg prompt "$prompt" '.[] | gsub("\\{project\\}"; $project) | gsub("\\{prompt\\}"; $prompt) + "\u0000"' <<<"$template")
+mapfile -d '' command < <(jq -jr --arg project "$PWD" --arg prompt "$prompt" '.[] | gsub("\\{(?<placeholder>project|prompt)\\}"; if .placeholder == "project" then $project else $prompt end) + "\u0000"' <<<"$template")
 mode=$(jq -r '.launch.mode' <<<"$harness")
 
 # A new session uses the current selection rather than its parent's account
