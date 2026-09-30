@@ -85,6 +85,7 @@ omarchy-install-browser)
   edge) command=microsoft-edge-stable ;;
   firefox) command=firefox ;;
   zen) command=zen-browser ;;
+  vivaldi) command=vivaldi-stable ;;
   esac
   ;;
 omarchy-install-terminal)
@@ -156,6 +157,7 @@ browser_cases=(
   'edge microsoft-edge-stable browser:edge'
   'firefox firefox browser:firefox'
   'zen zen-browser browser:zen'
+  'vivaldi vivaldi-stable browser:vivaldi'
 )
 
 terminal_cases=(

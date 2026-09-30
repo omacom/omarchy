@@ -18,6 +18,7 @@ case $(type -P "$1") in
 /usr/bin/brave) profile=BraveSoftware/Brave-Browser flags=brave-flags.conf ;;
 /usr/bin/brave-origin) profile=BraveSoftware/Brave-Origin flags=brave-origin-flags.conf ;;
 /usr/bin/microsoft-edge-stable) profile=microsoft-edge flags=microsoft-edge-stable-flags.conf ;;
+/usr/bin/vivaldi-stable) profile=vivaldi flags=vivaldi-stable.conf ;;
 *) exit 1 ;;
 esac
 shift

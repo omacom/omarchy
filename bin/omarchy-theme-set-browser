@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Apply the current theme color to Chromium, Chrome, Edge, and Brave
+# omarchy:summary=Apply the current theme color to Chromium, Chrome, Edge, Brave, and Vivaldi
 # omarchy:hidden=true
 
 source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
@@ -76,6 +76,7 @@ done
 # Match on the binary path: the running process is named plain "brave", and a
 # bare brave-origin pattern would also match the installer's own terminal.
 [[ $running_args == *"/opt/brave-origin-bin/"* ]] && omarchy-cmd-present brave-origin && browsers_to_refresh+=(brave-origin)
+[[ -n ${running_names[vivaldi-bin]:-} || -n ${running_names[vivaldi]:-} ]] && omarchy-cmd-present vivaldi-stable && browsers_to_refresh+=(vivaldi-stable)
 
 wait "$policy_pid" || failed=1
 

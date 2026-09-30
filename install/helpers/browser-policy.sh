@@ -9,6 +9,7 @@ BROWSER_POLICY_MANAGED_DIRS=(
   /etc/opt/chrome/policies/managed
   /etc/opt/edge/policies/managed
   /etc/brave/policies/managed
+  /etc/vivaldi/policies/managed
 )
 
 # Ancestors of the managed dirs, shortest first. A writable or attacker-owned
@@ -22,6 +23,8 @@ BROWSER_POLICY_PARENT_DIRS=(
   /etc/opt/edge/policies
   /etc/brave
   /etc/brave/policies
+  /etc/vivaldi
+  /etc/vivaldi/policies
 )
 
 BROWSER_POLICY_FIREFOX_DIRS=(

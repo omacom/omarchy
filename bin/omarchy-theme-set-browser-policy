@@ -25,6 +25,7 @@ POLICY_DIRS=(
   /etc/opt/chrome/policies/managed
   /etc/opt/edge/policies/managed
   /etc/brave/policies/managed
+  /etc/vivaldi/policies/managed
 )
 
 # The path etc/sudoers.d/omarchy-theme-browser names. The privileged half always
