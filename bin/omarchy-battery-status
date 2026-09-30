@@ -134,6 +134,7 @@ battery_load_series() {
   bt_displayed=
   bt_updated=
   bt_counter=
+  bt_counter_family=
   bt_text=
   bt_samples=()
   [[ -f $file ]] || return 1
@@ -159,18 +160,21 @@ battery_load_series() {
         bt_updated=$a
         ;;
       counter)
-        if [[ -z ${a:-} || $a == "-" ]]; then
-          bt_counter=
-        elif [[ $a =~ ^[0-9]+$ ]]; then
+        bt_counter=
+        if [[ -n ${a:-} && $a != "-" ]]; then
+          [[ $a =~ ^[0-9]+$ ]] || return 1
           bt_counter=$a
-        else
-          return 1
         fi
+        case ${b:-} in
+          energy|charge) bt_counter_family=$b ;;
+          "") bt_counter_family= ;;
+          *) return 1 ;;
+        esac
         ;;
       sample)
         [[ ${a:-} =~ ^[0-9]+$ ]] || return 1
         [[ ${b:-} == "-" || ${b:-} =~ ^[0-9]+$ ]] || return 1
-        [[ ${c:-} =~ ^[0-9]+$ ]] || return 1
+        [[ ${c:-} == "-" || ${c:-} =~ ^[0-9]+$ ]] || return 1
         bt_samples+=("$a $b $c")
         ;;
       *)
@@ -193,7 +197,9 @@ battery_write_series() {
     printf 'displayed_text %s\n' "$bt_text"
     printf 'updated_at %s\n' "$bt_updated"
     if [[ -n $bt_counter ]]; then
-      printf 'counter %s\n' "$bt_counter"
+      printf 'counter %s %s\n' "$bt_counter" "$bt_counter_family"
+    elif [[ -n $bt_counter_family ]]; then
+      printf 'counter - %s\n' "$bt_counter_family"
     else
       printf 'counter -\n'
     fi
@@ -211,6 +217,11 @@ battery_write_fresh() {
   now=$2
   counter=$3
   seconds=$1
+  if [[ -n $3 ]]; then
+    bt_counter_family=$counter_family
+  else
+    bt_counter_family=
+  fi
   bt_samples=()
   battery_append_sample
   battery_write_series "$4"
@@ -263,10 +274,15 @@ battery_apply_coulomb() {
   (( bt_displayed < 0 )) && bt_displayed=0
 }
 
-# No counter means the sample is the UPower time. An absent estimate is not 0s.
+# An absent UPower time is not a 0s sample, with or without a counter.
 battery_append_sample() {
+  local estimate="-"
+
+  if [[ -n ${seconds:-} ]]; then
+    estimate=$seconds
+  fi
   if [[ -n $counter ]]; then
-    bt_samples+=("$now $counter ${seconds:-0}")
+    bt_samples+=("$now $counter $estimate")
   elif [[ -n $seconds ]]; then
     bt_samples+=("$now - $seconds")
   fi
@@ -325,6 +341,7 @@ battery_target() {
 
   for sample in "${bt_samples[@]}"; do
     read -r sample_t sample_c sample_u <<<"$sample"
+    [[ $sample_u =~ ^[0-9]+$ ]] || continue
     age=$((now - sample_t))
     (( age >= battery_window_sec && age <= battery_blend_sec )) && found=1
     sum=$((sum + sample_u))
@@ -348,8 +365,21 @@ battery_slew() {
   (( bt_displayed < 0 )) && bt_displayed=0
 }
 
+# energy_now is µWh and charge_now is µAh. A later look in the other unit
+# cannot scale the stored counter or its samples.
+battery_align_counter_family() {
+  [[ -n $counter ]] || return 0
+  if [[ -n $bt_counter_family && $bt_counter_family != "$counter_family" ]]; then
+    bt_counter=
+    bt_samples=()
+  fi
+  bt_counter_family=$counter_family
+}
+
 battery_advance_series() {
   local elapsed allowance target
+
+  battery_align_counter_family
 
   if (( now < bt_updated )); then
     elapsed=0
@@ -401,13 +431,14 @@ battery_remember_time() {
   local seconds now root key dir series active active_file series_file
   local shown_sec shown_text
 
-  if [[ $state == fully-charged ]]; then
-    battery_clear_memory
+  # fully-charged below 99% with a threshold is holding, so it must not clear.
+  if battery_time_is_idle; then
     printf '%s' "$raw"
     return 0
   fi
 
-  if battery_time_is_idle; then
+  if [[ $state == fully-charged ]]; then
+    battery_clear_memory
     printf '%s' "$raw"
     return 0
   fi

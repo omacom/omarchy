@@ -313,6 +313,18 @@ write_upower discharging "time to empty:        20 minutes"
 half_output=$(run_status 520000 "$tmp_dir/power" "$half_state")
 require_field "battery status follows a large charge drop across a long gap" "$half_output" time "5h 30m"
 
+# energy_now is µWh and charge_now is µAh. Falling back across that unit is not drain.
+reset_supply
+set_charge 6000000
+printf '48000000\n' >"$tmp_dir/power/BAT0/energy_now"
+write_upower discharging "time to empty:        11 hours"
+unit_state=$(fresh_state unit)
+run_status 1300000 "$tmp_dir/power" "$unit_state" >/dev/null
+rm -f "$tmp_dir/power/BAT0/energy_now"
+write_upower discharging "time to empty:        3 hours"
+unit_output=$(run_status 1300010 "$tmp_dir/power" "$unit_state")
+require_field "battery status keeps the hour when the counter unit changes" "$unit_output" time "11h"
+
 # With no counter, a UPower blend walks toward the new time and one run does not arrive.
 reset_supply
 write_upower discharging "time to empty:        11 hours"
@@ -343,6 +355,28 @@ for _step in $(seq 1 60); do
   missing_now=$((missing_now + 5))
   missing_output=$(run_status "$missing_now" "$tmp_dir/power" "$missing_state")
   require_field "battery status keeps 2h while later UPower times are missing" "$missing_output" time "2h"
+done
+
+# A counter look with no UPower time is not a 0s sample. Once the counter is
+# gone, those looks do not pull the hour down.
+reset_supply
+set_charge 6000000
+write_upower discharging "time to empty:        2 hours"
+counter_gap_state=$(fresh_state counter-gap)
+run_status 1200000 "$tmp_dir/power" "$counter_gap_state" >/dev/null
+write_upower discharging ""
+counter_gap_now=1200000
+for _step in $(seq 1 14); do
+  counter_gap_now=$((counter_gap_now + 5))
+  counter_gap_output=$(run_status "$counter_gap_now" "$tmp_dir/power" "$counter_gap_state")
+  require_field "battery status keeps 2h while a counter look has no UPower time" "$counter_gap_output" time "2h"
+done
+set_charge ""
+write_upower discharging "time to empty:        2 hours"
+for _step in $(seq 1 12); do
+  counter_gap_now=$((counter_gap_now + 5))
+  counter_gap_output=$(run_status "$counter_gap_now" "$tmp_dir/power" "$counter_gap_state")
+  require_field "battery status keeps 2h after a counter gap with missing estimates" "$counter_gap_output" time "2h"
 done
 
 # A gap longer than the blend, and no counter, prints the current UPower time.
@@ -385,6 +419,23 @@ rm -rf "$tmp_dir/power/AC"
 write_upower discharging "time to empty:        3 hours"
 held_output=$(run_status 900020 "$tmp_dir/power" "$hold_memory_state")
 require_field "battery status resumes the discharge hour after holding" "$held_output" time "11h"
+
+# UPower calls a threshold stop fully-charged below 99%. That hold keeps the discharge series.
+reset_supply
+set_charge 6000000
+write_upower discharging "time to empty:        11 hours"
+full_hold_state=$(fresh_state full-hold)
+run_status 950000 "$tmp_dir/power" "$full_hold_state" >/dev/null
+mkdir -p "$tmp_dir/power/AC"
+printf 'Mains\n' >"$tmp_dir/power/AC/type"
+printf '1\n' >"$tmp_dir/power/AC/online"
+write_upower fully-charged "" $'  charge-start-threshold: 50%\n  charge-end-threshold:   80%'
+full_hold_output=$(run_status 950010 "$tmp_dir/power" "$full_hold_state")
+require_field "battery status reports holding for a full reading below 99 percent" "$full_hold_output" state "holding"
+rm -rf "$tmp_dir/power/AC"
+write_upower discharging "time to empty:        3 hours"
+full_hold_output=$(run_status 950020 "$tmp_dir/power" "$full_hold_state")
+require_field "battery status resumes the discharge hour after a threshold hold reported as full" "$full_hold_output" time "11h"
 
 # A full battery clears the old countdown.
 reset_supply
