@@ -8,7 +8,7 @@ omarchy plugin enable omarchy.agent-comms --section center
 
 The tape stays out of the bar until a new comm arrives. The label and the scrolling line then show for one minute (`visibleSeconds`). A newer comm starts that minute over. Hover pauses the scroll and holds the tape open until the pointer leaves.
 
-Desktop notifications from ChatGPT, Grok, and Muse are followed. The notification summary is the speaker when it is short (a dot's name, "Grok", "Muse") and the body is the comm. Change the app list with the `apps` setting. An empty list ignores notifications.
+Desktop notifications from ChatGPT, Grok, and Muse are followed as soon as their live popup is stored. Dismissing a popup into history does not show the same comm again. The notification summary is the speaker when it is short (a dot's name, "Grok", "Muse") and the body is the comm. Change the app list with the `apps` setting; names match exactly, ignoring case and surrounding whitespace. An empty list ignores notifications.
 
 Coding-session transcripts are not read.
 

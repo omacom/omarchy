@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import time
 from datetime import datetime
@@ -19,6 +20,7 @@ def state_paths():
     "inbox": state / "inbox.jsonl",
     "feed": state / "feed.json",
     "lock": state / ".feed.lock",
+    "popups": root / "omarchy" / "notifications",
     "notes": root / "omarchy" / "notifications" / "history",
   }
 
@@ -36,7 +38,12 @@ def stamp(value):
   if isinstance(value, bool):
     return 0
   if isinstance(value, (int, float)):
-    number = float(value)
+    try:
+      number = float(value)
+    except OverflowError:
+      return 0
+    if not math.isfinite(number):
+      return 0
     if number > 1e12:
       number /= 1000.0
     return number
@@ -47,7 +54,7 @@ def stamp(value):
       pass
     try:
       return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
-    except ValueError:
+    except (ValueError, OverflowError, OSError):
       return 0
   return 0
 
@@ -88,21 +95,23 @@ def agent_app(name, apps):
   app = str(name or "").strip().lower()
   if not app or not apps:
     return False
-  return any(app == known or app.startswith(known) for known in apps)
+  return app in apps
+
+
+def inbox_files(paths):
+  try:
+    return sorted(path for path in paths["state"].glob("*.jsonl") if path.is_file())
+  except OSError:
+    return []
 
 
 def from_inbox(paths):
   found = []
-  state = paths["state"]
-  if not state.is_dir():
-    return found
-  files = [paths["inbox"]]
-  files.extend(sorted(state.glob("*.jsonl")))
-  seen = set()
-  for path in files:
-    if path in seen or not path.is_file():
+  for path in inbox_files(paths):
+    try:
+      modified = path.stat().st_mtime
+    except OSError:
       continue
-    seen.add(path)
     for line in tail_lines(path, 40):
       line = line.strip()
       if not line or not line.startswith("{"):
@@ -117,20 +126,20 @@ def from_inbox(paths):
         record.get("agent") or record.get("source") or record.get("from") or "agent",
         record.get("role") or "out",
         record.get("text") or record.get("message") or record.get("body") or "",
-        record.get("ts") if record.get("ts") is not None else record.get("timestamp", path.stat().st_mtime),
+        record.get("ts") if record.get("ts") is not None else record.get("timestamp", modified),
       ))
   return found
 
 
 def note_files(paths):
-  notes = paths["notes"]
-  if not notes.is_dir():
-    return []
-  try:
-    files = [path for path in notes.glob("*.json") if path.is_file()]
-  except OSError:
-    return []
-  files.sort(key=lambda path: path.name)
+  files = []
+  # Live popup files move into history on dismissal, keeping their contents.
+  for directory in (paths["popups"], paths["notes"]):
+    try:
+      files.extend(path for path in directory.glob("*.json") if path.is_file())
+    except OSError:
+      continue
+  files.sort(key=lambda path: (path.name, str(path)))
   return files[-30:]
 
 
@@ -138,6 +147,7 @@ def from_notes(paths, apps):
   found = []
   for path in note_files(paths):
     try:
+      modified = path.stat().st_mtime
       record = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError, UnicodeError):
       continue
@@ -152,7 +162,7 @@ def from_notes(paths, apps):
       speaker,
       "out",
       record.get("body") or "",
-      record.get("timestamp") if record.get("timestamp") is not None else path.stat().st_mtime,
+      record.get("timestamp") if record.get("timestamp") is not None else modified,
     ))
   return found
 
@@ -172,29 +182,26 @@ def collect(paths, apps):
 
 
 def signature(rows):
-  return json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
+  return json.dumps(rows, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
 
 
 def snapshot(paths):
   bits = []
-  for path in (paths["state"], paths["notes"], paths["inbox"]):
+  watched = [paths["state"], paths["popups"], paths["notes"]]
+  watched.extend(inbox_files(paths))
+  watched.extend(note_files(paths))
+  for path in watched:
     try:
       stat = path.stat()
       bits.append((str(path), stat.st_mtime_ns, stat.st_size))
     except OSError:
       bits.append(str(path))
-  for path in note_files(paths)[-1:]:
-    try:
-      stat = path.stat()
-      bits.append((path.name, stat.st_mtime_ns, stat.st_size))
-    except OSError:
-      bits.append(path.name)
   return tuple(bits)
 
 
 def publish(paths, rows):
   paths["state"].mkdir(parents=True, exist_ok=True)
-  payload = json.dumps({"items": rows}, ensure_ascii=False)
+  payload = json.dumps({"items": rows}, ensure_ascii=False, allow_nan=False)
   temporary = paths["feed"].with_suffix(".json.tmp")
   temporary.write_text(payload + "\n", encoding="utf-8")
   os.replace(temporary, paths["feed"])
@@ -233,7 +240,7 @@ def main():
   fcntl.flock(lock_file, fcntl.LOCK_EX)
 
   if args.once:
-    print(json.dumps({"items": collect(paths, apps)}, ensure_ascii=False), flush=True)
+    print(json.dumps({"items": collect(paths, apps)}, ensure_ascii=False, allow_nan=False), flush=True)
     return
 
   last_sig = None

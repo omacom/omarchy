@@ -7,6 +7,7 @@ ShellRoot {
 
   readonly property string resultPath: Quickshell.env("OMARCHY_QML_TEST_RESULT")
   property var failures: []
+  property var timedWidget: null
 
   function fail(message) {
     failures.push(String(message))
@@ -94,15 +95,52 @@ ShellRoot {
         root.assertTrue(tuned.apps === "muse", "apps setting is passed to the feeder")
         tuned.applyFeed('{"items":[{"ts":10,"agent":"guide","role":"out","text":"old"}]}')
         root.assertTrue(tuned.primed === true && tuned.revealed === false, "history already on disk stays hidden")
-        tuned.applyFeed('{"items":[{"ts":10.04,"agent":"guide","role":"out","text":"old"}]}')
-        root.assertTrue(tuned.revealed === false, "a republish within the tolerance stays hidden")
+        tuned.applyFeed('{"items":[{"ts":10,"agent":"guide","role":"out","text":"old"}]}')
+        root.assertTrue(tuned.revealed === false, "an identical republish stays hidden")
+        tuned.applyFeed('{"items":[{"ts":10.04,"agent":"guide","role":"out","text":"rapid"}]}')
+        root.assertTrue(tuned.revealed === true, "a genuine comm within 50ms opens the tape")
+        tuned.conceal()
+        tuned.applyFeed('{"items":[{"ts":10.04,"agent":"guide","role":"out","text":"rapid"}]}')
+        root.assertTrue(tuned.revealed === false, "republishing a concealed comm does not reopen the tape")
         tuned.applyFeed('{"items":[{"ts":11,"agent":"guide","role":"out","text":"ready"}]}')
         root.assertTrue(tuned.revealed === true, "a newer comm opens the tape")
         root.assertTrue(tuned.tapeText.indexOf("guide → you   ready") >= 0, "an agent line is labeled")
         root.assertTrue(tuned.implicitWidth === 220, "the tuned tape uses its own width")
       }
 
-      writeResult()
+      timedWidget = load({ visibleSeconds: 5 })
+      if (timedWidget) {
+        timedWidget.bar = fakeBar
+        timedWidget.applyFeed('{"items":[]}')
+        timedWidget.applyFeed('{"items":[{"ts":20,"text":"first"}]}')
+      }
+      rapidTimer.start()
+      restartedTimerCheck.start()
+      concealedTimerCheck.start()
+    }
+  }
+
+  Timer {
+    id: rapidTimer
+    interval: 1200
+    onTriggered: if (root.timedWidget)
+      root.timedWidget.applyFeed('{"items":[{"ts":20.01,"text":"rapid follow-up"}]}')
+  }
+
+  Timer {
+    id: restartedTimerCheck
+    interval: 5400
+    onTriggered: if (root.timedWidget)
+      root.assertTrue(root.timedWidget.revealed, "a rapid newer comm restarts the visibility timer")
+  }
+
+  Timer {
+    id: concealedTimerCheck
+    interval: 6800
+    onTriggered: {
+      if (root.timedWidget)
+        root.assertTrue(!root.timedWidget.revealed, "the restarted visibility timer eventually conceals the tape")
+      root.writeResult()
     }
   }
 }

@@ -94,7 +94,7 @@ BarWidget {
       seenStamp = stamp
       return
     }
-    if (stamp > seenStamp + 0.05) {
+    if (stamp > seenStamp) {
       seenStamp = stamp
       reveal()
     }
