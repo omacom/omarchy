@@ -51,6 +51,17 @@ mapfile -d '' -t argv <"$argv_log"
   fail "browser harness preserves project and prompt as literal argv" "actual: ${argv[*]}"
 pass "browser harness substitutes project and hostile prompts without shell evaluation"
 
+literal_placeholder_project="$test_tmp/project-{prompt}"
+mkdir -p "$literal_placeholder_project"
+(
+  cd "$literal_placeholder_project"
+  omarchy-agent --prompt diagnose
+)
+mapfile -d '' -t argv <"$argv_log"
+[[ ${#argv[@]} == 2 && ${argv[0]} == "--project=$literal_placeholder_project" && ${argv[1]} == "--prompt=diagnose" ]] ||
+  fail "browser harness preserves literal prompt placeholders in project paths" "actual: ${argv[*]}"
+pass "browser harness substitutes placeholders without changing a project path"
+
 jq '.agentHarness.launch.mode = "terminal" | del(.agentHarness.launch.promptCommand)' "$plugin/manifest.json" >"$plugin/updated.json"
 mv "$plugin/updated.json" "$plugin/manifest.json"
 (
