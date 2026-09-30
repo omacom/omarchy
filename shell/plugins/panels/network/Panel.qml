@@ -70,6 +70,7 @@ Panel {
   readonly property var wifiDevice: findDevice(DeviceType.Wifi)
   readonly property var wifiNetworkObjects: wifiDevice && wifiDevice.networks ? wifiDevice.networks.values : []
   readonly property var connectedWifiNetwork: findConnectedWifiNetwork()
+  readonly property string knownWifiKey: Model.knownWifiKey(wifiNetworkObjects)
   property var wifiNetworks: []
   property bool scanning: false
   property bool wifiStationAvailable: false
@@ -391,6 +392,10 @@ Panel {
   }
 
   onWifiNetworkObjectsChanged: syncWifiNetworks()
+  // A saved profile attaching to a listed network changes only its `known`
+  // flag, not the list. Deferred so a burst of profile loads syncs once, after
+  // the network's security has settled from the loaded profile.
+  onKnownWifiKeyChanged: Qt.callLater(syncWifiNetworks)
 
   function selectByDelta(delta) {
     if (wifiNetworks.length === 0) { selectedIndex = -1; return }
