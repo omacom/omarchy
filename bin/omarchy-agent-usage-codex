@@ -484,7 +484,7 @@ def rpc_request(proc, request_id, method, params=None, timeout=8):
   # the reply would sit there until the deadline.
   fd = proc.stdout.fileno()
   pending = getattr(proc, "_rpc_pending", b"")
-  deadline = time.time() + timeout
+  deadline = time.monotonic() + timeout
   try:
     while True:
       while b"\n" in pending:
@@ -495,7 +495,7 @@ def rpc_request(proc, request_id, method, params=None, timeout=8):
           continue
         if isinstance(message, dict) and message.get("id") == request_id:
           return message
-      remaining = deadline - time.time()
+      remaining = deadline - time.monotonic()
       if remaining <= 0:
         break
       ready, _, _ = select.select([fd], [], [], min(0.25, remaining))
