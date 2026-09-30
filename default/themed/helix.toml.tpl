@@ -130,3 +130,17 @@ orange = "{{ orange }}"
 blue = "{{ blue }}"
 magenta = "{{ magenta }}"
 cyan = "{{ cyan }}"
+
+# No rule above uses these names. Helix merges this palette into any theme that
+# sets inherits = "omarchy", so user themes written against the colorN and
+# cursor names would silently lose those colors if they were removed.
+cursor = "{{ bright_foreground }}"
+color0 = "{{ background }}"
+color1 = "{{ red }}"
+color2 = "{{ green }}"
+color3 = "{{ yellow }}"
+color4 = "{{ blue }}"
+color5 = "{{ magenta }}"
+color6 = "{{ cyan }}"
+color7 = "{{ foreground }}"
+color8 = "{{ muted }}"
