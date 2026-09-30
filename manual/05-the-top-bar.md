@@ -31,7 +31,7 @@ Nearly every widget does something on left, right, and middle click, and several
 | Tray | Hover to reveal the drawer | Right on the chevron to manage | — |
 | Omarchy update | Run the update | — | — |
 
-Not everything in that table is on your bar out of the box. The media widget (MPRIS now-playing, with a scrolling track and artist) and the microphone widget are both built in but off by default — add them if you want them, as described below.
+Not everything in that table is on your bar out of the box. The media widget (MPRIS now-playing, with a scrolling track and artist), the microphone widget, and the agent comms ticker are built in but off by default — add them if you want them, as described below.
 
 ## The panels
 
@@ -97,8 +97,11 @@ omarchy bar defaults          # back to the shipped layout
 
 To add or remove a widget entirely, use the plugin commands. `omarchy plugin list` prints every widget the shell knows about with its id, and then:
 
+Agent comms is a ticker rather than a panel. It stays off the bar until a new message arrives from ChatGPT, Grok, or Muse, or from a line an agent appends to its inbox, then scrolls that message for a minute and gets out of the way. Hovering pauses it and holds it open. It does not read coding-session transcripts. The agents icon is a different widget: that one is usage and limits.
+
 ```bash
 omarchy plugin enable omarchy.media --section center
+omarchy plugin enable omarchy.agent-comms --section center
 omarchy plugin disable omarchy.weather
 ```
 
