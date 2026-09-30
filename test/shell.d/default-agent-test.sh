@@ -71,6 +71,11 @@ if [[ $1 == "where" ]]; then
   exit
 fi
 
+if [[ $1 == "ls" && -n ${OMARCHY_TEST_MISE_HAS_NPM_GROK:-} ]]; then
+  printf '%s\n' "npm:@xai-official/grok  1.0.44"
+  exit 0
+fi
+
 [[ ${OMARCHY_TEST_MISE_FAIL:-false} != "true" ]]
 SH
 
@@ -120,7 +125,8 @@ export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
 export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
 export OMARCHY_PATH="$ROOT"
 
-grok_package="npm:@xai-official/grok"
+grok_package="grok"
+legacy_grok_package="npm:@xai-official/grok"
 omp_package="github:can1357/oh-my-pi"
 crush_package="crush"
 agy_package="antigravity-cli"
@@ -151,7 +157,7 @@ pass "custom agent lazy stubs preserve their mise packages"
 
 OMARCHY_TEST_MISSING_COMMAND=cursor-agent source "$ROOT/install/user/mise.sh"
 grep -Fx "$agy_package agy" "$stub_log" >/dev/null || fail "user setup creates the Antigravity lazy stub"
-grep -Fx "$grok_package grok" "$stub_log" >/dev/null || fail "user setup creates the Grok lazy stub"
+grep -Fx "$grok_package" "$stub_log" >/dev/null || fail "user setup creates the Grok lazy stub"
 grep -Fx "$cursor_agent_package" "$stub_log" >/dev/null || fail "user setup creates the Cursor CLI lazy stub"
 grep -Fx "$omp_package omp" "$stub_log" >/dev/null || fail "user setup creates the Oh My Pi lazy stub"
 grep -Fx "$crush_package" "$stub_log" >/dev/null || fail "user setup creates the Crush lazy stub"
@@ -202,7 +208,7 @@ pass "Cursor CLI migration preserves an existing Cursor CLI install"
 : >"$stub_log"
 source "$ROOT/migrations/1785846769.sh" >/dev/null
 grep -Fx "$omp_package omp" "$stub_log" >/dev/null || fail "agent migration repairs the Oh My Pi lazy stub"
-grep -Fx "$grok_package grok" "$stub_log" >/dev/null || fail "agent migration creates the Grok lazy stub"
+grep -Fx "$legacy_grok_package grok" "$stub_log" >/dev/null || fail "agent migration creates the Grok lazy stub"
 grep -Fx "$crush_package" "$stub_log" >/dev/null || fail "agent migration creates the Crush lazy stub"
 
 : >"$stub_log"
@@ -302,8 +308,109 @@ source "$ROOT/migrations/1785846769.sh" >/dev/null
   fail "agent migration keeps a wrapper built on $omp_package"
 rm -f "$test_home/.local/bin/omp"
 
+printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "%s" || exit 1\nexec mise x "%s" -- "grok" "$@"\n' \
+  "$legacy_grok_package" "$legacy_grok_package" >"$test_home/.local/bin/grok"
+chmod +x "$test_home/.local/bin/grok"
+mkdir -p "$test_home/.grok/bin"
+ln -s "$test_home/.grok/bin/agent" "$test_home/.local/bin/agent"
+: >"$stub_log"
+: >"$mise_history"
+OMARCHY_TEST_MISE_HAS_NPM_GROK=1 source "$ROOT/migrations/1790863209.sh" >/dev/null
+unset OMARCHY_TEST_MISE_HAS_NPM_GROK
+[[ ! -s $stub_log ]] || fail "Grok registry migration respects the preinstall opt-out"
+[[ ! -e $test_home/.local/bin/grok ]] || fail "Grok registry migration removes the npm wrapper after opt-out"
+[[ ! -e $test_home/.local/bin/agent ]] || fail "Grok registry migration removes the curl-installer agent symlink"
+grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null ||
+  fail "Grok registry migration drops the npm tool after opt-out"
+grep -Fx "uninstall -y --all $legacy_grok_package" "$mise_history" >/dev/null ||
+  fail "Grok registry migration uninstalls the npm tool after opt-out"
+
+ln -s "../../.grok/bin/agent" "$test_home/.local/bin/agent"
+source "$ROOT/migrations/1790863209.sh" >/dev/null
+[[ ! -e $test_home/.local/bin/agent ]] ||
+  fail "Grok registry migration removes a relative dangling agent symlink"
+
+ln -s /usr/bin/true "$test_home/.local/bin/agent"
+source "$ROOT/migrations/1790863209.sh" >/dev/null
+[[ -L $test_home/.local/bin/agent ]] ||
+  fail "Grok registry migration keeps an agent symlink that is not Grok's"
+rm -f "$test_home/.local/bin/agent"
+
+rm -f "$test_home/.local/bin/grok"
+: >"$stub_log"
+: >"$mise_history"
+OMARCHY_TEST_MISE_HAS_NPM_GROK=1 source "$ROOT/migrations/1790863209.sh" >/dev/null
+unset OMARCHY_TEST_MISE_HAS_NPM_GROK
+[[ ! -s $stub_log ]] || fail "Grok registry migration does not reinstall after the preinstall opt-out"
+grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null &&
+  fail "Grok registry migration leaves a user-installed npm tool after the preinstall opt-out"
+
 rm "$test_home/.local/state/omarchy/preinstalls-removed"
 rm -f "$agent_file"
+
+printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "%s" || exit 1\nexec mise x "%s" -- "grok" "$@"\n' \
+  "$legacy_grok_package" "$legacy_grok_package" >"$test_home/.local/bin/grok"
+chmod +x "$test_home/.local/bin/grok"
+: >"$stub_log"
+: >"$mise_history"
+OMARCHY_TEST_MISE_HAS_NPM_GROK=1 source "$ROOT/migrations/1790863209.sh" >/dev/null
+unset OMARCHY_TEST_MISE_HAS_NPM_GROK
+grep -Fx "$grok_package" "$stub_log" >/dev/null ||
+  fail "Grok registry migration rewrites the npm wrapper"
+grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null ||
+  fail "Grok registry migration drops the npm tool"
+rm -f "$test_home/.local/bin/grok"
+
+printf '#!/bin/bash\necho user-grok\n' >"$test_home/.local/bin/grok"
+chmod +x "$test_home/.local/bin/grok"
+: >"$stub_log"
+: >"$mise_history"
+OMARCHY_TEST_MISE_HAS_NPM_GROK=1 source "$ROOT/migrations/1790863209.sh" >/dev/null
+unset OMARCHY_TEST_MISE_HAS_NPM_GROK
+[[ $("$test_home/.local/bin/grok") == "user-grok" ]] ||
+  fail "Grok registry migration keeps a user-managed grok"
+[[ ! -s $stub_log ]] || fail "Grok registry migration does not replace a user-managed grok"
+grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null ||
+  fail "Grok registry migration drops the npm tool beside a user-managed grok"
+
+cat >"$test_home/.local/bin/grok" <<'SH'
+#!/bin/bash
+mise use -g --quiet "grok" || exit 1
+echo user-mise-grok
+SH
+chmod +x "$test_home/.local/bin/grok"
+cp "$test_home/.local/bin/grok" "$test_tmp/user-mise-grok"
+: >"$stub_log"
+: >"$mise_history"
+OMARCHY_TEST_MISE_HAS_NPM_GROK=1 source "$ROOT/migrations/1790863209.sh" >/dev/null
+unset OMARCHY_TEST_MISE_HAS_NPM_GROK
+cmp -s "$test_home/.local/bin/grok" "$test_tmp/user-mise-grok" ||
+  fail "Grok registry migration keeps a user script that calls mise"
+[[ ! -s $stub_log ]] || fail "Grok registry migration does not replace a user script that calls mise"
+grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null ||
+  fail "Grok registry migration drops the npm tool beside a user script"
+rm -f "$test_home/.local/bin/grok"
+
+rm -f "$test_home/.local/bin/grok"
+: >"$stub_log"
+: >"$mise_history"
+OMARCHY_TEST_MISSING_COMMAND=grok source "$ROOT/migrations/1790863209.sh" >/dev/null
+unset OMARCHY_TEST_MISSING_COMMAND
+grep -Fx "$grok_package" "$stub_log" >/dev/null ||
+  fail "Grok registry migration installs the stub when grok is missing"
+grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null &&
+  fail "Grok registry migration does not drop the npm tool when it is not installed"
+
+rm -f "$test_home/.local/bin/grok"
+: >"$stub_log"
+: >"$mise_history"
+OMARCHY_TEST_MISE_HAS_NPM_GROK=1 OMARCHY_TEST_MISSING_COMMAND=grok \
+  source "$ROOT/migrations/1790863209.sh" >/dev/null
+unset OMARCHY_TEST_MISE_HAS_NPM_GROK OMARCHY_TEST_MISSING_COMMAND
+grep -Fx "$grok_package" "$stub_log" >/dev/null ||
+  fail "Grok registry migration installs the stub after dropping a leftover npm tool"
+grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null ||
+  fail "Grok registry migration drops a leftover npm tool when the wrapper is gone"
 pass "agent migrations install working wrappers without overriding the preinstall opt-out"
 
 "$ROOT/bin/omarchy-mise-install" "$muse_package" muse
