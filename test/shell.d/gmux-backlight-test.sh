@@ -112,9 +112,8 @@ run_leaf "Apple Inc." 1 >/dev/null
 printf 'keep me\n' >"$dest"
 run_leaf "Apple Inc." 1 1 >/dev/null
 [[ $(<"$dest") == "keep me" ]] || fail "an existing udev rule is not overwritten"
-grep -Fq $'systemctl\tstart\tsystemd-backlight@backlight:gmux_backlight.service' "$calls" ||
-  fail "a second run still starts systemd-backlight" "$(cat "$calls")"
-pass "an existing udev rule is left in place"
+[[ ! -s $calls ]] || fail "an already-installed rule escalates nothing" "$(cat "$calls")"
+pass "an existing udev rule is left in place without sudo"
 
 run_migration() {
   local vendor="$1" gmux="${2:-0}"

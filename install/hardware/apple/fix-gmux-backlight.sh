@@ -15,13 +15,12 @@ rule_dest="$udev_rules_dir/99-omarchy-gmux-backlight.rules"
 
 sys_vendor="$(cat "$dmi_vendor" 2>/dev/null || true)"
 
-if [[ -e $backlight_path/gmux_backlight || $sys_vendor == Apple* ]]; then
+# Migrations run once per user, so a machine another user already fixed must not ask for sudo again.
+if [[ -e $backlight_path/gmux_backlight || $sys_vendor == Apple* ]] && [[ ! -f $rule_dest ]]; then
   echo "Detected Apple GMUX backlight; enabling systemd-backlight save/restore"
 
   sudo mkdir -p "$udev_rules_dir"
-  if [[ ! -f $rule_dest ]]; then
-    sudo cp -f "$rule_src" "$rule_dest"
-  fi
+  sudo cp -f "$rule_src" "$rule_dest"
 
   # Best-effort on a live session so this shutdown already saves. The ISO chroot
   # has no running udev/systemd for the target, and a missing binary must not
