@@ -120,7 +120,8 @@ cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
 if [[ $1 == clients ]]; then
   cat <<'JSON'
-[{"address":"0xolder","class":"chromium","focusHistoryID":3},
+[{"address":"0xnever","class":"chromium","focusHistoryID":-1},
+ {"address":"0xolder","class":"chromium","focusHistoryID":3},
  {"address":"0xweb","class":"chromium-chat.example.com__-Default","focusHistoryID":0},
  {"address":"0xrecent","class":"chromium","focusHistoryID":1}]
 JSON
