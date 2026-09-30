@@ -603,3 +603,45 @@ result=$(HOME="$INTERRUPTED_HOME" CODEX_HOME="$INTERRUPTED_HOME/.codex" XDG_CACH
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "9" ]] ||
   fail "Codex collector does not reuse a snapshot from an interrupted scan" "$result"
 pass "Codex collector does not cache an interrupted opencode scan"
+
+# The app-server can batch notifications with a reply in one write, and may
+# answer ahead of the request. Replies that arrive together must not be
+# stranded in a read buffer, and an early reply must survive into the next
+# request.
+BATCHED_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME" "$INTERRUPTED_HOME" "$BATCHED_HOME"' EXIT
+mkdir -p "$BATCHED_HOME/bin"
+cat >"$BATCHED_HOME/bin/codex" <<'EOF'
+#!/bin/bash
+
+while read -r request; do
+  id=$(jq -r '.id // empty' <<<"$request")
+  method=$(jq -r '.method // empty' <<<"$request")
+
+  case "$method" in
+    initialize)
+      jq -cn --argjson id "$id" '{id: $id, result: {}}'
+      ;;
+    account/read)
+      # One write: a notification, this reply, and the next request's reply.
+      printf '%s\n%s\n%s\n' \
+        '{"method":"account/updated","params":{"authMode":"chatgpt","planType":"plus"}}' \
+        "$(jq -cn --argjson id "$id" '{id: $id, result: {account: {type: "chatgpt", planType: "plus"}}}')" \
+        "$(jq -cn --argjson id "$((id + 1))" '{id: $id, result: {rateLimits: {planType: "plus", primary: {usedPercent: 5, windowDurationMins: 300, resetsAt: 1790659194}}}}')"
+      ;;
+    account/rateLimits/read)
+      # Already answered alongside account/read.
+      ;;
+  esac
+done
+EOF
+chmod +x "$BATCHED_HOME/bin/codex"
+
+result=$(HOME="$BATCHED_HOME" CODEX_HOME="$BATCHED_HOME/.codex" XDG_CACHE_HOME="$BATCHED_HOME/.cache" XDG_DATA_HOME="$BATCHED_HOME/.local/share" \
+  PATH="$BATCHED_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+
+[[ $(jq -r '.usageStatusText' <<<"$result") == "" ]] ||
+  fail "Codex collector reads replies batched with notifications" "$result"
+[[ $(jq -c '[.tierLabel, (.limits | map(.label, .percent))]' <<<"$result") == '["plus",["5h window",0.05]]' ]] ||
+  fail "Codex collector keeps an early reply for the next request" "$result"
+pass "Codex collector reads batched app-server replies"
