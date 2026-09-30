@@ -138,8 +138,16 @@ Item {
     MouseArea {
       anchors.fill: parent
       hoverEnabled: true
+      property int lastX: -1
+      property int lastY: -1
       onClicked: { root.wakeRequested(); root.forcePasswordFocus() }
-      onPositionChanged: root.wakeRequested()
+      onPositionChanged: function(mouse) {
+        if (lastX >= 0 && lastY >= 0 && (lastX !== mouse.x || lastY !== mouse.y)) {
+          root.wakeRequested()
+        }
+        lastX = mouse.x
+        lastY = mouse.y
+      }
     }
 
     BorderSurface {

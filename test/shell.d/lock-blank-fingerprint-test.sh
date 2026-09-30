@@ -30,4 +30,10 @@ assert(
   !/onAuthenticatingChanged:/.test(serviceQml),
   'the combined authenticating state no longer drives the blank timer'
 )
+
+const lockViewQml = fs.readFileSync(path.join(root, 'shell/plugins/lock/LockView.qml'), 'utf8')
+assert(
+  /onPositionChanged: function\(mouse\) \{[\s\S]*?lastX !== mouse\.x \|\| lastY !== mouse\.y[\s\S]*?root\.wakeRequested\(\)/.test(lockViewQml),
+  'lock view pointer wake ignores static entry coordinates and requires movement'
+)
 JS
