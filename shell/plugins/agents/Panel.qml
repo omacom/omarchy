@@ -879,13 +879,13 @@ Panel {
 
     implicitHeight: modelName.implicitHeight + Style.spacing.lg
 
-    Rectangle {
+    CornerRectangle {
       anchors.fill: parent
       radius: Style.cornerRadius
       color: root.alpha(root.foreground, 0.05)
     }
 
-    Rectangle {
+    CornerRectangle {
       anchors.left: parent.left
       anchors.top: parent.top
       anchors.bottom: parent.bottom

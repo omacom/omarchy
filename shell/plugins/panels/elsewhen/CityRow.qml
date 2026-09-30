@@ -8,7 +8,7 @@ import "Greetings.js" as Greet
 // One city: name, weather, date (or a local greeting on hover) and the time,
 // over its daylight strip. Drag the body to reorder, click it to turn the
 // globe there. Every toggle on the row flips the setting for the whole list.
-Rectangle {
+CornerRectangle {
   id: row
 
   required property var modelData

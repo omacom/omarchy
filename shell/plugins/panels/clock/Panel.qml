@@ -570,7 +570,7 @@ Panel {
                 // It is the one control in the panel whose meaning is not
                 // self-evident, so it carries a tooltip naming the day the
                 // click will switch to.
-                Rectangle {
+                CornerRectangle {
                   width: root.weekColumnWidth
                   height: Style.space(16)
                   radius: Style.cornerRadius
@@ -657,7 +657,7 @@ Panel {
                   Repeater {
                     model: modelData.days
 
-                    Rectangle {
+                    CornerRectangle {
                       required property var modelData
 
                       width: root.cellWidth

@@ -596,7 +596,7 @@ Item {
   }
 
   // Results overlay the globe so it never resizes under the pointer mid-search.
-  Rectangle {
+  CornerRectangle {
     visible: jumpSearch.active
     anchors.left: parent.left
     anchors.right: parent.right

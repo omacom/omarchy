@@ -48,6 +48,7 @@ Item {
     width: Math.max(7, parent.width * 0.42)
     height: width
     radius: width / 2
+    roundingPower: 2
     color: root.badgeColor
     anchors.right: parent.right
     anchors.bottom: parent.bottom
