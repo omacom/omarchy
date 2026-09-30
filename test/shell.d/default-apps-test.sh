@@ -46,6 +46,7 @@ SH
 
 cat >"$mock_bin/xdg-settings" <<'SH'
 #!/bin/bash
+[[ -n ${OMARCHY_TEST_XDG_DESKTOP_LOG:-} ]] && printf '%s\n' "${XDG_CURRENT_DESKTOP-}" >>"$OMARCHY_TEST_XDG_DESKTOP_LOG"
 case $1 in
 get) [[ -f $OMARCHY_TEST_BROWSER_FILE ]] && cat "$OMARCHY_TEST_BROWSER_FILE" ;;
 set) printf '%s\n' "$3" >"$OMARCHY_TEST_BROWSER_FILE" ;;
@@ -128,8 +129,9 @@ done
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
-# The default browser is read from the mimeapps.list of the test home, not the caller's.
+# The default browser is read from the mimeapps.list files of the test, not the caller's.
 unset XDG_CONFIG_HOME XDG_DATA_HOME
+export XDG_CONFIG_DIRS="$test_tmp/xdg"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_INSTALLED_DIR="$installed_dir"
@@ -314,3 +316,27 @@ if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-editor --install vim >"$test_t
 fi
 [[ $(omarchy-default-editor) == "$previous_editor" ]] || fail "failed installation preserves the default"
 pass "failed installation preserves the current default"
+
+# The default browser comes from mimeapps.list without asking xdg-settings,
+# whose answer here would be the mocked zen.
+browser_bin="$test_tmp/browser-bin"
+mkdir -p "$browser_bin" "$test_home/.local/share/applications"
+printf '#!/bin/bash\n' >"$browser_bin/firefox"
+printf '#!/bin/bash\n' >"$browser_bin/other-browser"
+chmod +x "$browser_bin"/*
+printf '[Desktop Entry]\nExec=firefox %%u\n' >"$test_home/.local/share/applications/firefox.desktop"
+printf '[Desktop Entry]\nExec=other-browser %%u\n' >"$test_home/.local/share/applications/other-browser.desktop"
+printf 'zen.desktop\n' >"$browser_file"
+printf '[Default Applications]\nx-scheme-handler/http=firefox.desktop\n' >"$test_home/.config/mimeapps.list"
+[[ $(PATH="$browser_bin:$PATH" omarchy-default-browser) == "firefox" ]] || fail "the default browser is read from mimeapps.list"
+printf '[Default Applications]\nx-scheme-handler/http=other-browser.desktop\n' >"$test_home/.config/mimeapps.list"
+[[ $(PATH="$browser_bin:$PATH" omarchy-default-browser) == "other-browser.desktop" ]] || fail "an unknown default browser is printed as its desktop id"
+pass "the default browser is read from mimeapps.list"
+
+# Without a default in a config dir it falls back to xdg-settings, as X-Generic
+# so xdg-utils does not probe for XFCE with xprop.
+rm "$test_home/.config/mimeapps.list"
+export OMARCHY_TEST_XDG_DESKTOP_LOG="$test_tmp/xdg-desktop-log"
+[[ $(XDG_CURRENT_DESKTOP=Hyprland omarchy-default-browser) == "zen" ]] || fail "the fallback returns the xdg-settings answer"
+[[ $(<"$OMARCHY_TEST_XDG_DESKTOP_LOG") == "X-Generic" ]] || fail "the fallback asks xdg-settings as X-Generic"
+pass "the fallback asks xdg-settings without the desktop probe"
