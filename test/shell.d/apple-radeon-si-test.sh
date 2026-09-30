@@ -45,6 +45,7 @@ cat >"$stub_bin/limine-mkinitcpio" <<'SH'
 #!/bin/bash
 
 echo 'limine-mkinitcpio' >>"$TEST_LOG"
+(( ${LIMINE_FAIL:-0} == 0 ))
 SH
 
 cat >"$stub_bin/omarchy-state" <<'SH'
@@ -101,17 +102,25 @@ run_migration() {
   OMARCHY_PATH="$ROOT" \
     OMARCHY_DMI_PRODUCT="$dmi_product" \
     OMARCHY_LIMINE_ENTRY_TOOL_D="$limine_dir" \
+    OMARCHY_LIMINE_REBUILD_MARKER="$marker" \
     LIMINE_MKINITCPIO="${LIMINE_MKINITCPIO:-1}" \
     PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
     bash -euo pipefail "$migration" >/dev/null
 }
 
+marker="$test_tmp/var/lib/omarchy/migrations/1789165591"
+
 rm -rf "$test_tmp/etc"
 mkdir -p "$limine_dir"
+LIMINE_FAIL=1 run_migration "MacBookPro11,5" &&
+  fail "a failed rebuild leaves the migration pending"
+[[ ! -e $marker ]] || fail "a failed rebuild is not recorded as done"
+pass "a failed rebuild leaves the migration pending"
+
 run_migration "MacBookPro11,5"
 [[ -f $conf ]] || fail "the migration writes the drop-in on an 11,5"
 grep -Fxq 'limine-mkinitcpio' "$calls" ||
-  fail "the migration rebuilds the boot image when it changed the drop-in" "$(cat "$calls")"
+  fail "the migration rebuilds the boot image, retrying after a failed rebuild" "$(cat "$calls")"
 grep -Fq $'omarchy-state\tset\treboot-required' "$calls" ||
   fail "the migration asks for the reboot that applies it" "$(cat "$calls")"
 pass "the migration installs and rebuilds on an 11,5"
