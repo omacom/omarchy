@@ -3,14 +3,32 @@
 # omarchy:summary=Launch a URL as a web app in the default supported browser
 # omarchy:args=<url>
 
+# Web apps need a Chromium-based browser's --app mode: the default browser when
+# it is one, otherwise the first one installed.
+browsers=()
 browser=$(omarchy-cmd-default-browser)
 
 case $browser in
-google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
-*) browser="chromium.desktop" ;;
+chromium* | google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) browsers+=("$browser") ;;
 esac
 
-browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)
+browsers+=(chromium.desktop google-chrome.desktop brave-browser.desktop brave-origin.desktop microsoft-edge.desktop vivaldi-stable.desktop opera.desktop helium.desktop)
+
+for browser in "${browsers[@]}"; do
+  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)
+
+  if [[ -n $browser_exec ]] && command -v "$browser_exec" >/dev/null; then
+    break
+  fi
+
+  browser_exec=""
+done
+
+if [[ -z $browser_exec ]]; then
+  echo "No Chromium-based browser is installed to open $1 as a web app." >&2
+  omarchy-notification-send -u critical "Web app needs a Chromium-based browser" "Install Chromium, Chrome, Brave, Edge, Vivaldi, Opera or Helium to open web apps."
+  exit 1
+fi
 
 if ! omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then
   exec setsid uwsm-app -- $browser_exec --app="$1" "${@:2}"
