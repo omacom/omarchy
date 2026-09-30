@@ -94,23 +94,38 @@ while (( SECONDS < deadline )) && shell_instance_running; do
 done
 
 # Quickshell's crash handler can relaunch without retaining `-p <configPath>`
-# (quickshell#1208). Those orphans keep drawing omarchy-* layers but escape
-# `quickshell kill -p`, so also reap bare quickshell processes that have no
-# path argument.
+# (quickshell#1208). Reap remaining instances only when their argv explicitly
+# identifies the Omarchy config; bare processes may belong to other widgets.
 reap_orphan_quickshell() {
-  local pid cmd
+  local pid arg executable i owned
+  local -a argv
+  local config_dir="$CONFIG_DIR"
   local proc_root=${OMARCHY_TEST_PROC_ROOT:-/proc}
 
   for pid in "$proc_root"/[0-9]*; do
     [[ -r $pid/cmdline ]] || continue
-    cmd=$(tr '\0' ' ' <"$pid/cmdline" 2>/dev/null)
-    [[ $cmd == *quickshell* ]] || continue
-    # Managed Omarchy shells always pass -p / --path; crash relaunches do not.
-    if [[ $cmd == *" -p "* || $cmd == *" --path "* ]]; then
-      continue
-    fi
-    # Match argv0 /usr/bin/quickshell or a lone `quickshell` token.
-    if [[ $cmd == quickshell\ * || $cmd == "quickshell" || $cmd == */quickshell\ * || $cmd == */quickshell ]]; then
+    mapfile -d '' -t argv <"$pid/cmdline" 2>/dev/null || continue
+    executable=${argv[0]:-}
+    [[ ${executable##*/} == "quickshell" ]] || continue
+    owned=0
+    for (( i = 1; i < ${#argv[@]}; i++ )); do
+      arg=${argv[i]}
+      case $arg in
+        -p|--path)
+          [[ ${argv[i + 1]:-} == "$config_dir" ]] && owned=1
+          (( i += 1 ))
+          ;;
+        --path=*)
+          [[ ${arg#--path=} == "$config_dir" ]] && owned=1
+          ;;
+        -c|--config)
+          [[ ${argv[i + 1]:-} == "omarchy" ]] && owned=1
+          (( i += 1 ))
+          ;;
+        --config=omarchy) owned=1 ;;
+      esac
+    done
+    if (( owned )); then
       kill "${pid##*/}" 2>/dev/null || true
     fi
   done
