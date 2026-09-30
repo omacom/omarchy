@@ -136,6 +136,11 @@ pi)
   ;;
 esac
 
+# Tell the harness (and any Omarchy skill it loads) how it was launched. Skills
+# and user hooks can key off these without scraping the process tree.
+export OMARCHY_AGENT="$agent"
+export OMARCHY_AGENT_CWD="$PWD"
+
 if [[ $inline == "true" ]]; then
   exec "${command[@]}"
 else
