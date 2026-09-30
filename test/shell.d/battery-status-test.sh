@@ -332,6 +332,19 @@ if (( blend_later >= blend_secs || blend_later <= 3 * 3600 )); then
   fail "battery status keeps moving toward a blended UPower time" "$(field time "$blend_output")"
 fi
 
+# No counter, and UPower stops giving a time. Those looks are not 0s samples.
+reset_supply
+write_upower discharging "time to empty:        2 hours"
+missing_state=$(fresh_state missing-estimate)
+run_status 1100000 "$tmp_dir/power" "$missing_state" >/dev/null
+write_upower discharging ""
+missing_now=1100000
+for _step in $(seq 1 60); do
+  missing_now=$((missing_now + 5))
+  missing_output=$(run_status "$missing_now" "$tmp_dir/power" "$missing_state")
+  require_field "battery status keeps 2h while later UPower times are missing" "$missing_output" time "2h"
+done
+
 # A gap longer than the blend, and no counter, prints the current UPower time.
 reset_supply
 write_upower discharging "time to empty:        11 hours"

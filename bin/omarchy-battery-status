@@ -263,11 +263,12 @@ battery_apply_coulomb() {
   (( bt_displayed < 0 )) && bt_displayed=0
 }
 
+# No counter means the sample is the UPower time. An absent estimate is not 0s.
 battery_append_sample() {
   if [[ -n $counter ]]; then
     bt_samples+=("$now $counter ${seconds:-0}")
-  else
-    bt_samples+=("$now - ${seconds:-0}")
+  elif [[ -n $seconds ]]; then
+    bt_samples+=("$now - $seconds")
   fi
 }
 
