@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.agent-comms",
+  "name": "Agent comms",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "license": "MIT",
+  "description": "Scrolling bar tape for incoming agent messages. Hidden until a new one arrives.",
+  "kinds": ["bar-widget"],
+  "activation": "on-demand",
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Agent comms",
+    "description": "Shows a new ChatGPT, Grok, or Muse message, or an inbox line, then hides again.",
+    "category": "AI",
+    "aliases": ["ticker", "agent-comms"],
+    "allowMultiple": false,
+    "defaultSection": "center",
+    "defaults": {
+      "apps": "chatgpt,grok,muse",
+      "label": "comms",
+      "visibleSeconds": 60,
+      "maxWidth": 480,
+      "pixelsPerSecond": 42
+    },
+    "schema": [
+      {
+        "key": "apps",
+        "type": "string",
+        "label": "Notification apps",
+        "defaultValue": "chatgpt,grok,muse",
+        "description": "Comma-separated notification app names to follow. Empty ignores notifications and keeps the inbox."
+      },
+      {
+        "key": "label",
+        "type": "string",
+        "label": "Bar label",
+        "defaultValue": "comms"
+      },
+      {
+        "key": "visibleSeconds",
+        "type": "integer",
+        "label": "Visible for (seconds)",
+        "min": 5,
+        "max": 600,
+        "step": 5,
+        "defaultValue": 60
+      },
+      {
+        "key": "maxWidth",
+        "type": "integer",
+        "label": "Tape width (pixels)",
+        "min": 160,
+        "max": 1200,
+        "step": 20,
+        "defaultValue": 480
+      },
+      {
+        "key": "pixelsPerSecond",
+        "type": "integer",
+        "label": "Scroll speed (pixels per second)",
+        "min": 12,
+        "max": 160,
+        "step": 2,
+        "defaultValue": 42
+      }
+    ]
+  }
+}
