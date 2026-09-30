@@ -229,15 +229,18 @@ assertDeepEqual(
     { label: 'Opus 5 (1M context) Weekly', title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetsAt: '' }
   ] }),
   [
-    { title: 'Session', percent: 0.78, resetAt: '' },
-    { title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetAt: '' }
+    // The title comes from the collector, but the span still comes from the
+    // label: "Session (5-hour)" is 5h, and the model-scoped row's own label
+    // names a week even though its title does not.
+    { title: 'Session', percent: 0.78, resetAt: '', spanMs: 5 * 3600 * 1000 },
+    { title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetAt: '', spanMs: 7 * 24 * 3600 * 1000 }
   ],
   'agents panel titles a limit off the collector when it states one'
 )
 
 assertDeepEqual(
   limitWindows({ limits: [{ label: 'Weekly (7-day)', percent: 0.12, resetsAt: '' }] }),
-  [{ title: 'Weekly', percent: 0.12, resetAt: '' }],
+  [{ title: 'Weekly', percent: 0.12, resetAt: '', spanMs: 7 * 24 * 3600 * 1000 }],
   'agents panel still reads a window out of a label that carries no title'
 )
 JS
