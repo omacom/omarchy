@@ -38,6 +38,22 @@ cat >"$tmp_dir/timedatectl" <<'EOF'
 printf '%s\n' UTC Europe/Copenhagen America/Chicago
 EOF
 
+# The language prompt is the one that would otherwise read the host: the real
+# omarchy-locale-list walks glibc's /usr/share/i18n, which is absent off Arch
+# and is a moving list everywhere else. Stubbing it keeps these assertions about
+# the prompt, and lets them name locales the box may not ship -- the pair that
+# only a modifier tells apart is the case worth pinning, and asserting it
+# against the host would be asserting that glibc still ships sr_RS@latin.
+cat >"$tmp_dir/omarchy-locale-list" <<'EOF'
+#!/bin/bash
+printf '%s\t%s\t%s\n' \
+  'en_US.UTF-8' 'American English' 'United States' \
+  'sl_SI.UTF-8' 'Slovenian' 'Slovenia' \
+  'sr_RS' 'Serbian' 'Serbia' \
+  'sr_RS@latin' 'Serbian' 'Serbia' \
+  'zh_TW.UTF-8' 'Chinese' 'Taiwan'
+EOF
+
 # Calls one prompt bare under `set -euo pipefail` — the shape that makes the
 # status capture load-bearing. A cancelled prompt is a failing assignment, so a
 # regression to a plain `status=$?` kills the shell before the function can
@@ -74,8 +90,8 @@ printf 'language=%s\n' "${language:-}"
 printf 'language_label=%s\n' "${language_label:-}"
 EOF
 
-chmod +x "$tmp_dir/gum" "$tmp_dir/tzupdate" "$tmp_dir/timedatectl" "$tmp_dir/driver"
-export PATH="$tmp_dir:$PATH:$ROOT/bin"
+chmod +x "$tmp_dir/gum" "$tmp_dir/tzupdate" "$tmp_dir/timedatectl" "$tmp_dir/omarchy-locale-list" "$tmp_dir/driver"
+export PATH="$tmp_dir:$PATH"
 export GUM_DIR="$tmp_dir" GUM_SCRIPT="$tmp_dir/script" GUM_ARGS="$tmp_dir/args" GUM_COUNT="$tmp_dir/count"
 export NOTICES="$tmp_dir/notices" MARKER="$tmp_dir/marker"
 
