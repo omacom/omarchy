@@ -24,3 +24,11 @@ assert(!tray.ownedByOmarchy({ id: 'dropbox' }, { left: [], center: [], right: []
 assert(tray.ownedByOmarchy({ id: 'qlBCprNUqU', title: 'localsend' }, { left: [], center: [], right: [] }), 'tray suppresses localsend regardless of layout')
 assert(!tray.ownedByOmarchy({ id: 'nextcloud' }, layout), 'tray keeps unrelated tray items')
 JS
+
+# The chevron's manage menu is the only way to unhide a tray item, so the tray
+# has to stay while hidden items remain: its root keys on every reporting item
+# (as the chevron does), not only on the pinned and drawer ones (#7117).
+if ! perl -0ne 'exit(/\n  visible:\s*allItems\.length\s*>\s*0\n/ ? 0 : 1)' "$ROOT/shell/plugins/bar/widgets/Tray.qml"; then
+  fail "tray stays visible while only hidden items remain"
+fi
+pass "tray stays visible while only hidden items remain"
