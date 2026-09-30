@@ -27,23 +27,31 @@ if [[ ! $delay =~ ^[0-9]+$ ]]; then
   exit 2
 fi
 
+# Force base 10 so a leading zero (08) isn't read as octal.
+delay=$(( 10#$delay ))
+
 # Count down on the OSD so a hover state or an open menu can be set up before
 # Omasnap freezes the focused monitor. The OSD only picks its monitor when it
 # opens, so reopen it when focus moves to keep it on the monitor Omasnap will
 # capture, and close it a moment before the capture to keep it out of the shot.
-countdown_monitor=""
-for (( remaining = delay; remaining > 0; remaining-- )); do
-  focused_monitor=$(hyprctl monitors -j | jq -r '.[] | select(.focused).name')
-  if [[ $focused_monitor != "$countdown_monitor" ]]; then
-    omarchy-shell -q osd close
-    countdown_monitor=$focused_monitor
-  fi
-
-  omarchy-osd -i 󱎫 -m "Screenshot in $remaining" -d 0
-  sleep 1
-done
-
+# Each tick expires on its own a little after the next one is due, and the
+# trap closes it straight away, so an interrupted countdown never lingers.
 if (( delay > 0 )); then
+  trap 'omarchy-shell -q osd close' EXIT
+
+  countdown_monitor=""
+  for (( remaining = delay; remaining > 0; remaining-- )); do
+    focused_monitor=$(hyprctl monitors -j | jq -r '.[] | select(.focused).name')
+    if [[ $focused_monitor != "$countdown_monitor" ]]; then
+      omarchy-shell -q osd close
+      countdown_monitor=$focused_monitor
+    fi
+
+    omarchy-osd -i 󱎫 -m "Screenshot in $remaining" -d 1500
+    sleep 1
+  done
+
+  trap - EXIT
   omarchy-shell -q osd close
   sleep 0.1
 fi
