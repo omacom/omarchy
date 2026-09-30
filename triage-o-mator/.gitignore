@@ -13,6 +13,7 @@
 /prompts/organize-groups.md
 /prompts/polish-report.md
 /prompts/prepare-analysis.md
+/prompts/recommend-auto-close.md
 /prompts/review-appeal.md
 /prompts/review-pr.md
 # </triage-o-mator:symlinks>
@@ -39,4 +40,5 @@
 # Ignored evidence cache and machine-local transaction state.
 /data/*/*/cache/
 /data/*/*/local/
+/data/*/*/writes/
 # </triage-o-mator:cache>
