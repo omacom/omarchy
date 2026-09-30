@@ -14,6 +14,45 @@ argv_log="$test_tmp/argv"
 marker="$test_tmp/should-not-exist"
 mkdir -p "$plugin" "$mock_bin" "$(dirname "$agent_file")"
 
+default_catalog=$(HOME="$home" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-agent-catalog")
+jq -e '
+  . as $catalog
+  | [
+    {
+      id: "cursor-agent",
+      aliases: ["cursor"],
+      install: {type: "mise", package: "cursor-agent", command: "cursor-agent"},
+      launch: {
+        mode: "terminal",
+        command: ["cursor-agent", "--yolo", "--trust"],
+        promptCommand: ["cursor-agent", "--yolo", "--trust", "agent", "--", "{prompt}"]
+      }
+    },
+    {
+      id: "muse",
+      aliases: ["muse-code", "musecode"],
+      install: {type: "mise", package: "http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]", command: "muse"},
+      launch: {
+        mode: "terminal",
+        command: ["muse", "--approval-mode", "never"],
+        promptCommand: ["muse", "--approval-mode", "never", "--", "{prompt}"]
+      }
+    },
+    {
+      id: "openclaw",
+      install: {type: "installer", command: "openclaw", installer: "omarchy-install-openclaw-cli"},
+      launch: {
+        mode: "terminal",
+        command: ["omarchy-launch-openclaw", "--tui"],
+        promptCommand: ["omarchy-launch-openclaw", "--tui", "--message", "{prompt}"]
+      }
+    }
+  ] as $legacy
+  | all($legacy[]; . as $expected | any($catalog[]; .id == $expected.id and (.aliases // []) == ($expected.aliases // []) and .install == $expected.install and .launch == $expected.launch))
+' <<<"$default_catalog" >/dev/null ||
+  fail "the default harness registry preserves legacy Cursor, Muse, and OpenClaw semantics"
+pass "the default harness registry preserves legacy Cursor, Muse, and OpenClaw semantics"
+
 cat >"$plugin/manifest.json" <<'JSON'
 {"schemaVersion":1,"id":"acme.integration","name":"Acme integration","version":"1.0.0","kinds":[],"entryPoints":{},"agentHarness":{"id":"acme-agent","name":"Acme Agent","install":{"type":"mise","package":"npm:@acme/agent","command":"acme-agent"},"launch":{"mode":"browser","command":["acme-agent","--project={project}"],"promptCommand":["acme-agent","--project={project}","--prompt={prompt}"]}}}
 JSON

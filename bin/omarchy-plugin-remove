@@ -33,6 +33,10 @@ valid_plugin_id() {
   [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]
 }
 
+selected_harness_exists() {
+  omarchy-agent-catalog | jq -e --arg id "$1" 'any(.[]; .id == $id)' >/dev/null
+}
+
 id=""
 
 while (( $# > 0 )); do
@@ -119,7 +123,7 @@ fi
 omarchy-shell shell rescanPlugins >/dev/null
 
 agent_file="$HOME/.config/omarchy/defaults/agent"
-if [[ -n $harness_id && -f $agent_file && $(<"$agent_file") == "$harness_id" ]]; then
+if [[ -n $harness_id && -f $agent_file && $(<"$agent_file") == "$harness_id" ]] && ! selected_harness_exists "$harness_id"; then
   rm -f "$agent_file"
   echo "Cleared default coding agent $harness_id because its integration was removed."
 fi
