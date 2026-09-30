@@ -24,7 +24,7 @@ nmcli() {
     '-g connection.controller connection show wifi'|'-g connection.controller connection show ethernet') ;;
     '-g connection.controller connection show link-local'|'-g connection.controller connection show disabled'|'-g connection.controller connection show ignore'|'-g connection.controller connection show rejected-last') ;;
     'connection modify link-local '*|'connection modify disabled '*|'connection modify ignore '*)
-      if [[ $4 == "ipv4.ignore-auto-dns" && $5 == "yes" ]]; then
+      if [[ $4 == "ipv6.ignore-auto-dns" && $5 == "yes" ]]; then
         echo "ipv6.dns: this property is not allowed for method=$3" >&2
         return 1
       fi
@@ -40,7 +40,7 @@ nmcli() {
 }
 
 set_connection_dns '1.1.1.1' '2606:4700:4700::1111'
-[[ $(wc -l <"$test_tmp/modified") == 2 ]] || fail "only standalone DNS profiles are modified"
+[[ $(wc -l <"$test_tmp/modified") == 4 ]] || fail "only standalone DNS profiles are modified"
 grep -q 'connection modify ethernet ipv4.ignore-auto-dns yes' "$test_tmp/modified" || fail "profiles after ports still receive DNS"
 pass "DNS configuration skips bridge, bond and team ports"
 
@@ -73,7 +73,7 @@ for provider in Cloudflare Google Custom DHCP; do
   ) <<<"9.9.9.9 2620:fe::fe" >"$test_tmp/output" 2>"$test_tmp/errors"
 
   grep -q 'connection modify ethernet ' "$test_tmp/modified" || fail "$provider reaches later profiles"
-  grep -q 'omarchy-dns: skipped rejected-last' "$test_tmp/errors" || fail "$provider reports the failed profile"
+  grep -Eq 'omarchy-dns: skipped (IPv4 DNS on )?rejected-last' "$test_tmp/errors" || fail "$provider reports the failed profile"
   grep -q '^general reload dns-full$' "$test_tmp/reloaded" || fail "$provider completes the DNS reload"
   grep -q '^reload systemd-resolved.service$' "$test_tmp/reloaded" || fail "$provider reloads resolved"
   if [[ $provider == "DHCP" ]]; then
@@ -84,7 +84,8 @@ for provider in Cloudflare Google Custom DHCP; do
     [[ -s $NM_DNS_CONF ]] || fail "$provider writes global DNS"
     grep -q '^DNS=' "$test_tmp/resolved.conf" || fail "$provider writes resolved DNS"
     for method in link-local disabled ignore; do
-      grep -q "omarchy-dns: skipped $method" "$test_tmp/errors" || fail "$provider reports rejected $method DNS"
+      grep -q "omarchy-dns: skipped IPv6 DNS on $method" "$test_tmp/errors" || fail "$provider reports rejected $method DNS"
+      grep -q "connection modify $method ipv4.ignore-auto-dns yes" "$test_tmp/modified" || fail "$provider still sets IPv4 DNS on $method"
     done
   fi
   pass "$provider continues after rejected profiles and completes resolver setup"

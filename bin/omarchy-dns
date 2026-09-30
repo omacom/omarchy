@@ -185,12 +185,12 @@ set_connection_dns() {
     controller=$(nmcli -g connection.controller connection show "$uuid")
     [[ -z $controller ]] || continue
 
-    nmcli connection modify "$uuid" \
-      ipv4.ignore-auto-dns yes \
-      ipv4.dns "$ipv4_dns" \
-      ipv6.ignore-auto-dns yes \
-      ipv6.dns "$ipv6_dns" \
-      >/dev/null || echo "omarchy-dns: skipped $uuid" >&2
+    # Set each family on its own: a profile with IPv6 disabled rejects IPv6 DNS
+    # but must still take the IPv4 servers.
+    nmcli connection modify "$uuid" ipv4.ignore-auto-dns yes ipv4.dns "$ipv4_dns" \
+      >/dev/null || echo "omarchy-dns: skipped IPv4 DNS on $uuid" >&2
+    nmcli connection modify "$uuid" ipv6.ignore-auto-dns yes ipv6.dns "$ipv6_dns" \
+      >/dev/null || echo "omarchy-dns: skipped IPv6 DNS on $uuid" >&2
   done < <(nmcli -t -f UUID,TYPE connection show)
 }
 
