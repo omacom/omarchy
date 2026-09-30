@@ -133,6 +133,17 @@ pass "update checker detects installed omarchy package updates"
 [[ ! -e $XDG_CACHE_HOME ]] || fail "update locking does not create cache state"
 pass "update lock uses runtime state rather than persistent cache"
 
+touch "$test_tmp/not-a-directory"
+if capture_checker "$stdout" "$stderr" TEST_CHECKUPDATES=updates TEST_INSTALLED_PACKAGE=omarchy XDG_RUNTIME_DIR="$test_tmp/not-a-directory"; then
+  status=0
+else
+  status=$?
+fi
+[[ $status -eq 0 ]] || fail "update checker still checks without a runtime directory" "$(cat "$stderr")"
+grep -q '^omarchy ' "$stdout" || fail "update checker reports updates without a runtime directory"
+[[ ! -s $stderr ]] || fail "update checker stays quiet without a runtime directory" "$(cat "$stderr")"
+pass "update checker checks unlocked when no runtime directory can be made"
+
 if capture_checker "$stdout" "$stderr" TEST_CHECKUPDATES=updates TEST_INSTALLED_PACKAGE=omarchy-dev; then
   status=0
 else
