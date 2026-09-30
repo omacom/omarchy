@@ -46,12 +46,17 @@ assert(
 // The compositor closes the surface when its output goes away, which hides the
 // window for good; it must map again once a real screen is back, or unplugging
 // a monitor leaves the menu and its siblings dead until the shell restarts.
+// Focus can land on a monitor before that screen is listed, so the screen-list
+// change follows focus again. Both paths wait a turn: mapping inside the close
+// would reuse the surface still being torn down.
 assert(
-  /onVisibleChanged: if \(!visible\) Qt\.callLater\(remap\)/.test(overlay) &&
+  /function recoverSurface\(\) \{\s*followFocusedScreen\(\)\s*remap\(\)\s*\}/.test(overlay) &&
+    /onVisibleChanged: if \(!visible\) Qt\.callLater\(recoverSurface\)/.test(overlay) &&
     /function remap\(\) \{\s*if \(visible \|\| !hasRealScreen\(\)\) return[\s\S]*?visible = true\s*\}/.test(overlay) &&
-    /target: Quickshell\s*function onScreensChanged\(\) \{ window\.remap\(\) \}/.test(overlay) &&
+    /target: Quickshell\s*function onScreensChanged\(\) \{ Qt\.callLater\(window\.recoverSurface\) \}/.test(overlay) &&
+    !/onScreensChanged\(\) \{[^\n]*\.remap\(/.test(overlay) &&
     /candidate\.name && candidate\.width > 0 && candidate\.height > 0/.test(overlay),
-  'overlay window maps again after its output is removed'
+  'overlay window maps again after its output is removed, and follows focus once that screen is listed'
 )
 
 const overlays = {

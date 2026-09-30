@@ -67,13 +67,21 @@ PanelWindow {
     visible = true
   }
 
-  // Deferred: showing the window again inside the close would reuse the
-  // surface Qt is still tearing down.
-  onVisibleChanged: if (!visible) Qt.callLater(remap)
+  // Focus can move to a monitor before Quickshell lists its screen, so the
+  // focus handler keeps the previous target and this retries once the list
+  // catches up. Deferred with the hide path: a screen can leave while Qt is
+  // still tearing that surface down, and mapping again inside the close would
+  // reuse it.
+  function recoverSurface() {
+    followFocusedScreen()
+    remap()
+  }
+
+  onVisibleChanged: if (!visible) Qt.callLater(recoverSurface)
 
   Connections {
     target: Quickshell
-    function onScreensChanged() { window.remap() }
+    function onScreensChanged() { Qt.callLater(window.recoverSurface) }
   }
 
   visible: true
