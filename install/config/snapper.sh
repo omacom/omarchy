@@ -18,18 +18,29 @@ echo "Configuring Omarchy Snapper snapshot retention"
 
 if [[ ! -f $SNAPPER_CONFIG_PATH ]]; then
   mkdir -p "$(dirname "$SNAPPER_CONFIG_PATH")"
-  : >"$SNAPPER_INIT_MARKER"
 
   if [[ ${OMARCHY_SNAPPER_CONFIGURE_TEST:-0} == "1" ]]; then
     : >"$SNAPPER_CONFIG_PATH"
   else
     snapper --no-dbus -c root create-config / >/dev/null 2>&1 || snapper -c root create-config / >/dev/null
   fi
+
+  # Keep the exact config Omarchy created as the recovery marker. On a retry we
+  # only replace the config if it is still byte-for-byte unchanged; intervening
+  # user edits turn it into user policy and must be preserved.
+  cp -- "$SNAPPER_CONFIG_PATH" "$SNAPPER_INIT_MARKER"
 fi
 
-if [[ -f $SNAPPER_INIT_MARKER || $(<"$SNAPPER_CONFIG_PATH") == "$omarchy_3_template" ]]; then
+if [[ -f $SNAPPER_INIT_MARKER ]]; then
+  if cmp -s "$SNAPPER_INIT_MARKER" "$SNAPPER_CONFIG_PATH"; then
+    install -m 0644 "$template" "$SNAPPER_CONFIG_PATH"
+    rm -f "$SNAPPER_INIT_MARKER"
+  else
+    echo "Preserving Snapper root retention policy changed during interrupted initialization"
+    rm -f "$SNAPPER_INIT_MARKER"
+  fi
+elif [[ $(<"$SNAPPER_CONFIG_PATH") == "$omarchy_3_template" ]]; then
   install -m 0644 "$template" "$SNAPPER_CONFIG_PATH"
-  rm -f "$SNAPPER_INIT_MARKER"
 else
   echo "Preserving existing Snapper root retention policy"
 fi

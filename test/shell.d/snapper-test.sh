@@ -105,6 +105,38 @@ grep -Fx 'NUMBER_LIMIT="50"' "$retry_config" >/dev/null ||
   fail "failed first initialization leaves the Snapper-created intermediate config for recovery"
 [[ -f $retry_marker ]] ||
   fail "failed first initialization records that Omarchy still owns the incomplete config"
+cmp -s "$retry_config" "$retry_marker" ||
+  fail "incomplete-initialization marker records the exact Snapper-created config"
+
+edited_retry_config="$test_tmp/edited-retry/etc/snapper/configs/root"
+edited_retry_conf="$test_tmp/edited-retry/etc/conf.d/snapper"
+edited_retry_marker="${edited_retry_config}.omarchy-initializing"
+edited_retry_expected="$test_tmp/edited-retry.expected"
+edited_retry_log="$test_tmp/edited-retry.calls"
+mkdir -p "$(dirname "$edited_retry_config")"
+cp "$retry_config" "$edited_retry_config"
+cp "$retry_marker" "$edited_retry_marker"
+sed -i 's/NUMBER_LIMIT="50"/NUMBER_LIMIT="25"/' "$edited_retry_config"
+printf '%s\n' 'MY_SETTING="keepme"' >>"$edited_retry_config"
+cp "$edited_retry_config" "$edited_retry_expected"
+: >"$edited_retry_log"
+
+TEST_LOG="$edited_retry_log" \
+PATH="$fake_bin:$PATH" \
+SNAPPER_CREATE_PATH="$edited_retry_config" \
+OMARCHY_PATH="$ROOT" \
+OMARCHY_SNAPPER_TEMPLATE="$template" \
+OMARCHY_SNAPPER_CONFIG_PATH="$edited_retry_config" \
+OMARCHY_SNAPPER_CONF_PATH="$edited_retry_conf" \
+  bash -euo pipefail "$ROOT/install/config/snapper.sh" >/dev/null
+
+cmp -s "$edited_retry_expected" "$edited_retry_config" ||
+  fail "retry preserves user edits made after interrupted initialization"
+[[ ! -e $edited_retry_marker ]] ||
+  fail "retry clears a stale initialization marker after preserving user edits"
+! grep -q '^snapper ' "$edited_retry_log" ||
+  fail "retry does not recreate a user-edited Snapper root config"
+pass "snapshot configure preserves user edits made after interrupted first initialization"
 
 TEST_LOG="$test_tmp/calls.log" \
 PATH="$fake_bin:$PATH" \
