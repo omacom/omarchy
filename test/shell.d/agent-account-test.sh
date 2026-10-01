@@ -262,6 +262,14 @@ if omarchy-agent-account-remove claude main </dev/null >/dev/null 2>&1; then
   fail "the primary account can't be removed"
 fi
 omarchy-agent-account-use claude work >/dev/null
+# A session still running in the account keeps its login until it quits.
+CLAUDE_CONFIG_DIR="$work" sleep 30 &
+session=$!
+if omarchy-agent-account-remove claude work </dev/null >/dev/null 2>"$test_tmp/in-use"; then
+  fail "an account a running session uses can't be removed"
+fi
+[[ -d $work ]] && grep -q "Quit it first" "$test_tmp/in-use" || fail "removing an account in use leaves it and says why" "$(cat "$test_tmp/in-use")"
+kill "$session"; wait "$session" 2>/dev/null || true
 omarchy-agent-account-remove claude work </dev/null >/dev/null
 [[ ! -e $work && -d $HOME/.claude/projects && -f $HOME/.claude/settings.json ]] || fail "removing an account deletes its home and nothing it links to"
 [[ -z $(omarchy-agent-account-home claude) ]] || fail "removing the active account falls back to the primary"

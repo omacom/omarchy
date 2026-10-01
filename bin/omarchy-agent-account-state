@@ -34,6 +34,7 @@ from typing import Any
 PROVIDERS = {
   "claude": {
     "name": "Claude",
+    "home_env": "CLAUDE_CONFIG_DIR",
     # Everything a session reads or writes that isn't tied to the login. A
     # missing directory is created in the primary home first; a missing file
     # is linked anyway, so whichever account writes it first writes it there.
@@ -45,6 +46,7 @@ PROVIDERS = {
   },
   "codex": {
     "name": "Codex",
+    "home_env": "CODEX_HOME",
     "shared_dirs": ["sessions", "archived_sessions", "prompts", "skills", "rules", "plugins"],
     "shared_files": ["config.toml", "AGENTS.md", "history.jsonl", "hooks.json"],
     "carried_keys": [],
@@ -396,6 +398,22 @@ def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any]]:
     return previous, account
 
 
+# Whether a running session was started in this home. Removing it would pull
+# the login out from under that session, which must never be touched.
+def home_in_use(provider: str, home: Path) -> bool:
+  wanted = f"{PROVIDERS[provider]['home_env']}=".encode()
+  resolved = home.resolve()
+  for environ in Path("/proc").glob("[0-9]*/environ"):
+    try:
+      entries = environ.read_bytes().split(b"\0")
+    except OSError:
+      continue
+    for entry in entries:
+      if entry.startswith(wanted) and Path(entry[len(wanted):].decode(errors="replace")).resolve() == resolved:
+        return True
+  return False
+
+
 def remove(provider: str, target: str) -> dict[str, Any]:
   with Locked(provider) as registry:
     account = find(registry, target)
@@ -404,6 +422,8 @@ def remove(provider: str, target: str) -> dict[str, Any]:
     if account.get("primary"):
       raise AccountError(f"{account['label']} is the login in {primary_home(provider)}; it can't be removed here.")
     home = account_home(provider, account)
+    if home_in_use(provider, home):
+      raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses {account['label']}. Quit it first, then remove the account.")
     # Only the account's own directory goes. Its links point into the primary
     # home, and rmtree removes a link without following it.
     if home.resolve().parent == (accounts_root() / provider).resolve():
