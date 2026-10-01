@@ -32,23 +32,29 @@ else
     grep -qFx 'SUBVOLUME="/"' "$SNAPPER_CONFIG_PATH" &&
     grep -qFx 'FSTYPE="btrfs"' "$SNAPPER_CONFIG_PATH"; then
     rm -f "$SNAPPER_CONFIG_PATH"
+  fi
 
-    if [[ -f $SNAPPER_CONF_PATH ]]; then
-      snapper_configs=$(sed -n 's/^[[:space:]]*SNAPPER_CONFIGS="\([^"]*\)"[[:space:]]*$/\1/p' "$SNAPPER_CONF_PATH")
-
-      if [[ " $snapper_configs " == *" root "* ]]; then
-        remaining_configs=""
-        for config in $snapper_configs; do
-          [[ $config == "root" ]] || remaining_configs+="${remaining_configs:+ }$config"
-        done
-
-        printf 'SNAPPER_CONFIGS="%s"\n' "$remaining_configs" >"$SNAPPER_CONF_PATH"
-        chmod 0644 "$SNAPPER_CONF_PATH"
-      fi
+  snapper_configs=""
+  if [[ -f $SNAPPER_CONF_PATH ]]; then
+    snapper_configs=$(sed -n 's/^[[:space:]]*SNAPPER_CONFIGS="\([^"]*\)"[[:space:]]*$/\1/p' "$SNAPPER_CONF_PATH")
+    if [[ ! -e $SNAPPER_CONFIG_PATH && " $snapper_configs " == *" root "* ]]; then
+      remaining_configs=""
+      for config in $snapper_configs; do
+        [[ $config == "root" ]] || remaining_configs+="${remaining_configs:+ }$config"
+      done
+      sed -i "s/^[[:space:]]*SNAPPER_CONFIGS=\"[^\"]*\"[[:space:]]*$/SNAPPER_CONFIGS=\"$remaining_configs\"/" "$SNAPPER_CONF_PATH"
+      snapper_configs=$remaining_configs
     fi
   fi
 
-  if [[ ! -d $config_dir ]] || [[ -z $(find "$config_dir" -mindepth 1 -maxdepth 1 -print -quit) ]]; then
+  has_configs=false
+  for config in $snapper_configs; do
+    if [[ -f $config_dir/$config ]]; then
+      has_configs=true
+      break
+    fi
+  done
+  if ! $has_configs; then
     systemctl disable --now snapper-cleanup.timer >/dev/null 2>&1 || true
   fi
 

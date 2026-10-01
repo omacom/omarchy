@@ -230,3 +230,17 @@ if [[ -f $phases && -f $manifest ]]; then
   ! grep -F '/etc/systemd/system/timers.target.wants/snapper-timeline.timer' "$manifest" >/dev/null || fail "fresh ISO manifest does not enable snapper timeline timer"
 fi
 pass "omarchy-iso delegates Snapper setup to packaged system setup"
+
+: >"$test_tmp/calls.log"
+partial="$test_tmp/partial"
+mkdir -p "$partial/configs/unrelated-directory"
+printf '# keep my settings\nSNAPPER_CONFIGS="root"\nSNAPPER_DEBUG="yes"\n' >"$partial/snapper"
+printf 'unrelated note\n' >"$partial/configs/README"
+TEST_ROOT_FSTYPE=ext4 TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
+  OMARCHY_SNAPPER_CONFIG_PATH="$partial/configs/root" OMARCHY_SNAPPER_CONF_PATH="$partial/snapper" \
+  bash -euo pipefail "$ROOT/install/config/snapper.sh" >/dev/null
+grep -Fxq 'SNAPPER_CONFIGS=""' "$partial/snapper" || fail "partial cleanup removes stale root registration"
+grep -Fxq '# keep my settings' "$partial/snapper" || fail "shared Snapper comments survive"
+grep -Fxq 'SNAPPER_DEBUG="yes"' "$partial/snapper" || fail "unrelated Snapper settings survive"
+grep -Fxq 'systemctl disable --now snapper-cleanup.timer' "$test_tmp/calls.log" || fail "unregistered files and directories do not keep cleanup enabled"
+pass "partial non-Btrfs repair preserves shared settings and ignores unregistered files"
