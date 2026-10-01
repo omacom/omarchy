@@ -436,9 +436,9 @@ Panel {
 
   // Bar pill state, derived from the native NetworkManager service so the
   // icon reflects connection changes without polling. Wired is preferred
-  // when both are up, matching the default-route device. Some NetworkManager
-  // backends report the Wi-Fi device as connected before exposing the current
-  // access point in the scan list, so keep the bar online from device state.
+  // when both are up, matching the default-route device. Quickshell 0.3.1
+  // ignores a profile with no 802-11-wireless.mode, so a connected station can
+  // have no connected network: keep the bar online from device state then.
   // Only in station mode: a card running a hotspot is connected with no uplink.
   readonly property var wiredDevice: findDevice(DeviceType.Wired)
   readonly property bool wifiStationConnected: !!(wifiDevice && wifiDevice.connected
