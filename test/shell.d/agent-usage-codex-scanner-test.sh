@@ -638,9 +638,11 @@ EOF
 provider_session native openai gpt-native 100 10
 provider_session ollama ollama qwen3-coder:30b 9000 900
 provider_session openrouter openrouter claude-test 5000 500
-# Rollouts written before Codex recorded the field carry no session_meta at
-# all; they must still count rather than silently drop a user's history.
+# Rollouts written before Codex recorded the field have a session_meta with no
+# provider; they must still count rather than silently drop a user's history.
 provider_session legacy "" gpt-legacy 40 0
+sed -i "1i {\"timestamp\":\"$timestamp\",\"type\":\"session_meta\",\"payload\":{\"id\":\"legacy\"}}" \
+  "$PROVIDER_HOME/.codex/sessions/$(date +%Y/%m/%d)/rollout-legacy.jsonl"
 # A fork copies its parent's session_meta after its own; the first one decides.
 provider_session fork openai gpt-fork 3 0
 sed -i "1a {\"timestamp\":\"$timestamp\",\"type\":\"session_meta\",\"payload\":{\"model_provider\":\"ollama\"}}" \
