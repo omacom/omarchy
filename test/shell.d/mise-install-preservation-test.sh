@@ -19,6 +19,7 @@ backups=("$backup_dir"/tool.*)
 (( ${#backups[@]} == 1 )) || fail "one backup is created"
 cmp -s "${backups[0]}" "$test_tmp/original" || fail "custom launcher is preserved verbatim"
 [[ $(stat -c %a "${backups[0]}") == "700" ]] || fail "backup retains private permissions"
+[[ $(stat -c %a "$launcher") == "700" ]] || fail "replacement retains private permissions"
 [[ -x $launcher ]] || fail "replacement wrapper is executable"
 grep -Fq 'mise use -g --quiet "tool"' "$launcher" || fail "replacement is the requested wrapper"
 pass "custom launchers are backed up with their permissions"

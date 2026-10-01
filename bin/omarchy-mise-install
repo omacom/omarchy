@@ -61,7 +61,11 @@ mise use -g --quiet $package_arg || exit 1
 exec mise x $package_arg -- $bin_arg "\$@"
 EOF
 
-chmod 755 "$wrapper"
+if [[ -f $launcher ]]; then
+  chmod --reference="$launcher" "$wrapper"
+else
+  chmod 755 "$wrapper"
+fi
 
 generated_wrapper() {
   [[ -f $launcher && ! -L $launcher ]] || return 1
