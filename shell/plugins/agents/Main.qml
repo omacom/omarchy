@@ -235,12 +235,15 @@ Item {
   }
 
   // All-time keeps a quiet day from hiding an agent; today's counts admit a
-  // machine whose only source is history.jsonl, which knows nothing older.
+  // machine whose only source is history.jsonl, which knows nothing older. A
+  // signed-in agent with a plan shows before its first numbers arrive, so a
+  // lapsed sign-in still has somewhere to say so.
   function providerHasData(p) {
     return numberValue(p.totalPrompts) > 0 || numberValue(p.totalSessions) > 0
       || numberValue(p.activeDays) > 0 || numberValue(p.todayPrompts) > 0
       || numberValue(p.todaySessions) > 0 || (p.limits && p.limits.length > 0)
       || (p.accounts && p.accounts.length > 0) || !!p.balance
+      || (p.ready === true && p.tierLabel !== "")
   }
 
   // A prepaid agent's credit ledger. Like rate limits, the balance is
