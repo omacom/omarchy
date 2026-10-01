@@ -211,7 +211,7 @@ Panel {
 
   function chooseAddProvider(id) {
     var state = addChecks[id] || ""
-    if (state === "unsupported" || state === "") return
+    if (state === "") return
     addProvider = id
     if (state === "additional") addStage = "name"
     else startAdd("")
@@ -1004,8 +1004,7 @@ Panel {
       wrapMode: Text.WordWrap
     }
 
-    // Pick: each agent by a large mark over its name, three across. One that
-    // can't be added right now is dimmed, and says why on hover.
+    // Pick: each agent by a large mark over its name, three across.
     Row {
       id: choiceRow
       visible: root.picking
@@ -1024,7 +1023,6 @@ Panel {
           readonly property bool hasCursor: root.hasKey("choice", index)
           width: (choiceRow.width - choiceRow.spacing * (root.addProviders.length - 1)) / root.addProviders.length
           implicitHeight: choiceBody.implicitHeight + Style.space(16)
-          opacity: state === "unsupported" ? 0.4 : 1.0
           onHasCursorChanged: if (hasCursor) root.revealItem(choice)
 
           Column {
@@ -1059,11 +1057,6 @@ Panel {
             onClicked: root.chooseAddProvider(choice.modelData.providerId)
           }
 
-          PanelToolTip {
-            visible: choice.state === "unsupported" && choice.hasCursor
-            // Kept short: the tooltip can't grow past the panel's edges.
-            text: "Already signed in. " + choice.modelData.providerName + " takes one account."
-          }
         }
       }
     }
