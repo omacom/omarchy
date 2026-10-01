@@ -11,8 +11,14 @@ legacy="$ROOT/test/shell.d/fixtures/kitty/legacy.conf"
 migration="$ROOT/migrations/1788745941.sh"
 mkdir -p "$(dirname "$kitty_config")" "$test_dir/bin"
 
+cat >"$test_dir/bin/gum" <<'SH'
+#!/bin/bash
+printf '%s\n' "$@"
+SH
+chmod +x "$test_dir/bin/gum"
+
 run_migration() {
-  env HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" bash -euo pipefail "$migration"
+  env HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$test_dir/bin:$ROOT/bin:$PATH" bash -euo pipefail "$migration"
 }
 
 cp "$legacy" "$kitty_config"
