@@ -94,15 +94,20 @@ case "$*" in
       printf 'ok\n'
     ;;
   *'lock lock')
+    rm -f "$OMARCHY_TEST_QS_STATE.stale"
     touch "$OMARCHY_TEST_QS_STATE.locked"
     printf 'ok\n'
     ;;
   *'lock status')
     if [[ -f $OMARCHY_TEST_QS_STATE.locked ]]; then
       printf '{"secure": true, "requested": true, "sessionLocked": true}\n'
-    elif [[ -f $OMARCHY_TEST_QS_STATE.stale ]]; then
-      # A crashed shell leaves its lock request behind. No lock surface exists,
-      # so the restart must proceed rather than read the orphan as a live lock.
+    elif [[ -f $OMARCHY_TEST_QS_STATE.stale ]] &&
+      [[ $(<"$OMARCHY_TEST_QS_STATE.stale") == "$(<"$OMARCHY_TEST_QS_STATE")" ]]; then
+      # The shell answering here is the one that crashed while holding a lock
+      # request: it reports the request, and no lock surface exists. Keyed to
+      # the pid, because a replacement shell never serves that request and must
+      # report idle — otherwise relock_session reads "locking", waits, and
+      # never gets the lock re-acquired.
       printf '{"secure": false, "requested": true, "sessionLocked": false}\n'
     else
       printf '{"secure": false, "requested": false, "sessionLocked": false}\n'
@@ -303,12 +308,15 @@ pass "restart recovers a locked session whose lock client died"
 sleep 30 &
 restart_pid_stale=$!
 printf '%s\n' "$restart_pid_stale" >"$restart_state"
-touch "$restart_state.stale"
+printf '%s\n' "$restart_pid_stale" >"$restart_state.stale"
 rm -f "$restart_state.locked"
 : >"$restart_log"
 : >"$ipc_log"
 
-if PATH="$restart_bin:$PATH" \
+# Exit status, not just the absence of a refusal: a restart that proceeds and
+# then fails to re-lock is still a failure, and this case exists to prove the
+# stale request does not merely get past the guard but recovers outright.
+stale_output=$(PATH="$restart_bin:$PATH" \
   OMARCHY_PATH="$restart_root" \
   XDG_RUNTIME_DIR="$runtime_dir" \
   OMARCHY_TEST_SESSION_LOCKED=1 \
@@ -318,11 +326,12 @@ if PATH="$restart_bin:$PATH" \
   OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
   OMARCHY_TEST_IPC_LOG="$ipc_log" \
   OMARCHY_TEST_SESSION_PATH="$restart_root" \
-    timeout 5 "$ROOT/bin/omarchy-restart-shell" 2>&1 |
-    grep -F "Refusing to restart" >/dev/null; then
-  fail "a stale lock request with no lock surface must not refuse the restart"
-fi
+    timeout 5 "$ROOT/bin/omarchy-restart-shell" 2>&1) && stale_status=0 || stale_status=$?
 
+[[ $stale_status == 0 ]] || fail "a stale lock request with no lock surface must not refuse the restart" "$stale_output"
+if [[ $stale_output == *"Refusing to restart"* ]]; then
+  fail "a stale lock request with no lock surface must not be read as a live lock" "$stale_output"
+fi
 if kill -0 "$restart_pid_stale" 2>/dev/null; then
   fail "stale-request recovery stops the crashed shell instance"
 fi
