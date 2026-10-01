@@ -60,7 +60,7 @@ function announce(pending, now, notificationsEnabled, providerEnabled) {
     if (!reset || reset.deadline > now) continue
     notifications.push({
       title: reset.providerName + " limit reset",
-      body: reset.label + " is available again."
+      body: reset.label + " rate-limit window has reset."
     })
     delete next[key]
   }

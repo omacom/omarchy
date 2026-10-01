@@ -1,7 +1,8 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "LimitResetModel.js" as LimitResetModel
+import qs.Commons
+import "."
 
 // The display side of agent usage. All extraction lives behind
 // omarchy-agent-usage-update, which writes one JSON record per agent into
@@ -82,53 +83,18 @@ Item {
     scheduleSync()
   }
 
-  // A reset deadline is stable for the lifetime of a rate-limit window. Keep
-  // the deadlines we first see in memory and announce them when they pass;
-  // this stays accurate even when the normal usage refresh is deliberately
-  // infrequent. Deadlines already past when the shell starts are ignored.
-  property var pendingLimitResets: ({})
-
+  // Each monitor has its own Main. The singleton owns one queue and timer
+  // and follows the first live widget, handing over when that widget unloads.
   function limitResetNotificationsEnabled() {
-    return setting("notifyOnLimitReset", true) !== false
+    return Style.boolToken(setting("notifyOnLimitReset", true), true)
   }
 
   function scheduleLimitResetNotifications() {
-    var records = []
-    for (var i = 0; i < agents.length; i++) {
-      records.push(agents[i] ? agents[i].record : null)
-    }
-    pendingLimitResets = LimitResetModel.schedule(
-      pendingLimitResets,
-      records,
-      Date.now(),
-      limitResetNotificationsEnabled(),
-      function(id) { return providerEnabled(id) }
-    )
+    LimitResetNotifier.schedule(root)
   }
 
-  function announcePassedLimitResets() {
-    var result = LimitResetModel.announce(
-      pendingLimitResets,
-      Date.now(),
-      limitResetNotificationsEnabled(),
-      function(id) { return providerEnabled(id) }
-    )
-    pendingLimitResets = result.pending
-    for (var i = 0; i < result.notifications.length; i++) {
-      var notification = result.notifications[i]
-      Quickshell.execDetached(["omarchy-notification-send",
-        notification.title,
-        notification.body])
-    }
-  }
-
-  Timer {
-    interval: 15000
-    running: root.limitResetNotificationsEnabled()
-    repeat: true
-    onTriggered: root.announcePassedLimitResets()
-    onRunningChanged: if (!running && !root.limitResetNotificationsEnabled()) root.pendingLimitResets = ({})
-  }
+  onSettingsChanged: scheduleLimitResetNotifications()
+  Component.onDestruction: LimitResetNotifier.unregister(root)
 
   // A collector that could not reach its limits endpoint at all — typically
   // the seconds after login before the network is up — writes retryAdvised
@@ -158,6 +124,7 @@ Item {
   }
 
   Component.onCompleted: {
+    LimitResetNotifier.register(root)
     rescanAgents()
     if (syncConfigured()) scheduleSync()
   }
