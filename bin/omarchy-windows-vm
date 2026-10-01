@@ -897,11 +897,15 @@ __priv_up() { assert_mounts_safe && dc up -d; }
 
 __priv_down() { dc down; }
 
-# A successful TCP connection proves the forwarded RDP service is listening.
-# Keep this password-free: the privileged readiness path must not receive the
-# user's guest credentials or launch an authenticated FreeRDP process as root.
+# docker-proxy accepts on 3389 as soon as the container starts, so a bare TCP
+# connect proves nothing. Send an X.224 Connection Request and require the
+# guest's Connection Confirm (0xd0), which needs no credentials.
 rdp_port_ready() {
-  timeout 1 bash -c 'exec 3<>/dev/tcp/127.0.0.1/3389' >/dev/null 2>&1
+  timeout 2 bash -c '
+    exec 3<>/dev/tcp/127.0.0.1/3389 || exit 1
+    printf "\x03\x00\x00\x13\x0e\xe0\x00\x00\x00\x00\x00\x01\x00\x08\x00\x03\x00\x00\x00" >&3
+    [[ $(head -c 6 <&3 | od -An -tx1) == " 03 00 "*" d0" ]]
+  ' >/dev/null 2>&1
 }
 
 # Bring the VM up and wait until the guest reports it booted and its RDP service
