@@ -103,7 +103,7 @@ assert(
   'network keeps the bar on Wi-Fi when the device is connected but no access point object is'
 )
 assert(
-  /connectionKey: kind === "wifi" && wifiDevice\n/.test(panelSource),
+  /connectionKey: kind === "wifi" && wifiDevice\n\s*\? kind \+ ":" \+ wifiDevice\.name \+ ":" \+ \(connectedWifiNetwork \? connectedWifiNetwork\.name : ""\)\n/.test(panelSource),
   'network rechecks connectivity when Wi-Fi comes up without an access point object'
 )
 assertEqual(network.connectionSignalStrength(0.78, true), 78, 'network maps access-point signal strength to percent')
