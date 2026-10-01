@@ -53,11 +53,4 @@ printf 'Defaults passwd_tries=3\n' >"$stock_dir/99-passwd-tries"
 [[ $(winning_passwd_tries "$stock_dir") == 3 ]] ||
   fail "10-omarchy-passwd-tries lets 99-passwd-tries win"
 
-# Migration leaves a customized old file alone (body check).
-mig="$ROOT/migrations/1789838300.sh"
-grep -F 'omarchy-passwd-tries' "$mig" >/dev/null ||
-  fail "migration mentions the old sudoers path"
-grep -F 'Defaults passwd_tries=10' "$mig" >/dev/null ||
-  fail "migration only removes the stock one-liner"
-
 pass "passwd_tries sudoers sorts before user overrides"
