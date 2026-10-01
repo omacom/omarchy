@@ -27,10 +27,10 @@ for test_name in "${MOUNTING_TESTS[@]}"; do
   test_file="$SHELL_TEST_DIR/$test_name"
   [[ -f $test_file ]] || fail "mounting test is present: $test_name"
 
-  guard_line=$(grep -nE '^if \[\[ \$\{OMARCHY_[A-Z_]+:-0\} != 1 \]\]; then' "$test_file" | head -1 | cut -d: -f1)
+  guard_line=$(grep -m1 -nE '^if \[\[ \$\{OMARCHY_[A-Z_]+:-0\} != 1 \]\]; then' "$test_file" | cut -d: -f1 || true)
   [[ -n $guard_line ]] || fail "$test_name gates its namespace re-exec on a marker variable, not on uid"
 
-  mount_line=$(grep -nE '^[[:space:]]*mount (-t|--)' "$test_file" | head -1 | cut -d: -f1)
+  mount_line=$(grep -m1 -nE '^[[:space:]]*mount (-t|--)' "$test_file" | cut -d: -f1 || true)
   if [[ -n $mount_line ]]; then
     (( mount_line > guard_line )) || fail "$test_name mounts before entering its own namespace"
   fi
