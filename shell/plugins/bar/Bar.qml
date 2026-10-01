@@ -845,14 +845,13 @@ Item {
   }
 
   function toggleTransparency() {
-    var nextTransparent = !(root.requestedTransparent === true)
     if (root.shell && typeof root.shell.mutateShellConfig === "function") {
       return root.shell.mutateShellConfig(function(config) {
         if (!Util.isPlainObject(config.bar)) config.bar = {}
-        config.bar.transparent = nextTransparent
+        config.bar.transparent = !(config.bar.transparent === true)
       })
     } else {
-      root.setRequestedTransparency(nextTransparent)
+      root.setRequestedTransparency(!(root.requestedTransparent === true))
     }
   }
 

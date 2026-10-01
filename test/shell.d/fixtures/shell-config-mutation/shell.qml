@@ -9,6 +9,8 @@ ShellRoot {
   property var builtinShellConfig: ({ version: 1, plugins: [] })
   property var defaultsConfig: builtinShellConfig
   property var shellConfig: builtinShellConfig
+  property var bar: fixtureBar
+  property var pluginRegistry: fixtureRegistry
   property var util: ({
     isPlainObject: function(value) { return value && typeof value === "object" && !Array.isArray(value) },
     canonicalWidgetId: function(value) { return value }
@@ -21,11 +23,32 @@ ShellRoot {
 
   Component.onCompleted: shellConfig = JSON.parse(userConfigFile.text())
 
+  QtObject {
+    id: fixtureBar
+    property var host: shell
+    property bool requestedTransparent: false
+    function setRequestedTransparency(value) { requestedTransparent = value }
+    // BAR_FUNCTIONS
+  }
+
+  QtObject {
+    id: fixtureRegistry
+    property var installedPlugins: ({ "example.service": { kinds: ["service"] } })
+    property string lastEnableError: ""
+    property int registryRevision: 0
+    property var shellConfigMutator: function(mutator) { return shell.mutateShellConfig(mutator) }
+    signal pluginsChanged()
+    // REGISTRY_FUNCTIONS
+  }
+
   // The test runner injects the real shell mutation functions here.
   // MUTATION_FUNCTIONS
 
   IpcHandler {
     target: "config-test"
+    // IPC_FUNCTIONS
+    function barAvailable(value: bool): void { shell.bar = value ? fixtureBar : null }
+    function legacyBar(): void { shell.bar = { toggleTransparency: function() {} } }
     function mutate(): string {
       return JSON.stringify({ ok: shell.mutateShellConfig(function(config) {
         config.bar = config.bar || {}

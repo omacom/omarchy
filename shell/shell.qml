@@ -1733,14 +1733,15 @@ ShellRoot {
 
     function toggleBarTransparency(): string {
       if (shell.bar && typeof shell.bar.toggleTransparency === "function") {
-        shell.bar.toggleTransparency()
+        if (shell.bar.toggleTransparency() === false) return "could not update shell config"
         return "ok"
       }
       return "no-bar"
     }
 
     function setPluginEnabled(id: string, enabled: string): string {
-      return shell.pluginRegistry.setEnabled(id, enabled === "true") ? "ok" : "unknown"
+      if (shell.pluginRegistry.setEnabled(id, enabled === "true")) return "ok"
+      return shell.pluginRegistry.lastEnableError || "unknown"
     }
 
     function enablePlugin(id: string, placementJson: string): string {
