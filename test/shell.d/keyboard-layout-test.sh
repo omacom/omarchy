@@ -146,5 +146,19 @@ assertEqual(model.eventKeyboardName(rawEvent('at-translated-set-2-keyboard,Frenc
 assertEqual(model.eventKeyboardName(parsedEvent('at-translated-set-2-keyboard,English (US, intl.)')), 'at-translated-set-2-keyboard', 'a description carrying a comma leaves the name alone')
 assertEqual(model.eventKeyboardName(rawEvent('hl-virtual-keyboard,English (US)')), '', 'the keyboard an input method injects through is not typed on')
 assertEqual(model.eventKeyboardName({ parse: () => { throw new Error('unsupported') }, data: 'kb,French' }), 'kb', 'a binding without parse falls back to the raw data')
+assertEqual(model.eventKeyboardName(rawEvent('apple-headset,Greek')), '', 'headset layout events leave the typing keyboard selected')
+assertEqual(model.eventKeyboardName(rawEvent('power-button,French')), '', 'button events cannot replace the typing keyboard')
 assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names no keyboard')
+JS
+
+run_node_test <<'JS'
+const fs = require('fs')
+const qml = fs.readFileSync(process.env.ROOT + '/shell/plugins/bar/widgets/KeyboardLayout.qml', 'utf8')
+const updateCount = qml.match(/root\.keyboardCount = [^\n]+/)[0]
+const poll = qml.match(/running: (!root\.keyboardName[^\n]+)/)[1]
+const widget = { keyboardName: 'apple-spi-keyboard', keyboardUnresolved: false, keyboardCount: 0 }
+const listed = [{name: 'apple-headset'}, {name: 'apple-spi-keyboard'}]
+const typed = [listed[1]]
+new Function('root', 'listed', 'typed', updateCount)(widget, listed, typed)
+assertEqual(new Function('root', 'return ' + poll)(widget), true, 'a T2 seat keeps querying so keyboard removal can be detected')
 JS
