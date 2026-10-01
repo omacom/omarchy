@@ -55,7 +55,7 @@ ShellRoot {
         root.check(root.pendingCount() === 2, "unreadable present record retains its deadline")
         var queued = Agents.LimitResetNotifier.pendingLimitResets
         for (var key in queued) {
-          if (key.split("\n", 1)[0] === "codex") queued[key].deadline = Date.now() - 1
+          if (queued[key].providerId === "codex") queued[key].deadline = Date.now() - 1
         }
         Agents.LimitResetNotifier.pendingLimitResets = queued
         root.phase = 2
@@ -65,7 +65,7 @@ ShellRoot {
         root.check(root.pendingCount() === 1, "rescan removes the absent provider's already-due reset")
         var remaining = Agents.LimitResetNotifier.pendingLimitResets
         for (var remainingKey in remaining) {
-          root.check(remainingKey.split("\n", 1)[0] === "codex-team", "shared-prefix provider survives removal")
+          root.check(remaining[remainingKey].providerId === "codex-team", "shared-prefix provider survives removal")
         }
         Agents.LimitResetNotifier.announcePassedLimitResets()
         root.check(root.pendingCount() === 1, "announce retains only the live provider's future reset")

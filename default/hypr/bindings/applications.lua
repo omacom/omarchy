@@ -1,5 +1,5 @@
 -- Essential application bindings.
-o.bind("SUPER + RETURN", "Terminal", { omarchy = "terminal" })
+o.bind("SUPER + RETURN", "Terminal", o.launch_terminal())
 o.bind("SUPER + SHIFT + RETURN", "Browser", { omarchy = "browser" })
 o.bind("SUPER + SHIFT + F", "File manager", { omarchy = "nautilus" })
 o.bind("SUPER + ALT + SHIFT + F", "File manager (cwd)", { omarchy = "nautilus-cwd" })
