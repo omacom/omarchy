@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Ensure the ZeroClaw CLI is installed for the default agent
+# omarchy:args=[--check|--now]
+# omarchy:examples=omarchy install zeroclaw cli --now | omarchy install zeroclaw cli --check
+
+# ZeroClaw is not a mise tool and not a pacman package: the canonical installer
+# is `curl -fsSL https://zeroclaw.com/install.sh | bash`, which writes the
+# zeroclaw command to ~/.local/bin. The default-agent flow talks to that
+# installer through the same --check/--now contract mise-backed agents get from
+# mise itself.
+
+set -euo pipefail
+
+case "${1:---now}" in
+--check)
+  omarchy-cmd-present zeroclaw
+  ;;
+--now)
+  if ! omarchy-cmd-present zeroclaw; then
+    echo "Installing ZeroClaw..."
+    curl -fsSL https://zeroclaw.com/install.sh | bash
+  fi
+  ;;
+*)
+  echo "Usage: omarchy-install-zeroclaw-cli [--check|--now]" >&2
+  exit 1
+  ;;
+esac
