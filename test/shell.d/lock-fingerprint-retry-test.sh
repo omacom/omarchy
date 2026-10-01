@@ -37,7 +37,7 @@ assert(scheduleFn, 'the lock screen schedules fingerprint retries in one place')
 var fingerprintImmediateFailures = 0
 var fingerprintStartedAt = 0
 var fingerprintImmediateFailureMs = 1000
-var fingerprintRetryTimer = { interval: 0, restart() {} }
+var fingerprintRetryTimer = { interval: 0, restarts: 0, restart() { this.restarts++ } }
 eval(scheduleFn[0])
 
 fingerprintStartedAt = Date.now()
@@ -76,10 +76,12 @@ const onError = new Function('root', 'error', onErrorBody[1])
 
 // Quickshell emits error() and then completed(PamResult.Error) for one failed attempt.
 for (const expected of [250, 500, 1000]) {
+  const restarts = fingerprintRetryTimer.restarts
   fingerprintStartedAt = Date.now()
   onError(qmlRoot, 0)
   handleFingerprintFinished(PamResult.Error)
   assertEqual(fingerprintRetryTimer.interval, expected, `an immediate PAM error retries after ${expected}ms`)
+  assertEqual(fingerprintRetryTimer.restarts - restarts, 1, 'a failed attempt starts the retry timer once')
 }
 assertEqual(fingerprintImmediateFailures, 3, 'each failed attempt counts once toward the backoff')
 JS
