@@ -1591,16 +1591,24 @@ Panel {
         }
       }
 
+      // Bounded by the actions on the right: the plan and any trouble shorten
+      // first, and the Sign-in required link keeps its whole width.
       Row {
+        id: detailRow
         visible: !head.editing
         anchors.left: nameText.right
         anchors.leftMargin: Style.space(8)
         anchors.verticalCenter: nameText.verticalCenter
+        width: Math.max(0, parent.width - nameText.width - Style.space(8))
         spacing: Style.space(8)
 
         Text {
           textFormat: Text.PlainText
           visible: text !== ""
+          width: Math.max(0, Math.min(implicitWidth, detailRow.width
+            - (signInDot.visible ? signInDot.implicitWidth + detailRow.spacing : 0)
+            - (signInLink.visible ? signInLink.implicitWidth + detailRow.spacing : 0)))
+          elide: Text.ElideRight
           text: {
             var parts = []
             var detail = root.accountDetail(head.account)
@@ -1616,6 +1624,7 @@ Panel {
 
         // The dot is punctuation, not part of the link.
         Text {
+          id: signInDot
           visible: root.needsSignIn(head.account)
           text: "·"
           color: root.dim
@@ -1624,6 +1633,7 @@ Panel {
         }
 
         TextLink {
+          id: signInLink
           visible: root.needsSignIn(head.account)
           text: "Sign-in required"
           idleColor: root.urgent
