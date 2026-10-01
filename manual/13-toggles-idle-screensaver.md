@@ -32,7 +32,7 @@ Most of these are just a flag file under `~/.local/state/omarchy/toggles/`. If y
 omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
 ```
 
-The flags are named for the off state — `screensaver-off`, `suspend-off`, `bar-off` — so their presence means the feature is disabled.
+The flags are named for the off state — `screensaver-off`, `suspend-off`, `bar-off` — so their presence means the feature is disabled. Presentation mode is the exception: its `presentation` flag means the mode is active.
 
 ### Indicators in the bar
 

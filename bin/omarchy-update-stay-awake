@@ -11,6 +11,10 @@ idle_owner_file="$state_dir/idle-owner"
 inhibit_pid_file="$state_dir/inhibit-pid"
 stay_awake_state="$HOME/.local/state/omarchy/indicators/stay-awake"
 
+mkdir -p "$HOME/.local/state/omarchy"
+exec {presentation_lock_fd}>"$HOME/.local/state/omarchy/presentation.lock"
+flock "$presentation_lock_fd"
+
 process_start_time() {
   local process_pid="$1"
   local process_stat=""
@@ -47,7 +51,13 @@ stop() {
       current_idle_owner=$(<"$stay_awake_state")
     fi
     if [[ -n $idle_owner && $current_idle_owner == "$idle_owner" ]]; then
-      omarchy-toggle-idle allow-idle >/dev/null 2>&1 || true
+      if [[ -f $HOME/.local/state/omarchy/toggles/presentation ]]; then
+        # Presentation keeps stay-awake until it ends, then restores the idle
+        # state from before this update rather than its now-expired ownership.
+        sed -i 's/^stay_awake=1$/stay_awake=0/' "$HOME/.local/state/omarchy/presentation-restore"
+      else
+        omarchy-toggle-idle allow-idle >/dev/null 2>&1 || true
+      fi
     fi
     rm -f "$idle_owner_file"
   fi
@@ -105,14 +115,14 @@ start() {
         --who=omarchy-update \
         --why="Omarchy update in progress" \
         --mode=block \
-        sleep infinity >/dev/null 2>&1 {OMARCHY_UPDATE_LOCK_FD}>&- &
+        sleep infinity >/dev/null 2>&1 {OMARCHY_UPDATE_LOCK_FD}>&- {presentation_lock_fd}>&- &
     else
       "${inhibit_runner[@]}" systemd-inhibit \
         --what=sleep:idle \
         --who=omarchy-update \
         --why="Omarchy update in progress" \
         --mode=block \
-        sleep infinity >/dev/null 2>&1 &
+        sleep infinity >/dev/null 2>&1 {presentation_lock_fd}>&- &
     fi
     inhibit_pid=$!
     inhibit_start_time=$(process_start_time "$inhibit_pid" 2>/dev/null || true)
