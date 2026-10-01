@@ -132,15 +132,18 @@ for dir in "${image_dirs[@]}"; do
     rows_fast_signature+="$dir:$dir_mtime"$'\n'
     rows_signature+="$dir:$dir_mtime"$'\n'
 
-    while IFS= read -r -d '' image; do
+    # find reports each file's size and mtime itself, so a warm open is one
+    # process rather than a stat per image. Sort on the path so row order holds.
+    while IFS= read -r -d '' entry; do
+      image=${entry#*$'\t'}
+      image_signature=${entry%%$'\t'*}
       image_files+=("$image")
-      image_signature=$(stat -Lc '%s:%Y' "$image") || continue
       rows_fast_signature+="$image:$image_signature"$'\n'
       rows_signature+="$image:$image_signature"$'\n'
     done < <(find -L "$dir" -maxdepth 1 -type f \
       \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp' \
          -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \) \
-      -print0 2>/dev/null | sort -z)
+      -printf '%s:%T@\t%p\0' 2>/dev/null | sort -z -t $'\t' -k 2)
   fi
 done
 

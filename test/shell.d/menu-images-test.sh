@@ -183,3 +183,21 @@ new_thumb=${new_row#*$'\t'}
   fail "image menu does not reuse a thumbnail after an in-place overwrite" "$new_row"
 [[ -f $new_thumb ]] || fail "image menu writes a new thumbnail after an in-place overwrite"
 pass "image menu invalidates rows after an in-place overwrite"
+
+# A warm open must cost the same few processes however many images there are,
+# so the per-file signature cannot fork a stat for each one.
+real_stat=$(type -P stat)
+cat >"$stub_bin/stat" <<EOF_STAT
+#!/bin/bash
+printf '%s\n' "\$*" >>"\$STAT_CALLS_FILE"
+exec "$real_stat" "\$@"
+EOF_STAT
+chmod +x "$stub_bin/stat"
+: >"$tmp/stat-calls"
+PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" STAT_CALLS_FILE="$tmp/stat-calls" \
+  "$ROOT/bin/omarchy-menu-images" --cache-only "$images"
+rm "$stub_bin/stat"
+
+(( $(wc -l <"$tmp/stat-calls") == 1 )) ||
+  fail "a warm image menu open does not stat each image" "$(<"$tmp/stat-calls")"
+pass "a warm image menu open does not stat each image"
