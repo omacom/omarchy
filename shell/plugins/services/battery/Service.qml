@@ -122,14 +122,17 @@ Item {
     onTriggered: root.checkBattery()
   }
 
-  // Let charger changes trigger warnings only after UPower's startup window.
-  // The periodic timer remains the first unconditional evaluation at 30 seconds.
+  // Give UPower a full settle window after Quickshell has loaded the display
+  // device, then evaluate promptly instead of waiting for the 30-second tick.
   Timer {
     id: settleTimer
     interval: 5000
-    running: true
+    running: UPower.displayDevice.ready && !root.lowBatteryChecksReady
     repeat: false
-    onTriggered: root.lowBatteryChecksReady = true
+    onTriggered: {
+      root.lowBatteryChecksReady = true
+      root.checkBattery()
+    }
   }
 
   Connections {
