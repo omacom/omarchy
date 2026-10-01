@@ -26,8 +26,9 @@ process_args() {
 }
 
 # A process the user is typing into: it holds a controlling terminal and is in
-# its foreground job, so a background job cannot answer for the shell.
-# Prints nothing for a process with no terminal, as a GUI app's are.
+# its foreground job, so a background job cannot answer for the shell. The
+# session leader is the shell waiting on that job. Prints nothing for a process
+# with no terminal, as a GUI app's are.
 tty_state() {
   local stat state ppid pgrp session tty_nr tpgid
 
@@ -40,6 +41,8 @@ tty_state() {
     return
   elif (( pgrp == tpgid )); then
     echo foreground
+  elif (( $1 == session )); then
+    echo leader
   else
     echo background
   fi
@@ -131,7 +134,7 @@ multiplexer_pane_cwd() {
 }
 
 terminal_tree_cwd() {
-  local pid pane_cwd pid_cwd pid_tty mux_cwd="" tree_cwd="" shell_cwd=""
+  local pid pane_cwd pid_cwd pid_tty mux_cwd="" tree_cwd="" leader_cwd="" shell_cwd=""
 
   while read -r pid; do
     pid_tty=$(tty_state "$pid")
@@ -147,18 +150,23 @@ terminal_tree_cwd() {
     if [[ -d $pid_cwd ]]; then
       if [[ $pid_tty == "foreground" ]]; then
         tree_cwd=$pid_cwd
+      elif [[ $pid_tty == "leader" ]]; then
+        leader_cwd=$pid_cwd
       elif [[ -z $pid_tty ]] && is_login_shell "$(exe_path "$pid")"; then
         shell_cwd=$pid_cwd
       fi
     fi
   done < <(descendants "$1")
 
-  # A shell with no terminal answers only when nothing holding one did, so a
-  # helper detached with setsid cannot speak over the foreground shell.
+  # The waiting shell answers when its foreground job's directory is unreadable,
+  # as a sudo command's is. A shell with no terminal answers only when nothing
+  # holding one did, so a helper detached with setsid cannot speak over them.
   if [[ -n $mux_cwd ]]; then
     echo "$mux_cwd"
   elif [[ -n $tree_cwd ]]; then
     echo "$tree_cwd"
+  elif [[ -n $leader_cwd ]]; then
+    echo "$leader_cwd"
   else
     echo "$shell_cwd"
   fi

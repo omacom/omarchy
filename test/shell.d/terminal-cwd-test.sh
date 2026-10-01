@@ -156,6 +156,23 @@ resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
 actual:   $resolved"
 pass "a background job does not answer for the foreground shell"
 
+# A foreground command whose directory cannot be read, as a sudo command's
+# cannot, leaves the shell waiting on it to answer.
+mkdir -p "$test_tmp/elsewhere"
+cat >"$test_tmp/undumpable" <<'PY'
+import ctypes, os, sys, time
+os.chdir(sys.argv[1])
+ctypes.CDLL(None).prctl(4, 0)  # PR_SET_DUMPABLE: /proc/<pid>/cwd is now unreadable
+time.sleep(300)
+PY
+start_terminal_window "cd '$test_tmp/foreground' && exec bash -c \"set -m; python3 '$test_tmp/undumpable' '$test_tmp/elsewhere'; :\""
+sleep 1
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
+[[ $resolved == "$test_tmp/foreground" ]] ||
+  fail "an unreadable foreground command leaves its shell to answer" "expected: $test_tmp/foreground
+actual:   $resolved"
+pass "an unreadable foreground command leaves its shell to answer"
+
 # A shell detached from the terminal with setsid has none, and must not speak
 # over the foreground shell that does.
 mkdir -p "$test_tmp/detached"
