@@ -3,10 +3,7 @@
 # omarchy:summary=Launch the default browser as determined by xdg-settings.
 # omarchy:args=[url]
 
-default_browser=$(env -u BROWSER xdg-settings get default-web-browser)
-if [[ -z $default_browser ]]; then
-  default_browser=$(xdg-mime query default x-scheme-handler/https)
-fi
+default_browser=$(omarchy-cmd-default-browser)
 
 desktop_exec_argv() {
   local desktop=$1
@@ -45,9 +42,11 @@ else
   private_flag="--incognito"
 fi
 
-systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
-  --property=StandardOutput=null --property=StandardError=null \
-  uwsm-app -- "${desktop_exec_argv[@]}" "${@/--private/$private_flag}"
+if ! omarchy-cmd-browser-handoff "${desktop_exec_argv[@]}" "${@/--private/$private_flag}"; then
+  systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
+    --property=StandardOutput=null --property=StandardError=null \
+    uwsm-app -- "${desktop_exec_argv[@]}" "${@/--private/$private_flag}"
+fi
 
 url=""
 for argument in "$@"; do

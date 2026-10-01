@@ -3,7 +3,7 @@
 # omarchy:summary=Launch a URL as a web app in the default supported browser
 # omarchy:args=<url>
 
-browser=$(xdg-settings get default-web-browser)
+browser=$(omarchy-cmd-default-browser)
 
 case $browser in
 google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
@@ -28,4 +28,7 @@ desktop_exec_argv() {
 }
 
 desktop_exec_argv "$browser" || exit 1
-exec setsid uwsm-app -- "${desktop_exec_argv[@]}" --app="$1" "${@:2}"
+
+if ! omarchy-cmd-browser-handoff "${desktop_exec_argv[@]}" --app="$1" "${@:2}"; then
+  exec setsid uwsm-app -- "${desktop_exec_argv[@]}" --app="$1" "${@:2}"
+fi
