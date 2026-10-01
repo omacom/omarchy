@@ -140,7 +140,8 @@ if [[ ${1:-} == "--render" ]]; then
   fit_window
   printf '\e[?25h'
 
-  presentation_script="omarchy-show-logo; $cmd; if (( \$? != 130 )); then omarchy-show-done; fi"
+  # 130 is the user bailing with Ctrl-C; anything else gets the Done/Failed prompt.
+  presentation_script="omarchy-show-logo; $cmd; code=\$?; if (( code != 130 )); then omarchy-show-done \$code; fi"
   exec bash -c "$presentation_script"
 else
   # Export the current theme's gum styling so gum widgets match the active theme
