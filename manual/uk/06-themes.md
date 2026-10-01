@@ -1,4 +1,4 @@
-<!-- upstream: omacom/omarchy@2fbac0c8e88eca704af1650ce721a494bd11a3d0; sha256: da8466973e6fa07dea147b939a95c78c8b0bb45842e45013cc9c528705ef8515 -->
+<!-- upstream: omacom/omarchy@8b4eae66da2938ba9559f103b18dbf85cdf28a70; sha256: da8466973e6fa07dea147b939a95c78c8b0bb45842e45013cc9c528705ef8515 -->
 
 # Теми
 

@@ -1,4 +1,4 @@
-<!-- upstream: omacom/omarchy@2fbac0c8e88eca704af1650ce721a494bd11a3d0; sha256: bf6bcded2d6cae7d9333f0de57cce2ff40aaa98a6c4d6cfc8b4e580f64fc48b1 -->
+<!-- upstream: omacom/omarchy@8b4eae66da2938ba9559f103b18dbf85cdf28a70; sha256: bf6bcded2d6cae7d9333f0de57cce2ff40aaa98a6c4d6cfc8b4e580f64fc48b1 -->
 
 # Перехід із Mac або Windows
 

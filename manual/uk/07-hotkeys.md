@@ -1,4 +1,4 @@
-<!-- upstream: omacom/omarchy@2fbac0c8e88eca704af1650ce721a494bd11a3d0; sha256: b0dbe327ff90bb2c7ce71da35edc3fb5ddf7959b95ceef38eb41f7843d467c84 -->
+<!-- upstream: omacom/omarchy@8b4eae66da2938ba9559f103b18dbf85cdf28a70; sha256: d8e7d5bdbfb5122e46a291d18c082a66ec4c5557b92e0d93f557096d96a99b43 -->
 
 # Клавіатурні скорочення
 
@@ -70,6 +70,7 @@
 | `Super + Ctrl + D` | Панель дисплея |
 | `Super + Ctrl + P` | Панель живлення |
 | `Super + Ctrl + Alt + D` | Панель календаря |
+| `Super + Ctrl + Alt + E` | Панель світового годинника |
 | `Super + Ctrl + 1-9` | Перемкнути n-ну панель у правій секції |
 | `Super + Ctrl + S` | Меню спільного доступу (через LocalSend) |
 | `Super + Ctrl + T` | Активність (btop) |

@@ -1,4 +1,4 @@
-<!-- upstream: omacom/omarchy@2fbac0c8e88eca704af1650ce721a494bd11a3d0; sha256: ae64946aad2752f77980b663bc865c2d9d7e329d2a05a81549287e091abd482f -->
+<!-- upstream: omacom/omarchy@8b4eae66da2938ba9559f103b18dbf85cdf28a70; sha256: ae64946aad2752f77980b663bc865c2d9d7e329d2a05a81549287e091abd482f -->
 
 # Навігація
 

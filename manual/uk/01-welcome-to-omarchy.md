@@ -1,4 +1,4 @@
-<!-- upstream: omacom/omarchy@2fbac0c8e88eca704af1650ce721a494bd11a3d0; sha256: 97e508f32d3ff7c2d7cf6246471474f845dda792c6fc9f09e546d442c5bc4b8b -->
+<!-- upstream: omacom/omarchy@8b4eae66da2938ba9559f103b18dbf85cdf28a70; sha256: 97e508f32d3ff7c2d7cf6246471474f845dda792c6fc9f09e546d442c5bc4b8b -->
 
 # Ласкаво просимо до Omarchy!
 

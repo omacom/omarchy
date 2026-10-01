@@ -1,4 +1,4 @@
-<!-- upstream: omacom/omarchy@2fbac0c8e88eca704af1650ce721a494bd11a3d0; sha256: b03d709512b39b1064b354bd0bcd0ab423044d2fc6c4e0d651fed741592b9b63 -->
+<!-- upstream: omacom/omarchy@8b4eae66da2938ba9559f103b18dbf85cdf28a70; sha256: b03d709512b39b1064b354bd0bcd0ab423044d2fc6c4e0d651fed741592b9b63 -->
 
 # Єдиний буфер обміну та його історія
 

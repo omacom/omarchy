@@ -1,4 +1,4 @@
-<!-- upstream: omacom/omarchy@2fbac0c8e88eca704af1650ce721a494bd11a3d0; sha256: d9d6dc93725d49442539acd46252b10bb616b644e777d1eeb473423abd90870c -->
+<!-- upstream: omacom/omarchy@8b4eae66da2938ba9559f103b18dbf85cdf28a70; sha256: d9d6dc93725d49442539acd46252b10bb616b644e777d1eeb473423abd90870c -->
 
 # Початок роботи
 

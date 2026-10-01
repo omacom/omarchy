@@ -1,4 +1,4 @@
-<!-- upstream: omacom/omarchy@2fbac0c8e88eca704af1650ce721a494bd11a3d0; sha256: 69456d1fbdc0f78fdaaf1197e67eb0bd0385edbe2b77136bcd181bb8954f3766 -->
+<!-- upstream: omacom/omarchy@8b4eae66da2938ba9559f103b18dbf85cdf28a70; sha256: 4cbcad63647a8cc960493054a37519646dd9c5ef5e733d06f218478b588345e9 -->
 
 # Верхня панель
 
@@ -47,6 +47,7 @@
 | `Super + Ctrl + D` | Дисплей |
 | `Super + Ctrl + P` | Живлення |
 | `Super + Ctrl + Alt + D` | Календар |
+| `Super + Ctrl + Alt + E` | Світовий годинник |
 | `Super + Ctrl + 1-9` | Перемкнути n-ну панель у правій секції |
 
 Панелі не лише показують інформацію — саме в них виконуються відповідні дії:
