@@ -825,7 +825,6 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "r" || t === "R") root.refreshNow()
-        else if (t === "a" || t === "A") root.addAccount()
         else if (t === "m" || t === "M") root.toggleSwitchMode()
         else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.accountEntries.length) root.pointAt("account", Number(t) - 1)
       }

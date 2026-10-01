@@ -13,33 +13,37 @@ Every subscription on one page, limits first.
 
 - **Hero** — the agents robot, and a line that rotates through what the
   token counts add up to across every agent: tokens this week and today, the
-  most used model, the busiest day, and today's prompts and sessions.
+  most used model, the busiest day, and today's prompts and sessions. Its
+  corner has + to add a subscription and >_ to start the default agent.
 - **One section per agent** — its mark, name, and plan, then a compact line
   per limit window: its meter and the time until it resets (the exact percentage
   on hover). A model-scoped allowance on the same clock (Claude's Fable weekly
   limit) is a tick on that window's meter rather than a line of its own; the
   row's tooltip names it. Sign-in and endpoint trouble shows under the name in the urgent
-  color.
+  color. Limits kept from an earlier check after a failed one dim, and their
+  tooltip says how old they are.
 - **Accounts** — an agent with more than one subscription account (see
   `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
   lines. An _ACTIVE_ label marks the account new sessions start as; the
-  others get a _Use_ link. Hovering Use also reveals Autoswitch, which moves
-  new sessions over on their own once the active account reaches its
-  threshold; it stays lit while on, and clicking it again goes back to
-  notifying. Click a name to rename the account in place.
+  others get a _Use_ link. Hovering the line also reveals Autoswitch, which
+  moves new sessions over on their own once the active account reaches its
+  threshold; while it's on it stands in for Use, which shows only when you're
+  on the line, and clicking it again goes back to notifying. Click a name to
+  rename the account in place.
 - **Balance** — prepaid agents show a credit ledger instead of limits: a
   fuel-gauge meter that drains toward empty, the remaining credit, and
   funded-versus-spent detail.
 - **Make something cool** — starter prompts (a new theme, plugin, or app) that
   start the default agent on the task through `omarchy agent prompt`.
-- **Adding a subscription** — the + in the hero's corner (or `a`) swaps
-  the list for Claude, Codex, and Grok, each saying whether adding
-  it now signs in its first account or a further one. A further account asks
-  for a name first. The panel then runs `omarchy-agent-account-add --events`
-  and follows it: the status, the code Grok asks you to confirm in the
-  browser, a field to paste Claude's code back if its page shows one instead
-  of finishing, and a link to reopen the sign-in page. Esc or Cancel stops
-  the login. The browser taking focus may close the panel; the sign-in
+- **Adding a subscription** — the + in the hero's corner swaps the page for
+  Claude Code, Codex, and Grok as large marks, three across, with the first
+  one focused, and the hero's line reads Add an account. The + becomes the
+  X that goes back. An agent that can't be added is dimmed and says why on
+  hover. A further account asks for a name first, and Enter signs it in. The
+  panel then runs `omarchy-agent-account-add --events` and follows it: the
+  status, the code Grok asks you to confirm in the browser, a field to paste
+  Claude's code back if its page shows one instead of finishing, and a link to
+  reopen the sign-in page. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
   carries on and its result arrives as a notification.
 
 The icon is always in the bar. On a machine with no agent yet, the panel is
@@ -124,11 +128,15 @@ only adds the meter and the spent-of-funded line under the real figure.
 - Bar icon: left = panel, right = launch agent, middle = refresh. It turns
   urgent when any account new sessions use is at 90% of a window, or a
   prepaid balance is down to its last 10%.
-- Panel: `j`/`k` scroll, `r` or Enter refresh, Tab moves to the neighboring
+- Panel: the arrows (or `h`/`j`/`k`/`l`) walk a cursor over everything that
+  does something, row by row: the hero's buttons, each switchable account
+  (landing on Use, with Autoswitch to its left), and the starter tiles, or the
+  agents to add. Hovering moves the same cursor. Enter acts on it, or
+  refreshes when nothing is lit; `r` refreshes, Tab moves to the neighboring
   bar panel, Esc closes.
-- Accounts: `1`–`9` pick an account across every agent and Enter makes it
-  active (picking alone never switches), `a` adds a subscription, `m`
-  toggles automatic switching for the picked account's agent. While an agent
+- Accounts: `1`–`9` jump to an account across every agent, and Enter makes it
+  active (picking alone never switches). `m` toggles automatic switching for
+  the picked account's agent. While an agent
   with several accounts has its active one at 80% or more of any window, the
   limits refresh every three minutes.
 - IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh>`.
