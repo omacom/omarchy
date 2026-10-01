@@ -1,24 +1,18 @@
-echo "Route Chromium browser notifications through the system notification center"
+echo "Replace Satty and Tensaku with Omasnap"
 
-flag_files=(
-  "$HOME/.config/chromium-flags.conf"
-  "$HOME/.config/chrome-flags.conf"
-  "$HOME/.config/microsoft-edge-stable-flags.conf"
-  "$HOME/.config/brave-flags.conf"
-  "$HOME/.config/brave-origin-flags.conf"
-)
+omarchy-pkg-add omasnap
 
-for flag_file in "${flag_files[@]}"; do
-  [[ -f $flag_file ]] || continue
-  grep -Eq '^--disable-features=([^,]*,)*SystemNotifications([,<]|$)' "$flag_file" && continue
-  grep -Eq '^--enable-features=([^,]*,)*SystemNotifications([,<]|$)' "$flag_file" && continue
+# The old source installer left a NoDisplay entry that overrides the packaged launcher.
+rm -f "$HOME/.local/share/applications/omasnap.desktop"
 
-  if grep -q '^--enable-features=' "$flag_file"; then
-    sed -i '0,/^--enable-features=/{/^--enable-features=/s/$/,SystemNotifications/;}' "$flag_file"
-  else
-    if [[ -s $flag_file && -n $(tail -c 1 "$flag_file") ]]; then
-      printf '\n' >>"$flag_file"
-    fi
-    printf '%s\n' '--enable-features=SystemNotifications' >>"$flag_file"
-  fi
-done
+imv_config="$HOME/.config/imv/config"
+if [[ -f $imv_config ]]; then
+  sed -i --follow-symlinks \
+    -e 's/^# Edit the current image in Tensaku and quit the viewer$/# Edit the current image in Omasnap and quit the viewer/' \
+    -e 's/^# Edit the current image in Satty and quit the viewer$/# Edit the current image in Omasnap and quit the viewer/' \
+    -e 's|^<Ctrl+e> = exec tensaku-edit "$imv_current_file" & ; quit$|<Ctrl+e> = exec omasnap "$imv_current_file" \& ; quit|' \
+    -e 's|^<Ctrl+e> = exec satty --filename "$imv_current_file" & ; quit$|<Ctrl+e> = exec omasnap "$imv_current_file" \& ; quit|' \
+    "$imv_config"
+fi
+
+omarchy-pkg-drop satty tensaku

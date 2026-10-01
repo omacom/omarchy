@@ -125,7 +125,7 @@ BorderSurface {
   // dedicated selected border.
   borderSpec: _borderSpec
 
-  Behavior on color { ColorAnimation { duration: 120 } }
+  Behavior on color { ColorAnimation { duration: Style.duration(120) } }
 
   ToolTip {
     visible: root.tooltipText !== "" && mouseArea.containsMouse
@@ -174,7 +174,7 @@ BorderSurface {
         to: 360
         duration: 900
         loops: Animation.Infinite
-        running: root.iconSpinning
+        running: root.iconSpinning && !Style.reduceMotion
       }
     }
 
