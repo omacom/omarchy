@@ -379,6 +379,11 @@ omarchy_prompt_timezone() {
   [[ -n $guess ]] || guess=${OMARCHY_FORM_TIMEZONE_FALLBACK:-}
 
   zones=$(omarchy_timezones)
+  # geo.omarchy.org and install media can name a tzdata alias like Asia/Calcutta;
+  # map it to the zone it links to, or it cannot lead a list without aliases.
+  if [[ -n $guess && $guess != *$'\n'* && $'\n'$zones$'\n' != *$'\n'"$guess"$'\n'* ]]; then
+    guess=$(awk -v tz="$guess" '$1 == "L" && $3 == tz {print $2; exit}' /usr/share/zoneinfo/tzdata.zi) || guess=""
+  fi
   if [[ -n $guess && $guess != *$'\n'* && $'\n'$zones$'\n' == *$'\n'"$guess"$'\n'* ]]; then
     zones=$(printf '%s\n' "$guess"; grep -vxF -- "$guess" <<<"$zones")
   fi

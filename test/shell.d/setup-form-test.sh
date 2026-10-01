@@ -316,6 +316,12 @@ grep -qFx Asia/Ashgabat "$tmp_dir/stdin.1" || fail "timezone prompt offers the c
 [[ $(sort -u "$tmp_dir/curl-urls") == "https://geo.omarchy.org/" ]] || fail "timezone prompt asks only geo.omarchy.org" "$(cat "$tmp_dir/curl-urls")"
 pass "timezone prompt offers geo.omarchy.org's timezone first when it answers"
 
+TZ_GUESS=Asia/Calcutta run_prompt omarchy_prompt_timezone "0:Asia/Kolkata"
+assert_status 0 "timezone prompt accepts an aliased geo guess"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "Asia/Kolkata" ]] || fail "the zone an aliased geo guess links to leads the list" "$(head "$tmp_dir/stdin.1")"
+! grep -qFx Asia/Calcutta "$tmp_dir/stdin.1" || fail "timezone prompt never offers the alias itself"
+pass "timezone prompt resolves an aliased geo guess to a listed zone"
+
 # An unnetworked first boot has no guess, and the fallback has to survive `set -e`
 run_prompt omarchy_prompt_timezone "0:America/Chicago"
 assert_status 0 "timezone prompt survives a failed geo guess"
