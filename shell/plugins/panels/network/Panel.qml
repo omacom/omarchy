@@ -94,6 +94,7 @@ Panel {
   // hidden-SSID row (ssid == "") doesn't collide with the "" defaults.
   property string actionSsid: ""
   property string actionKind: ""  // "connect" | "disconnect" | "forget"
+  property int actionRevision: 0
   property string failureSsid: ""
   property string failureReason: ""
   property string passwordSsid: ""
@@ -770,6 +771,7 @@ Panel {
 
   function runNetworkAction(kind, network, callback) {
     if (actionKind !== "" || !network) return
+    actionRevision++
     var ssid = network.name || ""
     actionSsid = ssid
     actionKind = kind
@@ -827,9 +829,19 @@ Panel {
 
   function connectEnterprise(ssid, identity, passphrase, caCert, serverName) {
     if (!Model.enterpriseTrustValid(caCert, serverName)) return
+    // The Process properties belong to the attempt already running. Reusing
+    // them before exit would let its late failure be attributed to a retry.
+    if (enterpriseConnect.running) {
+      if (actionKind === "") {
+        failureSsid = ssid
+        failureReason = "Previous attempt still running"
+      }
+      return
+    }
     runNetworkAction("connect", networkForSsid(ssid), function(network) {
       enterpriseConnect.secret = passphrase
       enterpriseConnect.ssid = ssid
+      enterpriseConnect.actionRevision = actionRevision
       enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity, caCert, serverName]
       enterpriseConnect.running = true
     })
@@ -841,6 +853,7 @@ Panel {
     id: enterpriseConnect
     property string secret: ""
     property string ssid: ""
+    property int actionRevision: 0
     stdinEnabled: true
     onStarted: {
       write(secret + "\n")
@@ -848,10 +861,11 @@ Panel {
     }
     onExited: function(exitCode, exitStatus) {
       secret = ""
-      if (exitCode === 0 || root.actionKind !== "connect" || root.actionSsid !== ssid) return
+      if (exitCode === 0 || root.actionRevision !== actionRevision || root.actionKind !== "connect" || root.actionSsid !== ssid) return
       actionTimeout.stop()
       root.failureSsid = ssid
-      root.failureReason = "Check credentials or certificates"
+      root.failureReason = exitCode === 64 ? "CA certificate must be a readable file"
+        : (exitCode === 65 ? "Invalid authentication server name" : "Check credentials or certificates")
       root.actionSsid = ""
       root.actionKind = ""
     }

@@ -8,6 +8,7 @@ run_node_test <<'JS'
 const fs = require('fs')
 const os = require('os')
 const childProcess = require('child_process')
+const vm = require('vm')
 const network = requireFromRoot('shell/plugins/panels/network/Model.js')
 const panel = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'omarchy-enterprise-trust-'))
@@ -60,6 +61,8 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   }
 
   const good = connect(cert, 'radius.example.org')
+  assertEqual(connect(cert + '.missing', 'radius.example.org').result.status, 64, 'enterprise distinguishes unreadable CA input from connection failures')
+  assertEqual(connect(cert, '*.example.org').result.status, 65, 'enterprise distinguishes invalid server input from connection failures')
   assertEqual(good.result.status, 0, 'enterprise accepts administrator-provided private CA and exact server')
   assertDeepEqual(good.calls.map(call => call[1]), ['add', 'edit', 'up'], 'enterprise creates, writes credentials, then activates')
   const add = good.calls[0]
@@ -89,7 +92,11 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   const Model = network
   const enterpriseConnect = {running: false, secret: '', command: []}
   var actionCount = 0
-  function runNetworkAction(kind, ssidNetwork, callback) { actionCount++; callback({name: ssidNetwork}) }
+  var actionRevision = 0
+  var actionKind = ''
+  var failureSsid = ''
+  var failureReason = ''
+  function runNetworkAction(kind, ssidNetwork, callback) { actionCount++; actionRevision++; callback({name: ssidNetwork}) }
   function networkForSsid(ssid) { return ssid }
   const caller = panel.match(/function connectEnterprise\([^)]*\) \{[\s\S]*?\n {2}\}/)
   assert(caller, 'enterprise has a production connection caller')
@@ -100,6 +107,48 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   assertEqual(actionCount, 1, 'enterprise caller starts with valid trust settings')
   assertDeepEqual(enterpriseConnect.command.slice(-4), ['Enterprise WiFi', 'person@example.org', cert, 'radius.example.org'], 'enterprise caller passes explicit trust settings to the process')
   assert(!enterpriseConnect.command.includes(password), 'enterprise caller keeps the password out of argv')
+
+  const firstCommand = enterpriseConnect.command.slice()
+  const firstRevision = enterpriseConnect.actionRevision
+  connectEnterprise('Enterprise WiFi', 'retry@example.org', 'new password', cert, 'radius.example.org')
+  assertEqual(actionCount, 1, 'enterprise does not reuse a still-running process for a retry')
+  assertDeepEqual(enterpriseConnect.command, firstCommand, 'enterprise retains the running process command')
+  assertEqual(enterpriseConnect.actionRevision, firstRevision, 'enterprise retains the running attempt revision')
+  assertEqual(failureReason, 'Previous attempt still running', 'enterprise explains why an overlapping retry cannot start')
+
+  const exitHandler = panel.match(/onExited: function\(exitCode, exitStatus\) \{([\s\S]*?)\n {4}\}/)
+  assert(exitHandler, 'enterprise has an exit handler')
+  const onExited = new Function('exitCode', 'exitStatus', 'root', 'actionRevision', 'ssid', 'actionTimeout', 'secret', exitHandler[1])
+  var stopped = 0
+  const timer = {stop: function() { stopped++ }}
+  const retry = {actionRevision: firstRevision + 1, actionKind: 'connect', actionSsid: 'Enterprise WiFi', failureSsid: '', failureReason: ''}
+  const beforeLateExit = JSON.stringify(retry)
+  onExited(1, 0, retry, firstRevision, 'Enterprise WiFi', timer, '')
+  assertEqual(JSON.stringify(retry), beforeLateExit, 'enterprise late exit cannot clear a newer same-SSID attempt')
+  assertEqual(stopped, 0, 'enterprise late exit cannot stop the newer attempt timer')
+
+  onExited(64, 0, retry, retry.actionRevision, 'Enterprise WiFi', timer, '')
+  assertEqual(retry.failureReason, 'CA certificate must be a readable file', 'enterprise displays the specific CA path error')
+  assertEqual(retry.actionKind, '', 'enterprise current failure clears its own busy state')
+  assertEqual(stopped, 1, 'enterprise current failure stops its own timer')
+
+  enterpriseConnect.running = false
+  connectEnterprise('Enterprise WiFi', 'retry@example.org', password, cert, 'radius.example.org')
+  assertEqual(actionCount, 2, 'enterprise permits a retry after the previous process exits')
+  assert(enterpriseConnect.actionRevision > firstRevision, 'enterprise retry records a new attempt revision')
+
+  const actionHelper = panel.match(/function runNetworkAction\([^)]*\) \{[\s\S]*?\n {2}\}/)
+  assert(actionHelper, 'network has a production action helper')
+  const actionContext = vm.createContext({actionKind: '', actionRevision: 0,
+    actionSsid: '', failureSsid: '', failureReason: '', actionTimeout: {restart: function() {}}})
+  vm.runInContext(actionHelper[0], actionContext)
+  actionContext.runNetworkAction('connect', {name: 'Enterprise WiFi'}, function() {})
+  assertEqual(actionContext.actionRevision, 1, 'production action helper advances the attempt revision')
+  actionContext.runNetworkAction('connect', {name: 'Enterprise WiFi'}, function() {})
+  assertEqual(actionContext.actionRevision, 1, 'production action helper does not advance a rejected busy attempt')
+  actionContext.actionKind = ''
+  actionContext.runNetworkAction('connect', {name: 'Enterprise WiFi'}, function() {})
+  assertEqual(actionContext.actionRevision, 2, 'production action helper advances a later same-SSID retry')
 } finally {
   fs.rmSync(scratch, {recursive: true, force: true})
 }

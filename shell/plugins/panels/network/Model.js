@@ -345,11 +345,11 @@ function enterpriseTrustValid(caCert, serverName) {
 // with it either).
 var enterpriseConnectScript =
   // Recheck at the process boundary so a caller cannot bypass the UI gate.
-  "[[ $3 == /* && -f $3 && -r $3 ]] || exit 1;" +
-  " [[ $4 =~ ^[A-Za-z0-9.-]+$ && $4 != .* && $4 != *. && $4 != *..* ]] && (( ${#4} <= 253 )) || exit 1;" +
+  "[[ $3 == /* && -f $3 && -r $3 ]] || exit 64;" +
+  " [[ $4 =~ ^[A-Za-z0-9.-]+$ && $4 != .* && $4 != *. && $4 != *..* ]] && (( ${#4} <= 253 )) || exit 65;" +
   " IFS=. read -r -a labels <<<\"$4\";" +
   " for label in \"${labels[@]}\"; do" +
-  " (( ${#label} <= 63 )) && [[ $label =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]] || exit 1; done;" +
+  " (( ${#label} <= 63 )) && [[ $label =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]] || exit 65; done;" +
   " u=$(uuidgen); IFS= read -r pw || exit 1;" +
   " nmcli connection add type wifi con-name \"$1\" ssid \"$1\" connection.uuid \"$u\"" +
   " wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2" +
