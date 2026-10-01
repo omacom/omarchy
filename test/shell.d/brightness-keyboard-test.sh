@@ -204,3 +204,18 @@ if run_keyboard up >"$test_tmp/out" 2>"$test_tmp/errors"; then fail "state save 
 ! grep -Eq -- 'set 0$' "$test_tmp/calls" || fail "failed-save rollback does not disable hardware wake triggers"
 assert_brightness 1 "failed save leaves the adjusted light on instead of disabling wake triggers"
 rm "$test_tmp/bin/mv"
+
+reset_fixture 2
+printf '1\n' >"$state_file"
+run_keyboard off
+run_keyboard restore
+assert_brightness 2 "a new session restores the lit level it had before locking"
+
+reset_fixture 0
+chmod 500 "${state_file%/*}"
+run_keyboard up
+run_keyboard off
+run_keyboard restore
+assert_brightness 1 "a writable runtime directory keeps brightness working when persistent state is read-only"
+[[ -f $XDG_RUNTIME_DIR/omarchy-keyboard-backlight-dell::kbd_backlight ]] || fail "runtime fallback records its working restore level"
+chmod 700 "${state_file%/*}"

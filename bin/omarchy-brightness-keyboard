@@ -27,7 +27,14 @@ if [[ -z $device ]]; then
 fi
 
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
-mkdir -p "$state_dir" || exit 1
+if ! mkdir -p "$state_dir" 2>/dev/null || [[ ! -w $state_dir ]]; then
+  if [[ -n ${XDG_RUNTIME_DIR:-} && -d $XDG_RUNTIME_DIR && -w $XDG_RUNTIME_DIR ]]; then
+    state_dir="$XDG_RUNTIME_DIR"
+  else
+    echo "No writable user state directory for keyboard brightness." >&2
+    exit 1
+  fi
+fi
 state_file="$state_dir/omarchy-keyboard-backlight-$device"
 
 # Serialize hardware changes with their saved state, including repeated keys.
@@ -49,10 +56,8 @@ if [[ $direction == "off" ]]; then
   # Zero could be a hardware timeout or a manual choice. Never infer a new
   # preference from it or send set 0 again, which can disable Dell wake triggers.
   if (( current_brightness > 0 )); then
-    # Seed a lit first lock if no manual change has recorded a level yet.
-    if [[ ! -f $state_file ]]; then
-      save_brightness "$current_brightness" || exit 1
-    fi
+    # A positive reading is the level being blanked, including in a new session.
+    save_brightness "$current_brightness" || exit 1
     brightnessctl -d "$device" set 0 >/dev/null || exit 1
   fi
   exit 0
