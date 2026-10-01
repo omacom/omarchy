@@ -28,11 +28,10 @@ Pick a short lowercase name (`tally`, `pomo`); it is the binary, the package,
 the `.desktop` file, the icon, and the Wayland app id all at once. Create the
 project in `~/Work/<name>` unless the user says otherwise, and `git init` it.
 
-The toolchain is part of Omarchy: `qmake6`, `make`, a C++ compiler, and Qt's
-base, declarative, and Wayland modules. If `qmake6` is missing, install it
-with `omarchy-pkg-add base-devel qt6-base qt6-declarative`. Qt Multimedia
-isn't installed by default: an app that plays audio or video adds it with
-`omarchy-pkg-add qt6-multimedia` and lists it in its PKGBUILD's `depends`.
+Everything an app needs is part of Omarchy: `qmake6`, `make`, a C++
+compiler, Qt's base, declarative, multimedia, SVG, and Wayland modules, and
+`ffmpeg`. If `qmake6` is missing, install the set with `omarchy-pkg-add
+base-devel qt6-base qt6-declarative qt6-multimedia qt6-svg qt6-wayland ffmpeg`.
 
 ## Shape
 

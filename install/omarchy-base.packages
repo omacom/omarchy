@@ -37,6 +37,7 @@ fcitx5
 fcitx5-gtk
 fcitx5-qt
 fd
+ffmpeg
 ffmpegthumbnailer
 fontconfig
 foot
@@ -113,6 +114,8 @@ python-gobject
 python-poetry-core
 qt6-base
 qt6-declarative
+qt6-multimedia
+qt6-svg
 qt6-wayland
 ttfx
 qemu-user-static-binfmt
