@@ -186,6 +186,12 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   assertEqual(lateSuccess.failureReason, '', 'late enterprise success removes its informational timeout error')
   assertEqual(lateSuccess.passwordSsid, '', 'late enterprise success closes its password prompt')
   assert(lateSuccess.refreshed, 'late enterprise success refreshes connection details')
+  lateSuccess.failureSsid = 'Enterprise WiFi'
+  lateSuccess.failureReason = 'Timed out connecting'
+  lateSuccess.passwordSsid = 'Other WiFi'
+  onExited(0, 0, lateSuccess, firstRevision, 'Enterprise WiFi', timer, '')
+  assertEqual(lateSuccess.passwordSsid, 'Other WiFi', 'late enterprise success preserves another network credentials prompt')
+  assertEqual(lateSuccess.failureReason, '', 'late enterprise success still removes its own timeout while another prompt is open')
   lateSuccess.actionRevision++
   lateSuccess.failureSsid = 'Enterprise WiFi'
   lateSuccess.failureReason = 'Newer action failed'
@@ -235,6 +241,19 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   actionContext.runNetworkAction('connect', {name: 'Enterprise WiFi'}, function() {})
   assertEqual(actionContext.actionRevision, 2, 'production action helper advances a later same-SSID retry')
   assertEqual(actionContext.enterpriseRetry, null, 'a later accepted action retires the old enterprise retry')
+
+  const clearHelper = panel.match(/function clearNetworkAction\([^)]*\) \{[\s\S]*?\n {2}\}/)
+  assert(clearHelper, 'network has a production completion helper')
+  const clearContext = vm.createContext({actionKind: 'connect', actionSsid: 'Enterprise WiFi', passwordSsid: 'Other WiFi',
+    failureSsid: '', failureReason: '', actionTimeout: {stop: function() {}}, refresh: function() {}})
+  vm.runInContext(clearHelper[0], clearContext)
+  clearContext.clearNetworkAction()
+  assertEqual(clearContext.passwordSsid, 'Other WiFi', 'network completion preserves another credentials prompt')
+  clearContext.actionKind = 'connect'
+  clearContext.actionSsid = 'Enterprise WiFi'
+  clearContext.passwordSsid = 'Enterprise WiFi'
+  clearContext.clearNetworkAction()
+  assertEqual(clearContext.passwordSsid, '', 'network completion closes its own credentials prompt')
 } finally {
   fs.rmSync(scratch, {recursive: true, force: true})
 }

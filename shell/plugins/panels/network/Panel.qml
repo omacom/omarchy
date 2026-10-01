@@ -788,7 +788,7 @@ Panel {
 
   function clearNetworkAction() {
     actionTimeout.stop()
-    if (actionKind === "connect") passwordSsid = ""
+    if (actionKind === "connect" && passwordSsid === actionSsid) passwordSsid = ""
     failureSsid = ""
     failureReason = ""
     actionSsid = ""
@@ -881,7 +881,7 @@ Panel {
       var timedOut = root.actionKind === "" && root.failureSsid === ssid
       if (!active && !timedOut) return
       if (exitCode === 0 && exitStatus === 0) {
-        root.passwordSsid = ""
+        if (root.passwordSsid === ssid) root.passwordSsid = ""
         root.clearNetworkAction()
         return
       }
