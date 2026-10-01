@@ -72,10 +72,12 @@ light surfaces — and the bar glyph stands in when there is none.
 |---|---|---|
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
+| `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Prompts and sessions from each session's `summary.json` (Grok records no tokens there) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
 
-When `~/.local/state/omarchy/agents/accounts/<claude|codex>.json` registers
-more than one account, the `claude` and `codex` records also carry
+When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json`
+registers more than one account, the `claude`, `codex`, and `grok` records
+also carry
 `accounts: [{ id, label, email, plan, active, limits, stale, usageStatusText,
 authHelpText }]`, each account probed with its own sign-in (Claude caches each
 account's limits separately; Codex runs one app-server per account home), and
@@ -89,7 +91,11 @@ account changed.
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
-`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`. Fireworks reads
+`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`, Grok via `GROK_HOME`. Grok's
+plan comes from the settings it caches in its home, and its limit from the
+credits endpoint its own `/usage` view reads, asked with each account's
+sign-in; a sign-in left to lapse shows the last credits until Grok runs
+again. Fireworks reads
 `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
