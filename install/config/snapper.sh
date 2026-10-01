@@ -39,6 +39,7 @@ else
     snapper_configs=$(awk -v single="'" '
       /^[[:space:]]*SNAPPER_CONFIGS[[:space:]]*=/ {
         value = $0
+        if (value ~ /^[^=]*=[[:space:]]+#/) { value = ""; next }
         sub(/^[^=]*=[[:space:]]*/, "", value)
         quote = substr(value, 1, 1)
         if (quote == "\"" || quote == single) {

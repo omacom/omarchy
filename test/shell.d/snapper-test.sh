@@ -270,3 +270,12 @@ TEST_ROOT_FSTYPE=ext4 TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
 grep -Fxq 'SNAPPER_CONFIGS=root#daily' "$partial/snapper" || fail "a hash inside an unquoted config name is literal"
 ! grep -Fxq 'systemctl disable --now snapper-cleanup.timer' "$test_tmp/calls.log" || fail "a registered name containing a hash keeps cleanup"
 pass "embedded hash characters do not become shell comments"
+
+printf '%s\n' 'SNAPPER_CONFIGS= # root home' >"$partial/snapper"
+: >"$test_tmp/calls.log"
+TEST_ROOT_FSTYPE=ext4 TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
+  OMARCHY_SNAPPER_CONFIG_PATH="$partial/configs/root" OMARCHY_SNAPPER_CONF_PATH="$partial/snapper" \
+  bash -euo pipefail "$ROOT/install/config/snapper.sh" >/dev/null
+grep -Fxq 'SNAPPER_CONFIGS= # root home' "$partial/snapper" || fail "an empty registration followed by a comment is left alone"
+grep -Fxq 'systemctl disable --now snapper-cleanup.timer' "$test_tmp/calls.log" || fail "names in a trailing comment do not keep cleanup"
+pass "a comment after an empty registration registers nothing"
