@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Tell running Hunk sessions to pick up the new terminal colors
+# omarchy:hidden=true
+
+# Hunk's default terminal theme re-reads the terminal palette on SIGWINCH. Terminals reload
+# their colors in parallel with this hook, so nudge once now and once after they have settled;
+# Hunk only repaints when the palette actually changed.
+
+if pgrep -x hunk >/dev/null; then
+  pkill -WINCH -x hunk
+  sleep 1
+  pkill -WINCH -x hunk
+fi
