@@ -461,7 +461,7 @@ Item {
                   font.pixelSize: Style.font.body
 
                   RotationAnimator on rotation {
-                    running: root.loadingOptions
+                    running: root.loadingOptions && !Style.reduceMotion
                     from: 0; to: 360
                     duration: 800
                     loops: Animation.Infinite
