@@ -675,6 +675,10 @@ Panel {
     resetKeys()
   }
 
+  // A first setup ends when the records land, which swaps the rows under the
+  // cursor without any stage change.
+  onPickingChanged: resetKeys()
+
   // Picking an agent to add starts on the first one, ready for Enter. The
   // rows follow the same stage change, so the cursor waits a tick for them.
   function resetKeys() {

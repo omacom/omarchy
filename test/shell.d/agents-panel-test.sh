@@ -26,4 +26,5 @@ assert(/target\.kind === "autoswitch"\) setSwitchMode\(/.test(panelSource), 'Ent
 assert(/keyColumn = use >= 0 \? use : /.test(panelSource), 'moving up or down onto an account lands on Use')
 assert(/Qt\.callLater\(function\(\) \{ if \(picking\) pointAt\("choice", 0\) \}\)/.test(panelSource), 'picking an agent to add starts with the first one focused')
 assert(/opacity: stale \? 0\.5 : 1\.0/.test(panelSource) && /"As of " \+ root\.formatDuration/.test(panelSource), 'limits kept from an earlier check dim and say how old they are on hover')
+assert(/onPickingChanged: resetKeys\(\)/.test(panelSource), 'the cursor starts over when the agent list comes or goes')
 JS
