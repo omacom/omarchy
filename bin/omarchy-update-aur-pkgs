@@ -41,7 +41,8 @@ if pacman -Qem >/dev/null; then
     # Files that fail to source still abort makepkg as they would without
     # this config, including unreadable drop-ins.
     makepkg_config=""
-    conf="${MAKEPKG_CONF:-/etc/makepkg.conf}"
+    system_conf="${TEST_MAKEPKG_CONF:-/etc/makepkg.conf}"
+    conf="${MAKEPKG_CONF:-${system_conf}}"
     saved_conf="$(yay -Pg 2>/dev/null | jq -r '.makepkgconf // empty' 2>/dev/null)"
     [[ -n "${saved_conf}" ]] && conf="${saved_conf}"
     if [[ -r ${conf} ]]; then
@@ -53,7 +54,7 @@ if pacman -Qem >/dev/null; then
         for dropin in "${conf}.d"/*.conf; do
           [[ -e "$dropin" ]] && printf 'source %q || return\n' "$dropin"
         done
-        if [[ ${conf} == /etc/makepkg.conf ]]; then
+        if [[ ${conf} == ${system_conf} ]]; then
           user_conf="${XDG_CONFIG_HOME:-$HOME/.config}/pacman/makepkg.conf"
           if [[ -r "${user_conf}" ]]; then
             printf 'source %q || return\n' "${user_conf}"
@@ -66,9 +67,12 @@ if pacman -Qem >/dev/null; then
       } >"${makepkg_config}"
     fi
 
+    # MAKEFLAGS is deliberately not set here: an exported value would be
+    # silently replaced, and the environment cannot beat a makepkg config
+    # assignment anyway. The merged config appends the cap to whatever
+    # survives into makepkg (exported value, then any config assignment).
     nice -n 15 ionice -c 2 -n 7 \
       env CARGO_BUILD_JOBS="${build_jobs}" \
-          MAKEFLAGS="-j${build_jobs}" \
           CMAKE_BUILD_PARALLEL_LEVEL="${build_jobs}" \
       yay "${sudo_options[@]}" -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs \
           ${makepkg_config:+--makepkgconf "${makepkg_config}"} || exit 1

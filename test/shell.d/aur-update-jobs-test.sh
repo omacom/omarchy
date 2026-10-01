@@ -4,15 +4,8 @@ set -euo pipefail
 
 source "$(dirname "$0")/base-test.sh"
 
-# The updater builds a thin makepkg config that sources the real system and
-# user configuration, only meaningful where a readable makepkg config exists
-# to hand to makepkg.
-if [[ ! -r ${MAKEPKG_CONF:-/etc/makepkg.conf} ]]; then
-  skip "no readable makepkg config; skipping AUR build-job cap tests"
-  exit 0
-fi
-
 require_command make
+require_command jq
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -20,10 +13,18 @@ trap 'rm -rf "$test_tmp"' EXIT
 stub_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
 config_home="$test_tmp/config"
+system_conf="$test_tmp/system-makepkg.conf"
 yay_log="$test_tmp/yay-env.log"
 yay_ran="$test_tmp/yay-ran"
 merged_config="$test_tmp/merged-makepkg.conf"
 mkdir -p "$stub_bin" "$test_home" "$config_home/pacman"
+
+# A sandbox makepkg.conf stands in for /etc/makepkg.conf through the
+# TEST_MAKEPKG_CONF hook, so the tests do not depend on the host's
+# configuration.
+cat >"$system_conf" <<'EOF'
+PACKAGER="Omarchy Tests <test@example.com>"
+EOF
 
 write_stub() {
   local name="$1"
@@ -61,12 +62,14 @@ run_updater() {
   local nproc="${2:-8}"
   local makepkg_conf="${3:-}"
   local yay_pg_output="${4:-{\"makepkgconf\": \"\"}}"
+  local exported_makeflags="${5:-}"
 
   rm -f "$yay_ran" "$merged_config"
   : >"$yay_log"
   HOME="$test_home" \
   XDG_CONFIG_HOME="$config_home" \
-  MAKEFLAGS= \
+  MAKEFLAGS="$exported_makeflags" \
+  TEST_MAKEPKG_CONF="$system_conf" \
   MAKEPKG_CONF="$makepkg_conf" \
   YAY_PG_OUTPUT="$yay_pg_output" \
   YAY_LOG="$yay_log" \
@@ -109,7 +112,6 @@ run_updater 1 8
 makeflags=$(merged_makeflags "$merged_config")
 [[ $makeflags == *"-j4 --output-sync=recurse -j1" ]] || fail "configured MAKEFLAGS keeps its flags with the count appended" "got: $makeflags"
 make_smoke "$makeflags"
-grep -Fxq 'MAKEFLAGS=-j1' "$yay_log" || fail "the environment still carries the selected count at the yay boundary"
 grep -Eq '^NICE= *15$' "$yay_log" || fail "yay and its builds run at niceness 15"
 pass "explicit one-job override beats a configured MAKEFLAGS while keeping its flags"
 
@@ -141,6 +143,16 @@ makeflags=$(merged_makeflags "$merged_config")
 [[ $makeflags == *"-j1 -- V=1" ]] || fail "the count inserts before a standalone -- section" "got: $makeflags"
 make_smoke "$makeflags"
 pass "a MAKEFLAGS with a -- section still builds with the count applied"
+
+# An exported MAKEFLAGS survives into makepkg when no config assigns one; the
+# cap appends to it instead of replacing the export.
+: >"$config_home/pacman/makepkg.conf"
+run_updater 1 8 "" '{"makepkgconf": ""}' 'CC=clang --output-sync=recurse'
+makeflags=$(MAKEFLAGS='CC=clang --output-sync=recurse' bash --noprofile --norc -c \
+  'source "$1"; printf "%s" "${MAKEFLAGS-}"' _ "$merged_config")
+[[ $makeflags == *"CC=clang --output-sync=recurse -j1" ]] || fail "an exported MAKEFLAGS is preserved and capped" "got: $makeflags"
+grep -Fxq 'MAKEFLAGS=CC=clang --output-sync=recurse' "$yay_log" || fail "the yay boundary keeps the exported MAKEFLAGS"
+pass "an exported MAKEFLAGS is preserved and capped instead of replaced"
 
 # Default: half the cores, mirrored into the merged config.
 : >"$config_home/pacman/makepkg.conf"
