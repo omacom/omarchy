@@ -48,12 +48,22 @@ esac
 # hold a new version back for days after it ships. Exported rather than set on
 # the install line alone, so resolving the version to execute agrees with the
 # one just installed.
+#
+# The bin is resolved to its path inside the package's install with `mise
+# which` rather than by name. `mise x` looks a name up through a PATH where
+# only the directories mise itself added come first, and it knows which those
+# are from the variables `mise activate` exports. A wrapper started with an
+# activated PATH but without those variables (by a service, a sandbox, or any
+# launcher that passes PATH through a reduced environment) sees the package's
+# directory as an ordinary PATH entry behind ~/.local/bin, finds the wrapper
+# itself again, and loops forever.
 rm -f "$HOME/.local/bin/$command"
 cat >"$HOME/.local/bin/$command" <<EOF
 #!/bin/bash
 export MISE_MINIMUM_RELEASE_AGE=0
 mise use -g --quiet $package_arg || exit 1
-exec mise x $package_arg -- $bin_arg "\$@"
+bin=\$(mise which --tool $package_arg $bin_arg) || exit 1
+exec mise x $package_arg -- "\$bin" "\$@"
 EOF
 
 chmod +x "$HOME/.local/bin/$command"

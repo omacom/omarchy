@@ -21,6 +21,10 @@ for arg in "$@"; do
   printf '\t%s' "$arg" >>"$OMARCHY_MISE_TEST_LOG"
 done
 printf '\n' >>"$OMARCHY_MISE_TEST_LOG"
+
+# `mise which` answers with a path inside the package's install.
+[[ $1 == which ]] && printf '/installs/%s\n' "${!#}"
+exit 0
 SH
 chmod +x "$stub_bin/mise"
 
@@ -41,6 +45,16 @@ grep -Fqx $'mise\tuse\t-g\t--quiet\tnpm:playwright' "$log" ||
   fail "the wrapper asks mise for the package it was given" "$(cat "$log")"
 
 pass "a normal install writes a wrapper that names its package"
+
+# Run with an activated PATH but without mise's activation variables, `mise x`
+# finds a bin looked up by name back in ~/.local/bin, and the wrapper recurses.
+# The wrapper hands it the path inside the package's install instead.
+grep -Fqx $'mise\twhich\t--tool\tnpm:playwright\tplaywright' "$log" ||
+  fail "the wrapper resolves its bin inside the package" "$(cat "$log")"
+grep -Fqx $'mise\tx\tnpm:playwright\t--\t/installs/playwright' "$log" ||
+  fail "the wrapper runs the resolved bin, not the name" "$(cat "$log")"
+
+pass "the wrapper runs the bin from the package's install"
 
 # A package name is data. Quoted with %q it reaches mise as one argument
 # instead of being read as shell source when the wrapper runs.
