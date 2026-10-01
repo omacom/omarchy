@@ -8,55 +8,19 @@ USER_TEMPLATES_DIR="$HOME/.config/omarchy/themed"
 NEXT_THEME_DIR="$HOME/.local/state/omarchy/current/next-theme"
 COLORS_FILE="$NEXT_THEME_DIR/colors.toml"
 
+# Theme switching waits on this script before the transition starts, so it
+# avoids a process per value: helpers return through REPLY rather than $(...),
+# and one awk pass computes the mixes and renders every template.
+
 declare -A THEME_COLORS
+
+MIX_TOKEN_PATTERN='\{\{[[:space:]]*mix(_strip|_rgb)?[[:space:]]+[A-Za-z0-9_]+[[:space:]]+[A-Za-z0-9_]+[[:space:]]+[0-9]+([.][0-9]+)?%?[[:space:]]*\}\}'
+GRADIENT_TOKEN_PATTERN='\{\{[[:space:]]*(hypr_gradient|gradient_start|shell_gradient)[[:space:]]+[^}]+[[:space:]]*\}\}'
 
 # Convert hex color to decimal RGB (e.g., "#1e1e2e" -> "30,30,46")
 hex_to_rgb() {
   local hex="${1#\#}"
-  printf "%d,%d,%d" "0x${hex:0:2}" "0x${hex:2:2}" "0x${hex:4:2}"
-}
-
-# Mix two hex colors. Amount may be a fraction (0.30) or percentage (30%).
-mix_color() {
-  local start="${1#\#}"
-  local end="${2#\#}"
-  local amount="$3"
-
-  awk -v start="$start" -v end="$end" -v amount="$amount" '
-    function hex_value(char) {
-      return index("0123456789abcdef", tolower(char)) - 1
-    }
-
-    function hex_pair_to_int(hex, idx) {
-      return hex_value(substr(hex, idx, 1)) * 16 + hex_value(substr(hex, idx + 1, 1))
-    }
-
-    BEGIN {
-      if (amount ~ /%$/) {
-        sub(/%$/, "", amount)
-        amount = amount / 100
-      } else {
-        amount += 0
-        if (amount > 1) amount = amount / 100
-      }
-
-      if (amount < 0) amount = 0
-      if (amount > 1) amount = 1
-
-      start_r = hex_pair_to_int(start, 1)
-      start_g = hex_pair_to_int(start, 3)
-      start_b = hex_pair_to_int(start, 5)
-      end_r = hex_pair_to_int(end, 1)
-      end_g = hex_pair_to_int(end, 3)
-      end_b = hex_pair_to_int(end, 5)
-
-      red = int(start_r * (1 - amount) + end_r * amount + 0.5)
-      green = int(start_g * (1 - amount) + end_g * amount + 0.5)
-      blue = int(start_b * (1 - amount) + end_b * amount + 0.5)
-
-      printf "#%02x%02x%02x\n", red, green, blue
-    }
-  '
+  printf -v REPLY "%d,%d,%d" "0x${hex:0:2}" "0x${hex:2:2}" "0x${hex:4:2}"
 }
 
 trim() {
@@ -64,7 +28,7 @@ trim() {
 
   value="${value#"${value%%[![:space:]]*}"}"
   value="${value%"${value##*[![:space:]]}"}"
-  printf "%s" "$value"
+  REPLY="$value"
 }
 
 resolve_theme_ref() {
@@ -72,30 +36,26 @@ resolve_theme_ref() {
   local fallback="${2:-}"
 
   if [[ -n ${THEME_COLORS[$ref]+_} ]]; then
-    printf "%s" "${THEME_COLORS[$ref]}"
+    REPLY="${THEME_COLORS[$ref]}"
   elif [[ -n $fallback && -n ${THEME_COLORS[$fallback]+_} ]]; then
-    printf "%s" "${THEME_COLORS[$fallback]}"
+    REPLY="${THEME_COLORS[$fallback]}"
   elif [[ -n $fallback ]]; then
-    printf "%s" "$fallback"
+    REPLY="$fallback"
   else
-    printf "%s" "$ref"
+    REPLY="$ref"
   fi
 }
 
 resolve_gradient_color() {
-  local color
-
-  color=$(trim "$1")
-  if [[ -n ${THEME_COLORS[$color]+_} ]]; then
-    color="${THEME_COLORS[$color]}"
+  trim "$1"
+  if [[ -n ${THEME_COLORS[$REPLY]+_} ]]; then
+    REPLY="${THEME_COLORS[$REPLY]}"
   fi
-
-  printf "%s" "$color"
 }
 
 parse_gradient() {
   local spec="$1"
-  local part color
+  local part
   local -a parts
 
   GRADIENT_COLORS=()
@@ -108,8 +68,8 @@ parse_gradient() {
     if [[ $part =~ ^-?[0-9]+([.][0-9]+)?deg$ ]]; then
       GRADIENT_ANGLE="${part%deg}"
     else
-      color=$(resolve_gradient_color "$part")
-      GRADIENT_COLORS+=("$color")
+      resolve_gradient_color "$part"
+      GRADIENT_COLORS+=("$REPLY")
     fi
   done
 }
@@ -117,12 +77,13 @@ parse_gradient() {
 color_to_shell_hex() {
   local color r g b
 
-  color=$(resolve_gradient_color "$1")
+  resolve_gradient_color "$1"
+  color="$REPLY"
 
   if [[ $color =~ ^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$ ]]; then
-    printf "#%s" "${color:1:6}"
+    REPLY="#${color:1:6}"
   elif [[ $color =~ ^[Rr][Gg][Bb][Aa]?\(([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?\)$ ]]; then
-    printf "#%s" "${BASH_REMATCH[1]}"
+    REPLY="#${BASH_REMATCH[1]}"
   elif [[ $color =~ ^[Rr][Gg][Bb][Aa]?\(([0-9]+),([0-9]+),([0-9]+)(,[0-9.]+)?\)$ ]]; then
     r=${BASH_REMATCH[1]}
     g=${BASH_REMATCH[2]}
@@ -130,40 +91,42 @@ color_to_shell_hex() {
     (( r > 255 )) && r=255
     (( g > 255 )) && g=255
     (( b > 255 )) && b=255
-    printf "#%02x%02x%02x" "$r" "$g" "$b"
+    printf -v REPLY "#%02x%02x%02x" "$r" "$g" "$b"
   elif [[ $color =~ ^0x[0-9A-Fa-f]{8}$ ]]; then
-    printf "#%s" "${color:4:6}"
+    REPLY="#${color:4:6}"
   else
-    printf "%s" "$color"
+    REPLY="$color"
   fi
 }
 
 hypr_gradient_value() {
-  local spec color index
+  local spec index value
 
-  spec=$(resolve_theme_ref "$1" "${2:-}")
+  resolve_theme_ref "$1" "${2:-}"
+  spec="$REPLY"
   parse_gradient "$spec"
 
   if (( ${#GRADIENT_COLORS[@]} == 0 )); then
-    printf '"%s"' "$spec"
+    REPLY="\"$spec\""
   elif (( ${#GRADIENT_COLORS[@]} == 1 )); then
-    printf '"%s"' "${GRADIENT_COLORS[0]}"
+    REPLY="\"${GRADIENT_COLORS[0]}\""
   else
-    printf '{ colors = {'
+    value='{ colors = {'
     for index in "${!GRADIENT_COLORS[@]}"; do
-      (( index > 0 )) && printf ','
-      printf ' "%s"' "${GRADIENT_COLORS[$index]}"
+      (( index > 0 )) && value+=','
+      value+=" \"${GRADIENT_COLORS[$index]}\""
     done
-    printf ' }'
-    [[ -n $GRADIENT_ANGLE ]] && printf ', angle = %s' "$GRADIENT_ANGLE"
-    printf ' }'
+    value+=' }'
+    [[ -n $GRADIENT_ANGLE ]] && value+=", angle = $GRADIENT_ANGLE"
+    REPLY="$value }"
   fi
 }
 
 gradient_start_value() {
   local spec
 
-  spec=$(resolve_theme_ref "$1" "${2:-}")
+  resolve_theme_ref "$1" "${2:-}"
+  spec="$REPLY"
   parse_gradient "$spec"
 
   if (( ${#GRADIENT_COLORS[@]} == 0 )); then
@@ -174,41 +137,45 @@ gradient_start_value() {
 }
 
 shell_gradient_value() {
-  local spec index
+  local spec index value=""
 
-  spec=$(resolve_theme_ref "$1" "${2:-}")
+  resolve_theme_ref "$1" "${2:-}"
+  spec="$REPLY"
   parse_gradient "$spec"
 
   if (( ${#GRADIENT_COLORS[@]} == 0 )); then
-    printf "%s" "$spec"
+    REPLY="$spec"
     return
   fi
 
   for index in "${!GRADIENT_COLORS[@]}"; do
-    (( index > 0 )) && printf " "
-    printf "%s" "${GRADIENT_COLORS[$index]}"
+    (( index > 0 )) && value+=" "
+    value+="${GRADIENT_COLORS[$index]}"
   done
 
-  [[ -n $GRADIENT_ANGLE ]] && printf " %sdeg" "$GRADIENT_ANGLE"
+  [[ -n $GRADIENT_ANGLE ]] && value+=" ${GRADIENT_ANGLE}deg"
+  REPLY="$value"
 }
 
+# The value table holds token, unit separator, value lines for the renderer to
+# substitute. Tokens may contain tabs, so a tab cannot delimit them.
 add_template_value() {
   local key="$1"
   local value="$2"
-  local rgb
 
-  printf 's|{{ %s }}|%s|g\n' "$key" "$value" >>"$sed_script"
-  printf 's|{{ %s_strip }}|%s|g\n' "$key" "${value#\#}" >>"$sed_script"
+  printf '{{ %s }}\037%s\n{{ %s_strip }}\037%s\n' "$key" "$value" "$key" "${value#\#}" >>"$value_table"
 
   if [[ $value =~ ^#[0-9A-Fa-f]{6}$ ]]; then
-    rgb=$(hex_to_rgb "$value")
-    printf 's|{{ %s_rgb }}|%s|g\n' "$key" "$rgb" >>"$sed_script"
+    hex_to_rgb "$value"
+    printf '{{ %s_rgb }}\037%s\n' "$key" "$REPLY" >>"$value_table"
   fi
 }
 
+# A mix of two hex colors goes to the renderer as mix, token, function, start,
+# end and amount, split by unit separators, since awk computes it.
 add_mix_value() {
   local token="$1"
-  local content fn start_key end_key amount start end value
+  local content fn start_key end_key amount start end
 
   content="${token#\{\{}"
   content="${content%\}\}}"
@@ -218,42 +185,14 @@ add_mix_value() {
   end="${THEME_COLORS[$end_key]:-}"
 
   [[ $start =~ ^#[0-9A-Fa-f]{6}$ && $end =~ ^#[0-9A-Fa-f]{6}$ ]] || return
+  [[ $fn == "mix" || $fn == "mix_strip" || $fn == "mix_rgb" ]] || return
 
-  value=$(mix_color "$start" "$end" "$amount")
-
-  case "$fn" in
-    mix)
-      ;;
-    mix_strip)
-      value="${value#\#}"
-      ;;
-    mix_rgb)
-      value=$(hex_to_rgb "$value")
-      ;;
-    *)
-      return
-      ;;
-  esac
-
-  printf 's|%s|%s|g\n' "$token" "$value" >>"$sed_script"
-}
-
-add_mix_values() {
-  local tpl token
-  local -A seen=()
-
-  for tpl in "${template_files[@]}"; do
-    while IFS= read -r token; do
-      [[ -n ${seen[$token]:-} ]] && continue
-      seen[$token]=1
-      add_mix_value "$token"
-    done < <(grep -hEo '\{\{[[:space:]]*mix(_strip|_rgb)?[[:space:]]+[A-Za-z0-9_]+[[:space:]]+[A-Za-z0-9_]+[[:space:]]+[0-9]+([.][0-9]+)?%?[[:space:]]*\}\}' "$tpl" 2>/dev/null || true)
-  done
+  printf 'mix\037%s\037%s\037%s\037%s\037%s\n' "$token" "$fn" "$start" "$end" "$amount" >>"$mix_table"
 }
 
 add_gradient_function_value() {
   local token="$1"
-  local content fn key fallback value
+  local content fn key fallback
 
   content="${token#\{\{}"
   content="${content%\}\}}"
@@ -261,33 +200,40 @@ add_gradient_function_value() {
 
   case "$fn" in
     hypr_gradient)
-      value=$(hypr_gradient_value "$key" "$fallback")
+      hypr_gradient_value "$key" "$fallback"
       ;;
     gradient_start)
-      value=$(gradient_start_value "$key" "$fallback")
+      gradient_start_value "$key" "$fallback"
       ;;
     shell_gradient)
-      value=$(shell_gradient_value "$key" "$fallback")
+      shell_gradient_value "$key" "$fallback"
       ;;
     *)
       return
       ;;
   esac
 
-  printf 's|%s|%s|g\n' "$token" "$value" >>"$sed_script"
+  printf '%s\037%s\n' "$token" "$REPLY" >>"$value_table"
 }
 
-add_gradient_function_values() {
-  local tpl token
+# Scan every template once for function tokens, instead of a grep per template
+# per function family.
+add_function_values() {
+  local token
   local -A seen=()
 
-  for tpl in "${template_files[@]}"; do
-    while IFS= read -r token; do
-      [[ -n ${seen[$token]:-} ]] && continue
-      seen[$token]=1
+  (( ${#template_files[@]} > 0 )) || return
+
+  while IFS= read -r token; do
+    [[ -n ${seen[$token]:-} ]] && continue
+    seen[$token]=1
+
+    if [[ $token =~ ^$MIX_TOKEN_PATTERN$ ]]; then
+      add_mix_value "$token"
+    else
       add_gradient_function_value "$token"
-    done < <(grep -hEo '\{\{[[:space:]]*(hypr_gradient|gradient_start|shell_gradient)[[:space:]]+[^}]+[[:space:]]*\}\}' "$tpl" 2>/dev/null || true)
-  done
+    fi
+  done < <(grep -hEo "$MIX_TOKEN_PATTERN|$GRADIENT_TOKEN_PATTERN" "${template_files[@]}" 2>/dev/null || true)
 }
 
 strip_shell_section_header() {
@@ -367,9 +313,123 @@ apply_shell_section_overrides() {
   done
 }
 
+# Substitute every template in one awk process. Each {{ ... }} span is looked
+# up whole, as the per-template sed script used to match it. A mix is rounded
+# with awk's floating point exactly as before, so no generated color moves.
+render_templates() {
+  local tpl filename
+  local -a pairs=()
+
+  # Process user templates first, then built-in templates (user overrides
+  # built-in). Don't overwrite configs the theme already ships.
+  for tpl in "${template_files[@]}"; do
+    filename=${tpl##*/}
+    filename=${filename%.tpl}
+    if [[ ! -f $NEXT_THEME_DIR/$filename && -z ${rendered[$filename]:-} ]]; then
+      rendered[$filename]=1
+      pairs+=("$tpl" "$NEXT_THEME_DIR/$filename")
+    fi
+  done
+
+  (( ${#pairs[@]} > 0 )) || return
+
+  awk -v value_table="$value_table" -v mix_table="$mix_table" '
+    function hex_value(char) {
+      return index("0123456789abcdef", tolower(char)) - 1
+    }
+
+    function hex_pair_to_int(hex, idx) {
+      return hex_value(substr(hex, idx, 1)) * 16 + hex_value(substr(hex, idx + 1, 1))
+    }
+
+    function mix_color(start, end, amount,    start_r, start_g, start_b, end_r, end_g, end_b, red, green, blue) {
+      start = substr(start, 2)
+      end = substr(end, 2)
+
+      if (amount ~ /%$/) {
+        sub(/%$/, "", amount)
+        amount = amount / 100
+      } else {
+        amount += 0
+        if (amount > 1) amount = amount / 100
+      }
+
+      if (amount < 0) amount = 0
+      if (amount > 1) amount = 1
+
+      start_r = hex_pair_to_int(start, 1)
+      start_g = hex_pair_to_int(start, 3)
+      start_b = hex_pair_to_int(start, 5)
+      end_r = hex_pair_to_int(end, 1)
+      end_g = hex_pair_to_int(end, 3)
+      end_b = hex_pair_to_int(end, 5)
+
+      red = int(start_r * (1 - amount) + end_r * amount + 0.5)
+      green = int(start_g * (1 - amount) + end_g * amount + 0.5)
+      blue = int(start_b * (1 - amount) + end_b * amount + 0.5)
+
+      return sprintf("#%02x%02x%02x", red, green, blue)
+    }
+
+    function render(line,    out, open, span, token) {
+      out = ""
+      while ((open = index(line, "{{")) > 0) {
+        span = index(substr(line, open + 2), "}}")
+        if (span == 0) break
+
+        token = substr(line, open, span + 3)
+        if (token in values) {
+          out = out substr(line, 1, open - 1) values[token]
+          line = substr(line, open + length(token))
+        } else {
+          out = out substr(line, 1, open)
+          line = substr(line, open + 1)
+        }
+      }
+      return out line
+    }
+
+    BEGIN {
+      while ((getline row < value_table) > 0) {
+        sep = index(row, "\037")
+        values[substr(row, 1, sep - 1)] = substr(row, sep + 1)
+      }
+      close(value_table)
+
+      while ((getline row < mix_table) > 0) {
+        split(row, field, "\037")
+        value = mix_color(field[4], field[5], field[6])
+        if (field[3] == "mix_strip") {
+          value = substr(value, 2)
+        } else if (field[3] == "mix_rgb") {
+          value = sprintf("%d,%d,%d", hex_pair_to_int(substr(value, 2), 1), hex_pair_to_int(substr(value, 2), 3), hex_pair_to_int(substr(value, 2), 5))
+        }
+        values[field[2]] = value
+      }
+      close(mix_table)
+
+      for (i = 1; i < ARGC; i += 2) {
+        template = ARGV[i]
+        output = ARGV[i + 1]
+        # RT holds the terminator each line was read with, so a template that
+        # ends without a newline renders without one, as sed left it.
+        while ((getline line < template) > 0) printf "%s%s", render(line), RT > output
+        close(template)
+        close(output)
+        # A template with no lines still leaves its output file behind.
+        printf "" >> output
+        close(output)
+      }
+      exit
+    }
+  ' "${pairs[@]}"
+}
+
 # Only generate dynamic templates for themes with a colors.toml definition
 if [[ -f $COLORS_FILE ]]; then
-  sed_script=$(mktemp)
+  value_table=$(mktemp)
+  mix_table=$(mktemp)
+  declare -A rendered=()
 
   shopt -s nullglob
   template_files=("$USER_TEMPLATES_DIR"/*.tpl "$TEMPLATES_DIR"/*.tpl)
@@ -384,21 +444,10 @@ if [[ -f $COLORS_FILE ]]; then
     add_template_value "$key" "${THEME_COLORS[$key]}"
   done
 
-  add_mix_values
-  add_gradient_function_values
+  add_function_values
+  render_templates
 
-  # Process user templates first, then built-in templates (user overrides built-in)
-  for tpl in "${template_files[@]}"; do
-    filename=$(basename "$tpl" .tpl)
-    output_path="$NEXT_THEME_DIR/$filename"
-
-    # Don't overwrite configs already exists in the output directory (copied from theme specific folder)
-    if [[ ! -f $output_path ]]; then
-      sed -f "$sed_script" "$tpl" >"$output_path"
-    fi
-  done
-
-  rm "$sed_script"
+  rm "$value_table" "$mix_table"
 fi
 
 apply_shell_section_overrides
