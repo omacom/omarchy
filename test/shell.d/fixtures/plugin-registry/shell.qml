@@ -294,6 +294,11 @@ ShellRoot {
       bar: { layout: { left: [], center: [{ id: "omarchy.weather" }], right: [] } },
       plugins: []
     }
+    var invalidTargetConfig = JSON.parse(JSON.stringify(root.config))
+    var invalidTargetRevision = registry.registryRevision
+    var invalidTargetChangeCount = root.changeCount
+    var invalidTargetWriteCount = root.configWriteCount
+    var invalidTargetConfigSignalCount = root.configSignalCount
     root.assertTrue(
       !registry.setEnabled("third.center-widget", true, { after: "omarchy.first-widget" }),
       "enabling against a widget the bar does not carry is refused"
@@ -304,6 +309,11 @@ ShellRoot {
       "a refused enable names the target it could not find"
     )
     root.assertDeepEqual(root.config.bar.layout.center, [{ id: "omarchy.weather" }], "a refused enable places nothing")
+    root.assertDeepEqual(root.config, invalidTargetConfig, "a refused enable leaves the full config unchanged")
+    root.assertEqual(registry.registryRevision, invalidTargetRevision, "a refused enable does not advance the registry revision")
+    root.assertEqual(root.changeCount, invalidTargetChangeCount, "a refused enable does not emit pluginsChanged")
+    root.assertEqual(root.configWriteCount, invalidTargetWriteCount, "a refused enable does not write shell.json")
+    root.assertEqual(root.configSignalCount, invalidTargetConfigSignalCount, "a refused enable does not emit shell config changes")
     root.assertEqual(
       registry.putBarWidget("third.center-widget", { after: "omarchy.first-widget" }),
       "",
