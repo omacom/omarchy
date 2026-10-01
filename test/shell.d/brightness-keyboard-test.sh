@@ -9,10 +9,12 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 mkdir -p "$test_tmp/bin" "$test_tmp/leds/dell::kbd_backlight" "$test_tmp/runtime"
 export BRIGHTNESS_FIXTURE="$test_tmp"
+export HOME="$test_tmp/home"
+export XDG_STATE_HOME="$test_tmp/home/.local/state"
 export OMARCHY_LEDS_PATH="$test_tmp/leds"
 export XDG_RUNTIME_DIR="$test_tmp/runtime"
 export PATH="$test_tmp/bin:$PATH"
-state_file="$XDG_RUNTIME_DIR/omarchy-keyboard-backlight-dell::kbd_backlight"
+state_file="$XDG_STATE_HOME/omarchy/omarchy-keyboard-backlight-dell::kbd_backlight"
 
 cat >"$test_tmp/bin/brightnessctl" <<'SH'
 #!/bin/bash
@@ -174,6 +176,11 @@ env -u XDG_RUNTIME_DIR HOME="$test_tmp/home" "$ROOT/bin/omarchy-brightness-keybo
 assert_brightness 1 "keyboard adjustment works without a runtime directory"
 [[ -f $test_tmp/home/.local/state/omarchy/omarchy-keyboard-backlight-dell::kbd_backlight ]] || fail "TTY adjustment records a private user preference"
 
+printf '0\n' >"$test_tmp/brightness"
+run_keyboard off
+run_keyboard restore
+assert_brightness 1 "a TTY choice survives firmware timeout before the compositor's first lock"
+
 reset_fixture 0
 run_keyboard up
 cat >"$test_tmp/bin/mv" <<'SH'
@@ -186,3 +193,14 @@ assert_brightness 1 "a failed save rolls hardware back to the previous successfu
 [[ $(<"$state_file") == "1" ]] || fail "a failed save keeps the previous preference"
 rm "$test_tmp/bin/mv"
 pass "hardware and saved brightness remain consistent after a state save failure"
+
+reset_fixture 0
+cat >"$test_tmp/bin/mv" <<'SH'
+#!/bin/bash
+exit 1
+SH
+chmod +x "$test_tmp/bin/mv"
+if run_keyboard up >"$test_tmp/out" 2>"$test_tmp/errors"; then fail "state save failure reports failure after a firmware timeout"; fi
+! grep -Eq -- 'set 0$' "$test_tmp/calls" || fail "failed-save rollback does not disable hardware wake triggers"
+assert_brightness 1 "failed save leaves the adjusted light on instead of disabling wake triggers"
+rm "$test_tmp/bin/mv"

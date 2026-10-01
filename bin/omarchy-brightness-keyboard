@@ -26,10 +26,8 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
-state_dir="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}"
-if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
-  mkdir -p "$state_dir" || exit 1
-fi
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+mkdir -p "$state_dir" || exit 1
 state_file="$state_dir/omarchy-keyboard-backlight-$device"
 
 # Serialize hardware changes with their saved state, including repeated keys.
@@ -94,7 +92,9 @@ fi
 # hardware timeout can make the current reading ambiguous.
 brightnessctl -d "$device" set "$new_brightness" >/dev/null || exit 1
 if ! save_brightness "$new_brightness"; then
-  brightnessctl -d "$device" set "$current_brightness" >/dev/null || echo "Could not restore the previous keyboard brightness." >&2
+  if (( current_brightness > 0 )); then
+    brightnessctl -d "$device" set "$current_brightness" >/dev/null || echo "Could not restore the previous keyboard brightness." >&2
+  fi
   echo "Could not save keyboard brightness; the adjustment was not recorded." >&2
   exit 1
 fi
