@@ -13,13 +13,14 @@ if ! command -v fzf >/dev/null || ! command -v python3 >/dev/null; then
 fi
 
 python3 - "$ROOT/bin/omarchy-confirm" <<'PY'
-import os, pty, select, signal, sys, time
+import fcntl, os, pty, select, signal, struct, sys, termios, time
 
 script = sys.argv[1]
 
 def run(keys, args):
     pid, fd = pty.fork()
     if pid == 0:
+        fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
         env = os.environ.copy()
         env.pop("OMARCHY_PATH", None)
         env.pop("FZF_DEFAULT_OPTS", None)
@@ -44,7 +45,7 @@ def run(keys, args):
             if wpid != 0:
                 return os.waitstatus_to_exitcode(status)
             if time.time() > deadline:
-                os.kill(pid, signal.SIGTERM)
+                os.killpg(pid, signal.SIGTERM)
                 os.waitpid(pid, 0)
                 return 124
     finally:

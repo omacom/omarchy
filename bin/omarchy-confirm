@@ -50,6 +50,11 @@ while (($#)); do
   shift
 done
 
+if [[ -z $affirmative || -z $negative || $affirmative == "$negative" || $affirmative == *$'\n'* || $negative == *$'\n'* || $affirmative == *$'\r'* || $negative == *$'\r'* ]]; then
+  echo "omarchy-confirm: choice labels must be non-empty, distinct single lines" >&2
+  exit 1
+fi
+
 # Theme colors come from gum_env.lua; source the current values so a theme
 # switch after login is visible in this prompt.
 if [[ -n ${OMARCHY_PATH:-} && -f $OMARCHY_PATH/bin/omarchy-restart-gum ]]; then

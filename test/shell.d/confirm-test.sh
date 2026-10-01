@@ -79,6 +79,29 @@ set -e
 (( status == 1 )) || fail "confirm exits 1 when No is chosen" "status=$status"
 pass "confirm exits 1 when No is chosen"
 
+for labels in identical empty multiline; do
+  affirmative="Keep"
+  negative="Drop"
+  case $labels in
+    identical) negative="$affirmative" ;;
+    empty) negative="" ;;
+    multiline) negative=$'Drop\nKeep' ;;
+  esac
+  : >"$test_tmp/args"
+  status=0
+  FZF_CHOICE=Keep run_confirm --affirmative "$affirmative" --negative "$negative" "Continue?" >/dev/null 2>"$test_tmp/error" || status=$?
+  (( status == 1 )) || fail "ambiguous choice labels fail instead of confirming"
+  [[ ! -s $test_tmp/args ]] || fail "invalid labels must not open fzf"
+  grep -Fq 'distinct single lines' "$test_tmp/error" || fail "invalid labels explain the requirement"
+done
+pass "confirm rejects identical, empty, and multiline choice labels before prompting"
+
+status=0
+FZF_CHOICE=Drop run_confirm --affirmative Keep --negative Drop "Continue?" >/dev/null || status=$?
+(( status == 1 )) || fail "custom negative labels still cancel"
+FZF_CHOICE=Keep run_confirm --affirmative Keep --negative Drop "Continue?" >/dev/null || fail "custom affirmative labels still confirm"
+pass "distinct custom choice labels preserve Yes and No results"
+
 set +e
 FZF_EXIT=130 run_confirm "Continue?" >/dev/null
 status=$?
