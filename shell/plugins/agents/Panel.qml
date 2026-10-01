@@ -1019,6 +1019,7 @@ Panel {
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
+              textFormat: Text.PlainText
               text: choice.modelData.providerName
               color: choice.hasCursor ? Color.accent : root.foreground
               font.family: root.fontFamily
@@ -1080,6 +1081,7 @@ Panel {
 
       Text {
         width: parent.width
+        textFormat: Text.PlainText
         text: root.addStatus
         color: root.foreground
         font.family: root.fontFamily
@@ -1100,6 +1102,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           text: root.addCode
           color: Color.accent
           font.family: root.fontFamily
@@ -1146,6 +1149,7 @@ Panel {
     Text {
       visible: root.addStage === "done" || root.addStage === "error"
       width: parent.width
+      textFormat: Text.PlainText
       text: root.addResult
       color: root.addStage === "error" ? root.urgent : root.foreground
       font.family: root.fontFamily
@@ -1184,6 +1188,7 @@ Panel {
         anchors.left: sectionMark.right
         anchors.leftMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
         text: section.provider ? section.provider.providerName : ""
         color: root.foreground
         font.family: root.fontFamily
@@ -1195,6 +1200,7 @@ Panel {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         visible: !section.multi
+        textFormat: Text.PlainText
         text: root.planLabel(section.provider)
         color: root.dim
         font.family: root.fontFamily
@@ -1215,6 +1221,7 @@ Panel {
     Text {
       visible: !section.multi && root.otherTrouble(section.provider) !== ""
       width: parent.width
+      textFormat: Text.PlainText
       text: section.provider ? String(section.provider.authHelpText || "") : ""
       color: root.urgent
       font.family: root.fontFamily
@@ -1369,6 +1376,7 @@ Panel {
     Text {
       anchors.centerIn: parent
       visible: markImage.status !== Image.Ready
+      textFormat: Text.PlainText
       text: button.text
       color: root.foreground
       font.family: root.fontFamily
@@ -1398,6 +1406,7 @@ Panel {
 
       Text {
         anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
         text: tile.glyph
         color: Color.accent
         font.family: root.fontFamily
@@ -1406,6 +1415,7 @@ Panel {
 
       Text {
         anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
         text: tile.title
         color: tile.hot ? Color.accent : root.foreground
         font.family: root.fontFamily
@@ -1447,6 +1457,7 @@ Panel {
 
     Text {
       anchors.centerIn: parent
+      textFormat: Text.PlainText
       text: heroButton.glyph
       color: Color.accent
       font.family: root.fontFamily
