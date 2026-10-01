@@ -1,5 +1,8 @@
 #!/usr/bin/python3
 
+# omarchy:summary=Keep tray registrations alive across shell restarts
+# omarchy:hidden=true
+
 import gi
 gi.require_version('Gio', '2.0')
 gi.require_version('GLib', '2.0')
