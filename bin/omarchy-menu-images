@@ -227,7 +227,7 @@ thumbnail_for() {
     # A video that already failed to convert has no row to offer. Hand the
     # marker back so the caller can keep the rows uncached over its absence.
     if is_video_path "$image" && [[ -f $thumbnail.failed ]]; then
-      printf '%s' "$thumbnail.failed"
+      thumbnail_result="$thumbnail.failed"
       return
     fi
 
