@@ -67,18 +67,19 @@ PanelWindow {
   readonly property string barPos: bar ? bar.position : "top"
 
   function close() {
-    try {
-      if (owner && "close" in owner) owner.close()
-    } catch (e) {
-      console.warn("KeyboardPanel: owner.close() threw", e)
-    }
-    // A throwing plugin close() used to leave this Exclusive overlay mapped
-    // and swallow session input. `open` is usually bound to owner.opened, so
-    // hide the controller instead of assigning `open` here.
-    if (owner && owner.controller && typeof owner.controller.hide === "function")
-      owner.controller.hide()
-    else
+    if (owner && "close" in owner) {
+      try {
+        owner.close()
+      } catch (e) {
+        // Only on a throw: a failed plugin close() would leave this Exclusive overlay mapped
+        // and swallowing input, while assigning `open` breaks its binding to owner.opened.
+        console.warn("KeyboardPanel: owner.close() threw", e)
+        if (owner.controller && typeof owner.controller.hide === "function") owner.controller.hide()
+        else root.open = false
+      }
+    } else {
       root.open = false
+    }
   }
 
   function beginFocusPrime() {
