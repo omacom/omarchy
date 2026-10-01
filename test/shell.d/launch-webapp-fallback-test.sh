@@ -35,7 +35,7 @@ cat >"$mock_bin/omarchy-notification-send" <<'STUB'
 printf 'notify:%s\n' "$*" >>"$TEST_LOG"
 STUB
 
-for browser in zen helium brave vivaldi-stable; do
+for browser in zen chromium helium brave vivaldi-stable; do
   printf '#!/bin/bash\n' >"$mock_bin/$browser"
 done
 chmod +x "$mock_bin/"*
@@ -68,6 +68,16 @@ launch_webapp zen.desktop || fail "web app launch uses an installed Chromium-bas
 grep -Fxq 'launch:uwsm-app -- helium --app=https://example.test/app --flag' "$TEST_LOG" ||
   fail "web app falls back to the installed Chromium-based browser" "$(cat "$TEST_LOG")"
 pass "web app falls back to the installed Chromium-based browser"
+
+# The dead entry in the first data dir is the one launchers read: it shadows a
+# working copy in a later dir, never yields an empty command, and the next
+# installed browser still wins.
+desktop_entry "$system_apps/chromium.desktop" chromium
+launch_webapp zen.desktop || fail "web app launch passes a shadowed dead entry" "$(cat "$scratch/err")"
+grep -Fxq 'launch:uwsm-app -- helium --app=https://example.test/app --flag' "$TEST_LOG" ||
+  fail "a dead entry in the first data dir falls through to the next browser" "$(cat "$TEST_LOG")"
+pass "a dead entry in the first data dir falls through to the next browser"
+rm "$system_apps/chromium.desktop"
 
 desktop_entry "$system_apps/brave-browser.desktop" brave
 launch_webapp brave-browser.desktop || fail "web app launch uses the default browser" "$(cat "$scratch/err")"
