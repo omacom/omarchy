@@ -29,4 +29,4 @@ if systemctl_user is-active --quiet graphical-session.target; then
   fi
 fi
 
-exec uwsm start -e -D Hyprland hyprland.desktop
+exec uwsm start -g -1 -e -D Hyprland hyprland.desktop
