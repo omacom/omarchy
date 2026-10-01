@@ -123,6 +123,9 @@ output=$("$CLI" toggle)
 assert_output_contains "bare root command with children renders help" "$output" "Toggle commands"
 assert_output_contains "bare toggle help includes child route" "$output" "omarchy toggle nightlight"
 
+output=$("$CLI" setup --help)
+assert_output_contains "setup group includes factory reset moved in by metadata" "$output" "omarchy setup factory reset"
+
 output=$("$CLI" pkg --help)
 assert_output_contains "package group includes pkg add fallback route" "$output" "omarchy pkg add <packages...>"
 
@@ -696,6 +699,33 @@ assert_output_contains "partial metadata command dispatches" "$output" "partial-
 
 output=$("$TMPDIR/omarchy" body metadata test)
 assert_output_contains "body metadata command dispatches by filename" "$output" "body-metadata-ok"
+
+# Group help on the fast path globs `omarchy-<group>-*`, so a command that joins
+# the group through `# omarchy:group=` from another filename must still be listed.
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Native member of the joined group\n'
+  printf 'echo joined-native-ok\n'
+} >"$TMPDIR/omarchy-joined-native"
+chmod +x "$TMPDIR/omarchy-joined-native"
+
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Moved into the joined group by metadata\n'
+  printf '# omarchy:group=joined\n'
+  printf '# omarchy:name=moved\n'
+  printf 'echo joined-moved-ok\n'
+} >"$TMPDIR/omarchy-elsewhere-moved"
+chmod +x "$TMPDIR/omarchy-elsewhere-moved"
+
+output=$("$TMPDIR/omarchy" joined --help)
+assert_output_contains "group --help lists commands moved in by group metadata" "$output" "omarchy joined moved"
+
+output=$("$TMPDIR/omarchy" joined)
+assert_output_contains "bare group lists commands moved in by group metadata" "$output" "omarchy joined moved"
+
+output=$("$TMPDIR/omarchy" joined moved)
+assert_output_contains "command moved in by group metadata dispatches" "$output" "joined-moved-ok"
 
 # A trailing --help must render help even when the route only partially
 # resolves, leaving unresolved words ahead of the flag (e.g. `update aur --help`
