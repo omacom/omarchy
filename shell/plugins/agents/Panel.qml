@@ -758,18 +758,18 @@ Panel {
                 visible: root.addStage === "" || !root.blankSlate
 
                 HeroButton {
-                  visible: root.addStage === ""
-                  glyph: "󰞷"
-                  tooltip: "Start the default agent"
-                  onClicked: root.launchAgent()
-                }
-
-                HeroButton {
                   visible: !root.blankSlate
                   readonly property bool adding: root.addStage !== ""
                   glyph: adding ? "󰅖" : "󰐕"
                   tooltip: adding ? "Back to the limits" : "Add a subscription"
                   onClicked: adding ? root.cancelAdd() : root.addAccount()
+                }
+
+                HeroButton {
+                  visible: root.addStage === ""
+                  glyph: "󰞷"
+                  tooltip: "Start the default agent"
+                  onClicked: root.launchAgent()
                 }
               }
             }
