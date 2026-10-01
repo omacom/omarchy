@@ -68,10 +68,20 @@ for provider in Cloudflare Google Custom DHCP; do
   : >"$test_tmp/modified"
   : >"$test_tmp/reloaded"
   rm -f "$test_tmp/resolved.conf"
-  # Do not put this subshell in a conditional: errexit must remain active.
+  # Capture the real command's status without suppressing its errexit behavior.
+  set +e
   (
+    set -e
     source <(sed -n '/^if (( $# == 0 )); then/,$p' "$ROOT/bin/omarchy-dns") "$provider"
   ) <<<"9.9.9.9 2620:fe::fe" >"$test_tmp/output" 2>"$test_tmp/errors"
+  status=$?
+  set -e
+  if [[ $provider == "DHCP" ]]; then
+    (( status == 1 )) || fail "an incomplete DHCP reset returns failure after processing every profile"
+    grep -q 'may still use custom DNS' "$test_tmp/errors" || fail "DHCP explains the partial reset"
+  else
+    (( status == 0 )) || fail "$provider still completes when a profile rejects one DNS family"
+  fi
 
   grep -q 'connection modify ethernet ' "$test_tmp/modified" || fail "$provider reaches later profiles"
   grep -Eq 'omarchy-dns: skipped (IPv4 DNS on )?rejected-last' "$test_tmp/errors" || fail "$provider reports the failed profile"

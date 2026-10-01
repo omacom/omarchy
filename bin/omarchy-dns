@@ -197,6 +197,8 @@ set_connection_dns() {
 clear_connection_dns() {
   local uuid type controller
 
+  DNS_RESET_FAILED=false
+
   while IFS=: read -r uuid type; do
     [[ -n $uuid ]] || continue
     networkmanager_dns_connection "$type" || continue
@@ -205,12 +207,15 @@ clear_connection_dns() {
     controller=$(nmcli -g connection.controller connection show "$uuid") || continue
     [[ -z $controller ]] || continue
 
-    nmcli connection modify "$uuid" \
+    if ! nmcli connection modify "$uuid" \
       ipv4.ignore-auto-dns no \
       ipv4.dns "" \
       ipv6.ignore-auto-dns no \
       ipv6.dns "" \
-      >/dev/null || echo "omarchy-dns: skipped $uuid" >&2
+      >/dev/null; then
+      echo "omarchy-dns: skipped $uuid" >&2
+      DNS_RESET_FAILED=true
+    fi
   done < <(nmcli -t -f UUID,TYPE connection show)
 }
 
@@ -325,3 +330,7 @@ EOF
 esac
 
 reload_dns_stack
+if [[ ${DNS_RESET_FAILED:-false} == "true" ]]; then
+  echo "Could not reset DNS on every profile; the profiles listed above may still use custom DNS." >&2
+  exit 1
+fi
