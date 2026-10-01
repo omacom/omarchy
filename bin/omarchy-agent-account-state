@@ -531,7 +531,11 @@ def duration(delta: dt.timedelta) -> str:
 # Only the active account crossing the threshold starts anything, so auto
 # mode never flaps back to an account that just reset. `alert` remembers the
 # last thing said, so a shell restart or the next refresh doesn't repeat it.
-def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime) -> dict[str, Any] | None:
+#
+# Numbers kept from an earlier check may be out of date, but a parked account's
+# sign-in lapses within hours and can't be checked again until a session runs
+# in it. So a stale account is still a candidate; one checked just now wins.
+def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, stale: frozenset[str] = frozenset()) -> dict[str, Any] | None:
   threshold = float(registry["threshold"])
   current = active(registry)
   current_peak = peak(usage.get(current["id"]), now)
@@ -546,11 +550,11 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime) ->
     if level is None or level >= threshold:
       continue
     reset = next_reset(usage.get(account["id"]), now) or dt.datetime.max.replace(tzinfo=dt.timezone.utc)
-    candidates.append((level, reset, account))
-  candidates.sort(key=lambda c: (c[0], c[1]))
+    candidates.append((account["id"] in stale, level, reset, account))
+  candidates.sort(key=lambda c: (c[0], c[1], c[2]))
 
   if candidates:
-    level, _, target = candidates[0]
+    _, level, _, target = candidates[0]
     action = "switch" if registry["switch"] == "auto" else "notify"
     alert = f"{action}:{current['id']}:{target['id']}"
     if registry.get("alert") == alert:
@@ -575,13 +579,16 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime) ->
 # Limits per account id. An account nobody is signed in to is left out, so it
 # is never a candidate: its cached headroom is no use to a session that can't
 # start. One whose token merely expired stays in, since a session refreshes it.
-def usage_by_account(provider: str) -> dict[str, Any]:
+def usage_by_account(provider: str) -> tuple[dict[str, Any], frozenset[str]]:
   record = read_json(usage_record_path(provider)) or {}
-  return {
-    str(a.get("id")): a.get("limits")
-    for a in record.get("accounts") or []
+  accounts = [
+    a for a in record.get("accounts") or []
     if isinstance(a, dict) and a.get("id") and a.get("usageStatusText") != "Waiting for auth"
-  }
+  ]
+  return (
+    {str(a["id"]): a.get("limits") for a in accounts},
+    frozenset(str(a["id"]) for a in accounts if a.get("stale") is True),
+  )
 
 
 def notify(title: str, body: str, action: list[str] | None = None) -> None:
@@ -598,7 +605,8 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
   with Locked(provider) as registry:
     if len(registry["accounts"]) < 2:
       return False
-    decision = decide(registry, usage_by_account(provider), now)
+    usage, stale = usage_by_account(provider)
+    decision = decide(registry, usage, now, stale)
     if decision is None:
       return False
     if decision["action"] == "clear":

@@ -155,3 +155,32 @@ mv "$test_tmp/record.json" "$usage/claude.json"
 autoswitch >/dev/null
 [[ ! -s $notifications ]] || fail "an unknown account keeps exhaustion unsaid" "$(cat "$notifications")"
 pass "exhaustion is only said when every account is known to be over"
+
+# Numbers kept from an earlier check may be out of date, so an account checked
+# just now wins over a stale one showing more room; a stale one still counts
+# when it's the only place left to go.
+mkdir -p "$accounts/claude/side"
+cat >"$accounts/claude.json" <<JSON
+{
+  "active": "main",
+  "switch": "auto",
+  "threshold": 95,
+  "alert": "",
+  "accounts": [
+    {"id": "main", "label": "Main", "home": "", "primary": true},
+    {"id": "work", "label": "Work", "home": "$accounts/claude/work", "primary": false},
+    {"id": "side", "label": "Side", "home": "$accounts/claude/side", "primary": false}
+  ]
+}
+JSON
+jq -nc --arg later "$later" '{
+  id: "claude",
+  accounts: [
+    {id: "main", limits: [{label: "Session (5-hour)", percent: 0.97, resetsAt: $later}]},
+    {id: "work", stale: true, limits: [{label: "Session (5-hour)", percent: 0.10, resetsAt: $later}]},
+    {id: "side", stale: false, limits: [{label: "Session (5-hour)", percent: 0.40, resetsAt: $later}]}
+  ]
+}' >"$usage/claude.json"
+autoswitch >/dev/null
+[[ $(active) == "side" ]] || fail "an account checked just now wins over a stale one" "$(active)"
+pass "an account checked just now wins over a stale one"
