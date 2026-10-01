@@ -64,6 +64,7 @@ assert(/openPanelIndicatorWidth:.*showPercentage.*button\.glyphPaintedWidth : 0/
 assert(/IpcHandler[\s\S]*?function togglePercentage\(\) \{ root\.togglePercentage\(\) \}/.test(panelSource), 'power exposes togglePercentage over IPC')
 assert(/manageIpc: false/.test(panelSource), 'power owns its IPC handler so it can extend the target methods')
 assert(/device\.state === UPowerDeviceState\.Discharging/.test(panelSource), 'power panel discharging follows the device state')
+assert(/UPower\.onBattery && device\.state !== UPowerDeviceState\.Charging/.test(panelSource), 'power panel discharging falls back to onBattery for states that are neither charging nor discharging')
 assert(/d\.state === UPowerDeviceState\.Charging/.test(panelSource), 'power panel charging follows the device state')
 assert(/omarchy-powerprofiles-set", UPower\.onBattery/.test(panelSource), 'powerprofiles still follow the daemon onBattery flag')
 JS

@@ -67,7 +67,8 @@ Panel {
   }
   readonly property bool discharging: {
     var device = UPower.displayDevice
-    return !!(device && device.isPresent && device.state === UPowerDeviceState.Discharging)
+    // A state that is neither charging nor discharging falls back to onBattery, as the icon and mode label do.
+    return !!(device && device.isPresent && (device.state === UPowerDeviceState.Discharging || (UPower.onBattery && device.state !== UPowerDeviceState.Charging)))
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
