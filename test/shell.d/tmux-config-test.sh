@@ -24,17 +24,9 @@ pass "tmux emits mosh-compatible OSC 52 clipboard sequences"
 tmux -L "$socket" -f "$ROOT/config/tmux/tmux.conf" new-session -d
 
 copy_binding=$(tmux -L "$socket" list-keys -T copy-mode-vi | grep -E '^bind-key +-T copy-mode-vi +y ' || true)
-[[ $copy_binding == *"omarchy-tmux-osc52-copy"* ]] ||
-  fail "tmux copy mode bypasses cached terminal capabilities" "$copy_binding"
-pass "tmux copy mode writes directly to the active client"
-
-clipboard="$test_tmp/clipboard"
-: >"$clipboard"
-printf 'hello' | "$ROOT/bin/omarchy-tmux-osc52-copy" "$clipboard"
-expected=$(printf '\033]52;c;aGVsbG8=\007')
-[[ $(<"$clipboard") == "$expected" ]] ||
-  fail "OSC 52 helper targets the system clipboard" "$(od -An -tx1 "$clipboard")"
-pass "tmux clipboard helper emits a mosh-compatible sequence"
+[[ $copy_binding == *"copy-selection-and-cancel"* && $copy_binding != *"copy-pipe"* ]] ||
+  fail "tmux copies use its own clipboard emitter" "$copy_binding"
+pass "tmux copy mode keeps its native clipboard path"
 
 home="$test_tmp/home"
 mkdir -p "$home/.config/tmux" "$test_tmp/bin"
@@ -63,8 +55,8 @@ HOME="$home" TMUX_LOG="$tmux_log" PATH="$test_tmp/bin:$PATH" bash -euo pipefail 
 
 grep -Fq 'xterm*:Ms=\\E]52;c%p1%.0s;%p2%s\\007' "$home/.config/tmux/tmux.conf" ||
   fail "tmux migration adds the mosh selector override"
-grep -Fq 'omarchy-tmux-osc52-copy' "$home/.config/tmux/tmux.conf" ||
-  fail "tmux migration adds direct copy bindings"
+grep -Fq 'y send -X copy-selection-and-cancel' "$home/.config/tmux/tmux.conf" ||
+  fail "tmux migration leaves native copy bindings alone"
 grep -Fqx 'set -g status off' "$home/.config/tmux/tmux.conf" ||
   fail "tmux migration preserves a final line without a newline"
 grep -Fqx "source-file $home/.config/tmux/tmux.conf" "$tmux_log" ||
