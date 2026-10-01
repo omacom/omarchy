@@ -15,9 +15,9 @@ apply_user_transition() { copy_missing_config_defaults "$test_tmp/defaults" "$ta
 apply_user_hardware_transition() { :; }
 run_as_user_omarchy() {
   if [[ $1 == "omarchy-bar" ]]; then
-    bar_reset=1
+    (( bar_reset += 1 ))
     [[ ${BAR_RESULT:-0} == "0" ]] || return 1
-    HOME="$target_home" OMARCHY_PATH="$ROOT" PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-bar" defaults >/dev/null
+    HOME="$target_home" OMARCHY_PATH="$ROOT" PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-bar" "${@:2}" >/dev/null
   fi
 }
 warn() { printf '%s\n' "$*" >"$test_tmp/warning"; }
@@ -68,6 +68,8 @@ for scenario in fresh retry custom symlink invalid dangling; do
     bar_reset=0
     BAR_RESULT=1 eval "$transition"
     [[ -f $bar_defaults_pending ]] || fail "failed bar initialization remains pending"
+    jq '.bar.transparent = true | .bar.layout.center = [{id: "omarchy.clock", format: "HH:mm"}] | .bar.layout.right += [{id: "omarchy.dropbox", custom: true}]' "$settings" >"$test_tmp/edited-settings"
+    cp "$test_tmp/edited-settings" "$settings"
     bar_reset=0
   fi
   eval "$transition"
@@ -75,6 +77,9 @@ for scenario in fresh retry custom symlink invalid dangling; do
     (( bar_reset == 1 )) || fail "fresh and interrupted upgrades initialize the bar"
     jq -e '[.bar.layout[] | .[] | .id] | index("omarchy.dropbox") != null and index("omarchy.tailscale") != null' "$settings" >/dev/null || fail "installed-service widgets are initialized"
     [[ ! -e $bar_defaults_pending ]] || fail "successful initialization clears the pending marker"
+    if [[ $scenario == "retry" ]]; then
+      jq -e '.bar.transparent and .bar.layout.center[0].format == "HH:mm" and any(.bar.layout.right[]; .id == "omarchy.dropbox" and .custom == true)' "$settings" >/dev/null || fail "retry adds service widgets without resetting intervening bar edits"
+    fi
   else
     (( bar_reset == 0 )) || fail "existing settings avoid the default bar reset"
     after=$(readlink "$settings" || sha256sum "$settings")

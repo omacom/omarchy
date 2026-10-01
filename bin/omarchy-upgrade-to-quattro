@@ -2392,10 +2392,10 @@ apply_user_hardware_transition
 run_as_user_omarchy omarchy-refresh-applications ||
   warn "Could not refresh application launchers; run 'omarchy refresh applications' after reboot."
 if [[ -f $bar_defaults_pending ]]; then
-  if run_as_user_omarchy omarchy-bar defaults; then
+  if run_as_user_omarchy omarchy-bar defaults --preserve-layout; then
     run_as_user rm -f "$bar_defaults_pending"
   else
-    warn "Could not restore the default bar widgets; run 'omarchy bar defaults' after reboot."
+    warn "Could not add installed-service bar widgets; retry after reboot with 'omarchy bar defaults --preserve-layout'."
   fi
 fi
 cleanup_retired_services
