@@ -43,10 +43,16 @@ Item {
 
   function appsSignature() {
     var values = DesktopEntries.applications.values || []
-    var ids = []
-    for (var i = 0; i < values.length; i++) ids.push(String((values[i] && values[i].id) || ""))
-    ids.sort()
-    return ids.join("\u0001")
+    var entries = []
+    // Quickshell updates entries in place by id, so the fields consumers copy
+    // into their rows belong here too, or a renamed app keeps its old label.
+    for (var i = 0; i < values.length; i++) {
+      var entry = values[i]
+      if (!entry) continue
+      entries.push([entry.id, entry.name, entry.genericName, entry.icon, AppSearch.keywordText(entry)].join("\u0002"))
+    }
+    entries.sort()
+    return entries.join("\u0001")
   }
 
   function entryName(entry) {
