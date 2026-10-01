@@ -131,30 +131,36 @@ multiplexer_pane_cwd() {
 }
 
 terminal_tree_cwd() {
-  local pid pane_cwd pid_cwd pid_tty mux_cwd="" tree_cwd=""
+  local pid pane_cwd pid_cwd pid_tty mux_cwd="" tree_cwd="" shell_cwd=""
 
   while read -r pid; do
-    if pane_cwd=$(multiplexer_pane_cwd "$pid"); then
+    pid_tty=$(tty_state "$pid")
+
+    # A client the user has stopped or backgrounded is not what they are looking at.
+    if [[ $pid_tty == "foreground" ]] && pane_cwd=$(multiplexer_pane_cwd "$pid"); then
       [[ -d $pane_cwd && -z $mux_cwd ]] && mux_cwd=$pane_cwd
       continue
     fi
 
     pid_cwd=$(process_cwd "$pid")
-    pid_tty=$(tty_state "$pid")
 
     if [[ -d $pid_cwd ]]; then
       if [[ $pid_tty == "foreground" ]]; then
         tree_cwd=$pid_cwd
       elif [[ -z $pid_tty ]] && is_login_shell "$(exe_path "$pid")"; then
-        tree_cwd=$pid_cwd
+        shell_cwd=$pid_cwd
       fi
     fi
   done < <(descendants "$1")
 
+  # A shell with no terminal answers only when nothing holding one did, so a
+  # helper detached with setsid cannot speak over the foreground shell.
   if [[ -n $mux_cwd ]]; then
     echo "$mux_cwd"
-  else
+  elif [[ -n $tree_cwd ]]; then
     echo "$tree_cwd"
+  else
+    echo "$shell_cwd"
   fi
 }
 

@@ -153,6 +153,17 @@ resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
 actual:   $resolved"
 pass "a background job does not answer for the foreground shell"
 
+# A shell detached from the terminal with setsid has none, and must not speak
+# over the foreground shell that does.
+mkdir -p "$test_tmp/detached"
+start_terminal_window "cd '$test_tmp/foreground' && bash -c \"(cd '$test_tmp/detached' && setsid bash -c 'sleep 300; :') & wait\""
+sleep 1
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
+[[ $resolved == "$test_tmp/foreground" ]] ||
+  fail "a detached shell does not answer for the foreground shell" "expected: $test_tmp/foreground
+actual:   $resolved"
+pass "a detached shell does not answer for the foreground shell"
+
 # A tmux client is not always a direct child of the window: the stock launcher
 # runs `bash -c "tmux attach || tmux new"`.
 mkdir -p "$test_tmp/launched" "$test_tmp/pane"
@@ -182,6 +193,18 @@ resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window" OMARCHY_TEST_TMUX_LOG="$tmu
   fail "a silent multiplexer falls back to the terminal, not the client" "expected: $test_tmp/launched
 actual:   $resolved"
 pass "a silent multiplexer falls back to the terminal, not the client"
+
+# A client the user sent to the background is not the pane they are looking at.
+bg_client_pidfile="$test_tmp/tmux-bg-client.pid"
+start_terminal_window "cd '$test_tmp/foreground' && bash -c \"set -m; OMARCHY_TEST_PIDFILE='$bg_client_pidfile' '$fake_bin/tmux' '$test_tmp/idle' -L probe attach & wait\""
+wait_for_file "$bg_client_pidfile" || fail "background tmux client starts"
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window" OMARCHY_TEST_TMUX_LOG="$tmux_log" \
+  OMARCHY_TEST_TMUX_CLIENT="$(<"$bg_client_pidfile")" OMARCHY_TEST_TMUX_PANE="$test_tmp/pane" \
+  OMARCHY_TEST_TMUX_DECOY="$test_tmp/launched")
+[[ $resolved == "$test_tmp/foreground" ]] ||
+  fail "a backgrounded tmux client does not answer for the foreground shell" "expected: $test_tmp/foreground
+actual:   $resolved"
+pass "a backgrounded tmux client does not answer for the foreground shell"
 
 # herdr keys its answer off the session named in the client's argv.
 mkdir -p "$test_tmp/herdr-pane"
