@@ -3,6 +3,8 @@
 # omarchy:summary=Expose the generated GTK4 theme to GTK and Nautilus
 # omarchy:hidden=true
 
+set -e
+
 GENERATED_CSS="$HOME/.local/state/omarchy/current/theme/gtk.css"
 GTK_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/gtk-4.0"
 GTK_CSS="$GTK_CONFIG_DIR/gtk.css"
@@ -20,33 +22,50 @@ notify_nautilus() {
 
 mkdir -p "$GTK_CONFIG_DIR"
 
-if [[ -L $OMARCHY_CSS ]] || [[ -f $OMARCHY_CSS && $(<"$OMARCHY_CSS") == $MISSING_THEME_SENTINEL ]]; then
-  rm -f "$OMARCHY_CSS"
-elif [[ -e $OMARCHY_CSS ]]; then
+# A matching target remains Omarchy-owned even while the theme is being swapped.
+# Unrelated symlinks, including dangling links, belong to the user.
+if [[ -L $OMARCHY_CSS ]]; then
+  if [[ $(readlink -m "$OMARCHY_CSS") != $(readlink -m "$GENERATED_CSS") ]]; then
+    notify_nautilus
+    exit 0
+  fi
+elif [[ -e $OMARCHY_CSS && ! ( -f $OMARCHY_CSS && $(<"$OMARCHY_CSS") == "$MISSING_THEME_SENTINEL" ) ]]; then
+  notify_nautilus
   exit 0
 fi
 
+css_tmp=$(mktemp --tmpdir="$GTK_CONFIG_DIR" .omarchy.css.XXXXXX)
+trap 'rm -f "$css_tmp"' EXIT
 if [[ -f $GENERATED_CSS ]]; then
-  link_tmp=$(mktemp --tmpdir="$GTK_CONFIG_DIR" .omarchy.css.XXXXXX)
-  rm -f "$link_tmp"
-  ln -s "$GENERATED_CSS" "$link_tmp"
-  mv -T "$link_tmp" "$OMARCHY_CSS"
+  rm -f "$css_tmp"
+  ln -s "$GENERATED_CSS" "$css_tmp"
 else
-  printf '%s\n' "$MISSING_THEME_SENTINEL" >"$OMARCHY_CSS"
+  printf '%s\n' "$MISSING_THEME_SENTINEL" >"$css_tmp"
 fi
+mv -T "$css_tmp" "$OMARCHY_CSS"
 
 if [[ ! -e $GTK_CSS && ! -L $GTK_CSS ]]; then
   printf '%s\n' "$OMARCHY_IMPORT" >"$GTK_CSS"
-elif [[ -L $GTK_CSS ]]; then
-  notify_nautilus
-  exit 0
-elif [[ -f $GTK_CSS ]] && ! grep -Fxq "$OMARCHY_IMPORT" "$GTK_CSS"; then
-  css_tmp=$(mktemp --tmpdir="$GTK_CONFIG_DIR" .gtk.css.XXXXXX)
-  {
-    printf '%s\n\n' "$OMARCHY_IMPORT"
-    cat "$GTK_CSS"
-  } >"$css_tmp"
-  mv -T "$css_tmp" "$GTK_CSS"
+elif [[ -f $GTK_CSS ]]; then
+  gtk_css_file="$GTK_CSS"
+  import="$OMARCHY_IMPORT"
+  if [[ -L $GTK_CSS ]]; then
+    gtk_css_file=$(readlink -f "$GTK_CSS")
+    # An absolute import also works if a dotfile manager loads the target directly.
+    escaped_css=${OMARCHY_CSS//\\/\\\\}
+    escaped_css=${escaped_css//\"/\\\"}
+    import="@import url(\"$escaped_css\");"
+  fi
+
+  if ! grep -Fxq "$import" "$gtk_css_file" && ! grep -Fxq "$OMARCHY_IMPORT" "$gtk_css_file"; then
+    css_tmp=$(mktemp --tmpdir="$(dirname "$gtk_css_file")" .gtk.css.XXXXXX)
+    {
+      printf '%s\n\n' "$import"
+      cat "$gtk_css_file"
+    } >"$css_tmp"
+    chmod --reference="$gtk_css_file" "$css_tmp"
+    mv -T "$css_tmp" "$gtk_css_file"
+  fi
 fi
 
 notify_nautilus

@@ -4,6 +4,8 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 export PATH="$ROOT/bin:$PATH"
+# A scratch HOME does not isolate an inherited desktop session bus.
+unset DBUS_SESSION_BUS_ADDRESS OMARCHY_THEME_HEADLESS OMARCHY_THEME_OFFLINE
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -156,6 +158,42 @@ HOME="$home" XDG_CONFIG_HOME="$home/.config" OMARCHY_PATH="$ROOT" \
   "$ROOT/bin/omarchy-theme-set-gtk"
 grep -Fxq '/* user-owned omarchy.css */' "$omarchy_css" || fail "user-owned omarchy.css is preserved"
 pass "GTK installation does not overwrite an unrelated omarchy.css"
+
+rm "$omarchy_css"
+user_css="$home/user-style.css"
+printf '/* user-owned stylesheet */\n' >"$user_css"
+ln -s "$user_css" "$omarchy_css"
+HOME="$home" XDG_CONFIG_HOME="$home/.config" "$ROOT/bin/omarchy-theme-set-gtk"
+[[ $(readlink "$omarchy_css") == "$user_css" ]] || fail "user-owned stylesheet symlink is preserved"
+grep -Fxq '/* user-owned stylesheet */' "$user_css" || fail "user-owned stylesheet is not modified"
+rm "$omarchy_css"
+ln -s "$home/missing-user-style.css" "$omarchy_css"
+HOME="$home" XDG_CONFIG_HOME="$home/.config" "$ROOT/bin/omarchy-theme-set-gtk"
+[[ $(readlink "$omarchy_css") == "$home/missing-user-style.css" ]] || fail "dangling user stylesheet symlink is preserved"
+rm "$omarchy_css"
+pass "GTK installation preserves unrelated and dangling stylesheet symlinks"
+
+# Dotfile-managed entrypoints keep their symlink and acquire a working import.
+dotfiles="$home/dotfiles/gtk"
+mkdir -p "$dotfiles"
+dotfile_css="$dotfiles/custom.css"
+printf 'button { border-radius: 7px; }\n' >"$dotfile_css"
+chmod 640 "$dotfile_css"
+rm "$gtk_css"
+ln -s "$dotfile_css" "$gtk_css"
+HOME="$home" XDG_CONFIG_HOME="$home/.config" "$ROOT/bin/omarchy-theme-set-gtk"
+HOME="$home" XDG_CONFIG_HOME="$home/.config" "$ROOT/bin/omarchy-theme-set-gtk"
+[[ -L $gtk_css && $(readlink "$gtk_css") == "$dotfile_css" ]] || fail "GTK entrypoint symlink is preserved"
+[[ $(grep -Fxc "@import url(\"$omarchy_css\");" "$dotfile_css") == 1 ]] || fail "symlink target gets one absolute import"
+grep -Fq 'button { border-radius: 7px; }' "$dotfile_css" || fail "symlinked user CSS is preserved"
+[[ $(stat -c %a "$dotfile_css") == "640" ]] || fail "symlinked stylesheet permissions are preserved"
+pass "GTK installation themes dotfile-managed entrypoints"
+
+rm "$gtk_css"
+ln -s "$home/missing-gtk.css" "$gtk_css"
+HOME="$home" XDG_CONFIG_HOME="$home/.config" "$ROOT/bin/omarchy-theme-set-gtk"
+[[ $(readlink "$gtk_css") == "$home/missing-gtk.css" && ! -e $home/missing-gtk.css ]] || fail "dangling GTK entrypoint is left alone"
+pass "GTK installation does not invent targets for dangling user entrypoints"
 
 PYTHONPYCACHEPREFIX="$test_tmp/pycache" python -m py_compile "$ROOT/default/nautilus-python/extensions/omarchy_theme.py"
 pass "Nautilus extension is syntactically valid"
