@@ -94,15 +94,18 @@ grep -qFx down "$test_tmp/calls.log" ||
   fail "Windows VM still stops after a successful RDP session" "$(cat "$test_tmp/calls.log")"
 pass "Windows VM keeps its automatic stop after a successful RDP session"
 
-# FreeRDP exits 2 when the user signs out of Windows: the session connected.
-: >"$test_tmp/calls.log"
-set +e
-run_launch 2 >/dev/null
-set -e
+# FreeRDP exits 2 or 12 when the session is logged off, and 4 when it reaches the
+# server's session time limit: the session connected, so the VM still stops.
+for code in 2 4 12; do
+  : >"$test_tmp/calls.log"
+  set +e
+  run_launch "$code" >/dev/null
+  set -e
 
-grep -qFx down "$test_tmp/calls.log" ||
-  fail "Windows VM still stops after signing out of Windows" "$(cat "$test_tmp/calls.log")"
-pass "Windows VM keeps its automatic stop after signing out of Windows"
+  grep -qFx down "$test_tmp/calls.log" ||
+    fail "Windows VM still stops after a session that ended with $code" "$(cat "$test_tmp/calls.log")"
+done
+pass "Windows VM keeps its automatic stop after a session that connected"
 
 # Tolerate either shell quoting of the argument -- what must not drift is the
 # title itself, since the Hyprland rule below matches on it.

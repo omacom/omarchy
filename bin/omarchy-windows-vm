@@ -1486,7 +1486,7 @@ To stop: omarchy-windows-vm stop"
   # Connection errors include server denial below 128; only normal session
   # endings should stop a running VM. FreeRDP also uses 0 for a closed window.
   case $RDP_STATUS in
-  0 | 1 | 2 | 3 | 5 | 11 | 12) ;;
+  0 | 1 | 2 | 3 | 4 | 5 | 11 | 12) ;;
   *)
     echo ""
     echo "RDP connection failed. Windows VM is still running."
