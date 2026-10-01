@@ -5,6 +5,22 @@
 
 set -e
 
+# Resolve the invoking account before changing authentication or packages.
+if (( EUID == 0 )) && [[ -v SUDO_UID ]]; then
+  if [[ ! $SUDO_UID =~ ^[0-9]+$ ]]; then
+    echo "Cannot identify the invoking fingerprint user" >&2
+    exit 1
+  fi
+  fingerprint_user=$(/usr/bin/id -nu "+$SUDO_UID") || exit 1
+else
+  fingerprint_user=$(/usr/bin/id -un) || exit 1
+fi
+
+if [[ -z $fingerprint_user || $fingerprint_user == "." || $fingerprint_user == ".." || $fingerprint_user == */* ]]; then
+  echo "Unsafe fingerprint user name" >&2
+  exit 1
+fi
+
 
 remove_pam_config() {
   # Remove from sudo (both the fingerprint module and its clamshell gate)
@@ -33,7 +49,9 @@ echo -e "\e[32mRemoving fingerprint scanner from authentication.\n\e[0m"
 remove_pam_config
 remove_lock_fingerprint_pam
 
+sudo rm -rf -- "/var/lib/fprint/$fingerprint_user"
+
 echo "Removing fingerprint packages..."
 omarchy-pkg-drop fprintd libfprint libfprint-git
 
-echo -e "\e[32mFingerprint authentication has been completely removed.\e[0m"
+echo -e "\e[32mFingerprint authentication and $fingerprint_user's local saved fingerprints have been removed.\e[0m"
