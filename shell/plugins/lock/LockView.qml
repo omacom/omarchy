@@ -142,6 +142,24 @@ Item {
       onPositionChanged: root.wakeRequested()
     }
 
+    Loader {
+      anchors.horizontalCenter: inputField.horizontalCenter
+      anchors.bottom: inputField.top
+      anchors.bottomMargin: 32
+      width: Math.min(144, Math.max(0, inputField.y - 48), root.width / 3)
+      height: width
+      // Keep the password field centered and omit the decoration on short
+      // outputs. Unload it with the lock, rather than animate while unlocked.
+      active: root.loadBackground && width >= 60
+      sourceComponent: LockMascot {
+        objectName: "lockMascot"
+        color: root.errorState ? Color.lock.textError : Color.accent
+        motionEnabled: !root.displaysBlank && !root.powerSaverActive && !Style.reduceMotion
+        eyesClosed: root.passwordText.length > 0 || root.authenticatingPassword
+        failedAttempts: root.failedAttempts
+      }
+    }
+
     BorderSurface {
       id: inputField
       width: root.fieldWidth
