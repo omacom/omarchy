@@ -112,8 +112,8 @@ chmod +x "$test_tmp/bin/git"
 rescans_before=$(wc -l <"$test_tmp/rescans")
 if PATH="$test_tmp/bin:$PATH" update test.race; then fail "an edit during merge must not report a validated update"; fi
 [[ -f $checkout/unvalidated.txt ]] || fail "concurrent edits remain intact"
-(( $(wc -l <"$test_tmp/rescans") == rescans_before )) || fail "a changed tree is not reloaded"
-pass "a concurrent local write is detected without deleting it or reloading"
+(( $(wc -l <"$test_tmp/rescans") == rescans_before )) || fail "a changed tree skips the explicit rescan"
+pass "a concurrent local write is detected without deleting it or requesting a rescan"
 
 cat >"$test_tmp/bin/omarchy-plugin-validate" <<'SH'
 #!/bin/bash
@@ -146,5 +146,5 @@ git -C "$remote" commit -qam 'batch update'
 rescans_before=$(wc -l <"$test_tmp/rescans")
 if HOME="$batch_home" bash "$ROOT/bin/omarchy-plugin-update" --yes; then fail "a partially refused batch reports failure"; fi
 [[ $(git -C "$batch_home/.config/omarchy/plugins/alpha" rev-parse HEAD) == $(git -C "$remote" rev-parse HEAD) ]] || fail "valid batch entries still update"
-(( $(wc -l <"$test_tmp/rescans") == rescans_before )) || fail "a partial batch cannot rescan a dirty plugin"
-pass "a partially failed batch does not reload unvalidated plugins"
+(( $(wc -l <"$test_tmp/rescans") == rescans_before )) || fail "a failed batch skips the explicit rescan"
+pass "a partially failed batch makes no explicit rescan request"
