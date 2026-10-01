@@ -35,7 +35,12 @@ mkdir -p "$mock_bin" "$fake_bin" "$fallback_home"
 # The window pid the resolver asks Hyprland for.
 cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
+if [[ -n ${OMARCHY_TEST_NO_HYPRCTL:-} ]]; then
+  echo "hyprctl was asked for the active window" >&2
+  exit 1
+fi
 [[ -n ${OMARCHY_TEST_WINDOW_PID:-} ]] && printf '\tpid: %s\n' "$OMARCHY_TEST_WINDOW_PID"
+exit 0
 SH
 
 # A tmux server answering for one client, plus a decoy client that must not be
@@ -94,9 +99,18 @@ wait_for_file() {
   return 1
 }
 
+# Environment assignments, then optionally -- and the resolver's arguments.
 resolve() {
+  local vars=()
+
+  while (( $# > 0 )) && [[ $1 != "--" ]]; do
+    vars+=("$1")
+    shift
+  done
+  (( $# > 0 )) && shift
+
   env -i PATH="$mock_bin:$PATH" HOME="$fallback_home" XDG_RUNTIME_DIR="$test_tmp" \
-    "$@" bash "$resolver"
+    "${vars[@]}" bash "$resolver" "$@"
 }
 
 # The deepest process in the terminal answers, even when its program is not
@@ -110,6 +124,14 @@ resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
   fail "terminal cwd follows the deepest process in the terminal" "expected: $test_tmp/inner
 actual:   $resolved"
 pass "terminal cwd follows the deepest process in the terminal"
+
+# The Super+Return binding hands over the focused window's pid, so Hyprland is
+# not asked again.
+resolved=$(resolve OMARCHY_TEST_NO_HYPRCTL=1 -- "$window" 2>&1)
+[[ $resolved == "$test_tmp/inner" ]] ||
+  fail "a terminal pid passed in is resolved without hyprctl" "expected: $test_tmp/inner
+actual:   $resolved"
+pass "a terminal pid passed in is resolved without hyprctl"
 
 # A tmux client is not always a direct child of the window: the stock launcher
 # runs `bash -c "tmux attach || tmux new"`.
@@ -186,8 +208,8 @@ resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window" OMARCHY_TEST_KITTY_PANE="$t
 actual:   $resolved"
 pass "kitty answers over its remote control socket"
 
-# No focused window at all.
-resolved=$(resolve)
+# No focused window at all, and nothing written to stderr about it.
+resolved=$(resolve 2>&1)
 [[ $resolved == "$fallback_home" ]] ||
   fail "no active window falls back to home" "expected: $fallback_home
 actual:   $resolved"
