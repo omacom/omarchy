@@ -23,10 +23,12 @@ if [[ $1 == "notifications" && $2 == "dndState" ]]; then
   exit 0
 fi
 if [[ $1 == "notifications" && $2 == "setDnd" ]]; then
+  [[ ${DND_SET_FAIL:-} == "$3" ]] && exit 1
   printf '%s\n' "$3" >"$DND_SET_LOG"
   printf '%s\n' "$3"
   exit 0
 fi
+[[ ${BAR_SYNC_FAIL:-0} == "1" && $1 == "omarchy.bar" && $2 == "syncHidden" ]] && exit 1
 exit 0
 SH
 cat >"$stub/omarchy-notification-send" <<'SH'
@@ -128,6 +130,72 @@ run off >/dev/null
 [[ ! -f $home/.local/state/omarchy/toggles/presentation ]] || fail "retry finishes restoration"
 pass "failed DND restoration retains its snapshot until a successful retry"
 
+# A shell may answer the snapshot query, then fail the activation setter.
+if DND_SET_FAIL=on run on >"$tmpdir/failed-on" 2>&1; then
+  fail "activation reports a failed DND setter"
+fi
+original_snapshot=$(sed -n '/^bar_off=/p; /^dnd=/p; /^stay_awake=/p' "$home/.local/state/omarchy/presentation-restore")
+[[ ! -f $home/.local/state/omarchy/indicators/stay-awake ]] || fail "activation interruption occurs before Stay Awake"
+if DND_SET_FAIL=on run on >"$tmpdir/failed-retry" 2>&1; then
+  fail "retry cannot claim an interrupted activation succeeded"
+fi
+run on >/dev/null
+[[ -f $home/.local/state/omarchy/indicators/stay-awake ]] || fail "activation retry completes Stay Awake"
+[[ $(sed -n '/^bar_off=/p; /^dnd=/p; /^stay_awake=/p' "$home/.local/state/omarchy/presentation-restore") == "$original_snapshot" ]] || fail "activation retry retains original snapshot"
+: >"$tmpdir/shell.log"
+run on >/dev/null
+[[ ! -s $tmpdir/shell.log ]] || fail "completed activation remains idempotent"
+run off >/dev/null
+[[ ! -f $home/.local/state/omarchy/toggles/bar-off && ! -f $home/.local/state/omarchy/indicators/stay-awake ]] || fail "retried activation restores original settings"
+pass "interrupted activation retries finish settings without replacing the original snapshot"
+
+run on >/dev/null
+if DND_SET_FAIL=off run off >/dev/null 2>&1; then
+  fail "DND-only restore failure reports failure"
+fi
+[[ -f $home/.local/state/omarchy/toggles/bar-off ]] || fail "failed DND restoration leaves bar restoration pending"
+[[ -f $home/.local/state/omarchy/indicators/stay-awake ]] || fail "failed DND restoration leaves idle restoration pending"
+run off >/dev/null
+pass "DND restoration succeeds before changing bar and idle settings"
+
+# Failure after one restoration must not replay that step on retry.
+run on >/dev/null
+if BAR_SYNC_FAIL=1 run off >/dev/null 2>&1; then
+  fail "bar synchronization failure reports failure"
+fi
+[[ ! -f $home/.local/state/omarchy/toggles/bar-off ]] || fail "bar was restored before its synchronization failed"
+touch "$home/.local/state/omarchy/toggles/bar-off"
+: >"$tmpdir/dnd"
+run off >/dev/null
+[[ -f $home/.local/state/omarchy/toggles/bar-off ]] || fail "retry preserves bar changes made after successful restoration"
+[[ ! -s $tmpdir/dnd ]] || fail "retry does not replay successful DND restoration"
+rm -f "$home/.local/state/omarchy/toggles/bar-off"
+pass "restoration retry skips successful steps and preserves later user choices"
+
+# `on` after a partial `off` must reapply the mode and discard restoration
+# progress, while retaining the original values for the next `off`.
+run on >/dev/null
+if BAR_SYNC_FAIL=1 run off >/dev/null 2>&1; then
+  fail "partial restoration reaches retry state"
+fi
+run on >/dev/null
+[[ -f $home/.local/state/omarchy/toggles/bar-off && -f $home/.local/state/omarchy/indicators/stay-awake ]] || fail "on reverses partial restoration"
+run off >/dev/null
+[[ ! -f $home/.local/state/omarchy/toggles/bar-off && ! -f $home/.local/state/omarchy/indicators/stay-awake ]] || fail "reversed partial restoration still restores original values"
+pass "on after partial restoration starts fresh progress with the same snapshot"
+
+# The updater hands its expired idle ownership to presentation by updating
+# this existing snapshot key under the shared presentation lock.
+touch "$home/.local/state/omarchy/indicators/stay-awake"
+if DND_SET_FAIL=on run on >/dev/null 2>&1; then
+  fail "idle handover scenario interrupts activation"
+fi
+sed -i 's/^stay_awake=1$/stay_awake=0/' "$home/.local/state/omarchy/presentation-restore"
+run on >/dev/null
+run off >/dev/null
+[[ ! -f $home/.local/state/omarchy/indicators/stay-awake ]] || fail "activation resume preserves update idle handover"
+pass "activation retry preserves the updater's idle handover in the original snapshot"
+
 # Stop the first activation immediately after hiding the bar.
 cat >"$stub/omarchy-toggle-bar" <<'SCRIPT'
 #!/bin/bash
@@ -173,4 +241,21 @@ wait "$first_pid" 2>/dev/null || true
 run off >/dev/null
 [[ ! -f $home/.local/state/omarchy/toggles/bar-off ]] || fail "interrupted on restores original bar"
 pass "interrupted on remains recoverable through off"
+
+rm -f "$TEST_BARRIER" "$TEST_RELEASE"
+run on >"$tmpdir/interrupted-retry" &
+first_pid=$!
+for _ in {1..100}; do
+  [[ -f $TEST_BARRIER ]] && break
+  sleep 0.02
+done
+[[ -f $TEST_BARRIER ]] || fail "retry scenario reaches interruption barrier"
+kill -KILL "$(<"$TEST_BARRIER")"
+touch "$TEST_RELEASE"
+wait "$first_pid" 2>/dev/null || true
+run on >/dev/null
+[[ -f $home/.local/state/omarchy/indicators/stay-awake ]] || fail "on resumes a killed activation"
+run off >/dev/null
+[[ ! -f $home/.local/state/omarchy/toggles/bar-off ]] || fail "killed activation retry retains original visible bar"
+pass "on after process termination resumes activation with the original snapshot"
 rm -f "$stub/omarchy-toggle-bar"
