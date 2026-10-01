@@ -18,7 +18,20 @@ admin_url=${OMARCHY_TAILSCALE_ADMIN_URL:-}
 admin_icon="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/tailscale-light.png"
 
 valid_http_url() {
-  [[ $1 =~ ^https?://[^[:space:]/?#]+(/[^[:space:]]*)?$ ]]
+  python - "$1" <<'PY'
+import sys
+from urllib.parse import urlsplit
+
+url = sys.argv[1]
+try:
+    parsed = urlsplit(url)
+    valid = parsed.scheme in ("http", "https") and bool(parsed.hostname)
+    valid = valid and not any(char.isspace() or ord(char) < 32 for char in url)
+    parsed.port  # Reject malformed and out-of-range ports too.
+except ValueError:
+    valid = False
+sys.exit(0 if valid else 1)
+PY
 }
 
 if [[ -n $login_server ]] && ! valid_http_url "$login_server"; then
@@ -72,5 +85,11 @@ if [[ -n $admin_url ]]; then
 elif [[ -z $login_server ]]; then
   omarchy-webapp-install "Tailscale" "https://login.tailscale.com/admin/machines" "$admin_icon"
 else
+  # A previous hosted install may have created this launcher. Remove only
+  # that known web app; leave custom launchers with the same name alone.
+  desktop_file="$HOME/.local/share/applications/Tailscale.desktop"
+  if [[ -f $desktop_file ]] && grep -Eq '^Exec=omarchy-(launch-webapp|webapp-handler) "?https://login\.tailscale\.com/admin/machines"?$' "$desktop_file"; then
+    OMARCHY_REMOVE_NOTIFY=false omarchy-webapp-remove Tailscale || exit 1
+  fi
   echo "Skipping the hosted Tailscale admin web app. Set OMARCHY_TAILSCALE_ADMIN_URL if this coordination server has one."
 fi

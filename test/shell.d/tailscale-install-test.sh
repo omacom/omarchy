@@ -12,6 +12,8 @@ call_log="$test_tmp/calls"
 stdout_log="$test_tmp/stdout"
 stderr_log="$test_tmp/stderr"
 key_log="$test_tmp/key"
+test_home="$test_tmp/home"
+desktop_file="$test_home/.local/share/applications/Tailscale.desktop"
 mkdir -p "$stub_bin"
 
 cat >"$stub_bin/id" <<'SH'
@@ -57,6 +59,13 @@ SH
 cat >"$stub_bin/omarchy-webapp-install" <<'SH'
 #!/bin/bash
 printf 'webapp %s\n' "$*" >>"$OMARCHY_TEST_CALL_LOG"
+mkdir -p "$HOME/.local/share/applications"
+printf '[Desktop Entry]\nExec=omarchy-launch-webapp "%s"\n' "$2" >"$HOME/.local/share/applications/$1.desktop"
+SH
+cat >"$stub_bin/omarchy-webapp-remove" <<'SH'
+#!/bin/bash
+printf 'webapp-remove %s\n' "$*" >>"$OMARCHY_TEST_CALL_LOG"
+rm -f "$HOME/.local/share/applications/$1.desktop"
 SH
 chmod +x "$stub_bin"/*
 
@@ -66,7 +75,7 @@ run_install() {
   : >"$stderr_log"
   : >"$key_log"
   local status=0
-  PATH="$stub_bin:$PATH" \
+  env HOME="$test_home" PATH="$stub_bin:$PATH" \
     OMARCHY_TEST_CALL_LOG="$call_log" \
     OMARCHY_TEST_KEY_LOG="$key_log" \
     USER=root \
@@ -129,6 +138,20 @@ status=$(run_install "" "" "admin.example.com")
 [[ ! -s $call_log ]] || fail "invalid admin URL is rejected before any side effect"
 pass "an invalid admin URL is rejected before install"
 
+for url in 'https://:8080' 'https://user@:8080' 'https://' 'https://[not-ipv6]' 'https://headscale.example.com:invalid' 'https://headscale.example.com:65536'; do
+  status=$(run_install "$url")
+  [[ $status != 0 && ! -s $call_log ]] || fail "a malformed server URL is rejected before any side effect" "$url"
+  status=$(run_install "" "" "$url")
+  [[ $status != 0 && ! -s $call_log ]] || fail "a malformed admin URL is rejected before any side effect" "$url"
+done
+pass "missing hosts, invalid IPv6, and invalid ports are rejected before install"
+
+for url in 'http://localhost:8080' 'https://127.0.0.1:8443/path' 'https://[::1]:8443/path' 'https://headscale.example.com/path?key=value'; do
+  status=$(run_install "$url")
+  [[ $status == 0 ]] || fail "a valid hostname or IP URL is accepted" "$url"
+done
+pass "hostnames, IPv4, bracketed IPv6, ports, and paths remain supported"
+
 status=$(run_install "" "" "https://admin.example.com")
 [[ $status == 0 ]] || fail "hosted join with a custom admin URL succeeds"
 grep -Fx 'sudo tailscale up --accept-routes --operator=omarchy-test-user' "$call_log" >/dev/null || fail "admin URL alone keeps the hosted join"
@@ -153,3 +176,24 @@ status=$(OMARCHY_TEST_FAIL_PACKAGE=1 run_install)
 status=$(OMARCHY_TEST_FAIL_DAEMON=1 run_install)
 [[ $status != 0 && $(wc -l <"$call_log") == 2 ]] || fail "failed daemon startup stops setup"
 pass "package and daemon failures stop setup before joining"
+
+status=$(run_install)
+[[ $status == 0 && -f $desktop_file ]] || fail "hosted installation creates its admin launcher"
+status=$(run_install "https://headscale.example.com")
+[[ $status == 0 && ! -e $desktop_file ]] || fail "self-hosted join removes the previous hosted admin launcher"
+grep -Fx 'webapp-remove Tailscale' "$call_log" >/dev/null || fail "stale hosted launcher uses the webapp removal helper"
+pass "switching to a self-hosted server removes the old hosted admin launcher"
+
+status=$(run_install)
+status=$(OMARCHY_TEST_FAIL_UP=1 run_install "https://headscale.example.com")
+[[ $status != 0 && -f $desktop_file ]] || fail "failed self-hosted join preserves the previous launcher"
+! grep -F 'webapp-remove' "$call_log" >/dev/null || fail "failed join must not remove the launcher"
+pass "a failed server switch leaves the current admin launcher intact"
+
+for exec in 'omarchy-launch-webapp "https://custom.example.com/admin"' '/usr/bin/custom-tailscale'; do
+  printf '[Desktop Entry]\nExec=%s\n' "$exec" >"$desktop_file"
+  status=$(run_install "https://headscale.example.com")
+  [[ $status == 0 && -f $desktop_file ]] || fail "custom Tailscale launchers are preserved"
+  ! grep -F 'webapp-remove' "$call_log" >/dev/null || fail "custom launcher must not be removed"
+done
+pass "custom launchers with the same name are preserved"

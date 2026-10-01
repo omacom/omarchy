@@ -40,7 +40,7 @@ That gives you a Tailscale panel in the bar, which connects and disconnects the 
 
 By default, installation joins Tailscale's hosted coordination server and adds a web app for its admin console.
 
-To join a self-hosted coordination server such as Headscale, set `OMARCHY_TAILSCALE_LOGIN_SERVER` to its http(s) URL when running `omarchy install service tailscale`. If the server has an admin console, set `OMARCHY_TAILSCALE_ADMIN_URL` to its http(s) URL too; otherwise the installer skips the admin web app. The admin URL can also override the hosted console without changing the coordination server.
+To join a self-hosted coordination server such as Headscale, set `OMARCHY_TAILSCALE_LOGIN_SERVER` to its http(s) URL when running `omarchy install service tailscale`. If the server has an admin console, set `OMARCHY_TAILSCALE_ADMIN_URL` to its http(s) URL too; otherwise the installer skips the admin web app and removes its previous hosted-console launcher after a successful join. The admin URL can also override the hosted console without changing the coordination server.
 
 For a join that uses a pre-auth key, supply it through `OMARCHY_TAILSCALE_AUTH_KEY`. The key must not contain whitespace. The installer passes it through standard input, keeping it out of command arguments, and stops if the join fails. For example, after securely setting the key in your environment:
 
