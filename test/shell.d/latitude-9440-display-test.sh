@@ -151,6 +151,16 @@ run_migration 1
 [[ ! -s $calls ]] || fail "a hand-applied PSR setting rebuilds nothing" "$(cat "$calls")"
 pass "a hand-applied PSR setting is left in place"
 
+# Only a setting Limine actually loads counts: not a comment, not a backup file.
+rm -rf "$test_tmp/etc"
+mkdir -p "$(dirname "$limine_conf")" "$drop_in_dir"
+printf '%s\n' '# tried i915.enable_psr=0 once' >"$limine_conf"
+printf '%s\n' 'KERNEL_CMDLINE[default]+=" i915.enable_psr=0"' >"$drop_in_dir/old.conf.bak"
+run_migration 1
+grep -Fq 'i915.enable_psr2_sel_fetch=0' "$drop_in" 2>/dev/null ||
+  fail "a commented or inactive PSR setting does not stop the workaround" "$(ls -R "$test_tmp/etc" 2>&1)"
+pass "a commented or inactive PSR setting does not stop the workaround"
+
 rm -rf "$test_tmp/etc"
 run_migration 0
 [[ ! -e $drop_in ]] || fail "the migration skips other hardware" "$(cat "$drop_in")"

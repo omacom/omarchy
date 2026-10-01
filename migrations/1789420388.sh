@@ -16,7 +16,7 @@ omarchy-cmd-present limine-mkinitcpio || exit 0
 # not rebuild the boot image again. Any existing i915 PSR setting counts as
 # handled: someone who reached for the blunter i915.enable_psr=0 by hand keeps
 # it rather than having a second, contradicting drop-in appear beside it.
-! grep -rqsF "i915.enable_psr" "$drop_in_dir" "$limine_conf" || exit 0
+! grep -qsE '^[^#]*i915\.enable_psr' "$drop_in_dir"/*.conf "$limine_conf" || exit 0
 
 sudo mkdir -p "$drop_in_dir"
 sudo tee "$drop_in" >/dev/null <<'EOF'
