@@ -51,17 +51,10 @@ ln -s "$ROOT/config" "$test_root/config"
 ln -s "$ROOT/bin" "$test_root/bin"
 
 # Every plugin under ~/.config/omarchy/plugins hot-reloads, whoever wrote it.
-# Built in a staging directory and moved into place as a single rename so the
-# plugin watcher sees one atomic directory creation instead of a mkdir plus
-# two separate file writes — the multi-step version fires onLocalPluginChanged
-# more than once right after startup, each triggering its own full
-# reloadPlugins() pass and inflating the IPC-handler-collision count below
-# with duplicates unrelated to the number of screens.
 hot_reload_id="acme.hot-reload"
-hot_reload_staging="$TMPDIR/.hot-reload-staging"
 hot_reload_dir="$test_home/.config/omarchy/plugins/$hot_reload_id"
-mkdir -p "$hot_reload_staging" "$test_home/.config/omarchy/plugins"
-cat >"$hot_reload_staging/manifest.json" <<JSON
+mkdir -p "$hot_reload_dir"
+cat >"$hot_reload_dir/manifest.json" <<JSON
 {
   "schemaVersion": 1,
   "id": "$hot_reload_id",
@@ -72,7 +65,7 @@ cat >"$hot_reload_staging/manifest.json" <<JSON
   "omarchy": {"clonedFrom": "omarchy.emojis"}
 }
 JSON
-cat >"$hot_reload_staging/Overlay.qml" <<'QML'
+cat >"$hot_reload_dir/Overlay.qml" <<'QML'
 import QtQuick
 
 Item {
@@ -80,7 +73,6 @@ Item {
   function close() {}
 }
 QML
-mv "$hot_reload_staging" "$hot_reload_dir"
 
 cat >"$stub_bin/omarchy-update-available" <<'SH'
 #!/bin/bash
