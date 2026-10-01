@@ -6,8 +6,9 @@
 # completing WPA state from the driver's authorization event, which broke
 # WPA2-PSK and WPA3-SAE association outright. That change (hostap 41638606054a)
 # is still in hostap 2.12 and main; what clears it here is Arch's downstream
-# revert of it, patches/0008-Revert-Mark-authorization-completed-on-driver-
-# indica.patch taken from Fedora and first shipped in wpa_supplicant 2:2.12-1.
+# revert of it, 0008-Revert-Mark-authorization-completed-on-driver-indica.patch
+# at the root of the wpa_supplicant packaging directory, taken from Fedora and
+# first shipped in wpa_supplicant 2:2.12-1.
 # A wpa_supplicant release that drops that patch brings the breakage back, and
 # the T2 group below is where to notice it.
 #
