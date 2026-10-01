@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Choose which Claude or Codex account new sessions use
+# omarchy:args=[claude|codex] [account|next]
+# omarchy:examples=omarchy agent account use work | omarchy agent account use main | omarchy agent account use codex next
+
+set -uo pipefail
+
+# The provider can be left out when it's your default agent:
+# `omarchy agent account use work`.
+if [[ ${1:-} != "claude" && ${1:-} != "codex" ]]; then
+  default=$(omarchy-default-agent)
+  [[ $default == "claude" || $default == "codex" ]] && set -- "$default" "$@"
+fi
+
+case "${1:-}" in
+claude) name="Claude" ;;
+codex) name="Codex" ;;
+*)
+  echo "Usage: omarchy-agent-account-use [claude|codex] [account|next]" >&2
+  exit 1
+  ;;
+esac
+
+result=$(omarchy-agent-account-state use "$1" "${2:-next}") || exit 1
+
+previous=$(jq -r .previous.label <<<"$result")
+active=$(jq -r '.active.label + (if (.active.plan // "") != "" then " (" + .active.plan + ")" else "" end)' <<<"$result")
+
+if [[ $(jq -r .previous.id <<<"$result") == "$(jq -r .active.id <<<"$result")" ]]; then
+  echo "New $name sessions already use $active."
+else
+  message="Running sessions stay on $previous."
+  echo "New $name sessions now use $active. $message"
+  omarchy-notification-send -g 󰚩 "New $name sessions now use $active" "$message"
+  # The usage record's own limits describe the active account.
+  omarchy-agent-usage-update --limits-only "$1" >/dev/null 2>&1 &
+fi
