@@ -32,7 +32,7 @@ if omarchy-hw-intel-ivsc; then
   # that leaves the picture washed out. These colour matrices were calibrated
   # from the Intel tuning binary of the XPS 13 9320 (libcamera-devel, May
   # 2026, not merged yet). Harmless on laptops with another sensor.
-  sudo install -Dm644 "$OMARCHY_PATH/default/libcamera/ov01a10.yaml" /usr/share/libcamera/ipa/simple/ov01a10.yaml
+  sudo install -Dm644 "$OMARCHY_PATH/default/libcamera/ov01a10.yaml" /etc/libcamera/ipa/simple/ov01a10.yaml
 
   # The module's own default device would otherwise show up in browsers as
   # "Dummy video device". Same file and content as the Cam Link 4K relay.

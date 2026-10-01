@@ -129,7 +129,7 @@ pass "the leaf installs the relay stack and matching kernel headers"
 
 for path in etc/udev/rules.d/71-intel-ipu6-isys.rules etc/v4l2-relayd.d/ipu6.conf \
   etc/systemd/system/ipu6-loopback.service etc/systemd/system/v4l2-relayd@ipu6.service.d/ipu6.conf \
-  etc/modprobe.d/v4l2loopback-exclusive-caps.conf usr/share/libcamera/ipa/simple/ov01a10.yaml; do
+  etc/modprobe.d/v4l2loopback-exclusive-caps.conf etc/libcamera/ipa/simple/ov01a10.yaml; do
   [[ -f $test_tmp/root/$path ]] || fail "the leaf installs $path"
 done
 grep -A1 'ISYS Capture \*"' "$test_tmp/root/etc/udev/rules.d/71-intel-ipu6-isys.rules" | grep -q 'TAG-="uaccess".*MODE="0600"' ||
