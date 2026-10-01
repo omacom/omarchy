@@ -36,6 +36,7 @@ SH
 cat >"$TMPDIR/bin/omarchy-notification-send" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$NOTIFICATION_LOG"
+exit "${NOTIFICATION_RESULT:-0}"
 SH
 
 chmod +x "$TMPDIR/bin"/*
@@ -79,3 +80,10 @@ grep -F 'hyprpicker --autocopy --no-fancy' "$TEST_LOG" >/dev/null || fail "succe
 PKILL_RESULT=1 omarchy-capture-color
 grep -F 'Color copied #12ab34 copied to clipboard' "$NOTIFICATION_LOG" >/dev/null || fail "a repeated same-color selection still notifies"
 pass "a repeated same-color selection still notifies"
+
+: >"$TEST_LOG"
+: >"$NOTIFICATION_LOG"
+NOTIFICATION_RESULT=1 PKILL_RESULT=1 omarchy-capture-color || fail "notification failure does not mark a completed color capture failed"
+grep -F 'Color copied #12ab34 copied to clipboard' "$NOTIFICATION_LOG" >/dev/null || fail "failed notification still receives the selected color"
+grep -F 'hyprpicker --autocopy --no-fancy' "$TEST_LOG" >/dev/null || fail "notification failure follows a successful autocopy selection"
+pass "notification failure does not mark a completed color capture failed"

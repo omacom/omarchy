@@ -13,4 +13,4 @@ if [[ -z $COLOR_HEX ]]; then
   exit 0
 fi
 
-omarchy-notification-send "Color copied" "$COLOR_HEX copied to clipboard"
+omarchy-notification-send "Color copied" "$COLOR_HEX copied to clipboard" || true
