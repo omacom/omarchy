@@ -138,4 +138,6 @@ assertEqual(model.eventKeyboardName(parsedEvent('at-translated-set-2-keyboard,En
 assertEqual(model.eventKeyboardName(rawEvent('hl-virtual-keyboard,English (US)')), '', 'the keyboard an input method injects through is not typed on')
 assertEqual(model.eventKeyboardName({ parse: () => { throw new Error('unsupported') }, data: 'kb,French' }), 'kb', 'a binding without parse falls back to the raw data')
 assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names no keyboard')
+assertEqual(model.eventKeyboardName(rawEvent('asus-wmi-hotkeys,French')), '', 'vendor hotkeys cannot replace the last typed keyboard')
+assertEqual(model.eventKeyboardName(rawEvent('asus-wireless-radio-control,English (US)')), '', 'radio events are excluded from keyboard selection')
 JS
