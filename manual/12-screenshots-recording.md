@@ -15,11 +15,11 @@ Everything you can grab off the screen hangs off the Print Screen key. One key o
 
 Hit `Print Screen` and Omasnap captures the focused monitor before its overlay appears, so nothing shifts under you while you aim. Drag a freeform region, click a window to capture it, or click open space to capture the whole monitor. Press `S` before drawing to capture a scrolling region. Changed your mind? Hit `Print Screen` again to dismiss Omasnap.
 
-After you select an area, Omasnap copies the capture to the clipboard and shows a preview for 10 seconds. Use the preview's pin button or `Ctrl + P` to keep it on screen, or choose Edit to annotate it.
+After you select an area, Omasnap saves the capture, copies it to the clipboard, and shows a preview for 10 seconds. Use the preview's pin button or `Ctrl + P` to keep it on screen, or choose Edit to annotate it.
 
 The annotation editor can draw arrows, lines, shapes, highlights, numbered markers, text, and secure redactions; crop or cut out part of the image; OCR its text; and add a backdrop. In the editor, press `Enter` to copy and save the finished PNG, `Ctrl + C` to copy it without saving, or `Ctrl + S` to save it without copying.
 
-Saved screenshots land in `~/Pictures/Screenshots` by default, with a name such as `screenshot-2026-08-13_14-22-05-firefox.png`. Set `OMASNAP_SCREENSHOT_DIR` to use another directory — see [the FAQ](46-faq.md) for where to put session environment variables. Omasnap creates the directory when it saves the first shot.
+Saved screenshots land in `~/Pictures/Screenshots` by default, with a name such as `screenshot-2026-08-13_14-22-05-firefox.png`. Set `OMASNAP_SCREENSHOT_DIR` to use another directory — see [the FAQ](46-faq.md) for where to put session environment variables. Omasnap creates the directory when it saves the first shot. Set `[output] autosave = false` in `~/.config/omasnap/omasnap.conf` to disable automatic saving.
 
 From the terminal, `omarchy screenshot` opens the same overlay, and you can choose its starting mode: `omarchy capture screenshot region`, `windows`, `fullscreen`, or `scroll`. A second argument of `copy` or `save` skips the preview and sends the shot straight to that destination. To edit before output, use `omarchy screenshot --editor=overlay` for a fullscreen editor or `omarchy screenshot --editor=window` for a separate window.
 
