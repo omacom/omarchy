@@ -101,6 +101,13 @@ case "$*" in
   *'lock status')
     if [[ -f $OMARCHY_TEST_QS_STATE.locked ]]; then
       printf '{"secure": true, "requested": true, "sessionLocked": true}\n'
+    elif [[ -f $OMARCHY_TEST_QS_STATE.surface ]]; then
+      # The lock surface exists — the ext-session-lock screen is up — but the
+      # compositor has not yet confirmed the session secure. That is the window
+      # a live locker passes through on the way to secure, so the restart must
+      # refuse on sessionLocked alone: killing this locker strands the session
+      # behind the failsafe exactly as if it were already secure.
+      printf '{"secure": false, "requested": false, "sessionLocked": true}\n'
     elif [[ -f $OMARCHY_TEST_QS_STATE.stale ]] &&
       [[ $(<"$OMARCHY_TEST_QS_STATE.stale") == "$(<"$OMARCHY_TEST_QS_STATE")" ]]; then
       # The shell answering here is the one that crashed while holding a lock
@@ -268,6 +275,32 @@ locked_error=$(PATH="$restart_bin:$PATH" \
 [[ $(<"$restart_state") == 303 ]] || fail "locked restart preserves the running shell"
 [[ ! -s $restart_log ]] || fail "locked restart does not stop or launch Quickshell"
 pass "restart preserves the shell while its lock is active"
+
+# A lock surface that exists but is not yet reported secure is still a live
+# locker: killing it strands the session behind Hyprland's failsafe. The
+# predicate must refuse on sessionLocked alone, so a regression that narrows
+# the check back to `secure` cannot silently allow this restart.
+: >"$restart_log"
+printf '303\n' >"$restart_state"
+rm -f "$restart_state.locked"
+touch "$restart_state.surface"
+
+surface_error=$(PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_SESSION_LOCKED=1 \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  "$ROOT/bin/omarchy-restart-shell" 2>&1) && fail "restart refuses while a lock surface is up"
+
+[[ $surface_error == "Refusing to restart Omarchy shell while the session is locked." ]] || fail "a live lock surface explains why it was refused" "$surface_error"
+[[ $(<"$restart_state") == 303 ]] || fail "a live lock surface preserves the running shell"
+[[ ! -s $restart_log ]] || fail "a live lock surface does not stop or launch Quickshell"
+rm -f "$restart_state.surface"
+pass "restart preserves the shell while a lock surface is up"
 
 # A LOCK session without an active locker — dead shell or a crash-handler
 # relaunch holding no lock — is the failsafe: restart must proceed,
