@@ -35,6 +35,11 @@ printf 'pkg-add %s\n' "$*" >>"$CALL_LOG"
 exit "${TEST_PKG_ADD_STATUS:-0}"
 SH
 
+cat >"$test_tmp/bin/omarchy-pkg-missing" <<'SH'
+#!/bin/bash
+[[ ${TEST_PKG_INSTALLED:-} != "1" ]]
+SH
+
 cat >"$test_tmp/bin/omarchy-state" <<'SH'
 #!/bin/bash
 printf 'state %s\n' "$*" >>"$CALL_LOG"
@@ -115,6 +120,7 @@ run_migration() {
     OMARCHY_PATH="$ROOT" \
     TEST_PRODUCT_NAME="${1-ThinkPad T14 Gen 2a}" \
     TEST_PKG_ADD_STATUS="${2:-0}" \
+    TEST_PKG_INSTALLED="${3:-0}" \
     OMARCHY_ACPI_DEVICES="$test_tmp/acpi" \
     OMARCHY_SERIO_DEVICES="$test_tmp/serio" \
     bash -euo pipefail "$migration" >/dev/null
@@ -129,6 +135,11 @@ run_migration "ThinkPad T14 Gen 2a" 1 && fail "a failing install leaves the migr
 grep -q 'state set reboot-required' "$call_log" &&
   fail "a failing install does not mark reboot-required"
 pass "a failing install leaves the migration pending without marking reboot-required"
+
+# Another user on the same machine already installed it and rebooted.
+run_migration "ThinkPad T14 Gen 2a" 0 1 || fail "the migration no-ops once the driver is installed"
+[[ -s $call_log ]] && fail "the migration no-ops once the driver is installed"
+pass "the migration no-ops once the driver is installed"
 
 run_migration "ThinkPad X1" || fail "the migration no-ops on other hardware"
 [[ -s $call_log ]] && fail "the migration no-ops on other hardware"
