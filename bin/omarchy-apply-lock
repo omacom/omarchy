@@ -40,7 +40,10 @@ auth       required                    pam_faillock.so authsucc
 account    include                     system-local-login
 EOF
 
-if omarchy-hw-fingerprint-enrolled "$target_user"; then
+# Pinned rather than resolved through PATH, so a root run never executes a
+# user-planted fprintd-list. Enrolled prints list as " - #0: right-index-finger".
+if [[ -x /usr/bin/fprintd-list ]] &&
+  /usr/bin/fprintd-list "$target_user" 2>/dev/null | grep -qE '^[[:space:]]*-[[:space:]]*#[0-9]+:'; then
   echo "Configuring lock screen fingerprint authentication..."
   as_root tee /etc/pam.d/omarchy-lock-fingerprint >/dev/null <<'EOF'
 #%PAM-1.0
