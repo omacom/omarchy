@@ -108,14 +108,6 @@ index_file="$cache_dir/index.tsv"
 rows=""
 mkdir -p "$cache_dir"
 
-declare -A thumbnail_hashes=()
-if [[ -f $index_file ]]; then
-  while IFS=$'\t' read -r path signature hash _; do
-    [[ -n $path && -n $signature && -n $hash ]] || continue
-    thumbnail_hashes["$path"$'\t'"$signature"]="$hash"
-  done <"$index_file"
-fi
-
 cache_key=$(printf '%s' "$image_dirs_env" | md5sum | cut -d ' ' -f 1)
 rows_cache_file="$cache_dir/$cache_key.rows"
 rows_signature_file="$cache_dir/$cache_key.signature"
@@ -280,6 +272,15 @@ if [[ $rows_cache_hit != true && -f $rows_cache_file && -f $rows_signature_file 
   rows=$(<"$rows_cache_file")
   printf '%s' "$rows_fast_signature" >"$rows_fast_signature_file"
 elif [[ $rows_cache_hit != true ]]; then
+  # Only a rebuild looks thumbnails up, so a cached open never reads the index.
+  declare -A thumbnail_hashes=()
+  if [[ -f $index_file ]]; then
+    while IFS=$'\t' read -r path signature hash _; do
+      [[ -n $path && -n $signature && -n $hash ]] || continue
+      thumbnail_hashes["$path"$'\t'"$signature"]="$hash"
+    done <"$index_file"
+  fi
+
   for image in "${image_files[@]}"; do
     thumbnail_for "$image"
     thumbnail="$thumbnail_result"
