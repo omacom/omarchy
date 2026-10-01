@@ -72,6 +72,7 @@ for scenario in failed_clone interrupted hangup backup_failure replacement faile
   backup_failure)
     if BACKUP_FAILURE=1 run_install; then fail "a failed backup copy must stop installation"; fi
     [[ $(<"$themes/blue/colors.toml") == "old" ]] || fail "partial backup copies leave the installed theme intact"
+    [[ -z $(find "$test_tmp/$scenario/.local/state/omarchy/theme-backups" -mindepth 1 -print) ]] || fail "failed copies leave no partial backup behind"
     ;;
   failed_publish)
     if PUBLISH_RESULT=1 run_install; then fail "publish failure must fail installation"; fi
@@ -108,16 +109,20 @@ for scenario in failed_clone interrupted hangup backup_failure replacement faile
   pass "$scenario theme installation preserves recoverable user data"
 done
 
-cross_state=$(mktemp -d /dev/shm/omarchy-theme-state.XXXXXX)
-scenario=cross_filesystem
-themes="$test_tmp/$scenario/.config/omarchy/themes"
-mkdir -p "$themes/blue"
-printf old >"$themes/blue/colors.toml"
-[[ $(stat -c %d "$themes") != $(stat -c %d "$cross_state") ]] || fail "the cross-filesystem fixture must use separate filesystems"
-HOME="$test_tmp/$scenario" XDG_STATE_HOME="$cross_state" bash "$ROOT/bin/omarchy-theme-install" https://example.com/omarchy-blue-theme.git
-backups=("$cross_state"/omarchy/theme-backups/blue.*/theme)
-[[ $(<"${backups[0]}/colors.toml") == "old" && $(<"$themes/blue/colors.toml") == "new" ]] || fail "the configured state directory keeps the complete previous theme across filesystems"
-pass "theme backups honor XDG_STATE_HOME across a real filesystem boundary"
+if cross_state=$(mktemp -d /dev/shm/omarchy-theme-state.XXXXXX 2>/dev/null) &&
+  [[ $(stat -c %d "$test_tmp") != $(stat -c %d "$cross_state") ]]; then
+  scenario=cross_filesystem
+  themes="$test_tmp/$scenario/.config/omarchy/themes"
+  mkdir -p "$themes/blue"
+  printf old >"$themes/blue/colors.toml"
+  [[ $(stat -c %d "$themes") != $(stat -c %d "$cross_state") ]] || fail "the cross-filesystem fixture must use separate filesystems"
+  HOME="$test_tmp/$scenario" XDG_STATE_HOME="$cross_state" bash "$ROOT/bin/omarchy-theme-install" https://example.com/omarchy-blue-theme.git
+  backups=("$cross_state"/omarchy/theme-backups/blue.*/theme)
+  [[ $(<"${backups[0]}/colors.toml") == "old" && $(<"$themes/blue/colors.toml") == "new" ]] || fail "the configured state directory keeps the complete previous theme across filesystems"
+  pass "theme backups honor XDG_STATE_HOME across a real filesystem boundary"
+else
+  echo "skip - no accessible shared-memory filesystem separate from the test directory"
+fi
 
 # Verify that staging and publication also work with an actual Git checkout.
 remote="$test_tmp/omarchy-blue-theme"
@@ -131,3 +136,21 @@ installed="$test_tmp/$scenario/.config/omarchy/themes/blue"
 [[ $(command git -C "$installed" rev-parse HEAD) == $(command git -C "$remote" rev-parse HEAD) ]] || fail "real Git revision survives publication"
 [[ $(command git -C "$installed" remote get-url origin) == "$remote" ]] || fail "published checkout retains its remote"
 pass "real Git checkout retains its history and origin after publication"
+
+scenario=update_lock
+themes="$test_tmp/$scenario/.config/omarchy/themes"
+mkdir -p "$themes/blue"
+omarchy-theme-extras() { printf '%s\n' "$UPDATE_THEME"; }
+export -f omarchy-theme-extras
+git() { printf '%s\n' "$*" >>"$test_tmp/pulls"; }
+export -f git
+exec 8>"$themes/.blue.install.lock"
+flock 8
+if UPDATE_THEME="$themes/blue" bash "$ROOT/bin/omarchy-theme-update" >/dev/null 2>&1; then
+  fail "theme updates must respect the install lock"
+fi
+[[ ! -e $test_tmp/pulls ]] || fail "a concurrent updater cannot change the theme during its backup"
+exec 8>&-
+UPDATE_THEME="$themes/blue" bash "$ROOT/bin/omarchy-theme-update" >/dev/null
+grep -Fq 'pull' "$test_tmp/pulls" || fail "theme updates resume after the install lock is released"
+pass "theme installs and updates share one lock around working-tree changes"
