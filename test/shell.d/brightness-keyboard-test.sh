@@ -161,3 +161,28 @@ printf '512\n' >"$test_tmp/max"
 assert_brightness 51 "many-level keyboards retain their ten-percent step"
 grep -Fqx -- '-i keyboard -p 9' "$test_tmp/osd" || fail "manual changes still show the brightness OSD"
 pass "manual changes still show the brightness OSD"
+
+reset_fixture 2
+run_keyboard cycle
+: >"$test_tmp/calls"
+run_keyboard restore
+! grep -Eq -- 'set 0$' "$test_tmp/calls" || fail "restoring an already dark manual selection avoids redundant zero writes"
+pass "manual zero restore does not disable Dell hardware wake triggers"
+
+reset_fixture 0
+env -u XDG_RUNTIME_DIR HOME="$test_tmp/home" "$ROOT/bin/omarchy-brightness-keyboard" --no-osd up
+assert_brightness 1 "keyboard adjustment works without a runtime directory"
+[[ -f $test_tmp/home/.local/state/omarchy/omarchy-keyboard-backlight-dell::kbd_backlight ]] || fail "TTY adjustment records a private user preference"
+
+reset_fixture 0
+run_keyboard up
+cat >"$test_tmp/bin/mv" <<'SH'
+#!/bin/bash
+exit 1
+SH
+chmod +x "$test_tmp/bin/mv"
+if run_keyboard up >"$test_tmp/out" 2>"$test_tmp/errors"; then fail "state rename failure reaches the caller"; fi
+assert_brightness 1 "a failed save rolls hardware back to the previous successful adjustment"
+[[ $(<"$state_file") == "1" ]] || fail "a failed save keeps the previous preference"
+rm "$test_tmp/bin/mv"
+pass "hardware and saved brightness remain consistent after a state save failure"

@@ -26,7 +26,11 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
-state_file="${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR must be set}/omarchy-keyboard-backlight-$device"
+state_dir="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}"
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  mkdir -p "$state_dir" || exit 1
+fi
+state_file="$state_dir/omarchy-keyboard-backlight-$device"
 
 # Serialize hardware changes with their saved state, including repeated keys.
 exec {lock_fd}>"$state_file.lock" || exit 1
@@ -58,7 +62,10 @@ elif [[ $direction == "restore" ]]; then
   if [[ -f $state_file ]]; then
     read -r saved_brightness <"$state_file" || exit 1
     [[ $saved_brightness =~ ^[0-9]+$ ]] || exit 1
-    brightnessctl -d "$device" set "$saved_brightness" >/dev/null || exit 1
+    current_brightness=$(brightnessctl -d "$device" get) || exit 1
+    if (( saved_brightness != current_brightness )); then
+      brightnessctl -d "$device" set "$saved_brightness" >/dev/null || exit 1
+    fi
   fi
   exit 0
 fi
@@ -86,5 +93,9 @@ fi
 # Record successful manual changes, including an intentional zero, before a
 # hardware timeout can make the current reading ambiguous.
 brightnessctl -d "$device" set "$new_brightness" >/dev/null || exit 1
-save_brightness "$new_brightness" || exit 1
+if ! save_brightness "$new_brightness"; then
+  brightnessctl -d "$device" set "$current_brightness" >/dev/null || echo "Could not restore the previous keyboard brightness." >&2
+  echo "Could not save keyboard brightness; the adjustment was not recorded." >&2
+  exit 1
+fi
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"
