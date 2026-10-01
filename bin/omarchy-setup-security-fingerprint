@@ -82,15 +82,15 @@ fi
 # client package conflicts with the stock fprintd daemon, but provides the same
 # CLI and PAM module used below.
 fingerprint_packages=(libfprint-git)
-if ! pacman -Q fprintd-clients >/dev/null 2>&1 &&
-  ! pacman -Q fprintd-clients-git >/dev/null 2>&1; then
+if ! pacman -Q -- fprintd-clients >/dev/null 2>&1 &&
+  ! pacman -Q -- fprintd-clients-git >/dev/null 2>&1; then
   fingerprint_packages+=(fprintd)
 fi
 fingerprint_packages+=(usbutils)
 
 if omarchy-pkg-missing "${fingerprint_packages[@]}"; then
   echo "Installing required packages..."
-  sudo pacman -S --needed --noconfirm --ask 4 "${fingerprint_packages[@]}"
+  sudo pacman -S --needed --noconfirm --ask 4 -- "${fingerprint_packages[@]}"
 fi
 
 # Enroll first fingerprint

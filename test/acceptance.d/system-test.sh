@@ -24,6 +24,20 @@ verify_core_packages() {
   pass "all Omarchy core packages are installed (${#missing[@]} missing)"
 }
 
+verify_kernel_headers() {
+  local kernel=linux-omarchy
+  local release
+  release=$(uname -r)
+  omarchy-pkg-present linux-t2 && kernel=linux-t2
+
+  [[ $(cat "/usr/lib/modules/$release/pkgbase") == "$kernel" ]] ||
+    fail "the installed system boots the supported kernel" "$release is not $kernel"
+  omarchy-pkg-present "$kernel-headers" || fail "kernel headers are installed" "$kernel-headers is missing"
+  [[ $(cat "/usr/lib/modules/$release/build/include/config/kernel.release") == "$release" ]] ||
+    fail "headers match the running kernel" "$release has missing or mismatched headers"
+  pass "the running $kernel kernel has matching headers ($release)"
+}
+
 verify_defaults() {
   [[ $(omarchy-default-browser) == "chromium" ]] || fail "Chromium is the default browser"
   pass "Chromium is the default browser"
@@ -112,7 +126,7 @@ verify_user_setup() {
   pass "Omarchy user state and shell configuration exist"
 }
 
-for check in verify_core_packages verify_defaults verify_services verify_runtime_tools verify_user_setup; do
+for check in verify_core_packages verify_kernel_headers verify_defaults verify_services verify_runtime_tools verify_user_setup; do
   if ! ("$check"); then
     status=1
   fi
