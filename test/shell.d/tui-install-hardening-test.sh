@@ -109,6 +109,29 @@ run_remove "Nested" >/dev/null
   fail "tui remove deletes a launcher left nested by an older install"
 pass "tui remove reaches a nested legacy launcher"
 
+# The launcher's own remove action names the top-level entry, so a nested legacy
+# launcher sharing its name must not be the one deleted, whichever find meets first.
+for order in "nested-first" "top-first"; do
+  if [[ $order == "nested-first" ]]; then
+    mkdir -p "$apps_dir/legacy"
+    launchers=("$apps_dir/legacy/Docker.desktop" "$apps_dir/Docker.desktop")
+  else
+    launchers=("$apps_dir/Docker.desktop" "$apps_dir/legacy/Docker.desktop")
+  fi
+  for launcher in "${launchers[@]}"; do
+    mkdir -p "$(dirname "$launcher")"
+    printf '[Desktop Entry]\nName=Docker\nExec=xdg-terminal-exec --app-id=TUI.tile -e lazydocker\nType=Application\n' >"$launcher"
+  done
+
+  run_remove "Docker" >/dev/null
+  [[ -f "$apps_dir/Docker.desktop" ]] &&
+    fail "tui remove deletes the top-level launcher it was named for ($order)"
+  [[ -f "$apps_dir/legacy/Docker.desktop" ]] ||
+    fail "tui remove leaves a nested launcher of the same name alone ($order)"
+  rm -rf "$apps_dir/legacy"
+done
+pass "tui remove prefers the top-level launcher over a nested one of the same name"
+
 # Removing by name on a machine with no applications directory yet must stay
 # quiet: this removal is called by the launcher without hiding stderr.
 noise=$(HOME="$tmp_dir/empty" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false \

@@ -22,15 +22,23 @@ while IFS= read -r -d '' file; do
 done < <(find "$DESKTOP_DIR" -name '*.desktop' -print0 2>/dev/null)
 
 # The launcher matching a chosen name, or empty when nothing was indexed under
-# it (a TUI removed between the scan and the pick, say).
+# it (a TUI removed between the scan and the pick, say). A top-level launcher
+# wins over a nested legacy one of the same name, whatever order find walks in.
 path_for_tui() {
-  local wanted="$1" i
+  local wanted="$1" found="" i
   for i in "${!TUIS[@]}"; do
     if [[ ${TUIS[$i]} == "$wanted" ]]; then
-      printf '%s\n' "${TUI_PATHS[$i]}"
-      return 0
+      if [[ ${TUI_PATHS[$i]} == "$DESKTOP_DIR$wanted.desktop" ]]; then
+        printf '%s\n' "${TUI_PATHS[$i]}"
+        return 0
+      fi
+      found=${found:-${TUI_PATHS[$i]}}
     fi
   done
+
+  if [[ -n $found ]]; then
+    printf '%s\n' "$found"
+  fi
 }
 
 if (( $# == 0 )); then
