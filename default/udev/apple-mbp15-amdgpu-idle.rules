@@ -1,3 +1,4 @@
-# 15" 2016–2017 Radeon: apply POWER_SAVING when amdgpu binds.
+# 15" 2016–2017 Radeon: apply POWER_SAVING when amdgpu binds. amdgpu binds
+# in the initramfs before this rule exists, so boot coldplug's add replays it.
 # The helper no-ops on other hardware.
-ACTION=="bind", SUBSYSTEM=="pci", DRIVER=="amdgpu", RUN+="/usr/bin/omarchy-hw-apple-mbp15-amdgpu-idle"
+ACTION=="add|bind", SUBSYSTEM=="pci", DRIVER=="amdgpu", RUN+="/usr/bin/omarchy-hw-apple-mbp15-amdgpu-idle"

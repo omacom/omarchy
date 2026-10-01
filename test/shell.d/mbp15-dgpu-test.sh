@@ -97,6 +97,8 @@ grep -Fq 'HandleLidSwitch=lock' "$etc/logind.conf" || fail "helper writes lid lo
 grep -Fq 'AllowSuspend=no' "$etc/sleep.conf" || fail "helper refuses suspend"
 grep -Fq 'omarchy-hw-apple-mbp15-amdgpu-idle' "$etc/udev.rules" ||
   fail "helper installs the idle udev rule"
+grep -Fq 'ACTION=="add|bind"' "$etc/udev.rules" ||
+  fail "idle udev rule also matches boot coldplug's add"
 grep -Fq 'ATTR{device}=="0x43ba"' "$etc/wifi-udev.rules" ||
   fail "helper installs the Broadcom stay-awake udev rule"
 grep -Fq 'ATTR{power/control}="on"' "$etc/wifi-udev.rules" ||
