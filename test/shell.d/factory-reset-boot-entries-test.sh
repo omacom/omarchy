@@ -19,7 +19,13 @@ mkdir -p "$stub_bin" "$esp/$old_id" "$esp/$foreign_id"
 cat >"$stub_bin/limine-entry-tool" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$CALLS"
-sed -i "/machine-id=$2/d" "$OMARCHY_LIMINE_CONFIG"
+awk -v marker="machine-id=$2" '
+  function flush() { if (block !~ marker) printf "%s", block; block = "" }
+  /^[[:space:]]*\/[^/]/ { flush() }
+  { block = block $0 "\n" }
+  END { flush() }
+' "$OMARCHY_LIMINE_CONFIG" >"$OMARCHY_LIMINE_CONFIG.tmp"
+mv "$OMARCHY_LIMINE_CONFIG.tmp" "$OMARCHY_LIMINE_CONFIG"
 SH
 chmod +x "$stub_bin/limine-entry-tool"
 
@@ -55,6 +61,9 @@ grep -Fxq -- "--remove-entry $old_id --no-hooks" "$calls" ||
 [[ -d $esp/$foreign_id ]] || fail "factory reset deletes another installation's boot directory"
 grep -Fq "machine-id=$foreign_id" "$config" || fail "factory reset deletes another Linux boot entry"
 grep -Fq '/Windows Boot Manager' "$config" || fail "factory reset deletes the Windows boot entry"
+if grep -qE '^/Omarchy$|omarchy_linux\.efi|machine-id=11111111111111111111111111111111' "$config"; then
+  fail "the retired boot entry must be absent, not just its machine-ID comment"
+fi
 pass "factory reset retires only its own Limine identity"
 
 : >"$calls"
@@ -108,6 +117,16 @@ pass "the previous identity survives staging until first-boot cleanup completes"
   fail "factory reset mixes a live provisioning worker with frozen snapshot helpers"
 pass "factory reset keeps the snapshot provisioning runtime internally consistent"
 
-[[ $factory_reset == *'awk -v marker="machine-id=$machine_id"'* ]] ||
-  fail "factory reset verifies hashes belonging to every OS on the shared ESP"
-pass "factory reset scopes boot-file verification to the rebuilt identity"
+eval "$(awk '/^verify_limine_hashes\(\) \{/ { copying=1 } copying { print } copying && /^\}$/ { exit }' "$ROOT/bin/omarchy-system-factory-reset")"
+mkdir -p "$esp/EFI/Linux"
+printf rebuilt >"$esp/EFI/Linux/omarchy_linux.efi"
+hash=$(b2sum "$esp/EFI/Linux/omarchy_linux.efi" | cut -d' ' -f1)
+sed -i "s/newhash/$hash/; s/foreignhash/deadbeef/" "$config"
+verify_limine_hashes "" "$esp" "$new_id"
+pass "matching rebuilt hashes pass while unrelated entry hashes are ignored"
+sed -i "s/$hash/deadbeef/" "$config"
+if (verify_limine_hashes "" "$esp" "$new_id") >"$test_tmp/hash-error" 2>&1; then
+  fail "a mismatched rebuilt entry hash must fail verification"
+fi
+grep -q 'does not match' "$test_tmp/hash-error" || fail "a mismatched hash explains the failure"
+pass "a mismatched rebuilt entry hash stops factory reset verification"
