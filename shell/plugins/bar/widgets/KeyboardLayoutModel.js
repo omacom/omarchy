@@ -91,6 +91,13 @@ function isTypedKeyboard(name) {
   return !UNTYPED_KEYBOARDS.test(String(name || ""))
 }
 
+function pollingKeyboardCount(keyboards) {
+  return keyboards.filter(function (keyboard) {
+    var name = String(keyboard.name || "")
+    return isTypedKeyboard(name) || name.indexOf("apple-headset") === 0
+  }).length
+}
+
 // Every keyboard on the seat carries the same layout list unless one was given
 // its own, but only the one being typed on advances through it. So the
 // furthest-advanced is the one worth reading, and a switch names the keyboard it
@@ -122,6 +129,7 @@ if (typeof module !== "undefined") {
     isTypedKeyboard: isTypedKeyboard,
     layoutBriefs: layoutBriefs,
     selectKeyboard: selectKeyboard,
+    pollingKeyboardCount: pollingKeyboardCount,
     shortLabel: shortLabel
   }
 }

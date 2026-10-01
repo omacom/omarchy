@@ -19,7 +19,7 @@ BarWidget {
   // naming one that has been unplugged.
   property string keyboardName: ""
   property string typedKeyboardName: ""
-  // Count all keyboard devices so ignored buttons do not stop hotplug polling.
+  // Count typing devices and the T2 headset endpoint for hotplug polling.
   property int keyboardCount: 0
   property bool keyboardUnresolved: false
   // Nothing to read or switch on the single-layout install most people run, so
@@ -164,7 +164,7 @@ BarWidget {
         }
 
         root.keyboardUnresolved = false
-        root.keyboardCount = listed.length
+        root.keyboardCount = KeyboardLayoutModel.pollingKeyboardCount(listed)
         root.keyboardName = String(kb.name || "")
         root.multipleLayouts = kb.layout === undefined || String(kb.layout).indexOf(",") !== -1
         root.layoutIndex = kb.active_layout_index || 0

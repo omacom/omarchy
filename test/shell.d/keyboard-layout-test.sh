@@ -153,12 +153,14 @@ JS
 
 run_node_test <<'JS'
 const fs = require('fs')
+const model = requireFromRoot('shell/plugins/bar/widgets/KeyboardLayoutModel.js')
 const qml = fs.readFileSync(process.env.ROOT + '/shell/plugins/bar/widgets/KeyboardLayout.qml', 'utf8')
 const updateCount = qml.match(/root\.keyboardCount = [^\n]+/)[0]
 const poll = qml.match(/running: (!root\.keyboardName[^\n]+)/)[1]
 const widget = { keyboardName: 'apple-spi-keyboard', keyboardUnresolved: false, keyboardCount: 0 }
 const listed = [{name: 'apple-headset'}, {name: 'apple-spi-keyboard'}]
 const typed = [listed[1]]
-new Function('root', 'listed', 'typed', updateCount)(widget, listed, typed)
+new Function('root', 'listed', 'typed', 'KeyboardLayoutModel', updateCount)(widget, listed, typed, model)
 assertEqual(new Function('root', 'return ' + poll)(widget), true, 'a T2 seat keeps querying so keyboard removal can be detected')
+assertEqual(model.pollingKeyboardCount([{name: 'power-button'}, {name: 'usb-keyboard'}]), 1, 'an ordinary single-keyboard seat retains the no-poll optimization')
 JS
