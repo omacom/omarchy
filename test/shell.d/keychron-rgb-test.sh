@@ -97,3 +97,19 @@ pass "theme dispatcher invokes the Keychron handler"
 
 grep -Fq 'PROGRAM=="/usr/lib/udev/omarchy-keychron-config-check %k"' "$ROOT/default/udev/keychron-rgb.rules" || fail "udev invokes the config-channel descriptor matcher"
 pass "udev grants access through the config-channel descriptor matcher"
+
+mkdir -p "$tmpdir/transport-bin"
+printf '#!/bin/bash\nprintf "%%s\\n" "$@" >"$KEYCHRON_ARGS"\n' >"$tmpdir/transport-bin/python3"
+chmod +x "$tmpdir/transport-bin/python3"
+
+KEYCHRON_ARGS="$tmpdir/default-path-args" env -u OMARCHY_PATH PATH="$tmpdir/transport-bin:$PATH" \
+  "$ROOT/bin/omarchy-keychron-rgb" get
+mapfile -t rgb_args <"$tmpdir/default-path-args"
+[[ ${rgb_args[0]} == "/usr/share/omarchy/lib/omarchy/keychron_rgb.py" && ${rgb_args[1]} == "get" ]] || fail "RGB command uses the packaged path without OMARCHY_PATH"
+pass "RGB command resolves the packaged module path without OMARCHY_PATH"
+
+OMARCHY_PATH=/tmp/omarchy-test KEYCHRON_ARGS="$tmpdir/configured-path-args" PATH="$tmpdir/transport-bin:$PATH" \
+  "$ROOT/bin/omarchy-keychron-rgb" set 123456
+mapfile -t rgb_args <"$tmpdir/configured-path-args"
+[[ ${rgb_args[0]} == "/tmp/omarchy-test/lib/omarchy/keychron_rgb.py" && ${rgb_args[1]} == "set" && ${rgb_args[2]} == "123456" ]] || fail "RGB command honors OMARCHY_PATH when set"
+pass "RGB command continues to honor OMARCHY_PATH when set"
