@@ -82,7 +82,7 @@ reconcile_resume_parameters() {
     [[ $current != "$desired" ]] || return 0
     # Only replace the single line this command owns. Custom drop-ins need
     # manual reconciliation so unrelated kernel parameters are not discarded.
-    if [[ ! $current =~ ^KERNEL_CMDLINE\[default\]\+=\"[[:space:]]resume=[^\"[:space:]]*[[:space:]]resume_offset=[0-9]*\"$ ]]; then
+    if [[ ! $current =~ ^KERNEL_CMDLINE\[default\]\+=\"[[:space:]]?resume=[^\"[:space:]]*[[:space:]]resume_offset=[0-9]*\"$ ]]; then
       echo "Custom resume configuration in $RESUME_DROP_IN; update its resume parameters manually." >&2
       return 1
     fi
@@ -101,11 +101,25 @@ reconcile_resume_parameters() {
   fi
 }
 
+rebuild_resume_images() {
+  local build_log
+  build_log=$(mktemp) || return 1
+  # Limine 1.40 logs a skipped kernel build but still exits successfully.
+  if (set -o pipefail; sudo limine-mkinitcpio 2>&1 | tee "$build_log") &&
+    ! grep -q 'mkinitcpio failed for kernel .*skipping' "$build_log"; then
+    rm -f "$build_log"
+    return 0
+  else
+    rm -f "$build_log"
+    return 1
+  fi
+}
+
 # Recreated swapfiles can move even when hibernation is already configured.
 if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
   reconcile_resume_parameters || exit 1
   if $RESUME_CHANGED && ! $NO_REBUILD; then
-    if ! sudo limine-mkinitcpio; then
+    if ! rebuild_resume_images; then
       # Leave the old configuration in place so the next setup retries the
       # rebuild instead of mistaking an unchanged drop-in for an updated UKI.
       if [[ -n $RESUME_PREVIOUS ]]; then

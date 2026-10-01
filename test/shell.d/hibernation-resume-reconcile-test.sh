@@ -18,7 +18,13 @@ sed '/^if ! $FORCE; then/,$d' "$ROOT/bin/omarchy-hibernation-setup" |
 sudo() {
   case "$1" in
     btrfs) printf '%s\n' "${TEST_OFFSET:-456}" ;;
-    limine-mkinitcpio) echo rebuild >>"$test_tmp/rebuilds"; return "${TEST_REBUILD_STATUS:-0}" ;;
+    limine-mkinitcpio)
+      echo rebuild >>"$test_tmp/rebuilds"
+      if [[ ${TEST_SKIPPED_BUILD:-0} == "1" ]]; then
+        echo 'ERROR: mkinitcpio failed for kernel 7.2.5-test, skipping.' >&2
+      fi
+      return "${TEST_REBUILD_STATUS:-0}"
+      ;;
     /usr/bin/install) cp -- "${@: -2}" ;;
     *) "$@" ;;
   esac
@@ -64,6 +70,13 @@ for legacy in 'resume= resume_offset=123' 'resume=/dev/mapper/root resume_offset
   grep -Fqx 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=456"' "$test_tmp/resume.conf" || fail "'$legacy' is replaced"
 done
 pass "empty device or offset from an earlier setup is repaired"
+
+for legacy in 'resume=/dev/mapper/root resume_offset=123' 'resume=/dev/mapper/root resume_offset='; do
+  printf 'KERNEL_CMDLINE[default]+="%s"\n' "$legacy" >"$test_tmp/resume.conf"
+  bash "$test_tmp/setup" --no-rebuild >"$test_tmp/output" 2>&1 || fail "setup repairs an Omarchy 3.4 drop-in"
+  grep -Fqx 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=456"' "$test_tmp/resume.conf" || fail "the legacy drop-in is reconciled"
+done
+pass "Omarchy 3.4 drop-ins are repaired with or without an offset"
 
 rm "$test_tmp/resume.conf"
 if TEST_REBUILD_STATUS=1 bash "$test_tmp/setup" >"$test_tmp/output" 2>&1; then
@@ -113,3 +126,14 @@ grep -qx 'HOOKS+=(resume)' "$test_tmp/mkinitcpio.conf.d/omarchy_resume.conf" || 
 OMARCHY_PATH=$ROOT bash "$test_tmp/fresh-setup" --force --no-rebuild >"$test_tmp/output"
 grep -q 'resume_offset=456' "$test_tmp/resume.conf" || fail "a later setup adds the missing resume parameters"
 pass "first-time setup warns on an unreadable mapping and a later setup repairs it"
+
+cp "$test_tmp/resume.conf" "$test_tmp/before"
+rebuilds=$(wc -l <"$test_tmp/rebuilds")
+if TEST_OFFSET=777 TEST_SKIPPED_BUILD=1 bash "$test_tmp/setup" >"$test_tmp/output" 2>&1; then
+  fail "skipping a failed kernel build is not a successful rebuild"
+fi
+cmp -s "$test_tmp/before" "$test_tmp/resume.conf" || fail "a skipped build restores the previous drop-in"
+TEST_OFFSET=777 bash "$test_tmp/setup" >"$test_tmp/output" 2>&1 || fail "setup retries after a skipped build"
+(( $(wc -l <"$test_tmp/rebuilds") == rebuilds + 2 )) || fail "a skipped build remains retryable"
+grep -q 'resume_offset=777' "$test_tmp/resume.conf" || fail "a successful retry keeps the new offset"
+pass "a successful exit with a skipped build rolls back and retries"
