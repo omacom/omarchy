@@ -1,6 +1,7 @@
 import QtQuick
 import QtQml.Models
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 
 import qs.Commons
@@ -19,6 +20,7 @@ ShellRoot {
   property PluginRegistry pluginRegistry: PluginRegistry { }
   property BarWidgetRegistry barWidgetRegistry: BarWidgetRegistry { }
   property AppLibrary appLibrary: AppLibrary { }
+  property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
 
   property string home: Quickshell.env("HOME")
 
@@ -1233,7 +1235,7 @@ ShellRoot {
 
   function unloadPanels() {
     for (var id in panelLoaders) hide(id)
-    panelEntries = []
+    panelEntryModel.clear()
     panelLoaders = ({})
     pendingPayloads = ({})
     openPanelIds = ({})
@@ -1282,7 +1284,43 @@ ShellRoot {
   // One Loader per discoverable panel/overlay/menu plugin. Active when the
   // host marks it open. The Loader holds onto the instance while active so the
   // plugin's FloatingWindow + state survive between summons within a session.
-  property var panelEntries: []
+  //
+  // The entries live in a ListModel synced in place. Handing the Instantiator
+  // a fresh array instead rebuilt every panel on every plugin change, four
+  // times over during startup: each rebuild started a new asynchronous load of
+  // every keepLoaded panel while the last was in flight, so two OSDs could run
+  // at once, each registering its IPC handler. A full plugin reload clears
+  // the model in unloadPanels, so panels still rebuild from fresh code then.
+  ListModel { id: panelEntryModel }
+
+  function syncPanelEntries() {
+    var wanted = ({})
+    var order = []
+    var entries = computePanelEntries()
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i]
+      entry.sourceUrl = String(shell.pluginRegistry.entryPointUrl(entry.manifest, entry.kind) || "")
+      wanted[entry.id] = entry
+      order.push(entry.id)
+    }
+
+    // Keep an entry whose plugin still loads the same way; drop the rest.
+    for (var j = panelEntryModel.count - 1; j >= 0; j--) {
+      var row = panelEntryModel.get(j)
+      var next = wanted[row.pluginId]
+      if (next && next.kind === row.entryKind && next.keepLoaded === row.keepLoaded && next.sourceUrl === row.sourceUrl) {
+        delete wanted[row.pluginId]
+      } else {
+        panelEntryModel.remove(j)
+      }
+    }
+
+    for (var k = 0; k < order.length; k++) {
+      var added = wanted[order[k]]
+      if (!added) continue
+      panelEntryModel.append({ pluginId: added.id, entryKind: added.kind, keepLoaded: added.keepLoaded, sourceUrl: added.sourceUrl })
+    }
+  }
 
   function computePanelEntries() {
     var out = []
@@ -1305,21 +1343,21 @@ ShellRoot {
 
   Connections {
     target: shell.pluginRegistry
-    function onPluginsChanged() { if (!shell.pluginReloading) shell.panelEntries = shell.computePanelEntries() }
+    function onPluginsChanged() { if (!shell.pluginReloading) shell.syncPanelEntries() }
   }
 
   Instantiator {
-    model: shell.panelEntries
+    model: panelEntryModel
     active: true
 
     delegate: QtObject {
       id: panelEntry
-      required property var modelData
-      readonly property string pluginId: modelData.id
-      readonly property var manifest: modelData.manifest
-      readonly property string entryKind: modelData.kind
-      readonly property bool keepLoaded: modelData.keepLoaded === true
-      readonly property string sourceUrl: shell.pluginRegistry.entryPointUrl(manifest, entryKind)
+      required property string pluginId
+      required property string entryKind
+      required property bool keepLoaded
+      required property string sourceUrl
+      // The manifest can be replaced on a rescan without the entry changing.
+      readonly property var manifest: shell.pluginRegistry.installedPlugins[pluginId]
 
       property Loader panelLoader: Loader {
         source: panelEntry.sourceUrl
@@ -1475,7 +1513,7 @@ ShellRoot {
       }
       shell.pluginReloading = false
       shell._syncServices()
-      shell.panelEntries = shell.computePanelEntries()
+      shell.syncPanelEntries()
       shell.syncPluginWidgets()
     }
   }
@@ -1513,6 +1551,104 @@ ShellRoot {
     }
   }
 
+  // ------------------------------------------------------ global shortcuts
+  //
+  // Bindings that open a menu route or panel, or step the volume, dispatch
+  // these through Hyprland, so a keypress reaches the shell without spawning
+  // an IPC client or script. The list is shared with default/hypr/helpers.lua, which binds a
+  // route or panel missing from it through the command instead.
+
+  function parseShortcuts(raw) {
+    var entries = []
+    var lines = String(raw || "").split("\n")
+    for (var i = 0; i < lines.length; i++) {
+      var match = /^([A-Za-z]+)\s+(\S+)\s*$/.exec(lines[i])
+      if (match && ["menu", "panel", "audio", "brightness", "ipc"].indexOf(match[1]) !== -1)
+        entries.push({ kind: match[1], target: match[2], name: match[1] + "." + match[2] })
+    }
+    return entries
+  }
+
+  // The IPC targets an ipc shortcut may name, and the service that owns each.
+  readonly property var ipcShortcutServices: ({ media: "omarchy.media", notifications: "omarchy.notifications" })
+
+  function runShortcut(entry) {
+    if (entry.kind === "menu") {
+      shell.toggle("omarchy.menu", JSON.stringify({ menu: entry.target }))
+    } else if (entry.kind === "ipc") {
+      // "media.next" runs the media service's own IPC handler for next.
+      var dot = entry.target.indexOf(".")
+      var target = entry.target.slice(0, dot)
+      var method = entry.target.slice(dot + 1)
+      var service = shell.serviceFor(shell.ipcShortcutServices[target] || "")
+      if (!service || !service.runShortcut(method))
+        Util.execArgv(["omarchy-shell", target, method])
+    } else if (entry.kind === "brightness") {
+      if (!shell.brightnessKeys.handle(entry.target))
+        Util.execArgv(["omarchy-brightness-display", entry.target === "raise" ? "+5%" : "5%-"])
+    } else if (entry.kind === "audio") {
+      var media = shell.serviceFor("omarchy.media")
+      if (!media || !media.handleVolumeKey(entry.target))
+        Util.execArgv(["omarchy-audio-output-volume", entry.target])
+    } else {
+      shell.toggle(entry.target, "{}")
+    }
+  }
+
+  FileView {
+    id: shortcutsFile
+    path: shell.omarchyPath + "/default/omarchy/shortcuts"
+    watchChanges: true
+    onFileChanged: reload()
+  }
+
+  Variants {
+    model: shell.parseShortcuts(shortcutsFile.text())
+
+    GlobalShortcut {
+      required property var modelData
+
+      appid: "omarchy"
+      name: modelData.name
+      description: modelData.kind === "audio" || modelData.kind === "brightness" ? (modelData.kind === "audio" ? "Volume " : "Brightness ") + modelData.target : (modelData.kind === "ipc" ? "Run " + modelData.target : "Toggle the " + modelData.target + " " + modelData.kind)
+      onPressed: shell.runShortcut(modelData)
+    }
+  }
+
+  // ------------------------------------------------------------ IPC socket
+  //
+  // omarchy-shell reaches the shell here first: a qs ipc client costs ~45ms
+  // to start per call, socat ~5ms. A request is target, method and arguments
+  // separated by unit separators and ended by a record separator. The reply is
+  // "OK" and the output, or "SKIP" when nothing ran (no such target or
+  // function, or the wrong number of arguments), which omarchy-shell hands to
+  // qs ipc for its exact answer. The socket sits in XDG_RUNTIME_DIR, private
+  // to the user like qs ipc's own. Like qs ipc, it belongs to one shell: the
+  // one running this config on this display. omarchy-shell derives the same
+  // name from the same two values.
+  readonly property string ipcSocketPath: Quickshell.env("XDG_RUNTIME_DIR") + "/omarchy-shell-"
+    + Qt.md5(shell.omarchyPath + "/shell\n" + Quickshell.env("WAYLAND_DISPLAY")).slice(0, 16) + ".sock"
+
+  SocketServer {
+    active: shell.omarchyPath !== ""
+    path: shell.ipcSocketPath
+
+    handler: Socket {
+      id: connection
+
+      parser: SplitParser {
+        splitMarker: "\u001e"
+        onRead: function(data) {
+          var fields = String(data).split("\u001f")
+          var result = fields.length >= 2 ? IpcRegistry.call(fields[0], fields[1], fields.slice(2)) : { ran: false }
+          connection.write(result.ran ? "OK\u001f" + result.output + "\u001e" : "SKIP\u001e")
+          connection.flush()
+          connection.connected = false
+        }
+      }
+    }
+  }
+
   // --------------------------------------------------- image selector IPC
 
   function imagePickerItem() {
@@ -1520,7 +1656,7 @@ ShellRoot {
     return loader && loader.item ? loader.item : null
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "image-selector"
 
     function open(imageDirs: string,
@@ -1571,7 +1707,7 @@ ShellRoot {
 
   // ---------------------------------------------------------- shell IPC
 
-  IpcHandler {
+  ShellIpc {
     target: "shell"
 
     function ping(): string {
