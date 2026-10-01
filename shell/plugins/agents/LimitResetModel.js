@@ -57,14 +57,12 @@ function schedule(pending, records, now, notificationsEnabled, providerEnabled) 
     if (!providerId || !providerEnabled(providerId)) continue
 
     var registryStatus = String(currentRecord.accountRegistryStatus || "")
-    if (registryStatus === "unreadable") continue
-
     var accounts = Array.isArray(currentRecord.accounts) ? currentRecord.accounts : null
     var limitSources = []
-    if (registryStatus === "missing") {
-      // Legacy single-account installs have no registry. Continue their
-      // top-level limits, but do not let a missing inventory displace known
-      // per-account deadlines.
+    if (registryStatus === "missing" || registryStatus === "unreadable") {
+      // With no known account-scoped deadlines, top-level limits still serve
+      // legacy single-account users. Once account deadlines exist, keep them
+      // and avoid duplicating the fallback as an unidentified account.
       var hasAccountDeadlines = false
       for (var pendingKeyValue in next) {
         var pendingReset = next[pendingKeyValue]
