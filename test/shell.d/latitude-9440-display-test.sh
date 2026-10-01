@@ -21,6 +21,7 @@ calls="$test_tmp/calls.log"
 drop_in_dir="$test_tmp/etc/limine-entry-tool.d"
 drop_in="$drop_in_dir/dell-latitude-9440-display.conf"
 limine_conf="$test_tmp/etc/default/limine"
+rebuild_marker="$test_tmp/var/lib/omarchy/migrations/1789420388"
 mkdir -p "$stub_bin" "$test_tmp/dmi"
 
 cat >"$stub_bin/sudo" <<'STUB'
@@ -115,10 +116,15 @@ run_migration() {
   LATITUDE_9440="$1" LIMINE_FAILS="${2:-0}" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
     OMARCHY_LATITUDE_9440_DROP_IN_DIR="$drop_in_dir" \
     OMARCHY_LATITUDE_9440_LIMINE_CONF="$limine_conf" \
+    OMARCHY_LATITUDE_9440_REBUILD_MARKER="$rebuild_marker" \
     bash -euo pipefail "$migration" >/dev/null
 }
 
-rm -rf "$test_tmp/etc"
+reset_machine() {
+  rm -rf "$test_tmp/etc" "$test_tmp/var"
+}
+
+reset_machine
 run_migration 1
 grep -Fq 'KERNEL_CMDLINE[default]+=" i915.enable_psr2_sel_fetch=0"' "$drop_in" 2>/dev/null ||
   fail "the migration fixes an install that never got the workaround" "$(ls -R "$test_tmp/etc" 2>&1)"
@@ -134,16 +140,36 @@ run_migration 1
 pass "the migration is idempotent"
 
 # A failed rebuild leaves the migration pending, so the retry has to rebuild.
-rm -rf "$test_tmp/etc"
+reset_machine
 ! run_migration 1 1 || fail "a failed rebuild fails the migration"
 run_migration 1
 grep -Fqx 'limine-mkinitcpio' "$calls" ||
   fail "the retry after a failed rebuild rebuilds the boot image" "$(cat "$calls")"
 pass "the retry after a failed rebuild rebuilds the boot image"
 
+# A run cut off between writing the drop-in and rebuilding leaves only the drop-in.
+reset_machine
+mkdir -p "$drop_in_dir"
+printf '%s\n' '# Dell Latitude 9440 2-in-1 (Raptor Lake-P / Iris Xe) display workaround' \
+  'KERNEL_CMDLINE[default]+=" i915.enable_psr2_sel_fetch=0"' >"$drop_in"
+run_migration 1
+grep -Fqx 'limine-mkinitcpio' "$calls" ||
+  fail "the retry after an interrupted run rebuilds the boot image" "$(cat "$calls")"
+pass "the retry after an interrupted run rebuilds the boot image"
+
+# A drop-in its owner edited is their choice, even under our file name.
+reset_machine
+mkdir -p "$drop_in_dir"
+printf '%s\n' '# PSR2 is fine on my panel now' >"$drop_in"
+run_migration 1
+[[ $(<"$drop_in") == '# PSR2 is fine on my panel now' ]] ||
+  fail "an edited drop-in is left in place" "$(cat "$drop_in")"
+[[ ! -s $calls ]] || fail "an edited drop-in rebuilds nothing" "$(cat "$calls")"
+pass "an edited drop-in is left in place"
+
 # Someone who hit this before the fix shipped and reached for the blunter knob
 # keeps it, rather than gaining a second drop-in that contradicts it.
-rm -rf "$test_tmp/etc"
+reset_machine
 mkdir -p "$(dirname "$limine_conf")"
 printf '%s\n' 'KERNEL_CMDLINE[default]+=" i915.enable_psr=0"' >"$limine_conf"
 run_migration 1
@@ -152,7 +178,7 @@ run_migration 1
 pass "a hand-applied PSR setting is left in place"
 
 # Only a setting Limine actually loads counts: not a comment, not a backup file.
-rm -rf "$test_tmp/etc"
+reset_machine
 mkdir -p "$(dirname "$limine_conf")" "$drop_in_dir"
 printf '%s\n' '# tried i915.enable_psr=0 once' >"$limine_conf"
 printf '%s\n' 'KERNEL_CMDLINE[default]+=" i915.enable_psr=0"' >"$drop_in_dir/old.conf.bak"
@@ -161,7 +187,7 @@ grep -Fq 'i915.enable_psr2_sel_fetch=0' "$drop_in" 2>/dev/null ||
   fail "a commented or inactive PSR setting does not stop the workaround" "$(ls -R "$test_tmp/etc" 2>&1)"
 pass "a commented or inactive PSR setting does not stop the workaround"
 
-rm -rf "$test_tmp/etc"
+reset_machine
 run_migration 0
 [[ ! -e $drop_in ]] || fail "the migration skips other hardware" "$(cat "$drop_in")"
 [[ ! -s $calls ]] || fail "the migration escalates nothing on other hardware" "$(cat "$calls")"
