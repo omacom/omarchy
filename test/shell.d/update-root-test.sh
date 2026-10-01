@@ -39,6 +39,10 @@ else
   skip "no unprivileged user namespace; skipping the root invocation"
 fi
 
-run_update env -u OMARCHY_UPDATE_LOGGED || fail "normal desktop users enter the update flow" "$(cat "$test_tmp/output")"
-[[ $(<"$test_tmp/calls") == "script" ]] || fail "normal desktop users enter the update flow" "$(cat "$test_tmp/calls")"
-pass "normal users retain the update entry point"
+if (( EUID == 0 )); then
+  skip "running as root; skipping the normal-user invocation"
+else
+  run_update env -u OMARCHY_UPDATE_LOGGED || fail "normal desktop users enter the update flow" "$(cat "$test_tmp/output")"
+  [[ $(<"$test_tmp/calls") == "script" ]] || fail "normal desktop users enter the update flow" "$(cat "$test_tmp/calls")"
+  pass "normal users retain the update entry point"
+fi
