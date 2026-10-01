@@ -31,6 +31,8 @@ if grep -q 'Theme removed' "$NOTIFICATION_LOG"; then
   fail "failed deletion sends no success notification"
 fi
 grep -q 'Could not remove theme custom' "$NOTIFICATION_LOG" || fail "failed deletion sends a failure notification"
+grep -Fq 'rm: Permission denied' "$test_tmp/errors" || fail "failed deletion preserves the rm diagnostic"
+grep -Fq "Could not remove theme 'custom'" "$test_tmp/errors" || fail "failed deletion identifies the theme"
 if grep -q 'Removed custom' "$test_tmp/output"; then
   fail "failed deletion prints no success message"
 fi
