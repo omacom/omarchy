@@ -8,8 +8,8 @@
 # window's process tree. A multiplexer runs its panes under a detached server
 # that is reparented to systemd, so the window's own descendant is just the
 # client: ask the multiplexer for its focused pane instead. Everything else
-# answers from the tree, where the deepest process attached to the terminal is
-# the best guess, whether or not its shell is listed in /etc/shells.
+# answers from the tree, where the deepest process in the terminal's foreground
+# job is the best guess, whether or not its shell is listed in /etc/shells.
 
 terminal_pid=${1:-$(hyprctl activewindow | awk '/pid:/ {print $2}')}
 
@@ -25,17 +25,24 @@ process_args() {
   tr '\0' '\n' <"/proc/$1/cmdline" 2>/dev/null
 }
 
-# A process the user can type into: it holds a controlling terminal. Keeps the
-# tree walk from answering for windows that are not terminals at all.
-has_tty() {
-  local stat state ppid pgrp session tty_nr
+# A process the user is typing into: it holds a controlling terminal and is in
+# its foreground job, so a background job cannot answer for the shell.
+# Prints nothing for a process with no terminal, as a GUI app's are.
+tty_state() {
+  local stat state ppid pgrp session tty_nr tpgid
 
   [[ -r /proc/$1/stat ]] || return 1
   stat=$(<"/proc/$1/stat")
   stat=${stat##*") "} # the pid and the comm come first, and a comm can contain spaces
-  read -r state ppid pgrp session tty_nr _ <<<"$stat"
+  read -r state ppid pgrp session tty_nr tpgid _ <<<"$stat"
 
-  (( tty_nr != 0 ))
+  if (( tty_nr == 0 )); then
+    return
+  elif (( pgrp == tpgid )); then
+    echo foreground
+  else
+    echo background
+  fi
 }
 
 is_login_shell() {
@@ -124,7 +131,7 @@ multiplexer_pane_cwd() {
 }
 
 terminal_tree_cwd() {
-  local pid pane_cwd pid_cwd pid_exe mux_cwd="" tree_cwd=""
+  local pid pane_cwd pid_cwd pid_tty mux_cwd="" tree_cwd=""
 
   while read -r pid; do
     if pane_cwd=$(multiplexer_pane_cwd "$pid"); then
@@ -133,10 +140,14 @@ terminal_tree_cwd() {
     fi
 
     pid_cwd=$(process_cwd "$pid")
-    pid_exe=$(exe_path "$pid")
+    pid_tty=$(tty_state "$pid")
 
-    if [[ -d $pid_cwd ]] && { has_tty "$pid" || is_login_shell "$pid_exe"; }; then
-      tree_cwd=$pid_cwd
+    if [[ -d $pid_cwd ]]; then
+      if [[ $pid_tty == "foreground" ]]; then
+        tree_cwd=$pid_cwd
+      elif [[ -z $pid_tty ]] && is_login_shell "$(exe_path "$pid")"; then
+        tree_cwd=$pid_cwd
+      fi
     fi
   done < <(descendants "$1")
 

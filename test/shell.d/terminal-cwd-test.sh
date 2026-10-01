@@ -133,6 +133,17 @@ resolved=$(resolve OMARCHY_TEST_NO_HYPRCTL=1 -- "$window" 2>&1)
 actual:   $resolved"
 pass "a terminal pid passed in is resolved without hyprctl"
 
+# A job sent to the background holds the terminal too, but the shell the user
+# is typing into is the one in the foreground.
+mkdir -p "$test_tmp/foreground" "$test_tmp/background"
+window=$(start_terminal_window "cd '$test_tmp/foreground' && bash -c \"set -m; (cd '$test_tmp/background' && sleep 300) & wait\"")
+sleep 1
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
+[[ $resolved == "$test_tmp/foreground" ]] ||
+  fail "a background job does not answer for the foreground shell" "expected: $test_tmp/foreground
+actual:   $resolved"
+pass "a background job does not answer for the foreground shell"
+
 # A tmux client is not always a direct child of the window: the stock launcher
 # runs `bash -c "tmux attach || tmux new"`.
 mkdir -p "$test_tmp/launched" "$test_tmp/pane"
