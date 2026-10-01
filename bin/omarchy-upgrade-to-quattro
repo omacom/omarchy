@@ -1708,6 +1708,23 @@ legacy_hypr_input_value() {
   ' "$file"
 }
 
+legacy_vconsole_value() {
+  [[ -f /etc/vconsole.conf ]] || return 0
+  awk -F= -v key="$1" '$1 == key { value = $2; gsub(/"/, "", value); print value; exit }' /etc/vconsole.conf
+}
+
+# Values the 3.x installer or the stock input.conf wrote, which Quattro's defaults already derive.
+legacy_hypr_input_is_default() {
+  local key="$1" value="$2"
+
+  case $key in
+    kb_layout) [[ $value == "$(legacy_vconsole_value XKBLAYOUT)" ]] ;;
+    kb_variant) [[ $value == "$(legacy_vconsole_value XKBVARIANT)" ]] ;;
+    kb_options) [[ $value == "compose:caps" ]] ;;
+    *) return 1 ;;
+  esac
+}
+
 lua_string() {
   local value="$1"
   value=${value//\\/\\\\}
@@ -1727,7 +1744,7 @@ migrate_legacy_hypr_input() {
   grep -qF 'Preserved from legacy ~/.config/hypr/input.conf' "$input_file" && return 0
 
   for key in "${keys[@]}"; do
-    if value=$(legacy_hypr_input_value "$key" "$legacy_file"); then
+    if value=$(legacy_hypr_input_value "$key" "$legacy_file") && ! legacy_hypr_input_is_default "$key" "$value"; then
       values[$key]=$value
       found=1
     fi

@@ -10,9 +10,12 @@ trap 'rm -rf "$tmp_dir"' EXIT
 
 migration_functions=$(sed -n '/^legacy_hypr_input_value() {/,/^migrate_uwsm_env_customizations() {/p' "$upgrade_script" | sed '$d')
 
+# Stands in for /etc/vconsole.conf with the second argument.
+vconsole_stub='legacy_vconsole_value() { awk -F= -v key="$1" '"'"'$1 == key { print $2; exit }'"'"' <<<"$VCONSOLE"; }'
+
 run_migration() {
-  local home="$1"
-  printf '%s\nmigrate_legacy_hypr_input\n' "$migration_functions" | HOME="$home" bash -euo pipefail
+  local home="$1" vconsole="${2-}"
+  printf '%s\n%s\nmigrate_legacy_hypr_input\n' "$migration_functions" "$vconsole_stub" | HOME="$home" VCONSOLE="$vconsole" bash -euo pipefail
 }
 
 home="$tmp_dir/custom"
@@ -39,8 +42,8 @@ input {
 }
 CONF
 
-run_migration "$home"
-run_migration "$home"
+run_migration "$home" "XKBVARIANT=nodeadkeys"
+run_migration "$home" "XKBVARIANT=nodeadkeys"
 
 input_lua="$home/.config/hypr/input.lua"
 grep -F '    kb_layout = "no",' "$input_lua" >/dev/null || fail "Quattro upgrade preserves the legacy keyboard layout"
@@ -61,6 +64,22 @@ run_migration "$home"
 after=$(sha256sum "$home/.config/hypr/input.lua")
 [[ $after == "$before" ]] || fail "Quattro upgrade leaves input.lua unchanged without legacy overrides"
 pass "Quattro upgrade skips legacy input files without overrides"
+
+home="$tmp_dir/stock"
+mkdir -p "$home/.config/hypr"
+printf '%s\n' '-- Quattro input overrides' >"$home/.config/hypr/input.lua"
+cat >"$home/.config/hypr/input.conf" <<'CONF'
+input {
+  kb_layout = ru
+  kb_options = compose:caps # ,grp:alts_toggle
+  repeat_rate = 40
+}
+CONF
+before=$(sha256sum "$home/.config/hypr/input.lua")
+run_migration "$home" "XKBLAYOUT=ru"
+after=$(sha256sum "$home/.config/hypr/input.lua")
+[[ $after == "$before" ]] || fail "Quattro upgrade leaves installer-written keyboard settings to the Quattro defaults"
+pass "Quattro upgrade skips stock legacy keyboard settings"
 
 copy_line=$(grep -n '^copy_always_config_defaults$' "$upgrade_script" | cut -d: -f1)
 migrate_line=$(grep -n '^migrate_legacy_hypr_input$' "$upgrade_script" | cut -d: -f1)
