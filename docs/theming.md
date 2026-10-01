@@ -45,6 +45,8 @@ Making a new app follow theme changes means adding its restart/retint command
 to that list. Runs serialize on a `flock`, so scripted theme changes queue
 instead of racing.
 
+Last, it starts `omarchy-theme-set-herdr-machines` detached. That command sets the same theme on every enabled `herdr machine list` target that runs Omarchy, over SSH inside the remote's live Hyprland session, and logs each machine's result to `~/.local/state/omarchy/theme-set-herdr-machines.log`. Sync is off by default. The `herdr-theme-sync` toggle turns it on, and a machine only sends and accepts themes while it is on. A mirrored change carries `OMARCHY_THEME_SYNC_FROM`, so the receiving machine never sends it on.
+
 ## What an installed theme may not ship
 
 `themes/<name>/` in this repo is Omarchy's own code and is trusted. So is a theme the user wrote by hand in `~/.config/omarchy/themes/<name>/`: it is their machine and their file, and both stage in full.
