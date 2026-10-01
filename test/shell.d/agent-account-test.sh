@@ -52,13 +52,20 @@ fi
 echo "codex home=${CODEX_HOME:-default} args=$*"
 SH
 
+# Grok keys its login by issuer and keeps the plan in the settings it caches,
+# as a JSON string inside that file.
 cat >"$mock_bin/grok" <<'SH'
 #!/bin/bash
 if [[ ${1:-} == "login" ]]; then
   "${BROWSER:-omarchy-test-default-browser}" "https://auth.x.ai/oauth/authorize"
-  mkdir -p "${GROK_HOME:-$HOME/.grok}"
-  echo '{"token":"t"}' >"${GROK_HOME:-$HOME/.grok}/auth.json"
+  home=${GROK_HOME:-$HOME/.grok}
+  mkdir -p "$home"
+  printf '{"https://auth.x.ai::client":{"key":"t","user_id":"%s","email":"%s"}}\n' \
+    "${OMARCHY_TEST_LOGIN_UUID:-u-grok}" "${OMARCHY_TEST_LOGIN_EMAIL:-me@example.com}" >"$home/auth.json"
+  printf '{"payload":"{\\"settings\\":{\\"subscription_tier_display\\":\\"SuperGrok\\"}}"}\n' >"$home/settings_cache.json"
+  exit 0
 fi
+echo "grok home=${GROK_HOME:-default} args=$*"
 SH
 
 cat >"$mock_bin/omarchy-test-default-browser" <<'SH'
@@ -183,11 +190,22 @@ OMARCHY_TEST_DEFAULT_AGENT="" omarchy-agent-account-add grok </dev/null >/dev/nu
   fail "the first agent signed in on a machine with no default becomes the default"
 [[ -s $HOME/.grok/auth.json ]] && grep -qx "default https://auth.x.ai/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" ||
   fail "a first Grok sign-in lands in ~/.grok through the normal browser"
-if omarchy-agent-account-add grok Second </dev/null >"$test_tmp/grok-second" 2>&1; then
-  fail "a second Grok account says it isn't supported yet"
-fi
-grep -q "isn't supported yet" "$test_tmp/grok-second" || fail "a second Grok account says why it stops" "$(cat "$test_tmp/grok-second")"
 pass "Grok signs in its first account"
+
+mkdir -p "$HOME/.grok/bin" && touch "$HOME/.grok/bin/grok"
+OMARCHY_TEST_LOGIN_UUID=u-grok-2 OMARCHY_TEST_LOGIN_EMAIL=side@example.com \
+  omarchy-agent-account-add grok Side </dev/null >/dev/null
+[[ $(omarchy-agent-account-list grok --json | jq -c '.[0].accounts[1] | {id, email, plan}') == '{"id":"side","email":"side@example.com","plan":"SuperGrok"}' ]] ||
+  fail "a Grok account reads its identity and plan from its own home" "$(omarchy-agent-account-list grok --json)"
+[[ $(readlink "$accounts/grok/side/bin") == "$HOME/.grok/bin" && $(readlink "$accounts/grok/side/sessions") == "$HOME/.grok/sessions" ]] ||
+  fail "a Grok account shares the CLI and sessions with the primary"
+grep -qx -- "--private https://auth.x.ai/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" ||
+  fail "a second Grok login opens in a private window" "$(cat "$OMARCHY_TEST_BROWSER_LOG")"
+omarchy-agent-account-use grok side >/dev/null
+source "$ROOT/default/bash/fns/agent-accounts"
+[[ $(grok --version) == "grok home=$accounts/grok/side args=--version" ]] || fail "grok starts as the active Grok account" "$(grok --version)"
+omarchy-agent-account-use grok main >/dev/null
+pass "Grok accounts are added and used like the others"
 
 # ---------------------------------------------------------------------- routing
 
@@ -307,7 +325,7 @@ pass "a failed registration rolls the new home back to pending"
 
 # ------------------------------------------------------------ panel add flow
 
-[[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok unsupported' ]] ||
+[[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional' ]] ||
   fail "--check says what adding would mean for each provider" "$(omarchy-agent-account-add --check)"
 pass "--check says what adding would mean for each provider"
 
