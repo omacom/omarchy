@@ -19,6 +19,36 @@ assert(
   'menu respects the reserved area of an on-screen keyboard'
 )
 
+const vm = require('vm')
+const focusBlock = menuQml.slice(menuQml.indexOf('shownKeyboardFocus: focusPrimed'), menuQml.indexOf('    Rectangle {', menuQml.indexOf('shownKeyboardFocus: focusPrimed')))
+const shownHandler = focusBlock.match(/onShownChanged:\s*\{([\s\S]*?)\n    \}/)[1]
+const triggerHandler = focusBlock.match(/onTriggered:\s*([^\n]+)/)[1]
+let timerRunning = false
+const panel = { shown: true, focusPrimed: true, cardTop: 20, maxRowsHeight: 50 }
+const context = vm.createContext({
+  panel,
+  get shown() { return panel.shown },
+  get focusPrimed() { return panel.focusPrimed },
+  set focusPrimed(value) { panel.focusPrimed = value },
+  get cardTop() { return panel.cardTop },
+  set cardTop(value) { panel.cardTop = value },
+  get maxRowsHeight() { return panel.maxRowsHeight },
+  set maxRowsHeight(value) { panel.maxRowsHeight = value },
+  focusPrimeTimer: { restart() { timerRunning = true }, stop() { timerRunning = false } }
+})
+vm.runInContext(shownHandler, context)
+assert(timerRunning && !panel.focusPrimed, 'opening the menu restarts exclusive focus priming')
+vm.runInContext(triggerHandler, context)
+assert(panel.focusPrimed, 'the running prime timer releases exclusive focus')
+panel.shown = false
+vm.runInContext(shownHandler, context)
+assert(!timerRunning && !panel.focusPrimed, 'closing stops the prime timer and resets focus')
+vm.runInContext(triggerHandler, context)
+assert(!panel.focusPrimed, 'a late timer callback cannot prime a closed menu')
+panel.shown = true
+vm.runInContext(shownHandler, context)
+assert(timerRunning && !panel.focusPrimed, 'reopening acquires focus again')
+
 assertDeepEqual(
   menu.summonAction("omarchy-shell shell summon omarchy.speedtest"),
   { id: 'omarchy.speedtest', payload: '{}' },
