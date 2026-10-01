@@ -60,6 +60,14 @@ bash -euo pipefail "$migration_copy"
   fail "migration leaves a customized hook alone"
 pass "migration leaves a customized hook alone"
 
+# A symlink is left in place even when it resolves to the superseded hook.
+cp "$previous_hook" "$sandbox/linked-hook"
+ln -sfn "$sandbox/linked-hook" "$destination"
+bash -euo pipefail "$migration_copy"
+[[ -L $destination ]] ||
+  fail "migration leaves a symlinked hook alone"
+pass "migration leaves a symlinked hook alone"
+
 # A machine that never installed the hook has nothing to repair.
 rm -f "$destination"
 bash -euo pipefail "$migration_copy"

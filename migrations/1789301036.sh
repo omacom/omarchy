@@ -18,7 +18,8 @@ as_root() {
   fi
 }
 
-if [[ ! -f $hook_destination ]]; then
+# A symlink is the administrator's own arrangement, as 1788662350 treats it.
+if [[ ! -f $hook_destination || -L $hook_destination ]]; then
   exit 0
 fi
 
