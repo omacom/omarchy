@@ -123,6 +123,13 @@ disable() {
   local names
   names=$(related_devices "$device")
   apply_devices false <<<"$names"
+
+  # A repeated off whose devices query fails must keep the sibling the last off
+  # saved, or on can no longer re-enable it.
+  if [[ -f $NAME_FILE ]]; then
+    names=$(printf '%s\n%s\n' "$names" "$(<"$NAME_FILE")" | awk 'NF && !seen[$0]++')
+  fi
+
   mkdir -p "$(dirname "$NAME_FILE")"
   printf '%s\n' "$names" >"$NAME_FILE"
   omarchy-osd -i "$ICON" -m "$LABEL disabled"

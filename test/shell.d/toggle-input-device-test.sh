@@ -339,6 +339,13 @@ grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-mouse", enabled = true })' "
 [[ ! -e $name_file ]] || fail "touchpad enable still clears persisted names when the devices query fails"
 pass "touchpad enable restores saved siblings when the devices query fails"
 
+printf '%s\n' 'msft0001:00-093a:0255-touchpad' 'msft0001:00-093a:0255-mouse' >"$name_file"
+: >"$log_file"
+HYPRCTL_DEVICES_FAIL=1 run_toggle touchpad off
+[[ $(<"$name_file") == $'msft0001:00-093a:0255-touchpad\nmsft0001:00-093a:0255-mouse' ]] ||
+  fail "a repeated disable keeps the saved sibling when the devices query fails" "$(<"$name_file")"
+pass "a repeated disable keeps the saved sibling when the devices query fails"
+
 cat >"$stub_dir/omarchy-hw-touchpad" <<'EOF'
 #!/bin/bash
 exit 1
