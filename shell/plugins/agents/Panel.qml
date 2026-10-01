@@ -40,8 +40,79 @@ Panel {
     }
     return out
   }
-  property int accountCursor: -1
-  readonly property var pickedEntry: accountCursor >= 0 && accountCursor < accountEntries.length ? accountEntries[accountCursor] : null
+  readonly property var pickedEntry: keyTarget && keyTarget.kind === "account" ? accountEntries[keyTarget.index] || null : null
+
+  // The keyboard walks everything on the page that does something, in
+  // reading order, one row at a time: the hero's buttons, each switchable
+  // account, the starter tiles. Up and down change rows, left and right move
+  // along one. Hovering moves the same cursor, so only one thing is lit.
+  readonly property var keyRows: {
+    if (addStage !== "") return []
+    var rows = []
+    var hero = []
+    if (!blankSlate) hero.push({ kind: "add", index: 0 })
+    hero.push({ kind: "launch", index: 0 })
+    rows.push(hero)
+    for (var i = 0; i < accountEntries.length; i++) rows.push([{ kind: "account", index: i }])
+    if (!blankSlate) {
+      var tiles = []
+      for (var j = 0; j < starterPrompts.length; j++) tiles.push({ kind: "starter", index: j })
+      rows.push(tiles)
+    }
+    return rows
+  }
+  property int keyRow: 0
+  property int keyColumn: 0
+  readonly property var keyTarget: {
+    if (!cursorActive || keyRow < 0 || keyRow >= keyRows.length) return null
+    var row = keyRows[keyRow]
+    return row[Math.min(keyColumn, row.length - 1)]
+  }
+
+  function hasKey(kind, index) {
+    return !!keyTarget && keyTarget.kind === kind && keyTarget.index === (index || 0)
+  }
+
+  function pointAt(kind, index) {
+    for (var r = 0; r < keyRows.length; r++) {
+      for (var c = 0; c < keyRows[r].length; c++) {
+        if (keyRows[r][c].kind === kind && keyRows[r][c].index === (index || 0)) {
+          keyRow = r
+          keyColumn = c
+          cursorActive = true
+          return
+        }
+      }
+    }
+  }
+
+  // The first arrow only shows where the cursor is, as in the other panels.
+  function moveKey(dx, dy) {
+    if (keyRows.length === 0) return
+    if (!cursorActive) {
+      keyRow = clamp(keyRow, 0, keyRows.length - 1)
+      keyColumn = 0
+      cursorActive = true
+      return
+    }
+    if (dy !== 0) {
+      keyRow = clamp(keyRow + dy, 0, keyRows.length - 1)
+      keyColumn = Math.min(keyColumn, keyRows[keyRow].length - 1)
+    } else if (dx !== 0) {
+      keyColumn = clamp(Math.min(keyColumn, keyRows[keyRow].length - 1) + dx, 0, keyRows[keyRow].length - 1)
+    }
+  }
+
+  // Keeps whatever the cursor lands on inside the scrolled view.
+  function revealItem(item) {
+    if (!item || !panelFlick || !panelFlick.interactive) return
+    var top = item.mapToItem(column, 0, 0).y
+    var margin = Style.space(12)
+    if (top - margin < panelFlick.contentY)
+      panelFlick.contentY = Math.max(0, top - margin)
+    else if (top + item.height + margin > panelFlick.contentY + panelFlick.height)
+      panelFlick.contentY = Math.min(panelFlick.contentHeight - panelFlick.height, top + item.height + margin - panelFlick.height)
+  }
 
   // The bar icon lights up when any account new sessions use is nearly out,
   // or a prepaid balance is down to its last 10%.
@@ -225,10 +296,12 @@ Panel {
   }
 
   function activateSelection() {
-    if (pickedEntry && !pickedEntry.account.active)
-      useAccount(pickedEntry.provider, pickedEntry.account)
-    else
-      refreshNow()
+    var target = keyTarget
+    if (!target) refreshNow()
+    else if (target.kind === "add") addAccount()
+    else if (target.kind === "launch") launchAgent()
+    else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt)
+    else if (pickedEntry && !pickedEntry.account.active) useAccount(pickedEntry.provider, pickedEntry.account)
   }
 
   function isPicked(p, account) {
@@ -575,7 +648,8 @@ Panel {
 
   onOpenedChanged: if (opened) {
     cursorActive = false
-    accountCursor = -1
+    keyRow = 0
+    keyColumn = 0
     if (addStage !== "running") addStage = ""
     if (providers.length === 0 && !checkProcess.running) checkProcess.running = true
     nowMs = Date.now()
@@ -695,7 +769,9 @@ Panel {
       anchors.fill: parent
 
       onMoveRequested: function(dx, dy) {
-        if (dy !== 0)
+        // The add view has its own fields; there the arrows only scroll.
+        if (root.addStage === "") root.moveKey(dx, dy)
+        else if (dy !== 0)
           panelFlick.contentY = root.clamp(panelFlick.contentY + dy * Style.space(56), 0,
                                            Math.max(0, panelFlick.contentHeight - panelFlick.height))
       }
@@ -709,7 +785,7 @@ Panel {
         if (t === "r" || t === "R") root.refreshNow()
         else if (t === "a" || t === "A") root.addAccount()
         else if (t === "m" || t === "M") root.toggleSwitchMode()
-        else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.accountEntries.length) root.accountCursor = Number(t) - 1
+        else if (root.addStage === "" && t >= "1" && t <= "9" && Number(t) <= root.accountEntries.length) root.pointAt("account", Number(t) - 1)
       }
 
       Flickable {
@@ -759,6 +835,8 @@ Panel {
 
                 HeroButton {
                   visible: !root.blankSlate
+                  hasCursor: root.hasKey("add")
+                  onHovered: root.pointAt("add")
                   readonly property bool adding: root.addStage !== ""
                   glyph: adding ? "󰅖" : "󰐕"
                   tooltip: adding ? "Back to the limits" : "Add a subscription"
@@ -767,6 +845,8 @@ Panel {
 
                 HeroButton {
                   visible: root.addStage === ""
+                  hasCursor: root.hasKey("launch")
+                  onHovered: root.pointAt("launch")
                   glyph: "󰞷"
                   tooltip: "Start the default agent"
                   onClicked: root.launchAgent()
@@ -817,6 +897,9 @@ Panel {
 
                 StarterTile {
                   required property var modelData
+                  required property int index
+                  hasCursor: root.hasKey("starter", index)
+                  onHovered: root.pointAt("starter", index)
                   width: (tileRow.width - tileRow.spacing * 2) / 3
                   glyph: modelData.glyph
                   title: modelData.label
@@ -1284,11 +1367,15 @@ Panel {
   component StarterTile: Rectangle {
     id: tile
     signal clicked()
+    signal hovered()
     property string glyph: ""
     property string title: ""
+    property bool hasCursor: false
+    readonly property bool hot: hasCursor || (tileMouse.containsMouse && root.keyRows.length === 0)
     implicitHeight: tileBody.implicitHeight + Style.space(20)
     radius: Style.cornerRadius
-    color: tileMouse.containsMouse ? root.alpha(Color.accent, 0.14) : root.alpha(root.foreground, 0.05)
+    color: hot ? root.alpha(Color.accent, 0.14) : root.alpha(root.foreground, 0.05)
+    onHasCursorChanged: if (hasCursor) root.revealItem(tile)
 
     Row {
       id: tileBody
@@ -1306,7 +1393,7 @@ Panel {
       Text {
         anchors.verticalCenter: parent.verticalCenter
         text: tile.title
-        color: tileMouse.containsMouse ? Color.accent : root.foreground
+        color: tile.hot ? Color.accent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: true
@@ -1318,6 +1405,7 @@ Panel {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
+      onEntered: tile.hovered()
       onClicked: tile.clicked()
     }
 
@@ -1327,18 +1415,21 @@ Panel {
     }
   }
 
-  // Adding a subscription: a + in a softly tinted square that deepens on
-  // hover, and closes the add view again while it's open.
   // The tinted square in the hero's corner: start an agent, add a subscription.
   component HeroButton: Rectangle {
     id: heroButton
     signal clicked()
+    signal hovered()
     property string glyph: ""
     property string tooltip: ""
+    property bool hasCursor: false
+    // While adding there is no cursor to move, so hover lights it directly.
+    readonly property bool hot: hasCursor || (heroMouse.containsMouse && root.keyRows.length === 0)
     implicitWidth: Style.space(34)
     implicitHeight: implicitWidth
     radius: Style.cornerRadius
-    color: root.alpha(Color.accent, heroMouse.containsMouse ? 0.22 : 0.12)
+    color: root.alpha(Color.accent, hot ? 0.22 : 0.12)
+    onHasCursorChanged: if (hasCursor) root.revealItem(heroButton)
 
     Text {
       anchors.centerIn: parent
@@ -1353,6 +1444,7 @@ Panel {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
+      onEntered: heroButton.hovered()
       onClicked: heroButton.clicked()
     }
 
@@ -1410,6 +1502,7 @@ Panel {
     readonly property string label: renamedTo !== "" ? renamedTo : String(account.label || account.id || "")
 
     onAccountChanged: renamedTo = ""
+    onPickedChanged: if (picked) root.revealItem(head)
     implicitHeight: Math.max(headText.implicitHeight, headAction.implicitHeight)
 
     function startRename() {
