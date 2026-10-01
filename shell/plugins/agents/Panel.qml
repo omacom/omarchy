@@ -109,7 +109,11 @@ Panel {
     }
     if (dy !== 0) {
       keyRow = clamp(keyRow + dy, 0, keyRows.length - 1)
-      keyColumn = Math.min(keyColumn, keyRows[keyRow].length - 1)
+      // Arriving on an account lands on Use; left reaches Autoswitch.
+      var row = keyRows[keyRow]
+      var use = -1
+      for (var c = 0; c < row.length; c++) if (row[c].kind === "account") use = c
+      keyColumn = use >= 0 ? use : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       keyColumn = clamp(Math.min(keyColumn, keyRows[keyRow].length - 1) + dx, 0, keyRows[keyRow].length - 1)
     }

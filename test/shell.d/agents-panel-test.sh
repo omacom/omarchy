@@ -23,4 +23,5 @@ assert(/root\.pointAt\("account", Number\(t\) - 1\)/.test(panelSource), 'number 
 assert(/target\.kind === "launch"\) launchAgent\(\)/.test(panelSource), 'Enter on the launcher starts the default agent')
 assert(/\[\{ kind: "autoswitch", index: i \}, use\]/.test(panelSource), 'an inactive account offers Autoswitch and Use as separate stops')
 assert(/target\.kind === "autoswitch"\) setSwitchMode\(/.test(panelSource), 'Enter on Autoswitch flips the switch mode')
+assert(/keyColumn = use >= 0 \? use : /.test(panelSource), 'moving up or down onto an account lands on Use')
 JS
