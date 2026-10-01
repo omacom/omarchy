@@ -261,9 +261,13 @@ printf '%s\n' "$*" >"$OSD_LOG"
 SCRIPT
 chmod +x "$mock_bin/omarchy-osd"
 export OSD_LOG="$test_tmp/osd"
-BRIGHTNESS_READ_FAIL=1 BRIGHTNESS_SET_FAIL=1 run_brightness 70%
-[[ $(<"$brightness_state") == "0" && $(<"$backlight_saved") == "70" && $(<"$runtime_dir/omarchy-brightness-display.saved") == "70" ]] || fail "saved-state adjustment avoids hardware set and readback"
+BRIGHTNESS_SET_FAIL=1 run_brightness 70%
+[[ $(<"$brightness_state") == "0" && $(<"$backlight_saved") == "70" && $(<"$runtime_dir/omarchy-brightness-display.saved") == "70" ]] || fail "saved-state adjustment avoids setting dark hardware"
 [[ $(<"$OSD_LOG") == "-i brightness -p 70" ]] || fail "OSD shows logical brightness while dark"
+if BRIGHTNESS_READ_FAIL=1 run_brightness --no-osd +5%; then
+  fail "unavailable hardware level returns failure before choosing dark or live adjustment"
+fi
+[[ $(<"$brightness_state") == "0" && $(<"$backlight_saved") == "70" && $(<"$runtime_dir/omarchy-brightness-display.saved") == "70" ]] || fail "failed hardware probe retains restore state and darkness"
 PANEL_DISABLED=true run_brightness on
 [[ $(<"$brightness_state") == "0" && -s $backlight_saved && -s $runtime_dir/omarchy-brightness-display.saved ]] || fail "disabled wake retains the adjusted dark state"
 "$ROOT/bin/omarchy-hyprland-monitor-internal" on
@@ -280,6 +284,16 @@ run_brightness on
 [[ $(<"$brightness_state") == "50" ]] || fail "wake restores the latest repeated adjustment"
 pass "repeated dark adjustments compose and survive repeated blanking"
 
+printf '40\n' >"$brightness_state"
+BRIGHTNESS_SET_FAIL=1 run_brightness off
+[[ $(<"$brightness_state") == "40" && $(<"$runtime_dir/omarchy-brightness-display.saved") == "40" ]] || fail "failed blank leaves a lit backlight beside its snapshot"
+run_brightness --no-osd +5%
+[[ $(<"$brightness_state") == "45" && ! -e $runtime_dir/omarchy-brightness-display.saved ]] || fail "brightness key adjusts still-lit hardware and retires stale blank state"
+run_brightness on
+[[ $(<"$brightness_state") == "45" ]] || fail "wake cannot overwrite adjustment after failed blank"
+pass "brightness keys still adjust a lit backlight after blanking fails"
+
+printf '50\n' >"$brightness_state"
 printf 'broken\n' >"$runtime_dir/omarchy-brightness-display.saved"
 if run_brightness --no-osd +5% 2>/dev/null; then
   fail "malformed saved brightness returns failure"

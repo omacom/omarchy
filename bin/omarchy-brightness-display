@@ -153,6 +153,17 @@ else
     current=$(backlight_brightness "$device") || exit 1
   fi
 
+  if (( saved_current )); then
+    hardware_current=$(backlight_brightness "$device") || exit 1
+    [[ $hardware_current =~ ^[0-9]{1,3}$ ]] && (( 10#$hardware_current <= 100 )) || exit 1
+    if (( 10#$hardware_current > 0 )); then
+      # A failed blank can leave a snapshot beside a still-lit backlight.
+      # Adjust that live level normally instead of only changing restore state.
+      current=$((10#$hardware_current))
+      saved_current=0
+    fi
+  fi
+
   # Apply non-uniform step size: 1% steps if at or below 5%, otherwise set an
   # absolute target percentage to avoid raw backlight rounding causing uneven OSD steps.
   if [[ $step == "+5%" ]]; then
@@ -229,6 +240,7 @@ else
     done
   else
     brightnessctl -d "$device" set "$step" >/dev/null || exit 1
+    rm -f "$state_file" "$internal_state" || exit 1
     if (( ! no_osd )); then
       brightness=$(backlight_brightness "$device") || exit 1
     fi
