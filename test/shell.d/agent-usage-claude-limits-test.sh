@@ -240,4 +240,53 @@ assertDeepEqual(
   [{ title: 'Weekly', percent: 0.12, resetAt: '' }],
   'agents panel still reads a window out of a label that carries no title'
 )
+
+// A model's weekly allowance rides under the Weekly row; one whose window has
+// no row of its own keeps a row.
+assertDeepEqual(
+  displayWindows({ limits: [
+    { label: 'Session (5-hour)', percent: 0.94, resetsAt: '' },
+    { label: 'Weekly (7-day)', percent: 0.25, resetsAt: 'w' },
+    { label: 'Fable Weekly', title: 'Fable Weekly', percent: 0.09, resetsAt: 'w' },
+    { label: 'Opus Monthly', title: 'Opus Monthly', percent: 0.5, resetsAt: '' }
+  ] }),
+  [
+    { title: 'Session', percent: 0.94, resetAt: '', scoped: [] },
+    { title: 'Weekly', percent: 0.25, resetAt: 'w', scoped: [{ title: 'Fable', percent: 0.09, resetAt: 'w' }] },
+    { title: 'Opus Monthly', percent: 0.5, resetAt: '', scoped: [] }
+  ],
+  'agents panel shows a model-scoped window under the window it runs on'
+)
 JS
+
+# Anthropic rate-limits its usage endpoint readily. A refused re-check of
+# numbers measured minutes ago still describes the account; only older numbers
+# count as stale, and either way the record says when they were measured.
+rate_limited() {
+  COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" FETCHED_AGO="$1" XDG_CACHE_HOME="$CACHE_HOME" python3 - <<'PY'
+import datetime as dt, importlib.machinery, importlib.util, json, os, time, urllib.error
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+
+reset = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=3)).isoformat()
+fetched = round((time.time() - float(os.environ["FETCHED_AGO"])) * 1000)
+(collector.cache_root() / "claude-limits-rate.json").write_text(json.dumps(
+  {"fetchedAtMs": fetched, "limits": [{"label": "Session (5-hour)", "percent": 0.4, "resetsAt": reset}]}))
+
+def refused(request, timeout=None):
+  raise urllib.error.HTTPError(request.full_url, 429, "Too Many Requests", {}, None)
+
+collector.urllib.request.urlopen = refused
+result = collector.collect_limits("token", int((time.time() + 3600) * 1000), True, "claude-limits-rate.json")
+print(json.dumps({"live": result["live"], "percent": result["limits"][0]["percent"], "fetched": result["fetchedAtMs"] == fetched}))
+PY
+}
+
+[[ $(rate_limited 60) == '{"live": true, "percent": 0.4, "fetched": true}' ]] ||
+  fail "a refused re-check of numbers a minute old still counts as current" "$(rate_limited 60)"
+[[ $(rate_limited 1800) == '{"live": false, "percent": 0.4, "fetched": true}' ]] ||
+  fail "a refused re-check of half-hour-old numbers counts as stale" "$(rate_limited 1800)"
+pass "a rate-limited check only goes stale once the numbers are old"
