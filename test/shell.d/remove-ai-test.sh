@@ -378,3 +378,55 @@ rc=0
 ! grep -q '^drop:openclaw$' "$TEST_LOG" ||
   fail "OpenClaw removal aborts when systemd cannot be reached" "package dropped anyway"
 pass "OpenClaw removal aborts when systemd cannot be reached"
+
+# Ghost UI removal preserves the runtime and owner data.
+cat >"$tmp_dir/bin/systemctl" <<'SCRIPT'
+#!/bin/bash
+printf 'systemctl:%s\n' "$*" >>"$TEST_LOG"
+SCRIPT
+cat >"$tmp_dir/bin/omarchy" <<'SCRIPT'
+#!/bin/bash
+printf 'omarchy:%s\n' "$*" >>"$TEST_LOG"
+SCRIPT
+chmod +x "$tmp_dir/bin/systemctl" "$tmp_dir/bin/omarchy"
+cat >"$tmp_dir/bin/omarchy-pkg-present" <<'SCRIPT'
+#!/bin/bash
+[[ $1 == ghost ]]
+SCRIPT
+chmod +x "$tmp_dir/bin/omarchy-pkg-present"
+for command in sudo pacman; do
+  cat >"$tmp_dir/bin/$command" <<'SCRIPT'
+#!/bin/bash
+printf '%s:%s\n' "${0##*/}" "$*" >>"$TEST_LOG"
+SCRIPT
+  chmod +x "$tmp_dir/bin/$command"
+done
+
+: >"$TEST_LOG"
+fresh_home
+mkdir -p "$HOME/ghosts/casper" "$HOME/.config/ghost" "$HOME/.local/state/ghost" \
+  "$HOME/.config/omarchy/plugins"
+ln -sfn /usr/share/ghost/plugin "$HOME/.config/omarchy/plugins/ferdousbhai.ghost"
+"$ROOT/bin/omarchy-remove-ai-ghost" >/dev/null
+
+grep -q '^drop:ghost$' "$TEST_LOG" || fail "Ghost removal drops the package"
+pass "Ghost removal drops the package"
+
+! grep -q '^systemctl:' "$TEST_LOG" || fail "Ghost UI removal leaves the daemon running"
+grep -q '^sudo:pacman -D --asexplicit ghost-runtime$' "$TEST_LOG" ||
+  fail "Ghost UI removal preserves the runtime as an explicit package"
+[[ $(grep -n '^sudo:pacman -D' "$TEST_LOG" | cut -d: -f1) -lt $(grep -n '^drop:ghost$' "$TEST_LOG" | cut -d: -f1) ]] ||
+  fail "Ghost UI removal preserves the runtime before removing the UI"
+pass "Ghost UI removal preserves the installed and running runtime"
+
+grep -q '^omarchy:plugin remove ferdousbhai.ghost --yes$' "$TEST_LOG" ||
+  fail "Ghost removal takes the HUD plugin out of the running shell"
+pass "Ghost removal takes the HUD plugin out of the running shell"
+
+[[ ! -e $HOME/.config/omarchy/plugins/ferdousbhai.ghost ]] ||
+  fail "Ghost removal unlinks the plugin from the user's plugins directory"
+pass "Ghost removal unlinks the plugin from the user's plugins directory"
+
+[[ -d $HOME/ghosts/casper && -d $HOME/.config/ghost && -d $HOME/.local/state/ghost ]] ||
+  fail "Ghost removal keeps ghost homes, settings, and state"
+pass "Ghost removal keeps ghost homes, settings, and state"

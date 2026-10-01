@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Install Ghost and start it for this login
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+echo "Installing Ghost..."
+omarchy-pkg-add ghost
+
+# The package carries the daemon, the HUD plugin, the CLI, and the computer-use
+# helper; the browser extension is its own product, installed from the browser.
+# Two things need this login's hand: the daemon is a user unit, and the HUD is
+# an omarchy-shell plugin, so it is linked into this user's plugins directory
+# and enabled in the shell already running.
+echo "Starting Ghost for this login..."
+systemctl --user daemon-reload
+systemctl --user enable --now ghostd.service
+
+mkdir -p ~/.config/omarchy/plugins
+# -T, because plain `ln -sfn` onto an existing directory creates the link
+# inside it and reports success, leaving a plugin the shell cannot load. A
+# real directory there (an older install) is refused with the remedy instead.
+plugin_link=~/.config/omarchy/plugins/ferdousbhai.ghost
+if ! ln -sfnT /usr/share/ghost/plugin "$plugin_link" 2>/dev/null; then
+  echo "$plugin_link is a real directory, probably from an older install." >&2
+  echo "Move it aside and run this again:  mv $plugin_link{,.bak}" >&2
+  exit 1
+fi
+omarchy-shell shell rescanPlugins
+omarchy plugin enable ferdousbhai.ghost
+
+echo ""
+echo "Ghost is installed, and in your app launcher."
+# The package edits no configuration of yours, so the summon key is still
+# yours to bind: /usr/share/doc/ghost/shell-contrib/hyprland/ has ghost.lua
+# for an Omarchy 4 Lua config and ghost.conf for a .conf one.
+echo "To summon it with Super + Ctrl + G, copy the sample your Hyprland config"
+echo "uses from /usr/share/doc/ghost/shell-contrib/hyprland/."
+echo ""
+echo "Then make a ghost and sign in:  ghost new <name> && ghost login <provider>"
