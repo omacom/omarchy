@@ -93,9 +93,9 @@ pass "third-party widgets receive a bar facade instead of the host bar"
 
 qml_matches "$shell_qml" 'widgets: *shell\.publicBarWidgetSnapshot\( *\)' ||
   fail "third-party widget registries receive detached snapshots"
-qml_matches "$bar_qml" 'root\.markPluginObject\( *pluginId, *target, *"clickTarget" *\)' ||
+qml_matches "$bar_qml" 'root\.markPluginObject\( *pluginId, *target, *"clickTarget", *scopeKey *\)' ||
   fail "third-party bar-object ownership is stamped by the host callback"
-qml_matches "$bar_qml" 'root\.markPluginObject\( *pluginId, *owner, *"popout" *\)' ||
+qml_matches "$bar_qml" 'root\.markPluginObject\( *pluginId, *owner, *"popout", *scopeKey *\)' ||
   fail "owner-less popouts receive trusted ownership before activation"
 qml_matches "$shell_qml" 'manifest\.__hostCapabilities\.indexOf\( *"authentication" *\)' ||
   fail "authentication isolation follows host-stamped capabilities"

@@ -138,37 +138,39 @@ Item {
     api.layoutConfig = root.publicLayoutConfig()
   }
 
-  function pluginObjectRecord(target) {
+  function pluginObjectRecord(target, scopeKey) {
     for (var i = 0; i < pluginObjectOwners.length; i++) {
       var record = pluginObjectOwners[i]
-      if (record && record.target === target) return record
+      if (record && record.target === target && (scopeKey === undefined || record.scopeKey === scopeKey)) return record
     }
     return null
   }
 
-  function markPluginObject(pluginId, target, role) {
+  function markPluginObject(pluginId, target, role, scopeKey) {
     var key = String(pluginId || "")
     if (!key || !target) return false
-    var record = root.pluginObjectRecord(target)
-    if (record && record.pluginId !== key) return false
+    var owner = root.pluginObjectRecord(target)
+    if (owner && owner.pluginId !== key) return false
+    var scope = String(scopeKey || "")
+    var record = root.pluginObjectRecord(target, scope)
     var next = []
     for (var i = 0; i < pluginObjectOwners.length; i++) {
       var existing = pluginObjectOwners[i]
-      if (!existing || existing.target !== target) next.push(existing)
+      if (!existing || existing.target !== target || existing.scopeKey !== scope) next.push(existing)
     }
-    var updated = record || { target: target, pluginId: key, clickTarget: false, popout: false }
+    var updated = record || { target: target, pluginId: key, scopeKey: scope, clickTarget: false, popout: false }
     updated[role] = true
     next.push(updated)
     pluginObjectOwners = next
     return true
   }
 
-  function unmarkPluginObject(pluginId, target, role) {
+  function unmarkPluginObject(pluginId, target, role, scopeKey) {
     var key = String(pluginId || "")
     var next = []
     for (var i = 0; i < pluginObjectOwners.length; i++) {
       var record = pluginObjectOwners[i]
-      if (!record || record.target !== target || record.pluginId !== key) {
+      if (!record || record.target !== target || record.pluginId !== key || (scopeKey && record.scopeKey !== scopeKey)) {
         next.push(record)
         continue
       }
@@ -178,9 +180,9 @@ Item {
     pluginObjectOwners = next
   }
 
-  function pluginOwnsBarObject(pluginId, target) {
-    var record = target ? root.pluginObjectRecord(target) : null
-    return !!record && record.pluginId === String(pluginId || "")
+  function pluginOwnsBarObject(pluginId, target, scopeKey) {
+    var record = target ? root.pluginObjectRecord(target, scopeKey) : null
+    return !!record && record.pluginId === String(pluginId || "") && (!scopeKey || record.scopeKey === scopeKey)
   }
 
   function pluginClickTargets(pluginId) {
@@ -196,26 +198,28 @@ Item {
     for (var id in pluginBarApis) root.syncPluginBarApiObjects(pluginBarApis[id])
   }
 
-  function registerPluginClickTarget(pluginId, target) {
-    if (!root.markPluginObject(pluginId, target, "clickTarget")) return
+  function registerPluginClickTarget(pluginId, target, scopeKey) {
+    if (!root.markPluginObject(pluginId, target, "clickTarget", scopeKey)) return
     root.registerClickTarget(target)
   }
 
-  function unregisterPluginClickTarget(pluginId, target) {
-    if (!root.pluginOwnsBarObject(pluginId, target)) return
-    root.unregisterClickTarget(target)
-    root.unmarkPluginObject(pluginId, target, "clickTarget")
+  function unregisterPluginClickTarget(pluginId, target, scopeKey) {
+    if (!root.pluginOwnsBarObject(pluginId, target, scopeKey)) return
+    root.unmarkPluginObject(pluginId, target, "clickTarget", scopeKey)
+    if (!pluginObjectOwners.some(function(record) { return record.target === target && record.clickTarget }))
+      root.unregisterClickTarget(target)
   }
 
-  function requestPluginPopout(pluginId, owner) {
-    if (!root.markPluginObject(pluginId, owner, "popout")) return
+  function requestPluginPopout(pluginId, owner, scopeKey) {
+    if (!root.markPluginObject(pluginId, owner, "popout", scopeKey)) return
     root.requestPopout(owner)
   }
 
-  function releasePluginPopout(pluginId, owner) {
-    if (!root.pluginOwnsBarObject(pluginId, owner)) return
-    root.releasePopout(owner)
-    root.unmarkPluginObject(pluginId, owner, "popout")
+  function releasePluginPopout(pluginId, owner, scopeKey) {
+    if (!root.pluginOwnsBarObject(pluginId, owner, scopeKey)) return
+    root.unmarkPluginObject(pluginId, owner, "popout", scopeKey)
+    if (!pluginObjectOwners.some(function(record) { return record.target === owner && record.popout }))
+      root.releasePopout(owner)
   }
 
   function pluginBarApiFor(pluginId, moduleName, registered, target) {
@@ -247,10 +251,10 @@ Item {
       shell: pluginShell,
       _showTooltip: function(target, text) { root.showTooltip(target, text) },
       _hideTooltip: function(target) { root.hideTooltip(target) },
-      _registerClickTarget: function(target) { root.registerPluginClickTarget(ownerId, target) },
-      _unregisterClickTarget: function(target) { root.unregisterPluginClickTarget(ownerId, target) },
-      _requestPopout: function(owner) { root.requestPluginPopout(ownerId, owner) },
-      _releasePopout: function(owner) { root.releasePluginPopout(ownerId, owner) },
+      _registerClickTarget: function(target) { root.registerPluginClickTarget(ownerId, target, key) },
+      _unregisterClickTarget: function(target) { root.unregisterPluginClickTarget(ownerId, target, key) },
+      _requestPopout: function(owner) { root.requestPluginPopout(ownerId, owner, key) },
+      _releasePopout: function(owner) { root.releasePluginPopout(ownerId, owner, key) },
       _switchPanelFrom: function(owner, direction) { return root.switchPanelFrom(owner, direction) },
       _targetBelongsToWindow: function(target, window) { return root.targetBelongsToWindow(target, window) },
       _moduleWidgets: function(requestedId) {
@@ -280,16 +284,20 @@ Item {
     return false
   }
 
-  function releasePluginObjects(pluginId) {
+  function releasePluginObjects(pluginId, scopeKey) {
     var owned = pluginObjectOwners.slice()
     for (var i = 0; i < owned.length; i++) {
       var record = owned[i]
-      if (!record || record.pluginId !== pluginId) continue
-      if (record.clickTarget) root.unregisterClickTarget(record.target)
-      if (record.popout && root.activePopout === record.target) root.releasePopout(record.target)
+      if (!record || record.pluginId !== pluginId || (scopeKey && record.scopeKey !== scopeKey)) continue
+      var target = record.target
+      var retained = owned.filter(function(other) {
+        return other && other.target === target && (other.pluginId !== pluginId || (scopeKey && other.scopeKey !== scopeKey))
+      })
+      if (record.clickTarget && !retained.some(function(other) { return other.clickTarget })) root.unregisterClickTarget(target)
+      if (record.popout && root.activePopout === target && !retained.some(function(other) { return other.popout })) root.releasePopout(target)
     }
     pluginObjectOwners = pluginObjectOwners.filter(function(record) {
-      return record && record.pluginId !== pluginId
+      return record && (record.pluginId !== pluginId || (scopeKey && record.scopeKey !== scopeKey))
     })
   }
 
@@ -301,9 +309,9 @@ Item {
         next[id] = api
         continue
       }
-      // Ownership is per plugin; another monitor may still host its widgets.
-      if (!moduleSlots.some(function(slot) { return slot && slot.pluginApiId === api.pluginId }))
-        root.releasePluginObjects(api.pluginId)
+      // A widget may omit destruction-time unregister/release callbacks.
+      // Drop only this facade's registrations, preserving other monitors.
+      root.releasePluginObjects(api.pluginId, id)
       if (api && typeof api.destroy === "function") api.destroy()
     }
     pluginBarApis = next
@@ -316,7 +324,7 @@ Item {
 
   Component.onDestruction: {
     for (var id in pluginBarApis) {
-      root.releasePluginObjects(pluginBarApis[id].pluginId)
+      root.releasePluginObjects(pluginBarApis[id].pluginId, id)
       if (pluginBarApis[id] && typeof pluginBarApis[id].destroy === "function")
         pluginBarApis[id].destroy()
     }
