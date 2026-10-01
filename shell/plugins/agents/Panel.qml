@@ -40,14 +40,14 @@ Panel {
     }
     return out
   }
-  readonly property var pickedEntry: keyTarget && (keyTarget.kind === "account" || keyTarget.kind === "autoswitch")
+  readonly property var pickedEntry: keyTarget && ["account", "autoswitch", "signin"].indexOf(keyTarget.kind) >= 0
     ? accountEntries[keyTarget.index] || null
     : null
 
   // The keyboard walks everything on the page that does something, in
-  // reading order, one row at a time: the hero's buttons, then each
-  // switchable account and the starter tiles, or the agents to add while
-  // picking one. Up and down change rows, left and right move along one.
+  // reading order, one row at a time: the hero's buttons, then each agent's
+  // Sign-in required link or switchable accounts, and the starter tiles, or
+  // the agents to add while picking one. Up and down change rows, left and right move along one.
   // Hovering moves the same cursor, so only one thing is lit.
   readonly property var keyRows: {
     var rows = []
@@ -60,10 +60,22 @@ Panel {
       for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
       rows.push(choices)
     } else if (addStage === "") {
-      // An account that isn't active offers Autoswitch beside Use.
-      for (var i = 0; i < accountEntries.length; i++) {
-        var use = { kind: "account", index: i }
-        rows.push(accountEntries[i].account.active ? [use] : [{ kind: "autoswitch", index: i }, use])
+      // Accounts count in the same order as accountEntries. One that isn't
+      // active offers Autoswitch beside Use, and a lapsed sign-in comes first.
+      var entry = 0
+      for (var p = 0; p < providers.length; p++) {
+        var accounts = providerAccounts(providers[p])
+        if (accounts.length < 2) {
+          if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
+          continue
+        }
+        for (var a = 0; a < accounts.length; a++, entry++) {
+          var row = []
+          if (needsSignIn(accounts[a])) row.push({ kind: "signin", index: entry })
+          if (!accounts[a].active) row.push({ kind: "autoswitch", index: entry })
+          row.push({ kind: "account", index: entry })
+          rows.push(row)
+        }
       }
       if (!blankSlate) {
         var tiles = []
@@ -318,6 +330,8 @@ Panel {
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
     else if (target.kind === "launch") launchAgent()
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt)
+    else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
+    else if (target.kind === "signin") signInAgain(pickedEntry.provider, pickedEntry.account)
     else if (target.kind === "autoswitch") setSwitchMode(pickedEntry.provider, autoSwitchFor(pickedEntry.provider) ? "manual" : "auto")
     else if (pickedEntry && !pickedEntry.account.active) useAccount(pickedEntry.provider, pickedEntry.account)
   }
@@ -906,8 +920,10 @@ Panel {
 
             ProviderSection {
               required property var modelData
+              required property int index
               width: column.width
               provider: modelData
+              providerIndex: index
             }
           }
 
@@ -1167,6 +1183,7 @@ Panel {
   component ProviderSection: Column {
     id: section
     property var provider: null
+    property int providerIndex: -1
     readonly property var accounts: root.providerAccounts(provider)
     readonly property bool multi: accounts.length > 1
     readonly property var windows: root.displayWindows(provider)
@@ -1215,6 +1232,7 @@ Panel {
     // several, each account says so on its own line.
     TextLink {
       visible: !section.multi && root.needsSignIn(section.provider)
+      picked: root.hasKey("providerSignin", section.providerIndex)
       text: "Sign-in required"
       idleColor: root.urgent
       tooltip: "Sign in to " + (section.provider ? section.provider.providerName : "") + " again"
@@ -1493,6 +1511,7 @@ Panel {
     property string tooltip: ""
     property color idleColor: root.dim
     readonly property bool hot: linkMouse.containsMouse || picked
+    onPickedChanged: if (picked) root.revealItem(link)
     textFormat: Text.PlainText
     color: current ? Color.accent : (hot ? root.foreground : idleColor)
     font.family: root.fontFamily
@@ -1639,6 +1658,7 @@ Panel {
         TextLink {
           id: signInLink
           visible: root.needsSignIn(head.account)
+          picked: head.pickedKind === "signin"
           text: "Sign-in required"
           idleColor: root.urgent
           tooltip: "Sign in to this account again"
