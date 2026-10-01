@@ -422,9 +422,10 @@ Item {
       root.handleFingerprintFinished(result)
     }
 
+    // Quickshell follows every error with completed(PamResult.Error), which
+    // schedules the retry; scheduling here as well counts one failure twice.
     onError: function(error) {
       root.fingerprintAuthenticating = false
-      if (root.lockRequested && root.fingerprintConfigured) root.scheduleFingerprintRetry()
     }
   }
 

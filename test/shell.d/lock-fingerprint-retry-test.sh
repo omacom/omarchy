@@ -13,10 +13,6 @@ assert(
   'a failed fingerprint match is rescheduled through the backoff'
 )
 assert(
-  /root\.fingerprintConfigured\) root\.scheduleFingerprintRetry\(\)/.test(lockSource),
-  'a fingerprint PAM error is rescheduled through the backoff'
-)
-assert(
   /fingerprintStartedAt = Date\.now\(\)/.test(lockSource),
   'the lock screen records when a fingerprint attempt started'
 )
@@ -59,4 +55,31 @@ fingerprintStartedAt = Date.now() - 5000
 scheduleFingerprintRetry()
 assert(fingerprintImmediateFailures === 0, 'a genuine mismatch clears the backoff')
 assert(fingerprintRetryTimer.interval === 250, 'a genuine mismatch retries promptly again')
+
+const handleFn = lockSource.match(/  function handleFingerprintFinished\([\s\S]*?\n  \}/)
+const onErrorBody = lockSource.match(/id: fingerprintPam\b[\s\S]*?onError: function\(error\) \{([\s\S]*?)\n    \}/)
+assert(handleFn && onErrorBody, 'the lock screen handles fingerprint completion and errors')
+
+var lockRequested = true
+var fingerprintConfigured = true
+var fingerprintAuthenticating = false
+const PamResult = { Success: 0, Failed: 1, Error: 2, MaxTries: 3 }
+function finishUnlock() {}
+eval(handleFn[0])
+
+// The handler body reads root.x; map those onto the stand-ins above.
+const qmlRoot = new Proxy({}, {
+  get: (_, name) => eval(name),
+  set: (_, name, value) => { eval(name + ' = value'); return true },
+})
+const onError = new Function('root', 'error', onErrorBody[1])
+
+// Quickshell emits error() and then completed(PamResult.Error) for one failed attempt.
+for (const expected of [250, 500, 1000]) {
+  fingerprintStartedAt = Date.now()
+  onError(qmlRoot, 0)
+  handleFingerprintFinished(PamResult.Error)
+  assertEqual(fingerprintRetryTimer.interval, expected, `an immediate PAM error retries after ${expected}ms`)
+}
+assertEqual(fingerprintImmediateFailures, 3, 'each failed attempt counts once toward the backoff')
 JS
