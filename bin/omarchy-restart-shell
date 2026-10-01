@@ -3,15 +3,11 @@
 # omarchy:summary=Restart the Omarchy shell
 # omarchy:examples=omarchy restart shell
 
-# A caller opened after dev link/unlink may disagree with the still-running
-# desktop. The user manager receives Hyprland's environment at session start.
+# The user manager is a fallback for a stale or absent caller signature. Its
+# Omarchy path may belong to a different session, so resolve that separately
+# from the selected compositor below.
 session_environment=$(systemctl --user show-environment 2>/dev/null || true)
-session_omarchy_path=$(sed -n 's/^OMARCHY_PATH=//p' <<<"$session_environment" | tail -n 1)
-: "${session_omarchy_path:=$OMARCHY_PATH}"
 session_hyprland_signature=$(sed -n 's/^HYPRLAND_INSTANCE_SIGNATURE=//p' <<<"$session_environment" | tail -n 1)
-
-CONFIG_DIR="$session_omarchy_path/shell"
-[[ -f $CONFIG_DIR/shell.qml ]] || { echo "Omarchy shell config not found: $CONFIG_DIR" >&2; exit 1; }
 
 # Prefer the caller's live session so lock checks and restart target that exact
 # desktop. A stale or absent caller falls back to the user manager, then the
@@ -71,6 +67,20 @@ selected_wayland_display=$(jq -er --arg signature "$selected_hyprland_signature"
   exit 1
 }
 export WAYLAND_DISPLAY=$selected_wayland_display
+
+# Query the same compositor that will launch the replacement. Neither the
+# caller nor the user manager is authoritative after dev link/unlink or when
+# two live sessions use different checkouts. Refuse before killing anything
+# if its launch environment cannot identify a usable shell configuration.
+session_omarchy_path=$(timeout --kill-after=1s 1s hyprctl repl 'return os.getenv("OMARCHY_PATH")' 2>/dev/null) || {
+  echo "Could not resolve the Omarchy path for Hyprland ($selected_hyprland_signature); refusing to stop the Omarchy shell." >&2
+  exit 1
+}
+CONFIG_DIR="$session_omarchy_path/shell"
+if [[ $session_omarchy_path != /* || ! -f $CONFIG_DIR/shell.qml ]]; then
+  echo "Omarchy shell config not found for Hyprland ($selected_hyprland_signature): $CONFIG_DIR; refusing to stop the Omarchy shell." >&2
+  exit 1
+fi
 
 # Restarting a live lock client would kill the lock screen and strand the
 # session behind Hyprland's failsafe. But a LOCK session without an active

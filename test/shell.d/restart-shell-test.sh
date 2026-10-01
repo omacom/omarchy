@@ -102,6 +102,7 @@ case "$*" in
     printf 'ok\n'
     ;;
   *'lock status')
+    [[ $* == *"-p $OMARCHY_TEST_SESSION_PATH/shell"* ]] || exit 1
     if [[ -f $OMARCHY_TEST_QS_STATE.locked ]]; then
       printf '{"secure": true, "requested": true}\n'
     else
@@ -118,6 +119,7 @@ printf '%s\n' "$*" >>"${OMARCHY_TEST_QS_LOG:-/dev/null}"
 
 case " $* " in
   *' kill -p '*)
+    [[ $* == "kill -p $OMARCHY_TEST_SESSION_PATH/shell" ]] || exit 1
     killed=0
     : >"$OMARCHY_TEST_QS_STATE.next"
     while IFS= read -r pid; do
@@ -152,6 +154,9 @@ if [[ ${1:-} == "instances" && ${2:-} == "-j" ]]; then
   else
     printf '[{"instance":"current-session","time":1,"pid":1,"wl_socket":"wayland-1"}]\n'
   fi
+elif [[ ${1:-} == "repl" ]]; then
+  [[ ${OMARCHY_TEST_PATH_FAIL:-0} != 1 ]] || exit 1
+  printf '%s\n' "$OMARCHY_TEST_SESSION_PATH"
 elif [[ ${1:-} == "-j" && ${2:-} == "monitors" ]]; then
   printf '%s\n' "${HYPRLAND_INSTANCE_SIGNATURE-unset}" >>"${OMARCHY_TEST_HYPR_SIGNATURE_LOG:-/dev/null}"
   if [[ ${OMARCHY_TEST_HYPR_HANG:-0} == 1 ]]; then
@@ -193,7 +198,7 @@ cat >"$restart_bin/systemctl" <<'SH'
 #!/bin/bash
 
 if [[ ${1:-} == "--user" && ${2:-} == "show-environment" ]]; then
-  printf 'OMARCHY_PATH=%s\n' "$OMARCHY_TEST_SESSION_PATH"
+  printf 'OMARCHY_PATH=%s\n' "${OMARCHY_TEST_MANAGER_PATH:-$OMARCHY_TEST_SESSION_PATH}"
   if [[ ${OMARCHY_TEST_NO_SESSION_SIGNATURE:-0} != 1 ]]; then
     printf 'HYPRLAND_INSTANCE_SIGNATURE=%s\n' "${OMARCHY_TEST_MANAGER_SIGNATURE:-${OMARCHY_TEST_ACTIVE_SIGNATURE:-current-session}}"
   fi
@@ -359,13 +364,14 @@ printf '%s wayland-1\n%s wayland-2\n' "$restart_pid_one" "$restart_pid_two" >"$r
 touch "$restart_state.locked"
 multi_instances='[{"instance":"session-a","time":1,"pid":101,"wl_socket":"wayland-1"},{"instance":"session-b","time":2,"pid":202,"wl_socket":"wayland-2"}]'
 multi_locked_error=$(PATH="$restart_bin:$PATH" \
-  OMARCHY_PATH="$restart_root" \
+  OMARCHY_PATH="$caller_root" \
   XDG_RUNTIME_DIR="$runtime_dir" \
   OMARCHY_TEST_QS_STATE="$restart_state" \
   OMARCHY_TEST_QS_LOG="$restart_log" \
   OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
   OMARCHY_TEST_IPC_LOG="$ipc_log" \
   OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  OMARCHY_TEST_MANAGER_PATH="$caller_root" \
   OMARCHY_TEST_ACTIVE_SIGNATURES=session-a,session-b \
   OMARCHY_TEST_LOCKED_SIGNATURES=session-a \
   OMARCHY_TEST_MANAGER_SIGNATURE=session-b \
@@ -383,7 +389,7 @@ pass "locked caller session is preserved when the manager points elsewhere"
 rm -f "$restart_state.locked"
 : >"$restart_log"
 PATH="$restart_bin:$PATH" \
-OMARCHY_PATH="$restart_root" \
+OMARCHY_PATH="$caller_root" \
 XDG_RUNTIME_DIR="$runtime_dir" \
 OMARCHY_TEST_QS_STATE="$restart_state" \
 OMARCHY_TEST_QS_LOG="$restart_log" \
@@ -393,6 +399,7 @@ OMARCHY_TEST_IPC_LOG="$ipc_log" \
 OMARCHY_TEST_SESSION_PATH="$restart_root" \
 OMARCHY_TEST_ACTIVE_SIGNATURES=session-a,session-b \
 OMARCHY_TEST_MANAGER_SIGNATURE=session-b \
+OMARCHY_TEST_MANAGER_PATH="$caller_root" \
 OMARCHY_TEST_INSTANCES="$multi_instances" \
 HYPRLAND_INSTANCE_SIGNATURE=session-a \
   "$ROOT/bin/omarchy-restart-shell"
@@ -405,11 +412,13 @@ if ! kill -0 "$restart_pid_two" 2>/dev/null; then
   fail "restart leaves the other compositor's shell process alive"
 fi
 [[ $(tail -n 1 "$dispatch_log") == "session-a wayland-1" ]] || fail "dispatch uses the caller's compositor and resolved display"
+grep -F "kill -p $restart_root/shell" "$restart_log" >/dev/null || fail "restart kills the selected compositor's checkout rather than the manager's checkout"
+[[ $(tail -n 1 "$ipc_log") == "ipc -n -p $restart_root/shell call -- shell ping" ]] || fail "restart probes readiness in the selected compositor's checkout"
 kill "$restart_pid_two" 2>/dev/null || true
 wait "$restart_pid_one" "$restart_pid_two" 2>/dev/null || true
 restart_pid_one=""
 restart_pid_two=""
-pass "restart targets only the caller's unlocked Wayland session"
+pass "restart targets the caller's display and compositor checkout despite stale caller and manager paths"
 
 # A stale caller signature must fall back to the manager session and resolve
 # that session's display, leaving the other compositor's shell untouched.
@@ -474,6 +483,23 @@ kill "$restart_pid_one" 2>/dev/null || true
 wait "$restart_pid_one" 2>/dev/null || true
 restart_pid_one=""
 pass "missing Wayland mapping refuses before stopping Quickshell"
+
+# A responsive compositor with an unreadable launch environment must also
+# preserve its shell instead of falling back to another checkout.
+: >"$restart_log"
+printf '303\n' >"$restart_state"
+path_error=$(PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  OMARCHY_TEST_PATH_FAIL=1 \
+  HYPRLAND_INSTANCE_SIGNATURE=current-session \
+  "$ROOT/bin/omarchy-restart-shell" 2>&1) && fail "restart refuses an unresolved session checkout"
+[[ $path_error == "Could not resolve the Omarchy path for Hyprland (current-session); refusing to stop the Omarchy shell." ]] || fail "unresolved checkout refusal is clear" "$path_error"
+[[ $(<"$restart_state") == 303 && ! -s $restart_log ]] || fail "unresolved checkout does not invoke Quickshell"
+pass "unresolved compositor checkout refuses before stopping Quickshell"
 
 : >"$restart_log"
 printf '303\n' >"$restart_state"
