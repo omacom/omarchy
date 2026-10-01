@@ -158,6 +158,7 @@ choose_staged_theme_background() {
   local next_theme_backgrounds="$NEXT_THEME_PATH/backgrounds"
 
   choose_theme_background "$NEXT_THEME_PATH" || return 1
+  STAGED_THEME_BACKGROUND="$CHOSEN_THEME_BACKGROUND"
 
   if [[ ${CHOSEN_THEME_BACKGROUND%/*} == $next_theme_backgrounds ]]; then
     CHOSEN_THEME_BACKGROUND="$CURRENT_THEME_PATH/backgrounds/${CHOSEN_THEME_BACKGROUND##*/}"
@@ -182,8 +183,13 @@ set_theme_background() {
 
   new_background="$CHOSEN_THEME_BACKGROUND"
   new_background_snapshot=""
-  if [[ $BACKGROUND_TRANSITION_SNAPSHOTS == "true" ]]; then
-    new_background_snapshot=$(snapshot_background_path "$new_background" "next")
+  if [[ -n $PREPARED_BACKGROUND_SNAPSHOT && $PREPARED_BACKGROUND == "$new_background" ]]; then
+    new_background_snapshot="$PREPARED_BACKGROUND_SNAPSHOT"
+  else
+    [[ -z $PREPARED_BACKGROUND_SNAPSHOT ]] || rm -f "$PREPARED_BACKGROUND_SNAPSHOT"
+    if [[ $BACKGROUND_TRANSITION_SNAPSHOTS == "true" ]]; then
+      new_background_snapshot=$(snapshot_background_path "$new_background" "next")
+    fi
   fi
 
   if [[ -f $OLD_BACKGROUND_SNAPSHOT && -f $new_background_snapshot ]]; then
@@ -353,11 +359,11 @@ if [[ ! -f $NEXT_THEME_PATH/colors.toml && -f $NEXT_THEME_PATH/alacritty.toml ]]
   omarchy-theme-colors-from-alacritty "$NEXT_THEME_PATH"
 fi
 
-# Generate dynamic configs
-omarchy-theme-set-templates
-
 CHOSEN_THEME_BACKGROUND=""
+STAGED_THEME_BACKGROUND=""
 OLD_BACKGROUND_SNAPSHOT=""
+PREPARED_BACKGROUND=""
+PREPARED_BACKGROUND_SNAPSHOT=""
 BACKGROUND_TRANSITION_SNAPSHOTS=true
 if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
   # Resolve the staged choice while the old theme still exists. Video changes
@@ -365,11 +371,23 @@ if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
   if choose_staged_theme_background; then
     if background_transition_uses_snapshots "$CHOSEN_THEME_BACKGROUND"; then
       OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
+
+      # Hand the shell the next background now, so it decodes while the
+      # templates render and the theme swaps in. The staged file is the same
+      # inode the swap moves into place, so its snapshot is the final image.
+      PREPARED_BACKGROUND="$CHOSEN_THEME_BACKGROUND"
+      PREPARED_BACKGROUND_SNAPSHOT=$(snapshot_background_path "$STAGED_THEME_BACKGROUND" "next")
+      if [[ -n $PREPARED_BACKGROUND_SNAPSHOT ]]; then
+        shell_ipc background prepare "$PREPARED_BACKGROUND_SNAPSHOT" 9>&- &
+      fi
     else
       BACKGROUND_TRANSITION_SNAPSHOTS=false
     fi
   fi
 fi
+
+# Generate dynamic configs
+omarchy-theme-set-templates
 
 # Swap next theme in as current
 rm -rf "$CURRENT_THEME_PATH"
@@ -406,6 +424,7 @@ post_theme_commands=(
   omarchy-restart-helix
   omarchy-theme-set-foot
   omarchy-theme-set-tmux
+  omarchy-theme-set-hunk
   omarchy-theme-set-gnome
   omarchy-theme-set-pi
   omarchy-theme-set-claude
@@ -423,9 +442,10 @@ if [[ $THEME_HEADLESS != "1" ]]; then
   # Call hook on theme set
   omarchy-hook theme-set "$THEME_NAME" >/dev/null
 
-  # Warm selector caches after the theme is applied. The shell hot-reloads theme
-  # colors/backgrounds, so keep the running instance alive and preload the picker
-  # rows/selection to avoid first-open carousel settling after a theme change.
-  omarchy-theme-switcher --preload >/dev/null 2>&1
+  # Mirror the theme to herdr machines. SSH can take a while, so this never holds up the theme change.
+  setsid omarchy-theme-set-herdr-machines >>"$HOME/.local/state/omarchy/theme-set-herdr-machines.log" 2>&1 </dev/null &
+
+  # Warm the background selector's thumbnails. The theme picker keeps its own
+  # rows in the shell and refreshes them each time it opens.
   omarchy-theme-bg-cache >/dev/null 2>&1 &
 fi

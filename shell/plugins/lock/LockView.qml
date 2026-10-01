@@ -96,6 +96,13 @@ Item {
       anchors.fill: parent
       path: root.loadBackground ? (root.video ? root.videoPosterPath : root.backgroundPath) : ""
       version: root.backgroundVersion
+      // Decode only once sized, at the lock's own size: an unsized first
+      // request decoded the file at its native resolution, then again once
+      // sized. That size is what the lock service keeps decoded ahead of the
+      // lock, so the first frame has the wallpaper.
+      cached: true
+      constrainDecode: true
+      decodeSize: Qt.size(width, height)
     }
 
     MultiEffect {
