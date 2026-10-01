@@ -117,6 +117,11 @@ ShellRoot {
     check(NetworkMock.checks === before, "does not enable or invoke disabled checks")
     NetworkMock.connectivityCheckEnabled = true
     NetworkMock.network.connected = false
+    Qt.callLater(scanListChecks)
+  }
+
+  function scanListChecks() {
+    check(panel.kind === "wifi", "connected device keeps Wi-Fi when the scan list misses the network")
     NetworkMock.wifi.connected = false
     Qt.callLater(disconnectedChecks)
   }
