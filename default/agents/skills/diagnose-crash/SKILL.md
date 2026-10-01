@@ -57,12 +57,14 @@ Check the `COREFILE` column in `coredumpctl list` before extracting. A truncated
 
 Use a disk-backed directory for extraction. On a stock Omarchy install, `/var/tmp` is on disk and `/tmp` is tmpfs. Do not inherit `TMPDIR` here: expanding a compressed core can consume tens of gigabytes, which is especially harmful while diagnosing memory exhaustion. Check available space with `df -h /var/tmp`; the compressed size reported by `coredumpctl` is not the space needed for extraction. If `/var/tmp` is also tmpfs on a customized system, choose another disk-backed directory with enough space.
 
+`coredumpctl dump <pid> | wc -c` measures the uncompressed size without writing a file. Compare that number with the available space before extraction.
+
 This is Arch, which runs a public debuginfod server:
 
 ```bash
-core=$(mktemp -p /var/tmp crash-XXXXXX.core)
+core=$(mktemp -p /var/tmp crash-XXXXXX.core) || exit 1
 trap 'rm -f "$core"' EXIT
-coredumpctl dump <pid> --output="$core"
+coredumpctl dump <pid> --output="$core" || exit 1
 DEBUGINFOD_URLS="https://debuginfod.archlinux.org" \
   gdb -q <executable> "$core" \
   -batch -ex 'set debuginfod enabled on' -ex 'bt'
@@ -71,6 +73,8 @@ DEBUGINFOD_URLS="https://debuginfod.archlinux.org" \
 A core is a verbatim copy of the process's memory and can hold passwords, tokens,
 and private documents. Write it to a fresh `mktemp` path rather than a predictable
 shared one, and delete it when you are done.
+
+If `/var/tmp` is missing or unwritable, use another writable disk-backed directory or run the extraction outside the sandbox. Check that directory with `findmnt -T <directory>` before using it. Do not fall back to `/tmp` or inherit `TMPDIR`.
 
 Many packages publish no debug symbols. When frames stay unresolved, say so —
 never invent function names to fill the gap. An unsymbolized stack still has
