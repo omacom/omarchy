@@ -40,7 +40,7 @@ BarWidget {
       font.pixelSize: Style.font.body
       Behavior on color {
         enabled: !root.bar || root.bar.foregroundAnimationEnabled
-        ColorAnimation { duration: 160 }
+        ColorAnimation { duration: Style.duration(160) }
       }
     }
 
@@ -65,7 +65,9 @@ BarWidget {
 
         NumberAnimation on x {
           id: scrollAnim
-          running: labelText.needsScroll && !root.popupOpen && !root.bar.vertical
+          running: labelText.needsScroll && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
+          // Stopped for reduced motion, the title reads from its start again.
+          onRunningChanged: if (!running && Style.reduceMotion) labelText.x = 0
           loops: Animation.Infinite
           duration: Math.max(6000, labelText.implicitWidth * 25)
           from: scrollClip.width
