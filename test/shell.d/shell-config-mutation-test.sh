@@ -47,6 +47,7 @@ if ! command -v quickshell >/dev/null; then
 fi
 
 fixture=$(mktemp -d)
+config_runtime=""
 qs_pid=""
 cleanup() {
   if [[ -n $qs_pid ]]; then
@@ -55,10 +56,13 @@ cleanup() {
   fi
   chmod -R u+rwX "$fixture"
   rm -rf "$fixture"
+  if [[ -n $config_runtime ]]; then rm -rf "$config_runtime"; fi
 }
 trap cleanup EXIT
-mkdir -p "$fixture/home/.config/omarchy" "$fixture/services" "$fixture/runtime"
-chmod 700 "$fixture/runtime"
+# Unix socket paths have a small fixed limit; TMPDIR can be much longer.
+config_runtime=$(mktemp -d /tmp/omarchy-config-runtime.XXXXXX)
+chmod 700 "$config_runtime"
+mkdir -p "$fixture/home/.config/omarchy" "$fixture/services"
 cp "$ROOT/shell/services/ShellConfigStore.qml" "$fixture/services/"
 # Exercise the production mutation entry points without loading the desktop.
 python3 - "$ROOT" "$fixture" <<'PY'
@@ -75,7 +79,7 @@ PY
 config="$fixture/home/.config/omarchy/shell.json"
 printf '%s\n' '{"version":1,"plugins":[]}' > "$config"
 qs() {
-  HOME="$fixture/home" XDG_RUNTIME_DIR="$fixture/runtime" XDG_CONFIG_HOME="$fixture/home/.config" \
+  HOME="$fixture/home" XDG_RUNTIME_DIR="$config_runtime" XDG_CONFIG_HOME="$fixture/home/.config" \
     XDG_CACHE_HOME="$fixture/home/.cache" XDG_STATE_HOME="$fixture/home/.local/state" \
     QT_QPA_PLATFORM=offscreen quickshell "$@"
 }
