@@ -5,7 +5,13 @@ set -euo pipefail
 source "$(dirname "$0")/base-test.sh"
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+cleanup() {
+  touch "$test_tmp/release"
+  [[ -z ${first_pid:-} ]] || wait "$first_pid" 2>/dev/null || true
+  [[ -z ${second_pid:-} ]] || wait "$second_pid" 2>/dev/null || true
+  rm -rf "$test_tmp"
+}
+trap cleanup EXIT
 
 export XDG_RUNTIME_DIR="$test_tmp/runtime"
 export XDG_CACHE_HOME="$test_tmp/cache"
