@@ -133,6 +133,45 @@ run_verifier >"$test_tmp/out" 2>"$test_tmp/err" ||
 [[ ! -s $calls ]] || fail "an unowned preserved kernel triggers a rebuild"
 pass "a kernel preserved outside pacman ownership is ignored"
 
+config_root="$test_tmp/config-root"
+mkdir -p "$config_root/usr/share/limine-entry-tool.d" "$config_root/etc/limine-entry-tool.d" "$config_root/etc/default"
+printf 'ENABLE_UKI=yes\n' >"$config_root/etc/limine-entry-tool.d/omarchy-uki.conf"
+
+run_effective_verifier() {
+  OMARCHY_VERIFY_BOOT_TEST=1 OMARCHY_MODULES_DIR="$modules" OMARCHY_UKI_DIR="$uki_dir" \
+    OMARCHY_LIMINE_CONFIG="$limine_config" OMARCHY_LIMINE_CONFIG_ROOT="$config_root" \
+    OWNED_PKGBASES="$pkgbase" REPAIR_MODE=fail CALLS="$calls" PATH="$stub_bin:$ROOT/bin:$PATH" \
+    bash "$ROOT/bin/omarchy-update-verify-boot"
+}
+make_uki 6.0.9-old
+write_limine_config
+for override in "$config_root/etc/limine-entry-tool.d/zz-disable.conf" "$config_root/etc/default/limine"; do
+  printf " ENABLE_UKI = 'no' # administrator override\n" >"$override"
+  : >"$calls"
+  run_effective_verifier >"$test_tmp/out" 2>"$test_tmp/err" || fail "an effective non-UKI installation skips UKI verification"
+  [[ ! -s $calls ]] || fail "a non-UKI installation is not rebuilt for a missing UKI"
+  rm "$override"
+done
+pass "later drop-ins and /etc/default/limine can disable UKI verification"
+
+printf 'ENABLE_UKI=no\n' >"$config_root/usr/share/limine-entry-tool.d/00-default.conf"
+printf 'ENABLE_UKI=no\n' >"$config_root/etc/limine-entry-tool.conf"
+: >"$calls"
+if run_effective_verifier >"$test_tmp/out" 2>"$test_tmp/err"; then
+  fail "the Omarchy drop-in overrides lower-priority disabled settings"
+fi
+[[ $(wc -l <"$calls") == 1 ]] || fail "an effectively enabled UKI is still verified"
+pass "UKI verification follows the full configuration priority order"
+
+printf 'ENABLE_UKI=""\n' >"$config_root/etc/default/limine"
+: >"$calls"
+run_effective_verifier >"$test_tmp/out" 2>"$test_tmp/err" || fail "an empty highest-priority value disables UKIs"
+[[ ! -s $calls ]] || fail "empty overrides are not ignored"
+printf "ENABLE_UKI='yes'\n" >"$config_root/etc/default/limine"
+run_effective_verifier >"$test_tmp/out" 2>"$test_tmp/err" || fail "single-quoted values follow Limine's literal parser"
+[[ ! -s $calls ]] || fail "single-quoted yes is not an effective UKI setting"
+pass "empty and literal quoted values follow limine-entry-tool semantics"
+
 # The analyzer is the last update step before status and restart. Pin the call
 # so a failed live verification becomes the update's exit status.
 analyzer_stub="$test_tmp/analyzer-bin"

@@ -9,15 +9,37 @@ set -euo pipefail
 modules_dir="${OMARCHY_MODULES_DIR:-/usr/lib/modules}"
 uki_dir="${OMARCHY_UKI_DIR:-/boot/EFI/Linux}"
 limine_config="${OMARCHY_LIMINE_CONFIG:-/boot/limine.conf}"
-uki_config="${OMARCHY_UKI_CONFIG:-/etc/limine-entry-tool.d/omarchy-uki.conf}"
+config_root="${OMARCHY_LIMINE_CONFIG_ROOT:-}"
+uki_configs=(
+  "$config_root"/usr/share/limine-entry-tool.d/*.conf
+  "$config_root"/etc/limine-entry-tool.conf
+  "$config_root"/etc/limine-entry-tool.d/*.conf
+  "$config_root"/etc/default/limine
+)
+[[ -z ${OMARCHY_UKI_CONFIG:-} ]] || uki_configs=("$OMARCHY_UKI_CONFIG")
 
 # Nothing to verify on a non-UEFI or non-UKI installation. The explicit test
 # flag exists only so the same boundary can be exercised outside a booted VM.
 if [[ ${OMARCHY_VERIFY_BOOT_TEST:-} != "1" ]]; then
   [[ -d /sys/firmware/efi ]] || exit 0
 fi
-sudo test -f "$uki_config" || exit 0
-sudo grep -q '^ENABLE_UKI=yes$' "$uki_config" || exit 0
+# Follow limine-entry-tool's load order without executing configuration as shell.
+uki=""
+for file in "${uki_configs[@]}"; do
+  [[ -f $file ]] || continue
+  value=$(sudo awk '
+    /^[[:space:]]*ENABLE_UKI[[:space:]]*=/ {
+      value = $0
+      sub(/^[^=]*=[[:space:]]*/, "", value)
+      sub(/"$/, "", value)
+      sub(/^"/, "", value)
+      found = 1
+    }
+    END { if (found) print "=" value }
+  ' "$file")
+  [[ $value != "="* ]] || uki=${value#=}
+done
+[[ $uki == "yes" ]] || exit 0
 
 failures=()
 verify_boot_images() {
