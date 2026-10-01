@@ -20,6 +20,9 @@ done
 pass "other machines do not install VMware tools"
 
 systemctl() {
+  if [[ $1 == "is-enabled" ]]; then
+    printf '%s\n' "${TOOLS_ENABLED:-enabled}"
+  fi
   [[ ${TOOLS_HEALTHY:-0} == "1" ]]
 }
 guest=vmware
@@ -27,6 +30,8 @@ result=$(source "$ROOT/migrations/1790241729.sh")
 [[ $result == *"sudo systemctl enable --now vmtoolsd.service vmware-vmblock-fuse.service"* ]] || fail "existing VMware guests repair their services"
 result=$(TOOLS_HEALTHY=1 source "$ROOT/migrations/1790241729.sh")
 [[ $result != *"sudo "* ]] || fail "a later user on a repaired guest needs no privileges"
+result=$(TOOLS_HEALTHY=1 TOOLS_ENABLED=enabled-runtime source "$ROOT/migrations/1790241729.sh")
+[[ $result == *"sudo systemctl enable --now vmtoolsd.service vmware-vmblock-fuse.service"* ]] || fail "runtime-only enablement is repaired for the next boot"
 for guest in none kvm oracle; do
   result=$(source "$ROOT/migrations/1790241729.sh")
   [[ $result != *"package "* && $result != *"sudo "* ]] || fail "$guest migrations do not repair VMware tools"

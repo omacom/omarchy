@@ -4,7 +4,8 @@ if [[ $(systemd-detect-virt --vm) == "vmware" ]]; then
   omarchy-pkg-add open-vm-tools
   units=()
   for unit in vmtoolsd.service vmware-vmblock-fuse.service; do
-    if ! systemctl is-enabled --quiet "$unit" || ! systemctl is-active --quiet "$unit"; then
+    enabled=$(systemctl is-enabled "$unit" 2>/dev/null || true)
+    if [[ $enabled != "enabled" ]] || ! systemctl is-active --quiet "$unit"; then
       units+=("$unit")
     fi
   done
