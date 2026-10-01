@@ -655,10 +655,8 @@ Panel {
       var network = networks[i]
       if (!network) continue
       checkActionCompletion(network)
-      var row = Model.wifiRow(network)
-      if (!row) continue
-      row.security = wifiSecurity(row)
-      nets.push(row)
+      var row = Model.wifiRow(network, WifiSecurityType.Unknown, WifiSecurityType.Open)
+      if (row) nets.push(row)
     }
     wifiNetworks = Model.sortWifiRows(nets)
     wifiStationAvailable = !!wifiDevice
