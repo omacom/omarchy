@@ -140,10 +140,29 @@ jq -e '
 }
 pass "shell IPC lists plugin metadata"
 
-# Snapshot the log right after the initial widget registration burst lands,
-# so the collision check below (which runs after several deliberate reloads —
-# the hot-reload rename, plugin enable/disable, and an explicit rescan) only
-# looks at the one registration pass it's actually meant to validate.
+# Snapshot the log once startup registration has settled, so the collision
+# check below sees only that pass and none of the deliberate reloads after it.
+# Widgets and panels load asynchronously after listPlugins answers, so wait
+# for the bar to hold every default widget and the collisions to stop coming.
+default_ids=$(jq -c '(.bar.layout.left + .bar.layout.center + .bar.layout.right) | map(.id // .)' "$ROOT/config/omarchy/shell.json")
+for _ in {1..80}; do
+  shell_ipc shell debugBarGeometry 2>/dev/null | jq -e --argjson expected "$default_ids" '
+    . as $rows | all($expected[]; . as $id | any($rows[]; .id == $id))
+  ' >/dev/null 2>&1 && break
+  sleep 0.1
+done
+collisions=-1
+quiet=0
+for _ in {1..80}; do
+  seen=$(grep -c "another handler is registered for target" "$log" || true)
+  if (( seen == collisions )); then
+    (( ++quiet >= 10 )) && break
+  else
+    collisions=$seen
+    quiet=0
+  fi
+  sleep 0.1
+done
 startup_log_lines=$(wc -l < "$log")
 
 jq '.name = "After Hot Reload"' "$hot_reload_dir/manifest.json" >"$hot_reload_dir/manifest.json.tmp"
@@ -224,7 +243,6 @@ pass "image selector IPC survives plugin rescan"
 shell_ipc_quiet omarchy.system-update refresh >/dev/null 2>&1 || true
 sleep 0.8
 
-default_ids=$(jq -c '(.bar.layout.left + .bar.layout.center + .bar.layout.right) | map(.id // .)' "$ROOT/config/omarchy/shell.json")
 visible_default_ids='[
   "omarchy.menu",
   "omarchy.workspaces",
