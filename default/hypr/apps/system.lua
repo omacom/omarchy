@@ -15,9 +15,11 @@ o.window(
 -- whatever the app that asked for it titled it.
 o.window("xdg-desktop-portal-gtk", { tag = "+floating-window" })
 o.window({
-  class = "(sublime_text|DesktopEditors|org.gnome.Nautilus|omawrite)",
+  class = "(sublime_text|DesktopEditors|org.gnome.Nautilus)",
   title = "^(Open.*Files?|Open [F|f]older.*|Save.*Files?|Save.*As|Save|All Files|.*wants to [open|save].*|[C|c]hoose.*)",
 }, { tag = "+floating-window" })
+-- Omawrite titles its editor after the document, so only its own two dialog titles are safe to match.
+o.window({ class = "omawrite", title = "^(Open File|Save File)$" }, { tag = "+floating-window" })
 
 -- The About fastfetch layout needs more columns than the standard float provides.
 -- This size only covers the first launch: omarchy-launch-about measures the
