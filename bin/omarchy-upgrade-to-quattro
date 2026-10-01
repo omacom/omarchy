@@ -2345,6 +2345,18 @@ refresh_current_theme_after_upgrade() {
     warn "Could not apply browser theme colour. Run 'omarchy theme set \"$theme_name\"' after reboot if Chromium's theme looks stale."
 }
 
+validate_shell_config() {
+  local config="$target_home/.config/omarchy/shell.json"
+  if [[ -L $config && ! -e $config ]]; then
+    fail "Repair the dangling shell.json symlink before upgrading: $config"
+  fi
+  if [[ -s $config ]] && ! run_as_user jq -e 'type == "object"' "$config" >/dev/null 2>&1; then
+    fail "Repair shell.json before upgrading; your settings have not been changed: $config"
+  fi
+}
+
+validate_shell_config
+
 # Everything below mutates the system, so a non-zero exit from here on leaves a
 # half-upgraded machine that must not be rebooted.
 upgrade_started=1
@@ -2368,19 +2380,23 @@ configure_lock_authentication
 migrate_1password_beta_package
 cleanup_legacy_user_paths
 apply_system_transition
-# Existing shell settings belong to the user, including on a retry of the upgrade.
-# Remember this before missing defaults are copied by the user transition.
-preserve_shell_config=0
-if [[ -e $target_home/.config/omarchy/shell.json || -L $target_home/.config/omarchy/shell.json ]]; then
-  preserve_shell_config=1
+# Record fresh initialization before copying defaults, so an interrupted
+# transition can finish adding installed-service widgets on the next attempt.
+bar_defaults_pending="$target_home/.local/state/omarchy/quattro-bar-defaults.pending"
+if [[ ! -e $target_home/.config/omarchy/shell.json && ! -L $target_home/.config/omarchy/shell.json ]]; then
+  run_as_user mkdir -p "${bar_defaults_pending%/*}"
+  run_as_user touch "$bar_defaults_pending"
 fi
 apply_user_transition
 apply_user_hardware_transition
 run_as_user_omarchy omarchy-refresh-applications ||
   warn "Could not refresh application launchers; run 'omarchy refresh applications' after reboot."
-if (( ! preserve_shell_config )); then
-  run_as_user_omarchy omarchy-bar defaults ||
+if [[ -f $bar_defaults_pending ]]; then
+  if run_as_user_omarchy omarchy-bar defaults; then
+    run_as_user rm -f "$bar_defaults_pending"
+  else
     warn "Could not restore the default bar widgets; run 'omarchy bar defaults' after reboot."
+  fi
 fi
 cleanup_retired_services
 ensure_sleep_lock_service

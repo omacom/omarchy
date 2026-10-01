@@ -61,10 +61,10 @@ if grep -F '"$root/bin/omarchy-done"' "$upgrade_to_quattro" >/dev/null; then
 fi
 pass "Omarchy 4 upgrade writes completion markers without the packaged omarchy-done"
 
-for guarded_step in omarchy-refresh-applications 'omarchy-bar defaults'; do
-  grep -F "run_as_user_omarchy $guarded_step ||" "$upgrade_to_quattro" >/dev/null ||
-    fail "Omarchy 4 upgrade survives a packaged tree without $guarded_step"
-done
+grep -F 'run_as_user_omarchy omarchy-refresh-applications ||' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade survives a missing application refresh command"
+grep -F 'if run_as_user_omarchy omarchy-bar defaults; then' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade retains pending bar initialization when the packaged command is missing"
 pass "Omarchy 4 upgrade survives a packaged tree missing top-level commands"
 
 grep -F 'configure_snapper_policy' "$upgrade_to_quattro" >/dev/null
