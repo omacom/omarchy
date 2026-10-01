@@ -1,6 +1,9 @@
 #!/bin/bash
 
-# omarchy:summary=Display a "Done!" message and wait for user to press any key.
+# omarchy:summary=Display a "Done!" or "Failed!" message and wait for user to press any key.
+# omarchy:args=[exit-code]
+
+code="${1:-0}"
 
 # The device node is there whether or not a terminal is behind it, so opening
 # it is the only test that means anything.
@@ -13,6 +16,10 @@ while read -rsn 1 -t 0.1 _ </dev/tty; do :; done
 
 # Prompt on the terminal rather than stdout, or a caller that redirects us
 # leaves the user waiting on a prompt they were never shown.
-printf '\n\033[32m● \033[0mDone! Press any key to close...' >/dev/tty
+if (( code == 0 )); then
+  printf '\n\033[32m● \033[0mDone! Press any key to close...' >/dev/tty
+else
+  printf '\n\033[31m● \033[0mFailed (exit code %d)! Press any key to close...' "$code" >/dev/tty
+fi
 read -rsn 1 </dev/tty
 echo >/dev/tty
