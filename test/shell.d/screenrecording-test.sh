@@ -302,7 +302,7 @@ pass "webcam size rules place the initial window in its final corner"
 
 cat >"$stub_bin/uname" <<'SH'
 #!/bin/bash
-echo aarch64
+echo "${OMARCHY_TEST_ARCH:-aarch64}"
 SH
 cat >"$stub_bin/omarchy-pkg-present" <<'SH'
 #!/bin/bash
@@ -343,6 +343,15 @@ if grep -qFx -- '--vo=gpu' "$OMARCHY_TEST_MPV_ARGS"; then
   fail "other webcam overlays keep mpv's default renderer" "$(cat "$OMARCHY_TEST_MPV_ARGS")"
 fi
 pass "other webcam overlays keep mpv's default renderer"
+
+OMARCHY_TEST_ARCH=x86_64 OMARCHY_TEST_ASAHI_DRIVER=true start_webcam_overlay
+wait
+if grep -qFx -- '--vo=gpu' "$OMARCHY_TEST_MPV_ARGS"; then
+  fail "non-Apple architectures retain the default renderer even if the driver is installed"
+fi
+rm "$stub_bin/sleep"
+pass "the renderer override requires Apple Silicon and the recording delay remains real"
+
 # The stop path reads the recording state file back and uses its contents as a
 # path -- ffmpeg writes beside it, `mv` replaces it, `rm -f` deletes its
 # preview -- so it has to live in the per-user runtime directory rather than
