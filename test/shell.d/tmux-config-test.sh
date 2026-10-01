@@ -101,6 +101,14 @@ HOME="$custom_home" TMUX_LOG="$tmux_log" PATH="$test_tmp/bin:$PATH" bash -euo pi
 [[ $before == $(sha256sum "$custom_home/.config/tmux/tmux.conf") ]] || fail "user Ms overrides remain unchanged"
 pass "custom clipboard capabilities are preserved without appending a competing override"
 
+non_xterm="$test_tmp/non-xterm/.config/tmux/tmux.conf"
+mkdir -p "${non_xterm%/*}"
+printf '%s\n' 'set -ag terminal-overrides ",vt100:Ms=custom-vt-clipboard"' >"$non_xterm"
+HOME="$test_tmp/non-xterm" TMUX_LOG="$tmux_log" PATH="$test_tmp/bin:$PATH" bash -euo pipefail "$migration" >/dev/null
+grep -Fq 'vt100:Ms=custom-vt-clipboard' "$non_xterm" || fail "unrelated terminal overrides stay intact"
+grep -Fq 'xterm*:Ms=\\E]52;' "$non_xterm" || fail "unrelated terminal overrides do not skip the mosh fix"
+pass "non-xterm clipboard overrides do not block the xterm mosh capability"
+
 selection_copies() {
   python3 - "$1" "$test_tmp/$2-selection.log" "$2-selection-$$" <<'PYTEST'
 import fcntl
