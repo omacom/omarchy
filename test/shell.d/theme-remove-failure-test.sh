@@ -12,8 +12,9 @@ cat >"$test_tmp/bin/rm" <<'SH'
 if [[ ${FAIL_REMOVE:-no} == "yes" ]]; then
   echo 'rm: Permission denied' >&2
   exit 1
+else
+  exec /usr/bin/rm "$@"
 fi
-exec /usr/bin/rm "$@"
 SH
 cat >"$test_tmp/bin/omarchy-notification-send" <<'SH'
 #!/bin/bash
