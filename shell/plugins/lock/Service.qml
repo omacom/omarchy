@@ -175,12 +175,10 @@ Item {
   }
 
   function runWake() {
-    var wasBlank = root.displaysBlank
     root.displaysBlank = false
     root.monitorDpmsKnown = false
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
-    if (wasBlank && lockRequested && fingerprintConfigured && !authenticatingPassword) root.startFingerprint()
   }
 
   function runBlank() {
@@ -563,6 +561,11 @@ Item {
     if (!lockRequested) return
     if (authenticatingPassword) idleBlankTimer.stop()
     else armBlankTimer()
+  }
+
+  // Re-arm only when the display comes back, not on every input to an awake lock.
+  onDisplaysBlankChanged: {
+    if (!displaysBlank && lockRequested && fingerprintConfigured && !authenticatingPassword) startFingerprint()
   }
 
   FileView {
