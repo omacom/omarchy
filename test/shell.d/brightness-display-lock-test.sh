@@ -140,6 +140,10 @@ SCRIPT
 if [[ ${1:-} == "--isolated" ]]; then
   run_checks
 else
+  if ! command -v bwrap >/dev/null || ! bwrap --ro-bind / / true 2>/dev/null; then
+    pass "Bubblewrap unavailable; skipping isolated hostile-path brightness checks"
+    exit 0
+  fi
   sandbox=$(mktemp -d)
   trap 'rm -rf "$sandbox"' EXIT
   bwrap --ro-bind / / --dev /dev --tmpfs /tmp --ro-bind "$ROOT" "$ROOT" \
