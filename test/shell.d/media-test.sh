@@ -65,6 +65,11 @@ assertEqual(
   null,
   'media excludes proxy players from recency selection'
 )
+assertEqual(
+  media.mostRecentlyActivePlayer({ length: 2, 0: browser, 1: spotify }, { [media.playerKey(browser)]: 100, [media.playerKey(spotify)]: 50 }),
+  browser,
+  'media reads recency from a player list that is not a JS array, as Mpris.players.values is'
+)
 assertDeepEqual(
   media.recencyOrderedFallbacks(spotify, 100, browser, { [media.playerKey(browser)]: 50 }),
   [spotify, browser],

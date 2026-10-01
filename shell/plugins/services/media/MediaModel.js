@@ -128,7 +128,8 @@ function osdMessage(player, fallback) {
 // preferred-player tracking has been lost (e.g. its playback stream or MPRIS
 // instance went away while paused).
 function mostRecentlyActivePlayer(players, lastActiveAt) {
-  var list = Array.isArray(players) ? players : []
+  // Mpris.players.values is a Qt sequence, not a JS array, so Array.isArray is false for it.
+  var list = players || []
   var active = lastActiveAt || {}
   var best = null
   var bestAt = -1
