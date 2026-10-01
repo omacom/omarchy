@@ -10,21 +10,19 @@ require_command jq
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
+# The updater reads the real system makepkg config, so the tests keep their
+# assertions host-independent rather than stubbing it: every case either sets
+# a sandboxed user config that overrides the system file in the merged
+# config's own resolution order, or drives a custom MAKEPKG_CONF that fully
+# replaces it. The default-count checks assert only the appended count, so a
+# host-configured MAKEFLAGS cannot flip them.
 stub_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
 config_home="$test_tmp/config"
-system_conf="$test_tmp/system-makepkg.conf"
 yay_log="$test_tmp/yay-env.log"
 yay_ran="$test_tmp/yay-ran"
 merged_config="$test_tmp/merged-makepkg.conf"
 mkdir -p "$stub_bin" "$test_home" "$config_home/pacman"
-
-# A sandbox makepkg.conf stands in for /etc/makepkg.conf through the
-# TEST_MAKEPKG_CONF hook, so the tests do not depend on the host's
-# configuration.
-cat >"$system_conf" <<'EOF'
-PACKAGER="Omarchy Tests <test@example.com>"
-EOF
 
 write_stub() {
   local name="$1"
@@ -69,7 +67,6 @@ run_updater() {
   HOME="$test_home" \
   XDG_CONFIG_HOME="$config_home" \
   MAKEFLAGS="$exported_makeflags" \
-  TEST_MAKEPKG_CONF="$system_conf" \
   MAKEPKG_CONF="$makepkg_conf" \
   YAY_PG_OUTPUT="$yay_pg_output" \
   YAY_LOG="$yay_log" \
@@ -145,12 +142,16 @@ make_smoke "$makeflags"
 pass "a MAKEFLAGS with a -- section still builds with the count applied"
 
 # An exported MAKEFLAGS survives into makepkg when no config assigns one; the
-# cap appends to it instead of replacing the export.
-: >"$config_home/pacman/makepkg.conf"
-run_updater 1 8 "" '{"makepkgconf": ""}' 'CC=clang --output-sync=recurse'
+# cap appends to it instead of replacing the export. A marker-only custom
+# MAKEPKG_CONF keeps the case hermetic: it fully replaces the system config
+# and leaves MAKEFLAGS to the environment.
+exported_conf="$test_tmp/exported-makepkg.conf"
+printf 'OMARCHY_PROBE_EXPORT_CONF=1\n' >"$exported_conf"
+run_updater 1 8 "$exported_conf" '{"makepkgconf": ""}' 'CC=clang --output-sync=recurse'
 makeflags=$(MAKEFLAGS='CC=clang --output-sync=recurse' bash --noprofile --norc -c \
   'source "$1"; printf "%s" "${MAKEFLAGS-}"' _ "$merged_config")
-[[ $makeflags == *"CC=clang --output-sync=recurse -j1" ]] || fail "an exported MAKEFLAGS is preserved and capped" "got: $makeflags"
+[[ $makeflags == "CC=clang --output-sync=recurse -j1" ]] || fail "an exported MAKEFLAGS is preserved and capped" "got: $makeflags"
+make_smoke "$makeflags"
 grep -Fxq 'MAKEFLAGS=CC=clang --output-sync=recurse' "$yay_log" || fail "the yay boundary keeps the exported MAKEFLAGS"
 pass "an exported MAKEFLAGS is preserved and capped instead of replaced"
 
