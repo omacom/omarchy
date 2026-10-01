@@ -100,7 +100,7 @@ The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
 ## Elsewhen
 
-Elsewhen (`omacom.elsewhen`) ships in the `elsewhen` package at `/usr/share/omarchy/shell/plugins/omacom.elsewhen`, where the shell discovers it automatically. New installs place it immediately before the clock; the migration uses `omarchy bar put omacom.elsewhen --before omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. Existing plugin directories and symlinks are left intact. The normal update flow restarts the shell after migrations; the migration does not interrupt plugin loading with an immediate restart. With no shell to ask, as in an update from a TTY, the migration installs the package and skips the placement rather than failing the update; `omarchy bar put omacom.elsewhen --before omarchy.clock` places the widget later.
+Elsewhen (`omarchy.elsewhen`), the world clock, is a first-party plugin in `shell/plugins/panels/elsewhen/`; [`elsewhen.md`](elsewhen.md) covers how it works. It shipped as the separate `elsewhen` package under the id `omacom.elsewhen` until it moved in. New installs place it immediately before the clock; the placement migration uses `omarchy bar put omarchy.elsewhen --before omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. With no shell to ask, as in an update from a TTY, it skips the placement rather than failing the update. A later migration renames existing `omacom.elsewhen` entries in `shell.json`, keeping their settings, and removes the retired package and any dev-checkout link to its `/usr/share/omarchy` path, leaving links and checkouts the user made alone.
 
 ## IPC
 
