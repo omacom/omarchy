@@ -40,12 +40,12 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
     for (const name of fs.readdirSync(scratch)) {
       if (name.startsWith('nmcli-log')) fs.unlinkSync(path.join(scratch, name))
     }
-    const command = ['bash', '-c', network.enterpriseConnectScript,
+    const script = hangAction ? network.enterpriseConnectScript.replace('--kill-after=1s 150s', '--kill-after=0.1s 0.1s') : network.enterpriseConnectScript
+    const command = ['bash', '-c', script,
       'nmcli-eap', 'Enterprise WiFi', 'person@example.org', caCert, serverName]
     // Accelerate the production timeout for the fixture, preserving its
     // process-group behavior and escalation while executing the real helper.
-    if (hangAction) command.unshift('--kill-after=0.1s', '0.1s')
-    const result = childProcess.spawnSync(hangAction ? 'timeout' : command.shift(), command, {
+    const result = childProcess.spawnSync(command.shift(), command, {
       input: password + '\n', encoding: 'utf8', timeout: 2000,
       env: {...process.env, PATH: scratch + ':' + process.env.PATH,
         TEST_NM_LOG: log, TEST_NM_FAIL: failAction || '',
@@ -95,9 +95,12 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
 
   for (const [action, ignoreTerm] of [['add', false], ['edit', false], ['up', false], ['up', true]]) {
     const stalled = connect(cert, 'radius.example.org', '', action, ignoreTerm)
-    assert(!stalled.result.error && (stalled.result.status === 124 || stalled.result.signal === 'SIGKILL'),
-      'enterprise deadline ends a stalled ' + action + (ignoreTerm ? ' even when TERM is ignored' : ''))
+    assert(!stalled.result.error && (stalled.result.status === 124 || stalled.result.status === 137),
+      'enterprise deadline ends a stalled ' + action + (ignoreTerm ? ' even when TERM is ignored' : '')
+        + ' ' + JSON.stringify({status: stalled.result.status, signal: stalled.result.signal, error: stalled.result.error && stalled.result.error.code}))
     assertEqual(stalled.pids.length, 2, 'stalled enterprise fixture started nmcli and its child')
+    assert(stalled.calls.at(-1)[1] === 'delete' && stalled.calls.at(-1)[3] === 'fixture-uuid',
+      'enterprise supervisor cleans its own profile after stalled ' + action + (ignoreTerm ? ' and forced KILL' : ''))
     for (const pid of stalled.pids) {
       const stat = '/proc/' + pid + '/stat'
       assert(!fs.existsSync(stat) || fs.readFileSync(stat, 'utf8').split(') ')[1].startsWith('Z'),
@@ -116,13 +119,15 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
 
   // Exercise the production caller as well as the subprocess boundary.
   const Model = network
-  const enterpriseConnect = {running: false, secret: '', command: []}
+  var cancelSignals = 0
+  const enterpriseConnect = {running: false, secret: '', command: [], cancelling: false, signal: function(signal) { assertEqual(signal, 15, 'enterprise cancellation signals its supervisor'); cancelSignals++ }}
+  var enterpriseRetry = null
   var actionCount = 0
   var actionRevision = 0
   var actionKind = ''
   var failureSsid = ''
   var failureReason = ''
-  function runNetworkAction(kind, ssidNetwork, callback) { actionCount++; actionRevision++; callback({name: ssidNetwork}) }
+  function runNetworkAction(kind, ssidNetwork, callback) { if (actionKind !== '') return; actionKind = kind; actionCount++; actionRevision++; callback({name: ssidNetwork}) }
   function networkForSsid(ssid) { return ssid }
   const caller = panel.match(/function connectEnterprise\([^)]*\) \{[\s\S]*?\n {2}\}/)
   assert(caller, 'enterprise has a production connection caller')
@@ -133,8 +138,9 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   assertEqual(actionCount, 1, 'enterprise caller starts with valid trust settings')
   assertDeepEqual(enterpriseConnect.command.slice(-4), ['Enterprise WiFi', 'person@example.org', cert, 'radius.example.org'], 'enterprise caller passes explicit trust settings to the process')
   assert(!enterpriseConnect.command.includes(password), 'enterprise caller keeps the password out of argv')
-  assertDeepEqual(enterpriseConnect.command.slice(0, 5), ['timeout', '--kill-after=1s', '25s', 'bash', '-c'],
-    'enterprise caller bounds the whole helper and its process group before the 30-second UI timeout')
+  assertDeepEqual(enterpriseConnect.command.slice(0, 2), ['bash', '-c'], 'enterprise caller keeps the cleanup supervisor outside the worker timeout')
+  assert(network.enterpriseConnectScript.includes('timeout --kill-after=1s 150s bash -c'),
+    'enterprise worker deadline accommodates the normal 90-second nmcli activation wait')
 
   const firstCommand = enterpriseConnect.command.slice()
   const firstRevision = enterpriseConnect.actionRevision
@@ -142,14 +148,22 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   assertEqual(actionCount, 1, 'enterprise does not reuse a still-running process for a retry')
   assertDeepEqual(enterpriseConnect.command, firstCommand, 'enterprise retains the running process command')
   assertEqual(enterpriseConnect.actionRevision, firstRevision, 'enterprise retains the running attempt revision')
-  assertEqual(failureReason, 'Previous attempt still running', 'enterprise explains why an overlapping retry cannot start')
+  assertEqual(enterpriseRetry, null, 'a busy enterprise action does not queue an overlapping retry')
+  actionKind = '' // The panel's informational timeout has expired.
+  connectEnterprise('Enterprise WiFi', 'retry@example.org', 'new password', cert, 'radius.example.org')
+  assertEqual(cancelSignals, 1, 'retry cancels a stale attempt instead of remaining blocked')
+  assertEqual(enterpriseRetry.identity, 'retry@example.org', 'enterprise queues the retry until old cleanup exits')
+  assertEqual(actionCount, 1, 'queued retry does not reuse the live Process')
+  connectEnterprise('Enterprise WiFi', 'latest@example.org', 'latest password', cert, 'radius.example.org')
+  assertEqual(cancelSignals, 1, 'additional retry requests do not interrupt cancellation cleanup')
+  assertEqual(enterpriseRetry.identity, 'latest@example.org', 'enterprise retains the latest requested retry')
 
   const exitHandler = panel.match(/onExited: function\(exitCode, exitStatus\) \{([\s\S]*?)\n {4}\}/)
   assert(exitHandler, 'enterprise has an exit handler')
-  const onExited = new Function('exitCode', 'exitStatus', 'root', 'actionRevision', 'ssid', 'actionTimeout', 'secret', exitHandler[1])
+  const onExited = new Function('exitCode', 'exitStatus', 'root', 'actionRevision', 'ssid', 'actionTimeout', 'secret', 'cancelling', 'Qt', exitHandler[1])
   var stopped = 0
   const timer = {stop: function() { stopped++ }}
-  const retry = {actionRevision: firstRevision + 1, actionKind: 'connect', actionSsid: 'Enterprise WiFi', failureSsid: '', failureReason: ''}
+  const retry = {actionRevision: firstRevision + 1, actionKind: 'connect', actionSsid: 'Enterprise WiFi', failureSsid: '', failureReason: '', enterpriseRetry: null}
   const beforeLateExit = JSON.stringify(retry)
   onExited(1, 0, retry, firstRevision, 'Enterprise WiFi', timer, '')
   assertEqual(JSON.stringify(retry), beforeLateExit, 'enterprise late exit cannot clear a newer same-SSID attempt')
@@ -165,9 +179,16 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   assertEqual(retry.failureReason, 'Timed out connecting', 'enterprise deadline reports a timeout instead of invalid credentials')
   assertEqual(retry.actionKind, '', 'enterprise timeout clears its own busy state for retry')
 
+  const deferred = []
+  const queued = {actionRevision: firstRevision, actionKind: '', actionSsid: '', enterpriseRetry,
+    connectEnterprise: function() { connectEnterprise(...arguments) }}
+  onExited(124, 0, queued, firstRevision, 'Enterprise WiFi', timer, '', true, {callLater: fn => deferred.push(fn)})
+  assertEqual(queued.enterpriseRetry, null, 'old exit releases its queued retry payload')
+  assertEqual(actionCount, 1, 'retry waits until after the old exit callback completes')
   enterpriseConnect.running = false
-  connectEnterprise('Enterprise WiFi', 'retry@example.org', password, cert, 'radius.example.org')
-  assertEqual(actionCount, 2, 'enterprise permits a retry after the previous process exits')
+  deferred[0]()
+  assertEqual(actionCount, 2, 'enterprise automatically starts the queued retry after cleanup exits')
+  assertEqual(enterpriseConnect.command.at(-3), 'latest@example.org', 'enterprise starts the latest queued identity')
   assert(enterpriseConnect.actionRevision > firstRevision, 'enterprise retry records a new attempt revision')
 
   const actionHelper = panel.match(/function runNetworkAction\([^)]*\) \{[\s\S]*?\n {2}\}/)

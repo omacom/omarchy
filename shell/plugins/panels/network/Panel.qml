@@ -102,6 +102,7 @@ Panel {
   property string identityText: ""
   property string caCertText: ""
   property string serverNameText: ""
+  property var enterpriseRetry: null
 
   // ConnectionFailReason values as a plain object, so Model.js helpers stay
   // pure JS and Node-testable.
@@ -833,8 +834,11 @@ Panel {
     // them before exit would let its late failure be attributed to a retry.
     if (enterpriseConnect.running) {
       if (actionKind === "") {
-        failureSsid = ssid
-        failureReason = "Previous attempt still running"
+        enterpriseRetry = {ssid: ssid, identity: identity, passphrase: passphrase, caCert: caCert, serverName: serverName}
+        if (!enterpriseConnect.cancelling) {
+          enterpriseConnect.cancelling = true
+          enterpriseConnect.signal(15)
+        }
       }
       return
     }
@@ -842,11 +846,7 @@ Panel {
       enterpriseConnect.secret = passphrase
       enterpriseConnect.ssid = ssid
       enterpriseConnect.actionRevision = actionRevision
-      // Bound the whole attempt, including stuck nmcli children. Without
-      // --foreground, timeout owns their process group and escalates to KILL.
-      // It must finish before the panel's 30-second action timeout so a retry
-      // never reuses a process whose previous attempt is still running.
-      enterpriseConnect.command = ["timeout", "--kill-after=1s", "25s", "bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity, caCert, serverName]
+      enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity, caCert, serverName]
       enterpriseConnect.running = true
     })
   }
@@ -858,6 +858,7 @@ Panel {
     property string secret: ""
     property string ssid: ""
     property int actionRevision: 0
+    property bool cancelling: false
     stdinEnabled: true
     onStarted: {
       write(secret + "\n")
@@ -865,6 +866,12 @@ Panel {
     }
     onExited: function(exitCode, exitStatus) {
       secret = ""
+      cancelling = false
+      var retry = root.enterpriseRetry
+      root.enterpriseRetry = null
+      if (retry) {
+        Qt.callLater(function() { root.connectEnterprise(retry.ssid, retry.identity, retry.passphrase, retry.caCert, retry.serverName) })
+      }
       if ((exitCode === 0 && exitStatus === 0) || root.actionRevision !== actionRevision || root.actionKind !== "connect" || root.actionSsid !== ssid) return
       actionTimeout.stop()
       root.failureSsid = ssid

@@ -343,6 +343,18 @@ function enterpriseTrustValid(caCert, serverName) {
 // `connection edit` editor -- argv is world-readable in /proc, so the secret
 // must never be an argument (printf is a bash builtin, so no process spawns
 // with it either).
+var enterpriseConnectWorkerScript =
+  " IFS= read -r pw || exit 1;" +
+  // Keep the group leader alive while a foreground child ignores TERM, so
+  // timeout's KILL escalation still reaches every member of the group.
+  " trap 'exit 124' TERM INT;" +
+  " nmcli connection add type wifi con-name \"$1\" ssid \"$1\" connection.uuid \"$5\"" +
+  " wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2" +
+  " 802-1x.identity \"$2\" 802-1x.auth-timeout 8" +
+  " 802-1x.ca-cert \"$3\" 802-1x.domain-match \"$4\" 802-1x.system-ca-certs no >/dev/null" +
+  " && printf 'set 802-1x.password %s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$5\" >/dev/null" +
+  " && nmcli connection up uuid \"$5\""
+
 var enterpriseConnectScript =
   // Recheck at the process boundary so a caller cannot bypass the UI gate.
   "[[ $3 == /* && -f $3 && -r $3 ]] || exit 64;" +
@@ -350,17 +362,21 @@ var enterpriseConnectScript =
   " IFS=. read -r -a labels <<<\"$4\";" +
   " for label in \"${labels[@]}\"; do" +
   " (( ${#label} <= 63 )) && [[ $label =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]] || exit 65; done;" +
-  " u=$(uuidgen); IFS= read -r pw || exit 1;" +
-  // Roll back this attempt on failure or cancellation, with bounded cleanup.
-  " trap 'timeout --kill-after=1s 2s nmcli connection delete uuid \"$u\" >/dev/null 2>&1' EXIT;" +
-  " trap 'exit 124' TERM INT;" +
-  " nmcli connection add type wifi con-name \"$1\" ssid \"$1\" connection.uuid \"$u\"" +
-  " wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2" +
-  " 802-1x.identity \"$2\" 802-1x.auth-timeout 8" +
-  " 802-1x.ca-cert \"$3\" 802-1x.domain-match \"$4\" 802-1x.system-ca-certs no >/dev/null" +
-  " && printf 'set 802-1x.password %s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$u\" >/dev/null" +
-  " && nmcli connection up uuid \"$u\"" +
-  " || exit 1; trap - EXIT"
+  " u=$(uuidgen) || exit 1; IFS= read -r pw || exit 1; cancelled=0; attempt_pid=;" +
+  // The supervisor survives the worker group's KILL and owns its UUID. Allow
+  // nmcli's normal 90-second activation wait plus setup time; an explicit
+  // retry cancels sooner. Cleanup runs outside the group being terminated.
+  " cancel_attempt() { cancelled=1; if [[ -n $attempt_pid ]]; then kill -TERM \"$attempt_pid\" 2>/dev/null; wait \"$attempt_pid\" 2>/dev/null; fi; };" +
+  " trap cancel_attempt TERM INT;" +
+  " printf '%s\\n' \"$pw\" | timeout --kill-after=1s 150s bash -c '" +
+  enterpriseConnectWorkerScript.replace(/'/g, "'\\''") +
+  "' nmcli-eap \"$1\" \"$2\" \"$3\" \"$4\" \"$u\" & attempt_pid=$!;" +
+  " (( cancelled == 0 )) || cancel_attempt;" +
+  " wait \"$attempt_pid\"; status=$?; trap '' TERM INT;" +
+  " (( cancelled == 0 )) || status=124;" +
+  // Give profile deletion its normal ten-second wait before escalating.
+  " if (( status != 0 )); then timeout --kill-after=1s 12s nmcli connection delete uuid \"$u\" >/dev/null 2>&1; fi;" +
+  " exit \"$status\""
 
 function networkFailureReason(reason, needsCredentials, reasons) {
   var r = reasons || {}
