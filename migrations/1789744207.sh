@@ -5,6 +5,7 @@ flag_files=(
   "$HOME/.config/chrome-flags.conf"
   "$HOME/.config/microsoft-edge-stable-flags.conf"
   "$HOME/.config/brave-flags.conf"
+  "$HOME/.config/brave-beta-flags.conf"
   "$HOME/.config/brave-origin-flags.conf"
 )
 
@@ -14,7 +15,7 @@ for flag_file in "${flag_files[@]}"; do
   grep -Eq '^--enable-features=([^,]*,)*SystemNotifications([,<]|$)' "$flag_file" && continue
 
   if grep -q '^--enable-features=' "$flag_file"; then
-    sed -i '0,/^--enable-features=/{/^--enable-features=/s/$/,SystemNotifications/;}' "$flag_file"
+    sed -i --follow-symlinks '0,/^--enable-features=/{/^--enable-features=/s/$/,SystemNotifications/;}' "$flag_file"
   else
     if [[ -s $flag_file && -n $(tail -c 1 "$flag_file") ]]; then
       printf '\n' >>"$flag_file"
