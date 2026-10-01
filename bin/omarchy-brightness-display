@@ -4,6 +4,8 @@
 # omarchy:args=[--no-osd] [--monitor name] [+N%|N%-|N%|off|on]
 # omarchy:examples=omarchy brightness display | omarchy brightness display +5% | omarchy brightness display --monitor DP-1 50% | omarchy brightness display off | omarchy brightness display on
 
+set -o pipefail
+
 no_osd=0
 monitor=""
 
@@ -61,42 +63,51 @@ step="$1"
 
 state_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.saved"
 
+# Blank and wake must wait for each other; brightness key repeat may be dropped.
+exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
+if [[ $step == "off" || $step == "on" ]]; then
+  flock "$lock_fd"
+else
+  flock -n "$lock_fd" || exit 0
+fi
+
+internal_panel_enabled() {
+  hyprctl monitors all -j 2>/dev/null | jq -e 'any(.[]; (.name | test("^(eDP|LVDS|DSI)-")) and .disabled == false)' >/dev/null
+}
+
 if [[ $step == "off" ]]; then
-  # DPMS disable only blanks the signal — the backlight driver keeps the
-  # panel lit at its last level, showing as a dim glow. Zero the backlight
-  # too, saving the prior value so "on" can restore it.
-  if ! use_apple_display && ! use_ddc_display; then
+  # Some drivers leave a visible glow after DPMS. Save a valid level before
+  # zeroing an enabled laptop backlight, independently of pointer focus.
+  if internal_panel_enabled; then
     device="$(omarchy-hw-display)" || device=""
     if [[ -n $device ]]; then
       if [[ ! -s $state_file ]]; then
-        backlight_brightness "$device" > "$state_file" 2>/dev/null
+        level=$(backlight_brightness "$device") || level=""
+        if [[ $level =~ ^[0-9]+$ ]]; then
+          printf '%s\n' "$level" >"$state_file"
+        fi
       fi
-      brightnessctl -d "$device" set 0 >/dev/null 2>&1
+      if [[ -s $state_file ]]; then
+        brightnessctl -d "$device" set 0 >/dev/null 2>&1
+      fi
     fi
   fi
   hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
   exit 0
 elif [[ $step == "on" ]]; then
-  if ! use_apple_display && ! use_ddc_display; then
+  if [[ -s $state_file ]] && internal_panel_enabled; then
     device="$(omarchy-hw-display)" || device=""
-    if [[ -n $device && -s $state_file ]]; then
-      if brightnessctl -d "$device" set "$(cat "$state_file")%" >/dev/null 2>&1; then
+    if [[ -n $device ]]; then
+      if brightnessctl -d "$device" set "$(<"$state_file")%" >/dev/null 2>&1; then
         rm -f "$state_file"
       fi
     fi
   fi
-  # Skip the dispatch when every active display is already lit: a redundant
-  # DPMS enable right after system resume forces another modeset, which blanks
-  # the panel for a beat (visible flash at the unlock screen).
+  # A redundant enable after resume forces another modeset on some drivers.
   hyprctl monitors -j 2>/dev/null | jq -e '[.[] | select(.disabled == false)] | length > 0 and all(.dpmsStatus)' >/dev/null 2>&1 && exit 0
   hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1
   exit 0
 fi
-
-# Drop overlapping brightness key events so concurrent invocations do not race.
-# Hardware key repeat present on some devices can otherwise glitch OSD rendering.
-exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
-flock -n "$lock_fd" || exit 0
 
 if use_apple_display; then
   if (( no_osd )); then
