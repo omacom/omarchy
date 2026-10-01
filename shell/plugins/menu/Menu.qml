@@ -138,6 +138,9 @@ Item {
     var command = String(action || "")
     if (!command) return
 
+    var summon = MenuModel.summonAction(command)
+    if (summon && root.shell && root.shell.summon(summon.id, summon.payload)) return
+
     Util.execDetached(command)
   }
 
@@ -1062,15 +1065,21 @@ Item {
       if (root.guardsPending) Qt.callLater(function() { root.evaluateGuards() })
     }
   }
-  PanelWindow {
+  OverlayWindow {
     id: panel
-    visible: root.opened && root.rowsLoaded
-    anchors { top: true; bottom: true; left: true; right: true }
-    color: "transparent"
+    shown: root.opened && root.rowsLoaded
     WlrLayershell.namespace: "omarchy-menu"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    // Settle on OnDemand so on-screen keyboard taps are not routed to the scrim;
+    // the Exclusive prime takes focus, since the mapped surface never re-maps.
+    shownKeyboardFocus: focusPrimed ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive
     exclusionMode: ExclusionMode.Auto
+    property bool focusPrimed: false
+
+    Timer {
+      id: focusPrimeTimer
+      interval: 75
+      onTriggered: if (panel.shown) panel.focusPrimed = true
+    }
 
     // The card opens centered exactly as always. The first search keystroke
     // or submenu move freezes the top line where it currently sits — from
@@ -1083,12 +1092,22 @@ Item {
     readonly property int centeredTop: Math.max(Style.gapsOut, Math.round((height - root.cardHeight) / 2))
     readonly property int effectiveCardTop: cardTop >= 0 ? cardTop : centeredTop
     function freezeCardTop() {
-      if (visible && cardTop < 0) {
+      if (shown && cardTop < 0) {
         cardTop = effectiveCardTop
         maxRowsHeight = root.visibleRowsHeight
       }
     }
-    onVisibleChanged: if (!visible) { cardTop = -1; maxRowsHeight = -1 }
+    // The surface stays mapped between opens, so closing is shown going false.
+    onShownChanged: {
+      focusPrimed = false
+      if (shown) {
+        focusPrimeTimer.restart()
+      } else {
+        focusPrimeTimer.stop()
+        cardTop = -1
+        maxRowsHeight = -1
+      }
+    }
 
     Rectangle {
       anchors.fill: parent

@@ -138,6 +138,15 @@ output=$("$CLI" hw asus)
 assert_output_contains "partial hardware prefix renders matching commands" "$output" "omarchy hw asus rog"
 assert_output_contains "partial hardware prefix includes nested match" "$output" "omarchy hw asus zenbook ux5406aa"
 
+# omarchy-agent takes only flags, so a word after it names the account
+# commands rather than reaching the agent launcher.
+output=$("$CLI" agent account)
+assert_output_contains "a family under a flags-only command renders its commands" "$output" "omarchy agent account use"
+output=$("$CLI" agent account --help)
+assert_output_contains "a family under a flags-only command renders its help" "$output" "omarchy agent account add"
+output=$("$CLI" agent --help)
+assert_output_contains "the flags-only command keeps its own help" "$output" "omarchy agent [--inline] [--pick]"
+
 output=$("$CLI" menu --help)
 assert_output_contains "menu group includes share fallback route" "$output" "omarchy menu share"
 
@@ -549,6 +558,33 @@ chmod +x "$FAKE_BIN/tmux"
 TMUX_LOG="$PI_TMPDIR/tmux.log" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-tmux"
 grep -q 'set-environment -g COLORFGBG 0;15' "$PI_TMPDIR/tmux.log" || fail "tmux sync reads mode from colors.toml"
 pass "tmux sync reads mode from colors.toml"
+
+cat >"$FAKE_BIN/pgrep" <<'EOF'
+#!/bin/bash
+[[ -n $HUNK_RUNNING ]]
+EOF
+chmod +x "$FAKE_BIN/pgrep"
+
+cat >"$FAKE_BIN/pkill" <<'EOF'
+#!/bin/bash
+echo "$*" >>"${PKILL_LOG:-/dev/null}"
+EOF
+chmod +x "$FAKE_BIN/pkill"
+
+cat >"$FAKE_BIN/sleep" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+chmod +x "$FAKE_BIN/sleep"
+
+HUNK_RUNNING=1 PKILL_LOG="$PI_TMPDIR/pkill.log" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-hunk"
+[[ $(grep -c -- '-WINCH -x hunk' "$PI_TMPDIR/pkill.log") == "2" ]] || fail "hunk sync signals running hunk sessions"
+pass "hunk sync signals running hunk sessions"
+
+PKILL_LOG="$PI_TMPDIR/pkill-idle.log" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-hunk"
+[[ ! -e $PI_TMPDIR/pkill-idle.log ]] || fail "hunk sync skips signaling without running hunk"
+pass "hunk sync skips signaling without running hunk"
+rm -f "$FAKE_BIN/pgrep" "$FAKE_BIN/pkill" "$FAKE_BIN/sleep"
 
 cat >"$FAKE_BIN/gsettings" <<'EOF'
 #!/bin/bash
