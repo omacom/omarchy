@@ -136,6 +136,13 @@ pi)
   ;;
 esac
 
+# Opt-in user scripts under ~/.config/omarchy/hooks/agent-launch{,.d}/ see the
+# harness name and cwd before the process is replaced. Limit this notification
+# to five seconds and isolate terminal IO; failures never block the launch.
+if command -v omarchy-hook >/dev/null 2>&1; then
+  timeout --kill-after=1s 5s omarchy-hook agent-launch "$agent" "$PWD" || true
+fi </dev/null >/dev/null 2>&1
+
 if [[ $inline == "true" ]]; then
   exec "${command[@]}"
 else

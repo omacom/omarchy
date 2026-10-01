@@ -11,6 +11,7 @@ file first, if one exists.
 
 ```
 ~/.config/omarchy/hooks/
+├── agent-launch.d/         # Before `omarchy agent` replaces itself (harness in $1, cwd in $2)
 ├── battery-low.d/          # Low battery (percentage in $1)
 ├── font-set.d/             # After font change (font name in $1)
 ├── post-boot.d/            # After the desktop starts
