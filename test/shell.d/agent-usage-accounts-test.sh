@@ -114,6 +114,37 @@ PY
   fail "a lapsed account whose windows all reset reads as untouched" "$rested"
 pass "a lapsed account whose windows all reset reads as untouched"
 
+# Signing the primary home in to another subscription must not inherit the
+# last one's numbers when the first probe for the new one fails.
+printf '{"oauthAccount":{"accountUuid":"u-new"}}\n' >"$HOME/.claude.json"
+now_ms=$(( $(date +%s) * 1000 ))
+jq -nc --arg open "$open_at" --argjson now "$now_ms" '{fetchedAtMs: $now, limits: [{label: "Session (5-hour)", percent: 0.55, resetsAt: $open}]}' \
+  >"$XDG_CACHE_HOME/omarchy/agent-usage/claude-limits.json"
+resigned=$(COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" python3 - <<'PY'
+import importlib.machinery, importlib.util, io, json, os, sys
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+
+def urlopen(request, timeout=None):
+  if request.get_header("Authorization").endswith("token-main"):
+    raise collector.urllib.error.URLError("down")
+  return io.BytesIO(b'{"five_hour": {"utilization": 12.0}}')
+
+collector.urllib.request.urlopen = urlopen
+collector.scan_pi_usage = lambda age: None
+collector.scan_opencode_usage = lambda age: None
+sys.argv = ["omarchy-agent-usage-claude", "--force"]
+collector.main()
+PY
+)
+[[ $(jq -c '.accounts[0].limits | map(.percent)' <<<"$resigned") != *0.55* ]] ||
+  fail "a primary home signed in to another subscription doesn't inherit its limits" "$resigned"
+rm -f "$HOME/.claude.json"
+pass "a primary home signed in to another subscription doesn't inherit its limits"
+
 # A registry with one account changes nothing about the record.
 jq '.accounts |= [.[0]] | .active = "main"' "$accounts/claude.json" >"$test_tmp/one.json"
 mv "$test_tmp/one.json" "$accounts/claude.json"

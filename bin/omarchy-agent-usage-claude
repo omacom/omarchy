@@ -923,8 +923,15 @@ def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
   # "Work", and the new one must never fall back on the old one's allowance.
   # Who the home is signed in as now, not when it was added: a `claude auth
   # login` run in it by hand makes it a different subscription.
-  key = re.sub(r"[^A-Za-z0-9_-]", "", current_account_id(home) or str(account.get("accountId") or "")) or account["id"]
-  cache_name = "claude-limits.json" if account.get("primary") else f"claude-limits-{key}.json"
+  identity = current_account_id(home)
+  key = re.sub(r"[^A-Za-z0-9_-]", "", identity or str(account.get("accountId") or "")) or account["id"]
+  # The primary home is keyed the same way once it says who it's signed in
+  # as, so signing it in to another subscription never inherits the last
+  # one's numbers; until then it keeps the single-account cache.
+  if account.get("primary") and not identity:
+    cache_name = "claude-limits.json"
+  else:
+    cache_name = f"claude-limits-{key}.json"
   limits = collect_limits(access_token, expires_at_ms, force, cache_name)
   if not limits["live"] and not limits["limits"]:
     limits["limits"] = replenished_limits(cache_name)
