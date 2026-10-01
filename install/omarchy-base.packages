@@ -113,7 +113,6 @@ python-gobject
 python-poetry-core
 qt6-base
 qt6-declarative
-qt6-multimedia
 qt6-wayland
 ttfx
 qemu-user-static-binfmt

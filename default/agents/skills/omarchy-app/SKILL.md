@@ -29,8 +29,10 @@ the `.desktop` file, the icon, and the Wayland app id all at once. Create the
 project in `~/Work/<name>` unless the user says otherwise, and `git init` it.
 
 The toolchain is part of Omarchy: `qmake6`, `make`, a C++ compiler, and Qt's
-base, declarative, multimedia, and Wayland modules. If `qmake6` is missing,
-install it with `omarchy-pkg-add base-devel qt6-base qt6-declarative`.
+base, declarative, and Wayland modules. If `qmake6` is missing, install it
+with `omarchy-pkg-add base-devel qt6-base qt6-declarative`. Qt Multimedia
+isn't installed by default: an app that plays audio or video adds it with
+`omarchy-pkg-add qt6-multimedia` and lists it in its PKGBUILD's `depends`.
 
 ## Shape
 
