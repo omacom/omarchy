@@ -16,6 +16,7 @@ SH
 cat >"$test_tmp/bin/gdb" <<'SH'
 #!/bin/bash
 printf 'gdb mode=%s\n' "$(stat -c %a "$3")" >>"$CALLS"
+printf 'core=%s\n' "$3" >>"$CALLS"
 SH
 chmod +x "$test_tmp/bin/"*
 export PATH="$test_tmp/bin:$PATH"
@@ -29,6 +30,7 @@ run_extract() {
 }
 run_extract "$test_tmp/disk"
 grep -Fxq 'gdb mode=600' "$CALLS" || fail "the extracted core is private"
+grep -Fq "core=$test_tmp/disk/" "$CALLS" || fail "the core is passed to gdb from the disk directory"
 [[ -z $(find "$test_tmp/disk" "$test_tmp/inherited" -type f -print -quit) ]] || fail "the core is removed and TMPDIR is unused"
 pass "crash extraction uses a private disk file and cleans it up"
 
