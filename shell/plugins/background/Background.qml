@@ -280,6 +280,18 @@ Item {
     function prepare(path: string): void {
       root.prepareBackground(path)
     }
+
+    // The other calls return before an asynchronous link read settles, so a
+    // caller waits on `reading` to know the layer has caught up.
+    function state(): string {
+      return JSON.stringify({
+        current: root.currentBackground,
+        displayed: root.displayedBackground,
+        incoming: root.incomingBackground,
+        pendingTheme: root.pendingThemeVersion >= 0,
+        reading: readlinkProc.running || root.refreshQueued
+      })
+    }
   }
 
   // A prepared frame that no transition claims, say from a theme switch that

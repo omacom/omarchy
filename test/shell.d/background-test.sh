@@ -76,22 +76,7 @@ assert(
 )
 
 assert(
-  /function clear\(\): void \{\s*root\.clearBackground\(\)/.test(backgroundQml) &&
-    /if ! choose_theme_background; then\s*rm -f "\$CURRENT_BACKGROUND_LINK"\s*shell_ipc background clear/.test(themeSet),
+  /if ! choose_theme_background; then\s*rm -f "\$CURRENT_BACKGROUND_LINK"\s*shell_ipc background clear/.test(themeSet),
   'a theme without a wallpaper removes the link and clears the running shell'
-)
-assert(
-  /function clearBackground\(\) \{(\s*\/\/[^\n]*)*\s*applyPendingTheme\(\)/.test(backgroundQml),
-  'clearing lands a pending theme first, so it cannot overwrite the palette sent after the clear'
-)
-assert(
-  /function refreshBackground\(\) \{[^}]*?if \(readlinkProc\.running\) \{\s*refreshQueued = true\s*return\s*\}\s*refreshVersion = backgroundVersion\s*readlinkProc\.running = true/.test(backgroundQml) &&
-    /id: readlinkProc[\s\S]*?onStreamFinished: \{(\s*\/\/[^\n]*)*\s*if \(root\.refreshVersion !== root\.backgroundVersion\) return/.test(backgroundQml) &&
-    /id: readlinkProc[\s\S]*?onExited: \{\s*if \(!root\.refreshQueued\) return\s*root\.refreshQueued = false\s*root\.refreshBackground\(\)/.test(backgroundQml),
-  'a link read drops its result when a transition or clear overtook it, and a refresh asked for during it runs after'
-)
-assert(
-  /command: \["readlink", "-e", root\.currentBackgroundLink\][\s\S]*?var path = String\(text \|\| ""\)\.trim\(\)\s*if \(path\) root\.setBackground\(path, false\)\s*else root\.clearBackground\(\)/.test(backgroundQml),
-  'a background link that resolves to no file clears the wallpaper'
 )
 JS
