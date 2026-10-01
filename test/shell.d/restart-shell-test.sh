@@ -110,7 +110,7 @@ SH
 cat >"$restart_bin/quickshell" <<'SH'
 #!/bin/bash
 
-printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
+printf '%s\n' "$*" >>"${OMARCHY_TEST_QS_LOG:-/dev/null}"
 
 case " $* " in
   *' kill -p '*)
@@ -132,6 +132,11 @@ cat >"$restart_bin/hyprctl" <<'SH'
 #!/bin/bash
 
 if [[ ${1:-} == "-j" && ${2:-} == "monitors" ]]; then
+  printf '%s\n' "${HYPRLAND_INSTANCE_SIGNATURE-unset}" >>"${OMARCHY_TEST_HYPR_SIGNATURE_LOG:-/dev/null}"
+  if [[ ${OMARCHY_TEST_HYPR_HANG:-0} == 1 ]]; then
+    sleep 5
+  fi
+  [[ ${HYPRLAND_INSTANCE_SIGNATURE:-} == "${OMARCHY_TEST_ACTIVE_SIGNATURE:-current-session}" ]] || exit 1
   # Hyprland reports an active session lock as a reason the monitor cannot hand
   # a client the whole screen, not as a workspace.
   if [[ ${OMARCHY_TEST_SESSION_LOCKED:-0} == 1 ]]; then
@@ -141,6 +146,7 @@ if [[ ${1:-} == "-j" && ${2:-} == "monitors" ]]; then
   fi
 elif [[ ${1:-} == "dispatch" && ${2:-} == hl.dsp.exec_cmd* ]]; then
   printf '%s\n' "${2:-}" >>"$OMARCHY_TEST_DISPATCH_LOG"
+  [[ ${OMARCHY_TEST_DISPATCH_FAIL:-0} != 1 ]] || exit 7
   OMARCHY_PATH="$OMARCHY_TEST_SESSION_PATH" \
     env -u OMARCHY_TEST_TRANSIENT_ENV omarchy-launch-shell
   printf 'ok\n'
@@ -165,6 +171,9 @@ cat >"$restart_bin/systemctl" <<'SH'
 
 if [[ ${1:-} == "--user" && ${2:-} == "show-environment" ]]; then
   printf 'OMARCHY_PATH=%s\n' "$OMARCHY_TEST_SESSION_PATH"
+  if [[ ${OMARCHY_TEST_NO_SESSION_SIGNATURE:-0} != 1 ]]; then
+    printf 'HYPRLAND_INSTANCE_SIGNATURE=%s\n' "${OMARCHY_TEST_ACTIVE_SIGNATURE:-current-session}"
+  fi
 elif [[ ${1:-} == "--user" && ${2:-} == "try-restart" ]]; then
   exit 0
 else
@@ -197,6 +206,8 @@ SH
 
 chmod +x "$restart_bin/qs" "$restart_bin/quickshell" "$restart_bin/hyprctl" "$restart_bin/systemd-cat" "$restart_bin/systemctl" "$restart_bin/busctl"
 
+hypr_signature_log="$test_tmp/hypr-signatures.log"
+
 sleep 30 &
 restart_pid_one=$!
 sleep 30 &
@@ -216,6 +227,9 @@ OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
 OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
 OMARCHY_TEST_IPC_LOG="$ipc_log" \
 OMARCHY_TEST_SESSION_PATH="$restart_root" \
+OMARCHY_TEST_ACTIVE_SIGNATURE=current-session \
+OMARCHY_TEST_HYPR_SIGNATURE_LOG="$hypr_signature_log" \
+HYPRLAND_INSTANCE_SIGNATURE=stale-terminal-session \
 OMARCHY_TEST_TRANSIENT_ENV=leaked \
 OMARCHY_TEST_NOTIFICATION_CHECKS="$test_tmp/notification-checks" \
   timeout 5 "$ROOT/bin/omarchy-restart-shell"
@@ -235,14 +249,87 @@ restart_pid_two=""
 grep -F "kill -p $restart_root/shell --any-display" "$restart_log" >/dev/null || fail "restart stops the shell from the session checkout"
 [[ $(<"$restart_env_log") == "unset" ]] || fail "restart uses the Hyprland session environment for the fresh shell"
 grep -F 'hl.dsp.exec_cmd("omarchy-launch-shell")' "$dispatch_log" >/dev/null || fail "restart launches the fresh shell through Hyprland"
+grep -Fx 'current-session' "$hypr_signature_log" >/dev/null || fail "restart probes the session manager's canonical compositor signature"
+if grep -Fx 'stale-terminal-session' "$hypr_signature_log" >/dev/null; then
+  fail "restart does not select a stale terminal signature"
+fi
 grep -F "ipc -n -p $restart_root/shell call -- shell ping" "$ipc_log" >/dev/null || fail "restart checks readiness in the session checkout"
 pass "restart replaces duplicate shell instances from the session checkout"
 [[ $(<"$test_tmp/notification-checks") == 4 ]] || fail "restart waits for the existing notification service after core IPC is ready"
 pass "restart waits for notification readiness before one-time update hooks"
 
+# If no candidate compositor answers IPC, fail before stopping any shell.
+: >"$restart_log"
+printf '303\n' >"$restart_state"
+preflight_error=$(PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_HYPR_SIGNATURE_LOG="$hypr_signature_log" \
+  OMARCHY_TEST_ACTIVE_SIGNATURE=other-live-session \
+  OMARCHY_TEST_NO_SESSION_SIGNATURE=1 \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" \
+  HYPRLAND_INSTANCE_SIGNATURE=stale-terminal-session \
+  "$ROOT/bin/omarchy-restart-shell" 2>&1) && fail "restart refuses when no compositor signature is responsive"
+[[ $preflight_error == "No responsive Hyprland instance found; refusing to stop the Omarchy shell." ]] || fail "unresponsive compositor refusal is clear" "$preflight_error"
+[[ $(<"$restart_state") == 303 ]] || fail "unresponsive compositor preflight preserves the existing shell"
+[[ ! -s $restart_log ]] || fail "unresponsive compositor preflight does not kill or launch Quickshell"
+pass "restart checks compositor reachability before stopping Quickshell"
+
+# A wedged Hyprland IPC client is killed by the per-probe timeout, and the
+# restart still refuses before stopping the existing shell.
+: >"$restart_log"
+printf '303\n' >"$restart_state"
+preflight_hang_error=$(PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_HYPR_SIGNATURE_LOG="$hypr_signature_log" \
+  OMARCHY_TEST_HYPR_HANG=1 \
+  OMARCHY_TEST_ACTIVE_SIGNATURE=current-session \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" \
+  HYPRLAND_INSTANCE_SIGNATURE=current-session \
+  timeout 5 "$ROOT/bin/omarchy-restart-shell" 2>&1) && fail "restart refuses when the compositor probe hangs"
+[[ $preflight_hang_error == "No responsive Hyprland instance found; refusing to stop the Omarchy shell." ]] || fail "hung compositor probe produces the normal preflight refusal" "$preflight_hang_error"
+[[ $(<"$restart_state") == 303 ]] || fail "hung compositor probe preserves the existing shell"
+[[ ! -s $restart_log ]] || fail "hung compositor probe does not kill or launch Quickshell"
+pass "hung compositor probes time out before stopping Quickshell"
+
+# A dispatch error is reported immediately instead of being hidden until the
+# shell readiness polling expires.
+: >"$restart_log"
+sleep 30 &
+restart_pid_one=$!
+printf '%s\n' "$restart_pid_one" >"$restart_state"
+dispatch_error=$(PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  OMARCHY_TEST_ACTIVE_SIGNATURE=current-session \
+  OMARCHY_TEST_DISPATCH_FAIL=1 \
+  HYPRLAND_INSTANCE_SIGNATURE=current-session \
+  "$ROOT/bin/omarchy-restart-shell" 2>&1) && fail "restart reports a failed Hyprland dispatch"
+[[ $dispatch_error == "Failed to launch the Omarchy shell through Hyprland (current-session)." ]] || fail "dispatch failure is reported clearly" "$dispatch_error"
+[[ ! -s $restart_state ]] || fail "failed dispatch does not report an existing shell as relaunched"
+if kill -0 "$restart_pid_one" 2>/dev/null; then
+  fail "failed dispatch test confirms the old shell was stopped first"
+fi
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+pass "Hyprland dispatch failure is reported immediately"
+
 : >"$restart_log"
 printf '303\n' >"$restart_state"
 touch "$restart_state.locked"
+mkdir -p "$runtime_dir/hypr/runtime-session"
 
 locked_error=$(PATH="$restart_bin:$PATH" \
   OMARCHY_PATH="$restart_root" \
@@ -253,6 +340,9 @@ locked_error=$(PATH="$restart_bin:$PATH" \
   OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
   OMARCHY_TEST_IPC_LOG="$ipc_log" \
   OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  OMARCHY_TEST_ACTIVE_SIGNATURE=runtime-session \
+  OMARCHY_TEST_NO_SESSION_SIGNATURE=1 \
+  HYPRLAND_INSTANCE_SIGNATURE= \
   "$ROOT/bin/omarchy-restart-shell" 2>&1) && fail "restart refuses while the shell lock is active"
 
 [[ $locked_error == "Refusing to restart Omarchy shell while the session is locked." ]] || fail "locked restart explains why it was refused" "$locked_error"
