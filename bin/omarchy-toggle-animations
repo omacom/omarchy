@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle animations, transparency and other effects that are slow without a GPU
+# omarchy:args=[toggle|on|off]
+# omarchy:examples=omarchy toggle animations | omarchy toggle animations off | omarchy toggle animations on
+
+# The flag records animations being off, so on and off swap on the way through.
+case ${1:-toggle} in
+toggle) omarchy-hyprland-toggle no-animations toggle ;;
+on) omarchy-hyprland-toggle no-animations off ;;
+off) omarchy-hyprland-toggle no-animations on ;;
+*)
+  echo "Usage: omarchy-toggle-animations [toggle|on|off]" >&2
+  exit 1
+  ;;
+esac
+
+if omarchy-hyprland-toggle-enabled no-animations; then
+  omarchy-notification-send -g 󰕟 "Animations disabled"
+else
+  omarchy-notification-send -g 󰕟 "Animations enabled"
+fi
