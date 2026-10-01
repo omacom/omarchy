@@ -13,6 +13,8 @@ if grep -q '^ExecCondition=.*bluetooth.service' "$service"; then
 fi
 grep -Fx 'StartLimitIntervalSec=120' "$service" >/dev/null || fail "bt-agent bounds failed startup retries"
 grep -Fx 'StartLimitBurst=3' "$service" >/dev/null || fail "bt-agent bounds failed startup retries"
+grep -Fx 'After=graphical-session.target' "$service" >/dev/null ||
+  fail "bt-agent waits for Bluetooth without holding graphical-session.target"
 pass "bt-agent waits through the system service startup race"
 
 grep -Fx 'Restart=on-failure' "$service" >/dev/null

@@ -4,6 +4,9 @@ Documentation=man:bt-agent(1)
 ConditionPathIsDirectory=/sys/class/bluetooth
 # bluez must be reachable on the system bus before we can register.
 After=dbus.socket
+# The wait for bluetoothd below would otherwise hold graphical-session.target,
+# and every uwsm-app launch behind it, for up to 30 seconds.
+After=graphical-session.target
 Requires=dbus.socket
 StartLimitIntervalSec=120
 StartLimitBurst=3
