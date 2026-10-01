@@ -5,7 +5,7 @@ echo "Restore t2fanrd fan control after suspend/resume"
 # leaving the SMC in failsafe full speed (fan1_manual=0).
 # Fresh installs are covered by install/hardware/apple/fix-t2.sh; this repairs
 # existing T2 machines. See https://github.com/omacom/omarchy/issues/12393
-if ! lspci -nn 2>/dev/null | grep -q "106b:180[12]"; then
+if ! lspci -nn 2>/dev/null | grep "106b:180[12]" >/dev/null; then
   exit 0
 fi
 

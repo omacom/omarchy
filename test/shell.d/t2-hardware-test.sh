@@ -212,3 +212,39 @@ grep -Fxq 'limine-mkinitcpio' "$calls" ||
   fail "T2 rerun migration rebuilds the boot image"
 [[ -f $repair_marker ]] || fail "T2 rerun migration records the machine-wide repair"
 pass "T2 rerun migration repairs installs the broken hardware check skipped"
+
+# The hook migration installs into /usr/lib, so record its sudo calls rather
+# than running them.
+fan_hook_migration="$ROOT/migrations/1789870949.sh"
+record_bin="$test_tmp/record-bin"
+mkdir -p "$record_bin"
+cat >"$record_bin/sudo" <<'SH'
+#!/bin/bash
+
+printf 'sudo' >>"$TEST_LOG"
+printf '\t%s' "$@" >>"$TEST_LOG"
+printf '\n' >>"$TEST_LOG"
+SH
+chmod +x "$record_bin/sudo"
+: >"$calls"
+
+PATH="$record_bin:$stub_bin:$PATH" \
+  TEST_LOG="$calls" \
+  T2_HARDWARE=1 \
+  OMARCHY_PATH="$ROOT" \
+  bash -euo pipefail "$fan_hook_migration" >/dev/null
+
+grep -Fq $'sudo\tinstall\t-m\t0755\t-o\troot\t-g\troot\t-T\t'"$ROOT/default/systemd/system-sleep/t2fanrd"$'\t/usr/lib/systemd/system-sleep/t2fanrd' "$calls" ||
+  fail "T2 fan hook migration installs the resume hook despite chatty lspci" "$(cat "$calls")"
+pass "T2 fan hook migration installs the resume hook"
+
+: >"$calls"
+
+PATH="$record_bin:$stub_bin:$PATH" \
+  TEST_LOG="$calls" \
+  T2_HARDWARE=0 \
+  OMARCHY_PATH="$ROOT" \
+  bash -euo pipefail "$fan_hook_migration" >/dev/null
+
+[[ ! -s $calls ]] || fail "non-T2 systems skip the fan hook" "$(cat "$calls")"
+pass "T2 fan hook migration skips unrelated hardware"
