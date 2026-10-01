@@ -11,7 +11,8 @@ state_file="$HOME/.local/state/omarchy/current/plymouth.name"
 theme=$(<"$state_file")
 [[ $(omarchy-plymouth-current) != "$theme" ]] || exit 0
 
-if ! omarchy-plymouth-list | grep -Fxq -- "$theme"; then
+theme_dir=$(omarchy-theme-dir "$theme")
+if [[ ! -f $theme_dir/unlock.png || ! -f $theme_dir/colors.toml ]]; then
   echo "Unlock theme '$theme' is no longer available; keeping the packaged default." >&2
   exit 0
 fi

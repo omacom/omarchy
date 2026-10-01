@@ -108,3 +108,8 @@ for step in omarchy-plymouth-restore omarchy-migrate omarchy-hook omarchy-update
   fi
 done
 pass "a blocked package upgrade stops the update before it migrates"
+
+FAILING_STEP=omarchy-plymouth-restore run_update -y || fail "theme restoration failure does not stop the package update"
+grep -q '^omarchy-migrate ' "$test_tmp/steps" || fail "migrations still run after a theme failure"
+grep -q '^omarchy-update-analyze-logs ' "$test_tmp/steps" || fail "boot and update checks still run after a theme failure"
+pass "a cosmetic theme repair failure does not skip migrations or final verification"

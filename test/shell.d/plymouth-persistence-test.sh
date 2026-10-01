@@ -50,15 +50,11 @@ cat >"$stub_bin/omarchy-plymouth-current" <<'SH'
 #!/bin/bash
 echo "${CURRENT_THEME:-default}"
 SH
-cat >"$stub_bin/omarchy-plymouth-list" <<'SH'
-#!/bin/bash
-printf '%s\n' "${AVAILABLE_THEMES:-}"
-SH
 cat >"$stub_bin/omarchy-plymouth-set-by-theme" <<'SH'
 #!/bin/bash
 printf 'restore %s\n' "$1" >>"$CALLS"
 SH
-chmod +x "$stub_bin/omarchy-plymouth-current" "$stub_bin/omarchy-plymouth-list" \
+chmod +x "$stub_bin/omarchy-plymouth-current" \
   "$stub_bin/omarchy-plymouth-set-by-theme"
 
 : >"$calls"
@@ -67,13 +63,13 @@ HOME="$test_home" CURRENT_THEME=tokyo-night CALLS="$calls" PATH="$stub_bin:$PATH
 [[ ! -s $calls ]] || fail "an intact unlock theme is needlessly rebuilt after every update"
 pass "an intact unlock theme needs no post-update work"
 
-HOME="$test_home" CURRENT_THEME=default AVAILABLE_THEMES=tokyo-night CALLS="$calls" PATH="$stub_bin:$PATH" \
+HOME="$test_home" THEME_DIR="$theme_dir" CURRENT_THEME=default CALLS="$calls" PATH="$stub_bin:$PATH" \
   bash "$ROOT/bin/omarchy-plymouth-restore"
 grep -Fxq 'restore tokyo-night' "$calls" || fail "a package-clobbered unlock theme is not restored"
 pass "a package-clobbered unlock theme is restored"
 
 : >"$calls"
-HOME="$test_home" CURRENT_THEME=default AVAILABLE_THEMES= CALLS="$calls" PATH="$stub_bin:$PATH" \
+HOME="$test_home" THEME_DIR="$test_tmp/missing" CURRENT_THEME=default CALLS="$calls" PATH="$stub_bin:$PATH" \
   bash "$ROOT/bin/omarchy-plymouth-restore" 2>/dev/null
 [[ ! -s $calls ]] || fail "a removed theme is passed to the theme setter"
 pass "a removed unlock theme falls back without blocking the update"
@@ -81,6 +77,7 @@ pass "a removed unlock theme falls back without blocking the update"
 cat >"$stub_bin/omarchy-refresh-plymouth" <<'SH'
 #!/bin/bash
 echo plymouth >>"$CALLS"
+[[ ${FAIL_REFRESH:-0} == "0" ]]
 SH
 cat >"$stub_bin/omarchy-refresh-sddm" <<'SH'
 #!/bin/bash
@@ -93,3 +90,10 @@ HOME="$test_home" OMARCHY_PATH="$test_tmp" CALLS="$calls" PATH="$stub_bin:$PATH"
 [[ ! -e $state_file ]] || fail "reset leaves the custom unlock theme remembered"
 [[ $(tr '\n' ' ' <"$calls") == "plymouth sddm " ]] || fail "reset does not refresh both unlock surfaces"
 pass "reset forgets the custom unlock theme"
+
+printf 'tokyo-night\n' >"$state_file"
+if HOME="$test_home" OMARCHY_PATH="$test_tmp" CALLS="$calls" FAIL_REFRESH=1 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-plymouth-reset"; then
+  fail "a failed reset reports failure"
+fi
+[[ $(<"$state_file") == "tokyo-night" ]] || fail "a failed reset retains the selected theme"
+pass "failed reset leaves the last working preference available for recovery"
