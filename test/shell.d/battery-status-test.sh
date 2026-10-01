@@ -75,6 +75,20 @@ if matches=$(rg -n '^state\tholding$' <<<"$shell_output"); then
   fail "kernel-default limits do not turn pending charge into a hold" "$matches"
 fi
 
+# A dead pack at 0% is never a limit hold, even with a real end limit and a
+# zero/absent start.
+setup_battery pending-charge 0 "" "80"
+shell_output=$(run_shell)
+if matches=$(rg -n '^state\tholding$' <<<"$shell_output"); then
+  fail "zero-start end-only limit does not turn a dead pack into a hold" "$matches"
+fi
+
+setup_battery pending-charge 0 "0" "80"
+shell_output=$(run_shell)
+if matches=$(rg -n '^state\tholding$' <<<"$shell_output"); then
+  fail "zero-start limit does not turn a dead pack into a hold" "$matches"
+fi
+
 # A configured band reports as holding while inside it, and exposes the raw
 # limits for the panel's own hold logic.
 setup_battery pending-charge 78 "75" "80"

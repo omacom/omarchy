@@ -53,7 +53,8 @@ function chargeLimitsInBand(limits, fraction) {
   var end = Number(limits && limits.end)
   if (!(end >= 1) || end >= 99) return false
   var start = Number(limits && limits.start) || 0
-  return fraction * 100 >= start
+  var level = fraction * 100
+  return level >= 1 && level >= start
 }
 
 function chargeThresholdActive(device, onBattery, states, limits) {
