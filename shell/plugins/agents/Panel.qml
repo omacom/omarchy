@@ -672,18 +672,23 @@ Panel {
   onAddStageChanged: {
     phraseSwap.stop()
     hero.metaOpacity = 1.0
+    resetKeys()
+  }
+
+  // Picking an agent to add starts on the first one, ready for Enter. The
+  // rows follow the same stage change, so the cursor waits a tick for them.
+  function resetKeys() {
     cursorActive = false
     keyRow = 0
     keyColumn = 0
+    Qt.callLater(function() { if (picking) pointAt("choice", 0) })
   }
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
   onOpenedChanged: if (opened) {
-    cursorActive = false
-    keyRow = 0
-    keyColumn = 0
     if (addStage !== "running") addStage = ""
+    resetKeys()
     if (providers.length === 0 && !checkProcess.running) checkProcess.running = true
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
@@ -1008,14 +1013,14 @@ Panel {
               anchors.horizontalCenter: parent.horizontalCenter
               provider: choice.modelData
               size: Style.font.display * 1.6
-              scale: choice.hasCursor && choice.available ? 1.08 : 1.0
+              scale: choice.hasCursor ? 1.08 : 1.0
               Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutQuad } }
             }
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
               text: choice.modelData.providerName
-              color: choice.hasCursor && choice.available ? Color.accent : root.foreground
+              color: choice.hasCursor ? Color.accent : root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
               font.bold: true

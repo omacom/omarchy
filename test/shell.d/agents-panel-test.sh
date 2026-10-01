@@ -24,4 +24,5 @@ assert(/target\.kind === "launch"\) launchAgent\(\)/.test(panelSource), 'Enter o
 assert(/\[\{ kind: "autoswitch", index: i \}, use\]/.test(panelSource), 'an inactive account offers Autoswitch and Use as separate stops')
 assert(/target\.kind === "autoswitch"\) setSwitchMode\(/.test(panelSource), 'Enter on Autoswitch flips the switch mode')
 assert(/keyColumn = use >= 0 \? use : /.test(panelSource), 'moving up or down onto an account lands on Use')
+assert(/Qt\.callLater\(function\(\) \{ if \(picking\) pointAt\("choice", 0\) \}\)/.test(panelSource), 'picking an agent to add starts with the first one focused')
 JS
