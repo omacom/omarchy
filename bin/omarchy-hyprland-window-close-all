@@ -1,6 +1,12 @@
 #!/bin/bash
 
 # omarchy:summary=Close all open windows
+# omarchy:args=[--wait <seconds>]
+
+# With --wait, block until every window has closed. On timeout, print the apps
+# still open (e.g. one asking to save changes) and exit 1.
+wait_seconds=""
+[[ $1 == "--wait" ]] && wait_seconds="${2:-30}"
 
 hyprctl clients -j | \
   jq -r ".[].address" | \
@@ -10,3 +16,14 @@ hyprctl clients -j | \
 
 # Move to first workspace
 hyprctl dispatch 'hl.dsp.focus({ workspace = "1" })' >/dev/null 2>&1 || hyprctl dispatch workspace 1
+
+[[ -n $wait_seconds ]] || exit 0
+
+# Unmapped windows are app internals that never close on request
+for ((i = 0; i < wait_seconds * 10; i++)); do
+  [[ -z $(hyprctl clients -j | jq -r '.[] | select(.mapped) | .address') ]] && exit 0
+  sleep 0.1
+done
+
+hyprctl clients -j | jq -r '[.[] | select(.mapped) | .class] | unique | join(", ")'
+exit 1
