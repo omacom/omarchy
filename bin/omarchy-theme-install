@@ -65,6 +65,7 @@ cleanup() {
   rm -rf -- "$staging"
 }
 trap cleanup EXIT
+trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
@@ -75,7 +76,9 @@ if ! git clone -- "$REPO_URL" "$staging/$THEME_NAME"; then
 fi
 
 if [[ -e $THEME_PATH || -L $THEME_PATH ]]; then
-  backup=$(mktemp -d "$THEMES_DIR/.${THEME_NAME}.backup.XXXXXX") || exit 1
+  backup_dir="$HOME/.local/state/omarchy/theme-backups"
+  mkdir -p "$backup_dir" || exit 1
+  backup=$(mktemp -d "$backup_dir/${THEME_NAME}.XXXXXX") || exit 1
   mv -T -- "$THEME_PATH" "$backup/theme" || exit 1
   echo "Previous theme saved at $backup/theme"
 fi

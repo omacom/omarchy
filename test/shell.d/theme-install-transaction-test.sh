@@ -25,13 +25,16 @@ mv() {
     return 1
   fi
   command mv "$@"
+  if [[ ${PUBLISH_HANGUP:-0} == "1" && $3 == "$THEME_PATH" && $4 == */theme ]]; then
+    kill -HUP "$BASHPID"
+  fi
 }
 export -f git omarchy-git-url-check omarchy-theme-set mv
 
 run_install() {
   HOME="$test_tmp/$scenario" bash "$ROOT/bin/omarchy-theme-install" https://example.com/omarchy-blue-theme.git
 }
-for scenario in failed_clone interrupted replacement failed_publish failed_apply symlink fresh locked; do
+for scenario in failed_clone interrupted hangup replacement failed_publish failed_apply symlink fresh locked; do
   themes="$test_tmp/$scenario/.config/omarchy/themes"
   mkdir -p "$themes"
   if [[ $scenario == "symlink" ]]; then
@@ -52,6 +55,10 @@ for scenario in failed_clone interrupted replacement failed_publish failed_apply
     if CLONE_SIGNAL=1 run_install; then fail "interruption must fail installation"; fi
     [[ $(<"$themes/blue/colors.toml") == "old" ]] || fail "interruption preserves existing theme"
     ;;
+  hangup)
+    if PUBLISH_HANGUP=1 run_install; then fail "hangup must fail installation"; fi
+    [[ $(<"$themes/blue/colors.toml") == "old" ]] || fail "hangup restores the previous theme"
+    ;;
   failed_publish)
     if PUBLISH_RESULT=1 run_install; then fail "publish failure must fail installation"; fi
     [[ $(<"$themes/blue/colors.toml") == "old" ]] || fail "publish failure restores existing theme"
@@ -69,9 +76,12 @@ for scenario in failed_clone interrupted replacement failed_publish failed_apply
     else
       run_install
     fi
+    listed=$(HOME="$test_tmp/$scenario" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-theme-list")
+    [[ $listed != *Backup* ]] || fail "saved themes do not appear in the theme list"
+    [[ -z $(find "$themes" -maxdepth 1 -name '.*backup*' -print) ]] || fail "backups stay outside selectable themes"
     [[ $(<"$themes/blue/colors.toml") == "new" ]] || fail "completed clone is published"
     if [[ $scenario != "fresh" ]]; then
-      backups=("$themes"/.blue.backup.*/theme)
+      backups=("$test_tmp/$scenario/.local/state/omarchy/theme-backups"/blue.*/theme)
       [[ ${#backups[@]} == 1 && $(<"${backups[0]}/colors.toml") == "old" ]] || fail "previous theme remains recoverable"
       if [[ $scenario == "symlink" ]]; then
         [[ -L ${backups[0]} ]] || fail "backup preserves the original symlink"
