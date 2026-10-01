@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set and launch the default coding agent
-# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse]
+# omarchy:args=[pi|omp|opencode|ori|claude|codex|commandcode|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse]
 # omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
 
 installing=false
@@ -30,6 +30,7 @@ opencode | open-code) agent="opencode"; name="OpenCode" ;;
 ori | openrouter) agent="ori"; name="Ori"; agent_package="github:OpenRouterLabs/ori-releases" ;;
 claude | claude-code) agent="claude"; name="Claude Code" ;;
 codex) agent="codex"; name="Codex" ;;
+commandcode | command-code | cmdc | cmd) agent="commandcode"; name="Command Code"; agent_package="npm:command-code" ;;
 crush) agent="crush"; name="Crush" ;;
 grok) agent="grok"; name="Grok"; agent_package="npm:@xai-official/grok" ;;
 openclaw) agent="openclaw"; name="OpenClaw"; agent_installer="omarchy-install-openclaw-cli" ;;
@@ -43,7 +44,7 @@ muse | muse-code | musecode)
   ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
 *)
-  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse>"
+  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|commandcode|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse>"
   exit 1
   ;;
 esac
