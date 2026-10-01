@@ -319,13 +319,8 @@ ShellRoot {
     if (!manifest) return null
     if (manifest.__isFirstParty) return manifest
     var copy = JSON.parse(JSON.stringify(manifest))
-    // __sourceDir is the plugin's own install directory, not a privilege
-    // signal: a third-party service/panel plugin needs it to locate its
-    // bundled scripts and assets (barWidgets already receive it via
-    // meta.sourceDir, but service/panel instances get only this manifest).
-    // Stripping it left those plugins with no way to find their own files,
-    // silently breaking every plugin that shells out to a bundled script.
-    // Only the true privilege markers below are withheld from third parties.
+    // Keep __sourceDir: third-party plugins find their bundled scripts through it.
+    // Only the host trust markers are withheld.
     delete copy.__isFirstParty
     delete copy.__hostCapabilities
     return copy
