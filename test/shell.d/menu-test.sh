@@ -406,6 +406,15 @@ assert(
   /var icon = parts\.length > 1 \? parts\.shift\(\) : ""\s*\n\s*var label = parts\.shift\(\) \|\| ""\s*\n\s*var detail = parts\.join\("\\t"\)/.test(menuQml),
   'menu select mode reads a leading icon and a trailing subtext off an option'
 )
+// Scope the source guard to the selector, not the regular-menu rebuild.
+const dmenuRebuild = menuQml.match(/function rebuildDmenuDisplay\(\) \{([\s\S]*?)\n  \}/)
+assert(
+  dmenuRebuild
+    && /rows\.push\(\{/.test(dmenuRebuild[1])
+    && /displayModel\.append\(rows\)/.test(dmenuRebuild[1])
+    && !/displayModel\.append\(\{/.test(dmenuRebuild[1]),
+  'menu select mode appends its filtered rows to the model in one batch'
+)
 assert(
   /omarchy-launch-floating-terminal-with-presentation "omarchy-plugin-remove/.test(pluginPicker),
   'plugin picker removes where the confirmation and backup path are visible'
