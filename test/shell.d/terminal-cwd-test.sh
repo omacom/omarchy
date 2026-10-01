@@ -76,10 +76,13 @@ fake_program() {
   cp /bin/bash "$fake_bin/$1"
 }
 
-cat >"$test_tmp/idle" <<'SH'
-[[ -n ${OMARCHY_TEST_PIDFILE:-} ]] && echo $$ >"$OMARCHY_TEST_PIDFILE"
-sleep 300 &
-wait
+# Idles without a child of its own, as a real client does, so nothing beneath
+# it can answer in its place.
+mkfifo "$test_tmp/idle-fifo"
+cat >"$test_tmp/idle" <<SH
+[[ -n \${OMARCHY_TEST_PIDFILE:-} ]] && echo \$\$ >"\$OMARCHY_TEST_PIDFILE"
+[[ -n \${OMARCHY_TEST_CLIENT_DIR:-} ]] && cd "\$OMARCHY_TEST_CLIENT_DIR"
+read -rt 300 <>"$test_tmp/idle-fifo"
 SH
 
 # A window whose descendants hold a controlling terminal, as a real terminal's
@@ -166,11 +169,11 @@ pass "a detached shell does not answer for the foreground shell"
 
 # A tmux client is not always a direct child of the window: the stock launcher
 # runs `bash -c "tmux attach || tmux new"`.
-mkdir -p "$test_tmp/launched" "$test_tmp/pane"
+mkdir -p "$test_tmp/launched" "$test_tmp/pane" "$test_tmp/client"
 fake_program tmux
 tmux_log="$test_tmp/tmux-log"
 client_pidfile="$test_tmp/tmux-client.pid"
-start_terminal_window "cd '$test_tmp/launched' && bash -c \"OMARCHY_TEST_PIDFILE='$client_pidfile' '$fake_bin/tmux' '$test_tmp/idle' -L probe attach\""
+start_terminal_window "cd '$test_tmp/launched' && bash -c \"OMARCHY_TEST_PIDFILE='$client_pidfile' OMARCHY_TEST_CLIENT_DIR='$test_tmp/client' '$fake_bin/tmux' '$test_tmp/idle' -L probe attach; :\""
 wait_for_file "$client_pidfile" || fail "tmux client starts"
 client_pid=$(<"$client_pidfile")
 
