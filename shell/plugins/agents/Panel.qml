@@ -1070,12 +1070,6 @@ Panel {
         onAccepted: root.startAdd(text.trim())
         Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
       }
-
-      TextLink {
-        text: "Sign in"
-        font.pixelSize: Style.font.bodySmall
-        onClicked: root.startAdd(addNameField.text.trim())
-      }
     }
 
     // Running: what's happening, and whatever the sign-in needs from you.
