@@ -63,7 +63,8 @@ pass "boundary probe fails closed in the caller's mount namespace instead of mou
 : >"$calls"
 status=0
 output=$(
-  PATH="$stub_dir:$PATH" \
+  env -u OMARCHY_WINDOWS_BOUNDARY_CALLER_MOUNT_NS \
+    PATH="$stub_dir:$PATH" \
     OMARCHY_TEST_MOUNT_CALLS="$calls" \
     OMARCHY_WINDOWS_BOUNDARY_NAMESPACE=1 \
     bash "$SHELL_TEST_DIR/windows-vm-mount-boundary-test.sh" 2>&1
