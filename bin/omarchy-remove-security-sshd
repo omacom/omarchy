@@ -12,8 +12,11 @@ if [[ -z $target_user && -n ${PKEXEC_UID:-} ]]; then
   target_user=$(getent passwd "$PKEXEC_UID" | cut -d: -f1)
 fi
 target_user=${target_user:-$USER}
-target_home=$(getent passwd "$target_user" | cut -d: -f6)
-target_home=${target_home:-$HOME}
+target_home=$HOME
+if [[ $target_user != "$USER" ]]; then
+  target_home=$(getent passwd "$target_user" | cut -d: -f6)
+  target_home=${target_home:-$HOME}
+fi
 
 AUTHORIZED_KEYS="$target_home/.ssh/authorized_keys"
 
