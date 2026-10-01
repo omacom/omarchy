@@ -88,6 +88,19 @@ pass "image menu loads the thumbnail index once"
   fail "image menu clears partial thumbnails left by killed generators"
 pass "image menu recovers stranded locks and stale rows"
 
+image="$images/one.png"
+signature=$(stat -Lc '%s:%Y' "$image")
+printf '%s\t%s\t%s\n' "$image" "$signature" reused-from-index >"$cache_dir/index.tsv"
+printf 'existing thumbnail' >"$cache_dir/reused-from-index.jpg"
+rm -f "$cache_dir/$cache_key.rows" "$cache_dir/$cache_key.signature" "$cache_dir/$cache_key.fast-signature"
+: >"$tmp/reuse-calls"
+PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" AWK_CALLS_FILE="$awk_calls" VIPSTHUMBNAIL_CALLS_FILE="$tmp/reuse-calls" \
+  "$ROOT/bin/omarchy-menu-images" --cache-only "$images"
+grep -Fq "$cache_dir/reused-from-index.jpg" "$cache_dir/$cache_key.rows" || fail "row rebuilds reuse the indexed hash"
+! grep -Fxq "$image" "$tmp/reuse-calls" || fail "an indexed thumbnail is not regenerated"
+(( $(grep -Fc "$image" "$cache_dir/index.tsv") == 1 )) || fail "an indexed image is not appended again"
+pass "populated thumbnail indexes are reused when rows are rebuilt"
+
 rm -rf "$cache_home"
 mkdir -p "$cache_dir"
 mkdir "$live_lock"
