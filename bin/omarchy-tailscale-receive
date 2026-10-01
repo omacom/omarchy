@@ -20,7 +20,7 @@ default_download_dir() {
   local dir=""
   if [[ -n ${XDG_DOWNLOAD_DIR:-} ]]; then
     dir="$XDG_DOWNLOAD_DIR"
-  elif command -v xdg-user-dir >/dev/null 2>&1; then
+  else
     dir=$(xdg-user-dir DOWNLOAD 2>/dev/null) || dir=""
   fi
   [[ -n $dir ]] || dir="$HOME/Downloads"
