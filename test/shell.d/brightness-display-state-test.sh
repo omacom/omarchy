@@ -190,3 +190,71 @@ printf '65\n' >"$brightness_state"
 BRIGHTNESS_READ_EMPTY=1 run_brightness off
 [[ $(<"$brightness_state") == 65 && ! -s $runtime_dir/omarchy-brightness-display.saved ]] || fail "empty read does not zero the backlight"
 pass "empty successful read leaves the backlight unchanged"
+
+for adjustment in '+5%:45' '5%-:35' '+1%:41' '1%-:39' '+10%:50' '10%+:50' '-10%:30' '70%:70'; do
+  step=${adjustment%:*}
+  expected=${adjustment#*:}
+  printf '40\n' >"$brightness_state"
+  run_brightness off
+  run_brightness --no-osd "$step"
+  [[ $(<"$brightness_state") == "$expected" ]] || fail "blanked $step uses the logical brightness"
+  [[ ! -e $runtime_dir/omarchy-brightness-display.saved ]] || fail "explicit adjustment retires the blank snapshot"
+  run_brightness on
+  [[ $(<"$brightness_state") == "$expected" ]] || fail "wake preserves blanked $step adjustment"
+done
+pass "brightness keys and absolute adjustments survive wake"
+
+printf '3\n' >"$brightness_state"
+run_brightness off
+run_brightness --no-osd +5%
+run_brightness on
+[[ $(<"$brightness_state") == "4" ]] || fail "blanked low brightness keeps adaptive one-percent steps"
+pass "adaptive low brightness steps use the saved level"
+
+printf '60\n' >"$brightness_state"
+run_brightness off
+"$ROOT/bin/omarchy-hyprland-monitor-internal" off
+run_brightness --no-osd 70%
+[[ ! -e $backlight_saved && ! -e $runtime_dir/omarchy-brightness-display.saved ]] || fail "adjustment retires both restore snapshots"
+"$ROOT/bin/omarchy-hyprland-monitor-internal" on
+run_brightness on
+[[ $(<"$brightness_state") == "70" ]] || fail "re-enabling an adjusted disabled panel preserves its new level"
+pass "explicit adjustment supersedes both disabled and blank restore state"
+
+"$ROOT/bin/omarchy-hyprland-monitor-internal" off
+run_brightness --no-osd +5%
+"$ROOT/bin/omarchy-hyprland-monitor-internal" on
+[[ $(<"$brightness_state") == "75" && ! -e $backlight_saved ]] || fail "persistent-only saved level drives relative adjustment"
+pass "relative adjustment uses persistent disable state without a blank snapshot"
+
+printf '40\n' >"$brightness_state"
+run_brightness off
+"$ROOT/bin/omarchy-hyprland-monitor-internal" off
+if BRIGHTNESS_SET_FAIL=1 run_brightness --no-osd 70%; then
+  fail "failed explicit setting must return failure"
+fi
+[[ $(<"$backlight_saved") == "40" && $(<"$runtime_dir/omarchy-brightness-display.saved") == "40" ]] || fail "failed adjustment keeps both snapshots"
+"$ROOT/bin/omarchy-hyprland-monitor-internal" on
+pass "failed brightness adjustment retains recoverable state"
+
+run_brightness off
+if BRIGHTNESS_READ_FAIL=1 run_brightness 70%; then
+  fail "unavailable OSD readback is reported"
+fi
+[[ $(<"$brightness_state") == "70" && ! -e $runtime_dir/omarchy-brightness-display.saved ]] || fail "failed readback does not reinstate stale restore state"
+run_brightness on
+[[ $(<"$brightness_state") == "70" ]] || fail "wake preserves adjustment after readback failure"
+pass "successful setting survives unavailable OSD readback"
+
+cat >"$mock_bin/omarchy-brightness-display-ddc" <<'SCRIPT'
+#!/bin/bash
+printf '50\n'
+SCRIPT
+chmod +x "$mock_bin/omarchy-brightness-display-ddc"
+printf '40\n' >"$brightness_state"
+run_brightness off
+FOCUSED_MONITOR=DP-1 run_brightness --no-osd 50%
+[[ $(<"$runtime_dir/omarchy-brightness-display.saved") == "40" ]] || fail "external adjustment must retain laptop restore state"
+run_brightness on
+[[ $(<"$brightness_state") == "40" ]] || fail "external adjustment leaves laptop wake level unchanged"
+pass "external brightness adjustment does not consume laptop snapshots"

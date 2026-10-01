@@ -9,9 +9,17 @@ MIRROR_TOGGLE="internal-monitor-mirror"
 BACKLIGHT_STATE="$HOME/.local/state/omarchy/toggles/hypr/internal-monitor-backlight"
 
 set -o pipefail
-BLANK_STATE="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.saved"
-exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
-flock "$lock_fd"
+# Both commands share a private fallback before the graphical session starts.
+if [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+  runtime_dir="$XDG_RUNTIME_DIR"
+else
+  runtime_dir="$HOME/.local/state/omarchy/brightness-display"
+  mkdir -p "$runtime_dir" || exit 1
+  chmod 700 "$runtime_dir" || exit 1
+fi
+BLANK_STATE="$runtime_dir/omarchy-brightness-display.saved"
+exec {lock_fd}>"$runtime_dir/omarchy-brightness-display.lock" || exit 1
+flock "$lock_fd" || exit 1
 
 wake() {
   hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1 || true

@@ -61,12 +61,20 @@ fi
 
 step="$1"
 
-state_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.saved"
+# Both commands share a private fallback before the graphical session starts.
+if [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+  runtime_dir="$XDG_RUNTIME_DIR"
+else
+  runtime_dir="$HOME/.local/state/omarchy/brightness-display"
+  mkdir -p "$runtime_dir" || exit 1
+  chmod 700 "$runtime_dir" || exit 1
+fi
+state_file="$runtime_dir/omarchy-brightness-display.saved"
 
 # Blank and wake must wait for each other; brightness key repeat may be dropped.
-exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
+exec {lock_fd}>"$runtime_dir/omarchy-brightness-display.lock" || exit 1
 if [[ $step == "off" || $step == "on" ]]; then
-  flock "$lock_fd"
+  flock "$lock_fd" || exit 1
 else
   flock -n "$lock_fd" || exit 0
 fi
@@ -122,8 +130,24 @@ else
   # Current device highlighted
   device="$(omarchy-hw-display)" || exit 1
 
-  # Current brightness percentage
-  current=$(backlight_brightness "$device") || exit 1
+  # A blanked or disabled panel has hardware brightness zero, but percentage
+  # keys should adjust the level that will be visible after waking it.
+  internal_state="$HOME/.local/state/omarchy/toggles/hypr/internal-monitor-backlight"
+  current=""
+  saved_current=0
+  for saved in "$internal_state" "$state_file"; do
+    if [[ -s $saved ]]; then
+      level=$(<"$saved")
+      if [[ $level =~ ^[0-9]+$ ]]; then
+        current=$((10#$level))
+        saved_current=1
+        break
+      fi
+    fi
+  done
+  if [[ -z $current ]]; then
+    current=$(backlight_brightness "$device") || exit 1
+  fi
 
   # Apply non-uniform step size: 1% steps if at or below 5%, otherwise set an
   # absolute target percentage to avoid raw backlight rounding causing uneven OSD steps.
@@ -145,11 +169,28 @@ else
 
     (( target < 1 )) && target=1
     step="$target%"
+  elif (( saved_current )); then
+    if [[ $step =~ ^\+([0-9]+)%$ || $step =~ ^([0-9]+)%\+$ ]]; then
+      target=$((current + 10#${BASH_REMATCH[1]}))
+      (( target > 100 )) && target=100
+      step="$target%"
+    elif [[ $step =~ ^([0-9]+)%-$ || $step =~ ^-([0-9]+)%$ ]]; then
+      target=$((current - 10#${BASH_REMATCH[1]}))
+      (( target < 0 )) && target=0
+      step="$target%"
+    fi
   fi
 
   # Set brightness of the display device.
-  brightnessctl -d "$device" set "$step" >/dev/null
+  brightnessctl -d "$device" set "$step" >/dev/null || exit 1
+
+  # The explicit adjustment supersedes both restore snapshots. Retire them
+  # before optional readback so a failed OSD query cannot reinstate old state.
+  rm -f "$state_file" "$internal_state" || exit 1
 
   # Show the new brightness in OSD
-  (( no_osd )) || omarchy-osd -i brightness -p "$(backlight_brightness "$device")"
+  if (( ! no_osd )); then
+    brightness=$(backlight_brightness "$device") || exit 1
+    omarchy-osd -i brightness -p "$brightness"
+  fi
 fi
