@@ -223,6 +223,23 @@ function popupRowChanged(row, updated) {
   return false
 }
 
+// The same message from the same sender under a new id. A web app open in
+// several tabs (HEY, Gmail, Calendar) fires one notification per tab for a
+// single reminder, all within the same moment — what the user means by that
+// is one toast, not a stack of identical ones. The image and click target
+// count too: every screen recording toast shares its text but previews and
+// opens a different file.
+var DUPLICATE_ROLES = ["app", "summary", "body", "image", "execArgv"]
+
+function isDuplicatePopup(row, snapshot) {
+  if (!row || !snapshot || row.originalId === snapshot.originalId) return false
+  for (var i = 0; i < DUPLICATE_ROLES.length; i++) {
+    var role = DUPLICATE_ROLES[i]
+    if ((row[role] || "") !== (snapshot[role] || "")) return false
+  }
+  return true
+}
+
 // A client updating a notification through replaces_id keeps the identity of
 // the popup it took over: the file name is the timestamp and id the popup was
 // first persisted under, and the restore, replace and archive paths all key
@@ -462,6 +479,7 @@ if (typeof module !== "undefined") {
     snapshotOf: snapshotOf,
     popupRoles: popupRoles,
     popupRowChanged: popupRowChanged,
+    isDuplicatePopup: isDuplicatePopup,
     replacementSnapshot: replacementSnapshot,
     historyEntry: historyEntry,
     parseSettings: parseSettings,

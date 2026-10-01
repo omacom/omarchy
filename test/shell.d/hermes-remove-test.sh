@@ -24,15 +24,6 @@ cat >"$mock_bin/omarchy-pkg-drop" <<'SH'
 printf '%s\0' "$@" >>"$OMARCHY_TEST_DROP_LOG"
 SH
 
-# The CLI teardown is the installer's own, exercised in hermes-cli-test.sh; here
-# it is mocked to a logger so this test stays about what Remove Hermes does with
-# ~/.hermes, and to keep real mise out of a run with HOME pointed at a fixture.
-cat >"$mock_bin/omarchy-install-hermes-cli" <<'SH'
-#!/bin/bash
-printf '%s\0' "$@" >>"$OMARCHY_TEST_INSTALLER_LOG"
-exit "${OMARCHY_TEST_INSTALLER_STATUS:-0}"
-SH
-
 # The remover asks through gum whether the user's data should go too. The stub
 # answers "no" unless a test says otherwise, and logs every call: a real gum
 # would hang a test run, and one that answered "yes" on its own would be the
@@ -50,9 +41,21 @@ if [[ -n ${OMARCHY_TEST_PROMPT_GATE:-} ]]; then
 fi
 exit "${OMARCHY_TEST_GUM_STATUS:-1}"
 SH
+# A unit that will not stop, when a test says so: disable fails and is-active
+# keeps answering active.
 cat >"$mock_bin/systemctl" <<'SH'
 #!/bin/bash
 echo "systemctl $*" >>"$OMARCHY_TEST_SYSTEMCTL_LOG"
+if [[ ${OMARCHY_TEST_UNIT_STUCK:-0} == 1 ]]; then
+  [[ $2 == "disable" ]] && exit 1
+  [[ $2 == "is-active" ]] && echo active
+fi
+# A user manager that refuses the disable of a unit that is already down.
+if [[ ${OMARCHY_TEST_UNIT_DOWN:-0} == 1 ]]; then
+  [[ $2 == "disable" ]] && exit 1
+  [[ $2 == "is-active" ]] && echo inactive
+fi
+exit 0
 SH
 
 chmod +x "$mock_bin"/*
@@ -77,30 +80,25 @@ seed_install() {
 # </dev/null pins stdin off a terminal, so these runs exercise the
 # non-interactive path no matter where the suite itself is running.
 remove() {
-  : >"$test_tmp/installer-log"
   : >"$test_tmp/gum-log"
   : >"$test_tmp/systemctl-log"
   OMARCHY_TEST_DROP_LOG="$test_tmp/drop-log" \
-    OMARCHY_TEST_INSTALLER_LOG="$test_tmp/installer-log" \
-    OMARCHY_TEST_INSTALLER_STATUS="${OMARCHY_TEST_INSTALLER_STATUS:-0}" \
     OMARCHY_TEST_SYSTEMCTL_LOG="$test_tmp/systemctl-log" \
     OMARCHY_TEST_GUM_LOG="$test_tmp/gum-log" \
-    HOME="$test_home" PATH="$mock_bin:$PATH" \
+    HOME="$test_home" XDG_CONFIG_HOME= PATH="$mock_bin:$PATH" \
     bash "$test_tmp/remover" </dev/null >"$test_tmp/output" 2>&1
 }
 
 # script(1) puts the remover on a pty, which is the only way -t 0 answers true
 # without a person at a real one; the stubbed gum then supplies the answer.
 remove_tty() {
-  : >"$test_tmp/installer-log"
   : >"$test_tmp/gum-log"
   : >"$test_tmp/systemctl-log"
   OMARCHY_TEST_DROP_LOG="$test_tmp/drop-log" \
-    OMARCHY_TEST_INSTALLER_LOG="$test_tmp/installer-log" \
     OMARCHY_TEST_SYSTEMCTL_LOG="$test_tmp/systemctl-log" \
     OMARCHY_TEST_GUM_LOG="$test_tmp/gum-log" \
     OMARCHY_TEST_GUM_STATUS="${OMARCHY_TEST_GUM_STATUS:-1}" \
-    HOME="$test_home" PATH="$mock_bin:$PATH" \
+    HOME="$test_home" XDG_CONFIG_HOME= PATH="$mock_bin:$PATH" \
     script -qec "bash '$test_tmp/remover'" /dev/null >"$test_tmp/output" 2>&1
 }
 
@@ -142,12 +140,6 @@ pass "removal keeps the user's data unasked when there is no terminal"
 [[ ! -e $test_home/.local/bin/hermes ]] || fail "the app's own hermes command is removed"
 pass "removal takes the command the app installed"
 
-# Removal also asks the installer to tear down a mise CLI the app superseded, so
-# a copy left from before the app took over does not linger once Hermes is gone.
-tr '\0' '\n' <"$test_tmp/installer-log" | grep -qx -- '--remove' ||
-  fail "removal asks the installer to tear down its own CLI"
-pass "removal tears down the mise CLI through the installer"
-
 # A hermes command the app did not write survives even when the app did install
 # a runtime of its own.
 seed_install
@@ -168,10 +160,6 @@ printf 'my local edit\n' >"$test_home/.hermes/hermes-agent/PATCH"
 printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes \"\$@\"" \
   >"$test_home/.local/bin/hermes"
 remove || fail "remove succeeds when the app never finished installing Hermes"
-# The stranded pre-desktop CLI is exactly the interrupted-install case, so the
-# teardown must be asked for here too, not only when the app's runtime landed.
-tr '\0' '\n' <"$test_tmp/installer-log" | grep -qx -- '--remove' ||
-  fail "removal tears down the CLI even when the app never finished installing"
 [[ -d $test_home/.hermes/hermes-agent ]] ||
   fail "a Hermes runtime the app never installed survives removal"
 [[ -f $test_home/.hermes/hermes-agent/PATCH ]] ||
@@ -235,16 +223,49 @@ OMARCHY_TEST_GUM_STATUS=0 remove_tty ||
   fail "a yes takes ~/.hermes whole when the marker never appeared"
 pass "removal honors a yes on the named paths without the marker"
 
-# A CLI teardown that fails must not stop the runtime handling, and must not be
-# papered over either: the data work still happens, and the failure reaches the
-# caller's exit code.
+# The gateway unit upstream's `hermes gateway install` writes runs the runtime
+# being removed, so it is stopped first and goes with it: the unit file, the
+# .bak a forced reinstall leaves, and its enablement link.
 seed_install
-printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes \"\$@\"" \
-  >"$test_home/.local/bin/hermes"
-OMARCHY_TEST_INSTALLER_STATUS=1 remove && fail "a failed CLI teardown surfaces in the exit code"
-[[ ! -d $test_home/.hermes/hermes-agent ]] ||
-  fail "a failed CLI teardown does not stop the runtime removal"
-pass "a failed CLI teardown is reported after the runtime is handled"
+unit_dir="$test_home/.config/systemd/user"
+mkdir -p "$unit_dir/default.target.wants"
+printf '[Service]\nExecStart=%s/.hermes/hermes-agent/venv/bin/python %s/.hermes/hermes-agent/hermes gateway run\nEnvironment="HERMES_HOME=%s/.hermes"\n' "$test_home" "$test_home" "$test_home" >"$unit_dir/hermes-gateway.service"
+cp "$unit_dir/hermes-gateway.service" "$unit_dir/hermes-gateway.service.bak"
+ln -s "$unit_dir/hermes-gateway.service" "$unit_dir/default.target.wants/hermes-gateway.service"
+# A unit that runs a Hermes kept somewhere else is not this runtime's, even
+# when the home it serves sits under ~/.hermes.
+printf '[Service]\nExecStart=/srv/hermes/venv/bin/python /srv/hermes/hermes gateway run\nEnvironment="HERMES_HOME=%s/.hermes/profiles/work"\n' "$test_home" >"$unit_dir/hermes-gateway-other.service"
+remove || fail "remove succeeds with a gateway unit installed" "$(cat "$test_tmp/output")"
+grep -Fxq 'systemctl --user disable --now hermes-gateway.service' "$test_tmp/systemctl-log" ||
+  fail "the gateway unit is stopped and disabled" "$(cat "$test_tmp/systemctl-log")"
+grep -Fxq 'systemctl --user daemon-reload' "$test_tmp/systemctl-log" || fail "systemd is told the unit is gone"
+grep -Fxq 'systemctl --user reset-failed hermes-gateway.service' "$test_tmp/systemctl-log" || fail "a failed state is reset"
+[[ ! -e $unit_dir/hermes-gateway.service && ! -e $unit_dir/hermes-gateway.service.bak && ! -L $unit_dir/default.target.wants/hermes-gateway.service ]] ||
+  fail "the gateway unit, its backup and its enablement link are removed"
+[[ -f $unit_dir/hermes-gateway-other.service ]] || fail "a gateway unit for a Hermes kept elsewhere survives"
+! grep -q 'hermes-gateway-other' "$test_tmp/systemctl-log" || fail "a gateway unit for a Hermes kept elsewhere is not touched" "$(cat "$test_tmp/systemctl-log")"
+[[ ! -d $test_home/.hermes/hermes-agent ]] || fail "the runtime goes once its gateway is stopped"
+pass "removal stops the gateway unit and takes it with the runtime, leaving units for other homes alone"
+
+# A user manager that will not disable a unit already down is not in the way.
+seed_install
+mkdir -p "$unit_dir"
+printf '[Service]\nExecStart=%s/.hermes/hermes-agent/venv/bin/python %s/.hermes/hermes-agent/hermes gateway run\n' "$test_home" "$test_home" >"$unit_dir/hermes-gateway.service"
+OMARCHY_TEST_UNIT_DOWN=1 remove || fail "remove succeeds when disable fails on a unit that is already inactive" "$(cat "$test_tmp/output")"
+[[ ! -e $unit_dir/hermes-gateway.service && ! -d $test_home/.hermes/hermes-agent ]] || fail "an inactive unit whose disable failed still goes with the runtime"
+pass "a unit already down goes even when systemd refuses the disable"
+
+# A gateway that will not stop keeps the removal from dropping the package
+# under a live process.
+seed_install
+mkdir -p "$unit_dir"
+printf '[Service]\nExecStart=%s/.hermes/hermes-agent/venv/bin/python %s/.hermes/hermes-agent/hermes gateway run\n' "$test_home" "$test_home" >"$unit_dir/hermes-gateway.service"
+: >"$test_tmp/drop-log"
+OMARCHY_TEST_UNIT_STUCK=1 remove && fail "a gateway that will not stop aborts the removal"
+grep -q 'Could not stop hermes-gateway.service' "$test_tmp/output" || fail "a gateway that will not stop is named" "$(cat "$test_tmp/output")"
+[[ ! -s $test_tmp/drop-log ]] || fail "the package is not dropped under a gateway that will not stop"
+[[ -d $test_home/.hermes/hermes-agent && -f $unit_dir/hermes-gateway.service ]] || fail "nothing is removed under a gateway that will not stop"
+pass "a gateway unit that will not stop aborts the removal before anything goes"
 
 # Real SQLite writers exercise the kernel's live/deleted file descriptors.
 # Package, service and confirmation commands remain confined to the mocks.
@@ -274,9 +295,9 @@ def setup(name):
     runtime.mkdir(parents=True)
     (runtime / '.hermes-bootstrap-complete').touch()
     (home / '.config/Hermes').mkdir(parents=True)
-    env = {**os.environ, 'HOME': str(home), 'PATH': f"{scratch / 'bin'}:/usr/bin:/bin",
+    env = {**os.environ, 'HOME': str(home), 'XDG_CONFIG_HOME': '', 'PATH': f"{scratch / 'bin'}:/usr/bin:/bin",
            'OMARCHY_TEST_GUM_STATUS': '0'}
-    for key in ('DROP', 'INSTALLER', 'SYSTEMCTL', 'GUM'):
+    for key in ('DROP', 'SYSTEMCTL', 'GUM'):
         log = home / (key + '.log')
         log.touch()
         env['OMARCHY_TEST_' + key + '_LOG'] = str(log)
@@ -306,10 +327,10 @@ def remove(env):
 
 def blocked(result, home, runtime, child):
     assert result.returncode != 0 and str(child.pid) in result.stderr, result
-    assert 'Close Hermes' in result.stderr, result.stderr
+    assert 'other than Hermes' in result.stderr, result.stderr
     assert (runtime / '.hermes-bootstrap-complete').exists()
     assert all((home / (name + '.log')).stat().st_size == 0
-               for name in ('DROP', 'INSTALLER', 'SYSTEMCTL', 'GUM'))
+               for name in ('DROP', 'SYSTEMCTL', 'GUM'))
     assert child.poll() is None, 'remover must not kill sessions'
 
 for deleted in (False, True):
@@ -330,6 +351,9 @@ for deleted in (False, True):
     assert not (home / '.hermes').exists()
 print('ok - live and deleted SQLite holders block removal before any side effects; closing them allows retry')
 
+# Hermes's own processes are stopped by the removal rather than reported: the
+# agent in its terminal, run by the runtime's command, and the packaged app.
+# One of the user's that merely sits in the runtime is still theirs to close.
 for kind in ('terminal', 'desktop', 'working-directory'):
     home, runtime, env = setup(kind)
     executable_name = str(scratch / 'package/Hermes') if kind == 'desktop' else str(runtime / 'hermes')
@@ -337,11 +361,113 @@ for kind in ('terminal', 'desktop', 'working-directory'):
     child = subprocess.Popen(args, executable='/usr/bin/sleep',
                              cwd=runtime if kind == 'working-directory' else scratch)
     try:
-        blocked(remove(env), home, runtime, child)
+        result = remove(env)
+        if kind == 'working-directory':
+            blocked(result, home, runtime, child)
+        else:
+            assert result.returncode == 0, result
+            assert 'Stopping Hermes (PIDs: ' + str(child.pid) in result.stdout, result.stdout
+            assert child.wait(timeout=5) != 0, 'the removal ends a Hermes process of its own'
+            assert not (home / '.hermes').exists()
     finally:
-        child.terminate()
-        child.wait(timeout=5)
-print('ok - terminal, packaged desktop and runtime working-directory processes are detected without a database')
+        if child.poll() is None:
+            child.terminate()
+            child.wait(timeout=5)
+print('ok - the agent and the packaged app are stopped by the removal; a process merely sitting in the runtime still blocks it')
+
+# With a stranger holding Hermes's files, the refusal comes before Hermes's
+# own processes are touched: the agent is still running afterwards.
+home, runtime, env = setup('stranger-and-agent')
+unit_dir = home / '.config/systemd/user'
+unit_dir.mkdir(parents=True)
+unit = unit_dir / 'hermes-gateway.service'
+unit.write_text(f'[Service]\nExecStart={runtime}/venv/bin/python {runtime}/hermes gateway run\n')
+stranger = writer(home / '.hermes/state.db')
+agent = subprocess.Popen([str(runtime / 'hermes'), '30'], executable='/usr/bin/sleep', cwd=scratch)
+try:
+    result = remove(env)
+    blocked(result, home, runtime, stranger)
+    assert str(agent.pid) not in result.stderr, result.stderr
+    assert agent.poll() is None, 'a refusal over a stranger leaves Hermes running'
+    assert 'Stopping Hermes' not in result.stdout, result.stdout
+    assert unit.exists(), 'a refusal over a stranger leaves the gateway unit in place'
+finally:
+    stop(stranger)
+    if agent.poll() is None:
+        agent.terminate()
+        agent.wait(timeout=5)
+print('ok - a stranger holding Hermes files stops the removal before Hermes itself is touched')
+
+# A process that merely names a runtime file on its command line, an editor
+# opened on one say, is not Hermes: neither stopped nor, holding nothing, in
+# the way.
+home, runtime, env = setup('argument-only')
+editor = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)', str(runtime / 'README.md')], cwd=scratch)
+try:
+    result = remove(env)
+    assert result.returncode == 0, result
+    assert editor.poll() is None, 'a process naming a runtime file as an argument is killed'
+    assert 'Stopping Hermes' not in result.stdout, result.stdout
+finally:
+    editor.terminate()
+    editor.wait(timeout=5)
+print('ok - a runtime path in an argument does not make a process Hermes')
+
+# A gateway started by hand with the venv active is an interpreter running the
+# runtime's script: the script is the program, and it is stopped.
+home, runtime, env = setup('interpreter-script')
+script = runtime / 'hermes'
+script.write_text('import time\ntime.sleep(30)\n')
+gateway = subprocess.Popen([sys.executable, str(script), 'gateway', 'run'], cwd=scratch)
+try:
+    result = remove(env)
+    assert result.returncode == 0, result
+    assert 'Stopping Hermes (PIDs: ' + str(gateway.pid) in result.stdout, result.stdout
+    assert gateway.wait(timeout=5) != 0, 'an interpreter running the runtime script is stopped'
+finally:
+    if gateway.poll() is None:
+        gateway.terminate()
+        gateway.wait(timeout=5)
+print('ok - an interpreter running a runtime script is Hermes and is stopped')
+
+# Run as a module from an activated venv, the interpreter is bare and the
+# script is nowhere on the command line; Hermes's own package name is.
+home, runtime, env = setup('module')
+(runtime / 'hermes_cli').mkdir(parents=True)
+(runtime / 'hermes_cli/__init__.py').write_text('')
+(runtime / 'hermes_cli/main.py').write_text('import time\ntime.sleep(30)\n')
+module = subprocess.Popen([sys.executable, '-m', 'hermes_cli.main', 'gateway', 'run'], cwd=scratch,
+                          env={**os.environ, 'PYTHONPATH': str(runtime)})
+try:
+    result = remove(env)
+    assert result.returncode == 0, result
+    assert 'Stopping Hermes (PIDs: ' + str(module.pid) in result.stdout, result.stdout
+    assert module.wait(timeout=5) != 0, 'hermes_cli run as a module is stopped'
+finally:
+    if module.poll() is None:
+        module.terminate()
+        module.wait(timeout=5)
+print('ok - hermes_cli run as a module from a bare interpreter is Hermes and is stopped')
+
+# A program whose executable lives in the runtime is Hermes whatever it was
+# started as: the Electron helpers name themselves by path, but a copy of the
+# binary started by a bare name is found through /proc/<pid>/exe.
+home, runtime, env = setup('executable')
+import shutil
+(runtime / 'venv/bin').mkdir(parents=True)
+binary = runtime / 'venv/bin/sleeper'
+shutil.copy('/usr/bin/sleep', binary)
+helper = subprocess.Popen(['sleeper', '30'], executable=str(binary), cwd=scratch)
+try:
+    result = remove(env)
+    assert result.returncode == 0, result
+    assert 'Stopping Hermes (PIDs: ' + str(helper.pid) in result.stdout, result.stdout
+    assert helper.wait(timeout=5) != 0, 'a program whose executable is in the runtime is stopped'
+finally:
+    if helper.poll() is None:
+        helper.terminate()
+        helper.wait(timeout=5)
+print('ok - a program whose executable is in the runtime is Hermes and is stopped')
 
 home, runtime, env = setup('unrelated-writer')
 sibling = home / '.hermes-other'
