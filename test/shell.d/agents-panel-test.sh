@@ -42,6 +42,20 @@ const suppressed = limitReset.announce(disabledProvider, Date.parse('2026-09-18T
 assertEqual(suppressed.notifications.length, 0, 'agents suppress a due reset for a disabled provider')
 assertEqual(Object.keys(suppressed.pending).length, 0, 'agents remove a disabled provider reset at announce time')
 
+const removed = limitReset.schedule(first, [], now, true, enabled)
+assertDeepEqual(removed, {}, 'agents remove deadlines for absent records')
+assertEqual(limitReset.announce(removed, Date.parse('2026-09-18T12:11:00Z'), true, enabled).notifications.length, 0,
+  'removed providers never announce retained deadlines')
+const removedDue = limitReset.schedule(first, [], Date.parse('2026-09-18T12:11:00Z'), true, enabled)
+assertDeepEqual(removedDue, {}, 'record removal also clears already-due resets')
+const sibling = { id: 'codex-team', name: 'Codex Team', limits: [{ label: 'weekly', resetsAt: '2026-09-18T12:10:00Z' }] }
+const sharedPrefix = limitReset.schedule(first, [record('2026-09-18T12:10:00Z'), sibling], now, true, enabled)
+const siblingOnly = limitReset.schedule(sharedPrefix, [{ id: 'codex-team', limits: [] }], now, true, enabled)
+assertEqual(Object.keys(siblingOnly).length, 1, 'removing a provider preserves a present ID sharing its prefix')
+assertEqual(Object.values(siblingOnly)[0].providerName, 'Codex Team', 'prefix sibling retains its own deadline across empty limits')
+assertDeepEqual(limitReset.schedule(first, [null, {}], now, true, enabled), {}, 'invalid records cannot preserve a removed provider')
+assertDeepEqual(limitReset.schedule(first, [], now, true, disabled), {}, 'absent disabled providers are removed too')
+
 const replaced = limitReset.schedule(first, [record('2026-09-18T12:20:00Z')], now, true, enabled)
 assertEqual(Object.keys(replaced).length, 1, 'agents replace an obsolete deadline')
 assertEqual(Object.values(replaced)[0].deadline, Date.parse('2026-09-18T12:20:00Z'), 'agents keep the replacement deadline')

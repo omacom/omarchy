@@ -8,6 +8,18 @@ function schedule(pending, records, now, notificationsEnabled, providerEnabled) 
   var next = Object.assign({}, pending || {})
   var values = Array.isArray(records) ? records : []
 
+  // The records list is the provider inventory. Empty limits describe a
+  // present provider's transient fetch; an absent provider no longer owns
+  // either future or already-due notifications.
+  var present = Object.create(null)
+  for (var r = 0; r < values.length; r++) {
+    var id = String((values[r] || {}).id || "")
+    if (id) present[id] = true
+  }
+  for (var pendingKey in next) {
+    if (!present[pendingKey.split("\n", 1)[0]]) delete next[pendingKey]
+  }
+
   for (var i = 0; i < values.length; i++) {
     var record = values[i] || {}
     var providerId = String(record.id || "")

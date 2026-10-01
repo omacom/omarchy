@@ -31,6 +31,11 @@ Item {
     for (var i = 0; i < owner.agents.length; i++) {
       records.push(owner.agents[i] ? owner.agents[i].record : null)
     }
+    // Discovery is authoritative for presence; delegates and their FileViews
+    // can still be loading (or temporarily unreadable) during recordsChanged.
+    for (var j = 0; j < owner.agentIds.length; j++) {
+      records.push({ id: owner.agentIds[j] })
+    }
     pendingLimitResets = LimitResetModel.schedule(
       pendingLimitResets, records, Date.now(),
       owner.limitResetNotificationsEnabled(),
