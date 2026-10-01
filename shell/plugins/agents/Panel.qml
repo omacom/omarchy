@@ -1249,9 +1249,10 @@ Panel {
       readonly property bool lit: root.dragProviderId !== "" ? root.dragTarget === section.providerIndex : root.hasKey("provider", section.providerIndex)
       onLitChanged: if (lit && root.dragProviderId === "") root.revealItem(sectionHead)
 
+      // Only the mark is lit: it's the handle the agent moves by.
       CursorSurface {
-        anchors.fill: parent
-        anchors.margins: -Style.space(6)
+        anchors.fill: sectionMark
+        anchors.margins: -Style.space(5)
         z: -1
         hasCursor: sectionHead.lit
         foreground: root.foreground
