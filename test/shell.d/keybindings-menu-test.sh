@@ -246,6 +246,8 @@ eval "$(sed -n '/^modmask_to_text()/,/^}/p' "$ROOT/bin/omarchy-menu-keybindings"
   fail "a Mod5 bind renders its modifier by name" "$(modmask_to_text 128)"
 [[ $(modmask_to_text 33) == "SHIFT MOD3" ]] ||
   fail "a Mod3 bind combines with other modifiers" "$(modmask_to_text 33)"
+[[ $(modmask_to_text 66) == "SUPER CAPS" ]] ||
+  fail "a Caps bind keeps its modifier rather than rendering as the bare key" "$(modmask_to_text 66)"
 pass "every modifier Hyprland can bind renders by name"
 
 # The masks the menu already rendered keep rendering exactly as before.

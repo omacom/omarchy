@@ -252,7 +252,7 @@ modmask_to_text() {
   local -a parts=()
   local modifier bit name
 
-  for modifier in '64:SUPER' '1:SHIFT' '4:CTRL' '8:ALT' '16:MOD2' '32:MOD3' '128:MOD5'; do
+  for modifier in '64:SUPER' '1:SHIFT' '2:CAPS' '4:CTRL' '8:ALT' '16:MOD2' '32:MOD3' '128:MOD5'; do
     bit="${modifier%%:*}"
     name="${modifier#*:}"
 
