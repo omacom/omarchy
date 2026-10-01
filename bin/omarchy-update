@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -p
 
 # omarchy:summary=Update Omarchy and system packages
 # omarchy:alias=omarchy up
@@ -6,27 +6,105 @@
 # omarchy:examples=omarchy update | omarchy update -y
 # omarchy:requires-sudo=true
 
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup." >&2
+  exit 126
+fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
 set -e
+omarchy_security_sanitize_bash_environment "$0" "$@"
+omarchy_security_require_source_root "$0"
+# Logging and lock acquisition re-exec this command with a sanitized PATH.
+# Preserve the caller's path only for the later hook/mise phases.
+user_path=${OMARCHY_UPDATE_USER_PATH:-$PATH}
+unset OMARCHY_UPDATE_USER_PATH
+# Traps first, so a signal or failure during the entry revocation still
+# exits through the cleanup path. Starting cold means the single password
+# prompt below always belongs to this update, never to an earlier session.
+omarchy_security_install_sudo_cleanup_traps
+omarchy_security_revoke_sudo_timestamp || exit 1
+# Validate the no-update wrapper up front: the AUR phase depends on it. Every
+# other phase shares the one authorization, so it stays off PATH until then.
+omarchy_security_enable_no_update_sudo
+PATH="$OMARCHY_PATH/bin:/usr/bin:/usr/sbin:/bin:/sbin"
+unset OMARCHY_SUDO_NO_UPDATE
+# Helpers that manage their own sudo boundary leave this authorization to us.
+export PATH OMARCHY_UPDATE_SUDO_SESSION=1
+
+update_stay_awake_stopped=0
+sudo_keepalive_pid=""
+
+# Ask for the password once, then keep sudo's timestamp fresh so long package
+# downloads, migrations, hooks, and mise never outlast it and prompt again.
+# Authorize by running a command rather than sudo -v: under the default
+# verifypw=all, -v prompts even when passwordless sudo is enabled.
+authorize_update() {
+  /usr/bin/sudo /usr/bin/true || return 1
+
+  local update_pid=$$
+  (
+    [[ -z ${OMARCHY_UPDATE_LOCK_FD:-} ]] || exec {OMARCHY_UPDATE_LOCK_FD}>&-
+    sleep_pid=""
+    trap - EXIT HUP INT
+    trap '[[ -z $sleep_pid ]] || kill "$sleep_pid" 2>/dev/null; exit 0' TERM
+    while :; do
+      sleep 60 &
+      sleep_pid=$!
+      wait "$sleep_pid"
+      kill -0 "$update_pid" 2>/dev/null || exit 0
+      /usr/bin/sudo -n /usr/bin/true 2>/dev/null || exit 0
+    done
+  ) &
+  sudo_keepalive_pid=$!
+}
+
+end_update_authorization() {
+  if [[ -n $sudo_keepalive_pid ]]; then
+    kill "$sudo_keepalive_pid" 2>/dev/null || true
+    wait "$sudo_keepalive_pid" 2>/dev/null || true
+    sudo_keepalive_pid=""
+  fi
+  omarchy_security_revoke_sudo_timestamp
+}
+
+cleanup_update() {
+  local status=$?
+  trap - EXIT HUP INT TERM
+  if ! end_update_authorization; then
+    echo "Could not invalidate sudo before update cleanup." >&2
+    omarchy_security_exit_with_revoked_sudo 1
+  fi
+  if (( update_stay_awake_stopped == 0 )); then
+    omarchy-update-stay-awake stop || status=1
+  fi
+  omarchy_security_exit_with_revoked_sudo "$status"
+}
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 script -qefc "$script_command" "/tmp/omarchy-update.log"
+  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "/tmp/omarchy-update.log"
 fi
 
 if ! omarchy-update-lock held; then
-  exec omarchy-update-lock run "$0" "$@"
+  exec env OMARCHY_UPDATE_USER_PATH="$user_path" omarchy-update-lock run "$0" "$@"
 fi
 
 trap 'echo ""; echo -e "\033[0;31mSomething went wrong during the update!\n\nPlease review the output above carefully, correct the error, and retry the update.\n\nIf you need assistance, get help from the community at https://omarchy.org/discord\033[0m"' ERR
-trap 'omarchy-update-stay-awake stop' EXIT
+trap cleanup_update EXIT
+omarchy_security_install_signal_exit_traps
 
 omarchy-update-requires-free-space
 
-# -y is a promise not to ask anything. Steps that would need an answer report
-# and move on instead of waiting on a prompt nobody is here to give.
+# -y suppresses Omarchy confirmation prompts; sudo authorization is still
+# required. Interactive review steps report and move on instead of waiting.
 [[ ${1:-} != "-y" ]] || export OMARCHY_UPDATE_UNATTENDED=1
 
 if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
+  authorize_update
+
   # Before the snapshot: the cache is on the snapshotted subvolume, so pruning
   # after it frees nothing until that snapshot ages out.
   omarchy-update-pkg-prune
@@ -39,6 +117,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
 
   omarchy-update-stay-awake start
 
+  # Preserve the established development-checkout update ordering.
   omarchy-update-dev
   omarchy-update-keyring
 
@@ -46,20 +125,36 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # them, so everything below waits on this finishing. An upgrade that stopped
   # takes the update with it rather than migrating against what is still on disk.
   omarchy-update-system-pkgs
+
   omarchy-migrate
-  omarchy-hook post-update
-  omarchy-update-aur-pkgs
-  omarchy-update-mise
   omarchy-update-orphan-pkgs
 
   omarchy-update-analyze-logs
   omarchy-update-status
 
-  # Release update-owned inhibitors before offering a reboot. A confirmed
-  # reboot can terminate this process before its EXIT trap gets a chance to
-  # remove the persistent Stay Awake marker.
-  omarchy-update-stay-awake stop
-  trap - EXIT
+  # Service restart helpers can need sudo. The reboot-only phase below
+  # performs no privileged work.
+  omarchy-update-restart --services-only
 
-  omarchy-update-restart
+  # Hooks and mise run with the caller's PATH so user-installed tools resolve.
+  PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-hook" post-update
+  PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update-mise"
+
+  # AUR builds run third-party PKGBUILD code, so they go last and never see the
+  # update's authorization: revoke it, then authenticate each sudo call with
+  # the no-update wrapper, for yay and any bare sudo a PKGBUILD runs, so an AUR
+  # install prompts without caching anything.
+  end_update_authorization
+  PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$PATH" OMARCHY_SUDO_NO_UPDATE=1 omarchy-update-aur-pkgs
+  omarchy_security_revoke_sudo_timestamp
+
+  # The sleep inhibitor covers AUR builds, hooks and mise as well; releasing it
+  # needs no privilege because the held command already dropped to this user.
+  # Release it before offering a reboot: a confirmed reboot can terminate this
+  # process before its EXIT trap gets a chance to remove the persistent Stay
+  # Awake marker.
+  omarchy-update-stay-awake stop
+  update_stay_awake_stopped=1
+
+  "$OMARCHY_PATH/bin/omarchy-update-restart" --reboot-only
 fi
