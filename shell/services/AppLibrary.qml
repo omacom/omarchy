@@ -134,6 +134,7 @@ Item {
       var id = root.normalizeDesktopId(lines[i])
       if (id.length > 0) next[id] = true
     }
+    if (Object.keys(next).sort().join("\n") === Object.keys(root.desktopHiddenEntryIds).sort().join("\n")) return
     root.desktopHiddenEntryIds = next
     root.appsChanged()
   }
@@ -246,19 +247,21 @@ Item {
   // several times a second even at idle, which is what made keyboard
   // navigation through it look like it was jumping around randomly.
   // Debounce the burst down to one settle-and-check (same pattern as the
-  // icon index above), then compare the entry-id signature before doing
-  // anything further: DesktopEntries.applications itself was observed to
-  // fire onValuesChanged periodically with no net change to the set (the
-  // same ids, just reordered/rebuilt internally), so most debounced
-  // wake-ups still need to be no-ops rather than a full rescan + rebuild.
+  // icon index above), then compare the entry signature before emitting:
+  // DesktopEntries.applications itself was observed to fire onValuesChanged
+  // periodically with no net change to the set (the same ids, just
+  // reordered/rebuilt internally), so most debounced wake-ups still need
+  // to be no-ops rather than a full rebuild. The hidden-entry scan runs
+  // regardless, since OnlyShowIn/NotShowIn edits never reach the signature,
+  // and emits only when the hidden set it finds differs.
   Timer {
     id: appsChangedDebounce
     interval: 200
     onTriggered: {
+      hiddenEntryScan.running = true
       var sig = root.appsSignature()
       if (sig === root.lastAppsSignature) return
       root.lastAppsSignature = sig
-      hiddenEntryScan.running = true
       root.appsChanged()
     }
   }
