@@ -45,7 +45,7 @@ else
           value = substr(value, 2)
           value = substr(value, 1, index(value, quote) - 1)
         } else {
-          sub(/[[:space:]]*#.*/, "", value)
+          sub(/[[:space:]]+#.*/, "", value)
           sub(/[[:space:]]*$/, "", value)
         }
       }
