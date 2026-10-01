@@ -13,10 +13,9 @@ session_hyprland_signature=$(sed -n 's/^HYPRLAND_INSTANCE_SIGNATURE=//p' <<<"$se
 CONFIG_DIR="$session_omarchy_path/shell"
 [[ -f $CONFIG_DIR/shell.qml ]] || { echo "Omarchy shell config not found: $CONFIG_DIR" >&2; exit 1; }
 
-# Prefer the user manager's session signature: terminal and SSH environments
-# can retain a signature from a compositor that has already exited. Fall back
-# to the caller and then the newest runtime instance only when each candidate
-# can answer Hyprland IPC. This check must happen before killing Quickshell.
+# Prefer the caller's live session so lock checks and restart target that exact
+# desktop. A stale or absent caller falls back to the user manager, then the
+# newest runtime instances. This check must happen before killing Quickshell.
 hyprland_reachable() {
   local signature=$1 attempt
 
@@ -31,9 +30,11 @@ hyprland_reachable() {
 }
 
 hyprland_candidates=()
-[[ -z $session_hyprland_signature ]] || hyprland_candidates+=("$session_hyprland_signature")
-if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} && ${HYPRLAND_INSTANCE_SIGNATURE:-} != "$session_hyprland_signature" ]]; then
+if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
   hyprland_candidates+=("$HYPRLAND_INSTANCE_SIGNATURE")
+fi
+if [[ -n $session_hyprland_signature && $session_hyprland_signature != "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
+  hyprland_candidates+=("$session_hyprland_signature")
 fi
 
 hyprland_runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}/hypr"
@@ -55,6 +56,21 @@ if [[ -z $selected_hyprland_signature ]]; then
   exit 1
 fi
 export HYPRLAND_INSTANCE_SIGNATURE=$selected_hyprland_signature
+
+# Hyprland's instance list is the authoritative signature-to-Wayland-socket
+# mapping. Without a unique socket, shell IPC and Quickshell's display filter
+# cannot be guaranteed to address the same session as the lock check/dispatch.
+hyprland_instances=$(timeout --kill-after=1s 1s hyprctl instances -j 2>/dev/null) || {
+  echo "Could not resolve the Wayland display for Hyprland ($selected_hyprland_signature); refusing to stop the Omarchy shell." >&2
+  exit 1
+}
+selected_wayland_display=$(jq -er --arg signature "$selected_hyprland_signature" \
+  '[.[] | select(.instance == $signature) | .wl_socket | select(type == "string" and length > 0)] | if length == 1 then .[0] else empty end' \
+  <<<"$hyprland_instances" 2>/dev/null) || {
+  echo "Could not uniquely resolve the Wayland display for Hyprland ($selected_hyprland_signature); refusing to stop the Omarchy shell." >&2
+  exit 1
+}
+export WAYLAND_DISPLAY=$selected_wayland_display
 
 # Restarting a live lock client would kill the lock screen and strand the
 # session behind Hyprland's failsafe. But a LOCK session without an active
@@ -116,7 +132,7 @@ fi
 
 # Each kill stops the oldest matching instance and only returns once it has
 # fully exited, so the no-duplicate launch below can't race a dying shell.
-while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
+while timeout 5 quickshell kill -p "$CONFIG_DIR" >/dev/null 2>&1; do :; done
 
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.
