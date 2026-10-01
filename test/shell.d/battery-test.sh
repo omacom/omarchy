@@ -35,9 +35,11 @@ assertDeepEqual(
 )
 
 const serviceSource = require('fs').readFileSync(root + '/shell/plugins/services/battery/Service.qml', 'utf8')
+const settleTimerSource = serviceSource.slice(serviceSource.indexOf('id: settleTimer'), serviceSource.indexOf('\n  Connections'))
 assert(/triggeredOnStart:\s*false/.test(serviceSource), 'battery defers the first low-battery check past shell start')
 assert(/lowBatteryChecksReady:\s*false/.test(serviceSource), 'battery gates low-battery checks until UPower settles')
-assert(/lowBatteryChecksReady\s*=\s*true[\s\S]*checkBattery\(\)/.test(serviceSource), 'battery enables checks on the settle timer before the first evaluation')
+assert(/onTriggered:\s*root\.lowBatteryChecksReady\s*=\s*true/.test(settleTimerSource), 'battery enables checks after the settle window')
+assert(!/checkBattery\(\)/.test(settleTimerSource), 'battery settle timer does not force an earlier check than the 30-second interval')
 assert(/function checkBattery\(\)\s*\{[\s\S]*if\s*\(\s*!lowBatteryChecksReady\s*\)\s*return/.test(serviceSource), 'battery skips low-battery warnings until settle completes')
 assert(/powerSaverOnBattery:\s*UPower\.onBattery\s*&&\s*activePowerProfile\s*===\s*"power-saver"/.test(serviceSource), 'battery keeps power-saver tracking for wallpaper and lock consumers')
 assert(/onOnBatteryChanged\(\)\s*\{[\s\S]*applyPowerProfile\(\)[\s\S]*refreshPowerProfile\(\)[\s\S]*checkBattery\(\)/.test(serviceSource), 'battery applies profiles immediately, refreshes tracked profile, then checks battery on charger changes')

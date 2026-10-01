@@ -122,16 +122,14 @@ Item {
     onTriggered: root.checkBattery()
   }
 
-  // First evaluation after UPower has had a moment to report the real charger state.
+  // Let charger changes trigger warnings only after UPower's startup window.
+  // The periodic timer remains the first unconditional evaluation at 30 seconds.
   Timer {
     id: settleTimer
     interval: 5000
     running: true
     repeat: false
-    onTriggered: {
-      root.lowBatteryChecksReady = true
-      root.checkBattery()
-    }
+    onTriggered: root.lowBatteryChecksReady = true
   }
 
   Connections {
