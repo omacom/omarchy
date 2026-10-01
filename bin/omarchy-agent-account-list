@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# omarchy:summary=List Claude and Codex subscription accounts and their limits
-# omarchy:args=[claude|codex] [--json]
+# omarchy:summary=List Claude, Codex, and Grok subscription accounts and their limits
+# omarchy:args=[claude|codex|grok] [--json]
 # omarchy:examples=omarchy agent account list | omarchy agent account list claude --json
 
 set -uo pipefail
@@ -10,10 +10,10 @@ provider=""
 json=false
 for arg in "$@"; do
   case "$arg" in
-  claude | codex) provider="$arg" ;;
+  claude | codex | grok) provider="$arg" ;;
   --json) json=true ;;
   *)
-    echo "Usage: omarchy-agent-account-list [claude|codex] [--json]" >&2
+    echo "Usage: omarchy-agent-account-list [claude|codex|grok] [--json]" >&2
     exit 1
     ;;
   esac
@@ -26,7 +26,7 @@ accounts=$(omarchy-agent-account-state list $provider) || exit 1
 # a single account the collectors keep its limits at the record's top level.
 accounts=$(jq -c --arg dir "$usage_dir" '
   map(. as $p | .accounts |= map(. + {limits: []}))' <<<"$accounts")
-for p in claude codex; do
+for p in claude codex grok; do
   record="$usage_dir/$p.json"
   [[ -f $record ]] || continue
   accounts=$(jq -c --arg p "$p" --slurpfile record "$record" '
