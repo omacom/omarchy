@@ -1,23 +1,24 @@
 #!/bin/bash
 
-# omarchy:summary=Choose which Claude or Codex account new sessions use
-# omarchy:args=[claude|codex] [account|next]
+# omarchy:summary=Choose which Claude, Codex, or Grok account new sessions use
+# omarchy:args=[claude|codex|grok] [account|next]
 # omarchy:examples=omarchy agent account use work | omarchy agent account use main | omarchy agent account use codex next
 
 set -uo pipefail
 
 # The provider can be left out when it's your default agent:
 # `omarchy agent account use work`.
-if [[ ${1:-} != "claude" && ${1:-} != "codex" ]]; then
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
   default=$(omarchy-default-agent)
-  [[ $default == "claude" || $default == "codex" ]] && set -- "$default" "$@"
+  [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
 fi
 
 case "${1:-}" in
 claude) name="Claude" ;;
 codex) name="Codex" ;;
+grok) name="Grok" ;;
 *)
-  echo "Usage: omarchy-agent-account-use [claude|codex] [account|next]" >&2
+  echo "Usage: omarchy-agent-account-use [claude|codex|grok] [account|next]" >&2
   exit 1
   ;;
 esac
