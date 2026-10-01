@@ -21,7 +21,12 @@ class OmarchyThemeExtension(GObject.GObject, Nautilus.MenuProvider):
         self._display_opened_handler = 0
         self._settings = None
         self._bus = None
+        self._monitors = []
+        self._watched_paths = set()
+        self._reload_source = 0
+        self._restart_notice_shown = False
         self._css_path = os.path.join(GLib.get_user_config_dir(), "gtk-4.0", "gtk.css")
+        self._startup_css_present = os.path.isfile(self._css_path)
         display = self._display_manager.get_default_display()
         if display is None:
             self._display_opened_handler = self._display_manager.connect(
@@ -64,6 +69,43 @@ class OmarchyThemeExtension(GObject.GObject, Nautilus.MenuProvider):
     def _on_theme_changed(self, *_args):
         self._reload_css()
 
+    def _watch_css(self):
+        for monitor in self._monitors:
+            monitor.cancel()
+        self._monitors = []
+
+        # Watch both entrypoints and their targets, including dotfile symlinks.
+        # Directory watches survive atomic file replacement; the entrypoint
+        # watch rearms target watches when a theme directory or symlink changes.
+        palette_path = os.path.join(os.path.dirname(self._css_path), "omarchy.css")
+        paths = {self._css_path, palette_path}
+        paths.update(os.path.realpath(path) for path in tuple(paths))
+        paths.update(os.path.dirname(path) for path in tuple(paths))
+        self._watched_paths = paths
+        directories = {os.path.dirname(path) for path in paths}
+        for directory in directories:
+            if not os.path.isdir(directory):
+                continue
+            try:
+                monitor = Gio.File.new_for_path(directory).monitor_directory(
+                    Gio.FileMonitorFlags.WATCH_MOVES, None
+                )
+                monitor.connect("changed", self._on_css_changed)
+                self._monitors.append(monitor)
+            except GLib.Error as error:
+                print(f"Omarchy GTK theme monitor failed: {error.message}", file=sys.stderr)
+
+    def _on_css_changed(self, _monitor, file, other_file, _event_type):
+        paths = {
+            candidate.get_path()
+            for candidate in (file, other_file)
+            if candidate is not None
+        }
+        if paths.intersection(self._watched_paths):
+            if self._reload_source:
+                GLib.source_remove(self._reload_source)
+            self._reload_source = GLib.timeout_add(100, self._reload_css)
+
     def _on_color_scheme_changed(self, settings, _property):
         if self._provider is not None:
             self._provider.props.prefers_color_scheme = (
@@ -71,12 +113,24 @@ class OmarchyThemeExtension(GObject.GObject, Nautilus.MenuProvider):
             )
 
     def _reload_css(self):
+        if self._reload_source:
+            GLib.source_remove(self._reload_source)
+            self._reload_source = 0
+        self._watch_css()
+
         if not os.path.exists(self._css_path):
             if self._provider is not None:
                 Gtk.StyleContext.remove_provider_for_display(
                     self._display, self._provider
                 )
                 self._provider = None
+            if self._startup_css_present and not self._restart_notice_shown:
+                # GTK owns a separate startup provider with no public reload API.
+                print(
+                    "Omarchy GTK stylesheet removed; restart Nautilus to fully clear startup styles.",
+                    file=sys.stderr,
+                )
+                self._restart_notice_shown = True
             return
 
         provider = Gtk.CssProvider()

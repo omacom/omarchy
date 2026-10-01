@@ -45,6 +45,12 @@ Making a new app follow theme changes means adding its restart/retint command
 to that list. Runs serialize on a `flock`, so scripted theme changes queue
 instead of racing.
 
+GTK4 and libadwaita colors are generated as `gtk.css`. `omarchy-theme-set-gtk` links the generated stylesheet through `~/.config/gtk-4.0/omarchy.css` and prepends its import to `gtk.css`, preserving existing user rules. A symlinked `gtk.css` stays a symlink: its existing target receives an absolute import. Unrelated `omarchy.css` files and symlinks are left alone. Accent and status foregrounds retain the theme background when its contrast is at least 4.5:1, otherwise falling back to black or white. Themes can explicitly override `accent_foreground`, `red_foreground`, `green_foreground`, and `yellow_foreground`.
+
+GTK reads the entrypoint at application startup. The Nautilus Python extension also reloads it in place on `org.omarchy.Theme.Changed` or filesystem changes to the entrypoints and their resolved targets; filesystem monitoring is event-driven, not polling. Editing a source palette or template still requires `omarchy-theme-refresh` to regenerate the active stylesheet. Invalid CSS keeps the previous extension provider. GTK retains a separate startup provider, so deleting CSS, removing rules, or disabling the import takes full effect on the next Nautilus restart. The extension does not restart Nautilus automatically.
+
+Existing users receive the extension through migration `1787756628.sh` and must restart Nautilus once to load it. Fresh installs need the `omarchy-settings` package to seed `default/nautilus-python/extensions/omarchy_theme.py` into `/etc/skel/.local/share/nautilus-python/extensions/`; first-install provisioning marks migrations complete without running them.
+
 ## What an installed theme may not ship
 
 `themes/<name>/` in this repo is Omarchy's own code and is trusted. So is a theme the user wrote by hand in `~/.config/omarchy/themes/<name>/`: it is their machine and their file, and both stage in full.
