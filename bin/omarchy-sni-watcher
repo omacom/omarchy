@@ -113,9 +113,14 @@ class SNIWatcher:
                 bus_name = sender
                 item_id = sender + service
             else:
-                bus_name = service
+                # Quickshell's watcher also takes "<bus name>/<path>"; watch the bus name.
+                bus_name = service.split("/", 1)[0]
                 item_id = service
                 
+            if not Gio.dbus_is_name(bus_name):
+                invocation.return_dbus_error("org.freedesktop.DBus.Error.InvalidArgs", f"Invalid StatusNotifierItem: {service}")
+                return
+
             if item_id in self.items:
                 invocation.return_value(None)
                 return
