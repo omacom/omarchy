@@ -82,8 +82,8 @@ add_color hl+ "${GUM_CONFIRM_SELECTED_FOREGROUND:-}"
 add_color pointer "${GUM_CONFIRM_SELECTED_BACKGROUND:-}"
 
 # gum confirm answers y/n/q immediately and toggles with the arrow keys,
-# h/l, and Tab. --sync waits until both rows and the load action exist, so a
-# key typed while the prompt is opening cannot accept the wrong row.
+# h/l, and Tab. --sync makes both rows available to start:pos, which selects
+# the default before fzf reads keys typed while the prompt is opening.
 # --no-input would otherwise swallow those keys, and Enter would accept Yes.
 fzf_args=(
   --sync
@@ -94,7 +94,7 @@ fzf_args=(
   --info=hidden
   --header="$prompt"
   --prompt=""
-  --bind "load:pos($start_pos)"
+  --bind "start:pos($start_pos)"
   --bind "left-click:accept"
   --bind "y:pos(1)+accept,Y:pos(1)+accept,n:pos(2)+accept,N:pos(2)+accept,q:pos(2)+accept,left:up,right:down,tab:down,btab:up,h:up,l:down"
 )

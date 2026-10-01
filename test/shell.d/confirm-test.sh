@@ -61,7 +61,7 @@ FZF_CHOICE=Yes FZF_DEFAULT_OPTS='--tac' FZF_DEFAULT_OPTS_FILE='/tmp/not-ours' \
 grep -Fq -- '--bind' "$test_tmp/args" || fail "confirm passes bind flags to fzf"
 grep -Fq -- 'left-click:accept' "$test_tmp/args" || fail "confirm asks fzf to accept a left click"
 grep -Fq -- '--no-input' "$test_tmp/args" || fail "confirm disables the fzf query line"
-grep -Fq -- 'load:pos(1)' "$test_tmp/args" || fail "confirm selects Yes after the list has loaded"
+grep -Fq -- 'start:pos(1)' "$test_tmp/args" || fail "confirm selects Yes before reading keys"
 grep -Fq -- '--sync' "$test_tmp/args" || fail "confirm waits for both rows before reading keys"
 grep -Fq -- 'n:pos(2)+accept' "$test_tmp/args" || fail "confirm binds n to No"
 grep -Fq -- 'y:pos(1)+accept' "$test_tmp/args" || fail "confirm binds y to Yes"
@@ -96,8 +96,8 @@ pass "confirm passes an fzf failure through"
 set +e
 FZF_CHOICE=No FZF_EXIT=0 run_confirm --default=false "Remove?" >/dev/null
 set -e
-grep -Fq -- 'load:pos(2)' "$test_tmp/args" || fail "confirm --default=false selects No after the list has loaded"
-pass "confirm --default=false selects No after the list has loaded"
+grep -Fq -- 'start:pos(2)' "$test_tmp/args" || fail "confirm --default=false selects No before reading keys"
+pass "confirm --default=false selects No before reading keys"
 
 # The stub directory is prepended to the real PATH, which still contains fzf.
 # The fallback has to be checked with a PATH that cannot see it.
