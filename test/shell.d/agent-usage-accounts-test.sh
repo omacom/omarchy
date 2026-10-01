@@ -187,7 +187,7 @@ collector.main()
 PY
 )
 mv "$test_tmp/claude-registry.json" "$accounts/claude.json"
-[[ $(jq -r '.accountRegistryStatus' <<<"$unreadable_registry") == "unreadable" && $(jq 'has("accounts")' <<<"$unreadable_registry") == false && $(jq -r '.limits[0].percent' <<<"$unreadable_registry") == 0.3 ]] ||
+[[ $(jq -r '.accountRegistryStatus' <<<"$unreadable_registry") == "unreadable" && $(jq 'has("accounts")' <<<"$unreadable_registry") == false && $(jq -r '.limits[0].percent' <<<"$unreadable_registry") == 0.3 && $(jq -r '.fallbackAccountLabel' <<<"$unreadable_registry") == "Configured home" ]] ||
   fail "a malformed registry retains fallback limits and marks account inventory unreadable" "$unreadable_registry"
 pass "a malformed registry retains fallback limits and marks account inventory unreadable"
 
@@ -261,7 +261,7 @@ cp "$accounts/codex.json" "$test_tmp/codex-registry.json"
 printf '{' >"$accounts/codex.json"
 codex_unreadable=$(PATH="$test_tmp/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --force)
 mv "$test_tmp/codex-registry.json" "$accounts/codex.json"
-[[ $(jq -r '.accountRegistryStatus' <<<"$codex_unreadable") == "unreadable" && $(jq 'has("accounts")' <<<"$codex_unreadable") == false && $(jq '.limits[0].percent' <<<"$codex_unreadable") == 0.4 ]] ||
+[[ $(jq -r '.accountRegistryStatus' <<<"$codex_unreadable") == "unreadable" && $(jq 'has("accounts")' <<<"$codex_unreadable") == false && $(jq '.limits[0].percent' <<<"$codex_unreadable") == 0.4 && $(jq -r '.fallbackAccountLabel' <<<"$codex_unreadable") == "Configured home" ]] ||
   fail "Codex retains fallback limits and marks a malformed account registry unreadable" "$codex_unreadable"
 pass "Codex retains fallback limits and marks a malformed account registry unreadable"
 

@@ -72,7 +72,9 @@ function schedule(pending, records, now, notificationsEnabled, providerEnabled) 
         }
       }
       if (!hasAccountDeadlines)
-        limitSources.push({ accountId: "", identityId: null, accountName: "",
+        limitSources.push({ accountId: "", identityId: null,
+          accountName: registryStatus === "unreadable"
+            ? String(currentRecord.fallbackAccountLabel || "Configured home") : "",
           limits: Array.isArray(currentRecord.limits) ? currentRecord.limits : [] })
     } else if (accounts) {
       for (var j = 0; j < accounts.length; j++) {

@@ -708,6 +708,9 @@ def main():
     "hasLocalStats": True,
     "accountRegistryStatus": registry["status"],
   }
+  if registry["status"] == "unreadable":
+    # fetch_codex_rpc() uses CODEX_HOME when set, otherwise ~/.codex.
+    record["fallbackAccountLabel"] = "Configured home"
   record.update(stats)
   record.update(rpc)
   if accounts:

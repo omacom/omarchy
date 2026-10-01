@@ -82,10 +82,12 @@ const multiAccount = {
 const accountDeadlines = limitReset.schedule({}, [multiAccount], now, true, enabled)
 assertEqual(Object.keys(accountDeadlines).length, 2, 'agents queue active and inactive account deadlines without duplicating top-level limits')
 const unreadableFallback = limitReset.schedule({}, [{
-  id: 'codex', name: 'Codex', accountRegistryStatus: 'unreadable',
+  id: 'codex', name: 'Codex', accountRegistryStatus: 'unreadable', fallbackAccountLabel: 'Configured home',
   limits: [{ label: 'weekly', resetsAt: '2026-09-18T12:30:00Z' }]
 }], now, true, enabled)
 assertEqual(Object.keys(unreadableFallback).length, 1, 'unreadable registries still schedule top-level limits when no account deadline is known')
+assertDeepEqual(limitReset.announce(unreadableFallback, Date.parse('2026-09-18T12:31:00Z'), true, enabled).notifications.map(n => n.title),
+  ['Codex (Configured home) limit reset'], 'unreadable fallback resets identify the configured home without guessing an account')
 const recoveredRegistry = limitReset.schedule(unreadableFallback, [multiAccount], now, true, enabled)
 assertEqual(Object.keys(recoveredRegistry).length, 2, 'a readable account inventory replaces the unidentified fallback deadline')
 assertDeepEqual(limitReset.announce(recoveredRegistry, Date.parse('2026-09-18T12:21:00Z'), true, enabled).notifications.map(n => n.title).sort(),

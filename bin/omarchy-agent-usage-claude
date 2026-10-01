@@ -1028,6 +1028,9 @@ def main() -> int:
     "limitsStale": stale,
     "limitsFetchedAt": fetched_at,
   }
+  if registry["status"] == "unreadable":
+    # Limits came from config_dir(), which may be CLAUDE_CONFIG_DIR or ~/.claude.
+    record["fallbackAccountLabel"] = "Configured home"
   if limits.get("retryAdvised"):
     record["retryAdvised"] = True
   if accounts:
