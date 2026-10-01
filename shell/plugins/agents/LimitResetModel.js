@@ -14,6 +14,12 @@ function schedule(pending, records, now, notificationsEnabled, providerEnabled) 
     var id = String(record.id || "")
     if (!id) continue
     present[id] = true
+    var registryStatus = String(record.accountRegistryStatus || "")
+    if (registryStatus === "unreadable" || registryStatus === "missing") {
+      // A fallback active-account record says nothing about which subscriptions
+      // remain registered. Preserve their pending deadlines until authoritative.
+      continue
+    }
     if (Array.isArray(record.accounts)) {
       presentAccounts[id] = Object.create(null)
       for (var a = 0; a < record.accounts.length; a++) {
@@ -50,9 +56,27 @@ function schedule(pending, records, now, notificationsEnabled, providerEnabled) 
     var providerId = String(currentRecord.id || "")
     if (!providerId || !providerEnabled(providerId)) continue
 
+    var registryStatus = String(currentRecord.accountRegistryStatus || "")
+    if (registryStatus === "unreadable") continue
+
     var accounts = Array.isArray(currentRecord.accounts) ? currentRecord.accounts : null
     var limitSources = []
-    if (accounts) {
+    if (registryStatus === "missing") {
+      // Legacy single-account installs have no registry. Continue their
+      // top-level limits, but do not let a missing inventory displace known
+      // per-account deadlines.
+      var hasAccountDeadlines = false
+      for (var pendingKeyValue in next) {
+        var pendingReset = next[pendingKeyValue]
+        if (pendingReset && pendingReset.providerId === providerId && pendingReset.accountId) {
+          hasAccountDeadlines = true
+          break
+        }
+      }
+      if (!hasAccountDeadlines)
+        limitSources.push({ accountId: "", identityId: null, accountName: "",
+          limits: Array.isArray(currentRecord.limits) ? currentRecord.limits : [] })
+    } else if (accounts) {
       for (var j = 0; j < accounts.length; j++) {
         var accountRecord = accounts[j] || {}
         limitSources.push({

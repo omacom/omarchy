@@ -101,6 +101,28 @@ const transientAccount = limitReset.schedule(accountDeadlines, [{
   ]
 }], now, true, enabled)
 assertEqual(Object.keys(transientAccount).length, 2, 'agents retain an account deadline across a transient empty limits response')
+const unreadableRegistry = limitReset.schedule(accountDeadlines, [{
+  id: 'codex', name: 'Codex', accountRegistryStatus: 'unreadable',
+  limits: [{ label: 'weekly', resetsAt: '2026-09-18T12:30:00Z' }]
+}], now, true, enabled)
+assertEqual(Object.keys(unreadableRegistry).length, 2, 'agents retain per-account deadlines when the registry is unreadable')
+assertDeepEqual(limitReset.announce(unreadableRegistry, Date.parse('2026-09-18T12:21:00Z'), true, enabled).notifications.map(n => n.title).sort(),
+  ['Codex (Personal) limit reset', 'Codex (Work) limit reset'], 'fallback active-account limits do not displace registered-account resets')
+const missingRegistry = limitReset.schedule(accountDeadlines, [{
+  id: 'codex', name: 'Codex', accountRegistryStatus: 'missing',
+  limits: [{ label: 'weekly', resetsAt: '2026-09-18T12:30:00Z' }]
+}], now, true, enabled)
+assertEqual(Object.keys(missingRegistry).length, 2, 'agents preserve per-account deadlines when the registry is missing')
+assertEqual(Object.keys(limitReset.schedule({}, [{
+  id: 'codex', name: 'Codex', accountRegistryStatus: 'missing', limits: multiAccount.limits
+}], now, true, enabled)).length, 1, 'legacy installs without a registry still schedule top-level limits')
+const singleAccountRegistry = limitReset.schedule(accountDeadlines, [{
+  id: 'codex', name: 'Codex', accountRegistryStatus: 'available',
+  limits: [{ label: 'weekly', resetsAt: '2026-09-18T12:30:00Z' }]
+}], now, true, enabled)
+assertEqual(Object.keys(singleAccountRegistry).length, 1, 'a readable single-account registry retires obsolete per-account deadlines')
+assertEqual(Object.values(singleAccountRegistry)[0].deadline, Date.parse('2026-09-18T12:30:00Z'),
+  'a readable single-account registry schedules its current top-level deadline')
 const changedIdentity = limitReset.schedule(accountDeadlines, [{id: 'codex', name: 'Codex', accounts: [
   {id: 'personal', accountId: 'new-subscription', label: 'Personal', limits: []}, multiAccount.accounts[1]
 ]}], now, true, enabled)
