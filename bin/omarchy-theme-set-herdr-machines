@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# omarchy:summary=Mirror the current theme to your herdr machines that run Omarchy
+# omarchy:args=[--available]
+# omarchy:hidden=true
+
+# omarchy-theme-set runs this in the background after every theme change. Sync is off until
+# the herdr-theme-sync toggle is turned on, and a machine only accepts themes with it on too.
+
+# Columns: id, label, SSH target, session, state.
+# This machine may be listed too, and it is already on the theme, so it needs no special case.
+targets=$(herdr machine list 2>/dev/null | awk -F '\t' '$5 == "enabled" { print $3 }')
+
+# The menu offers the toggle whenever there is a machine to sync to, whether or not sync is on.
+if [[ $1 == "--available" ]]; then
+  [[ -n $targets ]]
+  exit
+fi
+
+# Serialize runs and send whichever theme is current once the lock is held,
+# so a slow earlier run can never overwrite a later theme change.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-herdr-machines.lock"
+flock 9
+
+# A theme that arrived from another machine stops here, so machines never echo it back.
+# The toggle is checked once the lock is held, so turning sync off also stops a queued run.
+if [[ -n $OMARCHY_THEME_SYNC_FROM ]] || ! omarchy-toggle-enabled herdr-theme-sync; then
+  exit 0
+fi
+
+theme=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
+
+# Runs on the remote machine under a login shell, so OMARCHY_PATH and PATH are set there.
+# SSH carries no desktop session, so the environment comes from the live Hyprland instance.
+# The flag is read directly, so an Omarchy that predates theme sync simply counts as off.
+# Braces make bash read the whole script before running it, so nothing it runs can consume the rest.
+read -r -d '' REMOTE_SCRIPT <<'EOF'
+{
+  if [[ ! -f ~/.local/state/omarchy/toggles/herdr-theme-sync ]]; then
+    echo "theme sync is off"
+    exit
+  fi
+
+  if [[ $(cat ~/.local/state/omarchy/current/theme.name 2>/dev/null) == "$theme" ]]; then
+    echo "already on $theme"
+    exit
+  fi
+
+  export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+  instance=$(hyprctl instances -j 2>/dev/null | jq -r 'max_by(.time) // empty | "\(.instance) \(.wl_socket)"')
+  if [[ -z $instance ]]; then
+    echo "no Hyprland session"
+    exit
+  fi
+
+  read -r HYPRLAND_INSTANCE_SIGNATURE WAYLAND_DISPLAY <<<"$instance"
+  export HYPRLAND_INSTANCE_SIGNATURE WAYLAND_DISPLAY
+  export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+  export OMARCHY_THEME_SYNC_FROM="$from"
+
+  if omarchy theme set "$theme" >/dev/null 2>&1; then
+    echo "set $theme"
+  else
+    echo "failed to set $theme"
+  fi
+} </dev/null
+EOF
+
+# One machine at a time, so an SSH agent like 1Password asks for approval at most once.
+# SSH joins its arguments into a shell command, so the theme travels on stdin as a quoted assignment.
+for target in $targets; do
+  result=$(printf 'theme=%q from=%q\n%s\n' "$theme" "$(hostname)" "$REMOTE_SCRIPT" |
+    timeout 60 ssh -o BatchMode=yes -o ConnectTimeout=5 "$target" bash -l -s 2>&1 | tail -n 1)
+  echo "$(date '+%F %T') $target: ${result:-unreachable}"
+done

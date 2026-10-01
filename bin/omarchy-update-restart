@@ -1,51 +1,66 @@
 #!/bin/bash
 
 # omarchy:summary=Prompt for required reboot or service restarts after updates
+# omarchy:args=[--services-only|--reboot-only]
+
+mode="${1:-all}"
+case "$mode" in
+  all|--services-only|--reboot-only) ;;
+  *) echo "Unknown restart phase: $mode" >&2; exit 2 ;;
+esac
 
 echo
-
 confirm_reboot() {
-  gum confirm "$1" && { omarchy-system-reboot; exit 0; }
+  if [[ ${OMARCHY_UPDATE_UNATTENDED:-0} == "1" ]]; then
+    echo "$1 Run omarchy-system-reboot when ready."
+  elif gum confirm "$1"; then
+    omarchy-system-reboot
+    exit 0
+  fi
 }
 
-running_kernel=$(uname -r)
-kernel_updated=true
+if [[ $mode != "--services-only" ]]; then
+  running_kernel=$(uname -r)
+  kernel_updated=true
 
-for kernel in /usr/lib/modules/*/vmlinuz; do
-  if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
-    installed_kernel=$(basename "$(dirname "$kernel")")
+  for kernel in /usr/lib/modules/*/vmlinuz; do
+    if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
+      installed_kernel=$(basename "$(dirname "$kernel")")
 
-    if [[ $installed_kernel == $running_kernel ]]; then
-      kernel_updated=false
-      break
+      if [[ $installed_kernel == $running_kernel ]]; then
+        kernel_updated=false
+        break
+      fi
     fi
-  fi
-done
+  done
 
-if [[ $kernel_updated == "true" ]]; then
-  confirm_reboot "Linux kernel has been updated. Reboot?"
-elif [[ -f $HOME/.local/state/omarchy/reboot-required ]]; then
-  confirm_reboot "Updates require reboot. Ready?"
+  if [[ $kernel_updated == "true" ]]; then
+    confirm_reboot "Linux kernel has been updated. Reboot?"
+  elif [[ -f $HOME/.local/state/omarchy/reboot-required ]]; then
+    confirm_reboot "Updates require reboot. Ready?"
+  fi
+
+  running_hyprland=$(readlink /proc/$(pgrep -x Hyprland)/exe 2>/dev/null)
+  if [[ $running_hyprland == *"(deleted)"* ]]; then
+    confirm_reboot "Hyprland has been updated. Reboot?"
+  fi
 fi
 
-running_hyprland=$(readlink /proc/$(pgrep -x Hyprland)/exe 2>/dev/null)
-if [[ $running_hyprland == *"(deleted)"* ]]; then
-  confirm_reboot "Hyprland has been updated. Reboot?"
+if [[ $mode != "--reboot-only" ]]; then
+  for file in "$HOME"/.local/state/omarchy/restart-*-required; do
+    if [[ -f $file ]]; then
+      filename=$(basename "$file")
+      service=$(echo "$filename" | sed 's/restart-\(.*\)-required/\1/')
+      echo "Restarting $service"
+      omarchy-state clear "$filename"
+      omarchy-restart-"$service"
+    fi
+  done
+
+  # Updates routinely replace the shell's QML, and a stale process can lazy-load
+  # new files into old code. A restart failure (locked session, ssh, TTY) only
+  # prints its reason: the next update or login gets a fresh shell anyway.
+  echo -e "\e[32m\nRestarting shell\e[0m"
+  echo "All plugins have been reloaded"
+  omarchy-restart-shell || true
 fi
-
-for file in "$HOME"/.local/state/omarchy/restart-*-required; do
-  if [[ -f $file ]]; then
-    filename=$(basename "$file")
-    service=$(echo "$filename" | sed 's/restart-\(.*\)-required/\1/')
-    echo "Restarting $service"
-    omarchy-state clear "$filename"
-    omarchy-restart-"$service"
-  fi
-done
-
-# Updates routinely replace the shell's QML, and a stale process can lazy-load
-# new files into old code. A restart failure (locked session, ssh, TTY) only
-# prints its reason: the next update or login gets a fresh shell anyway.
-echo -e "\e[32m\nRestarting shell\e[0m"
-echo "All plugins have been reloaded"
-omarchy-restart-shell || true
