@@ -7,13 +7,20 @@ default_browser=$(omarchy-cmd-default-browser)
 browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
 browser_name=$(basename "$browser_exec")
 
-if [[ $browser_name == firefox* || $browser_name == zen* || $browser_name == librewolf* || $browser_name == waterfox* ]]; then
-  private_flag="--private-window"
-elif [[ $browser_name == *edge* ]]; then
-  private_flag="--inprivate"
-else
-  private_flag="--incognito"
-fi
+case $browser_name in
+  firefox* | zen* | librewolf* | waterfox* | floorp* | icecat* | mullvad*) private_flag="--private-window" ;;
+  *edge*) private_flag="--inprivate" ;;
+  chromium* | *chrome* | brave* | vivaldi* | opera*) private_flag="--incognito" ;;
+  *)
+    for argument in "$@"; do
+      if [[ $argument == "--private" ]]; then
+        echo "Cannot determine the private browsing flag for '$browser_name'. Open a private window from the browser." >&2
+        exit 1
+      fi
+    done
+    private_flag=""
+    ;;
+esac
 
 if ! omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
   systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \

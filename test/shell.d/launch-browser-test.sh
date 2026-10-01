@@ -112,3 +112,21 @@ HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="
 
 [[ ! -e $launch_log ]] || fail "browser launcher starts no browser when the running one takes the URL"
 pass "browser launcher hands a URL to the running browser"
+
+rm "$mock_bin/omarchy-cmd-browser-handoff"
+for browser in floorp custom-browser; do
+  ln -s chromium "$mock_bin/$browser"
+  printf '[Desktop Entry]\nExec=%s %%U\n' "$browser" >"$test_home/.local/share/applications/$browser.desktop"
+  rm -f "$launch_log"
+  if HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_DESKTOP="$browser.desktop" \
+    OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_EXEC="$browser_exec_log" \
+    bash "$ROOT/bin/omarchy-launch-browser" --private >"$test_tmp/out" 2>"$test_tmp/errors"; then
+    [[ $browser == "floorp" ]] || fail "unknown browser families must not receive a guessed private flag"
+    grep -Fq -- --private-window "$launch_log" || fail "Floorp receives its Firefox-family flag"
+  else
+    [[ $browser == "custom-browser" ]] || fail "Floorp private launch succeeds"
+    [[ ! -e $launch_log ]] || fail "unknown private launches start no normal browser window"
+    grep -Fq 'Cannot determine the private browsing flag' "$test_tmp/errors" || fail "unknown private browsing reports a clear error"
+  fi
+done
+pass "Firefox forks use the correct private flag and unknown families fail closed"
