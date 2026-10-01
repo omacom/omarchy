@@ -243,9 +243,10 @@ grep -Fq -- "--session work" "$herdr_log" ||
   fail "herdr is queried for the client's own session" "$(cat "$herdr_log")"
 pass "herdr is queried for the client's own session"
 
-# A window that is not a terminal has no process attached to one.
+# A window that is not a terminal has no process attached to one, so its
+# children do not answer however readable their directories are.
 mkdir -p "$test_tmp/gui"
-start_headless_window bash -c "cd '$test_tmp/gui'; sleep 300"
+start_headless_window bash -c "cd '$test_tmp/gui'; sleep 300 & wait"
 sleep 1
 resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
 [[ $resolved == "$fallback_home" ]] ||
