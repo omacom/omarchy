@@ -944,7 +944,7 @@ Panel {
                     height: parent.height
                     width: parent.width * Math.max(0, Math.min(1, inputPeakMonitor.peak))
                     color: root.bar.foreground
-                    Behavior on width { NumberAnimation { duration: 70 } }
+                    Behavior on width { NumberAnimation { duration: Style.duration(70) } }
                   }
                 }
               }
