@@ -99,9 +99,13 @@ case "$*" in
     ;;
   *'lock status')
     if [[ -f $OMARCHY_TEST_QS_STATE.locked ]]; then
-      printf '{"secure": true, "requested": true}\n'
+      printf '{"secure": true, "requested": true, "sessionLocked": true}\n'
+    elif [[ -f $OMARCHY_TEST_QS_STATE.stale ]]; then
+      # A crashed shell leaves its lock request behind. No lock surface exists,
+      # so the restart must proceed rather than read the orphan as a live lock.
+      printf '{"secure": false, "requested": true, "sessionLocked": false}\n'
     else
-      printf '{"secure": false, "requested": false}\n'
+      printf '{"secure": false, "requested": false, "sessionLocked": false}\n'
     fi
     ;;
 esac
@@ -291,6 +295,41 @@ restart_pid_one=""
 grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null || fail "dead-lock recovery re-acquires the session lock"
 grep -F "ipc -n -p $restart_root/shell call -- lock status" "$ipc_log" >/dev/null || fail "dead-lock recovery waits for the lock to become secure"
 pass "restart recovers a locked session whose lock client died"
+
+# A lock request left behind by a crashed shell outlives it: a fresh instance
+# never serves that lock, so no lock surface exists and the session sits behind
+# Hyprland's failsafe with no way in. Reading the request instead of the
+# surface refused the one restart that could recover it.
+sleep 30 &
+restart_pid_stale=$!
+printf '%s\n' "$restart_pid_stale" >"$restart_state"
+touch "$restart_state.stale"
+rm -f "$restart_state.locked"
+: >"$restart_log"
+: >"$ipc_log"
+
+if PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_SESSION_LOCKED=1 \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+  OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+    timeout 5 "$ROOT/bin/omarchy-restart-shell" 2>&1 |
+    grep -F "Refusing to restart" >/dev/null; then
+  fail "a stale lock request with no lock surface must not refuse the restart"
+fi
+
+if kill -0 "$restart_pid_stale" 2>/dev/null; then
+  fail "stale-request recovery stops the crashed shell instance"
+fi
+wait "$restart_pid_stale" 2>/dev/null || true
+[[ $(<"$restart_state") == 303 ]] || fail "stale-request recovery leaves one fresh shell instance"
+grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null || fail "stale-request recovery re-acquires the session lock"
+pass "restart ignores a lock request no live lock client is serving"
 
 # Lock recovery must not wait on the notification plugin: a stranded user gets
 # the lock back even when notifications never return, and the restart then
