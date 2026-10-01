@@ -81,6 +81,7 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   const add = good.calls[0]
   for (const [name, value] of [
     ['ssid', 'Enterprise WiFi'], ['802-1x.identity', 'person@example.org'],
+    ['802-1x.auth-timeout', '0'],
     ['802-1x.ca-cert', cert], ['802-1x.domain-match', 'radius.example.org'],
     ['802-1x.system-ca-certs', 'no'], ['802-1x.eap', 'peap'], ['802-1x.phase2-auth', 'mschapv2']
   ]) assertEqual(add[add.indexOf(name) + 1], value, 'enterprise profile sets ' + name)

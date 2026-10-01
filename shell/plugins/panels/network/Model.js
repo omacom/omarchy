@@ -350,7 +350,7 @@ var enterpriseConnectWorkerScript =
   " trap 'exit 124' TERM INT;" +
   " nmcli connection add type wifi con-name \"$1\" ssid \"$1\" connection.uuid \"$5\"" +
   " wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2" +
-  " 802-1x.identity \"$2\" 802-1x.auth-timeout 8" +
+  " 802-1x.identity \"$2\" 802-1x.auth-timeout 0" +
   " 802-1x.ca-cert \"$3\" 802-1x.domain-match \"$4\" 802-1x.system-ca-certs no >/dev/null" +
   " && printf 'set 802-1x.password %s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$5\" >/dev/null" +
   " && nmcli connection up uuid \"$5\""
