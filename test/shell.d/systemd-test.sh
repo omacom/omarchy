@@ -11,8 +11,7 @@ grep -Fx "ExecStartPre=/usr/bin/timeout 30 /bin/bash -c 'until /usr/bin/systemct
 if grep -q '^ExecCondition=.*bluetooth.service' "$service"; then
   fail "bt-agent no longer turns an early Bluetooth check into a permanent skip"
 fi
-grep -Fx 'StartLimitIntervalSec=120' "$service" >/dev/null || fail "bt-agent bounds failed startup retries"
-grep -Fx 'StartLimitBurst=3' "$service" >/dev/null || fail "bt-agent bounds failed startup retries"
+grep -Fx 'StartLimitIntervalSec=0' "$service" >/dev/null || fail "bt-agent keeps retrying when Bluetooth starts late"
 grep -Fx 'After=graphical-session.target' "$service" >/dev/null ||
   fail "bt-agent waits for Bluetooth without holding graphical-session.target"
 pass "bt-agent waits through the system service startup race"

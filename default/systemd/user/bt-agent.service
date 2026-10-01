@@ -8,8 +8,7 @@ After=dbus.socket
 # and every uwsm-app launch behind it, for up to 30 seconds.
 After=graphical-session.target
 Requires=dbus.socket
-StartLimitIntervalSec=120
-StartLimitBurst=3
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
