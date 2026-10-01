@@ -18,7 +18,7 @@ Item {
   // pre-suspend discharging state for a few seconds after shell start (#7679).
   // Hold low-battery warnings until settleTimer completes; power profiles still
   // apply immediately on charger changes.
-  property bool lowBatteryChecksReady: false
+  readonly property alias lowBatteryChecksReady: settleTimer.checksReady
 
   PersistentProperties {
     id: persisted
@@ -124,15 +124,10 @@ Item {
 
   // Give UPower a full settle window after Quickshell has loaded the display
   // device, then evaluate promptly instead of waiting for the 30-second tick.
-  Timer {
+  BatteryStartupGate {
     id: settleTimer
-    interval: 5000
-    running: UPower.displayDevice.ready && !root.lowBatteryChecksReady
-    repeat: false
-    onTriggered: {
-      root.lowBatteryChecksReady = true
-      root.checkBattery()
-    }
+    deviceReady: UPower.displayDevice.ready
+    onChecksReadyChanged: if (checksReady) root.checkBattery()
   }
 
   Connections {
