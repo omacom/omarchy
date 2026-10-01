@@ -42,6 +42,8 @@ Item {
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
+  property int refreshVersion: -1
+  property bool refreshQueued: false
 
   function isVideo(path) {
     return Util.isVideoPath(path)
@@ -52,12 +54,22 @@ Item {
   }
 
   function refreshBackground() {
-    if (!readlinkProc.running) readlinkProc.running = true
+    // A refresh asked for during a read runs after it, so the link is read
+    // as it is now rather than as it was when that read began.
+    if (readlinkProc.running) {
+      refreshQueued = true
+      return
+    }
+    refreshVersion = backgroundVersion
+    readlinkProc.running = true
   }
 
   // With no wallpaper the layer draws nothing, so Hyprland's own background
   // colour shows through.
   function clearBackground() {
+    // A theme waiting on a reveal the clear cancels lands now, before the
+    // palette that follows the clear, rather than over it from the fallback timer.
+    applyPendingTheme()
     revealAnimation.stop()
     preparedBackgroundTimer.stop()
     currentBackground = ""
@@ -223,10 +235,18 @@ Item {
     command: ["readlink", "-e", root.currentBackgroundLink]
     stdout: StdioCollector {
       onStreamFinished: {
+        // A transition or clear that landed while the link was read is newer
+        // than what was read.
+        if (root.refreshVersion !== root.backgroundVersion) return
         var path = String(text || "").trim()
         if (path) root.setBackground(path, false)
         else root.clearBackground()
       }
+    }
+    onExited: {
+      if (!root.refreshQueued) return
+      root.refreshQueued = false
+      root.refreshBackground()
     }
   }
 
