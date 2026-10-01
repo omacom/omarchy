@@ -23,7 +23,7 @@ if [[ ${OMARCHY_WINDOWS_BOUNDARY_NAMESPACE:-0} != 1 ]]; then
   elif unshare --user --map-auto --map-root-user --mount true 2>/dev/null; then
     exec unshare --user --map-auto --map-root-user --mount --propagation private bash "$0"
   fi
-  pass "private mount namespace unavailable; skipping root Windows VM boundary probe"
+  skip "private mount namespace unavailable; skipping root Windows VM boundary probe"
   exit 0
 fi
 

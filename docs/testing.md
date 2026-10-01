@@ -52,6 +52,7 @@ directory or an installed Omarchy.
 Assertions are TAP-flavored and blunt:
 
 - `pass "description"` prints `ok - description`.
+- `skip "description"` prints `ok - description # SKIP`. Include why the check could not run. Like `pass`, it returns normally; use `exit 0` afterwards only when the rest of the file cannot run either.
 - `fail "description" [detail]` prints the optional detail and
   `not ok - description` to stderr, then **exits the file**. There is no
   counting or continuing within a file: the first failed assertion ends it,
@@ -59,19 +60,13 @@ Assertions are TAP-flavored and blunt:
   already invalidated.
 - `require_command <cmd>` fails the file when a needed tool is absent.
 
-The runner compensates for that early exit: `./test/shell` continues past a
-failing file and summarizes the failures at the end. Aborting the whole run at
-the first bad file once let a single packaging failure mask 114 of 134 files.
-Failure granularity is therefore per file inside a run, per assertion inside a
-file.
+The runner compensates for that early exit: `./test/shell` continues past a failing file and summarizes the failures at the end. Aborting the whole run at the first bad file once let a single packaging failure mask 114 of 134 files. Failure granularity is therefore per file inside a run, per assertion inside a file.
+
+The runner also lists files with skipped checks, including files that ran some checks or later failed. Skips do not fail a run. When no files fail, a run with skips is reported as completed without failures rather than having passed every check.
 
 ## Compositor-dependent tests
 
-Some tests launch Quickshell or query Hyprland, but the suite must stay green
-on headless machines. `require_compositor "description"` handles this: when no
-compositor answers it prints `ok - no Wayland compositor; skipping ...` and
-exits 0 — a skip is a passing test — and otherwise returns so the file
-proceeds.
+Some tests launch Quickshell or query Hyprland, but the suite must stay green on headless machines. `require_compositor "description"` handles this: when no compositor answers it calls `skip` with the reason and exits 0, and otherwise returns so the file proceeds. The skip marker lets the runner distinguish unavailable runtime coverage from checks that passed.
 
 The probe is more than an environment check, because `WAYLAND_DISPLAY` only
 proves the variable was inherited. Sandboxes pass the environment through
@@ -119,6 +114,7 @@ only a live session can prove.
 
 ## Conventions worth copying
 
+- **Redirect background output.** Send background fixtures' stdout to a log or `/dev/null` and clean up the processes on exit. An inherited output pipe can hold the runner open after the test exits.
 - **Stub the world, run the real code.** Tests build a scratch `bin/` of stub
   executables (`sudo`, `tmux`, `gsettings`, helper commands) that log their
   arguments to a file, prepend it to `PATH`, and then run the real script
