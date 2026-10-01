@@ -73,8 +73,11 @@ JS
 cat > "$stage/bin/dropbox-cli" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >> "$DROPBOX_TEST_COMMAND_LOG"
-if (( $(wc -l < "$DROPBOX_TEST_COMMAND_LOG") == 2 )); then
+calls=$(wc -l < "$DROPBOX_TEST_COMMAND_LOG")
+if (( calls == 2 )); then
   echo "https://www.dropbox.com/cli_link_nonce?nonce=fixture"
+elif (( calls == 4 )); then
+  printf 'Starting Dropbox...\nThe Dropbox daemon is not installed!\n'
 else
   echo "Dropbox is already running!"
 fi
@@ -97,6 +100,6 @@ output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
 if [[ $output =~ RESULT\ fail|ReferenceError|TypeError|Error:|Unable\ to\ assign|Binding\ loop ]]; then
   fail "Dropbox link fixture has no QML errors" "$output"
 fi
-[[ $(<"$stage/commands.log") == $'start\nstart\nstart' ]] ||
+[[ $(<"$stage/commands.log") == $'start\nstart\nstart\nstart\nstop' ]] ||
   fail "only fresh login attempts run dropbox-cli start"
 pass "Dropbox no-URL and URL waits, repeated polling, timeout, late authentication, retry, and panel errors work in QML"

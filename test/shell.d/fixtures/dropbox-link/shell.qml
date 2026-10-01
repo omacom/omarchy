@@ -148,6 +148,19 @@ ShellRoot {
         service.testDelayedRefresh.stop()
         test.check(test.loginStarts === 3 && service.linkPending && service.linkError === "", "a fresh attempt after timeout is allowed and clears the old failure")
         service.applyStatus(test.status(true))
+        service.applyStatus(test.status(false))
+        service.login()
+        test.step = 10
+        break
+      case 10:
+        service.testDelayedRefresh.stop()
+        test.check(test.loginStarts === 4 && !service.linkPending && service.actionStatus.indexOf("not installed") !== -1, "a start that reports no daemon is a failure, not a wait")
+        service.beginLinkWait()
+        service.pause()
+        test.step = 11
+        break
+      case 11:
+        test.check(!service.linkPending && !service.testLinkWait.running, "pausing Dropbox abandons the pending link")
         stop()
         console.log("RESULT pass")
         if (Quickshell.env("DROPBOX_TEST_PREVIEW")) {

@@ -139,6 +139,8 @@ Item {
     // No progress status here — the greyed icon and hero phrase already convey
     // the pause/resume; only surface a message if the command fails.
     if (!installed || controlProcess.running) return
+    // Stopping or restarting the daemon abandons its link, so Login starts afresh.
+    finishLink()
     _desired = desired
     _controlOutput = ""
     _controlError = ""
@@ -300,7 +302,9 @@ Item {
     onExited: function(exitCode) {
       var combined = String(root._loginOutput || "") + "\n" + String(root._loginError || "")
       var opened = root.openAuthUrlFrom(combined)
-      if (exitCode !== 0 && !opened) {
+      // dropbox-cli start exits 0 even when the daemon never came up.
+      var failed = exitCode !== 0 || combined.indexOf("The Dropbox daemon is not installed!") !== -1
+      if (failed && !opened) {
         root.lastError = root.elideStatus(combined || "Dropbox login failed")
         root.actionStatus = root.lastError
       } else if (!opened) {
