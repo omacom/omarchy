@@ -97,3 +97,19 @@ if HOME="$test_home" OMARCHY_PATH="$test_tmp" CALLS="$calls" FAIL_REFRESH=1 PATH
 fi
 [[ $(<"$state_file") == "tokyo-night" ]] || fail "a failed reset retains the selected theme"
 pass "failed reset leaves the last working preference available for recovery"
+
+# Run the actual current-theme command with only its installed-logo path redirected.
+printf 'selected-logo' >"$theme_dir/unlock.png"
+cp "$theme_dir/unlock.png" "$test_tmp/installed-logo.png"
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/omarchy-plymouth-list"
+chmod +x "$stub_bin/omarchy-plymouth-list"
+actual_current="$test_tmp/current-theme"
+sed "s|installed_logo=/usr/share/plymouth/themes/omarchy/logo.png|installed_logo=$test_tmp/installed-logo.png|" "$ROOT/bin/omarchy-plymouth-current" >"$actual_current"
+current=$(HOME="$test_home" OMARCHY_PATH="$ROOT" THEME_DIR="$theme_dir" PATH="$stub_bin:$PATH" bash "$actual_current")
+[[ $current == "tokyo-night" ]] || fail "a remembered previewless theme is recognized by its installed logo"
+: >"$calls"
+cp "$actual_current" "$stub_bin/omarchy-plymouth-current"
+chmod +x "$stub_bin/omarchy-plymouth-current"
+HOME="$test_home" OMARCHY_PATH="$ROOT" THEME_DIR="$theme_dir" CALLS="$calls" PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-plymouth-restore"
+[[ ! -s $calls ]] || fail "an intact previewless theme does not rebuild its initramfs"
+pass "remembered previewless themes are recognized without repeated rebuilds"
