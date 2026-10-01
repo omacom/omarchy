@@ -156,7 +156,12 @@ if [[ ${1:-} == "instances" && ${2:-} == "-j" ]]; then
   fi
 elif [[ ${1:-} == "repl" ]]; then
   [[ ${OMARCHY_TEST_PATH_FAIL:-0} != 1 ]] || exit 1
-  printf '%s\n' "$OMARCHY_TEST_SESSION_PATH"
+  printf '%s\n' "${HYPRLAND_INSTANCE_SIGNATURE:-unset}" >>"${OMARCHY_TEST_PATH_SIGNATURE_LOG:-/dev/null}"
+  if [[ -n ${OMARCHY_TEST_SESSION_PATHS:-} ]]; then
+    jq -er --arg signature "$HYPRLAND_INSTANCE_SIGNATURE" '.[$signature]' <<<"$OMARCHY_TEST_SESSION_PATHS"
+  else
+    printf '%s\n' "$OMARCHY_TEST_SESSION_PATH"
+  fi
 elif [[ ${1:-} == "-j" && ${2:-} == "monitors" ]]; then
   printf '%s\n' "${HYPRLAND_INSTANCE_SIGNATURE-unset}" >>"${OMARCHY_TEST_HYPR_SIGNATURE_LOG:-/dev/null}"
   if [[ ${OMARCHY_TEST_HYPR_HANG:-0} == 1 ]]; then
@@ -363,6 +368,8 @@ printf '%s\n%s\n' "$restart_pid_one" "$restart_pid_two" >"$restart_state"
 printf '%s wayland-1\n%s wayland-2\n' "$restart_pid_one" "$restart_pid_two" >"$restart_display_state"
 touch "$restart_state.locked"
 multi_instances='[{"instance":"session-a","time":1,"pid":101,"wl_socket":"wayland-1"},{"instance":"session-b","time":2,"pid":202,"wl_socket":"wayland-2"}]'
+multi_paths=$(jq -n --arg a "$restart_root" --arg b "$caller_root" '{"session-a": $a, "session-b": $b}')
+path_signature_log="$test_tmp/path-signatures.log"
 multi_locked_error=$(PATH="$restart_bin:$PATH" \
   OMARCHY_PATH="$caller_root" \
   XDG_RUNTIME_DIR="$runtime_dir" \
@@ -372,6 +379,8 @@ multi_locked_error=$(PATH="$restart_bin:$PATH" \
   OMARCHY_TEST_IPC_LOG="$ipc_log" \
   OMARCHY_TEST_SESSION_PATH="$restart_root" \
   OMARCHY_TEST_MANAGER_PATH="$caller_root" \
+  OMARCHY_TEST_SESSION_PATHS="$multi_paths" \
+  OMARCHY_TEST_PATH_SIGNATURE_LOG="$path_signature_log" \
   OMARCHY_TEST_ACTIVE_SIGNATURES=session-a,session-b \
   OMARCHY_TEST_LOCKED_SIGNATURES=session-a \
   OMARCHY_TEST_MANAGER_SIGNATURE=session-b \
@@ -384,6 +393,7 @@ if ! kill -0 "$restart_pid_one" 2>/dev/null || ! kill -0 "$restart_pid_two" 2>/d
   fail "locked caller does not stop either live shell"
 fi
 pass "locked caller session is preserved when the manager points elsewhere"
+[[ $(<"$path_signature_log") == "session-a" ]] || fail "locked caller path lookup addresses session A"
 
 # Once caller A is unlocked, restart only its display. Session B remains alive.
 rm -f "$restart_state.locked"
@@ -400,6 +410,8 @@ OMARCHY_TEST_SESSION_PATH="$restart_root" \
 OMARCHY_TEST_ACTIVE_SIGNATURES=session-a,session-b \
 OMARCHY_TEST_MANAGER_SIGNATURE=session-b \
 OMARCHY_TEST_MANAGER_PATH="$caller_root" \
+OMARCHY_TEST_SESSION_PATHS="$multi_paths" \
+OMARCHY_TEST_PATH_SIGNATURE_LOG="$path_signature_log" \
 OMARCHY_TEST_INSTANCES="$multi_instances" \
 HYPRLAND_INSTANCE_SIGNATURE=session-a \
   "$ROOT/bin/omarchy-restart-shell"
@@ -414,6 +426,7 @@ fi
 [[ $(tail -n 1 "$dispatch_log") == "session-a wayland-1" ]] || fail "dispatch uses the caller's compositor and resolved display"
 grep -F "kill -p $restart_root/shell" "$restart_log" >/dev/null || fail "restart kills the selected compositor's checkout rather than the manager's checkout"
 [[ $(tail -n 1 "$ipc_log") == "ipc -n -p $restart_root/shell call -- shell ping" ]] || fail "restart probes readiness in the selected compositor's checkout"
+[[ $(tail -n 1 "$path_signature_log") == "session-a" ]] || fail "unlocked caller path lookup addresses session A"
 kill "$restart_pid_two" 2>/dev/null || true
 wait "$restart_pid_one" "$restart_pid_two" 2>/dev/null || true
 restart_pid_one=""
@@ -437,9 +450,12 @@ OMARCHY_TEST_QS_LOG="$restart_log" \
 OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
 OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
 OMARCHY_TEST_IPC_LOG="$ipc_log" \
-OMARCHY_TEST_SESSION_PATH="$restart_root" \
+OMARCHY_TEST_SESSION_PATH="$caller_root" \
 OMARCHY_TEST_ACTIVE_SIGNATURES=session-a,session-b \
 OMARCHY_TEST_MANAGER_SIGNATURE=session-b \
+OMARCHY_TEST_MANAGER_PATH="$restart_root" \
+OMARCHY_TEST_SESSION_PATHS="$multi_paths" \
+OMARCHY_TEST_PATH_SIGNATURE_LOG="$path_signature_log" \
 OMARCHY_TEST_INSTANCES="$multi_instances" \
 HYPRLAND_INSTANCE_SIGNATURE=stale-caller-session \
   "$ROOT/bin/omarchy-restart-shell"
@@ -454,6 +470,8 @@ if kill -0 "$restart_pid_two" 2>/dev/null; then
   fail "stale-caller fallback stops session B's old shell"
 fi
 [[ $(tail -n 1 "$dispatch_log") == "session-b wayland-2" ]] || fail "stale-caller fallback dispatches to the manager session"
+[[ $(tail -n 1 "$path_signature_log") == "session-b" ]] || fail "stale-caller fallback queries the selected session B checkout"
+grep -F "kill -p $caller_root/shell" "$restart_log" >/dev/null || fail "stale-caller fallback kills session B's checkout rather than the manager path"
 kill "$restart_pid_one" 2>/dev/null || true
 wait "$restart_pid_one" "$restart_pid_two" 2>/dev/null || true
 restart_pid_one=""
@@ -500,6 +518,23 @@ path_error=$(PATH="$restart_bin:$PATH" \
 [[ $path_error == "Could not resolve the Omarchy path for Hyprland (current-session); refusing to stop the Omarchy shell." ]] || fail "unresolved checkout refusal is clear" "$path_error"
 [[ $(<"$restart_state") == 303 && ! -s $restart_log ]] || fail "unresolved checkout does not invoke Quickshell"
 pass "unresolved compositor checkout refuses before stopping Quickshell"
+
+# A successful path lookup is insufficient when the replacement configuration
+# is missing. Preserve the shell rather than killing it before launch failure.
+missing_root="$test_tmp/missing-config"
+mkdir -p "$missing_root/shell"
+: >"$restart_log"
+missing_config_error=$(PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_SESSION_PATH="$missing_root" \
+  HYPRLAND_INSTANCE_SIGNATURE=current-session \
+  "$ROOT/bin/omarchy-restart-shell" 2>&1) && fail "restart refuses a resolved checkout without shell.qml"
+[[ $missing_config_error == "Omarchy shell config not found for Hyprland (current-session): $missing_root/shell; refusing to stop the Omarchy shell." ]] || fail "missing config refusal is clear" "$missing_config_error"
+[[ $(<"$restart_state") == 303 && ! -s $restart_log ]] || fail "missing config does not stop or launch Quickshell"
+pass "resolved checkout without shell.qml refuses before stopping Quickshell"
 
 : >"$restart_log"
 printf '303\n' >"$restart_state"
