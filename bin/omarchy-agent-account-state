@@ -329,12 +329,21 @@ def register(provider: str, label: str, pending: Path) -> dict[str, Any]:
     label = label.strip() or found["email"].split("@")[0] or "Account"
     account_id = unique_id(provider, registry, label)
 
+    # Everything that can fail happens while the login is still pending, where
+    # the add command cleans it up, or is undone: a home that isn't in the
+    # registry would keep a sign-in nothing can manage.
+    carry_settings(provider, pending)
     home = accounts_root() / provider / account_id
     pending.rename(home)
-    carry_settings(provider, home)
     entry = {"id": account_id, "label": label, "home": str(home), "primary": False}
     entry.update(found)
     registry["accounts"].append(entry)
+    try:
+      save(provider, registry)
+    except Exception:
+      registry["accounts"].pop()
+      home.rename(pending)
+      raise
     return entry
 
 
