@@ -54,7 +54,7 @@ launch_log="$test_tmp/launch"
 focus_log="$test_tmp/focus"
 xdg_settings_browser="$test_tmp/xdg-settings-browser"
 browser_exec_log="$test_tmp/browser-exec"
-HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
   OMARCHY_TEST_BROWSER_EXEC="$browser_exec_log" \
   bash "$ROOT/bin/omarchy-launch-browser"
@@ -62,7 +62,7 @@ HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
 [[ ! -e $focus_log ]] || fail "browser launcher leaves a new window on the current workspace"
 [[ ! -e $browser_exec_log ]] || fail "browser launcher does not execute a browser to detect its family" "$(cat "$browser_exec_log")"
 
-HOME="$test_home" PATH="$mock_bin:$PATH" \
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" \
   OMARCHY_TEST_BROWSER_DESKTOP=firefox.desktop \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_EXEC="$browser_exec_log" \
   bash "$ROOT/bin/omarchy-launch-browser" --private
@@ -70,13 +70,13 @@ HOME="$test_home" PATH="$mock_bin:$PATH" \
 grep -F -- '--private-window' "$launch_log" >/dev/null || fail "Firefox private launches use its private-window flag" "$(cat "$launch_log")"
 [[ ! -e $browser_exec_log ]] || fail "Firefox detection does not execute the browser" "$(cat "$browser_exec_log")"
 
-HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
   bash "$ROOT/bin/omarchy-launch-browser" --private
 
 [[ ! -e $focus_log ]] || fail "private browser launcher leaves a new window on the current workspace"
 
-HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
   bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/authorize"
 
@@ -85,7 +85,7 @@ grep -Fx '^chromium.*$' "$focus_log" >/dev/null || fail "browser launcher focuse
 
 rm -f "$focus_log" "$xdg_settings_browser"
 
-HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
   BROWSER=omarchy-launch-browser OMARCHY_TEST_XDG_SETTINGS_EMPTY=1 \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
   OMARCHY_TEST_XDG_SETTINGS_BROWSER="$xdg_settings_browser" \
@@ -107,7 +107,7 @@ cat >"$mock_bin/omarchy-cmd-browser-handoff" <<'SH'
 SH
 chmod +x "$mock_bin/omarchy-cmd-browser-handoff"
 
-HOME="$test_home" PATH="$mock_bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
   OMARCHY_TEST_BROWSER_FOCUS="$focus_log" bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/running"
 
 [[ ! -e $launch_log ]] || fail "browser launcher starts no browser when the running one takes the URL"
