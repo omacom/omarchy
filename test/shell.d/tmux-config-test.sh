@@ -92,7 +92,7 @@ HOME="$home" SOURCE_RESULT=1 TMUX_LOG="$tmux_log" PATH="$test_tmp/bin:$PATH" bas
 grep -q 'Could not reload tmux' "$test_tmp/reload-output" || fail "reload failure tells the user to repair the live config"
 pass "failed live reloads warn without stopping later migrations"
 
-printf '%s\n' 'set -ag terminal-overrides ",xterm*:Ms=custom-clipboard"' >>"$custom_home/.config/tmux/tmux.conf"
+printf '%s\n' 'set -ag terminal-overrides ",xterm*:RGB:Ms=custom-clipboard"' >>"$custom_home/.config/tmux/tmux.conf"
 # Start with only user-owned capabilities, not a previously added Omarchy override.
 grep -vF 'xterm*:Ms=\\E]52;' "$custom_home/.config/tmux/tmux.conf" >"$test_tmp/custom-config"
 cp "$test_tmp/custom-config" "$custom_home/.config/tmux/tmux.conf"
