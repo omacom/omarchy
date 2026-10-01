@@ -84,7 +84,7 @@ configure_nvidia_capture() {
   touch "$SUNSHINE_CONFIG_FILE"
 
   if ! grep -Eq '^\s*capture\s*=' "$SUNSHINE_CONFIG_FILE"; then
-    printf 'capture = kms\n' >>"$SUNSHINE_CONFIG_FILE"
+    printf '\ncapture = kms\n' >>"$SUNSHINE_CONFIG_FILE"
   fi
 }
 
