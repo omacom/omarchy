@@ -27,6 +27,15 @@ fail() {
   exit 1
 }
 
+# The IPC socket a shell running an OMARCHY_PATH's config on this display
+# serves, derived as omarchy-shell derives it. A test that starts the real
+# shell removes it afterwards: killing the shell leaves the file behind.
+shell_ipc_socket() {
+  local id
+  id=$(printf '%s\n%s' "$1/shell" "${WAYLAND_DISPLAY:-}" | md5sum)
+  printf '%s/omarchy-shell-%s.sock\n' "${XDG_RUNTIME_DIR:-/run/user/$UID}" "${id:0:16}"
+}
+
 require_command() {
   local command="$1"
 

@@ -210,14 +210,9 @@ Item {
     }
   }
 
-  PanelWindow {
-    visible: root.opened
-    anchors { top: true; bottom: true; left: true; right: true }
-    color: "transparent"
-    exclusionMode: ExclusionMode.Ignore
+  OverlayWindow {
+    shown: root.opened
     WlrLayershell.namespace: "omarchy-network-qr"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
     // Deep scrim: the floating code needs the backdrop to carry the contrast
     // on any wallpaper.
