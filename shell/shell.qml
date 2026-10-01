@@ -108,11 +108,9 @@ ShellRoot {
     applyShellConfig()
   }
 
-  function persistShellConfig(nextConfig) {
-    var payload = JSON.parse(JSON.stringify(nextConfig))
-    payload.version = 1
-    shellConfig = payload
-    userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
+  ShellConfigStore {
+    id: shellConfigStore
+    path: shell.userConfigPath
   }
 
   readonly property var barConfig: shellConfig && Util.isPlainObject(shellConfig.bar) ? shellConfig.bar : builtinShellConfig.bar
@@ -153,7 +151,7 @@ ShellRoot {
       "userConfigPath=" + shell.userConfigPath)
     pluginRegistry.firstPartyDir = shell.firstPartyPluginsDir
     pluginRegistry.shellConfigProvider = function() { return shell.shellConfig }
-    pluginRegistry.shellConfigMutator = function(mutate) { shell.mutateShellConfig(mutate) }
+    pluginRegistry.shellConfigMutator = function(mutate) { return shell.mutateShellConfig(mutate) }
     // PluginRegistry.ensureUserDir() runs in its own Component.onCompleted and
     // chains rescan() once the directory exists. We also kick a scan here in
     // case the user dir already existed at startup.
@@ -162,9 +160,10 @@ ShellRoot {
   }
 
   function mutateShellConfig(mutator) {
-    var copy = JSON.parse(JSON.stringify(shellConfig || builtinShellConfig))
-    mutator(copy)
-    persistShellConfig(copy)
+    var config = shellConfigStore.mutate(mutator, defaultsConfig || builtinShellConfig)
+    if (!config) return false
+    shellConfig = config
+    return true
   }
 
   // Exposed as a property so child plugins (notifications, future panels)
@@ -408,12 +407,11 @@ ShellRoot {
 
   function mutatePluginBarConfig(mutator) {
     if (typeof mutator !== "function") return false
-    shell.mutateShellConfig(function(config) {
+    return shell.mutateShellConfig(function(config) {
       var scoped = { bar: JSON.parse(JSON.stringify(config.bar || {})) }
       mutator(scoped)
       if (Util.isPlainObject(scoped.bar)) config.bar = JSON.parse(JSON.stringify(scoped.bar))
     })
-    return true
   }
 
   function pluginAppLibraryFor(cacheKey, pluginId) {
@@ -1063,48 +1061,47 @@ ShellRoot {
 
   // Writes inline settings to a bar layout entry or top-level plugin entry in
   // shell.json. moduleName is the entry id; settings is the merged plugin
-  // state. Returns true if anything actually changed. Compute the proposed
-  // new shellConfig in a local clone, and only persist if anything actually
-  // changed so reactive bindings do not dirty shell.json unnecessarily.
+  // state. Returns true only when a changed config was saved. Replace the
+  // targeted entry with the supplied settings, as before, and skip unchanged
+  // writes so reactive bindings do not dirty shell.json unnecessarily.
   function updateEntryInline(moduleName, settings) {
     var stripped = Util.canonicalWidgetId(moduleName)
-    var copy = JSON.parse(JSON.stringify(shellConfig || builtinShellConfig))
-    if (!Util.isPlainObject(copy.bar)) copy.bar = { layout: { left: [], center: [], right: [] } }
-    if (!Util.isPlainObject(copy.bar.layout)) copy.bar.layout = { left: [], center: [], right: [] }
-    if (!Array.isArray(copy.plugins)) copy.plugins = []
+    return mutateShellConfig(function(copy) {
+      if (!Util.isPlainObject(copy.bar)) copy.bar = { layout: { left: [], center: [], right: [] } }
+      if (!Util.isPlainObject(copy.bar.layout)) copy.bar.layout = { left: [], center: [], right: [] }
+      if (!Array.isArray(copy.plugins)) copy.plugins = []
 
-    var sections = ["left", "center", "right"]
-    var foundInLayout = false
-    var dirty = false
-    for (var s = 0; s < sections.length; s++) {
-      var arr = copy.bar.layout[sections[s]] || []
-      for (var i = 0; i < arr.length; i++) {
-        if (arr[i] && Util.canonicalWidgetId(arr[i].id) === stripped) {
-          var next = { id: stripped }
-          for (var k in settings) if (k !== "id") next[k] = settings[k]
-          if (JSON.stringify(arr[i]) !== JSON.stringify(next)) {
-            arr[i] = next
-            dirty = true
-          }
-          foundInLayout = true
-        }
-      }
-    }
-    if (!foundInLayout) {
-      for (var j = 0; j < copy.plugins.length; j++) {
-        if (copy.plugins[j] && copy.plugins[j].id === stripped) {
-          var pnext = { id: stripped }
-          for (var pk in settings) if (pk !== "id") pnext[pk] = settings[pk]
-          if (JSON.stringify(copy.plugins[j]) !== JSON.stringify(pnext)) {
-            copy.plugins[j] = pnext
-            dirty = true
+      var sections = ["left", "center", "right"]
+      var foundInLayout = false
+      var dirty = false
+      for (var s = 0; s < sections.length; s++) {
+        var arr = copy.bar.layout[sections[s]] || []
+        for (var i = 0; i < arr.length; i++) {
+          if (arr[i] && Util.canonicalWidgetId(arr[i].id) === stripped) {
+            var next = { id: stripped }
+            for (var k in settings) if (k !== "id") next[k] = settings[k]
+            if (JSON.stringify(arr[i]) !== JSON.stringify(next)) {
+              arr[i] = next
+              dirty = true
+            }
+            foundInLayout = true
           }
         }
       }
-    }
-    if (!dirty) return false
-    persistShellConfig(copy)
-    return true
+      if (!foundInLayout) {
+        for (var j = 0; j < copy.plugins.length; j++) {
+          if (copy.plugins[j] && copy.plugins[j].id === stripped) {
+            var pnext = { id: stripped }
+            for (var pk in settings) if (pk !== "id") pnext[pk] = settings[pk]
+            if (JSON.stringify(copy.plugins[j]) !== JSON.stringify(pnext)) {
+              copy.plugins[j] = pnext
+              dirty = true
+            }
+          }
+        }
+      }
+      if (!dirty) return false
+    })
   }
 
   // ---------------------------------------------------------- on-demand panels
