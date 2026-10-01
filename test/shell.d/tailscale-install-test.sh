@@ -65,7 +65,11 @@ SH
 cat >"$stub_bin/omarchy-webapp-remove" <<'SH'
 #!/bin/bash
 printf 'webapp-remove %s\n' "$*" >>"$OMARCHY_TEST_CALL_LOG"
-rm -f "$HOME/.local/share/applications/$1.desktop"
+exec "$ROOT/bin/omarchy-webapp-remove" "$@"
+SH
+cat >"$stub_bin/update-desktop-database" <<'SH'
+#!/bin/bash
+printf 'desktop-database %s\n' "$*" >>"$OMARCHY_TEST_CALL_LOG"
 SH
 chmod +x "$stub_bin"/*
 
@@ -181,8 +185,20 @@ status=$(run_install)
 [[ $status == 0 && -f $desktop_file ]] || fail "hosted installation creates its admin launcher"
 status=$(run_install "https://headscale.example.com")
 [[ $status == 0 && ! -e $desktop_file ]] || fail "self-hosted join removes the previous hosted admin launcher"
-grep -Fx 'webapp-remove Tailscale' "$call_log" >/dev/null || fail "stale hosted launcher uses the webapp removal helper"
+grep -F "desktop-database $test_home/.local/share/applications" "$call_log" >/dev/null || fail "removing the hosted launcher refreshes the desktop database"
 pass "switching to a self-hosted server removes the old hosted admin launcher"
+
+status=$(run_install)
+custom_desktop_file="$test_home/.local/share/applications/Archived/Tailscale.desktop"
+mkdir -p "$(dirname "$custom_desktop_file")"
+printf '[Desktop Entry]\nExec=omarchy-launch-webapp "https://custom.example.com/admin"\n' >"$custom_desktop_file"
+custom_icon="$test_home/.local/share/icons/hicolor/256x256/apps/tailscale.png"
+mkdir -p "$(dirname "$custom_icon")"
+printf 'shared icon\n' >"$custom_icon"
+status=$(run_install "https://headscale.example.com")
+[[ $status == 0 && ! -e $desktop_file ]] || fail "self-hosted join removes the exact hosted launcher when names overlap"
+[[ -f $custom_desktop_file && -f $custom_icon ]] || fail "cleanup preserves a same-named nested launcher and its shared icon"
+pass "hosted launcher cleanup preserves a same-named nested web app and shared icon"
 
 status=$(run_install)
 status=$(OMARCHY_TEST_FAIL_UP=1 run_install "https://headscale.example.com")

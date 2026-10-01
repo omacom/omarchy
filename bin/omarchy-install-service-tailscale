@@ -89,7 +89,8 @@ else
   # that known web app; leave custom launchers with the same name alone.
   desktop_file="$HOME/.local/share/applications/Tailscale.desktop"
   if [[ -f $desktop_file ]] && grep -Eq '^Exec=omarchy-(launch-webapp|webapp-handler) "?https://login\.tailscale\.com/admin/machines"?$' "$desktop_file"; then
-    OMARCHY_REMOVE_NOTIFY=false omarchy-webapp-remove Tailscale || exit 1
+    rm -f -- "$desktop_file" || exit 1
+    update-desktop-database "$HOME/.local/share/applications" &>/dev/null
   fi
   echo "Skipping the hosted Tailscale admin web app. Set OMARCHY_TAILSCALE_ADMIN_URL if this coordination server has one."
 fi
