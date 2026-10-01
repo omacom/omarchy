@@ -28,7 +28,7 @@ sed \
 echo 3 >"$led"
 SYSTEMD_SLEEP_ACTION=hibernate bash "$hook" pre hibernate
 [[ $(<"$led") == 0 ]] || fail "pre hibernate clears a lit keyboard backlight" "LED reads $(<"$led")"
-[[ $(<"$record") == 3 ]] || fail "pre hibernate records the level it cleared" "record reads $(<"$record")"
+[[ $(<"$record") == "asus::kbd_backlight 3" ]] || fail "pre hibernate records the level it cleared" "record reads $(<"$record")"
 pass "pre hibernate clears the backlight and records its level"
 
 SYSTEMD_SLEEP_ACTION=hibernate bash "$hook" post hibernate
@@ -59,3 +59,14 @@ SYSTEMD_SLEEP_ACTION=suspend bash "$hook" pre suspend
 [[ $(<"$led") == 3 ]] || fail "suspend does not clear the keyboard backlight" "LED reads $(<"$led")"
 [[ ! -e $record ]] || fail "suspend does not record a level"
 pass "other sleep actions are left alone"
+
+# The keyboard that was cleared can be gone after the resume; its level must not
+# light whichever keyboard is found first instead.
+SYSTEMD_SLEEP_ACTION=hibernate bash "$hook" pre hibernate
+rm -rf "${led%/*}"
+other_led="$leds/dell::kbd_backlight/brightness"
+mkdir -p "${other_led%/*}"
+echo 0 >"$other_led"
+SYSTEMD_SLEEP_ACTION=hibernate bash "$hook" post hibernate
+[[ $(<"$other_led") == 0 ]] || fail "post hibernate leaves a different keyboard dark" "LED reads $(<"$other_led")"
+pass "post hibernate restores only the keyboard it cleared"
