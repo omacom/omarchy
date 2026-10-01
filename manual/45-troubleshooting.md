@@ -57,7 +57,7 @@ mv -i ~/.config/uwsm/env.d/99-custom ~/.config/uwsm/disabled/
 
 Renaming the file to `.bak` inside `env.d` does not disable it: UWSM loads every entry in that directory. A system snapshot rollback does not repair these files either, because `/home` is not rolled back.
 
-Once you can log in, fix the saved copy before moving it back. `bash -n` catches syntax errors without running the file, but cannot catch every error that occurs when it is sourced. Keep a working terminal open while testing changes.
+Once you can log in, fix the saved copy before moving it back. `sh -n` catches syntax errors without running the file, but cannot catch every error that occurs when it is sourced. Keep a working terminal open while testing changes.
 
 ### Why isn't my 1Password authorization prompts for 1Password SSH Agent / CLI appearing?
 
