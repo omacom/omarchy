@@ -20,9 +20,7 @@ libva-nvidia-driver
 limine
 limine-mkinitcpio-hook
 limine-snapper-sync
-linux
 linux-firmware
-linux-headers
 linux-omarchy
 linux-omarchy-headers
 macbook12-spi-driver-dkms
@@ -44,7 +42,6 @@ thermald
 webp-pixbuf-loader
 yay-debug
 tuxedo-drivers-nocompatcheck-dkms
-yt6801-dkms
 zram-generator
 
 # Intel encoding processing

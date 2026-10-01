@@ -14,7 +14,7 @@ import QtQuick
 //       onActivateRequested: root.activateCursor()
 //       onCloseRequested: root.close()
 //       onDeleteRequested: root.deleteSelected()
-//       onTextKey: function(t) { if (t === "r") root.refresh() }
+//       onTextKey: function(t, modifiers) { if (t === "r") root.refresh() }
 //
 //       Column { ... panel content ... }
 //     }
@@ -41,7 +41,8 @@ Item {
   signal closeRequested()
   signal deleteRequested()
   signal tabRequested(int direction)
-  signal textKey(string text)
+  // The held modifiers ride along, so a panel can tell Alt+T from T.
+  signal textKey(string text, int modifiers)
 
   focus: true
   Keys.priority: Keys.BeforeItem
@@ -75,11 +76,11 @@ Item {
     if (event.key === Qt.Key_Space) {
       activateRequested(); event.accepted = true; return
     }
-    if (event.text === "x" || event.text === "X") {
+    if (event.key === Qt.Key_Delete || event.text === "x" || event.text === "X") {
       deleteRequested(); event.accepted = true; return
     }
     if (event.text && event.text.length === 1) {
-      textKey(event.text)
+      textKey(event.text, event.modifiers)
     }
   }
 }
