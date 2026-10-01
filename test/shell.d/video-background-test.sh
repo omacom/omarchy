@@ -275,7 +275,8 @@ timeout_marker=$(find "$timeout_cache/omarchy/image-selector" -maxdepth 1 -type 
 
 grep -qx 'owe' "$ROOT/install/omarchy-base.packages" || fail "OWE is a base package"
 grep -qx 'owe-lockfeed' "$ROOT/install/omarchy-base.packages" || fail "the OWE lock feed module is a base package"
-if grep -qx 'qt6-multimedia' "$ROOT/install/omarchy-base.packages"; then
+# Qt Multimedia ships for building apps; the shell itself plays video through OWE.
+if grep -rqs 'import QtMultimedia' "$ROOT/shell"; then
   fail "Qt Multimedia is no longer needed by the shell"
 fi
 
