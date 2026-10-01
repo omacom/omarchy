@@ -210,6 +210,9 @@ hl = setmetatable({
       elseif type(bind_dispatcher) == "string" and bind_dispatcher ~= "" then
         kind = "exec"
         arg = bind_dispatcher
+      elseif o and o.bind_commands and o.bind_commands[bind_dispatcher] then
+        kind = "exec"
+        arg = o.bind_commands[bind_dispatcher]
       end
 
       print(table.concat({ tostring(modmask), opts.description, key, kind, arg }, "\t"))
@@ -530,7 +533,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v13\n'
+    printf 'v14\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
