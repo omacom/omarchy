@@ -30,8 +30,8 @@ AGENT_NAME = "Codex"
 AUTH_HELP = "Run `codex login` to authenticate."
 
 # session_meta.model_provider for the built-in OpenAI backend, which is the
-# only one this subscription pays for. Any other id is a custom provider in
-# config.toml pointed at some other endpoint.
+# only one this subscription pays for. Any other id points somewhere else:
+# `--oss`'s ollama or lmstudio, or a custom provider in config.toml.
 NATIVE_PROVIDER = "openai"
 
 # A scan this recent is only reused to dedup concurrent collector runs (the
@@ -305,6 +305,7 @@ def scan_native_codex_sessions():
 
   for path in files:
     current_model = "codex"
+    seen_meta = False
     try:
       with path.open(errors="replace") as handle:
         for raw in handle:
@@ -313,11 +314,16 @@ def scan_native_codex_sessions():
           except Exception:
             continue
           if entry.get("type") == "session_meta":
+            # A forked rollout copies its parent's session_meta after its own,
+            # so only the first one, as Codex reads it, says who served this.
+            if seen_meta:
+              continue
+            seen_meta = True
             # Codex CLI happily fronts any OpenAI-compatible backend (`--oss`,
             # or a custom model_provider in config.toml). Those turns bill the
             # local box or a third party, never this subscription, so drop the
             # whole rollout the way the pi and opencode scans drop foreign
-            # providers. The field is written once, on the first record.
+            # providers.
             meta = entry.get("payload") or {}
             provider = str(meta.get("model_provider") or "")
             # Rollouts predating the field carry no provider at all; count

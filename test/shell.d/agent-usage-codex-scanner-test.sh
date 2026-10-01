@@ -641,14 +641,18 @@ provider_session openrouter openrouter claude-test 5000 500
 # Rollouts written before Codex recorded the field carry no session_meta at
 # all; they must still count rather than silently drop a user's history.
 provider_session legacy "" gpt-legacy 40 0
+# A fork copies its parent's session_meta after its own; the first one decides.
+provider_session fork openai gpt-fork 3 0
+sed -i "1a {\"timestamp\":\"$timestamp\",\"type\":\"session_meta\",\"payload\":{\"model_provider\":\"ollama\"}}" \
+  "$PROVIDER_HOME/.codex/sessions/$(date +%Y/%m/%d)/rollout-fork.jsonl"
 
 result=$(HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_HOME/.codex" XDG_CACHE_HOME="$PROVIDER_HOME/.cache" XDG_DATA_HOME="$PROVIDER_HOME/.local/share" \
   PATH="$PROVIDER_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
 
-[[ $(jq -r '.todayTotalTokens' <<<"$result") == "150" ]] ||
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "153" ]] ||
   fail "Codex collector counts only subscription-backed native sessions" "$result"
-[[ $(jq -r '.modelUsage | keys | join(",")' <<<"$result") == "gpt-legacy,gpt-native" ]] ||
+[[ $(jq -r '.modelUsage | keys | join(",")' <<<"$result") == "gpt-fork,gpt-legacy,gpt-native" ]] ||
   fail "Codex collector excludes local and third-party providers from native sessions" "$result"
-[[ $(jq -r '.todaySessions' <<<"$result") == "2" ]] ||
+[[ $(jq -r '.todaySessions' <<<"$result") == "3" ]] ||
   fail "Codex collector excludes foreign-provider rollouts from the session count" "$result"
 pass "Codex collector ignores native sessions served by a non-OpenAI provider"

@@ -53,16 +53,10 @@ light surfaces — and the bar glyph stands in when there is none.
 | Collector | Limits | Local stats |
 |---|---|---|
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
-| `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions), limited to turns the subscription actually served |
+| `codex` | The Codex app-server RPC | native Codex CLI session files on the built-in `openai` provider (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
 
-Every collector counts only the turns its own subscription paid for. Codex
-CLI in particular will front any OpenAI-compatible backend — `--oss`, or a
-custom `model_provider` in `config.toml` aimed at Ollama, LM Studio, or a
-gateway — and those rollouts sit in the same sessions directory as real ones.
-They are skipped by `session_meta.model_provider`, so a local model never
-shows up as subscription usage. Rollouts written before Codex recorded that
-field carry no provider and still count.
+Codex CLI will front any OpenAI-compatible backend — `--oss`, or a custom `model_provider` in `config.toml` aimed at Ollama, LM Studio, or a gateway — and those rollouts sit in the same sessions directory as real ones. The Codex collector skips a rollout whose first `session_meta.model_provider` names anything but the built-in `openai` provider. Rollouts written before Codex recorded that field carry no provider and still count.
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
