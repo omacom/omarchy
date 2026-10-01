@@ -218,6 +218,44 @@ void Theme::reload() {
 }
 ```
 
+## `src/backend.h` and `src/backend.cpp`
+
+The C++ side of the app's one job, exposed to QML as `backend`. Start with
+the single action the Space shortcut runs, then grow it.
+
+```cpp
+#pragma once
+
+#include <QObject>
+
+class Backend : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(int count READ count NOTIFY countChanged)
+
+public:
+    explicit Backend(QObject *parent = nullptr) : QObject(parent) {}
+
+    int count() const { return m_count; }
+    Q_INVOKABLE void primaryAction();
+
+signals:
+    void countChanged();
+
+private:
+    int m_count = 0;
+};
+```
+
+```cpp
+#include "backend.h"
+
+void Backend::primaryAction()
+{
+    ++m_count;
+    emit countChanged();
+}
+```
+
 ## `src/Main.qml`
 
 ```qml
@@ -273,8 +311,57 @@ HEADERS += ../src/backend.h ../src/theme.h
 SOURCES += <name>_tests.cpp ../src/backend.cpp ../src/theme.cpp
 ```
 
-A test file is a `QObject` with `private slots:` for each case and
-`QTEST_MAIN(<Name>Tests)` at the bottom, followed by `#include "<name>_tests.moc"`.
+## `tests/<name>_tests.cpp`
+
+One `private slots:` case per behavior. These cover the backend and the
+theme fallback and accent read, so a broken theme shows up in `bin/test`.
+
+```cpp
+#include <QDir>
+#include <QFile>
+#include <QTemporaryDir>
+#include <QtTest>
+
+#include "backend.h"
+#include "theme.h"
+
+class <Name>Tests : public QObject {
+    Q_OBJECT
+
+private slots:
+    void primaryActionCounts()
+    {
+        Backend backend;
+        backend.primaryAction();
+        QCOMPARE(backend.count(), 1);
+    }
+
+    void themeFallsBack()
+    {
+        QTemporaryDir dir;
+        Theme theme(dir.path());
+        QCOMPARE(theme.accent(), QString("#FFD60A"));
+        QCOMPARE(theme.accentForeground(), QString("black"));
+    }
+
+    void themeReadsAccent()
+    {
+        QTemporaryDir dir;
+        QDir(dir.path()).mkpath("theme");
+        QFile colors(dir.path() + "/theme/colors.toml");
+        QVERIFY(colors.open(QIODevice::WriteOnly));
+        colors.write("accent = \"#112233\"\n");
+        colors.close();
+
+        Theme theme(dir.path());
+        QCOMPARE(theme.accent(), QString("#112233"));
+        QCOMPARE(theme.accentForeground(), QString("white"));
+    }
+};
+
+QTEST_MAIN(<Name>Tests)
+#include "<name>_tests.moc"
+```
 
 ## `pkgbuild/PKGBUILD`
 
@@ -285,7 +372,7 @@ pkgrel=1
 pkgdesc='One line on what it does'
 arch=('x86_64' 'aarch64')
 license=('MIT')
-depends=('qt6-base' 'qt6-declarative' 'xdg-desktop-portal')
+depends=('qt6-base' 'qt6-declarative' 'qt6-wayland' 'xdg-desktop-portal')
 makedepends=('gcc' 'make')
 source=()
 sha256sums=()
@@ -304,7 +391,10 @@ package() {
 }
 ```
 
-Add `ffmpeg` or `qt6-multimedia` to `depends` when the app uses them.
+Add `ffmpeg`, `qt6-multimedia`, or `qt6-svg` to `depends` when the app uses
+them. Omarchy installs all three, but the package should still say what it
+needs. `package()` also installs `LICENSE` from the project root (the MIT text
+with the user's name and year) and the icon below, so both must exist.
 
 ## `pkgbuild/<name>.desktop`
 
@@ -320,7 +410,16 @@ Categories=Utility;
 StartupWMClass=<name>
 ```
 
-The icon is a single square SVG at `pkgbuild/<name>.svg`.
+## `pkgbuild/<name>.svg`
+
+The icon is a single square SVG. Start from a rounded square in the accent
+and draw the app's mark on it.
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="14" fill="#FFD60A"/>
+</svg>
+```
 
 ## `.gitignore`
 
