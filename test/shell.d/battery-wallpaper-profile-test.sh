@@ -3,7 +3,10 @@
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-require_command quickshell
+if ! command -v quickshell >/dev/null 2>&1; then
+  pass "quickshell not installed; skipping battery wallpaper profile runtime test"
+  exit 0
+fi
 require_command python3
 require_command timeout
 
