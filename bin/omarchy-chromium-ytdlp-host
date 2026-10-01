@@ -5,6 +5,10 @@
 
 set -euo pipefail
 
+# Chromium-family browsers can inject private codec libraries into native hosts.
+# Do not let those browser-only preloads reach yt-dlp, ffmpeg, or helper tools.
+unset LD_PRELOAD VIVALDI_PRELOADS
+
 SCRIPT_PATH="${BASH_SOURCE[0]}"
 
 # The browser launches us without Omarchy's environment, so locate the repo from
