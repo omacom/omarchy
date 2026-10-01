@@ -156,6 +156,29 @@ grep -Fx 'systemctl disable --now snapper-timeline.timer' "$test_tmp/calls.log" 
 grep -Fx 'systemctl enable --now snapper-cleanup.timer limine-snapper-sync.service' "$test_tmp/calls.log" >/dev/null || fail "snapshot configure still enables cleanup and Limine sync when preserving custom retention"
 pass "snapshot configure preserves existing root retention settings across repeated runs"
 
+omarchy_3_config="$test_tmp/omarchy-3/etc/snapper/configs/root"
+mkdir -p "$(dirname "$omarchy_3_config")"
+cat >"$omarchy_3_config" <<'EOF'
+# Omarchy snapshots root only for pre-update recovery — kept to 5, no timeline
+SUBVOLUME="/"
+FSTYPE="btrfs"
+
+NUMBER_LIMIT="5"
+NUMBER_LIMIT_IMPORTANT="5"
+
+TIMELINE_CREATE="no"
+EOF
+
+TEST_LOG="$test_tmp/calls.log" \
+PATH="$fake_bin:$PATH" \
+OMARCHY_PATH="$ROOT" \
+OMARCHY_SNAPPER_CONFIG_PATH="$omarchy_3_config" \
+OMARCHY_SNAPPER_CONF_PATH="$test_tmp/omarchy-3/etc/conf.d/snapper" \
+  bash -euo pipefail "$ROOT/install/config/snapper.sh" >/dev/null
+
+cmp -s "$template" "$omarchy_3_config" || fail "snapshot configure upgrades the unmodified Omarchy 3.x Snapper policy"
+pass "snapshot configure upgrades the unmodified Omarchy 3.x Snapper policy"
+
 setup_system="$ROOT/bin/omarchy-apply-system"
 grep -F 'config/all.sh' "$setup_system" >/dev/null ||
   fail "system setup runs the config phase"

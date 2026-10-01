@@ -3,6 +3,17 @@ SNAPPER_CONF_PATH="${OMARCHY_SNAPPER_CONF_PATH:-/etc/conf.d/snapper}"
 template="${OMARCHY_SNAPPER_TEMPLATE:-${OMARCHY_PATH:-/usr/share/omarchy}/default/snapper/root}"
 SNAPPER_INIT_MARKER="${OMARCHY_SNAPPER_INIT_MARKER:-${SNAPPER_CONFIG_PATH}.omarchy-initializing}"
 
+# Omarchy 3.x copied this template over the root config verbatim. A file still
+# matching it is Omarchy's earlier policy, not the user's, so it gets upgraded.
+omarchy_3_template='# Omarchy snapshots root only for pre-update recovery — kept to 5, no timeline
+SUBVOLUME="/"
+FSTYPE="btrfs"
+
+NUMBER_LIMIT="5"
+NUMBER_LIMIT_IMPORTANT="5"
+
+TIMELINE_CREATE="no"'
+
 echo "Configuring Omarchy Snapper snapshot retention"
 
 if [[ ! -f $SNAPPER_CONFIG_PATH ]]; then
@@ -16,7 +27,7 @@ if [[ ! -f $SNAPPER_CONFIG_PATH ]]; then
   fi
 fi
 
-if [[ -f $SNAPPER_INIT_MARKER ]]; then
+if [[ -f $SNAPPER_INIT_MARKER || $(<"$SNAPPER_CONFIG_PATH") == "$omarchy_3_template" ]]; then
   install -m 0644 "$template" "$SNAPPER_CONFIG_PATH"
   rm -f "$SNAPPER_INIT_MARKER"
 else
