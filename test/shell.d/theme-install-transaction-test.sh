@@ -3,8 +3,10 @@
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+cross_state=""
+trap 'rm -rf "$test_tmp"; [[ -z $cross_state ]] || rm -rf "$cross_state"' EXIT
 export test_tmp
+unset XDG_STATE_HOME
 
 git() {
   local destination="${*: -1}"
@@ -21,20 +23,28 @@ omarchy-theme-set() {
   return "${APPLY_RESULT:-0}"
 }
 mv() {
-  if [[ ${PUBLISH_RESULT:-0} == "1" && $3 == */.blue.install.*/* ]]; then
+  if [[ ${PUBLISH_RESULT:-0} == "1" && $3 == */.blue.install.*/blue ]]; then
     return 1
   fi
   command mv "$@"
-  if [[ ${PUBLISH_HANGUP:-0} == "1" && $3 == "$THEME_PATH" && $4 == */theme ]]; then
+  if [[ ${PUBLISH_HANGUP:-0} == "1" && $3 == "$THEME_PATH" && $4 == */previous ]]; then
     kill -HUP "$BASHPID"
   fi
 }
-export -f git omarchy-git-url-check omarchy-theme-set mv
+cp() {
+  if [[ ${BACKUP_FAILURE:-0} == "1" ]]; then
+    mkdir -p "${*: -1}"
+    printf partial >"${*: -1}/colors.toml"
+    return 1
+  fi
+  command cp "$@"
+}
+export -f git omarchy-git-url-check omarchy-theme-set mv cp
 
 run_install() {
   HOME="$test_tmp/$scenario" bash "$ROOT/bin/omarchy-theme-install" https://example.com/omarchy-blue-theme.git
 }
-for scenario in failed_clone interrupted hangup replacement failed_publish failed_apply symlink fresh locked; do
+for scenario in failed_clone interrupted hangup backup_failure replacement failed_publish failed_apply symlink fresh locked; do
   themes="$test_tmp/$scenario/.config/omarchy/themes"
   mkdir -p "$themes"
   if [[ $scenario == "symlink" ]]; then
@@ -58,6 +68,10 @@ for scenario in failed_clone interrupted hangup replacement failed_publish faile
   hangup)
     if PUBLISH_HANGUP=1 run_install; then fail "hangup must fail installation"; fi
     [[ $(<"$themes/blue/colors.toml") == "old" ]] || fail "hangup restores the previous theme"
+    ;;
+  backup_failure)
+    if BACKUP_FAILURE=1 run_install; then fail "a failed backup copy must stop installation"; fi
+    [[ $(<"$themes/blue/colors.toml") == "old" ]] || fail "partial backup copies leave the installed theme intact"
     ;;
   failed_publish)
     if PUBLISH_RESULT=1 run_install; then fail "publish failure must fail installation"; fi
@@ -93,6 +107,17 @@ for scenario in failed_clone interrupted hangup replacement failed_publish faile
   [[ -z $(find "$themes" -maxdepth 1 -type d -name '.blue.install.*' -print) ]] || fail "staging directory is cleaned up"
   pass "$scenario theme installation preserves recoverable user data"
 done
+
+cross_state=$(mktemp -d /dev/shm/omarchy-theme-state.XXXXXX)
+scenario=cross_filesystem
+themes="$test_tmp/$scenario/.config/omarchy/themes"
+mkdir -p "$themes/blue"
+printf old >"$themes/blue/colors.toml"
+[[ $(stat -c %d "$themes") != $(stat -c %d "$cross_state") ]] || fail "the cross-filesystem fixture must use separate filesystems"
+HOME="$test_tmp/$scenario" XDG_STATE_HOME="$cross_state" bash "$ROOT/bin/omarchy-theme-install" https://example.com/omarchy-blue-theme.git
+backups=("$cross_state"/omarchy/theme-backups/blue.*/theme)
+[[ $(<"${backups[0]}/colors.toml") == "old" && $(<"$themes/blue/colors.toml") == "new" ]] || fail "the configured state directory keeps the complete previous theme across filesystems"
+pass "theme backups honor XDG_STATE_HOME across a real filesystem boundary"
 
 # Verify that staging and publication also work with an actual Git checkout.
 remote="$test_tmp/omarchy-blue-theme"

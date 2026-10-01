@@ -56,11 +56,13 @@ fi
 
 staging=$(mktemp -d "$THEMES_DIR/.${THEME_NAME}.install.XXXXXX") || exit 1
 backup=""
+previous="$staging/previous"
 cleanup() {
   # Restore the old path if publishing the clone failed or was interrupted.
-  if [[ -n $backup && ( -e $backup/theme || -L $backup/theme ) && ! -e $THEME_PATH && ! -L $THEME_PATH ]]; then
-    mv -T -- "$backup/theme" "$THEME_PATH" ||
-      echo "Could not restore the previous theme; it remains at $backup/theme" >&2
+  if [[ ( -e $previous || -L $previous ) && ! -e $THEME_PATH && ! -L $THEME_PATH ]]; then
+    mv -T -- "$previous" "$THEME_PATH" ||
+      echo "Could not restore the previous theme; it remains at $previous" >&2
+    [[ -e $THEME_PATH || -L $THEME_PATH ]] || return 1
   fi
   rm -rf -- "$staging"
 }
@@ -76,10 +78,11 @@ if ! git clone -- "$REPO_URL" "$staging/$THEME_NAME"; then
 fi
 
 if [[ -e $THEME_PATH || -L $THEME_PATH ]]; then
-  backup_dir="$HOME/.local/state/omarchy/theme-backups"
+  backup_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/theme-backups"
   mkdir -p "$backup_dir" || exit 1
   backup=$(mktemp -d "$backup_dir/${THEME_NAME}.XXXXXX") || exit 1
-  mv -T -- "$THEME_PATH" "$backup/theme" || exit 1
+  cp -a -- "$THEME_PATH" "$backup/theme" || exit 1
+  mv -T -- "$THEME_PATH" "$previous" || exit 1
   echo "Previous theme saved at $backup/theme"
 fi
 mv -T -- "$staging/$THEME_NAME" "$THEME_PATH" || exit 1
