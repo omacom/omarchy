@@ -36,7 +36,7 @@ pass "default center anchor exists in center layout"
 jq -e '
   def ids: map(.id // .);
   (.bar.layout.center | ids) as $ids |
-  ($ids | index("omacom.elsewhen")) as $elsewhen |
+  ($ids | index("omarchy.elsewhen")) as $elsewhen |
   ($ids | index("omarchy.clock")) as $clock |
   $elsewhen != null and $clock == $elsewhen + 1
 ' "$ROOT/config/omarchy/shell.json" >/dev/null

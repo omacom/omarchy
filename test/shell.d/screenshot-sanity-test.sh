@@ -12,6 +12,7 @@ cleanup() {
     kill "$QS_PID" 2>/dev/null || true
     wait "$QS_PID" 2>/dev/null || true
   fi
+  [[ -n ${test_root:-} ]] && rm -f "$(shell_ipc_socket "$test_root")"
   if [[ -n $TMPDIR && -d $TMPDIR ]]; then
     rm -rf "$TMPDIR"
   fi
