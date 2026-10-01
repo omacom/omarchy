@@ -54,7 +54,8 @@ verify_boot_images() {
   fi
 
   mapfile -t references < <(
-    grep -oE '\$?boot\(\):/EFI/Linux/[^#[:space:]]+\.efi(#[0-9a-f]+)?' <<<"$config" || true
+    grep -E '^[[:space:]]*path:[[:space:]]*\$?boot\(\):/EFI/Linux/' <<<"$config" |
+      grep -oE '\$?boot\(\):/EFI/Linux/[^#[:space:]]+\.efi(#[0-9a-f]+)?' || true
   )
 
   shopt -s nullglob

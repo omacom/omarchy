@@ -92,6 +92,14 @@ run_verifier >"$test_tmp/out" 2>"$test_tmp/err" ||
 [[ ! -s $calls ]] || fail "a current UKI without a Limine hash is rebuilt"
 pass "a current UKI remains valid when Limine file verification is disabled"
 
+sed -i 's/^  path:/  # path:/' "$limine_config"
+if run_verifier >"$test_tmp/out" 2>"$test_tmp/err"; then
+  fail "commented-out UKI references must not count as boot entries"
+fi
+grep -q 'has no UKI' "$test_tmp/err" || fail "missing active entries explain the failure"
+: >"$calls"
+pass "only active Limine path entries satisfy boot verification"
+
 make_uki 6.0.9-old
 write_limine_config
 REPAIR_MODE=image run_verifier >"$test_tmp/out" 2>"$test_tmp/err" ||
@@ -172,8 +180,7 @@ run_effective_verifier >"$test_tmp/out" 2>"$test_tmp/err" || fail "single-quoted
 [[ ! -s $calls ]] || fail "single-quoted yes is not an effective UKI setting"
 pass "empty and literal quoted values follow limine-entry-tool semantics"
 
-# The analyzer is the last update step before status and restart. Pin the call
-# so a failed live verification becomes the update's exit status.
+# The early analyzer also propagates boot verification failures.
 analyzer_stub="$test_tmp/analyzer-bin"
 mkdir -p "$analyzer_stub"
 cat >"$analyzer_stub/omarchy-update-verify-boot" <<'SH'

@@ -148,6 +148,11 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$PATH" OMARCHY_SUDO_NO_UPDATE=1 omarchy-update-aur-pkgs
   omarchy_security_revoke_sudo_timestamp
 
+  # AUR kernels can change after the earlier boot check. Verify once more with
+  # a fresh, uncached privilege prompt, so build scripts never share this access.
+  PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$PATH" OMARCHY_SUDO_NO_UPDATE=1 \
+    sudo /bin/bash -p "$OMARCHY_PATH/bin/omarchy-update-verify-boot"
+
   # The sleep inhibitor covers AUR builds, hooks and mise as well; releasing it
   # needs no privilege because the held command already dropped to this user.
   # Release it before offering a reboot: a confirmed reboot can terminate this
