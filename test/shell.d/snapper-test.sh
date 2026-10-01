@@ -143,7 +143,6 @@ cp "$custom_config" "$custom_expected"
 for _ in 1 2; do
   TEST_LOG="$test_tmp/calls.log" \
   PATH="$fake_bin:$PATH" \
-  OMARCHY_SNAPPER_CONFIGURE_TEST=1 \
   OMARCHY_PATH="$ROOT" \
   OMARCHY_SNAPPER_CONFIG_PATH="$custom_config" \
   OMARCHY_SNAPPER_CONF_PATH="$test_tmp/etc/conf.d/snapper" \
