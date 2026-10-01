@@ -24,5 +24,10 @@ sudo tee "$drop_in" >/dev/null <<'EOF'
 KERNEL_CMDLINE[default]+=" i915.enable_psr2_sel_fetch=0"
 EOF
 
-sudo limine-mkinitcpio
+# A drop-in left by a failed rebuild would satisfy the guard above on retry.
+if ! sudo limine-mkinitcpio; then
+  sudo rm -f "$drop_in"
+  exit 1
+fi
+
 omarchy-state set reboot-required

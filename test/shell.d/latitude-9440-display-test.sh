@@ -36,6 +36,7 @@ cat >"$stub_bin/limine-mkinitcpio" <<'STUB'
 #!/bin/bash
 
 printf 'limine-mkinitcpio\n' >>"$TEST_LOG"
+(( ${LIMINE_FAILS:-0} == 0 ))
 STUB
 
 # Stubbed rather than run: the real one would write the running user's state.
@@ -111,7 +112,7 @@ pass "other hardware is left alone"
 run_migration() {
   : >"$calls"
 
-  LATITUDE_9440="$1" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
+  LATITUDE_9440="$1" LIMINE_FAILS="${2:-0}" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
     OMARCHY_LATITUDE_9440_DROP_IN_DIR="$drop_in_dir" \
     OMARCHY_LATITUDE_9440_LIMINE_CONF="$limine_conf" \
     bash -euo pipefail "$migration" >/dev/null
@@ -131,6 +132,14 @@ pass "the migration fixes an install that never got the workaround"
 run_migration 1
 [[ ! -s $calls ]] || fail "the migration is idempotent" "$(cat "$calls")"
 pass "the migration is idempotent"
+
+# A failed rebuild leaves the migration pending, so the retry has to rebuild.
+rm -rf "$test_tmp/etc"
+! run_migration 1 1 || fail "a failed rebuild fails the migration"
+run_migration 1
+grep -Fqx 'limine-mkinitcpio' "$calls" ||
+  fail "the retry after a failed rebuild rebuilds the boot image" "$(cat "$calls")"
+pass "the retry after a failed rebuild rebuilds the boot image"
 
 # Someone who hit this before the fix shipped and reached for the blunter knob
 # keeps it, rather than gaining a second drop-in that contradicts it.
