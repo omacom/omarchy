@@ -42,3 +42,37 @@ actual=0
 "$ROOT/bin/omarchy-launch-floating-terminal-with-presentation" 'false && echo unreachable' || actual=$?
 (( actual == 1 )) || fail "compound commands retain their failure status"
 pass "shell command lists still work inside the presentation"
+
+python3 - "$ROOT/bin/omarchy-launch-floating-terminal-with-presentation" "$TEST_LOG" <<'PYTEST'
+import os, pty, select, signal, sys, time
+launcher, log = sys.argv[1:]
+open(log, 'w').close()
+pid, fd = pty.fork()
+if pid == 0:
+    os.execv(launcher, [launcher, 'printf interrupt-ready; sleep 30'])
+try:
+    output = b''
+    deadline = time.monotonic() + 5
+    while b'interrupt-ready' not in output:
+        if time.monotonic() >= deadline:
+            raise AssertionError('presentation command never reached its interruptible state')
+        if select.select([fd], [], [], 0.1)[0]:
+            output += os.read(fd, 4096)
+    os.write(fd, b'\x03')
+    while True:
+        waited, status = os.waitpid(pid, os.WNOHANG)
+        if waited:
+            assert os.waitstatus_to_exitcode(status) in (130, -signal.SIGINT), status
+            pid = None
+            break
+        if time.monotonic() >= deadline:
+            raise AssertionError('Ctrl-C did not close the presentation')
+        time.sleep(0.01)
+    assert not open(log).read(), 'Ctrl-C displayed a completion prompt'
+finally:
+    if pid is not None:
+        os.killpg(pid, signal.SIGKILL)
+        os.waitpid(pid, 0)
+    os.close(fd)
+PYTEST
+pass "terminal Ctrl-C closes without a completion prompt"
