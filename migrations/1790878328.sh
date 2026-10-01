@@ -5,7 +5,7 @@ omarchy-hw-getac-v110g3 || exit 0
 source "$OMARCHY_PATH/install/hardware/getac/fix-v110g3-touchpad.sh"
 
 running_cmdline="${OMARCHY_GETAC_V110G3_RUNNING_CMDLINE:-/proc/cmdline}"
-rebuild_marker="${OMARCHY_GETAC_V110G3_REBUILD_MARKER:-/var/lib/omarchy/migrations/1788129995}"
+rebuild_marker="${OMARCHY_GETAC_V110G3_REBUILD_MARKER:-/var/lib/omarchy/migrations/1790878328}"
 [[ ! -e $rebuild_marker ]] || exit 0
 
 if [[ -r $running_cmdline ]] &&
