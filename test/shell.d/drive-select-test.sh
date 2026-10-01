@@ -11,10 +11,8 @@ omarchy-drive-info() {
   printf '%s (1T) - Test disk\n' "$1"
 }
 gum() {
-  local row
-  IFS= read -r row
-  cat >/dev/null
-  printf '%s\n' "$row"
+  cat >"$test_tmp/choices"
+  head -n 1 "$test_tmp/choices"
   return "${CHOOSE_RESULT:-0}"
 }
 lsblk() { printf '%s\n' /dev/sda /dev/nvme0n1 /dev/loop0; }
@@ -27,6 +25,7 @@ run_select() {
 selected=$(run_select /dev/sda /dev/nvme0n1)
 [[ $selected == "/dev/sda" ]] || fail "selection returns only the device path"
 [[ $(<"$test_tmp/drives") == $'/dev/sda\n/dev/nvme0n1' ]] || fail "each argument is inspected separately"
+[[ $(<"$test_tmp/choices") == $'/dev/sda (1T) - Test disk\n/dev/nvme0n1 (1T) - Test disk' ]] || fail "gum receives both complete rows"
 pass "multiple device arguments produce separate choices"
 
 run_select $'/dev/sda\n/dev/nvme0n1' >/dev/null
