@@ -122,6 +122,13 @@ ShellRoot {
 
   function scanListChecks() {
     check(panel.kind === "wifi", "connected device keeps Wi-Fi when the scan list misses the network")
+    NetworkMock.wifi.mode = WifiDeviceMode.AccessPoint
+    Qt.callLater(hotspotChecks)
+  }
+
+  function hotspotChecks() {
+    check(panel.kind === "disconnected", "a hotspot is not a Wi-Fi connection")
+    NetworkMock.wifi.mode = WifiDeviceMode.Station
     NetworkMock.wifi.connected = false
     Qt.callLater(disconnectedChecks)
   }
