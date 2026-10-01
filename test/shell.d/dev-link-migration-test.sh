@@ -11,77 +11,94 @@ trap 'rm -rf "$test_dir"' EXIT
 stub_bin="$test_dir/bin"
 mkdir -p "$stub_bin"
 
-# A sudo that can be made to fail the way a missing credential does, so the
-# migration's own error handling is what is under test.
-# SUDO_BROKEN=1 fails every call. SUDO_FAIL_AFTER=n serves n calls and fails
-# from the next one on, which is how sudo behaves when a cached credential
-# expires or a command-specific policy denies only the later invocation.
+# A sudo double. SUDO_FAIL_CALLS lists the 1-based call numbers that fail the
+# way a denied or unanswered sudo does; every other call runs for real. This
+# models a command-specific policy or an expired timestamp that denies only
+# some of the migration's several privileged steps. `install` is special-cased
+# to copy without the -o root/-g root chown a non-root test cannot perform.
 cat >"$stub_bin/sudo" <<'STUB'
 #!/bin/bash
-if [[ ${SUDO_BROKEN:-0} == 1 ]]; then
-  echo "sudo: a password is required" >&2
-  exit 1
-fi
-if [[ -n ${SUDO_FAIL_AFTER:-} ]]; then
-  count=$(< "$SUDO_CALL_COUNT")
-  count=$(( count + 1 ))
-  printf '%s' "$count" > "$SUDO_CALL_COUNT"
-  if (( count > SUDO_FAIL_AFTER )); then
+count=$(( $(< "${SUDO_CALL_COUNT:?}") + 1 ))
+printf '%s' "$count" >"$SUDO_CALL_COUNT"
+for n in ${SUDO_FAIL_CALLS:-}; do
+  if (( n == count )); then
     echo "sudo: a password is required" >&2
     exit 1
   fi
+done
+if [[ $1 == install ]]; then
+  cp "${@: -2:1}" "${@: -1}"
+  exit
 fi
 exec "$@"
 STUB
+# A visudo that accepts the staged rule, so the test stays hermetic and does not
+# depend on the host having visudo. Syntax is exercised by the real migration in
+# production; here the focus is the sudo-failure handling.
+cat >"$stub_bin/visudo" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
 chmod +x "$stub_bin"/*
 
-# Runs the migration, returning its output; the caller checks $migration_status.
+# Runs the migration; the caller reads $migration_status and $migration_output.
+# A fresh call counter per run keeps SUDO_FAIL_CALLS numbering predictable.
 run_migration() {
+  printf '0' >"$test_dir/sudo-calls"
   migration_status=0
-  migration_output=$(env PATH="$stub_bin:$PATH" "$@" bash -euo pipefail "$migration" 2>&1) ||
-    migration_status=$?
+  migration_output=$(env PATH="$stub_bin:$PATH" SUDO_CALL_COUNT="$test_dir/sudo-calls" \
+    "$@" bash -euo pipefail "$migration" 2>&1) || migration_status=$?
 }
 
-# The runner records a migration as applied whenever it exits 0. Treating a
-# failed privileged inspection as "nothing to do" would therefore retire the
-# migration permanently while leaving the global rule in place.
-run_migration SUDO_BROKEN=1
-out=$migration_output
-status=$migration_status
-(( status != 0 )) ||
-  fail "migration exits non-zero when it cannot inspect the drop-in" "exit $status"
-grep -q "Leaving this migration pending" <<<"$out" ||
-  fail "migration says why it is leaving itself pending" "$out"
-pass "a failed privileged inspection leaves the migration pending"
+# A legacy global drop-in pointing at a checkout the test user owns, which is
+# the exact state this migration exists to rewrite.
+checkout="$test_dir/checkout"
+mkdir -p "$checkout/bin"
+drop_in="$test_dir/omarchy-dev-path"
+legacy='Defaults secure_path="'"$checkout"'/bin:/usr/local/sbin:/usr/local/bin:/usr/bin"'
+write_legacy() { printf '%s\n' "$legacy" >"$drop_in"; }
+
+# Control: with sudo working throughout, the migration scopes the rule to the
+# checkout's owner and rewrites the drop-in.
+write_legacy
+run_migration OMARCHY_DEV_SUDOERS_FILE="$drop_in"
+(( migration_status == 0 )) ||
+  fail "migration scopes the rule when sudo works throughout" "exit $migration_status: $migration_output"
+grep -q "^Defaults:$(id -un) secure_path=" "$drop_in" ||
+  fail "migration rewrote the drop-in to a user-scoped rule" "$(cat "$drop_in")"
+pass "sudo working throughout scopes the drop-in to the owner"
+
+# The runner records a migration as applied whenever it exits 0. A sudo that
+# cannot inspect the drop-in at all (call 1 fails) must leave it pending, not
+# retire it with the global rule still in place.
+write_legacy
+run_migration SUDO_FAIL_CALLS=1 OMARCHY_DEV_SUDOERS_FILE="$drop_in"
+(( migration_status != 0 )) ||
+  fail "migration exits non-zero when it cannot inspect the drop-in" "exit $migration_status"
+grep -q "Leaving this migration pending" <<<"$migration_output" ||
+  fail "migration says why it is leaving itself pending" "$migration_output"
+[[ $(cat "$drop_in") == "$legacy" ]] ||
+  fail "migration leaves the drop-in untouched when inspection failed" "$(cat "$drop_in")"
+pass "a failed inspection leaves the migration pending"
+
+# The reviewer's case on #12883: sudo succeeds for the inspection (call 1) and
+# then fails at the owner lookup (call 2). `sudo stat ... || true` used to read
+# that denial as an empty owner and exit 0, retiring the migration while the
+# global rule stayed. It must now stay pending.
+write_legacy
+run_migration SUDO_FAIL_CALLS=2 OMARCHY_DEV_SUDOERS_FILE="$drop_in"
+(( migration_status != 0 )) ||
+  fail "migration exits non-zero when sudo fails at the owner lookup" "exit $migration_status: $migration_output"
+grep -q "Leaving this migration pending" <<<"$migration_output" ||
+  fail "migration stays pending after a failed owner lookup" "$migration_output"
+[[ $(cat "$drop_in") == "$legacy" ]] ||
+  fail "migration leaves the drop-in untouched after a failed owner lookup" "$(cat "$drop_in")"
+pass "sudo failing at the owner lookup leaves the migration pending"
 
 # With sudo usable and no drop-in present there is genuinely nothing to do, and
-# the migration must retire normally rather than failing every update.
-run_migration
+# the migration retires normally rather than failing every update.
+rm -f "$drop_in"
+run_migration OMARCHY_DEV_SUDOERS_FILE="$drop_in"
 (( migration_status == 0 )) ||
   fail "migration exits cleanly when the drop-in is genuinely absent" "exit $migration_status: $migration_output"
 pass "an absent drop-in is a clean no-op"
-
-# The reviewer's case on #12883: sudo succeeds for the `test -f` probe and then
-# fails at the read. `sudo grep` cannot express the difference, because grep
-# exits 1 for "no lines matched" and sudo exits 1 for a denial, so a read that
-# never happened used to look like an empty policy. That retired the migration
-# with the global rule still in place.
-sudoers_dir="$test_dir/sudoers.d"
-mkdir -p "$sudoers_dir"
-drop_in="$sudoers_dir/omarchy-dev-path"
-printf 'Defaults secure_path="%s/checkout/bin:/usr/local/sbin:/usr/local/bin:/usr/bin"\n' \
-  "$test_dir" >"$drop_in"
-
-count_file="$test_dir/sudo-calls"
-printf '0' >"$count_file"
-
-run_migration SUDO_FAIL_AFTER=1 SUDO_CALL_COUNT="$count_file" \
-  OMARCHY_DEV_SUDOERS_FILE="$drop_in"
-(( migration_status != 0 )) ||
-  fail "migration exits non-zero when sudo fails at the read, not the probe" \
-    "exit $migration_status: $migration_output"
-grep -q "Leaving this migration pending" <<<"$migration_output" ||
-  fail "migration explains why it stayed pending after a failed read" "$migration_output"
-[[ -s $drop_in ]] ||
-  fail "migration leaves the unreadable drop-in untouched" "drop-in was modified"
-pass "sudo failing at the read leaves the migration pending"

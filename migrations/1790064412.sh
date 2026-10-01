@@ -11,32 +11,33 @@ echo "Scope the dev-link sudoers drop-in to the linking user"
 # their own secure_path there keeps it, and is told instead.
 sudoers_file="${OMARCHY_DEV_SUDOERS_FILE:-/etc/sudoers.d/omarchy-dev-path}"
 
-# `sudo test -f` returns non-zero both when the file is absent and when sudo
-# could not be asked at all. Exiting 0 on the second case would have the runner
-# record this migration as applied and never retry it, leaving the global rule
-# in place for good. A control probe tells the two apart: if sudo can run
-# anything, the drop-in genuinely is not there and there is nothing to do.
-if ! sudo test -f "$sudoers_file"; then
-  if sudo test -d /; then
-    exit 0
-  fi
+# Inspect the drop-in in a single privileged call: it reports "absent", or
+# "present" followed by the file body. Doing existence and read in one `sudo`
+# is what makes a denied or unanswered sudo a single unambiguous failure. The
+# earlier shape could not: `sudo test -f` is non-zero for both "absent" and
+# "sudo refused", a `sudo test -d /` control cannot see a policy that denies
+# only the first command, and `sudo cat` exits 1 for both an empty file and a
+# denial. Here the call's own non-zero exit means sudo failed; a zero exit
+# saying "absent" is a genuine no-op.
+if ! inspect=$(sudo sh -c '
+  if [ ! -f "$1" ]; then printf absent; exit 0; fi
+  printf "present\n"
+  cat "$1"
+' sh "$sudoers_file"); then
   echo "Could not inspect $sudoers_file. Leaving this migration pending so it retries." >&2
   exit 1
 fi
 
-# Read the file first, then filter it locally. A single `sudo grep` cannot tell
-# its own failures apart from an empty result: grep exits 1 for "no lines
-# matched", and sudo exits 1 when authentication or policy denies the command,
-# so a read that never happened looked exactly like a drop-in with no active
-# lines. That exited 0, the runner recorded the migration as applied, and the
-# global rule stayed for good. `cat` exits 0 for an empty file, so a non-zero
-# status here can only mean the read itself failed.
-if ! contents=$(sudo cat "$sudoers_file"); then
-  echo "Could not read $sudoers_file. Leaving this migration pending so it retries." >&2
-  exit 1
+if [[ $inspect == absent ]]; then
+  exit 0
 fi
 
-# Now that the content is in hand, grep's "no lines matched" is unambiguous.
+# Strip the "present" header; what remains is the file body (empty for an empty
+# drop-in, since command substitution drops the trailing newline after it).
+contents=${inspect#present}
+contents=${contents#$'\n'}
+
+# With the content in hand, grep's "no lines matched" is unambiguous.
 active=$(printf '%s\n' "$contents" | grep -vE '^[[:space:]]*(#|$)') || true
 
 generated='^Defaults[[:space:]]+secure_path="([^"]*)/bin:/usr/local/sbin:/usr/local/bin:/usr/bin"$'
@@ -55,10 +56,18 @@ checkout=${BASH_REMATCH[1]}
 # logged in running migrations — on a machine with two developers those are
 # different people, and guessing wrong would hand the checkout to the wrong one.
 # Stat it through sudo: a checkout under another user's 0700 home is exactly the
-# case this migration exists for, and is the one the caller cannot read.
-owner=$(sudo stat -c '%U' "$checkout" 2>/dev/null || true)
+# case this migration exists for, and is the one the caller cannot read. One
+# sudo call again, reporting "__missing__" for an absent path, so that a denied
+# sudo fails the call and leaves the migration pending rather than reading as an
+# empty owner that quietly retires it with the global rule still in place.
+if ! owner=$(sudo sh -c '
+  if [ -e "$1" ]; then stat -c %U "$1"; else printf __missing__; fi
+' sh "$checkout"); then
+  echo "Could not read the owner of $checkout. Leaving this migration pending so it retries." >&2
+  exit 1
+fi
 
-if [[ -z $owner || $owner == UNKNOWN ]]; then
+if [[ -z $owner || $owner == UNKNOWN || $owner == __missing__ ]]; then
   echo "Left $sudoers_file alone: cannot tell which user $checkout belongs to."
   echo "Re-run 'omarchy dev link $checkout' as that user, or 'omarchy dev unlink'."
   exit 0
