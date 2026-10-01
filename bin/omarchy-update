@@ -22,12 +22,13 @@ omarchy_security_require_source_root "$0"
 user_path=${OMARCHY_UPDATE_USER_PATH:-$PATH}
 unset OMARCHY_UPDATE_USER_PATH
 # Traps first, so a signal or failure during the entry revocation still
-# exits through the cleanup path. Starting cold means the single password
-# prompt below always belongs to this update, never to an earlier session.
+# exits through the cleanup path. Starting cold makes the initial password
+# prompt belong to this update, never to an earlier session.
 omarchy_security_install_sudo_cleanup_traps
 omarchy_security_revoke_sudo_timestamp || exit 1
 # Validate the no-update wrapper up front: the AUR phase depends on it. Every
-# other phase shares the one authorization, so it stays off PATH until then.
+# trusted package phase shares one authorization. The final boot check
+# authenticates separately after AUR builds, so no grant survives that boundary.
 omarchy_security_enable_no_update_sudo
 PATH="$OMARCHY_PATH/bin:/usr/bin:/usr/sbin:/bin:/sbin"
 unset OMARCHY_SUDO_NO_UPDATE
@@ -37,7 +38,7 @@ export PATH OMARCHY_UPDATE_SUDO_SESSION=1
 update_stay_awake_stopped=0
 sudo_keepalive_pid=""
 
-# Ask for the password once, then keep sudo's timestamp fresh so long package
+# Authorize the trusted update phase once, then keep sudo's timestamp fresh so long package
 # downloads, migrations, hooks, and mise never outlast it and prompt again.
 # Authorize by running a command rather than sudo -v: under the default
 # verifypw=all, -v prompts even when passwordless sudo is enabled.
