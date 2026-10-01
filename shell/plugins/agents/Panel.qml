@@ -1520,6 +1520,9 @@ Panel {
 
     onAccountChanged: renamedTo = ""
     onPickedChanged: if (picked) root.revealItem(head)
+
+    // Anywhere on the line counts, so Use can show up when it's hidden.
+    HoverHandler { id: useHover }
     implicitHeight: Math.max(headText.implicitHeight, headAction.implicitHeight)
 
     function startRename() {
@@ -1659,15 +1662,13 @@ Panel {
 
       // Switching now is Use. Hovering it also offers Autoswitch: move new
       // sessions over by themselves once the active account reaches the
-      // threshold. While that's on it stays in view, and clicking it again
-      // goes back to only being notified.
+      // threshold. While that's on it stays in view in place of Use, and
+      // clicking it again goes back to only being notified.
       Row {
         id: useRow
         visible: !head.isActive
         anchors.right: parent.right
         spacing: Style.space(12)
-
-        HoverHandler { id: useHover }
 
         TextLink {
           visible: head.autoOn || useHover.hovered || head.picked
@@ -1680,7 +1681,9 @@ Panel {
           onClicked: root.setSwitchMode(head.owner, head.autoOn ? "manual" : "auto")
         }
 
+        // With Autoswitch on, Use waits until the line is hovered or picked.
         TextLink {
+          visible: !head.autoOn || useHover.hovered || head.picked
           text: head.pickedKind === "account" ? "Use ⏎" : "Use"
           picked: head.pickedKind === "account"
           onClicked: root.useAccount(head.owner, head.account)
