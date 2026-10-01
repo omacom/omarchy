@@ -43,21 +43,25 @@ Panel {
   readonly property var pickedEntry: keyTarget && keyTarget.kind === "account" ? accountEntries[keyTarget.index] || null : null
 
   // The keyboard walks everything on the page that does something, in
-  // reading order, one row at a time: the hero's buttons, each switchable
-  // account, the starter tiles. Up and down change rows, left and right move
-  // along one. Hovering moves the same cursor, so only one thing is lit.
+  // reading order, one row at a time: the hero's buttons, then each
+  // switchable account and the starter tiles, or the agents to add while
+  // picking one. Up and down change rows, left and right move along one.
+  // Hovering moves the same cursor, so only one thing is lit.
   readonly property var keyRows: {
-    if (addStage !== "") return []
     var rows = []
     var hero = []
-    if (!blankSlate) hero.push({ kind: "add", index: 0 })
-    hero.push({ kind: "launch", index: 0 })
-    rows.push(hero)
-    for (var i = 0; i < accountEntries.length; i++) rows.push([{ kind: "account", index: i }])
-    if (!blankSlate) {
-      var tiles = []
-      for (var j = 0; j < starterPrompts.length; j++) tiles.push({ kind: "starter", index: j })
-      rows.push(tiles)
+    if (addButtonShown) hero.push({ kind: "add", index: 0 })
+    if (addStage === "") hero.push({ kind: "launch", index: 0 })
+    if (hero.length > 0) rows.push(hero)
+    if (picking) {
+      for (var k = 0; k < addProviders.length; k++) rows.push([{ kind: "choice", index: k }])
+    } else if (addStage === "") {
+      for (var i = 0; i < accountEntries.length; i++) rows.push([{ kind: "account", index: i }])
+      if (!blankSlate) {
+        var tiles = []
+        for (var j = 0; j < starterPrompts.length; j++) tiles.push({ kind: "starter", index: j })
+        rows.push(tiles)
+      }
     }
     return rows
   }
@@ -298,7 +302,8 @@ Panel {
   function activateSelection() {
     var target = keyTarget
     if (!target) refreshNow()
-    else if (target.kind === "add") addAccount()
+    else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
+    else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
     else if (target.kind === "launch") launchAgent()
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt)
     else if (pickedEntry && !pickedEntry.account.active) useAccount(pickedEntry.provider, pickedEntry.account)
@@ -576,9 +581,9 @@ Panel {
   // refreshes each agent in turn. Indexing the live list would swap the line
   // on each of those, so the hero holds what it shows until the next fade.
   property string shownPhrase: ""
-  readonly property string heroPhrase: shownPhrase !== ""
-    ? shownPhrase
-    : (providers.length > 0 ? "Subscriptions" : "Not set up yet")
+  readonly property string heroPhrase: addStage !== "" || blankSlate
+    ? addHeading
+    : (shownPhrase !== "" ? shownPhrase : "Subscriptions")
 
   function showPhrase() {
     var n = summaryPhrases.length
@@ -643,6 +648,21 @@ Panel {
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
   readonly property bool picking: addStage === "pick" || (blankSlate && addStage === "")
+  // The + in the hero turns into the X that leaves adding. A first setup has
+  // nothing to go back to until an agent is chosen.
+  readonly property bool addButtonShown: !blankSlate || !picking
+
+  // Adding takes over the hero's line, and the cursor starts over.
+  readonly property string addHeading: picking || addProvider === ""
+    ? "Add an account"
+    : "Add " + (/^[AEIOU]/.test(addProviderName(addProvider)) ? "an " : "a ") + addProviderName(addProvider) + " account"
+  onAddStageChanged: {
+    phraseSwap.stop()
+    hero.metaOpacity = 1.0
+    cursorActive = false
+    keyRow = 0
+    keyColumn = 0
+  }
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -708,7 +728,7 @@ Panel {
 
   Timer {
     interval: 2800
-    running: root.opened && root.summaryPhrases.length > 1
+    running: root.opened && root.summaryPhrases.length > 1 && root.addStage === "" && !root.blankSlate
     repeat: true
     onTriggered: phraseSwap.restart()
   }
@@ -769,8 +789,8 @@ Panel {
       anchors.fill: parent
 
       onMoveRequested: function(dx, dy) {
-        // The add view has its own fields; there the arrows only scroll.
-        if (root.addStage === "") root.moveKey(dx, dy)
+        // Naming and signing in have their own fields; there the arrows scroll.
+        if (root.addStage === "" || root.picking) root.moveKey(dx, dy)
         else if (dy !== 0)
           panelFlick.contentY = root.clamp(panelFlick.contentY + dy * Style.space(56), 0,
                                            Math.max(0, panelFlick.contentHeight - panelFlick.height))
@@ -831,10 +851,10 @@ Panel {
             trailingControl: Component {
               Row {
                 spacing: Style.space(6)
-                visible: root.addStage === "" || !root.blankSlate
+                visible: root.addStage === "" || root.addButtonShown
 
                 HeroButton {
-                  visible: !root.blankSlate
+                  visible: root.addButtonShown
                   hasCursor: root.hasKey("add")
                   onHovered: root.pointAt("add")
                   readonly property bool adding: root.addStage !== ""
@@ -933,32 +953,6 @@ Panel {
 
     PanelSeparator { foreground: root.foreground }
 
-    Item {
-      width: parent.width
-      implicitHeight: addTitle.implicitHeight
-
-      Text {
-        id: addTitle
-        anchors.left: parent.left
-        anchors.verticalCenter: parent.verticalCenter
-        text: root.picking
-          ? (root.blankSlate ? "Set up an agent" : "Add a subscription")
-          : root.addProviderName(root.addProvider)
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.body
-        font.bold: true
-      }
-
-      TextLink {
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        visible: root.addStage !== "done" && !(root.blankSlate && root.picking)
-        text: root.addStage === "running" ? "Cancel" : "Back"
-        onClicked: root.cancelAdd()
-      }
-    }
-
     Text {
       visible: root.blankSlate && root.picking
       width: parent.width
@@ -969,18 +963,22 @@ Panel {
       wrapMode: Text.WordWrap
     }
 
-    // Pick: each provider, and what adding it now would mean.
+    // Pick: each agent by its mark and name. One that can't be added right
+    // now is dimmed, and says why on hover.
     Repeater {
       model: root.picking ? root.addProviders : []
 
       Item {
         id: choice
         required property var modelData
+        required property int index
         readonly property string state: root.addChecks[modelData.providerId] || ""
         readonly property bool available: state === "first" || state === "additional"
+        readonly property bool hasCursor: root.hasKey("choice", index)
         width: add.width
-        implicitHeight: Math.max(choiceIcon.height, choiceText.implicitHeight) + Style.space(8)
-        opacity: available || state === "" ? 1.0 : 0.5
+        implicitHeight: Math.max(choiceIcon.height, choiceName.implicitHeight) + Style.space(8)
+        opacity: state === "unsupported" ? 0.4 : 1.0
+        onHasCursorChanged: if (hasCursor) root.revealItem(choice)
 
         ProviderIcon {
           id: choiceIcon
@@ -989,30 +987,15 @@ Panel {
           provider: choice.modelData
         }
 
-        Column {
-          id: choiceText
+        Text {
+          id: choiceName
           anchors.left: choiceIcon.right
           anchors.leftMargin: Style.space(12)
-          anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
-          spacing: Style.space(2)
-
-          Text {
-            text: choice.modelData.providerName
-            color: choiceMouse.containsMouse && choice.available ? Color.accent : root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.body
-          }
-
-          Text {
-            text: choice.state === "first" ? "Sign in"
-              : choice.state === "additional" ? "Add another account"
-              : choice.state === "unsupported" ? "Already signed in; a second account isn't supported yet"
-              : "Checking…"
-            color: root.dim
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-          }
+          text: choice.modelData.providerName
+          color: choice.hasCursor && choice.available ? Color.accent : root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
         }
 
         MouseArea {
@@ -1020,7 +1003,13 @@ Panel {
           anchors.fill: parent
           hoverEnabled: true
           cursorShape: choice.available ? Qt.PointingHandCursor : Qt.ArrowCursor
+          onEntered: root.pointAt("choice", choice.index)
           onClicked: root.chooseAddProvider(choice.modelData.providerId)
+        }
+
+        PanelToolTip {
+          visible: choice.state === "unsupported" && choice.hasCursor
+          text: "Already signed in. A second " + choice.modelData.providerName + " account isn't supported yet."
         }
       }
     }
