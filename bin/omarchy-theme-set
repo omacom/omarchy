@@ -200,6 +200,10 @@ set_theme_background() {
     fi
   fi
 
+  # Linked before the shell hears of it, so a link read that lands mid-transition
+  # finds the new wallpaper rather than no link, which would clear the transition.
+  ln -nsf "$new_background" "$CURRENT_BACKGROUND_LINK"
+
   if [[ -f $OLD_BACKGROUND_SNAPSHOT && -f $new_background_snapshot ]]; then
     shell_ipc background themeTransition "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot" "$new_background" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
@@ -215,8 +219,6 @@ set_theme_background() {
       (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT") &
     fi
   fi
-
-  ln -nsf "$new_background" "$CURRENT_BACKGROUND_LINK"
 }
 
 is_denied_installed_file() {
