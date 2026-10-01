@@ -1011,7 +1011,7 @@ def main() -> int:
     "limits": limits["limits"],
     # Numbers kept past a failed probe, and when they were measured, so the
     # panel can tell them apart from ones checked just now.
-    "limitsStale": stale and len(limits["limits"]) > 0,
+    "limitsStale": stale,
     "limitsFetchedAt": fetched_at,
   }
   if limits.get("retryAdvised"):

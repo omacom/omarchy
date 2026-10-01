@@ -1346,7 +1346,7 @@ Panel {
               required property var modelData
               width: accountBlock.width
               window: modelData
-              stale: accountBlock.modelData.stale === true && (accountBlock.modelData.limits || []).length > 0
+              stale: accountBlock.modelData.stale === true
               fetchedAt: Number(accountBlock.modelData.fetchedAt || 0)
             }
           }
@@ -1401,10 +1401,9 @@ Panel {
     property string glyph: ""
     property string title: ""
     property bool hasCursor: false
-    readonly property bool hot: hasCursor || (tileMouse.containsMouse && root.keyRows.length === 0)
     implicitHeight: tileBody.implicitHeight + Style.space(20)
     radius: Style.cornerRadius
-    color: hot ? root.alpha(Color.accent, 0.14) : root.alpha(root.foreground, 0.05)
+    color: hasCursor ? root.alpha(Color.accent, 0.14) : root.alpha(root.foreground, 0.05)
     onHasCursorChanged: if (hasCursor) root.revealItem(tile)
 
     Row {
@@ -1425,7 +1424,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         text: tile.title
-        color: tile.hot ? Color.accent : root.foreground
+        color: tile.hasCursor ? Color.accent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: true
@@ -1455,12 +1454,10 @@ Panel {
     property string glyph: ""
     property string tooltip: ""
     property bool hasCursor: false
-    // While adding there is no cursor to move, so hover lights it directly.
-    readonly property bool hot: hasCursor || (heroMouse.containsMouse && root.keyRows.length === 0)
     implicitWidth: Style.space(34)
     implicitHeight: implicitWidth
     radius: Style.cornerRadius
-    color: root.alpha(Color.accent, hot ? 0.22 : 0.12)
+    color: root.alpha(Color.accent, hasCursor ? 0.22 : 0.12)
     onHasCursorChanged: if (hasCursor) root.revealItem(heroButton)
 
     Text {
