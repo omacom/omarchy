@@ -12,13 +12,14 @@ trap 'for server in "$socket" "packaged-$$" "migrated-$$"; do tmux -L "$server" 
 # Attach a real client and read what tmux writes to its terminal: tmux writes nothing when ncurses cannot expand Ms.
 osc52_emitted() {
   local config=$1 name=$2
-  local command="stty rows 24 cols 80; tmux -L $name-$$ -f $(printf '%q' "$config") new-session 'sleep 0.5; tmux set-buffer -w hello; sleep 0.5'"
+  local command="stty rows 24 cols 80; tmux -L $name-$$ -f $(printf '%q' "$config") new-session 'sleep 0.5; printf \"\\033]52;p;cHJpbWFyeQ==\\007\"; tmux set-buffer -w hello; sleep 0.5'"
   TERM=xterm-256color timeout 10 script -qfec "$command" "$test_tmp/$name.log" < <(sleep 5) >/dev/null
-  grep -aqF $'\e]52;c;aGVsbG8=\a' "$test_tmp/$name.log"
+  grep -aqF $'\e]52;c;aGVsbG8=\a' "$test_tmp/$name.log" &&
+    grep -aqF $'\e]52;p;cHJpbWFyeQ==\a' "$test_tmp/$name.log"
 }
 
 osc52_emitted "$ROOT/config/tmux/tmux.conf" packaged ||
-  fail "tmux pins OSC 52 copies to the clipboard selector mosh accepts" "$(cat -v "$test_tmp/packaged.log")"
+  fail "tmux sends its own copies to the clipboard selector mosh accepts and keeps an application's selector" "$(cat -v "$test_tmp/packaged.log")"
 pass "tmux emits mosh-compatible OSC 52 clipboard sequences"
 
 tmux -L "$socket" -f "$ROOT/config/tmux/tmux.conf" new-session -d
@@ -32,6 +33,7 @@ home="$test_tmp/home"
 mkdir -p "$home/.config/tmux" "$test_tmp/bin"
 printf '%s\n' \
   'set -g mouse on' \
+  'set -g set-clipboard on' \
   'setw -g mode-keys vi' \
   'bind -N "Begin selection" -T copy-mode-vi v send -X begin-selection' \
   'bind -N "Copy selection" -T copy-mode-vi y send -X copy-selection-and-cancel' \
@@ -55,7 +57,7 @@ migration="$ROOT/migrations/1786553531.sh"
 tmux_log="$test_tmp/tmux.log"
 HOME="$home" TMUX_LOG="$tmux_log" PATH="$test_tmp/bin:$PATH" bash -euo pipefail "$migration" >/dev/null
 
-grep -Fq 'xterm*:Ms=\\E]52;c%p1%.0s;%p2%s\\007' "$home/.config/tmux/tmux.conf" ||
+grep -Fq 'xterm*:Ms=\\E]52;%?%p1%l%t%p1%s%ec%;;%p2%s\\007' "$home/.config/tmux/tmux.conf" ||
   fail "tmux migration adds the mosh selector override"
 grep -Fq 'y send -X copy-selection-and-cancel' "$home/.config/tmux/tmux.conf" ||
   fail "tmux migration leaves native copy bindings alone"
@@ -83,9 +85,6 @@ HOME="$custom_home" TMUX_LOG="$tmux_log" PATH="$test_tmp/bin:$PATH" bash -euo pi
 
 grep -Fqx "$custom_binding" "$custom_home/.config/tmux/tmux.conf" ||
   fail "tmux migration preserves a custom copy binding"
-if grep -Fq 'omarchy-tmux-osc52-copy' "$custom_home/.config/tmux/tmux.conf"; then
-  fail "tmux migration replaces a custom copy binding"
-fi
 pass "tmux migration leaves custom copy bindings alone"
 
 HOME="$home" SOURCE_RESULT=1 TMUX_LOG="$tmux_log" PATH="$test_tmp/bin:$PATH" bash -euo pipefail "$migration" >"$test_tmp/reload-output" 2>&1 || fail "optional live reload failures must not stop migrations"
