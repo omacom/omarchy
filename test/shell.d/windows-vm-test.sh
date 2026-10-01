@@ -115,3 +115,15 @@ rg -q 'tag = "-default-opacity"' "$windows_vm_rules" ||
 rg -q 'opacity = "1 1"' "$windows_vm_rules" ||
   fail "Windows VM stays fully opaque"
 pass "Windows VM stays fully opaque"
+
+for code in 7 9 10; do
+  : >"$test_tmp/calls.log"
+  set +e
+  output=$(run_launch "$code" 2>&1)
+  status=$?
+  set -e
+  (( status == code )) || fail "connection failure $code reaches the caller"
+  ! grep -qx down "$test_tmp/calls.log" || fail "connection denial $code preserves the VM"
+  grep -q '^notify Windows VM Could not connect over RDP' "$test_tmp/calls.log" || fail "connection denial $code offers the fallback"
+done
+pass "denied connections and credential failures preserve the running VM"

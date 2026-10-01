@@ -1483,9 +1483,11 @@ To stop: omarchy-windows-vm stop"
   # when it is combined with any other, so new flags belong in RDP_ARGS above.
   printf '%s\n' "${RDP_ARGS[@]}" | xfreerdp3 /args-from:stdin
   RDP_STATUS=$?
-  # FreeRDP exits 128 and up when it never connected; lower codes end a session
-  # that did (sign-out, Disconnect), which still gets the automatic stop below.
-  if (( RDP_STATUS >= 128 )); then
+  # Connection errors include server denial below 128; only normal session
+  # endings should stop a running VM. FreeRDP also uses 0 for a closed window.
+  case $RDP_STATUS in
+  0 | 1 | 2 | 3 | 5 | 11 | 12) ;;
+  *)
     echo ""
     echo "RDP connection failed. Windows VM is still running."
     echo "Try again, or connect at: http://127.0.0.1:8006"
@@ -1493,7 +1495,8 @@ To stop: omarchy-windows-vm stop"
     # The desktop entry runs without a terminal, so the lines above go unseen there.
     omarchy-notification-send "Windows VM" "Could not connect over RDP. The VM is still running: launch again, or open http://127.0.0.1:8006"
     return "$RDP_STATUS"
-  fi
+    ;;
+  esac
 
   # After RDP closes, stop the container unless --keep-alive was specified
   if [[ $KEEP_ALIVE = "false" ]]; then
