@@ -166,6 +166,34 @@ PY
   fail "a single account record carries no accounts list" "$single"
 pass "a single account record is unchanged"
 
+[[ $(jq -c '{limitsStale, fresh: (.limitsFetchedAt > 0)}' <<<"$single") == '{"limitsStale":false,"fresh":true}' ]] ||
+  fail "limits checked just now aren't stale" "$single"
+# A failed probe falls back on hour-old numbers, and the record says so.
+hour_ago_ms=$(( ($(date +%s) - 3600) * 1000 ))
+jq -nc --arg open "$open_at" --argjson at "$hour_ago_ms" '{fetchedAtMs: $at, limits: [{label: "Session (5-hour)", percent: 0.42, resetsAt: $open}]}' \
+  >"$XDG_CACHE_HOME/omarchy/agent-usage/claude-limits.json"
+kept=$(COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" python3 - <<'PY'
+import importlib.machinery, importlib.util, os, sys
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+
+def urlopen(request, timeout=None):
+  raise collector.urllib.error.URLError("down")
+
+collector.urllib.request.urlopen = urlopen
+collector.scan_pi_usage = lambda age: None
+collector.scan_opencode_usage = lambda age: None
+sys.argv = ["omarchy-agent-usage-claude", "--force"]
+collector.main()
+PY
+)
+[[ $(jq -c --argjson at "$hour_ago_ms" '{limitsStale, at: (.limitsFetchedAt == $at), first: .limits[0].percent}' <<<"$kept") == '{"limitsStale":true,"at":true,"first":0.42}' ]] ||
+  fail "kept limits are marked stale with when they were measured" "$kept"
+pass "the record says when its limits are kept from an earlier check"
+
 # ------------------------------------------------------------------------ codex
 
 # A stand-in app-server that answers for whichever home it was started in.

@@ -992,9 +992,11 @@ def main() -> int:
     # the bar icon and anything else reading one set of limits stays right.
     plan = current["plan"]
     limits = {key: current[key] for key in ("limits", "usageStatusText", "authHelpText", "retryAdvised")}
+    stale, fetched_at = current["stale"], current["fetchedAt"]
   else:
     access_token, expires_at_ms, plan = oauth_login(claude_dir)
     limits = collect_limits(access_token, expires_at_ms, args.force)
+    stale, fetched_at = not limits["live"], limits["fetchedAtMs"]
 
   record = {
     "schemaVersion": 1,
@@ -1007,6 +1009,10 @@ def main() -> int:
     "usageStatusText": limits["usageStatusText"],
     "authHelpText": limits["authHelpText"],
     "limits": limits["limits"],
+    # Numbers kept past a failed probe, and when they were measured, so the
+    # panel can tell them apart from ones checked just now.
+    "limitsStale": stale and len(limits["limits"]) > 0,
+    "limitsFetchedAt": fetched_at,
   }
   if limits.get("retryAdvised"):
     record["retryAdvised"] = True

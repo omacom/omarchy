@@ -1241,6 +1241,8 @@ Panel {
           required property var modelData
           width: section.width
           window: modelData
+          stale: !!section.provider && section.provider.limitsStale === true
+          fetchedAt: section.provider ? Number(section.provider.limitsFetchedAt || 0) : 0
         }
       }
 
@@ -1340,6 +1342,8 @@ Panel {
               required property var modelData
               width: accountBlock.width
               window: modelData
+              stale: accountBlock.modelData.stale === true && (accountBlock.modelData.limits || []).length > 0
+              fetchedAt: Number(accountBlock.modelData.fetchedAt || 0)
             }
           }
         }
@@ -1718,6 +1722,10 @@ Panel {
   component CompactLimit: Item {
     id: compact
     property var window: null
+    // Numbers kept past a failed check dim, and say how old they are on hover.
+    property bool stale: false
+    property real fetchedAt: 0
+    opacity: stale ? 0.5 : 1.0
     readonly property var scoped: window && window.scoped ? window.scoped : []
     readonly property bool alarming: window && window.percent >= 0.9
     readonly property real resetMs: root.resetMsFor(window)
@@ -1733,6 +1741,10 @@ Panel {
           lines.push(compact.window.title + ": " + Math.round(compact.window.percent * 100) + "% used"
             + (compact.resetMs > 0 ? " · resets in " + root.formatDuration(compact.resetMs) : ""))
         }
+        if (compact.stale)
+          lines.push(compact.fetchedAt > 0 && root.nowMs - compact.fetchedAt > 60000
+            ? "As of " + root.formatDuration(root.nowMs - compact.fetchedAt) + " ago"
+            : "Last known")
         for (var i = 0; i < compact.scoped.length; i++)
           lines.push(compact.scoped[i].title + ": " + Math.round(compact.scoped[i].percent * 100) + "% of its "
             + String(compact.window ? compact.window.title : "").toLowerCase() + " allowance")
