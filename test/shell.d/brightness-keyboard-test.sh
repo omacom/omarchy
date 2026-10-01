@@ -211,11 +211,40 @@ run_keyboard off
 run_keyboard restore
 assert_brightness 2 "a new session restores the lit level it had before locking"
 
-reset_fixture 0
-chmod 500 "${state_file%/*}"
-run_keyboard up
-run_keyboard off
+if (( EUID == 0 )); then
+  echo "skip - root bypasses directory write permissions"
+else
+  reset_fixture 0
+  chmod 500 "${state_file%/*}"
+  run_keyboard up
+  run_keyboard off
+  run_keyboard restore
+  assert_brightness 1 "a writable runtime directory keeps brightness working when persistent state is read-only"
+  runtime_state="$XDG_RUNTIME_DIR/omarchy-keyboard-backlight-dell::kbd_backlight"
+  [[ -f $runtime_state ]] || fail "runtime fallback records its working restore level"
+  chmod 700 "${state_file%/*}"
+  rm "$runtime_state"
+
+  reset_fixture 2
+  printf '1\n' >"$state_file"
+  chmod 500 "${state_file%/*}"
+  run_keyboard off
+  chmod 700 "${state_file%/*}"
+  run_keyboard restore
+  assert_brightness 2 "restore keeps the fallback preference when persistent storage becomes writable"
+  rm "$runtime_state"
+fi
+
+reset_fixture 2
+printf '1\n' >"$state_file"
+cat >"$test_tmp/bin/mv" <<'SH'
+#!/bin/bash
+exit 1
+SH
+chmod +x "$test_tmp/bin/mv"
+run_keyboard off 2>"$test_tmp/errors"
+assert_brightness 0 "a failed replacement save still blanks the keyboard when a restore preference exists"
+grep -q 'previous saved level' "$test_tmp/errors" || fail "a failed replacement save warns about the older restore level"
 run_keyboard restore
-assert_brightness 1 "a writable runtime directory keeps brightness working when persistent state is read-only"
-[[ -f $XDG_RUNTIME_DIR/omarchy-keyboard-backlight-dell::kbd_backlight ]] || fail "runtime fallback records its working restore level"
-chmod 700 "${state_file%/*}"
+assert_brightness 1 "the earlier saved level remains usable after a failed lock-time save"
+rm "$test_tmp/bin/mv"

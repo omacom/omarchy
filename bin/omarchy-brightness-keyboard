@@ -26,8 +26,12 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
+state_name="omarchy-keyboard-backlight-$device"
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
-if ! mkdir -p "$state_dir" 2>/dev/null || [[ ! -w $state_dir ]]; then
+# Keep using a fallback preference for this session, even if storage recovers.
+if [[ -n ${XDG_RUNTIME_DIR:-} && -f $XDG_RUNTIME_DIR/$state_name ]]; then
+  state_dir="$XDG_RUNTIME_DIR"
+elif ! mkdir -p "$state_dir" 2>/dev/null || [[ ! -w $state_dir ]]; then
   if [[ -n ${XDG_RUNTIME_DIR:-} && -d $XDG_RUNTIME_DIR && -w $XDG_RUNTIME_DIR ]]; then
     state_dir="$XDG_RUNTIME_DIR"
   else
@@ -35,7 +39,7 @@ if ! mkdir -p "$state_dir" 2>/dev/null || [[ ! -w $state_dir ]]; then
     exit 1
   fi
 fi
-state_file="$state_dir/omarchy-keyboard-backlight-$device"
+state_file="$state_dir/$state_name"
 
 # Serialize hardware changes with their saved state, including repeated keys.
 exec {lock_fd}>"$state_file.lock" || exit 1
@@ -57,7 +61,10 @@ if [[ $direction == "off" ]]; then
   # preference from it or send set 0 again, which can disable Dell wake triggers.
   if (( current_brightness > 0 )); then
     # A positive reading is the level being blanked, including in a new session.
-    save_brightness "$current_brightness" || exit 1
+    if ! save_brightness "$current_brightness"; then
+      [[ -f $state_file ]] || exit 1
+      echo "Could not save keyboard brightness; unlock will use the previous saved level." >&2
+    fi
     brightnessctl -d "$device" set 0 >/dev/null || exit 1
   fi
   exit 0
