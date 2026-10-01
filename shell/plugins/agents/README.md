@@ -9,31 +9,49 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 
 ## Panel
 
-- **Hero** — the mark, the tool, and the plan it runs on ("Max 20x", "Pro").
-  Auth and endpoint problems replace the plan line and repeat in a card.
-- **Subscription switch** — one chip per enabled agent (`h`/`l` or click).
-  It appears only when more than one agent is enabled.
-- **Limits** — the percentage of each allowance used, a matching meter, and
-  the time until the session or weekly window resets.
-- **Balance** — prepaid agents report a credit ledger instead of limits:
-  remaining credit, a fuel-gauge meter that drains toward empty, and
+Every subscription on one page, limits first.
+
+- **Hero** — the agents robot, and a line that rotates through what the
+  token counts add up to across every agent: tokens this week and today, the
+  most used model, the busiest day, and today's prompts and sessions. Its
+  corner has + to add a subscription and >_ to start the default agent.
+- **One section per agent** — its mark, name, and plan, then a compact line
+  per limit window: its meter and the time until it resets (the exact percentage
+  on hover). A model-scoped allowance on the same clock (Claude's Fable weekly
+  limit) is a tick on that window's meter rather than a line of its own; the
+  row's tooltip names it. Sign-in and endpoint trouble shows under the name in the urgent
+  color. Limits kept from an earlier check after a failed one dim, and their
+  tooltip says how old they are.
+- **Accounts** — an agent with more than one subscription account (see
+  `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
+  lines. An _ACTIVE_ label marks the account new sessions start as; the
+  others get a _Use_ link. Hovering the line also reveals Autoswitch, which
+  moves new sessions over on their own once the active account reaches its
+  threshold; while it's on it stands in for Use, which shows only when you're
+  on the line, and clicking it again goes back to notifying. Click a name to
+  rename the account in place.
+- **Balance** — prepaid agents show a credit ledger instead of limits: a
+  fuel-gauge meter that drains toward empty, the remaining credit, and
   funded-versus-spent detail.
-- **Tokens by day** — one row per day for the last week: day, bar, tokens, with today
-  bolded at the bottom. Hover today for its prompt and session count.
-- **Tokens by model** — tokens per model with the bar behind each row scaled
-  to the heaviest model,
-  the same way the weekly chart scales to its busiest day. Hover for the
-  input / output / cache split.
+- **Make something cool** — starter prompts (a new theme, plugin, or app) that
+  start the default agent on the task through `omarchy agent prompt`.
+- **Adding a subscription** — the + in the hero's corner swaps the page for
+  Claude Code, Codex, and Grok as large marks, three across, with the first
+  one focused, and the hero's line reads Add an account. The + becomes the
+  X that goes back. An agent that can't be added is dimmed and says why on
+  hover. A further account asks for a name first, and Enter signs it in. The
+  panel then runs `omarchy-agent-account-add --events` and follows it: the
+  status, the code Grok asks you to confirm in the browser, a field to paste
+  Claude's code back if its page shows one instead of finishing, and a link to
+  reopen the sign-in page. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
+  carries on and its result arrives as a notification.
 
-A subscription appears only when it is enabled in settings and has actually
-recorded usage — on this machine or on a synced one. With one such agent
-there is no switch row at all; with none, the module leaves the bar entirely
-rather than sitting there with nothing to say. A CLI installed mid-session
-shows up at the next refresh, so nothing polls the disk waiting for it.
-
-That self-hiding is why the widget ships in the default bar layout: a machine
-that has never run an AI coding agent draws nothing, and the icon arrives on
-its own the first time a scan finds usage. Drop it with
+The icon is always in the bar. On a machine with no agent yet, the panel is
+the blank slate for setting one up: it opens on the same choice of Claude,
+Codex, or Grok, and the first agent signed in becomes the default agent if
+none was picked. An agent appears once it is enabled in settings and has
+recorded usage, on this machine or a synced one; a CLI installed
+mid-session shows up at the next refresh. Drop the widget with
 `omarchy plugin disable omarchy.agents`.
 
 ## Data
@@ -55,6 +73,19 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+
+When `~/.local/state/omarchy/agents/accounts/<claude|codex>.json` registers
+more than one account, the `claude` and `codex` records also carry
+`accounts: [{ id, label, email, plan, active, limits, stale, usageStatusText,
+authHelpText }]`, each account probed with its own sign-in (Claude caches each
+account's limits separately; Codex runs one app-server per account home), and
+`accountSwitch: { mode, threshold }`. The record's top-level `limits` and
+`tierLabel` keep describing the active account, and local stats stay one set,
+since every account shares the primary home's history. After each run,
+`omarchy-agent-usage-update` hands the fresh limits to
+`omarchy-agent-account-state autoswitch`, which notifies or switches when the
+active account crosses its threshold, and re-collects the record if the active
+account changed.
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
@@ -94,10 +125,21 @@ only adds the meter and the spent-of-funded line under the real figure.
 
 ## Interactions
 
-- Bar icon: left = panel, right = launch agent, middle = next subscription.
-- Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh,
-  Tab moves to the neighboring bar panel, Esc closes.
-- IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next>`.
+- Bar icon: left = panel, right = launch agent, middle = refresh. It turns
+  urgent when any account new sessions use is at 90% of a window, or a
+  prepaid balance is down to its last 10%.
+- Panel: the arrows (or `h`/`j`/`k`/`l`) walk a cursor over everything that
+  does something, row by row: the hero's buttons, each switchable account
+  (landing on Use, with Autoswitch to its left), and the starter tiles, or the
+  agents to add. Hovering moves the same cursor. Enter acts on it, or
+  refreshes when nothing is lit; `r` refreshes, Tab moves to the neighboring
+  bar panel, Esc closes.
+- Accounts: `1`–`9` jump to an account across every agent, and Enter makes it
+  active (picking alone never switches). `m` toggles automatic switching for
+  the picked account's agent. While an agent
+  with several accounts has its active one within 15 points of its switch
+  threshold (80% at the default), the limits refresh every three minutes.
+- IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh>`.
 
 ## Settings
 

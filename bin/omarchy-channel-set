@@ -1,10 +1,25 @@
-#!/bin/bash
+#!/bin/bash -p
 
 # omarchy:summary=Set the Omarchy package channel.
 # omarchy:args=<stable|rc|edge|dev>
 # omarchy:requires-sudo=true
 
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup for channel switching." >&2
+  exit 126
+fi
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
 set -euo pipefail
+omarchy_security_sanitize_bash_environment "$0" "$@"
+omarchy_security_require_source_root "$0"
+user_path=$PATH
+# Traps first, so a signal or failure during the entry revocation still
+# exits through the cleanup path.
+omarchy_security_install_sudo_cleanup_traps
+omarchy_security_revoke_sudo_timestamp || exit 1
+omarchy_security_enable_no_update_sudo
 
 usage() { echo "Usage: omarchy-channel-set [stable|rc|edge|dev]"; }
 fail() { echo "Error: $*" >&2; exit 1; }
@@ -33,10 +48,38 @@ validate_dev_checkout() {
 }
 
 link_dev_checkout() {
-  local checkout="$1"
+  local checkout="$1" required
   [[ -d $checkout/.git ]] || git clone https://github.com/omacom/omarchy.git "$checkout"
 
+  # Check the destination before changing /etc/omarchy.conf or sudo's path.
+  # An existing checkout is not pulled automatically and may predate this policy.
+  for required in bin/omarchy-security-functions bin/omarchy-update bin/omarchy-refresh-pacman default/omarchy/sudo-no-update/sudo; do
+    if [[ ! -f $checkout/$required || ! -r $checkout/$required ||
+      ( $required != "bin/omarchy-security-functions" && ! -x $checkout/$required ) ]]; then
+      fail "Update the checkout before switching to dev; missing required update support in $required."
+    fi
+  done
+
   omarchy-dev-link "$checkout" --no-reboot
+}
+
+# A packaged destination cannot be inspected before its package is installed,
+# and a package transaction can replace the running tree with a release that
+# predates the command-scoped wrapper. After that, a bare sudo would resolve to
+# /usr/bin/sudo and publish a timestamp, and the destination's own updater
+# authenticates the same way. Neither may run from a flow that has just run
+# user hooks: stop at a consistent point and say how to finish from a fresh
+# session.
+stop_for_older_destination() {
+  cat >&2 <<EOF
+The destination predates command-scoped sudo, so this switch stops before its update.
+Packages are switched. Run 'omarchy update' from a new terminal to finish, then reboot if prompted.
+EOF
+  exit 3
+}
+
+wrapper_present() {
+  [[ -f $OMARCHY_PATH/default/omarchy/sudo-no-update/sudo && -x $OMARCHY_PATH/default/omarchy/sudo-no-update/sudo ]]
 }
 
 (( $# > 0 )) || { usage; exit 1; }
@@ -83,13 +126,16 @@ fi
 if [[ -n $dev_checkout ]]; then
   link_dev_checkout "$dev_checkout"
   export OMARCHY_PATH="$dev_checkout"
-  export PATH="$OMARCHY_PATH/bin:$PATH"
+  omarchy_security_enable_no_update_sudo
   omarchy-state set reboot-required
 fi
 
-omarchy-refresh-pacman "$pacman_channel"
+OMARCHY_UPDATE_USER_PATH="$user_path" omarchy-refresh-pacman "$pacman_channel"
+# Each transaction can have replaced this tree; check before the next sudo.
+wrapper_present || stop_for_older_destination
 # --ask 4 accepts omarchy <-> omarchy-dev replacement prompts without file overwrites.
 omarchy-update-pacman -S --needed --noconfirm --ask 4 "${packages[@]}"
+wrapper_present || stop_for_older_destination
 
 if [[ -z $dev_checkout ]]; then
   omarchy-dev-unlink --no-reboot
@@ -98,6 +144,7 @@ if [[ -z $dev_checkout ]]; then
   if (( leaving_dev )); then
     omarchy-state set reboot-required
   fi
+  omarchy_security_enable_no_update_sudo 2>/dev/null || stop_for_older_destination
 fi
 
-omarchy-update -y
+OMARCHY_UPDATE_USER_PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update" -y
