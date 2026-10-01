@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import sys
+
 import gi
 gi.require_version('Gio', '2.0')
 gi.require_version('GLib', '2.0')
@@ -68,9 +68,10 @@ class SNIWatcher:
     def on_name_acquired(self, connection, name):
         logging.info(f"Acquired DBus name {name}")
 
+    # Quickshell's own watcher takes the name without allowing replacement, so a
+    # shell already running queues us; the bus hands us the name when it exits.
     def on_name_lost(self, connection, name):
-        logging.error(f"Lost DBus name {name} - another watcher claimed it?")
-        sys.exit(1)
+        logging.info(f"Waiting in the queue for DBus name {name}")
 
     def on_vanished(self, connection, bus_name):
         logging.info(f"Bus vanished: {bus_name}")
