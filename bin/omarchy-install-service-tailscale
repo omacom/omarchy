@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Install the Tailscale mesh VPN service and a web app for the Tailscale Admin Console.
+# omarchy:summary=Install Tailscale with an optional self-hosted coordination server and admin web app.
 # omarchy:requires-sudo=true
 
 # Hosted Tailscale is the default, so an ordinary install is unchanged.
@@ -13,6 +13,7 @@
 
 login_server=${OMARCHY_TAILSCALE_LOGIN_SERVER:-}
 auth_key=${OMARCHY_TAILSCALE_AUTH_KEY:-}
+unset OMARCHY_TAILSCALE_AUTH_KEY
 admin_url=${OMARCHY_TAILSCALE_ADMIN_URL:-}
 admin_icon="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/tailscale-light.png"
 
@@ -35,24 +36,30 @@ if [[ -n $admin_url ]] && ! valid_http_url "$admin_url"; then
   exit 1
 fi
 
+operator=$(id -un) || exit 1
+
 echo -e "\nInstalling Tailscale..."
-omarchy-pkg-add tailscale
+omarchy-pkg-add tailscale || exit 1
 
 echo -e "\nStarting Tailscale..."
-sudo systemctl enable --now tailscaled.service
+sudo systemctl enable --now tailscaled.service || exit 1
 
-up_args=(--accept-routes)
+# Name the operator on every up call, including retries after an earlier
+# install set it. sudo's USER is root, not the user running this installer.
+up_args=(--accept-routes --operator="$operator")
 if [[ -n $login_server ]]; then
   echo "Coordination server: $login_server"
   up_args+=(--login-server="$login_server")
 fi
 if [[ -n $auth_key ]]; then
-  up_args+=(--auth-key="$auth_key")
+  # Tailscale supports file: keys. Read from the pipe instead of placing the
+  # key in sudo's command arguments or leaving a temporary secret on disk.
+  up_args+=(--auth-key=file:/dev/stdin)
+  printf '%s' "$auth_key" | sudo tailscale up "${up_args[@]}" || exit 1
+else
+  sudo tailscale up "${up_args[@]}" || exit 1
 fi
-sudo tailscale up "${up_args[@]}"
-
-echo -e "\nAllowing $USER to manage Tailscale..."
-sudo tailscale set --operator="$USER"
+unset auth_key
 
 echo -e "\nReceiving Taildrop files in $HOME/Downloads..."
 systemctl --user enable --now omarchy-tailscale-receive.service
