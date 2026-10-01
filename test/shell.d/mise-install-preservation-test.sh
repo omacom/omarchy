@@ -29,6 +29,12 @@ backups=("$backup_dir"/tool.*)
 (( ${#backups[@]} == 1 )) || fail "identical reinstalls do not accumulate backups"
 pass "reinstalling the same wrapper creates no extra backup"
 
+chmod 600 "$launcher"
+"$ROOT/bin/omarchy-mise-install" tool >/dev/null
+[[ $(stat -c %a "$launcher") == "700" ]] || fail "a nonexecutable private launcher becomes executable without exposing its contents"
+pass "private nonexecutable launchers remain private and become runnable"
+
+
 ln -s "$test_tmp/original" "$HOME/.local/bin/linked"
 "$ROOT/bin/omarchy-mise-install" tool linked >/dev/null
 links=("$backup_dir"/linked.*)

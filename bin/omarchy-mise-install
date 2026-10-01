@@ -63,6 +63,7 @@ EOF
 
 if [[ -f $launcher ]]; then
   chmod --reference="$launcher" "$wrapper"
+  chmod u+x "$wrapper"
 else
   chmod 755 "$wrapper"
 fi
