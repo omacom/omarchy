@@ -1,0 +1,290 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Grok usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Grok usage into one display-ready JSON record.
+
+The plan comes from the settings Grok caches from xAI, and the limit from the
+credits endpoint the Grok CLI itself reads for its /usage view, asked with
+each account's own sign-in. Sessions and prompts come from the summary Grok
+keeps beside each session; it records no token counts there, nor when each
+prompt was sent, so neither tokens nor today's prompts are claimed. The
+agents panel only ever reads the JSON this prints.
+"""
+
+import argparse
+import json
+import os
+import re
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+AGENT_ID = "grok"
+AGENT_NAME = "Grok"
+AUTH_HELP = "Start Grok, or run `grok login`, to sign in."
+CREDITS_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits"
+# Grok's own CLI watches its subscription once a minute; a panel opened and
+# shut repeatedly reuses an answer for about that long.
+PROBE_REUSE_SECONDS = 60
+# A limits-only refresh needs fresh limits, not a fresh history scan.
+LIMITS_ONLY_SCAN_REUSE_SECONDS = 900
+
+
+def read_json(path):
+  try:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+  except Exception:
+    return None
+
+
+# A temporary file of its own per write, so overlapping runs can't rename
+# each other's away.
+def write_json(path, payload):
+  path = Path(path)
+  path.parent.mkdir(parents=True, exist_ok=True)
+  fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
+  try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+      json.dump(payload, handle)
+    os.replace(tmp, path)
+  except Exception:
+    Path(tmp).unlink(missing_ok=True)
+    raise
+
+
+def cache_root():
+  return Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+
+
+def parse_time(value):
+  try:
+    parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+  except ValueError:
+    return None
+  return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+# The home Grok uses when nothing selects an account: GROK_HOME when set,
+# as the CLI itself reads it, else ~/.grok.
+def default_home():
+  return Path(os.environ.get("GROK_HOME") or (Path.home() / ".grok"))
+
+
+# Every session's summary, under <home>/sessions/<folder>/<session>/. Added
+# accounts link their sessions to the primary's, so this covers all of them.
+# A resumed session's prompts can't be told apart by day, so today counts
+# sessions only.
+def local_stats(home):
+  today = datetime.now().astimezone().date().isoformat()
+  prompts = sessions = today_sessions = 0
+  days = set()
+  for summary_path in (Path(home) / "sessions").glob("*/*/summary.json"):
+    summary = read_json(summary_path)
+    if not isinstance(summary, dict):
+      continue
+    active = parse_time(summary.get("last_active_at"))
+    if not active:
+      continue
+    day = active.astimezone().date().isoformat()
+    sessions += 1
+    prompts += int(summary.get("num_messages") or 0)
+    days.add(day)
+    if day == today:
+      today_sessions += 1
+  return {
+    "hasLocalStats": sessions > 0,
+    "todaySessions": today_sessions,
+    "totalPrompts": prompts,
+    "totalSessions": sessions,
+    "activeDays": len(days),
+    "activeDates": sorted(days),
+  }
+
+
+def cached_local_stats(home, max_age):
+  cache = cache_root() / "grok-stats.json"
+  cached = read_json(cache) or {}
+  if cached.get("home") == str(home) and time.time() - float(cached.get("at") or 0) < max_age:
+    return cached["stats"]
+  stats = local_stats(home)
+  write_json(cache, {"home": str(home), "at": time.time(), "stats": stats})
+  return stats
+
+
+# One login per issuer in auth.json; the first is the CLI's own.
+def login(home):
+  auth = read_json(Path(home) / "auth.json")
+  if not isinstance(auth, dict):
+    return {}
+  return next((v for v in auth.values() if isinstance(v, dict)), {})
+
+
+def plan(home):
+  cached = read_json(Path(home) / "settings_cache.json") or {}
+  try:
+    settings = json.loads(cached.get("payload") or "{}").get("settings") or {}
+  except Exception:
+    return ""
+  return str(settings.get("subscription_tier_display") or "")
+
+
+# The credits answer as one limit window: how much of this period's included
+# usage is gone, and when the period ends. The answer is protobuf JSON, which
+# leaves out a field holding zero, so a period with nothing used yet has no
+# percentage at all.
+def credits_limit(data):
+  config = data["config"]
+  period = config["currentPeriod"]
+  return {
+    "label": "Weekly" if "WEEK" in str(period.get("type")) else "Monthly",
+    "percent": max(0.0, min(1.0, float(config.get("creditUsagePercent") or 0) / 100)),
+    "resetsAt": parse_time(period["end"]).isoformat(),
+  }
+
+
+def collect_limits(home, key, force):
+  result = {"limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP, "live": False, "fetchedAtMs": 0}
+  entry = login(home)
+  token = str(entry.get("key") or "")
+  if not token:
+    result["usageStatusText"] = "Waiting for auth"
+    return result
+
+  cache = cache_root() / f"grok-limits-{key}.json"
+  cached = read_json(cache) or {}
+  fetched_at = float(cached.get("fetchedAtMs") or 0)
+  result["fetchedAtMs"] = fetched_at
+
+  # The CLI refreshes its token while it runs; one left to lapse can't be
+  # used until Grok starts again.
+  expires = parse_time(entry.get("expires_at"))
+  if expires and expires.timestamp() <= time.time():
+    result["limits"] = cached.get("limits") or []
+    result["usageStatusText"] = "Sign-in expired"
+    result["authHelpText"] = "Grok's saved sign-in expired. Start Grok to refresh it."
+    return result
+
+  if cached.get("limits") and not force and time.time() - fetched_at / 1000 < PROBE_REUSE_SECONDS:
+    result.update(limits=cached["limits"], live=True)
+    return result
+
+  request = urllib.request.Request(CREDITS_URL, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
+  try:
+    with urllib.request.urlopen(request, timeout=8) as response:
+      limit = credits_limit(json.loads(response.read()))
+  except urllib.error.HTTPError as error:
+    limit = None
+    if error.code in (401, 403):
+      result["usageStatusText"] = "Waiting for auth"
+  except Exception:
+    limit = None
+
+  if limit:
+    result.update(limits=[limit], live=True, fetchedAtMs=round(time.time() * 1000))
+    write_json(cache, {"fetchedAtMs": result["fetchedAtMs"], "limits": result["limits"]})
+  else:
+    result["limits"] = cached.get("limits") or []
+    if not result["usageStatusText"] and not result["limits"]:
+      result["usageStatusText"] = "Grok limits unavailable"
+  return result
+
+
+# The accounts `omarchy agent account` registered, read straight from its
+# registry. Only a registry holding a second account matters: with one, the
+# record describes ~/.grok alone.
+def registered_accounts():
+  state = Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state"))
+  registry = read_json(state / "omarchy" / "agents" / "accounts" / "grok.json") or {}
+  accounts = [a for a in registry.get("accounts") or [] if isinstance(a, dict) and a.get("id")]
+  if len(accounts) < 2:
+    return []
+  active_id = registry.get("active") or accounts[0]["id"]
+  if not any(a["id"] == active_id for a in accounts):
+    active_id = accounts[0]["id"]
+  for account in accounts:
+    account["active"] = account["id"] == active_id
+    account["switch"] = {
+      "mode": "auto" if registry.get("switch") == "auto" else "manual",
+      "threshold": registry.get("threshold") or 95,
+    }
+  return accounts
+
+
+def home_of(account):
+  return Path(account.get("home") or (Path.home() / ".grok"))
+
+
+# Keyed by who the home is signed in as, so a home signed in to someone else
+# never shows the last one's numbers.
+def cache_key(home, fallback):
+  user = str(login(home).get("user_id") or "")
+  return re.sub(r"[^A-Za-z0-9_-]", "", user) or fallback
+
+
+def account_limits(account, force):
+  home = home_of(account)
+  limits = collect_limits(home, cache_key(home, account["id"]), force)
+  return {
+    "id": account["id"],
+    "label": str(account.get("label") or account["id"]),
+    "email": str(account.get("email") or ""),
+    "plan": plan(home) or str(account.get("plan") or ""),
+    "active": account["active"],
+    "primary": bool(account.get("primary")),
+    "limits": limits["limits"],
+    "stale": not limits["live"],
+    "fetchedAt": limits["fetchedAtMs"],
+    "usageStatusText": limits["usageStatusText"],
+    "authHelpText": limits["authHelpText"],
+  }
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  registered = registered_accounts()
+  accounts = [account_limits(account, args.force) for account in registered]
+  current = next((a for a in accounts if a["active"]), None)
+  if current:
+    tier = current["plan"]
+    limits = current
+    stale, fetched_at = current["stale"], current["fetchedAt"]
+  else:
+    home = default_home()
+    tier = plan(home)
+    limits = collect_limits(home, cache_key(home, "main"), args.force)
+    stale, fetched_at = not limits["live"], limits["fetchedAtMs"]
+
+  # Nobody signed in to Grok here: an empty record, which the panel skips.
+  # With accounts registered, the primary is ~/.grok by definition.
+  stats_home = Path.home() / ".grok" if accounts else default_home()
+  signed_in = bool(accounts) or bool(login(stats_home))
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": signed_in,
+    "tierLabel": tier,
+    "usageStatusText": limits["usageStatusText"],
+    "authHelpText": limits["authHelpText"],
+    "limits": limits["limits"],
+    "limitsStale": stale,
+    "limitsFetchedAt": fetched_at,
+  }
+  record.update(cached_local_stats(stats_home, LIMITS_ONLY_SCAN_REUSE_SECONDS if args.limits_only and not args.force else 0))
+  if accounts:
+    record["accountSwitch"] = registered[0]["switch"]
+    record["accounts"] = accounts
+  print(json.dumps(record, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+  main()
