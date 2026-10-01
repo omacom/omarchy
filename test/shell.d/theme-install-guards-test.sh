@@ -71,8 +71,15 @@ done
 pass "a URL naming a transport git does not implement never reaches git"
 
 # The checker is a separate command, so its absence has to refuse the URL rather
-# than wave it through to git.
-if install_theme "https://github.com/example/omarchy-cool-theme.git" "$mock_bin:$PATH"; then
+# than wave it through to git. Installed machines carry the packaged checker in
+# /usr/bin, so absence is simulated by shadowing it with a stub that reports
+# command-not-found instead of thinning the PATH.
+missing_checker_bin="$test_tmp/missing-checker-bin"
+mkdir -p "$missing_checker_bin"
+printf '#!/bin/bash\nexit 127\n' >"$missing_checker_bin/omarchy-git-url-check"
+chmod +x "$missing_checker_bin/omarchy-git-url-check"
+
+if install_theme "https://github.com/example/omarchy-cool-theme.git" "$missing_checker_bin:$mock_bin:$ROOT/bin:$PATH"; then
   fail "omarchy-theme-install refuses a URL it cannot check"
 fi
 
@@ -166,7 +173,7 @@ if locale -a 2>/dev/null | grep -qix 'en_US.utf-\?8'; then
 
   pass "the accepted set does not move with the desktop's locale"
 else
-  pass "no en_US.UTF-8 locale; skipping the locale-pinning check"
+  skip "no en_US.UTF-8 locale; skipping the locale-pinning check"
 fi
 
 # basename reads a leading dash as an option once the scp-style prefix is gone.
