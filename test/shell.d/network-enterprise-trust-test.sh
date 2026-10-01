@@ -23,27 +23,40 @@ count=0
 (( count += 1 ))
 printf '%s\\n' "$count" >"$TEST_NM_LOG.count"
 printf '%s\\0' "$@" >"$TEST_NM_LOG.$count"
+if [[ $2 == "$TEST_NM_HANG" ]]; then
+  [[ $TEST_NM_IGNORE_TERM != 1 ]] || trap '' TERM
+  printf '%s\\n' "$BASHPID" >"$TEST_NM_LOG.pids"
+  sleep 30 &
+  printf '%s\\n' "$!" >>"$TEST_NM_LOG.pids"
+  wait
+fi
 if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
 [[ $2 != "$TEST_NM_FAIL" ]]
 `, {mode: 0o755})
 
   const password = 'literal $() \\" secret'
-  function connect(caCert, serverName, failAction) {
+  function connect(caCert, serverName, failAction, hangAction, ignoreTerm) {
     const log = path.join(scratch, 'nmcli-log')
     for (const name of fs.readdirSync(scratch)) {
       if (name.startsWith('nmcli-log')) fs.unlinkSync(path.join(scratch, name))
     }
-    const result = childProcess.spawnSync('bash', ['-c', network.enterpriseConnectScript,
-      'nmcli-eap', 'Enterprise WiFi', 'person@example.org', caCert, serverName], {
+    const command = ['bash', '-c', network.enterpriseConnectScript,
+      'nmcli-eap', 'Enterprise WiFi', 'person@example.org', caCert, serverName]
+    // Accelerate the production timeout for the fixture, preserving its
+    // process-group behavior and escalation while executing the real helper.
+    if (hangAction) command.unshift('--kill-after=0.1s', '0.1s')
+    const result = childProcess.spawnSync(hangAction ? 'timeout' : command.shift(), command, {
       input: password + '\n', encoding: 'utf8', timeout: 2000,
       env: {...process.env, PATH: scratch + ':' + process.env.PATH,
-        TEST_NM_LOG: log, TEST_NM_FAIL: failAction || ''}
+        TEST_NM_LOG: log, TEST_NM_FAIL: failAction || '',
+        TEST_NM_HANG: hangAction || '', TEST_NM_IGNORE_TERM: ignoreTerm ? '1' : '0'}
     })
     const count = fs.existsSync(log + '.count') ? Number(fs.readFileSync(log + '.count', 'utf8')) : 0
     const calls = []
     for (let i = 1; i <= count; i++) calls.push(fs.readFileSync(log + '.' + i, 'utf8').split('\0').slice(0, -1))
     const stdin = fs.existsSync(log + '.stdin') ? fs.readFileSync(log + '.stdin', 'utf8') : ''
-    return {result, calls, stdin}
+    const pids = fs.existsSync(log + '.pids') ? fs.readFileSync(log + '.pids', 'utf8').trim().split('\n') : []
+    return {result, calls, stdin, pids}
   }
 
   for (const [caCert, serverName] of [
@@ -80,6 +93,19 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
     if (action !== 'up') assert(!failed.calls.some(call => call[1] === 'up'), 'enterprise never activates after failed ' + action)
   }
 
+  for (const [action, ignoreTerm] of [['add', false], ['edit', false], ['up', false], ['up', true]]) {
+    const stalled = connect(cert, 'radius.example.org', '', action, ignoreTerm)
+    assert(!stalled.result.error && (stalled.result.status === 124 || stalled.result.signal === 'SIGKILL'),
+      'enterprise deadline ends a stalled ' + action + (ignoreTerm ? ' even when TERM is ignored' : ''))
+    assertEqual(stalled.pids.length, 2, 'stalled enterprise fixture started nmcli and its child')
+    for (const pid of stalled.pids) {
+      const stat = '/proc/' + pid + '/stat'
+      assert(!fs.existsSync(stat) || fs.readFileSync(stat, 'utf8').split(') ')[1].startsWith('Z'),
+        'enterprise deadline leaves no running nmcli descendant ' + pid)
+    }
+    assertEqual(connect(cert, 'radius.example.org').result.status, 0, 'enterprise can retry after stalled ' + action)
+  }
+
   for (const serverName of ['radius.example.org', 'RADIUS.example.org', 'radius', 'xn--radius-9za.example.org']) {
     assert(network.enterpriseTrustValid(cert, serverName), 'enterprise UI accepts exact administrator server ' + serverName)
   }
@@ -107,6 +133,8 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   assertEqual(actionCount, 1, 'enterprise caller starts with valid trust settings')
   assertDeepEqual(enterpriseConnect.command.slice(-4), ['Enterprise WiFi', 'person@example.org', cert, 'radius.example.org'], 'enterprise caller passes explicit trust settings to the process')
   assert(!enterpriseConnect.command.includes(password), 'enterprise caller keeps the password out of argv')
+  assertDeepEqual(enterpriseConnect.command.slice(0, 5), ['timeout', '--kill-after=1s', '25s', 'bash', '-c'],
+    'enterprise caller bounds the whole helper and its process group before the 30-second UI timeout')
 
   const firstCommand = enterpriseConnect.command.slice()
   const firstRevision = enterpriseConnect.actionRevision
@@ -131,6 +159,11 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   assertEqual(retry.failureReason, 'CA certificate must be a readable file', 'enterprise displays the specific CA path error')
   assertEqual(retry.actionKind, '', 'enterprise current failure clears its own busy state')
   assertEqual(stopped, 1, 'enterprise current failure stops its own timer')
+  retry.actionKind = 'connect'
+  retry.actionSsid = 'Enterprise WiFi'
+  onExited(124, 0, retry, retry.actionRevision, 'Enterprise WiFi', timer, '')
+  assertEqual(retry.failureReason, 'Timed out connecting', 'enterprise deadline reports a timeout instead of invalid credentials')
+  assertEqual(retry.actionKind, '', 'enterprise timeout clears its own busy state for retry')
 
   enterpriseConnect.running = false
   connectEnterprise('Enterprise WiFi', 'retry@example.org', password, cert, 'radius.example.org')

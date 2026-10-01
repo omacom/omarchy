@@ -842,7 +842,11 @@ Panel {
       enterpriseConnect.secret = passphrase
       enterpriseConnect.ssid = ssid
       enterpriseConnect.actionRevision = actionRevision
-      enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity, caCert, serverName]
+      // Bound the whole attempt, including stuck nmcli children. Without
+      // --foreground, timeout owns their process group and escalates to KILL.
+      // It must finish before the panel's 30-second action timeout so a retry
+      // never reuses a process whose previous attempt is still running.
+      enterpriseConnect.command = ["timeout", "--kill-after=1s", "25s", "bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity, caCert, serverName]
       enterpriseConnect.running = true
     })
   }
@@ -861,11 +865,12 @@ Panel {
     }
     onExited: function(exitCode, exitStatus) {
       secret = ""
-      if (exitCode === 0 || root.actionRevision !== actionRevision || root.actionKind !== "connect" || root.actionSsid !== ssid) return
+      if ((exitCode === 0 && exitStatus === 0) || root.actionRevision !== actionRevision || root.actionKind !== "connect" || root.actionSsid !== ssid) return
       actionTimeout.stop()
       root.failureSsid = ssid
       root.failureReason = exitCode === 64 ? "CA certificate must be a readable file"
-        : (exitCode === 65 ? "Invalid authentication server name" : "Check credentials or certificates")
+        : (exitCode === 65 ? "Invalid authentication server name"
+          : (exitCode === 124 || exitCode === 137 || exitStatus !== 0 ? "Timed out connecting" : "Check credentials or certificates"))
       root.actionSsid = ""
       root.actionKind = ""
     }

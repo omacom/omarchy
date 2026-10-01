@@ -351,13 +351,16 @@ var enterpriseConnectScript =
   " for label in \"${labels[@]}\"; do" +
   " (( ${#label} <= 63 )) && [[ $label =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]] || exit 65; done;" +
   " u=$(uuidgen); IFS= read -r pw || exit 1;" +
+  // Roll back this attempt on failure or cancellation, with bounded cleanup.
+  " trap 'timeout --kill-after=1s 2s nmcli connection delete uuid \"$u\" >/dev/null 2>&1' EXIT;" +
+  " trap 'exit 124' TERM INT;" +
   " nmcli connection add type wifi con-name \"$1\" ssid \"$1\" connection.uuid \"$u\"" +
   " wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2" +
   " 802-1x.identity \"$2\" 802-1x.auth-timeout 8" +
   " 802-1x.ca-cert \"$3\" 802-1x.domain-match \"$4\" 802-1x.system-ca-certs no >/dev/null" +
   " && printf 'set 802-1x.password %s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$u\" >/dev/null" +
   " && nmcli connection up uuid \"$u\"" +
-  " || { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
+  " || exit 1; trap - EXIT"
 
 function networkFailureReason(reason, needsCredentials, reasons) {
   var r = reasons || {}
