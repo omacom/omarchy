@@ -42,7 +42,7 @@ SH
 ln -s chromium "$mock_bin/firefox"
 cat >"$mock_bin/systemd-run" <<'SH'
 #!/bin/bash
-printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
+printf '%s\n' "$@" >"$OMARCHY_TEST_BROWSER_LAUNCH"
 SH
 cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
 #!/bin/bash
@@ -114,15 +114,20 @@ HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="
 pass "browser launcher hands a URL to the running browser"
 
 rm "$mock_bin/omarchy-cmd-browser-handoff"
-for browser in floorp custom-browser; do
+for browser in floorp helium custom-browser; do
   ln -s chromium "$mock_bin/$browser"
   printf '[Desktop Entry]\nExec=%s %%U\n' "$browser" >"$test_home/.local/share/applications/$browser.desktop"
   rm -f "$launch_log"
   if HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_DESKTOP="$browser.desktop" \
     OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_EXEC="$browser_exec_log" \
     bash "$ROOT/bin/omarchy-launch-browser" --private >"$test_tmp/out" 2>"$test_tmp/errors"; then
-    [[ $browser == "floorp" ]] || fail "unknown browser families must not receive a guessed private flag"
-    grep -Fq -- --private-window "$launch_log" || fail "Floorp receives its Firefox-family flag"
+    if [[ $browser == "floorp" ]]; then
+      flag=--private-window
+    else
+      [[ $browser == "helium" ]] || fail "unknown browser families must not receive a guessed private flag"
+      flag=--incognito
+    fi
+    grep -Fq -- "$flag" "$launch_log" || fail "$browser receives its known private flag"
   else
     [[ $browser == "custom-browser" ]] || fail "Floorp private launch succeeds"
     [[ ! -e $launch_log ]] || fail "unknown private launches start no normal browser window"
@@ -130,3 +135,12 @@ for browser in floorp custom-browser; do
   fi
 done
 pass "Firefox forks use the correct private flag and unknown families fail closed"
+
+for browser in custom-browser helium; do
+  url='https://example.test/--private?value=--private'
+  HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_DESKTOP="$browser.desktop" \
+    OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_EXEC="$browser_exec_log" \
+    bash "$ROOT/bin/omarchy-launch-browser" "$url"
+  grep -Fxq "$url" "$launch_log" || fail "literal --private text in URLs is preserved"
+done
+pass "private option translation leaves ordinary URLs unchanged"

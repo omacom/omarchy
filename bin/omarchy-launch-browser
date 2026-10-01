@@ -10,7 +10,7 @@ browser_name=$(basename "$browser_exec")
 case $browser_name in
   firefox* | zen* | librewolf* | waterfox* | floorp* | icecat* | mullvad*) private_flag="--private-window" ;;
   *edge*) private_flag="--inprivate" ;;
-  chromium* | *chrome* | brave* | vivaldi* | opera*) private_flag="--incognito" ;;
+  chromium* | *chrome* | brave* | vivaldi* | opera* | helium*) private_flag="--incognito" ;;
   *)
     for argument in "$@"; do
       if [[ $argument == "--private" ]]; then
@@ -22,10 +22,19 @@ case $browser_name in
     ;;
 esac
 
-if ! omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
+arguments=()
+for argument in "$@"; do
+  if [[ $argument == "--private" ]]; then
+    arguments+=("$private_flag")
+  else
+    arguments+=("$argument")
+  fi
+done
+
+if ! omarchy-cmd-browser-handoff "$browser_exec" "${arguments[@]}"; then
   systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
     --property=StandardOutput=null --property=StandardError=null \
-    uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
+    uwsm-app -- "$browser_exec" "${arguments[@]}"
 fi
 
 url=""
