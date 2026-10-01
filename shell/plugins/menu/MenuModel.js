@@ -35,6 +35,10 @@ function stripJsonc(raw) {
       }
       if (next >= input.length || (input[next] !== "}" && input[next] !== "]"))
         out += ch
+    } else if (/\s/.test(ch)) {
+      // JSON.parse only takes ASCII whitespace, so a byte order mark, no-break
+      // space or other Unicode space between tokens is passed on as a space.
+      out += ch === "\n" ? ch : " "
     } else {
       out += ch
     }
