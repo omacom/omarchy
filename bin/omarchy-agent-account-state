@@ -55,7 +55,7 @@ DEFAULT_THRESHOLD = 95
 # Ids an account can't take because something else already answers to them:
 # `use next` cycles, a provider name is read as the provider when it comes
 # first, and the menu's Add Account row is `.add`.
-RESERVED_IDS = {"next", "add", "claude", "codex"}
+RESERVED_IDS = {"next", "add", "claude", "codex", "primary"}
 SWITCH_MODES = ("manual", "auto")
 
 
@@ -241,6 +241,11 @@ def find(registry: dict[str, Any], account_id: str) -> dict[str, Any] | None:
   for account in registry["accounts"]:
     if account.get("id") == account_id:
       return account
+  # `primary` names the login that was there first, whatever it's called now.
+  if account_id == "primary":
+    for account in registry["accounts"]:
+      if account.get("primary"):
+        return account
   return None
 
 
