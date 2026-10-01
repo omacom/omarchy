@@ -346,6 +346,38 @@ HYPRCTL_DEVICES_FAIL=1 run_toggle touchpad off
   fail "a repeated disable keeps the saved sibling when the devices query fails" "$(<"$name_file")"
 pass "a repeated disable keeps the saved sibling when the devices query fails"
 
+# Switching the detected primary does not enable the previous pair. Keep its
+# names so reload mirrors the live disabled devices and on can restore both.
+HYPRCTL_DEVICES="$devices_json" run_toggle touchpad off
+stub_device touchpad 'elan-touchpad'
+cat >"$devices_json" <<'JSON'
+{"mice":[{"name":"elan-touchpad"},{"name":"elan-mouse"}]}
+JSON
+HYPRCTL_DEVICES="$devices_json" run_toggle touchpad off
+for name in elan-touchpad elan-mouse msft0001:00-093a:0255-touchpad msft0001:00-093a:0255-mouse; do
+  grep -Fx "$name" "$name_file" >/dev/null ||
+    fail "switching touchpads keeps every previously disabled node recoverable" "$name"
+done
+HOME="$home_dir" XDG_STATE_HOME="$xdg_decoy" OMARCHY_PATH="$ROOT" lua - <<'LUA'
+local seen = {}
+hl = { device = function(opts) seen[opts.name] = opts.enabled end }
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.toggles")
+for _, name in ipairs({"elan-touchpad", "elan-mouse", "msft0001:00-093a:0255-touchpad", "msft0001:00-093a:0255-mouse"}) do
+  assert(seen[name] == false, "reload preserves the existing disable for " .. name)
+end
+LUA
+pass "switching touchpads keeps both disabled pairs across reload"
+
+: >"$log_file"
+HYPRCTL_DEVICES="$devices_json" run_toggle touchpad on
+for name in elan-touchpad elan-mouse msft0001:00-093a:0255-touchpad msft0001:00-093a:0255-mouse; do
+  grep -Fx "hl.device({ name = \"$name\", enabled = true })" "$log_file" >/dev/null ||
+    fail "on restores both disabled touchpad pairs" "$name"
+done
+[[ ! -e $name_file ]] || fail "restoring both touchpad pairs clears the saved disable"
+pass "on restores both pairs after the detected touchpad changes"
+
 cat >"$stub_dir/omarchy-hw-touchpad" <<'EOF'
 #!/bin/bash
 exit 1
