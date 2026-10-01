@@ -753,10 +753,24 @@ Panel {
             }
 
             trailingControl: Component {
-              AddButton {
-                visible: !root.blankSlate
-                adding: root.addStage !== ""
-                onClicked: adding ? root.cancelAdd() : root.addAccount()
+              Row {
+                spacing: Style.space(6)
+                visible: root.addStage === "" || !root.blankSlate
+
+                HeroButton {
+                  visible: root.addStage === ""
+                  glyph: "󰞷"
+                  tooltip: "Start the default agent"
+                  onClicked: root.launchAgent()
+                }
+
+                HeroButton {
+                  visible: !root.blankSlate
+                  readonly property bool adding: root.addStage !== ""
+                  glyph: adding ? "󰅖" : "󰐕"
+                  tooltip: adding ? "Back to the limits" : "Add a subscription"
+                  onClicked: adding ? root.cancelAdd() : root.addAccount()
+                }
               }
             }
           }
@@ -1315,34 +1329,36 @@ Panel {
 
   // Adding a subscription: a + in a softly tinted square that deepens on
   // hover, and closes the add view again while it's open.
-  component AddButton: Rectangle {
-    id: addButton
+  // The tinted square in the hero's corner: start an agent, add a subscription.
+  component HeroButton: Rectangle {
+    id: heroButton
     signal clicked()
-    property bool adding: false
+    property string glyph: ""
+    property string tooltip: ""
     implicitWidth: Style.space(34)
     implicitHeight: implicitWidth
     radius: Style.cornerRadius
-    color: root.alpha(Color.accent, addMouse.containsMouse ? 0.22 : 0.12)
+    color: root.alpha(Color.accent, heroMouse.containsMouse ? 0.22 : 0.12)
 
     Text {
       anchors.centerIn: parent
-      text: addButton.adding ? "󰅖" : "󰐕"
+      text: heroButton.glyph
       color: Color.accent
       font.family: root.fontFamily
       font.pixelSize: Style.font.heading
     }
 
     MouseArea {
-      id: addMouse
+      id: heroMouse
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
-      onClicked: addButton.clicked()
+      onClicked: heroButton.clicked()
     }
 
     PanelToolTip {
-      visible: addMouse.containsMouse
-      text: addButton.adding ? "Back to the limits" : "Add a subscription"
+      visible: heroMouse.containsMouse
+      text: heroButton.tooltip
     }
   }
 
