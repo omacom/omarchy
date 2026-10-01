@@ -60,8 +60,10 @@ Panel {
       for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
       rows.push(choices)
     } else if (addStage === "") {
-      // Accounts count in the same order as accountEntries. One that isn't
-      // active offers Autoswitch beside Use, and a lapsed sign-in comes first.
+      // Accounts count in the same order as accountEntries. Only what can be
+      // done is a stop: one that isn't active offers Autoswitch beside Use, a
+      // lapsed sign-in comes first, and the active account with nothing to
+      // fix is skipped.
       var entry = 0
       for (var p = 0; p < providers.length; p++) {
         var accounts = providerAccounts(providers[p])
@@ -72,9 +74,11 @@ Panel {
         for (var a = 0; a < accounts.length; a++, entry++) {
           var row = []
           if (needsSignIn(accounts[a])) row.push({ kind: "signin", index: entry })
-          if (!accounts[a].active) row.push({ kind: "autoswitch", index: entry })
-          row.push({ kind: "account", index: entry })
-          rows.push(row)
+          if (!accounts[a].active) {
+            row.push({ kind: "autoswitch", index: entry })
+            row.push({ kind: "account", index: entry })
+          }
+          if (row.length > 0) rows.push(row)
         }
       }
       if (!blankSlate) {
@@ -1474,7 +1478,10 @@ Panel {
     implicitWidth: Style.space(34)
     implicitHeight: implicitWidth
     radius: Style.cornerRadius
-    color: root.alpha(Color.accent, hasCursor ? 0.22 : 0.12)
+    // The cursor needs more than a shade deeper to read on a tinted square.
+    color: root.alpha(Color.accent, hasCursor ? 0.3 : 0.12)
+    border.width: hasCursor ? Math.max(1, Style.hoverBorderWidth) : 0
+    border.color: Color.accent
     onHasCursorChanged: if (hasCursor) root.revealItem(heroButton)
 
     Text {

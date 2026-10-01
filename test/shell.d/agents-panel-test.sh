@@ -30,4 +30,5 @@ assert(/Qt\.callLater\(function\(\) \{ if \(picking\) pointAt\("choice", 0\) \}\
 assert(/opacity: stale \? 0\.5 : 1\.0/.test(panelSource) && /"As of " \+ root\.formatDuration/.test(panelSource), 'limits kept from an earlier check dim and say how old they are on hover')
 assert(/onPickingChanged: resetKeys\(\)/.test(panelSource), 'the cursor starts over when the agent list comes or goes')
 assert(!/t === "a" \|\| t === "A"/.test(panelSource), 'adding an account has no hotkey; the + is the way in')
+assert(/if \(!accounts\[a\]\.active\) \{/.test(panelSource) && /if \(row\.length > 0\) rows\.push\(row\)/.test(panelSource), 'the active account with nothing to fix is not a keyboard stop')
 JS
