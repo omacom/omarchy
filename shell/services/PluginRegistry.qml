@@ -668,8 +668,10 @@ QtObject {
       "-q",
       "-e",
       "close_write,create,delete,move",
+      // Only names never renamed into place: after an excluded rename inotifywait keeps
+      // reporting the old path, so editor-temp suffixes are filtered in localPluginIdForPath.
       "--exclude",
-      "(__pycache__|\\.pyc$|\\.pyo$|/\\.git/|~$|\\.sw[px]$|\\.tmp$|\\.bak$)",
+      "(/__pycache__(/|$)|\\.pyc$|\\.pyo$|/\\.git/)",
       "--format",
       "%w%f",
       registry.pluginsDir
@@ -740,7 +742,7 @@ QtObject {
     // __pycache__/*.pyc would otherwise cause a reload storm: reload restarts
     // the helper, the helper imports the next module, the import writes the
     // next .pyc, repeat. Editor temp files get the same treatment.
-    if (relative.indexOf("__pycache__") !== -1) return ""
+    if (("/" + relative + "/").indexOf("/__pycache__/") !== -1) return ""
     if (path.match(/\.pyc$|\.pyo$|~$|\.sw[px]$|\.tmp$|\.bak$/)) return ""
 
     var slash = relative.indexOf("/")
