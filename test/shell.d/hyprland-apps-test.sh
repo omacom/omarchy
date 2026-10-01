@@ -9,7 +9,7 @@ system="$ROOT/default/hypr/apps/system.lua"
 grep -Fq 'o.window("omacalc", { float = true })' "$system" ||
   fail "omacalc floats by default"
 grep -Fq 'o.window("omacalc", { center = true })' "$system" ||
-  fail "omacalc is centered when floating"
+  fail "omacalc default rule declares centering"
 grep -Fq 'o.window("omacalc", { size = { 420, 640 } })' "$system" ||
-  fail "omacalc has an explicit floating size so fullscreen toggle cannot keep monitor geometry"
-pass "omacalc returns to a small centered float after fullscreen toggle"
+  fail "omacalc default rule declares a 420x640 size"
+pass "omacalc default rules declare floating, centering, and a 420x640 size"
