@@ -34,9 +34,11 @@ if [[ ! -d $THEME_PATH ]]; then
 fi
 
 # Now remove the theme directory for THEME_NAME
-if ! rm -rf "$THEME_PATH"; then
+if rm -rf "$THEME_PATH"; then
+  omarchy-notification-send "Theme removed" "$THEME_NAME" || true
+  echo "Removed $THEME_NAME"
+else
   echo "Error: Could not remove theme '$THEME_NAME'." >&2
+  omarchy-notification-send -u critical "Could not remove theme" "$THEME_NAME" || true
   exit 1
 fi
-omarchy-notification-send "Theme removed" "$THEME_NAME" || true
-echo "Removed $THEME_NAME"

@@ -26,12 +26,16 @@ if FAIL_REMOVE=yes bash "$ROOT/bin/omarchy-theme-remove" custom >"$test_tmp/outp
   fail "failed deletion returns a failure status"
 fi
 [[ -f $HOME/.config/omarchy/themes/custom/colors.toml ]] || fail "failed deletion leaves the theme intact"
-[[ ! -s $NOTIFICATION_LOG ]] || fail "failed deletion sends no success notification"
+if grep -q 'Theme removed' "$NOTIFICATION_LOG"; then
+  fail "failed deletion sends no success notification"
+fi
+grep -q 'Could not remove theme custom' "$NOTIFICATION_LOG" || fail "failed deletion sends a failure notification"
 if grep -q 'Removed custom' "$test_tmp/output"; then
   fail "failed deletion prints no success message"
 fi
 pass "failed theme deletion reports failure without claiming success"
 
+: >"$NOTIFICATION_LOG"
 bash "$ROOT/bin/omarchy-theme-remove" custom >"$test_tmp/output"
 [[ ! -e $HOME/.config/omarchy/themes/custom ]] || fail "successful deletion removes the theme"
 grep -q 'Removed custom' "$test_tmp/output" || fail "successful deletion is reported"
