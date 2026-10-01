@@ -59,6 +59,12 @@ Omarchy's firewall is closed by default except for LocalSend's port, so this wor
 
 You start LibreOffice via the application launcher (`Super + Space`).
 
+## Hype
+
+[Hype](https://github.com/omacom/hype) is Omarchy's own dead-simple presentation app. Your deck is a single Markdown file with its images and videos beside it: write each slide below a live preview, drag slides into order, then present fullscreen or export to PDF and PowerPoint. It even picks up your Omarchy theme.
+
+You start Hype via the application launcher (`Super + Space`). Press `?` inside it to see every shortcut.
+
 ## Omacalc
 
 [Omacalc](https://github.com/omacom-io/omacalc) is Omarchy's own dead-simple calculator, which opens in a floating window.
@@ -94,3 +100,11 @@ You start Kdenlive via the application launcher (`Super + Space`).
 [Omacut](https://github.com/omacom-io/omacut) is Omarchy's own dead-simple video trimmer. When all you need is to cut the start and end off a clip, it beats firing up a full video editor.
 
 You start Omacut via the application launcher (`Super + Space`).
+
+## Monologue
+
+[Monologue](https://github.com/omacom/monologue) is Omarchy's own dead-simple webcam recorder. Choose your camera and microphone once, then press `Space` to record, and again to pause and resume the same take. It always records at your camera's highest resolution, with a live microphone meter so you can check your levels before you start.
+
+Stop the take and it opens right away in a built-in editor. Double-click a clip to split it, drag the handles to trim each piece, and remove the parts you don't want. Then save it as an MP4. Your original recording is kept until you discard it, so you can always come back and cut it differently.
+
+You start Monologue via the application launcher (`Super + Space`).

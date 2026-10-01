@@ -475,7 +475,7 @@ Panel {
     onTriggered: root.refresh()
   }
 
-  IpcHandler {
+  ShellIpc {
     target: root.ipcTarget
 
     function open(): void { root.openFromHotkey() }
@@ -657,7 +657,7 @@ Panel {
                 font.pixelSize: Style.font.bodySmall
 
                 RotationAnimator on rotation {
-                  running: root.savingLocation
+                  running: root.savingLocation && !Style.reduceMotion
                   from: 0; to: 360
                   duration: 800
                   loops: Animation.Infinite
