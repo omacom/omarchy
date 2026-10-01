@@ -9,6 +9,12 @@ trap 'rm -rf "$tmp_dir"' EXIT
 
 mkdir -p "$tmp_dir/bin"
 
+# Only the stub and what the helper needs, so an installed fprintd-list never
+# answers for the stub, or for its absence.
+for helper in cat grep; do
+  ln -s "$(command -v "$helper")" "$tmp_dir/bin/$helper"
+done
+
 # The fixture prints what fprintd-list prints, format strings and all:
 # " - #%d: %s" per enrolled finger, and "User %s has no fingers enrolled for
 # %s." when there are none.
@@ -22,7 +28,7 @@ drop_fprintd_list() {
 }
 
 fingerprint_enrolled() {
-  PATH="$tmp_dir/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hw-fingerprint-enrolled" "$@"
+  PATH="$tmp_dir/bin:$ROOT/bin" "$ROOT/bin/omarchy-hw-fingerprint-enrolled" "$@"
 }
 
 assert_enrolled() {
