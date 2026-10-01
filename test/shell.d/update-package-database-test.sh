@@ -69,3 +69,29 @@ done
 grep -Fq 'omarchy-record-backups' "$test_tmp/output" || fail "repair guidance keeps a backup outside the local database"
 [[ -d $record && -d $TEST_DATABASE/local/another-package-2.0-3 ]] || fail "verification performs no repair automatically"
 pass "one check identifies every damaged record and prints recoverable repair steps"
+
+for inaccessible in local record desc files; do
+  printf '%%NAME%%\nexample\n\n%%REASON%%\n1\n' >"$record/desc"
+  : >"$record/files"
+  case "$inaccessible" in
+    local) blocked="$TEST_DATABASE/local"; mode=600 ;;
+    record) blocked="$record"; mode=600 ;;
+    desc|files) blocked="$record/$inaccessible"; mode=000 ;;
+  esac
+  chmod "$mode" "$blocked"
+  status=0
+  "$ROOT/bin/omarchy-update-verify-package-database" >"$test_tmp/output" 2>&1 || status=$?
+  chmod u+rwx "$blocked"
+  (( status != 0 )) || fail "inaccessible $inaccessible cannot pass verification"
+  grep -q 'Cannot' "$test_tmp/output" || fail "inaccessible records explain the permissions failure"
+done
+pass "unreadable and nontraversable records stop verification"
+
+printf '%%NAME%%\nexample\n\n%%REASON%%\n1\n' >"$record/desc"
+rm "$record/files"
+if "$ROOT/bin/omarchy-update-verify-package-database" >"$test_tmp/output" 2>&1; then
+  fail "dependency with a damaged record blocks verification"
+fi
+grep -Fxq '  sudo pacman -D --asdeps -- example' "$test_tmp/output" || fail "repair restores a known dependency reason"
+grep -q 'install reason is missing' "$test_tmp/output" || fail "lost metadata is reported without guessing the install reason"
+pass "repair guidance restores known dependency reasons and reports missing metadata"

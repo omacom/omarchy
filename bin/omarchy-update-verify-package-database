@@ -7,7 +7,7 @@ set -euo pipefail
 
 database=$(pacman-conf DBPath)
 database=${database%/}
-if [[ ! -d $database/local || ! -r $database/local ]]; then
+if [[ ! -d $database/local || ! -r $database/local || ! -x $database/local ]]; then
   echo "Cannot read the local package database at $database/local" >&2
   exit 1
 fi
@@ -15,6 +15,14 @@ fi
 damaged=0
 for record in "$database"/local/*; do
   [[ -d $record ]] || continue
+  if [[ ! -r $record || ! -x $record ]]; then
+    echo "Cannot inspect package database record: $record/" >&2
+    exit 1
+  fi
+  if [[ ( -e $record/desc && ! -r $record/desc ) || ( -e $record/files && ! -r $record/files ) ]]; then
+    echo "Cannot read package database record: $record/" >&2
+    exit 1
+  fi
   if [[ ! -s $record/desc || ! -f $record/files ]]; then
     ((damaged += 1))
     name=${record##*/}
@@ -28,6 +36,12 @@ for record in "$database"/local/*; do
     printf '  sudo mv -- %q %q\n' "$record" "$backup" >&2
     printf '  sudo pacman -S --dbonly -- %q\n' "$name" >&2
     printf '  sudo pacman -S -- %q\n' "$name" >&2
+    reason=$(awk '/^%REASON%$/ { getline; print; exit }' "$record/desc" 2>/dev/null || true)
+    if [[ $reason == "1" ]]; then
+      printf '  sudo pacman -D --asdeps -- %q\n' "$name" >&2
+    elif [[ $reason != "0" ]]; then
+      echo "The install reason is missing. Check the backup or your installation records before marking this package as explicit or a dependency with pacman -D." >&2
+    fi
   fi
 done
 
