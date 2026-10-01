@@ -51,6 +51,13 @@ collect() {
   mv "$tmp" "$USAGE_DIR/$agent.json"
 }
 
+# Accounts can be signed in to someone else since they were added; the
+# records name them from the registry, so bring it up to date first.
+accounts_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/accounts"
+if [[ -f $accounts_dir/claude.json || -f $accounts_dir/codex.json ]]; then
+  "$OMARCHY_PATH/bin/omarchy-agent-account-state" refresh
+fi
+
 pids=()
 for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
   [[ -x $collector ]] || continue
@@ -65,4 +72,18 @@ status=0
 for pid in "${pids[@]}"; do
   wait "$pid" || status=1
 done
+
+# Fresh limits are when switching accounts near a limit gets decided. A switch
+# changes which account the record's own limits describe, so that record is
+# collected once more; the limits probes it repeats are still cached.
+for agent in claude codex; do
+  if wanted "$agent" && [[ -f $accounts_dir/$agent.json ]]; then
+    switched=$("$OMARCHY_PATH/bin/omarchy-agent-account-state" autoswitch "$agent")
+    if [[ -n $switched ]]; then
+      flags=(--limits-only)
+      collect "$OMARCHY_PATH/bin/omarchy-agent-usage-$agent" "$agent" || status=1
+    fi
+  fi
+done
+
 exit $status

@@ -26,10 +26,17 @@ while read -r request; do
       jq -cn --argjson id "$id" '{id: $id, result: {}}'
       ;;
     account/read)
-      jq -cn --argjson id "$id" '{id: $id, result: {account: {}}}'
+      # Codex 0.158 can leave this one unanswered for good.
+      [[ -n ${CODEX_ACCOUNT_READ_HANGS:-} ]] ||
+        jq -cn --argjson id "$id" '{id: $id, result: {account: {}}}'
       ;;
     account/rateLimits/read)
-      jq -cn --argjson id "$id" '{id: $id, result: {rateLimits: {}}}'
+      if [[ -n ${CODEX_LIMITS_ERROR:-} ]]; then
+        jq -cn --argjson id "$id" --arg message "$CODEX_LIMITS_ERROR" '{id: $id, error: {code: -32600, message: $message}}'
+        continue
+      fi
+      jq -cn --argjson id "$id" --argjson limits "${CODEX_RATE_LIMITS:-{\}}" --argjson credits "${CODEX_RESET_CREDITS:-null}" \
+        '{id: $id, result: {rateLimits: $limits, rateLimitResetCredits: $credits}}'
       ;;
   esac
 done
@@ -653,9 +660,10 @@ help=$(jq -r '.authHelpText' <<<"$result")
   fail "Codex collector falls back to the login hint when the CLI is silent" "$result"
 pass "Codex collector falls back to the login hint when the app-server says nothing"
 
-# A live app-server that answers initialize and then stalls is up and may well
-# be authenticated: the failure is not an auth problem, so the panel must keep
-# the (searchable) stalled-method text rather than send the user to codex login.
+# A live app-server that answers initialize and then stalls on the limits is up
+# and may well be authenticated: the failure is not an auth problem, so the panel
+# must keep the (searchable) stalled-method text rather than send the user to
+# codex login.
 RPCHANG_HOME=$(mktemp -d)
 trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME" "$INTERRUPTED_HOME" "$RPCERR_HOME" "$RPCSILENT_HOME" "$RPCHANG_HOME"' EXIT
 mkdir -p "$RPCHANG_HOME/bin"
@@ -666,7 +674,7 @@ while read -r request; do
   method=$(jq -r '.method // empty' <<<"$request")
   case "$method" in
     initialize) jq -cn --argjson id "$id" '{id: $id, result: {}}' ;;
-    account/read) : ;; # up, but never answers, so the collector times this out
+    account/rateLimits/read) : ;; # up, but never answers, so the collector times this out
   esac
 done
 EOF
@@ -678,7 +686,7 @@ result=$(HOME="$RPCHANG_HOME" CODEX_HOME="$RPCHANG_HOME/.codex" XDG_CACHE_HOME="
 help=$(jq -r '.authHelpText' <<<"$result")
 [[ $help != "Run \`codex login\` to authenticate." ]] ||
   fail "Codex collector must not blame auth when the app-server is merely stalled" "$result"
-[[ $help == "account/read" ]] ||
+[[ $help == "account/rateLimits/read" ]] ||
   fail "Codex collector keeps the stalled-method text for a live app-server" "$result"
 pass "Codex collector does not send a stalled but live app-server to codex login"
 
@@ -712,3 +720,33 @@ help=$(jq -r '.authHelpText' <<<"$result")
 [[ $help == *"could not convert"* ]] ||
   fail "Codex collector keeps the parse error for a live app-server" "$result"
 pass "Codex collector keeps the parse error instead of a login hint for a live app-server"
+
+# The limits name the plan themselves, so an account/read that never answers
+# costs nothing: the limits still arrive, and quickly.
+started=$(date +%s)
+result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
+  CODEX_ACCOUNT_READ_HANGS=1 CODEX_RATE_LIMITS='{"planType":"pro","primary":{"usedPercent":36,"windowDurationMins":10080}}' \
+  "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+(( $(date +%s) - started < 4 )) || fail "Codex collector doesn't wait on account/read when the limits name the plan"
+[[ $(jq -c '{tierLabel, usageStatusText, limits: [.limits[] | {label, percent}]}' <<<"$result") == '{"tierLabel":"pro","usageStatusText":"","limits":[{"label":"Weekly (7-day)","percent":0.36}]}' ]] ||
+  fail "Codex collector reads limits even when account/read never answers" "$result"
+pass "Codex collector reads limits even when account/read never answers"
+
+# Free full resets ride along with the limits: only available ones count, and
+# the soonest to lapse is the one worth mentioning.
+result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
+  CODEX_RATE_LIMITS='{"planType":"pro","primary":{"usedPercent":42,"windowDurationMins":10080}}' \
+  CODEX_RESET_CREDITS='{"availableCount":2,"credits":[{"status":"available","expiresAt":2000000000},{"status":"available","expiresAt":1900000000},{"status":"used","expiresAt":1800000000}]}' \
+  "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+[[ $(jq -c '.resetCredits' <<<"$result") == '{"available":2,"nextExpiresAt":"2030-03-17T17:46:40+00:00"}' ]] ||
+  fail "Codex collector reports its available free resets" "$result"
+pass "Codex collector reports its available free resets"
+
+# A home nobody is signed in to answers with an error, which reads as a
+# sign-in to restore rather than as missing numbers.
+result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
+  CODEX_LIMITS_ERROR="codex account authentication required to read rate limits" \
+  "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+[[ $(jq -r '.usageStatusText' <<<"$result") == "Waiting for auth" ]] ||
+  fail "Codex collector reports a missing sign-in as one" "$result"
+pass "Codex collector reports a missing sign-in as one"
