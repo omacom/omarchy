@@ -26,6 +26,8 @@ Panel {
     passwordSsid = ""
     passwordText = ""
     identityText = ""
+    caCertText = ""
+    serverNameText = ""
   }
 
   // Live connection details from `ip` / /sys / iw.
@@ -97,6 +99,8 @@ Panel {
   property string passwordSsid: ""
   property string passwordText: ""
   property string identityText: ""
+  property string caCertText: ""
+  property string serverNameText: ""
 
   // ConnectionFailReason values as a plain object, so Model.js helpers stay
   // pure JS and Node-testable.
@@ -743,6 +747,8 @@ Panel {
     if (passwordSsid !== ssid) {
       passwordText = ""
       identityText = ""
+      caCertText = ""
+      serverNameText = ""
     }
     passwordSsid = ssid
   }
@@ -819,10 +825,12 @@ Panel {
     runNetworkAction("connect", networkForSsid(ssid), function(network) { network.connectWithPsk(passphrase) })
   }
 
-  function connectEnterprise(ssid, identity, passphrase) {
+  function connectEnterprise(ssid, identity, passphrase, caCert, serverName) {
+    if (!Model.enterpriseTrustValid(caCert, serverName)) return
     runNetworkAction("connect", networkForSsid(ssid), function(network) {
       enterpriseConnect.secret = passphrase
-      enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity]
+      enterpriseConnect.ssid = ssid
+      enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity, caCert, serverName]
       enterpriseConnect.running = true
     })
   }
@@ -832,10 +840,20 @@ Panel {
   Process {
     id: enterpriseConnect
     property string secret: ""
+    property string ssid: ""
     stdinEnabled: true
     onStarted: {
       write(secret + "\n")
       secret = ""
+    }
+    onExited: function(exitCode, exitStatus) {
+      secret = ""
+      if (exitCode === 0 || root.actionKind !== "connect" || root.actionSsid !== ssid) return
+      actionTimeout.stop()
+      root.failureSsid = ssid
+      root.failureReason = "Check credentials or certificates"
+      root.actionSsid = ""
+      root.actionKind = ""
     }
   }
 
@@ -1737,7 +1755,7 @@ Panel {
     function submitCredentials() {
       if (!net || root.busy || root.passwordText.length === 0) return
       if (!isEnterprise) return root.connectWithPassphrase(net.ssid, root.passwordText)
-      if (root.identityText.length > 0) root.connectEnterprise(net.ssid, root.identityText, root.passwordText)
+      if (root.identityText.length > 0) root.connectEnterprise(net.ssid, root.identityText, root.passwordText, root.caCertText, root.serverNameText)
     }
 
     Connections {
@@ -1952,7 +1970,7 @@ Panel {
       anchors.leftMargin: Style.space(10)
       anchors.rightMargin: Style.space(10)
       anchors.topMargin: Style.space(4)
-      implicitHeight: (idField.visible ? idField.implicitHeight + Style.space(4) : 0) + pwField.implicitHeight + Style.spacing.rowGap
+      implicitHeight: (idField.visible ? idField.implicitHeight + caField.implicitHeight + serverField.implicitHeight + Style.space(12) : 0) + pwField.implicitHeight + Style.spacing.rowGap
       height: implicitHeight
 
       TextField {
@@ -1971,12 +1989,64 @@ Panel {
         enabled: !row.isBusy
         text: row.isPasswordOpen ? root.identityText : ""
 
-        onAccepted: pwField.forceActiveFocus()
+        onAccepted: caField.forceActiveFocus()
         onTextChanged: if (row.isPasswordOpen && text !== root.identityText) root.identityText = text
         Keys.onEscapePressed: root.cancelPasswordPrompt()
 
         onVisibleChanged: if (visible) Qt.callLater(forceActiveFocus)
         Component.onCompleted: if (visible) Qt.callLater(forceActiveFocus)
+      }
+
+      TextField {
+        id: caField
+        visible: idField.visible
+        anchors.left: parent.left
+        anchors.right: connectPwBtn.left
+        anchors.top: idField.bottom
+        anchors.topMargin: Style.space(4)
+        anchors.rightMargin: Style.space(6)
+        placeholderText: "CA certificate path"
+        font.family: Style.font.family
+        font.pixelSize: Style.font.body
+        foreground: root.bar.foreground
+        horizontalPadding: Style.spacing.controlGap
+        verticalPadding: Style.spacing.controlPaddingY
+        text: row.isPasswordOpen ? root.caCertText : ""
+        onAccepted: serverField.forceActiveFocus()
+        onTextChanged: if (row.isPasswordOpen && text !== root.caCertText) root.caCertText = text
+        Keys.onEscapePressed: root.cancelPasswordPrompt()
+
+        PanelToolTip {
+          visible: caField.hovered
+          text: "Use the CA certificate provided by your network administrator"
+          fontFamily: root.bar.fontFamily
+        }
+      }
+
+      TextField {
+        id: serverField
+        visible: idField.visible
+        anchors.left: parent.left
+        anchors.right: connectPwBtn.left
+        anchors.top: caField.bottom
+        anchors.topMargin: Style.space(4)
+        anchors.rightMargin: Style.space(6)
+        placeholderText: "Authentication server name"
+        font.family: Style.font.family
+        font.pixelSize: Style.font.body
+        foreground: root.bar.foreground
+        horizontalPadding: Style.spacing.controlGap
+        verticalPadding: Style.spacing.controlPaddingY
+        text: row.isPasswordOpen ? root.serverNameText : ""
+        onAccepted: pwField.forceActiveFocus()
+        onTextChanged: if (row.isPasswordOpen && text !== root.serverNameText) root.serverNameText = text
+        Keys.onEscapePressed: root.cancelPasswordPrompt()
+
+        PanelToolTip {
+          visible: serverField.hovered
+          text: "Use the exact authentication server name provided by your network administrator"
+          fontFamily: root.bar.fontFamily
+        }
       }
 
       TextField {
@@ -2021,7 +2091,7 @@ Panel {
           anchors.fill: parent
           horizontalAlignment: Text.AlignHCenter
           verticalAlignment: Text.AlignVCenter
-          text: row.isFailed ? "Wrong password" : "Connecting..."
+          text: row.isFailed ? root.failureReason : "Connecting..."
           color: row.isFailed ? root.bar.urgent : root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.bodySmall
@@ -2036,7 +2106,7 @@ Panel {
         visible: !row.isBusy && !row.isFailed
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
+        enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || (idField.text.length > 0 && Model.enterpriseTrustValid(caField.text, serverField.text)))
         iconText: "󰄬"
         tooltipText: "Connect"
         foreground: root.bar.foreground
