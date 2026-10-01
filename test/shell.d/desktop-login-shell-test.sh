@@ -49,8 +49,9 @@ SERVICE_MODE=1 SHELL=/bin/bash "$ROOT/bin/omarchy-launch-desktop" example.deskto
 pass "the resolved shell survives a service manager's stale environment"
 
 for unavailable in '' /nonexistent/login-shell; do
+  rm -f "$LAUNCH_LOG"
   PASSWD_SHELL="$unavailable" SHELL=/bin/sh "$ROOT/bin/omarchy-launch-desktop" example.desktop
-  [[ $(head -n 1 "$LAUNCH_LOG") == "/bin/sh" ]] || fail "unavailable login shell preserves inherited SHELL"
+  [[ $(cat "$LAUNCH_LOG" 2>/dev/null) == "$(printf '%s\n' /bin/sh example.desktop)" ]] || fail "unavailable login shell preserves inherited SHELL"
 done
 pass "failed lookup and missing shell retain the inherited environment"
 
