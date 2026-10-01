@@ -137,8 +137,8 @@ only adds the meter and the spent-of-funded line under the real figure.
 - Accounts: `1`–`9` jump to an account across every agent, and Enter makes it
   active (picking alone never switches). `m` toggles automatic switching for
   the picked account's agent. While an agent
-  with several accounts has its active one at 80% or more of any window, the
-  limits refresh every three minutes.
+  with several accounts has its active one within 15 points of its switch
+  threshold (80% at the default), the limits refresh every three minutes.
 - IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh>`.
 
 ## Settings

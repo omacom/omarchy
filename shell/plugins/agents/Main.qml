@@ -119,7 +119,8 @@ Item {
 
   // A fifteen-minute interval can't catch an account crossing its switch
   // threshold, so while any provider with several accounts has its active one
-  // at 80% or more, the limits are checked every three minutes. Those runs
+  // within 15 points of that threshold (80% at the default 95%), the limits
+  // are checked every three minutes. Those runs
   // reuse the transcript scans; only the limits probes are new, and any more
   // often than this Anthropic starts refusing them.
   readonly property bool nearLimit: {
@@ -128,8 +129,10 @@ Item {
       var record = agents[i] ? agents[i].record : null
       if (!record || !Array.isArray(record.accounts) || record.accounts.length < 2) continue
       var limits = Array.isArray(record.limits) ? record.limits : []
+      var threshold = Number(record.accountSwitch && record.accountSwitch.threshold || 95)
+      var from = Math.min(0.8, (threshold - 15) / 100)
       for (var j = 0; j < limits.length; j++)
-        if (Number(limits[j] && limits[j].percent) >= 0.8) return true
+        if (Number(limits[j] && limits[j].percent) >= from) return true
     }
     return false
   }
