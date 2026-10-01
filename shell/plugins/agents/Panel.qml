@@ -54,7 +54,9 @@ Panel {
     if (addStage === "") hero.push({ kind: "launch", index: 0 })
     if (hero.length > 0) rows.push(hero)
     if (picking) {
-      for (var k = 0; k < addProviders.length; k++) rows.push([{ kind: "choice", index: k }])
+      var choices = []
+      for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
+      rows.push(choices)
     } else if (addStage === "") {
       for (var i = 0; i < accountEntries.length; i++) rows.push([{ kind: "account", index: i }])
       if (!blankSlate) {
@@ -963,53 +965,65 @@ Panel {
       wrapMode: Text.WordWrap
     }
 
-    // Pick: each agent by its mark and name. One that can't be added right
-    // now is dimmed, and says why on hover.
-    Repeater {
-      model: root.picking ? root.addProviders : []
+    // Pick: each agent by a large mark over its name, three across. One that
+    // can't be added right now is dimmed, and says why on hover.
+    Row {
+      id: choiceRow
+      visible: root.picking
+      width: parent.width
+      spacing: Style.space(10)
 
-      Item {
-        id: choice
-        required property var modelData
-        required property int index
-        readonly property string state: root.addChecks[modelData.providerId] || ""
-        readonly property bool available: state === "first" || state === "additional"
-        readonly property bool hasCursor: root.hasKey("choice", index)
-        width: add.width
-        implicitHeight: Math.max(choiceIcon.height, choiceName.implicitHeight) + Style.space(8)
-        opacity: state === "unsupported" ? 0.4 : 1.0
-        onHasCursorChanged: if (hasCursor) root.revealItem(choice)
+      Repeater {
+        model: root.picking ? root.addProviders : []
 
-        ProviderIcon {
-          id: choiceIcon
-          anchors.left: parent.left
-          anchors.verticalCenter: parent.verticalCenter
-          provider: choice.modelData
-        }
+        Item {
+          id: choice
+          required property var modelData
+          required property int index
+          readonly property string state: root.addChecks[modelData.providerId] || ""
+          readonly property bool available: state === "first" || state === "additional"
+          readonly property bool hasCursor: root.hasKey("choice", index)
+          width: (choiceRow.width - choiceRow.spacing * (root.addProviders.length - 1)) / root.addProviders.length
+          implicitHeight: choiceBody.implicitHeight + Style.space(16)
+          opacity: state === "unsupported" ? 0.4 : 1.0
+          onHasCursorChanged: if (hasCursor) root.revealItem(choice)
 
-        Text {
-          id: choiceName
-          anchors.left: choiceIcon.right
-          anchors.leftMargin: Style.space(12)
-          anchors.verticalCenter: parent.verticalCenter
-          text: choice.modelData.providerName
-          color: choice.hasCursor && choice.available ? Color.accent : root.foreground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-        }
+          Column {
+            id: choiceBody
+            anchors.centerIn: parent
+            spacing: Style.space(10)
 
-        MouseArea {
-          id: choiceMouse
-          anchors.fill: parent
-          hoverEnabled: true
-          cursorShape: choice.available ? Qt.PointingHandCursor : Qt.ArrowCursor
-          onEntered: root.pointAt("choice", choice.index)
-          onClicked: root.chooseAddProvider(choice.modelData.providerId)
-        }
+            ProviderIcon {
+              anchors.horizontalCenter: parent.horizontalCenter
+              provider: choice.modelData
+              size: Style.font.display * 1.6
+              scale: choice.hasCursor && choice.available ? 1.08 : 1.0
+              Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutQuad } }
+            }
 
-        PanelToolTip {
-          visible: choice.state === "unsupported" && choice.hasCursor
-          text: "Already signed in. A second " + choice.modelData.providerName + " account isn't supported yet."
+            Text {
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: choice.modelData.providerName
+              color: choice.hasCursor && choice.available ? Color.accent : root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              font.bold: true
+            }
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: choice.available ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onEntered: root.pointAt("choice", choice.index)
+            onClicked: root.chooseAddProvider(choice.modelData.providerId)
+          }
+
+          PanelToolTip {
+            visible: choice.state === "unsupported" && choice.hasCursor
+            // Kept short: the tooltip can't grow past the panel's edges.
+            text: "Already signed in. " + choice.modelData.providerName + " takes one account."
+          }
         }
       }
     }
@@ -1324,16 +1338,17 @@ Panel {
     property string candidatesKey: candidates.join("\n")
     property int candidateIndex: 0
     onCandidatesKeyChanged: candidateIndex = 0
+    property real size: Style.font.heading
 
-    width: Style.font.heading
-    height: Style.font.heading
+    width: size
+    height: size
 
     Image {
       id: markImage
       anchors.fill: parent
       source: mark.candidateIndex < mark.candidates.length ? mark.candidates[mark.candidateIndex] : ""
-      sourceSize.width: Style.font.heading * 2
-      sourceSize.height: Style.font.heading * 2
+      sourceSize.width: mark.size * 2
+      sourceSize.height: mark.size * 2
       fillMode: Image.PreserveAspectFit
       // Advancing source from inside its own status change trips the
       // binding-loop detector; defer the step one tick.
@@ -1347,7 +1362,7 @@ Panel {
       text: button.text
       color: root.foreground
       font.family: root.fontFamily
-      font.pixelSize: Style.font.heading
+      font.pixelSize: mark.size
     }
   }
 
