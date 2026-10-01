@@ -184,3 +184,19 @@ jq -nc --arg later "$later" '{
 autoswitch >/dev/null
 [[ $(active) == "side" ]] || fail "an account checked just now wins over a stale one" "$(active)"
 pass "an account checked just now wins over a stale one"
+
+# Room comes first: a fresh account within 15 points of the threshold loses to
+# a stale one with plenty left.
+jq '.active = "main" | .alert = ""' "$accounts/claude.json" >"$test_tmp/registry.json"
+mv "$test_tmp/registry.json" "$accounts/claude.json"
+jq -nc --arg later "$later" '{
+  id: "claude",
+  accounts: [
+    {id: "main", limits: [{label: "Session (5-hour)", percent: 0.97, resetsAt: $later}]},
+    {id: "work", stale: true, limits: [{label: "Session (5-hour)", percent: 0.10, resetsAt: $later}]},
+    {id: "side", stale: false, limits: [{label: "Session (5-hour)", percent: 0.94, resetsAt: $later}]}
+  ]
+}' >"$usage/claude.json"
+autoswitch >/dev/null
+[[ $(active) == "work" ]] || fail "a stale account with room wins over a fresh one near the limit" "$(active)"
+pass "a stale account with room wins over a fresh one near the limit"

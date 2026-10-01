@@ -543,7 +543,10 @@ def duration(delta: dt.timedelta) -> str:
 #
 # Numbers kept from an earlier check may be out of date, but a parked account's
 # sign-in lapses within hours and can't be checked again until a session runs
-# in it. So a stale account is still a candidate; one checked just now wins.
+# in it. So a stale account is still a candidate: among accounts with room, one
+# checked just now wins, but room comes first. An account within 15 points of
+# the threshold (where the panel starts checking more often) is near its limit
+# however fresh its numbers are.
 def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, stale: frozenset[str] = frozenset()) -> dict[str, Any] | None:
   threshold = float(registry["threshold"])
   current = active(registry)
@@ -559,11 +562,11 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, st
     if level is None or level >= threshold:
       continue
     reset = next_reset(usage.get(account["id"]), now) or dt.datetime.max.replace(tzinfo=dt.timezone.utc)
-    candidates.append((account["id"] in stale, level, reset, account))
-  candidates.sort(key=lambda c: (c[0], c[1], c[2]))
+    candidates.append((level >= threshold - 15, account["id"] in stale, level, reset, account))
+  candidates.sort(key=lambda c: c[:4])
 
   if candidates:
-    _, level, _, target = candidates[0]
+    _, _, level, _, target = candidates[0]
     action = "switch" if registry["switch"] == "auto" else "notify"
     alert = f"{action}:{current['id']}:{target['id']}"
     if registry.get("alert") == alert:
