@@ -4,6 +4,7 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import "IdleModel.js" as IdleModel
+import qs.Commons
 
 Item {
   id: root
@@ -335,7 +336,7 @@ Item {
     refreshStayAwakeState()
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "idle"
 
     function status(): string {

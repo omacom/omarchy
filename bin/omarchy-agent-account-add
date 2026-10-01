@@ -1,0 +1,240 @@
+#!/bin/bash
+
+# omarchy:summary=Sign in to a Claude, Codex, or Grok subscription
+# omarchy:args=[--check] [--events] [--reauth <account>] [claude|codex|grok] [label]
+# omarchy:examples=omarchy agent account add claude | omarchy agent account add Work | omarchy agent account add codex Side
+
+set -uo pipefail
+
+# --check prints, per provider, whether adding one now would be its first
+# sign-in, an additional account, or not possible yet. --events is for the
+# agents panel: progress arrives as `@@omarchy <event> <detail>` lines mixed
+# into the CLI's own output (which carries codes the panel shows), nothing
+# waits on a terminal, and the result also lands as a notification in case
+# the panel has closed.
+# --reauth <account> signs an account that's already here in again, in its
+# own home, for when its sign-in has lapsed.
+check=false
+events=false
+reauth=""
+while [[ ${1:-} == --* ]]; do
+  case "$1" in
+  --check) check=true ;;
+  --events) events=true ;;
+  --reauth)
+    reauth="${2:-}"
+    shift
+    ;;
+  *) break ;;
+  esac
+  shift
+done
+
+# Whether a provider's own home (~/.claude, ~/.codex, ~/.grok) is signed in.
+primary_signed_in() {
+  if [[ $1 == "grok" ]]; then
+    [[ -s $HOME/.grok/auth.json ]]
+  else
+    omarchy-agent-account-state list "$1" | jq -e '.[0].accounts | any(.primary and .signedIn)' >/dev/null
+  fi
+}
+
+if [[ $check == "true" ]]; then
+  for p in claude codex grok; do
+    if ! primary_signed_in "$p"; then
+      echo "$p first"
+    elif [[ $p == "grok" ]]; then
+      echo "$p unsupported"
+    else
+      echo "$p additional"
+    fi
+  done
+  exit 0
+fi
+
+# The provider can be left out when it's your default agent:
+# `omarchy agent account add Work`.
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
+  default=$(omarchy-default-agent)
+  [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
+fi
+
+case "${1:-}" in
+claude) provider="claude"; name="Claude"; site="claude.ai"; package="claude" ;;
+codex) provider="codex"; name="Codex"; site="chatgpt.com"; package="codex" ;;
+grok) provider="grok"; name="Grok"; site="x.ai"; package="npm:@xai-official/grok" ;;
+*)
+  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [claude|codex|grok] [label]" >&2
+  exit 1
+  ;;
+esac
+label="${2:-}"
+
+say() {
+  if [[ $events == "true" ]]; then
+    printf '@@omarchy status %s\n' "$*"
+  else
+    echo "$*"
+  fi
+}
+
+finish() {
+  if [[ $events == "true" ]]; then
+    printf '@@omarchy done %s\n' "$1"
+    omarchy-notification-send -g 󰚩 "$1"
+  else
+    echo
+    echo "$1"
+  fi
+}
+
+fail() {
+  if [[ $events == "true" ]]; then
+    printf '@@omarchy error %s\n' "$1"
+    omarchy-notification-send -g 󰚩 -u critical "Couldn't add the $name account" "$1"
+  else
+    echo "$1" >&2
+  fi
+  exit 1
+}
+
+# Cancelling from the panel stops the CLI's login too, and leaves no
+# half-made home behind.
+home=""
+browser=""
+cleanup() {
+  [[ -n $browser ]] && rm -f "$browser"
+  [[ -n $home && -d $home && $home == */.pending/* ]] && rm -rf "$home"
+}
+trap cleanup EXIT
+trap 'pkill -TERM -P $$; exit 130' TERM INT
+
+# Bash holds a trap until a foreground command finishes, and a login waits on
+# the browser for as long as it takes. Running it in the background behind a
+# `wait` lets Cancel stop it at once. It keeps this script's stdin, where the
+# panel sends a pasted code.
+interruptible() {
+  "$@" <&0 &
+  wait $!
+}
+
+if omarchy-cmd-missing "$provider"; then
+  say "Installing the $name CLI…"
+  if [[ $events == "true" ]]; then
+    mise use -g "$package" >/dev/null 2>&1 || fail "Installing the $name CLI didn't finish."
+  else
+    mise use -g "$package" || exit 1
+  fi
+fi
+
+# Your main browser is almost certainly signed in to the account you already
+# have, and a login would quietly reuse it. The CLIs open their login page
+# through $BROWSER, so this points it at a private window instead.
+private_browser() {
+  browser=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/omarchy-account-browser.XXXXXX")
+  printf '#!/bin/bash\nexec omarchy-launch-browser --private "$1"\n' >"$browser"
+  chmod +x "$browser"
+}
+
+case "$provider" in
+claude) login_command=(claude auth login) ;;
+codex) login_command=(codex login) ;;
+grok) login_command=(grok login) ;;
+esac
+
+# The CLI's own home, whatever this shell has pointed it at.
+login() {
+  interruptible env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME "${login_command[@]}"
+}
+
+# Signing an account that's already here in again, where it lives: the
+# primary home through the normal browser, an added one through a private
+# window. Its home is never recreated or removed.
+if [[ -n $reauth ]]; then
+  if [[ $provider == "grok" || $reauth == ":primary" ]]; then
+    account_home="$HOME/.$provider"
+  else
+    account_home=$(omarchy-agent-account-state homes "$provider" | awk -F'\t' -v id="$reauth" '$1 == id { print $2 }')
+  fi
+  [[ -n $account_home ]] || fail "No $name account named $reauth."
+
+  if [[ $account_home == "$HOME/.$provider" ]]; then
+    say "Sign in to $name again in the browser window that opens."
+    login || fail "The $name sign-in didn't finish."
+  else
+    say "Sign in again as this account in the private window that opens."
+    private_browser
+    if [[ $provider == "claude" ]]; then
+      interruptible env BROWSER="$browser" CLAUDE_CONFIG_DIR="$account_home" claude auth login || fail "The $name sign-in didn't finish."
+    else
+      interruptible env BROWSER="$browser" CODEX_HOME="$account_home" codex login || fail "The $name sign-in didn't finish."
+    fi
+  fi
+
+  omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+  finish "Signed in to $name again."
+  exit 0
+fi
+
+# The first subscription signs in where the CLI always looks, through your
+# normal browser: nothing is signed in there yet that it could be mistaken for.
+if ! primary_signed_in "$provider"; then
+  say "Sign in to $name in the browser window that opens."
+  if login && primary_signed_in "$provider"; then
+    # The first agent signed in on a machine with none chosen becomes the
+    # default, so `omarchy agent` and the panel's starter prompts have one to
+    # run. A default someone already picked is never touched.
+    if [[ -z $(omarchy-default-agent) ]]; then
+      mkdir -p "$HOME/.config/omarchy/defaults"
+      printf '%s\n' "$provider" >"$HOME/.config/omarchy/defaults/agent"
+    fi
+    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+    finish "Signed in to $name."
+  else
+    fail "The $name sign-in didn't finish."
+  fi
+elif [[ $provider == "grok" ]]; then
+  fail "Grok is already signed in, and a second Grok account isn't supported yet."
+else
+  if [[ -z $label && $events == "false" && -t 0 ]]; then
+    label=$(gum input --placeholder "Work" --prompt "Name this $name account: ") || exit 130
+  fi
+
+  if [[ $events == "true" ]]; then
+    say "Sign in as the account you're adding in the private window that opens."
+  else
+    cat <<EOF
+
+Sign in as the account you're adding in the private window that opens.
+If a private window was already open, close it first, or $site may reuse whoever it has signed in.
+
+Don't log out of the $name CLI to do this: logging out revokes the saved sign-in.
+
+EOF
+  fi
+
+  home=$(omarchy-agent-account-state begin "$provider") || fail "Couldn't set up a home for the new account."
+
+  private_browser
+
+  if [[ $provider == "claude" ]]; then
+    interruptible env BROWSER="$browser" CLAUDE_CONFIG_DIR="$home" claude auth login
+  else
+    interruptible env BROWSER="$browser" CODEX_HOME="$home" codex login
+  fi
+
+  if account=$(omarchy-agent-account-state register "$provider" "$label" "$home" 2>&1); then
+    home=""
+    added=$(jq -r '.label + (if .email != "" then " (" + .email + ")" else "" end)' <<<"$account")
+    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+    if [[ $events == "true" ]]; then
+      finish "Added $added."
+    else
+      finish "Added $added."
+      echo "Switch to it with: omarchy agent account use $provider $(jq -r .id <<<"$account")"
+    fi
+  else
+    home=""
+    fail "$account"
+  fi
+fi
