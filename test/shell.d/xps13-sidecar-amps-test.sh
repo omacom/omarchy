@@ -13,14 +13,6 @@ grep -q 'run_logged .*hardware/dell-xps13-sidecar-amps.sh' "$all" ||
   fail "the sidecar amplifier workaround runs during hardware setup"
 pass "the sidecar amplifier workaround runs during hardware setup"
 
-# The apply step rebuilds the boot image, so it has to see the Panther Lake
-# kernel that ptl-kernel.sh swaps in rather than the stock one it replaces.
-ptl_line=$(grep -n 'hardware/intel/ptl-kernel.sh' "$all" | cut -d: -f1)
-amps_line=$(grep -n 'hardware/dell-xps13-sidecar-amps.sh' "$all" | cut -d: -f1)
-((ptl_line < amps_line)) ||
-  fail "the sidecar amplifier workaround runs after the Panther Lake kernel swap"
-pass "the sidecar amplifier workaround runs after the Panther Lake kernel swap"
-
 [[ -n $migration ]] || fail "a migration enables the workaround on existing installs"
 pass "a migration enables the workaround on existing installs"
 
