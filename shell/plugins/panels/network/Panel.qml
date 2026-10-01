@@ -207,7 +207,7 @@ Panel {
     Qt.callLater(function() { root.refresh(true) })
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "omarchy.network"
 
     function open() { root.open() }
@@ -965,14 +965,14 @@ Panel {
     id: connectionPhraseSwap
     PropertyAnimation {
       target: heroMeta; property: "opacity"
-      to: 0.0; duration: 180; easing.type: Easing.OutQuad
+      to: 0.0; duration: Style.duration(180); easing.type: Easing.OutQuad
     }
     ScriptAction {
       script: root.connectionPhraseIndex = (root.connectionPhraseIndex + 1) % root.connectionPhrases.length
     }
     PropertyAnimation {
       target: heroMeta; property: "opacity"
-      to: 1.0; duration: 260; easing.type: Easing.InQuad
+      to: 1.0; duration: Style.duration(260); easing.type: Easing.InQuad
     }
   }
 
@@ -1472,10 +1472,10 @@ Panel {
           opacity: root.bandPillsVisible ? 1 : 0
 
           Behavior on height {
-            NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
           }
           Behavior on opacity {
-            NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
           }
 
           Row {
