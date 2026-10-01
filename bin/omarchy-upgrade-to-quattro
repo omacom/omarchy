@@ -1692,25 +1692,34 @@ legacy_hypr_input_value() {
         if (value ~ /^".*"$/) {
           value = substr(value, 2, length(value) - 2)
         }
-        print value
         found = 1
-        exit
+        next
       }
 
       opens = gsub(/\{/, "", content)
       closes = gsub(/\}/, "", content)
       depth += opens - closes
       if (depth <= 0) {
-        exit
+        in_input = 0
       }
     }
-    END { if (!found) exit 1 }
+    END { if (found) print value; else exit 1 }
   ' "$file"
 }
 
 legacy_vconsole_value() {
   [[ -f /etc/vconsole.conf ]] || return 0
-  awk -F= -v key="$1" '$1 == key { value = $2; gsub(/"/, "", value); print value; exit }' /etc/vconsole.conf
+  awk -v key="$1" '
+    $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+      value = $0
+      sub(/^[^=]*=[[:space:]]*/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      sub(/[[:space:]]+#.*$/, "", value)
+      if (value ~ /^".*"$/ || value ~ /^\047.*\047$/) value = substr(value, 2, length(value) - 2)
+      found = 1
+    }
+    END { if (found) print value }
+  ' /etc/vconsole.conf
 }
 
 # Values the 3.x installer or the stock input.conf wrote, which Quattro's defaults already derive.

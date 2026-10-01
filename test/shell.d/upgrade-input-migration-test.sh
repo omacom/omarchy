@@ -10,12 +10,12 @@ trap 'rm -rf "$tmp_dir"' EXIT
 
 migration_functions=$(sed -n '/^legacy_hypr_input_value() {/,/^migrate_uwsm_env_customizations() {/p' "$upgrade_script" | sed '$d')
 
-# Stands in for /etc/vconsole.conf with the second argument.
-vconsole_stub='legacy_vconsole_value() { awk -F= -v key="$1" '"'"'$1 == key { print $2; exit }'"'"' <<<"$VCONSOLE"; }'
+migration_functions=${migration_functions//\/etc\/vconsole.conf/$tmp_dir/vconsole.conf}
 
 run_migration() {
   local home="$1" vconsole="${2-}"
-  printf '%s\n%s\nmigrate_legacy_hypr_input\n' "$migration_functions" "$vconsole_stub" | HOME="$home" VCONSOLE="$vconsole" bash -euo pipefail
+  printf '%s\n' "$vconsole" >"$tmp_dir/vconsole.conf"
+  printf '%s\nmigrate_legacy_hypr_input\n' "$migration_functions" | HOME="$home" bash -euo pipefail
 }
 
 home="$tmp_dir/custom"
@@ -80,6 +80,33 @@ run_migration "$home" "XKBLAYOUT=ru"
 after=$(sha256sum "$home/.config/hypr/input.lua")
 [[ $after == "$before" ]] || fail "Quattro upgrade leaves installer-written keyboard settings to the Quattro defaults"
 pass "Quattro upgrade skips stock legacy keyboard settings"
+
+for vconsole in "XKBLAYOUT='ru'" ' XKBLAYOUT = "ru" # default' $'XKBLAYOUT=us\nXKBLAYOUT=ru'; do
+  run_migration "$home" "$vconsole"
+  [[ $before == $(sha256sum "$home/.config/hypr/input.lua") ]] || fail "quoted stock layouts keep the derived Latin layout"
+done
+pass "vconsole defaults follow Lua quoting, comments and last-assignment rules"
+
+home="$tmp_dir/later-overrides"
+mkdir -p "$home/.config/hypr"
+printf '%s\n' '-- Quattro input overrides' >"$home/.config/hypr/input.lua"
+cat >"$home/.config/hypr/input.conf" <<'CONF'
+input {
+  kb_options = compose:caps
+  kb_options = compose:caps,grp:alt_shift_toggle
+  touchpad {
+    kb_options = ignored:nested
+  }
+}
+input {
+  kb_layout = fr
+}
+CONF
+run_migration "$home" 'XKBLAYOUT=us'
+grep -Fq 'kb_options = "compose:caps,grp:alt_shift_toggle"' "$home/.config/hypr/input.lua" || fail "later options override the stock assignment"
+grep -Fq 'kb_layout = "fr"' "$home/.config/hypr/input.lua" || fail "settings in later input blocks are carried across"
+! grep -q 'ignored:nested' "$home/.config/hypr/input.lua" || fail "nested settings do not replace top-level settings"
+pass "last top-level keyboard assignments survive the upgrade"
 
 copy_line=$(grep -n '^copy_always_config_defaults$' "$upgrade_script" | cut -d: -f1)
 migrate_line=$(grep -n '^migrate_legacy_hypr_input$' "$upgrade_script" | cut -d: -f1)
