@@ -22,6 +22,25 @@ omarchy theme install <url>     # Install from git repo
 Additional user backgrounds for any theme (stock or custom) go in
 `~/.config/omarchy/backgrounds/<theme-slug>/`.
 
+## Theme Scope vs Global Settings
+
+A theme should only change state that belongs to that theme: colors, backgrounds,
+icons, generated app styling, and theme-owned `shell.toml` appearance.
+
+Do not use global user settings to make a theme look right unless the user
+explicitly asks for a machine-wide change:
+
+- `omarchy font set <name>` changes the user's global font configuration and
+  terminal configs. The selected font persists across theme switches.
+- Bar position and layout live under `bar` in `~/.config/omarchy/shell.json` and
+  persist across theme switches. A theme's `shell.toml` may style and size the
+  bar, but it does not own that layout.
+- `~/.config/omarchy/shell.toml` is a machine-level shell override merged over
+  the active theme. Its values intentionally survive theme switches.
+
+When building or editing a theme, keep theme-specific choices inside the theme
+unless the user clearly wants a persistent global preference too.
+
 ## What a Theme Installed From a Repo May Not Contain
 
 A theme the user wrote by hand in `~/.config/omarchy/themes` is unrestricted, as
@@ -72,8 +91,11 @@ omarchy theme set catppuccin-custom
 
 ## Fonts
 
+Fonts are a global user preference, not a per-theme setting. Changing the font
+here affects every theme until the user changes it again.
+
 ```bash
 omarchy font list               # Available fonts
 omarchy font current            # Current font
-omarchy font set <name>         # Change font
+omarchy font set <name>         # Change font globally
 ```

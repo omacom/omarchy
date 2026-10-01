@@ -4,6 +4,14 @@ You can add your own themes to `~/.config/omarchy/themes`. Just copy one of the 
 
 The main file you have to tweak is `colors.toml`. That defines the color set that's then used to generate configurations for the terminal (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian, and the entire Omarchy shell (top bar, menu, notifications, OSD, and lock screen).
 
+### Theme-scoped vs global settings
+
+A theme controls the files staged with that theme, such as its colors, backgrounds, icons, and `shell.toml` appearance. It does not own every setting that affects how the desktop looks.
+
+`omarchy font set <name>` changes the user's global font configuration and terminal configs, so the selected font persists when switching themes. Bar position and layout are also global user settings stored under the `bar` key in `~/.config/omarchy/shell.json`; a theme's `shell.toml` can style and size the bar, but it does not replace that layout.
+
+A separate `~/.config/omarchy/shell.toml` is a machine-level shell override. Its values are merged over the active theme and intentionally survive theme switches. Keep settings there when they should follow the user or machine rather than a particular theme.
+
 You can also use the included Aether application to create a new theme using a lovely GUI interface to play with colors and search for backgrounds. Just start it via the apps menu on `Super + Alt + Space`.
 
 ### What an installed theme can contain
