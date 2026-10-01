@@ -1,10 +1,7 @@
 echo "Restore t2fanrd fan control after suspend/resume"
 
-# t2fanrd holds applesmc fan FDs open across suspend; after resume the sysfs
-# nodes are recreated and the running daemon never reasserts manual control,
-# leaving the SMC in failsafe full speed (fan1_manual=0).
-# Fresh installs are covered by install/hardware/apple/fix-t2.sh; this repairs
-# existing T2 machines. See https://github.com/omacom/omarchy/issues/12393
+# The SMC drops manual fan control across sleep and t2fanrd only enables it at
+# startup. Fresh installs get the hook from install/hardware/apple/fix-t2.sh.
 if ! lspci -nn 2>/dev/null | grep "106b:180[12]" >/dev/null; then
   exit 0
 fi
