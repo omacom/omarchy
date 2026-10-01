@@ -32,21 +32,15 @@ done
 
 # Whether a provider's own home (~/.claude, ~/.codex, ~/.grok) is signed in.
 primary_signed_in() {
-  if [[ $1 == "grok" ]]; then
-    [[ -s $HOME/.grok/auth.json ]]
-  else
-    omarchy-agent-account-state list "$1" | jq -e '.[0].accounts | any(.primary and .signedIn)' >/dev/null
-  fi
+  omarchy-agent-account-state list "$1" | jq -e '.[0].accounts | any(.primary and .signedIn)' >/dev/null
 }
 
 if [[ $check == "true" ]]; then
   for p in claude codex grok; do
-    if ! primary_signed_in "$p"; then
-      echo "$p first"
-    elif [[ $p == "grok" ]]; then
-      echo "$p unsupported"
-    else
+    if primary_signed_in "$p"; then
       echo "$p additional"
+    else
+      echo "$p first"
     fi
   done
   exit 0
@@ -60,9 +54,9 @@ if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
 fi
 
 case "${1:-}" in
-claude) provider="claude"; name="Claude"; site="claude.ai"; package="claude" ;;
-codex) provider="codex"; name="Codex"; site="chatgpt.com"; package="codex" ;;
-grok) provider="grok"; name="Grok"; site="x.ai"; package="npm:@xai-official/grok" ;;
+claude) provider="claude"; name="Claude"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR" ;;
+codex) provider="codex"; name="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME" ;;
+grok) provider="grok"; name="Grok"; site="x.ai"; package="npm:@xai-official/grok"; home_env="GROK_HOME" ;;
 *)
   echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [claude|codex|grok] [label]" >&2
   exit 1
@@ -151,7 +145,7 @@ login() {
 # primary home through the normal browser, an added one through a private
 # window. Its home is never recreated or removed.
 if [[ -n $reauth ]]; then
-  if [[ $provider == "grok" || $reauth == ":primary" ]]; then
+  if [[ $reauth == ":primary" ]]; then
     account_home="$HOME/.$provider"
   else
     account_home=$(omarchy-agent-account-state homes "$provider" | awk -F'\t' -v id="$reauth" '$1 == id { print $2 }')
@@ -164,11 +158,7 @@ if [[ -n $reauth ]]; then
   else
     say "Sign in again as this account in the private window that opens."
     private_browser
-    if [[ $provider == "claude" ]]; then
-      interruptible env BROWSER="$browser" CLAUDE_CONFIG_DIR="$account_home" claude auth login || fail "The $name sign-in didn't finish."
-    else
-      interruptible env BROWSER="$browser" CODEX_HOME="$account_home" codex login || fail "The $name sign-in didn't finish."
-    fi
+    interruptible env BROWSER="$browser" "$home_env=$account_home" "${login_command[@]}" || fail "The $name sign-in didn't finish."
   fi
 
   omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
@@ -193,8 +183,6 @@ if ! primary_signed_in "$provider"; then
   else
     fail "The $name sign-in didn't finish."
   fi
-elif [[ $provider == "grok" ]]; then
-  fail "Grok is already signed in, and a second Grok account isn't supported yet."
 else
   if [[ -z $label && $events == "false" && -t 0 ]]; then
     label=$(gum input --placeholder "Work" --prompt "Name this $name account: ") || exit 130
@@ -216,12 +204,7 @@ EOF
   home=$(omarchy-agent-account-state begin "$provider") || fail "Couldn't set up a home for the new account."
 
   private_browser
-
-  if [[ $provider == "claude" ]]; then
-    interruptible env BROWSER="$browser" CLAUDE_CONFIG_DIR="$home" claude auth login
-  else
-    interruptible env BROWSER="$browser" CODEX_HOME="$home" codex login
-  fi
+  interruptible env BROWSER="$browser" "$home_env=$home" "${login_command[@]}"
 
   if account=$(omarchy-agent-account-state register "$provider" "$label" "$home" 2>&1); then
     home=""
