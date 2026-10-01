@@ -22,7 +22,7 @@ echo conflict-handler >>"$TEST_LOG"
 exit 0
 STUB
 chmod +x "$test_tmp/bin/"*
-export PATH="$test_tmp/bin:$PATH"
+export PATH="$test_tmp/bin:$ROOT/bin:$PATH"
 record="$TEST_DATABASE/local/example-1.0-1"
 
 for damage in empty-desc missing-desc missing-files; do
@@ -55,3 +55,17 @@ for interactive in 0 1; do
   grep -q -- '^-Syu ' "$TEST_LOG" || fail "valid records still upgrade"
 done
 pass "valid records allow upgrades, including packages that own no files"
+
+mkdir -p "$TEST_DATABASE/local/another-package-2.0-3"
+: >"$TEST_DATABASE/local/another-package-2.0-3/desc"
+: >"$record/desc"
+if "$ROOT/bin/omarchy-update-verify-package-database" >"$test_tmp/output" 2>&1; then
+  fail "multiple damaged records block the update"
+fi
+for package in example another-package; do
+  grep -Fq "sudo pacman -S --dbonly -- $package" "$test_tmp/output" || fail "every damaged package has a database repair command"
+  grep -Fxq "  sudo pacman -S -- $package" "$test_tmp/output" || fail "every damaged package has a reinstall command"
+done
+grep -Fq 'omarchy-record-backups' "$test_tmp/output" || fail "repair guidance keeps a backup outside the local database"
+[[ -d $record && -d $TEST_DATABASE/local/another-package-2.0-3 ]] || fail "verification performs no repair automatically"
+pass "one check identifies every damaged record and prints recoverable repair steps"

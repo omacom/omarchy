@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Reject damaged local package database records before an update
+# omarchy:hidden=true
+
+set -euo pipefail
+
+database=$(pacman-conf DBPath)
+database=${database%/}
+if [[ ! -d $database/local || ! -r $database/local ]]; then
+  echo "Cannot read the local package database at $database/local" >&2
+  exit 1
+fi
+
+damaged=0
+for record in "$database"/local/*; do
+  [[ -d $record ]] || continue
+  if [[ ! -s $record/desc || ! -f $record/files ]]; then
+    ((damaged += 1))
+    name=${record##*/}
+    name=${name%-*}
+    name=${name%-*}
+    backup_dir="$database/omarchy-record-backups"
+    backup="$backup_dir/${record##*/}.$(date +%s).$$"
+    echo "Damaged package database record: $record/" >&2
+    echo "Back up this record outside the local database, restore its entry, then reinstall it:" >&2
+    printf '  sudo install -d -m 700 -- %q\n' "$backup_dir" >&2
+    printf '  sudo mv -- %q %q\n' "$record" "$backup" >&2
+    printf '  sudo pacman -S --dbonly -- %q\n' "$name" >&2
+    printf '  sudo pacman -S -- %q\n' "$name" >&2
+  fi
+done
+
+if (( damaged > 0 )); then
+  echo "For packages absent from your repositories, use the matching package archive with pacman -U --dbonly, then pacman -U." >&2
+  echo "Retry omarchy update after repairing every record listed above." >&2
+  exit 1
+fi

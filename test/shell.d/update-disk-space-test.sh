@@ -72,6 +72,7 @@ for command in \
   pkexec \
   systemd-inhibit \
   omarchy-update-dev \
+  omarchy-update-verify-package-database \
   omarchy-update-pkg-prune \
   omarchy-update-keyring \
   omarchy-update-system-pkgs \
