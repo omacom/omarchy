@@ -25,10 +25,8 @@ Item {
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
   readonly property string screensaverClass: "org.omarchy.screensaver"
 
-  // Quickshell updates IdleMonitor.timeout without replacing the underlying
-  // ext-idle-notification, which leaves the live monitor silent. Pulse it off
-  // across an event-loop turn so a shell.json timeout change registers a new
-  // notification instead of silently disabling screensaver and lock events.
+  // A retimed IdleMonitor can reuse its notification's address and never rebind
+  // isIdle to the replacement; pulsing it off sends the pointer through null.
   onFirstIdleTimeoutSecondsChanged: if (root.idleEnabled) {
     root.logEvent("idle-monitor-rearm", "timeout=" + root.firstIdleTimeoutSeconds)
     idleMonitorRearmTimer.restart()
