@@ -21,4 +21,6 @@ assert(/hasCursor: root\.hasKey\("add"\)/.test(panelSource) && /hasCursor: root\
 assert(/hasCursor: root\.hasKey\("starter", index\)/.test(panelSource), 'the starter tiles take the keyboard cursor')
 assert(/root\.pointAt\("account", Number\(t\) - 1\)/.test(panelSource), 'number keys move the cursor to an account')
 assert(/target\.kind === "launch"\) launchAgent\(\)/.test(panelSource), 'Enter on the launcher starts the default agent')
+assert(/\[\{ kind: "autoswitch", index: i \}, use\]/.test(panelSource), 'an inactive account offers Autoswitch and Use as separate stops')
+assert(/target\.kind === "autoswitch"\) setSwitchMode\(/.test(panelSource), 'Enter on Autoswitch flips the switch mode')
 JS

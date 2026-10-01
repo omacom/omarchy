@@ -40,7 +40,9 @@ Panel {
     }
     return out
   }
-  readonly property var pickedEntry: keyTarget && keyTarget.kind === "account" ? accountEntries[keyTarget.index] || null : null
+  readonly property var pickedEntry: keyTarget && (keyTarget.kind === "account" || keyTarget.kind === "autoswitch")
+    ? accountEntries[keyTarget.index] || null
+    : null
 
   // The keyboard walks everything on the page that does something, in
   // reading order, one row at a time: the hero's buttons, then each
@@ -58,7 +60,11 @@ Panel {
       for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
       rows.push(choices)
     } else if (addStage === "") {
-      for (var i = 0; i < accountEntries.length; i++) rows.push([{ kind: "account", index: i }])
+      // An account that isn't active offers Autoswitch beside Use.
+      for (var i = 0; i < accountEntries.length; i++) {
+        var use = { kind: "account", index: i }
+        rows.push(accountEntries[i].account.active ? [use] : [{ kind: "autoswitch", index: i }, use])
+      }
       if (!blankSlate) {
         var tiles = []
         for (var j = 0; j < starterPrompts.length; j++) tiles.push({ kind: "starter", index: j })
@@ -308,6 +314,7 @@ Panel {
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
     else if (target.kind === "launch") launchAgent()
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt)
+    else if (target.kind === "autoswitch") setSwitchMode(pickedEntry.provider, autoSwitchFor(pickedEntry.provider) ? "manual" : "auto")
     else if (pickedEntry && !pickedEntry.account.active) useAccount(pickedEntry.provider, pickedEntry.account)
   }
 
@@ -1503,6 +1510,8 @@ Panel {
     property string renamedTo: ""
     readonly property bool isActive: account.active === true
     readonly property bool autoOn: root.autoSwitchFor(owner)
+    // Which of the row's links the keyboard is on, when it's on this row.
+    readonly property string pickedKind: picked && root.keyTarget ? root.keyTarget.kind : ""
     readonly property string label: renamedTo !== "" ? renamedTo : String(account.label || account.id || "")
 
     onAccountChanged: renamedTo = ""
@@ -1658,7 +1667,8 @@ Panel {
 
         TextLink {
           visible: head.autoOn || useHover.hovered || head.picked
-          text: "Autoswitch"
+          text: head.pickedKind === "autoswitch" ? "Autoswitch ⏎" : "Autoswitch"
+          picked: head.pickedKind === "autoswitch"
           current: head.autoOn
           tooltip: head.autoOn
             ? "Stop switching automatically"
@@ -1667,8 +1677,8 @@ Panel {
         }
 
         TextLink {
-          text: head.picked ? "Use ⏎" : "Use"
-          picked: head.picked
+          text: head.pickedKind === "account" ? "Use ⏎" : "Use"
+          picked: head.pickedKind === "account"
           onClicked: root.useAccount(head.owner, head.account)
         }
       }
