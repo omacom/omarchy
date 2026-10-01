@@ -36,7 +36,7 @@ exit 0
 SH
 cat >"$mock_bin/systemd-run" <<'SH'
 #!/bin/bash
-printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
+printf '%s\n' "$@" >"$OMARCHY_TEST_BROWSER_LAUNCH"
 SH
 cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
 #!/bin/bash
@@ -98,27 +98,17 @@ pass "browser launcher hands a URL to the running browser"
 
 cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
 [Desktop Entry]
-Exec=/usr/bin/env LIBVA_DRIVER_NAME=iHD chromium %U
+Exec=/usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" --class=100%% %U
 EOF
-cat >"$mock_bin/uwsm-app" <<'SH'
-#!/bin/bash
-printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
-SH
-chmod +x "$mock_bin/uwsm-app"
 
 rm -f "$focus_log"
 HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
   bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/wrapped"
 
-grep -F 'https://example.test/wrapped' "$launch_log" >/dev/null ||
-  fail "wrapped Exec launcher still passes through the URL"
-grep -F '/usr/bin/env' "$launch_log" >/dev/null ||
-  fail "wrapped Exec launcher keeps the env wrapper"
-grep -F 'LIBVA_DRIVER_NAME=iHD' "$launch_log" >/dev/null ||
-  fail "wrapped Exec launcher keeps env assignments"
-grep -F 'chromium' "$launch_log" >/dev/null ||
-  fail "wrapped Exec launcher still runs the browser binary"
+expected=$(printf '%s\n' /usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" --class=100% https://example.test/wrapped)
+[[ $(sed '1,/^--$/d' "$launch_log") == "$expected" ]] ||
+  fail "wrapped Exec launcher runs the whole unquoted Exec line, then the URL"
 grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
   fail "wrapped Exec launcher focuses the real browser, not env"
 pass "browser launcher resolves env-wrapped desktop Exec lines"

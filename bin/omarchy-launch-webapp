@@ -22,8 +22,51 @@ desktop_exec_argv() {
     [[ -n $line ]] && break
   done
   [[ -n $line ]] || return 1
-  line=${line//%[fFuUdDnNickvm]/}
-  read -r -a desktop_exec_argv <<<"$line"
+
+  # Undo the escapes every desktop entry string carries, then split the result
+  # by the Exec key's own quoting, dropping field codes but keeping %% as %.
+  local value="" arg="" char i quoted=0 started=0
+  for (( i = 0; i < ${#line}; i++ )); do
+    char=${line:i:1}
+    if [[ $char == "\\" ]]; then
+      (( i++ ))
+      case ${line:i:1} in
+      s) char=" " ;;
+      n) char=$'\n' ;;
+      t) char=$'\t' ;;
+      r) char=$'\r' ;;
+      "\\") char="\\" ;;
+      *) char="\\${line:i:1}" ;;
+      esac
+    fi
+    value+=$char
+  done
+
+  for (( i = 0; i < ${#value}; i++ )); do
+    char=${value:i:1}
+    if [[ $char == '"' ]]; then
+      (( quoted = !quoted, started = 1 ))
+    elif [[ $char == "\\" ]] && (( quoted )); then
+      (( i++ ))
+      arg+=${value:i:1}
+    elif [[ $char == "%" ]]; then
+      (( i++ ))
+      if [[ ${value:i:1} == "%" ]]; then
+        arg+="%" started=1
+      fi
+    elif [[ $char == " " ]] && (( ! quoted )); then
+      if (( started )); then
+        desktop_exec_argv+=("$arg")
+      fi
+      arg="" started=0
+    else
+      arg+=$char started=1
+    fi
+  done
+  if (( started )); then
+    desktop_exec_argv+=("$arg")
+  fi
+
   (( ${#desktop_exec_argv[@]} > 0 ))
 }
 
