@@ -57,6 +57,29 @@ if run_interactive -p 2222; then
 fi
 pass "missing destination is not interactive"
 
+# zsh ties $argv to the positional parameters, so a local named argv is
+# emptied by the shift loop and ssh -G resolves the wrong invocation.
+if command -v zsh >/dev/null 2>&1; then
+  run_interactive_zsh() {
+    zsh -fc "emulate ksh -c 'source ${fns@Q}'; _ssh_interactive \"\$@\"" _ "$@"
+  }
+
+  run_interactive_zsh -F /dev/null -p 2222 user@host || fail "zsh: destination after an option value is interactive"
+  pass "zsh: destination after an option value is interactive"
+
+  if run_interactive_zsh -F /dev/null host uptime; then
+    fail "zsh: remote command is not interactive"
+  fi
+  pass "zsh: remote command is not interactive"
+
+  if run_interactive_zsh -F /dev/null -o "RemoteCommand=uptime" host; then
+    fail "zsh: configured RemoteCommand is not interactive"
+  fi
+  pass "zsh: configured RemoteCommand is not interactive"
+else
+  skip "zsh: _ssh_interactive parsing"
+fi
+
 # --- reconnect behavior, run on a pty with a fake ssh ---
 
 fake_dir=$(mktemp -d)
