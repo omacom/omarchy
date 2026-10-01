@@ -32,9 +32,20 @@ chmod +x "$fake_bin/omarchy-version"
 
 cat >"$fake_bin/swapon" <<'STUB'
 #!/bin/bash
+[[ ${FAIL_SWAP_PROBE:-0} == "0" ]] || exit 1
 echo '{"swapdevices":[]}'
 STUB
 chmod +x "$fake_bin/swapon"
+
+cat >"$fake_bin/findmnt" <<'STUB'
+#!/bin/bash
+if [[ ${@: -1} == "/swapfile" && ${OTHER_SWAP_FS:-0} == "1" ]]; then
+  echo other-filesystem
+else
+  echo root-filesystem
+fi
+STUB
+chmod +x "$fake_bin/findmnt"
 
 # Snapper with no configs: list-configs prints only the CSV header.
 cat >"$fake_bin/snapper" <<'STUB'
@@ -84,6 +95,7 @@ pass "snapshot create snapshots every configured Snapper config"
 
 cat >"$fake_bin/swapon" <<'STUB'
 #!/bin/bash
+[[ ${FAIL_SWAP_PROBE:-0} == "0" ]] || exit 1
 echo '{"swapdevices":[{"name":"/swapfile","type":"file"}]}'
 STUB
 
@@ -107,6 +119,17 @@ grep -qF 'Cannot snapshot / while the active swapfile /swapfile is inside its Bt
 ! grep -q '^snapper -c .* create ' "$test_tmp/calls.log" ||
   fail "snapshot create does not ask Snapper to snapshot a subvolume with an active swapfile"
 pass "snapshot create identifies active swapfiles that prevent Btrfs snapshots"
+
+: >"$test_tmp/calls.log"
+OTHER_SWAP_FS=1 TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" bash "$snapshot" create >/dev/null
+grep -q '^snapper -c root create ' "$test_tmp/calls.log" || fail "equal root IDs on another filesystem do not block snapshots"
+: >"$test_tmp/calls.log"
+if FAIL_SWAP_PROBE=1 TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" bash "$snapshot" create >"$test_tmp/out" 2>"$test_tmp/errors"; then
+  fail "a failed swap probe cannot masquerade as an empty swap list"
+fi
+grep -Fq 'Could not inspect active swapfiles' "$test_tmp/errors" || fail "probe failure has a useful diagnostic"
+! grep -q '^snapper -c root create ' "$test_tmp/calls.log" || fail "a failed probe starts no snapshot"
+pass "snapshot checks distinguish filesystem identity and failed probes"
 
 cat >"$fake_bin/btrfs" <<'STUB'
 #!/bin/bash
