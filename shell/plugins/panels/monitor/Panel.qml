@@ -245,7 +245,7 @@ Panel {
     }
 
     root.brightnessSetQueued = false
-    var targets = Model.brightnessTargets(root.focusedMonitor, root.mirrorEnabled ? root.mirrorMonitor : "")
+    var targets = Model.brightnessTargets(root.focusedMonitor, root.internalMonitor, root.mirrorEnabled ? root.mirrorMonitor : "")
     var script = 'pct=$1; shift; for m in "$@"; do omarchy-brightness-display --no-osd --monitor "$m" "$pct"; done'
     setBrightnessProc.command = ["bash", "-c", script, "_", percent + "%"].concat(targets)
     setBrightnessProc.running = true

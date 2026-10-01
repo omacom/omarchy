@@ -1,9 +1,10 @@
-function brightnessTargets(focused, mirror) {
-  var names = []
+// A mirror copies the internal panel, so it follows the slider only while that panel is focused.
+// An unknown focus stays in as "", which omarchy-brightness-display resolves to the focused display.
+function brightnessTargets(focused, internal, mirror) {
   var focus = String(focused || "")
   var other = String(mirror || "")
-  if (focus) names.push(focus)
-  if (other && other !== focus) names.push(other)
+  var names = [focus]
+  if (focus && focus === String(internal || "") && other && other !== focus) names.push(other)
   return names
 }
 

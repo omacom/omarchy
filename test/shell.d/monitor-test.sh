@@ -9,11 +9,13 @@ const fs = require('fs')
 const monitor = requireFromRoot('shell/plugins/panels/monitor/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/monitor/Panel.qml', 'utf8')
 
-assertDeepEqual(monitor.brightnessTargets('eDP-1', ''), ['eDP-1'], 'monitor brightness targets the focused display')
-assertDeepEqual(monitor.brightnessTargets('eDP-1', 'HDMI-A-1'), ['eDP-1', 'HDMI-A-1'], 'monitor brightness also targets a mirrored display')
-assertDeepEqual(monitor.brightnessTargets('eDP-1', 'eDP-1'), ['eDP-1'], 'monitor brightness does not duplicate the focused display')
+assertDeepEqual(monitor.brightnessTargets('eDP-1', 'eDP-1', ''), ['eDP-1'], 'monitor brightness targets the focused display')
+assertDeepEqual(monitor.brightnessTargets('eDP-1', 'eDP-1', 'HDMI-A-1'), ['eDP-1', 'HDMI-A-1'], 'monitor brightness also targets a mirrored display')
+assertDeepEqual(monitor.brightnessTargets('eDP-1', 'eDP-1', 'eDP-1'), ['eDP-1'], 'monitor brightness does not duplicate the focused display')
+assertDeepEqual(monitor.brightnessTargets('DP-1', 'eDP-1', 'HDMI-A-1'), ['DP-1'], 'monitor brightness leaves the laptop mirror alone from an extended display')
+assertDeepEqual(monitor.brightnessTargets('', 'eDP-1', ''), [''], 'monitor brightness lets an unknown focus resolve to the focused display')
 assert(
-  /Model\.brightnessTargets\(root\.focusedMonitor, root\.mirrorEnabled \? root\.mirrorMonitor : ""\)/.test(panelSource),
+  /Model\.brightnessTargets\(root\.focusedMonitor, root\.internalMonitor, root\.mirrorEnabled \? root\.mirrorMonitor : ""\)/.test(panelSource),
   'monitor applies brightness to the mirrored output as well as the focused one'
 )
 assertEqual(monitor.clampBrightness(0), 1, 'monitor clamps minimum brightness')
