@@ -22,6 +22,7 @@ for output in "$test_tmp/blocked-parent/art.txt" "$test_tmp/directory"; do
   if bash "$ROOT/bin/omarchy-transcode-ascii" "$test_tmp/input.png" "$output" --mode block >"$test_tmp/output" 2>"$test_tmp/errors"; then
     fail "ASCII export rejects an unwritable output path" "$output"
   fi
+  grep -Fq "Unable to write ASCII art: $output" "$test_tmp/errors" || fail "failed ASCII export names the requested path"
   if grep -q 'Wrote ASCII art' "$test_tmp/output"; then
     fail "failed ASCII export does not announce success"
   fi
