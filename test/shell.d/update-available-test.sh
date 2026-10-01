@@ -237,14 +237,28 @@ if ! mkdir "$TEST_CHECK_DIR/active" 2>/dev/null; then
   exit 1
 fi
 trap 'rmdir "$TEST_CHECK_DIR/active"' EXIT
-sleep 0.2
+touch "$TEST_CHECK_DIR/started"
+while [[ ! -e $TEST_CHECK_DIR/release ]]; do sleep 0.01; done
 printf 'omarchy 4.0.0-1 -> 4.0.1-1\n'
 SH
+cat >"$stub_bin/flock" <<'SH'
+#!/bin/bash
+printf '%s\n' "$$" >>"$TEST_CHECK_DIR/attempts"
+exec /usr/bin/flock "$@"
+SH
+chmod +x "$stub_bin/flock"
 export TEST_CHECK_DIR="$test_tmp" TEST_INSTALLED_PACKAGE=omarchy
 XDG_CACHE_HOME="$test_tmp/first-cache" run_checker >"$test_tmp/first" &
 first_pid=$!
+timeout 5 bash -c 'until [[ -e $TEST_CHECK_DIR/started ]]; do sleep 0.01; done' || fail "the first availability check reaches checkupdates"
 XDG_CACHE_HOME="$test_tmp/second-cache" run_checker >"$test_tmp/second" &
 second_pid=$!
+timeout 5 bash -c 'until [[ -f $TEST_CHECK_DIR/attempts ]] && (( $(wc -l <"$TEST_CHECK_DIR/attempts") == 2 )); do sleep 0.01; done' || fail "both availability checks attempt the shared lock"
+if /usr/bin/flock -n "$XDG_RUNTIME_DIR/omarchy/checkupdates.lock" true; then
+  fail "the first check holds its lock while the second attempts it"
+fi
+[[ ! -e $test_tmp/collisions ]] || fail "the second check cannot enter the shared database while the first holds it"
+touch "$test_tmp/release"
 wait "$first_pid" || fail "first concurrent caller receives the update"
 wait "$second_pid" || fail "second concurrent caller receives the update"
 [[ ! -e $test_tmp/collisions ]] || fail "checkupdates never overlaps"
