@@ -4,9 +4,39 @@
 # omarchy:args=[terminal-pid]
 # omarchy:hidden=true
 
-terminal_pid=${1:-$(hyprctl activewindow | awk '/pid:/ {print $2}')}
-kitty_socket="$XDG_RUNTIME_DIR/omarchy-kitty-$terminal_pid"
+terminal_pid=${1:-}
 cwd=""
+
+if [[ -z $terminal_pid ]]; then
+  active_window=$(hyprctl -j activewindow 2>/dev/null)
+
+  # Only inherit cwd from surfaces Omarchy classifies as terminals. Dynamic
+  # Hyprland tags carry a trailing "*". Keep the WezTerm app-id fallback for
+  # installations whose canonical Wayland class is not tagged yet.
+  mapfile -t active_window_info < <(
+    jq -r '
+      any(.tags[]?; sub("\\*$"; "") == "terminal"),
+      (.class // ""),
+      (.pid // "")
+    ' <<<"$active_window" 2>/dev/null
+  )
+
+  is_terminal=${active_window_info[0]:-false}
+  window_class=${active_window_info[1]:-}
+  terminal_pid=${active_window_info[2]:-}
+
+  if [[ $is_terminal != true && $window_class != org.wezfurlong.wezterm ]]; then
+    echo "$HOME"
+    exit 0
+  fi
+fi
+
+if [[ -z $terminal_pid ]]; then
+  echo "$HOME"
+  exit 0
+fi
+
+kitty_socket="$XDG_RUNTIME_DIR/omarchy-kitty-$terminal_pid"
 
 if [[ -S $kitty_socket ]]; then
   cwd=$(kitten @ --to "unix:$kitty_socket" ls --match "state:focused" 2>/dev/null |

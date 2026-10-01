@@ -164,12 +164,29 @@ end
 -- run a bind that Hyprland only reports as Lua.
 o.bind_commands = {}
 
--- Hand the launcher the focused window's pid, which it would otherwise ask
--- Hyprland for, to open the new terminal in that terminal's directory.
+local function terminal_window(window)
+  if not window then
+    return false
+  end
+
+  for _, tag in ipairs(window.tags or {}) do
+    if tag:gsub("%*$", "") == "terminal" then
+      return true
+    end
+  end
+
+  -- Preserve cwd inheritance for WezTerm installations whose canonical
+  -- Wayland app-id has not yet been covered by the terminal tagging rule.
+  return window.class == "org.wezfurlong.wezterm"
+end
+
+-- Hand the launcher the focused window's pid only when that window is a
+-- terminal. The pid fast-path avoids another Hyprland query for normal terminal
+-- launches without letting helper shells owned by other apps leak their cwd.
 function o.launch_terminal()
   local function launch()
     local window = hl.get_active_window()
-    if window and window.pid then
+    if window and window.pid and terminal_window(window) then
       hl.exec_cmd("omarchy-launch-terminal --pid=" .. window.pid)
     else
       hl.exec_cmd("omarchy-launch-terminal")
