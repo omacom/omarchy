@@ -2043,7 +2043,7 @@ Panel {
         anchors.top: idField.bottom
         anchors.topMargin: Style.space(4)
         anchors.rightMargin: Style.space(6)
-        placeholderText: "CA certificate path"
+        placeholderText: "Absolute CA certificate path"
         font.family: Style.font.family
         font.pixelSize: Style.font.body
         foreground: root.bar.foreground
@@ -2056,7 +2056,7 @@ Panel {
 
         PanelToolTip {
           visible: caField.hovered
-          text: "Use the CA certificate provided by your network administrator"
+          text: "Use the absolute path to your administrator's CA certificate.\nSystem CA certificates are not used."
           fontFamily: root.bar.fontFamily
         }
       }
