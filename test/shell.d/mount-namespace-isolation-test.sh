@@ -19,6 +19,12 @@ printf '%s\n' "$*" >>"$OMARCHY_TEST_MOUNT_CALLS"
 exit 1
 STUB
 chmod +x "$stub_dir/mount"
+real_unshare=$(command -v unshare || true)
+cat >"$stub_dir/unshare" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_UNSHARE_CALLS"
+STUB
+chmod +x "$stub_dir/unshare"
 
 # Every mounting test gates on a marker variable it sets before re-execing
 # itself into the namespace, so uid alone can never be the gate: root arrives
@@ -73,3 +79,37 @@ output=$(
 (( status != 0 )) || fail "boundary probe refuses to run without a recorded caller namespace" "$output"
 [[ ! -s $calls ]] || fail "boundary probe mounted nothing without a recorded caller namespace" "$(cat "$calls")"
 pass "boundary probe fails closed when the caller namespace was never recorded"
+
+# The marker guard alone proves nothing about the first pass: a root path that
+# dropped its unshare would keep the guard and fall straight through to the
+# mounts. So run the probe's first pass as uid 0 -- directly when the runner is
+# root, through a user namespace otherwise -- with unshare stubbed to record
+# the re-exec it is asked for, and require that it re-execs into a private
+# mount namespace before mounting anything.
+unshare_calls="$stub_dir/unshare-calls"
+: >"$calls"
+: >"$unshare_calls"
+as_root=()
+if (( EUID != 0 )); then
+  if [[ -n $real_unshare ]] && "$real_unshare" --user --map-root-user true 2>/dev/null; then
+    as_root=("$real_unshare" --user --map-root-user)
+  else
+    skip "user namespace unavailable; cannot run the boundary probe's first pass as uid 0"
+    exit 0
+  fi
+fi
+probe="$SHELL_TEST_DIR/windows-vm-mount-boundary-test.sh"
+status=0
+output=$(
+  env -u OMARCHY_WINDOWS_BOUNDARY_NAMESPACE -u OMARCHY_WINDOWS_BOUNDARY_CALLER_MOUNT_NS \
+    PATH="$stub_dir:$PATH" \
+    OMARCHY_TEST_MOUNT_CALLS="$calls" \
+    OMARCHY_TEST_UNSHARE_CALLS="$unshare_calls" \
+    "${as_root[@]}" bash "$probe" 2>&1
+) || status=$?
+
+(( status == 0 )) || fail "boundary probe's root first pass hands off to its re-exec" "$output"
+[[ ! -s $calls ]] || fail "boundary probe's root first pass mounted nothing" "$(cat "$calls")"
+grep -qxF -- "--mount --propagation private bash $probe" "$unshare_calls" ||
+  fail "boundary probe's root first pass re-execs into a private mount namespace" "$(cat "$unshare_calls")$output"
+pass "boundary probe re-execs into a private mount namespace when it starts as root"
