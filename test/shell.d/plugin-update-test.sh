@@ -90,3 +90,61 @@ git -C "$remote" commit -qm 'invalid symlink hidden from archives'
 if update test.symlink; then fail "export-ignore cannot bypass validation"; fi
 [[ $(git -C "$checkout" rev-parse HEAD) == "$before" ]] || fail "invalid tree remains uninstalled"
 pass "validation includes files marked export-ignore"
+
+# Inject a local write after the pre-merge status check, using the real Git
+# merge so the untracked file survives just as it would on a user's checkout.
+rm "$remote/hidden-link"
+git -C "$remote" add -u
+git -C "$remote" commit -qm 'remove symlink'
+clone test.race
+printf '%s\n' '// newer revision' >>"$remote/Service.qml"
+git -C "$remote" commit -qam 'newer valid candidate'
+mkdir -p "$test_tmp/bin"
+export REAL_GIT=$(command -v git)
+cat >"$test_tmp/bin/git" <<'SH'
+#!/bin/bash
+if [[ $* == *"merge --ff-only"* ]]; then
+  printf 'local addition\n' >"$2/unvalidated.txt"
+fi
+exec "$REAL_GIT" "$@"
+SH
+chmod +x "$test_tmp/bin/git"
+rescans_before=$(wc -l <"$test_tmp/rescans")
+if PATH="$test_tmp/bin:$PATH" update test.race; then fail "an edit during merge must not report a validated update"; fi
+[[ -f $checkout/unvalidated.txt ]] || fail "concurrent edits remain intact"
+(( $(wc -l <"$test_tmp/rescans") == rescans_before )) || fail "a changed tree is not reloaded"
+pass "a concurrent local write is detected without deleting it or reloading"
+
+cat >"$test_tmp/bin/omarchy-plugin-validate" <<'SH'
+#!/bin/bash
+printf '%s\n' "$1" >"$STAGED_PATH_FILE"
+kill -TERM "$PPID"
+sleep 0.1
+SH
+chmod +x "$test_tmp/bin/omarchy-plugin-validate"
+# Remove the exported function so this case exercises the interrupting stub.
+unset -f omarchy-plugin-validate
+rm -rf "$checkout"
+clone test.interrupt
+printf '%s\n' '// interrupt candidate' >>"$remote/Service.qml"
+git -C "$remote" commit -qam 'interrupt candidate'
+if STAGED_PATH_FILE="$test_tmp/staged-path" PATH="$test_tmp/bin:$PATH" update test.interrupt; then fail "an interrupted update reports failure"; fi
+stage=$(<"$test_tmp/staged-path")
+[[ ! -e ${stage%/tree} ]] || fail "interruption removes the staged tree and index"
+pass "interrupted plugin validation cleans up its temporary files"
+
+omarchy-plugin-validate() { bash "$ROOT/bin/omarchy-plugin-validate" "$@"; }
+export -f omarchy-plugin-validate
+batch_home="$test_tmp/batch-home"
+mkdir -p "$batch_home/.config/omarchy/plugins"
+for name in alpha beta; do
+  git clone -q "$remote" "$batch_home/.config/omarchy/plugins/$name"
+done
+printf 'local file\n' >"$batch_home/.config/omarchy/plugins/beta/local.txt"
+printf '// batch update\n' >>"$remote/Service.qml"
+git -C "$remote" commit -qam 'batch update'
+rescans_before=$(wc -l <"$test_tmp/rescans")
+if HOME="$batch_home" bash "$ROOT/bin/omarchy-plugin-update" --yes; then fail "a partially refused batch reports failure"; fi
+[[ $(git -C "$batch_home/.config/omarchy/plugins/alpha" rev-parse HEAD) == $(git -C "$remote" rev-parse HEAD) ]] || fail "valid batch entries still update"
+(( $(wc -l <"$test_tmp/rescans") == rescans_before )) || fail "a partial batch cannot rescan a dirty plugin"
+pass "a partially failed batch does not reload unvalidated plugins"

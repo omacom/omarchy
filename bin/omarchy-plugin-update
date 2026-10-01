@@ -12,6 +12,10 @@ export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"
 PLUGINS_DIR="$HOME/.config/omarchy/plugins"
 ASSUME_YES=0
 UPDATED_ANY=0
+staging=""
+trap '[[ -z $staging ]] || rm -rf -- "$staging"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 fail() {
   echo "omarchy-plugin-update: $*" >&2
@@ -39,7 +43,7 @@ valid_plugin_id() {
 update_one() {
   local id="$1"
   local dir="$PLUGINS_DIR/$id"
-  local candidate staging
+  local candidate
 
   if ! git -C "$dir" fetch --quiet origin HEAD; then
     echo "omarchy-plugin-update: fetch failed for '$id'" >&2
@@ -99,6 +103,12 @@ update_one() {
     return 1
   fi
 
+  status=$(git -C "$dir" status --porcelain --untracked-files=all --ignored) || return 1
+  if [[ -n $status || $(git -C "$dir" rev-parse HEAD) != "$candidate" ]]; then
+    echo "omarchy-plugin-update: '$id' changed during the update; save local changes and validate it before reloading" >&2
+    return 1
+  fi
+
   echo "Updated $id."
   UPDATED_ANY=1
 }
@@ -151,7 +161,7 @@ for id in "${targets[@]}"; do
   update_one "$id" || rc=1
 done
 
-if (( UPDATED_ANY )); then
+if (( UPDATED_ANY && rc == 0 )); then
   omarchy-shell shell rescanPlugins >/dev/null
 fi
 exit $rc
