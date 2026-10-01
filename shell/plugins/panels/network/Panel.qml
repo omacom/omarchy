@@ -1913,8 +1913,8 @@ Panel {
           // Signal strength is conveyed by the wifi-bars icon and the
           // right-edge glyph/buttons carry protection or forget affordances,
           // so the second line only carries action status (Connecting…,
-          // Connected, Failed, etc.). Collapses to zero height when empty
-          // so rows without status keep a tight one-line look.
+          // Connected, Failed, etc.). Hidden when empty, which the Column
+          // skips, so rows without status keep a tight one-line look.
           text: row.statusText
           visible: row.statusText !== ""
           color: row.statusColor
