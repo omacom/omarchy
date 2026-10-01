@@ -7,6 +7,10 @@ echo "Install rtkit so PipeWire gets realtime priority"
 # sustained load.
 omarchy-pkg-add rtkit
 
+# The portal reads rtkit's realtime budget once, so restart it first: PipeWire
+# clients that reconnect to a stale portal take a hard RLIMIT_RTTIME of 0.
+systemctl --user try-restart xdg-desktop-portal.service 2>/dev/null || true
+
 # rtkit only takes effect when PipeWire re-requests priority at startup.
 # Restart the audio units if they are running; harmless when idle or as root.
 systemctl --user try-restart pipewire.service pipewire-pulse.service wireplumber.service 2>/dev/null || true
