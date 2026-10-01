@@ -5,7 +5,9 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
+const fs = require('fs')
 const idle = requireFromRoot('shell/plugins/services/idle/IdleModel.js')
+const serviceSource = fs.readFileSync(root + '/shell/plugins/services/idle/Service.qml', 'utf8')
 
 assertEqual(idle.secondsFromConfig('42.9', 10), 42, 'idle floors configured seconds')
 assertEqual(idle.secondsFromConfig('-1', 10), 10, 'idle rejects negative seconds')
@@ -32,6 +34,28 @@ assertDeepEqual(
   idle.screensaverWindowsAfter({ a: true }, '', false),
   { windows: { a: true }, count: 1 },
   'idle leaves screensaver windows unchanged without an address'
+)
+
+assertEqual(
+  idle.missingScreensaverAction(true, true, true, 0, false, false),
+  'wake',
+  'idle wakes after an unlocked screensaver fails to appear'
+)
+assertEqual(
+  idle.missingScreensaverAction(true, true, true, 0, false, true),
+  'clear',
+  'idle clears the cycle without waking when the lock replaced the screensaver'
+)
+assertEqual(
+  idle.missingScreensaverAction(true, true, true, 0, true, true),
+  'none',
+  'idle leaves the grace cycle alone while the monitor still reports idle'
+)
+
+assert(/wakeDisplay !== false/.test(serviceSource), 'idle cycles can be cleared without waking the display')
+assert(
+  /missingScreensaverAction[\s\S]*?cancelIdleCycle\(reason, action === "wake"\)/.test(serviceSource),
+  'idle screensaver grace applies the lock-aware recovery action'
 )
 JS
 
