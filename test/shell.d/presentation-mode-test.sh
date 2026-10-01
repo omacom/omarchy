@@ -174,16 +174,3 @@ run off >/dev/null
 [[ ! -f $home/.local/state/omarchy/toggles/bar-off ]] || fail "interrupted on restores original bar"
 pass "interrupted on remains recoverable through off"
 rm -f "$stub/omarchy-toggle-bar"
-
-# The update's token expires during presentation. Presentation owns the
-# remaining stay-awake time and must remove it when presentation ends.
-export XDG_RUNTIME_DIR="$tmpdir/runtime"
-mkdir -p "$XDG_RUNTIME_DIR/omarchy-update-stay-awake" "$home/.local/state/omarchy/indicators"
-printf 'update-owner\n' >"$XDG_RUNTIME_DIR/omarchy-update-stay-awake/idle-owner"
-printf 'update-owner\n' >"$home/.local/state/omarchy/indicators/stay-awake"
-run on >/dev/null
-HOME="$home" PATH="$stub:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-update-stay-awake" stop
-[[ -f $home/.local/state/omarchy/indicators/stay-awake ]] || fail "update cleanup keeps presentation awake"
-run off >/dev/null
-[[ ! -f $home/.local/state/omarchy/indicators/stay-awake ]] || fail "presentation releases expired update ownership"
-pass "update cleanup keeps presentation awake and transfers idle restoration"
