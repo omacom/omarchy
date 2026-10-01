@@ -32,7 +32,12 @@ rm -rf \
 
 if [[ -n $lmstudio_home && $lmstudio_home == /* && -d $lmstudio_home ]] &&
   [[ $lmstudio_home != "/" && $lmstudio_home != "$target_home" ]]; then
-  rm -rf "$lmstudio_home"
+  # The pointer is the user's to write, so as root delete only what they could.
+  if (( EUID == 0 )); then
+    runuser -u "$target_user" -- rm -rf "$lmstudio_home"
+  else
+    rm -rf "$lmstudio_home"
+  fi
 fi
 
 echo ""
