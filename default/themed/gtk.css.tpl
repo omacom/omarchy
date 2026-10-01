@@ -4,19 +4,19 @@
   /* Nautilus still uses these libadwaita compatibility names in app CSS. */
   @define-color accent_color {{ accent }};
   @define-color accent_bg_color {{ accent }};
-  @define-color accent_fg_color {{ background }};
+  @define-color accent_fg_color {{ accent_foreground }};
   @define-color destructive_color {{ red }};
   @define-color destructive_bg_color {{ red }};
-  @define-color destructive_fg_color {{ background }};
+  @define-color destructive_fg_color {{ red_foreground }};
   @define-color success_color {{ green }};
   @define-color success_bg_color {{ green }};
-  @define-color success_fg_color {{ background }};
+  @define-color success_fg_color {{ green_foreground }};
   @define-color warning_color {{ yellow }};
   @define-color warning_bg_color {{ yellow }};
-  @define-color warning_fg_color {{ background }};
+  @define-color warning_fg_color {{ yellow_foreground }};
   @define-color error_color {{ red }};
   @define-color error_bg_color {{ red }};
-  @define-color error_fg_color {{ background }};
+  @define-color error_fg_color {{ red_foreground }};
   @define-color window_bg_color {{ background }};
   @define-color window_fg_color {{ foreground }};
   @define-color view_bg_color {{ background }};
@@ -37,16 +37,16 @@
   :root {
     /* Libadwaita derives the standalone *-color values from these backgrounds. */
     --accent-bg-color: {{ accent }};
-    --accent-fg-color: {{ background }};
+    --accent-fg-color: {{ accent_foreground }};
 
     --destructive-bg-color: {{ red }};
-    --destructive-fg-color: {{ background }};
+    --destructive-fg-color: {{ red_foreground }};
     --success-bg-color: {{ green }};
-    --success-fg-color: {{ background }};
+    --success-fg-color: {{ green_foreground }};
     --warning-bg-color: {{ yellow }};
-    --warning-fg-color: {{ background }};
+    --warning-fg-color: {{ yellow_foreground }};
     --error-bg-color: {{ red }};
-    --error-fg-color: {{ background }};
+    --error-fg-color: {{ red_foreground }};
 
     --window-bg-color: {{ background }};
     --window-fg-color: {{ foreground }};
@@ -77,6 +77,6 @@
     --thumbnail-bg-color: {{ lighter_background }};
     --thumbnail-fg-color: {{ foreground }};
     --active-toggle-bg-color: {{ accent }};
-    --active-toggle-fg-color: {{ background }};
+    --active-toggle-fg-color: {{ accent_foreground }};
   }
 }

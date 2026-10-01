@@ -35,7 +35,8 @@ css="$next_theme/gtk.css"
 [[ -f $css ]] || fail "GTK template is generated"
 grep -Fq -- '--accent-bg-color: #7aa2f7;' "$css" || fail "GTK accent follows the theme"
 grep -Fq -- '--accent-fg-color: #1a1b26;' "$css" || fail "GTK accent uses the theme background for contrast"
-grep -Fq -- '--destructive-fg-color: #1a1b26;' "$css" || fail "GTK destructive actions use the theme background"
+grep -Fq -- '--destructive-fg-color: #ffffff;' "$css" || fail "GTK dark destructive backgrounds get readable text"
+grep -Fq -- '@define-color destructive_fg_color #ffffff;' "$css" || fail "GTK compatibility foreground matches its CSS variable"
 grep -Fq -- '--success-fg-color: #1a1b26;' "$css" || fail "GTK success actions use the theme background"
 grep -Fq -- '--warning-fg-color: #1a1b26;' "$css" || fail "GTK warnings use the theme background"
 grep -Fq -- '--overview-bg-color: #13141c;' "$css" || fail "GTK overview surface is themed"
@@ -73,6 +74,56 @@ if errors:
     raise SystemExit("\n".join(errors))
 PY
 pass "GTK template renders the complete libadwaita palette"
+
+# Exercise actual generated CSS for every stock palette, not just placeholder text.
+ROOT="$ROOT" HOME="$home" /usr/bin/python <<'PY'
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+from gi.repository import Gtk
+
+root = Path(os.environ["ROOT"])
+staging = Path.home() / ".local/state/omarchy/current/next-theme"
+fixture = (staging / "colors.toml").read_text()
+
+def luminance(color):
+    channels = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    linear = [value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4 for value in channels]
+    return sum(value * weight for value, weight in zip(linear, (0.2126, 0.7152, 0.0722)))
+
+def render():
+    (staging / "gtk.css").unlink(missing_ok=True)
+    subprocess.run([root / "bin/omarchy-theme-set-templates"], check=True, env=dict(os.environ, OMARCHY_PATH=str(root)))
+    return (staging / "gtk.css").read_text()
+
+for palette in sorted((root / "themes").glob("*/colors.toml")):
+    shutil.copyfile(palette, staging / "colors.toml")
+    text = render()
+    assert "{{" not in text, palette.parent.name
+    for role in ("accent", "destructive", "success", "warning", "error"):
+        colors = [re.search(rf"--{role}-{part}-color:\s*(#[0-9a-fA-F]{{6}});", text).group(1) for part in ("bg", "fg")]
+        low, high = sorted(map(luminance, colors))
+        contrast = (high + 0.05) / (low + 0.05)
+        assert contrast >= 4.5, (palette.parent.name, role, colors, contrast)
+    provider = Gtk.CssProvider()
+    errors = []
+    provider.connect("parsing-error", lambda _provider, _section, error: errors.append(error.message))
+    provider.load_from_path(str(staging / "gtk.css"))
+    assert not errors, (palette.parent.name, errors)
+
+(staging / "colors.toml").write_text(fixture + '\nred_foreground = "#eeeeee"\n')
+assert "--destructive-fg-color: #eeeeee;" in render()
+(staging / "colors.toml").write_text(fixture)
+render()
+PY
+pass "all stock GTK palettes parse and provide readable accent/status text"
+pass "theme authors can override derived foregrounds"
 
 cp "$css" "$current_theme/gtk.css"
 HOME="$home" XDG_CONFIG_HOME="$home/.config" OMARCHY_PATH="$ROOT" \
