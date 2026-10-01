@@ -55,6 +55,22 @@ Item {
     if (!readlinkProc.running) readlinkProc.running = true
   }
 
+  // With no wallpaper the layer draws nothing, so Hyprland's own background
+  // colour shows through.
+  function clearBackground() {
+    revealAnimation.stop()
+    preparedBackgroundTimer.stop()
+    currentBackground = ""
+    displayedBackground = ""
+    incomingBackground = ""
+    oldBackground = ""
+    preparedBackground = ""
+    lastTransitionPath = ""
+    finishingTransition = false
+    backgroundVersion += 1
+    revealProgress = 1
+  }
+
   function setBackground(path, instant) {
     transitionBackground("", path, path, instant, false)
   }
@@ -202,9 +218,15 @@ Item {
 
   Process {
     id: readlinkProc
-    command: ["readlink", "-f", root.currentBackgroundLink]
+    // -e prints nothing for a link that is missing or names a missing file,
+    // which is a desktop without a wallpaper.
+    command: ["readlink", "-e", root.currentBackgroundLink]
     stdout: StdioCollector {
-      onStreamFinished: root.setBackground(String(text || "").trim(), false)
+      onStreamFinished: {
+        var path = String(text || "").trim()
+        if (path) root.setBackground(path, false)
+        else root.clearBackground()
+      }
     }
   }
 
@@ -213,6 +235,10 @@ Item {
 
     function refresh(): void {
       root.refreshBackground()
+    }
+
+    function clear(): void {
+      root.clearBackground()
     }
 
     function set(path: string): void {
