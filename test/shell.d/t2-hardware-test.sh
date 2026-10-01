@@ -28,6 +28,8 @@ grep -Fq 'apple-bcm-firmware-fetcher' "$other_packages" ||
   fail "the default package list installs the firmware fetcher"
 grep -Fq 'msr-tools' "$fix_t2" ||
   fail "T2 setup installs msr-tools for the PROCHOT override"
+grep -qx 'msr-tools' "$other_packages" ||
+  fail "the ISO caches msr-tools for an offline T2 install"
 grep -Fq 'default/systemd/system/omarchy-t2-prochot.service' "$fix_t2" ||
   fail "T2 setup installs the PROCHOT override unit"
 grep -Fq 'systemctl enable omarchy-t2-prochot.service' "$fix_t2" ||
