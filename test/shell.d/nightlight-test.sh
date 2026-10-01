@@ -113,6 +113,10 @@ trap '[[ ! -s $TMPDIR/daemon-pid ]] || kill "$(<"$TMPDIR/daemon-pid")" 2>/dev/nu
 if PATH="$TMPDIR/bin:$PATH" HYPRSUNSET_STATE="$STATE" OMARCHY_SHELL_LOG="$SHELL_LOG" \
   DAEMON_PID_FILE="$TMPDIR/daemon-pid" DAEMON_STDIN_FILE="$TMPDIR/daemon-stdin" \
   timeout 3 bash -o pipefail -c 'printf "caller input\n" | "$1" 2>&1 | cat' _ "$ROOT/bin/omarchy-toggle-nightlight" >"$TMPDIR/captured"; then
+  for attempt in {1..100}; do
+    [[ ! -s $TMPDIR/daemon-pid || ! -s $TMPDIR/daemon-stdin ]] || break
+    sleep 0.01
+  done
   [[ -s $TMPDIR/daemon-pid ]] || fail "nightlight starts the missing daemon"
   kill -0 "$(<"$TMPDIR/daemon-pid")" || fail "nightlight leaves its daemon running"
   grep -Fxq eof "$TMPDIR/daemon-stdin" || fail "the daemon does not consume caller input"
