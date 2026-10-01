@@ -73,6 +73,7 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `omp` | DeepSeek prepaid balance (`get-user-balance`) | `~/.omp/stats.db` for the seven-day series and all-time totals, `omp stats --json` for the 24-hour window, plus `~/.omp/agent/sessions` for the session count |
 
 When `~/.local/state/omarchy/agents/accounts/<claude|codex>.json` registers
 more than one account, the `claude` and `codex` records also carry
@@ -122,6 +123,25 @@ period. `accountId` only matters when one API key can access several
 accounts. Without a configured `fundedAmount` the tab still shows token
 usage, just no balance. With a live ledger, `fundedAmount` is optional and
 only adds the meter and the spent-of-funded line under the real figure.
+
+### omp
+
+omp is provider-agnostic, so its numbers come from omp itself. `omp stats
+--json` reports only the last 24 hours — it calls `getDashboardStats()`
+without a range — so the collector reads the seven-day series and all-time
+totals (prompt count, per-model tokens, active days) straight from omp's own
+stats database at `~/.omp/stats.db`, and uses `omp stats --json` for the
+24-hour window. Sessions are counted from the JSONL files under
+`~/.omp/agent/sessions/` (which `omp stats` walks but does not surface as a
+session count). There is no separate rate-limit endpoint — `omp usage` reports
+whatever limits the configured providers expose, and DeepSeek exposes none —
+so the limits list stays empty and the tab relies on the balance gauge instead.
+
+When omp runs on DeepSeek, the collector asks `get-user-balance` for the live
+prepaid ledger using omp's own stored key (`omp token deepseek`). DeepSeek
+reports only remaining credits — granted, topped-up, and their sum — never the
+original funding amount, so the collector surfaces `remaining` alone and the
+panel shows that figure as a plain balance rather than a spend gauge.
 
 ## Interactions
 
@@ -189,4 +209,5 @@ the same account synced from two machines is not counted twice.
 One caveat on "all-time": the Codex collector only reads native session files
 touched in the last 30 days, and Fireworks requests the last 30 days from its
 billing API, so their totals and day counts cover that window. Claude's cover
-every transcript still on disk.
+every transcript still on disk, and omp's cover every message still in its
+stats database (`~/.omp/stats.db`).
