@@ -499,9 +499,20 @@ Panel {
     return phrases
   }
   property int phraseIndex: 0
-  readonly property string heroPhrase: summaryPhrases.length > 0
-    ? summaryPhrases[phraseIndex % summaryPhrases.length]
+  // Every record that lands rebuilds the phrases, and opening the panel
+  // refreshes each agent in turn. Indexing the live list would swap the line
+  // on each of those, so the hero holds what it shows until the next fade.
+  property string shownPhrase: ""
+  readonly property string heroPhrase: shownPhrase !== ""
+    ? shownPhrase
     : (providers.length > 0 ? "Subscriptions" : "Not set up yet")
+
+  function showPhrase() {
+    var n = summaryPhrases.length
+    shownPhrase = n > 0 ? summaryPhrases[phraseIndex % n] : ""
+  }
+
+  onSummaryPhrasesChanged: if (shownPhrase === "" || summaryPhrases.length <= 1) showPhrase()
 
   function dayName(date) {
     var parsed = new Date(String(date || "") + "T00:00:00")
@@ -635,7 +646,10 @@ Panel {
       to: 0.0; duration: Style.duration(180); easing.type: Easing.OutQuad
     }
     ScriptAction {
-      script: root.phraseIndex = (root.phraseIndex + 1) % Math.max(1, root.summaryPhrases.length)
+      script: {
+        root.phraseIndex = (root.phraseIndex + 1) % Math.max(1, root.summaryPhrases.length)
+        root.showPhrase()
+      }
     }
     PropertyAnimation {
       target: hero; property: "metaOpacity"
