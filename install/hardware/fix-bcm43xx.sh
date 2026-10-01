@@ -1,16 +1,18 @@
 # Install Wi-Fi drivers for Broadcom chips found in some MacBooks, as well as other systems:
 # - BCM4360 (14e4:43a0, 2013–2015 MacBooks) has no in-kernel driver. broadcom-wl is the only option.
-# - BCM4331 (14e4:4331, 2011–early 2013 MacBooks) is driven by in-kernel b43.
-#   broadcom-wl hard-freezes these machines and blacklists b43, so it must not be
-#   installed when a BCM4331 is present. linux-firmware-broadcom does not ship the
-#   b43 ucode (it is the brcmfmac/bnx2 split), so this script does not add a package
-#   that would claim to provide it.
+# - BCM4331 (14e4:4331, 2011–early 2013 MacBooks) normally uses broadcom-wl.
+#   On MacBookAir4,1 it has been reported to freeze the machine (#7593).
+#   Skip wl only on that model: it would also blacklist the alternative b43
+#   driver. b43 needs separately supplied firmware; linux-firmware-broadcom
+#   does not contain it, so this exception does not provision working Wi-Fi.
 
 pci_info=$(lspci -nn)
+product_name=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
 
-if echo "$pci_info" | grep -q "14e4:4331"; then
-  echo "BCM4331 detected; leaving in-kernel b43 in place"
-elif echo "$pci_info" | grep -q "14e4:43a0"; then
-  echo "BCM4360 detected"
+if [[ $product_name == "MacBookAir4,1" ]] && echo "$pci_info" | grep -q "14e4:4331"; then
+  echo "MacBookAir4,1 with BCM4331 detected; skipping broadcom-wl due to reported freezes"
+  echo "Wi-Fi requires separately supplied b43 firmware; see the Mac support manual"
+elif echo "$pci_info" | grep -qE "14e4:(43a0|4331)"; then
+  echo "BCM4360 / BCM4331 detected"
   omarchy-pkg-add broadcom-wl-dkms
 fi
