@@ -5,7 +5,6 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command jq
-require_command pgrep
 require_command script
 require_command python3
 
@@ -14,12 +13,21 @@ resolver="$ROOT/bin/omarchy-cmd-terminal-cwd"
 test_tmp=$(mktemp -d)
 windows=()
 
+# Children first: killing a parent reparents its children out of reach.
+kill_tree() {
+  local child
+
+  for child in $(cat /proc/"$1"/task/*/children 2>/dev/null); do
+    kill_tree "$child"
+  done
+  kill "$1" 2>/dev/null || true
+}
+
 cleanup() {
   local window
 
   for window in "${windows[@]}"; do
-    pkill -P "$window" 2>/dev/null || true
-    kill "$window" 2>/dev/null || true
+    kill_tree "$window"
   done
 
   rm -rf "$test_tmp"
@@ -74,18 +82,19 @@ sleep 300 &
 wait
 SH
 
-# A window whose descendants hold a controlling terminal, as a real terminal's do.
+# A window whose descendants hold a controlling terminal, as a real terminal's
+# do. Sets $window rather than printing it, so cleanup sees the pid.
 start_terminal_window() {
   setsid script -qec "$*" /dev/null >/dev/null 2>&1 &
-  windows+=("$!")
-  echo "$!"
+  window=$!
+  windows+=("$window")
 }
 
 # A window with no controlling terminal anywhere, as a GUI app has.
 start_headless_window() {
   setsid "$@" >/dev/null 2>&1 &
-  windows+=("$!")
-  echo "$!"
+  window=$!
+  windows+=("$window")
 }
 
 wait_for_file() {
@@ -117,7 +126,7 @@ resolve() {
 # listed in /etc/shells.
 mkdir -p "$test_tmp/outer" "$test_tmp/inner"
 fake_program nu
-window=$(start_terminal_window "cd '$test_tmp/outer' && '$fake_bin/nu' -c \"cd '$test_tmp/inner'; sleep 300\"")
+start_terminal_window "cd '$test_tmp/outer' && '$fake_bin/nu' -c \"cd '$test_tmp/inner'; sleep 300\""
 sleep 1
 resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
 [[ $resolved == "$test_tmp/inner" ]] ||
@@ -136,7 +145,7 @@ pass "a terminal pid passed in is resolved without hyprctl"
 # A job sent to the background holds the terminal too, but the shell the user
 # is typing into is the one in the foreground.
 mkdir -p "$test_tmp/foreground" "$test_tmp/background"
-window=$(start_terminal_window "cd '$test_tmp/foreground' && bash -c \"set -m; (cd '$test_tmp/background' && sleep 300) & wait\"")
+start_terminal_window "cd '$test_tmp/foreground' && bash -c \"set -m; (cd '$test_tmp/background' && sleep 300) & wait\""
 sleep 1
 resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
 [[ $resolved == "$test_tmp/foreground" ]] ||
@@ -150,7 +159,7 @@ mkdir -p "$test_tmp/launched" "$test_tmp/pane"
 fake_program tmux
 tmux_log="$test_tmp/tmux-log"
 client_pidfile="$test_tmp/tmux-client.pid"
-window=$(start_terminal_window "cd '$test_tmp/launched' && bash -c \"OMARCHY_TEST_PIDFILE='$client_pidfile' '$fake_bin/tmux' '$test_tmp/idle' -L probe attach\"")
+start_terminal_window "cd '$test_tmp/launched' && bash -c \"OMARCHY_TEST_PIDFILE='$client_pidfile' '$fake_bin/tmux' '$test_tmp/idle' -L probe attach\""
 wait_for_file "$client_pidfile" || fail "tmux client starts"
 client_pid=$(<"$client_pidfile")
 
@@ -178,7 +187,7 @@ pass "a silent multiplexer falls back to the terminal, not the client"
 mkdir -p "$test_tmp/herdr-pane"
 fake_program herdr
 herdr_log="$test_tmp/herdr-log"
-window=$(start_terminal_window "cd '$test_tmp/launched' && '$fake_bin/herdr' '$test_tmp/idle' --session work")
+start_terminal_window "cd '$test_tmp/launched' && '$fake_bin/herdr' '$test_tmp/idle' --session work"
 sleep 1
 resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window" OMARCHY_TEST_HERDR_LOG="$herdr_log" \
   OMARCHY_TEST_HERDR_PANE="$test_tmp/herdr-pane" OMARCHY_TEST_HERDR_DECOY="$test_tmp/launched")
@@ -193,7 +202,7 @@ pass "herdr is queried for the client's own session"
 
 # A window that is not a terminal has no process attached to one.
 mkdir -p "$test_tmp/gui"
-window=$(start_headless_window bash -c "cd '$test_tmp/gui'; sleep 300")
+start_headless_window bash -c "cd '$test_tmp/gui'; sleep 300"
 sleep 1
 resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
 [[ $resolved == "$fallback_home" ]] ||
@@ -209,7 +218,7 @@ jq -n --arg cwd "$OMARCHY_TEST_KITTY_PANE" '[{tabs: [{windows: [{cwd: $cwd}]}]}]
 SH
 chmod +x "$mock_bin/kitten"
 
-window=$(start_terminal_window "cd '$test_tmp/launched' && sleep 300")
+start_terminal_window "cd '$test_tmp/launched' && sleep 300"
 sleep 1
 python3 -c 'import socket, sys; s = socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])' \
   "$test_tmp/omarchy-kitty-$window"
