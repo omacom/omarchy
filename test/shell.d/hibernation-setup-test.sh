@@ -23,6 +23,7 @@ elif [[ $1 == "sed" ]]; then
   "$@"
 else
   printf 'sudo %s\n' "$*" >>"$TEST_LOG"
+  [[ ${FAIL_REBUILD:-0} == "0" ]]
 fi
 STUB
 
@@ -51,7 +52,7 @@ run_setup >/dev/null
 pass "configured hibernation remains a no-op without force"
 
 run_setup --force >/dev/null
-rebuild_count=$(grep -cFx 'sudo limine-mkinitcpio' "$test_log")
+rebuild_count=$(grep -cFx 'sudo limine-mkinitcpio' "$test_log" || true)
 (( rebuild_count == 1 )) ||
   fail "forced hibernation setup rebuilds the UKI once" "$(cat "$test_log")"
 pass "forced hibernation setup rebuilds an already-configured UKI"
@@ -67,7 +68,13 @@ run_setup --force >/dev/null
 
 grep -qF 'resume_offset=12345"' "$resume_drop_in" ||
   fail "forced hibernation setup repairs an empty resume offset"
-rebuild_count=$(grep -cFx 'sudo limine-mkinitcpio' "$test_log")
+rebuild_count=$(grep -cFx 'sudo limine-mkinitcpio' "$test_log" || true)
 (( rebuild_count == 1 )) ||
   fail "offset repair and force share one UKI rebuild" "$(cat "$test_log")"
 pass "forced offset repair rebuilds the UKI exactly once"
+
+if FAIL_REBUILD=1 run_setup --force >"$test_tmp/output" 2>&1; then
+  fail "forced rebuild failure reaches the caller"
+fi
+! grep -q 'Hibernation is already set up' "$test_tmp/output" || fail "a failed rebuild announces no success"
+pass "forced hibernation repair reports rebuild failures"

@@ -77,7 +77,7 @@ if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; 
 
   if $NEEDS_REBUILD && ! $NO_REBUILD; then
     echo "Regenerating initramfs..."
-    sudo limine-mkinitcpio
+    sudo limine-mkinitcpio || exit 1
     echo
   fi
 
