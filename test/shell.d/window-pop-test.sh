@@ -39,12 +39,18 @@ grep -q '<--batch><dispatch hl.dsp.window.float.*hl.dsp.window.resize.*hl.dsp.wi
 pass "window pop uses one compositor batch"
 
 : >"$log"
-BATCH_FAIL=1 run_pop
-(( $(wc -l <"$log") == 8 )) ||
-  fail "window pop falls back to six sequential dispatches" "$(cat "$log")"
-(( $(grep -c '^<dispatch><hl.dsp.window' "$log") == 6 )) ||
-  fail "window pop fallback keeps the Lua dispatch path" "$(cat "$log")"
-pass "window pop falls back to sequential dispatches"
+if BATCH_FAIL=1 run_pop; then
+  fail "a compositor connection failure reaches the caller"
+fi
+(( $(wc -l <"$log") == 2 )) || fail "a failed batch is not replayed"
+pass "window pop reports connection failures without replaying actions"
+
+: >"$log"
+run_pop 800 500 100 120
+grep -q 'x = 800, y = 500.*x = 100, y = 120' "$log" || fail "explicit size and position are batched"
+! grep -q 'center' "$log" || fail "explicit placement does not also center the window"
+! grep -q ' ; >' "$log" || fail "the batch has no trailing empty command"
+pass "explicit pop geometry is preserved"
 
 : >"$log"
 WINDOW_PINNED=true run_pop
