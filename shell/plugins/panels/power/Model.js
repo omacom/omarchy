@@ -53,7 +53,7 @@ function chargeLimitsInBand(limits, fraction) {
   var end = Number(limits && limits.end)
   if (!(end >= 1) || end >= 99) return false
   var start = Number(limits && limits.start) || 0
-  return fraction * 100 >= start && fraction * 100 <= end
+  return fraction * 100 >= start
 }
 
 function chargeThresholdActive(device, onBattery, states, limits) {
@@ -66,7 +66,7 @@ function chargeThresholdActive(device, onBattery, states, limits) {
   if (d.state === s.PendingCharge) {
     // pending-charge covers any reason the EC declines to charge — including a
     // dead battery or an undersized adapter — so only treat it as a hold when
-    // the script reports a real limit and this level could plausibly be held.
+    // the script reports a real limit and the level sits at or above its start.
     return chargeLimitsInBand(limits, fraction)
   }
   if (d.state === s.FullyCharged && fraction < 0.99) return true

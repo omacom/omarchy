@@ -26,7 +26,7 @@ assertEqual(power.batteryFraction({ isPresent: true, percentage: 1.5 }), 1, 'pow
 const inBand = { start: '75', end: '80' }
 
 assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.PendingCharge }, false, states, inBand), 'power detects threshold by pending charge state inside the limit band')
-assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.9, state: states.PendingCharge }, false, states, inBand), 'power ignores pending charge above the limit band')
+assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.9, state: states.PendingCharge }, false, states, inBand), 'power treats pending charge above the limit band as a hold')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.5, state: states.PendingCharge }, false, states, inBand), 'power ignores pending charge below the limit band')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.1, state: states.PendingCharge }, false, states, { start: '', end: '100' }), 'power ignores pending charge outside a real limit band')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.PendingCharge }, false, states), 'power requires reported limits before treating pending charge as a hold')

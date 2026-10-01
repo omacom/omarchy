@@ -84,12 +84,20 @@ grep -Fx $'threshold_start\t75' <<<"$shell_output" >/dev/null || fail "shell out
 grep -Fx $'threshold_end\t80' <<<"$shell_output" >/dev/null || fail "shell output exposes the limit end"
 grep -Fx $'threshold\t75-80%' <<<"$shell_output" >/dev/null || fail "threshold label spans the band"
 
-# Above the band the hold no longer applies even though the state persists.
-setup_battery pending-charge 90 "75" "80"
+# Below the band the hold does not apply (e.g. 9% with a 75-80 limit right
+# after plug-in, while the EC briefly reports pending-charge).
+setup_battery pending-charge 9 "75" "80"
 shell_output=$(run_shell)
 if matches=$(rg -n '^state\tholding$' <<<"$shell_output"); then
-  fail "out-of-band pending charge does not report as holding" "$matches"
+  fail "below-limit pending charge does not report as holding" "$matches"
 fi
+
+# Above the band the pack is still held by the limit (e.g. 90% with an 80%
+# limit set while already charged past it).
+setup_battery pending-charge 90 "75" "80"
+shell_output=$(run_shell)
+grep -Fx $'state\tholding' <<<"$shell_output" >/dev/null || fail "above-limit pending charge reports as holding"
+grep -Fx $'threshold\t75-80%' <<<"$shell_output" >/dev/null || fail "above-limit hold keeps the threshold label"
 
 if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
   fail "battery status owns capacity and remaining calculations" "$matches"
