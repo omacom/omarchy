@@ -179,6 +179,21 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   assertEqual(retry.failureReason, 'Timed out connecting', 'enterprise deadline reports a timeout instead of invalid credentials')
   assertEqual(retry.actionKind, '', 'enterprise timeout clears its own busy state for retry')
 
+  const lateSuccess = {actionRevision: firstRevision, actionKind: '', actionSsid: '', failureSsid: 'Enterprise WiFi',
+    failureReason: 'Timed out connecting', passwordSsid: 'Enterprise WiFi', enterpriseRetry: null,
+    clearNetworkAction: function() { this.failureSsid = ''; this.failureReason = ''; this.refreshed = true }}
+  onExited(0, 0, lateSuccess, firstRevision, 'Enterprise WiFi', timer, '')
+  assertEqual(lateSuccess.failureReason, '', 'late enterprise success removes its informational timeout error')
+  assertEqual(lateSuccess.passwordSsid, '', 'late enterprise success closes its password prompt')
+  assert(lateSuccess.refreshed, 'late enterprise success refreshes connection details')
+  lateSuccess.actionRevision++
+  lateSuccess.failureSsid = 'Enterprise WiFi'
+  lateSuccess.failureReason = 'Newer action failed'
+  lateSuccess.passwordSsid = 'Enterprise WiFi'
+  const beforeOldSuccess = JSON.stringify(lateSuccess)
+  onExited(0, 0, lateSuccess, firstRevision, 'Enterprise WiFi', timer, '')
+  assertEqual(JSON.stringify(lateSuccess), beforeOldSuccess, 'old enterprise success preserves a newer action failure and prompt')
+
   const deferred = []
   const queued = {actionRevision: firstRevision, actionKind: '', actionSsid: '', enterpriseRetry,
     connectEnterprise: function() { connectEnterprise(...arguments) }}
@@ -191,18 +206,35 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   assertEqual(enterpriseConnect.command.at(-3), 'latest@example.org', 'enterprise starts the latest queued identity')
   assert(enterpriseConnect.actionRevision > firstRevision, 'enterprise retry records a new attempt revision')
 
+  for (const laterKind of ['disconnect', '']) {
+    var resumed = 0
+    const callbacks = []
+    const superseded = {actionRevision: firstRevision, actionKind: '', actionSsid: '',
+      enterpriseRetry: {ssid: 'Enterprise WiFi', actionRevision: firstRevision},
+      connectEnterprise: function() { resumed++ }}
+    onExited(124, 0, superseded, firstRevision, 'Enterprise WiFi', timer, '', true, {callLater: fn => callbacks.push(fn)})
+    superseded.actionRevision++
+    superseded.actionKind = laterKind
+    callbacks[0]()
+    assertEqual(resumed, 0, 'queued enterprise retry cannot override a later action that is ' + (laterKind ? 'busy' : 'finished'))
+  }
+
   const actionHelper = panel.match(/function runNetworkAction\([^)]*\) \{[\s\S]*?\n {2}\}/)
   assert(actionHelper, 'network has a production action helper')
   const actionContext = vm.createContext({actionKind: '', actionRevision: 0,
-    actionSsid: '', failureSsid: '', failureReason: '', actionTimeout: {restart: function() {}}})
+    actionSsid: '', failureSsid: '', failureReason: '', enterpriseRetry: {ssid: 'Old request'}, actionTimeout: {restart: function() {}}})
   vm.runInContext(actionHelper[0], actionContext)
   actionContext.runNetworkAction('connect', {name: 'Enterprise WiFi'}, function() {})
   assertEqual(actionContext.actionRevision, 1, 'production action helper advances the attempt revision')
+  assertEqual(actionContext.enterpriseRetry, null, 'an accepted network action discards the queued enterprise request')
+  actionContext.enterpriseRetry = {ssid: 'Pending request'}
   actionContext.runNetworkAction('connect', {name: 'Enterprise WiFi'}, function() {})
   assertEqual(actionContext.actionRevision, 1, 'production action helper does not advance a rejected busy attempt')
+  assertEqual(actionContext.enterpriseRetry.ssid, 'Pending request', 'a rejected action does not discard an existing enterprise request')
   actionContext.actionKind = ''
   actionContext.runNetworkAction('connect', {name: 'Enterprise WiFi'}, function() {})
   assertEqual(actionContext.actionRevision, 2, 'production action helper advances a later same-SSID retry')
+  assertEqual(actionContext.enterpriseRetry, null, 'a later accepted action retires the old enterprise retry')
 } finally {
   fs.rmSync(scratch, {recursive: true, force: true})
 }

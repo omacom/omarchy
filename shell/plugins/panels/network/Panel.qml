@@ -772,6 +772,7 @@ Panel {
 
   function runNetworkAction(kind, network, callback) {
     if (actionKind !== "" || !network) return
+    enterpriseRetry = null
     actionRevision++
     var ssid = network.name || ""
     actionSsid = ssid
@@ -834,7 +835,7 @@ Panel {
     // them before exit would let its late failure be attributed to a retry.
     if (enterpriseConnect.running) {
       if (actionKind === "") {
-        enterpriseRetry = {ssid: ssid, identity: identity, passphrase: passphrase, caCert: caCert, serverName: serverName}
+        enterpriseRetry = {ssid: ssid, identity: identity, passphrase: passphrase, caCert: caCert, serverName: serverName, actionRevision: actionRevision}
         if (!enterpriseConnect.cancelling) {
           enterpriseConnect.cancelling = true
           enterpriseConnect.signal(15)
@@ -870,9 +871,20 @@ Panel {
       var retry = root.enterpriseRetry
       root.enterpriseRetry = null
       if (retry) {
-        Qt.callLater(function() { root.connectEnterprise(retry.ssid, retry.identity, retry.passphrase, retry.caCert, retry.serverName) })
+        Qt.callLater(function() {
+          if (root.actionRevision === retry.actionRevision && root.actionKind === "")
+            root.connectEnterprise(retry.ssid, retry.identity, retry.passphrase, retry.caCert, retry.serverName)
+        })
       }
-      if ((exitCode === 0 && exitStatus === 0) || root.actionRevision !== actionRevision || root.actionKind !== "connect" || root.actionSsid !== ssid) return
+      if (root.actionRevision !== actionRevision) return
+      var active = root.actionKind === "connect" && root.actionSsid === ssid
+      var timedOut = root.actionKind === "" && root.failureSsid === ssid
+      if (!active && !timedOut) return
+      if (exitCode === 0 && exitStatus === 0) {
+        root.passwordSsid = ""
+        root.clearNetworkAction()
+        return
+      }
       actionTimeout.stop()
       root.failureSsid = ssid
       root.failureReason = exitCode === 64 ? "CA certificate must be a readable file"
