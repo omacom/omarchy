@@ -75,6 +75,19 @@ client_geometry() {
   hyprctl clients -j | jq -r --arg a "$address" '.[] | select(.address == $a) | "\(.size[0]) \(.size[1])"'
 }
 
+# The logical size of the window's monitor, less what the bar reserves.
+monitor_bounds() {
+  local address="$1" monitor
+  monitor=$(hyprctl clients -j | jq -r --arg a "$address" '.[] | select(.address == $a) | .monitor')
+  [[ $monitor =~ ^[0-9]+$ ]] || return 1
+
+  hyprctl monitors -j | jq -r --argjson id "$monitor" '
+    .[] | select(.id == $id) |
+    ((.transform // 0) % 2 == 1) as $rotated |
+    (.reserved // [0, 0, 0, 0]) as $r |
+    "\((((if $rotated then .height else .width end) / .scale) | floor) - $r[0] - $r[2]) \((((if $rotated then .width else .height end) / .scale) | floor) - $r[1] - $r[3])"'
+}
+
 fit_window() {
   local logo_w
   logo_w=$(logo_width)
@@ -85,6 +98,10 @@ fit_window() {
   local address width height
   read -r address width height <<<"$(own_client)"
   [[ -n ${address:-} ]] || return 1
+
+  local max_w max_h
+  read -r max_w max_h <<<"$(monitor_bounds "$address")"
+  (( max_w > 0 && max_h > 0 )) || return 1
 
   local rows cols
   read -r rows cols <<<"$(stty size)"
@@ -122,6 +139,12 @@ fit_window() {
     shift_h=$(( (target_r - rows) * height ))
     target_w=$(( width + (shift_w >= 0 ? (shift_w + cols - 1) / cols : shift_w / cols) ))
     target_h=$(( height + (shift_h >= 0 ? (shift_h + rows - 1) / rows : shift_h / rows) ))
+
+    # A font too large for the logo to fit on this screen wraps it rather than
+    # pushing the window off every edge of the monitor.
+    (( target_w > max_w )) && target_w=$max_w
+    (( target_h > max_h )) && target_h=$max_h
+    (( target_w == width && target_h == height )) && return 1
 
     hypr_dispatch "hl.dsp.window.resize({ window = \"address:$address\", x = $target_w, y = $target_h })" resizewindowpixel "exact $target_w $target_h,address:$address"
     hypr_dispatch "hl.dsp.window.center({ window = \"address:$address\" })" centerwindow

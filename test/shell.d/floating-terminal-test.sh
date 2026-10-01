@@ -48,10 +48,16 @@ done
 pass "the non-functional size-rule cache was dropped as dead code"
 
 clients_json='[]'
+monitors_json='[{"id":0,"width":2560,"height":1440,"scale":1,"transform":0,"reserved":[0,26,0,0]}]'
+dispatch_log="$tmp_dir/dispatches"
+: >"$dispatch_log"
 hyprctl() {
   if [[ $1 == clients ]]; then
     printf '%s' "$clients_json"
+  elif [[ $1 == monitors ]]; then
+    printf '%s' "$monitors_json"
   elif [[ $1 == dispatch ]]; then
+    printf '%s\n' "$2" >>"$dispatch_log"
     return 0
   fi
 }
@@ -116,10 +122,22 @@ own_client() {
 }
 
 clients_json=$(jq -n --arg pid "$$" \
-  '[{class:"org.omarchy.terminal", pid: ($pid | tonumber), address:"0xstuck", size:[100,50]}]')
+  '[{class:"org.omarchy.terminal", pid: ($pid | tonumber), address:"0xstuck", size:[100,50], monitor:0}]')
 fit_window && fail "fit_window should exhaust its nudge budget against a window stuck off-target" ||
   pass "fit_window exhausts its nudge budget rather than nudging forever"
 
 own_client_calls=$(wc -c <"$own_client_call_log")
 (( own_client_calls == 1 )) || fail "fit_window resolves the client once and reuses it across nudges" "own_client called $own_client_calls times"
 pass "fit_window resolves the client once and reuses it across nudges"
+
+# A font too large for the logo to fit on a small screen must not push the
+# window past the monitor, which is where the logo's own edges would go.
+_real_own_client() { printf '%s\n' "0xbig 875 600"; }
+stty() { printf "%s\n" "20 10"; }
+monitors_json='[{"id":0,"width":1280,"height":800,"scale":2,"transform":0,"reserved":[0,26,0,0]}]'
+clients_json='[{"class":"org.omarchy.terminal","address":"0xbig","size":[875,600],"monitor":0}]'
+: >"$dispatch_log"
+fit_window || true
+resize=$(grep -m1 'resize' "$dispatch_log")
+[[ $resize == *"x = 640, y = 374"* ]] || fail "fit_window keeps the window within its monitor" "$resize"
+pass "fit_window keeps the window within its monitor"
