@@ -20,7 +20,7 @@ ConditionEnvironment=WAYLAND_DISPLAY
 # Restart=always below is what makes an absent binary expensive: systemd retries
 # every RestartSec forever, so an install that never got fcitx5 -- it is in
 # omarchy-base.packages, but a trimmed or derived image can ship this unit
-# without it -- spends the whole session failing at 203/EXEC twice a second.
+# without it -- spends the whole session failing at 203/EXEC every two seconds.
 # Enabling this unit is unconditional in first-run/enable-user-units.sh, whose
 # own comment says ConditionPath* is what keeps an enabled unit inert where it
 # does not apply; this unit was missing its half of that.
