@@ -36,13 +36,33 @@ else
 
   snapper_configs=""
   if [[ -f $SNAPPER_CONF_PATH ]]; then
-    snapper_configs=$(sed -n 's/^[[:space:]]*SNAPPER_CONFIGS="\([^"]*\)"[[:space:]]*$/\1/p' "$SNAPPER_CONF_PATH")
+    snapper_configs=$(awk -v single="'" '
+      /^[[:space:]]*SNAPPER_CONFIGS[[:space:]]*=/ {
+        value = $0
+        sub(/^[^=]*=[[:space:]]*/, "", value)
+        quote = substr(value, 1, 1)
+        if (quote == "\"" || quote == single) {
+          value = substr(value, 2)
+          value = substr(value, 1, index(value, quote) - 1)
+        } else {
+          sub(/[[:space:]]*#.*/, "", value)
+          sub(/[[:space:]]*$/, "", value)
+        }
+      }
+      END { print value }
+    ' "$SNAPPER_CONF_PATH")
     if [[ ! -e $SNAPPER_CONFIG_PATH && " $snapper_configs " == *" root "* ]]; then
       remaining_configs=""
       for config in $snapper_configs; do
         [[ $config == "root" ]] || remaining_configs+="${remaining_configs:+ }$config"
       done
-      sed -i "s/^[[:space:]]*SNAPPER_CONFIGS=\"[^\"]*\"[[:space:]]*$/SNAPPER_CONFIGS=\"$remaining_configs\"/" "$SNAPPER_CONF_PATH"
+      tmp=$(mktemp "$SNAPPER_CONF_PATH.XXXXXX")
+      awk -v configs="$remaining_configs" '
+        /^[[:space:]]*SNAPPER_CONFIGS[[:space:]]*=/ { print "SNAPPER_CONFIGS=\"" configs "\""; next }
+        { print }
+      ' "$SNAPPER_CONF_PATH" >"$tmp"
+      cat "$tmp" >"$SNAPPER_CONF_PATH"
+      rm -f "$tmp"
       snapper_configs=$remaining_configs
     fi
   fi

@@ -244,3 +244,19 @@ grep -Fxq '# keep my settings' "$partial/snapper" || fail "shared Snapper commen
 grep -Fxq 'SNAPPER_DEBUG="yes"' "$partial/snapper" || fail "unrelated Snapper settings survive"
 grep -Fxq 'systemctl disable --now snapper-cleanup.timer' "$test_tmp/calls.log" || fail "unregistered files and directories do not keep cleanup enabled"
 pass "partial non-Btrfs repair preserves shared settings and ignores unregistered files"
+
+for assignment in "SNAPPER_CONFIGS='home'" 'SNAPPER_CONFIGS=home' ' SNAPPER_CONFIGS = "home" # retain cleanup'; do
+  printf '%s\n' "$assignment" >"$partial/snapper"
+  : >"$partial/configs/home"
+  : >"$test_tmp/calls.log"
+  TEST_ROOT_FSTYPE=ext4 TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
+    OMARCHY_SNAPPER_CONFIG_PATH="$partial/configs/root" OMARCHY_SNAPPER_CONF_PATH="$partial/snapper" \
+    bash -euo pipefail "$ROOT/install/config/snapper.sh" >/dev/null
+  ! grep -Fxq 'systemctl disable --now snapper-cleanup.timer' "$test_tmp/calls.log" || fail "valid quoted and unquoted registration keeps cleanup available"
+done
+printf "SNAPPER_CONFIGS='root home'\n" >"$partial/snapper"
+TEST_ROOT_FSTYPE=ext4 TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
+  OMARCHY_SNAPPER_CONFIG_PATH="$partial/configs/root" OMARCHY_SNAPPER_CONF_PATH="$partial/snapper" \
+  bash -euo pipefail "$ROOT/install/config/snapper.sh" >/dev/null
+grep -Fxq 'SNAPPER_CONFIGS="home"' "$partial/snapper" || fail "single-quoted registration removes only the retired root"
+pass "literal Snapper registration forms preserve valid cleanup configs"
