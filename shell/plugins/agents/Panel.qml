@@ -899,7 +899,12 @@ Panel {
 
       Flickable {
         id: panelFlick
+        // Reaches a little into the panel's padding on the left, with the
+        // content shifted back, so the box around a lit agent mark isn't
+        // clipped where it overhangs the content's edge.
+        readonly property real overhang: Style.space(8)
         anchors.fill: parent
+        anchors.leftMargin: -overhang
         contentWidth: width
         contentHeight: column.implicitHeight
         clip: true
@@ -913,9 +918,10 @@ Panel {
 
         Column {
           id: column
+          x: panelFlick.overhang
           // When the panel scrolls, the bar gets its own strip rather than
           // sitting on top of the right-aligned numbers.
-          width: panelFlick.width - (panelFlick.interactive ? panelScroll.width + Style.space(6) : 0)
+          width: panelFlick.width - panelFlick.overhang - (panelFlick.interactive ? panelScroll.width + Style.space(6) : 0)
           spacing: Style.space(16)
 
           // ---------- Hero: agents · rotating summary · add ----------
