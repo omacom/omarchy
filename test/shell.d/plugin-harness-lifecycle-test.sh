@@ -77,6 +77,16 @@ omarchy-plugin-remove acme.chosen --yes >/dev/null
 [[ ! -e $agent_file ]] || fail "plugin removal switches a default to a duplicate harness"
 pass "plugin removal clears a default backed by the removed duplicate"
 
+renamed_directory="$plugins/acme.old-name"
+mkdir -p "$renamed_directory"
+write_manifest "$renamed_directory" "renamed-agent"
+jq '.id = "acme.new-name"' "$renamed_directory/manifest.json" >"$renamed_directory/updated.json"
+mv "$renamed_directory/updated.json" "$renamed_directory/manifest.json"
+printf '%s\n' renamed-agent >"$agent_file"
+omarchy-plugin-remove acme.old-name --yes >/dev/null
+[[ ! -e $agent_file ]] || fail "plugin removal keeps a default after its manifest id changed"
+pass "plugin removal clears a default when its manifest id differs from its directory"
+
 removed="$plugins/acme.removed"
 mkdir -p "$removed"
 write_manifest "$removed" "removed-agent"
