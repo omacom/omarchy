@@ -94,13 +94,19 @@ done
 pass "idle screensaver keeps waiting for focus"
 
 screensaver_idle=0
-screensaver_apply_args --idle
+source "$ROOT/bin/omarchy-screensaver" --idle
 ((screensaver_idle == 1)) || fail "screensaver --idle is recorded before the watchdog runs"
+for ((i = 0; i < screensaver_unfocused_limit + 2; i++)); do
+  if screensaver_lost_focus; then
+    fail "parsed --idle keeps an unfocused screensaver waiting"
+  fi
+done
 screensaver_idle=0
-screensaver_apply_args
+source "$ROOT/bin/omarchy-screensaver"
 ((screensaver_idle == 0)) || fail "screensaver without --idle stays on the manual path"
-pass "screensaver records --idle from its arguments"
+pass "screensaver parses --idle before the source guard and keeps waiting for focus"
 
-exec_count=$(grep -cF -- '-e "${screensaver_cmd[@]}"' "$ROOT/bin/omarchy-launch-screensaver" || true)
-((exec_count == 4)) || fail "every terminal launcher forwards the screensaver command" "count=$exec_count"
-pass "every terminal launcher forwards the screensaver command"
+if rg -n -- '(-e|--) omarchy-screensaver( |$)' "$ROOT/bin/omarchy-launch-screensaver"; then
+  fail "terminal launchers must forward the screensaver command including --idle"
+fi
+pass "screensaver launcher has no bare terminal command that drops --idle"
