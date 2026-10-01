@@ -55,6 +55,8 @@ cat >"$test_tmp/bin/systemctl" <<'STUB'
 printf 'systemctl %s\n' "$*" >>"$TEST_LOG"
 if [[ $2 == "is-active" ]]; then
   [[ ${VOXTYPE_ACTIVE:-1} == "1" ]]
+elif [[ $2 == "is-failed" ]]; then
+  [[ ${VOXTYPE_FAILED:-0} == "1" ]]
 fi
 STUB
 chmod +x "$test_tmp/bin/omarchy-pkg-present" "$test_tmp/bin/systemctl"
@@ -75,3 +77,10 @@ printf '0x9a49\n' >"$test_tmp/pci/gpu/device"
 bash -euo pipefail "$ROOT/migrations/1790886353.sh" >"$test_tmp/output"
 [[ ! -s $TEST_LOG ]] || fail "the migration leaves other GPUs alone"
 pass "the migration skips absent dictation and other GPUs without starting stopped services"
+
+printf '0x0d26\n' >"$test_tmp/pci/gpu/device"
+: >"$TEST_LOG"
+VOXTYPE_ACTIVE=0 VOXTYPE_FAILED=1 bash -euo pipefail "$ROOT/migrations/1790886353.sh" >/dev/null
+grep -qx 'systemctl --user reset-failed voxtype.service' "$TEST_LOG" || fail "a crashed service has its start limit cleared"
+grep -qx 'systemctl --user restart voxtype.service' "$TEST_LOG" || fail "a failed service recovers with CPU dictation"
+pass "failed Haswell dictation services recover while intentionally stopped services remain stopped"
