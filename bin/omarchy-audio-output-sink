@@ -50,11 +50,16 @@ if [[ -n $downstream ]]; then
   fi
 fi
 
+configured=""
+if [[ $sink == "easyeffects_sink" ]]; then
+  configured=$(sed -n 's/^outputDevice=//p' "${XDG_CONFIG_HOME:-$HOME/.config}/easyeffects/db/easyeffectsrc" 2>/dev/null)
+fi
+
 # Newer EasyEffects releases connect their filters as native PipeWire nodes,
 # so no sink-input exists for pactl to expose. Walk outgoing port links until
 # the chain reaches a physical output.
 name="$(pw-link -l 2>/dev/null |
-  awk -v start="$sink" '
+  awk -v start="$sink" -v configured="$configured" '
     function node(port) {
       sub(/:.*/, "", port)
       return port
@@ -83,15 +88,19 @@ name="$(pw-link -l 2>/dev/null |
 
         for (i = 1; i <= edge_count; i++) {
           if (from[i] != current || seen[to[i]]) continue
-          if (to[i] ~ /^(alsa_output|bluez_output)\./) {
-            print to[i]
-            exit
-          }
-
           seen[to[i]] = 1
+          if (to[i] ~ /^(alsa_output|bluez_output)\./) {
+            output = to[i]
+            outputs++
+            if (output == configured) selected = output
+            continue
+          }
           queue[++tail] = to[i]
         }
       }
+      if (selected != "") print selected
+      else if (outputs == 1) print output
+      else if (outputs > 1) print start
     }
   ')"
 
@@ -101,7 +110,6 @@ if [[ -n $name ]]; then
 fi
 
 if [[ $sink == "easyeffects_sink" ]]; then
-  configured=$(sed -n 's/^outputDevice=//p' "${XDG_CONFIG_HOME:-$HOME/.config}/easyeffects/db/easyeffectsrc" 2>/dev/null)
   if [[ -n $configured ]] && pactl list sinks short 2>/dev/null | awk '{ print $2 }' | grep -Fxq -- "$configured"; then
     printf '%s\n' "$configured"
     exit 0

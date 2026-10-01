@@ -65,3 +65,14 @@ sinks=$'9\t'"$bluetooth"$'\tPipeWire\n'
 [[ $(TEST_SINKS="$sinks" resolve_sink) == "$bluetooth" ]] || fail "idle EasyEffects uses its configured sink"
 [[ $(resolve_sink) == "easyeffects_sink" ]] || fail "a missing configured sink is not returned"
 pass "idle EasyEffects uses an available configured output and ignores disconnected devices"
+
+for order in forward reverse; do
+  outputs=$'  |-> alsa_output.other:playback_FL\n  |-> '"$bluetooth"$':playback_FL\n'
+  [[ $order != "reverse" ]] || outputs=$'  |-> '"$bluetooth"$':playback_FL\n  |-> alsa_output.other:playback_FL\n'
+  graph=$'easyeffects_sink:monitor_FL\n  |-> ee_soe_filter:input_FL\nee_soe_filter:output_FL\n'"$outputs"
+  [[ $(TEST_PIPEWIRE_LINKS="$graph" TEST_SINKS="$sinks" resolve_sink) == "$bluetooth" ]] || fail "the configured output wins regardless of graph order"
+  mv "$XDG_CONFIG_HOME/easyeffects/db/easyeffectsrc" "$test_tmp/easyeffectsrc"
+  [[ $(TEST_PIPEWIRE_LINKS="$graph" resolve_sink) == "easyeffects_sink" ]] || fail "ambiguous graph order is not guessed"
+  mv "$test_tmp/easyeffectsrc" "$XDG_CONFIG_HOME/easyeffects/db/easyeffectsrc"
+done
+pass "multiple graph outputs use the selected device without depending on link order"
