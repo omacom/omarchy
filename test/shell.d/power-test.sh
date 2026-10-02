@@ -54,6 +54,9 @@ assertEqual(
 
 assert(/readonly property string chargeThreshold: root\.batteryInfo\.threshold \|\| ""/.test(panelSource), 'power panel derives the charge threshold from battery status output')
 assert(!/Model\.(chargeThresholdActive|batteryIcon|modeLabel)\([^)]*upowerStates\(\)\)/.test(panelSource), 'power panel passes the charge threshold to every threshold-aware model call')
+for (const call of ['chargeThresholdActive', 'batteryIcon', 'modeLabel']) {
+  assert(new RegExp(`Model\\.${call}\\(device, root\\.discharging, upowerStates\\(\\), root\\.chargeThreshold\\)`).test(panelSource), `power panel passes the charge threshold to Model.${call}`)
+}
 assert(/Component\.onCompleted: refreshBattery\(\)/.test(panelSource), 'power panel loads the charge threshold before it is first opened, for the bar icon')
 assert(/onBatteryPresentChanged: \{\s*if \(batteryPresent\) refreshBattery\(\)/.test(panelSource), 'power panel loads the charge threshold when a battery appears')
 assert(/function refreshBattery\(\) \{[^}]*batteryProc\.running = true/.test(panelSource), 'power panel starts the battery status lookup when asked to load the charge threshold')
