@@ -21,14 +21,26 @@ if [[ -f $hyprland_config ]] && ! grep -Fq '/default/hypr/bootstrap.lua' "$hyprl
         # wrapped it. Anything else is the next statement and is printed, not
         # dropped: looking for one exact terminator line ran to EOF and took
         # the rest of the config with it.
-        while ((getline line) > 0) {
-          if (line ~ /^[[:space:]]*\.\./ || line ~ /^[[:space:]]*package\.path[[:space:]]*$/) {
-            print line > consumed
+        # A line ending in ".." continues onto the next, and a blank or comment
+        # line is only part of the assignment if a continuation follows it.
+        open = 0
+        held = ""
+        while ((got = (getline line)) > 0) {
+          if (open || line ~ /^[[:space:]]*\.\./ || line ~ /^[[:space:]]*package\.path[[:space:]]*$/) {
+            printf "%s%s\n", held, line > consumed
+            held = ""
+            open = line ~ /\.\.[[:space:]]*$/
             continue
           }
-          print line
+          if (line ~ /^[[:space:]]*(--.*)?$/) {
+            held = held line "\n"
+            continue
+          }
           break
         }
+
+        printf "%s", held
+        if (got > 0) { print line }
 
         next
       }

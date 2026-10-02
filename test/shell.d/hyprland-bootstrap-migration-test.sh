@@ -104,3 +104,23 @@ cmp -s "$config.omarchy-bootstrap.bak" "$test_tmp/extended.original" ||
 grep -Fq "$config.omarchy-bootstrap.bak" "$test_tmp/extended.out" ||
   fail "the migration says where the backup went"
 pass "migration backs up a customized preamble instead of absorbing it"
+
+# A comment inside the assignment, or a line ending in ".." rather than the next
+# one starting with it, is still the assignment: stopping there left a dangling
+# ".." line after the dofile and a config that no longer parses.
+config=$({
+  cat <<'LUA'
+-- Load user modules from ~/.config and Omarchy defaults from $OMARCHY_PATH.
+package.path = os.getenv("HOME")
+  .. "/.config/?.lua;"
+  -- Omarchy defaults
+  .. (os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") ..
+  "/?.lua;" ..
+  package.path
+LUA
+  body
+} | run_migration commented)
+grep -Fqx 'require("hypr.monitors")' "$config" || fail "a commented assignment keeps the user's requires"
+grep -Eq '^[[:space:]]*("/\?\.lua;"|\.\.|package\.path)' "$config" &&
+  fail "a commented assignment leaves no part of itself behind" "$(cat "$config")"
+pass "migration consumes comments and trailing continuations inside the assignment"
