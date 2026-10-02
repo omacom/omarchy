@@ -72,13 +72,11 @@ release_stale_crtcs() {
     done < <(awk '/^connector\[/{c=$2} c && /^\tcrtc=/{sub(/.*crtc=/,""); print c, $0; c=""}' "$state")
   done
   (( found )) || return 0
-  for session in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
-    [[ $(loginctl show-session "$session" -p Type --value 2>/dev/null) == wayland ]] || continue
-    tty=$(loginctl show-session "$session" -p TTY --value 2>/dev/null)
-    [[ $tty == tty[0-9]* ]] && break
-    tty=""
-  done
-  [[ -n $tty ]] || return 0
+  # The switch back goes to the session on screen, not merely the first one.
+  session=$(loginctl show-seat seat0 -p ActiveSession --value 2>/dev/null)
+  [[ -n $session && $(loginctl show-session "$session" -p Type --value 2>/dev/null) == "wayland" ]] || return 0
+  tty=$(loginctl show-session "$session" -p TTY --value 2>/dev/null)
+  [[ $tty == tty[0-9]* ]] || return 0
   # A VT no getty claims, so keys hit while it is up land nowhere.
   chvt 60
   sleep 0.5
