@@ -409,6 +409,57 @@ ShellRoot {
     registry.setEnabled("local.bar", false)
     root.assertTrue(root.config.bar.id === undefined, "disabling a cloned built-in bar restores it")
 
+    var missingClones = [
+      { id: "local.grouped-panel", source: "omarchy.grouped-panel", kinds: ["panel"], entryPoints: { panel: "Panel.qml" } },
+      { id: "local.hybrid", source: "omarchy.hybrid", kinds: ["menu", "bar-widget"], entryPoints: { menu: "Menu.qml", barWidget: "Widget.qml" } },
+      { id: "local.first-widget", source: "omarchy.first-widget", kinds: ["bar-widget"], entryPoints: { barWidget: "Widget.qml" } },
+      { id: "local.bar", source: "omarchy.bar", kinds: ["bar"], entryPoints: { bar: "Bar.qml" } }
+    ]
+    for (var c = 0; c < missingClones.length; c++) {
+      var missing = missingClones[c]
+      for (var priorDisabled = 0; priorDisabled < 2; priorDisabled++) {
+        registry.parseScanOutput(scan)
+        root.config = {
+          version: 1,
+          bar: { layout: { left: [{ id: missing.source, size: 4 }], center: [], right: [] } },
+          plugins: []
+        }
+        if (priorDisabled) root.config.disabledPlugins = [missing.source]
+        registry.setEnabled(missing.id, true)
+        root.assertEqual(root.config.cloneSources && root.config.cloneSources[missing.id], missing.source, "enabling saves the clone source: " + missing.id)
+        // Round-trip the config and forget the manifest, as on a restart
+        // after the clone directory or manifest has been removed.
+        root.config = JSON.parse(JSON.stringify(root.config))
+        registry.parseScanOutput(block("firstparty", "/first/source", manifest(missing.source, missing.kinds, missing.entryPoints)))
+        root.assertTrue(registry.setEnabled(missing.id, false), "missing clone can be disabled: " + missing.id)
+        root.assertTrue(root.config.cloneSources === undefined, "missing clone source record is cleared: " + missing.id)
+        root.assertTrue(root.config.cloneSourceRestores === undefined, "missing clone restore marker is cleared: " + missing.id)
+        root.assertEqual(registry.isDisabled(root.config, missing.source), !!priorDisabled, "missing clone preserves the source's prior disabled state: " + missing.id)
+        if (missing.kinds.indexOf("bar-widget") !== -1)
+          root.assertDeepEqual(root.config.bar.layout.left, [{ id: missing.source, size: 4 }], "missing widget clone restores its source and settings: " + missing.id)
+        else if (missing.kinds.indexOf("bar") !== -1)
+          root.assertTrue(root.config.bar.id === undefined, "missing bar clone restores the built-in bar")
+        else
+          root.assertDeepEqual(root.config.plugins, [], "missing panel clone entry is removed")
+        root.assertTrue(!registry.setEnabled(missing.id, false), "second missing clone disable is refused: " + missing.id)
+      }
+    }
+
+    // An existing configured clone acquires a source record on discovery.
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [], right: [] } },
+      plugins: [{ id: "local.grouped-panel" }],
+      disabledPlugins: ["omarchy.grouped-panel"],
+      cloneSourceRestores: ["local.grouped-panel"]
+    }
+    registry.parseScanOutput(scan)
+    root.assertEqual(root.config.cloneSources && root.config.cloneSources["local.grouped-panel"], "omarchy.grouped-panel", "rescan remembers a previously configured clone source")
+    registry.parseScanOutput(block("firstparty", "/first/panels/grouped", manifest("omarchy.grouped-panel", ["panel"], { panel: "Panel.qml" })))
+    root.assertTrue(registry.setEnabled("local.grouped-panel", false), "previously configured ghost clone is cleaned up")
+    root.assertTrue(registry.isEnabled("omarchy.grouped-panel"), "previously configured ghost clone restores its source")
+    registry.parseScanOutput(scan)
+
     root.config = {
       version: 1,
       bar: { layout: { left: [], center: [{ id: "third.widget", size: 4 }], right: [] } },
