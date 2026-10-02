@@ -33,6 +33,10 @@ grep -Fq 'systemd-run --quiet --no-block --collect --unit="${rescan_unit%.servic
   fail "the Thunderbolt sleep hook hands the rescan to a named transient unit that outlives systemd-suspend.service"
 grep -Fq 'systemctl stop "$rescan_unit"' "$tb_hook" ||
   fail "the Thunderbolt sleep hook stops a rescan still running before it removes the controllers again"
+grep -Eq '^\s*release_stale_crtcs$' "$tb_hook" ||
+  fail "the Thunderbolt sleep hook releases a CRTC a vanished connector still owns before the rescan"
+grep -Fq '> /dev/tty60' "$tb_hook" ||
+  fail "the Thunderbolt sleep hook prints on the console so a deferred fbcon takes over during the VT switch"
 grep -Eq '^\s*\) &\s*$' "$tb_hook" &&
   fail "the Thunderbolt sleep hook backgrounds nothing of its own, systemd-suspend.service kills it"
 grep -Fq 'BRIDGE_CONTROL' "$tb_hook" ||
