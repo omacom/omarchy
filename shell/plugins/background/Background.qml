@@ -17,6 +17,9 @@ Item {
 
   property string currentBackground: ""
   property string displayedBackground: ""
+  // An instant switch keeps the displayed path until the replacement's header
+  // is known, otherwise constrainDecode would clear the image's source.
+  property string pendingInstantBackground: ""
   property string incomingBackground: ""
   property string oldBackground: ""
   // A theme switch names its next background before it has staged the rest of
@@ -43,6 +46,8 @@ Item {
   property string pendingShellRaw: ""
   property real revealProgress: 1
 
+  onNativeSizesChanged: applyPendingInstantBackground()
+
   function isVideo(path) {
     return Util.isVideoPath(path)
   }
@@ -64,6 +69,7 @@ Item {
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
     if (!path || (!force && finalPath === currentBackground)) return
+    pendingInstantBackground = ""
     if (path !== preparedBackground) preparedBackground = ""
     preparedBackgroundTimer.stop()
     lastTransitionPath = path
@@ -84,7 +90,8 @@ Item {
       oldBackground = ""
       incomingBackground = ""
       preparedBackground = ""
-      displayedBackground = finalPath
+      pendingInstantBackground = finalPath
+      applyPendingInstantBackground()
       revealProgress = 1
       return
     }
@@ -92,6 +99,13 @@ Item {
     oldBackground = fromPath || displayedBackground
     incomingBackground = path
     revealProgress = 0
+  }
+
+  function applyPendingInstantBackground() {
+    var path = pendingInstantBackground
+    if (!path || (!isVideo(path) && nativeSizes[path] === undefined)) return
+    displayedBackground = path
+    pendingInstantBackground = ""
   }
 
   function setPendingTheme(colorsB64, shellB64) {
@@ -337,6 +351,7 @@ Item {
         id: base
         anchors.fill: parent
         path: root.displayedBackground
+        retainWhileLoading: true
         constrainDecode: true
         decodeSize: panel.decodeSize(root.displayedBackground)
         onReadyChanged: {
