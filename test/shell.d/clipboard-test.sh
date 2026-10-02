@@ -478,7 +478,7 @@ pass "clipboard paste helper specifies text/plain UTF-8 MIME type"
 pass "clipboard paste helper pastes history entries with shift insert"
 
 rm -f "$TMPDIR/wtype"
-WL_COPY_OUT="$TMPDIR/copied" WL_COPY_ARGS="$TMPDIR/copy-args" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+WL_COPY_OUT="$TMPDIR/copied" WL_COPY_ARGS="$TMPDIR/copy-args" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --history-index 1
 
 [[ $(<"$TMPDIR/copied") == "$(printf 'large block line 1\nlarge block line 2')" ]] || fail "clipboard paste helper copy-only copies history entry text"
