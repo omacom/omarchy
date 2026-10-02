@@ -110,9 +110,9 @@ Item {
   property var clickTargets: []
   property var moduleSlots: []
   property var pluginBarApis: ({})
-  // target -> { target, pluginId, clickTarget, popout }. Keyed by object so
-  // ownership checks stay O(1) however many targets six bars' worth of
-  // widgets register; every lookup used to scan a plain array.
+  // target -> { target, pluginId, clickTarget, popout }. Keyed by object so a
+  // registration edits one entry in place instead of copying and rescanning an
+  // array in QML; Qt's Map still finds a key by a native linear scan.
   readonly property var pluginObjectOwners: new Map()
   property bool pluginBarApiSyncQueued: false
 
