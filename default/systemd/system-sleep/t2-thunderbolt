@@ -47,8 +47,13 @@ reset_secondary_bus() {
   setpci -s "$addr" BRIDGE_CONTROL="$ctl"
 }
 
+rescan_unit=omarchy-t2-thunderbolt-rescan.service
+
 case $1 in
   pre)
+    # A rescan still running from the last resume must not put a controller
+    # back on the bus after this removal, or the next resume waits on it again.
+    systemctl stop "$rescan_unit" 2>/dev/null || true
     count=0
     for dev in $(tb_upstream_bridges); do
       echo 1 > "$dev/remove" && count=$((count + 1))
@@ -68,7 +73,8 @@ case $1 in
     # systemd-suspend.service, and everything left in that cgroup is killed
     # the moment the last hook returns, a backgrounded subshell included. A
     # transient unit of its own survives it.
-    systemd-run --quiet --no-block --collect "$(readlink -f "$0")" rescan "$expected"
+    systemd-run --quiet --no-block --collect --unit="${rescan_unit%.service}" \
+      "$(readlink -f "$0")" rescan "$expected"
     ;;
   rescan)
     expected=${2:-0}
