@@ -56,7 +56,7 @@ fi
 case "${1:-}" in
 claude) provider="claude"; name="Claude"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR" ;;
 codex) provider="codex"; name="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME" ;;
-grok) provider="grok"; name="Grok"; site="x.ai"; package="npm:@xai-official/grok"; home_env="GROK_HOME" ;;
+grok) provider="grok"; name="Grok"; site="x.ai"; package="grok"; home_env="GROK_HOME" ;;
 *)
   echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [claude|codex|grok] [label]" >&2
   exit 1

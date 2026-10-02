@@ -192,13 +192,12 @@ OMARCHY_TEST_DEFAULT_AGENT="" omarchy-agent-account-add grok </dev/null >/dev/nu
   fail "a first Grok sign-in lands in ~/.grok through the normal browser"
 pass "Grok signs in its first account"
 
-mkdir -p "$HOME/.grok/bin" && touch "$HOME/.grok/bin/grok"
 OMARCHY_TEST_LOGIN_UUID=u-grok-2 OMARCHY_TEST_LOGIN_EMAIL=side@example.com \
   omarchy-agent-account-add grok Side </dev/null >/dev/null
 [[ $(omarchy-agent-account-list grok --json | jq -c '.[0].accounts[1] | {id, email, plan}') == '{"id":"side","email":"side@example.com","plan":"SuperGrok"}' ]] ||
   fail "a Grok account reads its identity and plan from its own home" "$(omarchy-agent-account-list grok --json)"
-[[ $(readlink "$accounts/grok/side/bin") == "$HOME/.grok/bin" && $(readlink "$accounts/grok/side/sessions") == "$HOME/.grok/sessions" ]] ||
-  fail "a Grok account shares the CLI and sessions with the primary"
+[[ $(readlink "$accounts/grok/side/sessions") == "$HOME/.grok/sessions" ]] ||
+  fail "a Grok account shares sessions with the primary"
 grep -qx -- "--private https://auth.x.ai/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" ||
   fail "a second Grok login opens in a private window" "$(cat "$OMARCHY_TEST_BROWSER_LOG")"
 omarchy-agent-account-use grok side >/dev/null
