@@ -4,9 +4,9 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-# The preview renders with ImageMagick and ends by opening the result in imv.
-# Neither is needed to assert the geometry, so skip when magick is absent and
-# stub imv so the command never opens a viewer.
+# The preview renders with ImageMagick and ends by opening the result in
+# omaview. Neither is needed to assert the geometry, so skip when magick is
+# absent and stub omaview so the command never opens a viewer.
 if ! command -v magick >/dev/null; then
   pass "no magick; skipping plymouth entry field geometry test"
   exit 0
@@ -14,8 +14,8 @@ fi
 
 stub=$(mktemp -d)
 scratch=$(mktemp -d)
-printf '#!/bin/bash\nexit 0\n' >"$stub/imv"
-chmod +x "$stub/imv"
+printf '#!/bin/bash\nexit 0\n' >"$stub/omaview"
+chmod +x "$stub/omaview"
 export PATH="$stub:$PATH"
 export OMARCHY_PATH="$ROOT"
 trap 'rm -rf "$stub" "$scratch"' EXIT
@@ -36,8 +36,17 @@ entry_top_y() {
   local bbox
   bbox=$(magick "$out" -threshold 50% -format '%[bounding-box]' info: 2>/dev/null) || bbox=""
   [[ -n $bbox ]] || return 0
-  local top=${bbox#*,}
-  printf '%s\n' "${top%% *}"
+  local top
+  if [[ $bbox == *,* ]]; then
+    # x1,y1 x2,y2, as ImageMagick 7.1.2 reports it
+    top=${bbox#*,}
+    top=${top%% *}
+  else
+    # WxH+X+Y, the classic geometry form
+    top=${bbox##*+}
+  fi
+  [[ $top =~ ^[0-9]+$ ]] || return 0
+  printf '%s\n' "$top"
 }
 
 assert_entry_top() {
@@ -62,7 +71,7 @@ assert_entry_top "small logo leaves the entry field below the logo" 200 200 675 
 
 # The boot script applies the same clamp so the real unlock screen matches.
 script="$ROOT/default/plymouth/omarchy.script"
-grep -q 'entry_max_y = Window.GetHeight() - entry.image.GetHeight() - 40;' "$script" \
+grep -q 'entry_max_y = global.layout_height - entry.image.GetHeight() - 40;' "$script" \
   || fail "boot script clamps the entry field to the window"
 grep -q 'if (entry.y > entry_max_y) entry.y = entry_max_y;' "$script" \
   || fail "boot script applies the entry field clamp"
