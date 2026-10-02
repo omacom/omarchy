@@ -30,6 +30,12 @@ assert(
   'panel positioning never reads PanelWindow x/y (undefined there, NaNs the card origin to top-left)'
 )
 assert(
+  /barReserved: insetOverlay && !\(bar && bar\.barHidden\)/.test(panelQml) &&
+    /originX: \(barPos === "left" && barReserved\)/.test(panelQml) &&
+    /originY: \(barPos === "top" && barReserved\)/.test(panelQml),
+  'a hidden bar does not shift the card when an OSK insets the overlay'
+)
+assert(
   /insetOverlay: backingWindowVisible/.test(panelQml),
   'panel overlay measurements wait for the mapped surface instead of trusting pre-map geometry'
 )

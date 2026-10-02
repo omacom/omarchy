@@ -227,9 +227,11 @@ PanelWindow {
   // NaN, parking every panel at the top-left), so derive it from the bar edge
   // the inset surface starts after instead: a top/left bar pushes the surface
   // past its edge, while bottom/right bars and fullscreen windows start at
-  // the output origin.
-  readonly property real originX: (barPos === "left" && insetOverlay) ? barW : 0
-  readonly property real originY: (barPos === "top" && insetOverlay) ? barH : 0
+  // the output origin. A hidden bar reserves nothing, so an OSK alone insets
+  // only the far edge.
+  readonly property bool barReserved: insetOverlay && !(bar && bar.barHidden)
+  readonly property real originX: (barPos === "left" && barReserved) ? barW : 0
+  readonly property real originY: (barPos === "top" && barReserved) ? barH : 0
   // ExclusionMode.Auto with all four anchors sets exclusiveZone 0: the
   // compositor insets this overlay around the bar/OSK reserved bands.
   // Prefer the surface size once mapped so a tall panel cannot extend
