@@ -133,3 +133,24 @@ pass "migration does not mistake mixed fonts.conf for pure Omarchy template"
 run_migration >/dev/null
 [[ $(cat "$user_fonts_conf") == "$mixed_rule" ]] || fail "migration rerun modified custom fonts.conf"
 pass "migration is idempotent"
+
+# Case 10: A one-line custom rule between two comments is not stripped with them
+commented_rule='<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <match target="pattern">
+    <test name="family" qual="any">
+      <string>monospace</string>
+    </test>
+    <edit name="family" mode="prepend_first" binding="strong">
+      <string>Old Legacy Font</string>
+    </edit>
+  </match>
+  <!-- serif --><match target="pattern"><test name="family" qual="any"><string>serif</string></test><edit name="family" mode="prepend_first" binding="strong"><string>Alternate Serif</string></edit></match><!-- end -->
+</fontconfig>'
+printf '%s\n' "$commented_rule" >"$user_fonts_conf"
+run_font_set "Test Font"
+[[ $(cat "$user_fonts_conf") == "$commented_rule" ]] || fail "omarchy-font-set deleted fonts.conf with a commented one-line rule"
+run_migration >/dev/null
+[[ $(cat "$user_fonts_conf") == "$commented_rule" ]] || fail "migration deleted fonts.conf with a commented one-line rule"
+pass "one-line custom rule between comments is preserved"

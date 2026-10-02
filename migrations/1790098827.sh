@@ -9,7 +9,7 @@ is_pure_omarchy_fontconfig() {
   [[ -f $file ]] || return 1
   local stripped
   stripped=$(sed -E \
-    -e 's/<!--.*-->//g' \
+    -e 's/<!--([^-]|-[^-])*-->//g' \
     -e 's/<\?xml[^>]*\?>//g' \
     -e 's/<!DOCTYPE[^>]*>//g' \
     -e 's/<\/?fontconfig[^>]*>//g' \
