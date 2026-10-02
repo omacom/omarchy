@@ -260,3 +260,25 @@ if (( EUID != 0 )); then
 else
   skip "permission failures require an unprivileged test user"
 fi
+
+# Valid custom XML outside the legacy writer's format remains usable.
+for format in latin1 utf16 entities; do
+  python3 - "$user_fonts_conf" "$format" <<'PYXML'
+from pathlib import Path
+import sys
+if sys.argv[2] == 'latin1':
+  data = '<?xml version="1.0" encoding="ISO-8859-1"?><fontconfig><!-- café --><match target="font"><edit name="rgba" mode="assign"><const>rgb</const></edit></match></fontconfig>'.encode('latin1')
+elif sys.argv[2] == 'utf16':
+  data = '<?xml version="1.0" encoding="UTF-16"?><fontconfig><!-- custom rendering --><match target="font"><edit name="rgba" mode="assign"><const>rgb</const></edit></match></fontconfig>'.encode('utf-16')
+else:
+  data = b'<?xml version="1.0"?><!DOCTYPE fontconfig [<!ENTITY label "custom">]><fontconfig><!-- &label; --><match target="font"><edit name="rgba" mode="assign"><const>rgb</const></edit></match></fontconfig>'
+Path(sys.argv[1]).write_bytes(data)
+PYXML
+  cp "$user_fonts_conf" "$test_dir/custom-before"
+  run_font_set "Other Font" >"$test_dir/custom-result" 2>&1
+  cmp -s "$user_fonts_conf" "$test_dir/custom-before" || fail "$format custom XML was modified"
+  family=$(FONTCONFIG_FILE="$dropin_conf" fc-pattern -c -f '%{family[0]}' monospace)
+  [[ $family == "Other Font" ]] || fail "$format custom XML prevented writing the selected font" "$family"
+  grep -q 'unchanged' "$test_dir/custom-result" || fail "unsupported legacy recognition has no notice"
+  pass "$format custom XML remains byte-identical and permits font selection"
+done

@@ -41,6 +41,10 @@ dropin = legacy.parent / 'conf.d/50-omarchy-monospace.conf'
 font_name = sys.argv[1]
 
 
+class ManualMigration(ValueError):
+  pass
+
+
 def legacy_ranges(data):
   # Expat gives byte offsets, so unrelated XML never needs reserialization.
   parser = expat.ParserCreate()
@@ -49,7 +53,7 @@ def legacy_ranges(data):
   ranges = []
 
   def reject_entity(*args):
-    raise ValueError('custom XML entities require manual migration')
+    raise ManualMigration('custom XML entities')
 
   def open_element(name, attrs):
     nonlocal depth, start
@@ -89,6 +93,11 @@ def legacy_ranges(data):
       return
     ranges.append((start, end))
 
+  def xml_declaration(version, encoding, standalone):
+    if encoding and encoding.lower() not in ('utf-8', 'utf8', 'us-ascii', 'ascii'):
+      raise ManualMigration('non-UTF-8 XML encoding')
+
+  parser.XmlDeclHandler = xml_declaration
   parser.StartElementHandler = open_element
   parser.EndElementHandler = close_element
   parser.EntityDeclHandler = reject_entity
@@ -118,8 +127,17 @@ try:
   remaining = original
   if original is not None:
     # Byte slicing below assumes the UTF-8 encoding used by the old setter.
-    original.decode('utf-8')
-    for start, end in reversed(legacy_ranges(original)):
+    try:
+      if b'\x00' in original:
+        raise ManualMigration('non-UTF-8 XML encoding')
+      original.decode('utf-8')
+      ranges = legacy_ranges(original)
+    except (UnicodeError, ManualMigration) as error:
+      # Unsupported recognition must not prevent using the independent drop-in.
+      # Keep the document intact and explain any possible remaining precedence.
+      ranges = []
+      print(f'Leaving {legacy} unchanged ({error}); if it overrides the selected font, remove its old monospace rule manually.', file=sys.stderr)
+    for start, end in reversed(ranges):
       remaining = remaining[:start] + remaining[end:]
   xml = '''<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
