@@ -37,6 +37,8 @@ grep -Eq '^\s*release_stale_crtcs$' "$tb_hook" ||
   fail "the Thunderbolt sleep hook releases a CRTC a vanished connector still owns before the rescan"
 grep -Fq '> /dev/tty60' "$tb_hook" ||
   fail "the Thunderbolt sleep hook prints on the console so a deferred fbcon takes over during the VT switch"
+grep -Fq 'hyprctl reload' "$tb_hook" ||
+  fail "the Thunderbolt sleep hook has the compositor apply its monitor config again after the switch"
 grep -Eq '^\s*\) &\s*$' "$tb_hook" &&
   fail "the Thunderbolt sleep hook backgrounds nothing of its own, systemd-suspend.service kills it"
 grep -Fq 'BRIDGE_CONTROL' "$tb_hook" ||
