@@ -88,9 +88,17 @@ assert(
 // the lock is up. Only those attempts compound, and the display waking clears
 // the streak so a recovered reader is live again straight away.
 assert(
-  /else scheduleFingerprintRetry\(\)/.test(serviceQml) &&
-    /onError: function\(error\) \{[\s\S]*?root\.scheduleFingerprintRetry\(\)/.test(serviceQml),
+  /else scheduleFingerprintRetry\(\)/.test(serviceQml),
   'every unsuccessful fingerprint conversation reschedules through the backoff'
+)
+
+// Quickshell emits error() and then completed(PamResult.Error) for one failed
+// conversation, so rescheduling from both would count it twice.
+const fingerprintOnError = serviceQml.match(/id: fingerprintPam\b[\s\S]*?onError: function\(error\) \{([\s\S]*?)\n    \}/)
+assert(fingerprintOnError, 'the fingerprint PAM handles errors')
+assert(
+  !/scheduleFingerprintRetry/.test(fingerprintOnError[1]),
+  'a PAM error is counted once, by the completed() that follows it'
 )
 
 assert(
