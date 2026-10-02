@@ -60,7 +60,10 @@ Each agent is one JSON record in `~/.local/state/omarchy/agents/usage/`,
 written by `omarchy-agent-usage-update`. That command runs one
 `omarchy-agent-usage-<agent>` collector per agent; the widget invokes it
 on its refresh timer and whenever you ask for a refresh, and picks up any
-record that lands in the directory regardless of who wrote it.
+record that lands in the directory regardless of who wrote it. Overlapping
+updates reserve publication before collecting: only the latest started check
+for each agent can replace its record, so a slow older result cannot overwrite
+a newer account’s limits. The publication lock is released during collection.
 
 Adding an agent therefore never touches this plugin: ship a collector that
 prints the record contract (see the `claude` and `codex` collectors in

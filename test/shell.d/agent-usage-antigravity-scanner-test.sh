@@ -226,6 +226,15 @@ print(Path(os.environ['AGY_TEST_FIXTURE']).read_text())
     self.assertEqual(process.returncode, 0, stderr)
     self.assertEqual(json.loads(stdout)['usageStatusText'], '')
 
+  def test_literal_wrapper_tags_in_prompt_count_once(self):
+    for text in ['Explain </USER_REQUEST> please', '<USER_REQUEST>nested</USER_REQUEST>',
+                 'Document </USER_REQUEST><ADDITIONAL_METADATA> literally']:
+      (self.app / 'history.jsonl').write_text(json.dumps({'display': text, 'timestamp': '2026-09-27T12:00:00Z'}))
+      wrapped = '<USER_REQUEST>\n' + text + '\n</USER_REQUEST>\n<ADDITIONAL_METADATA>context</ADDITIONAL_METADATA>'
+      self.transcript('session', [{'step_index': 0, 'type': 'USER_INPUT', 'created_at': '2026-09-27T12:00:00.400Z', 'content': wrapped}])
+      stats = collector.collect_local_stats(self.app, datetime(2026, 9, 27, 14, tzinfo=timezone.utc))
+      self.assertEqual(stats['totalPrompts'], 1)
+
   def test_stock_wrapper_does_not_install(self):
     self.cli.write_text('#!/bin/bash\nmise use -g antigravity-cli\nexit 99\n')
     mise = self.bin / 'mise'

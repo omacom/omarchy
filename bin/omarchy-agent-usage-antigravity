@@ -85,14 +85,18 @@ def json_lines(path):
     return
 
 
-def prompt_text(content):
-  if not isinstance(content, str):
-    return ""
-  content = content.strip()
-  # The request is followed by metadata that can quote unrelated prompts.
-  # Compare the whole request, never a substring of that surrounding text.
-  wrapped = re.match(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", content, re.S)
-  return wrapped[1].strip() if wrapped else content
+def prompt_matches(text, content):
+  if not isinstance(text, str) or not text.strip() or not isinstance(content, str):
+    return False
+  text, content = text.strip(), content.strip()
+  if text == content:
+    return True
+  # Match the complete candidate literally between the wrapper delimiters.
+  # A prompt can itself contain closing-tag text; splitting at the first
+  # closing tag would truncate it. Metadata may quote unrelated prompts.
+  return re.fullmatch(r"<USER_REQUEST>\s*" + re.escape(text)
+                      + r"\s*</USER_REQUEST>(?:\s*<ADDITIONAL_METADATA>.*</ADDITIONAL_METADATA>)?",
+                      content, re.S) is not None
 
 
 def collect_local_stats(root, now):
@@ -144,7 +148,7 @@ def collect_local_stats(root, now):
       day = activity(entry.get("created_at"), session)
       if day and entry.get("type") == "USER_INPUT":
         stamp = parse_time(entry["created_at"]).timestamp()
-        content = prompt_text(entry.get("content"))
+        content = entry.get("content")
         candidates = []
         # CLI history timestamps are milliseconds; transcript creation is
         # slightly later and may wrap the prompt in <USER_REQUEST> context.
@@ -155,7 +159,7 @@ def collect_local_stats(root, now):
             text = event["text"]
             if (not event["matched"] and abs(event["time"] - stamp) <= 1
                 and (not event["session"] or event["session"] == session)
-                and isinstance(text, str) and text.strip() and content == text.strip()):
+                and prompt_matches(text, content)):
               candidates.append(event)
         if candidates:
           min(candidates, key=lambda event: abs(event["time"] - stamp))["matched"] = True

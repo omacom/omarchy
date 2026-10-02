@@ -63,3 +63,52 @@ pass "update succeeds when the requested collectors all pass"
 [[ -e $usage_dir/skipped.json && ! -e $usage_dir/noisy.json ]] ||
   fail "update with agent arguments only runs the named collectors"
 pass "update with agent arguments only runs the named collectors"
+
+require_command python3
+require_command flock
+
+TEST_HOME="$TEST_HOME" FAKE_OMARCHY="$FAKE_OMARCHY" python3 - <<'PY'
+import json
+import os
+import subprocess
+import time
+from pathlib import Path
+
+home = Path(os.environ['TEST_HOME'])
+fake = Path(os.environ['FAKE_OMARCHY'])
+updater = Path(os.environ['ROOT']) / 'bin/omarchy-agent-usage-update'
+collector = fake / 'bin/omarchy-agent-usage-racy'
+collector.write_text('''#!/bin/bash
+touch "$STARTED"
+if [[ -n $WAIT_FOR ]]; then
+  while [[ ! -e $WAIT_FOR ]]; do sleep .02; done
+fi
+printf '%s\\n' "$RECORD"
+''')
+collector.chmod(0o755)
+env = {**os.environ, 'HOME': str(home), 'OMARCHY_PATH': str(fake), 'XDG_STATE_HOME': ''}
+usage_dir = home / '.local/state/omarchy/agents/usage'
+# An old successful answer and an old error must both lose to a newer check.
+for index, old in enumerate([{'id': 'racy', 'limits': [{'percent': .1}]},
+                             {'id': 'racy', 'limits': [], 'usageStatusText': 'offline'}]):
+  started = home / f'started-{index}'
+  release = home / f'release-{index}'
+  older = subprocess.Popen([str(updater), 'racy'], env={**env, 'STARTED': str(started), 'WAIT_FOR': str(release), 'RECORD': json.dumps(old)},
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+  try:
+    deadline = time.monotonic() + 5
+    while not started.exists() and older.poll() is None and time.monotonic() < deadline:
+      time.sleep(.02)
+    assert started.exists(), 'older collector started'
+    new = {'id': 'racy', 'limits': [{'percent': .8}], 'usageStatusText': ''}
+    subprocess.run([str(updater), 'racy'], env={**env, 'STARTED': str(home / 'newer-started'), 'WAIT_FOR': '', 'RECORD': json.dumps(new)},
+                   capture_output=True, text=True, check=True, timeout=5)
+    assert json.loads((usage_dir / 'racy.json').read_text()) == new
+  finally:
+    release.touch()
+    stdout, stderr = older.communicate(timeout=5)
+  assert older.returncode == 0, stderr
+  assert json.loads((usage_dir / 'racy.json').read_text()) == new, 'older completion replaced newer data'
+  assert sorted(p.name for p in usage_dir.glob('.racy.*')) == ['.racy.lock'], 'temporary records are cleaned up'
+print('ok - overlapping updates publish only the latest started check without blocking its probe')
+PY

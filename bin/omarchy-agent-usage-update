@@ -39,17 +39,34 @@ wanted() {
   return 1
 }
 
-collect() {
+collect() (
   local collector="$1" agent="$2"
-  local record tmp
+  local record tmp pending="$USAGE_DIR/.$agent.pending" lock="$USAGE_DIR/.$agent.lock"
+  tmp=$(mktemp "$USAGE_DIR/.$agent.XXXXXX") || return 1
+  trap 'rm -f "$tmp"' EXIT
+
+  # Overlapping refreshes may finish in either order, including across
+  # account changes. Reserve publication before probing; only the latest
+  # started check may replace the record. Hold the lock only for these short
+  # file operations, never while waiting for the collector's network calls.
+  {
+    flock 9 || return 1
+    printf '%s\n' "$tmp" >"$pending"
+  } 9>"$lock" || return 1
+
   if ! record=$("$collector" "${flags[@]}") || [[ -z $record ]] || ! jq -e . >/dev/null 2>&1 <<<"$record"; then
     echo "omarchy-agent-usage-update: $agent collector failed" >&2
     return 1
   fi
-  tmp=$(mktemp "$USAGE_DIR/.$agent.XXXXXX")
-  printf '%s\n' "$record" >"$tmp"
-  mv "$tmp" "$USAGE_DIR/$agent.json"
-}
+  printf '%s\n' "$record" >"$tmp" || return 1
+  {
+    flock 9 || return 1
+    if [[ -f $pending && $(<"$pending") == "$tmp" ]]; then
+      mv "$tmp" "$USAGE_DIR/$agent.json" || return 1
+      rm -f "$pending"
+    fi
+  } 9>"$lock"
+)
 
 # Accounts can be signed in to someone else since they were added; the
 # records name them from the registry, so bring it up to date first.
