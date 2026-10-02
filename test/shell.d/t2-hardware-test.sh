@@ -27,6 +27,10 @@ grep -Fq 'install -Dm755 "$OMARCHY_PATH/default/systemd/system-sleep/t2-thunderb
 [[ -x $tb_hook ]] || fail "the Thunderbolt sleep hook is tracked executable"
 grep -Fq 'echo 1 > "$dev/remove"' "$tb_hook" ||
   fail "the Thunderbolt sleep hook removes the controllers before sleep"
+grep -Fq '/sys/bus/pci/drivers/thunderbolt/0000:*' "$tb_hook" ||
+  fail "the Thunderbolt sleep hook finds each controller from its NHI, not from a bridge PCI ID that differs between models"
+grep -q '0x15ea' "$tb_hook" &&
+  fail "the Thunderbolt sleep hook no longer keys on the 16-inch's bridge ID, which the 2018 models do not use"
 grep -Fq 'echo 1 > /sys/bus/pci/rescan' "$tb_hook" ||
   fail "the Thunderbolt sleep hook re-enumerates the controllers after resume"
 grep -Fq 'systemd-run --quiet --no-block --collect --unit="${rescan_unit%.service}"' "$tb_hook" ||
