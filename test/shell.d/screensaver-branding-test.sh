@@ -42,7 +42,13 @@ with tempfile.TemporaryDirectory() as temporary:
     path.write_text('#!/bin/bash\n' + body)
     path.chmod(0o755)
 
-  stub('omarchy-transcode-ascii', 'printf "%s\\n" "$*" >> "$HOME/converts"\n[[ ${FAIL_CONVERT:-0} == 1 ]] && exit 1\nprintf "CONVERTED\\n" > "$2"\n')
+  stub('omarchy-transcode-ascii', 'printf "%s\\n" "$*" >> "$HOME/converts"\n'
+       '[[ ${FAIL_CONVERT:-0} == 1 ]] && exit 1\n'
+       '[[ ${SLOW_CONVERT:-0} == 1 ]] && exec sleep 60\n'
+       'if [[ -n ${REPLACE:-} ]]; then rm -f -- "$REPLACE"\n'
+       '  case ${REPLACE_KIND:-} in link) ln -s -- missing "$REPLACE" ;; fifo) mkfifo -- "$REPLACE" ;; dir) mkdir -- "$REPLACE" ;; esac\n'
+       'fi\n'
+       'printf "CONVERTED\\n" > "$2"\n')
   stub('omarchy-launch-screensaver', 'echo launch >> "$HOME/launches"\n')
   stub('omarchy-shell', 'echo reload >> "$HOME/reloads"\n')
   stub('omarchy-notification-send', 'printf "%s\\n" "$*" >> "$HOME/notifications"\n')
@@ -79,12 +85,34 @@ with tempfile.TemporaryDirectory() as temporary:
   run('images', str(source), success=False, FAIL_CONVERT='1')
   assert "'0-&lt;b&gt;bold&amp;.png'" in (home / 'notifications').read_text().splitlines()[-1]
   (source / '0-<b>bold&.png').unlink()
+  # An image that vanishes or becomes a link after the scan fails the import
+  # instead of selecting a partial collection.
+  replaced = source / '10-last.png'
+  for kind in ('gone', 'link', 'fifo', 'dir'):
+    run('images', str(source), success=False, REPLACE=str(replaced), REPLACE_KIND=kind)
+    assert target.read_bytes() == before
+    assert list(imported.parent.iterdir()) == [imported]
+    assert "'10-last.png' changed during import" in (home / 'notifications').read_text().splitlines()[-1], kind
+    replaced.rmdir() if replaced.is_dir() and not replaced.is_symlink() else replaced.unlink(missing_ok=True)
+    replaced.write_bytes(b'\x89PNG\r\n\x1a\nTEST')
+  # An unreadable image fails with its own reason rather than being skipped.
+  if os.geteuid() != 0:
+    replaced.chmod(0)
+    run('images', str(source), success=False)
+    assert "cannot read '10-last.png' (Permission denied)" in (home / 'notifications').read_text().splitlines()[-1]
+    assert target.read_bytes() == before and list(imported.parent.iterdir()) == [imported]
+    replaced.chmod(0o644)
+  # A conversion timeout names the image, not the temporary snapshot.
+  result = subprocess.run([root / 'bin/omarchy-screensaver-import', str(source)], env=dict(env, SLOW_CONVERT='1'),
+                          capture_output=True, timeout=40)
+  assert result.returncode != 0 and "took too long to convert" in result.stderr.decode()
+  assert 'input.' not in result.stderr.decode() and list(imported.parent.iterdir()) == [imported]
   assert list(imported.parent.iterdir()) == [imported]
   (source / 'bad.png').write_text('push graphic-context\nimage over 0,0 1,1 https://example.invalid/\n')
   run('images', str(source), success=False)
   assert target.read_bytes() == before
   assert list(imported.parent.iterdir()) == [imported]
-  print('ok - cancellation, decoder failure, and disguised non-raster input preserve selection and clean incomplete imports')
+  print('ok - cancellation, decoder failure, timeouts, files changed mid-import and disguised non-raster input preserve selection and clean incomplete imports')
   current = run('folder', str(texts))
   assert current['screensaver']['source'] == str(texts)
   print('ok - text folder selects a validated directory directly')

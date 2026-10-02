@@ -49,6 +49,25 @@ effect_args_contain() {
   pgrep -a -x ttfx | grep -F -- "$1"
 }
 
+colour_effect_pid() {
+  pgrep -a -x ttfx | awk '/--existing-color-handling dynamic/ { print $1; exit }'
+}
+
+# Count screen pixels within 3% of the artwork colour while one colour effect
+# runs for the whole capture. Wait briefly while the plain artwork plays.
+colour_on_screen() {
+  local pid count
+  pid=$(colour_effect_pid)
+  if [[ -z $pid ]]; then
+    sleep 0.05
+    return 1
+  fi
+  timeout 10 grim "$workdir/colour.png" 2>/dev/null || return 1
+  count=$(magick "$workdir/colour.png" -alpha off -fuzz 3% -fill black +opaque "$colour" \
+    -fill white -opaque "$colour" -format '%[fx:round(mean*w*h)]' info:) || return 1
+  [[ $(colour_effect_pid) == "$pid" ]] && ((count >= 2000))
+}
+
 cleanup() {
   local address
   while read -r address; do
@@ -71,7 +90,11 @@ playback="$workdir/playback"
 mkdir -p "$home/.config/omarchy/branding" "$collection" "$playback"
 printf 'FALLBACK\n' >"$home/.config/omarchy/branding/screensaver.txt"
 printf 'OMARCHY ACCEPTANCE PLAIN\n' >"$collection/01-plain.txt"
-printf '\e[38;2;255;64;64mOMARCHY ACCEPTANCE COLOUR\e[0m\n' >"$collection/02-colour.txt"
+# Solid blocks in a colour no effect palette uses, so the screen can be checked
+# for the artwork's own colour once an effect settles.
+colour="rgb(13,247,61)"
+block=$(printf '█%.0s' {1..24})
+printf '\e[38;2;13;247;61m%s\n%s\n%s\e[0m\n' "$block" "$block" "$block" >"$collection/02-colour.txt"
 jq -n --arg source "$collection" '{screensaver: {source: $source}}' >"$home/.config/omarchy/shell.json"
 
 launch_screensaver() {
@@ -98,6 +121,12 @@ wait_until "screensaver window is fullscreen" 10 bash -c 'hyprctl -j activewindo
 wait_until "screensaver plays plain artwork with the effect's own colours" 15 effect_args_contain "--existing-color-handling ignore"
 screenshot "success-screensaver-plain"
 wait_until "screensaver advances to colour artwork that keeps its colours" 120 effect_args_contain "--existing-color-handling dynamic"
+# The settled colour shows only between effects, so poll without sleeping.
+deadline=$((SECONDS + 120))
+until colour_on_screen; do
+  ((SECONDS < deadline)) || fail "colour artwork appears on screen in its own colour" "timed out after 120s"
+done
+pass "colour artwork appears on screen in its own colour"
 screenshot "success-screensaver-colour"
 
 # Hyprland reports {} as the active window on an empty workspace.

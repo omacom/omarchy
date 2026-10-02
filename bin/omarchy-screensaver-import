@@ -5,6 +5,7 @@
 # omarchy:args=<image-directory> [--mode <color|braille|block>]
 
 python3 - "$@" <<'PY'
+import errno
 import json
 import os
 from pathlib import Path
@@ -27,11 +28,17 @@ for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
 
 
 def convert(command, environment, deadline, name):
+  remaining = deadline - time.monotonic()
   child = subprocess.Popen(command, env=environment, stdout=subprocess.DEVNULL,
                            start_new_session=True)
   try:
-    if child.wait(timeout=max(0.01, min(15, deadline - time.monotonic()))) != 0:
+    if child.wait(timeout=max(0.01, min(15, remaining))) != 0:
       raise ValueError(f"could not convert {name!r}; selection unchanged")
+  except subprocess.TimeoutExpired:
+    # Blame the image only when it had its full per-image allowance.
+    if remaining < 15:
+      raise ValueError("import exceeds batch resource limit") from None
+    raise ValueError(f"{name!r} took too long to convert; selection unchanged") from None
   finally:
     # Reap only this converter's process group, including ImageMagick on timeout.
     if child.poll() is None:
@@ -94,14 +101,18 @@ def main():
       environment = dict(os.environ, MAGICK_CONFIGURE_PATH=str(scratch),
                          MAGICK_TEMPORARY_PATH=str(scratch))
       for name in names:
+        # The scan kept only regular files, so anything else here means the
+        # folder changed during import. Fail rather than select a partial set.
         try:
           fd = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=root)
-        except OSError:
-          continue
+        except OSError as error:
+          if error.errno in (errno.ENOENT, errno.ELOOP, errno.ENOTDIR):
+            raise ValueError(f"{name!r} changed during import; selection unchanged") from None
+          raise ValueError(f"cannot read {name!r} ({os.strerror(error.errno)}); selection unchanged") from None
         before = os.fstat(fd)
         if not stat.S_ISREG(before.st_mode):
           os.close(fd)
-          continue
+          raise ValueError(f"{name!r} changed during import; selection unchanged")
         with os.fdopen(fd, 'rb') as stream:
           if not 0 < before.st_size <= 20 * 1024 * 1024:
             raise ValueError(f"{name!r} exceeds 20 MiB; selection unchanged")
@@ -127,8 +138,6 @@ def main():
         snapshot.unlink()
         records.append({'source': name, 'artwork': target.name})
         print(f'Converted {len(records)}/{len(names)}', file=sys.stderr)
-      if not records:
-        raise ValueError("folder contains no regular raster images")
       # Apply exactly the same text validation used at playback startup.
       with tempfile.TemporaryDirectory(dir=scratch) as validation:
         subprocess.run(['omarchy-screensaver-prepare', str(output), validation],
