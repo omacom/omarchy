@@ -836,11 +836,15 @@ configure_timezone() {
 }
 
 # Apply the owner's language, deferred to first boot with the rest of the user
-# step. systemd-firstboot writes /etc/locale.conf; localectl is the fallback,
-# and it is also what generates a locale nobody has generated yet, so a machine
-# whose owner does not speak the image's language still gets a working one. A
-# locale glibc does not know keeps the default rather than failing setup over
-# a language.
+# step. localectl goes first because it is what generates the locale:
+# systemd-localed is built with locale-gen support, so one set-locale call
+# enables the entry in /etc/locale.gen, runs locale-gen and writes
+# /etc/locale.conf -- the path omarchy-menu-language takes too. A machine whose
+# owner does not speak the image's language therefore gets a locale that works,
+# not just its name. systemd-firstboot only writes /etc/locale.conf, so it is
+# the fallback for a boot where localed cannot be reached, and says so: a
+# locale it names may still have to be generated. A locale glibc does not know
+# keeps the default rather than failing setup over a language.
 configure_language() {
   [[ -n ${language:-} ]] || return 0
 
@@ -849,9 +853,13 @@ configure_language() {
     return 0
   fi
 
-  systemd-firstboot --locale="$language" --force 2>&1 ||
-    localectl set-locale "LANG=$language" 2>&1 ||
+  localectl set-locale "LANG=$language" 2>&1 && return 0
+
+  if systemd-firstboot --locale="$language" --force 2>&1; then
+    log_step "localectl unavailable; recorded locale $language without generating it"
+  else
     log_step "could not persist locale $language"
+  fi
 }
 
 finalize_user() {
