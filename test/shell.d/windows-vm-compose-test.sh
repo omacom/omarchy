@@ -52,8 +52,23 @@ reset_case() {
   mkdir -p "$HOME"
 }
 
+# GNU chmod preserves setgid on directories when the mode is written as 0700;
+# the explicit four-digit mode must clear it at the privileged mount boundary.
+reset_case
+mkdir -m 2700 "$HOME/.windows" "$HOME/Windows"
+__priv_write_compose <<'EOF'
+RAM=4G
+CORES=2
+DISK=64G
+USERNAME=alice
+PASSWORD=s3cret
+TZ=UTC
+EOF
+[[ $(stat -Lc '%a' "$HOME/.windows") == 700 && $(stat -Lc '%a' "$HOME/Windows") == 700 ]] ||
+  fail "setgid source directories were not hardened to 0700"
+pass "setgid source directories are hardened to 0700"
+
 # Fixed protected anchors consume the pinned source inodes.
-prepare_user_mount_sources
 write 4G 2 64G alice s3cret Europe/Copenhagen
 resolve_caller
 [[ -f $COMPOSE ]] || fail "writer produced a compose file"
