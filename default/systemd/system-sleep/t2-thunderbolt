@@ -49,6 +49,44 @@ reset_secondary_bus() {
 
 rescan_unit=omarchy-t2-thunderbolt-rescan.service
 
+# Deep sleep hands amdgpu back the connector state from before it, but an
+# external panel on a Thunderbolt port is off the bus by then, so its old
+# connector reads disconnected while still owning a CRTC. It usually returns
+# on the other DP-in path (DP-6 <-> DP-7), and every modeset of that connector
+# fails with EINVAL until the CRTC is released. fbcon commits a full
+# configuration on a VT switch, which does release it; do that here, while the
+# display is still off the bus and there is nothing to see. The line printed
+# on the console matters: with CONFIG_FRAMEBUFFER_CONSOLE_DEFERRED_TAKEOVER
+# fbcon binds only once something prints on a visible text console, and a
+# boot where nothing did leaves the dummy console bound, so a bare switch
+# releases nothing.
+release_stale_crtcs() {
+  local card state holder crtc session tty="" found=0
+  for card in /sys/class/drm/card[0-9]*; do
+    [[ -r $card/device/vendor && $(<"$card/device/vendor") == 0x1002 ]] || continue
+    state=/sys/kernel/debug/dri/${card##*card}/state
+    [[ -r $state ]] || continue
+    while read -r holder crtc; do
+      [[ $crtc == "(null)" ]] && continue
+      [[ -e $card-$holder && $(<"$card-$holder/status") == disconnected ]] && found=1
+    done < <(awk '/^connector\[/{c=$2} c && /^\tcrtc=/{sub(/.*crtc=/,""); print c, $0; c=""}' "$state")
+  done
+  (( found )) || return 0
+  for session in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
+    [[ $(loginctl show-session "$session" -p Type --value 2>/dev/null) == wayland ]] || continue
+    tty=$(loginctl show-session "$session" -p TTY --value 2>/dev/null)
+    [[ $tty == tty[0-9]* ]] && break
+    tty=""
+  done
+  [[ -n $tty ]] || return 0
+  # A VT no getty claims, so keys hit while it is up land nowhere.
+  chvt 60
+  sleep 0.5
+  echo "t2-thunderbolt: releasing display CRTCs" > /dev/tty60 || true
+  sleep 2
+  chvt "${tty#tty}"
+}
+
 case $1 in
   pre)
     # A rescan still running from the last resume must not put a controller
@@ -69,6 +107,7 @@ case $1 in
   post)
     expected=$(cat "$state" 2>/dev/null || echo 0)
     (( expected > 0 )) || exit 0
+    release_stale_crtcs
     # The rescan must outlive this hook: systemd-sleep runs the hooks inside
     # systemd-suspend.service, and everything left in that cgroup is killed
     # the moment the last hook returns, a backgrounded subshell included. A
