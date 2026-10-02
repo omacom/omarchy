@@ -64,7 +64,7 @@ Omarchy ships with a bunch of ergonomic aliases and helpful functions, but it's 
 
 ### Setting environment variables for the desktop
 
-Desktop session exports belong in `~/.config/uwsm/env.d/`. These files run before your desktop starts, so a shell error can send you back to the login screen. Keep a working terminal open while editing them. To disable an override, move it out of `env.d`; adding a `.bak` suffix does not disable it. See [login recovery](45-troubleshooting.md#my-password-is-accepted-but-i-return-to-the-login-screen) if a change prevents login.
+Desktop session exports belong in `~/.config/uwsm/env.d/`. These files run before your desktop starts, so a shell error can send you back to the login screen. Keep a working terminal open while editing them. To disable an override, move it out of `env.d`. See [login recovery](45-troubleshooting.md#my-password-is-accepted-but-i-return-to-the-login-screen) if a change prevents login.
 
 ### Changing internal Omarchy files
 

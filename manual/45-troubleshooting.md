@@ -55,7 +55,7 @@ mkdir -p ~/.config/uwsm/disabled
 mv -i ~/.config/uwsm/env.d/99-custom ~/.config/uwsm/disabled/
 ```
 
-Renaming the file to `.bak` inside `env.d` does not disable it: UWSM loads every entry in that directory. A system snapshot rollback does not repair these files either, because `/home` is not rolled back.
+UWSM skips a file with a syntax error, but an error that only shows up while the file runs, like `bad substitution`, still stops the desktop from starting. A system snapshot rollback does not repair these files, because `/home` is not rolled back.
 
 Once you can log in, fix the saved copy before moving it back. `sh -n` catches syntax errors without running the file, but cannot catch every error that occurs when it is sourced. Keep a working terminal open while testing changes.
 
