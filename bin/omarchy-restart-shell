@@ -61,6 +61,21 @@ relock_session() {
   return 1
 }
 
+# A short timeout keeps an unresponsive user bus from stalling the restart;
+# busctl would otherwise wait 25 seconds per probe.
+notifications_ready() {
+  [[ $(busctl --user --timeout=1s call org.freedesktop.DBus /org/freedesktop/DBus \
+    org.freedesktop.DBus NameHasOwner s org.freedesktop.Notifications 2>/dev/null) == "b true" ]]
+}
+
+# Core IPC can answer before the notification plugin has registered its bus
+# name. Restore an existing notification service before update hooks or setup
+# invitations send their one-time toasts; a disabled service need not appear.
+notifications_were_running=0
+if notifications_ready; then
+  notifications_were_running=1
+fi
+
 # Each kill stops the oldest matching instance and only returns once it has
 # fully exited, so the no-duplicate launch below can't race a dying shell.
 while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
@@ -69,25 +84,50 @@ while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; 
 # not transient variables from a terminal, SSH connection, or development tool.
 hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
 
+shell_ready=0
 for (( attempt = 0; attempt < 20; attempt++ )); do
   if OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell shell ping >/dev/null 2>&1; then
-    # The session stays compositor-locked after the old lock client died, so
-    # re-acquire the lock and let the user authenticate out of it.
-    if (( relock )) && ! relock_session; then
-      echo "Omarchy shell restarted, but the session lock was not re-secured." >&2
-      exit 1
-    fi
-    # Invitation toasts (like Voxtype/fingerprint setup) die with the old
-    # shell, and their notify-send waiters hang forever: the dying server
-    # never emits NotificationClosed. A still-running omarchy-*-invitation
-    # unit is therefore an unanswered invitation — re-run it so its toast
-    # reappears on the new shell. Answered invitations have already exited
-    # and been collected, so the glob no longer matches them.
-    systemctl --user try-restart 'omarchy-*-invitation.service' 2>/dev/null || true
-    exit 0
+    shell_ready=1
+    break
   fi
   sleep 0.1
 done
+if (( shell_ready == 0 )); then
+  echo "Omarchy shell did not become ready after restart." >&2
+  exit 1
+fi
 
-echo "Omarchy shell did not become ready after restart." >&2
-exit 1
+# The session stays compositor-locked after the old lock client died, so
+# re-acquire the lock and let the user authenticate out of it. This comes
+# first and depends on nothing else: a user stranded behind the failsafe must
+# not wait on the notification plugin, which may be slow or absent.
+if (( relock )) && ! relock_session; then
+  echo "Omarchy shell restarted, but the session lock was not re-secured." >&2
+  exit 1
+fi
+
+# Core IPC answers before the notification plugin has registered its bus
+# name, so wait for it separately before one-time toasts are sent.
+if (( notifications_were_running )); then
+  notifications_restored=0
+  for (( attempt = 0; attempt < 20; attempt++ )); do
+    if notifications_ready; then
+      notifications_restored=1
+      break
+    fi
+    sleep 0.1
+  done
+  if (( notifications_restored == 0 )); then
+    echo "Omarchy shell restarted, but its notification service did not become ready." >&2
+    exit 1
+  fi
+fi
+
+# Invitation toasts (like Voxtype/fingerprint setup) die with the old
+# shell, and their notify-send waiters hang forever: the dying server
+# never emits NotificationClosed. A still-running omarchy-*-invitation
+# unit is therefore an unanswered invitation — re-run it so its toast
+# reappears on the new shell. Answered invitations have already exited
+# and been collected, so the glob no longer matches them.
+systemctl --user try-restart 'omarchy-*-invitation.service' 2>/dev/null || true
+exit 0
