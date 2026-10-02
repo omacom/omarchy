@@ -190,6 +190,22 @@ def credits_limit(data):
   }
 
 
+# A window whose reset has passed starts over empty. A weekly one's next
+# reset is a whole number of weeks later; a monthly one's isn't known.
+def rolled_forward(limits):
+  now = datetime.now(timezone.utc)
+  rolled = []
+  for limit in limits:
+    resets = parse_time(limit.get("resetsAt"))
+    if resets and resets <= now:
+      limit = dict(limit, percent=0.0, resetsAt="")
+      if limit.get("label") == "Weekly":
+        weeks = (now - resets) // timedelta(weeks=1) + 1
+        limit["resetsAt"] = (resets + weeks * timedelta(weeks=1)).isoformat()
+    rolled.append(limit)
+  return rolled
+
+
 def collect_limits(home, key, force):
   result = {"limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP, "live": False, "fetchedAtMs": 0}
   entry = login(home)
@@ -208,10 +224,10 @@ def collect_limits(home, key, force):
     result["limits"] = cached.get("limits") or []
     # The access token lives six hours and Grok mints a new one from its
     # refresh token whenever it starts, so a lapsed one is routine, not a
-    # sign-out. Calling it one sent people to `grok login` several times a day.
+    # sign-out. And while Grok hasn't run, nothing here has spent its
+    # allowance, so the last numbers still stand, rolled past any reset.
     if entry.get("refresh_token"):
-      result["usageStatusText"] = "Limits paused"
-      result["authHelpText"] = "Grok's access token has lapsed. Start Grok to refresh it; signing in again is not needed."
+      result.update(limits=rolled_forward(result["limits"]), live=True)
     else:
       result["usageStatusText"] = "Sign-in expired"
       result["authHelpText"] = "Grok's saved sign-in expired. Start Grok to refresh it."
