@@ -15,6 +15,7 @@ declare -A LUA_BIND_ARG_MAP
 # everywhere, while a German keyboard prints ß there and a Spanish one '.
 active_keymap_command() {
   local layouts variants index layout variant command
+  local -a layout_list variant_list
 
   layouts=$(hyprctl getoption input:kb_layout 2>/dev/null | awk '/^str:/ { sub(/^str:[[:space:]]*/, ""); print; exit }')
   variants=$(hyprctl getoption input:kb_variant 2>/dev/null | awk '/^str:/ { sub(/^str:[[:space:]]*/, ""); print; exit }')
@@ -29,9 +30,13 @@ active_keymap_command() {
   ')
   [[ $index =~ ^[0-9]+$ ]] || index=0
 
-  layout=$(cut -d, -f$((index + 1)) <<<"$layouts")
-  variant=$(cut -d, -f$((index + 1)) <<<"$variants")
-  [[ -z $layout ]] && layout=$(cut -d, -f1 <<<"$layouts")
+  # A variant list can be shorter than the layout list, and a missing field is
+  # that layout's default variant, not the whole list as `cut` would return.
+  IFS=, read -ra layout_list <<<"$layouts"
+  IFS=, read -ra variant_list <<<"$variants"
+  (( index < ${#layout_list[@]} )) || index=0
+  layout=${layout_list[index]:-}
+  variant=${variant_list[index]:-}
 
   command="xkbcli compile-keymap"
 

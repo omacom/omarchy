@@ -229,6 +229,23 @@ grep -q 'SUPER + ß  *→ Expand window left' <<<"$rendered" ||
   fail "the active layout wins over the first one listed" "$rendered"
 pass "the active layout wins over the first one listed"
 
+# A variant list shorter than the layout list leaves the later layouts on their
+# default variant. Reading intl as German's variant compiles nothing, and the
+# menu would fall back to the US names.
+stub_kb_layout="us,de"
+stub_kb_variant="intl"
+stub_layout_index=1
+stub_hyprctl <<BINDS
+$(keycode_bind 64 20 "Expand window left")
+BINDS
+
+# Hyprland reports the same keymap as above, so the cache would answer for it.
+rm -rf "$tmpdir/cache"
+rendered=$(keybindings)
+grep -q 'SUPER + ß  *→ Expand window left' <<<"$rendered" ||
+  fail "a layout with no variant listed uses its default variant" "$rendered"
+pass "a layout with no variant listed uses its default variant"
+
 stub_kb_layout=""
 stub_kb_variant=""
 stub_layout_index=0
