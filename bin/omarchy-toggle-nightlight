@@ -34,8 +34,8 @@ if [[ ${1:-} == "--status" ]]; then
   exit 0
 fi
 
-# Ensure hyprsunset is running
-if ! pgrep -x hyprsunset >/dev/null; then
+# Ensure hyprsunset is running in this session (another user may have their own)
+if ! pgrep -u "$USER" -x hyprsunset >/dev/null; then
   setsid uwsm-app -- hyprsunset &
 fi
 
