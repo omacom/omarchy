@@ -38,7 +38,7 @@ export OMARCHY_TEST_LOG="$test_tmp/log"
 
 bash "$ROOT/bin/omarchy-restart-app" hyprsunset extra-arg
 
-grep -Fxq 'pkill:-x hyprsunset' "$OMARCHY_TEST_LOG" ||
+grep -Fxq 'pkill:-x -- hyprsunset' "$OMARCHY_TEST_LOG" ||
   fail "restart-app kills the named process" "$(<"$OMARCHY_TEST_LOG")"
 pass "restart-app kills the named process"
 

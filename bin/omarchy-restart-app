@@ -3,7 +3,7 @@
 # omarchy:summary=Restart an application by killing it and relaunching via uwsm.
 # omarchy:args=<application-name> [application-args...]
 
-pkill -x "$1" || true
+pkill -x -- "$1"
 
 # Launch in a transient user service so we return immediately and so a
 # Type=oneshot caller cannot SIGTERM uwsm-app mid FIFO handshake. setsid
