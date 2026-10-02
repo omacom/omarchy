@@ -492,9 +492,10 @@ Item {
         root.armBlankTimer()
         return
       }
-      // Only a password check in flight should hold the display up. The
-      // fingerprint reader is paused while the display is blanked and
-      // re-armed on wake, so it never races the blank timer.
+      // Only a password check in flight should hold the display up. New scans
+      // are paused while the display is blanked - a session already running is
+      // allowed to finish - and re-arm on wake, so the reader never races the
+      // blank timer.
       if (root.lockRequested && !root.authenticatingPassword) root.runBlank()
     }
   }
