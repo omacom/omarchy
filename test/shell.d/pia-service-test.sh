@@ -37,8 +37,11 @@ SCRIPT
 cat >"$tmp_dir/bin/gum" <<'SCRIPT'
 #!/bin/bash
 case "$1" in
-  input) if [[ " $* " == *" --password "* ]]; then echo "secret"; else echo "p1234567"; fi ;;
-  confirm) exit 1 ;;
+  input)
+    [[ -n ${GUM_CANCEL:-} ]] && exit 130
+    if [[ " $* " == *" --password "* ]]; then echo "secret"; else echo "p1234567"; fi
+    ;;
+  confirm) [[ -n ${GUM_CONFIRM:-} ]] ;;
 esac
 SCRIPT
 
@@ -64,6 +67,23 @@ output=$(LOGIN_FAILURES=1 "$ROOT/bin/omarchy-install-service-pia")
 [[ $output == *"Login failed, try again."* ]] ||
   fail "install says the login failed" "$output"
 pass "install asks for the login again when it fails"
+
+: >"$TEST_LOG"
+: >"$LOGIN_ATTEMPTS"
+GUM_CONFIRM=1 "$ROOT/bin/omarchy-install-service-pia" >/dev/null
+[[ $(tail -n 1 "$TEST_LOG") == "piactl:connect" ]] ||
+  fail "install connects when asked to" "$(cat "$TEST_LOG")"
+pass "install connects when asked to"
+
+: >"$TEST_LOG"
+if output=$(GUM_CANCEL=1 "$ROOT/bin/omarchy-install-service-pia"); then
+  fail "install fails when the login is cancelled" "$output"
+fi
+! grep -q '^piactl:login' "$TEST_LOG" ||
+  fail "install skips the login when it is cancelled" "$(cat "$TEST_LOG")"
+[[ $output == *"piactl login <file>"* ]] ||
+  fail "install says how to log in later" "$output"
+pass "install says how to log in later when the login is cancelled"
 
 # The region picker offers what piactl lists and connects to the pick.
 cat >"$tmp_dir/bin/piactl" <<'SCRIPT'
