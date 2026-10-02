@@ -30,6 +30,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 drm="$test_tmp/drm"
 dri="$test_tmp/dri"
+state="$test_tmp/state"
 
 debug_dir() {
   local name="$1" card=${1%%-*}
@@ -52,7 +53,8 @@ add_connector() {
 }
 
 run_helper() {
-  OMARCHY_DRM_PATH="$drm" OMARCHY_DRI_DEBUG_PATH="$dri" OMARCHY_APPLE_DISPLAY_SETTLE=0 bash "$helper"
+  OMARCHY_DRM_PATH="$drm" OMARCHY_DRI_DEBUG_PATH="$dri" OMARCHY_APPLE_DISPLAY_STATE="$state" \
+    OMARCHY_APPLE_DISPLAY_SETTLE=0 bash "$helper"
 }
 
 link_settings() {
@@ -77,6 +79,8 @@ output=$(run_helper)
   fail "a stream still compressed after the retrain gets a simulated replug" "$output"
 grep -Fq 'card2-DP-6: DisplayPort link pinned to HBR3' <<<"$output" ||
   fail "the helper names the connector it pinned" "$output"
+[[ -e $state/card2-DP-6 ]] || fail "a pinned connector gets a marker"
+[[ ! -e $state/card2-DP-7 ]] || fail "a connector already preferring HBR3 gets no marker"
 [[ $(link_settings card2-DP-7) == Current:* ]] ||
   fail "a link already preferring HBR3 is left alone"
 [[ $(trigger_hotplug card2-DP-7) == untouched ]] ||
@@ -100,10 +104,15 @@ run_helper >/dev/null
   fail "an uncompressed stream after the retrain is not replugged"
 pass "the helper only replugs a stream that stayed compressed"
 
-rm -rf "$drm" "$dri"
+rm -rf "$drm" "$dri" "$state"
+mkdir -p "$state"
 add_connector card2-DP-6 disconnected StudioDisplay "4  0x1e  0" 0
 add_connector card2-DP-4 connected "DELL U2723QE" "4  0x1e  0" 0
 add_connector card2-DP-5 connected "DELL U2723QE" "0  0x0  0" 0
+# DP-4's preference was written by an earlier run of the helper, DP-8's by
+# someone else.
+add_connector card2-DP-8 connected "DELL U2723QE" "4  0x1e  0" 0
+touch "$state/card2-DP-4" "$state/card2-DP-6"
 # A connector that reads connected with no EDID yet: a Studio Display still
 # training looks like this for a moment.
 mkdir -p "$drm/card2-DP-7" "$(debug_dir card2-DP-7)"
@@ -121,8 +130,12 @@ output=$(run_helper)
   fail "the cleared connector is replugged so the link trains at the sink's rate" "$output"
 grep -Fq 'card2-DP-4: dropping the HBR3 preference a Studio Display left behind' <<<"$output" ||
   fail "the helper names the connector it cleared" "$output"
+[[ ! -e $state/card2-DP-4 ]] || fail "a cleared connector loses its marker"
 [[ $(link_settings card2-DP-5) == Current:* && $(trigger_hotplug card2-DP-5) == untouched ]] ||
   fail "a monitor without the preference is left alone"
+[[ $(link_settings card2-DP-8) == Current:* && $(trigger_hotplug card2-DP-8) == untouched ]] ||
+  fail "a preference the helper did not write is left alone"
+[[ -e $state/card2-DP-6 ]] || fail "a disconnected connector keeps its marker"
 [[ $(link_settings card2-DP-6) == Current:* ]] ||
   fail "a disconnected connector keeps its preference"
 [[ $(link_settings card2-DP-7) == Current:* && $(trigger_hotplug card2-DP-7) == untouched ]] ||
