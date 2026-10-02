@@ -23,7 +23,8 @@ emit_manifest() {
   fi
 
   printf '===%s::%s===\n' "$kind" "$sub"
-  cat "$manifest"
+  # One unreadable manifest must not end the scan for every plugin after it.
+  cat "$manifest" || true
   printf '\n=== EOM ===\n'
 }
 

@@ -96,10 +96,19 @@ if [[ -n $EMPTY_OUTPUT ]]; then
   fail "scan produces no output when both directories are missing"
 fi
 
+# An unreadable manifest is skipped by the parser; it must not stop the scan.
+chmod 000 "$FP/panels/audio/manifest.json"
+PARTIAL_OUTPUT=$("$SCAN_SCRIPT" "$FP" "$TP" 2>/dev/null)
+chmod 644 "$FP/panels/audio/manifest.json"
+if ! grep -q '"id": "omarchy.bluetooth"' <<< "$PARTIAL_OUTPUT" || ! grep -q '"id": "local.weather"' <<< "$PARTIAL_OUTPUT"; then
+  fail "scan continues past an unreadable manifest"
+fi
+
 pass "plugin scan script emits well-formed firstparty and thirdparty blocks"
 pass "plugin scan script handles sibling *.manifest.json files"
 pass "plugin scan script includes raw manifest JSON between markers"
 pass "plugin scan script tolerates missing plugin directories"
+pass "plugin scan script continues past an unreadable manifest"
 
 run_node_test <<'JS'
 const fs = require('fs')
