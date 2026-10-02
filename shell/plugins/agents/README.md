@@ -72,7 +72,7 @@ light surfaces — and the bar glyph stands in when there is none.
 |---|---|---|
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
-| `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Prompts and sessions from each session's `summary.json` (Grok records no tokens there) |
+| `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn), plus `summary.json` for sessions |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
 
 When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json`
@@ -135,9 +135,12 @@ only adds the meter and the spent-of-funded line under the real figure.
   urgent when any account new sessions use is at 90% of a window, or a
   prepaid balance is down to its last 10%.
 - Panel: the arrows (or `h`/`j`/`k`/`l`) walk a cursor over everything that
-  does something, row by row: the hero's buttons, each switchable account
-  (landing on Use, with Autoswitch to its left), and the starter tiles, or the
-  agents to add. Hovering moves the same cursor. Enter acts on it, or
+  does something, row by row: the hero's buttons, each agent's header, each
+  switchable account (landing on Use, with Autoswitch to its left), and the
+  starter tiles, or the agents to add. Ctrl+Up/Down (or Ctrl+`k`/`j`) moves the
+  agent the cursor is in up or down the page; dragging an agent by its mark
+  does the same, lighting the header it will land on. The order is kept in
+  `~/.local/state/omarchy/agents/order.json`. Hovering moves the same cursor. Enter acts on it, or
   refreshes when nothing is lit; `r` refreshes, Tab moves to the neighboring
   bar panel, Esc closes.
 - Accounts: `1`–`9` jump to an account across every agent, and Enter makes it

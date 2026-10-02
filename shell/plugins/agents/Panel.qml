@@ -46,8 +46,8 @@ Panel {
 
   // The keyboard walks everything on the page that does something, in
   // reading order, one row at a time: the hero's buttons, then each agent's
-  // Sign-in required link or switchable accounts, and the starter tiles, or
-  // the agents to add while picking one. Up and down change rows, left and right move along one.
+  // header, its Sign-in required link or switchable accounts, and the starter
+  // tiles, or the agents to add while picking one. Up and down change rows, left and right move along one.
   // Hovering moves the same cursor, so only one thing is lit.
   readonly property var keyRows: {
     var rows = []
@@ -66,6 +66,8 @@ Panel {
       // fix is skipped.
       var entry = 0
       for (var p = 0; p < providers.length; p++) {
+        // Every agent's header is a stop, so Ctrl+Up/Down can move it.
+        rows.push([{ kind: "provider", index: p }])
         var accounts = providerAccounts(providers[p])
         if (accounts.length < 2) {
           if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
@@ -133,6 +135,56 @@ Panel {
     } else if (dx !== 0) {
       keyColumn = clamp(Math.min(keyColumn, keyRows[keyRow].length - 1) + dx, 0, keyRows[keyRow].length - 1)
     }
+  }
+
+  // The agent the cursor is in, by its position on the page.
+  function providerIndexOfKey() {
+    var target = keyTarget
+    if (!target) return -1
+    if (target.kind === "provider" || target.kind === "providerSignin") return target.index
+    if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
+    var entry = accountEntries[target.index]
+    return entry ? providers.indexOf(entry.provider) : -1
+  }
+
+  // Ctrl+Up/Down carries the agent the cursor is in up or down the page, and
+  // the cursor along with it.
+  function reorderProvider(dy) {
+    var from = providerIndexOfKey()
+    if (from < 0) return
+    var to = clamp(from + dy, 0, providers.length - 1)
+    if (to === from) return
+    usage.moveProvider(providers[from].providerId, to)
+    Qt.callLater(function() { pointAt("provider", to) })
+  }
+
+  // Dragging an agent by its mark lights the header it would land on, and
+  // moves it there on release: the sections are rebuilt when the order
+  // changes, which would drop a drag still in progress.
+  property string dragProviderId: ""
+  property int dragTarget: -1
+  // An account name being edited keeps Ctrl+Up/Down: moving its agent would
+  // rebuild the section and drop the unfinished name.
+  property bool renaming: false
+
+  function dragProviderOver(y) {
+    for (var i = 0; i < providerSections.count; i++) {
+      var item = providerSections.itemAt(i)
+      if (item && y >= item.y && y < item.y + item.height) {
+        dragTarget = i
+        return
+      }
+    }
+  }
+
+  function dropProvider() {
+    var id = dragProviderId
+    var to = dragTarget
+    dragProviderId = ""
+    dragTarget = -1
+    if (id === "" || to < 0) return
+    usage.moveProvider(id, to)
+    Qt.callLater(function() { pointAt("provider", to) })
   }
 
   // Keeps whatever the cursor lands on inside the scrolled view.
@@ -827,6 +879,8 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      reorderable: root.addStage === "" && !root.renaming
+      onReorderRequested: function(dy) { root.reorderProvider(dy) }
 
       onMoveRequested: function(dx, dy) {
         // Naming and signing in have their own fields; there the arrows scroll.
@@ -849,7 +903,12 @@ Panel {
 
       Flickable {
         id: panelFlick
+        // Reaches a little into the panel's padding on the left, with the
+        // content shifted back, so the box around a lit agent mark isn't
+        // clipped where it overhangs the content's edge.
+        readonly property real overhang: Style.space(8)
         anchors.fill: parent
+        anchors.leftMargin: -overhang
         contentWidth: width
         contentHeight: column.implicitHeight
         clip: true
@@ -863,9 +922,10 @@ Panel {
 
         Column {
           id: column
+          x: panelFlick.overhang
           // When the panel scrolls, the bar gets its own strip rather than
           // sitting on top of the right-aligned numbers.
-          width: panelFlick.width - (panelFlick.interactive ? panelScroll.width + Style.space(6) : 0)
+          width: panelFlick.width - panelFlick.overhang - (panelFlick.interactive ? panelScroll.width + Style.space(6) : 0)
           spacing: Style.space(16)
 
           // ---------- Hero: agents · rotating summary · add ----------
@@ -920,6 +980,7 @@ Panel {
           }
 
           Repeater {
+            id: providerSections
             model: root.addStage === "" ? root.providers : []
 
             ProviderSection {
@@ -1186,18 +1247,50 @@ Panel {
     readonly property var windows: root.displayWindows(provider)
     readonly property var balance: provider ? (provider.balance || null) : null
     spacing: Style.space(16)
+    opacity: root.dragProviderId !== "" && provider && root.dragProviderId === provider.providerId ? 0.5 : 1.0
 
     PanelSeparator { foreground: root.foreground }
 
     Item {
+      id: sectionHead
       width: parent.width
       implicitHeight: Math.max(sectionMark.height, sectionName.implicitHeight)
+      // Lit for the keyboard, and as the drop spot while an agent is dragged.
+      readonly property bool lit: root.dragProviderId !== "" ? root.dragTarget === section.providerIndex : root.hasKey("provider", section.providerIndex)
+      onLitChanged: if (lit && root.dragProviderId === "") root.revealItem(sectionHead)
+
+      // Only the mark is lit: it's the handle the agent moves by.
+      CursorSurface {
+        anchors.fill: sectionMark
+        anchors.margins: -Style.space(5)
+        z: -1
+        hasCursor: sectionHead.lit
+        foreground: root.foreground
+      }
 
       ProviderIcon {
         id: sectionMark
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         provider: section.provider
+
+        // The mark is the handle for dragging the agent up or down the page.
+        MouseArea {
+          anchors.fill: parent
+          anchors.margins: -Style.space(4)
+          hoverEnabled: true
+          preventStealing: true
+          cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+          onPressed: {
+            root.dragProviderId = section.provider ? section.provider.providerId : ""
+            root.dragTarget = section.providerIndex
+          }
+          onPositionChanged: function(mouse) {
+            if (pressed) root.dragProviderOver(mapToItem(column, mouse.x, mouse.y).y)
+          }
+          onReleased: root.dropProvider()
+          onCanceled: { root.dragProviderId = ""; root.dragTarget = -1 }
+        }
       }
 
       Text {
@@ -1552,6 +1645,7 @@ Panel {
     readonly property string label: renamedTo !== "" ? renamedTo : String(account.label || account.id || "")
 
     onAccountChanged: renamedTo = ""
+    onEditingChanged: root.renaming = editing
     onPickedChanged: if (picked) root.revealItem(head)
 
     // Anywhere on the line counts, so Use can show up when it's hidden.
