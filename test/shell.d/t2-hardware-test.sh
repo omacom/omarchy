@@ -39,6 +39,8 @@ grep -Fq '> /dev/tty60' "$tb_hook" ||
   fail "the Thunderbolt sleep hook prints on the console so a deferred fbcon takes over during the VT switch"
 grep -Fq 'hyprctl reload' "$tb_hook" ||
   fail "the Thunderbolt sleep hook has the compositor apply its monitor config again after the switch"
+grep -Fq 'systemd-run --quiet --no-block --collect --uid="$user"' "$tb_hook" ||
+  fail "the Thunderbolt sleep hook leaves the reload to a unit of its own, since the session is still frozen"
 grep -Eq '^\s*\) &\s*$' "$tb_hook" &&
   fail "the Thunderbolt sleep hook backgrounds nothing of its own, systemd-suspend.service kills it"
 grep -Fq 'BRIDGE_CONTROL' "$tb_hook" ||
