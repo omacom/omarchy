@@ -363,6 +363,49 @@ ShellRoot {
     root.assertEqual(root.config.bar.layout.center[0].apiKey, "test-key", "re-enabling a configured clone retains its settings")
     registry.setEnabled("local.first-widget", false)
 
+    root.assertDeepEqual(root.config.bar.layout.center, [{ id: "omarchy.first-widget", size: 4, serverUrl: "http://source.test", inherited: true }], "disabling a configured clone restores independent source settings")
+    root.assertTrue(root.config.cloneBarSources === undefined, "restoring a configured clone clears its source snapshot")
+
+    var originalWidget = { id: "omarchy.first-widget", size: 4, serverUrl: "http://source.test", options: { origin: "source" }, inherited: true }
+    for (var putClone = 0; putClone < 2; putClone++) {
+      for (var enableSource = 0; enableSource < 2; enableSource++) {
+        root.config = {
+          version: 1,
+          bar: { layout: { left: [], center: [JSON.parse(JSON.stringify(originalWidget))], right: [] } },
+          plugins: [{ id: "local.first-widget", size: 7, serverUrl: "http://clone.test", options: { origin: "clone" }, apiKey: "test-key" }]
+        }
+        if (putClone) registry.putBarWidget("local.first-widget", {})
+        else registry.setEnabled("local.first-widget", true)
+        root.assertDeepEqual((root.config.cloneBarSources || {})["local.first-widget"], originalWidget, "source snapshot preserves its complete settings")
+        root.config = JSON.parse(JSON.stringify(root.config))
+        registry.setBarWidget("local.first-widget", "options", { origin: "edited clone" }, {})
+        registry.setEnabled("local.first-widget", true)
+        root.assertDeepEqual((root.config.cloneBarSources || {})["local.first-widget"], originalWidget, "repeat enable never overwrites the source snapshot")
+        if (enableSource) registry.setEnabled("omarchy.first-widget", true)
+        else registry.setEnabled("local.first-widget", false)
+        root.assertDeepEqual(root.config.bar.layout.center, [originalWidget], "round trip restores original scalars and nested settings")
+        root.assertTrue(root.config.cloneBarSources === undefined, "round trip clears source snapshot")
+        root.assertDeepEqual(root.config.plugins, [], "round trip leaves no redundant plugin entry")
+      }
+    }
+
+    root.config = { version: 1, bar: { layout: { left: [], center: [JSON.parse(JSON.stringify(originalWidget))], right: [] } }, plugins: [] }
+    registry.setEnabled("local.first-widget", true)
+    var changedWidget = manifest("local.first-widget", ["bar-widget"], { barWidget: "Widget.qml" })
+    changedWidget.omarchy = { clonedFrom: "omarchy.weather" }
+    registry.parseScanOutput(scan + block("thirdparty", "/third/changed-widget", changedWidget))
+    registry.setEnabled("local.first-widget", false)
+    root.assertDeepEqual(root.config.bar.layout.center, [originalWidget], "disable restores the saved source when manifest source changes")
+    registry.parseScanOutput(scan)
+
+    root.config = { version: 1, bar: { layout: { left: [], center: [JSON.parse(JSON.stringify(originalWidget))], right: [] } }, plugins: [] }
+    registry.setEnabled("local.first-widget", true)
+    registry.parseScanOutput(scan + block("thirdparty", "/third/reused-widget", manifest("local.first-widget", ["bar-widget"], { barWidget: "Widget.qml" })))
+    registry.setEnabled("local.first-widget", true)
+    root.assertDeepEqual(root.config.bar.layout.center[0], originalWidget, "reused non-clone id returns saved settings to the original")
+    root.assertTrue(root.config.cloneBarSources === undefined, "reused non-clone id releases its source snapshot")
+    registry.parseScanOutput(scan)
+
     root.config = {
       version: 1,
       bar: { layout: { left: [], center: [{ id: "local.first-widget", size: 5 }], right: [] } },

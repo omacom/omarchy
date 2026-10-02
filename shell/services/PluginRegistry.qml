@@ -452,6 +452,8 @@ QtObject {
   }
 
   function restoreCloneSource(config, cloneId, sourceId) {
+    var savedEntry = Util.isPlainObject(config.cloneBarSources) ? config.cloneBarSources[cloneId] : null
+    if (Util.isPlainObject(savedEntry)) sourceId = barEntryId(savedEntry)
     var cloneManifest = installedPlugins[cloneId]
     var isBarOption = cloneManifest && Array.isArray(cloneManifest.kinds)
       && cloneManifest.kinds.indexOf("bar") !== -1
@@ -471,7 +473,8 @@ QtObject {
         }
         cloneLocation = findBarLocation(config, cloneId, "")
         if (cloneLocation.found) {
-          var restoredEntry = Util.isPlainObject(cloneEntry) ? Util.cloneJson(cloneEntry) : {}
+          var restoredEntry = Util.isPlainObject(savedEntry) ? Util.cloneJson(savedEntry)
+            : (Util.isPlainObject(cloneEntry) ? Util.cloneJson(cloneEntry) : {})
           restoredEntry.id = sourceId
           config.bar.layout[cloneLocation.section][cloneLocation.index] = restoredEntry
         }
@@ -482,6 +485,10 @@ QtObject {
 
     if (cloneShouldRestoreSource(config, cloneId)) removeDisabled(config, sourceId)
     setCloneShouldRestoreSource(config, cloneId, false)
+    if (Util.isPlainObject(config.cloneBarSources)) {
+      delete config.cloneBarSources[cloneId]
+      if (!Object.keys(config.cloneBarSources).length) delete config.cloneBarSources
+    }
   }
 
   function setEnabled(id, value, placement) {
@@ -521,6 +528,12 @@ QtObject {
         }
       }
 
+      var savedEntry = Util.isPlainObject(config.cloneBarSources) ? config.cloneBarSources[key] : null
+      if (Util.isPlainObject(savedEntry)) {
+        if (value && barEntryId(savedEntry) !== clonedFrom) restoreCloneSource(config, key, barEntryId(savedEntry))
+        else if (!value) clonedFrom = barEntryId(savedEntry)
+      }
+
       if (isBarOption) {
         if (value) {
           config.bar.id = key
@@ -550,6 +563,10 @@ QtObject {
             if (sourceLocation.found) {
               var sourceEntry = config.bar.layout[sourceLocation.section][sourceLocation.index]
               var replacement = Util.isPlainObject(sourceEntry) ? Util.cloneJson(sourceEntry) : {}
+              // The source and clone own separate settings even while they
+              // share one bar slot. Keep the original across shell restarts.
+              if (!Util.isPlainObject(config.cloneBarSources)) config.cloneBarSources = {}
+              config.cloneBarSources[key] = Util.isPlainObject(sourceEntry) ? Util.cloneJson(sourceEntry) : { id: clonedFrom }
               // The clone's saved settings take precedence over inherited
               // source settings when moving it from plugins[] to the bar.
               for (var option in entry) replacement[option] = entry[option]
