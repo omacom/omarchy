@@ -203,13 +203,18 @@ def collect_limits(home, key, force):
   fetched_at = float(cached.get("fetchedAtMs") or 0)
   result["fetchedAtMs"] = fetched_at
 
-  # The CLI refreshes its token while it runs; one left to lapse can't be
-  # used until Grok starts again.
   expires = parse_time(entry.get("expires_at"))
   if expires and expires.timestamp() <= time.time():
     result["limits"] = cached.get("limits") or []
-    result["usageStatusText"] = "Sign-in expired"
-    result["authHelpText"] = "Grok's saved sign-in expired. Start Grok to refresh it."
+    # The access token lives six hours and Grok mints a new one from its
+    # refresh token whenever it starts, so a lapsed one is routine, not a
+    # sign-out. Calling it one sent people to `grok login` several times a day.
+    if entry.get("refresh_token"):
+      result["usageStatusText"] = "Limits paused"
+      result["authHelpText"] = "Grok's access token has lapsed. Start Grok to refresh it; signing in again is not needed."
+    else:
+      result["usageStatusText"] = "Sign-in expired"
+      result["authHelpText"] = "Grok's saved sign-in expired. Start Grok to refresh it."
     return result
 
   if cached.get("limits") and not force and time.time() - fetched_at / 1000 < PROBE_REUSE_SECONDS:

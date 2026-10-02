@@ -86,6 +86,15 @@ record=$(collect)
   fail "a lapsed sign-in keeps the last credits and says so" "$record"
 pass "a lapsed sign-in keeps the last credits and says so"
 
+# A lapsed access token with a refresh token is routine: Grok renews it when it
+# starts, so it reads as paused rather than asking for a sign-in.
+jq '.[].refresh_token = "r"' "$HOME/.grok/auth.json" >"$test_tmp/auth.json"
+mv "$test_tmp/auth.json" "$HOME/.grok/auth.json"
+record=$(collect)
+[[ $(jq -c '{usageStatusText, first: .limits[0].percent}' <<<"$record") == '{"usageStatusText":"Limits paused","first":0.42}' ]] ||
+  fail "a lapsed access token with a refresh token reads as paused" "$record"
+pass "a lapsed access token with a refresh token reads as paused"
+
 # A period with nothing used yet comes without a percentage.
 signed_in "$HOME/.grok" token-fresh u-main "$future" "X Premium+"
 rm -f "$XDG_CACHE_HOME"/omarchy/agent-usage/grok-limits-*.json
