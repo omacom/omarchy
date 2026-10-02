@@ -23,7 +23,7 @@ if omarchy-cmd-present mise; then
     grok_previous=$(readlink "$grok_link" 2>/dev/null)
     if [[ -L $grok_link && $grok_previous != "$grok_current" ]]; then
       rm -f "$grok_link"
-      mise x npm:@xai-official/grok -- grok --version >/dev/null 2>&1
+      GROK_HOME="$HOME/.grok" mise x npm:@xai-official/grok -- grok --version >/dev/null 2>&1
       if [[ $(readlink "$grok_link" 2>/dev/null) == "$grok_current" ]]; then
         find "$HOME/.grok/bin" -maxdepth 1 -name 'grok-*' ! -name "$grok_current" -delete
       else

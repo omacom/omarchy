@@ -25,7 +25,8 @@ chmod +x "$test_tmp/bin/mise"
 echo old >"$HOME/.grok/bin/grok-1.0.30"
 ln -s grok-1.0.30 "$HOME/.grok/bin/grok"
 
-PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-update-mise" >/dev/null
+GROK_HOME="$test_tmp/elsewhere" PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-update-mise" >/dev/null
+[[ $(cat "$test_tmp/grok-ran") == "$HOME/.grok" ]] || fail "the new release is unpacked into ~/.grok whatever GROK_HOME says" "$(cat "$test_tmp/grok-ran")"
 [[ $(readlink "$HOME/.grok/bin/grok") == "grok-1.0.44" && ! -e $HOME/.grok/bin/grok-1.0.30 ]] ||
   fail "an update points Grok at the installed release and drops the old one" "$(ls -la "$HOME/.grok/bin")"
 pass "an update points Grok at the installed release and drops the old one"
