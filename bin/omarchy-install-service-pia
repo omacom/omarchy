@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Install the Private Internet Access VPN service and log in.
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Installing Private Internet Access..."
+omarchy-pkg-aur-add piavpn-bin
+
+echo "Enabling PIA daemon..."
+sudo systemctl enable --now piavpn.service
+
+# By default the daemon only connects while the PIA app is open.
+echo "Allowing PIA to connect without its app open..."
+piactl background enable
+
+echo -e "\nLogging in to PIA..."
+while true; do
+  username=$(gum input --prompt "Username> " --placeholder "p1234567") || exit 1
+  password=$(gum input --password --prompt "Password> ") || exit 1
+
+  # piactl reads the login from a file; a pipe keeps the password off the disk.
+  piactl login <(printf '%s\n%s\n' "$username" "$password") && break
+  echo "Login failed, try again."
+done
+
+echo -e "\nPIA installed! Connect with 'piactl connect' or from the Private Internet Access app."
+
+echo
+if gum confirm "Connect to PIA now?"; then
+  piactl connect
+fi
