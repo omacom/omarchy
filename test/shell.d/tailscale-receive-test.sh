@@ -62,10 +62,10 @@ done <<<"$notifications"
 pass "taildrop receive announcements wait to be answered"
 
 for name in photo.png "notes with space.pdf"; do
-  grep -qF -- "-g 󰒊 --exec xdg-open $downloads/$name" <<<"$notifications" ||
-    fail "taildrop receive announces every file with a glyph" "$notifications"
+  grep -qxF -- "Received $name Saved to $downloads -u critical -g 󰒊 --exec xdg-open $downloads/$name" <<<"$notifications" ||
+    fail "taildrop receive announces every file by name with a glyph" "$notifications"
 done
-pass "taildrop receive announces every file with a glyph"
+pass "taildrop receive announces every file by name with a glyph"
 
 # The shell keeps the click command with the toast, so receiving does not have
 # to sit blocked on an answer -- and the toast still opens the file after a shell
