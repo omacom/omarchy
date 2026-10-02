@@ -48,6 +48,32 @@ assert(
   'image picker ignores cache preloads while a request is visible'
 )
 assert(
+  /if \(args\.source === "themes"\) \{\s*openThemes\(\)/.test(imagePickerQml) &&
+    /function openThemes\(\) \{\s*if \(themeRows\) \{\s*openThemeRows\(\)[\s\S]*refreshThemeRows\(\)/.test(imagePickerQml),
+  'image picker opens themes from held rows before refreshing them'
+)
+assert(
+  /command: \[root\.omarchyPath \+ "\/bin\/omarchy-theme-switcher", "--print-rows"\]/.test(imagePickerQml),
+  'image picker refreshes theme rows from the theme switcher'
+)
+assert(
+  /if \(themeMode\) \{[\s\S]*Util\.execArgv\(\["omarchy-theme-set", nameForPath\(path\)\]\)/.test(imagePickerQml),
+  'image picker applies a chosen theme itself'
+)
+assert(
+  /function cancel\(\) \{\s*themeOpenPending = false/.test(imagePickerQml) &&
+    /function closeSelector\(nextDoneFile\) \{\s*requestSerial \+= 1\s*themeOpenPending = false/.test(imagePickerQml),
+  'image picker drops a pending theme open once dismissed'
+)
+assert(
+  /function openSelector[\s\S]*?themeMode = false/.test(imagePickerQml),
+  'image picker leaves theme mode when another caller opens it'
+)
+assert(
+  /OverlayWindow \{\s*id: panel\s*shown: root\.opened\s*shownKeyboardFocus: root\.imagesLoaded \? WlrKeyboardFocus\.Exclusive : WlrKeyboardFocus\.None/.test(imagePickerQml),
+  'image picker parks on OverlayWindow and takes the keyboard once images load'
+)
+assert(
   /source: item\.sourceActivated && item\.thumbnailPath \? Util\.fileUrl\(item\.thumbnailPath\) : ""[\s\S]*asynchronous: false/.test(imagePickerQml),
   'image picker loads activated thumbnails synchronously to avoid carousel flicker'
 )
