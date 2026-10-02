@@ -98,7 +98,11 @@ status=$?
 ((status == 0)) || exit "$status"
 : > "$TEST_INSTALLER_DONE"
 '''
+  # A desktop session exports the XDG dirs, which would resolve the user's real
+  # browser and hand it the URL instead of starting the test browser.
   env = dict(os.environ, HOME=str(home), PATH=f"{mock_bin}:{root / 'bin'}:{os.environ['PATH']}",
+             XDG_CONFIG_HOME=str(home / ".config"), XDG_DATA_HOME=str(home / ".local/share"),
+             XDG_CONFIG_DIRS=str(scratch / "etc"), XDG_DATA_DIRS=str(scratch / "share"),
              OMARCHY_WINDOWS_DIR=str(scratch / "runtime"), HYPRLAND_INSTANCE_SIGNATURE="",
              TEST_BROWSER_STATE=str(browser_state), TEST_BROWSER_STOP=str(browser_stop),
              TEST_INSTALLER_DONE=str(installer_done))
