@@ -36,6 +36,20 @@ When you connect an external screen to your laptop, the display is automatically
 
 When you're extending, closing the lid on the laptop will automatically turn off the internal screen. Opening the lid will turn it back on. You can also control this manually using _Trigger > Hardware_ in the Omarchy menu or `Super + Ctrl + Delete`.
 
+### USB-C docking stations and DisplayLink
+
+Some USB-C docks drive their monitor outputs with a DisplayLink chip instead of passing DisplayPort through from the laptop. The monitors hang off that chip rather than the GPU, so the system sees no display to drive and the screens stay dark until the DisplayLink driver is installed. Docks from HP, Dell, Lenovo, Kensington, Plugable, and others are built this way, and they are just a USB hub to the machine until the driver runs.
+
+Install the driver from _Install > Service > DisplayLink_ in the Omarchy menu, or from the terminal:
+
+```
+omarchy install displaylink
+```
+
+That pulls in the `evdi` kernel module and the `displaylink` userspace driver from the AUR and starts the DisplayLink Manager service. Replug the dock if it was already connected, and each monitor on it appears as its own output, ready to arrange like any other screen. `omarchy hw displaylink` reports whether a dock is attached right now.
+
+The picture is rendered in software and compressed over the USB link, so a display attached this way asks a little more of the CPU than one wired straight to the GPU, and its cursor can trail by a frame or two. That's fine for desktop work, but for gaming or video you'll want a dock that passes DisplayPort through instead.
+
 ### Arranging multiple screens
 
 Hyprland works great with multiple screens. Read more about how to lay them out in [the Hyprland monitor documentation](https://wiki.hypr.land/Configuring/Basics/Monitors/). You can [bind specific workspaces to specific monitors](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) as well. In Omarchy, these rules go in `~/.config/hypr/monitors.lua` as `hl.monitor` entries — the file ships with commented examples for pinning a specific monitor to a resolution, position, and rotation.
