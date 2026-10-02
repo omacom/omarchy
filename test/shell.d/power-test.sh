@@ -54,6 +54,10 @@ assertEqual(
 
 assert(/readonly property string chargeThreshold: root\.batteryInfo\.threshold \|\| ""/.test(panelSource), 'power panel derives the charge threshold from battery status output')
 assert(!/Model\.(chargeThresholdActive|batteryIcon|modeLabel)\([^)]*upowerStates\(\)\)/.test(panelSource), 'power panel passes the charge threshold to every threshold-aware model call')
+assert(/Component\.onCompleted: refreshBattery\(\)/.test(panelSource), 'power panel loads the charge threshold before it is first opened, for the bar icon')
+assert(/onBatteryPresentChanged: \{\s*if \(batteryPresent\) refreshBattery\(\)/.test(panelSource), 'power panel loads the charge threshold when a battery appears')
+assert(/function refreshBattery\(\) \{[^}]*batteryProc\.running = true/.test(panelSource), 'power panel starts the battery status lookup when asked to load the charge threshold')
+assert(/Timer \{[^\n]*running: root\.batteryPresent && !root\.opened && root\.batteryInfo\.percentage === undefined[^\n]*root\.refreshBattery\(\)/.test(panelSource), 'power panel retries the charge threshold lookup until it lands')
 
 assert(/if \(b === Qt\.RightButton\) root\.togglePercentage\(\)/.test(panelSource), 'power right click toggles the bar percentage')
 assert(/Object\.assign\([^\n]+showPercentage: !root\.showPercentage[^\n]+\)[\s\S]*updateEntryInline/.test(panelSource), 'power persists the bar percentage setting')
