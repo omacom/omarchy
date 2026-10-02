@@ -86,7 +86,8 @@ function stripImageTags(text) {
 // `<a>` is deliberately not restored. Nothing in the shell connects
 // linkActivated, so a link cannot navigate anywhere; all it can do is look
 // convincingly clickable, which is the spoofing half of the problem rather
-// than a feature.
+// than a feature. The server still advertises body-hyperlinks, so the anchor
+// tags are dropped and their text kept, as is a sender's `<br>` as a newline.
 function escapeMarkup(text) {
   // Senders that advertise body-markup support escape their own text first —
   // Chromium writes "AT&amp;T" — so escaping every & again would show the
@@ -100,6 +101,8 @@ function escapeMarkup(text) {
   // formatting, which is the hole this function exists to close. \x00 cannot
   // come back from the input because it is stripped first.
   var s = String(text || "").replace(/\x00/g, "")
+    .replace(/<\/?a(?:\s[^>]*)?>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
 
   s = s.replace(/&(#[0-9]+|#x[0-9a-f]+|[a-z][a-z0-9]*);/gi, "\x00$1;")
     .replace(/&/g, "&amp;")

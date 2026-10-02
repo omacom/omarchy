@@ -155,6 +155,20 @@ assertEqual(
   'notifications do not promote a sender-escaped tag to live formatting'
 )
 
+// The server advertises body-hyperlinks, so a link must read as its text rather
+// than as escaped tag syntax, and still never render as a link.
+assertEqual(
+  notifications.styledBody('<font color="red">Alert</font> <a href="http://evil.test">sign in</a>', 'Slack', ''),
+  '&lt;font color="red"&gt;Alert&lt;/font&gt; sign in',
+  'notifications keep a link as plain text and escape other markup'
+)
+
+assertEqual(
+  notifications.styledBody('one<br>two<BR />three', 'Slack', ''),
+  'one<br/>two<br/>three',
+  'notifications render a sender line break as a line break'
+)
+
 // The rewrite itself still happens, and body markup other than images survives it.
 assertEqual(
   notifications.styledBody('<b>bold</b>\nsecond line', 'Slack', ''),
