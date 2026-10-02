@@ -6,7 +6,9 @@ fi
 
 unit="${OMARCHY_T2_PROCHOT_UNIT:-/etc/systemd/system/omarchy-t2-prochot.service}"
 
-if [[ -f $unit ]]; then
+# The unit present and enabled is the completion state another user's run
+# leaves; the file alone is what a run interrupted before enabling leaves.
+if [[ -f $unit ]] && systemctl is-enabled --quiet omarchy-t2-prochot.service; then
   exit 0
 fi
 
