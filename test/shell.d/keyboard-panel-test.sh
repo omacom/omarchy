@@ -7,6 +7,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const fs = require('fs')
 const panelQml = fs.readFileSync(path.join(root, 'shell/Ui/KeyboardPanel.qml'), 'utf8')
+const pluginBarApiQml = fs.readFileSync(path.join(root, 'shell/Ui/PluginBarApi.qml'), 'utf8')
+const barQml = fs.readFileSync(path.join(root, 'shell/plugins/bar/Bar.qml'), 'utf8')
 
 assert(
   /exclusionMode: ExclusionMode\.Auto/.test(panelQml),
@@ -34,6 +36,11 @@ assert(
     /originX: \(barPos === "left" && barReserved\)/.test(panelQml) &&
     /originY: \(barPos === "top" && barReserved\)/.test(panelQml),
   'a hidden bar does not shift the card when an OSK insets the overlay'
+)
+assert(
+  /property bool barHidden: false/.test(pluginBarApiQml) &&
+    /api\.barHidden = Qt\.binding\(function\(\) \{ return root\.barHidden \}\)/.test(barQml),
+  'third-party panels see the hidden bar too, through the widget bar facade'
 )
 assert(
   /insetOverlay: backingWindowVisible/.test(panelQml),
