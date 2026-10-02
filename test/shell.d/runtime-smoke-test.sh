@@ -411,6 +411,8 @@ pass "installed plugin changes reload without an explicit rescan"
 wait_source_version() {
   local expected="$1" actual=""
   for _ in {1..100}; do
+    # Engine reload clears openPanelIds, so remount the overlay's IPC probe.
+    shell_ipc_quiet shell summon "$hot_reload_id" "{}" >/dev/null 2>&1 || true
     actual=$(shell_ipc acme-hot-reload sourceVersion 2>/dev/null || true)
     [[ $actual == "$expected" ]] && return 0
     kill -0 "$QS_PID" 2>/dev/null || fail_with_log "test shell exited during source hot reload"
