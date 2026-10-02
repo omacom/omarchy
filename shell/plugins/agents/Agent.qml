@@ -13,6 +13,10 @@ Item {
   property string path: ""
   property var record: null
 
+  // The text the current record was parsed from, so a reload that finds the
+  // file unchanged doesn't hand every listener an identical new record.
+  property string parsedText: ""
+
   FileView {
     id: agentFile
     path: root.path
@@ -20,26 +24,30 @@ Item {
     printErrors: false
     onFileChanged: reload()
     onLoaded: root.parse(text())
-    onLoadFailed: root.record = null
+    onLoadFailed: root.clear()
   }
 
-  // Fallback reload when inotify watch-rearms fail (quota exhaustion, ENOSPC).
-  // The atomic mv rewrite replaces the inode; if inotify can't re-arm, the
-  // FileView stays frozen. Periodic reload bounds staleness (#9974).
-  Timer {
-    interval: 120000
-    repeat: true
-    running: true
-    onTriggered: agentFile.reload()
+  // The usage update rewrites records with an atomic mv, which replaces the
+  // inode. Should inotify fail to rearm on the new one (watch quota, ENOSPC),
+  // the FileView goes quiet, so Main.qml also reloads every record after each
+  // update run (#9974).
+  function reload() { agentFile.reload() }
+
+  function clear() {
+    root.parsedText = ""
+    root.record = null
   }
 
   function parse(content) {
+    var text = String(content || "")
+    if (root.record && text === root.parsedText) return
     try {
-      var parsed = JSON.parse(String(content || ""))
+      var parsed = JSON.parse(text)
       root.record = parsed && typeof parsed === "object" ? parsed : null
+      root.parsedText = root.record ? text : ""
     } catch (e) {
       console.warn("agents", "Ignoring bad usage record", root.path, e)
-      root.record = null
+      root.clear()
     }
   }
 }

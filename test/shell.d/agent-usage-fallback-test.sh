@@ -4,34 +4,53 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-agent_qml="$ROOT/shell/plugins/agents/Agent.qml"
-[[ -f $agent_qml ]] || fail "Agent.qml is present"
+# A usage update replaces each record with an atomic mv. When inotify cannot
+# rearm on the new inode (watch quota, ENOSPC), the record's FileView goes
+# quiet, so the panel reloads every record once the update process exits
+# (#9974). Run the real QML functions in a VM to check both halves: the exit
+# reloads every agent, and a reload of an unchanged file leaves the record be.
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
 
-# Must have a fallback Timer for when inotify watch-rearm fails (#9974).
-grep -F 'Timer' "$agent_qml" >/dev/null || fail "Agent.qml has a fallback Timer"
-grep -F 'interval: 120000' "$agent_qml" >/dev/null ||
-  fail "fallback Timer runs every 2 minutes"
-grep -F 'repeat: true' "$agent_qml" >/dev/null ||
-  fail "fallback Timer repeats"
-grep -F 'onTriggered: agentFile.reload()' "$agent_qml" >/dev/null ||
-  fail "fallback Timer calls FileView.reload()"
+function extract(source, signature, file) {
+  const start = source.indexOf(`  ${signature}`)
+  assert(start >= 0, `found ${signature} in ${file}`)
+  const end = source.indexOf('\n  }', start)
+  assert(end > start, `found the end of ${signature} in ${file}`)
+  return source.slice(start, end + '\n  }'.length)
+}
 
-# FileView still has the primary inotify path.
-grep -F 'watchChanges: true' "$agent_qml" >/dev/null ||
-  fail "Agent.qml still uses inotify for low-latency updates"
-grep -F 'onFileChanged: reload()' "$agent_qml" >/dev/null ||
-  fail "Agent.qml still reloads on inotify events"
-pass "Agent.qml has a 2-minute fallback reload Timer"
+const main = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const agent = fs.readFileSync(root + '/shell/plugins/agents/Agent.qml', 'utf8')
 
-# Verify Timer is after FileView (accessing its id).
-python3 - <<'PY' || fail "fallback Timer is placed after FileView"
-from pathlib import Path
-import os, re
+const updateStart = main.indexOf('    id: updateProcess')
+const exited = main.slice(main.indexOf('    onExited: {', updateStart), main.indexOf('\n    }', updateStart))
+assert(exited.includes('root.reloadRecords()'), 'the update process reloads every record when it exits')
 
-qml = Path(os.environ["ROOT"], "shell/plugins/agents/Agent.qml").read_text()
-fv_pos = qml.index("FileView {")
-timer_pos = qml.index("Timer {")
-assert timer_pos > fv_pos, "Timer must appear after FileView (agentFile id)"
-assert "agentFile.reload()" in qml, "Timer calls agentFile.reload()"
-PY
-pass "fallback Timer references the FileView id"
+const panel = { agents: [] }
+vm.createContext(panel)
+vm.runInContext(extract(main, 'function reloadRecords() {', 'Main.qml'), panel)
+const reloaded = []
+panel.agents = [{ reload: () => reloaded.push('claude') }, null, { reload: () => reloaded.push('codex') }]
+panel.reloadRecords()
+assertDeepEqual(reloaded, ['claude', 'codex'], 'reloadRecords reloads each agent record')
+
+assert(agent.includes('function reload() { agentFile.reload() }'), 'an agent reloads through its FileView')
+const record = { record: null, parsedText: '', path: 'codex.json', console: { warn() {} } }
+record.root = record
+vm.createContext(record)
+vm.runInContext(extract(agent, 'function clear() {', 'Agent.qml') + '\n' + extract(agent, 'function parse(content) {', 'Agent.qml'), record)
+
+record.parse('{"id":"codex","todayPrompts":1}')
+const first = record.record
+assertEqual(first.todayPrompts, 1, 'a record is parsed from its file')
+record.parse('{"id":"codex","todayPrompts":1}')
+assert(record.record === first, 'reloading an unchanged file keeps the same record')
+record.parse('{"id":"codex","todayPrompts":2}')
+assertEqual(record.record.todayPrompts, 2, 'a changed file replaces the record')
+record.parse('not json')
+assertEqual(record.record, null, 'a bad file clears the record')
+record.parse('{"id":"codex","todayPrompts":2}')
+assertEqual(record.record.todayPrompts, 2, 'the record comes back once the file is good again')
+JS
