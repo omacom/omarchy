@@ -151,6 +151,8 @@ trap 'rm -rf "$device_tmp"' EXIT
 mock_bin="$device_tmp/bin"
 mkdir -p "$mock_bin"
 export POWERED_FILE="$device_tmp/powered"
+# Keep the power lock out of the real session's runtime dir.
+export XDG_RUNTIME_DIR="$device_tmp"
 
 cat >"$mock_bin/bluetoothctl" <<'SH'
 #!/bin/bash
