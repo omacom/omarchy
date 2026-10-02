@@ -536,6 +536,82 @@ ShellRoot {
     root.assertTrue(root.config.cloneSources === undefined, "direct disable clears the original widget source record")
     registry.parseScanOutput(scan)
 
+    var sharedWidgets = [
+      { id: "local.first-widget", source: "omarchy.first-widget", kinds: ["bar-widget"], entryPoints: { barWidget: "Widget.qml" } },
+      { id: "local.hybrid", source: "omarchy.hybrid", kinds: ["menu", "bar-widget"], entryPoints: { menu: "Menu.qml", barWidget: "Widget.qml" } }
+    ]
+    for (var widgetIndex = 0; widgetIndex < sharedWidgets.length; widgetIndex++) {
+      var widget = sharedWidgets[widgetIndex]
+      var siblingWidget = manifest("local.sibling-widget", widget.kinds, widget.entryPoints)
+      siblingWidget.omarchy = { clonedFrom: widget.source }
+      for (var removalOrder = 0; removalOrder < 4; removalOrder++) {
+        registry.parseScanOutput(scan + block("thirdparty", "/third/sibling-widget", siblingWidget))
+        var sourceEntry = { id: widget.source, size: 9, options: { original: true } }
+        root.config = {
+          version: 1,
+          bar: { layout: { left: [{ id: "third.widget" }, sourceEntry, { id: "third.right-widget" }], center: [], right: [] } },
+          plugins: []
+        }
+        registry.setEnabled(widget.id, true)
+        registry.setEnabled("local.sibling-widget", true, { section: "right" })
+        root.config = JSON.parse(JSON.stringify(root.config))
+        if (removalOrder === 2) registry.parseScanOutput(block("firstparty", "/first/source", manifest(widget.source, widget.kinds, widget.entryPoints)))
+        if (removalOrder === 3) {
+          registry.setEnabled(widget.source, true)
+        } else {
+          var firstId = removalOrder === 1 ? "local.sibling-widget" : widget.id
+          var lastId = removalOrder === 1 ? widget.id : "local.sibling-widget"
+          registry.setEnabled(firstId, false)
+          root.config = JSON.parse(JSON.stringify(root.config))
+          root.assertTrue(!registry.findBarLocation(root.config, widget.source, "").found, "shared widgets do not load the original before the last clone leaves")
+          registry.setEnabled(lastId, false)
+        }
+        root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }, sourceEntry, { id: "third.right-widget" }], "shared widget removal restores original placement and nested settings")
+        root.assertDeepEqual(root.config.bar.layout.right, [], "shared widget removal clears the secondary clone slot")
+        root.assertTrue(root.config.cloneBarRestores === undefined, "shared widget restoration clears saved layout bookkeeping")
+      }
+    }
+    registry.parseScanOutput(scan)
+
+    var reusedKinds = replacedClones.concat([{ id: "local.first-widget", source: "omarchy.first-widget", kinds: ["bar-widget"], entryPoints: { barWidget: "Widget.qml" } }])
+    for (var reusedIndex = 0; reusedIndex < reusedKinds.length; reusedIndex++) {
+      var reused = reusedKinds[reusedIndex]
+      root.config = {
+        version: 1,
+        bar: { layout: { left: [{ id: reused.source, size: 8 }], center: [], right: [] } },
+        plugins: []
+      }
+      registry.setEnabled(reused.id, true)
+      var unrelatedEntry = registry.findEntryLocation(root.config, reused.id)
+      if (unrelatedEntry.kind === "bar") root.config.bar.layout[unrelatedEntry.section][unrelatedEntry.index].custom = "unrelated"
+      else root.config.plugins[unrelatedEntry.index].custom = "unrelated"
+      registry.parseScanOutput(scan + block("thirdparty", "/third/reused", manifest(reused.id, reused.kinds, reused.entryPoints)))
+      registry.setEnabled(reused.source, true)
+      root.assertTrue(registry.isEnabled(reused.id), "enabling a source preserves an unrelated plugin that reused a clone id")
+      unrelatedEntry = registry.findEntryLocation(root.config, reused.id)
+      var unrelatedConfig = unrelatedEntry.kind === "bar"
+        ? root.config.bar.layout[unrelatedEntry.section][unrelatedEntry.index] : root.config.plugins[unrelatedEntry.index]
+      root.assertEqual(unrelatedConfig && unrelatedConfig.custom, "unrelated", "unrelated reused plugin keeps its own inline settings")
+      root.assertTrue(root.config.cloneSources === undefined && root.config.cloneSourceRestores === undefined, "source enable releases unrelated reused id bookkeeping")
+      registry.parseScanOutput(scan)
+    }
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [{ id: "omarchy.first-widget", size: 9 }], center: [{ id: "omarchy.hybrid", size: 3 }], right: [] } },
+      plugins: []
+    }
+    registry.setEnabled("local.first-widget", true)
+    changedWidget.omarchy = { clonedFrom: "omarchy.hybrid" }
+    registry.parseScanOutput(scan + block("thirdparty", "/third/changed-widget", changedWidget))
+    registry.setEnabled("local.first-widget", true)
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "omarchy.first-widget", size: 9 }], "changing an enabled widget source releases the original slot")
+    root.assertDeepEqual(root.config.bar.layout.center, [{ id: "local.first-widget", size: 3 }], "changing an enabled widget source replaces the new source in place")
+    registry.setEnabled("local.first-widget", false)
+    root.assertDeepEqual(root.config.bar.layout.center, [{ id: "omarchy.hybrid", size: 3 }], "changed widget restoration keeps the new source settings")
+    root.assertTrue(root.config.cloneBarRestores === undefined, "changed widget restoration clears both source snapshots")
+    registry.parseScanOutput(scan)
+
     var missingClones = [
       { id: "local.grouped-panel", source: "omarchy.grouped-panel", kinds: ["panel"], entryPoints: { panel: "Panel.qml" } },
       { id: "local.hybrid", source: "omarchy.hybrid", kinds: ["menu", "bar-widget"], entryPoints: { menu: "Menu.qml", barWidget: "Widget.qml" } },

@@ -435,11 +435,30 @@ QtObject {
       var candidateManifest = installedPlugins[candidate]
       var candidateMetadata = candidateManifest && Util.isPlainObject(candidateManifest.omarchy)
         ? candidateManifest.omarchy : null
-      var source = String(sources[candidate] || (candidateMetadata ? candidateMetadata.clonedFrom : "") || "")
+      // Saved records describe restoration obligations, not the identity of
+      // a replacement manifest. Only use them when the manifest is missing.
+      var source = candidateManifest
+        ? String(candidateMetadata ? candidateMetadata.clonedFrom || "" : "")
+        : String(sources[candidate] || "")
       if (source === sourceId && !isDisabled(config, candidate)
           && findEntryLocation(config, candidate).found) return candidate
     }
     return ""
+  }
+
+  function restoreSavedBarSource(config, sourceId) {
+    if (!Util.isPlainObject(config.cloneBarRestores)) return
+    var saved = config.cloneBarRestores[sourceId]
+    if (Util.isPlainObject(saved) && Util.isPlainObject(saved.entry)
+        && ["left", "center", "right"].indexOf(saved.section) !== -1
+        && !findBarLocation(config, sourceId, "").found) {
+      var entries = config.bar.layout[saved.section]
+      var entry = Util.cloneJson(saved.entry)
+      entry.id = sourceId
+      entries.splice(Math.max(0, Math.min(Number(saved.index) || 0, entries.length)), 0, entry)
+    }
+    delete config.cloneBarRestores[sourceId]
+    if (!Object.keys(config.cloneBarRestores).length) delete config.cloneBarRestores
   }
 
   function clearCloneSource(config, cloneId, fallbackSource) {
@@ -458,6 +477,7 @@ QtObject {
         removeDisabled(config, sourceId)
       }
     }
+    if (sourceId && !activeCloneFor(config, sourceId, cloneId)) restoreSavedBarSource(config, sourceId)
     setCloneShouldRestoreSource(config, cloneId, false)
     if (Util.isPlainObject(config.cloneSources)) {
       delete config.cloneSources[cloneId]
@@ -475,18 +495,19 @@ QtObject {
       if (cloneLocation.kind === "bar") {
         var cloneEntry = config.bar.layout[cloneLocation.section][cloneLocation.index]
         var remainingClone = activeCloneFor(config, sourceId, cloneId)
-        var sections = ["left", "center", "right"]
-        for (var s = 0; s < sections.length; s++) {
-          for (var i = config.bar.layout[sections[s]].length - 1; i >= 0; i--) {
-            if (barEntryId(config.bar.layout[sections[s]][i]) === sourceId)
-              config.bar.layout[sections[s]].splice(i, 1)
+        var saved = Util.isPlainObject(config.cloneBarRestores) ? config.cloneBarRestores[sourceId] : null
+        if (remainingClone || Util.isPlainObject(saved)) {
+          config.bar.layout[cloneLocation.section].splice(cloneLocation.index, 1)
+        } else {
+          var sections = ["left", "center", "right"]
+          for (var s = 0; s < sections.length; s++) {
+            for (var i = config.bar.layout[sections[s]].length - 1; i >= 0; i--) {
+              if (barEntryId(config.bar.layout[sections[s]][i]) === sourceId)
+                config.bar.layout[sections[s]].splice(i, 1)
+            }
           }
-        }
-        cloneLocation = findBarLocation(config, cloneId, "")
-        if (cloneLocation.found) {
-          if (remainingClone) {
-            config.bar.layout[cloneLocation.section].splice(cloneLocation.index, 1)
-          } else {
+          cloneLocation = findBarLocation(config, cloneId, "")
+          if (cloneLocation.found) {
             var restoredEntry = Util.isPlainObject(cloneEntry) ? Util.cloneJson(cloneEntry) : {}
             restoredEntry.id = sourceId
             config.bar.layout[cloneLocation.section][cloneLocation.index] = restoredEntry
@@ -539,6 +560,15 @@ QtObject {
           restoreCloneSource(config, activeClone, key)
           activeClone = activeCloneFor(config, key)
         }
+        // An installed plugin may have reused a clone ID. Release its old
+        // bookkeeping without removing that plugin's own configuration.
+        if (Util.isPlainObject(config.cloneSources)) {
+          var savedIds = Object.keys(config.cloneSources)
+          for (var i = 0; i < savedIds.length; i++) {
+            var savedId = savedIds[i]
+            if (config.cloneSources[savedId] === key) clearCloneSource(config, savedId)
+          }
+        }
         removeDisabled(config, key)
       }
 
@@ -548,7 +578,10 @@ QtObject {
       var previousSource = Util.isPlainObject(config.cloneSources)
         ? String(config.cloneSources[key] || "") : ""
       if (!value && previousSource) clonedFrom = previousSource
-      if (value && previousSource && previousSource !== clonedFrom) clearCloneSource(config, key)
+      if (value && previousSource && previousSource !== clonedFrom) {
+        if (clonedFrom) restoreCloneSource(config, key, previousSource)
+        else clearCloneSource(config, key)
+      }
       if (value && clonedFrom) {
         if (!Util.isPlainObject(config.cloneSources)) config.cloneSources = {}
         config.cloneSources[key] = clonedFrom
@@ -581,6 +614,14 @@ QtObject {
           var sourceLocation = clonedFrom ? findEntryLocation(config, clonedFrom) : { found: false }
           if (sourceLocation.kind === "bar") {
             var sourceEntry = config.bar.layout[sourceLocation.section][sourceLocation.index]
+            if (!Util.isPlainObject(config.cloneBarRestores)) config.cloneBarRestores = {}
+            if (!config.cloneBarRestores[clonedFrom]) {
+              config.cloneBarRestores[clonedFrom] = {
+                section: sourceLocation.section,
+                index: sourceLocation.index,
+                entry: Util.isPlainObject(sourceEntry) ? Util.cloneJson(sourceEntry) : { id: clonedFrom }
+              }
+            }
             var replacement = Util.isPlainObject(sourceEntry) ? Util.cloneJson(sourceEntry) : entry
             replacement.id = key
             config.bar.layout[sourceLocation.section][sourceLocation.index] = replacement
