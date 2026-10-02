@@ -158,11 +158,20 @@ top-level keys can be set with
 
 | Key | Default | What it does |
 |---|---|---|
+| `notifyOnLimitReset` | `true` | Announce tracked window resets once per shell, respecting Do Not Disturb |
 | `refreshIntervalSec` | `900` | How often the usage records regenerate |
 | `syncMode` | `"Off"` | `"On"` writes this machine's snapshot and merges the others |
 | `syncDir` | `""` | A folder synced by Syncthing, Dropbox, rsync, … |
 | `syncFileName` | `<hostname>.json` | This machine's snapshot file |
 | `syncDeviceId` | hostname | Stable device name inside the snapshot |
+
+The reset toggle accepts booleans and the plain CLI strings `true` and `false`:
+
+```bash
+omarchy bar set omarchy.agents notifyOnLimitReset false
+```
+
+Reset notifications describe scheduled window resets, including windows that have not reached their limit. For registered subscriptions, each account has its own deadlines and notification label; a removed account or changed/cleared sign-in identity retires its old deadlines. Empty limits for the same identity retain the last known deadline across transient failures. Legacy single-account collector records retain their existing provider-level behavior.
 
 Numbers need `--json`, or they land in `shell.json` as strings:
 

@@ -73,7 +73,10 @@ PY
 
 [[ $(jq -c '[.accounts[] | {id, active, plan, stale}]' <<<"$claude_record") == '[{"id":"main","active":false,"plan":"Max 20x","stale":false},{"id":"work","active":true,"plan":"Max 5x","stale":false},{"id":"old","active":false,"plan":"Max 5x","stale":true}]' ]] ||
   fail "Claude record lists every account with its own plan" "$claude_record"
+[[ $(jq -r '.accountRegistryStatus' <<<"$claude_record") == "available" ]] || fail "Claude marks a successfully read account registry" "$claude_record"
 pass "Claude record lists every registered account"
+[[ $(jq -r '.accounts[1].accountId' <<<"$claude_record") == "u-work" ]] || fail "Claude exposes each subscription identity for deadline ownership"
+pass "Claude exposes subscription identity separately from the account label"
 
 [[ $(jq -c '[.accounts[] | .limits[0].percent]' <<<"$claude_record") == '[0.97,0.12,0.4]' ]] ||
   fail "Claude record probes each account with its own sign-in" "$claude_record"
@@ -142,6 +145,7 @@ PY
 )
 [[ $(jq -c '.accounts[0].limits | map(.percent)' <<<"$resigned") != *0.55* ]] ||
   fail "a primary home signed in to another subscription doesn't inherit its limits" "$resigned"
+[[ $(jq -r '.accounts[0].accountId' <<<"$resigned") == "u-new" ]] || fail "Claude exposes the current home identity rather than its old registry identity"
 rm -f "$HOME/.claude.json"
 pass "a primary home signed in to another subscription doesn't inherit its limits"
 
@@ -162,9 +166,30 @@ sys.argv = ["omarchy-agent-usage-claude", "--force"]
 collector.main()
 PY
 )
-[[ $(jq 'has("accounts")' <<<"$single") == false && $(jq '.limits[0].percent' <<<"$single") == 0.3 ]] ||
+[[ $(jq 'has("accounts")' <<<"$single") == false && $(jq '.limits[0].percent' <<<"$single") == 0.3 && $(jq -r '.accountRegistryStatus' <<<"$single") == "available" ]] ||
   fail "a single account record carries no accounts list" "$single"
 pass "a single account record is unchanged"
+
+cp "$accounts/claude.json" "$test_tmp/claude-registry.json"
+printf '{' >"$accounts/claude.json"
+unreadable_registry=$(COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" python3 - <<'PY'
+import importlib.machinery, importlib.util, io, json, os, sys
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+collector.urllib.request.urlopen = lambda request, timeout=None: io.BytesIO(b'{"five_hour": {"utilization": 30.0}}')
+collector.scan_pi_usage = lambda age: None
+collector.scan_opencode_usage = lambda age: None
+sys.argv = ["omarchy-agent-usage-claude", "--force"]
+collector.main()
+PY
+)
+mv "$test_tmp/claude-registry.json" "$accounts/claude.json"
+[[ $(jq -r '.accountRegistryStatus' <<<"$unreadable_registry") == "unreadable" && $(jq 'has("accounts")' <<<"$unreadable_registry") == false && $(jq -r '.limits[0].percent' <<<"$unreadable_registry") == 0.3 && $(jq -r '.fallbackAccountLabel' <<<"$unreadable_registry") == "Configured home" ]] ||
+  fail "a malformed registry retains fallback limits and marks account inventory unreadable" "$unreadable_registry"
+pass "a malformed registry retains fallback limits and marks account inventory unreadable"
 
 [[ $(jq -c '{limitsStale, fresh: (.limitsFetchedAt > 0)}' <<<"$single") == '{"limitsStale":false,"fresh":true}' ]] ||
   fail "limits checked just now aren't stale" "$single"
@@ -217,8 +242,8 @@ cat >"$accounts/codex.json" <<JSON
 {
   "active": "main",
   "accounts": [
-    {"id": "main", "label": "Main", "home": "", "primary": true},
-    {"id": "side", "label": "Side", "home": "$accounts/codex/side", "primary": false}
+    {"id": "main", "accountId": "codex-main", "label": "Main", "home": "", "primary": true},
+    {"id": "side", "accountId": "codex-side", "label": "Side", "home": "$accounts/codex/side", "primary": false}
   ]
 }
 JSON
@@ -228,6 +253,17 @@ codex_record=$(PATH="$test_tmp/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" 
   fail "Codex record asks each account's own app-server" "$codex_record"
 [[ $(jq '.limits[0].percent' <<<"$codex_record") == 0.4 ]] || fail "Codex record's own limits describe the active account" "$codex_record"
 pass "Codex record lists every registered account"
+[[ $(jq -c '[.accounts[].accountId]' <<<"$codex_record") == '["codex-main","codex-side"]' ]] || fail "Codex exposes subscription identities for deadline ownership"
+pass "Codex exposes subscription identities separately from registry IDs"
+[[ $(jq -r '.accountRegistryStatus' <<<"$codex_record") == "available" ]] || fail "Codex marks a successfully read account registry" "$codex_record"
+
+cp "$accounts/codex.json" "$test_tmp/codex-registry.json"
+printf '{' >"$accounts/codex.json"
+codex_unreadable=$(PATH="$test_tmp/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --force)
+mv "$test_tmp/codex-registry.json" "$accounts/codex.json"
+[[ $(jq -r '.accountRegistryStatus' <<<"$codex_unreadable") == "unreadable" && $(jq 'has("accounts")' <<<"$codex_unreadable") == false && $(jq '.limits[0].percent' <<<"$codex_unreadable") == 0.4 && $(jq -r '.fallbackAccountLabel' <<<"$codex_unreadable") == "Configured home" ]] ||
+  fail "Codex retains fallback limits and marks a malformed account registry unreadable" "$codex_unreadable"
+pass "Codex retains fallback limits and marks a malformed account registry unreadable"
 
 inherited=$(CODEX_HOME="$accounts/codex/side" PATH="$test_tmp/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --force)
 [[ $(jq -c '[.accounts[] | .limits[0].percent]' <<<"$inherited") == '[0.4,0.91]' ]] ||

@@ -1,6 +1,8 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.Commons
+import "."
 
 // The display side of agent usage. All extraction lives behind
 // omarchy-agent-usage-update, which writes one JSON record per agent into
@@ -76,9 +78,23 @@ Item {
 
   function recordsChanged() {
     dataRevision++
+    scheduleLimitResetNotifications()
     scheduleLimitsRetry()
     scheduleSync()
   }
+
+  // Each monitor has its own Main. The singleton owns one queue and timer
+  // and follows the first live widget, handing over when that widget unloads.
+  function limitResetNotificationsEnabled() {
+    return Style.boolToken(setting("notifyOnLimitReset", true), true)
+  }
+
+  function scheduleLimitResetNotifications() {
+    LimitResetNotifier.schedule(root)
+  }
+
+  onSettingsChanged: scheduleLimitResetNotifications()
+  Component.onDestruction: LimitResetNotifier.unregister(root)
 
   // A collector that could not reach its limits endpoint at all — typically
   // the seconds after login before the network is up — writes retryAdvised
@@ -108,6 +124,7 @@ Item {
   }
 
   Component.onCompleted: {
+    LimitResetNotifier.register(root)
     rescanAgents()
     if (syncConfigured()) scheduleSync()
   }
