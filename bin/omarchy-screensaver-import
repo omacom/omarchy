@@ -26,12 +26,12 @@ for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
   signal.signal(number, interrupted)
 
 
-def convert(command, environment, deadline):
+def convert(command, environment, deadline, name):
   child = subprocess.Popen(command, env=environment, stdout=subprocess.DEVNULL,
                            start_new_session=True)
   try:
     if child.wait(timeout=max(0.01, min(15, deadline - time.monotonic()))) != 0:
-      raise ValueError("image conversion failed; selection unchanged")
+      raise ValueError(f"could not convert {name!r}; selection unchanged")
   finally:
     # Reap only this converter's process group, including ImageMagick on timeout.
     if child.poll() is None:
@@ -59,7 +59,9 @@ def main():
       for index, entry in enumerate(entries):
         if index >= 4096:
           raise ValueError("folder exceeds 4096 entries")
-        if not entry.name.startswith('.') and Path(entry.name).suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp'):
+        # Links, folders and special files are skipped below, so they do not count.
+        if (not entry.name.startswith('.') and Path(entry.name).suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp')
+            and entry.is_file(follow_symlinks=False)):
           names.append(entry.name)
     # Numeric filenames such as 1, 2, ... 18 keep their expected order.
     names.sort(key=lambda name: [((0, int(p)) if p.isdigit() else (1, os.fsencode(p)))
@@ -73,6 +75,8 @@ def main():
       scratch = Path(temporary)
       # Keep the native converter, but restrict this batch to raster coders and
       # bounded resources. No delegates, SVG external references or URL coders.
+      # WebP decodes every frame before the converter keeps the first, so the
+      # list length bounds animation frames (one more than the 128 allowed).
       (scratch / 'policy.xml').write_text('''<policymap>
 <policy domain="delegate" rights="none" pattern="*"/>
 <policy domain="filter" rights="none" pattern="*"/>
@@ -84,7 +88,7 @@ def main():
 <policy domain="resource" name="disk" value="1GiB"/>
 <policy domain="resource" name="width" value="16384"/>
 <policy domain="resource" name="height" value="16384"/>
-<policy domain="resource" name="list-length" value="8"/>
+<policy domain="resource" name="list-length" value="129"/>
 <policy domain="resource" name="thread" value="1"/>
 </policymap>''')
       environment = dict(os.environ, MAGICK_CONFIGURE_PATH=str(scratch),
@@ -100,11 +104,11 @@ def main():
           continue
         with os.fdopen(fd, 'rb') as stream:
           if not 0 < before.st_size <= 20 * 1024 * 1024:
-            raise ValueError("image exceeds 20 MiB; selection unchanged")
+            raise ValueError(f"{name!r} exceeds 20 MiB; selection unchanged")
           data = stream.read(20 * 1024 * 1024 + 1)
           after = os.fstat(stream.fileno())
         if len(data) != before.st_size or (before.st_mtime_ns, before.st_ctime_ns) != (after.st_mtime_ns, after.st_ctime_ns):
-          raise ValueError("image changed during read")
+          raise ValueError(f"{name!r} changed during read")
         total += len(data)
         if total > 256 * 1024 * 1024 or time.monotonic() > deadline:
           raise ValueError("import exceeds batch resource limit")
@@ -115,11 +119,11 @@ def main():
         elif data.startswith(b'RIFF') and data[8:12] == b'WEBP':
           suffix = '.webp'
         else:
-          raise ValueError("unsupported raster signature; selection unchanged")
+          raise ValueError(f"{name!r} is not a PNG, JPEG or WebP image; selection unchanged")
         snapshot = scratch / ('input' + suffix)
         snapshot.write_bytes(data)
         target = output / f'{len(records):03d}.txt'
-        convert(['omarchy-transcode-ascii', str(snapshot), str(target), '--mode', mode], environment, deadline)
+        convert(['omarchy-transcode-ascii', str(snapshot), str(target), '--mode', mode], environment, deadline, name)
         snapshot.unlink()
         records.append({'source': name, 'artwork': target.name})
         print(f'Converted {len(records)}/{len(names)}', file=sys.stderr)

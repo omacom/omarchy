@@ -16,13 +16,31 @@ select_source() {
       else .screensaver.source = $source end' --arg source "$1"
 }
 
+# Single-file artwork only needs the config written when a collection would hide it.
+clear_source() {
+  jq -e '.screensaver.source? // empty' "$CONFIG_FILE" &>/dev/null || return 0
+  select_source ""
+}
+
 case "${1:-}" in
 images)
   directory=${2:-}
   [[ -n $directory ]] || directory=$(omarchy-file-select --title "Pick screensaver image folder" --directory)
   omarchy-notification-send "Preparing screensaver" "Converting the image folder to text artwork" || true
-  if ! collection=$(timeout 130s omarchy-screensaver-import "$directory"); then
-    omarchy-notification-send "Screensaver import failed" "The previous selection is unchanged" || true
+  errors=$(mktemp)
+  trap 'rm -f -- "$errors"; cleanup_shell_config_tmp' EXIT
+  status=0
+  collection=$(timeout 130s omarchy-screensaver-import "$directory" 2>"$errors") || status=$?
+  cat -- "$errors" >&2
+  if ((status != 0)); then
+    # Name the importer's own reason, such as the image that failed.
+    reason=$(sed -n 's/^omarchy-screensaver-import: //p' "$errors" | tail -n 1)
+    ((status != 124)) || reason="the import took too long; selection unchanged"
+    # Notification bodies render markup, and filenames are untrusted text.
+    reason=${reason//'&'/'&amp;'}
+    reason=${reason//'<'/'&lt;'}
+    reason=${reason//'>'/'&gt;'}
+    omarchy-notification-send "Screensaver import failed" "${reason:-The previous selection is unchanged}" || true
     exit 1
   fi
   select_source "$collection"
@@ -42,18 +60,18 @@ folder)
 image)
   image=$(omarchy-file-select --title "Pick screensaver image" --extensions "png jpg jpeg webp svg")
   if omarchy-transcode-ascii "$image" ~/.config/omarchy/branding/screensaver.txt; then
-    select_source ""
+    clear_source
     omarchy-launch-screensaver force >/dev/null 2>&1
   fi
   ;;
 text)
   omarchy-launch-editor ~/.config/omarchy/branding/screensaver.txt >/dev/null 2>&1
-  select_source ""
+  clear_source
   omarchy-launch-screensaver force >/dev/null 2>&1
   ;;
 reset)
   cp "$OMARCHY_PATH/logo.txt" ~/.config/omarchy/branding/screensaver.txt
-  select_source ""
+  clear_source
   omarchy-launch-screensaver force >/dev/null 2>&1
   ;;
 *)

@@ -16,7 +16,7 @@ Then apply the setup with `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png`, w
 
 ### Screensaver
 
-You can change the logo used for the screensaver under _Style > Screensaver_. It's an ASCII logo, so you can edit the text directly, but you can also hand it a png or svg image, and we'll convert that to ASCII. It looks pretty cool.
+You can change the logo used for the screensaver under _Style > Screensaver_. It's an ASCII logo, so you can edit the text directly, but you can also hand it a PNG, JPEG, WebP or SVG image, and we'll convert that to ASCII. It looks pretty cool.
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
@@ -39,9 +39,9 @@ omarchy branding screensaver images ~/Pictures/giants
 omarchy branding screensaver folder ~/Pictures/screensaver-art
 ```
 
-Image folders are imported once into `~/.local/share/omarchy/screensavers/import-*`. Files are ordered numerically within their names (`1`, `2`, …, `18`); the generated text collection preserves that order. Each image is converted in colour by default (truecolour quadrant blocks at the converter's 80×26 maximum size); `omarchy-screensaver-import ~/Pictures/giants --mode braille` gives the monochrome style. Source images are unchanged. Run the import again to include later changes; conversion does not run during idle startup. Prior imports are retained so an existing selection is never deleted; you may remove unused import folders yourself.
+Image folders are imported once into `~/.local/share/omarchy/screensavers/import-*`. Files are ordered numerically within their names (`1`, `2`, …, `18`); the generated text collection preserves that order. Each image is converted in colour by default (truecolour quadrant blocks at the converter's 80×26 maximum size); `omarchy-screensaver-import ~/Pictures/giants --mode braille` creates the monochrome style and prints the new folder without selecting it; choose that folder with **Set Text Folder** or set it as `screensaver.source` below. Source images are unchanged. Run the import again to include later changes; conversion does not run during idle startup. Prior imports are retained so an existing selection is never deleted; you may remove unused import folders yourself.
 
-Batch import accepts up to 128 visible PNG, JPEG or WebP images, with a 20 MiB limit per image. It skips hidden files, subfolders, symlinks and special files. An unsupported or unconvertible image aborts the import and preserves the previous selection. SVG remains available through **Set From Image**.
+Batch import accepts up to 128 visible PNG, JPEG or WebP images, with a 20 MiB limit per image. It skips hidden files, subfolders, symlinks and special files. Animated WebP images use their first frame and may have up to 128 frames. JPEG photos are decoded at reduced size, so phone-camera images import. Very large PNG or WebP images, roughly 20 to 60 megapixels depending on their colour type, can exceed the converter's memory limit. An unsupported or unconvertible image aborts the import, the notification names it, and the previous selection is preserved. SVG remains available through **Set From Image**.
 
 To configure a text source directly, add a `screensaver` block to `~/.config/omarchy/shell.json` alongside `idle`:
 
@@ -73,7 +73,7 @@ Both of the _Set From Image_ options are just calling `omarchy transcode ascii`,
 omarchy transcode ascii ~/logo.svg ~/.config/omarchy/branding/screensaver.txt --width 100
 ```
 
-It takes `--width` and `--height` in terminal columns and rows, a `--mode` of either `braille` (the default, and much finer) or `block`, a `--threshold` percentage for deciding which pixels count as part of the logo, and `--invert` for when your logo is light on a dark background. If a conversion comes out as a blob, the threshold is usually the knob to turn.
+It takes `--width` and `--height` in terminal columns and rows, a `--mode` of `braille` (the default, and much finer), `block`, or `color` (truecolour quadrant blocks that keep the image's colours), a `--threshold` percentage for deciding which pixels count as part of the logo, and `--invert` for when your logo is light on a dark background. If a conversion comes out as a blob, the threshold is usually the knob to turn.
 
 ### Words instead of a logo
 

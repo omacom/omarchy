@@ -99,6 +99,15 @@ with tempfile.TemporaryDirectory() as temporary:
   check("\x1b[38;2;" in converted.read_text() and run(converted) == [converted.read_text()],
         "colour conversion carries truecolour and passes playback validation")
 
+  # Bounding large images must leave a small logo on a large canvas for trim.
+  subprocess.run(["magick", "-size", "8000x6000", "xc:white", "-fill", "none", "-stroke", "black",
+                  "-strokewidth", "4", "-draw", "circle 4000,3000 4150,3000", str(image)], check=True, timeout=60)
+  for mode in ("braille", "block", "color"):
+    result = subprocess.run([root / "bin/omarchy-transcode-ascii", str(image), str(converted), "--mode", mode],
+                            capture_output=True, timeout=60)
+    visible = re.sub(r"\x1b\[[0-9;]*m", "", converted.read_text()) if result.returncode == 0 else ""
+    check(len(visible.splitlines()) >= 20, "a thin logo on a large canvas still fills the frame: " + mode)
+
   # Sub-cell raster dimensions must still yield visible, preparable artwork.
   for dimensions in ("1000x1", "1x1000", "3x5"):
     subprocess.run(["magick", "-size", dimensions, "gradient:red-blue", str(image)],
@@ -264,4 +273,52 @@ esac
     process.terminate()
     process.communicate(timeout=5)
 
+  # Hyprland answers {} when focus moves to no window, such as an empty
+  # workspace. That is a dismissal. A reply that is not JSON is not.
+  stub('ttfx', 'exec sleep 30\n')
+  for reply, dismissed in (("{}", True), ("ok", False)):
+    stub('hyprctl', f"[[ $1 == activewindow ]] && echo '{reply}'\nexit 0\n")
+    process = subprocess.Popen([root / 'bin/omarchy-screensaver'], env=environment,
+                               stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+      try:
+        process.wait(timeout=4)
+      except subprocess.TimeoutExpired:
+        pass
+      check((process.poll() == 0) if dismissed else process.poll() is None,
+            "focus on no window dismisses" if dismissed else "an unreadable focus reply does not dismiss")
+    finally:
+      if process.poll() is None:
+        process.terminate()
+      process.communicate(timeout=5)
+
+  # Image-folder import through the real converter and its resource policy.
+  def import_folder(folder):
+    return subprocess.run([root / 'bin/omarchy-screensaver-import', str(folder)], capture_output=True, timeout=130,
+                          env=dict(os.environ, HOME=str(home), OMARCHY_PATH=str(root),
+                                   PATH=str(root / 'bin') + ':' + os.environ['PATH']))
+
+  animated = temp / 'animated'
+  animated.mkdir()
+  frames = [arg for n in range(128) for arg in ('-size', '48x48', f'xc:rgb({n * 2},128,128)')]
+  subprocess.run(['magick', '-delay', '10', *frames, str(animated / 'animated.webp')], check=True, timeout=30)
+  check(import_folder(animated).returncode == 0, 'an animated WebP with 128 frames imports')
+  photo = temp / 'photo'
+  photo.mkdir()
+  subprocess.run(['magick', '-size', '8064x6048', 'gradient:red-blue', '-quality', '85', str(photo / 'photo.jpg')],
+                 check=True, timeout=60)
+  check(import_folder(photo).returncode == 0, 'a 48-megapixel JPEG imports')
+  links = temp / 'links'
+  links.mkdir()
+  subprocess.run(['magick', '-size', '64x64', 'gradient:red-blue', str(links / 'real.png')], check=True, timeout=30)
+  for index in range(128):
+    (links / f'link-{index}.png').symlink_to('real.png')
+    (links / f'folder-{index}.png').mkdir()
+  result = import_folder(links)
+  check(result.returncode == 0 and len(json.loads((Path(result.stdout.decode().strip()) / 'manifest.json').read_text())['images']) == 1,
+        'skipped links and folders do not count against the 128-image cap')
+  (photo / 'broken.png').write_bytes(b'\x89PNG\r\n\x1a\nBROKEN')
+  result = import_folder(photo)
+  check(result.returncode != 0 and "could not convert 'broken.png'" in result.stderr.decode(),
+        'a failed import names the image')
 PY

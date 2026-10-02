@@ -25,10 +25,12 @@ artwork_index=0
 effect_pid=""
 
 screensaver_in_focus() {
-  local window class
+  local window
+  # An unavailable compositor or unreadable reply is not a dismissal. A reply of
+  # {} means no window has focus, which is.
   window=$(hyprctl activewindow -j 2>/dev/null) || return 0
-  class=$(jq -er '.class | select(type == "string" and length > 0)' <<<"$window" 2>/dev/null) || return 0
-  [[ $class == "org.omarchy.screensaver" ]]
+  jq -e 'type == "object"' <<<"$window" &>/dev/null || return 0
+  jq -e '.class == "org.omarchy.screensaver"' <<<"$window" &>/dev/null
 }
 
 exit_screensaver() {

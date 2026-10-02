@@ -3,14 +3,14 @@
 # omarchy:summary=Transcode an image into ASCII/Unicode art text
 # omarchy:group=transcode
 # omarchy:name=ascii
-# omarchy:args=<input-image.svg|png> <output-path> [--width <columns>] [--height <rows>] [--mode <braille|block|color>] [--threshold <percent>] [--invert]
+# omarchy:args=<input-image.svg|png|jpg|webp> <output-path> [--width <columns>] [--height <rows>] [--mode <braille|block|color>] [--threshold <percent>] [--invert]
 # omarchy:examples=omarchy transcode ascii ~/logo.svg /tmp/logo.txt | omarchy transcode ascii ~/logo.png ~/.config/omarchy/branding/screensaver.txt --width 80
 
 set -o pipefail
 
 usage() {
   cat <<'EOF'
-Usage: omarchy-transcode-ascii <input-image.svg|png> <output-path> [options]
+Usage: omarchy-transcode-ascii <input-image.svg|png|jpg|webp> <output-path> [options]
 
 Transcodes an image into ASCII/Unicode art text.
 
@@ -111,13 +111,21 @@ else
   pixel_height=$((height * 2))
 fi
 
+# Bound large photos before trimming or thresholding, so a phone-camera image
+# is never held at full size twice. JPEG decodes directly at a reduced scale.
+# Point sampling to a fixed box is cheap and leaves room for trim to find a
+# small logo on a large canvas.
+prescale=2048
+input_args=(-define "jpeg:size=${prescale}x${prescale}" "$image_path")
+shrink_args=(-sample "${prescale}x${prescale}>")
+
 if [[ $mode == "color" ]]; then
   # Fit inside the same 2x4-per-cell box as braille, then halve the height so
   # every cell gets a 2x2 colour sample. A Python pass picks, per cell, the
   # quadrant glyph and the two colours that best split the sample.
   # First frame only: an animated WebP would otherwise write several rasters.
-  color_args=(-limit memory 256MiB -limit map 512MiB -background black "$image_path" -auto-orient -delete 1--1
-    -alpha remove -alpha off -colorspace sRGB)
+  color_args=(-limit memory 256MiB -limit map 512MiB -background black "${input_args[@]}" -auto-orient -delete 1--1
+    "${shrink_args[@]}" -alpha remove -alpha off -colorspace sRGB)
   if [[ $trim == "true" ]]; then
     color_args+=(-bordercolor black -border 1 -trim +repage)
   fi
@@ -201,7 +209,7 @@ PY
   exit 0
 fi
 
-alpha_range=$(magick -background none "$image_path" -alpha extract -format '%[fx:minima] %[fx:maxima]' info: 2>/dev/null) || {
+alpha_range=$(magick -background none "${input_args[@]}" -delete 1--1 "${shrink_args[@]}" -alpha extract -format '%[fx:minima] %[fx:maxima]' info: 2>/dev/null) || {
   echo "Unable to read logo image: $image_path" >&2
   exit 1
 }
@@ -212,7 +220,7 @@ if awk -v min="$alpha_min" -v max="$alpha_max" 'BEGIN { exit !(min < 0.999 && ma
   use_alpha=true
 fi
 
-magick_args=(-background none "$image_path" -auto-orient)
+magick_args=(-background none "${input_args[@]}" -auto-orient -delete 1--1 "${shrink_args[@]}")
 
 if [[ $use_alpha == "true" ]]; then
   magick_args+=(-alpha extract -alpha off)
