@@ -202,6 +202,7 @@ print(Path(os.environ['AGY_TEST_FIXTURE']).read_text())
     (self.app / 'history.jsonl').write_text(json.dumps({'display': 'hello', 'timestamp': '2026-09-27T12:00:00Z'}))
     for content, expected in [
       ('<USER_REQUEST>hello</USER_REQUEST><ADDITIONAL_METADATA>context</ADDITIONAL_METADATA>', 1),
+      ('<USER_REQUEST>hello</USER_REQUEST><ADDITIONAL_METADATA>context</ADDITIONAL_METADATA>\n<USER_SETTINGS_CHANGE>model changed</USER_SETTINGS_CHANGE>', 1),
       ('<USER_REQUEST>hello world</USER_REQUEST><ADDITIONAL_METADATA>context</ADDITIONAL_METADATA>', 2),
       ('<USER_REQUEST>different</USER_REQUEST><ADDITIONAL_METADATA>hello</ADDITIONAL_METADATA>', 2)]:
       self.transcript('session', [{'step_index': 0, 'type': 'USER_INPUT', 'created_at': '2026-09-27T12:00:00.400Z', 'content': content}])

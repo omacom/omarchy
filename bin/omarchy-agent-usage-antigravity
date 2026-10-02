@@ -95,7 +95,8 @@ def prompt_matches(text, content):
   # A prompt can itself contain closing-tag text; splitting at the first
   # closing tag would truncate it. Metadata may quote unrelated prompts.
   return re.fullmatch(r"<USER_REQUEST>\s*" + re.escape(text)
-                      + r"\s*</USER_REQUEST>(?:\s*<ADDITIONAL_METADATA>.*</ADDITIONAL_METADATA>)?",
+                      + r"\s*</USER_REQUEST>(?:\s*<ADDITIONAL_METADATA>.*</ADDITIONAL_METADATA>)?"
+                      + r"(?:\s*<USER_SETTINGS_CHANGE>.*</USER_SETTINGS_CHANGE>)?",
                       content, re.S) is not None
 
 

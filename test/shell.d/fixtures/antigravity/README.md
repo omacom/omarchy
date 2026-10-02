@@ -5,3 +5,5 @@
 Local scanner fixtures use the observed 1.2.x transcript fields (`step_index`, `source`, `type`, `status`, `created_at`, `content`) and history fields (`display`, integer-millisecond `timestamp`, `workspace`). The installed CLI's transcripts have no model IDs or token usage fields. Tests must not assume they do or estimate tokens from content. SQLite fixtures reproduce only the summary columns the collector reads; conversation databases contain protobuf blobs and are not decoded.
 
 Prompt matching also covers `<USER_REQUEST>` wrappers observed in local transcripts. Matched history/transcript events in the inspected logs were less than one second apart; prompt text is only compared in memory and is never written to the usage cache.
+
+After the closing request tag, transcripts can append both an `<ADDITIONAL_METADATA>` block and a separate `<USER_SETTINGS_CHANGE>` block. Both are outside the user prompt and must be excluded from the comparison.
