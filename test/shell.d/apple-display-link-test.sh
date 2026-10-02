@@ -142,6 +142,20 @@ grep -Fq 'card2-DP-4: dropping the HBR3 preference a Studio Display left behind'
   fail "a connector with no EDID yet is left alone"
 pass "the helper clears the HBR3 preference once the Studio Display is gone from its connector"
 
+rm -rf "$drm" "$dri" "$state"
+mkdir -p "$state"
+chmod 500 "$state"
+add_connector card2-DP-6 connected StudioDisplay "0  0x0  0" 1
+
+output=$(run_helper)
+
+[[ $(link_settings card2-DP-6) == Current:* && $(trigger_hotplug card2-DP-6) == untouched ]] ||
+  fail "a pin that cannot be recorded is not made" "$output"
+grep -Fq 'card2-DP-6: cannot record the pin' <<<"$output" ||
+  fail "the helper says why it left the link alone" "$output"
+chmod 700 "$state"
+pass "the helper pins nothing it could not undo later"
+
 stub_bin="$test_tmp/bin"
 calls="$test_tmp/calls.log"
 mkdir -p "$stub_bin"

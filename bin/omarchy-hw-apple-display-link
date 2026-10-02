@@ -47,9 +47,11 @@ declare -A handled
 # The udev rule starts one shared oneshot service. A start that arrives while a
 # run is still going merges into that run instead of queueing another, so the
 # event that finally shows a Studio Display as connected can land during an
-# earlier run's settle and nobody would look again. Keep scanning until a pass
-# finds nothing to do.
-for _ in 1 2 3; do
+# earlier run and nobody would look again. Keep scanning until two passes in
+# a row find nothing to do: the second one catches an event that merged into
+# the first.
+quiet=0
+for _ in 1 2 3 4; do
   acted=0
   pending=0
   for edid in "$drm_path"/card*-DP-*/edid; do
@@ -57,11 +59,13 @@ for _ in 1 2 3; do
     name=${connector##*/}
     [[ -n ${handled[$name]:-} ]] && continue
     [[ $(<"$connector/status") == connected ]] || continue
-    # No EDID yet means no sink identified: a Studio Display still training
-    # reads like this for a moment. Neither pin nor clear it, but look again
-    # after the settle, since the event that completes it may merge into this
-    # run.
-    if (( $(wc -c <"$edid") == 0 )); then
+    # One read of the EDID, classified once: a display dropping between two
+    # reads would read as an identified foreign sink on the second. No EDID
+    # yet means no sink identified: a Studio Display still training reads
+    # like this for a moment. Neither pin nor clear it, but look again after
+    # the settle, since the event that completes it may merge into this run.
+    sink=$(tr -d '\0' <"$edid")
+    if [[ -z $sink ]]; then
       pending=1
       continue
     fi
@@ -73,7 +77,7 @@ for _ in 1 2 3; do
     preferred=$(tr -d '\0' <"$debug/link_settings" |
       sed -nE 's/.*Preferred:[[:space:]]+[0-9]+[[:space:]]+(0x[0-9a-fA-F]+).*/\1/p')
 
-    if ! grep -aq StudioDisplay "$edid"; then
+    if [[ $sink != *StudioDisplay* ]]; then
       # The preference outlives the Studio Display on its connector, and
       # amdgpu trains whatever comes next at HBR3 with no fallback: a monitor
       # that tops out at HBR2 would stay black until reboot. Only a preference
@@ -92,8 +96,13 @@ for _ in 1 2 3; do
     [[ $preferred == 0x1e ]] && continue
     handled[$name]=1
     acted=1
+    # The marker is what lets a later run undo the pin; without it a monitor
+    # that cannot do HBR3 would inherit the preference. Record it first.
+    if ! touch "$state_dir/$name" 2>/dev/null; then
+      echo "$name: cannot record the pin under $state_dir, leaving the link alone"
+      continue
+    fi
     echo "4 0x1e" >"$debug/link_settings"
-    touch "$state_dir/$name"
     echo "$name: DisplayPort link pinned to HBR3"
 
     # Give a modeset that raced this write time to finish before judging it.
@@ -102,7 +111,12 @@ for _ in 1 2 3; do
     echo "$name: stream still compressed, replugging for a fresh modeset"
     replug "$debug"
   done
-  (( acted || pending )) || break
+  if (( acted || pending )); then
+    quiet=0
+  else
+    quiet=$((quiet + 1))
+    (( quiet < 2 )) || break
+  fi
   sleep "$settle"
 done
 
