@@ -100,6 +100,35 @@ run_helper >/dev/null
   fail "an uncompressed stream after the retrain is not replugged"
 pass "the helper only replugs a stream that stayed compressed"
 
+rm -rf "$drm" "$dri"
+add_connector card2-DP-6 disconnected StudioDisplay "4  0x1e  0" 0
+add_connector card2-DP-4 connected "DELL U2723QE" "4  0x1e  0" 0
+add_connector card2-DP-5 connected "DELL U2723QE" "0  0x0  0" 0
+# A connector that reads connected with no EDID yet: a Studio Display still
+# training looks like this for a moment.
+mkdir -p "$drm/card2-DP-7" "$(debug_dir card2-DP-7)"
+echo connected >"$drm/card2-DP-7/status"
+: >"$drm/card2-DP-7/edid"
+printf 'Current:  4  0x1e  0  Verified:  4  0x1e  16  Reported:  4  0x1e  16  Preferred:  4  0x1e  0\n\0' \
+  >"$(debug_dir card2-DP-7)/link_settings"
+echo untouched >"$(debug_dir card2-DP-7)/trigger_hotplug"
+
+output=$(run_helper)
+
+[[ $(link_settings card2-DP-4) == "0 0" ]] ||
+  fail "a monitor plugged in after a Studio Display gets the HBR3 preference cleared" "$output"
+[[ $(trigger_hotplug card2-DP-4) == 1 ]] ||
+  fail "the cleared connector is replugged so the link trains at the sink's rate" "$output"
+grep -Fq 'card2-DP-4: dropping the HBR3 preference a Studio Display left behind' <<<"$output" ||
+  fail "the helper names the connector it cleared" "$output"
+[[ $(link_settings card2-DP-5) == Current:* && $(trigger_hotplug card2-DP-5) == untouched ]] ||
+  fail "a monitor without the preference is left alone"
+[[ $(link_settings card2-DP-6) == Current:* ]] ||
+  fail "a disconnected connector keeps its preference"
+[[ $(link_settings card2-DP-7) == Current:* && $(trigger_hotplug card2-DP-7) == untouched ]] ||
+  fail "a connector with no EDID yet is left alone"
+pass "the helper clears the HBR3 preference once the Studio Display is gone from its connector"
+
 stub_bin="$test_tmp/bin"
 calls="$test_tmp/calls.log"
 mkdir -p "$stub_bin"

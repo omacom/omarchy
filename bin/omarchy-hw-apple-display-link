@@ -29,30 +29,68 @@ fi
 
 shopt -s nullglob
 
-for edid in "$drm_path"/card*-DP-*/edid; do
-  connector=${edid%/edid}
-  [[ $(<"$connector/status") == connected ]] || continue
-  grep -aq StudioDisplay "$edid" || continue
-
-  name=${connector##*/}
-  card=${name%%-*}
-  debug="$debug_path/${card#card}/${name#"$card"-}"
-  [[ -w $debug/link_settings ]] || continue
-
-  preferred=$(tr -d '\0' <"$debug/link_settings" |
-    sed -nE 's/.*Preferred:[[:space:]]+[0-9]+[[:space:]]+(0x[0-9a-fA-F]+).*/\1/p')
-  [[ $preferred == 0x1e ]] && continue
-
-  echo "4 0x1e" >"$debug/link_settings"
-  echo "$name: DisplayPort link pinned to HBR3"
-
-  # Give a modeset that raced this write time to finish before judging it.
-  sleep "$settle"
-  [[ $(tr -d '\0' <"$debug/dsc_clock_en") == 1 ]] || continue
-  echo "$name: stream still compressed, replugging for a fresh modeset"
-  echo 0 >"$debug/trigger_hotplug"
+replug() {
+  echo 0 >"$1/trigger_hotplug"
   sleep 1
-  echo 1 >"$debug/trigger_hotplug"
+  echo 1 >"$1/trigger_hotplug"
+}
+
+# A connector this run has already written is not read back in a later pass:
+# what was written is known, and a test's plain fixture files keep the written
+# text rather than debugfs's formatted readback.
+declare -A handled
+
+# The udev rule starts one shared oneshot service. A start that arrives while a
+# run is still going merges into that run instead of queueing another, so the
+# event that finally shows a Studio Display as connected can land during an
+# earlier run's settle and nobody would look again. Keep scanning until a pass
+# finds nothing to do.
+for _ in 1 2 3; do
+  acted=0
+  for edid in "$drm_path"/card*-DP-*/edid; do
+    connector=${edid%/edid}
+    name=${connector##*/}
+    [[ -n ${handled[$name]:-} ]] && continue
+    [[ $(<"$connector/status") == connected ]] || continue
+    # No EDID yet means no sink identified: a Studio Display still training
+    # reads like this for a moment, and must not lose its preference to it.
+    (( $(wc -c <"$edid") > 0 )) || continue
+
+    card=${name%%-*}
+    debug="$debug_path/${card#card}/${name#"$card"-}"
+    [[ -w $debug/link_settings ]] || continue
+
+    preferred=$(tr -d '\0' <"$debug/link_settings" |
+      sed -nE 's/.*Preferred:[[:space:]]+[0-9]+[[:space:]]+(0x[0-9a-fA-F]+).*/\1/p')
+
+    if ! grep -aq StudioDisplay "$edid"; then
+      # The preference outlives the Studio Display on its connector, and
+      # amdgpu trains whatever comes next at HBR3 with no fallback: a monitor
+      # that tops out at HBR2 would stay black until reboot. Invalid input
+      # clears the preference, and a replug trains the link at the sink's rate.
+      [[ $preferred == 0x1e ]] || continue
+      handled[$name]=1
+      acted=1
+      echo "0 0" >"$debug/link_settings"
+      echo "$name: dropping the HBR3 preference a Studio Display left behind"
+      replug "$debug"
+      continue
+    fi
+
+    [[ $preferred == 0x1e ]] && continue
+    handled[$name]=1
+    acted=1
+    echo "4 0x1e" >"$debug/link_settings"
+    echo "$name: DisplayPort link pinned to HBR3"
+
+    # Give a modeset that raced this write time to finish before judging it.
+    sleep "$settle"
+    [[ $(tr -d '\0' <"$debug/dsc_clock_en") == 1 ]] || continue
+    echo "$name: stream still compressed, replugging for a fresh modeset"
+    replug "$debug"
+  done
+  (( acted )) || break
+  sleep "$settle"
 done
 
 exit 0
