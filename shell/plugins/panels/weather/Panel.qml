@@ -519,7 +519,6 @@ Panel {
 
       // ---- Hero row: big icon + temp on the left; location and stats stacked on the right.
       Item {
-        id: heroContainer
         width: parent.width
         height: Math.max(heroLeft.height, heroRight.height)
 
@@ -608,7 +607,7 @@ Panel {
               font.letterSpacing: 1
               anchors.verticalCenter: parent.verticalCenter
               elide: Text.ElideRight
-              width: Math.min(implicitWidth, Math.max(0, heroContainer.width - heroLeft.width - heroLeft.anchors.leftMargin - heroRight.anchors.rightMargin - locationMarker.implicitWidth - locationRow.spacing - Style.space(16)))
+              width: Math.min(implicitWidth, Math.max(0, heroRight.width - locationMarker.implicitWidth - locationRow.spacing))
             }
           }
 
