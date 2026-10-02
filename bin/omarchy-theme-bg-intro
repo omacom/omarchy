@@ -1,0 +1,116 @@
+#!/bin/bash
+
+# omarchy:summary=Play the intro video of a background, which ends on its still
+# omarchy:args=[--check] [--login] [path-to-background]
+# omarchy:examples=omarchy theme bg intro | omarchy theme bg intro --check ~/Pictures/city.webp
+
+# An intro is a short video whose last frame is its still. It lives in an
+# intros/ folder beside the still and takes the still's name, so
+# backgrounds/intros/1-totoro.mp4 plays into backgrounds/1-totoro.webp. The
+# background lists only read the top of each folder, so an intro never shows up
+# as a background of its own. An intro in ~/.config/omarchy/backgrounds/<theme>/intros/
+# comes first, which gives a theme's stills intros without editing the theme.
+#
+# OWE plays an intro only while its still is the current background. On a
+# switch it draws that still under the shell's, fades it into the intro, and
+# fades the intro's last frame back into it. So the intro should open on its
+# first scene rather than fade up from black. The command returns once the
+# intro has been handed to OWE.
+#
+# --check succeeds when an intro would play, and plays nothing.
+# --login lets the intro play once per Hyprland session. The shell asks for it
+# at startup, so a shell restart does not replay it. A login has no still on
+# screen yet: the shell leaves its background empty when this succeeds, and the
+# intro starts on its first frame. If the intro does not play, the shell is told
+# to show the still.
+
+CURRENT_BACKGROUND_LINK="$HOME/.local/state/omarchy/current/background"
+LOGIN_MARKER="$XDG_RUNTIME_DIR/omarchy/background-intro-$HYPRLAND_INSTANCE_SIGNATURE"
+OWE_SOCKET="$XDG_RUNTIME_DIR/owe/owed.sock"
+
+check=false
+login=false
+background=""
+
+for arg in "$@"; do
+  case $arg in
+  --check) check=true ;;
+  --login) login=true ;;
+  *) background=$arg ;;
+  esac
+done
+
+# The first shell of a session claims its login whether or not an intro plays.
+# OWE reloads the shell's background when an intro ends, and that reload must
+# not take a later intro for the login's.
+if [[ $login == "true" ]]; then
+  mkdir -p "${LOGIN_MARKER%/*}"
+  (set -o noclobber; : >"$LOGIN_MARKER") 2>/dev/null || exit 1
+fi
+
+# Resolved like the current background link, so the two compare as equal.
+background=$(readlink -f "${background:-$CURRENT_BACKGROUND_LINK}" 2>/dev/null)
+
+[[ -f $background ]] || exit 1
+
+# A video background plays in full, so it has nothing to lead into.
+[[ ${background,,} =~ \.(mp4|m4v|mov|webm|mkv|avi)$ ]] && exit 1
+
+# A machine without a GPU pays for every decoded frame.
+omarchy-hyprland-toggle-enabled no-animations && exit 1
+
+theme_name=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
+name=${background##*/}
+name=${name%.*}
+intro=""
+
+for dir in "$HOME/.config/omarchy/backgrounds/$theme_name/intros" "${background%/*}/intros"; do
+  for extension in mp4 webm mkv mov m4v; do
+    if [[ -f $dir/$name.$extension ]]; then
+      intro="$dir/$name.$extension"
+      break 2
+    fi
+  done
+done
+
+[[ -n $intro ]] || exit 1
+
+# The shell holds a login's still for its intro, which only OWE's daemon can
+# play, so without the daemon the still shows at once.
+if [[ $login == "true" ]] && ! systemctl --user is-enabled --quiet owed.service; then
+  exit 1
+fi
+
+play_intro() {
+  # A switch reveals its still first, so the intro fades in from the still
+  # that is on screen rather than from the one it replaces.
+  [[ $login == "true" ]] || sleep 0.5
+
+  # owed starts with the graphical session, alongside the shell, so at login it
+  # may still be coming up.
+  for (( attempt = 0; attempt < 50; attempt++ )); do
+    [[ -S $OWE_SOCKET ]] && break
+    sleep 0.1
+  done
+
+  # A background chosen in the meantime does not lead into this intro.
+  if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK" 2>/dev/null) != "$background" ]]; then
+    return 1
+  elif [[ $login == "true" ]]; then
+    owe intro --no-fade-in "$intro"
+  else
+    owe intro "$intro"
+  fi
+}
+
+if [[ $check == "false" ]]; then
+  if [[ $login == "true" ]]; then
+    # The shell leaves a login's background empty for its intro, so an intro
+    # that does not play hands the still back. The shell may still be starting,
+    # which can take longer to answer than omarchy-shell waits by default.
+    { play_intro || OMARCHY_SHELL_IPC_TIMEOUT=4s omarchy-shell -q background refresh; } </dev/null >/dev/null 2>&1 &
+  else
+    play_intro </dev/null >/dev/null 2>&1 &
+  fi
+  disown
+fi

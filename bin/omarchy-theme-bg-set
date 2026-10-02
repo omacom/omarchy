@@ -23,3 +23,6 @@ ln -nsf "$BACKGROUND" "$CURRENT_BACKGROUND_LINK"
 # Update the live shell background immediately when it is running. The
 # background plugin also polls this symlink, but IPC avoids the visible delay.
 omarchy-shell -q background set "$BACKGROUND"
+
+# A background with an intro plays it once its still is on screen.
+omarchy-theme-bg-intro "$BACKGROUND" || true

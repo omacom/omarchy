@@ -442,6 +442,11 @@ if [[ $THEME_HEADLESS != "1" ]]; then
   # Call hook on theme set
   omarchy-hook theme-set "$THEME_NAME" >/dev/null
 
+  # A background with an intro plays it over the new still. OWE's theme-set
+  # hook refreshes its background, which would end an intro started earlier.
+  # A refresh keeps the background, so it plays nothing.
+  [[ $OMARCHY_THEME_SKIP_BACKGROUND == "1" ]] || omarchy-theme-bg-intro >/dev/null 2>&1 9>&- || true
+
   # Mirror the theme to herdr machines. SSH can take a while, so this never holds up the theme change.
   setsid omarchy-theme-set-herdr-machines >>"$HOME/.local/state/omarchy/theme-set-herdr-machines.log" 2>&1 </dev/null &
 

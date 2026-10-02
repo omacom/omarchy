@@ -269,7 +269,29 @@ Item {
     }
   }
 
-  Component.onCompleted: refreshBackground()
+  // A background with an intro plays it once per login. The first shell of the
+  // login leaves the background empty for it: OWE starts the intro on its first
+  // frame and fades it into the still, then hands the still back to a new
+  // instance of this plugin. Without an intro the still shows at once.
+  Component.onCompleted: loginIntroProc.running = true
+
+  Process {
+    id: loginIntroProc
+    command: ["omarchy-theme-bg-intro", "--login"]
+    onExited: function(exitCode) {
+      if (exitCode === 0) loginIntroFallback.start()
+      else root.refreshBackground()
+    }
+  }
+
+  // The intro command shows the still itself when OWE cannot play the intro.
+  // This covers an intro that never takes the screen at all.
+  Timer {
+    id: loginIntroFallback
+    interval: 8000
+    repeat: false
+    onTriggered: root.refreshBackground()
+  }
 
   Variants {
     model: Quickshell.screens

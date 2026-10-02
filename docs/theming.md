@@ -13,6 +13,8 @@ ship `backgrounds/` (users overlay their own via
 `preview-unlock.png` for the theme switcher, `icons.theme`, `keyboard.rgb`,
 `unlock.png`, and a `light.mode` marker file.
 
+A still in `backgrounds/` can have an intro: a short video in `backgrounds/intros/` with the still's name (`intros/1-totoro.mp4` for `1-totoro.webp`) whose last frame is that still. `omarchy-theme-bg-intro` finds it, with `~/.config/omarchy/backgrounds/<name>/intros/` taking precedence, and OWE plays it once at login and whenever `omarchy-theme-bg-set` or `omarchy-theme-set` switches to that still; a theme refresh keeps its background and plays nothing. At login the shell leaves the background empty while `omarchy-theme-bg-intro --login` hands the intro to OWE with `owe intro --no-fade-in`, which starts it on its first frame; if the intro does not play, the still shows instead. On a switch the shell shows the still as usual, and `owe intro` draws the same still under it and fades it into the intro, unless another background was chosen in the meantime. Either way OWE fades the intro's last frame into the still, so the intro never passes through black. An intro should therefore open on its first scene, not fade up from black. Background lists read only the top of each folder, so an intro never appears as a background of its own. No intro plays in no-animations mode.
+
 A theme installed from a git repo is held to a much shorter list; see [What an installed theme may not ship](#what-an-installed-theme-may-not-ship).
 
 ## Theme activation flow
