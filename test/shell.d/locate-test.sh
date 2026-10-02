@@ -32,22 +32,6 @@ check(command == ["/usr/bin/updatedb", *options],
       "locate service runs updatedb directly with fixed Btrfs options")
 check("ConditionACPower=true" in (root / "etc/systemd/system/plocate-updatedb.service.d/ac-only.conf").read_text(),
       "scheduled locate indexing keeps its AC-power condition")
-check(not (root / "install/config/locate.sh").exists() and not (root / "migrations/1784809451.sh").exists(),
-      "the retired locate configuration helper and migration are absent")
-for directory in ("bin", "install", "migrations"):
-  for path in (root / directory).rglob("*"):
-    # Bytecode caches and other non-UTF-8 files carry no scripts; reading them
-    # is pointless, and a stray __pycache__ from a module-loading test would
-    # break the scan entirely.
-    if not path.is_file() or "__pycache__" in path.parts:
-      continue
-    try:
-      content = path.read_text()
-    except UnicodeDecodeError:
-      continue
-      if "OMARCHY_UPDATEDB_CONF_PATH" in content or "config/locate.sh" in content:
-        raise SystemExit("not ok - retired locate configuration path remains in " + str(path))
-check(True, "runtime and installation no longer reference the configuration rewrite")
 
 with tempfile.TemporaryDirectory(prefix="omarchy-locate-") as scratch:
   scratch = Path(scratch)

@@ -1,0 +1,137 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Provide internal helpers for command-scoped sudo authentication
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  echo "omarchy-security-functions is an internal function library." >&2
+  exit 64
+fi
+
+omarchy_security_require_privileged_bash_startup() {
+  [[ $- == *p* ]] || return 1
+  /usr/bin/env -i /usr/bin/bash -p -c '
+    mapfile -d "" -t argv <"/proc/$1/cmdline" || exit 1
+    executable=$(/usr/bin/readlink -e -- "/proc/$1/exe") || exit 1
+    [[ $executable == "/usr/bin/bash" &&
+      ( ${argv[0]:-} == "/bin/bash" || ${argv[0]:-} == "/usr/bin/bash" ) &&
+      ${argv[1]:-} == "-p" ]]
+  ' omarchy-bash-startup "$$"
+}
+
+omarchy_security_sanitize_bash_environment() {
+  local script=$1
+  shift
+  local entry name environment_fd environment_pid
+  local -a unsets=()
+
+  # Read the raw environment: privileged Bash ignores exported functions, but
+  # leaves their records for ordinary child interpreters to import later.
+  exec {environment_fd}< <(/usr/bin/env -0)
+  environment_pid=$!
+  while IFS= read -r -d '' entry <&"$environment_fd"; do
+    name=${entry%%=*}
+    case "$name" in
+      BASH_ENV|ENV|SHELLOPTS|BASHOPTS|PS4|CDPATH|GLOBIGNORE|BASH_FUNC_*%%)
+        unsets+=(-u "$name")
+        ;;
+    esac
+  done
+  exec {environment_fd}<&-
+  wait "$environment_pid" || return 1
+  if (( ${#unsets[@]} > 0 )); then
+    exec /usr/bin/env "${unsets[@]}" /usr/bin/bash -p -- "$script" "$@"
+  fi
+}
+
+omarchy_security_require_source_root() {
+  local command_source command_name=${1##*/}
+  command_source=$(/usr/bin/readlink -e -- "$1") || return 1
+
+  # A runtime root selects the code used by this invocation. Accept the
+  # canonical checkout containing the entrypoint or the package's bin links.
+  if [[ ${OMARCHY_PATH:-} != /* || $(/usr/bin/realpath -e -- "$OMARCHY_PATH") != "$OMARCHY_PATH" ]] ||
+    ! { [[ $command_source == "$OMARCHY_PATH/bin/$command_name" ]] ||
+      [[ $OMARCHY_PATH == "/usr/share/omarchy" && $command_source == "/usr/bin/$command_name" ]]; }; then
+    echo "OMARCHY_PATH does not match this Omarchy command." >&2
+    return 1
+  fi
+}
+
+omarchy_security_sudo_supports_no_update() {
+  local help
+  help=$(LC_ALL=C /usr/bin/sudo -h 2>&1) || return 1
+  /usr/bin/grep -Eq '^usage: sudo .*\[[^]]*N[^]]*\]' <<< "$help"
+}
+
+omarchy_security_revoke_sudo_timestamp() {
+  /usr/bin/sudo -k
+}
+
+omarchy_security_exit_with_revoked_sudo() {
+  local status=$1
+  local message=${2:-Could not invalidate cached sudo authorization.}
+
+  trap - EXIT HUP INT TERM
+  if ! omarchy_security_revoke_sudo_timestamp; then
+    echo "$message" >&2
+    (( status != 0 )) || status=1
+  fi
+  exit "$status"
+}
+
+omarchy_security_install_signal_exit_traps() {
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+}
+
+omarchy_security_install_sudo_cleanup_traps() {
+  OMARCHY_SECURITY_SUDO_CLEANUP_MESSAGE=${1:-Could not invalidate cached sudo authorization.}
+  trap omarchy_security_run_sudo_cleanup_trap EXIT
+  omarchy_security_install_signal_exit_traps
+}
+
+omarchy_security_enable_no_update_sudo() {
+  local wrapper_dir="$OMARCHY_PATH/default/omarchy/sudo-no-update"
+  if ! omarchy_security_sudo_supports_no_update; then
+    echo "This sudo does not support --no-update; refusing mixed-trust work." >&2
+    return 1
+  fi
+  if [[ ! -f $wrapper_dir/sudo || ! -x $wrapper_dir/sudo ]]; then
+    echo "The command-scoped sudo wrapper is missing." >&2
+    return 1
+  fi
+  PATH="$wrapper_dir:$OMARCHY_PATH/bin:/usr/bin:/usr/sbin:/bin:/sbin"
+  OMARCHY_SUDO_NO_UPDATE=1
+  export PATH OMARCHY_SUDO_NO_UPDATE
+}
+
+omarchy_security_run_sudo_cleanup_trap() {
+  local status=$?
+
+  omarchy_security_exit_with_revoked_sudo "$status" \
+    "${OMARCHY_SECURITY_SUDO_CLEANUP_MESSAGE:-Could not invalidate cached sudo authorization.}"
+}
+
+omarchy_security_assert_root_directory() {
+  local path=$1 expected_mode=$2 canonical owner actual_mode
+
+  [[ $path == /* && -d $path && ! -L $path ]] || return 1
+  canonical=$(/usr/bin/realpath -e -- "$path") || return 1
+  [[ $canonical == "$path" ]] || return 1
+  read -r owner actual_mode < <(/usr/bin/stat -Lc '%u %a' -- "$path") || return 1
+  [[ $owner == "0" && $actual_mode == "$expected_mode" ]]
+}
+
+omarchy_security_prepare_private_root_directory() {
+  local path=$1 parent=$2
+
+  omarchy_security_assert_root_directory "$parent" 755 || return 1
+  if [[ -e $path || -L $path ]]; then
+    omarchy_security_assert_root_directory "$path" 700
+  else
+    /usr/bin/install -d -o root -g root -m 0700 -- "$path" || return 1
+    omarchy_security_assert_root_directory "$path" 700
+  fi
+}
