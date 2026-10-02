@@ -136,6 +136,21 @@ pi)
   ;;
 esac
 
+# Claude, Codex, and Grok start as the active subscription account, the same
+# as the shell functions in default/bash/fns/agent-accounts. The home travels
+# in the command itself, since a terminal launched through uwsm doesn't
+# inherit this process's environment.
+case "$agent" in
+claude) home_env="CLAUDE_CONFIG_DIR" ;;
+codex) home_env="CODEX_HOME" ;;
+grok) home_env="GROK_HOME" ;;
+*) home_env="" ;;
+esac
+if [[ -n $home_env && -z ${!home_env:-} ]]; then
+  home=$(omarchy-agent-account-home "$agent")
+  [[ -n $home ]] && command=(env "$home_env=$home" "${command[@]}")
+fi
+
 if [[ $inline == "true" ]]; then
   exec "${command[@]}"
 else
