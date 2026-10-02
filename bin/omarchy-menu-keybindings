@@ -286,6 +286,9 @@ hl = setmetatable({
       elseif type(bind_dispatcher) == "string" and bind_dispatcher ~= "" then
         kind = "exec"
         arg = bind_dispatcher
+      elseif o and o.bind_commands and o.bind_commands[bind_dispatcher] then
+        kind = "exec"
+        arg = o.bind_commands[bind_dispatcher]
       end
 
       print(table.concat({ tostring(modmask), opts.description, key, kind, arg }, "\t"))

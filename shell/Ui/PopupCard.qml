@@ -157,7 +157,7 @@ PopupWindow {
     opacity: root.open ? 1.0 : 0
 
     Behavior on opacity {
-      NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
     }
 
     Item {
