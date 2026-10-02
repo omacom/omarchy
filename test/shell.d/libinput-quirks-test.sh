@@ -4,23 +4,26 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-require_command libinput
-
 quirks="$ROOT/default/libinput/50-omarchy.quirks"
 
 [[ -f $quirks ]] || fail "the shipped libinput quirks file exists"
 pass "the shipped libinput quirks file exists"
 
-# Stage the file alone: libinput validates a whole directory, so the host's own
-# quirks would confound the result.
-test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
-cp "$quirks" "$test_tmp/"
+# The libinput CLI ships in libinput-tools, which a stock install does not have.
+if command -v libinput >/dev/null 2>&1; then
+  # Stage the file alone: libinput validates a whole directory, so the host's own
+  # quirks would confound the result.
+  test_tmp=$(mktemp -d)
+  trap 'rm -rf "$test_tmp"' EXIT
+  cp "$quirks" "$test_tmp/"
 
-if ! validate_output=$(libinput quirks validate --data-dir "$test_tmp" 2>&1); then
-  fail "the shipped quirks file parses" "$validate_output"
+  if ! validate_output=$(libinput quirks validate --data-dir "$test_tmp" 2>&1); then
+    fail "the shipped quirks file parses" "$validate_output"
+  fi
+  pass "the shipped quirks file parses"
+else
+  skip "libinput-tools not installed; skipping quirks validation"
 fi
-pass "the shipped quirks file parses"
 
 # Dropping a PID silently reintroduces the bug for that dongle.
 for product in 0x2B1E 0x2EF2 0x2F06; do
