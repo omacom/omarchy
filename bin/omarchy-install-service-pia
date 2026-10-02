@@ -18,7 +18,7 @@ piactl background enable
 # The package is installed by now, so Install > Service no longer offers this
 # script. Say how to finish instead of leaving a cancelled login unexplained.
 login_later() {
-  echo -e "\nPIA is installed but not logged in. Log in from the Private Internet Access app, or put your username and password on separate lines in a file and run 'piactl login <file>'."
+  echo -e "\nPIA is installed but not logged in. Log in from the Private Internet Access app, or run 'omarchy-install-service-pia' again."
   exit 1
 }
 

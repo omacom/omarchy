@@ -81,7 +81,7 @@ if output=$(GUM_CANCEL=1 "$ROOT/bin/omarchy-install-service-pia"); then
 fi
 ! grep -q '^piactl:login' "$TEST_LOG" ||
   fail "install skips the login when it is cancelled" "$(cat "$TEST_LOG")"
-[[ $output == *"piactl login <file>"* ]] ||
+[[ $output == *"run 'omarchy-install-service-pia' again"* ]] ||
   fail "install says how to log in later" "$output"
 pass "install says how to log in later when the login is cancelled"
 
