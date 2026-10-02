@@ -45,17 +45,17 @@ A broken session environment file can prevent the desktop from starting even whe
 Press `Ctrl + Alt + F2`, log in with your normal username and password, and inspect the current boot's user journal:
 
 ```bash
-journalctl --user -b --grep='uwsm|preloader' --no-pager
+journalctl --user -b -t uwsm_env-preloader --no-pager
 ```
 
-Look for an error naming one of your environment files, such as `bad substitution` or a missing environment output marker. Move that file out of `env.d` before trying to log in again. For example, if the error names `99-custom`:
+Look for an error naming one of your environment files, such as `bad substitution`, just before a message that the env output mark was not found. Move that file out of `env.d` before trying to log in again. For example, if the error names `99-custom`:
 
 ```bash
 mkdir -p ~/.config/uwsm/disabled
 mv -i ~/.config/uwsm/env.d/99-custom ~/.config/uwsm/disabled/
 ```
 
-UWSM skips a file with a syntax error, but an error that only shows up while the file runs, like `bad substitution`, still stops the desktop from starting. A system snapshot rollback does not repair these files, because `/home` is not rolled back.
+UWSM skips a file with a syntax error, but a fatal error that only shows up while the file runs, like `bad substitution`, can still prevent the desktop from starting. A system snapshot rollback does not repair these files, because `/home` is not rolled back.
 
 Once you can log in, fix the saved copy before moving it back. `sh -n` catches syntax errors without running the file, but cannot catch every error that occurs when it is sourced. Keep a working terminal open while testing changes.
 
