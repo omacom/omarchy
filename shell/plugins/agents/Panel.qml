@@ -142,6 +142,7 @@ Panel {
     var target = keyTarget
     if (!target) return -1
     if (target.kind === "provider" || target.kind === "providerSignin") return target.index
+    if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
     var entry = accountEntries[target.index]
     return entry ? providers.indexOf(entry.provider) : -1
   }
