@@ -5,6 +5,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 require_command python3
 
 python3 - <<'PY'
+import fcntl
 import importlib.machinery
 import importlib.util
 import json
@@ -37,7 +38,7 @@ class Scanner(unittest.TestCase):
     self.log = self.home / 'calls'
     self.cli = self.bin / 'agy'
     self.cli.write_text('''#!/usr/bin/python3
-import json, os, sys
+import json, os, sys, time
 from pathlib import Path
 with open(os.environ['AGY_TEST_LOG'], 'a') as f:
   f.write(json.dumps(sys.argv[1:]) + '\\n')
@@ -45,6 +46,9 @@ if sys.argv[1:] == ['--version']:
   print(os.environ.get('AGY_TEST_VERSION', '1.2.14'))
   sys.exit(0)
 assert sys.argv[1:] == ['-p', '/usage', '--output-format', 'json']
+if os.environ.get('AGY_TEST_STARTED'):
+  Path(os.environ['AGY_TEST_STARTED']).touch()
+  time.sleep(2)
 error = os.environ.get('AGY_TEST_ERROR')
 if error:
   print(error, file=sys.stderr)
@@ -193,6 +197,34 @@ print(Path(os.environ['AGY_TEST_FIXTURE']).read_text())
     self.assertEqual(self.run_collector(AGY_TEST_ERROR='401 signed out')['limits'], [])
     self.assertEqual(self.run_collector()['usageStatusText'], '')
     self.assertFalse(list((self.home / 'cache').rglob('*.limits.json')))
+
+  def test_prompt_matching_ignores_substrings_and_metadata(self):
+    (self.app / 'history.jsonl').write_text(json.dumps({'display': 'hello', 'timestamp': '2026-09-27T12:00:00Z'}))
+    for content, expected in [
+      ('<USER_REQUEST>hello</USER_REQUEST><ADDITIONAL_METADATA>context</ADDITIONAL_METADATA>', 1),
+      ('<USER_REQUEST>hello world</USER_REQUEST><ADDITIONAL_METADATA>context</ADDITIONAL_METADATA>', 2),
+      ('<USER_REQUEST>different</USER_REQUEST><ADDITIONAL_METADATA>hello</ADDITIONAL_METADATA>', 2)]:
+      self.transcript('session', [{'step_index': 0, 'type': 'USER_INPUT', 'created_at': '2026-09-27T12:00:00.400Z', 'content': content}])
+      stats = collector.collect_local_stats(self.app, datetime(2026, 9, 27, 14, tzinfo=timezone.utc))
+      self.assertEqual(stats['totalPrompts'], expected)
+
+  def test_slow_quota_query_does_not_hold_the_history_lock(self):
+    started = self.home / 'quota-started'
+    process = subprocess.Popen([str(script)], env={**self.env, 'AGY_TEST_STARTED': str(started)},
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+      deadline = time.monotonic() + 5
+      while not started.exists() and process.poll() is None and time.monotonic() < deadline:
+        time.sleep(.02)
+      self.assertTrue(started.exists(), 'quota query started')
+      lock_path = next((self.home / 'cache').rglob('*.lock'))
+      with lock_path.open('w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(lock, fcntl.LOCK_UN)
+    finally:
+      stdout, stderr = process.communicate(timeout=5)
+    self.assertEqual(process.returncode, 0, stderr)
+    self.assertEqual(json.loads(stdout)['usageStatusText'], '')
 
   def test_stock_wrapper_does_not_install(self):
     self.cli.write_text('#!/bin/bash\nmise use -g antigravity-cli\nexit 99\n')

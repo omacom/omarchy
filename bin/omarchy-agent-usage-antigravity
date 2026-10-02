@@ -85,6 +85,16 @@ def json_lines(path):
     return
 
 
+def prompt_text(content):
+  if not isinstance(content, str):
+    return ""
+  content = content.strip()
+  # The request is followed by metadata that can quote unrelated prompts.
+  # Compare the whole request, never a substring of that surrounding text.
+  wrapped = re.match(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", content, re.S)
+  return wrapped[1].strip() if wrapped else content
+
+
 def collect_local_stats(root, now):
   today = now.astimezone().date().isoformat()
   days = [(now.astimezone().date() - timedelta(days=i)).isoformat() for i in range(6, -1, -1)]
@@ -134,7 +144,7 @@ def collect_local_stats(root, now):
       day = activity(entry.get("created_at"), session)
       if day and entry.get("type") == "USER_INPUT":
         stamp = parse_time(entry["created_at"]).timestamp()
-        content = entry.get("content")
+        content = prompt_text(entry.get("content"))
         candidates = []
         # CLI history timestamps are milliseconds; transcript creation is
         # slightly later and may wrap the prompt in <USER_REQUEST> context.
@@ -145,8 +155,7 @@ def collect_local_stats(root, now):
             text = event["text"]
             if (not event["matched"] and abs(event["time"] - stamp) <= 1
                 and (not event["session"] or event["session"] == session)
-                and isinstance(text, str) and text.strip() and isinstance(content, str)
-                and (content.strip() == text.strip() or (content.startswith("<USER_REQUEST>") and text.strip() in content))):
+                and isinstance(text, str) and text.strip() and content == text.strip()):
               candidates.append(event)
         if candidates:
           min(candidates, key=lambda event: abs(event["time"] - stamp))["matched"] = True
@@ -349,7 +358,7 @@ def main():
         or not isinstance(fetched, (int, float)) or not 0 <= time.time() - fetched < age):
       stats = collect_local_stats(root, now)
       write_json(stats_path, {"scanDate": now.date().isoformat(), "fetchedAt": time.time(), "stats": stats})
-    limits = collect_limits(installed_cli())
+  limits = collect_limits(installed_cli())
   has_stats = stats["totalPrompts"] > 0 or stats["totalSessions"] > 0
   record = {"schemaVersion": 1, "id": "antigravity", "name": "Antigravity",
             "updatedAt": datetime.now(timezone.utc).isoformat(), "ready": has_stats or bool(limits["limits"]),
