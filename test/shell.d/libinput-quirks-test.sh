@@ -38,6 +38,9 @@ if grep '^AttrEventCode=' "$quirks" | grep -qvx 'AttrEventCode=-KEY_POWER'; then
 fi
 pass "the quirks drop only the phantom power key"
 
-(( $(grep -cx 'AttrEventCode=-KEY_POWER' "$quirks") == $(grep -c '^\[' "$quirks") )) ||
-  fail "every quirk section drops the power key"
+# Counted per section, so a filter moved from one dongle to another still fails.
+unfiltered=$(awk '/^\[/ { if (section && !dropped) print section; section = $0; dropped = 0 }
+  $0 == "AttrEventCode=-KEY_POWER" { dropped = 1 }
+  END { if (section && !dropped) print section }' "$quirks")
+[[ -z $unfiltered ]] || fail "every quirk section drops the power key" "$unfiltered"
 pass "every quirk section drops the power key"
