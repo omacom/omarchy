@@ -439,6 +439,11 @@ QtObject {
   }
 
   function clearCloneSource(config, cloneId) {
+    var sourceId = Util.isPlainObject(config.cloneSources)
+      ? Util.canonicalWidgetId(String(config.cloneSources[cloneId] || "")) : ""
+    // A restore marker belongs to the saved source, even when the manifest
+    // now describes a different plugin using the same id.
+    if (sourceId && cloneShouldRestoreSource(config, cloneId)) removeDisabled(config, sourceId)
     setCloneShouldRestoreSource(config, cloneId, false)
     if (Util.isPlainObject(config.cloneSources)) {
       delete config.cloneSources[cloneId]
@@ -521,6 +526,9 @@ QtObject {
       // Keep the source across rescans and restarts even if the clone's
       // manifest is removed. The restore marker separately preserves a
       // source that was already disabled before the clone was enabled.
+      var previousSource = Util.isPlainObject(config.cloneSources)
+        ? String(config.cloneSources[key] || "") : ""
+      if (previousSource && previousSource !== clonedFrom) clearCloneSource(config, key)
       if (value && clonedFrom) {
         if (!Util.isPlainObject(config.cloneSources)) config.cloneSources = {}
         config.cloneSources[key] = clonedFrom
@@ -669,7 +677,7 @@ QtObject {
       var metadata = Util.isPlainObject(merged[id].omarchy) ? merged[id].omarchy : null
       var source = metadata ? String(metadata.clonedFrom || "") : ""
       if (source && findEntryLocation(config, id).found
-          && (!Util.isPlainObject(config.cloneSources) || config.cloneSources[id] !== source))
+          && (!Util.isPlainObject(config.cloneSources) || !config.cloneSources[id]))
         cloneSources[id] = source
     }
     if (shellConfigMutator && Object.keys(cloneSources).length) {

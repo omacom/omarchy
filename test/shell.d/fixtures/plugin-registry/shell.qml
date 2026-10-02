@@ -430,6 +430,52 @@ ShellRoot {
     root.assertTrue(root.config.cloneSourceRestores === undefined, "enabling a non-clone clears a stale restore marker")
     registry.setEnabled("third.panel", false)
 
+    var replacedClones = [
+      { id: "local.grouped-panel", source: "omarchy.grouped-panel", kinds: ["panel"], entryPoints: { panel: "Panel.qml" } },
+      { id: "local.hybrid", source: "omarchy.hybrid", kinds: ["menu", "bar-widget"], entryPoints: { menu: "Menu.qml", barWidget: "Widget.qml" } }
+    ]
+    for (var r = 0; r < replacedClones.length; r++) {
+      var replaced = replacedClones[r]
+      for (var wasDisabled = 0; wasDisabled < 2; wasDisabled++) {
+        for (var enableReplacement = 0; enableReplacement < 2; enableReplacement++) {
+          registry.parseScanOutput(scan)
+          root.config = {
+            version: 1,
+            bar: { layout: { left: [{ id: replaced.source }], center: [], right: [] } },
+            plugins: []
+          }
+          if (wasDisabled) root.config.disabledPlugins = [replaced.source]
+          registry.setEnabled(replaced.id, true)
+          registry.parseScanOutput(
+            block("firstparty", "/first/source", manifest(replaced.source, replaced.kinds, replaced.entryPoints))
+            + block("thirdparty", "/third/replacement", manifest(replaced.id, replaced.kinds, replaced.entryPoints))
+          )
+          root.assertTrue(registry.setEnabled(replaced.id, !!enableReplacement), "replaced clone accepts its requested state: " + replaced.id)
+          root.assertEqual(registry.isDisabled(root.config, replaced.source), !!wasDisabled, "replaced clone restores only a source it disabled: " + replaced.id)
+          root.assertTrue(root.config.cloneSources === undefined, "replaced clone source record is cleared: " + replaced.id)
+          root.assertTrue(root.config.cloneSourceRestores === undefined, "replaced clone restore marker is cleared: " + replaced.id)
+          root.assertEqual(registry.isEnabled(replaced.id), !!enableReplacement, "replacement keeps its requested enabled state: " + replaced.id)
+        }
+      }
+    }
+    registry.parseScanOutput(scan)
+
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [] } }, plugins: [] }
+    registry.setEnabled("local.grouped-panel", true)
+    var changedClone = manifest("local.grouped-panel", ["panel"], { panel: "Panel.qml" })
+    changedClone.omarchy = { clonedFrom: "omarchy.replacement-panel" }
+    registry.parseScanOutput(scan
+      + block("firstparty", "/first/replacement-panel", manifest("omarchy.replacement-panel", ["panel"], { panel: "Panel.qml" }))
+      + block("thirdparty", "/third/changed-clone", changedClone))
+    root.assertEqual(root.config.cloneSources["local.grouped-panel"], "omarchy.grouped-panel", "rescan preserves the source whose disabled state the clone owns")
+    registry.setEnabled("local.grouped-panel", true)
+    root.assertTrue(!registry.isDisabled(root.config, "omarchy.grouped-panel"), "changing a clone source restores its previous source")
+    root.assertTrue(registry.isDisabled(root.config, "omarchy.replacement-panel"), "changing a clone source disables its new source")
+    root.assertEqual(root.config.cloneSources["local.grouped-panel"], "omarchy.replacement-panel", "changing a clone source records the new source")
+    registry.setEnabled("local.grouped-panel", false)
+    root.assertTrue(!registry.isDisabled(root.config, "omarchy.replacement-panel"), "disabling a changed clone restores its new source")
+    registry.parseScanOutput(scan)
+
     var missingClones = [
       { id: "local.grouped-panel", source: "omarchy.grouped-panel", kinds: ["panel"], entryPoints: { panel: "Panel.qml" } },
       { id: "local.hybrid", source: "omarchy.hybrid", kinds: ["menu", "bar-widget"], entryPoints: { menu: "Menu.qml", barWidget: "Widget.qml" } },
