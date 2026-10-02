@@ -8,12 +8,21 @@
 
 device=i2c-ASUP1206:00
 driver=/sys/bus/i2c/drivers/i2c_hid_acpi
+attempts=5
 
 if [[ $1 == "post" && -e $driver/$device ]]; then
-  echo "$device" > "$driver/unbind" || exit 0
-  sleep 1
-  if ! echo "$device" > "$driver/bind"; then
-    echo "Could not rebind $device; the touchpad stays unbound until reboot" >&2
+  if ! echo "$device" > "$driver/unbind"; then
+    echo "Could not unbind $device; leaving the touchpad as it is" >&2
     exit 1
   fi
+
+  # A fresh probe can fail while the controller is still waking up, so retry.
+  # Keep it bounded: systemd-sleep waits for every hook before resume finishes.
+  for (( attempt = 1; attempt <= attempts; attempt++ )); do
+    sleep 1
+    echo "$device" > "$driver/bind" && exit 0
+  done
+
+  echo "Could not rebind $device after $attempts attempts; the touchpad stays unbound until reboot" >&2
+  exit 1
 fi
