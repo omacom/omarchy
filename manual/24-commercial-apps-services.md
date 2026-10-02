@@ -39,3 +39,5 @@ It gets a panel in the bar, a web app for the admin console, and Taildrop for se
 ## Private Internet Access
 
 [Private Internet Access](https://www.privateinternetaccess.com/) is a VPN service with servers in most regions around the world. To set it up, select _Install > Service > PIA VPN_ from the Omarchy menu, which logs you in with your PIA username and password. Connect with `piactl connect`, or from the Private Internet Access app.
+
+Once it's installed, _Setup > Network > PIA VPN_ connects, disconnects, and switches regions without opening the app.

@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Select a Private Internet Access region and connect to it
+# omarchy:group=menu
+# omarchy:name=pia-region
+
+set -e
+
+region=$(piactl get regions | omarchy-menu-select "Connect PIA to" -- --width 520 --maxheight 520) || exit 1
+piactl set region "$region"
+piactl connect

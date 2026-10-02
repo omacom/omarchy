@@ -65,3 +65,25 @@ output=$(LOGIN_FAILURES=1 "$ROOT/bin/omarchy-install-service-pia")
   fail "install says the login failed" "$output"
 pass "install asks for the login again when it fails"
 
+# The region picker offers what piactl lists and connects to the pick.
+cat >"$tmp_dir/bin/piactl" <<'SCRIPT'
+#!/bin/bash
+if [[ $* == "get regions" ]]; then
+  printf '%s\n' auto ca-montreal us-atlanta
+else
+  printf 'piactl:%s\n' "$*" >>"$TEST_LOG"
+fi
+SCRIPT
+cat >"$tmp_dir/bin/omarchy-menu-select" <<'SCRIPT'
+#!/bin/bash
+[[ $(paste -sd,) == "auto,ca-montreal,us-atlanta" ]] && echo "ca-montreal"
+SCRIPT
+chmod +x "$tmp_dir/bin/"*
+
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-menu-pia-region"
+expected='piactl:set region ca-montreal
+piactl:connect'
+[[ $(cat "$TEST_LOG") == "$expected" ]] ||
+  fail "region picker sets the picked region and connects" "$(cat "$TEST_LOG")"
+pass "region picker sets the picked region and connects"
