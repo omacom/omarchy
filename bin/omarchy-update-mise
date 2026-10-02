@@ -9,6 +9,7 @@ if omarchy-cmd-present mise; then
   # days after they ship. Running omarchy update is the user asking for current
   # versions now, which is the same call the mup alias makes by hand.
   MISE_MINIMUM_RELEASE_AGE=0 mise up
+  mise_status=$?
 
   # Grok's npm launcher runs ~/.grok/bin/grok whenever it exists, and the
   # package's install script that points it at a new release doesn't run
@@ -30,4 +31,7 @@ if omarchy-cmd-present mise; then
       fi
     fi
   fi
+
+  # Callers warn when tools didn't update; the Grok upkeep never decides that.
+  exit $mise_status
 fi

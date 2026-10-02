@@ -15,9 +15,9 @@ mkdir -p "$HOME/.grok/bin" "$test_tmp/bin" "$test_tmp/installs/npm-xai-official-
 cat >"$test_tmp/bin/mise" <<SH
 #!/bin/bash
 case "\$1" in
-  up) ;;
+  up) exit "\${OMARCHY_TEST_MISE_UP_STATUS:-0}" ;;
   where) echo "$test_tmp/installs/npm-xai-official-grok/1.0.44" ;;
-  x) echo ran >"$test_tmp/grok-ran"; touch "\$HOME/.grok/bin/grok-1.0.44"; ln -sfn grok-1.0.44 "\$HOME/.grok/bin/grok" ;;
+  x) echo "\$GROK_HOME" >"$test_tmp/grok-ran"; touch "\$HOME/.grok/bin/grok-1.0.44"; ln -sfn grok-1.0.44 "\$HOME/.grok/bin/grok" ;;
 esac
 SH
 chmod +x "$test_tmp/bin/mise"
@@ -44,3 +44,9 @@ PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-update-mise" >/dev/null
 [[ $(readlink "$HOME/.grok/bin/grok") == "grok-1.0.30" && -e $HOME/.grok/bin/grok-1.0.30 ]] ||
   fail "a failed unpack keeps the old Grok release" "$(ls -la "$HOME/.grok/bin")"
 pass "a failed unpack keeps the old Grok release"
+
+# A failed tool update still reads as one, whatever the Grok upkeep did.
+if OMARCHY_TEST_MISE_UP_STATUS=1 PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-update-mise" >/dev/null 2>&1; then
+  fail "a failed mise update is reported as failed"
+fi
+pass "a failed mise update is reported as failed"
