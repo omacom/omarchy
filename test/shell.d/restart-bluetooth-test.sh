@@ -100,16 +100,18 @@ grep -q '^modprobe' "$tmp_dir/calls" && fail "restart bluetooth leaves btusb alo
 pass "restart bluetooth leaves btusb alone once a controller answers"
 
 # A restart the user cancelled at the password prompt must not be reported as a
-# recovery, however healthy the adapter already looked.
+# recovery, however healthy the adapter already looked. The message is matched
+# whole: its old second half claimed nothing had changed, which a restart that
+# only got as far as stopping bluetoothd cannot promise.
 reset_stubs
 touch "$tmp_dir/state/controller"
 output=$(run_restart_bluetooth restart yes yes yes 2>&1) && fail "restart bluetooth fails when the service restart fails"
-grep -q 'Could not restart bluetooth.service' <<<"$output" || fail "restart bluetooth explains a restart it could not run"
+grep -qxF "Could not restart bluetooth.service. Check 'systemctl status bluetooth.service'." <<<"$output" || fail "restart bluetooth explains a restart it could not run"
 pass "restart bluetooth fails when the service restart fails"
 
 # Same refusal with nothing listed, which is the only arrangement where the
-# reload is otherwise reachable: escalating would ask for the password it was
-# just denied, twice over. Counting sudo is what catches that.
+# reload is otherwise reachable: escalating would ask again for the password it
+# was just denied. Counting sudo is what catches that.
 reset_stubs
 run_restart_bluetooth never yes yes yes >/dev/null 2>&1 && fail "restart bluetooth stops before btusb when the restart failed"
 sudo_calls=$(grep -c '^sudo ' "$tmp_dir/calls" || true)
