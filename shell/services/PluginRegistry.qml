@@ -549,7 +549,10 @@ QtObject {
             var sourceLocation = clonedFrom ? findBarLocation(config, clonedFrom, "") : { found: false }
             if (sourceLocation.found) {
               var sourceEntry = config.bar.layout[sourceLocation.section][sourceLocation.index]
-              var replacement = Util.isPlainObject(sourceEntry) ? Util.cloneJson(sourceEntry) : entry
+              var replacement = Util.isPlainObject(sourceEntry) ? Util.cloneJson(sourceEntry) : {}
+              // The clone's saved settings take precedence over inherited
+              // source settings when moving it from plugins[] to the bar.
+              for (var option in entry) replacement[option] = entry[option]
               replacement.id = key
               config.bar.layout[sourceLocation.section][sourceLocation.index] = replacement
             } else {

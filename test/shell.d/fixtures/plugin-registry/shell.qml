@@ -348,6 +348,23 @@ ShellRoot {
 
     root.config = {
       version: 1,
+      bar: { layout: { left: [], center: [{ id: "omarchy.first-widget", size: 4, serverUrl: "http://source.test", inherited: true }], right: [] } },
+      plugins: [{ id: "local.first-widget", serverUrl: "http://clone.test", apiKey: "test-key", options: { interval: 30 } }]
+    }
+    registry.setEnabled("local.first-widget", true)
+    root.assertDeepEqual(
+      root.config.bar.layout.center,
+      [{ id: "local.first-widget", size: 4, serverUrl: "http://clone.test", inherited: true, apiKey: "test-key", options: { interval: 30 } }],
+      "enabling a configured clone preserves its settings over source settings in place"
+    )
+    root.assertDeepEqual(root.config.plugins, [], "moving a configured clone prunes its plugins entry")
+    registry.setEnabled("local.first-widget", true)
+    root.assertEqual(root.config.bar.layout.center.length, 1, "re-enabling a configured clone does not duplicate it")
+    root.assertEqual(root.config.bar.layout.center[0].apiKey, "test-key", "re-enabling a configured clone retains its settings")
+    registry.setEnabled("local.first-widget", false)
+
+    root.config = {
+      version: 1,
       bar: { layout: { left: [], center: [{ id: "local.first-widget", size: 5 }], right: [] } },
       plugins: []
     }
