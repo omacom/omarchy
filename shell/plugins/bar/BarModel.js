@@ -55,6 +55,49 @@ function entryIndex(entries, name) {
   return -1
 }
 
+// A slot's index counts the rendered section, which drops malformed entries and
+// pins the tray, so find the same instance in the stored section by id and rank.
+function rawSlotIndex(rawEntries, renderedEntries, renderedIndex) {
+  if (!Array.isArray(rawEntries) || !Array.isArray(renderedEntries)) return -1
+  if (renderedIndex < 0 || renderedIndex >= renderedEntries.length) return -1
+
+  var name = entryId(renderedEntries[renderedIndex])
+  var rank = 0
+  for (var i = 0; i < renderedIndex; i++) {
+    if (entryId(renderedEntries[i]) === name) rank++
+  }
+
+  var found = -1
+  for (var j = 0; j < rawEntries.length; j++) {
+    // Util.normalizeLayoutEntry drops an object whose id is falsy.
+    if (isPlainObject(rawEntries[j]) && !rawEntries[j].id) continue
+    if (entryId(rawEntries[j]) !== name) continue
+    found = j
+    // pinTrayToInner keeps only the last tray.
+    if (name !== "omarchy.tray" && rank-- === 0) return j
+  }
+
+  return name === "omarchy.tray" ? found : -1
+}
+
+// A drop lands before the rendered slot at renderedIndex. The tray is drawn at
+// its pinned edge wherever it is stored, so place the drop against its neighbours.
+function rawInsertIndex(rawEntries, renderedEntries, renderedIndex) {
+  if (!Array.isArray(rawEntries) || !Array.isArray(renderedEntries)) return -1
+
+  for (var i = Math.max(renderedIndex, 0); i < renderedEntries.length; i++) {
+    if (entryId(renderedEntries[i]) !== "omarchy.tray") return rawSlotIndex(rawEntries, renderedEntries, i)
+  }
+
+  for (var j = Math.min(renderedIndex, renderedEntries.length) - 1; j >= 0; j--) {
+    if (entryId(renderedEntries[j]) === "omarchy.tray") continue
+    var previous = rawSlotIndex(rawEntries, renderedEntries, j)
+    return previous < 0 ? -1 : previous + 1
+  }
+
+  return rawEntries.length
+}
+
 function entriesBefore(entries, name) {
   var index = entryIndex(entries, name)
   return index <= 0 ? [] : entries.slice(0, index)
@@ -256,6 +299,8 @@ if (typeof module !== "undefined") {
     pinTrayToInner: pinTrayToInner,
     moduleString: moduleString,
     entryIndex: entryIndex,
+    rawSlotIndex: rawSlotIndex,
+    rawInsertIndex: rawInsertIndex,
     entriesBefore: entriesBefore,
     entriesAfter: entriesAfter,
     moveModuleInConfig: moveModuleInConfig,

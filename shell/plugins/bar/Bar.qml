@@ -872,15 +872,17 @@ Item {
     return BarModel.moveModuleInConfig(config, fromRegion, fromName, toRegion, beforeName, fromIndex, toIndex)
   }
 
-  function dropBarModule(source, toRegion, beforeName, targetIndex) {
-    if (!source || !source.region || !toRegion) return false
-    var fromIndex = source.slotIndex !== undefined ? source.slotIndex : -1
-    if (fromIndex < 0 && !source.moduleName) return false
+  function dropBarModule(source, toRegion, beforeName, targetSlot, afterTarget) {
+    if (!source || !source.region || !source.moduleName || !toRegion) return false
     if (!root.shell || typeof root.shell.mutateShellConfig !== "function") return false
 
     var changed = false
     root.shell.mutateShellConfig(function(config) {
-      changed = moveModuleInConfig(config, source.region, source.moduleName, toRegion, beforeName, fromIndex, targetIndex)
+      var fromIndex = BarModel.rawSlotIndex(rawLayoutSection(config, source.region), layoutEntries(source.region), source.slotIndex)
+      var toIndex = targetSlot
+        ? BarModel.rawInsertIndex(rawLayoutSection(config, toRegion), layoutEntries(toRegion), targetSlot.slotIndex + (afterTarget ? 1 : 0))
+        : -1
+      changed = moveModuleInConfig(config, source.region, source.moduleName, toRegion, beforeName, fromIndex, toIndex)
     })
     return changed
   }
@@ -950,9 +952,8 @@ Item {
   function dropBarModuleAtTarget(sourceSlot, targetSlot, afterTarget) {
     if (!sourceSlot || !targetSlot) return false
 
-    var targetIndex = targetSlot.slotIndex !== undefined ? (targetSlot.slotIndex + (afterTarget ? 1 : 0)) : undefined
     var beforeName = afterTarget ? nextVisibleModuleName(targetSlot.region, targetSlot.moduleName, sourceSlot) : targetSlot.moduleName
-    return dropBarModule(sourceSlot, targetSlot.region, beforeName, targetIndex)
+    return dropBarModule(sourceSlot, targetSlot.region, beforeName, targetSlot, afterTarget)
   }
 
   function moduleTargetClickable(target) {

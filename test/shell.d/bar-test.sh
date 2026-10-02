@@ -455,6 +455,59 @@ assertEqual(
 )
 assertDeepEqual(uniqueLayout.bar.layout.left, ['omarchy.workspaces', 'omarchy.menu'], 'unique widgets reordered by name')
 
+// A drag names rendered slots; the stored section can hold the tray anywhere,
+// more than one tray, and malformed entries the bar never draws
+function renderedSection(entries, region) {
+  // Util.normalizeLayoutEntry's rule: strings stay, objects need a truthy id
+  return bar.pinTrayToInner(entries.filter(e => typeof e === 'string' || (e && e.id)), region)
+}
+function dragSlot(layout, fromRegion, fromSlot, toRegion, targetSlot, after) {
+  const config = { bar: { layout } }
+  const fromIndex = bar.rawSlotIndex(layout[fromRegion], renderedSection(layout[fromRegion], fromRegion), fromSlot)
+  const toIndex = bar.rawInsertIndex(layout[toRegion], renderedSection(layout[toRegion], toRegion), targetSlot + (after ? 1 : 0))
+  bar.moveModuleInConfig(config, fromRegion, null, toRegion, null, fromIndex, toIndex)
+  return {
+    left: renderedSection(layout.left || [], 'left').map(e => bar.entryId(e) + (e.minWidth ? ':' + e.minWidth : '')),
+    right: renderedSection(layout.right || [], 'right').map(e => bar.entryId(e) + (e.minWidth ? ':' + e.minWidth : ''))
+  }
+}
+
+assertDeepEqual(
+  dragSlot({ left: [], right: ['omarchy.agents', 'omarchy.bluetooth', 'omarchy.tray', 'omarchy.network'] }, 'right', 1, 'right', 3, true).right,
+  ['omarchy.tray', 'omarchy.bluetooth', 'omarchy.network', 'omarchy.agents'],
+  'dragging a widget past a tray stored mid-section moves that widget'
+)
+assertDeepEqual(
+  dragSlot({ left: ['omarchy.clock'], right: ['omarchy.agents', 'omarchy.bluetooth', 'omarchy.tray'] }, 'left', 0, 'right', 0, true).right,
+  ['omarchy.tray', 'omarchy.clock', 'omarchy.agents', 'omarchy.bluetooth'],
+  'dropping after the pinned tray lands next to it'
+)
+assertDeepEqual(
+  dragSlot({ left: ['omarchy.tray', 'omarchy.menu', 'omarchy.workspaces'], right: [] }, 'left', 0, 'left', 1, true).left,
+  ['omarchy.workspaces', 'omarchy.menu', 'omarchy.tray'],
+  'dropping before the pinned tray lands before it'
+)
+assertDeepEqual(
+  dragSlot({ left: [{ broken: true }, 'omarchy.menu', s1, 'omarchy.workspaces', s2], right: [] }, 'left', 3, 'left', 0, false).left,
+  ['omarchy.spacer:80', 'omarchy.menu', 'omarchy.spacer:20', 'omarchy.workspaces'],
+  'the dragged duplicate moves past a malformed stored entry'
+)
+const duplicateTrays = { left: [{ id: 'omarchy.tray', mark: 'a' }, 'omarchy.menu', { id: 'omarchy.tray', mark: 'b' }], right: ['omarchy.clock'] }
+dragSlot(duplicateTrays, 'left', 1, 'right', 0, true)
+assertEqual(duplicateTrays.right[1].mark, 'b', 'the drawn tray is the one that moves when two are stored')
+const falsyId = { left: [{ id: 0 }, { id: '0', mark: 'drawn' }, 'omarchy.clock'], right: [] }
+dragSlot(falsyId, 'left', 0, 'left', 1, true)
+assertEqual(falsyId.left[2].mark, 'drawn', 'an entry the bar does not draw is never the one that moves')
+
+assertEqual((barSource.match(/slotIndex: moduleListRoot\.indexOffset \+ index/g) || []).length, 2, 'every module list slot knows its rendered index')
+assertEqual((barSource.match(/indexOffset: root\.entryIndex\(centerRoot\.entries, root\.centerAnchor\) \+ 1/g) || []).length, 2, 'center modules after the anchor count past it')
+assertEqual((barSource.match(/slotIndex: root\.entryIndex\(centerRoot\.entries, root\.centerAnchor\)\n/g) || []).length, 2, 'the center anchor slot knows its rendered index')
+assert(
+  /BarModel\.rawSlotIndex\(rawLayoutSection\(config, source\.region\), layoutEntries\(source\.region\), source\.slotIndex\)/.test(barSource) &&
+    /BarModel\.rawInsertIndex\(rawLayoutSection\(config, toRegion\), layoutEntries\(toRegion\), targetSlot\.slotIndex \+ \(afterTarget \? 1 : 0\)\)/.test(barSource),
+  'a drop maps its rendered slots to stored entries before moving them'
+)
+
 assert(
   /BarModel\.moveModuleInConfig\(config, fromRegion, fromName, toRegion, beforeName, fromIndex, toIndex\)/.test(barSource),
   'bar delegates module movement to BarModel with explicit indices'
