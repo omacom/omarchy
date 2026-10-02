@@ -61,9 +61,11 @@ while IFS= read -r line; do
 done <<<"$notifications"
 pass "taildrop receive announcements wait to be answered"
 
-grep -q "^Received notes with space.pdf .* -g " <<<"$notifications" ||
-  fail "taildrop receive announces other files with a glyph" "$notifications"
-pass "taildrop receive announces other files with a glyph"
+for name in photo.png "notes with space.pdf"; do
+  grep -q "^Received $name .* -g " <<<"$notifications" ||
+    fail "taildrop receive announces every file with a glyph" "$notifications"
+done
+pass "taildrop receive announces every file with a glyph"
 
 # The shell keeps the click command with the toast, so receiving does not have
 # to sit blocked on an answer -- and the toast still opens the file after a shell
