@@ -105,13 +105,15 @@ def local_stats(home):
   }
 
 
+# A scan from before midnight would count yesterday's sessions as today's.
 def cached_local_stats(home, max_age):
   cache = cache_root() / "grok-stats.json"
   cached = read_json(cache) or {}
-  if cached.get("home") == str(home) and time.time() - float(cached.get("at") or 0) < max_age:
+  today = datetime.now().astimezone().date().isoformat()
+  if cached.get("home") == str(home) and cached.get("day") == today and time.time() - float(cached.get("at") or 0) < max_age:
     return cached["stats"]
   stats = local_stats(home)
-  write_json(cache, {"home": str(home), "at": time.time(), "stats": stats})
+  write_json(cache, {"home": str(home), "day": today, "at": time.time(), "stats": stats})
   return stats
 
 

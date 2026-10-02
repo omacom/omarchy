@@ -120,3 +120,11 @@ jq -n --arg at "$now" '{last_active_at: $at, num_messages: 1}' >"$sessions/later
 record=$(COLLECT_ARGS="--limits-only" collect)
 [[ $(jq -r '.totalSessions' <<<"$record") == 3 ]] || fail "a limits-only refresh reuses the session scan" "$record"
 pass "a limits-only refresh reuses the session scan"
+
+# A scan from another day is never reused, so yesterday's sessions don't
+# count as today's after midnight.
+jq '.day = "2000-01-01"' "$XDG_CACHE_HOME/omarchy/agent-usage/grok-stats.json" >"$test_tmp/stats.json"
+mv "$test_tmp/stats.json" "$XDG_CACHE_HOME/omarchy/agent-usage/grok-stats.json"
+record=$(COLLECT_ARGS="--limits-only" collect)
+[[ $(jq -r '.totalSessions' <<<"$record") == 4 ]] || fail "a scan from another day is made again" "$record"
+pass "a scan from another day is made again"
