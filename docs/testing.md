@@ -32,6 +32,8 @@ A new shell test only needs the right name: drop `<area>-test.sh` into
 `test/shell.d/` and `./test/shell` picks it up automatically. Shared fixtures
 live under `test/shell.d/fixtures/`.
 
+`bash test/shell.d/menu-selector-model-test.sh` runs the selector's production rebuild and selection functions in Qt Quick Test with a real `ListModel`. It checks filtered rows and role types, literal selection values, empty and input modes, cursor clamping, deferred reveal, and batched model signals. Only cursor reveal and result-file writing are stubbed; this is model runtime coverage, not a graphical acceptance test. It runs offscreen and skips explicitly when the optional Qt 6 `qmltestrunner` is unavailable.
+
 ## The base-test.sh contract
 
 Every shell test starts the same way:
