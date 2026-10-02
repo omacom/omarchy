@@ -73,7 +73,11 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn), plus `summary.json` for sessions |
+| `cursor` | Cursor's dashboard RPCs: included, auto-model, named-model, and on-demand meters | the same dashboard RPCs, one call per day for the last week |
+| `opencode` | OpenCode Go's usage endpoint (rolling + weekly + monthly), with an API key or the Console session | pi and omp sessions on the Zen and Go providers, plus opencode's own `message` and `session_message` stores |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `copilot` | Account-wide AI credit allowance (GitHub quota endpoint, or estimated locally) | the Copilot CLI session store's `assistant_usage_events`, with `~/.copilot/session-state` transcripts as fallback |
+| `muse` | The client's key endpoint (session + weekly percents), else local metering only — never estimated | native `muse` CLI session files plus opencode sessions on the `meta` provider |
 
 When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json`
 registers more than one account, the `claude`, `codex`, and `grok` records
@@ -99,7 +103,78 @@ again. Fireworks reads
 `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
-signed in there.
+signed in there. Cursor reads `CURSOR_API_KEY` first, then the token
+`cursor-agent login` stores in `~/.config/cursor/auth.json`, then the
+editor's own sign-in in `~/.config/Cursor/User/globalStorage/state.vscdb`
+(opened read-only), and honors `CURSOR_API_ENDPOINT`.
+
+### Cursor
+
+Cursor's session files on disk carry no token counts, so this is the one
+collector with nothing to fall back on: without a credential the record stays
+empty and the panel skips it rather than showing a week of zeros. A failed
+check keeps the account's last good meters, dimmed, until its billing cycle
+ends, and its last week of tokens (today cleared once the day turns over); a
+refused sign-in also says so under the name. Tokens by day and by model cover
+the last seven local days, one aggregation call per day.
+
+The meters are Cursor's own percentages — included total, auto-bucket models,
+and named models — so they always agree with the Cursor dashboard. Spend is
+never divided into an allowance here: bonus usage the model providers hand out
+is spend with no allowance behind it, so dollars over the plan limit read far
+past 100% while Cursor's own meters do not. The on-demand row is the exception
+and is a real ratio: dollars spent against the on-demand limit the account
+sets.
+
+### OpenCode
+
+One record covers the OpenCode subscription, Zen and Go together: usage on
+the `opencode` and `opencode-go` providers. opencode sessions on an Anthropic
+or OpenAI provider stay in the `claude` and `codex` records, so nothing counts
+twice. Both of opencode's message stores are read (`message` and V2's
+`session_message`, deduplicated by message id, leaving out the copies a fork
+makes), from the database `OPENCODE_DB` names when set.
+
+The Go meters read `OPENCODE_API_KEY` first, then the keys opencode keeps in
+its database and `auth.json`, then pi's, and last the OpenCode Console
+session, which asks Console's own endpoint with its workspace id. A refused
+credential hands over to the next one. A recent answer is reused for 15
+seconds, each credential caches its own, a failed check keeps the last good
+windows, dimmed, until they reset, and a rate-limited window reads as full.
+Without a Go plan the panel still shows local token usage.
+
+### Copilot allowance
+
+GitHub exposes no supported personal-account usage API — its Copilot REST
+endpoints are organization- or enterprise-scoped — so the token sections come
+from what the Copilot CLI keeps under `~/.copilot` (or `COPILOT_HOME`). Its
+session store (`session-store.db`) records every billed request in an
+`assistant_usage_events` table: day, model, session, the token split, and the
+cost in nano AI units (1e9 nano units = 1 AI credit ≈ $0.01). CLI versions
+whose store predates it are served by the session transcripts under
+`session-state` instead, whose `session.shutdown` events carry the same
+per-model token split and cost.
+
+The monthly meter is the account-wide allowance of AI credits from GitHub's
+internal quota endpoint (the same one the editor plugins ask), which counts
+every machine, IDE, and agent on the entitlement and names the plan and the
+reset date. It needs a token from `COPILOT_QUOTA_TOKEN`, `GH_TOKEN`,
+`GITHUB_TOKEN`, or `gh auth token`, and only runs where the Copilot CLI has
+been used, so a machine with `gh` signed in but no Copilot stays out of the
+panel. A failed check keeps the last answer, dimmed. When the endpoint can't
+be asked at all, a budget in `~/.config/omarchy/agents/copilot.json` gives a
+meter labeled "(est.)" from this machine's CLI spend alone:
+
+```json
+{
+  "monthlyCredits": 1500,
+  "remote": true
+}
+```
+
+`remote` set to `false` turns the quota probe off, and `true` runs it even
+without a Copilot CLI home. The estimated window resets on the 1st of each
+month at 00:00 UTC, GitHub's own boundary.
 
 ### Fireworks balance
 
@@ -128,6 +203,28 @@ period. `accountId` only matters when one API key can access several
 accounts. Without a configured `fundedAmount` the tab still shows token
 usage, just no balance. With a live ledger, `fundedAmount` is optional and
 only adds the meter and the spent-of-funded line under the real figure.
+
+### Muse limits
+
+Muse reads native CLI sessions from `$XDG_DATA_HOME/muse/sessions`
+(defaulting to `~/.local/share/muse/sessions`, and overridable via
+`MUSE_DATA_DIR`) plus opencode sessions on the `meta` provider, from both of
+opencode's message stores (deduplicated by message id). Muse Spark through
+the OpenCode Zen gateway counts in the `opencode` record instead. The
+OAuth token comes from `MUSE_AUTH_PATH` when set, otherwise from
+`~/.config/muse/auth.json` (which `muse login` creates); the file is only
+ever read, never refreshed or rewritten.
+
+The collector asks the client's own key endpoint for the subscription's
+session and weekly percents with reset times — the same figures the TUI's
+`/usage` overlay shows. Minting is idempotent (the same Model API key comes
+back every call), so polling is safe; the token travels only in the
+`Authorization` header and neither it nor the returned key is persisted. A
+failed check keeps the last good windows, dimmed, until they reset.
+Pay-as-you-go accounts have no subscription windows, so the tab shows
+measured local usage with no meters — never estimated, never zeroed. An
+active plan that returns no `subs_usage` (Muse Code Power Usage answers this
+way on every probe) behaves the same way, except the tab keeps the plan name.
 
 ## Interactions
 
@@ -197,5 +294,5 @@ the same account synced from two machines is not counted twice.
 
 One caveat on "all-time": the Codex collector only reads native session files
 touched in the last 30 days, and Fireworks requests the last 30 days from its
-billing API, so their totals and day counts cover that window. Claude's cover
-every transcript still on disk.
+billing API, so their totals and day counts cover that window. Claude's and
+Muse's cover every session still on disk.

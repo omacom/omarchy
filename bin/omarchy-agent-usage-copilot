@@ -1,0 +1,942 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the GitHub Copilot usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect GitHub Copilot usage into one display-ready JSON record.
+
+GitHub exposes no supported personal-account usage API — the Copilot REST
+endpoints are organization- or enterprise-scoped — but the Copilot CLI keeps
+two local sources this collector reads. The primary one is the session store
+(~/.copilot/session-store.db): its assistant_usage_events table records every
+billed request with day, model, session, token split, and cost in nano AI
+units (1e9 nano units = 1 AI credit at 1 cent). The fallback, for CLI versions
+whose store predates that table, is the session transcript directory
+(~/.copilot/session-state/<id>/events.jsonl), whose shutdown events carry the
+same per-model token split and cost. The record prefers whichever source
+produced numbers, never both.
+
+The monthly meter is an allowance of AI credits: GitHub's own account-wide
+figure from the internal quota endpoint (the same one the editor plugins
+use), asked with a token from COPILOT_QUOTA_TOKEN, GH_TOKEN, GITHUB_TOKEN, or
+`gh auth token`. It names the plan, the allowance, and when it resets, and a
+failed check keeps the last answer, marked stale. Only when it can't be asked
+at all does a monthlyCredits budget from ~/.config/omarchy/agents/copilot.json
+give a local estimate, labeled as one, of this machine's CLI spend:
+
+  {
+    "monthlyCredits": 1500,
+    "remote": true
+  }
+
+remote turns the quota probe off when false, and on even without a Copilot
+CLI home when true; by default it runs only where the CLI has been used.
+
+The agents panel only ever reads the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import calendar
+import datetime as dt
+import fcntl
+import hashlib
+import json
+import os
+import shutil
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "copilot"
+AGENT_NAME = "GitHub Copilot"
+AUTH_HELP = (
+  "Run `copilot` in a terminal and sign in to GitHub to start recording sessions."
+)
+
+ULTRA_SECONDS = 1_000_000_000
+QUOTA_URL = "https://api.github.com/copilot_internal/user"
+REMOTE_TIMEOUT = 6.0
+
+# Plan names as the quota endpoint spells them.
+API_PLAN_LABELS = {
+  "individual": "Pro",
+  "individual_pro": "Pro+",
+  "business": "Business",
+  "enterprise": "Enterprise",
+  "free": "Free",
+  "max": "Max",
+}
+
+# The session store is mutable and grows without bound, so it is size-capped
+# before it is snapshotted. Every scan aggregates as it streams, so the record's
+# size depends on days and models, never on the number of rows.
+MAX_DB_BYTES = 512 * 1024 * 1024
+
+SCAN_REUSE_SECONDS = 20
+LIMITS_ONLY_REUSE_SECONDS = 900
+
+
+def number(value: Any) -> int:
+  try:
+    n = float(value or 0)
+    return round(n) if n == n else 0
+  except (TypeError, ValueError):
+    return 0
+
+
+def expand_path(value: str) -> Path:
+  return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
+
+
+def config_path() -> Path:
+  config_home = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config"))
+  return config_home / "omarchy" / "agents" / "copilot.json"
+
+
+def read_config() -> dict[str, Any]:
+  try:
+    parsed = json.loads(config_path().read_text(encoding="utf-8"))
+    return parsed if isinstance(parsed, dict) else {}
+  except (OSError, ValueError):
+    return {}
+
+
+def cache_root() -> Path:
+  root = (
+    Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache"))
+    / "omarchy"
+    / "agent-usage"
+  )
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+TOKEN_KEYS = (
+  "inputTokens",
+  "outputTokens",
+  "cacheReadInputTokens",
+  "cacheCreationInputTokens",
+)
+
+
+def empty_bucket() -> dict[str, int]:
+  return dict.fromkeys(TOKEN_KEYS, 0)
+
+
+def local_date_string() -> str:
+  return dt.datetime.now().date().isoformat()
+
+
+def recent_date_strings() -> list[str]:
+  today = dt.datetime.now().date()
+  return [
+    (today - dt.timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)
+  ]
+
+
+def month_start(now: dt.datetime) -> dt.datetime:
+  return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def next_month_start(now: dt.datetime) -> dt.datetime:
+  days = calendar.monthrange(now.year, now.month)[1]
+  return month_start(now) + dt.timedelta(days=days)
+
+
+def positive_float(value: Any) -> float:
+  try:
+    n = float(value or 0)
+  except (TypeError, ValueError):
+    return 0.0
+  return n if n > 0 else 0.0
+
+
+def credits_from_nano(nano: Any) -> float:
+  return positive_float(nano) / ULTRA_SECONDS
+
+
+def token_split(
+  prompt_tokens: Any, output_tokens: Any, cache_read: Any, cache_write: Any
+) -> dict[str, int]:
+  """Map Copilot's token counts onto the panel's four disjoint buckets.
+
+  Copilot's input count is the whole prompt, cache reads and writes included,
+  and its output count already includes reasoning tokens. The buckets are
+  disjoint, like the other collectors', so the cached part comes off input
+  and reasoning is never added a second time.
+  """
+  read = number(cache_read)
+  write = number(cache_write)
+  return {
+    "inputTokens": max(0, number(prompt_tokens) - read - write),
+    "outputTokens": number(output_tokens),
+    "cacheReadInputTokens": read,
+    "cacheCreationInputTokens": write,
+  }
+
+
+def clean_name(value: Any) -> str:
+  return str(value or "").strip()
+
+
+def parse_event_time(value: Any) -> dt.datetime | None:
+  """Parse a store or transcript timestamp into timezone-aware local time.
+
+  Accepts ISO-8601 (with or without Z) and epoch seconds or milliseconds.
+  Everything else collapses to None; the caller falls back to the local date.
+  """
+  if value is None:
+    return None
+  if isinstance(value, (int, float)):
+    try:
+      seconds = (
+        float(value) / 1000.0 if float(value) > 10_000_000_000 else float(value)
+      )
+      return dt.datetime.fromtimestamp(seconds, dt.timezone.utc).astimezone()
+    except (OverflowError, OSError, ValueError):
+      return None
+  raw = str(value).strip()
+  if not raw:
+    return None
+  if raw.isdigit():
+    return parse_event_time(int(raw))
+  try:
+    parsed = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+  except ValueError:
+    return None
+  if parsed.tzinfo is None:
+    parsed = parsed.replace(tzinfo=dt.timezone.utc)
+  return parsed.astimezone()
+
+
+def local_day(value: Any) -> str:
+  parsed = parse_event_time(value)
+  return parsed.date().isoformat() if parsed else local_date_string()
+
+
+def utc_month_key(value: Any) -> str:
+  parsed = parse_event_time(value)
+  if parsed is None:
+    return ""
+  return parsed.astimezone(dt.timezone.utc).strftime("%Y-%m")
+
+
+# ------------------------------------------------------------------ database
+
+
+def open_store(path: Path) -> tuple[sqlite3.Connection | None, Path | None]:
+  """Open a private snapshot of the session store.
+
+  The CLI writes to this database continuously in WAL mode. Raw-copying the
+  main file and its -wal sibling cannot be made safe: a checkpoint between
+  the two copies pairs an old database with a newer WAL generation. SQLite's
+  online backup API takes the read lock it needs to produce a consistent
+  copy instead, without ever blocking the writer. The caller must remove the
+  returned temp dir once the connection is closed.
+  """
+  if not path.exists():
+    return None, None
+  try:
+    if path.stat().st_size > MAX_DB_BYTES:
+      return None, None
+  except OSError:
+    return None, None
+
+  tmpdir = None
+  source = None
+  try:
+    tmpdir = Path(tempfile.mkdtemp(prefix="omarchy-copilot-"))
+    source = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5.0)
+    target = sqlite3.connect(tmpdir / "snapshot.db")
+    with target:
+      source.backup(target)
+    target.row_factory = sqlite3.Row
+    return target, tmpdir
+  except (OSError, sqlite3.Error):
+    if tmpdir is not None:
+      shutil.rmtree(tmpdir, ignore_errors=True)
+    return None, None
+  finally:
+    if source is not None:
+      try:
+        source.close()
+      except sqlite3.Error:
+        pass
+
+
+def has_table(conn: sqlite3.Connection, name: str) -> bool:
+  try:
+    row = conn.execute(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1", (name,)
+    ).fetchone()
+    return row is not None
+  except sqlite3.Error:
+    return False
+
+
+def blank_stats() -> dict[str, Any]:
+  return {
+    "todayPrompts": 0,
+    "todaySessions": 0,
+    "todayTotalTokens": 0,
+    "todayTokensByModel": {},
+    "recentDays": [
+      {"date": day, "messageCount": 0} for day in recent_date_strings()
+    ],
+    "modelUsage": {},
+    "totalPrompts": 0,
+    "totalSessions": 0,
+    "activeDays": 0,
+    "activeDates": [],
+    "monthCredits": 0.0,
+  }
+
+
+# --------------------------------------------------------------- aggregate
+
+
+class UsageTally:
+  """Running aggregate shared by both scans.
+
+  It grows with days, sessions, and models, never with raw events, so a scan
+  can stream an entire store or transcript directory through it.
+  """
+
+  def __init__(self) -> None:
+    self.today = local_date_string()
+    self.recent = {
+      day: {"date": day, "messageCount": 0} for day in recent_date_strings()
+    }
+    self.current_utc_month = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m")
+    self.sessions: set[str] = set()
+    self.active_dates: set[str] = set()
+    self.today_sessions: set[str] = set()
+    self.today_prompts = 0
+    self.today_total_tokens = 0
+    self.today_tokens_by_model: dict[str, int] = {}
+    self.total_prompts = 0
+    self.model_usage: dict[str, dict[str, int]] = {}
+    self.month_credits = 0.0
+
+  def prompt(self, session_key: str, day: str) -> None:
+    self.total_prompts += 1
+    self.sessions.add(session_key)
+    self.active_dates.add(day)
+    if day == self.today:
+      self.today_prompts += 1
+      self.today_sessions.add(session_key)
+
+  def usage(self, model: str, day: str, tokens: dict[str, int]) -> None:
+    total = sum(tokens[key] for key in TOKEN_KEYS)
+    if total <= 0:
+      return
+    bucket = self.model_usage.setdefault(model, empty_bucket())
+    for key in TOKEN_KEYS:
+      bucket[key] += tokens[key]
+    if day in self.recent:
+      self.recent[day]["messageCount"] += total
+    if day == self.today:
+      self.today_total_tokens += total
+      self.today_tokens_by_model[model] = (
+        self.today_tokens_by_model.get(model, 0) + total
+      )
+
+  def spend(self, month_key: str, credits: float) -> None:
+    # The allowance window is the current UTC month, matching the reset
+    # boundary; older spend belongs to windows that are already over.
+    if month_key == self.current_utc_month:
+      self.month_credits += credits
+
+  def stats(self) -> dict[str, Any]:
+    return {
+      "todayPrompts": self.today_prompts,
+      "todaySessions": len(self.today_sessions),
+      "todayTotalTokens": self.today_total_tokens,
+      "todayTokensByModel": self.today_tokens_by_model,
+      "recentDays": [self.recent[day] for day in recent_date_strings()],
+      "modelUsage": self.model_usage,
+      "totalPrompts": self.total_prompts,
+      "totalSessions": len(self.sessions),
+      "activeDays": len(self.active_dates),
+      "activeDates": sorted(self.active_dates),
+      "monthCredits": round(self.month_credits, 6),
+    }
+
+
+# ---------------------------------------------------------- store scan
+#
+# The session store's assistant_usage_events table records one row per billed
+# assistant request with day, model, session, the token split, and the cost in
+# total_nano_aiu. Rows stream through the tally rather than being fetched, so
+# lifetime totals cover the whole store at constant memory, and timestamps go
+# through the same lenient parser the transcript fallback uses.
+
+
+def scan_store(conn: sqlite3.Connection) -> dict[str, Any]:
+  tally = UsageTally()
+  try:
+    rows = conn.execute(
+      "SELECT session_id, model, created_at, total_nano_aiu, input_tokens,"
+      " output_tokens, cache_read_tokens, cache_write_tokens"
+      " FROM assistant_usage_events"
+    )
+    for row in rows:
+      session_id = clean_name(row["session_id"])
+      day = local_day(row["created_at"])
+      tally.prompt(session_id or "unknown", day)
+      tally.spend(
+        utc_month_key(row["created_at"]),
+        credits_from_nano(row["total_nano_aiu"]),
+      )
+      tally.usage(
+        clean_name(row["model"]) or "copilot",
+        day,
+        token_split(
+          row["input_tokens"],
+          row["output_tokens"],
+          row["cache_read_tokens"],
+          row["cache_write_tokens"],
+        ),
+      )
+  except sqlite3.Error:
+    return blank_stats()
+  return tally.stats()
+
+
+# ------------------------------------------------------ transcript fallback
+#
+# A CLI whose store predates the assistant_usage_events table still writes one
+# events.jsonl per session, one {"type", "timestamp", "data"} event per line:
+#
+# - user.message is a prompt. data.source marks messages a skill, a subagent,
+#   or the CLI itself injected; those are not the user's prompts.
+# - session.shutdown carries data.modelMetrics: per-model token usage and cost
+#   (totalNanoAiu), cumulative for the session across resumes. The growth since
+#   the previous shutdown is the usage of the segment that just ended, spread
+#   over the days that segment's replies landed on.
+# - assistant.message carries data.outputTokens per reply. It dates a segment's
+#   usage, and stands in for a segment still running with no shutdown yet.
+
+
+def is_prompt(event_type: Any, data: dict[str, Any]) -> bool:
+  return event_type == "user.message" and clean_name(data.get("source")) in (
+    "",
+    "user",
+  )
+
+
+def shutdown_metrics(data: dict[str, Any]) -> dict[str, dict[str, float]]:
+  metrics = data.get("modelMetrics")
+  if not isinstance(metrics, dict):
+    return {}
+  totals: dict[str, dict[str, float]] = {}
+  for model, entry in metrics.items():
+    if not isinstance(entry, dict):
+      continue
+    usage = entry.get("usage")
+    if not isinstance(usage, dict):
+      usage = {}
+    totals[clean_name(model) or "copilot"] = {
+      **token_split(
+        usage.get("inputTokens"),
+        usage.get("outputTokens"),
+        usage.get("cacheReadTokens"),
+        usage.get("cacheWriteTokens"),
+      ),
+      "credits": credits_from_nano(entry.get("totalNanoAiu")),
+    }
+  return totals
+
+
+def apportion(total: int, weights: list[int]) -> list[int]:
+  """Split a whole total in proportion to positive weights, summing exactly."""
+  whole = sum(weights)
+  shares: list[int] = []
+  given = 0
+  running = 0
+  for weight in weights:
+    running += weight
+    share = total * running // whole - given
+    shares.append(share)
+    given += share
+  return shares
+
+
+Reply = tuple[str, str, str, int]  # model, local day, UTC month, output tokens
+
+
+def spread_segment(
+  tally: UsageTally,
+  model: str,
+  delta: dict[str, int],
+  credits: float,
+  replies: list[Reply],
+  shutdown_slot: tuple[str, str],
+) -> None:
+  """Book one model's usage for a finished segment on the days it happened.
+
+  A segment can span midnight, and its shutdown only reports totals. Output
+  splits by each day's reply output, which the transcript records exactly.
+  Input, cache, and cost split by reply count: every reply is one model call
+  that resends the context, so calls, not output, track what was read.
+  """
+  slots: dict[tuple[str, str], list[int]] = {}
+  for reply_model, day, month_key, output in replies:
+    if reply_model == model:
+      slot = slots.setdefault((day, month_key), [0, 0])
+      slot[0] += 1
+      slot[1] += output
+  if not slots:
+    slots[shutdown_slot] = [1, 0]
+
+  calls = [counts[0] for counts in slots.values()]
+  outputs = [counts[1] for counts in slots.values()]
+  if sum(outputs) <= 0:
+    outputs = calls
+  split = {
+    key: apportion(delta[key], outputs if key == "outputTokens" else calls)
+    for key in TOKEN_KEYS
+  }
+  all_calls = sum(calls)
+  for index, (day, month_key) in enumerate(slots):
+    tally.usage(model, day, {key: split[key][index] for key in TOKEN_KEYS})
+    tally.spend(month_key, credits * calls[index] / all_calls)
+
+
+def scan_transcript(event_file: Path, session_key: str, tally: UsageTally) -> None:
+  try:
+    session_mtime = event_file.stat().st_mtime
+  except OSError:
+    session_mtime = 0.0
+
+  # Session totals as of the last shutdown, and the replies since then.
+  reported: dict[str, dict[str, float]] = {}
+  replies: list[Reply] = []
+
+  with event_file.open("r", encoding="utf-8", errors="replace") as handle:
+    for raw in handle:
+      try:
+        entry = json.loads(raw)
+      except ValueError:
+        continue
+      if not isinstance(entry, dict):
+        continue
+      event_type = entry.get("type")
+      data = entry.get("data")
+      if not isinstance(data, dict):
+        continue
+
+      parsed = parse_event_time(entry.get("timestamp"))
+      if parsed is None and session_mtime > 0:
+        parsed = dt.datetime.fromtimestamp(
+          session_mtime, dt.timezone.utc
+        ).astimezone()
+      day = parsed.date().isoformat() if parsed else tally.today
+      month_key = (
+        parsed.astimezone(dt.timezone.utc).strftime("%Y-%m") if parsed else ""
+      )
+
+      if is_prompt(event_type, data):
+        tally.prompt(session_key, day)
+      elif event_type == "assistant.message":
+        model = clean_name(data.get("model")) or "copilot"
+        replies.append(
+          (model, day, month_key, number(data.get("outputTokens")))
+        )
+      elif event_type == "session.shutdown":
+        for model, totals in shutdown_metrics(data).items():
+          before = reported.get(model, {})
+          spread_segment(
+            tally,
+            model,
+            {
+              key: max(0, int(totals[key] - before.get(key, 0)))
+              for key in TOKEN_KEYS
+            },
+            max(0.0, totals["credits"] - before.get("credits", 0.0)),
+            replies,
+            (day, month_key),
+          )
+          reported[model] = totals
+        # The shutdown totals already count these replies.
+        replies.clear()
+
+  for model, day, _month_key, output in replies:
+    tally.usage(model, day, {**empty_bucket(), "outputTokens": output})
+
+
+def scan_transcripts(session_root: Path) -> dict[str, Any]:
+  if not session_root.is_dir():
+    return blank_stats()
+  tally = UsageTally()
+  for session_dir in sorted(p for p in session_root.iterdir() if p.is_dir()):
+    event_file = session_dir / "events.jsonl"
+    if not event_file.is_file():
+      continue
+    try:
+      scan_transcript(event_file, session_dir.name, tally)
+    except OSError:
+      continue
+  return tally.stats()
+
+
+# ------------------------------------------------------------------- cache
+
+
+def scan_cache_paths(home_dir: Path) -> tuple[Path, Path]:
+  digest = hashlib.sha1(str(home_dir).encode("utf-8")).hexdigest()[:16]
+  root = cache_root()
+  return root / f"copilot-scan-{digest}.json", root / f"copilot-scan-{digest}.lock"
+
+
+def read_fresh_json(path: Path, max_age_seconds: float) -> dict[str, Any] | None:
+  if max_age_seconds <= 0 or not path.exists():
+    return None
+  try:
+    age = time.time() - path.stat().st_mtime
+    if 0 <= age <= max_age_seconds:
+      return json.loads(path.read_text(encoding="utf-8"))
+  except Exception:
+    return None
+  return None
+
+
+def write_json(path: Path, payload: dict[str, Any]) -> None:
+  # A temp name unique to this writer, not derived from the target: several
+  # collectors can run at once (the update command backgrounds one per agent,
+  # the panel refreshes on its own), and a shared temp path means the second
+  # replace finds the first one's file already moved away.
+  handle_fd, tmp_name = tempfile.mkstemp(
+    dir=path.parent, prefix=path.name + ".", suffix=".tmp"
+  )
+  tmp = Path(tmp_name)
+  try:
+    with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+      handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+    tmp.chmod(0o644)
+    tmp.replace(path)
+  except BaseException:
+    tmp.unlink(missing_ok=True)
+    raise
+
+
+def read_cached_stats(
+  cache_file: Path, max_age_seconds: float, today: str
+) -> dict[str, Any] | None:
+  cached = read_fresh_json(cache_file, max_age_seconds)
+  if not isinstance(cached, dict) or cached.get("schemaVersion") != 1:
+    return None
+  if cached.get("scanDate") != today:
+    return None
+  stats = cached.get("stats")
+  if not isinstance(stats, dict):
+    return None
+  if not all(
+    key in stats
+    for key in (
+      "todayPrompts",
+      "todayTotalTokens",
+      "recentDays",
+      "activeDates",
+      "modelUsage",
+    )
+  ):
+    return None
+  return stats
+
+
+def write_cached_stats(cache_file: Path, stats: dict[str, Any]) -> None:
+  try:
+    write_json(
+      cache_file,
+      {"schemaVersion": 1, "scanDate": local_date_string(), "stats": stats},
+    )
+  except Exception as exc:
+    print(
+      f"omarchy-agent-usage-copilot: could not write usage cache ({exc})",
+      file=sys.stderr,
+    )
+
+
+def cached_scan(home_dir: Path, max_age_seconds: float) -> dict[str, Any]:
+  try:
+    cache_file, lock_file = scan_cache_paths(home_dir)
+    today = local_date_string()
+    cached = read_cached_stats(cache_file, max_age_seconds, today)
+    if cached is not None:
+      return cached
+    with lock_file.open("w") as lock:
+      fcntl.flock(lock, fcntl.LOCK_EX)
+      cached = read_cached_stats(cache_file, max_age_seconds, today)
+      if cached is not None:
+        return cached
+      stats = direct_scan(home_dir)
+      write_cached_stats(cache_file, stats)
+      return stats
+  except Exception as exc:
+    print(
+      f"omarchy-agent-usage-copilot: cache unavailable ({exc}); scanning directly",
+      file=sys.stderr,
+    )
+    return direct_scan(home_dir)
+
+
+def direct_scan(home_dir: Path) -> dict[str, Any]:
+  conn, tmpdir = open_store(home_dir / "session-store.db")
+  if conn is None:
+    return scan_transcripts(home_dir / "session-state")
+  try:
+    if has_table(conn, "assistant_usage_events"):
+      stats = scan_store(conn)
+      if number(stats.get("totalPrompts")) > 0:
+        return stats
+    # A store without the usage table, or one that is still empty, falls back
+    # to the transcripts exactly like a store-less machine.
+    return scan_transcripts(home_dir / "session-state")
+  finally:
+    conn.close()
+    if tmpdir is not None:
+      shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ------------------------------------------------------------ remote quota
+
+
+def github_token() -> str:
+  """Find a GitHub token without ever storing or logging one.
+
+  Environment first, so a user can scope exactly what this sees, then the
+  `gh` CLI's own credential store, which is where a machine that has signed
+  in already keeps it.
+  """
+  for var in ("COPILOT_QUOTA_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"):
+    value = os.environ.get(var)
+    if value and value.strip():
+      return value.strip()
+  exe = shutil.which("gh")
+  if not exe:
+    return ""
+  try:
+    result = subprocess.run(
+      [exe, "auth", "token"],
+      capture_output=True,
+      text=True,
+      timeout=REMOTE_TIMEOUT,
+      check=False,
+    )
+  except (OSError, subprocess.SubprocessError):
+    return ""
+  return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def ask_quota(token: str) -> dict[str, Any]:
+  """Ask GitHub for the account-wide credit balance."""
+  request = urllib.request.Request(
+    QUOTA_URL,
+    headers={
+      "Authorization": f"Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "omarchy-agent-usage",
+    },
+  )
+  try:
+    with urllib.request.urlopen(request, timeout=REMOTE_TIMEOUT) as response:
+      payload = json.loads(response.read(2_000_000).decode("utf-8", errors="replace"))
+  except urllib.error.HTTPError as exc:
+    return {"available": False, "reason": f"http-{exc.code}"}
+  except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+    return {"available": False, "reason": "unreachable"}
+
+  if not isinstance(payload, dict):
+    return {"available": False, "reason": "bad-payload"}
+
+  snapshots = payload.get("quota_snapshots")
+  snapshot = snapshots.get("premium_interactions") if isinstance(snapshots, dict) else None
+  if not isinstance(snapshot, dict):
+    return {"available": False, "reason": "no-quota"}
+
+  # Under token-based billing the snapshot counts AI credits directly; only
+  # the local store and transcripts count in nano units.
+  return {
+    "available": True,
+    "unlimited": bool(snapshot.get("unlimited")),
+    "entitlement": positive_float(snapshot.get("entitlement")),
+    "used": positive_float(snapshot.get("credits_used")),
+    "resetsAt": str(payload.get("quota_reset_date_utc") or ""),
+    "planLabel": API_PLAN_LABELS.get(str(payload.get("copilot_plan") or "").strip().lower(), ""),
+  }
+
+
+def fetch_remote_quota() -> dict[str, Any]:
+  """The live quota, or the last good one marked stale.
+
+  Every failure is soft: a missing token, an offline machine, or a changed
+  payload keeps the last answer this token got, dimmed, or leaves the record
+  on its local stats rather than failing the whole collection. The cache is
+  keyed by the token, so a machine signed in to another account never shows
+  the last one's allowance.
+  """
+  token = github_token()
+  if not token:
+    return {"available": False, "reason": "no-token"}
+
+  cache = cache_root() / f"copilot-quota-{hashlib.sha256(token.encode('utf-8')).hexdigest()[:16]}.json"
+  quota = ask_quota(token)
+  if quota.get("available"):
+    quota.update(stale=False, fetchedAtMs=round(time.time() * 1000))
+    try:
+      write_json(cache, quota)
+    except OSError:
+      pass
+    return quota
+
+  cached = read_fresh_json(cache, float("inf")) or {}
+  if cached.get("available") and quota_window_open(cached):
+    cached.update(stale=True, failure=quota.get("reason", ""))
+    return cached
+  return quota
+
+
+# A kept answer describes its own allowance window and nothing after it: once
+# that window resets, its usage is gone. Without a reset date, the window is
+# the calendar month (UTC) it was fetched in.
+def quota_window_open(cached: dict[str, Any]) -> bool:
+  now = dt.datetime.now(dt.timezone.utc)
+  resets_at = parse_event_time(str(cached.get("resetsAt") or ""))
+  if resets_at is not None:
+    return resets_at > now
+  fetched = number(cached.get("fetchedAtMs")) / 1000
+  return fetched > 0 and utc_month_key(fetched) == now.strftime("%Y-%m")
+
+
+# ---------------------------------------------------------------- allowance
+
+
+def allowance_limits(
+  month_credits: float,
+  config: dict[str, Any],
+  remote: dict[str, Any] | None,
+  now: dt.datetime,
+  has_stats: bool,
+) -> dict[str, Any]:
+  """The monthly allowance meter.
+
+  The live figure from the quota endpoint counts every machine, editor, and
+  agent on the entitlement, plan included. When it can't be asked, a
+  monthlyCredits budget from the configuration gives a local estimate of this
+  machine's CLI spend, labeled as such; without one there is no meter.
+  """
+  result = {
+    "limits": [],
+    "tierLabel": "",
+    "usageStatusText": "",
+    "authHelpText": AUTH_HELP,
+    "limitsStale": False,
+    "limitsFetchedAt": 0,
+  }
+  resets_at = next_month_start(now).isoformat()
+
+  live = remote if isinstance(remote, dict) and remote.get("available") else None
+  if live:
+    result["tierLabel"] = str(live.get("planLabel") or "")
+    if live.get("unlimited") or float(live.get("entitlement") or 0) <= 0:
+      return result
+    parsed = parse_event_time(str(live.get("resetsAt") or ""))
+    if parsed is not None and parsed > now:
+      resets_at = parsed.isoformat()
+    result["limits"] = [{
+      "label": "Monthly allowance",
+      "percent": min(1.0, float(live.get("used") or 0.0) / float(live["entitlement"])),
+      "resetsAt": resets_at,
+    }]
+    result["limitsStale"] = bool(live.get("stale"))
+    result["limitsFetchedAt"] = number(live.get("fetchedAtMs"))
+    return result
+
+  if remote is not None and remote.get("reason") not in ("no-token", "disabled"):
+    result["usageStatusText"] = "Copilot limits unavailable"
+
+  # A budget must not advertise a meter on a machine the CLI has never
+  # touched: the estimate needs local numbers to mean anything.
+  budget = config.get("monthlyCredits")
+  if isinstance(budget, (int, float)) and budget > 0 and has_stats:
+    result["limits"] = [{
+      "label": "Monthly allowance (est.)",
+      "percent": min(1.0, month_credits / float(budget)),
+      "resetsAt": resets_at,
+    }]
+  return result
+
+
+# ------------------------------------------------------------------ record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser()
+  # --force rescans everything and rewrites the cache. --limits-only is kept
+  # for CLI compatibility with the panel's refreshLimits() call: only the
+  # limits probe must be fresh, so it may reuse a scan for far longer than a
+  # normal run, whose short window exists purely to dedup concurrent
+  # collector runs.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  parser.add_argument("--copilot-home", default=os.environ.get("COPILOT_HOME") or "~/.copilot")
+  args = parser.parse_args()
+
+  home_dir = expand_path(args.copilot_home)
+  max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
+  stats = cached_scan(home_dir, max_age)
+
+  config = read_config()
+  now = dt.datetime.now(dt.timezone.utc)
+
+  # The quota probe hands a GitHub token to GitHub, so it only runs where the
+  # Copilot CLI has been used, or where the configuration asks for it. A
+  # machine with gh signed in but no Copilot stays an empty record.
+  remote = {"available": False, "reason": "disabled"}
+  if config.get("remote") is True or (config.get("remote", True) is not False and home_dir.is_dir()):
+    remote = fetch_remote_quota()
+
+  has_stats = number(stats.get("totalPrompts")) > 0 or float(stats.get("monthCredits") or 0.0) > 0
+  allowance = allowance_limits(float(stats.get("monthCredits") or 0.0), config, remote, now, has_stats)
+
+  record: dict[str, Any] = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": now.isoformat(),
+    "ready": number(stats.get("totalPrompts")) > 0 or len(allowance["limits"]) > 0,
+    "hasLocalStats": True,
+    "tierLabel": allowance["tierLabel"],
+    "usageStatusText": allowance["usageStatusText"],
+    "authHelpText": allowance["authHelpText"],
+    "limits": allowance["limits"],
+    "limitsStale": allowance["limitsStale"],
+    "limitsFetchedAt": allowance["limitsFetchedAt"],
+  }
+  for key in (
+    "todayPrompts",
+    "todaySessions",
+    "todayTotalTokens",
+    "totalPrompts",
+    "totalSessions",
+    "activeDays",
+  ):
+    record[key] = number(stats.get(key))
+  record["todayTokensByModel"] = stats.get("todayTokensByModel") or {}
+  record["recentDays"] = stats.get("recentDays") or []
+  record["modelUsage"] = stats.get("modelUsage") or {}
+  record["activeDates"] = stats.get("activeDates") or []
+  print(json.dumps(record, separators=(",", ":")))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
