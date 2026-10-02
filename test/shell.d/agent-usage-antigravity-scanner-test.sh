@@ -120,14 +120,14 @@ print(Path(os.environ['AGY_TEST_FIXTURE']).read_text())
     self.assertTrue(record['hasLocalStats'])
     self.assertEqual(record['tierLabel'], '')
     self.assertEqual(record['usageStatusText'], '')
-    self.assertEqual([e['percent'] for e in record['limits']], [0, .27, .03])
+    self.assertEqual([e['percent'] for e in record['limits']], [0, .27, 0, .03])
     self.assertEqual(record['todayPrompts'], 1)
     self.assertEqual(record['todayTotalTokens'], 0)
     self.assertEqual(record['modelUsage'], {})
     calls = self.log.read_text()
     (self.app / 'history.jsonl').write_text((json.dumps({'display': 'hello', 'timestamp': stamp}) + '\n') * 3)
     self.assertEqual(self.run_collector('--limits-only')['todayPrompts'], 1)
-    self.assertEqual(self.log.read_text(), calls)
+    self.assertEqual(len(self.log.read_text().splitlines()), len(calls.splitlines()) + 2)
     self.assertEqual(self.run_collector('--force')['todayPrompts'], 3)
     stats_path = next((self.home / 'cache/omarchy/agent-usage').glob('*.stats.json'))
     cached = json.loads(stats_path.read_text())
@@ -161,9 +161,38 @@ print(Path(os.environ['AGY_TEST_FIXTURE']).read_text())
     self.assertEqual(self.log.read_text().splitlines(), ['["--version"]'])
     self.run_collector('--force')
     stale = self.run_collector('--force', AGY_TEST_ERROR='network unavailable')
-    self.assertTrue(stale['limitsStale'])
-    self.assertEqual(len(stale['limits']), 3)
+    self.assertFalse(stale['limitsStale'])
+    self.assertEqual(stale['limits'], [])
     self.assertTrue(stale['retryAdvised'])
+
+  def test_partial_and_disjoint_history_preserve_distinct_prompts(self):
+    history = [{'display': 'shared', 'timestamp': '2026-09-27T12:00:00Z'},
+               {'display': 'history only', 'timestamp': '2026-09-27T12:01:00Z'}]
+    (self.app / 'history.jsonl').write_text('\n'.join(json.dumps(e) for e in history))
+    for shared, expected in [('shared', 4), ('different prompt', 5)]:
+      self.transcript('session', [
+        {'step_index': 0, 'type': 'USER_INPUT', 'created_at': '2026-09-27T12:00:00.400Z', 'content': '<USER_REQUEST>\n' + shared + '\n</USER_REQUEST>'},
+        {'step_index': 1, 'type': 'USER_INPUT', 'created_at': '2026-09-27T12:02:00Z', 'content': 'transcript only'},
+        {'step_index': 2, 'type': 'USER_INPUT', 'created_at': '2026-09-27T12:03:00Z', 'content': 'shared'}])
+      with patch.dict(os.environ, {'TZ': 'UTC'}):
+        time.tzset()
+        stats = collector.collect_local_stats(self.app, datetime(2026, 9, 27, 14, tzinfo=timezone.utc))
+      time.tzset()
+      self.assertEqual(stats['todayPrompts'], expected)
+      self.assertEqual(stats['totalPrompts'], expected)
+
+  def test_account_switch_and_new_sign_in_are_visible_immediately(self):
+    first = self.run_collector()
+    other = json.loads(Path(self.env['AGY_TEST_FIXTURE']).read_text())
+    other['command']['data']['groups'][1]['buckets'][1]['remaining_fraction'] = .2
+    other_file = self.home / 'other-account.json'
+    other_file.write_text(json.dumps(other))
+    second = self.run_collector(AGY_TEST_FIXTURE=str(other_file))
+    self.assertEqual(first['limits'][0]['percent'], 0)
+    self.assertEqual(second['limits'][0]['percent'], .8)
+    self.assertEqual(self.run_collector(AGY_TEST_ERROR='401 signed out')['limits'], [])
+    self.assertEqual(self.run_collector()['usageStatusText'], '')
+    self.assertFalse(list((self.home / 'cache').rglob('*.limits.json')))
 
   def test_stock_wrapper_does_not_install(self):
     self.cli.write_text('#!/bin/bash\nmise use -g antigravity-cli\nexit 99\n')

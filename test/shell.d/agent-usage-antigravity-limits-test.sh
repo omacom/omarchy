@@ -9,7 +9,6 @@ import importlib.machinery
 import importlib.util
 import json
 import os
-import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -25,8 +24,8 @@ class Limits(unittest.TestCase):
   def test_real_cli_shape_and_reversed_groups(self):
     data = fixture['command']['data']
     limits = collector.extract_limits(data)
-    self.assertEqual([v['title'] for v in limits], ['Session', 'Weekly', 'Claude/GPT Weekly'])
-    self.assertEqual([v['percent'] for v in limits], [0, .27, .03])
+    self.assertEqual([v['title'] for v in limits], ['Session', 'Weekly', 'Claude/GPT Session', 'Claude/GPT Weekly'])
+    self.assertEqual([v['percent'] for v in limits], [0, .27, 0, .03])
     reversed_data = {'groups': list(reversed(data['groups']))}
     self.assertEqual(limits, collector.extract_limits(reversed_data))
     self.assertEqual(limits[0]['resetsAt'], '2099-10-02T07:42:57+00:00')
@@ -44,7 +43,8 @@ class Limits(unittest.TestCase):
 
   def test_only_scoped_group_keeps_its_identity(self):
     data = {'groups': [fixture['command']['data']['groups'][0]]}
-    self.assertEqual(collector.extract_limits(data)[0]['title'], 'Claude/GPT Weekly')
+    self.assertEqual([limit['title'] for limit in collector.extract_limits(data)], ['Claude/GPT Session', 'Claude/GPT Weekly'])
+    self.assertEqual(collector.extract_limits(data)[0]['percent'], 0)
 
   def test_version_gate_never_prompts_an_old_or_unknown_cli(self):
     for version in ['1.1.10', '1.0.99', 'unknown', '1.1.11-preview', '']:
@@ -75,43 +75,28 @@ class Limits(unittest.TestCase):
     with patch.object(collector, 'run_cli', side_effect=collector.subprocess.TimeoutExpired('agy', 20)):
       self.assertTrue(collector.probe_limits('agy')['retryAdvised'])
 
-  def test_stale_cache_expiry_auth_clear_and_force(self):
+  def test_every_check_reads_the_current_sign_in(self):
     good = {'limits': collector.extract_limits(fixture['command']['data']), 'usageStatusText': '', 'authHelpText': ''}
-    with tempfile.TemporaryDirectory() as tmp:
-      cache = Path(tmp) / 'limits.json'
-      with patch.object(collector, 'probe_limits', return_value=good) as probe:
-        live = collector.collect_limits('agy', cache, False)
-        self.assertFalse(live['limitsStale'])
-        self.assertGreater(live['limitsFetchedAt'], 0)
-        self.assertEqual(collector.collect_limits('agy', cache, False)['limits'], live['limits'])
-        self.assertEqual(probe.call_count, 1)
-        collector.collect_limits('agy', cache, True)
-        self.assertEqual(probe.call_count, 2)
-      failure = collector.probe_failure('network unavailable')
-      with patch.object(collector, 'probe_limits', return_value=failure) as probe:
-        stale = collector.collect_limits('agy', cache, True)
-        self.assertEqual(stale['limits'], live['limits'])
-        self.assertTrue(stale['limitsStale'])
-        self.assertTrue(stale['retryAdvised'])
-        self.assertIn('last known limits', stale['authHelpText'])
-        reused = collector.collect_limits('agy', cache, False)
-        self.assertTrue(reused['limitsStale'])
-        self.assertEqual(probe.call_count, 1)
-        cached = json.loads(cache.read_text())
-        cached['limits'][0]['resetsAt'] = '2000-01-01T00:00:00Z'
-        cached['limits'][1]['resetsAt'] = ''
-        collector.write_json(cache, cached)
-        remaining = collector.collect_limits('agy', cache, True)
-        self.assertEqual(len(remaining['limits']), 1)
-      with patch.object(collector, 'probe_limits', return_value=collector.probe_failure('401')):
-        signed_out = collector.collect_limits('agy', cache, True)
-        self.assertEqual(signed_out['limits'], [])
-        self.assertEqual(json.loads(cache.read_text())['limits'], [])
-      for invalid in ['[]', '{bad', '{"limits": 5, "fetchedAtMs": "bad"}']:
-        cache.write_text(invalid)
-        with patch.object(collector, 'probe_limits', return_value=failure):
-          self.assertEqual(collector.collect_limits('agy', cache, True)['limits'], [])
+    other = {'limits': [{'title': 'Session', 'percent': .8, 'resetsAt': '2099-01-01T00:00:00Z'}], 'usageStatusText': '', 'authHelpText': ''}
+    failure = collector.probe_failure('network unavailable')
+    auth = collector.probe_failure('401')
+    with patch.object(collector, 'probe_limits', side_effect=[good, other, failure, auth, good]) as probe:
+      first = collector.collect_limits('agy')
+      second = collector.collect_limits('agy')
+      self.assertEqual(first['limits'], good['limits'])
+      self.assertEqual(second['limits'], other['limits'])
+      self.assertGreater(second['limitsFetchedAt'], 0)
+      offline = collector.collect_limits('agy')
+      self.assertEqual(offline['limits'], [])
+      self.assertTrue(offline['retryAdvised'])
+      self.assertEqual(offline['limitsFetchedAt'], 0)
+      signed_out = collector.collect_limits('agy')
+      self.assertEqual(signed_out['limits'], [])
+      signed_in = collector.collect_limits('agy')
+      self.assertEqual(signed_in['usageStatusText'], '')
+      self.assertEqual(signed_in['limits'], good['limits'])
+      self.assertEqual(probe.call_count, 5)
 
 unittest.main(verbosity=2)
 PY
-pass "Antigravity quota parsing, version safety, failures and cache freshness"
+pass "Antigravity quota parsing, version safety, failures and account changes"

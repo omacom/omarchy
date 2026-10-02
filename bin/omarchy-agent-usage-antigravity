@@ -23,14 +23,13 @@ import sqlite3
 import subprocess
 import tempfile
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SCAN_REUSE_SECONDS = 20
 LIMITS_ONLY_REUSE_SECONDS = 900
-PROBE_REUSE_SECONDS = 60
-CACHE_VERSION = 2
+CACHE_VERSION = 3
 AUTH_HELP = "Run `agy` to check your sign-in, then refresh the panel."
 
 
@@ -91,6 +90,7 @@ def collect_local_stats(root, now):
   days = [(now.astimezone().date() - timedelta(days=i)).isoformat() for i in range(6, -1, -1)]
   history_prompts = Counter()
   transcript_prompts = Counter()
+  history_events = defaultdict(list)
   active_dates = set()
   sessions = set()
   today_sessions = set()
@@ -115,6 +115,9 @@ def collect_local_stats(root, now):
     day = activity(entry.get("timestamp"), entry.get("conversationId") or entry.get("conversation_id"))
     if day:
       history_prompts[day] += 1
+      stamp = parse_time(entry["timestamp"]).timestamp()
+      history_events[int(stamp)].append({"time": stamp, "text": display, "matched": False,
+                                        "session": entry.get("conversationId") or entry.get("conversation_id")})
 
   for transcript in (root / "brain").glob("*/.system_generated/logs/transcript.jsonl"):
     session = transcript.parents[2].name
@@ -130,7 +133,25 @@ def collect_local_stats(root, now):
       seen.add(key)
       day = activity(entry.get("created_at"), session)
       if day and entry.get("type") == "USER_INPUT":
-        transcript_prompts[day] += 1
+        stamp = parse_time(entry["created_at"]).timestamp()
+        content = entry.get("content")
+        candidates = []
+        # CLI history timestamps are milliseconds; transcript creation is
+        # slightly later and may wrap the prompt in <USER_REQUEST> context.
+        # Match one event at a time so distinct prompts from either source
+        # survive, including repeated text and partially retained logs.
+        for second in range(int(stamp) - 1, int(stamp) + 2):
+          for event in history_events.get(second, []):
+            text = event["text"]
+            if (not event["matched"] and abs(event["time"] - stamp) <= 1
+                and (not event["session"] or event["session"] == session)
+                and isinstance(text, str) and text.strip() and isinstance(content, str)
+                and (content.strip() == text.strip() or (content.startswith("<USER_REQUEST>") and text.strip() in content))):
+              candidates.append(event)
+        if candidates:
+          min(candidates, key=lambda event: abs(event["time"] - stamp))["matched"] = True
+        else:
+          transcript_prompts[day] += 1
 
   # Summaries also know about conversations whose transcript is unavailable.
   database = root / "conversation_summaries.db"
@@ -147,9 +168,7 @@ def collect_local_stats(root, now):
     except sqlite3.Error:
       pass
 
-  # The same prompt lives in both logs. Per-day maxima use history as a
-  # fallback without adding it on top of transcript counts.
-  prompts = {day: max(history_prompts[day], transcript_prompts[day]) for day in active_dates}
+  prompts = history_prompts + transcript_prompts
   return {
     "todayPrompts": prompts.get(today, 0),
     "todaySessions": len(today_sessions),
@@ -230,8 +249,6 @@ def extract_limits(data):
         if not math.isfinite(remaining) or not 0 <= remaining <= 1:
           continue
         used = round(1 - remaining, 4)
-        if group is not primary and used == 0:
-          continue
         reset = parse_time(bucket.get("reset_time"))
         limits.append({
           "label": label if group is primary else f"{scoped} {label}",
@@ -286,42 +303,18 @@ def probe_limits(cli):
     return probe_failure("could not read CLI output")
 
 
-def collect_limits(cli, path, force):
-  now = time.time()
-  cached = read_json(path)
-  entries = cached.get("limits")
-  fetched = cached.get("fetchedAtMs", 0)
-  if not isinstance(fetched, (int, float)) or not math.isfinite(fetched):
-    fetched = 0
-  # Unknown reset times cannot establish that an old window is still open.
-  fallback = [entry for entry in entries if isinstance(entry, dict)
-              and isinstance(entry.get("percent"), (int, float)) and 0 <= entry["percent"] <= 1
-              and (reset := parse_time(entry.get("resetsAt"))) and reset.timestamp() > now] if isinstance(entries, list) else []
-  result = {"limits": fallback, "limitsStale": bool(fallback), "limitsFetchedAt": fetched,
+def collect_limits(cli):
+  # /usage provides no account identifier. Reusing quotas or errors across
+  # calls could attribute a previous sign-in's result to the current account.
+  # Always ask the CLI and leave the meters empty when it cannot answer.
+  result = {"limits": [], "limitsStale": False, "limitsFetchedAt": 0,
             "usageStatusText": "", "authHelpText": "", "retryAdvised": False}
-  checked = cached.get("checkedAtMs", 0)
-  reuse = 15 if cached.get("retryAdvised") else PROBE_REUSE_SECONDS
   if not cli:
     result.update(usageStatusText="Antigravity CLI unavailable", authHelpText="Install Antigravity CLI and run `agy` to sign in.")
-  elif not force and isinstance(checked, (int, float)) and 0 <= now - checked / 1000 < reuse:
-    result.update({key: cached[key] for key in ("usageStatusText", "authHelpText", "retryAdvised") if key in cached})
-    result["limitsStale"] = bool(fallback) and cached.get("limitsStale", False)
-    if not fallback and not result["usageStatusText"]:
-      # A window rolled over during the reuse interval; get its new value.
-      return collect_limits(cli, path, True)
-    return result
   else:
-    probe = probe_limits(cli)
-    result.update(probe)
-    if probe.get("limits"):
-      result.update(limitsStale=False, limitsFetchedAt=round(time.time() * 1000))
-    elif result["usageStatusText"] == "Antigravity sign-in required":
-      # The CLI may have signed out or switched accounts. Do not attribute a
-      # previous account's numbers to the next successful sign-in.
-      result.update(limits=[], limitsStale=False, limitsFetchedAt=0)
-  if result["limitsStale"]:
-    result["authHelpText"] += " Showing the last known limits until their windows reset."
-  write_json(path, {**result, "fetchedAtMs": result["limitsFetchedAt"], "checkedAtMs": round(time.time() * 1000)})
+    result.update(probe_limits(cli))
+    if result["limits"]:
+      result["limitsFetchedAt"] = round(time.time() * 1000)
   return result
 
 
@@ -334,7 +327,7 @@ def tier_label():
 
 def main():
   parser = argparse.ArgumentParser(description=__doc__)
-  parser.add_argument("--force", action="store_true", help="Bypass local caches and read fresh quotas")
+  parser.add_argument("--force", action="store_true", help="Bypass the history cache; quotas are always read fresh")
   parser.add_argument("--limits-only", action="store_true", help="Reuse a recent history scan")
   args = parser.parse_args()
   root = app_root()
@@ -356,7 +349,7 @@ def main():
         or not isinstance(fetched, (int, float)) or not 0 <= time.time() - fetched < age):
       stats = collect_local_stats(root, now)
       write_json(stats_path, {"scanDate": now.date().isoformat(), "fetchedAt": time.time(), "stats": stats})
-    limits = collect_limits(installed_cli(), prefix.with_suffix(".limits.json"), args.force)
+    limits = collect_limits(installed_cli())
   has_stats = stats["totalPrompts"] > 0 or stats["totalSessions"] > 0
   record = {"schemaVersion": 1, "id": "antigravity", "name": "Antigravity",
             "updatedAt": datetime.now(timezone.utc).isoformat(), "ready": has_stats or bool(limits["limits"]),
