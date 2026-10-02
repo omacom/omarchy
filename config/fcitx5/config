@@ -1,0 +1,7 @@
+# fcitx5's defaults bind Super+Space and Super+Shift+Space to input-method
+# group switching. Those chords are the Omarchy menu and the top-bar toggle.
+# With a single keyboard group the fcitx action does nothing visible, and the
+# keypress never reaches Hyprland. Empty lists disable the two hotkeys.
+[Hotkey/EnumerateGroupForwardKeys]
+
+[Hotkey/EnumerateGroupBackwardKeys]
