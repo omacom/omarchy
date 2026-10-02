@@ -14,6 +14,7 @@ Item {
 
   property bool opened: false
   property bool isLoaded: false
+  property string originalLoadedText: ""
   property string fontFamily: Style.font.menuFamily
 
   property color background: Color.menu.background
@@ -41,6 +42,7 @@ Item {
       } else if (!root.opened) {
         noteTextEdit.text = loaded
       }
+      root.originalLoadedText = loaded
     }
     onLoadFailed: {
       if (!root.isLoaded) {
@@ -82,7 +84,22 @@ Item {
 
   function saveNote() {
     if (root.isLoaded) {
+      var currentDiskText = noteFile.text() || ""
+      if (currentDiskText !== root.originalLoadedText) {
+        // Disk changed in background! If it was just an append (like CLI), preserve it.
+        if (currentDiskText.startsWith(root.originalLoadedText)) {
+          var appendedText = currentDiskText.substring(root.originalLoadedText.length)
+          noteTextEdit.text = noteTextEdit.text + appendedText
+        } else {
+          // It was completely changed, just append it
+          noteTextEdit.text = noteTextEdit.text + "
+
+--- Background Changes ---
+" + currentDiskText
+        }
+      }
       noteFile.setText(noteTextEdit.text)
+      root.originalLoadedText = noteTextEdit.text
     }
   }
 
