@@ -64,19 +64,25 @@ case $1 in
   post)
     expected=$(cat "$state" 2>/dev/null || echo 0)
     (( expected > 0 )) || exit 0
-    (
-      for _ in $(seq 1 30); do
-        echo 1 > /sys/bus/pci/rescan
-        (( $(tb_upstream_bridges | wc -l) >= expected )) && break
-        sleep 1
-      done
-      sleep 1
+    # The rescan must outlive this hook: systemd-sleep runs the hooks inside
+    # systemd-suspend.service, and everything left in that cgroup is killed
+    # the moment the last hook returns, a backgrounded subshell included. A
+    # transient unit of its own survives it.
+    systemd-run --quiet --no-block --collect "$(readlink -f "$0")" rescan "$expected"
+    ;;
+  rescan)
+    expected=${2:-0}
+    for _ in $(seq 1 30); do
       echo 1 > /sys/bus/pci/rescan
-      for dev in $(tb_downstream_bridges); do
-        has_children "$dev" || reset_secondary_bus "$dev"
-      done
+      (( $(tb_upstream_bridges | wc -l) >= expected )) && break
       sleep 1
-      echo 1 > /sys/bus/pci/rescan
-    ) &
+    done
+    sleep 1
+    echo 1 > /sys/bus/pci/rescan
+    for dev in $(tb_downstream_bridges); do
+      has_children "$dev" || reset_secondary_bus "$dev"
+    done
+    sleep 1
+    echo 1 > /sys/bus/pci/rescan
     ;;
 esac
