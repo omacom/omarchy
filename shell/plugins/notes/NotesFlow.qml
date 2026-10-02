@@ -13,6 +13,7 @@ Item {
   property var manifest: null
 
   property bool opened: false
+  property bool isLoaded: false
   property string fontFamily: Style.font.menuFamily
 
   property color background: Color.menu.background
@@ -33,14 +34,18 @@ Item {
     printErrors: false
     onLoaded: {
       var loaded = text() || ""
-      if (noteTextEdit.text !== loaded) {
+      if (!root.isLoaded) {
         noteTextEdit.text = loaded
         noteTextEdit.cursorPosition = noteTextEdit.length
+        root.isLoaded = true
+      } else if (!root.opened) {
+        noteTextEdit.text = loaded
       }
     }
     onLoadFailed: {
-      if (noteTextEdit.text !== "") {
+      if (!root.isLoaded) {
         noteTextEdit.text = ""
+        root.isLoaded = true
       }
     }
   }
@@ -51,6 +56,7 @@ Item {
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
 
     if (!root.opened) {
+      root.isLoaded = false
       noteFile.reload()
     }
     root.opened = true
@@ -75,7 +81,9 @@ Item {
   }
 
   function saveNote() {
-    noteFile.setText(noteTextEdit.text)
+    if (root.isLoaded) {
+      noteFile.setText(noteTextEdit.text)
+    }
   }
 
   PanelWindow {
@@ -118,6 +126,7 @@ Item {
         anchors.leftMargin: card.contentLeftInset
 
         Flickable {
+          id: flickable
           anchors.fill: parent
           contentWidth: width
           contentHeight: noteTextEdit.implicitHeight
@@ -132,6 +141,15 @@ Item {
             font.pixelSize: Style.font.heading
             wrapMode: TextEdit.Wrap
             selectByMouse: true
+            readOnly: !root.isLoaded
+
+            onCursorRectangleChanged: {
+              if (cursorRectangle.y < flickable.contentY) {
+                flickable.contentY = cursorRectangle.y
+              } else if (cursorRectangle.y + cursorRectangle.height > flickable.contentY + flickable.height) {
+                flickable.contentY = cursorRectangle.y + cursorRectangle.height - flickable.height
+              }
+            }
 
             Keys.priority: Keys.BeforeItem
             Keys.onPressed: function(event) {
