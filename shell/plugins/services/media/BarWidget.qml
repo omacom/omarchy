@@ -40,7 +40,7 @@ BarWidget {
       font.pixelSize: Style.font.body
       Behavior on color {
         enabled: !root.bar || root.bar.foregroundAnimationEnabled
-        ColorAnimation { duration: 160 }
+        ColorAnimation { duration: Style.duration(160) }
       }
     }
 
@@ -62,7 +62,7 @@ BarWidget {
         anchors.verticalCenter: parent.verticalCenter
 
         property bool needsScroll: implicitWidth > scrollClip.width
-        readonly property bool shouldScroll: needsScroll && !root.popupOpen && !root.bar.vertical
+        readonly property bool shouldScroll: needsScroll && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
 
         // A running NumberAnimation latches from/to at start and ignores later
         // changes, so restart it once the width bindings have settled.
