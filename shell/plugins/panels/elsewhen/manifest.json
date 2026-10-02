@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.elsewhen",
+  "name": "Elsewhen",
+  "version": "1.0.0",
+  "author": "Jason Fried",
+  "license": "MIT",
+  "description": "A world clock for the Omarchy shell: the time in several cities at once, with a spinnable globe.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Elsewhen",
+    "description": "A world clock: one row per city, and a globe.",
+    "category": "Time",
+    "aliases": [
+      "worldclock",
+      "world clock",
+      "timezones"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "zones": "",
+      "offsetMode": "home",
+      "units": "",
+      "globeEnabled": true,
+      "homeCity": "",
+      "smoothMotion": true
+    },
+    "schema": [
+      {
+        "key": "zones",
+        "type": "string",
+        "label": "Zones (Label|IANA name, comma separated; blank seeds on first run)",
+        "defaultValue": ""
+      },
+      {
+        "key": "hour24",
+        "type": "boolean",
+        "label": "24-hour time (unset follows the system)"
+      },
+      {
+        "key": "offsetMode",
+        "type": "string",
+        "label": "Row offsets: home (distance from you) or utc",
+        "defaultValue": "home"
+      },
+      {
+        "key": "units",
+        "type": "string",
+        "label": "Temperature units (F or C; blank follows the system)",
+        "defaultValue": ""
+      },
+      {
+        "key": "globeEnabled",
+        "type": "boolean",
+        "label": "Globe mode (tap the hero globe)",
+        "defaultValue": true
+      },
+      {
+        "key": "homeCity",
+        "type": "string",
+        "label": "Your city (blank = from the system time zone)",
+        "defaultValue": ""
+      },
+      {
+        "key": "smoothMotion",
+        "type": "boolean",
+        "label": "Drop labels and detail while the globe moves",
+        "defaultValue": true
+      }
+    ]
+  }
+}

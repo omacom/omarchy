@@ -45,6 +45,7 @@ Clicking a bar icon opens a panel, which is a proper popup with sliders, lists, 
 | `Super + Ctrl + D` | Display |
 | `Super + Ctrl + P` | Power |
 | `Super + Ctrl + Alt + D` | Calendar |
+| `Super + Ctrl + Alt + E` | World clock |
 | `Super + Ctrl + 1-9` | Toggle the nth panel in the right section |
 
 The panels aren't read-outs. They're where you actually do the thing:

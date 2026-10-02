@@ -69,7 +69,7 @@ PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
   fail "image menu recovers thumbnails from stranded locks"
 (( $(awk 'END { print NR }' "$cache_dir/$cache_key.rows") == 3 )) ||
   fail "image menu rebuilds every row after cache invalidation"
-[[ $(head -n 1 "$cache_dir/$cache_key.signature") == "v3" ]] ||
+[[ $(head -n 1 "$cache_dir/$cache_key.signature") == "v4" ]] ||
   fail "image menu invalidates stale row caches"
 [[ ! -e $stale_tmp ]] ||
   fail "image menu clears partial thumbnails left by killed generators"
@@ -139,3 +139,15 @@ PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" VIPSTHUMBNAIL_CALLS_FILE="$t
 
 (( $(wc -l <"$tmp/calls") == 6 )) || fail "image menu releases thumbnail locks after generation"
 pass "image menu owns locks for exactly one generator lifetime"
+
+rm -rf "$cache_home"
+mkdir -p "$cache_home"
+rows=$(PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
+  "$ROOT/bin/omarchy-menu-images" --print-rows "$images")
+
+(( $(wc -l <<<"$rows") == 3 )) || fail "image menu prints one row per image"
+while IFS=$'\t' read -r row_image row_thumbnail; do
+  [[ $row_image == "$images"/* && -f $row_thumbnail ]] ||
+    fail "image menu prints each image with its generated thumbnail"
+done <<<"$rows"
+pass "image menu prints its rows for the shell to hold"
