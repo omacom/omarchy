@@ -62,7 +62,7 @@ done <<<"$notifications"
 pass "taildrop receive announcements wait to be answered"
 
 for name in photo.png "notes with space.pdf"; do
-  grep -q "^Received $name .* -g " <<<"$notifications" ||
+  grep -qF -- "-g 󰒊 --exec xdg-open $downloads/$name" <<<"$notifications" ||
     fail "taildrop receive announces every file with a glyph" "$notifications"
 done
 pass "taildrop receive announces every file with a glyph"
