@@ -4,19 +4,18 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+fixture_dir=$(mktemp -d)
+trap 'rm -rf "$fixture_dir"' EXIT
+
 # Qt Quick Test is optional on headless CI; no Quickshell or compositor needed.
-runner=$(command -v qmltestrunner || command -v qmltestrunner6 || true)
-if [[ -z $runner && -x /usr/lib/qt6/bin/qmltestrunner ]]; then
-  runner=/usr/lib/qt6/bin/qmltestrunner
-fi
+source "$SHELL_TEST_DIR/fixtures/menu-selector-model/runner.sh"
+runner=$(find_qt6_qmltestrunner "$fixture_dir" || true)
 if [[ -z $runner ]]; then
   skip "selector model runtime test requires optional Qt 6 qmltestrunner"
   exit 0
 fi
 require_command node
 
-fixture_dir=$(mktemp -d)
-trap 'rm -rf "$fixture_dir"' EXIT
 export SELECTOR_MODEL_FIXTURE_DIR="$fixture_dir"
 
 # Execute the production functions, rather than a copied JS implementation.
@@ -36,5 +35,5 @@ JS
 
 # The GTK platform theme can try to open a display even with offscreen selected.
 QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software \
-  "$runner" -input "$fixture_dir"
+  "$runner" -input "$fixture_dir/tst_selector.qml"
 pass "selector production functions preserve Qt model rows, roles, selection, and batched signals"

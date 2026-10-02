@@ -34,6 +34,8 @@ live under `test/shell.d/fixtures/`.
 
 `bash test/shell.d/menu-selector-model-test.sh` runs the selector's production rebuild and selection functions in Qt Quick Test with a real `ListModel`. It checks filtered rows and role types, literal selection values, empty and input modes, cursor clamping, deferred reveal, and batched model signals. Only cursor reveal and result-file writing are stubbed; this is model runtime coverage, not a graphical acceptance test. It runs offscreen and skips explicitly when the optional Qt 6 `qmltestrunner` is unavailable.
 
+The selector test prefers `qmltestrunner6` and the Qt 6 library-directory executable over an unversioned runner. A small QML runtime probe verifies Qt 6 before accepting any candidate. `bash test/shell.d/menu-selector-runner-test.sh` covers mixed Qt versions, the unversioned fallback, failed runners, and missing optional dependencies without needing Qt installed.
+
 ## The base-test.sh contract
 
 Every shell test starts the same way:
