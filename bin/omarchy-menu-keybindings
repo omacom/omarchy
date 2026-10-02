@@ -265,6 +265,10 @@ modmask_to_text() {
   esac
 }
 
+lua_bind_identity() {
+  printf '%s\x1f%s\x1f%s\x1f%s\x1f%s' "$1" "$2" "$3" "$4" "$5" | base64 -w0
+}
+
 # Fetch dynamic keybindings from Hyprland.
 #
 # Also do some pre-processing:
@@ -273,7 +277,7 @@ modmask_to_text() {
 # - Map numeric modifier key mask to a textual rendition
 # - Output comma-separated values that the parser can understand
 dynamic_bindings() {
-  local modmask key keycode description dispatcher arg modifiers cache_key
+  local modmask submap key keycode description dispatcher arg modifiers cache_key raw_key
 
   # Parse the plain `hyprctl binds` output rather than `hyprctl -j binds`:
   # Hyprland 0.56.0 emits invalid JSON for binds (misaligned fields in
@@ -282,13 +286,15 @@ dynamic_bindings() {
     function emit() {
       if (!seen) return
       seen = 0
-      printf "%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", f["modmask"], f["key"], f["keycode"], f["description"], f["dispatcher"], f["arg"]
+      printf "%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", f["modmask"], f["submap"], f["key"], f["keycode"], f["description"], f["dispatcher"], f["arg"]
     }
     /^bind/ { emit(); seen = 1; delete f; next }
     seen && match($0, /^\t[a-z]+: /) { f[substr($0, 2, RLENGTH - 3)] = substr($0, RLENGTH + 1) }
     END { emit() }
   ' |
-    while IFS=$'\x1f' read -r modmask key keycode description dispatcher arg; do
+    while IFS=$'\x1f' read -r modmask submap key keycode description dispatcher arg; do
+      raw_key="$key"
+
       # Lua binds report their full display key ("SUPER + code:20"); the
       # modifiers are already carried separately in modmask.
       key="${key##* + }"
@@ -303,8 +309,13 @@ dynamic_bindings() {
 
       if [[ $dispatcher == "__lua" && -n $description && -n $key ]]; then
         cache_key="$modmask,$description,$key"
-        dispatcher="${LUA_BIND_DISPATCHER_MAP["$cache_key"]}"
-        arg="${LUA_BIND_ARG_MAP["$cache_key"]}"
+
+        if [[ -n ${LUA_BIND_DISPATCHER_MAP["$cache_key"]} || -z $arg ]]; then
+          dispatcher="${LUA_BIND_DISPATCHER_MAP["$cache_key"]}"
+          arg="${LUA_BIND_ARG_MAP["$cache_key"]}"
+        else
+          arg=$(lua_bind_identity "$modmask" "$submap" "$raw_key" "$keycode" "$description")
+        fi
       fi
 
       [[ -z $description && $dispatcher == "__lua" ]] && continue
@@ -533,7 +544,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v14\n'
+    printf 'v19\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
@@ -604,6 +615,60 @@ dispatch_lua_expression() {
   return 1
 }
 
+mark_lua_state() {
+  dispatch_lua_expression "(function() local registry = debug.getregistry(); registry.omarchy_menu_keybindings_marks = registry.omarchy_menu_keybindings_marks or {}; registry.omarchy_menu_keybindings_marks[\"$1\"] = true; return function() end end)()" >/dev/null
+}
+
+unmark_lua_state() {
+  dispatch_lua_expression "(function() local marks = debug.getregistry().omarchy_menu_keybindings_marks; if marks then marks[\"$1\"] = nil end; return function() end end)()" >/dev/null
+}
+
+current_lua_function_ref() {
+  local identity
+  local binds ref
+
+  identity=$(base64 -d <<<"$1" 2>/dev/null) || return 1
+  binds=$(hyprctl binds) || return 1
+
+  ref=$(LUA_BIND_IDENTITY="$identity" awk '
+    function emit() {
+      if (!seen) return
+      seen = 0
+      if (f["dispatcher"] != "__lua") return
+      if (f["modmask"] "\x1f" f["submap"] "\x1f" f["key"] "\x1f" f["keycode"] "\x1f" f["description"] != ENVIRON["LUA_BIND_IDENTITY"]) return
+      matches++
+      ref = f["arg"]
+    }
+    /^bind/ { emit(); seen = 1; delete f; next }
+    seen && match($0, /^\t[a-z]+: /) { f[substr($0, 2, RLENGTH - 3)] = substr($0, RLENGTH + 1) }
+    END { emit(); if (matches == 1) print ref }
+  ' <<<"$binds")
+
+  [[ $ref =~ ^[0-9]+$ ]] && printf '%s\n' "$ref"
+}
+
+call_lua_function_if_marked() {
+  local ref="$1"
+  local mark="$2"
+
+  dispatch_lua_expression "(function() local registry = debug.getregistry(); local marks = registry.omarchy_menu_keybindings_marks; if not (marks and marks[\"$mark\"]) then error(\"Hyprland reloaded after the bind was looked up\") end; marks[\"$mark\"] = nil; return registry[$ref] end)()"
+}
+
+dispatch_lua_function_binding() {
+  local identity="$1"
+  local mark="$$-$RANDOM-$RANDOM"
+  local ref
+
+  mark_lua_state "$mark" || return 1
+
+  if ref=$(current_lua_function_ref "$identity"); then
+    call_lua_function_if_marked "$ref" "$mark"
+  else
+    unmark_lua_state "$mark"
+    return 1
+  fi
+}
+
 dispatch_exec_binding() {
   local command="$1"
 
@@ -644,6 +709,9 @@ dispatch_binding() {
     lua)
       [[ -n $arg ]] && hyprctl dispatch "$arg"
       ;;
+    __lua)
+      [[ -n $arg ]] && dispatch_lua_function_binding "$arg"
+      ;;
     "") return 1 ;;
     *)
       if [[ -n $arg ]]; then
@@ -663,7 +731,13 @@ else
     omarchy-menu-select 'Keybindings' -- --width 800 --height 500)
 
   if [[ -n $selection ]]; then
-    record=$(awk -F '\t' -v selection="$selection" '$1 == selection { print; exit }' <<<"$records")
+    record=$(SELECTION="$selection" awk -F '\t' '
+      $1 == ENVIRON["SELECTION"] {
+        if (!matches++) record = $0
+        if ($2 == "__lua") function_binds++
+      }
+      END { if (matches == 1 || !function_binds) print record }
+    ' <<<"$records")
     dispatcher=$(cut -f2 <<<"$record")
     arg=$(cut -f3- <<<"$record")
 
