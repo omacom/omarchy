@@ -128,7 +128,7 @@ printf '\n' >>"$TEST_LOG"
 "$@"
 SH
 
-for tool in systemctl udevadm; do
+for tool in udevadm; do
   cat >"$stub_bin/$tool" <<SH
 #!/bin/bash
 
@@ -138,14 +138,32 @@ printf '\\n' >>"\$TEST_LOG"
 SH
 done
 
+# systemctl answers is-enabled from a marker that enable writes, without logging it.
+cat >"$stub_bin/systemctl" <<'SH'
+#!/bin/bash
+
+if [[ $1 == "is-enabled" ]]; then
+  [[ -e $TEST_ENABLED ]]
+  exit
+fi
+printf 'systemctl' >>"$TEST_LOG"
+printf '\t%s' "$@" >>"$TEST_LOG"
+printf '\n' >>"$TEST_LOG"
+if [[ $1 == "enable" ]]; then
+  touch "$TEST_ENABLED"
+fi
+SH
+
 chmod +x "$stub_bin"/*
 
 unit_target="$test_tmp/etc/systemd/system/omarchy-apple-display-link.service"
 rule_target="$test_tmp/etc/udev/rules.d/90-omarchy-apple-display-link.rules"
+enabled="$test_tmp/enabled"
 
 run_migration() {
   PATH="$stub_bin:$PATH" \
     TEST_LOG="$calls" \
+    TEST_ENABLED="$enabled" \
     T2_HARDWARE="$1" \
     OMARCHY_PATH="$ROOT" \
     OMARCHY_APPLE_DISPLAY_UNIT="$unit_target" \
@@ -168,7 +186,14 @@ run_migration 1
 [[ ! -s $calls ]] || fail "an already repaired T2 install is left unchanged" "$(cat "$calls")"
 pass "the migration is idempotent"
 
-rm -rf "$test_tmp/etc"
+rm -f "$enabled"
+: >"$calls"
+run_migration 1
+grep -Fq $'systemctl\tenable\t--now\tomarchy-apple-display-link.service' "$calls" ||
+  fail "a run interrupted before enabling the service finishes the job" "$(cat "$calls")"
+pass "the migration enables a service an interrupted run left installed but disabled"
+
+rm -rf "$test_tmp/etc" "$enabled"
 : >"$calls"
 run_migration 0
 [[ ! -e $unit_target && ! -e $rule_target ]] || fail "non-T2 systems get no Apple display link service"

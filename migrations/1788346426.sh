@@ -7,8 +7,9 @@ fi
 unit="${OMARCHY_APPLE_DISPLAY_UNIT:-/etc/systemd/system/omarchy-apple-display-link.service}"
 rule="${OMARCHY_APPLE_DISPLAY_RULE:-/etc/udev/rules.d/90-omarchy-apple-display-link.rules}"
 
-# Both files present is the machine-wide completion state another user's run leaves.
-if [[ -f $unit && -f $rule ]]; then
+# Both files present and the service enabled is the machine-wide completion state
+# another user's run leaves; files alone are what an interrupted run leaves.
+if [[ -f $unit && -f $rule ]] && systemctl is-enabled --quiet omarchy-apple-display-link.service; then
   exit 0
 fi
 
