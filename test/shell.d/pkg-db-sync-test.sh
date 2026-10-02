@@ -14,6 +14,11 @@ grep -q 'omarchy-pkg-db-sync' "$ROOT/bin/omarchy-pkg-add" ||
 grep -q 'omarchy-pkg-db-sync' "$ROOT/bin/omarchy-pkg-aur-add" ||
   fail "installing an AUR package syncs repositories that have never been synced"
 
+grep -q 'omarchy-pkg-db-sync' "$ROOT/bin/omarchy-pkg-install" ||
+  fail "the package picker syncs repositories that have never been synced before listing them"
+grep -q 'omarchy-pkg-db-sync' "$ROOT/bin/omarchy-pkg-aur-install" ||
+  fail "the AUR picker syncs the repositories its packages depend on"
+
 pass "the package helpers sync unsynced repositories before installing"
 
 grep -q 'omarchy-pkg-db-sync' "$ROOT/install/post-install/pacman.sh" ||
