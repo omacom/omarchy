@@ -114,6 +114,27 @@ PY
   fail "a lapsed account whose windows all reset reads as untouched" "$rested"
 pass "a lapsed account whose windows all reset reads as untouched"
 
+# A cache stamped ahead of a clock that later stepped back is still what the
+# account last saw, so its reset windows still read as untouched.
+touch -d "@$(( $(date +%s) + 3600 ))" "$XDG_CACHE_HOME/omarchy/agent-usage/claude-limits-old.json"
+rested_future=$(COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" python3 - <<'PY'
+import importlib.machinery, importlib.util, io, json, os, sys
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+collector.urllib.request.urlopen = lambda request, timeout=None: io.BytesIO(b'{"five_hour": {"utilization": 30.0}}')
+collector.scan_pi_usage = lambda age: None
+collector.scan_opencode_usage = lambda age: None
+sys.argv = ["omarchy-agent-usage-claude", "--force"]
+collector.main()
+PY
+)
+[[ $(jq -c '.accounts[2] | {stale, limits: [.limits[] | {label, empty: (.percent == 0)}]}' <<<"$rested_future") == '{"stale":true,"limits":[{"label":"Session (5-hour)","empty":true}]}' ]] ||
+  fail "a future-dated cache of reset windows still reads as untouched" "$rested_future"
+pass "a future-dated cache of reset windows still reads as untouched"
+
 # Signing the primary home in to another subscription must not inherit the
 # last one's numbers when the first probe for the new one fails.
 printf '{"oauthAccount":{"accountUuid":"u-new"}}\n' >"$HOME/.claude.json"

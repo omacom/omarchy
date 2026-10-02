@@ -906,7 +906,7 @@ def registered_accounts() -> list[dict[str, Any]]:
 # know this account is the one with the most room. Each window it last saw
 # comes back at 0%.
 def replenished_limits(cache_name: str) -> list[dict[str, Any]]:
-  cached = read_fresh_json(cache_root() / cache_name, float("inf")) or {}
+  cached = read_json(cache_root() / cache_name) or {}
   entries = cached.get("limits")
   if not isinstance(entries, list):
     return []
