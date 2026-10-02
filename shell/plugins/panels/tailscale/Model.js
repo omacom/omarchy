@@ -259,7 +259,7 @@ function parseStatus(raw) {
       return String(a.HostName).localeCompare(String(b.HostName))
     })
     exitNodes.sort(function(a, b) {
-      return String(a.HostName).localeCompare(String(b.HostName))
+      return exitNodeLabel(a).localeCompare(exitNodeLabel(b))
     })
 
     return {
