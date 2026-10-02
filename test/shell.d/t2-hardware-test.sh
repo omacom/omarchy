@@ -35,6 +35,8 @@ grep -Fq 'systemctl stop "$rescan_unit"' "$tb_hook" ||
   fail "the Thunderbolt sleep hook stops a rescan still running before it removes the controllers again"
 grep -Eq '^\s*release_stale_crtcs$' "$tb_hook" ||
   fail "the Thunderbolt sleep hook releases a CRTC a vanished connector still owns before the rescan"
+grep -Fq 'loginctl show-seat seat0 -p ActiveSession' "$tb_hook" ||
+  fail "the Thunderbolt sleep hook switches back to the session on screen, not the first one it finds"
 grep -Fq '> /dev/tty60' "$tb_hook" ||
   fail "the Thunderbolt sleep hook prints on the console so a deferred fbcon takes over during the VT switch"
 grep -Fq 'hyprctl reload' "$tb_hook" ||
