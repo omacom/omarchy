@@ -88,3 +88,16 @@ grep -qx 'pkg-aur-add:evdi-dkms displaylink' "$setup_log" || \
 grep -qx 'sudo:systemctl enable --now displaylink.service' "$setup_log" || \
   fail "the installer enables the DisplayLink Manager service"
 pass "the installer adds the driver packages and enables its service"
+
+# Dimming an Install row is how the menu says "you already have this", so a
+# half-done setup must not dim it: a package installed by hand or by an
+# interrupted installer run still needs the menu to enable and start the
+# service that actually drives the monitors.
+menu_row=$(grep '^  "install.service.displaylink":' "$ROOT/default/omarchy/omarchy-menu.jsonc")
+[[ -n $menu_row ]] || fail "the menu carries an install row for the driver"
+[[ $menu_row == *"systemctl is-enabled"* && $menu_row == *"systemctl is-active"* ]] || \
+  fail "the menu row stays selectable until the DisplayLink service is running"\
+    "$menu_row"
+[[ $menu_row == *'"action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-displaylink"'* ]] || \
+  fail "the menu row runs the DisplayLink installer"
+pass "the menu row is gated on a running service, not the package alone"
