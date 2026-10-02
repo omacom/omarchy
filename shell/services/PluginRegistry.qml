@@ -411,13 +411,17 @@ QtObject {
     config.disabledPlugins.push(id)
   }
 
+  // Returns the first entry removed, so a caller moving the widget can keep
+  // the inline settings it carried.
   function removePluginEntry(config, id) {
-    if (!Util.isPlainObject(config) || !Array.isArray(config.plugins)) return
+    if (!Util.isPlainObject(config) || !Array.isArray(config.plugins)) return null
     var key = Util.canonicalWidgetId(String(id))
+    var removed = null
     for (var j = config.plugins.length - 1; j >= 0; j--) {
       if (config.plugins[j] && Util.canonicalWidgetId(config.plugins[j].id) === key)
-        config.plugins.splice(j, 1)
+        removed = config.plugins.splice(j, 1)[0]
     }
+    return removed
   }
 
   function cloneShouldRestoreSource(config, id) {
@@ -536,7 +540,11 @@ QtObject {
         var entry = { id: key }
         var insertedWithPlacement = false
         if (isBarWidget) {
-          removePluginEntry(config, key)
+          var pluginEntry = removePluginEntry(config, key)
+          if (Util.isPlainObject(pluginEntry)) {
+            entry = Util.cloneJson(pluginEntry)
+            entry.id = key
+          }
           if (!barLocation.found) {
             var sourceLocation = clonedFrom ? findBarLocation(config, clonedFrom, "") : { found: false }
             if (sourceLocation.found) {

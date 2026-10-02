@@ -197,6 +197,14 @@ ShellRoot {
     root.config = {
       version: 1,
       bar: { layout: { left: [], center: [], right: [] } },
+      plugins: [{ id: "third.widget", serverUrl: "http://example.test" }]
+    }
+    registry.setEnabled("third.widget", true)
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget", serverUrl: "http://example.test" }], "enabling a bar widget listed in plugins[] keeps its inline settings")
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [], right: [] } },
       plugins: [{ id: "third.right-widget" }]
     }
     root.assertEqual(registry.putBarWidget("third.right-widget", {}), "", "put accepts a bar widget listed in plugins[]")
