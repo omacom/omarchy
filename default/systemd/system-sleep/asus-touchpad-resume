@@ -12,5 +12,8 @@ driver=/sys/bus/i2c/drivers/i2c_hid_acpi
 if [[ $1 == "post" && -e $driver/$device ]]; then
   echo "$device" > "$driver/unbind" || exit 0
   sleep 1
-  echo "$device" > "$driver/bind" || true
+  if ! echo "$device" > "$driver/bind"; then
+    echo "Could not rebind $device; the touchpad stays unbound until reboot" >&2
+    exit 1
+  fi
 fi
