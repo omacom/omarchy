@@ -17,6 +17,8 @@ grep -Fq 'ACTION=="change", SUBSYSTEM=="drm"' "$rule" ||
   fail "the udev rule fires on DRM hotplug"
 grep -Fq 'systemctl --no-block start omarchy-apple-display-link.service' "$rule" ||
   fail "the udev rule starts the service without blocking udev"
+grep -Fq 'touch /run/omarchy-apple-display-link/request; exec' "$rule" ||
+  fail "the udev rule leaves a request before each start, for a run already going"
 grep -Fq 'default/udev/apple-display-link.rules' "$fix_t2" ||
   fail "T2 setup installs the udev rule"
 grep -Fq 'default/systemd/system/omarchy-apple-display-link.service' "$fix_t2" ||
@@ -54,7 +56,7 @@ add_connector() {
 
 run_helper() {
   OMARCHY_DRM_PATH="$drm" OMARCHY_DRI_DEBUG_PATH="$dri" OMARCHY_APPLE_DISPLAY_STATE="$state" \
-    OMARCHY_APPLE_DISPLAY_SETTLE=0 bash "$helper"
+    OMARCHY_APPLE_DISPLAY_SETTLE="${SETTLE:-0}" bash "$helper"
 }
 
 link_settings() {
@@ -142,9 +144,10 @@ grep -Fq 'card2-DP-4: dropping the HBR3 preference a Studio Display left behind'
   fail "a connector with no EDID yet is left alone"
 pass "the helper clears the HBR3 preference once the Studio Display is gone from its connector"
 
+# A plain file where the state directory should be: no marker can be written
+# there, whoever runs the test.
 rm -rf "$drm" "$dri" "$state"
-mkdir -p "$state"
-chmod 500 "$state"
+: >"$state"
 add_connector card2-DP-6 connected StudioDisplay "0  0x0  0" 1
 
 output=$(run_helper)
@@ -153,8 +156,28 @@ output=$(run_helper)
   fail "a pin that cannot be recorded is not made" "$output"
 grep -Fq 'card2-DP-6: cannot record the pin' <<<"$output" ||
   fail "the helper says why it left the link alone" "$output"
-chmod 700 "$state"
 pass "the helper pins nothing it could not undo later"
+
+# A sink still training when the run starts, with a stale request lying around:
+# the EDID arrives during the settle and a later pass must pick it up.
+rm -rf "$drm" "$dri" "$state"
+mkdir -p "$state" "$drm/card2-DP-7" "$(debug_dir card2-DP-7)"
+echo connected >"$drm/card2-DP-7/status"
+: >"$drm/card2-DP-7/edid"
+printf 'Current:  0  0x0  0  Verified:  4  0x14  16  Reported:  4  0x14  16  Preferred:  0  0x0  0\n\0' \
+  >"$(debug_dir card2-DP-7)/link_settings"
+printf '0\n\0' >"$(debug_dir card2-DP-7)/dsc_clock_en"
+echo untouched >"$(debug_dir card2-DP-7)/trigger_hotplug"
+touch "$state/request"
+( sleep 0.3; printf 'edid StudioDisplay\0' >"$drm/card2-DP-7/edid" ) &
+
+output=$(SETTLE=0.5 run_helper)
+wait
+
+[[ $(link_settings card2-DP-7) == "4 0x1e" ]] ||
+  fail "a sink that finishes training during the run is pinned by a later pass" "$output"
+[[ ! -e $state/request ]] || fail "a stale start request is cleared by the run"
+pass "the helper looks again while a sink is still training"
 
 stub_bin="$test_tmp/bin"
 calls="$test_tmp/calls.log"

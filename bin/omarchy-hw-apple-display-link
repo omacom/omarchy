@@ -31,7 +31,7 @@ if (( EUID != 0 )) && [[ -z ${OMARCHY_DRI_DEBUG_PATH:-} ]]; then
 fi
 
 shopt -s nullglob
-mkdir -p "$state_dir"
+mkdir -p "$state_dir" 2>/dev/null || true
 
 replug() {
   echo 0 >"$1/trigger_hotplug"
@@ -45,13 +45,13 @@ replug() {
 declare -A handled
 
 # The udev rule starts one shared oneshot service. A start that arrives while a
-# run is still going merges into that run instead of queueing another, so the
-# event that finally shows a Studio Display as connected can land during an
-# earlier run and nobody would look again. Keep scanning until two passes in
-# a row find nothing to do: the second one catches an event that merged into
-# the first.
-quiet=0
-for _ in 1 2 3 4; do
+# run is still going merges into that run instead of queueing another, and
+# leaves no other trace, so the rule also touches a request file first. A
+# request that reappeared during a pass is an event this run has not looked
+# at yet: scan again until a pass finds nothing to do and no request arrived.
+request="$state_dir/request"
+for _ in 1 2 3 4 5 6; do
+  rm -f "$request"
   acted=0
   pending=0
   for edid in "$drm_path"/card*-DP-*/edid; do
@@ -112,12 +112,10 @@ for _ in 1 2 3 4; do
     replug "$debug"
   done
   if (( acted || pending )); then
-    quiet=0
-  else
-    quiet=$((quiet + 1))
-    (( quiet < 2 )) || break
+    sleep "$settle"
+  elif [[ ! -e $request ]]; then
+    break
   fi
-  sleep "$settle"
 done
 
 exit 0
