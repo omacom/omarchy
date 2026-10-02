@@ -29,6 +29,10 @@ grep -Fq 'echo 1 > "$dev/remove"' "$tb_hook" ||
   fail "the Thunderbolt sleep hook removes the controllers before sleep"
 grep -Fq 'echo 1 > /sys/bus/pci/rescan' "$tb_hook" ||
   fail "the Thunderbolt sleep hook re-enumerates the controllers after resume"
+grep -Fq 'systemd-run --quiet --no-block --collect "$(readlink -f "$0")" rescan' "$tb_hook" ||
+  fail "the Thunderbolt sleep hook hands the rescan to a transient unit that outlives systemd-suspend.service"
+grep -Eq '^\s*\) &\s*$' "$tb_hook" &&
+  fail "the Thunderbolt sleep hook backgrounds nothing of its own, systemd-suspend.service kills it"
 grep -Fq 'BRIDGE_CONTROL' "$tb_hook" ||
   fail "the Thunderbolt sleep hook resets childless downstream ports for the xHCI"
 grep -Fq '(( count < previous )) && count=$previous' "$tb_hook" ||
