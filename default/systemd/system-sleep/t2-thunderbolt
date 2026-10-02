@@ -8,28 +8,37 @@
 
 state=/run/omarchy-t2-thunderbolt
 
-titan_ridge_bridges() {
-  local dev
-  for dev in /sys/bus/pci/devices/*; do
-    [[ -r $dev/vendor && $(<"$dev/vendor") == 0x8086 && $(<"$dev/device") == 0x15ea ]] && echo "$dev"
+# A controller is found from its NHI, the device the thunderbolt driver binds:
+# the bridge right under a root port on the path up from it is the switch's
+# upstream port, and the bridges one level beneath that are its downstream
+# ports. The upstream port's PCI ID is not the same on every model, 8086:15ea
+# on the 2019 16-inch and 8086:1578 on the 2018 15-inch (#9210), so the path
+# decides, not the ID.
+tb_nhis() {
+  local nhi
+  for nhi in /sys/bus/pci/drivers/thunderbolt/0000:*; do
+    [[ -e $nhi ]] && readlink -f "$nhi"
   done
 }
 
-# Upstream ports sit directly on a CPU/PCH root port.
 tb_upstream_bridges() {
   local dev parent
-  for dev in $(titan_ridge_bridges); do
-    parent=$(basename "$(readlink -f "$dev/..")")
-    [[ $parent == 0000:00:* ]] && echo "$dev"
-  done
+  for dev in $(tb_nhis); do
+    while :; do
+      parent=$(readlink -f "$dev/..")
+      [[ $(basename "$parent") == 0000:00:* ]] && { echo "$dev"; break; }
+      [[ $(basename "$parent") == 0000:* ]] || break
+      dev=$parent
+    done
+  done | sort -u
 }
 
-# Downstream ports hang off another Titan Ridge bridge.
 tb_downstream_bridges() {
-  local dev parent
-  for dev in $(titan_ridge_bridges); do
-    parent=$(basename "$(readlink -f "$dev/..")")
-    [[ $parent == 0000:00:* ]] || echo "$dev"
+  local up dev
+  for up in $(tb_upstream_bridges); do
+    for dev in "$up"/0000:*; do
+      [[ -r $dev/class && $(<"$dev/class") == 0x060400 ]] && echo "$dev"
+    done
   done
 }
 
