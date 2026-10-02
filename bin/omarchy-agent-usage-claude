@@ -866,7 +866,8 @@ def collect_limits(access_token: str, expires_at_ms: int, force: bool, cache_nam
     result["retryAdvised"] = True
   if fallback:
     result["limits"] = fallback
-    result["live"] = time.time() - result["fetchedAtMs"] / 1000 < CURRENT_ENOUGH_SECONDS
+    fetched_age = time.time() - result["fetchedAtMs"] / 1000
+    result["live"] = 0 <= fetched_age < CURRENT_ENOUGH_SECONDS
   else:
     result["usageStatusText"] = "Claude limits unavailable"
     result["authHelpText"] = probe["helpText"]

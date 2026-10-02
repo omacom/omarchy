@@ -230,6 +230,12 @@ future_unreachable=$(collect_limits "token" 0 "$future" 3600)
   fail "Claude collector keeps future-dated fallback when the re-probe fails" "$future_unreachable"
 pass "Claude collector keeps future-dated fallback when the re-probe fails"
 
+# Numbers stamped in the future have no age to trust, so a kept fallback is
+# reported as stale rather than as measured just now.
+[[ $(jq -r '.live' <<<"$future_unreachable") == "false" ]] ||
+  fail "Claude collector marks a future-dated fallback stale" "$future_unreachable"
+pass "Claude collector marks a future-dated fallback stale"
+
 corrected=$(probe_with_cache false "$future" "$payload" 3600)
 [[ $(jq -r '.probes' <<<"$corrected") == "1" && $(jq -c '[.result.limits[].percent]' <<<"$corrected") == "[0.44]" ]] ||
   fail "Claude collector re-probes after a backwards clock correction" "$corrected"
