@@ -182,6 +182,10 @@ ShellRoot {
     root.assertTrue(registry.setEnabled("ghost.panel", false), "disabling an uninstalled plugin cleans up config")
     root.assertDeepEqual(root.config.plugins, [], "uninstalled plugin entry is removed from config")
     root.assertTrue(!registry.setEnabled("ghost.panel", false), "disabling a cleaned up uninstalled plugin is refused")
+    root.config.bar.id = "ghost.bar"
+    root.assertTrue(registry.setEnabled("ghost.bar", false), "disabling an uninstalled bar option cleans up config")
+    root.assertTrue(root.config.bar.id === undefined, "uninstalled bar option resets to built-in")
+    root.assertTrue(!registry.setEnabled("ghost.bar", false), "disabling a cleaned up uninstalled bar option is refused")
 
     registry.setEnabled("third.widget", true)
     root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }], "enabling bar widgets uses their default section")

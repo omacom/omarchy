@@ -557,6 +557,7 @@ QtObject {
       if (clonedFrom) restoreCloneSource(config, key, clonedFrom)
       else if (location.kind === "bar") config.bar.layout[location.section].splice(location.index, 1)
       else if (location.kind === "plugin") config.plugins.splice(location.index, 1)
+      else if (location.kind === "bar-option") delete config.bar.id
 
       // Dropping the layout entry is the whole story for a widget. Anything
       // else built-in loads by default, so switching it off has to be stated.
