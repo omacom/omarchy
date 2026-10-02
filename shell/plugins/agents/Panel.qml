@@ -163,6 +163,9 @@ Panel {
   // changes, which would drop a drag still in progress.
   property string dragProviderId: ""
   property int dragTarget: -1
+  // An account name being edited keeps Ctrl+Up/Down: moving its agent would
+  // rebuild the section and drop the unfinished name.
+  property bool renaming: false
 
   function dragProviderOver(y) {
     for (var i = 0; i < providerSections.count; i++) {
@@ -876,7 +879,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      reorderable: root.addStage === ""
+      reorderable: root.addStage === "" && !root.renaming
       onReorderRequested: function(dy) { root.reorderProvider(dy) }
 
       onMoveRequested: function(dx, dy) {
@@ -1642,6 +1645,7 @@ Panel {
     readonly property string label: renamedTo !== "" ? renamedTo : String(account.label || account.id || "")
 
     onAccountChanged: renamedTo = ""
+    onEditingChanged: root.renaming = editing
     onPickedChanged: if (picked) root.revealItem(head)
 
     // Anywhere on the line counts, so Use can show up when it's hidden.
