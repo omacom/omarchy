@@ -313,6 +313,7 @@ fi
 grep -qF UTC "$tmp_dir/stdin.1" || fail "timezone prompt offers the system timezone list"
 grep -qFx Asia/Ashgabat "$tmp_dir/stdin.1" || fail "timezone prompt offers the canonical zone"
 ! grep -qFx Asia/Ashkhabad "$tmp_dir/stdin.1" || fail "timezone prompt drops tzdata backward-compatibility aliases"
+grep -qFx Etc/GMT+5 "$tmp_dir/stdin.1" || fail "timezone prompt offers the fixed-offset zones"
 [[ $(sort -u "$tmp_dir/curl-urls") == "https://geo.omarchy.org/" ]] || fail "timezone prompt asks only geo.omarchy.org" "$(cat "$tmp_dir/curl-urls")"
 pass "timezone prompt offers geo.omarchy.org's timezone first when it answers"
 

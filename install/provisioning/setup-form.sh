@@ -356,9 +356,14 @@ omarchy_generate_hostname() {
 # `timedatectl list-timezones` builds its list from tzdata.zi, which carries the
 # backward-compatibility links alongside the zones they point at, so the picker
 # offered Asia/Ashkhabad right under Asia/Ashgabat. zone.tab is one row per
-# country per zone and holds none of those obsolete aliases; UTC is not in it.
+# country per zone and holds none of those obsolete aliases; UTC and the fixed
+# Etc/GMT offsets are not in it.
 omarchy_timezones() {
-  { echo UTC; awk '!/^#/ && NF { print $3 }' /usr/share/zoneinfo/zone.tab; } | sort
+  {
+    echo UTC
+    awk '!/^#/ && NF { print $3 }' /usr/share/zoneinfo/zone.tab
+    awk '$1 == "Z" && $2 ~ /^Etc\/GMT[+-]/ { print $2 }' /usr/share/zoneinfo/tzdata.zi
+  } | sort
 }
 
 # A fresh machine often hasn't joined a network yet, so the geo guess fails

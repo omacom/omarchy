@@ -31,6 +31,7 @@ PATH="$tmp_dir:$PATH" "$ROOT/bin/omarchy-menu-timezone" >/dev/null
 grep -qFx Asia/Ashgabat "$tmp_dir/list" || fail "the timezone menu offers the canonical zone"
 ! grep -qFx Asia/Ashkhabad "$tmp_dir/list" || fail "the timezone menu drops tzdata backward-compatibility aliases"
 grep -qFx UTC "$tmp_dir/list" || fail "the timezone menu offers UTC, which zone.tab omits"
+grep -qFx Etc/GMT+5 "$tmp_dir/list" || fail "the timezone menu offers the fixed-offset zones"
 grep -qFx 'timedatectl set-timezone Asia/Ashgabat' "$tmp_dir/sudo-calls" ||
   fail "the timezone menu sets the picked zone over sudo timedatectl" "$(cat "$tmp_dir/sudo-calls")"
 pass "the timezone menu lists zone.tab's zones without tzdata aliases"
