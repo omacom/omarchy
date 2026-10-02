@@ -476,6 +476,66 @@ ShellRoot {
     root.assertTrue(!registry.isDisabled(root.config, "omarchy.replacement-panel"), "disabling a changed clone restores its new source")
     registry.parseScanOutput(scan)
 
+    var sharedClones = [
+      { id: "local.grouped-panel", source: "omarchy.grouped-panel", kinds: ["panel"], entryPoints: { panel: "Panel.qml" } },
+      { id: "local.hybrid", source: "omarchy.hybrid", kinds: ["menu", "bar-widget"], entryPoints: { menu: "Menu.qml", barWidget: "Widget.qml" } }
+    ]
+    for (var sharedIndex = 0; sharedIndex < sharedClones.length; sharedIndex++) {
+      var shared = sharedClones[sharedIndex]
+      var sibling = manifest("local.sibling", shared.kinds, shared.entryPoints)
+      sibling.omarchy = { clonedFrom: shared.source }
+      for (var initiallyDisabled = 0; initiallyDisabled < 2; initiallyDisabled++) {
+        for (var cleanupMode = 0; cleanupMode < 3; cleanupMode++) {
+          registry.parseScanOutput(scan + block("thirdparty", "/third/sibling", sibling))
+          root.config = { version: 1, bar: { layout: { left: [], center: [], right: [] } }, plugins: [] }
+          if (initiallyDisabled) root.config.disabledPlugins = [shared.source]
+          registry.setEnabled(shared.id, true)
+          registry.setEnabled("local.sibling", true)
+          if (cleanupMode === 0) {
+            registry.parseScanOutput(scan
+              + block("thirdparty", "/third/sibling", sibling)
+              + block("thirdparty", "/third/reused", manifest(shared.id, shared.kinds, shared.entryPoints)))
+            registry.setEnabled(shared.id, true)
+          } else if (cleanupMode === 1) {
+            registry.setEnabled(shared.id, false)
+          } else {
+            registry.parseScanOutput(block("firstparty", "/first/source", manifest(shared.source, shared.kinds, shared.entryPoints)))
+            registry.setEnabled(shared.id, false)
+          }
+          root.assertTrue(registry.isDisabled(root.config, shared.source), "shared source stays disabled until last clone leaves")
+          root.assertEqual(registry.cloneShouldRestoreSource(root.config, "local.sibling"), !initiallyDisabled, "restore ownership follows the remaining clone")
+          root.config = JSON.parse(JSON.stringify(root.config))
+          registry.setEnabled("local.sibling", false)
+          root.assertEqual(registry.isDisabled(root.config, shared.source), !!initiallyDisabled, "last clone restores only its owned disabled state")
+          root.assertTrue(root.config.cloneSources === undefined, "last clone clears shared source records")
+          root.assertTrue(root.config.cloneSourceRestores === undefined, "last clone clears shared restore markers")
+        }
+      }
+      registry.parseScanOutput(scan + block("thirdparty", "/third/sibling", sibling))
+      root.config = { version: 1, bar: { layout: { left: [], center: [], right: [] } }, plugins: [] }
+      registry.setEnabled(shared.id, true)
+      registry.setEnabled("local.sibling", true)
+      registry.setEnabled(shared.source, true)
+      root.assertTrue(!registry.isDisabled(root.config, shared.source), "explicit source enable restores the source")
+      root.assertTrue(!registry.isEnabled(shared.id) && !registry.isEnabled("local.sibling"), "explicit source enable removes all replacements")
+    }
+    registry.parseScanOutput(scan)
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [{ id: "omarchy.first-widget", size: 6, options: { original: true } }], center: [], right: [] } },
+      plugins: []
+    }
+    registry.setEnabled("local.first-widget", true)
+    var changedWidget = manifest("local.first-widget", ["bar-widget"], { barWidget: "Widget.qml" })
+    changedWidget.omarchy = { clonedFrom: "omarchy.weather" }
+    registry.parseScanOutput(scan + block("thirdparty", "/third/changed-widget", changedWidget))
+    root.config = JSON.parse(JSON.stringify(root.config))
+    registry.setEnabled("local.first-widget", false)
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "omarchy.first-widget", size: 6, options: { original: true } }], "direct disable restores the saved widget source after manifest changes")
+    root.assertTrue(root.config.cloneSources === undefined, "direct disable clears the original widget source record")
+    registry.parseScanOutput(scan)
+
     var missingClones = [
       { id: "local.grouped-panel", source: "omarchy.grouped-panel", kinds: ["panel"], entryPoints: { panel: "Panel.qml" } },
       { id: "local.hybrid", source: "omarchy.hybrid", kinds: ["menu", "bar-widget"], entryPoints: { menu: "Menu.qml", barWidget: "Widget.qml" } },
