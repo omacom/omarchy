@@ -26,6 +26,128 @@ if ! fc-list | grep -Fqi -- "$font_name"; then
   exit 1
 fi
 
+# Commit fontconfig first: failed writes must leave the previous selection intact.
+python3 - "$font_name" <<'PYTHON' || exit 1
+import os
+from pathlib import Path
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+from xml.parsers import expat
+from xml.sax.saxutils import escape
+
+legacy = Path.home() / '.config/fontconfig/fonts.conf'
+dropin = legacy.parent / 'conf.d/50-omarchy-monospace.conf'
+font_name = sys.argv[1]
+
+
+def legacy_ranges(data):
+  # Expat gives byte offsets, so unrelated XML never needs reserialization.
+  parser = expat.ParserCreate()
+  depth = 0
+  start = 0
+  ranges = []
+
+  def reject_entity(*args):
+    raise ValueError('custom XML entities require manual migration')
+
+  def open_element(name, attrs):
+    nonlocal depth, start
+    if depth == 0 and name != 'fontconfig':
+      raise ValueError('expected a fontconfig document')
+    if depth == 1:
+      start = parser.CurrentByteIndex
+    depth += 1
+
+  def close_element(name):
+    nonlocal depth
+    depth -= 1
+    if depth != 1 or name != 'match':
+      return
+    if data[start:parser.CurrentByteIndex].rstrip().endswith(b'/>'):
+      return
+    end = data.find(b'>', parser.CurrentByteIndex) + 1
+    block = data[start:end]
+    node = ET.fromstring(block, parser=ET.XMLParser(target=ET.TreeBuilder(insert_comments=True)))
+    if node.attrib != {'target': 'pattern'} or len(node) != 2:
+      return
+    test, edit = node
+    if test.tag != 'test' or test.attrib != {'name': 'family', 'qual': 'any'}:
+      return
+    if edit.tag != 'edit' or edit.attrib != {'name': 'family', 'mode': 'prepend_first', 'binding': 'strong'}:
+      return
+    if len(test) != 1 or len(edit) != 1:
+      return
+    family, font = test[0], edit[0]
+    if any(item.tag != 'string' or item.attrib or len(item) for item in (family, font)):
+      return
+    if family.text != 'monospace' or not font.text:
+      return
+    if any((item.text or '').strip() for item in (node, test, edit)):
+      return
+    if any((item.tail or '').strip() for item in (test, edit, family, font)):
+      return
+    ranges.append((start, end))
+
+  parser.StartElementHandler = open_element
+  parser.EndElementHandler = close_element
+  parser.EntityDeclHandler = reject_entity
+  parser.Parse(data, True)
+  return ranges
+
+
+def atomic_write(path, data):
+  # Follow existing symlinks without replacing a user's link itself.
+  target = path.resolve()
+  target.parent.mkdir(parents=True, exist_ok=True)
+  fd, temporary = tempfile.mkstemp(prefix='.' + target.name + '.', dir=target.parent)
+  try:
+    with os.fdopen(fd, 'wb') as stream:
+      stream.write(data)
+      stream.flush()
+      os.fsync(stream.fileno())
+      os.fchmod(stream.fileno(), target.stat().st_mode & 0o777 if target.exists() else 0o644)
+    os.replace(temporary, target)
+  finally:
+    if os.path.exists(temporary):
+      os.unlink(temporary)
+
+
+try:
+  original = legacy.read_bytes() if legacy.exists() else None
+  remaining = original
+  if original is not None:
+    # Byte slicing below assumes the UTF-8 encoding used by the old setter.
+    original.decode('utf-8')
+    for start, end in reversed(legacy_ranges(original)):
+      remaining = remaining[:start] + remaining[end:]
+  xml = '''<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <match target="pattern">
+    <test name="family" qual="any">
+      <string>monospace</string>
+    </test>
+    <edit name="family" mode="prepend_first" binding="strong">
+      <string>%s</string>
+    </edit>
+  </match>
+</fontconfig>
+''' % escape(font_name)
+  # Never retire the old rule unless its replacement is safely on disk.
+  atomic_write(dropin, xml.encode('utf-8'))
+  if remaining != original:
+    root = ET.fromstring(remaining, parser=ET.XMLParser(target=ET.TreeBuilder(insert_comments=True)))
+    if len(root) == 0 and not (root.text or '').strip() and not legacy.is_symlink() and b'<!--' not in original:
+      legacy.unlink()
+    else:
+      atomic_write(legacy, remaining)
+    print(f'Removed legacy monospace override from {legacy}')
+except (OSError, ValueError, ET.ParseError, expat.ExpatError) as error:
+  print(f'Could not update fontconfig ({legacy}, {dropin}): {error}', file=sys.stderr)
+  sys.exit(1)
+PYTHON
+
 if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
   sed -i "s/family = \".*\"/family = \"$font_name\"/g" ~/.config/alacritty/alacritty.toml
 fi
@@ -48,51 +170,6 @@ fi
 
 if [[ -f ~/.config/foot/foot.ini ]]; then
   sed -i "s/^font=.*/font=$font_name:size=9/g" ~/.config/foot/foot.ini
-fi
-
-is_pure_omarchy_fontconfig() {
-  local file="$1"
-  [[ -f $file ]] || return 1
-  local stripped
-  stripped=$(sed -E \
-    -e 's/<!--([^-]|-[^-])*-->//g' \
-    -e 's/<\?xml[^>]*\?>//g' \
-    -e 's/<!DOCTYPE[^>]*>//g' \
-    -e 's/<\/?fontconfig[^>]*>//g' \
-    "$file" | tr -d '[:space:]')
-
-  local pattern='^<matchtarget="pattern"><testname="family"qual="any"><string>monospace</string></test><editname="family"mode="prepend_first"binding="strong"><string>[^<]+</string></edit></match>$'
-  [[ $stripped =~ $pattern ]]
-}
-
-# fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
-# and anything resolving "monospace" all read from here. This drop-in file is loaded
-# after the package-owned default in /etc/fonts/conf.d/50-omarchy.conf, and prepend_first
-# puts the chosen family at the head of the list so it wins over the family that default prefers.
-fontconfig_dir="$HOME/.config/fontconfig/conf.d"
-fontconfig_file="$fontconfig_dir/50-omarchy-monospace.conf"
-legacy_fontconfig_file="$HOME/.config/fontconfig/fonts.conf"
-
-mkdir -p "$fontconfig_dir"
-cat >"$fontconfig_file" <<XML
-<?xml version="1.0"?>
-<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
-<fontconfig>
-  <match target="pattern">
-    <test name="family" qual="any">
-      <string>monospace</string>
-    </test>
-    <edit name="family" mode="prepend_first" binding="strong">
-      <string>$font_name</string>
-    </edit>
-  </match>
-</fontconfig>
-XML
-
-# If the legacy ~/.config/fontconfig/fonts.conf exists and only contains the old Omarchy
-# monospace override, remove it so it does not shadow the new drop-in.
-if [[ -f $legacy_fontconfig_file ]] && is_pure_omarchy_fontconfig "$legacy_fontconfig_file"; then
-  rm -f "$legacy_fontconfig_file"
 fi
 
 omarchy-restart-shell

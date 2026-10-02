@@ -22,7 +22,13 @@ is_pure_omarchy_fontconfig() {
 if [[ -f $legacy_fonts_conf ]] && is_pure_omarchy_fontconfig "$legacy_fonts_conf"; then
   if [[ ! -f $dropin_file ]]; then
     mkdir -p "$dropin_dir"
-    cp "$legacy_fonts_conf" "$dropin_file"
+    temporary=$(mktemp "$dropin_dir/.50-omarchy-monospace.conf.XXXXXX")
+    if cp "$legacy_fonts_conf" "$temporary" && mv -T "$temporary" "$dropin_file"; then
+      :
+    else
+      rm -f "$temporary"
+      exit 1
+    fi
   fi
   rm -f "$legacy_fonts_conf"
 fi
