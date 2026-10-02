@@ -163,3 +163,15 @@ OMARCHY_BACKLIGHT_CAP_FILE="$cap_file" MOCK_BRIGHTNESS=250 run_brightness --no-o
 grep -F 'brightnessctl -d mock_backlight set 250' "$call_log" >/dev/null || \
   fail "50% brightness is scaled to half of the configured cap"
 pass "50% brightness is scaled to half of the configured cap"
+
+: >"$call_log"
+OMARCHY_BACKLIGHT_CAP_FILE="$cap_file" MOCK_BRIGHTNESS=500 run_brightness --no-osd --monitor eDP-1 +1%
+grep -Fx 'brightnessctl -d mock_backlight set 500' "$call_log" >/dev/null || \
+  fail "a relative step up from the cap stays at the cap" "$(<"$call_log")"
+pass "a relative step up from the cap stays at the cap"
+
+: >"$call_log"
+OMARCHY_BACKLIGHT_CAP_FILE="$cap_file" MOCK_BRIGHTNESS=250 run_brightness --no-osd --monitor eDP-1 1%-
+grep -Fx 'brightnessctl -d mock_backlight set 245' "$call_log" >/dev/null || \
+  fail "a relative step down is scaled against the cap" "$(<"$call_log")"
+pass "a relative step down is scaled against the cap"

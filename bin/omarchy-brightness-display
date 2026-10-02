@@ -138,6 +138,16 @@ else
   fi
 
   if cap="$(backlight_cap_value)"; then
+    # A relative step would move the raw value past the cap, so make it a target first.
+    if [[ $step =~ ^\+([0-9]+)%$ ]]; then
+      (( target = current + BASH_REMATCH[1] ))
+      step="$target%"
+    elif [[ $step =~ ^([0-9]+)%-$ ]]; then
+      (( target = current - BASH_REMATCH[1] ))
+      (( target < 0 )) && target=0
+      step="$target%"
+    fi
+
     if [[ $step =~ ^([0-9]+)%$ ]]; then
       pct="${BASH_REMATCH[1]}"
       (( pct > 100 )) && pct=100
