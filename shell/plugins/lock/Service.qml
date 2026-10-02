@@ -28,7 +28,11 @@ Item {
   property string failureMessage: ""
   property int failedAttempts: 0
   property string backgroundPath: ""
+  property string videoPosterPath: ""
   property int backgroundVersion: 0
+  // The wallpaper file's mtime and size. The lock caches its wallpaper by
+  // version, so a file overwritten in place must bump the version too.
+  property string backgroundSignature: ""
   property string lastEvent: "init"
   property string lastEventAt: ""
   property bool displaysBlank: false
@@ -111,6 +115,16 @@ Item {
 
   function refreshBackground() {
     if (!readlinkProc.running) readlinkProc.running = true
+  }
+
+  function refreshPoster() {
+    if (!root.videoBackground) {
+      root.videoPosterPath = ""
+      return
+    }
+    if (posterProc.running) return
+    posterProc.sourcePath = root.backgroundPath
+    posterProc.running = true
   }
 
   function refreshFingerprintStatus() {
@@ -307,6 +321,7 @@ Item {
         id: lockView
         anchors.fill: parent
         backgroundPath: root.backgroundPath
+        videoPosterPath: root.videoPosterPath
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured
         authenticatingPassword: root.authenticatingPassword
@@ -339,6 +354,7 @@ Item {
     LockView {
       anchors.fill: parent
       backgroundPath: root.backgroundPath
+      videoPosterPath: root.videoPosterPath
       backgroundVersion: root.backgroundVersion
       fingerprintConfigured: root.fingerprintConfigured
       authenticatingPassword: false
@@ -394,6 +410,32 @@ Item {
     }
   }
 
+  // The lock only starts decoding its wallpaper once locked, and a machine
+  // suspending right after locking froze that decode partway: waking showed
+  // the password field on a bare background, then the wallpaper popped in.
+  // Keep each screen's lock wallpaper decoded in the image cache ahead of
+  // time, as the lock view requests it (same URL, the screen's logical size,
+  // PreserveAspectCrop), so the lock draws it on its first frame.
+  readonly property string lockWallpaperPath: videoBackground ? videoPosterPath : backgroundPath
+  readonly property string lockWallpaperUrl: lockWallpaperPath && !Util.isVideoPath(lockWallpaperPath)
+    ? Util.fileUrl(lockWallpaperPath) + (backgroundVersion ? "?v=" + backgroundVersion : "")
+    : ""
+
+  Variants {
+    model: Quickshell.screens
+
+    Image {
+      required property var modelData
+      visible: false
+      source: root.lockWallpaperUrl
+      sourceSize.width: modelData.width
+      sourceSize.height: modelData.height
+      fillMode: Image.PreserveAspectCrop
+      asynchronous: true
+      cache: true
+    }
+  }
+
   Timer {
     id: fingerprintRetryTimer
     interval: 250
@@ -403,15 +445,37 @@ Item {
 
   Process {
     id: readlinkProc
-    command: ["readlink", "-f", root.currentBackgroundLink]
+    command: ["bash", "-c", "path=$(readlink -f -- \"$1\") && printf '%s\\n%s\\n' \"$path\" \"$(stat -Lc %Y:%s -- \"$path\" 2>/dev/null)\"", "_", root.currentBackgroundLink]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        var next = String(text || "").trim()
+        var lines = String(text || "").split("\n")
+        var next = String(lines[0] || "").trim()
+        var signature = String(lines[1] || "").trim()
         if (next !== root.backgroundPath) {
+          root.videoPosterPath = ""
           root.backgroundPath = next
+          root.backgroundSignature = signature
+          root.backgroundVersion += 1
+        } else if (signature !== root.backgroundSignature) {
+          root.backgroundSignature = signature
           root.backgroundVersion += 1
         }
+        root.refreshPoster()
+      }
+    }
+  }
+
+  Process {
+    id: posterProc
+    property string sourcePath: ""
+    command: ["bash", Quickshell.env("OMARCHY_PATH") + "/shell/plugins/lock/poster.sh", sourcePath]
+    stdout: StdioCollector { id: posterOutput; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (sourcePath !== root.backgroundPath) {
+        root.refreshPoster()
+      } else {
+        root.videoPosterPath = exitCode === 0 ? String(posterOutput.text || "").trim() : ""
       }
     }
   }
@@ -577,7 +641,7 @@ Item {
     checkStrandedLock()
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "lock"
 
     function lock(): string {

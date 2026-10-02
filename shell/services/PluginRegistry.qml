@@ -1,3 +1,5 @@
+import "PluginReload.js" as PluginReload
+
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -740,7 +742,7 @@ QtObject {
   }
 
   function localPluginQmlChangedForPath(filePath) {
-    return /\.qml$/i.test(String(filePath || "").trim())
+    return PluginReload.sourceChangedForPath(filePath)
   }
 
   Component.onCompleted: ensureUserDir()

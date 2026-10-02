@@ -1,32 +1,39 @@
 #!/bin/bash
 
 set -euo pipefail
-
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
 const fs = require('fs')
-const registrySource = fs.readFileSync(root + '/shell/services/PluginRegistry.qml', 'utf8')
-const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
-
-assert(
-  /function localPluginQmlChangedForPath\(filePath\) \{[\s\S]*?\/\\\.qml\$\/i\.test/.test(registrySource),
-  'the plugin watcher identifies QML changes case-insensitively'
-)
-assert(
-  /localPluginChanged\(pluginId, registry\.localPluginQmlChangedForPath\(path\)\)/.test(registrySource),
-  'the plugin watcher reports whether changed content is QML'
-)
-assert(
-  /if \(qmlSourceChanged\) shell\.localPluginQmlReloadPending = true/.test(shellSource),
-  'QML changes request an engine reload'
-)
-assert(
-  /if \(shell\.localPluginQmlReloadPending\) \{[\s\S]*?Quickshell\.reload\(false\)[\s\S]*?\} else \{[\s\S]*?shell\.reloadPlugins\(\)/.test(shellSource),
-  'only QML changes soft-reload the shell engine'
-)
-assert(
-  !shellSource.includes('Qt.clearComponentCache'),
-  'plugin reload does not call the unavailable QML cache API'
-)
+const vm = require('vm')
+function loadModule(file) {
+  const context = vm.createContext({})
+  vm.runInContext(fs.readFileSync(root + '/shell/services/' + file, 'utf8'), context)
+  return context
+}
+const reload = loadModule('PluginReload.js')
+const auth = loadModule('AuthServiceStore.js')
+for (const file of ['entry.qml', 'Helper.QML', 'util.js', 'module.mjs', 'qmldir', 'nested/qmldir'])
+  assert(reload.sourceChangedForPath(file), file + ' refreshes compiled plugin sources')
+for (const file of ['manifest.json', '__pycache__/worker.pyc', 'photo.png', 'notes.qml.bak'])
+  assert(!reload.sourceChangedForPath(file), file + ' uses the registry-only reload')
+let engineReloads = 0
+let registryReloads = 0
+const engine = () => engineReloads++
+const registry = () => registryReloads++
+const lock = { locked: true }
+auth.put('omarchy.lock', lock)
+let pending = reload.flush(true, auth.hasActiveLock(), engine, registry)
+assert(pending && engineReloads === 0 && registryReloads === 0, 'source edits stay queued while locked')
+pending = reload.flush(pending, auth.hasActiveLock(), engine, registry)
+assert(pending && engineReloads === 0, 'retries preserve the lock and queued edit')
+lock.locked = false
+pending = reload.flush(pending, auth.hasActiveLock(), engine, registry)
+assert(!pending && engineReloads === 1 && registryReloads === 0, 'unlock consumes the queued engine reload once')
+reload.flush(false, auth.hasActiveLock(), engine, registry)
+assert(engineReloads === 1 && registryReloads === 1, 'non-source edits only rescan plugins')
+// Configured authentication clones are private too and can own the lock.
+auth.put('my.lock', { locked: true })
+assert(reload.flush(true, auth.hasActiveLock(), engine, registry), 'a private lock clone also defers reload')
+assert(engineReloads === 1, 'no engine reload occurs while any private lock is held')
 JS
