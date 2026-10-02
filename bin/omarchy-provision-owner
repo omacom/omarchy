@@ -836,11 +836,12 @@ configure_timezone() {
 }
 
 # Apply the owner's language, deferred to first boot with the rest of the user
-# step. systemd-firstboot writes /etc/locale.conf; localectl is the fallback,
-# and it is also what generates a locale nobody has generated yet, so a machine
-# whose owner does not speak the image's language still gets a working one. A
-# locale glibc does not know keeps the default rather than failing setup over
-# a language.
+# step. systemd-firstboot writes /etc/locale.conf, but refuses a locale that has
+# not been generated yet ("Locale ... is not installed"), and that refusal is
+# what hands over to localectl: it is also what generates a locale nobody has
+# generated yet, so a machine whose owner does not speak the image's language
+# still gets a working one. A locale glibc does not know keeps the default
+# rather than failing setup over a language.
 configure_language() {
   [[ -n ${language:-} ]] || return 0
 
