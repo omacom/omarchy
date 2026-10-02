@@ -409,6 +409,27 @@ ShellRoot {
     registry.setEnabled("local.bar", false)
     root.assertTrue(root.config.bar.id === undefined, "disabling a cloned built-in bar restores it")
 
+    registry.setEnabled("local.bar", true)
+    registry.setEnabled("third.bar", true)
+    root.assertTrue(root.config.cloneSources === undefined, "switching to another bar clears the outgoing clone source")
+    root.assertEqual(root.config.bar.id, "third.bar", "switching away from a clone selects the other bar")
+    // Also clean records saved by an older shell when disabling an inactive
+    // clone, without replacing the bar the user has since selected.
+    root.config.cloneSources = { "local.bar": "omarchy.bar" }
+    registry.setEnabled("local.bar", false)
+    root.assertTrue(root.config.cloneSources === undefined, "disabling an inactive cloned bar clears its stale source")
+    root.assertEqual(root.config.bar.id, "third.bar", "disabling an inactive cloned bar preserves the selected bar")
+    registry.setEnabled("local.bar", true)
+    root.assertEqual(root.config.cloneSources["local.bar"], "omarchy.bar", "reselecting a clone saves its source again")
+    registry.setEnabled("local.bar", false)
+
+    root.config.cloneSources = { "third.panel": "omarchy.grouped-panel" }
+    root.config.cloneSourceRestores = ["third.panel"]
+    registry.setEnabled("third.panel", true)
+    root.assertTrue(root.config.cloneSources === undefined, "enabling a non-clone clears source metadata from a reused id")
+    root.assertTrue(root.config.cloneSourceRestores === undefined, "enabling a non-clone clears a stale restore marker")
+    registry.setEnabled("third.panel", false)
+
     var missingClones = [
       { id: "local.grouped-panel", source: "omarchy.grouped-panel", kinds: ["panel"], entryPoints: { panel: "Panel.qml" } },
       { id: "local.hybrid", source: "omarchy.hybrid", kinds: ["menu", "bar-widget"], entryPoints: { menu: "Menu.qml", barWidget: "Widget.qml" } },

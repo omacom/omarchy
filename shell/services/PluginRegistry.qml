@@ -438,6 +438,14 @@ QtObject {
     return ""
   }
 
+  function clearCloneSource(config, cloneId) {
+    setCloneShouldRestoreSource(config, cloneId, false)
+    if (Util.isPlainObject(config.cloneSources)) {
+      delete config.cloneSources[cloneId]
+      if (!Object.keys(config.cloneSources).length) delete config.cloneSources
+    }
+  }
+
   function restoreCloneSource(config, cloneId, sourceId) {
     var cloneLocation = findEntryLocation(config, cloneId)
     var isBarOption = cloneLocation.kind === "bar-option"
@@ -466,11 +474,7 @@ QtObject {
     }
 
     if (cloneShouldRestoreSource(config, cloneId)) removeDisabled(config, sourceId)
-    setCloneShouldRestoreSource(config, cloneId, false)
-    if (Util.isPlainObject(config.cloneSources)) {
-      delete config.cloneSources[cloneId]
-      if (!Object.keys(config.cloneSources).length) delete config.cloneSources
-    }
+    clearCloneSource(config, cloneId)
   }
 
   function setEnabled(id, value, placement) {
@@ -520,14 +524,20 @@ QtObject {
       if (value && clonedFrom) {
         if (!Util.isPlainObject(config.cloneSources)) config.cloneSources = {}
         config.cloneSources[key] = clonedFrom
+      } else if (value) {
+        clearCloneSource(config, key)
       }
 
       if (isBarOption) {
         if (value) {
+          var previousBar = Util.canonicalWidgetId(String(config.bar.id || ""))
+          if (previousBar && previousBar !== key) clearCloneSource(config, previousBar)
           config.bar.id = key
         } else if (Util.canonicalWidgetId(String(config.bar.id || "")) === key) {
           if (clonedFrom) restoreCloneSource(config, key, clonedFrom)
           else delete config.bar.id
+        } else {
+          clearCloneSource(config, key)
         }
         return
       }
