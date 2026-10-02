@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the Sober (Roblox) Flatpak app and its data.
+
+set -e
+
+if omarchy-cmd-present flatpak && flatpak info org.vinegarhq.Sober &>/dev/null; then
+  flatpak uninstall -y --delete-data org.vinegarhq.Sober
+fi
+
+echo ""
+echo "Sober (Roblox) removed."

@@ -83,3 +83,9 @@ Installation is a little janky and looks like nothing is happening at times — 
 Install the [Heroic Launcher](https://heroicgameslauncher.com/) by selecting _Install > Gaming > Heroic (Epic Games)_ from the Omarchy menu (`Super + Space`). Heroic lets you run Epic Games titles, like OddSparks, that don't rely on anti-cheat — plus games from GOG and Amazon Prime Gaming. Sadly, that means no Fortnite and no Rocket League — until Tim Sweeney comes to Linux, this is as close as it gets.
 
 Like Lutris, it can feel slow and janky while installing games. Give it time.
+
+## Sober (Roblox)
+
+Install [Sober](https://sober.vinegarhq.org/) by selecting _Install > Gaming > Sober (Roblox)_ from the Omarchy menu (`Super + Space`). Sober runs Roblox on Linux via Flatpak (Flathub), so no Wine or emulator setup is needed.
+
+On first launch, Sober prompts you to install Roblox before you can play. It requires an x86_64 CPU with SSE4.2. Sober is a community project and is not affiliated with Roblox — use at your own risk.
