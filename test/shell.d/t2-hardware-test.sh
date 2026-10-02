@@ -67,12 +67,22 @@ printf '\n' >>"$TEST_LOG"
 "$@"
 SH
 
+# is-enabled answers from a marker that enable writes, and is not logged, so a
+# migration asking whether its unit is on does not count as touching anything.
 cat >"$stub_bin/systemctl" <<'SH'
 #!/bin/bash
 
+if [[ $1 == "is-enabled" ]]; then
+  [[ -n ${TEST_ENABLED:-} && -e $TEST_ENABLED ]]
+  exit
+fi
 printf 'systemctl' >>"$TEST_LOG"
 printf '\t%s' "$@" >>"$TEST_LOG"
 printf '\n' >>"$TEST_LOG"
+if [[ $1 == "enable" && -n ${TEST_ENABLED:-} ]]; then
+  touch "$TEST_ENABLED"
+fi
+exit 0
 SH
 
 cat >"$stub_bin/omarchy-pkg-present" <<'SH'
@@ -236,7 +246,8 @@ grep -Fxq 'limine-mkinitcpio' "$calls" ||
 pass "T2 rerun migration repairs installs the broken hardware check skipped"
 
 prochot_unit_target="$test_tmp/system/omarchy-t2-prochot.service"
-rm -rf "$test_tmp/system"
+prochot_enabled="$test_tmp/prochot-enabled"
+rm -rf "$test_tmp/system" "$prochot_enabled"
 : >"$calls"
 
 PATH="$stub_bin:$PATH" \
@@ -244,6 +255,7 @@ PATH="$stub_bin:$PATH" \
   T2_HARDWARE=1 \
   OMARCHY_PATH="$ROOT" \
   OMARCHY_T2_PROCHOT_UNIT="$prochot_unit_target" \
+  TEST_ENABLED="$prochot_enabled" \
   bash -euo pipefail "$prochot_migration" >/dev/null
 
 cmp -s "$prochot_unit" "$prochot_unit_target" ||
@@ -263,10 +275,28 @@ PATH="$stub_bin:$PATH" \
   T2_HARDWARE=1 \
   OMARCHY_PATH="$ROOT" \
   OMARCHY_T2_PROCHOT_UNIT="$prochot_unit_target" \
+  TEST_ENABLED="$prochot_enabled" \
   bash -euo pipefail "$prochot_migration" >/dev/null
 
 [[ ! -s $calls ]] || fail "an already repaired T2 install is left unchanged" "$(cat "$calls")"
 pass "T2 PROCHOT migration is idempotent"
+
+# A run that installed the unit and then failed at enable --now leaves the file
+# behind; the retry must not take that for a finished job.
+rm -f "$prochot_enabled"
+: >"$calls"
+
+PATH="$stub_bin:$PATH" \
+  TEST_LOG="$calls" \
+  T2_HARDWARE=1 \
+  OMARCHY_PATH="$ROOT" \
+  OMARCHY_T2_PROCHOT_UNIT="$prochot_unit_target" \
+  TEST_ENABLED="$prochot_enabled" \
+  bash -euo pipefail "$prochot_migration" >/dev/null
+
+grep -Fq $'systemctl\tenable\t--now\tomarchy-t2-prochot.service' "$calls" ||
+  fail "a run interrupted before enabling the override finishes the job" "$(cat "$calls")"
+pass "T2 PROCHOT migration enables an override an interrupted run left installed but disabled"
 
 rm -rf "$test_tmp/system"
 : >"$calls"
@@ -276,6 +306,7 @@ PATH="$stub_bin:$PATH" \
   T2_HARDWARE=0 \
   OMARCHY_PATH="$ROOT" \
   OMARCHY_T2_PROCHOT_UNIT="$prochot_unit_target" \
+  TEST_ENABLED="$prochot_enabled" \
   bash -euo pipefail "$prochot_migration" >/dev/null
 
 [[ ! -e $prochot_unit_target ]] || fail "non-T2 systems get no PROCHOT override"
