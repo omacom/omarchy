@@ -612,6 +612,59 @@ ShellRoot {
     root.assertTrue(root.config.cloneBarRestores === undefined, "changed widget restoration clears both source snapshots")
     registry.parseScanOutput(scan)
 
+    for (var obligationIndex = 0; obligationIndex < sharedClones.length; obligationIndex++) {
+      var obligation = sharedClones[obligationIndex]
+      var changedSibling = manifest("local.changed-sibling", obligation.kinds, obligation.entryPoints)
+      changedSibling.omarchy = { clonedFrom: obligation.source }
+      for (var priorOff = 0; priorOff < 2; priorOff++) {
+        registry.parseScanOutput(scan + block("thirdparty", "/third/changed-sibling", changedSibling))
+        root.config = { version: 1, bar: { layout: { left: [], center: [], right: [] } }, plugins: [] }
+        if (priorOff) root.config.disabledPlugins = [obligation.source]
+        registry.setEnabled(obligation.id, true)
+        registry.setEnabled("local.changed-sibling", true)
+        changedSibling.omarchy.clonedFrom = "omarchy.replacement-panel"
+        registry.parseScanOutput(scan + block("thirdparty", "/third/changed-sibling", changedSibling))
+        registry.setEnabled(obligation.id, false)
+        root.assertTrue(registry.isDisabled(root.config, obligation.source), "changed sibling retains its saved disabled-source obligation")
+        root.assertEqual(root.config.cloneSources["local.changed-sibling"], obligation.source, "changed sibling keeps its original source until a lifecycle action")
+        root.config = JSON.parse(JSON.stringify(root.config))
+        registry.setEnabled("local.changed-sibling", false)
+        root.assertEqual(registry.isDisabled(root.config, obligation.source), !!priorOff, "last changed sibling preserves the source's initial disabled state")
+        changedSibling.omarchy.clonedFrom = obligation.source
+      }
+    }
+    registry.parseScanOutput(scan)
+
+    for (var withSibling = 0; withSibling < 2; withSibling++) {
+      var editedSibling = manifest("local.edited-sibling", ["bar-widget"], { barWidget: "Widget.qml" })
+      editedSibling.omarchy = { clonedFrom: "omarchy.first-widget" }
+      registry.parseScanOutput(scan + block("thirdparty", "/third/edited-sibling", editedSibling))
+      root.config = { version: 1, bar: { layout: { left: [{ id: "omarchy.first-widget", size: 4 }], center: [], right: [] } }, plugins: [] }
+      registry.setEnabled("local.first-widget", true)
+      if (withSibling) registry.setEnabled("local.edited-sibling", true, { section: "center" })
+      registry.moveBarWidget("local.first-widget", { section: "right" })
+      registry.setBarWidget("local.first-widget", "size", 7, {})
+      registry.setBarWidget("local.first-widget", "options", { edited: true }, {})
+      root.config = JSON.parse(JSON.stringify(root.config))
+      registry.setEnabled("local.first-widget", false)
+      if (withSibling) {
+        root.assertTrue(!registry.findBarLocation(root.config, "omarchy.first-widget", "").found, "edited shared source waits for its final clone")
+        registry.setEnabled("local.edited-sibling", false)
+      }
+      root.assertDeepEqual(root.config.bar.layout.left, [], "edited clone restoration does not return to its obsolete slot")
+      root.assertDeepEqual(root.config.bar.layout.right, [{ id: "omarchy.first-widget", size: 7, options: { edited: true } }], "restoration preserves the owning clone's latest move and inline edits")
+      root.assertTrue(root.config.cloneBarRestores === undefined, "edited clone restoration clears its snapshot")
+    }
+    registry.parseScanOutput(scan)
+
+    root.config = { version: 1, bar: { layout: { left: [{ id: "omarchy.first-widget", size: 9 }], center: [], right: [] } }, plugins: [] }
+    registry.setEnabled("local.first-widget", true)
+    registry.parseScanOutput(scan + block("thirdparty", "/third/unrelated-widget", manifest("local.first-widget", ["bar-widget"], { barWidget: "Widget.qml" })))
+    registry.setBarWidget("local.first-widget", "size", 2, {})
+    registry.setEnabled("local.first-widget", false)
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "omarchy.first-widget", size: 9 }], "disabling an unrelated reused id does not copy its settings into the original")
+    registry.parseScanOutput(scan)
+
     var missingClones = [
       { id: "local.grouped-panel", source: "omarchy.grouped-panel", kinds: ["panel"], entryPoints: { panel: "Panel.qml" } },
       { id: "local.hybrid", source: "omarchy.hybrid", kinds: ["menu", "bar-widget"], entryPoints: { menu: "Menu.qml", barWidget: "Widget.qml" } },

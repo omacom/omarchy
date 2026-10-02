@@ -435,10 +435,11 @@ QtObject {
       var candidateManifest = installedPlugins[candidate]
       var candidateMetadata = candidateManifest && Util.isPlainObject(candidateManifest.omarchy)
         ? candidateManifest.omarchy : null
-      // Saved records describe restoration obligations, not the identity of
-      // a replacement manifest. Only use them when the manifest is missing.
+      // A still-cloned manifest keeps its saved obligation until a lifecycle
+      // action changes it. An unrelated non-clone must not inherit that identity.
       var source = candidateManifest
-        ? String(candidateMetadata ? candidateMetadata.clonedFrom || "" : "")
+        ? (candidateMetadata && candidateMetadata.clonedFrom
+          ? String(sources[candidate] || candidateMetadata.clonedFrom) : "")
         : String(sources[candidate] || "")
       if (source === sourceId && !isDisabled(config, candidate)
           && findEntryLocation(config, candidate).found) return candidate
@@ -496,6 +497,17 @@ QtObject {
         var cloneEntry = config.bar.layout[cloneLocation.section][cloneLocation.index]
         var remainingClone = activeCloneFor(config, sourceId, cloneId)
         var saved = Util.isPlainObject(config.cloneBarRestores) ? config.cloneBarRestores[sourceId] : null
+        var ownerManifest = installedPlugins[cloneId]
+        var ownerMetadata = ownerManifest && Util.isPlainObject(ownerManifest.omarchy) ? ownerManifest.omarchy : null
+        if (Util.isPlainObject(saved) && saved.owner === cloneId
+            && (!ownerManifest || (ownerMetadata && ownerMetadata.clonedFrom))) {
+          saved.entry = Util.isPlainObject(cloneEntry) ? Util.cloneJson(cloneEntry) : { id: sourceId }
+          saved.entry.id = sourceId
+          saved.section = cloneLocation.section
+          saved.index = cloneLocation.index
+          // Do not let a later activation of the same ID overwrite this slot.
+          saved.owner = ""
+        }
         if (remainingClone || Util.isPlainObject(saved)) {
           config.bar.layout[cloneLocation.section].splice(cloneLocation.index, 1)
         } else {
@@ -617,6 +629,7 @@ QtObject {
             if (!Util.isPlainObject(config.cloneBarRestores)) config.cloneBarRestores = {}
             if (!config.cloneBarRestores[clonedFrom]) {
               config.cloneBarRestores[clonedFrom] = {
+                owner: key,
                 section: sourceLocation.section,
                 index: sourceLocation.index,
                 entry: Util.isPlainObject(sourceEntry) ? Util.cloneJson(sourceEntry) : { id: clonedFrom }
