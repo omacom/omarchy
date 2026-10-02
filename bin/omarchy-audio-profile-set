@@ -21,25 +21,42 @@ timeout 2 pactl set-card-profile "$card" "$profile" 2>/dev/null || exit 1
 # card, then make it default and move streams like output-set-default does.
 new_sink=""
 new_index=""
-for delay in 1 2 3 4 5; do
+attempt=0
+while (( attempt < 6 )); do
+  (( attempt++ )) || true
   sleep 0.5
   row=$(timeout 2 pactl -f json list sinks 2>/dev/null | jq -r --arg card "$card" '
-    .[] | select(.properties."device.name" == $card or (.name | contains($card | sub("alsa_card\\."; "")))) | "\(.index)\t\(.name)\t\(.description // .name)"
+    .[] | select(.properties."device.name" == $card) | "\(.index)\t\(.name)"
   ' 2>/dev/null | head -n 1)
   if [[ -n $row ]]; then
     new_index=$(cut -f1 <<<"$row")
     new_sink=$(cut -f2 <<<"$row")
     break
   fi
-  [[ $delay == "1" ]] || sleep 0.5
 done
 
 if [[ -z $new_sink ]]; then
-  omarchy-osd -m "Profile set, waiting for output" 2>/dev/null || true
-  exit 0
+  echo "Timed out waiting for output after profile switch to $profile" >&2
+  omarchy-osd -m "Output not ready after profile switch" 2>/dev/null || true
+  exit 1
 fi
 
-omarchy-audio-output-set-default "$new_index" "$new_sink" 2>/dev/null || true
+# A speaker tuning is a virtual sink in front of the real speakers. Both exist
+# in the graph, but selecting the physical one would bypass the tuning, so
+# route through it the way output-switch does by keeping the physical sink out
+# of the rotation.
+target_sink="$new_sink"
+target_index="$new_index"
+fronted=$(omarchy-audio-tuning fronted-sink 2>/dev/null || true)
+if [[ -n $fronted && $new_sink == "$fronted" ]]; then
+  tuning_index=$(timeout 2 pactl list sinks short 2>/dev/null | awk '$2 == "omarchy_speaker_tuning" {print $1; exit}')
+  if [[ -n $tuning_index ]]; then
+    target_sink="omarchy_speaker_tuning"
+    target_index="$tuning_index"
+  fi
+fi
+
+omarchy-audio-output-set-default "$target_index" "$target_sink" 2>/dev/null || true
 
 description=$(timeout 2 pactl -f json list sinks 2>/dev/null | jq -r --arg name "$new_sink" '.[] | select(.name == $name) | .description // .name' 2>/dev/null)
 [[ -n $description ]] || description="$new_sink"
