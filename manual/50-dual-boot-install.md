@@ -39,16 +39,15 @@ In order to do that, run `limine-scan` and follow the prompts to add whichever i
 
 ## Fixing Windows Time Synchronization
 
-When dual-booting Windows and Omarchy, you may notice that the system clock displays the wrong time when switching between the operating systems. This happens because Windows calculates time using your local time zone, while Omarchy (like most Linux distributions) uses Universal Time Coordinated (UTC). 
+When dual-booting Windows and Omarchy, you may notice that the clock is off by your time zone's offset after switching between the operating systems. This happens because both share the computer's hardware clock but read it differently: Windows assumes it holds your local time, while Omarchy (like most Linux distributions) assumes it holds Coordinated Universal Time (UTC).
 
-To force Windows to use UTC, follow these steps:
+To make Windows keep the hardware clock in UTC too, follow these steps:
 
-- **Disable Automatic Time Sync:** Boot into Windows, open your Start menu, and navigate to **Settings** > **Time & language** > **Date & time**. Toggle **Set time automatically** to **Off**.
--  **Open PowerShell as Administrator:**  Paste the following command into the PowerShell window and press Enter:
-   ```powershell
-   reg add HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation /v RealTimeIsUniversal /t REG_DWORD /d 1 /f
-   ```
-- **Restart Windows:** Restart your computer for the registry changes to take effect.
+- **Open PowerShell as Administrator:** Boot into Windows and open PowerShell as Administrator. Paste the following command and press Enter:
+  ```powershell
+  reg add HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation /v RealTimeIsUniversal /t REG_DWORD /d 1 /f
+  ```
+- **Restart Windows:** Restart your computer for the registry change to take effect.
 
 ## Bitlocker
 
