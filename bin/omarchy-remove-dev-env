@@ -90,7 +90,7 @@ symfony)
   ;;
 lerd)
   echo -e "Removing Lerd...\n"
-  lerd uninstall
+  lerd uninstall || exit 1
   ;;
 python)
   echo -e "Removing Python...\n"

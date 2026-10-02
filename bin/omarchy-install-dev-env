@@ -68,7 +68,7 @@ symfony)
   ;;
 lerd)
   echo -e "Installing Lerd...\n"
-  curl -fsSL https://lerd.sh/install.sh | bash || exit 1
+  (set -o pipefail; curl -fsSL https://lerd.sh/install.sh | bash) || exit 1
   echo -e "\nYou can now run: lerd link, inside any PHP project"
   ;;
 python)
