@@ -60,8 +60,14 @@ set_cfg content_database_path "/usr/share/libretro/database/rdb"
 set_cfg cheat_database_path "/usr/share/libretro/database/cht"
 set_cfg cursor_directory "/usr/share/libretro/database/cursors"
 
-# Vulkan is required for slang shaders and unlocks hardware renderers in beetle-psx-hw, parallel-n64, dolphin
-set_cfg video_driver "vulkan"
+# Vulkan unlocks hardware renderers in beetle-psx-hw, parallel-n64, dolphin. GPUs
+# without it fall back to glcore, which still runs the slang CRT shader below;
+# RetroArch exits at startup when the configured driver can't open a device.
+if omarchy-hw-vulkan; then
+  set_cfg video_driver "vulkan"
+else
+  set_cfg video_driver "glcore"
+fi
 
 # XMB is the classic PS3-style menu (vs. ozone/rgui/glui)
 set_cfg menu_driver "xmb"

@@ -2,5 +2,44 @@
 
 # omarchy:summary=Detect whether Vulkan is available.
 
-[[ -d /usr/share/vulkan/icd.d ]] &&
-  find /usr/share/vulkan/icd.d -maxdepth 1 -name "*.json" -print -quit | grep -q .
+vulkan_icd_path="${OMARCHY_VULKAN_ICD_PATH:-/usr/share/vulkan/icd.d}"
+
+[[ -d $vulkan_icd_path ]] &&
+  find "$vulkan_icd_path" -maxdepth 1 -name "*.json" -print -quit | grep -q . || exit 1
+
+# An installed ICD doesn't mean a GPU it can drive. The Vulkan drivers are
+# installed by vendor, so a TeraScale Radeon or a Sandy Bridge iGPU gets them
+# and then enumerates zero devices. Rule out only GPUs known to have no Vulkan
+# driver; anything else, or a GPU that isn't on PCI at all, keeps the ICD answer.
+#
+# Read the cached sysfs IDs rather than lspci, which reads PCI config space and
+# resumes runtime-suspended GPUs.
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+
+shopt -s nullglob
+
+gpus=0
+
+for device in "$pci_devices_path"/*; do
+  [[ $(< "$device/class") == 0x03* ]] || continue
+  gpus=$((gpus + 1))
+
+  case $(< "$device/vendor") in
+    0x1002)
+      # RADV needs the amdgpu kernel driver. TeraScale and older only run on
+      # radeon, as do GCN 1.0/1.1 cards unless amdgpu is forced.
+      [[ $(basename "$(readlink "$device/driver")") == "amdgpu" ]] && exit 0
+      ;;
+    0x8086)
+      # Ivy Bridge (hasvk) is the oldest Intel GPU with Vulkan, and its device
+      # IDs open at 0x0152. Below 0x0150 are only Ironlake and Sandy Bridge.
+      device_id=$(< "$device/device")
+      (( device_id >= 0x0150 )) && exit 0
+      ;;
+    *)
+      exit 0
+      ;;
+  esac
+done
+
+(( gpus == 0 ))
