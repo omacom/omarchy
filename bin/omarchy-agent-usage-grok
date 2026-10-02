@@ -213,7 +213,7 @@ def collect_limits(home, key, force):
     return result
 
   if cached.get("limits") and not force and time.time() - fetched_at / 1000 < PROBE_REUSE_SECONDS:
-    result.update(limits=cached["limits"], live=True)
+    result.update(limits=cached["limits"], live=True, authHelpText="")
     return result
 
   request = urllib.request.Request(CREDITS_URL, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
@@ -228,7 +228,7 @@ def collect_limits(home, key, force):
     limit = None
 
   if limit:
-    result.update(limits=[limit], live=True, fetchedAtMs=round(time.time() * 1000))
+    result.update(limits=[limit], live=True, fetchedAtMs=round(time.time() * 1000), authHelpText="")
     write_json(cache, {"fetchedAtMs": result["fetchedAtMs"], "limits": result["limits"]})
   else:
     result["limits"] = cached.get("limits") or []

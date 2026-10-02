@@ -74,6 +74,10 @@ record=$(collect)
 [[ $(jq -c '{ready, tierLabel, stale: .limitsStale, label: .limits[0].label, percent: .limits[0].percent}' <<<"$record") == '{"ready":true,"tierLabel":"X Premium+","stale":false,"label":"Weekly","percent":0.42}' ]] ||
   fail "Grok's plan and credits come from its own home" "$record"
 [[ -n $(jq -r '.limits[0].resetsAt' <<<"$record") ]] || fail "the credits window says when the period ends" "$record"
+[[ $(jq -r '.authHelpText' <<<"$record") == "" ]] || fail "a successful Grok probe drops the login hint" "$record"
+record=$(collect)
+[[ $(jq -c '{percent: .limits[0].percent, help: .authHelpText}' <<<"$record") == '{"percent":0.42,"help":""}' ]] ||
+  fail "reused Grok limits drop the login hint" "$record"
 pass "Grok's plan and credits come from its own home"
 
 signed_in "$HOME/.grok" token-main u-main "$past" "X Premium+"
