@@ -9,7 +9,8 @@ if omarchy-hw-imac-cs4208; then
   rm -rf ~/.local/state/wireplumber/default-routes
 
   # Leave the hardware mixer wide open so software volume is the only attenuation.
-  card=$(aplay -l 2>/dev/null | grep -i "CS4208 Analog" | head -1 | sed 's/card \([0-9]*\).*/\1/')
+  # The migration runs under pipefail, so a card that is not listed must not abort it.
+  card=$(aplay -l 2>/dev/null | grep -i "CS4208 Analog" | head -1 | sed 's/card \([0-9]*\).*/\1/' || true)
   if [[ -n $card ]]; then
     amixer -c "$card" set Master 100% unmute 2>/dev/null || true
     amixer -c "$card" set PCM 100% 2>/dev/null || true

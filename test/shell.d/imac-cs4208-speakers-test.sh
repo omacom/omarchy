@@ -77,6 +77,10 @@ SH
 
 cat >"$stub_bin/aplay" <<'SH'
 #!/bin/bash
+if [[ ${TEST_NO_SOUNDCARDS:-} == "1" ]]; then
+  echo "aplay: device_list:279: no soundcards found..." >&2
+  exit 1
+fi
 printf '%s\n' 'card 1: PCH [HDA Intel PCH], device 0: CS4208 Analog [CS4208 Analog]'
 SH
 
@@ -132,6 +136,12 @@ run_migration || fail "the migration installs the workaround on the target machi
 [[ -f $test_tmp/home/.config/wireplumber/wireplumber.conf.d/imac-cs4208-speakers.conf ]] ||
   fail "the migration installs the workaround on the target machine"
 pass "the migration installs the workaround on the target machine"
+
+TEST_NO_SOUNDCARDS=1 run_migration ||
+  fail "the migration completes on the target machine when no sound card is listed"
+[[ -f $test_tmp/home/.config/wireplumber/wireplumber.conf.d/imac-cs4208-speakers.conf ]] ||
+  fail "the migration completes on the target machine when no sound card is listed"
+pass "the migration completes on the target machine when no sound card is listed"
 
 run_migration "ThinkPad X1" || fail "the migration no-ops on other hardware"
 [[ -e $test_tmp/home/.config/wireplumber/wireplumber.conf.d/imac-cs4208-speakers.conf ]] &&
