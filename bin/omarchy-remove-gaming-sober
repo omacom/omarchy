@@ -4,8 +4,8 @@
 
 set -e
 
-if omarchy-cmd-present flatpak && flatpak info org.vinegarhq.Sober &>/dev/null; then
-  flatpak uninstall -y --delete-data org.vinegarhq.Sober
+if omarchy-cmd-present flatpak && flatpak info --user org.vinegarhq.Sober &>/dev/null; then
+  flatpak uninstall -y --user --delete-data org.vinegarhq.Sober
 fi
 
 echo ""
