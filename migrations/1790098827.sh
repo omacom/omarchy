@@ -13,9 +13,9 @@ is_pure_omarchy_fontconfig() {
     -e 's/<\?xml[^>]*\?>//g' \
     -e 's/<!DOCTYPE[^>]*>//g' \
     -e 's/<\/?fontconfig[^>]*>//g' \
-    "$file" | tr -s '[:space:]' ' ' | sed -E 's/ *([<>=]) */\1/g')
+    "$file" | tr -s '[:space:]' ' ' | sed -E 's/> </></g; s/ *= */=/g; s/ +>/>/g; s/^ //; s/ $//')
 
-  # Whitespace inside a value is kept: a family named "mono space" is not monospace.
+  # Only whitespace between and inside tags goes: " monospace " and "mono space" are other families.
   local pattern='^<match target="pattern"><test name="family" qual="any"><string>monospace</string></test><edit name="family" mode="prepend_first" binding="strong"><string>[^<]+</string></edit></match>$'
   [[ $stripped =~ $pattern ]]
 }
