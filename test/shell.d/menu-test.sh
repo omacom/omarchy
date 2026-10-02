@@ -60,14 +60,14 @@ assert(merged.items.root, 'menu injects root when merging sources')
 
 const partialUser = menu.parseMenuOverridesJsonc(`
 {
-  "style.theme": { "description": "appearance colors" }
+  "style.theme": { "description": "color schemes" }
 }
 `)
 const partiallyMerged = menu.mergeMenuSources(parsed, partialUser)
 assertEqual(partiallyMerged.items['style.theme'].label, 'Themes', 'menu partial user override preserves default label')
 assertEqual(partiallyMerged.items['style.theme'].action, 'omarchy-theme-set', 'menu partial user override preserves default action')
 assertDeepEqual(partiallyMerged.items['style.theme'].aliases, ['theme'], 'menu partial user override preserves default aliases')
-assertEqual(partiallyMerged.items['style.theme'].description, 'appearance colors', 'menu partial user override replaces declared field')
+assertEqual(partiallyMerged.items['style.theme'].description, 'color schemes', 'menu partial user override replaces declared field')
 assert(
   /root\.userMenuItems = root\.parseMenuOverridesJsonc\(text\(\)\)/.test(menuQml),
   'menu parses the user extension without filling its omitted fields'
