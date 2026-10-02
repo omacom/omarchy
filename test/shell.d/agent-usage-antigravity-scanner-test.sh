@@ -1,115 +1,180 @@
 #!/bin/bash
 
-source "$(dirname "$0")/base-test.sh"
-
-require_command jq
+set -euo pipefail
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 require_command python3
 
-TEST_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME"' EXIT
+python3 - <<'PY'
+import importlib.machinery
+import importlib.util
+import json
+import os
+import sqlite3
+import subprocess
+import tempfile
+import time
+import unittest
+from datetime import datetime, timezone
+from pathlib import Path
+from unittest.mock import patch
 
-AGY_DIR="$TEST_HOME/.gemini/antigravity-cli"
-mkdir -p "$AGY_DIR/brain/test-conv/.system_generated/logs" "$TEST_HOME/bin"
+root = Path(os.environ['ROOT'])
+script = root / 'bin/omarchy-agent-usage-antigravity'
+loader = importlib.machinery.SourceFileLoader('collector', str(script))
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
 
-# Mock secret-tool to simulate authenticated state
-cat >"$TEST_HOME/bin/secret-tool" <<'EOF'
-#!/bin/bash
-if [[ "$*" == *"lookup service gemini username antigravity"* ]]; then
-  echo '{"auth_method":"consumer","id_token":"header.eyJlbWFpbCI6InRlc3RAZ21haWwuY29tIn0.signature"}'
-  exit 0
-fi
-exit 1
-EOF
-chmod +x "$TEST_HOME/bin/secret-tool"
+class Scanner(unittest.TestCase):
+  def setUp(self):
+    self.tmp = tempfile.TemporaryDirectory()
+    self.addCleanup(self.tmp.cleanup)
+    self.home = Path(self.tmp.name)
+    self.app = self.home / 'app'
+    self.app.mkdir()
+    self.bin = self.home / 'bin'
+    self.bin.mkdir()
+    self.log = self.home / 'calls'
+    self.cli = self.bin / 'agy'
+    self.cli.write_text('''#!/usr/bin/python3
+import json, os, sys
+from pathlib import Path
+with open(os.environ['AGY_TEST_LOG'], 'a') as f:
+  f.write(json.dumps(sys.argv[1:]) + '\\n')
+if sys.argv[1:] == ['--version']:
+  print(os.environ.get('AGY_TEST_VERSION', '1.2.14'))
+  sys.exit(0)
+assert sys.argv[1:] == ['-p', '/usage', '--output-format', 'json']
+error = os.environ.get('AGY_TEST_ERROR')
+if error:
+  print(error, file=sys.stderr)
+  sys.exit(1)
+print(Path(os.environ['AGY_TEST_FIXTURE']).read_text())
+''')
+    self.cli.chmod(0o755)
+    self.env = {'HOME': str(self.home), 'PATH': str(self.bin) + ':/usr/bin', 'TZ': 'Etc/GMT-14',
+                'AGY_DIR': str(self.app), 'XDG_CACHE_HOME': str(self.home / 'cache'),
+                'AGY_TEST_LOG': str(self.log), 'AGY_TEST_FIXTURE': str(root / 'test/shell.d/fixtures/antigravity/usage.json')}
 
-# Write mock history and transcript
-now_date=$(date +%Y-%m-%d)
-timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  def run_collector(self, *args, **extra):
+    result = subprocess.run([str(script), *args], env={**self.env, **extra}, text=True, capture_output=True, check=True)
+    self.assertEqual(result.stderr, '')
+    return json.loads(result.stdout)
 
-cat >"$AGY_DIR/history.jsonl" <<EOF
-{"timestamp":"$timestamp","conversation_id":"test-conv","prompt":"Hello world"}
-EOF
+  def transcript(self, name, entries):
+    path = self.app / 'brain' / name / '.system_generated/logs/transcript.jsonl'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('\n'.join(json.dumps(e) for e in entries) + '\n{partial')
 
-cat >"$AGY_DIR/brain/test-conv/.system_generated/logs/transcript.jsonl" <<EOF
-{"step_index":0,"type":"USER_INPUT","content":"Hello world","created_at":"$timestamp"}
-{"step_index":1,"type":"PLANNER_RESPONSE","created_at":"$timestamp","model":"gemini-3.8-flash-high","usage":{"prompt_token_count":120,"candidates_token_count":45}}
-EOF
+  def test_local_dates_real_shapes_and_no_invented_tokens(self):
+    now = datetime(2026, 9, 28, 1, tzinfo=timezone.utc)
+    prompt = {'step_index': 0, 'source': 'USER', 'type': 'USER_INPUT', 'status': 'DONE',
+              'created_at': '2026-09-27T23:00:00Z', 'content': 'Hello'}
+    self.transcript('session', [prompt, prompt,
+      {'step_index': 1, 'source': 'MODEL', 'type': 'PLANNER_RESPONSE', 'created_at': '2026-09-27T23:01:00Z', 'content': 'Answer', 'thinking': 'Thinking'},
+      {'step_index': 2, 'source': 'USER', 'type': 'USER_INPUT', 'content': 'Missing date'},
+      {'step_index': 3, 'type': 'USER_INPUT', 'created_at': '2099-01-01T00:00:00Z'},
+      {'step_index': 4, 'created_at': [], 'type': 'USER_INPUT'}])
+    history = [
+      {'display': 'Hello', 'timestamp': 1759014000000, 'workspace': '/project'},
+      {'display': 'Hello', 'timestamp': '2026-09-27T23:00:00Z', 'workspace': '/project'},
+      {'display': '/usage', 'timestamp': '2026-09-27T23:00:00Z'},
+      {'display': 'old', 'timestamp': '2026-09-27T01:00:00Z'},
+      {'timestamp': []}, {'timestamp': 10**30}, []]
+    # The first record exercises epoch milliseconds for the same instant.
+    history[0]['timestamp'] = int(datetime(2026, 9, 27, 23, tzinfo=timezone.utc).timestamp() * 1000)
+    (self.app / 'history.jsonl').write_text('\n'.join(json.dumps(e) for e in history))
+    with sqlite3.connect(self.app / 'conversation_summaries.db') as db:
+      db.execute('CREATE TABLE conversation_summaries (conversation_id TEXT, last_modified_time TEXT)')
+      db.executemany('INSERT INTO conversation_summaries VALUES (?, ?)', [('session', '2026-09-27 23:02:00+00:00'), ('summary-only', '2026-09-27 23:03:00+00:00')])
+    with patch.dict(os.environ, {'TZ': 'Etc/GMT-14'}):
+      time.tzset()
+      stats = collector.collect_local_stats(self.app, now)
+    time.tzset()
+    self.assertEqual(stats['todayPrompts'], 2)
+    self.assertEqual(stats['totalPrompts'], 3)
+    self.assertEqual(stats['todaySessions'], 2)
+    self.assertEqual(stats['totalSessions'], 2)
+    self.assertEqual(stats['activeDates'], ['2026-09-27', '2026-09-28'])
+    self.assertEqual(stats['recentDays'][-1], {'date': '2026-09-28', 'messageCount': 0})
+    self.assertEqual(stats['todayTotalTokens'], 0)
+    self.assertEqual(stats['modelUsage'], {})
+    self.assertEqual(stats['todayTokensByModel'], {})
 
-result=$(HOME="$TEST_HOME" AGY_DIR="$AGY_DIR" XDG_CACHE_HOME="$TEST_HOME/.cache" PATH="$TEST_HOME/bin:$PATH" \
-  "$ROOT/bin/omarchy-agent-usage-antigravity" --force)
+  def test_negative_timezone(self):
+    self.transcript('session', [{'step_index': 0, 'type': 'USER_INPUT', 'created_at': '2026-09-28T01:00:00Z'}])
+    with patch.dict(os.environ, {'TZ': 'America/New_York'}):
+      time.tzset()
+      stats = collector.collect_local_stats(self.app, datetime(2026, 9, 28, 2, tzinfo=timezone.utc))
+    time.tzset()
+    self.assertEqual(stats['activeDates'], ['2026-09-27'])
+    self.assertEqual(stats['recentDays'][-1]['date'], '2026-09-27')
+    self.assertEqual(stats['todayPrompts'], 1)
 
-[[ $(jq -r '.id' <<<"$result") == "antigravity" ]] ||
-  fail "Antigravity collector identifies itself" "$result"
-pass "Antigravity collector identifies itself"
+  def test_executable_record_caches_custom_root_and_tier(self):
+    stamp = datetime.now(timezone.utc).isoformat()
+    (self.app / 'history.jsonl').write_text(json.dumps({'display': 'hello', 'timestamp': stamp}) + '\n')
+    record = self.run_collector('--force')
+    self.assertEqual(record['id'], 'antigravity')
+    self.assertTrue(record['ready'])
+    self.assertTrue(record['hasLocalStats'])
+    self.assertEqual(record['tierLabel'], '')
+    self.assertEqual(record['usageStatusText'], '')
+    self.assertEqual([e['percent'] for e in record['limits']], [0, .27, .03])
+    self.assertEqual(record['todayPrompts'], 1)
+    self.assertEqual(record['todayTotalTokens'], 0)
+    self.assertEqual(record['modelUsage'], {})
+    calls = self.log.read_text()
+    (self.app / 'history.jsonl').write_text((json.dumps({'display': 'hello', 'timestamp': stamp}) + '\n') * 3)
+    self.assertEqual(self.run_collector('--limits-only')['todayPrompts'], 1)
+    self.assertEqual(self.log.read_text(), calls)
+    self.assertEqual(self.run_collector('--force')['todayPrompts'], 3)
+    stats_path = next((self.home / 'cache/omarchy/agent-usage').glob('*.stats.json'))
+    cached = json.loads(stats_path.read_text())
+    cached['stats'] = {}
+    stats_path.write_text(json.dumps(cached))
+    self.assertEqual(self.run_collector('--limits-only')['todayPrompts'], 3)
+    other = self.home / 'other'
+    other.mkdir()
+    self.assertEqual(self.run_collector(AGY_DIR=str(other))['totalPrompts'], 0)
+    self.assertEqual(self.run_collector(AGY_TIER='Ultra')['tierLabel'], 'Ultra')
+    config = self.home / 'config/omarchy/agents'
+    config.mkdir(parents=True)
+    (config / 'antigravity.json').write_text('{"tier":"Enterprise"}')
+    self.assertEqual(self.run_collector(XDG_CONFIG_HOME=str(self.home / 'config'))['tierLabel'], 'Enterprise')
 
-[[ $(jq -r '.name' <<<"$result") == "Antigravity" ]] ||
-  fail "Antigravity collector names itself" "$result"
-pass "Antigravity collector names itself"
+  def test_real_command_errors_and_safety_gate(self):
+    for error, status, retry in [('401 expired token', 'Antigravity sign-in required', False),
+                                 ('403 permission denied', 'Antigravity sign-in required', False),
+                                 ('429 rate limit', 'Antigravity limits rate limited', False),
+                                 ('network unreachable', 'Antigravity limits unavailable', True),
+                                 ('500 server failure', 'Antigravity limits unavailable', False)]:
+      record = self.run_collector('--force', AGY_TEST_ERROR=error)
+      self.assertEqual(record['limits'], [])
+      self.assertEqual(record['tierLabel'], '')
+      self.assertEqual(record['usageStatusText'], status)
+      self.assertEqual(record['retryAdvised'], retry)
+      self.assertTrue(record['authHelpText'])
+    self.log.write_text('')
+    record = self.run_collector('--force', AGY_TEST_VERSION='1.1.10')
+    self.assertEqual(record['usageStatusText'], 'Antigravity update required')
+    self.assertEqual(self.log.read_text().splitlines(), ['["--version"]'])
+    self.run_collector('--force')
+    stale = self.run_collector('--force', AGY_TEST_ERROR='network unavailable')
+    self.assertTrue(stale['limitsStale'])
+    self.assertEqual(len(stale['limits']), 3)
+    self.assertTrue(stale['retryAdvised'])
 
-[[ $(jq -r '.tierLabel' <<<"$result") == "Pro" ]] ||
-  fail "Antigravity collector reports Pro tier by default when authenticated" "$result"
-pass "Antigravity collector reports Pro tier by default when authenticated"
+  def test_stock_wrapper_does_not_install(self):
+    self.cli.write_text('#!/bin/bash\nmise use -g antigravity-cli\nexit 99\n')
+    mise = self.bin / 'mise'
+    mise.write_text('#!/bin/bash\n[[ $* == "which agy" ]] || exit 99\nexit 1\n')
+    mise.chmod(0o755)
+    record = self.run_collector('--force')
+    self.assertEqual(record['usageStatusText'], 'Antigravity CLI unavailable')
+    self.assertFalse(record['ready'])
+    self.assertFalse(self.log.exists())
 
-[[ $(jq -r '.tierLabel' <<<"$result") != $(jq -r '.modelUsage | keys[0]' <<<"$result") ]] ||
-  fail "Antigravity collector tierLabel does not match model name" "$result"
-pass "Antigravity collector tierLabel does not match model name"
-
-[[ $(jq -r '.todayPrompts' <<<"$result") == "1" ]] ||
-  fail "Antigravity collector counts today prompts" "$result"
-pass "Antigravity collector counts today prompts"
-
-[[ $(jq -r '.todayTotalTokens' <<<"$result") == "167" ]] ||
-  fail "Antigravity collector counts today tokens" "$result"
-pass "Antigravity collector counts today tokens"
-
-[[ $(jq -r '.modelUsage["gemini-3.8-flash-high"].inputTokens' <<<"$result") == "122" ]] ||
-  fail "Antigravity collector parses input tokens" "$result"
-pass "Antigravity collector parses input tokens"
-
-[[ $(jq -r '.modelUsage["gemini-3.8-flash-high"].outputTokens' <<<"$result") == "45" ]] ||
-  fail "Antigravity collector parses output tokens" "$result"
-pass "Antigravity collector parses output tokens"
-
-[[ $(jq -r '.limits | length' <<<"$result") == "2" ]] ||
-  fail "Antigravity collector produces session and weekly limits" "$result"
-pass "Antigravity collector produces session and weekly limits"
-
-# Test AGY_TIER environment override
-env_tier_result=$(HOME="$TEST_HOME" AGY_DIR="$AGY_DIR" AGY_TIER="Ultra" XDG_CACHE_HOME="$TEST_HOME/.cache" PATH="$TEST_HOME/bin:$PATH" \
-  "$ROOT/bin/omarchy-agent-usage-antigravity" --force)
-
-[[ $(jq -r '.tierLabel' <<<"$env_tier_result") == "Ultra" ]] ||
-  fail "Antigravity collector honors AGY_TIER override" "$env_tier_result"
-pass "Antigravity collector honors AGY_TIER override"
-
-# Test config file override
-mkdir -p "$TEST_HOME/.config/omarchy/agents"
-cat >"$TEST_HOME/.config/omarchy/agents/antigravity.json" <<'EOF'
-{
-  "tier": "Enterprise"
-}
-EOF
-
-cfg_tier_result=$(HOME="$TEST_HOME" AGY_DIR="$AGY_DIR" XDG_CACHE_HOME="$TEST_HOME/.cache" PATH="$TEST_HOME/bin:$PATH" \
-  "$ROOT/bin/omarchy-agent-usage-antigravity" --force)
-
-[[ $(jq -r '.tierLabel' <<<"$cfg_tier_result") == "Enterprise" ]] ||
-  fail "Antigravity collector honors config file tier override" "$cfg_tier_result"
-pass "Antigravity collector honors config file tier override"
-
-# Test unauthenticated state
-cat >"$TEST_HOME/bin/secret-tool" <<'EOF'
-#!/bin/bash
-exit 1
-EOF
-
-unauth_result=$(HOME="$TEST_HOME" AGY_DIR="$AGY_DIR" XDG_CACHE_HOME="$TEST_HOME/.cache" PATH="$TEST_HOME/bin:$PATH" \
-  "$ROOT/bin/omarchy-agent-usage-antigravity" --force)
-
-[[ $(jq -r '.tierLabel' <<<"$unauth_result") == "" ]] ||
-  fail "Antigravity collector has empty tier when unauthenticated" "$unauth_result"
-pass "Antigravity collector has empty tier when unauthenticated"
-
-[[ $(jq -r '.usageStatusText' <<<"$unauth_result") == "Sign in to see limits" ]] ||
-  fail "Antigravity collector indicates sign in status when unauthenticated" "$unauth_result"
-pass "Antigravity collector indicates sign in status when unauthenticated"
+unittest.main(verbosity=2)
+PY
+pass "Antigravity real CLI integration, local history, timezones and cache isolation"

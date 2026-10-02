@@ -64,13 +64,13 @@ record that lands in the directory regardless of who wrote it.
 
 Adding an agent therefore never touches this plugin: ship a collector that
 prints the record contract (see the `claude` and `codex` collectors in
-`bin/`), and the panel gains a tab. An `assets/<id>.svg` mark is optional —
+`bin/`), and the panel gains a section. An `assets/<id>.svg` mark is optional —
 with an `assets/<id>-light.svg` twin if the mark needs a dark variant for
 light surfaces — and the bar glyph stands in when there is none.
 
 | Collector | Limits | Local stats |
 |---|---|---|
-| `antigravity` | Google Cloud Code API | Antigravity CLI transcripts and history |
+| `antigravity` | The Antigravity CLI’s read-only `/usage` command (1.1.11 or newer) | Prompt/session counts from transcripts, history and conversation summaries under `~/.gemini/antigravity-cli/` (`AGY_DIR`); token counts are unavailable |
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn), plus `summary.json` for sessions |
@@ -101,6 +101,14 @@ again. Fireworks reads
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
 signed in there.
+
+### Antigravity quotas and history
+
+The collector runs `agy -p "/usage" --output-format json` after checking that the installed CLI is at least 1.1.11. That version introduced read-only slash-command output without an agent turn or quota spend; an older or unrecognized version is never sent `/usage`. It resolves an existing mise installation without invoking Omarchy’s installer wrapper. Antigravity itself handles credential storage, token refresh and the account’s quota request.
+
+Session and weekly meters use the returned quota windows, including used Claude/GPT allowances. Missing percentages are unknown, not zero usage. Failed checks show a status and help text; network failures request an early retry. Last known windows remain visible and dimmed only until they reset, and an authentication failure clears them. Refresh bypasses the short reuse interval. `AGY_DIR` selects another app data directory with its own caches.
+
+The CLI’s transcripts do not contain token usage or model IDs. Local history contributes prompt and session counts on local calendar dates, without character-based token estimates or invented model rows. History and transcript prompt counts are combined by taking the larger count for each day, since the history may not carry conversation IDs. The `/usage` response does not include a subscription tier, so the plan stays unknown unless you supply `AGY_TIER` or `{ "tier": "Ultra" }` in `~/.config/omarchy/agents/antigravity.json` (honoring `XDG_CONFIG_HOME`). Sign in through `agy`; the panel’s built-in account switching remains for Claude, Codex and Grok.
 
 ### Fireworks balance
 
@@ -178,6 +186,7 @@ edit `shell.json` directly):
 
 ```bash
 omarchy bar set omarchy.agents providers '{
+  "antigravity": { "enabled": true },
   "claude": { "enabled": true },
   "codex": { "enabled": false },
   "fireworks": { "enabled": true }

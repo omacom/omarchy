@@ -1,136 +1,117 @@
 #!/bin/bash
 
-source "$(dirname "$0")/base-test.sh"
-
-require_command jq
+set -euo pipefail
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 require_command python3
 
-COLLECTOR="$ROOT/bin/omarchy-agent-usage-antigravity"
+python3 - <<'PY'
+import importlib.machinery
+import importlib.util
+import json
+import os
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
 
-# probe_antigravity reaches Google's Cloud Code endpoints, so the readers that
-# interpret the answers are exercised with recorded payloads standing in.
-
-test_tier() {
-  COLLECTOR="$COLLECTOR" PAYLOAD="$1" python3 - <<'PY'
-import importlib.machinery, importlib.util, json, os
-
-loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+root = Path(os.environ['ROOT'])
+loader = importlib.machinery.SourceFileLoader('collector', str(root / 'bin/omarchy-agent-usage-antigravity'))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 collector = importlib.util.module_from_spec(spec)
 loader.exec_module(collector)
+fixture = json.loads((root / 'test/shell.d/fixtures/antigravity/usage.json').read_text())
 
-payload = json.loads(os.environ["PAYLOAD"])
-print(collector.extract_tier(payload))
+class Limits(unittest.TestCase):
+  def test_real_cli_shape_and_reversed_groups(self):
+    data = fixture['command']['data']
+    limits = collector.extract_limits(data)
+    self.assertEqual([v['title'] for v in limits], ['Session', 'Weekly', 'Claude/GPT Weekly'])
+    self.assertEqual([v['percent'] for v in limits], [0, .27, .03])
+    reversed_data = {'groups': list(reversed(data['groups']))}
+    self.assertEqual(limits, collector.extract_limits(reversed_data))
+    self.assertEqual(limits[0]['resetsAt'], '2099-10-02T07:42:57+00:00')
+
+  def test_missing_invalid_and_exhausted_buckets(self):
+    for remaining in [None, 'bad', True, float('nan'), float('inf'), -1, 2]:
+      data = {'groups': [{'name': 'Gemini Models', 'buckets': [{'window': '5h', 'remaining_fraction': remaining}]}]}
+      self.assertEqual(collector.extract_limits(data), [], remaining)
+    data['groups'][0]['buckets'][0]['remaining_fraction'] = 0
+    self.assertEqual(collector.extract_limits(data)[0]['percent'], 1)
+    del data['groups'][0]['buckets'][0]['remaining_fraction']
+    self.assertEqual(collector.extract_limits(data), [])
+    for data in [{}, {'groups': None}, {'groups': [None, {'buckets': 7}]}]:
+      self.assertEqual(collector.extract_limits(data), [])
+
+  def test_only_scoped_group_keeps_its_identity(self):
+    data = {'groups': [fixture['command']['data']['groups'][0]]}
+    self.assertEqual(collector.extract_limits(data)[0]['title'], 'Claude/GPT Weekly')
+
+  def test_version_gate_never_prompts_an_old_or_unknown_cli(self):
+    for version in ['1.1.10', '1.0.99', 'unknown', '1.1.11-preview', '']:
+      with patch.object(collector, 'run_cli', return_value=(0, version, '')) as run:
+        result = collector.probe_limits('agy')
+      self.assertEqual(run.call_count, 1)
+      self.assertEqual(result['usageStatusText'], 'Antigravity update required')
+    for version in ['1.1.11', '1.2.14', '2.0.0', 'agy 1.2.14']:
+      self.assertTrue(collector.supported_version(version))
+
+  def test_failures_and_malformed_success(self):
+    cases = [('401 unauthenticated', 'Antigravity sign-in required', False),
+             ('403 PermissionDenied', 'Antigravity sign-in required', False),
+             ('429 RESOURCE_EXHAUSTED', 'Antigravity limits rate limited', False),
+             ('dial tcp: no such host', 'Antigravity limits unavailable', True),
+             ('refresh credentials: dial tcp: connection refused', 'Antigravity limits unavailable', True),
+             ('500 internal server error', 'Antigravity limits unavailable', False)]
+    for error, status, retry in cases:
+      with patch.object(collector, 'run_cli', side_effect=[(0, '1.2.14', ''), (1, '', error)]):
+        result = collector.probe_limits('agy')
+      self.assertEqual(result['usageStatusText'], status)
+      self.assertEqual(result['retryAdvised'], retry)
+      self.assertNotIn(error, result['authHelpText'])
+    for output in ['invalid', '[]', '{}', '{"status":"SUCCESS","response":"pretend usage"}',
+                   '{"status":"SUCCESS","command":{"name":"usage","data":{}}}']:
+      with patch.object(collector, 'run_cli', side_effect=[(0, '1.2.14', ''), (0, output, '')]):
+        self.assertTrue(collector.probe_limits('agy')['usageStatusText'])
+    with patch.object(collector, 'run_cli', side_effect=collector.subprocess.TimeoutExpired('agy', 20)):
+      self.assertTrue(collector.probe_limits('agy')['retryAdvised'])
+
+  def test_stale_cache_expiry_auth_clear_and_force(self):
+    good = {'limits': collector.extract_limits(fixture['command']['data']), 'usageStatusText': '', 'authHelpText': ''}
+    with tempfile.TemporaryDirectory() as tmp:
+      cache = Path(tmp) / 'limits.json'
+      with patch.object(collector, 'probe_limits', return_value=good) as probe:
+        live = collector.collect_limits('agy', cache, False)
+        self.assertFalse(live['limitsStale'])
+        self.assertGreater(live['limitsFetchedAt'], 0)
+        self.assertEqual(collector.collect_limits('agy', cache, False)['limits'], live['limits'])
+        self.assertEqual(probe.call_count, 1)
+        collector.collect_limits('agy', cache, True)
+        self.assertEqual(probe.call_count, 2)
+      failure = collector.probe_failure('network unavailable')
+      with patch.object(collector, 'probe_limits', return_value=failure) as probe:
+        stale = collector.collect_limits('agy', cache, True)
+        self.assertEqual(stale['limits'], live['limits'])
+        self.assertTrue(stale['limitsStale'])
+        self.assertTrue(stale['retryAdvised'])
+        self.assertIn('last known limits', stale['authHelpText'])
+        reused = collector.collect_limits('agy', cache, False)
+        self.assertTrue(reused['limitsStale'])
+        self.assertEqual(probe.call_count, 1)
+        cached = json.loads(cache.read_text())
+        cached['limits'][0]['resetsAt'] = '2000-01-01T00:00:00Z'
+        cached['limits'][1]['resetsAt'] = ''
+        collector.write_json(cache, cached)
+        remaining = collector.collect_limits('agy', cache, True)
+        self.assertEqual(len(remaining['limits']), 1)
+      with patch.object(collector, 'probe_limits', return_value=collector.probe_failure('401')):
+        signed_out = collector.collect_limits('agy', cache, True)
+        self.assertEqual(signed_out['limits'], [])
+        self.assertEqual(json.loads(cache.read_text())['limits'], [])
+      for invalid in ['[]', '{bad', '{"limits": 5, "fetchedAtMs": "bad"}']:
+        cache.write_text(invalid)
+        with patch.object(collector, 'probe_limits', return_value=failure):
+          self.assertEqual(collector.collect_limits('agy', cache, True)['limits'], [])
+
+unittest.main(verbosity=2)
 PY
-}
-
-ultra_tier=$(test_tier '{
-  "currentTier": { "id": "free-tier", "name": "Antigravity" },
-  "paidTier": { "id": "g1-ultra-tier", "name": "Google AI Ultra" }
-}')
-[[ $ultra_tier == "Ultra" ]] ||
-  fail "Antigravity collector extracts Ultra tier from paidTier" "$ultra_tier"
-pass "Antigravity collector extracts Ultra tier from paidTier"
-
-pro_tier=$(test_tier '{
-  "currentTier": { "id": "free-tier", "name": "Antigravity" },
-  "paidTier": { "id": "g1-pro-tier", "name": "Google AI Pro" }
-}')
-[[ $pro_tier == "Pro" ]] ||
-  fail "Antigravity collector extracts Pro tier from paidTier" "$pro_tier"
-pass "Antigravity collector extracts Pro tier from paidTier"
-
-free_tier=$(test_tier '{
-  "currentTier": { "id": "free-tier", "name": "Antigravity" }
-}')
-[[ $free_tier == "Free" ]] ||
-  fail "Antigravity collector extracts Free tier when no paidTier" "$free_tier"
-pass "Antigravity collector extracts Free tier when no paidTier"
-
-# Test quota extraction
-test_limits() {
-  COLLECTOR="$COLLECTOR" PAYLOAD="$1" python3 - <<'PY'
-import importlib.machinery, importlib.util, json, os
-
-loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
-spec = importlib.util.spec_from_loader(loader.name, loader)
-collector = importlib.util.module_from_spec(spec)
-loader.exec_module(collector)
-
-payload = json.loads(os.environ["PAYLOAD"])
-print(json.dumps(collector.extract_limits(payload)))
-PY
-}
-
-quota_payload='{
-  "groups": [
-    {
-      "displayName": "Gemini Models",
-      "buckets": [
-        {
-          "bucketId": "gemini-weekly",
-          "displayName": "Weekly Limit Remaining",
-          "window": "weekly",
-          "resetTime": "2026-09-17T18:19:42Z",
-          "remainingFraction": 0.95
-        },
-        {
-          "bucketId": "gemini-5h",
-          "displayName": "Five Hour Limit Remaining",
-          "window": "5h",
-          "resetTime": "2026-09-15T19:31:46Z",
-          "remainingFraction": 0.90
-        }
-      ]
-    },
-    {
-      "displayName": "Claude and GPT models",
-      "buckets": [
-        {
-          "bucketId": "3p-weekly",
-          "displayName": "Weekly Limit Remaining",
-          "window": "weekly",
-          "resetTime": "2026-09-18T12:56:14Z",
-          "remainingFraction": 0.98
-        },
-        {
-          "bucketId": "3p-5h",
-          "displayName": "Five Hour Limit Remaining",
-          "window": "5h",
-          "resetTime": "2026-09-15T22:16:22Z",
-          "remainingFraction": 1.0
-        }
-      ]
-    }
-  ]
-}'
-
-limits=$(test_limits "$quota_payload")
-
-[[ $(jq -r '.[0].label' <<<"$limits") == "Session (5-hour)" ]] ||
-  fail "Antigravity collector places Session window first" "$limits"
-pass "Antigravity collector places Session window first"
-
-[[ $(jq -r '.[0].percent' <<<"$limits") == "0.1" ]] ||
-  fail "Antigravity collector calculates used percentage from remainingFraction" "$limits"
-pass "Antigravity collector calculates used percentage from remainingFraction"
-
-[[ $(jq -r '.[1].label' <<<"$limits") == "Weekly (7-day)" ]] ||
-  fail "Antigravity collector places Weekly window second" "$limits"
-pass "Antigravity collector places Weekly window second"
-
-[[ $(jq -r '.[1].percent' <<<"$limits") == "0.05" ]] ||
-  fail "Antigravity collector calculates weekly used percentage" "$limits"
-pass "Antigravity collector calculates weekly used percentage"
-
-[[ $(jq -r '.[2].title' <<<"$limits") == "Claude/GPT Weekly" ]] ||
-  fail "Antigravity collector includes used scoped 3P limits" "$limits"
-pass "Antigravity collector includes used scoped 3P limits"
-
-[[ $(jq -r '.[2].percent' <<<"$limits") == "0.02" ]] ||
-  fail "Antigravity collector calculates 3P used percentage" "$limits"
-pass "Antigravity collector calculates 3P used percentage"
-
-[[ $(jq -r 'length' <<<"$limits") == "3" ]] ||
-  fail "Antigravity collector omits unused 3P session limit" "$limits"
-pass "Antigravity collector omits unused 3P session limit"
+pass "Antigravity quota parsing, version safety, failures and cache freshness"

@@ -1,0 +1,5 @@
+# Antigravity fixtures
+
+`usage.json` preserves the structure of `agy -p "/usage" --output-format json` from Antigravity CLI 1.2.14, checked on October 1, 2026. Descriptions and redundant text output are omitted, percentages are rounded, reset dates are moved into the future, and the groups are reversed to exercise order independence. The command reports zero agent turns. Google's [1.1.11 release notes](https://github.com/google-antigravity/antigravity-cli/blob/main/CHANGELOG.md#1111) introduce this read-only interface.
+
+Local scanner fixtures use the observed 1.2.x transcript fields (`step_index`, `source`, `type`, `status`, `created_at`, `content`) and history fields (`display`, integer-millisecond `timestamp`, `workspace`). The installed CLI's transcripts have no model IDs or token usage fields. Tests must not assume they do or estimate tokens from content. SQLite fixtures reproduce only the summary columns the collector reads; conversation databases contain protobuf blobs and are not decoded.
