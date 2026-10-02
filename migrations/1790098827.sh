@@ -13,9 +13,10 @@ is_pure_omarchy_fontconfig() {
     -e 's/<\?xml[^>]*\?>//g' \
     -e 's/<!DOCTYPE[^>]*>//g' \
     -e 's/<\/?fontconfig[^>]*>//g' \
-    "$file" | tr -d '[:space:]')
+    "$file" | tr -s '[:space:]' ' ' | sed -E 's/ *([<>=]) */\1/g')
 
-  local pattern='^<matchtarget="pattern"><testname="family"qual="any"><string>monospace</string></test><editname="family"mode="prepend_first"binding="strong"><string>[^<]+</string></edit></match>$'
+  # Whitespace inside a value is kept: a family named "mono space" is not monospace.
+  local pattern='^<match target="pattern"><test name="family" qual="any"><string>monospace</string></test><edit name="family" mode="prepend_first" binding="strong"><string>[^<]+</string></edit></match>$'
   [[ $stripped =~ $pattern ]]
 }
 

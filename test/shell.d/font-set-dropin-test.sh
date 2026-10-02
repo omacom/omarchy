@@ -157,6 +157,13 @@ run_migration >/dev/null
 cmp -s "$user_fonts_conf" "$test_dir/commented-after" || fail "migration changed custom rules"
 pass "one-line custom rule between comments is preserved"
 
+# Case 11: A family whose name only matches monospace once its spaces are gone is not the legacy rule
+spaced_rule='<fontconfig><match target="pattern"><test name="family" qual="any"><string>mono space</string></test><edit name="family" mode="prepend_first" binding="strong"><string>User Font</string></edit></match></fontconfig>'
+printf '%s\n' "$spaced_rule" >"$user_fonts_conf"
+run_migration >/dev/null
+[[ -f $user_fonts_conf ]] || fail "migration deleted a rule for a family named 'mono space'"
+pass "migration keeps a rule whose family only differs from monospace by a space"
+
 # Real fontconfig substitution: user conf.d is read before fonts.conf.
 require_command fc-pattern
 printf '%s\n' "$mixed_rule" >"$user_fonts_conf"
