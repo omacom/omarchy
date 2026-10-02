@@ -65,7 +65,7 @@ report=$(mktemp "$state/.report-XXXXXX")
 trap 'rm -f -- "$report"' EXIT
 status="FAIL"
 for attempt in {1..12}; do
-  if timeout 2s systemctl --user is-active --quiet my-service.service; then
+  if timeout -k 1s 2s systemctl --user is-active --quiet my-service.service; then
     status="OK"
     break
   fi
@@ -86,7 +86,7 @@ else
 fi
 ```
 
-This keeps a private, dated report, publishes it atomically, and clears only the matching old notification after a successful check. Use a distinct notification title and state directory for each check. `systemctl is-active` checks the unit's active state; if you need application readiness, replace it with a read-only probe for that application's ready state. Keep a timeout on the probe so a stalled check cannot wait indefinitely.
+This keeps a private, dated report, publishes it atomically, and after a successful check dismisses any notification still on screen whose title contains the check's title. Give each check its own state directory and a notification title that no other check's title contains, so one check's success never dismisses another's failure. `systemctl is-active` checks the unit's active state; if you need application readiness, replace it with a read-only probe for that application's ready state. Keep a timeout on the probe, with `-k` to kill one that ignores the first signal, so a stalled check cannot wait indefinitely.
 
 You can install the same script as a `post-update` hook; the lock avoids overlapping runs. Hooks run sequentially, so retries delay the remaining hooks. Keep the wait short, or use a separate user service/timer for longer-running monitoring. Recovery is checked the next time the hook runs, not continuously. Retry only read-only checks: rerunning an installation, migration, or other state-changing hook may repeat its side effects. This example does not change how Omarchy runs other hooks.
 
