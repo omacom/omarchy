@@ -61,9 +61,12 @@ written by `omarchy-agent-usage-update`. That command runs one
 `omarchy-agent-usage-<agent>` collector per agent; the widget invokes it
 on its refresh timer and whenever you ask for a refresh, and picks up any
 record that lands in the directory regardless of who wrote it. Overlapping
-updates reserve publication before collecting: only the latest started check
-for each agent can replace its record, so a slow older result cannot overwrite
-a newer account’s limits. The publication lock is released during collection.
+updates reserve publication before collecting: a sequence assigned before collection
+prevents a slow older result from replacing a newer published record. A crashed
+collector or malformed response does not cancel a valid in-flight result; a
+newer valid error record, such as a sign-out, does. The sequence and record
+are published together atomically. The publication lock is released during
+collection.
 
 Adding an agent therefore never touches this plugin: ship a collector that
 prints the record contract (see the `claude` and `codex` collectors in

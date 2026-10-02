@@ -39,31 +39,52 @@ wanted() {
   return 1
 }
 
+published_sequence() {
+  local value
+  value=$(jq -r '._collectionSequence // 0' "$1" 2>/dev/null) || value=0
+  if [[ $value =~ ^[0-9]{1,15}$ ]]; then
+    printf '%s\n' "$((10#$value))"
+  else
+    printf '0\n'
+  fi
+}
+
 collect() (
   local collector="$1" agent="$2"
-  local record tmp pending="$USAGE_DIR/.$agent.pending" lock="$USAGE_DIR/.$agent.lock"
+  local record tmp sequence_tmp="" generation=0 published
+  local sequence="$USAGE_DIR/.$agent.sequence" lock="$USAGE_DIR/.$agent.lock"
   tmp=$(mktemp "$USAGE_DIR/.$agent.XXXXXX") || return 1
-  trap 'rm -f "$tmp"' EXIT
+  trap 'rm -f "$tmp" "$sequence_tmp"' EXIT
+  sequence_tmp=$(mktemp "$USAGE_DIR/.$agent.sequence.XXXXXX") || return 1
 
   # Overlapping refreshes may finish in either order, including across
-  # account changes. Reserve publication before probing; only the latest
-  # started check may replace the record. Hold the lock only for these short
-  # file operations, never while waiting for the collector's network calls.
+  # account changes. Assign request order before probing, then publish only
+  # if no later request has already published a valid record. A collector
+  # that crashes cannot prevent another valid result from landing. Hold the
+  # lock only for file operations, never through the network calls.
   {
     flock 9 || return 1
-    printf '%s\n' "$tmp" >"$pending"
+    [[ -f $sequence ]] && read -r generation <"$sequence"
+    [[ $generation =~ ^[0-9]{1,15}$ ]] || generation=0
+    generation=$((10#$generation))
+    published=$(published_sequence "$USAGE_DIR/$agent.json")
+    (( published > generation )) && generation=$published
+    (( ++generation ))
+    printf '%s\n' "$generation" >"$sequence_tmp" && mv "$sequence_tmp" "$sequence"
   } 9>"$lock" || return 1
 
-  if ! record=$("$collector" "${flags[@]}") || [[ -z $record ]] || ! jq -e . >/dev/null 2>&1 <<<"$record"; then
+  if ! record=$("$collector" "${flags[@]}") || [[ -z $record ]] || ! jq -es 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1 <<<"$record"; then
     echo "omarchy-agent-usage-update: $agent collector failed" >&2
     return 1
   fi
-  printf '%s\n' "$record" >"$tmp" || return 1
+  # Stamp the sequence into the same file as the data so the final rename
+  # publishes both atomically, even if the updater exits just after it.
+  jq --argjson sequence "$generation" '._collectionSequence = $sequence' <<<"$record" >"$tmp" || return 1
   {
     flock 9 || return 1
-    if [[ -f $pending && $(<"$pending") == "$tmp" ]]; then
+    published=$(published_sequence "$USAGE_DIR/$agent.json")
+    if (( generation > published )); then
       mv "$tmp" "$USAGE_DIR/$agent.json" || return 1
-      rm -f "$pending"
     fi
   } 9>"$lock"
 )

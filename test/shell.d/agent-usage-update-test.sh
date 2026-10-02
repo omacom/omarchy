@@ -84,13 +84,23 @@ if [[ -n $WAIT_FOR ]]; then
   while [[ ! -e $WAIT_FOR ]]; do sleep .02; done
 fi
 printf '%s\\n' "$RECORD"
+exit "${COLLECT_EXIT:-0}"
 ''')
 collector.chmod(0o755)
 env = {**os.environ, 'HOME': str(home), 'OMARCHY_PATH': str(fake), 'XDG_STATE_HOME': ''}
 usage_dir = home / '.local/state/omarchy/agents/usage'
-# An old successful answer and an old error must both lose to a newer check.
-for index, old in enumerate([{'id': 'racy', 'limits': [{'percent': .1}]},
-                             {'id': 'racy', 'limits': [], 'usageStatusText': 'offline'}]):
+def published_record():
+  record = json.loads((usage_dir / 'racy.json').read_text())
+  sequence = record.pop('_collectionSequence')
+  assert isinstance(sequence, int) and sequence > 0
+  return record
+
+# A published service error is authoritative too: an older success must not
+# undo a newer sign-out. Only a hard failure to emit a record permits fallback.
+good_old = {'id': 'racy', 'limits': [{'percent': .1}]}
+good_new = {'id': 'racy', 'limits': [{'percent': .8}], 'usageStatusText': ''}
+error = {'id': 'racy', 'limits': [], 'usageStatusText': 'sign-in required'}
+for index, (old, new) in enumerate([(good_old, good_new), (error, good_new), (good_old, error)]):
   started = home / f'started-{index}'
   release = home / f'release-{index}'
   older = subprocess.Popen([str(updater), 'racy'], env={**env, 'STARTED': str(started), 'WAIT_FOR': str(release), 'RECORD': json.dumps(old)},
@@ -100,15 +110,37 @@ for index, old in enumerate([{'id': 'racy', 'limits': [{'percent': .1}]},
     while not started.exists() and older.poll() is None and time.monotonic() < deadline:
       time.sleep(.02)
     assert started.exists(), 'older collector started'
-    new = {'id': 'racy', 'limits': [{'percent': .8}], 'usageStatusText': ''}
     subprocess.run([str(updater), 'racy'], env={**env, 'STARTED': str(home / 'newer-started'), 'WAIT_FOR': '', 'RECORD': json.dumps(new)},
                    capture_output=True, text=True, check=True, timeout=5)
-    assert json.loads((usage_dir / 'racy.json').read_text()) == new
+    assert published_record() == new
   finally:
     release.touch()
     stdout, stderr = older.communicate(timeout=5)
   assert older.returncode == 0, stderr
-  assert json.loads((usage_dir / 'racy.json').read_text()) == new, 'older completion replaced newer data'
-  assert sorted(p.name for p in usage_dir.glob('.racy.*')) == ['.racy.lock'], 'temporary records are cleaned up'
-print('ok - overlapping updates publish only the latest started check without blocking its probe')
+  assert published_record() == new, 'older completion replaced newer data'
+  assert sorted(p.name for p in usage_dir.glob('.racy.*')) == ['.racy.lock', '.racy.sequence'], 'temporary records are cleaned up'
+print('ok - older updates cannot overwrite a newer valid record, including sign-out errors')
+
+for index, failed in enumerate([{'RECORD': 'not json', 'COLLECT_EXIT': '0'},
+                                {'RECORD': '{}\n{}', 'COLLECT_EXIT': '0'},
+                                {'RECORD': '{}', 'COLLECT_EXIT': '1'}]):
+  started = home / f'failure-started-{index}'
+  release = home / f'failure-release-{index}'
+  good = {'id': 'racy', 'limits': [{'percent': .4}]}
+  older = subprocess.Popen([str(updater), 'racy'], env={**env, 'STARTED': str(started), 'WAIT_FOR': str(release), 'RECORD': json.dumps(good)},
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+  try:
+    deadline = time.monotonic() + 5
+    while not started.exists() and older.poll() is None and time.monotonic() < deadline:
+      time.sleep(.02)
+    assert started.exists()
+    result = subprocess.run([str(updater), 'racy'], env={**env, 'STARTED': str(home / 'failure-newer'), 'WAIT_FOR': '', **failed},
+                            capture_output=True, text=True, timeout=5)
+    assert result.returncode != 0, 'hard collector failures are reported'
+  finally:
+    release.touch()
+    stdout, stderr = older.communicate(timeout=5)
+  assert older.returncode == 0, stderr
+  assert published_record() == good, 'a failed newer request suppressed a valid in-flight result'
+print('ok - failed collectors do not cancel valid in-flight publications')
 PY
