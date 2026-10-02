@@ -262,6 +262,13 @@ Item {
         else root.loadProviderForMenu(root.activeMenu)
       }
     }
+    // A route that fell back to root because the menu files had not loaded
+    // yet opens once it resolves, while the menu still shows root and nothing
+    // has been typed into it.
+    var pending = root.pendingInitialMenu
+    var onRoot = root.opened && !root.dmenuActive && root.activeMenu === "root" && !root.filterText
+    if (pending && onRoot && root.item(root.resolveRoute(pending)))
+      root.openRoute(pending)
   }
 
   // Each known provider is a tiny bash one-liner that enumerates a list and
@@ -844,6 +851,8 @@ Item {
     selectionFile = ""
     doneFile = ""
     activeMenu = root.item(initialMenu) ? initialMenu : "root"
+    // Only a route that fell back to root stays pending.
+    if (activeMenu === initialMenu) pendingInitialMenu = ""
     navStack = []
     filterText = ""
     selectedIndex = 0
