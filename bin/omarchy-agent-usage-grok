@@ -114,13 +114,18 @@ def local_stats(home):
       for model, bucket in (turn.get("modelUsage") or {}).items():
         if not isinstance(bucket, dict):
           continue
+        # Grok's totalTokens leaves cache writes out; counting them here keeps
+        # the day's total equal to the sum of its model's buckets.
         cached = int(bucket.get("cachedReadTokens") or 0)
-        tokens = int(bucket.get("totalTokens") or 0)
+        uncached = max(0, int(bucket.get("inputTokens") or 0) - cached)
+        output = int(bucket.get("outputTokens") or 0)
+        created = int(bucket.get("cacheCreationTokens") or 0)
+        tokens = uncached + cached + output + created
         totals = models.setdefault(model, {"inputTokens": 0, "outputTokens": 0, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0})
-        totals["inputTokens"] += max(0, int(bucket.get("inputTokens") or 0) - cached)
-        totals["outputTokens"] += int(bucket.get("outputTokens") or 0)
+        totals["inputTokens"] += uncached
+        totals["outputTokens"] += output
         totals["cacheReadInputTokens"] += cached
-        totals["cacheCreationInputTokens"] += int(bucket.get("cacheCreationTokens") or 0)
+        totals["cacheCreationInputTokens"] += created
         if day in by_day:
           by_day[day] += tokens
         if day == today:

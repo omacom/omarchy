@@ -116,7 +116,7 @@ jq -n --arg at "$now" '{turns: [
 ]}' >"$sessions/today-1/usage.json"
 jq -n '{turns: [{endedAt: "2026-01-02T10:00:00Z", modelUsage: {"grok-4.6": {inputTokens: 500, cachedReadTokens: 0, outputTokens: 20, cacheCreationTokens: 0, totalTokens: 520}}}]}' >"$sessions/old/usage.json"
 record=$(collect)
-[[ $(jq -c '{hasLocalStats, todayPrompts, todaySessions, totalPrompts, totalSessions, activeDays, todayTotalTokens, todayTokensByModel, today: .recentDays[6].messageCount}' <<<"$record") == '{"hasLocalStats":true,"todayPrompts":2,"todaySessions":2,"totalPrompts":10,"totalSessions":3,"activeDays":2,"todayTotalTokens":1260,"todayTokensByModel":{"grok-4.7-build":1260},"today":1260}' ]] ||
+[[ $(jq -c '{hasLocalStats, todayPrompts, todaySessions, totalPrompts, totalSessions, activeDays, todayTotalTokens, todayTokensByModel, today: .recentDays[6].messageCount}' <<<"$record") == '{"hasLocalStats":true,"todayPrompts":2,"todaySessions":2,"totalPrompts":10,"totalSessions":3,"activeDays":2,"todayTotalTokens":1265,"todayTokensByModel":{"grok-4.7-build":1265},"today":1265}' ]] ||
   fail "Grok counts sessions, prompts, and tokens from its session files" "$record"
 [[ $(jq -cS '.modelUsage' <<<"$record") == '{"grok-4.6":{"cacheCreationInputTokens":0,"cacheReadInputTokens":0,"inputTokens":500,"outputTokens":20},"grok-4.7-build":{"cacheCreationInputTokens":5,"cacheReadInputTokens":900,"inputTokens":300,"outputTokens":60}}' ]] ||
   fail "Grok's tokens by model keep cached input apart" "$record"
