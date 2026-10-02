@@ -980,6 +980,7 @@ def fetch_codex_rpc(home=None):
         result["authHelpText"] = message
       return result
     limits = (limits_msg.get("result") or {}).get("rateLimits") or {}
+    result["authHelpText"] = ""
     plan = limits.get("planType") or ""
 
     # The limits name the plan themselves. account/read is only a fallback

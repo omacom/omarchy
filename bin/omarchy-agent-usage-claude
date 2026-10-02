@@ -1111,12 +1111,14 @@ def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms:
   if fallback and not force and 0 <= fetched_age < PROBE_MIN_INTERVAL_SECONDS:
     result["limits"] = fallback
     result["live"] = True
+    result["authHelpText"] = ""
     return result
 
   probe = probe_limits(access_token)
   if probe["ok"]:
     result["limits"] = probe["limits"]
     result["live"] = True
+    result["authHelpText"] = ""
     result["fetchedAtMs"] = round(time.time() * 1000)
     write_json(probe_cache, {"fetchedAtMs": result["fetchedAtMs"], "limits": probe["limits"]})
     return result
