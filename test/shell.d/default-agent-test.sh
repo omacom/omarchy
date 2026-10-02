@@ -353,10 +353,16 @@ printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "%s"
 chmod +x "$test_home/.local/bin/grok"
 : >"$stub_log"
 : >"$mise_history"
+mkdir -p "$test_home/.grok/bin"
+touch "$test_home/.grok/bin/grok-1.0.44" "$test_home/.grok/bin/settings-keep"
+ln -sfn grok-1.0.44 "$test_home/.grok/bin/grok"
 OMARCHY_TEST_MISE_HAS_NPM_GROK=1 source "$ROOT/migrations/1790863209.sh" >/dev/null
 unset OMARCHY_TEST_MISE_HAS_NPM_GROK
 grep -Fx "$grok_package" "$stub_log" >/dev/null ||
   fail "Grok registry migration rewrites the npm wrapper"
+[[ ! -e $test_home/.grok/bin/grok && ! -e $test_home/.grok/bin/grok-1.0.44 && -e $test_home/.grok/bin/settings-keep ]] ||
+  fail "Grok registry migration removes the npm launcher's old binaries and nothing else"
+rm -f "$test_home/.grok/bin/settings-keep"
 grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null ||
   fail "Grok registry migration drops the npm tool"
 rm -f "$test_home/.local/bin/grok"

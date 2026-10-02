@@ -37,6 +37,14 @@ elif [[ $npm_stub == true ]]; then
   drop_npm_grok
 fi
 
+# The npm launcher unpacked its binary into ~/.grok/bin, where x.ai's installer
+# also puts its copy and a PATH entry ahead of mise. With Omarchy's wrapper
+# gone, nothing of ours runs from there, and a copy left behind would keep
+# shadowing the mise tool.
+if [[ $npm_stub == true ]]; then
+  rm -f "$HOME/.grok/bin/grok" "$HOME"/.grok/bin/grok-[0-9]*
+fi
+
 # The x.ai installer links ~/.local/bin/agent at its copy under ~/.grok.
 # realpath -m resolves a relative or dangling target without requiring it to exist.
 if [[ -L $HOME/.local/bin/agent ]]; then
