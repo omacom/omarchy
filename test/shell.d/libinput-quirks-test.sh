@@ -27,7 +27,7 @@ fi
 
 # Dropping a PID silently reintroduces the bug for that dongle.
 for product in 0x2B1E 0x2EF2 0x2F06; do
-  grep -q "MatchProduct=$product" "$quirks" ||
+  grep -qx "MatchProduct=$product" "$quirks" ||
     fail "the quirks cover the known Shokz dongles" "missing $product"
 done
 pass "the quirks cover the known Shokz dongles"
@@ -37,3 +37,7 @@ if grep '^AttrEventCode=' "$quirks" | grep -qvx 'AttrEventCode=-KEY_POWER'; then
   fail "the quirks drop only the phantom power key" "$(grep '^AttrEventCode=' "$quirks")"
 fi
 pass "the quirks drop only the phantom power key"
+
+(( $(grep -cx 'AttrEventCode=-KEY_POWER' "$quirks") == $(grep -c '^\[' "$quirks") )) ||
+  fail "every quirk section drops the power key"
+pass "every quirk section drops the power key"
