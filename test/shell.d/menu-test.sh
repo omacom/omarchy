@@ -288,8 +288,10 @@ assert(!defaultById['install.ai.crush'], 'menu removes Crush from Install > AI')
 // dropped, so the list reads as a catalog of what Omarchy can install.
 // Chromium Account is the sole Install row with anything left to hide for. The
 // Windows VM, whose guest can't run elsewhere, and the installers whose vendors
-// ship Linux builds for x86_64 alone hide only off x86_64, so any other `when:`
-// here is a row that went back to vanishing once installed.
+// ship Linux builds for x86_64 alone hide only off x86_64. The MLX row hides
+// off every machine that is not an Apple Silicon Mac, since its packages run
+// MLX on the Mac's GPU and its Core ML models on the Neural Engine. Any other
+// `when:` here is a row that went back to vanishing once installed.
 const windowsGuard = '[[ $(uname -m) == "x86_64" ]]'
 const x86OnlyInstalls = ['install.windows', 'install.browser.edge', 'install.service.dropbox', 'install.service.spotify', 'install.gaming.minecraft', 'install.gaming.heroic']
 assertDeepEqual(
@@ -297,8 +299,13 @@ assertDeepEqual(
     .filter(item => item.id.startsWith('install.') && item.action && item.when)
     .map(item => item.id)
     .sort(),
-  [...x86OnlyInstalls, 'install.service.chromium-account'].sort(),
+  [...x86OnlyInstalls, 'install.service.chromium-account', 'install.ai.mlx'].sort(),
   'menu never hides an Install row because the software is already there'
+)
+assertEqual(
+  defaultById['install.ai.mlx'].when,
+  'omarchy-hw-apple-silicon',
+  'menu hides the MLX row off every machine that is not an Apple Silicon Mac'
 )
 assert(
   x86OnlyInstalls.every(id => defaultById[id].when === windowsGuard),

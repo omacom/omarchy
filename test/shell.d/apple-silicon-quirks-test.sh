@@ -89,5 +89,8 @@ const items = menu.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarc
 const when = id => (items.find(entry => entry.id === id) || {}).when
 assertEqual(when('install.windows'), '[[ $(uname -m) == "x86_64" ]]', 'install.windows is offered on x86_64 only')
 assertEqual(when('setup.direct-boot'), '! omarchy-hw-apple-silicon', 'setup.direct-boot is hidden on Apple Silicon only')
+// No package puts MLX or the Neural Engine on another machine, so the row
+// keeps a platform guard alone.
+assertEqual(when('install.ai.mlx'), 'omarchy-hw-apple-silicon', 'install.ai.mlx is offered on Apple Silicon only')
 JS
-pass "the menu offers Windows on x86_64 only and hides Direct Boot on Apple Silicon only"
+pass "the menu offers Windows on x86_64 only, and hides Direct Boot and offers MLX for Apple Silicon on Apple Silicon only"
