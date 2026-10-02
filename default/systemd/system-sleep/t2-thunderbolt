@@ -85,6 +85,16 @@ release_stale_crtcs() {
   echo "t2-thunderbolt: releasing display CRTCs" > /dev/tty60 || true
   sleep 2
   chvt "${tty#tty}"
+  # After the switch back the compositor can leave a connector it still holds
+  # unlit; applying the monitor config again lights it.
+  sleep 1
+  local user uid sig
+  user=$(loginctl show-session "$session" -p Name --value 2>/dev/null)
+  [[ -n $user ]] || return 0
+  uid=$(id -u "$user")
+  sig=$(ls -t "/run/user/$uid/hypr" 2>/dev/null | head -1)
+  [[ -n $sig ]] || return 0
+  runuser -u "$user" -- env "XDG_RUNTIME_DIR=/run/user/$uid" "HYPRLAND_INSTANCE_SIGNATURE=$sig" hyprctl reload >/dev/null 2>&1 || true
 }
 
 case $1 in
