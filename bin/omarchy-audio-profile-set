@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# omarchy:summary=Set an audio card profile and switch output to its sink
+# omarchy:args=<card-name> <profile-name>
+# omarchy:group=audio
+# omarchy:examples=omarchy audio profile set alsa_card.pci-0000_00_1f.3 output:hdmi-stereo+input:analog-stereo
+
+set -uo pipefail
+
+card=${1:-}
+profile=${2:-}
+
+if [[ -z $card || -z $profile ]]; then
+  echo "Usage: omarchy-audio-profile-set <card-name> <profile-name>" >&2
+  exit 1
+fi
+
+timeout 2 pactl set-card-profile "$card" "$profile" 2>/dev/null || exit 1
+
+# The old sink dies before the new one appears. Poll for a sink owned by this
+# card, then make it default and move streams like output-set-default does.
+new_sink=""
+new_index=""
+for delay in 1 2 3 4 5; do
+  sleep 0.5
+  row=$(timeout 2 pactl -f json list sinks 2>/dev/null | jq -r --arg card "$card" '
+    .[] | select(.properties."device.name" == $card or (.name | contains($card | sub("alsa_card\\."; "")))) | "\(.index)\t\(.name)\t\(.description // .name)"
+  ' 2>/dev/null | head -n 1)
+  if [[ -n $row ]]; then
+    new_index=$(cut -f1 <<<"$row")
+    new_sink=$(cut -f2 <<<"$row")
+    break
+  fi
+  [[ $delay == "1" ]] || sleep 0.5
+done
+
+if [[ -z $new_sink ]]; then
+  omarchy-osd -m "Profile set, waiting for output" 2>/dev/null || true
+  exit 0
+fi
+
+omarchy-audio-output-set-default "$new_index" "$new_sink" 2>/dev/null || true
+
+description=$(timeout 2 pactl -f json list sinks 2>/dev/null | jq -r --arg name "$new_sink" '.[] | select(.name == $name) | .description // .name' 2>/dev/null)
+[[ -n $description ]] || description="$new_sink"
+omarchy-osd -m "$description" 2>/dev/null || true

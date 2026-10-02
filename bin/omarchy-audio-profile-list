@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# omarchy:summary=List audio card profiles for the shell
+# omarchy:group=audio
+
+set -uo pipefail
+
+# One row per output profile with at least one sink, for panels that can only
+# see active PipeWire sinks. Intel HDA ACP exposes analog-stereo OR hdmi-stereo
+# exclusively, so the inactive profile's sink does not exist until switched.
+# Format: card<TAB>profile<TAB>available(1/0)<TAB>active(1/0)<TAB>description
+timeout 2 pactl -f json list cards 2>/dev/null | jq -r '
+  .[] as $card
+  | $card.active_profile as $active
+  | ($card.profiles | to_entries[]) as $p
+  | select(($p.value.sinks // 0) > 0)
+  | [
+      $card.name,
+      $p.key,
+      (if $p.value.available then "1" else "0" end),
+      (if $p.key == $active then "1" else "0" end),
+      ($p.value.description // $p.key)
+    ] | @tsv
+' 2>/dev/null || true

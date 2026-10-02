@@ -47,6 +47,32 @@ function parseSinkAvailability(raw) {
   return next
 }
 
+function parseAudioProfiles(raw) {
+  var list = []
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim()
+    if (!line) continue
+    var parts = line.split("\t")
+    if (parts.length < 5) continue
+    list.push({
+      card: parts[0],
+      profile: parts[1],
+      available: parts[2] !== "0",
+      active: parts[3] !== "0",
+      description: parts.slice(4).join("\t")
+    })
+  }
+  return list
+}
+
+function profileLabel(profile) {
+  if (!profile) return "Unknown"
+  var text = String(profile.description || profile.profile || "")
+  text = text.replace(/\s*\+.*$/, "")
+  return friendlyDeviceLabel(text)
+}
+
 function friendlyDeviceLabel(text) {
   var label = String(text || "").trim()
   label = label.replace(/^sof-soundwire\s+/i, "")
@@ -240,6 +266,8 @@ if (typeof module !== "undefined") {
     listSnapshot: listSnapshot,
     outputVolumeName: outputVolumeName,
     parseSinkAvailability: parseSinkAvailability,
+    parseAudioProfiles: parseAudioProfiles,
+    profileLabel: profileLabel,
     friendlyDeviceLabel: friendlyDeviceLabel,
     nodeProps: nodeProps,
     nodeLabel: nodeLabel,
