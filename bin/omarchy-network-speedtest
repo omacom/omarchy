@@ -66,19 +66,23 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Workers stop once this script is gone, so a hard kill (SIGKILL) that skips the
+# EXIT trap can't leave them uploading/downloading forever as orphans.
+parent_pid=$$
+
 # Round-robin across the returned URLs so we spread load across Netflix OCA nodes.
 traffic_worker() {
   local urls=("$@")
   local url_count=${#urls[@]}
   local idx=$RANDOM
   if [[ $direction == "down" ]]; then
-    while true; do
+    while kill -0 "$parent_pid" 2>/dev/null; do
       url=${urls[$((idx % url_count))]}
       curl -fsS -o /dev/null "$url" 2>/dev/null || return
       idx=$((idx + 1))
     done
   else
-    while true; do
+    while kill -0 "$parent_pid" 2>/dev/null; do
       url=${urls[$((idx % url_count))]}
       dd if=/dev/zero bs=1M count=64 2>/dev/null | curl -fsS -o /dev/null -X POST --data-binary @- "$url" 2>/dev/null || return
       idx=$((idx + 1))
