@@ -143,7 +143,14 @@ if [[ -e $target || -L $target ]]; then
   fail "plugin '$id' is already installed; update it with: omarchy plugin update $id"
 fi
 
-mv "$stage" "$target"
+# -T so a target that appeared since the check above fails instead of being
+# nested inside a directory of the same name; mv would otherwise exit 0 and
+# leave the plugin installed somewhere nothing loads it from. A lost race
+# must also drop the staged checkout, or each one leaves a .add.tmp.$$ behind.
+if ! mv -T "$stage" "$target"; then
+  rm -rf "$stage"
+  fail "failed to install plugin '$id': could not move the staged checkout into place (a concurrent add, permissions, or disk space)"
+fi
 echo "Added $id into $target"
 
 omarchy-shell shell rescanPlugins >/dev/null

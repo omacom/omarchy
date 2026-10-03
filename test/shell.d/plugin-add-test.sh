@@ -175,3 +175,35 @@ for good in \
     fail "plugin add did not reach git clone for a legitimate URL: $good" "$output"
 done
 pass "plugin add lets legitimate git URLs reach git clone"
+
+# --- lost install race ---------------------------------------------------
+#
+# A concurrent add can create the target between the existence check and the
+# move. mv -T turns that collision into a failure instead of nesting the staged
+# checkout inside a directory of the same name — but the failure must also drop
+# the staged checkout, or every lost race leaves a .add.tmp.$$ behind.
+mv_stubs="$TMPDIR/mv-stubs"
+mkdir -p "$mv_stubs"
+cat >"$mv_stubs/omarchy-shell" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+chmod +x "$mv_stubs/omarchy-shell"
+cat >"$mv_stubs/mv" <<'STUB'
+#!/bin/bash
+# omarchy-plugin-add calls mv exactly once, for the install move; failing it
+# simulates the lost race deterministically.
+exit 1
+STUB
+chmod +x "$mv_stubs/mv"
+
+race_home="$TMPDIR/race-home"
+race_out=$(HOME="$race_home" OMARCHY_PATH="$ROOT" PATH="$mv_stubs:$ROOT/bin:$PATH" \
+  omarchy-plugin-add "$incoming" --yes 2>&1) &&
+  fail "plugin add must fail when the install move loses the race" "$race_out"
+grep -qF "could not move the staged checkout into place" <<<"$race_out" ||
+  fail "plugin add explains the lost install race" "$race_out"
+if compgen -G "$race_home/.config/omarchy/plugins/.add.tmp.*" >/dev/null; then
+  fail "plugin add leaves the staged checkout behind after losing the install race"
+fi
+pass "plugin add cleans up the staged checkout when the install move loses the race"
