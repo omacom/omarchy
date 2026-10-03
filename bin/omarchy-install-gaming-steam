@@ -1,13 +1,45 @@
 #!/bin/bash
 
-# omarchy:summary=Install Steam and graphics drivers selected for this system
+# omarchy:summary=Install Steam and graphics drivers selected for this system, and open Remote Play and Steam Link VR ports for LAN and Tailscale
 # omarchy:requires-sudo=true
 
 set -e
 
+# The inbound port set for Steam Remote Play and Steam Link VR streaming is
+# declared once, in the "Omarchy Steam" UFW application profile.
+UFW_APP="Omarchy Steam"
+UFW_APP_PROFILE_SOURCE="$OMARCHY_PATH/default/ufw/applications.d/omarchy-steam"
+UFW_APP_PROFILE_TARGET="/etc/ufw/applications.d/omarchy-steam"
+PRIVATE_CIDRS=(10.0.0.0/8 172.16.0.0/12 192.168.0.0/16)
+
+open_ufw_ports() {
+  local cidr
+
+  if omarchy-cmd-missing ufw; then
+    echo "UFW is not installed; skipping Steam Remote Play firewall rules."
+    return
+  fi
+
+  sudo install -Dm644 "$UFW_APP_PROFILE_SOURCE" "$UFW_APP_PROFILE_TARGET"
+  sudo ufw app update "$UFW_APP" >/dev/null
+
+  for cidr in "${PRIVATE_CIDRS[@]}"; do
+    sudo ufw allow in from "$cidr" to any app "$UFW_APP" >/dev/null
+  done
+
+  if ip link show tailscale0 >/dev/null 2>&1; then
+    sudo ufw allow in on tailscale0 to any app "$UFW_APP" >/dev/null
+  fi
+
+  sudo ufw reload
+}
+
 echo "Installing Steam..."
 omarchy-pkg-add steam
 omarchy-install-gaming-gpu-lib32
+
+echo "Opening Steam Remote Play and Steam Link VR firewall ports..."
+open_ufw_ports
 
 echo ""
 echo "Steam will start automatically now. This might take a while..."
