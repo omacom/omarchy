@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Install Omacloud and open it to set up this computer.
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Installing Omacloud..."
+omarchy-pkg-add omacloud
+
+echo "Opening Omacloud..."
+setsid uwsm-app -- /usr/bin/omacloud-app >/dev/null 2>&1 &
+
+echo ""
+echo "Omacloud has been installed."
+echo "Set up this computer in the app: your own S3 bucket for a new account,"
+echo "or a join code from one of your computers."

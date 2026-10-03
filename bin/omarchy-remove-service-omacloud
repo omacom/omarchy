@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Omacloud, leaving your files and your bucket as they are.
+# omarchy:requires-sudo=true
+
+systemctl --user stop omacloud 2>/dev/null || true
+omarchy-pkg-drop omacloud
+
+echo ""
+echo "Omacloud has been removed."
+echo "Your files stay in your folders and in your bucket, and ~/.config/omacloud keeps this computer's setup."

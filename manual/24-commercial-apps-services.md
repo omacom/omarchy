@@ -22,6 +22,10 @@ You start Spotify using `Super + Shift + M`. Like 1Password, the hotkey kicks of
 
 [Dropbox](https://www.dropbox.com/) is a great way to sync files between machines while keeping a backup in the cloud. To set it up, select _Install > Service > Dropbox_ from the Omarchy menu. Once it's running, hover the tray in the top right of the bar and right-click the Dropbox icon to finish the setup.
 
+## Omacloud
+
+[Omacloud](https://github.com/ferdousbhai/omacloud) keeps Desktop, Documents and Pictures in sync on every Omarchy computer, with your Omarchy settings, package lists and ssh and gpg keys alongside, every version kept and everything end to end encrypted. It stores everything in your own S3 bucket (Hetzner, R2, B2, MinIO), so nobody sits in between, and it's plain restic underneath, so you can always restore without it. Select _Install > Service > Omacloud_ from the Omarchy menu, then set up the computer in the app that opens: your bucket for a new account, or a join code from one of your computers.
+
 ## Tailscale
 
 [Tailscale](https://tailscale.com/) is a mesh VPN that makes getting access to all your computers and servers over the internet securely super simple. To set it up, select _Install > Service > Tailscale_ from the Omarchy menu.
