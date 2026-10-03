@@ -10,7 +10,11 @@ require_command python3
 # stands in for the response.
 read_limits() {
   COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" PAYLOAD="$1" python3 - <<'PY'
-import importlib.machinery, importlib.util, io, json, os
+import importlib.machinery, importlib.util, io, json, os, sys
+
+# Keep the load from dropping a bytecode cache beside the collector: a stray
+# bin/__pycache__ is tracked nowhere and breaks text scans over bin/.
+sys.dont_write_bytecode = True
 
 loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
 spec = importlib.util.spec_from_loader(loader.name, loader)
@@ -118,7 +122,11 @@ collect_limits() {
   COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" TOKEN="$1" EXPIRES_AT="$2" \
     REFRESH_EXPIRES_AT="$3" CACHED="$4" CACHE_MTIME_OFFSET="${5:-0}" \
     XDG_CACHE_HOME="$CACHE_HOME" python3 - <<'PY'
-import importlib.machinery, importlib.util, json, os, pathlib, time
+import importlib.machinery, importlib.util, json, os, pathlib, sys, time
+
+# Keep the load from dropping a bytecode cache beside the collector: a stray
+# bin/__pycache__ is tracked nowhere and breaks text scans over bin/.
+sys.dont_write_bytecode = True
 
 loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
 spec = importlib.util.spec_from_loader(loader.name, loader)
@@ -228,7 +236,11 @@ pass "Claude collector falls back to cache when the probe cannot connect"
 probe_with_cache() {
   COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" FORCE="$1" CACHED="$2" PAYLOAD="$3" CACHE_MTIME_OFFSET="${4:-0}" \
     XDG_CACHE_HOME="$CACHE_HOME" python3 - <<'PY'
-import importlib.machinery, importlib.util, io, json, os, time
+import importlib.machinery, importlib.util, io, json, os, sys, time
+
+# Keep the load from dropping a bytecode cache beside the collector: a stray
+# bin/__pycache__ is tracked nowhere and breaks text scans over bin/.
+sys.dont_write_bytecode = True
 
 loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
 spec = importlib.util.spec_from_loader(loader.name, loader)

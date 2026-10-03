@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = power-profiles-daemon
+
+[Action]
+Description = Re-applying the powerprofilesctl system python3 shebang...
+When = PostTransaction
+Exec = /bin/bash /usr/share/omarchy/install/config/fix-powerprofilesctl-shebang.sh
