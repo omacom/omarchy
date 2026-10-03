@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Affinity and the file associations it installed
+# omarchy:requires-sudo=true
+
+set -e
+
+omarchy-pkg-drop affinity-appimage-bin
+
+# xdg-mime has no "unset default", so the entries set at install time are
+# removed from mimeapps.list by hand. The types are read from the installed
+# definitions before those are deleted, so removal does not depend on a
+# hard-coded list staying in step with the XML.
+mime_xml="$HOME/.local/share/mime/packages/affinity-filetypes.xml"
+mimeapps="$HOME/.config/mimeapps.list"
+
+if [[ -f $mime_xml && -f $mimeapps ]]; then
+  while IFS= read -r mime_type; do
+    sed -i "\|^${mime_type}=affinity.desktop$|d" "$mimeapps"
+  done < <(sed -n 's/.*<mime-type type="\([^"]*\)".*/\1/p' "$mime_xml")
+fi
+
+rm -f "$HOME/.local/share/applications/affinity.desktop"
+rm -f "$HOME/.local/bin/affinity-open"
+rm -f "$mime_xml"
+rm -f "$HOME/.local/share/icons/hicolor/512x512/apps/affinity.png"
+gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+
+update-mime-database "$HOME/.local/share/mime"
+update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+
+echo
+echo "Affinity has been removed."

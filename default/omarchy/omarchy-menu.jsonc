@@ -196,6 +196,8 @@
   // Install
   "install.package": {"icon":"󰣇","label":"Package","action":"xdg-terminal-exec --app-id=org.omarchy.terminal omarchy-pkg-install"},
   "install.ai": {"icon":"󱚤","label":"AI"},
+  "install.creative": {"icon":"󰏘","label":"Creative"},
+  "install.creative.affinity": {"icon":"󰃣","label":"Affinity","disabled":"omarchy-pkg-present affinity-appimage-bin","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-creative-affinity"},
   "install.service": {"icon":"","label":"Service"},
   "install.development": {"icon":"󰵮","label":"Development"},
   "install.editor": {"icon":"","label":"Editor"},
@@ -289,6 +291,8 @@
   // Remove
   "remove.package": {"icon":"󰣇","label":"Package","action":"xdg-terminal-exec --app-id=org.omarchy.terminal omarchy-pkg-remove"},
   "remove.ai": {"icon":"󱚤","label":"AI","title":"Remove"},
+  "remove.creative": {"icon":"󰏘","label":"Creative","title":"Remove"},
+  "remove.creative.affinity": {"icon":"󰃣","label":"Affinity","when":"omarchy-pkg-present affinity-appimage-bin","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-creative-affinity"},
   "remove.service": {"icon":"","label":"Services","title":"Remove"},
   "remove.development": {"icon":"󰵮","label":"Development","title":"Remove"},
   "remove.theme": {"icon":"󰸌","label":"Theme","action":"omarchy-theme-remove"},
