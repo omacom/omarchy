@@ -30,8 +30,50 @@ if [[ $channel != "stable" && $channel != "rc" && $channel != "edge" ]]; then
   exit 2
 fi
 
+# Lock the existing, root-owned directory: unlike a user-runtime lock this is
+# shared across users, and replacing either configuration file cannot change
+# the lock inode. Hold it through rollback and the final sudo revocation.
+exec {refresh_lock_fd}</etc/pacman.d
+if ! flock -n "$refresh_lock_fd"; then
+  echo "A pacman configuration refresh is already running." >&2
+  exit 1
+fi
+
+rollback_needed=0
+cleanup_refresh() {
+  local refresh_status=$? restore_status=0
+  # Finish both restores even if another interrupt arrives during cleanup.
+  trap '' HUP INT TERM
+
+  if (( rollback_needed )); then
+    echo "Package refresh failed. Restoring the previous pacman configuration." >&2
+    # A failed hook may have acquired its own credential. Keep rollback cold too.
+    if omarchy_security_revoke_sudo_timestamp; then
+      sudo cp -f /etc/pacman.conf.bak /etc/pacman.conf || restore_status=$?
+      sudo cp -f /etc/pacman.d/mirrorlist.bak /etc/pacman.d/mirrorlist || restore_status=$?
+      if (( restore_status == 0 )); then
+        echo "Previous pacman configuration restored." >&2
+        echo "Package databases may still belong to the failed channel." >&2
+        echo "Run 'sudo pacman -Syy' before installing packages to refresh them for the restored configuration." >&2
+        echo "A database refresh does not complete or undo any package changes." >&2
+        echo "If package changes began, resolve the error and retry the command that started this refresh before installing more packages." >&2
+      else
+        echo "Failed to restore the previous pacman configuration." >&2
+      fi
+    else
+      echo "Could not invalidate sudo before restoring the pacman configuration." >&2
+    fi
+  fi
+
+  # Compose rollback with the security helper instead of losing its EXIT cleanup.
+  omarchy_security_exit_with_revoked_sudo "$refresh_status"
+}
+trap cleanup_refresh EXIT
+
 sudo cp -f /etc/pacman.conf /etc/pacman.conf.bak
 sudo cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
+rollback_needed=1
+
 echo "Setting channel to $channel"
 sudo cp -f "$OMARCHY_PATH/default/pacman/pacman-$channel.conf" /etc/pacman.conf
 sudo cp -f "$OMARCHY_PATH/default/pacman/mirrorlist-$channel" /etc/pacman.d/mirrorlist
@@ -42,9 +84,12 @@ sudo cp -f "$OMARCHY_PATH/default/pacman/mirrorlist-$channel" /etc/pacman.d/mirr
 # wrapper, and the timestamp is revoked again afterwards so any authorization
 # the hook obtained for itself cannot carry into the transaction.
 omarchy_security_revoke_sudo_timestamp
+# Do not let a background process started by a hook retain the refresh lock.
 PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$user_path" \
-  "$OMARCHY_PATH/bin/omarchy-hook" pre-refresh-pacman
+  "$OMARCHY_PATH/bin/omarchy-hook" pre-refresh-pacman {refresh_lock_fd}<&-
 omarchy_security_revoke_sudo_timestamp
 
-# Reset all package DBs and then update
-omarchy-update-pacman -Syyuu --noconfirm
+# Reset all package DBs and then update. Bash waits for the foreground command
+# before handling a signal, so rollback cannot race a still-running transaction.
+omarchy-update-pacman -Syyuu --noconfirm {refresh_lock_fd}<&-
+rollback_needed=0
