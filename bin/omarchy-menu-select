@@ -48,6 +48,10 @@ while (( $# > 0 )); do
           fi
           menu_maxheight="$1"
           ;;
+        *)
+          echo "omarchy-menu-select: unknown option: $1" >&2
+          exit 1
+          ;;
       esac
       shift
     done
