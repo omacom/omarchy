@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# omarchy:summary=Print PulseAudio source availability for the shell
+# omarchy:group=audio
+
+# A source whose every port is "not available" is an unplugged jack, such as
+# the headset mic on an empty combo jack. WirePlumber leaves it out of default
+# selection, so picking it in the panel would do nothing. pactl translates its
+# headings and availability, so read it in the C locale.
+LC_ALL=C pactl list sources 2>/dev/null | awk '
+  function emit_source() {
+    if (name == "") return
+    print name "\t" ((port_count == 0 || available) ? 1 : 0)
+  }
+
+  /^Source #/ {
+    emit_source()
+    name = ""
+    in_ports = 0
+    port_count = 0
+    available = 0
+    next
+  }
+
+  /^[[:space:]]*Name:/ {
+    name = $2
+    next
+  }
+
+  /^[[:space:]]*Ports:$/ {
+    in_ports = 1
+    next
+  }
+
+  in_ports && /^\tActive Port:/ {
+    in_ports = 0
+    next
+  }
+
+  in_ports && /^\t\t/ {
+    port_count++
+    if ($0 !~ /not available/) available = 1
+    next
+  }
+
+  END {
+    emit_source()
+  }
+'
