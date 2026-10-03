@@ -4,9 +4,21 @@
 
 drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
 
+# The Mac Touch Bar is a USB connector on an Apple (05ac) USB device. Other USB connectors, like GUD panels, are real displays.
+touch_bar() {
+  local connector=${1##*/}
+  local device="$drm_path/${connector%%-*}/device"
+  local vendor="$device/idVendor"
+
+  # A driver bound to a USB interface puts the vendor on the interface's parent device.
+  [[ -f $vendor ]] || vendor="$device/../idVendor"
+  [[ $connector == *-USB-* && -f $vendor && $(< "$vendor") == "05ac" ]]
+}
+
 for status in "$drm_path"/card*-*/status; do
   [[ -e $status ]] || continue
   [[ $status =~ -(eDP|LVDS|DSI)-[^/]+/status$ ]] && continue
+  touch_bar "${status%/status}" && continue
   [[ $(< $status) == "connected" ]] && exit 0
 done
 exit 1
