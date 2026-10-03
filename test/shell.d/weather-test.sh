@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
 const fs = require('fs')
+const vm = require('vm')
 const weather = requireFromRoot('shell/plugins/panels/weather/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/weather/Panel.qml', 'utf8')
 const widgetSource = fs.readFileSync(root + '/shell/plugins/panels/weather/BarWidget.qml', 'utf8')
@@ -49,6 +50,140 @@ assertDeepEqual(
 )
 assertDeepEqual(weather.parseGeocodingResults('{}'), [], 'weather handles empty geocoding responses')
 assertDeepEqual(weather.parseGeocodingResults('{'), [], 'weather handles invalid geocoding JSON')
+
+// Execute the editor's actual QML functions and signal handlers. A queued
+// response or debounce can arrive between any two user actions.
+function qmlBody(marker, closingIndent, offset = 0) {
+  const markerStart = panelSource.indexOf(marker, offset)
+  if (markerStart < 0) fail('weather editor handler is missing: ' + marker)
+  const start = panelSource.indexOf('{', markerStart)
+  const end = panelSource.indexOf('\n' + closingIndent + '}', start)
+  if (end <= start) fail('weather editor handler does not close: ' + marker)
+  return panelSource.slice(start + 1, end)
+}
+
+const textChangedLine = panelSource.split('onTextChanged:')[1].split('\n')[0].trim()
+const textChangedBody = textChangedLine === '{' ? qmlBody('onTextChanged:', '              ') : textChangedLine
+const responseBody = qmlBody('      onStreamFinished:', '      ', panelSource.indexOf('    id: geocodeProc'))
+
+function weatherEditor() {
+  const queued = []
+  const requests = []
+  const editor = {
+    Model: weather,
+    editingLocation: true,
+    savingLocation: false,
+    savingLocationQueryStarted: false,
+    locationSuggestions: [],
+    suggestionIndex: 0,
+    geocodePendingQuery: '',
+    geocodeActiveQuery: '',
+    locationField: { text: '' },
+    keyCatcher: null,
+    Qt: { callLater: fn => queued.push(fn) },
+    geocodeDebounce: {
+      running: false,
+      restart() { this.running = true },
+      stop() { this.running = false }
+    },
+    persistLocation(name, latitude, longitude) { editor.saved = { name, latitude, longitude } },
+    clearLocation() { editor.saved = { name: '', latitude: null, longitude: null } }
+  }
+  let running = false
+  editor.geocodeProc = {
+    command: [],
+    get running() { return running },
+    set running(value) {
+      running = value
+      if (value) requests.push(this.command.slice())
+    }
+  }
+  editor.root = editor
+  vm.createContext(editor)
+  for (const name of ['requestGeocode', 'startGeocode', 'commitLocation', 'cancelEditingLocation']) {
+    vm.runInContext('function ' + name + '() {' + qmlBody('  function ' + name + '(', '  ') + '\n}', editor)
+  }
+  editor.type = text => {
+    editor.locationField.text = text
+    vm.runInContext(textChangedBody, editor)
+  }
+  editor.respond = results => {
+    editor.geocodeProc.running = false
+    editor.text = JSON.stringify({ results })
+    vm.runInContext(responseBody, editor)
+  }
+  editor.flush = () => {
+    while (queued.length) queued.shift()()
+  }
+  editor.requests = requests
+  return editor
+}
+
+const london = { name: 'London', latitude: 51.50853, longitude: -0.12574 }
+const paris = { name: 'Paris', latitude: 48.85341, longitude: 2.3488 }
+const edited = weatherEditor()
+edited.type('London')
+edited.requestGeocode()
+edited.respond([london])
+edited.suggestionIndex = 2
+edited.type('Paris')
+assertDeepEqual(edited.locationSuggestions, [], 'weather clears old suggestions as soon as the query changes')
+assertEqual(edited.suggestionIndex, 0, 'weather resets the selected suggestion when typing')
+edited.commitLocation()
+assertDeepEqual(edited.saved, { name: 'Paris', latitude: null, longitude: null }, 'weather Enter before debounce saves the typed city instead of the previous suggestion')
+edited.requestGeocode()
+assertEqual(edited.requests.length, 1, 'weather pending debounce cannot start a request while saving')
+
+const delayed = weatherEditor()
+delayed.type('London')
+delayed.requestGeocode()
+delayed.type('Pa')
+delayed.requestGeocode()
+assertEqual(delayed.requests.length, 1, 'weather keeps only one geocoding request in flight')
+delayed.type('Paris')
+delayed.respond([london])
+assertDeepEqual(delayed.locationSuggestions, [], 'weather ignores an obsolete response while the next query is pending')
+delayed.flush()
+assertEqual(delayed.requests.length, 2, 'weather fetches the latest queued query after the old request completes')
+assert(delayed.requests[1].at(-1).includes('name=Paris&'), 'weather coalesces intermediate queries into the latest city')
+assertEqual(delayed.geocodeDebounce.running, false, 'weather stops the debounce when a queued request starts')
+delayed.respond([paris])
+delayed.commitLocation()
+assertEqual(delayed.saved.name, 'Paris', 'weather accepts the current query suggestion')
+assertEqual(delayed.saved.latitude, paris.latitude, 'weather preserves coordinates from the current suggestion')
+
+for (const query of ['', 'P']) {
+  const shortened = weatherEditor()
+  shortened.type('London')
+  shortened.requestGeocode()
+  shortened.type(query)
+  shortened.respond([london])
+  shortened.flush()
+  shortened.requestGeocode()
+  assertDeepEqual(shortened.locationSuggestions, [], 'weather keeps obsolete results hidden after shortening to ' + JSON.stringify(query))
+  assertEqual(shortened.requests.length, 1, 'weather does not fetch a blank or one-character queued query')
+}
+
+const cancelled = weatherEditor()
+cancelled.type('London')
+cancelled.requestGeocode()
+cancelled.type('Paris')
+cancelled.respond([london])
+cancelled.cancelEditingLocation()
+cancelled.flush()
+assertEqual(cancelled.requests.length, 1, 'weather cancellation prevents a deferred geocoding request from starting')
+assertEqual(cancelled.geocodePendingQuery, '', 'weather cancellation clears the queued query')
+
+const reopened = weatherEditor()
+reopened.type('London')
+reopened.requestGeocode()
+reopened.cancelEditingLocation()
+reopened.editingLocation = true
+reopened.type('Paris')
+reopened.respond([london])
+assertDeepEqual(reopened.locationSuggestions, [], 'weather reopening cannot publish the cancelled editor query')
+reopened.flush()
+assertEqual(reopened.requests.length, 2, 'weather reopening fetches the new editor query after an old request finishes')
 
 assertEqual(weather.roundedTemp('21.6'), '22', 'weather rounds temperatures')
 assertEqual(weather.roundedTemp('nope'), '', 'weather ignores invalid temperatures')
