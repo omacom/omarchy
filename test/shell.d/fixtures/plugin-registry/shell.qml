@@ -151,6 +151,14 @@ ShellRoot {
     root.assertEqual(registry.entryPointUrl(registry.installedPlugins["third.panel"], "panel"), "file:///third/panel/Panel.qml", "entryPointUrl resolves plugin-relative paths")
     root.assertEqual(registry.entryPointUrl(registry.installedPlugins["third.widget"], "barWidget"), "file:///third/widget/Widget.qml", "entryPointUrl resolves bar widget paths")
 
+    var savedPluginsDir = registry.pluginsDir
+    registry.pluginsDir = "/third"
+    registry.codeGeneration = 2
+    root.assertEqual(registry.entryPointUrl(registry.installedPlugins["third.widget"], "barWidget"), "file:///third/widget/Widget.qml?v=2", "hot-reload generation busts the component cache for local plugins")
+    root.assertEqual(registry.entryPointUrl(registry.installedPlugins["omarchy.first-widget"], "barWidget"), "file:///first/widgets/clock/Widget.qml", "first-party entry points keep a stable URL")
+    registry.codeGeneration = 0
+    registry.pluginsDir = savedPluginsDir
+
     root.assertTrue(!has("omarchy.reserved"), "third-party omarchy namespace ids are rejected")
     root.assertTrue(!has("third.unsafe"), "unsafe entry points are rejected")
     root.assertTrue(!has("third.missing"), "incomplete manifests are rejected")

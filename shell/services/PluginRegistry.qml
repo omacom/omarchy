@@ -23,6 +23,10 @@ QtObject {
   // { pluginId: manifest } — manifests have source/trust metadata stamped in.
   property var installedPlugins: ({})
   property int registryRevision: 0
+  // Bumped on every plugin hot-reload. Qt caches compiled components by URL
+  // and QML has no way to clear that cache, so local plugin entry points carry
+  // the generation as a query string to force edited files to recompile.
+  property int codeGeneration: 0
   property bool scanning: false
   property string lastEnableError: ""
 
@@ -129,7 +133,10 @@ QtObject {
       console.warn("PluginRegistry: entry point escapes sourceDir: " + resolved)
       return ""
     }
-    return Util.fileUrl(resolved)
+    var url = Util.fileUrl(resolved)
+    var localPrefix = pluginsDir.replace(/\/$/, "") + "/"
+    if (codeGeneration > 0 && resolved.indexOf(localPrefix) === 0) url += "?v=" + codeGeneration
+    return url
   }
 
   // Enabled = the plugin id is referenced somewhere in shell.json. That can
