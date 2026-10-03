@@ -59,18 +59,73 @@ safe_stage_path() {
   [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
 }
 
+create_resume_drop_in() {
+  echo "Adding resume kernel parameters"
+  sudo swapon -p 0 "$SWAP_FILE" 2>/dev/null
+  RESUME_DEVICE=$(findmnt -no SOURCE -T "$SWAP_FILE" | sed 's/\[.*\]//')
+  RESUME_OFFSET=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE")
+  if [[ $RESUME_DEVICE =~ ^/dev/[A-Za-z0-9_./:@+-]+$ && $RESUME_OFFSET =~ ^[0-9]+$ ]]; then
+    sudo mkdir -p /etc/limine-entry-tool.d || return 1
+    echo "KERNEL_CMDLINE[default]+=\" resume=$RESUME_DEVICE resume_offset=$RESUME_OFFSET\"" | sudo tee "$RESUME_DROP_IN" >/dev/null || return 1
+    return 0
+  else
+    if [[ ! $RESUME_DEVICE =~ ^/dev/[A-Za-z0-9_./:@+-]+$ ]]; then
+      echo "Warning: Could not determine resume device for $SWAP_FILE" >&2
+    fi
+    if [[ ! $RESUME_OFFSET =~ ^[0-9]+$ ]]; then
+      echo "Warning: Could not determine resume offset for $SWAP_FILE" >&2
+    fi
+  fi
+  return 1
+}
+
 # Check if hibernation is already configured
 if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
-  # Fix empty resume_offset if btrfs map-swapfile failed during initial setup
-  if [[ -f $RESUME_DROP_IN ]] && grep -q 'resume_offset="$' "$RESUME_DROP_IN" && [[ -f $SWAP_FILE ]]; then
-    RESUME_OFFSET=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE" 2>/dev/null)
-    if [[ -n $RESUME_OFFSET ]]; then
-      echo "Fixing empty resume_offset ($RESUME_OFFSET)"
-      sudo sed -i "s/resume_offset=\"$/resume_offset=$RESUME_OFFSET\"/" "$RESUME_DROP_IN"
-      if ! $NO_REBUILD; then
-        sudo limine-mkinitcpio
+  RESUME_CHANGED=false
+  if [[ ! -f $RESUME_DROP_IN && -f $SWAP_FILE ]]; then
+    if create_resume_drop_in; then
+      RESUME_CHANGED=true
+    fi
+  fi
+
+  # Repair empty tokens or append missing parameters, preserving drop-in content.
+  if [[ -f $RESUME_DROP_IN && -f $SWAP_FILE ]]; then
+    MISSING_RESUME_PARAMS=""
+    if ! grep -Eq '^[[:space:]]*KERNEL_CMDLINE\[default\]\+?="([^"]*[[:space:]])?resume=[^[:space:]"]+' "$RESUME_DROP_IN"; then
+      RESUME_DEVICE=$(findmnt -no SOURCE -T "$SWAP_FILE" | sed 's/\[.*\]//')
+      if [[ $RESUME_DEVICE =~ ^/dev/[A-Za-z0-9_./:@+-]+$ ]]; then
+        if grep -Eq '^[[:space:]]*KERNEL_CMDLINE\[default\]\+?="([^"]*[[:space:]])?resume=([[:space:]]|")' "$RESUME_DROP_IN"; then
+          echo "Fixing empty resume device ($RESUME_DEVICE)"
+          RESUME_DEVICE_ESCAPED=$(printf '%s' "$RESUME_DEVICE" | sed 's/[\\&|]/\\&/g')
+          if sudo sed -Ei "s|^([[:space:]]*KERNEL_CMDLINE\[default\]\+?=\"([^\"]*[[:space:]])?)resume=([[:space:]]\|\")|\1resume=$RESUME_DEVICE_ESCAPED\3|" "$RESUME_DROP_IN"; then
+            RESUME_CHANGED=true
+          fi
+        else
+          MISSING_RESUME_PARAMS+=" resume=$RESUME_DEVICE"
+        fi
       fi
     fi
+    if ! grep -Eq '^[[:space:]]*KERNEL_CMDLINE\[default\]\+?="([^"]*[[:space:]])?resume_offset=[^[:space:]"]+' "$RESUME_DROP_IN"; then
+      RESUME_OFFSET=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE" 2>/dev/null)
+      if [[ $RESUME_OFFSET =~ ^[0-9]+$ ]]; then
+        if grep -Eq '^[[:space:]]*KERNEL_CMDLINE\[default\]\+?="([^"]*[[:space:]])?resume_offset=([[:space:]]|")' "$RESUME_DROP_IN"; then
+          echo "Fixing empty resume_offset ($RESUME_OFFSET)"
+          if sudo sed -Ei "s|^([[:space:]]*KERNEL_CMDLINE\[default\]\+?=\"([^\"]*[[:space:]])?)resume_offset=([[:space:]]\|\")|\1resume_offset=$RESUME_OFFSET\3|" "$RESUME_DROP_IN"; then
+            RESUME_CHANGED=true
+          fi
+        else
+          MISSING_RESUME_PARAMS+=" resume_offset=$RESUME_OFFSET"
+        fi
+      fi
+    fi
+    if [[ -n $MISSING_RESUME_PARAMS ]]; then
+      if printf '\nKERNEL_CMDLINE[default]+="%s"\n' "$MISSING_RESUME_PARAMS" | sudo tee -a "$RESUME_DROP_IN" >/dev/null; then
+        RESUME_CHANGED=true
+      fi
+    fi
+  fi
+  if $RESUME_CHANGED && ! $NO_REBUILD; then
+    sudo limine-mkinitcpio
   fi
   echo "Hibernation is already set up"
   exit 0
@@ -129,16 +184,7 @@ echo "HOOKS+=(resume)" | sudo tee "$MKINITCPIO_CONF" >/dev/null
 # Add resume= kernel parameters so the initramfs resume hook knows where to find the
 # hibernation image. Without these, resume happens late (after GPU drivers load) and fails.
 if [[ ! -f $RESUME_DROP_IN ]]; then
-  echo "Adding resume kernel parameters"
-  sudo swapon -p 0 "$SWAP_FILE" 2>/dev/null
-  RESUME_DEVICE=$(findmnt -no SOURCE -T "$SWAP_FILE" | sed 's/\[.*\]//')
-  RESUME_OFFSET=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE")
-  if [[ -n $RESUME_OFFSET ]]; then
-    sudo mkdir -p /etc/limine-entry-tool.d
-    echo "KERNEL_CMDLINE[default]+=\" resume=$RESUME_DEVICE resume_offset=$RESUME_OFFSET\"" | sudo tee "$RESUME_DROP_IN" >/dev/null
-  else
-    echo "Warning: Could not determine resume offset for $SWAP_FILE" >&2
-  fi
+  create_resume_drop_in
 fi
 
 # Use ACPI alarm for RTC wakeup on s2idle systems (needed for suspend-then-hibernate)
