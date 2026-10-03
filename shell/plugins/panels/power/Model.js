@@ -49,6 +49,30 @@ function batteryFraction(device) {
   return device && device.isPresent ? Math.max(0, Math.min(1, device.percentage)) : 0
 }
 
+function parseCapStatus(raw) {
+  var text = String(raw || "").trim()
+  if (text === "on") return { supported: true, enabled: true }
+  if (text === "off") return { supported: true, enabled: false }
+  return { supported: false, enabled: false }
+}
+
+function chargeLimitConfigured(info) {
+  var t = String((info && info.threshold) || "")
+  var matches = t.match(/(\d+)\s*%\s*$/)
+  return !!(matches && Number(matches[1]) < 99)
+}
+
+function selectCapIndex(index, delta) {
+  return clampIndex(index + delta, 2)
+}
+
+function selectCursorSection(section, dy, capSupported) {
+  if (!capSupported) return "profile"
+  if (dy > 0 && section === "profile") return "cap"
+  if (dy < 0 && section === "cap") return "profile"
+  return section
+}
+
 function chargeThresholdActive(device, onBattery, states) {
   var d = device || {}
   var s = states || {}
@@ -97,6 +121,10 @@ if (typeof module !== "undefined") {
     parseProfiles: parseProfiles,
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
+    parseCapStatus: parseCapStatus,
+    chargeLimitConfigured: chargeLimitConfigured,
+    selectCapIndex: selectCapIndex,
+    selectCursorSection: selectCursorSection,
     chargeThresholdActive: chargeThresholdActive,
     batteryIcon: batteryIcon,
     modeLabel: modeLabel

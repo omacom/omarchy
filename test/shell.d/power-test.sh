@@ -48,4 +48,17 @@ assert(/Math\.round\(root\.batteryFraction \* 100\) \+ "% " \+ root\.batteryIcon
 assert(/openPanelIndicatorWidth:.*showPercentage.*button\.glyphPaintedWidth : 0/.test(panelSource), 'power spans the open-panel mark across the painted percentage block')
 assert(/IpcHandler[\s\S]*?function togglePercentage\(\) \{ root\.togglePercentage\(\) \}/.test(panelSource), 'power exposes togglePercentage over IPC')
 assert(/manageIpc: false/.test(panelSource), 'power owns its IPC handler so it can extend the target methods')
+assertDeepEqual(power.parseCapStatus('on\n'), { supported: true, enabled: true }, 'power parses cap on')
+assertDeepEqual(power.parseCapStatus('off'), { supported: true, enabled: false }, 'power parses cap off')
+assertDeepEqual(power.parseCapStatus(''), { supported: false, enabled: false }, 'power treats missing cap status as unsupported')
+assert(power.chargeLimitConfigured({ threshold: '75-80%' }), 'power detects a configured 80% charge limit')
+assert(!power.chargeLimitConfigured({ threshold: '100%' }), 'power ignores a 100% charge limit')
+assertEqual(power.selectCapIndex(0, 1), 1, 'power advances cap selection')
+assertEqual(power.selectCursorSection('profile', 1, true), 'cap', 'power moves from profiles to cap')
+assertEqual(power.selectCursorSection('cap', -1, true), 'profile', 'power moves from cap to profiles')
+assertEqual(power.selectCursorSection('profile', 1, false), 'profile', 'power stays on profiles without a cap')
+
+assert(/omarchy-toggle-battery-limit/.test(panelSource), 'power panel can set the battery cap')
+assert(/BATTERY CAP/.test(panelSource), 'power panel exposes battery cap on/off')
+assert(/showChargeLimit/.test(panelSource), 'power panel shows the configured charge limit')
 JS
