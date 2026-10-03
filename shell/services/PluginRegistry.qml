@@ -423,52 +423,114 @@ QtObject {
     else delete config.cloneSourceRestores
   }
 
-  function activeCloneFor(config, sourceId) {
-    for (var candidate in installedPlugins) {
+  function activeCloneFor(config, sourceId, excludingId) {
+    var sources = Util.isPlainObject(config.cloneSources) ? config.cloneSources : {}
+    var candidates = Object.keys(installedPlugins)
+    for (var savedId in sources) {
+      if (candidates.indexOf(savedId) === -1) candidates.push(savedId)
+    }
+    for (var i = 0; i < candidates.length; i++) {
+      var candidate = candidates[i]
+      if (candidate === excludingId) continue
       var candidateManifest = installedPlugins[candidate]
       var candidateMetadata = candidateManifest && Util.isPlainObject(candidateManifest.omarchy)
         ? candidateManifest.omarchy : null
-      if (!candidateMetadata || String(candidateMetadata.clonedFrom || "") !== sourceId) continue
-      if (Array.isArray(candidateManifest.kinds) && candidateManifest.kinds.indexOf("bar") !== -1) {
-        if (Util.canonicalWidgetId(String(config.bar.id || "")) === candidate) return candidate
-      } else if (findEntryLocation(config, candidate).found) {
-        return candidate
-      }
+      // A still-cloned manifest keeps its saved obligation until a lifecycle
+      // action changes it. An unrelated non-clone must not inherit that identity.
+      var source = candidateManifest
+        ? (candidateMetadata && candidateMetadata.clonedFrom
+          ? String(sources[candidate] || candidateMetadata.clonedFrom) : "")
+        : String(sources[candidate] || "")
+      if (source === sourceId && !isDisabled(config, candidate)
+          && findEntryLocation(config, candidate).found) return candidate
     }
     return ""
   }
 
+  function restoreSavedBarSource(config, sourceId) {
+    if (!Util.isPlainObject(config.cloneBarRestores)) return
+    var saved = config.cloneBarRestores[sourceId]
+    if (Util.isPlainObject(saved) && Util.isPlainObject(saved.entry)
+        && ["left", "center", "right"].indexOf(saved.section) !== -1
+        && !findBarLocation(config, sourceId, "").found) {
+      var entries = config.bar.layout[saved.section]
+      var entry = Util.cloneJson(saved.entry)
+      entry.id = sourceId
+      entries.splice(Math.max(0, Math.min(Number(saved.index) || 0, entries.length)), 0, entry)
+    }
+    delete config.cloneBarRestores[sourceId]
+    if (!Object.keys(config.cloneBarRestores).length) delete config.cloneBarRestores
+  }
+
+  function clearCloneSource(config, cloneId, fallbackSource) {
+    var sourceId = Util.isPlainObject(config.cloneSources)
+      ? Util.canonicalWidgetId(String(config.cloneSources[cloneId] || "")) : ""
+    if (!sourceId) sourceId = fallbackSource || ""
+    // A restore marker belongs to the saved source, even when the manifest
+    // now describes a different plugin using the same id.
+    if (sourceId && cloneShouldRestoreSource(config, cloneId)) {
+      var remainingClone = activeCloneFor(config, sourceId, cloneId)
+      if (remainingClone) {
+        if (!Util.isPlainObject(config.cloneSources)) config.cloneSources = {}
+        config.cloneSources[remainingClone] = sourceId
+        setCloneShouldRestoreSource(config, remainingClone, true)
+      } else {
+        removeDisabled(config, sourceId)
+      }
+    }
+    if (sourceId && !activeCloneFor(config, sourceId, cloneId)) restoreSavedBarSource(config, sourceId)
+    setCloneShouldRestoreSource(config, cloneId, false)
+    if (Util.isPlainObject(config.cloneSources)) {
+      delete config.cloneSources[cloneId]
+      if (!Object.keys(config.cloneSources).length) delete config.cloneSources
+    }
+  }
+
   function restoreCloneSource(config, cloneId, sourceId) {
-    var cloneManifest = installedPlugins[cloneId]
-    var isBarOption = cloneManifest && Array.isArray(cloneManifest.kinds)
-      && cloneManifest.kinds.indexOf("bar") !== -1
+    var cloneLocation = findEntryLocation(config, cloneId)
+    var isBarOption = cloneLocation.kind === "bar-option"
     if (isBarOption) {
       if (sourceId === "omarchy.bar") delete config.bar.id
       else config.bar.id = sourceId
     } else {
-      var cloneLocation = findEntryLocation(config, cloneId)
       if (cloneLocation.kind === "bar") {
         var cloneEntry = config.bar.layout[cloneLocation.section][cloneLocation.index]
-        var sections = ["left", "center", "right"]
-        for (var s = 0; s < sections.length; s++) {
-          for (var i = config.bar.layout[sections[s]].length - 1; i >= 0; i--) {
-            if (barEntryId(config.bar.layout[sections[s]][i]) === sourceId)
-              config.bar.layout[sections[s]].splice(i, 1)
-          }
+        var remainingClone = activeCloneFor(config, sourceId, cloneId)
+        var saved = Util.isPlainObject(config.cloneBarRestores) ? config.cloneBarRestores[sourceId] : null
+        var ownerManifest = installedPlugins[cloneId]
+        var ownerMetadata = ownerManifest && Util.isPlainObject(ownerManifest.omarchy) ? ownerManifest.omarchy : null
+        if (Util.isPlainObject(saved) && saved.owner === cloneId
+            && (!ownerManifest || (ownerMetadata && ownerMetadata.clonedFrom))) {
+          saved.entry = Util.isPlainObject(cloneEntry) ? Util.cloneJson(cloneEntry) : { id: sourceId }
+          saved.entry.id = sourceId
+          saved.section = cloneLocation.section
+          saved.index = cloneLocation.index
+          // Do not let a later activation of the same ID overwrite this slot.
+          saved.owner = ""
         }
-        cloneLocation = findBarLocation(config, cloneId, "")
-        if (cloneLocation.found) {
-          var restoredEntry = Util.isPlainObject(cloneEntry) ? Util.cloneJson(cloneEntry) : {}
-          restoredEntry.id = sourceId
-          config.bar.layout[cloneLocation.section][cloneLocation.index] = restoredEntry
+        if (remainingClone || Util.isPlainObject(saved)) {
+          config.bar.layout[cloneLocation.section].splice(cloneLocation.index, 1)
+        } else {
+          var sections = ["left", "center", "right"]
+          for (var s = 0; s < sections.length; s++) {
+            for (var i = config.bar.layout[sections[s]].length - 1; i >= 0; i--) {
+              if (barEntryId(config.bar.layout[sections[s]][i]) === sourceId)
+                config.bar.layout[sections[s]].splice(i, 1)
+            }
+          }
+          cloneLocation = findBarLocation(config, cloneId, "")
+          if (cloneLocation.found) {
+            var restoredEntry = Util.isPlainObject(cloneEntry) ? Util.cloneJson(cloneEntry) : {}
+            restoredEntry.id = sourceId
+            config.bar.layout[cloneLocation.section][cloneLocation.index] = restoredEntry
+          }
         }
       } else if (cloneLocation.kind === "plugin") {
         config.plugins.splice(cloneLocation.index, 1)
       }
     }
 
-    if (cloneShouldRestoreSource(config, cloneId)) removeDisabled(config, sourceId)
-    setCloneShouldRestoreSource(config, cloneId, false)
+    clearCloneSource(config, cloneId, sourceId)
   }
 
   function setEnabled(id, value, placement) {
@@ -479,7 +541,9 @@ QtObject {
       return false
     }
     var manifest = installedPlugins[key]
-    if (value && !manifest) {
+    var config = shellConfigProvider ? shellConfigProvider() : null
+    var location = findEntryLocation(config, key)
+    if (!manifest && (!location.found || value)) {
       console.warn("PluginRegistry.setEnabled: unknown plugin " + key)
       return false
     }
@@ -489,6 +553,8 @@ QtObject {
       && manifest.kinds.some(function(kind) { return kind !== "bar-widget" })
     var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
     var clonedFrom = metadata ? Util.canonicalWidgetId(String(metadata.clonedFrom || "")) : ""
+    if (!manifest && Util.isPlainObject(config) && Util.isPlainObject(config.cloneSources))
+      clonedFrom = Util.canonicalWidgetId(String(config.cloneSources[key] || ""))
     shellConfigMutator(function(config) {
       ensureConfigShape(config)
 
@@ -502,18 +568,49 @@ QtObject {
 
       if (value && manifest && manifest.__isFirstParty) {
         var activeClone = activeCloneFor(config, key)
-        if (activeClone) {
+        while (activeClone) {
           restoreCloneSource(config, activeClone, key)
-          removeDisabled(config, key)
+          activeClone = activeCloneFor(config, key)
         }
+        // An installed plugin may have reused a clone ID. Release its old
+        // bookkeeping without removing that plugin's own configuration.
+        if (Util.isPlainObject(config.cloneSources)) {
+          var savedIds = Object.keys(config.cloneSources)
+          for (var i = 0; i < savedIds.length; i++) {
+            var savedId = savedIds[i]
+            if (config.cloneSources[savedId] === key) clearCloneSource(config, savedId)
+          }
+        }
+        removeDisabled(config, key)
+      }
+
+      // Keep the source across rescans and restarts even if the clone's
+      // manifest is removed. The restore marker separately preserves a
+      // source that was already disabled before the clone was enabled.
+      var previousSource = Util.isPlainObject(config.cloneSources)
+        ? String(config.cloneSources[key] || "") : ""
+      if (!value && previousSource) clonedFrom = previousSource
+      if (value && previousSource && previousSource !== clonedFrom) {
+        if (clonedFrom) restoreCloneSource(config, key, previousSource)
+        else clearCloneSource(config, key)
+      }
+      if (value && clonedFrom) {
+        if (!Util.isPlainObject(config.cloneSources)) config.cloneSources = {}
+        config.cloneSources[key] = clonedFrom
+      } else if (value) {
+        clearCloneSource(config, key)
       }
 
       if (isBarOption) {
         if (value) {
+          var previousBar = Util.canonicalWidgetId(String(config.bar.id || ""))
+          if (previousBar && previousBar !== key) clearCloneSource(config, previousBar)
           config.bar.id = key
         } else if (Util.canonicalWidgetId(String(config.bar.id || "")) === key) {
-          if (clonedFrom && clonedFrom !== "omarchy.bar") config.bar.id = clonedFrom
+          if (clonedFrom) restoreCloneSource(config, key, clonedFrom)
           else delete config.bar.id
+        } else {
+          clearCloneSource(config, key)
         }
         return
       }
@@ -529,6 +626,15 @@ QtObject {
           var sourceLocation = clonedFrom ? findEntryLocation(config, clonedFrom) : { found: false }
           if (sourceLocation.kind === "bar") {
             var sourceEntry = config.bar.layout[sourceLocation.section][sourceLocation.index]
+            if (!Util.isPlainObject(config.cloneBarRestores)) config.cloneBarRestores = {}
+            if (!config.cloneBarRestores[clonedFrom]) {
+              config.cloneBarRestores[clonedFrom] = {
+                owner: key,
+                section: sourceLocation.section,
+                index: sourceLocation.index,
+                entry: Util.isPlainObject(sourceEntry) ? Util.cloneJson(sourceEntry) : { id: clonedFrom }
+              }
+            }
             var replacement = Util.isPlainObject(sourceEntry) ? Util.cloneJson(sourceEntry) : entry
             replacement.id = key
             config.bar.layout[sourceLocation.section][sourceLocation.index] = replacement
@@ -555,6 +661,7 @@ QtObject {
       if (clonedFrom) restoreCloneSource(config, key, clonedFrom)
       else if (location.kind === "bar") config.bar.layout[location.section].splice(location.index, 1)
       else if (location.kind === "plugin") config.plugins.splice(location.index, 1)
+      else if (location.kind === "bar-option") delete config.bar.id
 
       // Dropping the layout entry is the whole story for a widget. Anything
       // else built-in loads by default, so switching it off has to be stated.
@@ -636,6 +743,23 @@ QtObject {
     }
 
     installedPlugins = merged
+    // Populate source records for clones enabled before this bookkeeping
+    // existed, while their manifests still tell us which source to restore.
+    var config = shellConfigProvider ? shellConfigProvider() : null
+    var cloneSources = {}
+    for (var id in merged) {
+      var metadata = Util.isPlainObject(merged[id].omarchy) ? merged[id].omarchy : null
+      var source = metadata ? String(metadata.clonedFrom || "") : ""
+      if (source && findEntryLocation(config, id).found
+          && (!Util.isPlainObject(config.cloneSources) || !config.cloneSources[id]))
+        cloneSources[id] = source
+    }
+    if (shellConfigMutator && Object.keys(cloneSources).length) {
+      shellConfigMutator(function(config) {
+        if (!Util.isPlainObject(config.cloneSources)) config.cloneSources = {}
+        for (var id in cloneSources) config.cloneSources[id] = cloneSources[id]
+      })
+    }
     registryRevision++
     scanning = false
     pluginsChanged()
