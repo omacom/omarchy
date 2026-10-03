@@ -18,7 +18,7 @@ cat >"$stub_dir/hyprctl" <<'EOF'
 if [[ $1 == "activeworkspace" && -n $HYPRCTL_BROKEN ]]; then
   printf '{}\n'
 elif [[ $1 == "activeworkspace" ]]; then
-  printf '{"id":3,"tiledLayout":"dwindle"}\n'
+  printf '{"id":3,"tiledLayout":"%s"}\n' "${HYPRCTL_LAYOUT:-dwindle}"
 else
   printf '%s\n' "$*" >>"$HYPRCTL_LOG"
 fi
@@ -42,6 +42,14 @@ grep -Fx 'eval hl.workspace_rule({ workspace = "3", layout = "scrolling" })' "$l
   fail "workspace layout toggle applies the selected layout immediately"
 pass "workspace layout toggle persists and applies the selected layout"
 
+for cycle in scrolling:master master:dwindle; do
+  HOME="$home_dir" HYPRCTL_LOG="$log_file" HYPRCTL_LAYOUT="${cycle%%:*}" PATH="$stub_dir:$PATH" \
+    "$ROOT/bin/omarchy-hyprland-workspace-layout-toggle"
+  grep -Fx "hl.workspace_rule({ workspace = \"3\", layout = \"${cycle##*:}\" })" "$layout_file" >/dev/null ||
+    fail "workspace layout toggle cycles from ${cycle%%:*} to ${cycle##*:}"
+done
+pass "workspace layout toggle cycles through dwindle, scrolling, and master"
+
 if HOME="$home_dir" HYPRCTL_LOG="$log_file" HYPRCTL_BROKEN=1 PATH="$stub_dir:$PATH" \
   "$ROOT/bin/omarchy-hyprland-workspace-layout-toggle" 2>/dev/null; then
   fail "workspace layout toggle exits nonzero without a workspace id"
@@ -64,6 +72,6 @@ require("default.hypr.workspace-layouts")
 
 assert(#rules == 1)
 assert(rules[1].workspace == "3")
-assert(rules[1].layout == "scrolling")
+assert(rules[1].layout == "dwindle")
 LUA
 pass "saved workspace layouts load into Hyprland configuration"
