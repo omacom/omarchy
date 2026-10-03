@@ -398,6 +398,13 @@ load_group_commands() {
     register_command "$file"
   done
 
+  # Commands that join this group through `# omarchy:group=` metadata live
+  # under another filename prefix, so the glob above can't see them.
+  while IFS= read -r file; do
+    [[ -n ${BINARY_TO_KEY[${file##*/}]} || ! -x $file ]] && continue
+    register_command "$file"
+  done < <(grep -lx -- "# omarchy:group=$group" "$OMARCHY_BIN_DIR"/omarchy-* 2>/dev/null)
+
 }
 
 resolve_direct_route() {

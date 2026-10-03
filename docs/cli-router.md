@@ -95,7 +95,9 @@ belongs to a group when either its metadata group or its filename group
 matches, listed under the route that fits the group being viewed: `omarchy
 menu --help` shows `omarchy-menu-share` as `omarchy menu share`, while its
 canonical `omarchy share` stands alone. On the fast path, group help loads
-only that group's filename-prefixed binaries rather than everything.
+only that group's filename-prefixed binaries rather than everything, plus any
+binary whose header declares `# omarchy:group=<group>` — found with a single
+`grep`, so `omarchy-system-factory-reset` still shows up under `omarchy setup`.
 
 The top-level `omarchy` listing is driven entirely by the hand-curated
 `GROUP_DESCRIPTIONS` table in `bin/omarchy`, which also titles each group's
