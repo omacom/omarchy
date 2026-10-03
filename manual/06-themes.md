@@ -65,6 +65,23 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+### Framework Desktop fan colors
+
+On a Framework Desktop with the ARGB fan, Omarchy lights the fan in your theme's accent color. It reapplies the color whenever you change themes and again at login, so the fan follows the desktop without any setup.
+
+Each theme can carry its own override in `~/.config/omarchy/fan-colors/<theme>.txt`, named after the theme's slug (for example `tokyo-night.txt` for Tokyo Night). The file holds one to eight `#RRGGBB` colors, one per line. Eight colors map to the eight fan zones in order; a single color fills all of them. Blank lines, and lines whose `#` is followed by a space or the end of the line, are ignored as comments; any other line is reported and nothing is applied.
+
+If the fan color looks washed out or off against the rest of the theme, calibrate it per channel in `~/.config/omarchy/fan-colors/calibration.conf`:
+
+```
+RED_PERCENT=100
+GREEN_PERCENT=100
+BLUE_PERCENT=100
+```
+
+100 leaves a channel unchanged, a lower value dims it, and a higher value boosts it. Calibration applies to the color Omarchy derives from the theme; a per-theme override file is treated as already tuned and skips it.
+
+### Unlocks
 ### Unlocks
 
 Themes can also have a custom unlock design, which is used for the boot decryption process. You can select one of these under _Style > Unlock_. They look like this:
