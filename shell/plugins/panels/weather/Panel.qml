@@ -142,6 +142,64 @@ Panel {
   // Auto-refresh interval in minutes; clamped to a sane minimum.
   readonly property int refreshMinutes: Math.max(1, parseInt(setting("refreshMinutes", 15), 10) || 15)
 
+  // ---- Wallpaper animations. The conditions resolved above are also what
+  //      the animation service draws on the desktop, so it is handed this
+  //      panel's `current` rather than fetching a second copy of the same
+  //      forecast. The heartbeat is how the service notices the widget going
+  //      away: see sourceTimeout in Service.qml.
+  readonly property bool animationsEnabled: setting("animations", false) === true
+  readonly property var animationService: {
+    var host = root.bar ? root.bar.shell : null
+    if (!host) return null
+    if (typeof host.firstPartyServiceFor === "function") {
+      var firstParty = host.firstPartyServiceFor("omarchy.weather")
+      if (firstParty) return firstParty
+    }
+    return typeof host.serviceFor === "function" ? host.serviceFor("omarchy.weather") : null
+  }
+
+  // The reading the icon, the words under the temperature, and the wallpaper
+  // all resolve from. Open-Meteo wins because that is what `label` is built
+  // from — it is fetched even when the location came from wttr, and it is the
+  // only one of the two carrying a day/night flag. Its absence early in a
+  // refresh is covered by wttr's reading, which both tables also understand.
+  readonly property var resolvedCurrent: openMeteoCurrent || current
+
+  function pushAnimationState() {
+    var service = root.animationService
+    if (!service || typeof service.applyWeather !== "function") return
+    service.applyWeather(root.resolvedCurrent, root.animationsEnabled)
+  }
+
+  // Written back to this widget's shell.json entry the way the clock writes
+  // its format: applied locally first so the switch throws on the click
+  // itself, then persisted, and the bar re-injects the same value.
+  function toggleAnimations() {
+    var entry = { id: root.moduleName }
+    for (var key in root.settings) if (key !== "id") entry[key] = root.settings[key]
+    entry.animations = !root.animationsEnabled
+
+    root.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
+  onResolvedCurrentChanged: pushAnimationState()
+  onAnimationsEnabledChanged: pushAnimationState()
+  onAnimationServiceChanged: pushAnimationState()
+
+  // Only while the setting is on: switching it off pushes that once through
+  // the change handler above, and the service's own timeout takes it from
+  // there. Everyone who leaves animations off pays nothing for this.
+  Timer {
+    interval: 20000
+    running: root.animationsEnabled
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.pushAnimationState()
+  }
+
+  readonly property string reportCondition: Model.currentDescription(resolvedCurrent)
   readonly property string reportLocation:  configuredLocation || wttrLocation || (areaInfo && areaInfo.areaName && areaInfo.areaName[0] ? areaInfo.areaName[0].value : "")
   readonly property string reportTempNum:   current ? String(useImperial ? current.temp_F : current.temp_C) : ""
   readonly property string tempUnit:        "°" + (useImperial ? "F" : "C")
@@ -180,7 +238,7 @@ Panel {
       + "?latitude=" + encodeURIComponent(String(lat))
       + "&longitude=" + encodeURIComponent(String(lon))
       + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
-      + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
+      + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,weather_code,is_day"
       + "&forecast_days=4"
       + "&timezone=auto"
     dailyForecastProc.command = ["curl", "-fsS", "--max-time", "5", url]
@@ -502,6 +560,14 @@ Panel {
       anchors.fill: parent
       blocked: root.editingLocation
       onReturnRequested: root.startEditingLocation()
+      // Space, so the animation toggle is reachable without the mouse. Return
+      // raises activate as well as return, and the editor it just opened is
+      // what tells the two apart; while that editor is up the catcher is
+      // blocked, so Space goes to the field rather than here.
+      onActivateRequested: {
+        if (root.editingLocation) return
+        root.toggleAnimations()
+      }
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -521,53 +587,83 @@ Panel {
 
       // ---- Hero row: big icon + temp on the left; location and stats stacked on the right.
       Item {
+        id: hero
         width: parent.width
         height: Math.max(heroLeft.height, heroRight.height)
 
-        Row {
+        Column {
           id: heroLeft
           anchors.left: parent.left
           anchors.leftMargin: Style.space(16)
           anchors.verticalCenter: parent.verticalCenter
-          spacing: Style.space(16)
-
-          Text {
-            id: heroIcon
-            textFormat: Text.PlainText
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: 5
-            text: root.label || "—"
-            color: root.bar.foreground
-            font.family: root.bar.fontFamily
-            // Decorative condition emoji; intentionally larger than the
-            // Style.font.* scale's displayLarge (28).
-            font.pixelSize: 64
-          }
+          spacing: Style.space(2)
 
           Row {
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(2)
+            spacing: Style.space(16)
 
             Text {
-              id: tempBig
+              id: heroIcon
               textFormat: Text.PlainText
-              text: root.reportTempNum || "—"
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.verticalCenterOffset: 5
+              text: root.label || "—"
               color: root.bar.foreground
               font.family: root.bar.fontFamily
-              // Hero temperature read-out; deliberately oversized, outside
-              // the Style.font.* scale.
-              font.pixelSize: 56
-              font.bold: true
+              // Decorative condition emoji; intentionally larger than the
+              // Style.font.* scale's displayLarge (28).
+              font.pixelSize: 64
             }
-            Text {
-              textFormat: Text.PlainText
-              text: root.current ? root.tempUnit : ""
-              color: root.bar.foreground
-              font.family: root.bar.fontFamily
-              font.pixelSize: Style.font.display
-              anchors.top: tempBig.top
-              anchors.topMargin: Style.space(10)
+
+            Row {
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(2)
+
+              Text {
+                id: tempBig
+                textFormat: Text.PlainText
+                text: root.reportTempNum || "—"
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                // Hero temperature read-out; deliberately oversized, outside
+                // the Style.font.* scale.
+                font.pixelSize: 56
+                font.bold: true
+              }
+              Text {
+                textFormat: Text.PlainText
+                text: root.current ? root.tempUnit : ""
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.display
+                anchors.top: tempBig.top
+                anchors.topMargin: Style.space(10)
+              }
             }
+          }
+
+          // Names the condition the icon above is drawing, under the whole
+          // icon-and-temperature block rather than under the temperature
+          // alone: that is the difference between "Thunderstorm wit…" and
+          // the words fitting. Elided rather than wrapped, because wttr's
+          // own wording runs to "Moderate or heavy rain with thunder" and
+          // the hero has to keep its height.
+          //
+          // Bounded by what is actually left beside the stats rather than by
+          // a fixed number, so it still fits when the text scale grows or a
+          // longer set of stats widens the right-hand column. No binding
+          // loop: heroRight's width does not depend on this side.
+          Text {
+            textFormat: Text.PlainText
+            visible: text !== ""
+            width: Math.max(0, Math.min(implicitWidth,
+              hero.width - heroRight.width - Style.space(44)))
+            elide: Text.ElideRight
+            text: root.reportCondition
+            color: Qt.darker(root.bar.foreground, 1.4)
+            font.family: root.bar.fontFamily
+            // Secondary to the temperature it sits under, and the smaller
+            // size is what lets the longest wording fit before eliding.
+            font.pixelSize: Style.font.bodySmall
           }
         }
 
@@ -871,6 +967,68 @@ Panel {
               }
             }
           }
+        }
+      }
+
+      // ---- Divider above the settings row.
+      Rectangle {
+        width: parent.width
+        height: Style.spacing.hairline
+        color: root.bar.foreground
+        opacity: 0.12
+      }
+
+      // ---- Wallpaper animations. The only place this setting is reachable
+      //      without the CLI, so it lives here rather than behind another
+      //      click gesture on the pill: left, right, and middle are already
+      //      the panel, the notification, and a refresh.
+      Rectangle {
+        width: parent.width
+        height: animationSetting.implicitHeight + Style.space(12)
+        radius: Style.cornerRadius
+        color: animationMouse.containsMouse
+          ? Style.hoverFillFor(root.bar.foreground, Color.accent)
+          : "transparent"
+
+        Item {
+          id: animationSetting
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.leftMargin: Style.space(16)
+          anchors.rightMargin: Style.space(16)
+          anchors.verticalCenter: parent.verticalCenter
+          implicitHeight: Math.max(animationLabel.implicitHeight, animationSwitch.implicitHeight)
+
+          Text {
+            id: animationLabel
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: "Animate the wallpaper"
+            color: animationMouse.containsMouse
+              ? Style.hoverStateColor(root.bar.foreground, Color.accent)
+              : root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.body
+          }
+
+          ToggleSwitch {
+            id: animationSwitch
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            checked: root.animationsEnabled
+            // The surrounding row owns the click, so the switch itself is
+            // not separately interactive.
+            interactive: false
+          }
+        }
+
+        MouseArea {
+          id: animationMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.toggleAnimations()
         }
       }
     }
