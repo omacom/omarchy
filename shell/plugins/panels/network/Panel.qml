@@ -1014,7 +1014,7 @@ Panel {
     bar: root.bar
     text: root.icon
     active: root.restricted
-    tooltipText: root.hasCaptivePortal ? "Sign in to this network"
+    tooltipText: root.hasCaptivePortal ? I18n.tr("Sign in to this network")
       : (root.restricted ? "Limited internet access" : "")
 
     onPressed: function(b) {
@@ -1184,7 +1184,7 @@ Panel {
             id: qrAction
             visible: root.canShareWifi
             iconText: "󰐲"
-            tooltipText: "Show QR code"
+            tooltipText: I18n.tr("Show QR code")
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
             iconSize: Style.font.subtitle * 1.5
@@ -1200,7 +1200,7 @@ Panel {
             id: speedAction
             visible: root.canRunSpeedTest
             iconText: "󰓅"
-            tooltipText: "Run a speed test"
+            tooltipText: I18n.tr("Run a speed test")
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
             iconSize: Style.font.subtitle * 1.5
@@ -1300,7 +1300,7 @@ Panel {
         Button {
           id: portalAction
           width: parent.width
-          text: "Open Captive Portal"
+          text: I18n.tr("Open Captive Portal")
           iconText: "󰏌"
           foreground: root.bar.urgent
           accent: root.bar.urgent
@@ -1319,7 +1319,7 @@ Panel {
 
         Text {
           width: parent.width
-          text: "Sign in or accept this network’s terms to access the internet."
+          text: I18n.tr("Sign in or accept this network’s terms to access the internet.")
           textFormat: Text.PlainText
           wrapMode: Text.WordWrap
           color: root.bar.foreground
@@ -1345,38 +1345,38 @@ Panel {
           // opened, once the first probe returned, shoving everything below
           // them down. They now hold their place and read "--" until there is
           // a sample.
-          InfoLabel { text: "Ping" }
+          InfoLabel { text: I18n.tr("Ping") }
           DetailValue {
             text: root.formatPingLatency(root.internetPingLatency)
             color: root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
           }
-          InfoLabel { text: "Packet Loss" }
+          InfoLabel { text: I18n.tr("Packet Loss") }
           DetailValue {
             text: root.formatPacketLoss(root.internetPingPacketLoss)
             color: root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
           }
 
-          InfoLabel { text: "Receiving" }
+          InfoLabel { text: I18n.tr("Receiving") }
           DetailValue { text: root.hasTransferStats ? root.formatRate(root.downloadRate) : "--" }
-          InfoLabel { text: "Sending" }
+          InfoLabel { text: I18n.tr("Sending") }
           DetailValue { text: root.hasTransferStats ? root.formatRate(root.uploadRate) : "--" }
 
-          InfoLabel { text: "Downloaded" }
+          InfoLabel { text: I18n.tr("Downloaded") }
           DetailValue { text: root.hasTransferStats ? root.formatBytes(parseFloat(root.info.rx_bytes || "0")) : "--" }
-          InfoLabel { text: "Uploaded" }
+          InfoLabel { text: I18n.tr("Uploaded") }
           DetailValue { text: root.hasTransferStats ? root.formatBytes(parseFloat(root.info.tx_bytes || "0")) : "--" }
 
-          InfoLabel { text: "IP Address" }
+          InfoLabel { text: I18n.tr("IP Address") }
           DetailValue {
             text: root.info.ip || "--"
             copyable: !!root.info.ip
-            tooltipText: "Copy IP"
+            tooltipText: I18n.tr("Copy IP")
           }
-          InfoLabel { text: "Gateway" }
+          InfoLabel { text: I18n.tr("Gateway") }
           DetailValue {
             text: root.info.gateway || "--"
             copyable: !!root.info.gateway
-            tooltipText: "Copy gateway"
+            tooltipText: I18n.tr("Copy gateway")
           }
         }
       }
@@ -1417,7 +1417,7 @@ Panel {
 
             PanelSectionHeader {
               id: bandAutoLabel
-              text: "AUTOMATIC"
+              text: I18n.tr("AUTOMATIC")
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
               anchors.verticalCenter: parent.verticalCenter
@@ -1522,7 +1522,7 @@ Panel {
         spacing: Style.space(10)
 
         PanelSectionHeader {
-          text: "DNS PROVIDER"
+          text: I18n.tr("DNS PROVIDER")
           foreground: root.bar.foreground
           fontFamily: root.bar.fontFamily
         }
@@ -1538,7 +1538,7 @@ Panel {
           DnsProviderPill {
             provider: "DHCP"
             index: 0
-            tooltipText: "Use DNS from DHCP"
+            tooltipText: I18n.tr("Use DNS from DHCP")
             width: dnsRow.cellWidth
             onClicked: root.setDns(provider)
           }
@@ -1546,7 +1546,7 @@ Panel {
           DnsProviderPill {
             provider: "Cloudflare"
             index: 1
-            tooltipText: "Set DNS to Cloudflare"
+            tooltipText: I18n.tr("Set DNS to Cloudflare")
             width: dnsRow.cellWidth
             onClicked: root.setDns(provider)
           }
@@ -1554,7 +1554,7 @@ Panel {
           DnsProviderPill {
             provider: "Google"
             index: 2
-            tooltipText: "Set DNS to Google"
+            tooltipText: I18n.tr("Set DNS to Google")
             width: dnsRow.cellWidth
             onClicked: root.setDns(provider)
           }
@@ -1562,7 +1562,7 @@ Panel {
           DnsProviderPill {
             provider: "Custom"
             index: 3
-            tooltipText: "Set custom DNS servers"
+            tooltipText: I18n.tr("Set custom DNS servers")
             width: dnsRow.cellWidth
             onClicked: root.setDns(provider)
           }
@@ -1578,7 +1578,7 @@ Panel {
 
       PanelSectionHeader {
         visible: root.wifiStationAvailable && root.scanning
-        text: "SCANNING WI-FI…"
+        text: I18n.tr("SCANNING WI-FI…")
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
       }
@@ -1886,7 +1886,7 @@ Panel {
 
         PanelToolTip {
           visible: rightMouse.containsMouse || row.forgetFocused
-          text: "Forget network"
+          text: I18n.tr("Forget network")
           fontFamily: root.bar.fontFamily
         }
       }
@@ -1902,7 +1902,7 @@ Panel {
 
         Text {
           textFormat: Text.PlainText
-          text: row.net ? (row.net.ssid || "Hidden") : ""
+          text: row.net ? (row.net.ssid || I18n.tr("Hidden")) : ""
           color: root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.body
@@ -1962,7 +1962,7 @@ Panel {
         anchors.right: connectPwBtn.left
         anchors.top: parent.top
         anchors.rightMargin: Style.space(6)
-        placeholderText: "Identity (user@domain)"
+        placeholderText: I18n.tr("Identity (user@domain)")
         font.family: Style.font.family
         font.pixelSize: Style.font.body
         foreground: root.bar.foreground
@@ -1988,7 +1988,7 @@ Panel {
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
         password: true
-        placeholderText: "Passphrase"
+        placeholderText: I18n.tr("Passphrase")
         font.family: Style.font.family
         font.pixelSize: Style.font.body
         foreground: root.bar.foreground
@@ -2021,7 +2021,7 @@ Panel {
           anchors.fill: parent
           horizontalAlignment: Text.AlignHCenter
           verticalAlignment: Text.AlignVCenter
-          text: row.isFailed ? "Wrong password" : "Connecting..."
+          text: row.isFailed ? I18n.tr("Wrong password") : I18n.tr("Connecting...")
           color: row.isFailed ? root.bar.urgent : root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.bodySmall
@@ -2038,7 +2038,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
         iconText: "󰄬"
-        tooltipText: "Connect"
+        tooltipText: I18n.tr("Connect")
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
         onClicked: row.submitCredentials()
@@ -2049,7 +2049,7 @@ Panel {
 
   component DetailValue: InfoValue {
     property bool copyable: false
-    property string tooltipText: "Copy to clipboard"
+    property string tooltipText: I18n.tr("Copy to clipboard")
 
     Layout.fillWidth: true
     horizontalAlignment: Text.AlignRight

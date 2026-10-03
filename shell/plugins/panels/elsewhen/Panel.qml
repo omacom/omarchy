@@ -713,7 +713,7 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     text: "󰇧"
-    tooltipText: "World clock"
+    tooltipText: I18n.tr("World clock")
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton || buttonCode === Qt.MiddleButton) root.refresh()
       else root.toggle()

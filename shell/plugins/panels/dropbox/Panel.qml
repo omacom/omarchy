@@ -304,7 +304,7 @@ Panel {
             Column {
               width: parent.width
               spacing: Style.spacing.labelGap
-              InfoPair { label: "Stored"; value: Model.usageText(dropbox.usedBytes, dropbox.quotaBytes, dropbox.quotaKnown) }
+              InfoPair { label: I18n.tr("Stored"); value: Model.usageText(dropbox.usedBytes, dropbox.quotaBytes, dropbox.quotaKnown) }
             }
           }
 
@@ -319,7 +319,7 @@ Panel {
             spacing: Style.space(10)
 
             PanelSectionHeader {
-              text: "RECENT FILES"
+              text: I18n.tr("RECENT FILES")
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -327,7 +327,7 @@ Panel {
             Text {
               visible: dropbox.files.length === 0
               width: parent.width
-              text: "No synced files found."
+              text: I18n.tr("No synced files found.")
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
@@ -424,7 +424,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           Layout.fillWidth: true
-          text: dropbox.installed ? "Login to Dropbox" : "Dropbox CLI is not installed"
+          text: dropbox.installed ? I18n.tr("Login to Dropbox") : I18n.tr("Dropbox CLI is not installed")
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -434,7 +434,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           Layout.fillWidth: true
-          text: dropbox.installed ? "Start the authentication flow" : "Install Dropbox from the service menu"
+          text: dropbox.installed ? I18n.tr("Start the authentication flow") : I18n.tr("Install Dropbox from the service menu")
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption

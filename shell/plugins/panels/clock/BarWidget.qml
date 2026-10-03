@@ -153,7 +153,7 @@ BarWidget {
     fixedHeight: root.vertical ? root.verticalLines.length * Style.bar.iconSlot : -1
     horizontalMargin: 8.75
     verticalPadding: 8.75
-    tooltipText: "Right-click to toggle format"
+    tooltipText: I18n.tr("Right-click to toggle format")
 
     onPressed: function(b) {
       if (b === Qt.RightButton) root.cycleFormat()

@@ -253,7 +253,7 @@ Item {
 
           Text {
             textFormat: Text.PlainText
-            text: (root.ssid || "Wi-Fi").toUpperCase()
+            text: (root.ssid || I18n.tr("Wi-Fi")).toUpperCase()
             color: root.onScrimDim
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
@@ -305,7 +305,7 @@ Item {
 
           Text {
             visible: root.loading
-            text: "Generating QR code…"
+            text: I18n.tr("Generating QR code…")
             color: root.onScrimDim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
@@ -328,7 +328,7 @@ Item {
 
           Text {
             visible: root.showingQr
-            text: "Scan to join this network"
+            text: I18n.tr("Scan to join this network")
             color: root.onScrimDim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall

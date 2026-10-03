@@ -35,6 +35,11 @@ Item {
     root.cancel()
   }
 
+  Connections {
+    target: I18n
+    function onCatalogChanged() { root.rebuildItemsFromSources() }
+  }
+
   function refresh() {
     defaultMenuFile.reload()
     userMenuFile.reload()
@@ -247,7 +252,7 @@ Item {
   // on a per-key basis (so the user can tweak label/icon/action without
   // re-declaring the whole row).
   function rebuildItemsFromSources() {
-    var mergedMenu = MenuModel.mergeMenuSources(root.defaultMenuItems, root.userMenuItems)
+    var mergedMenu = MenuModel.mergeMenuSources(I18n.menuItems(root.defaultMenuItems), root.userMenuItems)
     root.providerRevision += 1
     root.providersLoaded = ({})
     root.providerQueue = []
@@ -1169,8 +1174,8 @@ Item {
           anchors.fill: parent
           opened: root.deleteConfirmOpen
           z: 10
-          message: "Do you want to uninstall " + ((root.deleteTarget && root.deleteTarget.label) || "") + "?"
-          confirmText: "Uninstall"
+          message: I18n.tr("Do you want to uninstall %1?", [((root.deleteTarget && root.deleteTarget.label) || "")])
+          confirmText: I18n.tr("Uninstall")
           background: root.background
           foreground: root.foreground
           scrim: root.scrim
@@ -1202,7 +1207,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || (root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…"))
+            text: root.filterText || (root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : I18n.tr("Go")) + "…"))
             color: root.foreground
             opacity: root.filterText ? 1 : 0.58
             font.family: root.fontFamily
@@ -1458,7 +1463,7 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: root.filterText ? "No matches for “" + root.filterText + "”" : "Nothing here yet"
+              text: root.filterText ? I18n.tr("No matches for “%1”", [root.filterText]) : I18n.tr("Nothing here yet")
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily

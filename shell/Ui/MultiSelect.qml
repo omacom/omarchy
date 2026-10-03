@@ -27,9 +27,9 @@ Item {
   property var options: []
   property var optionsCommand: []
   property string optionsCommandCwd: ""
-  property string placeholderText: "Search..."
-  property string emptyText: "No options"
-  property string noSelectionText: "None selected"
+  property string placeholderText: I18n.tr("Search...")
+  property string emptyText: I18n.tr("No options")
+  property string noSelectionText: I18n.tr("None selected")
   property string triggerLabel: ""
   property bool showLabel: true
 
@@ -492,7 +492,7 @@ Item {
               textFormat: Text.PlainText
               anchors.centerIn: parent
               visible: resultList.count === 0
-              text: root.loadingOptions ? "Loading…" : (root.optionsError !== "" ? root.optionsError : root.emptyText)
+              text: root.loadingOptions ? I18n.tr("Loading…") : (root.optionsError !== "" ? root.optionsError : root.emptyText)
               color: Qt.darker(root.foreground, 1.6)
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
