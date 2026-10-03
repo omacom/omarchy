@@ -39,8 +39,12 @@ local kb_options = "compose:caps,shift:both_capslock_cancel"
 -- Hyprland resolves keybindings against the first entry in kb_layout, not the
 -- layout that's currently active, so Omarchy's Latin-keysym bindings (SUPER + W
 -- and friends) only fire when a Latin layout leads. Installing with a non-Latin
--- one would otherwise leave the desktop unusable.
-if non_latin_layouts:find(" " .. kb_layout:match("^[^,]*") .. " ", 1, true) then
+-- one would otherwise leave the desktop unusable. A Latin variant (sr-latin →
+-- rs/latin) already types Latin letters, so leave it alone.
+local first_layout = kb_layout:match("^[^,]*") or kb_layout
+local first_variant = kb_variant:match("^[^,]*") or kb_variant
+local is_latin_variant = first_variant == "latin" or first_variant:match("^latin") ~= nil
+if not is_latin_variant and non_latin_layouts:find(" " .. first_layout .. " ", 1, true) then
   kb_layout = "us," .. kb_layout
   kb_variant = "," .. kb_variant
   -- Reach the original layout with Left Alt + Right Alt.
