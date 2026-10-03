@@ -109,6 +109,14 @@ grep -F 'hl.dsp.send_key_state({ mods = mods, key = key, state = "down" })' "$RO
   fail "universal clipboard shortcuts send explicit mods to the focused surface"
 pass "universal clipboard shortcuts send explicit mods to the focused surface"
 
+grep -F 'active_window_wants_super_clipboard' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
+  fail "universal clipboard does not detect Super-native apps"
+grep -F 'class == "emacs"' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
+  fail "universal clipboard does not pass Super chords through to Emacs"
+grep -F 'send_shortcut_once("SUPER", default_key)' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
+  fail "universal clipboard does not forward Super to Emacs"
+pass "universal clipboard passes Super+C/V through to Emacs"
+
 if grep -E 'send_key_state\(\{[^}]*window' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null; then
   fail "universal clipboard shortcuts do not target only normal windows"
 fi
