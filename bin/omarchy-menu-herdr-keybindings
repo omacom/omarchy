@@ -13,7 +13,15 @@ while (($#)); do
       ;;
     --config)
       shift
+      if (( $# == 0 )) || [[ $1 == -* ]]; then
+        echo "omarchy-menu-herdr-keybindings: --config requires a value" >&2
+        exit 1
+      fi
       config_file="$1"
+      ;;
+    -*)
+      echo "omarchy-menu-herdr-keybindings: unknown option '$1'" >&2
+      exit 1
       ;;
     *)
       config_file="$1"
