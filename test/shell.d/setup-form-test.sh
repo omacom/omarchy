@@ -38,6 +38,22 @@ cat >"$tmp_dir/timedatectl" <<'EOF'
 printf '%s\n' UTC Europe/Copenhagen America/Chicago
 EOF
 
+# The language prompt is the one that would otherwise read the host: the real
+# omarchy-locale-list walks glibc's /usr/share/i18n, which is absent off Arch
+# and is a moving list everywhere else. Stubbing it keeps these assertions about
+# the prompt, and lets them name locales the box may not ship -- the pair that
+# only a modifier tells apart is the case worth pinning, and asserting it
+# against the host would be asserting that glibc still ships sr_RS@latin.
+cat >"$tmp_dir/omarchy-locale-list" <<'EOF'
+#!/bin/bash
+printf '%s\t%s\t%s\t%s\n' \
+  'en_US.UTF-8' 'American English' 'United States' 'American English (United States)' \
+  'sl_SI.UTF-8' 'Slovenian' 'Slovenia' 'Slovenian (Slovenia)' \
+  'sr_RS' 'Serbian' 'Serbia' 'Serbian (Serbia)' \
+  'sr_RS@latin' 'Serbian' 'Serbia' 'Serbian (Serbia, Latin)' \
+  'zh_TW.UTF-8' 'Chinese' 'Taiwan' 'Chinese (Taiwan, Traditional)'
+EOF
+
 # Calls one prompt bare under `set -euo pipefail` — the shape that makes the
 # status capture load-bearing. A cancelled prompt is a failing assignment, so a
 # regression to a plain `status=$?` kills the shell before the function can
@@ -70,9 +86,11 @@ printf 'full_name=%s\n' "${full_name:-}"
 printf 'email_address=%s\n' "${email_address:-}"
 printf 'hostname=%s\n' "${hostname:-}"
 printf 'timezone=%s\n' "${timezone:-}"
+printf 'language=%s\n' "${language:-}"
+printf 'language_label=%s\n' "${language_label:-}"
 EOF
 
-chmod +x "$tmp_dir/gum" "$tmp_dir/tzupdate" "$tmp_dir/timedatectl" "$tmp_dir/driver"
+chmod +x "$tmp_dir/gum" "$tmp_dir/tzupdate" "$tmp_dir/timedatectl" "$tmp_dir/omarchy-locale-list" "$tmp_dir/driver"
 export PATH="$tmp_dir:$PATH"
 export GUM_DIR="$tmp_dir" GUM_SCRIPT="$tmp_dir/script" GUM_ARGS="$tmp_dir/args" GUM_COUNT="$tmp_dir/count"
 export NOTICES="$tmp_dir/notices" MARKER="$tmp_dir/marker"
@@ -208,6 +226,58 @@ run_prompt omarchy_prompt_hostname "1:"
 assert_status "$OMARCHY_FORM_BACK" "hostname prompt reports Esc as back"
 assert_returned "hostname prompt survives Esc under set -e"
 pass "hostname prompt propagates Esc without dying under set -e"
+
+# Language
+
+run_prompt omarchy_prompt_language "0:Slovenian (Slovenia)"
+assert_status 0 "language prompt accepts a choice"
+[[ $(field language) == "sl_SI.UTF-8" ]] || fail "language prompt maps the label back to the locale glibc names"
+[[ $(field language_label) == "Slovenian (Slovenia)" ]] || fail "language prompt keeps the label for the summary"
+[[ $(head -n 1 "$GUM_ARGS") == filter* ]] || fail "language prompt filters rather than paging three hundred options"
+pass "language prompt returns the locale name behind the label"
+
+# What reaches gum is the label the locale list built, not one rebuilt here from
+# the two fields before it. Compared as a set through the same sort, because
+# where punctuation lands is the collation's business and moves with the locale
+# the form runs under; that the list is sorted at all is asserted separately.
+offered=$(sort <"$tmp_dir/stdin.1")
+expected=$(printf '%s\n' \
+  'American English (United States)' \
+  'Chinese (Taiwan, Traditional)' \
+  'Serbian (Serbia)' \
+  'Serbian (Serbia, Latin)' \
+  'Slovenian (Slovenia)' | sort)
+[[ $offered == "$expected" ]] || fail "language prompt offers the labels the locale list built" "$offered"
+pass "language prompt offers the labels the locale list built"
+
+sort -c "$tmp_dir/stdin.1" 2>/dev/null || fail "language prompt offers the labels in order" "$(<"$tmp_dir/stdin.1")"
+pass "language prompt offers the labels in order"
+
+# The pair that language and territory alone cannot tell apart. Rebuilding the
+# label here rather than reading the one the list disambiguated would make both
+# of these "Serbian (Serbia)", and whichever came first would win both times.
+run_prompt omarchy_prompt_language "0:Serbian (Serbia, Latin)"
+assert_status 0 "language prompt accepts a label only a modifier distinguishes"
+[[ $(field language) == "sr_RS@latin" ]] || fail "language prompt reaches the locale only a modifier names" "actual: $(field language)"
+pass "language prompt reaches the locale only a modifier names"
+
+run_prompt omarchy_prompt_language "0:Serbian (Serbia)"
+[[ $(field language) == "sr_RS" ]] || fail "language prompt keeps the plain label on the unmodified locale" "actual: $(field language)"
+pass "language prompt keeps the plain label on the unmodified locale"
+
+run_prompt omarchy_prompt_language "0:"
+assert_status 0 "language prompt accepts an empty selection"
+[[ $(field language) == "en_US.UTF-8" ]] || fail "language prompt falls back to the default language"
+pass "language prompt falls back to English when nothing is selected"
+
+run_prompt omarchy_prompt_language "1:"
+assert_status "$OMARCHY_FORM_BACK" "language prompt reports Esc as back"
+assert_returned "language prompt survives Esc under set -e"
+
+run_prompt omarchy_prompt_language "130:"
+assert_status "$OMARCHY_FORM_SIGNAL" "language prompt reports Ctrl+C as the caller's signal"
+assert_returned "language prompt survives Ctrl+C under set -e"
+pass "language prompt propagates Esc and Ctrl+C without dying under set -e"
 
 # Timezone
 
