@@ -87,7 +87,7 @@ local function shell_dispatcher(kind, target, command)
   return command
 end
 
-local function command_from(value, description)
+local function command_from(value, id)
   if type(value) ~= "table" then
     return value
   end
@@ -112,7 +112,7 @@ local function command_from(value, description)
     return o.launch(value.launch)
   elseif value.webapp then
     if value.focus then
-      return o.launch_webapp_sole(description, value.webapp)
+      return o.launch_webapp_sole(id, value.webapp)
     else
       return o.launch_webapp(value.webapp)
     end
@@ -135,25 +135,69 @@ function o.preinstalled_bindings_enabled()
   return not file_exists((os.getenv("HOME") or "") .. "/.local/state/omarchy/preinstalls-removed")
 end
 
-function o.bind(keys, description, dispatcher, options)
-  local opts = options or {}
+-- A bind written wrong says so on stderr. Not stdout: the keybindings menu
+-- loads the whole config under a stub and reads bind records off what hl.bind
+-- prints there, so a warning on that stream would arrive as a row.
+local function warn(message)
+  io.stderr:write("omarchy: " .. message .. "\n")
+end
+
+function o.bind(keys, description, dispatcher, options, ...)
+  -- Lua discards an argument a function does not declare, so a bind written with
+  -- a fifth one still binds and still works, having quietly lost whatever was in
+  -- it. An id passed that way is the case that bites: the bind falls back to its
+  -- description, and the only symptom is a row somewhere else in the menu.
+  local extra = select("#", ...)
+
+  if extra > 0 then
+    warn("the bind for " .. tostring(keys) .. " passes " .. (4 + extra) ..
+      " arguments and Lua drops everything past the fourth. An id belongs in the " ..
+      "options table: o.bind(keys, description, dispatcher, { id = \"...\" }).")
+  end
+
+  -- Copy what the caller handed over rather than writing into it. The id below
+  -- fills in only when none is set yet, so a config reusing one options table
+  -- across several binds would give every later bind the first one's id.
+  local opts = {}
+
+  for key, value in pairs(options or {}) do
+    opts[key] = value
+  end
 
   if description then
     opts.description = description
   end
 
-  dispatcher = command_from(dispatcher, description)
+  -- A description is what a bind is called; an id is what it is. Anything that
+  -- has to recognize a bind again later (a cache key, a window match) keys on
+  -- the id, so a renamed description does not drag behaviour along with it.
+  -- The description is the only name most binds need, so it is the default.
+  opts.id = opts.id or description
 
-  if type(dispatcher) == "string" then
-    dispatcher = hl.dsp.exec_cmd(dispatcher)
+  local command = command_from(dispatcher, opts.id)
+
+  -- command_from hands back the table it was given when it recognises none of
+  -- its keys, so anything else means the table was a dispatcher it understood.
+  -- An id there is read by nothing, and the bind falls back to its description:
+  -- the same silent loss as a fifth argument, reached from the other direction.
+  -- Scoped to the tables command_from recognises on purpose, since a table it
+  -- passes straight through could be anything Hyprland's own API hands back.
+  if type(dispatcher) == "table" and dispatcher.id ~= nil and command ~= dispatcher then
+    warn("the bind for " .. tostring(keys) .. " sets id = \"" .. tostring(dispatcher.id) ..
+      "\" inside its dispatcher table, where nothing reads it. An id belongs in the options " ..
+      "table: o.bind(keys, description, dispatcher, { id = \"...\" }).")
   end
 
-  hl.bind(keys, dispatcher, opts)
+  if type(command) == "string" then
+    command = hl.dsp.exec_cmd(command)
+  end
+
+  hl.bind(keys, command, opts)
 end
 
-function o.rebind(keys, description, dispatcher, options)
+function o.rebind(keys, description, dispatcher, options, ...)
   hl.unbind(keys)
-  o.bind(keys, description, dispatcher, options)
+  o.bind(keys, description, dispatcher, options, ...)
 end
 
 function o.launch(command)
@@ -202,8 +246,10 @@ function o.launch_sole(match, command)
   return "omarchy-launch-or-focus " .. shell_quote(match) .. " " .. shell_quote(o.launch(command))
 end
 
-function o.bind_toggle(keys, description, toggle, options)
-  o.bind(keys, description, "omarchy-toggle-" .. toggle, options)
+-- Hands on whatever it was given past its fourth argument, so a toggle written
+-- with a fifth one reaches the warning in o.bind rather than losing it here.
+function o.bind_toggle(keys, description, toggle, options, ...)
+  o.bind(keys, description, "omarchy-toggle-" .. toggle, options, ...)
 end
 
 function o.notify(message)
