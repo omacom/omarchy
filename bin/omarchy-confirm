@@ -1,0 +1,143 @@
+#!/bin/bash
+
+# omarchy:summary=Ask a yes/no question that can be answered with the mouse
+# omarchy:group=cmd
+# omarchy:name=confirm
+# omarchy:args=[--default=false] [--affirmative <label>] [--negative <label>] [prompt]
+# omarchy:examples=omarchy confirm "Continue?" | omarchy confirm --default=false "Remove orphans?"
+
+set -euo pipefail
+
+default=true
+affirmative="Yes"
+negative="No"
+prompt=""
+
+usage() {
+  echo "Usage: omarchy-confirm [--default=false] [--affirmative <label>] [--negative <label>] [prompt]" >&2
+}
+
+while (($#)); do
+  case "$1" in
+    --default=false) default=false ;;
+    --default=true) default=true ;;
+    --affirmative)
+      shift
+      (($#)) || { usage; exit 1; }
+      affirmative="$1"
+      ;;
+    --negative)
+      shift
+      (($#)) || { usage; exit 1; }
+      negative="$1"
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      usage
+      exit 1
+      ;;
+    *)
+      if [[ -n $prompt ]]; then
+        prompt+=" $1"
+      else
+        prompt="$1"
+      fi
+      ;;
+  esac
+  shift
+done
+
+if [[ -z $affirmative || -z $negative || $affirmative == "$negative" || $affirmative == *$'\n'* || $negative == *$'\n'* || $affirmative == *$'\r'* || $negative == *$'\r'* ]]; then
+  echo "omarchy-confirm: choice labels must be non-empty, distinct single lines" >&2
+  exit 1
+fi
+
+# Theme colors come from gum_env.lua; source the current values so a theme
+# switch after login is visible in this prompt.
+if [[ -n ${OMARCHY_PATH:-} && -f $OMARCHY_PATH/bin/omarchy-restart-gum ]]; then
+  # shellcheck disable=SC1091
+  source "$OMARCHY_PATH/bin/omarchy-restart-gum"
+fi
+
+start_pos=1
+[[ $default == true ]] || start_pos=2
+
+color_spec=""
+add_color() {
+  local key=$1
+  local value=$2
+  [[ -n $value ]] || return 0
+  if [[ -n $color_spec ]]; then
+    color_spec+=",$key:$value"
+  else
+    color_spec="$key:$value"
+  fi
+}
+
+add_color fg "${FOREGROUND:-}"
+add_color bg "${BACKGROUND:-}"
+add_color prompt "${GUM_CONFIRM_PROMPT_FOREGROUND:-}"
+add_color fg+ "${GUM_CONFIRM_SELECTED_FOREGROUND:-}"
+add_color bg+ "${GUM_CONFIRM_SELECTED_BACKGROUND:-}"
+add_color hl "${GUM_CONFIRM_SELECTED_BACKGROUND:-}"
+add_color hl+ "${GUM_CONFIRM_SELECTED_FOREGROUND:-}"
+add_color pointer "${GUM_CONFIRM_SELECTED_BACKGROUND:-}"
+
+# gum confirm answers y/n/q immediately and toggles with the arrow keys,
+# h/l, and Tab. --sync makes both rows available to start:pos, which selects
+# the default before fzf reads keys typed while the prompt is opening.
+# --no-input would otherwise swallow those keys, and Enter would accept Yes.
+fzf_args=(
+  --sync
+  --no-input
+  --height=6
+  --reverse
+  --cycle
+  --info=hidden
+  --header="$prompt"
+  --prompt=""
+  --bind "start:pos($start_pos)"
+  --bind "left-click:accept"
+  --bind "y:pos(1)+accept,Y:pos(1)+accept,n:pos(2)+accept,N:pos(2)+accept,q:pos(2)+accept,left:up,right:down,tab:down,btab:up,h:up,l:down"
+)
+
+if [[ -n $color_spec ]]; then
+  fzf_args+=(--color="$color_spec")
+fi
+
+# fzf is installed by the base package list, not declared on the omarchy package,
+# so a removed fzf must not turn every update prompt into a cancel.
+if ! omarchy-cmd-present fzf; then
+  echo "omarchy-confirm: fzf is not installed, using gum confirm" >&2
+  gum_args=(--affirmative "$affirmative" --negative "$negative")
+  [[ $default == true ]] || gum_args+=(--default=false)
+  if [[ -n $prompt ]]; then
+    gum confirm "${gum_args[@]}" "$prompt"
+  else
+    gum confirm "${gum_args[@]}"
+  fi
+  exit 0
+fi
+
+status=0
+# A caller's FZF_DEFAULT_OPTS (--tac, --no-mouse, --print-query) would change
+# which row Enter accepts. This prompt owns its own fzf options.
+choice=$(
+  unset FZF_DEFAULT_OPTS FZF_DEFAULT_OPTS_FILE
+  printf '%s\n%s\n' "$affirmative" "$negative" | fzf "${fzf_args[@]}"
+) || status=$?
+
+if ((status != 0)); then
+  # fzf returns 130 for Esc and Ctrl-C. gum 2.x exits 1 on Esc and 130 only
+  # on Ctrl-C; callers treat both as cancel. Any other status is an fzf
+  # failure; mapping it to 130 made a broken fzf look like "No".
+  if ((status != 130)); then
+    echo "omarchy-confirm: fzf failed (exit $status)" >&2
+  fi
+  exit "$status"
+fi
+
+[[ $choice == "$affirmative" ]]
