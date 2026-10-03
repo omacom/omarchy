@@ -41,7 +41,7 @@ stub_hyprctl() {
 }
 
 keybindings() {
-  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="${1:-$home}" \
     XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
     bash "$ROOT/bin/omarchy-menu-keybindings" --print
 }
@@ -232,3 +232,37 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# A label is the config author's own text and the record is tab delimited, so a
+# tab in a label used to take the field after it: the menu read the back half of
+# the label as the dispatcher it would run. Hyprland reports one field to a line,
+# which cuts a label at a newline, so the scan has to key on what it reported.
+# A config of its own here, since these are binds no Omarchy install ships.
+own_home="$tmpdir/own-home"
+mkdir -p "$own_home/.config/hypr"
+cat >"$own_home/.config/hypr/hyprland.lua" <<LUA
+dofile("$ROOT/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+
+o.bind("SUPER + ALT + Z", "Plain label", "true")
+o.bind("SUPER + ALT + X", "Tabbed\tlabel", "true")
+o.bind("SUPER + ALT + C", "Split\nlabel", "true")
+LUA
+
+stub_hyprctl <<BINDS
+$(lua_bind 72 "SUPER ALT + Z" "Plain label")
+$(lua_bind 72 "SUPER ALT + X" "$(printf 'Tabbed\tlabel')")
+$(lua_bind 72 "SUPER ALT + C" "Split")
+BINDS
+
+rm -rf "$tmpdir/cache"
+keybindings "$own_home" >/dev/null
+own_records=$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)
+
+grep -qP '→ Plain label\texec\ttrue$' <<<"$own_records" ||
+  fail "a bind in the author's own config resolves what it runs" "$own_records"
+grep -qP '→ Tabbed label\texec\ttrue$' <<<"$own_records" ||
+  fail "a tab in a label does not become the dispatcher the menu runs" "$own_records"
+grep -qP '→ Split\texec\ttrue$' <<<"$own_records" ||
+  fail "a label cut short by Hyprland still finds what it runs" "$own_records"
+pass "a label carrying a tab or a newline still resolves what it runs"
