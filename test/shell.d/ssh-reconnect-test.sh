@@ -57,6 +57,23 @@ if run_interactive -p 2222; then
 fi
 pass "missing destination is not interactive"
 
+# --- _ssh_disarm alternate screen handling ---
+
+run_disarm() {
+  local primary="$1"
+  bash -c "source '$fns'; _ssh_primary_screen() { return $primary; }; _ssh_disarm"
+}
+
+out=$(run_disarm 1)
+[[ $out == $(printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?1049l\e[?25h') ]] ||
+  fail "alternate screen is left when it may still be on" "$out"
+pass "alternate screen is left when it may still be on"
+
+out=$(run_disarm 0)
+[[ $out == $(printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?25h') ]] ||
+  fail "primary screen skips the cursor restore of leaving the alternate screen" "$out"
+pass "primary screen skips the cursor restore of leaving the alternate screen"
+
 # --- reconnect behavior, run on a pty with a fake ssh ---
 
 fake_dir=$(mktemp -d)
@@ -94,10 +111,15 @@ attempts() {
   cat "$fake_dir/count"
 }
 
-disarm=$(printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?1049l\e[?25h')
+disarm_modes=$(printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l')
+screen_query=$(printf '\e[?1049$p')
+disarm_screen=$(printf '\e[?1049l\e[?25h')
 
+# The pty never answers the alternate screen query, so the unknown state
+# falls back to leaving the alternate screen.
 out=$(run_case "0 255" host)
-[[ $out == *"$disarm"* ]] || fail "stray terminal modes are reset after ssh exits" "$out"
+[[ $out == *"$disarm_modes$screen_query$disarm_screen"* ]] ||
+  fail "stray terminal modes are reset after ssh exits" "$out"
 pass "stray terminal modes are reset after ssh exits"
 
 [[ $out == *"rc=255"* ]] && (( $(attempts) == 1 )) ||
