@@ -202,5 +202,4 @@ No raw git surface. No lazygit integration.
    in AGENTS.md) as part of this work or separately.
 4. Timer cadence (hourly vs daily) and whether the dirty-check should debounce
    against an active editing session.
-5. Whether `input.lua` is `local`-tier (keyboard layouts travel, trackpad
-   quirks don't).
+5. Resolved: `input.lua` is shared. Keyboard configuration applies everywhere, while Hyprland naturally leaves touchpad and named-device settings inactive when matching hardware is absent.
