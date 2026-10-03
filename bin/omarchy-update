@@ -85,7 +85,20 @@ cleanup_update() {
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "/tmp/omarchy-update.log"
+  # A fixed /tmp path lets a pre-planted symlink redirect the whole update
+  # transcript into an arbitrary file. Give this run a private log instead
+  # and hand its path to the logged run for omarchy-update-analyze-logs.
+  update_log=$(mktemp "${TMPDIR:-/tmp}/omarchy-update-log.XXXXXX") || {
+    echo "Could not create a private update log; aborting." >&2
+    exit 1
+  }
+  trap 'rm -f "$update_log"' EXIT
+  OMARCHY_UPDATE_LOG_FILE="$update_log" OMARCHY_UPDATE_LOGGED=1 \
+    OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "$update_log"
+  status=$?
+  rm -f "$update_log"
+  trap - EXIT
+  exit "$status"
 fi
 
 if ! omarchy-update-lock held; then
