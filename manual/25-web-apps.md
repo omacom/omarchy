@@ -42,7 +42,8 @@ You can start Grok using `Super + Shift + Alt + A`.
 
 [WhatsApp](https://www.whatsapp.com/) is one of the most popular messaging services in the world, and the web version is a great option for Linux.
 
-You can start WhatsApp using `Super + Shift + Alt + G`.
+You can start WhatsApp using `Super + Shift + Alt + G`. Links that use the
+`whatsapp://` protocol also open directly in this web app.
 
 ## Google apps
 
