@@ -8,32 +8,43 @@ set -e
 
 PREFIX="$HOME/Games/battlenet"
 LAUNCHER="$PREFIX/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe"
+CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/launchers/battlenet.conf"
+LAUNCH_ARGS=""
+
+report_error() {
+  omarchy-notification-send -u critical "Battle.net launch failed" "$1" || true
+}
 
 with_mangohud=0
 for arg in "$@"; do
   case "$arg" in
     --with-mangohud) with_mangohud=1 ;;
     -h|--help)
-      cat <<'EOF'
+      cat <<EOF
 Usage: omarchy-launch-battlenet [--with-mangohud]
 
 Options:
   --with-mangohud   Enable the MangoHud FPS overlay for games launched from
                     Battle.net. Toggle perf logging in-game with Shift_L+F2;
                     CSV logs land in ~/mangohud/.
+
+Configuration:
+  $CONFIG may set extra arguments for the Battle.net client. Arguments are
+  split on whitespace; use --option=value for options that take a value:
+
+    LAUNCH_ARGS="--force-device-scale-factor=1.5"
 EOF
       exit 0
       ;;
     *)
-      echo "Unknown argument: $arg" >&2
-      echo "Try: omarchy-launch-battlenet --help" >&2
+      report_error "Unknown argument: $arg. Try omarchy-launch-battlenet --help."
       exit 1
       ;;
   esac
 done
 
 if [[ ! -f $LAUNCHER ]]; then
-  echo "Battle.net is not installed. Run omarchy-install-gaming-battlenet first." >&2
+  report_error "Battle.net is not installed. Run omarchy-install-gaming-battlenet first."
   exit 1
 fi
 
@@ -45,4 +56,28 @@ env_args=(
 )
 (( with_mangohud )) && env_args+=(MANGOHUD=1)
 
-env "${env_args[@]}" umu-run "$LAUNCHER"
+if [[ -f $CONFIG ]]; then
+  config_error() {
+    local status=$?
+    trap - EXIT
+    report_error "Could not load $CONFIG"
+    exit "$status"
+  }
+
+  trap config_error EXIT
+  source "$CONFIG"
+  trap - EXIT
+fi
+
+launch_args=()
+if [[ -n $LAUNCH_ARGS ]]; then
+  read -r -a launch_args <<<"$LAUNCH_ARGS"
+fi
+
+if env "${env_args[@]}" umu-run "$LAUNCHER" "${launch_args[@]}"; then
+  exit 0
+else
+  status=$?
+  report_error "umu-run exited with status $status"
+  exit "$status"
+fi
