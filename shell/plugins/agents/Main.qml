@@ -64,6 +64,13 @@ Item {
     onObjectRemoved: (index, object) => root.rebuildAgents()
   }
 
+  // Each record's FileView follows its file on its own; this catches the ones
+  // whose watch was lost when an update replaced the file underneath them.
+  function reloadRecords() {
+    for (var i = 0; i < agents.length; i++)
+      if (agents[i]) agents[i].reload()
+  }
+
   function rebuildAgents() {
     var result = []
     for (var i = 0; i < agentInstantiator.count; i++) {
@@ -150,6 +157,7 @@ Item {
     running: false
     onExited: {
       root.rescanAgents()
+      root.reloadRecords()
       if (root.pendingUpdateKind !== "") {
         var kind = root.pendingUpdateKind
         root.pendingUpdateKind = ""

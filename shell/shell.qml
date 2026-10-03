@@ -319,7 +319,8 @@ ShellRoot {
     if (!manifest) return null
     if (manifest.__isFirstParty) return manifest
     var copy = JSON.parse(JSON.stringify(manifest))
-    delete copy.__sourceDir
+    // Keep __sourceDir: third-party plugins find their bundled scripts through it.
+    // Only the host trust markers are withheld.
     delete copy.__isFirstParty
     delete copy.__hostCapabilities
     return copy
