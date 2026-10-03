@@ -43,6 +43,7 @@ fontconfig
 foot
 fzf
 git
+gnome-disk-utility
 gnome-keyring
 gnome-themes-extra
 grim
@@ -87,7 +88,6 @@ mpv
 mpv-mpris
 nautilus
 nautilus-python
-gnome-disk-utility
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji
