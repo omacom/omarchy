@@ -19,6 +19,17 @@ assertEqual(audio.outputVolumeName(0.5, true), 'Muted', 'audio labels muted outp
 
 assertDeepEqual(audio.parseSinkAvailability('alsa_output\t1\nhdmi_output\t0\n'), { alsa_output: true, hdmi_output: false }, 'audio parses sink availability')
 assertEqual(audio.friendlyDeviceLabel('Built-in Audio Speakers Output'), 'Speakers', 'audio cleans device labels')
+
+const speakers = { name: 'alsa_output.pci-0000_c1_00.6.HiFi__Speaker__sink' }
+const headset = { name: 'bluez_output.00_11_22_33_44_55.1' }
+const airplay = { name: 'raop_sink.Sonos-542A1BD7B2BA.local.192.168.1.205.7000' }
+const tunnel = { name: 'tunnel.desktop.local.alsa_output.pci-0000_00_1f.3.analog-stereo' }
+assert(audio.isNetworkSink(airplay), 'audio detects AirPlay sinks as network outputs')
+assert(audio.isNetworkSink(tunnel), 'audio detects tunnel sinks as network outputs')
+assert(!audio.isNetworkSink(speakers), 'audio keeps sound card sinks local')
+assert(!audio.isNetworkSink(headset), 'audio keeps bluetooth sinks local')
+assertDeepEqual(audio.sortSinks([airplay, tunnel, speakers, headset]), [speakers, headset, airplay, tunnel], 'audio lists local outputs before network outputs')
+assertDeepEqual(audio.sortSinks([speakers, headset]), [speakers, headset], 'audio keeps registration order among local outputs')
 assertEqual(
   audio.nodeLabel({ ready: true, properties: { 'node.nick': 'Built-in Audio Microphones Input' }, name: 'alsa_input' }),
   'Microphone',

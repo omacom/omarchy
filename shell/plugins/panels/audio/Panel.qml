@@ -80,6 +80,7 @@ Panel {
     var list = []
     for (var i = 0; i < candidateSinks.length; i++)
       if (sinkAvailable(candidateSinks[i])) list.push(candidateSinks[i])
+    list = Model.sortSinks(list)
     if (sink && list.indexOf(sink) < 0) list.unshift(sink)
     return list
   }

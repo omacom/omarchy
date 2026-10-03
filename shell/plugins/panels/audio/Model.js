@@ -47,6 +47,30 @@ function parseSinkAvailability(raw) {
   return next
 }
 
+// Network outputs -- AirPlay receivers from module-raop-discover, PulseAudio and
+// PipeWire tunnels from module-zeroconf-discover -- are registered whenever
+// discovery finds them, which is usually before WirePlumber has brought up the
+// local sound card. Their node names carry a fixed module prefix.
+function isNetworkSink(node) {
+  var name = String(node && node.name || "")
+  return name.indexOf("raop_sink.") === 0
+    || name.indexOf("tunnel.") === 0
+    || name.indexOf("tunnel-sink.") === 0
+}
+
+// Keep local outputs above network ones so the built-in speakers do not end up
+// under a row of remote receivers. Order within each group is left as PipeWire
+// registered it.
+function sortSinks(list) {
+  var local = []
+  var network = []
+  for (var i = 0; i < list.length; i++) {
+    if (isNetworkSink(list[i])) network.push(list[i])
+    else local.push(list[i])
+  }
+  return local.concat(network)
+}
+
 function friendlyDeviceLabel(text) {
   var label = String(text || "").trim()
   label = label.replace(/^sof-soundwire\s+/i, "")
@@ -240,6 +264,8 @@ if (typeof module !== "undefined") {
     listSnapshot: listSnapshot,
     outputVolumeName: outputVolumeName,
     parseSinkAvailability: parseSinkAvailability,
+    isNetworkSink: isNetworkSink,
+    sortSinks: sortSinks,
     friendlyDeviceLabel: friendlyDeviceLabel,
     nodeProps: nodeProps,
     nodeLabel: nodeLabel,
