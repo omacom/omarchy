@@ -145,6 +145,27 @@ build the `omarchy-exec-argv` hint. (The leading `--` on the `busctl` call is a
 belt for `busctl`'s own getopt, which would otherwise read a dash-leading value
 as a `busctl` option; the summary/body themselves are never parsed as options.)
 
+## Startup ordering
+
+An autostart app is anything launched through `o.launch_on_start` in
+`~/.config/hypr/autostart.lua`. It fires on `hyprland.start`, the same event
+that launches the shell, and the shell needs a few seconds to load its plugins
+before `shell/plugins/notifications/Service.qml` claims
+`org.freedesktop.Notifications`. Apps that probe for that name once at process
+start (Chromium and every web app, Electron) keep a missing answer for their
+whole lifetime: Chromium draws its own bare popup windows for the rest of the
+session instead of sending toasts here.
+
+So `o.launch_on_start` routes through `bin/omarchy-launch-autostart`, which
+waits with `gdbus wait` for the notification service (up to 15 s) and then
+execs `uwsm-app -- <command>` unchanged. In the normal case the name is on the
+bus within a couple of seconds. Past the deadline the app launches anyway and
+one `omarchy-autostart` line in the journal names the missing service, so a
+disabled notifications plugin costs a slower login, never a missing app. A
+launch that must not wait can bypass the helper with
+`o.exec_on_start(o.launch("my-daemon"))`. Keybind launches (`o.launch`,
+`o.bind` with a command) run in an established session and stay immediate.
+
 ## Helper commands
 
 - `omarchy-notification-wait [timeout]` — polls until the shell answers IPC

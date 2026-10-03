@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# omarchy:summary=Launch an autostart app once the shell's notification service is on the bus
+# omarchy:hidden=true
+
+# Autostart apps fire on hyprland.start, the same event that launches the shell,
+# and the shell needs a few seconds before it claims org.freedesktop.Notifications.
+# Apps that probe for that name once at process start (Chromium and every web
+# app, Electron) keep a missing answer for their whole lifetime: Chromium draws
+# its own bare popup windows for the rest of the session. Wait for the name,
+# bounded, before the launch.
+#
+# Past the deadline the app launches anyway: a disabled notifications plugin
+# must cost a delay, never a missing app. Leave one journal line saying why
+# login was slower, so the wait can be traced back to the missing service.
+#
+# Only correct at session start. Keybind launches go through o.launch directly.
+
+timeout=15
+name=org.freedesktop.Notifications
+
+if ! gdbus wait --session --timeout "$timeout" "$name" >/dev/null 2>&1; then
+  logger -t omarchy-autostart "$name did not appear within ${timeout}s; launching $1 without it."
+fi
+
+exec uwsm-app -- "$@"
