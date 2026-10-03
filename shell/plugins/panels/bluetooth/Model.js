@@ -24,7 +24,8 @@ function discoveryRetryInterval(attempts) {
 }
 
 // After this many unanswered attempts (about two minutes of backing off) the
-// panel stops asking until discovery starts or the panel is opened again.
+// panel stops asking, and the retry timer stops, until discovery starts, the
+// panel is opened again, or the user turns the radio back on.
 var discoveryRetryLimit = 8
 
 function discoveryRetryAllowed(attempts) {
