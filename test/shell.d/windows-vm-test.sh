@@ -32,4 +32,6 @@ rg -q 'while true; do' "$windows_vm_command" ||
   fail "Windows VM retries failed RDP credentials"
 rg -q 'RDP login failed\. Enter the Windows credentials again\.' "$windows_vm_command" ||
   fail "Windows VM prompts again after an RDP login failure"
+rg -q 'write_credentials "\$WIN_USER" "\$WIN_PASS"' "$windows_vm_command" ||
+  fail "Windows VM saves re-entered RDP credentials"
 pass "Windows VM retries failed RDP credentials"

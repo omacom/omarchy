@@ -1490,6 +1490,10 @@ To stop: omarchy-windows-vm stop"
     WIN_USER=$(gum input --placeholder="Windows username" --header="Enter Windows username:") || break
     [[ -n $WIN_USER ]] || break
     WIN_PASS=$(gum input --placeholder="Windows password" --password --header="Enter Windows password:") || break
+    [[ -n $WIN_PASS ]] || break
+    write_credentials "$WIN_USER" "$WIN_PASS" || {
+      echo "Could not save the Windows credentials; retrying without replacing the saved credentials." >&2
+    }
   done
 
   # After RDP closes, stop the container unless --keep-alive was specified
