@@ -169,6 +169,7 @@ register_route() {
 register_command() {
   local file="$1"
   local file_binary="${file##*/}"
+  local metadata_file="$OMARCHY_BIN_DIR/../share/omarchy/command-metadata/$file_binary"
   local group=""
   local name=""
   local summary=""
@@ -187,6 +188,7 @@ register_command() {
   local has_summary="false"
   local metadata_errors=""
 
+  [[ -f $metadata_file && -r $metadata_file ]] || metadata_file="$file"
   while IFS= read -r line && (( line_count < METADATA_SCAN_LIMIT )); do
     line_count=$((line_count + 1))
 
@@ -249,7 +251,7 @@ register_command() {
         fallback_summary=""
       fi
     fi
-  done <"$file"
+  done <"$metadata_file"
 
   local stem="${file_binary#omarchy-}"
   local fallback_group="$stem"
