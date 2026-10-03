@@ -231,8 +231,10 @@ bar_widget_default_section() {
 }
 
 # Asks the shell to place a widget, waiting out one still coming up. Answers 0
-# with the reply in PUT_RESULT, 1 when there was no shell to ask. Only an
-# absent shell is carried on from: omarchy-migrate marks a 0 return as done.
+# with the reply in PUT_RESULT, 1 when there was no definitive answer to act
+# on (no shell, or one that never settled). A 1 is carried on from: the caller
+# treats it as done, so a shell that cannot be asked must not fail the update
+# (omacom/omarchy#13301).
 PUT_RESULT=""
 SHELL_ANSWERED=0
 ask_to_put() {
@@ -243,10 +245,16 @@ ask_to_put() {
       [[ $PUT_RESULT == "not ready" ]] || return 0
     elif [[ $PUT_RESULT == *"not ready"* ]]; then
       SHELL_ANSWERED=1
+    elif [[ $PUT_RESULT == *"is not responding"* ]]; then
+      # A transient IPC timeout, not a verdict: identical putBarWidget calls
+      # flap ok/fail within minutes on the same machine, and the 2s default
+      # window is racy right after an update drops new code into the shell.
+      # Keep asking inside the budget instead of failing on the first miss.
+      SHELL_ANSWERED=1
     elif [[ $PUT_RESULT == *"is not running"* ]]; then
       # Answered once and now gone: it stopped mid-request.
       if (( SHELL_ANSWERED )); then
-        fail "omarchy-shell did not become ready; $id was not put on the bar"
+        break
       fi
       # A shell being spawned has no socket yet, and nothing says a launch is
       # under way, so give one a few seconds to turn up.
@@ -259,7 +267,11 @@ ask_to_put() {
     fi
     sleep 0.1
   done
-  fail "omarchy-shell did not become ready; $id was not put on the bar"
+  # Never a definitive answer. Carried on like an absent shell — the update
+  # finishes and the migration marks done — rather than wedging every
+  # subsequent update on a shell that keeps timing out.
+  echo "omarchy-shell did not become ready; $id was not put on the bar" >&2
+  return 1
 }
 
 # Placement lives in the shell, which owns the config it has in memory. Putting
