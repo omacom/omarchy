@@ -11,18 +11,62 @@ else
   choices="$@"
 fi
 
+created=0
+failed=0
+run_db() {
+  local name="$1"
+  local image="$2"
+  local actual_image=""
+  local actual_restart=""
+  local actual_state=""
+  shift 2
+  if sudo docker inspect --type container "$name" >/dev/null 2>&1; then
+    read -r actual_image actual_restart actual_state <<<"$(sudo docker inspect --type container --format '{{.Config.Image}} {{.HostConfig.RestartPolicy.Name}} {{.State.Status}}' "$name")"
+    if [[ $actual_image == $image || $actual_image == */$image ]] && [[ $actual_restart == "unless-stopped" ]]; then
+      if [[ $actual_state == "running" ]]; then
+        created=1
+      elif sudo docker start "$name"; then
+        created=1
+      else
+        failed=1
+      fi
+    else
+      echo "Container $name already exists and is not this database." >&2
+      failed=1
+    fi
+  elif sudo docker run "$@"; then
+    created=1
+  else
+    failed=1
+  fi
+}
+
 if [[ -n $choices ]]; then
   for db in $choices; do
     echo "Installing $db..."
     case $db in
-    MySQL) sudo docker run -d --restart unless-stopped -p "127.0.0.1:3306:3306" --name=mysql8 -e MYSQL_ROOT_PASSWORD= -e MYSQL_ALLOW_EMPTY_PASSWORD=true mysql:8.4 ;;
-    PostgreSQL) sudo docker run -d --restart unless-stopped -p "127.0.0.1:5432:5432" --name=postgres18 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:18 ;;
-    MariaDB) sudo docker run -d --restart unless-stopped -p "127.0.0.1:3306:3306" --name=mariadb11 -e MARIADB_ROOT_PASSWORD= -e MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=true mariadb:11.8 ;;
-    Redis) sudo docker run -d --restart unless-stopped -p "127.0.0.1:6379:6379" --name=redis redis:7 ;;
-    MongoDB) sudo docker run -d --restart unless-stopped -p "127.0.0.1:27017:27017" --name mongodb -e MONGO_INITDB_ROOT_USERNAME=admin -e MONGO_INITDB_ROOT_PASSWORD=admin123 mongo:noble ;;
-    MSSQL) sudo docker run -d --restart unless-stopped -p "127.0.0.1:1433:1433" --name mssql -e MSSQL_PID=Developer -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=@dmin123" mcr.microsoft.com/mssql/server:2022-CU12-ubuntu-22.04 ;;
+    MySQL) run_db mysql8 mysql:8.4 -d --restart unless-stopped -p "127.0.0.1:3306:3306" --name=mysql8 -e MYSQL_ROOT_PASSWORD= -e MYSQL_ALLOW_EMPTY_PASSWORD=true mysql:8.4 ;;
+    PostgreSQL) run_db postgres18 postgres:18 -d --restart unless-stopped -p "127.0.0.1:5432:5432" --name=postgres18 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:18 ;;
+    MariaDB) run_db mariadb11 mariadb:11.8 -d --restart unless-stopped -p "127.0.0.1:3306:3306" --name=mariadb11 -e MARIADB_ROOT_PASSWORD= -e MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=true mariadb:11.8 ;;
+    Redis) run_db redis redis:7 -d --restart unless-stopped -p "127.0.0.1:6379:6379" --name=redis redis:7 ;;
+    MongoDB) run_db mongodb mongo:noble -d --restart unless-stopped -p "127.0.0.1:27017:27017" --name mongodb -e MONGO_INITDB_ROOT_USERNAME=admin -e MONGO_INITDB_ROOT_PASSWORD=admin123 mongo:noble ;;
+    MSSQL) run_db mssql mcr.microsoft.com/mssql/server:2022-CU12-ubuntu-22.04 -d --restart unless-stopped -p "127.0.0.1:1433:1433" --name mssql -e MSSQL_PID=Developer -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=@dmin123" mcr.microsoft.com/mssql/server:2022-CU12-ubuntu-22.04 ;;
     esac
   done
+
+  # Socket activation does not start dockerd for a published port. Enable
+  # docker.service when a selected container is already there or was just
+  # created. Any selected database that is still missing fails the install.
+  if (( created == 0 )); then
+    echo "No database container was installed." >&2
+    exit 1
+  elif ! sudo systemctl enable --now docker.service; then
+    echo "Failed to enable docker.service, so the database will not come back after reboot." >&2
+    exit 1
+  elif (( failed )); then
+    echo "Not every selected database was installed." >&2
+    exit 1
+  fi
 else
   echo "No databases selected for installation."
 fi
