@@ -94,7 +94,7 @@ You can still install by hand: drop a plugin into
 `~/.config/omarchy/plugins/<id>/`, run `omarchy-shell shell rescanPlugins`, then
 `omarchy plugin enable <id>`. A bar widget starts in its declared default
 section; enabling a full bar replaces the one in use. `omarchy bar` drives the
-bar from the CLI — `use | reset | defaults | position | transparent | put |
+bar from the CLI — `use | reset | defaults | position | transparent | floating | put |
 move | set`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
@@ -148,6 +148,7 @@ string on a miss.
     "id": "omarchy.bar",
     "position": "top",
     "transparent": false,
+    "floating": false,
     "centerAnchor": "omarchy.clock",
     "layout": {
       "left":   [ { "id": "omarchy.menu" } ],

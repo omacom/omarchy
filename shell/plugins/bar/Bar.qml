@@ -53,6 +53,38 @@ Item {
   property bool requestedTransparent: false
   property bool useTransparentForeground: false
   property bool transparent: false
+
+  // `bar.floating` detaches the bar from its screen edge: it sits one
+  // Hyprland gaps_out away from the edge and both sides, lining up with
+  // window edges, with the corner radius windows get from
+  // decoration:rounding. Style.gapsOut is half of gaps_out.
+  property bool floating: false
+  // `omarchy toggle window-gaps` zeroes gaps and rounding. Style re-polls
+  // Hyprland only after the reload settles, so the bar watches the toggle
+  // flag itself and keeps the last real gap and radius meanwhile; that way
+  // it moves with the windows instead of snapping after them.
+  property bool windowGapsOff: false
+  property int lastGap: Style.gapsOut * 2
+  property int lastRadius: Style.cornerRadius
+  readonly property int floatGap: floating && !windowGapsOff ? (Style.gapsOut > 0 ? Style.gapsOut * 2 : lastGap) : 0
+  readonly property int floatRadius: floating && !windowGapsOff ? (Style.cornerRadius > 0 ? Style.cornerRadius : lastRadius) : 0
+  // Reserved space follows the target at once; the layer window never
+  // resizes for a gap change (a resized layer surface can show one stale,
+  // stretched frame), so a floating bar's window always spans the floating
+  // footprint and only its reserved space and card inset change.
+  readonly property int barExtent: barSize + floatGap
+  readonly property int windowExtent: barSize + (floating ? Math.max(lastGap, floatGap) : 0)
+  // Animated on the default Hyprland `windows` curve (easeOutQuint, 3.79).
+  property real shownGap: floatGap
+  property real shownRadius: floatRadius
+  Behavior on shownGap { NumberAnimation { duration: 379; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.23, 1, 0.32, 1, 1, 1] } }
+  Behavior on shownRadius { NumberAnimation { duration: 379; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.23, 1, 0.32, 1, 1, 1] } }
+
+  Connections {
+    target: Style
+    function onGapsOutChanged() { if (Style.gapsOut > 0) root.lastGap = Style.gapsOut * 2 }
+    function onCornerRadiusChanged() { if (Style.cornerRadius > 0 || !root.windowGapsOff) root.lastRadius = Style.cornerRadius }
+  }
   property bool centerSectionHovered: false
   // One bar surface exists per monitor and each reports into this count, so a
   // pointer crossing from one monitor's bar to another's stays counted however
@@ -583,6 +615,7 @@ Item {
 
     position = normalizePosition(config.position)
     setRequestedTransparency(config.transparent === true)
+    floating = config.floating === true
     centerAnchor = Util.canonicalWidgetId(config.centerAnchor || "")
 
     // layoutEntries feeds plain JS arrays to the module Repeaters, and QML
@@ -1063,7 +1096,7 @@ Item {
     transparentForegroundProc.command = [
       "omarchy-bar-text-color",
       root.position,
-      String(root.barSize),
+      String(root.barExtent),
       colorHex(root.themeForeground),
       colorHex(root.themeContrastForeground)
     ]
@@ -1072,6 +1105,7 @@ Item {
 
   onRequestedTransparentChanged: scheduleTransparentForegroundRefresh()
   onPositionChanged: scheduleTransparentForegroundRefresh()
+  onBarExtentChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
 
@@ -1178,6 +1212,20 @@ Item {
     onFileChanged: barHiddenProbe.running = true
   }
 
+  // Same pattern for the window-gaps flag, which lives one level down.
+  Process {
+    id: windowGapsProbe
+    running: true
+    command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/hypr/window-no-gaps.lua ]] && echo yes || echo no"]
+    stdout: SplitParser { onRead: function(line) { root.windowGapsOff = String(line).trim() === "yes" } }
+  }
+  FileView {
+    path: root.home + "/.local/state/omarchy/toggles/hypr"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: windowGapsProbe.running = true
+  }
+
   // The directory watch can permanently stop delivering events after flag
   // changes land in quick succession, stranding the bar off screen until the
   // shell restarts. `omarchy-toggle-bar` nudges this after flipping the flag
@@ -1240,7 +1288,8 @@ Item {
     // textures — which measures ~150ms against ~20ms to tear down. Parking
     // keeps the surface alive, so showing is only a margin change.
     visible: !remapGuard.remapping
-    exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Auto
+    exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
+    exclusiveZone: root.barExtent
 
     ScreenMoveRemap {
       id: remapGuard
@@ -1248,10 +1297,10 @@ Item {
     }
 
     margins {
-      top: root.barHidden && root.position === "top" ? -root.barSize : 0
-      bottom: root.barHidden && root.position === "bottom" ? -root.barSize : 0
-      left: root.barHidden && root.position === "left" ? -root.barSize : 0
-      right: root.barHidden && root.position === "right" ? -root.barSize : 0
+      top: root.barHidden && root.position === "top" ? -root.windowExtent : 0
+      bottom: root.barHidden && root.position === "bottom" ? -root.windowExtent : 0
+      left: root.barHidden && root.position === "left" ? -root.windowExtent : 0
+      right: root.barHidden && root.position === "right" ? -root.windowExtent : 0
     }
 
     anchors {
@@ -1261,25 +1310,48 @@ Item {
       right: root.position === "right" || !root.vertical
     }
 
-    implicitWidth: root.vertical ? root.barSize : 0
-    implicitHeight: root.vertical ? 0 : root.barSize
-    color: root.transparent ? "transparent" : root.background
+    implicitWidth: root.vertical ? root.windowExtent : 0
+    implicitHeight: root.vertical ? 0 : root.windowExtent
+    // The window is clear; barSurface carries the background so a floating
+    // bar can inset from the edge and round its corners. Only the surface
+    // takes input, so the floating gap passes clicks through.
+    color: "transparent"
     surfaceFormat.opaque: false
+    mask: Region { item: barSurface }
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
 
-    Loader {
-      anchors.fill: parent
-      sourceComponent: root.vertical ? verticalBar : horizontalBar
+    Rectangle {
+      id: barSurface
 
-      // A child of the loader, not a sibling of the sections: an ancestor stays
-      // hovered while the pointer is over a widget, where a sibling would lose
-      // hover to the section the pointer entered.
-      HoverHandler {
-        onHoveredChanged: root.setBarHovered(hovered)
-        // Unplugging a monitor destroys its bar without a leave event, which
-        // would strand this surface's tally and hold the peek open for good.
-        Component.onDestruction: if (hovered) root.setBarHovered(false)
+      // Pinned to the outer edge with the floating gap as its inset, keeping
+      // its own size while the window holds the full floating extent.
+      anchors.top: root.position !== "bottom" ? parent.top : undefined
+      anchors.bottom: root.position !== "top" ? parent.bottom : undefined
+      anchors.left: root.position !== "right" ? parent.left : undefined
+      anchors.right: root.position !== "left" ? parent.right : undefined
+      anchors.topMargin: root.position !== "bottom" ? root.shownGap : 0
+      anchors.bottomMargin: root.position !== "top" ? root.shownGap : 0
+      anchors.leftMargin: root.position !== "right" ? root.shownGap : 0
+      anchors.rightMargin: root.position !== "left" ? root.shownGap : 0
+      width: root.vertical ? root.barSize : undefined
+      height: root.vertical ? undefined : root.barSize
+      radius: Math.min(root.shownRadius, Math.min(width, height) / 2)
+      color: root.transparent ? "transparent" : root.background
+
+      Loader {
+        anchors.fill: parent
+        sourceComponent: root.vertical ? verticalBar : horizontalBar
+
+        // A child of the loader, not a sibling of the sections: an ancestor stays
+        // hovered while the pointer is over a widget, where a sibling would lose
+        // hover to the section the pointer entered.
+        HoverHandler {
+          onHoveredChanged: root.setBarHovered(hovered)
+          // Unplugging a monitor destroys its bar without a leave event, which
+          // would strand this surface's tally and hold the peek open for good.
+          Component.onDestruction: if (hovered) root.setBarHovered(false)
+        }
       }
     }
 

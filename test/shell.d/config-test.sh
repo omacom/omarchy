@@ -317,6 +317,23 @@ HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar transparent toggle
 jq -e '.bar.transparent == false' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 pass "shell config toggles bar transparency"
 
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar floating true
+jq -e '
+  .bar.floating == true and
+  .bar.transparent == false and
+  .bar.position == "bottom"
+' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
+pass "shell config floats the bar"
+
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar floating toggle
+jq -e '.bar.floating == false' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
+pass "shell config toggles bar floating"
+
+if HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar floating sideways 2>/dev/null; then
+  fail "bar floating accepted an invalid value"
+fi
+pass "bar floating rejects values other than true, false, or toggle"
+
 HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar set omarchy.bluetooth enabled false --json
 grep -Fqx 'shell setBarWidget omarchy.bluetooth enabled false {}' \
   "$TMPDIR/home/.local/state/omarchy/shell-ipc-calls"
