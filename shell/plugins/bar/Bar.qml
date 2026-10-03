@@ -26,6 +26,21 @@ Item {
   // Injected by the host shell. Used for shell-wide actions such as opening
   // settings and persisting inline widget state.
   property var shell: null
+  // An open panel is a layer-shell surface anchored to the bar, while the
+  // fullscreen screensaver is a normal Wayland client, so the compositor draws
+  // the panel above it and leaves whatever the widget was showing on a screen
+  // meant to conceal the session. Close the panel whenever the enabled idle
+  // service reports a screensaver window. Resolve through the registry so this
+  // also follows a user-cloned idle service; enabling a clone only bumps the
+  // registry revision, so the binding has to read it.
+  readonly property string idleServiceId: {
+    if (!shell || !shell.pluginRegistry) return "omarchy.idle"
+    var revision = shell.pluginRegistry.registryRevision
+    return shell.pluginRegistry.resolveEnabledId("omarchy.idle")
+  }
+  readonly property var idleService: shell && shell.services ? shell.serviceFor(idleServiceId) : null
+  readonly property bool screensaverActive: !!idleService && idleService.screensaverWindowCount > 0
+  onScreensaverActiveChanged: if (screensaverActive) closeActivePopout()
   // Manifest for the active bar option. Present for custom bars and useful for
   // diagnostics; the built-in bar does not otherwise need it.
   property var manifest: null
@@ -313,7 +328,12 @@ Item {
     pluginBarApis = next
   }
 
-  onActivePopoutChanged: syncAllPluginBarApiObjects()
+  onActivePopoutChanged: {
+    syncAllPluginBarApiObjects()
+    // A panel can also be opened while the screensaver is already up (over
+    // IPC, say), when screensaverActive has no change left to report.
+    if (screensaverActive && activePopout) Qt.callLater(closeActivePopout)
+  }
   onClickTargetsChanged: syncAllPluginBarApiObjects()
   onLayoutConfigChanged: syncAllPluginBarApiObjects()
   onModuleSlotsChanged: Qt.callLater(prunePluginBarApis)
@@ -550,6 +570,15 @@ Item {
 
   function releasePopout(owner) {
     if (activePopout === owner) activePopout = null
+  }
+
+  // Close whatever popout is open, whoever owns it. Built-in panels and
+  // third-party plugin panels both register here, so both are covered.
+  function closeActivePopout() {
+    if (!activePopout) return
+    if ("close" in activePopout) activePopout.close()
+    else if ("closeForPopoutSwitch" in activePopout) activePopout.closeForPopoutSwitch()
+    releasePopout(activePopout)
   }
 
   readonly property bool vertical: position === "left" || position === "right"
