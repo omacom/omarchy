@@ -19,6 +19,7 @@ Item {
   property bool disabled: false
   property string device: ""
   property int maxLevel: 0
+  property string lidStatePath: ""
   readonly property bool active: probed && hasSensor && device !== "" && maxLevel > 0 && !disabled
 
   // Set while the session has the keyboard blanked (lock or idle), between
@@ -38,11 +39,13 @@ Item {
     var off = false
     var name = ""
     var max = 0
+    var lid = ""
     var lines = String(text || "").split("\n")
     for (var i = 0; i < lines.length; i++) {
       var parts = lines[i].trim().split(/\s+/)
       if (parts[0] === "sensor") sensor = true
       else if (parts[0] === "disabled") off = true
+      else if (parts[0] === "lid" && parts.length === 2) lid = parts[1]
       else if (parts[0] === "device" && parts.length === 3) {
         name = parts[1]
         max = parseInt(parts[2], 10) || 0
@@ -53,6 +56,7 @@ Item {
     root.disabled = off
     root.device = name
     root.maxLevel = max
+    root.lidStatePath = lid
     root.probed = true
   }
 
@@ -60,6 +64,14 @@ Item {
     brightnessFile.reload()
     var level = parseInt(String(brightnessFile.text()).trim(), 10)
     return isNaN(level) ? null : level
+  }
+
+  // The sensor sits in the lid, so with the lid shut (docked, clamshell) it
+  // reads dark and would light the keys under it.
+  function lidClosed() {
+    if (root.lidStatePath === "") return false
+    lidFile.reload()
+    return String(lidFile.text()).indexOf("closed") !== -1
   }
 
   function readManualOff() {
@@ -89,7 +101,7 @@ Item {
   }
 
   function step() {
-    if (!root.active || !root.state || root.paused) return
+    if (!root.active || !root.state || root.paused || lidClosed()) return
 
     var now = Date.now()
     var manualOffBefore = root.state.manualOffSince
@@ -158,6 +170,7 @@ Item {
     command: ["bash", "-c",
       "omarchy-hw-ambient-light && omarchy-cmd-present monitor-sensor && echo sensor; " +
       "for led in \"${OMARCHY_LEDS_PATH:-/sys/class/leds}\"/*kbd_backlight*; do [[ -e $led ]] && { echo \"device ${led##*/} $(< \"$led/max_brightness\")\"; break; }; done; " +
+      "for lid in \"${OMARCHY_ACPI_LID_PATH:-/proc/acpi/button/lid}\"/*/state; do [[ -r $lid ]] && { echo \"lid $lid\"; break; }; done; " +
       "[[ -f $HOME/.local/state/omarchy/toggles/keyboard-backlight-auto-off ]] && echo disabled; true"]
     stdout: StdioCollector {
       waitForEnd: true
@@ -171,6 +184,13 @@ Item {
   FileView {
     id: brightnessFile
     path: root.device !== "" ? root.ledsPath + "/" + root.device + "/brightness" : ""
+    blockAllReads: true
+    printErrors: false
+  }
+
+  FileView {
+    id: lidFile
+    path: root.lidStatePath
     blockAllReads: true
     printErrors: false
   }
@@ -241,6 +261,12 @@ Item {
     // user's choice and nothing is switched on behind a locked screen.
     function pause(): void {
       root.pause()
+    }
+
+    // Nudged when the lid opens, so it decides from the light right away
+    // rather than at the next sensor change.
+    function refresh(): void {
+      root.step()
     }
 
     function resume(): void {
