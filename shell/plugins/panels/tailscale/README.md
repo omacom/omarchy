@@ -36,7 +36,7 @@ Inside the panel:
 
 Incoming Taildrop files are saved to `~/Downloads` by the
 `omarchy-tailscale-receive` service, which announces each one with a
-notification (an image preview when the file is an image, and a click to open
+notification (a file glyph, never a preview of the file, and a click to open
 it). The Tailscale service install enables it; `omarchy tailscale receive`
 runs the same loop by hand.
 

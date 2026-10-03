@@ -52,18 +52,20 @@ notifications=$(<"$WORKDIR/notifications")
   fail "taildrop receive saves incoming files" "$(ls "$downloads")"
 pass "taildrop receive saves incoming files"
 
-grep -qF -- "Received photo.png Saved to $downloads -u critical --image $downloads/photo.png" <<<"$notifications" ||
-  fail "taildrop receive previews received images" "$notifications"
-pass "taildrop receive previews received images"
+grep -q -- "--image" <<<"$notifications" &&
+  fail "taildrop receive does not decode received images" "$notifications"
+pass "taildrop receive does not decode received images"
 
 while IFS= read -r line; do
   [[ $line == *"-u critical"* ]] || fail "taildrop receive announcements wait to be answered" "$line"
 done <<<"$notifications"
 pass "taildrop receive announcements wait to be answered"
 
-grep -q "^Received notes with space.pdf .* -g " <<<"$notifications" ||
-  fail "taildrop receive announces other files with a glyph" "$notifications"
-pass "taildrop receive announces other files with a glyph"
+for name in photo.png "notes with space.pdf"; do
+  grep -qxF -- "Received $name Saved to $downloads -u critical -g 󰒊 --exec xdg-open $downloads/$name" <<<"$notifications" ||
+    fail "taildrop receive announces every file by name with a glyph" "$notifications"
+done
+pass "taildrop receive announces every file by name with a glyph"
 
 # The shell keeps the click command with the toast, so receiving does not have
 # to sit blocked on an answer -- and the toast still opens the file after a shell
