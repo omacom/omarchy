@@ -5,8 +5,14 @@
 # omarchy:hidden=true
 
 LOG_TYPE="${1:-install}"
-TEMP_LOG="/tmp/upload-log.txt"
-SYSTEM_INFO="/tmp/system-info.txt"
+
+# Build the upload payload in a private, unpredictable temporary file.
+# A fixed path under /tmp lets another local account pre-create it as a
+# symlink (file clobber through the victim) or keep it readable (log
+# disclosure), so use mktemp and clean it up on exit.
+TEMP_LOG=$(mktemp /tmp/omarchy-upload-log.XXXXXXXX)
+trap 'rm -f -- "$TEMP_LOG" "$SYSTEM_INFO"' EXIT
+SYSTEM_INFO=$(mktemp /tmp/omarchy-system-info.XXXXXXXX)
 
 # Get system information if fastfetch is available
 if omarchy-cmd-present fastfetch; then

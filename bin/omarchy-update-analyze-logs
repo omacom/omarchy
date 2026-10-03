@@ -2,7 +2,10 @@
 
 # omarchy:summary=Check the update log for known failure conditions
 
-update_log="/tmp/omarchy-update.log"
+# The update transcript is a private, per-run file omarchy-update hands us
+# through OMARCHY_UPDATE_LOG. It is never at a fixed location, so refuse to
+# guess one.
+update_log="${OMARCHY_UPDATE_LOG:?omarchy-update-analyze-logs requires OMARCHY_UPDATE_LOG}"
 
 # Check for initramfs generation failure
 if grep -q "Updating linux initcpios" "$update_log"; then

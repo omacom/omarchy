@@ -73,6 +73,9 @@ end_update_authorization() {
 cleanup_update() {
   local status=$?
   trap - EXIT HUP INT TERM
+  # The logged instance owns the transcript file omarchy-update created for
+  # this run; it is no longer needed once the analyze step has read it.
+  [[ -z ${OMARCHY_UPDATE_LOG:-} ]] || rm -f -- "$OMARCHY_UPDATE_LOG" 2>/dev/null || true
   if ! end_update_authorization; then
     echo "Could not invalidate sudo before update cleanup." >&2
     omarchy_security_exit_with_revoked_sudo 1
@@ -84,8 +87,14 @@ cleanup_update() {
 }
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
+  # script(1) types the session into a log the analyze step reads back. A
+  # fixed path under /tmp lets another local account pre-create it as a
+  # symlink (clobbering a victim file through this write) or keep it
+  # readable (disclosing the update transcript), so log to a private,
+  # unpredictable file and hand its path to the logged instance.
+  update_log=$(mktemp /tmp/omarchy-update.XXXXXXXX)
   script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "/tmp/omarchy-update.log"
+  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_LOG="$update_log" OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "$update_log"
 fi
 
 if ! omarchy-update-lock held; then

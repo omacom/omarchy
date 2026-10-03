@@ -26,7 +26,12 @@ while (( $# > 0 )); do
   esac
 done
 
-LOG_FILE="/tmp/omarchy-debug.log"
+# Write the debug log to a private, unpredictable temporary file. A fixed
+# path under /tmp lets another local account pre-create it as a symlink and
+# clobber a victim file through this write, so use mktemp and clean it up on
+# exit.
+LOG_FILE=$(mktemp /tmp/omarchy-debug.XXXXXXXX)
+trap 'rm -f -- "$LOG_FILE"' EXIT
 
 if [[ $NO_SUDO = "true" ]]; then
   DMESG_OUTPUT="(skipped - --no-sudo flag used)"
