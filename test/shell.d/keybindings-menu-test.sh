@@ -41,7 +41,7 @@ stub_hyprctl() {
 }
 
 keybindings() {
-  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  env -i ${LC_ALL:+LC_ALL="$LC_ALL"} PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
     XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
     bash "$ROOT/bin/omarchy-menu-keybindings" --print
 }
@@ -232,3 +232,147 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# A submap binding fires only inside its mode, so its row leads with the chord
+# that enters the mode and sits right under that chord's own row.
+mode_bind() {
+  printf 'bind\n\tmodmask: %s\n\tsubmap: %s\n\tkey: %s\n\tkeycode: 0\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: __lua\n\targ: \n' "$1" "$2" "$3" "$4"
+}
+
+stub_hyprctl <<BINDS
+$(mode_bind 1 window "SHIFT + H" "Swap left")
+$(lua_bind 64 "SUPER + F" "Full screen")
+$(mode_bind 0 window "H" "Shrink width")
+$(printf 'bind\n\tmodmask: 64\n\tsubmap: \n\tkey: P\n\tkeycode: 0\n\tcatchall: false\n\tdescription: Window mode\n\tdispatcher: submap\n\targ: window\n')
+$(mode_bind 0 unbound "ESCAPE" "Leave unbound mode")
+BINDS
+
+rendered=$(keybindings)
+grep -q '^SUPER + P > H  *→ Shrink width' <<<"$rendered" &&
+  grep -q '^SUPER + P > SHIFT + H  *→ Swap left' <<<"$rendered" ||
+  fail "a submap binding leads with the chord that enters its mode" "$rendered"
+pass "a submap binding leads with the chord that enters its mode"
+
+# The row after the chord that enters a mode, and the one after that, are the
+# mode's own bindings, in every collation a desktop might sort them in.
+mode_rows_follow_entry() {
+  local entry="$1" count="$2" rendered="$3"
+
+  [[ $(grep -A"$count" "^$entry  *→" <<<"$rendered" | tail -n +2 | grep -c "^$entry > ") == "$count" ]]
+}
+
+for locale in C en_US.UTF-8; do
+  [[ $locale == "C" ]] || locale -a 2>/dev/null | grep -qix 'en_US.utf-\?8' || continue
+  rendered=$(LC_ALL=$locale keybindings)
+  mode_rows_follow_entry "SUPER + P" 2 "$rendered" ||
+    fail "the bindings of a mode sort right under the chord that enters it ($locale)" "$rendered"
+done
+pass "the bindings of a mode sort right under the chord that enters it"
+
+grep -q '^unbound > ESCAPE  *→ Leave unbound mode' <<<"$rendered" ||
+  fail "a mode with no known entry chord is named instead" "$rendered"
+pass "a mode with no known entry chord is named instead"
+
+# A bind that enters a mode, optionally from inside another mode.
+submap_bind() {
+  printf 'bind\n\tmodmask: %s\n\tsubmap: %s\n\tkey: %s\n\tkeycode: 0\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: submap\n\targ: %s\n' "$1" "${5:-}" "$2" "$3" "$4"
+}
+
+# The prefix names the entry chord exactly as that chord's own row does, so a
+# second modifier or a renamed key still finds the row to sort under.
+stub_hyprctl <<BINDS
+$(mode_bind 0 window "H" "Shrink width")
+$(submap_bind 65 "P" "Window mode" window)
+$(mode_bind 0 resize "L" "Grow width")
+$(submap_bind 64 "grave" "Resize mode" resize)
+BINDS
+
+rendered=$(keybindings)
+mode_rows_follow_entry "SUPER SHIFT + P" 1 "$rendered" &&
+  mode_rows_follow_entry "SUPER + ~" 1 "$rendered" ||
+  fail "a mode is named the way the row of the chord entering it is" "$rendered"
+pass "a mode is named the way the row of the chord entering it is"
+
+# A mode entered from inside another names the whole sequence, and a keycode
+# reads as its key in both the entry chord and the binding's own.
+stub_hyprctl <<BINDS
+$(submap_bind 64 "code:33" "Window mode" window)
+$(mode_bind 0 window "code:43" "Shrink width")
+$(submap_bind 0 "R" "Resize mode" resize window)
+$(mode_bind 0 resize "L" "Grow width")
+BINDS
+
+rendered=$(keybindings)
+mode_rows_follow_entry "SUPER + P" 3 "$rendered" &&
+  grep -q '^SUPER + P > H  *→ Shrink width' <<<"$rendered" &&
+  grep -q '^SUPER + P > R > L  *→ Grow width' <<<"$rendered" ||
+  fail "a mode inside a mode is named by every chord that leads to it" "$rendered"
+pass "a mode inside a mode is named by every chord that leads to it"
+
+# A chord that comes back to a mode from another one does not name it, even
+# when Hyprland reports it before the chord that enters from outside.
+stub_hyprctl <<BINDS
+$(submap_bind 0 "ESCAPE" "Back to window mode" window resize)
+$(submap_bind 0 "ESCAPE" "Back to resize mode" resize detail)
+$(submap_bind 0 "D" "Detail mode" detail resize)
+$(submap_bind 64 "P" "Window mode" window)
+$(submap_bind 0 "R" "Resize mode" resize window)
+$(mode_bind 0 resize "L" "Grow width")
+BINDS
+
+rendered=$(keybindings)
+mode_rows_follow_entry "SUPER + P" 5 "$rendered" &&
+  grep -q '^SUPER + P > R > ESCAPE  *→ Back to window mode' <<<"$rendered" &&
+  grep -q '^SUPER + P > R > D > ESCAPE  *→ Back to resize mode' <<<"$rendered" &&
+  grep -q '^SUPER + P > R > L  *→ Grow width' <<<"$rendered" ||
+  fail "a mode is named by the chord that enters it from outside every mode" "$rendered"
+pass "a mode is named by the chord that enters it from outside every mode"
+
+# An action Omarchy pairs up keeps a binding inside a mode on its own row, since
+# its chord is not an alternative to the global one.
+stub_hyprctl <<BINDS
+$(exec_bind 64 "SUPER + W" "Close window" "true")
+$(printf 'bind\n\tmodmask: 0\n\tsubmap: window\n\tkey: Q\n\tkeycode: 0\n\tcatchall: false\n\tdescription: Close window\n\tdispatcher: exec\n\targ: true\n')
+$(submap_bind 64 "P" "Window mode" window)
+BINDS
+
+rendered=$(keybindings)
+grep -q '^SUPER + W  *→ Close window' <<<"$rendered" &&
+  mode_rows_follow_entry "SUPER + P" 1 "$rendered" ||
+  fail "a binding inside a mode never shares a row with a global chord" "$rendered"
+pass "a binding inside a mode never shares a row with a global chord"
+
+# A binding whose description Omarchy ranks on its own still stays with its mode.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + F" "Full screen")
+$(mode_bind 0 window "H" "Shrink width")
+$(mode_bind 0 window "L" "Focus on right window")
+$(submap_bind 64 "P" "Window mode" window)
+BINDS
+
+rendered=$(keybindings)
+mode_rows_follow_entry "SUPER + P" 2 "$rendered" ||
+  fail "every binding of a mode ranks with the chord that enters it" "$rendered"
+pass "every binding of a mode ranks with the chord that enters it"
+
+# A Lua config can move the chord that enters a mode. Only the chord Hyprland
+# still reports names it, not one the config bound and later unbound.
+cat >"$home/.config/hypr/hyprland.lua" <<'LUA'
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+o.bind("SUPER + P", "Window mode", hl.dsp.submap("window"))
+hl.unbind("SUPER + P")
+o.bind("SUPER + M", "Window mode", hl.dsp.submap("window"))
+LUA
+
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + M" "Window mode")
+$(mode_bind 0 window "H" "Shrink width")
+BINDS
+
+rm -rf "$tmpdir/cache"
+rendered=$(keybindings)
+mode_rows_follow_entry "SUPER + M" 1 "$rendered" &&
+  ! grep -q '^SUPER + P > ' <<<"$rendered" ||
+  fail "a mode entered by a Lua bind is named by the chord that enters it now" "$rendered"
+pass "a mode entered by a Lua bind is named by the chord that enters it now"
