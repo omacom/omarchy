@@ -18,6 +18,12 @@ o.window(
   { no_focus = true }
 )
 
+-- Fullscreen clients re-activate, and inhibit shortcuts, when an overlay opens.
+o.window({ fullscreen = true }, {
+  focus_on_activate = false,
+  no_shortcuts_inhibit = true,
+})
+
 -- App-specific tweaks (may remove default-opacity tag).
 require("default.hypr.apps")
 
