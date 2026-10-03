@@ -1,0 +1,153 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle the Cua Hyprland plugin's input route
+# omarchy:args=[on|off|toggle|--status|--load]
+# omarchy:examples=omarchy toggle cua-input | omarchy toggle cua-input off | omarchy-toggle-cua-input --status
+
+# Activation checks the package and running module without replacing a mapped
+# plugin. Turning input off leaves the module loaded until the session ends.
+
+set -euo pipefail
+
+FLAG=cua-input
+MODULE=/usr/lib/cua/hyprland/cua-hyprland-plugin.so
+KIT=/usr/share/cua-hyprland-plugin
+MIN_VERSION=0.26.1-5
+# nf-md-robot_excited, escaped so this file reads without a Nerd Font.
+readonly GLYPH=$'\U000f16a4'
+
+usage() {
+  echo "Usage: omarchy-toggle-cua-input [on|off|toggle|--status|--load]" >&2
+  exit 1
+}
+
+notify() {
+  omarchy-notification-send -g "$GLYPH" "$@" || true
+}
+
+refuse() {
+  if omarchy-hyprland-toggle-enabled "$FLAG"; then
+    omarchy-hyprland-toggle "$FLAG" off >/dev/null
+  fi
+  notify "Cua input stays off" "$1"
+  echo "$1" >&2
+  exit 1
+}
+
+plugin_loaded() {
+  hyprctl -j plugin list 2>/dev/null | jq -e 'map(select(.name == "cua-hyprland-plugin")) | length > 0' >/dev/null
+}
+
+keyboard_capabilities_current() {
+  hyprctl -j cua:status 2>/dev/null | jq -e '.keyboard_layout_independent == true and .foreground_numlock_compatible == true' >/dev/null
+}
+
+package_current() {
+  local version comparison
+  version=$(pacman -Q cua-hyprland-plugin | cut -d' ' -f2) || return 1
+  comparison=$(vercmp "$version" "$MIN_VERSION") || return 1
+  (( comparison >= 0 ))
+}
+
+input_ready() {
+  hyprctl -j cua:status 2>/dev/null | jq -e '.configured == true and .transport.ready == true' >/dev/null
+}
+
+# The package's consumer check: the installed module against the running
+# compositor and runtime, needing no compiler. It also wants the digest of the
+# kit provenance it was built from; pacman verified that file when it
+# installed it, so the digest is read from the file rather than pinned here,
+# where it would go stale with every requalified profile.
+compatible() {
+  local digest
+  digest=$(sha256sum "$KIT/KIT-PROVENANCE.json" | cut -d' ' -f1)
+  python3 "$KIT/profile_verify.py" --kit "$KIT" --kit-sha256 "$digest" --consumer "$MODULE" >/dev/null 2>&1
+}
+
+load_plugin() {
+  if ! plugin_loaded; then
+    hyprctl plugin load "$MODULE" >/dev/null
+  fi
+}
+
+print_status() {
+  local enabled=false loaded=false ready=false
+  omarchy-hyprland-toggle-enabled "$FLAG" && enabled=true
+  plugin_loaded && loaded=true
+  input_ready && ready=true
+  jq -cn --argjson enabled "$enabled" --argjson loaded "$loaded" --argjson ready "$ready" \
+    '{enabled:$enabled, loaded:$loaded, ready:$ready}'
+}
+
+turn_on() {
+  omarchy-pkg-present cua-hyprland-plugin ||
+    refuse "The Cua Hyprland plugin is not installed; Install > AI > Cua adds it."
+
+  package_current || refuse "Update cua-hyprland-plugin to $MIN_VERSION or newer to preserve your keyboard settings."
+
+  compatible || refuse "The Cua Hyprland plugin does not match the running Hyprland; update it and log out and back in."
+
+  load_plugin || refuse "The Cua Hyprland plugin could not load; check the session logs."
+  if ! keyboard_capabilities_current; then
+    refuse "Log out and back in to use the updated Cua plugin, then turn Cua Input on again."
+  fi
+  omarchy-hyprland-toggle "$FLAG" on >/dev/null
+
+  if input_ready; then
+    notify "Cua input on" "Your keyboard layout and remaps stay unchanged."
+  else
+    notify "Cua plugin loaded, input not ready" "hyprctl -j cua:status has the details."
+  fi
+}
+
+turn_off() {
+  omarchy-hyprland-toggle "$FLAG" off >/dev/null
+  notify "Cua input off" "The plugin stays loaded until you log out."
+}
+
+# What the flag runs at session start.
+load_at_start() {
+  omarchy-hyprland-toggle-enabled "$FLAG" || exit 0
+
+  if ! omarchy-pkg-present cua-hyprland-plugin || ! package_current || ! compatible; then
+    omarchy-hyprland-toggle "$FLAG" off >/dev/null
+    notify "Cua input turned off" "Update the Cua Hyprland plugin and check that it matches the running Hyprland."
+    exit 0
+  fi
+
+  if ! load_plugin; then
+    omarchy-hyprland-toggle "$FLAG" off >/dev/null
+    notify "Cua input turned off" "The Cua Hyprland plugin could not load; check the session logs."
+    exit 0
+  fi
+  if ! keyboard_capabilities_current; then
+    omarchy-hyprland-toggle "$FLAG" off >/dev/null
+    notify "Cua input turned off" "Log out and back in to use the updated plugin, then turn Cua Input on again."
+    exit 0
+  fi
+
+  # Refresh legacy keyboard overrides, but never recreate a flag removed by
+  # a concurrent off while verification ran. nocreat still truncates the file.
+  local flag_file="$HOME/.local/state/omarchy/toggles/hypr/$FLAG.lua"
+  if dd if="$OMARCHY_PATH/default/hypr/toggles/$FLAG.lua" of="$flag_file" conv=nocreat status=none 2>/dev/null; then
+    hyprctl reload >/dev/null
+  elif [[ -e $flag_file ]]; then
+    notify "Cua input flag could not refresh" "Turn Cua Input off and on again to refresh its configuration."
+    return 1
+  fi
+}
+
+case "${1:-toggle}" in
+  on) turn_on ;;
+  off) turn_off ;;
+  toggle)
+    if omarchy-hyprland-toggle-enabled "$FLAG"; then
+      turn_off
+    else
+      turn_on
+    fi
+    ;;
+  --status | status) print_status ;;
+  --load) load_at_start ;;
+  *) usage ;;
+esac
