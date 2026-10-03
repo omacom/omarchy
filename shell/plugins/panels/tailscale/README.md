@@ -11,6 +11,7 @@ Native Omarchy bar widget for Tailscale.
 - Browse machines from `tailscale status --json`
 - Copy a machine's Tailscale IP, host name, or DNS name
 - Send files to a machine with Taildrop, when the tailnet allows file sharing
+- Turn automatic Taildrop receiving on or off
 
 ## Keyboard shortcuts
 
@@ -34,11 +35,7 @@ Inside the panel:
 
 ## Receiving files
 
-Incoming Taildrop files are saved to `~/Downloads` by the
-`omarchy-tailscale-receive` service, which announces each one with a
-notification (an image preview when the file is an image, and a click to open
-it). The Tailscale service install enables it; `omarchy tailscale receive`
-runs the same loop by hand.
+Incoming Taildrop files are saved to `~/Downloads` by the `omarchy-tailscale-receive` service, which announces each one with a notification (an image preview when the file is an image, and a click to open it). The Tailscale service install enables it; `omarchy tailscale receive` runs the same loop by hand. The panel switch enables and starts the receiver, or stops and disables it, through the user's systemd service.
 
 ## Icon
 

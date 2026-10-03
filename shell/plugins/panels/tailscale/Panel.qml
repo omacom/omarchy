@@ -508,6 +508,44 @@ Panel {
             wrapMode: Text.WordWrap
           }
 
+          PanelSeparator {
+            visible: tailscale.receiverAvailable
+            foreground: root.foreground
+          }
+
+          RowLayout {
+            visible: tailscale.receiverAvailable
+            width: parent.width
+            spacing: Style.space(12)
+
+            ColumnLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(2)
+
+              Text {
+                text: "Receive files automatically"
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                text: tailscale.receiverActive ? "New files go to Downloads" : "Files wait until you collect them"
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+            }
+
+            ToggleSwitch {
+              checked: tailscale.receiverActive
+              busy: tailscale.receiverBusy
+              foreground: root.foreground
+              onToggled: tailscale.toggleReceiver()
+            }
+          }
+
           CursorSurface {
             visible: !tailscale.installed
             width: parent.width
