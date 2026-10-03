@@ -287,6 +287,7 @@ This skill intentionally does not cover Omarchy source development. Do not use t
 - "Clear all reminders" -> `omarchy reminder clear`
 - "Customize the catppuccin theme colors" -> Overlay: put an edited `colors.toml` in `~/.config/omarchy/themes/catppuccin/`, then re-apply the theme (see `theming.md`)
 - "Run a script every time I change themes" -> Install it with `omarchy hook install theme-set <script>`
+- "Make only my Tokyo Night theme translucent" -> Keep opacity out of `~/.config/foot/foot.ini`; drive the per-theme alpha from a `theme-set` hook (see `theming.md`)
 - "Change how workspace labels are rendered" -> Clone `omarchy.workspaces`, which switches the bar to `<username>.workspaces`, then edit the clone
 - "Lock after ten minutes" -> Set `idle.lock` to `600` in `~/.config/omarchy/shell.json`
 - "Reset shell/bar to defaults" -> `omarchy refresh shell`
