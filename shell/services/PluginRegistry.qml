@@ -31,6 +31,10 @@ QtObject {
   signal pluginLoadFailed(string id, string error)
   signal localPluginChanged(string id)
 
+  // Disabled only while a host-controlled plugin mutation is in progress.
+  // Events already buffered by inotify are ignored while false.
+  property bool localPluginWatchWanted: true
+
   // ---------------------------------------------------------------- helpers
 
   function isSafeEntryPoint(value) {
@@ -655,7 +659,7 @@ QtObject {
 
   property Process initProcess: Process {
     onExited: {
-      localPluginWatcher.running = true
+      if (registry.localPluginWatchWanted) localPluginWatcher.running = true
       registry.rescan()
     }
   }
@@ -674,16 +678,32 @@ QtObject {
     ]
     stdout: SplitParser {
       onRead: function(path) {
+        if (!registry.localPluginWatchWanted) return
         var pluginId = registry.localPluginIdForPath(path)
         if (pluginId) registry.localPluginChanged(pluginId)
       }
     }
-    onExited: localPluginWatcherRestart.restart()
+    onExited: {
+      if (registry.localPluginWatchWanted) localPluginWatcherRestart.restart()
+    }
   }
 
   property Timer localPluginWatcherRestart: Timer {
     interval: 1000
-    onTriggered: localPluginWatcher.running = true
+    onTriggered: {
+      if (registry.localPluginWatchWanted) localPluginWatcher.running = true
+    }
+  }
+
+  function setLocalPluginWatch(enabled) {
+    var want = !!enabled
+    registry.localPluginWatchWanted = want
+    if (!want) {
+      localPluginWatcherRestart.stop()
+      if (localPluginWatcher.running) localPluginWatcher.running = false
+      return
+    }
+    if (!localPluginWatcher.running) localPluginWatcher.running = true
   }
 
   function rescan() {
