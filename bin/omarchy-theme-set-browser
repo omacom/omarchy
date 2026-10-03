@@ -80,10 +80,13 @@ done
 wait "$policy_pid" || failed=1
 
 # Refresh each running browser in parallel, so one slow launch doesn't
-# serialize the rest.
+# serialize the rest. The policy on disk is what the next launch reads either
+# way, so a browser that never returns must not hold up the theme change, the
+# migration that called it, or the update running that migration. -k because a
+# browser that ignores TERM leaves plain timeout waiting as long as it does.
 refresh_pids=()
 for command in "${browsers_to_refresh[@]}"; do
-  "$command" --refresh-platform-policy --no-startup-window &>/dev/null &
+  timeout -k 2s 10s "$command" --refresh-platform-policy --no-startup-window &>/dev/null &
   refresh_pids+=("$!")
 done
 
