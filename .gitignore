@@ -4,3 +4,6 @@ __pycache__/
 *.pyc
 
 .claude/
+
+# Personal working notes — never committed
+private_notes/

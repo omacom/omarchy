@@ -20,9 +20,12 @@ o.bind("SUPER + DOWN", "Focus on below window", hl.dsp.focus({ direction = "d" }
 
 for workspace = 1, 10 do
   local key = "code:" .. tostring(workspace + 9)
-  o.bind("SUPER + " .. key, "Switch to workspace " .. workspace, hl.dsp.focus({ workspace = tostring(workspace) }))
-  o.bind("SUPER + SHIFT + " .. key, "Move window to workspace " .. workspace, hl.dsp.window.move({ workspace = tostring(workspace) }))
-  o.bind("SUPER + SHIFT + ALT + " .. key, "Move window silently to workspace " .. workspace, hl.dsp.window.move({ workspace = tostring(workspace), follow = false }))
+  -- Route through omarchy-switch-to-aw / omarchy-move-window-to-aw so that
+  -- global workspace mode (workspace-global.lua) is respected at runtime.
+  -- In local mode those scripts fall back to the equivalent raw hyprctl dispatch.
+  o.bind("SUPER + " .. key, "Switch to workspace " .. workspace, "omarchy-switch-to-aw " .. workspace)
+  o.bind("SUPER + SHIFT + " .. key, "Move window to workspace " .. workspace, "omarchy-move-window-to-aw " .. workspace)
+  o.bind("SUPER + SHIFT + ALT + " .. key, "Move window silently to workspace " .. workspace, "omarchy-move-window-to-aw --silent " .. workspace)
 end
 
 o.bind("SUPER + S", "Toggle scratchpad", hl.dsp.workspace.toggle_special("scratchpad"))
@@ -32,7 +35,11 @@ o.bind("SUPER + SHIFT + grave", "Move window to scratchpad", hl.dsp.window.move(
 
 o.bind("SUPER + TAB", "Next workspace", hl.dsp.focus({ workspace = "e+1" }))
 o.bind("SUPER + SHIFT + TAB", "Previous workspace", hl.dsp.focus({ workspace = "e-1" }))
-o.bind("SUPER + CTRL + TAB", "Former workspace", hl.dsp.focus({ workspace = "previous" }))
+-- With workspace-global on, stay on the focused monitor's history. Chosen here,
+-- not in the toggle, so personal overrides in hypr/bindings.lua still win.
+local global_workspaces = io.open(require("default.hypr.paths").state_home .. "/omarchy/toggles/hypr/workspace-global.lua", "r")
+if global_workspaces then global_workspaces:close() end
+o.bind("SUPER + CTRL + TAB", "Former workspace", hl.dsp.focus({ workspace = global_workspaces and "previous_per_monitor" or "previous" }))
 
 o.bind("SUPER + SHIFT + ALT + LEFT", "Move workspace to left monitor", hl.dsp.workspace.move({ monitor = "l" }))
 o.bind("SUPER + SHIFT + ALT + RIGHT", "Move workspace to right monitor", hl.dsp.workspace.move({ monitor = "r" }))

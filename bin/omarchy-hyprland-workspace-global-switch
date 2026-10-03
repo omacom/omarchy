@@ -1,0 +1,92 @@
+#!/bin/bash
+# omarchy:summary=Switch all monitors to the same workspace slot (global mode)
+# omarchy:args=<slot-number>
+# omarchy:hidden=true
+#
+# Switch ALL connected monitors to the given slot in global workspace mode.
+#
+# Reads stable monitor bases from ~/.local/state/omarchy/monitor-bases.json
+# (keyed by monitor *name*, not transient Hyprland id — see hyprwm/Hyprland#2601).
+#
+# For slot N, dispatches:
+#   hyprctl dispatch hl.dsp.focus({ workspace = "<base+N>" })
+# for each monitor's workspace (base+N), switching all monitors simultaneously.
+#
+# The focused monitor is always dispatched LAST so that keyboard focus and the
+# pointer remain on the monitor the user is actively using after the switch.
+#
+# This is called by omarchy-switch-to-aw when workspace-global.lua flag is active.
+# The event hook in workspace-global.lua will then confirm all monitors are synced.
+
+SLOT="${1:-}"
+if [[ -z "$SLOT" || ! "$SLOT" =~ ^([1-9]|10)$ ]]; then
+  echo "Usage: $0 <slot 1-10>" >&2
+  exit 1
+fi
+
+BASES_FILE="$HOME/.local/state/omarchy/monitor-bases.json"
+
+if [[ ! -f "$BASES_FILE" ]]; then
+  echo "omarchy-hyprland-workspace-global-switch: monitor-bases.json not found; run omarchy-monitor-base sync first" >&2
+  # Fallback: focus raw slot (local behavior)
+  exec hyprctl dispatch "hl.dsp.focus({ workspace = \"$SLOT\" })"
+fi
+
+# Identify the currently focused monitor so we can dispatch it last.
+# hyprctl activeworkspace -j reports the workspace on the focused monitor.
+FOCUSED_MONITOR=$(hyprctl activeworkspace -j 2>/dev/null | python3 -c "
+import json, sys
+try:
+    ws = json.load(sys.stdin)
+    print(ws.get('monitor', ''))
+except Exception:
+    print('')
+" 2>/dev/null)
+
+# Read all monitor bases and dispatch each monitor to its slot,
+# saving the focused monitor for last to preserve focus and pointer position.
+python3 - "$BASES_FILE" "$SLOT" "$FOCUSED_MONITOR" <<'PYEOF'
+import json, sys, subprocess
+
+bases_file, slot, focused_monitor = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+
+with open(bases_file) as f:
+    bases = json.load(f)
+
+if not bases:
+    # No bases — fall back to raw slot
+    subprocess.run(["hyprctl", "dispatch", f'hl.dsp.focus({{ workspace = "{slot}" }})'])
+    sys.exit(0)
+
+# Filter bases to only connected monitors so we don't dispatch to disconnected
+# saved monitors (which briefly creates a stray workspace on the focused monitor).
+# This mirrors what omarchy-ensure-workspaces already does.
+try:
+    live_result = subprocess.run(
+        ["hyprctl", "monitors", "-j"],
+        capture_output=True, text=True, check=True
+    )
+    live_monitors = {m["name"] for m in json.loads(live_result.stdout)}
+except Exception:
+    live_monitors = None  # On any error, fall back to using all saved bases
+
+# Sort all monitors by base (ascending), but move the focused monitor to the end
+# so that keyboard focus and the pointer land back on the user's active monitor.
+def sort_key(item):
+    name, base = item
+    return (1 if name == focused_monitor else 0, base)
+
+errors = 0
+for name, base in sorted(bases.items(), key=sort_key):
+    if live_monitors is not None and name not in live_monitors:
+        continue  # Skip disconnected monitors — avoids spurious workspace creation
+    target_ws = base + slot
+    result = subprocess.run(
+        ["hyprctl", "dispatch", f'hl.dsp.focus({{ workspace = "{target_ws}" }})'],
+        capture_output=True
+    )
+    if result.returncode != 0:
+        errors += 1
+
+sys.exit(0 if errors == 0 else 1)
+PYEOF
