@@ -29,10 +29,18 @@ assert(
   'overlay window draws nothing until the surface has grown'
 )
 
+// Changing screen recreates the layer surface. Recreated in the same step that
+// shows it, the surface came back on the bottom layer without keyboard focus,
+// so the first open on another monitor was invisible (#13562). The parked
+// surface follows focus instead, and never moves while shown.
 assert(
-  /onShownChanged: if \(shown\) targetScreen = focusedScreen\(\) \|\| targetScreen/.test(overlay) &&
+  /function followFocusedScreen\(\) \{\s*if \(!shown\) targetScreen = focusedScreen\(\) \|\| targetScreen\s*\}/.test(overlay) &&
+    /target: Hyprland\s*function onFocusedMonitorChanged\(\) \{ window\.followFocusedScreen\(\) \}/.test(overlay) &&
+    overlay.includes('Component.onCompleted: followFocusedScreen()') &&
+    overlay.includes('onShownChanged: Qt.callLater(followFocusedScreen)') &&
+    !/onShownChanged: if \(shown\)/.test(overlay) &&
     overlay.includes('screen: targetScreen'),
-  'overlay window follows the focused monitor each time it is shown'
+  'overlay window moves to the focused monitor while parked, never in the step that shows it'
 )
 
 const overlays = {

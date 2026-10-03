@@ -18,8 +18,10 @@ PanelWindow {
   property int shownKeyboardFocus: WlrKeyboardFocus.Exclusive
 
   // The surface no longer lands on the focused output by being mapped there,
-  // so it follows the focused monitor each time it is shown. Unset until the
-  // first show lets the compositor choose.
+  // so it follows the focused monitor. It moves while parked: changing screen
+  // recreates the layer surface, and one recreated in the same step that shows
+  // it came back on the bottom layer without keyboard focus, so the open was
+  // invisible and the next press closed it.
   property var targetScreen: null
   property Region emptyRegion: Region {}
 
@@ -32,7 +34,18 @@ PanelWindow {
     return null
   }
 
-  onShownChanged: if (shown) targetScreen = focusedScreen() || targetScreen
+  function followFocusedScreen() {
+    if (!shown) targetScreen = focusedScreen() || targetScreen
+  }
+
+  Component.onCompleted: followFocusedScreen()
+  // After the layer binding has settled, so a hidden surface parks on the bottom layer.
+  onShownChanged: Qt.callLater(followFocusedScreen)
+
+  Connections {
+    target: Hyprland
+    function onFocusedMonitorChanged() { window.followFocusedScreen() }
+  }
 
   visible: true
   screen: targetScreen
