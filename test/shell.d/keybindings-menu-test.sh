@@ -35,6 +35,7 @@ stub_hyprctl() {
     echo 'BINDS'
     echo '  ;;'
     echo '  devices) echo "active keymap: English (US)" ;;'
+    echo '  getoption) cat "$(dirname "$0")/${3#input:}" 2>/dev/null ;;'
     echo 'esac'
   } >"$stub_bin/hyprctl"
   chmod +x "$stub_bin/hyprctl"
@@ -130,6 +131,42 @@ rendered=$(keybindings)
 grep -q 'SUPER + ~  *→ Toggle scratchpad' <<<"$rendered" ||
   fail "a keycode resolves to the symbol printed on the key too" "$rendered"
 pass "a keycode resolves to the symbol printed on the key too"
+
+# A keycode reads as the symbol the configured layout puts there, not US QWERTY's.
+keycode_bind() {
+  printf 'bind\n\tmodmask: 64\n\tsubmap: \n\tkey: \n\tkeycode: %s\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: exec\n\targ: true\n' "$1" "$2"
+}
+
+stub_hyprctl <<BINDS
+$(keycode_bind 20 "Expand window left")
+BINDS
+echo '{"str": "be"}' >"$stub_bin/kb_layout"
+
+rendered=$(keybindings)
+grep -q 'SUPER + PARENRIGHT  *→ Expand window left' <<<"$rendered" ||
+  fail "a keycode resolves through the configured layout" "$rendered"
+pass "a keycode resolves through the configured layout"
+
+echo '{"str": "us"}' >"$stub_bin/kb_layout"
+echo '{"str": "dvorak"}' >"$stub_bin/kb_variant"
+
+rendered=$(keybindings)
+grep -q 'SUPER + BRACKETLEFT  *→ Expand window left' <<<"$rendered" ||
+  fail "a keycode resolves through the configured variant" "$rendered"
+rm "$stub_bin/kb_variant"
+pass "a keycode resolves through the configured variant"
+
+# Omarchy leads a non-Latin layout with us, and Hyprland binds against that first one.
+stub_hyprctl <<BINDS
+$(keycode_bind 34 "Make webcam overlay smaller")
+BINDS
+echo '{"str": "us,ru"}' >"$stub_bin/kb_layout"
+
+rendered=$(keybindings)
+grep -q 'SUPER + BRACKETLEFT  *→ Make webcam overlay smaller' <<<"$rendered" ||
+  fail "a keycode resolves through the first of several layouts" "$rendered"
+rm "$stub_bin/kb_layout"
+pass "a keycode resolves through the first of several layouts"
 
 # A chord refused for width opens a row of its own, and the next chord tries
 # that row rather than reaching back past it and printing out of order.
