@@ -89,6 +89,11 @@ grep -qx 'omarchy-notification-send -g 󰐱 Editing Cloned Plugin Original plugi
 pass "clone enables bar widgets and confirms the editable clone"
 
 clone_plugin omarchy.keyboard-layout >/dev/null
+keyboard="$TMPDIR/home/.config/omarchy/plugins/tester.keyboard-layout"
+for file in KeyboardLayout.qml keyboard/Keyboard.qml keyboard/Picker.qml keyboard/qmldir keyboard/LICENSE; do
+  [[ -f $keyboard/$file ]] || fail "keyboard clone is missing $file"
+done
+pass "keyboard clone includes the picker components and license"
 grep -qx 'omarchy-plugin-enable tester.keyboard-layout' "$CALLS" ||
   fail "clone does not enable a clone of a legacy string-form bar entry"
 pass "clone enables clones of legacy string-form bar entries"

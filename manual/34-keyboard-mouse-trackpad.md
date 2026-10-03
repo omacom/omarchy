@@ -1,5 +1,9 @@
 # Keyboard, Mouse, Trackpad
 
+Click the language label in the bar to choose a keyboard layout. Open **Edit layouts…** to add or remove layouts, search variants, choose the default for your next login, or choose a switching shortcut. You can keep up to four layouts. Changes apply immediately; switching languages does not change your login default. The label stays visible with one layout so you can add another.
+
+The picker preserves your Compose and Caps Lock options and leaves `input.lua` untouched. If several physical keyboards are connected, select the one you want to configure. Custom keymaps require manual configuration. These settings apply to your Hyprland session, not the console or disk-unlock screen.
+
 Hyprland lets you configure all your inputs in great detail. You can change the keyboard repeat to be supersonically fast or make the trackpad use natural scrolling. You change all of it in `~/.config/hypr/input.lua`, which you can also reach via _Setup > Input_ in the Omarchy menu (`Super + Space`). Anything you set there replaces Omarchy's defaults.
 
 Here's an example:
