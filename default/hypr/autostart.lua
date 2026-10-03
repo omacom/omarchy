@@ -1,4 +1,8 @@
 hl.on("hyprland.start", function()
+  -- Stamp the moment the desktop started, then announce the time taken to boot
+  -- once the notification server is up. Shows once per boot.
+  hl.exec_cmd("omarchy-system-boot-time --notify")
+
   -- Slow app launch fix -- set systemd vars before starting session services.
   hl.exec_cmd("systemctl --user import-environment $(env | cut -d'=' -f 1)")
   hl.exec_cmd("dbus-update-activation-environment --systemd --all")
