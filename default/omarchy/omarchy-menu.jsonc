@@ -99,6 +99,8 @@
   "trigger.toggle.window-gaps": {"icon":"","label":"Window Gaps","action":"omarchy-hyprland-window-gaps-toggle"},
   "trigger.toggle.animations": {"icon":"󰕟","label":"Animations","action":"omarchy-toggle-animations"},
   "trigger.toggle.one-window-ratio": {"icon":"","label":"1-Window Ratio","action":"omarchy-hyprland-window-single-square-aspect-toggle"},
+  "trigger.toggle.invert-desktop": {"icon":"󰌁","label":"Invert Desktop","action":"omarchy-toggle-invert desktop"},
+  "trigger.toggle.invert-window": {"icon":"󰌁","label":"Invert Window","action":"omarchy-toggle-invert window"},
   "trigger.tests.network-speedtest": {"icon":"󰓅","label":"Network Speed Test","action":"omarchy-shell shell summon omarchy.speedtest"},
   "trigger.tests.disk-speedtest": {"icon":"󰋊","label":"Disk Speed Test","action":"omarchy-shell shell summon omarchy.disk-speedtest"},
 
