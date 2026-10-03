@@ -26,6 +26,7 @@ The design goal is:
 | `/tmp/omarchy-update.log` | user | Transcript of `omarchy update`, used by `omarchy-update-analyze-logs`. |
 | `~/.local/state/omarchy/current/` | user | Generated active theme, selected theme name, and current background symlink. |
 | `~/.local/state/omarchy/migrations/` | user | Per-user migration markers. |
+| `~/.local/state/omarchy/migrations/.lock` | user | Serialize migration execution and marker writes for this user, including direct runs alongside an update. |
 | `~/.local/state/omarchy/reboot-required` | user | Optional reboot marker checked by `omarchy-update-restart`. |
 | `~/.local/state/omarchy/restart-*-required` | user | Optional service/app restart markers checked by `omarchy-update-restart`. The shell needs no marker: it is restarted unconditionally after every update. |
 
@@ -58,6 +59,8 @@ Migrations must be idempotent; if one user already applied a machine-wide repair
 the migration should no-op for other users.
 
 When invoked by the update, migrations share its single sudo authorization. The standalone migration runner has its own security changes in the migration-boundary PR; this update change does not establish that standalone boundary. Historical migrations remain strictly ordered.
+
+Execution takes a lock in the migration state directory (`OMARCHY_MIGRATION_STATE` when overridden). A concurrent runner waits, then checks the completion markers again before running anything. This lock is separate from the update lock, so an update can invoke migrations while holding its own lock. Migration children do not inherit the descriptor; background services cannot keep the queue locked after the runner exits. `--pending` only reads markers and does not wait for the lock. HUP, INT, or TERM sent only to the runner waits for its active foreground migration to exit before releasing the lock; that migration stays pending for the next run.
 
 For watchers and diagnostics, `omarchy-migrate --pending` prints pending
 migration names and exits `0` when any are pending. When no migrations are
