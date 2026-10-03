@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Services.Pam
 import Quickshell.Wayland
 import qs.Commons
+import qs.Ui
 
 Item {
   id: root
@@ -48,6 +49,16 @@ Item {
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
+  readonly property string fingerprintState: fingerprintConfigured ? fingerprintReader.readerState : "idle"
+  readonly property string fingerprintStatusText: {
+    switch (fingerprintState) {
+    case "matched": return "Unlocking…"
+    case "rejected": return fingerprintReader.result === "retry" ? "Couldn't read finger, try again" : "Not recognized, try again"
+    case "scanning": return "Identifying…"
+    case "waiting": return "Touch the sensor to unlock"
+    }
+    return ""
+  }
   readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
   readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
 
@@ -144,6 +155,7 @@ Item {
     failedAttempts = 0
     authenticatingPassword = false
     fingerprintAuthenticating = false
+    fingerprintReader.clear()
     fingerprintRetryTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
@@ -270,6 +282,7 @@ Item {
 
   function handleFingerprintFinished(result) {
     fingerprintAuthenticating = false
+    fingerprintReader.endVerify()
 
     if (!lockRequested) return
     if (result === PamResult.Success) {
@@ -324,6 +337,8 @@ Item {
         videoPosterPath: root.videoPosterPath
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured
+        fingerprintState: root.fingerprintState
+        fingerprintStatusText: root.fingerprintStatusText
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -400,6 +415,18 @@ Item {
     config: "omarchy-lock-fingerprint"
     user: root.userName
 
+    // pam_fprintd keeps the conversation running across its retries: an info
+    // message asks for a finger, an error message reports a rejected read.
+    // The D-Bus monitor usually says the same first; this covers it missing.
+    onPamMessage: {
+      if (!root.lockRequested || fingerprintPam.responseRequired) return
+      if (fingerprintPam.messageIsError) {
+        if (fingerprintReader.result === "") fingerprintReader.showResult("no-match")
+      } else {
+        fingerprintReader.needed = true
+      }
+    }
+
     onCompleted: function(result) {
       root.handleFingerprintFinished(result)
     }
@@ -408,6 +435,16 @@ Item {
       root.fingerprintAuthenticating = false
       if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
     }
+  }
+
+  // Live reader state while locked. Display only: unlocking is still decided
+  // by fingerprintPam. Touching the sensor or a rejected read lights a blanked
+  // screen, so the feedback is visible.
+  FingerprintReader {
+    id: fingerprintReader
+    active: root.lockRequested && root.fingerprintConfigured
+    onFingerLanded: root.runWake()
+    onVerdict: function(result) { if (result !== "match") root.runWake() }
   }
 
   // The lock only starts decoding its wallpaper once locked, and a machine
@@ -482,7 +519,7 @@ Item {
 
   Process {
     id: fingerprintCheckProc
-    command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1 && fprintd-list \"$USER\" 2>/dev/null | grep -qi finger; then echo yes; else echo no; fi"]
+    command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1 && fprintd-list \"$USER\" 2>/dev/null | grep -Eq '^[[:space:]]*-[[:space:]]*#[0-9]+:'; then echo yes; else echo no; fi"]
     stdout: StdioCollector { id: fingerprintCheckStdout; waitForEnd: true }
     onExited: {
       root.fingerprintConfigured = String(fingerprintCheckStdout.text || "").trim() === "yes"
