@@ -15,8 +15,22 @@ if gum confirm "Install Voxtype + AI model (~150MB) to enable dictation?"; then
   cp "$OMARCHY_PATH/default/voxtype/config.toml" ~/.config/voxtype/
 
   voxtype setup --download --no-post-install
-  if omarchy-hw-vulkan; then
-    voxtype setup gpu --enable || true
+  # Package post_install links a CPU binary. Repointing /usr/bin/voxtype needs
+  # root. Haswell's hasvk ICD is not a usable Whisper Vulkan device, and
+  # aarch64 packages ship no voxtype-vulkan binary. Only a Whisper CPU link
+  # is switched, so a re-run does not undo Vulkan, ONNX, or a manual disable.
+  voxtype_bin=${OMARCHY_VOXTYPE_BIN:-/usr/bin/voxtype}
+  voxtype_vulkan=${OMARCHY_VOXTYPE_VULKAN:-/usr/lib/voxtype/voxtype-vulkan}
+
+  if omarchy-hw-intel-haswell-gpu; then
+    echo "Using CPU dictation: Intel Haswell Vulkan lacks the required 16-bit storage."
+    sudo voxtype setup gpu --disable
+  elif omarchy-hw-vulkan && [[ -x $voxtype_vulkan ]]; then
+    case $(basename "$(readlink -f "$voxtype_bin")") in
+      voxtype-avx2 | voxtype-avx512)
+        sudo voxtype setup gpu --enable
+        ;;
+    esac
   fi
   voxtype setup systemd
 
