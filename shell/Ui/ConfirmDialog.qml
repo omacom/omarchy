@@ -94,8 +94,18 @@ Item {
 
               readonly property bool selected: root.selectedIndex === index
               readonly property bool destructive: index === 1
+              // Grow with the label past the old fixed 88px so long confirm
+              // strings (and translations) stay inside the frame; cap so both
+              // buttons still fit the card side by side.
+              readonly property int labelPadding: Style.space(12)
+              readonly property int minWidth: Style.space(88)
+              readonly property int maxWidth: {
+                var content = card.width - card.contentLeftInset - card.contentRightInset
+                var half = Math.floor((content - Style.space(10)) / 2)
+                return Math.max(minWidth, half)
+              }
 
-              width: Style.space(88)
+              width: Math.min(maxWidth, Math.max(minWidth, label.implicitWidth + labelPadding * 2))
               height: Style.space(34)
               color: selected
                 ? (destructive ? Util.alpha(Color.urgent, 0.22) : root.selectedBackground)
@@ -106,8 +116,12 @@ Item {
               radius: 0
 
               Text {
+                id: label
                 textFormat: Text.PlainText
                 anchors.centerIn: parent
+                width: Math.min(implicitWidth, parent.width - labelPadding * 2)
+                elide: Text.ElideRight
+                horizontalAlignment: Text.AlignHCenter
                 text: modelData
                 color: destructive ? (selected ? Color.urgent : root.foreground) : (selected ? root.selectedText : root.foreground)
                 font.family: root.fontFamily
