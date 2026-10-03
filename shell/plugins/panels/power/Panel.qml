@@ -20,10 +20,12 @@ Panel {
   property int profileIndex: 0
   property bool cursorActive: false
   readonly property bool showPercentage: setting("showPercentage", false) === true
-  // With the percentage shown the button paints a text block wider than an
+  readonly property bool hasProfileModifier: root.discharging && (root.activeProfile === "power-saver" || root.activeProfile === "performance")
+  readonly property bool hasModifier: root.hasProfileModifier || root.chargeThresholdActive
+  // With the percentage or modifier shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
   // icon-sized fraction of the slot the fallback assumes.
-  readonly property real openPanelIndicatorWidth: showPercentage && !button.vertical ? button.glyphPaintedWidth : 0
+  readonly property real openPanelIndicatorWidth: (showPercentage || root.hasModifier) && !button.vertical ? button.glyphPaintedWidth : 0
   readonly property bool batteryPresent: {
     var device = UPower.displayDevice
     return !!(device && device.isPresent)
@@ -34,7 +36,10 @@ Panel {
       Charging: UPowerDeviceState.Charging,
       Discharging: UPowerDeviceState.Discharging,
       FullyCharged: UPowerDeviceState.FullyCharged,
-      PendingCharge: UPowerDeviceState.PendingCharge
+      PendingCharge: UPowerDeviceState.PendingCharge,
+      // Some firmware reports a charge limit as PendingDischarge rather than
+      // PendingCharge while the laptop is connected to AC.
+      PendingDischarge: UPowerDeviceState.PendingDischarge
     }
   }
 
@@ -49,12 +54,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.activeProfile, root.batteryInfo.threshold)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates())
+    return Model.modeLabel(device, root.discharging, upowerStates(), root.batteryInfo.threshold)
   }
 
   function profileIcon(name) {
@@ -71,7 +76,7 @@ Panel {
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates())
+    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.batteryInfo.threshold)
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
@@ -229,6 +234,15 @@ Panel {
   }
 
   Timer { interval: 5000; running: root.opened; repeat: true; onTriggered: root.refresh() }
+  Timer {
+    interval: 15000
+    running: !root.opened && root.batteryPresent
+    repeat: true
+    onTriggered: {
+      if (!profilesProc.running) profilesProc.running = true
+      if (!root.discharging && !batteryProc.running) batteryProc.running = true
+    }
+  }
 
   // Rotate the status phrase while the panel is open and we're in a
   // rotating state (charging or on battery). The text swap is wrapped in a
@@ -272,6 +286,12 @@ Panel {
       }
     }
   }
+  Connections {
+    target: UPower
+    function onOnBatteryChanged() { root.refresh() }
+  }
+
+  Component.onCompleted: root.refresh()
 
   BarIconButton {
     id: button
@@ -280,7 +300,9 @@ Panel {
     text: root.showPercentage && !vertical
       ? Math.round(root.batteryFraction * 100) + "% " + root.batteryIcon()
       : root.batteryIcon()
-    slotSize: Style.bar.iconSlot * (root.showPercentage && !vertical ? 2 : 1)
+    slotSize: Style.bar.iconSlot * (!vertical
+      ? (root.showPercentage ? (root.hasModifier ? 2.5 : 2) : (root.hasModifier ? 1.5 : 1))
+      : 1)
     tooltipText: ""
     onPressed: function(b) {
       if (!root.batteryPresent) return
