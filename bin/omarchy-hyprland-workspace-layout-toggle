@@ -2,20 +2,45 @@
 
 # omarchy:summary=Toggle the layout on the current active workspace between dwindle and scrolling
 
-ACTIVE_WORKSPACE=$(hyprctl activeworkspace -j | jq -r '.id')
-[[ $ACTIVE_WORKSPACE =~ ^-?[0-9]+$ ]] || exit 1
-CURRENT_LAYOUT=$(hyprctl activeworkspace -j | jq -r '.tiledLayout')
+ws_json=$(hyprctl activeworkspace -j) || exit 1
+ws_id=$(jq -r '.id // empty' <<<"$ws_json")
+ws_name=$(jq -r '.name // empty' <<<"$ws_json")
+CURRENT_LAYOUT=$(jq -r '.tiledLayout // empty' <<<"$ws_json")
+
+[[ -n $ws_id && $ws_id != "null" ]] || exit 1
+
+# Hyprland's numeric workspaces report a digit name matching the id. Named
+# workspaces use a free-form name with a negative hash id that never matches a
+# workspace=N rule — key those by name:… instead (#12947).
+if [[ -z $ws_name || $ws_name == "null" ]]; then
+  ws_name=$ws_id
+fi
+
+if [[ $ws_name =~ ^[0-9]+$ ]]; then
+  ACTIVE_WORKSPACE=$ws_name
+  LAYOUT_KEY=$ws_name
+else
+  ACTIVE_WORKSPACE="name:$ws_name"
+  # A module name for the persisted rule file: require reads a dot as a path separator.
+  LAYOUT_KEY="name-$(printf '%s' "$ws_name" | sed -E 's/[^A-Za-z0-9_-]+/-/g; s/^-+//; s/-+$//')"
+  [[ -n $LAYOUT_KEY && $LAYOUT_KEY != "name-" ]] || LAYOUT_KEY="name-$ws_id"
+fi
+
 LAYOUTS_DIR="$HOME/.local/state/omarchy/workspace-layouts"
-LAYOUT_FILE="$LAYOUTS_DIR/$ACTIVE_WORKSPACE.lua"
+LAYOUT_FILE="$LAYOUTS_DIR/$LAYOUT_KEY.lua"
 
 case "$CURRENT_LAYOUT" in
   dwindle) NEW_LAYOUT=scrolling ;;
   *) NEW_LAYOUT=dwindle ;;
 esac
 
-mkdir -p "$LAYOUTS_DIR"
-printf 'hl.workspace_rule({ workspace = "%s", layout = "%s" })\n' "$ACTIVE_WORKSPACE" "$NEW_LAYOUT" >"$LAYOUT_FILE"
+# A workspace name can hold anything, and it lands inside a Lua string.
+LUA_WORKSPACE=${ACTIVE_WORKSPACE//\\/\\\\}
+LUA_WORKSPACE=${LUA_WORKSPACE//\"/\\\"}
 
-hyprctl eval "hl.workspace_rule({ workspace = \"$ACTIVE_WORKSPACE\", layout = \"$NEW_LAYOUT\" })" >/dev/null 2>&1 || \
+mkdir -p "$LAYOUTS_DIR"
+printf 'hl.workspace_rule({ workspace = "%s", layout = "%s" })\n' "$LUA_WORKSPACE" "$NEW_LAYOUT" >"$LAYOUT_FILE"
+
+hyprctl eval "hl.workspace_rule({ workspace = \"$LUA_WORKSPACE\", layout = \"$NEW_LAYOUT\" })" >/dev/null 2>&1 || \
   hyprctl keyword workspace "$ACTIVE_WORKSPACE, layout:$NEW_LAYOUT"
 omarchy-notification-send -g 󱂬 "Workspace layout set to $NEW_LAYOUT"
