@@ -1,0 +1,2 @@
+# Grant access only to Keychron raw config interfaces (RGB / Keychron Launcher).
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3434", PROGRAM=="/usr/lib/udev/omarchy-keychron-config-check %k", RESULT=="keychron-config", MODE="0660", TAG+="uaccess"
