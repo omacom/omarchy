@@ -61,15 +61,15 @@ directory_is_private() {
 
 root_owned_parent_chain() {
   local directory="$1"
-  local parent owner mode type canonical
+  local parent owner mode canonical
 
   parent=$(/usr/bin/dirname -- "$directory") || return 1
   while :; do
     [[ -d $parent && ! -L $parent ]] || return 1
     canonical=$(/usr/bin/readlink -e -- "$parent") || return 1
     [[ $canonical == "$parent" ]] || return 1
-    read -r owner mode type < <(/usr/bin/stat -Lc '%u %a %F' -- "$parent") || return 1
-    [[ $owner == 0 && $type == "directory" ]] || return 1
+    read -r owner mode < <(/usr/bin/stat -Lc '%u %a' -- "$parent") || return 1
+    [[ $owner == "0" ]] || return 1
     ! ((8#$mode & 022)) || return 1
     [[ $parent == / ]] && break
     parent=$(/usr/bin/dirname -- "$parent") || return 1

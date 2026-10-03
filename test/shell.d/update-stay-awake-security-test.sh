@@ -182,6 +182,36 @@ wait_dead "$valid_pid" || fail "valid inhibitor identity is stopped"
 [[ ! -e $state_dir ]] || fail "valid state is cleaned after stop"
 pass "valid XDG runtime uses private atomic inhibitor state"
 
+translated_locale=""
+locale_candidates=()
+while IFS= read -r candidate_locale; do
+  if [[ ${candidate_locale,,} == pt_br.utf* ]]; then
+    locale_candidates=("$candidate_locale" "${locale_candidates[@]}")
+  else
+    locale_candidates+=("$candidate_locale")
+  fi
+done < <(locale -a)
+
+for candidate_locale in "${locale_candidates[@]}"; do
+  if [[ $(LC_ALL="$candidate_locale" /usr/bin/stat -Lc '%F' -- "$runtime_dir") != "directory" ]]; then
+    translated_locale="$candidate_locale"
+    break
+  fi
+done
+
+if [[ -n $translated_locale ]]; then
+  LC_ALL="$translated_locale" run_helper start
+  [[ -s $state_dir/inhibit-pid ]] || fail "translated locale publishes inhibitor state"
+  read -r version locale_pid locale_start locale_owner locale_token <"$state_dir/inhibit-pid"
+  test_processes+=("$locale_pid")
+  LC_ALL="$translated_locale" run_helper stop
+  wait_dead "$locale_pid" || fail "translated locale inhibitor is stopped"
+  [[ ! -e $state_dir ]] || fail "translated locale state is cleaned after stop"
+  pass "translated locale ($translated_locale) supports inhibitor start and stop"
+else
+  skip "translated locale regression needs an installed locale with localized stat output"
+fi
+
 # omarchy update owns its one authorization; the helper must not revoke it.
 # Run on its own, the helper still starts and ends cold.
 sudo_events="$test_tmp/sudo-events"
