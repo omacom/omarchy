@@ -15,8 +15,9 @@ signature="test-signature"
 runtime_dir="$run_root/1000"
 
 dead_signature="dead-signature"
+bool_less_signature="bool-less-signature"
 
-mkdir -p "$runtime_dir/hypr/$signature" "$runtime_dir/hypr/$dead_signature"
+mkdir -p "$runtime_dir/hypr/$signature" "$runtime_dir/hypr/$dead_signature" "$runtime_dir/hypr/$bool_less_signature"
 
 cat >"$fake_hyprctl" <<'BASH'
 #!/bin/bash
@@ -27,6 +28,13 @@ case "$*" in
   *'--instance dead-signature '*)
     printf "Couldn't connect to %s/hypr/dead-signature/.socket.sock. (4)\n" "$XDG_RUNTIME_DIR"
     exit 4
+    ;;
+  *'--instance bool-less-signature '*)
+    # A Hyprland build whose getoption reply carries no .bool field: the value
+    # must never reach the state file, where resume would splice it raw into
+    # Lua (null is a nil global there, so the restore silently stops restoring
+    # while pause already flipped both options).
+    printf '{"option":"bool-less","set":true}\n'
     ;;
   *'getoption misc.disable_autoreload'*)
     printf '{"option":"misc.disable_autoreload","bool":%s,"set":true}\n' "${FAKE_DISABLE_AUTORELOAD:-false}"
@@ -58,6 +66,9 @@ pass "reload guard pauses live Hyprland reloads"
 [[ ! -s $test_tmp/pause-stderr ]] || fail "reload guard pauses dead Hyprland instances quietly" "$(cat "$test_tmp/pause-stderr")"
 pass "reload guard skips dead Hyprland instances quietly"
 
+[[ ! -e $state_dir/$bool_less_signature ]] || fail "reload guard stores no state when getoption answers without a bool"
+pass "reload guard skips Hyprland instances whose getoption has no bool"
+
 : >"$hyprctl_log"
 FAKE_HYPRCTL_LOG="$hyprctl_log" \
   HYPRCTL="$fake_hyprctl" \
@@ -69,6 +80,9 @@ FAKE_HYPRCTL_LOG="$hyprctl_log" \
 grep -F -- '--instance test-signature reload' "$hyprctl_log" >/dev/null || fail "reload guard forces one Hyprland reload after package transaction"
 grep -F 'hl.config({ misc = { disable_autoreload = false }, debug = { suppress_errors = false } })' "$hyprctl_log" >/dev/null || fail "reload guard restores previous Hyprland reload settings"
 pass "reload guard resumes live Hyprland reloads"
+
+grep -q 'null' "$hyprctl_log" && fail "reload guard never splices a null bool into Hyprland Lua"
+pass "reload guard splices only true/false bools into Hyprland Lua"
 
 # The modeless monitor recovery loop reloads on its own schedule, so it needs to
 # ask whether a transaction is in flight.
