@@ -402,8 +402,8 @@ Panel {
     // Match the old Waybar pulseaudio glyph set. The Material Design speaker
     // icons render visually smaller in JetBrainsMono Nerd Font.
     if (!sink || !sink.audio) return ""
-    if (isHeadphones(sink)) return "󰋋"
     if (outputMuted) return ""
+    if (isHeadphones(sink)) return "󰋋"
     var v = volume === undefined ? outputVolume : volume
     if (v >= 0.67) return ""
     if (v >= 0.34) return ""

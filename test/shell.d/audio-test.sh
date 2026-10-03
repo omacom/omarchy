@@ -6,6 +6,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
 const audio = requireFromRoot('shell/plugins/panels/audio/Model.js')
+const fs = require('fs')
+const panelSource = fs.readFileSync(root + '/shell/plugins/panels/audio/Panel.qml', 'utf8')
 
 assert(audio.isPlaybackStream({ isStream: true, isSink: true }), 'audio detects sink-backed playback streams')
 assert(audio.isPlaybackStream({ isStream: true, type: 'Stream/Output/Audio' }), 'audio detects typed playback streams')
@@ -28,6 +30,9 @@ assertEqual(
 const headphones = { ready: true, name: 'bluez_output.airpods', properties: { 'device.product.name': 'AirPods Headphones' } }
 assert(audio.isHeadphones(headphones), 'audio detects headphone devices')
 assertEqual(audio.sinkGlyph(headphones), '󰋋', 'audio uses headphone sink glyph')
+const outputIcon = panelSource.match(/function outputIcon\(volume\) \{[\s\S]*?\n  \}/)
+assert(outputIcon, 'audio panel has outputIcon')
+assert(outputIcon[0].indexOf('if (outputMuted)') < outputIcon[0].indexOf('if (isHeadphones(sink))'), 'audio checks mute before headphone glyph')
 assert(audio.sourceGlyph({ ready: true, properties: { 'device.icon-name': 'camera-webcam' } }).length > 0, 'audio maps webcam source glyph')
 
 assertEqual(audio.friendlyStreamLabel('spotify'), 'Spotify', 'audio normalizes known stream labels')
