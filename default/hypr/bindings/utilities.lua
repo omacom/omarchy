@@ -82,6 +82,73 @@ hl.on("layer.closed", function(layer)
   end
 end)
 
+-- Describe key, like describe-key (C-h k) in Emacs: press ? in the keybindings
+-- menu (SUPER + K), then the chord in question, which is described in a
+-- notification instead of run. omarchy-menu-keybindings starts it with
+-- `hyprctl eval 'o.describe_key()'`, so it needs no binding of its own.
+-- Hyprland's key event carries only the XKB keycode, so every key pressed in the
+-- submap is collected, modifiers included, and the chord is done when the first
+-- of them is released. Modifiers held down before the submap opened count too,
+-- read off hl.is_key_down when the chord is done.
+-- ESCAPE cancels, and a timer ends the submap so it can't keep swallowing keys.
+local describe_subscription, describe_timer
+local describe_pressed, describe_held = {}, {}
+
+local function describe_stop()
+  if describe_subscription then
+    describe_subscription:remove()
+    describe_subscription = nil
+  end
+  if describe_timer then
+    describe_timer:set_enabled(false)
+    describe_timer = nil
+  end
+  hl.dispatch(hl.dsp.submap("reset"))
+end
+
+local function describe_cancel()
+  describe_stop()
+  hl.exec_cmd("omarchy-menu-keybindings --describe cancel")
+end
+
+local function describe_on_key(keycode, _, state)
+  if state == 1 then
+    if not describe_held[keycode] then
+      describe_held[keycode] = true
+      table.insert(describe_pressed, keycode)
+    end
+  elseif describe_held[keycode] then
+    -- Held since before the submap opened, so never seen pressed: list them
+    -- first, so a key pressed in the submap is the one that names the chord.
+    local keycodes = {}
+    for code = 8, 255 do
+      if not describe_held[code] and hl.is_key_down(code) then
+        table.insert(keycodes, code)
+      end
+    end
+    for _, code in ipairs(describe_pressed) do
+      table.insert(keycodes, code)
+    end
+
+    describe_stop()
+    hl.exec_cmd("omarchy-menu-keybindings --describe " .. table.concat(keycodes, " "))
+  end
+end
+
+hl.define_submap("describe-key", function()
+  hl.bind("ESCAPE", describe_cancel)
+  hl.bind("catchall", hl.dsp.no_op())
+end)
+
+function o.describe_key()
+  describe_stop()
+  describe_pressed, describe_held = {}, {}
+  describe_subscription = hl.on("input.keyboard.key", describe_on_key)
+  describe_timer = hl.timer(describe_cancel, { timeout = 10000, type = "oneshot" })
+  hl.dispatch(hl.dsp.submap("describe-key"))
+  hl.exec_cmd("omarchy-menu-keybindings --describe")
+end
+
 o.bind("SUPER + CTRL + S", "Share", { menu = "share" })
 
 o.bind("SUPER + CTRL + PERIOD", "Transcode", "omarchy-transcode")

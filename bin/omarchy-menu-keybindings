@@ -1,6 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Display Hyprland keybindings defined in your configuration using an interactive search menu.
+# omarchy:args=[--print] [--describe [cancel|<keycode>...]]
+# omarchy:examples=omarchy menu keybindings --print | omarchy menu keybindings --print --describe 133 65
 
 # Hyprland's Lua config provider currently reports Lua binds as dispatcher
 # __lua in `hyprctl binds`. Keep a lightweight source-derived cache so the
@@ -655,14 +657,159 @@ dispatch_binding() {
   esac
 }
 
+# Describe key, like describe-key (C-h k) in Emacs. Pressing ? in the menu
+# runs o.describe_key(), which puts Hyprland in a submap that swallows the next
+# chord and hands its XKB keycodes here (see default/hypr/bindings/utilities.lua),
+# modifiers included, since Hyprland's key event carries no modifier state.
+
+# Print "<xkb keycode> <level 1 keysym>" for the keymap Hyprland matches
+# keysym bindings against: the first entry of kb_layout and kb_variant, with
+# kb_options applied, so a remapped key (ctrl:swapcaps) counts as what it acts as.
+binding_keymap_symbols() {
+  local layout variant options
+  local args=()
+
+  layout=$(hyprctl getoption input:kb_layout | awk -F': ' '/^str:/ { print $2 }')
+  variant=$(hyprctl getoption input:kb_variant | awk -F': ' '/^str:/ { print $2 }')
+  options=$(hyprctl getoption input:kb_options | awk -F': ' '/^str:/ { print $2 }')
+
+  layout=${layout%%,*}
+  variant=${variant%%,*}
+  [[ -n $layout ]] && args+=(--layout "$layout")
+  [[ -n $variant ]] && args+=(--variant "$variant")
+  [[ -n $options ]] && args+=(--options "$options")
+
+  xkbcli compile-keymap "${args[@]}" </dev/null | awk '
+    /xkb_keycodes/ { section = "codes"; next }
+    /xkb_symbols/  { section = "syms";  next }
+    section == "codes" && match($0, /<([A-Za-z0-9_+-]+)>\s*=\s*([0-9]+)\s*;/, m) { code[m[1]] = m[2] }
+    # A key with an explicit type spans lines: key <LFSH> { / type= ... / symbols[1]= [ Shift_L, ... ]
+    section == "syms" && match($0, /key\s*<([A-Za-z0-9_+-]+)>/, k) { current = k[1] }
+    section == "syms" && current != "" && !(current in sym) && match($0, /(symbols\[[0-9]+\]\s*=\s*|\{\s*)\[\s*([^, \]]+)/, m) { sym[current] = m[2] }
+    END { for (name in code) if (name in sym && sym[name] != "NoSymbol") print code[name], sym[name] }
+  '
+}
+
+# Print the chord the keycodes make on the first line, then what it runs, one
+# action per line, or nothing when it is not bound.
+describe_keycodes() {
+  local code sym key="" keycode="" last_sym="" last_code="" modmask=0 modifiers chord
+  declare -A symbols
+
+  while read -r code sym; do
+    symbols[$code]=$sym
+  done < <(binding_keymap_symbols)
+
+  for code in "$@"; do
+    sym=${symbols[$code]:-code:$code}
+    last_sym=$sym
+    last_code=$code
+
+    case $sym in
+      Shift_L | Shift_R) ((modmask |= 1)) ;;
+      Control_L | Control_R) ((modmask |= 4)) ;;
+      Alt_L | Alt_R | Meta_L | Meta_R) ((modmask |= 8)) ;;
+      Super_L | Super_R) ((modmask |= 64)) ;;
+      *)
+        key=$sym
+        keycode=$code
+        ;;
+    esac
+  done
+
+  # A modifier on its own is the key of its chord.
+  if [[ -z $key ]]; then
+    key=$last_sym
+    keycode=$last_code
+  fi
+
+  modifiers=$(modmask_to_text "$modmask")
+  chord="${modifiers:+$modifiers + }${key^^}"
+  [[ $key == "grave" ]] && chord="${modifiers:+$modifiers + }~"
+  printf '%s\n' "$chord"
+
+  # Match on the records before parse_keycodes names code: bindings, so a
+  # keycode binding matches by keycode and a keysym binding by keysym, whatever
+  # the layout calls the key.
+  build_lua_bind_cache
+  {
+    dynamic_bindings
+    static_bindings
+  } |
+    dedupe_binding_records |
+    awk -F, -v modifiers="$modifiers" -v key="$key" -v keycode="$keycode" '
+      $1 == modifiers && ($2 == "code:" keycode || toupper($2) == toupper(key) || ($2 == "~" && key == "grave"))
+    ' |
+    parse_keycodes |
+    parse_binding_records |
+    cut -f1 |
+    sed 's/^[^→]*→ //'
+}
+
+describe_notification_id_file() {
+  printf '%s\n' "${XDG_RUNTIME_DIR:-/tmp}/omarchy-describe-key.notification-id"
+}
+
+# Show a describe-key toast, replacing the previous one so the prompt turns
+# into the answer instead of stacking under it.
+describe_notify() {
+  local id_file previous_id new_id
+  local replace=()
+
+  id_file=$(describe_notification_id_file)
+  [[ -f $id_file ]] && read -r previous_id <"$id_file" 2>/dev/null
+  [[ $previous_id =~ ^[0-9]+$ ]] && replace=(-r "$previous_id")
+
+  new_id=$(omarchy-notification-send --app-name "Describe key" "${replace[@]}" -p "$@" 2>/dev/null) || true
+  [[ $new_id =~ ^[0-9]+$ ]] && printf '%s\n' "$new_id" >"$id_file"
+}
+
+describe_key() {
+  local print=$1
+  shift
+  local description chord actions
+
+  if (($# == 0)); then
+    rm -f "$(describe_notification_id_file)"
+    describe_notify -t 10000 "Describe key" "Press a key combination (Escape cancels)"
+  elif [[ $1 == "cancel" ]]; then
+    describe_notify -t 2000 "Describe key" "Cancelled"
+  else
+    description=$(describe_keycodes "$@")
+    chord=$(head -n1 <<<"$description")
+    actions=$(tail -n +2 <<<"$description")
+
+    if [[ $print == "true" ]]; then
+      printf '%s → %s\n' "$chord" "${actions:-Not bound}"
+    else
+      describe_notify "$chord" "${actions:-Not bound in Hyprland}"
+    fi
+  fi
+}
+
+print=false
 if [[ $1 == "--print" || $1 == "-p" ]]; then
+  print=true
+  shift
+fi
+
+if [[ $1 == "--describe" ]]; then
+  shift
+  describe_key "$print" "$@"
+elif [[ $print == "true" ]]; then
   output_keybindings
 else
   records=$(output_binding_records)
-  selection=$(cut -f1 <<<"$records" |
-    omarchy-menu-select 'Keybindings' -- --width 800 --height 500)
+  # --expect puts the key that closed the menu on the first line, empty for
+  # Enter, and the row on the second.
+  picked=$(cut -f1 <<<"$records" |
+    omarchy-menu-select 'Search keybindings, or ? to describe a key' -- --width 800 --height 500 --expect '?')
+  key=$(head -n1 <<<"$picked")
+  selection=$(sed -n 2p <<<"$picked")
 
-  if [[ -n $selection ]]; then
+  if [[ $key == "?" ]]; then
+    hyprctl eval 'o.describe_key()' >/dev/null
+  elif [[ -n $selection ]]; then
     record=$(awk -F '\t' -v selection="$selection" '$1 == selection { print; exit }' <<<"$records")
     dispatcher=$(cut -f2 <<<"$record")
     arg=$(cut -f3- <<<"$record")

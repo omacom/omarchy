@@ -60,6 +60,9 @@ Item {
   property string doneFile: ""
   property int dmenuWidth: 300
   property int dmenuMaxHeight: 0
+  // Typed characters that close a select menu like Enter does, reported back
+  // as the first line of the result (omarchy-menu-select --expect).
+  property var dmenuExpectKeys: []
   property bool requestActive: false
   property bool rowsLoaded: false
   property string activeMenu: "root"
@@ -114,7 +117,7 @@ Item {
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
     : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight, panel.height - Style.gapsOut * 2)
 
-  function finishRequest(selection) {
+  function finishRequest(selection, key) {
     if (!root.requestActive || !root.doneFile) {
       root.opened = false
       return
@@ -125,6 +128,10 @@ Item {
     root.requestActive = false
     root.selectionFile = ""
     root.doneFile = ""
+
+    // A caller that expects keys reads the closing key first, empty for Enter.
+    if (selection !== null && selection !== undefined && root.dmenuExpectKeys.length > 0)
+      selection = (key || "") + "\n" + selection
 
     if (selection === null || selection === undefined) {
       resultProc.command = ["bash", "-c", ": > " + Util.shellQuote(activeDoneFile)]
@@ -767,8 +774,7 @@ Item {
         return
       }
       if (index < 0 || index >= displayModel.count) return
-      var picked = displayModel.get(index)
-      root.applyDmenuSelection(picked.detail ? picked.label + "\t" + picked.detail : picked.label)
+      root.applyDmenuSelection(root.dmenuValue(index))
       return
     }
 
@@ -815,11 +821,16 @@ Item {
     if (root.appLibrary) root.appLibrary.remove(target.appId, target.label)
   }
 
-  function applyDmenuSelection(value) {
+  function dmenuValue(index) {
+    var picked = displayModel.get(index)
+    return picked.detail ? picked.label + "\t" + picked.detail : picked.label
+  }
+
+  function applyDmenuSelection(value, key) {
     applySerial = requestSerial
     opened = false
     filterText = ""
-    root.finishRequest(value)
+    root.finishRequest(value, key)
   }
 
   function applySelected(id, action) {
@@ -840,6 +851,7 @@ Item {
   function openExistingMenu(initialMenu) {
     requestSerial += 1
     mode = "menu"
+    dmenuExpectKeys = []
     requestActive = false
     selectionFile = ""
     doneFile = ""
@@ -871,6 +883,7 @@ Item {
     requestActive = !!doneFile
     dmenuWidth = Math.max(1, Number(payload.width || 300))
     dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
+    dmenuExpectKeys = mode === "select" && Array.isArray(payload.expectKeys) ? payload.expectKeys.map(String) : []
     activeMenu = "root"
     navStack = []
     filterText = ""
@@ -1131,6 +1144,11 @@ Item {
           } else if (event.key === Qt.Key_Escape) {
             if (root.filterText) root.setFilter("")
             else root.cancel()
+            event.accepted = true
+          } else if (root.mode === "select" && event.text && root.dmenuExpectKeys.indexOf(event.text) >= 0) {
+            // Before the filter takes typed text: an expected key closes the
+            // menu with the row under the cursor and says which key it was.
+            root.applyDmenuSelection(displayModel.count > 0 ? root.dmenuValue(root.cursorActive ? root.selectedIndex : 0) : "", event.text)
             event.accepted = true
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))

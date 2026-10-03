@@ -29,15 +29,32 @@ exec_bind() {
 stub_hyprctl() {
   {
     echo '#!/bin/bash'
+    echo "printf '%s\\n' \"\$*\" >>\"$tmpdir/hyprctl.log\""
     echo 'case "$1" in'
     echo '  binds) cat <<'"'"'BINDS'"'"''
     cat
     echo 'BINDS'
     echo '  ;;'
     echo '  devices) echo "active keymap: English (US)" ;;'
+    echo "  getoption) printf 'str: %s\\nset: true\\n' \"\$(cat \"$tmpdir/\${2#input:}\" 2>/dev/null)\" ;;"
     echo 'esac'
   } >"$stub_bin/hyprctl"
   chmod +x "$stub_bin/hyprctl"
+}
+
+# The keymap describe-key resolves keycodes through: kb_layout, kb_variant and
+# kb_options as Hyprland reports them.
+stub_keymap() {
+  printf '%s' "$1" >"$tmpdir/kb_layout"
+  printf '%s' "${2-}" >"$tmpdir/kb_variant"
+  printf '%s' "${3-}" >"$tmpdir/kb_options"
+}
+stub_keymap us
+
+describe() {
+  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+    XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-menu-keybindings" --print --describe "$@"
 }
 
 keybindings() {
@@ -232,3 +249,92 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# Describe key gets the XKB keycodes of a chord, modifiers included, in the order
+# they were pressed: 133 is Super, 50 Shift, 36 Return.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + RETURN" "Terminal")
+$(lua_bind 65 "SUPER SHIFT + RETURN" "Browser")
+$(exec_bind 64 "SUPER + grave" "Toggle scratchpad" "true")
+BINDS
+
+[[ $(describe 133 36) == "SUPER + RETURN → Terminal" ]] ||
+  fail "describe key names the chord and what it runs" "$(describe 133 36)"
+[[ $(describe 50 133 36) == "SUPER SHIFT + RETURN → Browser" ]] ||
+  fail "describe key reads modifiers pressed in any order" "$(describe 50 133 36)"
+[[ $(describe 133 49) == "SUPER + ~ → Toggle scratchpad" ]] ||
+  fail "describe key names the grave key the way the menu does" "$(describe 133 49)"
+[[ $(describe 133 38) == "SUPER + A → Not bound" ]] ||
+  fail "describe key says so when a chord is not bound" "$(describe 133 38)"
+pass "describe key names the chord and what it runs"
+
+# On a Swedish keyboard the key right of 0 (keycode 20) types plus, and the
+# minus key sits by right Shift (keycode 61). A keycode bind has to match its
+# key and a keysym bind the key that types it, without the menu's us names for
+# keycodes ("code:20" reads as MINUS there) mixing the two up.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + code:20" "Expand window left")
+$(lua_bind 64 "SUPER + MINUS" "Zoom out")
+BINDS
+stub_keymap se
+
+[[ $(describe 133 20) == "SUPER + PLUS → Expand window left" ]] ||
+  fail "a keycode bind matches its own key on any layout" "$(describe 133 20)"
+[[ $(describe 133 61) == "SUPER + MINUS → Zoom out" ]] ||
+  fail "a keysym bind matches the key that types it on the layout" "$(describe 133 61)"
+pass "describe key matches keycode and keysym binds on a non-us layout"
+
+# A remapped modifier is what it acts as: with ctrl:swapcaps, Caps Lock
+# (keycode 66) is Ctrl and the key labeled Ctrl (37) is not.
+stub_hyprctl <<BINDS
+$(exec_bind 68 "SUPER CTRL + Q" "Calculator" "omacalc")
+BINDS
+stub_keymap us "" "ctrl:swapcaps"
+
+[[ $(describe 133 66 24) == "SUPER CTRL + Q → Calculator" ]] ||
+  fail "a remapped key counts as the modifier it acts as" "$(describe 133 66 24)"
+[[ $(describe 133 37 24) == "SUPER + Q → Not bound" ]] ||
+  fail "a key remapped away from a modifier no longer counts as one" "$(describe 133 37 24)"
+pass "describe key follows remapped modifiers"
+
+# In the menu, ? closes it and starts describe mode through the Lua function the
+# Hyprland config defines, while Enter still runs the row. The stub menu answers
+# the way omarchy-menu-select --expect does: the closing key, then the row.
+cat >"$stub_bin/omarchy-menu-select" <<STUB
+#!/bin/bash
+printf '%s\n' "\$*" >"$tmpdir/menu-args"
+cat >/dev/null
+cat "$tmpdir/menu-reply"
+STUB
+chmod +x "$stub_bin/omarchy-menu-select"
+
+menu() {
+  rm -f "$tmpdir/hyprctl.log"
+  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+    XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-menu-keybindings"
+}
+
+stub_hyprctl <<BINDS
+$(exec_bind 68 "SUPER CTRL + Q" "Calculator" "omacalc")
+BINDS
+stub_keymap us
+row=$(keybindings | grep '→ Calculator$')
+
+printf '?\n%s\n' "$row" >"$tmpdir/menu-reply"
+menu
+grep -q -- "--expect ?" "$tmpdir/menu-args" ||
+  fail "the keybindings menu asks to hear about ?" "$(cat "$tmpdir/menu-args")"
+grep -qx "eval o.describe_key()" "$tmpdir/hyprctl.log" ||
+  fail "? in the keybindings menu starts describe mode" "$(cat "$tmpdir/hyprctl.log")"
+! grep -q "omacalc" "$tmpdir/hyprctl.log" ||
+  fail "? in the keybindings menu does not run the row under the cursor" "$(cat "$tmpdir/hyprctl.log")"
+pass "? in the keybindings menu starts describe mode"
+
+printf '\n%s\n' "$row" >"$tmpdir/menu-reply"
+menu
+grep -q "omacalc" "$tmpdir/hyprctl.log" ||
+  fail "Enter in the keybindings menu still runs the row" "$(cat "$tmpdir/hyprctl.log")"
+! grep -q "describe_key" "$tmpdir/hyprctl.log" ||
+  fail "Enter in the keybindings menu does not start describe mode" "$(cat "$tmpdir/hyprctl.log")"
+pass "Enter in the keybindings menu still runs the row"

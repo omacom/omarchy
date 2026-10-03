@@ -516,6 +516,25 @@ assert(
   /\(event\.key === Qt\.Key_Backspace \|\| event\.key === Qt\.Key_Left\) && !root\.filterText[\s\S]*root\.goBack\(\)/.test(menuQml),
   'menu Left key follows empty-filter Backspace navigation'
 )
+// omarchy-menu-select --expect: a typed key the caller named closes a select
+// menu ahead of the filter, and comes back first so the caller knows which.
+assert(
+  /dmenuExpectKeys = mode === "select" && Array\.isArray\(payload\.expectKeys\)/.test(menuQml)
+    && /mode = "menu"\s*\n\s*dmenuExpectKeys = \[\]/.test(menuQml),
+  'menu reads expected keys for a select request and forgets them for any other menu'
+)
+assert(
+  /root\.mode === "select" && event\.text && root\.dmenuExpectKeys\.indexOf\(event\.text\) >= 0\)[\s\S]*?root\.applyDmenuSelection\([^\n]*, event\.text\)[\s\S]*?Util\.editsFilter[\s\S]*?root\.setFilter\(root\.filterText \+ event\.text\)/.test(menuQml),
+  'menu lets an expected key close a select menu before the filter takes typed text'
+)
+assert(
+  /if \(selection !== null && selection !== undefined && root\.dmenuExpectKeys\.length > 0\)\s*\n\s*selection = \(key \|\| ""\) \+ "\\n" \+ selection/.test(menuQml),
+  'menu reports the closing key first, empty for Enter, only to callers that expect keys'
+)
+assert(
+  /event\.key === Qt\.Key_Return \|\| event\.key === Qt\.Key_Enter \|\| event\.key === Qt\.Key_Right\)/.test(menuQml),
+  'menu keeps Right picking like Enter'
+)
 assert(
   /PointerMoveGate\s*\{[\s\S]*id: pointerGate[\s\S]*referenceItem: card[\s\S]*\}/.test(menuQml),
   'menu uses shared pointer movement gate in card coordinates'
