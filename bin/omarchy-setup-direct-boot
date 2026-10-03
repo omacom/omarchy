@@ -1,19 +1,121 @@
 #!/bin/bash
 
 # omarchy:summary=Add or remove an EFI boot entry for the Omarchy UKI, allowing the system to boot directly
+# omarchy:args=[--refresh]
+# omarchy:examples=omarchy-setup-direct-boot | omarchy-setup-direct-boot --refresh
 # omarchy:requires-sudo=true
 
-if [[ ! -d /sys/firmware/efi ]]; then
+# --refresh repoints an existing entry at the UKI Limine boots first, without
+# prompting, and does nothing when direct boot is not set up. Each kernel has its
+# own omarchy_<kernel>.efi, so an entry does not follow a new default kernel.
+
+root="${OMARCHY_DIRECT_BOOT_ROOT:-}"
+refresh=false
+
+if [[ ${1:-} == "--refresh" ]]; then
+  refresh=true
+fi
+
+entry_pattern="^Boot[0-9A-Fa-f]+\*? Omarchy([[:space:]]|$)"
+
+# The UKI of the first kernel in BOOT_ORDER, reading config in limine-entry-tool's
+# order so the last assignment wins.
+preferred_uki() {
+  local ukis=() boot_order="" patterns=() pattern uki kernel conf line
+
+  mapfile -t ukis < <(sudo find "$root/boot/EFI/Linux/" -maxdepth 1 -name "omarchy_*.efi" -printf "%f\n" 2>/dev/null | sort)
+
+  for conf in "$root"/usr/share/limine-entry-tool.d/*.conf "$root/etc/limine-entry-tool.conf" "$root"/etc/limine-entry-tool.d/*.conf "$root/etc/default/limine"; do
+    [[ -f $conf ]] || continue
+    line=$(sed -nE 's/^[[:space:]]*BOOT_ORDER[[:space:]]*=[[:space:]]*"([^"]*)".*/\1/p' "$conf" | tail -1)
+    [[ -n $line ]] && boot_order=$line
+  done
+
+  IFS=',' read -ra patterns <<<"$boot_order"
+  for pattern in "${patterns[@]}"; do
+    read -r pattern <<<"$pattern"
+
+    for uki in "${ukis[@]}"; do
+      kernel=${uki#omarchy_}
+      kernel=${kernel%.efi}
+
+      if [[ -n $pattern && $kernel == $pattern ]]; then
+        echo "$uki"
+        return
+      fi
+    done
+  done
+
+  if (( ${#ukis[@]} > 0 )); then
+    echo "${ukis[0]}"
+  fi
+}
+
+create_entry() {
+  local uki_file="$1" boot_source disk part
+
+  boot_source=$(findmnt -n -o SOURCE /boot)
+  disk=$(echo "$boot_source" | sed 's/p\?[0-9]*$//')
+  part=$(echo "$boot_source" | grep -o 'p\?[0-9]*$' | sed 's/^p//')
+
+  sudo efibootmgr --create \
+    --disk "$disk" \
+    --part "$part" \
+    --label "Omarchy" \
+    --loader "\\EFI\\Linux\\$uki_file"
+}
+
+if [[ ! -d $root/sys/firmware/efi ]]; then
+  [[ $refresh == "true" ]] && exit 0
   echo "Error: System is not booted in UEFI mode" >&2
   exit 1
 fi
 
 if ! efibootmgr &>/dev/null; then
+  [[ $refresh == "true" ]] && exit 0
   echo "Error: efibootmgr is not available or not functional" >&2
   exit 1
 fi
 
-bios_vendor=$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)
+existing_entry=$(efibootmgr | grep -E "$entry_pattern" | head -1)
+
+if [[ $refresh == "true" ]]; then
+  [[ -n $existing_entry ]] || exit 0
+
+  boot_num=$(echo "$existing_entry" | sed -n 's/^Boot\([0-9A-Fa-f]\+\).*/\1/p')
+  # Firmware may report the loader path in upper case.
+  current_uki=${existing_entry##*\\}
+  current_uki=${current_uki%)}
+  uki_file=$(preferred_uki)
+
+  # Leave entries that point outside the Omarchy UKIs, or already point right.
+  [[ ${current_uki,,} == omarchy_*.efi ]] || exit 0
+  [[ -n $uki_file && ${current_uki,,} != "${uki_file,,}" ]] || exit 0
+
+  echo "Pointing direct boot at $uki_file instead of $current_uki"
+
+  # Create the new entry before deleting the old one so an Omarchy entry always
+  # exists, then give it the old entry's place in the boot order.
+  boot_order=$(efibootmgr | sed -n 's/^BootOrder: //p')
+  create_entry "$uki_file" >/dev/null
+  new_num=$(efibootmgr | grep -E "$entry_pattern" | grep -vi "^Boot$boot_num" | head -1 | sed -n 's/^Boot\([0-9A-Fa-f]\+\).*/\1/p')
+
+  if [[ -z $new_num ]]; then
+    echo "Error: Could not create an EFI boot entry for $uki_file" >&2
+    exit 1
+  fi
+
+  sudo efibootmgr --bootnum "$boot_num" --delete-bootnum >/dev/null
+
+  if [[ -n $boot_order ]]; then
+    sudo efibootmgr --bootorder "$(echo "$boot_order" | sed -E "s/(^|,)$boot_num(,|$)/\1$new_num\2/")" >/dev/null
+  fi
+
+  omarchy-state set reboot-required
+  exit 0
+fi
+
+bios_vendor=$(cat "$root/sys/class/dmi/id/bios_vendor" 2>/dev/null)
 
 case "${bios_vendor,,}" in
   *"american megatrends"*)
@@ -26,8 +128,6 @@ case "${bios_vendor,,}" in
     ;;
 esac
 
-existing_entry=$(efibootmgr | grep -E "^Boot[0-9A-Fa-f]+\*? Omarchy([[:space:]]|$)" | head -1)
-
 if [[ -n $existing_entry ]]; then
   boot_num=$(echo "$existing_entry" | sed -n 's/^Boot\([0-9A-Fa-f]\+\).*/\1/p')
 
@@ -38,24 +138,15 @@ if [[ -n $existing_entry ]]; then
 
   exit 0
 else
-  uki_file=$(sudo find /boot/EFI/Linux/ -name "omarchy*.efi" -printf "%f\n" 2>/dev/null | head -1)
+  uki_file=$(preferred_uki)
 
   if [[ -z $uki_file ]]; then
     echo "Error: No Omarchy UKI found in /boot/EFI/Linux/" >&2
     exit 1
   fi
 
-  boot_source=$(findmnt -n -o SOURCE /boot)
-  disk=$(echo "$boot_source" | sed 's/p\?[0-9]*$//')
-  part=$(echo "$boot_source" | grep -o 'p\?[0-9]*$' | sed 's/^p//')
-
   if gum confirm "Setup direct boot (so snapshot booting must be done via bios)?"; then
     echo "Creating EFI boot entry for $uki_file"
-
-    sudo efibootmgr --create \
-      --disk "$disk" \
-      --part "$part" \
-      --label "Omarchy" \
-      --loader "\\EFI\\Linux\\$uki_file"
+    create_entry "$uki_file"
   fi
 fi
