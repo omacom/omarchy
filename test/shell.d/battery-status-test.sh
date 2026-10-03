@@ -55,6 +55,17 @@ grep -Fx $'rate\t7.3W' <<<"$shell_output" >/dev/null ||
   fail "battery status falls back to UPower when the sysfs rate is implausible" "$shell_output"
 pass "battery status falls back to UPower when the sysfs rate is implausible"
 
+# Drivers following the power-supply ABI report discharge as negative current;
+# a plausible reading is still shown, as its magnitude.
+printf -- '-900000\n' >"$tmp_dir/power/BAT0/current_now"
+printf '12000000\n' >"$tmp_dir/power/BAT0/voltage_now"
+
+shell_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+
+grep -Fx $'rate\t10.8W' <<<"$shell_output" >/dev/null ||
+  fail "battery status shows a negative sysfs discharge rate as its magnitude" "$shell_output"
+pass "battery status shows a negative sysfs discharge rate as its magnitude"
+
 # A plausible load step must still come through: the only remaining guard is
 # the absolute cap, not how far sysfs sits from UPower's lagging rate.
 printf '60000000\n' >"$tmp_dir/power/BAT0/power_now"

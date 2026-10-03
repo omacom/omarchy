@@ -60,12 +60,14 @@ fi
 if [[ -n $sysfs_rate ]]; then
   # Some firmware reports current as an unsigned 16-bit field, turning a ~0.5 A
   # draw into a ~-1100 W reading. Keep UPower's rate when the sysfs value is
-  # beyond any laptop's draw.
-  if awk -v sysfs="$sysfs_rate" 'BEGIN {
+  # beyond any laptop's draw. Drivers following the power-supply ABI report
+  # discharge as negative current, so keep the magnitude; state carries the sign.
+  if sysfs_magnitude=$(awk -v sysfs="$sysfs_rate" 'BEGIN {
     s = sysfs < 0 ? -sysfs : sysfs
-    exit !(s <= 200)
-  }'; then
-    power_rate_raw=$sysfs_rate
+    if (s > 200) exit 1
+    print s
+  }'); then
+    power_rate_raw=$sysfs_magnitude
   fi
 fi
 
