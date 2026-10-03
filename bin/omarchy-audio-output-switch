@@ -5,6 +5,46 @@
 sinks=$(pactl -f json list sinks | jq '[.[] | select((.ports | length == 0) or ([.ports[]? | .availability != "not available"] | any))]')
 sinks_count=$(echo "$sinks" | jq '. | length')
 
+if (( sinks_count <= 1 )); then
+  # Swap only the output half of the profile, on the card behind the lone sink, and only to a profile with something plugged in
+  sink_card=$(echo "$sinks" | jq -r '.[0].properties."device.name" // empty')
+  card_swap=$(pactl -f json list cards | jq -r --arg card "$sink_card" '
+    [.[] | select((.name | startswith("alsa_card")) and ($card == "" or .name == $card))
+      | .active_profile as $active
+      | (if ($active | contains("output:analog-stereo")) then ($active | sub("output:analog-stereo"; "output:hdmi-stereo"))
+         elif ($active | contains("output:hdmi-stereo")) then ($active | sub("output:hdmi-stereo"; "output:analog-stereo"))
+         else empty end) as $profile
+      | select(.profiles[$profile].available == true)
+      | "\(.name)\t\($profile)"][0] // empty')
+
+  if [[ -n $card_swap ]]; then
+    IFS=$'\t' read -r card next_profile <<<"$card_swap"
+
+    was_playing=false
+    if command -v playerctl >/dev/null 2>&1 && [[ $(playerctl status 2>/dev/null) == "Playing" ]]; then
+      was_playing=true
+    fi
+
+    if [[ $next_profile == *"output:hdmi-stereo"* ]]; then
+      if pactl set-card-profile "$card" "$next_profile" 2>/dev/null; then
+        omarchy-swayosd-client \
+          --custom-message "Digital Output (HDMI)" \
+          --custom-icon "video-display"
+        [[ $was_playing == true ]] && sleep 0.5 && playerctl play >/dev/null 2>&1
+        exit 0
+      fi
+    else
+      if pactl set-card-profile "$card" "$next_profile" 2>/dev/null; then
+        omarchy-swayosd-client \
+          --custom-message "Analog Output (Headphones)" \
+          --custom-icon "audio-headphones"
+        [[ $was_playing == true ]] && sleep 0.5 && playerctl play >/dev/null 2>&1
+        exit 0
+      fi
+    fi
+  fi
+fi
+
 if (( sinks_count == 0 )); then
   omarchy-swayosd-client --custom-message "No audio devices found"
   exit 1
