@@ -24,6 +24,7 @@ linux-firmware
 linux-omarchy
 linux-omarchy-headers
 macbook12-spi-driver-dkms
+macbook12-audio-driver-dkms
 nvidia-580xx-dkms
 nvidia-dkms
 nvidia-open-dkms
