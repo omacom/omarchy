@@ -62,6 +62,25 @@ Item {
     }
     return value
   }
+  function currentIndex() {
+    for (var i = 0; i < options.length; i++) {
+      if (optionValue(options[i]) === value) return i
+    }
+    return -1
+  }
+
+  // Moves the selection by `direction` steps (±1 per wheel notch) without
+  // opening the popup. Clamped, not wrapped — same as the rest of the kit's
+  // wheel-adjustable controls (e.g. PanelSlider).
+  function stepSelection(direction) {
+    if (options.length === 0) return
+    var idx = Math.max(0, currentIndex())
+    idx = Math.max(0, Math.min(options.length - 1, idx + direction))
+    var v = optionValue(options[idx])
+    if (v === value) return
+    value = v
+    changed(v)
+  }
 
   implicitWidth: Style.spacing.dropdownWidth
   implicitHeight: showLabel && label !== "" ? rowHeight + Style.spacing.huge : rowHeight
@@ -141,6 +160,12 @@ Item {
         onClicked: {
           trigger.forceActiveFocus()
           popup.opened ? popup.close() : popup.open()
+        }
+        // Scroll over the closed trigger to cycle the selection without
+        // opening the popup. One notch per wheel event, same as PanelSlider.
+        onWheel: function(wheel) {
+          if (root.popupOpen) return
+          root.stepSelection(wheel.angleDelta.y > 0 ? 1 : -1)
         }
       }
 
