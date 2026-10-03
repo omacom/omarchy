@@ -63,6 +63,12 @@ if [[ -n ${agent_installer:-} ]]; then
   agent_present() { "$agent_installer" --check; }
   agent_install() { "$agent_installer" --now; }
 else
+  # Agents ship several builds a week, so mise's release cooldown would hold a
+  # new version back for days after it ships. Exported rather than set on the
+  # install line alone, so the probe resolves the same version the install
+  # activates. The installers above do not go through mise.
+  export MISE_MINIMUM_RELEASE_AGE=0
+
   # Anything at the wrapper's path other than the wrapper is the user's own
   # install, such as the symlink Cursor's installer leaves. A mise copy would
   # only shadow it, since the mise shims precede ~/.local/bin on PATH.
