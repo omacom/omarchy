@@ -27,7 +27,7 @@ browser_command() {
   for data_dir in "${data_dirs[@]}"; do
     [[ -r $data_dir/applications/$1 ]] || continue
     command=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$data_dir/applications/$1" | head -1)
-    if [[ -n $command && $command != env ]] && command -v "$command" >/dev/null; then
+    if [[ -n $command && ${command##*/} != "env" ]] && command -v "$command" >/dev/null; then
       echo "$command"
       return 0
     fi

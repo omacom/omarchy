@@ -87,6 +87,7 @@ pass "web app prefers a Chromium-based default browser"
 
 # A wrapper entry cannot receive --app; the next installed browser is used.
 desktop_entry "$system_apps/google-chrome.desktop" "env CHROME_FLAG=1 google-chrome-stable"
+desktop_entry "$system_apps/microsoft-edge.desktop" "/usr/bin/env CHROME_FLAG=1 microsoft-edge-stable"
 desktop_entry "$system_apps/vivaldi-stable.desktop" vivaldi-stable
 rm "$system_apps/helium.desktop" "$system_apps/brave-browser.desktop"
 launch_webapp zen.desktop || fail "web app launch skips wrapper entries" "$(cat "$scratch/err")"
