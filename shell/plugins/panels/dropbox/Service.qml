@@ -98,7 +98,7 @@ Item {
     _loginError = ""
     _loginUrlOpened = false
     actionStatus = "Starting Dropbox login…"
-    loginProcess.command = ["dropbox-cli", "start"]
+    loginProcess.command = ["uwsm-app", "--", "dropbox-cli", "start"]
     loginProcess.running = true
   }
 
@@ -107,7 +107,7 @@ Item {
   }
 
   function resume() {
-    runControl(["dropbox-cli", "start"], 1)
+    runControl(["uwsm-app", "--", "dropbox-cli", "start"], 1)
   }
 
   function toggleRunning() {
