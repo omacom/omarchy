@@ -43,6 +43,8 @@ EOF
 if [[ -x /usr/bin/fprintd-list ]] &&
   /usr/bin/fprintd-list "$target_user" 2>/dev/null | grep -qi finger; then
   echo "Configuring lock screen fingerprint authentication..."
+  # No lid gate: skipping pam_fprintd on this stack is unlock success. Lid
+  # handling for fingerprint belongs in the lock service, not PAM.
   as_root tee /etc/pam.d/omarchy-lock-fingerprint >/dev/null <<'EOF'
 #%PAM-1.0
 auth       required                    pam_fprintd.so
