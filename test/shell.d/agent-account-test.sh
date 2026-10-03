@@ -355,6 +355,20 @@ grep -qx "@@omarchy done Signed in to Claude again." "$test_tmp/reauth-output" |
 [[ $(omarchy-agent-account-list claude --json | jq '.[0].accounts | length') == "$before" ]] || fail "--reauth adds no account"
 grep -qx -- "--private https://claude.com/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" || fail "--reauth of an added account uses a private window"
 
+# --reauth without an account is a mistake, not a request to add one.
+: >"$OMARCHY_TEST_BROWSER_LOG"
+before=$(omarchy-agent-account-list claude --json | jq '.[0].accounts | length')
+for args in "--reauth" "--reauth --events"; do
+  # shellcheck disable=SC2086
+  if OMARCHY_TEST_LOGIN_UUID=u-stray OMARCHY_TEST_LOGIN_EMAIL=stray@example.com \
+    omarchy-agent-account-add $args </dev/null >/dev/null 2>&1; then
+    fail "--reauth needs an account: $args"
+  fi
+done
+[[ $(omarchy-agent-account-list claude --json | jq '.[0].accounts | length') == "$before" && ! -s $OMARCHY_TEST_BROWSER_LOG ]] ||
+  fail "--reauth without an account adds nothing and opens no sign-in"
+pass "--reauth without an account is refused"
+
 : >"$OMARCHY_TEST_BROWSER_LOG"
 OMARCHY_TEST_LOGIN_UUID=u-main OMARCHY_TEST_LOGIN_EMAIL=me@example.com \
   omarchy-agent-account-add --reauth main claude </dev/null >/dev/null
