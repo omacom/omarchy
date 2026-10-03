@@ -1,0 +1,93 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle low-latency audio for recording and playing instruments
+# omarchy:args=[toggle|on|off|--status]
+# omarchy:examples=omarchy toggle low-latency-audio | omarchy toggle low-latency-audio on | omarchy toggle low-latency-audio --status
+
+# Forces PipeWire's graph to a small buffer, like the buffer size in macOS's
+# Audio MIDI Setup. It is a runtime setting: nothing restarts, playback carries
+# on, and a new session starts back on PipeWire's power-friendly default.
+QUANTUM=256
+
+forced_quantum() {
+  local output
+  output=$(pw-metadata -n settings 0 clock.force-quantum 2>/dev/null) || return 1
+  sed -n "s/.*key:'clock.force-quantum' value:'\([0-9]*\)'.*/\1/p" <<<"$output"
+}
+
+enabled() {
+  [[ $quantum == "$QUANTUM" ]]
+}
+
+set_quantum() {
+  if pw-metadata -n settings 0 clock.force-quantum "$1" >/dev/null 2>&1; then
+    quantum=$1
+  else
+    echo "Could not change PipeWire's buffer size. Is PipeWire running?" >&2
+    exit 1
+  fi
+}
+
+# A buffer someone forced to another size is theirs; only ours is switched off.
+other_quantum() {
+  if [[ -n $quantum && $quantum != 0 && $quantum != "$QUANTUM" ]]; then
+    echo "PipeWire's buffer is already forced to $quantum samples; leaving it alone." >&2
+    exit 1
+  fi
+}
+
+# A small buffer only stays glitch-free when this user's PipeWire runs its
+# data loop, the thread that processes audio, with realtime priority (FIFO or
+# round-robin scheduling), which RealtimeKit grants.
+realtime() {
+  local pid
+  pid=$(pgrep -xo -u "$UID" pipewire) || return 1
+  ps -L -o cls=,comm= -p "$pid" | grep -qE '^ *(FF|RR) +data-loop'
+}
+
+# A setting that can't be read is never reported as off: nothing was checked.
+if ! quantum=$(forced_quantum); then
+  if [[ ${1:-} == "--status" ]]; then
+    exit 1
+  else
+    echo "Could not read PipeWire's buffer size. Is PipeWire running?" >&2
+    exit 1
+  fi
+fi
+
+case ${1:-toggle} in
+--status)
+  enabled
+  exit
+  ;;
+toggle)
+  if enabled; then
+    set_quantum 0
+  else
+    other_quantum
+    set_quantum "$QUANTUM"
+  fi
+  ;;
+on) set_quantum "$QUANTUM" ;;
+off)
+  if enabled; then
+    set_quantum 0
+  else
+    other_quantum
+  fi
+  ;;
+*)
+  echo "Usage: omarchy-toggle-low-latency-audio [toggle|on|off|--status]" >&2
+  exit 1
+  ;;
+esac
+
+if enabled; then
+  if realtime; then
+    omarchy-notification-send -g 󰋋 "Low-latency audio on"
+  else
+    omarchy-notification-send -g 󰋋 "Low-latency audio on" "PipeWire isn't running with realtime priority (install rtkit), so expect crackles under load"
+  fi
+else
+  omarchy-notification-send -g 󰋋 "Low-latency audio off"
+fi

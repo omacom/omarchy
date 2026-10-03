@@ -15,6 +15,7 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Stay awake (no idle lock) | `Super + Ctrl + I` | `omarchy toggle idle` |
 | Crash capture | — | `omarchy toggle crash-capture` |
 | Screensaver | — | `omarchy toggle screensaver` |
+| Low-latency audio | — | `omarchy toggle low-latency-audio` |
 | [Herdr](https://herdr.dev) theme sync | — | `omarchy toggle theme sync` |
 | Menu bar | `Super + Shift + Space` | `omarchy toggle bar` |
 | Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
@@ -25,6 +26,8 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 The touchpad, touchscreen, and hybrid GPU switches live under _Trigger > Hardware_ (`Super + Ctrl + H`) rather than under Toggle, since they only show up when you actually have that hardware. The touchpad and touchscreen ones survive a Hyprland reload — the disabled device's name is saved to a small state file that Hyprland reads on startup to disable it again.
 
 The Toggle menu also carries a few things that aren't `omarchy toggle` commands but behave the same: battery percentage in the bar, workspace layout (`Super + L`), window gaps (`Super + Shift + Backspace`), and the 1-window square aspect (`Super + Ctrl + Backspace`).
+
+Low-latency audio drops PipeWire's buffer to 256 samples, about 5 ms, for recording or playing software instruments, the way you'd lower the buffer size in Audio MIDI Setup on a Mac. It's a runtime switch: playback carries on, and the next session starts back on the power-friendly default. PipeWire needs `rtkit` for realtime priority, and without it a buffer this small can crackle under load, which the toggle's notification points out. If you've already forced a different buffer size yourself, the toggle leaves it alone.
 
 Most of these are just a flag file under `~/.local/state/omarchy/toggles/`. If you want to branch on one in a script, `omarchy-toggle-enabled` gives you an exit code instead of making you go looking:
 
