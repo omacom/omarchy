@@ -26,9 +26,17 @@ signal=${4:-unknown}
 skill="$OMARCHY_PATH/default/agents/skills/diagnose-crash/SKILL.md"
 
 # Looked up live so a hand-run PID still gets a timestamp. A rotated-away core
-# only costs the timestamp, so failure is tolerated.
-when=$(coredumpctl list "$pid" --no-pager --no-legend 2>/dev/null | tail -1 | cut -d' ' -f1-4) || true
-when=${when:-unknown}
+# only costs the timestamp, so failure is tolerated. COREDUMP_TIMESTAMP is when
+# the process crashed; coredumpctl's TIME column is when the dump finished,
+# which can be a minute later for a large core, and its output can end in a
+# "-- Notice" line while another dump is still being written.
+stamp=$(journalctl -q -o json -n 1 COREDUMP_PID="$pid" --output-fields=COREDUMP_TIMESTAMP 2>/dev/null |
+  jq -r '.COREDUMP_TIMESTAMP // empty') || true
+if [[ $stamp =~ ^[0-9]+$ ]]; then
+  when=$(date -d "@$((stamp / 1000000))" '+%a %Y-%m-%d %H:%M:%S %Z')
+else
+  when=unknown
+fi
 
 prompt=$(
   cat <<PROMPT
