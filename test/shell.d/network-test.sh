@@ -29,6 +29,11 @@ const refreshFn = panelSource.match(/function refresh\(scanWifi\)[\s\S]*?\n {2}\
 assert(refreshFn, 'network has a refresh() function')
 assert(/if \(opened && wifiDevice\)/.test(refreshFn[0]), 'network only touches the scanner from refresh() while its panel is open')
 
+// After NetworkManager restarts, Quickshell NM objects can disagree with the
+// default route. Prefer omarchy-network-status for the bar icon (#13489).
+assert(/info\.type === "ethernet"/.test(panelSource), 'network bar kind prefers route-based ethernet status')
+assert(/id: barStatusPoll/.test(panelSource), 'network keeps a closed-panel status poll for the bar icon')
+
 // The 100ms deferral can outlive the panel: closing inside the window would
 // otherwise re-enable scanning from a timer nobody is watching.
 const scanRestart = panelSource.match(/id: scanRestart[\s\S]*?onTriggered: \{[\s\S]*?\n {4}\}/)

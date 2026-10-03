@@ -434,11 +434,14 @@ Panel {
     connectDirectly(net.ssid)
   }
 
-  // Bar pill state, derived from the native NetworkManager service so the
-  // icon reflects connection changes without polling. Wired is preferred
-  // when both are up, matching the default-route device.
+  // Bar pill state. Prefer the route-based status helper: after NetworkManager
+  // restarts, Quickshell's NM objects can claim Wi-Fi while the default route
+  // is still Ethernet (#13489). Fall back to the native devices when status
+  // has not reported yet.
   readonly property var wiredDevice: findDevice(DeviceType.Wired)
   readonly property string kind: {
+    if (info.type === "ethernet") return "ethernet"
+    if (info.type === "wifi") return "wifi"
     if (wiredDevice && wiredDevice.connected) return "ethernet"
     if (connectedWifiNetwork) return "wifi"
     return "disconnected"
@@ -950,6 +953,17 @@ Panel {
     interval: 1500
     repeat: true
     running: root.opened
+    onTriggered: if (!detailsProc.running) detailsProc.running = true
+  }
+
+  // Keep the bar icon honest while the panel is closed. A 5s poll is enough to
+  // recover from a NetworkManager restart without the open-panel 1.5s cadence.
+  Timer {
+    id: barStatusPoll
+    interval: 5000
+    repeat: true
+    running: !root.opened
+    triggeredOnStart: true
     onTriggered: if (!detailsProc.running) detailsProc.running = true
   }
 
