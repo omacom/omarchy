@@ -279,11 +279,14 @@ function isDisabled(disabledResults, entry) {
   return !!(disabledResults && disabledResults[entry.id])
 }
 
-// A disabled row is software you already have, which is the same thing the ✓
-// says everywhere else in the menu, so it earns the same marker.
+// A row that declares what its ✓ means (`checked:`) owns the marker: a
+// dimmed sibling is unavailable, not a second current choice. The disabled
+// fallback mark ("you already have this") only applies to rows whose single
+// statement is their disabled-ness -- exactly the install submenus' shape.
 function labelFor(entry, checkedResults, disabledResults) {
   if (!entry) return ""
-  var marked = (entry.checked && checkedResults && checkedResults[entry.id]) || isDisabled(disabledResults, entry)
+  var marked = (entry.checked && checkedResults && checkedResults[entry.id])
+    || (!entry.checked && isDisabled(disabledResults, entry))
   return marked ? entry.label + " ✓" : entry.label
 }
 
