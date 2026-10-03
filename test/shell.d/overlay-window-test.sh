@@ -30,9 +30,29 @@ assert(
 )
 
 assert(
-  /onShownChanged: if \(shown\) targetScreen = focusedScreen\(\) \|\| targetScreen/.test(overlay) &&
+  /onShownChanged: if \(shown\) targetScreen = focusedScreen\(\) \|\| liveOrNull\(targetScreen\)/.test(overlay) &&
     overlay.includes('screen: targetScreen'),
   'overlay window follows the focused monitor each time it is shown'
+)
+
+// A screen object can be destroyed out from under a cached targetScreen (a
+// GPU output recreated across suspend/resume, or Hyprland's placeholder
+// "FALLBACK" monitor while the real one is briefly gone). liveOrNull() must
+// drop a reference once it is no longer a member of Quickshell.screens,
+// rather than trusting it forever the way the unconditional `|| targetScreen`
+// fallback used to.
+assert(
+  /function liveOrNull\(candidateScreen\) \{\s*return Quickshell\.screens\.indexOf\(candidateScreen\) !== -1 \? candidateScreen : null\s*\}/.test(overlay),
+  'overlay window forgets a targetScreen once it drops out of Quickshell.screens'
+)
+
+// Background.qml self-heals because its Variants delegate is keyed directly
+// off Quickshell.screens; this singleton window has no such repeater, so it
+// must re-derive targetScreen from the same signal by hand instead of only
+// reacting to its own `shown` transitions.
+assert(
+  /Connections \{\s*target: Quickshell\s*function onScreensChanged\(\) \{\s*window\.targetScreen = window\.focusedScreen\(\) \|\| window\.liveOrNull\(window\.targetScreen\)\s*\}\s*\}/.test(overlay),
+  'overlay window re-resolves targetScreen whenever Quickshell.screens changes, not just when shown'
 )
 
 const overlays = {
