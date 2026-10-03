@@ -123,6 +123,17 @@ if setpriv --reuid=1001 --regid=1001 --clear-groups cat "$EXPECTED_SHARED/shared
 fi
 pass "cross-filesystem symlink sources bind by identity and migrated 0700 leaves deny another account"
 
+# The dockurr/windows container sets its bind-mounted shared folder to mode
+# 2777 (setgid + world-writable) on every boot. A bare "chmod 0700" leaves a
+# pre-existing setgid bit in place (see `man chmod`), so mounted_leaf_matches()'s
+# exact mode==700 check would fail forever without the leading-zero form.
+chmod 2777 "$EXPECTED_SHARED"
+[[ $(command stat -Lc '%a' "$EXPECTED_SHARED") == 2777 ]] || fail "setgid probe did not land on the shared anchor"
+with_vm_lock prepare_caller_mounts || fail "root could not re-normalize a container-setgid shared anchor"
+[[ $(command stat -Lc '%a' "$EXPECTED_SHARED") == 700 ]] || fail "root left a setgid bit on the shared anchor after re-normalizing"
+mounts_ready || fail "final guard rejected a shared anchor that was correctly re-normalized"
+pass "root clears a container-applied setgid bit on the shared anchor instead of leaving it permanently unmatched"
+
 # Existing production boundary components are never repaired in place when
 # their ownership or write permissions are unsafe. Both the preparation path
 # and the final pre-Docker guard must fail closed without disturbing the binds.
