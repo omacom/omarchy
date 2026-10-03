@@ -129,3 +129,28 @@ grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down skips d
 grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
   fail "monitor scaling down persists 2x after skipping duplicate approximation"
 pass "monitor scaling down skips duplicate approximation"
+
+# Two real monitors can each have their own hl.monitor() block while still
+# referencing the shared omarchy_monitor_scale variable, as Omarchy's own
+# commented example in monitors.lua encourages. Scaling the focused one must
+# not silently rescale the other.
+write_two_monitor_config() {
+  cat >"$monitor_lua" <<'LUA'
+local omarchy_gdk_scale = 2
+local omarchy_monitor_scale = 2
+
+hl.monitor({ output = "eDP-1", mode = "2880x1800@120", position = "0x0", scale = omarchy_monitor_scale })
+hl.monitor({ output = "DP-2", mode = "2560x1440@144", position = "2880x0", scale = omarchy_monitor_scale })
+LUA
+}
+
+write_two_monitor_config
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
+grep -F 'scale = 3' "$eval_out" >/dev/null || fail "monitor scaling on a named monitor still applies live"
+grep -Fx 'hl.monitor({ output = "eDP-1", mode = "2880x1800@120", position = "0x0", scale = 3 })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists to the focused monitor's own hl.monitor line"
+grep -Fx 'hl.monitor({ output = "DP-2", mode = "2560x1440@144", position = "2880x0", scale = omarchy_monitor_scale })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling leaves a different monitor sharing the variable untouched"
+grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling leaves the shared variable itself untouched when a named block absorbs the change"
+pass "monitor scaling on a named monitor updates only that monitor's own line"
