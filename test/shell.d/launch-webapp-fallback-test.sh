@@ -85,6 +85,11 @@ grep -Fxq 'launch:uwsm-app -- brave --app=https://example.test/app --flag' "$TES
   fail "web app prefers a Chromium-based default browser" "$(cat "$TEST_LOG")"
 pass "web app prefers a Chromium-based default browser"
 
+launch_webapp helium.desktop || fail "web app launch uses a default later in the fallback list" "$(cat "$scratch/err")"
+grep -Fxq 'launch:uwsm-app -- helium --app=https://example.test/app --flag' "$TEST_LOG" ||
+  fail "a Chromium-based default wins over an earlier installed browser" "$(cat "$TEST_LOG")"
+pass "a Chromium-based default wins over an earlier installed browser"
+
 # A wrapper entry cannot receive --app; the next installed browser is used.
 desktop_entry "$system_apps/google-chrome.desktop" "env CHROME_FLAG=1 google-chrome-stable"
 desktop_entry "$system_apps/microsoft-edge.desktop" "/usr/bin/env CHROME_FLAG=1 microsoft-edge-stable"
