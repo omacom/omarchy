@@ -124,7 +124,7 @@ omarchy-update
   ├─ omarchy-update-lock
   │    └─ acquire the update lock and run omarchy-update inside it
   ├─ omarchy-update-requires-free-space
-  │    └─ abort below the configured free-space threshold on /
+  │    └─ abort below the configured free-space threshold on /, and below the UKI-sized floor on the ESP
   ├─ confirm unless -y
   ├─ authorize sudo once, then keep the timestamp fresh in the background
   ├─ omarchy-update-pkg-prune
@@ -159,9 +159,7 @@ Important behavior:
 - Sleep inhibition authenticates before detaching, drops the held command back to the caller, and closes both update lock descriptors before the persistent process starts. Cleanup accepts only caller-owned, mode-0600, single-link state and revalidates the recorded PID, process start time, owner, and random token immediately before every signal.
 - Channel switching establishes the same boundary before dev link/unlink, refresh and package operations. It keeps the wrapper first when changing source roots, carries the original user PATH into update hooks and mise, and checks after each package transaction that the wrapper still exists before any further privileged step, since a transaction can replace the running tree with a release that predates it; when it is gone, or the destination otherwise lacks it, the switch stops after the package switch with instructions to run that release's update from a fresh session rather than letting a bare `sudo` or an updater that authenticates without `--no-update` publish a timestamp. Failed and interrupted channel switches revoke on exit.
 - `-y` exports `OMARCHY_UPDATE_UNATTENDED=1` and suppresses Omarchy confirmation prompts. Interactive review steps (orphan removal, conflict handoff) report and skip instead of blocking. Privileged commands still require the one sudo authorization, and AUR installs can prompt separately.
-- The free-space requirement uses a 10 GiB threshold and stops the update before
-  confirmation when it is not met. If free space cannot be determined, the
-  check is silently skipped. Set `OMARCHY_UPDATE_FORCE=1` to bypass the check.
+- The free-space requirement uses a 10 GiB threshold on `/` and also checks the ESP (from `ESP_PATH` in `/etc/default/limine`, default `/boot`) for at least the largest UKI under `EFI/Linux` free — or 400 MiB when no UKI is present. Either failure stops the update before confirmation. If free space cannot be determined, that check is silently skipped. Set `OMARCHY_UPDATE_FORCE=1` to bypass both checks.
 - `omarchy update` checks/runs migrations in the same visible terminal via
   `omarchy-migrate` after pacman finishes.
 - A failure should leave enough output in `/tmp/omarchy-update.log` and the
@@ -297,7 +295,7 @@ scripts.
 | `omarchy-update-system-pkgs` | Runs `omarchy-update-pacman -Syu --noconfirm` with `--overwrite '/usr/share/omarchy/*'`, capturing stderr to a report file; on failure it execs `omarchy-update-system-pkgs-when-conflicted`. | **Keep for now.** Small leaf command, clear/testable. |
 | `omarchy-update-system-pkgs-when-conflicted` | Hidden conflict handler: quarantines unowned conflicting files under `/var/lib/omarchy/replaced`, retries the upgrade once, restores files the upgrade didn't claim, and hands package-vs-package conflicts to an interactive pacman run (never under `-y`). | **Keep internal/hidden.** Keeps conflict recovery out of the happy path. |
 | `omarchy-update-pkg-prune` | Trims the pacman cache to two versions per package (`paccache -rk2`) before the snapshot, keeping the offline downgrade path while capping snapshot growth. | **Keep internal/hidden.** |
-| `omarchy-update-requires-free-space` | Aborts the update below a 10 GiB free-space threshold on `/`; silently skipped when free space cannot be determined; `OMARCHY_UPDATE_FORCE=1` bypasses. | **Keep internal/hidden.** |
+| `omarchy-update-requires-free-space` | Aborts the update below a 10 GiB free-space threshold on `/`, or when the ESP has less free space than the largest UKI (400 MiB floor with no UKI); silently skipped per filesystem when free space cannot be determined; `OMARCHY_UPDATE_FORCE=1` bypasses. | **Keep internal/hidden.** |
 | `omarchy-migrate` | Public migration command. Waits for pacman, then runs all pending migrations for the current user. Supports `--pending`. | **Keep.** This replaces the discarded `omarchy-update-user-finalize` name and no longer needs `--force`. |
 | `omarchy-update-pacman-guard` | ALPM pre-transaction guard that aborts direct `pacman -Syu` style upgrades unless Omarchy set `OMARCHY_UPDATE_PACMAN=1` or the user explicitly set `OMARCHY_ALLOW_DIRECT_PACMAN=1`. | **Keep internal/hidden.** This is what nudges users back to `omarchy update`. |
 | `omarchy-update-pacman` | Hidden helper that runs a guard-approved pacman transaction as a PID 1 scope (`systemd-run --scope`) so a mid-transaction systemd reexec cannot kill it; runs pacman directly when not booted under systemd. | **Keep internal/hidden.** Single place that owns how Omarchy invokes pacman for system mutation. |

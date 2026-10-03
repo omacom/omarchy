@@ -5,13 +5,83 @@
 
 set -e
 
+ROOT_MIN_BYTES=$((10 * 1024 * 1024 * 1024))
+ESP_FLOOR_BYTES=$((400 * 1024 * 1024))
+
+bytes_as_mib() {
+  local bytes=$1
+  local mib=$((bytes / (1024 * 1024)))
+
+  if (( bytes % (1024 * 1024) > 0 )); then
+    ((++mib))
+  fi
+  if (( mib < 1 )); then
+    mib=1
+  fi
+
+  echo "$mib"
+}
+
+resolve_esp_path() {
+  local limine_default=${OMARCHY_TEST_LIMINE_DEFAULT:-/etc/default/limine}
+  local esp="" candidate
+
+  if [[ -f $limine_default ]]; then
+    esp=$(sed -n 's/^ESP_PATH=["'\'']\?\([^"'\'']*\).*/\1/p' "$limine_default" | tail -1)
+  fi
+
+  for candidate in "${esp:-/boot}" /boot; do
+    [[ -n $candidate && -d $candidate ]] || continue
+    if mountpoint -q -- "$candidate" 2>/dev/null; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+largest_uki_bytes() {
+  local esp_path=$1
+  local size
+
+  size=$(find "$esp_path/EFI/Linux" -maxdepth 1 -type f -name '*.efi' -printf '%s\n' 2>/dev/null | sort -n | tail -1)
+  if [[ $size =~ ^[0-9]+$ ]]; then
+    echo "$size"
+  else
+    echo 0
+  fi
+}
+
 if [[ ${OMARCHY_UPDATE_FORCE:-0} == "1" ]]; then
   exit 0
-elif read -r available_bytes < <(df --output=avail --block-size=1 / 2>/dev/null | tail -n 1) &&
+fi
+
+if read -r available_bytes < <(df --output=avail --block-size=1 / 2>/dev/null | tail -n 1) &&
   [[ $available_bytes =~ ^[0-9]+$ ]] &&
-  (( available_bytes < 10 * 1024 * 1024 * 1024 )); then
+  (( available_bytes < ROOT_MIN_BYTES )); then
   echo "You need at least 10 GiB free to safely update Omarchy."
   exit 1
-else
-  exit 0
 fi
+
+if esp_path=$(resolve_esp_path); then
+  if read -r esp_available_bytes < <(df --output=avail --block-size=1 "$esp_path" 2>/dev/null | tail -n 1) &&
+    [[ $esp_available_bytes =~ ^[0-9]+$ ]]; then
+    uki_bytes=$(largest_uki_bytes "$esp_path")
+    if (( uki_bytes > 0 )); then
+      esp_required_bytes=$uki_bytes
+    else
+      esp_required_bytes=$ESP_FLOOR_BYTES
+    fi
+
+    if (( esp_available_bytes < esp_required_bytes )); then
+      shortfall_bytes=$((esp_required_bytes - esp_available_bytes))
+      required_mib=$(bytes_as_mib "$esp_required_bytes")
+      shortfall_mib=$(bytes_as_mib "$shortfall_bytes")
+      echo "You need at least ${required_mib} MiB free on ${esp_path} to safely update Omarchy (${shortfall_mib} MiB short)."
+      exit 1
+    fi
+  fi
+fi
+
+exit 0
