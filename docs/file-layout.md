@@ -138,7 +138,7 @@ logo.{txt,svg}, icon.{txt,png}  ──► omarchy-settings    /usr/share/omarchy
                                                         /etc/skel/.config/omarchy/branding/{about,screensaver}.txt
 ```
 
-The hardware-conditional `force-igpu` and `keyboard-backlight` sources also live under `default/systemd/system-sleep/`, but their setup commands publish root-owned copies only on machines that need them; they are not installed by `omarchy-settings`.
+The hardware-conditional `force-igpu`, `keyboard-backlight` and `asus-touchpad-resume` sources also live under `default/systemd/system-sleep/`, but their setup commands publish root-owned copies only on machines that need them; they are not installed by `omarchy-settings`. `asus-touchpad-resume` is published on ASUS UM3406 models by `install/hardware/asus/fix-asus-um3406-touchpad-resume.sh` and its migration.
 
 ### Why `etc-overrides/` exists
 
