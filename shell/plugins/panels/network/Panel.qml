@@ -440,12 +440,15 @@ Panel {
   readonly property var wiredDevice: findDevice(DeviceType.Wired)
   readonly property string kind: {
     if (wiredDevice && wiredDevice.connected) return "ethernet"
-    if (connectedWifiNetwork) return "wifi"
+    if (connectedWifiNetwork || (wifiDevice && wifiDevice.connected)) return "wifi"
     return "disconnected"
   }
-  readonly property int signalStrength: connectedWifiNetwork
-    ? Math.round((connectedWifiNetwork.signalStrength || 0) * 100)
-    : -1
+  readonly property int signalStrength: {
+    if (connectedWifiNetwork) return Math.round((connectedWifiNetwork.signalStrength || 0) * 100)
+    if (info.signal_dbm) return Math.max(0, Math.min(100, Math.round(2 * (parseFloat(info.signal_dbm) + 100))))
+    if (wifiDevice && wifiDevice.connected) return 100
+    return -1
+  }
 
   function copyToClipboard(value) {
     if (!value || !root.bar) return

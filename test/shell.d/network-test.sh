@@ -20,6 +20,12 @@ const barPress = panelSource.match(/onPressed: function\(b\) \{[\s\S]*?\n {4}\}/
 assert(barPress, 'network bar button has an onPressed handler')
 const barPressCode = barPress[0].replace(/\/\/.*$/gm, '')
 assert(!/refresh\(/.test(barPressCode), 'network bar click opens the panel without a second refresh that would undo the deferred scan')
+// A profile without 802-11-wireless.mode has no connected network object, so the
+// device decides; `info` only refreshes while the panel is open, so it can't.
+const kindBlock = panelSource.match(/readonly property string kind: \{[\s\S]*?\n {2}\}/)
+assert(kindBlock, 'network bar has a kind binding')
+assert(/wifiDevice && wifiDevice\.connected/.test(kindBlock[0]), 'network bar widget falls back to the Wi-Fi device connection state')
+assert(!/info\./.test(kindBlock[0]), 'network bar kind does not read panel details that go stale while closed')
 
 // A closed panel has no nearby-network list to fill. Quickshell's scanner
 // re-arms RequestScan on its own timer, and every sweep takes the radio off
