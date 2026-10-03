@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# omarchy:summary=Reboot into the firmware setup screen after closing application windows
+
+request_firmware_setup() {
+  busctl --allow-interactive-authorization=yes call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager SetRebootToFirmwareSetup b "$1" >/dev/null
+}
+
+# Ask before any window closes, so firmware that refuses leaves the session
+# untouched. The flag outlives this session: it is withdrawn if the reboot
+# cannot be scheduled, but stays set if the scheduled reboot later fails.
+if ! error=$(request_firmware_setup true 2>&1); then
+  omarchy-notification-send -u critical "Couldn't reboot into firmware setup" "$error"
+  exit 1
+elif ! omarchy-system-reboot; then
+  if request_firmware_setup false; then
+    message="The reboot couldn't be scheduled."
+  else
+    message="The reboot couldn't be scheduled, and the next reboot will open firmware setup."
+  fi
+
+  omarchy-notification-send -u critical "Couldn't reboot into firmware setup" "$message"
+  exit 1
+fi

@@ -39,6 +39,7 @@
   "system.hibernate": {"icon":"󰤁","label":"Hibernate","when":"omarchy-hibernation-available","action":"systemctl hibernate"},
   "system.logout": {"icon":"󰍃","label":"Logout","action":"omarchy-system-logout"},
   "system.reboot": {"icon":"󰜉","label":"Reboot","action":"omarchy-system-reboot"},
+  "system.firmware-setup": {"icon":"󰘚","label":"Reboot to Firmware","description":"Restart into the UEFI BIOS setup screen","when":"omarchy-hw-firmware-setup","action":"omarchy-system-firmware-setup"},
   "system.shutdown": {"icon":"󰐥","label":"Shutdown","action":"omarchy-system-shutdown"},
 
   // Learn
