@@ -275,7 +275,7 @@ step: cold, behind the no-update wrapper, after the package config is re-synced
 and before the refresh transaction. It does not run if the switch fails earlier.
 
 There is no version file at runtime. `omarchy-version` derives the version from
-`pacman -Q` on whichever package is installed, or reports `dev (<hash>)` for a
+the pacman local database entry of whichever package is installed, or reports `dev (<hash>)` for a
 linked checkout, and `omarchy-version-channel` sniffs the mirrorlist and
 pacman.conf to answer which channel is active.
 
