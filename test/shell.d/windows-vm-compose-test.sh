@@ -69,7 +69,7 @@ grep -q 'PROTECT: "Y"' "$COMPOSE" || fail "web console is not password protected
 grep -q -- '- /:/' "$COMPOSE" && fail "compose contains host-root bind"
 pass "writer emits fixed anchors bound to exact private source inodes"
 
-# The guest leaves the shared folder setgid (2777) after its first boot. A
+# The container sets an empty shared folder to 2777 every time it starts. A
 # plain chmod 0700 keeps the setgid bit on directories, so hardening must still
 # land on exactly 700 or every later launch fails the private-mode check.
 reset_case

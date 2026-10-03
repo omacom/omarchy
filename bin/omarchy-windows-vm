@@ -581,7 +581,7 @@ prepare_caller_mounts() {
   # a side effect halfway through the two-mount transaction. Old umask-022
   # installs are hardened together before either Docker-facing anchor changes.
   # The leading 00 clears setgid, which GNU chmod keeps on directories for 0700;
-  # the guest leaves /shared setgid after its first boot.
+  # the container sets an empty /shared to 2777 every time it starts.
   chmod 00700 -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" || {
     exec {storage_fd}<&-
     exec {shared_fd}<&-
