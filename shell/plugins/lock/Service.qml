@@ -145,6 +145,7 @@ Item {
     authenticatingPassword = false
     fingerprintAuthenticating = false
     fingerprintRetryTimer.stop()
+    failureMessageTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
   }
@@ -255,6 +256,7 @@ Item {
     pendingPassword = ""
     failedAttempts += 1
     failureMessage = "Authentication failed (" + failedAttempts + ")"
+    failureMessageTimer.restart()
     runWake()
   }
 
@@ -441,6 +443,13 @@ Item {
     interval: 250
     repeat: false
     onTriggered: root.startFingerprint()
+  }
+
+  Timer {
+    id: failureMessageTimer
+    interval: 2000
+    repeat: false
+    onTriggered: root.failureMessage = ""
   }
 
   Process {
