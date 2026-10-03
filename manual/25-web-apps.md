@@ -12,6 +12,25 @@ All the keyboard hotkeys for these web apps can be changed in `~/.config/hypr/bi
 
 When you're in a web app, you can copy the current URL to the clipboard using `Shift + Alt + L`.
 
+## Open external links in your default browser
+
+By default, web apps keep their links in the app window. If you prefer links to other sites to open in your system's default browser, enable the optional Chromium-family extension with `omarchy toggle webapp-links on`. Restart Chromium, Chrome, Brave, or Edge (including existing browser windows) afterward. To return to the original behavior, use `omarchy toggle webapp-links off` and restart the browser. This also works when your default browser is the same browser used for web apps: the external link opens in a regular browser window or tab, not another app window.
+
+The extension affects only links clicked in app windows and new windows opened by app pages; ordinary browser tabs are unaffected. Same-origin links, form submissions, and automatic redirects stay in the app. Other origins (even subdomains) open in your default browser unless you allow them for that app. For example, to keep an app's `www` subdomain and an identity provider's sign-in pages in the app, create `~/.config/omarchy/webapp-links.json` containing:
+
+```json
+{
+  "https://app.example.com": [
+    "https://www.example.com",
+    "https://login.identity.example"
+  ]
+}
+```
+
+Use the actual HTTP(S) origins (scheme, hostname, and optional port, without a path) for your app and its sign-in provider. Both directions within each configured group stay in the app. Restart the app window after editing the file. Cross-origin OAuth redirects already stay in the app without this configuration, but a sign-in flow that *starts with a clicked link or popup* at another origin needs that origin in the list. If the native host or default browser is unavailable, links remain navigable in Chromium. The option supports Omarchy's Chromium, Chrome, Brave, and Edge flag files and remains enabled after refreshing Chromium if you left the option on.
+
+## Included web apps
+
 By default, Omarchy already ships with an assortment of default apps:
 
 ## HEY

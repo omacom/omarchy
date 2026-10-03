@@ -18,6 +18,9 @@ omarchy-refresh-config chromium-flags.conf
 # Install/refresh the native messaging hosts used by the bundled extensions
 omarchy-install-chromium-copy-url
 omarchy-install-chromium-ytdlp
+if omarchy-toggle-enabled webapp-links; then
+  omarchy-toggle-webapp-links on
+fi
 
 # Re-install Google accounts if previously configured
 if [[ $INSTALL_GOOGLE_ACCOUNTS == "true" ]]; then
