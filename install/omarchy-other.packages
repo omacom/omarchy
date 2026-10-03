@@ -59,6 +59,8 @@ linux-firmware-marvell
 # Dell laptop support packages
 dell-xps-touchpad-haptics
 dell-xps13-sidecar-amps
+# Select the stable-snapshot shim or newer Arch firmware for the XPS 13 PTL.
+linux-firmware-cirrus>=20260810-3
 
 # Speaker tunings (LV2 limiter every tuning ends in)
 lsp-plugins-lv2
