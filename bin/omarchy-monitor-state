@@ -20,4 +20,6 @@ printf '%s\n' "$focused_monitor"
 omarchy-hyprland-monitor-scaling 2>/dev/null || echo
 
 printf '%s\n' "$monitors_json" | jq -c \
-  '[.[] | {name, enabled:(.disabled != true), focused:(.focused == true), width, height}]'
+  '[.[] | {name, enabled:(.disabled != true), focused:(.focused == true), width, height, refreshRate:(.refreshRate // 0 | round)}]'
+
+omarchy-monitor-profile list --json 2>/dev/null || printf '%s\n' '{"active":"","profiles":[]}'
