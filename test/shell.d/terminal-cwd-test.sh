@@ -4,54 +4,277 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-test_tmp=$(mktemp -d)
-stub_bin="$test_tmp/bin"
-work_dir="$test_tmp/project dir"
-mkdir -p "$stub_bin" "$work_dir"
+require_command jq
+require_command script
+require_command python3
 
-# A stand-in terminal whose newest child is a shell sitting in work_dir. The
-# trailing ":" keeps bash from exec'ing sleep, so the child stays a shell.
-bash -c '(cd "$1" && bash -c "sleep 30; :") & wait' _ "$work_dir" &
-terminal_pid=$!
+resolver="$ROOT/bin/omarchy-cmd-terminal-cwd"
+
+test_tmp=$(mktemp -d)
+windows=()
 
 # Children first: killing a parent reparents its children out of reach.
 kill_tree() {
   local child
+
   for child in $(cat /proc/"$1"/task/*/children 2>/dev/null); do
     kill_tree "$child"
   done
   kill "$1" 2>/dev/null || true
 }
-trap 'kill_tree "$terminal_pid"; wait "$terminal_pid" 2>/dev/null || true; rm -rf "$test_tmp"' EXIT
 
-for _ in $(seq 50); do
-  [[ -n $(cat /proc/"$terminal_pid"/task/*/children 2>/dev/null) ]] && break
-  sleep 0.05
-done
+cleanup() {
+  local window
 
-cat >"$stub_bin/hyprctl" <<'SH'
+  for window in "${windows[@]}"; do
+    kill_tree "$window"
+  done
+
+  rm -rf "$test_tmp"
+}
+
+trap cleanup EXIT
+
+mock_bin="$test_tmp/bin"
+fake_bin="$test_tmp/fake"
+fallback_home="$test_tmp/home"
+mkdir -p "$mock_bin" "$fake_bin" "$fallback_home"
+
+# The window pid the resolver asks Hyprland for.
+cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
-[[ -n ${ACTIVE_PID:-} ]] && printf 'Window 1 -> terminal:\n\tpid: %s\n' "$ACTIVE_PID"
+if [[ -n ${OMARCHY_TEST_NO_HYPRCTL:-} ]]; then
+  echo "hyprctl was asked for the active window" >&2
+  exit 1
+fi
+[[ -n ${OMARCHY_TEST_WINDOW_PID:-} ]] && printf '\tpid: %s\n' "$OMARCHY_TEST_WINDOW_PID"
 exit 0
 SH
-chmod +x "$stub_bin/hyprctl"
 
-cwd=$(ACTIVE_PID="$terminal_pid" PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd")
-[[ $cwd == "$work_dir" ]] || fail "a new terminal opens in the focused terminal's shell directory" "got: $cwd"
-pass "a new terminal opens in the focused terminal's shell directory"
-
-output=$(PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" HOME="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd" 2>&1)
-[[ $output == "$test_tmp" ]] || fail "with no focused terminal the new one opens in HOME" "got: $output"
-pass "with no focused terminal the new one opens in HOME, quietly"
-
-# The Super+Return binding hands over the focused window's pid, so Hyprland is
-# not asked again; a hyprctl that fails the test proves it goes unasked.
-cat >"$stub_bin/hyprctl" <<'SH'
+# A tmux server answering for one client, plus a decoy client that must not be
+# mistaken for it.
+cat >"$mock_bin/tmux" <<'SH'
 #!/bin/bash
-echo "hyprctl was asked for the active window" >&2
-exit 1
+printf '%s\n' "$*" >>"$OMARCHY_TEST_TMUX_LOG"
+[[ -n ${OMARCHY_TEST_TMUX_PANE:-} ]] || exit 0
+printf '1 %s\n' "$OMARCHY_TEST_TMUX_DECOY"
+printf '%s %s\n' "$OMARCHY_TEST_TMUX_CLIENT" "$OMARCHY_TEST_TMUX_PANE"
 SH
 
-cwd=$(PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd" "$terminal_pid" 2>&1)
-[[ $cwd == "$work_dir" ]] || fail "a terminal pid passed in finds its shell directory without hyprctl" "got: $cwd"
-pass "a terminal pid passed in finds its shell directory without hyprctl"
+cat >"$mock_bin/herdr" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_HERDR_LOG"
+jq -n --arg unfocused "$OMARCHY_TEST_HERDR_DECOY" --arg focused "$OMARCHY_TEST_HERDR_PANE" \
+  '{result: {panes: [{focused: false, cwd: $unfocused}, {focused: true, foreground_cwd: $focused, cwd: $unfocused}]}}'
+SH
+
+chmod +x "$mock_bin"/*
+
+# Stands in for a shell or a multiplexer client: keeps the name the resolver
+# matches on, without needing the real program.
+fake_program() {
+  cp /bin/bash "$fake_bin/$1"
+}
+
+# Idles without a child of its own, as a real client does, so nothing beneath
+# it can answer in its place.
+mkfifo "$test_tmp/idle-fifo"
+cat >"$test_tmp/idle" <<SH
+[[ -n \${OMARCHY_TEST_PIDFILE:-} ]] && echo \$\$ >"\$OMARCHY_TEST_PIDFILE"
+[[ -n \${OMARCHY_TEST_CLIENT_DIR:-} ]] && cd "\$OMARCHY_TEST_CLIENT_DIR"
+read -rt 300 <>"$test_tmp/idle-fifo"
+SH
+
+# A window whose descendants hold a controlling terminal, as a real terminal's
+# do. Sets $window rather than printing it, so cleanup sees the pid.
+start_terminal_window() {
+  setsid script -qec "$*" /dev/null >/dev/null 2>&1 &
+  window=$!
+  windows+=("$window")
+}
+
+# A window with no controlling terminal anywhere, as a GUI app has.
+start_headless_window() {
+  setsid "$@" >/dev/null 2>&1 &
+  window=$!
+  windows+=("$window")
+}
+
+wait_for_file() {
+  local file=$1 attempt
+
+  for attempt in {1..50}; do
+    [[ -s $file ]] && return 0
+    sleep 0.1
+  done
+
+  return 1
+}
+
+# Environment assignments, then optionally -- and the resolver's arguments.
+resolve() {
+  local vars=()
+
+  while (( $# > 0 )) && [[ $1 != "--" ]]; do
+    vars+=("$1")
+    shift
+  done
+  (( $# > 0 )) && shift
+
+  env -i PATH="$mock_bin:$PATH" HOME="$fallback_home" XDG_RUNTIME_DIR="$test_tmp" \
+    "${vars[@]}" bash "$resolver" "$@"
+}
+
+# The deepest process in the terminal answers, even when its program is not
+# listed in /etc/shells.
+mkdir -p "$test_tmp/outer" "$test_tmp/inner"
+fake_program nu
+start_terminal_window "cd '$test_tmp/outer' && '$fake_bin/nu' -c \"cd '$test_tmp/inner'; sleep 300\""
+sleep 1
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
+[[ $resolved == "$test_tmp/inner" ]] ||
+  fail "terminal cwd follows the deepest process in the terminal" "expected: $test_tmp/inner
+actual:   $resolved"
+pass "terminal cwd follows the deepest process in the terminal"
+
+# The Super+Return binding hands over the focused window's pid, so Hyprland is
+# not asked again.
+resolved=$(resolve OMARCHY_TEST_NO_HYPRCTL=1 -- "$window" 2>&1)
+[[ $resolved == "$test_tmp/inner" ]] ||
+  fail "a terminal pid passed in is resolved without hyprctl" "expected: $test_tmp/inner
+actual:   $resolved"
+pass "a terminal pid passed in is resolved without hyprctl"
+
+# A job sent to the background holds the terminal too, but the shell the user
+# is typing into is the one in the foreground.
+mkdir -p "$test_tmp/foreground" "$test_tmp/background"
+start_terminal_window "cd '$test_tmp/foreground' && bash -c \"set -m; (cd '$test_tmp/background' && sleep 300) & wait\""
+sleep 1
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
+[[ $resolved == "$test_tmp/foreground" ]] ||
+  fail "a background job does not answer for the foreground shell" "expected: $test_tmp/foreground
+actual:   $resolved"
+pass "a background job does not answer for the foreground shell"
+
+# A foreground command whose directory cannot be read, as a sudo command's
+# cannot, leaves the shell waiting on it to answer.
+mkdir -p "$test_tmp/elsewhere"
+cat >"$test_tmp/undumpable" <<'PY'
+import ctypes, os, sys, time
+os.chdir(sys.argv[1])
+ctypes.CDLL(None).prctl(4, 0)  # PR_SET_DUMPABLE: /proc/<pid>/cwd is now unreadable
+time.sleep(300)
+PY
+start_terminal_window "cd '$test_tmp/foreground' && exec bash -c \"set -m; python3 '$test_tmp/undumpable' '$test_tmp/elsewhere'; :\""
+sleep 1
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
+[[ $resolved == "$test_tmp/foreground" ]] ||
+  fail "an unreadable foreground command leaves its shell to answer" "expected: $test_tmp/foreground
+actual:   $resolved"
+pass "an unreadable foreground command leaves its shell to answer"
+
+# A shell detached from the terminal with setsid has none, and must not speak
+# over the foreground shell that does.
+mkdir -p "$test_tmp/detached"
+start_terminal_window "cd '$test_tmp/foreground' && bash -c \"(cd '$test_tmp/detached' && setsid bash -c 'sleep 300; :') & wait\""
+sleep 1
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
+[[ $resolved == "$test_tmp/foreground" ]] ||
+  fail "a detached shell does not answer for the foreground shell" "expected: $test_tmp/foreground
+actual:   $resolved"
+pass "a detached shell does not answer for the foreground shell"
+
+# A tmux client is not always a direct child of the window: the stock launcher
+# runs `bash -c "tmux attach || tmux new"`.
+mkdir -p "$test_tmp/launched" "$test_tmp/pane" "$test_tmp/client"
+fake_program tmux
+tmux_log="$test_tmp/tmux-log"
+client_pidfile="$test_tmp/tmux-client.pid"
+start_terminal_window "cd '$test_tmp/launched' && bash -c \"OMARCHY_TEST_PIDFILE='$client_pidfile' OMARCHY_TEST_CLIENT_DIR='$test_tmp/client' '$fake_bin/tmux' '$test_tmp/idle' -L probe attach; :\""
+wait_for_file "$client_pidfile" || fail "tmux client starts"
+client_pid=$(<"$client_pidfile")
+
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window" OMARCHY_TEST_TMUX_LOG="$tmux_log" \
+  OMARCHY_TEST_TMUX_CLIENT="$client_pid" OMARCHY_TEST_TMUX_PANE="$test_tmp/pane" \
+  OMARCHY_TEST_TMUX_DECOY="$test_tmp/launched")
+[[ $resolved == "$test_tmp/pane" ]] ||
+  fail "tmux answers with the focused pane, not the process tree" "expected: $test_tmp/pane
+actual:   $resolved"
+pass "tmux answers with the focused pane, not the process tree"
+
+grep -Fq -- "-L probe" "$tmux_log" ||
+  fail "tmux is queried on the client's own socket" "$(cat "$tmux_log")"
+pass "tmux is queried on the client's own socket"
+
+# A multiplexer that cannot answer must not hand back the client's own launch
+# directory as if it were the pane's.
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window" OMARCHY_TEST_TMUX_LOG="$tmux_log")
+[[ $resolved == "$test_tmp/launched" ]] ||
+  fail "a silent multiplexer falls back to the terminal, not the client" "expected: $test_tmp/launched
+actual:   $resolved"
+pass "a silent multiplexer falls back to the terminal, not the client"
+
+# A client the user sent to the background is not the pane they are looking at.
+bg_client_pidfile="$test_tmp/tmux-bg-client.pid"
+start_terminal_window "cd '$test_tmp/foreground' && bash -c \"set -m; OMARCHY_TEST_PIDFILE='$bg_client_pidfile' '$fake_bin/tmux' '$test_tmp/idle' -L probe attach & wait\""
+wait_for_file "$bg_client_pidfile" || fail "background tmux client starts"
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window" OMARCHY_TEST_TMUX_LOG="$tmux_log" \
+  OMARCHY_TEST_TMUX_CLIENT="$(<"$bg_client_pidfile")" OMARCHY_TEST_TMUX_PANE="$test_tmp/pane" \
+  OMARCHY_TEST_TMUX_DECOY="$test_tmp/launched")
+[[ $resolved == "$test_tmp/foreground" ]] ||
+  fail "a backgrounded tmux client does not answer for the foreground shell" "expected: $test_tmp/foreground
+actual:   $resolved"
+pass "a backgrounded tmux client does not answer for the foreground shell"
+
+# herdr keys its answer off the session named in the client's argv.
+mkdir -p "$test_tmp/herdr-pane"
+fake_program herdr
+herdr_log="$test_tmp/herdr-log"
+start_terminal_window "cd '$test_tmp/launched' && '$fake_bin/herdr' '$test_tmp/idle' --session work"
+sleep 1
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window" OMARCHY_TEST_HERDR_LOG="$herdr_log" \
+  OMARCHY_TEST_HERDR_PANE="$test_tmp/herdr-pane" OMARCHY_TEST_HERDR_DECOY="$test_tmp/launched")
+[[ $resolved == "$test_tmp/herdr-pane" ]] ||
+  fail "herdr answers with the focused pane" "expected: $test_tmp/herdr-pane
+actual:   $resolved"
+pass "herdr answers with the focused pane"
+
+grep -Fq -- "--session work" "$herdr_log" ||
+  fail "herdr is queried for the client's own session" "$(cat "$herdr_log")"
+pass "herdr is queried for the client's own session"
+
+# A window that is not a terminal has no process attached to one, so its
+# children do not answer however readable their directories are.
+mkdir -p "$test_tmp/gui"
+start_headless_window bash -c "cd '$test_tmp/gui'; sleep 300 & wait"
+sleep 1
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
+[[ $resolved == "$fallback_home" ]] ||
+  fail "a window that is not a terminal falls back to home" "expected: $fallback_home
+actual:   $resolved"
+pass "a window that is not a terminal falls back to home"
+
+# kitty answers over its own socket, before the process tree is walked.
+mkdir -p "$test_tmp/kitty-pane"
+cat >"$mock_bin/kitten" <<'SH'
+#!/bin/bash
+jq -n --arg cwd "$OMARCHY_TEST_KITTY_PANE" '[{tabs: [{windows: [{cwd: $cwd}]}]}]'
+SH
+chmod +x "$mock_bin/kitten"
+
+start_terminal_window "cd '$test_tmp/launched' && sleep 300"
+sleep 1
+python3 -c 'import socket, sys; s = socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])' \
+  "$test_tmp/omarchy-kitty-$window"
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window" OMARCHY_TEST_KITTY_PANE="$test_tmp/kitty-pane")
+[[ $resolved == "$test_tmp/kitty-pane" ]] ||
+  fail "kitty answers over its remote control socket" "expected: $test_tmp/kitty-pane
+actual:   $resolved"
+pass "kitty answers over its remote control socket"
+
+# No focused window at all, and nothing written to stderr about it.
+resolved=$(resolve 2>&1)
+[[ $resolved == "$fallback_home" ]] ||
+  fail "no active window falls back to home" "expected: $fallback_home
+actual:   $resolved"
+pass "no active window falls back to home"
