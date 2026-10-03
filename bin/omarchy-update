@@ -15,6 +15,16 @@ security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
 source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
 omarchy_security_require_privileged_bash_startup || exit 126
 set -e
+# Refuse to run as root before any other check. A `sudo omarchy update` arrives
+# with sudo's reset environment, so if the source-root check below ran first it
+# would fail on the missing OMARCHY_PATH and print its own error instead of this
+# one. Every step below sudo's for itself; running the whole update as root also
+# writes the transcript as root at a fixed path the next unprivileged run cannot
+# open. omarchy-dev-link refuses root the same way.
+if (( EUID == 0 )); then
+  echo "Error: run omarchy-update as your user, not under sudo." >&2
+  exit 1
+fi
 omarchy_security_sanitize_bash_environment "$0" "$@"
 omarchy_security_require_source_root "$0"
 # Logging and lock acquisition re-exec this command with a sanitized PATH.
@@ -83,9 +93,19 @@ cleanup_update() {
   omarchy_security_exit_with_revoked_sudo "$status"
 }
 
+# The transcript goes in the per-user runtime directory, which is 0700 and owned
+# by the user, rather than a fixed path in world-writable /tmp where any other
+# local user could pre-create it and lock this one out of updating. The path is
+# exported so omarchy-update-analyze-logs reads the same file instead of
+# hardcoding it a second time.
+OMARCHY_UPDATE_LOG="${OMARCHY_UPDATE_LOG:-${XDG_RUNTIME_DIR:-/tmp}/omarchy-update.log}"
+export OMARCHY_UPDATE_LOG
+
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "/tmp/omarchy-update.log"
+  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" \
+    OMARCHY_UPDATE_LOG="$OMARCHY_UPDATE_LOG" \
+    script -qefc "$script_command" "$OMARCHY_UPDATE_LOG"
 fi
 
 if ! omarchy-update-lock held; then
