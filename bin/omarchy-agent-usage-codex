@@ -230,7 +230,7 @@ def pi_parent_session(path):
   parent = header.get("parentSession")
   if not isinstance(parent, str) or not parent:
     return None
-  return os.path.abspath(os.path.expanduser(parent))
+  return os.path.realpath(os.path.expanduser(parent))
 
 
 # `omp --profile=<name>` (and pi's equivalent) relocates the whole agent tree
@@ -240,6 +240,13 @@ def pi_parent_session(path):
 # sessions rather than double-counting the default one.
 def pi_session_roots():
   roots = []
+  # Pi keeps its whole agent tree in PI_CODING_AGENT_DIR when that is set, and
+  # expands only a leading ~ or ~/ in it, so ~user stays a literal directory.
+  agent_dir = os.environ.get("PI_CODING_AGENT_DIR")
+  if agent_dir:
+    if agent_dir == "~" or agent_dir.startswith("~/"):
+      agent_dir = str(Path.home()) + agent_dir[1:]
+    roots.append(Path(os.path.abspath(agent_dir)) / "sessions")
   for base in (Path.home() / ".pi", Path.home() / ".omp"):
     roots.append(base / "agent" / "sessions")
     profiles = base / "profiles"
@@ -249,11 +256,20 @@ def pi_session_roots():
     except OSError:
       # No profiles directory, or it is unreadable: the default root stands.
       pass
-  return roots
+  # Aliased roots are scanned once.
+  unique = []
+  resolved = set()
+  for root in roots:
+    key = os.path.realpath(root)
+    if key not in resolved:
+      resolved.add(key)
+      unique.append(root)
+  return unique
 
 
-def scan_pi_sessions():
-  roots = pi_session_roots()
+def scan_pi_sessions(roots=None):
+  if roots is None:
+    roots = pi_session_roots()
   rg = find_command("rg") or "rg"
   session_keys = {}
   today_session_keys = {}
@@ -284,7 +300,9 @@ def scan_pi_sessions():
           continue
         line = event.get("data", {}).get("lines", {}).get("text", "")
         raw_path = event.get("data", {}).get("path", {}).get("text", "pi-session")
-        path = os.path.abspath(os.path.expanduser(raw_path))
+        # Resolved, like parentSession, so a fork finds its parent whichever
+        # alias of the agent directory either was written under.
+        path = os.path.realpath(os.path.expanduser(raw_path))
         entry = json.loads(line)
       except Exception:
         continue
@@ -545,13 +563,17 @@ def cache_root():
 def scan_cache_digest():
   codex_home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
   db = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode" / "opencode.db"
-  # The digest covers every data path the scan reads: the codex session
-  # roots, the opencode DB, and (via Path.home()) the pi/omp session roots.
-  return hashlib.sha1((str(Path.home()) + "\n" + str(codex_home) + "\n" + str(db)).encode("utf-8")).hexdigest()[:16]
+  # The digest covers the codex session root and the opencode DB; the pi/omp
+  # session roots are keyed separately in scan_cache_paths. Resolved, so
+  # repointing a symlinked CODEX_HOME or data dir changes the key.
+  return hashlib.sha1((str(Path.home()) + "\n" + os.path.realpath(codex_home) + "\n" + os.path.realpath(db)).encode("utf-8")).hexdigest()[:16]
 
 
-def scan_cache_paths():
-  digest = scan_cache_digest()
+def scan_cache_paths(pi_roots):
+  # The pi roots are keyed too: PI_CODING_AGENT_DIR moves them without moving
+  # Path.home(), and a cache from the old roots would hide the new sessions.
+  # Resolved, so repointing a symlinked root changes the key too.
+  digest = hashlib.sha1((scan_cache_digest() + "\n" + "\n".join(os.path.realpath(root) for root in pi_roots)).encode("utf-8")).hexdigest()[:16]
   root = cache_root()
   return root / f"codex-scan-{digest}.json", root / f"codex-scan-{digest}.lock"
 
@@ -703,10 +725,10 @@ def local_stats():
 
 
 # A forced scan (no reuse at all) reads every session file again.
-def run_local_scans(max_age):
+def run_local_scans(max_age, pi_roots=None):
   cached_files = read_file_cache() if max_age > 0 else {}
   scanned_files = {}
-  scan_pi_sessions()
+  scan_pi_sessions(pi_roots)
   scan_native_codex_sessions(cached_files, scanned_files)
   complete = scan_opencode_sessions()
   write_file_cache(scanned_files)
@@ -729,7 +751,8 @@ def cached_local_stats(max_age):
 
 
 def _cached_local_stats(max_age):
-  cache_file, lock_file = scan_cache_paths()
+  pi_roots = pi_session_roots()
+  cache_file, lock_file = scan_cache_paths(pi_roots)
 
   cached = read_cached_stats(cache_file, max_age)
   if cached is not None:
@@ -740,7 +763,7 @@ def _cached_local_stats(max_age):
     cached = read_cached_stats(cache_file, max_age)
     if cached is not None:
       return cached
-    stats, complete = run_local_scans(max_age)
+    stats, complete = run_local_scans(max_age, pi_roots)
     # An interrupted scan still serves this run, but caching it would
     # suppress the missing usage for every reader until the cache expires.
     if complete:
