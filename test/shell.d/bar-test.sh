@@ -36,6 +36,14 @@ const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
 const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
 const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
 
+// A top-layer bar mapped while a window is fullscreen keeps taking that
+// window's clicks, so the bar steps down to the bottom layer under one (#14079).
+assert(
+  /readonly property bool underFullscreen: Hyprland\.monitorFor\(screen\)\?\.activeWorkspace\?\.hasFullscreen \?\? false/.test(barSource) &&
+    barSource.includes('WlrLayershell.layer: underFullscreen ? WlrLayer.Bottom : WlrLayer.Top'),
+  'the bar steps below a fullscreen window on its monitor'
+)
+
 assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.toggleTransparency\(\)/.test(shellSource), 'shell exposes the bar transparency toggle over IPC')
 
 // put tolerates a placement target the bar does not carry, so the IPC call
