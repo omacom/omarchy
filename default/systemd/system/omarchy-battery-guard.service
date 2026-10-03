@@ -1,0 +1,15 @@
+[Unit]
+Description=Graceful shutdown before hard battery cutoff
+ConditionPathExists=/sys/class/power_supply
+After=systemd-udevd.service
+
+[Service]
+Type=simple
+Environment=OMARCHY_BATTERY_GUARD_STATE_DIR=/var/lib/omarchy-battery-guard
+ExecStart=/usr/bin/omarchy-battery-guard
+Restart=on-failure
+RestartSec=2
+StateDirectory=omarchy-battery-guard
+
+[Install]
+WantedBy=multi-user.target

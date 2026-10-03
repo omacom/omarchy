@@ -16,3 +16,6 @@ systemctl enable sddm.service
 # whole session down. [Install] pulls in systemd-oomd.socket via Also=, which
 # is what the user manager reports app.slice candidacy over.
 systemctl enable systemd-oomd.service
+
+# Deploy the root-owned guard before enabling it; do not start it mid-install.
+bash "$OMARCHY_INSTALL/helpers/battery-guard.sh"

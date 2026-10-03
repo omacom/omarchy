@@ -73,10 +73,11 @@ Panel {
     var device = UPower.displayDevice
     return Model.chargeThresholdActive(device, root.discharging, upowerStates())
   }
-  readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
+  readonly property bool batteryFull: fullyCharged || (!root.discharging && UPower.displayDevice && UPower.displayDevice.percentage >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
 
-  // 0..1 charge level, used by the visual progress bar.
+  // Usable charge, shared by the bar percentage and panel fill. Hardware
+  // charge-hold decisions above continue to use the raw UPower telemetry.
   readonly property real batteryFraction: {
     var d = UPower.displayDevice
     return Model.batteryFraction(d)
@@ -372,7 +373,7 @@ Panel {
           Text {
             id: heroPercent
             textFormat: Text.PlainText
-            text: root.batteryInfo.percentage || "—"
+            text: root.batteryPresent ? Math.round(root.batteryFraction * 100) + "%" : "—"
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.displayLarge

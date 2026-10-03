@@ -46,7 +46,9 @@ function profileIcon(name) {
 }
 
 function batteryFraction(device) {
-  return device && device.isPresent ? Math.max(0, Math.min(1, device.percentage)) : 0
+  if (!device || !device.isPresent) return 0
+  var raw = Math.max(0, Math.min(100, Number(device.percentage || 0) * 100))
+  return (raw > 0 ? Math.max(1, Math.floor((raw - 4) * 100 / 96 + 0.5 + 1e-9)) : 0) / 100
 }
 
 function chargeThresholdActive(device, onBattery, states) {
@@ -54,7 +56,8 @@ function chargeThresholdActive(device, onBattery, states) {
   var s = states || {}
   if (!(d && d.isPresent && !onBattery)) return false
 
-  var fraction = batteryFraction(d)
+  // Charge-hold decisions always use raw telemetry, not the usable display.
+  var fraction = Number(d.percentage || 0)
   if (d.state === s.Discharging) return false
   if (d.state === s.PendingCharge) return true
   if (d.state === s.FullyCharged && fraction < 0.99) return true
@@ -69,7 +72,7 @@ function batteryIcon(device, onBattery, states) {
 
   var chargingIcons = ["󰢜", "󰂆", "󰂇", "󰂈", "󰢝", "󰂉", "󰢞", "󰂊", "󰂋", "󰂅"]
   var defaultIcons = ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
-  var index = Math.max(0, Math.min(9, Math.floor(d.percentage * 10)))
+  var index = Math.max(0, Math.min(9, Math.floor(batteryFraction(d) * 10)))
   var threshold = chargeThresholdActive(d, onBattery, states)
 
   if (threshold) return defaultIcons[index]

@@ -1,0 +1,574 @@
+#!/bin/bash
+
+# omarchy:summary=Warn and shut down gracefully before battery cutoff
+# omarchy:group=battery
+# omarchy:args=[--oneshot]
+# omarchy:examples=omarchy battery guard
+# omarchy:hidden=true
+
+set -euo pipefail
+
+POWER_SUPPLY_PATH="${OMARCHY_POWER_SUPPLY_PATH:-/sys/class/power_supply}"
+if (( EUID == 0 )); then
+  STATE_ROOT="${OMARCHY_BATTERY_GUARD_STATE_DIR:-/var/lib/omarchy-battery-guard}"
+else
+  STATE_ROOT="${OMARCHY_BATTERY_GUARD_STATE_DIR:-$HOME/.local/state/omarchy/battery-guard}"
+fi
+STATE_FILE="$STATE_ROOT/state"
+
+POLL_INTERVAL="${OMARCHY_BATTERY_GUARD_POLL_INTERVAL:-1}"
+COUNTDOWN_SECONDS="${OMARCHY_BATTERY_GUARD_COUNTDOWN_SECONDS:-60}"
+THRESHOLD_PERCENT="${OMARCHY_BATTERY_GUARD_THRESHOLD_PERCENT:-5}"
+TIMELEFT_TRIGGER_SECONDS="${OMARCHY_BATTERY_GUARD_TIMELEFT_TRIGGER_SECONDS:-90}"
+MAX_ONESHOT_CYCLES="${OMARCHY_BATTERY_GUARD_MAX_ONESHOT_CYCLES:-1}"
+DRY_RUN="${OMARCHY_BATTERY_GUARD_DRY_RUN:-false}"
+CLOCK_PATH="${OMARCHY_BATTERY_GUARD_CLOCK_PATH:-/proc/uptime}"
+
+normalize_int() {
+  local value="$1"
+  local fallback="$2"
+  local min="$3"
+  local max="${4:-}"
+  local normalized
+
+  if [[ $value =~ ^-?[0-9]+$ ]]; then
+    normalized=$value
+    if (( normalized < min )); then
+      normalized=$min
+    elif [[ -n $max ]] && (( normalized > max )); then
+      normalized=$max
+    fi
+  else
+    normalized=$fallback
+  fi
+
+  printf '%s\n' "$normalized"
+}
+
+POLL_INTERVAL=$(normalize_int "$POLL_INTERVAL" 1 1)
+COUNTDOWN_SECONDS=$(normalize_int "$COUNTDOWN_SECONDS" 60 1)
+THRESHOLD_PERCENT=$(normalize_int "$THRESHOLD_PERCENT" 5 0 100)
+TIMELEFT_TRIGGER_SECONDS=$(normalize_int "$TIMELEFT_TRIGGER_SECONDS" 90 1)
+MAX_ONESHOT_CYCLES=$(normalize_int "$MAX_ONESHOT_CYCLES" 1 1)
+
+oneshot=false
+if (($# > 0)); then
+  while (($# > 0)); do
+    case "$1" in
+      --oneshot)
+        oneshot=true
+        ;;
+      --help|-h)
+        echo "Usage: omarchy-battery-guard [--oneshot]"
+        exit 0
+        ;;
+      *)
+        echo "Usage: omarchy-battery-guard [--oneshot]" >&2
+        exit 2
+        ;;
+    esac
+    shift
+  done
+fi
+
+mkdir -p "$STATE_ROOT"
+chmod 700 "$STATE_ROOT"
+exec 9>"$STATE_ROOT/lock"
+if ! flock -n 9; then
+  exit 0
+fi
+
+is_battery_monitor_running() {
+  [[ -d $POWER_SUPPLY_PATH ]] || return 1
+  return 0
+}
+
+find_battery_supply() {
+  local path=""
+
+  for path in "$POWER_SUPPLY_PATH"/*; do
+    [[ -r $path/type ]] || continue
+
+    if [[ -r $path/present && $(<"$path/present") != "1" ]]; then
+      continue
+    fi
+
+    [[ $(<"$path/type") == "Battery" ]] || continue
+    [[ ! -r $path/scope || $(<"$path/scope") != "Device" ]] || continue
+    echo "$path"
+  done
+}
+
+find_ac_online() {
+  local path=""
+  local type
+
+  for path in "$POWER_SUPPLY_PATH"/*; do
+    [[ -r $path/type ]] || continue
+    [[ -r $path/online ]] || continue
+
+    type=$(<"$path/type")
+    case "$type" in
+      Mains|USB|USB_*|Wireless)
+        if [[ $(<"$path/online") == "1" ]]; then
+          return 0
+        fi
+        ;;
+    esac
+  done
+
+  return 1
+}
+
+read_battery_percentage() {
+  local path="$1"
+  local capacity
+  local energy_now
+  local energy_full
+
+  if [[ -r $path/capacity ]]; then
+    capacity=$(<"$path/capacity")
+    if [[ $capacity =~ ^[0-9]{1,3}$ ]]; then
+      (( 10#$capacity <= 100 )) || return 1
+      echo "$((10#$capacity))"
+      return 0
+    fi
+  fi
+
+  if [[ -r $path/charge_now && -r $path/charge_full ]]; then
+    energy_now=$(<"$path/charge_now")
+    energy_full=$(<"$path/charge_full")
+  elif [[ -r $path/energy_now && -r $path/energy_full ]]; then
+    energy_now=$(<"$path/energy_now")
+    energy_full=$(<"$path/energy_full")
+  else
+    return 1
+  fi
+
+  [[ $energy_now =~ ^[0-9]+$ && $energy_full =~ ^[0-9]+$ ]] || return 1
+  (( energy_full > 0 )) || return 1
+
+  awk -v now="$energy_now" -v full="$energy_full" 'BEGIN {
+    value = (now / full) * 100
+    if (value < 0) value = 0
+    if (value > 100) value = 100
+    print int(value + 0.5)
+  }'
+}
+
+read_positive_magnitude() {
+  local path="$1"
+  local value
+
+  [[ -r $path ]] || return 1
+  value=$(<"$path")
+  value=${value#-}
+  [[ $value =~ ^[0-9]+$ ]] || return 1
+  (( value > 0 )) || return 1
+  printf '%s\n' "$value"
+}
+
+read_battery_state() {
+  local battery_path="$1"
+  local charge_now
+  local current_now
+  local energy_now
+  local power_now
+  local state
+  local time_to_empty
+
+  # Missing capacity must not hide status or independently valid runtime.
+  percent=$(read_battery_percentage "$battery_path") || percent=-1
+
+  if [[ -r $battery_path/status ]]; then
+    state=$(<"$battery_path/status")
+  else
+    state="Unknown"
+  fi
+
+  if [[ $state == "Discharging" ]]; then
+    discharging=true
+  else
+    discharging=false
+  fi
+
+  seconds_to_empty=0
+  if time_to_empty=$(read_positive_unsigned "$battery_path/time_to_empty_now"); then
+    seconds_to_empty=$time_to_empty
+  elif energy_now=$(read_positive_unsigned "$battery_path/energy_now") &&
+    power_now=$(read_positive_magnitude "$battery_path/power_now"); then
+    seconds_to_empty=$(awk -v energy="$energy_now" -v power="$power_now" 'BEGIN {
+      print int((energy * 3600) / power)
+    }')
+  elif charge_now=$(read_positive_unsigned "$battery_path/charge_now") &&
+    current_now=$(read_positive_magnitude "$battery_path/current_now"); then
+    seconds_to_empty=$(awk -v charge="$charge_now" -v current="$current_now" 'BEGIN {
+      print int((charge * 3600) / current)
+    }')
+  fi
+
+  return 0
+}
+
+read_unsigned() {
+  local value
+  [[ -r $1 ]] || return 1
+  value=$(<"$1")
+  [[ $value =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "$value"
+}
+
+read_positive_unsigned() {
+  local value
+  value=$(read_unsigned "$1") || return 1
+  awk -v v="$value" 'BEGIN { exit !(v > 0) }' || return 1
+  printf '%s\n' "$value"
+}
+
+# Convert charge-based packs to energy before combining differently sized packs.
+# The outputs are microWh and microW; unavailable data is distinct from zero.
+read_battery_energy() {
+  local path=$1 now=-1 full=-1 power=unknown charge voltage value status
+  if full=$(read_positive_unsigned "$path/energy_full"); then
+    now=$(read_unsigned "$path/energy_now") || now=-1
+  elif charge=$(read_positive_unsigned "$path/charge_full") &&
+    { voltage=$(read_positive_unsigned "$path/voltage_min_design") || voltage=$(read_positive_unsigned "$path/voltage_now"); }; then
+    full=$(awk -v q="$charge" -v v="$voltage" 'BEGIN { print q * v / 1000000 }')
+    if charge=$(read_unsigned "$path/charge_now"); then
+      now=$(awk -v q="$charge" -v v="$voltage" 'BEGIN { print q * v / 1000000 }')
+    fi
+  else
+    full=-1
+  fi
+  if [[ $now == "-1" && $full != "-1" ]] && value=$(read_battery_percentage "$path"); then
+    now=$(awk -v full="$full" -v p="$value" 'BEGIN { print full * p / 100 }')
+  fi
+  status=$(cat "$path/status" 2>/dev/null || true)
+  case $status in
+    Full|"Not charging") power=0 ;;
+    Charging|Discharging)
+      if value=$(read_positive_magnitude "$path/power_now"); then
+        power=$value
+      elif value=$(read_positive_magnitude "$path/current_now") && voltage=$(read_positive_unsigned "$path/voltage_now"); then
+        power=$(awk -v a="$value" -v v="$voltage" 'BEGIN { print a * v / 1000000 }')
+      elif [[ $status == "Discharging" && $now != "-1" ]] && value=$(read_positive_unsigned "$path/time_to_empty_now"); then
+        power=$(awk -v e="$now" -v t="$value" 'BEGIN { print e * 3600 / t }')
+      fi
+      if [[ $power != "unknown" && $status == "Charging" ]]; then power=-$power; fi
+      ;;
+  esac
+  printf '%s %s %s\n' "$now" "$full" "$power"
+}
+
+read_system_battery_state() {
+  local paths=() path pack_percent max_percent=0 all_percent=true any_discharge=false
+  local measurements="" energy full power totals
+  mapfile -t paths < <(find_battery_supply)
+  battery_path=${paths[0]:-$POWER_SUPPLY_PATH/__unavailable_battery}
+  percent=-1 discharging=false seconds_to_empty=0
+  (( ${#paths[@]} > 0 )) || return 0
+  if (( ${#paths[@]} == 1 )); then
+    read_battery_state "${paths[0]}"
+    return
+  fi
+  for path in "${paths[@]}"; do
+    read_battery_state "$path"
+    $discharging && any_discharge=true
+    pack_percent=$percent
+    if [[ $pack_percent == "-1" ]]; then
+      all_percent=false
+    elif (( pack_percent > max_percent )); then
+      max_percent=$pack_percent
+    fi
+    read -r energy full power < <(read_battery_energy "$path")
+    measurements+="$energy $full $power"$'\n'
+  done
+  discharging=$any_discharge
+  # A complete energy sum matches the composite system battery. Without pack
+  # weights, use a safe upper bound: only all-low packs can start protection.
+  totals=$(awk '
+    NF == 3 {
+      if ($1 < 0 || $2 <= 0) missingEnergy = 1
+      if ($3 == "unknown") missingPower = 1
+      energy += $1; full += $2; power += $3
+    }
+    END {
+      p = -1; seconds = 0
+      if (!missingEnergy && full > 0) {
+        p = energy * 100 / full
+        if (p > 100) p = 100
+        if (!missingPower && power > 0) seconds = int(energy * 3600 / power)
+      }
+      printf "%.9f %d\n", p, seconds
+    }' <<<"$measurements")
+  read -r percent seconds_to_empty <<<"$totals"
+  if [[ $percent == "-1.000000000" ]]; then
+    percent=-1
+    if $all_percent; then percent=$max_percent; fi
+  fi
+}
+
+# Notification IDs belong to each user's notification server, never to root.
+declare -A notification_ids=()
+declare -A close_plans=() close_done=() close_complete=()
+
+session_users() {
+  if (( EUID == 0 )); then
+    loginctl list-users --no-legend 2>/dev/null || true
+  else
+    printf '%s %s\n' "$EUID" "$(id -un)"
+  fi
+}
+
+as_session_user() {
+  local uid="$1" user="$2"
+  shift 2
+  if (( EUID == 0 )); then
+    timeout --kill-after=1s 2s runuser -u "$user" -- env -i \
+      PATH=/usr/bin:/bin USER="$user" LOGNAME="$user" \
+      XDG_RUNTIME_DIR="/run/user/$uid" \
+      DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" "$@" 9>&-
+  else
+    timeout --kill-after=1s 2s "$@" 9>&-
+  fi
+}
+
+notify_critical() {
+  local message="$1" lifetime="${2:-0}"
+  local uid user result id
+  while read -r uid user _; do
+    [[ $uid =~ ^[0-9]+$ && -n $user ]] || continue
+    (( uid >= 1000 )) || continue
+    id=${notification_ids[$uid]:-0}
+    if result=$(as_session_user "$uid" "$user" omarchy-notification-send \
+      --app-name omarchy-battery-guard -i battery-caution -u critical \
+      -p -r "$id" -t "$lifetime" "Battery protection" "$message" 2>/dev/null); then
+      if [[ $result =~ ^[0-9]+$ ]]; then
+        notification_ids[$uid]=$result
+      fi
+    fi
+  done < <(session_users)
+}
+
+# An online adapter may be too weak to stop discharge. Re-read the status at
+# every action boundary, rather than relying on the preceding polling sample.
+power_recovered() {
+  local path confirmed=false count=0
+  find_ac_online || return 1
+  while read -r path; do
+    (( count += 1 ))
+    [[ -r $path/status ]] || return 1
+    case $(<"$path/status") in
+      Charging|Full) confirmed=true ;;
+      "Not charging") ;;
+      *) return 1 ;;
+    esac
+  done < <(find_battery_supply)
+  (( count > 0 )) && $confirmed
+}
+
+request_window_close() {
+  local uid user output signature pid wayland address extra plan valid result key
+  [[ $DRY_RUN != "true" ]] || return 0
+  while read -r uid user _; do
+    [[ $uid =~ ^[0-9]+$ && -n $user ]] || continue
+    (( uid >= 1000 )) || continue
+    power_recovered && return 0
+    (( $(now_seconds) + 3 < countdown_deadline )) || return 0
+    if [[ ${close_complete[$uid]:-false} != "true" ]]; then
+      # Snapshot is read-only. A failed/partial result cannot dispatch anything.
+      if ! output=$(as_session_user "$uid" "$user" /bin/bash /usr/share/omarchy/default/battery-guard/close-windows \
+        "$battery_path" --snapshot 2>/dev/null); then
+        continue
+      fi
+      plan="" valid=true
+      while read -r signature pid wayland address extra; do
+        [[ -n $signature ]] || continue
+        if [[ $signature =~ ^[a-zA-Z0-9_-]+$ && $pid =~ ^[0-9]+$ && $wayland =~ ^wayland-[0-9]+$ && $address =~ ^0x[0-9a-fA-F]+$ && -z $extra ]]; then
+          plan+="$signature $pid $wayland $address"$'\n'
+        else
+          valid=false
+        fi
+      done <<<"$output"
+      $valid || continue
+      close_plans[$uid]=$plan
+      # This sentinel also preserves an empty snapshot across daemon restarts.
+      close_complete[$uid]=true
+      write_state countdown
+    fi
+    while read -r signature pid wayland address; do
+      [[ -n $signature ]] || continue
+      key="$signature $address"
+      if grep -Fxq -- "$key" <<<"${close_done[$uid]:-}"; then continue; fi
+      power_recovered && return 0
+      (( $(now_seconds) + 3 < countdown_deadline )) || return 0
+      # Persist before any possible dispatch. If the daemon or RPC dies now,
+      # restarting must not resend a request that may already show a save dialog.
+      close_done[$uid]+="$key"$'\n'
+      close_requested=true
+      write_state countdown
+      result=0
+      as_session_user "$uid" "$user" /bin/bash /usr/share/omarchy/default/battery-guard/close-windows \
+        "$battery_path" --close-one "$signature" "$pid" "$wayland" "$address" >/dev/null 2>&1 || result=$?
+      # Only a definite rejection is retryable. Timeout/transport failures have
+      # an uncertain outcome and retain their persisted attempt marker.
+      if (( result == 2 )); then
+        close_done[$uid]=$(grep -Fxv -- "$key" <<<"${close_done[$uid]}") || true
+        [[ -z ${close_done[$uid]} ]] || close_done[$uid]+=$'\n'
+        write_state countdown
+      fi
+    done <<<"${close_plans[$uid]:-}"
+  done < <(session_users)
+}
+
+write_state() {
+  local mode="$1" state_tmp uid line
+  state_tmp=$(mktemp --tmpdir="$STATE_ROOT" .state.XXXXXX)
+  printf 'mode=%s\ndeadline=%s\nboot=%s\nclosed=%s\n' \
+    "$mode" "$countdown_deadline" "$boot_id" "$close_requested" >"$state_tmp"
+  for uid in "${!close_plans[@]}"; do
+    while read -r line; do
+      [[ -z $line ]] || printf 'plan:%s=%s\n' "$uid" "$line" >>"$state_tmp"
+    done <<<"${close_plans[$uid]}"
+  done
+  for uid in "${!close_complete[@]}"; do
+    [[ ${close_complete[$uid]} != "true" ]] || printf 'snapshot:%s=1\n' "$uid" >>"$state_tmp"
+  done
+  for uid in "${!close_done[@]}"; do
+    while read -r line; do
+      [[ -z $line ]] || printf 'done:%s=%s\n' "$uid" "$line" >>"$state_tmp"
+    done <<<"${close_done[$uid]}"
+  done
+  mv -f "$state_tmp" "$STATE_FILE"
+}
+
+# Deadlines use uptime: wall-clock adjustments must not extend the save window.
+now_seconds() {
+  local uptime _
+  read -r uptime _ <"$CLOCK_PATH"
+  printf '%s\n' "${uptime%%.*}"
+}
+
+read_persisted_countdown() {
+  local key value mode="" deadline="" boot="" closed="false"
+  [[ -r $STATE_FILE ]] || return 0
+  while IFS='=' read -r key value; do
+    case "$key" in
+      mode) mode=$value ;;
+      deadline) deadline=$value ;;
+      boot) boot=$value ;;
+      closed) closed=$value ;;
+      snapshot:*)
+        [[ ${key#*:} =~ ^[0-9]+$ && $value == "1" ]] || continue
+        close_complete[${key#*:}]=true
+        ;;
+      plan:*)
+        [[ ${key#*:} =~ ^[0-9]+$ ]] || continue
+        close_plans[${key#*:}]+="$value"$'\n'
+        ;;
+      done:*)
+        [[ ${key#*:} =~ ^[0-9]+$ ]] || continue
+        close_done[${key#*:}]+="$value"$'\n'
+        ;;
+    esac
+  done <"$STATE_FILE"
+  if [[ $mode == "countdown" && $boot == "$boot_id" && $deadline =~ ^[0-9]{1,10}$ ]]; then
+    countdown_deadline=$deadline
+    countdown_active=true
+    [[ $closed != "true" ]] || close_requested=true
+    # Replacement IDs are intentionally not reused across a daemon/server restart.
+  else
+    close_plans=() close_done=() close_complete=()
+  fi
+}
+
+cancel_countdown() {
+  local apps_were_asked_to_close=$close_requested
+  countdown_active=false
+  close_plans=() close_done=() close_complete=()
+  close_requested=false
+  countdown_deadline=0
+  write_state idle
+  if $apps_were_asked_to_close; then
+    notify_critical "Charging resumed. Shutdown cancelled. Reopen any closed apps." 5000
+  else
+    notify_critical "Charging resumed. Shutdown cancelled." 5000
+  fi
+}
+
+run_action_once() {
+  power_recovered && { cancel_countdown; return; }
+  notify_critical "Shutting down…"
+  power_recovered && { cancel_countdown; return; }
+  if [[ $DRY_RUN == "true" ]]; then
+    write_state dry-run
+  else
+    # The regular shutdown transaction gives services their normal stop timeout
+    # and unmounts filesystems. Never use --force or terminate app PIDs here.
+    systemctl poweroff --no-wall
+    write_state actioned
+  fi
+  exit 0
+}
+
+[[ -d $POWER_SUPPLY_PATH ]] || exit 0
+boot_id=$(</proc/sys/kernel/random/boot_id)
+countdown_active=false
+countdown_deadline=0
+close_requested=false
+last_notice=61
+read_persisted_countdown
+cycle=0
+
+while true; do
+  read_system_battery_state
+  if power_recovered; then
+    if $countdown_active; then cancel_countdown; fi
+  elif $discharging || $countdown_active; then
+    now=$(now_seconds)
+    low_charge=false
+    if [[ $percent != "-1" ]] && awk -v p="$percent" -v t="$THRESHOLD_PERCENT" 'BEGIN { exit !(p >= 0 && p <= t) }'; then
+      low_charge=true
+    fi
+    if ! $countdown_active && { $low_charge || (( seconds_to_empty > 0 && seconds_to_empty <= TIMELEFT_TRIGGER_SECONDS )); }; then
+      countdown_active=true
+      close_requested=false
+      close_plans=() close_done=() close_complete=()
+      countdown_deadline=$((now + COUNTDOWN_SECONDS))
+      last_notice=61
+    fi
+    if $countdown_active; then
+      # Leave 30 seconds for the OS to stop services and flush storage.
+      # Runtime estimates can deteriorate; shorten, never extend a deadline.
+      if (( seconds_to_empty > 0 && now + seconds_to_empty - 30 < countdown_deadline )); then
+        countdown_deadline=$((now + seconds_to_empty - 30))
+      fi
+      remaining=$((countdown_deadline - now))
+      (( remaining >= 0 )) || remaining=0
+      write_state countdown
+      if (( remaining == 0 )); then
+        run_action_once
+      elif (( last_notice == 61 || (remaining <= 30 && last_notice > 30) || (remaining <= 10 && last_notice > 10) )); then
+        if (( remaining <= 10 )); then
+          notify_critical "Finish any save dialogs. Shutdown in ${remaining}s."
+        else
+          notify_critical "Save your work and connect your charger. Shutdown in ${remaining}s."
+        fi
+        last_notice=$remaining
+      fi
+      # Notification delivery also consumes time; check the deadline again.
+      now=$(now_seconds)
+      remaining=$((countdown_deadline - now))
+      if power_recovered; then
+        cancel_countdown
+      elif (( remaining <= 0 )); then
+        run_action_once
+      elif (( remaining <= 15 )); then
+        request_window_close
+      fi
+    fi
+  fi
+  cycle=$((cycle + 1))
+  if $oneshot && (( cycle >= MAX_ONESHOT_CYCLES )); then exit 0; fi
+  sleep "$POLL_INTERVAL"
+done

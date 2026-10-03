@@ -8,7 +8,7 @@ run_node_test <<'JS'
 const battery = requireFromRoot('shell/plugins/services/battery/BatteryModel.js')
 const discharging = 1
 
-assertEqual(battery.batteryPercentage({ isPresent: true, percentage: 0.126 }), 13, 'battery rounds display percentage')
+assertEqual(battery.batteryPercentage({ isPresent: true, percentage: 0.126 }), 9, 'battery rounds usable display percentage')
 assertEqual(battery.batteryPercentage({ isPresent: false, percentage: 0.5 }), -1, 'battery reports missing battery')
 assert(battery.isDischarging({ isPresent: true, state: discharging }, true, discharging), 'battery detects discharging state')
 assert(!battery.isDischarging({ isPresent: true, state: discharging }, false, discharging), 'battery requires on-battery state')

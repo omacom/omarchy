@@ -189,6 +189,11 @@ assert(!notifications.shouldRenderCompactGlyph('K', 'file:///tmp/image.png', tru
 
 assert(notifications.shouldBypassDnd({ appName: 'omarchy-action', urgency: 1 }, 2), 'omarchy action toasts bypass DND')
 assert(notifications.shouldBypassDnd({ appName: 'notify-send', urgency: 2 }, 2), 'critical notify-send bypasses DND')
+assert(notifications.shouldBypassDnd({ appName: 'omarchy-battery-guard', urgency: 2 }, 2), 'critical battery protection bypasses DND')
+assert(!notifications.shouldBypassDnd({ appName: 'omarchy-battery-guard', urgency: 1 }, 2), 'normal battery protection respects DND')
+assert(!notifications.shouldBypassDnd({ appName: 'omarchy-battery-guard', urgency: 0 }, 2), 'low battery protection respects DND')
+assert(!notifications.shouldBypassDnd({ appName: 'omarchy-battery-guard', urgency: '2' }, 2), 'battery protection requires the critical urgency enum')
+assert(!notifications.shouldBypassDnd({ appName: 'omarchy-battery-guard-preview', urgency: 2 }, 2), 'similar app names do not gain battery protection DND bypass')
 assert(!notifications.shouldBypassDnd({ appName: 'notify-send', urgency: 1 }, 2), 'normal notify-send does not bypass DND')
 assert(!notifications.shouldBypassDnd({ appName: 'Slack', urgency: 2 }, 2), 'critical app notifications do not bypass DND')
 assert(!notifications.shouldBypassDnd({ appName: 'omarchy-menu-keybindings', urgency: 1 }, 2), 'omarchy command app names do not bypass DND')

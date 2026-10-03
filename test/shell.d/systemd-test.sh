@@ -31,6 +31,26 @@ grep -Fx 'systemctl --user daemon-reload' "$first_run_units" >/dev/null
 grep -F 'omarchy-sleep-lock.service' "$first_run_units" >/dev/null
 pass "first-run reloads and enables the sleep lock service"
 
+battery_guard_service="$ROOT/default/systemd/system/omarchy-battery-guard.service"
+grep -Fx 'ExecStart=/usr/bin/omarchy-battery-guard' "$battery_guard_service" >/dev/null
+grep -Fx 'WantedBy=multi-user.target' "$battery_guard_service" >/dev/null
+grep -Fx 'StateDirectory=omarchy-battery-guard' "$battery_guard_service" >/dev/null
+pass "battery guard service follows the system lifetime"
+
+! grep -F 'systemctl hibernate' "$ROOT/bin/omarchy-battery-guard" >/dev/null
+grep -F 'systemctl poweroff --no-wall' "$ROOT/bin/omarchy-battery-guard" >/dev/null
+! grep -F 'systemd-run' "$ROOT/bin/omarchy-battery-guard" >/dev/null
+pass "battery guard observes power action results directly"
+
+grep -F 'while read -r uid user _' "$ROOT/bin/omarchy-battery-guard" >/dev/null
+grep -F 'timeout --kill-after=1s 2s runuser -u "$user"' "$ROOT/bin/omarchy-battery-guard" >/dev/null
+pass "system battery warnings target logged-in users with a deadline"
+
+enable_services="$ROOT/install/config/enable-services.sh"
+grep -F 'bash "$OMARCHY_INSTALL/helpers/battery-guard.sh"' "$enable_services" >/dev/null
+grep -F 'systemctl enable omarchy-battery-guard.service' "$ROOT/install/helpers/battery-guard.sh" >/dev/null
+pass "system setup enables the battery guard service"
+
 upgrade_to_quattro="$ROOT/bin/omarchy-upgrade-to-quattro"
 grep -F '6870b232a6c0474b59187882e6d25ae771bba735098bcbedef8a2b73b97e2b6a' "$upgrade_to_quattro" >/dev/null
 grep -F 'bcd1a76cb5c63514922bc5e11af22ae480fc6d06a99863364e02bdf3c7bdceaf' "$upgrade_to_quattro" >/dev/null
