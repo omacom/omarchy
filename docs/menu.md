@@ -60,6 +60,8 @@ The sample extension at `config/omarchy/extensions/omarchy-menu.jsonc`
 (refreshed into `~/.config/`) documents the format in its header and ships
 only comments, so the default state adds nothing.
 
+The Language & Region row can use a compiled translation from `default/locale/<locale>/LC_MESSAGES/menu.json`. The shell loads the regional catalog first, then the language catalog, and merges translated labels into the shipped entries before applying the user's menu extension. A user label override therefore wins. `i18n/compile` builds this JSON alongside the gettext catalog used by the selector command.
+
 ## Guards
 
 `when`, `checked`, and `disabled` are bash conditions. The shell never

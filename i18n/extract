@@ -1,0 +1,30 @@
+#!/bin/bash
+
+set -euo pipefail
+
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+menu_source=$(mktemp)
+trap 'rm -f "$menu_source"' EXIT
+
+# xgettext does not parse the menu's JSONC format. Generate a Shell source
+# fragment from the shipped entry so the catalog cannot drift from its label.
+node - "$root" >"$menu_source" <<'JS'
+const fs = require('fs')
+const path = require('path')
+const root = process.argv[2]
+const model = require(path.join(root, 'shell/plugins/menu/MenuModel.js'))
+const raw = fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8')
+const item = model.parseMenuJsonc(raw).find(entry => entry.id === 'setup.language')
+if (!item) throw new Error('setup.language is missing from the menu')
+process.stdout.write(`gettext ${JSON.stringify(item.label)}\n`)
+JS
+
+xgettext \
+  --language=Shell \
+  --from-code=UTF-8 \
+  --keyword=gettext \
+  --no-location \
+  --no-wrap \
+  --package-name=Omarchy \
+  --output="$root/i18n/omarchy.pot" \
+  "$root/bin/omarchy-menu-language" "$menu_source"
