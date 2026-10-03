@@ -13,3 +13,11 @@ fi
 if pgrep -x ghostty >/dev/null; then
   killall -SIGUSR2 ghostty
 fi
+
+# WezTerm watches its own config file and reloads on change, but not the theme
+# file it loads: omarchy-theme-set replaces the whole current theme directory,
+# so any watch on that path dies with the old inode. Touching the config is what
+# makes the new colors land.
+if [[ -f ~/.config/wezterm/wezterm.lua ]]; then
+  touch ~/.config/wezterm/wezterm.lua
+fi
