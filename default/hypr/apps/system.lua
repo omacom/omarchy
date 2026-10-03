@@ -39,7 +39,8 @@ o.window("org.omarchy.screensaver", { workspace = "special:screensaver silent" }
 -- A layer surface holding keyboard focus, like an open bar panel or the menu, makes Hyprland map the
 -- screensaver unfocused and skip its fullscreen rule. Ask for both once the window is open.
 hl.on("window.open", function(window)
-  if window.class == "org.omarchy.screensaver" then
+  -- Not for a remap on the hidden workspace: focusing it would show it in place of an open scratchpad.
+  if window.class == "org.omarchy.screensaver" and window.workspace.name ~= "special:screensaver" then
     hl.dispatch(hl.dsp.focus({ window = window }))
     hl.dispatch(hl.dsp.window.fullscreen({ mode = "fullscreen", action = "set", window = window }))
   end
