@@ -29,7 +29,9 @@ BROWSER_POLICY_FIREFOX_DIRS=(
   /opt/zen-browser/distribution
 )
 
-BROWSER_POLICY_DEFAULT_COLOR="#1c2027"
+# Neutral, so the fallback chrome carries no tint of its own: Chromium draws
+# the old #1c2027 seed's toolbar as blue-grey #39424f.
+BROWSER_POLICY_DEFAULT_COLOR="#1f1f1f"
 
 browser_policy_purge_dir() {
   local dir=$1
