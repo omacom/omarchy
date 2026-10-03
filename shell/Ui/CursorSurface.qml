@@ -29,7 +29,7 @@ BorderSurface {
   color: hasCursor ? fill : (current ? currentFill : "transparent")
   borderSpec: root.hasCursor
     ? Border.controlSpec("hover-cursor", root.foreground, root.accent)
-    : (root.current
+    : (root.current && Border.controlHasWidth("selected")
       ? Border.controlSpec("selected", root.foreground, root.accent)
       : (root.bordered
         ? Border.controlSpec("normal", root.foreground, root.accent)
