@@ -232,3 +232,30 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# While an Omarchy menu holds exclusive keyboard focus, Hyprland reports no
+# active keymap at all. A cache name that moves with that state hands every
+# alternating press a cold rebuild that deletes the cache it just replaced,
+# so the same binds have to land on one records file either way.
+stub_hyprctl <<BINDS
+$(exec_bind 64 "SUPER + K" "Keybindings" "omarchy-menu-keybindings")
+BINDS
+
+records_files() { find "$tmpdir/cache/omarchy" -maxdepth 1 -name 'keybindings-*.records'; }
+
+with_keymap=$(keybindings)
+(( $(records_files | wc -l) == 1 )) ||
+  fail "one press leaves exactly one records cache"
+name_with_keymap=$(records_files)
+
+sed -i 's/echo "active keymap: English (US)"/:/' "$stub_bin/hyprctl"
+
+without_keymap=$(keybindings)
+name_without_keymap=$(records_files)
+
+[[ $name_without_keymap == "$name_with_keymap" ]] ||
+  fail "the cache name ignores the transient active-keymap state" \
+    "$(basename "$name_with_keymap") vs $(basename "$name_without_keymap")"
+[[ $without_keymap == "$with_keymap" ]] ||
+  fail "the warm cache renders the same entries back"
+pass "the cache outlives a menu taking keyboard focus"
