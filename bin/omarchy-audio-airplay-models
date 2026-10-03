@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Print AirPlay speaker models for the shell
+# omarchy:group=audio
+
+# Prints "<hostname>\t<model id>" for each AirPlay (RAOP) sink PipeWire has
+# made, such as "Kitchen-2.local\tAudioAccessory5,1". The audio panel turns the
+# model into a device type to tell apart speakers that share a name.
+#
+# raop-discover reads the model from the receiver's mDNS TXT record and passes
+# it to each raop-sink module as device.model, but does not copy it onto the
+# sink node, so the shell cannot see it through Quickshell. It is read from the
+# module arguments here instead. Prints nothing when RAOP discovery is not
+# loaded.
+pw-dump 2>/dev/null | jq -r '
+  .[]
+  | select(.type == "PipeWire:Interface:Module" and .info.name == "libpipewire-module-raop-sink")
+  | .info.args
+  | if type == "string" then (try fromjson catch {}) else . end
+  | select(.["raop.hostname"] and .["device.model"])
+  | "\(.["raop.hostname"])\t\(.["device.model"])"
+'

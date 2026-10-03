@@ -46,4 +46,36 @@ assertEqual(audio.matchingMprisStreamLabel('Chromium', players), 'Chromium', 'au
 assertEqual(audio.unmatchedMprisStreamLabel('audio-src', players, streams), 'Spotify', 'audio uses unmatched MPRIS player for generic streams')
 assertEqual(audio.streamLabel(streams[1], players, streams), 'Spotify', 'audio labels generic streams from MPRIS')
 assert(audio.streamRepresentsPlayer(streams[1], players[0], players, streams), 'audio links generic streams to active player')
+const sink = (name, description) => ({ name: name, description: description, nickname: description })
+const hdmi = sink('alsa_output.pci-0000_01_00.1.hdmi-stereo', 'Monitor')
+const headset = sink('bluez_output.00_11_22_33_44_55.1', 'Headset')
+const tuning = sink('omarchy_speaker_tuning', 'Speakers')
+const pool = sink('raop_sink.Pool.local.192.168.1.67.7000', 'Pool')
+const kitchenAmp = sink('raop_sink.Kitchen.local.192.168.1.56.7000', 'Kitchen')
+const kitchenPod = sink('raop_sink.Kitchen-2.local.192.168.1.87.7000', 'Kitchen')
+const denLeft = sink('raop_sink.Den.local.192.168.1.20.7000', 'Den')
+const denRight = sink('raop_sink.Den-2.local.192.168.1.21.7000', 'Den')
+
+assertDeepEqual(
+  audio.groupedSinks([pool, tuning, hdmi, kitchenAmp, headset]).map(n => n.name),
+  [hdmi.name, headset.name, kitchenAmp.name, pool.name, tuning.name],
+  'audio groups outputs as direct, then AirPlay by name, then other'
+)
+assertEqual(audio.sinkGroupCount([hdmi, headset]), 1, 'audio counts a single output group')
+assert(!audio.hasAirPlaySinks([hdmi, tuning]), 'audio sees no AirPlay sinks without RAOP')
+assert(audio.hasAirPlaySinks([hdmi, pool]), 'audio detects AirPlay sinks')
+assertEqual(audio.sinkGroupTitle(1), 'AIRPLAY', 'audio titles the AirPlay group')
+
+const models = audio.parseAirPlayModels('Kitchen.local\tWiiM Amp\nKitchen-2.local\tAudioAccessory5,1\nDen.local\tAppleTV14,1\nDen-2.local\tAppleTV14,1\n')
+assertEqual(models['Kitchen-2.local'], 'AudioAccessory5,1', 'audio parses AirPlay models')
+assertEqual(audio.airPlayHostname(kitchenPod), 'Kitchen-2.local', 'audio reads the AirPlay hostname from the node name')
+assertEqual(audio.friendlyAirPlayModel('AppleTV5,3'), 'Apple TV HD', 'audio names Apple TV HD')
+assertEqual(audio.friendlyAirPlayModel('WiiM Pro'), 'WiiM Pro', 'audio keeps readable third-party models')
+
+const outputs = [pool, kitchenAmp, kitchenPod, denLeft, denRight]
+assertEqual(audio.sinkRowLabel(pool, outputs, models), 'Pool', 'audio leaves unique AirPlay names alone')
+assertEqual(audio.sinkRowLabel(kitchenAmp, outputs, models), 'Kitchen · WiiM Amp', 'audio labels a shared name with the device type')
+assertEqual(audio.sinkRowLabel(kitchenPod, outputs, models), 'Kitchen · HomePod mini', 'audio labels the other device with its type')
+assertEqual(audio.sinkRowLabel(denRight, outputs, models), 'Den · Apple TV 4K (Den-2)', 'audio adds the hostname when types match too')
+assertEqual(audio.sinkRowLabel(kitchenPod, outputs, {}), 'Kitchen · Kitchen-2', 'audio falls back to the hostname before models load')
 JS

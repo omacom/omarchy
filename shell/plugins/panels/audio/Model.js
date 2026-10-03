@@ -233,6 +233,123 @@ function streamRepresentsPlayer(node, player, players, streams) {
   return streamRepresentsMprisPlayer(streamLabel(node, players, streams), playerLabel)
 }
 
+// Output groups, top to bottom: devices wired to this machine or paired to it
+// over Bluetooth, then AirPlay speakers, then anything else -- virtual sinks
+// such as a speaker tuning or EasyEffects. AirPlay sinks exist only when
+// PipeWire's RAOP discovery (libpipewire-module-raop-discover, from
+// pipewire-zeroconf) is loaded; without it the list is one group and no
+// headings are drawn.
+//
+// Classified from node.name alone: PwNode.properties is invalid until the node
+// is bound (see isPlaybackStream), and each of these factories gives its nodes
+// a stable name prefix.
+var SINK_GROUP_TITLES = ["DIRECT", "AIRPLAY", "OTHER"]
+
+function sinkGroup(node) {
+  var name = String(node && node.name || "")
+  if (name.indexOf("alsa_output.") === 0 || name.indexOf("bluez_output.") === 0) return 0
+  if (name.indexOf("raop_sink.") === 0) return 1
+  return 2
+}
+
+function sinkGroupTitle(group) {
+  return SINK_GROUP_TITLES[group] || ""
+}
+
+function sinkGroupCount(list) {
+  var seen = {}
+  var count = 0
+  for (var i = 0; i < list.length; i++) {
+    var group = sinkGroup(list[i])
+    if (!seen[group]) {
+      seen[group] = true
+      count++
+    }
+  }
+  return count
+}
+
+function hasAirPlaySinks(list) {
+  for (var i = 0; i < list.length; i++)
+    if (sinkGroup(list[i]) === 1) return true
+  return false
+}
+
+// Stable within a group, except AirPlay, which is sorted by name: discovery
+// order is whichever speaker answered mDNS first.
+function groupedSinks(list) {
+  var rows = []
+  for (var i = 0; i < list.length; i++)
+    rows.push({ node: list[i], group: sinkGroup(list[i]), order: i })
+  rows.sort(function(a, b) {
+    if (a.group !== b.group) return a.group - b.group
+    if (a.group === 1) {
+      var left = String(a.node.description || a.node.name || "").toLowerCase()
+      var right = String(b.node.description || b.node.name || "").toLowerCase()
+      if (left !== right) return left < right ? -1 : 1
+    }
+    return a.order - b.order
+  })
+  var out = []
+  for (var j = 0; j < rows.length; j++) out.push(rows[j].node)
+  return out
+}
+
+// "raop_sink.Kitchen-2.local.192.168.68.87.7000" -> "Kitchen-2.local"
+function airPlayHostname(node) {
+  var match = /^raop_sink\.(.+?\.local)\./.exec(String(node && node.name || ""))
+  return match ? match[1] : ""
+}
+
+// AirPlay model ids as advertised in the receiver's "am" TXT key. Anything not
+// listed is shown as advertised: WiiM, for one, already sends "WiiM Amp".
+function friendlyAirPlayModel(model) {
+  var id = String(model || "")
+  if (/^AudioAccessory5,/.test(id)) return "HomePod mini"
+  if (/^AudioAccessory/.test(id)) return "HomePod"
+  if (/^AppleTV5,/.test(id)) return "Apple TV HD"
+  if (/^AppleTV(6|11|14),/.test(id)) return "Apple TV 4K"
+  if (/^AppleTV/.test(id)) return "Apple TV"
+  if (/^AirPort/.test(id)) return "AirPort Express"
+  if (/^(Mac|iMac)/.test(id)) return "Mac"
+  return id
+}
+
+// omarchy-audio-airplay-models output: "<hostname>\t<model id>" per line.
+function parseAirPlayModels(raw) {
+  var out = {}
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var parts = lines[i].split("\t")
+    if (parts.length >= 2 && parts[0]) out[parts[0]] = parts[1]
+  }
+  return out
+}
+
+// Several receivers can share a friendly name ("Kitchen" is a HomePod mini
+// and an amplifier). Only rows whose label collides get a suffix: the device
+// type, or the hostname as well when the colliding devices are the same type.
+function sinkRowLabel(node, list, models) {
+  var label = nodeLabel(node)
+  if (sinkGroup(node) !== 1) return label
+
+  var twins = []
+  for (var i = 0; i < list.length; i++)
+    if (list[i] !== node && sinkGroup(list[i]) === 1 && nodeLabel(list[i]) === label)
+      twins.push(list[i])
+  if (twins.length === 0) return label
+
+  var host = airPlayHostname(node)
+  var type = friendlyAirPlayModel(models ? models[host] : "")
+  var typeIsUnique = !!type
+  for (var j = 0; j < twins.length && typeIsUnique; j++)
+    if (friendlyAirPlayModel(models ? models[airPlayHostname(twins[j])] : "") === type) typeIsUnique = false
+
+  if (typeIsUnique) return label + " · " + type
+  var shortHost = host.replace(/\.local$/, "")
+  return label + " · " + (type ? type + " (" + shortHost + ")" : shortHost)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isPlaybackStream: isPlaybackStream,
@@ -257,6 +374,15 @@ if (typeof module !== "undefined") {
     matchingMprisStreamLabel: matchingMprisStreamLabel,
     unmatchedMprisStreamLabel: unmatchedMprisStreamLabel,
     streamLabel: streamLabel,
-    streamRepresentsPlayer: streamRepresentsPlayer
+    streamRepresentsPlayer: streamRepresentsPlayer,
+    sinkGroup: sinkGroup,
+    sinkGroupTitle: sinkGroupTitle,
+    sinkGroupCount: sinkGroupCount,
+    hasAirPlaySinks: hasAirPlaySinks,
+    groupedSinks: groupedSinks,
+    airPlayHostname: airPlayHostname,
+    friendlyAirPlayModel: friendlyAirPlayModel,
+    parseAirPlayModels: parseAirPlayModels,
+    sinkRowLabel: sinkRowLabel
   }
 }

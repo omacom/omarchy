@@ -330,7 +330,13 @@ Panel {
 
   function refreshDisplayAudioModels() {
     if (!opened) return
-    displayAudioSinks = listSnapshot(audioSinks)
+    // Grouped here rather than in the delegate so selectedIndex keeps meaning
+    // "row N of the list as drawn".
+    displayAudioSinks = Model.groupedSinks(listSnapshot(audioSinks))
+    // Models only matter once an AirPlay sink is listed; refreshing with the
+    // list means a speaker that appears while the panel is open gets one too.
+    if (Model.hasAirPlaySinks(displayAudioSinks) && !airPlayModelsProc.running)
+      airPlayModelsProc.running = true
     displayAudioSources = listSnapshot(audioSources)
     displayAudioStreams = listSnapshot(audioStreams)
     clampCursor()
@@ -589,6 +595,18 @@ Panel {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.updateSinkAvailability(text)
+    }
+  }
+
+  // AirPlay model ids by hostname, to label speakers that share a name.
+  property var airPlayModels: ({})
+
+  Process {
+    id: airPlayModelsProc
+    command: ["omarchy-audio-airplay-models"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.airPlayModels = Model.parseAirPlayModels(text)
     }
   }
 
@@ -853,12 +871,35 @@ Panel {
             Repeater {
               model: root.displayAudioSinks
 
-              SinkRow {
+              // A row carries its group's heading when it is the first of that
+              // group. Headings are labels, never cursor stops.
+              Column {
+                id: sinkGroupRow
                 required property var modelData
                 required property int index
+                readonly property int group: Model.sinkGroup(modelData)
+                readonly property bool showHeading: Model.sinkGroupCount(root.displayAudioSinks) > 1
+                  && (index === 0 || Model.sinkGroup(root.displayAudioSinks[index - 1]) !== group)
                 width: panelColumn.width
-                node: modelData
-                rowIndex: index
+                spacing: Style.space(4)
+
+                Text {
+                  visible: sinkGroupRow.showHeading
+                  topPadding: sinkGroupRow.index === 0 ? 0 : Style.space(8)
+                  leftPadding: Style.space(6)
+                  textFormat: Text.PlainText
+                  text: Model.sinkGroupTitle(sinkGroupRow.group)
+                  color: Qt.darker(root.bar.foreground, 1.4)
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+
+                SinkRow {
+                  width: parent.width
+                  node: sinkGroupRow.modelData
+                  rowIndex: sinkGroupRow.index
+                }
               }
             }
           }
@@ -1046,7 +1087,7 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        text: root.nodeLabel(sinkRow.node)
+        text: Model.sinkRowLabel(sinkRow.node, root.displayAudioSinks, root.airPlayModels)
         color: root.bar.foreground
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.body
