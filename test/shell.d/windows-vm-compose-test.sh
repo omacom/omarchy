@@ -85,6 +85,119 @@ grep -q 'PASSWORD: ".*\$\$.*"' "$COMPOSE" || fail "dollar not escaped"
 [[ $(unescape "$(read_compose_value PASSWORD "$COMPOSE")") == "$tricky" ]] || fail "password did not round-trip"
 pass "password with quote, backslash, and dollar round-trips"
 
+# Optional domain-join settings: DOMAIN / DOMAIN_OU / AUTOLOGIN. A domain write
+# emits the join settings and disables the console autologin; a plain write
+# keeps the compose free of them; bad settings are refused before any mount
+# work happens. write_domain feeds the same KEY=VALUE stream the wizard sends.
+write_domain() { # RAM CORES DISK USER PASS TZ [DOMAIN [OU [AUTOLOGIN [COMMAND]]]]
+  local payload="RAM=$1
+CORES=$2
+DISK=$3
+USERNAME=$4
+PASSWORD=$5
+TZ=$6"
+  [[ -n ${7:-} ]] && payload+="
+DOMAIN=$7"
+  [[ -n ${8:-} ]] && payload+="
+DOMAIN_OU=$8"
+  [[ -n ${9:-} ]] && payload+="
+AUTOLOGIN=$9"
+  [[ -n ${10:-} ]] && payload+="
+COMMAND=${10}"
+  printf '%s\n' "$payload" | __priv_write_compose
+}
+
+reset_case
+prepare_user_mount_sources
+write_domain 4G 2 64G 'admin@corp.example.com' s3cret UTC corp.example.com 'OU=Computers,DC=corp,DC=example,DC=com' N
+grep -q 'DOMAIN: "corp.example.com"' "$COMPOSE" || fail "domain not emitted"
+grep -q 'DOMAIN_OU: "OU=Computers,DC=corp,DC=example,DC=com"' "$COMPOSE" || fail "OU not emitted"
+grep -q 'AUTOLOGIN: "N"' "$COMPOSE" || fail "console autologin not disabled for a domain join"
+grep -q 'USERNAME: "admin@corp.example.com"' "$COMPOSE" || fail "join account not emitted"
+pass "domain join compose emits DOMAIN, DOMAIN_OU, and AUTOLOGIN"
+
+# Periods are legal in domain account names (john.doe) and need no escaping.
+reset_case
+prepare_user_mount_sources
+write_domain 4G 2 64G 'john.doe@cs.local' pw UTC cs.local '' N
+grep -q 'USERNAME: "john.doe@cs.local"' "$COMPOSE" || fail "dotted join account not emitted"
+grep -q 'DOMAIN: "cs.local"' "$COMPOSE" || fail "two-label domain not emitted"
+pass "a dotted join account is emitted verbatim"
+
+reset_case
+prepare_user_mount_sources
+write_domain 4G 2 64G jdoe pw UTC corp.example.com '' N
+grep -q 'DOMAIN: "corp.example.com"' "$COMPOSE" || fail "bare join account domain not emitted"
+grep -q 'DOMAIN_OU:' "$COMPOSE" && fail "empty OU was emitted"
+pass "a domain join without an OU omits DOMAIN_OU"
+
+reset_case
+prepare_user_mount_sources
+write 4G 2 64G alice s3cret UTC
+grep -q 'DOMAIN:' "$COMPOSE" && fail "plain write emitted a domain"
+grep -q 'DOMAIN_OU:' "$COMPOSE" && fail "plain write emitted an OU"
+grep -q 'AUTOLOGIN:' "$COMPOSE" && fail "plain write emitted AUTOLOGIN"
+pass "plain local-account compose carries no domain settings"
+
+# A local install that opts out of the console autologin disables just that.
+reset_case
+prepare_user_mount_sources
+write_domain 4G 2 64G alice s3cret UTC '' '' N
+grep -q 'AUTOLOGIN: "N"' "$COMPOSE" || fail "local autologin opt-out not emitted"
+grep -q 'DOMAIN:' "$COMPOSE" && fail "local autologin opt-out emitted a domain"
+pass "a local install can disable the console autologin without a domain"
+
+# OU escaping follows the password rules: backslash first, then quote, then
+# $ -> $$ for docker compose interpolation.
+reset_case
+prepare_user_mount_sources
+tricky_ou='OU=C"omp\,DC=x,$DC=y'
+write_domain 4G 2 64G admin pw UTC corp.example.com "$tricky_ou" N
+grep -qF 'DOMAIN_OU: "OU=C\"omp\\,DC=x,$$DC=y"' "$COMPOSE" ||
+  fail "OU was not escaped for the compose: $(grep 'DOMAIN_OU' "$COMPOSE" || true)"
+pass "OU with quote, backslash, and dollar is escaped for the compose"
+
+# The guest-side install command is passed through escaped, and a plain
+# install emits none.
+reset_case
+prepare_user_mount_sources
+tricky_cmd='powershell -NoProfile -Command "Add-LocalGroupMember x $y"'
+write_domain 4G 2 64G admin pw UTC corp.example.com '' N "$tricky_cmd"
+grep -qF 'COMMAND: "powershell -NoProfile -Command \"Add-LocalGroupMember x $$y\""' "$COMPOSE" ||
+  fail "COMMAND was not escaped for the compose: $(grep 'COMMAND' "$COMPOSE" || true)"
+pass "guest install command is escaped for the compose"
+
+reset_case
+prepare_user_mount_sources
+write 4G 2 64G alice s3cret UTC
+grep -q 'COMMAND:' "$COMPOSE" && fail "plain write emitted a guest command"
+pass "plain local-account compose carries no guest command"
+
+long_command=$(printf 'x%.0s' {1..513})
+rm -f "$COMPOSE"
+printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=x\nPASSWORD=p\nTZ=UTC\nCOMMAND=%s\n' \
+  "$long_command" | __priv_write_compose 2>/dev/null && fail "accepted an over-long COMMAND"
+[[ ! -f $COMPOSE ]] || fail "rejected COMMAND wrote a compose"
+pass "guest install command is validated by the writer"
+
+# Domain settings are re-validated by the privileged writer and refused before
+# any mount work happens, so nothing is written and no bind is created.
+reset_case
+reject_domain() { # payload description
+  printf '%b' "$1" | __priv_write_compose 2>/dev/null && fail "accepted: $2"
+  [[ ! -f $COMPOSE ]] || fail "rejected input wrote a compose: $2"
+}
+reject_domain 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=x\nPASSWORD=p\nTZ=UTC\nDOMAIN=not_a_domain\n' 'invalid FQDN'
+reject_domain 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=x\nPASSWORD=p\nTZ=UTC\nDOMAIN_OU=OU=x\n' 'OU without domain'
+reject_domain 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=x\nPASSWORD=p\nTZ=UTC\nDOMAIN=corp.example.com\nDOMAIN_OU=OU=X;drop\n' 'OU with a stray semicolon'
+reject_domain 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=docker\nPASSWORD=notadmin\nTZ=UTC\nDOMAIN=corp.example.com\n' 'default join account'
+reject_domain 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=joiner\nPASSWORD=admin\nTZ=UTC\nDOMAIN=corp.example.com\n' 'default join password'
+reject_domain 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=admin@other.example.com\nPASSWORD=p\nTZ=UTC\nDOMAIN=corp.example.com\n' 'UPN suffix mismatch'
+reject_domain 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=admin@nodot\nPASSWORD=p\nTZ=UTC\nDOMAIN=corp.example.com\n' 'UPN without a dotted domain'
+reject_domain 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=corp\\admin\nPASSWORD=p\nTZ=UTC\nDOMAIN=corp.example.com\n' 'backslash join account'
+reject_domain 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=x\nPASSWORD=p\nTZ=UTC\nAUTOLOGIN=Y\n' 'AUTOLOGIN other than N'
+pass "domain join settings are re-validated and refused before mount work"
+
 for action in write_compose up up_wait down status remove; do
   valid_priv_action "$action" || fail "known action rejected: $action"
 done
