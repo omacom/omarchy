@@ -48,15 +48,20 @@ if (( PI_ACTIVATE == 0 )) && [[ ! -d $PI_AGENT_DIR ]]; then
   exit 0
 fi
 
-write_setting_theme() {
-  local tmp
+write_setting_theme() (
+  local tmp settings_path
 
   mkdir -p "$PI_AGENT_DIR"
 
   if [[ -f $PI_SETTINGS_PATH ]]; then
-    tmp=$(mktemp "$PI_SETTINGS_PATH.XXXXXX")
-    jq '.theme = "omarchy-system"' "$PI_SETTINGS_PATH" >"$tmp"
-    mv "$tmp" "$PI_SETTINGS_PATH"
+    # Publish beside the referent so dotfiles symlinks stay attached and the
+    # replacement is atomic, carrying the existing access metadata with it.
+    settings_path=$(realpath -e "$PI_SETTINGS_PATH")
+    tmp=$(mktemp "$settings_path.XXXXXX")
+    trap 'rm -f "$tmp"' EXIT
+    jq '.theme = "omarchy-system"' "$settings_path" >"$tmp"
+    cp --attributes-only --preserve=mode,ownership,xattr "$settings_path" "$tmp"
+    mv -fT "$tmp" "$settings_path"
   else
     cat >"$PI_SETTINGS_PATH" <<EOF
 {
@@ -64,7 +69,7 @@ write_setting_theme() {
 }
 EOF
   fi
-}
+)
 
 mkdir -p "$PI_THEME_DIR"
 tmp=$(mktemp "$PI_THEME_PATH.XXXXXX")
