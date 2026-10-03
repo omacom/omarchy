@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "Omarchy",
   "license": "MIT",
-  "description": "Claude Code, Codex, Fireworks, and Pi/OMP usage in a native Omarchy bar panel, with limits or balance when available.",
+  "description": "Claude Code, Codex, Grok, Fireworks, and Pi/OMP usage in a native Omarchy bar panel, with limits, pace, and balance when available.",
   "kinds": ["bar-widget"],
   "activation": "on-demand",
   "entryPoints": {
@@ -21,6 +21,7 @@
       "providers": {
         "claude": { "enabled": true },
         "codex": { "enabled": true },
+        "grok": { "enabled": true },
         "fireworks": { "enabled": true }
       },
       "refreshIntervalSec": 900,
