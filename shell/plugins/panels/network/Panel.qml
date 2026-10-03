@@ -439,6 +439,11 @@ Panel {
   // when both are up, matching the default-route device.
   readonly property var wiredDevice: findDevice(DeviceType.Wired)
   readonly property string kind: {
+    // Prefer route-based status: Clash TUN can look like "wired" to NM while
+    // the main-table uplink is Wi-Fi (#13525).
+    if (info.type === "wifi") return "wifi"
+    if (info.type === "ethernet") return "ethernet"
+    if (info.type === "vpn") return "vpn"
     if (wiredDevice && wiredDevice.connected) return "ethernet"
     if (connectedWifiNetwork) return "wifi"
     return "disconnected"
@@ -1252,6 +1257,7 @@ Panel {
               if (root.kind === "wifi" && root.connectedWifiNetwork) return root.connectedWifiNetwork.name || "Wi-Fi"
               if (root.info.type === "wifi") return root.info.ssid || "Wi-Fi"
               if (root.info.type === "ethernet") return "Ethernet"
+              if (root.info.type === "vpn" || root.kind === "vpn") return root.info.iface || "VPN"
               return root.info.iface || (root.kind === "disconnected" ? "Disconnected" : "No connection")
             }
             readonly property string detail: root.headerDetail()
@@ -1277,6 +1283,7 @@ Panel {
                 return ""
               }
               if (root.info.type === "ethernet") return root.connectionPhrase.toUpperCase()
+              if (root.info.type === "vpn" || root.kind === "vpn") return "TUNNELING"
               if (root.kind === "disconnected") return "NOT CONNECTED"
               return ""
             }

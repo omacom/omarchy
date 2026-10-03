@@ -19,33 +19,86 @@ case "${1:-}" in
     ;;
 esac
 
-print_status() {
-  local device nm state ssid signal freq
+# Prefer the main-table default route for the uplink description. Policy routes
+# (Clash/Meta TUN, custom tables) can win `ip route get` while the physical
+# uplink still lives in table main (#13525).
+uplink_device() {
+  local dev
+  dev=$(ip -j route show table main default 2>/dev/null |
+    jq -r 'sort_by(.metric // 0) | .[0].dev // empty' 2>/dev/null)
+  if [[ -n $dev ]]; then
+    printf '%s\n' "$dev"
+    return 0
+  fi
 
-  device=$(ip route get "$internet_probe" 2>/dev/null | awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }')
+  ip route get "$internet_probe" 2>/dev/null |
+    awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }'
+}
+
+# Classify the uplink iface. TUN/WireGuard/etc. are not Ethernet just because
+# they lack a wireless sysfs node.
+iface_type() {
+  local iface=$1
+  local link_type sys_type
+
+  if [[ -d /sys/class/net/$iface/wireless ]]; then
+    printf 'wifi\n'
+    return
+  fi
+
+  link_type=$(ip -j link show "$iface" 2>/dev/null | jq -r '.[0].link_type // empty' 2>/dev/null)
+  sys_type=$([[ -r /sys/class/net/$iface/type ]] && cat "/sys/class/net/$iface/type")
+
+  # ARPHRD_NONE (65534) covers Clash Meta TUN and many other tunnel devices.
+  case $link_type in
+    none | tun | tap | wireguard | void)
+      printf 'vpn\n'
+      return
+      ;;
+  esac
+  if [[ $sys_type == "65534" || $sys_type == "778" ]]; then
+    # 778 = ARPHRD_WIREGUARD
+    printf 'vpn\n'
+    return
+  fi
+
+  printf 'ethernet\n'
+}
+
+print_status() {
+  local device nm state ssid signal freq type
+
+  device=$(uplink_device)
 
   if [[ -z $device ]]; then
     printf 'disconnected\t\t\t\n'
     return
   fi
 
-  if [[ ! -d /sys/class/net/$device/wireless ]]; then
-    printf 'ethernet\t%s\t\t\n' "$device"
+  type=$(iface_type "$device")
+
+  if [[ $type == "wifi" ]]; then
+    nm=$(nmcli -t -f GENERAL.STATE,GENERAL.CONNECTION dev show "$device" 2>/dev/null)
+    state=$(awk -F: '$1 == "GENERAL.STATE" { print $2; exit }' <<<"$nm")
+    ssid=$(awk -F: '$1 == "GENERAL.CONNECTION" { print $2; exit }' <<<"$nm")
+    signal=$(nmcli -t -f IN-USE,SIGNAL dev wifi list ifname "$device" --rescan no 2>/dev/null | awk -F: '$1 == "*" { print $2; exit }')
+    freq=$(iw dev "$device" link 2>/dev/null | awk '/freq:/ { print $2; exit }')
+
+    if [[ $state != 100* ]]; then
+      printf 'disconnected\t\t\t\n'
+      return
+    fi
+
+    printf 'wifi\t%s\t%s\t%s\n' "${ssid:-$device}" "$signal" "$freq"
     return
   fi
 
-  nm=$(nmcli -t -f GENERAL.STATE,GENERAL.CONNECTION dev show "$device" 2>/dev/null)
-  state=$(awk -F: '$1 == "GENERAL.STATE" { print $2; exit }' <<<"$nm")
-  ssid=$(awk -F: '$1 == "GENERAL.CONNECTION" { print $2; exit }' <<<"$nm")
-  signal=$(nmcli -t -f IN-USE,SIGNAL dev wifi list ifname "$device" --rescan no 2>/dev/null | awk -F: '$1 == "*" { print $2; exit }')
-  freq=$(iw dev "$device" link 2>/dev/null | awk '/freq:/ { print $2; exit }')
-
-  if [[ $state != 100* ]]; then
-    printf 'disconnected\t\t\t\n'
+  if [[ $type == "vpn" ]]; then
+    printf 'vpn\t%s\t\t\n' "$device"
     return
   fi
 
-  printf 'wifi\t%s\t%s\t%s\n' "${ssid:-$device}" "$signal" "$freq"
+  printf 'ethernet\t%s\t\t\n' "$device"
 }
 
 ping_latency_ms() {
@@ -83,18 +136,19 @@ print_ping_samples() {
 }
 
 print_verbose() {
-  local route_json iface gw src prefix link
+  local route_json iface gw src prefix link type
+  local routed_json routed_iface routed_gw
 
-  route_json=$(ip -j route get "$internet_probe" 2>/dev/null)
-  [[ -z $route_json ]] && return
-
-  iface=$(jq -r '.[0].dev // ""' <<<"$route_json" 2>/dev/null)
-  gw=$(jq -r '.[0].gateway // ""' <<<"$route_json" 2>/dev/null)
-  src=$(jq -r '.[0].prefsrc // ""' <<<"$route_json" 2>/dev/null)
-
+  # Physical/main uplink for the panel description.
+  iface=$(uplink_device)
   [[ -z $iface ]] && return
 
+  type=$(iface_type "$iface")
+
+  # Address/gateway from the iface itself when possible.
+  src=$(ip -j addr show "$iface" 2>/dev/null | jq -r '.[0].addr_info[]? | select(.family == "inet") | .local // empty' 2>/dev/null | head -n 1)
   prefix=$(ip -j addr show "$iface" 2>/dev/null | jq -r '.[0].addr_info[]? | select(.family == "inet") | .prefixlen // ""' 2>/dev/null | head -n 1)
+  gw=$(ip -j route show table main default 2>/dev/null | jq -r --arg d "$iface" 'map(select(.dev == $d)) | sort_by(.metric // 0) | .[0].gateway // empty' 2>/dev/null)
 
   printf 'iface\t%s\n' "$iface"
   printf 'ip\t%s\n' "$src"
@@ -108,9 +162,9 @@ print_verbose() {
     printf 'tx_bytes\t%s\n' "$(cat /sys/class/net/$iface/statistics/tx_bytes)"
   fi
 
-  if [[ -d /sys/class/net/$iface/wireless ]]; then
-    printf 'type\twifi\n'
+  printf 'type\t%s\n' "$type"
 
+  if [[ $type == "wifi" ]]; then
     if omarchy-cmd-present iw; then
       link=$(iw dev "$iface" link 2>/dev/null)
 
@@ -121,13 +175,16 @@ print_verbose() {
         printf 'bitrate\t%s %s\n' "$(awk '/tx bitrate:/ { print $3; exit }' <<<"$link")" "$(awk '/tx bitrate:/ { print $4; exit }' <<<"$link")"
       fi
     fi
-  else
-    printf 'type\tethernet\n'
+  elif [[ $type == "ethernet" ]]; then
     [[ -r /sys/class/net/$iface/speed ]] && printf 'speed\t%s\n' "$(cat /sys/class/net/$iface/speed)"
     [[ -r /sys/class/net/$iface/duplex ]] && printf 'duplex\t%s\n' "$(cat /sys/class/net/$iface/duplex)"
   fi
 
-  print_ping_samples "$gw"
+  # Internet ping still follows the actually routed path (may be TUN).
+  routed_json=$(ip -j route get "$internet_probe" 2>/dev/null)
+  routed_gw=$(jq -r '.[0].gateway // ""' <<<"$routed_json" 2>/dev/null)
+  [[ -n $routed_gw ]] || routed_gw=$gw
+  print_ping_samples "$routed_gw"
 }
 
 if [[ $verbose == "true" ]]; then

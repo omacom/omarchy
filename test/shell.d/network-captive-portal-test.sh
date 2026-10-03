@@ -33,6 +33,7 @@ for (const state of ['full', 'unknown', 'none', undefined]) {
     assertEqual(network.connectionIcon('wifi', signal, state), network.wifiIconFor(signal), `${state} preserves Wi-Fi strength ${signal}`)
   }
   assertEqual(network.connectionIcon('ethernet', -1, state), '󰈀', `${state} preserves the Ethernet icon`)
+  assertEqual(network.connectionIcon('vpn', -1, state), '󰖂', `${state} preserves the VPN icon`)
 }
 const url = new URL(network.captivePortalUrl)
 assertEqual(url.protocol, 'http:', 'browser entry point uses plain HTTP so a portal can intercept it')

@@ -89,7 +89,13 @@ assertDeepEqual(
   { kind: 'wifi', label: 'Cafe WiFi', signalStrength: 78, frequency: '5200' },
   'network parses bar status'
 )
+assertDeepEqual(
+  network.parseNetworkStatus('vpn\tMeta\t\t\n'),
+  { kind: 'vpn', label: 'Meta', signalStrength: -1, frequency: '' },
+  'network parses vpn bar status'
+)
 assertEqual(network.connectionIcon('wifi', 80), network.wifiIconFor(80), 'network maps wifi icon from signal')
+assertEqual(network.connectionIcon('vpn', -1), '󰖂', 'network maps vpn icon')
 assertEqual(network.formatHeaderSpeed('1000'), '1gbit', 'network formats gigabit speed')
 assertEqual(network.formatHeaderSpeed('2500'), '2.5gbit', 'network formats fractional gigabit speed')
 assertEqual(network.formatHeaderFreq('2462'), '2.4ghz', 'network formats 2.4GHz wifi band')
