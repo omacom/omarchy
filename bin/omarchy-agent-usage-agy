@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import glob
+import hashlib
 import json
 import os
 import re
@@ -267,14 +268,20 @@ def scan_transcripts(agy_dir: Path, today_str: str, today_date: dt.date) -> dict
   }
 
 
+def stats_cache_path(agy_dir: Path) -> Path:
+  key = hashlib.sha1(str(agy_dir).encode("utf-8")).hexdigest()[:8]
+  return cache_root() / f"agy-stats-{key}.json"
+
+
 def cached_local_stats(agy_dir: Path, max_age: float, today_str: str, today_date: dt.date) -> dict[str, Any]:
-  cache_file = cache_root() / "agy-stats.json"
+  cache_file = stats_cache_path(agy_dir)
   if max_age > 0 and cache_file.is_file():
     try:
       with open(cache_file, "r", encoding="utf-8") as f:
         cached = json.load(f)
         if (
           isinstance(cached, dict)
+          and cached.get("home") == str(agy_dir)
           and cached.get("day") == today_str
           and 0 <= (time.time() - float(cached.get("at", 0))) < max_age
           and isinstance(cached.get("stats"), dict)
@@ -286,7 +293,7 @@ def cached_local_stats(agy_dir: Path, max_age: float, today_str: str, today_date
   stats = scan_transcripts(agy_dir, today_str, today_date)
   try:
     with open(cache_file, "w", encoding="utf-8") as f:
-      json.dump({"day": today_str, "at": time.time(), "stats": stats}, f)
+      json.dump({"home": str(agy_dir), "day": today_str, "at": time.time(), "stats": stats}, f)
   except Exception:
     pass
   return stats
@@ -297,8 +304,13 @@ def is_valid_base_record(
   email: str,
   today_str: str,
   max_age: float,
+  agy_dir: Path,
 ) -> bool:
   if max_age <= 0 or not isinstance(base_record, dict):
+    return False
+
+  # Validate transcript home matches agy_dir
+  if base_record.get("home") and str(base_record.get("home")) != str(agy_dir):
     return False
 
   saved_accounts = base_record.get("accounts")
@@ -344,7 +356,7 @@ def collect_usage(
   max_scan_age = 0 if force else (LIMITS_ONLY_SCAN_REUSE_SECONDS if limits_only else SCAN_REUSE_SECONDS)
 
   stats: dict[str, Any] | None = None
-  if base_record and is_valid_base_record(base_record, email, today_str, max_scan_age):
+  if base_record and is_valid_base_record(base_record, email, today_str, max_scan_age, agy_dir):
     stats = {
       "todayPrompts": base_record.get("todayPrompts", 0),
       "todaySessions": base_record.get("todaySessions", 0),
@@ -370,6 +382,7 @@ def collect_usage(
     "schemaVersion": 1,
     "id": AGENT_ID,
     "name": AGENT_NAME,
+    "home": str(agy_dir),
     "tierLabel": tier_label,
     "ready": ready,
     "hasLocalStats": True,

@@ -125,19 +125,23 @@ switch_limits_record=$(HOME="$TEST_HOME" \
 [[ $(jq -r '.limits[1].percent' <<<"$switch_limits_record") == "0.5" ]] || fail "weekly reprobed for new account under --limits-only"
 pass "limits-only refresh preserves account identity and labels on account switch"
 
-# 6. Test --limits-only rejects stale activity from previous day (Finding 2)
-yesterday=$(date -d "yesterday" +%Y-%m-%d 2>/dev/null || date -v-1d +%Y-%m-%d)
-yesterday_iso="${yesterday}T12:00:00Z"
+# 6. Test --limits-only rejects stale activity from previous day (Finding 2 & Finding 3)
+# Re-align account identity with alpha so the record passes account check and tests the date boundary specifically
+echo '{"active": "alpha@example.com"}' >"$TEST_HOME/.gemini/google_accounts.json"
+
+yesterday_iso=$(python3 -c "import datetime as dt; print((dt.datetime.now().astimezone() - dt.timedelta(days=1)).replace(hour=12, minute=0, second=0, microsecond=0).isoformat())")
+yesterday_transcript_time=$(python3 -c "import datetime as dt; print((dt.datetime.now().astimezone() - dt.timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0).isoformat())")
+
 yesterday_record=$(echo "$record" | jq --arg d "$yesterday_iso" '.updatedAt = $d | .todayTotalTokens = 9999 | .todayPrompts = 99')
 echo "$yesterday_record" >"$state_file"
-rm -f "$TEST_HOME/.cache/omarchy/agent-usage/agy-stats.json"
+rm -f "$TEST_HOME/.cache/omarchy/agent-usage"/agy-stats*.json
 
 # Re-create mock transcript that only has yesterday's events
 mkdir -p "$TEST_HOME/.gemini/antigravity-cli/brain/session-02/.system_generated/logs"
 yesterday_transcript="$TEST_HOME/.gemini/antigravity-cli/brain/session-02/.system_generated/logs/transcript.jsonl"
 cat >"$yesterday_transcript" <<EOF
-{"type": "USER_INPUT", "created_at": "${yesterday}T10:00:00Z", "content": "Yesterday prompt"}
-{"type": "PLANNER_RESPONSE", "created_at": "${yesterday}T10:00:00Z", "input_tokens": 50, "output_tokens": 50}
+{"type": "USER_INPUT", "created_at": "$yesterday_transcript_time", "content": "Yesterday prompt"}
+{"type": "PLANNER_RESPONSE", "created_at": "$yesterday_transcript_time", "input_tokens": 50, "output_tokens": 50}
 EOF
 
 midnight_record=$(HOME="$TEST_HOME" \
@@ -151,4 +155,28 @@ midnight_record=$(HOME="$TEST_HOME" \
 [[ $(jq -r '.todayTotalTokens' <<<"$midnight_record") == "0" ]] || fail "stale yesterday tokens rejected on date boundary"
 [[ $(jq -r '.todayPrompts' <<<"$midnight_record") == "0" ]] || fail "stale yesterday prompts rejected on date boundary"
 pass "limits-only refresh rejects stale activity from previous day"
+
+# 7. Test cached stats isolate between different transcript homes (Finding 1)
+TEST_HOME_2="$SCRATCH/home2"
+mkdir -p "$TEST_HOME_2/.gemini/antigravity-cli/brain/session-other/.system_generated/logs"
+echo '{"active": "alpha@example.com"}' >"$TEST_HOME_2/.gemini/google_accounts.json"
+
+other_transcript="$TEST_HOME_2/.gemini/antigravity-cli/brain/session-other/.system_generated/logs/transcript.jsonl"
+today_iso=$(python3 -c "import datetime as dt; print(dt.datetime.now().astimezone().isoformat())")
+cat >"$other_transcript" <<EOF
+{"type": "USER_INPUT", "created_at": "$today_iso", "content": "Home 2 prompt"}
+{"type": "PLANNER_RESPONSE", "created_at": "$today_iso", "input_tokens": 777, "output_tokens": 0}
+EOF
+
+# Run collector on home 2 sharing the same cache home
+home2_record=$(HOME="$TEST_HOME_2" \
+  PATH="$TEST_HOME/bin:$PATH" \
+  GEMINI_DIR="$TEST_HOME_2/.gemini" \
+  XDG_CACHE_HOME="$TEST_HOME/.cache" \
+  XDG_STATE_HOME="$TEST_HOME_2/.local/state" \
+  "$bin_file" --limits-only)
+
+# Should NOT reuse home 1's stats (210 or 0 tokens) - it must reflect home 2's 777 tokens
+[[ $(jq -r '.todayTotalTokens' <<<"$home2_record") == "777" ]] || fail "stats isolate across different transcript homes"
+pass "stats cache isolates across transcript homes"
 
