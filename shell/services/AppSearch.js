@@ -113,10 +113,10 @@ function sortedEntries(values, query, hiddenCallback) {
     if (q && a.score !== b.score) return b.score - a.score
     var byKey = a.key.localeCompare(b.key)
     if (byKey !== 0) return byKey
-    if (a.key < b.key) return -1
-    if (a.key > b.key) return 1
-    if (a.name < b.name) return -1
-    if (a.name > b.name) return 1
+    var aId = String(a.entry.id || "")
+    var bId = String(b.entry.id || "")
+    if (aId < bId) return -1
+    if (aId > bId) return 1
     return 0
   })
 

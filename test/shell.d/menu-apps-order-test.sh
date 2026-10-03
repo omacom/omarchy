@@ -4,7 +4,9 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-run_node_test <<'JS'
+# localeCompare follows the process locale, so pin one: the expectations below
+# are the root collation's, which node uses under the C locale.
+LC_ALL=C.UTF-8 run_node_test <<'JS'
 const fs = require('fs')
 const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
 
@@ -53,9 +55,11 @@ assertDeepEqual(
 
 // Names that collate the same, such as a composed and a decomposed É, still
 // come out in one order whichever order the desktop entries arrived in.
-const composed = entry('\u00c9diteur'), decomposed = entry('E\u0301diteur')
-const listed = list => search.sortedEntries(list, '').map(row => row.entry.name)
-assertDeepEqual(listed([composed, decomposed]), listed([decomposed, composed]), 'app list keeps one order for names that collate the same')
+// Like the menu, the app list breaks such a tie on the desktop id.
+const composed = { id: 'a.desktop', name: '\u00c9diteur' }, decomposed = { id: 'z.desktop', name: 'E\u0301diteur' }
+const listed = list => search.sortedEntries(list, '').map(row => row.entry.id)
+assertDeepEqual(listed([composed, decomposed]), ['a.desktop', 'z.desktop'], 'app list keeps one order for names that collate the same')
+assertDeepEqual(listed([decomposed, composed]), ['a.desktop', 'z.desktop'], 'app list keeps that order whichever order the entries arrive in')
 
 // The visible change for English names: a leading symbol now sorts ahead of
 // digits and letters, instead of wherever its code point falls.
