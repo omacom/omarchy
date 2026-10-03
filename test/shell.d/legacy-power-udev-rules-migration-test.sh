@@ -67,6 +67,20 @@ cat >"$test_dir/bin/omarchy-restart-xcompose" <<'STUB'
 echo "omarchy-restart-xcompose" >>"$CALLS"
 STUB
 
+cat >"$test_dir/bin/omarchy-refresh-xcompose" <<'STUB'
+#!/bin/bash
+
+# Mirror the real helper so migrations under test keep seeding the home copy.
+# Do not log to CALLS: refresh is expected on every run and is not the side
+# effect these udev assertions are guarding against.
+packaged="${OMARCHY_PATH:?}/default/xcompose"
+home_copy="${HOME}/.XCompose.omarchy"
+if [[ -f $packaged ]]; then
+  cp "$packaged" "$home_copy"
+  chmod 644 "$home_copy"
+fi
+STUB
+
 chmod +x "$test_dir/bin/"*
 
 mkdir -p "$test_dir/failing-bin"
@@ -158,25 +172,30 @@ for legacy_include in \
   write_xcompose "$legacy_include"
   run_migration
 
-  grep -qxF "$packaged_xcompose" "$xcompose" ||
-    fail "migration repoints $legacy_include at the active Omarchy tree" "$(cat "$xcompose")"
+  grep -Eq '^[[:space:]]*include[[:space:]]+"%H/\.XCompose\.omarchy"' "$xcompose" ||
+    fail "migration repoints $legacy_include at the home-local table" "$(cat "$xcompose")"
   grep -qF '<Multi_key> <space> <e> : "test@example.com"' "$xcompose" ||
     fail "migration discards the user's own compose sequences"
-  grep -qxF 'omarchy-restart-xcompose' "$CALLS" ||
-    fail "migration does not reload XCompose after rewriting its include" "$(cat "$CALLS")"
+  [[ -f $home_dir/.XCompose.omarchy ]] ||
+    fail "migration does not seed the home-local table"
+  ! grep -qxF 'omarchy-restart-xcompose' "$CALLS" ||
+    fail "migration restarts XCompose in running applications" "$(cat "$CALLS")"
 done
-pass "migration repoints every legacy XCompose include and preserves custom sequences"
+pass "migration repoints every legacy XCompose include without restarting the input method"
 
 before=$(sha256sum "$xcompose")
 run_migration
 [[ $(sha256sum "$xcompose") == "$before" ]] || fail "migration changes an already repaired XCompose file"
-[[ ! -s $CALLS ]] || fail "migration restarts XCompose when nothing changed" "$(cat "$CALLS")"
+! grep -qxF 'omarchy-restart-xcompose' "$CALLS" ||
+  fail "migration restarts XCompose when nothing changed" "$(cat "$CALLS")"
 pass "migration is idempotent on an already repaired XCompose file"
 
 reset_machine
 run_migration
 [[ ! -e $xcompose ]] || fail "migration creates a missing XCompose file"
-[[ ! -s $CALLS ]] || fail "migration acts when XCompose and legacy udev rules are absent" "$(cat "$CALLS")"
+! grep -qxF 'omarchy-restart-xcompose' "$CALLS" ||
+  fail "migration restarts XCompose when the home has no compose file" "$(cat "$CALLS")"
+# Refresh may still seed ~/.XCompose.omarchy from the packaged table.
 pass "migration leaves a home without XCompose alone"
 
 # What Omarchy 3's unquoted heredoc actually left on disk: the installing user's
@@ -592,7 +611,7 @@ write_vulnerable_wifi_rule
 
 set +e
 HOME="$home_dir" \
-  PATH="$test_dir/failing-bin:$PATH" \
+  PATH="$test_dir/failing-bin:$test_dir/bin:$PATH" \
   bash -euo pipefail "$migration" >"$test_dir/elevation-failure.out" 2>&1
 failure_status=$?
 set -e
