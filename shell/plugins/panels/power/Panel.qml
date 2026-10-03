@@ -49,12 +49,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.chargeThreshold)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates())
+    return Model.modeLabel(device, root.discharging, upowerStates(), root.chargeThreshold)
   }
 
   function profileIcon(name) {
@@ -69,9 +69,12 @@ Panel {
     var device = UPower.displayDevice
     return !!(device && device.isPresent && UPower.onBattery)
   }
+  // Empty on hardware that exposes no charge_control_* attribute:
+  // omarchy-battery-status only emits the field when a threshold exists.
+  readonly property string chargeThreshold: root.batteryInfo.threshold || ""
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates())
+    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.chargeThreshold)
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
@@ -135,9 +138,15 @@ Panel {
   function refresh() {
     if (!batteryPresent) return
 
-    if (!batteryProc.running) batteryProc.running = true
+    refreshBattery()
     if (!profilesProc.running) profilesProc.running = true
     if (!systemProc.running) systemProc.running = true
+  }
+
+  function refreshBattery() {
+    if (!batteryPresent) return
+
+    if (!batteryProc.running) batteryProc.running = true
   }
 
   function updateKeyValue(raw, targetName) {
@@ -199,7 +208,13 @@ Panel {
     }
   }
 
-  onBatteryPresentChanged: if (!batteryPresent) close()
+  onBatteryPresentChanged: {
+    if (batteryPresent) refreshBattery()
+    else close()
+  }
+
+  // The bar icon reads the charge threshold, so load it before the panel is first opened.
+  Component.onCompleted: refreshBattery()
 
   visible: batteryPresent
   implicitWidth: batteryPresent ? button.implicitWidth : 0
@@ -229,6 +244,8 @@ Panel {
   }
 
   Timer { interval: 5000; running: root.opened; repeat: true; onTriggered: root.refresh() }
+  // A startup lookup that came back empty would leave the bar without the threshold until the panel opens.
+  Timer { interval: 30000; running: root.batteryPresent && !root.opened && root.batteryInfo.percentage === undefined; repeat: true; onTriggered: root.refreshBattery() }
 
   // Rotate the status phrase while the panel is open and we're in a
   // rotating state (charging or on battery). The text swap is wrapped in a
@@ -442,7 +459,7 @@ Panel {
             spacing: Style.spacing.labelGap
             InfoPair {
               label: root.chargeThresholdActive ? "Charge limit" : (root.discharging ? "Time left" : "Time to full")
-              value: root.chargeThresholdActive ? (root.batteryInfo.threshold || "-") : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—"))
+              value: root.chargeThresholdActive ? root.chargeThreshold : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—"))
             }
             InfoPair {
               label: root.chargeThresholdActive ? "Battery state" : (root.discharging ? "Discharging" : "Charging")
