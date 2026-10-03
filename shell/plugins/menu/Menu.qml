@@ -290,8 +290,12 @@ Item {
   // The apps provider is QML-native: rows come from the shared AppLibrary
   // (DesktopEntries) instead of a bash enumeration, so they carry image
   // icons, launch feedback, and uninstall support like the launcher.
+  // Returns whether it could read the library and merge rows: an early
+  // summon can race both the shell wiring appLibrary up and the first
+  // DesktopEntries scan, and the caller must not mark the provider loaded
+  // on a miss (omacom/omarchy#13202).
   function mergeAppRows() {
-    if (!root.appLibrary) return
+    if (!root.appLibrary) return false
 
     var rows = root.appLibrary.sortedEntries("")
     var appRows = []
@@ -329,14 +333,19 @@ Item {
     root.items = merged.items
     root.itemOrder = merged.itemOrder
     if (root.opened) root.rebuildDisplay()
+    return appRows.length > 0
   }
 
   function startProviderForMenu(id) {
     var entry = root.item(id)
     if (!entry || !entry.provider || root.providersLoaded[id]) return
     if (entry.provider === "apps") {
-      root.providersLoaded[id] = true
-      root.mergeAppRows()
+      // Marked loaded only once the library actually produced rows. A
+      // premature mark parks every later retry — including search — on an
+      // empty apps list, and the appsChanged handler below cannot repair it
+      // when the race happened before the Connections target existed
+      // (omacom/omarchy#13202).
+      if (root.mergeAppRows()) root.providersLoaded[id] = true
       return
     }
     var spec = root.providers[entry.provider]
