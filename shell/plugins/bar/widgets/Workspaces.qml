@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell.Hyprland
 import qs.Commons
 import qs.Ui
+import "WorkspacesModel.js" as WorkspacesModel
 
 BarWidget {
   id: root
@@ -52,15 +53,62 @@ BarWidget {
       model: root.workspaceIds()
 
       WidgetButton {
+        id: workspaceButton
         required property int modelData
 
         readonly property var workspace: root.workspaceById(modelData)
         readonly property bool occupied: workspace !== null && workspace.toplevels.values.length > 0
         readonly property bool focused: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData
+        readonly property bool urgent: workspace !== null && workspace.urgent === true
+        readonly property real baseOpacity: WorkspacesModel.baseOpacity(occupied, focused)
+        readonly property bool shouldFlash: WorkspacesModel.shouldFlash(urgent, focused)
 
         bar: root.bar
         text: focused ? "\uDB85\uDCFB" : (modelData === 10 ? "0" : String(modelData))
-        opacity: occupied || focused ? 1 : 0.5
+        opacity: shouldFlash ? flashOpacity : baseOpacity
+
+        // The flash drives its own opacity and the base widget's 140ms easing
+        // would smear the pulse into a laggy damped oscillation, so the change
+        // behavior only applies while the button is not flashing.
+        Behavior on opacity {
+          enabled: !shouldFlash
+          NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+        }
+
+        // Opacity the flash animation walks between baseOpacity and the minimum.
+        property real flashOpacity: baseOpacity
+
+        // Pulse the button while an urgent window sits on an unfocused
+        // workspace, so the attention request returns when the workspace is
+        // visited or the urgency clears.
+        SequentialAnimation {
+          id: flashAnimation
+          running: shouldFlash
+          loops: Animation.Infinite
+          NumberAnimation {
+            target: workspaceButton
+            property: "flashOpacity"
+            from: baseOpacity
+            to: WorkspacesModel.FLASH_MIN_OPACITY
+            duration: WorkspacesModel.FLASH_DIRECTION_MS
+            easing.type: Easing.InOutQuad
+          }
+          NumberAnimation {
+            target: workspaceButton
+            property: "flashOpacity"
+            from: WorkspacesModel.FLASH_MIN_OPACITY
+            to: baseOpacity
+            duration: WorkspacesModel.FLASH_DIRECTION_MS
+            easing.type: Easing.InOutQuad
+          }
+        }
+
+        // Restarting from the resting opacity guarantees the first pulse step
+        // never jumps from a value the previous flash stopped at.
+        onShouldFlashChanged: {
+          if (shouldFlash) flashOpacity = baseOpacity
+        }
+
         horizontalMargin: 6
         verticalPadding: 6
         fixedWidth: root.vertical ? root.barSize : Style.space(20)
