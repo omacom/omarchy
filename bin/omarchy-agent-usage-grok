@@ -30,6 +30,9 @@ CREDITS_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits"
 # Grok's own CLI watches its subscription once a minute; a panel opened and
 # shut repeatedly reuses an answer for about that long.
 PROBE_REUSE_SECONDS = 60
+# Grok's docs give a saved sign-in 30 days; a refresh token older than that
+# can't renew the access token, so it no longer counts as signed in.
+REFRESH_LIFETIME_SECONDS = 30 * 24 * 3600
 # A limits-only refresh needs fresh limits, not a fresh history scan.
 LIMITS_ONLY_SCAN_REUSE_SECONDS = 900
 
@@ -226,8 +229,11 @@ def collect_limits(home, key, force):
     # refresh token whenever it starts, so a lapsed one is routine, not a
     # sign-out. And while Grok hasn't run, nothing here has spent its
     # allowance, so the last numbers still stand, rolled past any reset.
-    if entry.get("refresh_token"):
+    if entry.get("refresh_token") and time.time() - expires.timestamp() < REFRESH_LIFETIME_SECONDS:
       result.update(limits=rolled_forward(result["limits"]), live=True)
+      if not result["limits"]:
+        result["usageStatusText"] = "Limits paused"
+        result["authHelpText"] = "Start Grok to see its limits; signing in again is not needed."
     else:
       result["usageStatusText"] = "Sign-in expired"
       result["authHelpText"] = "Grok's saved sign-in expired. Start Grok to refresh it."

@@ -108,6 +108,22 @@ next_reset=$(jq -r '.limits[0].resetsAt' <<<"$record")
   fail "a week that reset while Grok was idle starts over a week later" "$record"
 pass "a week that reset while Grok was idle starts over a week later"
 
+# Without cached numbers there's nothing to show, so it says how to get them.
+rm -f "$XDG_CACHE_HOME"/omarchy/agent-usage/grok-limits-*.json
+record=$(collect)
+[[ $(jq -c '{usageStatusText, limits}' <<<"$record") == '{"usageStatusText":"Limits paused","limits":[]}' ]] ||
+  fail "a lapsed token with nothing cached says to start Grok" "$record"
+pass "a lapsed token with nothing cached says to start Grok"
+
+# A refresh token past Grok's 30-day sign-in can't renew anything: signed out.
+long_ago=$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=31)).isoformat())')
+jq --arg at "$long_ago" '.[].expires_at = $at' "$HOME/.grok/auth.json" >"$test_tmp/auth.json"
+mv "$test_tmp/auth.json" "$HOME/.grok/auth.json"
+record=$(collect)
+[[ $(jq -r '.usageStatusText' <<<"$record") == "Sign-in expired" ]] ||
+  fail "a sign-in lapsed past Grok's 30 days asks for a sign-in" "$record"
+pass "a sign-in lapsed past Grok's 30 days asks for a sign-in"
+
 # A period with nothing used yet comes without a percentage.
 signed_in "$HOME/.grok" token-fresh u-main "$future" "X Premium+"
 rm -f "$XDG_CACHE_HOME"/omarchy/agent-usage/grok-limits-*.json
