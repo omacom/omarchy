@@ -1,7 +1,19 @@
 #!/bin/bash
 
-# omarchy:summary=Match Dell XPS systems with LG OLED panel on Intel Panther Lake (Xe3) GPU.
+# omarchy:summary=Match Dell XPS 14/16 OLED panels on Intel Panther Lake (Xe3) GPU.
 
-omarchy-hw-match "XPS" \
-  && omarchy-hw-intel-ptl \
-  && test "$(od -An -tx1 -j8 -N2 /sys/class/drm/card*-eDP-*/edid 2>/dev/null | tr -d ' \n')" = "30e4"
+# Native OLED SKUs are 2880x1800 (14) and 3200x2000 (16). The 1920x1200 IPS
+# option is also LG Display (EDID mfr 30e4, LGD07C7 on the 16), so the
+# manufacturer id alone matches the sRGB panel.
+
+omarchy-hw-match "XPS" || exit 1
+omarchy-hw-intel-ptl || exit 1
+
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
+
+for modes in "$drm_path"/card*-eDP-*/modes; do
+  [[ -e $modes ]] || continue
+  grep -qE '^(2880x1800|3200x2000)$' "$modes" && exit 0
+done
+
+exit 1
