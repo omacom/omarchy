@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Install Spotify.
+# omarchy:args=[spotify-uri]
 # omarchy:requires-sudo=true
 
 set -e
@@ -8,8 +9,16 @@ set -e
 echo "Installing Spotify..."
 omarchy-pkg-add spotify
 
+# Route the app launcher and spotify: links through omarchy-launch-spotify for native Wayland
+# rendering, leaving a launcher entry the user wrote themselves alone
+if [[ ! -f ~/.local/share/applications/spotify.desktop ]]; then
+  mkdir -p ~/.local/share/applications
+  install -m 644 "$OMARCHY_PATH/default/applications/spotify.desktop" ~/.local/share/applications/spotify.desktop
+  update-desktop-database ~/.local/share/applications 2>/dev/null || true
+fi
+
 echo "Opening Spotify..."
-setsid uwsm-app -- /usr/bin/spotify >/dev/null 2>&1 &
+omarchy-launch-spotify "$@" >/dev/null 2>&1 &
 
 echo ""
 echo "Spotify has been installed."

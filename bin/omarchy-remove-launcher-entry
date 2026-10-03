@@ -79,9 +79,22 @@ fi
 
 if is_user_desktop_file; then
   display_name="${entry_name:-$desktop_name}"
-  rm -f "$desktop_file"
-  update-desktop-database "${desktop_file%/*}" &>/dev/null || true
-  exit 0
+  owned_package="$(sed -n 's/^X-Omarchy-Package=//p' "$desktop_file" | head -1)"
+
+  # An Omarchy launcher wrapper names the package it fronts, so removing it uninstalls that
+  # package instead of unhiding the package's own entry. The wrapper goes only once the
+  # uninstall succeeds, so a cancelled one leaves it in place.
+  if [[ -n $owned_package ]] && pacman -Qq "$owned_package" &>/dev/null; then
+    quoted_package="$(printf '%q' "$owned_package")"
+    quoted_display="$(printf '%q' "$display_name")"
+    quoted_file="$(printf '%q' "$desktop_file")"
+    quoted_dir="$(printf '%q' "${desktop_file%/*}")"
+    exec omarchy-launch-floating-terminal-with-presentation "echo Uninstalling $quoted_display...; sudo pacman -Rns $quoted_package && rm -f $quoted_file && { update-desktop-database $quoted_dir &>/dev/null || true; }"
+  else
+    rm -f "$desktop_file"
+    update-desktop-database "${desktop_file%/*}" &>/dev/null || true
+    exit 0
+  fi
 fi
 
 if package_name="$(pacman -Qqo "$desktop_file" 2>/dev/null | head -1)" && [[ -n $package_name ]]; then

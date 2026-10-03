@@ -1,15 +1,47 @@
 #!/bin/bash
 
 # omarchy:summary=Launch Spotify or start its installer when missing.
+# omarchy:args=[spotify-uri]
 
 set -e
 
-WINDOW_ADDRESS=$(hyprctl clients -j | jq -r '.[]|select((.class|test("\\bspotify\\b";"i")) or (.title|test("\\bspotify\\b";"i")))|.address' | head -n1)
+# Spotify's bundled Chromium falls back to XWayland, where its video player renders blank.
+# Under Wayland its layout needs about 960 of its own pixels across (with the now-playing
+# panel open) before controls fall off the right edge. Size it to 1000, leaving room for the
+# scroll bar and gaps, so it fits a half-width tile on the focused monitor; where a half tile
+# is already that wide, leave it at the monitor's own scale. The scale is fixed for the whole
+# session, so anyone who keeps Spotify full-width can set their own in spotify-flags.conf
+# (1 keeps the monitor's scale), which Spotify's launcher passes along and this then defers to.
+spotify_flags() {
+  local user_flags="${XDG_CONFIG_HOME:-$HOME/.config}/spotify-flags.conf"
 
-if [[ -n $WINDOW_ADDRESS ]]; then
+  echo --ozone-platform=wayland
+
+  if [[ -f $user_flags ]] && grep -q -- '^--force-device-scale-factor=' "$user_flags"; then
+    return
+  fi
+
+  hyprctl monitors -j | jq -r '
+    .[] | select(.focused)
+    | ((if .transform % 2 == 1 then .height else .width end) / .scale / 2 / 1000) as $fit
+    | select($fit < 1)
+    | "--force-device-scale-factor=\($fit * 10000 | floor / 10000)"
+  '
+}
+
+# Match by class; the title only identifies Spotify while it has none, since a file manager
+# or browser tab can just as well be titled after it.
+WINDOW_ADDRESS=$(hyprctl clients -j | jq -r '.[]|select((.class|test("^spotify$";"i")) or (.class == "" and (.title|test("\\bspotify\\b";"i"))))|.address' | head -n1)
+
+if [[ -n $WINDOW_ADDRESS && -z $1 ]]; then
   hyprctl dispatch "hl.dsp.focus({ window = \"address:$WINDOW_ADDRESS\" })" >/dev/null 2>&1 || hyprctl dispatch focuswindow "address:$WINDOW_ADDRESS"
 elif [[ -x /usr/bin/spotify ]]; then
-  exec setsid uwsm-app -- /usr/bin/spotify
+  mapfile -t flags < <(spotify_flags)
+  [[ -n $1 ]] && flags+=("--uri=$1")
+  exec setsid uwsm-app -- /usr/bin/spotify "${flags[@]}"
+elif [[ -n $1 ]]; then
+  # The installer runs as a shell command line, and the link may come from a web page
+  exec omarchy-launch-floating-terminal-with-presentation "omarchy-install-service-spotify $(printf '%q' "$1")"
 else
   exec omarchy-launch-floating-terminal-with-presentation omarchy-install-service-spotify
 fi
