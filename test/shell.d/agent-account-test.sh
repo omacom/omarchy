@@ -245,7 +245,10 @@ pass "the provider defaults to your default agent"
 # ----------------------------------------------------------------------- rename
 
 omarchy-agent-account-use claude work >/dev/null
-omarchy-agent-account-rename claude work Day job >/dev/null
+rename_output=$(omarchy-agent-account-rename claude work Day job)
+# The suggested command names the provider, so it works whatever the default agent is.
+[[ $rename_output == *"Switch to it with: omarchy agent account use claude day-job" ]] ||
+  fail "rename suggests a use command that names the provider" "$rename_output"
 [[ $(omarchy-agent-account-list claude --json | jq -c '.[0] | {active, renamed: (.accounts[] | select(.id == "day-job") | .label)}') == '{"active":"day-job","renamed":"Day job"}' ]] ||
   fail "renaming changes the label and the id it answers to, and the active account follows"
 [[ $(omarchy-agent-account-home claude) == "$work" ]] || fail "renaming leaves the account's home where running sessions expect it"
