@@ -36,7 +36,7 @@ exit 0
 SH
 cat >"$mock_bin/systemd-run" <<'SH'
 #!/bin/bash
-printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
+printf '%s\n' "$@" >"$OMARCHY_TEST_BROWSER_LAUNCH"
 SH
 cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
 #!/bin/bash
@@ -95,3 +95,20 @@ HOME="$test_home" PATH="$mock_bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_lo
 
 [[ ! -e $launch_log ]] || fail "browser launcher starts no browser when the running one takes the URL"
 pass "browser launcher hands a URL to the running browser"
+
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=/usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" --class=100%% %U
+EOF
+
+rm -f "$focus_log"
+HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/wrapped"
+
+expected=$(printf '%s\n' /usr/bin/env LIBVA_DRIVER_NAME=iHD chromium "--profile-directory=Work Profile" --class=100% https://example.test/wrapped)
+[[ $(sed '1,/^--$/d' "$launch_log") == "$expected" ]] ||
+  fail "wrapped Exec launcher runs the whole unquoted Exec line, then the URL"
+grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
+  fail "wrapped Exec launcher focuses the real browser, not env"
+pass "browser launcher resolves env-wrapped desktop Exec lines"
