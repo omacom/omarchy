@@ -58,6 +58,7 @@ The Apple T1 chip was introduced in late 2016 and used exclusively in the first-
 The Apple T2 Security Chip was introduced in 2017. The T2 chip was discontinued with the transition to Apple silicon (M-series chips) starting in 2020.
 
 - iMac Pro (2017) – Model: A1862
+- iMac 27-inch (2020) – Model: A2115 (iMac20,1 / iMac20,2)
 - MacBook Pro 13-inch (2018, four Thunderbolt 3 ports) – Model: A1989
 - MacBook Pro 15-inch (2018) – Model: A1990
 - MacBook Air (Retina, 13-inch, 2018) – Model: A1932
@@ -69,3 +70,5 @@ The Apple T2 Security Chip was introduced in 2017. The T2 chip was discontinued 
 - MacBook Pro 15-inch (2020) – Model: A1990
 
 On these models, the installer automatically sets up the patched `linux-t2` kernel, the T2 audio configuration, Apple's Broadcom Wi-Fi/Bluetooth firmware, and fan control via `t2fanrd`. The Touch Bar runs on the kernel's built-in Boot Camp-style support.
+
+On the 2020 27-inch iMac with Radeon Pro 5300/5500 (Navi 14), `amdgpu` kernel modesetting fails during SMU init and can blank the panel before the LUKS prompt. The installer keeps the EFI framebuffer on those machines with `plymouth.enable=0 nomodeset`. This reaches a desktop without GPU acceleration; a later `amdgpu` SMU fix can drop those flags.
