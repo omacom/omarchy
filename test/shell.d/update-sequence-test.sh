@@ -97,7 +97,8 @@ pass "-y is what marks an update unattended, not the update itself"
 run_update --confirmed </dev/null || fail "an update confirmed by its caller reports a failure"
 diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
   fail "--confirmed still asks the person to confirm the update" "$(cat "$test_tmp/order")"
-grep -q '^omarchy-update-restart unattended=$' "$test_tmp/steps" ||
+# The last restart call is the reboot phase, the one that offers the reboot.
+[[ $(grep '^omarchy-update-restart ' "$test_tmp/steps" | tail -n 1) == 'omarchy-update-restart unattended=' ]] ||
   fail "--confirmed marks the update unattended, so the reboot offer is skipped"
 pass "--confirmed skips the update question but keeps the reboot offer"
 
