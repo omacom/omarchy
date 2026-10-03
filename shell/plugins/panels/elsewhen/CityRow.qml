@@ -79,13 +79,13 @@ Rectangle {
       // The dragged row follows the pointer one-to-one; the others ease aside.
       Behavior on y {
         enabled: !row.dragged
-        NumberAnimation { duration: 130; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Style.duration(130); easing.type: Easing.OutCubic }
       }
     }
   ]
   z: dragged ? 2 : 0
   opacity: dragged ? 0.9 : 1
-  Behavior on opacity { NumberAnimation { duration: 120 } }
+  Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
 
   HoverHandler { id: rowHover }
 
@@ -219,7 +219,7 @@ Rectangle {
         spacing: Style.spacing.sm
         opacity: parent.greeting ? 0 : 1
         visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 110 } }
+        Behavior on opacity { NumberAnimation { duration: Style.duration(110) } }
 
         Caption {
           text: row.ready ? row.rowData.date : "\u2026"
@@ -242,7 +242,7 @@ Rectangle {
         spacing: Style.space(5)
         opacity: parent.greeting ? 1 : 0
         visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 110 } }
+        Behavior on opacity { NumberAnimation { duration: Style.duration(110) } }
 
         // Non-Latin scripts fall back per character through fontconfig.
         Caption {
@@ -304,7 +304,7 @@ Rectangle {
     // Shown on the keyboard's pick too, so Delete's target is plain.
     opacity: row.removable && row.lit ? 1 : 0
     visible: opacity > 0
-    Behavior on opacity { NumberAnimation { duration: 120 } }
+    Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
     onClicked: row.panel.removeCityAt(row.index)
   }
 
