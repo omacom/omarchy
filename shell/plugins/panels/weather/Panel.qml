@@ -149,6 +149,18 @@ Panel {
   readonly property string reportWind:      current ? (useImperial ? (current.windspeedMiles + " mph") : (current.windspeedKmph + " km/h")) : ""
   readonly property string reportHumidity:  current ? (current.humidity + "%") : ""
 
+  // ---- Sky scene drawn behind the panel content (see the skyFx item below).
+  //      It follows the Open-Meteo weather code and day flag when they are
+  //      present, else the bar glyph. The "fx" widget setting turns it off.
+  readonly property bool fxEnabled: setting("fx", true) !== false
+  readonly property var fxResolved: Model.resolveSkyScene(openMeteoCurrent || current, label)
+  readonly property bool fxNight: fxResolved.night
+  readonly property int fxLevel: fxResolved.level
+  readonly property bool fxHail: fxResolved.hail
+  readonly property bool fxWindy: fxResolved.windy
+  readonly property string fxMode: fxEnabled ? Model.skyMode(fxResolved.scene, fxNight) : "off"
+  onOpenedChanged: if (opened) skyFx.replay()
+
   function refresh() {
     // Each full refresh cycle gets a fresh retry budget, so an earlier
     // exhausted round (e.g. waking with the network still down) doesn't
@@ -504,6 +516,442 @@ Panel {
       onReturnRequested: root.startEditingLocation()
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
+
+      // ---- Pixel-art sky. Two canvases on a 2px cell grid behind the content:
+      //      `stat` holds what only changes on open (glow, sun/moon body, haze),
+      //      `dyn` holds motion (rays, bokeh, clouds, drops, flakes, wind, bolts)
+      //      and repaints at 30 Hz while the popup is open. All geometry below
+      //      is in cells. Palette is theme accent, theme background and ink
+      //      (white on dark themes, the theme foreground on light ones).
+      Item {
+        id: skyFx
+        anchors.fill: parent
+        anchors.margins: -panel.padding
+        clip: true
+        visible: root.fxMode !== "off"
+        z: 0
+
+        property real t: 0        // 0 → 1 while the panel opens
+        property int tick: 0      // 30 Hz clock since the panel opened; drives all motion
+        readonly property int cell: 2
+        // Overall strength of the effect; the hero text has to stay readable.
+        // Dark ink on a pale card needs more coverage for the same contrast.
+        readonly property real strength: lightTheme ? 0.7 : 0.45
+
+        // `c` blended over `base` by `k`.
+        function blend(base, c, k) { return Qt.tint(base, Qt.rgba(c.r, c.g, c.b, k)) }
+        // Everything is drawn in "ink": ink on dark themes, the theme's own
+        // foreground on light ones, where ink would vanish into the card.
+        readonly property color surfaceBackground: Color.popups.background
+        readonly property bool lightTheme: surfaceBackground.hslLightness > 0.5
+        readonly property color inkColor: lightTheme ? Color.popups.text : "#ffffff"
+        readonly property string sunCore:     blend(Color.accent, inkColor, 0.30).toString()
+        readonly property string sunMid:      Color.accent.toString()
+        readonly property string sunRim:      blend(Color.accent, surfaceBackground, 0.35).toString()
+        readonly property string ink:         inkColor.toString()
+        readonly property string inkSoft:     blend(inkColor, surfaceBackground, 0.25).toString()
+        readonly property string bgTint:      blend(surfaceBackground, inkColor, 0.55).toString()
+        readonly property string cloudDark:   blend(surfaceBackground, Color.accent, 0.25).toString()
+        readonly property string cloudShade:  blend(inkSoft, surfaceBackground, 0.45).toString()
+        readonly property string cloudDarker: blend(cloudDark, surfaceBackground, 0.45).toString()
+        readonly property string paletteKey: [sunCore, sunMid, sunRim, ink, inkSoft, bgTint, cloudDark, cloudShade, cloudDarker].join("|")
+        // 4x4 ordered-dither thresholds, flattened.
+        readonly property var ditherThresholds: [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(function(b) { return (b + 0.5) / 16 })
+
+        // 64x64 lattice of random values for value noise.
+        property var noiseTable: []
+        onNoiseTableChanged: layerCache = []
+        Component.onCompleted: { var tbl = []; for (var n = 0; n < 4096; n++) tbl.push(Math.random()); noiseTable = tbl }
+
+        function replay() { tick = 0; openAnim.restart() }
+
+        NumberAnimation {
+          id: openAnim
+          target: skyFx
+          property: "t"
+          from: 0; to: 1
+          duration: 900
+          easing.type: Easing.OutCubic
+        }
+        // The dynamic canvas repaints on every tick and the scrolling layers
+        // only move, so only the static canvas needs nudging: when the open
+        // animation, the scene or the theme changes.
+        onTChanged: stat.requestPaint()
+        onPaletteKeyChanged: stat.requestPaint()
+        Connections {
+          target: root
+          function onFxModeChanged() { stat.requestPaint() }
+        }
+
+        Timer {
+          interval: 33; repeat: true
+          running: skyFx.visible && root.opened
+          onTriggered: { skyFx.tick++; dyn.requestPaint() }
+        }
+
+        // Value noise that repeats every `period` lattice cells horizontally
+        // (period <= 16, so the finest octave still fits the 64-wide lattice).
+        function hashT(ix, iy) { return noiseTable[((ix & 63) << 6) | (iy & 63)] }
+        function vnoise(x, y, period) {
+          var ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy
+          fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy)
+          var x0 = ((ix % period) + period) % period, x1 = x0 + 1 === period ? 0 : x0 + 1
+          var a = hashT(x0, iy), b = hashT(x1, iy), c = hashT(x0, iy + 1), d = hashT(x1, iy + 1)
+          return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy
+        }
+        function fbm(x, y, period) {
+          return 0.55 * vnoise(x, y, period) + 0.30 * vnoise(x * 2 + 7.3, y * 2 + 3.1, period * 2) + 0.15 * vnoise(x * 4 + 11.7, y * 4 + 5.9, period * 4)
+        }
+
+        // Clouds and fog only drift sideways. Cache their geometry outside
+        // Canvas: closing the layer-shell window discards its painted image.
+        // Reopening only redraws the cached runs, then slides the strip.
+        function layerSpec(kind, speed, nsx, nsy, extra) {
+          var spec = { kind: kind, speed: speed, nsx: nsx, nsy: nsy }
+          for (var key in extra) spec[key] = extra[key]
+          return spec
+        }
+        // colors = [lit top, body, shaded underside]. With dark ink the "lit"
+        // colour is the darkest, so light themes swap the ends to keep tops
+        // lighter than undersides.
+        function cloudSpec(speed, topOnly, colors, alpha, dens) {
+          var lit = lightTheme ? colors[2] : colors[0], shade = lightTheme ? colors[0] : colors[2]
+          return layerSpec("cloud", speed, 51, 30, { topOnly: topOnly, lit: lit, body: colors[1], shade: shade, alpha: alpha, dens: dens })
+        }
+        // Lightning: a short flash at the end of each period, faster when heavier.
+        readonly property real flashPeriod: [4.0, 2.6, 1.6][root.fxLevel]
+        readonly property bool flashing: root.fxMode === "storm" && (tick / 30) % flashPeriod > flashPeriod - 0.14
+        // The storm band repainted in its lit palette, shown in place of the
+        // normal band while a flash lasts, so the clouds light up themselves.
+        function stormSpec(colors) { return cloudSpec(4.2 * (root.fxWindy ? 2.2 : 1), true, colors, 0.50, 0.05 + root.fxLevel * 0.02) }
+        readonly property var flashLayer: root.fxMode === "storm" ? stormSpec([ink, inkSoft, cloudDarker]) : null
+        readonly property var layers: {
+          var mode = root.fxMode, night = root.fxNight, lvl = root.fxLevel, wind = root.fxWindy ? 2.2 : 1
+          var nightAlpha = night ? 0.8 : 1, precipDens = 0.04 + lvl * 0.02
+          var bright = night ? [inkSoft, bgTint, cloudDarker] : [ink, inkSoft, cloudShade]
+          var dim = night ? [bgTint, cloudDark, cloudDarker] : [inkSoft, bgTint, cloudDarker]
+          switch (mode) {
+            case "partly":       return [cloudSpec(1.95 * wind, true, bright, 0.30, -0.02)]
+            case "partly-night": return [cloudSpec(1.5 * wind, true, bright, 0.28, -0.02)]
+            case "clouds":       return [cloudSpec(3.3 * wind, false, bright, 0.38 * nightAlpha, 0.03)]
+            case "rain":         return [cloudSpec(2.1 * wind, true, dim, 0.34 * nightAlpha, precipDens)]
+            case "storm":        return [stormSpec([inkSoft, cloudDark, cloudDarker])]
+            case "snow":         return [cloudSpec(1.35 * wind, true, bright, 0.26 * nightAlpha, precipDens)]
+            case "sleet":        return [cloudSpec(2.4 * wind, true, dim, 0.34 * nightAlpha, precipDens)]
+            case "fog":          return [layerSpec("fog", 2.4, 66, 24, { seed: 0 }), layerSpec("fog", -1.35, 42, 16.5, { seed: 3.7 })]
+          }
+          return []
+        }
+
+        // At most two recent geometries (the two fog strips). Storm and flash
+        // share an entry. Colours, alpha and scrolling speed don't shape runs.
+        property var layerCache: []
+        function layerRuns(spec, cols, rows, period) {
+          var key = JSON.stringify([cols, rows, period, spec.kind, spec.nsx, spec.nsy, spec.topOnly, spec.dens, spec.seed])
+          for (var n = 0; n < layerCache.length; n++) {
+            if (layerCache[n].key === key) {
+              var hit = layerCache.splice(n, 1)[0]
+              layerCache.push(hit)
+              return hit.runs
+            }
+          }
+          var result = buildLayerRuns(spec, cols, rows, period)
+          layerCache.push({ key: key, runs: result })
+          if (layerCache.length > 2) layerCache.shift()
+          return result
+        }
+
+        function buildLayerRuns(spec, cols, rows, period) {
+          var result = [], thr = ditherThresholds
+          // One row of cells as runs: level(i) returns a key (falsy = empty)
+          // kept with the geometry so palettes can change without new noise.
+          function runs(j, level) {
+            var runKey = null, runStart = 0
+            for (var i = 0; i <= cols; i++) {
+              var key = i < cols ? level(i) : null
+              if (key === runKey) continue
+              if (runKey) result.push([runStart, j, i - runStart, runKey])
+              runKey = key; runStart = i
+            }
+          }
+          if (spec.kind === "cloud") {
+            // Thresholded into a lit top, a body and a shaded underside, with a
+            // dithered rim; topOnly fades the band out toward mid-card.
+            var up = 5, th = 0.52 - spec.dens
+            var H = spec.topOnly ? Math.round(rows * 0.70) : rows, FH = H + up
+            var fld = new Array(cols * FH)
+            for (var j = 0; j < FH; j++) {
+              var env = spec.topOnly ? Math.max(0, Math.min(1, 1.7 - j / (rows * 0.40))) : (1 - 0.2 * j / rows)
+              for (var i = 0; i < cols; i++) fld[j * cols + i] = fbm(i / spec.nsx, j / spec.nsy, period) * env
+            }
+            for (var row = 0; row < H; row++) {
+              runs(row, function(i) {
+                var v = fld[row * cols + i]
+                if (v >= th + 0.05) {
+                  var above = row >= up ? fld[(row - up) * cols + i] : v, below = fld[(row + up) * cols + i]
+                  return below < v - 0.03 ? "shade" : (above < v - 0.03 ? "lit" : "body")
+                }
+                return v >= th && (v - th) / 0.05 >= thr[((row & 3) << 2) | (i & 3)] ? "rim" : null
+              })
+            }
+          } else {
+            // Fog: density quantised to three alpha levels, thicker near the bottom.
+            for (var fj = 0; fj < rows; fj++) {
+              var fenv = (0.25 + 0.75 * fj / rows) * 1.6
+              runs(fj, function(i) {
+                var d = (fbm(i / spec.nsx + spec.seed, fj / spec.nsy + spec.seed, period) - 0.3) * fenv
+                return d <= 0.15 ? 0 : (d <= 0.4 ? 1 : (d <= 0.7 ? 2 : 3))
+              })
+            }
+          }
+          return result
+        }
+
+        function paintLayer(ctx, spec, cols, rows, period, width, height) {
+          ctx.clearRect(0, 0, width, height)
+          if (!spec || noiseTable.length === 0) return
+          var runs = layerRuns(spec, cols, rows, period), c = cell
+          var styles = spec.kind === "cloud"
+            ? { lit: [spec.lit, spec.alpha], body: [spec.body, spec.alpha], shade: [spec.shade, spec.alpha], rim: [spec.body, spec.alpha * 0.7] }
+            : { 1: [inkSoft, 0.07], 2: [inkSoft, 0.14], 3: [inkSoft, 0.07 * 3] }
+          for (var n = 0; n < runs.length; n++) {
+            var run = runs[n], style = styles[run[3]]
+            ctx.fillStyle = style[0]; ctx.globalAlpha = style[1]
+            ctx.fillRect(run[0] * c, run[1] * c, run[2] * c, c)
+          }
+        }
+
+        component ScrollLayer: Canvas {
+          id: strip
+          property var spec: null
+          readonly property int cardCols: Math.ceil(skyFx.width / skyFx.cell)
+          // Noise period in lattice cells, and the strip's repeat length in cells.
+          readonly property int period: spec ? Math.max(2, Math.min(16, Math.round(2 * cardCols / spec.nsx))) : 1
+          readonly property int repeatCols: spec ? period * spec.nsx : 0
+          visible: spec !== null
+          height: parent.height
+          width: (repeatCols + cardCols) * skyFx.cell
+          x: spec ? -Math.round((((skyFx.tick / 30 * spec.speed) % repeatCols) + repeatCols) % repeatCols * skyFx.cell) : 0
+          opacity: skyFx.strength * skyFx.t
+          renderStrategy: Canvas.Cooperative
+          onSpecChanged: requestPaint()
+          onWidthChanged: requestPaint()
+          onHeightChanged: requestPaint()
+          Connections {
+            target: skyFx
+            function onPaletteKeyChanged() { strip.requestPaint() }
+            function onNoiseTableChanged() { strip.requestPaint() }
+          }
+          onPaint: skyFx.paintLayer(getContext("2d"), spec, repeatCols + cardCols, Math.ceil(height / skyFx.cell), period, width, height)
+        }
+
+        component SkyCanvas: Canvas {
+          property bool dynamic: false
+          anchors.fill: parent
+          renderStrategy: Canvas.Cooperative
+          opacity: skyFx.strength
+          onWidthChanged: requestPaint()
+          onHeightChanged: requestPaint()
+          onPaint: skyFx.paint(getContext("2d"), width, height, dynamic)
+        }
+        SkyCanvas { id: stat }
+        ScrollLayer { spec: skyFx.layers[0] || null; visible: spec !== null && !skyFx.flashing }
+        ScrollLayer { spec: skyFx.flashLayer; visible: skyFx.flashing }
+        ScrollLayer { spec: skyFx.layers[1] || null }
+        SkyCanvas { id: dyn; dynamic: true }
+
+        function paint(ctx, width, height, dynamic) {
+          ctx.clearRect(0, 0, width, height)
+          var c = cell, t = skyFx.t, mode = root.fxMode
+          if (t <= 0) return
+          var cols = Math.ceil(width / c), rows = Math.ceil(height / c)
+          var time = skyFx.tick / 30          // seconds since the panel opened
+          var frame = Math.floor(time * 2.4) % 4
+          var lvl = root.fxLevel, windy = root.fxWindy
+          var thr = ditherThresholds
+
+          // The one drawing primitive: a w×h block of cells. The canvas clips.
+          function rect(i, j, w, h, color, a) {
+            ctx.fillStyle = color
+            ctx.globalAlpha = a < 0 ? 0 : (a > 1 ? 1 : a)
+            ctx.fillRect(i * c, j * c, w * c, h * c)
+          }
+          function wash(color, a) { rect(0, 0, cols, rows, color, a) }
+          function dither(i, j) { return thr[((j & 3) << 2) | (i & 3)] }
+          function rnd(n) { var x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x) }
+          // Dithered radial falloff: the pixel-art stand-in for a soft gradient.
+          function glow(cx, cy, radius, color, gain, a) {
+            var G = Math.round(radius)
+            for (var j = Math.max(0, cy - G); j < Math.min(rows, cy + G); j++)
+              for (var i = Math.max(0, cx - G); i < Math.min(cols, cx + G); i++) {
+                var dx = i - cx, dy = j - cy
+                var g = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / G) * gain * t
+                if (g > 0.03 && g > dither(i, j)) rect(i, j, 1, 1, color, a)
+              }
+          }
+
+          // Streaks falling at varied speeds; the last cell is the bright tip.
+          function rain(count, color, a, speed, slant) {
+            for (var n = 0; n < count; n++) {
+              var y = Math.round(((rnd(n) + time * speed * (0.7 + rnd(n + 100) * 0.6)) % 1) * (rows + 5) - 5)
+              var x = Math.round(rnd(n + 300) * (cols + 45) - 22 - y * slant)
+              rect(x, y, 1, 4, color, a * 0.7)
+              rect(x, y + 4, 1, 1, color, a)
+            }
+          }
+          function snow(count, color, a, speed, drift) {
+            for (var n = 0; n < count; n++) {
+              var y = Math.round(((rnd(n + 500) + time * speed * (0.6 + rnd(n + 700) * 0.8)) % 1) * (rows + 4) - 2)
+              var x = Math.round(rnd(n + 900) * cols + Math.sin(time * 0.9 + n) * 4.5 * drift + time * 18 * (drift - 1))
+              x = ((x % cols) + cols) % cols
+              var size = rnd(n + 1100) > 0.6 ? 2 : 1
+              rect(x, y, size, size, color, a)
+            }
+          }
+          function hailfall(count, color, a, speed) {
+            for (var n = 0; n < count; n++) {
+              var y = Math.round(((rnd(n + 1500) + time * speed * (0.8 + rnd(n + 1300) * 0.5)) % 1) * (rows + 4) - 2)
+              rect(Math.round(rnd(n + 1700) * cols - y * 0.05), y, 2, 2, color, a)
+            }
+          }
+          // Horizontal streaks racing left to right, fading in toward the head.
+          function wind(count, color, a) {
+            var span = cols + 30
+            for (var n = 0; n < count; n++) {
+              var len = Math.round(7.5 + rnd(n + 2100) * 7.5), half = Math.round(len / 2)
+              var x = Math.round(((rnd(n + 2500) * span + time * (45 + rnd(n + 2300) * 45)) % span) - 15)
+              var y = Math.round(rnd(n + 2700) * rows + Math.sin(time * 3 + n) * 1.5)
+              rect(x, y, half, 1, color, a * 0.55)
+              rect(x + half, y, len - half, 1, color, a)
+            }
+          }
+          function bolt(index, x, y) {
+            for (var seg = 0; seg < 5; seg++) {
+              var dx = (rnd(index * 10 + seg) - 0.5) * 12
+              var dy = 4.5 + rnd(index * 10 + seg + 50) * 6
+              var steps = Math.ceil(Math.max(Math.abs(dx), dy))
+              for (var k = 0; k <= steps; k++) {
+                var px = Math.round(x + dx * k / steps), py = Math.round(y + dy * k / steps)
+                rect(px, py, 1, 1, ink, 0.95)
+                rect(px + 1, py, 1, 1, ink, 0.5)
+              }
+              x += dx; y += dy
+            }
+          }
+
+          // The sun or moon sits in the top-right corner; its light path runs
+          // to the bottom-left corner.
+          var sx = cols - 22, sy = 14
+          var ldx = 12 - sx, ldy = rows - 12 - sy, llen = Math.sqrt(ldx * ldx + ldy * ldy)
+          var sunR = 15 * (0.6 + 0.4 * t)
+
+          function sunStatic() {
+            glow(sx, sy, 99, sunMid, 0.55, 0.30)
+            // Light beam: a soft band along the light path, fading with distance.
+            var bw = 24
+            for (var j = Math.max(0, sy); j < rows; j++) {
+              var along = (j - sy) / ldy
+              if (along > 1) break
+              var cxl = sx + ldx * along
+              for (var i = Math.max(0, Math.floor(cxl - bw)); i < Math.min(cols, Math.ceil(cxl + bw)); i++) {
+                var d = Math.abs(((i - sx) * ldy - (j - sy) * ldx) / llen)
+                var g = Math.max(0, 1 - d / bw) * (1 - along) * 0.45 * t
+                if (g > dither(i, j)) rect(i, j, 1, 1, sunCore, 0.16)
+              }
+            }
+            var box = Math.ceil(sunR) + 1
+            for (var jj = -box; jj <= box; jj++) for (var ii = -box; ii <= box; ii++) {
+              var dd = Math.sqrt(ii * ii + jj * jj)
+              if (dd <= sunR) rect(sx + ii, sy + jj, 1, 1, dd <= sunR * 0.5 ? sunCore : (dd <= sunR * 0.82 ? sunMid : sunRim), t)
+            }
+          }
+          function sunDynamic() {
+            for (var k = 0; k < 8; k++) {
+              var ang = k * Math.PI / 4, len = 9 + ((k + frame) % 3) * 4.5
+              for (var s = sunR + 4; s <= sunR + 4 + len; s++)
+                rect(Math.round(sx + Math.cos(ang) * s), Math.round(sy + Math.sin(ang) * s), 1, 1, sunMid, 0.75 * t)
+            }
+            // Bokeh: three soft discs along the light path, breathing slowly.
+            var bok = [[0.34, 13.5, ink, 0.22], [0.56, 7.5, sunCore, 0.30], [0.80, 19.5, sunMid, 0.16]]
+            for (var n = 0; n < bok.length; n++) {
+              var p = bok[n][0] * t
+              var fade = Math.max(0, Math.min(1, (t - bok[n][0] * 0.5) / 0.5))
+              glow(Math.round(sx + ldx * p), Math.round(sy + ldy * p), bok[n][1] * (1 + 0.12 * Math.sin(time * 0.8 + n * 2.1)), bok[n][2], 1.2, bok[n][3] * fade)
+            }
+          }
+          // Night: an accent-tinted sky fading down from the top, a crescent
+          // with a halo, earthshine on its dark side and a few craters.
+          function moonStatic() {
+            for (var j = 0; j < rows; j++) {
+              var sky = Math.max(0, 1 - j / (rows * 0.85)) * 0.5 * t
+              for (var i = 0; i < cols; i++) if (sky > dither(i, j)) rect(i, j, 1, 1, cloudDark, 0.35)
+            }
+            var mr = 13.5 * (0.6 + 0.4 * t), mb = Math.ceil(mr) + 1
+            glow(sx, sy, 90, inkSoft, 1.0, 0.34)
+            var craters = [[0.35, -0.35, 0.16], [0.55, 0.25, 0.12], [0.15, 0.55, 0.10]]
+            for (var mj = -mb; mj <= mb; mj++) for (var mi = -mb; mi <= mb; mi++) {
+              var d = Math.sqrt(mi * mi + mj * mj)
+              if (d > mr) continue
+              var bx = mi + mr * 0.45, by = mj - mr * 0.2          // the bite: an offset disc
+              if (Math.sqrt(bx * bx + by * by) <= mr * 0.85) { rect(sx + mi, sy + mj, 1, 1, bgTint, 0.22 * t); continue }
+              var crater = false
+              for (var k = 0; k < craters.length; k++) {
+                var cx = mi - craters[k][0] * mr, cy = mj - craters[k][1] * mr
+                if (Math.sqrt(cx * cx + cy * cy) <= craters[k][2] * mr) crater = true
+              }
+              rect(sx + mi, sy + mj, 1, 1, crater ? inkSoft : (d < mr * 0.8 ? ink : inkSoft), t)
+            }
+          }
+          // Stars twinkling smoothly at their own rates, and a shooting star
+          // crossing toward the bottom-left every few seconds.
+          function moonDynamic() {
+            for (var st = 0; st < 60; st++) {
+              var x = Math.round(rnd(st) * cols), y = Math.round(rnd(st + 40) * rows * 0.75)
+              if (Math.abs(x - sx) < 22 && Math.abs(y - sy) < 22) continue
+              var a = (0.6 + rnd(st + 80) * 0.4) * t * (0.6 + 0.4 * Math.sin(time * (1.2 + rnd(st + 160) * 2) + st * 7))
+              var color = st % 5 === 0 ? sunMid : ink
+              rect(x, y, 1, 1, color, a)
+              if (rnd(st + 120) > 0.65) { rect(x - 1, y, 3, 1, color, a * 0.6); rect(x, y - 1, 1, 3, color, a * 0.6) }
+            }
+            var shootEvery = 7, shootFor = 0.9, phase = time % shootEvery
+            if (time > shootEvery * 0.5 && phase < shootFor) {
+              var n = Math.floor(time / shootEvery), p = phase / shootFor
+              var x0 = cols * (0.35 + rnd(n + 3000) * 0.45), y0 = rows * (0.05 + rnd(n + 3100) * 0.25)
+              var hx = x0 - 70 * p, hy = y0 + 28 * p
+              rect(Math.round(hx) - 1, Math.round(hy), 2, 2, ink, t)
+              for (var k = 1; k < 22; k++)
+                rect(Math.round(hx + k * 2.5), Math.round(hy - k), 1, 1, ink, (1 - k / 22) * t * (1 - p * 0.5))
+            }
+          }
+
+          var rainN = [40, 75, 120][lvl], rainSp = [0.45, 0.6, 0.85][lvl], rainSl = [0.08, 0.14, 0.24][lvl], rainA = [0.35, 0.45, 0.55][lvl]
+          var snowN = [30, 60, 110][lvl], snowSp = [0.12, 0.17, 0.26][lvl], snowDrift = windy ? 2.5 : 1
+
+          if (!dynamic) {
+            if (mode === "sun" || mode === "partly") sunStatic()
+            else if (mode === "moon" || mode === "partly-night") moonStatic()
+            else if (mode === "fog") wash(inkSoft, 0.07 * t)
+          } else {
+            if (mode === "sun" || mode === "partly") sunDynamic()
+            else if (mode === "moon" || mode === "partly-night") moonDynamic()
+            else if (mode === "rain") rain(rainN, inkSoft, rainA * t, rainSp, rainSl + (windy ? 0.2 : 0))
+            else if (mode === "storm") {
+              var inFlash = skyFx.flashing
+              if (inFlash) wash(ink, 0.07)
+              rain(Math.round(rainN * 1.2), inkSoft, 0.5 * t, Math.max(0.7, rainSp), 0.22 + (windy ? 0.15 : 0))
+              if (root.fxHail) hailfall(35, bgTint, 0.7 * t, 0.9)
+              var flashIdx = Math.floor(time / skyFx.flashPeriod)
+              if (inFlash) bolt(flashIdx, Math.round((0.2 + rnd(flashIdx) * 0.6) * cols), sy)
+            }
+            else if (mode === "snow") snow(snowN, ink, 0.55 * t, snowSp, snowDrift)
+            else if (mode === "sleet") {
+              rain(Math.round(rainN * 0.55), inkSoft, 0.4 * t, rainSp * 0.9, rainSl)
+              snow(Math.round(snowN * 0.5), ink, 0.5 * t, snowSp * 1.3, snowDrift)
+            }
+            if (windy) wind(24, inkSoft, 0.28 * t)
+          }
+        }
+      }
 
       Flickable {
         id: weatherScroll
