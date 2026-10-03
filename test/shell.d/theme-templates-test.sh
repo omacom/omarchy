@@ -41,6 +41,16 @@ printf 'no newline {{ accent }}' >"$themed/tail.txt.tpl"
 # Function arguments may be separated by any whitespace, tabs included.
 printf '{{ mix\tbackground accent 30%% }} {{\tmix_rgb red\tblue 50%%\t}} {{ gradient_start\thyprland_active_border accent }}\n' >"$themed/tabs.txt.tpl"
 
+# A background output symlink is already a theme-provided asset, including a
+# dangling link. Rendering must not create or overwrite its external target.
+mkdir -p "$next/backgrounds" "$test_tmp/outside"
+printf 'preserved\n' >"$test_tmp/outside/existing.svg"
+for name in existing missing; do
+  printf '<svg>{{ accent }}</svg>\n' >"$next/backgrounds/$name.svg.tpl"
+  ln -s "$test_tmp/outside/$name.svg" "$next/backgrounds/$name.svg"
+done
+printf '<svg>{{ accent }}</svg>\n' >"$next/backgrounds/new.svg.tpl"
+
 HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-set-templates"
 
 # Expected values were produced by the sed-based renderer this replaced, so
@@ -76,3 +86,7 @@ for tpl in "$ROOT"/default/themed/*.tpl; do
   [[ -f $next/$name ]] || fail "every built-in template renders ($name)"
 done
 pass "theme templates render every built-in template"
+
+[[ $(<"$test_tmp/outside/existing.svg") == "preserved" && ! -e $test_tmp/outside/missing.svg ]] || fail "background templates never follow output symlinks"
+[[ $(<"$next/backgrounds/new.svg") == "<svg>#ff0000</svg>" ]] || fail "ordinary background templates still render"
+pass "background templates skip valid and dangling output symlinks"
