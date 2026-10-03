@@ -332,14 +332,23 @@ function canForgetNetwork(network) {
 // `connection edit` editor -- argv is world-readable in /proc, so the secret
 // must never be an argument (printf is a bash builtin, so no process spawns
 // with it either).
+//
+// The half-built profile has to be deleted on the cancel path as well as on
+// failure. Cancelling stops only the shell this runs in, so the blocking
+// `connection up` is backgrounded for the TERM trap to kill, and the trap
+// runs the same cleanup the `||` branch does. Without it, a cancelled 802.1X
+// attempt leaves a profile in NetworkManager with no password on it.
 var enterpriseConnectScript =
-  "u=$(uuidgen); IFS= read -r pw;" +
+  "u=$(uuidgen); child=;" +
+  " drop() { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; };" +
+  " onterm() { kill \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null; drop; exit 143; };" +
+  " trap onterm TERM INT; IFS= read -r pw;" +
   " nmcli connection add type wifi con-name \"$1\" ssid \"$1\" connection.uuid \"$u\"" +
   " wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2" +
   " 802-1x.identity \"$2\" 802-1x.auth-timeout 8 >/dev/null" +
   " && printf 'set 802-1x.password %s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$u\" >/dev/null" +
-  " && nmcli connection up uuid \"$u\"" +
-  " || { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
+  " && { nmcli connection up uuid \"$u\" & child=$!; wait \"$child\"; }" +
+  " || { drop; false; }"
 
 function networkFailureReason(reason, needsCredentials, reasons) {
   var r = reasons || {}
