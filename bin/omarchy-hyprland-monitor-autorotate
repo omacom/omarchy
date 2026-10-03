@@ -1,0 +1,136 @@
+#!/bin/bash
+
+# omarchy:summary=Rotate the laptop display to follow the accelerometer
+# omarchy:args=[apply]
+# omarchy:hidden=true
+
+SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+ORIENTATION_STATE="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-autorotate.orientation"
+
+# iio-sensor-proxy settles the raw accelerometer into one of four orientations,
+# and only powers the sensor while a client holds a claim on it. The claim belongs
+# to the D-Bus connection that took it, so it cannot be taken by a call this
+# script makes and then outlives: monitor-sensor is the client that holds one
+# open, which is why the orientation arrives as its output rather than from a
+# property read here. Once something holds the claim, other readers see a live
+# value, and that is what the `apply` subcommand reads.
+orientation_transform() {
+  # The orientation names the edge of the device that now points up, so left-up is
+  # the device turned clockwise. The transform is the rotation that puts the image
+  # back upright behind it, and it turns the same way the device did: clockwise to
+  # 1, not to 3. Verified on the hardware -- the pairing that reads as the obvious
+  # one lands every landscape-to-portrait turn 180 degrees out.
+  case "$1" in
+    normal) echo 0 ;;
+    left-up) echo 1 ;;
+    bottom-up) echo 2 ;;
+    right-up) echo 3 ;;
+    *) return 1 ;;
+  esac
+}
+
+laptop_monitor() {
+  local monitor
+  monitor=$(omarchy-hyprland-monitor-laptop)
+
+  # The name is interpolated into the Lua evaluated below, so a name that is not a
+  # plain connector string could execute on its own. Names come from hyprctl, and
+  # a user-created headless output can carry anything.
+  if [[ -n $monitor && $monitor =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "$monitor"
+  fi
+}
+
+apply_transform() {
+  local transform="$1" monitor scale
+
+  monitor=$(laptop_monitor)
+  [[ -n $monitor ]] || return 0
+
+  # A monitor rule replaces the rule that matched before it rather than merging
+  # into it, so a rule carrying only a transform takes the scale away with it and
+  # leaves the panel on Hyprland's own auto scale. The scale in force right now is
+  # the one the config asked for, so it is read back and written out again.
+  scale=$(hyprctl monitors -j | jq -r --arg monitor "$monitor" '.[] | select(.name == $monitor) | .scale')
+  [[ $scale =~ ^[0-9]+(\.[0-9]+)?$ ]] || return 0
+
+  hyprctl eval "hl.monitor({ output = \"$monitor\", mode = \"preferred\", position = \"auto\", scale = $scale, transform = $transform })" >/dev/null
+}
+
+apply_orientation() {
+  local orientation="$1" transform
+
+  transform=$(orientation_transform "$orientation") || return 0
+  printf '%s\n' "$orientation" >"$ORIENTATION_STATE"
+
+  # The lock freezes the panel where it is rather than returning it to normal, so
+  # the orientation is still recorded above while it holds.
+  omarchy-toggle-enabled autorotate-off && return 0
+
+  apply_transform "$transform"
+}
+
+current_orientation() {
+  busctl --system get-property net.hadess.SensorProxy /net/hadess/SensorProxy \
+    net.hadess.SensorProxy AccelerometerOrientation 2>/dev/null | sed -nE 's/^s "(.*)"$/\1/p'
+}
+
+# A reload re-reads the config, which carries no transform, so the panel snaps
+# back to normal under a device that has not moved. Nothing else will correct it:
+# the sensor only speaks when the orientation changes.
+watch_reloads() {
+  local event
+
+  while read -r event; do
+    case "$event" in
+      configreloaded\>\>*)
+        [[ -f $ORIENTATION_STATE ]] && apply_orientation "$(<"$ORIENTATION_STATE")"
+        ;;
+    esac
+  done < <(socat -U - "UNIX-CONNECT:$SOCKET")
+}
+
+# monitor-sensor announces the orientation it starts with as
+# "=== Has accelerometer (orientation: normal, tilt: tilted-down)" and every later
+# one as "Accelerometer orientation changed: left-up", so one pattern reads both
+# and the trailing tilt field is left where it is. Tilt arrives on its own line
+# and says nothing about which way is up, so nothing here matches it.
+read_orientations() {
+  local line
+
+  while read -r line; do
+    if [[ $line =~ orientation(\ changed)?:\ ([a-z-]+) ]]; then
+      apply_orientation "${BASH_REMATCH[2]}"
+    elif [[ $line == *"Accelerometer appeared"* ]]; then
+      # A sensor arriving mid-session reports no orientation with itself.
+      apply_orientation "$(current_orientation)"
+    fi
+  done < <(monitor-sensor --accel 2>/dev/null)
+}
+
+if [[ ${1:-} == "apply" ]]; then
+  apply_orientation "$(current_orientation)"
+  exit 0
+fi
+
+omarchy-hw-accelerometer || exit 0
+
+watch_reloads &
+reload_pid=$!
+
+# The watcher outlives this shell otherwise, and its socat with it, leaving a
+# reader on the Hyprland socket that nothing will ever collect.
+cleanup() {
+  pkill -P "$reload_pid" 2>/dev/null
+  kill "$reload_pid" 2>/dev/null
+}
+trap cleanup EXIT
+
+# The claim lives exactly as long as monitor-sensor does. If it goes, the sensor
+# stops being polled and the orientation freezes at whatever it last reported,
+# which from the outside is indistinguishable from a screen that has quietly
+# stopped rotating -- so it gets restarted rather than followed out the door.
+while true; do
+  read_orientations
+  sleep 2
+done
