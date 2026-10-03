@@ -59,6 +59,30 @@ safe_stage_path() {
   [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
 }
 
+
+# Critical battery must Hibernate directly once Omarchy resume is configured.
+# Auto resolves to suspend-then-hibernate at 2%, which drains to a hard power-off
+# before the image write finishes on many laptops.
+install_critical_power_upower() {
+  local source="$OMARCHY_PATH/default/UPower/UPower.conf.d/70-omarchy-critical-hibernate.conf"
+  local destination="/etc/UPower/UPower.conf.d/70-omarchy-critical-hibernate.conf"
+
+  [[ -f $source ]] || return 0
+
+  if [[ -f $destination ]] && cmp -s "$source" "$destination"; then
+    return 0
+  fi
+
+  echo "Configuring UPower to hibernate on critical battery"
+  sudo mkdir -p /etc/UPower/UPower.conf.d
+  if ! install_root_file "$source" "$destination" 0644; then
+    echo "Could not install the UPower critical-hibernate drop-in" >&2
+    return 1
+  fi
+
+  sudo systemctl try-restart upower.service >/dev/null 2>&1 || true
+}
+
 # Check if hibernation is already configured
 if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
   # Fix empty resume_offset if btrfs map-swapfile failed during initial setup
@@ -71,6 +95,9 @@ if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; 
         sudo limine-mkinitcpio
       fi
     fi
+  fi
+  if ! install_critical_power_upower; then
+    exit 1
   fi
   echo "Hibernation is already set up"
   exit 0
@@ -149,6 +176,12 @@ if grep -q "\[s2idle\]" /sys/power/mem_sleep 2>/dev/null; then
     sudo mkdir -p /etc/limine-entry-tool.d
     echo 'KERNEL_CMDLINE[default]+=" rtc_cmos.use_acpi_alarm=1"' | sudo tee "$LIMINE_DROP_IN" >/dev/null
   fi
+fi
+
+# After the resume marker exists so CriticalPowerAction=Hibernate only lands
+# once Omarchy hibernation is actually configured.
+if ! install_critical_power_upower; then
+  exit 1
 fi
 
 if ! $NO_REBUILD; then
