@@ -9,6 +9,7 @@ ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 SHELL_TEST_DIR="$ROOT/test/shell.d"
 
 export ROOT
+export OMARCHY_TESTING=1
 
 pass() {
   printf 'ok - %s\n' "$1"
