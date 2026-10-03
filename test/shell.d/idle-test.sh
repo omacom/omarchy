@@ -11,6 +11,34 @@ assertEqual(idle.secondsFromConfig('42.9', 10), 42, 'idle floors configured seco
 assertEqual(idle.secondsFromConfig('-1', 10), 10, 'idle rejects negative seconds')
 assertEqual(idle.secondsFromConfig('nope', 10), 10, 'idle rejects invalid seconds')
 
+assertDeepEqual(
+  idle.monitorPlan(true, 1200, 0, false),
+  { timeout: 1200, active: true, rebuild: true },
+  'idle builds the monitor once idling is enabled'
+)
+assertDeepEqual(
+  idle.monitorPlan(true, 1200, 1200, true),
+  { timeout: 1200, active: true, rebuild: false },
+  'idle leaves a matching monitor alone'
+)
+// A live IdleMonitor stops reporting if its timeout is reassigned, so a
+// changed timeout must replace the monitor rather than retune it.
+assertDeepEqual(
+  idle.monitorPlan(true, 1200, 150, true),
+  { timeout: 1200, active: true, rebuild: true },
+  'idle rebuilds the monitor when the configured timeout changes'
+)
+assertDeepEqual(
+  idle.monitorPlan(false, 1200, 1200, true),
+  { timeout: 0, active: false, rebuild: true },
+  'idle tears the monitor down when idling is disabled'
+)
+assertDeepEqual(
+  idle.monitorPlan(true, 0, 0, false),
+  { timeout: 0, active: false, rebuild: false },
+  'idle keeps the monitor down for a non-positive timeout'
+)
+
 assertDeepEqual(idle.eventParts({ data: 'a,b,c' }, 2), ['a', 'b', 'c'], 'idle parses raw event data')
 assertDeepEqual(
   idle.eventParts({ parse: function(count) { return ['parsed', count] } }, 4),
