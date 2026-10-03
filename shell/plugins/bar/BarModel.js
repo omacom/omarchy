@@ -26,6 +26,23 @@ function entryId(entry) {
   return ""
 }
 
+function normalizeHiddenWidgets(value) {
+  if (!isPlainObject(value)) return {}
+  var hidden = {}
+  for (var screen in value) {
+    if (!Array.isArray(value[screen])) continue
+    hidden[screen] = value[screen].filter(function(id) { return typeof id === "string" })
+  }
+  return hidden
+}
+
+function visibleEntries(entries, hiddenIds) {
+  var hidden = Array.isArray(hiddenIds) ? hiddenIds : []
+  return (Array.isArray(entries) ? entries : []).filter(function(entry) {
+    return hidden.indexOf(entryId(entry)) === -1
+  })
+}
+
 function pinTrayToInner(entries, section) {
   var trayEntry = null
   var result = []
@@ -217,6 +234,8 @@ if (typeof module !== "undefined") {
     normalizePosition: normalizePosition,
     entrySettings: entrySettings,
     entryId: entryId,
+    normalizeHiddenWidgets: normalizeHiddenWidgets,
+    visibleEntries: visibleEntries,
     pinTrayToInner: pinTrayToInner,
     moduleString: moduleString,
     entryIndex: entryIndex,

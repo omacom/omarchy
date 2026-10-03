@@ -61,6 +61,8 @@ Every panel takes the keyboard as well as the mouse: arrows move, Return activat
 
 `Super + Ctrl + 1-9` counts panels left to right in the right section, skipping the tray since it has no panel of its own. So the number matches the icon you'd point at.
 
+Named panel hotkeys are global: if a widget is hidden on the focused display, its hotkey can still open the copy on another display.
+
 ### Tailscale and Dropbox
 
 Two more widgets appear on the bar only once you install the matching service from **Install → Service**, and both are worth knowing about because they do more than report status.
@@ -83,7 +85,7 @@ The bar configures itself. You don't have to open a config file to move things.
 
 Grab an empty patch of the bar around the center and drag it toward another screen edge, and the bar moves there — left, right, top, or bottom all work, and every widget adapts (vertical bars fall back to compact icon-only forms). A click-and-hold starts the same drag. Double-left-click that same empty space to toggle transparency. And drag any widget to reorder it or throw it into another section.
 
-If you'd rather pick from a menu, **Style → Menu Bar** has both position and transparency.
+If you'd rather pick from a menu, **Style → Menu Bar** has position and transparency, plus **Widgets per Display** to choose which configured widgets appear on each connected screen.
 
 The same things have commands, which is what you want for a [dotfiles](31-dotfiles.md) setup:
 
@@ -92,6 +94,7 @@ omarchy bar position bottom
 omarchy bar transparent toggle
 omarchy bar move omarchy.clock --section center --index 0
 omarchy bar set omarchy.clock format "HH:mm"
+omarchy bar widget omarchy.audio hide --screen DP-1
 omarchy bar defaults          # back to the shipped layout
 ```
 
@@ -130,6 +133,6 @@ Every widget is one entry in one of the three layout arrays, and its settings si
 
 `centerAnchor` names the one center widget that gets pinned to the exact center of the screen, with the others flanking it. That's how the clock stays dead center even as the weather and update badge come and go. Set it to an empty string and the center list is just centered as a group instead.
 
-One rule worth internalizing: **once you have your own `shell.json`, it's canonical**. Until you customize anything, the shell reads Omarchy's default file. The moment you drag a widget, run `omarchy bar`, or edit the file yourself, you own it — there's no deep merge, so new default widgets in future Omarchy releases won't appear on your bar automatically. `omarchy bar defaults` puts the shipped layout back whenever you want a clean slate.
+One rule worth internalizing: **once you have your own `shell.json`, it's canonical**. Until you customize anything, the shell reads Omarchy's default file. The moment you drag a widget, run `omarchy bar`, or edit the file yourself, you own it — there's no deep merge, so new default widgets in future Omarchy releases won't appear on your bar automatically. `omarchy bar defaults` puts the shipped layout back whenever you want a clean slate, including clearing per-display widget exclusions so every configured widget returns on every display.
 
 The same file also holds your idle timings at the top level, outside the `bar` key: `idle.screensaver` and `idle.lock`, both in seconds since you went idle. So the default screensaver kicks in at 150 seconds and the lock at 300.

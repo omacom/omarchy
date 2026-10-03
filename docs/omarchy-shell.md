@@ -176,6 +176,7 @@ Rules:
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
 7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
 8. `version: 1` is required.
+9. `bar.hiddenWidgets` maps exact Wayland output names to widget id lists; those widgets are omitted only on the named output, while the shared layout and widget settings stay global.
 
 `config/omarchy/shell.json` describes the fresh-install state. When no
 user `shell.json` exists, defaults are used verbatim. Once the user

@@ -204,8 +204,8 @@ assert(
 // count honest: a widget with no panel and a hidden one are already passed over
 // there, and reading the layout config a second time would count both.
 assert(
-  /function panelWidgetIdAt\(region, index\) \{[\s\S]*?panelNavigationSlots\(String\(region \|\| ""\), null\)/.test(barSource),
-  'bar counts positional panels off the drawn tab order'
+  /function panelWidgetIdAt\(region, index\) \{[\s\S]*?panelNavigationSlots\(String\(region \|\| ""\), null, focusedScreenName\(\)\)/.test(barSource),
+  'bar counts positional panels on the focused display'
 )
 assert(
   /var slot = slots\[Math\.round\(Number\(index\)\) - 1\]/.test(barSource),
@@ -354,12 +354,227 @@ assertEqual(
   '/home/dhh/.config/omarchy/bar/modules/local.weather.qml',
   'bar builds default custom module paths'
 )
+assertDeepEqual(bar.normalizeHiddenWidgets(null), {}, 'bar ignores a malformed display visibility map')
+assertDeepEqual(
+  bar.normalizeHiddenWidgets({ 'DP-1': ['omarchy.clock', 42], 'eDP-1': 'omarchy.audio' }),
+  { 'DP-1': ['omarchy.clock'] },
+  'bar accepts only display names mapped to widget id lists'
+)
+assertDeepEqual(
+  bar.visibleEntries([{ id: 'omarchy.clock' }, { id: 'omarchy.audio' }, 'custom.widget'], ['omarchy.clock']),
+  [{ id: 'omarchy.audio' }, 'custom.widget'],
+  'bar excludes every matching widget entry on one display'
+)
+assert(
+  /JSON\.stringify\(hiddenWidgets\) === JSON\.stringify\(nextHidden\)/.test(barSource),
+  'display visibility changes bypass the inline-settings fast path'
+)
 JS
 
 put_tmp=$(mktemp -d)
 trap 'rm -rf "$put_tmp"' EXIT
 mkdir -p "$put_tmp/bin"
 ln -s "$ROOT/bin/omarchy-shell-config" "$put_tmp/bin/omarchy-shell-config"
+
+cat >"$put_tmp/bin/omarchy-shell" <<'STUB'
+#!/bin/bash
+echo ok
+STUB
+chmod +x "$put_tmp/bin/omarchy-shell"
+
+mkdir -p "$put_tmp/home/.config/omarchy"
+cat >"$put_tmp/home/.config/omarchy/shell.json" <<'CONFIG'
+{"version":1,"bar":{"layout":{"left":[{"id":"omarchy.clock","format":"HH:mm"}],"center":[],"right":[]}}}
+CONFIG
+widget_output=$(HOME="$put_tmp/home" PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  "$ROOT/bin/omarchy-bar" widget omarchy.clock hide --screen DP-1)
+[[ $widget_output == "omarchy.clock hide on DP-1" ]] || fail "widget command hides on the requested display" "$widget_output"
+jq -e '.bar.hiddenWidgets["DP-1"] == ["omarchy.clock"] and .bar.layout.left[0].format == "HH:mm"' \
+  "$put_tmp/home/.config/omarchy/shell.json" >/dev/null || fail "widget hide preserves shared layout and settings"
+pass "widget command writes one display exclusion and keeps shared widget settings"
+
+HOME="$put_tmp/home" PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  "$ROOT/bin/omarchy-bar" widget omarchy.clock hide --screen DP-1 >/dev/null
+HOME="$put_tmp/home" PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  "$ROOT/bin/omarchy-bar" widget omarchy.clock hide --screen DP-2 >/dev/null
+jq -e '.bar.hiddenWidgets["DP-1"] == ["omarchy.clock"] and .bar.hiddenWidgets["DP-2"] == ["omarchy.clock"]' \
+  "$put_tmp/home/.config/omarchy/shell.json" >/dev/null || fail "widget hide is idempotent and independent per display"
+pass "widget hide avoids duplicate ids and keeps display exclusions independent"
+
+HOME="$put_tmp/home" PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  "$ROOT/bin/omarchy-bar" widget omarchy.clock show --screen DP-1 >/dev/null
+jq -e '(.bar.hiddenWidgets | has("DP-1") | not) and .bar.hiddenWidgets["DP-2"] == ["omarchy.clock"] and .bar.layout.left[0].id == "omarchy.clock"' \
+  "$put_tmp/home/.config/omarchy/shell.json" >/dev/null || fail "widget show reverses hide"
+HOME="$put_tmp/home" PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  "$ROOT/bin/omarchy-bar" widget omarchy.clock show --screen DP-2 >/dev/null
+jq -e '(.bar.hiddenWidgets | has("DP-2") | not)' "$put_tmp/home/.config/omarchy/shell.json" >/dev/null ||
+  fail "widget show removes the final display exclusion"
+pass "widget show restores one display without changing another"
+
+cat >"$put_tmp/bin/omarchy-installed-service-dropbox" <<'STUB'
+#!/bin/bash
+exit 1
+STUB
+cat >"$put_tmp/bin/omarchy-installed-service-tailscale" <<'STUB'
+#!/bin/bash
+exit 1
+STUB
+chmod +x "$put_tmp/bin/omarchy-installed-service-"*
+HOME="$put_tmp/home" PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  "$ROOT/bin/omarchy-bar" widget omarchy.clock hide --screen DP-2 >/dev/null
+HOME="$put_tmp/home" PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  "$ROOT/bin/omarchy-bar" defaults >/dev/null
+jq -e '(.bar | has("hiddenWidgets") | not) and .bar.layout == input.bar.layout' \
+  "$put_tmp/home/.config/omarchy/shell.json" "$ROOT/config/omarchy/shell.json" >/dev/null ||
+  fail "bar defaults restores the shipped layout and clears display exclusions"
+pass "bar defaults clears per-display widget exclusions"
+
+before_bad_widget=$(cat "$put_tmp/home/.config/omarchy/shell.json")
+HOME="$put_tmp/home" PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  "$ROOT/bin/omarchy-bar" widget omarchy.clock hide 2>/dev/null && fail "widget command rejects a missing display"
+[[ $(cat "$put_tmp/home/.config/omarchy/shell.json") == "$before_bad_widget" ]] || fail "invalid widget input leaves shell.json untouched"
+pass "widget command rejects incomplete input without writing shell.json"
+for args in "omarchy.clock hide --screen" "omarchy.clock toggle --screen DP-1"; do
+  HOME="$put_tmp/home" PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+    "$ROOT/bin/omarchy-bar" widget $args >/dev/null 2>&1 && fail "widget command rejects malformed input: $args"
+done
+[[ $(cat "$put_tmp/home/.config/omarchy/shell.json") == "$before_bad_widget" ]] || fail "malformed widget input leaves shell.json untouched"
+pass "widget command rejects missing output and invalid actions without writing"
+
+mkdir -p "$put_tmp/symlink-target"
+cp "$put_tmp/home/.config/omarchy/shell.json" "$put_tmp/symlink-target/shell.json"
+ln -sf "$put_tmp/symlink-target/shell.json" "$put_tmp/home/.config/omarchy/shell.json"
+HOME="$put_tmp/home" PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  "$ROOT/bin/omarchy-bar" widget omarchy.clock hide --screen DP-2 >/dev/null
+[[ -L $put_tmp/home/.config/omarchy/shell.json ]] || fail "widget command preserves a shell.json symlink"
+jq -e '.bar.hiddenWidgets["DP-2"] == ["omarchy.clock"]' "$put_tmp/symlink-target/shell.json" >/dev/null ||
+  fail "widget command updates the shell.json symlink target"
+pass "widget command preserves and updates a valid shell.json symlink"
+
+rm "$put_tmp/home/.config/omarchy/shell.json"
+ln -s "$put_tmp/symlink-target/missing.json" "$put_tmp/home/.config/omarchy/shell.json"
+HOME="$put_tmp/home" PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  "$ROOT/bin/omarchy-bar" widget omarchy.clock hide --screen DP-3 >/dev/null 2>&1 &&
+  fail "widget command rejects a dangling shell.json symlink"
+[[ -L $put_tmp/home/.config/omarchy/shell.json && ! -e $put_tmp/symlink-target/missing.json ]] ||
+  fail "dangling shell.json symlink is left untouched"
+pass "widget command rejects dangling shell.json symlinks without writing"
+
+rm "$put_tmp/home/.config/omarchy/shell.json"
+cp "$ROOT/config/omarchy/shell.json" "$put_tmp/home/.config/omarchy/shell.json"
+mkdir -p "$put_tmp/no-mktemp"
+cat >"$put_tmp/no-mktemp/mktemp" <<'STUB'
+#!/bin/bash
+exit 1
+STUB
+chmod +x "$put_tmp/no-mktemp/mktemp"
+if writer_error=$(HOME="$put_tmp/home" PATH="$put_tmp/no-mktemp:$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  "$ROOT/bin/omarchy-bar" widget omarchy.clock hide --screen DP-4 2>&1); then
+  fail "widget command fails when the shell config temp cannot be created"
+fi
+[[ $writer_error == *"could not create temporary shell config"* ]] || fail "temp creation failure uses the normal shell config error" "$writer_error"
+pass "shell config writer reports temp creation failure"
+
+picker_tmp="$put_tmp/picker"
+mkdir -p "$picker_tmp/bin"
+cat >"$picker_tmp/bin/hyprctl" <<'STUB'
+#!/bin/bash
+printf '%s\n' '[{"name":"eDP-1","description":"Laptop screen"},{"name":"DP-1","description":"Desk display"}]'
+STUB
+cat >"$picker_tmp/bin/omarchy-menu-select" <<'STUB'
+#!/bin/bash
+count=0
+[[ -f $PICKER_TMP/count ]] && count=$(cat "$PICKER_TMP/count")
+count=$((count + 1))
+printf '%s\n' "$count" >"$PICKER_TMP/count"
+cat >"$PICKER_TMP/options-$count"
+printf '%s\n' "$1" >>"$PICKER_TMP/prompts"
+if (( count == 1 )); then
+  printf 'DP-1\tDesk display\n'
+elif (( count == 2 || count == 3 )); then
+  awk -F '\t' 'NF == 3 { print $2 "\t" $3; exit }' "$PICKER_TMP/options-$count"
+else
+  exit 1
+fi
+STUB
+cat >"$picker_tmp/bin/omarchy-shell" <<'STUB'
+#!/bin/bash
+printf '%s\n' '{"bar":{"layout":{"left":[{"id":"omarchy.clock"}],"center":[],"right":["custom.widget"]},"hiddenWidgets":{"DP-1":["custom.widget"]}}}'
+STUB
+cat >"$picker_tmp/bin/omarchy-plugin-catalog" <<'STUB'
+#!/bin/bash
+printf '%s\n' '[{"id":"omarchy.clock","name":"Clock","kinds":["bar-widget"]}]'
+STUB
+cat >"$picker_tmp/bin/omarchy" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$PICKER_TMP/actions"
+shift
+"$ROOT/bin/omarchy-bar" "$@"
+STUB
+mkdir -p "$picker_tmp/home/.config/omarchy"
+cat >"$picker_tmp/home/.config/omarchy/shell.json" <<'CONFIG'
+{"version":1,"bar":{"layout":{"left":[{"id":"omarchy.clock","format":"HH:mm"}],"center":[],"right":["custom.widget"]},"hiddenWidgets":{"DP-1":["custom.widget"]}}}
+CONFIG
+chmod +x "$picker_tmp/bin/"*
+PICKER_TMP="$picker_tmp" HOME="$picker_tmp/home" OMARCHY_PATH="$ROOT" PATH="$picker_tmp/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-menu-bar-widgets" || fail "widget picker exits cleanly after cancellation"
+[[ $(wc -l <"$picker_tmp/prompts") -eq 4 ]] || fail "widget picker reopens after each toggle"
+grep -q $'✓\tClock\tomarchy.clock' "$picker_tmp/options-2" || fail "widget picker lists named configured widgets as visible"
+grep -q $' \tClock\tomarchy.clock' "$picker_tmp/options-3" || fail "widget picker rereads the completed hide from disk"
+grep -q $' \tcustom.widget\tcustom.widget' "$picker_tmp/options-2" || fail "widget picker lists hidden custom widgets"
+[[ $(cat "$picker_tmp/actions") == $'bar widget omarchy.clock hide --screen DP-1\nbar widget omarchy.clock show --screen DP-1' ]] || fail "widget picker reverses its first action from the updated config"
+jq -e '(.bar.hiddenWidgets["DP-1"] == ["custom.widget"]) and .bar.layout.left[0].format == "HH:mm"' \
+  "$picker_tmp/home/.config/omarchy/shell.json" >/dev/null || fail "picker show preserves other exclusions and widget settings"
+pass "widget picker rereads disk state and shows a widget after hiding it"
+
+empty_picker="$put_tmp/empty-picker"
+mkdir -p "$empty_picker/bin"
+cat >"$empty_picker/bin/hyprctl" <<'STUB'
+#!/bin/bash
+printf '%s\n' '[]'
+STUB
+cat >"$empty_picker/bin/omarchy-menu-select" <<'STUB'
+#!/bin/bash
+touch "$EMPTY_PICKER_CALLED"
+STUB
+chmod +x "$empty_picker/bin/"*
+EMPTY_PICKER_CALLED="$empty_picker/called" PATH="$empty_picker/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-menu-bar-widgets" || fail "widget picker handles no connected displays"
+[[ ! -e $empty_picker/called ]] || fail "widget picker does not open without displays"
+pass "widget picker exits quietly when no display is connected"
+
+EMPTY_LAYOUT_PICKER="$put_tmp/empty-layout-picker"
+mkdir -p "$EMPTY_LAYOUT_PICKER/bin" "$EMPTY_LAYOUT_PICKER/home/.config/omarchy"
+cat >"$EMPTY_LAYOUT_PICKER/home/.config/omarchy/shell.json" <<'CONFIG'
+{"version":1,"bar":{"layout":{"left":[],"center":[],"right":[]}}}
+CONFIG
+cat >"$EMPTY_LAYOUT_PICKER/bin/hyprctl" <<'STUB'
+#!/bin/bash
+printf '%s\n' '[{"name":"DP-1","description":"Desk display"}]'
+STUB
+cat >"$EMPTY_LAYOUT_PICKER/bin/omarchy-menu-select" <<'STUB'
+#!/bin/bash
+count=0
+[[ -f $EMPTY_LAYOUT_PICKER/count ]] && count=$(cat "$EMPTY_LAYOUT_PICKER/count")
+count=$((count + 1))
+printf '%s\n' "$count" >"$EMPTY_LAYOUT_PICKER/count"
+cat >/dev/null
+if (( count == 1 )); then printf 'DP-1\tDesk display\n'; else exit 1; fi
+STUB
+cat >"$EMPTY_LAYOUT_PICKER/bin/omarchy-shell" <<'STUB'
+#!/bin/bash
+printf '%s\n' '{"bar":{"layout":{"left":[],"center":[],"right":[]}}}'
+STUB
+cat >"$EMPTY_LAYOUT_PICKER/bin/omarchy-plugin-catalog" <<'STUB'
+#!/bin/bash
+printf '%s\n' '[]'
+STUB
+chmod +x "$EMPTY_LAYOUT_PICKER/bin/"*
+EMPTY_LAYOUT_PICKER="$EMPTY_LAYOUT_PICKER" HOME="$EMPTY_LAYOUT_PICKER/home" OMARCHY_PATH="$ROOT" \
+  PATH="$EMPTY_LAYOUT_PICKER/bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-menu-bar-widgets" || fail "widget picker handles an empty configured layout"
+[[ $(cat "$EMPTY_LAYOUT_PICKER/count") == 1 ]] || fail "widget picker does not open an empty widget list"
+pass "widget picker exits after display selection when no widgets are configured"
 
 cat >"$put_tmp/bin/omarchy-shell" <<'STUB'
 #!/bin/bash

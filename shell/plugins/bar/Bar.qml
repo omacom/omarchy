@@ -49,6 +49,7 @@ Item {
     layout: { left: [], center: [], right: [] }
   })
   property var layoutConfig: fallbackBarConfig.layout
+  property var hiddenWidgets: ({})
   property string centerAnchor: ""
   property bool requestedTransparent: false
   property bool useTransparentForeground: false
@@ -584,6 +585,7 @@ Item {
     position = normalizePosition(config.position)
     setRequestedTransparency(config.transparent === true)
     centerAnchor = Util.canonicalWidgetId(config.centerAnchor || "")
+    var nextHidden = BarModel.normalizeHiddenWidgets(config.hiddenWidgets)
 
     // layoutEntries feeds plain JS arrays to the module Repeaters, and QML
     // cannot diff those: reassigning layoutConfig rebuilds every widget on
@@ -591,10 +593,11 @@ Item {
     // settings, patch the live layout and running widgets in place instead.
     var next = normalizeLayout(config.layout)
     var delta = BarModel.inlineSettingsDelta(layoutConfig, next)
-    if (delta) {
+    if (delta && JSON.stringify(hiddenWidgets) === JSON.stringify(nextHidden)) {
       applySettingsDelta(delta)
       return
     }
+    hiddenWidgets = nextHidden
     layoutConfig = next
     barConfigSerial++
   }
@@ -621,10 +624,14 @@ Item {
     return Array.isArray(entries) ? entries : []
   }
 
+  function visibleLayoutEntries(region, screenName) {
+    return BarModel.visibleEntries(layoutEntries(region), hiddenWidgets[String(screenName || "")])
+  }
+
   // Tab order for the panels in one bar region. Scoped to a single bar surface
   // so tabbing walks the bar the open panel belongs to instead of hopping the
   // panel to another monitor's copy of the same widget.
-  function panelNavigationSlots(region, window) {
+  function panelNavigationSlots(region, window, screenName) {
     var entries = layoutEntries(region)
     var slots = []
     for (var i = 0; i < entries.length; i++) {
@@ -632,6 +639,7 @@ Item {
       for (var j = 0; j < moduleSlots.length; j++) {
         var slot = moduleSlots[j]
         if (!slot || slot.region !== region || slot.moduleName !== id) continue
+        if (screenName && slotScreenName(slot) !== screenName) continue
         if (window && !sameWindow(slotWindow(slot), window)) continue
         var item = slot.activeItem
         if (!item || item.visible !== true || slot.visible !== true || slot.width <= 0 || slot.height <= 0) continue
@@ -649,11 +657,9 @@ Item {
   // Nth panel icon the user can see rather than the Nth layout entry.
   // One-based, because it exists for hotkeys; anything else lands on no slot.
   //
-  // Counting any bar surface is enough: every monitor lays its bar out from the
-  // one layout, and summoning the id routes through pickPanelSlot, which opens
-  // the focused monitor's copy whichever surface was counted.
+  // Positional hotkeys count only panels visible on the focused display.
   function panelWidgetIdAt(region, index) {
-    var slots = panelNavigationSlots(String(region || ""), null)
+    var slots = panelNavigationSlots(String(region || ""), null, focusedScreenName())
     var slot = slots[Math.round(Number(index)) - 1]
     return slot ? String(slot.moduleName || "") : ""
   }
@@ -1353,15 +1359,17 @@ Item {
       Item {
         anchors.fill: parent
 
-        CenterModules { anchors.fill: parent }
+        CenterModules { anchors.fill: parent; screenName: barWindow.screen ? barWindow.screen.name : "" }
 
         LeftModules {
+          screenName: barWindow.screen ? barWindow.screen.name : ""
           anchors.left: parent.left
           anchors.leftMargin: Style.space(8)
           anchors.verticalCenter: parent.verticalCenter
         }
 
         RightModules {
+          screenName: barWindow.screen ? barWindow.screen.name : ""
           anchors.right: parent.right
           anchors.rightMargin: Style.space(8)
           anchors.verticalCenter: parent.verticalCenter
@@ -1375,15 +1383,17 @@ Item {
       Item {
         anchors.fill: parent
 
-        CenterModules { anchors.fill: parent }
+        CenterModules { anchors.fill: parent; screenName: barWindow.screen ? barWindow.screen.name : "" }
 
         LeftModules {
+          screenName: barWindow.screen ? barWindow.screen.name : ""
           anchors.top: parent.top
           anchors.topMargin: Style.space(8)
           anchors.horizontalCenter: parent.horizontalCenter
         }
 
         RightModules {
+          screenName: barWindow.screen ? barWindow.screen.name : ""
           anchors.bottom: parent.bottom
           anchors.bottomMargin: Style.space(8)
           anchors.horizontalCenter: parent.horizontalCenter
@@ -1515,28 +1525,31 @@ Item {
     }
   }
 
-  function findCenterAnchorEntry() {
-    var entries = root.layoutEntries("center")
+  function findCenterAnchorEntry(screenName) {
+    var entries = root.visibleLayoutEntries("center", screenName)
     var idx = root.entryIndex(entries, root.centerAnchor)
     return idx === -1 ? null : entries[idx]
   }
 
   component LeftModules: ModuleList {
-    entries: root.layoutEntries("left")
+    property string screenName: ""
+    entries: root.visibleLayoutEntries("left", screenName)
     region: "left"
   }
 
   component RightModules: ModuleList {
-    entries: root.layoutEntries("right")
+    property string screenName: ""
+    entries: root.visibleLayoutEntries("right", screenName)
     region: "right"
   }
 
   component CenterModules: Item {
     id: centerRoot
 
-    property var entries: root.layoutEntries("center")
+    property string screenName: ""
+    property var entries: root.visibleLayoutEntries("center", screenName)
     readonly property bool hasAnchor: root.entryIndex(entries, root.centerAnchor) !== -1
-    readonly property var anchorEntry: root.findCenterAnchorEntry()
+    readonly property var anchorEntry: root.findCenterAnchorEntry(screenName)
 
     Loader {
       anchors.fill: parent

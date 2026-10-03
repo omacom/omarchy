@@ -350,6 +350,11 @@ assert(
   defaultById['style.bar.position'].kind === 'menu',
   'menu groups Menu Bar positions in a submenu'
 )
+assertEqual(
+  defaultById['style.bar.widgets'].action,
+  'omarchy-menu-bar-widgets',
+  'menu opens the per-display widget picker'
+)
 assert(
   ['top', 'bottom', 'left', 'right'].every(position => defaultById[`style.bar.position.${position}`].action === `omarchy-bar position ${position}`),
   'menu lists all Menu Bar positions under Position'

@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# omarchy:summary=Choose bar widgets for one display
+# omarchy:group=menu
+# omarchy:hidden=true
+
+set -euo pipefail
+
+source omarchy-shell-config
+
+check="✓"
+empty=" "
+monitors=$(hyprctl -j monitors)
+rows=$(jq -r '.[] | "󰍹\t\(.name)\t\(.description // ((.make // "") + " " + (.model // "")) | strings | gsub("^[ \\t]+|[ \\t]+$"; ""))"' <<<"$monitors")
+[[ -n $rows ]] || exit 0
+selection=$(omarchy-menu-select "Widgets per display" <<<"$rows") || exit 0
+screen=${selection%%$'\t'*}
+[[ -n $screen ]] || exit 0
+
+while true; do
+  config=$(jq -c '.' "$(source_file)")
+  catalog=$(omarchy-plugin-catalog)
+  rows=$(jq -r --arg screen "$screen" --arg check "$check" --arg empty "$empty" --argjson catalog "$catalog" '
+    def entry_id: if type == "object" then (.id // "" | tostring) else tostring end;
+    . as $config
+    | ($config.bar // {}) as $bar
+    | (if ($bar.layout | type) == "object" then $bar.layout else {} end) as $layout
+    | (if ($bar.hiddenWidgets | type) == "object" then $bar.hiddenWidgets else {} end) as $hidden
+    | [($layout.left // [])[], ($layout.center // [])[], ($layout.right // [])[]]
+    | map(entry_id)
+    | reduce .[] as $id ([]; if $id == "" or index($id) != null then . else . + [$id] end)
+    | .[] as $id
+    | (($catalog | map(select(.id == $id)) | .[0]) // {}) as $plugin
+    | (if (($plugin.kinds // []) | index("bar-widget")) != null then $plugin.name else $id end) as $name
+    | (if ((if ($hidden[$screen] | type) == "array" then $hidden[$screen] else [] end) | index($id)) != null then $empty else $check end) as $icon
+    | "\($icon)\t\($name)\t\($id)"
+  ' <<<"$config")
+  [[ -n $rows ]] || exit 0
+  selection=$(omarchy-menu-select "Widgets on $screen" <<<"$rows") || exit 0
+  id=${selection#*$'\t'}
+  [[ -n $id ]] || exit 0
+  if jq -e --arg screen "$screen" --arg id "$id" '
+    ((.bar.hiddenWidgets // {}) | if type == "object" then .[$screen] else [] end)
+    | (if type == "array" then . else [] end)
+    | index($id) != null
+  ' <<<"$config" >/dev/null; then
+    omarchy bar widget "$id" show --screen "$screen"
+  else
+    omarchy bar widget "$id" hide --screen "$screen"
+  fi
+done

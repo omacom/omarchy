@@ -2,7 +2,7 @@
 
 # omarchy:summary=Configure the bar and its widget layout
 # omarchy:group=bar
-# omarchy:args=use <id> | reset | defaults | position <top|bottom|left|right> | transparent <true|false|toggle> | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement]
+# omarchy:args=use <id> | reset | defaults | position <top|bottom|left|right> | transparent <true|false|toggle> | widget <id> <show|hide> --screen <output> | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement]
 # omarchy:examples=omarchy bar use local.neon-bar | omarchy bar put omarchy.keyboard-layout --after omarchy.clock | omarchy bar move omarchy.clock --section center --index 0 | omarchy bar set omarchy.clock format HH:mm
 
 set -euo pipefail
@@ -18,6 +18,8 @@ Usage: omarchy bar <command> [args...]
   defaults                             Restore the default bar and service widgets
   position <top|bottom|left|right>     Bar position
   transparent <true|false|toggle>      Bar transparency
+  widget <id> <show|hide> --screen <output>
+                                       Show or hide a widget on one display
   put <id> [placement]                 Put a widget on the bar, leaving one
                                        that is already there where it is
   move <id> [placement]                Move a widget within or between sections
@@ -218,6 +220,27 @@ cmd_transparent() {
   fi
 }
 
+cmd_widget() {
+  local id="${1:-}" action="${2:-}" screen="${3:-}" output="${4:-}"
+  [[ -n $id ]] || fail "widget requires a widget id"
+  [[ $action =~ ^(show|hide)$ ]] || fail "widget action must be show or hide"
+  [[ $screen == "--screen" && -n $output ]] || fail "widget requires --screen <output>"
+  (( $# == 4 )) || fail "widget takes an id, action, and --screen <output>"
+
+  commit "$NORMALIZE
+    | (.bar.hiddenWidgets | object_or_empty) as \$hidden
+    | (\$hidden[\$screen] | array_or_empty | map(select(. != \$id))) as \$widgets
+    | .bar.hiddenWidgets = (
+        if \$action == \"show\" then
+          if (\$widgets | length) == 0 then \$hidden | del(.[\$screen]) else \$hidden + { (\$screen): \$widgets } end
+        else
+          \$hidden + { (\$screen): (\$widgets + [\$id]) }
+        end
+      )
+  " --arg id "$id" --arg action "$action" --arg screen "$output"
+  echo "$id $action on $output"
+}
+
 bar_widget_default_section() {
   local catalog
   catalog=$(omarchy-plugin-catalog 2>/dev/null) || {
@@ -384,6 +407,9 @@ case "$command" in
     ;;
   transparent)
     cmd_transparent "$@"
+    ;;
+  widget)
+    cmd_widget "$@"
     ;;
   put)
     cmd_put "$@"
