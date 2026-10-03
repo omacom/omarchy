@@ -59,16 +59,25 @@ if [[ -f $accounts_dir/claude.json || -f $accounts_dir/codex.json || -f $account
 fi
 
 pids=()
+declare -A collected
 for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
   [[ -x $collector ]] || continue
   agent="${collector##*/omarchy-agent-usage-}"
   [[ $agent == "update" ]] && continue
   wanted "$agent" || continue
+  collected[$agent]=1
   collect "$collector" "$agent" &
   pids+=($!)
 done
 
 status=0
+for agent in "${only[@]}"; do
+  wanted "$agent" || continue
+  if [[ -z ${collected[$agent]} ]]; then
+    echo "omarchy-agent-usage-update: $agent collector not found or not executable" >&2
+    status=1
+  fi
+done
 for pid in "${pids[@]}"; do
   wait "$pid" || status=1
 done
