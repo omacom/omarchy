@@ -61,6 +61,7 @@ SH
 cat > "$scratch/bin/omarchy-state" <<'SH'
 #!/bin/bash
 [[ $* == "set reboot-required" ]] || exit 99
+[[ ${STATE_FAIL:-0} == "0" ]] || exit 1
 printf '%s\n' "$*" >> "$CALL_LOG"
 SH
 chmod +x "$scratch/bin/"*
@@ -147,6 +148,20 @@ grep -Fxq 'limine-mkinitcpio' "$CALL_LOG" || fail "retry rebuilds after a failur
 [[ -f $OMARCHY_AMDGPU_HPD_REBUILD_MARKER ]] || fail "retry records successful completion"
 grep -Fxq 'set reboot-required' "$CALL_LOG" || fail "retry flags the reboot after the rebuild succeeds"
 pass "a failed rebuild is retried and only completes with its reboot flag"
+
+# Completion is recorded only once the reboot is flagged, so a run that fails
+# between the two still owes the user that reboot on retry.
+reset_machine
+add_amd_device
+printf '%s\n' 'options amdgpu hdmi_hpd_debounce_delay_ms=1500' > "$conf"
+if STATE_FAIL=1 run_migration; then
+  fail "a failed reboot flag must fail the migration"
+fi
+[[ ! -e $OMARCHY_AMDGPU_HPD_REBUILD_MARKER ]] || fail "a failed reboot flag stays pending"
+run_migration
+grep -Fxq 'set reboot-required' "$CALL_LOG" || fail "retry flags the reboot"
+[[ -f $OMARCHY_AMDGPU_HPD_REBUILD_MARKER ]] || fail "retry records completion after the reboot flag"
+pass "completion is recorded only after the reboot is flagged"
 
 # No limine-mkinitcpio (non-Limine boot, unsupported boot setup): no-op.
 reset_machine

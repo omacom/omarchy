@@ -35,5 +35,5 @@ done
 
 echo "AMD GPU present; rebuilding the initramfs with the amdgpu HDMI HPD debounce"
 sudo limine-mkinitcpio
-sudo install -Dm644 /dev/null "$rebuild_marker"
 omarchy-state set reboot-required
+sudo install -Dm644 /dev/null "$rebuild_marker"
