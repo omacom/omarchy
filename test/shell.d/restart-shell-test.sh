@@ -89,6 +89,19 @@ printf '%s\n' "$*" >>"$OMARCHY_TEST_IPC_LOG"
 
 case "$*" in
   *'shell ping')
+    if [[ -n ${OMARCHY_TEST_PING_COUNTER:-} ]]; then
+      pings=0
+      [[ ! -f $OMARCHY_TEST_PING_COUNTER ]] || read -r pings <"$OMARCHY_TEST_PING_COUNTER"
+      (( pings += 1 ))
+      printf '%s\n' "$pings" >"$OMARCHY_TEST_PING_COUNTER"
+      if [[ ${OMARCHY_TEST_PING_HANG:-0} == "1" ]]; then
+        sleep 5
+      fi
+      if [[ ${OMARCHY_TEST_PING_NEVER:-0} == "1" ]] || (( pings <= ${OMARCHY_TEST_FAILED_PINGS:-0} )); then
+        printf 'Not ready to accept queries yet.\n'
+        exit 0
+      fi
+    fi
     [[ $* == *"-p $OMARCHY_TEST_SESSION_PATH/shell"* ]] &&
       grep -Fx '303' "$OMARCHY_TEST_QS_STATE" >/dev/null &&
       printf 'ok\n'
@@ -323,3 +336,63 @@ grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null 
 [[ -f $restart_state.locked ]] || fail "lock recovery did not re-secure the session without notifications"
 grep -q "notification service did not become ready" "$test_tmp/dead-notifications.out" || fail "a missing notification service is not reported" "$(cat "$test_tmp/dead-notifications.out")"
 pass "restart recovers the lock even when the notification service never returns"
+
+# Readiness probes must cover cold starts while returning immediately once
+# the shell answers. Each case starts with no old shell or lock state.
+for readiness_case in immediate cold never timeout; do
+  rm -f "$restart_state.locked" "$test_tmp/ping-counter" "$test_tmp/notification-checks"
+  : >"$restart_state"
+  : >"$restart_log"
+  : >"$restart_env_log"
+  : >"$dispatch_log"
+  : >"$ipc_log"
+
+  ping_never=0
+  ping_hang=0
+  case $readiness_case in
+    immediate) failed_pings=0 ;;
+    cold) failed_pings=60 ;;
+    never) failed_pings=0; ping_never=1 ;;
+    timeout) failed_pings=0; ping_hang=1 ;;
+  esac
+
+  started=$SECONDS
+  restart_status=0
+  PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_SESSION_LOCKED=0 \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+  OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  OMARCHY_TEST_PING_COUNTER="$test_tmp/ping-counter" \
+  OMARCHY_TEST_FAILED_PINGS="$failed_pings" \
+  OMARCHY_TEST_PING_NEVER="$ping_never" \
+  OMARCHY_TEST_PING_HANG="$ping_hang" \
+    timeout 20 "$ROOT/bin/omarchy-restart-shell" >"$test_tmp/readiness.out" 2>&1 || restart_status=$?
+  elapsed=$((SECONDS - started))
+  pings=$(<"$test_tmp/ping-counter")
+
+  case $readiness_case in
+    immediate)
+      (( restart_status == 0 )) || fail "restart succeeds when immediately ready" "$(cat "$test_tmp/readiness.out")"
+      (( pings == 1 )) || fail "immediate readiness needs exactly one ping" "$pings"
+      pass "restart returns after one ping when immediately ready"
+      ;;
+    cold)
+      (( restart_status == 0 )) || fail "restart succeeds after a cold start" "$(cat "$test_tmp/readiness.out")"
+      (( pings == 61 )) || fail "cold start succeeds after 60 failed pings" "$pings"
+      (( elapsed >= 6 && elapsed <= 12 )) || fail "cold start waits roughly six seconds within twelve seconds" "$elapsed seconds"
+      pass "restart waits for a cold start beyond the old two-second window"
+      ;;
+    never|timeout)
+      (( restart_status == 1 )) || fail "restart exits 1 when readiness fails ($readiness_case)" "exit $restart_status"
+      (( elapsed >= 9 && elapsed <= 12 )) || fail "restart bounds failed readiness to roughly ten seconds ($readiness_case)" "$elapsed seconds"
+      [[ $(<"$test_tmp/readiness.out") == "Omarchy shell did not become ready after restart." ]] || fail "restart reports the existing readiness error" "$(cat "$test_tmp/readiness.out")"
+      pass "restart reports failure within the readiness deadline ($readiness_case)"
+      ;;
+  esac
+done
