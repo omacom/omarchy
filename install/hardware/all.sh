@@ -19,6 +19,8 @@ run_logged "$OMARCHY_INSTALL/hardware/intel/fred.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/fix-wifi7-eht.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/sof-firmware.sh"
 
+run_logged "$OMARCHY_INSTALL/hardware/amd/rocm-smi.sh"
+
 run_logged "$OMARCHY_INSTALL/hardware/fix-elgato-camlink-4k.sh"
 
 # Rebuilds the boot image, so it follows camera module setup.
