@@ -103,3 +103,18 @@ assert_detects "a self-named reader is detected with a driver bound"
 
 write_usb_devices '1234:5678:Generic USB Device'
 assert_rejects "a machine with no matching USB devices detects nothing"
+
+# Microarray MAFP (3274:8012) reports "MAFP General Device" with no fingerprint
+# token; vendor was missing from the allowlist and the product branch skipped it.
+write_usb_devices '3274:8012:MAFP General Device '
+assert_detects "a Microarray MAFP reader is detected by its product string"
+
+write_usb_devices '1234:5678:MAFP General Device'
+assert_detects "an MAFP product string is detected without the vendor id"
+
+write_usb_devices '3274:8012'
+assert_detects "a Microarray MAFP reader is detected by its vendor id"
+
+write_usb_devices '3274:8012'
+bind_driver '1-0/1-0:1.0' uvcvideo
+assert_rejects "a Microarray vendor guess bound to a kernel driver is rejected"
