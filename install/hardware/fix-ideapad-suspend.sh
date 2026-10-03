@@ -5,9 +5,9 @@
 # platform firmware bug") but the drive still dies, so suspend can never
 # succeed on this model.
 #
-# Locking on lid close is the strictly better fallback: the session locks and
-# the panel powers down -- what a user expects from closing a laptop -- while
-# keeping the machine alive instead of inviting a read-only root.
+# Ignore suspend-key presses on this model to avoid the NVMe failure from
+# #12887. Locking on lid close remains the fallback: the session locks and the
+# panel powers down while keeping the machine alive.
 
 dmi="${OMARCHY_DMI_PATH:-/sys/class/dmi/id}"
 
@@ -17,12 +17,11 @@ if [[ -r $dmi/sys_vendor && -r $dmi/product_name ]] &&
   [[ $(<"$dmi/sys_vendor") == "LENOVO" && $(<"$dmi/product_name") == "82XQ" ]]; then
   install -d -m 0755 "$conf_dir"
   cat >"$conf_dir/50-ideapad-suspend.conf" <<'EOF'
-# The Micron NVMe in this model rejects all I/O after s2idle resume, so
-# suspend can never complete. Lock instead of suspending: the session locks
-# and the panel powers down, and the filesystem stays alive.
+# On this model, ignore suspend-key presses to avoid the NVMe failure from
+# #12887. Lid close still locks the session and powers down the panel.
 [Login]
 HandleLidSwitch=lock
-HandleSuspendKey=lock
-HandleSuspendKeyLongPress=lock
+HandleSuspendKey=ignore
+HandleSuspendKeyLongPress=ignore
 EOF
 fi

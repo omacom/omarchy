@@ -45,14 +45,14 @@ grep -Fx '[Login]' "$dropin" >/dev/null ||
   fail "drop-in is a logind section"
 grep -Fx 'HandleLidSwitch=lock' "$dropin" >/dev/null ||
   fail "drop-in locks instead of suspending on lid close"
-grep -Fx 'HandleSuspendKey=lock' "$dropin" >/dev/null ||
-  fail "drop-in locks instead of suspending on the suspend key"
-grep -Fx 'HandleSuspendKeyLongPress=lock' "$dropin" >/dev/null ||
-  fail "drop-in overrides the suspend key long-press default of hibernate"
+grep -Fx 'HandleSuspendKey=ignore' "$dropin" >/dev/null ||
+  fail "drop-in ignores short suspend-key presses on this model"
+grep -Fx 'HandleSuspendKeyLongPress=ignore' "$dropin" >/dev/null ||
+  fail "drop-in ignores long suspend-key presses on this model"
 if grep -F 'HandleLidSwitchDocked' "$dropin" >/dev/null; then
   fail "docked lid close must stay ignored so clamshell displays are not locked" "$(cat "$dropin")"
 fi
-pass "hardware script locks instead of suspending on the IdeaPad Slim 3"
+pass "hardware script ignores suspend keys and locks on lid close on the IdeaPad Slim 3"
 
 # Any other machine must be left alone.
 mkdir -p "$tmp_dir/dmi-other" "$tmp_dir/conf-other"
@@ -81,6 +81,10 @@ OMARCHY_DMI_PATH="$tmp_dir/dmi-match" OMARCHY_LOGIND_CONF_DIR="$tmp_dir/conf-mig
 migration_dropin="$tmp_dir/conf-migration/50-ideapad-suspend.conf"
 grep -Fx 'HandleLidSwitch=lock' "$migration_dropin" >/dev/null ||
   fail "migration writes the lock-on-lid drop-in"
+grep -Fx 'HandleSuspendKey=ignore' "$migration_dropin" >/dev/null ||
+  fail "migration ignores short suspend-key presses on this model"
+grep -Fx 'HandleSuspendKeyLongPress=ignore' "$migration_dropin" >/dev/null ||
+  fail "migration ignores long suspend-key presses on this model"
 grep -Fx 'systemctl reload systemd-logind' "$calls" >/dev/null ||
   fail "migration reloads logind after writing the drop-in" "$(cat "$calls")"
 if grep -F 'omarchy-state' "$calls" >/dev/null; then
