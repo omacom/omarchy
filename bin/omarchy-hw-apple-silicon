@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true on Apple Silicon (Asahi) machines
+# omarchy:hidden=true
+
+# The device-tree compatible string is the reliable signal on Asahi; DMI product
+# names vary and some Intel Macs also say Apple. No device-tree means not Asahi.
+grep -qi apple /proc/device-tree/compatible 2>/dev/null
