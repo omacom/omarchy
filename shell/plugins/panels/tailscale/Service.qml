@@ -27,7 +27,9 @@ Item {
   property string selfUserId: ""
   property bool fileSharing: false
   property string authUrl: ""
-  property var peers: []
+  property var _peers: []
+  readonly property bool showOfflinePeers: setting("showOfflinePeers", false) === true
+  readonly property var peers: Model.visiblePeers(_peers, showOfflinePeers)
   property var exitNodes: []
   property var tailnetExitNodes: []
   property var mullvadExitNodes: []
@@ -135,6 +137,7 @@ Item {
 
   function canSendFiles(peer) {
     if (!fileSharing || !running || !peer) return false
+    if (peer.Online !== true) return false
     return Model.isTaildropTarget(peer, selfUserId)
   }
 
@@ -209,7 +212,7 @@ Item {
     selfUserId = ""
     fileSharing = false
     authUrl = ""
-    peers = []
+    _peers = []
     exitNodes = []
     tailnetExitNodes = []
     mullvadExitNodes = []
@@ -247,7 +250,7 @@ Item {
     selfIp = parsed.selfIp
     selfUserId = parsed.selfUserId
     fileSharing = parsed.fileSharing
-    peers = parsed.running ? parsed.peers : []
+    _peers = parsed.running ? parsed.peers : []
     tailnetExitNodes = parsed.running ? parsed.exitNodes : []
     exitNodes = parsed.running ? tailnetExitNodes.concat(mullvadRegions) : []
 
