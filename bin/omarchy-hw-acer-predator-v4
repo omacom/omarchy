@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Detect Acer laptops that need acer_wmi's predator_v4 option because the kernel does not list them yet.
+
+# acer-wmi already applies predator_v4 to the models in its own DMI quirk
+# table, and forcing the option there replaces that model's quirks with fewer
+# ones. Only list machines the kernel is missing, by exact product name, and
+# drop each one once its quirk ships upstream.
+[[ $(cat /sys/class/dmi/id/sys_vendor 2>/dev/null) == "Acer" ]] || exit 1
+
+case "$(cat /sys/class/dmi/id/product_name 2>/dev/null)" in
+  "Nitro ANV14-61") exit 0 ;;
+  *) exit 1 ;;
+esac
