@@ -15,10 +15,18 @@ app=${1:-}
 # Agent terminals notify as kitty/foot/etc. while their shared window class is
 # org.omarchy.agent, leaving the terminal name only in initialTitle. So match
 # by class first, then fall back to the launch-time title of agent windows.
+#
+# The app name a sender puts in a notification is not always its window
+# class: Telegram Desktop notifies as "Telegram Desktop" but its window class
+# is "org.telegram.desktop" — same identity, spelled with a space instead of
+# a dot. The regex match alone misses that, so a second pass strips spaces,
+# dots, dashes and underscores from both sides and compares what is left.
 address=$(
   hyprctl clients -j 2>/dev/null |
     jq -r --arg pattern "$app" \
-      'def matches($value): ($value // "") | test($pattern; "i");
+      'def norm: (. // "") | ascii_downcase | gsub("[ ._-]"; "");
+       def matches($value): ($value // "") as $v
+         | ($v | test($pattern; "i")) or ($v | norm | contains($pattern | norm));
        first(
          (.[] | select(matches(.class))),
          (.[] | select(.initialClass == "org.omarchy.agent" and matches(.initialTitle)))

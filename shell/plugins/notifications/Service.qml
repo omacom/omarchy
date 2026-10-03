@@ -425,9 +425,10 @@ Item {
     }
     // Chat apps (Slack, Discord, Vesktop, etc.) rarely register a "default"
     // libnotify action — they just expect clicking the notification to
-    // focus their window. Fall back to focusing the sending app by class so
-    // that click-to-jump actually works.
-    if (!invoked) focusApp(entry)
+    // focus their window. Apps that do register one (Telegram) try to raise
+    // themselves, but without an activation token Hyprland won't let them.
+    // So focus the sending app by class either way.
+    focusApp(entry)
     dismissPopup(index)
   }
 
