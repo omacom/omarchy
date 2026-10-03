@@ -23,6 +23,15 @@ pass "duration and account validation retains bounded inputs and trailing-dollar
 )
 pass "internal actions reject missing root and mismatched sudo identity"
 
+(
+  source "$library"
+  printf 'jacob ALL=(ALL) NOPASSWD: ALL\n' >"$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-jacob"
+  assert_status 2 status_locked 1000
+  [[ -e $test_tmp/etc/sudoers.d/99-omarchy-nopasswd-jacob ]]
+)
+pass "status does not claim inactive while another reserved-prefix rule is live"
+
+
 for status in 1 2 3; do
   : >"$test_tmp/commands"
   result=0
