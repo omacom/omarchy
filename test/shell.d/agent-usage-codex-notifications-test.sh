@@ -41,7 +41,7 @@ def check(name, rollouts, expected_tokens, expected_prompts):
       path.parent.mkdir(parents=True, exist_ok=True)
       path.write_text("\n".join(json.dumps(item) for item in events) + "\n")
     loaded = runpy.run_path(collector, run_name="notification_test")
-    loaded["scan_native_codex_sessions"]()
+    loaded["scan_native_codex_sessions"]({}, {})
     stats = loaded["local_stats"]()
     actual = sum(sum(bucket.values()) for bucket in stats["modelUsage"].values())
     assert actual == expected_tokens, (name, actual, expected_tokens)

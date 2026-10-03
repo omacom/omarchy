@@ -48,9 +48,6 @@ LIMITS_ONLY_REUSE_SECONDS = 900
 # record written by an older layout.
 FILE_CACHE_SCHEMA = 1
 
-# --force means "read everything again", including the per-file records.
-force_rescan = False
-
 
 def local_day(value):
   if value is None:
@@ -117,20 +114,11 @@ def is_lazy_launcher(path):
   # wraps. A shim is a symlink to the mise binary itself, so the symlink
   # check comes after the shim checks: a symlink elsewhere is the user's own
   # binary.
-  if not path:
-    return False
-  shims = mise_shims_dir()
-  if os.path.dirname(os.path.abspath(path)) == shims:
+  if os.path.dirname(os.path.abspath(path)) == mise_shims_dir():
     return True
   if os.path.islink(path):
     mise = find_command("mise")
-    if mise:
-      try:
-        if os.path.realpath(path) == os.path.realpath(mise):
-          return True
-      except OSError:
-        pass
-    return False
+    return bool(mise) and os.path.realpath(path) == os.path.realpath(mise)
   try:
     with open(path, "rb") as handle:
       head = handle.read(4096)
@@ -146,20 +134,15 @@ def find_codex_binary():
       return candidate
   # `mise which` only prints a binary that is already installed, so it is the
   # safe way to resolve a codex managed by mise without running the launcher.
+  # `mise which` can resolve a configured `latest` over the network; the usage
+  # probe stays offline.
   mise = find_command("mise")
-  if mise and not is_lazy_launcher(mise):
+  if mise:
     try:
-      # `mise which` can resolve a configured `latest` over the network; the
-      # usage probe stays offline.
-      env = dict(ENV, MISE_OFFLINE="1")
-      out = subprocess.run(
-        [mise, "which", "codex"], capture_output=True, text=True, env=env, timeout=10
-      )
-      if out.returncode == 0:
-        for line in reversed(out.stdout.strip().splitlines()):
-          resolved = line.strip()
-          if resolved and os.path.isfile(resolved) and not is_lazy_launcher(resolved):
-            return resolved
+      out = subprocess.run([mise, "which", "codex"], capture_output=True, text=True, env=dict(ENV, MISE_OFFLINE="1"), timeout=10)
+      resolved = out.stdout.strip()
+      if out.returncode == 0 and os.path.isfile(resolved) and not is_lazy_launcher(resolved):
+        return resolved
     except Exception:
       pass
   return None
@@ -449,9 +432,7 @@ def scan_opencode_sessions():
   return True
 
 
-def scan_native_codex_sessions(cached_files=None, scanned_files=None):
-  cached_files = {} if cached_files is None else cached_files
-  scanned_files = {} if scanned_files is None else scanned_files
+def scan_native_codex_sessions(cached_files, scanned_files):
   codex_home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
   roots = [codex_home / "sessions", codex_home / "archived_sessions"]
   files = []
@@ -585,24 +566,14 @@ def file_cache_path():
 
 
 def valid_file_record(value):
-  if not isinstance(value, dict):
+  try:
+    counts = [totals for models in value["days"].values() for totals in models.values()]
+    return (
+      type(value["mtime"]) in (int, float) and type(value["size"]) is int
+      and all(len(totals) == 5 and all(type(n) is int for n in totals) for totals in counts)
+    )
+  except Exception:
     return False
-  if not isinstance(value.get("mtime"), (int, float)) or isinstance(value.get("mtime"), bool):
-    return False
-  if not isinstance(value.get("size"), int) or isinstance(value.get("size"), bool):
-    return False
-  days = value.get("days")
-  if not isinstance(days, dict):
-    return False
-  for models in days.values():
-    if not isinstance(models, dict):
-      return False
-    for totals in models.values():
-      if not isinstance(totals, list) or len(totals) != 5:
-        return False
-      if not all(isinstance(count, int) and not isinstance(count, bool) for count in totals):
-        return False
-  return True
 
 
 def read_file_cache():
@@ -618,8 +589,6 @@ def read_file_cache():
   pi and omp sessions stay out of it: a forked pi session repeats its parent's
   messages, so they are only deduplicated across the whole tree at once.
   """
-  if force_rescan:
-    return {}
   try:
     payload = json.loads(file_cache_path().read_text(encoding="utf-8"))
   except Exception:
@@ -733,8 +702,9 @@ def local_stats():
   }
 
 
-def run_local_scans():
-  cached_files = read_file_cache()
+# A forced scan (no reuse at all) reads every session file again.
+def run_local_scans(max_age):
+  cached_files = read_file_cache() if max_age > 0 else {}
   scanned_files = {}
   scan_pi_sessions()
   scan_native_codex_sessions(cached_files, scanned_files)
@@ -754,7 +724,7 @@ def cached_local_stats(max_age):
     return _cached_local_stats(max_age)
   except Exception as exc:
     print(f"omarchy-agent-usage-codex: cache unavailable ({exc}); scanning directly", file=sys.stderr)
-    stats, _ = run_local_scans()
+    stats, _ = run_local_scans(max_age)
     return stats
 
 
@@ -770,7 +740,7 @@ def _cached_local_stats(max_age):
     cached = read_cached_stats(cache_file, max_age)
     if cached is not None:
       return cached
-    stats, complete = run_local_scans()
+    stats, complete = run_local_scans(max_age)
     # An interrupted scan still serves this run, but caching it would
     # suppress the missing usage for every reader until the cache expires.
     if complete:
@@ -853,15 +823,8 @@ def limit_window(window):
 
 
 def codex_rpc_help(proc, stderr_file, exc):
-  """Explain an app-server RPC failure without leaking bare method names.
-
-  rpc_request used to raise TimeoutError(method), so a dead CLI left the panel
-  showing just "initialize". Prefer, in order:
-
-  1. Exception text when the process is still running (stall / parse error).
-  2. The CLI's own stderr once it has exited (names a dropped/renamed flag).
-  3. The login hint when the process exited with nothing useful to say.
-  """
+  """Explain an app-server RPC failure: a live server's stall, a dead one's own
+  stderr, or the login hint when it died saying nothing."""
   try:
     proc.wait(timeout=1)
   except Exception:
@@ -873,13 +836,11 @@ def codex_rpc_help(proc, stderr_file, exc):
     # stderr so far is its logging, not why it stopped.
     return text[:300] or AUTH_HELP
 
-  detail = ""
-  if stderr_file is not None:
-    try:
-      stderr_file.seek(0)
-      detail = stderr_file.read()
-    except Exception:
-      detail = ""
+  try:
+    stderr_file.seek(0)
+    detail = stderr_file.read()
+  except Exception:
+    detail = ""
   lines = [line.strip() for line in detail.splitlines() if line.strip()]
   if lines:
     # The fatal error comes last, after whatever the CLI logged on the way up.
@@ -938,19 +899,16 @@ def fetch_codex_rpc(home=None):
     result["authHelpText"] = AUTH_HELP
     return result
 
-  # Regular file, not a PIPE: an unread stderr pipe can fill and deadlock a
-  # chatty app-server. Only read on failure after the process has exited.
+  # stderr goes to a regular file, not a PIPE: an unread pipe can fill and
+  # deadlock a chatty app-server. It is only read once the process has exited.
+  stderr_file = None
   try:
     stderr_file = tempfile.TemporaryFile("w+", errors="replace")
-  except OSError:
-    # No temp space is no reason to skip the probe; it only costs the CLI's own error text.
-    stderr_file = None
-  try:
     proc = subprocess.Popen(
       [codex, "-s", "read-only", "-a", "on-request", "app-server"],
       stdin=subprocess.PIPE,
       stdout=subprocess.PIPE,
-      stderr=stderr_file or subprocess.DEVNULL,
+      stderr=stderr_file,
       text=True,
       env=env,
     )
@@ -1017,8 +975,7 @@ def fetch_codex_rpc(home=None):
         proc.kill()
       except Exception:
         pass
-    if stderr_file:
-      stderr_file.close()
+    stderr_file.close()
   return result
 
 
@@ -1077,9 +1034,6 @@ def main():
   parser.add_argument("--force", action="store_true")
   parser.add_argument("--limits-only", action="store_true")
   args = parser.parse_args()
-
-  global force_rescan
-  force_rescan = args.force
 
   max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
   stats = cached_local_stats(max_age)
