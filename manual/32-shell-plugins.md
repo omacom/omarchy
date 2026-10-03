@@ -70,7 +70,7 @@ That copies the whole plugin into `~/.config/omarchy/plugins/dhh.clock` (your us
 
 The username prefix keeps your clone's id yours, so sharing it doesn't collide with anyone else's. Calls made to the original built-in id get routed to your clone, so nothing that referred to `omarchy.clock` needs updating. And if you make a mess of it, `omarchy plugin remove dhh.clock` puts the built-in back.
 
-Saving a file anywhere under `~/.config/omarchy/plugins/` reloads the plugin code automatically, so you can leave the editor open and watch your changes land.
+Saving a loadable plugin source (`manifest.json`, `*.qml`, `*.js`) under `~/.config/omarchy/plugins/` reloads the plugin code automatically, so you can leave the editor open and watch your changes land. Other files do not, so data a plugin writes next to its code cannot reload the shell; after editing a helper script or data file, run `omarchy-shell shell rescanPlugins`.
 
 ## Writing your own
 

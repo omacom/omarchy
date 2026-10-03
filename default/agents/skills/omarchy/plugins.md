@@ -41,8 +41,10 @@ omarchy plugin clone omarchy.workspaces
 Cloning switches the bar to the cloned copy (e.g. `<username>.workspaces`),
 which is yours to edit and survives updates.
 
-Saving a file anywhere under `~/.config/omarchy/plugins/` reloads plugin code
-automatically. If a change somehow fails to apply, force a reload with
+Saving a loadable plugin source (`manifest.json`, `*.qml`, `*.js`) under
+`~/.config/omarchy/plugins/` reloads plugin code automatically. Other files
+(helper scripts, data, runtime state a plugin writes) do not; after editing
+one, or if a change somehow fails to apply, force a reload with
 `omarchy-shell shell rescanPlugins`.
 
 ## Idle and Lock
