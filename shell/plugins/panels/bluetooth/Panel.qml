@@ -891,8 +891,8 @@ Panel {
         Text {
           textFormat: Text.PlainText
           visible: root.connectedDevices.length === 0 && root.scrollRows.length === 0
-          text: !root.adapter ? "No Bluetooth adapter"
-              : !root.adapter.enabled ? "Turn Bluetooth on to scan"
+          text: !root.adapter && !root.radioPresent ? "No Bluetooth adapter"
+              : !root.adapter || !root.adapter.enabled ? "Turn Bluetooth on to scan"
               : "Scanning for devices…"
           color: Qt.darker(root.bar.foreground, 1.5)
           font.family: root.bar.fontFamily

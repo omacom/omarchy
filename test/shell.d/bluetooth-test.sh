@@ -36,6 +36,7 @@ assert(/visible: !!root\.adapter \|\| root\.radioPresent/.test(panelSource), 'bl
 assert(/function toggleBluetooth\(\)[\s\S]*?if \(!adapter\) \{[\s\S]*?if \(radioPresent\) Quickshell\.execDetached\(\["omarchy-bluetooth-power", "on"\]\)/.test(panelSource), 'bluetooth turns a blocked radio back on when the adapter is gone')
 assert(panelSource.includes('if (!adapter) return radioPresent ? "' + offGlyph + '" : ""'), 'bluetooth shows the off glyph for a blocked radio instead of a blank label')
 assert(/if \(!adapter\) return radioPresent \? "Turned Off" : "No adapter"/.test(panelSource), 'bluetooth reserves No adapter for machines without Bluetooth hardware')
+assert(/text: !root\.adapter && !root\.radioPresent \? "No Bluetooth adapter"\s*: !root\.adapter \|\| !root\.adapter\.enabled \? "Turn Bluetooth on to scan"/.test(panelSource), 'bluetooth asks to turn a blocked radio on instead of reporting no adapter in the device list')
 
 // Discovery is a BlueZ session that nothing ends at panel close: it persists
 // until StopDiscovery or until quickshell's D-Bus connection drops with the
