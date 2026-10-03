@@ -26,6 +26,10 @@ exec_bind() {
   printf 'bind\n\tmodmask: %s\n\tsubmap: \n\tkey: %s\n\tkeycode: 0\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: exec\n\targ: %s\n' "$1" "$2" "$3" "$4"
 }
 
+lua_function_bind() {
+  printf 'bindd\n\tmodmask: %s\n\tsubmap: %s\n\tkey: %s\n\tkeycode: 0\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: __lua\n\targ: %s\n' "$1" "$5" "$2" "$3" "$4"
+}
+
 stub_hyprctl() {
   {
     echo '#!/bin/bash'
@@ -194,6 +198,325 @@ rendered=$(keybindings)
 (( $(grep -c '→ Close window$' <<<"$rendered") == 2 )) ||
   fail "chords whose dispatch is unknown stay apart" "$rendered"
 pass "chords whose dispatch is unknown stay apart"
+
+stub_hyprctl <<BINDS
+$(lua_function_bind 76 "Z" "Reset zoom" 264)
+$(lua_function_bind 64 "W" "Close window" 261)
+$(lua_function_bind 0 "H" "Shrink in resize mode" 270 resize)
+BINDS
+
+eval "$(sed -n '/^lua_bind_identity()/,/^}/p; /^dispatch_lua_expression()/,/^}/p; /^mark_lua_state()/,/^}/p; /^unmark_lua_state()/,/^}/p; /^current_lua_function_ref()/,/^}/p; /^call_lua_function_if_marked()/,/^}/p; /^dispatch_lua_function_binding()/,/^}/p; /^dispatch_binding()/,/^}/p' "$ROOT/bin/omarchy-menu-keybindings")"
+
+keybindings >/dev/null
+records=$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)
+identity=$(lua_bind_identity 76 "" "Z" 0 "Reset zoom")
+[[ $(awk -F '\t' '$1 ~ /→ Reset zoom$/ { print $2 "\t" $3 }' <<<"$records") == "__lua	$identity" ]] ||
+  fail "a Lua function bind keeps which bind it is" "$records"
+[[ $(awk -F '\t' '$1 ~ /→ Shrink in resize mode$/ { print $2 "\t" $3 }' <<<"$records") == "__lua	$(lua_bind_identity 0 resize "H" 0 "Shrink in resize mode")" ]] ||
+  fail "a Lua function bind in a submap keeps its submap" "$records"
+[[ $(awk -F '\t' '$1 ~ /→ Close window$/ { print $2 "\t" $3 }' <<<"$records") == "lua	hl.dsp.window.close()" ]] ||
+  fail "a bind the source resolves keeps its expression over its ref" "$records"
+pass "a Lua function bind keeps which bind it is"
+
+stub_hyprctl_dispatch() {
+  cat >"$stub_bin/hyprctl" <<STUB
+#!/bin/bash
+printf '%s\n' "\$*" >>"$tmpdir/hyprctl.log"
+case "\$1" in
+  binds)
+    if [[ -f $tmpdir/dispatch-during-lookup ]]; then
+      "\$0" dispatch "\$(cat "$tmpdir/dispatch-during-lookup")" >/dev/null
+    fi
+    cat "$tmpdir/binds"
+    status=\$(cat "$tmpdir/binds-status")
+    if [[ -f $tmpdir/binds-after-reload ]]; then
+      mv "$tmpdir/binds-after-reload" "$tmpdir/binds"
+      rm -f "$tmpdir/lua-state"
+    fi
+    exit "\$status"
+    ;;
+  dispatch)
+    STUB_DIR="$tmpdir" STUB_EXPRESSION="\$2" lua - <<'LUA'
+local dir = os.getenv("STUB_DIR")
+local registry = debug.getregistry()
+
+local state = io.open(dir .. "/lua-state")
+if state then
+  registry.omarchy_menu_keybindings_marks = {}
+  for mark in state:lines() do
+    registry.omarchy_menu_keybindings_marks[mark] = true
+  end
+  state:close()
+end
+
+for line in io.lines(dir .. "/binds") do
+  local ref = tonumber(line:match("^\targ: (%d+)$"))
+  if ref then
+    registry[ref] = function()
+      local called = io.open(dir .. "/called", "a")
+      called:write(ref, "\n")
+      called:close()
+    end
+  end
+end
+
+hl = {
+  dispatch = function(action)
+    if type(action) == "function" then action() end
+  end,
+}
+
+local chunk, problem = load("return hl.dispatch(" .. os.getenv("STUB_EXPRESSION") .. ")")
+local ok = chunk and pcall(chunk)
+if not ok then
+  print("error: " .. tostring(problem or "dispatch failed"))
+  os.exit(7)
+end
+
+if registry.omarchy_menu_keybindings_marks then
+  state = io.open(dir .. "/lua-state", "w")
+  for mark in pairs(registry.omarchy_menu_keybindings_marks) do
+    state:write(mark, "\n")
+  end
+  state:close()
+end
+print("ok")
+LUA
+    ;;
+esac
+STUB
+  chmod +x "$stub_bin/hyprctl"
+  cat >"$tmpdir/binds"
+  echo 0 >"$tmpdir/binds-status"
+  rm -f "$tmpdir/hyprctl.log" "$tmpdir/called" "$tmpdir/lua-state" "$tmpdir/binds-after-reload" "$tmpdir/dispatch-during-lookup"
+}
+
+called() {
+  [[ -f $tmpdir/called && $(cat "$tmpdir/called") == "$1" ]]
+}
+
+called_nothing() {
+  [[ ! -s $tmpdir/called ]]
+}
+
+left_no_mark() {
+  [[ ! -s $tmpdir/lua-state ]]
+}
+
+pick_from_menu() {
+  printf '#!/bin/bash\ngrep -m1 -F -- %q\n' "$1" >"$stub_bin/omarchy-menu-select"
+  chmod +x "$stub_bin/omarchy-menu-select"
+  rm -rf "$tmpdir/cache"
+  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+    XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-menu-keybindings" >/dev/null
+}
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "Z" "Reset zoom" 264)
+BINDS
+PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "selecting a Lua function bind dispatches it"
+called 264 ||
+  fail "a Lua function bind is called through the ref Hyprland reports" "$(cat "$tmpdir/hyprctl.log")"
+left_no_mark ||
+  fail "a Lua function bind that was called leaves no mark" "$(cat "$tmpdir/lua-state")"
+pass "selecting a Lua function bind calls it through its ref"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 64 "D" "Different action" 264)
+$(lua_function_bind 76 "Z" "Reset zoom" 300)
+BINDS
+PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "a bind whose ref moved after a reload still dispatches"
+called 300 ||
+  fail "a bind whose ref moved is called through its new ref, not the old one" "$(cat "$tmpdir/hyprctl.log")"
+pass "a bind whose ref moved after a reload is called through its new ref"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "Z" "Reset zoom" 264)
+BINDS
+cat >"$tmpdir/binds-after-reload" <<BINDS
+$(lua_function_bind 64 "D" "Different action" 264)
+$(lua_function_bind 76 "Z" "Reset zoom" 300)
+BINDS
+! PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "a reload between the lookup and the call is refused"
+called_nothing ||
+  fail "a reload between the lookup and the call runs nothing" "$(cat "$tmpdir/called")"
+pass "a reload between the lookup and the call runs nothing"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "Z" "Reset zoom" 264)
+BINDS
+PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "a selection that leaves a mark dispatches"
+other_selection_mark=$(sed -n '1s/^dispatch //p' "$tmpdir/hyprctl.log")
+[[ -n $other_selection_mark ]] ||
+  fail "a selection dispatches its mark first" "$(cat "$tmpdir/hyprctl.log")"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "Z" "Reset zoom" 264)
+BINDS
+"$stub_bin/hyprctl" dispatch "$other_selection_mark" >/dev/null
+marks_of_other_selection=$(cat "$tmpdir/lua-state")
+[[ -n $marks_of_other_selection ]] ||
+  fail "the other selection leaves its mark"
+rm "$tmpdir/lua-state"
+printf '%s\n' "$other_selection_mark" >"$tmpdir/dispatch-during-lookup"
+PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "a selection that overlaps another one still dispatches" "$(cat "$tmpdir/hyprctl.log")"
+called 264 ||
+  fail "a selection that overlaps another one still calls its bind" "$(cat "$tmpdir/hyprctl.log")"
+[[ $(cat "$tmpdir/lua-state") == "$marks_of_other_selection" ]] ||
+  fail "a selection that calls its bind leaves the mark of another selection in place" "$(cat "$tmpdir/lua-state")"
+pass "a selection that overlaps another one still calls its bind"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 64 "D" "Different action" 264)
+BINDS
+! PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "a bind Hyprland no longer reports is refused"
+called_nothing ||
+  fail "a bind Hyprland no longer reports calls nothing" "$(cat "$tmpdir/called")"
+left_no_mark ||
+  fail "a bind Hyprland no longer reports leaves no mark" "$(cat "$tmpdir/lua-state")"
+pass "a bind Hyprland no longer reports calls nothing"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 64 "D" "Different action" 264)
+BINDS
+"$stub_bin/hyprctl" dispatch "$other_selection_mark" >/dev/null
+! PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "a refused selection that overlaps another one is still refused"
+[[ $(cat "$tmpdir/lua-state") == "$marks_of_other_selection" ]] ||
+  fail "a refused selection leaves the mark of another selection in place" "$(cat "$tmpdir/lua-state")"
+pass "a refused selection leaves the mark of another selection in place"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "Z" "Reset zoom" 264)
+$(lua_function_bind 76 "Z" "Reset zoom" 300)
+BINDS
+! PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "two binds that match the same identity are refused"
+called_nothing ||
+  fail "two binds that match the same identity call nothing" "$(cat "$tmpdir/called")"
+left_no_mark ||
+  fail "two binds that match the same identity leave no mark" "$(cat "$tmpdir/lua-state")"
+pass "two binds that match the same identity call nothing"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "Z" "Reset zoom" "")
+BINDS
+! PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "a bind reported without a numeric ref is refused"
+called_nothing ||
+  fail "a bind reported without a numeric ref calls nothing" "$(cat "$tmpdir/called")"
+left_no_mark ||
+  fail "a bind reported without a numeric ref leaves no mark" "$(cat "$tmpdir/lua-state")"
+pass "a bind reported without a numeric ref calls nothing"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "Z" "Reset zoom" 264)
+$(lua_function_bind 76 "Z" "Reset zoom" 300 resize)
+BINDS
+PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "a bind that shares its chord and description with a bind in a submap dispatches"
+called 264 ||
+  fail "a bind outside a submap is told apart from one inside it" "$(cat "$tmpdir/hyprctl.log")"
+rm "$tmpdir/called"
+PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$(lua_bind_identity 76 resize "Z" 0 "Reset zoom")" >/dev/null ||
+  fail "a bind in a submap that shares its chord and description with a bind outside it dispatches"
+called 300 ||
+  fail "a bind in a submap is told apart from one outside it" "$(cat "$tmpdir/hyprctl.log")"
+pass "binds that differ only in their submap are told apart"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "Z" "Reset zoom" 264)
+$(lua_function_bind 64 "Z" "Reset zoom" 300)
+BINDS
+PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "a bind that shares its key and description with a bind on other modifiers dispatches"
+called 264 ||
+  fail "a bind is told apart from one on other modifiers" "$(cat "$tmpdir/hyprctl.log")"
+rm "$tmpdir/called"
+PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$(lua_bind_identity 64 "" "Z" 0 "Reset zoom")" >/dev/null ||
+  fail "the bind on the other modifiers dispatches too"
+called 300 ||
+  fail "the bind on the other modifiers is called through its own ref" "$(cat "$tmpdir/hyprctl.log")"
+pass "binds that differ only in their modifiers are told apart"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "Z" "Reset zoom" 264)
+BINDS
+echo 1 >"$tmpdir/binds-status"
+! PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "a failed hyprctl binds is refused even with matching output"
+called_nothing ||
+  fail "a failed hyprctl binds calls nothing" "$(cat "$tmpdir/called")"
+left_no_mark ||
+  fail "a failed hyprctl binds leaves no mark" "$(cat "$tmpdir/lua-state")"
+! PATH="$stub_bin:$PATH" dispatch_binding "__lua" "" >/dev/null ||
+  fail "a Lua bind with nothing to look up is refused"
+pass "a failed hyprctl binds calls nothing"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 64 "D" "Different action" 300)
+$(lua_function_bind 76 "Z" "Reset zoom" 264)
+BINDS
+pick_from_menu "→ Reset zoom" ||
+  fail "picking a Lua function bind from the menu succeeds" "$(cat "$tmpdir/hyprctl.log")"
+called 264 ||
+  fail "picking a Lua function bind from the menu calls it" "$(cat "$tmpdir/hyprctl.log")"
+pass "picking a Lua function bind from the menu calls it"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "backslash" 'Toggle \n mode' 264)
+BINDS
+pick_from_menu '→ Toggle \n mode' ||
+  fail "picking a bind with a backslash in its description succeeds" "$(cat "$tmpdir/hyprctl.log")"
+called 264 ||
+  fail "picking a bind with a backslash in its description calls it" "$(cat "$tmpdir/hyprctl.log")"
+pass "picking a bind with a backslash in its description calls it"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "Z" "Run ~/.local/share/omarchy/bin/omarchy-zoom" 264)
+$(lua_function_bind 0 "H" "Shrink in keycode mode" 300 "code:20")
+BINDS
+pick_from_menu "→ Run ~/.local/share/omarchy/bin/omarchy-zoom" ||
+  fail "picking a bind with an Omarchy path in its description succeeds" "$(cat "$tmpdir/hyprctl.log")"
+called 264 ||
+  fail "picking a bind with an Omarchy path in its description calls it" "$(cat "$tmpdir/hyprctl.log")"
+rm "$tmpdir/called"
+pick_from_menu "→ Shrink in keycode mode" ||
+  fail "picking a bind in a submap named like a keycode succeeds" "$(cat "$tmpdir/hyprctl.log")"
+called 300 ||
+  fail "picking a bind in a submap named like a keycode calls it" "$(cat "$tmpdir/hyprctl.log")"
+pass "text the menu rewrites for display does not change which bind is called"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "Z" "Reset zoom" 264)
+$(lua_function_bind 76 "Z" "Reset zoom" 300 resize)
+BINDS
+! pick_from_menu "→ Reset zoom" ||
+  fail "picking one of two function binds whose rows read the same is refused"
+called_nothing ||
+  fail "picking one of two function binds whose rows read the same calls nothing" "$(cat "$tmpdir/called")"
+left_no_mark ||
+  fail "picking one of two function binds whose rows read the same leaves no mark" "$(cat "$tmpdir/lua-state")"
+pass "picking one of two function binds whose rows read the same calls nothing"
+
+stub_hyprctl_dispatch <<BINDS
+$(exec_bind 76 "Z" "Reset zoom" "true")
+$(lua_function_bind 76 "Z" "Reset zoom" 264)
+BINDS
+! pick_from_menu "→ Reset zoom" ||
+  fail "picking a row that a function bind and another bind share is refused"
+called_nothing ||
+  fail "picking a row that a function bind and another bind share calls no function" "$(cat "$tmpdir/called")"
+! grep -q '^dispatch' "$tmpdir/hyprctl.log" ||
+  fail "picking a row that a function bind and another bind share dispatches nothing" "$(cat "$tmpdir/hyprctl.log")"
+pass "picking a row that a function bind and another bind share dispatches nothing"
 
 # What the menu is expected to pair up, written out here rather than read from
 # the script, so dropping an action from the list fails instead of shrinking
