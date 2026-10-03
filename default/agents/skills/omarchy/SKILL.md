@@ -194,7 +194,8 @@ cp ~/.config/hypr/bindings.lua ~/.config/hypr/bindings.lua.bak.$(date +%s)
 
 # 4. Apply changes
 # - Hyprland: auto-reloads on save, but MUST validate with `hyprctl reload` and `hyprctl configerrors`
-# - Omarchy shell: shell.json and user plugin code under ~/.config/omarchy/plugins/ hot-reload on save
+# - Omarchy shell: bar/layout changes in shell.json may hot-reload; after changing idle.screensaver, idle.lock, or idle.suspend, run `omarchy restart shell`
+# - Omarchy shell: user plugin code under ~/.config/omarchy/plugins/ may hot-reload on save
 # - Menus/launcher: ~/.config/omarchy/extensions/omarchy-menu.jsonc hot-reloads on save
 # - Terminals: apply with `omarchy restart terminal` (reloads running terminals; foot picks changes up in new windows)
 ```

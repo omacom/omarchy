@@ -21,6 +21,7 @@ Item {
     ? shell.shellConfig.idle : (shell && shell.idleConfig ? shell.idleConfig : ({}))
   readonly property int screensaverTimeoutSeconds: secondsFromConfig(idleConfig.screensaver, defaultScreensaverSeconds)
   readonly property int lockTimeoutSeconds: secondsFromConfig(idleConfig.lock, defaultLockSeconds)
+  readonly property int suspendTimeoutSeconds: IdleModel.optionalSecondsFromConfig(idleConfig.suspend)
   readonly property int firstIdleTimeoutSeconds: Math.min(screensaverTimeoutSeconds, lockTimeoutSeconds)
   readonly property int screensaverDelaySeconds: Math.max(0, screensaverTimeoutSeconds - firstIdleTimeoutSeconds)
   readonly property int lockDelaySeconds: Math.max(0, lockTimeoutSeconds - firstIdleTimeoutSeconds)
@@ -179,6 +180,27 @@ Item {
     else handleActiveSignal()
   }
 
+  function maybeSuspend() {
+    if (!IdleModel.shouldSuspend(
+      suspendInputIdleMonitor.isIdle,
+      suspendInhibitorMonitor.isIdle,
+      root.idleEnabled,
+      root.suspendTimeoutSeconds
+    )) return
+
+    runProcess(suspendProcess, "suspend", "omarchy-toggle-enabled suspend-off || systemctl suspend")
+  }
+
+  function handleSuspendInputIdleChanged() {
+    logEvent("suspend-input-idle-monitor", suspendInputIdleMonitor.isIdle ? "idle" : "active")
+    maybeSuspend()
+  }
+
+  function handleSuspendInhibitorChanged() {
+    logEvent("suspend-inhibitor-monitor", suspendInhibitorMonitor.isIdle ? "idle" : "active")
+    maybeSuspend()
+  }
+
   function statusJson() {
     return JSON.stringify({
       enabled: root.idleEnabled,
@@ -190,6 +212,9 @@ Item {
       screensaverStarted: root.screensaverStartedThisCycle,
       screensaver: root.screensaverTimeoutSeconds,
       lock: root.lockTimeoutSeconds,
+      suspend: root.suspendTimeoutSeconds,
+      suspendInputIdle: suspendInputIdleMonitor.isIdle,
+      suspendInhibitorIdle: suspendInhibitorMonitor.isIdle,
       screensaverDelay: root.screensaverDelaySeconds,
       lockDelay: root.lockDelaySeconds,
       screensaverWindows: root.screensaverWindowCount,
@@ -201,6 +226,7 @@ Item {
       processes: {
         screensaver: screensaverProcess.running,
         lock: lockProcess.running,
+        suspend: suspendProcess.running,
         wake: wakeProcess.running
       },
       lastEvent: root.lastEvent,
@@ -257,6 +283,26 @@ Item {
     onIsIdleChanged: root.handleIdleChanged()
   }
 
+  IdleMonitor {
+    id: suspendInputIdleMonitor
+    enabled: root.idleEnabled && root.suspendTimeoutSeconds > 0
+    timeout: Math.max(1, root.suspendTimeoutSeconds)
+    // This clock is tied to physical input only. Opening the screensaver or
+    // lock screen must not restart a configured suspend countdown.
+    respectInhibitors: false
+    onIsIdleChanged: root.handleSuspendInputIdleChanged()
+  }
+
+  IdleMonitor {
+    id: suspendInhibitorMonitor
+    enabled: root.idleEnabled && root.suspendTimeoutSeconds > 0
+    // A short inhibitor-aware gate preserves video and system inhibitor
+    // handling without allowing compositor window events to reset the clock.
+    timeout: 1
+    respectInhibitors: true
+    onIsIdleChanged: root.handleSuspendInhibitorChanged()
+  }
+
   Timer {
     id: screensaverTimer
     interval: root.screensaverDelaySeconds * 1000
@@ -294,6 +340,10 @@ Item {
   Process {
     id: lockProcess
     onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "lock exitCode=" + exitCode + " status=" + exitStatus) }
+  }
+  Process {
+    id: suspendProcess
+    onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "suspend exitCode=" + exitCode + " status=" + exitStatus) }
   }
   Process {
     id: wakeProcess
