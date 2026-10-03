@@ -18,7 +18,10 @@ refresh_shell_config() {
 }
 
 source_file() {
-  if [[ -s $CONFIG_FILE ]]; then
+  if [[ -e $CONFIG_FILE && ! -s $CONFIG_FILE ]]; then
+    echo "shell.json is empty; refusing to overwrite it with defaults" >&2
+    return 1
+  elif [[ -s $CONFIG_FILE ]]; then
     printf '%s\n' "$CONFIG_FILE"
   else
     printf '%s\n' "$DEFAULTS_FILE"
@@ -55,7 +58,9 @@ commit() {
   shift
   mkdir -p "$(dirname "$CONFIG_FILE")"
   _SHELL_CONFIG_TMP=$(mktemp)
-  jq -S -e "$@" "$program" "$(source_file)" >"$_SHELL_CONFIG_TMP" || fail "could not update shell config"
+  local source
+  source=$(source_file) || fail "could not update shell config"
+  jq -S -e "$@" "$program" "$source" >"$_SHELL_CONFIG_TMP" || fail "could not update shell config"
   mv "$_SHELL_CONFIG_TMP" "$CONFIG_FILE"
   _SHELL_CONFIG_TMP=""
   refresh_shell_config
