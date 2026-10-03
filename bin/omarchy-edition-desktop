@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Succeed only on Omarchy Desktop
+# omarchy:hidden=true
+
+exec omarchy-edition desktop
