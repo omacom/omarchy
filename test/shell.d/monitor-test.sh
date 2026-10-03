@@ -75,4 +75,17 @@ assertDeepEqual(
 )
 
 assertDeepEqual(monitor.parseDisplays('{'), { displays: [], enabledDisplayCount: 0 }, 'monitor handles invalid display JSON')
+const editorRegistry = {
+  installedPlugins: { 'crmne.hyprmoncfg': { entryPoints: { barWidget: 'BarWidget.qml' } } },
+  isEnabled: () => true,
+  inBar: () => true
+}
+assertEqual(monitor.layoutEditorAvailable(editorRegistry), true, 'monitor offers a hosted editor')
+assertEqual(monitor.layoutEditorAvailable(null), false, 'monitor works without a registry')
+assertEqual(monitor.layoutEditorAvailable({ ...editorRegistry, installedPlugins: {} }), false, 'monitor hides missing editor')
+assertEqual(monitor.layoutEditorAvailable({ ...editorRegistry, isEnabled: () => false }), false, 'monitor hides disabled editor')
+assertEqual(monitor.layoutEditorAvailable({ ...editorRegistry, inBar: () => false }), false, 'monitor hides service-only editor')
+assertEqual(monitor.layoutEditorAvailable({ ...editorRegistry, installedPlugins: { 'crmne.hyprmoncfg': { entryPoints: { service: 'PreviewGuard.qml' } } } }), false, 'monitor requires editor entry point')
+assertEqual(monitor.layoutEditorAvailable({ installedPlugins: {} }), false, 'monitor tolerates scoped clone registry')
+
 JS

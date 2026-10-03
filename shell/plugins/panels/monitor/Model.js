@@ -122,3 +122,14 @@ if (typeof module !== "undefined") {
     parseDisplays: parseDisplays
   }
 }
+
+// The editor is a hosted bar widget; service-only enablement cannot summon it.
+function layoutEditorAvailable(registry) {
+  var id = "crmne.hyprmoncfg"
+  var plugin = registry && registry.installedPlugins ? registry.installedPlugins[id] : null
+  return !!(plugin && plugin.entryPoints && plugin.entryPoints.barWidget
+    && typeof registry.isEnabled === "function" && registry.isEnabled(id)
+    && typeof registry.inBar === "function" && registry.inBar(id))
+}
+
+if (typeof module !== "undefined") module.exports.layoutEditorAvailable = layoutEditorAvailable
