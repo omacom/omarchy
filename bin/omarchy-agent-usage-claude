@@ -130,7 +130,7 @@ def empty_bucket() -> dict[str, int]:
 # read from the start. Without this the whole history was re-parsed every
 # refresh, and the cost grew for the life of the machine.
 
-INDEX_VERSION = 2
+INDEX_VERSION = 3
 
 # How much of a transcript's start the index remembers a hash of, so a file
 # rewritten in place with more than it had is not mistaken for an append.
@@ -158,9 +158,15 @@ def load_index(index_file: Path) -> dict[str, Any]:
   return {}
 
 
-def head_digest(path: Path, length: int) -> str:
+# What was already read, by its first and last few kilobytes: a transcript
+# rewritten in place rather than appended to changes one or the other.
+def read_digest(path: Path, length: int) -> str:
+  digest = hashlib.sha1()
   with path.open("rb") as handle:
-    return hashlib.sha1(handle.read(min(length, INDEX_HEAD_BYTES))).hexdigest()
+    digest.update(handle.read(min(length, INDEX_HEAD_BYTES)))
+    handle.seek(max(0, length - INDEX_HEAD_BYTES))
+    digest.update(handle.read(min(length, INDEX_HEAD_BYTES)))
+  return digest.hexdigest()
 
 
 def parse_usage_records(path: Path, entry: dict[str, Any] | None) -> dict[str, Any]:
@@ -176,14 +182,14 @@ def parse_usage_records(path: Path, entry: dict[str, Any] | None) -> dict[str, A
 
   # Only the same file, grown past what was read with what was read still in
   # place, is an append. A transcript replaced by a larger one has a new
-  # inode, and one rewritten in place a different start.
+  # inode, and one rewritten in place a different start or end.
   if (
     entry
     and size > number(entry.get("size"))
     and mtime >= number(entry.get("mtime"))
     and entry.get("dev") == stat.st_dev
     and entry.get("ino") == stat.st_ino
-    and entry.get("head") == head_digest(path, number(entry.get("offset")))
+    and entry.get("head") == read_digest(path, number(entry.get("offset")))
   ):
     records = list(entry.get("records") or [])
     offset = number(entry.get("offset"))
@@ -263,7 +269,7 @@ def parse_usage_records(path: Path, entry: dict[str, Any] | None) -> dict[str, A
     "mtime": mtime,
     "dev": stat.st_dev,
     "ino": stat.st_ino,
-    "head": head_digest(path, offset),
+    "head": read_digest(path, offset),
     "offset": offset,
     "lines": line_number,
     "records": records,

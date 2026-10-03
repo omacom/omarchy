@@ -99,6 +99,15 @@ mv "$index_projects/session.jsonl.new" "$index_projects/session.jsonl"
   fail "Claude collector reads a transcript rewritten in place from its start" "$(index_scan)"
 pass "Claude collector rereads a transcript that was replaced or rewritten"
 
+# A rewrite in place that grows the file and changes only its end keeps the
+# first kilobytes, so the end of what was read is checked too.
+for i in $(seq 1 60); do index_line "long-$i" 100; done >"$index_projects/session.jsonl"
+index_scan >/dev/null
+{ for i in $(seq 1 59); do index_line "long-$i" 100; done; index_line long-60 5000; index_line long-61 1; } >"$index_projects/session.jsonl"
+[[ $(index_scan | jq -r '.todayTotalTokens') == "10901" ]] ||
+  fail "Claude collector rereads a transcript whose end was rewritten in place" "$(index_scan)"
+pass "Claude collector rereads a transcript whose end was rewritten in place"
+
 # The index holds local days, so a new timezone reads every transcript again
 # rather than keep the days another timezone gave them.
 zone_timestamp="$(date -u +%Y-%m-%d)T01:00:00Z"
