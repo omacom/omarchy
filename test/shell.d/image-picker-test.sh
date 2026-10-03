@@ -160,4 +160,8 @@ assert(
     /onStatusChanged: if \(item.selected && \(status === Image.Ready \|\| status === Image.Error\)\) root.neighborImagesEnabled = true/.test(imagePickerQml),
   'image picker prioritizes the selected preview and releases neighbors on success or failure'
 )
+assert(
+  /root\.filterable && [^\n]*!\(event\.modifiers & \(Qt\.ControlModifier \| Qt\.AltModifier \| Qt\.MetaModifier\)\)/.test(imagePickerQml),
+  'image picker filter accepts printable text carrying Shift plus keypad or layout modifiers'
+)
 JS
