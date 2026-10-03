@@ -40,6 +40,13 @@ fi
 STUB
 chmod +x "$fake_bin/snapper"
 
+cat >"$fake_bin/findmnt" <<'STUB'
+#!/bin/bash
+echo "${TEST_ROOT_FSTYPE:-btrfs}"
+STUB
+chmod +x "$fake_bin/findmnt"
+export OMARCHY_PATH="$ROOT"
+
 # A snapshot that silently creates nothing reads as a successful snapshot, so
 # an unconfigured Snapper has to fail loudly instead of passing for a backup.
 : >"$test_tmp/calls.log"
@@ -55,6 +62,18 @@ grep -qF 'No Snapper configs found' <<<"$stderr" ||
 ! grep -q '^snapper -c .* create ' "$test_tmp/calls.log" ||
   fail "snapshot create does not invent a config to snapshot"
 pass "snapshot create fails loudly when Snapper is installed but unconfigured"
+grep -qF 'Configure Snapper with:' <<<"$stderr" || fail "Btrfs users receive setup guidance"
+
+set +e
+stderr=$(TEST_ROOT_FSTYPE=ext4 TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
+  bash "$snapshot" create 2>&1 >/dev/null)
+status=$?
+set -e
+(( status != 0 )) || fail "unconfigured ext4 snapshots still report failure"
+grep -qF 'requires a Btrfs root filesystem' <<<"$stderr" || fail "ext4 users receive filesystem guidance"
+! grep -qF 'Configure Snapper with:' <<<"$stderr" || fail "ext4 users are not sent to a setup that does nothing"
+pass "unconfigured non-Btrfs systems receive accurate snapshot guidance"
+
 
 cat >"$fake_bin/snapper" <<'STUB'
 #!/bin/bash
