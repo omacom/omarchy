@@ -284,10 +284,13 @@ and/or a working user systemd instance:
   `install/user/first-run/gtk-primary-paste.sh` — GNOME/GTK settings that
   need the dconf daemon.
 - `install/user/first-run/audio-tuning.sh` — apply speaker tuning.
+- `install/user/first-run/learn.sh` — toast that opens the interactive
+  Learn Omarchy course (`learn-omarchy`) when clicked. Sent first so the
+  keybindings toast stacks above it.
 - `install/user/first-run/welcome.sh` — keybindings toast that greets the
   first login and opens the cheatsheet when clicked. The caller runs
-  `omarchy-notification-wait` once before this and the Wi-Fi step, so both
-  toasts land on a live notification server.
+  `omarchy-notification-wait` once before this, the learn, and the Wi-Fi
+  steps, so all three toasts land on a live notification server.
 - `install/user/first-run/wifi.sh` — Wi-Fi/update toasts (waits detached on
   `nm-online` so the update prompt only lands once there is a connection).
 
