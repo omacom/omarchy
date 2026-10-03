@@ -138,7 +138,7 @@ BarWidget {
     }
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "omarchy.clock"
 
     function refresh(): void { root.broadcast("refresh") }

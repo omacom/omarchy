@@ -6,6 +6,10 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 upgrade_to_quattro="$ROOT/bin/omarchy-upgrade-to-quattro"
 
+function_body() {
+  awk -v name="$1" '$0 == name "() {" { inside = 1; next } inside && $0 == "}" { exit } inside' "$upgrade_to_quattro"
+}
+
 snapshot_line=$(grep -n '^create_pre_upgrade_snapshot$' "$upgrade_to_quattro" | cut -d: -f1)
 pacman_line=$(grep -n '^configure_pacman_channel$' "$upgrade_to_quattro" | cut -d: -f1)
 [[ -n $snapshot_line && -n $pacman_line ]] || fail "upgrade snapshot and first mutation calls exist"
@@ -73,6 +77,44 @@ grep -F 'OMARCHY_INSTALL_USER="$target_user"' "$upgrade_to_quattro" >/dev/null
 grep -F '"$apply_lock"' "$upgrade_to_quattro" >/dev/null
 pass "Omarchy 4 upgrade configures lock screen authentication for the target user"
 
+root_path_count=$(awk '/^root_path=/{ count++ } END { print count + 0 }' "$upgrade_to_quattro")
+(( root_path_count == 1 )) || fail "Omarchy 4 upgrade defines exactly one root command path"
+grep -Fx 'root_path=/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade limits root command lookup to trusted system directories"
+if grep -E '^root_path=.*(target_home|\.local/bin)' "$upgrade_to_quattro" >/dev/null; then
+  fail "Omarchy 4 upgrade does not put the target user's bin directory on the root command path"
+fi
+grep -Fx 'package_path="$root_path:$target_home/.local/bin"' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade retains the target user's bin directory for user commands"
+
+lock_authentication_body=$(function_body configure_lock_authentication)
+lock_path_assignment_count=$(awk '{ count += gsub(/(^|[[:space:]])PATH=/, "") } END { print count + 0 }' <<<"$lock_authentication_body")
+(( lock_path_assignment_count == 1 )) ||
+  fail "Omarchy 4 upgrade gives the privileged lock helper exactly one command path"
+grep -Fx '    PATH="$root_path" \' <<<"$lock_authentication_body" >/dev/null ||
+  fail "Omarchy 4 upgrade gives the privileged lock helper the trusted root path"
+if grep -E '(package_path|target_home|\.local/bin)' <<<"$lock_authentication_body" >/dev/null; then
+  fail "Omarchy 4 upgrade does not give the privileged lock helper the target user's path"
+fi
+
+firewall_body=$(function_body apply_firewall_defaults)
+firewall_path_assignment_count=$(awk '{ count += gsub(/(^|[[:space:]])PATH=/, "") } END { print count + 0 }' <<<"$firewall_body")
+(( firewall_path_assignment_count == 1 )) ||
+  fail "Omarchy 4 upgrade gives the privileged firewall helper exactly one command path"
+grep -Fx '  as_root env OMARCHY_PATH=/usr/share/omarchy PATH="$root_path" \' <<<"$firewall_body" >/dev/null ||
+  fail "Omarchy 4 upgrade gives the privileged firewall helper the trusted root path"
+if grep -E '(package_path|target_home|\.local/bin)' <<<"$firewall_body" >/dev/null; then
+  fail "Omarchy 4 upgrade does not give the privileged firewall helper the target user's path"
+fi
+
+user_omarchy_body=$(function_body run_as_user_omarchy)
+grep -F 'PATH="$package_path"' <<<"$user_omarchy_body" >/dev/null ||
+  fail "Omarchy 4 upgrade retains the package and user path for target-user commands"
+if grep -F 'PATH="$root_path"' <<<"$user_omarchy_body" >/dev/null; then
+  fail "Omarchy 4 upgrade does not narrow target-user commands to the root-only path"
+fi
+pass "Omarchy 4 upgrade separates privileged and target-user command paths"
+
 grep -F 'install/helpers/browser-policy.sh' "$upgrade_to_quattro" >/dev/null ||
   fail "Omarchy 4 upgrade uses the shared browser-policy helper"
 grep -F 'as_root test -f "$browser_policy_helper"' "$upgrade_to_quattro" >/dev/null ||
@@ -100,10 +142,6 @@ pass "Omarchy 4 upgrade retires systemd-networkd for NetworkManager"
 # Booting with both managers enabled leaves them fighting over the Wi-Fi
 # adapter, so enabling NetworkManager and disabling iwd cannot be separated by
 # any step that might abort in between.
-function_body() {
-  awk -v name="$1" '$0 == name "() {" { inside = 1; next } inside && $0 == "}" { exit } inside' "$upgrade_to_quattro"
-}
-
 migrations_body=$(function_body run_post_upgrade_migrations)
 grep -F 'fail "Omarchy migrations did not complete.' <<<"$migrations_body" >/dev/null ||
   fail "Omarchy 4 upgrade fails when a migration cannot complete"
@@ -212,8 +250,14 @@ pass "Omarchy 4 upgrade removes stale nofile drop-ins"
 
 cmdline_line=$(grep -n '^preserve_kernel_cmdline_root$' "$upgrade_to_quattro" | cut -d: -f1)
 packages_line=$(grep -n '^install_omarchy_quattro_packages$' "$upgrade_to_quattro" | cut -d: -f1)
-[[ -n $cmdline_line && -n $packages_line ]] || fail "kernel cmdline preservation and package install calls exist"
-(( packages_line < cmdline_line )) || fail "kernel cmdline preservation runs once limine-mkinitcpio is installed"
+verify_line=$(grep -n '^verify_kernel_cmdline_root$' "$upgrade_to_quattro" | cut -d: -f1)
+[[ -n $cmdline_line && -n $packages_line && -n $verify_line ]] ||
+  fail "kernel cmdline preservation, verification and package install calls exist"
+# The package transaction installs the += drop-in that drops root=, so the pin
+# has to be on disk before it runs or the UKI it bakes is unbootable.
+(( cmdline_line < packages_line )) || fail "kernel cmdline is pinned before the packages that can drop root="
+# The UKIs are rebuilt by the transaction, so they can only be checked after it.
+(( verify_line > packages_line )) || fail "kernel cmdline is verified after the packages are installed"
 grep -F '/etc/default/limine' "$upgrade_to_quattro" >/dev/null
 grep -F 'KERNEL_CMDLINE[default]+=" ${boot_params[*]}"' "$upgrade_to_quattro" >/dev/null
 grep -F 'cat /proc/cmdline' "$upgrade_to_quattro" >/dev/null
@@ -222,13 +266,84 @@ grep -F 'rootflags=subvol=' "$upgrade_to_quattro" >/dev/null
 grep -F 'cryptdevice' "$upgrade_to_quattro" >/dev/null
 pass "Omarchy 4 upgrade preserves the kernel cmdline root parameters"
 
-# The += drop-ins make limine-entry-tool ignore /etc/kernel/cmdline and
-# /proc/cmdline, so only the tool's own merge can say whether root= survives.
-# Queried for the default key, so a kernel-specific pin cannot cover for the
-# entries this repairs.
-grep -F 'limine-entry-tool --get-cmdline default' "$upgrade_to_quattro" >/dev/null
-grep -F "grep -qE '(^|[[:space:]])root='" "$upgrade_to_quattro" >/dev/null
-pass "Omarchy 4 upgrade asks limine-entry-tool whether root= survives"
+# The tool's effective cmdline still resolves root= from /proc/cmdline until the
+# first += drop-in lands, so it reads healthy on exactly the machines about to
+# break. Ask the config layers whether root= is stated instead, for the default
+# key alone so a fallback or kernel-specific pin cannot cover for it.
+grep -F 'kernel_cmdline_root_pinned' "$upgrade_to_quattro" >/dev/null
+grep -F 'KERNEL_CMDLINE\[default\]' "$upgrade_to_quattro" >/dev/null
+! grep -F 'limine-entry-tool --get-cmdline' "$upgrade_to_quattro" >/dev/null ||
+  fail "the pin check does not depend on the fallback it is about to lose"
+pass "Omarchy 4 upgrade checks whether root= is pinned in the limine config"
+
+# Run the pin check against fixture config layers. A false positive skips the
+# pin and the next boot has no root=; a false negative appends a second pin.
+eval "$(sed -n '/^kernel_cmdline_root_pinned() {$/,/^}$/p' "$upgrade_to_quattro")"
+pin_root=$(mktemp -d)
+trap 'rm -rf "$pin_root"' EXIT
+as_root() {
+  local script=${3//\/etc\//$pin_root/etc/}
+  bash -c "${script//\/usr\/share\//$pin_root/usr/share/}"
+}
+# Takes pairs of a config layer and a line to append to it.
+root_pinned() {
+  rm -rf "${pin_root:?}"/{etc,usr}
+  mkdir -p "$pin_root/etc/default" "$pin_root/etc/limine-entry-tool.d" "$pin_root/usr/share/limine-entry-tool.d"
+  while (($#)); do
+    printf '%s\n' "$2" >>"$pin_root/$1"
+    shift 2
+  done
+  kernel_cmdline_root_pinned
+}
+root_pinned etc/default/limine 'KERNEL_CMDLINE[default]+=" root=UUID=abc rw"' || fail "a quoted root= pin is recognised"
+root_pinned etc/default/limine 'KERNEL_CMDLINE[default]=root=UUID=abc' || fail "an unquoted root= pin is recognised"
+root_pinned etc/default/limine 'KERNEL_CMDLINE[default]+=" dm-mod.create="foo" root=UUID=abc rw"' ||
+  fail "a pin with a quoted parameter before root= is recognised"
+root_pinned usr/share/limine-entry-tool.d/root.conf 'KERNEL_CMDLINE[default]+="root=UUID=abc"' \
+  etc/default/limine 'KERNEL_CMDLINE[default]+=" rw"' || fail "an appending layer keeps an earlier pin"
+root_pinned etc/default/limine 'KERNEL_CMDLINE[default] += " root=UUID=abc rw"' || fail "a pin spaced around += is recognised"
+! root_pinned etc/default/limine "KERNEL_CMDLINE[default]+='root=UUID=abc rw'" ||
+  fail "single quotes are kept, as limine-entry-tool keeps them"
+! root_pinned etc/default/limine 'OLD_KERNEL_CMDLINE[default]+=" root=UUID=abc rw"' || fail "a renamed key is not a pin"
+! root_pinned etc/default/limine '# KERNEL_CMDLINE[default]+=" root=UUID=abc rw"' || fail "a commented-out pin is not a pin"
+! root_pinned etc/default/limine 'KERNEL_CMDLINE[fallback]+=" root=UUID=abc rw"' || fail "a fallback-only pin does not cover default"
+! root_pinned etc/default/limine 'KERNEL_CMDLINE[default]+=" rootflags=subvol=@ rw"' || fail "rootflags= is not root="
+! root_pinned etc/default/limine 'KERNEL_CMDLINE[default]+=" systemd.setenv="root=UUID=abc" rw"' ||
+  fail "root= inside another parameter's value is not a pin"
+! root_pinned etc/default/limine 'KERNEL_CMDLINE[default]+=" systemd.setenv="NOTE=x root=UUID=abc" rw"' ||
+  fail "root= after a space inside a quoted value is not a pin"
+! root_pinned etc/default/limine 'KERNEL_CMDLINE[default]=systemd.setenv="NOTE=x root=UUID=abc rw' ||
+  fail "root= after an unmatched quote is not a pin"
+! root_pinned etc/default/limine 'KERNEL_CMDLINE[default]=ro"x"ot=UUID=abc rw' ||
+  fail "a quoted segment inside a parameter name does not make it root="
+! root_pinned etc/limine-entry-tool.conf 'KERNEL_CMDLINE[default]=root=UUID=abc rw' \
+  etc/default/limine 'KERNEL_CMDLINE[default]=quiet' || fail "a pin replaced by a later layer is not a pin"
+! root_pinned etc/default/limine 'KERNEL_CMDLINE[default]+=" root=UUID=abc rw"' \
+  etc/default/limine 'KERNEL_CMDLINE[default]="quiet"' || fail "a pin replaced later in the same layer is not a pin"
+unset -f as_root
+pass "Omarchy 4 upgrade recognises exactly the root= pins that hold"
+
+# Installing the limine packages can deploy limine on a machine that had no
+# limine.conf when the pin ran, so verification pins whatever the first call skipped.
+(
+  eval "$(sed -n '/^kernel_cmdline_root_checked=/p;/^preserve_kernel_cmdline_root() {$/,/^}$/p;/^verify_kernel_cmdline_root() {$/,/^}$/p' "$upgrade_to_quattro")"
+  limine_conf=0 pin_checks=0
+  as_root() {
+    if [[ $1 == "test" ]]; then
+      ((limine_conf))
+    fi
+  }
+  kernel_cmdline_root_pinned() { ((++pin_checks)); }
+  limine-mkinitcpio() { :; }
+  preserve_kernel_cmdline_root
+  ((pin_checks == 0)) || fail "the pin waits for a limine.conf"
+  limine_conf=1
+  verify_kernel_cmdline_root
+  ((pin_checks == 1)) || fail "kernel cmdline verification pins a machine the transaction put on limine"
+  verify_kernel_cmdline_root
+  ((pin_checks == 1)) || fail "kernel cmdline verification pins a machine only once"
+)
+pass "Omarchy 4 upgrade pins root= on machines the transaction moves to limine"
 
 # The crypt layer hides in the parents on LVM-on-LUKS, and a partial cmdline
 # for an encrypted root must not be written at all.
