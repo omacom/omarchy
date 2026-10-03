@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Launch the default agent inside the scratchpad Herdr session
+# omarchy:hidden=true
+
+# Herdr names the workspace after the pane's cwd, so name it after the console.
+[[ -n ${HERDR_WORKSPACE_ID:-} ]] &&
+  herdr workspace rename "$HERDR_WORKSPACE_ID" scratchpad >/dev/null 2>&1 || true
+
+# Every pane starts a fresh agent, falling back to a shell when none is set.
+omarchy-agent --inline || exec "${SHELL:-/bin/sh}"

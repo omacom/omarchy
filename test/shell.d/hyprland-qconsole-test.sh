@@ -48,7 +48,10 @@ end
 -- Config loads before the outputs are up, so the first pass has no monitor to
 -- read. It still has to leave a rule behind, or the console would open unseeded.
 assert(#rules > 0, "console is ruled even before a monitor can be read")
-assert(current().on_created_empty:find("omarchy%-agent"), "console is seeded with the default agent")
+assert(current().on_created_empty:find("herdr %-%-session scratchpad"),
+  "console is seeded with its dedicated Herdr session")
+assert(current().on_created_empty:find("scratchpad%.toml"),
+  "the seed points Herdr at the scratchpad profile")
 assert(current().on_created_empty:find("^%[workspace special:scratchpad silent%]"),
   "the seed is pinned to the console rather than trusting the spawn to inherit it")
 assert(current().workspace == "special:scratchpad")
@@ -71,7 +74,7 @@ assert(rescale(1440, 1, 0) == 720, "a monitor with nothing reserved")
 local final = current()
 assert(final.gaps_out.top == 0, "the console stays flush with the top, the way a drop-down arrives")
 assert(final.gaps_out.left == final.gaps_out.right, "the panel is centered")
-assert(final.on_created_empty:find("omarchy%-agent"), "refitting keeps the console seeded")
+assert(final.on_created_empty:find("herdr %-%-session scratchpad"), "refitting keeps the console seeded")
 assert(final.no_border == true, "the console drops the active window border")
 
 -- A monitor that cannot be read must not wipe the last good rule.
