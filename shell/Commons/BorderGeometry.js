@@ -371,3 +371,42 @@ function stopPosition(colors, index) {
   if (index >= count) return 1
   return index / (count - 1)
 }
+
+// Shapes require a static GradientStop list. Distribute the spare slots across
+// source segments so every authored stop lands at its exact position; repeated
+// positions at 1.0 make the CurveRenderer collapse to the final color.
+function sampledStopPosition(colors, index, sampleCount) {
+  var count = colors ? colors.length : 0
+  var samples = Math.max(2, Number(sampleCount) || 2)
+  if (count <= 1 || count > samples) return clamp(index / (samples - 1), 0, 1)
+  var segment = Math.min(count - 2, Math.floor(index * (count - 1) / (samples - 1)))
+  var start = Math.floor(segment * (samples - 1) / (count - 1))
+  var end = Math.floor((segment + 1) * (samples - 1) / (count - 1))
+  return (segment + (index - start) / (end - start)) / (count - 1)
+}
+
+function sampledStopColor(colors, index, sampleCount) {
+  var count = colors ? colors.length : 0
+  var samples = Math.max(2, Number(sampleCount) || 2)
+  if (count === 0) return "transparent"
+  if (count === 1) return colors[0]
+
+  var position = sampledStopPosition(colors, index, samples)
+  var scaled = position * (count - 1)
+  var leftIndex = Math.min(count - 1, Math.floor(scaled))
+  var rightIndex = Math.min(count - 1, leftIndex + 1)
+  var amount = scaled - leftIndex
+  if (amount <= 0 || leftIndex === rightIndex) return colors[leftIndex]
+
+  if (typeof Qt === "undefined" || !Qt.color || !Qt.rgba) return colors[leftIndex]
+  var left = typeof colors[leftIndex] === "string" ? Qt.color(colors[leftIndex]) : colors[leftIndex]
+  var right = typeof colors[rightIndex] === "string" ? Qt.color(colors[rightIndex]) : colors[rightIndex]
+  if (!left || !right || left.r === undefined || right.r === undefined) return colors[leftIndex]
+
+  return Qt.rgba(
+    left.r + (right.r - left.r) * amount,
+    left.g + (right.g - left.g) * amount,
+    left.b + (right.b - left.b) * amount,
+    (left.a === undefined ? 1 : left.a) + ((right.a === undefined ? 1 : right.a) - (left.a === undefined ? 1 : left.a)) * amount
+  )
+}
