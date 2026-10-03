@@ -109,6 +109,9 @@ QtObject {
 
   function surfaceWidths(section, token, fallbackWidth) {
     var base = valueOr(section, token === "border" ? ["border-width"] : [token + "-width", "border-width"])
+    if (String(base).length === 0) {
+      base = value("hyprland", "active-border-width")
+    }
     var widths = Geometry.parseWidthSpec(base, fallbackWidth)
     return Geometry.withSideOverrides(
       widths,
