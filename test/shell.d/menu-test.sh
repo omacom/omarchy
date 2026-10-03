@@ -45,6 +45,46 @@ const parsed = menu.parseMenuJsonc(`
 `)
 
 assertEqual(parsed.length, 3, 'menu parses JSONC with comments and trailing commas')
+
+// String-aware trailing commas (#13250)
+const withCommasInStrings = menu.parseMenuJsonc('{\n  "b": { "label": "x, ]y", "action": "mv f{.bak,}" },\n}')
+assertEqual(withCommasInStrings[0].label, 'x, ]y', 'menu keeps a comma before ] inside a label')
+assertEqual(withCommasInStrings[0].action, 'mv f{.bak,}', 'menu keeps a comma before } inside an action')
+assertEqual(menu.parseMenuJsonc('{"a": {"label": "q\\\\"},}')[0].label, 'q\\', 'menu ends a string at a quote after an escaped backslash before a trailing comma')
+
+// Array roots (#13492)
+assertEqual(menu.parseMenuJsonc('[{"label":"should-not-appear"},{"label":"ghost-2"}]').length, 0, 'menu rejects a top-level array instead of turning its indices into entries')
+assertEqual(menu.parseMenuJsonc('// note\n[{"label":"x"},]').length, 0, 'menu rejects a commented top-level array with a trailing comma')
+assertEqual(menu.parseMenuJsonc('{"obj": {"label":"kept"}}').length, 1, 'menu still parses an object root to its entries')
+assertEqual(
+  menu.parseMenuJsonc('{"items": [{"label":"x"}], "a": {"label":"A"}}').map(item => item.id).join(','),
+  'a',
+  'menu skips an items array rather than walking its indices'
+)
+
+// Inline comments (#13493) and comments between a trailing comma and its closer
+assertEqual(menu.parseMenuJsonc('{"a": {"label": "A"}} // note').length, 1, 'menu strips an inline comment tail instead of dropping the whole file')
+assertEqual(menu.parseMenuJsonc('{ // opening note\n"a": {"label": "A"},\n} // closing note\n// final line').length, 1, 'menu strips full-line and inline comments in the same pass')
+assertEqual(menu.parseMenuJsonc('{"s": {"label": "A // B"}}')[0].label, 'A // B', 'menu preserves comment slashes inside a string literal')
+assertEqual(menu.parseMenuJsonc('{"a": {"label": "A"}} // }, "x": {"label": "X"}').length, 1, 'menu ignores JSON syntax carried inside a comment tail')
+assertEqual(menu.parseMenuJsonc('{\n  "a": {"label": "A"},\n  // "b": {"label": "B"},\n}').length, 1, 'menu drops a trailing comma when a whole-line comment sits between it and the closer')
+assertEqual(menu.parseMenuJsonc('{\n  "a": {"label": "A"}, // note\n}').length, 1, 'menu drops a trailing comma when an inline comment follows it on the last entry')
+assertEqual(menu.parseMenuJsonc('{"a": {"label": "A", "aliases": ["x", // note\n]}}')[0].aliases.join(','), 'x', 'menu drops a trailing comma before ] behind a comment')
+assertEqual(menu.parseMenuJsonc('{"a": {"label": "A", "n": 1//c\n2}}').length, 0, 'menu keeps the line break after a comment so tokens on either side are not joined')
+
+// Whitespace outside strings that JSON.parse rejects: Unicode spaces, vertical tab, form feed
+for (const [name, space] of [['a byte order mark', '\uFEFF'], ['a no-break space', '\u00A0'], ['a line separator', '\u2028'], ['an ideographic space', '\u3000'], ['a vertical tab', '\u000B'], ['a form feed', '\u000C']]) {
+  assertEqual(menu.parseMenuJsonc(space + '// note\n{"a": {"label": "A"}}').length, 1, `menu reads ${name} before a leading comment as whitespace`)
+  assertEqual(menu.parseMenuJsonc('{\n' + space + '// note\n"a": {"label": "A"}}').length, 1, `menu reads ${name} indenting a comment line as whitespace`)
+  assertEqual(menu.parseMenuJsonc(space + '{"a": {"label": "A"}}').length, 1, `menu reads ${name} before the opening brace as whitespace`)
+}
+assertEqual(menu.parseMenuJsonc('{"a": {"label": "A\u00A0B\u2028C"}}')[0].label, 'A\u00A0B\u2028C', 'menu keeps Unicode spaces inside a string literal')
+const sampleExtension = fs.readFileSync(path.join(root, 'config/omarchy/extensions/omarchy-menu.jsonc'), 'utf8')
+assertEqual(
+  menu.parseMenuJsonc(sampleExtension.replace(/^  \/\/ ("personal[^"]*": \{[^\n]*)$/gm, '  $1')).map(item => item.id).join(','),
+  'personal,personal.notes,personal.files',
+  'menu loads the example rows uncommented in the sample extension'
+)
 assertDeepEqual(
   parsed.find(item => item.id === 'style.theme'),
   {
