@@ -501,7 +501,12 @@ prioritize_entries() {
     # print "priority<TAB>record"
     printf "%d\t%s\n", prio, $0
   }' |
-  sort -k1,1n -k2,2 |
+  # Most rows tie on both keys, so their order comes from sort's last-resort
+  # whole-line comparison, and that comparison follows the collation. en_US
+  # ignores the spaces and the + in a chord, which interleaves the modifier sets
+  # that C keeps together, so the cheatsheet would be ordered differently per
+  # locale. Name the collation rather than inherit one.
+  LC_ALL=C sort -k1,1n -k2,2 |
   cut -f2-
 }
 
@@ -533,7 +538,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v14\n'
+    printf 'v18\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
