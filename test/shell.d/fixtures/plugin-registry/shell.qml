@@ -151,6 +151,16 @@ ShellRoot {
     root.assertEqual(registry.entryPointUrl(registry.installedPlugins["third.panel"], "panel"), "file:///third/panel/Panel.qml", "entryPointUrl resolves plugin-relative paths")
     root.assertEqual(registry.entryPointUrl(registry.installedPlugins["third.widget"], "barWidget"), "file:///third/widget/Widget.qml", "entryPointUrl resolves bar widget paths")
 
+    // Hot-reload cannot call QQmlEngine::clearComponentCache from QML
+    // (issue #10568). Bumping componentCacheEpoch must change entry-point
+    // URLs so Loaders re-read edited plugin sources instead of cached ones.
+    var beforeReload = registry.entryPointUrl(registry.installedPlugins["third.panel"], "panel")
+    registry.componentCacheEpoch = 1
+    var afterReload = registry.entryPointUrl(registry.installedPlugins["third.panel"], "panel")
+    root.assertTrue(afterReload !== beforeReload, "entryPointUrl changes after componentCacheEpoch advances")
+    root.assertTrue(afterReload.indexOf("omarchyReload=1") !== -1, "entryPointUrl carries the reload epoch as a query")
+    registry.componentCacheEpoch = 0
+
     root.assertTrue(!has("omarchy.reserved"), "third-party omarchy namespace ids are rejected")
     root.assertTrue(!has("third.unsafe"), "unsafe entry points are rejected")
     root.assertTrue(!has("third.missing"), "incomplete manifests are rejected")
