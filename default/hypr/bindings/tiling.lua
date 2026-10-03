@@ -44,8 +44,21 @@ o.bind("SUPER + SHIFT + RIGHT", "Swap window to the right", hl.dsp.window.swap({
 o.bind("SUPER + SHIFT + UP", "Swap window up", hl.dsp.window.swap({ direction = "u" }))
 o.bind("SUPER + SHIFT + DOWN", "Swap window down", hl.dsp.window.swap({ direction = "d" }))
 
-o.bind("ALT + TAB", "Focus on next window", hl.dsp.window.cycle_next())
-o.bind("ALT + SHIFT + TAB", "Focus on previous window", hl.dsp.window.cycle_next({ next = false }))
+local function focus_alt_tab(direction, fallback)
+  return function()
+    local workspace = hl.get_active_special_workspace() or hl.get_active_workspace()
+    local window = hl.get_active_window()
+
+    if workspace and window and workspace.tiled_layout == "scrolling" and not window.floating then
+      hl.dispatch(hl.dsp.layout("focus " .. direction))
+    else
+      hl.dispatch(fallback)
+    end
+  end
+end
+
+o.bind("ALT + TAB", "Focus on next window", focus_alt_tab("r", hl.dsp.window.cycle_next()))
+o.bind("ALT + SHIFT + TAB", "Focus on previous window", focus_alt_tab("l", hl.dsp.window.cycle_next({ next = false })))
 o.bind("ALT + TAB", "Reveal active window on top", hl.dsp.window.bring_to_top())
 o.bind("ALT + SHIFT + TAB", "Reveal active window on top", hl.dsp.window.bring_to_top())
 
