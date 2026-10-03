@@ -833,10 +833,14 @@ BarWidget {
         if (mouse.button === Qt.RightButton) {
           mouse.accepted = true
         } else if (mouse.button === Qt.MiddleButton) {
+          // Activation while a menu is open never clears HyprlandFocusGrab
+          // (the bar is listed as an allowed window), so dismiss first.
+          if (root.trayMenuOpen) root.close()
           trayItemRoot.modelData.secondaryActivate()
         } else if (trayItemRoot.modelData.onlyMenu) {
           trayItemRoot.displayMenu(mouse)
         } else {
+          if (root.trayMenuOpen) root.close()
           trayItemRoot.modelData.activate()
         }
       }
@@ -845,6 +849,8 @@ BarWidget {
       }
     }
 
-    readonly property bool tooltipHovered: visible && opacity > 0 && mouseArea.containsMouse
+    // Hide the bar tooltip while any tray menu is open so it cannot cover
+    // the menu's first rows while the cursor stays over the triggering icon.
+    readonly property bool tooltipHovered: visible && opacity > 0 && mouseArea.containsMouse && !root.trayMenuOpen
   }
 }
