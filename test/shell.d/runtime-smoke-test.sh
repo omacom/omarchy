@@ -593,6 +593,23 @@ jq -e 'all(.[]; .id != "omarchy.audio")' <<<"$geometry" >/dev/null || {
 
 pass "bar remove reloads shell config and updates bar layout"
 
+# A built-in that is both a widget and something else always loads, so the
+# plugin list (which the Enable and Disable pickers filter on) reports it by its
+# place in the bar, or disabling it would leave nothing to enable it again with.
+media_listed() {
+  shell_ipc shell listPlugins | jq -r '.[] | select(.id == "omarchy.media") | .enabled'
+}
+
+[[ $(shell_ipc shell setPluginEnabled omarchy.media true) == "ok" ]] ||
+  fail_with_log "omarchy.media could not be enabled"
+[[ $(media_listed) == "true" ]] ||
+  fail_with_log "an enabled built-in media widget is listed as enabled"
+[[ $(shell_ipc shell setPluginEnabled omarchy.media false) == "ok" ]] ||
+  fail_with_log "omarchy.media could not be disabled"
+[[ $(media_listed) == "false" ]] ||
+  fail_with_log "a disabled built-in media widget is listed as disabled"
+pass "a built-in widget with a service is listed by its place in the bar"
+
 # 'bar put' is what migrations use to place a newly shipped widget, so it has
 # to place one that is missing and leave one that is already there alone,
 # however often it runs.

@@ -166,8 +166,7 @@ Rules:
 1. The active bar option is `bar.id`. Omit it or set it to `omarchy.bar` for
    the built-in bar; set it to a plugin whose manifest declares `kind: "bar"`
    to replace the full bar.
-2. Every plugin instance is one entry — `bar.layout.<section>` for
-   bar widgets, `plugins[]` for everything else.
+2. Every plugin instance is one entry — `bar.layout.<section>` for bar widgets, `plugins[]` for everything else. A third-party plugin that is both a bar widget and something else has one of each: the bar entry is its icon, and the `plugins[]` entry keeps the rest of it enabled when the icon is taken out of the bar.
 3. Settings are inline on the entry. No `config:` sub-object, no
    merge layers.
 4. Built-in bar widget ids are namespaced (`omarchy.clock`, `omarchy.audio`, …).

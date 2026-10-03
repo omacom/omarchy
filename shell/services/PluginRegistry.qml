@@ -228,6 +228,19 @@ QtObject {
     return clone ? findBarLocation(config, clone, section) : { found: false }
   }
 
+  function findPluginLocation(config, id) {
+    if (!Util.isPlainObject(config) || !Array.isArray(config.plugins)) return { found: false }
+    var key = Util.canonicalWidgetId(String(id))
+    for (var j = 0; j < config.plugins.length; j++) {
+      if (config.plugins[j] && Util.canonicalWidgetId(config.plugins[j].id) === key)
+        return { found: true, kind: "plugin", index: j }
+    }
+    return { found: false }
+  }
+
+  // A plugin can be referenced in both places at once, so this reports the
+  // first reference found, in the order the shell cares about. Callers that
+  // must see every reference use findBarLocation and findPluginLocation.
   function findEntryLocation(config, id) {
     if (!Util.isPlainObject(config)) return { found: false }
     var key = Util.canonicalWidgetId(String(id))
@@ -239,12 +252,7 @@ QtObject {
       var barLocation = findBarLocation(config, key, "")
       if (barLocation.found) return barLocation
     }
-    if (Array.isArray(config.plugins)) {
-      for (var j = 0; j < config.plugins.length; j++) {
-        if (config.plugins[j] && Util.canonicalWidgetId(config.plugins[j].id) === key) return { found: true, kind: "plugin", index: j }
-      }
-    }
-    return { found: false }
+    return findPluginLocation(config, key)
   }
 
   function barTarget(config, placement, fallbackSection) {
@@ -324,6 +332,8 @@ QtObject {
     // Enabling a source whose clone is active switches back to the built-in,
     // which is the owner's call, not an unattended caller's.
     if (findRelativeBarLocation(config, id, "").found) return ""
+    // A clone that is more than a widget stays active without its icon.
+    if (Util.isPlainObject(config) && activeCloneFor(config, Util.canonicalWidgetId(String(id)))) return ""
     // The manifest scan is a subprocess and IPC answers before it returns, so
     // an id it has not reached yet is not one that does not exist.
     if (scanning && !installedPlugins[Util.canonicalWidgetId(String(id))]) return "not ready"
@@ -430,7 +440,8 @@ QtObject {
         ? candidateManifest.omarchy : null
       if (!candidateMetadata || String(candidateMetadata.clonedFrom || "") !== sourceId) continue
       if (Array.isArray(candidateManifest.kinds) && candidateManifest.kinds.indexOf("bar") !== -1) {
-        if (Util.canonicalWidgetId(String(config.bar.id || "")) === candidate) return candidate
+        var selectedBar = Util.isPlainObject(config.bar) ? String(config.bar.id || "") : ""
+        if (Util.canonicalWidgetId(selectedBar) === candidate) return candidate
       } else if (findEntryLocation(config, candidate).found) {
         return candidate
       }
@@ -462,9 +473,12 @@ QtObject {
           restoredEntry.id = sourceId
           config.bar.layout[cloneLocation.section][cloneLocation.index] = restoredEntry
         }
-      } else if (cloneLocation.kind === "plugin") {
-        config.plugins.splice(cloneLocation.index, 1)
       }
+      // A clone that is more than a widget also holds a plugins[] entry, so
+      // clear that whichever way it was referenced. Leaving it behind would
+      // keep the clone enabled after its source was restored.
+      var clonePluginLocation = findPluginLocation(config, cloneId)
+      if (clonePluginLocation.found) config.plugins.splice(clonePluginLocation.index, 1)
     }
 
     if (cloneShouldRestoreSource(config, cloneId)) removeDisabled(config, sourceId)
@@ -519,28 +533,32 @@ QtObject {
       }
 
       var isFirstParty = manifest && manifest.__isFirstParty
-      var location = findEntryLocation(config, key)
 
       if (value) {
         removeDisabled(config, key)
-        var entry = { id: key }
         var insertedWithPlacement = false
-        if (!location.found && isBarWidget) {
+
+        // A widget is enabled by its place in the bar. Anything with another
+        // kind is enabled by a plugins[] entry, and a plugin that is both
+        // needs both: the panel behind a bar icon must not be unloaded just
+        // because the icon was taken out of the bar.
+        if (isBarWidget && !findBarLocation(config, key, "").found) {
           var sourceLocation = clonedFrom ? findEntryLocation(config, clonedFrom) : { found: false }
           if (sourceLocation.kind === "bar") {
             var sourceEntry = config.bar.layout[sourceLocation.section][sourceLocation.index]
-            var replacement = Util.isPlainObject(sourceEntry) ? Util.cloneJson(sourceEntry) : entry
+            var replacement = Util.isPlainObject(sourceEntry) ? Util.cloneJson(sourceEntry) : { id: key }
             replacement.id = key
             config.bar.layout[sourceLocation.section][sourceLocation.index] = replacement
           } else {
             var section = defaultBarWidgetSection(manifest)
             var target = barTarget(config, placement || {}, section)
-            config.bar.layout[target.section].splice(target.index, 0, entry)
+            config.bar.layout[target.section].splice(target.index, 0, { id: key })
             insertedWithPlacement = true
           }
-        } else if (!location.found && !isFirstParty) {
-          config.plugins.push(entry)
         }
+
+        if (hasNonWidgetKind && !isFirstParty && !findPluginLocation(config, key).found)
+          config.plugins.push({ id: key })
 
         if (isBarWidget && !insertedWithPlacement && placement && Object.keys(placement).length)
           moveBarEntry(config, key, placement)
@@ -552,9 +570,17 @@ QtObject {
         return
       }
 
-      if (clonedFrom) restoreCloneSource(config, key, clonedFrom)
-      else if (location.kind === "bar") config.bar.layout[location.section].splice(location.index, 1)
-      else if (location.kind === "plugin") config.plugins.splice(location.index, 1)
+      // Off means off: clear every reference, not just the first one found.
+      // Enabling a plugin that is both a widget and a panel writes two, and
+      // leaving one behind would report it as still enabled.
+      if (clonedFrom) {
+        restoreCloneSource(config, key, clonedFrom)
+      } else {
+        var barEntry = findBarLocation(config, key, "")
+        if (barEntry.found) config.bar.layout[barEntry.section].splice(barEntry.index, 1)
+        var pluginEntry = findPluginLocation(config, key)
+        if (pluginEntry.found) config.plugins.splice(pluginEntry.index, 1)
+      }
 
       // Dropping the layout entry is the whole story for a widget. Anything
       // else built-in loads by default, so switching it off has to be stated.
