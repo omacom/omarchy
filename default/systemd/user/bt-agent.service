@@ -4,13 +4,17 @@ Documentation=man:bt-agent(1)
 ConditionPathIsDirectory=/sys/class/bluetooth
 # bluez must be reachable on the system bus before we can register.
 After=dbus.socket
+# The wait for bluetoothd below would otherwise hold graphical-session.target,
+# and every uwsm-app launch behind it, for up to 30 seconds.
+After=graphical-session.target
 Requires=dbus.socket
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-# If bluetoothd is unavailable (for example in VMs or machines without a
-# usable adapter), skip cleanly instead of entering a restart loop.
-ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service
+# The user manager cannot order this unit after the system manager's Bluetooth
+# service, so wait through the normal boot race instead of skipping forever.
+ExecStartPre=/usr/bin/timeout 30 /bin/bash -c 'until /usr/bin/systemctl is-active --quiet bluetooth.service; do sleep 1; done'
 # NoInputNoOutput auto-accepts pair requests. Safe because the adapter
 # is only `pairable: true` when the user explicitly opens the omarchy
 # bluetoothPanel and starts scanning; outside that window bluez refuses
