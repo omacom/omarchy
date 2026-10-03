@@ -580,7 +580,11 @@ prepare_caller_mounts() {
   # Privacy is an explicit preflight step for both already-pinned sources, not
   # a side effect halfway through the two-mount transaction. Old umask-022
   # installs are hardened together before either Docker-facing anchor changes.
-  chmod 0700 -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" || {
+  # GNU chmod keeps a directory's setuid/setgid bits across a four-digit numeric
+  # mode, so a stray 2700 on ~/Windows would survive 0700 and fail the check
+  # below; the five-digit form clears every special bit as well.
+  chmod 00700 -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" || {
+    echo "omarchy-windows-vm: could not make the storage and shared directories private" >&2
     exec {storage_fd}<&-
     exec {shared_fd}<&-
     return 1
@@ -588,6 +592,7 @@ prepare_caller_mounts() {
   storage_mode=$(stat -Lc '%a' "/proc/$BASHPID/fd/$storage_fd" 2>/dev/null) || storage_mode=""
   shared_mode=$(stat -Lc '%a' "/proc/$BASHPID/fd/$shared_fd" 2>/dev/null) || shared_mode=""
   if [[ $storage_mode != 700 || $shared_mode != 700 ]]; then
+    echo "omarchy-windows-vm: storage and shared directories must be mode 0700 (got ${storage_mode:-unknown} and ${shared_mode:-unknown})" >&2
     exec {storage_fd}<&-
     exec {shared_fd}<&-
     return 1
