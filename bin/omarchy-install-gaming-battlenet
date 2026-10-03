@@ -42,7 +42,16 @@ if [[ -f $LAUNCHER ]]; then
   launched_installer=0
 else
   cache_dir="$HOME/.cache/omarchy"
+  if [[ -L $cache_dir ]]; then
+    echo "Error: $cache_dir is a symlink" >&2
+    exit 1
+  fi
   mkdir -p "$cache_dir"
+  # The detached installer creates the log later, at the caller's umask.
+  # mkdir -p does not tighten a directory that already exists, and nothing
+  # else makes ~/.cache mode 0700. The directory mode is what keeps the log
+  # private.
+  chmod 700 "$cache_dir"
   installer="$cache_dir/Battle.net-Setup.exe"
 
   echo
@@ -57,7 +66,13 @@ app launcher.
 
 EOF
 
-  log="/tmp/omarchy-battlenet-installer.log"
+  # The log is written by the detached installer after this script exits, so it
+  # cannot be cleaned up here. At a fixed name in /tmp another local account
+  # could read it, and with fs.protected_regular a second user running this
+  # command got "Permission denied" on the file the first user left. cache_dir
+  # is mode 0700, so a fixed name here is private and each run overwrites the
+  # last log.
+  log="$cache_dir/battlenet-installer.log"
   setsid -f sh -c "umu-run '$installer' >'$log' 2>&1" </dev/null >/dev/null 2>&1
   echo "Installer log: $log"
   launched_installer=1
