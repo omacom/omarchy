@@ -113,15 +113,39 @@ cat >"$restart_bin/quickshell" <<'SH'
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
 
 case " $* " in
+  *' list '*)
+    # Live test instances as `quickshell list -j` reports them; 303 stands for
+    # the fresh shell and is not a real process. Zombies count as gone.
+    [[ ${OMARCHY_TEST_QS_LIST_ZERO:-0} == 1 ]] && { printf '[{"pid": 0}]\n'; exit 0; }
+    pids=()
+    while read -r pid; do
+      [[ $pid =~ ^[0-9]+$ && $pid != 303 ]] || continue
+      state=$(ps -o stat= -p "$pid" 2>/dev/null)
+      [[ -n $state && $state != Z* ]] && pids+=("{\"pid\": $pid}")
+    done <"$OMARCHY_TEST_QS_STATE"
+    if (( ${#pids[@]} > 0 )); then
+      (IFS=,; printf '[%s]\n' "${pids[*]}")
+    else
+      printf 'No running instances\n'
+    fi
+    ;;
   *' kill -p '*)
     pid=$(head -n 1 "$OMARCHY_TEST_QS_STATE")
     [[ $pid =~ ^[0-9]+$ ]] || exit 1
+    # A shell too busy to exit before the caller's timeout gives up on it.
+    [[ ${OMARCHY_TEST_QS_STUBBORN:-0} == 1 ]] && exit 124
     kill "$pid" 2>/dev/null
     while kill -0 "$pid" 2>/dev/null; do sleep 0.01; done
     awk 'NR > 1' "$OMARCHY_TEST_QS_STATE" >"$OMARCHY_TEST_QS_STATE.next"
     mv "$OMARCHY_TEST_QS_STATE.next" "$OMARCHY_TEST_QS_STATE"
     ;;
   *' -n -p '*)
+    # A supervised shell that stays up until it is killed.
+    if [[ -f $OMARCHY_TEST_QS_STATE.serve ]]; then
+      rm -f "$OMARCHY_TEST_QS_STATE.serve"
+      printf '%s\n' "$$" >"$OMARCHY_TEST_QS_STATE"
+      exec sleep 30
+    fi
     printf '%s\n' "${OMARCHY_TEST_TRANSIENT_ENV-unset}" >"$OMARCHY_TEST_QS_ENV_LOG"
     printf '303\n' >"$OMARCHY_TEST_QS_STATE"
     ;;
@@ -323,3 +347,95 @@ grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null 
 [[ -f $restart_state.locked ]] || fail "lock recovery did not re-secure the session without notifications"
 grep -q "notification service did not become ready" "$test_tmp/dead-notifications.out" || fail "a missing notification service is not reported" "$(cat "$test_tmp/dead-notifications.out")"
 pass "restart recovers the lock even when the notification service never returns"
+
+# A shell too busy to exit before the kill timeout used to end the kill loop
+# while still alive: the replacement exited as a duplicate and restart could
+# report success with no shell left. Restart must wait it out, force it, and
+# only then launch exactly one fresh shell. Disowned, so bash neither leaves
+# it a zombie nor reports it being killed.
+sleep 30 &
+stubborn_pid=$!
+disown "$stubborn_pid"
+printf '%s\n' "$stubborn_pid" >"$restart_state"
+: >"$restart_log"
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STUBBORN=1 \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 20 "$ROOT/bin/omarchy-restart-shell" || fail "restart replaces a shell that outlasts the kill timeout"
+
+state=$(ps -o stat= -p "$stubborn_pid" 2>/dev/null || true)
+[[ -z $state || $state == Z* ]] || { kill -KILL "$stubborn_pid" 2>/dev/null; fail "restart forces a shell that will not exit"; }
+[[ $(<"$restart_state") == 303 ]] || fail "restart launches the fresh shell only after the old one is gone"
+[[ $(grep -c '^-n -p ' "$restart_log") == 1 ]] || fail "restart launches one fresh shell after forcing the old one"
+pass "restart waits out and then forces a shell slow to exit before launching its replacement"
+
+# Forcing a supervised shell must stop its supervisor too, or the supervisor
+# reads the SIGKILL as a crash and relaunches a second shell after its backoff.
+: >"$restart_state"
+touch "$restart_state.serve"
+: >"$restart_log"
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+  "$restart_bin/omarchy-launch-shell" &
+supervisor_pid=$!
+for (( attempt = 0; attempt < 50; attempt++ )); do
+  [[ -s $restart_state ]] && break
+  sleep 0.1
+done
+supervised_pid=$(<"$restart_state")
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STUBBORN=1 \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 20 "$ROOT/bin/omarchy-restart-shell" || fail "restart replaces a supervised shell that outlasts the kill timeout"
+
+# Past the supervisor's one-second relaunch backoff.
+sleep 2
+if kill -0 "$supervisor_pid" 2>/dev/null; then
+  kill "$supervisor_pid" 2>/dev/null
+  fail "restart stops the supervisor of a shell it forces"
+fi
+wait "$supervisor_pid" 2>/dev/null || true
+kill -0 "$supervised_pid" 2>/dev/null && fail "restart forces a supervised shell that will not exit"
+[[ $(grep -c '^-n -p ' "$restart_log") == 2 ]] || fail "the forced shell's supervisor does not relaunch it" "$(cat "$restart_log")"
+pass "restart stops the supervisor of a shell it forces"
+
+# quickshell list reports pid 0 for an instance whose lock it cannot read, and
+# kill 0 signals the caller's whole process group.
+: >"$restart_log"
+restart_status=0
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STUBBORN=1 \
+OMARCHY_TEST_QS_LIST_ZERO=1 \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 20 "$ROOT/bin/omarchy-restart-shell" >"$test_tmp/zero-pid.out" 2>&1 || restart_status=$?
+(( restart_status == 1 )) || fail "restart never signals pid 0 for an unreadable instance" "status $restart_status: $(cat "$test_tmp/zero-pid.out")"
+grep -q "would not exit; not launching a duplicate" "$test_tmp/zero-pid.out" || fail "restart reports an instance it could not stop" "$(cat "$test_tmp/zero-pid.out")"
+[[ $(grep -c '^-n -p ' "$restart_log") == 0 ]] || fail "restart launches no duplicate beside an instance it could not stop"
+pass "restart never signals pid 0 for an unreadable instance"

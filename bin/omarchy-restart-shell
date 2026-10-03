@@ -76,9 +76,49 @@ if notifications_ready; then
   notifications_were_running=1
 fi
 
-# Each kill stops the oldest matching instance and only returns once it has
-# fully exited, so the no-duplicate launch below can't race a dying shell.
+# Each kill stops the oldest matching instance and returns once it has exited,
+# unless the timeout gives up on a shell that is slow to tear down.
 while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
+
+# A busy shell can take longer to exit than the timeout allows. The loop then
+# ends with it still alive, the replacement below exits at once as a
+# duplicate, and the readiness check can even be answered by the dying shell:
+# restart reports success and leaves no shell at all. So wait until no
+# instance is listed, and force any that outlast a grace period.
+shell_instance_pids() {
+  quickshell list -p "$CONFIG_DIR" --any-display -j 2>/dev/null | jq -r '.[]?.pid' 2>/dev/null
+}
+
+# Stop the supervisor first, or it relaunches the shell as if it had crashed.
+# A pid of 0, from an unreadable instance lock, would signal our process group.
+force_shell_exit() {
+  local pid parent
+
+  for pid in "$@"; do
+    [[ $pid =~ ^[1-9][0-9]*$ ]] || continue
+    parent=$(ps -o ppid= -p "$pid" 2>/dev/null)
+    parent=${parent// /}
+    if [[ -n $parent && $(ps -o args= -p "$parent" 2>/dev/null) == *"/omarchy-launch-shell" ]]; then
+      kill -TERM "$parent" 2>/dev/null
+    fi
+    kill -KILL "$pid" 2>/dev/null
+  done
+}
+
+grace_deadline=$((SECONDS + 5))
+give_up_deadline=$((SECONDS + 10))
+while true; do
+  mapfile -t lingering < <(shell_instance_pids)
+  (( ${#lingering[@]} == 0 )) && break
+
+  if (( SECONDS >= give_up_deadline )); then
+    echo "Omarchy shell (pid ${lingering[*]}) would not exit; not launching a duplicate." >&2
+    exit 1
+  fi
+
+  (( SECONDS >= grace_deadline )) && force_shell_exit "${lingering[@]}"
+  sleep 0.1
+done
 
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.
