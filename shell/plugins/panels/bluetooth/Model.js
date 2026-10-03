@@ -99,6 +99,48 @@ function deviceRow(d) {
   }
 }
 
+function scrollRowKey(row) {
+  if (!row) return ""
+  return row.section + "/" + (row.dev ? row.dev.address : "")
+}
+
+// Flat list-model entries for the scrollable half of the panel. Device fields
+// are dev-prefixed because a delegate Item already owns `state`, and the
+// section title is resolved here so a delegate never has to look at its
+// neighbours.
+function scrollRowEntries(rows) {
+  var list = toArray(rows)
+  var entries = []
+  var previousSection = ""
+
+  for (var i = 0; i < list.length; i++) {
+    var row = list[i]
+    if (!row) continue
+
+    var d = row.dev || {}
+    var opensSection = entries.length === 0 || previousSection !== row.section
+
+    entries.push({
+      key: scrollRowKey(row),
+      section: row.section,
+      indexInSection: row.indexInSection,
+      sectionTitle: opensSection ? (row.section === "known" ? "PAIRED" : "AVAILABLE") : "",
+      devAddress: d.address || "",
+      devName: d.name || "",
+      devDeviceName: d.deviceName || "",
+      devConnected: !!d.connected,
+      devState: d.state !== undefined ? d.state : -1,
+      devBatteryAvailable: !!d.batteryAvailable,
+      devBattery: d.battery !== undefined ? d.battery : 0,
+      devPairing: !!d.pairing
+    })
+
+    previousSection = row.section
+  }
+
+  return entries
+}
+
 function deviceLists(devices) {
   var values = toArray(devices)
   var connected = []
@@ -167,6 +209,8 @@ if (typeof module !== "undefined") {
     bluetoothSinkMatchesDevice: bluetoothSinkMatchesDevice,
     sortedByLabel: sortedByLabel,
     deviceRow: deviceRow,
+    scrollRowKey: scrollRowKey,
+    scrollRowEntries: scrollRowEntries,
     deviceLists: deviceLists,
     cloneMap: cloneMap,
     pendingAction: pendingAction,
