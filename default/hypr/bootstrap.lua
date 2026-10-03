@@ -37,3 +37,8 @@ package.path = home
   .. (os.getenv("OMARCHY_PATH") or "/usr/share/omarchy")
   .. "/?.lua;"
   .. package.path
+
+-- Install before any default or user module can register a binding.
+if hl then
+  require("default.hypr.keybindings").install()
+end

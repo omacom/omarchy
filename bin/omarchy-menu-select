@@ -13,6 +13,9 @@
 # with same-named rows get the subtext back as the stable key.
 
 set -euo pipefail
+# Exit 1 means no selection (or invalid arguments). Operational failures,
+# including an unavailable shell, must be distinguishable from dismissal.
+trap 'exit 2' ERR
 
 if (( $# < 1 )); then
   echo "Usage: omarchy-menu-select <prompt> [option...] [-- menu args...]" >&2
