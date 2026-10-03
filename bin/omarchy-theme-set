@@ -420,7 +420,8 @@ post_theme_commands=(
   omarchy-restart-terminal
   omarchy-restart-hyprctl
   omarchy-restart-btop
-  omarchy-restart-opencode
+  # No omarchy-restart-opencode: the SIGUSR2 that retints a running opencode TUI
+  # also aborts its reply, and kills headless opencode outright (#8002).
   omarchy-restart-helix
   omarchy-theme-set-foot
   omarchy-theme-set-tmux
