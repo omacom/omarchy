@@ -21,6 +21,7 @@ trap 'rm -rf "$TMPDIR"' EXIT
 mkdir -p "$TMPDIR/bin"
 STATE="$TMPDIR/hyprsunset-temp"
 SHELL_LOG="$TMPDIR/omarchy-shell-log"
+PGREP_LOG="$TMPDIR/pgrep-log"
 
 cat >"$TMPDIR/bin/hyprctl" <<'SH'
 #!/bin/bash
@@ -39,6 +40,7 @@ SH
 
 cat >"$TMPDIR/bin/pgrep" <<'SH'
 #!/bin/bash
+printf '%s\n' "$*" >>"$PGREP_LOG"
 exit 0
 SH
 
@@ -53,6 +55,7 @@ nightlight_cli() {
   PATH="$TMPDIR/bin:$PATH" \
   HYPRSUNSET_STATE="$STATE" \
   OMARCHY_SHELL_LOG="$SHELL_LOG" \
+  PGREP_LOG="$PGREP_LOG" \
     "$ROOT/bin/omarchy-toggle-nightlight" "$@"
 }
 
@@ -81,6 +84,9 @@ pass "nightlight toggle warms the screen from daylight"
 
 grep -Fqx -- '-q nightlight refresh' "$SHELL_LOG" || fail "nightlight toggle nudges the shell nightlight service"
 pass "nightlight toggle nudges the shell nightlight service"
+
+grep -Fqx -- "-u $USER -x hyprsunset" "$PGREP_LOG" || fail "nightlight toggle only looks for the current user's hyprsunset"
+pass "nightlight toggle only looks for the current user's hyprsunset"
 
 nightlight_cli >/dev/null
 [[ $(<"$STATE") == 6500 ]] || fail "nightlight toggle restores daylight from night light"
