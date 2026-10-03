@@ -79,6 +79,13 @@ none were given, the router shows help instead of executing — `omarchy theme
 set` prints usage rather than running an interactive setter. A bare group name
 with child commands shows the group help.
 
+Command help ends with a "Related commands" section. A group-root command
+(its filename stem is one segment) lists its whole group. A named command lists
+only siblings whose route extends its own: `omarchy hyprland monitor internal
+--help` also prints `omarchy hyprland monitor internal mirror`. Hidden commands
+never appear there. On the fast path the router registers only the resolved
+binary's filename descendants rather than every group member.
+
 Dispatch is `exec`: the router process is replaced, the binary sees only the
 leftover arguments, and the exit code is the binary's own. The router itself
 exits 127 for unknown routes or missing binaries.
