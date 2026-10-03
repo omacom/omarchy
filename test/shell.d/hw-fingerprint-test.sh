@@ -74,6 +74,11 @@ assert_detects "a reader is detected by an existing product-name match"
 write_usb_devices '27c6:1234'
 assert_detects "a reader is detected by an existing vendor match"
 
+# NEXT Biometrics readers announce a bare "NB-xxxx-U" product string, so they
+# can only be caught by vendor ID.
+write_usb_devices '298d:2033:NB-2033-U'
+assert_detects "a NEXT Biometrics reader is detected by its vendor match"
+
 bind_driver() {
   local dev="$1" driver="$2"
 
