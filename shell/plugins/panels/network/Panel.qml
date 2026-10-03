@@ -25,6 +25,7 @@ Panel {
   function cancelPasswordPrompt() {
     passwordSsid = ""
     passwordText = ""
+    passwordRevealed = false
     identityText = ""
   }
 
@@ -96,6 +97,7 @@ Panel {
   property string failureReason: ""
   property string passwordSsid: ""
   property string passwordText: ""
+  property bool passwordRevealed: false
   property string identityText: ""
 
   // ConnectionFailReason values as a plain object, so Model.js helpers stay
@@ -742,6 +744,7 @@ Panel {
   function openPasswordPrompt(ssid) {
     if (passwordSsid !== ssid) {
       passwordText = ""
+      passwordRevealed = false
       identityText = ""
     }
     passwordSsid = ssid
@@ -1987,7 +1990,8 @@ Panel {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
-        password: true
+        password: !root.passwordRevealed
+        rightPadding: horizontalPadding + Border.right(_borderSpec) + Style.space(18)
         placeholderText: "Passphrase"
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -2003,6 +2007,33 @@ Panel {
 
         onVisibleChanged: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
         Component.onCompleted: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
+        // Eye toggle inside the field's right edge. A MouseArea doesn't take
+        // focus, so typing continues in the field after clicking it.
+        Text {
+          id: revealIcon
+          textFormat: Text.PlainText
+          anchors.right: parent.right
+          anchors.rightMargin: pwField.horizontalPadding
+          anchors.verticalCenter: parent.verticalCenter
+          text: root.passwordRevealed ? "󰈉" : "󰈈"
+          color: revealMouse.containsMouse ? root.bar.foreground : Qt.darker(root.bar.foreground, 1.4)
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.body
+
+          MouseArea {
+            id: revealMouse
+            anchors.fill: parent
+            anchors.margins: -Style.space(4)
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.passwordRevealed = !root.passwordRevealed
+          }
+
+          PanelToolTip {
+            visible: revealMouse.containsMouse
+            text: root.passwordRevealed ? "Hide passphrase" : "Show passphrase"
+          }
+        }
       }
 
       BorderSurface {
