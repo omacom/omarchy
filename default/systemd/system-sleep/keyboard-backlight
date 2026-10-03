@@ -1,20 +1,38 @@
 #!/bin/bash
 
-# Turn off keyboard backlight before hibernate to prevent hang on power-off.
-# The ASUS keyboard controller can block S4 shutdown if LEDs are active.
+# Turn off the ASUS keyboard backlight before hibernate to prevent a hang on
+# power-off, and restore it on resume. The ASUS keyboard controller can block
+# S4 shutdown if its LEDs are active. Other keyboards don't hang, so leave them
+# alone: zeroing them with no restore left their backlight off for good, since
+# systemd-backlight then saves the 0 at the next shutdown.
 
+leds_dir=/sys/class/leds
+# /run is in RAM, so it is part of the hibernation image and survives resume.
+state_dir=/run/omarchy-kbd-backlight
 sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
 
 if [[ $1 == "pre" && $sleep_action == "hibernate" ]]; then
-  device=""
-  for candidate in /sys/class/leds/*kbd_backlight*; do
-    if [[ -e "$candidate" ]]; then
-      device="$(basename "$candidate")"
-      break
+  for led in "$leds_dir"/asus*kbd_backlight*; do
+    [[ -f $led/brightness ]] || continue
+    saved="$state_dir/${led##*/}"
+    if ! { mkdir -p "$state_dir" && cat "$led/brightness" >"$saved" && [[ -s $saved ]]; }; then
+      rm -f "$saved"
+      echo "keyboard-backlight: could not save ${led##*/} brightness; it stays off after resume" >&2
     fi
+    # Turn it off even without a saved level: a dark keyboard comes back with
+    # the brightness keys, a hang on power-off needs a hard reset.
+    echo 0 >"$led/brightness"
   done
-
-  if [[ -n "$device" ]]; then
-    brightnessctl -d "$device" set 0 >/dev/null 2>&1
-  fi
+elif [[ $1 == "post" && -d $state_dir ]]; then
+  for saved in "$state_dir"/*; do
+    [[ -f $saved ]] || continue
+    led="$leds_dir/${saved##*/}"
+    if [[ -s $saved && -f $led/brightness ]]; then
+      cat "$saved" >"$led/brightness"
+    fi
+    rm -f "$saved"
+  done
+  rmdir "$state_dir" 2>/dev/null
 fi
+
+exit 0
