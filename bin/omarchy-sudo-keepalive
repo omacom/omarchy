@@ -3,7 +3,25 @@
 # omarchy:summary=Prompt for sudo once and keep the credential alive in the background.
 # omarchy:requires-sudo=true
 
+# Source this so the EXIT trap applies to the calling shell:
+#   source omarchy-sudo-keepalive
+
+# Refresh for at most an hour by default so a long pacman/yay install does not
+# re-prompt, while an abandoned or SIGKILLed install cannot renew forever.
+# Tests override the interval and ceiling to keep the suite fast.
+keepalive_interval=${OMARCHY_SUDO_KEEPALIVE_INTERVAL:-60}
+keepalive_max_refreshes=${OMARCHY_SUDO_KEEPALIVE_MAX_REFRESHES:-60}
+keepalive_parent_pid=$$
+
 sudo -v
-while true; do sudo -n true; sleep 60; done 2>/dev/null &
+
+(
+  trap - EXIT
+  for ((refresh = 0; refresh < keepalive_max_refreshes; refresh++)); do
+    sleep "$keepalive_interval" || exit 0
+    kill -0 "$keepalive_parent_pid" 2>/dev/null || exit 0
+    sudo -n true 2>/dev/null || exit 0
+  done
+) &
 SUDO_KEEPALIVE_PID=$!
-trap "kill $SUDO_KEEPALIVE_PID 2>/dev/null" EXIT
+trap 'kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true; wait "$SUDO_KEEPALIVE_PID" 2>/dev/null || true; sudo -k' EXIT
