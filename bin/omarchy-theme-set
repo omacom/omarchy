@@ -57,7 +57,7 @@ is_video_path() {
 snapshot_background_path() {
   local background="$1"
   local name="$2"
-  local snapshot extension
+  local snapshot extension twin
 
   [[ -f $background ]] || return
   is_video_path "$background" && return
@@ -66,7 +66,24 @@ snapshot_background_path() {
   extension=${background##*.}
   snapshot="$BACKGROUND_TRANSITION_CACHE/$name-$$.$extension"
   ln "$background" "$snapshot" 2>/dev/null || cp "$background" "$snapshot"
+
+  # A portrait twin rides along under the same name, where the shell looks
+  # for it on screens taller than wide. Only backgrounds folders have twins.
+  twin="${background%/*}/portrait/${background##*/}"
+  if [[ ${background%/*} == */backgrounds || ${background%/*} == */omarchy/backgrounds/* ]] && [[ -f $twin ]]; then
+    mkdir -p "$BACKGROUND_TRANSITION_CACHE/portrait"
+    ln "$twin" "$BACKGROUND_TRANSITION_CACHE/portrait/${snapshot##*/}" 2>/dev/null || cp "$twin" "$BACKGROUND_TRANSITION_CACHE/portrait/${snapshot##*/}"
+  fi
+
   echo "$snapshot"
+}
+
+remove_background_snapshots() {
+  local snapshot
+
+  for snapshot in "$@"; do
+    [[ -n $snapshot ]] && rm -f "$snapshot" "${snapshot%/*}/portrait/${snapshot##*/}"
+  done
 }
 
 snapshot_current_background() {
@@ -186,7 +203,7 @@ set_theme_background() {
   if [[ -n $PREPARED_BACKGROUND_SNAPSHOT && $PREPARED_BACKGROUND == "$new_background" ]]; then
     new_background_snapshot="$PREPARED_BACKGROUND_SNAPSHOT"
   else
-    [[ -z $PREPARED_BACKGROUND_SNAPSHOT ]] || rm -f "$PREPARED_BACKGROUND_SNAPSHOT"
+    remove_background_snapshots "$PREPARED_BACKGROUND_SNAPSHOT"
     if [[ $BACKGROUND_TRANSITION_SNAPSHOTS == "true" ]]; then
       new_background_snapshot=$(snapshot_background_path "$new_background" "next")
     fi
@@ -195,16 +212,16 @@ set_theme_background() {
   if [[ -f $OLD_BACKGROUND_SNAPSHOT && -f $new_background_snapshot ]]; then
     shell_ipc background themeTransition "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot" "$new_background" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
-    (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot") &
+    (sleep 3; remove_background_snapshots "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot") &
   elif [[ -f $new_background_snapshot ]]; then
     shell_ipc background themeTransition "" "$new_background_snapshot" "$new_background" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
-    (sleep 3; rm -f "$new_background_snapshot") &
+    (sleep 3; remove_background_snapshots "$new_background_snapshot") &
   else
     shell_ipc background themeTransition "$OLD_BACKGROUND_SNAPSHOT" "$new_background" "$new_background" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
     if [[ -f $OLD_BACKGROUND_SNAPSHOT ]]; then
-      (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT") &
+      (sleep 3; remove_background_snapshots "$OLD_BACKGROUND_SNAPSHOT") &
     fi
   fi
 
