@@ -1,0 +1,22 @@
+[Unit]
+Description=Preserve docked lid behavior across graphical sessions
+Wants=systemd-logind.service
+After=systemd-logind.service
+Before=display-manager.service
+
+[Service]
+Type=exec
+# Both Omarchy helpers are installed by the runtime package in /usr/bin.
+Environment=PATH=/usr/bin
+ExecStart=/usr/bin/omarchy-system-docked-lid-inhibit
+Restart=always
+RestartSec=1
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=graphical.target

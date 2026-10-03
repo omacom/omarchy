@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# omarchy:summary=Keep lid handling docked while an external monitor is connected
+# omarchy:group=system
+# omarchy:hidden=true
+
+set -euo pipefail
+
+docked_lid_policy() {
+  busctl --system get-property org.freedesktop.login1 /org/freedesktop/login1 \
+    org.freedesktop.login1.Manager HandleLidSwitchDocked
+}
+
+notify_ready() {
+  if [[ -n ${NOTIFY_SOCKET:-} ]]; then
+    systemd-notify --ready
+    unset NOTIFY_SOCKET
+  fi
+}
+
+if [[ ${1:-} == "--inhibited" ]]; then
+  # systemd-inhibit starts this child only after acquiring the lock. A failed
+  # policy query must not report readiness; the loop also handles an unplug
+  # during acquisition without leaving a stale inhibitor.
+  policy=$(docked_lid_policy)
+  notify_ready
+  while [[ $policy == 's "ignore"' ]] && omarchy-hw-external-monitors; do
+    sleep 1
+    policy=$(docked_lid_policy)
+  done
+else
+  inhibitor_pid=
+  cleanup() {
+    if [[ -n $inhibitor_pid ]]; then
+      kill "$inhibitor_pid" 2>/dev/null || true
+      wait "$inhibitor_pid" 2>/dev/null || true
+    fi
+  }
+  trap cleanup EXIT
+  trap 'exit 0' TERM INT
+
+  # logind counts enabled outputs, which disappear during compositor teardown
+  # and DPMS. Physical connection is Omarchy's clamshell policy. A system service
+  # keeps that policy in effect between the desktop and the display manager.
+  # Only lid handling is inhibited: explicit suspend and idle policy still work.
+  while true; do
+    # A failed logind query is a service failure, not an undocked policy.
+    policy=$(docked_lid_policy)
+    if [[ $policy == 's "ignore"' ]] && omarchy-hw-external-monitors; then
+      # systemd-inhibit may clear NOTIFY_SOCKET when it forks. Restore it for
+      # the child that can prove acquisition, including on newer systemd builds.
+      systemd-inhibit --what=handle-lid-switch --mode=block --who=Omarchy \
+        --why="External monitor connected" env NOTIFY_SOCKET="${NOTIFY_SOCKET:-}" "$0" --inhibited &
+      inhibitor_pid=$!
+      wait "$inhibitor_pid"
+      inhibitor_pid=
+      unset NOTIFY_SOCKET
+    else
+      # Monitoring is ready even when there is no lid handling to inhibit.
+      notify_ready
+      sleep 1
+    fi
+  done
+fi
