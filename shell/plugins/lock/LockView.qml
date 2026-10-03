@@ -71,6 +71,13 @@ Item {
   onInputEnabledChanged: {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
+  // A failed password sets authenticatingPassword, which disables the field.
+  // Qt drops activeFocus when an item is disabled and does not restore it when
+  // the item is enabled again. inputEnabled stays true, so the handler above
+  // does not run. Take focus back once the password check has finished.
+  onAuthenticatingPasswordChanged: {
+    if (!authenticatingPassword && inputEnabled) Qt.callLater(forcePasswordFocus)
+  }
   Component.onCompleted: {
     syncPasswordText()
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
