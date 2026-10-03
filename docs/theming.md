@@ -37,13 +37,16 @@ User templates in `~/.config/omarchy/themed/*.tpl` are processed before the
 built-in templates. If a user template has the same output filename as a
 built-in template, the built-in output is skipped.
 
-After activation, `omarchy-theme-set` fires the `theme-set` hook
-(`~/.config/omarchy/hooks/theme-set*`, theme name in `$1`) and dispatches a
-parallel retint of running apps — terminals, Hyprland, btop, browser, editors,
-and the rest of the `post_theme_commands` list in `bin/omarchy-theme-set`.
-Making a new app follow theme changes means adding its restart/retint command
-to that list. Runs serialize on a `flock`, so scripted theme changes queue
-instead of racing.
+After activation, `omarchy-theme-set` refreshes Herdr before the normal
+parallel application retint. `omarchy-theme-set-herdr` writes the current OSC
+palette directly to each attached Herdr client TTY, signals the client to
+re-query host colors on Herdr versions that support that behavior, and then
+reloads the running Herdr server. This synchronous barrier ensures
+terminal-adaptive pane applications such as OpenCode do not re-query Herdr's
+previous palette while the rest of the applications are being refreshed. The
+`theme-set` hook (`~/.config/omarchy/hooks/theme-set*`, theme name in `$1`)
+runs after those refreshes. Theme changes serialize on a `flock`, so scripted
+changes queue instead of racing.
 
 Last, it starts `omarchy-theme-set-herdr-machines` detached. That command sets the same theme on every enabled `herdr machine list` target that runs Omarchy, over SSH inside the remote's live Hyprland session, and logs each machine's result to `~/.local/state/omarchy/theme-set-herdr-machines.log`. Sync is off by default. The `herdr-theme-sync` toggle turns it on, and a machine only sends and accepts themes while it is on. A mirrored change carries `OMARCHY_THEME_SYNC_FROM`, so the receiving machine never sends it on.
 

@@ -46,6 +46,33 @@ run_parallel() {
   done
 }
 
+apply_running_theme() {
+  local post_theme_commands=(
+    omarchy-restart-terminal
+    omarchy-restart-hyprctl
+    omarchy-restart-btop
+    omarchy-restart-opencode
+    omarchy-restart-helix
+    omarchy-theme-set-foot
+    omarchy-theme-set-tmux
+    omarchy-theme-set-hunk
+    omarchy-theme-set-gnome
+    omarchy-theme-set-pi
+    omarchy-theme-set-claude
+    omarchy-theme-set-hermes
+    omarchy-theme-set-t3code
+    omarchy-theme-set-browser
+    omarchy-theme-set-vscode
+    omarchy-theme-set-obsidian
+    omarchy-theme-set-keyboard
+  )
+
+  # Herdr owns pane PTYs from its detached server, so retint and reload it
+  # synchronously before terminal-adaptive applications re-query their palette.
+  omarchy-theme-set-herdr
+  run_parallel "${post_theme_commands[@]}"
+}
+
 shell_ipc() {
   timeout 2 omarchy-shell "$@" >/dev/null 2>&1
 }
@@ -416,28 +443,8 @@ fi
 # section, not behind slower app-retint hooks and selector cache warmups.
 flock -u 9
 
-post_theme_commands=(
-  omarchy-restart-terminal
-  omarchy-restart-hyprctl
-  omarchy-restart-btop
-  omarchy-restart-opencode
-  omarchy-restart-helix
-  omarchy-theme-set-foot
-  omarchy-theme-set-tmux
-  omarchy-theme-set-hunk
-  omarchy-theme-set-gnome
-  omarchy-theme-set-pi
-  omarchy-theme-set-claude
-  omarchy-theme-set-hermes
-  omarchy-theme-set-t3code
-  omarchy-theme-set-browser
-  omarchy-theme-set-vscode
-  omarchy-theme-set-obsidian
-  omarchy-theme-set-keyboard
-)
-
 if [[ $THEME_HEADLESS != "1" ]]; then
-  run_parallel "${post_theme_commands[@]}"
+  apply_running_theme
 
   # Call hook on theme set
   omarchy-hook theme-set "$THEME_NAME" >/dev/null
