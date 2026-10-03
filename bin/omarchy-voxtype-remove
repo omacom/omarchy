@@ -5,6 +5,50 @@
 
 set -e
 
+# Drop WirePlumber's per-stream pin for Voxtype so a reinstall cannot reopen
+# onto a stale headset-jack target that records digital zeros on Asahi.
+clear_voxtype_stream_props() {
+  local state=$HOME/.local/state/wireplumber/stream-properties
+  [[ -f $state ]] || return 0
+
+  local tmp
+  tmp=$(mktemp)
+  # Entries are key=value lines; drop any voxtype capture pin regardless of
+  # escaping. Missing jq/python is fine — the file is small enough for sed.
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$state" "$tmp" <<'PY'
+import sys
+src, dst = sys.argv[1], sys.argv[2]
+with open(src, encoding="utf-8", errors="replace") as fh:
+    lines = fh.readlines()
+kept = [line for line in lines if "voxtype" not in line.lower()]
+with open(dst, "w", encoding="utf-8") as fh:
+    fh.writelines(kept)
+PY
+    mv "$tmp" "$state"
+  else
+    grep -vi 'voxtype' "$state" >"$tmp" || true
+    mv "$tmp" "$state"
+  fi
+}
+
+clear_asahi_asoundrc() {
+  local asoundrc=$HOME/.asoundrc
+  local marker_begin='# BEGIN omarchy-voxtype-asahi-mic'
+  local marker_end='# END omarchy-voxtype-asahi-mic'
+  [[ -f $asoundrc ]] || return 0
+  grep -qF "$marker_begin" "$asoundrc" || return 0
+
+  local tmp
+  tmp=$(mktemp)
+  awk -v begin="$marker_begin" -v end="$marker_end" '
+    $0 == begin { skip = 1; next }
+    $0 == end { skip = 0; next }
+    !skip { print }
+  ' "$asoundrc" >"$tmp"
+  mv "$tmp" "$asoundrc"
+}
+
 # Remove voxtype and its configurations.
 
 if omarchy-cmd-present voxtype; then
@@ -14,10 +58,13 @@ if omarchy-cmd-present voxtype; then
   systemctl --user disable --now voxtype.service 2>/dev/null || true
   systemctl --user daemon-reload
 
-  # Remove packages and configs
-  omarchy-pkg-drop voxtype-bin
+  # Remove packages and configs. voxtype-bin is the prebuilt binary and voxtype
+  # the AUR build used when no prebuilt exists; only one is installed.
+  omarchy-pkg-drop voxtype-bin voxtype
   rm -rf ~/.config/voxtype
   rm -rf ~/.local/share/voxtype
+  clear_voxtype_stream_props
+  clear_asahi_asoundrc
   hyprctl reload >/dev/null
 else
   echo "Voxtype was not installed."

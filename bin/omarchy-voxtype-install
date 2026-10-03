@@ -5,6 +5,57 @@
 
 set -e
 
+# When Omarchy's Asahi mic map is available, pin Voxtype's ALSA capture to it
+# so WirePlumber cannot leave it on the headset-jack source (digital zeros).
+configure_asahi_mic() {
+  omarchy-hw-apple-silicon 2>/dev/null || return 0
+
+  local sources
+  sources=$(pactl list short sources 2>/dev/null) || return 0
+  awk '$2 == "omarchy_asahi_mic.monitor" { found = 1 } END { exit !found }' <<<"$sources" || return 0
+
+  local config=$HOME/.config/voxtype/config.toml
+  local asoundrc=$HOME/.asoundrc
+  local marker_begin='# BEGIN omarchy-voxtype-asahi-mic'
+  local marker_end='# END omarchy-voxtype-asahi-mic'
+  local block
+
+  [[ -f $config ]] || return 0
+
+  # Voxtype opens ALSA devices; pipewire-alsa needs a named PCM that targets the
+  # mic-map monitor rather than the session default (which WP can retarget).
+  block="$marker_begin
+pcm.asahimic {
+    type pipewire
+    capture_node \"omarchy_asahi_mic.monitor\"
+    hint {
+        show on
+        description \"Asahi internal mic array (Omarchy)\"
+    }
+}
+$marker_end"
+
+  if [[ -f $asoundrc ]] && grep -qF "$marker_begin" "$asoundrc"; then
+    local tmp
+    tmp=$(mktemp)
+    awk -v begin="$marker_begin" -v end="$marker_end" '
+      $0 == begin { skip = 1; next }
+      $0 == end { skip = 0; next }
+      !skip { print }
+    ' "$asoundrc" >"$tmp"
+    printf '%s\n' "$block" >>"$tmp"
+    mv "$tmp" "$asoundrc"
+  else
+    printf '\n%s\n' "$block" >>"$asoundrc"
+  fi
+
+  if grep -qE '^[[:space:]]*device[[:space:]]*=' "$config"; then
+    sed -i 's/^[[:space:]]*device[[:space:]]*=.*/device = "asahimic"/' "$config"
+  else
+    printf '\n[audio]\ndevice = "asahimic"\n' >>"$config"
+  fi
+}
+
 # Install voxtype and configure it for use.
 
 if gum confirm "Install Voxtype + AI model (~150MB) to enable dictation?"; then
@@ -13,6 +64,7 @@ if gum confirm "Install Voxtype + AI model (~150MB) to enable dictation?"; then
   # Setup voxtype
   mkdir -p ~/.config/voxtype
   cp "$OMARCHY_PATH/default/voxtype/config.toml" ~/.config/voxtype/
+  configure_asahi_mic
 
   voxtype setup --download --no-post-install
   if omarchy-hw-vulkan; then
