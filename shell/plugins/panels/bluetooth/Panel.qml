@@ -275,7 +275,9 @@ Panel {
 
   function connectDevice(device) {
     if (!device || device.connected) return
-    if (device.paired || device.bonded || device.trusted) runDeviceAction(device, "connect", "connecting")
+    // Trusted without a bond is stuck: BlueZ auto-connects and pairing fails
+    // until Forget. Only a real pairing or bond should take the connect path.
+    if (device.paired || device.bonded) runDeviceAction(device, "connect", "connecting")
     else runDeviceAction(device, "pair", "connecting")
   }
 
@@ -418,6 +420,7 @@ Panel {
       actionFocused = false
       cursorActive = false
     }
+    syncPairable()
   }
 
   // Another per-monitor instance of this widget whose panel is open, if any.
@@ -432,6 +435,18 @@ Panel {
     }
     return null
   }
+
+  // BlueZ defaults Pairable=true forever. The agent auto-accepts Just Works
+  // only while Pairable is on, so raise it while any panel instance is open
+  // and clear it otherwise (including at widget load before the first open).
+  function syncPairable() {
+    if (adapter === null) return
+    var keepPairable = opened || openSibling() !== null
+    adapter.pairable = keepPairable
+  }
+
+  Component.onCompleted: syncPairable()
+  onAdapterChanged: syncPairable()
 
   function updateFocusedAddress() {
     var d = deviceAt(focusSection, selectedIndex)
@@ -569,12 +584,28 @@ Panel {
   // confirmed after this object is gone — and only writes the stop directly
   // when it is the last one standing.
   Component.onDestruction: {
-    if (!owesDiscoveryStop) return
     var items = bar && typeof bar.moduleWidgets === "function" ? bar.moduleWidgets(moduleName) : []
-    for (var i = 0; i < items.length; i++) {
-      if (items[i] && items[i] !== root) { items[i].owesDiscoveryStop = true; return }
+    if (owesDiscoveryStop) {
+      var handedOff = false
+      for (var i = 0; i < items.length; i++) {
+        if (items[i] && items[i] !== root) {
+          items[i].owesDiscoveryStop = true
+          handedOff = true
+          break
+        }
+      }
+      if (!handedOff && adapter !== null && adapter.discovering) adapter.discovering = false
     }
-    if (adapter !== null && adapter.discovering) adapter.discovering = false
+    if (adapter !== null) {
+      var keepPairable = false
+      for (var p = 0; p < items.length; p++) {
+        if (items[p] && items[p] !== root && items[p].opened === true) {
+          keepPairable = true
+          break
+        }
+      }
+      adapter.pairable = keepPairable
+    }
   }
 
   Timer {
