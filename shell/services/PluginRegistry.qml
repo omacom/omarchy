@@ -568,56 +568,38 @@ QtObject {
 
   // ---------------------------------------------------------------- scanning
 
-  // Output format produced by the rescan script:
-  //   ===<kind>::<absolute-source-dir>===
-  //   ... raw manifest.json content ...
-  //   === EOM ===
-  // (repeating for every manifest found)
+  // One JSON envelope per manifest, with the manifest contents encoded as a string.
   function parseScanOutput(text) {
     var lines = String(text || "").split("\n")
     var firstParty = {}
     var thirdParty = {}
-    var currentSource = null
-    var currentKind = null
-    var currentJson = []
-
-    function flush() {
-      if (!currentSource) return
-      var raw = currentJson.join("\n").trim()
+    for (var i = 0; i < lines.length; i++) {
+      if (!lines[i].trim()) continue
       try {
-        var manifest = JSON.parse(raw)
-        manifest.__sourceDir = currentSource
-        manifest.__isFirstParty = (currentKind === "firstparty")
-        var validated = validateManifest(manifest, currentSource + "/manifest.json")
+        var record = JSON.parse(lines[i])
+        if (!Util.isPlainObject(record)
+            || (record.kind !== "firstparty" && record.kind !== "thirdparty")
+            || typeof record.source !== "string" || !record.source
+            || typeof record.manifest !== "string") {
+          console.warn("PluginRegistry: invalid scan record on line " + (i + 1))
+          continue
+        }
+        var manifest = JSON.parse(record.manifest.trim())
+        if (!Util.isPlainObject(manifest)) {
+          console.warn("PluginRegistry: manifest is not an object at " + record.source)
+          continue
+        }
+        manifest.__sourceDir = record.source.replace(/\/$/, "")
+        manifest.__isFirstParty = (record.kind === "firstparty")
+        var validated = validateManifest(manifest, record.source + "/manifest.json")
         if (validated) {
-          if (currentKind === "firstparty") firstParty[validated.id] = validated
+          if (record.kind === "firstparty") firstParty[validated.id] = validated
           else thirdParty[validated.id] = validated
         }
       } catch (e) {
-        console.warn("PluginRegistry: bad manifest at " + currentSource + ": " + e)
+        console.warn("PluginRegistry: bad scan record on line " + (i + 1) + ": " + e)
       }
-      currentSource = null
-      currentKind = null
-      currentJson = []
     }
-
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i]
-      var startMatch = line.match(/^===([a-z]+)::(.+)===$/)
-      if (startMatch) {
-        flush()
-        currentKind = startMatch[1]
-        currentSource = startMatch[2].replace(/\/$/, "")
-        currentJson = []
-        continue
-      }
-      if (line === "=== EOM ===") {
-        flush()
-        continue
-      }
-      if (currentSource) currentJson.push(line)
-    }
-    flush()
 
     stampHostCapabilities(firstParty, thirdParty)
 
@@ -642,10 +624,19 @@ QtObject {
     scanFinished()
   }
 
+  function finishScan(exitCode, output) {
+    if (exitCode !== 0) {
+      console.warn("PluginRegistry: scan failed with exit code " + exitCode)
+      scanning = false
+      scanFinished()
+      return
+    }
+    parseScanOutput(output)
+  }
+
   property Process scanProcess: Process {
     onExited: function(exitCode) {
-      var output = scanStdout.text || ""
-      registry.parseScanOutput(output)
+      registry.finishScan(exitCode, scanStdout.text || "")
     }
     stdout: StdioCollector {
       id: scanStdout
@@ -696,25 +687,24 @@ QtObject {
     // widgets/Clock.manifest.json so multiple widgets can live in one source
     // directory without wrapper folders.
     // Third-party plugins stay at the top level of ~/.config/omarchy/plugins.
-    var script = ""
+    var script = "set -o pipefail; "
       + "emit_manifest() { local kind=\"$1\"; local manifest=\"$2\"; local sub; "
-      + "  if [[ ${manifest##*/} == \"manifest.json\" ]]; then sub=\"${manifest%/manifest.json}\"; else sub=\"$(dirname -- \"$manifest\")\"; fi; "
-      + "  printf '===%s::%s===\\n' \"$kind\" \"$sub\"; "
-      + "  cat \"$manifest\"; "
-      + "  printf '\\n=== EOM ===\\n'; "
+      + "  sub=\"${manifest%/*}\"; "
+      + "  sub=\"${sub%/}\"; "
+      + "  jq -cn --arg kind \"$kind\" --arg source \"$sub\" --rawfile manifest \"$manifest\" '{kind:$kind,source:$source,manifest:$manifest}'; "
       + "}; "
       + "scan_firstparty() { local dir=\"$1\"; "
       + "  [[ -d \"$dir\" ]] || return 0; "
-      + "  while IFS= read -r manifest; do emit_manifest firstparty \"$manifest\"; done < <(find \"$dir\" -mindepth 2 -maxdepth 3 -type f \\( -name manifest.json -o -name '*.manifest.json' \\) | sort); "
+      + "  find \"$dir\" -mindepth 2 -maxdepth 3 -type f \\( -name manifest.json -o -name '*.manifest.json' \\) -print0 | sort -z | while IFS= read -r -d '' manifest; do emit_manifest firstparty \"$manifest\" || continue; done; "
       + "}; "
       + "scan_thirdparty() { local dir=\"$1\"; "
       + "  [[ -d \"$dir\" ]] || return 0; "
       + "  for sub in \"$dir\"/*/; do "
       + "    [[ -f \"$sub/manifest.json\" ]] || continue; "
-      + "    emit_manifest thirdparty \"$sub/manifest.json\"; "
+      + "    emit_manifest thirdparty \"$sub/manifest.json\" || continue; "
       + "  done; "
       + "}; "
-      + "scan_firstparty \"$0\"; "
+      + "scan_firstparty \"$0\" || exit 1; "
       + "scan_thirdparty \"$1\""
     scanProcess.command = ["bash", "-c", script, registry.firstPartyDir, registry.pluginsDir]
     scanProcess.running = true
