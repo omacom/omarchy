@@ -42,9 +42,11 @@ run_fix "$tmp_dir/powerprofilesctl"
 [[ $(head -n1 "$tmp_dir/powerprofilesctl") == "#!/bin/python3" ]] ||
   fail "packaged shebang is rewritten" "actual: $(head -n1 "$tmp_dir/powerprofilesctl")"
 pass "packaged shebang is rewritten"
-(( $(wc -l <"$TEST_LOG") == 1 )) ||
-  fail "non-root fix elevates exactly once" "log: $(cat "$TEST_LOG")"
-pass "non-root fix elevates exactly once"
+expected_elevations=1
+(( EUID == 0 )) && expected_elevations=0
+(( $(wc -l <"$TEST_LOG") == expected_elevations )) ||
+  fail "fix elevates only when not already root" "log: $(cat "$TEST_LOG")"
+pass "fix elevates only when not already root"
 
 # An already-fixed file is left alone, so re-runs and second users do not
 # reach for privileges at all.
