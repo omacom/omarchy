@@ -15,6 +15,6 @@ fi
 wpctl set-default "$node_id" 2>/dev/null || true
 pactl set-default-source "$source_name" 2>/dev/null || true
 
-pactl list short source-outputs 2>/dev/null | awk '{ print $1 }' | while read -r output; do
+pactl list short source-outputs 2>/dev/null | awk '$3 != "-" { print $1 }' | while read -r output; do
   [[ -n $output ]] && pactl move-source-output "$output" "$source_name" 2>/dev/null || true
 done
