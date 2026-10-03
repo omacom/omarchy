@@ -45,14 +45,18 @@ Item {
   // a password — including immediately when the lid is shut and the clamshell
   // gate skips pam_fprintd — we switch to the password field instead.
   readonly property bool fingerprintMode: fingerprintConfigured && !laptopClosed && dialogVisible && !responseRequired && !submitted && !errorFlash
-  readonly property int cardHeight: panel.height > 0 ? Math.min(fieldHeight + contentMargin * 2, panel.height - Style.gapsOut * 2) : fieldHeight + contentMargin * 2
-  // Password mode is a wide field; fingerprint mode collapses to a square that
-  // just frames the centered sensor icon.
-  readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(Style.space(312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
-
-  function authorizationLabel(message) {
-    return PolkitModel.authorizationLabel(message)
-  }
+  // What is being authorized: a title, plus the program and its arguments when
+  // the request comes from pkexec. Shown at the top of the card.
+  readonly property var request: PolkitModel.authorizationRequest(currentMessage)
+  readonly property bool hasHeader: request.title !== ""
+  readonly property bool hasCommand: request.program !== ""
+  readonly property int headerSpacing: Style.space(12)
+  readonly property int contentHeight: fieldHeight + (hasHeader ? header.implicitHeight + headerSpacing : 0)
+  readonly property int cardHeight: panel.height > 0 ? Math.min(contentHeight + contentMargin * 2, panel.height - Style.gapsOut * 2) : contentHeight + contentMargin * 2
+  // Password mode is a wide field, wider still when it has a command to show;
+  // fingerprint mode without a header collapses to a square that just frames
+  // the centered sensor icon.
+  readonly property int cardWidth: fingerprintMode && !hasHeader ? cardHeight : Math.min(Style.space(hasCommand ? 480 : 312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
 
   function loadPamConfig(raw) {
     fingerprintConfigured = PolkitModel.fingerprintConfiguredFromPamConfig(raw)
@@ -268,10 +272,77 @@ Item {
         }
       }
 
-      // Fingerprint mode shows just the sensor icon, centered and alone \u2014 no
+      Column {
+        id: header
+        visible: root.hasHeader
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.topMargin: card.contentTopInset
+        anchors.rightMargin: card.contentRightInset
+        anchors.leftMargin: card.contentLeftInset
+        spacing: Style.space(8)
+
+        Text {
+          textFormat: Text.PlainText
+          width: parent.width
+          text: root.request.title
+          color: root.foreground
+          opacity: 0.6
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          wrapMode: Text.Wrap
+          maximumLineCount: 3
+          elide: Text.ElideRight
+        }
+
+        Rectangle {
+          visible: root.hasCommand
+          width: parent.width
+          height: commandFlow.implicitHeight + Style.space(8) * 2
+          radius: root.cornerRadius
+          color: Util.alpha(root.foreground, 0.06)
+
+          // The program stays on the first line; its arguments follow on the
+          // same line when they fit and wrap below it when they don't. The
+          // arguments are never cut off: this is what the user is approving,
+          // and pkexec already caps the command line at about 80 bytes.
+          Flow {
+            id: commandFlow
+            x: Style.space(10)
+            y: Style.space(8)
+            width: parent.width - Style.space(10) * 2
+            spacing: Style.space(8)
+
+            Text {
+              textFormat: Text.PlainText
+              width: Math.min(implicitWidth, commandFlow.width)
+              text: root.request.program
+              color: root.accent
+              font.family: Style.fontFamily
+              font.pixelSize: Style.font.body
+              font.bold: true
+              wrapMode: Text.WrapAnywhere
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              visible: text !== ""
+              width: Math.min(implicitWidth, commandFlow.width)
+              text: root.request.args
+              color: root.foreground
+              font.family: Style.fontFamily
+              font.pixelSize: Style.font.body
+              wrapMode: Text.WrapAnywhere
+            }
+          }
+        }
+      }
+
+      // Fingerprint mode shows just the sensor icon in place of the field \u2014 no
       // padlock, no field, no prompt text.
       OpticalGlyph {
-        anchors.centerIn: parent
+        anchors.centerIn: cardRow
         width: Math.round(root.fieldHeight * 0.7)
         height: width
         visible: root.fingerprintMode
@@ -284,11 +355,13 @@ Item {
       Row {
         id: cardRow
         visible: !root.fingerprintMode
-        anchors.fill: parent
-        anchors.topMargin: card.contentTopInset
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
         anchors.rightMargin: card.contentRightInset
         anchors.bottomMargin: card.contentBottomInset
         anchors.leftMargin: card.contentLeftInset
+        height: root.fieldHeight - card.borderTop - card.borderBottom
         spacing: Style.space(14)
 
         Text {
@@ -361,31 +434,6 @@ Item {
             onClicked: passwordInput.forceActiveFocus()
           }
         }
-      }
-    }
-
-    Rectangle {
-      width: Math.min(justificationText.implicitWidth + Style.space(24), panel.width - Style.gapsOut * 2)
-      height: Style.space(28)
-      anchors.horizontalCenter: card.horizontalCenter
-      anchors.bottom: card.top
-      anchors.bottomMargin: Style.space(10)
-      radius: root.cornerRadius
-      color: root.background
-
-      Text {
-        id: justificationText
-        textFormat: Text.PlainText
-        anchors.fill: parent
-        anchors.leftMargin: Style.space(12)
-        anchors.rightMargin: Style.space(12)
-        text: root.authorizationLabel(root.currentMessage)
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideMiddle
       }
     }
   }
