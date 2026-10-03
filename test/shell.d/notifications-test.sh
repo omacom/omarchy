@@ -472,6 +472,37 @@ assertEqual(
   '/tmp/scoped_dir/logo a.png',
   'notifications resolve file URLs to copyable paths'
 )
+for (const uri of ['file://localhost/tmp/logo%20a.png', 'file://LOCALHOST/tmp/logo%20a.png']) {
+  assertEqual(
+    notifications.localImageFile(uri),
+    '/tmp/logo a.png',
+    'notifications resolve localhost file URLs to copyable paths: ' + uri
+  )
+}
+assertEqual(notifications.localImageFile('file://localhost/tmp/logo%2520a.png'), '/tmp/logo%20a.png', 'notifications decode localhost file paths only once')
+for (const uri of ['file://remote/tmp/avatar.png', 'file://localhost.example/tmp/avatar.png']) {
+  assertEqual(notifications.localImageFile(uri), '', 'notifications leave non-local authorities uncopied: ' + uri)
+}
+
+const localhostSnapshot = {
+  id: 10, originalId: 10, timestamp: 3000,
+  appIcon: 'file://localhost/tmp/logo%20a.png', image: 'file://localhost/tmp/preview.png'
+}
+const localhostPopup = notifications.persistablePopup(localhostSnapshot, '/state/images/')
+assertDeepEqual(
+  localhostPopup.copies,
+  [
+    { from: '/tmp/logo a.png', to: '/state/images/3000-10-appIcon' },
+    { from: '/tmp/preview.png', to: '/state/images/3000-10-image' }
+  ],
+  'notifications copy both localhost image roles before the sender can remove them'
+)
+const localhostRestored = notifications.parsePopupFiles(notifications.serializePopup(localhostPopup.entry, 1), 1)[0]
+assertEqual(localhostRestored.appIcon, 'file:///state/images/3000-10-appIcon', 'restored localhost icons point to their persisted copies')
+assertEqual(localhostRestored.image, 'file:///state/images/3000-10-image', 'restored localhost images point to their persisted copies')
+assertDeepEqual(notifications.persistablePopup(localhostRestored, '/state/images/').copies, [], 'restored localhost images do not need another copy')
+assertEqual(localhostSnapshot.appIcon, 'file://localhost/tmp/logo%20a.png', 'persisting localhost images leaves the live notification unchanged')
+
 assertEqual(notifications.localImageFile('/tmp/avatar.png'), '/tmp/avatar.png', 'notifications treat absolute paths as copyable')
 assertEqual(notifications.localImageFile('mail'), '', 'notifications leave themed icon names uncopied')
 assertEqual(notifications.localImageFile('image://notifs/1'), '', 'notifications cannot copy in-process image URLs')
