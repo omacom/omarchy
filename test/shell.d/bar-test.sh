@@ -71,6 +71,16 @@ assert(
   'bar builds only the module list it is showing'
 )
 
+// Built-in command modules derive their name and settings from their required
+// entry. Injecting those properties like a loaded widget writes to readonly
+// bindings and floods the scene log whenever the module is instantiated.
+const injectProps = barSource.slice(barSource.indexOf('function injectProps'))
+const injectPropsBody = injectProps.slice(0, injectProps.indexOf('\n    }'))
+assert(
+  /if \(!commandCustom\) \{[\s\S]*target\.moduleName = moduleName[\s\S]*target\.settings = moduleSettings/.test(injectPropsBody),
+  'bar does not inject derived readonly properties into command modules'
+)
+
 // A center module is mounted twice — drawn copy plus zero-size placeholder —
 // and the order they register in is not stable across a live reconfiguration,
 // so panel routing has to pick the one that is actually on screen.
