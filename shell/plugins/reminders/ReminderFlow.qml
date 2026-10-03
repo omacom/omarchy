@@ -109,6 +109,7 @@ Item {
 
     BorderSurface {
       id: card
+      shadowSection: "menu"
       width: root.cardWidth
       height: root.cardHeight
       radius: root.cornerRadius

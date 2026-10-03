@@ -1288,8 +1288,10 @@ Item {
 
       visible: root.tooltipShown && root.tooltipTarget !== null && root.tooltipText !== "" && root.targetBelongsToWindow(root.tooltipTarget, barWindow)
       color: "transparent"
-      implicitWidth: Math.ceil(tooltipBubble.implicitWidth)
-      implicitHeight: Math.ceil(tooltipBubble.implicitHeight)
+      readonly property var shadowSpec: Shadow.surfaceSpec("tooltip")
+      implicitWidth: Math.ceil(tooltipBubble.implicitWidth) + shadowSpec.left + shadowSpec.right
+      implicitHeight: Math.ceil(tooltipBubble.implicitHeight) + shadowSpec.top + shadowSpec.bottom
+      mask: Region { item: tooltipBubble }
 
       anchor {
         id: tooltipAnchor
@@ -1304,8 +1306,8 @@ Item {
           var target = root.tooltipTarget
           if (!root.targetBelongsToWindow(target, barWindow)) return
 
-          var popupWidth = tooltipWindow.implicitWidth
-          var popupHeight = tooltipWindow.implicitHeight
+          var popupWidth = tooltipBubble.width
+          var popupHeight = tooltipBubble.height
           var localX = target.width / 2 - popupWidth / 2
           var localY = target.height + 6
 
@@ -1320,13 +1322,16 @@ Item {
           }
 
           var point = barWindow.contentItem.mapFromItem(target, localX, localY)
-          tooltipAnchor.rect.x = Math.round(point.x)
-          tooltipAnchor.rect.y = Math.round(point.y)
+          tooltipAnchor.rect.x = Math.round(point.x - tooltipWindow.shadowSpec.left)
+          tooltipAnchor.rect.y = Math.round(point.y - tooltipWindow.shadowSpec.top)
         }
       }
 
       BorderSurface {
         id: tooltipBubble
+        x: tooltipWindow.shadowSpec.left
+        y: tooltipWindow.shadowSpec.top
+        shadowSection: "tooltip"
         implicitWidth: tooltipLabel.implicitWidth + 20
         implicitHeight: tooltipLabel.implicitHeight + 14
         color: Color.tooltip.background
