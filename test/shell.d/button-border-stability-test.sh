@@ -15,6 +15,16 @@ assert(
   !/implicitWidth:[^\n]*\bborderLeft\b/.test(buttonQml) && !/implicitHeight:[^\n]*\bborderTop\b/.test(buttonQml),
   'Button implicit size does not depend on current hover/focus border'
 )
+
+assert(
+  /grabPermissions:\s*PointerHandler\.TakeOverForbidden/.test(buttonQml),
+  'Button taps keep the pointer grab through a small wiggle'
+)
+
+assert(
+  /dragThreshold:\s*(?:Style\.space\(\s*(1[0-9]|[2-9]\d|[1-9]\d{2,})\s*\)|[1-9]\d+)/.test(buttonQml),
+  'Button taps allow an explicit click wiggle before counting as a drag'
+)
 JS
 
 require_compositor "Button hover geometry runtime test"
