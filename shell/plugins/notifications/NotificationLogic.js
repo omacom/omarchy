@@ -89,8 +89,29 @@ function styledBody(body, app, appIcon) {
   return stripImageTags(sanitizeBody(body, app, appIcon).replace(/\r\n|\r|\n/g, "<br/>"))
 }
 
+// KDE Connect HTML-escapes notification text, and some paths encode that a
+// second time (`&quot;` → `&amp;quot;`). StyledText decodes one layer, so the
+// extra `&amp;` is what the user sees. Undo only that extra layer, and never
+// for lt/gt: turning `&amp;lt;img …&amp;gt;` into `&lt;img …&gt;` would let
+// StyledText materialise a tag the input did not contain.
+function isMarkupEntityName(name) {
+  var key = String(name || "").toLowerCase()
+  if (key === "lt" || key === "gt") return true
+  if (key.charAt(0) !== "#") return false
+
+  var code = key.charAt(1) === "x" ? parseInt(key.slice(2), 16) : parseInt(key.slice(1), 10)
+  return code === 60 || code === 62
+}
+
+function decodeDoubleEscapedEntities(text) {
+  return String(text || "").replace(/&amp;(#x[0-9a-fA-F]+|#\d+|[a-zA-Z][a-zA-Z0-9]*);/g, function(match, name) {
+    if (isMarkupEntityName(name)) return match
+    return "&" + name + ";"
+  })
+}
+
 function sanitizeBody(body, app, appIcon) {
-  var text = stripImageTags(String(body || ""))
+  var text = decodeDoubleEscapedEntities(stripImageTags(String(body || "")))
   if (!isChromiumDerived(app, appIcon)) return text
 
   return text
