@@ -422,6 +422,14 @@ case ${OMARCHY_TEST_SHELL_STATE:-ready} in
       exit 0
     fi
     ;;
+  busy)
+    # Shell is busy (e.g. reloading plugins) and times out on the first call.
+    if [[ ! -e $OMARCHY_TEST_SHELL_MARKER ]]; then
+      touch "$OMARCHY_TEST_SHELL_MARKER"
+      echo "omarchy-shell is not responding" >&2
+      exit 124
+    fi
+    ;;
 esac
 echo "ok"
 STUB
@@ -479,6 +487,13 @@ put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=scanni
   fail "put asks again while the shell is still reading its plugins" "$put_output"
 [[ $put_output == "omarchy.keyboard-layout is on the bar" ]] || fail "put places once the plugins are read" "$put_output"
 pass "put asks again while the shell is still reading its plugins"
+
+put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=busy \
+  OMARCHY_TEST_SHELL_MARKER="$put_tmp/busy" \
+  "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) ||
+  fail "put waits for a shell that times out while busy" "$put_output"
+[[ $put_output == "omarchy.keyboard-layout is on the bar" ]] || fail "put places once the busy shell responds" "$put_output"
+pass "put waits for a shell that times out while busy"
 
 put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" \
   "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) ||
