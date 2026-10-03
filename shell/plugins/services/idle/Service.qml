@@ -105,7 +105,12 @@ Item {
     lockTimer.stop()
     screensaverLaunchGraceTimer.stop()
 
-    if (root.idledThisCycle) runProcess(wakeProcess, "wake", "omarchy-system-wake")
+    // A locked session's display belongs to the lock screen. The idle monitor
+    // resuming is not input there: Hyprland also resumes it when a window maps
+    // or unmaps or an idle inhibitor comes and goes, and waking on that leaves
+    // the panel lit with nothing to blank it again. The lock service is not
+    // reachable from here, so ask the compositor: 75 means locked, no wake.
+    if (root.idledThisCycle) runProcess(wakeProcess, "wake", "if omarchy-hyprland-session-locked; then exit 75; else omarchy-system-wake; fi")
 
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
@@ -297,7 +302,11 @@ Item {
   }
   Process {
     id: wakeProcess
-    onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "wake exitCode=" + exitCode + " status=" + exitStatus) }
+    // 75 is the locked sentinel from the wake command in cancelIdleCycle().
+    onExited: function(exitCode, exitStatus) {
+      if (exitCode === 75) root.logEvent("wake-skipped", "session-locked")
+      else root.logEvent("process-exit", "wake exitCode=" + exitCode + " status=" + exitStatus)
+    }
   }
 
   Process {
