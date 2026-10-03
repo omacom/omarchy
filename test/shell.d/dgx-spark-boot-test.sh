@@ -104,7 +104,8 @@ run spark "$scratch/preset" bash -euo pipefail "$migration" >/dev/null
 grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "the migration still rebuilds for an existing setting"
 pass "the migration rebuilds without rewriting an existing setting"
 
-# efibootmgr 18 prints the device path after a tab; older versions print the label alone.
+# efibootmgr marks an active entry with * and an inactive one with a space. Version
+# 18 prints the device path after a tab; older versions print the label alone.
 uki_path='HD(3,GPT,1-2,0x800,0x400000)/\\EFI\\Linux\\omarchy_linux-aarch64.efi'
 for entry in "Boot0002* Omarchy\t$uki_path" 'Boot0002* Omarchy'; do
   TEST_EFI_ENTRIES="$entry" run spark "$scratch/direct-boot" bash -euo pipefail "$migration" >/dev/null
@@ -113,12 +114,12 @@ for entry in "Boot0002* Omarchy\t$uki_path" 'Boot0002* Omarchy'; do
 done
 # Only an active entry with the dedicated Omarchy label implies Direct Boot; an
 # inactive one or a Limine entry labelled after the disk must not skip the rebuild.
-for entry in "Boot0002 Omarchy\t$uki_path" 'Boot0002* Omarchy Rescue' 'Boot0001* Omarchy - Samsung 422087P\tHD(1,GPT,1-2,0x800,0x400000)/\\EFI\\LIMINE\\LIMINE_AA64.EFI'; do
+for entry in "Boot0002  Omarchy\t$uki_path" 'Boot0002* Omarchy Rescue' 'Boot0003  Omarchy Rescue' 'Boot0001* Omarchy - Samsung 422087P\tHD(1,GPT,1-2,0x800,0x400000)/\\EFI\\LIMINE\\LIMINE_AA64.EFI'; do
   output=$(TEST_EFI_ENTRIES="$entry" run spark "$scratch/other-label" bash -euo pipefail "$migration")
   grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "only an active Omarchy entry implies Direct Boot"
   # Only the inactive Omarchy entry is left without its UKI.
-  if [[ $entry == "Boot0002 Omarchy"* ]]; then
-    grep -q 'remove it with Setup > Direct Boot' <<<"$output" || fail "the migration points out an inactive entry left without its UKI"
+  if [[ $entry == "Boot0002  Omarchy"* ]]; then
+    grep -q 'remove it with: sudo efibootmgr -b 0002 -B$' <<<"$output" || fail "the migration names the command that removes an inactive entry left without its UKI"
   else
     ! grep -q 'inactive Omarchy EFI entry' <<<"$output" || fail "the migration mentions only an inactive Omarchy entry"
   fi
