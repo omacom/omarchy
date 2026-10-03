@@ -483,11 +483,11 @@ OMARCHY_PATH="$ROOT" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-templates"
 jq -e '.name == "omarchy-system" and .vars.custom == "yes"' "$NEXT_THEME/pi.json" >/dev/null
 pass "theme-specific pi.json overrides the default template"
 
-HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-pi"
+HOME="$PI_TMPDIR" PI_CODING_AGENT_DIR= "$ROOT/bin/omarchy-theme-set-pi"
 [[ ! -d $PI_TMPDIR/.pi ]] || fail "pi theme sync skips missing Pi agent when not activating"
 pass "pi theme sync skips missing Pi agent when not activating"
 
-HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-pi" --activate
+HOME="$PI_TMPDIR" PI_CODING_AGENT_DIR= "$ROOT/bin/omarchy-theme-set-pi" --activate
 [[ -f $PI_TMPDIR/.pi/agent/themes/omarchy-system.json ]] || fail "pi theme file is synced"
 pass "pi theme file is synced"
 [[ -f $PI_TMPDIR/.pi/agent/settings.json ]] || fail "pi settings file is generated"
@@ -499,9 +499,23 @@ pass "pi generated theme is activated"
 
 jq '.model = "keep-me"' "$PI_TMPDIR/.pi/agent/settings.json" >"$PI_TMPDIR/settings.json.tmp"
 mv "$PI_TMPDIR/settings.json.tmp" "$PI_TMPDIR/.pi/agent/settings.json"
-HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-pi" --activate
+HOME="$PI_TMPDIR" PI_CODING_AGENT_DIR= "$ROOT/bin/omarchy-theme-set-pi" --activate
 jq -e '.theme == "omarchy-system" and .model == "keep-me"' "$PI_TMPDIR/.pi/agent/settings.json" >/dev/null
 pass "pi theme activation preserves existing settings"
+
+PI_TEST_AGENT_DIR="$PI_TMPDIR/pi-work"
+rm -rf "$PI_TMPDIR/.pi"
+HOME="$PI_TMPDIR" PI_CODING_AGENT_DIR="$PI_TEST_AGENT_DIR" "$ROOT/bin/omarchy-theme-set-pi" --activate
+[[ -f $PI_TEST_AGENT_DIR/themes/omarchy-system.json ]] || fail "pi theme is synced to the configured agent directory"
+jq -e '.theme == "omarchy-system"' "$PI_TEST_AGENT_DIR/settings.json" >/dev/null || fail "pi theme is activated in the configured agent directory"
+[[ ! -d $PI_TMPDIR/.pi ]] || fail "pi theme sync avoids the default directory when configured"
+pass "pi theme sync follows PI_CODING_AGENT_DIR"
+
+rm -rf "$PI_TMPDIR/pi-tilde"
+(cd "$PI_TMPDIR" && HOME="$PI_TMPDIR" PI_CODING_AGENT_DIR="~/pi-tilde" "$ROOT/bin/omarchy-theme-set-pi" --activate)
+jq -e '.theme == "omarchy-system"' "$PI_TMPDIR/pi-tilde/settings.json" >/dev/null || fail "pi theme sync expands a leading ~ in PI_CODING_AGENT_DIR"
+[[ ! -e $PI_TMPDIR/~ ]] || fail "pi theme sync expands a leading ~ in PI_CODING_AGENT_DIR"
+pass "pi theme sync expands a leading ~ in PI_CODING_AGENT_DIR"
 
 jq -e '.name == "Omarchy" and .base == "light" and .overrides.text == "#ffffff"' "$NEXT_THEME/claude.json" >/dev/null
 pass "claude theme template is generated from standard themed templates"
