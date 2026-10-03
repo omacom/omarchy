@@ -2,8 +2,10 @@
 #
 # The fingerprint setup installs libfprint-git in place of stock libfprint. The
 # two conflict, so the swap has to happen inside one --ask 4 transaction, and a
-# rerun with everything installed must not touch pacman at all. The real
-# omarchy-pkg-missing runs; pacman and the privileged calls are stubbed.
+# rerun with everything installed must not touch pacman at all. It also bails
+# out with a clear message, instead of attempting enrollment, when the reader
+# has no libfprint driver at all. The real omarchy-pkg-missing runs; pacman and
+# the privileged calls are stubbed.
 
 set -euo pipefail
 
@@ -44,6 +46,12 @@ case "$1" in
     ;;
   *) printf 'pacman %s\n' "$*" >> "$CALL_LOG"; exit 99 ;;
 esac
+STUB
+cat > "$scratch/bin/fprintd-list" <<'STUB'
+#!/bin/bash
+echo list >> "$CALL_LOG"
+echo "${LIST_OUTPUT:-found 1 devices}"
+exit "${LIST_STATUS:-0}"
 STUB
 cat > "$scratch/bin/fprintd-enroll" <<'STUB'
 #!/bin/bash
@@ -98,3 +106,18 @@ pass "a failed installation stops before enrollment"
 HARDWARE_STATUS=1 run_setup
 [[ ! -s $CALL_LOG ]] || fail "missing hardware stops before package operations"
 pass "missing hardware performs no package operations"
+
+LIST_STATUS=1 LIST_OUTPUT="No devices available" run_setup
+grep -qx list "$CALL_LOG" || fail "a reader with no libfprint driver is checked with fprintd-list"
+if grep -qx enroll "$CALL_LOG"; then
+  fail "a reader with no libfprint driver does not attempt enrollment"
+fi
+grep -q 'libfprint has no driver' "$scratch/output" || fail "a reader with no libfprint driver is told why"
+pass "a reader with no libfprint driver stops before enrollment with a clear message"
+
+LIST_STATUS=1 LIST_OUTPUT="ListEnrolledFingers failed: Not Authorized" run_setup
+grep -qx enroll "$CALL_LOG" || fail "an fprintd-list error other than no devices still reaches enrollment"
+if grep -q 'libfprint has no driver' "$scratch/output"; then
+  fail "an fprintd-list error other than no devices is not diagnosed as a missing driver"
+fi
+pass "an fprintd-list error other than no devices is not diagnosed as a missing driver"
