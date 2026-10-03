@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the Granola desktop app
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+omarchy-pkg-drop granola
+
+echo ""
+echo "Granola has been removed."
+echo "Notes and login in ~/.config/Granola were left in place."
