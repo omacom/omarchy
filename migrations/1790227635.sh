@@ -13,7 +13,7 @@ dropin="$conf_dir/50-ideapad-suspend.conf"
 [[ $(<"$dmi/sys_vendor") == "LENOVO" && $(<"$dmi/product_name") == "82XQ" ]] || exit 0
 [[ -f $dropin ]] && exit 0
 
-sudo install -d -m 0755 "$conf_dir" || exit 0
+sudo install -d -m 0755 "$conf_dir"
 sudo tee "$dropin" >/dev/null <<'CONF'
 # The Micron NVMe in this model rejects all I/O after s2idle resume, so
 # suspend can never complete. Lock instead of suspending: the session locks

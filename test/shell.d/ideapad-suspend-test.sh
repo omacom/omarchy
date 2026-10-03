@@ -101,3 +101,21 @@ OMARCHY_DMI_PATH="$tmp_dir/dmi-other" OMARCHY_LOGIND_CONF_DIR="$tmp_dir/conf-mig
 [[ ! -e $tmp_dir/conf-migration/50-ideapad-suspend.conf ]] ||
   fail "migration writes nothing on unmatched hardware"
 pass "migration no-ops on unmatched hardware"
+
+# A refused sudo must leave the migration pending, so run it the way
+# omarchy-migrate does and expect it to stop.
+mkdir -p "$tmp_dir/bin-denied"
+cat >"$tmp_dir/bin-denied/sudo" <<'STUB'
+#!/bin/bash
+printf 'sudo %s\n' "$*" >>"$CALLS_FILE"
+exit 1
+STUB
+chmod +x "$tmp_dir/bin-denied/sudo"
+: >"$calls"
+if OMARCHY_DMI_PATH="$tmp_dir/dmi-match" OMARCHY_LOGIND_CONF_DIR="$tmp_dir/conf-migration" \
+  CALLS_FILE="$calls" PATH="$tmp_dir/bin-denied:$tmp_dir/bin:$PATH" bash -euo pipefail "$migration" >/dev/null; then
+  fail "migration fails when sudo is refused, so it stays pending"
+fi
+[[ ! -e $tmp_dir/conf-migration/50-ideapad-suspend.conf ]] ||
+  fail "migration writes nothing when sudo is refused"
+pass "migration stays pending when sudo is refused"
