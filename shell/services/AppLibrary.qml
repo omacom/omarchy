@@ -31,6 +31,7 @@ Item {
   // down.
   property bool launchOsdOpen: false
   property string launchOsdMessage: ""
+  property string launchName: ""
 
   // Emitted whenever the visible application set may have changed: desktop
   // entries appeared or vanished, or the hidden-entry filters reloaded.
@@ -158,12 +159,16 @@ Item {
   }
 
   function beginLaunchFeedback(name) {
+    var sameApp = String(name || "") === root.launchName
+    root.launchName = String(name || "")
     root.launchSerial++
     root.launchToplevelCount = root.toplevelCount()
     root.launchActiveToplevel = ToplevelManager.activeToplevel
     root.launchOsdMessage = "Launching " + String(name || "application") + "…"
     launchDelay.restart()
-    launchTimeout.restart()
+    // A retriggered launch of the same app keeps the original safety-net
+    // window; a different app gets a fresh 15s one.
+    if (!launchTimeout.running || !sameApp) launchTimeout.restart()
   }
 
   function closeLaunchFeedback(serial) {
@@ -242,7 +247,7 @@ Item {
     onTriggered: {
       if (root.toplevelCount() > root.launchToplevelCount || ToplevelManager.activeToplevel !== root.launchActiveToplevel) return
       root.launchOsdOpen = true
-      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 0 })])
+      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: launchTimeout.interval })])
     }
   }
 
