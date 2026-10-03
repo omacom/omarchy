@@ -31,7 +31,8 @@ cat >"$mock_bin/brightnessctl" <<'SH'
 #!/bin/bash
 printf 'brightnessctl %s\n' "$*" >>"$CALL_LOG"
 if [[ $* == *" -m"* ]]; then
-  printf 'mock_backlight,backlight,40,40%%\n'
+  printf 'mock_backlight,backlight,%s,%s%%,%s\n' \
+    "${MOCK_CURRENT:-40}" "${MOCK_PERCENT:-40}" "${MOCK_MAX:-100}"
 fi
 SH
 
@@ -85,6 +86,36 @@ brightness=$(run_brightness --monitor eDP-1)
 grep -F 'brightnessctl -d mock_backlight -m' "$call_log" >/dev/null || \
   fail "internal monitor queries brightnessctl"
 pass "internal monitor uses the kernel backlight"
+
+MOCK_MAX=15 MOCK_CURRENT=1 run_brightness --no-osd --monitor eDP-1 1%
+grep -F 'brightnessctl -d mock_backlight set 1%' "$call_log" >/dev/null || \
+  fail "low absolute brightness remains a percentage request"
+pass "low absolute brightness remains a percentage request"
+
+MOCK_MAX=15 MOCK_CURRENT=1 run_brightness --no-osd --monitor eDP-1 5%-
+grep -F 'brightnessctl -d mock_backlight set 0' "$call_log" >/dev/null || \
+  fail "low brightness decrements can reach hardware zero"
+pass "low brightness decrements can reach hardware zero"
+
+MOCK_MAX=15 MOCK_CURRENT=0 run_brightness --no-osd --monitor eDP-1 +1%
+grep -F 'brightnessctl -d mock_backlight set 1' "$call_log" >/dev/null || \
+  fail "brightness up recovers from hardware zero"
+pass "brightness up recovers from hardware zero"
+
+MOCK_MAX=15 MOCK_CURRENT=0 run_brightness --no-osd --monitor eDP-1 +5%
+grep -F 'brightnessctl -d mock_backlight set 1' "$call_log" >/dev/null || \
+  fail "coarse hardware uses one raw step for a small brightness delta"
+pass "coarse hardware uses one raw step for a small brightness delta"
+
+MOCK_MAX=15 MOCK_CURRENT=1 run_brightness --no-osd --monitor eDP-1 0%
+grep -F 'brightnessctl -d mock_backlight set 0%' "$call_log" >/dev/null || \
+  fail "zero-percent brightness remains available"
+pass "zero-percent brightness remains available"
+
+MOCK_MAX=100 MOCK_CURRENT=40 run_brightness --no-osd --monitor eDP-1 +5%
+grep -F 'brightnessctl -d mock_backlight set 45' "$call_log" >/dev/null || \
+  fail "normal hardware keeps percentage-sized brightness deltas"
+pass "normal hardware keeps percentage-sized brightness deltas"
 
 brightness=$(FOCUSED_MONITOR=DP-1 run_brightness)
 [[ $brightness == "50" ]] || fail "brightness follows the focused external monitor" "actual: $brightness"

@@ -29,6 +29,16 @@ backlight_brightness() {
   brightnessctl -d "$1" -m 2>/dev/null | awk -F, '{ gsub("%", "", $4); print $4; found=1 } END{ exit !found }'
 }
 
+backlight_state() {
+  brightnessctl -d "$1" -m 2>/dev/null | awk -F, '
+    NF >= 5 {
+      print $3, $5
+      found = 1
+    }
+    END { exit !found }
+  '
+}
+
 [[ -n $monitor ]] || monitor="$(omarchy-hyprland-monitor-focused 2>/dev/null || true)"
 
 monitor_is_internal() {
@@ -89,29 +99,34 @@ else
   # Current device highlighted
   device="$(omarchy-hw-display)" || exit 1
 
-  # Current brightness percentage
-  current=$(backlight_brightness "$device") || exit 1
+  read -r current_raw max_raw < <(backlight_state "$device") || exit 1
+  (( max_raw > 0 )) || exit 1
 
-  # Apply non-uniform step size: 1% steps if at or below 5%, otherwise set an
-  # absolute target percentage to avoid raw backlight rounding causing uneven OSD steps.
-  if [[ $step == "+5%" ]]; then
-    if (( current < 5 )); then
-      (( target = current + 1 ))
-    else
-      (( target = current + 5 ))
-    fi
+  # Percentage deltas can round down to no hardware change on devices with a
+  # small range (for example, the MacBook Air's max brightness of 15). Convert
+  # deltas to raw values ourselves and keep every nonzero delta at least one
+  # hardware step. Absolute percentage requests remain percentage requests so
+  # that 0% is still available; display power-off remains available through
+  # the explicit "off" action above.
+  percent_delta_to_raw() {
+    local percent="$1"
+    local delta=$(( (percent * max_raw + 99) / 100 ))
 
-    (( target > 100 )) && target=100
-    step="$target%"
-  elif [[ $step == "5%-" ]]; then
-    if (( current <= 5 )); then
-      (( target = current - 1 ))
-    else
-      (( target = current - 5 ))
-    fi
+    (( delta < 1 )) && delta=1
+    (( delta > max_raw )) && delta=max_raw
+    printf '%s\n' "$delta"
+  }
 
-    (( target < 1 )) && target=1
-    step="$target%"
+  if [[ $step =~ ^\+([0-9]+)%$ ]]; then
+    delta=$(percent_delta_to_raw "${BASH_REMATCH[1]}")
+    target=$(( current_raw + delta ))
+    (( target > max_raw )) && target=max_raw
+    step="$target"
+  elif [[ $step =~ ^([0-9]+)%-$ ]]; then
+    delta=$(percent_delta_to_raw "${BASH_REMATCH[1]}")
+    target=$(( current_raw - delta ))
+    (( target < 0 )) && target=0
+    step="$target"
   fi
 
   # Set brightness of the display device.
