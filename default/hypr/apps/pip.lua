@@ -13,12 +13,17 @@ o.window({ tag = "pip" }, {
 
 -- Google Meet PiP uses the meeting title instead of "Picture-in-Picture".
 o.window({ tag = "chromium-based-browser", title = "^Meet - .+" }, {
-  tag = "-default-opacity",
   float = true,
   pin = true,
   size = { 600, 338 },
+  move = { "(monitor_w-window_w-40)", "(monitor_h-window_h-40)" },
+})
+
+-- A regular browser tab can also change its title to "Meet - ...". Only
+-- decorate the floating PiP window, not the tiled browser window.
+o.window({ tag = "chromium-based-browser", title = "^Meet - .+", float = true }, {
+  tag = "-default-opacity",
   keep_aspect_ratio = true,
   border_size = 0,
   opacity = "1 1",
-  move = { "(monitor_w-window_w-40)", "(monitor_h-window_h-40)" },
 })
