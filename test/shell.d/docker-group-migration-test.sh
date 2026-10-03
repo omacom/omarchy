@@ -25,10 +25,12 @@ mkdir -p "$home/.local/share/applications" "$omarchy_path/applications" "$stub_b
 printf 'NEW-LAUNCHER\n' >"$omarchy_path/applications/Docker.desktop"
 printf 'OLD-LAUNCHER\n' >"$home/.local/share/applications/Docker.desktop"
 
-# id reports a controllable group set; sudo just drops the prefix; gpasswd
-# records its call instead of touching the real system.
+# id reports a controllable group set and names the account tester, which USER
+# does not, so trusting the environment removes the wrong one; sudo just drops
+# the prefix; gpasswd records its call instead of touching the real system.
 cat >"$stub_bin/id" <<'STUB'
 #!/bin/bash
+[[ ${1:-} == -un ]] && { echo tester; exit 0; }
 printf '%s\n' "${STUB_GROUPS:-wheel input}"
 STUB
 cat >"$stub_bin/sudo" <<'STUB'
@@ -60,7 +62,7 @@ launcher="$home/.local/share/applications/Docker.desktop"
 
 run_migration() {
   rm -f "$gpasswd_calls" "$reboot_flag" "$reboot_called"
-  HOME="$home" OMARCHY_PATH="$omarchy_path" USER="tester" STUB_GROUPS="$1" \
+  HOME="$home" OMARCHY_PATH="$omarchy_path" USER="spoofed" STUB_GROUPS="$1" \
     GPASSWD_CALLS="$gpasswd_calls" REBOOT_CALLED="$reboot_called" \
     PATH="$stub_bin:$ROOT/bin:$PATH" \
     bash -euo pipefail "$migration" >/dev/null 2>&1
