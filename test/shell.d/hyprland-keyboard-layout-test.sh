@@ -70,7 +70,15 @@ assert_input "non-latin layout gains us in front" "[us,ara] [,] [$toggle_options
 assert_input "prepended us keeps variants aligned" "[us,ru] [,phonetic] [$toggle_options]" 'XKBLAYOUT=ru
 XKBVARIANT=phonetic
 '
-assert_input "non-latin layout in front gains us even when us trails" "[us,il,us] [,] [$toggle_options]" 'XKBLAYOUT=il,us
+assert_input "non-latin layout in front moves a trailing us to the front" "[us,il] [,] [$toggle_options]" 'XKBLAYOUT=il,us
+'
+assert_input "a trailing us is not duplicated, so the toggle has one stop per layout" "[us,ru] [,] [$toggle_options]" 'XKBLAYOUT=ru,us
+'
+assert_input "moving us keeps every layout paired with its variant" "[us,ru] [intl,phonetic] [$toggle_options]" 'XKBLAYOUT=ru,us
+XKBVARIANT=phonetic,intl
+'
+assert_input "a third layout keeps its place and variant" "[us,ua,de] [,,nodeadkeys] [$toggle_options]" 'XKBLAYOUT=ua,us,de
+XKBVARIANT=,,nodeadkeys
 '
 
 hooks_conf="$ROOT/etc/mkinitcpio.conf.d/omarchy_hooks.conf"

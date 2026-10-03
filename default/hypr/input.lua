@@ -41,8 +41,31 @@ local kb_options = "compose:caps,shift:both_capslock_cancel"
 -- and friends) only fire when a Latin layout leads. Installing with a non-Latin
 -- one would otherwise leave the desktop unusable.
 if non_latin_layouts:find(" " .. kb_layout:match("^[^,]*") .. " ", 1, true) then
-  kb_layout = "us," .. kb_layout
-  kb_variant = "," .. kb_variant
+  -- Variants pair with layouts by position. A list that already names us (as in
+  -- "ru,us") moves that entry and its variant to the front rather than gaining a
+  -- second us, which would make the toggle cycle through a duplicate.
+  local layouts, variants = {}, {}
+  for layout in (kb_layout .. ","):gmatch("([^,]*),") do
+    layouts[#layouts + 1] = layout
+  end
+  for variant in (kb_variant .. ","):gmatch("([^,]*),") do
+    variants[#variants + 1] = variant
+  end
+
+  local us_variant = ""
+  for i, layout in ipairs(layouts) do
+    if layout == "us" then
+      us_variant = variants[i] or ""
+      table.remove(layouts, i)
+      if variants[i] then table.remove(variants, i) end
+      break
+    end
+  end
+
+  table.insert(layouts, 1, "us")
+  table.insert(variants, 1, us_variant)
+  kb_layout = table.concat(layouts, ",")
+  kb_variant = table.concat(variants, ",")
   -- Reach the original layout with Left Alt + Right Alt.
   kb_options = kb_options .. ",grp:alts_toggle"
 end
