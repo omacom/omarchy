@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# omarchy:summary=List available audio output profiles for the shell
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# pactl does not report port direction, but only a capture port can belong to a
+# profile without sinks, so skip those before a microphone labels an output.
+# Duplex profiles such as output:hdmi-stereo+input:analog-stereo share one sink
+# with their output-only twin, so keep one profile per output mapping.
+timeout 2 pactl -f json list cards 2>/dev/null | jq -c '
+  [ .[]
+    | . as $card
+    | (.ports // {} | to_entries[]) as $port
+    | select(($port.value.availability // "unknown") != "not available")
+    | select(any(($port.value.profiles // [])[]; ($card.profiles[.].sinks // 0) == 0) | not)
+    | [($port.value.profiles // [])[] as $profile_name
+        | ($card.profiles[$profile_name] // {}) as $profile
+        | select(($profile.sinks // 0) == 1)
+        | select(($profile.available // true) != false)
+        | select($profile_name | startswith("output:"))
+        | {
+            cardName: $card.name,
+            profileName: $profile_name,
+            outputMapping: ($profile_name | ltrimstr("output:") | split("+")[0]),
+            label: ($port.value.properties["device.product.name"] // $port.value.description // $profile.description // $profile_name),
+            description: ($profile.description // $port.value.description // $profile_name),
+            priority: (($profile.priority // 0) + ($port.value.priority // 0))
+          }
+      ]
+    | select(length > 0)
+    | max_by(.priority)
+  ]
+  | group_by(.cardName + "|" + .outputMapping)
+  | map(max_by(.priority))
+  | sort_by(-.priority)
+  | map(del(.priority, .outputMapping))
+'
