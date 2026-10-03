@@ -79,12 +79,9 @@ fingerprint_enrolled() {
   fprintd-list "$USER" 2>/dev/null | grep -Eq '^ *- #[0-9]+: '
 }
 
-# fprintd-enroll refuses a finger that is already enrolled (enroll-duplicate),
-# so a print left by an earlier run would stop setup before PAM every time.
-# Keep that print and go straight to verifying it.
-already_enrolled=false
+# fprintd-enroll refuses a finger that matches a print saved under another
+# finger name (enroll-duplicate), so keep any saved print and verify it instead.
 if fingerprint_enrolled; then
-  already_enrolled=true
   echo -e "\e[32mA fingerprint is already enrolled. Let's check it still works.\e[0m"
 else
   # Enroll first fingerprint
@@ -115,10 +112,8 @@ if fprintd-verify; then
   fi
   echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
   echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
-elif $already_enrolled; then
-  # Rerunning setup would skip enrollment again while that print exists.
+else
+  # The print stays saved, even one enrolled just now, so a rerun would skip enrollment.
   echo -e "\e[31m\nVerification failed. To enroll again, remove the saved fingerprints with\e[0m"
   echo -e "\e[31mfprintd-delete $USER, then run this setup again.\e[0m"
-else
-  echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
 fi
