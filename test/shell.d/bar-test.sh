@@ -36,6 +36,14 @@ const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
 const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
 const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
 
+// A fullscreen screensaver on a special workspace does not hide top-layer
+// surfaces, so the bar steps down to the bottom layer while one is up (#13700).
+assert(
+  /readonly property bool screensaverShown: !!idleService && idleService\.screensaverWindowCount > 0/.test(barSource) &&
+    barSource.includes('WlrLayershell.layer: root.screensaverShown ? WlrLayer.Bottom : WlrLayer.Top'),
+  'the bar steps below the screensaver while one is up'
+)
+
 assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.toggleTransparency\(\)/.test(shellSource), 'shell exposes the bar transparency toggle over IPC')
 
 // put tolerates a placement target the bar does not carry, so the IPC call

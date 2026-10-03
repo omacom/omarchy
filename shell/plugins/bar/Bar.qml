@@ -26,6 +26,12 @@ Item {
   // Injected by the host shell. Used for shell-wide actions such as opening
   // settings and persisting inline widget state.
   property var shell: null
+
+  // The screensaver opens fullscreen on a special workspace, and Hyprland hides
+  // top-layer surfaces only behind fullscreen windows on regular workspaces, so
+  // the bar drops to the bottom layer while a screensaver is up.
+  readonly property var idleService: shell?.firstPartyServiceFor?.("omarchy.idle") ?? null
+  readonly property bool screensaverShown: !!idleService && idleService.screensaverWindowCount > 0
   // Manifest for the active bar option. Present for custom bars and useful for
   // diagnostics; the built-in bar does not otherwise need it.
   property var manifest: null
@@ -1266,7 +1272,7 @@ Item {
     color: root.transparent ? "transparent" : root.background
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
-    WlrLayershell.layer: WlrLayer.Top
+    WlrLayershell.layer: root.screensaverShown ? WlrLayer.Bottom : WlrLayer.Top
 
     Loader {
       anchors.fill: parent
