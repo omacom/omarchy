@@ -16,9 +16,11 @@ cleanup() {
 trap cleanup EXIT
 
 led="$TMPDIR/leds/test::kbd_backlight"
-mkdir -p "$led" "$TMPDIR/bin" "$TMPDIR/home/.local/state/omarchy/toggles" "$TMPDIR/config"
+lid="$TMPDIR/lid/LID0/state"
+mkdir -p "$led" "$(dirname "$lid")" "$TMPDIR/bin" "$TMPDIR/home/.local/state/omarchy/toggles" "$TMPDIR/config"
 echo 0 > "$led/brightness"
 echo 2 > "$led/max_brightness"
+echo "state:      open" > "$lid"
 : > "$TMPDIR/sensor"
 : > "$TMPDIR/writes"
 cp "$SHELL_TEST_DIR/fixtures/keyboard-backlight-auto/shell.qml" "$TMPDIR/config/shell.qml"
@@ -52,6 +54,7 @@ chmod +x "$TMPDIR/bin/"*
 
 OMARCHY_PATH="$ROOT" \
 OMARCHY_LEDS_PATH="$TMPDIR/leds" \
+OMARCHY_ACPI_LID_PATH="$TMPDIR/lid" \
 HOME="$TMPDIR/home" \
 XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-$TMPDIR}" \
 QT_QPA_PLATFORM=offscreen \
@@ -174,6 +177,24 @@ ipc resume
 wait_for "a restore without a blank is not taken as the user's" writes_are "2 0 2 0 2 2"
 manual_off_saved && fail "a restore without a blank is not held as a manual off"
 pass "a restore without a blank is not taken as the user's"
+
+# Bright, then the lid closes (docked) and the sensor reads dark under it:
+# nothing changes until the lid opens and the binding nudges a refresh.
+sense 70
+sleep 0.4
+sense 71
+wait_for "turns off in bright light before the lid closes" writes_are "2 0 2 0 2 2 0"
+echo "state:      closed" > "$lid"
+sense 1
+sleep 0.4
+sense 0
+sleep 0.8
+writes_are "2 0 2 0 2 2 0" || fail "nothing is lit under a closed lid" "writes: $(writes)"
+pass "nothing is lit under a closed lid"
+echo "state:      open" > "$lid"
+ipc refresh
+wait_for "decides from the light once the lid opens" writes_are "2 0 2 0 2 2 0 2"
+pass "decides from the light once the lid opens"
 
 # Toggling off still releases the sensor after the early restart
 touch "$TMPDIR/home/.local/state/omarchy/toggles/keyboard-backlight-auto-off"
