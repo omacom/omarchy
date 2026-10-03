@@ -135,34 +135,116 @@ function o.preinstalled_bindings_enabled()
   return not file_exists((os.getenv("HOME") or "") .. "/.local/state/omarchy/preinstalls-removed")
 end
 
-function o.bind(keys, description, dispatcher, options)
-  local opts = options or {}
+local function dispatcher_from(value, description)
+  value = command_from(value, description)
+
+  if type(value) == "string" then
+    return hl.dsp.exec_cmd(value)
+  end
+
+  return value
+end
+
+local function bind(keys, description, dispatcher, options, replace)
+  local opts = {}
+  for key, value in pairs(options or {}) do
+    opts[key] = value
+  end
+
+  local double_press = opts.double_press
+  local timeout = opts.timeout
+  if timeout == nil then
+    timeout = 250
+  end
+
+  if double_press ~= nil then
+    assert(not opts.repeating and not opts.long_press, "double_press cannot be combined with repeating or long_press")
+    assert(type(timeout) == "number" and timeout >= 1 and timeout <= 2147483647 and timeout % 1 == 0,
+      "double_press timeout must be a positive integer in milliseconds (at most 2147483647)")
+    double_press = dispatcher_from(double_press, description)
+    assert(type(double_press) == "function" or type(double_press) == "table" or type(double_press) == "userdata",
+      "double_press must be a command, launch helper, dispatcher, or function")
+    opts.double_press = nil
+    opts.timeout = nil
+  end
 
   if description then
     opts.description = description
   end
 
-  dispatcher = command_from(dispatcher, description)
+  dispatcher = dispatcher_from(dispatcher, description)
+  local binding
 
-  if type(dispatcher) == "string" then
-    dispatcher = hl.dsp.exec_cmd(dispatcher)
+  if double_press ~= nil then
+    local single_press = dispatcher
+    local pending
+    assert(type(single_press) == "function" or type(single_press) == "table" or type(single_press) == "userdata",
+      "double_press needs a single-press command, launch helper, dispatcher, or function")
+
+    local function run(action)
+      if type(action) == "function" then
+        action()
+      else
+        hl.dispatch(action)
+      end
+    end
+
+    dispatcher = function()
+      if pending then
+        pending = nil
+        -- Dispatch outside the key event. Global shortcuts and input-forwarding
+        -- dispatchers can otherwise re-enter this callback on key release.
+        hl.timer(function()
+          if tostring(binding) ~= "HL.Keybind(expired)" and binding:is_enabled() then
+            run(double_press)
+          end
+        end, { timeout = 1, type = "oneshot" })
+      else
+        local press = {}
+        pending = press
+        hl.timer(function()
+          -- A double press cancels this action. Each timer owns its press so
+          -- it cannot consume the next press in a quick triple press.
+          if pending ~= press then
+            return
+          end
+          pending = nil
+          -- Hyprland 0.56.2 dereferences expired handles in is_enabled().
+          -- Their string representation can still be inspected safely.
+          if tostring(binding) ~= "HL.Keybind(expired)" and binding:is_enabled() then
+            run(single_press)
+          end
+        end, { timeout = timeout, type = "oneshot" })
+      end
+    end
+    -- Menu selection runs the single action directly; it is not a key press.
+    o.bind_commands[dispatcher] = o.bind_commands[single_press] or single_press
   end
 
-  hl.bind(keys, dispatcher, opts)
+  if replace then
+    hl.unbind(keys)
+  end
+  binding = hl.bind(keys, dispatcher, opts)
+  return binding
+end
+
+function o.bind(keys, description, dispatcher, options)
+  return bind(keys, description, dispatcher, options, false)
 end
 
 function o.rebind(keys, description, dispatcher, options)
-  hl.unbind(keys)
-  o.bind(keys, description, dispatcher, options)
+  return bind(keys, description, dispatcher, options, true)
 end
 
 function o.launch(command)
   return "uwsm-app -- " .. command
 end
 
--- The command each function bind stands for, so the keybindings menu can still
--- run a bind that Hyprland only reports as Lua.
-o.bind_commands = {}
+-- The command or dispatcher each function bind stands for, so the keybindings
+-- menu can still run a bind that Hyprland only reports as Lua.
+-- Native bindings keep their callbacks alive. Removed bindings should not be
+-- retained just because the menu recorded their single action.
+o.bind_commands = setmetatable({}, { __mode = "k" })
 
 -- Hand the launcher the focused window's pid, which it would otherwise ask
 -- Hyprland for, to open the new terminal in that terminal's directory.

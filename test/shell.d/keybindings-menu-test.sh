@@ -232,3 +232,34 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# A timed bind is reported as Lua even when its single action is a command or
+# native dispatcher. Menu selection must recover that action, not the timer.
+cat > "$home/.config/hypr/hyprland.lua" <<'LUA'
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+require("hypr.bindings")
+LUA
+cat >> "$home/.config/hypr/bindings.lua" <<'LUA'
+o.bind("SUPER + F5", "Timed command", "single-command", { double_press = "double-command" })
+o.bind("SUPER + F6", "Timed helper", { launch = "single-helper" }, { double_press = "double-helper" })
+o.bind("SUPER + F7", "Timed dispatcher", hl.dsp.window.close(), { double_press = "double-dispatcher" })
+o.bind("SUPER + F8", "Timed function", o.launch_terminal(), { double_press = "double-function" })
+LUA
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + F5" "Timed command")
+$(lua_bind 64 "SUPER + F6" "Timed helper")
+$(lua_bind 64 "SUPER + F7" "Timed dispatcher")
+$(lua_bind 64 "SUPER + F8" "Timed function")
+BINDS
+rm -rf "$tmpdir/cache"
+keybindings >/dev/null
+for expected in \
+  $'→ Timed command\texec\tsingle-command' \
+  $'→ Timed helper\texec\tuwsm-app -- single-helper' \
+  $'→ Timed dispatcher\tlua\thl.dsp.window.close()' \
+  $'→ Timed function\texec\tomarchy-launch-terminal'; do
+  grep -qF "$expected" "$tmpdir"/cache/omarchy/keybindings-*.records ||
+    fail "menu selection resolves a timed binding to its single action" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
+done
+pass "menu selection resolves timed commands, helpers, dispatchers and mapped functions"

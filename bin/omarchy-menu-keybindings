@@ -204,15 +204,16 @@ hl = setmetatable({
       local kind = ""
       local arg = ""
 
+      if o and o.bind_commands then
+        bind_dispatcher = o.bind_commands[bind_dispatcher] or bind_dispatcher
+      end
+
       if type(bind_dispatcher) == "table" and bind_dispatcher.__omarchy_dispatcher then
         kind = bind_dispatcher.kind or ""
         arg = bind_dispatcher.arg or bind_dispatcher.expr or ""
       elseif type(bind_dispatcher) == "string" and bind_dispatcher ~= "" then
         kind = "exec"
         arg = bind_dispatcher
-      elseif o and o.bind_commands and o.bind_commands[bind_dispatcher] then
-        kind = "exec"
-        arg = o.bind_commands[bind_dispatcher]
       end
 
       print(table.concat({ tostring(modmask), opts.description, key, kind, arg }, "\t"))

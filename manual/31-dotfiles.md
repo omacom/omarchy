@@ -74,6 +74,22 @@ o.rebind("SUPER + SHIFT + O", "Joplin", "joplin-desktop")
 
 `o.rebind` removes the existing binding before adding its replacement. It takes the same arguments as `o.bind`, including launch helpers and binding options. Use `o.bind` to add a binding, or `hl.unbind` to remove one without replacing it.
 
+To give a shortcut different actions for one press and two quick presses, add a `double_press` action. The first action waits 250 milliseconds. Press the shortcut again during that interval to run only the second action without waiting for the rest of the interval. Set `timeout` to change the interval in milliseconds.
+
+For example, this replaces the `Super + Backtick` scratchpad shortcut with notification history on one press and clearing notifications on two presses:
+
+```lua
+o.rebind("SUPER + grave", "Notification history (press twice to clear)",
+  "omarchy-shell notifications showHistory", {
+    double_press = "omarchy-shell notifications dismissAll && omarchy-shell notifications clear",
+    timeout = 250,
+  })
+```
+
+Both actions accept the same commands, launch helpers, Lua functions, and Hyprland dispatchers as an ordinary binding. Double presses work with `o.bind` too. Holding the key does not count as pressing it twice; `repeating` and `long_press` cannot be combined with `double_press`. With `release = true`, the interval starts when the key is released. The example dismisses visible notifications and forgets their history; use just `omarchy-shell notifications dismissAll` as the second action to keep the history.
+
+For actions the keybindings menu can resolve, selecting a shortcut runs its single-press action immediately. As with ordinary bindings, arbitrary Lua callbacks need command metadata to be executable from the menu.
+
 If you insist on hacking on the internal Omarchy files, switch to the dev channel via _Update > Channel > Dev_. That links Omarchy to a git checkout of the source code in `~/omarchy`, which you're free to change to your heart's content. Ain't nobody here to tell you what to do!
 
 ### Resetting any changes
