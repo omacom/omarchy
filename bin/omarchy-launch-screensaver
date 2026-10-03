@@ -21,6 +21,18 @@ case $terminal in
   ;;
 esac
 
+# Fullscreen Ghostty on a fractionally scaled output stays a blank background (#10420),
+# so any fractional output sends every screensaver to foot.
+monitors_have_fractional_scale() {
+  hyprctl monitors -j 2>/dev/null | jq -e '
+    any(.[]; (.scale | type == "number") and (.scale != (.scale | floor)))
+  ' >/dev/null 2>&1
+}
+
+if [[ $terminal == *ghostty* ]] && monitors_have_fractional_scale; then
+  terminal=foot
+fi
+
 hypr_focus_monitor() {
   hyprctl dispatch "hl.dsp.focus({ monitor = \"$1\" })" >/dev/null 2>&1 || hyprctl dispatch focusmonitor "$1" >/dev/null
 }
