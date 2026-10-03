@@ -97,8 +97,9 @@ mkdir -p "$(dirname "$agent_file")"
 printf '%s\n' "$agent" >"$agent_file"
 
 if [[ $installing == "true" ]]; then
-  printf '\033[2J\033[3J\033[H'
-  exec omarchy-agent --inline
+  # Detached, or the floating installation terminal waits behind the agent's
+  # own tiled window for the whole session, and dismissing it early kills the launch.
+  (setsid omarchy-agent >/dev/null 2>&1 &)
 else
   exec omarchy-agent
 fi
