@@ -25,11 +25,12 @@ assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the ada
 // leaves the bus, BlueZ drops the adapter and `adapter` goes null. Visibility
 // keyed on the adapter alone then removed the very widget that owns the switch
 // back on, so turning Bluetooth off left no way to turn it on. rfkill keeps
-// listing the switch while it is blocked, and that is what separates a
-// turned-off radio from a machine that has no Bluetooth at all.
+// listing the switch while it is blocked, and a blocked switch is what
+// separates a turned-off radio from a machine that has no Bluetooth at all,
+// or one whose bluetoothd is simply stopped.
 const offGlyph = String.fromCodePoint(0xf00b2)
-assert(/command: \["sh", "-c", "rfkill --noheadings --output TYPE list bluetooth[\s\S]*?grep -qx bluetooth"\]/.test(panelSource), 'bluetooth probes rfkill to tell a blocked radio from absent hardware')
-assert(/onExited: function\(exitCode\) \{ root\.radioPresent = exitCode === 0 \}/.test(panelSource), 'bluetooth records whether the kernel still lists a bluetooth switch')
+assert(/command: \["sh", "-c", "LC_ALL=C rfkill --noheadings --output SOFT,HARD list bluetooth[\s\S]*?grep -qw blocked"\]/.test(panelSource), 'bluetooth probes rfkill for a blocked switch to tell a turned-off radio from absent hardware')
+assert(/onExited: function\(exitCode\) \{ root\.radioPresent = exitCode === 0 \}/.test(panelSource), 'bluetooth records whether the kernel lists a blocked bluetooth switch')
 assert(/onAdapterChanged: radioProbe\.running = true/.test(panelSource), 'bluetooth re-probes rfkill whenever the adapter comes or goes')
 assert(/visible: adapter !== null \|\| radioPresent/.test(panelSource), 'bluetooth keeps the bar widget up when a blocked radio drops the adapter')
 assert(/visible: !!root\.adapter \|\| root\.radioPresent/.test(panelSource), 'bluetooth keeps the panel power switch usable while the radio is blocked')

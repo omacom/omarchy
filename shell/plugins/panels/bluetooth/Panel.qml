@@ -28,8 +28,8 @@ Panel {
   // BlueZ drops it and `adapter` goes null. Visibility keyed on the adapter
   // alone then takes the widget away with it, stranding the only control that
   // turns Bluetooth back on. rfkill keeps listing the switch while it is
-  // blocked, so probe that to tell a turned-off radio from a machine that has
-  // none, and keep the widget up in the first case.
+  // blocked, so probe for a blocked one to tell a turned-off radio from a
+  // machine that has none, and keep the widget up in the first case.
   property bool radioPresent: false
 
   onAdapterChanged: radioProbe.running = true
@@ -38,7 +38,10 @@ Panel {
   Process {
     id: radioProbe
     running: false
-    command: ["sh", "-c", "rfkill --noheadings --output TYPE list bluetooth 2>/dev/null | grep -qx bluetooth"]
+    // Blocked, not merely listed: an unblocked switch with no adapter is a
+    // stopped bluetoothd, which the toggle cannot bring back. rfkill translates
+    // the states, hence the C locale.
+    command: ["sh", "-c", "LC_ALL=C rfkill --noheadings --output SOFT,HARD list bluetooth 2>/dev/null | grep -qw blocked"]
     onExited: function(exitCode) { root.radioPresent = exitCode === 0 }
   }
 
