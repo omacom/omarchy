@@ -293,4 +293,28 @@ assertDeepEqual(
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
+
+// passphrase prompt is open recycles the ListView row and drops focus mid-type.
+const syncFn = panelSource.match(/function syncWifiNetworks\(\) \{[\s\S]*?\n {2}\}/)
+assert(syncFn, 'network has a syncWifiNetworks function')
+
+var Model = network
+var passwordSsid = 'HomeNet'
+var actionKind = ''
+var wifiNetworkObjects = [
+  { connected: false, known: true, name: 'HomeNet', signalStrength: 0.5, security: 'wpa-psk' }
+]
+var wifiNetworks = []
+var wifiStationAvailable = false
+var wifiDevice = {}
+var scanning = true
+function checkActionCompletion() {}
+eval(syncFn[0])
+
+syncWifiNetworks()
+assertDeepEqual(wifiNetworks, [], 'network defers the wifi list update while a passphrase prompt is open with no connect in flight')
+
+actionKind = 'connect'
+syncWifiNetworks()
+assert(wifiNetworks.length === 1 && wifiNetworks[0].ssid === 'HomeNet', 'network resumes updating the wifi list once a connect attempt starts')
 JS
