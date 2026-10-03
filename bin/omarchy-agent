@@ -130,6 +130,15 @@ pi)
   command=(pi)
   [[ -n ${prompt:-} ]] && command+=("$prompt")
   ;;
+freebuff)
+  # Freebuff takes no positional prompt; seeding the TUI through stdin is the
+  # documented path, and the prompt lands as if typed.
+  if [[ -n ${prompt:-} ]]; then
+    command=(bash -c 'printf "%s\\n" "$1" | freebuff' _ "$prompt")
+  else
+    command=(freebuff)
+  fi
+  ;;
 *)
   echo "Unsupported default agent: $agent" >&2
   exit 1
