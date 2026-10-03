@@ -186,8 +186,18 @@ assert(calendar.clockMinuteIsStale(shownAt, new Date(2026, 8, 27, 15, 42, 7)), '
 assert(!calendar.clockMinuteIsStale(new Date(2026, 8, 27, 14, 6, 0), new Date(2026, 8, 27, 14, 5, 59, 700)), 'clock leaves a label SystemClock published just before the minute turned')
 assert(calendar.clockMinuteIsStale(new Date(2026, 8, 27, 15, 0, 0), new Date(2026, 8, 27, 14, 5, 30)), 'clock refreshes a label after the wall clock is set back')
 const clockWidget = fs.readFileSync(root + '/shell/plugins/panels/clock/BarWidget.qml', 'utf8')
-assert(/Timer \{[^}]*running: !root\.showsSeconds[^}]*clockMinuteIsStale\(root\.displayDate, new Date\(\)\)\) root\.refresh\(\)/.test(clockWidget),
-  'clock checks for a stale minute and refreshes the label')
+assert(/Timer \{[^}]*running: !root\.showsSeconds[^}]*clockMinuteIsStale\(root\.displayDate, new Date\(\)\)\) root\.resyncClock\(\)/.test(clockWidget),
+  'clock checks for a stale minute and resyncs the clock')
+// The catch-up restarts SystemClock itself, so its next tick is re-armed from
+// now instead of waiting out the minute it was counting before the suspend.
+const widgetResync = clockWidget.match(/function resyncClock\(\) \{[\s\S]*?\n {2}\}/)
+assert(widgetResync && /clock\.enabled = false\s*clock\.enabled = true/.test(widgetResync[0]), 'clock restarts its SystemClock when it fell behind')
+assert(widgetResync && /panelLoader\.item\.resyncClock\(\)/.test(widgetResync[0]) && !/refresh\(\)/.test(widgetResync[0]),
+  'clock resyncs the calendar without sending it back to today')
+const clockPanel = fs.readFileSync(root + '/shell/plugins/panels/clock/Panel.qml', 'utf8')
+const panelResync = clockPanel.match(/function resyncClock\(\) \{[\s\S]*?\n {2}\}/)
+assert(panelResync && /clock\.enabled = false\s*clock\.enabled = true/.test(panelResync[0]) && !/goToToday/.test(panelResync[0]),
+  'the calendar restarts its own clock and keeps a browsed month')
 assert(!calendar.clockNeedsSeconds("d MMMM 'W'ww yyyy"), 'clock sees no seconds in the long date format')
 assert(!calendar.clockNeedsSeconds("dd\nMMM\n'W'ww\n''yy"), 'clock sees no seconds in the stacked date format')
 assert(!calendar.clockNeedsSeconds("HH:mm 'since'"), 'clock reads an s inside a quoted literal as text')
