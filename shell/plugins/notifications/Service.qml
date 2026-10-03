@@ -3,6 +3,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Notifications
@@ -50,6 +51,23 @@ Item {
   readonly property int defaultBarSize: barVertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
   readonly property int liveBarSize: shell && shell.bar && !shell.bar.barHidden ? Math.max(0, shell.bar.barSize) : defaultBarSize
   readonly property int barClearance: liveBarSize + Style.gapsOut
+
+  // The monitors the shell draws popups on: one window per screen (see the
+  // popup UI below), so these are the only outputs a toast can be delivered to.
+  readonly property var screenMonitors: Quickshell.screens.map(function(screen) {
+    return Hyprland.monitorFor(screen)
+  })
+
+  // Every output covered by a fullscreen window means there is nowhere left to
+  // show a toast, so the notification is silenced the way DND silences it: no
+  // toast, a history entry instead. Creating one would only queue it behind the
+  // fullscreen window where nobody can see or dismiss it.
+  //
+  // One covered output is not enough to silence: the toast is delivered to the
+  // screens that are free, and only the covered output holds its surface back.
+  // The condition is per monitor's active workspace, so a fullscreen window on
+  // a workspace nobody is showing covers nothing.
+  readonly property bool everyOutputCovered: NotificationLogic.everyWorkspaceHoldsFullscreen(screenMonitors)
 
   // Live Notification objects by originalId, kept OUT of the ListModels: a
   // QObject stored in a model role becomes a dangling C++ pointer when the
@@ -170,7 +188,13 @@ Item {
     // DND bypass rules: chat apps abuse urgency=critical to force
     // visibility, so critical alone isn't enough — we also require the
     // sender to be CLI-style. See shouldBypassDnd().
-    if (service.doNotDisturb && !shouldBypassDnd(notification)) {
+    //
+    // A fullscreen window covering every output silences for the same reason
+    // DND does, and takes the same route out: the toast is never created, so
+    // the notification is written into history and the notification centre
+    // shows what came in while the screen was covered. One covered output is
+    // not enough — a toast still reaches the screens that are free.
+    if ((service.doNotDisturb || service.everyOutputCovered) && !shouldBypassDnd(notification)) {
       // The toast never shows, so the only record a silenced notification
       // can leave is a history entry. Write it straight into history —
       // "what did I miss while silenced" is exactly what history is for.
@@ -1000,7 +1024,17 @@ Item {
       id: popupWindow
       required property var modelData
       screen: modelData
-      visible: popupModel.count > 0
+
+      // Overlay layer means a fullscreen client cannot cover a toast, so this
+      // output's surface is held back while a fullscreen window covers it. The
+      // outputs that are not covered keep showing their toasts, and the
+      // countdown keeps running: a toast delivered to a free screen is
+      // delivered, not parked. When every output is covered there is no toast
+      // to hide in the first place — arrivals are silenced instead.
+      readonly property var hyprlandMonitor: Hyprland.monitorFor(modelData)
+      readonly property bool covered: NotificationLogic.workspaceHoldsFullscreen(
+        hyprlandMonitor ? hyprlandMonitor.activeWorkspace : null)
+      visible: popupModel.count > 0 && !popupWindow.covered
 
       WlrLayershell.namespace: "omarchy-notifications"
       WlrLayershell.layer: WlrLayer.Overlay
@@ -1071,7 +1105,15 @@ Item {
             Timer {
               interval: 50
               repeat: true
-              running: cardSlot.ticking
+              // The countdown stops while every output is covered: nothing can
+              // be seen, and the only toasts that reach the stack in that state
+              // are the DND bypasses, so pausing keeps a confirmation like
+              // "Screenshot saved" to show when a screen is free again instead
+              // of burning its lifetime unseen. With an output still free the
+              // countdown runs: a toast delivered to it keeps the lifetime it
+              // has always had, and nothing piles up behind the fullscreen
+              // window.
+              running: cardSlot.ticking && !service.everyOutputCovered
               onTriggered: {
                 if (cardSlot.lifetime <= 0) return
                 cardSlot.remainingLifetime -= 50.0 / cardSlot.lifetime
