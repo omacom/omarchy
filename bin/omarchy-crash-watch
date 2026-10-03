@@ -52,13 +52,14 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # IFS whitespace, so an empty field collapses into the next delimiter and
     # every field after it shifts along one. A process can set its own comm to
     # nothing, and that crash used to be read as somebody else's and dropped.
-    IFS=$'\t' read -r uid comm pid exe signal < <(
+    IFS=$'\t' read -r uid comm pid exe signal cmdline < <(
       jq -r 'def field: if . == null or . == "" then "-" else . end;
              [(._UID | field),
               (.COREDUMP_COMM | field),
               (.COREDUMP_PID | field),
               (.COREDUMP_EXE | field),
-              (.COREDUMP_SIGNAL_NAME | field)] | @tsv' <<<"$entry" 2>/dev/null
+              (.COREDUMP_SIGNAL_NAME | field),
+              (.COREDUMP_CMDLINE | field)] | @tsv' <<<"$entry" 2>/dev/null
     )
 
     [[ $pid =~ ^[0-9]+$ ]] || continue
@@ -90,6 +91,12 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     [[ -n $name && $name != "-" && $name != "." && $name != ".." ]] || name=unknown
 
     [[ -n $ignore_pattern && $name =~ $ignore_pattern ]] && continue
+
+    # Chromium/Electron utility children (--type=utility) dump core as a matter
+    # of course. The journaled COMM/EXE is the parent browser, so the name
+    # mute/ignore list cannot tell them from a real browser crash; the cmdline
+    # can. COREDUMP_CMDLINE uses spaces, not NULs.
+    [[ $cmdline == *" --type=utility"* || $cmdline == *"--type=utility "* ]] && continue
 
     # Never announce our own machinery, or it notifies about itself.
     [[ $name == omarchy-crash-* || $name == omarchy-agent-* ]] && continue
