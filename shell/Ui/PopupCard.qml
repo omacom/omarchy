@@ -58,8 +58,19 @@ PopupWindow {
   }
 
   function close() {
-    if (owner && "close" in owner) owner.close()
-    else root.open = false
+    if (owner && "close" in owner) {
+      try {
+        owner.close()
+      } catch (e) {
+        // Same contract as KeyboardPanel: a throwing plugin close() must not
+        // strand the mapped overlay and its input region
+        // (omacom/omarchy#13382).
+        console.warn("omarchy: popup owner close() threw, closing the popup anyway:", e)
+        root.open = false
+      }
+    } else {
+      root.open = false
+    }
   }
 
   default property alias contentItem: contentHolder.children

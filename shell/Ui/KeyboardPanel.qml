@@ -67,8 +67,19 @@ PanelWindow {
   readonly property string barPos: bar ? bar.position : "top"
 
   function close() {
-    if (owner && "close" in owner) owner.close()
-    else root.open = false
+    if (owner && "close" in owner) {
+      try {
+        owner.close()
+      } catch (e) {
+        // A throwing plugin close() must not strand the mapped full-screen
+        // overlay: it owns the input region, so every click dies there and
+        // only a shell restart recovers (omacom/omarchy#13382).
+        console.warn("omarchy: panel owner close() threw, closing the panel anyway:", e)
+        root.open = false
+      }
+    } else {
+      root.open = false
+    }
   }
 
   function beginFocusPrime() {
