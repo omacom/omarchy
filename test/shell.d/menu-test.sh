@@ -334,6 +334,7 @@ assertDeepEqual(
     'remove.tui',
     'remove.windows',
     'remove.preinstalls',
+    'remove.hardware',
     'remove.security'
   ],
   'menu orders Remove categories like their Install counterparts, followed by Remove-only categories'
