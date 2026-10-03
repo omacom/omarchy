@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# omarchy:summary=Show the Omarchy getting-started tips again
+# omarchy:group=setup
+# omarchy:args=[--all]
+# omarchy:examples=omarchy setup welcome | omarchy setup welcome --all
+
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: omarchy-setup-welcome [--all]
+
+Show the getting-started notifications again. By default this shows the
+keybinding reminder. Use --all to also open the Omarchy menu from a second
+notification.
+USAGE
+}
+
+show_all=false
+while (($#)); do
+  case "$1" in
+    --all)
+      show_all=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Keep this command separate from first-run provisioning so users can recover
+# onboarding after dismissing a toast or when helping someone over a call.
+omarchy-notification-send -u critical -g  "Learn Keybindings" \
+  $'Super + K for cheatsheet.\nSuper + Space for Omarchy Menu.' \
+  --exec omarchy-menu-keybindings
+
+if [[ $show_all == true ]]; then
+  omarchy-notification-send -u critical -g 󰍉 "Getting Started" \
+    "Open the Omarchy Menu to install apps, change defaults, and explore setup." \
+    --exec omarchy-menu
+fi
