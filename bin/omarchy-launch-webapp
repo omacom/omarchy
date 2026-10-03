@@ -14,11 +14,12 @@ esac
 
 browsers+=(chromium.desktop google-chrome.desktop brave-browser.desktop brave-origin.desktop microsoft-edge.desktop vivaldi-stable.desktop opera.desktop helium.desktop)
 
-# Desktop entries are looked up as xdg does, the first one found winning, plus
-# the Nix profile the other launchers read. A browser counts as installed when
-# that entry's command resolves. An entry that starts with a wrapper such as env
-# cannot take --app on the browser's behalf, so it is skipped.
-IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}:$HOME/.nix-profile/share"
+# Desktop entries are looked up as xdg does, the first one found winning, with
+# the Nix profile ahead of the system dirs as omarchy-launch-browser reads it. A
+# browser counts as installed when that entry's command resolves. An entry that
+# starts with a wrapper such as env cannot take --app on the browser's behalf, so
+# it is skipped.
+IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:$HOME/.nix-profile/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 
 browser_command() {
   local data_dir command

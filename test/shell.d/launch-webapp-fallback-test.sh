@@ -93,3 +93,13 @@ launch_webapp zen.desktop || fail "web app launch skips wrapper entries" "$(cat 
 grep -Fxq 'launch:uwsm-app -- vivaldi-stable --app=https://example.test/app --flag' "$TEST_LOG" ||
   fail "web app skips a desktop entry that starts with a wrapper" "$(cat "$TEST_LOG")"
 pass "web app skips a desktop entry that starts with a wrapper"
+
+# The Nix profile's entry wins over the system one, as in omarchy-launch-browser.
+mkdir -p "$test_home/.nix-profile/share/applications"
+printf '#!/bin/bash\n' >"$mock_bin/vivaldi-nix"
+chmod +x "$mock_bin/vivaldi-nix"
+desktop_entry "$test_home/.nix-profile/share/applications/vivaldi-stable.desktop" vivaldi-nix
+launch_webapp vivaldi-stable.desktop || fail "web app launch reads the Nix profile" "$(cat "$scratch/err")"
+grep -Fxq 'launch:uwsm-app -- vivaldi-nix --app=https://example.test/app --flag' "$TEST_LOG" ||
+  fail "the Nix profile's entry comes ahead of the system one" "$(cat "$TEST_LOG")"
+pass "the Nix profile's entry comes ahead of the system one"
