@@ -412,6 +412,15 @@ function popupExpired(entry, duration, now) {
   return (Number(now) - Number((entry || {}).timestamp || 0)) >= lifetime
 }
 
+// Distance from the screen edge that toasts keep clear of the bar: the bar,
+// the edge margin a floating bar sits at, and the gap. `margins` is the bar's
+// barMargins, or null for a hidden or missing bar.
+function barClearance(barSize, margins, barPosition, gapsOut) {
+  var margin = margins ? Number(margins[String(barPosition || "top")]) : 0
+  if (!isFinite(margin) || margin < 0) margin = 0
+  return Number(barSize) + margin + Number(gapsOut)
+}
+
 function popupPlacement(barPosition, barClearance, gapsOut) {
   var position = String(barPosition || "top")
   var clearance = Number(barClearance)
@@ -492,6 +501,7 @@ if (typeof module !== "undefined") {
     serializePopup: serializePopup,
     parsePopupFiles: parsePopupFiles,
     popupExpired: popupExpired,
+    barClearance: barClearance,
     popupPlacement: popupPlacement
   }
 }
