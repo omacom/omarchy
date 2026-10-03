@@ -68,6 +68,8 @@ pass "clamshell helper detects closed-lid external monitor state"
 grep -F 'hyprctl monitors all -j' "$monitor_external_active" >/dev/null
 grep -F 'select(.name | test("^(eDP|LVDS|DSI)-") | not)' "$monitor_external_active" >/dev/null
 grep -F 'select(.disabled == false)' "$monitor_external_active" >/dev/null
+grep -F 'select(.name != "FALLBACK")' "$monitor_external_active" >/dev/null ||
+  fail "active external monitor helper excludes Hyprland's synthetic FALLBACK head"
 pass "active external monitor helper sees mirrors and ignores monitors disabled on purpose"
 
 grep -F 'omarchy-hyprland-monitor-internal recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
