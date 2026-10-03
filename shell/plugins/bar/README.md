@@ -48,6 +48,33 @@ Example `shell.json` (bar subtree only shown):
 
 `centerAnchor` pins one center module to the exact horizontal/vertical center and flanks others around it. Set to an empty string to disable anchoring (the center list is centered as a group).
 
+`pills` puts widgets on their own background, so the bar background can be switched off (`transparent: true`) and the widgets still sit on something. Unset, a theme's `[bar] pills` decides, and without one there are no pills.
+
+| `pills` | Effect |
+|---|---|
+| `"off"` | no pills; the bar renders as it always has |
+| `"section"` | one pill per run of neighbouring widgets. A spacer ends the run, even at `"size": 0`, and so does a change of `"group"` value between neighbours |
+| `"widget"` | one pill per widget |
+
+```json
+"bar": {
+  "transparent": true,
+  "pills": "section",
+  "layout": {
+    "right": [
+      { "id": "omarchy.tray" },
+      { "id": "omarchy.spacer", "size": 0 },
+      { "id": "omarchy.bluetooth", "group": "net" },
+      { "id": "omarchy.network", "group": "net" },
+      { "id": "omarchy.audio" },
+      { "id": "omarchy.power", "pill": false }
+    ]
+  }
+}
+```
+
+That right section draws `[tray] [bluetooth network] [audio]` and a bare power widget: `"pill": false` keeps a widget off any pill. Widgets that hide themselves drop out of their pill. Widget text is picked for legibility against the pill, and a bare widget uses the same colour, so it reads best on an opaque bar background. Theme keys are in [`docs/omarchy-shell.md`](../../../docs/omarchy-shell.md#bar-pills).
+
 ## Module catalogue
 
 ### First-party interactive widgets
@@ -139,7 +166,7 @@ Item {
   Text {
     anchors.centerIn: parent
     text: "GPU"
-    color: bar ? bar.foreground : "white"
+    color: bar ? bar.barForeground : "white"
     font.family: bar ? bar.fontFamily : "monospace"
     font.pixelSize: 12
   }
@@ -156,6 +183,8 @@ Item {
 Widgets receive `bar` (the shell root), `moduleName` (string), and `settings` (object) injected at load time. The bar exposes:
 
 - `bar.foreground`, `bar.background`, `bar.urgent` — theme colors (live-updated)
+- `bar.barForeground` — the text colour to draw on the bar: the theme text, or the colour picked for a transparent bar or for pills
+- `bar.pillsOn` — whether bar pills are on
 - `bar.fontFamily` — current monospace family
 - `bar.position` — `"top" | "bottom" | "left" | "right"`
 - `bar.vertical` — boolean shortcut

@@ -17,6 +17,10 @@ BarWidget {
   property var activeTrayItem: null
   property var activeTrayAnchor: null
   readonly property color foreground: bar ? bar.foreground : Color.foreground
+  // Symbolic icons on the bar follow the pill text like the other widgets
+  // while pills are on. The tray popups sit on the popup background, not on
+  // a pill, so they keep foreground.
+  readonly property color barIconColor: bar ? (bar.pillsOn ? bar.barForeground : bar.foreground) : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var pinnedIds: settings.pinned instanceof Array ? settings.pinned : []
   readonly property var hiddenIds: settings.hidden instanceof Array ? settings.hidden : []
@@ -770,6 +774,7 @@ BarWidget {
   component TrayIcon: Item {
     id: trayIconRoot
     required property var icon
+    property color tint: root.foreground
     readonly property bool symbolic: root.iconIsSymbolic(icon)
 
     Image {
@@ -791,7 +796,7 @@ BarWidget {
       source: trayIconImage
       visible: trayIconRoot.symbolic
       colorization: 1.0
-      colorizationColor: root.foreground
+      colorizationColor: trayIconRoot.tint
     }
   }
 
@@ -813,6 +818,7 @@ BarWidget {
       width: Style.space(12)
       height: Style.space(12)
       icon: trayItemRoot.modelData.icon
+      tint: root.barIconColor
     }
 
     MouseArea {
