@@ -253,3 +253,129 @@ YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fa
 grep -qF -- "Download complete Real_Clip [id]" "$notify_argv" ||
   fail "yt-dlp native host falls back to the filename when no title record arrives" "$(cat "$notify_argv")"
 pass "yt-dlp native host falls back to the filename when no title record arrives"
+
+# Cookies: the extension sends what chrome.cookies.getAll returned for the page,
+# and the host turns that into the Netscape file yt-dlp's --cookies reads.
+cookie_payload='{"url":"https://www.youtube.com/watch?v=x","cookies":[
+  {"domain":".youtube.com","hostOnly":false,"path":"/","secure":true,"httpOnly":true,"expirationDate":1790000000.5,"name":"__Secure-1PSID","value":"abc.def"},
+  {"domain":"www.youtube.com","hostOnly":true,"path":"/","secure":false,"httpOnly":false,"name":"YSC","value":"sess"},
+  {"domain":"youtube.com","hostOnly":false,"path":"/","secure":true,"name":"forged","value":"a\nwww.evil.test\tFALSE\t/\tFALSE\t0\tx\ty"},
+  {"domain":"","name":"x","value":"y"},
+  "junk"
+]}'
+
+rendered=$(host_fn render_cookies "$cookie_payload")
+expected_cookies=$'#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1790000000\t__Secure-1PSID\tabc.def\nwww.youtube.com\tFALSE\t/\tFALSE\t0\tYSC\tsess'
+[[ $rendered == "$expected_cookies" ]] ||
+  fail "yt-dlp native host renders page cookies in Netscape format" "$rendered"
+pass "yt-dlp native host renders page cookies in Netscape format"
+
+[[ $rendered != *forged* && $rendered != *evil* ]] ||
+  fail "yt-dlp native host drops a cookie that would forge a record" "$rendered"
+pass "yt-dlp native host drops a cookie that would forge a record"
+
+cookie_dir="$TMPDIR/runtime"
+mkdir -p "$cookie_dir"
+cookie_file=$(XDG_RUNTIME_DIR="$cookie_dir" host_fn write_cookie_file "$cookie_payload")
+[[ -f $cookie_file && $cookie_file == "$cookie_dir"/omarchy-ytdlp-cookies.* ]] ||
+  fail "yt-dlp native host writes the cookie file to the runtime dir" "$cookie_file"
+pass "yt-dlp native host writes the cookie file to the runtime dir"
+
+[[ $(stat -c %a "$cookie_file") == "600" ]] ||
+  fail "yt-dlp native host keeps the cookie file private" "$(stat -c %a "$cookie_file")"
+pass "yt-dlp native host keeps the cookie file private"
+
+[[ $(head -n1 "$cookie_file") == "# Netscape HTTP Cookie File" ]] ||
+  fail "yt-dlp native host starts the cookie file with the Netscape header" "$(head -n1 "$cookie_file")"
+pass "yt-dlp native host starts the cookie file with the Netscape header"
+
+XDG_RUNTIME_DIR="$cookie_dir" host_fn write_cookie_file '{"url":"https://example.test/watch"}' &&
+  fail "yt-dlp native host writes no cookie file when the page sent no cookies"
+pass "yt-dlp native host writes no cookie file when the page sent no cookies"
+
+# A video the guest probe can't see (age-restricted, members-only) is retried
+# with the session, and the session is then used for the download itself.
+cat >"$fake_root/bin/yt-dlp" <<'EOF2'
+#!/bin/bash
+printf '%s\n' "$*" >>"$YTDLP_ARGV_LOG"
+has_cookies=0
+for arg in "$@"; do
+  [[ $arg == "--cookies" ]] && has_cookies=1
+done
+if [[ -n ${YTDLP_NEEDS_COOKIES:-} ]] && (( ! has_cookies )); then
+  exit 1
+fi
+for arg in "$@"; do
+  if [[ $arg == "--no-simulate" ]]; then
+    printf 'OMARCHY_FILE\t%s\n' "$YTDLP_FAKE_FILE"
+    printf 'OMARCHY_TITLE\t%s\n' '"My Great Clip"'
+    exit 0
+  fi
+done
+exit 0
+EOF2
+
+run_download_with_cookies() {
+  local file
+  file=$(XDG_RUNTIME_DIR="$cookie_dir" host_fn write_cookie_file "$cookie_payload")
+  : >"$notify_argv"
+  : >"$ytdlp_argv"
+  YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fake_file" \
+    OMARCHY_PATH="$fake_root" OMARCHY_YTDLP_DIR="$fake_dir" \
+    bash -c '
+      source "$1"
+      download_url "$2" "$3"
+    ' bash "$ROOT/bin/omarchy-chromium-ytdlp-host" "https://example.test/watch" "$file" >/dev/null 2>&1
+  printf '%s' "$file"
+}
+
+used_file=$(YTDLP_NEEDS_COOKIES=1 run_download_with_cookies)
+
+(($(wc -l <"$ytdlp_argv") == 3)) ||
+  fail "yt-dlp native host probes as a guest, then with the session, then downloads" "$(cat "$ytdlp_argv")"
+pass "yt-dlp native host probes as a guest, then with the session, then downloads"
+
+grep -qF -- "--no-simulate" "$ytdlp_argv" && grep -F -- "--no-simulate" "$ytdlp_argv" | grep -qF -- "--cookies $used_file" ||
+  fail "yt-dlp native host downloads with the cookie file when the guest probe fails" "$(cat "$ytdlp_argv")"
+pass "yt-dlp native host downloads with the cookie file when the guest probe fails"
+
+grep -qF -- "Download complete My Great Clip" "$notify_argv" ||
+  fail "yt-dlp native host completes a signed-in download" "$(cat "$notify_argv")"
+pass "yt-dlp native host completes a signed-in download"
+
+[[ ! -e $used_file ]] ||
+  fail "yt-dlp native host removes the cookie file after the download" "$used_file"
+pass "yt-dlp native host removes the cookie file after the download"
+
+unused_file=$(run_download_with_cookies)
+
+grep -qF -- "--cookies" "$ytdlp_argv" &&
+  fail "yt-dlp native host leaves the session out of a download a guest can make" "$(cat "$ytdlp_argv")"
+pass "yt-dlp native host leaves the session out of a download a guest can make"
+
+[[ ! -e $unused_file ]] ||
+  fail "yt-dlp native host removes an unused cookie file" "$unused_file"
+pass "yt-dlp native host removes an unused cookie file"
+
+# The native-messaging entrypoint hands the worker the file, never the cookies.
+spawn_log="$TMPDIR/spawn-log"
+cat >"$fake_root/bin/setsid" <<'EOF2'
+#!/bin/bash
+printf '%s\n' "$*" >>"$SPAWN_LOG"
+EOF2
+chmod +x "$fake_root/bin/setsid"
+frame=$(printf '%s' "$cookie_payload" | tr -d '\n')
+{
+  printf '%08x' "${#frame}" | sed 's/\(..\)\(..\)\(..\)\(..\)/\\x\4\\x\3\\x\2\\x\1/' | xargs -0 printf
+  printf '%s' "$frame"
+} | SPAWN_LOG="$spawn_log" XDG_RUNTIME_DIR="$cookie_dir" PATH="$fake_root/bin:$PATH" OMARCHY_PATH="$fake_root" \
+  bash "$ROOT/bin/omarchy-chromium-ytdlp-host" >/dev/null
+
+spawned=$(cat "$spawn_log")
+[[ $spawned == *"--download https://www.youtube.com/watch?v=x $cookie_dir/omarchy-ytdlp-cookies."* ]] ||
+  fail "yt-dlp native host passes the worker the cookie file path" "$spawned"
+pass "yt-dlp native host passes the worker the cookie file path"
+
+[[ $spawned != *abc.def* ]] ||
+  fail "yt-dlp native host never puts cookie values on a command line" "$spawned"
+pass "yt-dlp native host never puts cookie values on a command line"
