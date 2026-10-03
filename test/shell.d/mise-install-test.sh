@@ -95,3 +95,83 @@ fi
   fail "an escaping command name removes nothing outside ~/.local/bin"
 
 pass "an escaping command name removes nothing outside ~/.local/bin"
+
+# `mise x … -- bin` falls back to PATH when the tool has no matching binary, which
+# re-executes this stub. The per-command guard must fail fast instead (#13177).
+install_wrapper missing-tool missing-tool >/dev/null
+[[ -x $home/.local/bin/missing-tool ]] || fail "missing-tool wrapper is written"
+grep -Fq '_OMARCHY_MISE_GUARD_MISSING_TOOL' "$home/.local/bin/missing-tool" ||
+  fail "wrapper exports a per-command re-entry guard"
+grep -Fq 'exec mise x' "$home/.local/bin/missing-tool" ||
+  fail "wrapper still runs the tool through mise x after the guard"
+
+# Simulate PATH fallback: mise x re-invokes the stub. Without the guard this
+# forks until the process table fills; with it the second entry exits 127.
+cat >"$stub_bin/mise" <<'SH'
+#!/bin/bash
+printf 'mise' >>"$OMARCHY_MISE_TEST_LOG"
+for arg in "$@"; do
+  printf '\t%s' "$arg" >>"$OMARCHY_MISE_TEST_LOG"
+done
+printf '\n' >>"$OMARCHY_MISE_TEST_LOG"
+if [[ $1 == x ]]; then
+  shift
+  while (($#)) && [[ $1 != -- ]]; do shift; done
+  (($#)) && shift
+  exec "$1" "${@:2}"
+fi
+SH
+chmod +x "$stub_bin/mise"
+
+log="$tmpdir/recurse.log"
+: >"$log"
+set +e
+OMARCHY_MISE_TEST_LOG="$log" PATH="$home/.local/bin:$stub_bin:$PATH" \
+  timeout 2s "$home/.local/bin/missing-tool" --version >"$tmpdir/recurse.out" 2>"$tmpdir/recurse.err"
+status=$?
+set -e
+((status == 127)) ||
+  fail "re-entry exits 127 instead of recursing" "status=$status err=$(cat "$tmpdir/recurse.err")"
+grep -Fq 'mise could not provide' "$tmpdir/recurse.err" ||
+  fail "re-entry names the missing tool" "$(cat "$tmpdir/recurse.err")"
+# use + one recursive x that re-enters; a runaway would fill the log.
+(($(grep -c '^mise' "$log") <= 3)) ||
+  fail "re-entry does not keep forking mise" "$(cat "$log")"
+pass "wrapper fails fast instead of recursing through PATH"
+
+# Re-entry diagnostics must treat all three names as data, just like mise calls.
+# The command payload is slash-free so it remains a valid wrapper file name.
+package='npm:pkg$(touch '"$tmpdir"'/PACKAGE_PWNED)end'
+command='hostile$(touch COMMAND_PWNED)'
+bin="$tmpdir/"'bin$(touch BIN_PWNED)'
+(
+  cd "$tmpdir"
+  install_wrapper "$package" "$command" "$bin" >/dev/null
+)
+ln -s "$home/.local/bin/$command" "$bin"
+for marker in PACKAGE_PWNED COMMAND_PWNED BIN_PWNED; do
+  [[ ! -e $tmpdir/$marker ]] || fail "wrapper generation keeps $marker inert"
+done
+
+log="$tmpdir/hostile-recurse.log"
+: >"$log"
+set +e
+(
+  cd "$tmpdir"
+  OMARCHY_MISE_TEST_LOG="$log" PATH="$home/.local/bin:$stub_bin:$PATH" \
+    timeout 2s "$home/.local/bin/$command" --version
+) >"$tmpdir/hostile-recurse.out" 2>"$tmpdir/hostile-recurse.err"
+status=$?
+set -e
+(( status == 127 )) ||
+  fail "hostile re-entry exits 127" "status=$status err=$(cat "$tmpdir/hostile-recurse.err")"
+for marker in PACKAGE_PWNED COMMAND_PWNED BIN_PWNED; do
+  [[ ! -e $tmpdir/$marker ]] || fail "wrapper execution keeps $marker inert"
+done
+printf 'mise\tuse\t-g\t--quiet\t%s\nmise\tx\t%s\t--\t%s\t--version\n' "$package" "$package" "$bin" >"$tmpdir/hostile-recurse.expected.log"
+cmp -s "$tmpdir/hostile-recurse.expected.log" "$log" ||
+  fail "mise receives hostile arguments intact" "$(cat "$log")"
+printf '%s: mise could not provide "%s" from tool "%s" (is it installed?)\n' "$command" "$bin" "$package" >"$tmpdir/hostile-recurse.expected.err"
+cmp -s "$tmpdir/hostile-recurse.expected.err" "$tmpdir/hostile-recurse.err" ||
+  fail "re-entry diagnostic contains the literal names" "$(cat "$tmpdir/hostile-recurse.err")"
+pass "re-entry keeps package, command, and bin names inert"
