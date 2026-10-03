@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Install a supported browser
-# omarchy:args=<chromium|chrome|brave|brave-origin|edge|firefox|zen>
+# omarchy:args=<chromium|chrome|brave|brave-origin|edge|firefox|zen|qutebrowser>
 # omarchy:examples=omarchy install browser chromium | omarchy install browser firefox
 
 set -e
@@ -27,6 +27,31 @@ copy_chromium_flags() {
 setup_firefox_wayland() {
   mkdir -p ~/.config/environment.d
   echo "MOZ_ENABLE_WAYLAND=1" > ~/.config/environment.d/omarchy-firefox-wayland.conf
+}
+
+setup_qutebrowser_config() {
+  omarchy-refresh-config qutebrowser/omarchy.py
+
+  # config.py belongs to whoever is using the browser, so it is only written
+  # when there is nothing there to overwrite. Sourcing comes first and the
+  # autoconfig last, so anything changed later with :set outlives an upgrade.
+  if [[ ! -f ~/.config/qutebrowser/config.py ]]; then
+    cat >~/.config/qutebrowser/config.py <<'CONFIG'
+# Your qutebrowser settings. Omarchy only ever replaces omarchy.py, so anything
+# you add here, or change with :set, survives an upgrade.
+
+config.source("omarchy.py")
+config.load_autoconfig(True)
+CONFIG
+  elif ! grep -q 'config.source("omarchy.py")' ~/.config/qutebrowser/config.py; then
+    # Their config.py predates this install and was left alone, which means
+    # nothing above is actually in effect until they wire it up.
+    echo ""
+    echo "You already have ~/.config/qutebrowser/config.py, so it was left alone."
+    echo "Add this line to it to pick up the ad blocking and the mpv bindings:"
+    echo ""
+    echo '    config.source("omarchy.py")'
+  fi
 }
 
 case $1 in
@@ -91,8 +116,17 @@ zen)
   setup_firefox_wayland
   announce_browser_installed "Zen"
   ;;
+qutebrowser)
+  echo "Installing qutebrowser..."
+  omarchy-pkg-add qutebrowser python-adblock mpv yt-dlp || exit 1
+
+  setup_qutebrowser_config
+  announce_browser_installed "qutebrowser"
+  echo "Run :adblock-update once inside qutebrowser to fetch the filter lists."
+  echo "Press ,m on a video page to play it in mpv, which skips YouTube ads."
+  ;;
 *)
-  echo "Usage: omarchy-install-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen>"
+  echo "Usage: omarchy-install-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen|qutebrowser>"
   exit 1
   ;;
 esac
