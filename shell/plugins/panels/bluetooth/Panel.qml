@@ -504,13 +504,23 @@ Panel {
   // BlueZ rejects StartDiscovery while the adapter is still powering up, and
   // discovery can also time out on its own. While the panel is open, keep
   // nudging it back on so an enabled adapter is always scanning.
+  //
+  // But never at a flat 1 Hz forever: a rejecting (or wedged) controller
+  // under that flood hard-fails its LE scan setup (-16/-EBUSY) and can take
+  // A2DP down with it (omacom/omarchy#13447). Back off exponentially and
+  // stop writing after a bounded number of attempts; a confirmed discovery
+  // or a panel reopen starts the ladder over.
   Timer {
     id: discoveryRetry
-    interval: 1000
+    property int attempts: 0
+    interval: 1000 * Math.pow(2, Math.min(attempts, 3))
     repeat: true
     triggeredOnStart: true
     running: root.opened && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering
+    onRunningChanged: if (running) attempts = 0
     onTriggered: {
+      attempts += 1
+      if (attempts > 5) return
       root.owesDiscoveryStop = true
       root.adapter.discovering = true
     }
@@ -560,7 +570,11 @@ Panel {
   Connections {
     target: root.adapter
     function onDiscoveringChanged() {
-      if (!root.adapter.discovering) root.owesDiscoveryStop = false
+      if (!root.adapter.discovering) {
+        root.owesDiscoveryStop = false
+      } else {
+        discoveryRetry.attempts = 0
+      }
     }
   }
 
