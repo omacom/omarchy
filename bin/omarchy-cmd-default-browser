@@ -50,9 +50,12 @@ done
 
 # Nothing set in a config dir: let xdg-settings search the data dirs and caches.
 # It consults $BROWSER too, which the session points back at omarchy-launch-browser.
-browser=$(env -u BROWSER xdg-settings get default-web-browser 2>/dev/null)
+# xdg-utils does not know Hyprland and probes for XFCE with xprop, which starts
+# Xwayland where it is started on demand. X-Generic takes the same generic path
+# without the probe.
+browser=$(env -u BROWSER XDG_CURRENT_DESKTOP=X-Generic xdg-settings get default-web-browser 2>/dev/null)
 if [[ -z $browser ]]; then
-  browser=$(xdg-mime query default x-scheme-handler/https 2>/dev/null)
+  browser=$(XDG_CURRENT_DESKTOP=X-Generic xdg-mime query default x-scheme-handler/https 2>/dev/null)
 fi
 
 [[ -n $browser ]] && echo "$browser"
