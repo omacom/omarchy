@@ -11,6 +11,7 @@ restart_pid_two=""
 cleanup() {
   [[ -n $restart_pid_one ]] && kill "$restart_pid_one" 2>/dev/null || true
   [[ -n $restart_pid_two ]] && kill "$restart_pid_two" 2>/dev/null || true
+  [[ -f ${runtime_dir:-}/omarchy/launch-shell.pid ]] && kill "$(<"$runtime_dir/omarchy/launch-shell.pid")" 2>/dev/null || true
   rm -rf "$test_tmp"
 }
 trap cleanup EXIT
@@ -124,6 +125,7 @@ case " $* " in
   *' -n -p '*)
     printf '%s\n' "${OMARCHY_TEST_TRANSIENT_ENV-unset}" >"$OMARCHY_TEST_QS_ENV_LOG"
     printf '303\n' >"$OMARCHY_TEST_QS_STATE"
+    exec sleep 30
     ;;
 esac
 SH
@@ -141,8 +143,9 @@ if [[ ${1:-} == "-j" && ${2:-} == "monitors" ]]; then
   fi
 elif [[ ${1:-} == "dispatch" && ${2:-} == hl.dsp.exec_cmd* ]]; then
   printf '%s\n' "${2:-}" >>"$OMARCHY_TEST_DISPATCH_LOG"
+  # Hyprland returns from exec_cmd at once; the supervisor keeps running.
   OMARCHY_PATH="$OMARCHY_TEST_SESSION_PATH" \
-    env -u OMARCHY_TEST_TRANSIENT_ENV omarchy-launch-shell
+    env -u OMARCHY_TEST_TRANSIENT_ENV omarchy-launch-shell </dev/null >/dev/null 2>&1 &
   printf 'ok\n'
 elif [[ ${1:-} == "dispatch" ]]; then
   exit 1

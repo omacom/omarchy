@@ -76,20 +76,61 @@ if notifications_ready; then
   notifications_were_running=1
 fi
 
+# A supervisor that was SIGKILLed leaves its pid file behind, and its pid can be
+# reused, so only signal the recorded pid while it is still a launcher.
+is_launch_supervisor() {
+  [[ $(tr '\0' ' ' 2>/dev/null <"/proc/$1/cmdline") == *omarchy-launch-shell* ]]
+}
+
+stop_launch_supervisor() {
+  local pid_file="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy/launch-shell.pid"
+  local old_pid
+
+  [[ -f $pid_file ]] || return 0
+  old_pid=$(<"$pid_file")
+  [[ $old_pid =~ ^[0-9]+$ ]] || return 0
+  is_launch_supervisor "$old_pid" || return 0
+
+  kill -TERM "$old_pid" 2>/dev/null || true
+  local waited
+  for (( waited = 0; waited < 50; waited++ )); do
+    is_launch_supervisor "$old_pid" || return 0
+    sleep 0.1
+  done
+  if is_launch_supervisor "$old_pid"; then
+    kill -KILL "$old_pid" 2>/dev/null || true
+  fi
+}
+
+launch_replacement() {
+  hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
+}
+
+# Stop the living supervisor first so it does not relaunch the shell we are
+# about to replace (it now treats unexpected clean exits as relaunchable).
+stop_launch_supervisor
+
 # Each kill stops the oldest matching instance and only returns once it has
 # fully exited, so the no-duplicate launch below can't race a dying shell.
 while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
 
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.
-hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
+launch_replacement
 
 shell_ready=0
-for (( attempt = 0; attempt < 20; attempt++ )); do
+for (( attempt = 0; attempt < 40; attempt++ )); do
   if OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell shell ping >/dev/null 2>&1; then
     shell_ready=1
     break
   fi
+
+  # A failed first replacement used to leave the seat with no supervisor.
+  # Kick another launcher mid-wait and keep polling.
+  if (( attempt == 19 )); then
+    launch_replacement
+  fi
+
   sleep 0.1
 done
 if (( shell_ready == 0 )); then
