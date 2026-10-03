@@ -447,10 +447,17 @@ umount -- "$EXPECTED_STORAGE"
 dc() { return 1; }
 __priv_remove 2>/dev/null && fail "removal deleted data after docker-compose down failed"
 [[ -f $HOME/.windows/disk.img && -f $HOME/Windows/keep.txt && -f $COMPOSE ]] || fail "failed down changed data or compose"
+# Dockur can leave the shared bind source setgid. Removal must harden it before
+# validating the anchor, or the VM disk remains in place with a generic error.
+chmod 2777 "$HOME/Windows"
+# The privileged production path calls this from assert_mounts_safe; this
+# namespace runs the same helper without root privileges.
+prepare_caller_mounts
 dc() { :; }
 __priv_remove
 [[ ! -e $HOME/.windows/disk.img ]] || fail "removal preserved disk data"
 [[ -e $HOME/Windows/keep.txt ]] || fail "removal deleted shared data"
+[[ $(stat -c '%a' "$HOME/Windows") == 700 ]] || fail "removal left the shared directory setgid"
 [[ ! -f $COMPOSE ]] || fail "removal left compose"
 resolve_caller
 [[ $(mount_layer_count "$EXPECTED_STORAGE") == 0 && $(mount_layer_count "$EXPECTED_SHARED") == 0 ]] || fail "removal left binds"
