@@ -457,6 +457,8 @@ BarWidget {
             width: 16
             height: 16
             icon: rowRoot.modelData.icon
+            // The popup keeps the theme background, not the transparent bar's.
+            tint: root.foreground
           }
 
           Text {
@@ -763,6 +765,7 @@ BarWidget {
     id: trayIconRoot
     required property var icon
     readonly property bool tinted: TrayModel.iconNeedsTint(icon)
+    property color tint: root.iconForeground
 
     Image {
       id: trayIconImage
@@ -783,7 +786,7 @@ BarWidget {
       source: trayIconImage
       visible: trayIconRoot.tinted
       colorization: 1.0
-      colorizationColor: root.iconForeground
+      colorizationColor: trayIconRoot.tint
     }
   }
 
