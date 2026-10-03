@@ -1,0 +1,138 @@
+#!/bin/bash
+# sync-plugin-forks.hook  --  runs after every `omarchy update` (post-update)
+#
+# Keeps user plugin "forks" up to date with upstream while preserving the local
+# edits that make them a fork. A fork is any plugin under
+# ~/.config/omarchy/plugins/ whose manifest sets  omarchy.clonedFrom  (i.e. it
+# was cloned from a built-in Omarchy plugin, by `omarchy plugin clone` or by
+# hand). This is what makes a cloned plugin -- which is otherwise a frozen copy
+# that never sees upstream fixes -- track upstream automatically.
+#
+# 3-way, fail-safe strategy per fork:
+#   baseline = the "upstream + identity" we last synced from (kept under $STATE)
+#   fork     = baseline + your local edits (what is live now)
+#   new      = fresh upstream + this fork's identity (id/name/clonedFrom)
+#   local edits = diff(baseline, fork)  ->  applied on top of `new`
+# If those edits no longer apply (upstream refactored the lines you changed),
+# the fork is LEFT UNTOUCHED and a desktop notification is sent so you can fix
+# it by hand. A fork seen for the first time is recorded as a baseline and left
+# alone until the next update. "identity" (id/name/displayName/clonedFrom) is
+# taken from the fork's own manifest and re-applied, so it is never treated as
+# a local edit to merge.
+#
+# Safe to run by hand any time:  bash "$0"
+# State (per fork baselines):    ${XDG_STATE_HOME:-~/.local/state}/omarchy/plugin-forks/
+
+set -uo pipefail
+
+PLUGINS_DIR="$HOME/.config/omarchy/plugins"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/plugin-forks"
+
+command -v omarchy-plugin-catalog >/dev/null 2>&1 || exit 0
+command -v jq >/dev/null 2>&1 || exit 0
+[[ -d $PLUGINS_DIR ]] || exit 0
+mkdir -p "$STATE"
+
+catalog=$(omarchy-plugin-catalog 2>/dev/null) || catalog='[]'
+changed=0
+
+notify() { command -v omarchy-notification-send >/dev/null 2>&1 && omarchy-notification-send -u critical "$1" "$2" 2>/dev/null || true; }
+
+# apply_identity <upstream-manifest> <fork-manifest>  -> new manifest on stdout
+apply_identity() {
+  local upm="$1" fkm="$2" id name disp from
+  id=$(jq -r '.id // empty' "$fkm")
+  name=$(jq -r '.name // empty' "$fkm")
+  disp=$(jq -r '.barWidget.displayName? // empty' "$fkm")
+  from=$(jq -r '.omarchy.clonedFrom // empty' "$fkm")
+  jq --arg id "$id" --arg name "$name" --arg disp "$disp" --arg from "$from" '
+    (if $id  != "" then .id = $id else . end)
+    | (if $name != "" then .name = $name else . end)
+    | (if ($disp != "" and (.barWidget | type) == "object") then .barWidget.displayName = $disp else . end)
+    | .omarchy = ((if (.omarchy | type) == "object" then .omarchy else {} end)
+                  + (if $from != "" then {clonedFrom: $from} else {} end))
+    | del(.omarchy.clonePaths)
+  ' "$upm"
+}
+
+# build "upstream + identity" from <upstream-dir> <fork-dir> into <out-dir>
+build_new() {
+  local up="$1" fork="$2" out="$3"
+  mkdir -p "$out"
+  cp -aL "$up/." "$out/"
+  chmod -R u+w "$out"
+  if [[ -f $out/manifest.json && -f $fork/manifest.json ]]; then
+    apply_identity "$out/manifest.json" "$fork/manifest.json" > "$out/manifest.json.tmp" \
+      && mv "$out/manifest.json.tmp" "$out/manifest.json"
+  fi
+}
+
+shopt -s nullglob
+for mf in "$PLUGINS_DIR"/*/manifest.json; do
+  fork_dir=$(dirname "$mf")
+  from=$(jq -r '.omarchy.clonedFrom // empty' "$mf" 2>/dev/null)
+  [[ -n $from ]] || continue                      # not a fork of a built-in
+
+  up_dir=$(printf '%s' "$catalog" | jq -r --arg id "$from" '.[] | select(.firstParty and .id==$id) | .sourceDir' | head -1)
+  if [[ -z $up_dir || ! -d $up_dir ]]; then
+    notify "Plugin fork: upstream missing" "No upstream '$from' for $(basename "$fork_dir"); left unchanged."
+    continue
+  fi
+
+  fork_id=$(jq -r '.id // empty' "$mf"); [[ -n $fork_id ]] || continue
+  base_dir="$STATE/$fork_id/baseline"
+
+  # First encounter: record a baseline (upstream + identity), touch nothing.
+  if [[ ! -d $base_dir ]]; then
+    mkdir -p "$base_dir"
+    build_new "$up_dir" "$fork_dir" "$base_dir"
+    notify "Now tracking plugin fork" "$fork_id will follow upstream '$from' on future updates."
+    continue
+  fi
+
+  work=$(mktemp -d) || continue
+  mkdir -p "$work/newbase" "$work/new" "$work/a" "$work/b"
+
+  # local edits = diff(baseline -> fork). Stage both under single-component
+  # sibling dirs (a/, b/) so the diff prefixes are "a/..." / "b/..." and
+  # `patch -p1` strips exactly one component to land paths in $work/new.
+  cp -aL "$base_dir/." "$work/a/"
+  cp -aL "$fork_dir/." "$work/b/"
+  patch_file="$work/local.patch"
+  ( cd "$work" && diff -ruN "a" "b" ) > "$patch_file" 2>/dev/null
+
+  # new = fresh upstream + identity; keep an unpatched copy as the next baseline
+  build_new "$up_dir" "$fork_dir" "$work/newbase"
+  cp -aL "$work/newbase/." "$work/new/"
+
+  if [[ -s $patch_file ]]; then
+    if ! patch -p1 --forward -d "$work/new" -r "$work/rej" < "$patch_file" >/dev/null 2>&1; then
+      notify "Plugin fork needs attention" \
+        "Couldn't re-apply your edits to $fork_id after this update (upstream changed those lines). Left your current version in place."
+      rm -rf "$work"
+      continue                                    # never clobber the fork on conflict
+    fi
+  fi
+
+  # nothing actually changed?
+  if diff -rq "$work/new" "$fork_dir" >/dev/null 2>&1; then
+    # still advance the baseline so future diffs stay accurate
+    rm -rf "$base_dir"; mkdir -p "$base_dir"; cp -aL "$work/newbase/." "$base_dir/"
+    rm -rf "$work"; continue
+  fi
+
+  # swap the fork into place, then advance the baseline
+  newperm="$fork_dir.sync.$$"
+  rm -rf "$newperm"; mkdir -p "$newperm"; cp -aL "$work/new/." "$newperm/"
+  rm -rf "$fork_dir" && mv "$newperm" "$fork_dir"
+  rm -rf "$base_dir"; mkdir -p "$base_dir"; cp -aL "$work/newbase/." "$base_dir/"
+  changed=1
+  notify "Plugin fork updated" "$fork_id was re-synced with upstream '$from' (your edits kept)."
+  rm -rf "$work"
+done
+
+if (( changed )); then
+  command -v omarchy-shell >/dev/null 2>&1 && omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
+fi
+
+exit 0
