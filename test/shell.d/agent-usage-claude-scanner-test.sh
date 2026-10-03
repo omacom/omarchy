@@ -109,6 +109,16 @@ index_scan >/dev/null
   fail "Claude collector rereads a transcript whose end was rewritten in place" "$(index_scan)"
 pass "Claude collector rereads a transcript whose end was rewritten in place"
 
+# A larger replacement that matches both ends of what was read but differs in
+# between is still a different file, so it is read from its start.
+for i in $(seq 1 200); do index_line "mid-$i" 100; done >"$index_projects/session.jsonl"
+index_scan >/dev/null
+{ for i in $(seq 1 200); do if (( i == 100 )); then index_line "mid-$i" 900; else index_line "mid-$i" 100; fi; done; index_line mid-201 1; } >"$index_projects/session.jsonl.new"
+mv "$index_projects/session.jsonl.new" "$index_projects/session.jsonl"
+[[ $(index_scan | jq -r '.todayTotalTokens') == "20801" ]] ||
+  fail "Claude collector rereads a replacement whose ends match" "$(index_scan)"
+pass "Claude collector rereads a replacement whose ends match"
+
 # The index holds local days, so a new timezone reads every transcript again
 # rather than keep the days another timezone gave them.
 zone_timestamp="$(date -u +%Y-%m-%d)T01:00:00Z"

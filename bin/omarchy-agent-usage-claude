@@ -130,7 +130,7 @@ def empty_bucket() -> dict[str, int]:
 # read from the start. Without this the whole history was re-parsed every
 # refresh, and the cost grew for the life of the machine.
 
-INDEX_VERSION = 3
+INDEX_VERSION = 4
 
 # How much of each end of what was read the index remembers a hash of, so a
 # file replaced or rewritten with more than it had is not mistaken for an
@@ -181,10 +181,15 @@ def parse_usage_records(path: Path, entry: dict[str, Any] | None) -> dict[str, A
   if entry and entry.get("size") == size and entry.get("mtime") == mtime:
     return entry
 
-  # Only a file grown past what was read, with what was read still in place,
-  # is an append. A transcript replaced by a larger one, or rewritten in place,
-  # has a different start or end.
-  if entry and size > number(entry.get("size")) and entry.get("head") == read_digest(path, number(entry.get("offset"))):
+  # Only the same file, grown past what was read with what was read still in
+  # place, is an append. A transcript replaced by a larger one is a new file,
+  # and one rewritten in place has a different start or end.
+  if (
+    entry
+    and size > number(entry.get("size"))
+    and entry.get("file") == [stat.st_dev, stat.st_ino]
+    and entry.get("head") == read_digest(path, number(entry.get("offset")))
+  ):
     records = list(entry.get("records") or [])
     offset = number(entry.get("offset"))
     line_number = number(entry.get("lines"))
@@ -260,6 +265,7 @@ def parse_usage_records(path: Path, entry: dict[str, Any] | None) -> dict[str, A
 
   return {
     "size": size,
+    "file": [stat.st_dev, stat.st_ino],
     "mtime": mtime,
     "head": read_digest(path, offset),
     "offset": offset,
