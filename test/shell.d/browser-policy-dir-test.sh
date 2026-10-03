@@ -279,6 +279,60 @@ grep -F 'exit "$failed"' "$ROOT/bin/omarchy-theme-set-browser" >/dev/null ||
   fail "omarchy-theme-set-browser exits non-zero when a policy write fails"
 pass "omarchy-theme-set-browser exits non-zero when a policy write fails"
 
+# A Vivaldi refresh failure must affect the aggregate setter's status without
+# erasing an earlier policy failure.
+integration_root="$test_tmp/browser-theme-integration"
+integration_bin="$integration_root/bin"
+integration_omarchy="$integration_root/omarchy"
+mkdir -p "$integration_bin" "$integration_omarchy/install/helpers" \
+  "$integration_omarchy/default/vivaldi" "$integration_root/home"
+cat >"$integration_omarchy/install/helpers/browser-policy.sh" <<'SH'
+BROWSER_POLICY_DEFAULT_COLOR="#1c2027"
+browser_policy_theme_hex() { printf '%s' "$1"; }
+SH
+cat >"$integration_bin/omarchy-theme-set-browser-policy" <<'SH'
+#!/bin/bash
+exit "$POLICY_STATUS"
+SH
+cat >"$integration_omarchy/default/vivaldi/vivaldi-theme-refresh" <<'SH'
+#!/bin/bash
+exit "$VIVALDI_STATUS"
+SH
+cat >"$integration_bin/omarchy-cmd-present" <<'SH'
+#!/bin/bash
+exit 1
+SH
+chmod +x "$integration_bin"/* \
+  "$integration_omarchy/default/vivaldi/vivaldi-theme-refresh"
+
+run_browser_theme_set() {
+  POLICY_STATUS="$1" VIVALDI_STATUS="$2" \
+    HOME="$integration_root/home" OMARCHY_PATH="$integration_omarchy" \
+    PATH="$integration_bin:/usr/bin:/bin" \
+    bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null 2>&1
+}
+
+if run_browser_theme_set 0 1; then
+  fail "omarchy-theme-set-browser reports a Vivaldi refresh failure"
+fi
+if run_browser_theme_set 1 0; then
+  fail "omarchy-theme-set-browser reports a policy write failure"
+fi
+if run_browser_theme_set 1 1; then
+  fail "omarchy-theme-set-browser preserves both failures"
+fi
+run_browser_theme_set 0 0 ||
+  fail "omarchy-theme-set-browser succeeds when policy and Vivaldi refresh both succeed"
+vivaldi_stderr=$(
+  POLICY_STATUS=0 VIVALDI_STATUS=1 \
+    HOME="$integration_root/home" OMARCHY_PATH="$integration_omarchy" \
+    PATH="$integration_bin:/usr/bin:/bin" \
+    bash "$ROOT/bin/omarchy-theme-set-browser" 2>&1 >/dev/null || true
+)
+[[ $vivaldi_stderr == *"Vivaldi theme refresh failed"* ]] ||
+  fail "omarchy-theme-set-browser names a failed Vivaldi refresh"
+pass "omarchy-theme-set-browser aggregates policy and Vivaldi failures"
+
 # Bash 5.3 adopts the EXIT trap's last status as the script's exit status, so a
 # handler ending on a false test turns a clean run into a failure and aborts the
 # migration that calls this through omarchy-theme-set-browser.

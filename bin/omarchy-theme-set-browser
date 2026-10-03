@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Apply the current theme color to Chromium, Chrome, Edge, and Brave
+# omarchy:summary=Apply the current theme color to Chromium, Chrome, Edge, Brave, and Vivaldi
 # omarchy:hidden=true
 
 source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
@@ -91,4 +91,8 @@ for pid in "${refresh_pids[@]}"; do
   wait "$pid"
 done
 
+if ! "$OMARCHY_PATH/default/vivaldi/vivaldi-theme-refresh"; then
+  failed=1
+  echo "omarchy-theme-set-browser: Vivaldi theme refresh failed" >&2
+fi
 exit "$failed"
