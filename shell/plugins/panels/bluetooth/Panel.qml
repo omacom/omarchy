@@ -407,6 +407,8 @@ Panel {
 
   onOpenedChanged: {
     if (opened) {
+      // Fresh open gets a fresh StartDiscovery retry budget (#13447).
+      discoveryRetry.attempts = 0
       // Adopt a discovery session that is already running — a popout handoff
       // from another monitor, or one leaked by an instance that could not
       // finish its own stop — so this close settles it either way.
@@ -502,15 +504,18 @@ Panel {
   implicitHeight: button.implicitHeight
 
   // BlueZ rejects StartDiscovery while the adapter is still powering up, and
-  // discovery can also time out on its own. While the panel is open, keep
-  // nudging it back on so an enabled adapter is always scanning.
+  // discovery can also time out on its own. While the panel is open, nudge it
+  // back on a few times — unbounded 1 Hz retries wedge a busy controller
+  // (#13447).
   Timer {
     id: discoveryRetry
     interval: 1000
     repeat: true
+    property int attempts: 0
     triggeredOnStart: true
-    running: root.opened && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering
+    running: root.opened && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering && attempts < 5
     onTriggered: {
+      attempts += 1
       root.owesDiscoveryStop = true
       root.adapter.discovering = true
     }
@@ -560,9 +565,21 @@ Panel {
   Connections {
     target: root.adapter
     function onDiscoveringChanged() {
-      if (!root.adapter.discovering) root.owesDiscoveryStop = false
+      if (!root.adapter.discovering) {
+        root.owesDiscoveryStop = false
+      } else {
+        discoveryRetry.attempts = 0
+      }
+    }
+    // Turning the radio back on is how a user recovers a wedged controller,
+    // so it earns a fresh budget even after the last one ran out.
+    function onEnabledChanged() {
+      if (root.adapter.enabled) discoveryRetry.attempts = 0
     }
   }
+
+  // A different adapter has refused nothing yet.
+  onAdapterChanged: discoveryRetry.attempts = 0
 
   // A destroyed instance cannot wait for BlueZ confirmations, so it hands any
   // debt to a surviving sibling — whose declarative stop catches even a start
