@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Services.Mpris
 import qs.Ui
 import qs.Commons
 
@@ -63,16 +64,28 @@ BarWidget {
 
         property bool needsScroll: implicitWidth > scrollClip.width
 
-        NumberAnimation on x {
+        SequentialAnimation on x {
           id: scrollAnim
           running: labelText.needsScroll && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
-          // Stopped for reduced motion, the title reads from its start again.
-          onRunningChanged: if (!running && Style.reduceMotion) labelText.x = 0
+                   && activePlayer
+                   && activePlayer.playbackState === MprisPlaybackState.Playing
           loops: Animation.Infinite
-          duration: Math.max(6000, labelText.implicitWidth * 25)
-          from: scrollClip.width
-          to: -labelText.implicitWidth
-          easing.type: Easing.Linear
+
+          // Back to the start before every leading pause, not only the first.
+          PropertyAction { target: labelText; property: "x"; value: 0 }
+          PauseAnimation { duration: 3500 }
+          NumberAnimation {
+            from: 0
+            to: -(labelText.implicitWidth - scrollClip.width)
+            duration: Math.max(3000, (labelText.implicitWidth - scrollClip.width) * 30)
+            easing.type: Easing.Linear
+          }
+          PauseAnimation { duration: 2000 }
+
+          onRunningChanged: {
+            if (!running)
+              labelText.x = 0
+          }
         }
       }
     }
