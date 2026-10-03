@@ -235,6 +235,10 @@ if [[ -n $MIME_TYPES ]]; then
 fi
 
 chmod +x "$DESKTOP_FILE"
+# The live 3.x upgrade runs migrations mid-swap and must not reload there.
+if [[ ${OMARCHY_UPGRADE_TO_QUATTRO_LIVE:-0} != "1" ]]; then
+  hyprctl reload >/dev/null 2>&1 || true
+fi
 
 if [[ $INTERACTIVE_MODE == "true" ]]; then
   echo -e "You can now find $APP_NAME using the app launcher (SUPER + SPACE)\n"

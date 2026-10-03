@@ -59,3 +59,7 @@ if [[ ${OMARCHY_REMOVE_NOTIFY:-true} != "false" ]]; then
   omarchy-notification-send -g  "Web app removed" "$APP_NAME"
 fi
 update-desktop-database "$DESKTOP_DIR" &>/dev/null
+# The live 3.x upgrade runs migrations mid-swap and must not reload there.
+if [[ ${OMARCHY_UPGRADE_TO_QUATTRO_LIVE:-0} != "1" ]]; then
+  hyprctl reload >/dev/null 2>&1 || true
+fi
