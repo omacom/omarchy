@@ -76,7 +76,35 @@ shift 2
 printf '%s\n' "$*" >>"$OMARCHY_TEST_LOGGER_LOG"
 SH
 
-chmod +x "$fake_bin/quickshell" "$fake_bin/systemd-cat" "$fake_bin/hyprctl" "$fake_bin/logger"
+# The launcher follows the real journal otherwise, and a match there would
+# restart the shell of whoever runs the tests.
+cat >"$fake_bin/journalctl" <<'SH'
+#!/bin/bash
+
+[[ -n ${OMARCHY_TEST_JOURNAL_LINE:-} ]] && printf '%s\n' "$OMARCHY_TEST_JOURNAL_LINE"
+exit 0
+SH
+
+cat >"$fake_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+[[ -n ${OMARCHY_TEST_LOCKED:-} ]] || exit 1
+touch "$OMARCHY_TEST_LOCKED.asked"
+if [[ -f $OMARCHY_TEST_LOCKED ]]; then
+  printf '{"secure": true, "requested": true}\n'
+else
+  printf '{"secure": false, "requested": false}\n'
+fi
+SH
+
+cat >"$fake_bin/omarchy-restart-shell" <<'SH'
+#!/bin/bash
+
+touch "$OMARCHY_TEST_RESTARTED"
+SH
+
+chmod +x "$fake_bin/quickshell" "$fake_bin/systemd-cat" "$fake_bin/hyprctl" "$fake_bin/logger" \
+  "$fake_bin/journalctl" "$fake_bin/omarchy-shell" "$fake_bin/omarchy-restart-shell"
 
 qs_log="$test_tmp/quickshell.log"
 qs_env_log="$test_tmp/quickshell-env.log"
@@ -202,3 +230,47 @@ launch_pid=""
 [[ -f $qs_terminated ]] || fail "the running shell is signalled when the supervisor is"
 [[ $(launches) == 1 ]] || fail "the signalled shell is not relaunched" "$(<"$qs_log")"
 pass "stopping the supervisor stops the shell it is watching"
+
+# Quickshell never reconnects a dropped event socket, and the restart that
+# fixes it is refused under the lock screen, so it has to wait for the unlock.
+: >"$qs_log"
+: >"$qs_env_log"
+: >"$logger_log"
+restarted="$test_tmp/restarted"
+locked="$test_tmp/locked"
+rm -f "$restarted"
+touch "$locked"
+
+PATH="$fake_bin:$PATH" \
+OMARCHY_PATH="$shell_root" \
+OMARCHY_TEST_QS_LOG="$qs_log" \
+OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
+OMARCHY_TEST_QS_STATUSES='run' \
+OMARCHY_TEST_COMPOSITOR_GONE=0 \
+OMARCHY_TEST_LOGGER_LOG="$logger_log" \
+OMARCHY_TEST_QS_TERMINATED="$qs_terminated" \
+OMARCHY_TEST_JOURNAL_LINE='WARN: Hyprland event socket error: QLocalSocket::PeerClosedError' \
+OMARCHY_TEST_LOCKED="$locked" \
+OMARCHY_TEST_RESTARTED="$restarted" \
+  "$ROOT/bin/omarchy-launch-shell" &
+launch_pid=$!
+
+for (( waited = 0; waited < 100; waited++ )); do
+  [[ -f $locked.asked ]] && break
+  sleep 0.05
+done
+[[ -f $locked.asked ]] || fail "a dropped event socket asks whether the lock screen is up"
+sleep 1.5
+[[ -f $restarted ]] && fail "the shell is not restarted while the session is locked"
+rm -f "$locked"
+
+for (( waited = 0; waited < 100; waited++ )); do
+  [[ -f $restarted ]] && break
+  sleep 0.05
+done
+[[ -f $restarted ]] || fail "a dropped event socket restarts the shell once the session unlocks"
+
+kill -TERM "$launch_pid"
+wait "$launch_pid" 2>/dev/null || true
+launch_pid=""
+pass "a dropped event socket restarts the shell, after the lock screen if one is up"
