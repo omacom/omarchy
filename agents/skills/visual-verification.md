@@ -17,6 +17,15 @@ omarchy capture screenshot fullscreen save
 
 The command writes to Omasnap's configured screenshot directory. Use `omarchy screenshot` for the interactive capture flow, which copies the capture and shows a timed preview. Use `omarchy screenshot --editor=overlay` to test annotation before output. Capture reference and candidate states as separate images when changing a layer-shell surface or layout, then compare both.
 
+For a bar panel, capture just its card, and read what it shows from the scene rather than from pixels:
+
+```bash
+omarchy dev panel capture --scale 2 omarchy.agents /tmp/agents.png
+omarchy dev panel tree omarchy.agents
+```
+
+The panel is summoned if it's closed. The default capture is the card at the screen's own pixels; `--scale 2` doubles that, which stays sharp on a Retina display when the image is shown at half its width, as in a PR description (`<img width="608">` for a 1216-pixel-wide PNG). `omarchy dev panel tree` prints each visible item's type, geometry relative to the card, text, font size, and color, so a check for clipping or a wrong label doesn't depend on reading a screenshot.
+
 Record a short full-screen video for animation, transition, timing, capture, or
 screen-recording changes:
 

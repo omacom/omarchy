@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# omarchy:summary=Print a bar panel's item tree: type, geometry, text, font size, and color
+# omarchy:args=[--json] <plugin-id>
+# omarchy:examples=omarchy dev panel tree omarchy.agents | omarchy dev panel tree --json omarchy.agents
+
+set -uo pipefail
+
+usage() {
+  echo "Usage: omarchy-dev-panel-tree [--json] <plugin-id>" >&2
+  exit 1
+}
+
+json=false
+while [[ ${1:-} == --* ]]; do
+  case $1 in
+    --json)
+      json=true
+      shift
+      ;;
+    *) usage ;;
+  esac
+done
+
+id=${1:-}
+[[ -n $id ]] || usage
+
+# A closed panel is summoned on the first call; ask again until it has laid
+# out, for up to two seconds.
+tree=$(omarchy-shell shell debugPanelTree "$id")
+for (( i = 0; i < 20; i++ )); do
+  [[ $tree == "opening" ]] || break
+  sleep 0.1
+  tree=$(omarchy-shell shell debugPanelTree "$id")
+done
+if [[ $tree == "opening" ]]; then
+  echo "The panel for $id never opened" >&2
+  exit 1
+fi
+if [[ $tree == "unknown" || -z $tree ]]; then
+  echo "No open bar panel for $id" >&2
+  exit 1
+fi
+
+if [[ $json == "true" ]]; then
+  echo "$tree"
+else
+  # One line per item, indented by depth: type, geometry, then what it shows.
+  jq -r '
+    def line($d): ("  " * $d) + .type + "  " + "\(.x),\(.y) \(.w)x\(.h)"
+      + (if .text then "  \"" + (.text | gsub("\n"; "⏎")) + "\"" else "" end)
+      + (if .px then "  \(.px)px" else "" end)
+      + (if .color then "  " + .color else "" end);
+    def walk($d): line($d), (.children[]? | walk($d + 1));
+    walk(0)' <<<"$tree"
+fi

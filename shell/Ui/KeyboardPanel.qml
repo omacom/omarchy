@@ -61,6 +61,8 @@ PanelWindow {
   property Item focusTarget: null
 
   default property alias contentItem: contentHolder.children
+  // The visible card, for the shell's dev panel capture and tree IPC.
+  readonly property Item cardItem: card
 
   readonly property var coordinatorKey: owner || root
   readonly property var anchorWindow: anchorItem ? anchorItem.QsWindow.window : null
@@ -225,6 +227,7 @@ PanelWindow {
   // animation, which made ownership transfer to a sibling popup race.
   onOpenChanged: {
     if (open) {
+      card.openedAt = Date.now()
       focusPrimed = false
       beginFocusPrime()
       if (focusTarget) Qt.callLater(function() {
@@ -387,6 +390,9 @@ PanelWindow {
     padding: root.padding
     radius: Style.cornerRadius
     opacity: root.open || root.popoutSwitching ? 1.0 : 0
+    // When the card last opened, so a capture can let its contents settle.
+    property double openedAt: 0
+    Component.onCompleted: if (root.open) openedAt = Date.now()
 
     Behavior on opacity {
       enabled: !root.popoutSwitching && !root.popoutSwitchClosing

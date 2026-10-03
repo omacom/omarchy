@@ -9,6 +9,7 @@ import qs.Commons
 import "plugins/bar"
 import "services"
 import "services/AuthServiceStore.js" as AuthServiceStore
+import "services/DevInspect.js" as DevInspect
 
 ShellRoot {
   id: shell
@@ -1865,6 +1866,87 @@ ShellRoot {
 
     function call(id: string, method: string, arg: string): string {
       return shell.callIfLoaded(id, method, arg)
+    }
+
+    // Development: save an open bar panel's card, and nothing around it, as a
+    // PNG at `scale` times the screen's pixels ("" for 1). The panel
+    // is summoned if it's closed; the file appears once its contents have
+    // settled. Returns "ok", or "unknown" when there's no such panel.
+    function debugPanelCapture(id: string, path: string, scale: string): string {
+      return shell.devPanelCapture(id, path, scale) ? "ok" : "unknown"
+    }
+
+    // Development: the open panel card's item tree as JSON, read from the
+    // scene rather than the screen: type, geometry, text, and colors. A
+    // closed panel is summoned and "opening" returned, to ask again once it
+    // has laid out; "unknown" when there's no such bar panel.
+    function debugPanelTree(id: string): string {
+      var card = shell.devPanelCard(id)
+      if (card) return JSON.stringify(DevInspect.itemTree(card, card, 0))
+      return shell.devPanelOpen(id) ? "opening" : "unknown"
+    }
+
+    // Development: reload the whole config into a fresh engine. Quickshell's
+    // file watcher only sees files loaded at startup, not the plugins the
+    // registry loads later, so a dev loop watching shell/ asks for it here.
+    // The installed shell runs with the watcher off on purpose (see
+    // omarchy-launch-shell), and so refuses.
+    function debugReload(): string {
+      if (Quickshell.env("QS_DISABLE_FILE_WATCHER")) return "disabled"
+      Quickshell.reload(false)
+      return "ok"
+    }
+  }
+
+  // ------------------------------------------------- dev panel capture / tree
+
+  function devPanelCard(id) {
+    var widget = shell.bar && typeof shell.bar.findPanelWidget === "function"
+      ? shell.bar.findPanelWidget(shell.pluginRegistry.resolveEnabledId(id))
+      : null
+    return widget ? DevInspect.findOpenCard(widget, 0) : null
+  }
+
+  // Whether the bar has a panel for `id`, summoning it if it's closed. Only
+  // bar widgets are summoned: summon() would open any other plugin too, such
+  // as the menu, which has no card here to capture.
+  function devPanelOpen(id) {
+    if (devPanelCard(id)) return true
+    var resolved = shell.pluginRegistry.resolveEnabledId(id)
+    return !!resolved && shell.isBarWidgetPanelPlugin(resolved) && shell.summon(resolved, "{}")
+  }
+
+  // Each request gets its own timer, so captures asked for together don't
+  // overwrite each other's arguments. A panel open for a while is captured on
+  // the next frame; one just opened, here or elsewhere, waits out the rest of
+  // 400ms. The grab leaves out the card's own fade, but not its contents
+  // animating in, such as the agents panel's usage bars growing.
+  function devPanelCapture(id, path, scale) {
+    if (!devPanelOpen(id)) return false
+    var card = devPanelCard(id)
+    var wait = DevInspect.settleDelay(card ? card.openedAt : 0, Date.now(), 400)
+    devCaptureRequest.createObject(shell, { pluginId: id, path: path, scale: String(scale || ""), interval: wait })
+    return true
+  }
+
+  Component {
+    id: devCaptureRequest
+
+    Timer {
+      property string pluginId: ""
+      property string path: ""
+      property string scale: ""
+
+      running: true
+      onTriggered: {
+        var card = shell.devPanelCard(pluginId)
+        if (card) {
+          var size = DevInspect.captureSize(card.width, card.height, scale)
+          var target = path
+          card.grabToImage(function(result) { result.saveToFile(target) }, Qt.size(size.width, size.height))
+        }
+        destroy()
+      }
     }
   }
 }

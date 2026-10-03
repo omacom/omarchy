@@ -63,6 +63,8 @@ PopupWindow {
   }
 
   default property alias contentItem: contentHolder.children
+  // The visible card, for the shell's dev panel capture and tree IPC.
+  readonly property Item cardItem: card
 
   visible: open || card.opacity > 0
   color: "transparent"
@@ -70,6 +72,7 @@ PopupWindow {
   implicitHeight: contentHeight
 
   onOpenChanged: {
+    if (open) card.openedAt = Date.now()
     if (!bar) return
     if (open) bar.requestPopout(coordinatorKey)
     else if (bar.activePopout === coordinatorKey) bar.releasePopout(coordinatorKey)
@@ -155,6 +158,9 @@ PopupWindow {
     padding: root.padding
     radius: Style.cornerRadius
     opacity: root.open ? 1.0 : 0
+    // When the card last opened, so a capture can let its contents settle.
+    property double openedAt: 0
+    Component.onCompleted: if (root.open) openedAt = Date.now()
 
     Behavior on opacity {
       NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
