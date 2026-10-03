@@ -41,6 +41,13 @@ sink_matching() {
   pactl list sinks short 2>/dev/null | awk -v p="$1" '$2 ~ p {print $2; exit}'
 }
 
+# Asahi hosts its model-specific speaker DSP independently of Omarchy's tuning
+# service. A present sink is evidence of that graph even when no Omarchy tuning
+# matches, and while another output (headphones, for example) is selected.
+asahi_tuning_sink() {
+  sink_matching '^audio_effect[.]j[0-9]+-convolver$'
+}
+
 # Dell keys its Cirrus speaker firmware on the DMI product SKU, which makes it the
 # most precise identifier available for these machines -- narrower than a product
 # name, and it distinguishes models whose names differ only by marketing. Compared
@@ -201,13 +208,17 @@ case "$action" in
       echo "Tuning sink:  absent"
     fi
     echo "Default sink: $(pactl get-default-sink 2>/dev/null)"
+    asahi_sink="$(asahi_tuning_sink)"
+    if [[ -n $asahi_sink ]]; then
+      echo "Asahi DSP:    present ($asahi_sink)"
+    fi
     if dir="$(tuning_match)"; then
       unset description
       # shellcheck disable=SC1090
       source "$dir/tuning.conf"
       echo "Matches:      ${description:-?} ($(basename "$dir"))"
     else
-      echo "Matches:      nothing ships for this laptop"
+      echo "Matches:      no Omarchy tuning for this laptop"
     fi
     ;;
 
@@ -247,7 +258,12 @@ case "$action" in
     }
 
     selected="$(tuning_match)" || {
-      echo "No speaker tuning matches this laptop."
+      asahi_sink="$(asahi_tuning_sink)"
+      if [[ -n $asahi_sink ]]; then
+        echo "Speaker tuning is managed by Asahi ($asahi_sink)."
+      else
+        echo "No Omarchy speaker tuning matches this laptop."
+      fi
       exit 0
     }
 
