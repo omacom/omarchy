@@ -69,6 +69,43 @@ assertEqual(model.shortLabel('Spanish (Latin American)', briefs), 'ES', 'a layou
 assertEqual(model.shortLabel('Burmese (Zawgyi)', briefs), 'MY', 'a brief carrying a script drops it')
 assertEqual(model.shortLabel('A user-defined custom Layout', { 'A user-defined custom Layout': 'custom' }), 'CUS', 'a brief that is a word is cut to size')
 
+const scriptCases = [
+  ['Serbian', 'sr', 'SR'],
+  ['Serbian (Latin)', 'sr', 'SRL'],
+  ['Serbian (Latin, Unicode)', 'sr', 'SRL'],
+  ['Serbian (Cyrillic, with guillemets)', 'sr', 'SRC'],
+  ['Montenegrin', 'sr', 'SR'],
+  ['Montenegrin (Cyrillic)', 'sr', 'SRC'],
+  ['Montenegrin (Latin, QWERTY)', 'sr', 'SRL'],
+  ['Belarusian', 'by', 'BY'],
+  ['Belarusian (Latin)', 'by', 'BYL'],
+  ['Kazakh', 'kk', 'KK'],
+  ['Kazakh (Latin)', 'kk', 'KKL'],
+  ['Azerbaijani', 'az', 'AZ'],
+  ['Azerbaijani (Cyrillic)', 'az', 'AZC'],
+  ['Uzbek', 'uz', 'UZ'],
+  ['Uzbek (Latin)', 'uz', 'UZL'],
+  ['German', 'de', 'DE'],
+  ['French', 'fr', 'FR'],
+  ['Spanish (Latin American, no dead keys)', 'es', 'ES'],
+  ['French (alt., Latin-9 only)', 'fr', 'FR'],
+  ['Latvian (Modern Latin)', 'lv', 'LVL'],
+  ['Latvian (Modern Cyrillic)', 'lv', 'LVC'],
+  ['Example (QWERTY, Latin)', 'xy', 'XYL'],
+  ['Example (latin)', 'xy', 'XYL'],
+  ['Example (NeoLatin)', 'xy', 'XY'],
+  ['Kurdish (Iran, Arabic-Latin)', 'ku', 'KU'],
+  ['Kurdish (Iraq, Latin Q)', 'ku', 'KU'],
+  ['Serbian (Latin)', 'sr-latn', 'SRL'],
+  ['Example (Latin)', 'abc', 'ABC'],
+  ['Example (Cyrillic)', 'custom', 'CUS'],
+]
+
+for (const [description, brief, expected] of scriptCases) {
+  assertEqual(model.shortLabel(description, { [description]: brief }), expected,
+    `${description} with brief ${brief} reads ${expected}`)
+}
+
 // A brief pairs with the description printed under it, so a block that prints
 // one without the other must not hand its code to the block that follows.
 const orphaned = model.layoutBriefs([
@@ -85,6 +122,27 @@ assertEqual(model.shortLabel('Elvish (Tengwar)', briefs), 'ELV', 'an unlisted la
 assertEqual(model.shortLabel('English (US)', {}), 'ENG', 'the label survives an empty table')
 assertEqual(model.shortLabel('constructor', {}), 'CON', 'a description naming a built-in still falls back')
 assertEqual(model.shortLabel('', briefs), '', 'no keymap means no label')
+assertEqual(model.shortLabel('Serbian (Latin)', {}), 'SER', 'an unlisted script variant keeps the description fallback')
+assertEqual(model.shortLabel('XY (Latin)', {}), 'XY', 'a two-character fallback is not a brief')
+assertEqual(model.shortLabel('XY (Latin)', { 'XY (Latin)': '' }), 'XY', 'an empty brief does not acquire a script suffix')
+assertEqual(model.shortLabel('XY (Latin)', { 'XY (Latin)': 42 }), 'XY', 'a non-string brief does not acquire a script suffix')
+assertEqual(model.shortLabel('Serbian (Latin)'), 'SER', 'a missing table keeps the description fallback')
+assertEqual(model.shortLabel(42, { '42': 'ab' }), 'AB', 'a non-string description with a brief survives')
+
+const scriptBriefs = model.layoutBriefs([
+  'layouts:',
+  "- layout: 'rs'",
+  "  variant: ''",
+  "  brief: 'sr'",
+  '  description: Serbian',
+  "- layout: 'rs'",
+  "  variant: 'latinunicode'",
+  "  brief: 'sr'",
+  '  description: Serbian (Latin, Unicode)',
+].join('\n'))
+
+assertEqual(model.shortLabel('Serbian', scriptBriefs), 'SR', 'the listing preserves the unqualified base label')
+assertEqual(model.shortLabel('Serbian (Latin, Unicode)', scriptBriefs), 'SRL', 'a comma-bearing listed variant gets its script label')
 
 // The seat as hyprctl reports it, virtual keyboards already filtered out: the
 // buttons libinput calls keyboards sit beside the one being typed on, and the
