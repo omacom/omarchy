@@ -1,0 +1,13 @@
+[Unit]
+Description=Local Cohere transcription on Vulkan for Voxtype
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/voxtype-cohere-vulkan --model %h/.local/share/voxtype/models/cohere-transcribe-vulkan/cohere-transcribe-03-2026-Q4_K_M.gguf
+ExecStartPost=/usr/bin/curl --silent --show-error --fail --retry-connrefused --retry 30 --retry-delay 1 --retry-max-time 40 --output /dev/null http://127.0.0.1:8178/health
+TimeoutStartSec=60
+TimeoutStopSec=10
+NoNewPrivileges=true
+UMask=0077

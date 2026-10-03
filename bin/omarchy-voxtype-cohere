@@ -1,0 +1,93 @@
+#!/bin/bash
+
+# omarchy:summary=Enable verified local Cohere Vulkan or restore the configured Voxtype engine
+# omarchy:args=[enable|disable]
+
+set -euo pipefail
+
+dropin="$HOME/.config/systemd/user/voxtype.service.d/40-omarchy-cohere.conf"
+service="$HOME/.config/systemd/user/voxtype-cohere-vulkan.service"
+model_dir="$HOME/.local/share/voxtype/models/cohere-transcribe-vulkan"
+model="$model_dir/cohere-transcribe-03-2026-Q4_K_M.gguf"
+model_sha="0ea56826d8bd5d74b7143a4a04e022dc1bb75452cfae49d98b6acb0c1d16a1fb"
+action=${1:-enable}
+
+if [[ $action != "enable" && $action != "disable" ]]; then
+  echo "Usage: omarchy voxtype cohere [enable|disable]" >&2
+  exit 1
+fi
+
+state_file="${XDG_RUNTIME_DIR:?}/voxtype/state"
+check_idle() {
+  if [[ -f $state_file && $(<"$state_file") != "idle" ]]; then
+    echo "Finish the current dictation before changing engines." >&2
+    exit 1
+  fi
+}
+check_idle
+exec 9>"$XDG_RUNTIME_DIR/voxtype-cohere-setup.lock"
+flock -n 9 || { echo "Cohere setup is already running." >&2; exit 1; }
+
+if [[ $action == "enable" ]]; then
+  if omarchy-cmd-missing voxtype-cohere-vulkan; then
+    echo "Install voxtype-cohere-vulkan first with omarchy pkg add." >&2
+    exit 1
+  fi
+  mkdir -p "$model_dir"
+  # Keep partial downloads away from the active model.
+  if ! echo "$model_sha  $model" | sha256sum --check --status; then
+    echo "Downloading Cohere Transcribe (1.56GB)…"
+    curl --fail --location --retry 3 --connect-timeout 20 \
+      --output "$model.part" \
+      https://models.superwhisper.com/cohere-transcribe-03-2026-Q4_K_M.gguf
+    echo "$model_sha  $model.part" | sha256sum --check --status
+    mv "$model.part" "$model"
+  fi
+  echo "Checking Vulkan with a spoken transcription…"
+  timeout 120 voxtype-cohere-vulkan --model "$model" --probe
+  # Downloads and GPU warmup can take minutes; a recording may have begun.
+  check_idle
+
+  mkdir -p "${dropin%/*}"
+  backup=""
+  was_active=0
+  if systemctl --user is-active --quiet voxtype-cohere-vulkan.service; then
+    was_active=1
+  fi
+  if [[ -f $service ]]; then
+    backup="$service.bak.$(date +%s)"
+    cp "$service" "$backup"
+  fi
+  cp "$OMARCHY_PATH/default/voxtype/cohere-vulkan.service" "$service"
+  systemctl --user daemon-reload
+  if ! systemctl --user restart voxtype-cohere-vulkan.service; then
+    if [[ -n $backup ]]; then
+      cp "$backup" "$service"
+    else
+      rm -f "$service"
+    fi
+    systemctl --user daemon-reload
+    if (( was_active )); then
+      systemctl --user restart voxtype-cohere-vulkan.service || true
+    else
+      systemctl --user stop voxtype-cohere-vulkan.service
+    fi
+    echo "Cohere did not start; the configured Voxtype engine is unchanged." >&2
+    exit 1
+  fi
+  if [[ -f $dropin ]]; then
+    cp "$dropin" "$dropin.bak.$(date +%s)"
+  fi
+  cp "$OMARCHY_PATH/default/voxtype/cohere-vulkan.conf" "$dropin"
+  systemctl --user daemon-reload
+else
+  rm -f "$dropin"
+  systemctl --user daemon-reload
+fi
+
+if systemctl --user is-active --quiet voxtype.service; then
+  systemctl --user restart voxtype.service
+fi
+if [[ $action == "disable" ]]; then
+  systemctl --user stop voxtype-cohere-vulkan.service
+fi

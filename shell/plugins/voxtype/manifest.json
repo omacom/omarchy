@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.voxtype",
+  "name": "Dictation",
+  "version": "1.0.0",
+  "description": "Atreyu-style recording and transcription feedback for Voxtype.",
+  "kinds": [
+    "service"
+  ],
+  "entryPoints": {
+    "service": "Service.qml"
+  }
+}
