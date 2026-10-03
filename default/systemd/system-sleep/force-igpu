@@ -11,6 +11,23 @@ restore_marker=/run/omarchy-force-igpu-integrated
 sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
 [[ -x /usr/bin/supergfxctl ]] || exit 0
 
+# Machines without an NVIDIA dGPU can still have supergfxctl + Integrated mode.
+# The Vfio dance then times out every resume (#12496). Only continue when an NVIDIA
+# display controller is actually present.
+has_nvidia_gpu() {
+  local pci class vendor
+  for pci in /sys/bus/pci/devices/*; do
+    [[ -r $pci/class && -r $pci/vendor ]] || continue
+    class=$(<"$pci/class")
+    vendor=$(<"$pci/vendor")
+    [[ $class == 0x03* ]] || continue
+    [[ $vendor == 0x10de ]] && return 0
+  done
+  return 1
+}
+
+has_nvidia_gpu || exit 0
+
 switch_mode() {
   local expected="$1" current
 
