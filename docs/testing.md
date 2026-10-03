@@ -32,6 +32,16 @@ A new shell test only needs the right name: drop `<area>-test.sh` into
 `test/shell.d/` and `./test/shell` picks it up automatically. Shared fixtures
 live under `test/shell.d/fixtures/`.
 
+## Built-in speaker hardware smoke test
+
+Run `./test/audio` from an installed desktop session after booting a kernel update. This is a read-only, non-graphical hardware check: it does not restart services, change routing or volume, load drivers, install firmware, or play audio. It is deliberately excluded from `./test/all` and the VM acceptance suite, whose virtual sound hardware cannot exercise a laptop's physical speaker amplifiers. Its fixture tests run in `./test/shell` without audio hardware or journal access.
+
+The check requires each user audio service to be running and a physical ALSA speaker output to be registered. On a `spk:cs35l56-bridge` speaker route it also requires visible firmware initialization in the current boot's kernel journal and rejects `FIRMWARE_MISSING` from either amplifier. Exit status 1 means a check failed; status 2 means required device or journal evidence could not be read. An inaccessible or empty journal does not count as success. On another speaker route the CS35L56 check is explicitly skipped.
+
+This covers the Dell XPS 13 DX13260 regression tracked in [#9687](https://github.com/omacom/omarchy/issues/9687): a kernel update activated the sidecar amplifiers while their selected firmware was unavailable. PipeWire, WirePlumber, an unmuted speaker sink, and application playback all appeared healthy. The missing-firmware fixture contains sanitized kernel messages from that failure; the sink fixture retains only relevant fields. The successful firmware fixture is synthetic. The direct codec route was verified on the affected laptop after reloading `snd_soc_sof_sdw` with `quirk=1`, with audible playback confirmed separately.
+
+The firmware assertion audits errors across the current boot, rather than inferring recovery from a later version banner (ROM firmware also produces that banner). If the bridge remains selected after a same-boot firmware repair, reboot before using this as a clean-boot regression check. Switching to the direct codec route skips the bridge-specific check even if old errors remain in the journal. A pass proves only these software checks: it does not verify the speaker-ID mapping, safe tuning, full speaker performance, or audible output. Finish a hardware release check by playing audio and listening to both speakers.
+
 ## The base-test.sh contract
 
 Every shell test starts the same way:
