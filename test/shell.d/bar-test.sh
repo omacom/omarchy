@@ -422,6 +422,18 @@ case ${OMARCHY_TEST_SHELL_STATE:-ready} in
       exit 0
     fi
     ;;
+  notresponding)
+    # Socket is up but the call timed out once; later asks succeed.
+    if [[ ! -e $OMARCHY_TEST_SHELL_MARKER ]]; then
+      touch "$OMARCHY_TEST_SHELL_MARKER"
+      echo "omarchy-shell is not responding" >&2
+      exit 1
+    fi
+    ;;
+  stuck)
+    echo "omarchy-shell is not responding" >&2
+    exit 1
+    ;;
 esac
 echo "ok"
 STUB
@@ -479,6 +491,19 @@ put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=scanni
   fail "put asks again while the shell is still reading its plugins" "$put_output"
 [[ $put_output == "omarchy.keyboard-layout is on the bar" ]] || fail "put places once the plugins are read" "$put_output"
 pass "put asks again while the shell is still reading its plugins"
+
+put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=notresponding \
+  OMARCHY_TEST_SHELL_MARKER="$put_tmp/responded" \
+  "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) ||
+  fail "put retries when the shell is not responding" "$put_output"
+[[ $put_output == "omarchy.keyboard-layout is on the bar" ]] || fail "put places once the shell answers" "$put_output"
+pass "put retries when the shell is not responding"
+
+put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" OMARCHY_TEST_SHELL_STATE=stuck OMARCHY_SHELL_READY_ATTEMPTS=2 \
+  "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) &&
+  fail "put fails when the shell stays unresponsive" "$put_output"
+[[ $put_output == *"did not become ready"* ]] || fail "put says the shell never became ready" "$put_output"
+pass "put fails when the shell stays unresponsive"
 
 put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" \
   "$ROOT/bin/omarchy-bar" put omarchy.keyboard-layout --after omarchy.clock 2>&1) ||

@@ -28,6 +28,12 @@ if [[ ${SHELL_ABSENT:-0} == 1 ]]; then
   echo "omarchy-shell is not running" >&2
   exit 1
 fi
+if [[ -n ${TEST_PUT_ERROR:-} ]]; then
+  (( quiet )) && exit 0
+  [[ $2 != "rescanPlugins" ]] || exit 0
+  echo "$TEST_PUT_ERROR" >&2
+  exit 1
+fi
 [[ $2 != "rescanPlugins" ]] || exit 0
 printf '%s\n' "${TEST_PUT_RESULT:-ok}"
 SH
@@ -62,16 +68,34 @@ run
 [[ $(cat "$CALL_LOG") == "$expected" ]] || fail "placement can be rerun"
 pass "placement can be rerun"
 
-if run TEST_PUT_RESULT=unknown; then
-  fail "an unknown widget must leave the migration pending"
-fi
-pass "an unknown widget leaves the migration pending"
+# Best-effort put: placement failures must not abort the update or leave the
+# migration looping without a marker.
+run TEST_PUT_RESULT=unknown || fail "an unknown widget must not fail the migration" "$(cat "$test_dir/output")"
+pass "an unknown widget does not abort the migration"
 
 # An update with no shell to ask, from a TTY or with the shell down, still
 # finishes; the update restarts the shell afterwards.
 run SHELL_ABSENT=1 OMARCHY_SHELL_ABSENT_ATTEMPTS=1 || fail "an absent shell must not fail the migration" "$(cat "$test_dir/output")"
 grep -q "omarchy.elsewhen was not put on the bar" "$test_dir/output" || fail "an absent shell is reported" "$(cat "$test_dir/output")"
 pass "an absent shell leaves the update running"
+
+# A shell that times out on IPC is retried, then ignored so the marker lands.
+run TEST_PUT_ERROR="omarchy-shell is not responding" OMARCHY_SHELL_READY_ATTEMPTS=2 || \
+  fail "a non-responding shell must not fail the migration" "$(cat "$test_dir/output")"
+grep -q "did not become ready" "$test_dir/output" || fail "a non-responding shell is reported" "$(cat "$test_dir/output")"
+
+fake_root="$test_dir/fake-root"
+mkdir -p "$fake_root/migrations"
+cp "$ROOT/migrations/1790042972.sh" "$fake_root/migrations/"
+marker_state="$test_dir/marker-state"
+mkdir -p "$marker_state"
+OMARCHY_MIGRATION_STATE="$marker_state" OMARCHY_PATH="$fake_root" \
+  HOME="$test_dir/home" PATH="$test_dir/bin:$ROOT/bin:$PATH" \
+  TEST_PUT_ERROR="omarchy-shell is not responding" OMARCHY_SHELL_READY_ATTEMPTS=2 \
+  "$ROOT/bin/omarchy-migrate" >"$test_dir/migrate-output" 2>&1 || \
+  fail "omarchy-migrate must complete when put times out" "$(cat "$test_dir/migrate-output")"
+[[ -f $marker_state/1790042972.sh ]] || fail "a timed-out put must still write the marker" "$(cat "$test_dir/migrate-output")"
+pass "a non-responding shell leaves the update running with a marker"
 
 # An entry under the legacy id is left for the rename, not joined by a second widget.
 mkdir -p "$test_dir/home/.config/omarchy"
