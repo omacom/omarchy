@@ -261,10 +261,14 @@ Item {
             width: parent.width - list.width - Style.spacing.md * 2 - 1
             height: parent.height
             visible: !!root.selectedPlugin
-            Column {
+            ScrollView {
               anchors.fill: parent
-              spacing: Style.spacing.sm
-              Text { width: parent.width; text: root.selectedPlugin ? root.selectedPlugin.name : ""; textFormat: Text.PlainText; color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true; elide: Text.ElideRight }
+              clip: true
+              contentWidth: availableWidth
+              Column {
+                width: parent.width
+                spacing: Style.spacing.sm
+                Text { width: parent.width; text: root.selectedPlugin ? root.selectedPlugin.name : ""; textFormat: Text.PlainText; color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true; elide: Text.ElideRight }
               Item {
                 id: previewArea
                 width: parent.width
@@ -298,6 +302,7 @@ Item {
               property var primaryAction: root.selectedPlugin ? MarketplaceModel.primaryAction(root.selectedPlugin) : ({ label: "", operation: "" })
               Button { text: parent.primaryAction.label; bordered: true; onClicked: root.choose(parent.primaryAction.operation) }
               Button { visible: root.selectedPlugin && root.selectedPlugin.installed; text: "Uninstall plugin"; onClicked: root.choose("remove") }
+              }
             }
           }
         }

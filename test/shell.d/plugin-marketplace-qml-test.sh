@@ -11,7 +11,7 @@ grep -Fq 'if (opened && doneFile) finishRequest(doneFile)' "$qml" ||
 grep -Fq 'Keys.priority: Keys.AfterItem' "$qml" ||
   fail "marketplace lets focused controls handle keyboard events first"
 grep -Fq 'Flow {' "$qml" || fail "marketplace wraps filters on narrow cards"
-grep -Fq 'width: parent.width' "$qml" || fail "marketplace filter flow follows the card width"
+grep -Fq 'ScrollView {' "$qml" || fail "marketplace keeps detail actions reachable when filters wrap"
 grep -Fq 'property var primaryAction: root.selectedPlugin ? MarketplaceModel.primaryAction(root.selectedPlugin)' "$qml" ||
   fail "marketplace derives the primary action label and operation together"
 
