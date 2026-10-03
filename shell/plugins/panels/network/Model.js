@@ -277,6 +277,19 @@ function formatPingLatency(ms, hasSamples) {
   return value.toFixed(value > 0 && value < 10 ? 1 : 0) + " ms"
 }
 
+// The wired NIC's mode switch stages a change: nothing is written to the
+// profile until the Apply beside it runs, which matters most on a NIC with no
+// cable, where there is nothing to activate and the profile is only saved. The
+// header therefore states what the profile says *now* and names the requested
+// mode separately while the two differ -- "MANUAL → AUTO DHCP" -- so a flip can
+// never read as a mode already in force. Once they agree it is just the mode.
+function ipv4ModeLabel(manualMode, manualSaved) {
+  var staged = manualMode ? "MANUAL" : "AUTO DHCP"
+  var saved = manualSaved ? "MANUAL" : "AUTO DHCP"
+
+  return staged === saved ? saved : saved + " → " + staged
+}
+
 function wifiRow(network) {
   if (!network) return null
   // Primitives only: rows become list-model data, so a WifiNetwork here puts a
@@ -386,6 +399,7 @@ if (typeof module !== "undefined") {
     formatBytes: formatBytes,
     formatRate: formatRate,
     formatPingLatency: formatPingLatency,
+    ipv4ModeLabel: ipv4ModeLabel,
     wifiRow: wifiRow,
     sortWifiRows: sortWifiRows,
     wifiSectionTitle: wifiSectionTitle,
