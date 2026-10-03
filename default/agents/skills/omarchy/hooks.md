@@ -13,6 +13,8 @@ file first, if one exists.
 ~/.config/omarchy/hooks/
 ├── battery-low.d/          # Low battery (percentage in $1)
 ├── font-set.d/             # After font change (font name in $1)
+├── plugin-added.d/         # After a plugin's files land on disk (id in $1, source URL in $2)
+├── plugin-removed.d/       # After a plugin is deleted or moved aside (id in $1)
 ├── post-boot.d/            # After the desktop starts
 ├── post-update.d/          # At the end of `omarchy update`, after privileged work
 ├── pre-refresh-pacman.d/   # After `omarchy refresh pacman` re-syncs the package config, before it updates packages

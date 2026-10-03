@@ -144,9 +144,10 @@ if [[ -e $target || -L $target ]]; then
 fi
 
 mv "$stage" "$target"
+omarchy-hook plugin-added "$id" "$url"
 echo "Added $id into $target"
 
-omarchy-shell shell rescanPlugins >/dev/null
+omarchy-shell -q shell rescanPlugins >/dev/null
 
 if [[ -z $enable_after ]]; then
   if (( ASSUME_YES )) || ! interactive; then

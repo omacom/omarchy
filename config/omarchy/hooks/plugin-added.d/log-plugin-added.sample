@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Rename without .sample to enable; $1 is the id and $2 the source URL.
+# printf '%s from %s\n' "$1" "$2" >>"$HOME/.local/state/omarchy/plugin-additions.log"
