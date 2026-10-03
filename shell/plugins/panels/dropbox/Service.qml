@@ -32,6 +32,8 @@ Item {
   property string lastError: ""
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 60, 10, 3600)
+  // 0 keeps the plan-name guess in status.py.
+  readonly property int quotaGB: intSetting("quotaGB", 0, 0, 1000000)
   readonly property bool busy: statusProcess.running || loginProcess.running || controlProcess.running
   readonly property string helperPath: (omarchyPath || "") + "/shell/plugins/panels/dropbox/status.py"
 
@@ -61,7 +63,7 @@ Item {
     _statusOutput = ""
     _statusError = ""
     refreshing = true
-    statusProcess.command = ["python3", helperPath, "25"]
+    statusProcess.command = ["python3", helperPath, "25", String(quotaGB * 1000000000)]
     statusProcess.running = true
   }
 

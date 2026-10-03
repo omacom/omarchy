@@ -88,12 +88,22 @@ def main():
     except ValueError:
       limit = 25
 
+  quota_override = 0
+  if len(sys.argv) > 2:
+    try:
+      quota_override = max(0, int(sys.argv[2]))
+    except ValueError:
+      quota_override = 0
+
   dropbox_cli = shutil.which("dropbox-cli")
   info = read_info()
   account = dropbox_account(info)
   account_path = account.get("path") if isinstance(account.get("path"), str) else ""
   plan = account.get("subscription_type") if isinstance(account.get("subscription_type"), str) else ""
-  quota = PLAN_QUOTAS.get(plan.lower(), 0)
+  # info.json reports a coarse plan name — Dropbox sends "Pro" for any paid
+  # personal plan, so PLAN_QUOTAS can only guess at the real size. An explicit
+  # override from the widget settings wins over the guess.
+  quota = quota_override if quota_override > 0 else PLAN_QUOTAS.get(plan.lower(), 0)
   authenticated = account_path != "" and Path(account_path).exists()
 
   running = False
