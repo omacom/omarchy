@@ -737,6 +737,9 @@ create_user() {
       ${full_name:+-c "$full_name"} "$username"
   fi
 
+  source "$OMARCHY_PATH/install/helpers/rootless-docker.sh"
+  rootless_docker_ensure_subids "$username"
+
   printf '%s:%s\n' "$username" "$password" | chpasswd
   printf '%s:%s\n' root "$password" | chpasswd
 
