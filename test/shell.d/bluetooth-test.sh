@@ -172,6 +172,12 @@ cat >"$mock_bin/rfkill" <<'SH'
 #!/bin/bash
 
 printf 'rfkill %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
+# A ThinkPad's switches by default: the platform switch sits next to the
+# adapter's own. MOCK_RFKILL_LIST stands in for other machines.
+if [[ $1 == "-n" ]]; then
+  printf '%s\n' "${MOCK_RFKILL_LIST-$'0 bluetooth tpacpi_bluetooth_sw\n2 wlan phy0\n4 bluetooth hci0'}"
+  exit 0
+fi
 # Lifting the block is normally all it takes: AutoEnable is left at its default,
 # so bluetoothd powers the adapter up on its own. RFKILL_INERT stands in for the
 # adapter that was powered down without a block, where it does not.
@@ -202,9 +208,27 @@ bluetooth_power() {
 # Off has to be the block. A bluetoothctl power off would read the same until the
 # next boot, then quietly come back on.
 off_log=$(bluetooth_power yes off)
-grep -qx "rfkill block bluetooth" "$off_log" ||
+grep -qx "rfkill block 4" "$off_log" ||
   fail "bluetooth turns off with an rfkill block" "$(cat "$off_log")"
 pass "bluetooth turns off with an rfkill block"
+
+# The platform switch cuts the module's power mid-shutdown and can wedge its USB
+# port, so neither it nor the type-wide block that reaches it may be touched.
+grep -qE "rfkill block (bluetooth|.*\b0\b)" "$off_log" &&
+  fail "bluetooth leaves a platform rfkill switch alone" "$(cat "$off_log")"
+pass "bluetooth leaves a platform rfkill switch alone"
+
+two_adapter_log=$(MOCK_RFKILL_LIST=$'0 bluetooth tpacpi_bluetooth_sw\n4 bluetooth hci0\n7 bluetooth hci1' bluetooth_power yes off)
+grep -qx "rfkill block 4 7" "$two_adapter_log" ||
+  fail "bluetooth blocks every adapter" "$(cat "$two_adapter_log")"
+pass "bluetooth blocks every adapter"
+
+# No adapter registered means no driver for a platform switch to cut out from
+# under, so the type-wide block is safe and still persists the off state.
+no_adapter_log=$(MOCK_RFKILL_LIST='0 bluetooth tpacpi_bluetooth_sw' bluetooth_power yes off)
+grep -qx "rfkill block bluetooth" "$no_adapter_log" ||
+  fail "bluetooth falls back to the type-wide block without an adapter" "$(cat "$no_adapter_log")"
+pass "bluetooth falls back to the type-wide block without an adapter"
 
 grep -q "power off" "$off_log" &&
   fail "bluetooth does not also power the adapter down" "$(cat "$off_log")"
@@ -228,7 +252,7 @@ pass "bluetooth powers the adapter on when unblocking does not"
 
 # The panel switch reads Powered, so that is what toggle has to invert.
 toggle_on_log=$(bluetooth_power yes toggle)
-grep -qx "rfkill block bluetooth" "$toggle_on_log" ||
+grep -qx "rfkill block 4" "$toggle_on_log" ||
   fail "bluetooth toggles a powered adapter off" "$(cat "$toggle_on_log")"
 pass "bluetooth toggles a powered adapter off"
 
@@ -271,7 +295,7 @@ multi_log=$(bluetooth_power no toggle)
 unset MOCK_CONTROLLERS
 rm -f "$POWERED_FILE.11:22:33:44:55:66"
 
-grep -qx "rfkill block bluetooth" "$multi_log" ||
+grep -qx "rfkill block 4" "$multi_log" ||
   fail "bluetooth counts a secondary controller as on" "$(cat "$multi_log")"
 pass "bluetooth counts a secondary controller as on"
 

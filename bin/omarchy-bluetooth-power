@@ -7,9 +7,16 @@
 # BlueZ never persists an adapter's Powered property, so turning Bluetooth off
 # through bluetoothctl lasts only until the next boot. The rfkill soft block does
 # persist: systemd-rfkill saves every switch under /var/lib/systemd/rfkill and
-# restores it early on the next boot, which is its entire job. Blocking is also
-# what the kernel hands every radio at once, so a machine with two controllers
-# gets both, where bluetoothctl only ever addresses the default one.
+# restores it early on the next boot, which is its entire job. The block goes on
+# every adapter's own hciN switch, so a machine with two controllers gets both,
+# where bluetoothctl only ever addresses the default one.
+#
+# Never the type-wide `rfkill block bluetooth`, though. Laptops with a platform
+# Bluetooth switch next to hci0 (thinkpad_acpi, dell-laptop) answer a block on it
+# by cutting the module's USB power while the driver is still shutting it down.
+# The radio drops off the bus, and on some machines the xHCI port wedges until a
+# controller reset or a reboot. Unblocking stays type-wide, so a platform switch
+# left blocked by an older Omarchy is lifted along with the adapter's.
 #
 # So the block is the state, and BlueZ follows it: unblocking leaves AutoEnable
 # at its stock default and bluetoothd powers the adapter up by itself. Every
@@ -48,6 +55,20 @@ wait_powered() {
   done
 }
 
+# With no adapter registered there is no hciN switch to block, and so nothing a
+# platform switch could pull out from under a running driver.
+power_off() {
+  local ids
+
+  ids=$(rfkill -n -o ID,TYPE,DEVICE | awk '$2 == "bluetooth" && $3 ~ /^hci[0-9]+$/ { print $1 }')
+
+  if [[ -n $ids ]]; then
+    rfkill block $ids
+  else
+    rfkill block bluetooth
+  fi
+}
+
 power_on() {
   rfkill unblock bluetooth
 
@@ -70,11 +91,11 @@ case "${1:-}" in
   off)
     # No bluetoothctl power off to go with this: the block already drops the
     # adapter to Powered: no, and it is the half that survives the reboot.
-    rfkill block bluetooth
+    power_off
     ;;
   toggle)
     if powered; then
-      rfkill block bluetooth
+      power_off
     else
       power_on
     fi
