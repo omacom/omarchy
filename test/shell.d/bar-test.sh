@@ -34,7 +34,37 @@ run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
 const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
+const barWidgetSource = fs.readFileSync(root + '/shell/Ui/BarWidget.qml', 'utf8')
+const mediaWidgetSource = fs.readFileSync(root + '/shell/plugins/services/media/BarWidget.qml', 'utf8')
+const activeWindowSource = fs.readFileSync(root + '/shell/plugins/bar/widgets/ActiveWindow.qml', 'utf8')
 const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
+
+assert(
+  /readonly property bool tooltipHovered: visible && opacity > 0 && tooltipHover\.hovered/.test(barWidgetSource),
+  'BarWidget exposes a live passive hover state for shared tooltips'
+)
+assert(
+  /onVisibleChanged: if \(!visible\) hideTooltip\(\)/.test(barWidgetSource),
+  'BarWidget hides its tooltip when it becomes invisible'
+)
+assert(
+  /^BarWidget \{/m.test(mediaWidgetSource) && /showTooltip\(root, root\.hasMedia/.test(mediaWidgetSource),
+  'media tooltip targets its BarWidget root'
+)
+assert(
+  /^BarWidget \{/m.test(activeWindowSource) && /showTooltip\(root, root\.title\)/.test(activeWindowSource),
+  'active-window tooltip targets its BarWidget root'
+)
+const tooltipFunction = barSource.slice(barSource.indexOf('function showTooltip'), barSource.indexOf('function hideTooltip'))
+assert(
+  /if \(!target \|\| target\.visible === false \|\| target\.opacity === 0 \|\| !text\)/.test(tooltipFunction)
+    && !/if \(!targetTooltipHovered\(target\) \|\| !text\)/.test(tooltipFunction),
+  'tooltip requests defer the live hover guard until the pointer state settles'
+)
+assert(
+  /Qt\.callLater\(function\(\) \{[\s\S]*?targetTooltipHovered\(pendingTooltipTarget\)/.test(tooltipFunction),
+  'deferred tooltip requests recheck the target hover state'
+)
 
 assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.toggleTransparency\(\)/.test(shellSource), 'shell exposes the bar transparency toggle over IPC')
 

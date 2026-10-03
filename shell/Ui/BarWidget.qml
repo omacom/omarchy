@@ -22,6 +22,24 @@ Item {
   readonly property bool vertical: bar ? bar.vertical : false
   readonly property int barSize: bar ? bar.barSize : Style.bar.sizeHorizontal
 
+  // Bar.showTooltip() checks the target's live hover state before accepting a
+  // request. A passive handler observes the whole widget, including children
+  // such as the media and active-window MouseAreas, without competing for
+  // their pointer grab.
+  HoverHandler {
+    id: tooltipHover
+  }
+
+  readonly property bool tooltipHovered: visible && opacity > 0 && tooltipHover.hovered
+
+  function hideTooltip() {
+    if (bar) bar.hideTooltip(root)
+  }
+
+  onVisibleChanged: if (!visible) hideTooltip()
+  onOpacityChanged: if (opacity <= 0) hideTooltip()
+  Component.onDestruction: hideTooltip()
+
   // Run `method` on every live instance of this widget. An IPC target only
   // ever routes to one handler, but a bar surface exists per monitor, so the
   // instance that owns the target relays the call to its peers — otherwise a
