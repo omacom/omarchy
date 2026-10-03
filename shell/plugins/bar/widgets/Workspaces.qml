@@ -1,12 +1,55 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "WorkspacesModel.js" as WorkspacesModel
 
 BarWidget {
   id: root
   moduleName: "omarchy.workspaces"
+
+  // Numbered workspaces bound to each monitor by Hyprland workspace rules.
+  property var ruleIdsByMonitor: ({})
+
+  readonly property var hyprlandMonitor: {
+    var window = root.QsWindow.window
+    return window && window.screen ? Hyprland.monitorFor(window.screen) : null
+  }
+
+  Component.onCompleted: reloadRules()
+
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (!event || !event.name) return
+      var name = String(event.name)
+      if (name === "configreloaded" || name.indexOf("monitoradded") === 0 || name.indexOf("monitorremoved") === 0) root.reloadRules()
+    }
+  }
+
+  Process {
+    id: rulesProcess
+    running: false
+    command: ["sh", "-c", "printf '{\"rules\":%s,\"monitors\":%s}' \"$(hyprctl workspacerules -j)\" \"$(hyprctl monitors -j)\""]
+
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyRules(text)
+    }
+  }
+
+  function reloadRules() {
+    if (!rulesProcess.running) rulesProcess.running = true
+  }
+
+  function applyRules(output) {
+    var data
+    try { data = JSON.parse(output) } catch (e) { return }
+    root.ruleIdsByMonitor = WorkspacesModel.monitorRuleIds(data.rules || [], data.monitors || [])
+  }
 
   function workspaceById(id) {
     var values = Hyprland.workspaces.values
@@ -18,16 +61,13 @@ BarWidget {
   }
 
   function workspaceIds() {
-    var ids = [1, 2, 3, 4, 5]
     var values = Hyprland.workspaces.values
-
+    var workspaces = []
     for (var i = 0; i < values.length; i++) {
-      var id = values[i].id
-      if (id > 0 && id <= 10 && ids.indexOf(id) === -1) ids.push(id)
+      workspaces.push({ id: values[i].id, monitor: values[i].monitor ? values[i].monitor.name : "" })
     }
 
-    ids.sort(function(left, right) { return left - right })
-    return ids
+    return WorkspacesModel.workspaceIds(root.ruleIdsByMonitor, root.hyprlandMonitor ? root.hyprlandMonitor.name : "", workspaces)
   }
 
   function focusWorkspace(id) {
@@ -56,7 +96,9 @@ BarWidget {
 
         readonly property var workspace: root.workspaceById(modelData)
         readonly property bool occupied: workspace !== null && workspace.toplevels.values.length > 0
-        readonly property bool focused: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData
+        // Each bar marks the workspace shown on its own monitor.
+        readonly property var shownWorkspace: root.hyprlandMonitor ? root.hyprlandMonitor.activeWorkspace : Hyprland.focusedWorkspace
+        readonly property bool focused: shownWorkspace !== null && shownWorkspace.id === modelData
 
         bar: root.bar
         text: focused ? "\uDB85\uDCFB" : (modelData === 10 ? "0" : String(modelData))
