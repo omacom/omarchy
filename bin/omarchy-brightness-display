@@ -95,6 +95,15 @@ else
   # Apply non-uniform step size: 1% steps if at or below 5%, otherwise set an
   # absolute target percentage to avoid raw backlight rounding causing uneven OSD steps.
   if [[ $step == "+5%" ]]; then
+    if (( current == 0 )); then
+      # A 1% target rounds to a raw step of 0 on drivers with a tiny
+      # max_brightness (acpi_video0 sits at 15), permanently locking the screen
+      # at black. Step one raw value up instead so brightness climbs back out.
+      brightnessctl -d "$device" set +1 >/dev/null
+      (( no_osd )) || omarchy-osd -i brightness -p "$(backlight_brightness "$device")"
+      exit 0
+    fi
+
     if (( current < 5 )); then
       (( target = current + 1 ))
     else
