@@ -98,7 +98,10 @@ Item {
     acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
     enabled: root.interactive
     hoverEnabled: true
-    cursorShape: root.pressable ? Qt.PointingHandCursor : Qt.ArrowCursor
+    // The bar keeps the arrow, as the macOS menu bar, GNOME's top bar, and
+    // KDE's panel do: the hand is a hyperlink convention. Hover feedback comes
+    // from the tint and the tooltip.
+    cursorShape: Qt.ArrowCursor
     onEntered: {
       if (root.bar) {
         root.bar.showTooltip(root, root.tooltipText)
