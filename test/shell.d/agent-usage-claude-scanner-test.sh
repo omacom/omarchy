@@ -5,8 +5,10 @@ source "$(dirname "$0")/base-test.sh"
 require_command jq
 require_command python3
 
-TEST_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME"' EXIT
+# Every fixture home lives under one scratch directory, cleaned up at exit.
+SCRATCH=$(mktemp -d)
+trap 'rm -rf "$SCRATCH"' EXIT
+TEST_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
 
 projects="$TEST_HOME/.claude/projects/example"
 mkdir -p "$projects"
@@ -75,8 +77,7 @@ pass "Claude collector rescans a transcript that was rewritten"
 # A transcript replaced by a larger one, or rewritten in place with more than
 # it had, is a new file rather than an append: nothing of the old one stays,
 # and the new one is read from its start.
-INDEX_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$INDEX_HOME"' EXIT
+INDEX_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
 index_projects="$INDEX_HOME/.claude/projects/example"
 mkdir -p "$index_projects"
 index_line() {
@@ -117,14 +118,11 @@ zone_dates=$(TZ=America/Los_Angeles index_scan | jq -r '.activeDates | join(",")
 [[ $zone_dates == "$(TZ=America/Los_Angeles date -d "$zone_timestamp" +%Y-%m-%d)" ]] ||
   fail "Claude collector recomputes indexed days after a timezone change" "$zone_dates"
 pass "Claude collector recomputes indexed days after a timezone change"
-rm -rf "$INDEX_HOME"
-trap 'rm -rf "$TEST_HOME"' EXIT
 
 # A streamed response is several lines sharing one message id. The first
 # line's output_tokens is a placeholder and the last line has the real count,
 # so the message is counted from the line with the highest output.
-STREAM_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$STREAM_HOME"' EXIT
+STREAM_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
 stream_projects="$STREAM_HOME/.claude/projects/example"
 mkdir -p "$stream_projects"
 cat >"$stream_projects/session.jsonl" <<EOF
@@ -182,8 +180,7 @@ pass "Claude collector treats a future-dated scan cache as a miss"
 
 # A machine with no transcripts and no stats-cache still gets today's counts
 # from history.jsonl alone.
-HISTORY_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$STREAM_HOME" "$HISTORY_HOME"' EXIT
+HISTORY_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
 mkdir -p "$HISTORY_HOME/.claude"
 
 now_ms=$(($(date +%s) * 1000))
@@ -202,8 +199,7 @@ pass "Claude collector falls back to history.jsonl without a stats-cache"
 
 # A subscription burned entirely through opencode has no ~/.claude transcripts;
 # usage must come from opencode's message database, filtered to Anthropic.
-OPENCODE_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$STREAM_HOME" "$HISTORY_HOME" "$OPENCODE_HOME"' EXIT
+OPENCODE_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
 
 python3 - "$OPENCODE_HOME/.local/share/opencode/opencode.db" <<'PY'
 import json
@@ -253,8 +249,7 @@ pass "Claude collector ignores prefix-colliding providers, user messages, and ma
 # opencode v2 writes session_message instead of message: the role is its own
 # column and the provider and model nest under data.model. An upgraded
 # database keeps its v1 rows, so both tables count.
-OPENCODE_V2_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$STREAM_HOME" "$HISTORY_HOME" "$OPENCODE_HOME" "$OPENCODE_V2_HOME"' EXIT
+OPENCODE_V2_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
 
 python3 - "$OPENCODE_V2_HOME/.local/share/opencode/opencode.db" <<'PY'
 import json
@@ -319,8 +314,7 @@ pass "Claude collector counts a v2-only opencode database"
 
 # Pi and omp can both spend a Claude subscription without writing native
 # Claude Code transcripts. Their compatible JSONL sessions must be included.
-PI_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$STREAM_HOME" "$HISTORY_HOME" "$OPENCODE_HOME" "$OPENCODE_V2_HOME" "$PI_HOME"' EXIT
+PI_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
 mkdir -p "$PI_HOME/.pi/agent/sessions/project" "$PI_HOME/.omp/agent/sessions/project" \
   "$PI_HOME/.omp/profiles/work/agent/sessions/project"
 
@@ -401,8 +395,7 @@ pass "Claude collector survives concurrent writes to one cache file"
 
 # Unreadable transcript files are expected when an agent has run as another
 # user, so report one bounded summary rather than one log line per file.
-UNREADABLE_DIR=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$STREAM_HOME" "$HISTORY_HOME" "$OPENCODE_HOME" "$OPENCODE_V2_HOME" "$PI_HOME" "$UNREADABLE_DIR"' EXIT
+UNREADABLE_DIR=$(mktemp -d "$SCRATCH/home.XXXXXX")
 mkdir -p "$UNREADABLE_DIR/project"
 touch "$UNREADABLE_DIR/project/unreadable-1.jsonl" \
   "$UNREADABLE_DIR/project/unreadable-2.jsonl" \
