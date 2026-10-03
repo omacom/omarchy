@@ -15,6 +15,9 @@ Item {
   property int failedAttempts: 0
   property bool inputEnabled: true
   property bool loadBackground: true
+  // Idle→lock handoff: paint black and hide the password field until the
+  // session lock is secure and the screensaver has been removed.
+  property bool concealAuthentication: false
   // A locked session blanks the displays after a few seconds. Nothing is
   // visible from then until the user wakes it, so a video must not keep
   // decoding through what is usually the longest part of a lock.
@@ -45,12 +48,13 @@ Item {
     : Border.surfaceSpec("lock", "border-active", Color.lock.borderActive, root.outlineThickness, "border-alpha")
 
   readonly property bool video: Util.isVideoPath(root.backgroundPath)
-  readonly property bool feedActive: root.video && root.loadBackground && !root.displaysBlank && !root.powerSaverActive
+  readonly property bool feedActive: root.video && root.loadBackground && !root.concealAuthentication && !root.displaysBlank && !root.powerSaverActive
 
   signal submitPassword(string password)
   signal passwordTextEdited(string password)
   signal clearFailureRequested()
   signal wakeRequested()
+  signal pointerWakeRequested()
 
   function forcePasswordFocus() {
     passwordInput.forceActiveFocus()
@@ -88,13 +92,13 @@ Item {
 
   Rectangle {
     anchors.fill: parent
-    color: Color.background
+    color: root.concealAuthentication ? "black" : Color.background
 
     BackgroundMedia {
       id: wallpaper
       objectName: "lockWallpaper"
       anchors.fill: parent
-      path: root.loadBackground ? (root.video ? root.videoPosterPath : root.backgroundPath) : ""
+      path: root.loadBackground && !root.concealAuthentication ? (root.video ? root.videoPosterPath : root.backgroundPath) : ""
       version: root.backgroundVersion
       // Decode only once sized, at the lock's own size: an unsized first
       // request decoded the file at its native resolution, then again once
@@ -108,6 +112,7 @@ Item {
     MultiEffect {
       anchors.fill: wallpaper
       source: wallpaper
+      visible: !root.concealAuthentication
       autoPaddingEnabled: false
       blurEnabled: root.loadBackground && wallpaper.ready
       blur: 1.0
@@ -131,15 +136,16 @@ Item {
     // Keep video wallpapers visible and darken them slightly for legibility.
     Rectangle {
       anchors.fill: feedLoader
-      visible: root.video
+      visible: !root.concealAuthentication && root.video
       color: "#22000000"
     }
 
     MouseArea {
       anchors.fill: parent
       hoverEnabled: true
-      onClicked: { root.wakeRequested(); root.forcePasswordFocus() }
-      onPositionChanged: root.wakeRequested()
+      cursorShape: root.concealAuthentication ? Qt.BlankCursor : Qt.ArrowCursor
+      onClicked: { root.pointerWakeRequested(); root.forcePasswordFocus() }
+      onPositionChanged: root.pointerWakeRequested()
     }
 
     BorderSurface {
@@ -151,6 +157,7 @@ Item {
       borderSpec: root.inputBorderSpec
       radius: Style.cornerRadius
       clip: true
+      opacity: root.concealAuthentication ? 0 : 1
 
       TextInput {
         id: passwordInput
