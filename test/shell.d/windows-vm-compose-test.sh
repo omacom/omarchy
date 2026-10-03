@@ -124,7 +124,7 @@ services:
       CPU_CORES: "6"
       DISK_SIZE: "128G"
       USERNAME: "legacyuser"
-      PASSWORD: "legacypass"
+      PASSWORD: "legacy\\pa\"ss$$1"
       TZ: "America/New_York"
     volumes:
       - /./:/storage
@@ -135,6 +135,8 @@ migrate_legacy_compose
 resolve_caller
 [[ -f $COMPOSE ]] || fail "migration did not write compose"
 grep -q 'USERNAME: "legacyuser"' "$COMPOSE" || fail "migration lost settings"
+[[ $(read_credential PASSWORD) == 'legacy\pa"ss$1' ]] || fail "migration kept the legacy compose escaping in the RDP password"
+[[ $(unescape "$(read_compose_value PASSWORD "$COMPOSE")") == 'legacy\pa"ss$1' ]] || fail "migration changed the guest password"
 [[ -f $HOME/.windows/existing-disk && -f $external_shared/existing-shared-file ]] || fail "migration lost data"
 [[ ! -L $HOME/.windows && $(readlink "$HOME/Windows") == "$external_shared" ]] || fail "migration consumed source path"
 [[ $(stat -Lc '%a' "$HOME/.windows") == 700 && $(stat -Lc '%a' "$external_shared") == 700 ]] || fail "migration did not harden legacy directories"

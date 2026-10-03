@@ -1104,6 +1104,8 @@ migrate_legacy_compose() {
   disk=$(read_compose_value DISK_SIZE "$LEGACY_COMPOSE_FILE")
   username=$(read_compose_value USERNAME "$LEGACY_COMPOSE_FILE")
   password=$(read_compose_value PASSWORD "$LEGACY_COMPOSE_FILE")
+  # Compose decoded the YAML escapes and $$ before the guest saw it, so undo them.
+  password=$(unescape "$password")
   tz=$(read_compose_value TZ "$LEGACY_COMPOSE_FILE")
   [[ -z $tz ]] && tz="UTC"
   prepare_user_mount_sources || {
