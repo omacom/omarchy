@@ -67,8 +67,18 @@ PanelWindow {
   readonly property string barPos: bar ? bar.position : "top"
 
   function close() {
-    if (owner && "close" in owner) owner.close()
-    else root.open = false
+    // A throwing plugin close() must not leave this overlay mapped with a
+    // full-screen input region — that locks every click on the desktop until
+    // the shell is restarted. Force root.open false when the owner fails.
+    try {
+      if (owner && "close" in owner) {
+        owner.close()
+        return
+      }
+    } catch (e) {
+      console.warn("KeyboardPanel: owner close() threw, forcing close:", e)
+    }
+    root.open = false
   }
 
   function beginFocusPrime() {
