@@ -166,9 +166,23 @@ pass "installed Voxtype detection works without os.execute"
 
 missing_bin="$tmpdir/missing-bin"
 mkdir -p "$missing_bin"
-ln -s "$(command -v lua)" "$missing_bin/lua"
-ln -s "$(command -v lspci)" "$missing_bin/lspci"
-ln -s "$(command -v sort)" "$missing_bin/sort"
+
+# Symlinks must target real binaries, not version-manager shims. With
+# PATH="$missing_bin" alone, a mise/asdf shim's fallback PATH lookup finds the
+# symlink back at itself and recurses (same class of bug as #8742).
+cat >"$missing_bin/lua" <<'STUB'
+#!/bin/bash
+exit 127
+STUB
+chmod +x "$missing_bin/lua"
+real_lua=$(PATH="$missing_bin:$PATH" command -p -v lua)
+[[ -n $real_lua ]] || fail "could not resolve system lua via command -p"
+[[ $real_lua != "$missing_bin/lua" ]] || fail "real lua resolution bypasses user shims"
+rm -f "$missing_bin/lua"
+
+ln -s "$real_lua" "$missing_bin/lua"
+ln -s "$(command -p -v lspci)" "$missing_bin/lspci"
+ln -s "$(command -p -v sort)" "$missing_bin/sort"
 missing_voxtype_output=$(PATH="$missing_bin" run_omarchy_bindings "$voxtype_home")
 if grep -Fq $'SUPER + CTRL + X	Toggle dictation' <<<"$missing_voxtype_output"; then
   fail "missing Voxtype skips its bindings"
