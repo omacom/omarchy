@@ -151,3 +151,21 @@ while IFS=$'\t' read -r row_image row_thumbnail; do
     fail "image menu prints each image with its generated thumbnail"
 done <<<"$rows"
 pass "image menu prints its rows for the shell to hold"
+
+# Filenames may contain glob characters; the fallback check must compare them as strings.
+rm -rf "$cache_home"
+mkdir -p "$cache_home"
+
+glob_images="$tmp/glob-images"
+mkdir -p "$glob_images"
+printf 'image-bracket' >"$glob_images/photo[1].png"
+
+glob_cache_key=$(printf '%s' "$glob_images" | md5sum | cut -d ' ' -f 1)
+
+PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
+  "$ROOT/bin/omarchy-menu-images" --lazy-thumbnails --print-rows "$glob_images" >/dev/null
+
+cache_dir="$cache_home/omarchy/image-selector"
+[[ ! -e $cache_dir/$glob_cache_key.rows ]] ||
+  fail "image menu does not cache placeholder rows for a globbing filename"
+pass "image menu leaves lazy placeholder rows uncached for globbing filenames"
