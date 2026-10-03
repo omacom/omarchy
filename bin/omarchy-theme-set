@@ -393,6 +393,13 @@ omarchy-theme-set-templates
 rm -rf "$CURRENT_THEME_PATH"
 mv "$NEXT_THEME_PATH" "$CURRENT_THEME_PATH"
 
+# Link Helix installed outside Omarchy's installer without replacing user themes.
+helix_theme_link="$HOME/.config/helix/themes/omarchy.toml"
+if omarchy-cmd-present helix && [[ -f $CURRENT_THEME_PATH/helix.toml && ! -e $helix_theme_link && ! -L $helix_theme_link ]]; then
+  mkdir -p "${helix_theme_link%/*}"
+  ln -s "$CURRENT_THEME_PATH/helix.toml" "$helix_theme_link"
+fi
+
 # Store theme name for reference
 echo "$THEME_NAME" >"$CURRENT_THEME_NAME_PATH"
 
