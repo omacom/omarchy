@@ -463,6 +463,11 @@ Panel {
   }, connectivityChecksEnabled)
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
+  // Opt-in: "autoSignIn": true on the omarchy.network entry in shell.json opens
+  // the sign-in page the moment a portal is detected, the way phones do,
+  // instead of waiting for the button. Same fixed URL and argv launch as the
+  // button; the state flips once per portal, so one launch per portal.
+  readonly property bool autoSignIn: setting("autoSignIn", false) === true
   readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
   readonly property string connectionKey: kind === "wifi" && wifiDevice && connectedWifiNetwork
     ? kind + ":" + wifiDevice.name + ":" + connectedWifiNetwork.name
@@ -471,6 +476,10 @@ Panel {
   onConnectionKeyChanged: Qt.callLater(checkConnectivity)
   onConnectivityChecksEnabledChanged: Qt.callLater(checkConnectivity)
   onHasCaptivePortalChanged: {
+    if (hasCaptivePortal && autoSignIn && passwordSsid === "") {
+      openCaptivePortal()
+      return
+    }
     if (hasCaptivePortal && opened && passwordSsid === "") {
       focusSection = "portal"
       cursorActive = true
