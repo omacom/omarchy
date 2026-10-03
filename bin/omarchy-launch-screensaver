@@ -2,8 +2,19 @@
 
 # omarchy:summary=Launch the Omarchy screensaver in the default terminal on the system with the correct font configuration.
 
-# Exit early if screensaver is already running
-pgrep -f '[o]rg.omarchy.screensaver' && exit 0
+# Exit early if a screensaver is already up. Do not use pgrep -f against the
+# app-id: that scans every process argv and false-positives on unrelated
+# programs (#10197). Do not use pgrep -x omarchy-screensaver either: the
+# kernel truncates /proc/<pid>/comm to 15 bytes, the script name is 19, and
+# procps refuses the pattern outright — the gate would never fire and every
+# force launch would stack another fullscreen window.
+#
+# Window first (mapped client), process second (script already exec'd while
+# the openwindow event is still in flight). pidof -x is required: plain
+# pidof misses a bash script; -x matches shells running it by script name.
+hyprctl clients -j 2>/dev/null |
+  jq -e 'any(.[]; .class == "org.omarchy.screensaver" or .initialClass == "org.omarchy.screensaver")' >/dev/null && exit 0
+pidof -x omarchy-screensaver >/dev/null 2>&1 && exit 0
 
 # Allow screensaver to be turned off but also force started
 if omarchy-toggle-enabled screensaver-off && [[ $1 != "force" ]]; then
