@@ -83,6 +83,15 @@ cleanup_update() {
   omarchy_security_exit_with_revoked_sudo "$status"
 }
 
+# requires-sudo means individual steps escalate; the outer command must stay a
+# normal user so mise/AUR/user migrations do not write root-owned state (#13329).
+if (( EUID == 0 )); then
+  echo "omarchy-update must not run as root (or under sudo)." >&2
+  echo "Run: omarchy update" >&2
+  echo "Privileged steps will prompt for sudo on their own." >&2
+  exit 1
+fi
+
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
   exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "/tmp/omarchy-update.log"
