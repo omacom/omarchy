@@ -197,5 +197,31 @@ for (const [id, section] of Object.entries({
 }
 check(byId['omarchy.media']?.barWidget?.defaultSection === undefined, 'omarchy.media must use the center fallback')
 
+for (const id of ['omarchy.lock', 'omarchy.idle', 'omarchy.polkit', 'omarchy.notifications', 'omarchy.media']) {
+  check(byId[id]?.keepLoaded === true, `${id} must stay loaded across plugin reloads`)
+}
+
+const shellSource = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
+const unloadMatch = shellSource.match(/function unloadPluginServices\(\) \{[\s\S]*?\n  \}/)
+check(!!unloadMatch, 'unloadPluginServices is defined')
+check(!!unloadMatch && /serviceKeepLoaded/.test(unloadMatch[0]), 'unloadPluginServices honors keepLoaded')
+check(
+  /function _syncServices\(\) \{[\s\S]*Drop services for plugins that have been disabled/.test(shellSource),
+  '_syncServices still drops disabled or removed services'
+)
+
+const publicManifestMatch = shellSource.match(/function publicPluginManifest\(manifest\) \{[\s\S]*?\n  \}/)
+check(!!publicManifestMatch, 'publicPluginManifest is defined')
+if (publicManifestMatch) {
+  const host = {}
+  require('vm').runInNewContext(`${publicManifestMatch[0]}\nthis.publicPluginManifest = publicPluginManifest`, host)
+  const raw = { id: 'acme.demo', __sourceDir: '/plugins/acme.demo', __isFirstParty: false, __hostCapabilities: ['authentication'] }
+  const copy = host.publicPluginManifest(raw)
+  check(copy.__sourceDir === '/plugins/acme.demo', 'third-party manifests keep their own source directory')
+  check(!('__isFirstParty' in copy) && !('__hostCapabilities' in copy), 'third-party manifests drop host trust markers')
+  copy.__sourceDir = '/elsewhere'
+  check(raw.__sourceDir === '/plugins/acme.demo', 'a plugin editing its manifest copy cannot move the registry entry')
+}
+
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
 JS
