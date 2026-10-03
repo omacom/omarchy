@@ -57,6 +57,8 @@ hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 
 On Dell XPS laptops with a haptic touchpad, you can also set the click strength to low, mid, or high under _Trigger > Hardware > Touchpad Haptics_.
 
+On the Steam Deck, the back buttons scroll like a mouse wheel: the upper pair (L4 and R4) scrolls up and the lower pair (L5 and R5) scrolls down. Hold one to keep scrolling. This pauses while Steam is running, so Steam's own controller layout applies, and while a game is reading the controller itself. While it is active, programs that read the kernel's gamepad device directly do not see the controller, and holding ☰ does not switch to gamepad mode.
+
 ### Typing in Chinese, Japanese, and other languages
 
 Omarchy runs the [fcitx5](https://fcitx-im.org/) input method framework as part of every session — it's what powers the CapsLock compose sequences. That means the plumbing for non-Latin input is already in place: install an input engine like `fcitx5-mozc` (Japanese) or `fcitx5-chinese-addons` (Chinese) with `omarchy pkg add`, plus `fcitx5-configtool` to add the engine to your input methods and set the key that switches between them.
