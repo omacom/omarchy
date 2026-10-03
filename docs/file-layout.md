@@ -138,7 +138,7 @@ logo.{txt,svg}, icon.{txt,png}  ──► omarchy-settings    /usr/share/omarchy
                                                         /etc/skel/.config/omarchy/branding/{about,screensaver}.txt
 ```
 
-The hardware-conditional `force-igpu` and `keyboard-backlight` sources also live under `default/systemd/system-sleep/`, but their setup commands publish root-owned copies only on machines that need them; they are not installed by `omarchy-settings`.
+The hibernation-conditional `drop-caches` source also lives there: `omarchy-hibernation-setup` publishes it for new setups, and `migrations/1790692395.sh` installs it on machines that were already configured before it existed. The hardware-conditional `force-igpu` and `keyboard-backlight` sources likewise publish root-owned copies only on machines that need them. None of them are installed by `omarchy-settings`, so a later edit to one of them reaches installed machines only through another migration.
 
 ### Why `etc-overrides/` exists
 
