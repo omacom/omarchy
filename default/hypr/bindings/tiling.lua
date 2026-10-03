@@ -44,6 +44,11 @@ o.bind("SUPER + SHIFT + RIGHT", "Swap window to the right", hl.dsp.window.swap({
 o.bind("SUPER + SHIFT + UP", "Swap window up", hl.dsp.window.swap({ direction = "u" }))
 o.bind("SUPER + SHIFT + DOWN", "Swap window down", hl.dsp.window.swap({ direction = "d" }))
 
+o.bind("SUPER + CTRL + SHIFT + LEFT", "Move floating window left", hl.dsp.window.move({ x = -25, y = 0, relative = true }), { repeating = true })
+o.bind("SUPER + CTRL + SHIFT + RIGHT", "Move floating window right", hl.dsp.window.move({ x = 25, y = 0, relative = true }), { repeating = true })
+o.bind("SUPER + CTRL + SHIFT + UP", "Move floating window up", hl.dsp.window.move({ x = 0, y = -25, relative = true }), { repeating = true })
+o.bind("SUPER + CTRL + SHIFT + DOWN", "Move floating window down", hl.dsp.window.move({ x = 0, y = 25, relative = true }), { repeating = true })
+
 o.bind("ALT + TAB", "Focus on next window", hl.dsp.window.cycle_next())
 o.bind("ALT + SHIFT + TAB", "Focus on previous window", hl.dsp.window.cycle_next({ next = false }))
 o.bind("ALT + TAB", "Reveal active window on top", hl.dsp.window.bring_to_top())
