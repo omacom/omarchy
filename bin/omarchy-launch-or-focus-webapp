@@ -10,6 +10,16 @@ fi
 
 WINDOW_PATTERN="$1"
 shift
-LAUNCH_COMMAND="omarchy-launch-webapp $@"
+
+# The command crosses omarchy-launch-or-focus as one string and is re-parsed
+# there with eval, so each word is quoted first. A URL holding & or an argument
+# holding spaces would otherwise split or run as shell syntax on the far side.
+# printf %q with no arguments emits '', so leave the command with no extra word.
+if (($# > 0)); then
+  printf -v quoted '%q ' "$@"
+  LAUNCH_COMMAND="omarchy-launch-webapp ${quoted% }"
+else
+  LAUNCH_COMMAND="omarchy-launch-webapp"
+fi
 
 exec omarchy-launch-or-focus "$WINDOW_PATTERN" "$LAUNCH_COMMAND"
