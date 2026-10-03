@@ -89,8 +89,10 @@ Panel {
     if (savingLocation) savingLocationQueryStarted = true
     forecastRetries = 0
     dailyForecastRetries = 0
+    metRetries = 0
     forecastProc.running = false
     dailyForecastProc.running = false
+    metFetchProc.running = false
     Qt.callLater(refresh)
   }
 
@@ -134,7 +136,20 @@ Panel {
   readonly property var openMeteoCurrent: Model.openMeteoCurrentCondition(dailyForecastReport)
   readonly property var current: (hasConfiguredCoordinates && openMeteoCurrent) ? openMeteoCurrent : ((report && report.current_condition && report.current_condition[0]) ? report.current_condition[0] : openMeteoCurrent)
   readonly property var areaInfo: report && report.nearest_area && report.nearest_area[0] ? report.nearest_area[0] : null
-  readonly property var forecastDays: buildForecastDays()
+  // Day rows: today plus up to three following days. Today expands to
+  // 2-hour slots for the next 24 hours; later days expand to 6-hour
+  // quarters. Rain amounts come from MET Norway, chances from Open-Meteo.
+  readonly property var dayRows: Model.openMeteoDayRows(dailyForecastReport, Qt.formatDate(new Date(), "yyyy-MM-dd"))
+  property string expandedDate: ""
+
+  // MET Norway state. metTimeseries is the cached Locationforecast
+  // timeseries array; the fetcher script owns throttle/Expires/304 logic.
+  property var metTimeseries: null
+  property string metStatus: ""
+  property int metRetries: 0
+  readonly property string metCacheDir: Quickshell.env("HOME") + "/.cache/omarchy/" + Model.MET_CACHE_SUBDIR
+  readonly property var metIndex: Model.indexMetTimeseries(metTimeseries)
+  readonly property var rainProbIndex: Model.indexPrecipitationProbability(dailyForecastReport && dailyForecastReport.hourly)
   readonly property string reportCountry: areaInfo && areaInfo.country && areaInfo.country[0] ? areaInfo.country[0].value : ""
 
   readonly property bool useImperial: Model.shouldUseImperial(setting("unit", ""), Qt.locale().name, reportCountry)
@@ -155,31 +170,29 @@ Panel {
     // starve retries for the rest of the session.
     forecastRetries = 0
     dailyForecastRetries = 0
+    metRetries = 0
     if (!forecastProc.running) forecastProc.running = true
     if (root.locationQuery === "" && !locationProc.running) locationProc.running = true
     // With stored coordinates this fetches open-meteo right away — no need
     // to wait for the slow wttr response. Without them it's a no-op until
     // wttr reports the detected area.
     refreshDailyForecast(null)
+    refreshMet()
   }
 
   function refreshDailyForecast(sourceReport) {
     if (dailyForecastProc.running) return
 
-    var lat = parseFloat(String(root.configuredLocationState.latitude))
-    var lon = parseFloat(String(root.configuredLocationState.longitude))
-    if (isNaN(lat) || isNaN(lon)) {
-      var area = sourceReport && sourceReport.nearest_area && sourceReport.nearest_area[0] ? sourceReport.nearest_area[0] : root.areaInfo
-      if (!area) return
-      lat = parseFloat(String(area.latitude || ""))
-      lon = parseFloat(String(area.longitude || ""))
-    }
-    if (isNaN(lat) || isNaN(lon)) return
+    var coords = root.forecastCoords(sourceReport)
+    if (!coords) return
+    var lat = coords[0]
+    var lon = coords[1]
 
     var url = "https://api.open-meteo.com/v1/forecast"
       + "?latitude=" + encodeURIComponent(String(lat))
       + "&longitude=" + encodeURIComponent(String(lon))
       + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
+      + "&hourly=precipitation_probability"
       + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
       + "&forecast_days=4"
       + "&timezone=auto"
@@ -279,8 +292,64 @@ Panel {
     geocodeProc.running = true
   }
 
-  function buildForecastDays() {
-    return Model.buildForecastDays(report, dailyForecastReport, Qt.formatDate(new Date(), "yyyy-MM-dd"))
+  // Slots for an expanded day row: 2-hour slots for today (next 24 hours),
+  // 6-hour quarters for later days. Re-evaluates when either source updates.
+  function slotsForDay(day) {
+    if (!day) return []
+    if (day.isToday) return Model.buildTwoHourSlots(root.metIndex, root.rainProbIndex, Date.now())
+    return Model.buildSixHourSlots(root.metIndex, root.rainProbIndex, day.date)
+  }
+
+  function rainTotalForDay(day) {
+    return Model.formatDayRain(Model.dayRainTotal(root.slotsForDay(day)))
+  }
+
+  function toggleDay(dateString) {
+    root.expandedDate = root.expandedDate === dateString ? "" : dateString
+  }
+
+  function dayRowName(day) {
+    if (!day) return ""
+    if (day.isToday) return "Today"
+    return root.dayName(day.date)
+  }
+
+  function slotTemp(slot) {
+    return Model.formatSlotTemp(slot ? slot.tempC : null, root.useImperial)
+  }
+
+  function slotRain(slot) {
+    return Model.formatRain(slot ? slot.rainMm : null)
+  }
+
+  function slotChance(slot) {
+    return Model.formatChance(slot ? slot.chance : null)
+  }
+
+  function slotIcon(slot) {
+    var glyph = slot ? slot.icon : ""
+    return glyph || Model.MISSING_VALUE
+  }
+
+  // Coordinates shared by the Open-Meteo and MET Norway fetches: saved
+  // coordinates when present, else the area wttr.in reported for auto-detect.
+  function forecastCoords(sourceReport) {
+    return Model.forecastCoords(root.configuredLocationState, sourceReport, root.areaInfo)
+  }
+
+  function refreshMet() {
+    if (metFetchProc.running) return
+    var coords = root.forecastCoords(null)
+    if (!coords) return
+    var script = String(Qt.resolvedUrl("met-fetch.sh")).replace(/^file:\/\//, "")
+    metFetchProc.command = [script, String(coords[0]), String(coords[1]), root.metCacheDir]
+    metFetchProc.running = true
+  }
+
+  function scheduleMetRetry() {
+    if (metRetries >= 3) return
+    metRetries++
+    metRetryTimer.restart()
   }
 
   function openMeteoForecastDays() {
@@ -351,8 +420,10 @@ Panel {
             root.finishSavingLocation()
           // Stored coordinates already drove the fast open-meteo fetch from
           // refresh(); only auto-detect needs the area wttr reported.
-          if (isNaN(parseFloat(String(root.configuredLocationState.latitude))))
+          if (isNaN(parseFloat(String(root.configuredLocationState.latitude)))) {
             root.refreshDailyForecast(parsed)
+            root.refreshMet()
+          }
         } catch (e) {
           // Keep last-good report visible, but try again shortly.
           root.scheduleForecastRetry()
@@ -446,8 +517,10 @@ Panel {
         root.savingLocationQueryStarted = true
         root.forecastRetries = 0
         root.dailyForecastRetries = 0
+        root.metRetries = 0
         forecastProc.running = false
         dailyForecastProc.running = false
+        metFetchProc.running = false
         Qt.callLater(root.refresh)
       }
     }
@@ -462,6 +535,58 @@ Panel {
         var raw = String(text || "").trim()
         if (!raw) return
         root.wttrLocation = raw.split(",")[0]
+      }
+    }
+  }
+
+  // MET Norway fetch via the caching helper: it throttles to one request
+  // per 30 minutes, revalidates with If-Modified-Since, and honours
+  // Expires. The body cache is parsed below; a 304 keeps it untouched.
+  Process {
+    id: metFetchProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var raw = String(text || "").trim()
+        if (!raw) {
+          root.scheduleMetRetry()
+          return
+        }
+        try {
+          var status = JSON.parse(raw)
+          root.metStatus = status.status || ""
+          if (root.metStatus === "ok" || root.metStatus === "not-modified")
+            metBodyFile.reload()
+          else if (root.metStatus !== "throttled" && root.metStatus !== "fresh")
+            root.scheduleMetRetry()
+        } catch (e) {
+          root.scheduleMetRetry()
+        }
+      }
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) root.scheduleMetRetry()
+    }
+  }
+
+  Timer {
+    id: metRetryTimer
+    interval: 2500
+    onTriggered: root.refreshMet()
+  }
+
+  // Cached Locationforecast body. Loads once at startup so yesterday's data
+  // is visible instantly; reloaded after every successful fetch.
+  property FileView metBodyFile: FileView {
+    path: root.metCacheDir + "/body.json"
+    printErrors: false
+    onLoaded: {
+      try {
+        var parsed = JSON.parse(text())
+        var series = parsed && parsed.properties ? parsed.properties.timeseries : null
+        if (series) root.metTimeseries = series
+      } catch (e) {
+        // Keep last-good series visible.
       }
     }
   }
@@ -798,84 +923,221 @@ Panel {
         font.pixelSize: Style.font.bodySmall
         font.italic: true
       }
-
       // ---- Divider between current conditions and forecast.
       Rectangle {
-        visible: root.forecastDays.length > 0
+        visible: root.dayRows.length > 0
         width: parent.width
         height: Style.spacing.hairline
         color: root.bar.foreground
         opacity: 0.12
       }
 
-      // ---- Forecast row: each cell has the day icon left of a day-name + hi/lo column.
-      //      Wrapped in an Item so the block of cells can be centered within the popup.
-      Item {
-        visible: root.forecastDays.length > 0
+      // ---- Day rows: icon, name, hi/lo, and total rain. Clicking a row
+      //      expands its slot table (2-hour slots for today, 6-hour
+      //      quarters for later days): time, icon, temp, rain mm, chance %.
+      Column {
+        visible: root.dayRows.length > 0
         width: parent.width
-        height: forecastRow.height
+        spacing: Style.space(2)
 
-        Row {
-          id: forecastRow
-          anchors.horizontalCenter: parent.horizontalCenter
-          spacing: Style.space(44)
+        Repeater {
+          model: root.dayRows
 
-          Repeater {
-            model: root.forecastDays
+          Column {
+            required property var modelData
+            width: parent.width
+            spacing: 0
 
-            Row {
-              required property var modelData
-              required property int index
-              spacing: Style.space(10)
+            Item {
+              width: parent.width
+              height: dayHead.height + Style.space(12)
 
-              Text {
-                textFormat: Text.PlainText
+              Row {
+                id: dayHead
+                anchors.left: parent.left
+                anchors.leftMargin: Style.space(16)
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.dayIcon(modelData)
-                color: root.bar.foreground
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.display
-              }
-
-              Column {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.space(2)
+                spacing: Style.space(10)
 
                 Text {
                   textFormat: Text.PlainText
-                  text: root.dayName(modelData.date).toUpperCase()
-                  color: Qt.darker(root.bar.foreground, 1.4)
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: root.dayIcon(modelData)
+                  color: root.bar.foreground
                   font.family: root.bar.fontFamily
-                  font.pixelSize: Style.font.caption
-                  font.letterSpacing: 1
+                  font.pixelSize: Style.font.display
                 }
 
-                Row {
-                  spacing: Style.space(6)
+                Column {
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: Style.space(2)
 
                   Text {
                     textFormat: Text.PlainText
-                    text: root.bareTempForDay(modelData, "max")
+                    text: root.dayRowName(modelData).toUpperCase()
+                    color: Qt.darker(root.bar.foreground, 1.4)
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.caption
+                    font.letterSpacing: 1
+                  }
+
+                  Row {
+                    spacing: Style.space(6)
+
+                    Text {
+                      textFormat: Text.PlainText
+                      text: root.bareTempForDay(modelData, "max")
+                      color: root.bar.foreground
+                      font.family: root.bar.fontFamily
+                      font.pixelSize: Style.font.body
+                    }
+                    Text {
+                      textFormat: Text.PlainText
+                      text: root.bareTempForDay(modelData, "min")
+                      color: Qt.darker(root.bar.foreground, 1.5)
+                      font.family: root.bar.fontFamily
+                      font.pixelSize: Style.font.body
+                    }
+                  }
+                }
+              }
+
+              Row {
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(16)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Style.space(8)
+
+                Text {
+                  textFormat: Text.PlainText
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: root.rainTotalForDay(modelData)
+                  color: Qt.darker(root.bar.foreground, 1.4)
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                }
+                Text {
+                  textFormat: Text.PlainText
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: root.expandedDate === modelData.date ? "▾" : "▸"
+                  color: Qt.darker(root.bar.foreground, 1.5)
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                }
+              }
+
+              Rectangle {
+                anchors.fill: parent
+                radius: Style.cornerRadius
+                color: dayMouse.containsMouse ? Style.hoverFillFor(root.bar.foreground, Color.accent) : "transparent"
+              }
+
+              MouseArea {
+                id: dayMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.toggleDay(modelData.date)
+              }
+            }
+
+            Column {
+              visible: root.expandedDate === modelData.date
+              width: parent.width
+              spacing: Style.space(2)
+
+              Row {
+                anchors.left: parent.left
+                anchors.leftMargin: Style.space(58)
+                spacing: 0
+
+                Text { width: Style.space(46); text: "TIME"; color: Qt.darker(root.bar.foreground, 1.5); font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption; font.letterSpacing: 1 }
+                Text { width: Style.space(30); text: "" }
+                Text { width: Style.space(40); text: "TEMP"; color: Qt.darker(root.bar.foreground, 1.5); font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption; font.letterSpacing: 1 }
+                Text { width: Style.space(52); text: "MM"; color: Qt.darker(root.bar.foreground, 1.5); font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption; font.letterSpacing: 1 }
+                Text { width: Style.space(44); text: "%"; color: Qt.darker(root.bar.foreground, 1.5); font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption; font.letterSpacing: 1 }
+              }
+
+              Repeater {
+                model: root.slotsForDay(modelData)
+
+                Row {
+                  required property var modelData
+                  anchors.left: parent.left
+                  anchors.leftMargin: Style.space(58)
+                  spacing: 0
+
+                  Text {
+                    width: Style.space(46)
+                    textFormat: Text.PlainText
+                    text: modelData.label
+                    color: Qt.darker(root.bar.foreground, 1.4)
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                  Text {
+                    width: Style.space(30)
+                    textFormat: Text.PlainText
+                    text: root.slotIcon(modelData)
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
                   }
                   Text {
+                    width: Style.space(40)
                     textFormat: Text.PlainText
-                    text: root.bareTempForDay(modelData, "min")
-                    color: Qt.darker(root.bar.foreground, 1.5)
+                    text: root.slotTemp(modelData)
+                    color: root.bar.foreground
                     font.family: root.bar.fontFamily
-                    font.pixelSize: Style.font.body
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                  Text {
+                    width: Style.space(52)
+                    textFormat: Text.PlainText
+                    text: root.slotRain(modelData)
+                    color: root.bar.foreground
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                  Text {
+                    width: Style.space(44)
+                    textFormat: Text.PlainText
+                    text: root.slotChance(modelData)
+                    color: Qt.darker(root.bar.foreground, 1.4)
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.bodySmall
                   }
                 }
+              }
+
+              Item {
+                width: parent.width
+                height: Style.space(8)
               }
             }
           }
         }
       }
+
+      // MET Norway requires attribution for its data.
+      Item {
+        visible: root.dayRows.length > 0
+        width: parent.width
+        height: creditLine.height
+
+        Text {
+          id: creditLine
+          anchors.horizontalCenter: parent.horizontalCenter
+          text: "Data: MET Norway, Open-Meteo"
+          color: Qt.darker(root.bar.foreground, 1.6)
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+          font.italic: true
+        }
+      }
+        }
+      }
     }
-  }
-  }
   }
 
 }
