@@ -114,8 +114,14 @@ done
 # Only an active entry with the dedicated Omarchy label implies Direct Boot; an
 # inactive one or a Limine entry labelled after the disk must not skip the rebuild.
 for entry in "Boot0002 Omarchy\t$uki_path" 'Boot0002* Omarchy Rescue' 'Boot0001* Omarchy - Samsung 422087P\tHD(1,GPT,1-2,0x800,0x400000)/\\EFI\\LIMINE\\LIMINE_AA64.EFI'; do
-  TEST_EFI_ENTRIES="$entry" run spark "$scratch/other-label" bash -euo pipefail "$migration" >/dev/null
+  output=$(TEST_EFI_ENTRIES="$entry" run spark "$scratch/other-label" bash -euo pipefail "$migration")
   grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "only an active Omarchy entry implies Direct Boot"
+  # Only the inactive Omarchy entry is left without its UKI.
+  if [[ $entry == "Boot0002 Omarchy"* ]]; then
+    grep -q 'remove it with Setup > Direct Boot' <<<"$output" || fail "the migration points out an inactive entry left without its UKI"
+  else
+    ! grep -q 'inactive Omarchy EFI entry' <<<"$output" || fail "the migration mentions only an inactive Omarchy entry"
+  fi
   rm -rf "$scratch/other-label"
 done
 pass "the migration preserves an Omarchy Direct Boot entry"

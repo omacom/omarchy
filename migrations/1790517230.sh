@@ -26,3 +26,7 @@ fi
 
 sudo limine-mkinitcpio
 sudo install -Dm644 /dev/null "$rebuild_marker"
+
+if grep -Eq '^Boot[0-9A-Fa-f]+[[:space:]]+Omarchy[[:space:]]*$' <<<"$efi_labels"; then
+  echo "The inactive Omarchy EFI entry no longer has a UKI to boot; remove it with Setup > Direct Boot"
+fi
