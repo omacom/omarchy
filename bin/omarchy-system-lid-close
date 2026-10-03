@@ -10,10 +10,10 @@
 # closes gives Quickshell a head start before logind even decides to suspend.
 # omarchy-system-sleep-lock then usually finds the session already secure.
 #
-# A docked lid close does not suspend (HandleLidSwitchDocked defaults to
-# ignore), so it must not lock either: that is clamshell mode, still in use on
-# the external display.
-if omarchy-hw-laptop-closed && ! omarchy-hw-external-monitors; then
+# Keep an active external display usable in clamshell mode. Raw DRM connectors
+# also include devices Hyprland does not use, such as the T2 Mac Touch Bar;
+# those must not prevent locking when the laptop display is closed.
+if omarchy-hw-laptop-closed && ! omarchy-hyprland-monitor-external-active; then
   omarchy-system-lock >/dev/null 2>&1 || true
 fi
 
