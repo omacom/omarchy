@@ -818,6 +818,47 @@ configure_hostname() {
     printf '%s\n' "$hostname" >/etc/hostname
 }
 
+
+# The installer asks for keyboard and timezone but never for locale, so the
+# image default of en_US.UTF-8 sticks even for UK installs (#13162). Map the
+# regional English choices we already collected onto the matching locale.
+configure_locale() {
+  local locale=""
+
+  case "${keyboard:-}" in
+    uk) locale=en_GB.UTF-8 ;;
+  esac
+
+  if [[ -z $locale ]]; then
+    case "${timezone:-}" in
+      Europe/London) locale=en_GB.UTF-8 ;;
+    esac
+  fi
+
+  [[ -n $locale ]] || return 0
+
+  # locale.gen entries look like "en_GB.UTF-8 UTF-8" (name + charset).
+  if [[ -f /etc/locale.gen ]]; then
+    if grep -Eq "^[[:space:]]*${locale}([[:space:]]+|$)" /etc/locale.gen; then
+      :
+    elif grep -Eq "^[[:space:]]*#[[:space:]]*${locale}([[:space:]]+|$)" /etc/locale.gen; then
+      sed -i -E "s/^([[:space:]]*)#([[:space:]]*)(${locale})([[:space:]].*)?$/\1\3\4/" /etc/locale.gen
+    else
+      printf '%s UTF-8\n' "$locale" >>/etc/locale.gen
+    fi
+  fi
+
+  if command -v locale-gen >/dev/null 2>&1; then
+    locale-gen "$locale" >>"$LOG_FILE" 2>&1 || locale-gen >>"$LOG_FILE" 2>&1 || \
+      log_step "could not generate locale $locale"
+  fi
+
+  printf 'LANG=%s\n' "$locale" >/etc/locale.conf
+  if command -v localectl >/dev/null 2>&1; then
+    localectl set-locale "LANG=$locale" >>"$LOG_FILE" 2>&1 || true
+  fi
+}
+
 # Apply the owner's timezone, deferred to first boot with the rest of the user
 # step, overwriting the placeholder (UTC) the deferred install seeded.
 configure_timezone() {
@@ -1009,6 +1050,9 @@ run_provisioning() {
 
   log_step "setting timezone to ${timezone:-UTC}"
   configure_timezone
+
+  log_step "setting locale from keyboard/timezone"
+  configure_locale
 
   log_step "finalizing user"
   echo finalize >"$STATE_FILE"
