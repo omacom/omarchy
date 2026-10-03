@@ -85,7 +85,9 @@ while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; 
 hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
 
 shell_ready=0
-for (( attempt = 0; attempt < 20; attempt++ )); do
+# Plugin discovery and first-load QML compilation can take several seconds.
+ready_deadline=$((SECONDS + 30))
+while (( SECONDS < ready_deadline )); do
   if OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell shell ping >/dev/null 2>&1; then
     shell_ready=1
     break
