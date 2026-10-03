@@ -64,10 +64,12 @@ acpi_ensure() {
 }
 
 acpi_eval() {
-  local method=$1
+  local method=$1 result
   [[ -w $ACPI_CALL ]] || return 1
   echo "$method" >"$ACPI_CALL" 2>/dev/null || return 1
-  tr -d '\0' <"$ACPI_CALL" >/dev/null
+  # acpi_call takes a missing method without complaint and reports it on read.
+  result=$(tr -d '\0' <"$ACPI_CALL")
+  [[ $result != Error:* ]]
 }
 
 unmount_reader_disks() {
