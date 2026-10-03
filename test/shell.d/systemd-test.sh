@@ -80,6 +80,19 @@ grep -F 'fcitx5' "$ROOT/default/hypr/autostart.lua" >/dev/null &&
   fail "fcitx5 is autostarted from Hyprland; an unsupervised launch dies silently and takes every compose sequence with it"
 pass "fcitx5 runs supervised, so a lost input method comes back instead of killing XCompose until logout"
 
+audio_service="$ROOT/default/systemd/user/omarchy-audio-inhibit.service"
+grep -Fx 'ExecStart=/usr/bin/omarchy-audio-inhibit' "$audio_service" >/dev/null ||
+  fail "audio inhibitor service does not run omarchy-audio-inhibit"
+grep -Fx 'WantedBy=graphical-session.target' "$audio_service" >/dev/null ||
+  fail "audio inhibitor service is not wanted by graphical-session.target"
+grep -Fx 'PartOf=graphical-session.target' "$audio_service" >/dev/null ||
+  fail "audio inhibitor service does not stop with graphical-session.target"
+grep -Fx 'ConditionEnvironment=WAYLAND_DISPLAY' "$audio_service" >/dev/null ||
+  fail "audio inhibitor service can start without a Wayland display"
+grep -F 'omarchy-audio-inhibit.service' "$first_run_units" >/dev/null ||
+  fail "first-run does not enable the audio idle inhibitor"
+pass "audio inhibitor service runs supervised in the graphical session"
+
 oomd_slice="$ROOT/default/systemd/user/app.slice.d/10-oomd.conf"
 grep -Fx 'ManagedOOMMemoryPressure=kill' "$oomd_slice" >/dev/null ||
   fail "nothing is a kill candidate, so systemd-oomd watches the machine thrash and never acts"
