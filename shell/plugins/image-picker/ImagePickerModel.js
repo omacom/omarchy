@@ -52,20 +52,25 @@ function firstMatchingIndex(images, filterText) {
   return -1
 }
 
-function filteredPosition(images, index, filterText) {
-  if (!filterText) return index
-
+// One pass gives every entry its position among the matches, so each carousel
+// delegate reads its position instead of rescanning the entries ahead of it
+// on every keystroke. Entries the filter hides carry -1.
+function filteredPositions(images, filterText) {
+  var values = Array.isArray(images) ? images : []
+  var positions = new Array(values.length)
   var position = 0
-  for (var i = 0; i < index; i++) {
-    if (itemMatches(images, i, filterText)) position++
+
+  for (var i = 0; i < values.length; i++) {
+    if (itemMatches(values, i, filterText)) positions[i] = position++
+    else positions[i] = -1
   }
 
-  return position
+  return positions
 }
 
-function selectedFilteredPosition(images, selectedIndex, filterText) {
-  if (!filterText) return selectedIndex
-  return itemMatches(images, selectedIndex, filterText) ? filteredPosition(images, selectedIndex, filterText) : 0
+function selectedFilteredPosition(positions, selectedIndex) {
+  var position = Array.isArray(positions) ? positions[selectedIndex] : undefined
+  return position === undefined || position < 0 ? 0 : position
 }
 
 function indexForSelectedImage(images, selectedImage) {
@@ -89,7 +94,7 @@ if (typeof module !== "undefined") {
     loadRows: loadRows,
     itemMatches: itemMatches,
     firstMatchingIndex: firstMatchingIndex,
-    filteredPosition: filteredPosition,
+    filteredPositions: filteredPositions,
     selectedFilteredPosition: selectedFilteredPosition,
     indexForSelectedImage: indexForSelectedImage,
     nextSelectedIndexForFilter: nextSelectedIndexForFilter

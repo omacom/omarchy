@@ -38,8 +38,11 @@ assertEqual(picker.firstMatchingIndex(images, 'plain'), 2, 'image picker finds f
 assertEqual(picker.indexForSelectedImage(images, '/themes/a/gruvbox-dark.jpeg'), 1, 'image picker finds selected image')
 assertEqual(picker.indexForSelectedImage(images, '/missing.png'), 0, 'image picker defaults selected image to first row')
 
-assertEqual(picker.filteredPosition(images, 2, 'dark'), 1, 'image picker computes filtered position')
-assertEqual(picker.selectedFilteredPosition(images, 2, 'dark'), 0, 'image picker selected filtered position falls back when selected is hidden')
+const positions = picker.filteredPositions(images, 'n')
+assertDeepEqual(positions, [0, -1, 1], 'image picker computes every filtered position in one pass')
+assertDeepEqual(picker.filteredPositions(images, ''), [0, 1, 2], 'image picker keeps raw indices when no filter is set')
+assertEqual(picker.selectedFilteredPosition(positions, 2), 1, 'image picker reads the selected position from the precomputed pass')
+assertEqual(picker.selectedFilteredPosition(positions, 1), 0, 'image picker selected filtered position falls back when selected is hidden')
 assertEqual(picker.nextSelectedIndexForFilter(images, 0, 'dark'), 1, 'image picker moves selection to first match when filter hides current item')
 
 const imagePickerQml = fs.readFileSync(path.join(root, 'shell/plugins/image-picker/ImagePicker.qml'), 'utf8')
@@ -76,5 +79,11 @@ assert(
 assert(
   /source: item\.sourceActivated && item\.thumbnailPath \? Util\.fileUrl\(item\.thumbnailPath\) : ""[\s\S]*asynchronous: false/.test(imagePickerQml),
   'image picker loads activated thumbnails synchronously to avoid carousel flicker'
+)
+assert(
+  /onImageArrayChanged: rebuildFilteredPositions\(\)[\s\S]*onFilterTextChanged: rebuildFilteredPositions\(\)/.test(imagePickerQml) &&
+    /readonly property bool matched: root\.filteredPositions\[index\] >= 0/.test(imagePickerQml) &&
+    /readonly property int relativeIndex: root\.filteredPositions\[index\] - root\.selectedFilteredPosition\(\)/.test(imagePickerQml),
+  'image picker delegates read precomputed filter positions instead of rescanning per slide'
 )
 JS

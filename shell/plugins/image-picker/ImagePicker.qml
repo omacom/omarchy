@@ -100,12 +100,12 @@ Item {
     return ImagePickerModel.firstMatchingIndex(imageArray, filterText)
   }
 
-  function filteredPosition(index) {
-    return ImagePickerModel.filteredPosition(imageArray, index, filterText)
+  function selectedFilteredPosition() {
+    return ImagePickerModel.selectedFilteredPosition(filteredPositions, selectedIndex)
   }
 
-  function selectedFilteredPosition() {
-    return ImagePickerModel.selectedFilteredPosition(imageArray, selectedIndex, filterText)
+  function rebuildFilteredPositions() {
+    filteredPositions = ImagePickerModel.filteredPositions(imageArray, filterText)
   }
 
   function select(index, immediate) {
@@ -273,6 +273,13 @@ Item {
   }
 
   property var imageArray: []
+  // Every entry's position among the filter's matches, rebuilt whenever the
+  // images or the filter change. Delegates read their position from here in
+  // constant time, instead of each rescanning every earlier entry per change.
+  property var filteredPositions: []
+
+  onImageArrayChanged: rebuildFilteredPositions()
+  onFilterTextChanged: rebuildFilteredPositions()
 
 
   function currentThemePreview() {
@@ -526,8 +533,8 @@ Item {
               readonly property string fileName: imageData ? imageData.fileName : ""
               readonly property string thumbnailPath: imageData ? imageData.thumbnailPath : ""
 
-              readonly property bool matched: root.itemMatches(index)
-              readonly property int relativeIndex: root.filteredPosition(index) - root.selectedFilteredPosition()
+              readonly property bool matched: root.filteredPositions[index] >= 0
+              readonly property int relativeIndex: root.filteredPositions[index] - root.selectedFilteredPosition()
               readonly property bool selected: matched && index === root.selectedIndex
               readonly property bool nearby: matched && Math.abs(relativeIndex) <= 16
               property bool sourceActivated: nearby
