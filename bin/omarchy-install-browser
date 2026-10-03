@@ -42,6 +42,11 @@ chromium)
 chrome)
   echo "Installing Chrome..."
   omarchy-pkg-aur-add google-chrome || exit 1
+  # Chrome's Qt mode picks Qt5 whenever qt5-base is installed, and without qt5-wayland
+  # it aborts under QT_QPA_PLATFORM=wayland;xcb (issue #10488). Without qt5-base it uses Qt6.
+  if omarchy-pkg-present qt5-base; then
+    omarchy-pkg-add qt5-wayland || exit 1
+  fi
 
   setup_chromium_policy_directory /etc/opt/chrome/policies/managed
   copy_chromium_flags ~/.config/chrome-flags.conf
