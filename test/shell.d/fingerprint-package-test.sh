@@ -51,6 +51,10 @@ cat > "$scratch/bin/fprintd-enroll" <<'STUB'
 echo enroll >> "$CALL_LOG"
 exit 1
 STUB
+cat > "$scratch/bin/fprintd-list" <<'STUB'
+#!/bin/bash
+echo "${FPRINTD_LIST:-No devices available}"
+STUB
 cat > "$scratch/bin/fprintd-verify" <<'STUB'
 #!/bin/bash
 echo verify >> "$CALL_LOG"
@@ -94,6 +98,26 @@ if grep -qx enroll "$CALL_LOG"; then
   fail "a failed package transaction prevents enrollment"
 fi
 pass "a failed installation stops before enrollment"
+
+usb_reader() {
+  mkdir -p "$scratch/usb-$1/1-1"
+  echo "${1%:*}" > "$scratch/usb-$1/1-1/idVendor"
+  echo "${1#*:}" > "$scratch/usb-$1/1-1/idProduct"
+  echo "$scratch/usb-$1"
+}
+installed=$'libfprint-git\nfprintd\nusbutils'
+
+INSTALLED=$installed OMARCHY_USB_DEVICES_PATH=$(usb_reader 06cb:009a) run_setup
+grep -q 'libfprint has no driver for this reader' "$scratch/output" || fail "a Validity reader fprintd cannot see is named as driverless"
+pass "a Validity reader fprintd cannot see is named as driverless"
+
+INSTALLED=$installed OMARCHY_USB_DEVICES_PATH=$(usb_reader 06cb:009a) FPRINTD_LIST="found 1 devices" run_setup
+grep -q 'Please try again' "$scratch/output" || fail "a Validity reader fprintd can see is asked to retry"
+pass "a Validity reader fprintd can see is asked to retry"
+
+INSTALLED=$installed OMARCHY_USB_DEVICES_PATH=$(usb_reader 138a:003d) run_setup
+grep -q 'Please try again' "$scratch/output" || fail "an unlisted reader is asked to retry"
+pass "an unlisted reader is asked to retry"
 
 HARDWARE_STATUS=1 run_setup
 [[ ! -s $CALL_LOG ]] || fail "missing hardware stops before package operations"
