@@ -43,12 +43,72 @@ use_ddc_display() {
   [[ -n $monitor ]] && ! monitor_is_internal
 }
 
+# External displays without DDC/CI (TVs, many OLEDs) fall back to hyprsunset gamma.
+# Gamma applies to every output and is kept at 20% or above so the screen stays readable.
+gamma_min=20
+no_ddc_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display-gamma/${monitor//[^[:alnum:]_.-]/_}"
+no_ddc_seconds=60
+
+# A failed DDC probe takes seconds, so skip it for a while once it has failed.
+ddc_known_missing() {
+  local stamp
+  [[ -r $no_ddc_file ]] && read -r stamp <"$no_ddc_file" && [[ $stamp =~ ^[0-9]+$ ]] &&
+    (( $(date +%s) - stamp < no_ddc_seconds ))
+}
+
+mark_ddc_missing() {
+  mkdir -p "${no_ddc_file%/*}" 2>/dev/null && date +%s >"$no_ddc_file" 2>/dev/null
+}
+
+gamma_brightness() {
+  local gamma
+  gamma="$(hyprctl hyprsunset gamma 2>/dev/null)"
+  if [[ $gamma =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    printf '%.0f\n' "$gamma"
+  else
+    echo 100
+  fi
+}
+
+set_gamma_brightness() {
+  local current target
+
+  pgrep -x hyprsunset >/dev/null || { setsid uwsm-app -- hyprsunset >/dev/null 2>&1 & sleep 1; }
+  current="$(gamma_brightness)"
+
+  if [[ $step =~ ^([0-9]+)%$ ]]; then
+    target="${BASH_REMATCH[1]}"
+  elif [[ $step =~ ^\+([0-9]+)%$ ]]; then
+    (( target = current + BASH_REMATCH[1] ))
+  elif [[ $step =~ ^([0-9]+)%-$ ]]; then
+    (( target = current - BASH_REMATCH[1] ))
+  else
+    return 1
+  fi
+
+  (( target < gamma_min )) && target=$gamma_min
+  (( target > 100 )) && target=100
+
+  # A freshly started hyprsunset applies its defaults at the end of its boot, so resend until it sticks.
+  for _ in {1..5}; do
+    hyprctl hyprsunset gamma "$target" >/dev/null 2>&1
+    [[ $(gamma_brightness) == "$target" ]] && break
+    sleep 0.2
+  done
+
+  printf '%s\n' "$target"
+}
+
 if (( $# == 0 )); then
   if use_apple_display; then
     omarchy-brightness-display-apple
     exit
   elif use_ddc_display; then
-    omarchy-brightness-display-ddc "$monitor"
+    if ! ddc_known_missing; then
+      omarchy-brightness-display-ddc "$monitor" && exit
+      mark_ddc_missing
+    fi
+    gamma_brightness
     exit
   fi
 
@@ -83,7 +143,11 @@ if use_apple_display; then
     omarchy-brightness-display-apple "$step"
   fi
 elif use_ddc_display; then
-  brightness="$(omarchy-brightness-display-ddc "$monitor" "$step")" || exit 1
+  brightness=""
+  if ! ddc_known_missing; then
+    brightness="$(omarchy-brightness-display-ddc "$monitor" "$step")" || mark_ddc_missing
+  fi
+  [[ -n $brightness ]] || brightness="$(set_gamma_brightness)" || exit 1
   (( no_osd )) || omarchy-osd -i brightness -p "$brightness"
 else
   # Current device highlighted

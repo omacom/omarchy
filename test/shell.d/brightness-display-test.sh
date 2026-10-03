@@ -51,6 +51,22 @@ elif [[ $* == *" getvcp 10 "* ]]; then
 fi
 SH
 
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+printf 'hyprctl %s\n' "$*" >>"$CALL_LOG"
+gamma_file="$XDG_RUNTIME_DIR/mock-gamma"
+if [[ $* == "hyprsunset gamma" ]]; then
+  cat "$gamma_file" 2>/dev/null || echo 100
+elif [[ $* =~ ^hyprsunset\ gamma\ ([0-9]+)$ ]]; then
+  printf '%s\n' "${BASH_REMATCH[1]}" >"$gamma_file"
+fi
+SH
+
+cat >"$mock_bin/pgrep" <<'SH'
+#!/bin/bash
+exit 0
+SH
+
 chmod +x "$mock_bin"/*
 
 run_brightness() {
@@ -90,29 +106,43 @@ brightness=$(FOCUSED_MONITOR=DP-1 run_brightness)
 [[ $brightness == "50" ]] || fail "brightness follows the focused external monitor" "actual: $brightness"
 pass "brightness follows the focused external monitor"
 
+brightness=$(DDC_CONNECTOR=DP-1 run_brightness --monitor DP-2)
+[[ $brightness == "100" ]] || fail "external monitor without DDC/CI reads hyprsunset gamma" "actual: $brightness"
+pass "external monitor without DDC/CI reads hyprsunset gamma"
+
 detect_count=$(grep -c ' detect --brief' "$call_log")
-if DDC_CONNECTOR=DP-1 run_brightness --monitor DP-2 >/dev/null 2>&1; then
-  fail "unsupported external monitor has no brightness backend"
-fi
-if DDC_CONNECTOR=DP-1 run_brightness --monitor DP-2 >/dev/null 2>&1; then
-  fail "cached unsupported external monitor has no brightness backend"
-fi
-(( $(grep -c ' detect --brief' "$call_log") == detect_count + 1 )) || \
-  fail "unsupported external monitor detection is temporarily cached"
-pass "unsupported external monitor has no brightness backend"
+DDC_CONNECTOR=DP-1 run_brightness --no-osd --monitor DP-2 50%
+grep -F 'hyprctl hyprsunset gamma 50' "$call_log" >/dev/null || \
+  fail "external monitor without DDC/CI sets hyprsunset gamma"
+(( $(grep -c ' detect --brief' "$call_log") == detect_count )) || \
+  fail "external monitor without DDC/CI skips the DDC probe while it is known missing"
+brightness=$(DDC_CONNECTOR=DP-1 run_brightness --monitor DP-2)
+[[ $brightness == "50" ]] || fail "external monitor known to lack DDC/CI reads hyprsunset gamma" "actual: $brightness"
+(( $(grep -c ' detect --brief' "$call_log") == detect_count )) || \
+  fail "external monitor without DDC/CI skips the DDC probe while it is known missing"
+pass "external monitor without DDC/CI sets hyprsunset gamma"
+
+DDC_CONNECTOR=DP-1 run_brightness --no-osd --monitor DP-2 5%
+brightness=$(<"$runtime_dir/mock-gamma")
+[[ $brightness == "20" ]] || fail "software brightness stays at or above 20%" "actual: $brightness"
+DDC_CONNECTOR=DP-1 run_brightness --no-osd --monitor DP-2 +15%
+brightness=$(<"$runtime_dir/mock-gamma")
+[[ $brightness == "35" ]] || fail "software brightness steps from the current gamma" "actual: $brightness"
+pass "software brightness stays at or above 20%"
+rm -f "$runtime_dir/mock-gamma"
 
 rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
 detect_count=$(grep -c ' detect --brief' "$call_log")
-if DDC_READ_FAIL=1 run_brightness --monitor DP-1 >/dev/null 2>&1; then
-  fail "transient DDC read failure is reported"
-fi
+brightness=$(DDC_READ_FAIL=1 run_brightness --monitor DP-1)
+[[ $brightness == "100" ]] || fail "failed DDC read falls back to hyprsunset gamma" "actual: $brightness"
 (( $(grep -c ' detect --brief' "$call_log") == detect_count + 1 )) || \
-  fail "transient DDC read failure is not retried immediately"
+  fail "failed DDC read is not retried immediately"
+rm -f "$runtime_dir/omarchy-brightness-display-gamma/DP-1"
 brightness=$(run_brightness --monitor DP-1)
-[[ $brightness == "50" ]] || fail "transient DDC read failure is retried on the next invocation" "actual: $brightness"
+[[ $brightness == "50" ]] || fail "failed DDC read is retried once the fallback expires" "actual: $brightness"
 (( $(grep -c ' detect --brief' "$call_log") == detect_count + 2 )) || \
-  fail "transient DDC read failure does not create a negative cache entry"
-pass "transient DDC read failure is retried on the next invocation"
+  fail "failed DDC read does not create a DDC negative cache entry"
+pass "failed DDC read falls back to hyprsunset gamma until retried"
 
 printf '7 80 0\n' >"$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
 get_count=$(grep -c ' getvcp 10 ' "$call_log")
