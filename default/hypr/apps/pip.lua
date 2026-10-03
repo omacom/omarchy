@@ -22,3 +22,14 @@ o.window({ tag = "chromium-based-browser", title = "^Meet - .+" }, {
   opacity = "1 1",
   move = { "(monitor_w-window_w-40)", "(monitor_h-window_h-40)" },
 })
+
+-- The pattern above also matches the real meeting window, whose title keeps
+-- the trailing browser name ("Meet - abc-defg-hij - Chromium"). Only the PiP
+-- overlay drops it, so tile anything carrying that suffix back: the overlay
+-- keeps floating while the meeting window tiles and can fullscreen again.
+o.window({
+  tag = "chromium-based-browser",
+  title = "^Meet - .+ - (Chromium|Google Chrome|Brave|Microsoft.Edge|Vivaldi|Helium)$",
+}, {
+  tile = true,
+})
