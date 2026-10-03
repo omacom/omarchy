@@ -10,6 +10,7 @@ run_logged "$OMARCHY_INSTALL/user/hardware/framework/fix-f13-amd-audio-input.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/dell/xps13-text-scaling.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/fix-nouveau-cursor.sh"
 run_logged "$OMARCHY_INSTALL/user/hardware/vm-no-animations.sh"
+run_logged "$OMARCHY_INSTALL/user/hardware/fix-nvidia-chromium-video.sh"
 
 run_logged "$OMARCHY_INSTALL/user/default-keyring.sh"
 run_logged "$OMARCHY_INSTALL/user/mise.sh"

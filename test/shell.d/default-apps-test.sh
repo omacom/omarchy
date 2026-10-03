@@ -137,6 +137,14 @@ export OMARCHY_TEST_NOTIFICATION_LOG="$notification_log"
 export OMARCHY_TEST_SETUP_LOG="$setup_log"
 export OMARCHY_TEST_BROWSER_FILE="$browser_file"
 
+# The browser installer forces software video decode on NVIDIA GPUs with GSP
+# firmware, so the flags file it writes depends on the machine running the test.
+# Point the detector at an empty PCI tree to keep that out of the way, and give
+# the quirk its own case below.
+pci_devices="$test_tmp/pci-devices"
+mkdir -p "$pci_devices"
+export OMARCHY_PCI_DEVICES_PATH="$pci_devices"
+
 assert_missing_opens_installer() {
   local type=$1
   local selection=$2
@@ -226,6 +234,20 @@ grep -Fxq 'omarchy-install-chromium-ytdlp:' "$setup_log" ||
 grep -Fxq 'omarchy-theme-set-browser:' "$setup_log" ||
   fail "Chromium browser installer applies the current theme"
 pass "Chromium browser installer restores the complete Omarchy setup"
+
+# Video renders black in Chromium when the NVIDIA VA-API driver is in play, so
+# the installer turns hardware decode off for that hardware only.
+rm -f "$installed_dir/chromium" "$test_home/.config/chromium-flags.conf"
+gsp_gpu="$test_tmp/pci-gsp/0000:01:00.0"
+mkdir -p "$gsp_gpu"
+echo "0x10de" >"$gsp_gpu/vendor"
+echo "0x030000" >"$gsp_gpu/class"
+echo "0x2206" >"$gsp_gpu/device"
+OMARCHY_PCI_DEVICES_PATH="$test_tmp/pci-gsp" OMARCHY_TEST_REAL_BROWSER_INSTALL=true \
+  omarchy-default-browser --install chromium >/dev/null
+grep -qxF -- "--disable-accelerated-video-decode" "$test_home/.config/chromium-flags.conf" ||
+  fail "Chromium browser installer forces software video decode on NVIDIA GPUs with GSP firmware"
+pass "Chromium browser installer forces software video decode on NVIDIA GPUs with GSP firmware"
 
 : >"$install_log"
 : >"$setup_log"
