@@ -56,4 +56,8 @@ for _ in {1..10}; do
   [[ $(current_temp) == "$TARGET_TEMP" ]] && break
 done
 
+if (( TARGET_TEMP == OFF_TEMP )); then
+  omarchy-brightness-display-gamma cleanup
+fi
+
 omarchy-shell -q nightlight refresh

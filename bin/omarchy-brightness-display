@@ -4,6 +4,7 @@
 # omarchy:args=[--no-osd] [--monitor name] [+N%|N%-|N%|off|on]
 # omarchy:examples=omarchy brightness display | omarchy brightness display +5% | omarchy brightness display --monitor DP-1 50% | omarchy brightness display off | omarchy brightness display on
 
+warm_state_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.warm"
 no_osd=0
 monitor=""
 
@@ -27,6 +28,42 @@ done
 # Get the brightness of the passed display
 backlight_brightness() {
   brightnessctl -d "$1" -m 2>/dev/null | awk -F, '{ gsub("%", "", $4); print $4; found=1 } END{ exit !found }'
+}
+
+gamma_brightness() {
+  local gamma
+  gamma=$(gamma_command get) || return 1
+  awk -v gamma="$gamma" 'BEGIN {
+    tenth = int((gamma - 25) * 10 / 75 + 0.5)
+    if (tenth < 0) tenth = 0
+    if (tenth > 10) tenth = 10
+    printf "%.1f\n", tenth / 10
+  }'
+}
+
+display_brightness() {
+  local hardware
+  hardware=$(backlight_brightness "$1") || return 1
+  if (( hardware <= 1 )) && gamma_command active; then
+    gamma_brightness
+  else
+    printf '%s\n' "$hardware"
+  fi
+}
+
+set_gamma_tenth() {
+  local tenth=$1
+  (( tenth < 0 )) && tenth=0
+  (( tenth > 10 )) && tenth=10
+  gamma_command set "$(( 25 + (75 * tenth + 5) / 10 ))"
+}
+
+gamma_command() {
+  if [[ -n ${lock_fd:-} ]]; then
+    omarchy-brightness-display-gamma "$@" {lock_fd}>&-
+  else
+    omarchy-brightness-display-gamma "$@"
+  fi
 }
 
 [[ -n $monitor ]] || monitor="$(omarchy-hyprland-monitor-focused 2>/dev/null || true)"
@@ -53,7 +90,7 @@ if (( $# == 0 )); then
   fi
 
   device="$(omarchy-hw-display)" || exit 1
-  backlight_brightness "$device"
+  display_brightness "$device"
   exit
 fi
 
@@ -77,12 +114,14 @@ exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
 flock -n "$lock_fd" || exit 0
 
 if use_apple_display; then
+  [[ $step == "0%" ]] && step="1%"
   if (( no_osd )); then
     omarchy-brightness-display-apple --no-osd "$step"
   else
     omarchy-brightness-display-apple "$step"
   fi
 elif use_ddc_display; then
+  [[ $step == "0%" ]] && step="1%"
   brightness="$(omarchy-brightness-display-ddc "$monitor" "$step")" || exit 1
   (( no_osd )) || omarchy-osd -i brightness -p "$brightness"
 else
@@ -92,31 +131,70 @@ else
   # Current brightness percentage
   current=$(backlight_brightness "$device") || exit 1
 
-  # Apply non-uniform step size: 1% steps if at or below 5%, otherwise set an
-  # absolute target percentage to avoid raw backlight rounding causing uneven OSD steps.
-  if [[ $step == "+5%" ]]; then
-    if (( current < 5 )); then
-      (( target = current + 1 ))
-    else
-      (( target = current + 5 ))
+  if [[ $step == "+5%" || $step == "+1%" || $step == "5%-" || $step == "1%-" ]]; then
+    gamma_step=""
+    if (( current <= 1 )); then
+      if [[ $step == +* ]]; then
+        gamma_step=$(gamma_command step up) || { (( $? == 2 )) || exit 1; }
+      else
+        gamma_step=$(gamma_command step down) || { (( $? == 2 )) || exit 1; }
+      fi
     fi
-
-    (( target > 100 )) && target=100
-    step="$target%"
-  elif [[ $step == "5%-" ]]; then
-    if (( current <= 5 )); then
-      (( target = current - 1 ))
-    else
-      (( target = current - 5 ))
+    if [[ -z $gamma_step ]]; then
+      if [[ $step == +* ]]; then
+        if [[ $step == "+5%" ]] && (( current >= 5 )); then
+          (( target = current + 5 ))
+        else
+          (( target = current + 1 ))
+        fi
+        (( target > 100 )) && target=100
+      else
+        if [[ $step == "5%-" ]] && (( current > 5 )); then
+          (( target = current - 5 ))
+        else
+          (( target = current - 1 ))
+        fi
+        (( target < 1 )) && target=1
+      fi
+      brightnessctl -d "$device" set "$target%" >/dev/null || exit 1
+      if [[ $step != +* ]] && (( target <= 5 )) && [[ ! -e $warm_state_file ]]; then
+        # Start hyprsunset before reaching the hardware floor.
+        omarchy-brightness-display-gamma prepare {lock_fd}>&- >/dev/null 2>&1 &
+      elif [[ $step == +* ]] && (( target > 1 )) && [[ -e $warm_state_file ]]; then
+        gamma_command release || true
+      else
+        gamma_command set 100 || true
+      fi
     fi
-
+  elif [[ $step =~ ^[0-9]+%-$ ]]; then
+    amount=${step//[^0-9]/}
+    (( target = current - 10#$amount ))
     (( target < 1 )) && target=1
-    step="$target%"
+    brightnessctl -d "$device" set "$target%" >/dev/null || exit 1
+    gamma_command set 100 || true
+  elif [[ $step =~ ^[0-9]+([.][0-9]+)?%$ ]]; then
+    requested=${step%%%}
+    if awk -v requested="$requested" 'BEGIN { exit !(requested < 1) }'; then
+      brightnessctl -d "$device" set 1% >/dev/null || exit 1
+      if gamma_command can-dim; then
+        tenth=$(awk -v requested="$requested" 'BEGIN { printf "%.0f", requested * 10 }')
+        set_gamma_tenth "$tenth" || true
+      fi
+    else
+      brightnessctl -d "$device" set "$step" >/dev/null || exit 1
+      if (( current <= 1 )); then
+        gamma_command release || true
+      else
+        gamma_command set 100 || true
+      fi
+    fi
+  else
+    brightnessctl -d "$device" set "$step" >/dev/null || exit 1
+    if (( $(backlight_brightness "$device") > 0 )); then
+      gamma_command release || true
+    fi
   fi
 
-  # Set brightness of the display device.
-  brightnessctl -d "$device" set "$step" >/dev/null
-
   # Show the new brightness in OSD
-  (( no_osd )) || omarchy-osd -i brightness -p "$(backlight_brightness "$device")"
+  (( no_osd )) || omarchy-osd -i brightness -p "${gamma_step:-$(display_brightness "$device")}"
 fi
