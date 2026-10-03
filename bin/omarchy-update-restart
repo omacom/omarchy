@@ -3,6 +3,8 @@
 # omarchy:summary=Prompt for required reboot or service restarts after updates
 # omarchy:args=[--services-only|--reboot-only]
 
+kernel_modules_path="${OMARCHY_KERNEL_MODULES_PATH:-/usr/lib/modules}"
+
 mode="${1:-all}"
 case "$mode" in
   all|--services-only|--reboot-only) ;;
@@ -23,7 +25,8 @@ if [[ $mode != "--services-only" ]]; then
   running_kernel=$(uname -r)
   kernel_updated=true
 
-  for kernel in /usr/lib/modules/*/vmlinuz; do
+  # Every kernel package owns modules.builtin; Arch Linux ARM's ships no vmlinuz here (#12440).
+  for kernel in "$kernel_modules_path"/*/modules.builtin; do
     if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
       installed_kernel=$(basename "$(dirname "$kernel")")
 
