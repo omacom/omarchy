@@ -138,6 +138,22 @@ assert(
   'weather hero and bar use the same resolved icon'
 )
 assert(
+  panelSource.includes('readonly property string barLabel:        label + (reportTempNum !== "" ? " " + reportTempNum + tempUnit : "")'),
+  'weather exposes the resolved icon and current temperature as a bar label'
+)
+assert(
+  /WidgetButton \{[\s\S]*root\.vertical \? panelLoader\.item\.label : panelLoader\.item\.barLabel/.test(widgetSource),
+  'weather bar shows temperature horizontally while keeping vertical bars icon-only'
+)
+assert(
+  /WidgetButton \{[\s\S]*horizontalMargin: 12/.test(widgetSource),
+  'weather bar reserves spacing for the temperature label'
+)
+assert(
+  widgetSource.includes('fixedHeight: root.vertical ? Style.bar.statusSlot : -1'),
+  'weather bar keeps vertical status slots compact'
+)
+assert(
   panelSource.includes('onReturnRequested: root.startEditingLocation()'),
   'weather focuses city input when Return is pressed'
 )
