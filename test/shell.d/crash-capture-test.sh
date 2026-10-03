@@ -84,6 +84,23 @@ SH
 cat >"$watch_bin/omarchy-notification-send" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$NOTIFY_LOG"
+
+# Play the server's part of the id contract, because that is what the watcher
+# has to be right about: -p prints the id the notification now holds, and a
+# replaces_id that matches returns the same id rather than a new number. A
+# notification sent with no id gets the next number, as the server would hand
+# one out. An id the watcher invented rather than read back here names whatever
+# the server happened to give that number to.
+if [[ " $* " == *" -p "* ]]; then
+  if [[ " $* " =~ [[:space:]]-r[[:space:]]([0-9]+) ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+  else
+    read -r last <"$NOTIFY_LOG.ids" 2>/dev/null || last=0
+    last=$((last + 1))
+    printf '%s\n' "$last" >"$NOTIFY_LOG.ids"
+    printf '%s\n' "$last"
+  fi
+fi
 SH
 
 chmod +x "$watch_bin/journalctl" "$watch_bin/omarchy-default-agent" \
@@ -106,7 +123,8 @@ crash_entry() {
 # The stubbed journalctl ends after the entries, so the watcher's loop ends too.
 # Its exit status is asserted rather than discarded: a watcher that dies on a
 # muted crash notifies about nothing afterwards, which every assertion below
-# that expects silence would otherwise read as success.
+# that expects silence would otherwise read as success. Extra arguments go in as
+# the watcher's environment, so a case can override what it otherwise defaults.
 run_watch() {
   local status=0
 
@@ -116,7 +134,7 @@ run_watch() {
   JOURNAL_ENTRIES="$JOURNAL_ENTRIES" \
   NOTIFY_LOG="$NOTIFY_LOG" \
   HOME="$watch_home" \
-    "$ROOT/bin/omarchy-crash-watch" || status=$?
+    env "$@" "$ROOT/bin/omarchy-crash-watch" || status=$?
 
   (( status == 0 )) ||
     fail "the watcher exited $status rather than carrying on, so a mute takes the service down with it"
@@ -132,6 +150,13 @@ mute() {
 
 announced() {
   grep -Fq "Process crashed: $1" "$NOTIFY_LOG"
+}
+
+# The replace id the watcher sent for one program, one per announcement. The
+# `|| true` keeps a program announced without any id from ending the run on
+# set -e, where the assertion below has to be the thing that reports it.
+replace_ids() {
+  grep -F "Process crashed: $1" "$NOTIFY_LOG" | grep -o -E -- '(^| )-r [0-9]+' | grep -o -E '[0-9]+' || true
 }
 
 reset_entries
@@ -251,6 +276,42 @@ run_watch
   fail "the fallback name cannot be muted, so the one crash most likely to repeat is the one that cannot be silenced"
 pass "the fallback name can be muted like any other"
 mute unknown off
+
+# A crash loop re-announces every window, and each of those toasts waits for
+# the user, so an unattended machine used to collect one per looping program per
+# minute forever. The watcher reads its id back with -p and hands it back as
+# replaces_id, so the second crash updates the first toast; the dedupe window is
+# dropped here so the second crash is announced at all rather than suppressed.
+reset_entries
+: >"$NOTIFY_LOG.ids"
+crash_entry nautilus /usr/bin/nautilus
+crash_entry nautilus /usr/bin/nautilus
+crash_entry hyprland /usr/bin/hyprland
+crash_entry hyprland /usr/bin/hyprland
+run_watch OMARCHY_CRASH_DEDUPE_SECONDS=0
+
+for program in nautilus hyprland; do
+  [[ $(grep -Fc "Process crashed: $program" "$NOTIFY_LOG") -eq 2 ]] ||
+    fail "the second crash of $program was never announced, so the ids below would say nothing about a loop"
+
+  # A program's first announcement has nothing to replace, so it carries no id.
+  # An id invented there would name whatever live notification the server gave
+  # that number to, which is the failure this is here to catch.
+  [[ $(replace_ids "$program" | wc -l) -eq 1 ]] ||
+    fail "$program's first announcement carries an id before the server has handed one out, got $(replace_ids "$program" | tr '\n' ' ')"
+
+  ids=$(replace_ids "$program")
+  [[ -n $ids ]] ||
+    fail "the second $program crash never handed the server's own id back, so it adds another toast instead of updating the one on screen"
+  [[ $(tr ' ' '\n' <<<"$ids" | sort -u | wc -l) -eq 1 ]] ||
+    fail "a $program crash loop hands a different id back each time, so the toasts stack one per window instead of updating in place"
+done
+
+nautilus_ids=$(replace_ids nautilus)
+hyprland_ids=$(replace_ids hyprland)
+[[ -n $nautilus_ids && -n $hyprland_ids && $nautilus_ids != "$hyprland_ids" ]] ||
+  fail "two different programs share a replace id, so one program's crash toast takes over the other's"
+pass "a crash loop updates one toast per program, and separate programs keep separate toasts"
 
 # What omarchy-crash-mute does on its own. That it agrees with the watcher is
 # already covered above, which drives it for every mute it makes.
