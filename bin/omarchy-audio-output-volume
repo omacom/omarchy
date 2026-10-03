@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # omarchy:summary=Adjust output volume and show the Omarchy OSD
-# omarchy:args=<raise|lower|mute-toggle|+N|-N>
-# omarchy:examples=omarchy audio output volume raise | omarchy audio output volume lower | omarchy audio output volume mute-toggle | omarchy audio output volume +1
+# omarchy:args=<raise|lower|mute|unmute|mute-toggle|+N|-N>
+# omarchy:examples=omarchy audio output volume raise | omarchy audio output volume mute | omarchy audio output volume unmute | omarchy audio output volume mute-toggle | omarchy audio output volume +1
 
 action="${1:-}"
 
 if [[ -z $action ]]; then
-  echo "Usage: omarchy-audio-output-volume <raise|lower|mute-toggle|+N|-N>"
+  echo "Usage: omarchy-audio-output-volume <raise|lower|mute|unmute|mute-toggle|+N|-N>"
   exit 1
 fi
 
@@ -39,7 +39,11 @@ case "$action" in
   lower) action="-5" ;;
 esac
 
-if [[ $action == "mute-toggle" ]]; then
+if [[ $action == "mute" ]]; then
+  pactl set-sink-mute "$sink" 1
+elif [[ $action == "unmute" ]]; then
+  pactl set-sink-mute "$sink" 0
+elif [[ $action == "mute-toggle" ]]; then
   runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
   debounce_file="$runtime_dir/omarchy-audio-output-volume-mute-toggle.last"
   now=$(date +%s%3N)
