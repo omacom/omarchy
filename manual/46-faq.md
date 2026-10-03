@@ -44,9 +44,15 @@ The plain open source Chromium build doesn't ship with the OAuth credentials tha
 
 ### How do I add a printer?
 
-Printing is set up and running out of the box, and you add each printer yourself from _Print Settings_ in the app launcher (`Super + Space`).
+Printing is set up and running out of the box. For a modern network printer (AirPrint / IPP Everywhere), prefer the driverless path:
 
-Choose _Add_, and give it a moment to look: a printer plugged in over USB, and most network printers, are found for you. If yours isn't in the list, pick _Network Printer > Internet Printing Protocol (ipp)_ and enter its address — the printer's own display or its web page will tell you what that is, usually something like `192.168.1.50` with a queue of `ipp/print`. _Forward_ then offers a driver, where a modern printer works best on the driverless _IPP Everywhere_ profile and an older one wants the model's own driver.
+```
+omarchy setup printer
+```
+
+That discovers IPP printers on the LAN and adds them with the _IPP Everywhere_ profile, which talks to the printer directly. Brand model drivers (Epson ESC/P-R and friends) route jobs through cups-filters' `universal` / `pdftopdf` chain and often fail with "filter failed" on those same printers — skip them when _Forward_ offers a choice.
+
+You can still use _Print Settings_ in the app launcher (`Super + Space`): choose _Add_, pick the printer (or _Network Printer > Internet Printing Protocol (ipp)_ with an address like `192.168.1.50` and queue `ipp/print`), then on the driver step pick _IPP Everywhere_ / _driverless_, not the brand PPD.
 
 Right-click a printer and choose _Set as Default_ to pick which one your apps reach for first, and _Properties_ to set paper size, duplex and quality.
 

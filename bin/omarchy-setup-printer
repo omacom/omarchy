@@ -1,0 +1,109 @@
+#!/bin/bash
+
+# omarchy:summary=Add a network printer with the driverless IPP Everywhere profile
+# omarchy:group=setup
+# omarchy:name=printer
+# omarchy:args=[name] [ipp-uri]
+# omarchy:examples=omarchy setup printer | omarchy setup printer Office ipp://192.168.1.50/ipp/print
+# omarchy:requires-sudo=true
+
+# Brand PPDs (Epson ESC/P-R, etc.) route jobs through cups-filters' universal /
+# pdftopdf chain and often fail on modern AirPrint / IPP Everywhere printers
+# (#13023). The everywhere model talks IPP directly and skips that filter path.
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: omarchy-setup-printer [name] [ipp-uri]" >&2
+  echo "  With no args, lists driverless printers and prompts for one." >&2
+}
+
+# driverless list lines look like:
+#   "driverless:ipp://EPSON._ipp._tcp.local/ipp/print" en "Epson" "Epson ..., driverless, ..." ""
+driverless_entries() {
+  LC_ALL=C driverless list 2>/dev/null | awk -F '"' '
+    /^"driverless:/ {
+      uri = $2
+      sub(/^driverless:/, "", uri)
+      name = $6
+      if (name == "") name = uri
+      printf "%s\t%s\n", name, uri
+    }
+  '
+}
+
+add_everywhere_queue() {
+  local name=$1 uri=$2
+
+  [[ -n $name && -n $uri ]] || {
+    echo "omarchy-setup-printer: name and IPP URI are required" >&2
+    return 1
+  }
+
+  case $uri in
+    ipp://* | ipps://*) ;;
+    *)
+      echo "omarchy-setup-printer: URI must be ipp:// or ipps:// (got $uri)" >&2
+      return 1
+      ;;
+  esac
+
+  # Sanitize the CUPS queue name: letters, digits, dash, underscore only.
+  local queue
+  queue=$(printf '%s' "$name" | tr -c 'A-Za-z0-9_-' '_')
+  [[ -n $queue ]] || queue=printer
+
+  echo "Adding $queue via IPP Everywhere ($uri)"
+  sudo lpadmin -p "$queue" -E -v "$uri" -m everywhere
+  sudo lpadmin -p "$queue" -o printer-error-policy=retry-job
+  echo "Printer $queue is ready. Prefer this over brand model drivers in Print Settings."
+}
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+if ((${#@} == 2)); then
+  add_everywhere_queue "$1" "$2"
+  exit 0
+fi
+
+if ((${#@} != 0)); then
+  usage
+  exit 1
+fi
+
+mapfile -t entries < <(driverless_entries)
+
+if ((${#entries[@]} == 0)); then
+  echo "No driverless IPP printers were found on the network."
+  echo "Check that the printer is on, avahi-daemon is running, and try:"
+  echo "  omarchy setup printer Office ipp://192.168.1.50/ipp/print"
+  exit 1
+fi
+
+echo "Driverless printers (IPP Everywhere):"
+i=1
+declare -a names uris
+for entry in "${entries[@]}"; do
+  names+=("${entry%%$'\t'*}")
+  uris+=("${entry#*$'\t'}")
+  printf '  %d) %s\n     %s\n' "$i" "${names[-1]}" "${uris[-1]}"
+  i=$((i + 1))
+done
+
+if ((${#entries[@]} == 1)); then
+  choice=1
+  echo "Only one printer found; using it."
+else
+  read -r -p "Choose printer [1-${#entries[@]}]: " choice
+fi
+
+if ! [[ $choice =~ ^[0-9]+$ ]] || ((choice < 1 || choice > ${#entries[@]})); then
+  echo "omarchy-setup-printer: invalid choice" >&2
+  exit 1
+fi
+
+idx=$((choice - 1))
+add_everywhere_queue "${names[$idx]}" "${uris[$idx]}"
