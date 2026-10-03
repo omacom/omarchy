@@ -17,6 +17,10 @@ Item {
 
   property string currentBackground: ""
   property string displayedBackground: ""
+  // setInstant to an unprobed still waits here. Pointing displayedBackground
+  // at that path clears BackgroundMedia's source until decodeSize is known,
+  // and retainWhileLoading does not cover a cleared source (#14064).
+  property string pendingInstantBackground: ""
   property string incomingBackground: ""
   property string oldBackground: ""
   // A theme switch names its next background before it has staged the rest of
@@ -84,10 +88,21 @@ Item {
       oldBackground = ""
       incomingBackground = ""
       preparedBackground = ""
-      displayedBackground = finalPath
       revealProgress = 1
+      // A still replacing a still with an unknown native size stays on the
+      // previous path until the header probe returns. Video and the first
+      // paint still switch immediately.
+      var defer = instant && displayedBackground && !isVideo(path) && !isVideo(displayedBackground) && nativeSizes[finalPath] === undefined
+      if (defer) {
+        pendingInstantBackground = finalPath
+        return
+      }
+      pendingInstantBackground = ""
+      displayedBackground = finalPath
       return
     }
+
+    pendingInstantBackground = ""
 
     oldBackground = fromPath || displayedBackground
     incomingBackground = path
@@ -140,6 +155,13 @@ Item {
     preparedBackgroundTimer.restart()
   }
 
+  function commitPendingInstant() {
+    var pending = pendingInstantBackground
+    if (!pending || nativeSizes[pending] === undefined) return
+    pendingInstantBackground = ""
+    if (pending !== displayedBackground) displayedBackground = pending
+  }
+
   function requestNativeSize(path) {
     if (!path || isVideo(path) || nativeSizes[path] !== undefined || sizeQueue.indexOf(path) !== -1) return
     sizeQueue = sizeQueue.concat([path])
@@ -157,7 +179,7 @@ Item {
   // the wallpapers still in play.
   function pruneNativeSizes() {
     var kept = {}
-    var paths = [displayedBackground, incomingBackground, oldBackground, preparedBackground]
+    var paths = [displayedBackground, incomingBackground, oldBackground, preparedBackground, pendingInstantBackground]
     for (var i = 0; i < paths.length; i++) {
       if (paths[i] && nativeSizes[paths[i]] !== undefined) kept[paths[i]] = nativeSizes[paths[i]]
     }
@@ -196,6 +218,7 @@ Item {
       known[path] = { width: width > 0 ? width : 0, height: height > 0 ? height : 0 }
       root.nativeSizes = known
       root.sizeQueue = root.sizeQueue.filter(function(queued) { return queued !== sizeProbe.path })
+      root.commitPendingInstant()
       root.probeNextSize()
     }
   }

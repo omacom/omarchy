@@ -38,7 +38,11 @@ Item {
       source: !root.constrainDecode || root.decodeSize.width > 0 ? root.imageUrl : ""
       fillMode: Image.PreserveAspectCrop
       asynchronous: true
+      // Keep the previous frame painted while an async source swap decodes.
+      // Without this, background setInstant blanks to the transparent panel
+      // until the new wallpaper is Ready (#14064).
       cache: root.cached
+      retainWhileLoading: true
       sourceSize.width: root.constrainDecode ? root.decodeSize.width : (root.version > 0 ? width : 0)
       sourceSize.height: root.constrainDecode ? root.decodeSize.height : (root.version > 0 ? height : 0)
     }
