@@ -580,7 +580,16 @@ prepare_caller_mounts() {
   # Privacy is an explicit preflight step for both already-pinned sources, not
   # a side effect halfway through the two-mount transaction. Old umask-022
   # installs are hardened together before either Docker-facing anchor changes.
+  # NOTE: numeric chmod preserves setuid/setgid on directories (see man chmod
+  # SETUID AND SETGID BITS), so a 2700 source survives a bare `chmod 0700`.
+  # Clear the special bits explicitly, otherwise the == 700 check below fails
+  # closed forever (e.g. ~/Windows inheriting setgid from the VM's Samba share).
   chmod 0700 -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" || {
+    exec {storage_fd}<&-
+    exec {shared_fd}<&-
+    return 1
+  }
+  chmod u-s,g-s -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" || {
     exec {storage_fd}<&-
     exec {shared_fd}<&-
     return 1
@@ -588,6 +597,7 @@ prepare_caller_mounts() {
   storage_mode=$(stat -Lc '%a' "/proc/$BASHPID/fd/$storage_fd" 2>/dev/null) || storage_mode=""
   shared_mode=$(stat -Lc '%a' "/proc/$BASHPID/fd/$shared_fd" 2>/dev/null) || shared_mode=""
   if [[ $storage_mode != 700 || $shared_mode != 700 ]]; then
+    echo "omarchy-windows-vm: VM directories must be private (mode 0700): storage=$storage_mode shared=$shared_mode" >&2
     exec {storage_fd}<&-
     exec {shared_fd}<&-
     return 1
@@ -1015,7 +1025,9 @@ prepare_user_mount_sources() {
     echo "omarchy-windows-vm: storage and shared must be different directories" >&2
     return 1
   }
-  chmod 0700 -- "$storage" "$shared"
+  # Numeric chmod alone preserves setuid/setgid on directories, so clear the
+  # special bits explicitly (see prepare_caller_mounts).
+  chmod 0700 -- "$storage" "$shared" && chmod u-s,g-s -- "$storage" "$shared"
 }
 
 storage_space_path() {
