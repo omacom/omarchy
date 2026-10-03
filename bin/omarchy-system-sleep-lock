@@ -90,6 +90,25 @@ sync_clamshell() {
     omarchy-hyprland-monitor-clamshell >/dev/null 2>&1 || true
 }
 
+# Undocking with the lid closed disables eDP-1 (clamshell) and then suspends
+# before the internal panel is re-enabled, so the lock client has no real
+# output for a surface (#13300). Wait for at least one enabled, named monitor
+# before treating the session as ready to sleep.
+has_active_output() {
+  hyprctl monitors -j 2>/dev/null | jq -e \
+    '[.[] | select(.disabled != true and (.name // "") != "" and .name != "FALLBACK")] | length > 0' \
+    >/dev/null 2>&1
+}
+
+wait_for_active_output() {
+  while (( $(remaining_ms) > 0 )); do
+    has_active_output && return 0
+    sync_clamshell
+    sleep "$poll_interval"
+  done
+  return 1
+}
+
 # logind suspends whether or not this wait succeeded, so a failure here means
 # the machine slept with the session exposed. The notification is the only way
 # anyone finds out, and it lands on the screen they unlock into.
@@ -109,9 +128,31 @@ report_unsecured() {
 request_lock
 sync_clamshell
 
+# Re-enable the internal panel (and any other recoverable output) before we
+# insist on a secure lock surface. Without an active output the shell refuses
+# to create a lock surface and resume wakes to a black screen.
+had_output=0
+if has_active_output; then
+  had_output=1
+elif ! wait_for_active_output; then
+  report_unsecured "no active display was available before suspend"
+fi
+
+# A lock requested while headless may never have produced a surface; ask again
+# only when we had to wait for a real output to appear.
+if (( ! had_output )); then
+  request_lock
+fi
+
 # The trailing sleep can overshoot the deadline by one interval, which is well
 # inside the reserve derive_budget_ms already held back for logind.
 while (( $(remaining_ms) > 0 )); do
+  if ! has_active_output; then
+    sync_clamshell
+    sleep "$poll_interval"
+    continue
+  fi
+
   case $(lock_state) in
     secure) exit 0 ;;
     locking) ;;
