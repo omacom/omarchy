@@ -219,7 +219,7 @@ check(
   'shell keeps the last valid user shell.json parse'
 )
 check(
-  /if \(user\) \{[\s\S]*?lastUserConfig = user[\s\S]*?else if \(userConfigMissing\)[\s\S]*?lastUserConfig = null[\s\S]*?else if \(lastUserConfig\)/.test(shellSource),
+  /if \(user\) \{[\s\S]*?lastUserConfig = user[\s\S]*?else if \(userConfigMissing\)[\s\S]*?lastUserConfig = null[\s\S]*?else if \(lastUserConfig\) \{[^}]*?shellConfig = lastUserConfig/.test(shellSource),
   'shell keeps the last user config when shell.json is empty or invalid'
 )
 check(
@@ -243,9 +243,9 @@ mkdir -p "$EMPTY_HOME/.config/omarchy"
 : >"$EMPTY_HOME/.config/omarchy/shell.json"
 
 commit_status=0
-HOME="$EMPTY_HOME" OMARCHY_PATH="$ROOT" bash -c "source '$ROOT/bin/omarchy-shell-config'; commit '.'" >/dev/null 2>&1 || commit_status=$?
-(( commit_status != 0 )) ||
-  fail "omarchy-shell-config refuses to commit over an empty shell.json"
+commit_error=$(HOME="$EMPTY_HOME" OMARCHY_PATH="$ROOT" bash -c "source '$ROOT/bin/omarchy-shell-config'; commit '.'" 2>&1 >/dev/null) || commit_status=$?
+(( commit_status != 0 )) && [[ $commit_error == *"refusing to overwrite"* ]] ||
+  fail "omarchy-shell-config refuses to commit over an empty shell.json" "$commit_error"
 pass "omarchy-shell-config refuses to commit over an empty shell.json"
 
 [[ -e "$EMPTY_HOME/.config/omarchy/shell.json" && ! -s "$EMPTY_HOME/.config/omarchy/shell.json" ]] ||
