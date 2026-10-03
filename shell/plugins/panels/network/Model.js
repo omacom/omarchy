@@ -363,6 +363,13 @@ function shouldRepromptPassphrase(reason, needsCredentials, reasons) {
   return reason === r.NoSecrets || reason === r.WifiAuthTimeout
 }
 
+// Whether the passphrase stays revealed as the prompt moves. Fresh prompts and
+// prompts opening on another network are masked; a reprompt on the same
+// network -- what a wrong passphrase leaves behind -- keeps the reveal.
+function shouldKeepPassphraseVisible(currentSsid, nextSsid, visible) {
+  return !!visible && !!nextSsid && currentSsid === nextSsid
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     parseNetworkStatus: parseNetworkStatus,
@@ -393,6 +400,7 @@ if (typeof module !== "undefined") {
     canForgetNetwork: canForgetNetwork,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,
-    shouldRepromptPassphrase: shouldRepromptPassphrase
+    shouldRepromptPassphrase: shouldRepromptPassphrase,
+    shouldKeepPassphraseVisible: shouldKeepPassphraseVisible
   }
 }
