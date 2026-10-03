@@ -40,7 +40,8 @@ function parseGeocodingResults(raw) {
     if (!results || !results.length) return []
 
     var out = []
-    for (var i = 0; i < results.length; i++) {
+    var count = Math.min(results.length, 10)
+    for (var i = 0; i < count; i++) {
       var r = results[i]
       if (!r || !r.name || r.latitude === undefined || r.longitude === undefined) continue
       var region = [r.admin1, r.country].filter(function(part) { return !!part }).join(", ")
@@ -135,7 +136,8 @@ function openMeteoForecastDays(dailyForecastReport, todayString) {
   if (!daily || !daily.time) return []
 
   var result = []
-  for (var i = 0; i < daily.time.length && result.length < 3; ++i) {
+  var count = Math.min(daily.time.length, 8)
+  for (var i = 0; i < count && result.length < 3; ++i) {
     var date = daily.time[i]
     if (!isFutureForecastDate(date, todayString)) continue
 
@@ -195,7 +197,8 @@ function weatherResponseCompletesSave(hasConfiguredCoordinates, source) {
 function wttrNextForecastDays(report, todayString) {
   var days = report && report.weather ? report.weather : []
   var result = []
-  for (var i = 0; i < days.length && result.length < 3; ++i) {
+  var count = Math.min(days.length, 8)
+  for (var i = 0; i < count && result.length < 3; ++i) {
     if (isFutureForecastDate(days[i].date, todayString)) result.push(days[i])
   }
   return result
