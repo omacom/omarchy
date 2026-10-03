@@ -14,9 +14,10 @@ The end-user view (hotkey notices for time, battery, weather) is in
 
 ## Toast lifecycle
 
-A toast lives on screen for at least 5s (low), 8s (normal), or forever
-(critical), stretched up to 30s if the sender asked for a longer
-`expire_timeout`. Hovering pauses the countdown, and a content update restarts
+A toast lives on screen for at least 5s (low) or 8s (normal), stretched up to
+30s if the sender asked for a longer `expire_timeout`. Critical toasts stay
+forever unless the sender gives a positive timeout (then the same 8s–30s
+window applies). Hovering pauses the countdown, and a content update restarts
 it — new text deserves a full look. Left-click invokes the default action,
 right-click or the hover-revealed close button dismisses.
 

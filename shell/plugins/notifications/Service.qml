@@ -100,13 +100,18 @@ Item {
   readonly property int maxPopupDuration: 30000
 
   function durationFor(urgency, expireTimeout) {
+    // Critical defaults to immortal (duration 0), but honour a positive
+    // expireTimeout from the sender — battery-low etc. (#13100).
+    var requested = requestedDuration(expireTimeout)
     switch (urgency) {
     case NotificationUrgency.Critical:
-      return 0
+      return requested > 0
+        ? Math.min(maxPopupDuration, Math.max(normalPopupDuration, requested))
+        : 0
     case NotificationUrgency.Low:
-      return Math.min(maxPopupDuration, Math.max(lowPopupDuration, requestedDuration(expireTimeout)))
+      return Math.min(maxPopupDuration, Math.max(lowPopupDuration, requested))
     default:
-      return Math.min(maxPopupDuration, Math.max(normalPopupDuration, requestedDuration(expireTimeout)))
+      return Math.min(maxPopupDuration, Math.max(normalPopupDuration, requested))
     }
   }
 

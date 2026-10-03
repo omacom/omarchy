@@ -532,6 +532,18 @@ assertDeepEqual(
   'notifications restore nothing from an empty popup dir'
 )
 
+
+// Critical toasts honour a positive expireTimeout; untimed critical stays immortal (#13100).
+const serviceSource = fs.readFileSync(require('path').join(process.env.ROOT, 'shell/plugins/notifications/Service.qml'), 'utf8')
+assert(
+  /case NotificationUrgency\.Critical:[\s\S]*?requested > 0/.test(serviceSource),
+  'notifications honour expireTimeout on critical toasts'
+)
+assert(
+  /case NotificationUrgency\.Critical:[\s\S]*?: 0/.test(serviceSource),
+  'notifications keep untimed critical toasts immortal'
+)
+
 assert(!notifications.popupExpired({ timestamp: 0 }, 0, 999999), 'critical popups never expire on restore')
 assert(!notifications.popupExpired({ timestamp: 1000 }, 8000, 5000), 'popups within their lifetime are restored')
 assert(notifications.popupExpired({ timestamp: 1000 }, 8000, 9000), 'popups past their lifetime are not restored')
