@@ -71,6 +71,44 @@ assert(
   'bar builds only the module list it is showing'
 )
 
+// Widget groups: padding inside each oval, one gap between a group and its
+// neighbours, and no doubled gap between two adjacent groups.
+assertEqual(
+  JSON.stringify(bar.groupInsets(['ws', '', 'act', 'act', '', 'ctl', 'ctl', 'time'], 7, 6)),
+  JSON.stringify([
+    { lead: 7, trail: 13 }, { lead: 0, trail: 0 },
+    { lead: 13, trail: 0 }, { lead: 0, trail: 13 },
+    { lead: 0, trail: 0 },
+    { lead: 13, trail: 0 }, { lead: 0, trail: 7 },
+    { lead: 13, trail: 7 }
+  ]),
+  'bar pads widget groups and separates them from their neighbours'
+)
+assertEqual(JSON.stringify(bar.groupInsets(['', ''], 7, 6)), JSON.stringify([{ lead: 0, trail: 0 }, { lead: 0, trail: 0 }]), 'ungrouped widgets get no insets')
+assertEqual(JSON.stringify(bar.groupInsets(null, 7, 6)), '[]', 'bar tolerates a missing group list')
+assertEqual(
+  JSON.stringify(bar.groupSpans([
+    { group: 'a', start: 0, end: 40, lead: 7, trail: 0 },
+    { group: 'a', start: 40, end: 80, lead: 0, trail: 13 },
+    { group: '', start: 80, end: 100, lead: 0, trail: 0 },
+    { group: 'b', start: 100, end: 150, lead: 13, trail: 7 }
+  ], 7)),
+  JSON.stringify([{ group: 'a', start: 0, end: 74 }, { group: 'b', start: 106, end: 150 }]),
+  'bar draws one oval per run of grouped widgets, covering their padding'
+)
+assert(/BarModel\.groupInsets\(/.test(moduleList) && /BarModel\.groupSpans\(/.test(moduleList), 'module lists lay groups out through BarModel')
+assert(/color: Color\.bar\.group/.test(barSource), 'group ovals take the [bar] group-background theme token')
+// The anchored center is three pieces (before-list, anchor, after-list); a
+// group that runs across the anchor must be one oval, not two halves.
+const centerSource = barSource.slice(barSource.indexOf('component CenterModules'), barSource.indexOf('component CenterGestureArea'))
+assert((centerSource.match(/groupHost: centerGroups/g) || []).length === 4, 'anchored center lists hand group layout to the section')
+assert((centerSource.match(/list: beforeList/g) || []).length === 2, 'the center anchor takes part in its neighbours\' groups')
+assert(/GroupOvals \{ list: centerRoot\.hasAnchor \? centerGroups : null \}/.test(centerSource), 'the anchored center draws its group ovals across the anchor')
+assert(/slot\.group = group[\s\S]*?scheduleGroups\(\)/.test(barSource), 'changing a widget group live regroups its section')
+const shellToml = fs.readFileSync(root + '/default/themed/shell.toml.tpl', 'utf8')
+assert(/group-background\s*=/.test(shellToml) && /group-background-alpha\s*=/.test(shellToml), 'the shell theme template defines the group oval colour')
+
+
 // A center module is mounted twice — drawn copy plus zero-size placeholder —
 // and the order they register in is not stable across a live reconfiguration,
 // so panel routing has to pick the one that is actually on screen.

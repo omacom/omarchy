@@ -9,6 +9,9 @@ background-alpha = 1.0
 text             = "{{ foreground }}"
 # Modules calling attention to themselves (recording, voxtype, alerts, updates)
 active           = "{{ red }}"
+# Oval behind a group of widgets (layout entries sharing a "group" key).
+group-background       = "{{ foreground }}"
+group-background-alpha = 0.08
 # Cross-axis size at font base-size 12. size-horizontal is the height of
 # top/bottom bars; size-vertical is the width of left/right bars. With
 # scale-with-font enabled, these grow/shrink with [font] base-size.

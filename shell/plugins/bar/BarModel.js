@@ -208,6 +208,48 @@ function nearestDropTarget(candidates, point, vertical) {
   return best
 }
 
+// Widget groups: consecutive visible slots whose entries share a `group`
+// name sit on one oval. groupInsets gives each slot the room its oval needs:
+// `pad` inside the oval at a group's ends, plus `gap` before a group that
+// follows other widgets and after one that is followed by ungrouped widgets
+// (a following group brings its own gap). `groups` lists the group name of
+// each visible slot in order; "" means ungrouped.
+function groupInsets(groups, pad, gap) {
+  var list = Array.isArray(groups) ? groups : []
+  var out = []
+  for (var i = 0; i < list.length; i++) {
+    var group = String(list[i] || "")
+    var prev = i > 0 ? String(list[i - 1] || "") : null
+    var next = i < list.length - 1 ? String(list[i + 1] || "") : null
+    var lead = 0
+    var trail = 0
+    if (group !== "") {
+      if (prev !== group) lead = pad + (i > 0 ? gap : 0)
+      if (next !== group) trail = pad + (next === "" ? gap : 0)
+    }
+    out.push({ lead: lead, trail: trail })
+  }
+  return out
+}
+
+// One oval per run of same-group slots, along the bar's main axis. Each slot
+// is { group, start, end, lead, trail } with start/end its laid-out extent
+// (insets included); an oval covers the run's content plus `pad` each side.
+function groupSpans(slots, pad) {
+  var list = Array.isArray(slots) ? slots : []
+  var spans = []
+  var start = 0
+  for (var i = 0; i < list.length; i++) {
+    var slot = list[i]
+    var group = String(slot.group || "")
+    if (group === "") continue
+    if (i === 0 || String(list[i - 1].group || "") !== group) start = slot.start + slot.lead - pad
+    if (i === list.length - 1 || String(list[i + 1].group || "") !== group)
+      spans.push({ group: group, start: start, end: slot.end - slot.trail + pad })
+  }
+  return spans
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isDrawnSlot: isDrawnSlot,
@@ -226,6 +268,8 @@ if (typeof module !== "undefined") {
     expandPath: expandPath,
     customModuleSafeName: customModuleSafeName,
     customModuleType: customModuleType,
-    customModulePath: customModulePath
+    customModulePath: customModulePath,
+    groupInsets: groupInsets,
+    groupSpans: groupSpans
   }
 }

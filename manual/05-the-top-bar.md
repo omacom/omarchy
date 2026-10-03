@@ -102,6 +102,18 @@ omarchy plugin enable omarchy.media --section center
 omarchy plugin disable omarchy.weather
 ```
 
+## Grouping widgets
+
+Give neighbouring widgets the same `group` and they share a soft oval, which makes a busy bar easier to scan:
+
+```bash
+omarchy bar set omarchy.bluetooth group controls
+omarchy bar set omarchy.network group controls
+omarchy bar set omarchy.audio group controls
+```
+
+Widgets group only with their direct neighbours, so order them together first (`omarchy bar move`). Any name works; it just has to match. The oval follows the widgets — one that hides itself (media with nothing playing, the update icon) drops out of its group until it comes back. Themes can colour the ovals with `group-background` in `shell.toml`.
+
 ## Hiding the bar
 
 `Super + Shift + Space` toggles the bar off and back on without killing the shell — panels and hotkeys keep working, you just get the pixels back. It's also in the menu under **Trigger → Toggle → Menu Bar**.
