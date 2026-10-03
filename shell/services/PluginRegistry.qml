@@ -661,7 +661,18 @@ QtObject {
   }
 
   property Process localPluginWatcher: Process {
+    // Qt leaves through _exit() when the Wayland connection fails, and a crash or
+    // SIGKILL ends the shell the same way, so no destructor runs to stop this
+    // child. It is reparented to
+    // `systemd --user` and holds an inotify instance for the rest of the
+    // session; enough of them exhaust fs.inotify.max_user_instances and every
+    // later inotify_init1() in the session fails with EMFILE. The pdeathsig
+    // makes the kernel kill it whenever the shell exits, however it exits, as
+    // the clipboard watchers already do.
     command: [
+      "setpriv",
+      "--pdeathsig",
+      "TERM",
       "inotifywait",
       "-m",
       "-r",
