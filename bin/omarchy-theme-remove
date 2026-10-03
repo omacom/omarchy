@@ -5,7 +5,7 @@
 # omarchy:examples=omarchy theme remove "Tokyo Night"
 
 if [[ -z $1 ]]; then
-  mapfile -t extra_themes < <(find ~/.config/omarchy/themes -mindepth 1 -maxdepth 1 -type d ! -xtype l -printf '%f\n')
+  mapfile -t extra_themes < <(omarchy-theme-removable)
 
   if (( ${#extra_themes[@]} > 0 )); then
     mapfile -t extra_themes < <(printf '%s\n' "${extra_themes[@]}" | sort)
