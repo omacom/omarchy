@@ -33,6 +33,44 @@ BarWidget {
   property real revealProgress: expanded ? 1 : 0
   readonly property real revealExtent: drawerExtent * revealProgress
 
+  // Leading sections (left on horizontal bars, top on vertical bars) open
+  // toward the bar center. Keep pins before the reversed drawer and reserve
+  // its full extent so opening never moves pinned targets or nearby widgets.
+  // A shell.json `drawerReversed` boolean overrides the auto-detection.
+  readonly property bool drawerReversed: {
+    var forced = root.setting("drawerReversed", null)
+    if (forced === true || forced === false) return forced
+    return root.trayLayoutRegion() === "left"
+  }
+
+  // Mirror the slide within the fixed drawer block. In reversed mode the
+  // chevron starts beside the pins and follows the icons toward the center.
+  readonly property real chevronOffset: root.drawerReversed
+    ? root.revealExtent
+    : (root.drawerExtent - root.revealExtent)
+  readonly property real iconsOffset: root.drawerReversed
+    ? (root.revealExtent - root.drawerExtent)
+    : (root.drawerExtent - root.revealExtent)
+
+  // Which bar layout region this widget was placed in, so the drawer picks a
+  // direction from where it actually sits. Reads the live bar layout the way
+  // the host normalizes it, so a clone replacing omarchy.tray is found by its
+  // own entry id.
+  function trayLayoutRegion() {
+    var layout = root.bar && root.bar.layoutConfig ? root.bar.layoutConfig : null
+    if (!layout) return ""
+    var wanted = String(root.moduleName || "omarchy.tray")
+    var sections = ["left", "center", "right"]
+    for (var s = 0; s < sections.length; s++) {
+      var entries = layout[sections[s]]
+      if (!Array.isArray(entries)) continue
+      for (var i = 0; i < entries.length; i++) {
+        if (TrayModel.entryId(entries[i]) === wanted) return sections[s]
+      }
+    }
+    return ""
+  }
+
   // Submenu drill-down state. QsMenuEntry.display() renders a *platform* menu,
   // which Quickshell refuses unless the shell root sets `//@ pragma
   // UseQApplication` - omarchy's shell.qml does not, so every submenu click was
@@ -183,7 +221,11 @@ BarWidget {
   function persistTrayState(pinned, hidden) {
     if (!root.bar || !root.bar.shell || typeof root.bar.shell.updateEntryInline !== "function") return
     var id = root.moduleName || "omarchy.tray"
-    root.bar.shell.updateEntryInline(id, { id: id, pinned: pinned, hidden: hidden })
+    var entry = { id: id }
+    for (var key in root.settings) if (key !== "id") entry[key] = root.settings[key]
+    entry.pinned = pinned
+    entry.hidden = hidden
+    root.bar.shell.updateEntryInline(id, entry)
   }
 
   function togglePin(iid) {
@@ -232,7 +274,9 @@ BarWidget {
       id: horizontalTrayRoot
 
       readonly property int pinnedWidth: pinnedRow.implicitWidth
-      readonly property int drawerBlockWidth: root.allItems.length > 0 ? expandIcon.implicitWidth + root.drawerExtent : 0
+      readonly property int drawerBlockWidth: root.allItems.length > 0
+        ? expandIcon.implicitWidth + root.drawerExtent
+        : 0
 
       implicitWidth: pinnedWidth + drawerBlockWidth
       implicitHeight: root.barSize
@@ -242,19 +286,17 @@ BarWidget {
       containmentMask: QtObject {
         function contains(point: point): bool {
           if (point.y < 0 || point.y > horizontalTrayRoot.height) return false
-          // Drawer reveals leftward; chevron sits at the right end when collapsed
-          // and slides left as it opens. The visible region starts at the chevron.
-          var chevronX = root.drawerExtent - root.revealExtent
-          if (point.x >= chevronX && point.x <= horizontalTrayRoot.drawerBlockWidth) return true
-          // Pinned items, placed to the right of the drawer block.
-          var pinnedStart = horizontalTrayRoot.drawerBlockWidth
-          return point.x >= pinnedStart && point.x <= horizontalTrayRoot.implicitWidth
+          if (root.drawerReversed) {
+            // Pins precede the drawer; its unused trailing space passes through.
+            return point.x >= 0 && point.x <= horizontalTrayRoot.pinnedWidth + expandIcon.width + root.revealExtent
+          }
+          return point.x >= root.chevronOffset && point.x <= horizontalTrayRoot.implicitWidth
         }
       }
 
       Item {
         id: drawerArea
-        x: 0
+        x: root.drawerReversed ? horizontalTrayRoot.pinnedWidth : 0
         width: horizontalTrayRoot.drawerBlockWidth
         height: root.barSize
         visible: root.allItems.length > 0
@@ -268,7 +310,8 @@ BarWidget {
           bar: root.bar
           width: implicitWidth
           height: implicitHeight
-          x: root.drawerExtent - root.revealExtent
+          x: root.chevronOffset
+          textRotation: root.drawerReversed ? 180 : 0
           text: "\uf053"
           onPressed: function(button) {
             if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
@@ -277,7 +320,7 @@ BarWidget {
 
         Item {
           id: trayClip
-          x: expandIcon.width
+          x: root.drawerReversed ? 0 : expandIcon.width
           anchors.verticalCenter: parent.verticalCenter
           width: root.drawerExtent
           height: root.barSize
@@ -285,7 +328,7 @@ BarWidget {
 
           Row {
             id: trayIcons
-            x: root.drawerExtent - root.revealExtent
+            x: root.iconsOffset
             anchors.verticalCenter: parent.verticalCenter
             spacing: root.trayItemGap
             layer.enabled: true
@@ -300,7 +343,7 @@ BarWidget {
 
       Row {
         id: pinnedRow
-        x: drawerArea.x + horizontalTrayRoot.drawerBlockWidth
+        x: root.drawerReversed ? 0 : horizontalTrayRoot.drawerBlockWidth
         anchors.verticalCenter: parent.verticalCenter
         spacing: root.trayItemGap
         leftPadding: root.pinnedItems.length > 0 && root.allItems.length > 0 ? root.trayJoinGap : 0
@@ -319,7 +362,9 @@ BarWidget {
       id: verticalTrayRoot
 
       readonly property int pinnedHeight: pinnedCol.implicitHeight
-      readonly property int drawerBlockHeight: root.allItems.length > 0 ? expandIcon.implicitHeight + root.drawerExtent : 0
+      readonly property int drawerBlockHeight: root.allItems.length > 0
+        ? expandIcon.implicitHeight + root.drawerExtent
+        : 0
 
       implicitWidth: root.barSize
       implicitHeight: pinnedHeight + drawerBlockHeight
@@ -327,16 +372,17 @@ BarWidget {
       containmentMask: QtObject {
         function contains(point: point): bool {
           if (point.x < 0 || point.x > verticalTrayRoot.width) return false
-          var chevronY = root.drawerExtent - root.revealExtent
-          if (point.y >= chevronY && point.y <= verticalTrayRoot.drawerBlockHeight) return true
-          var pinnedStart = verticalTrayRoot.drawerBlockHeight
-          return point.y >= pinnedStart && point.y <= verticalTrayRoot.implicitHeight
+          if (root.drawerReversed) {
+            // Pins precede the drawer; its unused trailing space passes through.
+            return point.y >= 0 && point.y <= verticalTrayRoot.pinnedHeight + expandIcon.height + root.revealExtent
+          }
+          return point.y >= root.chevronOffset && point.y <= verticalTrayRoot.implicitHeight
         }
       }
 
       Item {
         id: drawerArea
-        y: 0
+        y: root.drawerReversed ? verticalTrayRoot.pinnedHeight : 0
         width: root.barSize
         height: verticalTrayRoot.drawerBlockHeight
         visible: root.allItems.length > 0
@@ -350,9 +396,9 @@ BarWidget {
           bar: root.bar
           width: implicitWidth
           height: implicitHeight
-          y: root.drawerExtent - root.revealExtent
+          y: root.chevronOffset
           text: "\uf053"
-          textRotation: 90
+          textRotation: root.drawerReversed ? 270 : 90
           onPressed: function(button) {
             if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
           }
@@ -360,7 +406,7 @@ BarWidget {
 
         Item {
           id: trayClip
-          y: expandIcon.height
+          y: root.drawerReversed ? 0 : expandIcon.height
           anchors.horizontalCenter: parent.horizontalCenter
           width: root.barSize
           height: root.drawerExtent
@@ -368,7 +414,7 @@ BarWidget {
 
           Column {
             id: trayIcons
-            y: root.drawerExtent - root.revealExtent
+            y: root.iconsOffset
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: root.trayItemGap
             layer.enabled: true
@@ -383,7 +429,7 @@ BarWidget {
 
       Column {
         id: pinnedCol
-        y: drawerArea.y + verticalTrayRoot.drawerBlockHeight
+        y: root.drawerReversed ? 0 : verticalTrayRoot.drawerBlockHeight
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: root.trayItemGap
         topPadding: root.pinnedItems.length > 0 && root.allItems.length > 0 ? root.trayJoinGap : 0
