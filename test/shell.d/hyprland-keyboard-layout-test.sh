@@ -83,3 +83,17 @@ lua_layouts=$(sed -n '/^local non_latin_layouts =/,+1p' "$input_lua" | grep -o '
 [[ $hooks_layouts == "$lua_layouts" ]] ||
   fail "non-latin layout lists stay in sync" "$(diff <(echo "$hooks_layouts") <(echo "$lua_layouts"))"
 pass "non-latin layout lists stay in sync with the initramfs hook"
+
+tap_to_click=$(OMARCHY_PATH="$ROOT" lua <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+hl = {
+  config = function(config)
+    print(tostring(config.input.touchpad.tap_to_click))
+  end,
+}
+o = { window = function() end }
+require("default.hypr.input")
+LUA
+)
+[[ $tap_to_click == "false" ]] || fail "package defaults disable tap-to-click" "$tap_to_click"
+pass "package defaults disable tap-to-click"

@@ -29,6 +29,9 @@
 --       -- Use natural (inverse) scrolling.
 --       natural_scroll = true,
 --
+--       -- Allow tapping the pad to click (Omarchy default: off).
+--       tap_to_click = true,
+--
 --       -- Use two-finger clicks for right-click instead of lower-right corner.
 --       clickfinger_behavior = true,
 --

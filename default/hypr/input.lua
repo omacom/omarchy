@@ -65,6 +65,8 @@ hl.config({
       natural_scroll = false,
       clickfinger_behavior = true,
       scroll_factor = 0.4,
+      -- Physical click only; tapping the pad is not a button press.
+      tap_to_click = false,
     },
   },
 
