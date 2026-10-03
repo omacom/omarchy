@@ -191,6 +191,7 @@ BarWidget {
         spacing: Style.space(6)
 
         Button {
+          accessibleName: "Previous track"
           iconText: "󰒮"
           foreground: root.bar.foreground
           horizontalPadding: Style.spacing.controlPaddingX
@@ -201,6 +202,7 @@ BarWidget {
         }
 
         Button {
+          accessibleName: root.activePlayer && root.activePlayer.isPlaying ? "Pause" : "Play"
           iconText: root.activePlayer && root.activePlayer.isPlaying ? "󰏤" : "󰐊"
           foreground: root.bar.foreground
           horizontalPadding: Style.spacing.panelGap
@@ -212,6 +214,7 @@ BarWidget {
         }
 
         Button {
+          accessibleName: "Next track"
           iconText: "󰒭"
           foreground: root.bar.foreground
           horizontalPadding: Style.spacing.controlPaddingX

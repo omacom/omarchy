@@ -650,6 +650,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: "Bluetooth"
     anchors.fill: parent
     bar: root.bar
     text: root.icon
@@ -661,6 +662,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: "Bluetooth"
     anchorItem: button
     owner: root
     bar: root.bar
@@ -712,6 +714,7 @@ Panel {
           // header's only cursor target.
           ToggleSwitch {
             id: powerSwitch
+            accessibleName: "Bluetooth"
             visible: !!root.adapter
             checked: !!root.adapter && root.adapter.enabled
             hasCursor: root.headerHasCursor
@@ -903,6 +906,8 @@ Panel {
     readonly property bool forgetAvailable: (sectionName === "known" || sectionName === "connected") && !isDiscovered
     readonly property bool showForgetButton: forgetAvailable && (rowMouse.containsMouse || rowSelected)
 
+    accessibleName: dev ? (root.deviceLabel(dev) || "Device") : ""
+    Accessible.onPressAction: row.activate()
     hasCursor: rowSelected && !root.actionFocused
     current: isConnected
     foreground: root.bar.foreground
@@ -930,6 +935,13 @@ Panel {
 
     implicitHeight: rowContent.implicitHeight + Style.spacing.rowPaddingX
 
+    function activate() {
+      var currentDevice = root.deviceFor(row)
+      if (!currentDevice) return
+      if (isConnected) root.disconnectDevice(currentDevice)
+      else root.connectDevice(currentDevice)
+    }
+
     MouseArea {
       id: rowMouse
       anchors.fill: parent
@@ -952,8 +964,7 @@ Panel {
           else if (!row.isDiscovered) root.forgetDevice(dev)
           return
         }
-        if (row.isConnected) root.disconnectDevice(dev)
-        else root.connectDevice(dev)
+        row.activate()
       }
     }
 

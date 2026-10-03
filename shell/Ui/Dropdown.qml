@@ -47,6 +47,10 @@ Item {
   function close() { popup.close() }
   function toggle() { popup.opened ? popup.close() : popup.open() }
 
+  // What assistive technology announces for the trigger; the current
+  // option rides in the description.
+  property string accessibleName: label
+
   signal changed(string value)
   signal hovered(bool isHovered)
 
@@ -94,6 +98,12 @@ Item {
       borderSpec: _borderSpec
 
       activeFocusOnTab: true
+
+      Accessible.role: Accessible.ComboBox
+      Accessible.name: root.accessibleName
+      Accessible.description: root.currentLabel()
+      Accessible.focusable: true
+      Accessible.onPressAction: if (root.enabled) root.toggle()
 
       HoverHandler {
         id: triggerHover
@@ -214,6 +224,15 @@ Item {
             color: index === optionList.currentIndex
               ? Style.hoverFillFor(root.foreground, root.accent)
               : "transparent"
+
+            Accessible.role: Accessible.ListItem
+            Accessible.name: root.optionLabel(modelData)
+            Accessible.selectable: true
+            Accessible.selected: root.optionValue(modelData) === root.value
+            Accessible.onPressAction: {
+              optionList.currentIndex = index
+              optionList.selectCurrent()
+            }
 
             Text {
               textFormat: Text.PlainText

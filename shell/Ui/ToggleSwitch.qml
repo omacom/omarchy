@@ -43,8 +43,20 @@ Item {
   property color foreground: Color.foreground
   property color accent: Color.accent
 
+  // A bare switch has no label of its own; callers name it.
+  property string accessibleName: ""
+
   signal toggled()
   signal hovered(bool isHovered)
+
+  // Inside a Toggle row the row is the control, so the switch hides itself.
+  Accessible.role: Accessible.CheckBox
+  Accessible.name: accessibleName
+  Accessible.checkable: true
+  Accessible.checked: checked
+  Accessible.ignored: !interactive
+  Accessible.onToggleAction: if (root.enabled && !root.busy) root.toggled()
+  Accessible.onPressAction: if (root.enabled && !root.busy) root.toggled()
 
   readonly property alias containsMouse: mouse.containsMouse
   readonly property bool hot: hasCursor || mouse.containsMouse
