@@ -45,6 +45,14 @@ const parsed = menu.parseMenuJsonc(`
 `)
 
 assertEqual(parsed.length, 3, 'menu parses JSONC with comments and trailing commas')
+
+const inlineComments = menu.parseMenuJsonc(`{
+  "a": { "label": "A" }, // after an entry
+  "b": { "label": "say \\"hi\\" // not a comment", "action": "omarchy-launch-webapp 'https://omarchy.org/'" },
+} // at the end, with no newline`)
+assertEqual(inlineComments.length, 2, 'menu parses JSONC with a comment after an entry on the same line')
+assertEqual(inlineComments[1].label, 'say "hi" // not a comment', 'menu keeps // after an escaped quote inside a string')
+assertEqual(inlineComments[1].action, "omarchy-launch-webapp 'https://omarchy.org/'", 'menu keeps // inside a string')
 assertDeepEqual(
   parsed.find(item => item.id === 'style.theme'),
   {
