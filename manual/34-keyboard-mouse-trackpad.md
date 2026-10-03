@@ -61,6 +61,13 @@ On Dell XPS laptops with a haptic touchpad, you can also set the click strength 
 
 Omarchy runs the [fcitx5](https://fcitx-im.org/) input method framework as part of every session — it's what powers the CapsLock compose sequences. That means the plumbing for non-Latin input is already in place: install an input engine like `fcitx5-mozc` (Japanese) or `fcitx5-chinese-addons` (Chinese) with `omarchy pkg add`, plus `fcitx5-configtool` to add the engine to your input methods and set the key that switches between them.
 
+Selecting Japanese during installation configures the JIS keymap. To type Japanese with kana-kanji conversion, you also need an input engine. Set up Mozc after installation:
+
+1. Run `omarchy pkg add fcitx5-mozc fcitx5-configtool`.
+2. Launch `fcitx5-configtool` and add **Mozc** to your input methods.
+3. Configure the key that switches input methods as **Ctrl+Space** or **Zenkaku_Hankaku**.
+4. Log out and log back in, then switch to Mozc to type Japanese.
+
 ### Use ALT as SUPER
 
 On some keyboards, it's not convenient to use the primary meta key (Windows/cmd key) as SUPER. You can change this to be ALT instead using this change:
