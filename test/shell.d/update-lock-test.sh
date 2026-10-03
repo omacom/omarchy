@@ -175,6 +175,14 @@ SH
   run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" stop
   pass "terminal updates use sudo instead of Polkit for sleep inhibition"
 
+  # The sudo stub logs the whole systemd-inhibit argv, which is the only place
+  # the inhibitor's --what mask is observable. sleep and idle are high-level
+  # locks that logind ignores for the lid switch by default, so without
+  # handle-lid-switch closing the lid suspends the machine mid-update.
+  grep -q -- '--what=sleep:idle:handle-lid-switch' "$sudo_log" ||
+    fail "update sleep inhibition covers the lid switch"
+  pass "update sleep inhibition covers the lid switch"
+
   wait_for_process_exit() {
     local process_pid="$1"
 
