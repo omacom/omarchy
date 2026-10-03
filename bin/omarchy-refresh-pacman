@@ -30,11 +30,17 @@ if [[ $channel != "stable" && $channel != "rc" && $channel != "edge" ]]; then
   exit 2
 fi
 
+# Render the channel templates plus this machine's regional additions as the
+# caller, so root only copies finished files.
+rendered=$(mktemp -d)
+"$OMARCHY_PATH/bin/omarchy-apply-pacman" --render "$channel" "$rendered"
+
 sudo cp -f /etc/pacman.conf /etc/pacman.conf.bak
 sudo cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
 echo "Setting channel to $channel"
-sudo cp -f "$OMARCHY_PATH/default/pacman/pacman-$channel.conf" /etc/pacman.conf
-sudo cp -f "$OMARCHY_PATH/default/pacman/mirrorlist-$channel" /etc/pacman.d/mirrorlist
+sudo cp -f "$rendered/pacman.conf" /etc/pacman.conf
+sudo cp -f "$rendered/mirrorlist" /etc/pacman.d/mirrorlist
+rm -rf "$rendered"
 
 # Allow user customization of /etc/pacman.conf before the upgrade runs, so
 # custom repositories and IgnorePkg entries shape the downgrade-capable

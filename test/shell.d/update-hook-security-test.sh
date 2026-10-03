@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 copy_boundary_file bin/omarchy-update
 copy_boundary_file bin/omarchy-refresh-pacman
+copy_boundary_file bin/omarchy-apply-pacman
 # Replace the step symlink, preserving the real fixture dispatcher.
 rm "$SUDO_TEST_ROOT/bin/omarchy-update-aur-pkgs"
 copy_boundary_file bin/omarchy-update-aur-pkgs

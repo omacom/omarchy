@@ -47,9 +47,23 @@ validate_dev_checkout() {
   fi
 }
 
+# The dev channel refreshes pacman with the checkout's own tools. A checkout
+# without this machine's region profile would silently drop its repositories.
+validate_dev_region() {
+  local checkout="$1" region_file="${OMARCHY_REGION_FILE:-/etc/omarchy/region}" region=global
+
+  [[ -f $region_file ]] && region=$(<"$region_file")
+  [[ $region == "global" ]] && return 0
+
+  if [[ ! -f $checkout/bin/omarchy-apply-pacman || ! -d $checkout/default/regions/$region ]]; then
+    fail "$checkout does not support the '$region' region, so switching would drop its package repositories. Check out a branch with default/regions/$region, or remove $region_file to use global defaults."
+  fi
+}
+
 link_dev_checkout() {
   local checkout="$1" required
   [[ -d $checkout/.git ]] || git clone https://github.com/omacom/omarchy.git "$checkout"
+  validate_dev_region "$checkout"
 
   # Check the destination before changing /etc/omarchy.conf or sudo's path.
   # An existing checkout is not pulled automatically and may predate this policy.
