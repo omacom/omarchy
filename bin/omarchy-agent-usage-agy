@@ -35,6 +35,12 @@ def cache_root() -> Path:
   return root
 
 
+def state_root() -> Path:
+  root = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "omarchy" / "agents" / "usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
 def gemini_root() -> Path:
   return Path(os.environ.get("GEMINI_DIR", Path.home() / ".gemini")).resolve()
 
@@ -65,7 +71,19 @@ def empty_bucket() -> dict[str, int]:
   }
 
 
-def fetch_limits(force: bool = False) -> tuple[list[dict[str, Any]], bool, int]:
+def parse_local_date(created_at: str, fallback: str) -> str:
+  if not created_at:
+    return fallback
+  try:
+    iso = created_at.replace("Z", "+00:00")
+    dt_val = dt.datetime.fromisoformat(iso)
+    local_dt = dt_val.astimezone()
+    return local_dt.date().isoformat()
+  except Exception:
+    return created_at[:10] if len(created_at) >= 10 else fallback
+
+
+def fetch_limits(account: str, force: bool = False) -> tuple[list[dict[str, Any]], bool, int]:
   cache_file = cache_root() / "agy-limits.json"
   now_ms = round(time.time() * 1000)
 
@@ -75,8 +93,10 @@ def fetch_limits(force: bool = False) -> tuple[list[dict[str, Any]], bool, int]:
     try:
       with open(cache_file, "r", encoding="utf-8") as f:
         cdata = json.load(f)
-        cached_limits = cdata.get("limits", [])
-        cached_at = int(cdata.get("fetchedAtMs", 0))
+        # Invalidate cache if it was probed under a different account
+        if cdata.get("account") == account:
+          cached_limits = cdata.get("limits", [])
+          cached_at = int(cdata.get("fetchedAtMs", 0))
     except Exception:
       pass
 
@@ -121,7 +141,7 @@ def fetch_limits(force: bool = False) -> tuple[list[dict[str, Any]], bool, int]:
 
       if limits:
         with open(cache_file, "w", encoding="utf-8") as f:
-          json.dump({"limits": limits, "fetchedAtMs": now_ms}, f)
+          json.dump({"account": account, "limits": limits, "fetchedAtMs": now_ms}, f)
         return limits, False, now_ms
   except Exception:
     pass
@@ -134,7 +154,8 @@ def fetch_limits(force: bool = False) -> tuple[list[dict[str, Any]], bool, int]:
 
 def collect_usage(gemini_dir: Path, agy_dir: Path, force: bool = False, limits_only: bool = False, base_record: dict[str, Any] | None = None) -> dict[str, Any]:
   now_utc = dt.datetime.now(dt.timezone.utc).isoformat()
-  limits, limits_stale, limits_fetched_at = fetch_limits(force=force)
+  email = get_active_account(gemini_dir)
+  limits, limits_stale, limits_fetched_at = fetch_limits(email, force=force)
 
   if limits_only and base_record:
     record = dict(base_record)
@@ -189,7 +210,7 @@ def collect_usage(gemini_dir: Path, agy_dir: Path, force: bool = False, limits_o
 
           stype = step.get("type")
           created_at = step.get("created_at", "")
-          date_str = created_at[:10] if created_at else today_str
+          date_str = parse_local_date(created_at, today_str)
 
           if date_str:
             session_dates.add(date_str)
@@ -208,10 +229,14 @@ def collect_usage(gemini_dir: Path, agy_dir: Path, force: bool = False, limits_o
             if date_str == today_str:
               today_prompts += 1
 
-          inp = int(step.get("input_tokens") or 0)
-          out = int(step.get("output_tokens") or 0)
-          cache_read = int(step.get("cache_read_tokens") or 0)
-          cache_write = int(step.get("cache_write_tokens") or 0)
+          try:
+            inp = int(step.get("input_tokens") or 0)
+            out = int(step.get("output_tokens") or 0)
+            cache_read = int(step.get("cache_read_tokens") or 0)
+            cache_write = int(step.get("cache_write_tokens") or 0)
+          except (ValueError, TypeError):
+            inp = out = cache_read = cache_write = 0
+
           turn_tokens = inp + out + cache_read + cache_write
 
           if turn_tokens > 0:
@@ -240,7 +265,6 @@ def collect_usage(gemini_dir: Path, agy_dir: Path, force: bool = False, limits_o
     if today_str in session_dates:
       today_sessions.add(conv_id)
 
-  email = get_active_account(gemini_dir)
   tier_label = f"Google ({email})" if email else "Google Account"
 
   recent_days = [
@@ -302,7 +326,16 @@ def main() -> None:
   gemini_dir = gemini_root()
   agy_dir = agy_root()
 
-  record = collect_usage(gemini_dir, agy_dir, force=args.force, limits_only=args.limits_only)
+  target_file = state_root() / f"{AGENT_ID}.json"
+  base_record = None
+  if args.limits_only and target_file.is_file():
+    try:
+      with open(target_file, "r", encoding="utf-8") as f:
+        base_record = json.load(f)
+    except Exception:
+      pass
+
+  record = collect_usage(gemini_dir, agy_dir, force=args.force, limits_only=args.limits_only, base_record=base_record)
   print(json.dumps(record, indent=2))
 
 
