@@ -70,6 +70,32 @@ grep -F 'select(.name | test("^(eDP|LVDS|DSI)-") | not)' "$monitor_external_acti
 grep -F 'select(.disabled == false)' "$monitor_external_active" >/dev/null
 pass "active external monitor helper sees mirrors and ignores monitors disabled on purpose"
 
+if command -v jq >/dev/null 2>&1; then
+  external_tmp=$(mktemp -d)
+  cat >"$external_tmp/hyprctl" <<'SH'
+#!/bin/bash
+printf '%s\n' "$OMARCHY_TEST_MONITORS"
+SH
+  chmod +x "$external_tmp/hyprctl"
+
+  external_active() {
+    PATH="$external_tmp:$PATH" OMARCHY_TEST_MONITORS="$1" "$monitor_external_active"
+  }
+
+  external_active '[{"name":"eDP-1","disabled":true},{"name":"HDMI-A-1","disabled":false}]' ||
+    fail "active external monitor helper sees a connected external monitor"
+
+  # Unplugging the last external monitor while the panel is off leaves Hyprland's
+  # FALLBACK placeholder behind, which must not keep the panel from recovering.
+  ! external_active '[{"name":"eDP-1","disabled":true},{"name":"FALLBACK","disabled":false}]' ||
+    fail "active external monitor helper ignores Hyprland's FALLBACK output"
+
+  rm -rf "$external_tmp"
+  pass "active external monitor helper ignores Hyprland's FALLBACK output"
+else
+  skip "active external monitor helper ignores Hyprland's FALLBACK output"
+fi
+
 grep -F 'omarchy-hyprland-monitor-internal recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
 grep -F 'omarchy-hyprland-monitor-internal-mirror recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
 grep -F 'internal-monitor-clamshell.lua' "$clamshell" >/dev/null
