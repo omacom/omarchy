@@ -262,6 +262,21 @@ Item {
         else root.loadProviderForMenu(root.activeMenu)
       }
     }
+    // A route that fell back to root before both menu files had answered
+    // gets one more try once they have, so it sees the user's overrides too.
+    var pending = root.pendingInitialMenu
+    if (pending && root.menuFilesAnswered()) {
+      root.pendingInitialMenu = ""
+      if (root.opened && !root.dmenuActive && root.item(root.resolveRoute(pending))) root.openRoute(pending)
+    }
+  }
+
+  // Both menu files have answered once each has loaded or, for the optional
+  // user file, failed to load. FileView.loaded is false until the first read
+  // lands; userMenuFailed stays set, as only that first answer matters.
+  property bool userMenuFailed: false
+  function menuFilesAnswered() {
+    return defaultMenuFile.loaded && (userMenuFile.loaded || root.userMenuFailed)
   }
 
   // Each known provider is a tiny bash one-liner that enumerates a list and
@@ -725,12 +740,15 @@ Item {
     root.selectedIndex = 0
     root.cursorActive = root.mode !== "input"
     root.disarmPointer()
+    // Typing or moving to another menu drops a route still waiting to open.
+    root.pendingInitialMenu = ""
     if (!root.dmenuActive && root.filterText.trim()) root.loadProvidersForSearch()
     root.rebuildDisplay()
   }
 
   function setActiveMenu(id, pushHistory, fromPointer) {
     panel.freezeCardTop()
+    root.pendingInitialMenu = ""
     if (!root.item(id)) id = "root"
     if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
     root.activeMenu = id
@@ -844,6 +862,8 @@ Item {
     selectionFile = ""
     doneFile = ""
     activeMenu = root.item(initialMenu) ? initialMenu : "root"
+    // Only a route that fell back to root while the menu files load waits.
+    if (activeMenu === initialMenu || root.menuFilesAnswered()) pendingInitialMenu = ""
     navStack = []
     filterText = ""
     selectedIndex = 0
@@ -980,7 +1000,7 @@ Item {
     watchChanges: true
     printErrors: false
     onLoaded: { root.userMenuItems = root.parseMenuJsonc(text()); root.rebuildItemsFromSources() }
-    onLoadFailed: { root.userMenuItems = []; root.rebuildItemsFromSources() }
+    onLoadFailed: { root.userMenuFailed = true; root.userMenuItems = []; root.rebuildItemsFromSources() }
     onFileChanged: reload()
   }
 
