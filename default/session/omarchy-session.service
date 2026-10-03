@@ -1,0 +1,17 @@
+[Unit]
+Description=Remember and reopen Omarchy desktop applications
+# UWSM publishes the compositor environment before applications can launch.
+# Keep the service before its owning target to avoid a target ordering cycle.
+After=wayland-session-waitenv.service
+PartOf=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=HYPRLAND_INSTANCE_SIGNATURE
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env omarchy-session watch
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

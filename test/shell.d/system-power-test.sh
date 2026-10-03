@@ -17,13 +17,18 @@ printf 'systemd-run %s\n' "$*" >>"$CALL_LOG"
 exit 0
 SH
 
-for command in omarchy-state omarchy-hyprland-window-close-all sleep; do
+for command in omarchy-session omarchy-state omarchy-hyprland-window-close-all sleep; do
   cat >"$mock_bin/$command" <<'SH'
 #!/bin/bash
 
 printf '%s %s\n' "$(basename "$0")" "$*" >>"$CALL_LOG"
+if [[ $(basename "$0") == omarchy-session && ${FAIL_SESSION:-false} == true ]]; then exit 1; fi
 SH
 done
+cat >"$mock_bin/omarchy-osd" <<'SH'
+#!/bin/bash
+exit 0
+SH
 chmod +x "$mock_bin"/*
 
 run_power_command() {
@@ -39,6 +44,7 @@ assert_power_calls() {
   local expected_log="$test_tmp/$action-expected.log"
 
   cat >"$expected_log" <<EOF
+omarchy-session prepare-exit
 systemd-run --user --collect --quiet --on-active=2s --timer-property=AccuracySec=100ms systemctl $systemctl_action --no-wall
 omarchy-state clear re*-required
 omarchy-hyprland-window-close-all 
@@ -61,8 +67,12 @@ for action in reboot shutdown; do
     fail "$action aborts when scheduling fails"
   fi
 
-  if (( $(wc -l <"$call_log") != 1 )); then
+  if (( $(wc -l <"$call_log") != 3 )) || ! tail -1 "$call_log" | grep -qxF "omarchy-session cancel-exit"; then
     fail "$action leaves state and windows alone when scheduling fails"
   fi
   pass "$action leaves state and windows alone when scheduling fails"
 done
+
+FAIL_SESSION=true run_power_command reboot
+assert_power_calls reboot reboot
+pass "a failed session save cannot prevent reboot"

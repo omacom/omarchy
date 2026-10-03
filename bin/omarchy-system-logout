@@ -4,6 +4,9 @@
 # omarchy:examples=omarchy logout | omarchy system logout
 # omarchy:aliases=omarchy logout
 
+# Capture before windows close; a failed snapshot must not prevent shutdown.
+timeout 5 omarchy-session prepare-exit || true
+
 nohup bash -c "sleep 2 && uwsm stop" >/dev/null 2>&1 &
 
 omarchy-osd -i logout -m "Logging out" -d 5000
