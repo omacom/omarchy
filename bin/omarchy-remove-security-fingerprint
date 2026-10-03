@@ -52,6 +52,6 @@ remove_lock_fingerprint_pam
 sudo rm -rf -- "/var/lib/fprint/$fingerprint_user"
 
 echo "Removing fingerprint packages..."
-omarchy-pkg-drop fprintd libfprint libfprint-git
+omarchy-pkg-drop fprintd libfprint libfprint-git libfprint-tod libfprint-goodix-53xc
 
 echo -e "\e[32mFingerprint authentication and $fingerprint_user's local saved fingerprints have been removed.\e[0m"
