@@ -1,7 +1,11 @@
+// Qt Timer intervals are signed 32-bit milliseconds. Anything larger wraps
+// negative, Qt clamps it to 1 ms, and the shell logs a warning every tick.
+var MAX_TIMER_SECONDS = Math.floor(2147483647 / 1000)
+
 function secondsFromConfig(value, fallback) {
   var n = Number(value)
   if (!isFinite(n) || n < 0) return fallback
-  return Math.floor(n)
+  return Math.min(Math.floor(n), MAX_TIMER_SECONDS)
 }
 
 function eventParts(event, count) {
