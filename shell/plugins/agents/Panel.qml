@@ -1333,7 +1333,8 @@ Panel {
       visible: !section.multi && root.otherTrouble(section.provider) !== ""
       width: parent.width
       textFormat: Text.PlainText
-      text: section.provider ? String(section.provider.authHelpText || "") : ""
+      // Shown for the status, so a record with no help to offer says the status rather than nothing.
+      text: section.provider ? String(section.provider.authHelpText || section.provider.usageStatusText || "") : ""
       color: root.urgent
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
