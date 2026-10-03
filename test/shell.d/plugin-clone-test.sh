@@ -17,12 +17,21 @@ if [[ $* == *"listShellConfig"* ]]; then
   else
     printf '{}\n'
   fi
+elif [[ $* == *"rescanPlugins"* ]]; then
+  [[ -z ${FAKE_RESCANNED:-} ]] || touch "$FAKE_RESCANNED"
 elif [[ $* == *"listPlugins"* ]]; then
-  if [[ ${FAKE_NO_DISCOVERY:-0} == 1 ]]; then
+  if [[ -n ${FAKE_RESCANNED:-} && -e $FAKE_RESCANNED ]]; then
+    echo "omarchy-shell is not responding" >&2
+    exit 1
+  elif [[ ${FAKE_NO_DISCOVERY:-0} == 1 ]]; then
     printf '[]\n'
   else
-    find "$HOME/.config/omarchy/plugins" -mindepth 2 -maxdepth 2 -name manifest.json -print0 |
-      xargs -0 -r jq -s 'map({id: .id, enabled: true})'
+    {
+      find "$HOME/.config/omarchy/plugins" -mindepth 2 -maxdepth 2 -name manifest.json \
+        ! -path "$HOME/.config/omarchy/plugins/.*" -print0 |
+        xargs -0 -r jq -s 'map({id: .id, enabled: true})'
+      printf '%s\n' "${FAKE_BUILTIN_PLUGINS:-[]}"
+    } | jq -s 'add'
   fi
 elif [[ $* == *"setPluginEnabled"* ]]; then
   printf 'omarchy-shell %s\n' "$*" >>"$FAKE_CALLS"
@@ -110,13 +119,42 @@ grep -qx 'omarchy-plugin-enable tester.menu' "$CALLS" ||
 pass "clone preserves and enables multi-kind plugins"
 
 remove_output=$(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
-  FAKE_CALLS="$CALLS" OMARCHY_TEST_ROOT="$ROOT" \
+  FAKE_CALLS="$CALLS" OMARCHY_TEST_ROOT="$ROOT" FAKE_BUILTIN_PLUGINS='[{"id": "omarchy.menu", "enabled": true}]' \
   omarchy-plugin-remove tester.menu --yes)
 grep -qx 'omarchy-shell shell setPluginEnabled tester.menu false' "$CALLS" ||
   fail "removing an enabled clone does not disable it first"
 grep -q 'Restored omarchy.menu.' <<<"$remove_output" ||
   fail "removing a clone does not report its restored source"
 pass "removing an enabled clone goes through plugin disable and reports its source"
+
+clone_plugin omarchy.idle >/dev/null
+remove_output=$(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+  FAKE_CALLS="$CALLS" OMARCHY_TEST_ROOT="$ROOT" FAKE_BUILTIN_PLUGINS='[{"id": "omarchy.idle", "enabled": false}]' \
+  omarchy-plugin-remove tester.idle --yes)
+if grep -q 'Restored omarchy.idle.' <<<"$remove_output"; then
+  fail "removing a clone reports restoring a source that is still disabled"
+fi
+grep -q 'omarchy plugin enable omarchy.idle' <<<"$remove_output" ||
+  fail "removing a clone does not say how to enable a source that is still disabled"
+pass "removing a clone reports a source that is still disabled"
+
+clone_plugin omarchy.idle >/dev/null
+remove_output=$(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+  FAKE_CALLS="$CALLS" OMARCHY_TEST_ROOT="$ROOT" \
+  omarchy-plugin-remove tester.idle --yes)
+if grep -Eq 'Restored omarchy.idle.|omarchy plugin enable omarchy.idle' <<<"$remove_output"; then
+  fail "removing a clone reports on a source the shell does not list"
+fi
+pass "removing a clone says nothing about a source the shell does not list"
+
+clone_plugin omarchy.idle >/dev/null
+remove_output=$(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+  FAKE_CALLS="$CALLS" OMARCHY_TEST_ROOT="$ROOT" FAKE_RESCANNED="$TMPDIR/rescanned" \
+  omarchy-plugin-remove tester.idle --yes 2>&1) ||
+  fail "removing a clone fails when the shell stops answering after the rescan"
+[[ ! -e $TMPDIR/home/.config/omarchy/plugins/tester.idle ]] ||
+  fail "removing a clone leaves it installed when the shell stops answering"
+pass "removing a clone succeeds when the shell stops answering after the rescan"
 
 clone_plugin omarchy.active-window >/dev/null
 [[ -f $TMPDIR/home/.config/omarchy/plugins/tester.active-window/ActiveWindow.qml ]] ||
