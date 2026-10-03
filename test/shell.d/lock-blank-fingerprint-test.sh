@@ -30,4 +30,14 @@ assert(
   !/onAuthenticatingChanged:/.test(serviceQml),
   'the combined authenticating state no longer drives the blank timer'
 )
+
+assert(
+  /fingerprintRetryTimer\.attempts < 15/.test(serviceQml),
+  'fingerprint retries are bounded to prevent sensor overheating'
+)
+
+assert(
+  /interval = Math\.min\(4000,\s*interval \* 2\)/.test(serviceQml),
+  'fingerprint retry timer applies exponential backoff'
+)
 JS

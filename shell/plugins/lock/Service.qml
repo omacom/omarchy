@@ -145,6 +145,8 @@ Item {
     authenticatingPassword = false
     fingerprintAuthenticating = false
     fingerprintRetryTimer.stop()
+    fingerprintRetryTimer.attempts = 0
+    fingerprintRetryTimer.interval = 250
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
   }
@@ -192,7 +194,14 @@ Item {
     root.displaysBlank = false
     root.monitorDpmsKnown = false
     if (!wakeProcess.running) wakeProcess.running = true
-    if (lockRequested) armBlankTimer()
+    if (lockRequested) {
+      armBlankTimer()
+      if (fingerprintConfigured && !fingerprintAuthenticating && !fingerprintPam.active && fingerprintRetryTimer.attempts >= 15) {
+        fingerprintRetryTimer.attempts = 0
+        fingerprintRetryTimer.interval = 250
+        startFingerprint()
+      }
+    }
   }
 
   function runBlank() {
@@ -273,8 +282,10 @@ Item {
 
     if (!lockRequested) return
     if (result === PamResult.Success) {
+      fingerprintRetryTimer.attempts = 0
+      fingerprintRetryTimer.interval = 250
       finishUnlock()
-    } else if (fingerprintConfigured) {
+    } else if (fingerprintConfigured && fingerprintRetryTimer.attempts < 15) {
       fingerprintRetryTimer.restart()
     }
   }
@@ -406,7 +417,9 @@ Item {
 
     onError: function(error) {
       root.fingerprintAuthenticating = false
-      if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
+      if (root.lockRequested && root.fingerprintConfigured && fingerprintRetryTimer.attempts < 15) {
+        fingerprintRetryTimer.restart()
+      }
     }
   }
 
@@ -438,9 +451,14 @@ Item {
 
   Timer {
     id: fingerprintRetryTimer
+    property int attempts: 0
     interval: 250
     repeat: false
-    onTriggered: root.startFingerprint()
+    onTriggered: {
+      attempts += 1
+      if (interval < 4000) interval = Math.min(4000, interval * 2)
+      root.startFingerprint()
+    }
   }
 
   Process {
