@@ -1,0 +1,9 @@
+# Shadows the fcitx5 package's own activation file, which /usr/local/share
+# precedes in XDG_DATA_DIRS. That file spawns a bare fcitx5 outside
+# omarchy-fcitx5.service whenever a client asks for the bus name while the unit
+# is between restarts; the unit's instance then exits 0 on every start and
+# Restart=always loops it forever. Activating through the unit keeps one fcitx5.
+[D-BUS Service]
+Name=org.fcitx.Fcitx5
+Exec=/usr/bin/fcitx5
+SystemdService=omarchy-fcitx5.service
