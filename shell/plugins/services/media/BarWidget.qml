@@ -153,7 +153,7 @@ BarWidget {
 
           Text {
             textFormat: Text.PlainText
-            text: root.title || "Nothing playing"
+            text: root.title || I18n.tr("Nothing playing")
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.subtitle

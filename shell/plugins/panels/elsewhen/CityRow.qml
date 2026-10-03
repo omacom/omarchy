@@ -295,7 +295,7 @@ Rectangle {
     anchors.top: parent.top
     anchors.margins: Style.space(1)
     iconText: "\u00d7"
-    tooltipText: "Remove"
+    tooltipText: I18n.tr("Remove")
     foreground: row.fainter
     hoverColor: row.foreground
     fontFamily: row.fontFamily
