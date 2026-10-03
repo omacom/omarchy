@@ -1,0 +1,249 @@
+#!/bin/bash
+
+# omarchy:summary=Rebind the BCM4377 Bluetooth function until the adapter is usable
+# omarchy:group=hw
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# The BCM4377 on T2 Macs often fails its first initialisation (HCI command
+# timeouts, or probe error -110). Unbinding and rebinding hci_bcm4377, sometimes
+# more than once, brings it up. BlueZ can report Powered: yes while the class
+# stays 0x00000000 and scans find nothing — that happens at boot, not only
+# after suspend.
+#
+# An rfkill soft block is Omarchy's Bluetooth-off switch, not a hung chip.
+# power on fails while the block is held, and the saved switch is the file
+# systemd-rfkill will apply to this PCI function (pci-<bdf>:bluetooth).
+
+set -euo pipefail
+
+MAX_TRIES=${MAX_TRIES:-5}
+sys_root=${OMARCHY_T2_BCM4377_SYS:-/sys}
+rfkill_state=${OMARCHY_T2_BCM4377_RFKILL_STATE:-/var/lib/systemd/rfkill}
+unbind_sleep=${OMARCHY_T2_BCM4377_UNBIND_SLEEP:-2}
+bind_sleep=${OMARCHY_T2_BCM4377_BIND_SLEEP:-3}
+bluez_sleep=${OMARCHY_T2_BCM4377_BLUEZ_SLEEP:-3}
+settle_sleep=${OMARCHY_T2_BCM4377_SETTLE_SLEEP:-0.5}
+# A controller that answers is still initializing. The measured bring-up is
+# a few seconds; keep polling for the whole budget before calling it hung.
+# 30 tries at 0.5s matches that budget.
+settle_tries=${OMARCHY_T2_BCM4377_SETTLE_TRIES:-30}
+settle_budget=${OMARCHY_T2_BCM4377_SETTLE_BUDGET:-15}
+# A call that does not answer is stalled, not slow. Two of those end the
+# wait so the unbind loop still fits in the unit's start timeout.
+settle_call_timeout=${OMARCHY_T2_BCM4377_SETTLE_CALL_TIMEOUT:-1}
+settle_stall_limit=${OMARCHY_T2_BCM4377_SETTLE_STALL_LIMIT:-2}
+bus_timeout=${OMARCHY_T2_BCM4377_BUS_TIMEOUT:-5}
+settle_deadline=
+busctl_timed_out=0
+drv=$sys_root/bus/pci/drivers/hci_bcm4377
+
+DEV=""
+for d in "$sys_root"/bus/pci/devices/*; do
+  [[ -r $d/vendor && -r $d/device ]] || continue
+  if [[ $(<"$d/vendor") == "0x14e4" && $(<"$d/device") == "0x5fa0" ]]; then
+    DEV=$(basename "$d")
+    break
+  fi
+done
+
+if [[ -z $DEV ]]; then
+  echo "omarchy-t2-bcm4377-rebind: no BCM4377 Bluetooth function found, nothing to do"
+  exit 0
+fi
+
+# Saved switch for this function, not for a USB dongle that shares the
+# bluetooth rfkill type. systemd-rfkill stores 1 for a soft block.
+persisted_bluetooth_blocked() {
+  local state
+  shopt -s nullglob
+  for state in "$rfkill_state"/*"$DEV"*:bluetooth; do
+    if [[ $(<"$state") == 1 ]]; then
+      shopt -u nullglob
+      return 0
+    fi
+  done
+  shopt -u nullglob
+  return 1
+}
+
+# Live switch on the hci node that hangs off the BCM4377 PCI function.
+adapter_rfkill_blocked() {
+  local node soft hard
+  shopt -s nullglob
+  for node in "$sys_root/bus/pci/devices/$DEV/bluetooth"/hci*/rfkill*/soft; do
+    [[ -r $node ]] || continue
+    soft=$(<"$node")
+    hard=$(<"${node%/soft}/hard")
+    if [[ $soft == 1 || $hard == 1 ]]; then
+      shopt -u nullglob
+      return 0
+    fi
+  done
+  shopt -u nullglob
+  return 1
+}
+
+bcm_hci_name() {
+  local hci
+  shopt -s nullglob
+  for hci in "$sys_root/bus/pci/devices/$DEV/bluetooth"/hci*; do
+    [[ -d $hci ]] || continue
+    basename "$hci"
+    shopt -u nullglob
+    return 0
+  done
+  shopt -u nullglob
+  return 1
+}
+
+# 0 only when this function's own controller is powered and has a real class.
+# The hci index comes from the PCI device, so a USB dongle enumerated as hci0
+# is not the adapter under test. bluetoothctl is the wrong tool here: `show`
+# with no argument is the default controller, `show hci0` is rejected, and
+# `show <mac>` prints the record and then does not exit.
+# This does not ask BlueZ to power the adapter. The settle path below powers
+# it once. The rebind loop asks again only after an unbind.
+# During the settle wait a call gets the short stall timeout, and never more
+# time than the budget has left. After the wait, calls use bus_timeout.
+# A killed call sets busctl_timed_out. Any other failure is an answer.
+run_busctl() {
+  local limit=$bus_timeout rc=0 left
+  if [[ -n $settle_deadline ]]; then
+    left=$((settle_deadline - SECONDS))
+    if ((left <= 0)); then
+      return 1
+    fi
+    limit=$settle_call_timeout
+    if ((limit > left)); then
+      limit=$left
+    fi
+  fi
+  timeout "$limit" busctl "$@" || rc=$?
+  if ((rc == 124)); then
+    busctl_timed_out=1
+  fi
+  return "$rc"
+}
+
+# run_busctl inside $(...) cannot publish busctl_timed_out: that assignment
+# happens in the subshell. The exit status still propagates, and 124 means
+# timeout killed the call.
+controller_usable() {
+  local hci powered class rc
+  hci=$(bcm_hci_name) || return 1
+  rc=0
+  powered=$(run_busctl get-property org.bluez "/org/bluez/$hci" org.bluez.Adapter1 Powered 2>/dev/null) || rc=$?
+  if ((rc == 124 || rc == 137)); then
+    busctl_timed_out=1
+  fi
+  ((rc == 0)) || return 1
+  [[ $powered == "b true" ]] || return 1
+  rc=0
+  class=$(run_busctl get-property org.bluez "/org/bluez/$hci" org.bluez.Adapter1 Class 2>/dev/null) || rc=$?
+  if ((rc == 124 || rc == 137)); then
+    busctl_timed_out=1
+  fi
+  ((rc == 0)) || return 1
+  # bluetoothctl prints this as "Class: 0x00000000". Powered can already be true.
+  [[ $class == "u 0" ]] && return 1
+  return 0
+}
+
+alive() {
+  local hci
+  hci=$(bcm_hci_name) || return 1
+  run_busctl set-property org.bluez "/org/bluez/$hci" org.bluez.Adapter1 Powered b true >/dev/null 2>&1 || true
+  controller_usable
+}
+
+# After resume this unit starts as soon as the driver is loaded, before BlueZ
+# has exported the controller. Unbinding then cancels init commands that are
+# still in flight. Wait for the adapter object, power it once, and let its
+# class leave 0. A class that stays 0 for the whole budget is the hang the
+# rebind loop handles. A property read that does not answer is not that hang.
+settle_controller() {
+  local i hci powered_once=0 status=1 stalls=0 timed_out
+  settle_deadline=$((SECONDS + settle_budget))
+  for i in $(seq 1 "$settle_tries"); do
+    if ((SECONDS >= settle_deadline)); then
+      break
+    fi
+    busctl_timed_out=0
+    if controller_usable; then
+      status=0
+      break
+    fi
+    timed_out=$busctl_timed_out
+    if ((timed_out)); then
+      stalls=$((stalls + 1))
+      if ((stalls >= settle_stall_limit)); then
+        break
+      fi
+    else
+      stalls=0
+    fi
+    if ((powered_once == 0 && timed_out == 0 && SECONDS < settle_deadline)); then
+      hci=$(bcm_hci_name) || hci=""
+      busctl_timed_out=0
+      if [[ -n $hci ]] && run_busctl get-property org.bluez "/org/bluez/$hci" org.bluez.Adapter1 Powered >/dev/null 2>&1; then
+        run_busctl set-property org.bluez "/org/bluez/$hci" org.bluez.Adapter1 Powered b true >/dev/null 2>&1 || true
+        powered_once=1
+        if controller_usable; then
+          status=0
+          break
+        fi
+      fi
+      if ((busctl_timed_out)); then
+        stalls=$((stalls + 1))
+        if ((stalls >= settle_stall_limit)); then
+          break
+        fi
+      fi
+    fi
+    if ((i < settle_tries && SECONDS < settle_deadline)); then
+      timeout "$((settle_deadline - SECONDS))" sleep "$settle_sleep" || true
+    fi
+  done
+  settle_deadline=
+  busctl_timed_out=0
+  return "$status"
+}
+
+if persisted_bluetooth_blocked; then
+  echo "omarchy-t2-bcm4377-rebind: $DEV Bluetooth is rfkill-blocked, leaving it off"
+  exit 0
+fi
+
+modprobe hci_bcm4377 2>/dev/null || true
+
+if adapter_rfkill_blocked || persisted_bluetooth_blocked; then
+  echo "omarchy-t2-bcm4377-rebind: $DEV Bluetooth is rfkill-blocked, leaving it off"
+  exit 0
+fi
+
+if settle_controller; then
+  echo "omarchy-t2-bcm4377-rebind: $DEV already usable, nothing to do"
+  exit 0
+fi
+
+echo "omarchy-t2-bcm4377-rebind: $DEV still not usable, rebinding"
+
+for i in $(seq 1 "$MAX_TRIES"); do
+  echo "omarchy-t2-bcm4377-rebind: attempt $i/$MAX_TRIES on $DEV"
+  if [[ -L $sys_root/bus/pci/devices/$DEV/driver ]]; then
+    echo "$DEV" >"$drv/unbind" 2>/dev/null || true
+    sleep "$unbind_sleep"
+  fi
+  echo "$DEV" >"$drv/bind" 2>/dev/null || true
+  sleep "$bind_sleep"
+  systemctl restart bluetooth.service || true
+  sleep "$bluez_sleep"
+  if alive; then
+    echo "omarchy-t2-bcm4377-rebind: Bluetooth usable after attempt $i"
+    exit 0
+  fi
+done
+
+echo "omarchy-t2-bcm4377-rebind: gave up after $MAX_TRIES attempts" >&2
+exit 1
