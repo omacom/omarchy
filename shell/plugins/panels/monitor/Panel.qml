@@ -772,7 +772,7 @@ Panel {
               spacing: Style.spacing.xs
 
               readonly property real cellWidth: root.scaleValues.length > 0
-                ? (width - spacing * (columns - 1)) / columns
+                ? Math.floor((width - spacing * (columns - 1)) / columns)
                 : 0
 
               Repeater {
