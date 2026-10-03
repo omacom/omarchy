@@ -2,7 +2,7 @@
 
 # omarchy:summary=Copy text to the clipboard and type or paste it
 # omarchy:group=clipboard
-# omarchy:args=[--shift-insert] [--copy-only] [--history-index <index>|<text>]
+# omarchy:args=[--shift-insert] [--copy-only] [--history-index <index>] [<text>] [window-address]
 # omarchy:examples=omarchy clipboard paste text "hello" | omarchy clipboard paste text --shift-insert "hello"
 # omarchy:hidden=true
 
@@ -10,6 +10,7 @@ use_shift_insert=false
 copy_only=false
 history_index=""
 text=""
+target=""
 
 while (( $# > 0 )); do
   case "$1" in
@@ -39,13 +40,48 @@ copy_history_entry() {
   jq -j --argjson index "$history_index" '.[$index].text' "$history_path" | wl-copy
 }
 
+focus_window() {
+  hyprctl dispatch "hl.dsp.focus({ window = \"address:$1\" })" >/dev/null 2>&1 ||
+    hyprctl dispatch focuswindow "address:$1" >/dev/null 2>&1
+}
+
+active_address() {
+  hyprctl activewindow -j 2>/dev/null | jq -r '.address // ""'
+}
+
+refocus_origin() {
+  [[ -n $target ]] || {
+    sleep 0.15
+    return
+  }
+
+  [[ $target == 0x* ]] || target="0x$target"
+
+  # The clipboard overlay is a layer holding exclusive keyboard focus, so a
+  # focus request while it is still up does nothing. Once it closes,
+  # follow_mouse hands focus to whichever window sits under the (centred)
+  # cursor — so a mouse-picked entry lands in the wrong window. Wait for the
+  # overlay to go, then re-focus its origin window and confirm it stuck
+  # before pasting.
+  sleep 0.15
+  for _ in {1..15}; do
+    [[ $(active_address) == "$target" ]] && return 0
+    focus_window "$target"
+    sleep 0.04
+  done
+
+  [[ $(active_address) == "$target" ]]
+}
+
 if [[ -n $history_index ]]; then
   copy_history_entry
+  target="${1:-}"
   if [[ $copy_only != "true" ]]; then
     use_shift_insert=true
   fi
 else
   text=${1:-}
+  target="${2:-}"
   [[ -n $text ]] || exit
   printf '%s' "$text" | wl-copy
 fi
@@ -54,7 +90,7 @@ if [[ $copy_only == "true" ]]; then
   exit
 fi
 
-sleep 0.15
+refocus_origin || exit 0
 
 if [[ $use_shift_insert == "true" ]]; then
   wtype -M shift -k Insert -m shift 2>/dev/null || true
