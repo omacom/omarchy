@@ -25,6 +25,7 @@ run_logged "$OMARCHY_INSTALL/hardware/fix-elgato-camlink-4k.sh"
 run_logged "$OMARCHY_INSTALL/hardware/dell-xps13-sidecar-amps.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-display-backlight.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-gu605my-display-backlight.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-b9406-display.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-b9406-touchpad.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-z13-touchpad.sh"
