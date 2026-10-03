@@ -2,8 +2,19 @@ function nameForPath(path) {
   return String(path || "").split("/").pop().replace(/\.[^/.]+$/, "")
 }
 
-function labelForPath(path) {
-  return nameForPath(path).replace(/[-_]+/g, " ").replace(/\b\w/g, function(match) { return match.toUpperCase() })
+function labelForPath(path, sentenceCase) {
+  var label = nameForPath(path).replace(/[-_]+/g, " ")
+  if (!sentenceCase) return label.replace(/\b\w/g, function(match) { return match.toUpperCase() })
+
+  // QML lacks Unicode property escapes; case comparison skips numbers and punctuation.
+  var characters = label.match(/[\s\S]/gu) || []
+  for (var i = 0; i < characters.length; i++) {
+    if (characters[i].toUpperCase() !== characters[i].toLowerCase()) {
+      characters[i] = characters[i].toUpperCase()
+      break
+    }
+  }
+  return characters.join("")
 }
 
 function loadRows(rows) {
