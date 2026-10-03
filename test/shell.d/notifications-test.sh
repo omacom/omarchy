@@ -211,6 +211,13 @@ assertEqual(notifications.parseExecArgv('["mpv",5]'), null, 'notifications rejec
 assertEqual(notifications.parseExecArgv('["--include=x","y"]'), null, 'notifications reject a leading-dash program in the exec argv')
 assertEqual(notifications.parseExecArgv('["",""]'), null, 'notifications reject an empty program in the exec argv')
 
+// argv reaches exec as C strings, so a NUL truncates the element there. Reject
+// it in any element: with one, the string this check inspects is not the string
+// that runs.
+assertEqual(notifications.parseExecArgv('["mpv\\u0000GARBAGE"]'), null, 'notifications reject a NUL in the exec argv program')
+assertEqual(notifications.parseExecArgv('["\\u0000-rf"]'), null, 'notifications reject a leading NUL that hides a dash from the exec argv option check')
+assertEqual(notifications.parseExecArgv('["mpv","\\u0000GARBAGE"]'), null, 'notifications reject a NUL in a later exec argv element')
+
 // The argv vector rides on the snapshot as the raw JSON string, so the model's
 // value comparison stays a plain string compare and the file round-trip is
 // lossless.
