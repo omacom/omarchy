@@ -68,6 +68,7 @@ apple-bcm-firmware
 apple-t2-audio-config
 linux-t2
 linux-t2-headers
+msr-tools
 t2fanrd
 
 # Framework 16
