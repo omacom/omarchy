@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# Fingerprint setup must still reach PAM when a print from an earlier run is
-# already enrolled, because fprintd-enroll refuses it as enroll-duplicate.
+# Fingerprint setup must still reach PAM when a print is already enrolled, since
+# fprintd-enroll refuses a finger saved under another finger name as enroll-duplicate.
 # fprintd and sudo are stubbed; sudo only records what setup asked it to do.
 
 set -euo pipefail
@@ -58,3 +58,9 @@ FPRINTD_LIST=$enrolled VERIFY_OK=0 run_setup || true
 grep -q 'fprintd-delete tester' "$scratch/out" ||
   fail "an enrolled print that fails to verify says how to start over" "$(<"$scratch/out")"
 pass "an enrolled print that fails to verify explains how to enroll again"
+
+FPRINTD_LIST=$none VERIFY_OK=0 run_setup || true
+grep -qx 'fprintd-enroll tester' "$CALL_LOG" || fail "nothing enrolled still enrolls before verifying" "$(<"$CALL_LOG")"
+grep -q 'fprintd-delete tester' "$scratch/out" ||
+  fail "a new print that fails to verify says how to start over" "$(<"$scratch/out")"
+pass "a new print that fails to verify explains how to enroll again"
