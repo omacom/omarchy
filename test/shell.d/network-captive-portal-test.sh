@@ -78,18 +78,30 @@ done
 # Normal assertions keep the details empty to exercise missing-route handling.
 printf '#!/bin/bash\nif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then\n  printf "type\\twifi\\niface\\ttest-wifi\\nssid\\tGuest Wi-Fi\\nip\\t192.0.2.10\\ngateway\\t192.0.2.1\\n"\nfi\n' > "$stage/bin/omarchy-network-status"
 chmod +x "$stage/bin/omarchy-network-status"
-printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$NETWORK_TEST_BROWSER_LOG"\n' > "$stage/bin/omarchy-launch-browser"
-chmod +x "$stage/bin/omarchy-launch-browser"
+# Both the old and the new entry point are stubbed, so the run can prove which
+# one was used: the sign-in view must be, and the real browser must not.
+printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$NETWORK_TEST_LOG_DIR/$(basename "$0").log"\n' > "$stage/bin/argv-log"
+chmod +x "$stage/bin/argv-log"
+for command in omarchy-launch-browser omarchy-network-portal-signin; do
+  ln -s argv-log "$stage/bin/$command"
+done
 
 # All networking and external actions are mocked; the real connection and
 # browser are never touched, and the fixture writes only to its scratch HOME.
 output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
-  NETWORK_TEST_BROWSER_LOG="$stage/browser.log" \
+  NETWORK_TEST_LOG_DIR="$stage" \
   timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "network portal fixture exits cleanly" "$output"
 [[ $output == *"RESULT pass"* ]] || fail "network portal runtime assertions pass" "$output"
 if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<< "$output"; then
   fail "network portal fixture has no QML errors" "$output"
 fi
-[[ -f $stage/browser.log ]] || fail "portal action launches the browser"
-[[ $(<"$stage/browser.log") == "http://ping.archlinux.org/nm-check.txt" ]] || fail "portal opens exactly one fixed HTTP URL"
-pass "network portal, recovery, disabled checks, outage, disconnect, keyboard navigation, and browser argv work in QML"
+signin_log="$stage/omarchy-network-portal-signin.log"
+[[ -f $signin_log ]] || fail "portal action opens the sign-in view"
+mapfile -t signin_argv < "$signin_log"
+[[ ${signin_argv[0]} == "http://ping.archlinux.org/nm-check.txt" ]] ||
+  fail "portal opens exactly one fixed HTTP URL" "${signin_argv[0]}"
+# The sign-in view carries no profile of the user's, which is most of the point
+# of it; letting the real browser answer a gateway again would undo that.
+[[ ! -f $stage/omarchy-launch-browser.log ]] ||
+  fail "signing in never hands the gateway the real browser" "$(<"$stage/omarchy-launch-browser.log")"
+pass "network portal, recovery, disabled checks, outage, disconnect, keyboard navigation, and sign-in argv work in QML"

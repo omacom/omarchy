@@ -491,9 +491,15 @@ Panel {
   function openCaptivePortal() {
     if (!hasCaptivePortal) return
     // Explicit user action only. argv (not a shell string), and a fixed HTTP
-    // URL: let the browser handle the redirect without trusting portal input.
-    Quickshell.execDetached(["omarchy-launch-browser", Model.captivePortalUrl])
-    close()
+    // URL: let the sign-in view handle the redirect without trusting portal
+    // input. That view is a layer surface with an ephemeral WebKit profile, so
+    // signing in neither rearranges the workspace nor hands the gateway the
+    // real browser's cookies.
+    // The panel stays open: the sign-in surface grows out beside it, to the
+    // left, and is told how wide the panel's card is so it can sit next to it
+    // (the panel's own window is the whole screen).
+    Quickshell.execDetached(["omarchy-network-portal-signin", Model.captivePortalUrl,
+                             root.info.ssid || "", "--beside=" + Math.round(panel.contentWidth)])
   }
 
   // Keep checking while login is needed, even with the panel closed in favour
