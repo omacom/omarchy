@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Install a supported browser
-# omarchy:args=<chromium|chrome|brave|brave-origin|edge|firefox|zen>
+# omarchy:args=<chromium|chrome|brave|brave-origin|edge|firefox|librewolf|zen>
 # omarchy:examples=omarchy install browser chromium | omarchy install browser firefox
 
 set -e
@@ -83,6 +83,17 @@ firefox)
   setup_firefox_wayland
   announce_browser_installed "Firefox"
   ;;
+librewolf)
+  echo "Installing LibreWolf..."
+  omarchy-pkg-add librewolf || exit 1
+
+  # LibreWolf reads /etc/librewolf/policies/policies.json instead of its
+  # packaged distribution/policies.json, so that file must carry LibreWolf's
+  # own policies alongside Omarchy's preferences.
+  browser_policy_setup_firefox_distribution /etc/librewolf/policies "$OMARCHY_PATH/default/librewolf/policies.json"
+  setup_firefox_wayland
+  announce_browser_installed "LibreWolf"
+  ;;
 zen)
   echo "Installing Zen..."
   omarchy-pkg-aur-add zen-browser-bin || exit 1
@@ -92,7 +103,7 @@ zen)
   announce_browser_installed "Zen"
   ;;
 *)
-  echo "Usage: omarchy-install-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen>"
+  echo "Usage: omarchy-install-browser <chromium|chrome|brave|brave-origin|edge|firefox|librewolf|zen>"
   exit 1
   ;;
 esac

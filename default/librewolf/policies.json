@@ -1,0 +1,117 @@
+{
+    "__COMMENT__ Omarchy": "LibreWolf loads /etc/librewolf/policies/policies.json instead of its packaged distribution/policies.json, never both. This file is a copy of the packaged one plus Omarchy's Preferences, so it must be re-copied from /usr/lib/librewolf/distribution/policies.json whenever the librewolf package changes it.",
+    "__COMMENT__ More Information": "https://github.com/mozilla/policy-templates/blob/master/README.md",
+    "policies": {
+        "AIControls": {
+            "Translations": {
+                "Value": "available"
+            },
+            "PDFAltText": {
+                "Value": "blocked"
+            },
+            "SmartTabGroups": {
+                "Value": "blocked"
+            },
+            "LinkPreviewKeyPoints": {
+                "Value": "blocked"
+            },
+            "SidebarChatbot": {
+                "Value": "blocked"
+            },
+            "SmartWindow": {
+                "Value": "blocked"
+            }
+        },
+        "AppUpdateURL": "https://localhost",
+        "DisableAppUpdate": true,
+        "DisableDefaultBrowserAgent": true,
+        "DisableFeedbackCommands": true,
+        "DisableFirefoxStudies": true,
+        "DisableRemoteImprovements": true,
+        "DisableSetDesktopBackground": false,
+        "DisableTelemetry": true,
+        "DontCheckDefaultBrowser": true,
+        "WebsiteFilter": {
+            "Block": [
+                "https://localhost/*"
+            ],
+            "Exceptions": [
+                "https://localhost/*"
+            ]
+        },
+        "EncryptedMediaExtensions": {
+            "Enabled": false
+        },
+        "ExtensionSettings": {
+            "*": {
+                "blocked_install_message": "LibreWolf does not allow installing Language Packs.",
+                "installation_mode": "allowed",
+                "allowed_types": [
+                    "dictionary",
+                    "extension",
+                    "sitepermission",
+                    "theme"
+                ]
+            },
+            "uBlock0@raymondhill.net": {
+                "install_url": "https://addons.mozilla.org/firefox/downloads/latest/uBlock0@raymondhill.net/latest.xpi",
+                "installation_mode": "normal_installed",
+                "private_browsing": true
+            }
+        },
+        "FirefoxHome": {
+            "Weather": false,
+            "TopSites": false,
+            "SponsoredTopSites": false,
+            "Highlights": false,
+            "Stories": false,
+            "SponsoredStories": false
+        },
+        "FirefoxSuggest": {
+            "WebSuggestions": false,
+            "SponsoredSuggestions": false,
+            "ImproveSuggest": false
+        },
+        "HttpsOnlyMode": "enabled",
+        "LocalNetworkAccess": {
+            "Enabled": true,
+            "BlockTrackers": true,
+            "EnablePrompting": true
+        },
+        "NoDefaultBookmarks": true,
+        "OverridePostUpdatePage": "",
+        "SkipTermsOfUse": true,
+        "SupportMenu": {
+            "Title": "LibreWolf Issue Tracker",
+            "URL": "https://librewolf.dev/librewolf/issues"
+        },
+        "UserMessaging": {
+            "UrlbarInterventions": false,
+            "SkipOnboarding": true,
+            "MoreFromMozilla": false,
+            "FirefoxLabs": false
+        },
+        "Preferences": {
+            "apz.overscroll.enabled": {
+                "Value": true,
+                "Status": "default"
+            },
+            "media.ffmpeg.vaapi.enabled": {
+                "Value": true,
+                "Status": "default"
+            },
+            "media.hardware-video-decoding.force-enabled": {
+                "Value": true,
+                "Status": "default"
+            },
+            "widget.disable-swipe-tracker": {
+                "Value": false,
+                "Status": "default"
+            },
+            "widget.wayland.fractional-scale.enabled": {
+                "Value": true,
+                "Status": "default"
+            }
+        }
+    }
+}
