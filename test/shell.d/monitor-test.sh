@@ -74,5 +74,20 @@ assertDeepEqual(
   'monitor parses display state'
 )
 
+assertDeepEqual(
+  monitor.parseDisplays(JSON.stringify([
+    { name: 'DP-1', enabled: true, focused: false, width: 0, height: 0 },
+    { name: 'eDP-1', enabled: true, focused: true, width: 2880, height: 1800 }
+  ])),
+  {
+    displays: [
+      { name: 'DP-1', enabled: true, focused: false, width: 0, height: 0 },
+      { name: 'eDP-1', enabled: true, focused: true, width: 2880, height: 1800 }
+    ],
+    enabledDisplayCount: 2
+  },
+  'monitor keeps an enabled output that has not reported a mode yet'
+)
+
 assertDeepEqual(monitor.parseDisplays('{'), { displays: [], enabledDisplayCount: 0 }, 'monitor handles invalid display JSON')
 JS
