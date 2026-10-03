@@ -2,8 +2,20 @@
 
 # omarchy:summary=Run the Omarchy screensaver using random effects from TTE.
 
+# activewindow is global. Launch hops focus across screensaver windows, and the
+# compositor can report no class while switching monitors. Stay up unless a real
+# non-screensaver client is focused.
 screensaver_in_focus() {
-  hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
+  local json class
+
+  json=$(hyprctl activewindow -j 2>/dev/null) || return 0
+  class=$(jq -r '.class // empty' <<<"$json" 2>/dev/null) || return 0
+
+  if [[ -z $class || $class == "null" ]]; then
+    return 0
+  fi
+
+  [[ $class == "org.omarchy.screensaver" ]]
 }
 
 exit_screensaver() {
@@ -12,6 +24,14 @@ exit_screensaver() {
   pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
   exit 0
 }
+
+if [[ ${1:-} == "--check-focus" ]]; then
+  if screensaver_in_focus; then
+    exit 0
+  else
+    exit 1
+  fi
+fi
 
 # Exit the screensaver on signals and input from keyboard and mouse
 trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
@@ -35,14 +55,36 @@ wait_for_terminal_resize() {
 
 wait_for_terminal_resize
 
+# Empty activewindow is normal for a few polls while launch hops monitors.
+# An empty workspace leaves {} until the user comes back — bound that streak
+# so Super+N to a vacant workspace still dismisses the screensaver.
+empty_focus_limit=${OMARCHY_SCREENSAVER_EMPTY_FOCUS_POLLS:-3}
+
 while true; do
   ttfx -i ~/.config/omarchy/branding/screensaver.txt \
     --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c\
     --random-effect --no-eol --no-restore-cursor &
 
+  empty_focus_streak=0
   while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
-    if read -n1 -t 1 || ! screensaver_in_focus; then
+    if read -n1 -t 1; then
       exit_screensaver
+    fi
+
+    json=$(hyprctl activewindow -j 2>/dev/null) || json=""
+    class=$(jq -r '.class // empty' <<<"$json" 2>/dev/null) || class=""
+
+    if [[ -n $class && $class != "null" && $class != "org.omarchy.screensaver" ]]; then
+      exit_screensaver
+    fi
+
+    if [[ -z $class || $class == "null" ]]; then
+      empty_focus_streak=$((empty_focus_streak + 1))
+      if (( empty_focus_streak >= empty_focus_limit )); then
+        exit_screensaver
+      fi
+    else
+      empty_focus_streak=0
     fi
   done
 done
