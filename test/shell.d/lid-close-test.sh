@@ -8,8 +8,8 @@ lid_close="$ROOT/bin/omarchy-system-lid-close"
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
-# closed/docked are the two facts logind uses to decide whether a lid close
-# suspends, so each scenario pins them and records what the lid handler did.
+# closed/docked are the two facts that decide whether a lid close locks and
+# later suspends, so each scenario pins them and records what the handler did.
 setup_scenario() {
   scenario_dir="$tmpdir/$1"
   mock_bin="$scenario_dir/bin"
@@ -27,7 +27,7 @@ SH
 #!/bin/bash
 exit $docked
 SH
-  for command in omarchy-system-lock omarchy-hyprland-monitor-clamshell; do
+  for command in omarchy-system-lock omarchy-hyprland-monitor-clamshell omarchy-system-lid-suspend; do
     cat >"$mock_bin/$command" <<SH
 #!/bin/bash
 echo $command >>"\$CALL_LOG"
@@ -54,6 +54,10 @@ pass "undocked lid close locks before anything else"
 [[ ${calls[1]} == "omarchy-hyprland-monitor-clamshell" ]] ||
   fail "undocked lid close still reconciles displays" "calls: ${calls[*]}"
 pass "undocked lid close still reconciles displays"
+
+[[ ${calls[2]} == "omarchy-system-lid-suspend" ]] ||
+  fail "undocked lid close asks for a debounced suspend" "calls: ${calls[*]}"
+pass "undocked lid close asks for a debounced suspend"
 
 # A docked lid close is clamshell mode: logind leaves the machine awake and the
 # session stays in use on the external display, so locking it would be wrong.
