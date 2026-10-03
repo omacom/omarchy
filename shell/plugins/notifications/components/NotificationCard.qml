@@ -29,14 +29,19 @@ BorderSurface {
 
   // System monospace font injected by the container.
   property string fontFamily: ""
+  // The user's web app launchers, icons resolved (see Service.webappLaunchers).
+  property var webappLaunchers: []
 
   readonly property bool hovered: hoverTracker.hovered
 
   signal closeRequested()
   signal cardClicked()
-  // Prefer per-notification media/avatar data, then fall back to the app icon.
-  // The `check` flag avoids Qt's missing-texture placeholder for unknown names.
-  readonly property string smallIconSource: image.length > 0 ? image : iconSource(appIcon)
+  // Prefer per-notification media/avatar data, then the web app the sender
+  // launched as, then fall back to the app icon. A web app whose icon name did
+  // not resolve keeps the browser's rather than losing the slot altogether.
+  readonly property var webapp: NotificationLogic.webappFor(body, app, appIcon, webappLaunchers)
+  readonly property string webappIconSource: webapp ? webapp.iconSource : ""
+  readonly property string smallIconSource: image.length > 0 ? image : (webappIconSource.length > 0 ? webappIconSource : iconSource(appIcon))
   readonly property bool hasGlyph: glyph.length > 0
   readonly property bool compactGlyph: NotificationLogic.shouldRenderCompactGlyph(glyph, smallIconSource, singleLineToast)
   readonly property bool hasSmallIcon: smallIconSource.length > 0
@@ -55,6 +60,7 @@ BorderSurface {
     return NotificationLogic.sanitizeBody(s, app, appIcon)
   }
 
+  // The `check` flag avoids Qt's missing-texture placeholder for unknown names.
   function iconSource(icon) {
     var value = String(icon || "")
     if (value.length === 0) return ""
