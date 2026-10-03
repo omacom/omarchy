@@ -18,11 +18,13 @@
 # machines including the T2-less iMac19,1 and iMac19,2, and BCM4377/4378/4387
 # from the T2 era on. The BCM4360 in 2013-2015 Macs is deliberately absent: it
 # runs the out-of-tree wl driver, which never reads a brcmfmac option.
+source "$OMARCHY_PATH/install/helpers/pci-sysfs.sh"
+
 sys_vendor="$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || true)"
 
-if lspci -nn | grep "106b:180[12]" >/dev/null ||
+if omarchy-pci-id 0x106b 0x1801 0x1802 ||
   { [[ $sys_vendor == Apple* ]] &&
-    lspci -nn | grep -E "14e4:(43ba|43bb|43bc|43a3|43dc|4464|4488|4425|4433)" >/dev/null; }; then
+    omarchy-pci-id 0x14e4 0x43ba 0x43bb 0x43bc 0x43a3 0x43dc 0x4464 0x4488 0x4425 0x4433; }; then
   echo "Detected a Mac with Broadcom Wi-Fi; running the WPA handshake in software"
 
   mkdir -p /etc/modprobe.d

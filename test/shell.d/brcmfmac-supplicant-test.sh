@@ -24,24 +24,8 @@ trap 'rm -rf "$test_tmp"' EXIT
 stub_bin="$test_tmp/bin"
 calls="$test_tmp/calls.log"
 conf="$test_tmp/etc/modprobe.d/brcmfmac.conf"
+pci_dir="$test_tmp/pci-devices"
 mkdir -p "$stub_bin" "$test_tmp/dmi"
-
-cat >"$stub_bin/lspci" <<'SH'
-#!/bin/bash
-
-# Chatty like real lspci: keep writing well past the pipe buffer after the
-# match, so a grep -q consumer would kill this stub with SIGPIPE and pipefail
-# would read that as "no such hardware" (#6608).
-if (( ${T2_HARDWARE:-0} == 1 )); then
-  echo '01:00.0 Bridge [0680]: Apple Inc. T2 Security Chip [106b:1801]'
-fi
-if [[ -n ${WIFI_ID:-} ]]; then
-  echo "03:00.0 Network controller [0280]: Broadcom Inc. Wireless [14e4:$WIFI_ID]"
-fi
-for _ in {1..4096}; do
-  echo '02:00.0 Host bridge [0600]: Filler Device [ffff:0000]'
-done
-SH
 
 cat >"$stub_bin/sudo" <<'SH'
 #!/bin/bash
@@ -63,14 +47,24 @@ SH
 
 chmod +x "$stub_bin"/*
 
+# Write sysfs PCI fixtures that control what the leaf's and migration's T2 and
+# Broadcom ID checks see.
+write_pci_fixture() {
+  local t2="$1" wifi_id="$2"
+  local args=()
+  [[ $t2 == 1 ]] && args+=(0x106b:0x1801:0x068000)
+  [[ -n $wifi_id ]] && args+=(0x14e4:0x"$wifi_id":0x028000)
+  write_pci_devices "$pci_dir" "${args[@]}"
+}
+
 # The leaf reads the vendor from an absolute path, so point it at a fixture by
-# running with a fake root on PATH-independent state. pipefail is on, so a
-# grep -q gate would go silent here the way #6608 did.
+# running with a fake root on PATH-independent state.
 run_leaf() {
   local vendor="$1" wifi_id="${2:-}" t2="${3:-0}"
   rm -rf "$test_tmp/etc"
   mkdir -p "$test_tmp/etc"
   printf '%s' "$vendor" >"$test_tmp/dmi/sys_vendor"
+  write_pci_fixture "$t2" "$wifi_id"
 
   # Redirect both absolute paths the leaf touches into the sandbox.
   local script="$test_tmp/leaf.sh"
@@ -78,7 +72,9 @@ run_leaf() {
       -e "s|/etc/modprobe.d|$test_tmp/etc/modprobe.d|g" \
       "$leaf" >"$script"
 
-  WIFI_ID="$wifi_id" T2_HARDWARE="$t2" PATH="$stub_bin:$PATH" \
+  PATH="$stub_bin:$PATH" \
+    OMARCHY_PATH="$ROOT" \
+    OMARCHY_PCI_DEVICES_PATH="$pci_dir" \
     bash -eE -o pipefail -c 'source "$1"' bash "$script" </dev/null
 }
 
@@ -122,17 +118,20 @@ pass "a Mac with no wireless device is left alone"
 run_migration() {
   local vendor="$1" wifi_id="${2:-}" t2="${3:-0}"
   printf '%s' "$vendor" >"$test_tmp/dmi/sys_vendor"
+  write_pci_fixture "$t2" "$wifi_id"
   : >"$calls"
 
-  WIFI_ID="$wifi_id" T2_HARDWARE="$t2" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
+  TEST_LOG="$calls" \
+    PATH="$stub_bin:$PATH" \
+    OMARCHY_PATH="$ROOT" \
+    OMARCHY_PCI_DEVICES_PATH="$pci_dir" \
     OMARCHY_BRCMFMAC_DMI_VENDOR="$test_tmp/dmi/sys_vendor" \
     OMARCHY_BRCMFMAC_CONF="$conf" \
     bash -euo pipefail "$migration" >/dev/null
 }
 
 # A T2 install from before the quirk shipped has no config at all, so this is
-# the case that proves the T2 gate itself still fires -- and it is the piped
-# grep, run under pipefail, that #6608 was about.
+# the case that proves the T2 gate itself still fires.
 rm -rf "$test_tmp/etc"
 run_migration "Apple Inc." 4488 1
 grep -q '^options brcmfmac feature_disable=0x82000$' "$conf" 2>/dev/null ||

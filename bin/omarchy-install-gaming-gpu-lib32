@@ -7,16 +7,18 @@
 
 set -e
 
+source "$OMARCHY_PATH/install/helpers/pci-sysfs.sh"
+
 echo "Installing lib32 graphics drivers..."
 
 PACKAGES=()
 
 declare -A VULKAN_DRIVERS=(
-  [Intel]=lib32-vulkan-intel
-  [AMD]=lib32-vulkan-radeon
+  [0x8086]=lib32-vulkan-intel
+  [0x1002]=lib32-vulkan-radeon
 )
 for vendor in "${!VULKAN_DRIVERS[@]}"; do
-  if lspci | grep -iE "(VGA|Display).*$vendor" >/dev/null; then
+  if omarchy-pci-class-vendor 0x03 "$vendor"; then
     PACKAGES+=("${VULKAN_DRIVERS[$vendor]}")
   fi
 done

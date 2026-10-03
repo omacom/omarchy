@@ -1,4 +1,4 @@
-if lspci | grep -qi 'nvidia'; then
+if omarchy-hw-nvidia; then
   if omarchy-hw-nvidia-gsp; then
     PACKAGES=(nvidia-open-dkms nvidia-utils lib32-nvidia-utils libva-nvidia-driver)
   elif omarchy-hw-nvidia-without-gsp; then

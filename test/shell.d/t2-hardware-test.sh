@@ -26,23 +26,21 @@ test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
 stub_bin="$test_tmp/bin"
+pci_dir="$test_tmp/pci-devices"
 calls="$test_tmp/calls.log"
 mkdir -p "$stub_bin"
 : >"$calls"
 
-cat >"$stub_bin/lspci" <<'SH'
-#!/bin/bash
-
-# Chatty like real lspci: keep writing well past the pipe buffer after the T2
-# match, so a grep -q consumer would kill this stub with SIGPIPE and pipefail
-# would read that as "no T2 hardware" (#6608).
-if (( ${T2_HARDWARE:-0} == 1 )); then
-  echo '01:00.0 Bridge [0680]: Apple Inc. T2 Security Chip [106b:1801]'
-fi
-for _ in {1..4096}; do
-  echo '02:00.0 Host bridge [0600]: Filler Device [ffff:0000]'
-done
-SH
+# Point the migration's sysfs PCI check at a fixture tree. T2 presence is
+# controlled by writing a T2 security chip device (vendor 0x106b, device 0x1801)
+# or omitting it.
+t2_fixture() {
+  if (( $1 == 1 )); then
+    write_pci_devices "$pci_dir" 0x106b:0x1801:0x068000
+  else
+    write_pci_devices "$pci_dir"
+  fi
+}
 
 cat >"$stub_bin/sudo" <<'SH'
 #!/bin/bash
@@ -103,10 +101,13 @@ EOF
 
 echo 'quiet splash intel_iommu=on iommu=pt pcie_ports=compat' >"$running_cmdline"
 
+t2_fixture 1
 PATH="$stub_bin:$PATH" \
   TEST_LOG="$calls" \
   T2_HARDWARE=1 \
   TINY_DFR_INSTALLED=1 \
+  OMARCHY_PATH="$ROOT" \
+  OMARCHY_PCI_DEVICES_PATH="$pci_dir" \
   OMARCHY_T2_LIMINE_CONF="$limine_conf" \
   OMARCHY_T2_FAN_CONF="$fan_conf" \
   OMARCHY_T2_RUNNING_CMDLINE="$running_cmdline" \
@@ -130,10 +131,13 @@ pass "T2 migration repairs existing installs"
 
 : >"$calls"
 
+t2_fixture 1
 PATH="$stub_bin:$PATH" \
   TEST_LOG="$calls" \
   T2_HARDWARE=1 \
   TINY_DFR_INSTALLED=0 \
+  OMARCHY_PATH="$ROOT" \
+  OMARCHY_PCI_DEVICES_PATH="$pci_dir" \
   OMARCHY_T2_LIMINE_CONF="$limine_conf" \
   OMARCHY_T2_FAN_CONF="$fan_conf" \
   OMARCHY_T2_RUNNING_CMDLINE="$running_cmdline" \
@@ -148,10 +152,13 @@ pass "T2 migration is machine-idempotent before reboot"
 rm -f "$repair_marker"
 : >"$calls"
 
+t2_fixture 1
 PATH="$stub_bin:$PATH" \
   TEST_LOG="$calls" \
   T2_HARDWARE=1 \
   TINY_DFR_INSTALLED=0 \
+  OMARCHY_PATH="$ROOT" \
+  OMARCHY_PCI_DEVICES_PATH="$pci_dir" \
   OMARCHY_T2_LIMINE_CONF="$limine_conf" \
   OMARCHY_T2_FAN_CONF="$fan_conf" \
   OMARCHY_T2_RUNNING_CMDLINE="$running_cmdline" \
@@ -171,10 +178,13 @@ EOF
 printf '[Fan1]\n' >"$fan_conf"
 : >"$calls"
 
+t2_fixture 0
 PATH="$stub_bin:$PATH" \
   TEST_LOG="$calls" \
   T2_HARDWARE=0 \
   TINY_DFR_INSTALLED=1 \
+  OMARCHY_PATH="$ROOT" \
+  OMARCHY_PCI_DEVICES_PATH="$pci_dir" \
   OMARCHY_T2_LIMINE_CONF="$limine_conf" \
   OMARCHY_T2_FAN_CONF="$fan_conf" \
   OMARCHY_T2_RUNNING_CMDLINE="$running_cmdline" \
@@ -193,11 +203,13 @@ rerun_migration="$ROOT/migrations/1786137597.sh"
 rm -f "$repair_marker"
 : >"$calls"
 
+t2_fixture 1
 PATH="$stub_bin:$PATH" \
   TEST_LOG="$calls" \
   T2_HARDWARE=1 \
   TINY_DFR_INSTALLED=0 \
   OMARCHY_PATH="$ROOT" \
+  OMARCHY_PCI_DEVICES_PATH="$pci_dir" \
   OMARCHY_T2_LIMINE_CONF="$limine_conf" \
   OMARCHY_T2_FAN_CONF="$fan_conf" \
   OMARCHY_T2_RUNNING_CMDLINE="$running_cmdline" \
