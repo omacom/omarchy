@@ -26,6 +26,14 @@ Updating or removing Omarchy's settings package ends any temporary grant before 
 
 Be clear-eyed about this one: while it's on, anything running as your user can do anything as root without being asked. That's the whole point, and it's also the whole risk.
 
+### Why sudo or desktop tools still ask for a password
+
+If you configure passwordless sudo yourself, a `NOPASSWD` rule for `%wheel` in `/etc/sudoers` can be overridden by a matching rule loaded later from `/etc/sudoers.d/`. For example, a user-specific rule such as `alice ALL=(ALL) ALL` requires a password even when an earlier group rule allows passwordless access. Sudo uses the last matching rule, not the most specific one.
+
+Run `sudo -l` to inspect the rules that apply to your account. Use `sudo visudo -f /etc/sudoers.d/<filename>` to edit the conflicting file, then `sudo visudo -c` to check the configuration. To check whether a command works without a password or a cached authentication timestamp, run `sudo -k -n true`. Prefer the timed _Passwordless Sudo_ option above when you only need temporary access.
+
+`pkexec` and many graphical administration tools use Polkit, which has its own authorization rules. Neither sudo's `NOPASSWD` setting nor Omarchy's _Passwordless Sudo_ toggle disables Polkit authentication. Login and screen-unlock authentication are separate from sudo and Polkit, while Omarchy's default keyring is passwordless; custom keyring configurations may prompt separately.
+
 ## Signing Keys
 
 The public key for all ISO signatures and Omarchy repo package is `40DFB630FF42BCFFB047046CF0134EE680CAC571` ([verify at openpgp.org](https://keys.openpgp.org/search?q=pkgs%40omarchy.org)). The `omarchy/omarchy-keyring` package contains this as well and will be used to rollout any potential updates seamlessly.
