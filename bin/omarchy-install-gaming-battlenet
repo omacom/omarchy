@@ -49,6 +49,10 @@ else
   echo "Downloading Battle.net installer..."
   curl --fail --location --retry 3 "$INSTALLER_URL" --output "$installer"
 
+  # The wizard starts Battle.net in its own Wine session, which keeps the DPI it
+  # began with, so size the prefix for this monitor before that session exists.
+  omarchy-games-battlenet-scale
+
   cat <<'EOF'
 
 Launching the Battle.net setup wizard. Click through it normally — the
