@@ -111,6 +111,8 @@ function sortedEntries(values, query, hiddenCallback) {
 
   rows.sort(function(a, b) {
     if (q && a.score !== b.score) return b.score - a.score
+    var byKey = a.key.localeCompare(b.key)
+    if (byKey !== 0) return byKey
     if (a.key < b.key) return -1
     if (a.key > b.key) return 1
     if (a.name < b.name) return -1
