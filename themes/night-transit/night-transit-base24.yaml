@@ -1,0 +1,38 @@
+system: "base24"
+name: "Night Transit"
+slug: "night-transit"
+author: "OldJobobo / Omarchy Kids Themes"
+variant: "dark"
+
+# Exported from colors.toml; semantic roles and repeated colors are preserved.
+
+palette:
+  # --- tram window / midnight enamel ---
+  base00: "#112B4D" # Tram Night - default background
+  base01: "#193C5B" # Blue Tile - lighter background
+  base02: "#245168" # Seat Shadow - selection background
+  base03: "#7896A3" # Window Mist - comments / muted text
+  base04: "#B8C9C5" # Route Lettering - dark foreground
+  base05: "#F8E5C5" # Ticket Cream - default foreground
+  base06: "#F8E5C5" # Platform Lettering - light foreground
+  base07: "#FFF4DC" # Station Light - brightest foreground
+
+  # --- friendly platform signals ---
+  base08: "#D55751" # Coral Tram - red / error
+  base09: "#E17B3B" # Copper Rail - orange / warning
+  base0A: "#D39A30" # Ticket Gold - yellow
+  base0B: "#55905C" # Platform Green - green
+  base0C: "#39A3AA" # Rain Glass - cyan
+  base0D: "#4B82C5" # Route Blue - blue
+  base0E: "#8E67AE" # Evening Violet - purple
+  base0F: "#8B604D" # Seat Leather - brown / special
+
+  # --- base24 extension ---
+  base10: "#0B203B" # Tunnel Tile - darker background
+  base11: "#0B203B" # Depot Shadow - darkest background
+  base12: "#F07A6D" # Bright Coral Tram - bright red
+  base13: "#F9B639" # Bright Ticket Gold - bright orange / yellow
+  base14: "#64AA6D" # Bright Platform Green - bright green
+  base15: "#43C0C9" # Bright Rain Glass - bright cyan
+  base16: "#5899E8" # Bright Route Blue - bright blue
+  base17: "#A87ACD" # Bright Evening Violet - bright purple

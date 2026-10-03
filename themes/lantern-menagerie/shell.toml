@@ -1,0 +1,144 @@
+# Lantern Menagerie — theme-only shell visuals; shell.json remains user-owned.
+[bar]
+background = "#21172f"
+background-alpha = 0.97
+text = "#f7e8c4"
+active = "#f0ad37"
+scale-with-font = true
+size-horizontal = 28
+size-vertical = 30
+
+[hyprland]
+active-border = "#f0ad37 #58aaa5 90deg"
+active-border-foreground = "#f07c68 #68c9c3 90deg"
+
+[controls]
+normal-color = "#f7e8c4"
+normal-fill-alpha = 0.04
+normal-border = "#9b83a5"
+normal-border-width = 1
+normal-border-alpha = 0.62
+hover-cursor-color = "#fff7df"
+hover-cursor-fill-alpha = 0.10
+hover-cursor-border = "#58aaa5"
+hover-cursor-border-width = 2
+hover-cursor-border-alpha = 0.90
+focus-color = "#fff7df"
+focus-fill-alpha = 0.13
+focus-border = "hyprland.active-border"
+focus-border-width = 2
+focus-border-alpha = 1.0
+selected-color = "foreground"
+selected-fill-alpha = 0.14
+selected-border = "#fff7df"
+selected-border-width = 2
+selected-border-alpha = 0.86
+pressed-fill-alpha = 0.24
+selection-fill-alpha = 0.40
+
+[spacing]
+scale = 1.0
+scale-with-font = true
+control-height = 30
+popup-row-height = 32
+panel-gap = 15
+panel-padding = 14
+popup-padding = 12
+
+[font]
+base-size = 12
+caption = 10
+body-small = 11
+body = 12
+subtitle = 13
+heading = 15
+
+[popups]
+background = "#30213f"
+background-alpha = 0.98
+text = "#f7e8c4"
+border = "#f0ad37"
+border-alpha = 0.96
+border-width = 2
+
+[tooltip]
+background = "#30213f"
+background-alpha = 0.99
+text = "#f7e8c4"
+border = "#9b83a5"
+border-alpha = 0.90
+
+[notifications]
+background = "#30213f"
+background-alpha = 0.98
+text = "#f7e8c4"
+border = "#f0ad37"
+border-alpha = 0.96
+border-width = 2
+countdown = "#d89a2b"
+
+[launcher]
+background = "#30213f"
+background-alpha = 0.97
+text = "#f7e8c4"
+border = "#f0ad37"
+border-alpha = 0.98
+border-width = 2
+scrim = "#171020"
+scrim-alpha = 0.28
+selected-background = "#3d507d"
+selected-background-alpha = 1.0
+selected-text = "#fff7df"
+selected-border = "#fff7df"
+selected-border-alpha = 0.85
+selected-border-width = 2
+
+[menu]
+background = "#30213f"
+background-alpha = 0.98
+text = "#f7e8c4"
+border = "#f0ad37"
+border-alpha = 0.98
+border-width = 2
+scrim = "#171020"
+scrim-alpha = 0.28
+selected-background = "#3d507d"
+selected-background-alpha = 1.0
+selected-text = "#fff7df"
+selected-border = "#fff7df"
+selected-border-alpha = 0.85
+selected-border-width = 2
+
+[polkit]
+background = "#30213f"
+background-alpha = 0.99
+text = "#f7e8c4"
+text-error = "#f07c68"
+border = "#f0ad37"
+border-error = "#f07c68"
+border-alpha = 1.0
+scrim = "#171020"
+scrim-alpha = 0.36
+accent = "#58aaa5"
+
+[lock]
+background = "#30213f"
+background-alpha = 0.96
+text = "#f7e8c4"
+placeholder = "#c8b3c0"
+text-error = "#f07c68"
+border = "#9b83a5"
+border-active = "hyprland.active-border"
+border-error = "#f07c68"
+border-alpha = 1.0
+selection = "#3d507d"
+selection-alpha = 0.55
+
+[image-picker]
+scrim = "#171020"
+scrim-alpha = 0.28
+text = "#f7e8c4"
+selected-border = "#f0ad37"
+selected-border-alpha = 1.0
+unselected-border = "#9b83a5"
+unselected-border-alpha = 0.72

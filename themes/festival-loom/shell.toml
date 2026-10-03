@@ -1,0 +1,144 @@
+# Festival Loom — theme-only shell visuals; shell.json remains user-owned.
+[bar]
+background = "#fff0dc"
+background-alpha = 0.97
+text = "#342b3d"
+active = "#ad285b"
+scale-with-font = true
+size-horizontal = 28
+size-vertical = 30
+
+[hyprland]
+active-border = "#ad285b #187d83 90deg"
+active-border-foreground = "#e05b78 #1c949b 90deg"
+
+[controls]
+normal-color = "#342b3d"
+normal-fill-alpha = 0.04
+normal-border = "#796a70"
+normal-border-width = 1
+normal-border-alpha = 0.62
+hover-cursor-color = "#1e1726"
+hover-cursor-fill-alpha = 0.10
+hover-cursor-border = "#187d83"
+hover-cursor-border-width = 2
+hover-cursor-border-alpha = 0.90
+focus-color = "#1e1726"
+focus-fill-alpha = 0.13
+focus-border = "hyprland.active-border"
+focus-border-width = 2
+focus-border-alpha = 1.0
+selected-color = "foreground"
+selected-fill-alpha = 0.14
+selected-border = "#1e1726"
+selected-border-width = 2
+selected-border-alpha = 0.86
+pressed-fill-alpha = 0.24
+selection-fill-alpha = 0.40
+
+[spacing]
+scale = 1.0
+scale-with-font = true
+control-height = 30
+popup-row-height = 32
+panel-gap = 13
+panel-padding = 14
+popup-padding = 12
+
+[font]
+base-size = 12
+caption = 10
+body-small = 11
+body = 12
+subtitle = 13
+heading = 15
+
+[popups]
+background = "#f5dcc7"
+background-alpha = 0.98
+text = "#342b3d"
+border = "#ad285b"
+border-alpha = 0.96
+border-width = 2
+
+[tooltip]
+background = "#f5dcc7"
+background-alpha = 0.99
+text = "#342b3d"
+border = "#796a70"
+border-alpha = 0.90
+
+[notifications]
+background = "#f5dcc7"
+background-alpha = 0.98
+text = "#342b3d"
+border = "#ad285b"
+border-alpha = 0.96
+border-width = 2
+countdown = "#9b7300"
+
+[launcher]
+background = "#f5dcc7"
+background-alpha = 0.97
+text = "#342b3d"
+border = "#ad285b"
+border-alpha = 0.98
+border-width = 2
+scrim = "#f7e4cd"
+scrim-alpha = 0.28
+selected-background = "#ad285b"
+selected-background-alpha = 1.0
+selected-text = "#fff0dc"
+selected-border = "#1e1726"
+selected-border-alpha = 0.85
+selected-border-width = 2
+
+[menu]
+background = "#f5dcc7"
+background-alpha = 0.98
+text = "#342b3d"
+border = "#ad285b"
+border-alpha = 0.98
+border-width = 2
+scrim = "#f7e4cd"
+scrim-alpha = 0.28
+selected-background = "#ad285b"
+selected-background-alpha = 1.0
+selected-text = "#fff0dc"
+selected-border = "#1e1726"
+selected-border-alpha = 0.85
+selected-border-width = 2
+
+[polkit]
+background = "#f5dcc7"
+background-alpha = 0.99
+text = "#342b3d"
+text-error = "#ad285b"
+border = "#ad285b"
+border-error = "#e05b78"
+border-alpha = 1.0
+scrim = "#f7e4cd"
+scrim-alpha = 0.36
+accent = "#187d83"
+
+[lock]
+background = "#f5dcc7"
+background-alpha = 0.96
+text = "#342b3d"
+placeholder = "#554654"
+text-error = "#ad285b"
+border = "#796a70"
+border-active = "hyprland.active-border"
+border-error = "#e05b78"
+border-alpha = 1.0
+selection = "#ad285b"
+selection-alpha = 0.55
+
+[image-picker]
+scrim = "#f7e4cd"
+scrim-alpha = 0.28
+text = "#342b3d"
+selected-border = "#ad285b"
+selected-border-alpha = 1.0
+unselected-border = "#796a70"
+unselected-border-alpha = 0.72
