@@ -29,14 +29,6 @@ o.window("org.omarchy.about", { size = { 920, 480 } })
 
 o.window("omacalc", { float = true })
 
--- Fullscreen screensaver.
-o.window("org.omarchy.screensaver", { fullscreen = true })
-o.window("org.omarchy.screensaver", { float = true })
-o.window("org.omarchy.screensaver", { animation = "slide" })
--- The launcher picks each screensaver's workspace. A terminal mapped again as it closes lands out of sight instead,
--- where its fullscreen rule cannot take fullscreen from a window.
-o.window("org.omarchy.screensaver", { workspace = "special:screensaver silent" })
-
 -- No transparency on media windows.
 o.window(
   "^(zoom|vlc|mpv|org.kde.kdenlive|com.obsproject.Studio|com.github.PintaProject.Pinta|imv|org.gnome.NautilusPreviewer)$",
