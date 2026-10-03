@@ -50,7 +50,12 @@ Panel {
     return Model.hasHumanName(device)
   }
 
-  readonly property var deviceGroups: Model.deviceLists(devices)
+  // Row order held while the pointer is on the scroll list, empty otherwise.
+  // A click acts on whatever row is under the pointer, so a device found
+  // mid-scan must not sort in above the row being aimed at and take it.
+  property var pinnedOrder: []
+
+  readonly property var deviceGroups: Model.deviceLists(devices, pinnedOrder)
   readonly property var connectedDevices: deviceGroups.connected || []
   readonly property var knownDevices: deviceGroups.known || []
   readonly property var discoveredDevices: deviceGroups.discovered || []
@@ -144,6 +149,14 @@ Panel {
       for (var d = 0; d < discoveredDevices.length; d++)
         rows.push({ dev: Model.deviceRow(discoveredDevices[d]), section: "discovered", indexInSection: d })
     return rows
+  }
+
+  // A device found while the pointer rests on the list joins the pin, so the
+  // next arrival cannot sort in above it once the pointer has moved onto it.
+  onScrollRowsChanged: {
+    if (pinnedOrder.length === 0) return
+    var order = scrollRows.map(function(row) { return row.dev.address })
+    if (order.join("\n") !== pinnedOrder.join("\n")) pinnedOrder = order
   }
 
   // Connected devices render above the scroll area; same primitives-only
@@ -417,6 +430,10 @@ Panel {
       else { focusSection = "header" }
       actionFocused = false
       cursorActive = false
+    } else {
+      // Hiding the list leaves HoverHandler.hovered set, so the pointer never
+      // reports leaving and the order would stay pinned into the next open.
+      pinnedOrder = []
     }
   }
 
@@ -824,6 +841,12 @@ Panel {
           onCurrentIndexChanged: if (currentIndex >= 0) Qt.callLater(keepCurrentVisible)
           function keepCurrentVisible() {
             if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+          }
+
+          HoverHandler {
+            onHoveredChanged: root.pinnedOrder = hovered
+              ? root.scrollRows.map(function(row) { return row.dev.address })
+              : []
           }
 
           delegate: Item {
