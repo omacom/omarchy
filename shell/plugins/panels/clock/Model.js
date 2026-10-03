@@ -41,6 +41,17 @@ var VERTICAL_CLOCK_FORMATS = [
   "HH\nmm"
 ]
 
+// Whether a label showing `shown` needs a refresh at `now`. SystemClock can
+// publish the next minute up to half a second before the wall clock turns, so
+// a label less than a second ahead is current, not stale.
+function clockMinuteIsStale(shown, now) {
+  var shownMinute = Math.floor(shown.getTime() / 60000)
+  var nowMinute = Math.floor(now.getTime() / 60000)
+  if (shownMinute === nowMinute) return false
+  if (shownMinute > nowMinute && shown.getTime() - now.getTime() < 1000) return false
+  return true
+}
+
 // Whether a format prints seconds, so the widget can tick once a second only
 // for the formats that show them. Quoted literals go first: the s in a 'Sat'
 // is text rather than a token, and an opening quote with no closing one runs
@@ -280,6 +291,7 @@ function stepMonth(year, month, delta) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    clockMinuteIsStale: clockMinuteIsStale,
     dateKey: dateKey,
     keyForDate: keyForDate,
     normalizedWeekStart: normalizedWeekStart,
