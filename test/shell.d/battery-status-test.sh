@@ -49,3 +49,27 @@ if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/
 fi
 
 pass "battery status owns capacity and remaining calculations"
+
+# Some ACPI firmware exposes a readable power_now whose read() fails with
+# ENODEV, yielding an empty string (#6895). It must fall back to UPower's
+# energy-rate instead of coercing "" to 0W.
+: >"$tmp_dir/power/BAT0/power_now"
+
+shell_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+
+grep -Fx $'rate\t7.3W' <<<"$shell_output" >/dev/null ||
+  fail "empty power_now read falls back to UPower energy-rate instead of 0W" "$shell_output"
+
+pass "empty power_now read falls back to UPower energy-rate"
+
+# Same hole in the current_now/voltage_now fallback: awk coerces an empty
+# read to 0, which would report a metered 0W.
+rm "$tmp_dir/power/BAT0/power_now"
+: >"$tmp_dir/power/BAT0/current_now"
+
+shell_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+
+grep -Fx $'rate\t7.3W' <<<"$shell_output" >/dev/null ||
+  fail "empty current_now read falls back to UPower energy-rate instead of 0W" "$shell_output"
+
+pass "empty current_now read falls back to UPower energy-rate"
