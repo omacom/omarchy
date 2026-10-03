@@ -18,6 +18,13 @@ omarchy_security_require_source_root "$0"
 # caller's original path over the same way the updater receives it.
 user_path=${OMARCHY_UPDATE_USER_PATH:-$PATH}
 unset OMARCHY_UPDATE_USER_PATH
+# Channel switching authorizes once and shares that ticket with this helper.
+# Revoking here would throw that away and prompt again for every sudo step.
+channel_sudo_session=0
+if [[ ${OMARCHY_UPDATE_SUDO_SESSION:-} == "1" ]]; then
+  channel_sudo_session=1
+  omarchy_security_revoke_sudo_timestamp() { :; }
+fi
 # Traps first, so a signal or failure during the entry revocation still
 # exits through the cleanup path.
 omarchy_security_install_sudo_cleanup_traps
@@ -38,9 +45,11 @@ sudo cp -f "$OMARCHY_PATH/default/pacman/mirrorlist-$channel" /etc/pacman.d/mirr
 
 # Allow user customization of /etc/pacman.conf before the upgrade runs, so
 # custom repositories and IgnorePkg entries shape the downgrade-capable
-# transaction below. The hook is user code: it runs cold behind the no-update
-# wrapper, and the timestamp is revoked again afterwards so any authorization
-# the hook obtained for itself cannot carry into the transaction.
+# transaction below. The hook is user code: it always runs behind the no-update
+# wrapper. Standalone, the timestamp is revoked around it so any authorization
+# the hook obtained cannot carry into the transaction. Inside a channel-switch
+# session the shared ticket stays; the wrapper still prevents the hook from
+# caching a credential of its own.
 omarchy_security_revoke_sudo_timestamp
 PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$user_path" \
   "$OMARCHY_PATH/bin/omarchy-hook" pre-refresh-pacman

@@ -98,7 +98,11 @@ if [[ $step == "systemd-run" ]]; then
 fi
 # omarchy update shares one authorization with its post-update hook and mise.
 # Standalone hooks, such as the pre-refresh one, and AUR builds run cold.
+# Channel switching also shares one authorization with pre-refresh-pacman
+# (#13415), signaled by OMARCHY_UPDATE_SUDO_SESSION=1.
 if [[ $step == "omarchy-hook" && ${1:-} == "post-update" ]] || [[ $step == "omarchy-update-mise" ]]; then
+  [[ -e $SUDO_TEST_CACHE ]] || exit 94
+elif [[ $step == "omarchy-hook" && ${1:-} == "pre-refresh-pacman" && ${OMARCHY_UPDATE_SUDO_SESSION:-} == "1" ]]; then
   [[ -e $SUDO_TEST_CACHE ]] || exit 94
 elif [[ $step == "omarchy-hook" || $step == "yay" ]]; then
   [[ ! -e $SUDO_TEST_CACHE ]] || exit 91

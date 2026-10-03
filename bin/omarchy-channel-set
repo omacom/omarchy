@@ -20,6 +20,52 @@ user_path=$PATH
 omarchy_security_install_sudo_cleanup_traps
 omarchy_security_revoke_sudo_timestamp || exit 1
 omarchy_security_enable_no_update_sudo
+# Trusted switch steps share one authorization. Keep the no-update wrapper on
+# PATH so bare sudo stays command-scoped; authorize via /usr/bin/sudo so the
+# prompt itself can establish the timestamp.
+export OMARCHY_UPDATE_SUDO_SESSION=1
+
+sudo_keepalive_pid=""
+
+authorize_channel() {
+  /usr/bin/sudo /usr/bin/true || return 1
+
+  local channel_pid=$$
+  (
+    sleep_pid=""
+    trap - EXIT HUP INT
+    trap '[[ -z $sleep_pid ]] || kill "$sleep_pid" 2>/dev/null; exit 0' TERM
+    while :; do
+      sleep 60 &
+      sleep_pid=$!
+      wait "$sleep_pid"
+      kill -0 "$channel_pid" 2>/dev/null || exit 0
+      /usr/bin/sudo -n /usr/bin/true 2>/dev/null || exit 0
+    done
+  ) &
+  sudo_keepalive_pid=$!
+}
+
+end_channel_authorization() {
+  if [[ -n $sudo_keepalive_pid ]]; then
+    kill "$sudo_keepalive_pid" 2>/dev/null || true
+    wait "$sudo_keepalive_pid" 2>/dev/null || true
+    sudo_keepalive_pid=""
+  fi
+  omarchy_security_revoke_sudo_timestamp
+}
+
+cleanup_channel() {
+  local status=$?
+  trap - EXIT HUP INT TERM
+  end_channel_authorization || true
+  omarchy_security_exit_with_revoked_sudo "$status"
+}
+
+# Replace the library's revoke-only EXIT trap so a failed switch still stops the
+# keepalive rather than leaving sudo -n true looping in the background.
+trap cleanup_channel EXIT
+omarchy_security_install_signal_exit_traps
 
 usage() { echo "Usage: omarchy-channel-set [stable|rc|edge|dev]"; }
 fail() { echo "Error: $*" >&2; exit 1; }
@@ -123,6 +169,8 @@ if [[ -z $dev_checkout && $OMARCHY_PATH != "/usr/share/omarchy" ]]; then
   leaving_dev=1
 fi
 
+authorize_channel
+
 if [[ -n $dev_checkout ]]; then
   link_dev_checkout "$dev_checkout"
   export OMARCHY_PATH="$dev_checkout"
@@ -146,5 +194,10 @@ if [[ -z $dev_checkout ]]; then
   fi
   omarchy_security_enable_no_update_sudo 2>/dev/null || stop_for_older_destination
 fi
+
+# The update authorizes once for its own phases. End the switch session first
+# so that prompt belongs to the update, never to a leftover channel timestamp.
+end_channel_authorization || exit 1
+unset OMARCHY_UPDATE_SUDO_SESSION
 
 OMARCHY_UPDATE_USER_PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update" -y

@@ -43,19 +43,26 @@ assert_scoped_channel() {
 import sys
 events = open(sys.argv[1]).read().splitlines()
 assert events[0] == 'sudo -k', events
-# The switch itself authorizes command by command. The update it hands off to
-# starts cold and authorizes once for its own phases.
-auth = events.index('sudo /usr/bin/true')
-sudo = [event for event in events[:auth] if event.startswith('sudo ')]
-assert all(event in ('sudo -h', 'sudo -k') or event.startswith('sudo -N ') for event in sudo), events
+# The switch authorizes once up front. Trusted steps reuse that ticket. The
+# update it hands off to starts cold and authorizes once for its own phases.
+channel_auth = events.index('sudo /usr/bin/true')
+sudo_before_channel = [event for event in events[:channel_auth] if event.startswith('sudo ')]
+assert all(event in ('sudo -h', 'sudo -k') or event.startswith('sudo -N ') for event in sudo_before_channel), events
 hooks = [i for i, event in enumerate(events) if event.startswith('step:omarchy-hook ')]
 assert len(hooks) == 2, events
 assert events[hooks[0]] == 'step:omarchy-hook pre-refresh-pacman', events
 assert events[hooks[1]] == 'step:omarchy-hook post-update', events
-assert events[hooks[0] - 1] == 'sudo -k' and events[hooks[0] + 1] == 'sudo -k', events
 transaction = next(i for i, event in enumerate(events) if event.startswith('step:pacman '))
-assert hooks[0] < transaction < auth < hooks[1], events
-assert 'sudo -k' in events[transaction:auth], events
+package_swap = next(i for i, event in enumerate(events) if event.startswith('step:pacman -S --needed'))
+update_lock = next(i for i, event in enumerate(events) if event.startswith('step:omarchy-update-lock '))
+update_auth = next(i for i, event in enumerate(events) if i > update_lock and event == 'sudo /usr/bin/true')
+assert channel_auth < hooks[0] < transaction < package_swap < update_lock < update_auth < hooks[1], events
+# Shared ticket must survive through the refresh hook and both pacman steps.
+assert 'sudo -k' not in events[channel_auth + 1:package_swap + 1], events
+# Ending the channel session revokes before the update starts.
+assert 'sudo -k' in events[package_swap + 1:update_lock], events
+# Update then starts cold and authorizes once for its own phases.
+assert 'sudo -k' not in events[update_lock:update_auth], events
 PY
 }
 
@@ -66,7 +73,7 @@ for channel in stable rc edge dev; do
   reset_boundary
   run_channel "$channel" || fail "$channel failed" "$(<"$boundary_tmp/output")"
   assert_scoped_channel "$channel"
-  pass "$channel starts cold, authorizes the switch per command, runs the refresh hook cold, hands off to one update authorization and exits cold"
+  pass "$channel starts cold, authorizes the switch once, shares it through refresh, hands off to one update authorization and exits cold"
 done
 
 reset_boundary
@@ -132,7 +139,8 @@ import sys
 events = open(sys.argv[1]).read().splitlines()
 transactions = [e for e in events if e.startswith('step:pacman ')]
 assert len(transactions) == (1 if sys.argv[2].startswith('pacman -Syyuu') else 2), events
-assert all(e in ('sudo -h', 'sudo -k') or e.startswith('sudo -N ') for e in events if e.startswith('sudo ')), events
+allowed = {'sudo -h', 'sudo -k', 'sudo /usr/bin/true', 'sudo -n /usr/bin/true'}
+assert all(e in allowed or e.startswith('sudo -N ') for e in events if e.startswith('sudo ')), events
 PY
   assert_boundary_cold "downgrade during $pattern"
   cp "$boundary_tmp/saved-package-wrapper" "$SUDO_TEST_ROOT/default/omarchy/sudo-no-update/sudo"
@@ -152,7 +160,12 @@ for command in omarchy-hook omarchy-update-mise; do
   cat >"$SUDO_TEST_ROOT/bin/$command" <<'STUB'
 #!/bin/bash
 if [[ ${1:-} == "pre-refresh-pacman" ]]; then
-  [[ ! -e $SUDO_TEST_CACHE ]] || exit 91
+  # Channel switch shares its authorization with the pre-refresh hook.
+  if [[ ${OMARCHY_UPDATE_SUDO_SESSION:-} == "1" ]]; then
+    [[ -e $SUDO_TEST_CACHE ]] || exit 94
+  else
+    [[ ! -e $SUDO_TEST_CACHE ]] || exit 91
+  fi
   [[ $(command -v sudo) == "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 92
 else
   [[ -e $SUDO_TEST_CACHE ]] || exit 94
