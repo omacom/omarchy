@@ -19,6 +19,18 @@ o.window({
   title = "^(Open.*Files?|Open [F|f]older.*|Save.*Files?|Save.*As|Save|All Files|.*wants to [open|save].*|[C|c]hoose.*)",
 }, { tag = "+floating-window" })
 
+-- Nautilus file-operations UI. Keep it a real floating, pinned window so an
+-- exclusive seat grab cannot linger after the bubble hides when Nautilus loses
+-- focus — which blocks hover/click on every workspace (#13326).
+o.window({
+  class = "^org\\.gnome\\.Nautilus$",
+  title = "^(File Operation(s| Progress)?)$",
+}, {
+  float = true,
+  pin = true,
+  no_follow_mouse = true,
+})
+
 -- The About fastfetch layout needs more columns than the standard float provides.
 -- This size only covers the first launch: omarchy-launch-about measures the
 -- rendered content, remembers the size that hugs it, and applies that as its own
@@ -29,9 +41,11 @@ o.window("org.omarchy.about", { size = { 920, 480 } })
 
 o.window("omacalc", { float = true })
 
--- Fullscreen screensaver.
+-- Fullscreen screensaver. stay_focused keeps dismiss keys from being stolen by
+-- a lingering Nautilus file-operations grab (#13326).
 o.window("org.omarchy.screensaver", { fullscreen = true })
 o.window("org.omarchy.screensaver", { float = true })
+o.window("org.omarchy.screensaver", { stay_focused = true })
 o.window("org.omarchy.screensaver", { animation = "slide" })
 -- The launcher picks each screensaver's workspace. A terminal mapped again as it closes lands out of sight instead,
 -- where its fullscreen rule cannot take fullscreen from a window.

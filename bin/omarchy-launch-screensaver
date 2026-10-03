@@ -10,6 +10,11 @@ if omarchy-toggle-enabled screensaver-off && [[ $1 != "force" ]]; then
   exit 1
 fi
 
+# GTK popovers (Nautilus file operations, menus) can keep an exclusive seat grab
+# after they hide. Escape releases that grab so Space and other dismiss keys
+# reach the screensaver instead of needing Esc twice (#13326).
+wtype -k Escape >/dev/null 2>&1 || true
+
 focused=$(omarchy-hyprland-monitor-focused)
 terminal=$(xdg-terminal-exec --print-id)
 
