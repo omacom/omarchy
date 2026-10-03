@@ -1,0 +1,4 @@
+build/
+plugin/bin/omarchy-shortcut-select
+plugin/Native/*.so
+plugin/Native/qmldir
