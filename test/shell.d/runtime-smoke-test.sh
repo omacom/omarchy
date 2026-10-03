@@ -373,6 +373,31 @@ jq -e '
 }
 pass "shell IPC lists plugin metadata"
 
+# Snapshot the log once startup registration has settled, so the collision
+# check below sees only that pass and none of the deliberate reloads after it.
+# Widgets and panels load asynchronously after listPlugins answers, so wait
+# for the bar to hold every default widget and the collisions to stop coming.
+default_ids=$(jq -c '(.bar.layout.left + .bar.layout.center + .bar.layout.right) | map(.id // .)' "$ROOT/config/omarchy/shell.json")
+for _ in {1..80}; do
+  shell_ipc shell debugBarGeometry 2>/dev/null | jq -e --argjson expected "$default_ids" '
+    . as $rows | all($expected[]; . as $id | any($rows[]; .id == $id))
+  ' >/dev/null 2>&1 && break
+  sleep 0.1
+done
+collisions=-1
+quiet=0
+for _ in {1..80}; do
+  seen=$(grep -c "another handler is registered for target" "$log" || true)
+  if (( seen == collisions )); then
+    (( ++quiet >= 10 )) && break
+  else
+    collisions=$seen
+    quiet=0
+  fi
+  sleep 0.1
+done
+startup_log_lines=$(wc -l < "$log")
+
 jq '.name = "After Hot Reload"' "$hot_reload_dir/manifest.json" >"$hot_reload_dir/manifest.json.tmp"
 mv "$hot_reload_dir/manifest.json.tmp" "$hot_reload_dir/manifest.json"
 
@@ -485,7 +510,6 @@ pass "kept service is dropped when its plugin stops declaring a service"
 shell_ipc_quiet omarchy.system-update refresh >/dev/null 2>&1 || true
 sleep 0.8
 
-default_ids=$(jq -c '(.bar.layout.left + .bar.layout.center + .bar.layout.right) | map(.id // .)' "$ROOT/config/omarchy/shell.json")
 visible_default_ids='[
   "omarchy.menu",
   "omarchy.workspaces",
@@ -552,15 +576,21 @@ pass "direct panel IPC opens and closes default panels"
 # past the first. Anything beyond that is two instances on the same screen —
 # the shape duplicate component loads produced, where a sync pass that ran
 # while a widget's asynchronous load was still in flight started a second one.
-# Checked before the reload below, which rebuilds widgets by design.
+# Restricted to the startup portion of the log captured above: everything
+# after it is one or more deliberate reloads (hot-reload rename, plugin
+# enable/disable, rescanPlugins), each of which legitimately reproduces the
+# same one-collision-per-screen pattern and would otherwise inflate the count
+# with duplicates unrelated to this check.
 screens=$(hyprctl -j monitors 2>/dev/null | jq 'length' 2>/dev/null || true)
 [[ $screens =~ ^[0-9]+$ ]] && (( screens > 0 )) || screens=1
 # No matches is the good case, and pipefail would otherwise abort the run.
-worst=$(grep -oE "another handler is registered for target [a-z.-]+" "$log" |
+worst=$(head -n "$startup_log_lines" "$log" |
+  grep -oE "another handler is registered for target [a-z.-]+" |
   sort | uniq -c | sort -rn | head -1 | awk '{print $1}' || true)
 worst=${worst:-0}
 if (( worst > screens - 1 )); then
-  grep "another handler is registered for target" "$log" | sed 's/^/  /' | head -20 >&2
+  head -n "$startup_log_lines" "$log" |
+    grep "another handler is registered for target" | sed 's/^/  /' | head -20 >&2
   fail_with_log "each widget registers its IPC handler once per screen (saw $worst for $screens screen(s))"
 fi
 pass "each widget registers its IPC handler once per screen"
