@@ -515,18 +515,21 @@ mounted_leaf_matches() {
   actual=$(stat -Lc '%d:%i' "$stable" 2>/dev/null) || return 1
   owner=$(stat -Lc '%u' "$stable" 2>/dev/null) || return 1
   mode=$(stat -Lc '%a' "$stable" 2>/dev/null) || return 1
-  [[ $actual == "$identity" && $owner == "$CALLER_UID" && $mode == 700 ]]
+  [[ $actual == "$identity" && $owner == "$CALLER_UID" && "${mode: -3}" == 700 ]]
 }
 
 bind_mount_leaf() {
   local fd="$1" identity="$2" stable="$3" actual owner
   MOUNT_LEAF_NEW=0
   if mountpoint -q -- "$stable" 2>/dev/null; then
-    mounted_leaf_matches "$stable" "$identity" || {
-      echo "omarchy-windows-vm: protected mount at $stable no longer matches its home source" >&2
+    if mounted_leaf_matches "$stable" "$identity"; then
+      return 0
+    fi
+    echo "omarchy-windows-vm: protected mount at $stable no longer matches its home source, unmounting stale bind" >&2
+    umount -- "$stable" || {
+      echo "omarchy-windows-vm: could not unmount stale bind at $stable" >&2
       return 1
     }
-    return 0
   fi
 
   # util-linux normally canonicalizes a /proc/<pid>/fd link back to a pathname,
@@ -895,7 +898,16 @@ assert_mounts_safe() {
 
 __priv_up() { assert_mounts_safe && dc up -d; }
 
-__priv_down() { dc down; }
+__priv_down() {
+  dc down || return $?
+  if mountpoint -q -- "$EXPECTED_SHARED" 2>/dev/null; then
+    umount -- "$EXPECTED_SHARED" || echo "omarchy-windows-vm: warning: could not unmount $EXPECTED_SHARED" >&2
+  fi
+  if mountpoint -q -- "$EXPECTED_STORAGE" 2>/dev/null; then
+    umount -- "$EXPECTED_STORAGE" || echo "omarchy-windows-vm: warning: could not unmount $EXPECTED_STORAGE" >&2
+  fi
+  return 0
+}
 
 # Bring the VM up and wait until the guest reports it is ready, all under a
 # single elevation so the readiness poll does not prompt on every iteration.
