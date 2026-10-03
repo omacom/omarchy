@@ -123,6 +123,27 @@ tuning_present() {
   pactl list sinks short 2>/dev/null | awk '{print $2}' | grep -x "$sink_name" >/dev/null
 }
 
+# The physical sink the installed tuning is fronting. A shipped tuning declares
+# the sink it is built for, which is the most precise answer when it exists. A
+# tuning installed by hand has no such declaration -- tuning_match only looks
+# under tunings/ -- and answering nothing for it leaves the physical sink
+# selectable, so picking it bypasses the tuning: the opposite of what callers ask
+# this for. Resolve those from the running graph instead, where the tuning feeds
+# its physical sink through a stream of its own.
+fronted_physical_sink() {
+  local speakers
+  if speakers="$(tuned_hardware_sink)"; then
+    printf '%s\n' "$speakers"
+    return 0
+  fi
+  speakers="$(tuning_downstream_sink)"
+  # Nothing to resolve while the chain is idle or unlinked: the resolver then
+  # answers with the tuning sink itself, and reporting that would hide a sink
+  # callers must keep.
+  [[ -n $speakers && $speakers != "$sink_name" ]] || return 1
+  printf '%s\n' "$speakers"
+}
+
 # Only real application streams may be moved. A filter-chain's own output is also
 # a sink input but carries no application.name, and moving it would rewire the
 # tuning itself.
@@ -181,7 +202,7 @@ case "$action" in
     # "is a tuning in place", not "where should volume go" -- for the latter see
     # omarchy-audio-output-sink, which follows the current default output.
     tuning_present || exit 1
-    tuned_hardware_sink
+    fronted_physical_sink
     ;;
 
   status)
@@ -218,7 +239,10 @@ case "$action" in
       exit 0
     fi
 
-    speakers="$(tuned_hardware_sink)" || speakers=""
+    # Same resolution as fronted-sink: a hand-installed tuning has no declaration
+    # to read, and removing one without knowing its physical sink would leave the
+    # default sink pointing at a sink that no longer exists.
+    speakers="$(fronted_physical_sink)" || speakers=""
 
     systemctl --user disable --now "$unit_name" >/dev/null 2>&1
     rm -f "$fragment" "$host_config" "$unit" "$stale_shared"
