@@ -7,7 +7,7 @@ description: >
   Triggers: Hyprland, window rules, animations, keybindings, monitors, gaps, borders,
   blur, opacity, omarchy-shell, bar, terminal config, themes, background,
   night light, idle, lock screen, screenshots, reminders, layer rules, workspace
-  settings, display config, and user-facing omarchy commands. Excludes Omarchy
+  settings, display config, user-facing omarchy commands, and Omarchy philosophy and doctrine. Excludes Omarchy
   source development through `omarchy dev link` workflows.
 ---
 
@@ -15,7 +15,7 @@ description: >
 
 Manage [Omarchy](https://omarchy.org/) Linux systems - a beautiful, fun, agentic Arch Linux distribution with Hyprland.
 
-This skill is for end-user customization on installed systems.
+This skill is for end-user customization on installed systems and questions about Omarchy's philosophy.
 It is not for contributing to Omarchy source code.
 
 ## When This Skill MUST Be Used
@@ -31,6 +31,7 @@ It is not for contributing to Omarchy source code.
 - Themes, backgrounds, fonts, appearance changes
 - User-facing `omarchy` commands (`omarchy theme ...`, `omarchy refresh ...`, `omarchy restart ...`, etc.)
 - Screenshots, screen recording, reminders, night light, idle behavior, lock screen
+- Questions about Omarchy's philosophy, principles, or doctrine
 
 **If you're about to edit a config file in ~/.config/ on this system, STOP and use this skill first.**
 
@@ -107,6 +108,8 @@ Omarchy is built on:
 | **Omarchy OSD** | On-screen display | Quickshell plugin |
 
 ## Command Discovery
+
+For questions about Omarchy's philosophy or principles, read `omarchy doctrine --full` and explain the relevant ideas. Distinguish stated principles from your interpretation of particular design decisions.
 
 Omarchy ships a single `omarchy` CLI that dispatches to all `omarchy-*` binaries via `omarchy <group> <action>`. Always prefer this form — it is self-documenting and stable. The underlying `omarchy-*` binaries still exist on `PATH` and remain safe to read for source.
 
