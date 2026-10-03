@@ -18,8 +18,10 @@ PanelWindow {
   property int shownKeyboardFocus: WlrKeyboardFocus.Exclusive
 
   // The surface no longer lands on the focused output by being mapped there,
-  // so it follows the focused monitor each time it is shown. Unset until the
-  // first show lets the compositor choose.
+  // so it follows the focused monitor. It moves while parked: changing screen
+  // recreates the layer surface, and one recreated in the same step that shows
+  // it came back on the bottom layer without keyboard focus, so the open was
+  // invisible and the next press closed it.
   property var targetScreen: null
   property Region emptyRegion: Region {}
 
@@ -32,7 +34,55 @@ PanelWindow {
     return null
   }
 
-  onShownChanged: if (shown) targetScreen = focusedScreen() || targetScreen
+  function followFocusedScreen() {
+    if (!shown) targetScreen = focusedScreen() || targetScreen
+  }
+
+  Component.onCompleted: followFocusedScreen()
+  // After the layer binding has settled, so a hidden surface parks on the bottom layer.
+  onShownChanged: Qt.callLater(followFocusedScreen)
+
+  Connections {
+    target: Hyprland
+    function onFocusedMonitorChanged() { window.followFocusedScreen() }
+  }
+
+  // The compositor closes a layer surface whose output goes away, and
+  // Quickshell answers by hiding the window for good. Unplugging the monitor
+  // an overlay last opened on -- or the last monitor, leaving no output at all
+  // -- would otherwise leave that overlay dead until the shell restarted. Map
+  // it again once a real screen is there to hold it; Qt's placeholder screen
+  // is not one, and the compositor would only close the surface again.
+  function hasRealScreen() {
+    for (var i = 0; i < Quickshell.screens.length; i++) {
+      var candidate = Quickshell.screens[i]
+      if (candidate && candidate.name && candidate.width > 0 && candidate.height > 0) return true
+    }
+    return false
+  }
+
+  function remap() {
+    if (visible || !hasRealScreen()) return
+    if (Quickshell.screens.indexOf(targetScreen) < 0) targetScreen = null
+    visible = true
+  }
+
+  // Focus can move to a monitor before Quickshell lists its screen, so the
+  // focus handler keeps the previous target and this retries once the list
+  // catches up. Deferred with the hide path: a screen can leave while Qt is
+  // still tearing that surface down, and mapping again inside the close would
+  // reuse it.
+  function recoverSurface() {
+    followFocusedScreen()
+    remap()
+  }
+
+  onVisibleChanged: if (!visible) Qt.callLater(recoverSurface)
+
+  Connections {
+    target: Quickshell
+    function onScreensChanged() { Qt.callLater(window.recoverSurface) }
+  }
 
   visible: true
   screen: targetScreen
