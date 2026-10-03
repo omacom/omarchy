@@ -347,7 +347,7 @@ Item {
     providerProc.providerKey = entry.provider
     providerProc.revision = root.providerRevision
     providerProc.collected = ""
-    providerProc.command = ["bash", "-lc", spec.script]
+    providerProc.command = ["bash", "-c", spec.script]
     providerProc.running = true
   }
 
@@ -1017,7 +1017,7 @@ Item {
       return
     }
     guardProc.collected = ""
-    guardProc.command = ["bash", "-lc", script]
+    guardProc.command = ["bash", "-c", script]
     guardProc.running = true
   }
 
