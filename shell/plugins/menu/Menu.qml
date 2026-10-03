@@ -181,6 +181,12 @@ Item {
     return totals[full - 1] + root.rowSpacing + peek
   }
 
+  // Search results below the current menu's own rows, and the web-search
+  // fallback below everything, each sit under a hairline divider.
+  function isDividerSection(section) {
+    return section === "drilldown" || section === "fallback"
+  }
+
   function rowListHeight(_serial, _count, _filter, _divider) {
     if (displayModel.count === 0) return root.baseRowHeight
 
@@ -191,7 +197,7 @@ Item {
     for (var i = 0; i < displayModel.count; i++) {
       var row = displayModel.get(i)
       if (i > 0) total += root.rowSpacing
-      if (row.section === "drilldown" && previousSection !== "drilldown") total += root.dividerHeight
+      if (root.isDividerSection(row.section) && row.section !== previousSection) total += root.dividerHeight
       total += root.rowHeightForDetail(row.detail)
       previousSection = row.section
       totals.push(total)
@@ -649,6 +655,17 @@ Item {
         for (var d = 0; d < drilldownRows.length; d++) drilldownRows[d].section = "drilldown"
       }
       rows = currentRows.concat(drilldownRows)
+
+      // Addresses and web search answer from the root search only; inside a
+      // submenu the query is narrowing that list, not asking.
+      if (active === "root") {
+        var quick = MenuModel.quickRows(query)
+        rows = quick.top.concat(rows)
+        if (quick.fallback) {
+          if (rows.length > 0) quick.fallback.section = "fallback"
+          rows.push(quick.fallback)
+        }
+      }
     } else {
       for (var j = 0; j < root.itemOrder.length; j++) {
         var child = root.item(root.itemOrder[j])
@@ -1230,8 +1247,8 @@ Item {
               required property string section
 
               width: ListView.view.width
-              height: section === "drilldown" ? root.dividerHeight : 0
-              visible: section === "drilldown"
+              height: root.isDividerSection(section) ? root.dividerHeight : 0
+              visible: root.isDividerSection(section)
 
               Rectangle {
                 anchors.left: parent.left
