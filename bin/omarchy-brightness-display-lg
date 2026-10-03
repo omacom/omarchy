@@ -1,0 +1,143 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Show or adjust LG UltraFine display brightness over its USB HID controls.
+# omarchy:args=[+N%|N%-|N%]
+# omarchy:examples=omarchy brightness display lg | omarchy brightness display lg +5% | omarchy brightness display lg 50%
+
+# Python rather than bash because the brightness is a HID feature report, and
+# reading or writing one means an ioctl on the hidraw node. The LG UltraFine
+# has no DDC/CI, so ddcutil cannot reach it, and its USB monitor controls carry
+# no EDID, so ddcutil --enable-usb ignores it too.
+#
+# The display's "USB Controls" device has a HID Monitor Control collection
+# (usage page 0x80) holding the VESA Virtual Controls brightness (page 0x82,
+# usage 0x10) as an unnumbered 6-byte feature report: brightness as a
+# little-endian u32, then a u16 transition time.
+#
+# Nothing ties that device to a monitor: it has no serial number and the EDID
+# serial appears nowhere on the USB side. With one UltraFine attached the
+# device is the display. With several there is no telling which device belongs
+# to the requested monitor, so the command refuses rather than change the
+# brightness of the wrong screen.
+
+import fcntl
+import glob
+import os
+import re
+import struct
+import sys
+
+LG_VENDOR = "0000043E"
+# Usage Page (Monitor), Usage (Monitor Control)
+MONITOR_CONTROL = bytes.fromhex("05800901")
+REPORT_LEN = 6
+# The range macOS uses. The report descriptor's logical range (4..540) is not
+# what the firmware accepts.
+RAW_MIN = 400
+RAW_MAX = 54000
+
+HIDRAW_SYSFS = "/sys/class/hidraw"
+
+HIDIOCSFEATURE = 0x06
+HIDIOCGFEATURE = 0x07
+
+
+def hid_ioctl(number, length):
+    # _IOC(_IOC_READ | _IOC_WRITE, 'H', number, length)
+    return (3 << 30) | (length << 16) | (ord("H") << 8) | number
+
+
+def find_devices():
+    devices = []
+
+    for path in sorted(glob.glob(os.path.join(HIDRAW_SYSFS, "hidraw*"))):
+        try:
+            with open(os.path.join(path, "device/uevent")) as uevent_file:
+                uevent = uevent_file.read()
+            with open(os.path.join(path, "device/report_descriptor"), "rb") as descriptor_file:
+                descriptor = descriptor_file.read()
+        except OSError:
+            continue
+
+        if f":{LG_VENDOR}:" in uevent and descriptor.startswith(MONITOR_CONTROL):
+            devices.append("/dev/" + os.path.basename(path))
+
+    return devices
+
+
+def read_raw(fd):
+    # Byte 0 is the report ID, which is 0 for an unnumbered report.
+    report = bytearray(1 + REPORT_LEN)
+    fcntl.ioctl(fd, hid_ioctl(HIDIOCGFEATURE, len(report)), report)
+    return struct.unpack_from("<I", report, 1)[0]
+
+
+def write_raw(fd, value):
+    report = bytearray(1 + REPORT_LEN)
+    struct.pack_into("<IH", report, 1, value, 0)
+    fcntl.ioctl(fd, hid_ioctl(HIDIOCSFEATURE, len(report)), report)
+
+
+def to_percent(raw):
+    percent = round((raw - RAW_MIN) * 100 / (RAW_MAX - RAW_MIN))
+    return max(0, min(100, percent))
+
+
+def to_raw(percent):
+    return round(RAW_MIN + (RAW_MAX - RAW_MIN) * percent / 100)
+
+
+def target_percent(step, current):
+    # Same stepping as the other display backends: 1% steps at the bottom.
+    if match := re.fullmatch(r"(\d+)%", step):
+        target = int(match[1])
+    elif match := re.fullmatch(r"\+(\d+)%", step):
+        amount = int(match[1])
+        target = current + (1 if amount == 5 and current < 5 else amount)
+    elif match := re.fullmatch(r"(\d+)%-", step):
+        amount = int(match[1])
+        target = current - (1 if amount == 5 and current <= 5 else amount)
+    else:
+        return None
+
+    return max(1, min(100, target))
+
+
+def main(args):
+    if len(args) > 1:
+        return 1
+
+    devices = find_devices()
+    if not devices:
+        print("No LG UltraFine HID device found", file=sys.stderr)
+        return 1
+    if len(devices) > 1:
+        print("Several LG UltraFine displays are attached and their HID devices cannot be told apart", file=sys.stderr)
+        return 1
+    device = devices[0]
+
+    try:
+        fd = os.open(device, os.O_RDWR)
+    except OSError as error:
+        print(f"Cannot open {device}: {error.strerror}", file=sys.stderr)
+        return 1
+
+    try:
+        percent = to_percent(read_raw(fd))
+        if args:
+            percent = target_percent(args[0], percent)
+            if percent is None:
+                return 1
+            write_raw(fd, to_raw(percent))
+    except OSError as error:
+        print(f"LG UltraFine brightness request failed: {error.strerror}", file=sys.stderr)
+        return 1
+    finally:
+        os.close(fd)
+
+    print(percent)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

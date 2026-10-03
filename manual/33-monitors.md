@@ -53,3 +53,7 @@ If you're using an Apple display, the regular keyboard brightness keys will also
 Note that if you're using an Apple 6K XDR display, you may see a phantom screen in your `hyprctl monitors` listing. You can turn this off with something like `hl.monitor({ output = "DP-2", disabled = true })` via _Setup > Monitors_.
 
 On Intel machines, you should be connecting to Apple displays using a regular Thunderbolt cable. On other machines without Thunderbolt, you'll typically have to use a [DP + USB-A -> USB-C cable](https://www.amazon.com/dp/B0BNX7MS6N) to make it work.
+
+### LG UltraFine Displays
+
+LG UltraFine displays don't speak DDC/CI. Their brightness is set over the display's USB connection instead, and the brightness keys do that automatically when you're focused on the UltraFine. This needs the display's USB hub to be connected, which it is over Thunderbolt or USB-C. With more than one UltraFine attached the keys do nothing, because the USB controls can't be matched to a particular screen. So far only the UltraFine 5K is recognized; other models need their USB product ID added to `/etc/udev/rules.d/70-omarchy-lg-ultrafine.rules`.
