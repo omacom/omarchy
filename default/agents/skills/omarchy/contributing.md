@@ -30,6 +30,8 @@ omarchy debug --no-sudo --print
 # include in the issue.
 ```
 
+If the route is unknown, run `omarchy-debug --no-sudo --print`.
+
 **Capture the problem on screen.** A screenshot or short recording of the bug
 is often worth more than the description — see [`capture.md`](capture.md) for
 `omarchy capture screenshot` and `omarchy screenrecord`. Keep recordings short
