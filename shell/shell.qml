@@ -276,6 +276,13 @@ ShellRoot {
   }
 
   property var _services: ({})
+  // The clone family each service was created for: its clone source, or its
+  // own id. Kept past a removal so a retained lock owner can still be matched.
+  property var _serviceFamilies: ({})
+  // Set when ensureService refuses a family member because another holds the
+  // lock. That holder may stay wanted (enabling a second clone disables the
+  // source, not the holder), so its unlock re-syncs to mount the refused one.
+  property bool _familyMountDeferred: false
   property var _pluginShellApis: ({})
   property var _pluginShellApiDescriptors: ({})
   property var _pluginBarEntryShellApis: ({})
@@ -890,6 +897,23 @@ ShellRoot {
         && manifest.__hostCapabilities.indexOf("authentication") !== -1)
   }
 
+  // Whether a member of pluginId's clone family other than pluginId still holds
+  // the session lock. Enabling, disabling or removing a clone while locked
+  // swaps which member the registry wants, but the member holding the lock is
+  // kept until unlock. Mounting the other beside it would run a second lock
+  // service, which finds the lock held, takes it for stranded and re-locks
+  // over it -- an abort in Quickshell. The re-sync after unlock mounts it.
+  function sessionLockHeldByFamily(pluginId, family) {
+    var ids = Object.keys(_services).concat(AuthServiceStore.ids())
+    for (var i = 0; i < ids.length; i++) {
+      var other = ids[i]
+      if (other === pluginId || _serviceFamilies[other] !== family) continue
+      var inst = _services[other]
+      if ((inst && inst.sessionLockOwned === true) || AuthServiceStore.ownsSessionLock(other)) return true
+    }
+    return false
+  }
+
   function ensureService(pluginId) {
     var key = String(pluginId)
     if (_services[key]) return _services[key]
@@ -902,6 +926,13 @@ ShellRoot {
     if (!url) return null
     var authenticationService = shell.isAuthenticationService(manifest, key)
     if (authenticationService && AuthServiceStore.has(key)) return null
+    var metadata = Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
+    var family = Util.canonicalWidgetId(String(metadata && metadata.clonedFrom || key))
+    if (sessionLockHeldByFamily(key, family)) {
+      _familyMountDeferred = true
+      return null
+    }
+    _serviceFamilies[key] = family
 
     var comp = Qt.createComponent(url, Component.PreferSynchronous)
     function finalize() {
@@ -922,6 +953,8 @@ ShellRoot {
       if ("manifest" in inst) inst.manifest = shell.publicPluginManifest(manifest)
       if ("barWidgetRegistry" in inst) inst.barWidgetRegistry = shell.pluginBarWidgetRegistryFor(manifest)
       if ("pluginRegistry" in inst) inst.pluginRegistry = shell.pluginRegistryFor(manifest)
+      if ("unlockSettled" in inst)
+        inst.unlockSettled.connect(function() { shell.syncServicesAfterUnlock(key, authenticationService) })
       if (authenticationService) {
         // Never publish lock/polkit through ShellRoot._services. The private JS
         // import retains their lifetime without adding a traversable property
@@ -944,6 +977,8 @@ ShellRoot {
 
   function _syncServices() {
     if (!pluginRegistry || !pluginRegistry.installedPlugins) return
+    // A member still refused on this pass sets it again.
+    _familyMountDeferred = false
     var plugins = pluginRegistry.installedPlugins
     for (var id in plugins) {
       var m = plugins[id]
@@ -955,8 +990,10 @@ ShellRoot {
       if (_services[id]) {
         if (authenticationService) {
           // A service that gains a trusted authentication capability must move
-          // out of the host's public service map before it is recreated.
+          // out of the host's public service map before it is recreated. The
+          // session-lock owner moves on a later sync, once it has released it.
           var published = _services[id]
+          if (published && published.sessionLockOwned === true) continue
           if (published && typeof published.destroy === "function") published.destroy()
           var withoutPublished = ({})
           for (var publishedId in _services)
@@ -991,6 +1028,19 @@ ShellRoot {
       var stillEnabled = stillThere && pluginRegistry.isEnabled(existingId)
       if (stillService && stillEnabled) continue
       var inst = _services[existingId]
+      // unloadPluginServices() spares a keepLoaded service, but this loop
+      // destroys one the moment the registry stops listing it as installed,
+      // enabled and service-declaring -- reached from pluginsChanged, so
+      // `omarchy plugin disable omarchy.lock` gets here without a reload, as
+      // does a local lock clone whose manifest is unreadable during the write
+      // that triggered the rescan. Destroying the service that holds the live
+      // ext-session-lock abandons the compositor-side lock and drops Hyprland
+      // into its lockscreen-died failsafe, so keep it until the lock is gone.
+      // The lock service re-runs this once its unlock has settled (see
+      // syncServicesAfterUnlock), and that pass collects the instance.
+      // Duck-typed rather than keyed on "omarchy.lock" so a cloned lock plugin
+      // is covered too.
+      if (inst && inst.sessionLockOwned === true) continue
       if (inst && typeof inst.destroy === "function") inst.destroy()
       var next = ({})
       for (var k in _services) if (k !== existingId) next[k] = _services[k]
@@ -1009,8 +1059,25 @@ ShellRoot {
         && authenticationManifest.entryPoints.service
       if (stillAuthenticationService && pluginRegistry.isEnabled(authenticationId)
           && shell.isAuthenticationService(authenticationManifest, authenticationId)) continue
+      // The first-party lock lives here, not in _services; same skip as above.
+      if (AuthServiceStore.ownsSessionLock(authenticationId)) continue
       AuthServiceStore.destroy(authenticationId)
     }
+  }
+
+  // A lock service disabled, removed or reclassified while it owned the lock
+  // was kept by the skips above; this collects or moves it once it lets go,
+  // so it does not linger with its lock IPC target still answering. An unlock
+  // of a service still wanted where it is re-syncs nothing, unless a family
+  // member was refused while it held the lock.
+  function syncServicesAfterUnlock(pluginId, authenticationService) {
+    var manifest = (pluginRegistry.installedPlugins || {})[pluginId]
+    var stillService = manifest && Array.isArray(manifest.kinds)
+      && manifest.kinds.indexOf("service") !== -1
+      && manifest.entryPoints && manifest.entryPoints.service
+    if (!shell._familyMountDeferred && stillService && pluginRegistry.isEnabled(pluginId)
+        && shell.isAuthenticationService(manifest, pluginId) === authenticationService) return
+    if (!shell.pluginReloading) Qt.callLater(shell._syncServices)
   }
 
   function serviceKeepLoaded(pluginId) {
@@ -1022,20 +1089,23 @@ ShellRoot {
   // keepLoaded services (lock, idle, polkit) must survive plugin hot-reload.
   // Destroying omarchy.lock drops the ext-session-lock client while Hyprland
   // still holds the lock, which surfaces the crashed-lockscreen fallback.
+  // keepLoaded is read from the current registry, which no longer lists a lock
+  // plugin removed mid-lock, so the lock owner is spared by ownership as well.
   function unloadPluginServices() {
     var next = ({})
     for (var existingId in _services) {
-      if (serviceKeepLoaded(existingId)) {
-        next[existingId] = _services[existingId]
+      var inst = _services[existingId]
+      if (serviceKeepLoaded(existingId) || (inst && inst.sessionLockOwned === true)) {
+        next[existingId] = inst
         continue
       }
-      var inst = _services[existingId]
       if (inst && typeof inst.destroy === "function") inst.destroy()
     }
     _services = next
     var authenticationIds = AuthServiceStore.ids()
     for (var ai = 0; ai < authenticationIds.length; ai++) {
       var authenticationId = authenticationIds[ai]
+      if (AuthServiceStore.ownsSessionLock(authenticationId)) continue
       if (!serviceKeepLoaded(authenticationId))
         AuthServiceStore.destroy(authenticationId)
     }

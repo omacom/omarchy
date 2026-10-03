@@ -51,6 +51,19 @@ Item {
   readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
   readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
 
+  // Whether this service owns the live session lock, for callers that must not
+  // destroy it. Deliberately narrower than `locked`: lockRequested is the
+  // shell's own state and sessionLock.locked is the instance-local
+  // SessionLockManager::mLock, so both are deterministic on a rebuilt service.
+  // sessionLock.secure is excluded because it resolves through the process-wide
+  // session-lock manager, which an earlier teardown can leave dangling.
+  readonly property bool sessionLockOwned: lockRequested || sessionLock.locked
+
+  // Raised when an unlock's wake has finished, so the shell can collect a
+  // service it kept only because it owned the lock without interrupting the
+  // wake; Component.onDestruction covers a destroy that still lands mid-wake.
+  signal unlockSettled()
+
   function realScreenCount() {
     var screens = Quickshell.screens || []
     var count = 0
@@ -509,6 +522,9 @@ Item {
   Process {
     id: wakeProcess
     command: ["bash", "-c", "omarchy-system-wake"]
+    // Every unlock path runs a wake after giving up the lock; a wake started
+    // while locked exits still owning it.
+    onExited: if (!root.sessionLockOwned) root.unlockSettled()
   }
 
   Process {
@@ -640,6 +656,11 @@ Item {
     refreshFingerprintStatus()
     checkStrandedLock()
   }
+
+  // Quickshell kills a Process's child with the object, so a plugin change that
+  // collects a disabled lock right after unlock would cut the wake short. Run it
+  // again detached; every step of omarchy-system-wake is safe to repeat.
+  Component.onDestruction: if (wakeProcess.running) wakeProcess.startDetached()
 
   ShellIpc {
     target: "lock"

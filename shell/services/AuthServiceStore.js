@@ -39,6 +39,12 @@ function destroy(id) {
   delete services[key]
 }
 
+// A yes/no rather than a getter, so the store still hands out no service.
+function ownsSessionLock(id) {
+  var service = services[String(id || "")]
+  return !!service && service.sessionLockOwned === true
+}
+
 function destroyAll() {
   var keys = ids()
   for (var i = 0; i < keys.length; i++) destroy(keys[i])
