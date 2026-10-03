@@ -1040,7 +1040,10 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(380))
+    // The stat grid sets two label and value pairs per row in body-small, and
+    // spacing does not follow a [font] body-small override, so grow the design
+    // width with that override (0.917 is body-small's default in Style.qml).
+    contentWidth: panel.fittedContentWidth(Style.space(380) * Math.max(1, Style.font.bodySmall / Style.fontPx(0.917)))
     contentHeight: panel.fittedContentHeight(column.implicitHeight)
 
     // Catches all unhandled keys for keyboard navigation. AfterItem priority
