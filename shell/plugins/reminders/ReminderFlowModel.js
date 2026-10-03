@@ -13,9 +13,3 @@ function reminderArgs(minutes, message) {
   return args
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    validMinutes: validMinutes,
-    reminderArgs: reminderArgs
-  }
-}

@@ -43,10 +43,3 @@ function screensaverWindowsAfter(windows, address, visible) {
   }
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    secondsFromConfig: secondsFromConfig,
-    eventParts: eventParts,
-    screensaverWindowsAfter: screensaverWindowsAfter
-  }
-}

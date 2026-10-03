@@ -38,11 +38,3 @@ function ownedByOmarchy(item, layout) {
     || (layoutHasWidget(layout, "omarchy.dropbox") && itemNamed(item, "dropbox"))
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    itemNamed: itemNamed,
-    entryId: entryId,
-    layoutHasWidget: layoutHasWidget,
-    ownedByOmarchy: ownedByOmarchy
-  }
-}

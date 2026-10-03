@@ -208,24 +208,3 @@ function nearestDropTarget(candidates, point, vertical) {
   return best
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    isDrawnSlot: isDrawnSlot,
-    pickDrawnSlot: pickDrawnSlot,
-    pickPanelSlot: pickPanelSlot,
-    nearestDropTarget: nearestDropTarget,
-    normalizePosition: normalizePosition,
-    entrySettings: entrySettings,
-    entryId: entryId,
-    pinTrayToInner: pinTrayToInner,
-    moduleString: moduleString,
-    entryIndex: entryIndex,
-    entriesBefore: entriesBefore,
-    entriesAfter: entriesAfter,
-    inlineSettingsDelta: inlineSettingsDelta,
-    expandPath: expandPath,
-    customModuleSafeName: customModuleSafeName,
-    customModuleType: customModuleType,
-    customModulePath: customModulePath
-  }
-}

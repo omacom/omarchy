@@ -302,24 +302,3 @@ function parseAccounts(raw) {
   }
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    filterIPv4: filterIPv4,
-    filterIPv6: filterIPv6,
-    cleanDnsName: cleanDnsName,
-    shortDnsName: shortDnsName,
-    displayHostName: displayHostName,
-    osIcon: osIcon,
-    accountLabel: accountLabel,
-    loginPlan: loginPlan,
-    hasFileSharing: hasFileSharing,
-    isTaildropTarget: isTaildropTarget,
-    isMullvadPeer: isMullvadPeer,
-    peerFromStatus: peerFromStatus,
-    parseExitNodeList: parseExitNodeList,
-    mullvadRegionOptions: mullvadRegionOptions,
-    mullvadCountryOptions: mullvadCountryOptions,
-    parseStatus: parseStatus,
-    parseAccounts: parseAccounts
-  }
-}

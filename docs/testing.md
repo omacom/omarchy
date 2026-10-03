@@ -87,17 +87,22 @@ that runs unconditionally before or beside it.
 ## Unit-testing shell JavaScript from bash
 
 The Quickshell plugins keep their logic in plain `.js` modules
-(`shell/plugins/menu/MenuModel.js`, `bar/BarModel.js`, ...) that end in a
-guarded `if (typeof module !== "undefined") module.exports = {...}` block. QML
-imports them directly and ignores the guard; Node loads them as CommonJS. That
-dual citizenship is what makes the shell's model logic unit-testable without a
+(`shell/plugins/menu/MenuModel.js`, `bar/BarModel.js`, ...) of top-level
+declarations, with no exports: QML imports them directly, and
+`test/shell.d/js-model-loader.js` evaluates them in Node and hands back, by
+its declared name, each declaration that starts a line as `function name(` or
+`const`, `let` or `var name =`. It finds them with a regex, so a declaration
+the tests need is written in that form: not indented, destructured, or split
+across lines. Keeping `module` out of the files keeps QML from looking it up
+while it builds a delegate. That is what makes the shell's model logic unit-testable without a
 compositor.
 
 `run_node_test` is the bridge: it prepends a JS prelude to a heredoc and pipes
 the result into `node`. The prelude mirrors the bash assertion protocol
 (`pass`, `fail`, `assert`, `assertEqual`, `assertDeepEqual` — same
 `ok`/`not ok` lines, same exit-on-first-failure) and provides `root` (from the
-exported `ROOT`), `path`, and `requireFromRoot(relativePath)`:
+exported `ROOT`), `path`, and `requireFromRoot(relativePath)`, which loads a
+`shell/` path through that loader and anything else with `require`:
 
 ```bash
 run_node_test <<'JS'

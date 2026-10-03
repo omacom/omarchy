@@ -89,16 +89,3 @@ function modeLabel(device, onBattery, states) {
   return "Charging"
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    clampIndex: clampIndex,
-    selectProfileIndex: selectProfileIndex,
-    parseKeyValue: parseKeyValue,
-    parseProfiles: parseProfiles,
-    profileIcon: profileIcon,
-    batteryFraction: batteryFraction,
-    chargeThresholdActive: chargeThresholdActive,
-    batteryIcon: batteryIcon,
-    modeLabel: modeLabel
-  }
-}

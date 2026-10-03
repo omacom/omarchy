@@ -14,7 +14,7 @@ const items = {
   'plain': { id: 'plain', label: 'No guards' }
 }
 const script = menu.guardScript(items)
-const browserSlot = `\${__omarchy_read_${menu.guardReaders.indexOf('omarchy-default-browser')}}`
+const browserSlot = `\${__omarchy_read_${menu.GUARD_READERS.indexOf('omarchy-default-browser')}}`
 
 assert(
   script.includes('if { omarchy-pkg-present brave-bin; } >/dev/null 2>&1; then echo setup.default.browser.brave:w:1; else echo setup.default.browser.brave:w:0; fi'),
@@ -74,7 +74,7 @@ const repeated = [...new Set(
   (guardText.match(/\$\((omarchy-[a-z0-9-]+)\)/g) || []).map(match => match.slice(2, -1))
 )].filter(command => guardText.split(`$(${command})`).length > 2)
 assertDeepEqual(
-  repeated.filter(command => !menu.guardReaders.includes(command)),
+  repeated.filter(command => !menu.GUARD_READERS.includes(command)),
   [],
   'guard readers cover every command the shipped menu reads from more than one row'
 )
@@ -83,7 +83,8 @@ JS
 prelude() {
   node -e '
     const path = require("path")
-    const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+    const { requireFromRoot } = require(path.join(process.env.ROOT, "test/shell.d/js-model-loader.js"))
+    const menu = requireFromRoot(process.env.ROOT, "shell/plugins/menu/MenuModel.js")
     process.stdout.write(menu.guardScript({ probe: { id: "probe", when: "true" } }))
   ' | command grep -v '^if {'
 }
@@ -174,7 +175,8 @@ pass "guard prelude resolves commands as omarchy-cmd-present and omarchy-cmd-mis
 # the substitution it stood in for -- including the trailing newline $() drops.
 reader_script=$(node -e '
   const path = require("path")
-  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+  const { requireFromRoot } = require(path.join(process.env.ROOT, "test/shell.d/js-model-loader.js"))
+  const menu = requireFromRoot(process.env.ROOT, "shell/plugins/menu/MenuModel.js")
   process.stdout.write(menu.guardScript({
     hit: { id: "hit", checked: "[[ \"$(omarchy-dns)\" == \"Cloudflare\" ]]" },
     miss: { id: "miss", checked: "[[ \"$(omarchy-dns)\" == \"Google\" ]]" }
@@ -208,7 +210,8 @@ pass "guard batch survives a reader that exits nonzero under errexit"
 themes_guard=$(node -e '
   const fs = require("fs")
   const path = require("path")
-  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+  const { requireFromRoot } = require(path.join(process.env.ROOT, "test/shell.d/js-model-loader.js"))
+  const menu = requireFromRoot(process.env.ROOT, "shell/plugins/menu/MenuModel.js")
   const items = menu.parseMenuJsonc(fs.readFileSync(path.join(process.env.ROOT, "default/omarchy/omarchy-menu.jsonc"), "utf8"))
   process.stdout.write(items.find(item => item.id === "update.themes").when)
 ')
