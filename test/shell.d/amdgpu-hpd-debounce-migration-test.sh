@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # The amdgpu HDMI HPD debounce migration rebuilds the initramfs once so a
-# packaged /etc/modprobe.d/amdgpu.conf reaches the early amdgpu load. It must
+# packaged amdgpu modprobe drop-in reaches the early amdgpu load. It must
 # only rebuild on machines with an AMD display controller (else the option is
 # inert), skip before the packaged config lands, flag a reboot so the fix is
 # actually applied, stay idempotent via a machine-wide marker, and leave a
@@ -26,6 +26,14 @@ grep -Fq 'rebuild_marker="${OMARCHY_AMDGPU_HPD_REBUILD_MARKER:-/var/lib/omarchy/
 grep -Fq 'rebuild_marker' "$migration" && [[ $(grep -c 'sudo install -Dm644' "$migration") == 1 ]] ||
   fail "the shipped migration records completion exactly once"
 pass "the shipped migration pins its production marker default"
+
+# omarchy update moves an unowned file at a packaged path aside to install its
+# own, so the drop-in takes Omarchy's name rather than one an administrator uses.
+[[ -f $ROOT/etc/modprobe.d/omarchy-amdgpu-hdmi-hpd.conf && ! -e $ROOT/etc/modprobe.d/amdgpu.conf ]] ||
+  fail "the amdgpu drop-in ships under an Omarchy-owned name"
+grep -Fq 'conf="${OMARCHY_AMDGPU_HPD_CONF:-/etc/modprobe.d/omarchy-amdgpu-hdmi-hpd.conf}"' "$migration" ||
+  fail "the migration waits for the drop-in the package actually ships"
+pass "the amdgpu drop-in ships under an Omarchy-owned name"
 
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
@@ -102,7 +110,7 @@ rm -f "$conf"
 run_migration
 [[ ! -s $CALL_LOG ]] || fail "a machine without the packaged conf does not rebuild"
 [[ ! -e $OMARCHY_AMDGPU_HPD_REBUILD_MARKER ]] || fail "a machine without the packaged conf stays pending"
-pass "the migration waits for the packaged amdgpu.conf to land"
+pass "the migration waits for the packaged amdgpu drop-in to land"
 
 # No AMD display controller: the option is inert, so no rebuild or reboot nag.
 reset_machine

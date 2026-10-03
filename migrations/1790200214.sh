@@ -1,6 +1,6 @@
 echo "Rebuild the initramfs so the amdgpu HDMI HPD debounce applies at early boot"
 
-# etc/modprobe.d/amdgpu.conf now arms amdgpu's HDMI HPD filter (off by default
+# The packaged amdgpu drop-in now arms amdgpu's HDMI HPD filter (off by default
 # upstream) so displays that drop hotplug-detect in DPMS power save no longer
 # remove and re-add a locked output every ~15s. The parameter is read once at
 # module load, and amdgpu loads out of the initramfs (kms + modconf hooks), so
@@ -10,7 +10,7 @@ echo "Rebuild the initramfs so the amdgpu HDMI HPD debounce applies at early boo
 # controller is present and the packaged config has actually landed.
 
 omarchy-cmd-present limine-mkinitcpio || exit 0
-conf="${OMARCHY_AMDGPU_HPD_CONF:-/etc/modprobe.d/amdgpu.conf}"
+conf="${OMARCHY_AMDGPU_HPD_CONF:-/etc/modprobe.d/omarchy-amdgpu-hdmi-hpd.conf}"
 [[ -f $conf ]] || exit 0
 
 rebuild_marker="${OMARCHY_AMDGPU_HPD_REBUILD_MARKER:-/var/lib/omarchy/migrations/1790200214}"
