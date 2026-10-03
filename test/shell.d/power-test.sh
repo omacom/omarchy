@@ -48,4 +48,6 @@ assert(/Math\.round\(root\.batteryFraction \* 100\) \+ "% " \+ root\.batteryIcon
 assert(/openPanelIndicatorWidth:.*showPercentage.*button\.glyphPaintedWidth : 0/.test(panelSource), 'power spans the open-panel mark across the painted percentage block')
 assert(/IpcHandler[\s\S]*?function togglePercentage\(\) \{ root\.togglePercentage\(\) \}/.test(panelSource), 'power exposes togglePercentage over IPC')
 assert(/manageIpc: false/.test(panelSource), 'power owns its IPC handler so it can extend the target methods')
+assert(/profiles = parsed\.profiles\.length \? parsed\.profiles : \[\]/.test(panelSource), 'power resets the profile list on a transient empty payload')
+assert(/if \(profiles\.length === 0\) profilesProc\.running = true/.test(panelSource), 'power re-kicks the profile query when the list is empty')
 JS
