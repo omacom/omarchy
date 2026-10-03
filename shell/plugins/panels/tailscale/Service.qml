@@ -25,6 +25,7 @@ Item {
   property string selfDnsName: ""
   property string selfIp: ""
   property string selfUserId: ""
+  property var selfPeer: null
   property bool fileSharing: false
   property string authUrl: ""
   property var peers: []
@@ -135,6 +136,8 @@ Item {
 
   function canSendFiles(peer) {
     if (!fileSharing || !running || !peer) return false
+    // Taildrop to yourself is not a thing; the self row gets copy only.
+    if (peer.IsSelf === true) return false
     return Model.isTaildropTarget(peer, selfUserId)
   }
 
@@ -207,6 +210,7 @@ Item {
     selfDnsName = ""
     selfIp = ""
     selfUserId = ""
+    selfPeer = null
     fileSharing = false
     authUrl = ""
     peers = []
@@ -246,6 +250,7 @@ Item {
     selfDnsName = parsed.selfDnsName
     selfIp = parsed.selfIp
     selfUserId = parsed.selfUserId
+    selfPeer = parsed.running ? parsed.selfPeer : null
     fileSharing = parsed.fileSharing
     peers = parsed.running ? parsed.peers : []
     tailnetExitNodes = parsed.running ? parsed.exitNodes : []
