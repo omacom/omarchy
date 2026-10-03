@@ -51,3 +51,29 @@ assert_layer_on_screen "visible-negative-offset" "visible layer is found on a ne
 assert_layer_off_screen "parked-negative-offset" "left-parked layer stays off a negatively offset monitor"
 assert_layer_on_screen "visible-rotated" "visible layer uses the transformed monitor height"
 assert_layer_off_screen "parked-rotated" "parked layer uses the transformed monitor width"
+
+grim_fail=$(mktemp -d)
+trap 'rm -rf "$test_tmp" "$grim_fail"' EXIT
+printf '%s\n' '#!/bin/bash' 'exit 1' >"$grim_fail/grim"
+chmod +x "$grim_fail/grim"
+
+screenshot_out=$(PATH="$grim_fail:$PATH" screenshot "probe" 2>&1) &&
+  fail "screenshot reports success when grim fails" "$screenshot_out"
+grep -q 'could not capture' <<<"$screenshot_out" ||
+  fail "screenshot swallows a grim failure" "$screenshot_out"
+pass "screenshot reports when grim cannot capture"
+
+contains_out=$(PATH="$grim_fail:$PATH" screen_contains "Hello" 2>&1) &&
+  fail "screen_contains reports the text missing when grim fails" "$contains_out"
+grep -q 'grim failed' <<<"$contains_out" ||
+  fail "screen_contains does not name a capture failure" "$contains_out"
+pass "screen_contains names a grim failure instead of missing text"
+
+wait_out=$(set -e; PATH="$grim_fail:$PATH" wait_until "probe text is visible" 0 screen_contains "Hello" 2>&1)
+wait_status=$?
+((wait_status)) || fail "wait_until passes when grim fails" "$wait_out"
+grep -q 'grim failed' <<<"$wait_out" ||
+  fail "wait_until hides the grim failure behind its timeout" "$wait_out"
+grep -q 'not ok - probe text is visible' <<<"$wait_out" ||
+  fail "a failed failure screenshot cuts off the step that failed" "$wait_out"
+pass "wait_until times out naming the grim failure and the step"
