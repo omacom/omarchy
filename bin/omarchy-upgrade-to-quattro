@@ -2059,11 +2059,12 @@ if command -v xdg-user-dirs-update >/dev/null 2>&1; then
   xdg-user-dirs-update --set DESKTOP "$HOME" || true
 fi
 rmdir "$HOME/Templates" "$HOME/Public" "$HOME/Desktop" 2>/dev/null || true
-touch "$HOME/.config/gtk-3.0/bookmarks"
-for dir in Downloads Projects Pictures Videos; do
-  bookmark="file://$HOME/$dir $dir"
-  grep -qxF "$bookmark" "$HOME/.config/gtk-3.0/bookmarks" || echo "$bookmark" >>"$HOME/.config/gtk-3.0/bookmarks"
-done
+# As the user, so the bookmarks file stays owned by them rather than by this
+# script's root. omarchy-provision-user seeds the same four bookmarks and can run
+# at the same time as this upgrade, so both go through the one helper.
+if [[ -x $root/bin/omarchy-gtk-bookmarks ]]; then
+  run_as_user_omarchy "$root/bin/omarchy-gtk-bookmarks" || true
+fi
 
 if [[ -n ${OMARCHY_USER_NAME//[[:space:]]/} ]]; then
   git config --global user.name "$OMARCHY_USER_NAME" || true
