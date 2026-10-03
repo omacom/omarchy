@@ -46,6 +46,28 @@ if [[ -z $agent ]]; then
   exit 1
 fi
 
+# Opt-in router for prompted launches. A user-owned executable at
+# ~/.config/omarchy/agents/request-dispatch may claim the request before the
+# default harness starts. Prompt text is on stdin so it never appears in
+# /proc/*/cmdline; --fallback-agent and --cwd stay on argv. Exit 0 means the
+# dispatcher owns the request (and any retry). Exit 3 explicitly declines
+# before taking ownership. Other failures stop here to avoid duplicate work.
+# Promptless `omarchy agent` never consults the hook.
+if [[ -n ${prompt:-} ]]; then
+  dispatcher="$HOME/.config/omarchy/agents/request-dispatch"
+  if [[ -f $dispatcher && -x $dispatcher && -O $dispatcher ]]; then
+    if printf '%s' "$prompt" | "$dispatcher" --fallback-agent "$agent" --cwd "$PWD"; then
+      exit 0
+    else
+      dispatch_status=$?
+      if (( dispatch_status != 3 )); then
+        echo "Request dispatcher failed (status $dispatch_status); fallback was not launched." >&2
+        exit "$dispatch_status"
+      fi
+    fi
+  fi
+fi
+
 if omarchy-cmd-missing "$agent"; then
   echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
   exit 1
