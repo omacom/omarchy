@@ -100,24 +100,55 @@ limits_only_record=$(HOME="$TEST_HOME" \
 [[ $(jq -r '.limits[0].title' <<<"$limits_only_record") == "Session" ]] || fail "limits-only returns limits"
 pass "limits-only path reuses base record without rescanning transcripts"
 
-# 5. Test account boundary cache invalidation (Finding 1)
+# 5. Test --limits-only preserves account identity and updates labels on account switch (Finding 1)
+# Keep alpha's record in state_file
+echo "$record" >"$state_file"
+
 # Switch active account to beta@example.com
 echo '{"active": "beta@example.com"}' >"$TEST_HOME/.gemini/google_accounts.json"
 
 export MOCK_5H_REMAINING="10%"
 export MOCK_WK_REMAINING="50%"
 
-switch_record=$(HOME="$TEST_HOME" \
+switch_limits_record=$(HOME="$TEST_HOME" \
   PATH="$TEST_HOME/bin:$PATH" \
   GEMINI_DIR="$TEST_HOME/.gemini" \
   XDG_CACHE_HOME="$TEST_HOME/.cache" \
   XDG_STATE_HOME="$TEST_HOME/.local/state" \
   MOCK_5H_REMAINING="10%" \
   MOCK_WK_REMAINING="50%" \
-  "$bin_file" --force)
+  "$bin_file" --limits-only)
 
-[[ $(jq -r '.tierLabel' <<<"$switch_record") == "Google (beta@example.com)" ]] || fail "switched account reflected in tierLabel"
-# 100 - 10% = 0.9, 100 - 50% = 0.5
-[[ $(jq -r '.limits[0].percent' <<<"$switch_record") == "0.9" ]] || fail "limits reprobed for new account"
-[[ $(jq -r '.limits[1].percent' <<<"$switch_record") == "0.5" ]] || fail "weekly reprobed for new account"
-pass "limits cache invalidates across account boundaries"
+[[ $(jq -r '.tierLabel' <<<"$switch_limits_record") == "Google (beta@example.com)" ]] || fail "switched account reflected in tierLabel under --limits-only"
+[[ $(jq -r '.accounts[0].email' <<<"$switch_limits_record") == "beta@example.com" ]] || fail "accounts identity reflects new account under --limits-only"
+[[ $(jq -r '.limits[0].percent' <<<"$switch_limits_record") == "0.9" ]] || fail "limits reprobed for new account under --limits-only"
+[[ $(jq -r '.limits[1].percent' <<<"$switch_limits_record") == "0.5" ]] || fail "weekly reprobed for new account under --limits-only"
+pass "limits-only refresh preserves account identity and labels on account switch"
+
+# 6. Test --limits-only rejects stale activity from previous day (Finding 2)
+yesterday=$(date -d "yesterday" +%Y-%m-%d 2>/dev/null || date -v-1d +%Y-%m-%d)
+yesterday_iso="${yesterday}T12:00:00Z"
+yesterday_record=$(echo "$record" | jq --arg d "$yesterday_iso" '.updatedAt = $d | .todayTotalTokens = 9999 | .todayPrompts = 99')
+echo "$yesterday_record" >"$state_file"
+rm -f "$TEST_HOME/.cache/omarchy/agent-usage/agy-stats.json"
+
+# Re-create mock transcript that only has yesterday's events
+mkdir -p "$TEST_HOME/.gemini/antigravity-cli/brain/session-02/.system_generated/logs"
+yesterday_transcript="$TEST_HOME/.gemini/antigravity-cli/brain/session-02/.system_generated/logs/transcript.jsonl"
+cat >"$yesterday_transcript" <<EOF
+{"type": "USER_INPUT", "created_at": "${yesterday}T10:00:00Z", "content": "Yesterday prompt"}
+{"type": "PLANNER_RESPONSE", "created_at": "${yesterday}T10:00:00Z", "input_tokens": 50, "output_tokens": 50}
+EOF
+
+midnight_record=$(HOME="$TEST_HOME" \
+  PATH="$TEST_HOME/bin:$PATH" \
+  GEMINI_DIR="$TEST_HOME/.gemini" \
+  XDG_CACHE_HOME="$TEST_HOME/.cache" \
+  XDG_STATE_HOME="$TEST_HOME/.local/state" \
+  "$bin_file" --limits-only)
+
+# todayTotalTokens should be 0 because transcript has only yesterday's tokens, not 9999 from yesterday's record
+[[ $(jq -r '.todayTotalTokens' <<<"$midnight_record") == "0" ]] || fail "stale yesterday tokens rejected on date boundary"
+[[ $(jq -r '.todayPrompts' <<<"$midnight_record") == "0" ]] || fail "stale yesterday prompts rejected on date boundary"
+pass "limits-only refresh rejects stale activity from previous day"
+

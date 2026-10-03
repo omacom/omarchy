@@ -27,6 +27,9 @@ from typing import Any
 AGENT_ID = "agy"
 AGENT_NAME = "Antigravity"
 PROBE_CACHE_TTL_MS = 60000
+SCAN_REUSE_SECONDS = 20
+LIMITS_ONLY_SCAN_REUSE_SECONDS = 900
+
 
 
 def cache_root() -> Path:
@@ -152,27 +155,7 @@ def fetch_limits(account: str, force: bool = False) -> tuple[list[dict[str, Any]
   return [], False, 0
 
 
-def collect_usage(gemini_dir: Path, agy_dir: Path, force: bool = False, limits_only: bool = False, base_record: dict[str, Any] | None = None) -> dict[str, Any]:
-  now_utc = dt.datetime.now(dt.timezone.utc).isoformat()
-  email = get_active_account(gemini_dir)
-  limits, limits_stale, limits_fetched_at = fetch_limits(email, force=force)
-
-  if limits_only and base_record:
-    record = dict(base_record)
-    record["limits"] = limits
-    record["limitsStale"] = limits_stale
-    record["limitsFetchedAt"] = limits_fetched_at
-    record["updatedAt"] = now_utc
-    if record.get("accounts"):
-      for acc in record["accounts"]:
-        acc["limits"] = limits
-        acc["stale"] = limits_stale
-        acc["fetchedAt"] = limits_fetched_at
-    return record
-
-  today_date = dt.date.today()
-  today_str = today_date.isoformat()
-
+def scan_transcripts(agy_dir: Path, today_str: str, today_date: dt.date) -> dict[str, Any]:
   recent_days_dict = {
     (today_date - dt.timedelta(days=i)).isoformat(): 0
     for i in reversed(range(7))
@@ -265,20 +248,12 @@ def collect_usage(gemini_dir: Path, agy_dir: Path, force: bool = False, limits_o
     if today_str in session_dates:
       today_sessions.add(conv_id)
 
-  tier_label = f"Google ({email})" if email else "Google Account"
-
   recent_days = [
     {"date": d, "messageCount": recent_days_dict[d]}
     for d in sorted(recent_days_dict)
   ]
 
-  record = {
-    "schemaVersion": 1,
-    "id": AGENT_ID,
-    "name": AGENT_NAME,
-    "tierLabel": tier_label,
-    "ready": total_prompts > 0 or len(limits) > 0 or bool(email),
-    "hasLocalStats": True,
+  return {
     "todayPrompts": today_prompts,
     "todaySessions": max(len(today_sessions), 1 if today_prompts > 0 else 0),
     "todayTotalTokens": today_total_tokens,
@@ -289,6 +264,116 @@ def collect_usage(gemini_dir: Path, agy_dir: Path, force: bool = False, limits_o
     "activeDays": len(active_dates),
     "activeDates": sorted(active_dates),
     "modelUsage": model_usage,
+  }
+
+
+def cached_local_stats(agy_dir: Path, max_age: float, today_str: str, today_date: dt.date) -> dict[str, Any]:
+  cache_file = cache_root() / "agy-stats.json"
+  if max_age > 0 and cache_file.is_file():
+    try:
+      with open(cache_file, "r", encoding="utf-8") as f:
+        cached = json.load(f)
+        if (
+          isinstance(cached, dict)
+          and cached.get("day") == today_str
+          and 0 <= (time.time() - float(cached.get("at", 0))) < max_age
+          and isinstance(cached.get("stats"), dict)
+        ):
+          return cached["stats"]
+    except Exception:
+      pass
+
+  stats = scan_transcripts(agy_dir, today_str, today_date)
+  try:
+    with open(cache_file, "w", encoding="utf-8") as f:
+      json.dump({"day": today_str, "at": time.time(), "stats": stats}, f)
+  except Exception:
+    pass
+  return stats
+
+
+def is_valid_base_record(
+  base_record: dict[str, Any],
+  email: str,
+  today_str: str,
+  max_age: float,
+) -> bool:
+  if max_age <= 0 or not isinstance(base_record, dict):
+    return False
+
+  saved_accounts = base_record.get("accounts")
+  saved_email = ""
+  if isinstance(saved_accounts, list) and saved_accounts:
+    saved_email = str(saved_accounts[0].get("email") or saved_accounts[0].get("id") or "")
+  if saved_email != email:
+    return False
+
+  updated_at = base_record.get("updatedAt")
+  if not updated_at:
+    return False
+  if parse_local_date(str(updated_at), "") != today_str:
+    return False
+
+  try:
+    record_dt = dt.datetime.fromisoformat(str(updated_at).replace("Z", "+00:00"))
+    age = time.time() - record_dt.timestamp()
+    if age < 0 or age > max_age:
+      return False
+  except Exception:
+    return False
+
+  required_fields = ("todayPrompts", "todayTotalTokens", "recentDays", "activeDates", "modelUsage")
+  return all(k in base_record for k in required_fields)
+
+
+def collect_usage(
+  gemini_dir: Path,
+  agy_dir: Path,
+  force: bool = False,
+  limits_only: bool = False,
+  base_record: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+  now_utc = dt.datetime.now(dt.timezone.utc).isoformat()
+  email = get_active_account(gemini_dir)
+  tier_label = f"Google ({email})" if email else "Google Account"
+  today_date = dt.datetime.now().astimezone().date()
+  today_str = today_date.isoformat()
+
+  limits, limits_stale, limits_fetched_at = fetch_limits(email, force=force)
+
+  max_scan_age = 0 if force else (LIMITS_ONLY_SCAN_REUSE_SECONDS if limits_only else SCAN_REUSE_SECONDS)
+
+  stats: dict[str, Any] | None = None
+  if base_record and is_valid_base_record(base_record, email, today_str, max_scan_age):
+    stats = {
+      "todayPrompts": base_record.get("todayPrompts", 0),
+      "todaySessions": base_record.get("todaySessions", 0),
+      "todayTotalTokens": base_record.get("todayTotalTokens", 0),
+      "todayTokensByModel": base_record.get("todayTokensByModel", {}),
+      "recentDays": base_record.get("recentDays", []),
+      "totalPrompts": base_record.get("totalPrompts", 0),
+      "totalSessions": base_record.get("totalSessions", 0),
+      "activeDays": base_record.get("activeDays", 0),
+      "activeDates": base_record.get("activeDates", []),
+      "modelUsage": base_record.get("modelUsage", {}),
+    }
+  else:
+    stats = cached_local_stats(agy_dir, max_scan_age, today_str, today_date)
+
+  ready = (
+    stats.get("totalPrompts", 0) > 0
+    or len(limits) > 0
+    or bool(email)
+  )
+
+  record: dict[str, Any] = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "tierLabel": tier_label,
+    "ready": ready,
+    "hasLocalStats": True,
+    **stats,
     "limits": limits,
     "limitsStale": limits_stale,
     "limitsFetchedAt": limits_fetched_at,
