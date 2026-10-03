@@ -133,13 +133,19 @@
     "break",
     {
       "type": "custom",
-      "format": "\u001b[90m┌────────────────Age / Uptime / Update───────────────┐"
+      "format": "\u001b[90m┌───────────Age / Install / Uptime / Update──────────┐"
     },
     {
       "type": "command",
       "key": "󱦟 OS Age",
       "keyColor": "magenta",
       "text": "echo $(( ($(date +%s) - $(stat -c %W /)) / 86400 )) days"
+    },
+    {
+      "type": "command",
+      "key": "󰔟 Installed In",
+      "keyColor": "magenta",
+      "text": "omarchy-install-duration 2>/dev/null"
     },
     {
       "type": "uptime",
