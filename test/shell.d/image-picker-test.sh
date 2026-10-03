@@ -160,4 +160,8 @@ assert(
     /onStatusChanged: if \(item.selected && \(status === Image.Ready \|\| status === Image.Error\)\) root.neighborImagesEnabled = true/.test(imagePickerQml),
   'image picker prioritizes the selected preview and releases neighbors on success or failure'
 )
+assert(
+  /Qt\.Key_H \|\| event\.key === Qt\.Key_L\) && \(event\.modifiers & Qt\.ControlModifier\)[\s\S]*root\.selectAdjacent\(event\.key === Qt\.Key_L \? 1 : -1\)/.test(imagePickerQml),
+  'image picker Ctrl+H and Ctrl+L mirror Left and Right'
+)
 JS
