@@ -81,22 +81,34 @@ if grep -q 'unresolvable package conflicts detected' "$errors"; then
   exit 0
 fi
 
-# Paths one of these packages installs that pacman doesn't own. Moving them out
-# of the way is what lets the upgrade through, and works on a leftover directory
-# as well as a file.
+# Every failed upgrade lands here, and pacman has already said why one that
+# isn't a file conflict failed.
+grep -q ' exists in filesystem' "$errors" || exit 1
+
+# Paths a package installs that pacman doesn't own. Moving them out of the way
+# is what lets the upgrade through, and works on a leftover directory as well as
+# a file. Any package can hit this — a stub local-db entry from an interrupted
+# install leaves files on disk with no owner (see owe / owe-lockfeed) — so the
+# package-name prefix is not filtered here.
 #
 # "pkg: /path exists in filesystem" is unowned; the same line plus "(owned by
-# x)" is not, so the end anchor takes only ours. -Qo re-checks the live database
-# before anything moves.
+# x)" is not, so the end anchor takes only those. -Qo re-checks the live
+# database before anything moves.
 mapfile -t leftovers < <(
-  grep -oP '^omarchy(-dev|-settings|-settings-dev)?: \K.+(?= exists in filesystem$)' "$errors" |
+  grep -oP '^[^:]+: \K.+(?= exists in filesystem$)' "$errors" |
     while IFS= read -r path; do pacman -Qo "$path" &>/dev/null || echo "$path"; done
 )
-((${#leftovers[@]})) || exit 1
+if ((${#leftovers[@]} == 0)); then
+  echo -e "\e[33m\nConflicting files are owned by other packages; not moving them automatically.\e[0m" >&2
+  exit 1
+fi
 
 # All of them or none: moving a subset leaves the retry blocked by the rest, and
 # the moved files inactive for nothing.
-((${#leftovers[@]} == $(grep -c ' exists in filesystem' "$errors"))) || exit 1
+if ((${#leftovers[@]} != $(grep -c ' exists in filesystem' "$errors"))); then
+  echo -e "\e[33m\nSome conflicting files are owned by other packages; not moving any of them automatically.\e[0m" >&2
+  exit 1
+fi
 
 echo -e "\e[33m\nTaking over files pacman doesn't own yet:\e[0m"
 for path in "${leftovers[@]}"; do
