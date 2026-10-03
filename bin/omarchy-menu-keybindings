@@ -5,7 +5,13 @@
 # Hyprland's Lua config provider currently reports Lua binds as dispatcher
 # __lua in `hyprctl binds`. Keep a lightweight source-derived cache so the
 # menu can still show and dispatch those bindings.
+#
+# What a bind dispatches is looked up by its id, so renaming what the bind is
+# called cannot move it. Hyprland's output carries no id, so the first two maps
+# below take a reported description and hand back the key and the id it was
+# declared with; they are the whole of what still reads display text.
 declare -A LUA_BIND_KEY_MAP
+declare -A LUA_BIND_ID_MAP
 declare -A LUA_BIND_DISPATCHER_MAP
 declare -A LUA_BIND_ARG_MAP
 
@@ -69,15 +75,17 @@ parse_keycodes() {
 # Supplement `hyprctl binds` for Lua-only binds that Hyprland currently
 # reports as dispatcher __lua and without their original key for code: binds.
 build_lua_bind_cache() {
-  local modmask description key dispatcher arg cache_key
+  local modmask description id key dispatcher arg cache_key
 
   omarchy-cmd-present lua || return 0
 
-  while IFS=$'\t' read -r modmask description key dispatcher arg; do
-    [[ -z $modmask || -z $description || -z $key ]] && continue
+  while IFS=$'\t' read -r modmask description id key dispatcher arg; do
+    [[ -z $modmask || -z $description || -z $id || -z $key ]] && continue
 
     LUA_BIND_KEY_MAP["$modmask,$description"]="$key"
-    cache_key="$modmask,$description,$key"
+    LUA_BIND_ID_MAP["$modmask,$description,$key"]="$id"
+
+    cache_key="$modmask,$id,$key"
     LUA_BIND_DISPATCHER_MAP["$cache_key"]="$dispatcher"
     LUA_BIND_ARG_MAP["$cache_key"]="$arg"
   done < <(
@@ -203,6 +211,11 @@ hl = setmetatable({
       local modmask, key = split_keys(keys)
       local kind = ""
       local arg = ""
+      -- o.bind fills this in; a bind written against hl.bind directly may not.
+      local id = opts.id
+      if id == nil or id == "" then
+        id = opts.description
+      end
 
       if type(bind_dispatcher) == "table" and bind_dispatcher.__omarchy_dispatcher then
         kind = bind_dispatcher.kind or ""
@@ -215,7 +228,7 @@ hl = setmetatable({
         arg = o.bind_commands[bind_dispatcher]
       end
 
-      print(table.concat({ tostring(modmask), opts.description, key, kind, arg }, "\t"))
+      print(table.concat({ tostring(modmask), opts.description, id, key, kind, arg }, "\t"))
     end
 
     return noop
@@ -271,9 +284,10 @@ modmask_to_text() {
 # - Fill missing Lua code:... keys and __lua dispatch metadata from the Lua source cache
 # - Remove standard Omarchy bin path prefix
 # - Map numeric modifier key mask to a textual rendition
+# - Carry the id the bind was declared with next to the description it shows
 # - Output comma-separated values that the parser can understand
 dynamic_bindings() {
-  local modmask key keycode description dispatcher arg modifiers cache_key
+  local modmask key keycode description dispatcher arg id modifiers cache_key
 
   # Parse the plain `hyprctl binds` output rather than `hyprctl -j binds`:
   # Hyprland 0.56.0 emits invalid JSON for binds (misaligned fields in
@@ -297,12 +311,24 @@ dynamic_bindings() {
         key="code:$keycode"
       fi
 
+      # The loop-generated binds reach here with neither key nor keycode, and
+      # their description is the only thing Hyprland gives to find the key by.
+      # That makes this the one lookup that cannot key on the id: recovering an
+      # id needs the key it is looking for.
       if [[ -z $key && -n $description ]]; then
         key="${LUA_BIND_KEY_MAP["$modmask,$description"]}"
       fi
 
+      # With a key in hand, the description resolves to the id the bind was
+      # declared with. Everything below this line keys on the id.
+      id="${LUA_BIND_ID_MAP["$modmask,$description,$key"]}"
+
+      # A bind the cache has nothing for still has to come out of here with no
+      # dispatcher at all: __lua is not something the menu can run, and a row
+      # that kept it would read as agreeing with every other row that also
+      # failed to resolve.
       if [[ $dispatcher == "__lua" && -n $description && -n $key ]]; then
-        cache_key="$modmask,$description,$key"
+        cache_key="$modmask,$id,$key"
         dispatcher="${LUA_BIND_DISPATCHER_MAP["$cache_key"]}"
         arg="${LUA_BIND_ARG_MAP["$cache_key"]}"
       fi
@@ -324,28 +350,40 @@ dynamic_bindings() {
       modifiers=$(modmask_to_text "$modmask")
       arg="${arg//~\/.local\/share\/omarchy\/bin\//}"
 
-      printf '%s,%s,%s,%s,%s\n' "$modifiers" "$key" "$description" "$dispatcher" "$arg"
+      # The record below is comma separated and the parser rebuilds only its last
+      # field out of whatever is left over, so the dispatcher's arg is the one
+      # field allowed to hold a comma. An id is written by hand in Lua, and a
+      # comma in one would push the dispatcher out of the field the row dispatches
+      # from. Nothing reads the id back as text, only compares it, so dropping the
+      # comma costs the id nothing.
+      id="${id//,/}"
+
+      printf '%s,%s,%s,%s,%s,%s\n' "$modifiers" "$key" "$description" "$id" "$dispatcher" "$arg"
     done
 }
 
-# Hardcoded bindings, like the copy-url extension and such
+# Hardcoded bindings, like the copy-url extension and such. The fields are
+# modifiers, key, description, id, dispatcher, and the dispatcher's arg, which is
+# what the trailing commas belong to. Neither of these is declared in Lua, so
+# there is no id to carry and the parser falls back to the description.
 static_bindings() {
-  echo "SHIFT ALT,L,Copy URL from Web App,sendshortcut,SHIFT ALT,L,"
-  echo "SHIFT ALT,D,Download Video from Web App,sendshortcut,SHIFT ALT,D,"
+  echo "SHIFT ALT,L,Copy URL from Web App,,sendshortcut,SHIFT ALT,L,"
+  echo "SHIFT ALT,D,Download Video from Web App,,sendshortcut,SHIFT ALT,D,"
 }
 
-# Actions Omarchy binds to a second chord meant as an alternative, named one at
-# a time. A rule would be wrong here: Alt + Tab and Shift + Alt + Tab both say
-# "Reveal active window on top" while cycling opposite ways, and a media key is
-# nobody's idea of an alternative to a Super chord. Only chords a user reaches
-# for interchangeably belong on one row.
-alternative_chord_actions() {
-  cat <<'ACTIONS'
+# Actions Omarchy binds to a second chord meant as an alternative, named one at a
+# time, by the id their binds carry rather than the description they show. A rule
+# would be wrong here: Alt + Tab and Shift + Alt + Tab both say "Reveal active
+# window on top" while cycling opposite ways, and a media key is nobody's idea of
+# an alternative to a Super chord. Only chords a user reaches for interchangeably
+# belong on one row.
+alternative_chord_ids() {
+  cat <<'IDS'
 Close window
 Calculator
 Toggle scratchpad
 Move window to scratchpad
-ACTIONS
+IDS
 }
 
 # Parse and format keybindings
@@ -355,9 +393,11 @@ ACTIONS
 # - Joins the key combination (e.g., "SUPER + Q").
 # - Joins the command that the key executes.
 # - Puts an action's alternative chord on the row with the first one.
-# - Prints display text and dispatch metadata as tab-separated fields.
+# - Prints display text, the row's id, and dispatch metadata as tab-separated
+#   fields. The id is for the sorting downstream, which is why it sits between
+#   the text and the metadata rather than at the end where an arg could reach.
 parse_binding_records() {
-  awk -F, -v alternatives="$(alternative_chord_actions)" '
+  awk -F, -v alternatives="$(alternative_chord_ids)" '
 BEGIN {
     # The column every row pads its chords to. Nothing is allowed past it: the
     # menu renders in monospace, and a row that overruns pushes its arrow out
@@ -379,17 +419,18 @@ BEGIN {
 
     # Use description, if set
     action = $3;
-    dispatcher = $4;
+    id = $4;
+    dispatcher = $5;
 
     # Reconstruct the dispatcher arg from the remaining fields
     arg = "";
-    for (i = 5; i <= NF; i++) {
+    for (i = 6; i <= NF; i++) {
         arg = arg $i (i < NF ? "," : "");
     }
 
     if (action == "") {
         # Reconstruct the command from the remaining fields
-        for (i = 4; i <= NF; i++) {
+        for (i = 5; i <= NF; i++) {
             action = action $i (i < NF ? "," : "");
         }
 
@@ -401,15 +442,21 @@ BEGIN {
         gsub(/[ \t]+/, " ", key_combo);  # Collapse multiple spaces to one
     }
 
+    # Hyprland reports binds Omarchy never declared in Lua, and the scan has no
+    # id for one of those. The text the row shows is the only name it has, and it
+    # is the name everything here keyed on before ids existed.
+    if (id == "") id = action;
+
     # An alternative chord joins the row the first one opened: "SUPER + W /
     # SUPER + Q -> Close window". Both halves have to agree on what they run,
     # since a label is only what a chord is called; an unresolved dispatcher
-    # says nothing at all, so it never counts as agreement.
+    # says nothing at all, so it never counts as agreement. They agree by id,
+    # not by label, so translating a description cannot split a row in two.
     if (action != "") {
-        action_key = action SUBSEP dispatcher SUBSEP arg;
+        action_key = id SUBSEP dispatcher SUBSEP arg;
         together = "";
 
-        if (action in shares_a_row && dispatcher != "" && action_key in leads) {
+        if (id in shares_a_row && dispatcher != "" && action_key in leads) {
             together = chords[leads[action_key]] " / " key_combo;
         }
 
@@ -421,6 +468,7 @@ BEGIN {
             entries++;
             chords[entries] = key_combo;
             actions[entries] = action;
+            ids[entries] = id;
             dispatchers[entries] = dispatcher;
             args[entries] = arg;
             leads[action_key] = entries;
@@ -429,7 +477,7 @@ BEGIN {
 }
 END {
     for (entry = 1; entry <= entries; entry++) {
-        printf "%-*s → %s\t%s\t%s\n", column, chords[entry], actions[entry], dispatchers[entry], args[entry];
+        printf "%-*s → %s\t%s\t%s\t%s\n", column, chords[entry], actions[entry], ids[entry], dispatchers[entry], args[entry];
     }
 }'
 }
@@ -437,69 +485,92 @@ END {
 prioritize_entries() {
   awk -F '\t' '
   {
+    # Two different things decide where a row sorts, and they come from two
+    # different fields. What the action is called comes from the id, which holds
+    # still while the description beside it is translated; which keys it takes
+    # comes from the display column, and translation never reaches those. Take
+    # the action off the display before the alternative chord, or a command with
+    # a slash in it loses its tail here.
+    chord = $1
+    sub(/ → .*$/, "", chord)
+
     # Alternative chords are display only. Classifying on them would read
     # "SUPER SHIFT + RETURN / SUPER SHIFT + B" as the alternate browser chord
     # and drop the browser 20 rows down its own list, so match the chord that
     # leads the row and ignore the rest.
-    line = $1
-    sub(/ \/ [^→]*→/, " →", line)
+    sub(/ \/ .*$/, "", chord)
+
+    id = $2
+
+    # Browser is not an action Omarchy pairs chords for, so its second chord is
+    # a row of its own, and that row sorts down among the other second choices
+    # rather than beside the chord people reach for first.
+    alternate_browser = match(chord, /SUPER SHIFT.*\+.*B/) && match(id, /Browser/)
 
     prio = 50
-    if (match(line, /Keybindings/)) prio = 0
-    if (match(line, /Omarchy menu/))  prio = 1
-    if (match(line, /Terminal/)) prio = 2
-    if (match(line, /Browser/) && !match(line, /Browser[[:space:]]*\(/) && !match(line, /SUPER SHIFT.*\+.*B.*→.*Browser/)) prio = 3
-    if (match(line, /File manager/) && !match(line, /File manager \(cwd\)/))  prio = 4
-    if (match(line, /Launch apps/))  prio = 5
-    if (match(line, /System menu/))  prio = 6
-    if (match(line, /Theme menu/))  prio = 7
-    if (match(line, /Full screen/))  prio = 8
-    if (match(line, /Full width/))  prio = 9
-    if (match(line, /Close window/))  prio = 10
-    if (match(line, /Close all windows/))  prio = 11
-    if (match(line, /Lock system/))  prio = 12
-    if (match(line, /Toggle window floating/))  prio = 13
-    if (match(line, /Toggle window split/))  prio = 14
-    if (match(line, /Pop window/))  prio = 15
-    if (match(line, /Universal/))  prio = 16
-    if (match(line, /Clipboard/))  prio = 17
-    if (match(line, /Audio controls/))  prio = 18
-    if (match(line, /Bluetooth controls/))  prio = 19
-    if (match(line, /Wifi controls/))  prio = 20
-    if (match(line, /Emojis/))  prio = 21
-    if (match(line, /Color picker/))  prio = 22
-    if (match(line, /Screenshot/))  prio = 23
-    if (match(line, /Screenrecording/))  prio = 24
-    if (match(line, /Tmux/)) prio = 25
-    if (match(line, /Herdr/)) prio = 26
-    if (match(line, /SUPER SHIFT.*\+.*B.*→.*Browser/)) prio = 27
-    if (match(line, /File manager \(cwd\)/))  prio = 28
-    if (match(line, /(Switch|Next|Former|Previous).*workspace/))  prio = 29
-    if (match(line, /Move window to workspace/))  prio = 30
-    if (match(line, /Move window silently to workspace/))  prio = 31
-    if (match(line, /Swap window/))  prio = 32
-    if (match(line, /Focus/))  prio = 33
-    if (match(line, /Move window$/))  prio = 34
-    if (match(line, /Resize window/))  prio = 35
-    if (match(line, /Expand window/))  prio = 36
-    if (match(line, /Shrink window/))  prio = 37
-    if (match(line, /scratchpad/))  prio = 38
-    if (match(line, /notification/))  prio = 39
-    if (match(line, /Toggle window transparency/))  prio = 40
-    if (match(line, /Toggle workspace gaps/))  prio = 41
-    if (match(line, /Toggle nightlight/))  prio = 42
-    if (match(line, /Toggle locking/))  prio = 43
-    if (match(line, /group/))  prio = 94
-    if (match(line, /Scroll active workspace/))  prio = 95
-    if (match(line, /Cycle to/))  prio = 96
-    if (match(line, /Reveal active/))  prio = 97
-    if (match(line, /Apple Display/))  prio = 98
-    if (match(line, /XF86/))  prio = 99
-    if (match(line, /Tmux keybindings/)) prio = 100
-    if (match(line, /Herdr keybindings/)) prio = 101
+    if (match(id, /Keybindings/)) prio = 0
+    if (match(id, /Omarchy menu/))  prio = 1
+    if (match(id, /Terminal/)) prio = 2
+    if (match(id, /Browser/) && !match(id, /Browser[[:space:]]*\(/) && !alternate_browser) prio = 3
+    if (match(id, /File manager/) && !match(id, /File manager \(cwd\)/))  prio = 4
+    if (match(id, /Launch apps/))  prio = 5
+    if (match(id, /System menu/))  prio = 6
+    if (match(id, /Theme menu/))  prio = 7
+    if (match(id, /Full screen/))  prio = 8
+    if (match(id, /Full width/))  prio = 9
+    if (match(id, /Close window/))  prio = 10
+    if (match(id, /Close all windows/))  prio = 11
+    if (match(id, /Lock system/))  prio = 12
+    if (match(id, /Toggle window floating/))  prio = 13
+    if (match(id, /Toggle window split/))  prio = 14
+    if (match(id, /Pop window/))  prio = 15
+    if (match(id, /Universal/))  prio = 16
+    if (match(id, /Clipboard/))  prio = 17
+    if (match(id, /Audio controls/))  prio = 18
+    if (match(id, /Bluetooth controls/))  prio = 19
+    if (match(id, /Wifi controls/))  prio = 20
+    if (match(id, /Emojis/))  prio = 21
+    if (match(id, /Color picker/))  prio = 22
+    if (match(id, /Screenshot/))  prio = 23
+    if (match(id, /Screenrecording/))  prio = 24
+    if (match(id, /Tmux/)) prio = 25
+    if (match(id, /Herdr/)) prio = 26
+    if (alternate_browser) prio = 27
+    if (match(id, /File manager \(cwd\)/))  prio = 28
+    if (match(id, /(Switch|Next|Former|Previous).*workspace/))  prio = 29
+    if (match(id, /Move window to workspace/))  prio = 30
+    if (match(id, /Move window silently to workspace/))  prio = 31
+    if (match(id, /Swap window/))  prio = 32
+    if (match(id, /Focus/))  prio = 33
+    if (match(id, /Move window$/))  prio = 34
+    if (match(id, /Resize window/))  prio = 35
+    if (match(id, /Expand window/))  prio = 36
+    if (match(id, /Shrink window/))  prio = 37
+    if (match(id, /scratchpad/))  prio = 38
+    if (match(id, /notification/))  prio = 39
+    if (match(id, /Toggle window transparency/))  prio = 40
+    if (match(id, /Toggle workspace gaps/))  prio = 41
+    if (match(id, /Toggle nightlight/))  prio = 42
+    if (match(id, /Toggle locking/))  prio = 43
+    if (match(id, /group/))  prio = 94
+    if (match(id, /Scroll active workspace/))  prio = 95
+    if (match(id, /Cycle to/))  prio = 96
+    if (match(id, /Reveal active/))  prio = 97
+    if (match(id, /Apple Display/))  prio = 98
+    if (match(chord, /XF86/))  prio = 99
+    if (match(id, /Tmux keybindings/)) prio = 100
+    if (match(id, /Herdr keybindings/)) prio = 101
+
+    # The id has done its work and nothing downstream wants it: what the menu
+    # shows and what picking a row dispatches are the fields either side of it,
+    # so the line leaving here is the one this pipeline printed before ids ran
+    # through it. Rebuilt a field at a time, since a dispatcher arg may hold a
+    # tab of its own.
+    rest = $3
+    for (i = 4; i <= NF; i++) rest = rest "\t" $i
 
     # print "priority<TAB>record"
-    printf "%d\t%s\n", prio, $0
+    printf "%d\t%s\t%s\n", prio, $1, rest
   }' |
   sort -k1,1n -k2,2 |
   cut -f2-
@@ -531,9 +602,14 @@ output_binding_records_uncached() {
   [[ -n $dynamic ]]
 }
 
+# A record reaches the cache already paired and sorted, and nothing else in the
+# key below says how. The version is what retires the caches an earlier one
+# wrote, so any change to how a record is laid out or where a row sorts has to
+# bump it: a machine whose keymap and binds have not moved reads the old rows
+# back for as long as the key agrees.
 keybindings_cache_key() {
   {
-    printf 'v14\n'
+    printf 'v16\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
