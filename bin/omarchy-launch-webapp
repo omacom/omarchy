@@ -1,7 +1,18 @@
 #!/bin/bash
 
 # omarchy:summary=Launch a URL as a web app in the default supported browser
-# omarchy:args=<url>
+# omarchy:args=<url> [browser-args...]
+
+# Each webapp gets a dedicated Chromium user-data dir so logins do not drift
+# across Google profiles in the shared browser (#13527).
+
+if (($# < 1)); then
+  echo "Usage: omarchy-launch-webapp <url> [browser-args...]" >&2
+  exit 1
+fi
+
+url=$1
+shift
 
 browser=$(omarchy-cmd-default-browser)
 
@@ -11,7 +22,31 @@ google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
 esac
 
 browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)
+if [[ -z $browser_exec ]]; then
+  echo "omarchy-launch-webapp: could not resolve browser binary for $browser" >&2
+  exit 1
+fi
 
-if ! omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then
-  exec setsid uwsm-app -- $browser_exec --app="$1" "${@:2}"
+# Readable, filesystem-safe id with a hash of the full URL without query/fragment.
+webapp_slug() {
+  local raw host path slug hash
+  raw=${1%%[\?#]*}
+  hash=$(printf '%s' "$raw" | sha256sum)
+  raw=${raw#*://}
+  host=${raw%%/*}
+  path=${raw#"$host"}
+  slug=$(printf '%s%s' "$host" "$path" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//; s/-+/-/g')
+  if [[ -z $slug ]]; then
+    slug="webapp"
+  fi
+  printf '%s-%s\n' "$slug" "${hash:0:12}"
+}
+
+data_home=${XDG_DATA_HOME:-$HOME/.local/share}
+user_data_dir="$data_home/omarchy/webapps/$(webapp_slug "$url")"
+mkdir -p -- "$user_data_dir"
+
+# Handoff refuses --user-data-dir so a dedicated profile starts its own browser.
+if ! omarchy-cmd-browser-handoff "$browser_exec" --user-data-dir="$user_data_dir" --app="$url" "$@"; then
+  exec setsid uwsm-app -- $browser_exec --user-data-dir="$user_data_dir" --app="$url" "$@"
 fi
