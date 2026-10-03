@@ -226,6 +226,19 @@ assertEqual(
   'notifications carry the exec argv hint onto the snapshot'
 )
 
+const ghosttySnapshot = notifications.snapshotOf({
+  id: 4,
+  appName: 'Claude Code',
+  appIcon: '',
+  summary: 'from Ghostty',
+  hints: { 'desktop-entry': 'com.mitchellh.ghostty', 'image-path': 'com.mitchellh.ghostty' }
+}, 2)
+assertEqual(
+  ghosttySnapshot.appIcon,
+  'com.mitchellh.ghostty',
+  'notifications fall back to the desktop-entry hint when appIcon is empty'
+)
+
 assertDeepEqual(
   notifications.popupPlacement('top', 32, 6),
   {
