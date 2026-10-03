@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Hyprland
 import qs.Commons
 import qs.Ui
@@ -7,6 +8,32 @@ import qs.Ui
 BarWidget {
   id: root
   moduleName: "omarchy.workspaces"
+
+  // The output this bar is drawn on. One bar surface exists per monitor, so
+  // this is what tells the copies of this widget apart.
+  readonly property string screenName: {
+    var window = root.QsWindow ? root.QsWindow.window : null
+    return window && window.screen ? String(window.screen.name || "") : ""
+  }
+
+  function monitor() {
+    if (!root.screenName) return null
+
+    var values = Hyprland.monitors.values
+    for (var i = 0; i < values.length; i++) {
+      if (String(values[i].name || "") === root.screenName) return values[i]
+    }
+
+    return null
+  }
+
+  // Which display has the keyboard. Every bar marks what its own display is
+  // showing, so this is what keeps all of them from claiming to be the one
+  // being typed into.
+  readonly property bool keyboardHere: {
+    var focused = Hyprland.focusedMonitor
+    return !!focused && String(focused.name || "") === root.screenName
+  }
 
   function workspaceById(id) {
     var values = Hyprland.workspaces.values
@@ -56,11 +83,22 @@ BarWidget {
 
         readonly property var workspace: root.workspaceById(modelData)
         readonly property bool occupied: workspace !== null && workspace.toplevels.values.length > 0
-        readonly property bool focused: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData
+        // What this bar's own display is showing, which is not the same as the
+        // focused workspace: with a second display, marking
+        // Hyprland.focusedWorkspace leaves every bar but one pointing at
+        // a workspace that is not even on it.
+        readonly property bool current: {
+          var active = root.monitor() ? root.monitor().activeWorkspace : null
+          return !!active && active.id === modelData
+        }
 
         bar: root.bar
-        text: focused ? "\uDB85\uDCFB" : (modelData === 10 ? "0" : String(modelData))
-        opacity: occupied || focused ? 1 : 0.5
+        text: current ? "\uDB85\uDCFB" : (modelData === 10 ? "0" : String(modelData))
+        // The display holding the keyboard marks its workspace at full
+        // strength and the others sit back, so the desk still says where you
+        // are typing without any bar losing track of its own display. With
+        // one display there is nothing to fade and this reads as it did.
+        opacity: current ? (root.keyboardHere ? 1 : 0.75) : (occupied ? 1 : 0.5)
         horizontalMargin: 6
         verticalPadding: 6
         fixedWidth: root.vertical ? root.barSize : Style.space(20)
