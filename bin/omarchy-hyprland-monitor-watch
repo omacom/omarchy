@@ -39,8 +39,10 @@ recover_modeless() {
       omarchy-hyprland-monitor-modeless
       state=$?
 
-      # A monitor reporting a mode is recovered. One the compositor cannot speak
-      # for is not an answer, and nothing else will ask again -- but a compositor
+      # A monitor reporting a mode — including 0x0 with a populated
+      # availableModes list — is not the unpowered-EDID case. Reload cannot
+      # recover a rejected modeset. One the compositor cannot speak for is
+      # not an answer, and nothing else will ask again -- but a compositor
       # that stays silent has gone, taking the session and this loop's reason
       # with it.
       (( state == 1 )) && break

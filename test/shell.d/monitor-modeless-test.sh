@@ -137,6 +137,16 @@ assert_state $MODELESS \
 assert_state $WORKING '[{"name":"DP-1","width":2560,"height":1440,"disabled":false}]' \
   "a working monitor is not reported as modeless"
 
+# A rejected modeset still advertises the EDID mode list. Reload cannot apply
+# those modes; treating this as the unpowered-EDID case loops forever.
+assert_state $WORKING \
+  '[{"name":"DP-3","width":0,"height":0,"disabled":false,"availableModes":["3440x1440@60.00Hz","1920x1080@60.00Hz"]}]' \
+  "a 0x0 monitor that already has video modes is not the unpowered-EDID case"
+
+assert_state $MODELESS \
+  '[{"name":"DP-1","width":0,"height":0,"disabled":false,"availableModes":[]}]' \
+  "an empty availableModes list is still the unpowered-EDID case"
+
 # A monitor turned off on purpose is 0x0 too, and re-applying config would fight
 # the user over it.
 assert_state $WORKING '[{"name":"DP-1","width":0,"height":0,"disabled":true}]' \
@@ -277,5 +287,17 @@ start_watcher
 sleep 1
 [[ ! -s $reload_log ]] || fail "a healthy machine is left alone" "$(<"$reload_log")"
 pass "a healthy machine is never reloaded"
+
+stop_watcher
+
+# 0x0 with a mode list is a rejected modeset, not a missing EDID. Reloading
+# that retries the same atomic commit and never recovers.
+printf '%s' '[{"name":"DP-3","width":0,"height":0,"disabled":false,"availableModes":["3440x1440@60.00Hz"]}]' >"$monitors_file"
+rm -f "$recovered"
+start_watcher
+
+sleep 1
+[[ ! -s $reload_log ]] || fail "a 0x0 monitor with video modes is not reloaded" "$(<"$reload_log")"
+pass "a 0x0 monitor with video modes is not reloaded"
 
 stop_watcher
