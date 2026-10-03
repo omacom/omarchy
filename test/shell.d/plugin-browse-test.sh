@@ -182,6 +182,15 @@ fi
 grep -Fq "Could not load the Omarchy plugin marketplace" "$notification_log" || fail "plugin marketplace notifies on a failed catalog request"
 unset OMARCHY_TEST_CURL_FAIL
 
+printf '{"plugins":[{"id":"bad.preview","sourceType":"community","previewImage":{"url":42},"previewImages":[42,{"url":false}]}]}\n' >"$catalog_file"
+export OMARCHY_TEST_SELECTED_ID="bad.preview"
+: >"$notification_log"
+omarchy-plugin-browse
+jq -e '.[0] | .id == "bad.preview" and .previewPath == "" and .previewImages == []' "$catalog_payload_file" >/dev/null ||
+  fail "plugin marketplace discards malformed preview fields"
+[[ ! -s $notification_log ]] || fail "plugin marketplace treats malformed optional previews as a catalog failure"
+pass "plugin marketplace handles malformed preview fields"
+
 printf '{"plugins":"broken"}\n' >"$catalog_file"
 if omarchy-plugin-browse; then
   fail "plugin marketplace rejects malformed catalog data"
