@@ -146,12 +146,11 @@ assert(
   'the lock feed stops once displays go dark or power-saver is active'
 )
 assert(
-  batteryService.includes('property string activePowerProfile') &&
-    batteryService.includes('UPower.onBattery && activePowerProfile === "power-saver"') &&
-    batteryService.includes('"get-property", "net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", "net.hadess.PowerProfiles", "ActiveProfile"') &&
-    !batteryService.includes('["powerprofilesctl"') &&
-    batteryService.includes('interval: 2000'),
-  'the battery service tracks the active power-saver profile'
+  batteryService.includes('UPower.onBattery && PowerProfiles.profile === PowerProfile.PowerSaver') &&
+    !batteryService.includes('powerprofilesctl') &&
+    !batteryService.includes('busctl') &&
+    !batteryService.includes('interval: 2000'),
+  'the battery service tracks native power-saver changes without spawning profile readers'
 )
 assert(
   themeSwitcher.includes("-iname '*.mp4'") &&
