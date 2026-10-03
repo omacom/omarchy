@@ -491,3 +491,14 @@ df() {
 unset -f df
 [[ $(cat "$df_log") == "$external_storage" ]] || fail "free-space used home filesystem"
 pass "disk-space checks follow the storage symlink target"
+
+# An install whose sources picked up a setgid bit must be normalized, not left
+# at 2700: the privileged bring-up compares the mode against 700 exactly, so a
+# source chmod that silently keeps the bit locks the VM out for good.
+reset_case
+mkdir -p "$HOME/.windows" "$HOME/Windows"
+chmod 2755 "$HOME/.windows" "$HOME/Windows"
+prepare_user_mount_sources || fail "setgid sources were rejected instead of hardened"
+[[ $(stat -Lc '%a' "$HOME/.windows") == 700 && $(stat -Lc '%a' "$HOME/Windows") == 700 ]] ||
+  fail "setgid sources were not hardened to an exact 0700"
+pass "setgid mount sources are hardened to an exact 0700"
