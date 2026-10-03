@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # omarchy:summary=Remove a development environment that was previously installed via omarchy-install-dev-env.
-# omarchy:args=<ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|ocaml|clojure|scala>
+# omarchy:args=<ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|ocaml|clojure|scala|haskell>
 # omarchy:requires-sudo=true
 
 if [[ -z $1 ]]; then
-  echo "Usage: omarchy-remove-dev-env <ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|ocaml|clojure|scala>" >&2
+  echo "Usage: omarchy-remove-dev-env <ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|ocaml|clojure|scala|haskell>" >&2
   exit 1
 fi
 
@@ -144,6 +144,15 @@ scala)
   mise uninstall scala-cli --all
   mise rm -g scala
   mise rm -g scala-cli
+  ;;
+haskell)
+  echo -e "Removing Haskell...\n"
+  mise uninstall ghc --all
+  mise uninstall cabal --all
+  mise uninstall hls --all
+  mise rm -g ghc
+  mise rm -g cabal
+  mise rm -g hls
   ;;
 *)
   echo "Unknown environment: $1"

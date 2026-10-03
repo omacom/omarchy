@@ -2,12 +2,12 @@
 
 # omarchy:summary=Install a supported development environment
 # omarchy:name=dev-env
-# omarchy:args=<ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala>
+# omarchy:args=<ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala|haskell>
 # omarchy:examples=omarchy install dev-env ruby | omarchy install dev-env node
 # omarchy:requires-sudo=true
 
 if [[ -z $1 ]]; then
-  echo "Usage: omarchy-install-dev-env <ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala>" >&2
+  echo "Usage: omarchy-install-dev-env <ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala|haskell>" >&2
   exit 1
 fi
 
@@ -21,6 +21,18 @@ install_php() {
 install_node() {
   echo -e "Installing Node.js...\n"
   mise use --global node
+}
+
+install_haskell_step() {
+  local label="$1"
+  shift
+
+  if "$@"; then
+    return 0
+  else
+    echo "Failed to install ${label}." >&2
+    return 1
+  fi
 }
 
 case "$1" in
@@ -124,5 +136,19 @@ scala)
   mise use --global java@latest
   mise use --global scala@latest
   mise use --global scala-cli@latest
+  ;;
+haskell)
+  echo -e "Installing Haskell...\n"
+  # The GHCup plugin compares HLS versions with bc.
+  if install_haskell_step bc omarchy-pkg-add bc \
+    && install_haskell_step "the HLS plugin" mise plugins install hls https://github.com/mise-plugins/mise-ghcup.git \
+    && install_haskell_step GHC mise use --global ghc@latest \
+    && install_haskell_step Cabal mise use --global cabal@latest \
+    && install_haskell_step HLS mise use --global hls@latest
+  then
+    echo -e "\nYou can now run: cabal init --interactive"
+  else
+    exit 1
+  fi
   ;;
 esac
