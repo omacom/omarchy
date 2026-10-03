@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# omarchy:summary=List the themes installed from the marketplace at a validated commit
+# omarchy:group=theme
+# omarchy:args=[--names]
+# omarchy:hidden=true
+
+# Prints one theme directory per line, or with --names the name the marketplace
+# lists it under, which is what the catalog can be asked about again. Exits
+# nonzero when there are none, so a caller can ask whether any exist without
+# reading the list -- the same contract as omarchy-theme-extras.
+
+set -uo pipefail
+
+names=0
+[[ ${1:-} == "--names" ]] && names=1
+
+status=1
+
+for theme in ~/.config/omarchy/themes/*; do
+  [[ ! -L $theme && -f $theme/.marketplace ]] || continue
+
+  if (( names )); then
+    jq -r '.name // empty' "$theme/.marketplace"
+  else
+    echo "$theme"
+  fi
+
+  status=0
+done
+
+exit $status
