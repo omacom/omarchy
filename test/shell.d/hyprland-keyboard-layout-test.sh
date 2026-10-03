@@ -73,6 +73,55 @@ XKBVARIANT=phonetic
 assert_input "non-latin layout in front gains us even when us trails" "[us,il,us] [,] [$toggle_options]" 'XKBLAYOUT=il,us
 '
 
+resolved_jis() {
+  OMARCHY_PATH="$ROOT" OMARCHY_VCONSOLE="${1-}" lua <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+
+local vconsole = os.getenv("OMARCHY_VCONSOLE")
+local real_open = io.open
+
+io.open = function(path, mode)
+  if path ~= "/etc/vconsole.conf" then
+    return real_open(path, mode)
+  end
+
+  if vconsole == "" then
+    return nil
+  end
+
+  local file = io.tmpfile()
+  file:write(vconsole)
+  file:seek("set")
+  return file
+end
+
+print(require("default.hypr.keyboard").jis())
+LUA
+}
+
+assert_jis() {
+  local description="$1"
+  local expected="$2"
+  local actual
+
+  actual=$(resolved_jis "${3-}")
+  [[ $actual == "$expected" ]] ||
+    fail "$description" "expected: $expected"$'\n'"actual:   $actual"
+  pass "$description"
+}
+
+assert_jis "missing vconsole.conf is not a JIS keyboard" "false"
+assert_jis "us layout is not a JIS keyboard" "false" 'XKBLAYOUT=us
+'
+assert_jis "jp layout is a JIS keyboard" "true" 'KEYMAP=jp106
+XKBLAYOUT=jp
+XKBMODEL=jp106
+'
+assert_jis "jp leading other layouts is a JIS keyboard" "true" 'XKBLAYOUT=jp,us
+'
+assert_jis "jp behind another layout does not rebind the leading layout" "false" 'XKBLAYOUT=us,jp
+'
+
 hooks_conf="$ROOT/etc/mkinitcpio.conf.d/omarchy_hooks.conf"
 input_lua="$ROOT/default/hypr/input.lua"
 

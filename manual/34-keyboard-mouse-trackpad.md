@@ -61,6 +61,28 @@ On Dell XPS laptops with a haptic touchpad, you can also set the click strength 
 
 Omarchy runs the [fcitx5](https://fcitx-im.org/) input method framework as part of every session — it's what powers the CapsLock compose sequences. That means the plumbing for non-Latin input is already in place: install an input engine like `fcitx5-mozc` (Japanese) or `fcitx5-chinese-addons` (Chinese) with `omarchy pkg add`, plus `fcitx5-configtool` to add the engine to your input methods and set the key that switches between them.
 
+### Japanese
+
+For Japanese, run _Setup > Japanese_ in the Omarchy menu (or `omarchy setup japanese`). It installs Mozc and `fcitx5-configtool`, and adds Mozc to your input methods, after your keyboard layout or after the input methods you already have. It also sets the interface font to Noto Sans CJK JP so kanji take their Japanese forms, and asks whether to switch the system language to Japanese (`ja_JP.UTF-8`), which applies the next time you log in.
+
+On a US keyboard, `Ctrl + Space` toggles Japanese input. That's also the tmux and Herdr prefix, so in the terminal use `Ctrl + B` for tmux, or pick another toggle key in `fcitx5-configtool`.
+
+If you installed Omarchy with the Japanese (JIS) keyboard layout, `Ctrl + +` (`Ctrl + Shift + ;`) zooms in, even in apps that don't read the JIS `+` key.
+
+On a JIS keyboard, `omarchy setup japanese` also moves switching Japanese input to the dedicated keys. It replaces fcitx5's lists of switching keys, so any others there, such as `Ctrl + Space` and `Hangul`, stop switching input:
+
+| Key | Action |
+| --- | --- |
+| `Henkan` (変換) | Japanese input on |
+| `Muhenkan` (無変換) | Japanese input off |
+| `Zenkaku/Hankaku` (半角/全角) | Toggle Japanese input |
+
+That frees `Ctrl + Space` for tmux and Herdr. In a terminal, it now also switches to direct input, so the key after the prefix reaches the multiplexer instead of Mozc. Confirm or cancel any text you are still composing first, since Mozc takes `Ctrl + Space` for itself while composing. As long as `Ctrl + Space` still toggles fcitx5, it keeps doing only that.
+
+The window resize keys `Super + Minus` and `Super + Equal` sit on `-` and `^` on a JIS keyboard.
+
+If Mozc's candidate window shows up in the wrong place in Chromium or Obsidian with display scaling on, add `--force-device-scale-factor=1` to `~/.config/chromium-flags.conf` or `~/.config/obsidian/user-flags.conf`. That renders those apps at 1x, so they'll look smaller than the rest of the desktop.
+
 ### Use ALT as SUPER
 
 On some keyboards, it's not convenient to use the primary meta key (Windows/cmd key) as SUPER. You can change this to be ALT instead using this change:

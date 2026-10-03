@@ -15,6 +15,21 @@ list_bindings() {
   HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_EPILOGUE="$epilogue" lua <<'LUA'
 package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
+-- Stand in for /etc/vconsole.conf so layout-specific bindings load no matter
+-- which keyboard the machine running the test was installed with.
+local vconsole = os.getenv("OMARCHY_VCONSOLE")
+local real_open = io.open
+io.open = function(path, mode)
+  if vconsole and path == "/etc/vconsole.conf" then
+    local file = io.tmpfile()
+    file:write(vconsole)
+    file:seek("set")
+    return file
+  end
+
+  return real_open(path, mode)
+end
+
 local function proxy()
   return setmetatable({}, {
     __index = function(self, key)
@@ -142,21 +157,29 @@ is_allowed_duplicate() {
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
-# A fresh home keeps the preinstalled app bindings on, and a stub Voxtype adds
-# its conditional ones, so the check covers the largest set a user can get.
+# A fresh home keeps the preinstalled app bindings on, a stub Voxtype adds its
+# conditional ones, and a JIS layout adds its own, so the check covers the
+# largest set a user can get.
 home="$tmpdir/home"
 stub_bin="$tmpdir/bin"
 mkdir -p "$home" "$stub_bin"
 touch "$stub_bin/voxtype"
 chmod +x "$stub_bin/voxtype"
 
-bindings=$(PATH="$stub_bin:$PATH" list_bindings "$home")
+bindings=$(PATH="$stub_bin:$PATH" OMARCHY_VCONSOLE='XKBLAYOUT=jp' list_bindings "$home")
 [[ -n $bindings ]] || fail "default bindings load for the conflict check"
 
 grep -Fq $'SUPER + RETURN\tTerminal' <<<"$bindings" || fail "conflict check sees the essential bindings"
 grep -Fq $'SUPER + SHIFT + A\tChatGPT' <<<"$bindings" || fail "conflict check sees the preinstalled bindings"
 grep -Fq $'F9\tStart dictation (push-to-talk)' <<<"$bindings" || fail "conflict check sees the Voxtype bindings"
+grep -Fq $'CTRL + SHIFT + semicolon\tZoom in (JIS + key)' <<<"$bindings" || fail "conflict check sees the JIS bindings"
 pass "conflict check covers the full default binding set"
+
+us_bindings=$(PATH="$stub_bin:$PATH" OMARCHY_VCONSOLE='XKBLAYOUT=us' list_bindings "$home")
+if grep -Fq 'JIS' <<<"$us_bindings"; then
+  fail "JIS bindings stay off other layouts" "$(grep -F 'JIS' <<<"$us_bindings")"
+fi
+pass "JIS bindings stay off other layouts"
 
 duplicates=$(duplicate_signatures <<<"$bindings")
 
