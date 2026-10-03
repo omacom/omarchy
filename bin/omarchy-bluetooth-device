@@ -20,8 +20,8 @@ address=${2:-}
 
 power_on() {
   [[ $(timeout 2s bluetoothctl show 2>/dev/null) == *"Powered: yes"* ]] && return
-  # Not bluetoothctl directly: Bluetooth is turned off by an rfkill soft block,
-  # and BlueZ refuses to power an adapter up while one is set.
+  # Use the shared helper to remember the preference and recover any rfkill
+  # software block before connecting.
   omarchy-bluetooth-power on || true
 }
 
