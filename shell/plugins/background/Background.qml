@@ -16,6 +16,10 @@ Item {
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
 
   property string currentBackground: ""
+  // The wallpaper that goes with the palette on screen. A theme switch moves it
+  // in the same step that applies the new colors, so the transparent bar samples
+  // its text color once, with both.
+  property string appliedBackground: ""
   property string displayedBackground: ""
   property string incomingBackground: ""
   property string oldBackground: ""
@@ -59,7 +63,7 @@ Item {
     transitionBackground("", path, path, instant, false)
   }
 
-  function transitionBackground(fromPath, path, finalPath, instant, force) {
+  function transitionBackground(fromPath, path, finalPath, instant, force, withTheme) {
     path = String(path || "").trim()
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
@@ -72,6 +76,7 @@ Item {
     requestNativeSize(fromPath || displayedBackground)
     requestNativeSize(finalPath)
     currentBackground = finalPath
+    if (!withTheme) appliedBackground = finalPath
     backgroundVersion += 1
     revealStartedVersion = -1
 
@@ -111,13 +116,14 @@ Item {
     // background reveal instead of waiting for a separate reload path.
     Color.loadShell(pendingShellRaw)
     Style.scheduleRefresh()
+    appliedBackground = currentBackground
     pendingThemeVersion = -1
     pendingColorsRaw = ""
     pendingShellRaw = ""
   }
 
   function transitionBackgroundWithTheme(fromPath, path, finalPath, colorsB64, shellB64) {
-    transitionBackground(fromPath, path, finalPath, false, true)
+    transitionBackground(fromPath, path, finalPath, false, true, true)
     setPendingTheme(colorsB64, shellB64)
     if (!incomingBackground || revealProgress >= 1) applyPendingTheme()
   }
