@@ -15,8 +15,10 @@ grep -q 'apple/fix-sd-card-reader.sh' "$all" ||
   fail "the Apple SD reader fix runs during hardware setup"
 grep -q 'usbcore.quirks=05ac:8406:bk' "$leaf" ||
   fail "the install leaf puts the Apple reader quirk on the kernel command line"
-grep -q 'acpi_call' "$leaf" ||
-  fail "the install leaf installs acpi_call for SPWR/SRST"
+grep -q 'acpi_call-dkms' "$leaf" ||
+  fail "the install leaf installs acpi_call-dkms for SPWR/SRST"
+grep -Fxq 'acpi_call-dkms' "$ROOT/install/omarchy-other.packages" ||
+  fail "the ISO offline mirror carries acpi_call-dkms"
 grep -q 'SPWR' "$cmd" ||
   fail "the helper calls Apple XHCI SPWR"
 grep -q '05ac:8406' "$manual" ||
@@ -117,8 +119,8 @@ grep -q 'idProduct}=="8406"' "$udev_rules" ||
 grep -q 'omarchy-cmd-apple-sd-reader' "$sleep_hook" ||
   fail "sleep hook calls the Apple SD reader helper"
 [[ -x $sleep_hook ]] || fail "sleep hook is executable"
-grep -Fxq $'omarchy-pkg-add\tacpi_call' "$calls" ||
-  fail "leaf installs acpi_call"
+grep -Fxq $'omarchy-pkg-add\tacpi_call-dkms' "$calls" ||
+  fail "leaf installs acpi_call-dkms"
 grep -Fxq 'limine-mkinitcpio' "$calls" ||
   fail "leaf rebuilds the boot image"
 grep -Fxq $'omarchy-state\tset\treboot-required' "$calls" ||

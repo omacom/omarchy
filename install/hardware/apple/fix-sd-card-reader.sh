@@ -10,7 +10,7 @@ if omarchy-hw-apple-sd-reader; then
   udev_rules="${OMARCHY_APPLE_SD_UDEV_RULES:-/etc/udev/rules.d/90-omarchy-apple-sd-reader.rules}"
   sleep_hook="${OMARCHY_APPLE_SD_SLEEP_HOOK:-/usr/lib/systemd/system-sleep/omarchy-apple-sd-reader}"
 
-  omarchy-pkg-add acpi_call
+  omarchy-pkg-add acpi_call-dkms
 
   sudo mkdir -p "$(dirname "$limine_conf")" "$(dirname "$udev_rules")" "$(dirname "$sleep_hook")"
 
