@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Install Sober (Roblox) via Flathub with Flatpak.
+
+set -e
+
+echo "Installing Sober (Roblox)..."
+omarchy-pkg-add flatpak
+
+flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install -y --user flathub org.vinegarhq.Sober
+
+echo ""
+echo "Sober (Roblox) will start automatically now. On first launch, follow the prompts to install Roblox."
+
+setsid uwsm-app -- flatpak run org.vinegarhq.Sober >/dev/null 2>&1 &
