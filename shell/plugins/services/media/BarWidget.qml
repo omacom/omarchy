@@ -78,7 +78,10 @@ BarWidget {
     }
   }
 
+  readonly property bool tooltipHovered: visible && mouseArea.containsMouse
+
   MouseArea {
+    id: mouseArea
     anchors.fill: parent
     hoverEnabled: true
     cursorShape: root.activePlayer ? Qt.PointingHandCursor : Qt.ArrowCursor
