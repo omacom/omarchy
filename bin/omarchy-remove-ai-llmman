@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=Remove llmman along with every model it pulled.
+# omarchy:requires-sudo=true
+
+# -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
+set -euo pipefail
+
+# `llmman launch` and `llmman run` leave a `llmman serve` daemon behind,
+# detached from any terminal, with the store open and a model possibly still
+# loaded. It has no stop command of its own; its own advice is this pkill, which
+# matches the daemon's command line and no plain CLI invocation.
+pkill -TERM -f 'llmman serve' 2>/dev/null || true
+
+omarchy-pkg-drop llmman-bin
+
+# The store (an OCI layout of every pulled model), the llama.cpp releases it
+# downloaded and the prompt history all sit under one data directory; aliases,
+# provider keys and the trust policy under one config directory. Both are
+# llmman's own. So are the two files it writes into other agents' homes under
+# its own name: the codex profile overlay and the AGY settings directory. The
+# agents themselves, and anything else in ~/.codex and ~/.gemini, stay.
+rm -rf \
+  "$HOME/.local/share/llmman" \
+  "$HOME/.config/llmman" \
+  "$HOME/.codex/llmman.config.toml" \
+  "$HOME/.gemini/llmman"
+
+echo ""
+echo "llmman and its models have been removed."
