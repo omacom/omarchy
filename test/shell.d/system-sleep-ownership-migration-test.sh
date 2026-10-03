@@ -684,22 +684,20 @@ grep -Fq '"mode": "Integrated"' "$hook_config" ||
 pass "force-igpu handles both phases of suspend-then-hibernate"
 
 keyboard_hook_copy="$test_tmp/keyboard-backlight-hook"
-keyboard_calls="$test_tmp/keyboard-backlight-calls"
 keyboard_led_dir="$test_tmp/leds"
-mkdir -p "$keyboard_led_dir/asus::kbd_backlight"
-sed "s|/sys/class/leds/\*kbd_backlight\*|$keyboard_led_dir/*kbd_backlight*|" \
+keyboard_led="$keyboard_led_dir/asus::kbd_backlight/brightness"
+keyboard_record="$test_tmp/keyboard-backlight-level"
+mkdir -p "${keyboard_led%/*}"
+echo 2 >"$keyboard_led"
+sed \
+  -e "s|/sys/class/leds|$keyboard_led_dir|g" \
+  -e "s|/run/omarchy-keyboard-backlight-level|$keyboard_record|g" \
   "$ROOT/default/systemd/system-sleep/keyboard-backlight" >"$keyboard_hook_copy"
-cat >"$stub_bin/brightnessctl" <<'SH'
-#!/bin/bash
-printf '%s\n' "$*" >>"$KEYBOARD_CALLS"
-SH
-chmod +x "$stub_bin/brightnessctl"
 
-SYSTEMD_SLEEP_ACTION=suspend KEYBOARD_CALLS="$keyboard_calls" PATH="$stub_bin:$PATH" \
-  bash "$keyboard_hook_copy" pre suspend-then-hibernate
-[[ ! -e $keyboard_calls ]] || fail "keyboard-backlight runs during the suspend phase of compound sleep"
-SYSTEMD_SLEEP_ACTION=hibernate KEYBOARD_CALLS="$keyboard_calls" PATH="$stub_bin:$PATH" \
-  bash "$keyboard_hook_copy" pre suspend-then-hibernate
-grep -Fqx -- '-d asus::kbd_backlight set 0' "$keyboard_calls" ||
-  fail "keyboard-backlight skips the hibernate phase of compound sleep"
+SYSTEMD_SLEEP_ACTION=suspend bash "$keyboard_hook_copy" pre suspend-then-hibernate
+[[ $(<"$keyboard_led") == 2 ]] ||
+  fail "keyboard-backlight leaves the keyboard lit during the suspend phase of compound sleep"
+SYSTEMD_SLEEP_ACTION=hibernate bash "$keyboard_hook_copy" pre suspend-then-hibernate
+[[ $(<"$keyboard_led") == 0 ]] ||
+  fail "keyboard-backlight does not clear the keyboard during the hibernate phase of compound sleep"
 pass "keyboard-backlight handles the hibernate phase of suspend-then-hibernate"
