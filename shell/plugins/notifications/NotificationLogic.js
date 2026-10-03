@@ -240,6 +240,25 @@ function isDuplicatePopup(row, snapshot) {
   return true
 }
 
+// A server id can be reused while an older Notification object's closed
+// callback is still queued. Object identity is the generation token: only the
+// object that currently owns the live slot may withdraw its popup.
+function ownsLiveNotification(liveNotification, closingNotification) {
+  return !!closingNotification && liveNotification === closingNotification
+}
+
+// Find the exact popup generation belonging to a closed Notification object.
+// The model shape is the small interface QML ListModel exposes, which also
+// makes the selection logic executable in the Node regression suite.
+function popupIndexByIdentity(model, originalId, timestamp) {
+  if (!model || typeof model.get !== "function") return -1
+  for (var i = Number(model.count || 0) - 1; i >= 0; i--) {
+    var row = model.get(i)
+    if (row && row.originalId === originalId && row.timestamp === timestamp) return i
+  }
+  return -1
+}
+
 // A client updating a notification through replaces_id keeps the identity of
 // the popup it took over: the file name is the timestamp and id the popup was
 // first persisted under, and the restore, replace and archive paths all key
@@ -480,6 +499,8 @@ if (typeof module !== "undefined") {
     popupRoles: popupRoles,
     popupRowChanged: popupRowChanged,
     isDuplicatePopup: isDuplicatePopup,
+    ownsLiveNotification: ownsLiveNotification,
+    popupIndexByIdentity: popupIndexByIdentity,
     replacementSnapshot: replacementSnapshot,
     historyEntry: historyEntry,
     parseSettings: parseSettings,

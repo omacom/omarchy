@@ -125,6 +125,46 @@ assertEqual(
   'notifications drop the image half of a tag the newline rewrite splits'
 )
 
+const closingNotification = { id: 7 }
+assert(
+  notifications.ownsLiveNotification(closingNotification, closingNotification),
+  'a closing notification may withdraw the popup generation it still owns'
+)
+assert(
+  !notifications.ownsLiveNotification({ id: 7 }, closingNotification),
+  'a stale close cannot withdraw a same-id generation owned by a newer object'
+)
+assert(
+  !notifications.ownsLiveNotification(null, closingNotification),
+  'a local removal leaves no live generation for its later close signal to withdraw'
+)
+
+function popupModel(rows) {
+  return {
+    count: rows.length,
+    get: index => rows[index]
+  }
+}
+
+assertEqual(
+  notifications.popupIndexByIdentity(popupModel([
+    { originalId: 7, timestamp: 100 },
+    { originalId: 8, timestamp: 101 }
+  ]), 7, 100),
+  0,
+  'a sender close finds its exact popup generation'
+)
+assertEqual(
+  notifications.popupIndexByIdentity(popupModel([]), 7, 100),
+  -1,
+  'a sender close is a no-op when local dismissal already removed the popup'
+)
+assertEqual(
+  notifications.popupIndexByIdentity(popupModel([{ originalId: 7, timestamp: 101 }]), 7, 100),
+  -1,
+  'a sender close leaves a reused notification id from another generation alone'
+)
+
 // The rewrite itself still happens, and body markup other than images survives it.
 assertEqual(
   notifications.styledBody('<b>bold</b>\nsecond line', 'Slack', ''),
@@ -674,6 +714,14 @@ assert(
 assert(
   /removePopupsByOriginalId\(snapshot\.originalId, [^\n]*\)\n\s*removeDuplicatePopups\(service\.currentContent\(notification, snapshot\)\)\n\s*popupModel\.insert\(0, snapshot\)/.test(serviceQml),
   'notifications service replaces an on-screen duplicate before showing the new copy'
+)
+assert(
+  /notification\.closed\.connect\(function\(\) \{\s*if \(!NotificationLogic\.ownsLiveNotification\(service\.liveRefs\[snapshot\.originalId\], notification\)\) return[\s\S]{0,500}?service\.removeWithdrawnPopup\(snapshot\.originalId, snapshot\.timestamp\)/.test(serviceQml),
+  'notifications service removes a popup when its sender closes the notification'
+)
+assert(
+  /function removeWithdrawnPopup\(originalId, timestamp\)[\s\S]{0,300}?popupIndexByIdentity\(popupModel, originalId, timestamp\)[\s\S]{0,120}?archivePopupFileFor\(row\)\s*\n\s*popupModel\.remove\(index\)/.test(serviceQml),
+  'notifications service archives only the exact sender-closed popup without resolving a reused live id'
 )
 assert(
   /isDuplicatePopup\(row, snapshot\) \|\| isRestoredRow\(row\)\) continue\n\s*var ref = liveRefs\[row\.originalId\]\n\s*if \(!ref\) continue/.test(serviceQml),
