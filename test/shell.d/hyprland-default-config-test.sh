@@ -119,6 +119,14 @@ if grep -F 'wtype -M' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null; th
 fi
 pass "universal clipboard shortcuts avoid virtual keyboard modifier merging"
 
+grep -F 'active_window_wants_app_copy' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
+  fail "universal copy detects Codex-style app clipboard handlers"
+grep -F 'haystack:find("codex"' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
+  fail "universal copy matches Codex in the focused window class or title"
+grep -F 'if active_window_wants_app_copy() then' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
+  fail "universal copy prefers Ctrl+C when Codex is focused"
+pass "universal copy sends Ctrl+C for Codex instead of the terminal clipboard chord"
+
 removed_home="$tmpdir/removed-home"
 mkdir -p "$removed_home/.local/state/omarchy"
 touch "$removed_home/.local/state/omarchy/preinstalls-removed"
