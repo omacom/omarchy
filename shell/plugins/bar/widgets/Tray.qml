@@ -17,6 +17,7 @@ BarWidget {
   property var activeTrayItem: null
   property var activeTrayAnchor: null
   readonly property color foreground: bar ? bar.foreground : Color.foreground
+  readonly property color iconForeground: bar ? bar.barForeground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var pinnedIds: settings.pinned instanceof Array ? settings.pinned : []
   readonly property var hiddenIds: settings.hidden instanceof Array ? settings.hidden : []
@@ -138,14 +139,6 @@ BarWidget {
     // it straight to IconImage; guessing a theme sub-directory here only broke
     // apps whose layout didn't match the guess.
     return String(icon || "")
-  }
-
-  // Symbolic icons ship a fixed fill (often near-white) that the host is meant
-  // to recolor to its foreground; detect them by the freedesktop "-symbolic"
-  // name suffix so they can be tinted instead of rendered as-is.
-  function iconIsSymbolic(icon) {
-    var name = String(icon || "").split("?")[0]
-    return name.slice(-9) === "-symbolic"
   }
 
   function trayTooltip(item) {
@@ -464,6 +457,8 @@ BarWidget {
             width: 16
             height: 16
             icon: rowRoot.modelData.icon
+            // The popup keeps the theme background, not the transparent bar's.
+            tint: root.foreground
           }
 
           Text {
@@ -764,13 +759,13 @@ BarWidget {
     }
   }
 
-  // Renders a tray icon, recoloring symbolic icons to the bar foreground so
-  // they stay visible on any theme (a raw symbolic icon keeps its baked-in
-  // fill and disappears against a matching background).
+  // Recolor monochrome tray icons to the bar foreground so they stay visible
+  // on any theme. Preserve the colors of status and application icons.
   component TrayIcon: Item {
     id: trayIconRoot
     required property var icon
-    readonly property bool symbolic: root.iconIsSymbolic(icon)
+    readonly property bool tinted: TrayModel.iconNeedsTint(icon)
+    property color tint: root.iconForeground
 
     Image {
       id: trayIconImage
@@ -782,16 +777,16 @@ BarWidget {
       sourceSize.height: Math.round(Math.min(width, height) * Screen.devicePixelRatio)
       source: root.trayIconSource(trayIconRoot.icon)
       // Kept as a hidden layer so the effect can sample it as a texture.
-      visible: !trayIconRoot.symbolic
-      layer.enabled: trayIconRoot.symbolic
+      visible: !trayIconRoot.tinted
+      layer.enabled: trayIconRoot.tinted
     }
 
     MultiEffect {
       anchors.fill: trayIconImage
       source: trayIconImage
-      visible: trayIconRoot.symbolic
+      visible: trayIconRoot.tinted
       colorization: 1.0
-      colorizationColor: root.foreground
+      colorizationColor: trayIconRoot.tint
     }
   }
 
