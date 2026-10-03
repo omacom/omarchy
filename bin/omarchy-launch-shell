@@ -15,6 +15,9 @@
 # against a half-written tree, and that failed reload leaves a second engine
 # generation behind that turns the next restart's IPC kill into a crash.
 run_shell() {
+  allow_lock_restore
+  (( terminating )) && return 0
+
   QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!
@@ -32,14 +35,61 @@ run_shell() {
   return $status
 }
 
+# hyprctl follows HYPRLAND_INSTANCE_SIGNATURE. After start-hyprland respawns
+# the compositor that variable still names the dead socket, so `hyprctl
+# monitors` fails while `hyprctl instances` still lists the new one. Another
+# session of the same user is listed too, so only a child of this session's
+# watchdog is its replacement.
+adopt_live_instance() {
+  local sig socket pid
+
+  if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && hyprctl -j monitors >/dev/null 2>&1; then
+    return 0
+  fi
+  [[ -n $watchdog_pid ]] || return 1
+
+  while IFS=$'\t' read -r sig socket pid; do
+    [[ -n $sig ]] || continue
+    [[ $(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ') == "$watchdog_pid" ]] || continue
+    if HYPRLAND_INSTANCE_SIGNATURE=$sig hyprctl -j monitors >/dev/null 2>&1; then
+      export HYPRLAND_INSTANCE_SIGNATURE=$sig
+      if [[ -n $socket ]]; then
+        export WAYLAND_DISPLAY=$socket
+      fi
+      return 0
+    fi
+  done < <(hyprctl instances -j 2>/dev/null | jq -r '.[] | "\(.instance)\t\(.wl_socket // "")\t\(.pid)"' 2>/dev/null)
+
+  return 1
+}
+
+# Safe mode does not load looknfeel.lua, where allow_session_lock_restore is
+# normally set. A lock request against a stranded session is then a fatal
+# Wayland error and Quickshell exits instead of drawing the unlock screen.
+allow_lock_restore() {
+  if omarchy-hyprland-session-locked; then
+    if ! hyprctl eval 'hl.config({ misc = { allow_session_lock_restore = true }})' >/dev/null 2>&1; then
+      logger -t omarchy-shell "Could not enable allow_session_lock_restore on $HYPRLAND_INSTANCE_SIGNATURE"
+    fi
+  fi
+}
+
 # A compositor busy reconfiguring outputs can miss a query without being gone,
-# and that is when the shell dies.
+# and that is when the shell dies. The watchdog restart is the same window:
+# give the new instance a few seconds to answer before treating the session
+# as gone.
 compositor_alive() {
   local attempt
 
-  for attempt in 1 2 3; do
-    hyprctl -j monitors >/dev/null 2>&1 && return 0
-    (( attempt < 3 )) && sleep 0.5
+  for (( attempt = 1; attempt <= 10; attempt++ )); do
+    # A stop request reaches the trap between sleeps; don't wait out the rest.
+    (( terminating )) && return 1
+    if adopt_live_instance; then
+      return 0
+    fi
+    if (( attempt < 10 )); then
+      sleep 0.5
+    fi
   done
 
   return 1
@@ -52,6 +102,12 @@ compositor_alive() {
 # session is going, and has to reach the shell the launcher used to exec.
 terminating=0
 shell_pid=""
+# The compositor execs this supervisor before hyprctl lists it, so find its
+# watchdog by ancestry. Without start-hyprland nothing respawns it to follow.
+watchdog_pid=$(ps -o ppid= -p "$PPID" 2>/dev/null | tr -d ' ')
+if [[ -z $watchdog_pid || $(ps -o comm= -p "$watchdog_pid" 2>/dev/null) != "start-hyprland" ]]; then
+  watchdog_pid=""
+fi
 
 stop() {
   terminating=1
