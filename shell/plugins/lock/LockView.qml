@@ -20,6 +20,7 @@ Item {
   // decoding through what is usually the longest part of a lock.
   property bool displaysBlank: false
   property bool powerSaverActive: false
+  property bool concealAuthentication: false
   property string passwordText: ""
   property bool syncingPasswordText: false
 
@@ -46,11 +47,13 @@ Item {
 
   readonly property bool video: Util.isVideoPath(root.backgroundPath)
   readonly property bool feedActive: root.video && root.loadBackground && !root.displaysBlank && !root.powerSaverActive
+    && !root.concealAuthentication
 
   signal submitPassword(string password)
   signal passwordTextEdited(string password)
   signal clearFailureRequested()
   signal wakeRequested()
+  signal pointerWakeRequested()
 
   function forcePasswordFocus() {
     passwordInput.forceActiveFocus()
@@ -88,7 +91,7 @@ Item {
 
   Rectangle {
     anchors.fill: parent
-    color: Color.background
+    color: root.concealAuthentication ? "black" : Color.background
 
     BackgroundMedia {
       id: wallpaper
@@ -103,11 +106,15 @@ Item {
       cached: true
       constrainDecode: true
       decodeSize: Qt.size(width, height)
+      // The idle handoff keeps the decoded wallpaper but draws black over it
+      // until the lock is revealed, so revealing it needs no new decode.
+      visible: !root.concealAuthentication
     }
 
     MultiEffect {
       anchors.fill: wallpaper
       source: wallpaper
+      visible: !root.concealAuthentication
       autoPaddingEnabled: false
       blurEnabled: root.loadBackground && wallpaper.ready
       blur: 1.0
@@ -131,15 +138,16 @@ Item {
     // Keep video wallpapers visible and darken them slightly for legibility.
     Rectangle {
       anchors.fill: feedLoader
-      visible: root.video
+      visible: root.video && !root.concealAuthentication
       color: "#22000000"
     }
 
     MouseArea {
       anchors.fill: parent
       hoverEnabled: true
-      onClicked: { root.wakeRequested(); root.forcePasswordFocus() }
-      onPositionChanged: root.wakeRequested()
+      cursorShape: root.concealAuthentication ? Qt.BlankCursor : Qt.ArrowCursor
+      onClicked: { root.pointerWakeRequested(); root.forcePasswordFocus() }
+      onPositionChanged: root.pointerWakeRequested()
     }
 
     BorderSurface {
@@ -151,6 +159,7 @@ Item {
       borderSpec: root.inputBorderSpec
       radius: Style.cornerRadius
       clip: true
+      opacity: root.concealAuthentication ? 0 : 1
 
       TextInput {
         id: passwordInput
