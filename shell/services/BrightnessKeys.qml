@@ -29,6 +29,8 @@ Item {
     var name = monitor ? String(monitor.name || "") : ""
     if (!/^(eDP|LVDS|DSI)-/.test(name) || !device) return false
     if (action !== "raise" && action !== "lower") return false
+    // A panel that overflows at max_brightness is stepped against its cap by the script.
+    if (readNumber(capFile) > 0) return false
 
     // The script drops a press that overlaps one still being applied, so key
     // repeat cannot race the writes.
@@ -70,6 +72,13 @@ Item {
   FileView {
     id: brightnessFile
     path: root.devicePath ? root.devicePath + "/brightness" : ""
+    blockLoading: true
+    printErrors: false
+  }
+
+  FileView {
+    id: capFile
+    path: "/etc/omarchy/backlight-cap"
     blockLoading: true
     printErrors: false
   }

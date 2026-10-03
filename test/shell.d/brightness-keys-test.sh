@@ -36,6 +36,10 @@ assert(
     qml.includes('var percent = Math.round(100 * readNumber(brightnessFile) / max)'),
   'brightness keys compute percentages as brightnessctl reports them'
 )
+assert(
+  /if \(readNumber\(capFile\) > 0\) return false/.test(qml) && qml.includes('path: "/etc/omarchy/backlight-cap"'),
+  'brightness keys leave a capped backlight to the script, which steps it against the cap'
+)
 
 const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
 assert(
