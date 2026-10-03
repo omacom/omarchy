@@ -1,6 +1,9 @@
 echo "Move the bar indicators to the left of the clock"
 
 config_file="$HOME/.config/omarchy/shell.json"
+if [[ -L $config_file ]]; then
+  config_file=$(readlink -f -- "$config_file")
+fi
 
 if [[ -s $config_file ]]; then
   tmp=$(mktemp)

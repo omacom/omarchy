@@ -2,7 +2,7 @@
 
 # omarchy:summary=Configure the bar and its widget layout
 # omarchy:group=bar
-# omarchy:args=use <id> | reset | defaults | position <top|bottom|left|right> | transparent <true|false|toggle> | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement]
+# omarchy:args=use <id> | reset | defaults [--preserve-layout] | position <top|bottom|left|right> | transparent <true|false|toggle> | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement]
 # omarchy:examples=omarchy bar use local.neon-bar | omarchy bar put omarchy.keyboard-layout --after omarchy.clock | omarchy bar move omarchy.clock --section center --index 0 | omarchy bar set omarchy.clock format HH:mm
 
 set -euo pipefail
@@ -15,7 +15,7 @@ Usage: omarchy bar <command> [args...]
 
   use <id>                             Use a bar option as the active bar
   reset                                Return to the built-in Omarchy bar
-  defaults                             Restore the default bar and service widgets
+  defaults [--preserve-layout]         Restore defaults or only add service widgets
   position <top|bottom|left|right>     Bar position
   transparent <true|false|toggle>      Bar transparency
   put <id> [placement]                 Put a widget on the bar, leaving one
@@ -157,7 +157,12 @@ cmd_use() {
 }
 
 cmd_defaults() {
-  (( $# == 0 )) || fail "defaults does not take arguments"
+  local preserve_layout=false
+  if (( $# == 1 )) && [[ $1 == "--preserve-layout" ]]; then
+    preserve_layout=true
+  else
+    (( $# == 0 )) || fail "defaults takes only --preserve-layout"
+  fi
 
   local optional_widgets="[]"
   local service widget
@@ -174,10 +179,11 @@ cmd_defaults() {
   # This remains one file mutation so it also works during the headless
   # Quattro upgrade and cannot race the shell's in-memory config.
   commit "$NORMALIZE
-    | .bar = \$defaults[0].bar
+    | if \$preserve then . else .bar = \$defaults[0].bar end
     | def entry_id: if type == \"object\" then (.id // \"\" | tostring) else tostring end;
       def anchor_for(\$section): { left: \"omarchy.workspaces\", center: \"omarchy.weather\", right: \"omarchy.tray\" }[\$section];
       reduce \$widgets[] as \$widget (.;
+        if \$preserve and any(.bar.layout[][]; entry_id == \$widget.id) then . else
         .bar.layout.left = (.bar.layout.left | map(select(entry_id != \$widget.id)))
         | .bar.layout.center = (.bar.layout.center | map(select(entry_id != \$widget.id)))
         | .bar.layout.right = (.bar.layout.right | map(select(entry_id != \$widget.id)))
@@ -188,11 +194,17 @@ cmd_defaults() {
             + [{id: \$widget.id}]
             + .bar.layout[\$widget.section][\$index:]
           )
+        end
       )
   " \
     --slurpfile defaults "$DEFAULTS_FILE" \
+    --argjson preserve "$preserve_layout" \
     --argjson widgets "$optional_widgets"
-  echo "Restored the default Omarchy bar"
+  if $preserve_layout; then
+    echo "Added installed-service widgets to the bar"
+  else
+    echo "Restored the default Omarchy bar"
+  fi
 }
 
 cmd_position() {
