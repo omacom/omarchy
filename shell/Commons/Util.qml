@@ -101,6 +101,19 @@ QtObject {
     }
   }
 
+  // True when the event types one visible character into a searchable
+  // panel's filter: a single printable char with no Ctrl, Alt or Super held,
+  // so chords stay with the panel's own shortcuts. Qt also flags keypad keys
+  // with KeypadModifier and AltGr characters with GroupSwitchModifier; both
+  // still type, so neither is a reason to drop the key. Append event.text
+  // when this is true.
+  function extendsFilter(event) {
+    if (!event.text || event.text.length !== 1) return false
+    var code = event.text.charCodeAt(0)
+    if (code < 32 || code === 127) return false
+    return !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
+  }
+
   // Standard Qt text-editing keys shared by every searchable panel's filter:
   //   Backspace       delete previous character
   //   Ctrl+Backspace  delete previous word (Qt DeleteStartOfWord)
