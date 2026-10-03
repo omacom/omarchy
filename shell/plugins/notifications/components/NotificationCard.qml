@@ -34,9 +34,17 @@ BorderSurface {
 
   signal closeRequested()
   signal cardClicked()
-  // Prefer per-notification media/avatar data, then fall back to the app icon.
-  // The `check` flag avoids Qt's missing-texture placeholder for unknown names.
-  readonly property string smallIconSource: image.length > 0 ? image : iconSource(appIcon)
+  // Prefer per-notification media/avatar data, then the icon the sender sent,
+  // then the icon of the desktop entry that shares its name — a sender that
+  // left app_icon empty still has a face on disk. The `check` flag avoids
+  // Qt's missing-texture placeholder for unknown names.
+  readonly property string smallIconSource: {
+    if (image.length > 0) return image
+    var own = iconSource(appIcon)
+    if (own.length > 0) return own
+    return iconSource(NotificationLogic.appIconFor(app, root.desktopEntries))
+  }
+  readonly property var desktopEntries: DesktopEntries.applications ? DesktopEntries.applications.values : []
   readonly property bool hasGlyph: glyph.length > 0
   readonly property bool compactGlyph: NotificationLogic.shouldRenderCompactGlyph(glyph, smallIconSource, singleLineToast)
   readonly property bool hasSmallIcon: smallIconSource.length > 0

@@ -187,6 +187,60 @@ assert(notifications.shouldRenderCompactGlyph('K', '', true), 'notifications ren
 assert(!notifications.shouldRenderCompactGlyph('K', '', false), 'notifications give glyph hints with bodies the large icon slot')
 assert(!notifications.shouldRenderCompactGlyph('K', 'file:///tmp/image.png', true), 'notifications keep image-backed glyph hints in the icon slot')
 
+// A sender that left app_icon empty is matched to a desktop entry by name, by
+// desktop id, or by startup class, so it still gets a face. Each fixture below
+// is reachable through exactly one key, so dropping any one match path fails a
+// distinct assertion: Chrome's display name is not what the sender says, and
+// Signal's class is the only key that reads "Signal".
+const desktopEntries = [
+  { name: 'Trayscale', id: 'dev.deedles.Trayscale', icon: 'dev.deedles.Trayscale' },
+  { name: 'Solstice', id: 'Solstice', icon: 'solstice' },
+  { name: 'Chrome', id: 'google-chrome', icon: 'google-chrome' },
+  { name: 'Signal Messenger', id: 'signal-desktop', startupClass: 'Signal', icon: 'signal-desktop' },
+  { name: 'Iconless', id: 'iconless', icon: '' }
+]
+
+assertEqual(notifications.appIconFor('Solstice', desktopEntries), 'solstice', 'notifications find an app icon by display name')
+assertEqual(notifications.appIconFor('trayscale', desktopEntries), 'dev.deedles.Trayscale', 'notifications match app names case-insensitively')
+assertEqual(notifications.appIconFor('dev.deedles.Trayscale', desktopEntries), 'dev.deedles.Trayscale', 'notifications find an app icon by desktop id')
+assertEqual(notifications.appIconFor('Signal', desktopEntries), 'signal-desktop', 'notifications find an app icon by startup class alone')
+assertEqual(notifications.appIconFor('Google Chrome', desktopEntries), 'google-chrome', 'notifications match a spaced app name against a hyphenated id alone')
+assertEqual(notifications.appIconFor('Unknown App', desktopEntries), '', 'notifications leave an unmatched app name without an icon')
+assertEqual(notifications.appIconFor('Iconless', desktopEntries), '', 'notifications skip desktop entries that declare no icon')
+assertEqual(notifications.appIconFor('', desktopEntries), '', 'notifications leave an empty app name without an icon')
+assertEqual(notifications.appIconFor('Solstice', []), '', 'notifications tolerate an empty desktop entry list')
+
+// Resolve metadata before serialization, not only when a card is drawn.
+const hinted = notifications.snapshotOf({id: 42, hints: {
+  'desktop-entry': 'org.example.Terminal', 'image-path': 'terminal-icon'
+}}, 500, desktopEntries)
+assertEqual(hinted.app, 'org.example.Terminal', 'empty app names retain the desktop-entry identity')
+assertEqual(hinted.appIcon, 'terminal-icon', 'themed image-path hints survive an empty app_icon')
+assertEqual(notifications.snapshotOf({appIcon: 'explicit', hints: {'image-path': 'hint'}}).appIcon,
+  'explicit', 'explicit app icons keep priority over image-path fallback')
+assertEqual(notifications.snapshotOf({hints: {'image_path': '/tmp/icon.png'}}).appIcon,
+  '/tmp/icon.png', 'legacy image_path hints are retained')
+assertEqual(notifications.snapshotOf({desktopEntry: 'dev.deedles.Trayscale'}, 1, desktopEntries).appIcon,
+  'dev.deedles.Trayscale', 'desktop-entry property resolves an icon without an app name')
+assertEqual(notifications.snapshotOf({hints: {'desktop-entry': 'dev.deedles.Trayscale'}}, 1, desktopEntries).appIcon,
+  'dev.deedles.Trayscale', 'desktop-entry hint resolves an icon without an app name')
+assertEqual(notifications.snapshotOf({appName: 'Solstice'}, 1, desktopEntries).appIcon,
+  'solstice', 'name fallback is captured in the persisted snapshot')
+assertEqual(notifications.snapshotOf({appName: 'Solstice', desktopEntry: 'dev.deedles.Trayscale'}, 1, desktopEntries).appIcon,
+  'dev.deedles.Trayscale', 'desktop identity takes priority over a conflicting display name')
+assertEqual(notifications.snapshotOf({image: 'image://live/avatar', hints: {'image-path': 'terminal-icon'}}).image,
+  'image://live/avatar', 'per-notification image data is not replaced by icon fallback')
+const hintDisk = notifications.persistablePopup(hinted, '/state/images/').entry
+const hintRestored = notifications.parsePopupFiles(notifications.serializePopup(hintDisk, 1), 1)[0]
+assertEqual(hintRestored.appIcon, 'terminal-icon', 'themed hint survives persistence and restore')
+assertEqual(hintRestored.app, 'org.example.Terminal', 'desktop identity survives persistence and restore')
+const pathDisk = notifications.persistablePopup(notifications.snapshotOf({id: 43, hints: {'image-path': '/tmp/icon.png'}}, 501), '/state/images/')
+assertDeepEqual(pathDisk.copies, [{from: '/tmp/icon.png', to: '/state/images/501-43-appIcon'}],
+  'file-backed hint uses the existing persistent image copy pipeline')
+assertEqual(notifications.replacementSnapshot({desktopEntry: 'dev.deedles.Trayscale'}, 42, 500, desktopEntries).appIcon,
+  'dev.deedles.Trayscale', 'notification replacements resolve desktop metadata too')
+assertEqual(notifications.snapshotOf({}, 1, desktopEntries).appIcon, '', 'unidentified senders remain iconless')
+
 assert(notifications.shouldBypassDnd({ appName: 'omarchy-action', urgency: 1 }, 2), 'omarchy action toasts bypass DND')
 assert(notifications.shouldBypassDnd({ appName: 'notify-send', urgency: 2 }, 2), 'critical notify-send bypasses DND')
 assert(!notifications.shouldBypassDnd({ appName: 'notify-send', urgency: 1 }, 2), 'normal notify-send does not bypass DND')
