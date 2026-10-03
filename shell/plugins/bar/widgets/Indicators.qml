@@ -30,6 +30,32 @@ BarWidget {
     return ""
   }
 
+  // Resolve an items entry to the QML file that implements it. Plain entries
+  // are first-party indicators in ../indicators/<id>.qml. An entry such as
+  //   { "id": "Backup", "plugin": "my.org.backup", "source": "Indicator.qml" }
+  // loads <source> (default Indicator.qml) from that installed plugin's
+  // directory, looked up in the shell's plugin registry, so a plugin can ship
+  // its own BarIndicator without forking this widget. No "..", no absolute
+  // paths, and an unknown plugin loads nothing.
+  function resolveIndicatorSource(entry) {
+    var id = entryId(entry)
+    if (!id) return ""
+    var settings = entrySettings(entry)
+    var plugin = settings.plugin ? String(settings.plugin) : ""
+    if (!plugin) return Qt.resolvedUrl("../indicators/" + id + ".qml")
+
+    var registry = bar && bar.shell ? bar.shell.pluginRegistry : null
+    if (registry) void registry.registryRevision  // re-resolve after a rescan
+    var manifest = registry && registry.installedPlugins ? registry.installedPlugins[plugin] : null
+    var dir = manifest && manifest.__sourceDir ? String(manifest.__sourceDir).replace(/\/$/, "") : ""
+    var file = settings.source ? String(settings.source) : "Indicator.qml"
+    if (!dir || file.indexOf("..") !== -1 || file.charAt(0) === "/") {
+      console.warn("Indicators: cannot resolve indicator", id, "from plugin", plugin, "source", file)
+      return ""
+    }
+    return Util.fileUrl(dir + "/" + file)
+  }
+
   function entrySettings(entry) {
     if (!Util.isPlainObject(entry)) return {}
     var copy = {}
@@ -431,7 +457,7 @@ BarWidget {
       id: indicatorSource
 
       anchors.fill: parent
-      source: indicatorSlot.indicatorId ? Qt.resolvedUrl("../indicators/" + indicatorSlot.indicatorId + ".qml") : ""
+      source: root.resolveIndicatorSource(indicatorSlot.entry)
       onLoaded: {
         indicatorSlot.injectProps()
         indicatorSlot.syncActiveState()
