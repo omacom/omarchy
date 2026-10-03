@@ -15,6 +15,7 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Stay awake (no idle lock) | `Super + Ctrl + I` | `omarchy toggle idle` |
 | Crash capture | — | `omarchy toggle crash-capture` |
 | Screensaver | — | `omarchy toggle screensaver` |
+| Screensaver during tasks | — | `omarchy toggle screensaver task` |
 | [Herdr](https://herdr.dev) theme sync | — | `omarchy toggle theme sync` |
 | Menu bar | `Super + Shift + Space` | `omarchy toggle bar` |
 | Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
@@ -94,6 +95,30 @@ You can start it on demand from _System > Screensaver_ (`Super + Esc`), which fo
 `omarchy toggle screensaver` is what turns the idle one off, if you'd rather go straight from working to locked. It needs a terminal it knows how to configure — Alacritty, Foot, Ghostty, or Kitty — and will tell you so if your default terminal is something else.
 
 The logo it draws is yours to change, under _Style > Screensaver_. Upload a png or svg and Omarchy converts it to ASCII. See [branding](41-branding.md).
+
+### Screensaver during a task
+
+`omarchy toggle screensaver task` enables automatic screensavers for unattended tasks in new Bash terminals. It is off by default and independent of the desktop idle screensaver. Enabling it installs the optional `python-pyte` dependency. Open a new terminal afterwards, or enter an automatic session in your current terminal:
+
+```bash
+omarchy toggle screensaver task
+omarchy screensaver auto
+# Run commands normally in this session:
+npm run build
+make -j8
+```
+
+When a task is running and no keys or mouse movements inside the terminal have occurred for ten seconds, its output is temporarily covered by the animation. Any input dismisses the animation; command completion restores the terminal automatically. Commands retain interactive stdin. Output produced behind the animation is held in memory and shown normally on return, exactly once; no task logs are written. Mouse reporting during a task can require holding Shift for native text selection.
+
+Password and common confirmation prompts pause the animation. This is heuristic for ordinary CLI tools, not a universal detector of custom input prompts. Unintegrated full-screen applications remain visible rather than being assumed to be busy. The terminal session uses `python-pyte`'s public terminal-emulator interface to redraw standard text TUIs; graphics protocols are not supported.
+
+OpenCode can report working, idle, question and permission states through an optional local plugin:
+
+```bash
+omarchy screensaver auto --install-opencode
+```
+
+Quit and restart OpenCode in an automatic session after installing the plugin. Questions, permissions and turn completion stop the animation without closing OpenCode. The plugin sends only activity states and process IDs over a private local socket; it records no conversation content. Other interactive agents require equivalent activity events. `omarchy screensaver auto --shell zsh` supports an explicit Zsh session; `--idle-after 30` changes the inactivity delay. Turning the toggle off dismisses animations in existing automatic sessions and leaves their shells usable. Desktop idle/lock behavior is unchanged.
 
 ### The lock screen
 
