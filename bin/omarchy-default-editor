@@ -19,6 +19,8 @@ if (($# == 0)); then
 
   # sublime-text-4 ships `subl`; older defaults stored `sublime_text`.
   [[ $editor == sublime_text ]] && editor=subl
+  # Older defaults stored `zeditor`; the package ships `/usr/bin/zed`.
+  [[ $editor == zeditor ]] && editor=zed
 
   [[ -n $editor ]] && echo "$editor" || echo "nvim"
   exit 0
@@ -27,7 +29,7 @@ fi
 case "$1" in
 code) selection="code"; editor="code"; name="VSCode"; glyph= ;;
 cursor) selection="cursor"; editor="cursor"; name="Cursor"; glyph= ;;
-zed | zeditor) selection="zed"; editor="zeditor"; name="Zed"; glyph= ;;
+zed | zeditor) selection="zed"; editor="zed"; name="Zed"; glyph= ;;
 sublime_text | subl) selection="sublime_text"; editor="subl"; name="Sublime Text"; glyph= ;;
 helix) selection="helix"; editor="helix"; name="Helix"; glyph= ;;
 vim) selection="vim"; editor="vim"; name="Vim"; glyph= ;;
