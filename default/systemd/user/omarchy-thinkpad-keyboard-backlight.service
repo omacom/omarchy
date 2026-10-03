@@ -1,0 +1,14 @@
+[Unit]
+Description=ThinkPad keyboard backlight restore
+After=graphical-session.target
+ConditionPathExists=/sys/class/leds/tpacpi::kbd_backlight/brightness_hw_changed
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-thinkpad-keyboard-backlight
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=graphical-session.target

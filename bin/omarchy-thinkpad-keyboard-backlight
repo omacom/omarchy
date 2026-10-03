@@ -1,0 +1,397 @@
+#!/bin/bash
+
+# omarchy:summary=Remember ThinkPad firmware keyboard backlight and restore it
+# omarchy:group=system
+# omarchy:hidden=true
+# omarchy:name=thinkpad keyboard backlight
+
+# Firmware handles the ThinkPad keyboard-light key and reports the new level on
+# tpacpi::kbd_backlight/brightness_hw_changed. This process stores that level
+# and writes it back at login and after resume. Omarchy's own brightnessctl
+# writes do not raise that notification.
+
+exec python3 - "$@" <<'PY'
+import errno
+import os
+import select
+import signal
+import subprocess
+import sys
+import time
+
+DEVICE = "tpacpi::kbd_backlight"
+DEBOUNCE_S = float(os.environ.get("OMARCHY_THINKPAD_KBD_DEBOUNCE", "0.1"))
+RESUME_DELAY_S = float(os.environ.get("OMARCHY_THINKPAD_KBD_RESUME_DELAY", "0.5"))
+SUPPRESS_S = float(os.environ.get("OMARCHY_THINKPAD_KBD_SUPPRESS_S", "0.3"))
+
+
+def led_dir():
+    return os.environ.get(
+        "OMARCHY_THINKPAD_KBD_LED_DIR",
+        "/sys/class/leds/tpacpi::kbd_backlight",
+    )
+
+
+def state_paths():
+    state_home = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or state_home
+    state = os.environ.get("OMARCHY_THINKPAD_KBD_STATE") or os.path.join(state_home, "omarchy", "keyboard-backlight")
+    lock = os.environ.get("OMARCHY_THINKPAD_KBD_LOCK") or os.path.join(state_home, "omarchy", "keyboard-backlight.lock")
+    suppress = os.environ.get("OMARCHY_THINKPAD_KBD_SUPPRESS") or os.path.join(runtime, "omarchy", "keyboard-backlight-suppress")
+    return state, lock, suppress
+
+
+def read_int_file(path):
+    try:
+        text = open(path).read().strip()
+    except OSError:
+        return None
+    if not text.isdigit():
+        return None
+    return int(text)
+
+
+def max_level():
+    return read_int_file(os.path.join(led_dir(), "max_brightness"))
+
+
+def valid_level(level):
+    if level is None or level < 0:
+        return False
+    limit = max_level()
+    return limit is not None and level <= limit
+
+
+class Store:
+    def __init__(self):
+        self.state, self.lock_path, self.suppress = state_paths()
+
+    def _lock(self):
+        import fcntl
+        os.makedirs(os.path.dirname(self.lock_path), exist_ok=True)
+        fd = os.open(self.lock_path, os.O_CREAT | os.O_RDWR, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        return fd
+
+    def _unlock(self, fd):
+        import fcntl
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+    def read_saved(self):
+        fd = self._lock()
+        try:
+            level = read_int_file(self.state)
+            if not valid_level(level):
+                return None
+            return level
+        finally:
+            self._unlock(fd)
+
+    def write_saved(self, level):
+        if not valid_level(level):
+            return False
+        fd = self._lock()
+        try:
+            os.makedirs(os.path.dirname(self.state), exist_ok=True)
+            tmp = self.state + ".tmp"
+            with open(tmp, "w") as handle:
+                handle.write("%s\n" % level)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp, self.state)
+            return True
+        finally:
+            self._unlock(fd)
+
+    def write_suppress(self, level, now):
+        fd = self._lock()
+        try:
+            os.makedirs(os.path.dirname(self.suppress), exist_ok=True)
+            with open(self.suppress, "w") as handle:
+                handle.write("%s %.6f\n" % (level, now + SUPPRESS_S))
+        finally:
+            self._unlock(fd)
+
+    def suppressed(self, level, now):
+        fd = self._lock()
+        try:
+            try:
+                text = open(self.suppress).read().split()
+            except OSError:
+                return False
+            if len(text) != 2 or not text[0].isdigit():
+                return False
+            try:
+                expiry = float(text[1])
+            except ValueError:
+                return False
+            return now < expiry and int(text[0]) == level
+        finally:
+            self._unlock(fd)
+
+
+def seed_live_level(store):
+    if store.read_saved() is not None:
+        return False
+    level = read_int_file(os.path.join(led_dir(), "brightness"))
+    if level is None or level <= 0 or not valid_level(level):
+        return False
+    return store.write_saved(level)
+
+
+def apply_saved(store):
+    level = store.read_saved()
+    if level is None:
+        return False
+    result = subprocess.run(
+        ["brightnessctl", "-d", DEVICE, "set", str(level)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if result.returncode != 0:
+        return False
+    store.write_suppress(level, time.time())
+    return True
+
+
+class Watcher:
+    def __init__(self, store):
+        self.store = store
+        self.paused = False
+        self.resume_at = None
+        self.pending = None
+        self.pending_at = None
+
+    def note(self, level, now=None):
+        if now is None:
+            now = time.monotonic()
+        if self.paused or self.resume_at is not None:
+            return
+        if not valid_level(level):
+            return
+        if self.store.suppressed(level, time.time()):
+            return
+        self.pending = level
+        self.pending_at = now
+
+    def flush(self, now=None):
+        if now is None:
+            now = time.monotonic()
+        if self.pending is None or self.pending_at is None:
+            return
+        if now - self.pending_at < DEBOUNCE_S:
+            return
+        level = self.pending
+        self.pending = None
+        self.pending_at = None
+        if self.paused or self.resume_at is not None:
+            return
+        if self.store.suppressed(level, time.time()):
+            return
+        self.store.write_saved(level)
+
+    def sleep_signal(self, asleep, now=None):
+        if now is None:
+            now = time.monotonic()
+        self.pending = None
+        self.pending_at = None
+        self.paused = True
+        if asleep:
+            self.resume_at = None
+            return
+        self.resume_at = now + RESUME_DELAY_S
+
+    def tick(self, now=None):
+        if now is None:
+            now = time.monotonic()
+        if self.resume_at is not None and now >= self.resume_at:
+            self.resume_at = None
+            apply_saved(self.store)
+            self.paused = False
+        self.flush(now)
+
+
+def run_unit_checks():
+    root = os.environ["OMARCHY_THINKPAD_KBD_UNIT_ROOT"]
+    led = os.path.join(root, "led")
+    os.makedirs(led, exist_ok=True)
+    with open(os.path.join(led, "max_brightness"), "w") as handle:
+        handle.write("2\n")
+    os.environ["OMARCHY_THINKPAD_KBD_LED_DIR"] = led
+    os.environ["OMARCHY_THINKPAD_KBD_STATE"] = os.path.join(root, "state")
+    os.environ["OMARCHY_THINKPAD_KBD_LOCK"] = os.path.join(root, "lock")
+    os.environ["OMARCHY_THINKPAD_KBD_SUPPRESS"] = os.path.join(root, "suppress")
+    store = Store()
+    watcher = Watcher(store)
+    now = 1000.0
+    watcher.note(2, now)
+    assert watcher.pending == 2, watcher.pending
+    watcher.flush(now + DEBOUNCE_S - 0.01)
+    assert watcher.pending == 2
+    watcher.flush(now + DEBOUNCE_S)
+    assert watcher.pending is None
+    assert read_int_file(store.state) == 2
+    watcher.note(9, now)
+    assert watcher.pending is None
+    watcher.sleep_signal(True, now)
+    watcher.note(1, now)
+    assert watcher.pending is None
+    watcher.sleep_signal(False, now)
+    assert watcher.resume_at == now + RESUME_DELAY_S
+    watcher.tick(now + RESUME_DELAY_S - 0.01)
+    assert watcher.paused
+    store.write_suppress(1, time.time())
+    watcher2 = Watcher(store)
+    watcher2.note(1, now)
+    assert watcher2.pending is None
+    watcher2.note(0, now)
+    assert watcher2.pending == 0
+    print("ok")
+
+
+def open_fifo(path):
+    return os.open(path, os.O_RDWR | os.O_NONBLOCK)
+
+
+def consume_dbus(buf, chunk, watcher):
+    if chunk:
+        buf += chunk
+    while "\n" in buf:
+        line, buf = buf.split("\n", 1)
+        if "boolean true" in line:
+            watcher.sleep_signal(True)
+        elif "boolean false" in line:
+            watcher.sleep_signal(False)
+    return buf
+
+
+def main(argv):
+    if "--unit" in argv:
+        run_unit_checks()
+        return 0
+    if not os.path.isdir(led_dir()):
+        return 1
+    store = Store()
+    if "--restore" in argv:
+        return 0 if apply_saved(store) else 1
+
+    hw_path = os.path.join(led_dir(), "brightness_hw_changed")
+    try:
+        hw_fd = os.open(hw_path, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError:
+        return 1
+    try:
+        os.read(hw_fd, 64)
+    except OSError:
+        pass
+
+    event_path = os.environ.get("OMARCHY_THINKPAD_KBD_EVENT_FIFO")
+    event_fd = open_fifo(event_path) if event_path else None
+    dbus_fifo = os.environ.get("OMARCHY_THINKPAD_KBD_DBUS_FIFO")
+    dbus_fd = open_fifo(dbus_fifo) if dbus_fifo else None
+    dbus = None
+    if dbus_fd is None:
+        dbus = subprocess.Popen(
+            [
+                "stdbuf", "-oL", "dbus-monitor", "--system",
+                "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+
+    watcher = Watcher(store)
+    seed_live_level(store)
+    apply_saved(store)
+    stop = {"value": False}
+
+    def request_stop(_signum, _frame):
+        stop["value"] = True
+
+    signal.signal(signal.SIGTERM, request_stop)
+    signal.signal(signal.SIGINT, request_stop)
+
+    poller = select.poll()
+    poller.register(hw_fd, select.POLLPRI | select.POLLERR)
+    if dbus is not None:
+        poller.register(dbus.stdout.fileno(), select.POLLIN)
+    if dbus_fd is not None:
+        poller.register(dbus_fd, select.POLLIN)
+    if event_fd is not None:
+        poller.register(event_fd, select.POLLIN)
+
+    dbus_buf = ""
+    try:
+        while not stop["value"]:
+            now = time.monotonic()
+            timeout = 50
+            if watcher.pending_at is not None:
+                timeout = max(0, int((watcher.pending_at + DEBOUNCE_S - now) * 1000))
+            if watcher.resume_at is not None:
+                timeout = min(timeout, max(0, int((watcher.resume_at - now) * 1000)))
+            try:
+                ready = poller.poll(timeout)
+            except InterruptedError:
+                continue
+            for fd, _mask in ready:
+                if fd == hw_fd:
+                    try:
+                        os.lseek(hw_fd, 0, os.SEEK_SET)
+                        raw = os.read(hw_fd, 64)
+                    except OSError:
+                        raw = b""
+                    text = raw.decode(errors="replace").strip()
+                    if text.isdigit():
+                        watcher.note(int(text))
+                elif event_fd is not None and fd == event_fd:
+                    try:
+                        raw = os.read(event_fd, 64)
+                    except OSError as error:
+                        if error.errno != errno.EAGAIN:
+                            raise
+                        raw = b""
+                    text = raw.decode(errors="replace").strip()
+                    if text.isdigit():
+                        watcher.note(int(text))
+                elif dbus is not None and fd == dbus.stdout.fileno():
+                    chunk = dbus.stdout.readline()
+                    if chunk == "":
+                        return 1
+                    dbus_buf = consume_dbus(dbus_buf, chunk, watcher)
+                elif dbus_fd is not None and fd == dbus_fd:
+                    try:
+                        raw = os.read(dbus_fd, 256)
+                    except OSError as error:
+                        if error.errno != errno.EAGAIN:
+                            raise
+                        raw = b""
+                    dbus_buf = consume_dbus(dbus_buf, raw.decode(errors="replace"), watcher)
+            if watcher.resume_at is not None and time.monotonic() >= watcher.resume_at:
+                watcher.pending = None
+                watcher.pending_at = None
+            watcher.tick()
+            if dbus is not None and dbus.poll() is not None:
+                return 1
+    finally:
+        if dbus is not None:
+            dbus.terminate()
+            try:
+                dbus.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                dbus.kill()
+        os.close(hw_fd)
+        if event_fd is not None:
+            os.close(event_fd)
+        if dbus_fd is not None:
+            os.close(dbus_fd)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        sys.exit(0)
+PY

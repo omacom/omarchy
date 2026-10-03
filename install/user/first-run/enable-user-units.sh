@@ -21,4 +21,8 @@ systemctl --user enable --now \
   omarchy-fcitx5.service \
   omarchy-crash-watch.service
 
+# Separate from the list above so a settings package that has not shipped the
+# unit yet cannot abort bluetooth, sleep lock, or the other first-run services.
+systemctl --user enable --now omarchy-thinkpad-keyboard-backlight.service >/dev/null 2>&1 || true
+
 omarchy-hook-install theme-set /usr/share/owe/10-owe-sync
