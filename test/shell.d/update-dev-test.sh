@@ -31,10 +31,16 @@ case "$1" in
         [[ ${TEST_GIT_UPSTREAM:-origin/quattro} != "none" ]] || exit 1
         echo "${TEST_GIT_UPSTREAM:-origin/quattro}"
         ;;
+      --verify)
+        [[ ${TEST_GIT_QUATTRO_REMOTE:-yes} == "yes" ]] || exit 1
+        ;;
       *)
         exit 1
         ;;
     esac
+    ;;
+  branch)
+    [[ $2 == --set-upstream-to=* ]]
     ;;
   pull)
     [[ $2 == "--ff-only" ]]
@@ -78,6 +84,50 @@ fi
 grep -F "OMARCHY_PATH is not a git checkout: $checkout" "$test_tmp/invalid.err" >/dev/null ||
   fail "invalid dev checkout reports the configured path" "$(cat "$test_tmp/invalid.err")"
 pass "invalid dev checkout fails with a useful error"
+
+: >"$git_log"
+TEST_GIT_UPSTREAM=origin/master run_dev_update "$checkout"
+grep -Fx -- "-C $checkout branch --set-upstream-to=origin/quattro" "$git_log" >/dev/null ||
+  fail "a master upstream is retargeted to quattro" "$(cat "$git_log")"
+grep -Fx -- "-C $checkout pull --ff-only" "$git_log" >/dev/null ||
+  fail "a retargeted master checkout still pulls" "$(cat "$git_log")"
+pass "a master upstream is retargeted to quattro"
+
+: >"$git_log"
+if TEST_GIT_UPSTREAM=origin/master TEST_GIT_QUATTRO_REMOTE=no \
+  run_dev_update "$checkout" >"$test_tmp/master.out" 2>"$test_tmp/master.err"; then
+  fail "a master upstream without quattro fails the update"
+fi
+if grep -q ' pull ' "$git_log"; then
+  fail "a master upstream without quattro is not pulled" "$(cat "$git_log")"
+fi
+grep -F "upstream origin/master no longer exists" "$test_tmp/master.err" >/dev/null ||
+  fail "a missing master upstream reports an actionable error" "$(cat "$test_tmp/master.err")"
+pass "a master upstream without quattro fails with an actionable error"
+
+gone="$test_tmp/gone-master"
+mkdir -p "$gone"
+git init -q --bare "$gone/remote.git"
+git clone -q "$gone/remote.git" "$gone/work"
+git -C "$gone/work" checkout -q -b quattro
+echo quattro >"$gone/work/readme"
+git -C "$gone/work" add readme
+git -C "$gone/work" -c user.email=t@t -c user.name=t commit -q -m quattro
+git -C "$gone/work" push -q origin quattro
+git -C "$gone/work" branch master
+git -C "$gone/work" push -q -u origin master
+git clone -q "$gone/remote.git" "$gone/checkout"
+git -C "$gone/checkout" checkout -q master
+git --git-dir="$gone/remote.git" branch -D master >/dev/null
+git -C "$gone/checkout" fetch -q --prune origin
+
+if ! PATH="/usr/bin:$PATH" OMARCHY_PATH="$gone/checkout" "$ROOT/bin/omarchy-update-dev" >/dev/null; then
+  fail "a pruned master upstream is retargeted to quattro"
+fi
+gone_upstream=$(git -C "$gone/checkout" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}')
+[[ $gone_upstream == origin/quattro ]] ||
+  fail "a pruned master upstream tracks origin/quattro after update" "$gone_upstream"
+pass "a pruned master upstream is retargeted to quattro"
 
 grep -qE '^ *omarchy-update-dev$' "$ROOT/bin/omarchy-update" ||
   fail "top-level update includes the dev checkout step"

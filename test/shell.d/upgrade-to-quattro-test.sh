@@ -363,3 +363,25 @@ reboot_line=$(grep -n 'Rebooting because --reboot was passed' "$upgrade_to_quatt
 [[ -n $unsafe_line && -n $reboot_line ]] || fail "reboot gate and reboot branch exist"
 (( unsafe_line < reboot_line )) || fail "an unverified kernel cmdline blocks the reboot"
 pass "Omarchy 4 upgrade verifies the UKIs and refuses to reboot unverified"
+
+# A branch archive follows the branch: master.tar.gz now redirects to quattro,
+# whose default/hypr has no .conf files for the legacy session to source.
+hypr_defaults_body=$(function_body populate_legacy_hypr_defaults)
+if grep -F 'archive/refs/heads/' <<<"$hypr_defaults_body" >/dev/null; then
+  fail "Omarchy 4 upgrade fetches legacy hypr defaults from a pinned commit, not a branch"
+fi
+
+archive_src="$(mktemp -d)"
+trap 'rm -rf "$archive_src"' EXIT
+mkdir -p "$archive_src/omarchy-legacy/default/hypr"
+echo "# legacy" >"$archive_src/omarchy-legacy/default/hypr/hyprland.conf"
+tar -czf "$archive_src/legacy.tar.gz" -C "$archive_src" omarchy-legacy
+(
+  curl() { cat "$archive_src/legacy.tar.gz"; }
+  eval "populate_legacy_hypr_defaults() { $hypr_defaults_body
+}"
+  populate_legacy_hypr_defaults "$archive_src/shim" ""
+) || fail "Omarchy 4 upgrade fills the legacy hypr shim from the archive when the backup is missing"
+[[ -f $archive_src/shim/hyprland.conf ]] ||
+  fail "Omarchy 4 upgrade copies the archive's hypr defaults into the shim"
+pass "Omarchy 4 upgrade fills the legacy hypr shim from the archive when the backup is missing"

@@ -1016,9 +1016,10 @@ populate_legacy_hypr_defaults() {
     tmp_dir=$(mktemp -d)
     archive_dir="$tmp_dir/archive"
     mkdir -p "$archive_dir"
-    if curl -fsSL https://github.com/omacom/omarchy/archive/refs/heads/master.tar.gz | tar -xz -C "$archive_dir" &&
-      [[ -d $archive_dir/omarchy-master/default/hypr ]]; then
-      cp -a "$archive_dir/omarchy-master/default/hypr/." "$shim_hypr_dir/"
+    # Omarchy 3.8.5, the last tree with the .conf defaults the legacy session sources.
+    if curl -fsSL https://github.com/omacom/omarchy/archive/f4378f0de5b44d331ee943746a97872b718a6c18.tar.gz | tar -xz --strip-components=1 -C "$archive_dir" &&
+      [[ -d $archive_dir/default/hypr ]]; then
+      cp -a "$archive_dir/default/hypr/." "$shim_hypr_dir/"
     fi
     rm -rf "$tmp_dir"
   fi
