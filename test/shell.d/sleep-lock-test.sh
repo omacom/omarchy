@@ -33,6 +33,7 @@ setup_scenario() {
 printf '%s\n' "\$*" >>"$notify_log"
 SH
   chmod +x "$mock_bin/omarchy-notification-send"
+  mock_hyprctl
 }
 
 mock_logind_window() {
@@ -52,6 +53,17 @@ echo clamshell >>"\$CALL_LOG"
 sleep ${1:-0}
 SH
   chmod +x "$mock_bin/omarchy-hyprland-monitor-clamshell"
+}
+
+# Record layout-reset calls instead of hitting the developer's real Hyprland:
+# without this every suite run resets the runner's own keyboard layout.
+mock_hyprctl() {
+  cat >"$mock_bin/hyprctl" <<SH
+#!/bin/bash
+
+echo "hyprctl \$*" >>"\$CALL_LOG"
+SH
+  chmod +x "$mock_bin/hyprctl"
 }
 
 # Called with no budget to exercise the value derived from logind's window.
@@ -95,9 +107,13 @@ pass "sleep lock succeeds once the session reports secure"
   fail "sleep lock requests the session lock first" "first call: ${calls[0]}"
 pass "sleep lock requests the session lock first"
 
-[[ ${calls[1]} == "clamshell" && ${calls[2]} == "shell lock status" ]] ||
+[[ ${calls[2]} == "clamshell" && ${calls[3]} == "shell lock status" ]] ||
   fail "sleep lock checks security after clamshell reconciliation"
 pass "sleep lock checks security after clamshell reconciliation"
+
+[[ ${calls[*]} == *"hyprctl switchxkblayout all 0"* ]] ||
+  fail "sleep lock resets the keyboard layout to the first layout" "calls: ${calls[*]}"
+pass "sleep lock resets the keyboard layout to the first layout"
 
 (( elapsed_us < 1500000 )) ||
   fail "sleep lock bounds a stalled clamshell sync" "elapsed: ${elapsed_us}us"
