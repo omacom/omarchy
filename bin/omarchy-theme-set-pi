@@ -9,6 +9,10 @@ set -euo pipefail
 CURRENT_THEME_PATH="$HOME/.local/state/omarchy/current/theme"
 PI_SOURCE_PATH="$CURRENT_THEME_PATH/pi.json"
 PI_AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+# pi expands a leading ~ in PI_CODING_AGENT_DIR itself, so the value may carry one unexpanded.
+if [[ $PI_AGENT_DIR == "~" || $PI_AGENT_DIR == "~/"* ]]; then
+  PI_AGENT_DIR="$HOME${PI_AGENT_DIR:1}"
+fi
 PI_THEME_DIR="$PI_AGENT_DIR/themes"
 PI_THEME_PATH="$PI_THEME_DIR/omarchy-system.json"
 PI_SETTINGS_PATH="$PI_AGENT_DIR/settings.json"
