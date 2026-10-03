@@ -446,7 +446,7 @@ Item {
     if (!slot) return null
 
     try {
-      var slotPoint = slot.mapToItem(null, 0, 0)
+      var slotPoint = typeof slot.mapToItem === "function" ? slot.mapToItem(null, 0, 0) : { x: slot.x, y: slot.y }
       var screenPoint = barDragScreenPoint(slotPoint)
       var thickness = Style.spacing.xs
       if (vertical) {
@@ -920,10 +920,12 @@ Item {
     }
 
     var candidates = []
+    var seenRegions = {}
     for (var i = 0; i < moduleSlots.length; i++) {
       var slot = moduleSlots[i]
       if (!slot || slot === sourceSlot || !slot.visible || slot.width <= 0 || slot.height <= 0) continue
       if (sourceWindow && !root.sameWindow(root.slotWindow(slot), sourceWindow)) continue
+      seenRegions[slot.region] = true
 
       var slotPoint = { x: slot.x, y: slot.y }
       try {
@@ -938,6 +940,32 @@ Item {
         width: slot.width,
         height: slot.height
       })
+    }
+
+    // An empty section has no slot to drop beside (#9842), so it gets a 1px candidate at its
+    // edge, in the bar window's scene, which the slots and scenePoint share.
+    var bar = sourceWindow ? sourceWindow.contentItem : null
+    var barBounds = { x: 0, y: 0, width: bar ? bar.width : 0, height: bar ? bar.height : 0 }
+
+    function addEmptyRegionCandidate(region, edgeX, edgeY) {
+      if (!bar || seenRegions[region]) return
+      candidates.push({
+        // Geometry for dropMarkerRect, which has no ModuleSlot to map here.
+        slot: { region: region, moduleName: "", x: edgeX, y: edgeY,
+                width: root.vertical ? bar.width : 1, height: root.vertical ? 1 : bar.height },
+        x: edgeX, y: edgeY,
+        width: 1, height: 1
+      })
+    }
+
+    if (root.vertical) {
+      addEmptyRegionCandidate("left",   barBounds.x, barBounds.y)
+      addEmptyRegionCandidate("center", barBounds.x, barBounds.y + barBounds.height / 2)
+      addEmptyRegionCandidate("right",  barBounds.x, barBounds.y + barBounds.height - 1)
+    } else {
+      addEmptyRegionCandidate("left",   barBounds.x, barBounds.y)
+      addEmptyRegionCandidate("center", barBounds.x + barBounds.width / 2, barBounds.y)
+      addEmptyRegionCandidate("right",  barBounds.x + barBounds.width - 1, barBounds.y)
     }
 
     return BarModel.nearestDropTarget(candidates, scenePoint, root.vertical)
