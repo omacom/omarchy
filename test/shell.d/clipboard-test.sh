@@ -167,8 +167,8 @@ assert(
   'clipboard text watcher dies with the shell via pdeathsig'
 )
 assert(
-  clipboardQml.includes('command: ["setpriv", "--pdeathsig", "TERM", "wl-paste", "--type", "image/png", "--watch", root.captureScript, "image/png"]'),
-  'clipboard image watcher dies with the shell via pdeathsig'
+  !clipboardQml.includes('wl-paste", "--type", "image/png", "--watch'),
+  'clipboard avoids watching images to prevent consuming single-use Wayland pipes'
 )
 assert(
   clipboardQml.includes('command: ["pkill", "-f", "wl-paste .*--watch .*/shell/plugins/clipboard/capture\\\\.sh"]'),
@@ -176,8 +176,8 @@ assert(
 )
 assertEqual(
   (clipboardQml.match(/onExited: watchRestartTimer\.restart\(\)/g) || []).length,
-  2,
-  'clipboard respawns both watchers when they die'
+  1,
+  'clipboard respawns the text watcher when it dies'
 )
 
 assertDeepEqual(
