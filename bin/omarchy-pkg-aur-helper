@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Print the configured AUR helper (yay or paru)
+
+helper_file="$HOME/.config/omarchy/defaults/aur-helper"
+
+if [[ -f $helper_file ]]; then
+  read -r helper <"$helper_file"
+  if [[ $helper == "yay" || $helper == "paru" ]] && omarchy-cmd-present "$helper"; then
+    echo "$helper"
+    exit 0
+  fi
+fi
+
+for helper in yay paru; do
+  if omarchy-cmd-present "$helper"; then
+    echo "$helper"
+    exit 0
+  fi
+done
+
+echo "No AUR helper installed (yay or paru)" >&2
+exit 1
