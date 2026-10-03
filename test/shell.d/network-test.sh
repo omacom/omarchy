@@ -90,6 +90,25 @@ assertDeepEqual(
   'network parses bar status'
 )
 assertEqual(network.connectionIcon('wifi', 80), network.wifiIconFor(80), 'network maps wifi icon from signal')
+assertEqual(network.connectionKind(false, false, false), 'disconnected', 'network reports disconnected when no device is online')
+assertEqual(network.connectionKind(true, true, true), 'ethernet', 'network prefers ethernet when multiple devices are online')
+assertEqual(network.connectionKind(false, true, false), 'wifi', 'network reports wifi from a connected access point')
+assertEqual(network.connectionKind(false, false, true), 'wifi', 'network reports wifi from a connected device when access points are missing')
+assert(
+  /wifiStationConnected: !!\(wifiDevice && wifiDevice\.connected\s*&& wifiDevice\.mode === WifiDeviceMode\.Station\)/.test(panelSource),
+  'network counts a connected Wi-Fi device as online only in station mode, not while it runs a hotspot'
+)
+assert(
+  /kind: Model\.connectionKind\([\s\S]*?!!connectedWifiNetwork,\s*wifiStationConnected\s*\)/.test(panelSource),
+  'network keeps the bar on Wi-Fi when the device is connected but no access point object is'
+)
+assert(
+  /connectionKey: kind === "wifi" && wifiDevice\n\s*\? kind \+ ":" \+ wifiDevice\.name \+ ":" \+ \(connectedWifiNetwork \? connectedWifiNetwork\.name : ""\)\n/.test(panelSource),
+  'network rechecks connectivity when Wi-Fi comes up without an access point object'
+)
+assertEqual(network.connectionSignalStrength(0.78, true), 78, 'network maps access-point signal strength to percent')
+assertEqual(network.connectionSignalStrength(null, true), 0, 'network keeps connected wifi online when signal strength is unknown')
+assertEqual(network.connectionSignalStrength(null, false), -1, 'network has no signal strength while disconnected')
 assertEqual(network.formatHeaderSpeed('1000'), '1gbit', 'network formats gigabit speed')
 assertEqual(network.formatHeaderSpeed('2500'), '2.5gbit', 'network formats fractional gigabit speed')
 assertEqual(network.formatHeaderFreq('2462'), '2.4ghz', 'network formats 2.4GHz wifi band')
