@@ -1,0 +1,152 @@
+#!/bin/bash
+
+# omarchy:summary=Native messaging host: save the transcript of the URL sent by the transcript extension
+# omarchy:hidden=true
+
+set -euo pipefail
+
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+
+# The browser launches us without Omarchy's environment, so locate the repo from
+# our own path when OMARCHY_PATH isn't already set. Export it: omarchy-shell (used
+# by the notification helpers) needs it to find the running shell.
+export OMARCHY_PATH="${OMARCHY_PATH:-$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd)}"
+
+# Make sure the Omarchy bin and yt-dlp are reachable when launched by the browser.
+export PATH="$OMARCHY_PATH/bin:/usr/local/bin:/usr/bin:$PATH"
+
+TRANSCRIPT_DIR="${OMARCHY_TRANSCRIPT_DIR:-$HOME/Documents/Transcripts}"
+
+# Spelled out rather than "en.*": that pattern also matches YouTube's ~100
+# machine-translated en-<lang> tracks, and asking for all of them trips an HTTP
+# 429 that aborts the run before the subtitles are converted.
+SUB_LANGS="${OMARCHY_TRANSCRIPT_LANGS:-en,en-orig,en-US,en-GB}"
+
+parse_url() {
+  jq -r '.url // empty' 2>/dev/null <<<"$1" || true
+}
+
+valid_url() {
+  [[ $1 =~ ^https?:// ]]
+}
+
+# yt-dlp prints the title JSON-encoded, so a newline or tab in page metadata is an
+# escape sequence rather than a record boundary. This becomes a filename, so it is
+# also stripped of anything that would escape TRANSCRIPT_DIR or read as an option.
+decode_title() {
+  local decoded
+
+  decoded=$(jq -r 'if type == "string" then . else empty end' <<<"$1" 2>/dev/null) || return 1
+  decoded=${decoded%%[[:cntrl:]]*} # keep what a person would read, drop the forgery
+  decoded=${decoded//\//-}
+  [[ -n $decoded && $decoded != -* ]] || return 1
+
+  printf '%s' "${decoded:0:120}"
+}
+
+# Auto-generated captions repeat each line as the rolling window advances, so the
+# readable transcript is the cue text with consecutive duplicates collapsed.
+to_plain_text() {
+  awk '
+    /^WEBVTT/ || /^(Kind|Language):/ || /^NOTE/ { next }
+    /^[0-9]+$/ { next }
+    /-->/ { next }
+    {
+      gsub(/<[^>]*>/, "")
+      sub(/^[[:space:]]+/, "")
+      sub(/[[:space:]]+$/, "")
+    }
+    NF == 0 { next }
+    $0 != prev { print; prev = $0 }
+  ' "$1"
+}
+
+download_transcript() {
+  local url="$1"
+
+  local workdir
+  workdir=$(mktemp -d)
+  trap 'rm -rf "$workdir"' EXIT
+
+  # --print after_move:filepath names the *video* file, which --skip-download never
+  # produces, so there is no handle on the subtitle path: write it under a fixed -o
+  # template into a scratch dir and glob for it instead. --no-simulate is required
+  # because --print alone implies --simulate, which writes no subtitle file at all.
+  local line title=""
+  while IFS= read -r line; do
+    case $line in
+    OMARCHY_TITLE*)
+      title=$(decode_title "${line#OMARCHY_TITLE$'\t'}") || title=""
+      ;;
+    esac
+  done < <(yt-dlp --no-playlist --skip-download --no-simulate \
+    --write-subs --write-auto-subs --sub-langs "$SUB_LANGS" --convert-subs srt \
+    --quiet --no-warnings \
+    --paths "$workdir" -o 'transcript.%(ext)s' \
+    --print $'OMARCHY_TITLE\t%(title)j' \
+    -- "$url" 2>/dev/null)
+
+  # "transcript.en.srt" carries no wildcard, so nullglob cannot drop it and it must
+  # be tested for existence separately, or an empty result array is never empty.
+  shopt -s nullglob
+  local subs=("$workdir"/transcript.*.srt "$workdir"/transcript.*.vtt)
+  local chosen=""
+  if [[ -f $workdir/transcript.en.srt ]]; then
+    chosen=$workdir/transcript.en.srt
+  elif ((${#subs[@]})); then
+    chosen=${subs[0]}
+  fi
+
+  if [[ -z $chosen ]]; then
+    omarchy-notification-send -u critical -g 󰅖 "No transcript found" "$url"
+    exit 0
+  fi
+
+  [[ -n $title ]] || title="transcript"
+
+  mkdir -p "$TRANSCRIPT_DIR"
+  local srt="$TRANSCRIPT_DIR/$title.srt"
+  local txt="$TRANSCRIPT_DIR/$title.txt"
+
+  to_plain_text "$chosen" >"$txt"
+  mv -f "$chosen" "$srt"
+
+  # The path, not the text: it is what you paste into an editor or another tool.
+  printf '%s' "$txt" | wl-copy --type text/plain
+
+  omarchy-notification-send -g 󰄬 "Transcript saved, path copied" "$title" \
+    -t 10000 --exec xdg-open "$txt"
+}
+
+read_native_message() {
+  local length payload url
+
+  # Native messaging frame: 4-byte little-endian length prefix, then UTF-8 JSON.
+  length=$(head -c4 | od -An -v -tu4 --endian=little | tr -d ' ')
+  [[ -n ${length:-} ]] && ((length > 0)) || exit 0
+
+  payload=$(head -c "$length")
+
+  # Ack with an empty message so the extension's sendNativeMessage callback resolves cleanly.
+  printf '\x02\x00\x00\x00{}'
+
+  url=$(parse_url "$payload")
+  [[ -n $url ]] || exit 0
+  valid_url "$url" || exit 0
+
+  # Detach the download so this host exits promptly and frees the browser's port.
+  setsid -f "$SCRIPT_PATH" --download "$url" </dev/null >/dev/null 2>&1
+}
+
+main() {
+  # Detached worker: this is what actually runs yt-dlp and fires notifications.
+  if [[ ${1:-} == "--download" ]]; then
+    download_transcript "$2"
+  else
+    read_native_message
+  fi
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi
