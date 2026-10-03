@@ -181,7 +181,15 @@ case "$action" in
     # "is a tuning in place", not "where should volume go" -- for the latter see
     # omarchy-audio-output-sink, which follows the current default output.
     tuning_present || exit 1
-    tuned_hardware_sink
+    # Follow the live graph for community tunings too, which need not match a
+    # shipped hardware profile. An idle, unlinked filter resolves to itself;
+    # retain the hardware fallback for shipped tunings in that case.
+    downstream="$(tuning_downstream_sink)"
+    if [[ -n $downstream && $downstream != "$sink_name" ]]; then
+      printf '%s\n' "$downstream"
+    else
+      tuned_hardware_sink
+    fi
     ;;
 
   status)
