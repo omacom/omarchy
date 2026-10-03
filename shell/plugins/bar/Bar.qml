@@ -485,9 +485,23 @@ Item {
   }
 
   function beginBarMove(window) {
+    var screens = []
+    try {
+      var list = Quickshell.screens
+      for (var i = 0; i < list.length; i++) screens.push(list[i])
+    } catch (e) {}
+
+    // Mapped clients are irrelevant: the bar is a layer surface, and an
+    // empty desktop is still a valid place to drag it to another edge.
+    if (!BarModel.barMoveEligible({ mappedClients: [], screens: screens })) return
+
     barMoveWindow = window
-    barMoveScreen = window ? window.screen : null
+    barMoveScreen = BarModel.resolveBarMoveScreen(window, screens, focusedScreenName())
+    if (!barMoveScreen) return
     barMoveCandidate = position
+    // Expanding the moving BarPanel to fullscreen (still WlrLayer.Top) keeps
+    // the same CenterGestureArea MouseArea under the pointer after it leaves
+    // the strip — no seat grab, overlay handoff, or Top→Overlay flip.
     barMoveActive = true
   }
 
@@ -501,6 +515,12 @@ Item {
     barMoveCandidate = ""
     barMoveWindow = null
     barMoveScreen = null
+    // Fullscreen Top expand can leave the center indicator peek held open
+    // (hover tallies miss a leave while the surface resizes). Same stuck peek
+    // shows up on stock after awkward cancels — force-collapse on move end.
+    centerSectionRevealTimer.stop()
+    centerSectionRevealHeld = false
+    centerSectionHovered = false
   }
 
   function finishBarMove() {
@@ -1234,13 +1254,23 @@ Item {
   component BarPanel: PanelWindow {
     id: barWindow
 
+    // True while this surface owns an in-flight edge move. Fullscreen anchors
+    // keep the same MouseArea receiving moves after the pointer leaves the
+    // strip; layer stays Top (Overlay flip blinks).
+    readonly property bool moveExpanded: root.barMoveActive && root.barMoveWindow === barWindow
+
     // Hiding parks the bar just past its screen edge instead of unmapping it.
     // Unmapping frees the layer surface and the whole scene graph, so every
     // reveal has to rebuild them — new surface, re-shaped glyphs, re-uploaded
     // textures — which measures ~150ms against ~20ms to tear down. Parking
     // keeps the surface alive, so showing is only a margin change.
     visible: !remapGuard.remapping
-    exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Auto
+    // Four-edge expand makes a positive exclusive zone a no-op per
+    // wlr-layer-shell (anchored to all edges ⇒ zone treated as 0). Prefer
+    // Ignore explicitly during the move so we do not briefly Auto-reserve the
+    // full screen; strip exclusion returns when moveExpanded clears. Possible
+    // brief tiled-client reflow when the zone drops — see soak note.
+    exclusionMode: (root.barHidden || barWindow.moveExpanded) ? ExclusionMode.Ignore : ExclusionMode.Auto
 
     ScreenMoveRemap {
       id: remapGuard
@@ -1255,15 +1285,17 @@ Item {
     }
 
     anchors {
-      top: root.position === "top" || root.vertical
-      bottom: root.position === "bottom" || root.vertical
-      left: root.position === "left" || !root.vertical
-      right: root.position === "right" || !root.vertical
+      top: barWindow.moveExpanded || root.position === "top" || root.vertical
+      bottom: barWindow.moveExpanded || root.position === "bottom" || root.vertical
+      left: barWindow.moveExpanded || root.position === "left" || !root.vertical
+      right: barWindow.moveExpanded || root.position === "right" || !root.vertical
     }
 
-    implicitWidth: root.vertical ? root.barSize : 0
-    implicitHeight: root.vertical ? 0 : root.barSize
-    color: root.transparent ? "transparent" : root.background
+    implicitWidth: (!barWindow.moveExpanded && root.vertical) ? root.barSize : 0
+    implicitHeight: (!barWindow.moveExpanded && !root.vertical) ? root.barSize : 0
+    // Panel itself goes transparent while expanded so the fullscreen input
+    // surface does not paint a solid slab; strip chrome redraws the edge.
+    color: (barWindow.moveExpanded || root.transparent) ? "transparent" : root.background
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
@@ -1353,18 +1385,36 @@ Item {
       Item {
         anchors.fill: parent
 
-        CenterModules { anchors.fill: parent }
+        // Fills the panel: strip-sized normally, fullscreen while moveExpanded
+        // so the same MouseArea keeps receiving moves after leaving the edge.
+        CenterGestureArea { anchors.fill: parent }
 
-        LeftModules {
-          anchors.left: parent.left
-          anchors.leftMargin: Style.space(8)
-          anchors.verticalCenter: parent.verticalCenter
-        }
+        Item {
+          id: horizontalStrip
+          width: parent.width
+          height: root.barSize
+          y: (barWindow.moveExpanded && root.position === "bottom")
+             ? (parent.height - height) : 0
 
-        RightModules {
-          anchors.right: parent.right
-          anchors.rightMargin: Style.space(8)
-          anchors.verticalCenter: parent.verticalCenter
+          Rectangle {
+            anchors.fill: parent
+            visible: barWindow.moveExpanded && !root.transparent
+            color: root.background
+          }
+
+          CenterModules { anchors.fill: parent }
+
+          LeftModules {
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+          }
+
+          RightModules {
+            anchors.right: parent.right
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+          }
         }
       }
     }
@@ -1375,18 +1425,34 @@ Item {
       Item {
         anchors.fill: parent
 
-        CenterModules { anchors.fill: parent }
+        CenterGestureArea { anchors.fill: parent }
 
-        LeftModules {
-          anchors.top: parent.top
-          anchors.topMargin: Style.space(8)
-          anchors.horizontalCenter: parent.horizontalCenter
-        }
+        Item {
+          id: verticalStrip
+          width: root.barSize
+          height: parent.height
+          x: (barWindow.moveExpanded && root.position === "right")
+             ? (parent.width - width) : 0
 
-        RightModules {
-          anchors.bottom: parent.bottom
-          anchors.bottomMargin: Style.space(8)
-          anchors.horizontalCenter: parent.horizontalCenter
+          Rectangle {
+            anchors.fill: parent
+            visible: barWindow.moveExpanded && !root.transparent
+            color: root.background
+          }
+
+          CenterModules { anchors.fill: parent }
+
+          LeftModules {
+            anchors.top: parent.top
+            anchors.topMargin: Style.space(8)
+            anchors.horizontalCenter: parent.horizontalCenter
+          }
+
+          RightModules {
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Style.space(8)
+            anchors.horizontalCenter: parent.horizontalCenter
+          }
         }
       }
     }
@@ -1549,8 +1615,6 @@ Item {
       Item {
         anchors.fill: parent
 
-        CenterGestureArea { anchors.fill: parent }
-
         HoverHandler {
           onHoveredChanged: root.setCenterSectionHovered(hovered)
         }
@@ -1593,8 +1657,6 @@ Item {
 
       Item {
         anchors.fill: parent
-
-        CenterGestureArea { anchors.fill: parent }
 
         HoverHandler {
           onHoveredChanged: root.setCenterSectionHovered(hovered)
