@@ -4,6 +4,8 @@
 # omarchy:args=[--no-osd] [--monitor name] [+N%|N%-|N%|off|on]
 # omarchy:examples=omarchy brightness display | omarchy brightness display +5% | omarchy brightness display --monitor DP-1 50% | omarchy brightness display off | omarchy brightness display on
 
+set -o pipefail
+
 no_osd=0
 monitor=""
 
@@ -59,22 +61,61 @@ fi
 
 step="$1"
 
+# Both commands share a private fallback before the graphical session starts.
+if [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+  runtime_dir="$XDG_RUNTIME_DIR"
+else
+  runtime_dir="$HOME/.local/state/omarchy/brightness-display"
+  mkdir -p "$runtime_dir" || exit 1
+  chmod 700 "$runtime_dir" || exit 1
+fi
+state_file="$runtime_dir/omarchy-brightness-display.saved"
+
+# Blank and wake must wait for each other; brightness key repeat may be dropped.
+exec {lock_fd}>"$runtime_dir/omarchy-brightness-display.lock" || exit 1
+if [[ $step == "off" || $step == "on" ]]; then
+  flock "$lock_fd" || exit 1
+else
+  flock -n "$lock_fd" || exit 0
+fi
+
+internal_panel_enabled() {
+  hyprctl monitors all -j 2>/dev/null | jq -e 'any(.[]; (.name | test("^(eDP|LVDS|DSI)-")) and .disabled == false)' >/dev/null
+}
+
 if [[ $step == "off" ]]; then
+  # Some drivers leave a visible glow after DPMS. Save a valid level before
+  # zeroing an enabled laptop backlight, independently of pointer focus.
+  if internal_panel_enabled; then
+    device="$(omarchy-hw-display)" || device=""
+    if [[ -n $device ]]; then
+      if [[ ! -s $state_file ]]; then
+        level=$(backlight_brightness "$device") || level=""
+        if [[ $level =~ ^[0-9]+$ ]]; then
+          printf '%s\n' "$level" >"$state_file"
+        fi
+      fi
+      if [[ -s $state_file ]]; then
+        brightnessctl -d "$device" set 0 >/dev/null 2>&1
+      fi
+    fi
+  fi
   hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
   exit 0
 elif [[ $step == "on" ]]; then
-  # Skip the dispatch when every active display is already lit: a redundant
-  # DPMS enable right after system resume forces another modeset, which blanks
-  # the panel for a beat (visible flash at the unlock screen).
+  if [[ -s $state_file ]] && internal_panel_enabled; then
+    device="$(omarchy-hw-display)" || device=""
+    if [[ -n $device ]]; then
+      if brightnessctl -d "$device" set "$(<"$state_file")%" >/dev/null 2>&1; then
+        rm -f "$state_file"
+      fi
+    fi
+  fi
+  # A redundant enable after resume forces another modeset on some drivers.
   hyprctl monitors -j 2>/dev/null | jq -e '[.[] | select(.disabled == false)] | length > 0 and all(.dpmsStatus)' >/dev/null 2>&1 && exit 0
   hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1
   exit 0
 fi
-
-# Drop overlapping brightness key events so concurrent invocations do not race.
-# Hardware key repeat present on some devices can otherwise glitch OSD rendering.
-exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
-flock -n "$lock_fd" || exit 0
 
 if use_apple_display; then
   if (( no_osd )); then
@@ -89,8 +130,39 @@ else
   # Current device highlighted
   device="$(omarchy-hw-display)" || exit 1
 
-  # Current brightness percentage
-  current=$(backlight_brightness "$device") || exit 1
+  # A blanked or disabled panel has hardware brightness zero, but percentage
+  # keys should adjust the level that will be visible after waking it.
+  internal_state="$HOME/.local/state/omarchy/toggles/hypr/internal-monitor-backlight"
+  current=""
+  saved_current=0
+  for saved in "$internal_state" "$state_file"; do
+    if [[ -s $saved ]]; then
+      level=$(<"$saved")
+      if [[ $level =~ ^[0-9]{1,3}$ ]] && (( 10#$level <= 100 )); then
+        current=$((10#$level))
+        saved_current=1
+        break
+      fi
+    fi
+  done
+  if [[ -z $current ]]; then
+    if [[ -s $internal_state || -s $state_file ]]; then
+      echo "Could not read saved brightness" >&2
+      exit 1
+    fi
+    current=$(backlight_brightness "$device") || exit 1
+  fi
+
+  if (( saved_current )); then
+    hardware_current=$(backlight_brightness "$device") || exit 1
+    [[ $hardware_current =~ ^[0-9]{1,3}$ ]] && (( 10#$hardware_current <= 100 )) || exit 1
+    if (( 10#$hardware_current > 0 )); then
+      # A failed blank can leave a snapshot beside a still-lit backlight.
+      # Adjust that live level normally instead of only changing restore state.
+      current=$((10#$hardware_current))
+      saved_current=0
+    fi
+  fi
 
   # Apply non-uniform step size: 1% steps if at or below 5%, otherwise set an
   # absolute target percentage to avoid raw backlight rounding causing uneven OSD steps.
@@ -112,11 +184,67 @@ else
 
     (( target < 1 )) && target=1
     step="$target%"
+  elif (( saved_current )); then
+    if [[ $step =~ ^\+([0-9]{1,3})%$ || $step =~ ^([0-9]{1,3})%\+$ ]]; then
+      target=$((current + 10#${BASH_REMATCH[1]}))
+      (( target > 100 )) && target=100
+      step="$target%"
+    elif [[ $step =~ ^([0-9]{1,3})%-$ || $step =~ ^-([0-9]{1,3})%$ ]]; then
+      target=$((current - 10#${BASH_REMATCH[1]}))
+      (( target < 0 )) && target=0
+      step="$target%"
+    fi
   fi
 
-  # Set brightness of the display device.
-  brightnessctl -d "$device" set "$step" >/dev/null
+  if (( saved_current )); then
+    # Keep a blanked or disabled panel dark; change its next restore level.
+    # Only percentage arguments have a logical meaning while hardware is zero.
+    if [[ ! $step =~ ^([0-9]{1,3})%$ ]]; then
+      echo "Use a percentage while the panel is blanked or disabled" >&2
+      exit 1
+    fi
+    brightness=$((10#${BASH_REMATCH[1]}))
+    (( brightness > 100 )) && brightness=100
+    snapshots=()
+    replacements=()
+    previous_levels=()
+    for saved in "$state_file" "$internal_state"; do
+      if [[ -s $saved ]]; then
+        replacement=$(mktemp "${saved}.XXXXXX") || {
+          rm -f "${replacements[@]}"
+          exit 1
+        }
+        replacements+=("$replacement")
+        if ! printf '%s\n' "$brightness" >"$replacement"; then
+          rm -f "${replacements[@]}"
+          exit 1
+        fi
+        snapshots+=("$saved")
+        previous_levels+=("$(<"$saved")")
+      fi
+    done
+    # Prepare every file before changing any restore target. If a rename fails,
+    # restore completed replacements before reporting the failed adjustment.
+    for (( i = 0; i < ${#snapshots[@]}; i++ )); do
+      if ! mv -f "${replacements[i]}" "${snapshots[i]}"; then
+        for (( j = 0; j < i; j++ )); do
+          replacement=$(mktemp "${snapshots[j]}.XXXXXX") || exit 1
+          if ! printf '%s\n' "${previous_levels[j]}" >"$replacement" || ! mv -f "$replacement" "${snapshots[j]}"; then
+            rm -f "$replacement" "${replacements[@]}"
+            exit 1
+          fi
+        done
+        rm -f "${replacements[@]}"
+        exit 1
+      fi
+    done
+  else
+    brightnessctl -d "$device" set "$step" >/dev/null || exit 1
+    rm -f "$state_file" "$internal_state" || exit 1
+    if (( ! no_osd )); then
+      brightness=$(backlight_brightness "$device") || exit 1
+    fi
+  fi
 
-  # Show the new brightness in OSD
-  (( no_osd )) || omarchy-osd -i brightness -p "$(backlight_brightness "$device")"
+  (( no_osd )) || omarchy-osd -i brightness -p "$brightness"
 fi
