@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Adjust output volume and show the Omarchy OSD
+# omarchy:summary=Adjust output volume and show the Omarchy OSD. Drives the hardware mute LED on laptops that expose one.
 # omarchy:args=<raise|lower|mute-toggle|+N|-N>
 # omarchy:examples=omarchy audio output volume raise | omarchy audio output volume lower | omarchy audio output volume mute-toggle | omarchy audio output volume +1
 
@@ -77,6 +77,16 @@ else
 fi
 
 percent=$(volume_percent)
+
+# Laptops that expose a mute indicator light it themselves when the codec is
+# muted, so the LED has to follow the software mute state or the key appears to
+# do nothing. Raising volume unmutes, so both branches settle the same way.
+if volume_muted; then
+  omarchy-brightness-keyboard-mute on platform::mute
+else
+  omarchy-brightness-keyboard-mute off platform::mute
+fi
+
 if volume_muted || ((${percent:-0} == 0)); then
   icon="volume-muted"
 else
