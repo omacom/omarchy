@@ -26,6 +26,7 @@ steps=(
   omarchy-update-mise
   omarchy-update-orphan-pkgs
   omarchy-update-analyze-logs
+  omarchy-update-verify-boot
   omarchy-update-status
   omarchy-update-restart
 )
@@ -76,6 +77,7 @@ expected_steps() {
     omarchy-hook \
     omarchy-update-mise \
     omarchy-update-aur-pkgs \
+    omarchy-update-verify-boot \
     omarchy-update-stay-awake \
     omarchy-update-restart
 }
@@ -106,3 +108,9 @@ for step in omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-
   fi
 done
 pass "a blocked package upgrade stops the update before it migrates"
+
+if FAILING_STEP=omarchy-update-verify-boot run_update -y; then
+  fail "a failed final boot check cannot offer a reboot"
+fi
+[[ $(grep -c '^omarchy-update-restart ' "$test_tmp/steps") == 1 ]] || fail "final boot failure suppresses the reboot-only phase"
+pass "boot images are checked after AUR changes and a failed final check prevents reboot"
