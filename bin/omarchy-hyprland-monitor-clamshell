@@ -247,6 +247,11 @@ omarchy-hyprland-monitor-internal-mirror recover >/dev/null 2>&1 || true
 
 if omarchy-hw-clamshell && omarchy-hyprland-monitor-external-active; then
   disable_internal
+elif omarchy-hw-apple-mbp15-dgpu && omarchy-hw-laptop-closed && ! omarchy-hw-external-monitors; then
+  # 15" Radeon, lid shut, no external: it stays on with the panel disabled, and
+  # forcing it back on would undo that on monitorremoved. Every other laptop is
+  # about to suspend and needs the panel back for the lock surface.
+  :
 else
   enable_internal
 fi

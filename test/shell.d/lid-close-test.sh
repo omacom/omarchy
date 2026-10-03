@@ -27,7 +27,7 @@ SH
 #!/bin/bash
 exit $docked
 SH
-  for command in omarchy-system-lock omarchy-hyprland-monitor-clamshell; do
+  for command in omarchy-system-lock omarchy-hyprland-monitor-clamshell omarchy-hw-apple-mbp15-lid; do
     cat >"$mock_bin/$command" <<SH
 #!/bin/bash
 echo $command >>"\$CALL_LOG"
@@ -54,6 +54,10 @@ pass "undocked lid close locks before anything else"
 [[ ${calls[1]} == "omarchy-hyprland-monitor-clamshell" ]] ||
   fail "undocked lid close still reconciles displays" "calls: ${calls[*]}"
 pass "undocked lid close still reconciles displays"
+
+[[ ${calls[2]} == "omarchy-hw-apple-mbp15-lid" ]] ||
+  fail "undocked lid close chills the 15-inch panel after clamshell" "calls: ${calls[*]}"
+pass "undocked lid close chills the 15-inch panel after clamshell"
 
 # A docked lid close is clamshell mode: logind leaves the machine awake and the
 # session stays in use on the external display, so locking it would be wrong.
