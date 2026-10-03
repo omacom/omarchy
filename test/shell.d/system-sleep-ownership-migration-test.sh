@@ -636,13 +636,14 @@ pass "force-igpu retains restore intent until Integrated mode is confirmed"
 printf '{ "mode": "Integrated" }\n' >"$hook_config"
 env "${hook_env[@]}" bash "$hook_copy" pre suspend
 set +e
-HOOK_BLOCK_MODE=Vfio env "${hook_env[@]}" \
+HOOK_BLOCK_MODE=Integrated env "${hook_env[@]}" \
   bash "$hook_copy" post suspend >/dev/null 2>&1
 blocked_request_status=$?
 set -e
 (( blocked_request_status != 0 )) || fail "force-igpu waits forever for a blocked GPU transition request"
 [[ -f $hook_marker ]] || fail "force-igpu discards restore intent after a blocked transition request"
-[[ ! -s $hook_queries ]] || fail "force-igpu polls before a blocked transition request returns"
+# The one query confirms Vfio; none may follow the blocked Integrated request.
+(( $(wc -l <"$hook_queries") == 1 )) || fail "force-igpu polls before a blocked transition request returns"
 env "${hook_env[@]}" bash "$hook_copy" post suspend
 [[ ! -e $hook_marker ]] || fail "force-igpu cannot retry after a blocked transition request"
 pass "force-igpu bounds blocked transition requests and retains retry intent"
