@@ -1,0 +1,6 @@
+{
+  "es": {"": {"language": "es", "plural-forms": "nplurals=2; plural=(n != 1);"}, "M = Turn On Audio": "M = Activar audio", "M = Turn Off Audio": "M = Desactivar audio"},
+  "fr": {"": {"language": "fr", "plural-forms": "nplurals=2; plural=(n > 1);"}, "M = Turn On Audio": "M = Activer le son", "M = Turn Off Audio": "M = Couper le son"},
+  "de": {"": {"language": "de", "plural-forms": "nplurals=2; plural=(n != 1);"}, "M = Turn On Audio": "M = Ton einschalten", "M = Turn Off Audio": "M = Ton ausschalten"},
+  "ru": {"": {"language": "ru", "plural-forms": "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);"}, "M = Turn On Audio": "M = Включить звук", "M = Turn Off Audio": "M = Выключить звук"}
+}
