@@ -110,6 +110,47 @@ assertDeepEqual(julySunday.map(week => week.week), [27, 28, 29, 30, 31, 32], 'ca
 const januarySunday = calendar.monthGrid(2021, 0, 0, '')
 assertEqual(januarySunday[0].week, 53, 'calendar carries the previous ISO year into a straddling first row')
 
+// ---- the grid is calendar arithmetic, not local-clock arithmetic
+// Zone shifts can delete local midnight, and a grid walked from one midnight
+// to the next lands on an hour that never happened. Engines disagree on where
+// that resolves -- Qt steps back onto the same day, V8 forward past the next
+// one -- so the grid has to be built in UTC. Samoa is the case node can see:
+// it crossed the date line at the end of 2011 and 30 December never existed
+// there at all.
+function gridIsContinuous(grid) {
+  const keys = grid.flatMap(week => week.days).map(day => day.key)
+  return keys.every((key, index) =>
+    index === 0 || Date.parse(key + 'T00:00:00Z') - Date.parse(keys[index - 1] + 'T00:00:00Z') === 86400000
+  )
+}
+
+const originalTz = process.env.TZ
+process.env.TZ = 'Pacific/Apia'
+const apia = calendar.monthGrid(2011, 11, 1, '')
+assertDeepEqual(
+  apia[4].days.map(day => day.day),
+  [26, 27, 28, 29, 30, 31, 1],
+  'calendar keeps a day the local zone skipped entirely'
+)
+assert(gridIsContinuous(apia), 'calendar runs one day at a time across a skipped local day')
+
+process.env.TZ = 'America/Santiago'
+const santiago = calendar.monthGrid(2026, 8, 0, '2026-09-24')
+assertDeepEqual(
+  santiago[1].days.map(day => day.day),
+  [6, 7, 8, 9, 10, 11, 12],
+  'calendar keeps its columns across a midnight daylight-saving jump'
+)
+assertDeepEqual(
+  santiago.flatMap(week => week.days).filter(day => day.today).map(day => day.weekday),
+  [4],
+  'calendar leaves a Thursday in the Thursday column after a midnight jump'
+)
+assert(gridIsContinuous(santiago), 'calendar runs one day at a time across a midnight jump')
+
+if (originalTz === undefined) delete process.env.TZ
+else process.env.TZ = originalTz
+
 // ---- stepping
 assertDeepEqual(calendar.stepMonth(2026, 0, 1), { year: 2026, month: 1 }, 'calendar steps to the next month')
 assertDeepEqual(calendar.stepMonth(2026, 0, -1), { year: 2025, month: 11 }, 'calendar steps back across the new year')

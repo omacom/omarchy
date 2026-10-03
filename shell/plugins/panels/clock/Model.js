@@ -233,8 +233,16 @@ function lifeProgressPercent(age, expectancy) {
 // panel jump under the pointer.
 function monthGrid(year, month, weekStart, todayKey) {
   var start = normalizedWeekStart(weekStart, 1)
-  var leading = (new Date(year, month, 1).getDay() - start + 7) % 7
-  var cursor = new Date(year, month, 1 - leading)
+  // Walked in UTC, then read back with the UTC accessors. A local-midnight
+  // cursor cannot be stepped a day at a time through a zone shift that
+  // removes local midnight: Santiago goes 00:00 -> 01:00 on 6 September 2026,
+  // and Apia skipped 30 December 2011 outright. Stepping onto an hour that
+  // never happened lands wherever the engine decides to resolve it -- back on
+  // the same day under Qt, forward past the next one under V8 -- and the rest
+  // of the month slides a column out of place either way. UTC has no such
+  // discontinuities, and the grid only ever needs calendar arithmetic.
+  var leading = (new Date(Date.UTC(year, month, 1)).getUTCDay() - start + 7) % 7
+  var cursor = Date.UTC(year, month, 1 - leading)
   var today = String(todayKey || "")
   var weeks = []
 
@@ -242,10 +250,11 @@ function monthGrid(year, month, weekStart, todayKey) {
     var days = []
     var thursday = null
     for (var d = 0; d < 7; d++) {
-      var cellYear = cursor.getFullYear()
-      var cellMonth = cursor.getMonth()
-      var cellDay = cursor.getDate()
-      var weekday = cursor.getDay()
+      var cell = new Date(cursor)
+      var cellYear = cell.getUTCFullYear()
+      var cellMonth = cell.getUTCMonth()
+      var cellDay = cell.getUTCDate()
+      var weekday = cell.getUTCDay()
       var key = dateKey(cellYear, cellMonth, cellDay)
       if (weekday === 4) thursday = { year: cellYear, month: cellMonth, day: cellDay }
       days.push({
@@ -258,7 +267,7 @@ function monthGrid(year, month, weekStart, todayKey) {
         weekend: weekday === 0 || weekday === 6,
         today: key === today
       })
-      cursor.setDate(cursor.getDate() + 1)
+      cursor += MS_PER_DAY
     }
     // Number every row by the ISO week owning its Thursday. That is the
     // definition itself for Monday-start weeks, and the only answer that
