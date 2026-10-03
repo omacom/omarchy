@@ -79,7 +79,7 @@ snapshot_current_background() {
 theme_background_state_file() {
   local theme="$1"
 
-  [[ -n $theme && ${theme##*/} == $theme && $theme != "." && $theme != ".." ]] || return 1
+  [[ -n $theme && ${theme##*/} == "$theme" && $theme != "." && $theme != ".." ]] || return 1
   printf '%s/%s\n' "$THEME_BACKGROUND_STATE_PATH" "$theme"
 }
 
@@ -120,13 +120,13 @@ choose_theme_background() {
 
   if [[ $PREVIOUS_THEME_NAME == "$THEME_NAME" ]]; then
     current_background=$(readlink "$CURRENT_BACKGROUND_LINK" 2>/dev/null || true)
-    if [[ $theme_path != $CURRENT_THEME_PATH && ${current_background%/*} == $current_theme_backgrounds ]]; then
+    if [[ $theme_path != "$CURRENT_THEME_PATH" && ${current_background%/*} == "$current_theme_backgrounds" ]]; then
       current_background="$theme_path/backgrounds/${current_background##*/}"
     fi
 
     index=-1
     for i in "${!backgrounds[@]}"; do
-      if [[ ${backgrounds[$i]} == $current_background ]]; then
+      if [[ ${backgrounds[$i]} == "$current_background" ]]; then
         index=$i
         break
       fi
@@ -143,7 +143,7 @@ choose_theme_background() {
 
   state_file=$(theme_background_state_file "$THEME_NAME" 2>/dev/null || true)
   remembered_background=$(cat "$state_file" 2>/dev/null || true)
-  if [[ $theme_path != $CURRENT_THEME_PATH && ${remembered_background%/*} == $current_theme_backgrounds ]]; then
+  if [[ $theme_path != "$CURRENT_THEME_PATH" && ${remembered_background%/*} == "$current_theme_backgrounds" ]]; then
     remembered_background="$theme_path/backgrounds/${remembered_background##*/}"
   fi
   if [[ -f $remembered_background ]]; then
@@ -160,7 +160,7 @@ choose_staged_theme_background() {
   choose_theme_background "$NEXT_THEME_PATH" || return 1
   STAGED_THEME_BACKGROUND="$CHOSEN_THEME_BACKGROUND"
 
-  if [[ ${CHOSEN_THEME_BACKGROUND%/*} == $next_theme_backgrounds ]]; then
+  if [[ ${CHOSEN_THEME_BACKGROUND%/*} == "$next_theme_backgrounds" ]]; then
     CHOSEN_THEME_BACKGROUND="$CURRENT_THEME_PATH/backgrounds/${CHOSEN_THEME_BACKGROUND##*/}"
   fi
 }
