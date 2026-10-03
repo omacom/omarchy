@@ -8,6 +8,12 @@ Plug in a USB stick or an SD card and it's mounted automatically, so it just sho
 
 Double-clicking follows sensible defaults: images open in imv, video in mpv, PDFs in Document Viewer, and plain text in Neovim.
 
+## disktree
+
+[disktree](https://github.com/tobi/disktree) draws your home directory as a treemap, every folder a tile sized by what it really takes up on disk, colored by kind of data, with caches and other space you can get back hatched. Walk into it with the keyboard or the mouse, mark what should go, and nothing is removed until you review the list and commit. From the review you can also save the list, or copy it as a prompt for your coding agent to do the cleanup carefully.
+
+You start disktree via the application launcher (`Super + Space`), or right-click a folder in Files and pick _Open With > disktree_. Its launcher entry also has _Scan the whole disk_. Press `?` inside for every key. For a terminal take on the same job, see [Disk Usage](21-tuis.md#disk-usage).
+
 ## Obsidian
 
 [Obsidian](https://obsidian.md/) is a free and highly extensible note taking application that uses simple Markdown files for storage.
