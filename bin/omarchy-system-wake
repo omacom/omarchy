@@ -5,6 +5,6 @@
 # omarchy:name=wake
 # omarchy:examples=omarchy system wake
 
-omarchy-brightness-display on
+omarchy-brightness-display --force on
 omarchy-brightness-keyboard restore
 omarchy-hyprland-monitor-clamshell >/dev/null 2>&1 || true
