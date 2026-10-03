@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
@@ -8,8 +9,30 @@ BarWidget {
   id: root
   moduleName: "omarchy.active-window"
 
+  // Wayland foreign-toplevel focus is global; map it onto Hyprland so this
+  // per-monitor bar instance can keep the title on the output that owns it.
+  readonly property var activeWayland: ToplevelManager.activeToplevel
+  readonly property var barWindow: QsWindow.window
+  readonly property var barScreen: barWindow ? barWindow.screen : null
+  readonly property string barScreenName: barScreen ? String(barScreen.name || "") : ""
 
-  readonly property var toplevel: ToplevelManager.activeToplevel
+  function hyprlandToplevelFor(waylandToplevel) {
+    if (!waylandToplevel) return null
+
+    var values = Hyprland.toplevels.values
+    for (var i = 0; i < values.length; i++) {
+      if (values[i].wayland === waylandToplevel) return values[i]
+    }
+
+    return null
+  }
+
+  readonly property var hyprlandToplevel: hyprlandToplevelFor(activeWayland)
+  readonly property var activeMonitor: hyprlandToplevel ? hyprlandToplevel.monitor : null
+  readonly property string activeMonitorName: activeMonitor ? String(activeMonitor.name || "") : ""
+  // Missing Hyprland match or null monitor: hide rather than mirror globally.
+  readonly property bool onThisScreen: barScreenName !== "" && activeMonitorName !== "" && barScreenName === activeMonitorName
+  readonly property var toplevel: onThisScreen ? activeWayland : null
   readonly property string title: toplevel ? (toplevel.title || toplevel.appId || "") : ""
   readonly property int maxLabelWidth: Number(setting("maxWidth", 280))
 
