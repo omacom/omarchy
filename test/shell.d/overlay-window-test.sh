@@ -40,7 +40,7 @@ assert(
 // a monitor leaves the menu and its siblings dead until the shell restarts.
 assert(
   /onVisibleChanged: if \(!visible\) Qt\.callLater\(remap\)/.test(overlay) &&
-    /function remap\(\) \{\s*if \(visible \|\| !hasRealScreen\(\)\) return[\s\S]*?visible = true\s*\}/.test(overlay) &&
+    /function remap\(\) \{\s*if \(visible \|\| !hasRealScreen\(\)\) return[\s\S]*?visible = false[\s\S]*?visible = true\s*\}/.test(overlay) &&
     /target: Quickshell\s*function onScreensChanged\(\) \{ window\.remap\(\) \}/.test(overlay) &&
     /candidate\.name && candidate\.width > 0 && candidate\.height > 0/.test(overlay),
   'overlay window maps again after its output is removed'

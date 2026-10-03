@@ -50,6 +50,9 @@ PanelWindow {
 
   function remap() {
     if (visible || !hasRealScreen()) return
+    // Quickshell can keep the closed window, whose layer surface is gone, and
+    // show that again; hiding it explicitly makes it build a fresh one.
+    visible = false
     if (Quickshell.screens.indexOf(targetScreen) < 0) targetScreen = null
     visible = true
   }
