@@ -1,12 +1,43 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the Omarchy screensaver in the default terminal on the system with the correct font configuration.
+# omarchy:args=[force] [--exec <program> [args...]]
+# omarchy:examples=omarchy launch screensaver force | omarchy launch screensaver --exec ~/.config/omarchy/plugins/acme.saver/saver
+
+# --exec runs <program> in each screensaver terminal instead of omarchy-screensaver,
+# so a screensaver plugin can reuse this launcher's per-monitor windows. The program
+# takes over omarchy-screensaver's dismissal duties: exit on input or focus loss,
+# close every org.omarchy.screensaver window, and restore the cursor. Everything after
+# the program is passed to it, so --exec must come last.
+force=false
+program=omarchy-screensaver
+program_args=()
+
+while (($#)); do
+  case $1 in
+  force) force=true ;;
+  --exec)
+    # Resolved to an absolute path, since the terminals do not start in this directory.
+    if ! program=$(realpath -e -- "${2:-}" 2>/dev/null) || [[ ! -f $program || ! -x $program ]]; then
+      echo "omarchy-launch-screensaver: --exec needs an executable file: '${2:-}'" >&2
+      exit 1
+    fi
+    program_args=("${@:3}")
+    break
+    ;;
+  *)
+    echo "Usage: omarchy-launch-screensaver [force] [--exec <program> [args...]]" >&2
+    exit 1
+    ;;
+  esac
+  shift
+done
 
 # Exit early if screensaver is already running
 pgrep -f '[o]rg.omarchy.screensaver' && exit 0
 
 # Allow screensaver to be turned off but also force started
-if omarchy-toggle-enabled screensaver-off && [[ $1 != "force" ]]; then
+if omarchy-toggle-enabled screensaver-off && [[ $force != true ]]; then
   exit 1
 fi
 
@@ -57,16 +88,16 @@ while read -r m special; do
 
   case $terminal in
   *Alacritty*)
-    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -e omarchy-screensaver
+    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -e "$program" "${program_args[@]}"
     ;;
   *ghostty*)
-    hypr_exec ghostty --class=org.omarchy.screensaver --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --font-size=18 -e omarchy-screensaver
+    hypr_exec ghostty --class=org.omarchy.screensaver --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --font-size=18 -e "$program" "${program_args[@]}"
     ;;
   *foot*)
-    hypr_exec foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" -e omarchy-screensaver
+    hypr_exec foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" -e "$program" "${program_args[@]}"
     ;;
   *kitty*)
-    hypr_exec kitty --class=org.omarchy.screensaver --override font_size=18 --override window_padding_width=0 -e omarchy-screensaver
+    hypr_exec kitty --class=org.omarchy.screensaver --override font_size=18 --override window_padding_width=0 -e "$program" "${program_args[@]}"
     ;;
   esac
 

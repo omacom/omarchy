@@ -44,14 +44,29 @@ wait).
 | `overlay`    | Fullscreen overlay (e.g. background picker)    |
 | `menu`       | Summoned menu surface                          |
 | `service`    | Headless singleton, no UI                      |
+| `screensaver` | Executable that replaces the built-in idle screensaver |
 
 Only one full bar option is active at a time. The built-in `omarchy.bar` is
 used when `bar.id` is omitted or when a selected third-party bar cannot load.
+The `screensaver` kind mirrors that: exactly one is active, selected by `idle.screensaverId`, and the built-in terminal screensaver is used when the key is omitted or the selection cannot be resolved.
 Panels, overlays, and menus are loaded when summoned. Plugins can set the top-level manifest key `keepLoaded: true` to survive between summons, and to keep a service mounted across plugin hot-reload (so `omarchy.lock` is not destroyed while Hyprland still holds the session lock). The kept service instance is not replaced, so changes to its code take effect on a shell restart. First-party services are loaded at startup.
 
-Entry points are QML `Item`s. Panel, overlay, and menu entry points expose `open(payloadJson)` and `close()` for summon/hide; on load the host injects `omarchyPath`, `shell`, `manifest`, and the registries (`pluginRegistry` / `barWidgetRegistry`) as properties. Built-in plugins receive the trusted host objects. Third-party plugins receive capability-scoped facades instead: ordinary plugins may look up and control only their own service and lifecycle, built-in clones retain narrow source-specific configuration and UI compatibility, menu plugins receive an application-library facade, and plugins can read detached scalar bar state. A full-bar plugin additionally receives detached bar configuration and widget-catalog snapshots, narrow proxies for the non-authentication services used by built-in bar widgets, and lifecycle control over configured non-authentication UI plugins. Authentication capabilities are stamped from trusted first-party manifests, authentication services are kept out of the host's public service map and QML object tree, and third-party registry/configuration snapshots can be changed only locally without mutating host state. The facades are API boundaries, not same-process QML sandboxes: a visual widget shares the host bar's scene and can walk its parent hierarchy to ordinary host objects. Sensitive state must not rely on the facade alone for isolation.
+Entry points are QML `Item`s, except `screensaver`, whose entry point is an executable (see below). Panel, overlay, and menu entry points expose `open(payloadJson)` and `close()` for summon/hide; on load the host injects `omarchyPath`, `shell`, `manifest`, and the registries (`pluginRegistry` / `barWidgetRegistry`) as properties. Built-in plugins receive the trusted host objects. Third-party plugins receive capability-scoped facades instead: ordinary plugins may look up and control only their own service and lifecycle, built-in clones retain narrow source-specific configuration and UI compatibility, menu plugins receive an application-library facade, and plugins can read detached scalar bar state. A full-bar plugin additionally receives detached bar configuration and widget-catalog snapshots, narrow proxies for the non-authentication services used by built-in bar widgets, and lifecycle control over configured non-authentication UI plugins. Authentication capabilities are stamped from trusted first-party manifests, authentication services are kept out of the host's public service map and QML object tree, and third-party registry/configuration snapshots can be changed only locally without mutating host state. The facades are API boundaries, not same-process QML sandboxes: a visual widget shares the host bar's scene and can walk its parent hierarchy to ordinary host objects. Sensitive state must not rely on the facade alone for isolation.
 
 A third-party replacement bar can render registered widget components, but widgets it hosts receive a service-less entry facade. Allowing the bar to manufacture an own-service facade for an arbitrary widget would also let it retrieve that plugin's live service object. Service-backed third-party widgets therefore retain their full integration only under the trusted built-in bar; a replacement bar may still provide their target-scoped lifecycle and settings operations.
+
+A `screensaver` entry point is an executable launcher that the idle service runs, with no arguments, in place of `omarchy-launch-screensaver` when the idle screensaver is due. It is not run while the session is locked or while the screensaver is toggled off. The launcher must exit once its windows are open: a launcher still running at the next idle cycle blocks that cycle's launch. Its windows must use the class `org.omarchy.screensaver`, so dismissing them cancels the pending lock. Locking closes screensavers with `pkill -f`, so that class must also appear on the command line of the process that owns each window (a `--class=org.omarchy.screensaver` flag does both). The screensaver must not hold an idle inhibitor, or the machine never locks.
+
+A terminal screensaver can leave the windows to the built-in launcher, which opens a fullscreen terminal on each monitor with Omarchy's screensaver font config and runs a program of your choosing in each one:
+
+```bash
+#!/bin/bash
+exec omarchy-launch-screensaver --exec "${0%/*}/my-screensaver"
+```
+
+Arguments after the program are passed to it, so `--exec` comes last: `omarchy-launch-screensaver --exec "${0%/*}/my-screensaver" --no-intro`.
+
+The program takes over what `omarchy-screensaver` does inside those terminals: exit on a keypress or when its window loses focus, close every screensaver window on the way out (`pkill -f '[o]rg.omarchy.screensaver'`), and show the cursor again if it hid it.
 
 Full schema: [`shell/services/PluginRegistry.qml`](../shell/services/PluginRegistry.qml).
 
@@ -175,6 +190,8 @@ Rules:
    First-party non-bar plugins are enabled unless listed in `disabledPlugins[]`.
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
 7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
+   `idle.screensaverId` selects a `screensaver`-kind plugin the way `bar.id`
+   selects a bar option; omit it for the built-in terminal screensaver.
 8. `version: 1` is required.
 
 `config/omarchy/shell.json` describes the fresh-install state. When no
