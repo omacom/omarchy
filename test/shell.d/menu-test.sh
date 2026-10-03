@@ -67,6 +67,43 @@ assertDeepEqual(
   'menu normalizes parsed items'
 )
 
+// Inline // tails used to survive stripping, fail JSON.parse, and empty the
+// whole menu (#13493). // inside a string label is data and must stay.
+assertEqual(
+  menu.parseMenuJsonc('{"a": {"label": "A"}} // note').map(item => item.label).join(','),
+  'A',
+  'menu keeps entries when a content line ends with an inline // comment'
+)
+assertEqual(
+  menu.parseMenuJsonc('// note\n{"a": {"label": "A"}}').map(item => item.label).join(','),
+  'A',
+  'menu still accepts a full-line // comment before the object'
+)
+assertEqual(
+  menu.parseMenuJsonc('{"a": {"label": "A // B"}}').map(item => item.label).join(','),
+  'A // B',
+  'menu keeps // that appears inside a string label'
+)
+
+// A naive /,(\s*[}\]])/g stripper would eat the comma in "x, ]y" (#13250).
+const commaInLabel = menu.parseMenuJsonc(`{
+  "items": {
+    "demo.item": { "label": "x, ]y", "action": "true", },
+  },
+}`)
+assertEqual(commaInLabel[0]?.label, 'x, ]y', 'menu keeps commas inside JSON string labels')
+
+// Array roots are typeof object; without an explicit reject they become
+// phantom rows with ids "0", "1", … (#13492).
+assertDeepEqual(
+  menu.parseMenuJsonc('[{"label":"should-not-appear"},{"label":"ghost-2"}]'),
+  [],
+  'menu rejects a top-level array root instead of inventing phantom rows'
+)
+for (const s of ['{}', 'null', '42', '"str"']) {
+  assertDeepEqual(menu.parseMenuJsonc(s), [], `menu rejects non-object root: ${s}`)
+}
+
 const user = [
   menu.normalizeItem('style.theme', { label: 'Theme picker', aliases: ['theme', 'colors'], action: 'custom-theme' }),
   menu.normalizeItem('tools', { label: 'Tools' })
