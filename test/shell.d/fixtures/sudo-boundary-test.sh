@@ -132,7 +132,7 @@ case "$step" in
 esac
 STUB
 chmod +x "$SUDO_TEST_ROOT/bin/test-step"
-for step in omarchy-update-lock omarchy-update-requires-free-space omarchy-update-confirm omarchy-update-pkg-prune omarchy-snapshot omarchy-update-stay-awake omarchy-update-dev omarchy-update-keyring omarchy-update-system-pkgs omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-mise omarchy-update-orphan-pkgs omarchy-update-analyze-logs omarchy-update-status omarchy-update-restart omarchy-pkg-aur-accessible omarchy-notification-dismiss pacman systemd-run cp yay; do
+for step in omarchy-update-lock omarchy-update-requires-free-space omarchy-update-confirm omarchy-update-verify-package-database omarchy-update-pkg-prune omarchy-snapshot omarchy-update-stay-awake omarchy-update-dev omarchy-update-keyring omarchy-update-system-pkgs omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-mise omarchy-update-orphan-pkgs omarchy-update-analyze-logs omarchy-update-status omarchy-update-restart omarchy-pkg-aur-accessible omarchy-notification-dismiss pacman systemd-run cp yay; do
   ln -s test-step "$SUDO_TEST_ROOT/bin/$step"
 done
 ln -s ../bin/test-step "$SUDO_TEST_ROOT/mock/pacman"

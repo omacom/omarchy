@@ -14,6 +14,7 @@ steps=(
   omarchy-update-lock
   omarchy-update-requires-free-space
   omarchy-update-confirm
+  omarchy-update-verify-package-database
   omarchy-update-pkg-prune
   omarchy-snapshot
   omarchy-update-stay-awake
@@ -62,6 +63,7 @@ expected_steps() {
     omarchy-update-lock \
     omarchy-update-requires-free-space \
     ${1:+omarchy-update-confirm} \
+    omarchy-update-verify-package-database \
     omarchy-update-pkg-prune \
     omarchy-snapshot \
     omarchy-update-stay-awake \
@@ -106,3 +108,11 @@ for step in omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-
   fi
 done
 pass "a blocked package upgrade stops the update before it migrates"
+
+if FAILING_STEP=omarchy-update-verify-package-database run_update -y; then
+  fail "a damaged database blocks the update"
+fi
+for step in omarchy-update-pkg-prune omarchy-snapshot omarchy-update-keyring omarchy-update-system-pkgs; do
+  ! grep -q "^$step " "$test_tmp/steps" || fail "database verification precedes $step"
+done
+pass "damaged records stop the update before keyring installation"
