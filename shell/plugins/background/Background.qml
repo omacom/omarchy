@@ -42,6 +42,8 @@ Item {
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
+  property int refreshVersion: -1
+  property bool refreshQueued: false
 
   function isVideo(path) {
     return Util.isVideoPath(path)
@@ -52,7 +54,33 @@ Item {
   }
 
   function refreshBackground() {
-    if (!readlinkProc.running) readlinkProc.running = true
+    // A refresh asked for during a read runs after it, so the link is read
+    // as it is now rather than as it was when that read began.
+    if (readlinkProc.running) {
+      refreshQueued = true
+      return
+    }
+    refreshVersion = backgroundVersion
+    readlinkProc.running = true
+  }
+
+  // With no wallpaper the layer draws nothing, so Hyprland's own background
+  // colour shows through.
+  function clearBackground() {
+    // A theme waiting on a reveal the clear cancels lands now, before the
+    // palette that follows the clear, rather than over it from the fallback timer.
+    applyPendingTheme()
+    revealAnimation.stop()
+    preparedBackgroundTimer.stop()
+    currentBackground = ""
+    displayedBackground = ""
+    incomingBackground = ""
+    oldBackground = ""
+    preparedBackground = ""
+    lastTransitionPath = ""
+    finishingTransition = false
+    backgroundVersion += 1
+    revealProgress = 1
   }
 
   function setBackground(path, instant) {
@@ -202,9 +230,23 @@ Item {
 
   Process {
     id: readlinkProc
-    command: ["readlink", "-f", root.currentBackgroundLink]
+    // -e prints nothing for a link that is missing or names a missing file,
+    // which is a desktop without a wallpaper.
+    command: ["readlink", "-e", root.currentBackgroundLink]
     stdout: StdioCollector {
-      onStreamFinished: root.setBackground(String(text || "").trim(), false)
+      onStreamFinished: {
+        // A transition or clear that landed while the link was read is newer
+        // than what was read.
+        if (root.refreshVersion !== root.backgroundVersion) return
+        var path = String(text || "").trim()
+        if (path) root.setBackground(path, false)
+        else root.clearBackground()
+      }
+    }
+    onExited: {
+      if (!root.refreshQueued) return
+      root.refreshQueued = false
+      root.refreshBackground()
     }
   }
 
@@ -213,6 +255,10 @@ Item {
 
     function refresh(): void {
       root.refreshBackground()
+    }
+
+    function clear(): void {
+      root.clearBackground()
     }
 
     function set(path: string): void {
@@ -233,6 +279,18 @@ Item {
 
     function prepare(path: string): void {
       root.prepareBackground(path)
+    }
+
+    // The other calls return before an asynchronous link read settles, so a
+    // caller waits on `reading` to know the layer has caught up.
+    function state(): string {
+      return JSON.stringify({
+        current: root.currentBackground,
+        displayed: root.displayedBackground,
+        incoming: root.incomingBackground,
+        pendingTheme: root.pendingThemeVersion >= 0,
+        reading: readlinkProc.running || root.refreshQueued
+      })
     }
   }
 
