@@ -328,7 +328,12 @@ fi
 video_snapshot=$(snapshot_background_path "$CURRENT_THEME_PATH/backgrounds/old.mp4" "video")
 [[ -z $video_snapshot && ! -e $BACKGROUND_TRANSITION_CACHE ]] || fail "video files are never snapshotted"
 
+# The snapshot handed to the shell ahead of the swap was made for the
+# background that disappeared, so it is dropped rather than shown.
 CHOSEN_THEME_BACKGROUND="$transition_home/disappeared.mp4"
+PREPARED_BACKGROUND="$CHOSEN_THEME_BACKGROUND"
+PREPARED_BACKGROUND_SNAPSHOT="$test_tmp/prepared-snapshot.png"
+printf 'prepared\n' >"$PREPARED_BACKGROUND_SNAPSHOT"
 BACKGROUND_TRANSITION_SNAPSHOTS=false
 OLD_BACKGROUND_SNAPSHOT=""
 colors_payload=""
@@ -337,6 +342,8 @@ shell_ipc() { :; }
 set_theme_background
 [[ -f $CHOSEN_THEME_BACKGROUND && $(readlink "$CURRENT_BACKGROUND_LINK") == "$CHOSEN_THEME_BACKGROUND" ]] || \
   fail "theme changes recover when a preselected background disappears" "$CHOSEN_THEME_BACKGROUND"
+[[ ! -e $PREPARED_BACKGROUND_SNAPSHOT ]] || fail "a snapshot prepared for a background that disappeared is dropped"
 
 pass "theme transitions skip snapshots whenever either side is a video"
 pass "theme changes recover from a missing preselected background"
+pass "a snapshot prepared for a background that disappeared is dropped"
