@@ -1,0 +1,26 @@
+# Apple Silicon additions, composed after omarchy-base.packages and
+# omarchy-aarch64.packages (omarchy-pkg-defaults apple-silicon); never on Intel
+# Macs or other aarch64 machines. The kernel and boot chain come with the
+# Mac's image, as the kernel and bootloader do from the ISO on x86_64. What a
+# Mac cannot work without (its speaker stack, audio server and GPU driver)
+# comes as omarchy-mac's dependencies, so a new Mac driver needs no change
+# here; the rest are defaults an owner may remove.
+
+# The Mac's runtime and boot packages (omacom/omarchy-mac).
+omarchy-mac
+omarchy-mac-boot
+
+# Picks the startup volume (macOS or Omarchy) from Linux.
+asahi-bless
+
+# Hardware video decode.
+avd-fw
+libva-v4l2_request-avd
+
+# Widevine for DRM streaming.
+widevine
+
+# Screen recording: gpu-screen-recorder finds no display device to capture on
+# Apple Silicon, whose display and GPU are separate DRM devices, so recording
+# falls back to wf-recorder (omarchy-capture-screenrecording).
+wf-recorder

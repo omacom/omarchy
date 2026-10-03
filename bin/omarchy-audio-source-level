@@ -1,0 +1,76 @@
+#!/usr/bin/python3
+# omarchy:summary=Print an audio input's level for the audio panel
+# omarchy:group=audio
+# omarchy:args=<source-name>
+# omarchy:hidden=true
+
+# The panel meters a typed input with Quickshell's peak monitor, which takes
+# only nodes of an exact media class. A virtual source (an
+# Audio/Source/Virtual) is untyped there, so this records it, as apps do, and
+# prints one peak per 40 ms on the panel's scale (the cube root of the sample
+# peak). Samples are inspected, never kept.
+
+import array
+import ctypes
+import os
+import signal
+import subprocess
+import sys
+
+RATE = 48000
+CHUNK = RATE // 25 * 4
+NAME = 'omarchy-audio-level'
+
+
+def level(samples):
+    peak = max((abs(sample) for sample in samples), default=0.0)
+    return min(1.0, peak) ** (1 / 3)
+
+
+def die_with(parent):
+    # parec must not outlive this helper, even one killed outright; a parent
+    # already gone before the request would never send the signal.
+    def request():
+        try:
+            ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGTERM)
+        except (AttributeError, OSError):
+            pass
+        if os.getppid() != parent:
+            os._exit(0)
+    return request
+
+
+def main():
+    if len(sys.argv) != 2 or not sys.argv[1] or sys.argv[1].startswith('-'):
+        print('Usage: omarchy-audio-source-level <source-name>', file=sys.stderr)
+        return 2
+    try:
+        process = subprocess.Popen(['parec', '--device=' + sys.argv[1], '--raw', '--format=float32le', '--channels=1',
+                                    '--rate=' + str(RATE), '--latency-msec=40', '--client-name=' + NAME,
+                                    '--property=node.name=' + NAME, '--property=media.category=Monitor'],
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                   preexec_fn=die_with(os.getpid()))
+    except OSError as error:
+        print('Could not read the input level: ' + str(error), file=sys.stderr)
+        return 1
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    pending = b''
+    try:
+        while True:
+            chunk = os.read(process.stdout.fileno(), CHUNK)
+            if not chunk:
+                return 0
+            pending += chunk
+            while len(pending) >= CHUNK:
+                print('%.3f' % level(array.array('f', pending[:CHUNK])), flush=True)
+                pending = pending[CHUNK:]
+    except (BrokenPipeError, KeyboardInterrupt):
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        return 0
+    finally:
+        process.kill()
+        process.wait()
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -31,6 +31,14 @@ grep -Fx 'systemctl --user daemon-reload' "$first_run_units" >/dev/null
 grep -F 'omarchy-sleep-lock.service' "$first_run_units" >/dev/null
 pass "first-run reloads and enables the sleep lock service"
 
+keyboard_auto_service="$ROOT/default/systemd/user/omarchy-brightness-keyboard-auto.service"
+grep -Fx 'ExecCondition=/usr/bin/omarchy-brightness-keyboard-auto --available' "$keyboard_auto_service" >/dev/null ||
+  fail "the ambient keyboard backlight unit runs only where there is a light sensor and a keyboard LED"
+grep -Fx 'WantedBy=graphical-session.target' "$keyboard_auto_service" >/dev/null
+grep -F 'omarchy-brightness-keyboard-auto.service' "$first_run_units" >/dev/null ||
+  fail "first-run does not enable the ambient keyboard backlight unit"
+pass "first-run enables the ambient keyboard backlight unit, which stays inert without the hardware"
+
 upgrade_to_quattro="$ROOT/bin/omarchy-upgrade-to-quattro"
 grep -F '6870b232a6c0474b59187882e6d25ae771bba735098bcbedef8a2b73b97e2b6a' "$upgrade_to_quattro" >/dev/null
 grep -F 'bcd1a76cb5c63514922bc5e11af22ae480fc6d06a99863364e02bdf3c7bdceaf' "$upgrade_to_quattro" >/dev/null

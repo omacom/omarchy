@@ -233,6 +233,16 @@ function streamRepresentsPlayer(node, player, players, streams) {
   return streamRepresentsMprisPlayer(streamLabel(node, players, streams), playerLabel)
 }
 
+// Quickshell types only exact media classes, so a virtual source (an
+// Audio/Source/Virtual, such as EasyEffects' or a platform's microphone
+// mapping) is a node with no PwNode.audio. PulseAudio lists it as a source, so
+// the source availability listing names it; a non-stream node it names is one.
+function isUntypedSource(node, sourceAvailability) {
+  if (!node || node.audio || node.isStream || node.isSink) return false
+  var name = String(node.name || "")
+  return name !== "" && !!sourceAvailability && Object.prototype.hasOwnProperty.call(sourceAvailability, name)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isPlaybackStream: isPlaybackStream,
@@ -257,6 +267,7 @@ if (typeof module !== "undefined") {
     matchingMprisStreamLabel: matchingMprisStreamLabel,
     unmatchedMprisStreamLabel: unmatchedMprisStreamLabel,
     streamLabel: streamLabel,
-    streamRepresentsPlayer: streamRepresentsPlayer
+    streamRepresentsPlayer: streamRepresentsPlayer,
+    isUntypedSource: isUntypedSource
   }
 }

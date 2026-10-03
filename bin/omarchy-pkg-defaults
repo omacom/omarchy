@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=Print the default package set for this computer's platform, or for the named one: the base list plus its architecture's and platform's additions.
+# omarchy:args=[apple-silicon|qualcomm|generic-aarch64|generic]
+# omarchy:hidden=true
+
+set -eo pipefail
+
+platform=${1:-}
+if [[ -z $platform ]]; then
+  platform=$(omarchy-hw-platform)
+fi
+
+case $platform in
+  apple-silicon | qualcomm | generic-aarch64) lists=(base aarch64 "$platform") ;;
+  generic) lists=(base) ;;
+  *)
+    echo "Error: unknown platform '$platform'" >&2
+    exit 1
+    ;;
+esac
+
+# The base list always exists. An architecture or platform with nothing to add
+# has no list of its own.
+files=()
+for list in "${lists[@]}"; do
+  file="$OMARCHY_PATH/install/omarchy-$list.packages"
+  if [[ $list == "base" || -f $file ]]; then
+    files+=("$file")
+  fi
+done
+
+# One name per line, first occurrence kept, in list order.
+sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "${files[@]}" | awk '!seen[$0]++'

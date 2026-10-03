@@ -437,12 +437,26 @@ ShellRoot {
     return api
   }
 
+  // A copy of the active bar's per-screen thickness (screen name -> number),
+  // so a plugin holds no reference into the bar. A bar that reports none
+  // gives an empty map.
+  function detachedBarSizes(sizes) {
+    var copy = ({})
+    if (!Util.isPlainObject(sizes)) return copy
+    for (var name in sizes) {
+      var size = Number(sizes[name])
+      if (size > 0) copy[name] = size
+    }
+    return copy
+  }
+
   function pluginBarStateFor(cacheKey, pluginId) {
     if (_pluginBarStateApis[cacheKey]) return _pluginBarStateApis[cacheKey]
     var api = pluginBarStateApiComponent.createObject(null, { ownerPluginId: pluginId })
     if (!api) return null
     api.barHidden = Qt.binding(function() { return shell.bar ? shell.bar.barHidden === true : false })
     api.barSize = Qt.binding(function() { return shell.bar ? Math.max(0, shell.bar.barSize || 0) : 0 })
+    api.barSizes = Qt.binding(function() { return shell.bar ? shell.detachedBarSizes(shell.bar.screenBarSizes) : ({}) })
     api.fontFamily = Qt.binding(function() { return shell.bar ? String(shell.bar.fontFamily || "") : "" })
     api.position = Qt.binding(function() { return shell.bar ? String(shell.bar.position || "top") : "top" })
     var next = ({})

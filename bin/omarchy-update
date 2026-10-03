@@ -148,6 +148,15 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$PATH" OMARCHY_SUDO_NO_UPDATE=1 omarchy-update-aur-pkgs
   omarchy_security_revoke_sudo_timestamp
 
+  # The last sudo-capable step: the boot files every package step left, AUR
+  # packages' initramfs rebuilds included, must be shown to boot the updated
+  # system. It follows third-party build code, so it starts cold and, like AUR,
+  # authorizes one command through the no-update wrapper without a reusable
+  # timestamp. Until it passes, the update neither finishes nor offers a reboot.
+  boot_verified=1
+  PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$PATH" OMARCHY_SUDO_NO_UPDATE=1 omarchy-update-boot || boot_verified=0
+  omarchy_security_revoke_sudo_timestamp
+
   # The sleep inhibitor covers AUR builds, hooks and mise as well; releasing it
   # needs no privilege because the held command already dropped to this user.
   # Release it before offering a reboot: a confirmed reboot can terminate this
@@ -156,5 +165,10 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   omarchy-update-stay-awake stop
   update_stay_awake_stopped=1
 
-  "$OMARCHY_PATH/bin/omarchy-update-restart" --reboot-only
+  if (( boot_verified )); then
+    "$OMARCHY_PATH/bin/omarchy-update-restart" --reboot-only
+  else
+    echo -e "\e[31m\nThe update is not finished: its boot files did not pass verification (see above). Do not reboot until omarchy update completes.\e[0m" >&2
+    exit 1
+  fi
 fi

@@ -7,7 +7,9 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 
+baseline_conf="$ROOT/etc/mkinitcpio.conf.d/00-omarchy-hooks.conf"
 hooks_conf="$ROOT/etc/mkinitcpio.conf.d/omarchy_hooks.conf"
+fake_platform "$tmp_dir/generic" generic
 
 # Each argument is a PCI device as "vendor:class", in sysfs's own format.
 write_pci_devices() {
@@ -26,8 +28,8 @@ write_pci_devices() {
   done
 }
 
-# Sources the hook config the way mkinitcpio does — with earlier drop-ins
-# already applied — and prints the resulting HOOKS. mkinitcpio does not run
+# Sources the hook config the way mkinitcpio does — after the baseline and
+# the earlier drop-ins — and prints the resulting HOOKS. mkinitcpio does not run
 # under set -u, but the config must survive it, so source under it anyway.
 # "unset" leaves MODULES undeclared entirely.
 resolved_hooks() {
@@ -37,9 +39,11 @@ resolved_hooks() {
   # The vconsole block sources the host's /etc/vconsole.conf, which may set
   # only KEYMAP; predefine XKBLAYOUT so its expansion survives set -u and the
   # test stays independent of the machine it runs on.
-  OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" bash -uc "
+  OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" OMARCHY_PROC_ROOT="$tmp_dir/generic/proc" \
+    PATH="$tmp_dir/generic/bin:$ROOT/bin:$PATH" bash -uc "
     FILES=()
     XKBLAYOUT=us
+    source '$baseline_conf'
     $modules_decl
     source '$hooks_conf'
     echo \"\${HOOKS[*]}\"

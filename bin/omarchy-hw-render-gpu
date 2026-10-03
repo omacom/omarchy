@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether a DRM render GPU is present
+# omarchy:hidden=true
+
+dri=${OMARCHY_DRI_PATH:-/dev/dri}
+
+shopt -s nullglob
+for node in "$dri"/renderD*; do
+  if [[ -e $node ]]; then
+    exit 0
+  fi
+done
+
+exit 1

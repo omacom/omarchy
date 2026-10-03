@@ -27,4 +27,8 @@ elif omarchy-hw-nvidia-without-gsp; then
   PACKAGES+=(lib32-nvidia-580xx-utils)
 fi
 
-(( ${#PACKAGES[@]} > 0 )) && omarchy-pkg-add "${PACKAGES[@]}"
+if (( ${#PACKAGES[@]} > 0 )); then
+  omarchy-pkg-add "${PACKAGES[@]}"
+else
+  echo "No supported GPU detected; skipping lib32 graphics drivers."
+fi

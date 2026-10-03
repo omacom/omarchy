@@ -52,14 +52,32 @@ chmod +x "$stub_bin/sudo" "$stub_bin/systemd-run" "$stub_bin/pacman"
 
 replaced="$test_tmp/replaced"
 
+# Every case says which platform it runs on (x86 unless it sets PLATFORM), and
+# which boot package entrypoints are installed (none unless it sets
+# LIFECYCLE_ROOT), rather than inherit the machine running the suite.
+for platform in generic apple-silicon; do
+  fake_platform "$test_tmp/$platform" "$platform"
+done
+mkdir -p "$test_tmp/no-boot-package"
+# Root ignores both fixtures and would ask the machine's own boot package, so
+# as root the cases before the platform ones get a dispatcher that registers
+# nothing, and the platform ones are skipped.
+if (( EUID == 0 )); then
+  printf '#!/bin/bash\nexit 0\n' >"$stub_bin/omarchy-lifecycle-dispatch"
+  chmod +x "$stub_bin/omarchy-lifecycle-dispatch"
+fi
+
 run_update() {
+  local platform=${PLATFORM:-generic}
   OMARCHY_REPLACED_DIR="$replaced" \
     RETRY_FAILS="${RETRY_FAILS:-}" \
     RETRY_INSTALLS="${RETRY_INSTALLS:-}" \
     PACMAN_ATTEMPTS="$test_tmp/attempts" \
     CONFLICT_REPORT="$test_tmp/report" \
     OWNED_PATHS="${OWNED_PATHS:-}" \
-    PATH="$stub_bin:$ROOT/bin:$PATH" \
+    OMARCHY_PROC_ROOT="$test_tmp/$platform/proc" \
+    OMARCHY_LIFECYCLE_ROOT="${LIFECYCLE_ROOT:-$test_tmp/no-boot-package}" \
+    PATH="$stub_bin:$test_tmp/$platform/bin:$ROOT/bin:$PATH" \
     bash "$ROOT/bin/omarchy-update-system-pkgs"
 }
 
@@ -282,3 +300,66 @@ run_update >"$test_tmp/out" 2>"$test_tmp/err" ||
 [[ $(cat "$test_tmp/attempts") == 2 ]] ||
   fail "a clean upgrade runs more than one pacman transaction"
 pass "a clean upgrade runs a single pacman transaction"
+
+# A platform whose boot package owns files no package does vouches for a
+# takeover before anything moves. Only a boot package's answer lets it through.
+require_platform_fixtures "the platform's say over a takeover"
+
+boot_package="$test_tmp/boot-package"
+mkdir -p "$boot_package/usr/lib/omarchy/mac-boot"
+cat >"$boot_package/usr/lib/omarchy/mac-boot/update-takeover" <<SH
+#!/bin/bash
+printf '%s\\n' "\$@" >"$test_tmp/vouched"
+exit "\$(cat "$test_tmp/takeover-status")"
+SH
+chmod 755 "$boot_package/usr/lib/omarchy/mac-boot/update-takeover"
+chmod -R go-w "$boot_package"
+
+fresh_work
+echo "ours" >"$stray"
+write_report omarchy-settings "$stray"
+echo 0 >"$test_tmp/takeover-status"
+rm -f "$test_tmp/vouched"
+PLATFORM=apple-silicon LIFECYCLE_ROOT="$boot_package" run_update >"$test_tmp/out" 2>"$test_tmp/err" ||
+  fail "a takeover the boot package vouches for goes ahead" "$(cat "$test_tmp/err")"
+[[ ! -e $stray && -f $replaced$stray && $(cat "$test_tmp/vouched") == "$stray" ]] ||
+  fail "the boot package is asked about exactly the files that move"
+pass "apple: a takeover the boot package vouches for goes ahead"
+
+fresh_work
+echo "ours" >"$stray"
+write_report omarchy-settings "$stray"
+echo 1 >"$test_tmp/takeover-status"
+if PLATFORM=apple-silicon LIFECYCLE_ROOT="$boot_package" run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
+  fail "a takeover the boot package refuses stops the upgrade"
+fi
+[[ -f $stray && ! -e $replaced$stray && $(cat "$test_tmp/attempts") == 1 ]] ||
+  fail "a refused takeover moves nothing and retries nothing"
+grep -Fq "$stray" "$test_tmp/err" || fail "a refused takeover names the files it keeps" "$(cat "$test_tmp/err")"
+pass "apple: a takeover the boot package refuses moves nothing"
+
+# A Mac without its boot package, or with one too old to answer, keeps the files.
+older="$test_tmp/older-boot-package"
+mkdir -p "$older/usr/lib/omarchy/mac-boot" "$older/var/lib/pacman/local/omarchy-mac-boot-20260921-10"
+for root in "$test_tmp/no-boot-package" "$older"; do
+  fresh_work
+  echo "ours" >"$stray"
+  write_report omarchy-settings "$stray"
+  if PLATFORM=apple-silicon LIFECYCLE_ROOT="$root" run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
+    fail "a Mac whose boot package can't answer keeps the files" "$root"
+  fi
+  [[ -f $stray && ! -e $replaced$stray ]] || fail "a Mac whose boot package can't answer moves nothing" "$root"
+  grep -Fq omarchy-mac-boot "$test_tmp/err" || fail "the refusal names the boot package" "$(cat "$test_tmp/err")"
+done
+pass "apple: a Mac whose boot package can't answer keeps the files"
+
+# x86 with Mac entrypoints on disk still takes over as before, asking no one.
+fresh_work
+echo "ours" >"$stray"
+write_report omarchy-settings "$stray"
+echo 1 >"$test_tmp/takeover-status"
+rm -f "$test_tmp/vouched"
+LIFECYCLE_ROOT="$boot_package" run_update >"$test_tmp/out" 2>"$test_tmp/err" ||
+  fail "x86 takes over as before" "$(cat "$test_tmp/err")"
+[[ ! -e $stray && ! -e $test_tmp/vouched ]] || fail "x86 asks no boot package"
+pass "x86 takes over as before, asking no boot package"

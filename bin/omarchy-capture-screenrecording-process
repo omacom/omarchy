@@ -1,0 +1,61 @@
+#!/usr/bin/python3
+# omarchy:summary=Check or signal the current user's recording processes
+# omarchy:args=[--pid <pid>] [--signal INT|KILL]
+# omarchy:hidden=true
+
+import argparse
+import os
+from pathlib import Path
+import signal
+
+RECORDERS = {'gpu-screen-recorder', 'wf-recorder'}
+
+
+def is_recorder(process):
+    if process.stat().st_uid != os.geteuid():
+        return False
+    executable = os.readlink(process / 'exe')
+    # Linux appends this when an upgrade unlinks a still-running executable.
+    executable = executable.removesuffix(' (deleted)')
+    return Path(executable).name in RECORDERS
+
+
+def recording_processes(signum=None, proc=Path('/proc'), pids=None):
+    found = False
+    if pids is None:
+        candidates = [path for path in proc.iterdir() if path.name.isdecimal()]
+    else:
+        candidates = [proc / str(pid) for pid in pids]
+    for process in candidates:
+        if not process.name.isdecimal():
+            continue
+        descriptor = None
+        try:
+            if signum is not None:
+                # Open before inspecting identity: a later PID reuse cannot
+                # redirect the signal to a different process.
+                descriptor = os.pidfd_open(int(process.name))
+            if is_recorder(process):
+                found = True
+                if signum is not None:
+                    signal.pidfd_send_signal(descriptor, signum)
+        except (FileNotFoundError, ProcessLookupError, PermissionError):
+            # Processes may exit or become inaccessible while /proc is scanned.
+            continue
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+    return found
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--pid', type=int, action='append')
+    parser.add_argument('--signal', choices=('INT', 'KILL'))
+    args = parser.parse_args()
+    signum = getattr(signal, 'SIG' + args.signal) if args.signal else None
+    return 0 if recording_processes(signum, pids=args.pid) else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

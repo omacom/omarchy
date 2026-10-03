@@ -1,0 +1,117 @@
+#!/bin/bash
+
+# omarchy:summary=Install a PATH wrapper that adds software GL flags when no render GPU is present
+# omarchy:args=[--check] <command-name> <real-binary>
+# omarchy:examples=omarchy-cmd-electron-gl-wrap 1password /opt/1Password/1password | omarchy-cmd-electron-gl-wrap chromium /usr/bin/chromium
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# Exit 3 means an administrator owns the launcher; callers may skip that case.
+# Exit 4 is reserved for --check: the managed wrapper is not ready yet.
+check=false
+if [[ ${1:-} == "--check" ]]; then
+  check=true
+  shift
+fi
+
+if (($# != 2)); then
+  echo "Usage: omarchy-cmd-electron-gl-wrap [--check] <command-name> <real-binary>" >&2
+  exit 2
+fi
+
+name=$1
+real=$2
+if [[ -z $name || $name == */* || $name == "." || $name == ".." ]]; then
+  echo "omarchy-cmd-electron-gl-wrap: command name must be a basename: $name" >&2
+  exit 2
+fi
+
+bind_dir=${OMARCHY_ELECTRON_GL_BIND_DIR:-/usr/local/bin}
+dest=$bind_dir/$name
+
+if [[ ! -x $real ]]; then
+  echo "omarchy-cmd-electron-gl-wrap: not executable: $real" >&2
+  exit 1
+fi
+
+# A symlink is never an Omarchy-owned launcher, even when it aliases the real
+# binary. Keep literal and hardlinked self-wraps fatal before inspecting markers.
+if [[ $dest == "$real" ]] || [[ ! -L $dest && $dest -ef $real ]]; then
+  echo "omarchy-cmd-electron-gl-wrap: refusing to wrap a binary over itself: $dest" >&2
+  exit 1
+fi
+
+if [[ -e $dest || -L $dest ]]; then
+  owned=false
+  if [[ ! -L $dest && -f $dest ]]; then
+    if grep -q '^# omarchy-electron-gl-wrapper$' "$dest"; then
+      owned=true
+    else
+      status=$?
+      if ((status != 1)); then
+        exit "$status"
+      fi
+    fi
+  fi
+  if ! $owned; then
+    echo "omarchy-cmd-electron-gl-wrap: refusing to replace an unmanaged launcher: $dest" >&2
+    exit 3
+  fi
+fi
+
+as_root() {
+  if ((EUID == 0)) || [[ -d $bind_dir && -w $bind_dir ]]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+quoted_real=$(printf '%q' "$real")
+wrapper=$(cat <<EOF
+#!/bin/bash
+# omarchy-electron-gl-wrapper
+real=$quoted_real
+extra=()
+if omarchy-cmd-present omarchy-cmd-electron-gl-args; then
+  while IFS= read -r flag; do
+    [[ -n \$flag ]] && extra+=("\$flag")
+  done < <(omarchy-cmd-electron-gl-args)
+fi
+exec "\$real" "\${extra[@]}" "\$@"
+EOF
+)
+
+staged=""
+cleanup() {
+  if [[ -n $staged ]]; then
+    as_root rm -f -- "$staged"
+  fi
+}
+
+if [[ ! -L $dest && -f $dest && $(<"$dest") == "$wrapper" ]]; then
+  # System setup may already have installed this wrapper before user finalization.
+  # Leave correct permissions alone so first login needs no root access.
+  if [[ $(stat -c %a "$dest") != "755" ]]; then
+    if $check; then
+      exit 4
+    else
+      as_root chmod 755 "$dest"
+    fi
+  fi
+elif $check; then
+  exit 4
+else
+  trap cleanup EXIT
+
+  # Stage beside the launcher so rename replaces it atomically and a failed
+  # write or chmod leaves the old launcher (and real binary) untouched.
+  as_root mkdir -p -- "$bind_dir"
+  staged=$(as_root mktemp -- "$bind_dir/.omarchy-electron-gl.XXXXXX")
+  as_root tee -- "$staged" >/dev/null <<<"$wrapper"
+  as_root chmod 755 -- "$staged"
+  as_root mv -fT -- "$staged" "$dest"
+  staged=""
+fi

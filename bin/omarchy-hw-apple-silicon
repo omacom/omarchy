@@ -1,0 +1,17 @@
+#!/bin/bash -p
+
+# omarchy:summary=Detect whether the computer is an Apple Silicon Mac.
+
+# Callers run this by absolute path, from systemd and from the shell, so use the
+# detector shipped beside it rather than whichever one PATH finds. -p keeps a
+# root caller's exported functions out, so a launch without it is refused, and
+# nothing here searches PATH.
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup." >&2
+  exit 126
+fi
+
+dir=${BASH_SOURCE[0]%/*}
+[[ $dir != "${BASH_SOURCE[0]}" ]] || dir=.
+platform=$("$dir/omarchy-hw-platform") || exit 1
+[[ $platform == "apple-silicon" ]]

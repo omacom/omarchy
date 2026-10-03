@@ -1,0 +1,189 @@
+#!/bin/bash -p
+
+# omarchy:summary=Print the hardware platform: apple-silicon, qualcomm, generic-aarch64 or generic.
+
+# ARM laptops have no DMI, so the board identity is the root node of the device
+# tree the firmware hands the kernel: "apple,<model>" from Asahi's m1n1 on every
+# Apple Silicon Mac, "qcom,<soc>" on Snapdragon laptops. Each compatible string
+# is a NUL-separated list, and only a token's vendor prefix counts.
+#
+# An image is built away from the machine it will run on, so while this root is
+# being built rather than booted, the image-target manifest the builder wrote
+# names the platform and the build host's device tree is never read.
+#
+# Fixture roots let unprivileged tests fake the device tree, PID 1 and the image
+# root. Naming any of them makes the whole view a fixture: nothing live is read,
+# not even the device tree when only the image root is named. A privileged
+# caller must not let its environment pick the platform at all.
+# Privileged mode (-p) keeps exported functions and BASH_ENV out of this shell,
+# so a launch without it is refused. Root then starts over in an empty
+# environment and reads only the live paths with a fixed PATH.
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup." >&2
+  exit 126
+fi
+
+if (( EUID == 0 )) && [[ ${1:-} != --clean-environment ]]; then
+  exec /usr/bin/env -i PATH=/usr/bin /bin/bash -p -- "${BASH_SOURCE[0]}" --clean-environment "$@"
+fi
+
+if (( EUID == 0 )); then
+  export PATH=/usr/bin
+  fixtures=""
+else
+  fixtures=${OMARCHY_PROC_ROOT:-}${OMARCHY_SYS_ROOT:-}${OMARCHY_IMAGE_ROOT:-}
+fi
+
+if [[ -z $fixtures ]]; then
+  proc=/proc
+  sources=(/proc/device-tree/compatible /sys/firmware/devicetree/base/compatible)
+  image_root=""
+  image_dir=/var/lib/omarchy/image
+  image_owner=0
+else
+  proc=${OMARCHY_PROC_ROOT:-}
+  sources=()
+  [[ -z ${OMARCHY_PROC_ROOT:-} ]] || sources+=("$OMARCHY_PROC_ROOT/device-tree/compatible")
+  [[ -z ${OMARCHY_SYS_ROOT:-} ]] || sources+=("$OMARCHY_SYS_ROOT/firmware/devicetree/base/compatible")
+  image_root=${OMARCHY_IMAGE_ROOT:-}
+  image_dir=${image_root:+$image_root/var/lib/omarchy/image}
+  image_owner=$EUID
+fi
+manifest=$image_dir/target
+
+contradiction() {
+  echo "Error: contradictory platform identity: $1" >&2
+  exit 1
+}
+
+if ! machine=$(uname -m) || [[ -z $machine ]]; then
+  echo "Error: cannot read the CPU architecture" >&2
+  exit 1
+fi
+
+# A booted system is one systemd runs as PID 1 from this root. An image build
+# is told apart by what it shows: no /run/systemd/system (a root with a /run of
+# its own), PID 1's root being another (a chroot on the build host, even with
+# the host's /run bound in, as arch-chroot does), or PID 1 being something other
+# than systemd (a PID namespace whose PID 1 is the build). What cannot be seen,
+# such as PID 1's root to a normal user or /proc/1 behind hidepid, never makes a
+# build: a booted system always answers from its hardware, so a build runs as
+# root. A caller in a private PID namespace looks like a build too, so nothing
+# that asks the detector runs with PrivatePIDs=.
+booted() {
+  local comm
+
+  [[ -d $image_root/run/systemd/system ]] || return 1
+  if [[ -n $proc && -e $proc/1/root ]]; then
+    [[ $proc/1/root -ef $image_root/ ]] || return 1
+  fi
+  if [[ -n $proc && -r $proc/1/comm ]]; then
+    read -r comm <"$proc/1/comm" && [[ $comm == "systemd" ]] || return 1
+  fi
+}
+
+# Owned by root (the test's own user for a fixture), not a symlink, and not
+# writable by anyone else.
+trusted() {
+  local owner mode
+
+  [[ -e $1 && ! -L $1 ]] || return 1
+  read -r owner mode < <(stat -c '%u %a' -- "$1") || return 1
+  [[ $owner =~ ^[0-9]+$ && $mode =~ ^[0-7]+$ ]] && (( owner == image_owner && (8#$mode & 8#022) == 0 ))
+}
+
+# The manifest: format=1, platform= one of the four names, comments and unknown
+# keys ignored, and any other line refused. The detector reads it itself, so it
+# stands alone wherever a package ships a copy of it.
+image_platform() {
+  local line key value format="" platform=""
+
+  if [[ ! -d $image_dir || ! -f $manifest ]] || ! trusted "$image_dir" || ! trusted "$manifest"; then
+    echo "Error: the image manifest $manifest is not a root-owned regular file" >&2
+    return 1
+  fi
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ -n $line && $line != \#* ]] || continue
+    if [[ $line != *=* ]]; then
+      echo "Error: the image manifest $manifest is malformed: $line" >&2
+      return 1
+    fi
+    key=${line%%=*}
+    value=${line#*=}
+    case $key in
+      format) format=$value ;;
+      platform) platform=$value ;;
+    esac
+  done <"$manifest"
+
+  if [[ $format != "1" ]]; then
+    echo "Error: the image manifest $manifest is not format=1" >&2
+    return 1
+  fi
+  if [[ ! $platform =~ ^(apple-silicon|qualcomm|generic-aarch64|generic)$ ]]; then
+    echo "Error: the image manifest $manifest names no known platform: ${platform:-none}" >&2
+    return 1
+  fi
+
+  echo "$platform"
+}
+
+if [[ -n $image_dir ]] && [[ -e $manifest || -L $manifest ]] && ! booted; then
+  platform=$(image_platform) || exit 1
+  if [[ $platform == "generic" ]]; then
+    [[ $machine != "aarch64" ]] || contradiction "$manifest names $platform hardware but the CPU is $machine"
+  else
+    [[ $machine == "aarch64" ]] || contradiction "$manifest names $platform hardware but the CPU is $machine"
+  fi
+  echo "$platform"
+  exit 0
+fi
+
+vendor=""
+vendor_source=""
+for source in "${sources[@]}"; do
+  [[ -r $source ]] || continue
+
+  apple=0
+  qcom=0
+  mapfile -d '' -t tokens <"$source"
+  for token in "${tokens[@]}"; do
+    [[ $token == "apple,"* ]] && apple=1
+    [[ $token == "qcom,"* ]] && qcom=1
+  done
+
+  if (( apple && qcom )); then
+    contradiction "$source names both Apple and Qualcomm hardware"
+  elif (( apple )); then
+    found=apple
+  elif (( qcom )); then
+    found=qcom
+  else
+    found=none
+  fi
+
+  if [[ -n $vendor && $vendor != "$found" ]]; then
+    contradiction "$vendor_source says $vendor but $source says $found"
+  fi
+  vendor=$found
+  vendor_source=$source
+done
+
+case $vendor in
+  apple | qcom)
+    [[ $machine == "aarch64" ]] || contradiction "$vendor_source names $vendor hardware but the CPU is $machine"
+    if [[ $vendor == "apple" ]]; then
+      echo apple-silicon
+    else
+      echo qualcomm
+    fi
+    ;;
+  *)
+    if [[ $machine == "aarch64" ]]; then
+      echo generic-aarch64
+    else
+      echo generic
+    fi
+    ;;
+esac
