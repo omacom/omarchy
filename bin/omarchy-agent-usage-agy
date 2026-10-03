@@ -109,18 +109,6 @@ def any_limit_reset_passed(limits: list[dict[str, Any]]) -> bool:
   return False
 
 
-def rolled_forward(limits: list[dict[str, Any]]) -> list[dict[str, Any]]:
-  now = dt.datetime.now(dt.timezone.utc)
-  rolled = []
-  for limit in limits:
-    item = dict(limit)
-    resets = parse_reset_time(str(item.get("resetsAt", "")))
-    if resets and resets <= now:
-      item["percent"] = 0.0
-    rolled.append(item)
-  return rolled
-
-
 def fetch_limits(account: str, force: bool = False) -> tuple[list[dict[str, Any]], bool, int]:
   cache_file = cache_root() / "agy-limits.json"
   now_ms = round(time.time() * 1000)
@@ -185,7 +173,7 @@ def fetch_limits(account: str, force: bool = False) -> tuple[list[dict[str, Any]
     pass
 
   if cached_limits:
-    return rolled_forward(cached_limits), True, cached_at
+    return cached_limits, True, cached_at
 
   return [], False, 0
 

@@ -197,6 +197,29 @@ reset_record=$(HOME="$TEST_HOME" \
 
 # Even though fetchedAtMs is fresh, because resetsAt has passed it must re-probe and show 0.1 (100 - 90%)
 [[ $(jq -r '.limits[0].percent' <<<"$reset_record") == "0.1" ]] || fail "expired reset triggers re-probe"
+[[ $(jq -r '.limitsStale' <<<"$reset_record") == "false" ]] || fail "successful probe is not stale"
 pass "limits re-probe when resetsAt has passed"
+
+# 9. Test failed probe preserves last-known limits as stale without unverified zeroing
+cat >"$TEST_HOME/bin/agy" <<'EOF'
+#!/bin/bash
+exit 1
+EOF
+chmod +x "$TEST_HOME/bin/agy"
+cat >"$TEST_HOME/.cache/omarchy/agent-usage/agy-limits.json" <<EOF
+{"account": "alpha@example.com", "fetchedAtMs": $now_ms, "limits": [{"title": "Session", "label": "Session", "percent": 0.97, "resetsAt": "$past_iso"}]}
+EOF
+
+failed_probe_record=$(HOME="$TEST_HOME" \
+  PATH="$TEST_HOME/bin:$PATH" \
+  GEMINI_DIR="$TEST_HOME/.gemini" \
+  XDG_CACHE_HOME="$TEST_HOME/.cache" \
+  XDG_STATE_HOME="$TEST_HOME/.local/state" \
+  "$bin_file" --limits-only)
+
+[[ $(jq -r '.limitsStale' <<<"$failed_probe_record") == "true" ]] || fail "failed probe reports limitsStale true"
+[[ $(jq -r '.limits[0].percent' <<<"$failed_probe_record") == "0.97" ]] || fail "failed probe preserves last-known limit without zeroing"
+pass "failed probe preserves last-known limits as stale without unverified zeroing"
+
 
 
