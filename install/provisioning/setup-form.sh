@@ -166,16 +166,31 @@ omarchy_prompt_hostname() {
   done
 }
 
+# `timedatectl list-timezones` builds its list from tzdata.zi, which carries the
+# backward-compatibility links alongside the zones they point at, so the picker
+# offered Asia/Ashkhabad right under Asia/Ashgabat. zone.tab is one row per
+# country per zone and holds none of those obsolete aliases; UTC and the fixed
+# Etc/GMT offsets are not in it.
+omarchy_timezones() {
+  {
+    echo UTC
+    awk '!/^#/ && NF { print $3 }' /usr/share/zoneinfo/zone.tab
+    awk '$1 == "Z" && $2 ~ /^Etc\/GMT[+-]/ { print $2 }' /usr/share/zoneinfo/tzdata.zi
+  } | sort
+}
+
 # A fresh machine often hasn't joined a network yet, so the geo guess fails
 # often; guard it or a `set -e` caller dies before the filter fallback.
 omarchy_prompt_timezone() {
-  local guess status
+  local guess status timezones
+  timezones=$(omarchy_timezones)
   guess=$(tzupdate -p 2>/dev/null) || guess=""
+  grep -qFx -- "$guess" <<<"$timezones" || guess=$(awk -v tz="$guess" '$1 == "L" && $3 == tz {print $2; exit}' /usr/share/zoneinfo/tzdata.zi)
 
-  if [[ -n $guess ]]; then
-    timezone=$(timedatectl list-timezones | gum choose --height 10 --selected "$guess" --header "Timezone") && status=0 || status=$?
+  if grep -qFx -- "$guess" <<<"$timezones"; then
+    timezone=$(gum choose --height 10 --selected "$guess" --header "Timezone" <<<"$timezones") && status=0 || status=$?
   else
-    timezone=$(timedatectl list-timezones | gum filter --height 10 --header "Timezone") && status=0 || status=$?
+    timezone=$(gum filter --height 10 --header "Timezone" <<<"$timezones") && status=0 || status=$?
   fi
   ((status == 0)) || return $status
 
