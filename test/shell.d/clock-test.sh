@@ -110,6 +110,22 @@ assertDeepEqual(julySunday.map(week => week.week), [27, 28, 29, 30, 31, 32], 'ca
 const januarySunday = calendar.monthGrid(2021, 0, 0, '')
 assertEqual(januarySunday[0].week, 53, 'calendar carries the previous ISO year into a straddling first row')
 
+// Forward DST: America/Santiago 2026-09-06 skips local midnight. A midnight
+// cursor + setDate(+1) repeats day 5 under Qt V4; noon keeps the grid unique.
+const septemberSunday = calendar.monthGrid(2026, 8, 0, '2026-09-22')
+assertDeepEqual(
+  septemberSunday[0].days.map(day => day.day),
+  [30, 31, 1, 2, 3, 4, 5],
+  'calendar pads September 2026 from the previous month at a Sunday week start'
+)
+assertDeepEqual(
+  septemberSunday[1].days.map(day => day.day),
+  [6, 7, 8, 9, 10, 11, 12],
+  'calendar does not duplicate the DST-gap day in September 2026'
+)
+const septemberDays = septemberSunday.flatMap(week => week.days).filter(day => day.inMonth).map(day => day.day)
+assertDeepEqual(septemberDays, Array.from({ length: 30 }, (_, i) => i + 1), 'calendar lists each in-month day once across a DST jump')
+
 // ---- stepping
 assertDeepEqual(calendar.stepMonth(2026, 0, 1), { year: 2026, month: 1 }, 'calendar steps to the next month')
 assertDeepEqual(calendar.stepMonth(2026, 0, -1), { year: 2025, month: 11 }, 'calendar steps back across the new year')
