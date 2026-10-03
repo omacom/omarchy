@@ -317,6 +317,71 @@ HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar transparent toggle
 jq -e '.bar.transparent == false' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 pass "shell config toggles bar transparency"
 
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar pills widget
+jq -e '.bar.pills == "widget" and .bar.position == "bottom"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
+pass "shell config sets bar pills"
+
+# A running shell toggles from what the bar shows; the file is its business.
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar pills toggle
+grep -Fqx 'shell toggleBarPills' "$TMPDIR/home/.local/state/omarchy/shell-ipc-calls"
+jq -e '.bar.pills == "widget"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
+pass "bar pills toggle asks the running shell"
+
+# Without a shell the toggle flips shell.json between off and section.
+ipc_down_bin="$TMPDIR/ipc-down"
+mkdir -p "$ipc_down_bin"
+cat >"$ipc_down_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+echo "omarchy-shell is not running" >&2
+exit 1
+SH
+chmod +x "$ipc_down_bin/omarchy-shell"
+PATH="$ipc_down_bin:$PATH" HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar pills toggle
+jq -e '.bar.pills == "off"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
+PATH="$ipc_down_bin:$PATH" HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar pills toggle
+jq -e '.bar.pills == "section"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
+pass "without a shell, bar pills toggle between off and section"
+
+# A shell with no bar to ask flips the file too.
+ipc_nobar_bin="$TMPDIR/ipc-nobar"
+mkdir -p "$ipc_nobar_bin"
+printf '#!/bin/bash\necho no-bar\n' >"$ipc_nobar_bin/omarchy-shell"
+chmod +x "$ipc_nobar_bin/omarchy-shell"
+PATH="$ipc_nobar_bin:$PATH" HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar pills toggle
+jq -e '.bar.pills == "off"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
+PATH="$ipc_nobar_bin:$PATH" HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar pills toggle
+jq -e '.bar.pills == "section"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
+pass "with no bar to ask, bar pills toggle flips shell.json"
+
+# A shell that does not answer in time may still toggle, so the command
+# fails instead of flipping the file a second time.
+ipc_slow_bin="$TMPDIR/ipc-slow"
+mkdir -p "$ipc_slow_bin"
+printf '#!/bin/bash\necho "omarchy-shell is not responding" >&2\nexit 1\n' >"$ipc_slow_bin/omarchy-shell"
+chmod +x "$ipc_slow_bin/omarchy-shell"
+if PATH="$ipc_slow_bin:$PATH" HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar pills toggle 2>/dev/null; then
+  fail "bar pills toggle reported success when the shell did not answer"
+fi
+jq -e '.bar.pills == "section"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
+if PATH="$ipc_slow_bin:$PATH" HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar floating toggle 2>/dev/null; then
+  fail "bar floating toggle reported success when the shell did not answer"
+fi
+pass "a shell that does not answer in time leaves the toggles to it"
+
+if HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar pills bogus 2>/dev/null; then
+  fail "bar pills accepted an unknown mode"
+fi
+pass "bar pills rejects an unknown mode"
+
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar floating true
+jq -e '.bar.floating == true' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar floating toggle
+grep -Fqx 'shell toggleBarFloating' "$TMPDIR/home/.local/state/omarchy/shell-ipc-calls"
+jq -e '.bar.floating == true' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
+PATH="$ipc_down_bin:$PATH" HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar floating toggle
+jq -e '.bar.floating == false' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
+pass "shell config sets and toggles a floating bar"
+
 HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar set omarchy.bluetooth enabled false --json
 grep -Fqx 'shell setBarWidget omarchy.bluetooth enabled false {}' \
   "$TMPDIR/home/.local/state/omarchy/shell-ipc-calls"

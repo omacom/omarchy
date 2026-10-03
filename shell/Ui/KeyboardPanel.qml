@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import qs.Commons
+import "../Commons/PanelGeometry.js" as PanelGeometry
 
 // Layer-shell popup attached to a bar widget icon, designed for
 // click-driven AND keyboard-driven panels (e.g. SUPER+CTRL+W summon).
@@ -27,8 +28,9 @@ import qs.Commons
 // axis (away-from-bar) because mapToItem on the anchor returns
 // bar-content-relative coords with internal layout offsets baked in
 // (e.g. ~13px from the bar's vertical centering of its widget row). The
-// parallel axis (along-the-bar) uses the anchor's content x/y since the
-// bar spans full screen on that axis.
+// parallel axis (along-the-bar) uses the anchor's content x/y, shifted by
+// the bar window's origin on screen: a floating bar sits `barMargins` off
+// the screen edges.
 //
 // Outside-click dismissal: an overlay MouseArea catches clicks, with the
 // QsWindow.mask subtracting the bar strip so clicks on the bar still
@@ -119,7 +121,7 @@ PanelWindow {
   readonly property real _barStripSize: {
     if (!bar) return 0
     var actual = (root.barPos === "top" || root.barPos === "bottom") ? root.barH : root.barW
-    return Math.max(bar.barSize, actual) + root.gap
+    return PanelGeometry.barStripSize(bar.barSize, actual, root.barEdgeMargin, root.gap)
   }
   mask: Region {
     width: root.screenW
@@ -136,25 +138,26 @@ PanelWindow {
     b: anchorItem
   }
 
-  // Anchor item's position within the bar's content surface. For a
-  // full-width top bar, the content x maps directly to screen x; the y
-  // returned here has the bar's internal padding baked in (e.g. ~13px
-  // from vertical centering of the widget row), which is why `cardOrigin`
-  // below uses `barH` for the perpendicular axis instead of this y.
+  // Anchor item's position on screen: its position in the bar window plus
+  // the window's origin (barX, barY). The coordinate across the bar has the
+  // bar's internal padding baked in (e.g. ~13px from vertical centering of
+  // the widget row), which is why `cardOrigin` places the card from the bar
+  // window's edge on that axis instead.
   readonly property point anchorScreenPos: {
     anchorWatcher.transform  // reactive dependency
     if (!anchorItem || !anchorWindow) return Qt.point(0, 0)
-    return anchorItem.mapToItem(anchorWindow.contentItem, 0, 0)
+    var p = anchorItem.mapToItem(anchorWindow.contentItem, 0, 0)
+    return Qt.point(p.x + barX, p.y + barY)
   }
   readonly property real anchorW: anchorItem ? anchorItem.width : 0
   readonly property real anchorH: anchorItem ? anchorItem.height : 0
   readonly property real screenW: screen ? screen.width : 0
   readonly property real screenH: screen ? screen.height : 0
   readonly property real availableCardWidth: screenW > 0
-    ? Math.max(120, screenW - ((barPos === "left" || barPos === "right") ? barW + gap + margin : margin * 2))
+    ? PanelGeometry.availableLength(screenW, barPos === "left" || barPos === "right", barW + barEdgeMargin, gap + margin, margin * 2)
     : 0
   readonly property real availableCardHeight: screenH > 0
-    ? Math.max(120, screenH - ((barPos === "top" || barPos === "bottom") ? barH + gap + margin : margin * 2))
+    ? PanelGeometry.availableLength(screenH, barPos === "top" || barPos === "bottom", barH + barEdgeMargin, gap + margin, margin * 2)
     : 0
   readonly property real verticalContentInset: padding * 2 + Border.top(borderSpec) + Border.bottom(borderSpec)
 
@@ -178,44 +181,30 @@ PanelWindow {
     return Math.round(Math.min(desired, maxHeight))
   }
 
-  // Desired top-left of the card in screen coordinates. For the
-  // perpendicular axis (away-from-bar) we anchor to the bar window's edge
-  // directly — not the anchor item's y/x — because mapToItem(barContent)
-  // returns coordinates in the bar's content space, which can be offset
-  // from the bar surface's screen-anchored corner by internal layout
-  // (centering wrappers, padding). The bar's surface IS aligned to its
-  // anchored screen edge, so using `barW`/`barH` gives the right edge
-  // regardless of how the bar's internal widgets are positioned. For the
-  // parallel axis (along the bar) the anchor item's reported position is
-  // still consistent with the bar content origin, so it's accurate for
-  // centering the card under the icon.
+  // Desired top-left of the card in screen coordinates. Away from the bar
+  // the card is placed from the bar window's outer edge, not the anchor
+  // item's y/x, because the item's position carries internal layout offsets
+  // (centering wrappers, padding). Along the bar the anchor item's position
+  // is accurate, so the card centres under the icon.
   readonly property real barW: anchorWindow ? anchorWindow.width : screenW
   readonly property real barH: anchorWindow ? anchorWindow.height : 0
+  // A floating bar sits barMargins off the screen edges it touches, so its
+  // window starts at (barX, barY) on screen. Both are 0 for a flush top or
+  // left bar.
+  readonly property var barMargins: bar && bar.barMargins ? bar.barMargins : ({ top: 0, right: 0, bottom: 0, left: 0 })
+  readonly property real barEdgeMargin: barMargins[barPos] || 0
+  readonly property var barOrigin: PanelGeometry.barOrigin(barPos, barMargins, barW, barH, screenW, screenH)
+  readonly property real barX: barOrigin.x
+  readonly property real barY: barOrigin.y
   readonly property point cardOrigin: {
     if (!anchorItem || !bar) return Qt.point(margin, margin)
-    var x = 0, y = 0
-    if (centerOnBar && (barPos === "top" || barPos === "bottom")) {
-      x = screenW / 2 - contentWidth / 2
-      y = barPos === "bottom" ? screenH - barH - contentHeight - gap : barH + gap
-    } else if (centerOnBar) {
-      x = barPos === "left" ? barW + gap : screenW - barW - contentWidth - gap
-      y = screenH / 2 - contentHeight / 2
-    } else if (barPos === "bottom") {
-      x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = screenH - barH - contentHeight - gap
-    } else if (barPos === "left") {
-      x = barW + gap
-      y = anchorScreenPos.y + anchorH / 2 - contentHeight / 2
-    } else if (barPos === "right") {
-      x = screenW - barW - contentWidth - gap
-      y = anchorScreenPos.y + anchorH / 2 - contentHeight / 2
-    } else { // "top" (default)
-      x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = barH + gap
-    }
-    x = Math.max(margin, Math.min(x, screenW - contentWidth - margin))
-    y = Math.max(margin, Math.min(y, screenH - contentHeight - margin))
-    return Qt.point(Math.round(x), Math.round(y))
+    var p = PanelGeometry.cardOrigin({
+      position: barPos, centerOnBar: centerOnBar, origin: barOrigin, barW: barW, barH: barH,
+      anchor: { x: anchorScreenPos.x, y: anchorScreenPos.y, w: anchorW, h: anchorH },
+      width: contentWidth, height: contentHeight, gap: gap, margin: margin,
+      screenW: screenW, screenH: screenH
+    })
+    return Qt.point(p.x, p.y)
   }
 
 
@@ -294,9 +283,7 @@ PanelWindow {
     }
 
     function barPoint(px, py) {
-      if (root.barPos === "bottom") return Qt.point(px, py - (root.screenH - root.barH))
-      if (root.barPos === "right") return Qt.point(px - (root.screenW - root.barW), py)
-      return Qt.point(px, py)
+      return Qt.point(px - root.barX, py - root.barY)
     }
 
     function pressTargetAt(px, py) {

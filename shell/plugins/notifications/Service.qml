@@ -49,7 +49,9 @@ Item {
   readonly property bool barVertical: barPosition === "left" || barPosition === "right"
   readonly property int defaultBarSize: barVertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
   readonly property int liveBarSize: shell && shell.bar && !shell.bar.barHidden ? Math.max(0, shell.bar.barSize) : defaultBarSize
-  readonly property int barClearance: liveBarSize + Style.gapsOut
+  // A floating bar sits its edge margin off the screen edge; clear that too.
+  readonly property var liveBarMargins: shell && shell.bar && !shell.bar.barHidden && shell.bar.barMargins ? shell.bar.barMargins : null
+  readonly property int barClearance: NotificationLogic.barClearance(liveBarSize, liveBarMargins, barPosition, Style.gapsOut)
 
   // Live Notification objects by originalId, kept OUT of the ListModels: a
   // QObject stored in a model role becomes a dangling C++ pointer when the

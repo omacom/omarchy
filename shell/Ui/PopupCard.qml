@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import qs.Commons
+import "../Commons/PanelGeometry.js" as PanelGeometry
 
 PopupWindow {
   id: root
@@ -29,11 +30,13 @@ PopupWindow {
   readonly property real screenH: popupScreen ? popupScreen.height : 0
   readonly property real barW: anchorWindow ? anchorWindow.width : 0
   readonly property real barH: anchorWindow ? anchorWindow.height : 0
+  // A floating bar sits its edge margin off the screen edge.
+  readonly property real barEdgeMargin: bar && bar.barMargins ? (bar.barMargins[bar.position] || 0) : 0
   readonly property real availableCardWidth: screenW > 0
-    ? Math.max(120, screenW - ((bar && (bar.position === "left" || bar.position === "right")) ? barW : 0) - root.margin * 2)
+    ? PanelGeometry.availableLength(screenW, !!bar && (bar.position === "left" || bar.position === "right"), barW + barEdgeMargin, root.margin * 2, root.margin * 2)
     : 0
   readonly property real availableCardHeight: screenH > 0
-    ? Math.max(120, screenH - ((bar && (bar.position === "top" || bar.position === "bottom")) ? barH : 0) - root.margin * 2)
+    ? PanelGeometry.availableLength(screenH, !!bar && (bar.position === "top" || bar.position === "bottom"), barH + barEdgeMargin, root.margin * 2, root.margin * 2)
     : 0
   readonly property real verticalContentInset: padding * 2 + Border.top(borderSpec) + Border.bottom(borderSpec)
 

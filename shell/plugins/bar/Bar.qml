@@ -75,7 +75,38 @@ Item {
   property color themeContrastForeground: Color.background
   property color transparentForeground: Color.bar.text
   property color foreground: themeForeground
-  property color barForeground: useTransparentForeground ? transparentForeground : themeForeground
+  // Pills (bar.pills) give widgets their own background, so the bar
+  // background can be switched off and the widgets still sit on something.
+  // shell.json wins; unset, a theme's [bar] pills sets the default.
+  property string pillSetting: ""
+  // The mode the bar menu's pills toggle turns back on.
+  property string lastPillMode: "section"
+  onPillModeChanged: if (pillMode !== "off") lastPillMode = pillMode
+  readonly property string pillMode: BarModel.pillMode(pillSetting !== "" ? pillSetting : Color.pick("bar.pills", ""))
+  readonly property bool pillsOn: pillMode !== "off"
+  // Widget text is picked against the pill. An opaque pill, or one over the
+  // drawn bar, is decided here; one the wallpaper shows through goes to the
+  // sampler with --blend. A theme's bar.pill-text always wins.
+  readonly property bool pillTextFixed: Color.pick("bar.pill-text", "") !== ""
+  readonly property bool pillTextSampled: pillsOn && !pillTextFixed && requestedTransparent && Color.bar.pill.a < 1
+  // On the drawn bar a pill in the bar's own colour would not show, so it is
+  // raised instead: the bar text at a low alpha over the bar, which reads in
+  // dark and light themes alike. With the background off the pill is the bar
+  // colour. A theme's bar.pill is used either way.
+  readonly property real pillRaise: 0.1
+  readonly property bool pillRaised: !transparent && Color.pick("bar.pill", "") === ""
+  readonly property color pillFill: pillRaised ? Util.alpha(themeForeground, pillRaise) : Color.bar.pill
+  readonly property color pillForeground: !pillsOn ? themeForeground : pillTextFixed ? Color.bar.pillText : BarModel.pickTextColor(
+    colorHex(Color.bar.pillText),
+    colorHex(themeContrastForeground),
+    pillRaised
+      ? BarModel.blendHex(colorHex(themeForeground), pillRaise, colorHex(background))
+      : BarModel.blendHex(colorHex(Color.bar.pill), Color.bar.pill.a, colorHex(background)))
+  property color barForeground: pillsOn && !(pillTextSampled && useTransparentForeground)
+    ? pillForeground
+    : (useTransparentForeground ? transparentForeground : themeForeground)
+  // Gap between a pill and the bar's edges and ends.
+  readonly property int pillInset: Style.bar.pillInset
   property bool foregroundAnimationEnabled: true
   property color background: Color.bar.background
   property color urgent: Color.bar.active
@@ -131,6 +162,8 @@ Item {
     api.position = Qt.binding(function() { return root.position })
     api.vertical = Qt.binding(function() { return root.vertical })
     api.barSize = Qt.binding(function() { return root.barSize })
+    api.barMargins = Qt.binding(function() { return root.barMargins })
+    api.pillsOn = Qt.binding(function() { return root.pillsOn })
     api.transparent = Qt.binding(function() { return root.transparent })
     api.foregroundAnimationEnabled = Qt.binding(function() { return root.foregroundAnimationEnabled })
     api.centerSectionRevealHeld = Qt.binding(function() { return root.centerSectionRevealHeld })
@@ -430,10 +463,17 @@ Item {
     var y = scenePoint ? scenePoint.y : 0
     if (!window || !window.screen) return { x: x, y: y }
 
-    if (root.position === "bottom")
-      y += Math.max(0, window.screen.height - window.height)
-    else if (root.position === "right")
-      x += Math.max(0, window.screen.width - window.width)
+    // A detached bar sits inside every edge it touches, so its origin is the
+    // gap itself on the axes it spans, and the far edge less its own size and
+    // gap on the one it is anchored to. At margin 0 this is the flush bar's
+    // plain screen-corner offset.
+    var margins = root.barMargins
+    x += root.position === "right"
+      ? Math.max(0, window.screen.width - window.width - margins.right)
+      : margins.left
+    y += root.position === "bottom"
+      ? Math.max(0, window.screen.height - window.height - margins.bottom)
+      : margins.top
 
     return { x: x, y: y }
   }
@@ -554,6 +594,23 @@ Item {
 
   readonly property bool vertical: position === "left" || position === "right"
   readonly property int barSize: vertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
+  // A detached bar floats barMargins away from every screen edge it touches
+  // and rounds its corners by barRadius. Every side is 0 by default, which
+  // anchors the bar flush against its edge with square corners. The keys are
+  // the position names, so barMargins[position] is the anchored edge's gap.
+  //
+  // bar.floating in shell.json switches the gap on or off; unset, the theme's
+  // margin decides. Without a theme margin a floating bar keeps Hyprland's
+  // gaps_out, and an unset radius follows Hyprland's rounding.
+  property var floatingSetting: undefined
+  readonly property bool floating: BarModel.barFloating(floatingSetting, Style.bar.margins, position)
+  readonly property var barMargins: floating ? BarModel.barMargins(true, Style.bar.margins, Style.gapsOutEdges, position) : BarModel.NO_MARGINS
+  readonly property bool floatInGap: BarModel.floatsInGap(floating, Style.bar.margins, position)
+  readonly property int barRadius: BarModel.barRadius(
+    floating,
+    Style.barOverrides["radius"] !== undefined ? Style.bar.radius : undefined,
+    Style.cornerRadius,
+    barSize)
 
   function normalizePosition(value) {
     return BarModel.normalizePosition(value)
@@ -582,6 +639,8 @@ Item {
     var config = Util.isPlainObject(barConfig) ? barConfig : fallbackBarConfig
 
     position = normalizePosition(config.position)
+    floatingSetting = typeof config.floating === "boolean" ? config.floating : undefined
+    pillSetting = typeof config.pills === "string" ? config.pills : ""
     setRequestedTransparency(config.transparent === true)
     centerAnchor = Util.canonicalWidgetId(config.centerAnchor || "")
 
@@ -805,7 +864,12 @@ Item {
     return source ? Util.fileUrl(source) : ""
   }
 
-  Component.onCompleted: applyBarConfig()
+  Component.onCompleted: {
+    // pillMode reports no change for the value it starts with, so a theme's
+    // default mode is taken here.
+    if (pillMode !== "off") lastPillMode = pillMode
+    applyBarConfig()
+  }
 
   // Revealing the indicators widens their section, which can slide a neighbour
   // under a stationary pointer. Collapsing on that un-hover would move it back
@@ -854,6 +918,45 @@ Item {
     } else {
       root.setRequestedTransparency(nextTransparent)
     }
+  }
+
+  // Bar options behind the right-click menu on empty bar space.
+  function setBarOption(key, value) {
+    if (root.shell && typeof root.shell.mutateShellConfig === "function") {
+      root.shell.mutateShellConfig(function(config) {
+        if (!Util.isPlainObject(config.bar)) config.bar = {}
+        config.bar[key] = value
+      })
+    }
+  }
+
+  function togglePills() {
+    setBarOption("pills", pillsOn ? "off" : lastPillMode)
+  }
+
+  function toggleFloating() {
+    setBarOption("floating", !floating)
+  }
+
+  // Whether a scene point in a slot falls in the pill gap at a run's end:
+  // empty bar space between two pills, not part of either.
+  function inPillGap(slot, scenePoint) {
+    var local = slot.mapFromItem(null, scenePoint.x, scenePoint.y)
+    var along = root.vertical ? local.y : local.x
+    var length = root.vertical ? slot.height : slot.width
+    return (BarModel.pillStartsRound(slot.pillRole) && along < slot.pillGapLead)
+      || (BarModel.pillEndsRound(slot.pillRole) && along >= length - slot.pillGapTrail)
+  }
+
+  // The drawn widget slot under a scene point on one bar surface, if any.
+  function moduleSlotAtScene(scenePoint, window) {
+    for (var i = 0; i < moduleSlots.length; i++) {
+      var slot = moduleSlots[i]
+      if (!BarModel.isDrawnSlot(slot) || !sameWindow(slotWindow(slot), window)) continue
+      var local = slot.mapFromItem(null, scenePoint.x, scenePoint.y)
+      if (local.x >= 0 && local.y >= 0 && local.x < slot.width && local.y < slot.height) return slot
+    }
+    return null
   }
 
   function rawLayoutSection(config, region) {
@@ -1057,21 +1160,44 @@ Item {
     transparentForegroundTimer.restart()
   }
 
+  // A refresh asked for while the sampler runs is dropped. With pills on,
+  // the pill blend is one more input that can change meanwhile, so it runs
+  // again once the current sample is in.
+  property bool transparentForegroundPending: false
+  property bool transparentForegroundBlended: false
+
   function refreshTransparentForeground() {
-    if (!requestedTransparent || transparentForegroundProc.running) return
+    if (!requestedTransparent) return
+    if (transparentForegroundProc.running) {
+      // Also when pills went off while a blended sample runs: its result is
+      // for the pill, not the bare bar.
+      if (root.pillsOn || root.transparentForegroundBlended) root.transparentForegroundPending = true
+      return
+    }
+    root.transparentForegroundBlended = root.pillBlendArgs.length > 0
 
     transparentForegroundProc.command = [
       "omarchy-bar-text-color",
       root.position,
       String(root.barSize),
       colorHex(root.themeForeground),
-      colorHex(root.themeContrastForeground)
-    ]
+      colorHex(root.themeContrastForeground),
+      // A detached bar no longer covers the strip at the screen edge, so the
+      // sample has to move in with it or the contrast is picked against pixels
+      // the bar does not sit on.
+      "--inset",
+      [root.barMargins.top, root.barMargins.right,
+       root.barMargins.bottom, root.barMargins.left].join(" ")
+    ].concat(root.pillBlendArgs)
     transparentForegroundProc.running = true
   }
 
+  readonly property var pillBlendArgs: pillTextSampled ? ["--blend", colorHex(Color.bar.pill), String(Color.bar.pill.a)] : []
+
+  onPillBlendArgsChanged: scheduleTransparentForegroundRefresh()
   onRequestedTransparentChanged: scheduleTransparentForegroundRefresh()
   onPositionChanged: scheduleTransparentForegroundRefresh()
+  onBarMarginsChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
 
@@ -1084,6 +1210,11 @@ Item {
 
   Process {
     id: transparentForegroundProc
+    onExited: {
+      if (!root.transparentForegroundPending) return
+      root.transparentForegroundPending = false
+      Qt.callLater(root.refreshTransparentForeground)
+    }
     stdout: SplitParser {
       onRead: function(line) {
         var value = String(line || "").trim()
@@ -1240,18 +1371,32 @@ Item {
     // textures — which measures ~150ms against ~20ms to tear down. Parking
     // keeps the surface alive, so showing is only a margin change.
     visible: !remapGuard.remapping
-    exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Auto
+    exclusionMode: root.barHidden ? ExclusionMode.Ignore : (root.floatInGap ? ExclusionMode.Normal : ExclusionMode.Auto)
+    // Quickshell's exclusiveZone setter also switches exclusionMode to
+    // Normal, and a binding re-runs it on every change of its inputs. So the
+    // zone is written only while the bar floats in the gap, where Normal is
+    // the mode anyway; otherwise it is never touched and Auto or Ignore hold.
+    Binding {
+      target: barWindow
+      property: "exclusiveZone"
+      when: root.floatInGap && !root.barHidden
+      value: BarModel.exclusiveZone(true, root.barSize, root.barMargins, root.position)
+      restoreMode: Binding.RestoreNone
+    }
 
     ScreenMoveRemap {
       id: remapGuard
       window: barWindow
     }
 
+    // Floating margins on the edges the bar touches; hidden, parked past its
+    // anchored edge.
+    readonly property var windowMargins: BarModel.windowMargins(root.position, root.barMargins, root.barSize, root.barHidden)
     margins {
-      top: root.barHidden && root.position === "top" ? -root.barSize : 0
-      bottom: root.barHidden && root.position === "bottom" ? -root.barSize : 0
-      left: root.barHidden && root.position === "left" ? -root.barSize : 0
-      right: root.barHidden && root.position === "right" ? -root.barSize : 0
+      top: windowMargins.top
+      right: windowMargins.right
+      bottom: windowMargins.bottom
+      left: windowMargins.left
     }
 
     anchors {
@@ -1263,10 +1408,21 @@ Item {
 
     implicitWidth: root.vertical ? root.barSize : 0
     implicitHeight: root.vertical ? 0 : root.barSize
-    color: root.transparent ? "transparent" : root.background
+    // The surface itself stays transparent so the rounded background below can
+    // paint the corners; a window color would square them off again.
+    color: "transparent"
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
+
+    // Declared before the loader so it paints behind the widgets. Carries the
+    // bar's background instead of the window, which is what lets barRadius
+    // round the corners.
+    Rectangle {
+      anchors.fill: parent
+      color: root.transparent ? "transparent" : root.background
+      radius: root.barRadius
+    }
 
     Loader {
       anchors.fill: parent
@@ -1357,13 +1513,13 @@ Item {
 
         LeftModules {
           anchors.left: parent.left
-          anchors.leftMargin: Style.space(8)
+          anchors.leftMargin: pillRun.startMargin
           anchors.verticalCenter: parent.verticalCenter
         }
 
         RightModules {
           anchors.right: parent.right
-          anchors.rightMargin: Style.space(8)
+          anchors.rightMargin: pillRun.endMargin
           anchors.verticalCenter: parent.verticalCenter
         }
       }
@@ -1379,13 +1535,13 @@ Item {
 
         LeftModules {
           anchors.top: parent.top
-          anchors.topMargin: Style.space(8)
+          anchors.topMargin: pillRun.startMargin
           anchors.horizontalCenter: parent.horizontalCenter
         }
 
         RightModules {
           anchors.bottom: parent.bottom
-          anchors.bottomMargin: Style.space(8)
+          anchors.bottomMargin: pillRun.endMargin
           anchors.horizontalCenter: parent.horizontalCenter
         }
       }
@@ -1433,7 +1589,12 @@ Item {
 
       BorderSurface {
         anchors.fill: parent
-        color: root.transparent ? "transparent" : root.background
+        // With pills the widget is drawn in the pill text colour, so the
+        // ghost sits on the pill as drawn: over the bar, or on its own on a
+        // transparent bar.
+        color: root.pillsOn
+          ? (root.transparent ? root.pillFill : Qt.tint(root.background, root.pillFill))
+          : (root.transparent ? "transparent" : root.background)
         borderSpec: Border.flat(root.barForeground, 1)
         radius: Math.min(Style.cornerRadius, height / 2)
         opacity: root.transparent ? 0.45 : 0.94
@@ -1498,11 +1659,17 @@ Item {
         required property string modelData
         readonly property bool edgeVertical: modelData === "left" || modelData === "right"
         readonly property int edgeSize: edgeVertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
+        // Where the bar would sit on that edge, floating margins included. A
+        // theme margin can float the bar on one edge and not another, so the
+        // floating state is the target edge's.
+        readonly property bool edgeFloating: BarModel.barFloating(root.floatingSetting, Style.bar.margins, modelData)
+        readonly property var edgeMargins: edgeFloating ? BarModel.barMargins(true, Style.bar.margins, Style.gapsOutEdges, modelData) : BarModel.NO_MARGINS
 
-        x: modelData === "right" ? parent.width - edgeSize : 0
-        y: modelData === "bottom" ? parent.height - edgeSize : 0
-        width: edgeVertical ? edgeSize : parent.width
-        height: edgeVertical ? parent.height : edgeSize
+        x: modelData === "right" ? parent.width - edgeSize - edgeMargins.right : edgeMargins.left
+        y: modelData === "bottom" ? parent.height - edgeSize - edgeMargins.bottom : edgeMargins.top
+        width: edgeVertical ? edgeSize : parent.width - edgeMargins.left - edgeMargins.right
+        height: edgeVertical ? parent.height - edgeMargins.top - edgeMargins.bottom : edgeSize
+        radius: BarModel.barRadius(edgeFloating, Style.barOverrides["radius"] !== undefined ? Style.bar.radius : undefined, Style.cornerRadius, edgeSize)
         color: root.transparent ? "transparent" : root.background
         borderSpec: Border.flat(root.barForeground, 1)
         visible: opacity > 0
@@ -1521,14 +1688,64 @@ Item {
     return idx === -1 ? null : entries[idx]
   }
 
+  // One bar section's pills. Slots register here; the roles follow the slots'
+  // own visibility, so a widget that hides drops out of its pill without a
+  // layout rebuild.
+  component PillRun: QtObject {
+    property var entries: []
+    property var slots: []
+    readonly property var states: {
+      var result = []
+      for (var i = 0; i < slots.length; i++) {
+        var slot = slots[i]
+        if (slot && slot.sectionIndex >= 0) result[slot.sectionIndex] = slot.pillState
+      }
+      return result
+    }
+    readonly property var roles: root.pillsOn ? BarModel.pillRoles(entries, states, root.pillMode) : []
+    // Space between the bar's ends and the section's outermost widgets. An
+    // outer pill sits pillInset from the end, as from the edges; a bare
+    // widget keeps the margin of a bar without pills.
+    readonly property int startMargin: BarModel.sectionEndMargin(states, false, root.pillsOn, root.pillInset, Style.bar.pillGap, Style.space(8))
+    readonly property int endMargin: BarModel.sectionEndMargin(states, true, root.pillsOn, root.pillInset, Style.bar.pillGap, Style.space(8))
+    // Length along the bar of each pill, keyed by the slot that starts it.
+    // That slot draws the whole pill: per-slot segments meet at fractional
+    // pixels on a scaled output, and a translucent pill shows the seam.
+    readonly property var lengths: {
+      var result = []
+      if (roles.length === 0) return result
+      var ordered = []
+      for (var i = 0; i < slots.length; i++) {
+        if (slots[i] && slots[i].sectionIndex >= 0) ordered[slots[i].sectionIndex] = slots[i]
+      }
+      for (var start = 0; start < roles.length; start++) {
+        if (!BarModel.pillStartsRound(roles[start])) continue
+        var length = 0
+        for (var j = start; j < roles.length; j++) {
+          if (ordered[j]) length += root.vertical ? ordered[j].height : ordered[j].width
+          if (BarModel.pillEndsRound(roles[j])) break
+        }
+        result[start] = length
+      }
+      return result
+    }
+
+    function register(slot) { slots = slots.concat([slot]) }
+    function unregister(slot) { slots = slots.filter(function(s) { return s !== slot }) }
+  }
+
   component LeftModules: ModuleList {
     entries: root.layoutEntries("left")
     region: "left"
+    pillRun: leftRun
+    PillRun { id: leftRun; entries: root.layoutEntries("left") }
   }
 
   component RightModules: ModuleList {
     entries: root.layoutEntries("right")
     region: "right"
+    pillRun: rightRun
+    PillRun { id: rightRun; entries: root.layoutEntries("right") }
   }
 
   component CenterModules: Item {
@@ -1537,6 +1754,11 @@ Item {
     property var entries: root.layoutEntries("center")
     readonly property bool hasAnchor: root.entryIndex(entries, root.centerAnchor) !== -1
     readonly property var anchorEntry: root.findCenterAnchorEntry()
+    readonly property int anchorIndex: root.entryIndex(entries, root.centerAnchor)
+
+    // Anchored, the center is three lists around the anchor; they share one
+    // run so a pill can cross the anchor.
+    PillRun { id: centerRun; entries: centerRoot.entries }
 
     Loader {
       anchors.fill: parent
@@ -1559,6 +1781,7 @@ Item {
           visible: !centerRoot.hasAnchor
           entries: centerRoot.entries
           region: "center"
+          pillRun: centerRun
           anchors.centerIn: parent
         }
 
@@ -1566,6 +1789,7 @@ Item {
           visible: centerRoot.hasAnchor
           entries: root.entriesBefore(centerRoot.entries, root.centerAnchor)
           region: "center"
+          pillRun: centerRun
           anchors.right: centerAnchorModule.left
           anchors.verticalCenter: centerAnchorModule.verticalCenter
         }
@@ -1575,13 +1799,21 @@ Item {
           visible: centerRoot.hasAnchor
           entry: centerRoot.anchorEntry
           region: "center"
-          anchors.centerIn: parent
+          pillRun: centerRun
+          sectionIndex: centerRoot.anchorIndex
+          // Center the widget, not the widget plus its pill padding, so the
+          // anchor stays on the same pixel when a neighbour appears and its
+          // role changes. Without pills this is exactly anchors.centerIn.
+          x: BarModel.anchorOffset(parent.width, width, pillLead, pillTrail)
+          anchors.verticalCenter: parent.verticalCenter
         }
 
         ModuleList {
           visible: centerRoot.hasAnchor
           entries: root.entriesAfter(centerRoot.entries, root.centerAnchor)
           region: "center"
+          pillRun: centerRun
+          firstIndex: centerRoot.anchorIndex + 1
           anchors.left: centerAnchorModule.right
           anchors.verticalCenter: centerAnchorModule.verticalCenter
         }
@@ -1604,6 +1836,7 @@ Item {
           visible: !centerRoot.hasAnchor
           entries: centerRoot.entries
           region: "center"
+          pillRun: centerRun
           anchors.centerIn: parent
         }
 
@@ -1611,6 +1844,7 @@ Item {
           visible: centerRoot.hasAnchor
           entries: root.entriesBefore(centerRoot.entries, root.centerAnchor)
           region: "center"
+          pillRun: centerRun
           anchors.bottom: centerAnchorModule.top
           anchors.horizontalCenter: centerAnchorModule.horizontalCenter
         }
@@ -1620,13 +1854,21 @@ Item {
           visible: centerRoot.hasAnchor
           entry: centerRoot.anchorEntry
           region: "center"
-          anchors.centerIn: parent
+          pillRun: centerRun
+          sectionIndex: centerRoot.anchorIndex
+          // Center the widget, not the widget plus its pill padding, so the
+          // anchor stays on the same pixel when a neighbour appears and its
+          // role changes. Without pills this is exactly anchors.centerIn.
+          y: BarModel.anchorOffset(parent.height, height, pillLead, pillTrail)
+          anchors.horizontalCenter: parent.horizontalCenter
         }
 
         ModuleList {
           visible: centerRoot.hasAnchor
           entries: root.entriesAfter(centerRoot.entries, root.centerAnchor)
           region: "center"
+          pillRun: centerRun
+          firstIndex: centerRoot.anchorIndex + 1
           anchors.top: centerAnchorModule.bottom
           anchors.horizontalCenter: centerAnchorModule.horizontalCenter
         }
@@ -1643,9 +1885,26 @@ Item {
     property real pressedY: 0
     readonly property real dragThreshold: Style.space(4)
 
-    acceptedButtons: Qt.LeftButton
+    acceptedButtons: Qt.LeftButton | Qt.RightButton
     cursorShape: dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
     pressAndHoldInterval: 200
+
+    // Right-click on empty bar space: bar options.
+    property bool menuOpen: false
+    property real menuAt: 0
+
+    function close() { menuOpen = false }
+
+    // Opens only on empty bar space, the gaps between pills included, so
+    // widgets keep their own right-click actions.
+    function openMenu(x, y) {
+      var scenePoint = gestureArea.mapToItem(null, x, y)
+      var slot = root.moduleSlotAtScene(scenePoint, root.targetWindow(gestureArea))
+      if (slot && !root.inPillGap(slot, scenePoint)) return false
+      menuAt = root.vertical ? y : x
+      menuOpen = true
+      return true
+    }
 
     function startDrag(x, y) {
       if (dragging) return
@@ -1656,6 +1915,24 @@ Item {
     }
 
     onPressed: function(mouse) {
+      // The right button opens the bar options on press, not click: a right
+      // button held past pressAndHoldInterval never reports a click. A second
+      // right press closes them, and a press that does not open them goes to
+      // what is below. During a left press or drag it does nothing. If this
+      // area holds the left button the press is taken, since rejecting it
+      // would clear the left button's pressed state and strand the bar move.
+      // If something else holds it (a widget being dragged) the press is
+      // passed on, since taking it would take the grab and cancel that drag.
+      if (mouse.button === Qt.RightButton) {
+        if (dragging || (mouse.buttons & Qt.LeftButton)) {
+          if (!(gestureArea.pressedButtons & Qt.LeftButton)) mouse.accepted = false
+          return
+        }
+        if (menuOpen) menuOpen = false
+        else if (!openMenu(mouse.x, mouse.y)) mouse.accepted = false
+        return
+      }
+      menuOpen = false
       dragging = false
       suppressClick = false
       pressedX = mouse.x
@@ -1665,7 +1942,7 @@ Item {
     onPressAndHold: function(mouse) {
       // A widget above us propagates its composed press-and-hold down here without
       // ever handing over the grab, so we'd get no release or cancel to end the move.
-      if (!gestureArea.pressed) return
+      if (!gestureArea.pressed || !(gestureArea.pressedButtons & Qt.LeftButton)) return
       startDrag(mouse.x, mouse.y)
     }
 
@@ -1684,6 +1961,7 @@ Item {
     }
 
     onReleased: function(mouse) {
+      if (mouse.button === Qt.RightButton) return
       if (!dragging) return
       dragging = false
       suppressClick = true
@@ -1704,6 +1982,52 @@ Item {
       }
     }
 
+    Item {
+      id: menuAnchor
+      x: root.vertical ? 0 : gestureArea.menuAt
+      y: root.vertical ? gestureArea.menuAt : 0
+      width: root.vertical ? gestureArea.width : 1
+      height: root.vertical ? 1 : gestureArea.height
+    }
+
+    PopupCard {
+      id: barMenu
+      anchorItem: menuAnchor
+      owner: gestureArea
+      bar: root
+      open: gestureArea.menuOpen
+      padding: Style.space(6)
+      contentWidth: barMenu.fittedContentWidth(Style.space(190))
+      contentHeight: barMenu.fittedContentHeight(barMenuColumn.implicitHeight)
+
+      Column {
+        id: barMenuColumn
+        anchors.fill: parent
+        spacing: 0
+
+        BarMenuToggle {
+          width: barMenuColumn.width
+          label: "Background"
+          checked: !root.requestedTransparent
+          onActivated: root.toggleTransparency()
+        }
+
+        BarMenuToggle {
+          width: barMenuColumn.width
+          label: "Floating"
+          checked: root.floating
+          onActivated: root.toggleFloating()
+        }
+
+        BarMenuToggle {
+          width: barMenuColumn.width
+          label: "Pills"
+          checked: root.pillsOn
+          onActivated: root.togglePills()
+        }
+      }
+    }
+
     onDoubleClicked: function(mouse) {
       if (suppressClick) {
         suppressClick = false
@@ -1716,11 +2040,63 @@ Item {
     }
   }
 
+  // One row of the bar menu: a label and a switch; the whole row toggles.
+  component BarMenuToggle: Item {
+    id: menuRow
+
+    property string label: ""
+    property bool checked: false
+    signal activated()
+
+    implicitHeight: Style.space(32)
+
+    Rectangle {
+      anchors.fill: parent
+      radius: Style.cornerRadius
+      color: rowMouse.containsMouse ? Style.hoverFillFor(Color.popups.text, Color.popups.text) : "transparent"
+    }
+
+    Text {
+      textFormat: Text.PlainText
+      anchors.left: parent.left
+      anchors.leftMargin: Style.space(10)
+      anchors.right: rowSwitch.left
+      anchors.verticalCenter: parent.verticalCenter
+      text: menuRow.label
+      color: Color.popups.text
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      elide: Text.ElideRight
+    }
+
+    ToggleSwitch {
+      id: rowSwitch
+      anchors.right: parent.right
+      anchors.rightMargin: Style.space(4)
+      anchors.verticalCenter: parent.verticalCenter
+      checked: menuRow.checked
+      interactive: false
+      foreground: Color.popups.text
+    }
+
+    MouseArea {
+      id: rowMouse
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: menuRow.activated()
+    }
+  }
+
   component ModuleList: Loader {
     id: moduleListRoot
 
     property var entries: []
     property string region: ""
+    property var pillRun: null
+    // Index of the first entry in its section, for the center lists around
+    // the anchor.
+    property int firstIndex: 0
 
     visible: entries.length > 0
     // A hidden list must not build its modules. The center section declares
@@ -1744,8 +2120,11 @@ Item {
 
           ModuleSlot {
             required property var modelData
+            required property int index
             entry: modelData
             region: moduleListRoot.region
+            pillRun: moduleListRoot.pillRun
+            sectionIndex: moduleListRoot.firstIndex + index
           }
         }
       }
@@ -1762,8 +2141,11 @@ Item {
 
           ModuleSlot {
             required property var modelData
+            required property int index
             entry: modelData
             region: moduleListRoot.region
+            pillRun: moduleListRoot.pillRun
+            sectionIndex: moduleListRoot.firstIndex + index
           }
         }
       }
@@ -1775,6 +2157,8 @@ Item {
 
     required property var entry
     property string region: ""
+    property var pillRun: null
+    property int sectionIndex: -1
     readonly property string moduleName: root.entryId(entry)
     readonly property var moduleSettings: root.entrySettings(entry)
     readonly property string customType: root.customModuleType(entry)
@@ -1809,21 +2193,65 @@ Item {
       var key = root.vertical ? "openPanelIndicatorHeight" : "openPanelIndicatorWidth"
       var hint = activeItem && key in activeItem ? activeItem[key] : undefined
       if (hint !== undefined && hint !== null && hint > 0) return Math.round(hint)
-      return Math.max(Style.space(10), Math.round((root.vertical ? slot.height : slot.width) * 0.55))
+      return Math.max(Style.space(10), Math.round(slot.contentLength * 0.55))
     }
-    implicitWidth: activeItem && activeItem.visible ? (root.vertical ? root.barSize : activeItem.implicitWidth) : 0
-    implicitHeight: activeItem && activeItem.visible ? activeItem.implicitHeight : 0
+    // Pill segment for this slot. The run's outer ends add the pill padding
+    // plus half the gap to the next pill, so the widget itself keeps its size.
+    readonly property bool contentDrawn: !!activeItem && activeItem.visible && (root.vertical ? activeItem.implicitHeight : activeItem.implicitWidth) > 0
+    readonly property var pillState: BarModel.pillState(entry, contentDrawn)
+    readonly property string pillRole: pillRun && sectionIndex >= 0 && pillRun.roles[sectionIndex] ? pillRun.roles[sectionIndex] : "none"
+    // Half the pill gap on each side of a pill; the halves of two neighbours
+    // add up to pill-gap exactly, odd values included.
+    readonly property int pillGapLead: BarModel.pillGapLead(Style.bar.pillGap)
+    readonly property int pillGapTrail: Style.bar.pillGap - pillGapLead
+    readonly property int pillLead: BarModel.pillStartsRound(pillRole) ? Style.bar.pillPadding + pillGapLead : 0
+    readonly property int pillTrail: BarModel.pillEndsRound(pillRole) ? Style.bar.pillPadding + pillGapTrail : 0
+    readonly property real pillLength: pillRun && sectionIndex >= 0 && pillRun.lengths[sectionIndex] ? pillRun.lengths[sectionIndex] : 0
+    readonly property real contentLength: (root.vertical ? slot.height : slot.width) - pillLead - pillTrail
+    implicitWidth: activeItem && activeItem.visible ? (root.vertical ? root.barSize : activeItem.implicitWidth + pillLead + pillTrail) : 0
+    implicitHeight: activeItem && activeItem.visible ? activeItem.implicitHeight + (root.vertical ? pillLead + pillTrail : 0) : 0
     width: implicitWidth
     height: implicitHeight
-    z: modulePointer.dragging ? 100 : 0
+    // A dragged slot rises above its neighbours, except the first slot of a
+    // pill with more widgets: it draws the whole pill, which would cover them.
+    z: modulePointer.dragging && !(slot.pillLength > 0 && slot.pillRole === "first") ? 100 : 0
 
-    Component.onCompleted: root.registerModuleSlot(slot)
+    Component.onCompleted: {
+      root.registerModuleSlot(slot)
+      if (pillRun) pillRun.register(slot)
+    }
     Component.onDestruction: {
       if (root.barDragSource === slot) root.clearBarDrag()
       root.unregisterModuleSlot(slot)
+      if (pillRun) pillRun.unregister(slot)
     }
 
     HoverHandler { id: moduleHover }
+
+    // Drawn by the first slot of a pill, across the slots after it.
+    Rectangle {
+      readonly property int inset: root.pillInset
+
+      visible: slot.pillLength > 0
+      x: root.vertical ? inset : slot.pillGapLead
+      y: root.vertical ? slot.pillGapLead : Math.round((slot.height - height) / 2)
+      width: root.vertical ? slot.width - inset * 2 : slot.pillLength - slot.pillGapLead - slot.pillGapTrail
+      height: root.vertical ? slot.pillLength - slot.pillGapLead - slot.pillGapTrail : root.barSize - inset * 2
+      radius: Math.min(Style.bar.pillRadius, Math.min(width, height) / 2)
+      color: root.pillFill
+      border.width: Color.bar.pillBorder.a > 0 ? 1 : 0
+      border.color: Color.bar.pillBorder
+    }
+
+    // The widget's own area: the slot less the pill padding at a run's ends.
+    Item {
+      id: slotContent
+      anchors.fill: parent
+      anchors.leftMargin: root.vertical ? 0 : slot.pillLead
+      anchors.rightMargin: root.vertical ? 0 : slot.pillTrail
+      anchors.topMargin: root.vertical ? slot.pillLead : 0
+      anchors.bottomMargin: root.vertical ? slot.pillTrail : 0
+    }
 
     BorderSurface {
       visible: slot.dragSource
@@ -1839,7 +2267,7 @@ Item {
       id: componentLoader
       active: !slot.qmlCustom && !slot.registered
       sourceComponent: slot.commandCustom ? customCommandModuleComponent : emptyModuleComponent
-      anchors.fill: parent
+      anchors.fill: slotContent
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()
@@ -1851,7 +2279,7 @@ Item {
       id: registryLoader
       active: slot.registered
       sourceComponent: slot.registered ? slot.registryComponent : null
-      anchors.fill: parent
+      anchors.fill: slotContent
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()
@@ -1863,7 +2291,7 @@ Item {
       id: qmlLoader
       active: slot.qmlCustom
       source: slot.qmlCustom ? root.customModuleSource(slot.entry) : ""
-      anchors.fill: parent
+      anchors.fill: slotContent
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()
@@ -1888,9 +2316,9 @@ Item {
       // panel that opens on that side.
       x: root.vertical
         ? (root.position === "left" ? parent.width - width - inset : inset)
-        : Math.round((parent.width - width) / 2)
+        : slot.pillLead + Math.round((slot.contentLength - width) / 2)
       y: root.vertical
-        ? Math.round((parent.height - height) / 2)
+        ? slot.pillLead + Math.round((slot.contentLength - height) / 2)
         : (root.position === "top" ? parent.height - height - inset : inset)
       z: 50
 
@@ -1934,8 +2362,9 @@ Item {
           if (!dragging) {
             root.barDragWindow = root.targetWindow(slot.activeItem) || root.targetWindow(slot)
             root.barDragScreen = root.barDragWindow ? root.barDragWindow.screen : null
-            root.barDragOffsetX = pressedX
-            root.barDragOffsetY = pressedY
+            // The ghost is the widget, which sits pillLead into the slot.
+            root.barDragOffsetX = pressedX - (root.vertical ? 0 : slot.pillLead)
+            root.barDragOffsetY = pressedY - (root.vertical ? slot.pillLead : 0)
             root.captureBarDragGhost(slot)
             root.barDragSource = slot
           }
