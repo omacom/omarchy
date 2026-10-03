@@ -11,7 +11,11 @@ Item {
 
   property var shell: null
   property string preferredPlayerKey: ""
+  // When preferredPlayerKey was last set. A preference older than another
+  // player's most recent playback is stale and must not win over it.
+  property double preferredAt: 0
   property var playerStartedAt: ({})
+  property var playerLastActiveAt: ({})
   property var pendingTrackOsd: null
   property int playSerial: 0
 
@@ -106,6 +110,7 @@ Item {
     var next = {}
     var alive = {}
     var serial = playSerial
+    var lastActive = {}
 
     for (var i = 0; i < players.length; i++) {
       var p = players[i]
@@ -113,7 +118,10 @@ Item {
       if (!key) continue
 
       alive[key] = true
+      if (playerLastActiveAt[key] !== undefined) lastActive[key] = playerLastActiveAt[key]
       if (!p.isPlaying) continue
+
+      lastActive[key] = Date.now()
 
       if (playerStartedAt[key] === undefined) {
         serial += 1
@@ -123,10 +131,15 @@ Item {
       }
     }
 
-    if (preferredPlayerKey && !alive[preferredPlayerKey]) preferredPlayerKey = ""
+    if (preferredPlayerKey && !alive[preferredPlayerKey]) setPreferred("")
 
     playSerial = serial
     playerStartedAt = next
+    playerLastActiveAt = lastActive
+  }
+
+  function mostRecentlyActivePlayer() {
+    return MediaModel.mostRecentlyActivePlayer(players, playerLastActiveAt)
   }
 
   function orderedSourcePlayers() {
@@ -227,9 +240,17 @@ Item {
     }
 
     if (preferred && preferred.isPlaying) return preferred
+    // preferred/recentlyActive come before streamCandidate: a player's playback
+    // stream can linger in PipeWire long after it's paused (Spotify does this
+    // indefinitely), so "has a stream" is not a reliable signal of relevance
+    // and must not outrank knowing who you actually just interacted with.
     var streamCandidate = streamPlayer || streamProxy
-    var streamPreferred = preferred && playerHasPlaybackStream(preferred) ? preferred : null
-    return oldestPlayingPlayer(true) || oldestPlayingPlayer(false) || streamPreferred || streamCandidate || preferred || trackPlayer || trackProxy || controllablePlayer || controllableProxy || identityPlayer || identityProxy || null
+    // Between the two, the newer signal wins: a preference set after the other
+    // player last played keeps priority, but a stale one (e.g. Spotify paused
+    // by the headphones hours ago) loses to whatever you actually watched most
+    // recently. See MediaModel.recencyOrderedFallbacks.
+    var recencyPicks = MediaModel.recencyOrderedFallbacks(preferred, preferredAt, mostRecentlyActivePlayer(), playerLastActiveAt)
+    return oldestPlayingPlayer(true) || oldestPlayingPlayer(false) || recencyPicks[0] || recencyPicks[1] || streamCandidate || trackPlayer || trackProxy || controllablePlayer || controllableProxy || identityPlayer || identityProxy || null
   }
 
   function labelFor(player) {
@@ -285,10 +306,15 @@ Item {
     trackOsdTimer.restart()
   }
 
+  function setPreferred(key) {
+    preferredPlayerKey = key || ""
+    preferredAt = key ? Date.now() : 0
+  }
+
   function selectPlayer(key) {
     var player = playerForKey(key)
     if (!player || !hasMetadata(player)) return false
-    preferredPlayerKey = playerKey(player)
+    setPreferred(playerKey(player))
     return true
   }
 
@@ -334,7 +360,7 @@ Item {
     var currentKey = playerKey(current)
     var nextKey = playerKey(next)
 
-    preferredPlayerKey = nextKey
+    setPreferred(nextKey)
 
     if (transferPlayback && currentWasPlaying && next && nextKey !== currentKey) {
       var nextWasPlaying = next.isPlaying
@@ -425,7 +451,7 @@ Item {
       }
     }
 
-    if (handled && key) preferredPlayerKey = key
+    if (handled && key) setPreferred(key)
     if (showFeedback !== false)
       scheduleOsd(actionLabel, iconName, player, handled && (action === "next" || action === "previous"), beforeTrackSignature)
     return handled
