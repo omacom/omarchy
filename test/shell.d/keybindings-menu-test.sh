@@ -232,3 +232,16 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# A user config that iterates a runtime query such as hl.get_workspaces() must not
+# hang the scan: the mocked API answers with an empty list.
+cat >"$home/.config/hypr/hyprland.lua" <<'LUA'
+for _, workspace in ipairs(hl.get_workspaces()) do
+end
+LUA
+
+timeout 5 env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/loop-cache" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-menu-keybindings" --print >/dev/null ||
+  fail "the Lua bind scan terminates when iterating over workspaces"
+pass "the Lua bind scan returns an empty workspace list"

@@ -223,6 +223,15 @@ hl = setmetatable({
   get_config = function()
     return nil
   end,
+  get_monitors = function()
+    return {}
+  end,
+  get_windows = function()
+    return {}
+  end,
+  get_workspaces = function()
+    return {}
+  end,
 }, {
   __index = function()
     return noop
@@ -234,7 +243,11 @@ local file = io.open(config, "r")
 
 if file then
   file:close()
+  debug.sethook(function()
+    error("instruction limit exceeded")
+  end, "", 1000000)
   local ok, err = pcall(dofile, config)
+  debug.sethook()
   if not ok and os.getenv("DEBUG") == "1" then
     io.stderr:write("[DEBUG] lua bind scan failed: " .. tostring(err) .. "\n")
   end
