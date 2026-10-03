@@ -24,14 +24,14 @@ chrome)
   set_fallback_default_browser google-chrome.desktop
   omarchy-pkg-drop google-chrome
   rm -f ~/.config/chrome-flags.conf
-  sudo rm -f /etc/opt/chrome/policies/managed/color.json
+  sudo rm -f /etc/opt/chrome/policies/managed/{color,privacy}.json
   ;;
 edge)
   echo "Removing Edge..."
   set_fallback_default_browser microsoft-edge.desktop
   omarchy-pkg-drop microsoft-edge-stable-bin
   rm -f ~/.config/microsoft-edge-stable-flags.conf
-  sudo rm -f /etc/opt/edge/policies/managed/color.json
+  sudo rm -f /etc/opt/edge/policies/managed/{color,privacy}.json
   ;;
 brave)
   echo "Removing Brave..."
