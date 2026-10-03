@@ -522,6 +522,14 @@ Item {
     return MenuModel.displayRow(root.items, root.itemOrder, root.checkedResults, root.disabledResults, entry, detail, score, section)
   }
 
+  function calcEvaluate(expr) {
+    return MenuModel.calcEvaluate(expr)
+  }
+
+  function calcFormat(value) {
+    return MenuModel.calcFormat(value)
+  }
+
   function rowSelectable(index) {
     if (index < 0 || index >= displayModel.count) return false
     return !displayModel.get(index).disabled
@@ -621,7 +629,39 @@ Item {
     var query = root.filterText.trim()
     root.searchDivider = false
 
-    if (query) {
+    if (query.charAt(0) === "=") {
+      // Calculator mode: "=10+2" offers 12 as the only row. The result is an
+      // action row, so Enter copies it to the clipboard and closes the menu.
+      // An invalid or incomplete expression shows no row at all, the same way
+      // a query nothing matches shows none.
+      var calcExpr = query.slice(1)
+      var calcValue = root.calcEvaluate(calcExpr)
+      if (calcValue !== null) {
+        var calcText = root.calcFormat(calcValue)
+        if (calcText) {
+          rows.push({
+            itemId: "calc.result",
+            disabled: false,
+            kind: "action",
+            icon: "󰇜",
+            iconFont: "",
+            appIcon: "",
+            appId: "",
+            label: calcText,
+            target: "",
+            detail: "= " + calcExpr.trim(),
+            path: "",
+            childCount: 0,
+            // -- keeps a negative result from reading as an option: wl-copy
+            // '-2' fails outright while wl-copy -- '-2' copies it.
+            action: "wl-copy -- " + Util.shellQuote(calcText),
+            provider: "",
+            score: 0,
+            section: ""
+          })
+        }
+      }
+    } else if (query) {
       var currentRows = []
       var drilldownRows = []
 
