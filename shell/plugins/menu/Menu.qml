@@ -243,6 +243,10 @@ Item {
     return MenuModel.parseMenuJsonc(raw)
   }
 
+  function parseMenuOverridesJsonc(raw) {
+    return MenuModel.parseMenuOverridesJsonc(raw)
+  }
+
   // Merge defaults + user extension. Later entries override earlier ones
   // on a per-key basis (so the user can tweak label/icon/action without
   // re-declaring the whole row).
@@ -979,7 +983,7 @@ Item {
     path: root.userMenuPath
     watchChanges: true
     printErrors: false
-    onLoaded: { root.userMenuItems = root.parseMenuJsonc(text()); root.rebuildItemsFromSources() }
+    onLoaded: { root.userMenuItems = root.parseMenuOverridesJsonc(text()); root.rebuildItemsFromSources() }
     onLoadFailed: { root.userMenuItems = []; root.rebuildItemsFromSources() }
     onFileChanged: reload()
   }
