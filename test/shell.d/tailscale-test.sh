@@ -207,4 +207,47 @@ assertDeepEqual(
 
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
+assertEqual(tailscale.exitNodeLabel({
+  HostName: 'Firezone',
+  DNSName: 'ny-exit-node.tailcb223.ts.net',
+  DisplayName: 'Firezone'
+}), 'ny-exit-node', 'tailscale prefers the MagicDNS name on exit node rows')
+
+assertEqual(tailscale.exitNodeLabel({
+  HostName: 'atl-exit-node',
+  DNSName: 'atl-exit-node.tailcb223.ts.net',
+  DisplayName: 'atl-exit-node'
+}), 'atl-exit-node', 'tailscale leaves matching exit node names alone')
+
+assertEqual(tailscale.exitNodeLabel({
+  MullvadRegion: true,
+  DisplayName: 'Stockholm, Sweden',
+  DNSName: 'se-sto-wg-001.mullvad.ts.net'
+}), 'Stockholm, Sweden', 'tailscale keeps the region label on Mullvad region rows')
+
+assertEqual(tailscale.exitNodeLabel({
+  Mullvad: true,
+  DisplayName: 'Stockholm, Sweden',
+  DNSName: 'se-sto-wg-001.mullvad.ts.net'
+}), 'Stockholm, Sweden', 'tailscale keeps the region label on Mullvad peer rows')
+
+assertEqual(tailscale.exitNodeLabel({
+  AddMullvad: true,
+  DisplayName: 'Choose Mullvad region'
+}), 'Choose Mullvad region', 'tailscale keeps the synthetic add-Mullvad row label')
+
+assertEqual(tailscale.exitNodeLabel({ HostName: 'Firezone', DisplayName: 'Firezone' }), 'Firezone', 'tailscale falls back to the hostname when DNS is missing')
+assertEqual(tailscale.exitNodeLabel(null), 'Unknown', 'tailscale labels a missing exit node peer as Unknown')
+
+const renamedExitNodes = tailscale.parseStatus(JSON.stringify({
+  BackendState: 'Running',
+  Peer: {
+    a: { HostName: 'AAA', DNSName: 'zulu.tailnet.ts.net.', Online: true, ExitNodeOption: true },
+    b: { HostName: 'ZZZ', DNSName: 'alpha.tailnet.ts.net.', Online: true, ExitNodeOption: true }
+  }
+}))
+assertDeepEqual(renamedExitNodes.exitNodes.map(tailscale.exitNodeLabel), ['alpha', 'zulu'], 'tailscale sorts exit node rows by the label they show')
+
+assert(/readonly property string peerName: tailscale\.exitNodeLabel\(peer\)/.test(panelSource), 'tailscale labels exit node rows with the MagicDNS helper')
+assert(/readonly property string peerName: peer \? String\(peer\.DisplayName \|\| peer\.HostName \|\| "Unknown"\) : "Unknown"/.test(panelSource), 'tailscale keeps the friendly hostname on machine rows')
 JS
