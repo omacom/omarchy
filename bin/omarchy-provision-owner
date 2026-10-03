@@ -926,11 +926,10 @@ rekey_luks() {
   shred -u "$PROVISIONING_DIR/luks-key" 2>/dev/null || rm -f "$PROVISIONING_DIR/luks-key"
 }
 
-# Start the ESP's limine.conf over from the shipped template and drop foreign
-# machine-id state before rebuilding. limine-entry-tool keys OS entries by
-# machine-id: after a factory reset gave this machine a fresh identity, the
-# previous system's entry would survive the rebuild with a stale UKI hash,
-# sort first, and make Limine stop at a hash-mismatch warning.
+# Start the ESP's limine.conf settings over from the shipped template before
+# rebuilding this machine's boot entry. limine-entry-tool keys OS entries by
+# machine-id, and an entry rebuilt on top of stale kernel entries would keep a
+# stale UKI hash and make Limine stop at a hash-mismatch warning.
 esp_path() {
   local esp=""
   if [[ -f /etc/default/limine ]]; then
@@ -939,52 +938,63 @@ esp_path() {
   echo "${esp:-/boot}"
 }
 
-# A factory reset gives the machine a fresh machine-id, but limine-entry-tool
-# keys its limine.conf entries by machine-id — entries from the previous
-# identity would linger and go hash-stale on the first UKI rebuild.
+# Stale only if this machine has no entry of its own (e.g. a failed earlier
+# rebuild left the entry-less template). Other machine-ids are not stale: a
+# shared ESP holds other systems' entries, and the factory reset already
+# re-keyed this system's entry to the identity it boots with.
 limine_entries_stale() {
   local esp machine_id
   esp=$(esp_path)
   machine_id=$(cat /etc/machine-id 2>/dev/null || true)
   [[ -f $esp/limine.conf && -n $machine_id ]] || return 1
-  # Stale if any foreign machine-id entry lingers, OR if this machine has no
-  # entry at all (e.g. a failed earlier rebuild left the entry-less template).
-  grep -o 'machine-id=[0-9a-f]*' "$esp/limine.conf" 2>/dev/null |
-    grep -qv "machine-id=$machine_id" && return 0
   ! grep -q "machine-id=$machine_id" "$esp/limine.conf"
 }
 
+# Only this machine's own entry is emptied for limine-update to rebuild in
+# place, where default_entry points. Every other entry and machine-id
+# directory stays: on a shared ESP they belong to other systems (Windows,
+# other Linux installs), and nothing here can tell them from our own leftovers.
 reset_limine_config() {
-  local esp template found="" machine_id old_id old_ids=""
+  local esp template="" candidate machine_id entries=""
   esp=$(esp_path)
 
-  # Only remove machine-ids the old (Omarchy-managed) limine.conf referenced;
-  # a shared ESP may hold other installations' machine-id directories.
-  if [[ -f $esp/limine.conf ]]; then
-    # `|| true`: an entry-less limine.conf (left by a failed earlier rebuild)
-    # has no machine-id lines, so grep exits 1 and pipefail would abort the
-    # assignment under `set -e` — turning a recoverable retry into a dead loop.
-    old_ids=$(grep -o 'machine-id=[0-9a-f]\{32\}' "$esp/limine.conf" | cut -d= -f2 | sort -u || true)
-  fi
-
-  for template in "$OMARCHY_PATH/install/assets/limine/limine.conf" \
-                  "$OMARCHY_PATH/default/limine/limine.conf"; do
-    if [[ -f $template ]]; then
-      cp "$template" "$esp/limine.conf"
-      found=1
+  for candidate in "$OMARCHY_PATH/install/assets/limine/limine.conf" \
+                   "$OMARCHY_PATH/default/limine/limine.conf"; do
+    if [[ -f $candidate ]]; then
+      template=$candidate
       break
     fi
   done
-  if [[ -z $found ]]; then
+  if [[ -z $template ]]; then
     log_step "no limine.conf template found; keeping the existing config"
     return 0
   fi
 
   machine_id=$(cat /etc/machine-id 2>/dev/null || true)
-  for old_id in $old_ids; do
-    [[ $old_id == "$machine_id" ]] && continue
-    rm -rf "${esp:?}/$old_id"
-  done
+  if [[ -f $esp/limine.conf ]]; then
+    # Same rewrite as omarchy-system-factory-reset, keyed to this identity:
+    # this machine's entry keeps only its header, and any copy after the first
+    # is dropped. An entry-less config passes through as is.
+    entries=$(awk -v id="$machine_id" '
+      function flush() {
+        if (is_ours && !kept) { printf "%s\n", header; kept = 1 }
+        else if (!is_ours) printf "%s", block
+        block = header = ""; is_ours = nested = 0
+      }
+      /^\/[^\/]/ { flush(); in_entry = 1 }
+      !in_entry { next }
+      {
+        if (id != "" && /^comment: machine-id=/ && $0 ~ ("machine-id=" id "([[:space:]]|$)")) is_ours = 1
+        if (/^[[:space:]]*\/\//) nested = 1
+        block = block $0 "\n"
+        if (!nested) header = header $0 "\n"
+      }
+      END { flush() }
+    ' "$esp/limine.conf")
+  fi
+
+  { cat "$template"; [[ -z $entries ]] || printf '%s\n' "$entries"; } >"$esp/limine.conf.new"
+  mv "$esp/limine.conf.new" "$esp/limine.conf"
 }
 
 cleanup_oem_state() {
@@ -1024,9 +1034,9 @@ run_provisioning() {
     log_step "LUKS re-key complete"
   fi
 
-  # After a factory reset on an unencrypted machine nothing above rebuilds the
-  # boot entries, so entries keyed to the previous machine identity would
-  # linger and go hash-stale on the first UKI rebuild. Refresh them now.
+  # On an unencrypted machine nothing above rebuilds the boot entries. The
+  # factory reset already keyed them to this identity, so this only repairs a
+  # machine left without an entry of its own.
   if limine_entries_stale; then
     log_step "refreshing boot entries for the new machine identity"
     echo boot >"$STATE_FILE"
