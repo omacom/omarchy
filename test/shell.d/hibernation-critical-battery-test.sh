@@ -8,11 +8,10 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-[[ -f /sys/power/image_size ]] || { skip "no hibernation support to exercise"; exit 0; }
-
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
-mkdir -p "$scratch/bin" "$scratch/etc/mkinitcpio.conf.d"
+mkdir -p "$scratch/bin" "$scratch/etc/mkinitcpio.conf.d" "$scratch/etc/limine-entry-tool.d"
+: > "$scratch/image_size"
 export CALL_LOG="$scratch/calls"
 export OMARCHY_PATH="$ROOT"
 export PATH="$scratch/bin:$ROOT/bin:$PATH"
@@ -38,13 +37,28 @@ printf '#!/bin/bash\necho "btrfs $*" >> "$CALL_LOG"\nexit 1\n' > "$scratch/bin/b
 chmod +x "$scratch/bin/"*
 
 redirect() {
-  sed -e "s|/etc/|$scratch/etc/|g" -e "s|\"/swap|\"$scratch/swap|g" "$ROOT/bin/$1" > "$scratch/$1"
+  sed -e "s|/etc/|$scratch/etc/|g" -e "s|\"/swap|\"$scratch/swap|g" \
+    -e "s|/sys/power/image_size|$scratch/image_size|g" "$ROOT/bin/$1" > "$scratch/$1"
 }
 redirect omarchy-hibernation-setup
 redirect omarchy-hibernation-remove
 
 drop_in="$scratch/etc/UPower/UPower.conf.d/70-omarchy-critical-hibernate.conf"
+resume_params="$scratch/etc/limine-entry-tool.d/resume.conf"
 echo "HOOKS+=(resume)" > "$scratch/etc/mkinitcpio.conf.d/omarchy_resume.conf"
+
+# Without a resume offset the kernel cannot restore the image, so a dying
+# battery would power off a session for good. The action waits for the offset.
+echo 'KERNEL_CMDLINE[default]+=" resume=/dev/root resume_offset="' > "$resume_params"
+bash "$scratch/omarchy-hibernation-setup" --no-rebuild > "$scratch/out" 2>&1 ||
+  fail "setup without a resume offset still succeeds" "$(<"$scratch/out")"
+[[ ! -e $drop_in ]] || fail "a laptop without a resume offset gets no critical battery action"
+rm -f "$resume_params"
+bash "$scratch/omarchy-hibernation-setup" --no-rebuild > "$scratch/out" 2>&1
+[[ ! -e $drop_in ]] || fail "a laptop without resume parameters gets no critical battery action"
+pass "the critical battery action waits until resume can restore the session"
+
+echo 'KERNEL_CMDLINE[default]+=" resume=/dev/root resume_offset=533760"' > "$resume_params"
 
 : > "$CALL_LOG"
 bash "$scratch/omarchy-hibernation-setup" --no-rebuild > "$scratch/out" 2>&1 ||
@@ -66,6 +80,15 @@ rm -rf "$scratch/etc/UPower"
 BATTERY=0 bash "$scratch/omarchy-hibernation-setup" --no-rebuild > "$scratch/out" 2>&1
 [[ ! -e $drop_in ]] || fail "a desktop gets no battery action"
 pass "a machine without a battery gets no battery action"
+
+# The migration runs setup on laptops set up before; a failed install has to
+# fail setup so the migration runs again instead of being marked done.
+mkdir -p "$scratch/etc/UPower" && touch "$scratch/etc/UPower/UPower.conf.d"
+if bash "$scratch/omarchy-hibernation-setup" --no-rebuild > "$scratch/out" 2>&1; then
+  fail "setup reports a failed install of the critical battery action" "$(<"$scratch/out")"
+fi
+rm -rf "$scratch/etc/UPower"
+pass "a failed install fails setup so the migration retries"
 
 bash "$scratch/omarchy-hibernation-setup" --no-rebuild > /dev/null 2>&1
 printf '#!/bin/bash\nexit 0\n' > "$scratch/bin/limine-mkinitcpio"
