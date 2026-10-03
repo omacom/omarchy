@@ -34,7 +34,20 @@ else
   DMESG_OUTPUT="$(sudo dmesg)"
 fi
 
-cat > "$LOG_FILE" <<EOF
+# /tmp is world-writable and this name is fixed, so whatever another local
+# process leaves here -- a symlink above all -- must not be written through: the
+# redirection below would truncate and replace whatever it points at. Stage the
+# log in a private file alongside the published name and put it in place with a
+# rename, which replaces the name rather than following it. The staged file has
+# to share a filesystem with the destination, or mv falls back to a copy that
+# opens the destination the unsafe way. The log names the machine, lists every
+# explicitly installed package and carries this boot's journal, so it is
+# published owner-only rather than world-readable.
+STAGED_LOG=$(mktemp /tmp/omarchy-debug.XXXXXXXX) || exit 1
+chmod 600 "$STAGED_LOG"
+trap 'rm -f "$STAGED_LOG"' EXIT
+
+cat >"$STAGED_LOG" <<EOF
 Date: $(date)
 Hostname: $(hostname)
 Omarchy Package: $(pacman -Q omarchy-dev 2>/dev/null || pacman -Q omarchy 2>/dev/null || echo "unknown")
@@ -59,6 +72,8 @@ INSTALLED PACKAGES
 =========================================
 $({ expac -S '%n %v (%r)' $(pacman -Qqe) 2>/dev/null; comm -13 <(pacman -Sql | sort) <(pacman -Qqe | sort) | xargs -r expac -Q '%n %v (AUR)'; } | sort)
 EOF
+
+mv -fT "$STAGED_LOG" "$LOG_FILE" || exit 1
 
 if [[ $PRINT_ONLY = "true" ]]; then
   cat "$LOG_FILE"
