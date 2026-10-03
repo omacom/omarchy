@@ -13,8 +13,33 @@ o.bind("SUPER + ALT + Home", "Save window width", "omarchy-hyprland-window-width
 o.bind("SUPER + Home", "Restore window width", "omarchy-hyprland-window-width restore")
 o.bind("SUPER + L", "Toggle workspace layout", "omarchy-hyprland-workspace-layout-toggle")
 
-o.bind("SUPER + LEFT", "Focus on left window", hl.dsp.focus({ direction = "l" }))
-o.bind("SUPER + RIGHT", "Focus on right window", hl.dsp.focus({ direction = "r" }))
+local function focus_left()
+  local window = hl.get_active_window()
+
+  if window and window.fullscreen == 1 then
+    return hl.dsp.layout("focus l")
+  end
+
+  return hl.dsp.focus({ direction = "l" })
+end
+
+local function focus_right()
+  local window = hl.get_active_window()
+
+  if window and window.fullscreen == 1 then
+    return hl.dsp.layout("focus r")
+  end
+
+  return hl.dsp.focus({ direction = "r" })
+end
+
+o.bind("SUPER + LEFT", "Focus on left window", function()
+  hl.dispatch(focus_left())
+end)
+
+o.bind("SUPER + RIGHT", "Focus on right window", function()
+  hl.dispatch(focus_right())
+end)
 o.bind("SUPER + UP", "Focus on above window", hl.dsp.focus({ direction = "u" }))
 o.bind("SUPER + DOWN", "Focus on below window", hl.dsp.focus({ direction = "d" }))
 
