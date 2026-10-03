@@ -46,7 +46,9 @@ alias ....='cd ../../..'
 alias a='omarchy-agent --inline'
 alias c='opencode --auto'
 alias cx='printf "\033[2J\033[3J\033[H" && claude --permission-mode auto'
-alias cy='codex --approve-for-me'
+# Auto-review comes from ~/.codex/config.toml (approvals_reviewer), not a CLI
+# flag: --approve-for-me forces embedded mode and skips the shared server.
+alias cy='codex'
 alias d='docker'
 alias r='rails'
 alias t='tmux attach || tmux new -s Work'
