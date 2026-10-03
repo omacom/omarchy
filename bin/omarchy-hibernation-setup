@@ -59,6 +59,34 @@ safe_stage_path() {
   [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
 }
 
+# Clean up the ACPI RTC alarm drop-in added by a previous version.
+# The kernel's use_acpi_alarm_quirks() handles this properly; a
+# stale drop-in forces it on hardware that shouldn't use it.
+# Only delete if the file is byte-identical to the original — if a user
+# edited it, leave it alone.
+RTC_ALARM_DROP_IN="/etc/limine-entry-tool.d/rtc-alarm.conf"
+if [[ -e $RTC_ALARM_DROP_IN ]] || sudo test -e "$RTC_ALARM_DROP_IN"; then
+  if sudo test -f "$RTC_ALARM_DROP_IN"; then
+    FILE_HASH=$(sudo sha256sum "$RTC_ALARM_DROP_IN" 2>/dev/null | awk '{print $1}')
+    EXPECTED_HASH="c9469cd9ba4c0f74f8ce6fe4afeac4414741a3536ce8693838047f15487fd1c8"
+    if [[ -n $FILE_HASH && $FILE_HASH == "$EXPECTED_HASH" ]]; then
+      echo "Removing stale ACPI RTC alarm drop-in ($RTC_ALARM_DROP_IN)"
+      if sudo rm -f -- "$RTC_ALARM_DROP_IN"; then
+        # If hibernation is already configured, the boot entry still has the
+        # stale parameter; rebuild it now while respecting --no-rebuild.
+        if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
+          if ! $NO_REBUILD; then
+            if ! sudo limine-mkinitcpio; then
+              echo "Warning: Failed to rebuild boot entries after removing stale RTC drop-in" >&2
+              exit 1
+            fi
+          fi
+        fi
+      fi
+    fi
+  fi
+fi
+
 # Check if hibernation is already configured
 if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
   # Fix empty resume_offset if btrfs map-swapfile failed during initial setup
