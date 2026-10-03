@@ -19,6 +19,18 @@ Item {
 
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
+  // Where capture.sh keeps copies too large to hold in history.
+  property string textDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/clipboard-text"
+  // False until history has loaded, and for good if it could not be read: a save
+  // before then would write a partial history over the real one.
+  property bool historyWritable: false
+  // The last copy was too large to keep. Cleared by the next copy that is kept.
+  property bool lastCopySkipped: false
+  property string historyNotice: ""
+  property bool watchersStarted: false
+  property var capturesDuringLoad: []
+  property bool saveRequested: false
+  property bool reloadRequested: true
   // Shares the [menu] surface tokens — themes that style the menu also
   // style the clipboard. Selected-row colors composed in the
   // singleton so consumers drop them straight into Rectangle bindings.
@@ -68,25 +80,63 @@ Item {
   }
 
   function loadHistory(raw) {
-    root.history = ClipboardHistory.parseHistory(raw)
+    var loaded = ClipboardHistory.parseHistory(raw, root.historyLimit)
+    root.history = loaded || []
+    root.historyWritable = loaded !== null
+    if (loaded === null) {
+      root.historyNotice = "Clipboard history unavailable · existing data kept"
+      console.warn("clipboard: migrated history could not be parsed, not saving over it")
+    }
     if (root.opened) root.rebuildDisplay()
   }
 
   function saveHistory() {
-    historyFile.setText(JSON.stringify(root.history.slice(0, root.historyLimit), null, 2) + "\n")
+    if (!root.historyWritable) return
+    root.saveRequested = true
+    root.pumpStorage()
+  }
+
+  function pumpStorage() {
+    if (loadProc.running || saveProc.running) return
+    if (root.saveRequested && root.historyWritable) {
+      root.saveRequested = false
+      saveProc.snapshot = JSON.stringify(root.history.slice(0, root.historyLimit))
+      saveProc.stdinEnabled = true
+      saveProc.running = true
+    } else if (root.reloadRequested) {
+      root.reloadRequested = false
+      root.historyWritable = false
+      loadProc.running = true
+    }
+  }
+
+  function pruneText() {
+    if (!root.historyWritable) return
+    // Protect both pending captures and the last successfully saved history.
+    Quickshell.execDetached(["bash", root.omarchyPath + "/shell/plugins/clipboard/prune-text.sh", root.textDir, root.historyPath]
+      .concat(ClipboardHistory.largeTextNames(root.history))
+      .concat(ClipboardHistory.largeTextNames(root.capturesDuringLoad)))
   }
 
   function addClipboardEntry(entry) {
     var normalized = ClipboardHistory.normalizeEntry(entry)
     if (!normalized) return
+    if (!root.historyWritable) {
+      if (loadProc.running)
+        root.capturesDuringLoad = ClipboardHistory.addEntry(root.capturesDuringLoad, normalized, root.historyLimit)
+      return
+    }
 
     root.history = ClipboardHistory.addEntry(root.history, normalized, root.historyLimit)
+    root.lastCopySkipped = false
     root.saveHistory()
     if (root.opened) root.rebuildDisplay()
   }
 
   function addClipboardJson(line) {
-    root.addClipboardEntry(ClipboardHistory.parseEntryJson(line))
+    var result = ClipboardHistory.captureResult(line)
+    if (result.kind === "skipped") root.lastCopySkipped = true
+    else if (result.kind === "entry") root.addClipboardEntry(result.entry)
   }
 
   function requestClearHistory() {
@@ -102,6 +152,7 @@ Item {
   }
 
   function confirmClearHistory() {
+    if (!root.historyWritable) return
     root.history = ClipboardHistory.clearHistory()
     root.saveHistory()
     root.selectedIndex = 0
@@ -113,6 +164,7 @@ Item {
   }
 
   function removeDisplayIndex(index) {
+    if (!root.historyWritable) return
     if (index < 0 || index >= displayModel.count) return
 
     var row = displayModel.get(index)
@@ -213,32 +265,58 @@ Item {
   }
 
   function applySelected(row) {
-    if (!row) return
+    if (!row || !root.historyWritable) return
     root.opened = false
-    if (row.entryType === "image") {
+    if (row.entryType === "image" || row.entryType === "largetext") {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", row.mime, row.path])
     } else if (row.fullText) {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-index", String(row.historyIndex)])
+      root.runEntryAction(row, [root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--stdin"])
     }
   }
 
   function copySelected(row) {
-    if (!row) return
+    if (!row || !root.historyWritable) return
     root.opened = false
-    if (row.entryType === "image") {
+    if (row.entryType === "image" || row.entryType === "largetext") {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", "--copy-only", row.mime, row.path])
     } else if (row.fullText) {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--copy-only", "--history-index", String(row.historyIndex)])
+      root.runEntryAction(row, [root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--copy-only", "--stdin"])
     }
   }
 
   function openSelected(row) {
-    if (!row) return
+    // A large copy has no Open yet; the file itself is in clipboard-text.
+    if (!row || !root.historyWritable || row.entryType === "largetext") return
     root.opened = false
-    Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-open", "--history-index", String(row.historyIndex)])
+    root.runEntryAction(row, [root.omarchyPath + "/bin/omarchy-clipboard-open", "--stdin"])
   }
 
-  Component.onCompleted: initProc.running = true
+  function runEntryAction(row, command) {
+    var entry = root.history[row.historyIndex]
+    if (!entry) return
+    var action = entryActionComponent.createObject(root, {
+      command: command,
+      entryJson: JSON.stringify(entry)
+    })
+    action.running = true
+  }
+
+  Component {
+    id: entryActionComponent
+    Process {
+      id: action
+      property string entryJson: ""
+      stdinEnabled: true
+      onStarted: {
+        action.write(action.entryJson)
+        action.stdinEnabled = false
+        action.entryJson = ""
+      }
+      onExited: action.destroy()
+    }
+  }
+
+  Component.onCompleted: root.pumpStorage()
 
   ListModel { id: displayModel }
 
@@ -247,15 +325,92 @@ Item {
     referenceItem: card
   }
 
+  // Watch outside edits without asking FileView to read or write the file.
+  // The storage processes serialize all writes, including migration commits.
   FileView {
     id: historyFile
     path: root.historyPath
-    watchChanges: true
-    atomicWrites: true
+    preload: false
     printErrors: false
-    onLoaded: root.loadHistory(text())
-    onLoadFailed: root.loadHistory("[]")
-    onFileChanged: reload()
+    watchChanges: true
+    onFileChanged: historyReloadTimer.restart()
+  }
+
+  Timer {
+    id: historyReloadTimer
+    interval: 200
+    onTriggered: {
+      root.reloadRequested = true
+      root.pumpStorage()
+    }
+  }
+
+  // A copy evicted during its first minute is still protected by the capture
+  // grace period. Revisit it even if the user never copies anything else.
+  Timer {
+    interval: 60000
+    repeat: true
+    running: root.historyWritable
+    onTriggered: root.pruneText()
+  }
+
+  Process {
+    id: saveProc
+    property string snapshot: ""
+    command: ["bash", root.omarchyPath + "/shell/plugins/clipboard/save-history.sh", root.historyPath, String(ClipboardHistory.historyFileLimit)]
+    stderr: StdioCollector { id: saveWarnings; waitForEnd: true }
+    onStarted: {
+      saveProc.write(saveProc.snapshot)
+      saveProc.stdinEnabled = false
+      saveProc.snapshot = ""
+    }
+    onExited: function(exitCode) {
+      if (exitCode === 0) root.pruneText()
+      else {
+        root.historyNotice = "Clipboard history could not be saved · previous data kept"
+        console.warn("clipboard: history save failed: " + saveWarnings.text.trim())
+        // Preserve the unsaved in-memory entries; an own-file notification
+        // from an earlier write must not reload an older snapshot over them.
+        root.reloadRequested = false
+        historyReloadTimer.stop()
+      }
+      Qt.callLater(root.pumpStorage)
+    }
+  }
+
+  // Watchers start only once history has loaded, so no copy can be saved over a
+  // history that has not been read yet.
+  Process {
+    id: loadProc
+    command: ["bash", root.omarchyPath + "/shell/plugins/clipboard/load-history.sh", root.historyPath, String(ClipboardHistory.historyFileLimit)]
+    stdout: StdioCollector { id: loadOutput; waitForEnd: true }
+    stderr: StdioCollector { id: loadWarnings; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (loadWarnings.text) console.warn(loadWarnings.text.trim())
+      if (exitCode === 0) {
+        root.loadHistory(loadOutput.text)
+        if (loadWarnings.text.indexOf("history set aside") >= 0)
+          root.historyNotice = "Previous clipboard history set aside · backup kept"
+        else if (loadWarnings.text.indexOf("some entries kept only") >= 0)
+          root.historyNotice = "Some older entries kept in recovery backup"
+        if (root.historyWritable) {
+          var pending = root.capturesDuringLoad
+          root.capturesDuringLoad = []
+          for (var i = pending.length - 1; i >= 0; i--) root.addClipboardEntry(pending[i])
+          if (!root.watchersStarted) initProc.running = true
+          else if (!textWatchProc.running || !imageWatchProc.running) watchRestartTimer.restart()
+          root.pruneText()
+        }
+      } else {
+        root.historyNotice = "Clipboard history unavailable · existing data kept"
+        console.warn("clipboard: history could not be read (load-history.sh exited " + exitCode + "), not saving over it")
+      }
+      if (!root.historyWritable) {
+        textWatchProc.running = false
+        imageWatchProc.running = false
+      }
+      Qt.callLater(root.pumpStorage)
+    }
   }
 
   // Reap watchers left behind by a previous shell instance, then start our
@@ -265,6 +420,7 @@ Item {
     id: initProc
     command: ["pkill", "-f", "wl-paste .*--watch .*/shell/plugins/clipboard/capture\\.sh"]
     onExited: {
+      root.watchersStarted = true
       currentProc.running = true
       textWatchProc.running = true
       imageWatchProc.running = true
@@ -306,8 +462,10 @@ Item {
     interval: 1000
     repeat: false
     onTriggered: {
-      if (!textWatchProc.running) textWatchProc.running = true
-      if (!imageWatchProc.running) imageWatchProc.running = true
+      if (root.historyWritable) {
+        if (!textWatchProc.running) textWatchProc.running = true
+        if (!imageWatchProc.running) imageWatchProc.running = true
+      }
     }
   }
 
@@ -461,6 +619,35 @@ Item {
                 clip: true
                 spacing: Style.space(4)
                 boundsBehavior: Flickable.StopAtBounds
+
+                // Where the copy would have appeared, a quiet note that it was not kept.
+                // Its height comes from font metrics rather than from laying the text out,
+                // so the layout can never feed back into the note's own size.
+                header: Item {
+                  width: resultList.width
+                  height: root.lastCopySkipped || root.historyNotice ? skippedMetrics.height + Style.space(8) : 0
+
+                  FontMetrics {
+                    id: skippedMetrics
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: Style.space(12)
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: root.lastCopySkipped || root.historyNotice.length > 0
+                    text: root.historyNotice || "Last copy not saved · too large or too slow"
+                    color: root.foreground
+                    opacity: 0.5
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    elide: Text.ElideRight
+                  }
+                }
 
                 delegate: Rectangle {
                   id: row
