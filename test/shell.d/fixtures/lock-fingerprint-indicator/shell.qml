@@ -82,6 +82,17 @@ ShellRoot {
           root.assertTrue(probe.advanceWidth <= clearWidth,
             "80 dots stay clear of the fingerprint icon, need " + probe.advanceWidth + "px of " + clearWidth)
 
+          // A rejected scan raises a transient failure state and its "try
+          // again" affordance, independent of the PAM retry that re-arms.
+          var retry = findByObjectName(view, "fingerprintRetryLabel")
+          root.assertTrue(retry !== null, "fingerprint retry label exists in the lock view")
+          if (retry) {
+            root.assertTrue(!retry.visible, "retry label is hidden while no scan has failed")
+            view.fingerprintFailureNonce = 1
+            root.assertTrue(view.fingerprintFailureActive, "a rejected scan raises the fingerprint failure state")
+            root.assertTrue(retry.visible, "retry label is shown after a rejected scan")
+          }
+
           view.fingerprintConfigured = false
           root.assertTrue(view.fingerprintReserve === 0, "no space is reserved when no sensor is configured")
         }

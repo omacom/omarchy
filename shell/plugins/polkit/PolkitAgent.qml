@@ -271,6 +271,7 @@ Item {
       // Fingerprint mode shows just the sensor icon, centered and alone \u2014 no
       // padlock, no field, no prompt text.
       OpticalGlyph {
+        id: fingerprintGlyph
         anchors.centerIn: parent
         width: Math.round(root.fieldHeight * 0.7)
         height: width
@@ -279,6 +280,16 @@ Item {
         fontFamily: root.fontFamily
         fontSize: Math.round(root.fieldHeight * 0.7)
         color: root.errorFlash ? Color.polkit.textError : root.accent
+
+        // The dialog sits here for the whole read; a slow pulse keeps the
+        // sensor icon reading as live while pam_fprintd waits for a finger.
+        SequentialAnimation {
+          running: root.fingerprintMode
+          loops: Animation.Infinite
+          NumberAnimation { target: fingerprintGlyph; property: "opacity"; to: 0.4; duration: 700; easing.type: Easing.InOutQuad }
+          NumberAnimation { target: fingerprintGlyph; property: "opacity"; to: 1.0; duration: 700; easing.type: Easing.InOutQuad }
+          onRunningChanged: if (!running) fingerprintGlyph.opacity = 1
+        }
       }
 
       Row {
