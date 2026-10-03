@@ -316,8 +316,12 @@ Item {
             selectedTextColor: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.iconLarge
+            // U+25CF fills the monospace cell, so the masked dots touch without it.
+            font.letterSpacing: root.responseVisible ? 0 : Math.round(Style.font.iconLarge * 0.15)
             echoMode: root.responseVisible ? TextInput.Normal : TextInput.Password
-            passwordCharacter: "\u2022"
+            // U+25CF, not U+2022: in monospace Nerd Fonts the bullet renders at
+            // ~24% of em height, so at this field's 18px the dots read as specks.
+            passwordCharacter: "\u25CF"
             color: root.errorFlash ? Color.polkit.textError : root.foreground
             cursorVisible: activeFocus && !root.submitted && !root.errorFlash
             readOnly: root.submitted || root.errorFlash
