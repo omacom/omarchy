@@ -20,13 +20,17 @@ Item {
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
+  property bool faceAuthenticating: false
   property bool passwordPamConfigured: false
+  property bool facePamConfigured: false
   property bool fingerprintConfigured: false
   property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
   property string failureMessage: ""
   property int failedAttempts: 0
+  property int faceAttempts: 0
+  readonly property int maxFaceAttempts: 2
   property string backgroundPath: ""
   property string videoPosterPath: ""
   property int backgroundVersion: 0
@@ -142,10 +146,15 @@ Item {
     pendingPassword = ""
     failureMessage = ""
     failedAttempts = 0
+    faceAttempts = 0
     authenticatingPassword = false
+    faceAuthenticating = false
     fingerprintAuthenticating = false
+    faceAttemptTimer.stop()
+    faceCooldownTimer.stop()
     fingerprintRetryTimer.stop()
     if (passwordPam.active) passwordPam.abort()
+    if (facePam.active) facePam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
   }
 
@@ -190,6 +199,7 @@ Item {
 
   function runWake() {
     root.displaysBlank = false
+    root.faceAttempts = 0
     root.monitorDpmsKnown = false
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
@@ -198,6 +208,10 @@ Item {
   function runBlank() {
     root.displaysBlank = true
     root.monitorDpmsKnown = false
+    if (facePam.active) facePam.abort()
+    faceAttemptTimer.stop()
+    faceCooldownTimer.stop()
+    root.faceAuthenticating = false
     if (!blankProcess.running) blankProcess.running = true
   }
 
@@ -258,6 +272,32 @@ Item {
     runWake()
   }
 
+  function startFace() {
+    if (!lockRequested || !sessionLock.secure || !facePamConfigured || root.displaysBlank) return
+    if (facePam.active || faceAuthenticating) return
+    // Rate-limit restarts (motion wake, resume) so a broken face stack cannot
+    // turn every mouse movement into a PAM attempt with the camera on.
+    if (faceCooldownTimer.running) return
+    if (faceAttempts >= maxFaceAttempts) return
+
+    faceAttempts += 1
+    faceAuthenticating = true
+    if (!facePam.start()) {
+      faceAuthenticating = false
+      faceCooldownTimer.restart()
+      return
+    }
+    faceAttemptTimer.restart()
+  }
+
+  function handleFaceFinished(result) {
+    faceAttemptTimer.stop()
+    faceAuthenticating = false
+    faceCooldownTimer.restart()
+    if (!lockRequested) return
+    if (result === PamResult.Success) finishUnlock()
+  }
+
   function startFingerprint() {
     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
@@ -291,6 +331,7 @@ Item {
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
         root.startFingerprint()
+        root.startFace()
       }
     }
 
@@ -324,6 +365,8 @@ Item {
         videoPosterPath: root.videoPosterPath
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured
+        facePamConfigured: root.facePamConfigured
+        faceAuthenticating: root.faceAuthenticating
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -335,7 +378,10 @@ Item {
         onPasswordTextEdited: function(password) { root.enteredPassword = password }
         onSubmitPassword: function(password) { root.submitPassword(password) }
         onClearFailureRequested: root.failureMessage = ""
-        onWakeRequested: root.runWake()
+        onWakeRequested: {
+          root.runWake()
+          root.startFace()
+        }
       }
 
     }
@@ -357,6 +403,8 @@ Item {
       videoPosterPath: root.videoPosterPath
       backgroundVersion: root.backgroundVersion
       fingerprintConfigured: root.fingerprintConfigured
+      facePamConfigured: root.facePamConfigured
+      faceAuthenticating: false
       authenticatingPassword: false
       failureMessage: ""
       failedAttempts: 0
@@ -392,6 +440,64 @@ Item {
 
     onError: function(error) {
       root.handlePasswordFailure()
+    }
+  }
+
+  PamContext {
+    id: facePam
+    config: "omarchy-lock-howdy"
+    user: root.userName
+
+    onCompleted: function(result) {
+      root.handleFaceFinished(result)
+    }
+
+    onError: function(error) {
+      faceAttemptTimer.stop()
+      root.faceAuthenticating = false
+      faceCooldownTimer.restart()
+    }
+  }
+
+  Timer {
+    id: faceAttemptTimer
+    interval: 5000
+    repeat: false
+    onTriggered: {
+      if (facePam.active) facePam.abort()
+      root.faceAuthenticating = false
+      faceCooldownTimer.restart()
+    }
+  }
+
+  // Cooldown between face attempts: wake events can fire many times a second,
+  // and each attempt powers the camera for up to the attempt timeout.
+  Timer {
+    id: faceCooldownTimer
+    interval: 2000
+    repeat: false
+    onTriggered: {
+      if (root.lockRequested && root.facePamConfigured && !root.displaysBlank && root.faceAttempts < root.maxFaceAttempts) {
+        root.startFace()
+      }
+    }
+  }
+
+  Timer {
+    id: resumeDetectionTimer
+    interval: 1000
+    repeat: true
+    running: root.lockRequested && facePamConfigured
+    property double lastTick: 0
+
+    onRunningChanged: lastTick = Date.now()
+    onTriggered: {
+      var now = Date.now()
+      if (lastTick > 0 && now - lastTick > interval + 2000) {
+        root.faceAttempts = 0
+        root.startFace()
+      }
+      lastTick = now
     }
   }
 
@@ -601,14 +707,18 @@ Item {
       // for, so the blank state has to be given up here or a visible lock
       // wallpaper stays frozen until the next keypress.
       root.displaysBlank = false
+      root.faceAttempts = 0
       root.requestSessionLock()
 
       // A monitor still coming up has no workspace, so cannot answer yet.
       strandedLockRetryTimer.rearm()
       root.checkStrandedLock()
+
+      if (root.lockRequested && root.facePamConfigured) {
+        root.startFace()
+      }
     }
   }
-
   onAuthenticatingPasswordChanged: {
     if (!lockRequested) return
     if (authenticatingPassword) idleBlankTimer.stop()
@@ -621,6 +731,15 @@ Item {
     printErrors: false
     onLoaded: root.passwordPamConfigured = true
     onLoadFailed: root.passwordPamConfigured = false
+    onFileChanged: reload()
+  }
+
+  FileView {
+    path: "/etc/pam.d/omarchy-lock-howdy"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.facePamConfigured = true
+    onLoadFailed: root.facePamConfigured = false
     onFileChanged: reload()
   }
 
@@ -664,6 +783,8 @@ Item {
         realScreens: root.realScreenCount(),
         passwordPam: root.passwordPamConfigured,
         fingerprint: root.fingerprintConfigured,
+        facePam: root.facePamConfigured,
+        faceAuthenticating: root.faceAuthenticating,
         authenticating: root.authenticating,
         lastEvent: root.lastEvent,
         lastEventAt: root.lastEventAt

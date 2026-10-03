@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Howdy face recognition authentication from lock screen
+# omarchy:requires-sudo=true
+
+set -e
+
+HOWDY_DIR="/lib/security/howdy"
+PAM_FILE="/etc/pam.d/omarchy-lock-howdy"
+
+echo -e "\e[32mRemoving face recognition from authentication.\n\e[0m"
+
+if [[ -f $PAM_FILE ]]; then
+  echo "Removing lock screen face authentication..."
+  sudo rm -f "$PAM_FILE"
+fi
+
+# Only stop and disable the IR emitter unit if face setup enabled it.
+emitter_managed=false
+if [[ -f /var/lib/omarchy/face-ir-emitter-enabled ]] || [[ -f "$HOME/.local/state/omarchy/face-ir-emitter-enabled" ]]; then
+  emitter_managed=true
+fi
+if [[ $emitter_managed == "true" ]]; then
+  if systemctl list-unit-files 2>/dev/null | grep -q linux-enable-ir-emitter; then
+    sudo systemctl disable --now linux-enable-ir-emitter.service >/dev/null 2>&1 || true
+  fi
+  sudo rm -f /var/lib/omarchy/face-ir-emitter-enabled
+  omarchy-state clear face-ir-emitter-enabled 2>/dev/null || true
+fi
+
+echo "Removing Howdy packages..."
+if omarchy-pkg-present howdy-git; then
+  omarchy-pkg-drop howdy-git
+elif omarchy-pkg-present howdy; then
+  omarchy-pkg-drop howdy
+fi
+
+# Enrolled face templates are biometric data; delete them across all supported directories.
+for models_dir in /etc/howdy/models "$HOWDY_DIR/models" /usr/local/etc/howdy/models; do
+  if [[ -d $models_dir ]]; then
+    echo "Deleting enrolled face models from $models_dir..."
+    sudo rm -rf "$models_dir"
+  fi
+done
+echo -e "\e[32mFace authentication has been completely removed.\e[0m"
