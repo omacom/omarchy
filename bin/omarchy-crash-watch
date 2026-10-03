@@ -41,7 +41,7 @@ announce() {
     --urgency critical \
     --glyph "$CRASH_GLYPH" \
     "Process crashed: $comm" \
-    "Click to diagnose with AI" \
+    "Click to diagnose with AI · right-click or ✕ to dismiss" \
     --exec omarchy-agent-crash "$pid" "$comm" "$exe" "$signal"
 }
 
@@ -100,6 +100,17 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     omarchy-toggle-enabled "crash-ignore/$name" && continue
 
     now=$EPOCHSECONDS
+
+    # Probe the session's lock without changing its inode. The guard runs in
+    # the agent terminal, so long diagnoses stay quiet and exiting releases it.
+    # Only lock contention suppresses a toast; storage/lock errors do not.
+    diagnosis_flag="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy/crash-diagnosis/$name"
+    if [[ -f $diagnosis_flag ]]; then
+      diagnosis_status=0
+      (exec 9>"$diagnosis_flag" && flock -n -E 200 9) 2>/dev/null || diagnosis_status=$?
+      ((diagnosis_status == 200)) && continue
+    fi
+
     (((now - ${last_notified[$name]:-0}) < dedupe_seconds)) && continue
 
     # Only a delivered toast starts the dedupe window. A failed send that
