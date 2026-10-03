@@ -47,14 +47,21 @@ Panel {
     setProfile(profiles[profileIndex])
   }
 
+  // Raw charge limits reported by omarchy-battery-status; empty until the
+  // first refresh lands and absent entirely on machines without a limit.
+  readonly property var batteryLimits: ({
+    start: batteryInfo.threshold_start,
+    end: batteryInfo.threshold_end
+  })
+
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.batteryLimits)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates())
+    return Model.modeLabel(device, root.discharging, upowerStates(), root.batteryLimits)
   }
 
   function profileIcon(name) {
@@ -71,7 +78,7 @@ Panel {
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates())
+    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.batteryLimits)
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
@@ -135,9 +142,15 @@ Panel {
   function refresh() {
     if (!batteryPresent) return
 
-    if (!batteryProc.running) batteryProc.running = true
+    refreshBattery()
     if (!profilesProc.running) profilesProc.running = true
     if (!systemProc.running) systemProc.running = true
+  }
+
+  function refreshBattery() {
+    if (!batteryPresent) return
+
+    if (!batteryProc.running) batteryProc.running = true
   }
 
   function updateKeyValue(raw, targetName) {
@@ -199,7 +212,12 @@ Panel {
     }
   }
 
-  onBatteryPresentChanged: if (!batteryPresent) close()
+  onBatteryPresentChanged: {
+    if (!batteryPresent) close()
+    else refreshBattery()
+  }
+
+  Component.onCompleted: refreshBattery()
 
   visible: batteryPresent
   implicitWidth: batteryPresent ? button.implicitWidth : 0
@@ -229,6 +247,10 @@ Panel {
   }
 
   Timer { interval: 5000; running: root.opened; repeat: true; onTriggered: root.refresh() }
+
+  // The bar icon needs limits even while the panel is closed; poll the
+  // battery script only so a real PendingCharge hold shows correctly.
+  Timer { interval: 30000; running: root.batteryPresent && !root.opened; repeat: true; onTriggered: root.refreshBattery() }
 
   // Rotate the status phrase while the panel is open and we're in a
   // rotating state (charging or on battery). The text swap is wrapped in a
