@@ -520,12 +520,19 @@ QtObject {
 
       var isFirstParty = manifest && manifest.__isFirstParty
       var location = findEntryLocation(config, key)
+      // A widget that also carries a non-bar kind (panel, service, menu) can
+      // hold both a bar.layout entry and a plugins[] record. findEntryLocation
+      // matches any of them, so keying the restore off it left a widget whose
+      // bar entry was removed (disable) unreplaceable (enable) while a residual
+      // plugins[] record survived: the enable branch never ran and the layout
+      // entry stayed gone. Key the restore off bar presence instead.
+      var onBar = findBarLocation(config, key, "").found
 
       if (value) {
         removeDisabled(config, key)
         var entry = { id: key }
         var insertedWithPlacement = false
-        if (!location.found && isBarWidget) {
+        if (!onBar && isBarWidget) {
           var sourceLocation = clonedFrom ? findEntryLocation(config, clonedFrom) : { found: false }
           if (sourceLocation.kind === "bar") {
             var sourceEntry = config.bar.layout[sourceLocation.section][sourceLocation.index]
