@@ -517,7 +517,7 @@ Item {
   function setBarPosition(value) {
     var next = normalizePosition(value)
     if (root.shell && typeof root.shell.mutateShellConfig === "function") {
-      root.shell.mutateShellConfig(function(config) {
+      return root.shell.mutateShellConfig(function(config) {
         if (!Util.isPlainObject(config.bar)) config.bar = {}
         config.bar.position = next
       })
@@ -845,14 +845,13 @@ Item {
   }
 
   function toggleTransparency() {
-    var nextTransparent = !(root.requestedTransparent === true)
     if (root.shell && typeof root.shell.mutateShellConfig === "function") {
-      root.shell.mutateShellConfig(function(config) {
+      return root.shell.mutateShellConfig(function(config) {
         if (!Util.isPlainObject(config.bar)) config.bar = {}
-        config.bar.transparent = nextTransparent
+        config.bar.transparent = !(config.bar.transparent === true)
       })
     } else {
-      root.setRequestedTransparency(nextTransparent)
+      root.setRequestedTransparency(!(root.requestedTransparent === true))
     }
   }
 
@@ -904,10 +903,10 @@ Item {
     if (!root.shell || typeof root.shell.mutateShellConfig !== "function") return false
 
     var changed = false
-    root.shell.mutateShellConfig(function(config) {
+    var persisted = root.shell.mutateShellConfig(function(config) {
       changed = moveModuleInConfig(config, source.region, source.moduleName, toRegion, beforeName)
     })
-    return changed
+    return persisted !== false && changed
   }
 
   function moduleDropAtScene(scenePoint, sourceSlot) {

@@ -16,7 +16,8 @@ QtObject {
   // Wired by shell.qml so the registry can read the canonical shell.json
   // without owning file IO itself. shellConfigProvider returns the current
   // effective shell config; shellConfigMutator takes a function that receives
-  // a deep-cloned config it can mutate in place and persists the result.
+  // a fresh disk config it can mutate in place and persists the result,
+  // returning false if the mutation cannot be saved.
   property var shellConfigProvider: null
   property var shellConfigMutator: null
 
@@ -306,11 +307,12 @@ QtObject {
 
   function moveBarWidget(id, placement) {
     var error = ""
-    shellConfigMutator(function(config) {
+    var persisted = shellConfigMutator(function(config) {
       ensureConfigShape(config)
       error = moveBarEntry(config, id, placement || {})
     })
     if (error) return error
+    if (persisted === false) return "could not update shell config"
     registryRevision++
     pluginsChanged()
     return ""
@@ -341,7 +343,7 @@ QtObject {
 
   function setBarWidget(id, key, value, selector) {
     var error = ""
-    shellConfigMutator(function(config) {
+    var persisted = shellConfigMutator(function(config) {
       ensureConfigShape(config)
       var location
       var requested = selector || {}
@@ -379,6 +381,7 @@ QtObject {
       entry[String(key)] = value
     })
     if (error) return error
+    if (persisted === false) return "could not update shell config"
     registryRevision++
     pluginsChanged()
     return ""
@@ -489,7 +492,7 @@ QtObject {
       && manifest.kinds.some(function(kind) { return kind !== "bar-widget" })
     var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
     var clonedFrom = metadata ? Util.canonicalWidgetId(String(metadata.clonedFrom || "")) : ""
-    shellConfigMutator(function(config) {
+    var persisted = shellConfigMutator(function(config) {
       ensureConfigShape(config)
 
       if (value && placement && (placement.before || placement.after)) {
@@ -561,6 +564,10 @@ QtObject {
       if (isFirstParty && !isBarWidget) addDisabled(config, key)
     })
     if (lastEnableError) return false
+    if (persisted === false) {
+      lastEnableError = "could not update shell config"
+      return false
+    }
     registryRevision++
     pluginsChanged()
     return true
