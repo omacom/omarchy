@@ -47,4 +47,9 @@ high_temp=75
 speed_curve=linear
 always_full_speed=false
 EOF
+
+  # The SMC drops manual fan control across sleep and t2fanrd only enables it
+  # at startup, so restart it on resume (#12393).
+  sudo install -Dm0755 "$OMARCHY_PATH/default/systemd/system-sleep/t2fanrd" \
+    /usr/lib/systemd/system-sleep/t2fanrd
 fi
