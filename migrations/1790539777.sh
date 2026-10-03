@@ -10,20 +10,30 @@ foot_config="$HOME/.config/foot/foot.ini"
 
 if [[ -f $foot_config ]] && grep -qx 'clipboard-copy=Control+Insert\|clipboard-paste=Shift+Insert' "$foot_config"; then
   tmp=$(mktemp)
-  # Two passes: the first notes every key already bound in [key-bindings], so a
-  # chord the user gave to another action is not bound a second time.
+  # Two passes: the first notes every key bound in [key-bindings] or [text-bindings],
+  # one set to foot, since a chord bound twice makes foot reject the whole config.
   awk '
+    # foot ignores modifier order but not the case of the key itself.
+    function norm(combo,    n, i, j, t, parts, out) {
+      n = split(combo, parts, "+")
+      for (i = 2; i < n; i++) for (j = i; j > 1 && parts[j - 1] > parts[j]; j--) { t = parts[j]; parts[j] = parts[j - 1]; parts[j - 1] = t }
+      out = parts[n]
+      for (i = n - 1; i >= 1; i--) out = parts[i] "+" out
+      return out
+    }
     function add(line, keys,    n, i, list, extra) {
       n = split(keys, list, " ")
-      for (i = 1; i <= n; i++) if (!(tolower(list[i]) in bound)) extra = extra " " list[i]
+      for (i = 1; i <= n; i++) if (!(norm(list[i]) in bound)) extra = extra " " list[i]
       return line extra
     }
     FNR == 1 { section = "" }
-    /^\[/ { section = $0 }
+    /^[[:space:]]*\[/ { section = $0; sub(/^[[:space:]]+/, "", section); sub(/\].*/, "]", section) }
     NR == FNR {
-      if (section == "[key-bindings]" && index($0, "=")) {
-        n = split(substr($0, index($0, "=") + 1), keys, /[[:space:]]+/)
-        for (i = 1; i <= n; i++) if (keys[i] != "") bound[tolower(keys[i])] = 1
+      if ((section == "[key-bindings]" || section == "[text-bindings]") && $0 !~ /^[[:space:]]*#/ && index($0, "=")) {
+        value = substr($0, index($0, "=") + 1)
+        sub(/[[:space:]]#.*/, "", value)
+        n = split(value, keys, /[[:space:]]+/)
+        for (i = 1; i <= n; i++) if (keys[i] != "") bound[norm(keys[i])] = 1
       }
       next
     }

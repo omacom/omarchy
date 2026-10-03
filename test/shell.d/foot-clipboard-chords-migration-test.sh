@@ -66,19 +66,33 @@ expected=$(printf '%s\n' '[key-bindings]' 'clipboard-copy=Control+Insert Mod4+c'
   fail "chord repair only rewrites the shipped key-bindings lines" "$(cat -A "$foot_config")"
 pass "chord repair only rewrites the shipped key-bindings lines"
 
-# A chord the user already gave to another action stays theirs: foot drops a
-# second binding for the same keys, so adding it would lose their action.
+# A chord the user already gave to another action stays theirs: foot rejects a
+# config binding the same keys twice, in either section and whatever the modifier order.
 reset_home
 printf '%s\n' '[key-bindings]' 'clipboard-copy=Control+Insert' 'clipboard-paste=Shift+Insert' \
-  'spawn-terminal=Control+Shift+C' >"$foot_config"
+  'spawn-terminal=Shift+Control+c' '' '[text-bindings]' '\x16=Control+Shift+v' >"$foot_config"
 
 run_migration
 
 expected=$(printf '%s\n' '[key-bindings]' 'clipboard-copy=Control+Insert XF86Copy' \
-  'clipboard-paste=Shift+Insert Control+Shift+v XF86Paste' 'spawn-terminal=Control+Shift+C')
+  'clipboard-paste=Shift+Insert XF86Paste' 'spawn-terminal=Shift+Control+c' '' '[text-bindings]' '\x16=Control+Shift+v')
 [[ $(cat "$foot_config") == "$expected" ]] ||
   fail "chord repair leaves a chord bound to another action alone" "$(cat -A "$foot_config")"
 pass "chord repair leaves a chord bound to another action alone"
+
+# A commented-out binding, and an uppercase key foot never matches with Shift held,
+# do not hold the chord.
+reset_home
+printf '%s\n' '  [key-bindings]  # mine' 'clipboard-copy=Control+Insert' '# spawn-terminal=Control+Shift+c' \
+  'clipboard-paste=Shift+Insert' 'search-start=Control+Shift+V' >"$foot_config"
+
+run_migration
+
+expected=$(printf '%s\n' '  [key-bindings]  # mine' 'clipboard-copy=Control+Insert Control+Shift+c XF86Copy' \
+  '# spawn-terminal=Control+Shift+c' 'clipboard-paste=Shift+Insert Control+Shift+v XF86Paste' 'search-start=Control+Shift+V')
+[[ $(cat "$foot_config") == "$expected" ]] ||
+  fail "chord repair ignores commented and uppercase bindings" "$(cat -A "$foot_config")"
+pass "chord repair ignores commented and uppercase bindings"
 
 # Dotfile setups symlink the config; the link has to survive the rewrite.
 reset_home
