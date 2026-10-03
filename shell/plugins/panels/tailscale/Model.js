@@ -73,6 +73,31 @@ function loginPlan(needsLogin, authUrl) {
   return { authUrl: "", command: ["tailscale", "up"] }
 }
 
+// The poll watchdog exists to reap polls that never come back, so it must
+// stand down once the launches of its own cycle have all exited — otherwise
+// it fires into whatever a later cycle has in flight and kills healthy
+// slow polls (large tailnets routinely take longer than the timeout).
+// Cycles overlap: a refresh tick relaunches one poll while another is still
+// in flight, so membership in the armed cycle is decided per launch, not per
+// instant — a running poll from a newer cycle does not keep an older
+// watchdog alive.
+function allPollsSettled(armedCycle, statusRunning, statusCycle, mullvadRunning, mullvadCycle, accountsRunning, accountsCycle) {
+  var statusGuarded = statusRunning && statusCycle === armedCycle
+  var mullvadGuarded = mullvadRunning && mullvadCycle === armedCycle
+  var accountsGuarded = accountsRunning && accountsCycle === armedCycle
+  return !statusGuarded && !mullvadGuarded && !accountsGuarded
+}
+
+// A launch made while an older cycle held the watchdog never armed it, so once
+// that cycle settles the watchdog passes to the oldest poll still in flight.
+function oldestPollCycle(statusRunning, statusCycle, mullvadRunning, mullvadCycle, accountsRunning, accountsCycle) {
+  var cycles = []
+  if (statusRunning) cycles.push(statusCycle)
+  if (mullvadRunning) cycles.push(mullvadCycle)
+  if (accountsRunning) cycles.push(accountsCycle)
+  return cycles.length > 0 ? Math.min.apply(null, cycles) : 0
+}
+
 // Taildrop is a tailnet feature the admin can turn off, so the button for it
 // only makes sense when this profile actually carries the capability.
 function hasFileSharing(self) {
@@ -312,6 +337,8 @@ if (typeof module !== "undefined") {
     osIcon: osIcon,
     accountLabel: accountLabel,
     loginPlan: loginPlan,
+    allPollsSettled: allPollsSettled,
+    oldestPollCycle: oldestPollCycle,
     hasFileSharing: hasFileSharing,
     isTaildropTarget: isTaildropTarget,
     isMullvadPeer: isMullvadPeer,
