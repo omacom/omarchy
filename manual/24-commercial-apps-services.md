@@ -8,6 +8,8 @@ Keeping your passwords in a password manager is a best practice. Doubly so if yo
 
 You start 1Password with `Super + Shift + /`. If it isn't installed yet, that hotkey kicks off the installation first (you can also use _Install > Service > 1Password_ from the Omarchy menu). The installer sets up the 1Password extension for Chromium as well.
 
+If you enable **Start at Login** later in 1Password's settings, run `omarchy-refresh-1password-autostart` afterward to keep 1Password's display scaling consistent when it starts at login. You can safely run this command again whenever needed.
+
 ## Bitwarden
 
 [Bitwarden](https://bitwarden.com/) is the open source alternative in the password manager space, with a free tier that covers most personal use. Install it with _Install > Service > Bitwarden_ from the Omarchy menu, which brings along the Bitwarden command line tool as well.
