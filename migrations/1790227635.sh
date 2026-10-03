@@ -25,4 +25,5 @@ HandleSuspendKeyLongPress=lock
 CONF
 
 # Reload rather than restart: restarting systemd-logind tears down the session.
-sudo systemctl reload systemd-logind >/dev/null 2>&1 || true
+# If the reload fails, the drop-in only takes effect after a reboot.
+sudo systemctl reload systemd-logind >/dev/null 2>&1 || omarchy-state set reboot-required

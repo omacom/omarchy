@@ -22,9 +22,13 @@ STUB
 cat >"$tmp_dir/bin/systemctl" <<'STUB'
 #!/bin/bash
 printf 'systemctl %s\n' "$*" >>"$CALLS_FILE"
-exit 0
+exit "${SYSTEMCTL_STATUS:-0}"
 STUB
-chmod +x "$tmp_dir/bin/sudo" "$tmp_dir/bin/systemctl"
+cat >"$tmp_dir/bin/omarchy-state" <<'STUB'
+#!/bin/bash
+printf 'omarchy-state %s\n' "$*" >>"$CALLS_FILE"
+STUB
+chmod +x "$tmp_dir/bin/sudo" "$tmp_dir/bin/systemctl" "$tmp_dir/bin/omarchy-state"
 : >"$calls"
 
 # The affected model: Lenovo 82XQ (IdeaPad Slim 3 15AMN8).
@@ -79,6 +83,9 @@ grep -Fx 'HandleLidSwitch=lock' "$migration_dropin" >/dev/null ||
   fail "migration writes the lock-on-lid drop-in"
 grep -Fx 'systemctl reload systemd-logind' "$calls" >/dev/null ||
   fail "migration reloads logind after writing the drop-in" "$(cat "$calls")"
+if grep -F 'omarchy-state' "$calls" >/dev/null; then
+  fail "migration asks for no reboot when the reload succeeds" "$(cat "$calls")"
+fi
 pass "migration writes the lock-on-lid drop-in and reloads logind"
 
 # A second run must not escalate at all.
@@ -116,6 +123,17 @@ if OMARCHY_DMI_PATH="$tmp_dir/dmi-match" OMARCHY_LOGIND_CONF_DIR="$tmp_dir/conf-
   CALLS_FILE="$calls" PATH="$tmp_dir/bin-denied:$tmp_dir/bin:$PATH" bash -euo pipefail "$migration" >/dev/null; then
   fail "migration fails when sudo is refused, so it stays pending"
 fi
+grep -F 'sudo install -d' "$calls" >/dev/null ||
+  fail "migration reached sudo before stopping" "$(cat "$calls")"
 [[ ! -e $tmp_dir/conf-migration/50-ideapad-suspend.conf ]] ||
   fail "migration writes nothing when sudo is refused"
 pass "migration stays pending when sudo is refused"
+
+# A failed reload leaves the drop-in inert until reboot, so it must say so.
+: >"$calls"
+OMARCHY_DMI_PATH="$tmp_dir/dmi-match" OMARCHY_LOGIND_CONF_DIR="$tmp_dir/conf-migration" SYSTEMCTL_STATUS=1 \
+  CALLS_FILE="$calls" PATH="$tmp_dir/bin:$PATH" bash -euo pipefail "$migration" >/dev/null ||
+  fail "migration finishes when only the reload fails"
+grep -Fx 'omarchy-state set reboot-required' "$calls" >/dev/null ||
+  fail "migration asks for a reboot when the logind reload fails" "$(cat "$calls")"
+pass "migration asks for a reboot when the logind reload fails"
