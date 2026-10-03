@@ -37,15 +37,18 @@ SH
 cat >"$mock_bin/systemd-run" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
+if [[ -n ${OMARCHY_TEST_BROWSER_ORDER:-} ]]; then printf 'launch\n' >>"$OMARCHY_TEST_BROWSER_ORDER"; fi
 SH
 cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
 #!/bin/bash
 printf '%s\n' "$1" >"$OMARCHY_TEST_BROWSER_FOCUS"
+if [[ -n ${OMARCHY_TEST_BROWSER_ORDER:-} ]]; then printf 'focus\n' >>"$OMARCHY_TEST_BROWSER_ORDER"; fi
 SH
 chmod +x "$mock_bin"/*
 
 launch_log="$test_tmp/launch"
 focus_log="$test_tmp/focus"
+order_log="$test_tmp/order"
 xdg_settings_browser="$test_tmp/xdg-settings-browser"
 HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
@@ -61,10 +64,15 @@ HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
 
 HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  OMARCHY_TEST_BROWSER_ORDER="$order_log" \
   bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/authorize"
 
 grep -F 'https://example.test/authorize' "$launch_log" >/dev/null || fail "browser launcher passes through the URL"
-grep -Fx '^chromium.*$' "$focus_log" >/dev/null || fail "browser launcher focuses the default browser window"
+grep -Fx '^chromium(?!.*__).*$' "$focus_log" >/dev/null || fail "browser launcher focuses the default browser window"
+# Chromium puts the tab in its last active window, so the browser window has to
+# be focused before the URL is handed over or Chromium opens a second window.
+[[ $(tr '\n' ' ' <"$order_log") == "focus launch " ]] ||
+  fail "browser launcher focuses the browser window before opening the URL"
 
 rm -f "$focus_log" "$xdg_settings_browser"
 
@@ -78,20 +86,70 @@ grep -F 'https://example.test/fallback' "$launch_log" >/dev/null ||
   fail "browser launcher falls back to the HTTPS handler when xdg-settings is empty"
 [[ ! -e $xdg_settings_browser ]] ||
   fail "browser launcher unsets BROWSER before reading xdg-settings"
-grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
+grep -Fx '^chromium(?!.*__).*$' "$focus_log" >/dev/null ||
   fail "browser launcher focuses the browser resolved from the HTTPS handler"
+
+# An open Chromium web app (chromium-chat.example.com__-Default) is listed
+# before the real browser window, and must not absorb the follow.
+dispatch_log="$test_tmp/dispatch"
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+if [[ $1 == clients ]]; then
+  cat <<'JSON'
+[{"address":"0xweb","class":"chromium-chat.example.com__-Default"},
+ {"address":"0xbrowser","class":"chromium"}]
+JSON
+else
+  printf '%s\n' "$*" >>"$OMARCHY_TEST_DISPATCH"
+fi
+SH
+chmod +x "$mock_bin/hyprctl"
+
+PATH="$mock_bin:$PATH" OMARCHY_TEST_DISPATCH="$dispatch_log" \
+  bash "$ROOT/bin/omarchy-hyprland-focus-app" "$(cat "$focus_log")"
+
+grep -F '0xbrowser' "$dispatch_log" >/dev/null ||
+  fail "browser launcher focus pattern skips Chromium web app windows"
+
+# With several browser windows open, Chromium puts the tab in the one used last,
+# so the follow has to land there rather than on whichever is listed first.
+: >"$dispatch_log"
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+if [[ $1 == clients ]]; then
+  cat <<'JSON'
+[{"address":"0xnever","class":"chromium","focusHistoryID":-1},
+ {"address":"0xolder","class":"chromium","focusHistoryID":3},
+ {"address":"0xweb","class":"chromium-chat.example.com__-Default","focusHistoryID":0},
+ {"address":"0xrecent","class":"chromium","focusHistoryID":1}]
+JSON
+else
+  printf '%s\n' "$*" >>"$OMARCHY_TEST_DISPATCH"
+fi
+SH
+
+PATH="$mock_bin:$PATH" OMARCHY_TEST_DISPATCH="$dispatch_log" \
+  bash "$ROOT/bin/omarchy-hyprland-focus-app" "$(cat "$focus_log")"
+
+grep -F '0xrecent' "$dispatch_log" >/dev/null ||
+  fail "browser launcher follows the most recently focused browser window"
 
 pass "browser launcher follows opened links to the browser workspace"
 
-rm -f "$launch_log"
+rm -f "$launch_log" "$focus_log" "$order_log"
 cat >"$mock_bin/omarchy-cmd-browser-handoff" <<'SH'
 #!/bin/bash
+printf 'handoff\n' >>"$OMARCHY_TEST_BROWSER_ORDER"
 [[ $1 == "chromium" && $2 == "https://example.test/running" ]]
 SH
 chmod +x "$mock_bin/omarchy-cmd-browser-handoff"
 
-HOME="$test_home" PATH="$mock_bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
-  OMARCHY_TEST_BROWSER_FOCUS="$focus_log" bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/running"
+HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  OMARCHY_TEST_BROWSER_ORDER="$order_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/running"
 
 [[ ! -e $launch_log ]] || fail "browser launcher starts no browser when the running one takes the URL"
+[[ $(tr '\n' ' ' <"$order_log") == "focus handoff " ]] ||
+  fail "browser launcher focuses the browser window before handing the URL to the running browser"
 pass "browser launcher hands a URL to the running browser"
