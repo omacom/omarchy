@@ -41,6 +41,17 @@ Item {
     return value === undefined || value === null ? fallback : value
   }
 
+  // Suppress or restore the center-section hover reveal while this panel is
+  // open. Delegates through the PluginBarApi function so the call works on
+  // any bar build; if the function is absent (pre-4.0.3 builds still in
+  // use by a cloned plugin) it falls back to a direct property write.
+  function setCenterHoverRevealSuppressed(value) {
+    if (bar && typeof bar.setCenterHoverRevealSuppressed === "function")
+      bar.setCenterHoverRevealSuppressed(value)
+    else if (bar && "centerHoverRevealSuppressed" in bar)
+      bar.centerHoverRevealSuppressed = value
+  }
+
   PanelController {
     id: panelController
   }
