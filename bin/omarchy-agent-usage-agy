@@ -87,6 +87,40 @@ def parse_local_date(created_at: str, fallback: str) -> str:
     return created_at[:10] if len(created_at) >= 10 else fallback
 
 
+def parse_reset_time(resets_at: str) -> dt.datetime | None:
+  if not resets_at:
+    return None
+  try:
+    iso = resets_at.replace("Z", "+00:00")
+    dt_val = dt.datetime.fromisoformat(iso)
+    if dt_val.tzinfo is None:
+      dt_val = dt_val.replace(tzinfo=dt.timezone.utc)
+    return dt_val
+  except Exception:
+    return None
+
+
+def any_limit_reset_passed(limits: list[dict[str, Any]]) -> bool:
+  now = dt.datetime.now(dt.timezone.utc)
+  for limit in limits:
+    resets = parse_reset_time(str(limit.get("resetsAt", "")))
+    if resets and resets <= now:
+      return True
+  return False
+
+
+def rolled_forward(limits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+  now = dt.datetime.now(dt.timezone.utc)
+  rolled = []
+  for limit in limits:
+    item = dict(limit)
+    resets = parse_reset_time(str(item.get("resetsAt", "")))
+    if resets and resets <= now:
+      item["percent"] = 0.0
+    rolled.append(item)
+  return rolled
+
+
 def fetch_limits(account: str, force: bool = False) -> tuple[list[dict[str, Any]], bool, int]:
   cache_file = cache_root() / "agy-limits.json"
   now_ms = round(time.time() * 1000)
@@ -104,7 +138,7 @@ def fetch_limits(account: str, force: bool = False) -> tuple[list[dict[str, Any]
     except Exception:
       pass
 
-  if not force and cached_limits and (now_ms - cached_at < PROBE_CACHE_TTL_MS):
+  if not force and cached_limits and not any_limit_reset_passed(cached_limits) and (now_ms - cached_at < PROBE_CACHE_TTL_MS):
     return cached_limits, False, cached_at
 
   try:
@@ -151,7 +185,7 @@ def fetch_limits(account: str, force: bool = False) -> tuple[list[dict[str, Any]
     pass
 
   if cached_limits:
-    return cached_limits, True, cached_at
+    return rolled_forward(cached_limits), True, cached_at
 
   return [], False, 0
 
