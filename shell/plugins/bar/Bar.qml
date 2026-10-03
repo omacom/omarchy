@@ -1798,6 +1798,7 @@ Item {
       if (qmlCustom) return qmlLoader.item
       return componentLoader.item
     }
+    readonly property string screenName: root.slotScreenName(slot)
     readonly property bool hovered: moduleHover.hovered
     readonly property bool dragSource: root.barDragSource === slot
     readonly property bool panelOpen: root.activePopout === slot.activeItem
@@ -1995,6 +1996,7 @@ Item {
 
     onActiveItemChanged: Qt.callLater(injectProps)
     onModuleSettingsChanged: injectProps()
+    onScreenNameChanged: injectProps()
 
     function injectProps() {
       var target = activeItem
@@ -2003,6 +2005,7 @@ Item {
         ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
       if ("moduleName" in target) target.moduleName = moduleName
       if ("settings" in target) target.settings = moduleSettings
+      if ("screenName" in target) target.screenName = screenName
     }
 
     Component {
