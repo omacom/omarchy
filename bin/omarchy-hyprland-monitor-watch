@@ -106,8 +106,11 @@ while read -r event; do
       ;;
     # A reload while the monitor is unpowered leaves it at 0x0 with no hotplug
     # to notice, same as at boot. Our own recovery reload lands here too, and is
-    # a no-op while its loop still holds the pid.
+    # a no-op while its loop still holds the pid. A reload is also how a 0x0
+    # monitor gains a mode, which no hotplug announces, so clamshell syncs here.
     configreloaded\>\>*)
+      sync_clamshell_after_monitor_change
+      sync_poll_state
       recover_modeless
       ;;
   esac
