@@ -90,3 +90,37 @@ if rg -q 'omarchy.indicators' "$ROOT/bin/omarchy-toggle-nightlight"; then
   fail "nightlight toggle leaves indicator refresh to the nightlight service"
 fi
 pass "nightlight toggle leaves indicator refresh to the nightlight service"
+
+# A long-lived daemon must not keep a captured toggle's output pipe open.
+cat >"$TMPDIR/bin/pgrep" <<'SH'
+#!/bin/bash
+exit 1
+SH
+cat >"$TMPDIR/bin/uwsm-app" <<'SH'
+#!/bin/bash
+[[ $* == "-- hyprsunset" ]] || exit 1
+printf '%s\n' "$$" >"$DAEMON_PID_FILE"
+if read -r input; then
+  printf 'input=%s\n' "$input" >"$DAEMON_STDIN_FILE"
+else
+  printf 'eof\n' >"$DAEMON_STDIN_FILE"
+fi
+exec sleep 30
+SH
+chmod +x "$TMPDIR/bin/uwsm-app"
+trap '[[ ! -s $TMPDIR/daemon-pid ]] || kill "$(<"$TMPDIR/daemon-pid")" 2>/dev/null || true; rm -rf "$TMPDIR"' EXIT
+
+if PATH="$TMPDIR/bin:$PATH" HYPRSUNSET_STATE="$STATE" OMARCHY_SHELL_LOG="$SHELL_LOG" \
+  DAEMON_PID_FILE="$TMPDIR/daemon-pid" DAEMON_STDIN_FILE="$TMPDIR/daemon-stdin" \
+  timeout 3 bash -o pipefail -c 'printf "caller input\n" | "$1" 2>&1 | cat' _ "$ROOT/bin/omarchy-toggle-nightlight" >"$TMPDIR/captured"; then
+  for attempt in {1..100}; do
+    [[ ! -s $TMPDIR/daemon-pid || ! -s $TMPDIR/daemon-stdin ]] || break
+    sleep 0.01
+  done
+  [[ -s $TMPDIR/daemon-pid ]] || fail "nightlight starts the missing daemon"
+  kill -0 "$(<"$TMPDIR/daemon-pid")" || fail "nightlight leaves its daemon running"
+  grep -Fxq eof "$TMPDIR/daemon-stdin" || fail "the daemon does not consume caller input"
+  pass "nightlight closes captured output while the daemon stays running"
+else
+  fail "nightlight closes captured output without waiting for its daemon"
+fi
