@@ -63,6 +63,36 @@ for (const edge of ['top', 'bottom', 'left', 'right']) {
   )
 }
 
+// Every bar size token is read through barToken(), so the [bar] parser must
+// hand every numeric key over instead of naming a few: icon-slot, icon-canvas,
+// icon-font and status-slot were silently dropped (#11359). Run the real
+// parser and token reader rather than matching their text.
+const vm = require('vm')
+const styleSource = fs.readFileSync(root + '/shell/Commons/Style.qml', 'utf8')
+function qmlFunction(source, name) {
+  const start = source.indexOf(`function ${name}(`)
+  let depth = 0
+  for (let i = source.indexOf('{', start); start >= 0 && i < source.length; i++) {
+    if (source[i] === '{') depth++
+    else if (source[i] === '}' && --depth === 0) return source.slice(start, i + 1)
+  }
+  throw new Error(`Style.qml has no function ${name}`)
+}
+const style = vm.createContext({})
+vm.runInContext(
+  ['barToken', 'boolToken', 'applyShellValues'].map(name => qmlFunction(styleSource, name)).join('\n') +
+  '\nvar fontScale = 1, barScaleWithFont = true, barOverrides = {}',
+  style
+)
+style.applyShellValues({
+  'bar.size-horizontal': '32', 'bar.size-vertical': '34', 'bar.icon-slot': '30',
+  'bar.icon-canvas': '20', 'bar.icon-font': '17', 'bar.status-slot': '25'
+})
+for (const [key, value] of [['size-horizontal', 32], ['size-vertical', 34], ['icon-slot', 30],
+                            ['icon-canvas', 20], ['icon-font', 17], ['status-slot', 25]]) {
+  assertEqual(style.barToken(key, 1), value, `[bar] ${key} in shell.toml reaches barToken()`)
+}
+
 // The center section declares two arrangements and shows one; the hidden one
 // must not build its modules or every center widget exists twice.
 const moduleList = barSource.slice(barSource.indexOf('component ModuleList'), barSource.indexOf('component ModuleSlot'))
