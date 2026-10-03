@@ -22,11 +22,13 @@ description with steps to reproduce, and diagnostics. Gather them:
 ```bash
 omarchy version
 
-# Generate the diagnostic log (also written to /tmp/omarchy-debug.log)
-omarchy debug --no-sudo --print
+# Generate the diagnostic log (also written to /tmp/omarchy-debug.log).
+# Call the binary directly: `omarchy debug` only resolves in login/ssh
+# shells; in desktop-session shells it fails with "Unknown Omarchy command".
+omarchy-debug --no-sudo --print
 
-# Interactive variant: `omarchy debug` offers to upload the log to
-# logs.omarchy.org (expires after 24h) and prints a shareable URL to
+# Interactive variant: `omarchy-debug` with no flags offers to upload the log
+# to logs.omarchy.org (expires after 24h) and prints a shareable URL to
 # include in the issue.
 ```
 

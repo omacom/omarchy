@@ -2,21 +2,25 @@
 name: omarchy
 description: >
   REQUIRED for end-user customization of Linux desktop, window manager, or system config.
-  Use when editing ~/.config/hypr/, ~/.config/omarchy/,
-  ~/.config/alacritty/, ~/.config/foot/, ~/.config/kitty/, or ~/.config/ghostty/.
-  Triggers: Hyprland, window rules, animations, keybindings, monitors, gaps, borders,
-  blur, opacity, omarchy-shell, bar, terminal config, themes, background,
-  night light, idle, lock screen, screenshots, reminders, layer rules, workspace
-  settings, display config, and user-facing omarchy commands. Excludes Omarchy
-  source development through `omarchy dev link` workflows.
+  Use when editing any user config under ~/.config/ — notably hypr/, omarchy/,
+  the terminals (alacritty/foot/kitty/ghostty), btop, fastfetch, lazygit, starship,
+  git — or running a user-facing omarchy command. Triggers: Hyprland, window rules,
+  keybindings, monitors, gaps, borders, blur, opacity, omarchy-shell, bar,
+  widgets, plugins, hooks, terminal config, themes, backgrounds, fonts,
+  notifications, audio/volume, brightness, default browser/terminal/editor,
+  display text size, night light, idle, lock screen, screenshots, reminders,
+  layer rules, workspace settings, display config. Excludes Omarchy source
+  development (repo work, migrations, `omarchy dev ...` workflows).
 ---
 
 # Omarchy Skill
 
 Manage [Omarchy](https://omarchy.org/) Linux systems - a beautiful, fun, agentic Arch Linux distribution with Hyprland.
 
-This skill is for end-user customization on installed systems.
-It is not for contributing to Omarchy source code.
+This skill is for end-user customization on installed systems. It also covers
+routing problems upstream — bug reports and fix PRs — as described in
+[`contributing.md`](contributing.md). Developing Omarchy itself is out of
+scope — see Out of Scope below.
 
 ## When This Skill MUST Be Used
 
@@ -33,8 +37,6 @@ It is not for contributing to Omarchy source code.
 - Screenshots, screen recording, reminders, night light, idle behavior, lock screen
 
 **If you're about to edit a config file in ~/.config/ on this system, STOP and use this skill first.**
-
-**Do NOT use this skill for Omarchy development tasks** (editing the Omarchy source tree, creating migrations, or running `omarchy dev ...` workflows).
 
 ## Topic Guides
 
@@ -78,8 +80,6 @@ overwritten on the next `omarchy update`.
 - `~/.config/` - User configuration (safe to edit)
 - `~/.config/omarchy/themes/<custom-name>/` - Custom themes
 - `~/.config/omarchy/hooks/` - Custom automation hooks
-
-If the request is to develop Omarchy itself, this skill is out of scope. Follow repository development instructions instead of this skill.
 
 ## Privilege Escalation
 
@@ -131,12 +131,13 @@ cat $(which omarchy-theme-set)
 
 ### Command Groups
 
-Run `omarchy --help` for the full list. The most common groups:
+Run `omarchy commands` for the full list. The most common groups:
 
 | Group | Purpose | Example |
 |-------|---------|---------|
 | `omarchy refresh` | Reset config to defaults (backs up first) | `omarchy refresh shell` |
 | `omarchy restart` | Restart a service/app | `omarchy restart shell` |
+| `omarchy hyprland` | Compositor one-offs: monitors, gaps, transparency, workspaces | `omarchy hyprland window gaps toggle` |
 | `omarchy toggle` | Toggle feature on/off | `omarchy toggle nightlight` |
 | `omarchy theme` | Theme management | `omarchy theme set <name>` |
 | `omarchy bar` | Bar layout and widgets | `omarchy bar move omarchy.clock --section right` |
@@ -145,10 +146,21 @@ Run `omarchy --help` for the full list. The most common groups:
 | `omarchy install` | Install optional software / packages | `omarchy install docker dbs` |
 | `omarchy launch` | Launch apps | `omarchy launch browser` |
 | `omarchy capture` | Screenshots and recordings | `omarchy capture screenshot` |
+| `omarchy notification` | Send desktop notifications | `omarchy notification send "Build done"` |
+| `omarchy audio` | Volume, mute, audio outputs/inputs | `omarchy audio output volume raise` |
+| `omarchy brightness` | Display and keyboard backlight | `omarchy brightness display +10%` |
+| `omarchy display` | Global text size (shell, GTK, terminals) | `omarchy display text size 16` |
+| `omarchy default` | Default browser/terminal/editor/agent | `omarchy default browser chromium` |
 | `omarchy reminder` | Desktop notification reminders | `omarchy reminder 15 "Pickup Jack"` |
 | `omarchy pkg` | Package management | `omarchy pkg add <pkg>` |
 | `omarchy setup` | Interactive setup wizards | `omarchy setup security fingerprint` |
 | `omarchy update` | System updates | `omarchy update` |
+
+Also available: `bluetooth`,
+`weather`, `powerprofiles`, `drive`, `games`, `voxtype` (dictation),
+`plymouth` (boot screen), `snapshot` (snapper backups), `dns`, `channel`,
+`osd`, `branding`, `remove` (undo an `install`), `mise`, `hibernation`,
+`share`, `transcode`, and `hw` (per-model hardware quirks).
 
 ## Configuration Locations
 
@@ -219,19 +231,25 @@ omarchy refresh hyprland
 ```bash
 omarchy update                  # Full system update
 omarchy version                 # Show Omarchy version
-omarchy debug --no-sudo --print # Debug info (ALWAYS use these flags)
+omarchy-debug --no-sudo --print # Debug info
 omarchy system lock             # Lock screen
 omarchy system shutdown         # Shutdown
 omarchy system reboot           # Reboot
 ```
 
-**IMPORTANT:** Always run `omarchy debug` with `--no-sudo --print` flags to avoid interactive sudo prompts that will hang the terminal.
+**IMPORTANT:** Always pass `--no-sudo --print` to avoid interactive sudo
+prompts that will hang the terminal. Call the `omarchy-debug` binary directly —
+it works in every context. The `omarchy debug` route advertised by
+`omarchy --help` only resolves in login/ssh shells (where the dispatcher is
+`/usr/bin/omarchy`); in desktop-session shells PATH puts `$OMARCHY_PATH/bin`
+first, the dispatcher cannot see `/usr/bin/omarchy-debug`, and the route fails
+with `Unknown Omarchy command`.
 
 ## Troubleshooting
 
 ```bash
-# Get debug information (ALWAYS use these flags to avoid interactive prompts)
-omarchy debug --no-sudo --print
+# Get debug information (see the flag note under System Commands)
+omarchy-debug --no-sudo --print
 
 # Reset specific config to defaults
 omarchy refresh <app>
@@ -250,7 +268,7 @@ omarchy reinstall
 When user requests system changes:
 
 1. **Is it a stock omarchy command?** Use it directly
-2. **Is it a config edit?** Edit in `~/.config/`, never `/usr/share/omarchy/`
+2. **Is it a config edit?** Edit in `~/.config/`
 3. **Is it a theme customization?** Follow [`theming.md`](theming.md); create a NEW custom theme directory
 4. **Is it automation?** Follow [`hooks.md`](hooks.md); use `omarchy hook install` and the hook `.d` directories
 5. **Is it a package install?** Use `omarchy pkg add <pkgs...>` (or `omarchy pkg aur add <pkgs...>` for AUR-only packages)
@@ -270,10 +288,10 @@ omarchy reminder clear
 
 ## Out of Scope
 
-This skill intentionally does not cover Omarchy source development. Do not use this skill for:
-- Editing files in `/usr/share/omarchy/` (`bin/`, `config/`, `default/`, `shell/`, `themes/`, `migrations/`, etc.)
-- Creating or editing migrations
-- Running `omarchy dev ...` commands
+Developing Omarchy itself: editing the Omarchy source tree, creating or editing
+migrations, and running `omarchy dev ...` commands — the repository's own
+`AGENTS.md` governs that work. Reporting bugs and submitting a ready fix are
+in scope — see [`contributing.md`](contributing.md).
 
 ## Example Requests
 
@@ -281,14 +299,14 @@ This skill intentionally does not cover Omarchy source development. Do not use t
 - "Add a keybinding for Super+E to open file manager" -> Check existing bindings first, then use `o.rebind` to replace one or `o.bind` to add one in `~/.config/hypr/bindings.lua`
 - "Configure my external monitor" -> Edit `~/.config/hypr/monitors.lua`
 - "Make the window gaps smaller" -> Edit `~/.config/hypr/looknfeel.lua`
-- "Turn on night light" -> `omarchy toggle nightlight` (for time-based schedules, edit `~/.config/hypr/hyprsunset.conf` profiles, then `omarchy restart hyprsunset`)
-- "Set a reminder to pickup jack in 15 minutes" -> `omarchy reminder 15 "Pickup Jack"`
-- "Show my reminders" -> `omarchy reminder show`
-- "Clear all reminders" -> `omarchy reminder clear`
+- "Turn on night light" -> `omarchy toggle nightlight` blind-toggles — check `omarchy toggle nightlight --status` first (for time-based schedules, edit `~/.config/hypr/hyprsunset.conf` profiles, then `omarchy restart hyprsunset`)
 - "Customize the catppuccin theme colors" -> Overlay: put an edited `colors.toml` in `~/.config/omarchy/themes/catppuccin/`, then re-apply the theme (see `theming.md`)
 - "Run a script every time I change themes" -> Install it with `omarchy hook install theme-set <script>`
 - "Change how workspace labels are rendered" -> Clone `omarchy.workspaces`, which switches the bar to `<username>.workspaces`, then edit the clone
-- "Lock after ten minutes" -> Set `idle.lock` to `600` in `~/.config/omarchy/shell.json`
 - "Reset shell/bar to defaults" -> `omarchy refresh shell`
 - "Record my screen" -> `omarchy screenrecord --fullscreen`, then `omarchy screenrecord --stop-recording` (see `capture.md`)
 - "Report this bug to Omarchy" -> Gather diagnostics and a capture of the problem, then file it (see `contributing.md`)
+- "Set Firefox as my default browser" -> `omarchy default browser firefox`
+- "Make text bigger everywhere" -> `omarchy display text size 16` (`omarchy display text size reset` restores 12px/1.0/9pt defaults)
+- "Send a desktop notification" -> `omarchy notification send "Headline" "Details"`
+- "Turn the volume down" -> `omarchy audio output volume lower` (or `+N`/`-N`, `mute-toggle`)

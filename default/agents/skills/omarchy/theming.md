@@ -30,8 +30,12 @@ drops only what runs code: any `*.lua` (Hyprland requires a theme's
 `hyprland.lua` and `gum_env.lua` at login, Neovim loads `neovim.lua` at startup),
 the terminal configs `alacritty.toml`, `foot.ini`, `ghostty.conf` and
 `kitty.conf` (each names the program the terminal launches), and `vscode.json`
-(names a VS Code extension to install). Those are regenerated from `colors.toml`
-through `$OMARCHY_PATH/default/themed/*.tpl`, and named on stderr.
+(names a VS Code extension Omarchy would install). The Lua files and terminal
+configs are regenerated from `colors.toml` through
+`$OMARCHY_PATH/default/themed/*.tpl`; `vscode.json` is simply dropped — the
+extension install is skipped, and VS Code still gets the theme's colors through
+the generated `vscode-theme.json` (from `vscode-theme.json.tpl`). Every denied
+file is named on stderr.
 
 Everything else a cloned theme ships is kept, including `btop.theme`,
 `chromium.theme`, `helix.toml`, `icons.theme`, `keyboard.rgb` and `shell.toml`.
@@ -76,4 +80,6 @@ omarchy theme set catppuccin-custom
 omarchy font list               # Available fonts
 omarchy font current            # Current font
 omarchy font set <name>         # Change font
+omarchy install font <display-name> <package> <family>   # Install a Nerd Font package and switch the system to it
+# e.g. omarchy install font 'Cascadia Mono' ttf-cascadia-mono-nerd 'CaskaydiaMono Nerd Font'
 ```
