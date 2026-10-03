@@ -69,6 +69,20 @@ grep -q 'PROTECT: "Y"' "$COMPOSE" || fail "web console is not password protected
 grep -q -- '- /:/' "$COMPOSE" && fail "compose contains host-root bind"
 pass "writer emits fixed anchors bound to exact private source inodes"
 
+# The container sets setgid on an empty /shared, and a four-digit chmod keeps
+# it on a directory, which left the source at 2700 and refused every launch.
+reset_case
+mkdir -p "$HOME/.windows" "$HOME/Windows"
+chmod 2777 "$HOME/Windows"
+write 4G 2 64G alice s3cret Europe/Copenhagen
+resolve_caller
+[[ $(stat -Lc '%a' "$HOME/Windows") == 700 ]] || fail "setgid shared source was not reset to 0700"
+mounted_leaf_matches "$EXPECTED_SHARED" "$(stat -Lc '%d:%i' "$HOME/Windows")" || fail "setgid shared source does not verify after hardening"
+chmod 2777 "$HOME/Windows"
+prepare_user_mount_sources
+[[ $(stat -Lc '%a' "$HOME/Windows") == 700 ]] || fail "user-side hardening kept the setgid bit"
+pass "hardening clears the setgid bit the container leaves on the shared source"
+
 # Input cannot widen a mount or compose field.
 rm -f "$COMPOSE"
 write 4G 2 64G 'x -v /:/h' p UTC 2>/dev/null && fail "malicious username accepted"
