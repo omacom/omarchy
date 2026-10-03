@@ -84,6 +84,14 @@ assert(
 )
 assert(!/disconnect\(\s*(root\.)?networkForSsid\(/.test(panelSource), 'network never passes an unguarded networkForSsid() lookup to disconnect()')
 
+// The eye toggle reveals the passphrase to catch typos, but the reveal must
+// not outlive the prompt: moving to another network or closing re-masks it.
+assert(/id: pwField[\s\S]*?password: !root\.passwordRevealed/.test(panelSource), 'network masks the passphrase unless the user reveals it')
+assert(/id: revealPwBtn[\s\S]*?root\.passwordRevealed = !root\.passwordRevealed/.test(panelSource), 'network toggles passphrase visibility from the eye button')
+assert(/onPasswordSsidChanged: \{\s*passwordRevealed = false/.test(panelSource), 'network re-masks the passphrase whenever the prompt moves or closes')
+// Qt drops its "don't learn this" input method hints along with the mask.
+assert(/id: pwField[\s\S]*?inputMethodHints: Qt\.ImhSensitiveData \| Qt\.ImhNoPredictiveText/.test(panelSource), 'network keeps the input method from learning a revealed passphrase')
+
 assertDeepEqual(
   network.parseNetworkStatus('wifi\tCafe WiFi\t78\t5200\n'),
   { kind: 'wifi', label: 'Cafe WiFi', signalStrength: 78, frequency: '5200' },
