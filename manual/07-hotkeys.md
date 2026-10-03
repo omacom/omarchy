@@ -338,6 +338,12 @@ Ghostty terminal is installed using _Install > Terminal_ via the Omarchy menu.
 
 You can use `Super + Ctrl + E` to show a complete emoji picker that'll put the selection on the clipboard or you can use these quick access options.
 
+The picker counts the emojis you pick and shows the most frequent ones in the first four rows. The counts live in `~/.local/state/omarchy/emoji-usage.json`, so you can seed them yourself, like carrying over your favorites from your phone — the higher the number, the earlier the emoji shows up:
+
+```json
+{ "👍": 30, "😆": 29, "🇩🇪": 28, "🙏": 27, "❤️": 26 }
+```
+
 | Hotkey       | EM | Clue       |
 | ------------ | -- | ---------- |
 | `CapsLock M S` | 😄 | smile      |
