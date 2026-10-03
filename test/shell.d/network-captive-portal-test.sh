@@ -34,10 +34,51 @@ for (const state of ['full', 'unknown', 'none', undefined]) {
   }
   assertEqual(network.connectionIcon('ethernet', -1, state), '󰈀', `${state} preserves the Ethernet icon`)
 }
+const fallback = 'http://nmcheck.gnome.org/check_network_status.txt'
 const url = new URL(network.captivePortalUrl)
+assertEqual(network.captivePortalUrl, fallback, 'fallback is GNOME\'s well-known connectivity probe')
 assertEqual(url.protocol, 'http:', 'browser entry point uses plain HTTP so a portal can intercept it')
-assertEqual(url.hostname, 'ping.archlinux.org', 'browser entry point is fixed rather than portal-supplied')
+assertEqual(url.hostname, 'nmcheck.gnome.org', 'fallback host is widely intercepted rather than Arch-specific')
+assert(url.hostname !== 'ping.archlinux.org', 'sign-in URL is not ping.archlinux.org')
 assertEqual(url.username + url.password, '', 'browser entry point contains no credentials')
+
+assertEqual(network.resolveCaptivePortalUrl(''), fallback, 'empty NM config uses the well-known fallback')
+assertEqual(
+  network.resolveCaptivePortalUrl('[connectivity]\nuri=http://connectivitycheck.gstatic.com/generate_204\n'),
+  'http://connectivitycheck.gstatic.com/generate_204',
+  'honors NetworkManager\'s configured connectivity uri'
+)
+assertEqual(
+  network.resolveCaptivePortalUrl('[connectivity]\nuri=http://ping.archlinux.org/nm-check.txt\n'),
+  'http://ping.archlinux.org/nm-check.txt',
+  'follows NM even when it still uses Arch\'s probe'
+)
+assertEqual(
+  network.resolveCaptivePortalUrl('[connectivity]\nuri=https://nmcheck.gnome.org/check_network_status.txt\n'),
+  fallback,
+  'rejects https probes that portals cannot intercept'
+)
+assertEqual(
+  network.resolveCaptivePortalUrl('[connectivity]\nuri=http://user:pass@evil.test/check\n'),
+  fallback,
+  'rejects a connectivity uri that embeds credentials'
+)
+assertEqual(
+  network.resolveCaptivePortalUrl('[main]\nuri=http://evil.test/check\n'),
+  fallback,
+  'ignores uri keys outside [connectivity]'
+)
+assertEqual(
+  network.resolveCaptivePortalUrl('[connectivity]\n# uri=http://ignored.test/\nuri = http://captive.apple.com/hotspot-detect.html\n'),
+  'http://captive.apple.com/hotspot-detect.html',
+  'reads the last uncommented [connectivity] uri'
+)
+
+const fs = require('fs')
+const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
+assert(/NetworkManager/.test(panelSource) && /--print-config/.test(panelSource), 'panel reads NM merged connectivity config')
+assert(/resolveCaptivePortalUrl/.test(panelSource), 'panel resolves the sign-in URL from NM config')
+assert(!/ping\\.archlinux\\.org/.test(panelSource), 'panel does not hardcode Arch\'s connectivity probe')
 JS
 
 require_compositor "network captive-portal runtime test"
@@ -80,6 +121,9 @@ printf '#!/bin/bash\nif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then\n  printf "type
 chmod +x "$stage/bin/omarchy-network-status"
 printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$NETWORK_TEST_BROWSER_LOG"\n' > "$stage/bin/omarchy-launch-browser"
 chmod +x "$stage/bin/omarchy-launch-browser"
+# Isolate the fixture from the host's NetworkManager so the resolved URL is deterministic.
+printf '%s\n' '#!/bin/bash' '[[ $1 == --print-config ]] && printf "[connectivity]\nuri=http://nmcheck.gnome.org/check_network_status.txt\n"' > "$stage/bin/NetworkManager"
+chmod +x "$stage/bin/NetworkManager"
 
 # All networking and external actions are mocked; the real connection and
 # browser are never touched, and the fixture writes only to its scratch HOME.
@@ -91,5 +135,5 @@ if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding l
   fail "network portal fixture has no QML errors" "$output"
 fi
 [[ -f $stage/browser.log ]] || fail "portal action launches the browser"
-[[ $(<"$stage/browser.log") == "http://ping.archlinux.org/nm-check.txt" ]] || fail "portal opens exactly one fixed HTTP URL"
+[[ $(<"$stage/browser.log") == "http://nmcheck.gnome.org/check_network_status.txt" ]] || fail "portal opens exactly one known HTTP probe URL"
 pass "network portal, recovery, disabled checks, outage, disconnect, keyboard navigation, and browser argv work in QML"
