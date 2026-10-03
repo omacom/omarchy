@@ -8,6 +8,7 @@ run_node_test <<'JS'
 const fs = require('fs')
 const network = requireFromRoot('shell/plugins/panels/network/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
+const statusSource = fs.readFileSync(root + '/bin/omarchy-network-status', 'utf8')
 
 assert(/IpcHandler[\s\S]*?function toggleNetwork\(\) \{ root\.toggleNetwork\(\) \}/.test(panelSource), 'network exposes the Wi-Fi radio toggle over IPC')
 assert(/manageIpc: false/.test(panelSource), 'network owns its IPC handler so it can extend the target methods')
@@ -176,6 +177,42 @@ const rows = network.sortWifiRows([
 assertDeepEqual(rows.map(row => row.ssid), ['Connected', 'Known', 'Open'], 'network sorts wifi rows by connection and known state')
 assertEqual(network.wifiSectionTitle(rows, 0), 'KNOWN NETWORKS', 'network labels known wifi section')
 assertEqual(network.wifiSectionTitle(rows, 2), 'OTHER NETWORKS', 'network labels other wifi section')
+
+assertEqual(network.shouldShowAdapter({ type: 'wifi', wifi_adapter_count: '0' }), false, 'network hides the adapter for no Wi-Fi devices')
+assertEqual(network.shouldShowAdapter({ type: 'wifi', wifi_adapter_count: '1' }), false, 'network hides the adapter for one Wi-Fi device')
+assertEqual(
+  network.shouldShowAdapter({ type: 'wifi', wifi_adapter_count: '2', ethernet_adapter_count: '1' }),
+  true,
+  'network shows the adapter for multiple Wi-Fi devices'
+)
+assertEqual(
+  network.shouldShowAdapter({ type: 'wifi', wifi_adapter_count: '1', ethernet_adapter_count: '2' }),
+  false,
+  'network ignores wired devices when deciding whether Wi-Fi is ambiguous'
+)
+assertEqual(
+  network.shouldShowAdapter({ type: 'ethernet', wifi_adapter_count: '1', ethernet_adapter_count: '2' }),
+  true,
+  'network shows the adapter for multiple wired devices'
+)
+assertEqual(
+  network.shouldShowAdapter({ type: 'ethernet', wifi_adapter_count: '2', ethernet_adapter_count: '1' }),
+  false,
+  'network ignores Wi-Fi devices when deciding whether Ethernet is ambiguous'
+)
+assertEqual(
+  network.shouldShowAdapter({ type: 'disconnected', wifi_adapter_count: '2', ethernet_adapter_count: '2' }),
+  false,
+  'network hides adapter detail when disconnected'
+)
+assert(
+  /showAdapter: Model\.shouldShowAdapter\(info\)/.test(panelSource),
+  'network wires adapter visibility to the tested model helper'
+)
+assert(
+  /wifi_adapter_count\\t%s\\n/.test(statusSource) && /ethernet_adapter_count\\t%s\\n/.test(statusSource),
+  'network verbose status reports physical adapter counts'
+)
 
 const wifiRow = network.wifiRow({ connected: true, known: true, name: 'Home', signalStrength: 0.8, security: 1 })
 assertDeepEqual(
