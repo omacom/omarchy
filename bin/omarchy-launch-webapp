@@ -10,8 +10,75 @@ google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
 *) browser="chromium.desktop" ;;
 esac
 
-browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)
+# Parse the .desktop Exec= line into tokens, honouring the desktop-entry quoting
+# rules, so a wrapped launcher (env VAR=val app, flatpak run App, ...) keeps
+# its full command line instead of collapsing to its first token.
+desktop_exec_tokens() {
+  local line="$1"
+  local token="" ch=""
+  local quoted=false
+  local i
 
-if ! omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then
-  exec setsid uwsm-app -- $browser_exec --app="$1" "${@:2}"
+  exec_tokens=()
+
+  for (( i = 0; i < ${#line}; i++ )); do
+    ch="${line:i:1}"
+
+    if [[ $quoted == true ]]; then
+      if [[ $ch == '"' ]]; then
+        quoted=false
+      elif [[ $ch == '\' ]]; then
+        if (( i + 1 < ${#line} )); then
+          token+="${line:i+1:1}"
+          (( i++ ))
+        else
+          token+="$ch"
+        fi
+      else
+        token+="$ch"
+      fi
+      continue
+    fi
+
+    case "$ch" in
+      '"')
+        quoted=true
+        ;;
+      '\')
+        if (( i + 1 < ${#line} )); then
+          token+="${line:i+1:1}"
+          (( i++ ))
+        else
+          token+="$ch"
+        fi
+        ;;
+      ' ' | $'\t')
+        if [[ -n $token ]]; then
+          exec_tokens+=("$token")
+          token=""
+        fi
+        ;;
+      *)
+        token+="$ch"
+        ;;
+    esac
+  done
+
+  [[ -n $token ]] && exec_tokens+=("$token")
+}
+
+desktop_exec_tokens "$(sed -n 's/^Exec=//p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)"
+
+# Field codes %u/%U/%f/%F/%i/%c/%k never apply here: the web-app URL is passed
+# as the browser's --app= argument instead.
+final_tokens=()
+for token in "${exec_tokens[@]}"; do
+  case "$token" in
+    %u | %U | %f | %F | %i | %c | %k) ;;
+    *) final_tokens+=("$token") ;;
+  esac
+done
+
+if ! omarchy-cmd-browser-handoff "${final_tokens[@]}" --app="$1" "${@:2}"; then
+  exec setsid uwsm-app -- "${final_tokens[@]}" --app="$1" "${@:2}"
 fi
