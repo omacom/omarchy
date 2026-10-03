@@ -30,7 +30,7 @@ If you're already familiar with Arch, you might be tempted to just run `pacman -
 
 ### Rolling back bad updates
 
-If you ever have a problem after doing an update, you can rollback your system to the snapshot taken before the update. Just restart and pick the snapshot in the boot loading menu from before you started the update.
+If you ever have a problem after doing an update, you can rollback your system to the snapshot taken before the update. Just restart and pick the snapshot in the boot loading menu from before you started the update. (If you skipped the snapshot when the update offered it, there is nothing to roll back to.)
 
 ![bootloader](images/bootloader.webp)
 
