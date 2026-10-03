@@ -1,0 +1,59 @@
+#!/bin/bash
+# Reload the Broadcom brcmfmac Wi-Fi driver around every sleep on Macs.
+#
+# On resume from S3 the BCM43602 in the 2016-2017 MacBook Pros sometimes keeps
+# its PCI registers readable while its firmware is dead. brcmfmac then takes its
+# hot-resume path, trusts the dead firmware, every command times out, and only
+# a driver reload or a reboot brings Wi-Fi back. Which path it takes is a coin
+# flip. Unloading the driver before sleep forces the full re-probe with a
+# firmware reload after resume, the path that always works. Measured on a
+# MacBookPro14,2 over more than thirty suspend cycles: interface present within
+# a second of resume, associated within about ten seconds, same address.
+#
+# Never blocks sleep: every path exits 0. Logs to the journal as
+# brcmfmac-reload. Delete this file to undo.
+
+MODS="brcmfmac_wcc brcmfmac"      # unload order matters: brcmfmac_wcc uses brcmfmac
+STATE=/run/brcmfmac-reload.state
+
+log() { logger -t brcmfmac-reload -- "$*"; }
+loaded() { grep -q '^brcmfmac ' /proc/modules; }
+# Any network interface whose PCI device is bound to brcmfmac.
+iface() { ls -d /sys/bus/pci/drivers/brcmfmac/0000:*/net/* 2>/dev/null | head -1 | xargs -r basename; }
+
+case "$1" in
+  pre)
+    rm -f "$STATE"
+    if ! loaded; then
+      echo absent >"$STATE"; log "pre/$2: brcmfmac not loaded, nothing to do"
+    elif timeout 60 modprobe -r $MODS; then
+      echo unloaded >"$STATE"; log "pre/$2: unloaded $MODS"
+    else
+      echo failed >"$STATE"; log "pre/$2: WARNING unload failed, driver left loaded"
+    fi
+    ;;
+  post)
+    state=$(cat "$STATE" 2>/dev/null || echo unknown)
+    if [[ $state != unloaded ]] && loaded; then
+      # pre could not unload (or its state was lost): force the reload now
+      if timeout 60 modprobe -r $MODS; then
+        log "post/$2: late unload ok (pre state: $state)"
+      else
+        log "post/$2: WARNING late unload failed (pre state: $state); leaving driver as is"
+        rm -f "$STATE"; exit 0
+      fi
+    fi
+    if modprobe brcmfmac; then
+      for ((i = 0; i < 40; i++)); do [[ -n $(iface) ]] && break; sleep 0.5; done
+      if [[ -n $(iface) ]]; then
+        log "post/$2: reloaded, $(iface) present after $((i / 2))s"
+      else
+        log "post/$2: WARNING reloaded but no brcmfmac interface after 20s"
+      fi
+    else
+      log "post/$2: ERROR modprobe brcmfmac failed"
+    fi
+    rm -f "$STATE"
+    ;;
+esac
+exit 0
