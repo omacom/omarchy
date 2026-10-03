@@ -7,6 +7,10 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 mkdir -p "$tmp_dir/bin" "$tmp_dir/home/.local/share/applications"
+# Keep the default-browser lookup off this machine's mimeapps.list, and the
+# handoff off its running browser's singleton socket.
+export XDG_CONFIG_HOME="$tmp_dir/home/.config" XDG_CONFIG_DIRS="$tmp_dir/etc" \
+  XDG_DATA_HOME="$tmp_dir/home/.local/share" XDG_DATA_DIRS="$tmp_dir/share"
 
 write_desktop() {
   local name="$1" exec_line="$2"
@@ -45,7 +49,7 @@ launch_webapp() {
 
   : >"$tmp_dir/launch"
   OMARCHY_TEST_BROWSER="$browser" OMARCHY_TEST_LAUNCH="$tmp_dir/launch" \
-    HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" \
+    HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$ROOT/bin:$PATH" \
     "$ROOT/bin/omarchy-launch-webapp" "$url"
 }
 
