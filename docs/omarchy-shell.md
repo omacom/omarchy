@@ -407,3 +407,5 @@ elsewhere). The module is an `Item` and receives `bar`, `moduleName`,
 `run(cmd)`, `showTooltip(t, s)` / `hideTooltip(t)`,
 `requestPopout(o)` / `releasePopout(o)`. To shell-quote arguments for
 `run`, use `Util.shellQuote(v)` from `qs.Commons`.
+
+The bar shows a tooltip only while its target reports `tooltipHovered: true`, so a module that calls `showTooltip` declares it, for example `readonly property bool tooltipHovered: visible && mouseArea.containsMouse`.
