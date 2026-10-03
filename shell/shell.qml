@@ -123,6 +123,7 @@ ShellRoot {
   FileView {
     id: defaultsFile
     path: shell.defaultsPath
+    blockLoading: true
     watchChanges: true
     printErrors: false
     onLoaded: shell.loadDefaults(text())
@@ -136,6 +137,7 @@ ShellRoot {
   FileView {
     id: userConfigFile
     path: shell.userConfigPath
+    blockLoading: true
     watchChanges: true
     atomicWrites: true
     printErrors: false
@@ -145,6 +147,8 @@ ShellRoot {
   }
 
   Component.onCompleted: {
+    // Resolve configuration before discovery can start services that the user disabled.
+    shell.loadDefaults(defaultsFile.text())
     console.log("omarchy-shell paths",
       "omarchyPath=" + shell.omarchyPath,
       "shellDir=" + Quickshell.shellDir,
