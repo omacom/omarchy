@@ -106,16 +106,16 @@ pass "the migration rebuilds without rewriting an existing setting"
 
 # efibootmgr 18 prints the device path after a tab; older versions print the label alone.
 uki_path='HD(3,GPT,1-2,0x800,0x400000)/\\EFI\\Linux\\omarchy_linux-aarch64.efi'
-for entry in "Boot0002* Omarchy\t$uki_path" 'Boot0002* Omarchy' 'Boot0002 Omarchy'; do
+for entry in "Boot0002* Omarchy\t$uki_path" 'Boot0002* Omarchy'; do
   TEST_EFI_ENTRIES="$entry" run spark "$scratch/direct-boot" bash -euo pipefail "$migration" >/dev/null
   ! grep -q '^sudo ' "$CALL_LOG" || fail "the migration preserves Direct Boot"
   [[ ! -e $scratch/direct-boot ]] || fail "Direct Boot keeps its setting and UKI"
 done
-# Only the dedicated Omarchy label implies Direct Boot; a Limine entry the
-# installer labelled after the disk must not make this migration skip the rebuild.
-for entry in 'Boot0002* Omarchy Rescue' 'Boot0001* Omarchy - Samsung 422087P\tHD(1,GPT,1-2,0x800,0x400000)/\\EFI\\LIMINE\\LIMINE_AA64.EFI'; do
+# Only an active entry with the dedicated Omarchy label implies Direct Boot; an
+# inactive one or a Limine entry labelled after the disk must not skip the rebuild.
+for entry in "Boot0002 Omarchy\t$uki_path" 'Boot0002* Omarchy Rescue' 'Boot0001* Omarchy - Samsung 422087P\tHD(1,GPT,1-2,0x800,0x400000)/\\EFI\\LIMINE\\LIMINE_AA64.EFI'; do
   TEST_EFI_ENTRIES="$entry" run spark "$scratch/other-label" bash -euo pipefail "$migration" >/dev/null
-  grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "a different EFI label does not imply Direct Boot"
+  grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "only an active Omarchy entry implies Direct Boot"
   rm -rf "$scratch/other-label"
 done
 pass "the migration preserves an Omarchy Direct Boot entry"

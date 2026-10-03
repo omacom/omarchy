@@ -12,9 +12,10 @@ omarchy-cmd-present limine-mkinitcpio || exit 0
 
 # Direct Boot loads the UKI through firmware. Rebuilding without a UKI would
 # delete its boot target; leave that choice intact, including its boot files.
-# efibootmgr 18 follows each label with a tab and the device path.
+# An inactive entry (no *) isn't booted. efibootmgr 18 follows each label with
+# a tab and the device path.
 efi_labels=$(efibootmgr | cut -f1)
-if grep -Eq '^Boot[0-9A-Fa-f]+\*?[[:space:]]+Omarchy[[:space:]]*$' <<<"$efi_labels"; then
+if grep -Eq '^Boot[0-9A-Fa-f]+\*[[:space:]]+Omarchy[[:space:]]*$' <<<"$efi_labels"; then
   echo "Keeping the UKI because Omarchy Direct Boot is configured"
   exit 0
 fi
