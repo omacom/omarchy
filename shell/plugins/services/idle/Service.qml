@@ -67,7 +67,7 @@ Item {
   function launchScreensaver() {
     root.screensaverStartedThisCycle = true
     screensaverLaunchGraceTimer.restart()
-    runProcess(screensaverProcess, "screensaver", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || omarchy-launch-screensaver")
+    runProcess(screensaverProcess, "screensaver", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || omarchy-launch-screensaver --idle")
   }
 
   function lockSystem(reason) {
@@ -179,6 +179,13 @@ Item {
     else handleActiveSignal()
   }
 
+  function handleScreensaverActivity() {
+    if (!root.idleEnabled || !root.idledThisCycle || !root.screensaverStartedThisCycle) return
+    if (root.screensaverWindowCount === 0 || screensaverProcess.running) return
+    runProcess(screensaverDismissProcess, "screensaver-dismiss", "pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null || true")
+    root.cancelIdleCycle("screensaver-activity")
+  }
+
   function statusJson() {
     return JSON.stringify({
       enabled: root.idleEnabled,
@@ -257,6 +264,18 @@ Item {
     onIsIdleChanged: root.handleIdleChanged()
   }
 
+  // The normal idle monitor can already be active from mapping the terminals,
+  // so it cannot report every later input. Once the launcher has restored
+  // monitor focus, watch actual input without requiring a focused terminal.
+  IdleMonitor {
+    id: screensaverActivityMonitor
+    enabled: root.idleEnabled && root.idledThisCycle && root.screensaverStartedThisCycle
+      && root.screensaverWindowCount > 0 && !screensaverProcess.running
+    timeout: 0
+    respectInhibitors: false
+    onIsIdleChanged: if (enabled && !isIdle) root.handleScreensaverActivity()
+  }
+
   Timer {
     id: screensaverTimer
     interval: root.screensaverDelaySeconds * 1000
@@ -298,6 +317,10 @@ Item {
   Process {
     id: wakeProcess
     onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "wake exitCode=" + exitCode + " status=" + exitStatus) }
+  }
+  Process {
+    id: screensaverDismissProcess
+    onExited: function(exitCode) { root.logEvent("process-exit", "screensaver-dismiss exitCode=" + exitCode) }
   }
 
   Process {
