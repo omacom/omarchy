@@ -143,3 +143,85 @@ output=$(TEST_DF_INVALID=1 run_update -y)
 [[ -z $output ]] || fail "failed disk-space detection remains silent"
 [[ -f $snapshot_marker ]] || fail "failed disk-space detection does not block the update"
 pass "failed disk-space detection silently continues"
+
+# The ESP guard sizes its ask against the largest UKI already on disk, so it
+# needs a fake ESP tree, an arg-aware df, and a sed that points ESP_PATH at
+# the fake tree without touching the real /etc/default/limine.
+esp_tree="$test_tmp/esp"
+mkdir -p "$esp_tree/EFI/Linux"
+truncate -s 300M "$esp_tree/EFI/Linux/omarchy_linux.efi"
+
+real_sed=$(command -v sed)
+
+write_stub sed '
+if [[ ${1:-} == "-n" && ${3:-} == "/etc/default/limine" ]]; then
+  printf "%s\n" "$TEST_ESP_PATH"
+else
+  exec "$REAL_SED" "$@"
+fi'
+export REAL_SED="$real_sed"
+
+write_stub findmnt '
+last="${*: -1}"
+[[ $last == "$TEST_ESP_PATH" ]] && echo /dev/esp || echo /dev/root'
+
+write_stub df '
+last="${*: -1}"
+if [[ $last == "/" ]]; then
+  if (( TEST_DF_INVALID )); then
+    printf "Avail\nunknown\n"
+  else
+    printf "Avail\n%s\n" "$TEST_AVAILABLE_BYTES"
+  fi
+else
+  printf "Avail\n%s\n" "$TEST_ESP_AVAILABLE_BYTES"
+fi'
+
+run_free_space() {
+  TEST_ESP_PATH="$esp_tree" \
+  TEST_ESP_AVAILABLE_BYTES=${TEST_ESP_AVAILABLE_BYTES:-$((600 * 1024 * 1024))} \
+  TEST_AVAILABLE_BYTES=$((20 * 1024 * 1024 * 1024)) \
+  TEST_DF_INVALID=0 \
+  PATH="$stub_bin:$ROOT/bin:$PATH" \
+    "$ROOT/bin/omarchy-update-requires-free-space"
+}
+
+set +e
+output=$(TEST_ESP_AVAILABLE_BYTES=$((100 * 1024 * 1024)) run_free_space)
+status=$?
+set -e
+(( status == 1 )) || fail "ESP with less than 2x the largest UKI free blocks the update"
+[[ $output == *"free in $esp_tree"* ]] || fail "ESP guard names the ESP path in its message"
+pass "full ESP blocks the update and names the ESP path"
+
+set +e
+output=$(TEST_ESP_AVAILABLE_BYTES=$((600 * 1024 * 1024)) run_free_space)
+status=$?
+set -e
+(( status == 0 )) || fail "ESP headroom at exactly 2x the largest UKI lets the update proceed"
+pass "ESP with room for one more UKI plus churn does not block"
+
+set +e
+output=$(TEST_ESP_AVAILABLE_BYTES=$((1024)) run_free_space)
+status=$?
+set -e
+(( status == 1 )) || fail "ESP guard blocks from the measured shortfall, not a fixed floor"
+[[ $output == *"600M"* ]] || fail "ESP guard reports the human-sized requirement"
+pass "ESP requirement scales with the largest UKI on disk"
+
+set +e
+rm -rf "$esp_tree/EFI/Linux"
+output=$(TEST_ESP_AVAILABLE_BYTES=$((1024)) run_free_space)
+status=$?
+set -e
+(( status == 0 )) || fail "ESP without UKIs does not block the update"
+pass "ESP guard skips when there is no UKI to size against"
+
+set +e
+mkdir -p "$esp_tree/EFI/Linux"
+truncate -s 300M "$esp_tree/EFI/Linux/omarchy_linux.efi"
+output=$(TEST_ESP_PATH="/" run_free_space)
+status=$?
+set -e
+(( status == 0 )) || fail "root-backed ESP defers to the root check"
+pass "ESP on the root filesystem is covered by the root check"

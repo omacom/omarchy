@@ -12,6 +12,40 @@ elif read -r available_bytes < <(df --output=avail --block-size=1 / 2>/dev/null 
   (( available_bytes < 10 * 1024 * 1024 * 1024 )); then
   echo "You need at least 10 GiB free to safely update Omarchy."
   exit 1
-else
+fi
+
+# A UKI + Limine boot squeezes the ESP, not root: a kernel update writes a
+# fresh UKI while limine-snapper-sync still holds its retained copies, and an
+# ESP that fills mid-update leaves the machine unbootable. Root's 10 GiB check
+# cannot see that when the ESP is its own small filesystem, so the ask is
+# sized against the largest UKI already on disk: the update writes at least
+# one more of that size, with headroom for the retention churn around it.
+# See omacom/omarchy#13355.
+esp=$(sed -n 's/^ESP_PATH=["'\'']\{0,1\}\([^"'\'']*\).*/\1/p' /etc/default/limine 2>/dev/null | tail -n 1)
+esp=${esp:-/boot}
+
+# One filesystem check is enough: an ESP living on root is already covered by
+# the 10 GiB check above.
+if [[ $(findmnt -nro SOURCE "$esp" 2>/dev/null) == "$(findmnt -nro SOURCE / 2>/dev/null)" ]]; then
   exit 0
 fi
+
+# No UKIs (different bootloader, or a wiped ESP) means nothing to size against.
+largest_uki_bytes=$(find "$esp" -xdev -type f -name '*.efi' -printf '%s\n' 2>/dev/null | sort -nr | head -n 1)
+if ! [[ $largest_uki_bytes =~ ^[0-9]+$ ]]; then
+  exit 0
+fi
+
+if ! read -r esp_available_bytes < <(df --output=avail --block-size=1 "$esp" 2>/dev/null | tail -n 1) ||
+  ! [[ $esp_available_bytes =~ ^[0-9]+$ ]]; then
+  # Unmeasurable ESP: warn rather than block the update on a bad df reading.
+  echo "Could not measure free space in $esp; check it has room for another $(numfmt --to=iec -- "$largest_uki_bytes") UKI." >&2
+  exit 0
+fi
+
+if (( esp_available_bytes >= largest_uki_bytes * 2 )); then
+  exit 0
+fi
+
+echo "You need at least $(numfmt --to=iec -- "$(( largest_uki_bytes * 2 ))") free in $esp to safely update Omarchy."
+exit 1
