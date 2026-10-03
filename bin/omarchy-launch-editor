@@ -48,7 +48,7 @@ nvim | vim | vi | nano | micro | hx | helix | fresh)
   if [[ $inline == "true" ]]; then
     wait_flag=()
     case "${editor##*/}" in
-    code | code-insiders | codium | cursor | windsurf | zed | zeditor | gnome-text-editor | gedit)
+    code | code-insiders | codium | cursor | windsurf | zed | zeditor | gedit)
       wait_flag=(--wait)
       ;;
     subl)
