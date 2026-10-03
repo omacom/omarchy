@@ -11,3 +11,11 @@ fi
 
 # Ensure command hashing is off for mise
 set +h
+
+# Keep the arrow pointer over the terminal rather than the I-beam. OSC 22 sets
+# the pointer shape for this window; foot, ghostty, and kitty honor it, and a
+# terminal that does not (Alacritty) ignores it. Inside tmux the sequence would
+# reach tmux rather than the terminal, so leave that to the outer shell.
+if [[ $- == *i* && -t 1 && ${TERM:-} != "dumb" && -z ${TMUX:-} ]]; then
+  printf '\e]22;default\a'
+fi
