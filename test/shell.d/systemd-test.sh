@@ -12,6 +12,54 @@ pass "bt-agent skips when bluetooth.service is inactive"
 grep -Fx 'Restart=on-failure' "$service" >/dev/null
 pass "bt-agent still restarts after runtime failures"
 
+declare -A bt_settings=()
+section=""
+while IFS= read -r line; do
+  if [[ $line =~ ^\[([^]]+)\]$ ]]; then
+    section=${BASH_REMATCH[1]}
+  elif [[ $line =~ ^([A-Za-z]+)=(.*)$ ]]; then
+    bt_settings["$section.${BASH_REMATCH[1]}"]=${BASH_REMATCH[2]}
+  fi
+done < "$service"
+
+[[ ${bt_settings[Service.RestartSec]:-} == "15" ]] ||
+  fail "bt-agent restart delay is too aggressive for flapping devices"
+
+# Model systemd's start-limit window without sleeping or touching a live unit.
+# Each failure takes 15 seconds, followed by the configured restart delay.
+simulate_bt_starts() {
+  local interval=$1 burst=$2 delay=$3
+  local now=0 window_start=0 window_starts=0 allowed=0 attempt
+
+  for (( attempt = 0; attempt < 9; attempt++ )); do
+    if (( now - window_start > interval )); then
+      window_start=$now
+      window_starts=0
+    fi
+    if (( window_starts >= burst )); then
+      break
+    fi
+    (( window_starts += 1, allowed += 1, now += 15 + delay ))
+  done
+  printf '%s\n' "$allowed"
+}
+
+# StartLimitIntervalSec is ignored in [Service]; StartLimitBurst has a
+# legacy [Service] alias. The default 10-second interval permits every retry.
+interval=${bt_settings[Unit.StartLimitIntervalSec]:-10}
+burst=${bt_settings[Unit.StartLimitBurst]:-${bt_settings[Service.StartLimitBurst]:-5}}
+delay=${bt_settings[Service.RestartSec]}
+[[ $(simulate_bt_starts 10 8 "$delay") == "9" ]] ||
+  fail "restart simulation must reproduce retries escaping the default window"
+[[ $(simulate_bt_starts "$interval" "$burst" "$delay") == "8" ]] ||
+  fail "bt-agent must allow eight starts and reject the ninth within 300 seconds"
+
+[[ ${bt_settings[Unit.StartLimitIntervalSec]:-} == "300" && ${bt_settings[Unit.StartLimitBurst]:-} == "8" ]] ||
+  fail "bt-agent restart limits must be configured in [Unit]"
+[[ ! -v bt_settings[Service.StartLimitIntervalSec] && ! -v bt_settings[Service.StartLimitBurst] ]] ||
+  fail "bt-agent restart limits must not be configured in [Service]"
+pass "bt-agent backs off and caps restarts while a device flaps"
+
 sleep_service="$ROOT/default/systemd/user/omarchy-sleep-lock.service"
 grep -Fx 'ExecStart=/usr/bin/omarchy-system-sleep-monitor' "$sleep_service" >/dev/null
 pass "sleep lock service uses the package-backed monitor path"
