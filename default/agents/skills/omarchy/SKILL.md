@@ -219,19 +219,19 @@ omarchy refresh hyprland
 ```bash
 omarchy update                  # Full system update
 omarchy version                 # Show Omarchy version
-omarchy debug --no-sudo --print # Debug info (ALWAYS use these flags)
+omarchy-debug --no-sudo --print # Debug info (ALWAYS use these flags)
 omarchy system lock             # Lock screen
 omarchy system shutdown         # Shutdown
 omarchy system reboot           # Reboot
 ```
 
-**IMPORTANT:** Always run `omarchy debug` with `--no-sudo --print` flags to avoid interactive sudo prompts that will hang the terminal.
+**IMPORTANT:** Always run `omarchy-debug` with `--no-sudo --print` flags to avoid interactive sudo prompts that will hang the terminal.
 
 ## Troubleshooting
 
 ```bash
 # Get debug information (ALWAYS use these flags to avoid interactive prompts)
-omarchy debug --no-sudo --print
+omarchy-debug --no-sudo --print
 
 # Reset specific config to defaults
 omarchy refresh <app>
