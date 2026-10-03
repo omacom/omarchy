@@ -18,6 +18,7 @@ assert(/manageIpc: false/.test(panelSource), 'bluetooth owns its IPC handler so 
 
 // Writing adapter.enabled sets BlueZ Powered, which does not survive a reboot.
 assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", adapter\.enabled \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
+assert(/function toggleBluetooth\(\)[\s\S]*?!adapter[\s\S]*?"omarchy-bluetooth-power", "on"/.test(panelSource), 'bluetooth turns on when adapter is null')
 assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the adapter power state directly')
 
 // Discovery is a BlueZ session that nothing ends at panel close: it persists
@@ -27,6 +28,8 @@ assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the ada
 // once closed.
 const retryTimer = panelSource.match(/id: discoveryRetry[\s\S]*?onTriggered: \{[\s\S]*?\n {4}\}/)
 assert(retryTimer, 'bluetooth has the discovery retry timer')
+assert(/attempts < 10/.test(panelSource), 'bluetooth bounds discovery retry attempts')
+assert(/interval = Math\.min\(8000, interval \* 2\)/.test(panelSource), 'bluetooth backs off discovery retry interval')
 assert(/owesDiscoveryStop = true/.test(retryTimer[0]), 'bluetooth takes on the stop it owes when it starts discovery')
 
 // Quickshell only forwards a discovering write that differs from BlueZ's last
