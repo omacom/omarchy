@@ -13,6 +13,12 @@ Omarchy tackles both problems with unified clipboard hotkeys that work (almost) 
 
 _Note that most agent harnesses will use `Ctrl + V` for pasting images, but `Super + V` for pasting text._
 
+If an app binds `Super + A/C/V/X` itself, such as an Emacs config with its own Super bindings, you can let those chords through untranslated for that app by tagging its windows in `~/.config/hypr/bindings.lua`:
+
+```lua
+o.window("(emacs|Emacs)", { tag = "+native-super-clipboard" })
+```
+
 ### Clipboard history
 
 The clipboard history is provided by the Omarchy shell and works for both text and images. You trigger it by `Super + Ctrl + V`, select your entry with return, and then that'll be placed on the clipboard ready to paste on `Super + V`.
