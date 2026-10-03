@@ -76,6 +76,12 @@ if notifications_ready; then
   notifications_were_running=1
 fi
 
+# A supervisor that was SIGKILLed leaves its pid file behind, and its pid can be
+# reused, so only signal the recorded pid while it is still a launcher.
+is_launch_supervisor() {
+  [[ $(tr '\0' ' ' 2>/dev/null <"/proc/$1/cmdline") == *omarchy-launch-shell* ]]
+}
+
 stop_launch_supervisor() {
   local pid_file="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy/launch-shell.pid"
   local old_pid
@@ -83,15 +89,17 @@ stop_launch_supervisor() {
   [[ -f $pid_file ]] || return 0
   old_pid=$(<"$pid_file")
   [[ $old_pid =~ ^[0-9]+$ ]] || return 0
-  kill -0 "$old_pid" 2>/dev/null || return 0
+  is_launch_supervisor "$old_pid" || return 0
 
   kill -TERM "$old_pid" 2>/dev/null || true
   local waited
   for (( waited = 0; waited < 50; waited++ )); do
-    kill -0 "$old_pid" 2>/dev/null || return 0
+    is_launch_supervisor "$old_pid" || return 0
     sleep 0.1
   done
-  kill -KILL "$old_pid" 2>/dev/null || true
+  if is_launch_supervisor "$old_pid"; then
+    kill -KILL "$old_pid" 2>/dev/null || true
+  fi
 }
 
 launch_replacement() {

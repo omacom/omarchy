@@ -51,6 +51,14 @@ compositor_alive() {
 pid_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy"
 mkdir -p "$pid_dir"
 pid_file="$pid_dir/launch-shell.pid"
+
+# A second launcher, started by hand or by restart-shell's mid-wait kick, must
+# leave a running supervisor's record alone, or the next restart cannot stop it.
+recorded_pid=$(cat "$pid_file" 2>/dev/null)
+if [[ $recorded_pid =~ ^[0-9]+$ ]] && (( recorded_pid != $$ )) &&
+  [[ $(tr '\0' ' ' 2>/dev/null <"/proc/$recorded_pid/cmdline") == *omarchy-launch-shell* ]]; then
+  exit 0
+fi
 printf '%s\n' "$$" >"$pid_file"
 
 clear_pid_file() {
