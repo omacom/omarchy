@@ -233,8 +233,11 @@ function lifeProgressPercent(age, expectancy) {
 // panel jump under the pointer.
 function monthGrid(year, month, weekStart, todayKey) {
   var start = normalizedWeekStart(weekStart, 1)
-  var leading = (new Date(year, month, 1).getDay() - start + 7) % 7
-  var cursor = new Date(year, month, 1 - leading)
+  // Walk the grid at noon. Where DST starts at midnight, that midnight does not
+  // exist, and QML's engine resolves it to 23:00 the day before, so a midnight
+  // cursor repeats a day and shifts every later cell by one weekday.
+  var leading = (new Date(year, month, 1, 12).getDay() - start + 7) % 7
+  var cursor = new Date(year, month, 1 - leading, 12)
   var today = String(todayKey || "")
   var weeks = []
 
