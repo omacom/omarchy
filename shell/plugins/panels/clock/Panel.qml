@@ -98,11 +98,11 @@ Panel {
   }
 
   function close() {
-    setCenterHoverRevealSuppressed(false)
-    // Dismissing the panel mid-edit would otherwise leave the inputs up,
-    // waiting behind a closed popup for the next time it opens.
+    // Hide first. A throw while writing centerHoverRevealSuppressed used to
+    // abort before hide() and leak the Exclusive keyboard overlay.
     if (root.editingLife) root.cancelEditingLife()
     root.controller.hide()
+    setCenterHoverRevealSuppressed(false)
   }
 
   function toggle() {
