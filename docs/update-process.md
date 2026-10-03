@@ -125,7 +125,7 @@ omarchy-update
   │    └─ acquire the update lock and run omarchy-update inside it
   ├─ omarchy-update-requires-free-space
   │    └─ abort below the configured free-space threshold on /
-  ├─ confirm unless -y
+  ├─ confirm unless -y or --confirmed
   ├─ authorize sudo once, then keep the timestamp fresh in the background
   ├─ omarchy-update-pkg-prune
   │    └─ trim the pacman cache to two versions per package, deliberately
@@ -158,6 +158,7 @@ Important behavior:
 - Sleep inhibition authenticates before detaching, drops the held command back to the caller, and closes both update lock descriptors before the persistent process starts. Cleanup accepts only caller-owned, mode-0600, single-link state and revalidates the recorded PID, process start time, owner, and random token immediately before every signal.
 - Channel switching swaps the `omarchy`/`omarchy-dev` pair with a direct `pacman -S`, since the refresh before it can already have installed an older release without this tree's helpers, then hands off to the destination's own `omarchy update`.
 - `-y` exports `OMARCHY_UPDATE_UNATTENDED=1` and suppresses Omarchy confirmation prompts. Conflict handoff reports and skips instead of blocking. Orphan packages are automatically removed during every update. Privileged commands still require the one sudo authorization.
+- `--confirmed` skips only the update question, for a caller that already asked it (the channel switch). Unlike `-y` it does not set `OMARCHY_UPDATE_UNATTENDED`, so the reboot offer and the conflict handoff stay interactive.
 - The free-space requirement uses a 10 GiB threshold and stops the update before
   confirmation when it is not met. If free space cannot be determined, the
   check is silently skipped. Set `OMARCHY_UPDATE_FORCE=1` to bypass the check.
