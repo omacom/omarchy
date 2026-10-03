@@ -22,6 +22,10 @@ hl.config({
 })
 ```
 
+### Left Shift locks uppercase (and symbols) in X11 / XWayland apps
+
+Older Omarchy defaults paired `compose:caps` with `shift:both_capslock_cancel`. That places `Caps_Lock` on level 2 of both Shift keys. Wayland clients handle it correctly; XWayland's core modifier map does not, so Left Shift becomes a locking key. Drop `shift:both_capslock*` from `kb_options` in `~/.config/hypr/input.lua` (keep `compose:caps` if you still want Caps as compose), then `hyprctl reload`. If you use fcitx5, restart it too so its virtual keyboard picks up the new map.
+
 ### My Wi-Fi, Bluetooth, audio, or trackpad just stopped working
 
 Before you reboot, try restarting the offending subsystem on its own. _Update > Hardware_ in the Omarchy menu has Wi-Fi, Bluetooth, Audio, and Trackpad, and reloading one of those clears up the majority of "it worked five minutes ago" situations — a Bluetooth headset that won't reconnect, a trackpad that went dead after a suspend, sound that vanished when you unplugged a monitor.
