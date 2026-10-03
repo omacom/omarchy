@@ -296,12 +296,19 @@ function leafIdFor(id) {
   return parts.length > 0 ? parts[parts.length - 1] : id
 }
 
+// App rows carry searchId: their desktop id, or "" when that id is a web
+// app's generated one (see searchableId in AppSearch.js), which must not be
+// searchable. entry.id still identifies the row.
+function searchIdFor(entry) {
+  return typeof entry.searchId === "string" ? entry.searchId : entry.id
+}
+
 function nameSearchText(entry) {
   if (!entry) return ""
   var aliases = []
   var values = Array.isArray(entry.aliases) ? entry.aliases : []
   for (var i = 0; i < values.length; i++) aliases.push(searchableToken(values[i]))
-  return [entry.label, searchableToken(leafIdFor(entry.id)), aliases.join(" ")].join(" ").toLowerCase()
+  return [entry.label, searchableToken(leafIdFor(searchIdFor(entry))), aliases.join(" ")].join(" ").toLowerCase()
 }
 
 function termInSearchWords(term, text) {
