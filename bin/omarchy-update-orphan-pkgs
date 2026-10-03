@@ -12,7 +12,9 @@ echo -e "\e[32m\nOrphan system packages\e[0m"
 printf '  %s\n' "${orphans[@]}"
 echo
 
-if [[ ! -t 0 || ! -t 1 ]]; then
+# -y / OMARCHY_UPDATE_UNATTENDED promises not to ask. gum confirm would hang
+# a TTY unattended update forever (#13356).
+if [[ -n ${OMARCHY_UPDATE_UNATTENDED:-} || ! -t 0 || ! -t 1 ]]; then
   echo "${#orphans[@]} orphaned package(s) found. Re-run omarchy-update-orphan-pkgs in a terminal to review/remove them."
   echo
   exit 0
