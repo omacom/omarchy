@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick]
-# omarchy:examples=omarchy agent | omarchy agent --inline
+# omarchy:args=[--inline] [--pick] [--fallback]
+# omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --fallback
 
 inline=false
 pick=false
+fallback=false
 
 # Flags only. A bare prompt would shadow the subcommands under this group, so
 # prompts go through omarchy-agent-prompt, which passes one here as --prompt.
@@ -17,6 +18,10 @@ while (($#)); do
       ;;
     --pick)
       pick=true
+      shift
+      ;;
+    --fallback)
+      fallback=true
       shift
       ;;
     --prompt)
@@ -36,6 +41,129 @@ done
 [[ $PWD == "$HOME" && -d $HOME/Work ]] && cd "$HOME/Work"
 
 agent=$(omarchy-default-agent)
+
+if [[ $fallback == "true" ]]; then
+  resolved_agent=$(python3 - <<'EOF' "${agent:-}"
+import os, sys, json, shutil
+from pathlib import Path
+
+default_agent = sys.argv[1] if len(sys.argv) > 1 else ""
+usage_dir = Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state")) / "omarchy" / "agents" / "usage"
+
+AGENTS = [
+  ("claude", ["claude"], ["claude"]),
+  ("codex", ["codex"], ["codex"]),
+  ("cursor-agent", ["cursor-agent", "cursor"], ["cursor", "cursor-agent"]),
+  ("opencode", ["opencode"], ["opencode"]),
+  ("agy", ["agy", "gemini"], ["agy", "gemini"]),
+  ("copilot", ["copilot"], ["copilot"]),
+  ("grok", ["grok"], ["grok"]),
+  ("openclaw", ["openclaw", "omarchy-launch-openclaw"], ["openclaw"]),
+  ("hermes", ["hermes"], ["hermes"]),
+  ("crush", ["crush"], ["crush"]),
+  ("muse", ["muse"], ["muse"]),
+  ("omp", ["omp"], ["omp"]),
+  ("ori", ["ori"], ["ori"]),
+  ("pi", ["pi"], ["pi"]),
+]
+
+home = str(Path.home())
+path_env = os.environ.get("PATH", "")
+extra_paths = [f"{home}/.local/bin", f"{home}/.local/share/mise/shims", "/usr/share/omarchy/bin"]
+full_path = path_env + ":" + ":".join(extra_paths)
+
+def evaluate_agent(agent_name, bins, usage_stems):
+  installed = any(shutil.which(b, path=full_path) for b in bins)
+  if not installed:
+    return -1.0
+
+  record = None
+  for stem in usage_stems:
+    uf = usage_dir / f"{stem}.json"
+    if uf.is_file():
+      try:
+        record = json.loads(uf.read_text(encoding="utf-8"))
+        break
+      except Exception:
+        pass
+
+  if not record or not isinstance(record, dict):
+    return 50.0
+
+  ready = record.get("ready", True)
+  status = str(record.get("usageStatusText", "") or "").strip().lower()
+  auth_help = str(record.get("authHelpText", "") or "").strip().lower()
+
+  if ready is False or "expired" in status or "sign in" in status or "expired" in auth_help or "unavailable" in status:
+    return 0.0
+
+  limits = record.get("limits") or []
+  has_limit = False
+  max_limit_pct = 0.0
+  for lim in limits:
+    if isinstance(lim, dict) and lim.get("percent") is not None:
+      try:
+        pct = float(lim["percent"])
+        has_limit = True
+        if pct > max_limit_pct:
+          max_limit_pct = pct
+      except (ValueError, TypeError):
+        pass
+
+  if has_limit and max_limit_pct >= 1.0:
+    return 0.0
+
+  balance = record.get("balance")
+  if isinstance(balance, dict):
+    try:
+      remaining = float(balance.get("remaining", 0) or 0)
+      if remaining <= 0:
+        return 0.0
+    except (ValueError, TypeError):
+      pass
+
+  if has_limit:
+    return 100.0 - (max_limit_pct * 50.0)
+  if isinstance(balance, dict) and float(balance.get("remaining", 0) or 0) > 0:
+    return 95.0
+  if ready and not status:
+    return 80.0
+  return 50.0
+
+default_score = 0.0
+if default_agent:
+  for name, bins, stems in AGENTS:
+    if name == default_agent:
+      default_score = evaluate_agent(name, bins, stems)
+      break
+  else:
+    if shutil.which(default_agent, path=full_path):
+      default_score = 50.0
+
+if default_score > 0.0:
+  print(default_agent)
+  sys.exit(0)
+
+candidates = []
+for name, bins, stems in AGENTS:
+  score = evaluate_agent(name, bins, stems)
+  if score > 0.0:
+    candidates.append((score, name))
+
+if candidates:
+  candidates.sort(key=lambda x: x[0], reverse=True)
+  print(candidates[0][1])
+else:
+  print(default_agent)
+EOF
+)
+  if [[ -n $resolved_agent && $resolved_agent != "$agent" ]]; then
+    if [[ -n $agent ]]; then
+      echo "Default agent '$agent' has no available usage; falling back to '$resolved_agent'" >&2
+    fi
+    agent="$resolved_agent"
+  fi
+fi
 
 # Omarchy ships without a default, so there is nothing to launch until one is
 # picked. --pick offers the choice instead of the error, which is what the
