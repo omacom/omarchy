@@ -52,8 +52,26 @@ printf 'reboot\n' >>"$OMARCHY_DEV_LINK_TEST_LOG"
 SH
 chmod +x "$stub_bin/omarchy-system-reboot"
 
+cat >"$stub_bin/realpath" <<'SH'
+#!/bin/bash
+while (( $# )); do
+  case "$1" in
+    -e|--canonicalize-existing) shift ;;
+    -*) shift ;;
+    *) break ;;
+  esac
+done
+[[ -n ${1:-} && -e $1 ]] || exit 1
+printf '%s\n' "$1"
+SH
+chmod +x "$stub_bin/realpath"
+
+runtime_dir="$test_tmp/runtime"
+mkdir -m 700 -p "$runtime_dir"
+
 run_link() {
   HOME="$test_tmp/home" \
+    XDG_RUNTIME_DIR="$runtime_dir" \
     OMARCHY_DEV_LINK_TEST_LOG="$log_file" \
     OMARCHY_DEV_LINK_TEST_CONF="$conf_file" \
     OMARCHY_DEV_LINK_TEST_SUDOERS="$sudoers_file" \
@@ -87,6 +105,18 @@ pass "dev link prepends the checkout to sudo's secure_path"
 grep -Eq $'^sudo\tinstall\t-Dm440\t-o\troot\t-g\troot\t[^\t]+\t/etc/sudoers\\.d/omarchy-dev-path$' "$log_file" ||
   fail "dev link installs the drop-in root-owned and read-only" "$(cat "$log_file")"
 pass "dev link installs the drop-in root-owned and read-only"
+
+staged_path=$(awk -F '\t' '$1 == "sudo" && $2 == "install" { print $(NF-1) }' "$log_file")
+[[ $staged_path == "$runtime_dir"/omarchy-dev-path.* ]] ||
+  fail "dev link stages sudoers under XDG_RUNTIME_DIR" "$(cat "$log_file")"
+pass "dev link stages sudoers under XDG_RUNTIME_DIR"
+
+if grep -Fq 'staged_sudoers=$(mktemp)' "$ROOT/bin/omarchy-dev-link"; then
+  fail "dev link must not mktemp sudoers in the default /tmp"
+fi
+grep -Fq '${XDG_RUNTIME_DIR:-/tmp/omarchy-$UID}' "$ROOT/bin/omarchy-dev-link" ||
+  fail "dev link falls back to a 0700 /tmp/omarchy-\$UID directory"
+pass "dev link does not stage sudoers in world-writable /tmp"
 
 visudo -cf "$sudoers_file" >/dev/null ||
   fail "dev link writes a sudoers drop-in sudo can parse" "$(<"$sudoers_file")"

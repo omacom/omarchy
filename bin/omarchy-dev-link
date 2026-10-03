@@ -92,7 +92,10 @@ done
 # Staged and parsed before anything is installed: a sudoers file sudo refuses to
 # read takes every rule after it down with it, including the %wheel grant, and
 # the password prompt needed to undo that is on the other side of the breakage.
-staged_sudoers=$(mktemp)
+# Keep the draft out of world-writable /tmp; visudo -cf reads it before install.
+stage_dir="${XDG_RUNTIME_DIR:-/tmp/omarchy-$UID}"
+mkdir -m 700 -p "$stage_dir"
+staged_sudoers=$(mktemp "$stage_dir/omarchy-dev-path.XXXXXX")
 trap 'rm -f "$staged_sudoers"' EXIT
 
 {
