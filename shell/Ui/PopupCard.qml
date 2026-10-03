@@ -58,8 +58,15 @@ PopupWindow {
   }
 
   function close() {
-    if (owner && "close" in owner) owner.close()
-    else root.open = false
+    try {
+      if (owner && "close" in owner) {
+        owner.close()
+        return
+      }
+    } catch (e) {
+      console.warn("PopupCard: owner close() threw, forcing close:", e)
+    }
+    root.open = false
   }
 
   default property alias contentItem: contentHolder.children

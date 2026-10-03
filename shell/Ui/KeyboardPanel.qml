@@ -67,8 +67,15 @@ PanelWindow {
   readonly property string barPos: bar ? bar.position : "top"
 
   function close() {
-    if (owner && "close" in owner) owner.close()
-    else root.open = false
+    try {
+      if (owner && "close" in owner) {
+        owner.close()
+        return
+      }
+    } catch (e) {
+      console.warn("KeyboardPanel: owner close() threw, forcing close:", e)
+    }
+    root.open = false
   }
 
   function beginFocusPrime() {
