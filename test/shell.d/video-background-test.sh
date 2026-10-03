@@ -59,7 +59,8 @@ assert(
   'the lock view itself carries no foreign import, so the lock still loads without the feed module'
 )
 assert(
-  lockQml.includes('path: root.loadBackground ? (root.video ? root.videoPosterPath : root.backgroundPath) : ""') &&
+  lockQml.includes('(root.video ? root.videoPosterPath : root.backgroundPath)') &&
+    lockQml.includes('path: root.loadBackground && root.resolution.ready ? root.resolution.resolvedPath : ""') &&
     lockQml.indexOf('id: feedLoader') > lockQml.indexOf('MultiEffect {') &&
     lockQml.includes('visible: root.video') &&
     !lockQml.includes('wallpaper.video'),
@@ -90,8 +91,8 @@ assert(
   'the desktop no longer carries the shell video pause policy'
 )
 assert(
-  barTextColor.includes('magick "$background_path[0]"'),
-  'bar colour sampling reads one frame instead of decoding a whole video'
+  barTextColor.includes('cover=("$sample_path[0]"') && barTextColor.includes('magick "${composition[@]}"'),
+  'bar colour sampling reads one resolved frame instead of decoding a whole video'
 )
 assert(
   menuImages.includes('pending_video_file') && /video_jobs=\$\(\( \$\(nproc\) \/ 4 \)\)/.test(menuImages),
@@ -331,6 +332,8 @@ video_snapshot=$(snapshot_background_path "$CURRENT_THEME_PATH/backgrounds/old.m
 CHOSEN_THEME_BACKGROUND="$transition_home/disappeared.mp4"
 BACKGROUND_TRANSITION_SNAPSHOTS=false
 OLD_BACKGROUND_SNAPSHOT=""
+PREPARED_BACKGROUND_SNAPSHOT=""
+PREPARED_BACKGROUND=""
 colors_payload=""
 shell_payload=""
 shell_ipc() { :; }
