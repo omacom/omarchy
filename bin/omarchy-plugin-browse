@@ -24,7 +24,7 @@ jq -e 'type == "array"' <<<"$installed" >/dev/null || installed='[]'
 
 plugins=$(jq -c --argjson installed "$installed" --arg preview_base_url "$preview_base_url" '
   def preview_url:
-    if . == "" then ""
+    if type != "string" or . == "" then ""
     elif startswith("http://") or startswith("https://") then .
     else $preview_base_url + .
     end;
@@ -39,7 +39,8 @@ plugins=$(jq -c --argjson installed "$installed" --arg preview_base_url "$previe
        previewImages: (
          ([.previewImage // empty]
           + ((.previewImages // .previews // .screenshots // [])
-             | map(if type == "string" then . else (.url // .src // .path // "") end)))
+             | if type == "array" then . else [] end
+             | map(if type == "string" then . elif type == "object" then (.url // .src // .path // "") else "" end)))
          | map(select(type == "string" and length > 0) | preview_url)
          | unique
        )
