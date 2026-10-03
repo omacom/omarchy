@@ -3,6 +3,7 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
+import QtQml.Models
 import QtQuick.Layouts
 import qs.Commons
 import qs.Ui
@@ -63,7 +64,6 @@ Item {
   readonly property bool barHovered: barHoverCount > 0
   property bool centerSectionRevealHeld: false
   property bool centerHoverRevealSuppressed: false
-  property int barConfigSerial: 0
   property string position: "top"
   // Resolves through fontconfig at paint time (Style.font.family defaults
   // to "monospace"), so changing the system font (via `omarchy-font-set`)
@@ -585,38 +585,13 @@ Item {
     setRequestedTransparency(config.transparent === true)
     centerAnchor = Util.canonicalWidgetId(config.centerAnchor || "")
 
-    // layoutEntries feeds plain JS arrays to the module Repeaters, and QML
-    // cannot diff those: reassigning layoutConfig rebuilds every widget on
-    // every monitor. When a shell.json write only changed inline widget
-    // settings, patch the live layout and running widgets in place instead.
     var next = normalizeLayout(config.layout)
-    var delta = BarModel.inlineSettingsDelta(layoutConfig, next)
-    if (delta) {
-      applySettingsDelta(delta)
-      return
-    }
-    layoutConfig = next
-    barConfigSerial++
-  }
-
-  function applySettingsDelta(delta) {
-    for (var i = 0; i < delta.length; i++) {
-      var change = delta[i]
-      layoutConfig[change.region][change.index] = change.entry
-      var settings = entrySettings(change.entry)
-      for (var s = 0; s < moduleSlots.length; s++) {
-        var slot = moduleSlots[s]
-        if (!slot || slot.region !== change.region || slot.moduleName !== entryId(change.entry)) continue
-        var item = slot.activeItem
-        if (item && "settings" in item) item.settings = settings
-      }
-    }
+    if (JSON.stringify(layoutConfig) !== JSON.stringify(next)) layoutConfig = next
   }
 
   onBarConfigChanged: applyBarConfig()
 
   function layoutEntries(region) {
-    var serial = barConfigSerial
     var entries = layoutConfig ? layoutConfig[region] : null
     return Array.isArray(entries) ? entries : []
   }
@@ -1722,6 +1697,10 @@ Item {
     property var entries: []
     property string region: ""
 
+    ListModel { id: entryModel }
+    onEntriesChanged: BarModel.syncEntries(entryModel, entries)
+    Component.onCompleted: BarModel.syncEntries(entryModel, entries)
+
     visible: entries.length > 0
     // A hidden list must not build its modules. The center section declares
     // both an anchored and an unanchored arrangement and shows whichever
@@ -1740,11 +1719,11 @@ Item {
         spacing: 0
 
         Repeater {
-          model: moduleListRoot.entries
+          model: entryModel
 
           ModuleSlot {
-            required property var modelData
-            entry: modelData
+            required property string entryJson
+            entry: JSON.parse(entryJson)
             region: moduleListRoot.region
           }
         }
@@ -1758,11 +1737,11 @@ Item {
         spacing: 0
 
         Repeater {
-          model: moduleListRoot.entries
+          model: entryModel
 
           ModuleSlot {
-            required property var modelData
-            entry: modelData
+            required property string entryJson
+            entry: JSON.parse(entryJson)
             region: moduleListRoot.region
           }
         }
