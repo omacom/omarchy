@@ -119,6 +119,18 @@ BarWidget {
     onDateChanged: root.displayDate = date
   }
 
+  Timer {
+    interval: 2000
+    repeat: true
+    running: !root.showsSeconds
+    onTriggered: {
+      var now = new Date()
+      if (now.getMinutes() !== root.displayDate.getMinutes() || Math.abs(now.getTime() - root.displayDate.getTime()) >= 60000) {
+        root.displayDate = now
+      }
+    }
+  }
+
   Loader {
     id: panelLoader
     active: true
