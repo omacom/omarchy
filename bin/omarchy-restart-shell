@@ -11,12 +11,26 @@ session_omarchy_path=$(systemctl --user show-environment 2>/dev/null | sed -n 's
 CONFIG_DIR="$session_omarchy_path/shell"
 [[ -f $CONFIG_DIR/shell.qml ]] || { echo "Omarchy shell config not found: $CONFIG_DIR" >&2; exit 1; }
 
-# Allow running from outside the session (e.g. over ssh) by deriving the
-# Hyprland instance signature from the newest instance runtime dir.
-if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-  hypr_dir=$(find "${XDG_RUNTIME_DIR:-/run/user/$UID}/hypr" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -n 1 | cut -d' ' -f2-)
-  [[ -n $hypr_dir ]] && export HYPRLAND_INSTANCE_SIGNATURE=${hypr_dir##*/}
+# Bind every IPC and kill to the compositor being restarted. An SSH caller may
+# have no display; --any-display would instead select another session's host
+# and kill its healthy main shell. An explicit signature takes precedence over
+# a stale caller display. Without either, choose the newest live compositor.
+session=$(hyprctl instances -j 2>/dev/null | jq -er \
+  --arg signature "${HYPRLAND_INSTANCE_SIGNATURE:-}" --arg display "${WAYLAND_DISPLAY:-}" '
+    (if $signature != "" then map(select(.instance == $signature))
+     elif $display != "" then map(select(.wl_socket == $display))
+     else . end) | max_by(.time) | select(. != null) |
+    select((.instance | type) == "string" and (.wl_socket | type) == "string") |
+    [.instance, .wl_socket] | @tsv') || {
+  echo "Could not identify the Hyprland session to restart." >&2
+  exit 1
+}
+IFS=$'\t' read -r HYPRLAND_INSTANCE_SIGNATURE WAYLAND_DISPLAY <<<"$session"
+if [[ -z $HYPRLAND_INSTANCE_SIGNATURE || -z $WAYLAND_DISPLAY ]]; then
+  echo "Hyprland did not report a display for the session to restart." >&2
+  exit 1
 fi
+export HYPRLAND_INSTANCE_SIGNATURE WAYLAND_DISPLAY
 
 # Restarting a live lock client would kill the lock screen and strand the
 # session behind Hyprland's failsafe. But a LOCK session without an active
@@ -76,9 +90,13 @@ if notifications_ready; then
   notifications_were_running=1
 fi
 
+# Announce a deliberate restart before the bar disappears. Failure of the
+# reservation host must not prevent recovery of the main shell.
+timeout --kill-after=1s 1s quickshell ipc -n -p "$CONFIG_DIR/bar-reservation" call reservation restarting >/dev/null 2>&1 || true
+
 # Each kill stops the oldest matching instance and only returns once it has
 # fully exited, so the no-duplicate launch below can't race a dying shell.
-while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
+while timeout 5 quickshell kill -p "$CONFIG_DIR" >/dev/null 2>&1; do :; done
 
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.

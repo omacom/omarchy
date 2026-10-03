@@ -75,6 +75,7 @@ restart_env_log="$test_tmp/restart-env.log"
 dispatch_log="$test_tmp/dispatch.log"
 ipc_log="$test_tmp/ipc.log"
 runtime_dir="$test_tmp/runtime"
+export HYPRLAND_INSTANCE_SIGNATURE=selected-session WAYLAND_DISPLAY=stale-display
 mkdir -p "$restart_root/shell" "$restart_bin" "$runtime_dir"
 touch "$restart_root/shell/shell.qml"
 ln -s "$ROOT/bin/omarchy-shell" "$restart_bin/omarchy-shell"
@@ -86,6 +87,7 @@ cat >"$restart_bin/qs" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$*" >>"$OMARCHY_TEST_IPC_LOG"
+[[ $WAYLAND_DISPLAY == "${OMARCHY_TEST_EXPECT_DISPLAY:-wayland-selected}" ]] || exit 9
 
 case "$*" in
   *'shell ping')
@@ -111,13 +113,17 @@ cat >"$restart_bin/quickshell" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
+[[ $WAYLAND_DISPLAY == "${OMARCHY_TEST_EXPECT_DISPLAY:-wayland-selected}" && $* != *"--any-display"* ]] || exit 9
 
 case " $* " in
+  *' ipc -n -p '*) exit 0 ;;
   *' kill -p '*)
     pid=$(head -n 1 "$OMARCHY_TEST_QS_STATE")
     [[ $pid =~ ^[0-9]+$ ]] || exit 1
-    kill "$pid" 2>/dev/null
-    while kill -0 "$pid" 2>/dev/null; do sleep 0.01; done
+    if [[ $pid != 303 ]]; then
+      kill "$pid" 2>/dev/null
+      while kill -0 "$pid" 2>/dev/null; do sleep 0.01; done
+    fi
     awk 'NR > 1' "$OMARCHY_TEST_QS_STATE" >"$OMARCHY_TEST_QS_STATE.next"
     mv "$OMARCHY_TEST_QS_STATE.next" "$OMARCHY_TEST_QS_STATE"
     ;;
@@ -131,7 +137,9 @@ SH
 cat >"$restart_bin/hyprctl" <<'SH'
 #!/bin/bash
 
-if [[ ${1:-} == "-j" && ${2:-} == "monitors" ]]; then
+if [[ ${1:-} == "instances" && ${2:-} == "-j" ]]; then
+  printf '[{"instance":"selected-session","time":1,"wl_socket":"wayland-selected"},{"instance":"other-session","time":2,"wl_socket":"wayland-other"}]\n'
+elif [[ ${1:-} == "-j" && ${2:-} == "monitors" ]]; then
   # Hyprland reports an active session lock as a reason the monitor cannot hand
   # a client the whole screen, not as a workspace.
   if [[ ${OMARCHY_TEST_SESSION_LOCKED:-0} == 1 ]]; then
@@ -232,11 +240,13 @@ restart_pid_one=""
 restart_pid_two=""
 [[ $(<"$restart_state") == 303 ]] || fail "restart leaves exactly one fresh shell instance"
 [[ $(grep -c '^-n -p ' "$restart_log") == 1 ]] || fail "restart launches one fresh shell process"
-grep -F "kill -p $restart_root/shell --any-display" "$restart_log" >/dev/null || fail "restart stops the shell from the session checkout"
+grep -Fx "kill -p $restart_root/shell" "$restart_log" >/dev/null || fail "restart stops only the selected display's shell from the session checkout"
+[[ $(head -n 1 "$restart_log") == "ipc -n -p $restart_root/shell/bar-reservation call reservation restarting" ]] || fail "restart announces recovery to the selected display before stopping its shells"
 [[ $(<"$restart_env_log") == "unset" ]] || fail "restart uses the Hyprland session environment for the fresh shell"
 grep -F 'hl.dsp.exec_cmd("omarchy-launch-shell")' "$dispatch_log" >/dev/null || fail "restart launches the fresh shell through Hyprland"
 grep -F "ipc -n -p $restart_root/shell call -- shell ping" "$ipc_log" >/dev/null || fail "restart checks readiness in the session checkout"
 pass "restart replaces duplicate shell instances from the session checkout"
+pass "the selected compositor overrides a stale display without touching another session"
 [[ $(<"$test_tmp/notification-checks") == 4 ]] || fail "restart waits for the existing notification service after core IPC is ready"
 pass "restart waits for notification readiness before one-time update hooks"
 
@@ -323,3 +333,22 @@ grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null 
 [[ -f $restart_state.locked ]] || fail "lock recovery did not re-secure the session without notifications"
 grep -q "notification service did not become ready" "$test_tmp/dead-notifications.out" || fail "a missing notification service is not reported" "$(cat "$test_tmp/dead-notifications.out")"
 pass "restart recovers the lock even when the notification service never returns"
+
+restart_for_session() {
+  env PATH="$restart_bin:$PATH" OMARCHY_PATH="$restart_root" XDG_RUNTIME_DIR="$runtime_dir" \
+    OMARCHY_TEST_QS_STATE="$restart_state" OMARCHY_TEST_QS_LOG="$restart_log" \
+    OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+    OMARCHY_TEST_IPC_LOG="$ipc_log" OMARCHY_TEST_SESSION_PATH="$restart_root" \
+    "$@" timeout 5 "$ROOT/bin/omarchy-restart-shell"
+}
+restart_for_session HYPRLAND_INSTANCE_SIGNATURE=selected-session WAYLAND_DISPLAY= || fail "SSH can select a compositor without a display"
+restart_for_session HYPRLAND_INSTANCE_SIGNATURE= WAYLAND_DISPLAY=wayland-selected || fail "a display can identify its compositor"
+restart_for_session HYPRLAND_INSTANCE_SIGNATURE= WAYLAND_DISPLAY= OMARCHY_TEST_EXPECT_DISPLAY=wayland-other || fail "an outside caller defaults to the newest live compositor"
+pass "SSH, display-only and outside-session callers resolve one matching compositor"
+: >"$restart_log"
+if restart_for_session HYPRLAND_INSTANCE_SIGNATURE=missing-session WAYLAND_DISPLAY=wayland-selected >"$test_tmp/missing-session.out" 2>&1; then
+  fail "an explicit missing compositor must not fall back to a different session"
+fi
+[[ ! -s $restart_log ]] || fail "a missing compositor must not send IPC or stop any shell"
+grep -q 'Could not identify the Hyprland session' "$test_tmp/missing-session.out" || fail "missing compositor selection explains the failure"
+pass "a stale compositor signature fails without touching another session"

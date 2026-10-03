@@ -2,10 +2,7 @@
 
 Read this before editing the Quickshell desktop under `shell/`.
 
-The Quickshell desktop runs as a single long-running process out of
-`shell/`. Hyprland autostart launches it directly with `quickshell -n -p`;
-do not start additional standalone Quickshell instances for individual
-components.
+The plugin-hosting desktop runs as one long-running process out of `shell/`, supervised by `omarchy-launch-shell`. Do not start additional standalone Quickshell instances for individual plugins. The small `shell/bar-reservation/` companion is deliberately independent: it owns bar space while the plugin host restarts or crashes and never loads plugins. See [`docs/bar-reservation.md`](../../docs/bar-reservation.md) for its lifecycle and VM testing requirements.
 
 Run `omarchy-restart-shell` after making changes to QML files.
 

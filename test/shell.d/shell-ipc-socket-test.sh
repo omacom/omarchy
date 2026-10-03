@@ -141,7 +141,9 @@ const registry = fs.readFileSync(path.join(root, 'shell/Commons/IpcRegistry.qml'
 // first-party one does; the registry's own bare handler is the reference for
 // the functions a handler never exposes.
 const bare = execSync(`grep -rln 'IpcHandler {' ${path.join(root, 'shell')} --include=*.qml || true`).toString().trim().split('\n').filter(Boolean)
-assertDeepEqual(bare.map((f) => path.relative(root, f)).sort(), ['shell/Commons/IpcRegistry.qml', 'shell/Commons/ShellIpc.qml'], 'first-party IPC handlers register through ShellIpc')
+// The reservation companion runs independently and deliberately imports no
+// main-shell singletons; its IPC cannot register with the main shell's socket.
+assertDeepEqual(bare.map((f) => path.relative(root, f)).sort(), ['shell/Commons/IpcRegistry.qml', 'shell/Commons/ShellIpc.qml', 'shell/bar-reservation/shell.qml'], 'main-shell IPC handlers register through ShellIpc')
 
 // Declared functions are allowed by name: destroy() and other QObject
 // methods are callable yet not enumerable, so subtracting builtins from what a
