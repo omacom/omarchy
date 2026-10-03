@@ -85,4 +85,11 @@ function badges(plugin) {
   return values
 }
 
-if (typeof module !== "undefined") module.exports = { normalize: normalize, options: options, filtered: filtered, badges: badges }
+function primaryAction(plugin) {
+  var row = plugin || {}
+  if (row.installed) return { label: "View details", operation: "" }
+  if (row.installAvailable && cleaned(row.repo)) return { label: "Install plugin", operation: "" }
+  return { label: "View setup instructions", operation: "" }
+}
+
+if (typeof module !== "undefined") module.exports = { normalize: normalize, options: options, filtered: filtered, badges: badges, primaryAction: primaryAction }

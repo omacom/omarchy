@@ -60,7 +60,11 @@ Item {
       try { root.loadPlugins(JSON.parse(text())) } catch (e) { root.loadPlugins([]) }
     }
   }
+  function finishRequest(path) {
+    if (path) Quickshell.execDetached(["bash", "-c", ": > " + Util.shellQuote(path)])
+  }
   function open(payloadJson) {
+    if (opened && doneFile) finishRequest(doneFile)
     var payload = {}
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = {} }
     var catalogPath = String(payload.catalogFile || "")
@@ -81,7 +85,7 @@ Item {
   function cancel() {
     var done = doneFile
     selectionFile = ""; doneFile = ""; opened = false
-    if (done) result.command = ["bash", "-c", ": > " + Util.shellQuote(done)], result.running = true
+    if (done) finishRequest(done)
   }
   function choose(action) {
     if (!selectedPlugin || !selectionFile || !doneFile) return
@@ -142,7 +146,7 @@ Item {
       padding: Style.spacing.panelPadding
       MouseArea { anchors.fill: parent; onClicked: {} }
 
-      Keys.priority: Keys.BeforeItem
+      Keys.priority: Keys.AfterItem
       Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Escape) { if (root.query) root.query = ""; else root.cancel(); event.accepted = true }
         else if (event.key === Qt.Key_Down) { root.move(1); event.accepted = true }
@@ -168,7 +172,8 @@ Item {
           onTextEdited: root.query = text
           onAccepted: root.choose()
         }
-        Row {
+        Flow {
+          width: parent.width
           spacing: Style.spacing.sm
           Dropdown { width: Style.space(150); showLabel: false; value: root.category; options: root.optionRows(root.categoryOptions, "All categories"); onChanged: function(value) { root.category = value } }
           Dropdown { width: Style.space(140); showLabel: false; value: root.kind; options: root.optionRows(root.kindOptions, "All kinds"); onChanged: function(value) { root.kind = value } }
@@ -290,7 +295,8 @@ Item {
               Text { width: parent.width; text: root.selectedPlugin ? root.selectedPlugin.description : ""; textFormat: Text.PlainText; color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; wrapMode: Text.Wrap; maximumLineCount: 3; elide: Text.ElideRight }
               Text { width: parent.width; text: root.selectedPlugin ? [root.selectedPlugin.kind, root.selectedPlugin.category, root.selectedPlugin.author && "by " + root.selectedPlugin.author, root.selectedPlugin.version && "v" + root.selectedPlugin.version, root.selectedPlugin.stars + " stars"].filter(Boolean).join(" · ") : ""; textFormat: Text.PlainText; color: Qt.darker(root.foreground, 1.35); font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
               Text { width: parent.width; text: root.selectedPlugin ? MarketplaceModel.badges(root.selectedPlugin).join(" · ") : ""; textFormat: Text.PlainText; color: root.accent; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
-              Button { text: root.selectedPlugin && root.selectedPlugin.installed ? "View details" : (root.selectedPlugin && root.selectedPlugin.installAvailable ? "Install plugin" : "View setup instructions"); bordered: true; onClicked: root.choose() }
+              property var primaryAction: root.selectedPlugin ? MarketplaceModel.primaryAction(root.selectedPlugin) : ({ label: "", operation: "" })
+              Button { text: parent.primaryAction.label; bordered: true; onClicked: root.choose(parent.primaryAction.operation) }
               Button { visible: root.selectedPlugin && root.selectedPlugin.installed; text: "Uninstall plugin"; onClicked: root.choose("remove") }
             }
           }
