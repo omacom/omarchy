@@ -18,9 +18,11 @@ printf '%s\n' "$RUNNING_KERNEL"
 STUB
 
 # Only the package-owned release resolves, as pacman -Qo does for its files.
+# A headers package left at another release owns that release's directory alone.
 cat >"$scratch/bin/pacman" <<'STUB'
 #!/bin/bash
-[[ $1 == "-Qo" && ( $2 == "$TEST_MODULES/$OWNED_KERNEL" || $2 == "$TEST_MODULES/$OWNED_KERNEL/"* ) ]]
+[[ $1 == "-Qo" && ( $2 == "$TEST_MODULES/$OWNED_KERNEL" || $2 == "$TEST_MODULES/$OWNED_KERNEL/"* ||
+  ( -n $HEADERS_KERNEL && $2 == "$TEST_MODULES/$HEADERS_KERNEL" ) ) ]]
 STUB
 
 cat >"$scratch/bin/gum" <<'STUB'
@@ -38,7 +40,7 @@ chmod +x "$scratch/bin/"*
 
 kernel_prompted() {
   : >"$TEST_LOG"
-  RUNNING_KERNEL="$1" OWNED_KERNEL="$2" HOME="$scratch/home" PATH="$scratch/bin:$PATH" \
+  RUNNING_KERNEL="$1" OWNED_KERNEL="$2" HEADERS_KERNEL="${3:-}" HOME="$scratch/home" PATH="$scratch/bin:$PATH" \
     "$scratch/bin/omarchy-update-restart" --reboot-only >/dev/null
   grep -q '^prompt:confirm Linux kernel has been updated' "$TEST_LOG"
 }
@@ -55,6 +57,10 @@ pass "running package kernel does not request a reboot"
 kernel_prompted 7.2.1-arch1-1 7.2.2-arch1-1 ||
   fail "package kernel restored by kernel-modules-hook requests a reboot" "$(cat "$TEST_LOG")"
 pass "package kernel restored by kernel-modules-hook requests a reboot"
+
+kernel_prompted 7.2.1-arch1-1 7.2.2-arch1-1 7.2.1-arch1-1 ||
+  fail "package kernel upgraded past its headers requests a reboot" "$(cat "$TEST_LOG")"
+pass "package kernel upgraded past its headers requests a reboot"
 
 kernel_prompted 7.2.0-arch1-1 7.2.2-arch1-1 ||
   fail "package kernel whose modules were removed requests a reboot" "$(cat "$TEST_LOG")"

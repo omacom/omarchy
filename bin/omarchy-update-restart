@@ -31,7 +31,7 @@ if [[ $mode != "--services-only" ]]; then
 
   if [[ ! -d $running_modules ]]; then
     kernel_updated=true
-  elif [[ -f $running_modules/pkgbase ]] && ! pacman -Qo "$running_modules" &>/dev/null; then
+  elif [[ -f $running_modules/pkgbase ]] && ! pacman -Qo "$running_modules/pkgbase" &>/dev/null; then
     for pkgbase in /usr/lib/modules/*/pkgbase; do
       if [[ $pkgbase != "$running_modules/pkgbase" ]] && cmp -s "$pkgbase" "$running_modules/pkgbase" &&
         pacman -Qo "$pkgbase" &>/dev/null; then
