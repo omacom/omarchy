@@ -4,44 +4,68 @@
 # omarchy:group=plugin
 # omarchy:hidden=true
 
-# Walks $OMARCHY_PATH/shell/plugins and ~/.config/omarchy/plugins, reads every
-# manifest.json / *.manifest.json, and emits one JSON object per plugin with
-# computed fields (sourceDir, barWidgetPath, barPath, firstParty). This is the
-# single source of truth used by bar selection and plugin enable/clone, so
-# those commands never re-implement manifest walking.
+# Walks user plugins, the active checkout, then ordered XDG data roots and emits the first valid manifest per ID with computed paths and origin trust.
+# Bar selection and plugin commands consume this catalog instead of walking manifests independently.
 
 set -o pipefail
 
 paths=()
+origins=()
 
-while IFS= read -r manifest; do
-  paths+=("$manifest")
-done < <(find "$OMARCHY_PATH/shell/plugins" -mindepth 2 -maxdepth 4 -type f \( -name manifest.json -o -name '*.manifest.json' \) | sort)
-
-user_dir="$HOME/.config/omarchy/plugins"
-if [[ -d $user_dir ]]; then
-  while IFS= read -r manifest; do
+scan_root() {
+  local dir="$1" depth="$2" origin="$3" manifest
+  [[ -d $dir ]] || return 0
+  while IFS= read -r -d '' manifest; do
     paths+=("$manifest")
-  done < <(find -L "$user_dir" -mindepth 2 -maxdepth 2 -type f -name manifest.json \
-    ! -path "$user_dir/.*/*" 2>/dev/null | sort)
-fi
+    origins+=("$origin")
+  done < <(find -L "$dir" -mindepth 2 -maxdepth "$depth" -type f \( -name manifest.json -o -name '*.manifest.json' \) \
+    ! -path "$dir/.*/*" -print0 2>/dev/null | sort -z)
+}
+
+scan_root "$HOME/.config/omarchy/plugins" 2 home
+scan_root "$OMARCHY_PATH/shell/plugins" 3 bundled
+IFS=: read -r -a data_dirs <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+for data_dir in "${data_dirs[@]}"; do
+  [[ $data_dir == /* ]] || continue
+  scan_root "${data_dir%/}/omarchy/shell/plugins" 3 data
+done
 
 if (( ${#paths[@]} == 0 )); then
   echo "[]"
   exit 0
 fi
 
-jq -n '
-  [ inputs
-    | . as $manifest
-    | input_filename as $manifestPath
+manifest_args=()
+for index in "${!paths[@]}"; do
+  manifest_args+=(--rawfile "manifest$index" "${paths[$index]}" --arg "origin$index" "${origins[$index]}")
+done
+
+jq -n "${manifest_args[@]}" --args '
+  def valid:
+    type == "object" and .schemaVersion == 1
+    and has("id") and has("name") and has("version") and has("kinds") and has("entryPoints")
+    and (.id | tostring | length > 0 and (contains("/") or contains("..") | not))
+    and (.kinds | type == "array" and length > 0)
+    and (.entryPoints | type == "object")
+    and (all(.entryPoints[]; type == "string" and length > 0 and (startswith("/") or contains("..") | not)))
+    and (if (.barWidget | type) == "object" and (.barWidget | has("defaultSection"))
+      then (.barWidget.defaultSection | tostring | . == "left" or . == "center" or . == "right")
+      else true end);
+  [ range(0; ($ARGS.positional | length)) as $i
+    | $ARGS.positional[$i] as $manifestPath
+    | (try ($ARGS.named["manifest\($i)"] | fromjson | select(valid)) catch empty) as $manifest
+    | ($manifest.id | tostring) as $id
+    | ($id | startswith("omarchy.")) as $reserved
+    | $ARGS.named["origin\($i)"] as $origin
+    | select(($reserved | not) or $origin == "bundled")
+    | (($reserved and $origin == "bundled") or (($id | startswith("omacom.")) and ($origin == "bundled" or $origin == "data"))) as $firstParty
     | ($manifestPath | sub("/manifest.json$"; "") | sub("/[^/]+\\.manifest\\.json$"; "")) as $sourceDir
     | {
-        id: ($manifest.id // ""),
+        id: $id,
         name: ($manifest.name // $manifest.id // ""),
         description: ($manifest.description // ""),
         kinds: ($manifest.kinds // []),
-        firstParty: (($manifest.id // "") | startswith("omarchy.")),
+        firstParty: $firstParty,
         manifestPath: $manifestPath,
         sourceDir: $sourceDir,
         entryPoints: ($manifest.entryPoints // {}),
@@ -58,5 +82,6 @@ jq -n '
         else null end)
     | select(.id != "")
   ]
-  | unique_by(.id)
+  | reduce .[] as $plugin ({}; if has($plugin.id) then . else .[$plugin.id] = $plugin end)
+  | [.[]] | sort_by(.id)
 ' "${paths[@]}"

@@ -110,6 +110,7 @@ Item {
   property var clickTargets: []
   property var moduleSlots: []
   property var pluginBarApis: ({})
+  property var pluginBarApiSources: ({})
   property var pluginObjectOwners: []
 
   Component {
@@ -226,9 +227,16 @@ Item {
     root.unmarkPluginObject(pluginId, owner, "popout")
   }
 
+  function pluginBarApiProvenance(metadata, registered) {
+    return registered
+      ? JSON.stringify([String(metadata && metadata.sourceDir || ""), !!(metadata && metadata.firstParty)]) : ""
+  }
+
   function pluginBarApiFor(pluginId, moduleName, registered) {
     var key = String(pluginId || "")
     if (!key) return null
+    var metadata = registered ? root.barWidgetRegistry.metadataFor(root.canonicalWidgetId(moduleName)) : null
+    var source = root.pluginBarApiProvenance(metadata, registered)
 
     var pluginShell = null
     if (registered && root.shell && typeof root.shell.pluginShellForId === "function") {
@@ -242,9 +250,14 @@ Item {
       pluginShell = root.shell.pluginShellForBarEntry(key, moduleName)
     }
 
-    if (pluginBarApis[key]) {
-      pluginBarApis[key].shell = pluginShell
-      return pluginBarApis[key]
+    var cached = pluginBarApis[key]
+    if (cached && pluginBarApiSources[key] === source) {
+      cached.shell = pluginShell
+      return cached
+    }
+    if (cached) {
+      root.releasePluginObjects(key)
+      if (typeof cached.destroy === "function") cached.destroy()
     }
 
     var api = pluginBarApiComponent.createObject(null, {
@@ -275,15 +288,21 @@ Item {
     for (var id in pluginBarApis) next[id] = pluginBarApis[id]
     next[key] = api
     pluginBarApis = next
+    var sources = ({})
+    for (var sourceId in pluginBarApiSources)
+      if (sourceId !== key) sources[sourceId] = pluginBarApiSources[sourceId]
+    sources[key] = source
+    pluginBarApiSources = sources
     return api
   }
 
-  function pluginBarApiUsed(pluginId) {
+  function pluginBarApiSource(pluginId) {
     for (var i = 0; i < moduleSlots.length; i++) {
       var slot = moduleSlots[i]
-      if (slot && slot.pluginApiId === pluginId) return true
+      if (!slot || slot.pluginApiId !== pluginId) continue
+      return root.pluginBarApiProvenance(slot.registryMetadata, slot.registered)
     }
-    return false
+    return null
   }
 
   function releasePluginObjects(pluginId) {
@@ -301,22 +320,32 @@ Item {
 
   function prunePluginBarApis() {
     var next = ({})
+    var sources = ({})
     for (var id in pluginBarApis) {
       var api = pluginBarApis[id]
-      if (root.pluginBarApiUsed(id)) {
+      var currentSource = root.pluginBarApiSource(id)
+      if (currentSource !== null && pluginBarApiSources[id] === currentSource) {
         next[id] = api
+        sources[id] = pluginBarApiSources[id]
         continue
       }
       root.releasePluginObjects(id)
       if (api && typeof api.destroy === "function") api.destroy()
     }
     pluginBarApis = next
+    pluginBarApiSources = sources
   }
 
   onActivePopoutChanged: syncAllPluginBarApiObjects()
   onClickTargetsChanged: syncAllPluginBarApiObjects()
   onLayoutConfigChanged: syncAllPluginBarApiObjects()
   onModuleSlotsChanged: Qt.callLater(prunePluginBarApis)
+  onBarWidgetRegistryChanged: Qt.callLater(prunePluginBarApis)
+
+  Connections {
+    target: root.barWidgetRegistry
+    function onRevisionChanged() { Qt.callLater(root.prunePluginBarApis) }
+  }
 
   Component.onDestruction: {
     for (var id in pluginBarApis) {
@@ -325,6 +354,7 @@ Item {
         pluginBarApis[id].destroy()
     }
     pluginBarApis = ({})
+    pluginBarApiSources = ({})
   }
 
   function registerClickTarget(target) {

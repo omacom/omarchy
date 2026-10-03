@@ -101,17 +101,16 @@ QtObject {
     return out
   }
 
-  function stampHostCapabilities(firstParty, thirdParty) {
-    for (var firstPartyId in firstParty)
-      firstParty[firstPartyId].__hostCapabilities = trustedCapabilities(firstParty[firstPartyId])
-
-    for (var thirdPartyId in thirdParty) {
-      var manifest = thirdParty[thirdPartyId]
-      var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
-      var clonedFrom = metadata ? String(metadata.clonedFrom || "") : ""
-      var source = clonedFrom ? firstParty[clonedFrom] : null
-      manifest.__hostCapabilities = source && Array.isArray(source.__hostCapabilities)
-        ? source.__hostCapabilities.slice() : []
+  function stampHostCapabilities(selected) {
+    for (var id in selected) {
+      var manifest = selected[id]
+      var source = manifest
+      if (!manifest.__isFirstParty) {
+        var metadata = Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
+        var clonedFrom = metadata ? String(metadata.clonedFrom || "") : ""
+        source = clonedFrom ? selected[clonedFrom] : null
+      }
+      manifest.__hostCapabilities = trustedCapabilities(source)
     }
   }
 
@@ -575,8 +574,7 @@ QtObject {
   // (repeating for every manifest found)
   function parseScanOutput(text) {
     var lines = String(text || "").split("\n")
-    var firstParty = {}
-    var thirdParty = {}
+    var selected = {}
     var currentSource = null
     var currentKind = null
     var currentJson = []
@@ -587,11 +585,18 @@ QtObject {
       try {
         var manifest = JSON.parse(raw)
         manifest.__sourceDir = currentSource
-        manifest.__isFirstParty = (currentKind === "firstparty")
+        var reserved = String(manifest.id).indexOf("omarchy.") === 0
+        var omacom = String(manifest.id).indexOf("omacom.") === 0
+        manifest.__isFirstParty = (currentKind === "firstparty" && reserved)
+          || (omacom && (currentKind === "firstparty" || currentKind === "data"))
         var validated = validateManifest(manifest, currentSource + "/manifest.json")
         if (validated) {
-          if (currentKind === "firstparty") firstParty[validated.id] = validated
-          else thirdParty[validated.id] = validated
+          if (reserved && currentKind !== "firstparty") {
+            console.warn("PluginRegistry: plugin " + validated.id
+              + " rejected: id is reserved for first-party Omarchy plugins")
+          } else if (!Object.prototype.hasOwnProperty.call(selected, validated.id)) {
+            selected[validated.id] = validated
+          }
         }
       } catch (e) {
         console.warn("PluginRegistry: bad manifest at " + currentSource + ": " + e)
@@ -619,23 +624,10 @@ QtObject {
     }
     flush()
 
-    stampHostCapabilities(firstParty, thirdParty)
+    // Only the first valid manifest for an id can grant capabilities.
+    stampHostCapabilities(selected)
 
-    var merged = {}
-    for (var fk in firstParty) merged[fk] = firstParty[fk]
-    // Third-party plugins never shadow first-party ids. The whole
-    // `omarchy.*` namespace is reserved for built-ins, including bar widgets
-    // registered outside the manifest-based plugin registry.
-    for (var tk in thirdParty) {
-      if (firstParty[tk] || String(tk).indexOf("omarchy.") === 0) {
-        console.warn("PluginRegistry: plugin " + tk
-          + " rejected: id is reserved for first-party Omarchy plugins")
-        continue
-      }
-      merged[tk] = thirdParty[tk]
-    }
-
-    installedPlugins = merged
+    installedPlugins = selected
     registryRevision++
     scanning = false
     pluginsChanged()
@@ -689,13 +681,8 @@ QtObject {
   function rescan() {
     if (scanning) return
     scanning = true
-    // $0 = first-party dir, $1 = third-party dir. Some bash versions need the explicit -- separator.
-    // First-party plugins may be grouped one level deeper, e.g. panels/audio
-    // or services/battery.
-    // First-party bar widgets can also carry sibling manifests such as
-    // widgets/Clock.manifest.json so multiple widgets can live in one source
-    // directory without wrapper folders.
-    // Third-party plugins stay at the top level of ~/.config/omarchy/plugins.
+    // Personal plugins precede bundled plugins, then XDG data roots in order.
+    // Origin distinguishes reserved built-ins and trusted omacom.* packages.
     var script = ""
       + "emit_manifest() { local kind=\"$1\"; local manifest=\"$2\"; local sub; "
       + "  if [[ ${manifest##*/} == \"manifest.json\" ]]; then sub=\"${manifest%/manifest.json}\"; else sub=\"$(dirname -- \"$manifest\")\"; fi; "
@@ -703,20 +690,18 @@ QtObject {
       + "  cat \"$manifest\"; "
       + "  printf '\\n=== EOM ===\\n'; "
       + "}; "
-      + "scan_firstparty() { local dir=\"$1\"; "
-      + "  [[ -d \"$dir\" ]] || return 0; "
-      + "  while IFS= read -r manifest; do emit_manifest firstparty \"$manifest\"; done < <(find \"$dir\" -mindepth 2 -maxdepth 3 -type f \\( -name manifest.json -o -name '*.manifest.json' \\) | sort); "
+      + "scan_root() { local dir=\"$1\" kind=\"$2\" depth=\"$3\" manifest; "
+      + "  [[ -d $dir ]] || return 0; "
+      + "  while IFS= read -r -d '' manifest; do emit_manifest \"$kind\" \"$manifest\"; done < <(find -L \"$dir\" -mindepth 2 -maxdepth \"$depth\" -type f \\( -name manifest.json -o -name '*.manifest.json' \\) ! -path \"$dir/.*/*\" -print0 2>/dev/null | sort -z); "
       + "}; "
-      + "scan_thirdparty() { local dir=\"$1\"; "
-      + "  [[ -d \"$dir\" ]] || return 0; "
-      + "  for sub in \"$dir\"/*/; do "
-      + "    [[ -f \"$sub/manifest.json\" ]] || continue; "
-      + "    emit_manifest thirdparty \"$sub/manifest.json\"; "
-      + "  done; "
-      + "}; "
-      + "scan_firstparty \"$0\"; "
-      + "scan_thirdparty \"$1\""
-    scanProcess.command = ["bash", "-c", script, registry.firstPartyDir, registry.pluginsDir]
+      + "scan_root \"$1\" thirdparty 2; "
+      + "scan_root \"$0\" firstparty 3; "
+      + "IFS=: read -r -a data_dirs <<<\"${2:-/usr/local/share:/usr/share}\"; "
+      + "for dir in \"${data_dirs[@]}\"; do "
+      + "  [[ $dir == /* ]] || continue; "
+      + "  scan_root \"${dir%/}/omarchy/shell/plugins\" data 3; "
+      + "done"
+    scanProcess.command = ["bash", "-c", script, registry.firstPartyDir, registry.pluginsDir, Quickshell.env("XDG_DATA_DIRS") || ""]
     scanProcess.running = true
   }
 
