@@ -83,29 +83,41 @@ if omarchy-pkg-missing libfprint-git fprintd usbutils; then
   sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
 fi
 
-# Enroll first fingerprint
-echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
-echo -e "Keep moving the finger around on sensor until the process completes.\n"
-
-if sudo fprintd-enroll "$USER"; then
-  echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
-
-  # Verify
-  echo -e "\nNow let's verify that it's working correctly.\n"
-  if fprintd-verify; then
-    # PAM comes last, once a print is enrolled and verified. Detection only
-    # proves a reader is there, not that libfprint can drive it — an Elan MOC
-    # sensor outside the elanmoc table gets this far and then fails to enroll.
-    # Editing the stacks up front would leave those machines pointing at
-    # pam_fprintd with nothing to match.
-    setup_pam_config
-    setup_lock_fingerprint_pam
-    echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
-    echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
-  else
-    echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
-  fi
+# Adopt an already-enrolled print instead of dead-ending on it: fprintd-enroll
+# exits non-zero for a finger that already has a print (enroll-duplicate), and
+# PAM config only ever ran from the enroll-success branch — so re-running the
+# wizard on a machine with a print enrolled could never write the PAM stacks,
+# leaving the print unusable for sudo, polkit, and the lock screen
+# (omacom/omarchy#13433).
+enrolled=false
+if sudo fprintd-list "$USER" 2>/dev/null | grep -Eq 'has [0-9]+ fingerprints? enrolled'; then
+  enrolled=true
+  echo -e "\e[32m\nA fingerprint is already enrolled for $USER — skipping enrollment.\e[0m"
 else
-  echo -e "\e[31m\nEnrollment failed. Please try again.\e[0m"
-  exit 1
+  echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
+  echo -e "Keep moving the finger around on sensor until the process completes.\n"
+
+  if sudo fprintd-enroll "$USER"; then
+    echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
+    enrolled=true
+  else
+    echo -e "\e[31m\nEnrollment failed. Please try again.\e[0m"
+    exit 1
+  fi
+fi
+
+# Verify
+echo -e "\nNow let's verify that it's working correctly.\n"
+if fprintd-verify; then
+  # PAM comes last, once a print is enrolled and verified. Detection only
+  # proves a reader is there, not that libfprint can drive it — an Elan MOC
+  # sensor outside the elanmoc table gets this far and then fails to enroll.
+  # Editing the stacks up front would leave those machines pointing at
+  # pam_fprintd with nothing to match.
+  setup_pam_config
+  setup_lock_fingerprint_pam
+  echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
+  echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
+else
+  echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
 fi
