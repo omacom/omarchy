@@ -28,7 +28,15 @@ elif pacman -Qq omarchy >/dev/null 2>&1; then
 fi
 
 if [[ -n $package ]]; then
-  update=$(checkupdates --nocolor 2>/dev/null | awk -v package="$package" '$1 == package { print; exit }' || true)
+  # checkupdates uses one temporary pacman database per user. Concurrent bar
+  # instances must not race its db.lck creation or cleanup.
+  # Without a login session there is no runtime directory; check unlocked then.
+  check_runtime="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy"
+  check_lock=()
+  if mkdir -p "$check_runtime" 2>/dev/null; then
+    check_lock=(flock --close "$check_runtime/checkupdates.lock")
+  fi
+  update=$("${check_lock[@]}" checkupdates --nocolor 2>/dev/null | awk -v package="$package" '$1 == package { print; exit }' || true)
 fi
 
 if [[ -n ${update:-} ]]; then
