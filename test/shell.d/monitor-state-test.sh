@@ -27,6 +27,20 @@ cat >"$test_bin/omarchy-hyprland-monitor-scaling" <<'EOF'
 echo 1.5
 EOF
 
+# FAKE_RATE_HELPER picks how the helper lets the script down: "silent" succeeds
+# with nothing to say, "dead" fails outright. Unset, it answers normally.
+cat >"$test_bin/omarchy-hyprland-monitor-refresh-rate" <<'EOF'
+#!/bin/bash
+[[ ${FAKE_RATE_HELPER:-} == "silent" ]] && exit 0
+[[ ${FAKE_RATE_HELPER:-} == "dead" ]] && exit 1
+
+case "${1:-}" in
+  "") echo 144 ;;
+  list) printf '%s\n' 60 144 ;;
+  pending) echo '{"pending":false,"secondsLeft":0}' ;;
+esac
+EOF
+
 chmod +x "$test_bin"/*
 
 # The panel reads this output by line index, so every case has to answer with
@@ -52,8 +66,8 @@ assert_line() {
 assert_line_count() {
   local description="$1"
 
-  (( ${#state_lines[@]} == 8 )) ||
-    fail "$description" "expected 8 lines, got ${#state_lines[@]}"
+  (( ${#state_lines[@]} == 11 )) ||
+    fail "$description" "expected 11 lines, got ${#state_lines[@]}"
 }
 
 extended='[
@@ -115,3 +129,20 @@ monitor_state "$clamshell"
 [[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":false,"focused":false,"width":0,"height":0},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
   fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
 pass "monitor state lists every display with its enabled and focused state"
+
+monitor_state "$extended"
+assert_line 8 144 "monitor state reports the refresh rate"
+assert_line 9 '["60","144"]' "monitor state lists the available refresh rates"
+assert_line 10 '{"pending":false,"secondsLeft":0}' "monitor state reports no pending refresh rate"
+pass "monitor state reports the refresh rate after the displays"
+
+# Neither failure trips `|| echo`: a silent helper exits 0, and jq exits 0 on the
+# empty input a dead one leaves it.
+for mode in silent dead; do
+  FAKE_RATE_HELPER=$mode monitor_state "$extended"
+  assert_line_count "monitor state answers every line with a $mode refresh rate helper"
+  assert_line 8 "" "monitor state reports no refresh rate from a $mode helper"
+  assert_line 9 '[]' "monitor state lists no refresh rates from a $mode helper"
+  assert_line 10 '{"pending":false,"secondsLeft":0}' "monitor state reports nothing pending from a $mode helper"
+done
+pass "monitor state keeps its lines aligned when the refresh rate helper has no answer"
