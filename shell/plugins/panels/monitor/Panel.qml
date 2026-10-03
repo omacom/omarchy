@@ -300,7 +300,15 @@ Panel {
     if (!name) return
     if (enabled && root.enabledDisplayCount <= 1) return
 
-    actionProc.command = ["hyprctl", "keyword", "monitor", name + (enabled ? ",disable" : ",preferred,auto,auto")]
+    // `hyprctl keyword` is rejected under Hyprland's Lua config parser, which
+    // Omarchy uses by default ("keyword can't work with non-legacy parsers.
+    // Use eval."). Drive the Lua monitor helper instead. `name` is a Hyprland
+    // connector name; guard it like the bin/ monitor helpers before it lands
+    // in an eval'd string.
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) return
+
+    actionProc.command = ["hyprctl", "eval",
+      "hl.monitor({ output = \"" + name + "\", disabled = " + (enabled ? "true" : "false") + " })"]
     if (!actionProc.running) actionProc.running = true
   }
 
