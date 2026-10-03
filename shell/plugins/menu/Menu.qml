@@ -240,7 +240,7 @@ Item {
   }
 
   function parseMenuJsonc(raw) {
-    return MenuModel.parseMenuJsonc(raw)
+    return MenuModel.parseMenuJsonc(raw, false)
   }
 
   // Merge defaults + user extension. Later entries override earlier ones

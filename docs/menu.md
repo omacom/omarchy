@@ -50,15 +50,11 @@ id segment, and descriptions are all searchable.
 
 ## Load and merge
 
-`mergeMenuSources` overlays user entries on the defaults per key: reusing a
-shipped id replaces only the fields you declare, so an extension can retitle
-or re-icon a row without re-declaring its action, and an overridden entry
-keeps its original position in the list. New ids append. A `root` entry is
-injected if neither file declares one.
+`mergeMenuSources` overlays user entries on the defaults per key: reusing a shipped id replaces only the fields you declare, so an extension can retitle or re-icon a row without re-declaring its action, and an overridden entry keeps its original position in the list. New ids append. A `root` entry is injected if neither file declares one.
 
-The sample extension at `config/omarchy/extensions/omarchy-menu.jsonc`
-(refreshed into `~/.config/`) documents the format in its header and ships
-only comments, so the default state adds nothing.
+Both sources are parsed raw and each merged row is normalized once, after the overlay, so a field an extension omits keeps its shipped value. Declaring a field empty (`"icon": ""`) clears it, except `label`, which falls back to the id. Kind is inferred from `action` then `target`, so turning an action into a link also needs `"action": ""` — otherwise the inherited action wins and the row stays an action. The object key is the id; an `id` field inside the entry is ignored.
+
+The sample extension at `config/omarchy/extensions/omarchy-menu.jsonc` (refreshed into `~/.config/`) documents the format in its header and ships only comments, so the default state adds nothing.
 
 ## Guards
 
