@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Returns a formatted weather status string with temperature and wind speed.
+# omarchy:args=[--meters-per-second]
 
 place=$(omarchy-weather-location 2>/dev/null)
 
@@ -20,5 +21,10 @@ fi
 IFS='|' read -r temperature wind <<< "$weather"
 place=${place^}
 temperature=${temperature#+}
+
+if [[ ${1:-} == "--meters-per-second" && $wind =~ ^([^0-9]*)([0-9]+)km/h$ ]]; then
+  tenths=$(( (10#${BASH_REMATCH[2]} * 100 + 18) / 36 ))
+  wind="${BASH_REMATCH[1]}$(( tenths / 10 )).$(( tenths % 10 ))m/s"
+fi
 
 echo "$place  ·  Temp $temperature  ·  Wind $wind"

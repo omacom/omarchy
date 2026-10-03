@@ -75,7 +75,7 @@ BarWidget {
 
     onPressed: function(b) {
       if (!root.bar) return
-      if (b === Qt.RightButton) root.bar.run("omarchy-notification-send \"$(omarchy-weather-status)\"")
+      if (b === Qt.RightButton) root.bar.run("omarchy-notification-send \"$(omarchy-weather-status" + (panelLoader.item && panelLoader.item.useMetersPerSecond ? " --meters-per-second" : "") + ")\"")
       else if (b === Qt.MiddleButton) root.refresh()
       else root.togglePanel()
     }
