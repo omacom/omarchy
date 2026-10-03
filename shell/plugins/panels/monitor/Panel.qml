@@ -300,7 +300,19 @@ Panel {
     if (!name) return
     if (enabled && root.enabledDisplayCount <= 1) return
 
-    actionProc.command = ["hyprctl", "keyword", "monitor", name + (enabled ? ",disable" : ",preferred,auto,auto")]
+    // Hyprland's Lua parser rejects `hyprctl keyword` outright ("keyword
+    // can't work with non-legacy parsers. Use eval.") and hyprctl still exits
+    // 0, so this toggle silently did nothing on a Lua config. Prefer eval and
+    // keep keyword as the legacy-parser fallback, the same order
+    // omarchy-screensaver uses.
+    //
+    // `disabled = false` is required when re-enabling: setting only
+    // mode/position/scale on a disabled output is accepted and leaves it off.
+    var spec = enabled
+      ? 'hl.monitor({ output = "' + name + '", disabled = true })'
+      : 'hl.monitor({ output = "' + name + '", mode = "preferred", position = "auto", scale = "auto", disabled = false })'
+    var legacy = "hyprctl keyword monitor " + name + (enabled ? ",disable" : ",preferred,auto,auto")
+    actionProc.command = ["bash", "-c", "hyprctl eval '" + spec + "' >/dev/null 2>&1 || " + legacy]
     if (!actionProc.running) actionProc.running = true
   }
 
