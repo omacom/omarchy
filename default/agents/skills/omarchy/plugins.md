@@ -41,9 +41,14 @@ omarchy plugin clone omarchy.workspaces
 Cloning switches the bar to the cloned copy (e.g. `<username>.workspaces`),
 which is yours to edit and survives updates.
 
-Saving a file anywhere under `~/.config/omarchy/plugins/` reloads plugin code
+Saving a file under `~/.config/omarchy/plugins/` reloads plugin code
 automatically. If a change somehow fails to apply, force a reload with
-`omarchy-shell shell rescanPlugins`.
+`omarchy-shell shell rescanPlugins`. Services whose manifest sets
+`"keepLoaded": true` (notifications, idle, media, lock, polkit, and clones of
+them) keep their running instance through either reload, so edits to their
+service code, such as notification popup durations, need
+`omarchy restart shell`; `omarchy plugin list` shows the plugin enabled
+meanwhile.
 
 ## Idle and Lock
 
