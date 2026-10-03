@@ -496,7 +496,7 @@ QtObject {
         var relativeId = String(placement.before || placement.after)
         if (!findRelativeBarLocation(config, relativeId, String(placement.section || "")).found) {
           lastEnableError = "could not find target widget " + relativeId
-          return
+          return false
         }
       }
 
@@ -542,8 +542,13 @@ QtObject {
           config.plugins.push(entry)
         }
 
-        if (isBarWidget && !insertedWithPlacement && placement && Object.keys(placement).length)
-          moveBarEntry(config, key, placement)
+        if (isBarWidget && !insertedWithPlacement && placement && Object.keys(placement).length) {
+          var moveError = moveBarEntry(config, key, placement)
+          if (moveError) {
+            lastEnableError = moveError
+            return false
+          }
+        }
 
         if (clonedFrom && hasNonWidgetKind && !isDisabled(config, clonedFrom)) {
           addDisabled(config, clonedFrom)

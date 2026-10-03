@@ -163,8 +163,9 @@ ShellRoot {
 
   function mutateShellConfig(mutator) {
     var copy = JSON.parse(JSON.stringify(shellConfig || builtinShellConfig))
-    mutator(copy)
+    if (mutator(copy) === false) return false
     persistShellConfig(copy)
+    return true
   }
 
   // Exposed as a property so child plugins (notifications, future panels)

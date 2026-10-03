@@ -8,6 +8,8 @@ ShellRoot {
   readonly property string resultPath: Quickshell.env("OMARCHY_QML_TEST_RESULT")
   property var failures: []
   property int changeCount: 0
+  property int configWriteCount: 0
+  property int configSignalCount: 0
   property var config: ({
     version: 1,
     bar: { layout: { left: [], center: [], right: [] } },
@@ -231,12 +233,72 @@ ShellRoot {
     registry.setEnabled("third.widget", true, { section: "right", index: 0 })
     root.assertDeepEqual(root.config.bar.layout.right, [{ id: "third.widget" }], "enabling with placement is one registry transition")
 
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [{ id: "third.widget", size: 3 }], center: [], right: [] } },
+      plugins: []
+    }
+    root.assertTrue(
+      registry.setEnabled("third.widget", true, { fromSection: "left", fromIndex: 0, section: "right", index: 0 }),
+      "enabling with a valid source index succeeds"
+    )
+    root.assertDeepEqual(root.config.bar.layout.left, [], "a valid indexed enable move removes the source entry")
+    root.assertDeepEqual(root.config.bar.layout.right, [{ id: "third.widget", size: 3 }], "a valid indexed enable move preserves widget settings")
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [{ id: "third.widget", size: 3 }], center: [], right: [] } },
+      plugins: []
+    }
+    var invalidMoveConfig = JSON.parse(JSON.stringify(root.config))
+    var invalidMoveRevision = registry.registryRevision
+    var invalidMoveChangeCount = root.changeCount
+    var invalidMoveWriteCount = root.configWriteCount
+    var invalidMoveConfigSignalCount = root.configSignalCount
+    root.assertTrue(
+      !registry.setEnabled("third.widget", true, { fromSection: "left", fromIndex: 4, section: "right" }),
+      "enabling with a missing source index fails"
+    )
+    root.assertEqual(registry.lastEnableError, "no widget at left[4]", "failed indexed enable exposes the move error")
+    root.assertDeepEqual(root.config, invalidMoveConfig, "failed indexed enable leaves configuration unchanged")
+    root.assertEqual(registry.registryRevision, invalidMoveRevision, "failed indexed enable does not advance the registry revision")
+    root.assertEqual(root.changeCount, invalidMoveChangeCount, "failed indexed enable does not emit pluginsChanged")
+    root.assertEqual(root.configWriteCount, invalidMoveWriteCount, "failed indexed enable does not write shell.json")
+    root.assertEqual(root.configSignalCount, invalidMoveConfigSignalCount, "failed indexed enable does not emit shell config changes")
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [{ id: "omarchy.hybrid" }], center: [], right: [] } },
+      plugins: [],
+      disabledPlugins: []
+    }
+    var invalidCloneConfig = JSON.parse(JSON.stringify(root.config))
+    var invalidCloneRevision = registry.registryRevision
+    var invalidCloneChangeCount = root.changeCount
+    var invalidCloneWriteCount = root.configWriteCount
+    var invalidCloneConfigSignalCount = root.configSignalCount
+    root.assertTrue(
+      !registry.setEnabled("local.hybrid", true, { fromSection: "left", fromIndex: 4, section: "right" }),
+      "enabling a clone with a missing source index fails"
+    )
+    root.assertEqual(registry.lastEnableError, "no widget at left[4]", "failed clone move exposes the move error")
+    root.assertDeepEqual(root.config, invalidCloneConfig, "failed clone move leaves source and flags unchanged")
+    root.assertEqual(registry.registryRevision, invalidCloneRevision, "failed clone move does not advance the registry revision")
+    root.assertEqual(root.changeCount, invalidCloneChangeCount, "failed clone move does not emit pluginsChanged")
+    root.assertEqual(root.configWriteCount, invalidCloneWriteCount, "failed clone move does not write shell.json")
+    root.assertEqual(root.configSignalCount, invalidCloneConfigSignalCount, "failed clone move does not emit shell config changes")
+
     // A bar the placement's neighbour is not on still gets the widget.
     root.config = {
       version: 1,
       bar: { layout: { left: [], center: [{ id: "omarchy.weather" }], right: [] } },
       plugins: []
     }
+    var invalidTargetConfig = JSON.parse(JSON.stringify(root.config))
+    var invalidTargetRevision = registry.registryRevision
+    var invalidTargetChangeCount = root.changeCount
+    var invalidTargetWriteCount = root.configWriteCount
+    var invalidTargetConfigSignalCount = root.configSignalCount
     root.assertTrue(
       !registry.setEnabled("third.center-widget", true, { after: "omarchy.first-widget" }),
       "enabling against a widget the bar does not carry is refused"
@@ -247,6 +309,11 @@ ShellRoot {
       "a refused enable names the target it could not find"
     )
     root.assertDeepEqual(root.config.bar.layout.center, [{ id: "omarchy.weather" }], "a refused enable places nothing")
+    root.assertDeepEqual(root.config, invalidTargetConfig, "a refused enable leaves the full config unchanged")
+    root.assertEqual(registry.registryRevision, invalidTargetRevision, "a refused enable does not advance the registry revision")
+    root.assertEqual(root.changeCount, invalidTargetChangeCount, "a refused enable does not emit pluginsChanged")
+    root.assertEqual(root.configWriteCount, invalidTargetWriteCount, "a refused enable does not write shell.json")
+    root.assertEqual(root.configSignalCount, invalidTargetConfigSignalCount, "a refused enable does not emit shell config changes")
     root.assertEqual(
       registry.putBarWidget("third.center-widget", { after: "omarchy.first-widget" }),
       "",
@@ -468,8 +535,13 @@ ShellRoot {
     shellConfigProvider: function() { return root.config }
     shellConfigMutator: function(mutator) {
       var next = JSON.parse(JSON.stringify(root.config || {}))
-      mutator(next)
+      if (mutator(next) === false) return false
       root.config = next
+      root.configWriteCount++
+      root.configSignalCount++
+      registry.registryRevision++
+      registry.pluginsChanged()
+      return true
     }
     onPluginsChanged: root.changeCount++
   }
