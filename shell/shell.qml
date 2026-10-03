@@ -42,6 +42,10 @@ ShellRoot {
       screensaver: 150,
       lock: 300
     },
+    nightlight: {
+      night: 4000,
+      day: 6500
+    },
     bar: {
       position: "top",
       transparent: false,

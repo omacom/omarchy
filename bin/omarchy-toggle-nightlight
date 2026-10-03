@@ -4,9 +4,43 @@
 # omarchy:args=[--status]
 # omarchy:examples=omarchy toggle nightlight
 
-ON_TEMP=4000
-OFF_TEMP=6500
 IDENTITY_TEMP=6000
+DEFAULT_ON_TEMP=4000
+DEFAULT_OFF_TEMP=6500
+
+# Temperatures live in shell.json (`nightlight.night` / `nightlight.day`), the
+# same keys the shell's nightlight service reads. The user file replaces the
+# defaults wholesale when it carries version 1, mirroring shell.qml.
+shell_config_file() {
+  local user="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/shell.json"
+  if [[ -f $user ]] && jq -e '.version == 1' "$user" >/dev/null 2>&1; then
+    printf '%s\n' "$user"
+  elif [[ -n ${OMARCHY_PATH:-} && -f $OMARCHY_PATH/config/omarchy/shell.json ]]; then
+    printf '%s\n' "$OMARCHY_PATH/config/omarchy/shell.json"
+  fi
+}
+
+configured_temp() {
+  local key=$1 fallback=$2 file value
+  file=$(shell_config_file)
+  [[ -n $file ]] || { printf '%s\n' "$fallback"; return; }
+  value=$(jq -r --arg key "$key" '.nightlight[$key] // empty' "$file" 2>/dev/null)
+  if [[ $value =~ ^[0-9]+$ ]] && (( value >= 1000 && value <= 20000 )); then
+    printf '%s\n' "$value"
+  else
+    printf '%s\n' "$fallback"
+  fi
+}
+
+ON_TEMP=$(configured_temp night "$DEFAULT_ON_TEMP")
+OFF_TEMP=$(configured_temp day "$DEFAULT_OFF_TEMP")
+if (( ON_TEMP >= OFF_TEMP )); then
+  ON_TEMP=$DEFAULT_ON_TEMP
+  OFF_TEMP=$DEFAULT_OFF_TEMP
+fi
+# Night light counts as on below both the identity point and the day
+# temperature, so a warm day baseline still reads as "off".
+ENABLED_BELOW=$(( OFF_TEMP < IDENTITY_TEMP ? OFF_TEMP : IDENTITY_TEMP ))
 
 current_temp() {
   local output
@@ -19,7 +53,7 @@ status_json() {
   local temp enabled
 
   temp=$(current_temp)
-  if [[ -n $temp ]] && (( temp < IDENTITY_TEMP )); then
+  if [[ -n $temp ]] && (( temp < ENABLED_BELOW )); then
     enabled=true
   else
     enabled=false
@@ -42,7 +76,7 @@ fi
 # Query the current temperature
 CURRENT_TEMP=$(current_temp)
 
-if [[ -z $CURRENT_TEMP || $CURRENT_TEMP == $OFF_TEMP ]]; then
+if [[ -z $CURRENT_TEMP ]] || (( CURRENT_TEMP >= ENABLED_BELOW )); then
   TARGET_TEMP=$ON_TEMP
 else
   TARGET_TEMP=$OFF_TEMP
