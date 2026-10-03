@@ -30,6 +30,9 @@ if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI w
     rm -f ~/.local/bin/muse
   fi
 
+  # The cliamp override outlives the package it launches
+  rm -f ~/.local/share/applications/cliamp.desktop
+
   omarchy-pkg-drop \
     aether \
     cliamp \
