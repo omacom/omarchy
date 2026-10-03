@@ -104,3 +104,7 @@ if kill -0 "$producer_pid" 2>/dev/null; then
   fail "sleep monitor cleans up its producer when terminated" "producer still running: $producer_pid"
 fi
 pass "sleep monitor cleans up its producer when terminated"
+
+grep -F 'omarchy-shell -q omarchy.clock refresh' "$sleep_monitor" >/dev/null ||
+  fail "sleep monitor does not refresh the bar clock after resume"
+pass "sleep monitor refreshes the bar clock when it restarts after resume"
