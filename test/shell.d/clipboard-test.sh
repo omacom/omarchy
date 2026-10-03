@@ -518,3 +518,43 @@ OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 
 [[ $(<"$TMPDIR/omasnap") == "$TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
+
+cat >"$TMPDIR/bin/hyprpicker" <<'SH'
+#!/bin/bash
+exit 0
+SH
+
+cat >"$TMPDIR/bin/slurp" <<'SH'
+#!/bin/bash
+printf '%s' '0,0 200x100'
+SH
+
+cat >"$TMPDIR/bin/grim" <<'SH'
+#!/bin/bash
+printf '%s' 'fake-image-bytes'
+SH
+
+cat >"$TMPDIR/bin/tesseract" <<'SH'
+#!/bin/bash
+printf '%s' 'ocr text'
+SH
+
+cat >"$TMPDIR/bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+exit 0
+SH
+
+cat >"$TMPDIR/bin/wl-copy-args" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$WL_COPY_ARGS_OUT"
+cat >/dev/null
+SH
+
+chmod +x "$TMPDIR/bin/hyprpicker" "$TMPDIR/bin/slurp" "$TMPDIR/bin/grim" "$TMPDIR/bin/tesseract" "$TMPDIR/bin/omarchy-notification-send" "$TMPDIR/bin/wl-copy-args"
+
+cp "$TMPDIR/bin/wl-copy-args" "$TMPDIR/bin/wl-copy"
+WL_COPY_ARGS_OUT="$TMPDIR/wl-copy-args" PATH="$TMPDIR/bin:$PATH" OMARCHY_OCR_LANGS=eng \
+  "$ROOT/bin/omarchy-capture-text"
+
+[[ $(<"$TMPDIR/wl-copy-args") == "--sensitive" ]] || fail "ocr capture copies as sensitive so it stays out of clipboard history"
+pass "ocr capture copies as sensitive so it stays out of clipboard history"
