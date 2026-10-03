@@ -78,3 +78,22 @@ Before writing ANY window rules, you MUST fetch the current documentation from t
 DO NOT rely on cached or memorized window rule syntax. The format has changed multiple times and using outdated syntax will cause errors or unexpected behavior.
 
 Window rules go in `~/.config/hypr/hyprland.lua` or a required Lua module. Prefer Omarchy's `o.window(match, rules)` helper — see examples in `$OMARCHY_PATH/default/hypr/windows.lua`.
+
+## Closing Windows vs Terminating Programs
+
+`SUPER + W` and `SUPER + Q` both call `hl.dsp.window.close()` in `$OMARCHY_PATH/default/hypr/bindings/tiling.lua`. This sends a close request to the focused window; some applications keep running after their window closes.
+
+Identify the application before closing its window, because closing can change focus:
+
+1. Read the focused window's class: `hyprctl activewindow -j | jq -r '.class'`.
+2. For a Flatpak, run `flatpak ps`, identify the running application corresponding to the window's class, and record its ID from the `Application` column before closing the window. A window class is not necessarily a process name or Flatpak application ID.
+3. Close the window: `hyprctl dispatch 'hl.dsp.window.close()'`.
+4. If the application is still running and you need it to stop, terminate the application you identified. For a Flatpak, use `flatpak kill <app-id>`, replacing `<app-id>` with the application ID recorded in step 2.
+
+To change either shortcut, edit `~/.config/hypr/bindings.lua` and use `o.rebind(keys, description, dispatcher, options)`, as described in **Keybindings** above. It calls `hl.unbind(keys)` before `o.bind(...)`, replacing the existing action rather than adding another binding. For example, to replace `SUPER + Q` (currently Close window) with the file manager:
+
+```lua
+o.rebind("SUPER + Q", "File manager", { launch = "nautilus" })
+```
+
+Binding changes need a reload. Run `hyprctl reload`, then `hyprctl configerrors`; fix any reported errors and repeat validation until clean.
