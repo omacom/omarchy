@@ -8,5 +8,8 @@ o.window({ tag = "firefox-based-browser" }, { tag = "-default-opacity", opacity 
 o.window("(^.+-youtube\\.com__.*$|^.+-app\\.zoom\\.us__wc_home.*$)", { tag = "-chromium-based-browser" })
 o.window("(^.+-youtube\\.com__.*$|^.+-app\\.zoom\\.us__wc_home.*$)", { tag = "-default-opacity" })
 
+-- The X post composer (SUPER + SHIFT + ALT + X) is a single form: open it as a small centered dialog.
+o.window("^.+-x\\.com__compose_post-.*$", { float = true, center = true, size = { 540, 320 } })
+
 -- Hide screen sharing notification windows.
 o.window({ title = ".*is sharing.*" }, { workspace = "special silent" })
