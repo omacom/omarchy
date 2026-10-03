@@ -461,7 +461,7 @@ Panel {
       onStreamFinished: {
         var raw = String(text || "").trim()
         if (!raw) return
-        root.wttrLocation = raw.split(",")[0]
+        root.wttrLocation = Model.autoLocationLabel(raw)
       }
     }
   }
