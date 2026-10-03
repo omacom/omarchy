@@ -192,6 +192,12 @@ assert(notifications.shouldBypassDnd({ appName: 'notify-send', urgency: 2 }, 2),
 assert(!notifications.shouldBypassDnd({ appName: 'notify-send', urgency: 1 }, 2), 'normal notify-send does not bypass DND')
 assert(!notifications.shouldBypassDnd({ appName: 'Slack', urgency: 2 }, 2), 'critical app notifications do not bypass DND')
 assert(!notifications.shouldBypassDnd({ appName: 'omarchy-menu-keybindings', urgency: 1 }, 2), 'omarchy command app names do not bypass DND')
+
+assert(notifications.keepsCriticalOnScreen('omarchy-action'), 'omarchy action critical toasts stay on screen')
+assert(notifications.keepsCriticalOnScreen('notify-send'), 'notify-send critical toasts stay on screen')
+assert(!notifications.keepsCriticalOnScreen('Google Chrome'), 'chromium critical web notifications get a finite lifetime')
+assert(!notifications.keepsCriticalOnScreen('Slack'), 'chat app critical notifications get a finite lifetime')
+assert(!notifications.keepsCriticalOnScreen(''), 'anonymous critical notifications get a finite lifetime')
 assert(!notifications.isEphemeralApp('omarchy-menu-keybindings'), 'notifications treat omarchy command app names as normal apps')
 
 // The click action's argv form: parsed from the persisted omarchy-exec-argv
