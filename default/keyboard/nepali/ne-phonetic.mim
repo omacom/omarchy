@@ -1,0 +1,142 @@
+;; ne-phonetic.mim — phonetic Nepali Unicode on a US keyboard.
+;; Original map. MIT. See ../LICENSE.
+;;
+;; ka → क, kha → ख, kaa → का, namaste → नमस्ते.
+;; A consonant keeps its inherent अ. The next vowel replaces that
+;; inherent vowel with a matra. A following consonant inserts ्.
+
+(input-method ne phonetic)
+
+(description
+ "Phonetic Nepali Unicode.
+Type Latin on a US keyboard and this method commits Devanagari.
+ka क, kha ख, kaa or kA का, namaste नमस्ते, nepaal नेपाल.
+Retroflex: Ta ट, Tha ठ, Da ड, Dha ढ, Na ण.
+Shortcuts: ksha क्ष, gya ज्ञ. tra is just t + r + a (त्र).
+Explicit virama /, chandrabindu *, anusvara M, visarga H.
+ZWJ |, ZWNJ \\. Digits 0-9 become ०-९. . is danda ।")
+
+(title "ने")
+
+(map
+ (consonant
+  ("ksh" "क्ष")
+  ("kh" "ख")
+  ("gya" "ज्ञ")
+  ("gh" "घ")
+  ("ng" "ङ")
+  ("chh" "छ")
+  ("ch" "च")
+  ("jh" "झ")
+  ("yn" "ञ")
+  ("Th" "ठ")
+  ("Dh" "ढ")
+  ("th" "थ")
+  ("dh" "ध")
+  ("ph" "फ")
+  ("sh" "श")
+  ("Sh" "ष")
+  ("T" "ट")
+  ("D" "ड")
+  ("N" "ण")
+  ("k" "क")
+  ("g" "ग")
+  ("j" "ज")
+  ("t" "त")
+  ("d" "द")
+  ("n" "न")
+  ("p" "प")
+  ("f" "फ")
+  ("b" "ब")
+  ("bh" "भ")
+  ("m" "म")
+  ("y" "य")
+  ("r" "र")
+  ("l" "ल")
+  ("v" "व")
+  ("w" "व")
+  ("s" "स")
+  ("h" "ह"))
+
+ (independent
+  ("aa" "आ")
+  ("ai" "ऐ")
+  ("au" "औ")
+  ("ii" "ई")
+  ("ee" "ई")
+  ("uu" "ऊ")
+  ("oo" "ऊ")
+  ("Ri" "ऋ")
+  ("OM" "ॐ")
+  ("a" "अ")
+  ("i" "इ")
+  ("u" "उ")
+  ("e" "ए")
+  ("o" "ओ")
+  ("A" "आ")
+  ("I" "ई")
+  ("U" "ऊ")
+  ("0" "०")
+  ("1" "१")
+  ("2" "२")
+  ("3" "३")
+  ("4" "४")
+  ("5" "५")
+  ("6" "६")
+  ("7" "७")
+  ("8" "८")
+  ("9" "९"))
+
+ (dependent
+  ("aa" "ा")
+  ("ai" "ै")
+  ("au" "ौ")
+  ("ii" "ी")
+  ("ee" "ी")
+  ("uu" "ू")
+  ("oo" "ू")
+  ("Ri" "ृ")
+  ("a" "")
+  ("i" "ि")
+  ("u" "ु")
+  ("e" "े")
+  ("o" "ो")
+  ("A" "ा")
+  ("I" "ी")
+  ("U" "ू")
+  ("/" "्"))
+
+ (mark
+  (".." "॥")
+  ("." "।")
+  ("M" "ं")
+  ("H" "ः")
+  ("*" "ँ")
+  ("|" "‍")
+  ("\\" "‌"))
+
+ (backspace
+  ((BackSpace) (undo))))
+
+(state
+ (init
+  (consonant (mark anchor) (shift after))
+  (independent)
+  (mark)
+  (backspace))
+
+ (after
+  (consonant
+   (mark here)
+   (move anchor)
+   (insert ?्)
+   (move here)
+   (mark anchor))
+  (dependent (shift init))
+  (mark (shift init))
+  (backspace)))
+
+;; Local Variables:
+;; coding: utf-8
+;; mode: emacs-lisp
+;; End:
