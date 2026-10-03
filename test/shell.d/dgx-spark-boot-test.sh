@@ -37,6 +37,13 @@ SH
 cat >"$scratch/bin/limine-mkinitcpio" <<'SH'
 #!/bin/bash
 printf 'limine-mkinitcpio %s\n' "$*" >>"$CALL_LOG"
+exit "${TEST_MKINITCPIO_STATUS:-0}"
+SH
+cat >"$scratch/bin/efibootmgr" <<'SH'
+#!/bin/bash
+printf 'efibootmgr\n' >>"$CALL_LOG"
+[[ ${TEST_EFIBOOTMGR_STATUS:-0} == 0 ]] || exit "$TEST_EFIBOOTMGR_STATUS"
+printf '%b\n' "${TEST_EFI_ENTRIES:-Boot0001* Limine\tHD(1,GPT,1-2,0x800,0x400000)/\\\\EFI\\\\limine\\\\limine_aa64.efi}"
 SH
 chmod +x "$scratch/bin"/*
 
@@ -97,10 +104,33 @@ run spark "$scratch/preset" bash -euo pipefail "$migration" >/dev/null
 grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "the migration still rebuilds for an existing setting"
 pass "the migration rebuilds without rewriting an existing setting"
 
+# efibootmgr 18 prints the device path after a tab; older versions print the label alone.
+uki_path='HD(3,GPT,1-2,0x800,0x400000)/\\EFI\\Linux\\omarchy_linux-aarch64.efi'
+for entry in "Boot0002* Omarchy\t$uki_path" 'Boot0002* Omarchy' 'Boot0002 Omarchy'; do
+  TEST_EFI_ENTRIES="$entry" run spark "$scratch/direct-boot" bash -euo pipefail "$migration" >/dev/null
+  ! grep -q '^sudo ' "$CALL_LOG" || fail "the migration preserves Direct Boot"
+  [[ ! -e $scratch/direct-boot ]] || fail "Direct Boot keeps its setting and UKI"
+done
+# Only the dedicated Omarchy label implies Direct Boot; a Limine entry the
+# installer labelled after the disk must not make this migration skip the rebuild.
+for entry in 'Boot0002* Omarchy Rescue' 'Boot0001* Omarchy - Samsung 422087P\tHD(1,GPT,1-2,0x800,0x400000)/\\EFI\\LIMINE\\LIMINE_AA64.EFI'; do
+  TEST_EFI_ENTRIES="$entry" run spark "$scratch/other-label" bash -euo pipefail "$migration" >/dev/null
+  grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "a different EFI label does not imply Direct Boot"
+  rm -rf "$scratch/other-label"
+done
+pass "the migration preserves an Omarchy Direct Boot entry"
+
+TEST_EFIBOOTMGR_STATUS=1 run spark "$scratch/efi-failed" bash -euo pipefail "$migration" >/dev/null &&
+  fail "an unreadable EFI configuration stays pending"
+[[ ! -e $scratch/efi-failed ]] || fail "an unreadable EFI configuration changes no boot files"
+
 run other "$scratch/migrated-other" bash -euo pipefail "$migration" >/dev/null
 ! grep -q '^sudo ' "$CALL_LOG" || fail "the migration leaves other machines alone"
 [[ ! -e $scratch/migrated-other ]] || fail "the migration writes nothing on other machines"
 TEST_SUDO_STATUS=1 run spark "$scratch/failed" bash -euo pipefail "$migration" >/dev/null &&
   fail "a failed migration stays pending"
 [[ ! -e $scratch/failed/marker ]] || fail "a failed migration records no rebuild"
+TEST_MKINITCPIO_STATUS=1 run spark "$scratch/rebuild-failed" bash -euo pipefail "$migration" >/dev/null &&
+  fail "a failed rebuild stays pending"
+[[ ! -e $scratch/rebuild-failed/marker ]] || fail "a failed rebuild records no marker"
 pass "the migration leaves other machines alone and retries after a failure"
