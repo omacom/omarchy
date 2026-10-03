@@ -10,7 +10,9 @@ declare -A VULKAN_DRIVERS=(
 PACKAGES=()
 
 for vendor in "${!VULKAN_DRIVERS[@]}"; do
-  if lspci | grep -iE "(VGA|Display).*$vendor" > /dev/null; then
+  # Anchor on the class name: T2 Macs list "Non-VGA unclassified device: Apple Inc.",
+  # which an unanchored VGA match would take for an Apple GPU.
+  if lspci | grep -iE "^\S+ (VGA compatible controller|Display controller): .*$vendor" > /dev/null; then
     PACKAGES+=("${VULKAN_DRIVERS[$vendor]}")
   fi
 done
