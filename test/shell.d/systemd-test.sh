@@ -6,8 +6,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 service="$ROOT/default/systemd/user/bt-agent.service"
 
-grep -Fx 'ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service' "$service" >/dev/null
-pass "bt-agent skips when bluetooth.service is inactive"
+grep -Fx 'ExecStartPre=/usr/bin/systemctl is-active --quiet bluetooth.service' "$service" >/dev/null
+pass "bt-agent retries when bluetooth.service is not yet active"
 
 grep -Fx 'Restart=on-failure' "$service" >/dev/null
 pass "bt-agent still restarts after runtime failures"
@@ -30,6 +30,9 @@ first_run_units="$ROOT/install/user/first-run/enable-user-units.sh"
 grep -Fx 'systemctl --user daemon-reload' "$first_run_units" >/dev/null
 grep -F 'omarchy-sleep-lock.service' "$first_run_units" >/dev/null
 pass "first-run reloads and enables the sleep lock service"
+
+grep -Fx 'systemctl --user enable --now --no-block bt-agent.service' "$first_run_units" >/dev/null
+pass "first-run does not fail while bt-agent waits for bluetoothd"
 
 upgrade_to_quattro="$ROOT/bin/omarchy-upgrade-to-quattro"
 grep -F '6870b232a6c0474b59187882e6d25ae771bba735098bcbedef8a2b73b97e2b6a' "$upgrade_to_quattro" >/dev/null

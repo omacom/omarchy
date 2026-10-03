@@ -13,12 +13,15 @@ set -euo pipefail
 
 systemctl --user daemon-reload
 systemctl --user enable --now \
-  bt-agent.service \
   owed.service \
   omarchy-recover-internal-monitor.service \
   omarchy-sleep-lock.service \
   omarchy-migrate-notify.service \
   omarchy-fcitx5.service \
   omarchy-crash-watch.service
+
+# bt-agent fails its start until bluetoothd is up and retries on its own, so
+# don't wait on it.
+systemctl --user enable --now --no-block bt-agent.service
 
 omarchy-hook-install theme-set /usr/share/owe/10-owe-sync
