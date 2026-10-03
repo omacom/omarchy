@@ -49,7 +49,7 @@ validate_dev_checkout() {
 
 link_dev_checkout() {
   local checkout="$1" required
-  [[ -d $checkout/.git ]] || git clone https://github.com/omacom/omarchy.git "$checkout"
+  [[ -d $checkout/.git ]] || git clone --depth=1 -- https://github.com/omacom/omarchy.git "$checkout"
 
   # Check the destination before changing /etc/omarchy.conf or sudo's path.
   # An existing checkout is not pulled automatically and may predate this policy.

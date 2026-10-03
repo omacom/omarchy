@@ -117,7 +117,7 @@ mkdir -p "$PLUGINS_DIR"
 
 stage="$PLUGINS_DIR/.add.tmp.$$"
 rm -rf "$stage"
-if ! git clone -- "$url" "$stage"; then
+if ! git clone --depth=1 -- "$url" "$stage"; then
   rm -rf "$stage"
   fail "failed to clone $url"
 fi
