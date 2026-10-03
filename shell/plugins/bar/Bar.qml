@@ -755,6 +755,21 @@ Item {
     return true
   }
 
+  // Close every open bar-widget panel. Used before the screensaver maps so a
+  // KeyboardPanel overlay cannot keep focus / fullscreen away from it.
+  function hideOpenBarWidgets() {
+    var seen = ({})
+    for (var i = 0; i < moduleSlots.length; i++) {
+      var slot = moduleSlots[i]
+      var item = slot ? slot.activeItem : null
+      if (!item || item.opened !== true || typeof item.close !== "function") continue
+      var id = String(slot.moduleName || "")
+      if (id && seen[id]) continue
+      if (id) seen[id] = true
+      item.close()
+    }
+  }
+
   function isBarWidgetOpen(pluginId) {
     var item = findPanelWidget(pluginId)
     return !!item && item.opened === true
