@@ -76,6 +76,20 @@ Item {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
 
+  // DPMS takes this surface's keyboard focus with it, and lighting the panel
+  // back up does not hand it back, so the field stays deaf to everything but
+  // the click that focused it. The blanked flag clears when the wake is
+  // dispatched rather than when the compositor has handed focus back, so a
+  // single call lands too early on hardware slow to return it -- ask until it
+  // takes. Idle while blanked: there is no focus to win with the output down,
+  // and a lock can sit blanked all night.
+  Timer {
+    interval: 100
+    repeat: true
+    running: root.inputEnabled && !root.authenticatingPassword && !root.displaysBlank && !passwordInput.activeFocus
+    onTriggered: root.forcePasswordFocus()
+  }
+
   // Measures the masked password at full size; passwordDotScale compares this
   // against the field width to decide how far the dots must shrink to fit.
   TextMetrics {

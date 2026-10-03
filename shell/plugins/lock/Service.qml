@@ -42,6 +42,8 @@ Item {
   // (a resume that kept the same outputs) resumes instead of freezing.
   property var monitorDpms: ({})
   property bool monitorDpmsKnown: false
+  // A wake that arrived mid-blank. Not displaysBlank: a screen change clears that too.
+  property bool wakeHeld: false
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
@@ -191,13 +193,19 @@ Item {
   function runWake() {
     root.displaysBlank = false
     root.monitorDpmsKnown = false
-    if (!wakeProcess.running) wakeProcess.running = true
+    // A wake dispatched while the blank is still running finds the display lit,
+    // skips its DPMS enable, and is then taken down by the very blank it meant
+    // to undo: dark panel, blanked flag false, monitor disarmed. Let the blank
+    // land and undo it on the way out instead.
+    if (blankProcess.running) root.wakeHeld = true
+    else if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
   }
 
   function runBlank() {
     root.displaysBlank = true
     root.monitorDpmsKnown = false
+    root.wakeHeld = false
     if (!blankProcess.running) blankProcess.running = true
   }
 
@@ -436,6 +444,24 @@ Item {
     }
   }
 
+  // Hyprland drops the lock surface's keyboard focus when the display goes
+  // DPMS-off, which severs the only route a keystroke has to runWake(): the
+  // password field's Keys handler. That leaves the blanked lock screen wakeable
+  // by pointer alone — the field cannot hear the key that would light the panel
+  // it needs to be lit to hear. The compositor still reports input as activity no
+  // matter who holds focus, so watch that instead and let any key wake the screen.
+  // Armed for the whole lock rather than only while blanked: the notification
+  // starts active and reports idle a second later, and typing restarts that
+  // second, so one armed at blank time never primes under a user who wakes the
+  // screen by typing their password straight in.
+  IdleMonitor {
+    id: blankWakeMonitor
+    enabled: root.lockRequested
+    timeout: 1
+    respectInhibitors: false
+    onIsIdleChanged: if (!isIdle && root.displaysBlank) root.runWake()
+  }
+
   Timer {
     id: fingerprintRetryTimer
     interval: 250
@@ -514,6 +540,12 @@ Item {
   Process {
     id: blankProcess
     command: ["bash", "-c", "omarchy-brightness-keyboard off; omarchy-brightness-display off"]
+    // Any wake that arrived mid-blank was held back above, so run it here,
+    // where the DPMS off it has to undo has actually landed.
+    onExited: {
+      if (root.wakeHeld && !root.displaysBlank && !wakeProcess.running) wakeProcess.running = true
+      root.wakeHeld = false
+    }
   }
 
   // Quickshell exposes no DPMS signal, so the panel state is polled while a
@@ -551,6 +583,13 @@ Item {
       // blank the freshly woken unlock screen under the user. Wall-clock time
       // exposes the gap: take a fresh run-up instead of blanking.
       if (Date.now() - armedAt > interval + 2000) {
+        root.armBlankTimer()
+        return
+      }
+      // Input the field never heard (keys while it has no focus, a scroll) is
+      // still someone at the screen. Blanking under them leaves the monitor
+      // with no idle-to-active edge to wake on until they pause.
+      if (root.lockRequested && !blankWakeMonitor.isIdle) {
         root.armBlankTimer()
         return
       }
