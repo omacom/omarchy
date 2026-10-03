@@ -580,6 +580,7 @@ Panel {
           spacing: Style.space(12)
 
           Row {
+            id: locationRow
             visible: !root.editingLocation && root.reportLocation !== ""
             spacing: Style.space(6)
 
@@ -591,6 +592,7 @@ Panel {
             }
 
             Text {
+              id: locationMarker
               text: ""  // nf-fa-map_marker
               color: Qt.darker(root.bar.foreground, 1.4)
               font.family: root.bar.fontFamily
@@ -598,6 +600,7 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
             }
             Text {
+              id: locationText
               textFormat: Text.PlainText
               text: (root.reportLocation || "").toUpperCase()
               color: Qt.darker(root.bar.foreground, 1.4)
@@ -605,6 +608,8 @@ Panel {
               font.pixelSize: Style.font.body
               font.letterSpacing: 1
               anchors.verticalCenter: parent.verticalCenter
+              elide: Text.ElideRight
+              width: Math.min(implicitWidth, Math.max(0, heroRight.width - locationMarker.implicitWidth - locationRow.spacing))
             }
           }
 
@@ -616,7 +621,7 @@ Panel {
               id: locationField
               width: Style.space(190)
               enabled: !root.savingLocation
-              placeholderText: "Search city"
+              placeholderText: root.reportLocation || "Search city"
               foreground: root.bar.foreground
               font.family: root.bar.fontFamily
 
