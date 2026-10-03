@@ -27,6 +27,13 @@ STUB
 # asked for the retry to fail too.
 cat >"$stub_bin/pacman" <<'STUB'
 #!/bin/bash
+# The dependency branch asks the resolver again for the lines pacman put on
+# stdout. It is not a transaction, so it must not count as an attempt.
+if [[ $1 == -Sup ]]; then
+  printf '%s' "${RESOLVE_DETAIL:-}"
+  exit 1
+fi
+
 if [[ $1 == -Qo ]]; then
   # Anything in OWNED_PATHS has a package behind it; everything else is unowned.
   [[ " $OWNED_PATHS " == *" $2 "* ]]
@@ -59,6 +66,7 @@ run_update() {
     PACMAN_ATTEMPTS="$test_tmp/attempts" \
     CONFLICT_REPORT="$test_tmp/report" \
     OWNED_PATHS="${OWNED_PATHS:-}" \
+    RESOLVE_DETAIL="${RESOLVE_DETAIL:-}" \
     PATH="$stub_bin:$ROOT/bin:$PATH" \
     bash "$ROOT/bin/omarchy-update-system-pkgs"
 }
@@ -272,6 +280,29 @@ fi
 [[ -f $stray ]] ||
   fail "the handler moved a live file when run outside an update"
 pass "the handler refuses a report handed to it outside an update"
+
+# A held package whose dependency moved on stops the upgrade, and pacman says so
+# only on stdout, which the upgrade never captured.
+fresh_work
+echo 0 >"$test_tmp/attempts"
+echo "error: failed to prepare transaction (could not satisfy dependencies)" >"$test_tmp/report"
+detail=":: installing aquamarine (0.15.0-2) breaks dependency 'libaquamarine.so=13-64' required by hyprland"
+if RESOLVE_DETAIL="$detail" run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
+  fail "an unsatisfiable dependency reports success"
+fi
+grep -qF "$detail" "$test_tmp/err" ||
+  fail "the upgrade never says which package the dependency broke on"
+grep -qi "IgnorePkg" "$test_tmp/err" ||
+  fail "the upgrade never says a held package is what blocked it"
+pass "an unsatisfiable dependency names the package and the hold behind it"
+
+# Nothing to clean up and nothing to retry: a second transaction would fail the
+# same way, and there are no leftovers to move.
+[[ $(cat "$test_tmp/attempts") == 1 ]] ||
+  fail "an unsatisfiable dependency is retried"
+[[ ! -d $replaced ]] ||
+  fail "an unsatisfiable dependency moves files out of the way"
+pass "an unsatisfiable dependency is neither retried nor healed"
 
 # The happy path must not pay for any of this.
 fresh_work
