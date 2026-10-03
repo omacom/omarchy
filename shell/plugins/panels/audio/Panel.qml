@@ -153,6 +153,7 @@ Panel {
 
   // Single cursor model shared by keyboard and mouse. Sections:
   //   "output"  — output slider + sink device list
+  //   "output-test" — explicit playback test toggle
   //   "input"   — input slider + source device list
   //   "streams" — per-app playback streams
   // selectedIndex semantics within a section:
@@ -185,6 +186,7 @@ Panel {
 
   function sectionCount(section) {
     if (section === "output") return displayAudioSinks.length
+    if (section === "output-test") return 1
     if (section === "input") return displayAudioSources.length
     if (section === "streams") return displayAudioStreams.length
     return 0
@@ -192,6 +194,7 @@ Panel {
 
   function sectionVisible(section) {
     if (section === "output") return true
+    if (section === "output-test") return !!sink
     if (section === "input") return displayAudioSources.length > 0 || !!source
     if (section === "streams") return displayAudioStreams.length > 0
     return false
@@ -208,6 +211,7 @@ Panel {
   readonly property var visibleSections: {
     var list = []
     if (sectionVisible("output")) list.push("output")
+    if (sectionVisible("output-test")) list.push("output-test")
     if (sectionVisible("input")) list.push("input")
     if (sectionVisible("streams")) list.push("streams")
     return list
@@ -295,6 +299,7 @@ Panel {
       if (sink) setDefaultSink(sink)
       return
     }
+    if (focusSection === "output-test") { outputTest.toggle(); return }
     if (focusSection === "input") {
       if (selectedIndex === -1) { toggleInputMute(); return }
       var src = displayAudioSources[selectedIndex]
@@ -576,6 +581,14 @@ Panel {
   PwObjectTracker { objects: root.candidateSinks }
   PwObjectTracker { objects: root.candidateSources }
   PwObjectTracker { objects: root.audioStreams }
+
+  OutputTest {
+    id: outputTest
+    // volumeSink resolves the hardware control; playback must instead enter
+    // the selected sink so speaker tuning and effects stay in the path.
+    target: root.sink ? String(root.sink.name || "") : ""
+    available: root.opened
+  }
 
   PwNodePeakMonitor {
     id: inputPeakMonitor
@@ -860,6 +873,53 @@ Panel {
                 node: modelData
                 rowIndex: index
               }
+            }
+
+            CursorSurface {
+              id: outputTestRow
+              visible: !!root.sink
+              width: parent.width
+              implicitHeight: outputTestLabel.implicitHeight + Style.spacing.xl
+              hasCursor: root.cursorActive && root.focusSection === "output-test"
+              onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(outputTestRow)
+              current: outputTest.running
+              foreground: root.bar.foreground
+
+              Text {
+                id: outputTestLabel
+                textFormat: Text.PlainText
+                text: outputTest.running ? "Stop output test" : "Test output"
+                anchors.centerIn: parent
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.body
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onContainsMouseChanged: if (containsMouse) {
+                  root.cursorActive = true
+                  root.focusSection = "output-test"
+                  root.selectedIndex = 0
+                }
+                onClicked: outputTest.toggle()
+              }
+            }
+
+            Text {
+              visible: !!root.sink
+              width: parent.width
+              textFormat: Text.PlainText
+              text: outputTest.error || (root.outputMuted
+                ? "Unmute this output to hear the test."
+                : (outputTest.running ? "Playing a short test sound."
+                  : "Play a sound through the selected output."))
+              wrapMode: Text.WordWrap
+              color: Qt.darker(root.bar.foreground, 1.4)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
             }
           }
 
