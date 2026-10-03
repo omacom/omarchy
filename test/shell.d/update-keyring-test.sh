@@ -25,6 +25,14 @@ for arg in "$@"; do
 done
 printf '\n' >>"$KEYRING_TEST_LOG"
 
+# The reinstall pins its locale through sudo env; match on the command after it.
+if [[ $1 == "env" ]]; then
+  shift
+  while [[ $1 == *=* ]]; do
+    shift
+  done
+fi
+
 if [[ $1 == "pacman-key" && $2 == "--list-keys" ]]; then
   calls_file="$KEYRING_TEST_DIR/list-calls"
   calls=$(( $(cat "$calls_file" 2>/dev/null || echo 0) + 1 ))
@@ -82,9 +90,9 @@ grep -F "Keys are correct" "$test_tmp/ok.out" >/dev/null ||
   fail "update-keyring reports success when the keyring is healthy" "$(cat "$test_tmp/ok.out")"
 pass "update-keyring reports success when the keyring is healthy"
 
-grep -Eq $'^sudo\tpacman\t-Sy\t--noconfirm\tarchlinux-keyring$' "$log_file" ||
-  fail "update-keyring still reinstalls archlinux-keyring" "$(cat "$log_file")"
-pass "update-keyring still reinstalls archlinux-keyring"
+grep -Eq $'^sudo\tenv\tLC_ALL=C\tpacman\t-Sy\t--noconfirm\tarchlinux-keyring$' "$log_file" ||
+  fail "update-keyring reinstalls archlinux-keyring in the C locale" "$(cat "$log_file")"
+pass "update-keyring reinstalls archlinux-keyring in the C locale"
 
 # Key and package missing: the full populate path runs and verifies at the end.
 : >"$log_file"
