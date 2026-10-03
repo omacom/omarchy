@@ -36,7 +36,8 @@ BarWidget {
   readonly property var verticalLines: displayText.split("\n")
 
   function refresh() {
-    displayDate = new Date()
+    clock.enabled = false
+    clock.enabled = true
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
   }
 
@@ -117,6 +118,11 @@ BarWidget {
     id: clock
     precision: root.showsSeconds ? SystemClock.Seconds : SystemClock.Minutes
     onDateChanged: root.displayDate = date
+  }
+
+  Connections {
+    target: SystemSleep
+    function onResumed() { root.refresh() }
   }
 
   Loader {
