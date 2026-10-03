@@ -132,6 +132,10 @@ assert(
   /Qt\.callLater\(function\(\) \{\s*\n\s*if \(root\.opened\) setCenterHoverRevealSuppressed\(true\)/.test(panelSource),
   'weather claims the shared hover-reveal flag after the popout handoff, so the panel taking over wins'
 )
+assert(
+  !panelSource.includes('"https://wttr.in/?format=%l"'),
+  'weather panel does not use a separate IP lookup for its location label'
+)
 
 assert(
   panelSource.includes('text: root.label || "—"'),
@@ -198,20 +202,3 @@ pass "weather location rejects malformed coordinates"
 weather_location --clear
 [[ ! -e "$test_tmp/.local/state/omarchy/settings/weather.json" ]] || fail "weather location clear removes the state file"
 pass "weather location clear removes the state file"
-
-# With nothing stored, the no-arg location comes from the same j1 payload the
-# panel reads, not a separate format=%l guess that can name a different city.
-mkdir -p "$test_tmp/bin"
-cat >"$test_tmp/bin/curl" <<'SH'
-#!/bin/bash
-printf 'curl %s\n' "$*" >>"$CURL_LOG"
-printf '%s' '{"nearest_area":[{"areaName":[{"value":"Orient"}]}]}'
-SH
-chmod +x "$test_tmp/bin/curl"
-
-detected=$(CURL_LOG="$test_tmp/curl.log" HOME="$test_tmp" PATH="$test_tmp/bin:$PATH" "$ROOT/bin/omarchy-weather-location")
-[[ $detected == "Orient" ]] ||
-  fail "weather location reports the j1 nearest_area name" "$detected"
-grep -q 'format=j1' "$test_tmp/curl.log" ||
-  fail "weather location queries wttr.in with the panel's j1 format" "$(cat "$test_tmp/curl.log")"
-pass "weather location reports the j1 nearest_area name"
