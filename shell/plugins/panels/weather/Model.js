@@ -32,6 +32,15 @@ function wttrLocationQuery(location, latitude, longitude) {
   return name === "" ? "" : encodeURIComponent(name)
 }
 
+// Location label for the report: the configured name when set, otherwise the
+// nearest_area of the same response that supplied the weather — a separate
+// IP lookup can name a different place than the conditions show.
+function reportLocationName(areaInfo, configuredName) {
+  if (configuredName) return configuredName
+  var area = areaInfo && areaInfo.areaName && areaInfo.areaName[0]
+  return area && area.value ? area.value : ""
+}
+
 // Open-Meteo geocoding response → suggestion rows for the location picker.
 function parseGeocodingResults(raw) {
   try {
@@ -269,6 +278,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     parseLocationFile: parseLocationFile,
     wttrLocationQuery: wttrLocationQuery,
+    reportLocationName: reportLocationName,
     parseGeocodingResults: parseGeocodingResults,
     locationCommit: locationCommit,
     isFutureForecastDate: isFutureForecastDate,

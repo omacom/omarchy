@@ -132,6 +132,10 @@ assert(
   /Qt\.callLater\(function\(\) \{\s*\n\s*if \(root\.opened\) setCenterHoverRevealSuppressed\(true\)/.test(panelSource),
   'weather claims the shared hover-reveal flag after the popout handoff, so the panel taking over wins'
 )
+assert(
+  !panelSource.includes('"https://wttr.in/?format=%l"'),
+  'weather panel does not use a separate IP lookup for its location label'
+)
 
 assert(
   panelSource.includes('text: root.label || "—"'),
@@ -153,6 +157,22 @@ assertEqual(
   weather.iconForCode(389, false),
   'weather picks hourly forecast icon nearest noon'
 )
+
+// The location label must come from the same response as the weather data;
+// wttr.in can return a different nearest_area for format=%l than for
+// format=j1, which paired one city's name with another's conditions.
+assertEqual(
+  weather.reportLocationName({ areaName: [{ value: 'Orient' }] }, ''),
+  'Orient',
+  'weather labels the location that supplied the weather'
+)
+assertEqual(
+  weather.reportLocationName({ areaName: [{ value: 'Orient' }] }, 'Tel Aviv'),
+  'Tel Aviv',
+  'weather prefers the configured location name over the detected one'
+)
+assertEqual(weather.reportLocationName(null, ''), '', 'weather reports no location name without a nearest_area')
+assert(/Model\.reportLocationName\(areaInfo, configuredLocation\)/.test(panelSource), 'weather panel labels itself through the shared location-name resolver')
 JS
 
 test_tmp=$(mktemp -d)
