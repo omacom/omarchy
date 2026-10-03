@@ -1,13 +1,24 @@
 #!/bin/bash
 
 # omarchy:summary=Focus a Hyprland window by application identity
-# omarchy:args=<app-name>
+# omarchy:args=[--or-launch] [--entry <desktop-id>] <app-name>
 # omarchy:examples=omarchy hyprland focus app Slack
 
 usage() {
-  echo "Usage: omarchy-hyprland-focus-app <app-name>" >&2
+  echo "Usage: omarchy-hyprland-focus-app [--or-launch] [--entry <desktop-id>] <app-name>" >&2
   exit 1
 }
+
+or_launch=false
+entry_hint=
+while [[ ${1:-} == --* ]]; do
+  case $1 in
+    --or-launch) or_launch=true ;;
+    --entry) entry_hint=${2:-}; shift ;;
+    *) usage ;;
+  esac
+  shift
+done
 
 app=${1:-}
 [[ -n $app ]] || usage
@@ -25,7 +36,55 @@ address=$(
        ).address // empty'
 )
 
-[[ -n $address ]] || exit 1
+if [[ -n $address ]]; then
+  hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || \
+    hyprctl dispatch focuswindow "address:$address" >/dev/null
+  exit
+fi
 
-hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || \
-  hyprctl dispatch focuswindow "address:$address" >/dev/null
+$or_launch || exit 1
+
+# Chat apps closed to their tray (Slack, Discord, Telegram) keep running and
+# keep sending notifications, but have no window left to focus. Launch the
+# app's desktop entry instead: single-instance apps restore their window on
+# relaunch.
+IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+app_dirs=("${data_dirs[@]/%//applications}")
+
+# First entry whose file name matches the find test, in data dir order.
+entry_named() {
+  local path
+  path=$(find "${app_dirs[@]}" -maxdepth 1 -name '*.desktop' "$@" -print -quit 2>/dev/null)
+  [[ -n $path ]] && basename "$path"
+}
+
+# Senders pass their entry id with or without the .desktop suffix, and ids like
+# org.telegram.desktop end in it themselves, so try the suffixed form first.
+entry_hinted() {
+  [[ -n $entry_hint ]] || return 1
+  entry_named -iname "$entry_hint.desktop" || entry_named -iname "$entry_hint"
+}
+
+# First entry carrying an exact "$1=$app" line, case-insensitively.
+entry_declaring() {
+  local path
+  path=$(find "${app_dirs[@]}" -maxdepth 1 -name '*.desktop' \
+    -exec grep -lisxF -- "$1=$app" {} + 2>/dev/null | head -1)
+  [[ -n $path ]] && basename "$path"
+}
+
+# Resolve the entry behind the app, most reliable signal first: the sender's
+# own desktop-entry hint, the entry declaring the window class we just failed
+# to find (which also picks native Slack over a "Slack" webapp), the entry id
+# (discord -> Discord.desktop), then the display name ("Telegram Desktop" ->
+# org.telegram.desktop.desktop). Notification app names differ from entry ids
+# in case, so every lookup is case-insensitive.
+entry=$(
+  entry_hinted ||
+    entry_declaring StartupWMClass ||
+    entry_named -iname "$app.desktop" ||
+    entry_declaring Name
+)
+[[ -n $entry ]] || exit 1
+
+exec setsid uwsm-app -- gtk-launch "$entry"
