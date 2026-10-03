@@ -18,11 +18,53 @@ o.bind("SUPER + RIGHT", "Focus on right window", hl.dsp.focus({ direction = "r" 
 o.bind("SUPER + UP", "Focus on above window", hl.dsp.focus({ direction = "u" }))
 o.bind("SUPER + DOWN", "Focus on below window", hl.dsp.focus({ direction = "d" }))
 
+-- Per-monitor workspace keys (opt-in). When workspaces are pinned per monitor
+-- (say 1–10 on the left screen and 11–20 on the right), SUPER+N is more useful
+-- as "the N-th workspace of the monitor I'm on" than as the global workspace N.
+-- Enable in ~/.config/hypr/hyprland.lua, before the defaults are loaded:
+--   omarchy_workspaces_per_monitor = true
+local per_monitor_workspaces = _G.omarchy_workspaces_per_monitor == true
+
+-- The N-th workspace, by id, among those on the active monitor. A monitor with
+-- fewer than N workspaces answers by extending its block from its first one, so
+-- the keys stay predictable (a monitor holding 11–15 answers N=8 with 18).
+local function workspace_on_active_monitor(n)
+  local monitor = hl.get_active_monitor()
+  if not monitor then
+    return tostring(n)
+  end
+
+  local ids = {}
+  for _, workspace in ipairs(hl.get_workspaces()) do
+    if workspace.id > 0 and not workspace.special and workspace.monitor and workspace.monitor.id == monitor.id then
+      ids[#ids + 1] = workspace.id
+    end
+  end
+  table.sort(ids)
+
+  if ids[n] then
+    return tostring(ids[n])
+  end
+  return tostring((ids[1] or 1) - 1 + n)
+end
+
 for workspace = 1, 10 do
   local key = "code:" .. tostring(workspace + 9)
-  o.bind("SUPER + " .. key, "Switch to workspace " .. workspace, hl.dsp.focus({ workspace = tostring(workspace) }))
-  o.bind("SUPER + SHIFT + " .. key, "Move window to workspace " .. workspace, hl.dsp.window.move({ workspace = tostring(workspace) }))
-  o.bind("SUPER + SHIFT + ALT + " .. key, "Move window silently to workspace " .. workspace, hl.dsp.window.move({ workspace = tostring(workspace), follow = false }))
+  if per_monitor_workspaces then
+    o.bind("SUPER + " .. key, "Switch to workspace " .. workspace .. " on this monitor", function()
+      hl.dispatch(hl.dsp.focus({ workspace = workspace_on_active_monitor(workspace) }))
+    end)
+    o.bind("SUPER + SHIFT + " .. key, "Move window to workspace " .. workspace .. " on this monitor", function()
+      hl.dispatch(hl.dsp.window.move({ workspace = workspace_on_active_monitor(workspace) }))
+    end)
+    o.bind("SUPER + SHIFT + ALT + " .. key, "Move window silently to workspace " .. workspace .. " on this monitor", function()
+      hl.dispatch(hl.dsp.window.move({ workspace = workspace_on_active_monitor(workspace), follow = false }))
+    end)
+  else
+    o.bind("SUPER + " .. key, "Switch to workspace " .. workspace, hl.dsp.focus({ workspace = tostring(workspace) }))
+    o.bind("SUPER + SHIFT + " .. key, "Move window to workspace " .. workspace, hl.dsp.window.move({ workspace = tostring(workspace) }))
+    o.bind("SUPER + SHIFT + ALT + " .. key, "Move window silently to workspace " .. workspace, hl.dsp.window.move({ workspace = tostring(workspace), follow = false }))
+  end
 end
 
 o.bind("SUPER + S", "Toggle scratchpad", hl.dsp.workspace.toggle_special("scratchpad"))
@@ -30,8 +72,9 @@ o.bind("SUPER + ALT + S", "Move window to scratchpad", hl.dsp.window.move({ work
 o.bind("SUPER + grave", "Toggle scratchpad", hl.dsp.workspace.toggle_special("scratchpad"))
 o.bind("SUPER + SHIFT + grave", "Move window to scratchpad", hl.dsp.window.move({ workspace = "special:scratchpad", follow = false }))
 
-o.bind("SUPER + TAB", "Next workspace", hl.dsp.focus({ workspace = "e+1" }))
-o.bind("SUPER + SHIFT + TAB", "Previous workspace", hl.dsp.focus({ workspace = "e-1" }))
+-- With per-monitor workspaces, cycle within the active monitor (Hyprland's m±1).
+o.bind("SUPER + TAB", "Next workspace", hl.dsp.focus({ workspace = per_monitor_workspaces and "m+1" or "e+1" }))
+o.bind("SUPER + SHIFT + TAB", "Previous workspace", hl.dsp.focus({ workspace = per_monitor_workspaces and "m-1" or "e-1" }))
 o.bind("SUPER + CTRL + TAB", "Former workspace", hl.dsp.focus({ workspace = "previous" }))
 
 o.bind("SUPER + SHIFT + ALT + LEFT", "Move workspace to left monitor", hl.dsp.workspace.move({ monitor = "l" }))
