@@ -694,6 +694,13 @@ ShellRoot {
     var api = pluginShellApiComponent.createObject(null, {
       pluginId: target,
       barConfig: shell.publicBarConfig(),
+      // Own-service only: a replacement bar can reach the widget's own live
+      // service (bar-widget+service plugins) without a generic factory that
+      // would expose another plugin's service object.
+      _serviceLookup: function(requestedId) {
+        return owns(requestedId)
+          ? shell.serviceFor(shell.pluginRegistry.resolveEnabledId(target)) : null
+      },
       _summon: function(requestedId, payloadJson) {
         if (!owns(requestedId)
             && !shell.pluginCloneMaySummon(currentManifest(), requestedId)) return false

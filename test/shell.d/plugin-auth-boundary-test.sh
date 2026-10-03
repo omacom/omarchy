@@ -76,7 +76,7 @@ if qml_matches "$plugin_shell_api" 'function +pluginShellForId\('; then
   fail "replacement-bar facade exposes a generic plugin-shell factory"
 fi
 qml_matches "$bar_qml" 'else if *\( *root\.shell *&& *typeof root\.shell\.pluginShellForBarEntry *=== *"function" *\) *\{[^}]*pluginShell *= *root\.shell\.pluginShellForBarEntry\( *key, *moduleName *\)' ||
-  fail "replacement bars do not fall back to a service-less entry facade"
+  fail "replacement bars do not fall back to an entry facade"
 pass "replacement bars cannot manufacture another plugin's service facade"
 
 qml_matches "$shell_qml" 'target\.barConfig *= *shell\.barConfigFor\( *manifest *\)' ||
@@ -137,6 +137,9 @@ tr '\n\r\t' '   ' <<<"$bar_entry_shell" |
 tr '\n\r\t' '   ' <<<"$bar_entry_shell" |
   grep -Eq 'shell\.pluginCloneMaySummon\( *currentManifest\( *\), *requestedId *\)' ||
   fail "built-in clones in replacement bars cannot summon their existing auxiliary UI"
+tr '\n\r\t' '   ' <<<"$bar_entry_shell" |
+  grep -Eq '_serviceLookup: *function\( *requestedId *\) *\{[^}]*owns\( *requestedId *\)[^}]*shell\.serviceFor\( *shell\.pluginRegistry\.resolveEnabledId\( *target *\) *\)' ||
+  fail "replacement-bar entry facades do not expose the widget's own service"
 qml_matches "$shell_qml" 'shell\.pluginCloneMaySummon\( *currentManifest\( *\), *requestedId *\)' ||
   fail "built-in clones cannot summon their existing auxiliary UI"
 qml_matches "$shell_qml" '"omarchy\.media": *\["omarchy\.osd"\]' ||
