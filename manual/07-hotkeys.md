@@ -11,6 +11,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Escape` | System menu (suspend, restart, etc)  |
 | `Super + Ctrl + L` | Lock computer |
 | `Super + W` or `Super + Q` | Close window             |
+| `Super + Shift + Q` | Force kill app |
 | `Ctrl + Alt + Del` | Close all windows |
 | `Super + T`               | Toggle window between tiling/floating             |
 | `Super + J` | Toggle window position (horizontal/vertical) |
