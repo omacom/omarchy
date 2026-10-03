@@ -5,6 +5,11 @@
 # omarchy:args=[down|up]
 
 set -e
+# set -m puts each backgrounded worker in its own process group, so
+# cleanup can signal a worker and everything it has spawned in one
+# atomic operation, instead of racing pkill/kill against a worker
+# that loops forever forking a fresh dd|curl pair.
+set -m
 
 direction="${1:-}"
 probe=1.1.1.1
@@ -51,17 +56,24 @@ if [[ -z $fast_urls ]]; then
 fi
 
 traffic_pids=()
+parent_pid=$$
 
 cleanup() {
   local pid
+  # set -m makes each worker its own process group leader, so a single
+  # signal to the negative pid reaches the worker and every child it
+  # currently has, including one forked a moment ago, in one go. A
+  # pid-by-pid pkill -P snapshot can't do that: a worker that spawns a
+  # new dd|curl pair right after the snapshot leaves that pair orphaned,
+  # running until the connection ends on its own.
   for pid in "${traffic_pids[@]}"; do
     [[ -n $pid ]] || continue
-    pkill -TERM -P "$pid" 2>/dev/null || true
-    kill "$pid" 2>/dev/null || true
+    kill -TERM -- "-$pid" 2>/dev/null || true
   done
   for pid in "${traffic_pids[@]}"; do
     [[ -n $pid ]] || continue
     wait "$pid" 2>/dev/null || true
+    kill -KILL -- "-$pid" 2>/dev/null || true
   done
 }
 trap cleanup EXIT
@@ -71,6 +83,19 @@ traffic_worker() {
   local urls=("$@")
   local url_count=${#urls[@]}
   local idx=$RANDOM
+  # cleanup never runs if this script is SIGKILLed, and dismissing the
+  # overlay mid-run does just that: the shell stops the panel's Process
+  # (SIGTERM) and unloads the panel right after, and the Process destructor
+  # SIGKILLs the script before its EXIT trap gets to signal anything. So
+  # each worker also watches the parent, and once it is gone takes down its
+  # own process group, this watchdog included. $$ still names the parent in
+  # here; set -m made the worker a process group leader, so the group to
+  # signal is its own pid.
+  local pgid=$BASHPID
+  (
+    while kill -0 "$parent_pid" 2>/dev/null; do sleep 0.5; done
+    kill -TERM -- "-$pgid" 2>/dev/null || true
+  ) &
   if [[ $direction == "down" ]]; then
     while true; do
       url=${urls[$((idx % url_count))]}
