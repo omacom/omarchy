@@ -233,6 +233,61 @@ function streamRepresentsPlayer(node, player, players, streams) {
   return streamRepresentsMprisPlayer(streamLabel(node, players, streams), playerLabel)
 }
 
+function newVolumeWriteState() {
+  return {
+    running: false,
+    activeSink: "",
+    activePercent: -1,
+    pendingSink: "",
+    pendingPercent: -1
+  }
+}
+
+function queueVolumeWrite(state, sink, percent) {
+  var current = state || newVolumeWriteState()
+  var target = String(sink || "")
+  var value = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)))
+  return {
+    running: current.running === true,
+    activeSink: String(current.activeSink || ""),
+    activePercent: Number(current.activePercent),
+    pendingSink: target,
+    pendingPercent: target ? value : -1
+  }
+}
+
+function beginVolumeWrite(state) {
+  var current = state || newVolumeWriteState()
+  if (current.running || !current.pendingSink || current.pendingPercent < 0) {
+    return {
+      running: current.running === true,
+      activeSink: String(current.activeSink || ""),
+      activePercent: Number(current.activePercent),
+      pendingSink: String(current.pendingSink || ""),
+      pendingPercent: Number(current.pendingPercent)
+    }
+  }
+
+  return {
+    running: true,
+    activeSink: String(current.pendingSink),
+    activePercent: Number(current.pendingPercent),
+    pendingSink: "",
+    pendingPercent: -1
+  }
+}
+
+function finishVolumeWrite(state) {
+  var current = state || newVolumeWriteState()
+  return {
+    running: false,
+    activeSink: "",
+    activePercent: -1,
+    pendingSink: String(current.pendingSink || ""),
+    pendingPercent: Number(current.pendingPercent)
+  }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isPlaybackStream: isPlaybackStream,
@@ -257,6 +312,10 @@ if (typeof module !== "undefined") {
     matchingMprisStreamLabel: matchingMprisStreamLabel,
     unmatchedMprisStreamLabel: unmatchedMprisStreamLabel,
     streamLabel: streamLabel,
-    streamRepresentsPlayer: streamRepresentsPlayer
+    streamRepresentsPlayer: streamRepresentsPlayer,
+    newVolumeWriteState: newVolumeWriteState,
+    queueVolumeWrite: queueVolumeWrite,
+    beginVolumeWrite: beginVolumeWrite,
+    finishVolumeWrite: finishVolumeWrite
   }
 }
