@@ -23,5 +23,6 @@ printf -v packages_arg '%q ' "${package_list[@]}"
 packages_arg="${packages_arg% }"
 
 # The subshell keeps & from backgrounding the package installation too.
+export OMARCHY_INSTALL_NAME="$name" OMARCHY_INSTALL_PACKAGES="$packages"
 exec omarchy-launch-floating-terminal-with-presentation \
   "echo ${install_message}; omarchy-pkg-add ${packages_arg} && (setsid uwsm-app -- gtk-launch ${desktop_id_arg} >/dev/null 2>&1 &)"
