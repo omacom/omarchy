@@ -521,8 +521,11 @@ Panel {
 
       // ---- Hero row: big icon + temp on the left; location and stats stacked on the right.
       Item {
-        width: parent.width
+        // Laid out at the width both halves need, then scaled to fit.
+        width: Math.max(parent.width, heroLeft.width + heroRight.width + Style.space(16 + 20 + 16))
         height: Math.max(heroLeft.height, heroRight.height)
+        scale: Math.min(1, parent.width / width)
+        transformOrigin: Item.Left
 
         Row {
           id: heroLeft
@@ -819,6 +822,8 @@ Panel {
           id: forecastRow
           anchors.horizontalCenter: parent.horizontalCenter
           spacing: Style.space(44)
+          // Scale rather than clip; the Flickable only scrolls vertically.
+          scale: Math.min(1, parent.width / Math.max(1, width))
 
           Repeater {
             model: root.forecastDays
