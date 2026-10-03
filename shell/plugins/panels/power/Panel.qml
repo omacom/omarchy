@@ -19,6 +19,17 @@ Panel {
   property string activeProfile: ""
   property int profileIndex: 0
   property bool cursorActive: false
+  // Keyboard cursor section: "profiles" walks the power profile pills,
+  // "lid" the lid close pills below them.
+  property string focusSection: "profiles"
+  property int lidIndex: 0
+
+  // Lid close lives in the idle service, which persists the choice and holds
+  // the logind inhibitor. The section only exists on hardware with a lid.
+  readonly property var idleService: bar?.shell?.firstPartyServiceFor("omarchy.idle")
+  readonly property bool lidPresent: idleService ? idleService.lidPresent === true : false
+  readonly property bool lidStayAwake: idleService ? idleService.lidStayAwake === true : false
+  readonly property var lidModes: Model.lidModes()
   readonly property bool showPercentage: setting("showPercentage", false) === true
   // With the percentage shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
@@ -40,6 +51,18 @@ Panel {
 
   function selectProfileByDelta(delta) {
     profileIndex = Model.selectProfileIndex(profileIndex, delta, profiles)
+  }
+
+  function selectLidModeByDelta(delta) {
+    lidIndex = Model.clampIndex(lidIndex + delta, lidModes.length)
+  }
+
+  function setLidStayAwake(value) {
+    if (root.idleService) root.idleService.setLidStayAwake(!!value)
+  }
+
+  function activateSelectedLidMode() {
+    setLidStayAwake(Model.lidModeStaysAwake(lidIndex))
   }
 
   function activateSelectedProfile() {
@@ -195,7 +218,9 @@ Panel {
       refresh()
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
+      lidIndex = Model.lidModeIndex(lidStayAwake)
       cursorActive = false
+      focusSection = "profiles"
     }
   }
 
@@ -304,10 +329,24 @@ Panel {
       anchors.fill: parent
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
+        if (root.focusSection === "lid") {
+          if (dy < 0) root.focusSection = "profiles"
+          else if (dx !== 0) root.selectLidModeByDelta(dx)
+          return
+        }
+        if (dy > 0 && root.lidPresent) {
+          root.focusSection = "lid"
+          root.lidIndex = Model.lidModeIndex(root.lidStayAwake)
+          return
+        }
         if (dx !== 0) root.selectProfileByDelta(dx)
         else if (dy !== 0) root.selectProfileByDelta(dy)
       }
-      onActivateRequested: if (root.cursorActive) root.activateSelectedProfile()
+      onActivateRequested: {
+        if (!root.cursorActive) return
+        if (root.focusSection === "lid") root.activateSelectedLidMode()
+        else root.activateSelectedProfile()
+      }
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -496,7 +535,64 @@ Panel {
                 onHovered: function(h) {
                   if (h) {
                     root.cursorActive = true
+                    root.focusSection = "profiles"
                     root.profileIndex = index
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // ---------- Lid close picker ----------
+        // Laid out like the profile pills so the two choices read as one
+        // family with the section above.
+        PanelSeparator {
+          visible: root.lidPresent
+          foreground: root.bar.foreground
+        }
+
+        Column {
+          visible: root.lidPresent
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSectionHeader {
+            text: "LID CLOSE"
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          Row {
+            id: lidRow
+            width: parent.width
+            spacing: Style.space(6)
+
+            readonly property real cellWidth: (width - spacing * (root.lidModes.length - 1)) / root.lidModes.length
+
+            Repeater {
+              model: root.lidModes
+              Button {
+                required property var modelData
+                required property int index
+                width: lidRow.cellWidth
+                iconText: modelData.icon
+                iconSize: Style.font.title
+                text: modelData.label
+                fontSize: Style.font.bodySmall
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                horizontalPadding: Style.spacing.controlPaddingX
+                verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+                bordered: true
+                active: Model.lidModeStaysAwake(index) === root.lidStayAwake
+                hasCursor: root.cursorActive && root.focusSection === "lid" && root.lidIndex === index
+                onClicked: root.setLidStayAwake(Model.lidModeStaysAwake(index))
+                onHovered: function(h) {
+                  if (h) {
+                    root.cursorActive = true
+                    root.focusSection = "lid"
+                    root.lidIndex = index
                   }
                 }
               }
