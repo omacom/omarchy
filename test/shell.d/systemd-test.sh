@@ -59,7 +59,8 @@ grep -F 'omarchy-update-user-notify' "$first_run_units" >/dev/null &&
 pass "first-run enables the login-only migration notifier"
 
 fcitx_service="$ROOT/default/systemd/user/omarchy-fcitx5.service"
-grep -Fx 'ExecStart=/usr/bin/fcitx5 --disable notificationitem' "$fcitx_service" >/dev/null
+grep -Fx 'ExecStart=/usr/bin/fcitx5 --disable notificationitem,notifications' "$fcitx_service" >/dev/null ||
+  fail "fcitx5 must disable both the tray duplicate and startup layout tip notifications"
 grep -Fx 'Restart=always' "$fcitx_service" >/dev/null ||
   fail "fcitx5 exits 0 on a duplicate bus name, so on-failure would leave the user with no input method"
 grep -Fx 'After=graphical-session.target' "$fcitx_service" >/dev/null ||
