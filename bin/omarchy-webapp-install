@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Create a desktop launcher for a web app
-# omarchy:args=[name url icon-url-or-name [custom-exec] [mime-types]]
+# omarchy:args=[name url [icon-url-or-name] [custom-exec] [mime-types]]
 
 set -e
 
@@ -136,7 +136,7 @@ desktop_exec_arg() {
   printf '"%s"' "$escaped"
 }
 
-if (( $# < 3 )); then
+if (( $# < 2 )); then
   echo -e "\e[32mLet's create a new web app you can start with the app launcher.\n\e[0m"
   APP_NAME=$(gum input --prompt "Name> " --placeholder "My favorite web app")
   require_plain_name "$APP_NAME"
@@ -144,15 +144,7 @@ if (( $# < 3 )); then
   APP_URL=$(normalize_webapp_url "$APP_URL")
   require_http_url "$APP_URL"
 
-  # Try to fetch the site's icon automatically first.
-  mkdir -p "$ICON_DIR"
-  ICON_VALUE=$(safe_icon_name "$APP_NAME")
-  if fetch_site_icon "$APP_URL" "$ICON_DIR/$ICON_VALUE.png"; then
-    gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
-    ICON_REF="$ICON_VALUE"
-  else
-    ICON_REF=$(gum input --prompt "Icon URL/name> " --placeholder "Could not fetch favicon automatically. Enter PNG icon URL or icon name")
-  fi
+  ICON_REF=""
 
   CUSTOM_EXEC=""
   MIME_TYPES=""
@@ -161,7 +153,7 @@ else
   APP_NAME="$1"
   APP_URL=$(normalize_webapp_url "$2")
   require_http_url "$APP_URL"
-  ICON_REF="$3"
+  ICON_REF="${3:-}"
   CUSTOM_EXEC="$4" # Optional custom exec command
   MIME_TYPES="$5"  # Optional mime types
   INTERACTIVE_MODE=false
@@ -178,19 +170,21 @@ require_plain_name "$APP_NAME"
 if [[ -z $ICON_REF ]]; then
   ICON_VALUE=$(safe_icon_name "$APP_NAME")
   mkdir -p "$ICON_DIR"
-  if ! fetch_site_icon "$APP_URL" "$ICON_DIR/$ICON_VALUE.png"; then
-    echo "Error: Failed to download icon."
-    exit 1
+  if fetch_site_icon "$APP_URL" "$ICON_DIR/$ICON_VALUE.png"; then
+    gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+  else
+    ICON_VALUE="web-browser"
+    echo "Could not fetch the site icon; using a generic browser icon." >&2
   fi
-  gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
 elif [[ $ICON_REF =~ ^https?:// ]]; then
   ICON_VALUE=$(safe_icon_name "$APP_NAME")
   mkdir -p "$ICON_DIR"
-  if ! download_icon "$ICON_REF" "$ICON_DIR/$ICON_VALUE.png"; then
-    echo "Error: Failed to download icon."
-    exit 1
+  if download_icon "$ICON_REF" "$ICON_DIR/$ICON_VALUE.png"; then
+    gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+  else
+    ICON_VALUE="web-browser"
+    echo "Could not download the requested icon; using a generic browser icon." >&2
   fi
-  gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
 elif [[ -f $ICON_REF ]]; then
   ICON_VALUE=$(install_user_icon "$ICON_REF" "$(safe_icon_name "$APP_NAME")")
 else
