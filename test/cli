@@ -748,3 +748,72 @@ assert_output_contains "a --help behind -- belongs to the command and still forw
 
 output=$("$TMPDIR/omarchy" parenthelp --helpme x--help)
 assert_output_contains "help lookalike tokens do not trigger help" "$output" "parenthelp-parent-ran args=[--helpme x--help]"
+
+# Packaged debug lives outside the router directory. Keep PATH isolated from
+# both the checkout and installed Omarchy commands.
+make_tmpdir DEBUG_ROUTER_DIR
+make_tmpdir DEBUG_PATH_DIR
+ln -s "$CLI" "$DEBUG_ROUTER_DIR/omarchy"
+for utility in dirname sort cut cat jq; do
+  ln -s "$(type -P "$utility")" "$DEBUG_PATH_DIR/$utility"
+done
+cat >"$DEBUG_PATH_DIR/omarchy-debug" <<'EOF'
+#!/bin/bash
+# omarchy:summary=PATH debug fixture
+printf 'ran\n' >>"$DEBUG_LOG"
+printf '<%s>\n' "$@"
+exit 23
+EOF
+chmod +x "$DEBUG_PATH_DIR/omarchy-debug"
+export DEBUG_LOG="$DEBUG_ROUTER_DIR/debug.log"
+
+status=0
+output=$(PATH="$DEBUG_PATH_DIR" "$DEBUG_ROUTER_DIR/omarchy" debug "two words" "" '*' -- --help) || status=$?
+[[ $output == $'<two words>\n<>\n<*>\n<-->\n<--help>' ]] || fail "PATH debug forwards exact arguments"
+pass "PATH debug forwards exact arguments"
+(( status == 23 )) || fail "PATH debug propagates exit status"
+pass "PATH debug propagates exit status"
+[[ -f $DEBUG_LOG ]] || fail "PATH debug executes the discovered binary"
+pass "PATH debug executes the discovered binary"
+rm "$DEBUG_LOG"
+
+output=$(PATH="$DEBUG_PATH_DIR" "$DEBUG_ROUTER_DIR/omarchy" debug bogus --help)
+assert_output_contains "PATH debug text help reads fallback metadata" "$output" "PATH debug fixture"
+output=$(PATH="$DEBUG_PATH_DIR" "$DEBUG_ROUTER_DIR/omarchy" debug --help --json)
+jq -e '.ok == true and .command.binary == "omarchy-debug" and .command.summary == "PATH debug fixture"' <<<"$output" >/dev/null || fail "PATH debug JSON help reads fallback metadata"
+pass "PATH debug JSON help reads fallback metadata"
+[[ ! -e $DEBUG_LOG ]] || fail "PATH debug help does not execute the binary"
+pass "PATH debug help does not execute the binary"
+
+cat >"$DEBUG_ROUTER_DIR/omarchy-debug" <<'EOF'
+#!/bin/bash
+# omarchy:summary=Same-directory debug fixture
+printf 'same-directory debug\n'
+EOF
+chmod +x "$DEBUG_ROUTER_DIR/omarchy-debug"
+output=$(PATH="$DEBUG_PATH_DIR" "$DEBUG_ROUTER_DIR/omarchy" debug)
+[[ $output == "same-directory debug" ]] || fail "same-directory debug execution takes precedence"
+pass "same-directory debug execution takes precedence"
+output=$(PATH="$DEBUG_PATH_DIR" "$DEBUG_ROUTER_DIR/omarchy" debug --help)
+assert_output_contains "same-directory debug help takes precedence" "$output" "Same-directory debug fixture"
+[[ ! -e $DEBUG_LOG ]] || fail "same-directory debug does not execute PATH fallback"
+rm "$DEBUG_ROUTER_DIR/omarchy-debug"
+
+# Even an executable unrelated command on PATH must remain undiscoverable.
+cp "$DEBUG_PATH_DIR/omarchy-debug" "$DEBUG_PATH_DIR/omarchy-path-only"
+status=0
+output=$(PATH="$DEBUG_PATH_DIR" "$DEBUG_ROUTER_DIR/omarchy" path only 2>&1) || status=$?
+(( status == 127 )) || fail "unrelated PATH-only command returns 127"
+pass "unrelated PATH-only command returns 127"
+[[ ! -e $DEBUG_LOG ]] || fail "unrelated PATH-only command is not executed"
+
+chmod -x "$DEBUG_PATH_DIR/omarchy-debug"
+status=0
+output=$(PATH="$DEBUG_PATH_DIR" "$DEBUG_ROUTER_DIR/omarchy" debug 2>&1) || status=$?
+(( status == 127 )) || fail "non-executable PATH debug returns 127"
+pass "non-executable PATH debug returns 127"
+rm "$DEBUG_PATH_DIR/omarchy-debug"
+status=0
+output=$(PATH="$DEBUG_PATH_DIR" "$DEBUG_ROUTER_DIR/omarchy" debug 2>&1) || status=$?
+(( status == 127 )) || fail "unavailable debug returns 127"
+pass "unavailable debug returns 127"

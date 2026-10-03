@@ -59,6 +59,8 @@ latency (`omarchy dev benchmark cli` tracks it), and a filename probe is a few
 stat calls. Metadata loads lazily, only for the resolved command when help is
 needed.
 
+Binary resolution checks the router's own directory first. For `omarchy-debug` only, it falls back to an executable regular file found on `PATH`, including the `/usr/bin/omarchy-debug` shipped by `omarchy-settings`. A same-directory debug binary takes precedence. Normal directory scanning and resolution of all other binaries stay unchanged; the debug fallback supports dispatch and text/JSON command help.
+
 When no filename matches — metadata-moved routes like `omarchy share`, and
 aliases like `omarchy screenshot` — the router falls back to loading all
 metadata and resolving against the registered route table, with the same
