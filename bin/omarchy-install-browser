@@ -22,6 +22,7 @@ copy_chromium_flags() {
   cp -f "$OMARCHY_PATH/config/chromium-flags.conf" "$1"
   omarchy-install-chromium-copy-url
   omarchy-install-chromium-ytdlp
+  omarchy-chromium-nvidia-video-flags || true
 }
 
 setup_firefox_wayland() {
