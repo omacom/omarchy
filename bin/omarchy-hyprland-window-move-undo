@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# omarchy:summary=Silently move the active window to a workspace, or undo the last such move
+# omarchy:args=<workspace>|undo
+# omarchy:examples=omarchy-hyprland-window-move-undo 5 | omarchy-hyprland-window-move-undo undo
+
+set -euo pipefail
+
+STATE_FILE="${XDG_RUNTIME_DIR:-/tmp/omarchy-$UID}/omarchy-window-move-undo"
+
+usage() {
+  echo "Usage: omarchy-hyprland-window-move-undo <workspace>|undo" >&2
+  exit 1
+}
+
+hypr_dispatch() {
+  local lua="$1"
+  shift
+
+  hyprctl dispatch "$lua" >/dev/null 2>&1 || hyprctl dispatch "$@" >/dev/null
+}
+
+move_window() {
+  local window="$1"
+  local workspace="$2"
+
+  hypr_dispatch \
+    "hl.dsp.window.move({ window = \"$window\", workspace = \"$workspace\", follow = false })" \
+    movetoworkspacesilent "$workspace,$window"
+}
+
+move_to_workspace() {
+  local target="$1"
+  local active address origin
+
+  active=$(hyprctl activewindow -j)
+  address=$(jq -r '.address // empty' <<<"$active")
+  origin=$(jq -r '.workspace.id // empty' <<<"$active")
+  [[ -n $address && -n $origin ]] || exit 0
+
+  mkdir -p "$(dirname "$STATE_FILE")"
+  printf '%s\n%s\n' "$address" "$origin" >"$STATE_FILE"
+
+  move_window "address:$address" "$target"
+}
+
+undo_move() {
+  [[ -f $STATE_FILE ]] || exit 0
+
+  local address origin
+  address=$(sed -n '1p' "$STATE_FILE")
+  origin=$(sed -n '2p' "$STATE_FILE")
+  rm -f "$STATE_FILE"
+
+  [[ -n $address && -n $origin ]] || exit 0
+
+  move_window "address:$address" "$origin"
+}
+
+action=${1:-}
+case "$action" in
+"") usage ;;
+undo) undo_move ;;
+*[!0-9]*) usage ;;
+*) move_to_workspace "$action" ;;
+esac
