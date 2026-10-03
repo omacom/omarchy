@@ -9,6 +9,7 @@ base-devel
 bash-completion
 bat
 bluez
+bluez-obex
 bluez-tools
 bluez-utils
 bolt
