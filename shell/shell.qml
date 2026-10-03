@@ -1526,13 +1526,15 @@ ShellRoot {
   }
 
   function loadPluginWidget(registryKey, url, meta) {
-    // Claim the key before the component exists. Qt.createComponent is
-    // asynchronous and syncPluginWidgets runs several times while the shell
-    // starts, so without a marker the later passes cannot tell a load in
-    // flight from one that never happened.
+    // Claim the key before the component exists. syncPluginWidgets runs
+    // several times while the shell starts, so without a marker the later
+    // passes cannot tell a load in flight from one that never happened.
+    // PreferSynchronous matches ensureService(): Asynchronous loads for
+    // keepLoaded service+widget plugins were observed never reaching Ready
+    // or Error (claim stuck with component: null, bar slot empty forever).
     setPluginWidgetComponent(registryKey, { url: url, component: null })
 
-    var comp = Qt.createComponent(url, Component.Asynchronous)
+    var comp = Qt.createComponent(url, Component.PreferSynchronous)
     function finalize() {
       if (comp.status === Component.Ready) {
         shell.barWidgetRegistry.register(registryKey, comp, meta)
