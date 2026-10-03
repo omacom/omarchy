@@ -618,7 +618,7 @@ result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_H
   CODEX_ACCOUNT_READ_HANGS=1 CODEX_RATE_LIMITS='{"planType":"pro","primary":{"usedPercent":36,"windowDurationMins":10080}}' \
   "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
 (( $(date +%s) - started < 4 )) || fail "Codex collector doesn't wait on account/read when the limits name the plan"
-[[ $(jq -c '{tierLabel, usageStatusText, limits: [.limits[] | {label: .label, percent: .percent}]}' <<<"$result") == '{"tierLabel":"pro","usageStatusText":"","limits":[{"label":"Weekly (7-day)","percent":0.36}]}' ]] ||
+[[ $(jq -c '{tierLabel, usageStatusText, limits: [.limits[] | {label, percent}]}' <<<"$result") == '{"tierLabel":"pro","usageStatusText":"","limits":[{"label":"Weekly (7-day)","percent":0.36}]}' ]] ||
   fail "Codex collector reads limits even when account/read never answers" "$result"
 pass "Codex collector reads limits even when account/read never answers"
 
