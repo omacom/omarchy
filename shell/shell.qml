@@ -1379,12 +1379,12 @@ ShellRoot {
         }
         onStatusChanged: {
           if (status === Loader.Error) {
-            // Loader.errorString() reflects the source-load failure even when
-            // sourceComponent is null. Surface both so the user sees something
-            // actionable instead of a panel that silently refuses to open.
-            var detail = errorString && errorString() ? errorString() : ""
-            if (!detail && sourceComponent) detail = sourceComponent.errorString()
-            console.warn("panel plugin " + panelEntry.pluginId + " failed to load:", detail)
+            // Loader exposes no errorString(); the bare identifier threw a
+            // ReferenceError and this handler never reached shell.hide(). The
+            // detail comes from the component the Loader built from `source`.
+            var detail = sourceComponent ? sourceComponent.errorString() : ""
+            console.warn("panel plugin " + panelEntry.pluginId + " failed to load (source: "
+              + panelEntry.sourceUrl + "):", detail || "see the QML errors above")
             shell.hide(panelEntry.pluginId)
           }
         }
