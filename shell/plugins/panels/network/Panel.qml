@@ -380,7 +380,9 @@ Panel {
       selectedIndex = 0
     }
 
-    if (selectedIndex < 0 || selectedIndex >= wifiNetworks.length || !canForgetNetwork(wifiNetworks[selectedIndex])) {
+    var selected = selectedIndex >= 0 && selectedIndex < wifiNetworks.length ? wifiNetworks[selectedIndex] : null
+    var canCancel = selected && actionKind === "connect" && actionSsid === (selected.ssid || "")
+    if (!selected || (!canCancel && !canForgetNetwork(selected))) {
       wifiActionFocused = false
     }
   }
@@ -410,7 +412,9 @@ Panel {
 
   function selectWifiActionByDelta(delta) {
     if (selectedIndex < 0 || selectedIndex >= wifiNetworks.length) return
-    if (!canForgetNetwork(wifiNetworks[selectedIndex])) {
+    var net = wifiNetworks[selectedIndex]
+    var canCancel = actionKind === "connect" && actionSsid === ((net && net.ssid) || "")
+    if (!canCancel && !canForgetNetwork(net)) {
       wifiActionFocused = false
       return
     }
@@ -420,11 +424,17 @@ Panel {
 
   // Enter/Space on the highlighted row. Mirrors row-click semantics:
   // connected → disconnect, credentials-required/unknown → prompt,
-  // passwordless/known → connect.
+  // passwordless/known → connect. While a connect is in flight, Enter on the
+  // right-edge action cancels it.
   function activateSelected() {
-    if (busy || selectedIndex < 0 || selectedIndex >= wifiNetworks.length) return
+    if (selectedIndex < 0 || selectedIndex >= wifiNetworks.length) return
     var net = wifiNetworks[selectedIndex]
     if (!net) return
+    if (wifiActionFocused && actionKind === "connect" && actionSsid === (net.ssid || "")) {
+      cancelConnect()
+      return
+    }
+    if (busy) return
     if (wifiActionFocused && canForgetNetwork(net)) { forget(net); return }
     // Only act on a row that still resolves. disconnect() falls back to
     // connectedWifiNetwork when handed null, so a row left stale by scan churn
@@ -854,6 +864,23 @@ Panel {
 
   function forget(net) {
     runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) { network.forget() })
+  }
+
+  // Abort an in-flight connect so a wrong SSID / stuck auth does not leave the
+  // panel busy until the ~30s action timeout. Clear local busy state first so
+  // a slow disconnect reply cannot race a follow-up action.
+  function cancelConnect() {
+    if (actionKind !== "connect") return
+    var network = networkForSsid(actionSsid)
+    actionTimeout.stop()
+    if (enterpriseConnect.running) enterpriseConnect.running = false
+    passwordSsid = ""
+    failureSsid = ""
+    failureReason = ""
+    actionSsid = ""
+    actionKind = ""
+    if (network) network.disconnect()
+    refresh()
   }
 
   implicitWidth: button.implicitWidth
@@ -1720,8 +1747,9 @@ Panel {
       : false
     readonly property bool canForget: root.canForgetNetwork(net)
     readonly property bool isSelected: root.focusSection === "wifi" && root.selectedIndex === index
-    readonly property bool forgetFocused: isSelected && root.wifiActionFocused && canForget
-    readonly property bool forgetVisible: canForget && (!requiresCredentials || forgetFocused || rightMouse.containsMouse)
+    readonly property bool showCancel: isBusy && root.actionKind === "connect"
+    readonly property bool forgetFocused: isSelected && root.wifiActionFocused && canForget && !showCancel
+    readonly property bool forgetVisible: !showCancel && canForget && (!requiresCredentials || forgetFocused || rightMouse.containsMouse)
 
     hasCursor: root.cursorActive && isSelected && !root.wifiActionFocused
     current: isConnected
@@ -1843,30 +1871,30 @@ Panel {
       // The right edge shows a lock for networks that require credentials and
       // reveals Forget on hover. Known passwordless networks show Forget
       // directly rather than reserving an invisible or misleading target.
+      // While connecting, the same slot becomes Cancel so an in-flight connect
+      // can be aborted without waiting for the action timeout.
       Item {
         id: rightAction
-        visible: row.requiresCredentials || row.canForget
+        visible: row.requiresCredentials || row.canForget || row.showCancel
         width: Style.space(22)
-        implicitHeight: lockIndicator.implicitHeight
+        height: Style.space(22)
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
 
         Text {
           id: lockIndicator
           textFormat: Text.PlainText
-          visible: row.requiresCredentials || row.forgetVisible
-          width: parent.width
-          anchors.verticalCenter: parent.verticalCenter
-          horizontalAlignment: Text.AlignHCenter
-          text: row.forgetVisible ? "󰅙" : "󰌾"
-          color: row.forgetVisible ? root.bar.urgent : Qt.darker(root.bar.foreground, 1.4)
+          visible: row.requiresCredentials || row.forgetVisible || row.showCancel
+          anchors.centerIn: parent
+          text: (row.forgetVisible || row.showCancel) ? "󰅙" : "󰌾"
+          color: (row.forgetVisible || row.showCancel) ? root.bar.urgent : Qt.darker(root.bar.foreground, 1.4)
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.subtitle
         }
 
         BorderSurface {
           anchors.fill: parent
-          visible: row.forgetFocused
+          visible: row.forgetFocused || (row.showCancel && (rightMouse.containsMouse || (row.isSelected && root.wifiActionFocused)))
           color: Style.hoverFillFor(root.bar.urgent, root.bar.urgent)
           borderSpec: Border.controlSpec("hover-cursor", root.bar.urgent, root.bar.urgent)
           radius: Style.cornerRadius
@@ -1878,15 +1906,18 @@ Panel {
           anchors.fill: parent
           hoverEnabled: true
           acceptedButtons: Qt.LeftButton
-          enabled: row.canForget && !root.busy
+          enabled: row.showCancel || (row.canForget && !root.busy)
           cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
           onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = true }
-          onClicked: if (row.net) root.forget(row.net)
+          onClicked: {
+            if (row.showCancel) root.cancelConnect()
+            else if (row.net) root.forget(row.net)
+          }
         }
 
         PanelToolTip {
-          visible: rightMouse.containsMouse || row.forgetFocused
-          text: "Forget network"
+          visible: rightMouse.containsMouse || row.forgetFocused || (row.showCancel && row.isSelected && root.wifiActionFocused)
+          text: row.showCancel ? "Cancel" : "Forget network"
           fontFamily: root.bar.fontFamily
         }
       }
@@ -2009,7 +2040,8 @@ Panel {
         id: statusMsgWrapper
         visible: row.isBusy || row.isFailed
         anchors.left: parent.left
-        anchors.right: parent.right
+        anchors.right: cancelConnectBtn.visible ? cancelConnectBtn.left : parent.right
+        anchors.rightMargin: cancelConnectBtn.visible ? Style.space(8) : 0
         anchors.verticalCenter: parent.verticalCenter
         height: Style.spacing.controlHeight
         color: Style.normalFillFor(root.bar.foreground)
@@ -2028,9 +2060,22 @@ Panel {
         }
       }
 
+      PanelActionButton {
+        id: cancelConnectBtn
+        visible: row.isBusy && root.actionKind === "connect"
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        iconText: "󰅙"
+        tooltipText: "Cancel"
+        foreground: root.bar.urgent
+        hoverColor: root.bar.urgent
+        fontFamily: root.bar.fontFamily
+        onClicked: root.cancelConnect()
+      }
+
       // 22×22 right-anchored to line up with lockIndicator above. Esc closes
       // the prompt (handled by pwField.Keys.onEscapePressed)
-      // so there's no separate cancel button.
+      // so there's no separate cancel button while editing credentials.
       PanelActionButton {
         id: connectPwBtn
         visible: !row.isBusy && !row.isFailed

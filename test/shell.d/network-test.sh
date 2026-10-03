@@ -236,18 +236,34 @@ assert(
 const rightAction = panelSource.match(/Item \{\s*id: rightAction\b[\s\S]*?\n {6}\}/)
 assert(rightAction, 'network has a right-edge action target')
 assert(
-  /visible: row\.requiresCredentials \|\| row\.canForget/.test(rightAction[0]),
+  /visible: row\.requiresCredentials \|\| row\.canForget \|\| row\.showCancel/.test(rightAction[0]),
   'network keeps a forget target for known passwordless networks'
+)
+assert(
+  /height: Style\.space\(22\)/.test(rightAction[0]),
+  'network forget/cancel control uses a square hover box so the glyph can center'
 )
 const lockIndicator = panelSource.match(/Text \{\s*id: lockIndicator\b[\s\S]*?\n {8}\}/)
 assert(lockIndicator, 'network has a lock/forget indicator')
 assert(
-  /visible: row\.requiresCredentials \|\| row\.forgetVisible/.test(lockIndicator[0]),
+  /visible: row\.requiresCredentials \|\| row\.forgetVisible \|\| row\.showCancel/.test(lockIndicator[0]),
   'network hides the lock on passwordless networks until showing their forget action'
 )
 assert(
-  /forgetVisible: canForget && \(!requiresCredentials \|\| forgetFocused \|\| rightMouse\.containsMouse\)/.test(panelSource),
+  /anchors\.centerIn: parent/.test(lockIndicator[0]),
+  'network centers the forget/cancel glyph in its hover box'
+)
+assert(
+  /forgetVisible: !showCancel && canForget && \(!requiresCredentials \|\| forgetFocused \|\| rightMouse\.containsMouse\)/.test(panelSource),
   'network shows the forget action directly for known passwordless networks'
+)
+assert(
+  /function cancelConnect\(\)/.test(panelSource),
+  'network can abort an in-flight connect'
+)
+assert(
+  /id: cancelConnectBtn/.test(panelSource),
+  'network password prompt exposes Cancel while Connecting'
 )
 
 const reasons = { NoSecrets: 1, WifiAuthTimeout: 2, WifiNetworkLost: 3, WifiClientDisconnected: 4, WifiClientFailed: 5 }
