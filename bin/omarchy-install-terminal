@@ -5,7 +5,7 @@
 # omarchy:requires-sudo=true
 
 if (($# == 0)); then
-  echo "Usage: omarchy-install-terminal [alacritty|foot|ghostty|kitty]"
+  echo "Usage: omarchy-install-terminal [alacritty|foot|ghostty|kitty]" >&2
   exit 1
 fi
 
@@ -18,15 +18,15 @@ foot) desktop_id="foot.desktop" ;;
 ghostty) desktop_id="com.mitchellh.ghostty.desktop" ;;
 kitty) desktop_id="kitty.desktop" ;;
 *)
-  echo "Unknown terminal: $package"
+  echo "Unknown terminal: $package" >&2
   exit 1
   ;;
 esac
 
 echo "Installing $package..."
 
-# Install package
-if omarchy-pkg-add $package; then
+# Install package. The presence check also catches a pkg-add that skips an unavailable package and exits 0.
+if omarchy-pkg-add "$package" && omarchy-pkg-present "$package"; then
   # Copy custom desktop entries with X-TerminalArg* keys
   if [[ $package == "alacritty" ]]; then
     mkdir -p ~/.local/share/applications
@@ -48,5 +48,6 @@ if omarchy-pkg-add $package; then
 $desktop_id
 EOF
 else
-  echo "Failed to install $package"
+  echo "Failed to install $package" >&2
+  exit 1
 fi
