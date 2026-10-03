@@ -13,6 +13,9 @@ Panel {
 
   property var anchorItem: null
   property bool openedFromHotkey: false
+  // Popup cards have their own opaque surface, so their text must not inherit
+  // the adaptive foreground used by a transparent bar.
+  readonly property color contentForeground: Color.popups.text
 
   // The bar tracks the widget mounted in its slot — BarWidget.qml — not this
   // nested panel. Everything the bar identifies a panel by has to be that
@@ -537,7 +540,7 @@ Panel {
             anchors.verticalCenter: parent.verticalCenter
             anchors.verticalCenterOffset: 5
             text: root.label || "—"
-            color: root.bar.foreground
+            color: root.contentForeground
             font.family: root.bar.fontFamily
             // Decorative condition emoji; intentionally larger than the
             // Style.font.* scale's displayLarge (28).
@@ -552,7 +555,7 @@ Panel {
               id: tempBig
               textFormat: Text.PlainText
               text: root.reportTempNum || "—"
-              color: root.bar.foreground
+              color: root.contentForeground
               font.family: root.bar.fontFamily
               // Hero temperature read-out; deliberately oversized, outside
               // the Style.font.* scale.
@@ -562,7 +565,7 @@ Panel {
             Text {
               textFormat: Text.PlainText
               text: root.current ? root.tempUnit : ""
-              color: root.bar.foreground
+              color: root.contentForeground
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.display
               anchors.top: tempBig.top
@@ -592,7 +595,7 @@ Panel {
 
             Text {
               text: ""  // nf-fa-map_marker
-              color: Qt.darker(root.bar.foreground, 1.4)
+              color: Qt.darker(root.contentForeground, 1.4)
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.body
               anchors.verticalCenter: parent.verticalCenter
@@ -600,7 +603,7 @@ Panel {
             Text {
               textFormat: Text.PlainText
               text: (root.reportLocation || "").toUpperCase()
-              color: Qt.darker(root.bar.foreground, 1.4)
+              color: Qt.darker(root.contentForeground, 1.4)
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.body
               font.letterSpacing: 1
@@ -617,7 +620,7 @@ Panel {
               width: Style.space(190)
               enabled: !root.savingLocation
               placeholderText: "Search city"
-              foreground: root.bar.foreground
+              foreground: root.contentForeground
               font.family: root.bar.fontFamily
 
               onTextChanged: if (root.editingLocation && !root.savingLocation) geocodeDebounce.restart()
@@ -646,14 +649,14 @@ Panel {
               height: Style.space(18)
               anchors.verticalCenter: parent.verticalCenter
               radius: Math.min(4, Style.cornerRadius)
-              color: !root.savingLocation && clearLocationArea.containsMouse ? Style.hoverFillFor(root.bar.foreground, Color.accent) : "transparent"
+              color: !root.savingLocation && clearLocationArea.containsMouse ? Style.hoverFillFor(root.contentForeground, Color.accent) : "transparent"
 
               Text {
                 textFormat: Text.PlainText
                 anchors.centerIn: parent
                 text: root.savingLocation ? "󰦖" : "✕"
                 font.family: root.bar.fontFamily
-                color: Qt.darker(root.bar.foreground, 1.4)
+                color: Qt.darker(root.contentForeground, 1.4)
                 font.pixelSize: Style.font.bodySmall
 
                 RotationAnimator on rotation {
@@ -684,7 +687,7 @@ Panel {
               spacing: Style.space(5)
               Text {
                 text: "FEELS"
-                color: Qt.darker(root.bar.foreground, 1.5)
+                color: Qt.darker(root.contentForeground, 1.5)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
                 font.letterSpacing: 1
@@ -692,7 +695,7 @@ Panel {
               Text {
                 textFormat: Text.PlainText
                 text: root.reportFeels
-                color: root.bar.foreground
+                color: root.contentForeground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.title
               }
@@ -702,7 +705,7 @@ Panel {
               spacing: Style.space(5)
               Text {
                 text: "WIND"
-                color: Qt.darker(root.bar.foreground, 1.5)
+                color: Qt.darker(root.contentForeground, 1.5)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
                 font.letterSpacing: 1
@@ -710,7 +713,7 @@ Panel {
               Text {
                 textFormat: Text.PlainText
                 text: root.reportWind
-                color: root.bar.foreground
+                color: root.contentForeground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.title
               }
@@ -720,7 +723,7 @@ Panel {
               spacing: Style.space(5)
               Text {
                 text: "HUMID"
-                color: Qt.darker(root.bar.foreground, 1.5)
+                color: Qt.darker(root.contentForeground, 1.5)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
                 font.letterSpacing: 1
@@ -728,7 +731,7 @@ Panel {
               Text {
                 textFormat: Text.PlainText
                 text: root.reportHumidity
-                color: root.bar.foreground
+                color: root.contentForeground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.title
               }
@@ -752,7 +755,7 @@ Panel {
             width: parent.width
             height: suggestionRow.implicitHeight + Style.space(12)
             radius: Style.cornerRadius
-            color: index === root.suggestionIndex ? Style.hoverFillFor(root.bar.foreground, Color.accent) : "transparent"
+            color: index === root.suggestionIndex ? Style.hoverFillFor(root.contentForeground, Color.accent) : "transparent"
 
             Row {
               id: suggestionRow
@@ -764,7 +767,7 @@ Panel {
               Text {
                 textFormat: Text.PlainText
                 text: modelData.name
-                color: index === root.suggestionIndex ? Style.hoverStateColor(root.bar.foreground, Color.accent) : root.bar.foreground
+                color: index === root.suggestionIndex ? Style.hoverStateColor(root.contentForeground, Color.accent) : root.contentForeground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.body
               }
@@ -772,7 +775,7 @@ Panel {
                 textFormat: Text.PlainText
                 visible: text !== ""
                 text: modelData.description
-                color: Qt.darker(root.bar.foreground, 1.5)
+                color: Qt.darker(root.contentForeground, 1.5)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
                 anchors.verticalCenter: parent.verticalCenter
@@ -793,7 +796,7 @@ Panel {
       Text {
         visible: !root.current
         text: "Fetching forecast…"
-        color: Qt.darker(root.bar.foreground, 1.5)
+        color: Qt.darker(root.contentForeground, 1.5)
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.bodySmall
         font.italic: true
@@ -804,7 +807,7 @@ Panel {
         visible: root.forecastDays.length > 0
         width: parent.width
         height: Style.spacing.hairline
-        color: root.bar.foreground
+        color: root.contentForeground
         opacity: 0.12
       }
 
@@ -832,7 +835,7 @@ Panel {
                 textFormat: Text.PlainText
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.dayIcon(modelData)
-                color: root.bar.foreground
+                color: root.contentForeground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.display
               }
@@ -844,7 +847,7 @@ Panel {
                 Text {
                   textFormat: Text.PlainText
                   text: root.dayName(modelData.date).toUpperCase()
-                  color: Qt.darker(root.bar.foreground, 1.4)
+                  color: Qt.darker(root.contentForeground, 1.4)
                   font.family: root.bar.fontFamily
                   font.pixelSize: Style.font.caption
                   font.letterSpacing: 1
@@ -856,14 +859,14 @@ Panel {
                   Text {
                     textFormat: Text.PlainText
                     text: root.bareTempForDay(modelData, "max")
-                    color: root.bar.foreground
+                    color: root.contentForeground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
                   }
                   Text {
                     textFormat: Text.PlainText
                     text: root.bareTempForDay(modelData, "min")
-                    color: Qt.darker(root.bar.foreground, 1.5)
+                    color: Qt.darker(root.contentForeground, 1.5)
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
                   }

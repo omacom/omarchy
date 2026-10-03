@@ -116,6 +116,8 @@ All of it is stored in `~/.config/omarchy/shell.json`, under the `bar` key. Here
   "bar": {
     "position": "top",
     "transparent": false,
+    "transparentOnlyWhenWorkspaceEmpty": false,
+    "transparentForegroundPerMonitor": false,
     "centerAnchor": "omarchy.clock",
     "layout": {
       "left": [{ "id": "omarchy.menu" }, { "id": "omarchy.workspaces" }],
@@ -124,6 +126,12 @@ All of it is stored in `~/.config/omarchy/shell.json`, under the `bar` key. Here
     }
   }
 }
+```
+
+To let your wallpaper show through only where the desktop is clear, set `transparent` and `transparentOnlyWhenWorkspaceEmpty` to `true`. A bar becomes solid when that monitor shows a window, including a visible scratchpad; an empty second monitor stays transparent. Optionally set `transparentForegroundPerMonitor` to `true` so each transparent bar picks a readable text color from its own wallpaper. Both new options default to `false` and require `transparent: true`. Add these keys to the `bar` object in your existing `shell.json`:
+
+```json
+{ "bar": { "transparent": true, "transparentOnlyWhenWorkspaceEmpty": true, "transparentForegroundPerMonitor": true } }
 ```
 
 Every widget is one entry in one of the three layout arrays, and its settings sit inline on that entry — there's no separate settings file and no `config` sub-object. The clock's `format`, `formatAlt` (what right-click cycles to), and `verticalFormat` all live right there on `{ "id": "omarchy.clock" }`.

@@ -191,6 +191,7 @@ assert(!calendar.clockNeedsSeconds(null), 'clock sees no seconds in a missing fo
 assert(/moduleName: "omarchy\.clock"/.test(panelSource), 'calendar panel declares its module name')
 assert(/ipcTarget: "omarchy\.clock"/.test(panelSource), 'calendar panel registers its IPC target')
 assert(/manageIpc: false/.test(panelSource), 'calendar panel leaves the IPC target to the bar widget')
+assert(/readonly property color contentForeground: Color\.popups\.text/.test(panelSource), 'calendar panel keeps popup content readable when the transparent bar uses a contrasting foreground')
 assert(/anchorItem: root\.anchorItem/.test(panelSource), 'calendar panel anchors to the host widget button')
 assert(/function toggleWeekStart\(\)/.test(panelSource), 'calendar panel exposes a week start toggle')
 assert(/function toggleWeekStart\(\): void \{ root\.toggleWeekStart\(\) \}/.test(widgetSource), 'clock exposes the week start toggle over IPC')

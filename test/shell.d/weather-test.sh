@@ -138,6 +138,10 @@ assert(
   'weather hero and bar use the same resolved icon'
 )
 assert(
+  panelSource.includes('readonly property color contentForeground: Color.popups.text') && !panelSource.includes('root.bar.foreground'),
+  'weather panel keeps popup content readable when the transparent bar uses a contrasting foreground'
+)
+assert(
   panelSource.includes('onReturnRequested: root.startEditingLocation()'),
   'weather focuses city input when Return is pressed'
 )
