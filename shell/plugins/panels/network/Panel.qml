@@ -441,6 +441,9 @@ Panel {
   readonly property string kind: {
     if (wiredDevice && wiredDevice.connected) return "ethernet"
     if (connectedWifiNetwork) return "wifi"
+    // On an SSID with many access points the scan list can miss which network
+    // is connected; the device's own NetworkManager state does not (#12028).
+    if (wifiDevice && wifiDevice.connected && wifiDevice.mode !== WifiDeviceMode.AccessPoint) return "wifi"
     return "disconnected"
   }
   readonly property int signalStrength: connectedWifiNetwork
