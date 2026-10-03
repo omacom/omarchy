@@ -116,8 +116,14 @@ pass "the existing login is listed as the primary account"
 
 # ------------------------------------------------------------------------- add
 
+# A shared folder can be the person's own symlink that points nowhere yet, such
+# as a dotfiles link whose target hasn't synced. Adding an account must leave it
+# alone rather than fail on it.
+ln -s "$test_tmp/dotfiles/claude-skills" "$HOME/.claude/skills"
+
 OMARCHY_TEST_LOGIN_UUID=u-work OMARCHY_TEST_LOGIN_EMAIL=work@example.com \
-  omarchy-agent-account-add claude Work </dev/null >"$test_tmp/add-output"
+  omarchy-agent-account-add claude Work </dev/null >"$test_tmp/add-output" 2>&1 ||
+  fail "adding an account works when a shared folder is a dangling symlink" "$(cat "$test_tmp/add-output")"
 grep -q "Added Work (work@example.com)" "$test_tmp/add-output" || fail "adding an account reports who signed in" "$(cat "$test_tmp/add-output")"
 grep -q "private window that opens" "$test_tmp/add-output" || fail "adding an account says to sign in within the private window"
 [[ $(head -1 "$OMARCHY_TEST_BROWSER_LOG") == "--private https://claude.com/oauth/authorize" ]] ||
@@ -132,7 +138,26 @@ work="$accounts/claude/work"
   fail "a shared file the primary doesn't have yet is linked, so it's written there when it is"
 [[ $(jq -c .mcpServers "$work/.claude.json") == '{"docs":{"command":"docs-mcp"}}' ]] || fail "an added account carries the primary's MCP servers"
 [[ $(stat -c %a "$work") == 700 && $(stat -c %a "$accounts/claude.json") == 600 ]] || fail "account homes and the registry are private"
+[[ $(readlink "$HOME/.claude/skills") == "$test_tmp/dotfiles/claude-skills" && $(readlink "$work/skills") == "$HOME/.claude/skills" ]] ||
+  fail "a dangling shared symlink is left alone and still shared"
+[[ -z $(find "$accounts/claude/.pending" -mindepth 1 -print -quit 2>/dev/null) ]] || fail "adding an account leaves no pending login behind"
 pass "an added account shares everything but its login with the primary"
+
+# A shared folder that isn't a folder at all (here a regular file) is still an
+# error, and the half-made login home is cleaned up rather than left behind.
+mv "$HOME/.claude/commands" "$test_tmp/commands-dir" 2>/dev/null || true
+touch "$HOME/.claude/commands"
+if OMARCHY_TEST_LOGIN_UUID=u-broken OMARCHY_TEST_LOGIN_EMAIL=broken@example.com \
+  omarchy-agent-account-add claude Broken </dev/null >"$test_tmp/broken-output" 2>&1; then
+  fail "a shared folder that is a file stops the add"
+fi
+[[ -z $(find "$accounts/claude/.pending" -mindepth 1 -print -quit 2>/dev/null) ]] ||
+  fail "a failed account setup leaves no pending login behind" "$(ls -A "$accounts/claude/.pending")"
+rm "$HOME/.claude/commands"
+if [[ -d $test_tmp/commands-dir ]]; then
+  mv "$test_tmp/commands-dir" "$HOME/.claude/commands"
+fi
+pass "a failed account setup is refused and cleans up after itself"
 
 if OMARCHY_TEST_LOGIN_UUID=u-work OMARCHY_TEST_LOGIN_EMAIL=work@example.com \
   omarchy-agent-account-add claude Again </dev/null >"$test_tmp/dup-output" 2>&1; then
