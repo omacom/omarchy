@@ -1722,6 +1722,110 @@ always_copy_config_files=(
   omarchy/shell.json
 )
 
+legacy_hypr_input_value() {
+  local key="$1" file="$2"
+
+  awk -v key="$key" '
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*input[[:space:]]*\{/ {
+      in_input = 1
+      depth = 1
+      next
+    }
+    in_input {
+      content = $0
+      sub(/[[:space:]]*#.*/, "", content)
+
+      if (depth == 1 && content ~ "^[[:space:]]*" key "[[:space:]]*=") {
+        value = content
+        sub("^[[:space:]]*" key "[[:space:]]*=[[:space:]]*", "", value)
+        sub(/[[:space:]]+$/, "", value)
+        if (value ~ /^".*"$/) {
+          value = substr(value, 2, length(value) - 2)
+        }
+        found = 1
+        next
+      }
+
+      opens = gsub(/\{/, "", content)
+      closes = gsub(/\}/, "", content)
+      depth += opens - closes
+      if (depth <= 0) {
+        in_input = 0
+      }
+    }
+    END { if (found) print value; else exit 1 }
+  ' "$file"
+}
+
+legacy_vconsole_value() {
+  [[ -f /etc/vconsole.conf ]] || return 0
+  awk -v key="$1" '
+    $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+      value = $0
+      sub(/^[^=]*=[[:space:]]*/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      sub(/[[:space:]]+#.*$/, "", value)
+      if (value ~ /^".*"$/ || value ~ /^\047.*\047$/) value = substr(value, 2, length(value) - 2)
+      found = 1
+    }
+    END { if (found) print value }
+  ' /etc/vconsole.conf
+}
+
+# Values the 3.x installer or the stock input.conf wrote, which Quattro's defaults already derive.
+legacy_hypr_input_is_default() {
+  local key="$1" value="$2"
+
+  case $key in
+    kb_layout) [[ $value == "$(legacy_vconsole_value XKBLAYOUT)" ]] ;;
+    kb_variant) [[ $value == "$(legacy_vconsole_value XKBVARIANT)" ]] ;;
+    kb_options) [[ $value == "compose:caps" ]] ;;
+    *) return 1 ;;
+  esac
+}
+
+lua_string() {
+  local value="$1"
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  printf '"%s"' "$value"
+}
+
+migrate_legacy_hypr_input() {
+  local legacy_file="$HOME/.config/hypr/input.conf"
+  local input_file="$HOME/.config/hypr/input.lua"
+  local key value quoted
+  local found=0
+  local keys=(kb_layout kb_variant kb_model kb_options kb_rules)
+  local -A values=()
+
+  [[ -f $legacy_file && -f $input_file ]] || return 0
+  grep -qF 'Preserved from legacy ~/.config/hypr/input.conf' "$input_file" && return 0
+
+  for key in "${keys[@]}"; do
+    if value=$(legacy_hypr_input_value "$key" "$legacy_file") && ! legacy_hypr_input_is_default "$key" "$value"; then
+      values[$key]=$value
+      found=1
+    fi
+  done
+
+  (( found )) || return 0
+
+  {
+    printf '\n-- Preserved from legacy ~/.config/hypr/input.conf during the Quattro upgrade.\n'
+    printf 'hl.config({\n'
+    printf '  input = {\n'
+    for key in "${keys[@]}"; do
+      [[ -v values[$key] ]] || continue
+      quoted=$(lua_string "${values[$key]}")
+      printf '    %s = %s,\n' "$key" "$quoted"
+    done
+    printf '  },\n'
+    printf '})\n'
+  } >>"$input_file"
+}
+
 migrate_uwsm_env_customizations() {
   local source="$1" dest="$HOME/.config/uwsm/env.d/99-omarchy-upgrade-env" tmp
   [[ -f $source ]] || return 0
@@ -1968,6 +2072,7 @@ refresh_known_config_defaults
 copy_missing_config_defaults "$root/config" "$HOME/.config"
 mark_removed_preinstalls_from_legacy_bindings
 copy_always_config_defaults
+migrate_legacy_hypr_input
 repair_chromium_copy_url_extension_flags
 
 # Carry over user-added backgrounds from the legacy git checkout backup, then
