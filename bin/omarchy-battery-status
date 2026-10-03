@@ -107,9 +107,14 @@ if [[ $shell_output == "true" ]]; then
   printf 'size\t%s\n' "${capacity}Wh"
   printf 'time\t%s\n' "$time_remaining"
 
-  cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
+  # Firmware without a cycle-count field still reads back the kernel's own 0.
+  # Take the first pack reporting a real count, and report none as unavailable
+  # like UPower does, so the panel shows its unknown value instead of a zero.
+  cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | awk 'int($1) > 0 { print int($1); exit }')
 
-  [[ -n $cycles ]] && printf 'cycles\t%s\n' "$cycles"
+  if [[ -n $cycles ]]; then
+    printf 'cycles\t%s\n' "$cycles"
+  fi
 
   if [[ -n $threshold_end ]]; then
     if [[ -n $threshold_start && $threshold_start != $threshold_end ]]; then
