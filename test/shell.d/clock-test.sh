@@ -7,6 +7,10 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const fs = require('fs')
 const calendar = requireFromRoot('shell/plugins/panels/clock/Model.js')
+const modelSource = fs.readFileSync(root + '/shell/plugins/panels/clock/Model.js', 'utf8')
+  // Comments stripped, like the widget source below: a pin a commented-out
+  // line can satisfy passes while the grid is broken.
+  .replace(/^\s*\/\/.*$/gm, '')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/clock/Panel.qml', 'utf8')
 // Comments stripped: a wiring assertion that a commented-out line can satisfy
 // passes while the widget is broken.
@@ -109,6 +113,31 @@ assertDeepEqual(julySunday.map(week => week.week), [27, 28, 29, 30, 31, 32], 'ca
 
 const januarySunday = calendar.monthGrid(2021, 0, 0, '')
 assertEqual(januarySunday[0].week, 53, 'calendar carries the previous ISO year into a straddling first row')
+
+// ---- midnight DST switches (America/Santiago springs forward at 00:00)
+// September 2026: DST starts Sunday the 6th, so midnight on the 6th does not
+// exist. The grid cursor is anchored at noon so an engine that resolves the
+// missing midnight backwards cannot repeat a day and shift the month.
+// node resolves the gap forward instead, so these characterization asserts
+// hold on every engine; the source pins below lock the noon anchor itself.
+const september = calendar.monthGrid(2026, 8, 1, '2026-09-23')
+assertDeepEqual(september[0].days.map(day => day.day), [31, 1, 2, 3, 4, 5, 6], 'calendar opens September 2026 on Monday August 31')
+assertDeepEqual(september[1].days.map(day => day.day), [7, 8, 9, 10, 11, 12, 13], 'calendar keeps the week after a midnight switch in order')
+assertDeepEqual(
+  september.flatMap(week => week.days).filter(day => day.inMonth).map(day => day.day),
+  Array.from({ length: 30 }, (_, i) => i + 1),
+  'calendar shows every September day exactly once across a midnight switch'
+)
+assertDeepEqual(
+  september.flatMap(week => week.days).filter(day => day.today).map(day => day.key),
+  ['2026-09-23'],
+  'calendar still marks today across a midnight switch'
+)
+assertDeepEqual(september.map(week => week.week), [36, 37, 38, 39, 40, 41], 'calendar numbers September rows across a midnight switch')
+assert(/new Date\(year, month, 1, 12\)\.getDay\(\)/.test(modelSource), 'calendar counts leading days from a noon that always exists')
+assert(/new Date\(year, month, 1 - leading, 12\)/.test(modelSource), 'calendar walks the grid from noon across midnight DST switches')
+assert(/new Date\(year, Number\(month\) \+ Number\(delta\), 1, 12\)/.test(modelSource), 'calendar steps months from a noon that always exists')
+assert(/readonly property date viewDate: new Date\(viewYear, viewMonth, 1, 12\)/.test(panelSource), 'calendar names the heading month from a noon that always exists')
 
 // ---- stepping
 assertDeepEqual(calendar.stepMonth(2026, 0, 1), { year: 2026, month: 1 }, 'calendar steps to the next month')
