@@ -451,6 +451,27 @@ Panel {
           }
         }
 
+        // ---------- System stats (CPU / memory) ----------
+        // Fed by omarchy-system-stats into systemInfo; keep the section visible
+        // once we've seen data so a transient empty refresh doesn't collapse it.
+        Row {
+          visible: root.systemInfo.cpu !== undefined || root.systemInfo.memory !== undefined
+          width: parent.width
+          spacing: Style.space(20)
+
+          Column {
+            width: (parent.width - parent.spacing) / 2
+            spacing: Style.spacing.labelGap
+            InfoPair { label: "CPU"; value: root.systemInfo.cpu || "—" }
+          }
+
+          Column {
+            width: (parent.width - parent.spacing) / 2
+            spacing: Style.spacing.labelGap
+            InfoPair { label: "Memory"; value: root.systemInfo.memory || "—" }
+          }
+        }
+
         // ---------- Power profile picker ----------
         PanelSeparator {
           foreground: root.bar.foreground
