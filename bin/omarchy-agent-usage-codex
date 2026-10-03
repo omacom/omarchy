@@ -901,14 +901,17 @@ def fetch_codex_rpc(home=None):
 
   # stderr goes to a regular file, not a PIPE: an unread pipe can fill and
   # deadlock a chatty app-server. It is only read once the process has exited.
-  stderr_file = None
+  # Without temporary space the probe still runs, just without its error text.
   try:
     stderr_file = tempfile.TemporaryFile("w+", errors="replace")
+  except OSError:
+    stderr_file = None
+  try:
     proc = subprocess.Popen(
       [codex, "-s", "read-only", "-a", "on-request", "app-server"],
       stdin=subprocess.PIPE,
       stdout=subprocess.PIPE,
-      stderr=stderr_file,
+      stderr=stderr_file or subprocess.DEVNULL,
       text=True,
       env=env,
     )
@@ -975,7 +978,8 @@ def fetch_codex_rpc(home=None):
         proc.kill()
       except Exception:
         pass
-    stderr_file.close()
+    if stderr_file:
+      stderr_file.close()
   return result
 
 

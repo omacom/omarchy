@@ -743,6 +743,26 @@ result=$(HOME="$BATCHED_HOME" CODEX_HOME="$BATCHED_HOME/.codex" XDG_CACHE_HOME="
   fail "Codex collector reads replies batched with notifications" "$result"
 pass "Codex collector reads replies batched with notifications"
 
+# Without temporary space the probe still runs; it only loses Codex's error
+# text, so stderr goes nowhere instead of failing the probe.
+NO_TEMP_PYTHON="$BATCHED_HOME/python"
+mkdir -p "$NO_TEMP_PYTHON"
+cat >"$NO_TEMP_PYTHON/sitecustomize.py" <<'EOF'
+import tempfile
+
+def no_space(*args, **kwargs):
+  raise OSError(28, "No space left on device")
+
+tempfile.TemporaryFile = no_space
+EOF
+
+result=$(HOME="$BATCHED_HOME" CODEX_HOME="$BATCHED_HOME/.codex" XDG_CACHE_HOME="$BATCHED_HOME/.cache" XDG_DATA_HOME="$BATCHED_HOME/.local/share" \
+  PYTHONPATH="$NO_TEMP_PYTHON" PATH="$BATCHED_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --force)
+
+[[ $(jq -c '[.limits[] | .percent]' <<<"$result") == '[0.05]' ]] ||
+  fail "Codex collector probes without temporary space" "$result"
+pass "Codex collector probes without temporary space"
+
 # The lazy launcher at ~/.local/bin/codex runs `mise use -g` when executed, so
 # a read-only usage probe on a machine without Codex must never spawn it. A
 # private tools dir keeps a real codex or mise on the host out of the probe:
