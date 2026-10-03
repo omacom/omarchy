@@ -79,6 +79,26 @@ function availableScales(scales, width, height) {
     .map(function(candidate) { return candidate.value })
 }
 
+function scalesWithCurrent(scales, currentScale, width, height) {
+  if (!Array.isArray(scales)) return []
+  if (matchingScaleIndex(scales, currentScale, width, height) >= 0) return scales
+
+  var normalized = normalizeScale(currentScale)
+  var current = Number(normalized)
+  if (normalized === "" || !isFinite(current)) return scales
+
+  var out = scales.slice()
+  var at = out.length
+  for (var i = 0; i < out.length; i++) {
+    if (Number(out[i]) > current) {
+      at = i
+      break
+    }
+  }
+  out.splice(at, 0, normalized)
+  return out
+}
+
 function brightnessName(percent) {
   var p = Math.round(percent)
   if (p >= 95) return "Sun blast"
@@ -118,6 +138,7 @@ if (typeof module !== "undefined") {
     cleanScale: cleanScale,
     matchingScaleIndex: matchingScaleIndex,
     availableScales: availableScales,
+    scalesWithCurrent: scalesWithCurrent,
     brightnessName: brightnessName,
     parseDisplays: parseDisplays
   }
