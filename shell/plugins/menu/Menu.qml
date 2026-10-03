@@ -1467,6 +1467,10 @@ Item {
               width: Style.space(320)
             }
           }
+
+          WheelScrollArea {
+            flickable: resultList
+          }
         }
 
         Item {
