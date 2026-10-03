@@ -3,19 +3,40 @@
 # omarchy:summary=Pick one option from a menu
 # omarchy:group=menu
 # omarchy:name=select
-# omarchy:args=prompt [option...] [-- menu args...]
+# omarchy:args=[--print-index] prompt [option...] [-- menu args...]
 # omarchy:examples=omarchy menu select Format jpg png|omarchy-menu-select Resolution 4k 1080p 720p -- --width 400
 
 # An option may lead with an icon, as "<glyph><TAB><label>", and may trail a
 # subtext shown under the label, as "<glyph><TAB><label><TAB><subtext>". The
 # menu shows the glyph but never returns it. A plain option returns the label
 # alone; an option with a subtext returns "<label><TAB><subtext>", so callers
-# with same-named rows get the subtext back as the stable key.
+# with same-named rows get the subtext back as the stable key. An empty subtext
+# is no subtext: the tab that would introduce it does not come back either.
+#
+# --print-index returns where the choice sits in the list that was passed in
+# instead of the text of it, so a caller looks the answer up in its own data
+# rather than parsing what was on screen. It must come before the prompt, since
+# every argument after that is an option.
 
 set -euo pipefail
 
+print_index=false
+
+while (( $# > 0 )) && [[ $1 == --* ]]; do
+  case "$1" in
+    --print-index)
+      print_index=true
+      ;;
+    *)
+      echo "omarchy-menu-select: unknown option $1" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
 if (( $# < 1 )); then
-  echo "Usage: omarchy-menu-select <prompt> [option...] [-- menu args...]" >&2
+  echo "Usage: omarchy-menu-select [--print-index] <prompt> [option...] [-- menu args...]" >&2
   exit 1
 fi
 
@@ -63,8 +84,46 @@ if (( ${#options[@]} == 0 )) && [[ ! -t 0 ]]; then
 fi
 
 if (( ${#options[@]} == 0 )); then
-  echo "Usage: omarchy-menu-select <prompt> [option...] [-- menu args...]" >&2
+  echo "Usage: omarchy-menu-select [--print-index] <prompt> [option...] [-- menu args...]" >&2
   exit 1
+fi
+
+# What comes back is the option with everything up to its first tab removed,
+# since the menu drops a leading glyph and keeps a subtext. Mapping that back to
+# a position is only sound while no two options come back as the same text;
+# choosing between them would act on a row the user did not pick.
+declare -A option_indexes=()
+
+if [[ $print_index == true ]]; then
+  for index in "${!options[@]}"; do
+    returned="${options[index]#*$'\t'}"
+    label="${returned%%$'\t'*}"
+
+    # Menu.qml:768 joins a subtext to its label only when the subtext is not
+    # empty, so an option that ends at its subtext tab comes back without that
+    # tab. Keeping it here would key the row on text the menu never sends, which
+    # costs either the pick of that row or, worse, the row after it.
+    if [[ $returned == "$label"$'\t' ]]; then
+      returned="$label"
+    fi
+
+    # An option that comes back as nothing would put a blank row on screen, and
+    # bash rejects an empty associative-array subscript, so the loop below would
+    # abort with an error of its own. Refuse the list here instead and name the
+    # problem: a caller that pipes in a blank line wants to hear about it rather
+    # than be handed a row that displays nothing.
+    if [[ -z $returned ]]; then
+      echo "omarchy-menu-select: --print-index needs options that come back as text" >&2
+      exit 1
+    fi
+
+    if [[ -n ${option_indexes[$returned]:-} ]]; then
+      echo "omarchy-menu-select: --print-index needs options that come back as different text" >&2
+      exit 1
+    fi
+
+    option_indexes["$returned"]="$index"
+  done
 fi
 
 selection_file=$(mktemp)
@@ -93,7 +152,24 @@ while [[ ! -e $done_file ]]; do
 done
 
 if [[ -s $selection_file ]]; then
-  cat "$selection_file"
+  if [[ $print_index == true ]]; then
+    # Menu.qml:132 writes the selection with printf, so exactly one trailing
+    # newline is the menu's and has to come back off. Reading it with $( ) would
+    # take every trailing newline instead, which leaves an option that ends in
+    # one keyed under text that can never arrive, and hands its answer to
+    # whichever option matches the shortened text.
+    IFS= read -r -d '' selection <"$selection_file" || true
+    selection="${selection%$'\n'}"
+
+    if [[ -z ${option_indexes[$selection]:-} ]]; then
+      echo "omarchy-menu-select: the selection matches no option" >&2
+      exit 1
+    fi
+
+    printf '%s\n' "${option_indexes[$selection]}"
+  else
+    cat "$selection_file"
+  fi
 else
   exit 1
 fi

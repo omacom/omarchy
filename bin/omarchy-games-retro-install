@@ -14,9 +14,9 @@ if (( $# == 0 )); then
     exit 1
   fi
 
-  core=$(omarchy-menu-select "RetroArch core" "${cores[@]}") || exit 0
-  [[ -n $core ]] || exit 0
-  core="${core##*(}"
+  core_index=$(omarchy-menu-select --print-index "RetroArch core" "${cores[@]}") || exit 0
+  [[ -n $core_index ]] || exit 0
+  core="${cores[core_index]##*(}"
   core="${core%)}"
 
   game_path=$(omarchy-menu-file "Retro game" "$HOME/Games/roms" "7z bin ccd chd cue dmg elf fds gb gba gbc iso lha m3u md n64 nds nes pbp sfc smc swc zip z64") || exit 0
