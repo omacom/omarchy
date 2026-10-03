@@ -34,6 +34,13 @@ Panel {
   //      highlight rolls over without the panel being reopened.
   property date today: new Date()
   readonly property string todayKey: Model.keyForDate(today)
+  // Matches the bar widget's tick rate so the panel and label stay in step:
+  // a format that prints seconds makes the SystemClock tick every second
+  // instead of once a minute. The panel's clock only drives the today rollover,
+  // but ticking in lockstep with the bar avoids the two halves of the clock
+  // disagreeing about precision.
+  readonly property string configuredFormat: setting("format", "dddd HH:mm")
+  readonly property bool showsSeconds: Model.clockNeedsSeconds(configuredFormat)
 
   // The month on screen. Stepping moves this and nothing else: the grid is
   // a read-out, not a picker, so there is no per-day cursor to keep in sync.
@@ -226,7 +233,7 @@ Panel {
 
   SystemClock {
     id: clock
-    precision: SystemClock.Minutes
+    precision: root.showsSeconds ? SystemClock.Seconds : SystemClock.Minutes
     onDateChanged: {
       if (Model.keyForDate(clock.date) === String(root.todayKey)) return
       var followToday = root.viewingCurrentMonth
