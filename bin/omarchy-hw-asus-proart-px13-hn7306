@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Detect ASUS ProArt PX13 HN7306 (Strix Halo) laptops.
+
+omarchy-hw-match "HN7306"
