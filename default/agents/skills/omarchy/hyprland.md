@@ -40,12 +40,12 @@ o.bind("SUPER + B", "Browser", { launch = "chromium" })  -- launch wraps with uw
 
 View current bindings: `omarchy menu keybindings --print`
 
-`hyprctl -j binds` reports an `o.bind(...)` binding as dispatcher `__lua`
-with an opaque numeric handle in `arg`, not `exec` plus the command; the
-label passed to `o.bind` appears as `description`. A tool that needs to
-find its own binds again (e.g. on reinstall) matches on `description`, not
-on dispatcher or command. Verified on Omarchy 4.0.4-1: all 240 binds
-report `__lua`.
+`hyprctl binds` reports an `o.bind(...)` binding as dispatcher `__lua`,
+not `exec` plus the command; the label passed to `o.bind` appears as
+`description`. A tool that needs to find its own binds again (e.g. on
+reinstall) gives them a distinctive description and matches on that, not
+on dispatcher or command. Parse the plain output, not `hyprctl -j binds`,
+which emits invalid JSON for binds on Hyprland 0.56.0.
 
 **IMPORTANT: When re-binding an existing key:**
 
