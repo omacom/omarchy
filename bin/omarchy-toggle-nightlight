@@ -34,8 +34,9 @@ if [[ ${1:-} == "--status" ]]; then
   exit 0
 fi
 
-# Ensure hyprsunset is running
-if ! pgrep -x hyprsunset >/dev/null; then
+# Ensure this user's hyprsunset is running; another user's controls a different
+# Hyprland session and leaves this one without a night light.
+if ! pgrep -x -u "$UID" hyprsunset >/dev/null; then
   setsid uwsm-app -- hyprsunset &
 fi
 

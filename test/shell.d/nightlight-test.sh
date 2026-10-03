@@ -90,3 +90,39 @@ if rg -q 'omarchy.indicators' "$ROOT/bin/omarchy-toggle-nightlight"; then
   fail "nightlight toggle leaves indicator refresh to the nightlight service"
 fi
 pass "nightlight toggle leaves indicator refresh to the nightlight service"
+
+# Another user's hyprsunset always runs here, for their own Hyprland session;
+# this user's runs only when OWN_HYPRSUNSET=1. Limited by -u, pgrep finds a match
+# only for this user's UID and only when that process exists.
+LAUNCH_LOG="$TMPDIR/launches"
+cat >"$TMPDIR/bin/pgrep" <<'SH'
+#!/bin/bash
+while (( $# )); do
+  if [[ $1 == "-u" ]]; then
+    [[ $2 == "$TEST_UID" && ${OWN_HYPRSUNSET:-0} == 1 ]]
+    exit
+  fi
+  shift
+done
+exit 0
+SH
+cat >"$TMPDIR/bin/uwsm-app" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$LAUNCH_LOG"
+SH
+chmod +x "$TMPDIR/bin/pgrep" "$TMPDIR/bin/uwsm-app"
+
+LAUNCH_LOG="$LAUNCH_LOG" TEST_UID="$UID" nightlight_cli >/dev/null
+for _ in {1..20}; do
+  [[ -s $LAUNCH_LOG ]] && break
+  sleep 0.05
+done
+grep -Fqx -- '-- hyprsunset' "$LAUNCH_LOG" || fail "nightlight toggle starts this user's hyprsunset when only another user's runs"
+
+rm -f "$LAUNCH_LOG"
+LAUNCH_LOG="$LAUNCH_LOG" TEST_UID="$UID" OWN_HYPRSUNSET=1 nightlight_cli >/dev/null
+sleep 0.2
+[[ ! -e $LAUNCH_LOG ]] || fail "nightlight toggle leaves a running hyprsunset of this user's alone"
+grep -Fq 'pgrep -x -u \"$UID\" hyprsunset' "$ROOT/shell/plugins/services/nightlight/Service.qml" ||
+  fail "the nightlight service only counts this user's hyprsunset"
+pass "nightlight only counts this user's hyprsunset as running"
