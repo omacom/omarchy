@@ -70,6 +70,8 @@ grep -Fx 'WantedBy=graphical-session.target' "$fcitx_service" >/dev/null ||
   fail "fcitx5 is never pulled in at login without a WantedBy"
 grep -Fx 'ConditionEnvironment=WAYLAND_DISPLAY' "$fcitx_service" >/dev/null ||
   fail "an update over SSH has a live user manager and no display; starting fcitx5 there wedges the unit active-but-blind, and Wants= will not replace it at graphical login"
+grep -Fx 'ConditionPathExists=/usr/bin/fcitx5' "$fcitx_service" >/dev/null ||
+  fail "without fcitx5 installed, Restart=always retries the enabled unit at 203/EXEC for the whole session"
 
 grep -F 'pkill -x fcitx5' "$ROOT/bin/omarchy-restart-xcompose" >/dev/null ||
   fail "restart-xcompose cannot reload a fcitx5 running outside the unit, so it silently keeps serving the old table"
