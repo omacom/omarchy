@@ -9,6 +9,20 @@ const fs = require('fs')
 const network = requireFromRoot('shell/plugins/panels/network/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
 
+assert(
+  /ListView\s*\{\s*id:\s*networkList[\s\S]*?width:\s*parent\.width/.test(panelSource),
+  'network keeps the scrollable list at the full panel width'
+)
+assert(/ScrollBar\.vertical:\s*ScrollBar\s*\{\s*id:\s*networkScrollBar/.test(panelSource), 'network gives its attached scrollbar a stable geometry reference')
+assert(
+  /id:\s*networkScrollBar\s*policy:\s*ScrollBar\.AsNeeded/.test(panelSource),
+  'network retains its stock as-needed scrollbar'
+)
+assert(
+  /width:\s*ListView\.view\.width\s*-\s*\(ListView\.view\.interactive\s*\?\s*networkScrollBar\.width\s*:\s*0\)/.test(panelSource),
+  'network rows reserve a gutter for the scrollbar only while the list scrolls'
+)
+
 assert(/IpcHandler[\s\S]*?function toggleNetwork\(\) \{ root\.toggleNetwork\(\) \}/.test(panelSource), 'network exposes the Wi-Fi radio toggle over IPC')
 assert(/manageIpc: false/.test(panelSource), 'network owns its IPC handler so it can extend the target methods')
 
