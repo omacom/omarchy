@@ -121,6 +121,23 @@ function fileMeta(file, nowMs) {
   return parts.join(" · ")
 }
 
+function fileUri(path) {
+  var parts = String(path || "").split("/")
+  for (var i = 0; i < parts.length; i++) parts[i] = encodeURIComponent(parts[i])
+  return "file://" + parts.join("/")
+}
+
+// Reveal through org.freedesktop.FileManager1 so the file opens selected in
+// whichever file manager owns that name. Nautilus ships the activation file,
+// so the stock setup behaves as before.
+function revealCommand(path) {
+  return ["gdbus", "call", "--session",
+    "--dest", "org.freedesktop.FileManager1",
+    "--object-path", "/org/freedesktop/FileManager1",
+    "--method", "org.freedesktop.FileManager1.ShowItems",
+    JSON.stringify([fileUri(path)]), ""]
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     parseStatus: parseStatus,
@@ -132,6 +149,8 @@ if (typeof module !== "undefined") {
     formatPercent: formatPercent,
     usageText: usageText,
     relativeTime: relativeTime,
-    fileMeta: fileMeta
+    fileMeta: fileMeta,
+    fileUri: fileUri,
+    revealCommand: revealCommand
   }
 }
