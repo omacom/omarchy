@@ -39,3 +39,47 @@ write_stub pacman 'if [[ $1 == "-Qtdq" ]]; then exit 0; fi; exit 1'
 run_orphan_checker >"$test_tmp/none.out" 2>"$test_tmp/none.err"
 [[ ! -s $test_tmp/none.out ]] || fail "orphan checker stays quiet when no orphans exist"
 pass "orphan checker stays quiet without orphans"
+
+# -y reaches the prompt in a terminal, so report-and-skip cannot be left to the
+# non-interactive guard above: it has to be its own check. Run these on a pty
+# via util-linux `script -qec` (the suite's existing pty idiom), because without
+# one the guard above would answer for the unattended case and a mutant that
+# dropped the check would still pass. gum itself is stubbed.
+if script -qec true /dev/null >/dev/null 2>&1; then
+  gum_marker="$test_tmp/gum-reached"
+  write_stub pacman 'if [[ $1 == "-Qtdq" ]]; then printf "old-lib\nunused-tool\n"; exit 0; fi; exit 1'
+
+  rm -f "$gum_marker"
+  write_stub gum "touch '$gum_marker'; exit 99"
+  unattended_status=0
+  unattended_raw=$(OMARCHY_UPDATE_UNATTENDED=1 HOME="$test_home" PATH="$stub_bin:$ROOT/bin:$PATH" \
+    script -qec "omarchy-update-orphan-pkgs" /dev/null) || unattended_status=$?
+  unattended_output=$(tr -d '\r' <<<"$unattended_raw")
+
+  (( unattended_status == 0 )) ||
+    fail "unattended orphan review exits cleanly" "$unattended_output"
+  grep -qF 'Run omarchy-update-orphan-pkgs when ready' <<<"$unattended_output" ||
+    fail "unattended orphan review reports and skips" "$unattended_output"
+  [[ ! -e $gum_marker ]] ||
+    fail "unattended orphan review asked a question -y promised not to ask"
+  pass "unattended orphan review reports and skips instead of prompting"
+
+  # -y is the only thing suppressed: an interactive update still asks. gum
+  # answering with a failure stands in for the user declining.
+  rm -f "$gum_marker"
+  write_stub gum "touch '$gum_marker'; exit 99"
+  interactive_status=0
+  interactive_raw=$(HOME="$test_home" PATH="$stub_bin:$ROOT/bin:$PATH" \
+    script -qec "omarchy-update-orphan-pkgs" /dev/null) || interactive_status=$?
+  interactive_output=$(tr -d '\r' <<<"$interactive_raw")
+
+  (( interactive_status == 0 )) ||
+    fail "interactive orphan review exits cleanly" "$interactive_output"
+  [[ -e $gum_marker ]] ||
+    fail "interactive orphan review stopped asking about orphans" "$interactive_output"
+  grep -qF 'Keeping orphaned packages.' <<<"$interactive_output" ||
+    fail "a declined orphan prompt keeps the packages" "$interactive_output"
+  pass "interactive orphan review still prompts"
+else
+  skip "script -qec unavailable; skipping the unattended orphan prompt cases"
+fi
