@@ -68,21 +68,31 @@ def write_json(path, payload):
 
 
 def parse_time(value):
-  if value is None or value == "":
+  if value is None or value == "" or isinstance(value, bool):
     return None
-  if isinstance(value, (int, float)) or str(value).isdigit():
-    stamp = float(value)
-    return datetime.fromtimestamp(stamp / 1000 if stamp > 1e12 else stamp, timezone.utc)
   try:
-    parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-  except ValueError:
+    if isinstance(value, (int, float)) or str(value).isdigit():
+      stamp = float(value)
+      parsed = datetime.fromtimestamp(stamp / 1000 if stamp > 1e12 else stamp, timezone.utc)
+    else:
+      parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+      if not parsed.tzinfo:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+  except (ValueError, OverflowError, OSError):
     return None
-  return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+  # Go's zero time marks an uninitialized summary, not dated activity.
+  return None if parsed == datetime.min.replace(tzinfo=timezone.utc) else parsed
 
 
 def local_day(value):
   parsed = parse_time(value)
-  return parsed.astimezone().date().isoformat() if parsed else ""
+  if parsed is None:
+    return ""
+  try:
+    return parsed.astimezone().date().isoformat()
+  except (ValueError, OverflowError, OSError):
+    # Even a parsed date can cross years 1/9999 during local conversion.
+    return ""
 
 
 # The sign-in agy keeps in the keyring: its access token, when that lapses,
