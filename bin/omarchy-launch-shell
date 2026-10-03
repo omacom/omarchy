@@ -14,7 +14,47 @@
 # A package upgrade rewriting $OMARCHY_PATH/shell would otherwise reload it
 # against a half-written tree, and that failed reload leaves a second engine
 # generation behind that turns the next restart's IPC kill into a crash.
+#
+# Crash-relaunched Quickshell instances sometimes drop `-p` (quickshell#1208)
+# and draw a second bar; reap only processes with an explicit Omarchy config.
+# Bare processes cannot be identified safely and must be left alone.
+reap_orphan_quickshell() {
+  local pid arg executable i owned
+  local -a argv
+  local config_dir="$OMARCHY_PATH/shell"
+  local proc_root=${OMARCHY_TEST_PROC_ROOT:-/proc}
+
+  for pid in "$proc_root"/[0-9]*; do
+    [[ -r $pid/cmdline ]] || continue
+    mapfile -d '' -t argv <"$pid/cmdline" 2>/dev/null || continue
+    executable=${argv[0]:-}
+    [[ ${executable##*/} == "quickshell" ]] || continue
+    owned=0
+    for (( i = 1; i < ${#argv[@]}; i++ )); do
+      arg=${argv[i]}
+      case $arg in
+        -p|--path)
+          [[ ${argv[i + 1]:-} == "$config_dir" ]] && owned=1
+          (( i += 1 ))
+          ;;
+        --path=*)
+          [[ ${arg#--path=} == "$config_dir" ]] && owned=1
+          ;;
+        -c|--config)
+          [[ ${argv[i + 1]:-} == "omarchy" ]] && owned=1
+          (( i += 1 ))
+          ;;
+        --config=omarchy) owned=1 ;;
+      esac
+    done
+    if (( owned )); then
+      kill "${pid##*/}" 2>/dev/null || true
+    fi
+  done
+}
+
 run_shell() {
+  reap_orphan_quickshell
   QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!
