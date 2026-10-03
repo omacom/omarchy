@@ -4,13 +4,18 @@
 # omarchy:group=menu
 # omarchy:name=select
 # omarchy:args=prompt [option...] [-- menu args...]
-# omarchy:examples=omarchy menu select Format jpg png|omarchy-menu-select Resolution 4k 1080p 720p -- --width 400
+# omarchy:examples=omarchy menu select Format jpg png|omarchy-menu-select Resolution 4k 1080p 720p -- --width 400|omarchy-menu-select Plugins -- --multi
 
 # An option may lead with an icon, as "<glyph><TAB><label>", and may trail a
 # subtext shown under the label, as "<glyph><TAB><label><TAB><subtext>". The
 # menu shows the glyph but never returns it. A plain option returns the label
 # alone; an option with a subtext returns "<label><TAB><subtext>", so callers
 # with same-named rows get the subtext back as the stable key.
+#
+# With `-- --multi` the menu ticks rows with Tab and confirms with Enter,
+# printing one selected option per line in the order they were passed in.
+# Enter with nothing ticked still returns the row under the cursor, so a
+# caller never has to handle "multi" and "single" as separate shapes.
 
 set -euo pipefail
 
@@ -25,6 +30,7 @@ shift
 options=()
 menu_width=""
 menu_maxheight=""
+menu_multi=0
 
 while (( $# > 0 )); do
   if [[ $1 == "--" ]]; then
@@ -38,6 +44,9 @@ while (( $# > 0 )); do
             exit 1
           fi
           menu_width="$1"
+          ;;
+        --multi)
+          menu_multi=1
           ;;
         --height|--maxheight)
           arg="$1"
@@ -83,8 +92,9 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
   };
   $payload->{width} = int($ARGV[4]) if length($ARGV[4] // "");
   $payload->{maxHeight} = int($ARGV[5]) if length($ARGV[5] // "");
+  $payload->{multiSelect} = JSON::PP::true if $ARGV[6];
   print encode_json($payload)
-' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight")
+' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$menu_multi")
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null
 
