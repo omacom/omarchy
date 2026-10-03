@@ -10,4 +10,8 @@ fi
 # Keep the status follower as the direct child of the bar. Quickshell
 # clean up their direct child when they restart; a shell pipeline/coproc would
 # leave `voxtype status --follow` orphaned under the user systemd instance.
-exec setpriv --pdeathsig TERM voxtype status --follow --extended --format json
+#
+# Don't pass --extended: it makes voxtype probe the GPU with nvidia-smi, which
+# loads the NVIDIA driver and wakes the dGPU on hybrid laptops. The bar only
+# needs alt/class.
+exec setpriv --pdeathsig TERM voxtype status --follow --format json
