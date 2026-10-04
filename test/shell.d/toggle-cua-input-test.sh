@@ -22,7 +22,11 @@ case "$*" in
     if [[ ${TEST_NUMLOCK_COMPATIBLE:-true} != missing ]]; then
       numlock_capability=",\"foreground_numlock_compatible\":${TEST_NUMLOCK_COMPATIBLE:-true}"
     fi
-    printf '{"configured":%s,"transport":{"ready":%s},"keyboard_layout_independent":%s%s}\n' "$ready" "$ready" "${TEST_LAYOUT_INDEPENDENT:-true}" "$numlock_capability" ;;
+    guard_capability=""
+    if [[ ${TEST_IME_GUARD:-true} != missing ]]; then
+      guard_capability=",\"ime_popup_guard\":${TEST_IME_GUARD:-true}"
+    fi
+    printf '{"configured":%s,"transport":{"ready":%s},"keyboard_layout_independent":%s%s%s}\n' "$ready" "$ready" "${TEST_LAYOUT_INDEPENDENT:-true}" "$numlock_capability" "$guard_capability" ;;
   "-j getoption input:kb_layout") printf '{"str":"%s"}\n' "${TEST_LAYOUT:-us}" ;;
   "-j getoption input:kb_variant") printf '{"str":"%s"}\n' "${TEST_VARIANT:-}" ;;
   "plugin load "*) printf 'hyprctl:%s\n' "$*" >>"$TEST_LOG"; exit "${TEST_LOAD_STATUS:-0}" ;;
@@ -52,7 +56,7 @@ SCRIPT
 cat >"$tmp_dir/bin/pacman" <<'SCRIPT'
 #!/bin/bash
 [[ $* == "-Q cua-hyprland-plugin" ]] || exit 1
-printf 'cua-hyprland-plugin %s\n' "${TEST_PLUGIN_VERSION:-0.26.1-5}"
+printf 'cua-hyprland-plugin %s\n' "${TEST_PLUGIN_VERSION:-0.32.0-3}"
 SCRIPT
 
 cat >"$tmp_dir/bin/omarchy-pkg-present" <<'SCRIPT'
@@ -119,7 +123,7 @@ pass "cua input config preserves human keyboard settings"
 # Older packages cannot supply the runtime capability, even if a stub reports it.
 fresh_home
 rc=0
-TEST_PLUGIN_VERSION=0.26.1-4 "$toggle" on 2>/dev/null || rc=$?
+TEST_PLUGIN_VERSION=0.28.2-2 "$toggle" on 2>/dev/null || rc=$?
 [[ $rc != 0 && ! -e $(flag_file) ]] || fail "cua input refuses older packages"
 ! grep -q '^hyprctl:plugin load' "$TEST_LOG" || fail "cua input refuses older packages" "plugin loaded anyway"
 pass "cua input refuses older packages"
@@ -151,6 +155,24 @@ for action in on --load; do
   ! grep -q '^hyprctl:plugin ' "$TEST_LOG" || fail "cua input refuses the old Num Lock guard during $action" "module replaced"
   grep -q 'Log out and back in' "$TEST_LOG" || fail "cua input refuses the old Num Lock guard during $action" "restart instruction missing"
   pass "cua input refuses the old Num Lock guard during $action without replacing the module"
+done
+
+# A module mapped before the input-method guard, or one whose hooks did not
+# install, must not get input: fcitx5 restarting could crash Hyprland.
+for guard in missing false; do
+  for action in on --load; do
+    fresh_home
+    mkdir -p "$(dirname "$(flag_file)")"
+    cp "$ROOT/default/hypr/toggles/cua-input.lua" "$(flag_file)"
+    rc=0
+    TEST_PLUGIN_LOADED=1 TEST_IME_GUARD=$guard "$toggle" "$action" 2>/dev/null || rc=$?
+    if [[ $action == on ]]; then
+      [[ $rc != 0 ]] || fail "cua input refuses a $guard input-method guard during $action"
+    fi
+    [[ ! -e $(flag_file) ]] || fail "cua input refuses a $guard input-method guard during $action" "flag remains"
+    ! grep -q '^hyprctl:plugin ' "$TEST_LOG" || fail "cua input refuses a $guard input-method guard during $action" "module replaced"
+    pass "cua input refuses a $guard input-method guard during $action without replacing the module"
+  done
 done
 
 # Compiled capabilities are available before input is enabled or ready.
