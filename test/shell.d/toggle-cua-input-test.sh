@@ -308,6 +308,32 @@ for failure in TEST_RELOAD_STATUS=1 TEST_RELOAD_FAIL_FROM=2 TEST_RESTORE_FAIL=1;
   "$toggle" on >/dev/null
 done
 
+# on with the flag already set and the module not yet loaded holds input off
+# through the load as well, and refuses a module whose guard did not install.
+for guard in true false; do
+  fresh_home
+  mkdir -p "$(dirname "$(flag_file)")"
+  cp "$ROOT/default/hypr/toggles/cua-input.lua" "$(flag_file)"
+  rc=0
+  TEST_CUA_READY=1 TEST_IME_GUARD=$guard "$toggle" on 2>/dev/null || rc=$?
+  grep -qx 'flag-at-load:held' "$TEST_LOG" || fail "cua input on holds input off while loading (guard $guard)" "$(cat "$TEST_LOG")"
+  if [[ $guard == true ]]; then
+    cmp -s "$(flag_file)" "$ROOT/default/hypr/toggles/cua-input.lua" || fail "cua input on holds input off while loading (guard $guard)" "flag not restored"
+  else
+    [[ $rc != 0 && ! -e $(flag_file) ]] || fail "cua input on holds input off while loading (guard $guard)" "unguarded module kept its flag"
+  fi
+  pass "cua input on holds input off while loading (guard $guard)"
+done
+
+# A failed reload while landing the flag must not leave it reporting on.
+fresh_home
+rm -f "$TEST_LOG.reloads"
+rc=0
+TEST_RELOAD_STATUS=1 "$toggle" on 2>/dev/null || rc=$?
+[[ $rc != 0 && ! -e $(flag_file) ]] || fail "cua input on clears the flag when the reload fails"
+grep -q '^notify:.*Cua input stays off Hyprland could not reload' "$TEST_LOG" || fail "cua input on clears the flag when the reload fails" "no notification: $(cat "$TEST_LOG")"
+pass "cua input on clears the flag when the reload fails"
+
 # Existing copied flags are replaced, removing their legacy keyboard overrides.
 for ((line = 0; line < 20; line++)); do
   printf 'hl.config({input={kb_layout="us",kb_options=""}})\n'

@@ -10,6 +10,7 @@
 set -euo pipefail
 
 FLAG=cua-input
+FLAG_FILE="$HOME/.local/state/omarchy/toggles/hypr/$FLAG.lua"
 MODULE=/usr/lib/cua/hyprland/cua-hyprland-plugin.so
 KIT=/usr/share/cua-hyprland-plugin
 MIN_VERSION=0.32.0-3
@@ -27,7 +28,7 @@ notify() {
 
 refuse() {
   if omarchy-hyprland-toggle-enabled "$FLAG"; then
-    omarchy-hyprland-toggle "$FLAG" off >/dev/null
+    omarchy-hyprland-toggle "$FLAG" off >/dev/null || true
   fi
   notify "Cua input stays off" "$1"
   echo "$1" >&2
@@ -71,6 +72,13 @@ compatible() {
   python3 "$KIT/profile_verify.py" --kit "$KIT" --kit-sha256 "$digest" --consumer "$MODULE" >/dev/null 2>&1
 }
 
+# Hyprland reloads its configuration when a plugin loads, so an enabled flag is
+# held at enabled = false until the module passes; nocreat keeps a concurrent off.
+hold_flag() {
+  sed 's/enabled = true/enabled = false/' "$OMARCHY_PATH/default/hypr/toggles/$FLAG.lua" |
+    dd of="$FLAG_FILE" conv=nocreat status=none 2>/dev/null && hyprctl reload >/dev/null
+}
+
 load_plugin() {
   if ! plugin_loaded; then
     hyprctl plugin load "$MODULE" >/dev/null
@@ -94,12 +102,15 @@ turn_on() {
 
   compatible || refuse "The Cua Hyprland plugin does not match the running Hyprland; update it and log out and back in."
 
+  if ! plugin_loaded && omarchy-hyprland-toggle-enabled "$FLAG" && ! hold_flag; then
+    refuse "Cua input could not be held off while the plugin loaded; turn it on again."
+  fi
   load_plugin || refuse "The Cua Hyprland plugin could not load; check the session logs."
   if ! module_current; then
     refuse "Log out and back in to use the updated Cua plugin, then turn Cua Input on again."
   fi
   ime_guard_active || refuse "The Cua plugin could not install its input-method crash guard; hyprctl -j cua:status has the details."
-  omarchy-hyprland-toggle "$FLAG" on >/dev/null
+  omarchy-hyprland-toggle "$FLAG" on >/dev/null || refuse "Hyprland could not reload its configuration; Cua Input stays off."
 
   if input_ready; then
     notify "Cua input on" "Your keyboard layout and remaps stay unchanged."
@@ -123,18 +134,12 @@ load_at_start() {
     exit 0
   fi
 
-  # Hyprland reloads its configuration when a plugin loads, so hold the flag at
-  # enabled = false until the module passes below; nocreat keeps a concurrent off.
-  local flag_file="$HOME/.local/state/omarchy/toggles/hypr/$FLAG.lua"
-  if ! plugin_loaded; then
-    if ! sed 's/enabled = true/enabled = false/' "$OMARCHY_PATH/default/hypr/toggles/$FLAG.lua" |
-      dd of="$flag_file" conv=nocreat status=none 2>/dev/null || ! hyprctl reload >/dev/null; then
-      if [[ -e $flag_file ]]; then
-        omarchy-hyprland-toggle "$FLAG" off >/dev/null || true
-        notify "Cua input turned off" "Its configuration could not be held off while the plugin loaded; turn Cua Input on again."
-      fi
-      exit 0
+  if ! plugin_loaded && ! hold_flag; then
+    if [[ -e $FLAG_FILE ]]; then
+      omarchy-hyprland-toggle "$FLAG" off >/dev/null || true
+      notify "Cua input turned off" "Its configuration could not be held off while the plugin loaded; turn Cua Input on again."
     fi
+    exit 0
   fi
 
   if ! load_plugin; then
@@ -155,13 +160,13 @@ load_at_start() {
 
   # Refresh legacy keyboard overrides, but never recreate a flag removed by
   # a concurrent off while verification ran. nocreat still truncates the file.
-  if dd if="$OMARCHY_PATH/default/hypr/toggles/$FLAG.lua" of="$flag_file" conv=nocreat status=none 2>/dev/null; then
+  if dd if="$OMARCHY_PATH/default/hypr/toggles/$FLAG.lua" of="$FLAG_FILE" conv=nocreat status=none 2>/dev/null; then
     if ! hyprctl reload >/dev/null; then
       omarchy-hyprland-toggle "$FLAG" off >/dev/null || true
       notify "Cua input turned off" "Hyprland could not reload its configuration; turn Cua Input on again."
       return 1
     fi
-  elif [[ -e $flag_file ]]; then
+  elif [[ -e $FLAG_FILE ]]; then
     omarchy-hyprland-toggle "$FLAG" off >/dev/null || true
     notify "Cua input turned off" "Its configuration could not be refreshed; turn Cua Input on again."
     return 1
