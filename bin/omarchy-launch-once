@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Manage local ONCE applications with rootless containers
+# omarchy:args=[ONCE arguments...]
+
+exec python3 "$OMARCHY_PATH/default/once/launch.py" docker "$@"

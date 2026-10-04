@@ -30,7 +30,11 @@ It gets a panel in the bar, a web app for the admin console, and Taildrop for se
 
 ## ONCE
 
-[ONCE](https://once.com/) is 37signals' line of software you buy once and run on your own server, like the Campfire chat system. Select _Install > Service > ONCE_ from the Omarchy menu to install it, which enables its background service and drops you into the ONCE terminal interface to take it from there.
+[ONCE](https://github.com/basecamp/once) installs and manages self-hosted applications such as Writebook, including updates and backups. Select _Install > Service > ONCE_ to install the patched `once` package and enable its rootless user service. Package installation and enabling startup before login need administrator access once; ONCE and its applications then run as your user.
+
+Run `omarchy launch once` to open the interface, or pass ONCE commands such as `omarchy launch once list`. Local applications use addresses like `http://writebook.localhost:8080`. The proxy binds only to your computer's loopback address; public hosting and automatic public HTTPS are not configured by this installer. Background work continues after logout.
+
+Existing rootful ONCE installations need an explicit backup/restore migration. The engine migration stays pending for a legacy ONCE package or an active or enabled legacy system service. The rootless `once` package alone does not block migration. The installer also refuses an active or enabled legacy system service. It never silently disables that service or moves its application data. Test restored applications before retiring the old deployment.
 
 ## NordVPN
 
