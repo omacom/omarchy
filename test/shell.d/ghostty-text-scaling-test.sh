@@ -7,7 +7,7 @@ scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 export HOME="$scratch/home" OMARCHY_PATH="$ROOT"
 export PATH="$scratch/bin:$ROOT/bin:$PATH"
-export FACTOR_FILE="$scratch/factor"
+export FACTOR_FILE="$scratch/factor" READ_COUNT_FILE="$scratch/read-count"
 mkdir -p "$scratch/bin" "$HOME/.config/"{ghostty,foot,kitty,alacritty,omarchy}
 cat >"$scratch/bin/gsettings" <<'STUB'
 #!/bin/bash
@@ -15,10 +15,19 @@ case "$1:$3" in
   get:font-name) echo "'Sans ${GTK_FONT_PT:-11}'" ;;
   get:text-scaling-factor)
     [[ ${FAIL_READ:-0} == "1" ]] && exit 1
+    if [[ ${FAIL_SECOND_READ:-0} == "1" ]]; then
+      count=$(cat "$READ_COUNT_FILE")
+      ((count += 1))
+      echo "$count" >"$READ_COUNT_FILE"
+      ((count == 2)) && exit 1
+    fi
     cat "$FACTOR_FILE"
     ;;
   set:text-scaling-factor)
     [[ ${FAIL_WRITE:-0} == "1" ]] && exit 1
+    if [[ ${FAIL_ROLLBACK:-0} == "1" ]] && (( $(cat "$READ_COUNT_FILE") >= 2 )); then
+      exit 1
+    fi
     printf '%s\n' "$4" >"$FACTOR_FILE"
     ;;
   reset:text-scaling-factor)
@@ -112,16 +121,41 @@ assert_terminal_configs_unchanged() {
       fail "unreadable GTK factor leaves $terminal config unchanged"
   done
 }
+cp "$HOME/.config/omarchy/shell.toml" "$scratch/shell-before"
 for action in 18 reset; do
   if FAIL_READ=1 run_size "$action" >"$scratch/out" 2>"$scratch/err"; then
     fail "unreadable GTK factor returns a failure for $action"
   fi
-  grep -q 'terminal font sizes were left unchanged' "$scratch/err" || fail "failure explains untouched terminal sizes"
+  grep -q 'text size was left unchanged' "$scratch/err" || fail "failure explains untouched terminal sizes"
   assert_terminal_configs_unchanged
+  cmp -s "$scratch/shell-before" "$HOME/.config/omarchy/shell.toml" || fail "unreadable GTK factor preserves shell config"
+  [[ $(cat "$FACTOR_FILE") == "1.5" ]] || fail "unreadable GTK factor preserves GTK setting"
 done
 output=$(FAIL_READ=1 run_size)
 [[ $output == *"terminal font: n/a pt"* ]] || fail "failed read does not falsely report an apparent size"
 pass "failed GTK reads preserve every terminal config, fail set/reset, and report unknown size"
+
+for action in 18 reset; do
+  echo 0 >"$READ_COUNT_FILE"
+  if FAIL_SECOND_READ=1 run_size "$action" >"$scratch/out" 2>"$scratch/err"; then
+    fail "failed GTK readback returns a failure for $action"
+  fi
+  grep -q 'restored previous scaling' "$scratch/err" || fail "readback failure reports GTK rollback"
+  [[ $(cat "$FACTOR_FILE") == "1.5" ]] || fail "failed readback restores previous GTK factor"
+  cmp -s "$scratch/shell-before" "$HOME/.config/omarchy/shell.toml" || fail "failed readback preserves shell config"
+  assert_terminal_configs_unchanged
+done
+pass "failed GTK readback rolls back scaling before shell or terminal config updates"
+
+echo 0 >"$READ_COUNT_FILE"
+if FAIL_SECOND_READ=1 FAIL_ROLLBACK=1 run_size 18 >"$scratch/out" 2>"$scratch/err"; then
+  fail "failed GTK rollback returns a failure"
+fi
+grep -q 'Cannot read or restore GTK text scaling' "$scratch/err" || fail "failed rollback reports unrestored GTK scaling"
+assert_terminal_configs_unchanged
+cmp -s "$scratch/shell-before" "$HOME/.config/omarchy/shell.toml" || fail "failed rollback still preserves shell config"
+echo 1.5 >"$FACTOR_FILE"
+pass "a failed rollback is diagnosed and still leaves shell and terminal configs untouched"
 
 for factor in 0 invalid; do
   echo "$factor" >"$FACTOR_FILE"

@@ -117,8 +117,35 @@ gtk_font_pt() {
   fi
 }
 
+# Update GTK before touching shell/terminal configs. Ghostty needs a readable
+# factor both before and after the update so a failed read can be rolled back.
 set_factor() {
-  gsettings set "$GKEY_SCHEMA" "$GKEY_NAME" "$1" 2>/dev/null || true
+  local requested="$1" previous factor
+  if [[ -f ~/.config/ghostty/config ]]; then
+    if ! previous=$(gtk_factor); then
+      echo "Cannot read GTK text scaling; text size was left unchanged." >&2
+      return 1
+    fi
+  fi
+
+  if [[ $requested == "reset" ]]; then
+    gsettings reset "$GKEY_SCHEMA" "$GKEY_NAME" 2>/dev/null || true
+  else
+    gsettings set "$GKEY_SCHEMA" "$GKEY_NAME" "$requested" 2>/dev/null || true
+  fi
+
+  if [[ -f ~/.config/ghostty/config ]]; then
+    if factor=$(gtk_factor); then
+      echo "$factor"
+    else
+      if gsettings set "$GKEY_SCHEMA" "$GKEY_NAME" "$previous" 2>/dev/null; then
+        echo "Cannot read GTK text scaling; restored previous scaling. Text size was left unchanged." >&2
+      else
+        echo "Cannot read or restore GTK text scaling; shell and terminal sizes were left unchanged." >&2
+      fi
+      return 1
+    fi
+  fi
 }
 
 # Ghostty's GTK runtime multiplies font-size by this setting. Read back the
@@ -146,19 +173,13 @@ term_pt_for() {
 # untouched — that is omarchy-font-set's job. Live-reload signals mirror
 # omarchy-font-set; foot has no reload signal, so running instances are nudged.
 set_terminal_size() {
-  local pt="$1" ghostty_pt
+  local pt="$1" factor="$2" ghostty_pt
 
   if [[ -f ~/.config/ghostty/config ]]; then
     # GTK already scales Ghostty's font. Compensate for that multiplier while
     # retaining the same apparent point size as the other terminals.
-    local factor
-    if factor=$(gtk_factor); then
-      ghostty_pt=$(awk -v p="$pt" -v f="$factor" \
-        'BEGIN { printf "%.4f", p / f }' | sed -E 's/\.?0+$//')
-    else
-      echo "Cannot read GTK text scaling; terminal font sizes were left unchanged." >&2
-      return 1
-    fi
+    ghostty_pt=$(awk -v p="$pt" -v f="$factor" \
+      'BEGIN { printf "%.4f", p / f }' | sed -E 's/\.?0+$//')
   fi
 
   if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
@@ -238,9 +259,9 @@ case "${1:-}" in
     exit 0
     ;;
   reset | default)
+    factor=$(set_factor reset) || exit 1
     reset_base_size
-    gsettings reset "$GKEY_SCHEMA" "$GKEY_NAME" 2>/dev/null || true
-    set_terminal_size "$TERM_DEFAULT_PT"
+    set_terminal_size "$TERM_DEFAULT_PT" "$factor"
     exit $?
     ;;
 esac
@@ -252,15 +273,15 @@ if [[ ! $size =~ ^[0-9]+$ ]] || ((size < MIN || size > MAX)); then
   exit 1
 fi
 
-# Shell side: base-size in px (the omarchy shell's rem root).
-set_base_size "$size"
-
 # GTK side: multiplier anchored so 12px == 1.0, quantized so the interface
 # font renders at a whole point size. Raw ratios yield fractional point sizes,
 # which GTK4 menus clip at the ascenders on scale-1 monitors.
 factor="$(awk -v s="$size" -v b="$SHELL_DEFAULT_PX" -v f="$(gtk_font_pt)" \
   'BEGIN { printf "%.4f", int(f * s / b + 0.5) / f }')"
-set_factor "$factor"
+factor=$(set_factor "$factor") || exit 1
+
+# Shell side: base-size in px (the omarchy shell's rem root).
+set_base_size "$size"
 
 # Terminal side: point size anchored so 12px == 9pt.
-set_terminal_size "$(term_pt_for "$size")"
+set_terminal_size "$(term_pt_for "$size")" "$factor"
