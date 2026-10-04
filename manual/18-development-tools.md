@@ -6,7 +6,7 @@ Omarchy ships with [Neovim](https://neovim.io/) by default, but if you'd like so
 
 The original `vi` editor is also available out of the box. Run `vi filename` to edit a file in the terminal.
 
-Theme matching is offered for `VSCode`, `Cursor`, `VSCodium`, and `Helix`.
+Theme matching is offered for `VSCode`, `Cursor`, `VSCodium`, `Sublime Text`, and `Helix`.
 
 You can set the system-wide default editor under `Setup > Defaults > Editor`.
 

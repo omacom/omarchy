@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the generated Omarchy color scheme to Sublime Text
+# omarchy:hidden=true
+
+set -e
+
+source_scheme="$HOME/.local/state/omarchy/current/theme/Omarchy.sublime-color-scheme"
+user_package="$HOME/.config/sublime-text/Packages/User"
+target_scheme="$user_package/Omarchy.sublime-color-scheme"
+
+[[ -f $source_scheme && -d $user_package ]] || exit 0
+cmp -s "$source_scheme" "$target_scheme" && exit 0
+
+# Sublime does not watch changes behind a symlink into current/theme.
+tmp=$(mktemp "$user_package/.Omarchy.sublime-color-scheme.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+cp "$source_scheme" "$tmp"
+mv "$tmp" "$target_scheme"

@@ -114,6 +114,7 @@ for installer in \
   omarchy-install-terminal \
   omarchy-install-editor-vscode \
   omarchy-install-editor-zed \
+  omarchy-install-editor-sublime \
   omarchy-install-editor-helix \
   omarchy-install-editor-emacs; do
   ln -s omarchy-test-installer "$mock_bin/$installer"
@@ -172,7 +173,7 @@ editor_cases=(
   'code code editor:vscode'
   'cursor cursor pkg:cursor-bin'
   'zed zeditor editor:zed'
-  'sublime_text subl pkg:sublime-text-4'
+  'sublime_text subl editor:sublime'
   'helix helix editor:helix'
   'vim vim pkg:vim'
   'emacs emacs editor:emacs'
