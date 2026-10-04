@@ -26,6 +26,33 @@ leading_keyboard() {
   done
 }
 
+# Media and hardware keys arrive as XKB keysym names. Name each after what is
+# printed on the key, so the menu reads "VOLUME UP", not "XF86AudioRaiseVolume".
+# A keysym missing here keeps its XKB name and still ranks with the media keys.
+media_key_labels() {
+  cat <<'LABELS'
+XF86AudioRaiseVolume=VOLUME UP
+XF86AudioLowerVolume=VOLUME DOWN
+XF86AudioMute=MUTE
+XF86AudioMicMute=MIC MUTE
+XF86AudioPlay=PLAY
+XF86AudioPause=PAUSE
+XF86AudioNext=NEXT TRACK
+XF86AudioPrev=PREVIOUS TRACK
+XF86MonBrightnessUp=BRIGHTNESS UP
+XF86MonBrightnessDown=BRIGHTNESS DOWN
+XF86KbdBrightnessUp=KEYBOARD LIGHT UP
+XF86KbdBrightnessDown=KEYBOARD LIGHT DOWN
+XF86KbdLightOnOff=KEYBOARD LIGHT
+XF86TouchpadToggle=TOUCHPAD TOGGLE
+XF86TouchpadOn=TOUCHPAD ON
+XF86TouchpadOff=TOUCHPAD OFF
+XF86Calculator=CALCULATOR
+XF86Eject=EJECT
+XF86PowerOff=POWER
+LABELS
+}
+
 # Hyprland reports XKB keycodes for code: bindings. Resolve them to symbols
 # via the compiled keymap, with a small fallback for common keys so the menu
 # remains readable if xkbcli cannot resolve a symbol.
@@ -33,7 +60,7 @@ parse_keycodes() {
   local layout variant
   { read -r layout; read -r variant; } < <(leading_keyboard)
 
-  awk -v key_names="$key_names_file" -v layout="$layout" -v variant="$variant" '
+  awk -v key_names="$key_names_file" -v layout="$layout" -v variant="$variant" -v media_keys="$(media_key_labels)" '
     BEGIN {
       while ((getline line < key_names) > 0) {
         # Blanks around a line and a CRLF line end read the same, as in
@@ -42,6 +69,12 @@ parse_keycodes() {
         if (split(line, name_parts, /[ \t]+/) == 2 && name_parts[1] ~ /^[A-Za-z0-9_]+$/ && name_parts[2] ~ /^[A-Za-z0-9_]+$/) key_name[name_parts[1]] = name_parts[2]
       }
       close(key_names)
+
+      split(media_keys, media_key_lines, "\n")
+      for (i in media_key_lines) {
+        separator = index(media_key_lines[i], "=")
+        if (separator) media_label[substr(media_key_lines[i], 1, separator - 1)] = substr(media_key_lines[i], separator + 1)
+      }
 
       split("10=1 11=2 12=3 13=4 14=5 15=6 16=7 17=8 18=9 19=0 20=MINUS 21=EQUAL 59=COMMA 60=PERIOD 61=SLASH", fallbacks, " ")
       for (i in fallbacks) {
@@ -99,7 +132,9 @@ parse_keycodes() {
         rest = substr($0, first + 1)
         second = index(rest, ",")
         key = second > 0 ? substr(rest, 1, second - 1) : rest
+        # A platform name wins over the media label printed on most keyboards.
         if (key in key_name) $0 = substr($0, 1, first) key_name[key] (second > 0 ? substr(rest, second) : "")
+        else if (key in media_label) $0 = substr($0, 1, first) media_label[key] (second > 0 ? substr(rest, second) : "")
       }
 
       print
@@ -551,7 +586,14 @@ END {
 }
 
 prioritize_entries() {
-  awk -F '\t' '
+  awk -F '\t' -v media_keys="$(media_key_labels)" '
+  BEGIN {
+    split(media_keys, media_key_lines, "\n")
+    for (i in media_key_lines) {
+      separator = index(media_key_lines[i], "=")
+      if (separator) is_media_key[substr(media_key_lines[i], separator + 1)] = 1
+    }
+  }
   {
     # Alternative chords are display only. Classifying on them would read
     # "SUPER SHIFT + RETURN / SUPER SHIFT + B" as the alternate browser chord
@@ -610,7 +652,11 @@ prioritize_entries() {
     if (match(line, /Cycle to/))  prio = 96
     if (match(line, /Reveal active/))  prio = 97
     if (match(line, /Apple Display/))  prio = 98
-    if (match(line, /XF86/))  prio = 99
+    # Media keys rank by the key alone, renamed or not, and stay in the tail
+    key = line
+    sub(/[[:space:]]*→.*/, "", key)
+    sub(/.*\+[[:space:]]*/, "", key)
+    if (match(line, /XF86/) || key in is_media_key)  prio = 99
     if (match(line, /Tmux keybindings/)) prio = 100
     if (match(line, /Herdr keybindings/)) prio = 101
 

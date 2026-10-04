@@ -134,6 +134,27 @@ rendered=$(keybindings)
   fail "a shared chord does not change where its entry ranks" "$rendered"
 pass "a shared chord does not change where its entry ranks"
 
+# A media key reads as what is printed on it, and renaming it must not lift it
+# out of the tail. A keysym the menu has no name for keeps its XKB name.
+stub_hyprctl <<BINDS
+$(exec_bind 0 "XF86AudioRaiseVolume" "Volume up" "true")
+$(exec_bind 1 "XF86AudioMute" "Switch audio output" "true")
+$(exec_bind 0 "XF86Launch5" "Launch five" "true")
+$(exec_bind 8 "ALT + TAB" "Reveal active window on top" "true")
+BINDS
+
+rendered=$(keybindings)
+grep -q '^VOLUME UP  *→ Volume up$' <<<"$rendered" &&
+  grep -q '^SHIFT + MUTE  *→ Switch audio output$' <<<"$rendered" &&
+  grep -q '^XF86Launch5  *→ Launch five$' <<<"$rendered" ||
+  fail "a media key reads as the label printed on it" "$rendered"
+pass "a media key reads as the label printed on it"
+
+(( $(grep -n '→ Reveal active window on top$' <<<"$rendered" | cut -d: -f1) <
+   $(grep -n '→ Volume up$' <<<"$rendered" | cut -d: -f1) )) ||
+  fail "a renamed media key stays in the tail" "$rendered"
+pass "a renamed media key stays in the tail"
+
 # The same key written as a keycode arrives by the other road: Hyprland reports
 # the code and the keymap resolves it, after the rename above has run.
 stub_hyprctl <<'BINDS'
