@@ -22,6 +22,25 @@ Item {
   property bool fingerprintAuthenticating: false
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
+  // True for the short fade between a successful authentication and releasing
+  // the session lock. The lock stays fully opaque and held throughout.
+  property bool unlocking: false
+  // False from a lock request until the lock surface is up, so the view can
+  // blur and fade its content in once the session is already locked.
+  property bool lockRevealed: true
+  // True once Hyprland renders the desktop under the lock (session_lock_xray),
+  // which only ever happens after a successful authentication. The lock view
+  // then fades fully transparent, so the unlock cross-fades into the live
+  // desktop instead of ending on the wallpaper.
+  property bool unlockSeeThrough: false
+  // The same in reverse for locking: the lock surface comes up transparent
+  // over the live desktop and fades in. While this is true the lock is held but
+  // not yet opaque, so status() does not report it secure.
+  property bool lockFadingIn: false
+  // Screens whose lock view has finished fading in, keyed by screen name.
+  property var lockFadedScreens: ({})
+  // What the in-flight xray request is for: "lock", "unlock" or "".
+  property string xrayPurpose: ""
   property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
@@ -87,6 +106,12 @@ Item {
 
     pendingSessionLock = false
     pendingSessionLockTimer.stop()
+    // Too late for the desktop fade once the surfaces exist; a lock whose xray
+    // request has not been confirmed by now comes up opaque as before.
+    if (xrayPurpose === "lock") {
+      xrayPurpose = ""
+      setSessionLockXray(false)
+    }
     sessionLock.locked = true
   }
 
@@ -157,6 +182,18 @@ Item {
 
     resetAuthenticationState()
     lockRequested = true
+    lockRevealed = false
+    unlockSeeThrough = false
+    lockFadingIn = false
+    // Ask Hyprland to keep rendering the desktop under the lock so the lock can
+    // fade in over it. Skipped while the display is off: nobody sees the fade.
+    if (!displaysBlank) {
+      xrayPurpose = "lock"
+      setSessionLockXray(true)
+    } else {
+      xrayPurpose = ""
+      setSessionLockXray(false)
+    }
     armBlankTimer()
     logEvent("lock-requested")
     queueSessionLock()
@@ -169,7 +206,79 @@ Item {
     return true
   }
 
+  // Fade the lock content out before releasing the session, so the unblurred
+  // wallpaper hands over to the desktop. Skipped while the display is off.
   function finishUnlock() {
+    if (!root.locked && !lockRequested) return
+    if (unlocking) return
+
+    if (displaysBlank) {
+      completeUnlock()
+      return
+    }
+
+    // A finger or password accepted while the lock was still fading in.
+    if (lockFadingIn) finishLockFadeIn()
+
+    unlocking = true
+    idleBlankTimer.stop()
+    unlockTransitionTimer.restart()
+    logEvent("unlocking")
+    xrayPurpose = "unlock"
+    setSessionLockXray(true)
+  }
+
+  // Each screen fades in on its own; the desktop keeps rendering underneath
+  // until the last one is opaque.
+  function lockViewFadedIn(screenName) {
+    if (!lockFadingIn) return
+    var faded = Object.assign({}, lockFadedScreens)
+    faded[screenName || ""] = true
+    lockFadedScreens = faded
+    if (Object.keys(faded).length >= realScreenCount()) finishLockFadeIn()
+  }
+
+  // The lock is opaque on every screen: stop rendering the desktop under it.
+  function finishLockFadeIn() {
+    if (!lockFadingIn) return
+    lockFadingIn = false
+    lockFadeInFallback.stop()
+    setSessionLockXray(false)
+    logEvent("lock-opaque")
+  }
+
+  // Runtime-only Hyprland setting; a config reload restores the default (off).
+  function setSessionLockXray(enabled) {
+    if (enabled) {
+      // A pending off-retry would cut this fade short.
+      xrayOffRetry.stop()
+      xrayOffRetry.attempts = 0
+      xrayOffProc.running = false
+      xrayOnProc.running = true
+    } else {
+      xrayOnProc.running = false
+      xrayOffProc.running = true
+    }
+  }
+
+  // A lock request during the fade wins: stay locked and re-arm authentication.
+  function cancelUnlockTransition() {
+    if (!unlocking) return
+    unlockTransitionTimer.stop()
+    // Opaque again before anything else: the view snaps back without a fade.
+    unlockSeeThrough = false
+    xrayPurpose = ""
+    setSessionLockXray(false)
+    unlocking = false
+    resetAuthenticationState()
+    armBlankTimer()
+    logEvent("unlock-cancelled")
+    startFingerprint()
+  }
+
+  function completeUnlock() {
+    unlocking = false
+    unlockTransitionTimer.stop()
     if (!root.locked && !lockRequested) return
 
     lockRequested = false
@@ -179,6 +288,11 @@ Item {
     resetAuthenticationState()
     idleBlankTimer.stop()
     sessionLock.locked = false
+    // Only now: the view is fully transparent until the lock is released.
+    unlockSeeThrough = false
+    lockFadingIn = false
+    xrayPurpose = ""
+    setSessionLockXray(false)
     logEvent("unlocked")
     runWake()
   }
@@ -290,6 +404,9 @@ Item {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
+        lockRevealTimer.restart()
+        // The fade-in is bounded from here, not from the xray request.
+        if (root.lockFadingIn) lockFadeInFallback.restart()
         root.startFingerprint()
       }
     }
@@ -301,6 +418,17 @@ Item {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
+      }
+
+      if (!locked) {
+        root.unlocking = false
+        unlockTransitionTimer.stop()
+        if (root.unlockSeeThrough || root.lockFadingIn || root.xrayPurpose !== "") {
+          root.unlockSeeThrough = false
+          root.lockFadingIn = false
+          root.xrayPurpose = ""
+          root.setSessionLockXray(false)
+        }
       }
 
       if (!locked && root.lockRequested) {
@@ -315,7 +443,7 @@ Item {
 
     WlSessionLockSurface {
       id: lockSurface
-      color: Color.background
+      color: root.unlockSeeThrough || root.lockFadingIn ? "transparent" : Color.background
 
       LockView {
         id: lockView
@@ -327,7 +455,12 @@ Item {
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
-        inputEnabled: root.lockRequested
+        inputEnabled: root.lockRequested && !root.unlocking
+        unlocking: root.unlocking
+        revealed: root.lockRevealed
+        seeThrough: root.unlockSeeThrough
+        fadeFromDesktop: root.lockFadingIn
+        onLockFadeInFinished: root.lockViewFadedIn(lockSurface.screen ? lockSurface.screen.name : "")
         loadBackground: root.locked
         displaysBlank: root.screenBlank(lockSurface.screen ? lockSurface.screen.name : "")
         powerSaverActive: root.powerSaverActive
@@ -408,6 +541,92 @@ Item {
       root.fingerprintAuthenticating = false
       if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
     }
+  }
+
+  // One beat after the lock is secure, so the first frame is on screen before
+  // the reveal starts and the animation is actually seen.
+  Timer {
+    id: lockRevealTimer
+    interval: 40
+    repeat: false
+    onTriggered: root.lockRevealed = true
+  }
+
+  Process {
+    id: xrayOnProc
+    command: ["hyprctl", "eval", "hl.config({ misc = { session_lock_xray = true } })"]
+    stdout: StdioCollector { id: xrayOnStdout; waitForEnd: true }
+    onExited: function(exitCode) {
+      var purpose = root.xrayPurpose
+      root.xrayPurpose = ""
+      var confirmed = exitCode === 0 && String(xrayOnStdout.text || "").trim() === "ok"
+
+      if (purpose === "unlock" && root.unlocking) {
+        if (!confirmed) return
+        root.unlockSeeThrough = true
+        // Give the cross-fade its full length from here.
+        unlockTransitionTimer.restart()
+        return
+      }
+
+      // Only while the lock is requested but its surfaces do not exist yet;
+      // they are created transparent and fade in over the desktop.
+      if (purpose === "lock" && confirmed && root.lockRequested && !sessionLock.locked) {
+        root.lockFadedScreens = ({})
+        root.lockFadingIn = true
+        lockFadeInFallback.restart()
+        return
+      }
+
+      // Stale or failed: a cancelled, finished or too-late request must not
+      // leave the desktop rendering under the lock.
+      if (!root.unlockSeeThrough && !root.lockFadingIn) root.setSessionLockXray(false)
+    }
+  }
+
+  Process {
+    id: xrayOffProc
+    command: ["hyprctl", "eval", "hl.config({ misc = { session_lock_xray = false } })"]
+    stdout: StdioCollector { id: xrayOffStdout; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode === 0 && String(xrayOffStdout.text || "").trim() === "ok") {
+        xrayOffRetry.attempts = 0
+        return
+      }
+      // Left on, Hyprland keeps rendering the desktop under every later lock.
+      // The lock stays opaque, but that is wasted work for the whole lock, so
+      // try again a few times unless xray is wanted again by now.
+      if (root.xrayPurpose !== "" || root.unlockSeeThrough || root.lockFadingIn) return
+      if (xrayOffRetry.attempts < 3) xrayOffRetry.restart()
+    }
+  }
+
+  Timer {
+    id: xrayOffRetry
+    property int attempts: 0
+    interval: 1000
+    repeat: false
+    onTriggered: {
+      if (root.xrayPurpose !== "" || root.unlockSeeThrough || root.lockFadingIn) return
+      attempts += 1
+      root.setSessionLockXray(false)
+    }
+  }
+
+  // Bounds the lock fade-in should a view never report it finished: snap the
+  // lock opaque and stop rendering the desktop under it.
+  Timer {
+    id: lockFadeInFallback
+    interval: 1000
+    repeat: false
+    onTriggered: root.finishLockFadeIn()
+  }
+
+  Timer {
+    id: unlockTransitionTimer
+    interval: 320
+    repeat: false
+    onTriggered: root.completeUnlock()
   }
 
   // The lock only starts decoding its wallpaper once locked, and a machine
@@ -646,6 +865,7 @@ Item {
 
     function lock(): string {
       if (!root.passwordPamConfigured) return "missing-pam"
+      if (root.unlocking) root.cancelUnlockTransition()
       if (!root.locked && !root.beginLock()) return "failed"
       return "ok"
     }
@@ -660,7 +880,10 @@ Item {
         requested: root.lockRequested,
         pending: root.pendingSessionLock,
         sessionLocked: sessionLock.locked,
-        secure: sessionLock.secure,
+        // Not secure while fading in over the desktop or out to it on unlock:
+        // the sleep path waits on this, so a suspend never catches the lock
+        // see-through. After an unlock it locks again.
+        secure: sessionLock.secure && !root.lockFadingIn && !root.unlocking,
         realScreens: root.realScreenCount(),
         passwordPam: root.passwordPamConfigured,
         fingerprint: root.fingerprintConfigured,
