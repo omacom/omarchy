@@ -1657,6 +1657,37 @@ ShellRoot {
     return loader && loader.item ? loader.item : null
   }
 
+  Component {
+    id: imageRowsFileComponent
+    FileView {
+      blockLoading: true
+      printErrors: false
+    }
+  }
+
+  function readImageRowsFile(path) {
+    if (!path) return null
+    // A fresh reader prevents failed/repeated requests from reusing stale data.
+    var reader = imageRowsFileComponent.createObject(shell, { path: path })
+    var rows = reader.text()
+    var loaded = reader.loaded
+    reader.destroy()
+    return loaded ? rows : null
+  }
+
+  function openImagePickerRows(imageDirs, rows, selectedImage, selectionFile, doneFile, showLabels, filterable) {
+    var payload = JSON.stringify({
+      imageDirs: imageDirs,
+      imageRows: rows,
+      selectedImage: selectedImage,
+      selectionFile: selectionFile,
+      doneFile: doneFile,
+      showLabels: showLabels,
+      filterable: filterable
+    })
+    return shell.summon("omarchy.image-picker", payload) ? "ok" : "unknown"
+  }
+
   ShellIpc {
     target: "image-selector"
 
@@ -1667,16 +1698,20 @@ ShellRoot {
                   doneFile: string,
                   showLabels: string,
                   filterable: string): string {
-      var payload = JSON.stringify({
-        imageDirs: imageDirs,
-        imageRows: Util.decodeBase64(imageRowsB64),
-        selectedImage: selectedImage,
-        selectionFile: selectionFile,
-        doneFile: doneFile,
-        showLabels: showLabels,
-        filterable: filterable
-      })
-      return shell.summon("omarchy.image-picker", payload) ? "ok" : "unknown"
+      return shell.openImagePickerRows(imageDirs, Util.decodeBase64(imageRowsB64),
+                                       selectedImage, selectionFile, doneFile, showLabels, filterable)
+    }
+
+    function openFile(imageRowsFile: string,
+                      selectedImage: string,
+                      selectionFile: string,
+                      doneFile: string,
+                      showLabels: string,
+                      filterable: string): string {
+      var rows = shell.readImageRowsFile(imageRowsFile)
+      if (rows === null) return "unreadable"
+      return shell.openImagePickerRows("", rows, selectedImage, selectionFile,
+                                       doneFile, showLabels, filterable)
     }
 
     function preload(imageRowsB64: string,
@@ -1687,6 +1722,19 @@ ShellRoot {
       if (picker && typeof picker.preloadRows === "function") {
         picker.preloadRows(Util.decodeBase64(imageRowsB64), selectedImage,
                            showLabels, filterable)
+      }
+      return "ok"
+    }
+
+    function preloadFile(imageRowsFile: string,
+                         selectedImage: string,
+                         showLabels: string,
+                         filterable: string): string {
+      var rows = shell.readImageRowsFile(imageRowsFile)
+      if (rows === null) return "unreadable"
+      var picker = shell.imagePickerItem()
+      if (picker && typeof picker.preloadRows === "function") {
+        picker.preloadRows(rows, selectedImage, showLabels, filterable)
       }
       return "ok"
     }
