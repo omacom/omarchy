@@ -29,7 +29,10 @@ case "$*" in
     printf '{"configured":%s,"transport":{"ready":%s},"keyboard_layout_independent":%s%s%s}\n' "$ready" "$ready" "${TEST_LAYOUT_INDEPENDENT:-true}" "$numlock_capability" "$guard_capability" ;;
   "-j getoption input:kb_layout") printf '{"str":"%s"}\n' "${TEST_LAYOUT:-us}" ;;
   "-j getoption input:kb_variant") printf '{"str":"%s"}\n' "${TEST_VARIANT:-}" ;;
-  "plugin load "*) printf 'hyprctl:%s\n' "$*" >>"$TEST_LOG"; exit "${TEST_LOAD_STATUS:-0}" ;;
+  "plugin load "*)
+    printf 'hyprctl:%s\n' "$*" >>"$TEST_LOG"
+    if grep -q 'enabled = false' "$HOME/.local/state/omarchy/toggles/hypr/cua-input.lua" 2>/dev/null; then echo 'flag-at-load:held' >>"$TEST_LOG"; fi
+    exit "${TEST_LOAD_STATUS:-0}" ;;
   *) printf 'hyprctl:%s\n' "$*" >>"$TEST_LOG" ;;
 esac
 SCRIPT
@@ -262,6 +265,22 @@ TEST_CUA_READY=1 "$toggle" on >/dev/null
 grep -q '^hyprctl:plugin load' "$TEST_LOG" || fail "cua input reloads the plugin at session start" "$(cat "$TEST_LOG")"
 [[ -e $(flag_file) ]] || fail "cua input reloads the plugin at session start" "flag removed"
 pass "cua input reloads the plugin at session start"
+
+# The load reloads Hyprland's configuration before the module is checked, so
+# input stays held off through it and is restored only after the checks.
+grep -qx 'flag-at-load:held' "$TEST_LOG" || fail "cua input holds input off while a fresh module loads" "$(cat "$TEST_LOG")"
+[[ $(grep -nm1 '^hyprctl:reload$' "$TEST_LOG" | cut -d: -f1) -lt $(grep -nm1 '^hyprctl:plugin load' "$TEST_LOG" | cut -d: -f1) ]] ||
+  fail "cua input holds input off while a fresh module loads" "held flag not reloaded before the load"
+cmp -s "$(flag_file)" "$ROOT/default/hypr/toggles/cua-input.lua" || fail "cua input holds input off while a fresh module loads" "flag not restored"
+pass "cua input holds input off while a fresh module loads"
+
+# A fresh module whose guard did not install never gets the enabled flag back.
+: >"$TEST_LOG"
+TEST_IME_GUARD=false "$toggle" --load
+grep -qx 'flag-at-load:held' "$TEST_LOG" || fail "cua input keeps a fresh unguarded module off at session start" "not held during load"
+[[ ! -e $(flag_file) ]] || fail "cua input keeps a fresh unguarded module off at session start" "flag remains"
+pass "cua input keeps a fresh unguarded module off at session start"
+"$toggle" on >/dev/null
 
 # Existing copied flags are replaced, removing their legacy keyboard overrides.
 for ((line = 0; line < 20; line++)); do
