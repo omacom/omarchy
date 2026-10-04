@@ -11,25 +11,35 @@ const media = read('shell/Ui/BackgroundMedia.qml')
 const view = read('shell/plugins/lock/LockView.qml')
 const service = read('shell/plugins/lock/Service.qml')
 
-// The lock draws its wallpaper on the first frame only if the image it asks
-// for is already in the cache: same URL, same requested size, same fill mode.
+assert(/^import qs\.Ui$/m.test(service), 'lock preload imports its shared wallpaper types')
+
+// The preload and view consume the same per-screen resolution, cache URL,
+// physical decode size and fill metadata, including responsive variants.
 assert(
   media.includes('property bool cached: version === 0') && media.includes('cache: root.cached'),
   'background media caches unversioned images, and versioned ones on request'
 )
 assert(
-  /version: root\.backgroundVersion\s*(\/\/.*\n\s*)*cached: true\s*constrainDecode: true\s*decodeSize: Qt\.size\(width, height\)/.test(view),
-  'the lock wallpaper waits for its size and reads from the cache'
+  /cached: true\s*constrainDecode: true\s*decodeSize: Qt\.size\(Math\.round\(width \* Screen\.devicePixelRatio\), Math\.round\(height \* Screen\.devicePixelRatio\)\)/.test(view),
+  'the lock wallpaper waits for its physical size and reads from the cache'
 )
 assert(
   service.includes('readonly property string lockWallpaperPath: videoBackground ? videoPosterPath : backgroundPath') &&
-    service.includes('? Util.fileUrl(lockWallpaperPath) + (backgroundVersion ? "?v=" + backgroundVersion : "")') &&
-    media.includes('Util.fileUrl(path) + (version ? "?v=" + version : "")'),
-  'the lock service preloads the exact URL the lock view requests'
+    service.includes('canonicalPath: root.lockWallpaperPath') &&
+    service.includes('refreshToken: root.backgroundVersion') &&
+    view.includes('readonly property var resolution: preparedBackground || backgroundResolver') &&
+    service.includes('preparedBackground: root.preloadedBackground(lockSurface.screen)'),
+  'the lock consumes the same resolved per-screen variant as its preload'
 )
 assert(
-  /model: Quickshell\.screens\s*Image \{\s*required property var modelData\s*visible: false\s*source: root\.lockWallpaperUrl\s*sourceSize\.width: modelData\.width\s*sourceSize\.height: modelData\.height\s*fillMode: Image\.PreserveAspectCrop\s*asynchronous: true\s*cache: true/.test(service),
-  'the lock service keeps each screen\'s lock wallpaper decoded at the lock\'s size and fill'
+  service.includes('path: preloadResolver.ready ? preloadResolver.resolvedPath : ""') &&
+    view.includes('path: root.loadBackground && root.resolution.ready ? root.resolution.resolvedPath : ""') &&
+    /version: root\.backgroundVersion/.test(service) && /version: root\.backgroundVersion/.test(view) &&
+    service.includes('Math.round(preload.width * preload.modelData.devicePixelRatio)') &&
+    service.includes('Math.round(preload.height * preload.modelData.devicePixelRatio)') &&
+    service.includes('fill: preloadResolver.fill') && view.includes('fill: root.resolution.fill') &&
+    service.includes('backdrop: preloadResolver.backdrop') && view.includes('backdrop: root.resolution.backdrop'),
+  'the preload matches the lock view cache version, physical decode size, fill and backdrop'
 )
 
 // A wallpaper overwritten in place keeps its path, so the version, which is

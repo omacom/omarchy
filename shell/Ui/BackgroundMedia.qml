@@ -8,19 +8,19 @@ Item {
 
   property string path: ""
   property int version: 0
-  // Unversioned images cache by path. A caller whose version changes with every
-  // new file, as the lock's does, may cache too: the version is in the URL.
+  property string fill: "crop"
+  property string backdrop: "solid"
+  property color fillColor: "black"
+  property real focalX: 0.5
+  property real focalY: 0.5
+  // Versioned callers may opt into caching because the version is in the URL.
   property bool cached: version === 0
-  // A caller that knows the size its screen needs, in physical pixels, sets
-  // constrainDecode and decodeSize. The image then waits for that size rather
-  // than decoding at the file's native size first.
   property bool constrainDecode: false
   property size decodeSize: Qt.size(0, 0)
   readonly property var current: imageLoader.item
   readonly property bool ready: current ? current.ready : false
+  readonly property int status: current ? current.status : Image.Null
   readonly property bool video: Util.isVideoPath(path)
-  // Cache-bust images selected in a running lock session, so a theme switch
-  // that replaces the file behind an unchanged path shows the new pixels.
   readonly property url imageUrl: path && !video ? Util.fileUrl(path) + (version ? "?v=" + version : "") : ""
 
   Loader {
@@ -33,14 +33,20 @@ Item {
   Component {
     id: imageComponent
 
-    Image {
+    WallpaperImage {
       readonly property bool ready: status === Image.Ready
-      source: !root.constrainDecode || root.decodeSize.width > 0 ? root.imageUrl : ""
-      fillMode: Image.PreserveAspectCrop
+      path: root.path
+      fill: root.fill
+      backdrop: root.backdrop
+      fillColor: root.fillColor
+      focalX: root.focalX
+      focalY: root.focalY
+      sourceVersion: root.version
+      useSourceSizeCap: root.constrainDecode || root.version > 0
+      constrainDecode: root.constrainDecode
+      decodeSize: root.decodeSize
       asynchronous: true
       cache: root.cached
-      sourceSize.width: root.constrainDecode ? root.decodeSize.width : (root.version > 0 ? width : 0)
-      sourceSize.height: root.constrainDecode ? root.decodeSize.height : (root.version > 0 ? height : 0)
     }
   }
 }

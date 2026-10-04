@@ -29,6 +29,7 @@ QtObject {
   property var layoutConfig: ({})
   readonly property var foreignPopoutMarker: ({ foreign: true })
 
+  property var _foregroundForItem: null
   property var _showTooltip: null
   property var _hideTooltip: null
   property var _registerClickTarget: null
@@ -40,6 +41,10 @@ QtObject {
   property var _moduleWidgets: null
   property var _run: null
   property var _setCenterHoverRevealSuppressed: null
+
+  function foregroundForItem(target) {
+    return _foregroundForItem ? _foregroundForItem(target) : barForeground
+  }
 
   function setCenterHoverRevealSuppressed(value) {
     if (_setCenterHoverRevealSuppressed) _setCenterHoverRevealSuppressed(!!value)
