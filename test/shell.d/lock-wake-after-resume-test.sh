@@ -24,8 +24,20 @@ assert(
 assert(/property bool displaysBlank: false/.test(viewQml), 'the lock view knows when the panel is blank')
 assert(/displaysBlank: root\.screenBlank\(/.test(serviceQml), 'the lock view is told when its panel is blank')
 assert(
-  /Keys\.onPressed: function\(event\) \{[\s\S]*?var wasBlank = root\.displaysBlank\s*root\.wakeRequested\(\)\s*if \(wasBlank\) \{\s*event\.accepted = true\s*return\s*\}/.test(viewQml),
+  /Keys\.onPressed: function\(event\) \{[\s\S]*?var wasBlank = root\.displaysBlank\s*root\.wakeRequested\(\)[\s\S]*?if \(wasBlank\) \{\s*event\.accepted = true\s*return\s*\}/.test(viewQml),
   'a key pressed at a blank panel is consumed after requesting the wake, judged before the wake clears the state'
+)
+assert(
+  /var wasBlank = root\.displaysBlank[\s\S]*?event\.isAutoRepeat[\s\S]*?if \(wasBlank\)/.test(viewQml),
+  'the auto-repeat drop keeps its place ahead of the wake-key swallow'
+)
+
+// The swallow judges the panel by what Hyprland reports, so the poll that
+// reconciles displaysBlank runs whenever the lock has blanked the panel, not
+// only under a video wallpaper where a stale flag would freeze the playback.
+assert(
+  /id: monitorDpmsTimer[\s\S]*?running: root\.locked && \(root\.videoBackground \|\| root\.displaysBlank\)/.test(serviceQml),
+  'the panel state is polled while the lock has blanked it, whatever the wallpaper'
 )
 
 // Resume is detected from the clock jump the frozen shell sees on its first

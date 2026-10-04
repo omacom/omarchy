@@ -703,8 +703,12 @@ Item {
   }
 
   // Quickshell exposes no DPMS signal, so the panel state is polled while a
-  // video is the locked wallpaper. A wake or blank request drops the last
-  // answer, so its optimistic state applies until the next poll confirms it.
+  // video is the locked wallpaper, and while the lock has blanked the panel:
+  // the wake-key swallow in the view reads screenBlank(), and a panel relit
+  // behind the lock's back (a resume that kept the outputs, a hotplug) would
+  // otherwise keep eating the first key until the lock's own wake ran. A wake
+  // or blank request drops the last answer, so its optimistic state applies
+  // until the next poll confirms it.
   Process {
     id: monitorDpmsProcess
     command: ["hyprctl", "monitors", "-j"]
@@ -718,7 +722,7 @@ Item {
     interval: 3000
     repeat: true
     triggeredOnStart: true
-    running: root.locked && root.videoBackground
+    running: root.locked && (root.videoBackground || root.displaysBlank)
     onTriggered: {
       if (!monitorDpmsProcess.running) monitorDpmsProcess.running = true
     }
