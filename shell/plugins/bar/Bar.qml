@@ -1564,8 +1564,15 @@ Item {
 
         CenterGestureArea { anchors.fill: parent }
 
-        HoverHandler {
-          onHoveredChanged: root.setCenterSectionHovered(hovered)
+        Item {
+          anchors.left: parent.left
+          anchors.right: centerRoot.hasAnchor ? centerAnchorModule.left : parent.right
+          anchors.top: parent.top
+          anchors.bottom: parent.bottom
+
+          HoverHandler {
+            onHoveredChanged: root.setCenterSectionHovered(hovered)
+          }
         }
 
         ModuleList {
@@ -1609,8 +1616,15 @@ Item {
 
         CenterGestureArea { anchors.fill: parent }
 
-        HoverHandler {
-          onHoveredChanged: root.setCenterSectionHovered(hovered)
+        Item {
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.top: parent.top
+          anchors.bottom: centerRoot.hasAnchor ? centerAnchorModule.top : parent.bottom
+
+          HoverHandler {
+            onHoveredChanged: root.setCenterSectionHovered(hovered)
+          }
         }
 
         ModuleList {
