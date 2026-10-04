@@ -55,10 +55,11 @@ command_ours() {
 # shims first, a terminal adds mise's tools ahead of those, and omarchy update
 # runs migrations on a fixed system PATH without /usr/local/bin, the shims or
 # ~/.local/bin. So the runtime has to be the only openclaw in any of those
-# places, wherever each sits. mise keeps its shims wherever MISE_DATA_DIR or
-# XDG_DATA_HOME says, and the update passes both through from the session.
+# places, wherever each sits. mise keeps its shims wherever MISE_SHIMS_DIR,
+# MISE_DATA_DIR or XDG_DATA_HOME says, and the update passes them through from
+# the session.
 session_openclaws() {
-  local shims=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/shims
+  local shims=${MISE_SHIMS_DIR:-${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/shims}
   PATH="$shims:$HOME/.local/share/mise/shims:/usr/local/bin:$PATH:$HOME/.local/bin" type -aP openclaw
 }
 

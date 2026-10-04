@@ -114,14 +114,14 @@ for tool in bash cat chmod cp cut env grep head ln mkdir mv readlink realpath rm
   ln -s "$(type -P "$tool")" "$test_tmp/tools/$tool"
 done
 run() {
-  HOME="$test_home" OMARCHY_TEST_ROOT="$test_tmp" MISE_DATA_DIR='' XDG_DATA_HOME='' PATH="$test_tmp/usr-bin:$mock_bin:$test_home/.local/bin:$test_tmp/tools" \
+  HOME="$test_home" OMARCHY_TEST_ROOT="$test_tmp" MISE_SHIMS_DIR='' MISE_DATA_DIR='' XDG_DATA_HOME='' PATH="$test_tmp/usr-bin:$mock_bin:$test_home/.local/bin:$test_tmp/tools" \
     "$@" >"$test_tmp/output" 2>&1
 }
 
 # omarchy update runs migrations on a fixed system PATH, without
 # /usr/local/bin, mise's shims or ~/.local/bin.
 run_update() {
-  HOME="$test_home" OMARCHY_TEST_ROOT="$test_tmp" MISE_DATA_DIR='' XDG_DATA_HOME='' PATH="$mock_bin:$test_tmp/tools" \
+  HOME="$test_home" OMARCHY_TEST_ROOT="$test_tmp" MISE_SHIMS_DIR='' MISE_DATA_DIR='' XDG_DATA_HOME='' PATH="$mock_bin:$test_tmp/tools" \
     "$@" >"$test_tmp/output" 2>&1
 }
 
@@ -219,13 +219,17 @@ run_update omarchy-install-openclaw-cli --check || fail "--check follows a finis
 rm "$command"
 run_update omarchy-install-openclaw-cli --check && fail "--check needs the command a session runs"
 run_update omarchy-install-openclaw-cli --now || fail "--now relinks the command on omarchy update's PATH" "$(cat "$test_tmp/output")"
-# mise's data directory follows MISE_DATA_DIR, then XDG_DATA_HOME, and every
-# session's PATH has the default one whichever it is.
-for place in mise-shims mise-data-dir xdg-data-home default-shims-moved usr-local-bin; do
+# mise's shims follow MISE_SHIMS_DIR, then MISE_DATA_DIR, then XDG_DATA_HOME,
+# and every session's PATH has the default directory whichever it is.
+for place in mise-shims mise-shims-dir mise-data-dir xdg-data-home default-shims-moved usr-local-bin; do
   new_home "update-path-$place"
   data_dirs=()
   case $place in
     mise-shims) other="$test_home/.local/share/mise/shims/openclaw" ;;
+    mise-shims-dir)
+      other="$test_home/shims/openclaw"
+      data_dirs=(MISE_SHIMS_DIR="$test_home/shims" MISE_DATA_DIR="$test_home/tools/mise")
+      ;;
     mise-data-dir)
       other="$test_home/tools/mise/shims/openclaw"
       data_dirs=(MISE_DATA_DIR="$test_home/tools/mise")
@@ -249,6 +253,15 @@ for place in mise-shims mise-data-dir xdg-data-home default-shims-moved usr-loca
   rm "$other"
 done
 pass "mise's shims, wherever its data directory is, and /usr/local/bin are looked at on omarchy update's PATH, which leaves them out"
+
+# A shim directory mise no longer uses is not where a session looks.
+new_home inactive-shims
+mkdir -p "$test_home/tools/mise/shims"
+printf '#!/bin/bash\n' >"$test_home/tools/mise/shims/openclaw"
+chmod +x "$test_home/tools/mise/shims/openclaw"
+run_update env MISE_SHIMS_DIR="$test_home/shims" MISE_DATA_DIR="$test_home/tools/mise" omarchy-install-openclaw-cli --now ||
+  fail "a shim directory MISE_SHIMS_DIR replaced does not block the install" "$(cat "$test_tmp/output")"
+pass "only the shim directory mise uses is looked at"
 
 # The package is installed after the first check, so an openclaw it brings is
 # only seen by the last one.
