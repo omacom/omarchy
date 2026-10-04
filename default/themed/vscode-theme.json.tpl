@@ -58,7 +58,7 @@
         "textLink.activeForeground": "{{ bright_blue }}",
         "textLink.foreground": "{{ blue }}",
         "textPreformat.foreground": "{{ foreground }}",
-        "textPreformat.background": "{{ mix background muted 15% }}",
+        "textPreformat.background": "{{ muted }}20",
         "textSeparator.foreground": "{{ muted }}",
 
         "toolbar.hoverBackground": "{{ muted }}60",
