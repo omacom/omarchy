@@ -122,3 +122,48 @@ grep -Fq 'must be http or https' "$tmpdir/err" ||
   fail "interactive webapp install refuses before fetching the URL" "$(cat "$tmpdir/curl-log")"
 [[ ! -e $(desktop_for Evil) ]] || fail "interactive webapp install writes no desktop file"
 pass "interactive webapp install refuses a bad URL before fetching it"
+
+# A relative apple-touch-icon href resolves against the page's directory after
+# redirects, not the origin: an app that redirects / to /app/ and serves its icon
+# at /app/icon.png 404s under origin-relative resolution and the install fails.
+cat >"$stubs/curl" <<'CURL'
+#!/bin/bash
+printf '%s\n' "$*" >>"$CURL_LOG"
+url=${!#}
+dest=""
+write_out=""
+while (( $# )); do
+  [[ $1 == "-o" ]] && dest=$2
+  [[ $1 == "-w" ]] && write_out=$2
+  shift
+done
+# The page at / redirected to /app/; like curl, report that only when asked.
+if [[ -z $dest ]]; then
+  printf '<link rel="apple-touch-icon" href="icon.png">\n'
+  if [[ $write_out == *'%{url_effective}'* ]]; then
+    if [[ $write_out == *'%{stderr}'* ]]; then
+      printf '\nhttps://media.example/app/' >&2
+    else
+      printf '\nhttps://media.example/app/'
+    fi
+  fi
+elif [[ $url == "https://media.example/app/icon.png" ]]; then
+  printf 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' | base64 -d >"$dest"
+else
+  exit 22
+fi
+CURL
+chmod +x "$stubs/curl"
+: >"$tmpdir/curl-log"
+
+if CURL_LOG="$tmpdir/curl-log" PATH="$stubs:$PATH" HOME="$home" \
+  "$ROOT/bin/omarchy-webapp-install" "Media" "https://media.example" "" >"$tmpdir/out" 2>"$tmpdir/err"; then
+  :
+else
+  fail "webapp install fetches a page-relative icon" "$(cat "$tmpdir/out" "$tmpdir/curl-log")"
+fi
+[[ -s $home/.local/share/icons/hicolor/256x256/apps/media.png ]] ||
+  fail "webapp install saves the page-relative icon" "$(cat "$tmpdir/curl-log")"
+grep -Fxq 'Icon=media' "$(desktop_for Media)" ||
+  fail "webapp install points at the fetched icon" "$(cat "$(desktop_for Media)")"
+pass "webapp install resolves a relative icon href against the redirected page"
