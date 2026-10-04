@@ -121,6 +121,18 @@ set_factor() {
   gsettings set "$GKEY_SCHEMA" "$GKEY_NAME" "$1" 2>/dev/null || true
 }
 
+# Ghostty's GTK runtime multiplies font-size by this setting. Read back the
+# effective value so a failed set/reset does not cause a second size mismatch.
+gtk_factor() {
+  local factor
+  factor="$(gsettings get "$GKEY_SCHEMA" "$GKEY_NAME" 2>/dev/null)"
+  if [[ $factor =~ ^[0-9]+(\.[0-9]+)?$ ]] && awk -v f="$factor" 'BEGIN { exit !(f > 0) }'; then
+    echo "$factor"
+  else
+    echo 1
+  fi
+}
+
 # ---- terminal font point size ----
 
 # px base-size -> terminal point size, rounded to the nearest integer.
@@ -151,7 +163,12 @@ set_terminal_size() {
   fi
 
   if [[ -f ~/.config/ghostty/config ]]; then
-    sed -i -E "s/^font-size = .*/font-size = $pt/" ~/.config/ghostty/config
+    # GTK already scales Ghostty's font. Compensate for that multiplier while
+    # retaining the same apparent point size as the other terminals.
+    local ghostty_pt
+    ghostty_pt=$(awk -v p="$pt" -v f="$(gtk_factor)" \
+      'BEGIN { printf "%.4f", p / f }' | sed -E 's/\.?0+$//')
+    sed -i -E "s/^font-size = .*/font-size = $ghostty_pt/" ~/.config/ghostty/config
     pkill -SIGUSR2 ghostty 2>/dev/null || true
   fi
 
@@ -176,10 +193,15 @@ set_terminal_size() {
   fi
 }
 
-# Report the current terminal point size from whichever config we find first.
+# Report the apparent point size from whichever terminal config we find first.
 term_current_pt() {
   if [[ -f ~/.config/ghostty/config ]]; then
-    grep -oP '^font-size = \K[0-9.]+' ~/.config/ghostty/config | head -1
+    local pt
+    pt=$(grep -oP '^font-size = \K[0-9.]+' ~/.config/ghostty/config | head -1)
+    if [[ -n $pt ]]; then
+      awk -v p="$pt" -v f="$(gtk_factor)" \
+        'BEGIN { printf "%.2f", p * f }' | sed -E 's/\.?0+$//'
+    fi
   elif [[ -f ~/.config/alacritty/alacritty.toml ]]; then
     grep -oP '^size[[:space:]]*=[[:space:]]*\K[0-9.]+' ~/.config/alacritty/alacritty.toml | head -1
   elif [[ -f ~/.config/kitty/kitty.conf ]]; then
