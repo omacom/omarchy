@@ -29,6 +29,11 @@ esac
 if (($#)); then
   printf '%s\n' "$@"
 fi
+if [[ ${OMARCHY_TEST_SWITCH_ACCOUNT:-} == "yes" ]]; then
+  unset OMARCHY_TEST_SWITCH_ACCOUNT
+  omarchy-agent-account-state use "${0##*/}" side >/dev/null
+  "${0##*/}"
+fi
 if [[ -n ${OMARCHY_TEST_AGENT_CHILD:-} ]]; then
   child=$OMARCHY_TEST_AGENT_CHILD
   unset OMARCHY_TEST_AGENT_CHILD
@@ -53,6 +58,11 @@ select_account() {
   printf '{"active":"%s","accounts":[{"id":"main","primary":true},{"id":"side","home":"%s"}]}\n' \
     "$selected" "$test_tmp/accounts/$provider side" >"$registry_dir/$provider.json"
 }
+
+for helper in omarchy-agent-usage-update omarchy-notification-send; do
+  printf '#!/bin/bash\nexit 0\n' >"$real_bin/$helper"
+  chmod +x "$real_bin/$helper"
+done
 
 cd "$test_tmp"
 run_isolated mise reshim
@@ -79,6 +89,14 @@ for provider in claude codex grok; do
   [[ $output == default ]] || fail "$provider picks up switching back to Main without rebuilding shims" "$output"
   pass "$provider picks up switching back to Main without rebuilding shims"
 
+  output=$(run_isolated env OMARCHY_TEST_SWITCH_ACCOUNT=yes "$provider")
+  [[ $output == $'default\ndefault' ]] || fail "$provider Main sessions keep their account after a switch" "$output"
+  pass "$provider Main sessions keep their account after a switch"
+
+  output=$(run_isolated omarchy-agent-account-add --reauth :primary "$provider" </dev/null)
+  grep -Fxq default <<<"$output" || fail "$provider primary reauthentication bypasses the active side account" "$output"
+  pass "$provider primary reauthentication bypasses the active side account"
+
   rm "$registry_dir/$provider.json"
   output=$(run_isolated "$provider")
   [[ $output == default ]] || fail "$provider works without an account registry" "$output"
@@ -104,6 +122,13 @@ mkdir -p "$test_tmp/config/mise"
 printf '[tools]\nclaude = "1.0.0"\n' >"$test_tmp/config/mise/config.toml"
 run_isolated mise trust "$test_tmp/config/mise/config.toml" >/dev/null 2>&1
 
+# Existing tool shims used by SSH already dispatch wrappers, including with a
+# relocated mise data directory. No additional stock-only PAM path is needed.
+run_isolated mise reshim
+output=$(run_isolated env PATH="$mise_data/shims:$ROOT/bin:/usr/bin" claude)
+[[ $output == "$test_tmp/accounts/claude side" ]] || fail "SSH-style mise tool shims route through account dispatch in a custom data directory" "$output"
+pass "SSH-style mise tool shims route through account dispatch in a custom data directory"
+
 # Full PATH activation must also prefer the dispatcher over installed tools.
 output=$(run_isolated bash -c 'eval "$(mise env -s bash)"; [[ $PATH == *"/installs/claude/"* ]] || exit 99; claude')
 [[ $output == "$test_tmp/accounts/claude side" ]] || fail "mise PATH activation retains account dispatch" "$output"
@@ -114,27 +139,43 @@ run_isolated env OMARCHY_TEST_AGENT_EXIT=42 claude >/dev/null || status=$?
 (( status == 42 )) || fail "account dispatch preserves the agent exit status" "$status"
 pass "account dispatch preserves the agent exit status"
 
-# Exercise the migration only against a copy of PAM config.
-pam_config="$test_tmp/pam_env.conf"
-migration="$test_tmp/migration.sh"
-sed "s|/etc/security/pam_env.conf|$pam_config|g" "$ROOT/migrations/1791112479.sh" >"$migration"
-cat >"$real_bin/sudo" <<'SH'
+# A dispatcher alone must not prevent the CLI from being installed on first use.
+mv "$real_bin/grok" "$test_tmp/grok-fixture"
+cat >"$real_bin/mise" <<'SH'
 #!/bin/bash
-exec "$@"
+case "$1" in
+  use)
+    [[ ${OMARCHY_TEST_INSTALL_FAIL:-} != "yes" ]] || exit 42
+    [[ $* == "use -g --quiet grok" ]] || exit 99
+    cp "$HOME/../grok-fixture" "$HOME/../real/bin/grok"
+    ;;
+  which)
+    [[ ${MISE_MINIMUM_RELEASE_AGE:-} == "0" ]] || exit 99
+    printf '%s\n' "$HOME/../real/bin/grok"
+    ;;
+  *) exit 99 ;;
+esac
 SH
-chmod +x "$real_bin/sudo"
-legacy_path='PATH DEFAULT=/usr/local/sbin:/usr/local/bin:/usr/bin:@{HOME}/.local/share/mise/shims:@{HOME}/.local/bin'
-wrapper_path='PATH DEFAULT=@{HOME}/.local/share/mise/command-wrappers/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:@{HOME}/.local/share/mise/shims:@{HOME}/.local/bin'
-printf '# keep this comment\n%s\n' "$legacy_path" >"$pam_config"
-run_isolated bash -euo pipefail "$migration" >/dev/null
-grep -Fxq "$wrapper_path" "$pam_config" || fail "migration adds dispatch to Omarchy's SSH command path"
-grep -Fxq '# keep this comment' "$pam_config" || fail "migration preserves other PAM configuration"
-cp "$pam_config" "$test_tmp/once"
-run_isolated bash -euo pipefail "$migration" >/dev/null
-cmp -s "$pam_config" "$test_tmp/once" || fail "migration can run twice without changing configuration again"
-pass "migration updates the stock SSH path idempotently and preserves other configuration"
+chmod +x "$real_bin/mise"
+select_account grok side
+output=$(run_isolated grok)
+[[ $output == "$test_tmp/accounts/grok side" ]] || fail "a dispatcher without a CLI installs it and uses the selected account" "$output"
+pass "a dispatcher without a CLI installs it and uses the selected account"
 
-printf 'PATH DEFAULT=/custom/bin:/usr/bin\n' >"$pam_config"
-run_isolated bash -euo pipefail "$migration" >/dev/null
-[[ $(cat "$pam_config") == 'PATH DEFAULT=/custom/bin:/usr/bin' ]] || fail "migration leaves an administrator's SSH path alone"
-pass "migration leaves an administrator's SSH path alone"
+rm "$real_bin/grok"
+status=0
+run_isolated env OMARCHY_TEST_INSTALL_FAIL=yes grok >/dev/null || status=$?
+(( status == 42 )) || fail "a failed first-run install stops dispatch" "$status"
+pass "a failed first-run install stops dispatch"
+rm "$real_bin/mise"
+
+# Migration only rebuilds native mise dispatch; account files stay untouched.
+registry_before=$(sha256sum "$registry_dir"/*.json)
+for attempt in 1 2; do
+  run_isolated bash -euo pipefail "$ROOT/migrations/1791112479.sh" >/dev/null
+  for provider in claude codex grok; do
+    [[ -L $mise_data/command-wrappers/bin/$provider ]] || fail "migration builds every account dispatcher"
+  done
+done
+[[ $(sha256sum "$registry_dir"/*.json) == "$registry_before" ]] || fail "migration preserves account state"
+pass "migration rebuilds dispatchers idempotently without changing account state"

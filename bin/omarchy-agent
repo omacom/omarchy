@@ -137,7 +137,7 @@ pi)
 esac
 
 # Claude, Codex, and Grok start as the active subscription account, the same
-# as the shell functions in default/bash/fns/agent-accounts. The home travels
+# as the mise account dispatchers. The home travels
 # in the command itself, since a terminal launched through uwsm doesn't
 # inherit this process's environment.
 case "$agent" in
