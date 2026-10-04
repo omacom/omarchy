@@ -386,13 +386,14 @@ fi
 # entry to 128 KiB on 4 KiB-page systems; large lists travel through a private
 # file instead. The shell reads it before replying, including for preloads, so
 # the caller can remove it on exit without racing a deferred picker load.
-rows_b64=$(printf '%s' "$rows" | base64 -w 0)
-if (( ${#rows_b64} > 96 * 1024 )); then
+rows_bytes=$(printf '%s' "$rows" | wc -c)
+if (( rows_bytes > 72 * 1024 )); then
   rows_file=$(mktemp "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/omarchy-image-rows.XXXXXX") || exit 1
   printf '%s' "$rows" >"$rows_file" || exit 1
   open_args=(openFile "$rows_file" "$selected_list_image" "$selection_file" "$done_file" "$show_labels" "$filterable")
   preload_args=(preloadFile "$rows_file" "$selected_list_image" "$show_labels" "$filterable")
 else
+  rows_b64=$(printf '%s' "$rows" | base64 -w 0)
   open_args=(open "" "$rows_b64" "$selected_list_image" "$selection_file" "$done_file" "$show_labels" "$filterable")
   preload_args=(preload "$rows_b64" "$selected_list_image" "$show_labels" "$filterable")
 fi

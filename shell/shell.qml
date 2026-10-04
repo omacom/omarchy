@@ -1669,6 +1669,7 @@ ShellRoot {
     if (!path) return null
     // A fresh reader prevents failed/repeated requests from reusing stale data.
     var reader = imageRowsFileComponent.createObject(shell, { path: path })
+    reader.waitForJob()
     var rows = reader.text()
     var loaded = reader.loaded
     reader.destroy()

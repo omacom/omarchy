@@ -23,9 +23,13 @@ case $2 in
     cp "$3" "$TRANSPORT_LOG.rows"
     if [[ $2 == "openFile" ]]; then selection_file=$5; done_file=$6; fi
     ;;
-  open|preload)
-    printf '%s' "${4:-}" | base64 -d >"$TRANSPORT_LOG.rows"
-    if [[ $2 == "open" ]]; then selection_file=$6; done_file=$7; fi
+  open)
+    printf '%s' "$4" | base64 -d >"$TRANSPORT_LOG.rows"
+    selection_file=$6
+    done_file=$7
+    ;;
+  preload)
+    printf '%s' "$3" | base64 -d >"$TRANSPORT_LOG.rows"
     ;;
 esac
 if [[ ${TRANSPORT_FAIL:-false} == "true" ]]; then exit 42; fi
@@ -39,6 +43,14 @@ fi
 printf 'ok\n'
 STUB
 chmod +x "$tmp/bin/omarchy-shell"
+base64_binary=$(command -v base64)
+cat >"$tmp/bin/base64" <<'STUB'
+#!/bin/bash
+if [[ $1 == "-w" ]]; then printf 'encode\n' >>"$TRANSPORT_LOG.encodings"; fi
+exec "$TRANSPORT_BASE64" "$@"
+STUB
+chmod +x "$tmp/bin/base64"
+export TRANSPORT_BASE64="$base64_binary"
 
 cache_dir="$tmp/cache/omarchy/image-selector"
 key=$(printf '%s\n%s' "$images" "$second" | md5sum | cut -d ' ' -f 1)
@@ -63,6 +75,7 @@ cmp -s "$tmp/expected.rows" "$tmp/request.rows" || fail "large image menu preser
 mapfile -d '' -t args <"$tmp/request.args"
 [[ ${args[1]} == "openFile" && ${args[3]} == "$selected" && ${args[6]} == "true" && ${args[7]} == "true" ]] || fail "large image menu preserves selection and display flags"
 [[ ! -e $(<"$tmp/request.path") ]] || fail "large image menu removes its rows file after selection"
+[[ ! -e $tmp/request.encodings ]] || fail "large image menu does not base64-encode file-backed rows"
 pass "large image menu transports every row without oversized argv and cleans up after selection"
 
 # Preloads return immediately: the receiver must consume the file before its
@@ -112,7 +125,29 @@ mapfile -d '' -t args <"$tmp/request.args"
 [[ ${args[1]} == "open" ]] || fail "small image menu retains existing IPC"
 # Command substitution strips the rows' trailing newline in both transports.
 [[ $(<"$rows_file") == $(<"$tmp/request.rows") && $(<"$tmp/output") == "$selected" ]] || fail "small image menu retains rows and selection"
+[[ $(<"$tmp/request.encodings") == "encode" ]] || fail "small image menu encodes rows exactly once"
 pass "small image menu preserves existing base64 IPC"
+
+env PATH="$tmp/bin:$PATH" XDG_CACHE_HOME="$tmp/cache" XDG_RUNTIME_DIR="$tmp/runtime" \
+  TRANSPORT_LOG="$tmp/request" TRANSPORT_SELECTED="$selected" \
+  "$ROOT/bin/omarchy-menu-images" --preload --selected "$selected" --show-labels --filterable "$images" "$second"
+mapfile -d '' -t args <"$tmp/request.args"
+[[ ${args[1]} == "preload" && ${args[3]} == "$selected" && ${args[4]} == "true" && ${args[5]} == "true" ]] || fail "small preload preserves the base64 interface and flags"
+[[ $(<"$rows_file") == $(<"$tmp/request.rows") ]] || fail "small preload delivers the original rows"
+pass "small image menu preserves existing base64 preloads"
+
+# Multibyte rows can exceed the transport budget despite having fewer than
+# 72 KiB characters. Measure raw bytes, so these cannot slip into base64 IPC.
+python - "$rows_file" <<'PYTHON'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text('壁' * (72 * 1024 // 3 + 1))
+PYTHON
+rm "$tmp/request.encodings"
+run_menu >"$tmp/output"
+mapfile -d '' -t args <"$tmp/request.args"
+[[ ${args[1]} == "openFile" && ! -e $tmp/request.encodings ]] || fail "Unicode image rows use the byte budget"
+pass "image menu chooses file transport by byte size rather than character count"
 
 run_node_test <<'JS'
 const fs = require('fs')
@@ -129,13 +164,14 @@ for (const name of ['readImageRowsFile', 'openImagePickerRows', 'openFile', 'pre
 }
 assert(/id: imageRowsFileComponent\s*FileView \{\s*blockLoading: true/.test(qml), 'image rows reader blocks until the file is consumed')
 let reads = 0
+let waits = 0
 let destroyed = 0
 let contents = 'original\tthumbnail'
 let loaded = true
 context.imageRowsFileComponent = {
   createObject(parent, args) {
     assertEqual(args.path, '/private/rows', 'image rows reader uses the supplied path')
-    return { text() { reads++; return contents }, get loaded() { return loaded }, destroy() { destroyed++ } }
+    return { waitForJob() { waits++ }, text() { assertEqual(waits, reads + 1, 'rows reader waits before reading'); reads++; return contents }, get loaded() { return loaded }, destroy() { destroyed++ } }
   }
 }
 let payloads = []
@@ -163,3 +199,75 @@ assertEqual(payloads.length, 2, 'failed read cannot summon a stale request')
 assertEqual(preloaded.length, 1, 'failed read cannot preload stale rows')
 assertEqual(reads, destroyed, 'every rows reader is released')
 JS
+
+# Exercise the production reader with Quickshell's real FileView offscreen.
+# The small Node harness above deliberately isolates dispatch from file I/O.
+if ! command -v quickshell >/dev/null 2>&1; then
+  skip "quickshell unavailable; skipping real image rows FileView loading"
+  exit 0
+fi
+mkdir -p "$tmp/qml" "$tmp/qml-runtime"
+chmod 700 "$tmp/qml-runtime"
+ROOT="$ROOT" TRANSPORT_FIXTURE="$tmp/qml" node <<'JS'
+const fs = require('fs')
+const path = require('path')
+const source = fs.readFileSync(path.join(process.env.ROOT, 'shell/shell.qml'), 'utf8')
+const fixture = process.env.TRANSPORT_FIXTURE
+const component = source.match(/  Component \{\n    id: imageRowsFileComponent[\s\S]*?\n  \}/)[0]
+const functions = ['readImageRowsFile', 'openImagePickerRows', 'openFile', 'preloadFile'].map(name => {
+  const indent = ['openFile', 'preloadFile'].includes(name) ? '    ' : '  '
+  return source.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n${indent}\\}`))[0]
+}).join('\n')
+const rows = Array.from({ length: 10000 }, (_, i) => `/wallpapers/壁紙 ${i}.webp\t/cache/preview ${i}.jpg`).join('\n')
+fs.writeFileSync(path.join(fixture, 'rows'), rows)
+fs.writeFileSync(path.join(fixture, 'empty'), '')
+fs.writeFileSync(path.join(fixture, 'shell.qml'), `
+import QtQuick
+import Quickshell
+import Quickshell.Io
+ShellRoot {
+  id: shell
+  property string rowsPath: ${JSON.stringify(path.join(fixture, 'rows'))}
+  property string expected: ${JSON.stringify(rows)}
+  property string emptyPath: ${JSON.stringify(path.join(fixture, 'empty'))}
+  property string missingPath: ${JSON.stringify(path.join(fixture, 'missing'))}
+  property string received: ""
+  ${component}
+  ${functions}
+  function summon(id, payload) {
+    received = JSON.parse(payload).imageRows
+    return true
+  }
+  function imagePickerItem() {
+    return { preloadRows: function(rows) { shell.received = rows } }
+  }
+  FileView { id: writer; path: shell.rowsPath; blockWrites: true; printErrors: false }
+  function check(condition, message) {
+    if (!condition) throw new Error(message)
+  }
+  Component.onCompleted: {
+    for (var i = 0; i < 20; i++) {
+      check(openFile(rowsPath, "", "", "", "false", "false") === "ok", "cold file open failed")
+      check(received === expected, "cold file open lost rows")
+      check(preloadFile(rowsPath, "", "false", "false") === "ok", "cold preload failed")
+      check(received === expected, "cold preload lost rows")
+    }
+    writer.setText("replacement\\tnew thumbnail")
+    check(readImageRowsFile(rowsPath) === "replacement\\tnew thumbnail", "same path reused stale rows")
+    check(readImageRowsFile(emptyPath) === "", "empty file treated as unreadable")
+    check(readImageRowsFile(missingPath) === null, "missing file treated as readable")
+    check(openFile(missingPath, "", "", "", "false", "false") === "unreadable", "missing file summoned picker")
+    check(preloadFile(missingPath, "", "false", "false") === "unreadable", "missing file preloaded picker")
+    console.log("IMAGE_ROWS_FILEVIEW_PASS")
+    Qt.callLater(function() { Qt.quit() })
+  }
+}
+`)
+JS
+if ! QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QPA_PLATFORMTHEME= QT_STYLE_OVERRIDE= \
+  XDG_RUNTIME_DIR="$tmp/qml-runtime" timeout 15 quickshell -p "$tmp/qml" --no-color >"$tmp/qml.log" 2>&1; then
+  cat "$tmp/qml.log" >&2
+  fail "image rows FileView fixture exits cleanly"
+fi
+rg -q 'IMAGE_ROWS_FILEVIEW_PASS' "$tmp/qml.log" || { cat "$tmp/qml.log" >&2; fail "real image rows FileView loads complete rows"; }
+pass "real FileView loads cold open/preload rows and handles rewritten, empty and missing files"
