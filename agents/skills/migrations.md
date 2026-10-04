@@ -126,6 +126,7 @@ New migration format:
 - Start with an `echo` describing what the migration does.
 - Use `$OMARCHY_PATH` to reference the Omarchy directory.
 - Be idempotent. Check existing state before changing it.
+- Don't take the migration's own `PATH` for a session's. Under `omarchy update` it is a fixed system path without `/usr/local/bin`, mise's shims or `~/.local/bin`; from the login notifier or by hand it is the session's, and that order differs again between a terminal and the desktop. Call a user's command by its full path, and when looking for what a session might run, look in those directories too without relying on their order.
 - Migrations are strictly ordered and synchronous. A migration that cannot finish must exit non-zero, remain pending, and stop the queue; never mark later migrations complete against state an earlier migration has not established.
 - Use helper commands such as `omarchy-cmd-present`, `omarchy-cmd-missing`,
   `omarchy-pkg-add`, `omarchy-pkg-drop`, `omarchy-pkg-present`, and

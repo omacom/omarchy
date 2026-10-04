@@ -50,18 +50,34 @@ command_ours() {
   [[ ! -e $command_path && ! -L $command_path ]] || [[ $(readlink -- "$command_path") == "$runtime_command" ]]
 }
 
-# What omarchy-agent, the web app and a terminal run is whichever openclaw is
-# first on PATH, and Omarchy puts /usr/bin and the mise shims ahead of
-# ~/.local/bin, so the command has to resolve to the runtime from there.
-on_path() {
-  local found
-  found=$(type -P openclaw) || return 1
-  [[ $(realpath -m -- "$found") == "$(realpath -m -- "$runtime_command")" ]]
+# What omarchy-agent, the web app and a terminal run is whichever openclaw their
+# PATH finds first, and the order differs between them: the desktop puts mise's
+# shims first, a terminal adds mise's tools ahead of those, and omarchy update
+# runs migrations on a fixed system PATH without /usr/local/bin, the shims or
+# ~/.local/bin. So the runtime has to be the only openclaw in any of those
+# places, wherever each sits.
+session_openclaws() {
+  PATH="$HOME/.local/share/mise/shims:/usr/local/bin:$PATH:$HOME/.local/bin" type -aP openclaw
 }
 
-# Nothing yet, or the runtime's command.
+foreign_openclaw() {
+  local found
+  while IFS= read -r found; do
+    if [[ $(realpath -m -- "$found") != "$(realpath -m -- "$runtime_command")" ]]; then
+      echo "$found"
+      return 0
+    fi
+  done < <(session_openclaws)
+  return 1
+}
+
+on_path() {
+  session_openclaws >/dev/null && ! foreign_openclaw >/dev/null
+}
+
+# Nothing yet, or only the runtime's command.
 path_clear() {
-  ! type -P openclaw >/dev/null || on_path
+  ! foreign_openclaw >/dev/null
 }
 
 # The package counts too: without it --now has a pacman step to take, and
@@ -201,8 +217,8 @@ if ! command_ours; then
   exit 1
 fi
 if ! path_clear; then
-  echo "'openclaw' on PATH is $(type -P openclaw), which is what Omarchy would run instead of $runtime_command." >&2
-  echo "Remove it or reorder PATH, then run omarchy-install-openclaw-cli --now again." >&2
+  echo "Another openclaw is on PATH at $(foreign_openclaw), which Omarchy could run instead of $runtime_command." >&2
+  echo "Remove it, then run omarchy-install-openclaw-cli --now again." >&2
   exit 1
 fi
 
@@ -265,7 +281,7 @@ ln -sfn "$runtime_command" "$command_path"
 rehome_services
 
 if ! on_path; then
-  echo "$runtime_command is ready, but 'openclaw' on PATH is $(type -P openclaw || echo missing), which is what Omarchy runs." >&2
-  echo "Put ~/.local/bin on PATH, then run omarchy-install-openclaw-cli --now again." >&2
+  echo "$runtime_command is ready, but another openclaw is on PATH at $(foreign_openclaw), which Omarchy could run instead." >&2
+  echo "Remove it, then run omarchy-install-openclaw-cli --now again." >&2
   exit 1
 fi
