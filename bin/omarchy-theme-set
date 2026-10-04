@@ -44,6 +44,7 @@ copy_theme_files() (
   local -a files
 
   [[ -d $source ]] || return 0
+  [[ -r $source && -x $source ]] || return 1
   shopt -s nullglob
   files=("$source/"*)
   if (( ${#files[@]} > 0 )); then
@@ -75,6 +76,13 @@ cleanup_theme_staging() {
     echo "omarchy-theme-set: could not restore the previous theme; retained theme files at $THEME_SWAP_PATH and $CURRENT_THEME_PATH" >&2
   fi
   [[ -z $STAGED_NAME_PATH ]] || rm -f -- "$STAGED_NAME_PATH"
+
+  # Preparation precedes rendering. Failed activations never hand these
+  # snapshots to the transition, so remove only this activation's copies.
+  if (( status != 0 )); then
+    [[ -z ${OLD_BACKGROUND_SNAPSHOT:-} ]] || rm -f -- "$OLD_BACKGROUND_SNAPSHOT"
+    [[ -z ${PREPARED_BACKGROUND_SNAPSHOT:-} ]] || rm -f -- "$PREPARED_BACKGROUND_SNAPSHOT"
+  fi
   return "$status"
 }
 
@@ -330,6 +338,7 @@ stage_installed_dir() {
   local dest="$2"
   local entry name
 
+  [[ -r $source && -x $source ]] || return 1
   mkdir -p "$dest" || return 1
 
   for entry in "$source"/*; do
@@ -360,6 +369,7 @@ stage_installed_theme() {
   local entry name
 
   [[ -d $source ]] || return 0
+  [[ -r $source && -x $source ]] || return 1
 
   for entry in "$source"/*; do
     [[ -e $entry ]] || continue

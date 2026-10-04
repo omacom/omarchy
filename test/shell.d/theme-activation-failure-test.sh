@@ -5,12 +5,13 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 scratch=$(mktemp -d)
-trap 'rm -rf "$scratch"' EXIT
+trap 'chmod -R u+rwX "$scratch"; rm -rf "$scratch"' EXIT
 
 test_home="$scratch/home"
 state="$test_home/.local/state/omarchy/current"
 shipped="$scratch/omarchy"
 stub_bin="$scratch/bin"
+real_awk=$(type -P awk)
 mkdir -p "$stub_bin" "$scratch/runtime" "$scratch/temporary"
 
 cat >"$stub_bin/omarchy-theme-set-templates" <<'STUB'
@@ -68,16 +69,21 @@ esac
 exec /usr/bin/mv "$@"
 STUB
 
-cat >"$stub_bin/sed" <<'STUB'
-#!/bin/bash
-if [[ ${TEST_FAILURE:-} == "template" && $1 == "-f" ]]; then exit 42; fi
-exec /usr/bin/sed "$@"
-STUB
-
 cat >"$stub_bin/awk" <<'STUB'
 #!/bin/bash
+if [[ ${TEST_FAILURE:-} == "template" && $* == *"value_table="* ]]; then exit 42; fi
 if [[ ${TEST_FAILURE:-} == "override-read" && ${*: -1} == "$TEST_STATE/next-theme/shell.bar.toml" ]]; then exit 42; fi
-exec /usr/bin/awk "$@"
+exec "$TEST_AWK" "$@"
+STUB
+
+cat >"$stub_bin/grep" <<'STUB'
+#!/bin/bash
+/usr/bin/grep "$@"
+status=$?
+if [[ ${TEST_FAILURE:-} == "template-disappears" ]]; then
+  rm -f "$OMARCHY_PATH/default/themed/example.conf.tpl"
+fi
+exit "$status"
 STUB
 
 cat >"$stub_bin/flock" <<'STUB'
@@ -93,6 +99,7 @@ STUB
 chmod +x "$stub_bin/"*
 
 reset_fixture() {
+  chmod -R u+rwX "$scratch"
   rm -rf "$test_home" "$shipped" "$scratch/expected"
   mkdir -p "$state/theme" "$shipped/themes/new" "$shipped/default/themed" "$scratch/expected"
   printf 'previous working configuration\n' >"$state/theme/working.conf"
@@ -109,8 +116,8 @@ reset_fixture() {
 run_theme() {
   HOME="$test_home" OMARCHY_PATH="$shipped" PATH="$stub_bin:$ROOT/bin:$PATH" \
     XDG_RUNTIME_DIR="$scratch/runtime" TMPDIR="$scratch/temporary" \
-    TEST_STATE="$state" TEST_IPC="$scratch/ipc" TEST_FAILURE="${1:-}" \
-    OMARCHY_THEME_HEADLESS=1 OMARCHY_THEME_SKIP_BACKGROUND=1 \
+    TEST_AWK="$real_awk" TEST_STATE="$state" TEST_IPC="$scratch/ipc" TEST_FAILURE="${1:-}" \
+    OMARCHY_THEME_HEADLESS="${2:-1}" OMARCHY_THEME_SKIP_BACKGROUND="${2:-1}" \
     bash "$ROOT/bin/omarchy-theme-set" new >"$scratch/output" 2>&1
 }
 
@@ -134,7 +141,7 @@ expect_failure() {
   pass "$description preserves the working theme, name, and background"
 }
 
-for failure in lock renderer cancel-render builtin-copy palette template staging-move replacement name; do
+for failure in lock renderer cancel-render builtin-copy palette template template-disappears staging-move replacement name; do
   reset_fixture
   expect_failure "$failure" "$failure failure"
 done
@@ -217,3 +224,86 @@ printf 'background = "#123456"\n' >"$shipped/themes/new/shell.bar.toml"
 run_theme || fail "manual configs without a palette still activate" "$(cat "$scratch/output")"
 grep -Fx 'background = "#123456"' "$state/theme/shell.toml" >/dev/null || fail "manual shell section override is applied"
 pass "manual themes without colors.toml retain shell section overrides"
+
+# Early decoding may prepare snapshots, but failure must never start a transition.
+for failure in renderer cancel-render name; do
+  reset_fixture
+  mkdir -p "$shipped/themes/new/backgrounds" "$test_home/.cache/omarchy/background-transitions"
+  printf 'next image\n' >"$shipped/themes/new/backgrounds/next.png"
+  printf 'another activation\n' >"$test_home/.cache/omarchy/background-transitions/unrelated.png"
+  if run_theme "$failure" 0; then fail "$failure with prepared backgrounds returns failure"; fi
+  # The preparation IPC is asynchronous and may finish after activation exits.
+  for attempt in {1..100}; do
+    grep -q '^background prepare ' "$scratch/ipc" && break
+    sleep 0.02
+  done
+  grep -q '^background prepare ' "$scratch/ipc" || fail "background was prepared before $failure"
+  if grep -qE 'themeTransition|applyTheme' "$scratch/ipc"; then fail "failed activation does not apply the theme"; fi
+  : >"$scratch/ipc"
+  assert_previous
+  [[ $(find "$test_home/.cache/omarchy/background-transitions" -type f | wc -l) == 1 ]] || fail "failed activation removes its snapshots"
+  grep -Fx 'another activation' "$test_home/.cache/omarchy/background-transitions/unrelated.png" >/dev/null || fail "unrelated snapshots survive"
+  pass "$failure cleans prepared snapshots and preserves unrelated snapshots"
+done
+
+reset_fixture
+printf 'custom\n' >"$shipped/themes/new/example.conf"
+printf '[bar]\nbackground = "#123456"\n' >"$shipped/themes/new/shell.toml"
+run_theme || fail "all template outputs already supplied is a successful no-op" "$(cat "$scratch/output")"
+grep -Fx custom "$state/theme/example.conf" >/dev/null || fail "supplied files remain unchanged"
+pass "a theme supplying every template output activates successfully"
+
+reset_fixture
+rm "$shipped/default/themed/"*
+run_theme || fail "an empty template directory is a successful no-op" "$(cat "$scratch/output")"
+pass "a theme with no templates activates successfully"
+
+reset_fixture
+rm "$shipped/default/themed/shell.toml.tpl"
+printf 'background = "#123456"\n' >"$shipped/themes/new/shell.bar.toml"
+run_theme || fail "an override without shell.toml is optional" "$(cat "$scratch/output")"
+pass "an override without a shell config is a successful no-op"
+
+reset_fixture
+printf 'empty_gradient = ""\n' >>"$shipped/themes/new/colors.toml"
+printf '{{ hypr_gradient empty_gradient }}|{{ gradient_start empty_gradient }}|{{ shell_gradient empty_gradient }}\n' >"$shipped/default/themed/empty.conf.tpl"
+run_theme || fail "empty optional gradients render successfully" "$(cat "$scratch/output")"
+[[ $(cat "$state/theme/empty.conf") == '""||' ]] || fail "empty gradients retain their empty values"
+pass "empty optional gradients render successfully"
+
+# A failed glob must not turn an unreadable source into an empty theme.
+for source in builtin overlay installed nested templates template-file; do
+  reset_fixture
+  case "$source" in
+    builtin) unreadable="$shipped/themes/new" ;;
+    overlay)
+      unreadable="$test_home/.config/omarchy/themes/new"
+      mkdir -p "$unreadable"
+      ;;
+    installed)
+      unreadable="$test_home/.config/omarchy/themes/new"
+      mkdir -p "$unreadable/.git"
+      ;;
+    nested)
+      unreadable="$test_home/.config/omarchy/themes/new/nested"
+      mkdir -p "$unreadable" "${unreadable%/*}/.git"
+      ;;
+    templates)
+      unreadable="$test_home/.config/omarchy/themed"
+      mkdir -p "$unreadable"
+      ;;
+    template-file) unreadable="$shipped/default/themed/example.conf.tpl" ;;
+  esac
+  chmod 000 "$unreadable"
+  if [[ -r $unreadable ]]; then
+    chmod u+rwX "$unreadable"
+    skip "$source permission failure requires an unprivileged user"
+    continue
+  fi
+  expect_failure "" "unreadable $source"
+  chmod u+rwX "$unreadable"
+done
+
+reset_fixture
+mkdir "$shipped/themes/new/example.conf"
+expect_failure "" "template output is a directory"

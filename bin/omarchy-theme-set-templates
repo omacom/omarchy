@@ -40,7 +40,7 @@ resolve_theme_ref() {
   local ref="$1"
   local fallback="${2:-}"
 
-  if [[ -n ${THEME_COLORS[$ref]+_} ]]; then
+  if [[ -n $ref && -n ${THEME_COLORS[$ref]+_} ]]; then
     REPLY="${THEME_COLORS[$ref]}"
   elif [[ -n $fallback && -n ${THEME_COLORS[$fallback]+_} ]]; then
     REPLY="${THEME_COLORS[$fallback]}"
@@ -53,7 +53,7 @@ resolve_theme_ref() {
 
 resolve_gradient_color() {
   trim "$1"
-  if [[ -n ${THEME_COLORS[$REPLY]+_} ]]; then
+  if [[ -n $REPLY && -n ${THEME_COLORS[$REPLY]+_} ]]; then
     REPLY="${THEME_COLORS[$REPLY]}"
   fi
 }
@@ -229,6 +229,9 @@ add_function_values() {
 
   (( ${#template_files[@]} > 0 )) || return 0
 
+  # grep returns 1 for no tokens; read errors must stop activation.
+  grep -hEo "$MIX_TOKEN_PATTERN|$GRADIENT_TOKEN_PATTERN" "${template_files[@]}" >"$scratch/tokens" || [[ $? == 1 ]]
+
   while IFS= read -r token; do
     [[ -n ${seen[$token]:-} ]] && continue
     seen[$token]=1
@@ -238,7 +241,7 @@ add_function_values() {
     else
       add_gradient_function_value "$token"
     fi
-  done < <(grep -hEo "$MIX_TOKEN_PATTERN|$GRADIENT_TOKEN_PATTERN" "${template_files[@]}" 2>/dev/null || true)
+  done <"$scratch/tokens"
 }
 
 strip_shell_section_header() {
@@ -395,13 +398,14 @@ render_templates() {
     }
 
     BEGIN {
-      while ((getline row < value_table) > 0) {
+      while ((status = getline row < value_table) > 0) {
         sep = index(row, "\037")
         values[substr(row, 1, sep - 1)] = substr(row, sep + 1)
       }
+      if (status < 0) exit 1
       close(value_table)
 
-      while ((getline row < mix_table) > 0) {
+      while ((status = getline row < mix_table) > 0) {
         split(row, field, "\037")
         value = mix_color(field[4], field[5], field[6])
         if (field[3] == "mix_strip") {
@@ -411,19 +415,19 @@ render_templates() {
         }
         values[field[2]] = value
       }
+      if (status < 0) exit 1
       close(mix_table)
 
       for (i = 1; i < ARGC; i += 2) {
         template = ARGV[i]
         output = ARGV[i + 1]
+        printf "" > output
         # RT holds the terminator each line was read with, so a template that
         # ends without a newline renders without one, as sed left it.
-        while ((getline line < template) > 0) printf "%s%s", render(line), RT > output
+        while ((status = getline line < template) > 0) printf "%s%s", render(line), RT > output
+        if (status < 0) exit 1
         close(template)
-        close(output)
-        # A template with no lines still leaves its output file behind.
-        printf "" >> output
-        close(output)
+        if (close(output) != 0) exit 1
       }
       exit
     }
@@ -441,6 +445,13 @@ if [[ -f $COLORS_FILE ]]; then
   : >"$value_table"
   : >"$mix_table"
   declare -A rendered=()
+
+  # A missing user directory is optional; an unreadable one is not empty.
+  for directory in "$USER_TEMPLATES_DIR" "$TEMPLATES_DIR"; do
+    if [[ -d $directory ]]; then
+      [[ -r $directory && -x $directory ]] || exit 1
+    fi
+  done
 
   shopt -s nullglob
   template_files=("$USER_TEMPLATES_DIR"/*.tpl "$TEMPLATES_DIR"/*.tpl)
