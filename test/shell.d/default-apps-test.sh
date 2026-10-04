@@ -122,7 +122,8 @@ done
 for setup_command in \
   omarchy-install-chromium-copy-url \
   omarchy-install-chromium-ytdlp \
-  omarchy-theme-set-browser; do
+  omarchy-theme-set-browser \
+  omarchy-setup-sublime; do
   ln -s omarchy-test-setup-call "$mock_bin/$setup_command"
 done
 
@@ -300,6 +301,19 @@ for entry in "${editor_cases[@]}"; do
   [[ $(omarchy-default-editor) == "$command" ]] || fail "$selection becomes the default editor after installation"
 done
 pass "editor defaults install every missing editor before selection"
+
+: >"$setup_log"
+touch "$installed_dir/subl"
+omarchy-default-editor sublime_text
+grep -Fxq 'omarchy-setup-sublime:' "$setup_log" || fail "selecting installed Sublime applies its Omarchy theme"
+pass "installed Sublime receives theme setup when selected"
+
+omarchy-default-editor code
+if OMARCHY_TEST_SETUP_FAIL=omarchy-setup-sublime omarchy-default-editor sublime_text; then
+  fail "failed Sublime setup returns an error"
+fi
+[[ $(omarchy-default-editor) == code ]] || fail "failed Sublime setup preserves the default editor"
+pass "failed Sublime setup preserves the default editor"
 
 : >"$install_log"
 : >"$terminal_log"

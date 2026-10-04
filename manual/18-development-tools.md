@@ -8,6 +8,8 @@ The original `vi` editor is also available out of the box. Run `vi filename` to 
 
 Theme matching is offered for `VSCode`, `Cursor`, `VSCodium`, `Sublime Text`, and `Helix`.
 
+Sublime Text hides its menu and minimap by default. Set `omarchy_hide_menu` or `omarchy_hide_minimap` to `false` in Sublime's preferences to show either one by default.
+
 You can set the system-wide default editor under `Setup > Defaults > Editor`.
 
 ## Environment

@@ -54,6 +54,8 @@ if omarchy-cmd-missing "$editor"; then
     nvim) omarchy-pkg-add neovim ;;
     esac || exit 1
   fi
+elif [[ $selection == sublime_text ]]; then
+  omarchy-setup-sublime || exit 1
 fi
 
 mkdir -p "$(dirname "$editor_file")"

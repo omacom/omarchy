@@ -13,25 +13,33 @@ preferences = Path(args[0])
 original = preferences.read_text() if preferences.exists() else '{}\n'
 updated = original
 
+
+def without_comments(content):
+    tokens = re.compile(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*[\s\S]*?\*/')
+
+    def keep_strings(match):
+        token = match[0]
+        if token.startswith('"'):
+            return token
+        return ''.join('\n' if char == '\n' else ' ' for char in token)
+
+    return tokens.sub(keep_strings, content)
+
 for setting in args[1:]:
     key, value = setting.split('=', 1)
+    active = without_comments(updated)
     pattern = rf'(?<!\\)("{re.escape(key)}"[ \t]*:[ \t]*)"(?:\\.|[^"\\])*"'
-    lines = updated.splitlines(keepends=True)
-    found = False
-    for index, line in enumerate(lines):
-        if line.lstrip().startswith('//'):
-            continue
-        lines[index], count = re.subn(pattern, lambda match: match[1] + json.dumps(value), line, count=1)
-        if count:
-            found = True
-            break
-    if found:
-        updated = ''.join(lines)
+    match = re.search(pattern, active)
+    if match:
+        updated = updated[:match.start()] + match[1] + json.dumps(value) + updated[match.end():]
     else:
-        if any(re.search(rf'(?<!\\)"{re.escape(key)}"[ \t]*:', line)
-               for line in lines if not line.lstrip().startswith('//')):
+        if re.search(rf'(?<!\\)"{re.escape(key)}"[ \t]*:', active):
             sys.exit(f'Cannot update {key} in {preferences}')
-        updated, count = re.subn(r'(?m)^([ \t]*)\{', lambda match: match[0] + '\n  ' + json.dumps(key) + ': ' + json.dumps(value) + ',', updated, count=1)
+        opening = re.search(r'(?m)^([ \t]*)\{', active)
+        count = bool(opening)
+        if opening:
+            offset = opening.end()
+            updated = updated[:offset] + '\n  ' + json.dumps(key) + ': ' + json.dumps(value) + ',' + updated[offset:]
         if count == 0:
             sys.exit(f'Cannot find settings object in {preferences}')
 
