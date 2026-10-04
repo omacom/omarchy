@@ -12,7 +12,7 @@ set -euo pipefail
 FLAG=cua-input
 MODULE=/usr/lib/cua/hyprland/cua-hyprland-plugin.so
 KIT=/usr/share/cua-hyprland-plugin
-MIN_VERSION=0.26.1-5
+MIN_VERSION=0.32.0-3
 # nf-md-robot_excited, escaped so this file reads without a Nerd Font.
 readonly GLYPH=$'\U000f16a4'
 
@@ -38,8 +38,10 @@ plugin_loaded() {
   hyprctl -j plugin list 2>/dev/null | jq -e 'map(select(.name == "cua-hyprland-plugin")) | length > 0' >/dev/null
 }
 
-keyboard_capabilities_current() {
-  hyprctl -j cua:status 2>/dev/null | jq -e '.keyboard_layout_independent == true and .foreground_numlock_compatible == true' >/dev/null
+# Without ime_popup_guard, fcitx5 restarting while input is on can crash Hyprland 0.56.2.
+module_capabilities_current() {
+  hyprctl -j cua:status 2>/dev/null |
+    jq -e '.keyboard_layout_independent == true and .foreground_numlock_compatible == true and .ime_popup_guard == true' >/dev/null
 }
 
 package_current() {
@@ -83,12 +85,12 @@ turn_on() {
   omarchy-pkg-present cua-hyprland-plugin ||
     refuse "The Cua Hyprland plugin is not installed; Install > AI > Cua adds it."
 
-  package_current || refuse "Update cua-hyprland-plugin to $MIN_VERSION or newer to preserve your keyboard settings."
+  package_current || refuse "Update cua-hyprland-plugin to $MIN_VERSION or newer before turning Cua Input on."
 
   compatible || refuse "The Cua Hyprland plugin does not match the running Hyprland; update it and log out and back in."
 
   load_plugin || refuse "The Cua Hyprland plugin could not load; check the session logs."
-  if ! keyboard_capabilities_current; then
+  if ! module_capabilities_current; then
     refuse "Log out and back in to use the updated Cua plugin, then turn Cua Input on again."
   fi
   omarchy-hyprland-toggle "$FLAG" on >/dev/null
@@ -120,7 +122,7 @@ load_at_start() {
     notify "Cua input turned off" "The Cua Hyprland plugin could not load; check the session logs."
     exit 0
   fi
-  if ! keyboard_capabilities_current; then
+  if ! module_capabilities_current; then
     omarchy-hyprland-toggle "$FLAG" off >/dev/null
     notify "Cua input turned off" "Log out and back in to use the updated plugin, then turn Cua Input on again."
     exit 0
