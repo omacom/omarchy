@@ -84,6 +84,43 @@ ShellRoot {
 
           view.fingerprintConfigured = false
           root.assertTrue(view.fingerprintReserve === 0, "no space is reserved when no sensor is configured")
+
+          // The icon and status line follow the reader state from fprintd.
+          var status = findByObjectName(view, "fingerprintStatus")
+          root.assertTrue(status !== null, "fingerprint status line exists in the lock view")
+          view.fingerprintConfigured = true
+
+          var idleReserve = view.fingerprintReserve
+
+          view.fingerprintState = "scanning"
+          view.fingerprintStatusText = "Identifying…"
+          root.assertTrue(status && status.shown && status.text === "Identifying…", "the status pill shows the scan in progress")
+          root.assertTrue(sameColor(view.fingerprintIconColor, Color.accent),
+            "the fingerprint icon takes the accent color while scanning")
+          root.assertTrue(view.fieldGlowStrength > 0 && sameColor(view.fieldGlowColor, Color.accent),
+            "the field glows in the accent color while scanning")
+          var sweep = findByObjectName(view, "fingerprintSweep")
+          root.assertTrue(sweep !== null && sweep.visible, "the border sweep runs while scanning")
+
+          view.fingerprintState = "rejected"
+          view.fingerprintStatusText = "Not recognized, try again"
+          root.assertTrue(sameColor(status.textColor, Color.urgent), "a rejected read shows the status in the error color")
+          root.assertTrue(sameColor(view.fingerprintIconColor, Color.urgent), "a rejected read turns the fingerprint icon to the error color")
+          root.assertTrue(view.errorState, "a rejected read puts the field border in its error state")
+          root.assertTrue(sameColor(view.fieldGlowColor, Color.urgent), "a rejected read glows in the error color")
+          root.assertTrue(view.fingerprintGlyph !== "󰈷", "a rejected read swaps the fingerprint for a cross")
+          root.assertTrue(!sweep.visible, "the border sweep stops once a verdict is in")
+          root.assertTrue(view.fingerprintReserve === idleReserve,
+            "swapping the glyph keeps the reserved space, got " + view.fingerprintReserve + " vs " + idleReserve)
+
+          view.fingerprintState = "matched"
+          view.fingerprintStatusText = "Unlocking…"
+          root.assertTrue(view.fingerprintGlyph !== "󰈷" && !view.errorState, "a match shows a check without the error border")
+
+          view.fingerprintState = "idle"
+          view.fingerprintStatusText = ""
+          root.assertTrue(!status.shown, "the status pill hides when the reader is idle")
+          root.assertTrue(view.fieldGlowStrength === 0, "the field glow is off when the reader is idle")
         }
 
         view.destroy()
@@ -93,6 +130,10 @@ ShellRoot {
         root.writeResult()
       }
     }
+  }
+
+  function sameColor(a, b) {
+    return String(a).toLowerCase() === String(b).toLowerCase()
   }
 
   function findByObjectName(node, name) {

@@ -17,7 +17,8 @@ Item {
   property color foreground: Color.polkit.text
   property color border: Color.polkit.border
   property color borderError: Color.polkit.borderError
-  property var borderSpec: Border.surfaceSpec("polkit", errorFlash ? "border-error" : "border", errorFlash ? borderError : border, Math.max(1, Style.space(2)), "border-alpha")
+  property var borderSpec: Border.surfaceSpec("polkit", showErrorBorder ? "border-error" : "border", showErrorBorder ? borderError : border, Math.max(1, Style.space(2)), "border-alpha")
+  readonly property bool showErrorBorder: errorFlash || fingerprintState === "rejected"
   property color scrim: Color.polkit.scrim
   readonly property int cornerRadius: Style.cornerRadius
   property int contentMargin: Style.spacing.panelPadding
@@ -45,6 +46,33 @@ Item {
   // a password — including immediately when the lid is shut and the clamshell
   // gate skips pam_fprintd — we switch to the password field instead.
   readonly property bool fingerprintMode: fingerprintConfigured && !laptopClosed && dialogVisible && !responseRequired && !submitted && !errorFlash
+  // Reader state while the dialog waits on the sensor. A verdict outlives
+  // fingerprint mode: pam_fprintd falls through to the password once its
+  // tries run out, so the last rejection can land after the switch.
+  readonly property string fingerprintState: {
+    if (!fingerprintConfigured || !dialogVisible) return "idle"
+    var state = fingerprintReader.readerState
+    if (state === "matched" || state === "rejected" || fingerprintMode) return state
+    return "idle"
+  }
+  readonly property string fingerprintStatusText: {
+    switch (fingerprintState) {
+    case "matched": return "Authorized"
+    case "rejected":
+      if (!fingerprintMode) return "Fingerprint not recognized, enter password"
+      return fingerprintReader.result === "retry" ? "Couldn't read finger, try again" : "Not recognized, try again"
+    case "scanning": return "Identifying…"
+    case "waiting": return "Touch the sensor to authorize"
+    }
+    return ""
+  }
+  readonly property color fingerprintIconColor: fingerprintState === "rejected" ? Color.polkit.textError
+    : (fingerprintState === "waiting" || fingerprintState === "idle") ? Util.alpha(root.accent, 0.75)
+    : root.accent
+  // Glyph swaps in for the verdict: a check on a match, a cross on a miss.
+  readonly property string fingerprintGlyph: fingerprintState === "matched" ? "\udb80\udd2c"
+    : fingerprintState === "rejected" ? "\udb80\udd56"
+    : "\udb80\ude37"
   readonly property int cardHeight: panel.height > 0 ? Math.min(fieldHeight + contentMargin * 2, panel.height - Style.gapsOut * 2) : fieldHeight + contentMargin * 2
   // Password mode is a wide field; fingerprint mode collapses to a square that
   // just frames the centered sensor icon.
@@ -63,6 +91,8 @@ Item {
   }
 
   function resetSnapshot() {
+    awaitingVerdict = false
+    fingerprintReader.clear()
     currentMessage = ""
     currentPrompt = ""
     currentSupplementary = ""
@@ -90,6 +120,8 @@ Item {
 
   function beginFlow() {
     closeTimer.stop()
+    awaitingVerdict = false
+    fingerprintReader.clear()
     closing = false
     submitted = false
     passwordInput.text = ""
@@ -136,7 +168,8 @@ Item {
 
   Timer {
     id: closeTimer
-    interval: 300
+    // Linger on a fingerprint match so the check has time to land.
+    interval: fingerprintReader.result === "match" ? 700 : 300
     repeat: false
     onTriggered: {
       closing = false
@@ -171,6 +204,39 @@ Item {
     command: ["bash", "-c", "omarchy-hw-laptop-closed && echo closed || echo open"]
     stdout: StdioCollector { id: laptopClosedOut; waitForEnd: true }
     onExited: root.laptopClosed = String(laptopClosedOut.text || "").trim() === "closed"
+  }
+
+  // pam_fprintd moves on as soon as it gets the final VerifyStatus, and the
+  // monitor reads the same signal through a pipe, so the verdict can land
+  // just after fingerprint mode ends. A read under way keeps the monitor
+  // listening for its verdict, for at most a moment once the reader is let go.
+  readonly property bool holdsReader: fingerprintMode && !closing
+  property bool awaitingVerdict: false
+
+  onHoldsReaderChanged: {
+    if (!holdsReader && awaitingVerdict) verdictGraceTimer.restart()
+    else verdictGraceTimer.stop()
+  }
+
+  Timer {
+    id: verdictGraceTimer
+    interval: 500
+    repeat: false
+    onTriggered: root.awaitingVerdict = false
+  }
+
+  // Live reader state while the dialog waits on the sensor. Display only:
+  // authorization is still decided by PAM. Only in fingerprint mode: then
+  // this request's pam_fprintd holds the reader, so every signal is ours.
+  // Once it falls through to the password another flow may use the reader.
+  FingerprintReader {
+    id: fingerprintReader
+    active: root.holdsReader || root.awaitingVerdict
+    onFingerLanded: if (root.holdsReader) root.awaitingVerdict = true
+    onVerdict: function(result) {
+      root.awaitingVerdict = false
+      if (result !== "match") shakeAnimation.restart()
+    }
   }
 
   PolkitAgent {
@@ -269,21 +335,51 @@ Item {
       }
 
       // Fingerprint mode shows just the sensor icon, centered and alone \u2014 no
-      // padlock, no field, no prompt text.
+      // padlock, no field, no prompt text. It swaps to a check or cross for
+      // the verdict, breathes while the reader waits and pulses while a finger
+      // is being read.
       OpticalGlyph {
+        id: fingerprintGlyph
         anchors.centerIn: parent
         width: Math.round(root.fieldHeight * 0.7)
         height: width
-        visible: root.fingerprintMode
-        text: "\udb80\ude37"
+        visible: root.fingerprintMode || (root.closing && root.fingerprintState === "matched")
+        text: root.fingerprintGlyph
         fontFamily: root.fontFamily
         fontSize: Math.round(root.fieldHeight * 0.7)
-        color: root.errorFlash ? Color.polkit.textError : root.accent
+        color: root.errorFlash ? Color.polkit.textError : root.fingerprintIconColor
+
+        Behavior on color { ColorAnimation { duration: Style.duration(150) } }
+
+        // Pop the verdict glyph in: shrink, swap, spring back.
+        Behavior on text {
+          SequentialAnimation {
+            NumberAnimation { target: fingerprintGlyph; property: "scale"; to: 0.4; duration: Style.duration(90); easing.type: Easing.InQuad }
+            PropertyAction {}
+            NumberAnimation { target: fingerprintGlyph; property: "scale"; to: 1; duration: Style.duration(220); easing.type: Easing.OutBack }
+          }
+        }
+
+        SequentialAnimation on opacity {
+          running: root.fingerprintState === "waiting" && !Style.reduceMotion
+          loops: Animation.Infinite
+          NumberAnimation { to: 0.4; duration: 1200; easing.type: Easing.InOutSine }
+          NumberAnimation { to: 1.0; duration: 1200; easing.type: Easing.InOutSine }
+          onRunningChanged: if (!running) fingerprintGlyph.opacity = 1
+        }
+
+        SequentialAnimation on scale {
+          running: root.fingerprintState === "scanning" && !Style.reduceMotion
+          loops: Animation.Infinite
+          NumberAnimation { to: 0.88; duration: 450; easing.type: Easing.InOutSine }
+          NumberAnimation { to: 1.0; duration: 450; easing.type: Easing.InOutSine }
+          onRunningChanged: if (!running) fingerprintGlyph.scale = 1
+        }
       }
 
       Row {
         id: cardRow
-        visible: !root.fingerprintMode
+        visible: !fingerprintGlyph.visible
         anchors.fill: parent
         anchors.topMargin: card.contentTopInset
         anchors.rightMargin: card.contentRightInset
@@ -361,6 +457,43 @@ Item {
             onClicked: passwordInput.forceActiveFocus()
           }
         }
+      }
+    }
+
+    // Reader status under the card: ready, identifying, or the verdict. Styled
+    // like the justification pill above it so it stays legible over the scrim.
+    Rectangle {
+      id: fingerprintStatus
+      readonly property bool shown: root.fingerprintStatusText.length > 0
+      readonly property string text: root.fingerprintStatusText
+      width: Math.min(statusLabel.implicitWidth + Style.space(24), panel.width - Style.gapsOut * 2)
+      height: Style.space(28)
+      anchors.horizontalCenter: card.horizontalCenter
+      anchors.top: card.bottom
+      anchors.topMargin: Style.space(10)
+      radius: root.cornerRadius
+      color: root.background
+      opacity: shown ? 1 : 0
+      visible: opacity > 0
+
+      // Keep the last message while the pill fades out.
+      onTextChanged: if (text.length > 0) statusLabel.text = text
+
+      Behavior on opacity { NumberAnimation { duration: Style.duration(200); easing.type: Easing.OutCubic } }
+      Behavior on width { NumberAnimation { duration: Style.duration(180); easing.type: Easing.OutCubic } }
+
+      Text {
+        id: statusLabel
+        textFormat: Text.PlainText
+        anchors.fill: parent
+        anchors.leftMargin: Style.space(12)
+        anchors.rightMargin: Style.space(12)
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+        elide: Text.ElideRight
       }
     }
 
