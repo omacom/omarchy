@@ -20,4 +20,9 @@ if [[ -f $stop_timeout_src && ! -e $stop_timeout_dst ]]; then
   sudo install -Dm644 "$stop_timeout_src" "$stop_timeout_dst"
 fi
 
-[[ ! -f $stop_timeout_dst ]] || sudo systemctl daemon-reload
+if [[ -f $stop_timeout_dst ]]; then
+  reload_needed=$(systemctl show fprintd.service --property=NeedDaemonReload --value)
+  if [[ $reload_needed == "yes" ]]; then
+    sudo systemctl daemon-reload
+  fi
+fi
