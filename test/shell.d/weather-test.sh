@@ -182,3 +182,25 @@ pass "weather location rejects malformed coordinates"
 weather_location --clear
 [[ ! -e "$test_tmp/.local/state/omarchy/settings/weather.json" ]] || fail "weather location clear removes the state file"
 pass "weather location clear removes the state file"
+
+# Auto-detect: wttr.in usually answers "City, Country", but for an
+# unresolved IP it answers bare "lat,lon" coordinates instead.
+curl_stub_dir=$(mktemp -d)
+trap 'rm -rf "$test_tmp" "$curl_stub_dir"' EXIT
+
+cat >"$curl_stub_dir/curl" <<'STUB'
+#!/bin/bash
+cat "$CURL_STUB_RESPONSE"
+STUB
+chmod +x "$curl_stub_dir/curl"
+
+export CURL_STUB_RESPONSE="$test_tmp/curl-response"
+printf 'Paris, France' >"$CURL_STUB_RESPONSE"
+[[ $(PATH="$curl_stub_dir:$PATH" weather_location) == "Paris" ]] ||
+  fail "weather location auto-detect truncates a city/country response to the city"
+pass "weather location auto-detect truncates a city/country response to the city"
+
+printf '48.855800,2.349400' >"$CURL_STUB_RESPONSE"
+[[ $(PATH="$curl_stub_dir:$PATH" weather_location) == "48.855800,2.349400" ]] ||
+  fail "weather location auto-detect keeps a bare coordinate response whole"
+pass "weather location auto-detect keeps a bare coordinate response whole"
