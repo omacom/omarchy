@@ -10,7 +10,7 @@ echo "Installing Microsoft Outlook..."
 omarchy-webapp-install "Microsoft Outlook" "https://outlook.office.com/mail/" "$ICONS/microsoft-outlook.png"
 
 echo "Installing Microsoft Office..."
-omarchy-webapp-install "Microsoft Office" "https://www.office.com/login" "$ICONS/microsoft-office.png"
+omarchy-webapp-install "Microsoft Office" "https://m365.cloud.microsoft/apps" "$ICONS/microsoft-office.png"
 
 echo "Installing Microsoft Teams..."
 omarchy-webapp-install "Microsoft Teams" "https://teams.cloud.microsoft/" "$ICONS/microsoft-teams.png"
