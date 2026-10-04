@@ -66,8 +66,8 @@ assert(
   'the lock screen keeps its image effect for stills and shows the feed for videos'
 )
 assert(
-  !mediaQml.includes('mipmap'),
-  'the shared image path leaves mipmapping off, as the desktop background had it'
+  mediaQml.includes('mipmap: true'),
+  'the shared image path enables mipmapping to prevent downsampling grain'
 )
 assert(
   /instant \|\| !displayedBackground \|\| isVideo\(path\) \|\| isVideo\(displayedBackground\)[\s\S]*displayedBackground = finalPath/.test(backgroundQml),
