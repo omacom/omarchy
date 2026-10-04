@@ -84,6 +84,16 @@ ShellRoot {
 
           view.fingerprintConfigured = false
           root.assertTrue(view.fingerprintReserve === 0, "no space is reserved when no sensor is configured")
+
+          // A rejected read bumps the failure tick; the icon flips to the
+          // error color and dims until the view's own timer clears it.
+          view.fingerprintConfigured = true
+          view.fingerprintFailureTick = 1
+          root.assertTrue(view.fingerprintError, "a rejected read puts the fingerprint icon into its error state")
+          root.assertTrue(String(indicator.color).toLowerCase() === String(Color.lock.textError).toLowerCase(),
+            "the fingerprint icon flashes the error color on a rejected read")
+          root.assertTrue(indicator.opacity < 1,
+            "the fingerprint icon dims on a rejected read, got opacity " + indicator.opacity)
         }
 
         view.destroy()
