@@ -30,6 +30,86 @@ if ! perl -0ne 'exit(/onPressAndHold:\s*function[^{]*\{[^}]*?\bpressed\b[^}]*?\b
 fi
 pass "bar move ignores a press-and-hold propagated from a widget above"
 
+# Reposition-drag must stay eligible with zero mapped clients. The bar is a
+# layer surface; requiring an xdg-toplevel made the gesture die on an empty
+# desktop and again after the last window closed.
+if ! perl -0ne 'exit(/function beginBarMove\b[\s\S]*?BarModel\.barMoveEligible\(\{\s*mappedClients:\s*\[\]/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move start must ask eligibility without requiring mapped clients"
+fi
+pass "bar move start asks eligibility without requiring mapped clients"
+
+# Top-only expand: the moving BarPanel goes fullscreen so the same MouseArea
+# keeps the grab. No FocusGrab, no HoverHandler handoff, no Top→Overlay flip.
+if ! perl -0ne 'exit(/readonly property bool moveExpanded:[\s\S]*?barMoveActive[\s\S]*?barMoveWindow === barWindow/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move must expand the owning BarPanel while active"
+fi
+pass "bar move expands the owning BarPanel while active"
+
+if ! perl -0ne 'exit(/anchors\s*\{[\s\S]*?moveExpanded[\s\S]*?moveExpanded[\s\S]*?moveExpanded[\s\S]*?moveExpanded/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move expand must pin all four PanelWindow anchors"
+fi
+pass "bar move expand pins all four PanelWindow anchors"
+
+if ! perl -0ne 'exit(/exclusionMode:\s*\(root\.barHidden \|\| barWindow\.moveExpanded\) \? ExclusionMode\.Ignore/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move expand must Ignore exclusion (4-edge zone is protocol-zero)"
+fi
+pass "bar move expand Ignores exclusion while fullscreen"
+
+if ! perl -0ne 'exit(/component BarPanel[\s\S]*?WlrLayershell\.layer:\s*WlrLayer\.Top/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar panel must stay on WlrLayer.Top during move (no blink re-layer)"
+fi
+pass "bar panel stays on WlrLayer.Top during move (no blink re-layer)"
+
+if rg -q 'HyprlandFocusGrab|barMoveFocusGrab' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move must not use HyprlandFocusGrab"
+fi
+pass "bar move does not use HyprlandFocusGrab"
+
+# Move end must collapse the center indicator peek — fullscreen Top expand
+# otherwise leaves centerSectionRevealHeld stuck (also seen on stock cancels).
+if ! perl -0ne 'exit(/function clearBarMove\b[\s\S]*?centerSectionRevealHeld\s*=\s*false/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move clear must collapse centerSectionRevealHeld"
+fi
+pass "bar move clear collapses center indicator peek"
+
+
+if rg -q 'barMoveTakePointer|takeBarMovePointer|moveHover|barMovePointerArmed|barMoveHandoffAbortTimer' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move must not use HoverHandler / overlay pointer handoff"
+fi
+pass "bar move does not use HoverHandler / overlay pointer handoff"
+
+if rg -q 'barMoveCommitTimer|hoverAutoDock|hoverCommitTimer' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move must not auto-dock on hover"
+fi
+pass "bar move has no hover auto-dock commit timer"
+
+# Strip onReleased must still finish (windowed + empty: same MouseArea).
+if ! perl -0ne 'exit(/component CenterGestureArea[\s\S]*?onReleased:[\s\S]*?finishBarMove\(\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move CenterGestureArea onReleased must finishBarMove"
+fi
+pass "bar move CenterGestureArea onReleased finishes the move"
+
+# Gesture area must fill the panel root (expands with the panel), not only the
+# center section — otherwise leaving the strip still loses the grab.
+if ! perl -0ne 'exit(/id: horizontalBar[\s\S]*?CenterGestureArea \{ anchors\.fill: parent \}[\s\S]*?id: horizontalStrip/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "horizontal bar must host CenterGestureArea outside the strip chrome"
+fi
+pass "horizontal bar hosts CenterGestureArea outside the strip chrome"
+
+if ! perl -0ne 'exit(/id: verticalBar[\s\S]*?CenterGestureArea \{ anchors\.fill: parent \}[\s\S]*?id: verticalStrip/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "vertical bar must host CenterGestureArea outside the strip chrome"
+fi
+pass "vertical bar hosts CenterGestureArea outside the strip chrome"
+
 run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
@@ -53,7 +133,7 @@ assert(
   'bar stays mapped while hidden so revealing it does not rebuild the surface'
 )
 assert(
-  /exclusionMode: root\.barHidden \? ExclusionMode\.Ignore : ExclusionMode\.Auto/.test(barSource),
+  /exclusionMode:\s*\(root\.barHidden \|\| barWindow\.moveExpanded\) \? ExclusionMode\.Ignore : ExclusionMode\.Auto/.test(barSource),
   'a hidden bar reserves no space for itself'
 )
 for (const edge of ['top', 'bottom', 'left', 'right']) {
@@ -282,6 +362,56 @@ assert(
   /width: root\.vertical \? Style\.space\(2\) : slot\.panelIndicatorExtent/.test(indicator) &&
   /height: root\.vertical \? slot\.panelIndicatorExtent : Style\.space\(2\)/.test(indicator),
   'bar sizes the open-panel mark from the same content hint on both axes'
+)
+
+const emptyDesktop = { mappedClients: [], screens: [{ name: 'eDP-1', width: 1920, height: 1080 }] }
+const occupiedDesktop = { mappedClients: [{ mapped: true }], screens: emptyDesktop.screens }
+assertEqual(bar.barMoveEligible(emptyDesktop), true, 'bar move is eligible with zero mapped clients')
+assertEqual(bar.barMoveEligible(occupiedDesktop), true, 'bar move is eligible with mapped clients')
+assertEqual(bar.barMoveEligible({ mappedClients: [], screens: [] }), false, 'bar move is not eligible without a screen')
+assertEqual(
+  bar.resolveBarMoveScreen(null, emptyDesktop.screens, 'eDP-1'),
+  emptyDesktop.screens[0],
+  'bar move resolves a screen without a layer window or mapped client'
+)
+const windowScreen = { name: 'DP-1' }
+assertEqual(
+  bar.resolveBarMoveScreen({ screen: windowScreen }, emptyDesktop.screens, 'eDP-1'),
+  windowScreen,
+  'bar move prefers the grabbing window screen when it has one'
+)
+assert(
+  /BarModel\.barMoveEligible\(\{\s*mappedClients:\s*\[\],\s*screens: screens \}\)/.test(barSource),
+  'bar move treats mapped clients as irrelevant to eligibility'
+)
+assert(
+  /readonly property bool moveExpanded:\s*root\.barMoveActive && root\.barMoveWindow === barWindow/.test(barSource),
+  'bar move expands only the BarPanel that owns the gesture'
+)
+assert(
+  /exclusionMode:\s*\(root\.barHidden \|\| barWindow\.moveExpanded\) \? ExclusionMode\.Ignore/.test(barSource),
+  'bar move Ignore-excludes while expanded (4-edge exclusive zone is zero)'
+)
+assert(
+  /component BarPanel[\s\S]*?WlrLayershell\.layer:\s*WlrLayer\.Top/.test(barSource),
+  'bar panel layer stays Top during Top-only expand'
+)
+assert(
+  !/HyprlandFocusGrab|barMoveFocusGrab/.test(barSource),
+  'bar move does not use HyprlandFocusGrab'
+)
+assert(
+  !/barMoveTakePointer|takeBarMovePointer|id:\s*moveHover/.test(barSource),
+  'bar move does not use HoverHandler overlay handoff'
+)
+assert(
+  /id: horizontalBar[\s\S]*?CenterGestureArea \{ anchors\.fill: parent \}/.test(barSource) &&
+    /id: verticalBar[\s\S]*?CenterGestureArea \{ anchors\.fill: parent \}/.test(barSource),
+  'bar hosts fullscreen-capable CenterGestureArea at panel content root'
+)
+assert(
+  /component CenterGestureArea[\s\S]*?onReleased:[\s\S]*?finishBarMove\(\)/.test(barSource),
+  'same CenterGestureArea finishes on release (windowed and empty)'
 )
 
 assertEqual(bar.normalizePosition('left'), 'left', 'bar accepts valid positions')
