@@ -2,7 +2,9 @@
 #
 # The fingerprint setup installs libfprint-git in place of stock libfprint. The
 # two conflict, so the swap has to happen inside one --ask 4 transaction, and a
-# rerun with everything installed must not touch pacman at all. The real
+# rerun with everything installed must not touch pacman at all. It only reaches
+# enrollment once fprintd has claimed the reader, and a driverless reader is
+# reported rather than sending the user into a doomed enroll. The real
 # omarchy-pkg-missing runs; pacman and the privileged calls are stubbed.
 
 set -euo pipefail
@@ -18,6 +20,10 @@ export PATH="$scratch/bin:$ROOT/bin:$PATH"
 cat > "$scratch/bin/omarchy-hw-fingerprint" <<'STUB'
 #!/bin/bash
 exit "${HARDWARE_STATUS:-0}"
+STUB
+cat > "$scratch/bin/omarchy-hw-fingerprint-tod" <<'STUB'
+#!/bin/bash
+exit "${TOD_STATUS:-1}"
 STUB
 cat > "$scratch/bin/sudo" <<'STUB'
 #!/bin/bash
@@ -50,6 +56,11 @@ cat > "$scratch/bin/fprintd-enroll" <<'STUB'
 # Stop before verification/PAM; no host authentication files may be changed.
 echo enroll >> "$CALL_LOG"
 exit 1
+STUB
+# DRIVER_STATUS stands in for whether any installed driver claimed the reader.
+cat > "$scratch/bin/fprintd-list" <<'STUB'
+#!/bin/bash
+exit "${DRIVER_STATUS:-0}"
 STUB
 cat > "$scratch/bin/fprintd-verify" <<'STUB'
 #!/bin/bash
@@ -94,6 +105,15 @@ if grep -qx enroll "$CALL_LOG"; then
   fail "a failed package transaction prevents enrollment"
 fi
 pass "a failed installation stops before enrollment"
+
+# A connected reader that no driver claims must not fall through to a doomed
+# enroll; non-53xc hardware gets the actionable message instead.
+DRIVER_STATUS=1 TOD_STATUS=1 run_setup
+grep -q 'No installed driver supports' "$scratch/output" || fail "a driverless reader reports the problem"
+if grep -qx enroll "$CALL_LOG"; then
+  fail "a driverless reader does not attempt enrollment"
+fi
+pass "a driverless reader is reported instead of enrolling"
 
 HARDWARE_STATUS=1 run_setup
 [[ ! -s $CALL_LOG ]] || fail "missing hardware stops before package operations"
