@@ -11,6 +11,18 @@
 
 set -euo pipefail
 
+# OMARCHY_PATH single source of truth: /etc/omarchy.conf first, else default.
+# Non-interactive dispatch does not source ~/.bashrc, so derive it here (C5:
+# diagnose FAILED when $OMARCHY_PATH was unbound under set -u).
+if [ -f /etc/omarchy.conf ]; then
+  # shellcheck disable=SC1091
+  . /etc/omarchy.conf
+  : "${OMARCHY_PATH:=/usr/share/omarchy}"
+else
+  OMARCHY_PATH=/usr/share/omarchy
+fi
+export OMARCHY_PATH
+
 pid=${1:?usage: omarchy-agent-crash <pid> [comm] [exe] [signal]}
 
 if [[ ! $pid =~ ^[0-9]+$ ]]; then
@@ -24,6 +36,15 @@ exe=${3:-unknown}
 signal=${4:-unknown}
 
 skill="$OMARCHY_PATH/default/agents/skills/diagnose-crash/SKILL.md"
+
+# C5: non-interactive (headless) dispatch means omarchy-agent's TUI cannot run
+# (it blocks on the compositor or waits on a fake TTY); degrade to plain
+# coredumpctl text so diagnose still returns a readable answer. Interactive
+# terminals keep the full skill + agent path.
+if [[ ! -t 0 ]]; then
+  coredumpctl info "$pid" --no-pager 2>&1
+  exit $?
+fi
 
 # Looked up live so a hand-run PID still gets a timestamp. A rotated-away core
 # only costs the timestamp, so failure is tolerated.
