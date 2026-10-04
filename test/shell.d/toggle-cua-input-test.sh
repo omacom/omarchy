@@ -33,8 +33,21 @@ case "$*" in
     printf 'hyprctl:%s\n' "$*" >>"$TEST_LOG"
     if grep -q 'enabled = false' "$HOME/.local/state/omarchy/toggles/hypr/cua-input.lua" 2>/dev/null; then echo 'flag-at-load:held' >>"$TEST_LOG"; fi
     exit "${TEST_LOAD_STATUS:-0}" ;;
+  reload)
+    printf 'hyprctl:%s\n' "$*" >>"$TEST_LOG"
+    reloads=$(($(cat "$TEST_LOG.reloads" 2>/dev/null || echo 0) + 1))
+    echo "$reloads" >"$TEST_LOG.reloads"
+    if [[ -n ${TEST_RELOAD_FAIL_FROM:-} ]] && ((reloads >= TEST_RELOAD_FAIL_FROM)); then exit 1; fi
+    exit "${TEST_RELOAD_STATUS:-0}" ;;
   *) printf 'hyprctl:%s\n' "$*" >>"$TEST_LOG" ;;
 esac
+SCRIPT
+
+# dd fails on demand for copies from a file, which is how the flag is restored.
+cat >"$tmp_dir/bin/dd" <<'SCRIPT'
+#!/bin/bash
+if [[ ${TEST_RESTORE_FAIL:-0} == 1 && " $* " == *" if="* ]]; then exit 1; fi
+exec /usr/bin/dd "$@"
 SCRIPT
 
 # The package's consumer check and the digest it takes: pass or fail on demand.
@@ -281,6 +294,19 @@ grep -qx 'flag-at-load:held' "$TEST_LOG" || fail "cua input keeps a fresh unguar
 [[ ! -e $(flag_file) ]] || fail "cua input keeps a fresh unguarded module off at session start" "flag remains"
 pass "cua input keeps a fresh unguarded module off at session start"
 "$toggle" on >/dev/null
+
+# Neither a failed hold nor a failed restore may leave a held flag that
+# reports Cua Input on while input stays off.
+for failure in TEST_RELOAD_STATUS=1 TEST_RELOAD_FAIL_FROM=2 TEST_RESTORE_FAIL=1; do
+  : >"$TEST_LOG"
+  rm -f "$TEST_LOG.reloads"
+  rc=0
+  env "$failure" "$toggle" --load 2>/dev/null || rc=$?
+  [[ ! -e $(flag_file) ]] || fail "cua input clears a held flag when $failure" "flag left: $(cat "$(flag_file)")"
+  grep -q '^notify:.*Cua input turned off' "$TEST_LOG" || fail "cua input clears a held flag when $failure" "no notification"
+  pass "cua input clears a held flag when $failure"
+  "$toggle" on >/dev/null
+done
 
 # Existing copied flags are replaced, removing their legacy keyboard overrides.
 for ((line = 0; line < 20; line++)); do
