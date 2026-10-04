@@ -9,6 +9,15 @@ MANUAL_DISABLE_FLAG="$TOGGLES_DIR/internal-monitor-disable.lua"
 SCALE_STATE="$TOGGLES_DIR/internal-monitor-scale"
 MONITOR_LUA="$HOME/.config/hypr/monitors.lua"
 
+# An active profile owns the complete monitor layout. Still run this helper at
+# startup and on lid/wake events so a stale clamshell toggle from before the
+# profile was selected is removed, but never let clamshell reconciliation
+# override the selected profile.
+if [[ -n $(omarchy-monitor-profile current 2>/dev/null) ]]; then
+  rm -f "$CLAMSHELL_FLAG"
+  exit 0
+fi
+
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
 
 # INTERNAL is written into generated Lua and hyprctl eval/dispatch below, so a

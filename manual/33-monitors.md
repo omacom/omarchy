@@ -42,6 +42,24 @@ Hyprland works great with multiple screens. Read more about how to lay them out 
 
 You can also checkout [Hyprmon](https://github.com/erans/hyprmon/), if you'd like a TUI to help you with the positioning of multiple screens.
 
+### Switching between monitor profiles
+
+If you regularly switch between several arrangements, save each working layout as a monitor profile. Arrange and enable the displays you want, then save the result:
+
+```bash
+omarchy monitor profile save desk
+```
+
+Create as many profiles as you need, such as `desk`, `presentation`, or `external-only`. The Display panel's **Save current layout** action can create them directly; each saved profile shows its primary display and layout details. Hovering or selecting a saved profile in the panel reveals its edit actions: **Overwrite with current layout** re-saves the profile from the layout on screen, and **Delete profile** removes it after a confirming second click. Profiles can also be managed from the command line:
+
+```bash
+omarchy monitor profile list
+omarchy monitor profile apply presentation
+omarchy monitor profile remove presentation
+```
+
+Saving stores the current layout without changing which profile is active; apply the profile when you want it to become the arrangement restored on reconnects and graphical logins. Omarchy activates and verifies every destination display before disabling an existing one, so a disconnected display cannot leave you without a usable screen. While a profile is active, it owns the complete layout, including whether the laptop panel participates when the lid is closed. Toggling an individual display in the Display panel deactivates the selected profile; you can do the same without changing the current layout with `omarchy monitor profile deactivate`.
+
 ### Controlling brightness
 
 Monitor brightness is controlled by the dedicated function keys for brightness up/down. If you hold down shift while pressing these, you'll go to maximum or minimum brightness. The keys control the display you're focused on, so external monitors that speak DDC/CI are adjusted the same way as the laptop screen.

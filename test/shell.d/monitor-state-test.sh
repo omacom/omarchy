@@ -27,6 +27,11 @@ cat >"$test_bin/omarchy-hyprland-monitor-scaling" <<'EOF'
 echo 1.5
 EOF
 
+cat >"$test_bin/omarchy-monitor-profile" <<'EOF'
+#!/bin/bash
+printf '%s\n' '{"active":"desk","profiles":[{"name":"desk","monitors":["eDP-1","DP-1"]}]}'
+EOF
+
 chmod +x "$test_bin"/*
 
 # The panel reads this output by line index, so every case has to answer with
@@ -52,13 +57,13 @@ assert_line() {
 assert_line_count() {
   local description="$1"
 
-  (( ${#state_lines[@]} == 8 )) ||
-    fail "$description" "expected 8 lines, got ${#state_lines[@]}"
+  (( ${#state_lines[@]} == 9 )) ||
+    fail "$description" "expected 9 lines, got ${#state_lines[@]}"
 }
 
 extended='[
-  { "name": "eDP-1", "mirrorOf": "none", "disabled": false, "focused": false, "width": 1920, "height": 1080 },
-  { "name": "DP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 2560, "height": 1440 }
+  { "name": "eDP-1", "mirrorOf": "none", "disabled": false, "focused": false, "width": 1920, "height": 1080, "refreshRate": 60 },
+  { "name": "DP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 2560, "height": 1440, "refreshRate": 144 }
 ]'
 
 # Omarchy mirrors by pointing the external at the internal, so `mirrorOf` lands
@@ -75,8 +80,8 @@ reverse_mirrored='[
 ]'
 
 clamshell='[
-  { "name": "eDP-1", "mirrorOf": "none", "disabled": true, "focused": false, "width": 0, "height": 0 },
-  { "name": "DP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 2560, "height": 1440 }
+  { "name": "eDP-1", "mirrorOf": "none", "disabled": true, "focused": false, "width": 0, "height": 0, "refreshRate": 0 },
+  { "name": "DP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 2560, "height": 1440, "refreshRate": 144 }
 ]'
 
 monitor_state "$extended"
@@ -88,6 +93,8 @@ assert_line 3 eDP-1 "monitor state reports the internal monitor enabled"
 assert_line 4 "" "monitor state reports no mirror while extended"
 assert_line 5 DP-1 "monitor state reports the focused monitor"
 assert_line 6 1.5 "monitor state reports the scale"
+assert_line 8 '{"active":"desk","profiles":[{"name":"desk","monitors":["eDP-1","DP-1"]}]}' \
+  "monitor state reports saved profiles"
 pass "monitor state keeps its lines aligned when nothing is mirrored"
 
 monitor_state "$mirrored"
@@ -109,9 +116,9 @@ assert_line 4 "" "monitor state reports no mirror while clamshelled"
 pass "monitor state separates a disabled internal monitor from a missing one"
 
 monitor_state "$extended"
-[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":true,"focused":false,"width":1920,"height":1080},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
+[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":true,"focused":false,"width":1920,"height":1080,"refreshRate":60},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440,"refreshRate":144}]' ]] ||
   fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
 monitor_state "$clamshell"
-[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":false,"focused":false,"width":0,"height":0},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
+[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":false,"focused":false,"width":0,"height":0,"refreshRate":0},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440,"refreshRate":144}]' ]] ||
   fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
 pass "monitor state lists every display with its enabled and focused state"

@@ -26,6 +26,13 @@ Panel {
   property string monitorScale: ""
   property var displays: []
   property int enabledDisplayCount: 0
+  property var monitorProfiles: []
+  property string activeMonitorProfile: ""
+  property bool profileSaveOpen: false
+  property string profileSaveError: ""
+  property string deleteArmedName: ""
+  property var pendingDisplayToggle: null
+  property string pendingMonitorFocus: ""
 
   // Carry sub-notch touchpad deltas between wheel events.
   property real wheelAccumulator: 0
@@ -77,7 +84,8 @@ Panel {
     if (brightnessAvailable) list.push("brightness")
     list.push("textsize")
     list.push("scale")
-    if (displays.length > 1) list.push("monitors")
+    list.push("profiles")
+    if (displays.length > 0) list.push("monitors")
     return list
   }
 
@@ -85,6 +93,7 @@ Panel {
     if (section === "brightness") return 0  // only the slider sentinel at -1
     if (section === "textsize") return 0    // slider sentinel at -1, like brightness
     if (section === "scale") return scaleValues.length
+    if (section === "profiles") return monitorProfiles.length + 1 // profiles + save action
     if (section === "monitors") return displays.length
     return 0
   }
@@ -154,6 +163,12 @@ Panel {
     if (focusSection === "monitors" && selectedIndex >= 0 && selectedIndex < displays.length) {
       var d = displays[selectedIndex]
       if (d) toggleDisplay(d.name, d.enabled)
+    }
+    if (focusSection === "profiles" && selectedIndex >= 0 && selectedIndex < monitorProfiles.length) {
+      var profile = monitorProfiles[selectedIndex]
+      if (profile) applyProfile(profile.name)
+    } else if (focusSection === "profiles" && selectedIndex === monitorProfiles.length) {
+      beginSaveProfile()
     }
     // brightness: no separate action; the slider value is the action.
   }
@@ -296,12 +311,108 @@ Panel {
     root.enabledDisplayCount = parsed.enabledDisplayCount
   }
 
+  function updateProfiles(profilesJson) {
+    var parsed = Model.parseProfiles(profilesJson)
+    root.activeMonitorProfile = parsed.active
+    root.monitorProfiles = parsed.profiles
+  }
+
+  function beginSaveProfile() {
+    root.profileSaveOpen = true
+    root.profileSaveError = ""
+    Qt.callLater(function() {
+      profileNameField.text = ""
+      profileNameField.forceActiveFocus()
+    })
+  }
+
+  function cancelSaveProfile() {
+    root.profileSaveOpen = false
+    root.profileSaveError = ""
+    profileNameField.text = ""
+  }
+
+  function saveProfile() {
+    var name = String(profileNameField.text || "").trim()
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(name)) {
+      root.profileSaveError = "Use letters, numbers, . _ or - (max 64 characters)"
+      profileNameField.forceActiveFocus()
+      return
+    }
+    if (profileSaveProc.running) return
+    root.profileSaveError = ""
+    root.profileSaveOpen = false
+    profileSaveProc.command = ["omarchy-monitor-profile", "save", name]
+    profileSaveProc.running = true
+  }
+
+  function applyProfile(name) {
+    if (!name || profileProc.running) return
+    profileProc.command = ["omarchy-monitor-profile", "apply", name]
+    profileProc.running = true
+  }
+
+  function overwriteProfile(name) {
+    if (!name || profileSaveProc.running) return
+    root.deleteArmedName = ""
+    profileSaveProc.command = ["omarchy-monitor-profile", "save", name]
+    profileSaveProc.running = true
+  }
+
+  function deleteProfile(name) {
+    if (!name || profileDeleteProc.running) return
+    root.deleteArmedName = ""
+    profileDeleteProc.command = ["omarchy-monitor-profile", "remove", name]
+    profileDeleteProc.running = true
+  }
+
+  // x on a highlighted profile arms it; a second x deletes. Arming clears
+  // whenever the cursor leaves the row, same guard as the mouse buttons'
+  // deliberate-target model.
+  function deleteSelectedProfile() {
+    if (root.focusSection !== "profiles") return
+    if (selectedIndex < 0 || selectedIndex >= monitorProfiles.length) return
+    var profile = monitorProfiles[selectedIndex]
+    if (!profile) return
+    if (root.deleteArmedName === profile.name) deleteProfile(profile.name)
+    else root.deleteArmedName = profile.name
+  }
+
+  function focusMonitor(name) {
+    if (!name) return
+    root.pendingMonitorFocus = name
+    if (root.activeMonitorProfile !== "" && !profileDeactivateProc.running) {
+      profileDeactivateProc.running = true
+    } else {
+      root.runPendingDisplayToggle()
+    }
+  }
+
+  function runPendingDisplayToggle() {
+    var focus = root.pendingMonitorFocus
+    if (focus) {
+      root.pendingMonitorFocus = ""
+      actionProc.command = ["hyprctl", "eval",
+                            "hl.dispatch(hl.dsp.focus({ monitor = " + JSON.stringify(focus) + " }))"]
+      if (!actionProc.running) actionProc.running = true
+      return
+    }
+
+    var pending = root.pendingDisplayToggle
+    if (!pending) return
+    root.pendingDisplayToggle = null
+    actionProc.command = ["hyprctl", "keyword", "monitor", pending.name + (pending.enabled ? ",disable" : ",preferred,auto,auto")]
+    if (!actionProc.running) actionProc.running = true
+  }
+
   function toggleDisplay(name, enabled) {
     if (!name) return
     if (enabled && root.enabledDisplayCount <= 1) return
 
-    actionProc.command = ["hyprctl", "keyword", "monitor", name + (enabled ? ",disable" : ",preferred,auto,auto")]
-    if (!actionProc.running) actionProc.running = true
+    // A direct monitor toggle is an intentional departure from a saved
+    // profile, so stop reconnect recovery before changing the output.
+    root.pendingDisplayToggle = { name: name, enabled: enabled }
+    if (!profileDeactivateProc.running) profileDeactivateProc.running = true
   }
 
   function setScale(scale) {
@@ -365,6 +476,8 @@ Panel {
         selectedIndex = 0
       }
       cursorActive = false
+    } else {
+      root.deleteArmedName = ""
     }
   }
 
@@ -400,6 +513,7 @@ Panel {
         root.focusedMonitor = String(lines[5] || "").trim()
         root.monitorScale = root.normalizeScale(String(lines[6] || "").trim())
         root.updateDisplays(String(lines[7] || "[]").trim())
+        root.updateProfiles(String(lines[8] || "{}").trim())
       }
     }
   }
@@ -433,6 +547,31 @@ Panel {
     id: actionProc
     stdout: StdioCollector { waitForEnd: true }
     onRunningChanged: if (!running) root.refresh()
+  }
+
+  Process {
+    id: profileProc
+    stdout: StdioCollector { waitForEnd: true }
+    onRunningChanged: if (!running) root.refresh()
+  }
+
+  Process {
+    id: profileSaveProc
+    stdout: StdioCollector { waitForEnd: true }
+    onRunningChanged: if (!running) root.refresh()
+  }
+
+  Process {
+    id: profileDeleteProc
+    stdout: StdioCollector { waitForEnd: true }
+    onRunningChanged: if (!running) root.refresh()
+  }
+
+  Process {
+    id: profileDeactivateProc
+    command: ["omarchy-monitor-profile", "deactivate"]
+    stdout: StdioCollector { waitForEnd: true }
+    onRunningChanged: if (!running) root.runPendingDisplayToggle()
   }
 
   // Applies text size via the CLI, which rewrites the shell override file;
@@ -494,6 +633,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      blocked: root.profileSaveOpen
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
         if (dy !== 0) root.moveCursor(dy)
@@ -504,6 +644,7 @@ Panel {
         }
       }
       onActivateRequested: if (root.cursorActive) root.activateCursor()
+      onDeleteRequested: root.deleteSelectedProfile()
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -790,21 +931,180 @@ Panel {
             }
           }
 
-          // ---------- Monitors ----------
+          // ---------- Profiles ----------
           PanelSeparator {
-            visible: root.displays.length > 1
+            visible: true
             foreground: root.bar.foreground
           }
 
           Column {
             width: parent.width
             spacing: Style.space(10)
-            visible: root.displays.length > 1
+            visible: true
 
             PanelSectionHeader {
-              text: "DISPLAYS"
+              text: "PROFILES"
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
+            }
+
+            Repeater {
+              model: root.monitorProfiles
+
+              ProfileRow {
+                required property var modelData
+                required property int index
+
+                width: panelColumn.width
+                profile: modelData
+                rowIndex: index
+              }
+            }
+
+            CursorSurface {
+              id: profileSaveRow
+              width: parent.width
+              foreground: root.bar.foreground
+              fill: Style.hoverFillFor(root.bar.foreground, Color.accent)
+              currentFill: Style.selectedFillFor(root.bar.foreground, Color.accent)
+              hasCursor: root.cursorActive && root.focusSection === "profiles"
+                         && root.selectedIndex === root.monitorProfiles.length
+              onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(profileSaveRow)
+              implicitHeight: profileSaveContent.implicitHeight + Style.spacing.xl
+
+              Column {
+                id: profileSaveContent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: Style.space(6)
+                anchors.rightMargin: Style.space(6)
+                spacing: Style.space(3)
+
+                Item {
+                  width: parent.width
+                  height: Math.max(profileNameField.visible ? profileNameField.implicitHeight : profileSaveLabel.implicitHeight, Style.space(22))
+
+                  Text {
+                    id: profileSaveIcon
+                    text: "+"
+                    textFormat: Text.PlainText
+                    color: root.bar.foreground
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.title
+                    width: Style.space(22)
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+
+                  Text {
+                    id: profileSaveLabel
+                    visible: !root.profileSaveOpen
+                    text: "Save current layout"
+                    textFormat: Text.PlainText
+                    color: root.bar.foreground
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.body
+                    anchors.left: profileSaveIcon.right
+                    anchors.leftMargin: Style.space(8)
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+
+                  TextField {
+                    id: profileNameField
+                    visible: root.profileSaveOpen
+                    placeholderText: "Profile name"
+                    foreground: root.bar.foreground
+                    font.family: root.bar.fontFamily
+                    anchors.left: profileSaveIcon.right
+                    anchors.leftMargin: Style.space(8)
+                    anchors.right: profileSaveConfirm.left
+                    anchors.rightMargin: Style.space(6)
+                    anchors.verticalCenter: parent.verticalCenter
+                    onAccepted: root.saveProfile()
+                    Keys.onEscapePressed: {
+                      root.cancelSaveProfile()
+                      event.accepted = true
+                    }
+                  }
+
+                  PanelActionButton {
+                    id: profileSaveConfirm
+                    visible: root.profileSaveOpen
+                    iconText: "󰄬"
+                    tooltipText: "Save profile"
+                    foreground: root.bar.foreground
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    onClicked: root.saveProfile()
+                  }
+
+                  MouseArea {
+                    anchors.fill: parent
+                    visible: !root.profileSaveOpen
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onContainsMouseChanged: if (containsMouse && !root.reflowingText) {
+                      root.cursorActive = true
+                      root.focusSection = "profiles"
+                      root.selectedIndex = root.monitorProfiles.length
+                    }
+                    onClicked: root.beginSaveProfile()
+                  }
+                }
+
+                Text {
+                  visible: root.profileSaveOpen && root.profileSaveError !== ""
+                  text: root.profileSaveError
+                  textFormat: Text.PlainText
+                  color: root.bar.urgent
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.caption
+                  wrapMode: Text.Wrap
+                  width: parent.width
+                }
+              }
+            }
+          }
+
+          // ---------- Monitors ----------
+          PanelSeparator {
+            visible: root.displays.length > 0
+            foreground: root.bar.foreground
+          }
+
+          Column {
+            width: parent.width
+            spacing: Style.space(10)
+            visible: root.displays.length > 0
+
+            Item {
+              width: parent.width
+              implicitHeight: Math.max(displaysHeader.implicitHeight, displaysHint.implicitHeight)
+
+              PanelSectionHeader {
+                id: displaysHeader
+                text: "DISPLAYS"
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              Text {
+                id: displaysHint
+                text: root.displays.length > 1
+                      ? "Toggle displays · click 󰍺 to set primary"
+                      : "Only one monitor connected"
+                textFormat: Text.PlainText
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(6)
+                anchors.verticalCenter: parent.verticalCenter
+              }
             }
 
             Repeater {
@@ -870,7 +1170,7 @@ Panel {
     fill: Style.hoverFillFor(root.bar.foreground, Color.accent)
     currentFill: Style.selectedFillFor(root.bar.foreground, Color.accent)
     implicitHeight: monitorInner.implicitHeight + Style.spacing.xl
-    opacity: canToggle ? 1.0 : 0.45
+    opacity: 1.0
 
     Row {
       id: monitorInner
@@ -878,7 +1178,7 @@ Panel {
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
       anchors.leftMargin: Style.space(6)
-      anchors.rightMargin: Style.space(6)
+      anchors.rightMargin: Style.space(28)
       spacing: Style.space(8)
 
       Text {
@@ -891,26 +1191,38 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
       }
 
-      Text {
-        textFormat: Text.PlainText
-        text: monitorRow.display.name + (monitorRow.display.focused ? " · focused" : "")
-        color: root.bar.foreground
-        font.family: root.bar.fontFamily
-        font.pixelSize: Style.font.body
-        elide: Text.ElideRight
+      Column {
         width: parent.width - Style.space(22) - Style.space(14) - Style.space(16)
         anchors.verticalCenter: parent.verticalCenter
-      }
 
-      Text {
-        textFormat: Text.PlainText
-        text: monitorRow.display.enabled ? "󰄬" : ""
-        color: root.bar.foreground
-        font.family: root.bar.fontFamily
-        font.pixelSize: Style.font.subtitle
-        width: Style.space(14)
-        horizontalAlignment: Text.AlignRight
-        anchors.verticalCenter: parent.verticalCenter
+        Text {
+          textFormat: Text.PlainText
+          text: monitorRow.display ? monitorRow.display.name : ""
+          color: root.bar.foreground
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.body
+          elide: Text.ElideRight
+          width: parent.width
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          text: {
+            if (!monitorRow.display) return ""
+            var mode = monitorRow.display.width > 0
+                     ? monitorRow.display.width + "x" + monitorRow.display.height
+                       + (monitorRow.display.refreshRate > 0 ? " @" + monitorRow.display.refreshRate + "Hz" : "")
+                     : ""
+            if (monitorRow.display.focused) return "Primary · " + mode
+            if (monitorRow.display.enabled) return mode
+            return "Disconnected · click to enable"
+          }
+          color: Qt.darker(root.bar.foreground, 1.4)
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+          width: parent.width
+        }
       }
     }
 
@@ -924,6 +1236,143 @@ Panel {
         root.selectedIndex = monitorRow.rowIndex
       }
       onClicked: if (monitorRow.canToggle) root.toggleDisplay(monitorRow.display.name, monitorRow.display.enabled)
+    }
+
+    PanelActionButton {
+      visible: monitorRow.display && monitorRow.display.enabled
+      iconText: monitorRow.isFocused ? "󰄬" : "󰍺"
+      tooltipText: monitorRow.isFocused ? "Primary monitor" : "Make primary"
+      foreground: root.bar.foreground
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      onClicked: root.focusMonitor(monitorRow.display.name)
+    }
+  }
+
+  component ProfileRow: CursorSurface {
+    id: profileRow
+    required property var profile
+    required property int rowIndex
+
+    readonly property bool isActive: profile && profile.name === root.activeMonitorProfile
+    readonly property bool isArmed: profile && root.deleteArmedName === profile.name
+    readonly property bool showActions: hasCursor || rowMouse.containsMouse
+
+    hasCursor: root.cursorActive && root.focusSection === "profiles" && root.selectedIndex === rowIndex
+    onHasCursorChanged: {
+      if (hasCursor) root.ensureCursorVisible(profileRow)
+      else if (profileRow.isArmed) root.deleteArmedName = ""
+    }
+    current: isActive
+    foreground: root.bar.foreground
+    fill: Style.hoverFillFor(root.bar.foreground, Color.accent)
+    currentFill: Style.selectedFillFor(root.bar.foreground, Color.accent)
+    implicitHeight: profileInner.implicitHeight + Style.spacing.xl
+
+    Row {
+      id: profileInner
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      anchors.leftMargin: Style.space(6)
+      anchors.rightMargin: Style.space(50)
+      spacing: Style.space(8)
+
+      Text {
+        text: "󰍺"
+        textFormat: Text.PlainText
+        color: root.bar.foreground
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.title
+        width: Style.space(22)
+        horizontalAlignment: Text.AlignHCenter
+        anchors.verticalCenter: parent.verticalCenter
+      }
+
+      Column {
+        width: parent.width - Style.space(22) - Style.space(14) - Style.space(16)
+        anchors.verticalCenter: parent.verticalCenter
+
+        Text {
+          text: profileRow.profile.name
+          textFormat: Text.PlainText
+          color: root.bar.foreground
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.body
+          elide: Text.ElideRight
+          width: parent.width
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          text: {
+            if (profileRow.isArmed) return "Press again to delete"
+            var details = profileRow.profile.details || ""
+            var monitors = profileRow.profile.monitors || []
+            if (!details && monitors.length > 0) details = monitors.join("  +  ")
+            if (profileRow.profile.primary && monitors.length > 1)
+              details += (details ? " · " : "") + "primary " + profileRow.profile.primary
+            return details
+          }
+          color: profileRow.isArmed ? root.bar.urgent : Qt.darker(root.bar.foreground, 1.4)
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+          width: parent.width
+        }
+      }
+
+      Text {
+        text: profileRow.isActive && !profileRow.isArmed ? "󰄬" : ""
+        textFormat: Text.PlainText
+        color: root.bar.foreground
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.subtitle
+        width: Style.space(14)
+        horizontalAlignment: Text.AlignRight
+        anchors.verticalCenter: parent.verticalCenter
+      }
+    }
+
+    MouseArea {
+      id: rowMouse
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onContainsMouseChanged: if (containsMouse && !root.reflowingText) {
+        root.cursorActive = true
+        root.focusSection = "profiles"
+        root.selectedIndex = profileRow.rowIndex
+      }
+      onExited: if (profileRow.isArmed) root.deleteArmedName = ""
+      onClicked: root.applyProfile(profileRow.profile.name)
+    }
+
+    PanelActionButton {
+      id: profileDeleteButton
+      visible: profileRow.showActions
+      iconText: "󰅌"
+      tooltipText: profileRow.isArmed ? "Delete profile" : "Delete profile (click again)"
+      foreground: profileRow.isArmed ? root.bar.urgent : root.bar.foreground
+      hoverColor: root.bar.urgent
+      anchors.right: parent.right
+      anchors.rightMargin: Style.space(4)
+      anchors.verticalCenter: parent.verticalCenter
+      onClicked: {
+        if (profileRow.isArmed) root.deleteProfile(profileRow.profile.name)
+        else root.deleteArmedName = profileRow.profile.name
+      }
+    }
+
+    PanelActionButton {
+      id: profileOverwriteButton
+      visible: profileRow.showActions
+      iconText: "󱛅"
+      tooltipText: "Overwrite with current layout"
+      foreground: root.bar.foreground
+      anchors.right: profileDeleteButton.left
+      anchors.verticalCenter: parent.verticalCenter
+      onClicked: root.overwriteProfile(profileRow.profile.name)
     }
   }
 }
