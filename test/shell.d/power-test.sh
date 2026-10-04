@@ -31,8 +31,8 @@ assert(!power.chargeThresholdActive(slowCharge, false, states), 'power does not 
 assertEqual(power.modeLabel(slowCharge, false, states), 'Charging', 'power labels slow charging with a long estimate as charging')
 assertEqual(
   power.batteryIcon(slowCharge, false, states),
-  power.batteryIcon({ ...slowCharge, timeToFull: 120 }, false, states),
-  'power keeps the charging icon when the time-to-full estimate is long'
+  '󰂈',
+  'power shows the charging icon when the time-to-full estimate is long'
 )
 assert(!power.chargeThresholdActive({ ...slowCharge, timeToFull: 8 * 60 * 60 }, false, states), 'power does not infer a threshold at the eight-hour estimate boundary')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'power does not flag discharging as threshold')
