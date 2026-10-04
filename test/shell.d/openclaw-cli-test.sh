@@ -114,14 +114,14 @@ for tool in bash cat chmod cp cut env grep head ln mkdir mv readlink realpath rm
   ln -s "$(type -P "$tool")" "$test_tmp/tools/$tool"
 done
 run() {
-  HOME="$test_home" OMARCHY_TEST_ROOT="$test_tmp" PATH="$test_tmp/usr-bin:$mock_bin:$test_home/.local/bin:$test_tmp/tools" \
+  HOME="$test_home" OMARCHY_TEST_ROOT="$test_tmp" MISE_DATA_DIR='' XDG_DATA_HOME='' PATH="$test_tmp/usr-bin:$mock_bin:$test_home/.local/bin:$test_tmp/tools" \
     "$@" >"$test_tmp/output" 2>&1
 }
 
 # omarchy update runs migrations on a fixed system PATH, without
 # /usr/local/bin, mise's shims or ~/.local/bin.
 run_update() {
-  HOME="$test_home" OMARCHY_TEST_ROOT="$test_tmp" PATH="$mock_bin:$test_tmp/tools" \
+  HOME="$test_home" OMARCHY_TEST_ROOT="$test_tmp" MISE_DATA_DIR='' XDG_DATA_HOME='' PATH="$mock_bin:$test_tmp/tools" \
     "$@" >"$test_tmp/output" 2>&1
 }
 
@@ -219,22 +219,36 @@ run_update omarchy-install-openclaw-cli --check || fail "--check follows a finis
 rm "$command"
 run_update omarchy-install-openclaw-cli --check && fail "--check needs the command a session runs"
 run_update omarchy-install-openclaw-cli --now || fail "--now relinks the command on omarchy update's PATH" "$(cat "$test_tmp/output")"
-for place in mise-shims usr-local-bin; do
+# mise's data directory follows MISE_DATA_DIR, then XDG_DATA_HOME, and every
+# session's PATH has the default one whichever it is.
+for place in mise-shims mise-data-dir xdg-data-home default-shims-moved usr-local-bin; do
   new_home "update-path-$place"
-  if [[ $place == "mise-shims" ]]; then
-    other="$test_home/.local/share/mise/shims/openclaw"
-  else
-    other="$test_tmp/usr-local-bin/openclaw"
-  fi
+  data_dirs=()
+  case $place in
+    mise-shims) other="$test_home/.local/share/mise/shims/openclaw" ;;
+    mise-data-dir)
+      other="$test_home/tools/mise/shims/openclaw"
+      data_dirs=(MISE_DATA_DIR="$test_home/tools/mise")
+      ;;
+    xdg-data-home)
+      other="$test_home/data/mise/shims/openclaw"
+      data_dirs=(XDG_DATA_HOME="$test_home/data")
+      ;;
+    default-shims-moved)
+      other="$test_home/.local/share/mise/shims/openclaw"
+      data_dirs=(MISE_DATA_DIR="$test_home/tools/mise")
+      ;;
+    usr-local-bin) other="$test_tmp/usr-local-bin/openclaw" ;;
+  esac
   mkdir -p "${other%/*}"
   printf '#!/bin/bash\n' >"$other"
   chmod +x "$other"
-  run_update omarchy-install-openclaw-cli --now && fail "$other fails the install on omarchy update's PATH"
+  run_update env "${data_dirs[@]}" omarchy-install-openclaw-cli --now && fail "$other fails the install on omarchy update's PATH"
   grep -q "on PATH at $other" "$test_tmp/output" || fail "$other is named on omarchy update's PATH" "$(cat "$test_tmp/output")"
   [[ ! -e $test_home/.openclaw && ! -e $command && ! -s $events ]] || fail "$other is refused before anything is touched" "$(cat "$events")"
   rm "$other"
 done
-pass "mise's shims and /usr/local/bin are looked at on omarchy update's PATH, which leaves them out"
+pass "mise's shims, wherever its data directory is, and /usr/local/bin are looked at on omarchy update's PATH, which leaves them out"
 
 # The package is installed after the first check, so an openclaw it brings is
 # only seen by the last one.
