@@ -331,6 +331,8 @@ video_snapshot=$(snapshot_background_path "$CURRENT_THEME_PATH/backgrounds/old.m
 CHOSEN_THEME_BACKGROUND="$transition_home/disappeared.mp4"
 BACKGROUND_TRANSITION_SNAPSHOTS=false
 OLD_BACKGROUND_SNAPSHOT=""
+PREPARED_BACKGROUND=""
+PREPARED_BACKGROUND_SNAPSHOT=""
 colors_payload=""
 shell_payload=""
 shell_ipc() { :; }
