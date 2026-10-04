@@ -1,0 +1,409 @@
+#!/bin/bash
+
+# omarchy:summary=Scaffold a new shell plugin from a built-in starter
+# omarchy:group=plugin
+# omarchy:args=[name] [--kind bar-widget|overlay|both] [--from <built-in-id>] [--enable] [--git|--no-git] [--edit] [--yes]
+# omarchy:examples=omarchy plugin create my-plugin --kind bar-widget | omarchy plugin create "Quick Notes" --kind both --enable
+
+set -euo pipefail
+
+PLUGINS_DIR="$HOME/.config/omarchy/plugins"
+BAR_WIDGET_STARTER="omarchy.clock"
+OVERLAY_STARTER="omarchy.reminders"
+
+ASSUME_YES=0
+enable_after=""
+init_git=""
+edit_plugin=0
+plugin_name=""
+kind=""
+starter=""
+
+fail() {
+  echo "omarchy-plugin-create: $*" >&2
+  exit 1
+}
+
+interactive() {
+  [[ -t 0 && -t 1 ]]
+}
+
+usage() {
+  cat <<USAGE
+Usage: omarchy plugin create [name] [--kind bar-widget|overlay|both] [--from <built-in-id>] [--enable] [--git|--no-git] [--edit] [--yes]
+
+Scaffolds a new plugin in ~/.config/omarchy/plugins/<username>.<name>/ by
+copying a built-in plugin of the same kind and rewriting its manifest and id
+for you. The copy is a real, working plugin you can edit straight away; saving
+a file in it reloads the code in the running shell.
+
+  --kind    what the plugin provides: a bar widget, an overlay, or both
+  --from    start from a specific built-in instead of the default starter
+            (not available with --kind both, which draws on one of each)
+  --enable  enable the new plugin once it is created
+  --git     start a git repo in the new plugin (--no-git leaves it a plain folder)
+  --edit    open the new plugin in \$EDITOR once it is created
+  --yes     skip the prompts and take the defaults: a bar widget, not enabled,
+            no git repo; outside a terminal the defaults apply without it
+USAGE
+}
+
+ENABLE_PLACEMENT=()
+
+select_bar_widget_placement() {
+  local section
+  local default_section
+  interactive || return 0
+  (( ASSUME_YES )) && return 0
+  [[ $kind != "overlay" ]] || return 0
+
+  default_section=$(jq -r '.barWidget.defaultSection // "center"' "$target_dir/manifest.json")
+  section=$(printf '%s\n' left center right |
+    gum choose --header="Place $new_id in which bar section?" --selected "$default_section") || return 0
+  [[ -n $section ]] || return 0
+  ENABLE_PLACEMENT=(--section "$section")
+}
+
+starter_for_kind() {
+  case "$1" in
+  bar-widget) echo "$BAR_WIDGET_STARTER" ;;
+  overlay) echo "$OVERLAY_STARTER" ;;
+  esac
+}
+
+slugify() {
+  local slug
+  slug=$(tr '[:upper:]' '[:lower:]' <<<"$1")
+  slug=$(tr -cs 'a-z0-9' '-' <<<"$slug")
+  slug="${slug#-}"
+  slug="${slug%-}"
+  echo "$slug"
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+  --kind)
+    kind="${2:-}"
+    [[ -n $kind ]] || fail "--kind needs a value: bar-widget, overlay, or both"
+    shift 2
+    ;;
+  --from)
+    starter="${2:-}"
+    [[ -n $starter ]] || fail "--from needs a built-in plugin id"
+    shift 2
+    ;;
+  --enable)
+    enable_after=true
+    shift
+    ;;
+  --edit)
+    edit_plugin=1
+    shift
+    ;;
+  --git)
+    init_git=true
+    shift
+    ;;
+  --no-git)
+    init_git=false
+    shift
+    ;;
+  --yes | -y)
+    ASSUME_YES=1
+    shift
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  -*)
+    fail "unknown create option: $1"
+    ;;
+  *)
+    [[ -z $plugin_name ]] || fail "unexpected argument: $1"
+    plugin_name="$1"
+    shift
+    ;;
+  esac
+done
+
+if [[ -z $plugin_name ]]; then
+  interactive || fail "a plugin name is required (e.g. omarchy plugin create my-plugin)"
+  plugin_name=$(gum input --prompt "Plugin name: " --placeholder "my-plugin") || fail "cancelled"
+  [[ -n $plugin_name ]] || fail "a plugin name is required"
+fi
+
+if [[ -z $kind ]]; then
+  if interactive && (( ! ASSUME_YES )); then
+    kind=$(printf '%s\n' \
+      "A widget in the bar:bar-widget" \
+      "An overlay window:overlay" \
+      "Both a bar widget and an overlay:both" |
+      gum choose --header="What does this plugin provide?" --label-delimiter=":" \
+        --selected "A widget in the bar") || fail "cancelled"
+  else
+    kind="bar-widget"
+  fi
+fi
+
+case "$kind" in
+bar-widget | overlay | both) ;;
+*) fail "unknown kind '$kind'; expected bar-widget, overlay, or both" ;;
+esac
+
+[[ -z $starter || $kind != "both" ]] ||
+  fail "--from is not available with --kind both; create one kind at a time to pick its starter"
+
+slug=$(slugify "$plugin_name")
+[[ -n $slug ]] || fail "'$plugin_name' does not contain anything usable as a plugin id"
+new_id="${USER:-$(id -un)}.$slug"
+[[ $new_id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail "invalid plugin id '$new_id'"
+[[ $new_id != omarchy.* ]] || fail "plugin id '$new_id' uses the reserved omarchy.* namespace"
+
+catalog=$(omarchy-plugin-catalog) || fail "could not read the plugin catalog"
+existing=$(jq -r --arg id "$new_id" 'map(select(.id == $id))[0].manifestPath // empty' <<<"$catalog")
+[[ -z $existing ]] || fail "plugin id '$new_id' is already used by $existing"
+
+target_dir="$PLUGINS_DIR/$new_id"
+[[ ! -e $target_dir && ! -L $target_dir ]] || fail "$target_dir already exists"
+
+declare -A starter_dir=()
+declare -A starter_manifest=()
+
+resolve_starter() {
+  local want_kind="$1"
+  local id="$2"
+  local info
+
+  # A built-in with other kinds too (e.g. a service) depends on entry points
+  # the composed manifest would drop.
+  info=$(jq -r --arg id "$id" --arg kind "$want_kind" '
+    map(select(.firstParty and .id == $id and (.kinds // []) == [$kind]))[0]
+    | if . == null then empty else [.sourceDir, .manifestPath] | @tsv end
+  ' <<<"$catalog")
+  [[ -n $info ]] || fail "'$id' is not a built-in plugin that is only a $want_kind"
+
+  IFS=$'\t' read -r "starter_dir[$want_kind]" "starter_manifest[$want_kind]" <<<"$info"
+}
+
+kinds=()
+case "$kind" in
+bar-widget) kinds=(bar-widget) ;;
+overlay) kinds=(overlay) ;;
+both) kinds=(bar-widget overlay) ;;
+esac
+
+for want_kind in "${kinds[@]}"; do
+  if [[ -n $starter ]]; then
+    resolve_starter "$want_kind" "$starter"
+  else
+    resolve_starter "$want_kind" "$(starter_for_kind "$want_kind")"
+  fi
+done
+
+mkdir -p "$PLUGINS_DIR"
+stage=$(mktemp -d "$PLUGINS_DIR/.create.XXXXXX")
+create_complete=0
+cleanup() {
+  [[ -n ${stage:-} && -d ${stage:-} ]] && rm -rf "$stage"
+  (( create_complete )) || rm -rf "$target_dir"
+}
+trap cleanup EXIT
+
+# Built-ins that share a folder (the bar's own widgets) list their files
+# through entryPoints and clonePaths; copy only those.
+copy_entry() {
+  local source="$1"
+  local target="$2"
+
+  [[ $target != /* && $target != *".."* ]] || fail "invalid starter path: $target"
+  [[ ! -e "$stage/$target" ]] ||
+    fail "starters disagree about '$target'; create one kind at a time and merge them by hand"
+  mkdir -p "$(dirname "$stage/$target")"
+  cp -aL "$source" "$stage/$target"
+}
+
+copy_starter() {
+  local source_dir="$1"
+  local manifest="$2"
+  local entry source target
+
+  if [[ ${manifest##*/} == "manifest.json" ]]; then
+    while IFS= read -r entry; do
+      [[ $entry != "manifest.json" ]] || continue
+      copy_entry "$source_dir/$entry" "$entry"
+    done < <(ls -A "$source_dir")
+    return
+  fi
+
+  while IFS=$'\t' read -r source target; do
+    copy_entry "$source_dir/$source" "$target"
+  done < <(jq -r '
+    [
+      (.entryPoints[] | {source: ., target: .}),
+      (.omarchy.clonePaths[]? | {source: .source, target: .target})
+    ] | unique_by(.target)[] | [.source, .target] | @tsv
+  ' "$manifest")
+}
+
+for want_kind in "${kinds[@]}"; do
+  copy_starter "${starter_dir[$want_kind]}" "${starter_manifest[$want_kind]}"
+done
+
+# The starter's id is its QML module name and IPC target.
+for want_kind in "${kinds[@]}"; do
+  source_id=$(jq -r '.id' "${starter_manifest[$want_kind]}")
+  while IFS= read -r -d '' file; do
+    sed -i "s|${source_id//./\\.}|$new_id|g" "$file"
+  done < <(rg --files-with-matches --null --fixed-strings "$source_id" "$stage" || true)
+done
+
+entry_points="{}"
+bar_widget="null"
+keep_loaded=false
+description="$plugin_name plugin for the Omarchy shell"
+
+for want_kind in "${kinds[@]}"; do
+  manifest="${starter_manifest[$want_kind]}"
+  case "$want_kind" in
+  bar-widget)
+    entry_points=$(jq -c --argjson entryPoints "$entry_points" \
+      '$entryPoints + {barWidget: .entryPoints.barWidget}' "$manifest")
+    bar_widget=$(jq -c \
+      --arg name "$plugin_name" \
+      --arg description "$description" '
+        (if (.barWidget | type) == "object" then .barWidget else {} end)
+        | .displayName = $name
+        | .description = $description
+        | del(.settingsForm)
+        | del(.category)
+      ' "$manifest")
+    ;;
+  overlay)
+    entry_points=$(jq -c --argjson entryPoints "$entry_points" \
+      '$entryPoints + {overlay: .entryPoints.overlay}' "$manifest")
+    if jq -e '.keepLoaded == true' "$manifest" >/dev/null 2>&1; then
+      keep_loaded=true
+    fi
+    ;;
+  esac
+done
+
+jq -n \
+  --arg id "$new_id" \
+  --arg name "$plugin_name" \
+  --arg author "${USER:-$(id -un)}" \
+  --arg description "$description" \
+  --argjson kinds "$(printf '%s\n' "${kinds[@]}" | jq -R . | jq -sc .)" \
+  --argjson entryPoints "$entry_points" \
+  --argjson barWidget "$bar_widget" \
+  --argjson keepLoaded "$keep_loaded" '
+    {
+      schemaVersion: 1,
+      id: $id,
+      name: $name,
+      version: "0.1.0",
+      author: $author,
+      license: "MIT",
+      description: $description,
+      kinds: $kinds,
+      entryPoints: $entryPoints
+    }
+    + (if $keepLoaded then {keepLoaded: true} else {} end)
+    + (if $barWidget == null then {} else {barWidget: $barWidget} end)
+  ' >"$stage/manifest.json"
+
+starter_ids=()
+for want_kind in "${kinds[@]}"; do
+  starter_ids+=("\`$(jq -r '.id' "${starter_manifest[$want_kind]}")\`")
+done
+starter_list="${starter_ids[*]}"
+starter_list="${starter_list// / and } starter"
+(( ${#starter_ids[@]} == 1 )) || starter_list+="s"
+
+cat >"$stage/README.md" <<README
+# $plugin_name
+
+An Omarchy shell plugin (\`$new_id\`), scaffolded from the built-in
+$starter_list.
+
+## Developing
+
+The plugin lives in \`~/.config/omarchy/plugins/$new_id/\`, and the running
+shell reloads its code whenever you save a file in it.
+
+\`\`\`bash
+omarchy plugin enable $new_id    # turn it on
+omarchy plugin validate .        # check the manifest before publishing
+omarchy plugin disable $new_id   # turn it off again
+\`\`\`
+
+## Publishing
+
+A plugin is a git repo with a \`manifest.json\` at its root. Commit this folder
+and push it somewhere, and anyone can install it with:
+
+\`\`\`bash
+omarchy plugin add <git-url>
+\`\`\`
+README
+
+omarchy-plugin-validate "$stage" || fail "the scaffolded plugin did not validate"
+
+mv "$stage" "$target_dir"
+stage=""
+create_complete=1
+echo "Created $plugin_name ($new_id) in $target_dir"
+
+omarchy-shell shell rescanPlugins >/dev/null
+
+if [[ -z $enable_after ]]; then
+  if (( ASSUME_YES )) || ! interactive; then
+    enable_after=false
+  elif gum confirm "Enable '$new_id' now?"; then
+    enable_after=true
+  else
+    enable_after=false
+  fi
+fi
+
+if [[ $enable_after == true ]]; then
+  select_bar_widget_placement
+  discovered=0
+  for (( attempt = 0; attempt < 40; attempt++ )); do
+    if omarchy-plugin-list --json | jq -e --arg id "$new_id" 'any(.[]; .id == $id)' >/dev/null; then
+      discovered=1
+      break
+    fi
+    sleep 0.05
+  done
+  (( discovered )) || fail "plugin '$new_id' is not known"
+  omarchy-plugin-enable "$new_id" "${ENABLE_PLACEMENT[@]}"
+else
+  echo "Enable it later with: omarchy plugin enable $new_id"
+fi
+
+if [[ -z $init_git ]]; then
+  if (( ASSUME_YES )) || ! interactive; then
+    init_git=false
+  elif gum confirm "Initialize a git repo for '$new_id'?"; then
+    init_git=true
+  else
+    init_git=false
+  fi
+fi
+
+if [[ $init_git == true ]]; then
+  if git -C "$target_dir" init -q; then
+    echo "Started a git repo in $target_dir; nothing is committed yet"
+  else
+    echo "omarchy-plugin-create: could not start a git repo in $target_dir" >&2
+  fi
+else
+  echo "Start a repo later with: git -C $target_dir init"
+fi
+
+if (( edit_plugin )); then
+  # Word-splitting is deliberate: EDITOR may carry flags.
+  exec $EDITOR "$target_dir"
+fi
