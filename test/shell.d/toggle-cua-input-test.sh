@@ -115,11 +115,20 @@ for layout in dk us; do
   pass "cua input accepts $layout with remaps"
 done
 
-# Executing the shipped Lua must leave the user's keyboard settings intact.
+# Executing the shipped Lua must leave the user's keyboard settings intact, and
+# must not name the plugin's option before the module is loaded: at login that
+# is an unknown config key, which Hyprland reports as a config error.
 require_command lua
-lua - "$ROOT/default/hypr/toggles/cua-input.lua" <<'LUA'
+for loaded in false true; do
+  lua - "$ROOT/default/hypr/toggles/cua-input.lua" "$loaded" <<'LUA'
+local loaded = arg[2] == "true"
 local calls = 0
 hl = {
+  get_config = function(key)
+    assert(key == "plugin.cua.enabled")
+    if loaded then return false end
+    return nil
+  end,
   config = function(config)
     calls = calls + 1
     assert(config.input == nil, "toggle must not write human keyboard settings")
@@ -132,9 +141,11 @@ hl = {
   end,
 }
 dofile(arg[1])
-assert(calls == 1)
+assert(calls == (loaded and 1 or 0), "plugin option set " .. calls .. " times with the module " .. (loaded and "loaded" or "unloaded"))
 LUA
+done
 pass "cua input config preserves human keyboard settings"
+pass "cua input config names the plugin option only once the module is loaded"
 
 # Older packages cannot supply the runtime capability, even if a stub reports it.
 fresh_home
