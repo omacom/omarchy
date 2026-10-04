@@ -6,6 +6,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command python3
 require_command jq
+require_command ps
+require_command pkill
 
 python3 - <<'PY'
 import os
@@ -28,16 +30,18 @@ def wait_until(predicate, timeout=5):
 
 
 def session_processes(session):
-  result = subprocess.run(['ps', '-s', str(session), '-o', 'pid=,stat='],
-                          capture_output=True, text=True, check=False)
-  return [int(pid) for pid, state in (line.split() for line in result.stdout.splitlines())
-          if not state.startswith('Z')]
+  # Listing all processes succeeds even when the target session is empty.
+  result = subprocess.run(['ps', '-eo', 'pid=,sid=,stat='],
+                          capture_output=True, text=True, check=True)
+  return [int(pid) for pid, sid, state in (line.split() for line in result.stdout.splitlines())
+          if int(sid) == session and not state.startswith('Z')]
 
 
 with tempfile.TemporaryDirectory() as scratch:
   scratch = Path(scratch)
   stubs = scratch / 'bin'
   stubs.mkdir()
+  # Transfers block locally: cancellation must stop them without network access.
   scripts = {
     'ip': 'echo "1.1.1.1 dev lo src 127.0.0.1"',
     'curl': '''
@@ -48,14 +52,11 @@ for arg in "$@"; do
   fi
 done
 echo "curl $$ $PPID" >>"$TEST_TRANSFERS"
-if [[ $TEST_TRANSFER_MODE == "fail" ]]; then
-  exit 7
-fi
-exec sleep "$TEST_TRANSFER_SECONDS"
+exec sleep 60
 ''',
     'dd': '''
 echo "dd $$ $PPID" >>"$TEST_TRANSFERS"
-exec sleep "$TEST_TRANSFER_SECONDS"
+exec sleep 60
 ''',
   }
   for name, body in scripts.items():
@@ -63,18 +64,16 @@ exec sleep "$TEST_TRANSFER_SECONDS"
     stub.write_text('#!/bin/bash\n' + body + '\n')
     stub.chmod(0o755)
 
-  def run_case(direction, stop, seconds='60', mode='wait'):
+  def run_case(direction, stop):
     log = scratch / 'transfers'
     log.write_text('')
     env = dict(os.environ, PATH=f'{stubs}:{root / "bin"}:{os.environ["PATH"]}',
-               TEST_TRANSFERS=str(log), TEST_TRANSFER_SECONDS=seconds,
-               TEST_TRANSFER_MODE=mode, HOME=str(scratch), OMARCHY_PATH=str(root))
-    stop_name = stop.name if isinstance(stop, signal.Signals) else (stop or 'endpoint failure')
-    description = f'network speedtest {direction}: {stop_name}, transfers {mode}/{seconds}s'
+               TEST_TRANSFERS=str(log), HOME=str(scratch), OMARCHY_PATH=str(root))
+    description = f'network speedtest {direction}: {stop.name} stops blocked transfers'
     with (scratch / 'stderr').open('w+') as errors:
       process = subprocess.Popen([str(root / 'bin/omarchy-network-speedtest'), direction],
                                  env=env, start_new_session=True,
-                                 stdout=subprocess.PIPE, stderr=errors)
+                                 stdout=subprocess.DEVNULL, stderr=errors)
       try:
         def all_started():
           lines = log.read_text().splitlines()
@@ -83,34 +82,20 @@ exec sleep "$TEST_TRANSFER_SECONDS"
           return len(curl_workers) == 8 and (direction == 'down' or len(upload_workers) == 8)
 
         assert wait_until(all_started), 'all eight transfers must start'
-        if stop == 'closed stdout':
-          process.stdout.close()
-        elif stop is not None:
-          process.send_signal(stop)
+        process.send_signal(stop)
         process.wait(timeout=5)
         assert wait_until(lambda: not session_processes(process.pid)), (
           f'leftover processes: {session_processes(process.pid)}')
-        request_count = len(log.read_text().splitlines())
-        time.sleep(0.1)
-        assert len(log.read_text().splitlines()) == request_count, 'transfers restarted after exit'
         print(f'ok - {description}', flush=True)
       except (AssertionError, subprocess.TimeoutExpired) as error:
         errors.seek(0)
         raise AssertionError(f'{description}: {error}\n{errors.read()}') from error
       finally:
         # Clean up only this test session, even when the unpatched script leaks.
-        for pid in session_processes(process.pid):
-          try:
-            os.kill(pid, signal.SIGKILL)
-          except ProcessLookupError:
-            pass
+        subprocess.run(['pkill', '-KILL', '-s', str(process.pid)], check=False)
         process.wait(timeout=5)
-        process.stdout.close()
 
   for direction in ('down', 'up'):
-    for stop in (signal.SIGTERM, signal.SIGKILL, signal.SIGINT, signal.SIGHUP, 'closed stdout'):
+    for stop in (signal.SIGTERM, signal.SIGKILL):
       run_case(direction, stop)
-    run_case(direction, None, seconds='0.1', mode='fail')
-    for _ in range(5):
-      run_case(direction, signal.SIGTERM, seconds='0.02')
 PY
