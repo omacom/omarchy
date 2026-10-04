@@ -22,6 +22,14 @@ Item {
   property bool powerSaverActive: false
   property string passwordText: ""
   property bool syncingPasswordText: false
+  // Keyboard state that changes what a keystroke produces, shown as badges
+  // above the field so a wrong password is explained before it is retried.
+  // Lock keys and the layout come from the service, which polls Hyprland;
+  // held modifiers are tracked from this view's own key events.
+  property bool capsLockOn: false
+  property bool numLockOn: true
+  property string layoutLabel: ""
+  property int heldModifiers: 0
 
   readonly property string placeholderText: "Enter Password"
   readonly property int fieldWidth: 381
@@ -51,6 +59,56 @@ Item {
   signal passwordTextEdited(string password)
   signal clearFailureRequested()
   signal wakeRequested()
+  signal keyboardActivity()
+
+  readonly property int modifierMask: Qt.ShiftModifier | Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier
+
+  // Shift is the only one that is ordinary while typing; the rest mean the
+  // keystroke is not going into the password at all.
+  readonly property var stateBadges: {
+    var out = []
+    if (capsLockOn) out.push({ label: "CAPS LOCK", warn: true })
+    if (!numLockOn) out.push({ label: "NUM LOCK OFF", warn: true })
+    if (heldModifiers & Qt.ShiftModifier) out.push({ label: "SHIFT", warn: false })
+    if (heldModifiers & Qt.ControlModifier) out.push({ label: "CTRL", warn: true })
+    if (heldModifiers & Qt.AltModifier) out.push({ label: "ALT", warn: true })
+    if (heldModifiers & Qt.MetaModifier) out.push({ label: "SUPER", warn: true })
+    if (layoutLabel.length > 0) out.push({ label: layoutLabel.toUpperCase(), warn: true })
+    return out
+  }
+
+  // Which modifier a physical key is, by xkb keycode (evdev code + 8). The
+  // key Qt reports is not reliable for this: with shift:both_capslock_cancel
+  // in kb_options a Shift release arrives as Qt.Key_CapsLock with Shift still
+  // set in event.modifiers, so keying off event.key leaves SHIFT lit.
+  function modifierForKey(event) {
+    // Right Alt is AltGr on most layouts other than us, where it types
+    // password characters and is no more of a warning than Shift.
+    if (event.key === Qt.Key_AltGr) return 0
+    switch (event.nativeScanCode) {
+    case 50: case 62: return Qt.ShiftModifier
+    case 37: case 105: return Qt.ControlModifier
+    case 64: case 108: return Qt.AltModifier
+    case 133: case 134: return Qt.MetaModifier
+    }
+    if (event.key === Qt.Key_Shift) return Qt.ShiftModifier
+    if (event.key === Qt.Key_Control) return Qt.ControlModifier
+    if (event.key === Qt.Key_Alt) return Qt.AltModifier
+    if (event.key === Qt.Key_Meta || event.key === Qt.Key_Super_L || event.key === Qt.Key_Super_R) return Qt.MetaModifier
+    return 0
+  }
+
+  function trackModifiers(event, pressed) {
+    var own = modifierForKey(event)
+    if (own) {
+      heldModifiers = pressed ? (heldModifiers | own) : (heldModifiers & ~own)
+    } else {
+      // Any other key carries the true modifier state, which resyncs the
+      // badges if a modifier release was ever missed.
+      heldModifiers = event.modifiers & modifierMask
+    }
+    keyboardActivity()
+  }
 
   function forcePasswordFocus() {
     passwordInput.forceActiveFocus()
@@ -142,6 +200,45 @@ Item {
       onPositionChanged: root.wakeRequested()
     }
 
+    // Keyboard state badges, centered above the field. Hidden when there is
+    // nothing to say, so the stock lock screen looks exactly as before.
+    Row {
+      id: stateBadgeRow
+      objectName: "keyboardStateBadges"
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: inputField.top
+      anchors.bottomMargin: 14
+      spacing: 8
+      visible: root.stateBadges.length > 0
+
+      Repeater {
+        model: root.stateBadges
+
+        delegate: Rectangle {
+          required property var modelData
+          objectName: "keyboardStateBadge"
+          width: badgeText.implicitWidth + 22
+          height: badgeText.implicitHeight + 12
+          radius: Style.cornerRadius
+          color: Color.lock.background
+          border.width: 2
+          border.color: modelData.warn ? Color.lock.borderError : Color.lock.borderActive
+
+          Text {
+            id: badgeText
+            textFormat: Text.PlainText
+            anchors.centerIn: parent
+            text: modelData.label
+            color: modelData.warn ? Color.lock.textError : Color.lock.text
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body
+            font.bold: true
+            font.letterSpacing: 1
+          }
+        }
+      }
+    }
+
     BorderSurface {
       id: inputField
       width: root.fieldWidth
@@ -199,11 +296,17 @@ Item {
 
         Keys.onPressed: function(event) {
           root.wakeRequested()
+          root.trackModifiers(event, true)
           if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)) {
             root.passwordTextEdited("")
             event.accepted = true
           }
         }
+
+        Keys.onReleased: function(event) { root.trackModifiers(event, false) }
+
+        // A modifier released while the field is unfocused would stay lit.
+        onActiveFocusChanged: if (!activeFocus) root.heldModifiers = 0
       }
 
       Text {
