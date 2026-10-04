@@ -29,13 +29,17 @@ fi
 # stream down to the sink underneath.
 downstream="$(pactl list sink-inputs 2>/dev/null |
   awk -v virt="$sink" '
+    BEGIN {
+      output = virt
+      sub(/^effect_input\./, "effect_output.", output)
+    }
     /^Sink Input #/ {target = ""}
     /^[[:space:]]*Sink:/ {target = $2}
     /node\.name = / {
       name = $0
       sub(/.*node\.name = "/, "", name)
       sub(/"$/, "", name)
-      if (index(name, virt) == 1 && target != "") {print target; exit}
+      if ((name == output || index(name, virt) == 1) && target != "") {print target; exit}
     }
     /application\.name = "EasyEffects"/ {
       if (virt == "easyeffects_sink" && target != "") {print target; exit}

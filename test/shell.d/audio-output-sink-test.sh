@@ -104,3 +104,50 @@ Sink Input #42
 INPUTS
 [[ $(resolve) == "$physical" ]] || fail "a filter-chain tuning still resolves through its stream"
 pass "filter-chain tuning resolves through its stream"
+
+# The shipped tuning uses an underscore before its output stream suffix.
+reset_scenario
+printf '%s\n' omarchy_speaker_tuning >"$test_home/data/default-sink"
+printf 'Sink Input #42\n  Sink: 267\n  node.name = "omarchy_speaker_tuning_output"\n' >"$test_home/data/sink-inputs"
+[[ $(resolve) == "$physical" ]] || fail "the shipped tuning output still resolves through its stream"
+pass "shipped tuning output resolves through its stream"
+
+# Keep custom stream suffixes that the existing prefix rule already handles.
+printf 'Sink Input #42\n  Sink: 267\n  node.name = "omarchy_speaker_tuning-playback"\n' >"$test_home/data/sink-inputs"
+[[ $(resolve) == "$physical" ]] || fail "custom legacy tuning suffixes still resolve"
+pass "custom legacy tuning suffixes still resolve"
+
+# Reproduce the reported input/output naming pair and downstream sink ID.
+reset_scenario
+filter=effect_input.Dolby_Balanced
+printf '%s\n' "$filter" >"$test_home/data/default-sink"
+printf '68\t%s\tPipeWire\ts32le 4ch 44100Hz\tRUNNING\n' "$physical" >"$test_home/data/sinks"
+printf 'Sink Input #42\n  Sink: 68\n  node.name = "effect_output.Dolby_Balanced"\n' >"$test_home/data/sink-inputs"
+[[ $(resolve) == "$physical" ]] || fail "the reported effect_input/effect_output pair resolves downstream"
+pass "reported effect_input/effect_output pair resolves downstream"
+
+# An explicitly requested filter resolves even when another output is default.
+printf '%s\n' "$headphones" >"$test_home/data/default-sink"
+[[ $(resolve "$filter") == "$physical" ]] || fail "an explicit filter resolves independently of the default"
+pass "explicit filter resolves independently of the default"
+printf '%s\n' "$filter" >"$test_home/data/default-sink"
+
+# An effect_input sink can also use a legacy prefix-compatible output name.
+printf 'Sink Input #42\n  Sink: 68\n  node.name = "effect_input.Dolby_Balanced.playback"\n' >"$test_home/data/sink-inputs"
+[[ $(resolve) == "$physical" ]] || fail "effect_input sinks preserve prefix-compatible outputs"
+pass "effect_input sinks preserve prefix-compatible outputs"
+
+# A similarly named output must not win just because it appears first.
+printf '301\t%s\tPipeWire\ts16le 2ch 48000Hz\tRUNNING\n' "$headphones" >>"$test_home/data/sinks"
+printf 'Sink Input #41\n  Sink: 301\n  node.name = "effect_output.Dolby_Balanced2"\nSink Input #42\n  Sink: 68\n  node.name = "effect_output.Dolby_Balanced"\n' >"$test_home/data/sink-inputs"
+[[ $(resolve) == "$physical" ]] || fail "a filter output matches the complete suffix"
+pass "filter output matches the complete suffix"
+
+printf 'Sink Input #41\n  Sink: 301\n  node.name = "effect_output.Dolby_Balanced2"\n' >"$test_home/data/sink-inputs"
+[[ $(resolve) == "$filter" ]] || fail "a filter with no exact output falls back to itself"
+pass "filter with no exact output falls back to itself"
+
+# A stale sink ID must not turn into a different output.
+printf 'Sink Input #42\n  Sink: 999\n  node.name = "effect_output.Dolby_Balanced"\n' >"$test_home/data/sink-inputs"
+[[ $(resolve) == "$filter" ]] || fail "a missing downstream sink falls back to the filter"
+pass "missing downstream sink falls back to the filter"
