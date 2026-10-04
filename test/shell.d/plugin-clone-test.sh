@@ -159,12 +159,26 @@ rm -rf "$TMPDIR/home/.config/omarchy/plugins/tester.weather"
 
 mkdir -p "$TMPDIR/home/.config/omarchy/plugins/acme.example"
 cat >"$TMPDIR/home/.config/omarchy/plugins/acme.example/manifest.json" <<'JSON'
-{"id":"acme.example","name":"Example","kinds":["bar-widget"],"entryPoints":{"barWidget":"Widget.qml"}}
+{"schemaVersion":1,"id":"acme.example","name":"Example","version":"1","kinds":["bar-widget"],"entryPoints":{"barWidget":"Widget.qml"}}
 JSON
 if clone_plugin acme.example >/dev/null 2>&1; then
   fail "clone accepts a user plugin"
 fi
 pass "clone is limited to built-in plugins"
+
+data_plugin="$TMPDIR/data/omarchy/shell/plugins/omacom-example"
+mkdir -p "$data_plugin"
+cat >"$data_plugin/manifest.json" <<'JSON'
+{"schemaVersion":1,"id":"omacom.example","name":"Omacom Example","version":"1","kinds":["bar-widget"],"entryPoints":{"barWidget":"Widget.qml"}}
+JSON
+printf 'import QtQuick\nItem {}\n' >"$data_plugin/Widget.qml"
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" XDG_DATA_DIRS="$TMPDIR/data" \
+  "$ROOT/bin/omarchy-plugin-catalog" | jq -e 'any(.[]; .id == "omacom.example" and .firstParty)' >/dev/null ||
+  fail "fixture is selected as a trusted packaged plugin"
+if XDG_DATA_DIRS="$TMPDIR/data" clone_plugin omacom.example >/dev/null 2>&1; then
+  fail "clone accepts a packaged Omacom plugin as a built-in source"
+fi
+pass "clone accepts only omarchy.* built-ins as sources"
 
 if clone_plugin omarchy.weather custom.weather >/dev/null 2>&1; then
   fail "clone accepts a custom id"

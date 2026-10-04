@@ -118,7 +118,7 @@ done
 [[ -n $source_id ]] || fail "clone source is required"
 
 source_info=$(omarchy-plugin-catalog | jq -r --arg id "$source_id" '
-    .[] | select(.firstParty and .id == $id)
+    .[] | select(.firstParty and (.id | startswith("omarchy.")) and .id == $id)
     | [
         .sourceDir,
         .manifestPath,
