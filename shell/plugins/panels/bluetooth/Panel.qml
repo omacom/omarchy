@@ -30,12 +30,14 @@ Panel {
   // it off the bar the moment Bluetooth was switched off, and the switch was the
   // only way back that wasn't a terminal. rfkill still lists a bluetooth switch
   // in that state — the block is the switch — which is what separates the two.
-  property bool radioBlocked: false
-
+  //
   // There is Bluetooth hardware here, whether or not BlueZ currently owns an
-  // adapter for it. What the widget shows keys on these rather than on the
-  // adapter, so a radio that is off reads as off instead of as absent.
-  readonly property bool radioPresent: adapter !== null || radioBlocked
+  // adapter for it. What the widget shows keys on this rather than on the
+  // adapter, so a radio that is off reads as off instead of as absent. Written
+  // only below, never bound to the adapter: when the adapter leaves, it keeps
+  // its last value until rfkill has answered, so the widget does not blink off
+  // the bar in between, whoever set the block.
+  property bool radioPresent: false
   readonly property bool radioEnabled: adapter !== null && adapter.enabled
 
   // True while this instance owes BlueZ a StopDiscovery: set when it starts
@@ -649,14 +651,7 @@ Panel {
   // would re-read the old state and undo the first.
   function toggleBluetooth() {
     if (!radioPresent) return
-
-    // The adapter can leave D-Bus before is-blocked could answer for it, and a
-    // widget that blinks off the bar in that gap is the whole bug. Taking the
-    // block just asked for as read holds the off state on screen; the query
-    // below corrects it if the block never landed.
-    var turningOff = radioEnabled
-    if (turningOff) radioBlocked = true
-    Quickshell.execDetached(["omarchy-bluetooth-power", turningOff ? "off" : "on"])
+    Quickshell.execDetached(["omarchy-bluetooth-power", radioEnabled ? "off" : "on"])
   }
 
   // Asked only while BlueZ has no adapter: with one present, its own Powered
@@ -666,16 +661,19 @@ Panel {
   Process {
     id: blockedQuery
     command: ["omarchy-bluetooth-power", "is-blocked"]
-    onExited: function(exitCode) { root.radioBlocked = exitCode === 0 }
+    onExited: function(exitCode) { root.radioPresent = root.adapter !== null || exitCode === 0 }
   }
 
   onAdapterChanged: {
-    if (adapter !== null) radioBlocked = false
+    if (adapter !== null) radioPresent = true
     else blockedQuery.running = true
   }
 
   // A radio already blocked when the shell starts never fires the change above.
-  Component.onCompleted: if (adapter === null) blockedQuery.running = true
+  Component.onCompleted: {
+    radioPresent = adapter !== null
+    if (adapter === null) blockedQuery.running = true
+  }
 
   ShellIpc {
     target: "omarchy.bluetooth"

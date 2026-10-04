@@ -17,7 +17,7 @@ assert(/IpcHandler[\s\S]*?function toggleBluetooth\(\) \{ root\.toggleBluetooth\
 assert(/manageIpc: false/.test(panelSource), 'bluetooth owns its IPC handler so it can extend the target methods')
 
 // Writing adapter.enabled sets BlueZ Powered, which does not survive a reboot.
-assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", turningOff \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
+assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", radioEnabled \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
 assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the adapter power state directly')
 
 // The block takes the adapter off D-Bus wherever it cuts power to the controller
@@ -26,7 +26,7 @@ assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the ada
 // the adapter left the bar the moment Bluetooth was switched off, carrying its
 // own on switch with it and leaving no way back that wasn't a terminal.
 assert(/\n  visible: radioPresent\n/.test(panelSource), 'bluetooth keeps the bar widget on screen while the radio is blocked')
-assert(/readonly property bool radioPresent: adapter !== null \|\| radioBlocked/.test(panelSource), 'bluetooth counts a blocked radio as hardware that is present')
+assert(/onExited: function\(exitCode\) \{ root\.radioPresent = root\.adapter !== null \|\| exitCode === 0 \}/.test(panelSource), 'bluetooth counts a blocked radio as hardware that is present')
 assert(/readonly property bool radioEnabled: adapter !== null && adapter\.enabled/.test(panelSource), 'bluetooth still reads on/off from the adapter whenever there is one')
 assert(/visible: root\.radioPresent[\s\S]{0,120}checked: root\.radioEnabled/.test(panelSource), 'bluetooth leaves the power switch on screen and usable while the radio is off')
 
@@ -34,8 +34,14 @@ assert(/visible: root\.radioPresent[\s\S]{0,120}checked: root\.radioEnabled/.tes
 // when BlueZ has nothing to say: a present adapter already carries the state.
 assert(/command: \["omarchy-bluetooth-power", "is-blocked"\]/.test(panelSource), 'bluetooth asks rfkill what an absent adapter means')
 assert(/onAdapterChanged: \{[\s\S]{0,200}blockedQuery\.running = true/.test(panelSource), 'bluetooth re-reads the block when the adapter disappears')
-assert(/Component\.onCompleted: if \(adapter === null\) blockedQuery\.running = true/.test(panelSource), 'bluetooth reads the block at startup for a radio already off')
-assert(/onAdapterChanged: \{\s*\n\s*if \(adapter !== null\) radioBlocked = false/.test(panelSource), 'bluetooth drops the blocked flag as soon as an adapter is back')
+assert(/Component\.onCompleted: \{[\s\S]{0,80}if \(adapter === null\) blockedQuery\.running = true/.test(panelSource), 'bluetooth reads the block at startup for a radio already off')
+assert(/onAdapterChanged: \{\s*\n\s*if \(adapter !== null\) radioPresent = true/.test(panelSource), 'bluetooth shows the widget as soon as an adapter is back')
+
+// The adapter leaves D-Bus a few milliseconds before rfkill can answer for it.
+// Bound to the adapter, presence dropped in that gap and the widget blinked off
+// the bar on every turn-off, from the panel or from omarchy-bluetooth-power off.
+assert(/\n  property bool radioPresent: false\n/.test(panelSource), 'bluetooth holds the widget on the bar until rfkill has answered')
+assert(!/radioPresent: adapter/.test(panelSource), 'bluetooth never binds widget presence to the adapter')
 
 // Discovery is a BlueZ session that nothing ends at panel close: it persists
 // until StopDiscovery or until quickshell's D-Bus connection drops with the
