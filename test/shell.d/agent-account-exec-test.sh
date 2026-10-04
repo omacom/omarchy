@@ -31,8 +31,12 @@ if (($#)); then
 fi
 if [[ ${OMARCHY_TEST_SWITCH_ACCOUNT:-} == "yes" ]]; then
   unset OMARCHY_TEST_SWITCH_ACCOUNT
-  omarchy-agent-account-state use "${0##*/}" side >/dev/null
-  "${0##*/}"
+  omarchy-agent-account-state use "${0##*/}" "${OMARCHY_TEST_SWITCH_TO:-side}" >/dev/null
+  if [[ ${OMARCHY_TEST_NEW_SESSION:-} == "yes" ]]; then
+    omarchy-agent --inline
+  else
+    "${0##*/}"
+  fi
 fi
 if [[ -n ${OMARCHY_TEST_AGENT_CHILD:-} ]]; then
   child=$OMARCHY_TEST_AGENT_CHILD
@@ -93,6 +97,27 @@ for provider in claude codex grok; do
   [[ $output == $'default\ndefault' ]] || fail "$provider Main sessions keep their account after a switch" "$output"
   pass "$provider Main sessions keep their account after a switch"
 
+  mkdir -p "$account_test_home/.config/omarchy/defaults"
+  printf '%s\n' "$provider" >"$account_test_home/.config/omarchy/defaults/agent"
+  select_account "$provider" main
+  output=$(run_isolated env OMARCHY_TEST_SWITCH_ACCOUNT=yes OMARCHY_TEST_NEW_SESSION=yes "$provider")
+  [[ $(sed -n '2p' <<<"$output") == "$account_dir" ]] || fail "$provider new sessions follow a switch from Main" "$output"
+  pass "$provider new sessions follow a switch from Main"
+
+  output=$(run_isolated env OMARCHY_TEST_SWITCH_ACCOUNT=yes OMARCHY_TEST_SWITCH_TO=main OMARCHY_TEST_NEW_SESSION=yes "$provider")
+  [[ $(sed -n '2p' <<<"$output") == default ]] || fail "$provider new sessions follow a switch to Main" "$output"
+  pass "$provider new sessions follow a switch to Main"
+
+  select_account "$provider" side
+  output=$(run_isolated env OMARCHY_TEST_SWITCH_ACCOUNT=yes OMARCHY_TEST_SWITCH_TO=main "$provider")
+  [[ $output == "$(printf '%s\n' "$account_dir" "$account_dir")" ]] || fail "$provider side sessions keep their account after a switch" "$output"
+  pass "$provider side sessions keep their account after a switch"
+
+  output=$(run_isolated env "OMARCHY_AGENT_${provider^^}_HOME=" "$account_env=/explicit/account" omarchy-agent --inline)
+  [[ ${output%%$'\n'*} == /explicit/account ]] || fail "$provider new sessions preserve explicit account overrides" "$output"
+  pass "$provider new sessions preserve explicit account overrides"
+
+  select_account "$provider" side
   output=$(run_isolated omarchy-agent-account-add --reauth :primary "$provider" </dev/null)
   grep -Fxq default <<<"$output" || fail "$provider primary reauthentication bypasses the active side account" "$output"
   pass "$provider primary reauthentication bypasses the active side account"
