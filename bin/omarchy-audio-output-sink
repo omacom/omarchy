@@ -39,10 +39,15 @@ downstream="$(pactl list sink-inputs 2>/dev/null |
       name = $0
       sub(/.*node\.name = "/, "", name)
       sub(/"$/, "", name)
-      if ((name == output || index(name, virt) == 1) && target != "") {print target; exit}
+      if (target != "" && (name == output || (output == virt && index(name, virt) == 1))) {selected = target; exit}
+      if (target != "" && fallback == "" && index(name, virt) == 1) fallback = target
     }
     /application\.name = "EasyEffects"/ {
-      if (virt == "easyeffects_sink" && target != "") {print target; exit}
+      if (virt == "easyeffects_sink" && target != "") {selected = target; exit}
+    }
+    END {
+      if (selected != "") print selected
+      else if (fallback != "") print fallback
     }')"
 
 if [[ -n $downstream ]]; then

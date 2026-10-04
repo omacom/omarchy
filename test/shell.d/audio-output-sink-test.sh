@@ -143,6 +143,15 @@ printf 'Sink Input #41\n  Sink: 301\n  node.name = "effect_output.Dolby_Balanced
 [[ $(resolve) == "$physical" ]] || fail "a filter output matches the complete suffix"
 pass "filter output matches the complete suffix"
 
+# The exact paired output wins over an earlier competing legacy prefix.
+printf 'Sink Input #41\n  Sink: 301\n  node.name = "effect_input.Dolby_Balanced2.playback"\nSink Input #42\n  Sink: 68\n  node.name = "effect_output.Dolby_Balanced"\n' >"$test_home/data/sink-inputs"
+[[ $(resolve) == "$physical" ]] || fail "the exact output wins over a competing legacy prefix"
+pass "exact output wins over a competing legacy prefix"
+
+printf 'Sink Input #41\n  Sink: 301\n  node.name = "effect_input.Dolby_Balanced.playback"\nSink Input #42\n  Sink: 68\n  node.name = "effect_output.Dolby_Balanced"\n' >"$test_home/data/sink-inputs"
+[[ $(resolve) == "$physical" ]] || fail "the exact output wins over a valid legacy fallback"
+pass "exact output wins over a valid legacy fallback"
+
 printf 'Sink Input #41\n  Sink: 301\n  node.name = "effect_output.Dolby_Balanced2"\n' >"$test_home/data/sink-inputs"
 [[ $(resolve) == "$filter" ]] || fail "a filter with no exact output falls back to itself"
 pass "filter with no exact output falls back to itself"
