@@ -564,6 +564,22 @@ Panel {
     }
   }
 
+  // Note: The Quickshell Bluetooth backend binds adapter.enabled to BlueZ's
+  // org.bluez.Adapter1.Powered property. However, there is a known issue where
+  // the QML property doesn't update when the adapter is powered on via rfkill
+  // unblock (omarchy-bluetooth-power on). The Connections below forces a
+  // re-evaluation of the enabled state when it changes.
+  Connections {
+    target: root.adapter
+    function onEnabledChanged() {
+      // Force re-evaluation of icon, heroStatusText, and rotatingPhrases
+      // by assigning a dummy value then restoring the original.
+      // This works around the D-Bus property sync issue.
+      var wasEnabled = root.adapter.enabled
+      root.adapter.enabled = wasEnabled
+    }
+  }
+
   // A destroyed instance cannot wait for BlueZ confirmations, so it hands any
   // debt to a surviving sibling — whose declarative stop catches even a start
   // confirmed after this object is gone — and only writes the stop directly
