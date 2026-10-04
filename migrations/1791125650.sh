@@ -18,5 +18,6 @@ fi
 
 if [[ -f $stop_timeout_src && ! -e $stop_timeout_dst ]]; then
   sudo install -Dm644 "$stop_timeout_src" "$stop_timeout_dst"
-  sudo systemctl daemon-reload
 fi
+
+[[ ! -f $stop_timeout_dst ]] || sudo systemctl daemon-reload

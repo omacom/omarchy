@@ -23,6 +23,7 @@ reload_log="$TMPDIR/systemctl-calls"
 cat >"$stub_bin/systemctl" <<STUB
 #!/bin/bash
 printf '%s\n' "\$*" >>"$reload_log"
+exit "\${FAIL_RELOAD:-0}"
 STUB
 chmod +x "$stub_bin/systemctl"
 
@@ -43,8 +44,7 @@ run_migration() {
     OMARCHY_FPRINTD_STOP_TIMEOUT_SRC="$dropin_src" \
     OMARCHY_FPRINTD_STOP_TIMEOUT_DST="$dropin_dst" \
     OMARCHY_LOCK_FINGERPRINT_PAM="$lock_pam" \
-    bash -euo pipefail "$migration" >/dev/null ||
-    fail "migration exits clean"
+    bash -euo pipefail "$migration" >/dev/null
 }
 
 # The migration exits clean when its source is missing, so a hook moved
@@ -76,15 +76,24 @@ pass "migration installs the hook, executable"
 grep -qx "daemon-reload" "$reload_log" || fail "migration reloads systemd after installing the drop-in" "calls: $(<"$reload_log")"
 pass "migration installs the stop-timeout drop-in and reloads systemd"
 
-# Running twice must not fail (both now exist), must not touch them, and has
-# nothing to reload.
+rm -f "$dropin_dst"
+: >"$reload_log"
+if FAIL_RELOAD=1 run_migration; then
+  fail "migration remains pending when daemon-reload fails"
+fi
+[[ -f $dropin_dst ]] || fail "reload failure occurs after the drop-in is installed"
+run_migration
+[[ $(grep -c '^daemon-reload$' "$reload_log") == 2 ]] || fail "migration retries reload even when the drop-in already exists"
+pass "migration retries a failed reload after installing the drop-in"
+
+# Existing files may precede an interrupted reload; preserve them and reload.
 printf 'sentinel\n' >>"$dst"
 printf '# sentinel\n' >>"$dropin_dst"
 : >"$reload_log"
 run_migration
 grep -q sentinel "$dst" || fail "migration leaves an existing hook alone"
 grep -q sentinel "$dropin_dst" || fail "migration leaves an existing drop-in alone"
-[[ ! -s $reload_log ]] || fail "migration does not reload systemd when nothing changed" "calls: $(<"$reload_log")"
+grep -qx "daemon-reload" "$reload_log" || fail "migration reloads existing configuration before completing" "calls: $(<"$reload_log")"
 pass "migration leaves existing files alone"
 
 # An unnumbered drop-in may belong to the administrator; never replace it.
