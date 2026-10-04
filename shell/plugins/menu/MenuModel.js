@@ -10,6 +10,24 @@ function normalizeAliases(value) {
   return []
 }
 
+// A provider is either the name of one the shell defines or an extension's own
+// object: a `command` printing `label\tvalue\tcurrent\tdescription` lines and
+// an `action` run with `{value}` replaced by the chosen row's quoted value.
+// Anything else is dropped rather than leaving a submenu that can never fill.
+function normalizeProvider(value) {
+  if (typeof value === "string") return value
+  if (!value || typeof value !== "object") return ""
+  if (typeof value.command !== "string" || !value.command.trim()) return ""
+  if (typeof value.action !== "string" || value.action.indexOf("{value}") < 0) return ""
+
+  return {
+    command: value.command,
+    action: value.action,
+    icon: typeof value.icon === "string" ? value.icon : "",
+    volatile: value.volatile === true
+  }
+}
+
 function normalizeItem(id, raw) {
   var value = raw || {}
   var aliases = normalizeAliases(value.aliases)
@@ -31,7 +49,7 @@ function normalizeItem(id, raw) {
     target: value.target || "",
     description: value.description || "",
     action: value.action || "",
-    provider: value.provider || "",
+    provider: normalizeProvider(value.provider),
     aliases: aliases,
     when: value.when || "",
     checked: value.checked || "",
@@ -378,7 +396,9 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
     path: pathFor(items, entry.id),
     childCount: (entry.kind === "menu" || entry.kind === "link") ? childCount(items, itemOrder, target) : 0,
     action: entry.action || "",
-    provider: entry.provider || "",
+    // The display model's roles are typed, so an extension's provider object
+    // is shown as a marker string rather than breaking the row's insertion.
+    provider: typeof entry.provider === "string" ? entry.provider : (entry.provider ? "extension" : ""),
     score: score || 0,
     section: section || ""
   }

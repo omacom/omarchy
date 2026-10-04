@@ -100,8 +100,9 @@ to remove. `menu-test.sh` enforces the Install side of this convention.
 ## Providers
 
 A submenu with `provider: "name"` gets its rows at runtime instead of from
-JSONC. The names are defined by the shell, not the menu file — an extension
-can point a submenu at an existing provider but cannot declare a new one:
+JSONC. The names below are defined by the shell; an extension can point a
+submenu at one of them or declare a provider of its own (see Extension
+providers):
 
 - `apps` is QML-native: rows come from the shared AppLibrary (desktop
   entries), carrying image icons, launch feedback, and uninstall support like
@@ -110,14 +111,28 @@ can point a submenu at an existing provider but cannot declare a new one:
   `Keywords=system;...`, and SUPER+ESCAPE must still open the system menu).
 - `fonts` and `power-profiles` are bash one-liners in the `providers` map in
   `Menu.qml`. The contract is one tab-delimited line per row:
-  `label\tvalue\tcurrent`. The row whose value equals `current` gets the ✓
+  `label\tvalue\tcurrent\tdescription`, with the description optional. The row whose value equals `current` gets the ✓
   icon, and selection runs the spec's `actionFor(value)`. Row ids are
   `<menuId>.<slugify(value)>`, with a `-` appended on collision so two values
   that slugify alike cannot silently drop a row.
 
 A provider marked `volatile` re-runs every time its submenu is entered — a
-font installed since the shell started shows up without a restart — but not
-on search keystrokes, which would restart the same enumeration per key.
+font installed since the shell started shows up without a restart — and on the
+first search after the menu opens, since search reaches submenus that were
+never entered. It does not re-run on later keystrokes, which would restart the
+same enumeration per key.
+
+### Extension providers
+
+An extension declares its own provider as an object instead of a name. It holds what a `providers` map entry holds, in JSONC:
+
+```jsonc
+"notes": {"icon": "󰎞", "label": "Notes", "provider": {"command": "ls ~/notes", "action": "omarchy-launch-editor ~/notes/{value}", "volatile": true}}
+```
+
+`command` prints rows in the same `label\tvalue\tcurrent\tdescription` contract, and `action` runs with every `{value}` replaced by the chosen row's value, shell-quoted. `icon` and `volatile` are optional. `normalizeProvider` in `MenuModel.js` drops an object without a `command`, or whose `action` never uses `{value}`, so a malformed entry leaves an empty submenu rather than rows that all run the same thing. This opens no new trust boundary: the same file already runs shell through `action`, `when` and `checked`.
+
+Rows from a provider are searchable from the root, so an application that lists its own items here — a browser's open tabs, a notes folder — makes them reachable by typing their names into the menu.
 
 `swapProviderRows` in `MenuModel.js` merges the results: rows carry the id of
 the submenu that produced them, so a provider that runs again drops its

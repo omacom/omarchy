@@ -437,8 +437,53 @@ assert(
 )
 assert(
   /function setActiveMenu\([\s\S]*?root\.invalidateVolatileProvider\(id\)\s*\n\s*root\.loadProviderForMenu\(id\)/.test(menuQml)
-    && /function openExistingMenu\([\s\S]*?invalidateVolatileProvider\(activeMenu\)\s*\n\s*loadProviderForMenu\(activeMenu\)/.test(menuQml),
+    && /function openExistingMenu\([\s\S]*?invalidateVolatileProviders\(\)\s*\n\s*loadProviderForMenu\(activeMenu\)/.test(menuQml),
   'menu invalidates volatile providers when entering a menu, not on every keystroke'
+)
+// A search from the root reaches rows in submenus never entered, so opening the
+// menu has to drop every volatile list, not only the one on show.
+assert(
+  /function invalidateVolatileProviders\(\) \{[\s\S]*?root\.itemOrder[\s\S]*?invalidateVolatileProvider\(/.test(menuQml),
+  'menu refreshes every volatile provider when it opens'
+)
+
+// An extension can declare a provider of its own instead of naming one.
+const extensionProvider = menu.normalizeItem('tabs', {
+  label: 'Tabs',
+  provider: { command: 'list-tabs', action: 'focus-tab {value}', icon: 'T', volatile: true, extra: 1 }
+})
+assertEqual(
+  JSON.stringify(extensionProvider.provider),
+  JSON.stringify({ command: 'list-tabs', action: 'focus-tab {value}', icon: 'T', volatile: true }),
+  'menu keeps an extension provider object'
+)
+assertEqual(extensionProvider.kind, 'menu', 'an extension provider row is a submenu')
+assertEqual(menu.normalizeItem('fonts', { provider: 'fonts' }).provider, 'fonts', 'menu keeps a named provider')
+assertEqual(menu.normalizeItem('a', { provider: { action: 'run {value}' } }).provider, '', 'menu drops a provider without a command')
+assertEqual(menu.normalizeItem('b', { provider: { command: 'ls', action: 'run' } }).provider, '', 'menu drops a provider whose action ignores the value')
+assertEqual(menu.normalizeItem('c', { provider: 7 }).provider, '', 'menu drops a provider that is neither a name nor an object')
+assertEqual(
+  menu.normalizeItem('d', { provider: { command: 'ls', action: 'run {value}', volatile: 'yes' } }).provider.volatile,
+  false,
+  'menu treats only true as volatile'
+)
+const mergedExtension = menu.mergeMenuSources(
+  [menu.normalizeItem('root', {})],
+  menu.parseMenuJsonc('{ "tabs": {"label": "Tabs", "provider": {"command": "list-tabs", "action": "focus-tab {value}"}} }')
+)
+assertEqual(mergedExtension.items.tabs.provider.command, 'list-tabs', 'menu merges an extension provider from the user file')
+assertEqual(
+  typeof menu.displayRow(mergedExtension.items, mergedExtension.itemOrder, {}, {}, mergedExtension.items.tabs).provider,
+  'string',
+  'menu display rows carry a provider string the typed list model accepts'
+)
+assert(
+  /function providerSpec\(entry\) \{[\s\S]*?typeof entry\.provider === "string"[\s\S]*?root\.providers\[entry\.provider\][\s\S]*?split\("\{value\}"\)\.join\(Util\.shellQuote\(value\)\)/.test(menuQml),
+  'menu runs an extension provider action with the row value shell-quoted'
+)
+assert(
+  /var description = parts\[3\] \|\| ""[\s\S]*?description: description,/.test(menuQml),
+  'menu reads an optional description column from provider rows'
 )
 assert(
   ['loadProviderForMenu', 'loadProvidersForSearch'].every(
