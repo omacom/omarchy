@@ -84,20 +84,34 @@ require_http_url() {
 
 fetch_site_icon() {
   local site_url="$1" dest="$2"
-  local origin page icon_url
-  origin=$(sed -E 's|^(https?://[^/]+).*|\1|' <<<"$site_url")
+  local response page page_url origin base icon_url
 
   # Prefer the site's own high-res icon (apple-touch-icon is typically 180px+),
   # then the well-known path, then Google's favicon service as a last resort.
-  page=$(curl -fsSL --max-time 5 "$site_url" 2>/dev/null | head -c 100000 | tr '\n' ' ')
+  response=$(curl -fsSL --max-time 5 -w '\n%{url_effective}' "$site_url" 2>/dev/null)
+  page=$(head -c 100000 <<<"${response%$'\n'*}" | tr '\n' ' ')
   icon_url=$(grep -oiE "<link[^>]*rel=[\"'][^\"']*apple-touch-icon[^\"']*[\"'][^>]*>" <<<"$page" |
     grep -oiE "href=[\"'][^\"']+" | head -1 | sed -E "s/^href=[\"']//")
+
+  # A relative href resolves against the page's directory after redirects, not
+  # the origin: an app served under a subpath (Jellyfin's https://host/ redirects
+  # to /web/) keeps its icon at /web/touchicon.png.
+  page_url=${response##*$'\n'}
+  [[ $page_url =~ ^https?:// ]] || page_url=$site_url
+  page_url=${page_url%%#*}
+  page_url=${page_url%%\?*}
+  origin=$(sed -E 's|^(https?://[^/]+).*|\1|' <<<"$page_url")
+  if [[ $page_url == "$origin" ]]; then
+    base="$origin/"
+  else
+    base="${page_url%/*}/"
+  fi
 
   case $icon_url in
   http://* | https://*) ;;
   //*) icon_url="https:$icon_url" ;;
   /*) icon_url="$origin$icon_url" ;;
-  ?*) icon_url="$origin/$icon_url" ;;
+  ?*) icon_url="$base$icon_url" ;;
   esac
 
   { [[ -n $icon_url ]] && download_icon "$icon_url" "$dest"; } ||
