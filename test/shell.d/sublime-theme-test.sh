@@ -84,3 +84,74 @@ grep -q '"theme":"Omarchy.sublime-theme"' "$compact" || fail "compact settings k
 [[ $(grep -o '"theme"' "$compact" | wc -l) == 1 ]] || fail "compact settings do not duplicate the theme key"
 
 pass "Sublime settings update compact JSON without duplicating keys"
+
+commented="$test_tmp/commented.sublime-settings"
+cat >"$commented" <<'JSON'
+{
+  /* "theme": "Old" */
+  // "color_scheme": "Old"
+  "theme": "Active",
+  "color_scheme": "Active",
+}
+JSON
+python3 "$ROOT/default/sublime/set-preferences.py" "$commented" theme=Omarchy.sublime-theme color_scheme=Omarchy.sublime-color-scheme
+grep -q '"theme": "Omarchy.sublime-theme"' "$commented" || fail "active theme is updated"
+grep -q '"color_scheme": "Omarchy.sublime-color-scheme"' "$commented" || fail "active color scheme is updated"
+grep -q '/\* "theme": "Old" \*/' "$commented" || fail "block comment is preserved"
+grep -q '// "color_scheme": "Old"' "$commented" || fail "line comment is preserved"
+
+pass "Sublime settings ignore commented values"
+
+python3 - "$ROOT/default/sublime/OmarchyWindow.py" <<'PY' || fail "Sublime window defaults respect existing choices"
+import runpy
+import sys
+import types
+
+windows = []
+preferences = {}
+sublime = types.ModuleType('sublime')
+sublime.windows = lambda: windows
+sublime.load_settings = lambda _: types.SimpleNamespace(get=lambda key, default: preferences.get(key, default))
+plugin = types.ModuleType('sublime_plugin')
+plugin.EventListener = object
+sys.modules['sublime'] = sublime
+sys.modules['sublime_plugin'] = plugin
+listener = runpy.run_path(sys.argv[1])['OmarchyWindowDefaults']()
+
+
+class Window:
+    def __init__(self):
+        self.menu = True
+        self.minimap = True
+
+    def set_menu_visible(self, value):
+        self.menu = value
+
+    def set_minimap_visible(self, value):
+        self.minimap = value
+
+    def is_menu_visible(self):
+        return self.menu
+
+    def is_minimap_visible(self):
+        return self.minimap
+
+
+first = Window()
+windows.append(first)
+listener.on_new_window(first)
+assert not first.menu and not first.minimap
+first.menu = True
+second = Window()
+windows.append(second)
+listener.on_new_window(second)
+assert second.menu and not second.minimap
+windows.clear()
+preferences.update(omarchy_hide_menu=False, omarchy_hide_minimap=False)
+third = Window()
+windows.append(third)
+listener.on_new_window(third)
+assert third.menu and third.minimap
+PY
+
+pass "Sublime hides chrome by default and respects later window choices"
