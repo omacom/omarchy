@@ -80,9 +80,9 @@ Item {
   property color background: Color.bar.background
   property color urgent: Color.bar.active
 
-  Behavior on barForeground { enabled: root.foregroundAnimationEnabled; ColorAnimation { duration: 420; easing.type: Easing.InOutCubic } }
-  Behavior on background { ColorAnimation { duration: 420; easing.type: Easing.InOutCubic } }
-  Behavior on urgent { ColorAnimation { duration: 420; easing.type: Easing.InOutCubic } }
+  Behavior on barForeground { enabled: root.foregroundAnimationEnabled; ColorAnimation { duration: Style.duration(420); easing.type: Easing.InOutCubic } }
+  Behavior on background { ColorAnimation { duration: Style.duration(420); easing.type: Easing.InOutCubic } }
+  Behavior on urgent { ColorAnimation { duration: Style.duration(420); easing.type: Easing.InOutCubic } }
   property var tooltipTarget: null
   property var pendingTooltipTarget: null
   property string tooltipText: ""
@@ -110,7 +110,11 @@ Item {
   property var clickTargets: []
   property var moduleSlots: []
   property var pluginBarApis: ({})
-  property var pluginObjectOwners: []
+  // target -> { target, pluginId, clickTarget, popout }. Keyed by object so a
+  // registration edits one entry in place instead of copying and rescanning an
+  // array in QML; Qt's Map still finds a key by a native linear scan.
+  readonly property var pluginObjectOwners: new Map()
+  property bool pluginBarApiSyncQueued: false
 
   Component {
     id: pluginBarApiComponent
@@ -138,20 +142,20 @@ Item {
     root.syncPluginBarApiObjects(api)
   }
 
-  function syncPluginBarApiObjects(api) {
+  // Each api keeps its own detached copy of the layout. A flush serialises
+  // the layout once and passes the string in so it is not re-serialised for
+  // every plugin.
+  function syncPluginBarApiObjects(api, layoutSnapshot) {
     if (!api) return
     api.activePopout = root.pluginOwnsBarObject(api.pluginId, root.activePopout)
       ? root.activePopout : (root.activePopout ? api.foreignPopoutMarker : null)
     api.clickTargets = root.pluginClickTargets(api.pluginId)
-    api.layoutConfig = root.publicLayoutConfig()
+    api.layoutConfig = layoutSnapshot !== undefined
+      ? JSON.parse(layoutSnapshot) : root.publicLayoutConfig()
   }
 
   function pluginObjectRecord(target) {
-    for (var i = 0; i < pluginObjectOwners.length; i++) {
-      var record = pluginObjectOwners[i]
-      if (record && record.target === target) return record
-    }
-    return null
+    return target ? (pluginObjectOwners.get(target) || null) : null
   }
 
   function markPluginObject(pluginId, target, role) {
@@ -159,31 +163,20 @@ Item {
     if (!key || !target) return false
     var record = root.pluginObjectRecord(target)
     if (record && record.pluginId !== key) return false
-    var next = []
-    for (var i = 0; i < pluginObjectOwners.length; i++) {
-      var existing = pluginObjectOwners[i]
-      if (!existing || existing.target !== target) next.push(existing)
+    if (!record) {
+      record = { target: target, pluginId: key, clickTarget: false, popout: false }
+      pluginObjectOwners.set(target, record)
     }
-    var updated = record || { target: target, pluginId: key, clickTarget: false, popout: false }
-    updated[role] = true
-    next.push(updated)
-    pluginObjectOwners = next
+    record[role] = true
     return true
   }
 
   function unmarkPluginObject(pluginId, target, role) {
     var key = String(pluginId || "")
-    var next = []
-    for (var i = 0; i < pluginObjectOwners.length; i++) {
-      var record = pluginObjectOwners[i]
-      if (!record || record.target !== target || record.pluginId !== key) {
-        next.push(record)
-        continue
-      }
-      record[role] = false
-      if (record.clickTarget || record.popout) next.push(record)
-    }
-    pluginObjectOwners = next
+    var record = root.pluginObjectRecord(target)
+    if (!record || record.pluginId !== key) return
+    record[role] = false
+    if (!record.clickTarget && !record.popout) pluginObjectOwners.delete(target)
   }
 
   function pluginOwnsBarObject(pluginId, target) {
@@ -200,8 +193,25 @@ Item {
     return out
   }
 
+  // Every click target registration, popout change and layout change used to
+  // resync every plugin api synchronously. Startup alone is hundreds of
+  // registrations, each walking every api and every target, so coalesce them
+  // into one resync per event-loop turn (as onModuleSlotsChanged already does
+  // for prunePluginBarApis). bindPluginBarApi still syncs a brand-new api
+  // directly so a widget never sees an empty api on its first read.
+  function schedulePluginBarApiSync() {
+    if (pluginBarApiSyncQueued) return
+    pluginBarApiSyncQueued = true
+    Qt.callLater(root.syncAllPluginBarApiObjects)
+  }
+
   function syncAllPluginBarApiObjects() {
-    for (var id in pluginBarApis) root.syncPluginBarApiObjects(pluginBarApis[id])
+    pluginBarApiSyncQueued = false
+    var layoutSnapshot = JSON.stringify(root.layoutConfig || {})
+    for (var id in pluginBarApis) {
+      var api = pluginBarApis[id]
+      if (api) root.syncPluginBarApiObjects(api, layoutSnapshot)
+    }
   }
 
   function registerPluginClickTarget(pluginId, target) {
@@ -215,15 +225,20 @@ Item {
     root.unmarkPluginObject(pluginId, target, "clickTarget")
   }
 
+  // A plugin may read api.activePopout right after asking for its popout, so
+  // its own api is brought up to date inline; everyone else waits for the
+  // coalesced resync.
   function requestPluginPopout(pluginId, owner) {
     if (!root.markPluginObject(pluginId, owner, "popout")) return
     root.requestPopout(owner)
+    root.syncPluginBarApiObjects(pluginBarApis[String(pluginId || "")])
   }
 
   function releasePluginPopout(pluginId, owner) {
     if (!root.pluginOwnsBarObject(pluginId, owner)) return
     root.releasePopout(owner)
     root.unmarkPluginObject(pluginId, owner, "popout")
+    root.syncPluginBarApiObjects(pluginBarApis[String(pluginId || "")])
   }
 
   function pluginBarApiFor(pluginId, moduleName, registered) {
@@ -287,16 +302,14 @@ Item {
   }
 
   function releasePluginObjects(pluginId) {
-    var owned = pluginObjectOwners.slice()
+    var owned = Array.from(pluginObjectOwners.values())
     for (var i = 0; i < owned.length; i++) {
       var record = owned[i]
       if (!record || record.pluginId !== pluginId) continue
       if (record.clickTarget) root.unregisterClickTarget(record.target)
       if (record.popout && root.activePopout === record.target) root.releasePopout(record.target)
+      pluginObjectOwners.delete(record.target)
     }
-    pluginObjectOwners = pluginObjectOwners.filter(function(record) {
-      return record && record.pluginId !== pluginId
-    })
   }
 
   function prunePluginBarApis() {
@@ -313,9 +326,9 @@ Item {
     pluginBarApis = next
   }
 
-  onActivePopoutChanged: syncAllPluginBarApiObjects()
-  onClickTargetsChanged: syncAllPluginBarApiObjects()
-  onLayoutConfigChanged: syncAllPluginBarApiObjects()
+  onActivePopoutChanged: schedulePluginBarApiSync()
+  onClickTargetsChanged: schedulePluginBarApiSync()
+  onLayoutConfigChanged: schedulePluginBarApiSync()
   onModuleSlotsChanged: Qt.callLater(prunePluginBarApis)
 
   Component.onDestruction: {
@@ -1182,7 +1195,7 @@ Item {
   // changes land in quick succession, stranding the bar off screen until the
   // shell restarts. `omarchy-toggle-bar` nudges this after flipping the flag
   // so the probe re-reads it even when the watch has gone quiet.
-  IpcHandler {
+  ShellIpc {
     target: "omarchy.bar"
 
     // Start rather than restart: a probe already in flight was launched by the
@@ -1509,7 +1522,7 @@ Item {
         opacity: root.barMoveCandidate === modelData ? (root.transparent ? 0.45 : 0.7) : 0
 
         Behavior on opacity {
-          NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+          NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
         }
       }
     }
@@ -1886,16 +1899,17 @@ Item {
       // desktop — so it underlines a top bar, overlines a bottom one, and
       // points inward from a left or right one. It reads as pointing at the
       // panel that opens on that side.
+      // Snap toward the start of the slot, matching native glyph rendering.
       x: root.vertical
         ? (root.position === "left" ? parent.width - width - inset : inset)
-        : Math.round((parent.width - width) / 2)
+        : Math.floor((parent.width - width) / 2)
       y: root.vertical
-        ? Math.round((parent.height - height) / 2)
+        ? Math.floor((parent.height - height) / 2)
         : (root.position === "top" ? parent.height - height - inset : inset)
       z: 50
 
       Behavior on opacity {
-        NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
       }
     }
 
@@ -1913,7 +1927,9 @@ Item {
       acceptedButtons: Qt.LeftButton
       enabled: slot.visible && slot.width > 0 && slot.height > 0
       propagateComposedEvents: true
-      cursorShape: root.moduleClickTargetAt(slot, mouseX, mouseY) ? Qt.PointingHandCursor : Qt.ArrowCursor
+      // Only the hovered slot needs the hit test; without the guard every
+      // slot on every monitor re-ran it on each click target change.
+      cursorShape: moduleHover.hovered && root.moduleClickTargetAt(slot, mouseX, mouseY) ? Qt.PointingHandCursor : Qt.ArrowCursor
       // Do not assign drag.target here: ModuleSlot is owned by Row/Column
       // positioners, and mutating slot.x/slot.y can leave stale offsets that
       // make neighboring modules overlap after a small aborted drag.
