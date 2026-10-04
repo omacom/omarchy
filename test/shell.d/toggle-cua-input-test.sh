@@ -158,8 +158,10 @@ for action in on --load; do
 done
 
 # A module mapped before the input-method guard, or one whose hooks did not
-# install, must not get input: fcitx5 restarting could crash Hyprland.
+# install, must not get input: fcitx5 restarting could crash Hyprland. Only
+# the old module is fixed by logging out; a failed hook would fail again.
 for guard in missing false; do
+  if [[ $guard == missing ]]; then expected='Log out and back in'; else expected='could not install its input-method crash guard'; fi
   for action in on --load; do
     fresh_home
     mkdir -p "$(dirname "$(flag_file)")"
@@ -171,6 +173,10 @@ for guard in missing false; do
     fi
     [[ ! -e $(flag_file) ]] || fail "cua input refuses a $guard input-method guard during $action" "flag remains"
     ! grep -q '^hyprctl:plugin ' "$TEST_LOG" || fail "cua input refuses a $guard input-method guard during $action" "module replaced"
+    grep -q "$expected" "$TEST_LOG" || fail "cua input refuses a $guard input-method guard during $action" "wrong instruction: $(cat "$TEST_LOG")"
+    if [[ $guard == false ]] && grep -q 'Log out and back in' "$TEST_LOG"; then
+      fail "cua input refuses a $guard input-method guard during $action" "a failed hook is not fixed by logging out"
+    fi
     pass "cua input refuses a $guard input-method guard during $action without replacing the module"
   done
 done
