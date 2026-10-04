@@ -2,12 +2,13 @@
 
 # omarchy:summary=Copy text to the clipboard and type or paste it
 # omarchy:group=clipboard
-# omarchy:args=[--shift-insert] [--copy-only] [--history-index <index>|<text>]
+# omarchy:args=[--shift-insert] [--copy-only] [--request-file <path>|--history-index <index>|<text>]
 # omarchy:examples=omarchy clipboard paste text "hello" | omarchy clipboard paste text --shift-insert "hello"
 # omarchy:hidden=true
 
 use_shift_insert=false
 copy_only=false
+request_file=""
 history_index=""
 text=""
 
@@ -20,6 +21,10 @@ while (( $# > 0 )); do
     --copy-only)
       copy_only=true
       shift
+      ;;
+    --request-file)
+      request_file="${2:-}"
+      shift 2
       ;;
     --history-index)
       history_index="${2:-}"
@@ -39,7 +44,35 @@ copy_history_entry() {
   jq -j --argjson index "$history_index" '.[$index].text' "$history_path" | wl-copy
 }
 
-if [[ -n $history_index ]]; then
+# Resolves the entry the picker showed. The request carries the text as
+# displayed: the full text for entries up to the display cap, a prefix for
+# longer ones, so match newest-first by prefix. Resolving a positional index
+# instead would race history rewrites that land between opening the picker and
+# running this command: a re-copied entry dedups to the front and every index
+# after it shifts by one, making the paste act on a different entry than the
+# one on screen.
+copy_requested_entry() {
+  local history_path="$HOME/.local/state/omarchy/clipboard-history.json"
+  local prefix="$1"
+  local resolved
+
+  [[ -n $prefix ]] || exit
+  [[ -r $history_path ]] || exit
+  resolved=$(jq -er --arg prefix "$prefix" \
+    '[.[] | select(.type == "text" and (.text | type == "string") and (.text | startswith($prefix))) | .text] | first // empty' \
+    "$history_path") || exit
+  printf '%s' "$resolved" | wl-copy
+}
+
+if [[ -n $request_file ]]; then
+  # The picker writes the exact entry it showed; see Clipboard.qml.
+  text=$(jq -ej 'select(.type == "text") | .text' "$request_file" 2>/dev/null) || exit
+  rm -f -- "$request_file"
+  copy_requested_entry "$text"
+  if [[ $copy_only != "true" ]]; then
+    use_shift_insert=true
+  fi
+elif [[ -n $history_index ]]; then
   copy_history_entry
   if [[ $copy_only != "true" ]]; then
     use_shift_insert=true

@@ -518,3 +518,121 @@ OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 
 [[ $(<"$TMPDIR/omasnap") == "$TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
+
+# The picker hands entries over in a request file instead of a positional
+# index: history rewrites between opening the picker and pressing Enter (a
+# re-copied entry dedups to the front, new captures prepend) shift indexes and
+# made pastes act on a different entry than the one on screen.
+
+request_path="$TMPDIR/home/.local/state/omarchy/clipboard-entry-request.json"
+
+write_text_request() {
+  jq -n --arg text "$1" '{type:"text", text:$text}' >"$request_path"
+}
+
+jq -n --arg github 'https://github.com/example/microreader' --arg vscode 'https://code.visualstudio.com/docs' \
+  '[{type:"text", text:$github}, {type:"text", text:$vscode}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+
+write_text_request 'https://github.com/example/microreader'
+rm -f "$TMPDIR/copied" "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --request-file "$request_path"
+
+[[ $(<"$TMPDIR/copied") == 'https://github.com/example/microreader' ]] || fail "clipboard paste helper copies the requested entry after history reorders" "copied: $(<"$TMPDIR/copied")"
+pass "clipboard paste helper copies the requested entry after history reorders"
+
+[[ -e $TMPDIR/wtype && $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "clipboard paste helper pastes requested entries with shift insert"
+pass "clipboard paste helper pastes requested entries with shift insert"
+
+[[ ! -e $request_path ]] || fail "clipboard paste helper consumes the request file"
+pass "clipboard paste helper consumes the request file"
+
+write_text_request 'https://github.com/example/microreader'
+rm -f "$TMPDIR/copied" "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --request-file "$request_path"
+
+[[ $(<"$TMPDIR/copied") == 'https://github.com/example/microreader' ]] || fail "clipboard paste helper copy-only copies the requested entry"
+pass "clipboard paste helper copy-only copies the requested entry"
+
+[[ ! -e $TMPDIR/wtype ]] || fail "clipboard paste helper copy-only skips typing for requested entries"
+pass "clipboard paste helper copy-only skips typing for requested entries"
+
+# Entries past the display cap arrive as the displayed prefix; the helper
+# resolves them back to the full history text.
+large_prefix=$(printf 'a%.0s' $(seq 1 8192))
+large_text="${large_prefix}tail-after-the-cap"
+jq -n --arg text "$large_text" '[{type:"text", text:$text}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+
+write_text_request "$large_prefix"
+rm -f "$TMPDIR/copied"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --request-file "$request_path"
+
+[[ $(<"$TMPDIR/copied") == "$large_text" ]] || fail "clipboard paste helper resolves capped request text to the full entry" "copied length: $(wc -c <"$TMPDIR/copied")"
+pass "clipboard paste helper resolves capped request text to the full entry"
+
+# Requests for entries that are no longer in the history fail without touching
+# the clipboard.
+write_text_request 'https://gone.example/deleted-entry'
+printf 'sentinel' >"$TMPDIR/copied"
+if WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --request-file "$request_path" 2>/dev/null; then
+  fail "clipboard paste helper rejects requests missing from history"
+fi
+pass "clipboard paste helper rejects requests missing from history"
+
+[[ $(<"$TMPDIR/copied") == 'sentinel' ]] || fail "clipboard paste helper leaves the clipboard untouched when the request cannot be resolved"
+pass "clipboard paste helper leaves the clipboard untouched when the request cannot be resolved"
+
+jq -n --arg url 'https://example.com/open-request' --arg text "$(printf 'plain requested text\nsecond line')" --arg image "$TMPDIR/image.png" \
+  '[{type:"text", text:$url}, {type:"text", text:$text}, {type:"image", mime:"image/png", path:$image}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+
+write_text_request 'https://example.com/open-request'
+BROWSER_OUT="$TMPDIR/browser" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-open" --request-file "$request_path"
+
+[[ $(<"$TMPDIR/browser") == 'https://example.com/open-request' ]] || fail "clipboard open helper opens requested URL entries in browser"
+pass "clipboard open helper opens requested URL entries in browser"
+
+write_text_request "$(printf 'plain requested text\nsecond line')"
+EDITOR_PATH_OUT="$TMPDIR/editor-path" EDITOR_TEXT_OUT="$TMPDIR/editor-text" HOME="$TMPDIR/home" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-open" --request-file "$request_path"
+
+[[ $(<"$TMPDIR/editor-text") == "$(printf 'plain requested text\nsecond line')" ]] || fail "clipboard open helper opens requested text entries in editor"
+pass "clipboard open helper opens requested text entries in editor"
+
+[[ ! -e $request_path ]] || fail "clipboard open helper consumes the request file"
+pass "clipboard open helper consumes the request file"
+
+jq -n --arg image "$TMPDIR/image.png" '{type:"image", mime:"image/png", path:$image}' >"$request_path"
+OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-open" --request-file "$request_path"
+
+[[ $(<"$TMPDIR/omasnap") == "$TMPDIR/image.png" ]] || fail "clipboard open helper opens requested image entries in Omasnap"
+pass "clipboard open helper opens requested image entries in Omasnap"
+
+run_node_test <<'JS'
+const fs = require('fs')
+const clipboardQml = fs.readFileSync(path.join(root, 'shell/plugins/clipboard/Clipboard.qml'), 'utf8')
+
+assert(
+  clipboardQml.includes('--request-file'),
+  'clipboard picker hands entries to helper scripts through a request file'
+)
+
+assert(
+  !clipboardQml.includes('--history-index'),
+  'clipboard picker does not resolve entries by positional index'
+)
+
+assert(
+  /function writeEntryRequest\(row\)[\s\S]*entryRequest\.setText\(JSON\.stringify\(entry\)\)[\s\S]*entryRequest\.waitForJob\(\)/.test(clipboardQml),
+  'clipboard picker writes the request and waits for it to hit disk'
+)
+
+assert(
+  /function rebuildDisplay\(\)[\s\S]*selectedKey[\s\S]*rowKey\(displayModel\.get\(root\.selectedIndex\)\)[\s\S]*restored/.test(clipboardQml),
+  'clipboard picker keeps the selection on the picked entry across rebuilds'
+)
+JS

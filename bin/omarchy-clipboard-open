@@ -2,29 +2,29 @@
 
 # omarchy:summary=Open a clipboard history entry
 # omarchy:group=clipboard
-# omarchy:args=--history-index <index>
+# omarchy:args=[--request-file <path>|--history-index <index>]
 # omarchy:hidden=true
 
+request_file=""
 history_index=""
 history_path="$HOME/.local/state/omarchy/clipboard-history.json"
 
 while (( $# > 0 )); do
   case "$1" in
+    --request-file)
+      request_file="${2:-}"
+      shift 2
+      ;;
     --history-index)
       history_index="${2:-}"
       shift 2
       ;;
     *)
-      echo "Usage: omarchy-clipboard-open --history-index <index>" >&2
+      echo "Usage: omarchy-clipboard-open [--request-file <path>|--history-index <index>]" >&2
       exit 1
       ;;
   esac
 done
-
-[[ $history_index =~ ^[0-9]+$ ]] || exit 1
-[[ -r $history_path ]] || exit 1
-
-entry_type=$(jq -er --argjson index "$history_index" '.[$index].type' "$history_path") || exit 1
 
 open_image() {
   local path="$1"
@@ -55,13 +55,53 @@ open_text() {
   exec omarchy-launch-editor "$open_file"
 }
 
+# Resolves the entry the picker showed against the history, newest-first. The
+# request carries the text as displayed: the full text for entries up to the
+# display cap, a prefix for longer ones. Resolving a positional index instead
+# would race history rewrites that land between opening the picker and running
+# this command: a re-copied entry dedups to the front and every index after it
+# shifts by one, making the open act on a different entry than the one on
+# screen.
+resolved_history_text() {
+  local prefix="$1"
+  local resolved
+
+  [[ -n $prefix ]] || exit 1
+  resolved=$(jq -er --arg prefix "$prefix" \
+    '[.[] | select(.type == "text" and (.text | type == "string") and (.text | startswith($prefix))) | .text] | first // empty' \
+    "$history_path") || exit 1
+  printf '%s' "$resolved"
+}
+
+if [[ -n $request_file ]]; then
+  # The picker writes the exact entry it showed; see Clipboard.qml.
+  entry_type=$(jq -er '.type' "$request_file" 2>/dev/null) || exit 1
+  if [[ $entry_type == "image" ]]; then
+    path=$(jq -er '.path' "$request_file") || exit 1
+  elif [[ $entry_type == "text" ]]; then
+    shown=$(jq -ej 'select(.type == "text") | .text' "$request_file" 2>/dev/null) || exit 1
+    text=$(resolved_history_text "$shown") || exit 1
+  else
+    exit 1
+  fi
+  rm -f -- "$request_file"
+elif [[ -n $history_index ]]; then
+  [[ $history_index =~ ^[0-9]+$ ]] || exit 1
+  [[ -r $history_path ]] || exit 1
+
+  entry_type=$(jq -er --argjson index "$history_index" '.[$index].type' "$history_path") || exit 1
+  if [[ $entry_type == "image" ]]; then
+    path=$(jq -er --argjson index "$history_index" '.[$index].path' "$history_path") || exit 1
+  elif [[ $entry_type == "text" ]]; then
+    text=$(jq -er --argjson index "$history_index" '.[$index].text' "$history_path") || exit 1
+  fi
+fi
+
 case "$entry_type" in
   image)
-    path=$(jq -er --argjson index "$history_index" '.[$index].path' "$history_path") || exit 1
     open_image "$path"
     ;;
   text)
-    text=$(jq -er --argjson index "$history_index" '.[$index].text' "$history_path") || exit 1
     open_text "$text"
     ;;
   *)
