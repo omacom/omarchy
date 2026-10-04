@@ -49,3 +49,20 @@ grep -q "about to fail" "$stdout_log" || fail "stdout logging mode emits script 
 grep -q "Failed: $failing_script (exit code: 1)" "$stdout_log" || fail "stdout logging mode emits failure marker"
 
 pass "run_logged records failures under errexit"
+
+mode_log="$work_dir/mode.log"
+OMARCHY_INSTALL_LOG_FILE="$mode_log" \
+  bash -c 'source "$1"; start_install_log >/dev/null' bash "$ROOT/install/helpers/logging.sh" \
+  >/dev/null 2>&1
+
+mode=$(stat -c '%a' "$mode_log")
+[[ $mode == 644 ]] || fail "start_install_log leaves the install log 0644" "got 0$mode"
+
+# The log is uploaded by omarchy-upload-log, which runs unprivileged, so it must
+# stay world-readable. It must not be world-writable: only root writes it, and
+# omarchy-upload-log publishes its contents to logs.omarchy.org for the user to
+# share, so a local append would forge a shared artifact.
+[[ $mode != 666 && $mode != 664 && $mode != 622 ]] ||
+  fail "install log is not group- or world-writable" "got 0$mode"
+
+pass "start_install_log keeps the install log readable but not writable by others"

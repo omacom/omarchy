@@ -14,7 +14,12 @@ start_install_log() {
   if ! omarchy_log_to_stdout; then
     mkdir -p "$(dirname "$OMARCHY_INSTALL_LOG_FILE")"
     touch "$OMARCHY_INSTALL_LOG_FILE"
-    chmod 666 "$OMARCHY_INSTALL_LOG_FILE" 2>/dev/null || true
+    # 0644, not 0600: omarchy-upload-log runs unprivileged and must be able to
+    # read this file to attach it to a logs.omarchy.org upload. Not 0666: only
+    # root writes here (omarchy-apply-system is the sole file-logging caller and
+    # requires sudo), so world-write only lets any local user append forged lines
+    # to a log that gets published and shared.
+    chmod 644 "$OMARCHY_INSTALL_LOG_FILE" 2>/dev/null || true
   fi
 
   export OMARCHY_START_TIME="${OMARCHY_START_TIME:-$(date '+%Y-%m-%d %H:%M:%S')}"
