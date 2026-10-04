@@ -46,7 +46,7 @@ BarWidget {
     anchors.fill: parent
     hoverEnabled: true
     acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
-    cursorShape: Qt.PointingHandCursor
+    cursorShape: Qt.ArrowCursor
 
     onClicked: function(mouse) {
       if (!root.toplevel) return
