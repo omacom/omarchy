@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=Enable or disable reopening applications at login
+# omarchy:args=[--enable|--disable]
+
+set -euo pipefail
+
+case ${1:-} in
+--help|-h)
+  echo 'Usage: omarchy setup session [--enable|--disable]'
+  exit 0
+  ;;
+--enable|--disable) action=$1 ;;
+'')
+  echo 'Reopen supported applications and return them to their saved workspaces at login.'
+  echo 'Applications remain responsible for documents, tabs, terminal jobs, and unsaved work.'
+  action=$(gum choose --header 'Remember this desktop' 'Enable' 'Disable') || exit 130
+  ;;
+*) echo 'Use --enable or --disable.' >&2; exit 2 ;;
+esac
+
+if [[ $action == '--enable' || $action == 'Enable' ]]; then
+  unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+  mkdir -p "$unit_dir"
+  ln -sfn "$OMARCHY_PATH/default/session/omarchy-session.service" "$unit_dir/omarchy-session.service"
+  systemctl --user daemon-reload
+  # Seed before starting: enabling must not reopen an old session immediately.
+  omarchy-session save
+  systemctl --user enable --now omarchy-session.service
+  echo 'Session restore enabled. Use System > Session to inspect or forget the saved desktop.'
+else
+  systemctl --user disable --now omarchy-session.service
+  echo 'Session restore disabled. The saved desktop is kept until you choose Forget Session.'
+fi

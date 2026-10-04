@@ -41,6 +41,13 @@
   "system.reboot": {"icon":"󰜉","label":"Reboot","action":"omarchy-system-reboot"},
   "system.shutdown": {"icon":"󰐥","label":"Shutdown","action":"omarchy-system-shutdown"},
 
+  "system.session": {"icon":"󰁯","label":"Session","description":"Remember and reopen desktop applications"},
+  "system.session.status": {"icon":"󰋼","label":"Saved Applications","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-session status'"},
+  "system.session.save": {"icon":"󰆓","label":"Save Session","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-session save'"},
+  "system.session.restore": {"icon":"󰁯","label":"Reopen Apps","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-session restore'"},
+  "system.session.forget": {"icon":"󰆴","label":"Forget Session","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-session forget'"},
+  "setup.session": {"icon":"󰁯","label":"Session Restore","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-session"},
+
   // Learn
   "learn.keybindings": {"icon":"","label":"Keybindings","action":"omarchy-menu-keybindings"},
   "learn.omarchy": {"icon":"","label":"Omarchy","action":"omarchy-launch-webapp 'https://omarchy.org/manual/'"},
