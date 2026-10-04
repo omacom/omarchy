@@ -437,7 +437,7 @@ assert(
 )
 assert(
   /function setActiveMenu\([\s\S]*?root\.invalidateVolatileProvider\(id\)\s*\n\s*root\.loadProviderForMenu\(id\)/.test(menuQml)
-    && /function openExistingMenu\([\s\S]*?invalidateVolatileProviders\(\)\s*\n\s*loadProviderForMenu\(activeMenu\)/.test(menuQml),
+    && /function openExistingMenu\([\s\S]*?invalidateVolatileProviders\(\)\s*\n\s*rebuildDisplay\(\)\s*\n\s*loadProviderForMenu\(activeMenu\)/.test(menuQml),
   'menu invalidates volatile providers when entering a menu, not on every keystroke'
 )
 // A search from the root reaches rows in submenus never entered, so opening the
@@ -478,12 +478,42 @@ assertEqual(
   'menu display rows carry a provider string the typed list model accepts'
 )
 assert(
-  /function providerSpec\(entry\) \{[\s\S]*?typeof entry\.provider === "string"[\s\S]*?root\.providers\[entry\.provider\][\s\S]*?split\("\{value\}"\)\.join\(Util\.shellQuote\(value\)\)/.test(menuQml),
-  'menu runs an extension provider action with the row value shell-quoted'
+  /function providerSpec\(entry\) \{[\s\S]*?MenuModel\.providerAction\(provider\.action, value\)/.test(menuQml)
+    && /var providerRows = MenuModel\.providerRows\(menuId, rows, spec\)/.test(menuQml),
+  'menu builds extension provider rows and actions through the model'
 )
+
+// Provider output becomes rows whose actions run the chosen value, and nothing
+// else, however the value is spelled.
+const { execFileSync } = require('child_process')
+const tabsSpec = { icon: 'T', actionFor: value => menu.providerAction("printf '%s' {value}", value) }
+const hostileValue = "it's $(touch /tmp/pwned) `id` \\ \"q\""
+const tabRows = menu.providerRows('tabs', [
+  'Inbox\ttab-1\ttab-2\tWork · mail.example',
+  `Hostile\t${hostileValue}`,
+  '',
+  'Current\ttab-2\ttab-2'
+].join('\n'), tabsSpec)
+assertEqual(tabRows.map(row => row.label).join('|'), 'Inbox|Hostile|Current', 'provider rows skip blank lines')
+assertEqual(tabRows[0].description, 'Work · mail.example', 'provider rows read an optional description column')
+assertEqual(tabRows[0].icon, 'T', 'provider rows take the spec icon')
+assertEqual(tabRows[2].icon, '✓', 'the provider row matching current is checked')
+assertEqual(tabRows[1].description, '', 'a provider row without a description has none')
+assertEqual(tabRows[0].parent, 'tabs', 'provider rows belong to the submenu that produced them')
+for (const [row, value] of [[tabRows[0], 'tab-1'], [tabRows[1], hostileValue]]) {
+  assertEqual(execFileSync('bash', ['-c', row.action], { encoding: 'utf8' }), value, `provider action passes ${JSON.stringify(value)} through as one literal word`)
+}
+
+// Opening the menu clears a volatile provider's rows, so a search made before
+// the list runs again cannot pick a row that is gone.
+const withTabs = menu.swapProviderRows(mergedExtension.items, mergedExtension.itemOrder, 'tabs', tabRows)
+const withFonts = menu.swapProviderRows(withTabs.items, withTabs.itemOrder, 'fonts', [{ id: 'fonts.mono', parent: 'fonts', kind: 'action', label: 'Mono' }])
+const cleared = menu.clearProviderRows(withFonts.items, withFonts.itemOrder, ['tabs'])
+assert(!cleared.itemOrder.some(id => id.startsWith('tabs.')), 'clearing a provider drops its rows')
+assert(cleared.itemOrder.includes('tabs') && cleared.itemOrder.includes('fonts.mono'), 'clearing a provider keeps its submenu and other providers\' rows')
 assert(
-  /var description = parts\[3\] \|\| ""[\s\S]*?description: description,/.test(menuQml),
-  'menu reads an optional description column from provider rows'
+  /function invalidateVolatileProviders\(\) \{[\s\S]*?MenuModel\.clearProviderRows\(root\.items, root\.itemOrder, stale\)/.test(menuQml),
+  'opening the menu clears the rows of the volatile providers it invalidates'
 )
 assert(
   ['loadProviderForMenu', 'loadProvidersForSearch'].every(
@@ -654,8 +684,9 @@ assertEqual(
   'acme-foo,acme-foo,acme-foo',
   'menu slugs collide across plugin ids that differ only in separator'
 )
-assert(
-  /var rowId = menuId \+ "\." \+ root\.slugify\(value\)\s*\n\s*while \(takenIds\[rowId\]\) rowId \+= "-"/.test(menuQml),
+assertEqual(
+  menu.providerRows('style.font', 'Acme\tacme.foo\nAcme\tacme_foo\nAcme\tacme-foo', { actionFor: value => value }).map(row => row.id).join(','),
+  'style.font.acme-foo,style.font.acme-foo-,style.font.acme-foo--',
   'menu keeps colliding provider rows apart so none is dropped'
 )
 

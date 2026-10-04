@@ -119,8 +119,13 @@ providers):
 A provider marked `volatile` re-runs every time its submenu is entered — a
 font installed since the shell started shows up without a restart — and on the
 first search after the menu opens, since search reaches submenus that were
-never entered. It does not re-run on later keystrokes, which would restart the
-same enumeration per key.
+never entered. Opening the menu also drops a volatile provider's old rows, so a
+search cannot pick one that has gone before the list arrives again. It does not
+re-run on later keystrokes, which would restart the same enumeration per key.
+
+`providerRows` in `MenuModel.js` turns a provider's output into rows, and
+`providerAction` fills an extension provider's `{value}`, so both are tested by
+running them rather than by reading `Menu.qml`.
 
 ### Extension providers
 

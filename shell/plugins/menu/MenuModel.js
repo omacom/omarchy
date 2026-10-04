@@ -182,6 +182,72 @@ function swapProviderRows(items, itemOrder, menuId, rows) {
   return { items: nextItems, itemOrder: nextOrder }
 }
 
+// Drops every row the listed submenus' providers contributed. Opening the menu
+// clears volatile lists this way before they run again, so a search cannot
+// match, and run, a row from the last time the menu was open.
+function clearProviderRows(items, itemOrder, menuIds) {
+  var cleared = { items: items, itemOrder: itemOrder }
+  var ids = Array.isArray(menuIds) ? menuIds : []
+  for (var i = 0; i < ids.length; i++)
+    cleared = swapProviderRows(cleared.items, cleared.itemOrder, ids[i], [])
+  return cleared
+}
+
+// Matches Util.shellQuote, which this pure-JS model cannot import.
+function shellQuote(value) {
+  return "'" + String(value || "").replace(/'/g, "'\\''") + "'"
+}
+
+// An extension provider's action with every {value} replaced by the row's
+// value, quoted, so a value can never break out of the command.
+function providerAction(template, value) {
+  return String(template || "").split("{value}").join(shellQuote(value))
+}
+
+// Turns a provider's output, one `label\tvalue\tcurrent\tdescription` line per
+// row, into menu rows under `menuId`. `spec.actionFor(value)` builds each
+// row's command, and the row whose value equals `current` gets the ✓ icon.
+function providerRows(menuId, output, spec) {
+  var lines = String(output || "").split("\n")
+  var rows = []
+  var takenIds = ({})
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim()
+    if (!line) continue
+    var parts = line.split("\t")
+    var label = parts[0] || ""
+    var value = parts[1] || parts[0] || ""
+    var current = parts[2] || ""
+    var description = parts[3] || ""
+    if (!label) continue
+    // Distinct values can slugify alike — Fira Code and Fira-Code both give
+    // fira-code — and a repeated id is dropped, which would silently lose a
+    // row from the list. Nudge it until it is the row's own.
+    var rowId = menuId + "." + slugify(value)
+    while (takenIds[rowId]) rowId += "-"
+    takenIds[rowId] = true
+
+    rows.push({
+      id: rowId,
+      parent: menuId,
+      kind: "action",
+      icon: (value === current) ? "✓" : (spec.icon || ""),
+      label: label,
+      title: "",
+      target: "",
+      description: description,
+      action: spec.actionFor(value),
+      provider: "",
+      aliases: [],
+      when: "",
+      checked: "",
+      disabled: "",
+      order: 0
+    })
+  }
+  return rows
+}
+
 function item(items, id) {
   return items && items[id] ? items[id] : null
 }
@@ -532,6 +598,9 @@ if (typeof module !== "undefined") {
     mergeMenuSources: mergeMenuSources,
     mergeAppRows: mergeAppRows,
     swapProviderRows: swapProviderRows,
+    clearProviderRows: clearProviderRows,
+    providerAction: providerAction,
+    providerRows: providerRows,
     item: item,
     resolveRoute: resolveRoute,
     slugify: slugify,

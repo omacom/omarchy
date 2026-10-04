@@ -342,7 +342,7 @@ Item {
       script: provider.command,
       icon: provider.icon,
       volatile: provider.volatile,
-      actionFor: function(value) { return provider.action.split("{value}").join(Util.shellQuote(value)) }
+      actionFor: function(value) { return MenuModel.providerAction(provider.action, value) }
     }
   }
 
@@ -368,43 +368,7 @@ Item {
 
   function mergeProviderRows(rows, menuId, spec) {
     if (!spec) return
-    var lines = String(rows || "").split("\n")
-    var providerRows = []
-    var takenIds = ({})
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i].trim()
-      if (!line) continue
-      var parts = line.split("\t")
-      var label = parts[0] || ""
-      var value = parts[1] || parts[0] || ""
-      var current = parts[2] || ""
-      var description = parts[3] || ""
-      if (!label) continue
-      // Distinct values can slugify alike — Fira Code and Fira-Code both give
-      // fira-code — and a repeated id is dropped, which would silently lose a
-      // row from the list. Nudge it until it is the row's own.
-      var rowId = menuId + "." + root.slugify(value)
-      while (takenIds[rowId]) rowId += "-"
-      takenIds[rowId] = true
-
-      providerRows.push({
-        id: rowId,
-        parent: menuId,
-        kind: "action",
-        icon: (value === current) ? "✓" : (spec.icon || ""),
-        label: label,
-        title: "",
-        target: "",
-        description: description,
-        action: spec.actionFor(value),
-        provider: "",
-        aliases: [],
-        when: "",
-        checked: "",
-        disabled: "",
-        order: 0
-      })
-    }
+    var providerRows = MenuModel.providerRows(menuId, rows, spec)
     var merged = MenuModel.swapProviderRows(root.items, root.itemOrder, menuId, providerRows)
     root.items = merged.items
     root.itemOrder = merged.itemOrder
@@ -434,9 +398,22 @@ Item {
 
   // Opening the menu invalidates every volatile list, not just the one on
   // show: a search from the root reaches rows in submenus never entered, and
-  // they may have changed since the last time the menu was open.
+  // they may have changed since the last time the menu was open. Their old
+  // rows go too, so nothing stale can be picked before the new ones arrive.
   function invalidateVolatileProviders() {
-    for (var i = 0; i < root.itemOrder.length; i++) root.invalidateVolatileProvider(root.itemOrder[i])
+    var stale = []
+    for (var i = 0; i < root.itemOrder.length; i++) {
+      var id = root.itemOrder[i]
+      var spec = root.providerSpec(root.item(id))
+      if (!spec || !spec.volatile) continue
+      root.providersLoaded[id] = false
+      stale.push(id)
+    }
+    if (stale.length === 0) return
+
+    var cleared = MenuModel.clearProviderRows(root.items, root.itemOrder, stale)
+    root.items = cleared.items
+    root.itemOrder = cleared.itemOrder
   }
 
   function loadProviderForMenu(id) {
@@ -872,8 +849,8 @@ Item {
     root.disarmPointer()
     root.evaluateGuards()
     opened = true
-    rebuildDisplay()
     invalidateVolatileProviders()
+    rebuildDisplay()
     loadProviderForMenu(activeMenu)
     // The shell may start before first-install packages have finished placing
     // their icons. Refresh here even when the desktop entry list did not change.
