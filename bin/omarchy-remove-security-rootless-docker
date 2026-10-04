@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# omarchy:summary=Disable the rootless Docker daemon of your user
+
+set -e
+
+SOCKET="$XDG_RUNTIME_DIR/docker.sock"
+
+# Only a context on this user's socket is ours to reset: one named rootless but
+# aimed elsewhere (another socket, an SSH host) belongs to the user, just as
+# setup refuses to select it.
+own_context=false
+if docker context inspect rootless &>/dev/null; then
+  context_host=$(docker context inspect rootless --format '{{.Endpoints.docker.Host}}')
+  if [[ $context_host == "unix://$SOCKET" ]]; then
+    own_context=true
+  else
+    echo "Leaving the docker context 'rootless' alone: it points to $context_host."
+  fi
+fi
+
+# Clean up whatever is left, not only an enabled unit: a unit disabled without
+# --now keeps the daemon running, and the context may still be selected.
+if ! systemctl --user -q is-enabled docker.service 2>/dev/null \
+  && ! systemctl --user -q is-active docker.service docker.socket 2>/dev/null \
+  && [[ $own_context == false ]]; then
+  echo "Rootless Docker is not enabled for $USER."
+  exit 0
+fi
+
+systemctl --user disable --now docker.service docker.socket 2>/dev/null || true
+
+if [[ $own_context == true ]]; then
+  docker context use default >/dev/null
+  docker context rm -f rootless >/dev/null
+fi
+
+echo ""
+echo "Rootless Docker DISABLED. 'docker' talks to the system daemon again"
+echo "(through sudo, unless sudoless Docker is enabled)."
+echo ""
+echo "Images and volumes stay in ~/.local/share/docker. They belong to subordinate"
+echo "UIDs, so delete them with: rootlesskit rm -rf ~/.local/share/docker"
+echo ""
