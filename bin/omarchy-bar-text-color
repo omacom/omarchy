@@ -11,9 +11,14 @@ text_color=${3:-}
 background_color=${4:-}
 background_path=""
 screen_size=""
+scale="1"
 
 shift 4 2>/dev/null || true
 while (($# > 0)); do
+  if [[ $1 == "--background" || $1 == "--screen" || $1 == "--scale" ]] && (( $# < 2 )); then
+    printf '%s\n' "$text_color"
+    exit 0
+  fi
   case "$1" in
   --background)
     background_path=${2:-}
@@ -21,6 +26,10 @@ while (($# > 0)); do
     ;;
   --screen)
     screen_size=${2:-}
+    shift 2
+    ;;
+  --scale)
+    scale=${2:-}
     shift 2
     ;;
   *)
@@ -72,23 +81,78 @@ valid_hex "$text_color" || fallback
 valid_hex "$background_color" || fallback
 [[ $position =~ ^(top|bottom|left|right)$ ]] || fallback
 [[ $bar_size =~ ^[0-9]+$ ]] || fallback
-omarchy-cmd-present magick || fallback
-
-if [[ -z $background_path ]]; then
-  background_path=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null || true)
-fi
-[[ -f $background_path ]] || fallback
+[[ $scale =~ ^[0-9]+([.][0-9]+)?$ ]] || fallback
+awk -v scale="$scale" 'BEGIN { exit !(scale > 0 && scale <= 10) }' || fallback
 
 if [[ -z $screen_size ]]; then
-  if omarchy-cmd-present hyprctl && omarchy-cmd-present jq; then
-    screen_size=$(hyprctl monitors -j 2>/dev/null | jq -r '.[0] | "\(.width)x\(.height)"' 2>/dev/null || true)
-  fi
+  # hyprctl reports the raw mode resolution; an odd transform (90/270 degree
+  # rotation) swaps the logical axes the shell renders with, so swap here too.
+  screen_size=$(hyprctl monitors -j 2>/dev/null |
+    jq -r '.[0] | if ((.transform // 0) % 2) == 1 then "\(.height)x\(.width)" else "\(.width)x\(.height)" end' 2>/dev/null || true)
 fi
 [[ $screen_size =~ ^([0-9]+)x([0-9]+)$ ]] || fallback
 
 screen_width=${BASH_REMATCH[1]}
 screen_height=${BASH_REMATCH[2]}
 ((screen_width > 0 && screen_height > 0 && bar_size > 0)) || fallback
+
+# The resolver picks the per-screen variant and render metadata so the sampled
+# pixels match what the shell actually paints on this screen.
+sample_path=""
+fill="crop"
+backdrop="solid"
+focal_x="0.5"
+focal_y="0.5"
+fill_color="$background_color"
+resolver_args=(--screen "${screen_width}x${screen_height}" --fields)
+[[ -n $background_path ]] && resolver_args+=(--canonical "$background_path")
+
+if resolved=$(omarchy-theme-bg-resolve "${resolver_args[@]}" 2>/dev/null); then
+  while IFS=$'\t' read -r key value; do
+    case "$key" in
+    path)
+      sample_path="$value"
+      ;;
+    fill)
+      [[ $value =~ ^(crop|fit|center|tile)$ ]] && fill="$value"
+      ;;
+    fill_color)
+      valid_hex "$value" && fill_color="$value"
+      ;;
+    backdrop)
+      [[ $value == "blur" ]] && backdrop="$value"
+      ;;
+    focal_x | focal_y)
+      if [[ $value =~ ^(0([.][0-9]+)?|1([.]0+)?)$ ]]; then
+        if [[ $key == "focal_x" ]]; then
+          focal_x="$value"
+        else
+          focal_y="$value"
+        fi
+      fi
+      ;;
+    esac
+  done <<<"$resolved"
+fi
+
+# Resolver missing or failed: sample the canonical background as before.
+if [[ ! -f $sample_path ]]; then
+  if [[ -z $background_path ]]; then
+    background_path=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null || true)
+  fi
+  [[ -f $background_path && ${background_path,,} != *.svg ]] || fallback
+  sample_path="$background_path"
+  fill="crop"
+  backdrop="solid"
+  focal_x="0.5"
+  focal_y="0.5"
+fi
+
+# Video wallpapers always use an aspect crop in BackgroundMedia. Sample their
+# first frame with the same geometry, regardless of still-image metadata.
+if [[ ${sample_path,,} =~ \.(mp4|m4v|mov|webm|mkv|avi)$ ]]; then
+  fill="crop"
+fi
 
 case "$position" in
 top)
@@ -109,14 +173,41 @@ right)
   ;;
 esac
 
-# Sample the first frame only. Without the selector a video background makes
-# ImageMagick decode the whole file and emit one value per frame, and the match
-# below then fails into the fallback colour.
-pixel=$(magick "$background_path[0]" -auto-orient \
-  -resize "${screen_width}x${screen_height}^" \
-  -gravity center -extent "${screen_width}x${screen_height}" \
-  -gravity NorthWest -crop "$crop" +repage \
-  -resize '1x1!' -format '%[fx:int(255*r)],%[fx:int(255*g)],%[fx:int(255*b)]' info:- 2>/dev/null || true)
+screen="${screen_width}x${screen_height}"
+sample_format='%[fx:int(255*r)],%[fx:int(255*g)],%[fx:int(255*b)]'
+
+# Compose the same viewport as WallpaperImage before extracting the bar strip.
+# Crop offsets are fractions of the cover overflow, matching its focal bindings.
+cover=("$sample_path[0]" -auto-orient -resize "${screen}^"
+  -gravity NorthWest -crop "${screen}+%[fx:max(0,round((w-$screen_width)*$focal_x))]+%[fx:max(0,round((h-$screen_height)*$focal_y))]" +repage)
+composition=()
+if [[ $fill != "crop" ]]; then
+  composition=(-size "$screen" "xc:$fill_color")
+  if [[ $backdrop == "blur" ]]; then
+    # Qt uses a subdued cover copy over the solid tint. Approximate its blur
+    # for contrast sampling; retain the same 35% opacity and full geometry.
+    composition+=(\( "${cover[@]}" -blur 0x40 -alpha set -channel A -evaluate multiply 0.35 +channel \) -compose Over -composite)
+  fi
+fi
+
+native_percent=$(awk -v scale="$scale" 'BEGIN { printf "%.6f%%", scale * 100 }')
+case "$fill" in
+fit)
+  composition+=(\( "$sample_path[0]" -auto-orient -resize "$screen" \) -gravity center -compose Over -composite)
+  ;;
+center)
+  composition+=(\( "$sample_path[0]" -auto-orient -resize "$native_percent" \) -gravity center -compose Over -composite)
+  ;;
+tile)
+  # Resize the source tile to physical pixels before tiling on HiDPI screens.
+  composition+=(\( "$sample_path[0]" -auto-orient -resize "$native_percent" -write mpr:tile +delete -size "$screen" tile:mpr:tile \) -compose Over -composite)
+  ;;
+*)
+  composition=("${cover[@]}")
+  ;;
+esac
+pixel=$(magick "${composition[@]}" -gravity NorthWest -crop "$crop" +repage \
+  -resize '1x1!' -format "$sample_format" info:- 2>/dev/null || true)
 [[ $pixel =~ ^([0-9]+),([0-9]+),([0-9]+)$ ]] || fallback
 
 sample=$(printf '#%02x%02x%02x' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}")

@@ -9,6 +9,11 @@ Item {
   property string backgroundPath: ""
   property string videoPosterPath: ""
   property int backgroundVersion: 0
+  // Screen this view covers (the lock surface's or the preview window's), so
+  // the background resolves against the real output dimensions.
+  property var viewScreen: null
+  property var preparedBackground: null
+  readonly property var resolution: preparedBackground || backgroundResolver
   property bool fingerprintConfigured: false
   property bool authenticatingPassword: false
   property string failureMessage: ""
@@ -90,19 +95,31 @@ Item {
     anchors.fill: parent
     color: Color.background
 
+    BackgroundResolver {
+      id: backgroundResolver
+      canonicalPath: root.preparedBackground ? "" : (root.video ? root.videoPosterPath : root.backgroundPath)
+      refreshToken: root.backgroundVersion
+      screenWidth: root.viewScreen ? root.viewScreen.width : Math.round(root.width)
+      screenHeight: root.viewScreen ? root.viewScreen.height : Math.round(root.height)
+    }
+
     BackgroundMedia {
       id: wallpaper
       objectName: "lockWallpaper"
       anchors.fill: parent
-      path: root.loadBackground ? (root.video ? root.videoPosterPath : root.backgroundPath) : ""
+      path: root.loadBackground && root.resolution.ready ? root.resolution.resolvedPath : ""
       version: root.backgroundVersion
-      // Decode only once sized, at the lock's own size: an unsized first
-      // request decoded the file at its native resolution, then again once
-      // sized. That size is what the lock service keeps decoded ahead of the
-      // lock, so the first frame has the wallpaper.
+      fill: root.resolution.fill
+      backdrop: root.resolution.backdrop
+      fillColor: root.resolution.fillColor
+      focalX: root.resolution.focalX
+      focalY: root.resolution.focalY
       cached: true
       constrainDecode: true
-      decodeSize: Qt.size(width, height)
+      decodeSize: Qt.size(Math.round(width * Screen.devicePixelRatio), Math.round(height * Screen.devicePixelRatio))
+      // The blur MultiEffect needs a texture provider; a composed Item only
+      // becomes one through a layer.
+      layer.enabled: !video
     }
 
     MultiEffect {

@@ -6,6 +6,7 @@ import qs.Commons
 BarWidget {
   id: root
   moduleName: "omarchy.media"
+  readonly property color barTextColor: bar ? (bar.foregroundForItem ? bar.foregroundForItem(root) : bar.barForeground) : Color.foreground
 
   readonly property var mediaService: bar?.shell?.firstPartyServiceFor("omarchy.media")
   readonly property var activePlayer: mediaService ? mediaService.activePlayer : null
@@ -35,7 +36,7 @@ BarWidget {
       textFormat: Text.PlainText
       anchors.verticalCenter: parent.verticalCenter
       text: root.playIcon
-      color: activePlayer && activePlayer.isPlaying ? root.bar.barForeground : Qt.darker(root.bar.barForeground, 1.5)
+      color: activePlayer && activePlayer.isPlaying ? root.barTextColor : Qt.darker(root.barTextColor, 1.5)
       font.family: root.bar.fontFamily
       font.pixelSize: Style.font.body
       Behavior on color {
@@ -56,7 +57,7 @@ BarWidget {
         id: labelText
         textFormat: Text.PlainText
         text: root.title + (root.artist ? "  ·  " + root.artist : "")
-        color: root.bar.barForeground
+        color: root.barTextColor
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.body
         anchors.verticalCenter: parent.verticalCenter

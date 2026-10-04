@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Services.Pam
 import Quickshell.Wayland
 import qs.Commons
+import qs.Ui
 
 Item {
   id: root
@@ -320,6 +321,8 @@ Item {
       LockView {
         id: lockView
         anchors.fill: parent
+        viewScreen: lockSurface.screen
+        preparedBackground: root.preloadedBackground(lockSurface.screen)
         backgroundPath: root.backgroundPath
         videoPosterPath: root.videoPosterPath
         backgroundVersion: root.backgroundVersion
@@ -353,6 +356,8 @@ Item {
 
     LockView {
       anchors.fill: parent
+      viewScreen: previewWindow.screen
+      preparedBackground: root.preloadedBackground(previewWindow.screen)
       backgroundPath: root.backgroundPath
       videoPosterPath: root.videoPosterPath
       backgroundVersion: root.backgroundVersion
@@ -410,29 +415,54 @@ Item {
     }
   }
 
-  // The lock only starts decoding its wallpaper once locked, and a machine
-  // suspending right after locking froze that decode partway: waking showed
-  // the password field on a bare background, then the wallpaper popped in.
-  // Keep each screen's lock wallpaper decoded in the image cache ahead of
-  // time, as the lock view requests it (same URL, the screen's logical size,
-  // PreserveAspectCrop), so the lock draws it on its first frame.
+  // Resolve and decode each screen's actual variant before locking. The lock
+  // view consumes this same resolution and cached URL/size/fill, so neither
+  // metadata resolution nor a cold image decode holds up its first frame.
   readonly property string lockWallpaperPath: videoBackground ? videoPosterPath : backgroundPath
-  readonly property string lockWallpaperUrl: lockWallpaperPath && !Util.isVideoPath(lockWallpaperPath)
-    ? Util.fileUrl(lockWallpaperPath) + (backgroundVersion ? "?v=" + backgroundVersion : "")
-    : ""
+
+  function preloadedBackground(screen) {
+    if (!screen) return null
+    const preloads = preloadVariants.instances
+    for (let i = 0; i < preloads.length; i++) {
+      if (preloads[i].modelData.name === screen.name) return preloads[i].resolution
+    }
+    return null
+  }
 
   Variants {
+    id: preloadVariants
     model: Quickshell.screens
 
-    Image {
+    Item {
+      id: preload
       required property var modelData
+      property alias resolution: preloadResolver
       visible: false
-      source: root.lockWallpaperUrl
-      sourceSize.width: modelData.width
-      sourceSize.height: modelData.height
-      fillMode: Image.PreserveAspectCrop
-      asynchronous: true
-      cache: true
+      width: modelData.width
+      height: modelData.height
+
+      BackgroundResolver {
+        id: preloadResolver
+        canonicalPath: root.lockWallpaperPath
+        screenWidth: preload.modelData.width
+        screenHeight: preload.modelData.height
+        devicePixelRatio: preload.modelData.devicePixelRatio
+        refreshToken: root.backgroundVersion
+      }
+
+      BackgroundMedia {
+        anchors.fill: parent
+        path: preloadResolver.ready ? preloadResolver.resolvedPath : ""
+        version: root.backgroundVersion
+        fill: preloadResolver.fill
+        backdrop: preloadResolver.backdrop
+        fillColor: preloadResolver.fillColor
+        focalX: preloadResolver.focalX
+        focalY: preloadResolver.focalY
+        cached: true
+        constrainDecode: true
+        decodeSize: Qt.size(Math.round(preload.width * preload.modelData.devicePixelRatio), Math.round(preload.height * preload.modelData.devicePixelRatio))
+      }
     }
   }
 
