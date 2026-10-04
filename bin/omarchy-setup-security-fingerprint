@@ -6,6 +6,13 @@
 set -e
 
 
+fingerprints_enrolled() {
+  # fprintd-list states an empty enrollment in prose — "User … has no fingers
+  # enrolled for …" — so matching the word "finger" reads as enrolled either
+  # way. Enrolled fingers are listed one per line as " - #0: right-index-finger".
+  fprintd-list "$USER" 2>/dev/null | grep -qE '^[[:space:]]*-[[:space:]]*#[0-9]+:'
+}
+
 setup_pam_config() {
   # A clamshell gate runs before pam_fprintd in every stack: when the lid is
   # shut the reader is unreachable, so it skips fingerprint (success=1) and PAM
@@ -65,6 +72,22 @@ account    include                     system-local-login
 EOF
 }
 
+# Verify the print, then write PAM. Detection only proves a reader is there,
+# not that libfprint can drive it — an Elan MOC sensor outside the elanmoc
+# table gets this far and then fails to enroll. Editing the stacks up front
+# would leave those machines pointing at pam_fprintd with nothing to match.
+configure_verified_fingerprint() {
+  echo -e "\nNow let's verify that it's working correctly.\n"
+  if fprintd-verify; then
+    setup_pam_config
+    setup_lock_fingerprint_pam
+    echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
+    echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
+  else
+    echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
+  fi
+}
+
 
 echo -e "\e[32mSetting up fingerprint scanner for authentication.\n\e[0m"
 
@@ -83,29 +106,33 @@ if omarchy-pkg-missing libfprint-git fprintd usbutils; then
   sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
 fi
 
-# Enroll first fingerprint
-echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
-echo -e "Keep moving the finger around on sensor until the process completes.\n"
-
-if sudo fprintd-enroll "$USER"; then
-  echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
-
-  # Verify
-  echo -e "\nNow let's verify that it's working correctly.\n"
-  if fprintd-verify; then
-    # PAM comes last, once a print is enrolled and verified. Detection only
-    # proves a reader is there, not that libfprint can drive it — an Elan MOC
-    # sensor outside the elanmoc table gets this far and then fails to enroll.
-    # Editing the stacks up front would leave those machines pointing at
-    # pam_fprintd with nothing to match.
-    setup_pam_config
-    setup_lock_fingerprint_pam
-    echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
-    echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
-  else
-    echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
+# A prior enroll that never reached PAM (or remove-then-setup that left prints
+# in /var/lib/fprint) must not dead-end on enroll-duplicate. Offer to wire PAM
+# for what is already enrolled; otherwise fall through to enroll as usual.
+skip_enroll=false
+if fingerprints_enrolled; then
+  echo -e "\e[32m\nFingerprints are already enrolled for $USER.\e[0m"
+  if gum confirm "Skip enrollment and configure authentication for the existing fingerprints?"; then
+    skip_enroll=true
   fi
+fi
+
+if [[ $skip_enroll == true ]]; then
+  configure_verified_fingerprint
 else
-  echo -e "\e[31m\nEnrollment failed. Please try again.\e[0m"
-  exit 1
+  echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
+  echo -e "Keep moving the finger around on sensor until the process completes.\n"
+
+  if sudo fprintd-enroll "$USER"; then
+    echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
+    configure_verified_fingerprint
+  elif fingerprints_enrolled; then
+    # enroll-duplicate (same finger again) exits non-zero even though a usable
+    # print is already on disk — still verify and write PAM.
+    echo -e "\e[33m\nEnrollment did not add a new print, but existing fingerprints were found.\e[0m"
+    configure_verified_fingerprint
+  else
+    echo -e "\e[31m\nEnrollment failed. Please try again.\e[0m"
+    exit 1
+  fi
 fi
