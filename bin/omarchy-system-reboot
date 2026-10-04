@@ -4,14 +4,7 @@
 # omarchy:examples=omarchy reboot | omarchy system reboot
 # omarchy:aliases=omarchy reboot
 
-# Schedule the reboot in the user manager so closing the terminal's systemd
-# scope cannot terminate it before it runs.
-systemd-run --user --collect --quiet --on-active="2s" --timer-property=AccuracySec=100ms systemctl reboot --no-wall || exit 1
-
-omarchy-osd -i reboot -m "Rebooting" -d 5000
-
-omarchy-state clear re*-required
-
-# Now close all windows
-omarchy-hyprland-window-close-all
-sleep 1 # Allow apps like Chrome to shutdown correctly
+# Close apps and reboot from the user manager, so neither closing the
+# terminal's systemd scope nor a caller's timeout can stop it midway. The fixed
+# unit name keeps a second press from starting a parallel run.
+systemd-run --user --collect --quiet --unit=omarchy-system-exit "$OMARCHY_PATH/bin/omarchy-system-exit" reboot

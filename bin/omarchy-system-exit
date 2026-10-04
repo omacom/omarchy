@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Close all apps, then reboot, shut down or log out
+# omarchy:args=<reboot|shutdown|logout>
+# omarchy:hidden=true
+
+# Runs in the user manager (see omarchy-system-reboot) so it outlives the
+# terminal or menu that started it while apps ask about unsaved changes.
+
+case $1 in
+  reboot) icon=reboot message="Rebooting" cancelled="Reboot cancelled" final=(systemctl reboot --no-wall) ;;
+  shutdown) icon=shutdown message="Shutting down" cancelled="Shutdown cancelled" final=(systemctl poweroff --no-wall) ;;
+  logout) icon=logout message="Logging out" cancelled="Logout cancelled" final=(uwsm stop) ;;
+  *) echo "Usage: omarchy-system-exit <reboot|shutdown|logout>" >&2; exit 1 ;;
+esac
+
+omarchy-osd -i "$icon" -m "$message" -d 5000
+
+# Apps showing a "Save changes?" dialog keep their window open. Wait for the
+# user's answer, and cancel if the app is still open after that.
+if still_open=$(omarchy-hyprland-window-close-all --wait 30); then
+  [[ $1 == "logout" ]] || omarchy-state clear re*-required
+  sleep 1 # Allow apps like Chrome to shutdown correctly
+  "${final[@]}"
+else
+  omarchy-notification-send -u critical "$cancelled" "Still open: $still_open"
+  exit 1
+fi
