@@ -382,6 +382,16 @@ size-vertical   = 28   # left/right bar width at base-size 12
 
 Set `scale-with-font = false` to keep those bar sizes as fixed pixels.
 
+### Widget groups
+
+Layout entries may carry a `"group"` name; consecutive visible entries sharing it are drawn on one oval. The layout math lives in `BarModel.groupInsets` / `groupSpans` (padding at a group's ends, one gap between neighbours), and the oval colour is `Color.bar.group`, from `[bar] group-background` / `group-background-alpha` in `shell.toml`:
+
+```toml
+[bar]
+group-background       = "{{ foreground }}"
+group-background-alpha = 0.08
+```
+
 ## Custom bar modules
 
 If a full plugin is overkill, declare a one-off module inline in

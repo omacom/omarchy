@@ -609,6 +609,11 @@ Item {
         if (!slot || slot.region !== change.region || slot.moduleName !== entryId(change.entry)) continue
         var item = slot.activeItem
         if (item && "settings" in item) item.settings = settings
+        var group = settings.group ? String(settings.group) : ""
+        if (slot.group !== group) {
+          slot.group = group
+          if (slot.list) slot.list.scheduleGroups()
+        }
       }
     }
   }
@@ -1547,13 +1552,66 @@ Item {
       id: horizontalCenterModules
 
       Item {
+        id: centerGroups
         anchors.fill: parent
+
+        // Group host for the anchored arrangement (see ModuleList.groupHost):
+        // before-list, anchor and after-list group as one sequence, so a group
+        // can run across the anchor on a single oval.
+        property var groupRects: []
+        function groupSlots() {
+          if (!centerRoot.hasAnchor) return []
+          var out = beforeList.listSlots()
+          out.push(centerAnchorModule)
+          return out.concat(afterList.listSlots()).filter(function(slot) { return slot.shown })
+        }
+
+        function updateGroupInsets() {
+          var all = beforeList.listSlots().concat([centerAnchorModule], afterList.listSlots())
+          var shown = groupSlots()
+          var insets = BarModel.groupInsets(shown.map(function(slot) { return slot.group }), beforeList.groupPad, beforeList.groupGap)
+          for (var i = 0; i < all.length; i++) {
+            var index = shown.indexOf(all[i])
+            all[i].leadInset = index === -1 ? 0 : insets[index].lead
+            all[i].trailInset = index === -1 ? 0 : insets[index].trail
+          }
+          scheduleGroupRects()
+        }
+
+        function updateGroupRects() {
+          var vertical = root.vertical
+          var container = centerGroups
+          var spans = BarModel.groupSpans(groupSlots().map(function(slot) {
+            var p = slot.mapToItem(container, 0, 0)
+            return {
+              group: slot.group,
+              start: vertical ? p.y : p.x,
+              end: vertical ? p.y + slot.height : p.x + slot.width,
+              lead: slot.leadInset,
+              trail: slot.trailInset
+            }
+          }), beforeList.groupPad)
+          var slotCross = vertical ? centerAnchorModule.width : centerAnchorModule.height
+          var origin = vertical ? centerAnchorModule.mapToItem(container, 0, 0).x : centerAnchorModule.mapToItem(container, 0, 0).y
+          var inset = beforeList.groupCrossInset
+          var thickness = Math.max(0, slotCross - inset * 2)
+          groupRects = spans.map(function(span) {
+            return vertical
+              ? { x: origin + inset, y: span.start, w: thickness, h: span.end - span.start }
+              : { x: span.start, y: origin + inset, w: span.end - span.start, h: thickness }
+          })
+        }
+
+        function scheduleGroups() { Qt.callLater(updateGroupInsets) }
+        function scheduleGroupRects() { Qt.callLater(updateGroupRects) }
 
         CenterGestureArea { anchors.fill: parent }
 
         HoverHandler {
           onHoveredChanged: root.setCenterSectionHovered(hovered)
         }
+
+        GroupOvals { list: centerRoot.hasAnchor ? centerGroups : null }
 
         ModuleList {
           visible: !centerRoot.hasAnchor
@@ -1563,9 +1621,11 @@ Item {
         }
 
         ModuleList {
+          id: beforeList
           visible: centerRoot.hasAnchor
           entries: root.entriesBefore(centerRoot.entries, root.centerAnchor)
           region: "center"
+          groupHost: centerGroups
           anchors.right: centerAnchorModule.left
           anchors.verticalCenter: centerAnchorModule.verticalCenter
         }
@@ -1575,13 +1635,20 @@ Item {
           visible: centerRoot.hasAnchor
           entry: centerRoot.anchorEntry
           region: "center"
+          list: beforeList
+          onXChanged: centerGroups.scheduleGroupRects()
+          onYChanged: centerGroups.scheduleGroupRects()
+          onWidthChanged: centerGroups.scheduleGroupRects()
+          onHeightChanged: centerGroups.scheduleGroupRects()
           anchors.centerIn: parent
         }
 
         ModuleList {
+          id: afterList
           visible: centerRoot.hasAnchor
           entries: root.entriesAfter(centerRoot.entries, root.centerAnchor)
           region: "center"
+          groupHost: centerGroups
           anchors.left: centerAnchorModule.right
           anchors.verticalCenter: centerAnchorModule.verticalCenter
         }
@@ -1592,13 +1659,66 @@ Item {
       id: verticalCenterModules
 
       Item {
+        id: centerGroups
         anchors.fill: parent
+
+        // Group host for the anchored arrangement (see ModuleList.groupHost):
+        // before-list, anchor and after-list group as one sequence, so a group
+        // can run across the anchor on a single oval.
+        property var groupRects: []
+        function groupSlots() {
+          if (!centerRoot.hasAnchor) return []
+          var out = beforeList.listSlots()
+          out.push(centerAnchorModule)
+          return out.concat(afterList.listSlots()).filter(function(slot) { return slot.shown })
+        }
+
+        function updateGroupInsets() {
+          var all = beforeList.listSlots().concat([centerAnchorModule], afterList.listSlots())
+          var shown = groupSlots()
+          var insets = BarModel.groupInsets(shown.map(function(slot) { return slot.group }), beforeList.groupPad, beforeList.groupGap)
+          for (var i = 0; i < all.length; i++) {
+            var index = shown.indexOf(all[i])
+            all[i].leadInset = index === -1 ? 0 : insets[index].lead
+            all[i].trailInset = index === -1 ? 0 : insets[index].trail
+          }
+          scheduleGroupRects()
+        }
+
+        function updateGroupRects() {
+          var vertical = root.vertical
+          var container = centerGroups
+          var spans = BarModel.groupSpans(groupSlots().map(function(slot) {
+            var p = slot.mapToItem(container, 0, 0)
+            return {
+              group: slot.group,
+              start: vertical ? p.y : p.x,
+              end: vertical ? p.y + slot.height : p.x + slot.width,
+              lead: slot.leadInset,
+              trail: slot.trailInset
+            }
+          }), beforeList.groupPad)
+          var slotCross = vertical ? centerAnchorModule.width : centerAnchorModule.height
+          var origin = vertical ? centerAnchorModule.mapToItem(container, 0, 0).x : centerAnchorModule.mapToItem(container, 0, 0).y
+          var inset = beforeList.groupCrossInset
+          var thickness = Math.max(0, slotCross - inset * 2)
+          groupRects = spans.map(function(span) {
+            return vertical
+              ? { x: origin + inset, y: span.start, w: thickness, h: span.end - span.start }
+              : { x: span.start, y: origin + inset, w: span.end - span.start, h: thickness }
+          })
+        }
+
+        function scheduleGroups() { Qt.callLater(updateGroupInsets) }
+        function scheduleGroupRects() { Qt.callLater(updateGroupRects) }
 
         CenterGestureArea { anchors.fill: parent }
 
         HoverHandler {
           onHoveredChanged: root.setCenterSectionHovered(hovered)
         }
+
+        GroupOvals { list: centerRoot.hasAnchor ? centerGroups : null }
 
         ModuleList {
           visible: !centerRoot.hasAnchor
@@ -1608,9 +1728,11 @@ Item {
         }
 
         ModuleList {
+          id: beforeList
           visible: centerRoot.hasAnchor
           entries: root.entriesBefore(centerRoot.entries, root.centerAnchor)
           region: "center"
+          groupHost: centerGroups
           anchors.bottom: centerAnchorModule.top
           anchors.horizontalCenter: centerAnchorModule.horizontalCenter
         }
@@ -1620,13 +1742,20 @@ Item {
           visible: centerRoot.hasAnchor
           entry: centerRoot.anchorEntry
           region: "center"
+          list: beforeList
+          onXChanged: centerGroups.scheduleGroupRects()
+          onYChanged: centerGroups.scheduleGroupRects()
+          onWidthChanged: centerGroups.scheduleGroupRects()
+          onHeightChanged: centerGroups.scheduleGroupRects()
           anchors.centerIn: parent
         }
 
         ModuleList {
+          id: afterList
           visible: centerRoot.hasAnchor
           entries: root.entriesAfter(centerRoot.entries, root.centerAnchor)
           region: "center"
+          groupHost: centerGroups
           anchors.top: centerAnchorModule.bottom
           anchors.horizontalCenter: centerAnchorModule.horizontalCenter
         }
@@ -1716,11 +1845,95 @@ Item {
     }
   }
 
+  // Soft oval behind each widget group of a ModuleList (see groupRects).
+  component GroupOvals: Repeater {
+    property var list: null
+    model: list ? list.groupRects : []
+
+    Rectangle {
+      required property var modelData
+      x: modelData.x
+      y: modelData.y
+      width: modelData.w
+      height: modelData.h
+      radius: Math.min(width, height) / 2
+      color: Color.bar.group
+    }
+  }
+
   component ModuleList: Loader {
     id: moduleListRoot
 
     property var entries: []
     property string region: ""
+
+    // Widget groups: consecutive visible entries sharing a `group` key sit on
+    // one oval. Slots at a group's ends get padding inside the oval and a gap
+    // to their neighbours (BarModel.groupInsets); the ovals are rebuilt from
+    // the laid-out slots whenever the row repositions, so widgets that come
+    // and go (media, updates) reshape their group.
+    readonly property real groupPad: Style.space(7)
+    readonly property real groupGap: Style.space(6)
+    readonly property real groupCrossInset: Style.space(4)
+    property var groupRects: []
+    // The anchored center section spans three pieces (before-list, anchor,
+    // after-list); it groups them as one sequence and draws their ovals
+    // itself, so its lists hand group layout to that host.
+    property var groupHost: null
+
+    function listSlots() {
+      var out = []
+      var repeater = item ? item.slotRepeater : null
+      if (!repeater) return out
+      for (var i = 0; i < repeater.count; i++) {
+        var slot = repeater.itemAt(i)
+        if (slot) out.push(slot)
+      }
+      return out
+    }
+
+    function updateGroupInsets() {
+      var all = listSlots()
+      var shown = all.filter(function(slot) { return slot.shown })
+      var insets = BarModel.groupInsets(shown.map(function(slot) { return slot.group }), groupPad, groupGap)
+      for (var i = 0; i < all.length; i++) {
+        var index = shown.indexOf(all[i])
+        all[i].leadInset = index === -1 ? 0 : insets[index].lead
+        all[i].trailInset = index === -1 ? 0 : insets[index].trail
+      }
+      Qt.callLater(updateGroupRects)
+    }
+
+    function updateGroupRects() {
+      var vertical = root.vertical
+      var shown = listSlots().filter(function(slot) { return slot.shown })
+      var spans = BarModel.groupSpans(shown.map(function(slot) {
+        return {
+          group: slot.group,
+          start: vertical ? slot.y : slot.x,
+          end: vertical ? slot.y + slot.height : slot.x + slot.width,
+          lead: slot.leadInset,
+          trail: slot.trailInset
+        }
+      }), groupPad)
+      var thickness = Math.max(0, (vertical ? width : height) - groupCrossInset * 2)
+      groupRects = spans.map(function(span) {
+        return vertical
+          ? { x: groupCrossInset, y: span.start, w: thickness, h: span.end - span.start }
+          : { x: span.start, y: groupCrossInset, w: span.end - span.start, h: thickness }
+      })
+    }
+
+    function scheduleGroups() {
+      if (groupHost) groupHost.scheduleGroups()
+      else Qt.callLater(updateGroupInsets)
+    }
+    function positioned() {
+      if (groupHost) groupHost.scheduleGroupRects()
+      else updateGroupRects()
+    }
+    onEntriesChanged: scheduleGroups()
+    onLoaded: scheduleGroups()
 
     visible: entries.length > 0
     // A hidden list must not build its modules. The center section declares
@@ -1736,16 +1949,30 @@ Item {
     Component {
       id: horizontalModuleList
 
-      Row {
-        spacing: 0
+      Item {
+        property alias slotRepeater: slotRepeater
+        implicitWidth: positioner.implicitWidth
+        implicitHeight: positioner.implicitHeight
 
-        Repeater {
-          model: moduleListRoot.entries
+        GroupOvals { list: moduleListRoot.groupHost ? null : moduleListRoot }
 
-          ModuleSlot {
-            required property var modelData
-            entry: modelData
-            region: moduleListRoot.region
+        Row {
+          id: positioner
+          spacing: 0
+          onPositioningComplete: moduleListRoot.positioned()
+
+          Repeater {
+            id: slotRepeater
+            model: moduleListRoot.entries
+            onItemAdded: moduleListRoot.scheduleGroups()
+            onItemRemoved: moduleListRoot.scheduleGroups()
+
+            ModuleSlot {
+              required property var modelData
+              entry: modelData
+              region: moduleListRoot.region
+              list: moduleListRoot
+            }
           }
         }
       }
@@ -1754,16 +1981,30 @@ Item {
     Component {
       id: verticalModuleList
 
-      Column {
-        spacing: 0
+      Item {
+        property alias slotRepeater: slotRepeater
+        implicitWidth: positioner.implicitWidth
+        implicitHeight: positioner.implicitHeight
 
-        Repeater {
-          model: moduleListRoot.entries
+        GroupOvals { list: moduleListRoot.groupHost ? null : moduleListRoot }
 
-          ModuleSlot {
-            required property var modelData
-            entry: modelData
-            region: moduleListRoot.region
+        Column {
+          id: positioner
+          spacing: 0
+          onPositioningComplete: moduleListRoot.positioned()
+
+          Repeater {
+            id: slotRepeater
+            model: moduleListRoot.entries
+            onItemAdded: moduleListRoot.scheduleGroups()
+            onItemRemoved: moduleListRoot.scheduleGroups()
+
+            ModuleSlot {
+              required property var modelData
+              entry: modelData
+              region: moduleListRoot.region
+              list: moduleListRoot
+            }
           }
         }
       }
@@ -1777,6 +2018,14 @@ Item {
     property string region: ""
     readonly property string moduleName: root.entryId(entry)
     readonly property var moduleSettings: root.entrySettings(entry)
+    // Widget groups (see ModuleList): the entry's `group`, and the padding the
+    // list assigns before/after the widget so its group's oval has room.
+    property var list: null
+    property string group: moduleSettings.group ? String(moduleSettings.group) : ""
+    property real leadInset: 0
+    property real trailInset: 0
+    readonly property bool shown: !!activeItem && activeItem.visible
+    onShownChanged: if (list) list.scheduleGroups()
     readonly property string customType: root.customModuleType(entry)
     readonly property var registryMetadata: root.barWidgetRegistry.metadataFor(root.canonicalWidgetId(moduleName))
     readonly property bool firstParty: registryMetadata && registryMetadata.firstParty === true
@@ -1811,8 +2060,8 @@ Item {
       if (hint !== undefined && hint !== null && hint > 0) return Math.round(hint)
       return Math.max(Style.space(10), Math.round((root.vertical ? slot.height : slot.width) * 0.55))
     }
-    implicitWidth: activeItem && activeItem.visible ? (root.vertical ? root.barSize : activeItem.implicitWidth) : 0
-    implicitHeight: activeItem && activeItem.visible ? activeItem.implicitHeight : 0
+    implicitWidth: shown ? (root.vertical ? root.barSize : activeItem.implicitWidth + leadInset + trailInset) : 0
+    implicitHeight: shown ? activeItem.implicitHeight + (root.vertical ? leadInset + trailInset : 0) : 0
     width: implicitWidth
     height: implicitHeight
     z: modulePointer.dragging ? 100 : 0
@@ -1840,6 +2089,10 @@ Item {
       active: !slot.qmlCustom && !slot.registered
       sourceComponent: slot.commandCustom ? customCommandModuleComponent : emptyModuleComponent
       anchors.fill: parent
+      anchors.leftMargin: root.vertical ? 0 : slot.leadInset
+      anchors.rightMargin: root.vertical ? 0 : slot.trailInset
+      anchors.topMargin: root.vertical ? slot.leadInset : 0
+      anchors.bottomMargin: root.vertical ? slot.trailInset : 0
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()
@@ -1852,6 +2105,10 @@ Item {
       active: slot.registered
       sourceComponent: slot.registered ? slot.registryComponent : null
       anchors.fill: parent
+      anchors.leftMargin: root.vertical ? 0 : slot.leadInset
+      anchors.rightMargin: root.vertical ? 0 : slot.trailInset
+      anchors.topMargin: root.vertical ? slot.leadInset : 0
+      anchors.bottomMargin: root.vertical ? slot.trailInset : 0
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()
@@ -1864,6 +2121,10 @@ Item {
       active: slot.qmlCustom
       source: slot.qmlCustom ? root.customModuleSource(slot.entry) : ""
       anchors.fill: parent
+      anchors.leftMargin: root.vertical ? 0 : slot.leadInset
+      anchors.rightMargin: root.vertical ? 0 : slot.trailInset
+      anchors.topMargin: root.vertical ? slot.leadInset : 0
+      anchors.bottomMargin: root.vertical ? slot.trailInset : 0
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()
@@ -1888,9 +2149,9 @@ Item {
       // panel that opens on that side.
       x: root.vertical
         ? (root.position === "left" ? parent.width - width - inset : inset)
-        : Math.round((parent.width - width) / 2)
+        : Math.round(slot.leadInset + (parent.width - slot.leadInset - slot.trailInset - width) / 2)
       y: root.vertical
-        ? Math.round((parent.height - height) / 2)
+        ? Math.round(slot.leadInset + (parent.height - slot.leadInset - slot.trailInset - height) / 2)
         : (root.position === "top" ? parent.height - height - inset : inset)
       z: 50
 

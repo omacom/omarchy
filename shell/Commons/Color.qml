@@ -80,6 +80,8 @@ QtObject {
     property color background: root.composed("bar.background", "bar.background-alpha", root.background, 1.0)
     property color text: root.pick("bar.text", root.foreground)
     property color active: root.pick("bar.active", root.urgent)
+    // Oval behind a group of bar widgets (layout entries sharing `group`).
+    property color group: root.composed("bar.group-background", "bar.group-background-alpha", root.foreground, 0.08)
   }
   readonly property QtObject popups: QtObject {
     property color background: root.composed("popups.background", "popups.background-alpha", root.background, 1.0)

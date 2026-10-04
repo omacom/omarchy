@@ -48,6 +48,19 @@ Example `shell.json` (bar subtree only shown):
 
 `centerAnchor` pins one center module to the exact horizontal/vertical center and flanks others around it. Set to an empty string to disable anchoring (the center list is centered as a group).
 
+## Widget groups
+
+Any layout entry may carry a `"group"` name. Consecutive visible entries in a section with the same name sit on one soft oval (`[bar] group-background` / `group-background-alpha` in the theme's `shell.toml`, default the theme foreground at 8%), with padding inside and a gap to their neighbours. `omarchy bar set <id> group <name>` sets it live; hidden widgets drop out of their group until they reappear.
+
+```json
+"right": [
+  { "id": "omarchy.bluetooth", "group": "controls" },
+  { "id": "omarchy.network", "group": "controls" },
+  { "id": "omarchy.audio", "group": "controls" },
+  { "id": "omarchy.clock", "group": "time" }
+]
+```
+
 ## Module catalogue
 
 ### First-party interactive widgets
