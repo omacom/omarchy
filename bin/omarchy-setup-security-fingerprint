@@ -73,15 +73,41 @@ if omarchy-pkg-missing libfprint-git fprintd usbutils; then
   sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
 fi
 
-# fprintd-list prints one " - #N: finger" line per enrolled print. "User has no
-# fingers enrolled" also contains the word finger, so match the entry lines.
-fingerprint_enrolled() {
-  fprintd-list "$USER" 2>/dev/null | grep -Eq '^ *- #[0-9]+: '
+# fprintd-enroll and fprintd-verify use fprintd's default reader.
+default_reader() {
+  gdbus call --system --dest net.reactivated.Fprint --object-path /net/reactivated/Fprint/Manager \
+    --method net.reactivated.Fprint.Manager.GetDefaultDevice 2>/dev/null |
+    grep -o '/net/reactivated/Fprint/Device/[0-9]\+'
 }
+
+# Whether a print is saved on the default reader: 0 yes, 1 no, 2 fprintd could
+# not say. fprintd-list prints a "Using device <path>" header per reader, then
+# one " - #N: finger" line per print or "User has no fingers enrolled", which
+# also contains the word finger, so only entry lines under the default count.
+# It exits non-zero when it cannot list, which must not read as no prints.
+fingerprint_enrolled() {
+  local reader listing
+  reader=$(default_reader) || return 2
+  listing=$(fprintd-list "$USER" 2>&1) || return 2
+  awk -v reader="$reader" '
+    /^Using device / { current = ($3 == reader) }
+    current && /^ *- #[0-9]+: / { found = 1 }
+    END { exit !found }
+  ' <<<"$listing"
+}
+
+enrolled=0
+fingerprint_enrolled || enrolled=$?
+
+if (( enrolled == 2 )); then
+  echo -e "\e[31mCould not check for saved fingerprints. Make sure fprintd is running and\e[0m"
+  echo -e "\e[31mfprintd-list $USER works, then run this setup again.\e[0m"
+  exit 1
+fi
 
 # fprintd-enroll refuses a finger that matches a print saved under another
 # finger name (enroll-duplicate), so keep any saved print and verify it instead.
-if fingerprint_enrolled; then
+if (( enrolled == 0 )); then
   echo -e "\e[32mA fingerprint is already enrolled. Let's check it still works.\e[0m"
 else
   # Enroll first fingerprint
