@@ -99,14 +99,38 @@ assert_apparent_size 9
 unset FAIL_WRITE
 pass "failed GTK set and reset compensate for the factor actually in use"
 
+# A failed read must not be mistaken for factor 1 while 1.5 is active.
+echo 1.5 >"$FACTOR_FILE"
+FAIL_WRITE=1 run_size 16
+for terminal in ghostty foot kitty alacritty; do
+  cp -r "$HOME/.config/$terminal" "$scratch/$terminal-before"
+done
+assert_terminal_configs_unchanged() {
+  local terminal
+  for terminal in ghostty foot kitty alacritty; do
+    diff -r "$scratch/$terminal-before" "$HOME/.config/$terminal" >/dev/null ||
+      fail "unreadable GTK factor leaves $terminal config unchanged"
+  done
+}
+for action in 18 reset; do
+  if FAIL_READ=1 run_size "$action" >"$scratch/out" 2>"$scratch/err"; then
+    fail "unreadable GTK factor returns a failure for $action"
+  fi
+  grep -q 'terminal font sizes were left unchanged' "$scratch/err" || fail "failure explains untouched terminal sizes"
+  assert_terminal_configs_unchanged
+done
+output=$(FAIL_READ=1 run_size)
+[[ $output == *"terminal font: n/a pt"* ]] || fail "failed read does not falsely report an apparent size"
+pass "failed GTK reads preserve every terminal config, fail set/reset, and report unknown size"
+
 for factor in 0 invalid; do
   echo "$factor" >"$FACTOR_FILE"
-  FAIL_WRITE=1 run_size 16
-  [[ $(ghostty_size) == "12" ]] || fail "invalid GTK factor safely falls back to 1"
+  if FAIL_WRITE=1 run_size 16 >"$scratch/out" 2>"$scratch/err"; then
+    fail "invalid GTK factor returns a failure"
+  fi
+  assert_terminal_configs_unchanged
 done
-FAIL_READ=1 run_size 16
-[[ $(ghostty_size) == "12" ]] || fail "unavailable GTK factor safely falls back to 1"
-pass "invalid or unavailable GTK factors cannot produce invalid font sizes"
+pass "invalid GTK factors leave terminal config untouched"
 
 sed -i '/^font-size = /d' "$HOME/.config/ghostty/config"
 output=$(run_size)

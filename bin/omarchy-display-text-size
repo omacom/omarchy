@@ -125,11 +125,11 @@ set_factor() {
 # effective value so a failed set/reset does not cause a second size mismatch.
 gtk_factor() {
   local factor
-  factor="$(gsettings get "$GKEY_SCHEMA" "$GKEY_NAME" 2>/dev/null)"
+  factor="$(gsettings get "$GKEY_SCHEMA" "$GKEY_NAME" 2>/dev/null)" || return 1
   if [[ $factor =~ ^[0-9]+(\.[0-9]+)?$ ]] && awk -v f="$factor" 'BEGIN { exit !(f > 0) }'; then
     echo "$factor"
   else
-    echo 1
+    return 1
   fi
 }
 
@@ -146,7 +146,20 @@ term_pt_for() {
 # untouched — that is omarchy-font-set's job. Live-reload signals mirror
 # omarchy-font-set; foot has no reload signal, so running instances are nudged.
 set_terminal_size() {
-  local pt="$1"
+  local pt="$1" ghostty_pt
+
+  if [[ -f ~/.config/ghostty/config ]]; then
+    # GTK already scales Ghostty's font. Compensate for that multiplier while
+    # retaining the same apparent point size as the other terminals.
+    local factor
+    if factor=$(gtk_factor); then
+      ghostty_pt=$(awk -v p="$pt" -v f="$factor" \
+        'BEGIN { printf "%.4f", p / f }' | sed -E 's/\.?0+$//')
+    else
+      echo "Cannot read GTK text scaling; terminal font sizes were left unchanged." >&2
+      return 1
+    fi
+  fi
 
   if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
     sed -i -E "s/^size[[:space:]]*=.*/size = $pt/" ~/.config/alacritty/alacritty.toml
@@ -163,11 +176,6 @@ set_terminal_size() {
   fi
 
   if [[ -f ~/.config/ghostty/config ]]; then
-    # GTK already scales Ghostty's font. Compensate for that multiplier while
-    # retaining the same apparent point size as the other terminals.
-    local ghostty_pt
-    ghostty_pt=$(awk -v p="$pt" -v f="$(gtk_factor)" \
-      'BEGIN { printf "%.4f", p / f }' | sed -E 's/\.?0+$//')
     sed -i -E "s/^font-size = .*/font-size = $ghostty_pt/" ~/.config/ghostty/config
     pkill -SIGUSR2 ghostty 2>/dev/null || true
   fi
@@ -196,10 +204,10 @@ set_terminal_size() {
 # Report the apparent point size from whichever terminal config we find first.
 term_current_pt() {
   if [[ -f ~/.config/ghostty/config ]]; then
-    local pt
+    local pt factor
     pt=$(grep -oP '^font-size = \K[0-9.]+' ~/.config/ghostty/config | head -1)
-    if [[ -n $pt ]]; then
-      awk -v p="$pt" -v f="$(gtk_factor)" \
+    if [[ -n $pt ]] && factor=$(gtk_factor); then
+      awk -v p="$pt" -v f="$factor" \
         'BEGIN { printf "%.2f", p * f }' | sed -E 's/\.?0+$//'
     fi
   elif [[ -f ~/.config/alacritty/alacritty.toml ]]; then
@@ -233,7 +241,7 @@ case "${1:-}" in
     reset_base_size
     gsettings reset "$GKEY_SCHEMA" "$GKEY_NAME" 2>/dev/null || true
     set_terminal_size "$TERM_DEFAULT_PT"
-    exit 0
+    exit $?
     ;;
 esac
 
