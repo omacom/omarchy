@@ -7,12 +7,15 @@ QtObject {
   required property string serviceId
 
   property bool stayAwake: false
+  property bool lidPresent: false
+  property bool lidStayAwake: false
   property bool enabled: false
   property bool doNotDisturb: false
   property var activePlayer: null
   property var sourcePlayers: []
 
   property var _setIdleEnabled: null
+  property var _setLidStayAwake: null
   property var _setNightlight: null
   property var _setDoNotDisturb: null
   property var _runAction: null
@@ -21,6 +24,10 @@ QtObject {
 
   function setIdleEnabled(value) {
     if (serviceId === "omarchy.idle" && _setIdleEnabled) _setIdleEnabled(!!value)
+  }
+
+  function setLidStayAwake(value) {
+    if (serviceId === "omarchy.idle" && _setLidStayAwake) _setLidStayAwake(!!value)
   }
 
   function setNightlight(value) {

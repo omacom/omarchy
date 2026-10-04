@@ -1,0 +1,76 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle whether closing the laptop lid suspends the machine or keeps it running
+# omarchy:group=toggle
+# omarchy:args=[toggle|stay-awake|suspend|status]
+# omarchy:examples=omarchy toggle lid | omarchy toggle lid stay-awake | omarchy toggle lid status
+
+# Only the state file is touched here. The idle service watches it and holds a
+# logind handle-lid-switch inhibitor while it exists, so toggling from a
+# keybinding or a script reaches the shell without reentrant IPC.
+
+STATE_DIR="$HOME/.local/state/omarchy/indicators"
+STATE_FILE="$STATE_DIR/lid-stay-awake"
+
+if ! omarchy-hw-lid; then
+  echo "This machine has no lid switch" >&2
+  exit 1
+fi
+
+stay_awake_enabled() {
+  [[ -f $STATE_FILE ]]
+}
+
+print_status() {
+  if stay_awake_enabled; then
+    printf '{"enabled":true,"class":"enabled","tooltip":"Suspend on lid close"}\n'
+  else
+    printf '{"enabled":false,"class":"disabled","tooltip":"Stay awake on lid close"}\n'
+  fi
+}
+
+print_lid_state() {
+  if stay_awake_enabled; then
+    printf 'stay-awake\n'
+  else
+    printf 'suspend\n'
+  fi
+}
+
+apply_state() {
+  case "$1" in
+    stay-awake)
+      mkdir -p "$STATE_DIR"
+      touch "$STATE_FILE"
+      ;;
+    suspend)
+      rm -f "$STATE_FILE"
+      ;;
+  esac
+}
+
+case "${1:-toggle}" in
+  toggle)
+    if stay_awake_enabled; then
+      apply_state suspend
+    else
+      apply_state stay-awake
+    fi
+    print_lid_state
+    ;;
+  stay-awake|awake|on)
+    apply_state stay-awake
+    print_lid_state
+    ;;
+  suspend|sleep|off)
+    apply_state suspend
+    print_lid_state
+    ;;
+  status|--status)
+    print_status
+    ;;
+  *)
+    echo "Usage: omarchy-toggle-lid [toggle|stay-awake|suspend|status]" >&2
+    exit 1
+    ;;
+esac

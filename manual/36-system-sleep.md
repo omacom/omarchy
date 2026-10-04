@@ -8,6 +8,14 @@ On a laptop, Omarchy remembers your power profile separately for plugged in and 
 
 You can see what your machine offers with `omarchy powerprofiles list`, and set the one you want for the state you're currently in with `omarchy powerprofiles set autodetect power-saver`. To set the other state without unplugging anything, name it directly: `omarchy powerprofiles set battery power-saver`. Whatever you pick is what you'll get back the next time you're in that state.
 
+### Closing the lid
+
+On a laptop, closing the lid suspends the machine. That's the right default for a laptop in a bag, and the wrong one for a laptop carrying a build, an agent, or an SSH session from the office to the kitchen table.
+
+The Power panel in the top bar has a _Lid close_ picker for exactly that: _Suspend_ is the default, _Stay Awake_ keeps everything running with the lid shut. The same switch is _Trigger > Hardware > Lid Stay Awake_ in the menu, and `omarchy toggle lid` from the terminal (`omarchy toggle lid status` prints the current state as JSON). It only shows up on machines with a lid switch.
+
+Staying awake doesn't mean staying open. Closing the lid still locks the screen, so the laptop is as safe in transit as it would be asleep. Omarchy holds a logind inhibitor for the lid switch while the mode is on, so nothing in `logind.conf` is touched, and _System > Suspend_ still works when you ask for it. The choice is remembered across restarts until you flip it back.
+
 ### Toggle suspend
 
 You toggle suspend by running `omarchy toggle suspend` from the terminal. That just reveals/hides the option under _System_ (or `Super + Esc`), and then you can see if it works consistently on your system. If not, you can hide it again with the same command.

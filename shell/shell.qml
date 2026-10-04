@@ -469,6 +469,10 @@ ShellRoot {
         var target = service()
         if (target && typeof target.setIdleEnabled === "function") target.setIdleEnabled(value)
       },
+      _setLidStayAwake: function(value) {
+        var target = service()
+        if (target && typeof target.setLidStayAwake === "function") target.setLidStayAwake(value)
+      },
       _setNightlight: function(value) {
         var target = service()
         if (target && typeof target.setNightlight === "function") target.setNightlight(value)
@@ -494,6 +498,14 @@ ShellRoot {
     api.stayAwake = Qt.binding(function() {
       var target = service()
       return target ? target.stayAwake === true : false
+    })
+    api.lidPresent = Qt.binding(function() {
+      var target = service()
+      return target ? target.lidPresent === true : false
+    })
+    api.lidStayAwake = Qt.binding(function() {
+      var target = service()
+      return target ? target.lidStayAwake === true : false
     })
     api.enabled = Qt.binding(function() {
       var target = service()
