@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=Emit the idle-inhibit daemon state as one line while its pid is alive
+# omarchy:hidden=true
+
+# Prints the daemon's state file as one line when that state can be trusted,
+# and one empty line otherwise: missing/unreadable/unparseable file, or a
+# serving pid that is gone. SplitParser only fires onRead for bytes, so a
+# crashed daemon's last write must not keep idle suppressed forever.
+
+set -euo pipefail
+
+if [[ -n ${1:-} ]]; then
+  state_file=$1
+else
+  state_file="${XDG_RUNTIME_DIR:-}/omarchy/idle-inhibit/state"
+fi
+
+[[ -n $state_file && -r $state_file ]] || {
+  printf '\n'
+  exit 0
+}
+
+pid=$(jq -er '.pid // empty' "$state_file" 2>/dev/null) || {
+  printf '\n'
+  exit 0
+}
+
+if [[ ! $pid =~ ^[0-9]+$ ]] || ! kill -0 "$pid" 2>/dev/null; then
+  printf '\n'
+  exit 0
+fi
+
+jq -c . "$state_file" 2>/dev/null || printf '\n'

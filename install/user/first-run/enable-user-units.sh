@@ -21,4 +21,18 @@ systemctl --user enable --now \
   omarchy-fcitx5.service \
   omarchy-crash-watch.service
 
+# Enable idle-inhibit on its own. systemd enable --now fails the whole list
+# when any unit name is missing, which would leave sleep-lock and fcitx
+# unenabled until omarchy-settings ships this unit. Link the checkout copy
+# when the packaged unit is not there yet (same fallback as the migration).
+user_config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+unit_source="$OMARCHY_PATH/default/systemd/user/omarchy-idle-inhibit.service"
+unit_pkg="/usr/lib/systemd/user/omarchy-idle-inhibit.service"
+if [[ ! -f $unit_pkg && -f $unit_source ]]; then
+  mkdir -p "$user_config_home/systemd/user"
+  ln -sfn "$unit_source" "$user_config_home/systemd/user/omarchy-idle-inhibit.service"
+  systemctl --user daemon-reload
+fi
+systemctl --user enable --now omarchy-idle-inhibit.service || true
+
 omarchy-hook-install theme-set /usr/share/owe/10-owe-sync
