@@ -53,7 +53,7 @@ assert(
   'bar stays mapped while hidden so revealing it does not rebuild the surface'
 )
 assert(
-  /exclusionMode: root\.barHidden \? ExclusionMode\.Ignore : ExclusionMode\.Auto/.test(barSource),
+  /exclusionMode: root\.barHidden \|\|[^\n]*\n\s*\? ExclusionMode\.Ignore : ExclusionMode\.Auto/.test(barSource),
   'a hidden bar reserves no space for itself'
 )
 for (const edge of ['top', 'bottom', 'left', 'right']) {
