@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -euo pipefail
+
+case ${1:-} in
+  enable)
+    sleep 0.1
+    printf 'solar\n' >"$OMARCHY_NIGHTLIGHT_STATE"
+    ;;
+  disable)
+    printf 'manual\n' >"$OMARCHY_NIGHTLIGHT_STATE"
+    ;;
+  *)
+    printf 'Unexpected fixture command: %s\n' "$*" >&2
+    exit 1
+    ;;
+esac
+printf '%s\n' "$1" >>"$OMARCHY_NIGHTLIGHT_STATE.writes"
