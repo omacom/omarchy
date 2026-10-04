@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Install Sublime Text with the current Omarchy theme
+
+set -e
+
+echo "Installing Sublime Text..."
+omarchy-pkg-add sublime-text-4
+
+user_package="$HOME/.config/sublime-text/Packages/User"
+preferences="$user_package/Preferences.sublime-settings"
+mkdir -p "$user_package"
+
+cp "$OMARCHY_PATH/default/sublime/Omarchy.sublime-theme" "$user_package/"
+cp "$OMARCHY_PATH/default/sublime/OmarchyWindow.py" "$user_package/"
+
+python3 "$OMARCHY_PATH/default/sublime/set-preferences.py" --backup "$preferences" \
+  theme=Omarchy.sublime-theme \
+  color_scheme=Omarchy.sublime-color-scheme \
+  overlay_scroll_bars=enabled \
+  font_face=monospace
+
+if [[ ! -f $HOME/.local/state/omarchy/current/theme/Omarchy.sublime-color-scheme ]]; then
+  omarchy-theme-refresh
+fi
+omarchy-theme-set-sublime
+
+setsid uwsm-app -- gtk-launch sublime_text >/dev/null 2>&1 &
