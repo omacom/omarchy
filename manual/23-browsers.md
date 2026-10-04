@@ -4,6 +4,8 @@ Omarchy ships with [Chromium](https://www.chromium.org/) as the default browser.
 
 If Chromium isn't your taste, you're not stuck with it. Under _Install > Browser_ in the Omarchy menu you'll find Chrome, Edge, Brave, Brave Origin, Firefox, and [Zen](https://zen-browser.app/). Pick one and Omarchy installs it, sets up its policy directory, and applies your current theme to it.
 
+Google account sign-in needs Google Chrome. Chromium deliberately ships without Google's OAuth credentials, and the old workaround of injecting Chrome's client id/secret made Chromium abort on Google Search and during sign-in. Use _Install > Browser > Chrome_ (or _Install > Service > Google Account (Chrome)_) when you need to stay signed in to Google.
+
 ## Making one the default
 
 Installing a browser doesn't promote it. Once it's on the machine, go to _Setup > Defaults > Browser_ and pick it — the menu only lists browsers you actually have installed, and marks the current default with a check.
