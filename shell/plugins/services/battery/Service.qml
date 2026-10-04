@@ -35,8 +35,8 @@ Item {
   }
 
   function checkBattery() {
-    if (!lowBatteryChecksReady) return
     var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
+    state = BatteryModel.gateStartupWarning(state, persisted.notifiedLowBattery, lowBatteryChecksReady)
     persisted.notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
   }
@@ -123,11 +123,11 @@ Item {
   }
 
   // Give UPower a full settle window after Quickshell has loaded the display
-  // device, then evaluate promptly instead of waiting for the 30-second tick.
+  // device. Opening the gate does not itself evaluate a possibly stale sample;
+  // charger changes and the existing 30-second timer perform later checks.
   BatteryStartupGate {
     id: settleTimer
     deviceReady: UPower.displayDevice.ready
-    onChecksReadyChanged: if (checksReady) root.checkBattery()
   }
 
   Connections {

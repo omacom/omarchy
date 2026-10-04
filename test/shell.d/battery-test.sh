@@ -33,6 +33,26 @@ assertDeepEqual(
   { level: 8, notify: false, notifiedLowBattery: false },
   'battery does not warn while on AC even if percentage is low'
 )
+assertDeepEqual(
+  battery.gateStartupWarning({ level: 8, notify: true, notifiedLowBattery: true }, false, false),
+  { level: 8, notify: false, notifiedLowBattery: false },
+  'battery suppresses and does not record a stale low sample while startup checks are gated'
+)
+assertDeepEqual(
+  battery.gateStartupWarning({ level: 8, notify: false, notifiedLowBattery: false }, true, false),
+  { level: 8, notify: false, notifiedLowBattery: false },
+  'battery clears notified state on AC while startup checks are gated'
+)
+assertDeepEqual(
+  battery.gateStartupWarning({ level: 8, notify: false, notifiedLowBattery: true }, true, false),
+  { level: 8, notify: false, notifiedLowBattery: true },
+  'battery preserves notified state while a gated low condition remains'
+)
+assertDeepEqual(
+  battery.gateStartupWarning({ level: 8, notify: true, notifiedLowBattery: true }, false, true),
+  { level: 8, notify: true, notifiedLowBattery: true },
+  'battery applies the normal warning decision after startup checks are ready'
+)
 
 const serviceSource = require('fs').readFileSync(root + '/shell/plugins/services/battery/Service.qml', 'utf8')
 const gateSource = require('fs').readFileSync(root + '/shell/plugins/services/battery/BatteryStartupGate.qml', 'utf8')
@@ -40,9 +60,9 @@ const settleTimerSource = serviceSource.slice(serviceSource.indexOf('id: settleT
 assert(/triggeredOnStart:\s*false/.test(serviceSource), 'battery defers the first low-battery check past shell start')
 assert(/lowBatteryChecksReady:\s*settleTimer\.checksReady/.test(serviceSource), 'battery gates low-battery checks on the startup timer')
 assert(/deviceReady:\s*UPower\.displayDevice\.ready/.test(settleTimerSource), 'battery starts settling only after the display device is loaded')
-assert(/onChecksReadyChanged:\s*if\s*\(checksReady\)\s*root\.checkBattery\(\)/.test(settleTimerSource), 'battery evaluates when the settle window ends')
+assert(!/checkBattery\(\)/.test(settleTimerSource), 'battery does not evaluate a stale sample when the settle window ends')
 assert(/running:\s*deviceReady\s*&&\s*!checksReady/.test(gateSource), 'battery startup gate runs only after device readiness')
-assert(/function checkBattery\(\)\s*\{[\s\S]*if\s*\(\s*!lowBatteryChecksReady\s*\)\s*return/.test(serviceSource), 'battery skips low-battery warnings until settle completes')
+assert(/gateStartupWarning\([\s\S]*lowBatteryChecksReady\)[\s\S]*persisted\.notifiedLowBattery\s*=\s*state\.notifiedLowBattery/.test(serviceSource), 'battery applies the startup gate before persisting notification state')
 assert(/powerSaverOnBattery:\s*UPower\.onBattery\s*&&\s*activePowerProfile\s*===\s*"power-saver"/.test(serviceSource), 'battery keeps power-saver tracking for wallpaper and lock consumers')
 assert(/onOnBatteryChanged\(\)\s*\{[\s\S]*applyPowerProfile\(\)[\s\S]*refreshPowerProfile\(\)[\s\S]*checkBattery\(\)/.test(serviceSource), 'battery applies profiles immediately, refreshes tracked profile, then checks battery on charger changes')
 JS
