@@ -128,11 +128,13 @@ load_at_start() {
   local flag_file="$HOME/.local/state/omarchy/toggles/hypr/$FLAG.lua"
   if ! plugin_loaded; then
     if ! sed 's/enabled = true/enabled = false/' "$OMARCHY_PATH/default/hypr/toggles/$FLAG.lua" |
-      dd of="$flag_file" conv=nocreat status=none 2>/dev/null; then
-      [[ -e $flag_file ]] && notify "Cua input flag could not refresh" "Turn Cua Input off and on again to refresh its configuration."
+      dd of="$flag_file" conv=nocreat status=none 2>/dev/null || ! hyprctl reload >/dev/null; then
+      if [[ -e $flag_file ]]; then
+        omarchy-hyprland-toggle "$FLAG" off >/dev/null || true
+        notify "Cua input turned off" "Its configuration could not be held off while the plugin loaded; turn Cua Input on again."
+      fi
       exit 0
     fi
-    hyprctl reload >/dev/null
   fi
 
   if ! load_plugin; then
@@ -154,9 +156,14 @@ load_at_start() {
   # Refresh legacy keyboard overrides, but never recreate a flag removed by
   # a concurrent off while verification ran. nocreat still truncates the file.
   if dd if="$OMARCHY_PATH/default/hypr/toggles/$FLAG.lua" of="$flag_file" conv=nocreat status=none 2>/dev/null; then
-    hyprctl reload >/dev/null
+    if ! hyprctl reload >/dev/null; then
+      omarchy-hyprland-toggle "$FLAG" off >/dev/null || true
+      notify "Cua input turned off" "Hyprland could not reload its configuration; turn Cua Input on again."
+      return 1
+    fi
   elif [[ -e $flag_file ]]; then
-    notify "Cua input flag could not refresh" "Turn Cua Input off and on again to refresh its configuration."
+    omarchy-hyprland-toggle "$FLAG" off >/dev/null || true
+    notify "Cua input turned off" "Its configuration could not be refreshed; turn Cua Input on again."
     return 1
   fi
 }
