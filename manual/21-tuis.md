@@ -12,7 +12,7 @@ You hop between the different panes using `Tab`. In the Files pane, you select f
 
 [Lazydocker](https://github.com/jesseduffield/lazydocker) is made in the same spirit like Lazygit, and also gives you a terminal interface for managing your containers and images.
 
-Lazydocker is optional on new installs. Install it with `omarchy pkg add lazydocker`, then reload Hyprland with `hyprctl reload` to enable `Super + Shift + D`. Existing installs keep Lazydocker and its shortcut.
+Lazydocker is optional on new installs. Install it with `omarchy pkg add lazydocker`, then reload Hyprland with `hyprctl reload` to enable `Super + Shift + D` if preinstalled application bindings are enabled. Existing installs keep Lazydocker and its shortcut.
 
 You stop a container using `s` or start/restart it using `r`. See all commands using `?`.
 

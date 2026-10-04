@@ -363,3 +363,46 @@ reboot_line=$(grep -n 'Rebooting because --reboot was passed' "$upgrade_to_quatt
 [[ -n $unsafe_line && -n $reboot_line ]] || fail "reboot gate and reboot branch exist"
 (( unsafe_line < reboot_line )) || fail "an unverified kernel cmdline blocks the reboot"
 pass "Omarchy 4 upgrade verifies the UKIs and refuses to reboot unverified"
+
+# Lazydocker is optional on fresh installs, but a pre-quattro install keeps it.
+lazydocker_body=$(function_body migrate_lazydocker_package)
+[[ -n $lazydocker_body ]] || fail "upgrade has a Lazydocker replacement step"
+eval "migrate_lazydocker_package() { $lazydocker_body; }"
+lazydocker_calls=""
+package_installed_exact() { [[ $1 == "lazydocker-bin" && $legacy_lazydocker == "yes" ]]; }
+log() { :; }
+warn() { :; }
+as_root() {
+  lazydocker_calls+="swap:$*"$'\n'
+  return "$lazydocker_swap_status"
+}
+mark_packages_explicit() { lazydocker_calls+="explicit:$*"$'\n'; }
+
+legacy_lazydocker=no
+lazydocker_swap_status=0
+migrate_lazydocker_package
+[[ -z $lazydocker_calls ]] || fail "upgrade does not install Lazydocker for users without the legacy package"
+pass "upgrade does not install Lazydocker for users without the legacy package"
+
+legacy_lazydocker=yes
+migrate_lazydocker_package
+grep -Fxq 'swap:pacman -S --needed --noconfirm --ask 4 lazydocker' <<<"$lazydocker_calls" ||
+  fail "upgrade replaces existing lazydocker-bin with lazydocker"
+grep -Fxq 'explicit:lazydocker' <<<"$lazydocker_calls" || fail "upgrade retains Lazydocker as an explicit package"
+pass "upgrade replaces existing lazydocker-bin with lazydocker and keeps it explicit"
+
+lazydocker_calls=""
+lazydocker_swap_status=1
+migrate_lazydocker_package
+if grep -Fq 'explicit:' <<<"$lazydocker_calls"; then
+  fail "failed Lazydocker replacement does not mark an absent package explicit"
+fi
+for cleanup in remove_conflicting_legacy_packages remove_retired_default_packages; do
+  if grep -qw lazydocker-bin <<<"$(function_body "$cleanup")"; then
+    fail "upgrade cleanup must not remove existing Lazydocker when replacement fails"
+  fi
+done
+pass "upgrade cleanup preserves existing Lazydocker when replacement fails"
+
+grep -Fxq migrate_lazydocker_package "$upgrade_to_quattro" || fail "upgrade invokes the Lazydocker replacement step"
+pass "upgrade invokes the Lazydocker replacement step"
