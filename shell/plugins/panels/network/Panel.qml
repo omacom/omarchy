@@ -345,7 +345,11 @@ Panel {
       routerPingLatency = -1
       internetPingLatency = -1
       internetPingPacketLoss = 0
-      setScannerEnabled(false)
+      // Releasing the scanner blocks the GUI thread for a few hundred ms, and
+      // done here it runs before the fade-out and unmap, so every close
+      // (Esc, outside click, bar icon) hangs on screen that long. Release it
+      // once the popup is gone instead; see scannerRelease.
+      if (!panel.visible) scannerRelease.restart()
     }
   }
 
@@ -936,6 +940,17 @@ Panel {
     onTriggered: root.pollActiveApSignal()
   }
 
+  // Turns the scanner off after the closed popup has unmapped. Started when
+  // the KeyboardPanel stops being visible; the short delay lets the unmap reach
+  // the compositor before the blocking release runs. A reopen in between keeps
+  // the scanner (refresh(true) restarts the scan anyway).
+  Timer {
+    id: scannerRelease
+    interval: 50
+    repeat: false
+    onTriggered: if (!root.opened) root.setScannerEnabled(false)
+  }
+
   Timer {
     id: scanRestart
     interval: 100
@@ -1100,6 +1115,7 @@ Panel {
   // here is the wifi-specific UI inside.
   KeyboardPanel {
     id: panel
+    onVisibleChanged: if (!visible && !root.opened) scannerRelease.restart()
     anchorItem: button
     owner: root
     bar: root.bar

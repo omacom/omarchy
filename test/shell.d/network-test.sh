@@ -36,6 +36,18 @@ assert(scanRestart, 'network has the deferred scan restart timer')
 assert(/root\.opened/.test(scanRestart[0]), 'network re-checks the panel before the deferred restart re-enables scanning')
 assert(/scanRestart\.stop\(\)/.test(panelSource), 'network cancels a pending scan restart when the panel closes')
 
+// Releasing the scanner blocks the GUI thread for a few hundred ms. Run from
+// the close handler it delays the fade-out and unmap of every close, so the
+// release waits for the popup to be hidden, and still re-checks the panel so a
+// quick reopen keeps scanning.
+const openedChanged = panelSource.match(/onOpenedChanged: \{[\s\S]*?\n {2}\}/)
+assert(openedChanged, 'network has an onOpenedChanged handler')
+const closeBranch = openedChanged[0].split(/\} else \{/)[1].replace(/\/\/.*$/gm, '')
+assert(!/setScannerEnabled\(/.test(closeBranch), 'network does not release the scanner synchronously while the closing popup is still on screen')
+assert(/onVisibleChanged: if \(!visible && !root\.opened\) scannerRelease\.restart\(\)/.test(panelSource), 'network releases the scanner once the closed popup is hidden')
+const scannerRelease = panelSource.match(/id: scannerRelease[\s\S]*?onTriggered:[^\n]*/)
+assert(scannerRelease && /if \(!root\.opened\) root\.setScannerEnabled\(false\)/.test(scannerRelease[0]), 'network re-checks the panel before the deferred scanner release')
+
 // scannerEnabled lives on a shared WifiDevice with no reference counting, so
 // the panel has to own what it enabled. Run the helper's own JavaScript against
 // stand-in devices: the two invariants it carries are that a closed panel never
