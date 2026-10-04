@@ -88,9 +88,9 @@ etc/xdg/kitty/kitty.conf       ──►  omarchy-settings    /etc/xdg/kitty/kit
 
 applications/*.desktop         ──►  omarchy-settings    /etc/skel/.local/share/applications/
                                                         /usr/share/omarchy/applications/
-default/applications/battlenet.desktop
+default/applications/*.desktop
                                 ──►  omarchy-settings    /usr/share/omarchy/default/applications/
-                                                        (installer-only launcher template)
+                                                        (optional and legacy launcher templates)
 applications/icons/*           ──►  omarchy-settings    /usr/share/icons/hicolor/{48,256,scalable}/apps/
 
 etc/**                         ──►  omarchy-settings    /etc/**           (drop-ins we own outright)
