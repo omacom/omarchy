@@ -14,6 +14,7 @@ BarWidget {
     bar: root.bar
     text: "\ue900"
     fontFamily: "omarchy"
+    centerFigures: false
     horizontalMargin: 7.5
     onPressed: function(button) {
       if (!root.bar) return

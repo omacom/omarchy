@@ -115,7 +115,7 @@ Item {
         color: strip.foreground
       }
 
-      Behavior on x { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+      Behavior on x { NumberAnimation { duration: Style.duration(400); easing.type: Easing.OutCubic } }
     }
   }
 
@@ -182,7 +182,7 @@ Item {
       // Gone rather than faded, so a hidden arrow is also untappable.
       opacity: strip.hovered && !arrow.covered ? 1 : 0
       visible: opacity > 0
-      Behavior on opacity { NumberAnimation { duration: 160 } }
+      Behavior on opacity { NumberAnimation { duration: Style.duration(160) } }
 
       // Sunrise sits a little high and sunset a little low: a cue that needs no reading.
       transform: Translate { y: arrow.rising ? -Style.space(2) : Style.space(2) }

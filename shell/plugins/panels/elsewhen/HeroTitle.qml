@@ -137,7 +137,7 @@ Column {
         id: globeSpin
         target: heroIcon
         property: "spin"
-        duration: 1250
+        duration: Style.duration(1250)
         easing.type: Easing.OutQuart
       }
 
@@ -145,7 +145,7 @@ Column {
         id: focusSpin
         target: heroIcon
         property: "spin"
-        duration: 700
+        duration: Style.duration(700)
         easing.type: Easing.OutCubic
       }
     }

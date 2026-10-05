@@ -631,7 +631,7 @@ Panel {
   // Heavy on the way out, brisk on the way back.
   Behavior on zoom {
     NumberAnimation {
-      duration: root.zoomDuration
+      duration: Style.duration(root.zoomDuration)
       easing.type: root.zoomEasing
     }
   }
@@ -649,14 +649,14 @@ Panel {
 
   Behavior on moonDemo {
     enabled: root.moonShowing
-    NumberAnimation { duration: 460; easing.type: Easing.InOutSine }
+    NumberAnimation { duration: Style.duration(460); easing.type: Easing.InOutSine }
   }
 
   NumberAnimation {
     id: dropAnimation
     target: root
     property: "dragOffset"
-    duration: 150
+    duration: Style.duration(150)
     easing.type: Easing.OutCubic
     onFinished: root.commitRowDrag()
   }
@@ -712,6 +712,7 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
+    slotSize: Style.bar.statusSlot
     text: "󰇧"
     tooltipText: "World clock"
     onPressed: function(buttonCode) {
@@ -776,6 +777,7 @@ Panel {
       Flickable {
         id: scroller
         anchors.fill: parent
+        anchors.rightMargin: -Style.space(12)
         clip: true
         interactive: false
         contentWidth: width
@@ -805,7 +807,7 @@ Panel {
           id: scrollAnim
           target: scroller
           property: "contentY"
-          duration: 160
+          duration: Style.duration(160)
           easing.type: Easing.OutCubic
         }
 
@@ -820,7 +822,7 @@ Panel {
 
         Column {
           id: content
-          width: scroller.width
+          width: scroller.width - Style.space(12)
           spacing: Style.spacing.panelGap
 
           HeroTitle {
@@ -856,11 +858,15 @@ Panel {
             // Clipped, so knocked rows fall out of the panel.
             Item {
               anchors.fill: parent
+              // Let circular actions straddle the rows' top-right corners.
+              anchors.topMargin: -Style.space(12)
+              anchors.rightMargin: -Style.space(12)
               clip: true
 
               Column {
                 id: listWrap
-                width: parent.width
+                y: Style.space(12)
+                width: stage.width
                 spacing: Style.spacing.panelGap
 
                 Column {

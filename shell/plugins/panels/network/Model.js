@@ -14,6 +14,28 @@ function wifiIconFor(strength) {
   return icons[index]
 }
 
+// The connected network's own strength comes from the access points
+// Quickshell grouped under its SSID. When it has none (an OWE transition-mode
+// network between scans files the in-use access point under its hidden
+// "_owetm_" twin), fall back to the strength NetworkManager reports for the
+// access point in use.
+function connectedSignalStrength(networkStrength, activeApSignal) {
+  var strength = Math.round((networkStrength || 0) * 100)
+  if (strength > 0) return strength
+  return activeApSignal > 0 ? activeApSignal : strength
+}
+
+// Reads `nmcli -t -f IN-USE,SIGNAL device wifi list` output, where the in-use
+// access point is the row marked "*".
+function parseActiveApSignal(raw) {
+  var lines = String(raw || "").split(/\r?\n/)
+  for (var i = 0; i < lines.length; i++) {
+    var match = /^\*:(\d+)$/.exec(lines[i].trim())
+    if (match) return parseInt(match[1], 10)
+  }
+  return -1
+}
+
 // A known plain-HTTP endpoint lets the network redirect the browser to its
 // login page. Never execute or automatically open an untrusted Location header.
 var captivePortalUrl = "http://ping.archlinux.org/nm-check.txt"
@@ -34,20 +56,6 @@ function connectionIcon(kind, signalStrength, connectivity) {
   if (kind === "wifi") return restricted ? "󰤩" : wifiIconFor(signalStrength)
   if (kind === "ethernet") return restricted ? "󰈂" : "󰈀"
   return "󰤮"
-}
-
-function connectionKind(wiredConnected, wifiNetworkConnected, wifiDeviceConnected) {
-  if (wiredConnected) return "ethernet"
-  if (wifiNetworkConnected || wifiDeviceConnected) return "wifi"
-  return "disconnected"
-}
-
-function connectionSignalStrength(networkStrength, wifiConnected) {
-  if (networkStrength !== null && networkStrength !== undefined) {
-    return Math.round((networkStrength || 0) * 100)
-  }
-
-  return wifiConnected ? 0 : -1
 }
 
 function formatHeaderSpeed(mbps) {
@@ -382,8 +390,8 @@ if (typeof module !== "undefined") {
     parseNetworkStatus: parseNetworkStatus,
     wifiIconFor: wifiIconFor,
     connectionIcon: connectionIcon,
-    connectionKind: connectionKind,
-    connectionSignalStrength: connectionSignalStrength,
+    connectedSignalStrength: connectedSignalStrength,
+    parseActiveApSignal: parseActiveApSignal,
     connectivityState: connectivityState,
     captivePortalUrl: captivePortalUrl,
     formatHeaderSpeed: formatHeaderSpeed,
