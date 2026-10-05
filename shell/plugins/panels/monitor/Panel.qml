@@ -300,7 +300,13 @@ Panel {
     if (!name) return
     if (enabled && root.enabledDisplayCount <= 1) return
 
-    actionProc.command = ["hyprctl", "keyword", "monitor", name + (enabled ? ",disable" : ",preferred,auto,auto")]
+    // hyprctl keyword is rejected under the Lua config ("non-legacy parsers"),
+    // so drive the monitor through the hl.monitor eval API instead.
+    var output = '"' + name.replace(/[\\"]/g, "\\$&") + '"'
+    var expr = enabled
+      ? 'hl.monitor({ output = ' + output + ', disabled = true })'
+      : 'hl.monitor({ output = ' + output + ', disabled = false, mode = "preferred", position = "auto", scale = "auto" })'
+    actionProc.command = ["hyprctl", "eval", expr]
     if (!actionProc.running) actionProc.running = true
   }
 
