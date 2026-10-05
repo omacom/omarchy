@@ -35,7 +35,7 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
 `, {mode: 0o755})
 
   const password = 'literal $() \\" secret'
-  function connect(caCert, serverName, failAction, hangAction, ignoreTerm) {
+  function connect(caCert, serverName, failAction, hangAction, ignoreTerm, locale) {
     const log = path.join(scratch, 'nmcli-log')
     for (const name of fs.readdirSync(scratch)) {
       if (name.startsWith('nmcli-log')) fs.unlinkSync(path.join(scratch, name))
@@ -47,7 +47,7 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
     // process-group behavior and escalation while executing the real helper.
     const result = childProcess.spawnSync(command.shift(), command, {
       input: password + '\n', encoding: 'utf8', timeout: 2000,
-      env: {...process.env, PATH: scratch + ':' + process.env.PATH,
+      env: {...process.env, ...(locale ? {LC_ALL: locale} : {}), PATH: scratch + ':' + process.env.PATH,
         TEST_NM_LOG: log, TEST_NM_FAIL: failAction || '',
         TEST_NM_HANG: hangAction || '', TEST_NM_IGNORE_TERM: ignoreTerm ? '1' : '0'}
     })
@@ -71,6 +71,28 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
     const attempt = connect(caCert, serverName)
     assert(attempt.result.status !== 0 && !attempt.result.error && attempt.calls.length === 0,
       'enterprise refuses invalid trust before any NetworkManager call: ' + JSON.stringify([caCert, serverName]))
+  }
+
+  const installedLocales = childProcess.spawnSync('locale', ['-a'], {encoding: 'utf8'})
+  assertEqual(installedLocales.status, 0, 'enterprise locale coverage can enumerate installed locales')
+  const locales = ['C', ...installedLocales.stdout.trim().split('\n').filter(locale => /utf.?8$/i.test(locale))]
+  const unicodeCert = path.join(scratch, 'réseau CA.pem')
+  fs.writeFileSync(unicodeCert, 'fixture CA')
+  for (const locale of locales) {
+    for (const serverName of ['râdius.example.org', 'RÁDIUS.example.org', 'radius.exämple.org']) {
+      assert(!network.enterpriseTrustValid(cert, serverName), 'enterprise UI rejects non-ASCII server ' + serverName)
+      const attempt = connect(cert, serverName, '', '', false, locale)
+      assert(!attempt.result.error && attempt.result.status === 65 && attempt.calls.length === 0,
+        'enterprise boundary rejects non-ASCII server before NetworkManager in ' + locale + ': ' + serverName)
+    }
+    for (const serverName of ['RADIUS.example.org', 'xn--radius-9za.example.org']) {
+      const attempt = connect(unicodeCert, serverName, '', '', false, locale)
+      assert(!attempt.result.error && attempt.result.status === 0,
+        'enterprise accepts ASCII server and Unicode CA path in ' + locale + ': ' + serverName)
+      const add = attempt.calls[0]
+      assertEqual(add[add.indexOf('802-1x.ca-cert') + 1], unicodeCert, 'enterprise preserves Unicode CA path in ' + locale)
+      assertEqual(attempt.stdin, 'set 802-1x.password ' + password + '\nsave\nquit\n', 'enterprise preserves literal password in ' + locale)
+    }
   }
 
   const good = connect(cert, 'radius.example.org')

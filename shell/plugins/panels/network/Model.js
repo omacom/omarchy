@@ -356,6 +356,8 @@ var enterpriseConnectWorkerScript =
   " && nmcli connection up uuid \"$5\""
 
 var enterpriseConnectScript =
+  // Bash character ranges follow the locale; match the UI's ASCII-only names.
+  "export LC_ALL=C;" +
   // Recheck at the process boundary so a caller cannot bypass the UI gate.
   "[[ $3 == /* && -f $3 && -r $3 ]] || exit 64;" +
   " [[ $4 =~ ^[A-Za-z0-9.-]+$ && $4 != .* && $4 != *. && $4 != *..* ]] && (( ${#4} <= 253 )) || exit 65;" +
