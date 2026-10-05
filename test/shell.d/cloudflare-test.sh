@@ -13,6 +13,13 @@ for (const method of ['open', 'close', 'toggle', 'refresh', 'login', 'status']) 
   assert(new RegExp(`function ${method}\\(\\)`).test(panelSource), `cloudflare exposes ${method} over IPC`)
 }
 
+// Exercise the actual metrics-column binding with partial telemetry results.
+const metricsVisibility = panelSource.match(/visible: (cloudflare\.metricsError === ""[^\n]*)/)
+assert(metricsVisibility, 'cloudflare metrics column has a testable visibility binding')
+const showMetrics = new Function('cloudflare', 'return (' + metricsVisibility[1] + ')')
+assert(showMetrics({ metricsError: 'Could not load error metrics', detailMetrics: { invocations: { value: 42 }, cpu: { value: 3 } } }), 'cloudflare keeps successful metrics visible when another query fails')
+assert(!showMetrics({ metricsError: 'Could not load metrics', detailMetrics: {} }), 'cloudflare hides empty metric rows when every query fails')
+
 // whoami
 
 const signedOut = cloudflare.parseWhoami('{\n  "authenticated": false,\n  "error": "Not logged in"\n}')

@@ -533,7 +533,7 @@ Panel {
             }
 
             Column {
-              visible: cloudflare.metricsError === ""
+              visible: cloudflare.metricsError === "" || Object.keys(cloudflare.detailMetrics).length > 0
               width: parent.width
               spacing: Style.space(12)
 
