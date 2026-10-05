@@ -607,6 +607,7 @@ Item {
     interval: 2000
     repeat: false
     onTriggered: root.failureMessage = ""
+  }
   // Detect resume both during an active attempt and during backoff.
   Timer {
     id: fingerprintSleepWatch
