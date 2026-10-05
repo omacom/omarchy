@@ -44,6 +44,7 @@ NATIVE_PROVIDER = "openai"
 # may reuse a scan for up to 15 minutes.
 SCAN_REUSE_SECONDS = 20
 LIMITS_ONLY_REUSE_SECONDS = 900
+LOCAL_STATS_CACHE_SCHEMA_VERSION = 3
 
 # A month is the horizon for native sessions and the opencode database: older
 # usage is history, not subscription burn, and the panel never shows it.
@@ -737,11 +738,11 @@ def write_json(path, payload):
 # The cache payload is a versioned envelope around the local-stats dict, so a
 # corrupted or foreign-shaped file is a cache miss (rescan + rewrite) instead
 # of a crash or a garbage record.
-# Version 3 invalidates totals counted before the trailing-month opencode
-# window and the v2 session scan (version 2 was native notification dedup).
+# Version 2 invalidates totals counted before native notification deduplication,
+# version 3 those counted before the opencode month window and v2 sessions.
 def read_cached_stats(cache_file, max_age_seconds):
   cached = read_fresh_json(cache_file, max_age_seconds)
-  if not isinstance(cached, dict) or cached.get("schemaVersion") != 3:
+  if not isinstance(cached, dict) or cached.get("schemaVersion") != LOCAL_STATS_CACHE_SCHEMA_VERSION:
     return None
   # today* fields only mean "today" on the day they were scanned. A cache
   # from another local date (midnight passed, or the clock moved) is a miss,
@@ -758,7 +759,7 @@ def read_cached_stats(cache_file, max_age_seconds):
 
 def write_cached_stats(cache_file, stats):
   try:
-    write_json(cache_file, {"schemaVersion": 3, "scanDate": today, "stats": stats})
+    write_json(cache_file, {"schemaVersion": LOCAL_STATS_CACHE_SCHEMA_VERSION, "scanDate": today, "stats": stats})
   except Exception as exc:
     print(f"omarchy-agent-usage-codex: could not write usage cache ({exc})", file=sys.stderr)
 

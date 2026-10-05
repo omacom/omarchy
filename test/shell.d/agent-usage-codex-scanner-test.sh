@@ -335,15 +335,16 @@ cache_file=$(ls "$CACHE_HOME/.cache/omarchy/agent-usage/"/codex-scan-*.json 2>/d
   fail "Codex collector writes a versioned cache envelope" "$result"
 pass "Codex collector writes a local-stats cache on first scan"
 
-# A still-fresh cache from before the trailing-month window and v2 scan must
-# not restore unwindowed counts, even when only quota limits were requested.
+# A still-fresh cache from an earlier layout (before native notification
+# deduplication, or before the opencode month window and v2 sessions) must not
+# restore its counts, even when only quota limits were requested.
 jq '.schemaVersion = 2 | .stats.todayTotalTokens = 999' "$cache_file" >"$CACHE_HOME/old-cache.json"
 mv "$CACHE_HOME/old-cache.json" "$cache_file"
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "5" && $(jq -r '.schemaVersion' "$cache_file") == "3" ]] ||
-  fail "Codex collector invalidates pre-window cached totals" "$result"
-pass "Codex collector invalidates pre-window cached totals"
+  fail "Codex collector invalidates cached totals from an earlier layout" "$result"
+pass "Codex collector invalidates cached totals from an earlier layout"
 
 # A corrupt-but-parseable cache (wrong shape) is a cache miss: rescan and
 # rewrite instead of emitting a garbage record.
