@@ -102,6 +102,8 @@ assertEqual(cloudflare.parseMetrics('{"success":false}').ok, false, 'cloudflare 
 assertEqual(cloudflare.formatCount(4730), '4.73k', 'cloudflare formats thousands like the dashboard')
 assertEqual(cloudflare.formatCount(12400), '12.4k', 'cloudflare formats tens of thousands')
 assertEqual(cloudflare.formatCount(0), '0', 'cloudflare formats zero')
+assertEqual(cloudflare.formatCount(100000), '100k', 'cloudflare preserves significant zeros in abbreviated counts')
+assertEqual(cloudflare.formatCount(250000000), '250M', 'cloudflare preserves significant zeros in millions')
 assertEqual(cloudflare.formatCount(null), '–', 'cloudflare shows a dash for a missing count')
 assertEqual(cloudflare.formatMs(9), '9 ms', 'cloudflare formats CPU time')
 assertEqual(cloudflare.formatChange(4730, 7426), '↘ 36%', 'cloudflare formats a drop against the previous period')

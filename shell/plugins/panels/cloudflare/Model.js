@@ -228,7 +228,8 @@ function formatCount(value) {
 }
 
 function trimDecimals(n) {
-  return (n < 10 ? n.toFixed(2) : n < 100 ? n.toFixed(1) : n.toFixed(0)).replace(/\.?0+$/, "")
+  var text = n < 10 ? n.toFixed(2) : n < 100 ? n.toFixed(1) : n.toFixed(0)
+  return text.indexOf(".") === -1 ? text : text.replace(/0+$/, "").replace(/\.$/, "")
 }
 
 function formatMs(value) {
