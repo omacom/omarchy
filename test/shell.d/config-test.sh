@@ -444,7 +444,7 @@ mkdir -p "${cloudflare_app%/*}"
 if HOME="$TMPDIR/home" "$ROOT/bin/omarchy-installed-service-cloudflare"; then
   fail "Cloudflare is absent without its dashboard app"
 fi
-touch "$cloudflare_app"
+printf '[Desktop Entry]\nExec=omarchy-launch-webapp "https://dash.cloudflare.com"\n' >"$cloudflare_app"
 HOME="$TMPDIR/home" "$ROOT/bin/omarchy-installed-service-cloudflare" || fail "Cloudflare dashboard marks the service installed"
 for command in omarchy-bar omarchy-refresh-shell; do
   for ((repeat = 0; repeat < 2; repeat++)); do
