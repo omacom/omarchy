@@ -50,8 +50,9 @@ chmod +x "$scratch/bin/"*
 
 install_service() { bash "$ROOT/bin/omarchy-install-service-cloudflare"; }
 remove_service() { bash "$ROOT/bin/omarchy-remove-service-cloudflare"; }
-for scenario in ${CF_TEST_CASES:-interrupted webapp-failure logout-failure identity ownership repeated shared-icon legacy}; do
+for scenario in ${CF_TEST_CASES:-interrupted webapp-failure logout-failure identity ownership repeated shared-icon shared-xdg shared-system legacy}; do
   export HOME="$scratch/$scenario"
+  export XDG_DATA_HOME="$scratch/data-$scenario" XDG_DATA_DIRS="$scratch/system-$scenario"
   mkdir -p "$HOME/.local/share/applications"
   launcher="$HOME/.local/share/applications/Cloudflare.desktop"
   marker="$HOME/.local/state/omarchy/cloudflare-service"
@@ -115,6 +116,15 @@ for scenario in ${CF_TEST_CASES:-interrupted webapp-failure logout-failure ident
       printf '[Desktop Entry]\nExec=another-app\nIcon=cloudflare\n' >"${launcher%/*}/Other.desktop"
       remove_service
       [[ -f $HOME/.local/share/icons/hicolor/256x256/apps/cloudflare.png ]] || fail "removal preserves an icon used by another launcher"
+      ;;
+    shared-xdg | shared-system)
+      install_service
+      shared_dir="$XDG_DATA_HOME/applications"
+      [[ $scenario == "shared-system" ]] && shared_dir="$XDG_DATA_DIRS/applications"
+      mkdir -p "$shared_dir"
+      printf '[Desktop Entry]\nExec=another-app\nIcon=cloudflare\n' >"$shared_dir/Other.desktop"
+      remove_service
+      [[ -f $HOME/.local/share/icons/hicolor/256x256/apps/cloudflare.png ]] || fail "removal preserves icons shared through XDG desktop-entry directories"
       ;;
     legacy)
       printf '[Desktop Entry]\nExec=omarchy-launch-webapp https://dash.cloudflare.com\n' >"$launcher"
