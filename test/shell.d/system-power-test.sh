@@ -128,12 +128,11 @@ done
 pass "blocked window closing cannot delay poweroff"
 
 run_power_command logout
-cat >"$test_tmp/logout-expected.log" <<EOF
-systemd-run --user --collect --quiet --on-active=2s --timer-property=AccuracySec=100ms uwsm stop
-omarchy-osd -i logout -m Logging out -d 5000
-omarchy-hyprland-window-close-all 
-sleep 1
-EOF
+printf '%s\n' \
+  'systemd-run --user --collect --quiet --on-active=2s --timer-property=AccuracySec=100ms uwsm stop' \
+  'omarchy-osd -i logout -m Logging out -d 5000' \
+  'omarchy-hyprland-window-close-all ' \
+  'sleep 1' >"$test_tmp/logout-expected.log"
 diff -u "$test_tmp/logout-expected.log" "$call_log" || fail "logout runs after being scheduled outside the terminal scope"
 pass "logout runs after being scheduled outside the terminal scope"
 

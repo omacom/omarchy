@@ -4,8 +4,8 @@
 # omarchy:examples=omarchy logout | omarchy system logout
 # omarchy:aliases=omarchy logout
 
-# Schedule the logout in the user manager so closing the terminal's systemd
-# scope cannot terminate it before it runs.
+# Schedule logout in the user manager, matching reboot. Abort before closing
+# application windows if scheduling fails.
 systemd-run --user --collect --quiet --on-active="2s" --timer-property=AccuracySec=100ms uwsm stop || exit 1
 
 omarchy-osd -i logout -m "Logging out" -d 5000
