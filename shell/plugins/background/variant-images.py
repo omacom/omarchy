@@ -76,24 +76,31 @@ def prune_cache(cache):
     pass
 
 
-def candidates(default, cache):
+def iter_candidates(default, cache):
   # The sibling directory opts an image into the convention. A directly
   # selected variant without its own sibling directory stays an ordinary file.
   if default.suffix.lower() not in EXTENSIONS:
-    return []
+    return
   directory = default.with_suffix("")
   if not directory.is_dir():
-    return []
+    return
   prune_cache(cache)
   files = [default]
   files.extend(sorted(p for p in directory.iterdir()
             if p.is_file() and p.suffix.lower() in EXTENSIONS))
-  return [result for p in files if (result := dimensions(p, cache))]
+  for path in files:
+    if result := dimensions(path, cache):
+      yield result
+
+
+def candidates(default, cache):
+  return list(iter_candidates(default, cache))
 
 
 if __name__ == "__main__":
   default = Path(sys.argv[1])
   try:
-    print(json.dumps(candidates(default, cache_directory())))
+    for candidate in iter_candidates(default, cache_directory()):
+      print(json.dumps(candidate), flush=True)
   except OSError:
-    print("[]")
+    pass

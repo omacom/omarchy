@@ -9,6 +9,7 @@ Item {
   property var candidates: []
   property bool busy: false
   property int generation: 0
+  property int timeoutSeconds: 10
   signal resolved()
 
   function refresh() {
@@ -20,7 +21,7 @@ Item {
   function start() {
     if (scan.running) return
     scan.generation = generation
-    scan.command = ["timeout", "10", "python",
+    scan.command = ["timeout", String(timeoutSeconds), "python",
       decodeURIComponent(Qt.resolvedUrl("variant-images.py").toString().replace(/^file:\/\//, "")), path]
     scan.running = true
   }
@@ -38,8 +39,11 @@ Item {
         return
       }
       var next = []
-      if (exitCode === 0) {
-        try { next = JSON.parse(output.text) } catch (error) {}
+      // The scanner flushes one candidate at a time. A bounded scan may end
+      // before the last file, but must not discard already discovered images.
+      var lines = String(output.text || "").split("\n")
+      for (var i = 0; i < lines.length; i++) {
+        try { next.push(JSON.parse(lines[i])) } catch (error) {}
       }
       root.candidates = next
       root.busy = false

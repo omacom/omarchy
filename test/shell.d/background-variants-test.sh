@@ -173,6 +173,28 @@ if command -v quickshell >/dev/null && command -v magick >/dev/null; then
     fail "variant catalog rejects stale scans" "$(cat "$variant_test_dir/runtime.log")"
   fi
   pass "variant catalog resolves real files and rejects stale asynchronous scans"
+
+  # Real fast candidates followed by a probe that outlasts the total deadline.
+  # Cover both uncached probes and cache hits before reaching the slow file.
+  mkdir -p "$variant_test_dir/bin"
+  real_vipsheader=$(command -v vipsheader)
+  printf '#!/bin/bash\nif [[ ${*: -1} == */zz-slow.png ]]; then sleep 3; fi\nexec "%s" "$@"\n' "$real_vipsheader" >"$variant_test_dir/bin/vipsheader"
+  chmod +x "$variant_test_dir/bin/vipsheader"
+  magick -size 90x160 xc:green "$variant_test_dir/images/design/zz-slow.png"
+  cp "$ROOT/test/shell.d/fixtures/background-variant-catalog-timeout.qml" "$variant_test_dir/config/shell.qml"
+  rm -rf "$variant_test_dir/cache"
+  for cache_state in cold warm; do
+    env -u WAYLAND_DISPLAY QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=basic \
+      PATH="$variant_test_dir/bin:$PATH" \
+      XDG_RUNTIME_DIR="$variant_test_dir/runtime" XDG_CACHE_HOME="$variant_test_dir/cache" \
+      VARIANT_TEST_DIR="$variant_test_dir/images" \
+      timeout 8 quickshell -p "$variant_test_dir/config" --no-color >"$variant_test_dir/timeout.log" 2>&1 ||
+      fail "timed-out variant catalog runtime fixture exits" "$(<"$variant_test_dir/timeout.log")"
+    if ! rg -q 'PASS partial variant catalog' "$variant_test_dir/timeout.log" || rg -q 'FAIL partial variant catalog' "$variant_test_dir/timeout.log"; then
+      fail "timed-out variant catalog retains completed candidates" "$(<"$variant_test_dir/timeout.log")"
+    fi
+    pass "timed-out variant catalog retains $cache_state-cache candidates and releases the reveal gate"
+  done
 else
-  pass "quickshell or ImageMagick unavailable; skipping catalog runtime fixture"
+  skip "quickshell or ImageMagick unavailable; skipping catalog runtime fixtures"
 fi
