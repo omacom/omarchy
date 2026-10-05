@@ -36,19 +36,29 @@ monitor_is_internal() {
 }
 
 # Hyprland monitor names are DRM connector names, so a backlight on the monitor's connected external
-# connector is its own (another card can expose a disconnected connector with the same name). Internal
-# panels stay on omarchy-hw-display: GPU drivers can register an eDP backlight that doesn't drive the panel.
+# connector is its own. Another card can expose a connector with the same name; when more than one is
+# connected the name can't tell them apart, so neither backlight is used. Internal panels stay on
+# omarchy-hw-display: GPU drivers can register an eDP backlight that doesn't drive the panel.
 connector_backlight() {
-  local subsystem
+  local status connector="" subsystem
 
   if [[ -z $monitor ]] || monitor_is_internal; then
     return 1
   fi
 
-  for subsystem in "${OMARCHY_DRM_PATH:-/sys/class/drm}"/card*-"$monitor"/*/subsystem; do
-    [[ -L $subsystem ]] || continue
+  for status in "${OMARCHY_DRM_PATH:-/sys/class/drm}"/card*-"$monitor"/status; do
+    [[ -e $status ]] || continue
 
-    if [[ $(<"${subsystem%/*/subsystem}/status") == "connected" && $(readlink "$subsystem") == */class/backlight ]]; then
+    if [[ $(<"$status") == "connected" ]]; then
+      [[ -z $connector ]] || return 1
+      connector="${status%/status}"
+    fi
+  done
+
+  [[ -n $connector ]] || return 1
+
+  for subsystem in "$connector"/*/subsystem; do
+    if [[ $(readlink "$subsystem") == */class/backlight ]]; then
       subsystem="${subsystem%/subsystem}"
       printf '%s\n' "${subsystem##*/}"
       return 0

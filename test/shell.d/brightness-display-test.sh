@@ -14,14 +14,16 @@ drm_dir="$test_tmp/drm"
 mkdir -p "$mock_bin" "$runtime_dir"
 
 # DP-3 has a connector backlight and DP-1 only a non-backlight child. eDP-1's i915-style backlight must
-# not override omarchy-hw-display, and card1's disconnected DP-3 backlight must be ignored.
+# not override omarchy-hw-display, and card1's disconnected DP-3 backlight must be ignored. DP-4 is
+# connected on two cards, so card2's backlight can't be told apart from card1's plain monitor.
 mkdir -p "$drm_dir/card2-DP-3/apple-DP-3-bl" "$drm_dir/card2-DP-1/power" "$drm_dir/card0-eDP-1/intel_backlight" \
-  "$drm_dir/card1-DP-3/other-DP-3-bl"
+  "$drm_dir/card1-DP-3/other-DP-3-bl" "$drm_dir/card2-DP-4/apple-DP-4-bl" "$drm_dir/card1-DP-4"
 ln -s ../../../../class/backlight "$drm_dir/card2-DP-3/apple-DP-3-bl/subsystem"
 ln -s ../../../../class/backlight "$drm_dir/card0-eDP-1/intel_backlight/subsystem"
 ln -s ../../../../bus/platform "$drm_dir/card2-DP-1/power/subsystem"
 ln -s ../../../../class/backlight "$drm_dir/card1-DP-3/other-DP-3-bl/subsystem"
-for connector in card2-DP-3 card2-DP-1 card0-eDP-1; do
+ln -s ../../../../class/backlight "$drm_dir/card2-DP-4/apple-DP-4-bl/subsystem"
+for connector in card2-DP-3 card2-DP-1 card0-eDP-1 card2-DP-4 card1-DP-4; do
   printf 'connected\n' >"$drm_dir/$connector/status"
 done
 printf 'disconnected\n' >"$drm_dir/card1-DP-3/status"
@@ -213,6 +215,15 @@ pass "unreadable connector backlight falls back to asdcontrol for its level"
 stderr=$(APPLE_DISPLAY=1 run_brightness --no-osd --monitor HEADLESS-1 +5% 2>&1 >/dev/null)
 [[ -z $stderr ]] || fail "monitor without a DRM connector looks up its backlight quietly" "$stderr"
 pass "monitor without a DRM connector looks up its backlight quietly"
+
+: >"$call_log"
+APPLE_DISPLAY=1 run_brightness --no-osd --monitor DP-4 +5%
+if grep -F 'apple-DP-4-bl' "$call_log"; then
+  fail "connector name shared by two connected cards uses neither backlight"
+fi
+grep -Fx 'omarchy-brightness-display-apple --no-osd +5%' "$call_log" >/dev/null || \
+  fail "connector name shared by two connected cards keeps the other backends" "$(cat "$call_log")"
+pass "connector name shared by two connected cards uses neither backlight"
 
 cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
