@@ -21,8 +21,12 @@ grep -q 'source "$OMARCHY_PATH/install/hardware/gpd-pocket-4.sh"' "$migration" |
   fail "the migration reuses the install leaf"
 grep -q 'systemctl --user enable --now omarchy-gpd-pocket-4-rotate.service' "$migration" &&
   fail "the GPD migration enable --now fails when systemd has not seen the unit yet"
-grep -q 'pkexec "$@"' "$migration" ||
-  fail "the GPD migration cannot publish packaged paths without a TTY"
+grep -q 'sudo "$@"' "$migration" ||
+  fail "the GPD migration cannot publish packaged paths from a TTY without polkit"
+! grep -q 'pkexec' "$migration" ||
+  fail "the GPD migration depends on a graphical polkit agent"
+grep -q 'sudo limine-mkinitcpio' "$migration" ||
+  fail "the GPD migration reboots before rebuilt boot entries pick up the new cmdline"
 pass "a migration enables GPD Pocket 4 setup on existing installs"
 
 grep -q 'omarchy-gpd-pocket-4-rotate.service' "$first_run_units" ||
@@ -47,6 +51,12 @@ grep -q 'nvtk0603' "$rotate" ||
   fail "the rotate daemon does not prefer the GPD digitizer over other tablets"
 grep -q 'ClaimAccelerometer failed' "$rotate" ||
   fail "a failed accelerometer claim would crash-loop the user unit"
+grep -q 'lua_escape' "$rotate" ||
+  fail "device names reach hyprctl eval unescaped, so a crafted name runs Lua"
+grep -q 'wait_for_sensor' "$rotate" ||
+  fail "a late sensor proxy leaves autorotation dead for the session"
+grep -q 'timeout_add_seconds' "$rotate" ||
+  fail "a Hyprland reload wipes the applied transform with nothing restoring it"
 grep -q 'orientation.unpack()' "$rotate" &&
   fail "properties-changed treats unpacked dbus strings as Variants, so rotation dies"
 pass "the rotate daemon finds Hyprland, claims the sensor, and prefers the GPD digitizer"
@@ -78,6 +88,15 @@ if mod.dbus_unpack(Variant({"AccelerometerOrientation": "bottom-up"})) != {
     "AccelerometerOrientation": "bottom-up"
 }:
     raise SystemExit("dbus_unpack must unpack a properties dict Variant")
+
+if mod.lua_escape('nvtk0603:00-0603:f001') != 'nvtk0603:00-0603:f001':
+    raise SystemExit("lua_escape must leave plain device names alone")
+if mod.lua_escape('evil"}, os.execute("id"), x("') != 'evil\\"}, os.execute(\\"id\\"), x(\\"':
+    raise SystemExit("lua_escape must neutralize quotes in device names")
+if mod.lua_escape('a\\b') != 'a\\\\b':
+    raise SystemExit("lua_escape must escape backslashes before quotes")
+if mod.lua_escape('a\x01b\x7fc') != 'abc':
+    raise SystemExit("lua_escape must strip control characters")
 PY
 pass "properties-changed accepts both Variant and unpacked dbus values"
 
