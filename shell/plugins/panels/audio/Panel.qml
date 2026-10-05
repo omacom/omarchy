@@ -768,7 +768,7 @@ Panel {
               spacing: Style.space(2)
 
               Text {
-                text: "Audio"
+                text: I18n.tr("Audio")
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.title
@@ -810,7 +810,7 @@ Panel {
 
               PanelSectionHeader {
                 id: outputHeader
-                text: "OUTPUT"
+                text: I18n.tr("OUTPUT")
                 foreground: root.bar.foreground
                 fontFamily: root.bar.fontFamily
                 anchors.left: parent.left
@@ -897,7 +897,7 @@ Panel {
 
               PanelSectionHeader {
                 id: microphoneHeader
-                text: "INPUT"
+                text: I18n.tr("INPUT")
                 foreground: root.bar.foreground
                 fontFamily: root.bar.fontFamily
                 anchors.left: parent.left
@@ -1000,7 +1000,7 @@ Panel {
             visible: root.displayAudioStreams.length > 0
 
             PanelSectionHeader {
-              text: "SOURCES"
+              text: I18n.tr("SOURCES")
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
             }

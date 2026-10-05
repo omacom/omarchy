@@ -738,7 +738,7 @@ Panel {
             spacing: Style.space(2)
 
             Text {
-              text: "Bluetooth"
+              text: I18n.tr("Bluetooth")
               color: root.bar.foreground
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.title
@@ -775,7 +775,7 @@ Panel {
           spacing: Style.space(10)
 
           PanelSectionHeader {
-            text: "CONNECTED"
+            text: I18n.tr("CONNECTED")
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
           }
@@ -867,7 +867,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           visible: root.connectedDevices.length === 0 && root.scrollRows.length === 0
-          text: !root.adapter ? "No Bluetooth adapter"
+          text: !root.adapter ? I18n.tr("No Bluetooth adapter")
               : !root.adapter.enabled ? "Turn Bluetooth on to scan"
               : "Scanning for devices…"
           color: Qt.darker(root.bar.foreground, 1.5)
@@ -994,7 +994,7 @@ Panel {
 
         Text {
           textFormat: Text.PlainText
-          text: root.deviceLabel(row.dev) || "Device"
+          text: root.deviceLabel(row.dev) || I18n.tr("Device")
           color: root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.body
@@ -1019,7 +1019,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         visible: row.showForgetButton
         iconText: "󰅙"
-        tooltipText: "Forget"
+        tooltipText: I18n.tr("Forget")
         foreground: root.bar.foreground
         hoverColor: root.bar.foreground
         fontFamily: root.bar.fontFamily

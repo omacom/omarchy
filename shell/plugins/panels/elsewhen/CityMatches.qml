@@ -73,7 +73,7 @@ Column {
     width: parent.width
     horizontalAlignment: Text.AlignHCenter
     topPadding: Style.spacing.md
-    text: list.citySearch.loading ? list.citySearch.loadingText : "No matches"
+    text: list.citySearch.loading ? list.citySearch.loadingText : I18n.tr("No matches")
     color: list.citySearch.fainter
   }
 
