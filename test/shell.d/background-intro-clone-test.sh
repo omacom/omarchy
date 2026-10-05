@@ -43,9 +43,6 @@ cp "$SHELL_TEST_DIR/fixtures/background-intro-clone/shell.qml" "$stage/shell.qml
 magick -size 128x128 xc:magenta "$stage/still.png"
 ln -s "$stage/still.png" "$stage/home/.local/state/omarchy/current/background"
 
-HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" INTRO_TEST_RESULT="$stage/result.json" \
-  quickshell -p "$stage" --no-color >"$stage/quickshell.log" 2>&1 &
-qs_pid=$!
 wait_phase() {
   for attempt in {1..100}; do
     [[ -s $stage/result.json ]] && [[ $(jq -r .phase "$stage/result.json") == "$1" ]] && return 0
@@ -60,15 +57,28 @@ capture_pixel() {
   timeout -k 1 3 grim -o "$output" "$stage/$1.png"
   magick "$stage/$1.png" -format '%[hex:p{32,256}]' info:
 }
-wait_phase cover
-jq -e '.scoped and .privateCoordinator and .selected and .covered' "$stage/result.json" >/dev/null || \
-  fail "the clone uses its scoped facade while the host owns startup" "$(cat "$stage/result.json")"
-[[ $(capture_pixel cover) == "000000" ]] || fail "the shared startup cover hides the cloned background"
-wait_phase still
-[[ $(capture_pixel still) == "FF00FF" ]] || fail "releasing the shared cover reveals the cloned background"
-wait "$qs_pid" || fail "the cloned background fixture exits cleanly" "$(cat "$stage/quickshell.log")"
-qs_pid=""
-if rg -q 'ReferenceError|TypeError|Unable to assign|Binding loop' "$stage/quickshell.log"; then
-  fail "the cloned background fixture has no QML errors" "$(cat "$stage/quickshell.log")"
-fi
-pass "a real background clone stays covered through its scoped facade and appears after handoff"
+for consumed in false true; do
+  if [[ $consumed == true ]]; then
+    printf '%s\n' "$(</proc/sys/kernel/random/boot_id)" >"$stage/home/.local/state/omarchy/background-intro.boot-id"
+  fi
+  rm -f "$stage/result.json"
+  HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" INTRO_TEST_RESULT="$stage/result.json" \
+    quickshell -p "$stage" --no-color >"$stage/quickshell.log" 2>&1 &
+  qs_pid=$!
+  wait_phase cover
+  jq -e --argjson consumed "$consumed" '.scoped and .privateCoordinator and .selected and (.covered == ($consumed | not))' "$stage/result.json" >/dev/null || \
+    fail "the clone is scoped and a consumed boot never maps the cover" "$(cat "$stage/result.json")"
+  if [[ $consumed == false ]]; then
+    [[ $(capture_pixel cover) == "000000" ]] || fail "the shared startup cover hides the cloned background"
+  else
+    [[ $(capture_pixel cover) == "FF00FF" ]] || fail "a consumed boot does not flash a cover over the cloned background"
+  fi
+  wait_phase still
+  [[ $(capture_pixel still) == "FF00FF" ]] || fail "releasing the shared cover reveals the cloned background"
+  wait "$qs_pid" || fail "the cloned background fixture exits cleanly" "$(cat "$stage/quickshell.log")"
+  qs_pid=""
+  if rg -q 'ReferenceError|TypeError|Unable to assign|Binding loop' "$stage/quickshell.log"; then
+    fail "the cloned background fixture has no QML errors" "$(cat "$stage/quickshell.log")"
+  fi
+done
+pass "a real clone is covered only for startup, with its scoped facade and consumed-boot behavior intact"

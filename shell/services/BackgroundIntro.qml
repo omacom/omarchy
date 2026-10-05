@@ -9,9 +9,25 @@ Item {
   id: root
 
   property var host: null
-  property bool cover: true
+  property bool cover: String(bootMarker.text() || "").trim() !== (Quickshell.env("OMARCHY_BOOT_ID") || String(bootId.text() || "").trim())
   property bool checked: false
   readonly property bool backgroundActive: !!(host && host.services && host.firstPartyServiceFor("omarchy.background"))
+
+  // Snapshot startup state: the launcher records this boot before playback.
+  FileView {
+    id: bootMarker
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/background-intro.boot-id"
+    blockLoading: true
+    watchChanges: false
+    printErrors: false
+  }
+
+  FileView {
+    id: bootId
+    path: "/proc/sys/kernel/random/boot_id"
+    blockLoading: true
+    watchChanges: false
+  }
 
   Component.onCompleted: {
     checked = true
