@@ -33,6 +33,9 @@ case "$*" in
     printf 'hyprctl:%s\n' "$*" >>"$TEST_LOG"
     if grep -q 'enabled = false' "$HOME/.local/state/omarchy/toggles/hypr/cua-input.lua" 2>/dev/null; then echo 'flag-at-load:held' >>"$TEST_LOG"; fi
     exit "${TEST_LOAD_STATUS:-0}" ;;
+  "eval "*)
+    printf 'hyprctl:%s\n' "$*" >>"$TEST_LOG"
+    if [[ ${TEST_EVAL_STATUS:-0} == 0 ]]; then echo ok; else echo "error: eval failed"; fi ;;
   reload)
     printf 'hyprctl:%s\n' "$*" >>"$TEST_LOG"
     reloads=$(($(cat "$TEST_LOG.reloads" 2>/dev/null || echo 0) + 1))
@@ -72,6 +75,13 @@ SCRIPT
 cat >"$tmp_dir/bin/pacman" <<'SCRIPT'
 #!/bin/bash
 [[ $* == "-Q cua-hyprland-plugin" ]] || exit 1
+if [[ -n ${TEST_PACMAN_PAUSE:-} ]]; then
+  touch "$TEST_PACMAN_PAUSE.ready"
+  for ((attempt = 0; attempt < 500; attempt++)); do
+    [[ -e $TEST_PACMAN_PAUSE.release ]] && break
+    sleep 0.01
+  done
+fi
 printf 'cua-hyprland-plugin %s\n' "${TEST_PLUGIN_VERSION:-0.32.0-3}"
 SCRIPT
 
@@ -344,6 +354,101 @@ TEST_RELOAD_STATUS=1 "$toggle" on 2>/dev/null || rc=$?
 [[ $rc != 0 && ! -e $(flag_file) ]] || fail "cua input on clears the flag when the reload fails"
 grep -q '^notify:.*Cua input stays off Hyprland could not reload' "$TEST_LOG" || fail "cua input on clears the flag when the reload fails" "no notification: $(cat "$TEST_LOG")"
 pass "cua input on clears the flag when the reload fails"
+
+# Turning off while on verifies must win: on's held flag goes and is not recreated.
+fresh_home
+rc=0
+TEST_CUA_READY=1 TEST_VERIFY_PAUSE="$tmp_dir/onverify" "$toggle" on 2>/dev/null &
+on_pid=$!
+for ((attempt = 0; attempt < 200; attempt++)); do
+  [[ -e $tmp_dir/onverify.ready ]] && break
+  sleep 0.01
+done
+[[ -e $tmp_dir/onverify.ready ]] || fail "cua input on reached its verification pause"
+"$toggle" off
+touch "$tmp_dir/onverify.release"
+wait "$on_pid" || rc=$?
+[[ ! -e $(flag_file) ]] || fail "cua input on preserves a concurrent off" "flag recreated"
+! grep -q '^notify:.*Cua input on ' "$TEST_LOG" || fail "cua input on preserves a concurrent off" "reported on: $(cat "$TEST_LOG")"
+pass "cua input on preserves a concurrent off"
+rm -f "$tmp_dir/onverify".*
+
+# A failed reload while turning off falls back to switching the live option off.
+fresh_home
+"$toggle" on >/dev/null
+: >"$TEST_LOG"
+TEST_RELOAD_STATUS=1 "$toggle" off
+[[ ! -e $(flag_file) ]] || fail "cua input off switches the live option off when the reload fails" "flag kept"
+grep -q '^hyprctl:eval .*enabled = false' "$TEST_LOG" || fail "cua input off switches the live option off when the reload fails" "$(cat "$TEST_LOG")"
+grep -q '^notify:.*Cua input off' "$TEST_LOG" || fail "cua input off switches the live option off when the reload fails" "not reported off"
+pass "cua input off switches the live option off when the reload fails"
+
+# When neither takes, off says so rather than claiming input is off.
+fresh_home
+"$toggle" on >/dev/null
+: >"$TEST_LOG"
+rc=0
+TEST_RELOAD_STATUS=1 TEST_EVAL_STATUS=1 "$toggle" off 2>/dev/null || rc=$?
+[[ $rc != 0 ]] || fail "cua input off reports input that may still be on" "exited 0"
+grep -q '^notify:.*Cua input may still be on' "$TEST_LOG" || fail "cua input off reports input that may still be on" "$(cat "$TEST_LOG")"
+! grep -q '^notify:.*Cua input off' "$TEST_LOG" || fail "cua input off reports input that may still be on" "claimed off"
+pass "cua input off reports input that may still be on"
+
+# A refusal says the same when it cannot take the setting back.
+fresh_home
+"$toggle" on >/dev/null
+: >"$TEST_LOG"
+rc=0
+TEST_RELOAD_STATUS=1 TEST_EVAL_STATUS=1 "$toggle" on 2>/dev/null || rc=$?
+[[ $rc != 0 ]] || fail "cua input refusal reports input that may still be on" "exited 0"
+grep -q '^notify:.*Cua input may still be on' "$TEST_LOG" || fail "cua input refusal reports input that may still be on" "$(cat "$TEST_LOG")"
+pass "cua input refusal reports input that may still be on"
+
+# A reload that keeps the old settings still answers ok, so off always sets the live option.
+fresh_home
+"$toggle" on >/dev/null
+: >"$TEST_LOG"
+"$toggle" off
+grep -q '^hyprctl:eval .*enabled = false' "$TEST_LOG" || fail "cua input off sets the live option even when the reload answers ok" "$(cat "$TEST_LOG")"
+pass "cua input off sets the live option even when the reload answers ok"
+
+# An off during on's package checks wins too: on's held flag is its first step.
+fresh_home
+TEST_CUA_READY=1 TEST_PACMAN_PAUSE="$tmp_dir/onpkg" "$toggle" on 2>/dev/null &
+on_pid=$!
+for ((attempt = 0; attempt < 200; attempt++)); do
+  [[ -e $tmp_dir/onpkg.ready ]] && break
+  sleep 0.01
+done
+[[ -e $tmp_dir/onpkg.ready ]] || fail "cua input on reached its package check pause"
+"$toggle" off
+touch "$tmp_dir/onpkg.release"
+wait "$on_pid" || true
+[[ ! -e $(flag_file) ]] || fail "cua input on preserves an off during its package checks" "flag recreated"
+! grep -q '^notify:.*Cua input on ' "$TEST_LOG" || fail "cua input on preserves an off during its package checks" "reported on"
+pass "cua input on preserves an off during its package checks"
+rm -f "$tmp_dir/onpkg".*
+
+# A session-start failure that cannot take the setting back says so.
+fresh_home
+"$toggle" on >/dev/null
+: >"$TEST_LOG"
+TEST_PLUGIN_VERSION=0.28.2-2 TEST_RELOAD_STATUS=1 TEST_EVAL_STATUS=1 "$toggle" --load
+grep -q '^notify:.*Cua input may still be on' "$TEST_LOG" || fail "cua input startup reports input that may still be on" "$(cat "$TEST_LOG")"
+! grep -q '^notify:.*Cua input turned off' "$TEST_LOG" || fail "cua input startup reports input that may still be on" "claimed off"
+pass "cua input startup reports input that may still be on"
+
+# A flag that cannot be deleted would enable input again at the next reload.
+fresh_home
+"$toggle" on >/dev/null
+: >"$TEST_LOG"
+chmod a-w "$(dirname "$(flag_file)")"
+rc=0
+"$toggle" off 2>/dev/null || rc=$?
+chmod u+w "$(dirname "$(flag_file)")"
+[[ $rc != 0 ]] || fail "cua input off reports a flag it could not delete" "exited 0"
+grep -q '^notify:.*Cua input may still be on' "$TEST_LOG" || fail "cua input off reports a flag it could not delete" "$(cat "$TEST_LOG")"
+pass "cua input off reports a flag it could not delete"
 
 # Existing copied flags are replaced, removing their legacy keyboard overrides.
 for ((line = 0; line < 20; line++)); do

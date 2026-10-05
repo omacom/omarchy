@@ -15,13 +15,15 @@ if omarchy-cmd-present cua-driver; then
 fi
 omarchy-agent-skill-link "$OMARCHY_PATH/default/agents/optional-skills/cua-omarchy" --remove
 
+# The flag goes even when the plugin package went first: a mapped module keeps
+# reading it until logout. The toggle tells the user if Hyprland did not take it.
+if omarchy-hyprland-toggle-enabled cua-input; then
+  omarchy-toggle-cua-input off || true
+fi
+
 plugin_removed=false
 if omarchy-pkg-present cua-hyprland-plugin; then
-  # The keymap override and the session-start reload go now; the module
-  # itself stays mapped for the rest of the session, as the package requires.
-  if omarchy-hyprland-toggle-enabled cua-input; then
-    omarchy-toggle-cua-input off
-  fi
+  # The module itself stays mapped for the rest of the session, as the package requires.
   omarchy-pkg-drop cua-hyprland-plugin
   plugin_removed=true
 fi

@@ -426,6 +426,7 @@ cat >"$tmp_dir/bin/omarchy-toggle-cua-input" <<'SCRIPT'
 #!/bin/bash
 printf 'cua-input:%s\n' "$*" >>"$TEST_LOG"
 rm -f "$HOME/.local/state/omarchy/toggles/hypr/cua-input.lua"
+exit "${TEST_TOGGLE_STATUS:-0}"
 SCRIPT
 chmod +x "$tmp_dir/bin/omarchy-toggle-cua-input"
 
@@ -475,3 +476,17 @@ OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-remove-ai-cua" >/dev/null
 ! grep -q '^cua-input:' "$TEST_LOG" || fail "Cua removal drops the plugin only when it is installed" "toggle touched"
 grep -q '^drop:cua-driver-bin$' "$TEST_LOG" || fail "Cua removal drops the plugin only when it is installed" "driver kept"
 pass "Cua removal drops the plugin only when it is installed"
+
+# A plugin package removed on its own leaves the flag behind; removal still
+# turns it off, and goes on removing the driver even if Hyprland did not take it.
+for toggle_status in 0 1; do
+  : >"$TEST_LOG"
+  fresh_home
+  mkdir -p "$HOME/.local/state/omarchy/toggles/hypr"
+  touch "$HOME/.local/state/omarchy/toggles/hypr/cua-input.lua"
+  OMARCHY_PATH="$ROOT" TEST_TOGGLE_STATUS=$toggle_status "$ROOT/bin/omarchy-remove-ai-cua" >/dev/null
+  grep -q '^cua-input:off$' "$TEST_LOG" || fail "Cua removal turns off a flag the plugin package left (toggle $toggle_status)" "$(cat "$TEST_LOG")"
+  ! grep -q '^drop:cua-hyprland-plugin$' "$TEST_LOG" || fail "Cua removal turns off a flag the plugin package left (toggle $toggle_status)" "dropped an absent package"
+  grep -q '^drop:cua-driver-bin$' "$TEST_LOG" || fail "Cua removal turns off a flag the plugin package left (toggle $toggle_status)" "driver kept"
+  pass "Cua removal turns off a flag the plugin package left (toggle $toggle_status)"
+done
