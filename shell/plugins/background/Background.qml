@@ -350,12 +350,6 @@ Item {
         }
       }
 
-      Rectangle {
-        anchors.fill: parent
-        color: "black"
-        visible: root.shell && root.shell.bootIntro ? root.shell.bootIntro.cover : false
-      }
-
       Image {
         id: oldFrame
         anchors.fill: parent

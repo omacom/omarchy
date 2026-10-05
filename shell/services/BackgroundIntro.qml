@@ -1,4 +1,6 @@
 import QtQuick
+import Quickshell
+import Quickshell.Wayland
 import Quickshell.Io
 
 // OWE destroys and recreates the background service during playback, so the
@@ -18,6 +20,23 @@ Item {
 
   onBackgroundActiveChanged: {
     if (!backgroundActive && checked) cover = false
+  }
+
+  Variants {
+    model: Quickshell.screens
+
+    PanelWindow {
+      required property var modelData
+      screen: modelData
+      visible: root.cover
+      color: "black"
+      mask: Region {}
+      anchors { top: true; bottom: true; left: true; right: true }
+      exclusionMode: ExclusionMode.Ignore
+      WlrLayershell.layer: WlrLayer.Bottom
+      WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+      WlrLayershell.namespace: "omarchy-background"
+    }
   }
 
   Process {
