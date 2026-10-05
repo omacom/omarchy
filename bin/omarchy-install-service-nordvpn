@@ -7,6 +7,9 @@ echo "Installing NordVPN..."
 omarchy-pkg-add nordvpn-bin
 
 echo "Enabling NordVPN daemon..."
+sudo install -Dm644 "$OMARCHY_PATH/default/systemd/system/nordvpnd.service.d/10-omarchy.conf" \
+  /etc/systemd/system/nordvpnd.service.d/10-omarchy.conf
+sudo systemctl daemon-reload
 sudo systemctl enable --now nordvpnd
 
 echo "Adding user to nordvpn group..."
