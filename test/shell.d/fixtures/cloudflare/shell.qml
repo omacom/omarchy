@@ -99,6 +99,44 @@ ShellRoot {
           Qt.quit()
         }
       }
+      if (harness.scenario === "detail-timeout") {
+        if (harness.tick === 4) {
+          var found = false
+          for (var i = 0; i < service.data.length; i++) {
+            if (service.data[i].interval === 25000) { service.data[i].interval = 500; found = true }
+          }
+          harness.check(found, "fixture shortens the real detail watchdog")
+          service.openWorkerDetail({name: "stalled", logsEnabled: false})
+        }
+        if (harness.tick === 18) {
+          harness.check(!service.versionsLoading && service.versionsError !== "", "stalled versions time out even without Worker logs")
+          harness.check(service.deploymentsLoaded, "stalled deployment call finishes loading state")
+          service.openWorkerDetail({name: "beta", logsEnabled: true})
+        }
+        if (harness.tick === 28) {
+          harness.check(!service.versionsLoading && service.detailVersions[0].id === "beta-version", "another Worker loads after version timeout")
+          service.forgetWorkerDetail()
+          Qt.quit()
+        }
+      } else if (harness.scenario === "stubborn-detail") {
+        if (harness.tick === 4) service.openWorkerDetail({name: "stubborn", logsEnabled: false})
+        if (harness.tick === 8) service.openWorkerDetail({name: "beta", logsEnabled: true})
+        if (harness.tick === 28) {
+          harness.check(!service.versionsLoading && service.detailVersions[0] && service.detailVersions[0].id === "beta-version", "cancelled calls that ignore SIGTERM cannot block the next Worker")
+          Qt.quit()
+        }
+      } else if (harness.scenario === "errors-query") {
+        if (harness.tick === 4) service.openWorkerDetail({name: "errorfail", logsEnabled: true})
+        if (harness.tick === 18) {
+          harness.check(service.metricsError !== "", "failed errors query is explained even when usage succeeds later")
+          harness.check(service._detailCache.errorfail && service._detailCache.errorfail.metricsError !== "", "cached detail preserves errors-query failure")
+          service.openWorkerDetail({name: "beta", logsEnabled: true})
+        }
+        if (harness.tick === 28) {
+          harness.check(service.metricsError === "", "next Worker starts without the prior query failure")
+          Qt.quit()
+        }
+      }
       if (harness.tick > 80) { harness.check(false, "scenario timed out"); Qt.quit() }
     }
   }

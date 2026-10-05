@@ -42,6 +42,12 @@ elif args[:2] in [['workers', 'list'], ['zones', 'list']]:
                 for i in range((page - 1) * size, min(page * size, count))]
         emit(rows)
         sys.exit(0)
+    def delayed_list_exit(*_):
+        time.sleep(0.4)
+        emit([{'name': account + '-worker', 'observability': {'enabled': True}}] if args[0] == 'workers' else
+             [{'id': account + '-zone', 'name': account + '.test', 'account': {'id': account}}])
+        sys.exit(0)
+    signal.signal(signal.SIGTERM, delayed_list_exit)
     time.sleep(0.8)
     if args[0] == 'workers':
         emit([{'name': account + '-worker', 'observability': {'enabled': True}}])
@@ -53,6 +59,9 @@ elif args == ['auth', 'login']:
 elif args[:3] == ['observability', 'telemetry', 'query']:
     body = json.loads(option('--body'))
     worker = body['parameters']['filters'][0]['value']
+    if worker == 'errorfail' and body['parameters']['calculations'][0]['alias'] == 'errors':
+        time.sleep(0.1)
+        sys.exit(1)
     if worker == 'alpha':
         def delayed_exit(*_):
             time.sleep(0.4)
@@ -63,8 +72,14 @@ elif args[:3] == ['observability', 'telemetry', 'query']:
         time.sleep(0.15)
     emit({'calculations': [{'alias': c['alias'], 'aggregates': [{'value': 42}]} for c in body['parameters']['calculations']]})
 elif args[:3] == ['workers', 'versions', 'list']:
+    if option('--worker-id') in ['stalled', 'stubborn']:
+        if option('--worker-id') == 'stubborn': signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        time.sleep(6)
     emit([{'id': option('--worker-id') + '-version'}])
 elif args[:3] == ['workers', 'deployments', 'list']:
+    if option('--worker') in ['stalled', 'stubborn']:
+        if option('--worker') == 'stubborn': signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        time.sleep(6)
     emit({'deployments': []})
 else:
     sys.exit('unexpected cf command: ' + repr(args))

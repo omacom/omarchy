@@ -10,16 +10,18 @@ fi
 
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
-mkdir -p "$scratch/bin" "$scratch/home" "$scratch/runtime" "$scratch/Commons"
+mkdir -p "$scratch/bin" "$scratch/home/.local/bin" "$scratch/runtime" "$scratch/Commons"
 chmod 700 "$scratch/runtime"
-cp "$ROOT/test/shell.d/fixtures/cloudflare/cf" "$scratch/bin/cf"
+cp "$ROOT/test/shell.d/fixtures/cloudflare/cf" "$scratch/home/.local/bin/cf"
+chmod +x "$scratch/home/.local/bin/cf"
+printf '#!/bin/bash\nexit 97\n' >"$scratch/bin/cf"
 chmod +x "$scratch/bin/cf"
 cp "$ROOT/test/shell.d/fixtures/cloudflare/shell.qml" "$scratch/shell.qml"
 cp "$ROOT/shell/plugins/panels/cloudflare/"{Service.qml,Model.js} "$scratch/"
 cp "$ROOT/shell/Commons/Util.qml" "$scratch/Commons/"
 printf 'singleton Util 1.0 Util.qml\n' >"$scratch/Commons/qmldir"
 
-for scenario in ${CF_TEST_SCENARIOS:-account detail repeat-account repeat-detail signout offline pagination pagination-failure login}; do
+for scenario in ${CF_TEST_SCENARIOS:-account detail repeat-account repeat-detail signout offline pagination pagination-failure login detail-timeout stubborn-detail errors-query}; do
   : >"$scratch/calls"
   if ! HOME="$scratch/home" XDG_CONFIG_HOME="$scratch/home/.config" XDG_RUNTIME_DIR="$scratch/runtime" \
     QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software PATH="$scratch/bin:$PATH" \

@@ -9,6 +9,7 @@ Item {
 
   property var settings: ({})
 
+  readonly property string cliPath: Quickshell.env("HOME") + "/.local/bin/cf"
   property bool installed: false
   property bool authenticated: false
   property bool tokenValid: false
@@ -33,14 +34,16 @@ Item {
   property var detailWorker: null
   property var detailMetrics: ({})
   property string metricsError: ""
+  property string _usageError: ""
+  property string _errorQueryError: ""
   property var detailVersions: []
   property var detailLive: ({})
   property string detailDeployedOn: ""
   property string detailSource: ""
   property string versionsError: ""
   property bool deploymentsLoaded: false
-  // A load starts its calls a tick later; count that tick as loading so the
-  // view never flashes its empty state in between.
+  // A replacement load waits for cancelled calls to exit; count that wait
+  // as loading so the view never flashes its empty state in between.
   property bool _detailStarting: false
   readonly property bool metricsLoading: _detailStarting || usageProcess.running || errorsProcess.running
   readonly property bool versionsLoading: _detailStarting || versionsProcess.running || deploymentsProcess.running
@@ -102,7 +105,7 @@ Item {
     if (!installed) {
       if (!whichProcess.running) {
         refreshing = true
-        whichProcess.command = ["which", "cf"]
+        whichProcess.command = ["test", "-x", cliPath]
         whichProcess.running = true
       }
       return
@@ -111,7 +114,7 @@ Item {
     _whoamiOutput = ""
     _whoamiError = ""
     refreshing = true
-    whoamiProcess.command = ["cf", "auth", "whoami"]
+    whoamiProcess.command = [cliPath, "auth", "whoami"]
     whoamiProcess.running = true
     pollWatchdog.restart()
   }
@@ -125,7 +128,7 @@ Item {
     process.page = page
     process.items = items
     process.environment = cliEnvironment(selectedAccountId)
-    var command = ["cf", kind, "list", "--page", String(page), "--per-page", kind === "zones" ? "50" : "100"]
+    var command = [cliPath, kind, "list", "--page", String(page), "--per-page", kind === "zones" ? "50" : "100"]
     if (kind === "zones") command = command.concat(["--account-id", selectedAccountId])
     process.command = command
     process.running = true
@@ -261,6 +264,8 @@ Item {
     detailSource = ""
     deploymentsLoaded = false
     metricsError = ""
+    _usageError = ""
+    _errorQueryError = ""
     versionsError = ""
     loadWorkerDetail(worker)
   }
@@ -277,6 +282,7 @@ Item {
     detailWatchdog.stop()
     var processes = [usageProcess, errorsProcess, versionsProcess, deploymentsProcess]
     for (var i = 0; i < processes.length; i++) processes[i].running = false
+    detailCancelWatchdog.restart()
   }
 
   // Another account, or none: nothing loaded so far applies any more.
@@ -339,6 +345,7 @@ Item {
     if (!_pendingDetail) return
     var processes = [usageProcess, errorsProcess, versionsProcess, deploymentsProcess]
     for (var i = 0; i < processes.length; i++) if (processes[i].running) return
+    detailCancelWatchdog.stop()
     var worker = _pendingDetail
     _pendingDetail = null
     _detailStarting = false
@@ -348,12 +355,13 @@ Item {
     _versionsError = ""
     _deploymentsOutput = ""
     versionsProcess.environment = env
-    versionsProcess.command = ["cf", "workers", "versions", "list", "--worker-id", worker.name]
+    versionsProcess.command = [cliPath, "workers", "versions", "list", "--worker-id", worker.name]
     versionsProcess.running = true
     deploymentsProcess.environment = env
-    deploymentsProcess.command = ["cf", "workers", "deployments", "list", "--worker", worker.name]
+    deploymentsProcess.command = [cliPath, "workers", "deployments", "list", "--worker", worker.name]
     deploymentsProcess.running = true
 
+    detailWatchdog.restart()
     if (!worker.logsEnabled) {
       metricsError = "Turn on Workers Logs to see metrics"
       return
@@ -363,31 +371,39 @@ Item {
     _usageOutput = ""
     _errorsOutput = ""
     usageProcess.environment = env
-    usageProcess.command = ["cf", "observability", "telemetry", "query", "--body", Model.usageQuery(worker.name, from, to)]
+    usageProcess.command = [cliPath, "observability", "telemetry", "query", "--body", Model.usageQuery(worker.name, from, to)]
     usageProcess.running = true
     errorsProcess.environment = env
-    errorsProcess.command = ["cf", "observability", "telemetry", "query", "--body", Model.errorsQuery(worker.name, from, to)]
+    errorsProcess.command = [cliPath, "observability", "telemetry", "query", "--body", Model.errorsQuery(worker.name, from, to)]
     errorsProcess.running = true
-    detailWatchdog.restart()
   }
 
-  function applyMetrics(raw) {
+  function setMetricsError(source, message) {
+    if (source === "usage") _usageError = message
+    else _errorQueryError = message
+    metricsError = _usageError || _errorQueryError
+  }
+
+  function applyMetrics(raw, source) {
     var parsed = Model.parseMetrics(raw)
     if (!parsed.ok) {
-      metricsError = "Could not load metrics"
+      setMetricsError(source, source === "usage" ? "Could not load metrics" : "Could not load error metrics")
       return
     }
     var metrics = {}
     for (var key in detailMetrics) metrics[key] = detailMetrics[key]
     for (var alias in parsed.metrics) metrics[alias] = parsed.metrics[alias]
     detailMetrics = metrics
-    if (metrics.invocations && metrics.cpu) metricsError = ""
+    setMetricsError(source, "")
   }
 
   // Called from each call's exit handler, where the loading bindings have
   // not caught up with the process that just stopped; ask the processes.
   function detailProcessDone() {
-    if (!usageProcess.running && !errorsProcess.running && !versionsProcess.running && !deploymentsProcess.running) rememberDetail()
+    if (!usageProcess.running && !errorsProcess.running && !versionsProcess.running && !deploymentsProcess.running) {
+      detailWatchdog.stop()
+      rememberDetail()
+    }
   }
 
   function copyVersion(version) {
@@ -414,7 +430,7 @@ Item {
     _loginOutput = ""
     lastError = ""
     actionStatus = "Approve the sign-in in your browser…"
-    loginProcess.command = ["cf", "auth", "login"]
+    loginProcess.command = [cliPath, "auth", "login"]
     loginProcess.running = true
   }
 
@@ -486,15 +502,35 @@ Item {
   }
 
   Timer {
-    // Log queries run on Cloudflare's side and can stall; give up on them
-    // rather than leave the metrics section loading forever.
+    // Every detail call can stall, including Workers without telemetry enabled.
     id: detailWatchdog
     interval: 25000
     repeat: false
     onTriggered: {
-      if (usageProcess.running || errorsProcess.running) root.metricsError = "Metrics took too long to load"
-      if (usageProcess.running) usageProcess.running = false
-      if (errorsProcess.running) errorsProcess.running = false
+      if (usageProcess.running) root.setMetricsError("usage", "Metrics took too long to load")
+      if (errorsProcess.running) root.setMetricsError("errors", "Error metrics took too long to load")
+      if (versionsProcess.running) root.versionsError = "Versions took too long to load"
+      var processes = [usageProcess, errorsProcess, versionsProcess, deploymentsProcess]
+      for (var i = 0; i < processes.length; i++) {
+        if (processes[i].running) {
+          processes[i].running = false
+          processes[i].signal(9)
+        }
+      }
+    }
+  }
+
+  Timer {
+    // A cancelled CLI that ignores SIGTERM must not hold up the next selection.
+    // startPendingDetail stops this timer before reusing any of the processes.
+    id: detailCancelWatchdog
+    interval: 1000
+    repeat: false
+    onTriggered: {
+      var processes = [usageProcess, errorsProcess, versionsProcess, deploymentsProcess]
+      for (var i = 0; i < processes.length; i++) {
+        if (processes[i].running) processes[i].signal(9)
+      }
     }
   }
 
@@ -574,8 +610,8 @@ Item {
     onExited: function(exitCode) {
       Qt.callLater(root.startPendingDetail)
       if (generation !== root._detailGeneration) return
-      if (exitCode === 0) root.applyMetrics(String(usageStdout.text || root._usageOutput || ""))
-      else if (root.metricsError === "") root.metricsError = "Could not load metrics"
+      if (exitCode === 0) root.applyMetrics(String(usageStdout.text || root._usageOutput || ""), "usage")
+      else root.setMetricsError("usage", root._usageError || "Could not load metrics")
       root.detailProcessDone()
     }
   }
@@ -589,7 +625,8 @@ Item {
     onExited: function(exitCode) {
       Qt.callLater(root.startPendingDetail)
       if (generation !== root._detailGeneration) return
-      if (exitCode === 0) root.applyMetrics(String(errorsStdout.text || root._errorsOutput || ""))
+      if (exitCode === 0) root.applyMetrics(String(errorsStdout.text || root._errorsOutput || ""), "errors")
+      else root.setMetricsError("errors", root._errorQueryError || "Could not load error metrics")
       root.detailProcessDone()
     }
   }
@@ -609,7 +646,7 @@ Item {
         root.detailVersions = parsed.versions
         root.versionsError = ""
       } else {
-        root.versionsError = root.elideStatus(String(versionsStderr.text || root._versionsError || "") || "Could not list versions")
+        root.versionsError = root.versionsError || root.elideStatus(String(versionsStderr.text || root._versionsError || "") || "Could not list versions")
       }
       root.detailProcessDone()
     }
