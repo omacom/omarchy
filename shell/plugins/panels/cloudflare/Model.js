@@ -56,7 +56,7 @@ function parseWhoami(raw) {
     tokenValid: data.tokenValid !== false,
     email: String(data.email || ""),
     accounts: accounts,
-    message: data.tokenValid === false ? "Token rejected" : "Signed in"
+    message: data.tokenValid === false ? "Could not verify Cloudflare login" : "Signed in"
   }
 }
 
@@ -323,6 +323,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     DASHBOARD_URL: DASHBOARD_URL,
     stripAnsi: stripAnsi,
+    parseJson: parseJson,
     parseWhoami: parseWhoami,
     parseZones: parseZones,
     parseWorkers: parseWorkers,

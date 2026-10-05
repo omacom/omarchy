@@ -41,7 +41,7 @@ assertDeepEqual(
   'cloudflare sorts accounts by name and drops ones without an id'
 )
 
-assertEqual(cloudflare.parseWhoami(JSON.stringify({ authenticated: true, tokenValid: false })).message, 'Token rejected', 'cloudflare flags a token the API rejected')
+assertEqual(cloudflare.parseWhoami(JSON.stringify({ authenticated: true, tokenValid: false })).message, 'Could not verify Cloudflare login', 'cloudflare does not confuse failed verification with rejection')
 assertEqual(cloudflare.parseWhoami('not json').ok, false, 'cloudflare reports unparseable whoami output')
 assertEqual(cloudflare.parseWhoami('').authenticated, false, 'cloudflare treats empty whoami output as signed out')
 

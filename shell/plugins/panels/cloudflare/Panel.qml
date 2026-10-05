@@ -57,9 +57,9 @@ Panel {
   // most likely fill, so the card does not jump when they arrive.
   readonly property real versionsLoadingHeight: Math.max(Style.space(120), maxColumnHeight - versionsSection.y - versionsSection.statusTop)
   readonly property color iconColor: healthy ? foreground : dim
-  // Signed out or with a rejected token, the mark carries Tailscale's
-  // needs-login badge. A missing CLI only dims it.
-  readonly property bool needsLogin: cloudflare.installed && !healthy
+  // Only a confirmed sign-out carries the needs-login badge. An
+  // unverified token or missing CLI dims the mark.
+  readonly property bool needsLogin: cloudflare.installed && !signedIn
   readonly property color barIconColor: healthy ? barForeground : Qt.darker(barForeground, 1.55)
 
   function clampCursor() {

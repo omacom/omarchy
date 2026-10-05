@@ -49,6 +49,8 @@ Item {
   property string _detailName: ""
   property real _detailLoadedAt: 0
   property int _detailGeneration: 0
+  property var _pendingDetail: null
+  property int _resourceGeneration: 0
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 300, 30, 3600)
   readonly property bool busy: whichProcess.running || whoamiProcess.running || loginProcess.running
@@ -62,10 +64,6 @@ Item {
 
   property string _whoamiOutput: ""
   property string _whoamiError: ""
-  property string _zonesOutput: ""
-  property string _zonesError: ""
-  property string _workersOutput: ""
-  property string _workersError: ""
   property string _loginOutput: ""
   property string _usageOutput: ""
   property string _errorsOutput: ""
@@ -118,49 +116,100 @@ Item {
     pollWatchdog.restart()
   }
 
-  // Zones and Workers load side by side once whoami has said who we are and
-  // which accounts exist. Each keeps its last good list if its call fails.
-  function refreshResources() {
-    if (!authenticated || selectedAccountId === "") return
-    var env = cliEnvironment(selectedAccountId)
-    if (!zonesProcess.running) {
-      _zonesOutput = ""
-      _zonesError = ""
-      zonesProcess.environment = env
-      zonesProcess.command = ["cf", "zones", "list"]
-      zonesProcess.running = true
-    }
-    if (!workersProcess.running) {
-      _workersOutput = ""
-      _workersError = ""
-      workersProcess.environment = env
-      workersProcess.command = ["cf", "workers", "list"]
-      workersProcess.running = true
-    }
+  // Each resource request owns its account and generation until it exits.
+  // Keep the last complete list if any page fails, and publish all pages at once.
+  function startResource(process, kind, page, items) {
+    if (!authenticated || !tokenValid || selectedAccountId === "" || process.running) return
+    process.generation = _resourceGeneration
+    process.accountId = selectedAccountId
+    process.page = page
+    process.items = items
+    process.environment = cliEnvironment(selectedAccountId)
+    var command = ["cf", kind, "list", "--page", String(page), "--per-page", kind === "zones" ? "50" : "100"]
+    if (kind === "zones") command = command.concat(["--account-id", selectedAccountId])
+    process.command = command
+    process.running = true
     pollWatchdog.restart()
+  }
+
+  function finishResource(process, kind, exitCode, stdout, stderr) {
+    if (process.generation !== _resourceGeneration || process.accountId !== selectedAccountId) {
+      startResource(process, kind, 1, [])
+      return
+    }
+    var result = Model.parseJson(stdout)
+    if (exitCode !== 0 || !result.ok || !Array.isArray(result.value)) {
+      var error = elideStatus(stderr || (kind === "zones" ? "Could not list domains" : "Could not list Workers"))
+      if (kind === "zones") zonesError = error
+      else workersError = error
+      return
+    }
+    var items = process.items.concat(result.value)
+    var fullPage = result.value.length >= (kind === "zones" ? 50 : 100)
+    if (fullPage && process.page < 100) {
+      startResource(process, kind, process.page + 1, items)
+      return
+    }
+    // Bound automatic requests even if a server keeps returning full pages.
+    var partial = fullPage ? "List truncated; open the dashboard for all results" : ""
+    if (kind === "zones") {
+      zones = Model.parseZones(JSON.stringify(items), process.accountId).zones
+      zonesError = partial
+    } else {
+      workers = Model.parseWorkers(JSON.stringify(items)).workers
+      workersError = partial
+    }
+  }
+
+  function invalidateResources() {
+    _resourceGeneration += 1
+    zonesProcess.running = false
+    workersProcess.running = false
+  }
+
+  function refreshResources() {
+    startResource(zonesProcess, "zones", 1, [])
+    startResource(workersProcess, "workers", 1, [])
   }
 
   function applyWhoami(raw) {
     var parsed = Model.parseWhoami(raw)
+    if (!parsed.ok) {
+      lastError = parsed.error
+      return
+    }
     authenticated = parsed.authenticated
     tokenValid = parsed.tokenValid
+    statusText = parsed.message
+    lastError = ""
+    if (authenticated && !tokenValid) {
+      // cf cannot distinguish an offline verification from a rejected token.
+      // Retain the last known account and resources until verification succeeds.
+      return
+    }
     email = parsed.email
     accounts = parsed.accounts
-    statusText = parsed.message
-    lastError = parsed.ok ? "" : parsed.error
 
     if (!authenticated) {
+      invalidateResources()
       selectedAccountId = ""
       zones = []
       workers = []
       forgetWorkerDetail()
       return
     }
-    if (selectedAccount === null) selectedAccountId = accounts.length > 0 ? accounts[0].id : ""
+    if (selectedAccount === null) {
+      invalidateResources()
+      forgetWorkerDetail()
+      zones = []
+      workers = []
+      selectedAccountId = accounts.length > 0 ? accounts[0].id : ""
+    }
     refreshResources()
   }
 
   function resetSignedOut(message) {
+    invalidateResources()
     authenticated = false
     tokenValid = false
     email = ""
@@ -224,8 +273,10 @@ Item {
   // drop its result instead of writing into the next one.
   function stopWorkerDetail() {
     _detailGeneration += 1
+    _pendingDetail = null
+    detailWatchdog.stop()
     var processes = [usageProcess, errorsProcess, versionsProcess, deploymentsProcess]
-    for (var i = 0; i < processes.length; i++) if (processes[i].running) processes[i].running = false
+    for (var i = 0; i < processes.length; i++) processes[i].running = false
   }
 
   // Another account, or none: nothing loaded so far applies any more.
@@ -274,50 +325,50 @@ Item {
     _detailCache = cache
   }
 
-  // Stops whatever is still loading for a previous Worker, then starts this
-  // one's calls side by side on the next tick, once the stopped processes
-  // have let go.
+  // SIGTERM is asynchronous. Do not stamp or reuse a Process until every
+  // previous detail call has exited; late output still belongs to its old load.
   function loadWorkerDetail(worker) {
     if (!worker) return
-    // Each load gets a generation; a process only reports back if it was
-    // started by the current one, so a stopped call for an earlier Worker
-    // cannot write into this Worker's view.
     stopWorkerDetail()
-    var generation = _detailGeneration
-    var processes = [usageProcess, errorsProcess, versionsProcess, deploymentsProcess]
+    _pendingDetail = worker
     _detailStarting = true
+    Qt.callLater(startPendingDetail)
+  }
 
-    Qt.callLater(function() {
-      if (generation !== root._detailGeneration) return
-      root._detailStarting = false
-      for (var j = 0; j < processes.length; j++) processes[j].generation = generation
-      var env = root.cliEnvironment(root.selectedAccountId)
-      root._versionsOutput = ""
-      root._versionsError = ""
-      root._deploymentsOutput = ""
-      versionsProcess.environment = env
-      versionsProcess.command = ["cf", "workers", "versions", "list", "--worker-id", worker.name]
-      versionsProcess.running = true
-      deploymentsProcess.environment = env
-      deploymentsProcess.command = ["cf", "workers", "deployments", "list", "--worker", worker.name]
-      deploymentsProcess.running = true
+  function startPendingDetail() {
+    if (!_pendingDetail) return
+    var processes = [usageProcess, errorsProcess, versionsProcess, deploymentsProcess]
+    for (var i = 0; i < processes.length; i++) if (processes[i].running) return
+    var worker = _pendingDetail
+    _pendingDetail = null
+    _detailStarting = false
+    for (var j = 0; j < processes.length; j++) processes[j].generation = _detailGeneration
+    var env = cliEnvironment(selectedAccountId)
+    _versionsOutput = ""
+    _versionsError = ""
+    _deploymentsOutput = ""
+    versionsProcess.environment = env
+    versionsProcess.command = ["cf", "workers", "versions", "list", "--worker-id", worker.name]
+    versionsProcess.running = true
+    deploymentsProcess.environment = env
+    deploymentsProcess.command = ["cf", "workers", "deployments", "list", "--worker", worker.name]
+    deploymentsProcess.running = true
 
-      if (!worker.logsEnabled) {
-        root.metricsError = "Turn on Workers Logs to see metrics"
-        return
-      }
-      var to = Date.now()
-      var from = to - 24 * 60 * 60 * 1000
-      root._usageOutput = ""
-      root._errorsOutput = ""
-      usageProcess.environment = env
-      usageProcess.command = ["cf", "observability", "telemetry", "query", "--body", Model.usageQuery(worker.name, from, to)]
-      usageProcess.running = true
-      errorsProcess.environment = env
-      errorsProcess.command = ["cf", "observability", "telemetry", "query", "--body", Model.errorsQuery(worker.name, from, to)]
-      errorsProcess.running = true
-      detailWatchdog.restart()
-    })
+    if (!worker.logsEnabled) {
+      metricsError = "Turn on Workers Logs to see metrics"
+      return
+    }
+    var to = Date.now()
+    var from = to - 24 * 60 * 60 * 1000
+    _usageOutput = ""
+    _errorsOutput = ""
+    usageProcess.environment = env
+    usageProcess.command = ["cf", "observability", "telemetry", "query", "--body", Model.usageQuery(worker.name, from, to)]
+    usageProcess.running = true
+    errorsProcess.environment = env
+    errorsProcess.command = ["cf", "observability", "telemetry", "query", "--body", Model.errorsQuery(worker.name, from, to)]
+    errorsProcess.running = true
+    detailWatchdog.restart()
   }
 
   function applyMetrics(raw) {
@@ -330,6 +381,7 @@ Item {
     for (var key in detailMetrics) metrics[key] = detailMetrics[key]
     for (var alias in parsed.metrics) metrics[alias] = parsed.metrics[alias]
     detailMetrics = metrics
+    if (metrics.invocations && metrics.cpu) metricsError = ""
   }
 
   // Called from each call's exit handler, where the loading bindings have
@@ -346,6 +398,7 @@ Item {
     var accountId = String(id || "")
     if (accountId === "" || accountId === selectedAccountId) return
     forgetWorkerDetail()
+    invalidateResources()
     selectedAccountId = accountId
     zones = []
     workers = []
@@ -484,39 +537,31 @@ Item {
 
   Process {
     id: zonesProcess
+    property int generation: 0
+    property string accountId: ""
+    property int page: 1
+    property var items: []
     running: false
     command: []
-    stdout: StdioCollector { id: zonesStdout; waitForEnd: true; onStreamFinished: root._zonesOutput = text }
-    stderr: StdioCollector { id: zonesStderr; waitForEnd: true; onStreamFinished: root._zonesError = text }
+    stdout: StdioCollector { id: zonesStdout; waitForEnd: true }
+    stderr: StdioCollector { id: zonesStderr; waitForEnd: true }
     onExited: function(exitCode) {
-      var stdout = String(zonesStdout.text || root._zonesOutput || "")
-      var stderr = String(zonesStderr.text || root._zonesError || "")
-      var parsed = exitCode === 0 ? Model.parseZones(stdout, root.selectedAccountId) : null
-      if (parsed && parsed.ok) {
-        root.zones = parsed.zones
-        root.zonesError = ""
-      } else {
-        root.zonesError = root.elideStatus(stderr || "Could not list domains")
-      }
+      root.finishResource(zonesProcess, "zones", exitCode, String(zonesStdout.text || ""), String(zonesStderr.text || ""))
     }
   }
 
   Process {
     id: workersProcess
+    property int generation: 0
+    property string accountId: ""
+    property int page: 1
+    property var items: []
     running: false
     command: []
-    stdout: StdioCollector { id: workersStdout; waitForEnd: true; onStreamFinished: root._workersOutput = text }
-    stderr: StdioCollector { id: workersStderr; waitForEnd: true; onStreamFinished: root._workersError = text }
+    stdout: StdioCollector { id: workersStdout; waitForEnd: true }
+    stderr: StdioCollector { id: workersStderr; waitForEnd: true }
     onExited: function(exitCode) {
-      var stdout = String(workersStdout.text || root._workersOutput || "")
-      var stderr = String(workersStderr.text || root._workersError || "")
-      var parsed = exitCode === 0 ? Model.parseWorkers(stdout) : null
-      if (parsed && parsed.ok) {
-        root.workers = parsed.workers
-        root.workersError = ""
-      } else {
-        root.workersError = root.elideStatus(stderr || "Could not list Workers")
-      }
+      root.finishResource(workersProcess, "workers", exitCode, String(workersStdout.text || ""), String(workersStderr.text || ""))
     }
   }
 
@@ -527,6 +572,7 @@ Item {
     command: []
     stdout: StdioCollector { id: usageStdout; waitForEnd: true; onStreamFinished: root._usageOutput = text }
     onExited: function(exitCode) {
+      Qt.callLater(root.startPendingDetail)
       if (generation !== root._detailGeneration) return
       if (exitCode === 0) root.applyMetrics(String(usageStdout.text || root._usageOutput || ""))
       else if (root.metricsError === "") root.metricsError = "Could not load metrics"
@@ -541,6 +587,7 @@ Item {
     command: []
     stdout: StdioCollector { id: errorsStdout; waitForEnd: true; onStreamFinished: root._errorsOutput = text }
     onExited: function(exitCode) {
+      Qt.callLater(root.startPendingDetail)
       if (generation !== root._detailGeneration) return
       if (exitCode === 0) root.applyMetrics(String(errorsStdout.text || root._errorsOutput || ""))
       root.detailProcessDone()
@@ -555,6 +602,7 @@ Item {
     stdout: StdioCollector { id: versionsStdout; waitForEnd: true; onStreamFinished: root._versionsOutput = text }
     stderr: StdioCollector { id: versionsStderr; waitForEnd: true; onStreamFinished: root._versionsError = text }
     onExited: function(exitCode) {
+      Qt.callLater(root.startPendingDetail)
       if (generation !== root._detailGeneration) return
       var parsed = exitCode === 0 ? Model.parseVersions(String(versionsStdout.text || root._versionsOutput || ""), 10) : null
       if (parsed && parsed.ok) {
@@ -574,6 +622,7 @@ Item {
     command: []
     stdout: StdioCollector { id: deploymentsStdout; waitForEnd: true; onStreamFinished: root._deploymentsOutput = text }
     onExited: function(exitCode) {
+      Qt.callLater(root.startPendingDetail)
       if (generation !== root._detailGeneration) return
       if (exitCode === 0) {
         var parsed = Model.parseDeployments(String(deploymentsStdout.text || root._deploymentsOutput || ""))

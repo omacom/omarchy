@@ -1,0 +1,70 @@
+#!/usr/bin/python3
+"""Synthetic Cloudflare CLI. Never connects to Cloudflare."""
+import json
+import os
+import signal
+import sys
+import time
+
+args = sys.argv[1:]
+account = os.environ.get('CLOUDFLARE_ACCOUNT_ID', '')
+assert os.environ.get('NO_COLOR') == '1'
+assert 'FORCE_COLOR' not in os.environ
+with open(os.environ['CF_TEST_CALLS'], 'a') as log:
+    log.write(json.dumps([account, args]) + '\n')
+
+def emit(value):
+    print(json.dumps(value), flush=True)
+
+def option(name, default=None):
+    return args[args.index(name) + 1] if name in args else default
+
+if args == ['auth', 'whoami']:
+    emit({'authenticated': True, 'tokenValid': True, 'accounts': [
+        {'id': 'a', 'name': 'A'}, {'id': 'b', 'name': 'B'}]})
+elif args[:2] in [['workers', 'list'], ['zones', 'list']]:
+    scenario = os.environ['CF_TEST_SCENARIO']
+    page = int(option('--page', '1'))
+    size = int(option('--per-page', '10' if args[0] == 'workers' else '20'))
+    assert size == (100 if args[0] == 'workers' else 50)
+    if args[0] == 'zones':
+        assert option('--account-id') == account
+    if scenario.startswith('pagination'):
+        time.sleep(0.1)
+        if scenario == 'pagination-failure' and page == 2:
+            with open(os.environ['CF_TEST_CALLS']) as log:
+                calls = [json.loads(line) for line in log]
+            if sum(call[1] == args for call in calls) == 1:
+                sys.exit(1)
+        count = 102 if args[0] == 'workers' else 52
+        rows = [{'name': f'worker-{i}', 'id': f'w{i}'} if args[0] == 'workers' else
+                {'name': f'zone-{i}.test', 'id': f'z{i}', 'account': {'id': account}}
+                for i in range((page - 1) * size, min(page * size, count))]
+        emit(rows)
+        sys.exit(0)
+    time.sleep(0.8)
+    if args[0] == 'workers':
+        emit([{'name': account + '-worker', 'observability': {'enabled': True}}])
+    else:
+        emit([{'id': account + '-zone', 'name': account + '.test', 'account': {'id': account}}])
+elif args == ['auth', 'login']:
+    time.sleep(0.3)
+    emit({'success': True})
+elif args[:3] == ['observability', 'telemetry', 'query']:
+    body = json.loads(option('--body'))
+    worker = body['parameters']['filters'][0]['value']
+    if worker == 'alpha':
+        def delayed_exit(*_):
+            time.sleep(0.4)
+            sys.exit(15)
+        signal.signal(signal.SIGTERM, delayed_exit)
+        time.sleep(3)
+    else:
+        time.sleep(0.15)
+    emit({'calculations': [{'alias': c['alias'], 'aggregates': [{'value': 42}]} for c in body['parameters']['calculations']]})
+elif args[:3] == ['workers', 'versions', 'list']:
+    emit([{'id': option('--worker-id') + '-version'}])
+elif args[:3] == ['workers', 'deployments', 'list']:
+    emit({'deployments': []})
+else:
+    sys.exit('unexpected cf command: ' + repr(args))
