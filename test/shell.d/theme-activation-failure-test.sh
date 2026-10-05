@@ -307,3 +307,20 @@ done
 reset_fixture
 mkdir "$shipped/themes/new/example.conf"
 expect_failure "" "template output is a directory"
+
+reset_fixture
+mkdir "$state/theme/read-only"
+printf 'retained old theme data\n' >"$state/theme/read-only/keep.conf"
+chmod 555 "$state/theme/read-only"
+if [[ -w $state/theme/read-only ]]; then
+  skip "swap cleanup permission failure requires an unprivileged user"
+else
+  run_theme || fail "cleanup failure does not undo successful publication" "$(cat "$scratch/output")"
+  [[ $(cat "$state/theme.name") == "new" && -f $state/theme/example.conf ]] || fail "cleanup failure keeps the new theme active"
+  retained_swap=$(find "$state" -maxdepth 1 -name '.theme-swap.*' -type d)
+  [[ -f $retained_swap/read-only/keep.conf ]] || fail "cleanup failure retains the undeletable files"
+  grep -Fx "omarchy-theme-set: could not remove theme swap; retained theme files at $retained_swap" "$scratch/output" >/dev/null || fail "cleanup failure reports the retained swap path"
+  run_theme || fail "later activation succeeds with a retained swap" "$(cat "$scratch/output")"
+  [[ -f $retained_swap/read-only/keep.conf ]] || fail "later activation leaves retained swap files intact"
+  pass "swap cleanup failure reports retained files without undoing publication or losing them on retry"
+fi

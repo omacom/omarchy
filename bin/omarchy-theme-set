@@ -71,7 +71,9 @@ cleanup_theme_staging() {
 
   if [[ $restored == "true" ]]; then
     rm -rf -- "$NEXT_THEME_PATH"
-    [[ -z $THEME_SWAP_PATH ]] || rm -rf -- "$THEME_SWAP_PATH"
+    if [[ -n $THEME_SWAP_PATH ]] && ! rm -rf -- "$THEME_SWAP_PATH"; then
+      echo "omarchy-theme-set: could not remove theme swap; retained theme files at $THEME_SWAP_PATH" >&2
+    fi
   else
     echo "omarchy-theme-set: could not restore the previous theme; retained theme files at $THEME_SWAP_PATH and $CURRENT_THEME_PATH" >&2
   fi
