@@ -107,6 +107,22 @@ grep -Fxq "owe: intro --start first-frame $theme_intro_dir/road.mp4" "$command_l
 
 rm "$marker" "$ready"
 : >"$command_log"
+PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_READY_FILE="$ready" OMARCHY_BOOT_ID=restart-while-waiting "$ROOT/bin/omarchy-theme-bg-boot-intro" &
+waiting_pid=$!
+for attempt in {1..100}; do
+  [[ -f $marker && $(<"$marker") == "restart-while-waiting" ]] && break
+  sleep 0.01
+done
+if ! PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_READY_FILE="$ready" OMARCHY_BOOT_ID=restart-while-waiting timeout 1 "$ROOT/bin/omarchy-theme-bg-boot-intro"; then
+  kill "$waiting_pid" 2>/dev/null || true
+  wait "$waiting_pid" || true
+  fail "a restarted shell reads the consumed boot without waiting for the old launcher"
+fi
+touch "$ready"
+wait "$waiting_pid"
+
+rm "$marker" "$ready"
+: >"$command_log"
 (sleep 0.5; touch "$toggle" "$ready") &
 ready_pid=$!
 PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_READY_FILE="$ready" OMARCHY_BOOT_ID=disabled-while-waiting "$ROOT/bin/omarchy-theme-bg-boot-intro"

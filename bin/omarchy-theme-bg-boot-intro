@@ -127,6 +127,7 @@ animations_off() {
 # Settle this boot before waiting: restarting the shell or starting OWE late
 # must not play an intro over a desktop that has already appeared.
 consume_boot
+exec 9>&-
 if [[ -f $toggle ]] || animations_off; then
   exit 0
 fi
