@@ -449,7 +449,7 @@ greeter_screen() {
     rows=$(stty size 2>/dev/null </dev/tty | awk '{print $1}')
     [[ $rows =~ ^[0-9]+$ ]] || rows=${LINES:-24}
 
-    tagline="Beautiful, Modern & Opinionated Linux by DHH"
+    tagline="Beautiful, Fun & Agentic Linux by DHH"
     hint="Press Return to Start Setup"
 
     printf '%s%s' "$HIDE_CURSOR" "$CLEAR"
@@ -1013,7 +1013,7 @@ run_provisioning() {
   log_step "finalizing user"
   echo finalize >"$STATE_FILE"
   if ! finalize_user; then
-    log_step "finalize-user failed (continuing; user can retry after login)"
+    log_step "finalize-user failed (continuing)"
     touch "$FINALIZE_WARNING_FLAG"
   fi
 
@@ -1092,7 +1092,6 @@ run_setup() {
     clear_logo
     echo
     say --foreground 1 "User finalization reported errors (see $LOG_FILE)."
-    say --foreground 1 "Run 'omarchy-provision-user --force' after login to retry."
     sleep 3
   fi
 
