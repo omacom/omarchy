@@ -301,10 +301,23 @@ Panel {
   // without a closed instance ever claiming the scanner.
   property var scannerDevice: null
 
+  // Whether another per-monitor instance holds the same device. The release
+  // runs after the fade-out, so switching the popout to another monitor can
+  // open that panel, and its scanner, before this one lets go; turning the
+  // device off then would leave the open list without scanning.
+  function scannerHeldElsewhere(device) {
+    if (!bar || typeof bar.moduleWidgets !== "function") return false
+    var items = bar.moduleWidgets(moduleName)
+    for (var i = 0; i < items.length; i++) {
+      if (items[i] && items[i] !== root && items[i].scannerDevice === device) return true
+    }
+    return false
+  }
+
   function setScannerEnabled(enabled) {
     var nextDevice = opened ? wifiDevice : null
 
-    if (scannerDevice && scannerDevice !== nextDevice)
+    if (scannerDevice && scannerDevice !== nextDevice && !scannerHeldElsewhere(scannerDevice))
       scannerDevice.scannerEnabled = false
 
     scannerDevice = nextDevice
@@ -313,8 +326,11 @@ Panel {
       scannerDevice.scannerEnabled = enabled
   }
 
+  // Let go of the device here too, so when a bar reload destroys every
+  // instance at once, the last one sees no holder left and turns it off.
   Component.onDestruction: {
-    if (scannerDevice) scannerDevice.scannerEnabled = false
+    if (scannerDevice && !scannerHeldElsewhere(scannerDevice)) scannerDevice.scannerEnabled = false
+    scannerDevice = null
   }
 
   // KeyboardPanel primes layer-shell focus whenever the panel opens. That's
@@ -943,7 +959,8 @@ Panel {
   // Turns the scanner off after the closed popup has unmapped. Started when
   // the KeyboardPanel stops being visible; the short delay lets the unmap reach
   // the compositor before the blocking release runs. A reopen in between keeps
-  // the scanner (refresh(true) restarts the scan anyway).
+  // the scanner (refresh(true) restarts the scan anyway), and so does a panel
+  // opened on another monitor meanwhile; see scannerHeldElsewhere.
   Timer {
     id: scannerRelease
     interval: 50
