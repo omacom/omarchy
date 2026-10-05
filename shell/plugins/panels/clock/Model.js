@@ -52,6 +52,15 @@ function clockMinuteIsStale(shown, now) {
   return true
 }
 
+// Whether a calendar showing `shown` as today needs a refresh at `now`. Like
+// the minute check, a day SystemClock publishes a moment before midnight is
+// current rather than stale.
+function calendarDayIsStale(shown, now) {
+  if (keyForDate(shown) === keyForDate(now)) return false
+  var ahead = shown.getTime() - now.getTime()
+  return !(ahead > 0 && ahead < 1000)
+}
+
 // Whether a format prints seconds, so the widget can tick once a second only
 // for the formats that show them. Quoted literals go first: the s in a 'Sat'
 // is text rather than a token, and an opening quote with no closing one runs
@@ -291,6 +300,7 @@ function stepMonth(year, month, delta) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    calendarDayIsStale: calendarDayIsStale,
     clockMinuteIsStale: clockMinuteIsStale,
     dateKey: dateKey,
     keyForDate: keyForDate,

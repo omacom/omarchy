@@ -138,6 +138,12 @@ Panel {
     clock.enabled = true
   }
 
+  // Whether today is out of step with the wall clock. The calendar's own clock
+  // only notices at its next minute, which after a suspend can be a minute away.
+  function todayIsStale(now) {
+    return Model.calendarDayIsStale(root.today, now)
+  }
+
   function goToToday() {
     root.viewYear = today.getFullYear()
     root.viewMonth = today.getMonth()

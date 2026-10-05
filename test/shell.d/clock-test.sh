@@ -181,12 +181,25 @@ const shownAt = new Date(2026, 8, 27, 14, 5, 0)
 assert(!calendar.clockMinuteIsStale(shownAt, new Date(2026, 8, 27, 14, 5, 59)), 'clock keeps a label from the current minute')
 assert(calendar.clockMinuteIsStale(shownAt, new Date(2026, 8, 27, 14, 6, 0)), 'clock sees a label from the previous minute as stale')
 assert(calendar.clockMinuteIsStale(shownAt, new Date(2026, 8, 27, 15, 42, 7)), 'clock sees a label from before a suspend as stale')
+assert(calendar.clockMinuteIsStale(shownAt, new Date(2026, 8, 27, 15, 5, 30)), 'clock sees the same minute of another hour as stale')
+// The calendar's day follows the same rule: behind or set back is stale, and a
+// day SystemClock publishes just before midnight is current.
+const calendarToday = new Date(2026, 8, 27)
+assert(!calendar.calendarDayIsStale(calendarToday, new Date(2026, 8, 27, 23, 59, 59)), 'calendar keeps the day it shows')
+assert(calendar.calendarDayIsStale(calendarToday, new Date(2026, 8, 28, 0, 0, 1)), 'calendar sees a day behind the wall clock as stale')
+assert(calendar.calendarDayIsStale(calendarToday, new Date(2026, 8, 25, 12, 0, 0)), 'calendar refreshes after the wall clock is set back')
+assert(!calendar.calendarDayIsStale(new Date(2026, 8, 28), new Date(2026, 8, 27, 23, 59, 59, 700)), 'calendar leaves a day SystemClock published just before midnight')
+assert(calendar.calendarDayIsStale(new Date(2026, 8, 28), new Date(2026, 8, 27, 12, 0, 0)), 'calendar refreshes a day well ahead of the wall clock')
 // SystemClock can publish the next minute up to half a second before the wall
 // clock turns. A poll in that gap must not roll the label back a minute.
 assert(!calendar.clockMinuteIsStale(new Date(2026, 8, 27, 14, 6, 0), new Date(2026, 8, 27, 14, 5, 59, 700)), 'clock leaves a label SystemClock published just before the minute turned')
 assert(calendar.clockMinuteIsStale(new Date(2026, 8, 27, 15, 0, 0), new Date(2026, 8, 27, 14, 5, 30)), 'clock refreshes a label after the wall clock is set back')
-assert(/Timer \{[^}]*running: !root\.showsSeconds[^}]*clockMinuteIsStale\(root\.displayDate, new Date\(\)\)\) root\.resyncClock\(\)/.test(widgetSource),
-  'clock checks for a stale minute and resyncs the clock')
+const checkTimer = (widgetSource.match(/Timer \{[^}]*\}/g) || []).find((block) => /checkClock/.test(block))
+assert(checkTimer && /interval: 2000\b/.test(checkTimer) && /repeat: true/.test(checkTimer) && /running: true/.test(checkTimer) && /onTriggered: root\.checkClock\(\)/.test(checkTimer),
+  'clock checks the wall clock every two seconds, whatever format it shows')
+const widgetCheck = widgetSource.match(/function checkClock\(\) \{[\s\S]*?\n {2}\}/)
+assert(widgetCheck && /!root\.showsSeconds && Model\.clockMinuteIsStale\(root\.displayDate, now\)/.test(widgetCheck[0]) && /root\.resyncClock\(\)/.test(widgetCheck[0]) && /todayIsStale\(now\)/.test(widgetCheck[0]),
+  'clock resyncs a stale minute, and a stale calendar day even with a seconds format')
 // The catch-up restarts SystemClock itself, so its next tick is re-armed from
 // now instead of waiting out the minute it was counting before the suspend.
 const widgetResync = widgetSource.match(/function resyncClock\(\) \{[\s\S]*?\n {2}\}/)
