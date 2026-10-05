@@ -46,6 +46,8 @@ connector_backlight() {
   fi
 
   for subsystem in "${OMARCHY_DRM_PATH:-/sys/class/drm}"/card*-"$monitor"/*/subsystem; do
+    [[ -L $subsystem ]] || continue
+
     if [[ $(<"${subsystem%/*/subsystem}/status") == "connected" && $(readlink "$subsystem") == */class/backlight ]]; then
       subsystem="${subsystem%/subsystem}"
       printf '%s\n' "${subsystem##*/}"

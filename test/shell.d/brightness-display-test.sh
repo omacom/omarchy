@@ -184,6 +184,10 @@ grep -Fx 'omarchy-brightness-display-apple --no-osd +5%' "$call_log" >/dev/null 
   fail "Apple display without a connector backlight keeps asdcontrol" "$(cat "$call_log")"
 pass "Apple display without a connector backlight keeps asdcontrol"
 
+stderr=$(APPLE_DISPLAY=1 run_brightness --no-osd --monitor HEADLESS-1 +5% 2>&1 >/dev/null)
+[[ -z $stderr ]] || fail "monitor without a DRM connector looks up its backlight quietly" "$stderr"
+pass "monitor without a DRM connector looks up its backlight quietly"
+
 cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
 printf '%s\n' '[
