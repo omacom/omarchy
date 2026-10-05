@@ -35,7 +35,9 @@ if [[ -n $device_path ]]; then
     pair | connect)
       powered=$(busctl --system --timeout=2 get-property org.bluez "$adapter_path" org.bluez.Adapter1 Powered)
       if [[ $powered != "b true" ]]; then
-        omarchy-bluetooth-power on
+        # The general helper can fail on the default controller; still try
+        # the device's own adapter after it has attempted to lift rfkill.
+        omarchy-bluetooth-power on || true
         busctl --system set-property org.bluez "$adapter_path" org.bluez.Adapter1 Powered b true
       fi
       if [[ $action == "pair" ]]; then

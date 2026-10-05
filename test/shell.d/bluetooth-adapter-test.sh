@@ -50,6 +50,9 @@ cat >"$scratch/bin/busctl" <<'MOCK'
 #!/bin/bash
 printf '%s\n' "$*" >>"$ADAPTER_LOG"
 [[ -z ${BUSCTL_FAIL:-} ]] || exit 1
+if [[ -n ${ADAPTER_POWER_FAIL:-} && $* == *"set-property"*"Powered b true" ]]; then
+  exit 1
+fi
 if [[ $* == *"get-property"* ]]; then
   printf 'b %s\n' "${ADAPTER_POWERED:-true}"
 fi
@@ -62,6 +65,7 @@ MOCK
 cat >"$scratch/bin/omarchy-bluetooth-power" <<'MOCK'
 #!/bin/bash
 printf 'power %s\n' "$*" >>"$ADAPTER_LOG"
+exit "${POWER_HELPER_EXIT:-0}"
 MOCK
 chmod +x "$scratch/bin/"*
 export PATH="$scratch/bin:$PATH"
@@ -95,6 +99,34 @@ done
 ADAPTER_POWERED=false "$ROOT/bin/omarchy-bluetooth-device" connect aa:bb:cc:dd:ee:ff "$device"
 grep -Fxq -- "--system set-property org.bluez /org/bluez/hci1 org.bluez.Adapter1 Powered b true" "$ADAPTER_LOG" || fail "power on targets the device's adapter"
 pass "a powered-down secondary adapter is powered on explicitly"
+
+# The general helper may fail after trying the default controller. Pair and
+# connect must still try the selected controller, but must not ignore its error.
+for action in pair connect; do
+  : >"$ADAPTER_LOG"
+  ADAPTER_POWERED=false POWER_HELPER_EXIT=1 "$ROOT/bin/omarchy-bluetooth-device" "$action" AA:BB:CC:DD:EE:FF "$device" ||
+    fail "$action attempts the selected adapter after the general power helper fails"
+  {
+    echo "--system --timeout=2 get-property org.bluez /org/bluez/hci1 org.bluez.Adapter1 Powered"
+    echo "power on"
+    echo "--system set-property org.bluez /org/bluez/hci1 org.bluez.Adapter1 Powered b true"
+    if [[ $action == "pair" ]]; then
+      echo "--system --timeout=20 call org.bluez $device org.bluez.Device1 Pair"
+    fi
+    echo "--system set-property org.bluez $device org.bluez.Device1 Trusted b true"
+    echo "--system --timeout=20 call org.bluez $device org.bluez.Device1 Connect"
+  } >"$scratch/expected"
+  diff -u "$scratch/expected" "$ADAPTER_LOG" || fail "$action powers its adapter before acting on the device"
+  pass "$action recovers from a general power helper failure on the selected adapter"
+
+  : >"$ADAPTER_LOG"
+  if ADAPTER_POWERED=false POWER_HELPER_EXIT=1 ADAPTER_POWER_FAIL=1 "$ROOT/bin/omarchy-bluetooth-device" "$action" AA:BB:CC:DD:EE:FF "$device"; then
+    fail "$action reports a selected-adapter power failure"
+  fi
+  head -n 3 "$scratch/expected" >"$scratch/failed-power-expected"
+  diff -u "$scratch/failed-power-expected" "$ADAPTER_LOG" || fail "$action stops before device operations when selected-adapter power fails"
+  pass "$action preserves selected-adapter power errors"
+done
 
 for invalid in /org/bluez/hci1 /org/bluez/hci1/dev_11_22_33_44_55_66 '/org/bluez/hci1/dev_AA_BB_CC_DD_EE_FF;true'; do
   : >"$ADAPTER_LOG"
