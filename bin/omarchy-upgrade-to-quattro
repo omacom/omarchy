@@ -733,7 +733,6 @@ remove_conflicting_legacy_packages() {
   # after NetworkManager and the rest of the new stack are installed.
   local conflicting_packages=(
     asdcontrol-git
-    lazydocker-bin
     localsend-bin
     omarchy-chromium
     omarchy-lazyvim
@@ -765,6 +764,17 @@ migrate_1password_beta_package() {
   log "Replacing 1Password Beta with stable 1Password"
   if ! as_root pacman -S --noconfirm --ask 4 1password; then
     warn "Could not replace 1Password Beta with stable 1Password; leaving the existing 1Password package installed."
+  fi
+}
+
+migrate_lazydocker_package() {
+  if package_installed_exact lazydocker-bin; then
+    log "Replacing existing Lazydocker with the repo package"
+    if as_root pacman -S --needed --noconfirm --ask 4 lazydocker; then
+      mark_packages_explicit lazydocker
+    else
+      warn "Could not replace lazydocker-bin; leaving existing Lazydocker installed."
+    fi
   fi
 }
 
@@ -874,7 +884,6 @@ remove_retired_default_packages() {
     hyprlock
     impala
     iwd
-    lazydocker-bin
     lmstudio
     lmstudio-bin
     localsend-bin
@@ -2419,6 +2428,7 @@ verify_kernel_cmdline_root
 configure_snapper_policy
 configure_lock_authentication
 migrate_1password_beta_package
+migrate_lazydocker_package
 cleanup_legacy_user_paths
 apply_system_transition
 apply_user_transition

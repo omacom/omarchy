@@ -24,3 +24,6 @@ omarchy-mise-install github:OpenRouterLabs/ori-releases ori
 if omarchy-cmd-missing muse; then
   omarchy-mise-install "http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]" muse
 fi
+
+# Build the account dispatchers declared by /etc/mise/conf.d.
+mise reshim

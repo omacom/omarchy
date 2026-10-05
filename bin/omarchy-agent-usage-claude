@@ -1031,11 +1031,8 @@ def probe_limits(access_token: str) -> dict[str, Any]:
   return {"ok": True, "limits": limits}
 
 
-# A cached percentage outlives the probe that measured it, but only until its
-# window rolls over: once a window has reset, the figure describes a period
-# that is over, and a stale 78% would misreport an allowance that is now
-# untouched. A window with no reset time, or one that will not parse, is kept
-# — an unreadable timestamp is no reason to throw away a real number.
+# Cached windows reset to zero when their measured period ends. Without a
+# fresh probe, the next rolling window has no known reset time yet.
 def limit_window_open(entry: dict[str, Any], now: dt.datetime) -> bool:
   raw = str(entry.get("resetsAt") or "")
   if raw == "":
@@ -1054,7 +1051,10 @@ def usable_cached_limits(cached: dict[str, Any]) -> list[dict[str, Any]]:
   if not isinstance(entries, list):
     return []
   now = dt.datetime.now(dt.timezone.utc)
-  return [entry for entry in entries if isinstance(entry, dict) and limit_window_open(entry, now)]
+  return [
+    entry if limit_window_open(entry, now) else dict(entry, percent=0.0, resetsAt="")
+    for entry in entries if isinstance(entry, dict)
+  ]
 
 
 def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms: int, force: bool, cache_name: str = "claude-limits.json") -> dict[str, Any]:
@@ -1079,7 +1079,7 @@ def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms:
   # refreshes the credential file when it runs, so a machine left alone long
   # enough finds the saved token lapsed. Say so — an empty limits list with
   # nothing else set hides the whole section and explains nothing — and keep
-  # showing the last numbers whose window has not since reset.
+  # showing the last numbers, resetting elapsed windows to zero.
   if access_token == "":
     result["limits"] = fallback
     result["usageStatusText"] = "Waiting for auth"
@@ -1168,24 +1168,6 @@ def registered_accounts() -> list[dict[str, Any]]:
   return accounts
 
 
-# A parked account whose sign-in lapsed can't be probed, and once every window
-# it last saw has reset, the cache has nothing current to offer. That is not
-# "unknown" — a reset window is an untouched allowance, and switching needs to
-# know this account is the one with the most room. Each window it last saw
-# comes back at 0%.
-def replenished_limits(cache_name: str) -> list[dict[str, Any]]:
-  cached = read_json(cache_root() / cache_name) or {}
-  entries = cached.get("limits")
-  if not isinstance(entries, list):
-    return []
-  now = dt.datetime.now(dt.timezone.utc)
-  return [
-    dict(entry, percent=0.0, resetsAt="")
-    for entry in entries
-    if isinstance(entry, dict) and not limit_window_open(entry, now)
-  ]
-
-
 def current_account_id(home: Path) -> str:
   try:
     account = json.loads(profile_path(home).read_text(encoding="utf-8")).get("oauthAccount") or {}
@@ -1211,8 +1193,6 @@ def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
   else:
     cache_name = f"claude-limits-{key}.json"
   limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, force, cache_name)
-  if not limits["live"] and not limits["limits"]:
-    limits["limits"] = replenished_limits(cache_name)
   return {
     "id": account["id"],
     "label": str(account.get("label") or account["id"]),

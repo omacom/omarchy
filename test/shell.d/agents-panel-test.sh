@@ -27,7 +27,7 @@ assert(/target\.kind === "signin"\) signInAgain\(/.test(panelSource) && /target\
 assert(/target\.kind === "autoswitch"\) setSwitchMode\(/.test(panelSource), 'Enter on Autoswitch flips the switch mode')
 assert(/keyColumn = use >= 0 \? use : /.test(panelSource), 'moving up or down onto an account lands on Use')
 assert(/Qt\.callLater\(function\(\) \{ if \(picking\) pointAt\("choice", 0\) \}\)/.test(panelSource), 'picking an agent to add starts with the first one focused')
-assert(/opacity: stale \? 0\.5 : 1\.0/.test(panelSource) && /"As of " \+ root\.formatDuration/.test(panelSource), 'limits kept from an earlier check dim and say how old they are on hover')
+assert(!/opacity: stale \?/.test(panelSource) && /"Last updated " \+ root\.formatDuration/.test(panelSource), 'stale limits say how old they are only on hover')
 assert(/onPickingChanged: resetKeys\(\)/.test(panelSource), 'the cursor starts over when the agent list comes or goes')
 assert(!/t === "a" \|\| t === "A"/.test(panelSource), 'adding an account has no hotkey; the + is the way in')
 assert(/if \(!accounts\[a\]\.active\) \{/.test(panelSource) && /if \(row\.length > 0\) rows\.push\(row\)/.test(panelSource), 'the active account with nothing to fix is not a keyboard stop')

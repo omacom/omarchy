@@ -201,8 +201,7 @@ OMARCHY_TEST_LOGIN_UUID=u-grok-2 OMARCHY_TEST_LOGIN_EMAIL=side@example.com \
 grep -qx -- "--private https://auth.x.ai/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" ||
   fail "a second Grok login opens in a private window" "$(cat "$OMARCHY_TEST_BROWSER_LOG")"
 omarchy-agent-account-use grok side >/dev/null
-source "$ROOT/default/bash/fns/agent-accounts"
-[[ $(grok --version) == "grok home=$accounts/grok/side args=--version" ]] || fail "grok starts as the active Grok account" "$(grok --version)"
+[[ $(omarchy-agent-account-exec grok --version) == "grok home=$accounts/grok/side args=--version" ]] || fail "grok starts as the active Grok account" "$(omarchy-agent-account-exec grok --version)"
 omarchy-agent-account-use grok main >/dev/null
 pass "Grok accounts are added and used like the others"
 
@@ -213,11 +212,10 @@ omarchy-agent-account-use claude work >/dev/null
 grep -q "New Claude sessions now use Work (Max 5x)" "$notifications" || fail "switching says where new sessions go"
 pass "use makes an account active and says so"
 
-source "$ROOT/default/bash/fns/agent-accounts"
-[[ $(claude --version) == "claude home=$work args=--version" ]] || fail "claude at a prompt starts as the active account"
-[[ $(CLAUDE_CONFIG_DIR=/elsewhere claude) == "claude home=/elsewhere args=" ]] || fail "an explicit CLAUDE_CONFIG_DIR wins over the active account"
-[[ $(codex) == "codex home=default args=" ]] || fail "codex stays on its primary until switched"
-pass "shell launches follow the active account"
+[[ $(omarchy-agent-account-exec claude --version) == "claude home=$work args=--version" ]] || fail "claude at a prompt starts as the active account"
+[[ $(CLAUDE_CONFIG_DIR=/elsewhere omarchy-agent-account-exec claude) == "claude home=/elsewhere args=" ]] || fail "an explicit CLAUDE_CONFIG_DIR wins over the active account"
+[[ $(omarchy-agent-account-exec codex) == "codex home=default args=" ]] || fail "codex stays on its primary until switched"
+pass "account dispatch follows the active account"
 
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=$work args=--permission-mode auto" ]] ||
   fail "omarchy-agent starts Claude as the active account"

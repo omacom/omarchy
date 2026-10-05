@@ -781,11 +781,11 @@ assert_launch pi pi "Review this project"
 assert_launch omp omp --auto-approve -- "Review this project"
 assert_launch opencode opencode --auto --prompt "Review this project"
 assert_launch ori ori code --interactive --prompt "Review this project"
-assert_launch claude claude --permission-mode auto -- "Review this project"
-assert_launch codex codex --approve-for-me -- "Review this project"
+assert_launch claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto -- "Review this project"
+assert_launch codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me -- "Review this project"
 assert_launch muse muse --approval-mode never -- "Review this project"
 assert_launch crush crush run "Review this project"
-assert_launch grok grok --permission-mode bypassPermissions -- "Review this project"
+assert_launch grok env -u GROK_HOME OMARCHY_AGENT_GROK_HOME= grok --permission-mode bypassPermissions -- "Review this project"
 assert_launch cursor-agent cursor-agent --yolo --trust agent -- "Review this project"
 assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=Review this project"
 assert_launch agy agy --dangerously-skip-permissions --prompt-interactive "Review this project"
@@ -809,11 +809,11 @@ assert_bypass pi pi
 assert_bypass omp omp --auto-approve
 assert_bypass opencode opencode --auto
 assert_bypass ori ori code
-assert_bypass claude claude --permission-mode auto
-assert_bypass codex codex --approve-for-me
+assert_bypass claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto
+assert_bypass codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me
 assert_bypass muse muse --approval-mode never
 assert_bypass crush crush --yolo
-assert_bypass grok grok --permission-mode bypassPermissions
+assert_bypass grok env -u GROK_HOME OMARCHY_AGENT_GROK_HOME= grok --permission-mode bypassPermissions
 assert_bypass cursor-agent cursor-agent --yolo --trust
 assert_bypass hermes hermes --yolo
 assert_bypass agy agy --dangerously-skip-permissions

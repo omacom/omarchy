@@ -171,18 +171,20 @@ expired=$(collect_limits "token" 1000 1000 "$cache")
   fail "Claude collector says how to refresh an expired sign-in" "$expired"
 pass "Claude collector reports an expired sign-in instead of hiding the section"
 
-# The window that has not reset is still true; the one that has is not.
-[[ $(jq -c '[.limits[].label]' <<<"$expired") == '["Weekly (7-day)"]' ]] ||
-  fail "Claude collector keeps only cached windows that have not reset" "$expired"
-pass "Claude collector keeps only cached windows that have not reset"
+# The elapsed session resets to zero while the weekly usage stays intact.
+[[ $(jq -c '[.limits[].label]' <<<"$expired") == '["Session (5-hour)","Weekly (7-day)"]' ]] ||
+  fail "Claude collector keeps cached windows and resets elapsed ones" "$expired"
+[[ $(jq '[.limits[].percent] == [0,0.11]' <<<"$expired") == "true" && $(jq -r '.limits[0].resetsAt' <<<"$expired") == "" ]] ||
+  fail "Claude collector resets just the elapsed window" "$expired"
+pass "Claude collector keeps cached windows and resets elapsed ones"
 
-# Nothing worth showing: the status still explains the silence.
+# A wholly reset cache still shows the empty allowance.
 stale=$(collect_limits "token" 1000 1000 "$(jq -c '.limits |= [.[0]]' <<<"$cache")")
-[[ $(jq -c '.limits' <<<"$stale") == "[]" && $(jq -r '.usageStatusText' <<<"$stale") == "Sign-in expired" ]] ||
-  fail "Claude collector drops a wholly reset cache but keeps explaining itself" "$stale"
-[[ $(jq -r '.authHelpText' <<<"$stale") != *"last known"* ]] ||
-  fail "Claude collector promises no last-known limits when it has none" "$stale"
-pass "Claude collector drops a wholly reset cache but keeps explaining itself"
+[[ $(jq '.limits | map(.percent) == [0]' <<<"$stale") == "true" && $(jq -r '.usageStatusText' <<<"$stale") == "Sign-in expired" ]] ||
+  fail "Claude collector resets a wholly elapsed cache to zero" "$stale"
+[[ $(jq -r '.authHelpText' <<<"$stale") == *"last known"* ]] ||
+  fail "Claude collector keeps the timestamp and guidance for a reset cache" "$stale"
+pass "Claude collector resets a wholly elapsed cache to zero"
 
 # The access token lives about eight hours; the refresh token behind it lives
 # about thirty days, and the CLI mints a new access token from it on its next
@@ -194,7 +196,7 @@ paused=$(collect_limits "token" 1000 "$live_refresh" "$cache")
   fail "Claude collector calls a lapsed access token paused, not signed out" "$paused"
 [[ $(jq -r '.authHelpText' <<<"$paused") != *"claude auth login"* ]] ||
   fail "Claude collector does not send a signed-in machine back through login" "$paused"
-[[ $(jq -c '[.limits[].label]' <<<"$paused") == '["Weekly (7-day)"]' ]] ||
+[[ $(jq -c '[.limits[].label]' <<<"$paused") == '["Session (5-hour)","Weekly (7-day)"]' ]] ||
   fail "Claude collector keeps open cached windows while the access token is stale" "$paused"
 pass "Claude collector calls a lapsed access token paused, not signed out"
 
@@ -202,7 +204,7 @@ pass "Claude collector calls a lapsed access token paused, not signed out"
 signed_out=$(collect_limits "" 0 0 "$cache")
 [[ $(jq -r '.usageStatusText' <<<"$signed_out") == "Waiting for auth" ]] ||
   fail "Claude collector still reports a missing token" "$signed_out"
-[[ $(jq -c '[.limits[].label]' <<<"$signed_out") == '["Weekly (7-day)"]' ]] ||
+[[ $(jq -c '[.limits[].label]' <<<"$signed_out") == '["Session (5-hour)","Weekly (7-day)"]' ]] ||
   fail "Claude collector serves open cached windows without a token" "$signed_out"
 pass "Claude collector serves open cached windows without a token"
 
@@ -210,14 +212,14 @@ pass "Claude collector serves open cached windows without a token"
 # time, not by the file's age. A backwards clock correction must not discard
 # an otherwise open fallback when no token is available to replace it.
 future_fallback=$(collect_limits "" 0 0 "$cache" 3600)
-[[ $(jq -c '[.limits[].label]' <<<"$future_fallback") == '["Weekly (7-day)"]' ]] ||
+[[ $(jq -c '[.limits[].label]' <<<"$future_fallback") == '["Session (5-hour)","Weekly (7-day)"]' ]] ||
   fail "Claude collector keeps open fallback limits after a backwards clock correction" "$future_fallback"
 pass "Claude collector keeps open fallback limits after a backwards clock correction"
 
 # A live token that cannot reach the endpoint keeps the old contract: the open
 # window stands in, and the shell is asked to retry sooner than its interval.
 unreachable=$(collect_limits "token" 0 0 "$cache")
-[[ $(jq -c '[.limits[].label]' <<<"$unreachable") == '["Weekly (7-day)"]' ]] ||
+[[ $(jq -c '[.limits[].label]' <<<"$unreachable") == '["Session (5-hour)","Weekly (7-day)"]' ]] ||
   fail "Claude collector falls back to cache when the probe cannot connect" "$unreachable"
 [[ $(jq -r '.retryAdvised' <<<"$unreachable") == "true" ]] ||
   fail "Claude collector advises a retry after a transport failure" "$unreachable"
@@ -321,10 +323,19 @@ pass "Claude collector caches a successful probe"
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const panelRoot = { nowMs: Date.now() }
 const start = source.indexOf('function windowIsLong')
 const end = source.indexOf('// The window that decides')
 assert(start > 0 && end > start, 'agents panel exposes its limit-window helpers')
-eval(source.slice(start, end))
+eval(source.slice(start, end).replaceAll('root.nowMs', 'panelRoot.nowMs'))
+eval(source.slice(source.indexOf('function needsSignIn'), source.indexOf('// Sign an account')))
+
+const paused = { usageStatusText: 'Limits paused', limits: [] }
+assertEqual(pausedWithoutLimits(paused), true, 'paused usage without a cache shows a recovery placeholder')
+assertEqual(otherTrouble(paused), '', 'paused usage never puts the confusing status in the header')
+assertEqual(pausedWithoutLimits({ ...paused, limits: [{ label: 'Session (5-hour)', percent: 0, resetsAt: '' }] }), false, 'cached usage replaces the recovery placeholder')
+assertEqual(pausedWithoutLimits({ usageStatusText: 'Sign-in expired', limits: [] }), false, 'expired sign-ins retain their sign-in action')
+assertEqual(pausedWithoutLimits(null), false, 'missing records do not show a paused-usage placeholder')
 
 assertDeepEqual(
   limitWindows({ limits: [
@@ -343,6 +354,13 @@ assertDeepEqual(
   [{ title: 'Weekly', percent: 0.12, resetAt: '' }],
   'agents panel still reads a window out of a label that carries no title'
 )
+
+const resetAt = new Date(panelRoot.nowMs + 1000).toISOString()
+const measured = { limits: [{ label: 'Session (5-hour)', percent: 0.78, resetsAt: resetAt }] }
+assertEqual(limitWindows(measured)[0].percent, 0.78, 'usage remains until the reset time')
+panelRoot.nowMs += 1000
+assertDeepEqual(limitWindows(measured), [{ title: 'Session', percent: 0, resetAt: '' }], 'usage resets at the deadline while the panel stays open')
+assertEqual(measured.limits[0].percent, 0.78, 'display reset leaves the measured record intact')
 
 // A model's weekly allowance rides under the Weekly row; one whose window has
 // no row of its own keeps a row.
