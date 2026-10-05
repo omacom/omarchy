@@ -2,13 +2,14 @@
 
 # omarchy:summary=Copy text to the clipboard and type or paste it
 # omarchy:group=clipboard
-# omarchy:args=[--shift-insert] [--copy-only] [--history-index <index>|<text>]
+# omarchy:args=[--shift-insert] [--copy-only] [--stdin|--history-index <index>|<text>]
 # omarchy:examples=omarchy clipboard paste text "hello" | omarchy clipboard paste text --shift-insert "hello"
 # omarchy:hidden=true
 
 use_shift_insert=false
 copy_only=false
 history_index=""
+from_stdin=false
 text=""
 
 while (( $# > 0 )); do
@@ -25,6 +26,10 @@ while (( $# > 0 )); do
       history_index="${2:-}"
       shift 2
       ;;
+    --stdin)
+      from_stdin=true
+      shift
+      ;;
     *)
       break
       ;;
@@ -39,7 +44,13 @@ copy_history_entry() {
   jq -j --argjson index "$history_index" '.[$index].text' "$history_path" | wl-copy
 }
 
-if [[ -n $history_index ]]; then
+if [[ $from_stdin == "true" ]]; then
+  # QML sends the full selected inline entry, rather than a position in an
+  # asynchronous save. Its JSON is bounded even with six-byte escapes.
+  set -o pipefail
+  head -c 2097152 | jq -ej 'if .type == "text" and (.text | type == "string") then .text else error("not a text entry") end' | wl-copy || exit 1
+  use_shift_insert=true
+elif [[ -n $history_index ]]; then
   copy_history_entry
   if [[ $copy_only != "true" ]]; then
     use_shift_insert=true
