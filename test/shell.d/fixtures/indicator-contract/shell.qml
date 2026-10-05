@@ -198,6 +198,17 @@ ShellRoot {
         root.assertTrue(root.commandCount("omarchy-capture-screenrecording --stop-recording") === 1, "Screen Recording left click stops active recording")
       }
 
+      var voiceRecording = root.createIndicator("VoiceRecording")
+      if (voiceRecording) {
+        voiceRecording.moduleName = "VoiceRecording"
+        root.injectBar(voiceRecording)
+        voiceRecording.triggerPress(Qt.LeftButton)
+        root.assertTrue(root.commandCount("omarchy-capture-voicerecording") === 1, "Voice Recording left click starts a recording when idle")
+        voiceRecording.recording = true
+        voiceRecording.triggerPress(Qt.LeftButton)
+        root.assertTrue(root.commandCount("omarchy-capture-voicerecording --stop-recording") === 1, "Voice Recording left click stops active recording")
+      }
+
       var dictation = root.createIndicator("Dictation")
       if (dictation) {
         dictation.moduleName = "Dictation"

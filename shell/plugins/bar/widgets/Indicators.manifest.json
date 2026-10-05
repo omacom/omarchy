@@ -37,6 +37,11 @@
             "description": "GPU screen recorder status"
           },
           {
+            "value": "VoiceRecording",
+            "label": "Voice recording",
+            "description": "Microphone-only recorder status"
+          },
+          {
             "value": "Reminder",
             "label": "Reminder",
             "description": "Queued reminder status"
