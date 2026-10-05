@@ -18,8 +18,10 @@ table with an offset: write 0-3 into ~/.config/omarchy/gpd-pocket-4-orientation.
 
 import json
 import os
+import re
 import subprocess
 import sys
+import time
 
 import gi
 
@@ -74,6 +76,30 @@ def detect_touch_device():
     return DEFAULT_TOUCH_DEVICE
 
 
+def lua_escape(value):
+    # Device and monitor names come from `hyprctl` descriptors and are
+    # interpolated into a Lua expression for `hyprctl eval`. Escape them the
+    # way omarchy-toggle-input-device does so a crafted name stays data and
+    # cannot change what gets evaluated. Control characters never occur in
+    # real names; strip them rather than aborting rotation.
+    text = re.sub(r"[\x00-\x1f\x7f]", "", value)
+    return text.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def current_monitor_transform(monitor):
+    try:
+        monitors = json.loads(subprocess.run(
+            ["hyprctl", "monitors", "-j"], capture_output=True, text=True, check=True
+        ).stdout)
+        for entry in monitors:
+            if entry.get("name") == monitor:
+                transform = entry.get("transform")
+                return transform if isinstance(transform, int) else None
+    except (subprocess.SubprocessError, ValueError, AttributeError):
+        pass
+    return None
+
+
 def ensure_hyprland_env():
     if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
         return
@@ -92,9 +118,9 @@ def ensure_hyprland_env():
 
 
 def apply_transform(monitor, touch_device, transform):
-    exprs = [f'hl.monitor({{ output = "{monitor}", transform = {transform} }})']
+    exprs = [f'hl.monitor({{ output = "{lua_escape(monitor)}", transform = {transform} }})']
     if touch_device:
-        exprs.append(f'hl.device({{ name = "{touch_device}", transform = {transform} }})')
+        exprs.append(f'hl.device({{ name = "{lua_escape(touch_device)}", transform = {transform} }})')
     for expr in exprs:
         result = subprocess.run(["hyprctl", "eval", expr], capture_output=True, text=True)
         if "ok" not in result.stdout.lower():
@@ -112,11 +138,57 @@ def dbus_unpack(value):
     return unpack() if callable(unpack) else value
 
 
+SENSOR_WAIT_SECONDS = 60
+
+
+def wait_for_sensor(timeout=SENSOR_WAIT_SECONDS):
+    # iio-sensor-proxy can lag behind the graphical session: the daemon may
+    # start before the proxy is reachable or before it exposes the
+    # accelerometer. Wait for it instead of exiting successfully, which would
+    # leave autorotation dead for the session (the unit only restarts on
+    # failure). Returns the proxy, or None on timeout.
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            proxy = Gio.DBusProxy.new_for_bus_sync(
+                Gio.BusType.SYSTEM,
+                Gio.DBusProxyFlags.NONE,
+                None,
+                "net.hadess.SensorProxy",
+                "/net/hadess/SensorProxy",
+                "net.hadess.SensorProxy",
+            )
+        except GLib.Error:
+            proxy = None
+        if proxy is not None and dbus_unpack(proxy.get_cached_property("HasAccelerometer")):
+            return proxy
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(2)
+
+
 def main():
     ensure_hyprland_env()
     monitor = detect_monitor()
     touch_device = detect_touch_device()
     offset = load_offset()
+    last = {"transform": None}
+
+    def apply(monitor_name, device_name, transform):
+        apply_transform(monitor_name, device_name, transform)
+        last["transform"] = transform
+
+    def reconcile():
+        # `hyprctl reload` (monitor/clamshell watchers) re-reads a monitor
+        # configuration with no rotation, wiping the applied transform while
+        # the pose is unchanged, so no orientation event restores it. Heal
+        # that drift back to the last applied transform.
+        if last["transform"] is None:
+            return True
+        current = current_monitor_transform(monitor)
+        if current is not None and current != last["transform"]:
+            apply(monitor, touch_device, last["transform"])
+        return True
 
     def on_properties_changed(proxy, changed, invalidated):
         props = dbus_unpack(changed) or {}
@@ -125,38 +197,26 @@ def main():
             return
         base = ORIENTATION_TO_TRANSFORM.get(orientation)
         if base is not None:
-            apply_transform(monitor, touch_device, (base + offset) % 4)
+            apply(monitor, touch_device, (base + offset) % 4)
 
-    try:
-        proxy = Gio.DBusProxy.new_for_bus_sync(
-            Gio.BusType.SYSTEM,
-            Gio.DBusProxyFlags.NONE,
-            None,
-            "net.hadess.SensorProxy",
-            "/net/hadess/SensorProxy",
-            "net.hadess.SensorProxy",
-        )
-    except GLib.Error as error:
-        print(f"iio-sensor-proxy not reachable: {error.message}", file=sys.stderr, flush=True)
-        return 0
-
-    has_accelerometer = dbus_unpack(proxy.get_cached_property("HasAccelerometer"))
-    if not has_accelerometer:
-        print("no accelerometer exposed by iio-sensor-proxy", file=sys.stderr, flush=True)
-        return 0
+    proxy = wait_for_sensor()
+    if proxy is None:
+        print("iio-sensor-proxy exposed no accelerometer", file=sys.stderr, flush=True)
+        return 1
 
     proxy.connect("g-properties-changed", on_properties_changed)
     try:
         proxy.call_sync("ClaimAccelerometer", None, Gio.DBusCallFlags.NONE, -1)
     except GLib.Error as error:
         print(f"ClaimAccelerometer failed: {error.message}", file=sys.stderr, flush=True)
-        return 0
+        return 1
     initial = dbus_unpack(proxy.get_cached_property("AccelerometerOrientation"))
     if initial is not None:
         base = ORIENTATION_TO_TRANSFORM.get(initial)
         if base is not None:
-            apply_transform(monitor, touch_device, (base + offset) % 4)
+            apply(monitor, touch_device, (base + offset) % 4)
     print("watching accelerometer orientation...", flush=True)
+    GLib.timeout_add_seconds(10, reconcile)
     GLib.MainLoop().run()
 
 

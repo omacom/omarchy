@@ -17,13 +17,14 @@ if omarchy-hw-gpd-pocket-4; then
     if (( EUID == 0 )); then
       "$@"
     else
-      pkexec "$@"
+      sudo "$@"
     fi
   }
 
   # systemd and ExecStart=/usr/bin/... only see packaged paths. A linked
   # checkout (and any omarchy-settings that has not shipped this unit yet)
-  # has to publish them once; pkexec so a GUI update can auth without a TTY.
+  # has to publish them once. Migrations run inside `omarchy update`, which
+  # holds sudo, so plain sudo works from a TTY as well as a GUI terminal.
   if [[ ! -f $packaged || ! -x /usr/bin/omarchy-hw-gpd-pocket-4 || ! -x /usr/bin/omarchy-hw-gpd-pocket-4-rotate ]]; then
     as_root /usr/bin/bash -c '
       set -euo pipefail
@@ -46,6 +47,11 @@ if omarchy-hw-gpd-pocket-4; then
   if systemctl --user is-active --quiet graphical-session.target; then
     systemctl --user start "$unit" >/dev/null 2>&1 || true
   fi
+
+  # The sourced leaf writes a new limine-entry-tool.d drop-in. Boot entries
+  # already built do not pick it up until regenerated, so rebuild before
+  # flagging the reboot or the console/LUKS/plymouth rotation never applies.
+  sudo limine-mkinitcpio
 
   omarchy-state set reboot-required
 fi
