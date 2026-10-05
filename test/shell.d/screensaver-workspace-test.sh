@@ -79,7 +79,7 @@ grep -q 'hl.dsp.focus({ monitor = "DP-1" })' "$tmpdir/calls" ||
 pass "focus returns to the monitor that had it once the screensaver closes"
 
 # Screensavers can close while the launcher is still waiting on another monitor, consuming their events.
-kill "$(<"$tmpdir/socat.pid")"
+kill "$(<"$tmpdir/socat.pid")" 2>/dev/null || true
 : >"$tmpdir/calls"
 : >"$tmpdir/spawned"
 PATH="$tmpdir/bin:$PATH" TEST_DIR="$tmpdir" XDG_RUNTIME_DIR="$tmpdir" HYPRLAND_INSTANCE_SIGNATURE=test \
