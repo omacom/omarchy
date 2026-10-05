@@ -175,6 +175,13 @@ Item {
     console.log("omarchy lock " + lastEventAt + " " + event)
   }
 
+  // A bound command is still stale inside secureStateChanged handlers.
+  // Setting running during a call queues one rerun with the latest command.
+  function syncLoginHint() {
+    loginHintProc.command = ["bash", Quickshell.env("OMARCHY_PATH") + "/shell/plugins/lock/login-session.sh", sessionLock.secure ? "locked" : "unlocked"]
+    loginHintProc.running = true
+  }
+
   function resetAuthenticationState() {
     enteredPassword = ""
     pendingPassword = ""
@@ -438,6 +445,7 @@ Item {
 
     onSecureStateChanged: {
       root.logEvent("secure=" + secure)
+      root.syncLoginHint()
       if (secure) {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
@@ -686,10 +694,22 @@ Item {
 
       root.strandedLockResolved = true
 
+      // Clears a hint left by a shell that died locked.
+      if (exitCode !== 0) root.syncLoginHint()
+
       // A lock taken while this was in flight is this shell's own.
       root.strandedLock = exitCode === 0 && !root.locked && !root.lockRequested
       root.recoverStrandedLock()
     }
+  }
+
+  Process {
+    id: loginLockProc
+    command: ["bash", Quickshell.env("OMARCHY_PATH") + "/shell/plugins/lock/login-session.sh", "lock"]
+  }
+
+  Process {
+    id: loginHintProc
   }
 
   Process {
@@ -793,6 +813,10 @@ Item {
       strandedLockRetryTimer.rearm()
       root.checkStrandedLock()
     }
+  }
+
+  onLockedChanged: {
+    if (locked) loginLockProc.running = true
   }
 
   onAuthenticatingPasswordChanged: {
