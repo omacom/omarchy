@@ -88,9 +88,9 @@ etc/xdg/kitty/kitty.conf       ──►  omarchy-settings    /etc/xdg/kitty/kit
 
 applications/*.desktop         ──►  omarchy-settings    /etc/skel/.local/share/applications/
                                                         /usr/share/omarchy/applications/
-default/applications/battlenet.desktop
+default/applications/*.desktop
                                 ──►  omarchy-settings    /usr/share/omarchy/default/applications/
-                                                        (installer-only launcher template)
+                                                        (optional and legacy launcher templates)
 applications/icons/*           ──►  omarchy-settings    /usr/share/icons/hicolor/{48,256,scalable}/apps/
 
 etc/**                         ──►  omarchy-settings    /etc/**           (drop-ins we own outright)
@@ -172,10 +172,7 @@ Single source of truth for `OMARCHY_PATH` and dev-link-aware `PATH`. It:
 - Prepends `$OMARCHY_PATH/bin` to `PATH` **only when** `OMARCHY_PATH` is
   not `/usr/share/omarchy`. On a production install the binaries are
   already on `PATH` as `/usr/bin/omarchy-*` via the `omarchy` package.
-- Appends `~/.local/share/mise/shims` and `~/.local/bin` so login shells and
-  the uwsm session find mise-managed tools — kept in sync with the PAM `PATH`
-  line written by `install/config/ssh-command-path.sh`, which covers SSH
-  commands that run no shell setup at all.
+- Prepends mise's `command-wrappers/bin` so subscription account dispatch runs before inherited tool binaries, then appends `~/.local/share/mise/shims` and `~/.local/bin` so login shells and the uwsm session find mise-managed tools. The existing mise tool shims also dispatch these wrappers for SSH commands that run no shell setup; the PAM path needs no additional entry. `etc/mise/conf.d/omarchy-agent-accounts.toml` declares the Claude, Codex, and Grok wrappers; `mise reshim` builds them during user setup and migration. Each invocation resolves the selected account through `omarchy-agent-account-exec`, while an explicit provider home takes precedence. Credentials and running sessions remain in their original account homes.
 
 Sourced by every entry point that needs the env set:
 

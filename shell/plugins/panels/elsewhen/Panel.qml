@@ -712,6 +712,7 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
+    slotSize: Style.bar.statusSlot
     text: "󰇧"
     tooltipText: "World clock"
     onPressed: function(buttonCode) {

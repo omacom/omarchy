@@ -138,7 +138,7 @@ esac
 
 # The CLI's own home, whatever this shell has pointed it at.
 login() {
-  interruptible env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME "${login_command[@]}"
+  interruptible env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME "OMARCHY_AGENT_${provider^^}_HOME=" "${login_command[@]}"
 }
 
 # Signing an account that's already here in again, where it lives: the
