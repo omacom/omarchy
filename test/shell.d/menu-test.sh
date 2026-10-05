@@ -51,6 +51,7 @@ const withCommasInStrings = menu.parseMenuJsonc('{\n  "b": { "label": "x, ]y", "
 assertEqual(withCommasInStrings[0].label, 'x, ]y', 'menu keeps a comma before ] inside a label')
 assertEqual(withCommasInStrings[0].action, 'mv f{.bak,}', 'menu keeps a comma before } inside an action')
 assertEqual(menu.parseMenuJsonc('{"a": {"label": "q\\\\"},}')[0].label, 'q\\', 'menu ends a string at a quote after an escaped backslash before a trailing comma')
+assertEqual(menu.parseMenuJsonc('{"a": {"label": "say \\"hello\\", }"}}')[0].label, 'say "hello", }', 'menu keeps a comma before } after an escaped quote inside a label')
 
 // Array roots (#13492)
 assertEqual(menu.parseMenuJsonc('[{"label":"should-not-appear"},{"label":"ghost-2"}]').length, 0, 'menu rejects a top-level array instead of turning its indices into entries')
