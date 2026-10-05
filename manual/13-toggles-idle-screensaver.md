@@ -23,6 +23,8 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 
 The touchpad, touchscreen, and hybrid GPU switches live under _Trigger > Hardware_ (`Super + Ctrl + H`) rather than under Toggle, since they only show up when you actually have that hardware. The touchpad and touchscreen ones survive a Hyprland reload — each disabled device's name is saved to a small state file that Hyprland reads on startup to disable it again. Turning a touchpad off also disables its `-mouse` sibling. On some machines that node is the pointing stick, and it stays off until the touchpad is turned back on.
 
+If restoring a disabled device fails, the command reports an error and keeps its saved state. Once Hyprland is responding again, run `omarchy toggle touchpad on` (or `omarchy toggle touchscreen on`) to retry.
+
 The Toggle menu also carries a few things that aren't `omarchy toggle` commands but behave the same: battery percentage in the bar, workspace layout (`Super + L`), window gaps (`Super + Shift + Backspace`), and the 1-window square aspect (`Super + Ctrl + Backspace`).
 
 Most of these are just a flag file under `~/.local/state/omarchy/toggles/`. If you want to branch on one in a script, `omarchy-toggle-enabled` gives you an exit code instead of making you go looking:

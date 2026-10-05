@@ -13,6 +13,7 @@ stub_dir="$tmpdir/bin"
 home_dir="$tmpdir/home"
 xdg_decoy="$tmpdir/xdg-decoy"
 log_file="$tmpdir/hyprctl.log"
+osd_log="$tmpdir/osd.log"
 marker="$tmpdir/marker"
 mkdir -p "$stub_dir" "$home_dir" "$xdg_decoy"
 
@@ -23,7 +24,12 @@ state_lua="$state_dir/touchpad-disabled.lua"
 cat >"$stub_dir/hyprctl" <<'EOF'
 #!/bin/bash
 case $1 in
-  eval) printf '%s\n' "$2" >>"$HYPRCTL_LOG" ;;
+  eval)
+    printf '%s\n' "$2" >>"$HYPRCTL_LOG"
+    if [[ -n ${HYPRCTL_EVAL_FAIL_NAME:-} && $2 == *"name = \"$HYPRCTL_EVAL_FAIL_NAME\", enabled = true"* ]]; then
+      exit 1
+    fi
+    ;;
   reload) printf 'reload\n' >>"$HYPRCTL_LOG" ;;
   devices)
     if [[ ${HYPRCTL_DEVICES_FAIL:-} == 1 ]]; then
@@ -42,7 +48,7 @@ chmod +x "$stub_dir/hyprctl"
 
 cat >"$stub_dir/omarchy-osd" <<'EOF'
 #!/bin/bash
-:
+printf '%s\n' "$*" >>"$OSD_LOG"
 EOF
 chmod +x "$stub_dir/omarchy-osd"
 
@@ -64,6 +70,7 @@ run_toggle() {
   HOME="$home_dir" \
     XDG_STATE_HOME="$xdg_decoy" \
     HYPRCTL_LOG="$log_file" \
+    OSD_LOG="$osd_log" \
     HYPRCTL_DEVICES="${HYPRCTL_DEVICES:-}" \
     PATH="$stub_dir:$ROOT/bin:$PATH" \
     "$ROOT/bin/omarchy-toggle-input-device" "$@"
@@ -338,6 +345,33 @@ grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-mouse", enabled = true })' "
   fail "touchpad enable restores the saved mouse sibling when the devices query fails"
 [[ ! -e $name_file ]] || fail "touchpad enable still clears persisted names when the devices query fails"
 pass "touchpad enable restores saved siblings when the devices query fails"
+
+# An IPC failure must retain the saved pair for a later on/toggle, and must not
+# report success. Try both failure positions to ensure every name is attempted.
+for failed_name in msft0001:00-093a:0255-touchpad msft0001:00-093a:0255-mouse; do
+  printf '%s\n' 'msft0001:00-093a:0255-touchpad' 'msft0001:00-093a:0255-mouse' >"$name_file"
+  : >"$log_file"
+  : >"$osd_log"
+  if HYPRCTL_EVAL_FAIL_NAME="$failed_name" HYPRCTL_DEVICES_FAIL=1 run_toggle touchpad on >/dev/null 2>&1; then
+    fail "a failed saved-device restore reports failure"
+  fi
+  [[ $(<"$name_file") == $'msft0001:00-093a:0255-touchpad\nmsft0001:00-093a:0255-mouse' ]] ||
+    fail "a failed restore preserves the saved pair for retry"
+  for name in msft0001:00-093a:0255-touchpad msft0001:00-093a:0255-mouse; do
+    grep -Fx "hl.device({ name = \"$name\", enabled = true })" "$log_file" >/dev/null ||
+      fail "a failed restore still attempts each saved node" "$name"
+  done
+  [[ ! -s $osd_log ]] || fail "a failed restore does not announce that the touchpad is enabled"
+
+  : >"$log_file"
+  HYPRCTL_DEVICES_FAIL=1 run_toggle touchpad toggle
+  [[ ! -e $name_file ]] || fail "a successful retry clears the saved disable"
+  (( $(wc -l <"$log_file") == 2 )) || fail "the next toggle retries both saved restores"
+  if grep -Fq 'enabled = false' "$log_file"; then
+    fail "the next toggle must retry on rather than switch to off"
+  fi
+done
+pass "failed saved-device restores retain retry state and never announce success"
 
 printf '%s\n' 'msft0001:00-093a:0255-touchpad' 'msft0001:00-093a:0255-mouse' >"$name_file"
 : >"$log_file"

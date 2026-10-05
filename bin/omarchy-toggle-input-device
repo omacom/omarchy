@@ -86,25 +86,31 @@ apply_devices() {
 }
 
 enable() {
-  # Read the saved names before deleting them. `on` must re-enable the sibling
-  # that `off` persisted even when a later `hyprctl devices` query fails and
-  # related_devices can no longer see it. Apply those names before requiring a
+  # `on` must re-enable the sibling that `off` persisted even when a later
+  # `hyprctl devices` query fails and related_devices can no longer see it.
+  # Apply those names before requiring a
   # live device: omarchy-hw-* asks the compositor itself, and a failed query
   # used to delete the file and leave both nodes disabled.
   local saved=""
   [[ -f $NAME_FILE ]] && saved=$(<"$NAME_FILE")
-  # Clear the persisted state before requiring a usable device, so a device
-  # that stops reporting a valid name can never wedge the disable in place.
-  rm -f "$NAME_FILE"
-
   local -A seen=()
   local name
+  local restore_status=0
   while IFS= read -r name; do
     [[ -n $name ]] || continue
     [[ -n ${seen[$name]:-} ]] && continue
     seen[$name]=1
-    apply_device true "$name"
+    apply_device true "$name" || restore_status=1
   done <<<"$saved"
+
+  if (( restore_status != 0 )); then
+    echo "Failed to enable $KIND; saved disable state retained for retry" >&2
+    return 1
+  fi
+
+  # Clear successfully restored names even if the live device query fails.
+  # Failed IPC above retains them, so the next toggle retries on rather than off.
+  rm -f "$NAME_FILE" || return 1
 
   require_device
 
@@ -112,7 +118,7 @@ enable() {
     [[ -n $name ]] || continue
     [[ -n ${seen[$name]:-} ]] && continue
     seen[$name]=1
-    apply_device true "$name"
+    apply_device true "$name" || return 1
   done < <(related_devices "$device")
 
   omarchy-osd -i "$ICON" -m "$LABEL enabled"
