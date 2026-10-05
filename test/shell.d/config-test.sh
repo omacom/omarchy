@@ -437,3 +437,28 @@ if grep -RIl 'upgrade-to-quattro\|Omarchy 4\.0 is upgraded' "$ROOT/migrations" >
   fail "4.0 upgrade is not modeled as a migration"
 fi
 pass "4.0 upgrade is handled outside the migration runner"
+
+# Cloudflare's CLI is preinstalled; only its dashboard app marks the service installed.
+cloudflare_app="$TMPDIR/home/.local/share/applications/Cloudflare.desktop"
+mkdir -p "${cloudflare_app%/*}"
+if HOME="$TMPDIR/home" "$ROOT/bin/omarchy-installed-service-cloudflare"; then
+  fail "Cloudflare is absent without its dashboard app"
+fi
+touch "$cloudflare_app"
+HOME="$TMPDIR/home" "$ROOT/bin/omarchy-installed-service-cloudflare" || fail "Cloudflare dashboard marks the service installed"
+for command in omarchy-bar omarchy-refresh-shell; do
+  for ((repeat = 0; repeat < 2; repeat++)); do
+    args=()
+    [[ $command == "omarchy-bar" ]] && args=(defaults)
+    HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$mock_path" OMARCHY_TEST_SHELL_DOWN=1 \
+      "$command" "${args[@]}"
+    jq -e '[.bar.layout[][] | (.id // .) | select(. == "omarchy.cloudflare")] | length == 1' \
+      "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null || fail "$command preserves exactly one Cloudflare widget"
+  done
+done
+pass "bar defaults and shell refresh repeatedly preserve installed Cloudflare without a running shell"
+rm "$cloudflare_app"
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" PATH="$mock_path" omarchy-bar defaults
+jq -e '[.bar.layout[][] | (.id // .) | select(. == "omarchy.cloudflare")] | length == 0' \
+  "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null || fail "bar defaults omits removed Cloudflare"
+pass "bar defaults omits Cloudflare after service removal"
