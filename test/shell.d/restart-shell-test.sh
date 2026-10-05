@@ -118,6 +118,21 @@ cat >"$restart_bin/quickshell" <<'SH'
 printf '%s\n' "$*" >>"${OMARCHY_TEST_QS_LOG:-/dev/null}"
 
 case " $* " in
+  *' list -a -j '*)
+    printf '['
+    separator=""
+    while IFS= read -r pid; do
+      [[ $pid =~ ^[0-9]+$ ]] || continue
+      kill -0 "$pid" 2>/dev/null || continue
+      display=$(awk -v pid="$pid" '$1 == pid { print $2; exit }' "$OMARCHY_TEST_QS_DISPLAY_STATE")
+      [[ -n $display ]] || display=wayland-1
+      if [[ ${WAYLAND_DISPLAY:-wayland-1} == "$display" || $* == *"--any-display"* ]]; then
+        printf '%s{"config_path":"%s/shell/shell.qml"}' "$separator" "$OMARCHY_TEST_SESSION_PATH"
+        separator=,
+      fi
+    done <"$OMARCHY_TEST_QS_STATE"
+    printf ']\n'
+    ;;
   *' kill -p '*)
     [[ $* == "kill -p $OMARCHY_TEST_SESSION_PATH/shell" ]] || exit 1
     killed=0

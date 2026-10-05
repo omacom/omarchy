@@ -245,6 +245,8 @@ fresh_openclaw_home() {
     "$HOME/.local/share/applications" "$HOME/.local/share/icons/hicolor/256x256/apps"
   touch "$HOME/.config/systemd/user/openclaw-gateway.service" \
     "$HOME/.config/systemd/user/openclaw-gateway.service.bak" \
+    "$HOME/.config/systemd/user/openclaw-gateway.service.reconcile-0f1e.bak" \
+    "$HOME/.config/systemd/user/openclaw-gateway.service.reconcile-0f1e.receipt.bak" \
     "$HOME/.config/systemd/user/openclaw-node.service" \
     "$HOME/.openclaw/openclaw.json" \
     "$HOME/.local/share/applications/OpenClaw.desktop" \
@@ -269,6 +271,8 @@ fresh_openclaw_home
 
 for gone in .config/systemd/user/openclaw-gateway.service \
   .config/systemd/user/openclaw-gateway.service.bak \
+  .config/systemd/user/openclaw-gateway.service.reconcile-0f1e.bak \
+  .config/systemd/user/openclaw-gateway.service.reconcile-0f1e.receipt.bak \
   .config/systemd/user/default.target.wants/openclaw-gateway.service \
   .config/systemd/user/openclaw-node.service \
   .config/systemd/user/default.target.wants/openclaw-node.service \
@@ -294,6 +298,24 @@ pass "OpenClaw removal stops the gateway service"
 ! grep -q '^gum:' "$TEST_LOG" ||
   fail "OpenClaw removal keeps the user's agent state" "asked about ~/.openclaw without a terminal"
 pass "OpenClaw removal keeps the user's agent state"
+
+# The command on PATH goes; the OpenClaw it pointed at stays with the state,
+# since only that copy is sure to open it. A link somewhere else is not Omarchy's.
+fresh_openclaw_home
+mkdir -p "$HOME/.openclaw/bin" "$HOME/.openclaw/tools/node-v24.19.0/lib" "$HOME/.local/bin"
+printf '#!/usr/bin/env bash\n' >"$HOME/.openclaw/bin/openclaw"
+ln -s "$HOME/.openclaw/bin/openclaw" "$HOME/.local/bin/openclaw"
+"$ROOT/bin/omarchy-remove-ai-openclaw" >/dev/null
+[[ ! -e $HOME/.local/bin/openclaw && ! -L $HOME/.local/bin/openclaw ]] || fail "OpenClaw removal takes openclaw off PATH"
+[[ -f $HOME/.openclaw/bin/openclaw && -d $HOME/.openclaw/tools && -f $HOME/.openclaw/openclaw.json ]] ||
+  fail "OpenClaw removal keeps the OpenClaw that can open the state"
+
+fresh_openclaw_home
+mkdir -p "$HOME/.local/bin"
+ln -s /opt/openclaw/openclaw "$HOME/.local/bin/openclaw"
+"$ROOT/bin/omarchy-remove-ai-openclaw" >/dev/null
+[[ -L $HOME/.local/bin/openclaw ]] || fail "OpenClaw removal takes openclaw off PATH" "someone else's link went with it"
+pass "OpenClaw removal takes openclaw off PATH and keeps the copy that can open the state"
 
 # A CLI that knows `gateway uninstall` owns the teardown; the manual systemd
 # fallback must not run.
