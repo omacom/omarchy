@@ -56,7 +56,10 @@ cat >"$mock_bin/brightnessctl" <<'SH'
 #!/bin/bash
 printf 'brightnessctl %s\n' "$*" >>"$CALL_LOG"
 if [[ $* == *" -m"* ]]; then
+  [[ -n ${BRIGHTNESSCTL_READ_FAIL:-} && $* == "-d $BRIGHTNESSCTL_READ_FAIL "* ]] && exit 1
   printf 'mock_backlight,backlight,40,40%%\n'
+elif [[ -n ${BRIGHTNESSCTL_WRITE_FAIL:-} && $* == "-d $BRIGHTNESSCTL_WRITE_FAIL set "* ]]; then
+  exit 1
 fi
 SH
 
@@ -166,7 +169,7 @@ APPLE_DISPLAY=1 run_brightness --monitor DP-3 +5%
 grep -Fx 'brightnessctl -d apple-DP-3-bl set 45%' "$call_log" >/dev/null || \
   fail "connector backlight steps through brightnessctl" "$(cat "$call_log")"
 grep -Fx 'omarchy-osd -i brightness -p 40' "$call_log" >/dev/null || \
-  fail "connector backlight shows the OSD"
+  fail "connector backlight shows the OSD" "$(cat "$call_log")"
 if grep -E 'omarchy-brightness-display-apple|omarchy-hyprland-monitor-focused-apple|ddcutil' "$call_log"; then
   fail "connector backlight skips the Apple and DDC backends"
 fi
@@ -183,6 +186,29 @@ APPLE_DISPLAY=1 run_brightness --no-osd --monitor DP-1 +5%
 grep -Fx 'omarchy-brightness-display-apple --no-osd +5%' "$call_log" >/dev/null || \
   fail "Apple display without a connector backlight keeps asdcontrol" "$(cat "$call_log")"
 pass "Apple display without a connector backlight keeps asdcontrol"
+
+: >"$call_log"
+APPLE_DISPLAY=1 BRIGHTNESSCTL_WRITE_FAIL=apple-DP-3-bl run_brightness --monitor DP-3 +5%
+grep -Fx 'omarchy-brightness-display-apple +5%' "$call_log" >/dev/null || \
+  fail "unwritable connector backlight falls back to asdcontrol" "$(cat "$call_log")"
+if grep -F 'omarchy-osd' "$call_log"; then
+  fail "unwritable connector backlight shows no OSD of its own"
+fi
+pass "unwritable connector backlight falls back to asdcontrol"
+
+: >"$call_log"
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-3.bus"
+DDC_CONNECTOR=DP-3 DDC_CURRENT=40 DDC_MAXIMUM=100 BRIGHTNESSCTL_WRITE_FAIL=apple-DP-3-bl \
+  run_brightness --no-osd --monitor DP-3 30%
+grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 30' "$call_log" >/dev/null || \
+  fail "unwritable connector backlight falls back to DDC with the requested step" "$(cat "$call_log")"
+pass "unwritable connector backlight falls back to DDC with the requested step"
+
+: >"$call_log"
+APPLE_DISPLAY=1 BRIGHTNESSCTL_READ_FAIL=apple-DP-3-bl run_brightness --monitor DP-3 >/dev/null
+grep -Fx 'omarchy-brightness-display-apple ' "$call_log" >/dev/null || \
+  fail "unreadable connector backlight falls back to asdcontrol for its level" "$(cat "$call_log")"
+pass "unreadable connector backlight falls back to asdcontrol for its level"
 
 stderr=$(APPLE_DISPLAY=1 run_brightness --no-osd --monitor HEADLESS-1 +5% 2>&1 >/dev/null)
 [[ -z $stderr ]] || fail "monitor without a DRM connector looks up its backlight quietly" "$stderr"

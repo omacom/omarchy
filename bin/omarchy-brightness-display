@@ -58,64 +58,23 @@ connector_backlight() {
   return 1
 }
 
+# A connector backlight that can't be read or written falls back to the display's other backends
 device="$(connector_backlight)"
 
 use_apple_display() {
-  [[ -z $device ]] && omarchy-hyprland-monitor-focused-apple "$monitor"
+  omarchy-hyprland-monitor-focused-apple "$monitor"
 }
 
 use_ddc_display() {
-  [[ -z $device && -n $monitor ]] && ! monitor_is_internal
+  [[ -n $monitor ]] && ! monitor_is_internal
 }
 
-if (( $# == 0 )); then
-  if use_apple_display; then
-    omarchy-brightness-display-apple
-    exit
-  elif use_ddc_display; then
-    omarchy-brightness-display-ddc "$monitor"
-    exit
-  fi
-
-  [[ -n $device ]] || device="$(omarchy-hw-display)" || exit 1
-  backlight_brightness "$device"
-  exit
-fi
-
-step="$1"
-
-if [[ $step == "off" ]]; then
-  hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
-  exit 0
-elif [[ $step == "on" ]]; then
-  # Skip the dispatch when every active display is already lit: a redundant
-  # DPMS enable right after system resume forces another modeset, which blanks
-  # the panel for a beat (visible flash at the unlock screen).
-  hyprctl monitors -j 2>/dev/null | jq -e '[.[] | select(.disabled == false)] | length > 0 and all(.dpmsStatus)' >/dev/null 2>&1 && exit 0
-  hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1
-  exit 0
-fi
-
-# Drop overlapping brightness key events so concurrent invocations do not race.
-# Hardware key repeat present on some devices can otherwise glitch OSD rendering.
-exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
-flock -n "$lock_fd" || exit 0
-
-if use_apple_display; then
-  if (( no_osd )); then
-    omarchy-brightness-display-apple --no-osd "$step"
-  else
-    omarchy-brightness-display-apple "$step"
-  fi
-elif use_ddc_display; then
-  brightness="$(omarchy-brightness-display-ddc "$monitor" "$step")" || exit 1
-  (( no_osd )) || omarchy-osd -i brightness -p "$brightness"
-else
-  # The focused connector's backlight, else the most likely panel backlight
-  [[ -n $device ]] || device="$(omarchy-hw-display)" || exit 1
+# Step a kernel backlight and show its new level, failing when it can't be read or written
+step_backlight() {
+  local device="$1" step="$2" current target
 
   # Current brightness percentage
-  current=$(backlight_brightness "$device") || exit 1
+  current=$(backlight_brightness "$device") || return 1
 
   # Apply non-uniform step size: 1% steps if at or below 5%, otherwise set an
   # absolute target percentage to avoid raw backlight rounding causing uneven OSD steps.
@@ -140,8 +99,61 @@ else
   fi
 
   # Set brightness of the display device.
-  brightnessctl -d "$device" set "$step" >/dev/null
+  brightnessctl -d "$device" set "$step" >/dev/null || return 1
 
   # Show the new brightness in OSD
   (( no_osd )) || omarchy-osd -i brightness -p "$(backlight_brightness "$device")"
+  return 0
+}
+
+if (( $# == 0 )); then
+  if [[ -n $device ]] && backlight_brightness "$device"; then
+    exit
+  elif use_apple_display; then
+    omarchy-brightness-display-apple
+    exit
+  elif use_ddc_display; then
+    omarchy-brightness-display-ddc "$monitor"
+    exit
+  fi
+
+  device="$(omarchy-hw-display)" || exit 1
+  backlight_brightness "$device"
+  exit
+fi
+
+step="$1"
+
+if [[ $step == "off" ]]; then
+  hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
+  exit 0
+elif [[ $step == "on" ]]; then
+  # Skip the dispatch when every active display is already lit: a redundant
+  # DPMS enable right after system resume forces another modeset, which blanks
+  # the panel for a beat (visible flash at the unlock screen).
+  hyprctl monitors -j 2>/dev/null | jq -e '[.[] | select(.disabled == false)] | length > 0 and all(.dpmsStatus)' >/dev/null 2>&1 && exit 0
+  hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1
+  exit 0
+fi
+
+# Drop overlapping brightness key events so concurrent invocations do not race.
+# Hardware key repeat present on some devices can otherwise glitch OSD rendering.
+exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
+flock -n "$lock_fd" || exit 0
+
+if [[ -z $device ]] || ! step_backlight "$device" "$step"; then
+  if use_apple_display; then
+    if (( no_osd )); then
+      omarchy-brightness-display-apple --no-osd "$step"
+    else
+      omarchy-brightness-display-apple "$step"
+    fi
+  elif use_ddc_display; then
+    brightness="$(omarchy-brightness-display-ddc "$monitor" "$step")" || exit 1
+    (( no_osd )) || omarchy-osd -i brightness -p "$brightness"
+  else
+    # The most likely panel backlight
+    device="$(omarchy-hw-display)" || exit 1
+    step_backlight "$device" "$step" || exit 1
+  fi
 fi
