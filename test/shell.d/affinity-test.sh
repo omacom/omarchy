@@ -196,6 +196,13 @@ printf 'affinity:%s\n' "$*" >>"$TEST_LOG"
 SCRIPT
 chmod +x "$tmp_dir/bin/affinity"
 
+# The launcher reads the current user to decide which profile names are stale.
+cat >"$tmp_dir/bin/id" <<'SCRIPT'
+#!/bin/bash
+printf '%s\n' "${AFFINITY_TEST_USER-testuser}"
+SCRIPT
+chmod +x "$tmp_dir/bin/id"
+
 launcher_home="$tmp_dir/launcher-home"
 winereg_dir="$launcher_home/.AffinityLinux-Appimage"
 mkdir -p "$winereg_dir"
@@ -265,6 +272,44 @@ HOME="$launcher_home" \
 grep -q '"LogPixels"=dword:00000060' "$winereg_dir/user.reg" ||
   fail "Affinity launcher refuses to write a zero DPI" "$(cat "$winereg_dir/user.reg")"
 pass "Affinity launcher refuses to write a zero DPI"
+
+# The AppImage's prefix is baked with a different username, and its first-run
+# rewrite misses the escaped .reg paths. A stale profile name left in the
+# registry makes HKCU\Environment\TEMP/TMP point at a directory that no longer
+# exists, so Wine cannot create its PPD temp dir and enumerates no printers.
+# The launcher points each stale name at the real user before Wine starts.
+winereg_dir="$launcher_home/.AffinityLinux-Appimage"
+users_dir="$winereg_dir/drive_c/users"
+mkdir -p "$users_dir/testuser/AppData/Local/Temp"
+mkdir -p "$users_dir/existing"
+cat >"$winereg_dir/user.reg" <<'REG'
+"TEMP"="C:\\users\\matt\\AppData\\Local\\Temp"
+"Personal"="C:\\users\\existing\\Documents"
+"PrintHood"="C:\\users\\Public\\Printer Shortcuts"
+REG
+: >"$winereg_dir/system.reg"
+
+: >"$log"
+run_launcher
+[[ -L $users_dir/matt && $(readlink "$users_dir/matt") == testuser ]] ||
+  fail "Affinity launcher links a stale profile name to the real user" "$(ls -l "$users_dir")"
+[[ ! -e $users_dir/Public ]] ||
+  fail "Affinity launcher leaves system profiles alone"
+[[ -d $users_dir/existing && ! -L $users_dir/existing ]] ||
+  fail "Affinity launcher leaves an existing profile directory alone"
+grep -qx 'affinity:' "$log" ||
+  fail "Affinity launcher still starts the app after repairing the prefix"
+pass "Affinity launcher points stale profile names at the real user"
+
+# The repair has to be idempotent: a second launch finds the link already in
+# place and must not replace it or fail to start the app.
+: >"$log"
+run_launcher
+[[ $(readlink "$users_dir/matt") == testuser ]] ||
+  fail "Affinity launcher keeps the repaired profile link on a second run" "$(ls -l "$users_dir")"
+grep -qx 'affinity:' "$log" ||
+  fail "Affinity launcher starts the app after an idempotent repair"
+pass "Affinity launcher repair is idempotent"
 
 # The window rules keep Affinity's canvas opaque, and deliberately do not
 # center it: Wine draws each menu-bar dropdown as its own top-level window that

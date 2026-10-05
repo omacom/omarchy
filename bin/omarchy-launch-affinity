@@ -25,6 +25,29 @@ if [[ -d $WINEPREFIX ]]; then
     sleep 0.5
   done
 
+  # The AppImage's first-run setup renames drive_c/users/<baked> to the current
+  # user but rewrites the registry with a sed that never matches the doubled
+  # backslashes in .reg. HKCU\Environment keeps pointing TEMP/TMP at the old
+  # profile, so Wine's winspool cannot create its PPD temporary directory and
+  # EnumPrintersW returns no printers — Affinity then lists none. Point each
+  # stale profile name at the real user so those paths resolve again. Wine
+  # writes a profile's files under whichever name it sees, so the link is only
+  # created for a name that has no directory: an install where the rename was
+  # skipped keeps its real directory untouched.
+  current_user="$(id -un)"
+  if [[ -d $WINEPREFIX/drive_c/users/$current_user ]]; then
+    for reg in user.reg userdef.reg system.reg; do
+      [[ -f $WINEPREFIX/$reg ]] || continue
+      while IFS= read -r name; do
+        case "$name" in
+          "$current_user"|Public|Default|All|defaultuser0) continue ;;
+        esac
+        [[ -e $WINEPREFIX/drive_c/users/$name ]] && continue
+        ln -sfn "$current_user" "$WINEPREFIX/drive_c/users/$name"
+      done < <(grep -ohE 'users\\\\[A-Za-z0-9._-]+' "$WINEPREFIX/$reg" 2>/dev/null | sed 's/users\\\\//')
+    done
+  fi
+
   # Wine reads the system DPI from HKCU\Control Panel\Desktop\LogPixels, and its
   # X11 driver reports that single value for every monitor. Hyprland runs
   # XWayland with force_zero_scaling, so the app has to draw at the monitor
