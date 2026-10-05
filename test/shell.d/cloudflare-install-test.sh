@@ -50,7 +50,7 @@ chmod +x "$scratch/bin/"*
 
 install_service() { bash "$ROOT/bin/omarchy-install-service-cloudflare"; }
 remove_service() { bash "$ROOT/bin/omarchy-remove-service-cloudflare"; }
-for scenario in ${CF_TEST_CASES:-interrupted webapp-failure logout-failure identity ownership repeated legacy}; do
+for scenario in ${CF_TEST_CASES:-interrupted webapp-failure logout-failure identity ownership repeated shared-icon legacy}; do
   export HOME="$scratch/$scenario"
   mkdir -p "$HOME/.local/share/applications"
   launcher="$HOME/.local/share/applications/Cloudflare.desktop"
@@ -82,6 +82,7 @@ for scenario in ${CF_TEST_CASES:-interrupted webapp-failure logout-failure ident
     identity)
       install_service
       remove_service
+      [[ ! -e $HOME/.local/share/icons/hicolor/256x256/apps/cloudflare.png ]] || fail "removal cleans its unused dashboard icon"
       ! grep -q 'decoy-cf' "$CF_TEST_LOG" || fail "PATH collision must not receive authentication commands"
       grep -q '^managed-cf auth login$' "$CF_TEST_LOG" || fail "setup uses the managed Cloudflare CLI"
       grep -q '^managed-cf auth logout$' "$CF_TEST_LOG" || fail "removal uses the managed Cloudflare CLI"
@@ -108,6 +109,12 @@ for scenario in ${CF_TEST_CASES:-interrupted webapp-failure logout-failure ident
       remove_service
       [[ ! -e $launcher && ! -e $marker && -f ${launcher%/*}/nested/Cloudflare.desktop ]] || fail "repeated removal targets only the service launcher"
       [[ $(grep -c '^managed-cf auth logout$' "$CF_TEST_LOG") == 1 ]] || fail "repeated removal does not sign out an unrelated later login"
+      ;;
+    shared-icon)
+      install_service
+      printf '[Desktop Entry]\nExec=another-app\nIcon=cloudflare\n' >"${launcher%/*}/Other.desktop"
+      remove_service
+      [[ -f $HOME/.local/share/icons/hicolor/256x256/apps/cloudflare.png ]] || fail "removal preserves an icon used by another launcher"
       ;;
     legacy)
       printf '[Desktop Entry]\nExec=omarchy-launch-webapp https://dash.cloudflare.com\n' >"$launcher"

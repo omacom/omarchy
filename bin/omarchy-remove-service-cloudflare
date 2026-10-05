@@ -21,6 +21,15 @@ fi
 # or a nested same-named web app selected by the generic web-app remover.
 if omarchy-installed-service-cloudflare; then
   rm -- "$HOME/.local/share/applications/Cloudflare.desktop"
+  # The dashboard owns this downloaded icon, but another launcher may share it.
+  icon="$HOME/.local/share/icons/hicolor/256x256/apps/cloudflare.png"
+  icon_references=0
+  grep -rFxq --include='*.desktop' -e 'Icon=cloudflare' -e 'Icon=cloudflare.png' -e "Icon=$icon" \
+    "$HOME/.local/share/applications" || icon_references=$?
+  if ((icon_references == 1)); then
+    rm -f -- "$icon"
+    gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" >/dev/null 2>&1 || true
+  fi
   update-desktop-database "$HOME/.local/share/applications"
 fi
 rm -f -- "$marker"
