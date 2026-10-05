@@ -69,7 +69,7 @@ The **Tailscale** panel connects and disconnects the tailnet, switches between a
 
 The **Dropbox** panel handles login, shows how much storage you've used, and lists recently synced files.
 
-The **Cloudflare** panel lists your Workers, most recently deployed first, and your domains below them. Return on a Worker steps into its own view: invocations, CPU time, and errors over the last 24 hours, each with a small graph, and its last ten versions with the live one marked. Left or Backspace goes back. Return on a domain opens it in the Cloudflare dashboard. `o` opens the selection in the dashboard, `c` copies a Worker's `workers.dev` URL, a domain's zone ID, or a version ID, and `r` refreshes. If you have more than one account, `h` and `l` switch between them. The metrics come from Workers Logs, so a Worker needs logs turned on before its graphs fill in.
+The **Cloudflare** panel lists your Workers, most recently deployed first, and your domains below them. Return on a Worker steps into its own view: invocations, CPU time, and errors over the last 24 hours, each with a small graph, and its last ten versions with the live one marked. Left or Backspace goes back. Return on a domain opens it in the Cloudflare dashboard. `o` works like Return: it opens a Worker view, or opens the dashboard for a domain or the Worker already being viewed, `c` copies a Worker's `workers.dev` URL, a domain's zone ID, or a version ID, and `r` refreshes. If you have more than one account, `h` and `l` switch between them. The metrics come from Workers Logs, so a Worker needs logs turned on before its graphs fill in.
 
 Removing any of these services takes its widget back off the bar.
 
