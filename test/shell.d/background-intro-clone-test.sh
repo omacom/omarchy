@@ -30,7 +30,7 @@ printf '[{"id":"intro-test.background"}]\n'
 SH
 cat >"$stage/bin/omarchy-theme-bg-boot-intro" <<'SH'
 #!/bin/bash
-sleep 5
+sleep 1.5
 SH
 chmod +x "$stage/bin/omarchy-plugin-list" "$stage/bin/omarchy-theme-bg-boot-intro"
 HOME="$stage/home" USER=intro-test OMARCHY_PATH="$ROOT" PATH="$stage/bin:$ROOT/bin:$PATH" \

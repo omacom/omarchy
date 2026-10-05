@@ -29,7 +29,6 @@ ShellRoot {
     interval: 2200
     running: true
     onTriggered: {
-      intro.cover = false
       result.setText(JSON.stringify({ phase: "still", covered: intro.cover }))
     }
   }
