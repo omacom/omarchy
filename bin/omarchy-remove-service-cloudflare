@@ -2,8 +2,28 @@
 
 # omarchy:summary=Sign out of the Cloudflare CLI and remove the Cloudflare Dashboard web app.
 
-cf auth logout 2>/dev/null || true
-omarchy-webapp-remove "Cloudflare" 2>/dev/null || true
+set -e
+
+marker="$HOME/.local/state/omarchy/cloudflare-service"
+if [[ ! -f $marker ]] && ! omarchy-installed-service-cloudflare; then
+  echo "Cloudflare service is not set up."
+  exit 0
+fi
+
+# Repair the managed wrapper if it was removed, and never invoke another cf.
+omarchy-mise-install npm:cf cf
+if ! "$HOME/.local/bin/cf" auth logout; then
+  echo "Cloudflare sign-out failed. Setup was kept so you can retry Remove > Services > Cloudflare." >&2
+  exit 1
+fi
+
+# Remove only our exact dashboard launcher, not an unrelated Cloudflare.desktop
+# or a nested same-named web app selected by the generic web-app remover.
+if omarchy-installed-service-cloudflare; then
+  rm -- "$HOME/.local/share/applications/Cloudflare.desktop"
+  update-desktop-database "$HOME/.local/share/applications"
+fi
+rm -f -- "$marker"
 
 echo ""
 echo "Cloudflare has been removed."
