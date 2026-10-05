@@ -32,8 +32,9 @@ cat >"$fake_bin/quickshell" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
-printf 'watcher=%s popup=%s background=%s\n' \
-  "${QS_DISABLE_FILE_WATCHER:-unset}" "${QS_NO_RELOAD_POPUP:-unset}" "${OMARCHY_STARTUP_BACKGROUND:-unset}" >>"$OMARCHY_TEST_QS_ENV_LOG"
+printf 'watcher=%s popup=%s crash-handler-off=%s background=%s\n' \
+  "${QS_DISABLE_FILE_WATCHER:-unset}" "${QS_NO_RELOAD_POPUP:-unset}" \
+  "${QS_DISABLE_CRASH_HANDLER:-unset}" "${OMARCHY_STARTUP_BACKGROUND:-unset}" >>"$OMARCHY_TEST_QS_ENV_LOG"
 
 launches=$(wc -l <"$OMARCHY_TEST_QS_LOG")
 status=$(awk -v n="$launches" 'NR == n { print; found = 1 } END { if (!found) print "0" }' <<<"$OMARCHY_TEST_QS_STATUSES")
@@ -118,13 +119,19 @@ pass "a shell that exits cleanly is left alone"
 
 # A misspelled variable would leave Quickshell hot-reloading the tree pacman
 # rewrites underneath it, which is what crashes the restart that follows.
-[[ $(<"$qs_env_log") == "watcher=1 popup=1 "* ]] ||
-  fail "the shell launches with Quickshell's own reloading off" "$(<"$qs_env_log")"
-pass "the shell launches with Quickshell's config watcher and reload popup off"
+[[ $(<"$qs_env_log") == "watcher=1 popup=1 crash-handler-off=1 "* ]] ||
+  fail "the shell launches with Quickshell's own reloading and crash handler off" "$(<"$qs_env_log")"
+pass "the shell launches with Quickshell's config watcher, reload popup and crash handler off"
 [[ $(<"$qs_env_log") == *"background=$startup_wallpaper" ]] || fail "the shell receives the resolved wallpaper path before startup" "$(<"$qs_env_log")"
 pass "the selected wallpaper can decode as soon as Quickshell starts"
 
-# Qt leaves through _exit(), so Quickshell's crash handler never relaunches it.
+# With Quickshell's crash handler off, nothing else brings a crashed shell back.
+launch_shell $'139\n0' || fail "a shell that died of a signal is relaunched"
+[[ $(launches) == 2 ]] || fail "the crashed shell is relaunched exactly once" "$(<"$qs_log")"
+grep -F 'exited with status 139' "$logger_log" >/dev/null || fail "the crash is recorded in the journal"
+pass "a shell that dies of a signal is relaunched"
+
+# Qt leaves through _exit(), so no signal is raised at all.
 launch_shell $'255\n0' || fail "a shell that died on a Wayland error is relaunched"
 [[ $(launches) == 2 ]] || fail "the dead shell is relaunched exactly once" "$(<"$qs_log")"
 grep -F 'exited with status 255' "$logger_log" >/dev/null || fail "the relaunch is recorded in the journal"

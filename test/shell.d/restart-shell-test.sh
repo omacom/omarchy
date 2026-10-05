@@ -260,7 +260,7 @@ locked_error=$(PATH="$restart_bin:$PATH" \
 [[ ! -s $restart_log ]] || fail "locked restart does not stop or launch Quickshell"
 pass "restart preserves the shell while its lock is active"
 
-# A LOCK session without an active locker — dead shell or a crash-handler
+# A LOCK session without an active locker — dead shell or a launcher
 # relaunch holding no lock — is the failsafe: restart must proceed,
 # re-acquire the session lock, and wait for it to report secure.
 sleep 30 &
