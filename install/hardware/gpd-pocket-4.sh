@@ -2,7 +2,9 @@
 # used landscape, so orientation has to be fixed at three layers:
 #   - boot: Limine menu rotation plus kernel params for the text console
 #     (fbcon, LUKS prompt) and DRM-based renderers (plymouth)
-#   - libinput: calibration matrix for the NVTK0603 digitizer frame
+#   - libinput: calibration matrix for the NVTK0603 digitizer frame outside
+#     Hyprland (GDM/other clients). Hyprland replaces the matrix, so the
+#     session relies on the rotate daemon below.
 #   - session: omarchy-gpd-pocket-4-rotate.service tracks the accelerometer
 #     and keeps monitor + touch transforms in sync (the DRM panel-orientation
 #     property is ignored by Hyprland, so there is no double rotation)
@@ -25,7 +27,9 @@ EOF
   fi
 
   # Rotate the raw digitizer frame into display orientation (270 degrees
-  # clockwise; matrix reference in the libinput docs).
+  # clockwise; matrix reference in the libinput docs). Hyprland replaces
+  # LIBINPUT_CALIBRATION_MATRIX, so in-session rotation comes only from the
+  # explicit device transform the rotate daemon applies.
   sudo mkdir -p /etc/udev/rules.d
   sudo tee /etc/udev/rules.d/99-gpd-pocket4-touchscreen.rules >/dev/null <<'EOF'
 # GPD Pocket 4 (G1628-04) NVTK0603 touchscreen
