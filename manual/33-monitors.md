@@ -44,11 +44,11 @@ You can also checkout [Hyprmon](https://github.com/erans/hyprmon/), if you'd lik
 
 ### Controlling brightness
 
-Monitor brightness is controlled by the dedicated function keys for brightness up/down. If you hold down shift while pressing these, you'll go to maximum or minimum brightness. The keys control the display you're focused on, so external monitors that speak DDC/CI are adjusted the same way as the laptop screen.
+Monitor brightness is controlled by the dedicated function keys for brightness up/down. If you hold down shift while pressing these, you'll go to maximum or minimum brightness. The keys control the display you're focused on, so external monitors are adjusted the same way as the laptop screen, either through a kernel backlight the monitor exposes or over DDC/CI.
 
 ### Apple Displays
 
-If you're using an Apple display, the regular keyboard brightness keys will also automatically work, if you're focused on the Apple display. This is done through the `asdcontrol` command.
+If you're using an Apple display, the regular keyboard brightness keys will also automatically work, if you're focused on the Apple display. This is done through the kernel backlight when the display exposes one, and through the `asdcontrol` command otherwise.
 
 Note that if you're using an Apple 6K XDR display, you may see a phantom screen in your `hyprctl monitors` listing. You can turn this off with something like `hl.monitor({ output = "DP-2", disabled = true })` via _Setup > Monitors_.
 
