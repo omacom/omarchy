@@ -25,28 +25,60 @@ power_on() {
   omarchy-bluetooth-power on || true
 }
 
-trust_device() {
-  bluetoothctl trust "$address" >/dev/null 2>&1 || true
+device_error() {
+  local message="$1"
+  echo "$message" >&2
+  omarchy-notification-send --app-name Bluetooth -u normal "Bluetooth $action failed" "$message" || true
+  exit 1
+}
+
+run_device_command() {
+  local seconds="$1" command="$2" output
+  if output=$(timeout "$seconds" bluetoothctl "$command" "$address" 2>&1); then
+    # bluetoothctl can print a failure while returning success.
+    if [[ $output == *"Failed to "* || $output == *"not available"* ]]; then
+      device_error "$output"
+    fi
+  else
+    device_error "${output:-Bluetooth $command timed out or failed for $address}"
+  fi
+}
+
+device_has_state() {
+  local info
+  info=$(timeout 3s bluetoothctl info "$address" 2>/dev/null) || return 1
+  [[ $info == *"$1: yes"* ]]
+}
+
+connect_device() {
+  if ! device_has_state Connected; then
+    run_device_command 20s connect
+    device_has_state Connected || device_error "Connection did not complete for $address"
+  fi
 }
 
 case "$action" in
   pair)
     power_on
-    timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
-    trust_device
-    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    run_device_command 20s pair
+    device_has_state Paired || device_error "Pairing did not complete for $address"
+    run_device_command 10s trust
+    connect_device
     ;;
   connect)
     power_on
-    trust_device
-    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    run_device_command 10s trust
+    connect_device
     ;;
   disconnect)
-    timeout 10s bluetoothctl disconnect "$address" >/dev/null 2>&1 || true
+    run_device_command 10s disconnect
     ;;
   forget)
     power_on
-    timeout 10s bluetoothctl disconnect "$address" >/dev/null 2>&1 || true
-    timeout 10s bluetoothctl remove "$address" >/dev/null 2>&1 || true
+    # An already disconnected device can still be forgotten.
+    if device_has_state Connected; then
+      run_device_command 10s disconnect
+    fi
+    run_device_command 10s remove
     ;;
 esac
