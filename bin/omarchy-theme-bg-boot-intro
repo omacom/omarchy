@@ -120,34 +120,31 @@ consume_boot() {
   trap - RETURN
 }
 
-# With animations off, the desktop starts on the still: that is the default in
-# a VM, where Hyprland renders on the CPU and a video intro costs the most.
 animations_off() {
   [[ $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r '.bool' 2>/dev/null) == "false" ]]
 }
 
+# Settle this boot before waiting: restarting the shell or starting OWE late
+# must not play an intro over a desktop that has already appeared.
+consume_boot
 if [[ -f $toggle ]] || animations_off; then
-  consume_boot
   exit 0
 fi
 
 intro=$(resolve_intro || true)
 if [[ -z $intro ]]; then
-  consume_boot
   exit 0
 fi
 
-# Consume the boot before playback so a shell restart mid-intro cannot replay
-# it. `owe intro` blocks until the intro ends and fails both when OWE rejects it
-# and when something interrupts it. OWE leaves intro_result empty until it has
-# accepted an intro, so only a never-started intro releases the boot for the
-# shell's bounded retry.
-consume_boot
-if ! owe intro "$intro"; then
-  intro_result=$(owe status 2>/dev/null | jq -r '.intro_result // empty' 2>/dev/null || true)
-  if [[ -z $intro_result ]]; then
-    rm -f "$marker"
-    exit 2
+deadline=$((SECONDS + 5))
+while ! timeout 1 owe status >/dev/null 2>&1; do
+  if (( SECONDS >= deadline )); then
+    exit 0
   fi
-  exit 1
+  sleep 0.2
+done
+
+# A background selected while OWE was starting no longer matches this intro.
+if (( SECONDS < deadline )) && [[ ! -f $toggle && $intro == "$(resolve_intro || true)" ]] && ! animations_off; then
+  owe intro --start first-frame "$intro"
 fi

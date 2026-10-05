@@ -52,14 +52,13 @@ cat >"$command_bin/owe" <<'SH'
 printf 'owe: %s\n' "$*" >>"$COMMAND_LOG"
 case ${1:-} in
   intro)
-    [[ ${OWE_FAIL:-} == "" ]] || exit 1
+    [[ ${OWE_FAIL:-} != "interrupted" && ${OWE_FAIL:-} != "unavailable" ]] || exit 1
+    [[ -z ${OWE_READY_FILE:-} || -f $OWE_READY_FILE ]] || exit 1
     ;;
   status)
-    if [[ ${OWE_FAIL:-} == "interrupted" ]]; then
-      printf '{"status":"ok","intro":false,"intro_result":"error"}\n'
-    else
-      printf '{"status":"ok","intro":false,"intro_result":""}\n'
-    fi
+    [[ ${OWE_FAIL:-} != "unavailable" ]] || exit 1
+    [[ -z ${OWE_READY_FILE:-} || -f $OWE_READY_FILE ]] || exit 1
+    printf '{"status":"ok"}\n'
     ;;
 esac
 SH
@@ -85,15 +84,42 @@ PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" CO
 ! grep -q '^owe: intro ' "$command_log" || fail "with animations off no intro plays"
 
 rm "$marker"
-if PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_FAIL=rejected OMARCHY_BOOT_ID=retry-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"; then
-  fail "a rejected OWE handoff reports a retryable failure"
-else
-  status=$?
-  (( status == 2 )) || fail "a rejected OWE handoff uses the retry exit code" "$status"
+: >"$command_log"
+started=$SECONDS
+if ! PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_FAIL=unavailable OMARCHY_BOOT_ID=unavailable-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"; then
+  fail "an unavailable OWE settles startup rather than requesting another launcher"
 fi
-[[ ! -e $marker ]] || fail "a rejected OWE handoff does not consume the boot"
-PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OMARCHY_BOOT_ID=retry-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"
-[[ $(<"$marker") == "retry-boot" ]] || fail "an accepted OWE handoff consumes the boot"
+(( SECONDS - started >= 4 && SECONDS - started <= 7 )) || fail "startup waits only through the five-second window" "$((SECONDS - started))"
+[[ $(<"$marker") == "unavailable-boot" ]] || fail "an unavailable OWE still settles the boot"
+! grep -q '^owe: intro ' "$command_log" || fail "an unavailable OWE never starts an intro"
+PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OMARCHY_BOOT_ID=unavailable-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"
+! grep -q '^owe: intro ' "$command_log" || fail "starting OWE after the deadline does not play a late intro"
+
+rm "$marker"
+: >"$command_log"
+ready="$test_tmp/owe-ready"
+(sleep 1; touch "$ready") &
+ready_pid=$!
+PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_READY_FILE="$ready" OMARCHY_BOOT_ID=delayed-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"
+wait "$ready_pid"
+[[ $(<"$marker") == "delayed-boot" ]] || fail "waiting for OWE keeps the boot consumed"
+grep -Fxq "owe: intro --start first-frame $theme_intro_dir/road.mp4" "$command_log" || fail "a ready OWE starts on the video's first frame without revealing the still"
+
+rm "$marker" "$ready"
+: >"$command_log"
+(sleep 0.5; touch "$toggle" "$ready") &
+ready_pid=$!
+PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_READY_FILE="$ready" OMARCHY_BOOT_ID=disabled-while-waiting "$ROOT/bin/omarchy-theme-bg-boot-intro"
+wait "$ready_pid"
+! grep -q '^owe: intro ' "$command_log" || fail "disabling intros while waiting cancels startup playback"
+rm "$toggle" "$ready" "$marker"
+: >"$command_log"
+(sleep 0.5; printf 'new selected image\n' >"$background"; touch "$ready") &
+ready_pid=$!
+PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_READY_FILE="$ready" OMARCHY_BOOT_ID=changed-while-waiting "$ROOT/bin/omarchy-theme-bg-boot-intro"
+wait "$ready_pid"
+! grep -q '^owe: intro ' "$command_log" || fail "changing the background while waiting cancels its old intro"
+printf 'matching still\n' >"$background"
 
 rm "$marker"
 if PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_FAIL=interrupted OMARCHY_BOOT_ID=interrupted-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"; then
@@ -116,7 +142,7 @@ done
 intro_count=$(grep -c '^owe: intro ' "$command_log")
 (( intro_count == 1 )) || fail "concurrent launchers start exactly one intro" "$intro_count"
 
-pass "boot intros require an exact still and release the boot only when OWE never started them"
+pass "boot intros settle the boot once, wait briefly for OWE, and start on the first frame"
 
 ln -s "$ROOT/bin/omarchy-theme-bg-boot-intro" "$command_bin/omarchy-theme-bg-boot-intro"
 
@@ -189,63 +215,6 @@ HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_c
 [[ $(<"$migration_home/.local/state/omarchy/background-intro.boot-id") == "migration-boot" ]] || fail "the migration defers a newly installed intro until the next boot"
 
 pass "the migration does not start a boot intro during an update"
-
-run_node_test <<'JS'
-const fs = require('fs')
-const backgroundQml = fs.readFileSync(path.join(root, 'shell/plugins/background/Background.qml'), 'utf8')
-
-assert(
-  backgroundQml.includes('command: ["omarchy-theme-bg-boot-intro"]')
-    && backgroundQml.includes('root.checkBootIntro()')
-    && backgroundQml.includes('readonly property int bootIntroMaxAttempts: 60')
-    && backgroundQml.includes('readonly property int bootIntroRetryInterval: 1000')
-    && backgroundQml.includes('exitCode === 2 && root.bootIntroAttempts < root.bootIntroMaxAttempts')
-    && backgroundQml.includes('bootIntroRetry.restart()'),
-  'the shell retries throughout the normal login window when OWE is not ready during startup'
-)
-assert(
-  !backgroundQml.includes('bootIntroPath')
-    && !backgroundQml.includes('cancelBootIntro')
-    && !backgroundQml.includes('bootIntroResolving'),
-  'OWE owns intro playback'
-)
-
-const { execFileSync } = require('child_process')
-const os = require('os')
-const lookup = JSON.parse(backgroundQml.match(/id: readlinkProc[\s\S]*?"bash", "-c",\s*("(?:[^"\\]|\\.)*")/)[1])
-const lookupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'background-lookup-'))
-const marker = path.join(lookupDir, 'background-intro.boot-id')
-const still = path.join(lookupDir, 'still.png')
-const link = path.join(lookupDir, 'background')
-fs.writeFileSync(still, '')
-fs.symlinkSync(still, link)
-const toggle = path.join(lookupDir, 'background-intros-off')
-const lookupBin = path.join(lookupDir, 'bin')
-fs.mkdirSync(lookupBin)
-fs.writeFileSync(path.join(lookupBin, 'hyprctl'), '#!/bin/bash\n[[ $ANIMATIONS == off ]] && echo \'{"bool":false}\' || echo \'{"bool":true}\'\n', { mode: 0o755 })
-const lookUp = (animations = 'on') => execFileSync('bash', ['-c', lookup, '_', link, marker, toggle], {
-  env: { ...process.env, OMARCHY_BOOT_ID: 'boot-b', ANIMATIONS: animations, PATH: `${lookupBin}:${process.env.PATH}` }
-}).toString().split('\n')
-
-assert(lookUp()[0] === still && lookUp()[1] === 'unplayed', 'the background lookup reports an unplayed boot without a marker')
-assert(lookUp('off')[1] === 'played', 'the background lookup skips the cover with animations off')
-fs.writeFileSync(toggle, '')
-assert(lookUp()[1] === 'played', 'the background lookup skips the cover with intros turned off')
-fs.rmSync(toggle)
-fs.writeFileSync(marker, 'boot-a\n')
-assert(lookUp()[1] === 'unplayed', 'the background lookup reports an unplayed boot after an earlier boot')
-fs.writeFileSync(marker, 'boot-b\n')
-assert(lookUp()[1] === 'played', 'the background lookup honors the launcher boot id and marker')
-fs.rmSync(lookupDir, { recursive: true, force: true })
-
-assert(
-  backgroundQml.includes('color: "black"')
-    && backgroundQml.includes('visible: bootIntroCover.running')
-    && backgroundQml.includes('interval: 5000')
-    && /bootIntroProc[\s\S]*?onExited[\s\S]*?bootIntroCover\.stop\(\)/.test(backgroundQml),
-  'black covers the still until the launcher returns or five seconds pass'
-)
-JS
 
 packaged_pairs=0
 for expected_hash_path in "$ROOT"/themes/*/intros/*.sha256; do

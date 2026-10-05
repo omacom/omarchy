@@ -21,6 +21,7 @@ ShellRoot {
   property BarWidgetRegistry barWidgetRegistry: BarWidgetRegistry { }
   property AppLibrary appLibrary: AppLibrary { }
   property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
+  property BackgroundIntro bootIntro: BackgroundIntro { host: shell }
 
   property string home: Quickshell.env("HOME")
 
