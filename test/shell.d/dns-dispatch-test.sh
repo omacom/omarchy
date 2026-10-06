@@ -13,6 +13,8 @@ if [[ ${1:-} != "--inside" ]]; then
     fail "omarchy-dns links the dispatcher hook to the packaged path"
   grep -F 'exec /usr/bin/omarchy-dns --pin-connection' "$ROOT/bin/omarchy-dns-dispatch" >/dev/null ||
     fail "dispatcher hook hands off to the packaged omarchy-dns"
+  [[ -x $ROOT/bin/omarchy-dns-dispatch ]] ||
+    fail "dispatcher hook is executable so NetworkManager can run it"
   pass "DNS dispatcher hook only runs packaged code"
 
   # omarchy-dns pins PATH and reads /etc/systemd/resolved.conf as root, so run
@@ -33,8 +35,8 @@ mkdir -p "$work/bin"
 cat >"$work/bin/nmcli" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$STUB_LOG"
-if [[ $* == "-g connection.type,ipv4.ignore-auto-dns connection show "* ]]; then
-  printf '%s\n%s\n' "$STUB_TYPE" "$STUB_IGNORE"
+if [[ $* == "-g connection.type,ipv4.ignore-auto-dns,ipv6.ignore-auto-dns connection show "* ]]; then
+  printf '%s\n%s\n%s\n' "$STUB_TYPE" "$STUB_IGNORE4" "$STUB_IGNORE6"
 fi
 SH
 chmod +x "$work/bin/nmcli"
@@ -47,11 +49,11 @@ DNS=1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com 2606:4700:4700::1111#c
 dhcp='[Resolve]
 DNSOverTLS=no'
 
-# pin <resolved.conf body> <connection type> <ipv4.ignore-auto-dns>
+# pin <resolved.conf body> <connection type> <ipv4.ignore-auto-dns> [ipv6.ignore-auto-dns]
 pin() {
   printf '%s\n' "$1" >"$work/resolved.conf"
   : >"$work/log"
-  STUB_LOG="$work/log" STUB_TYPE="$2" STUB_IGNORE="$3" bash "$dns" --pin-connection "$uuid" wlan0
+  STUB_LOG="$work/log" STUB_TYPE="$2" STUB_IGNORE4="$3" STUB_IGNORE6="${4:-$3}" bash "$dns" --pin-connection "$uuid" wlan0
 }
 
 refute_modify() {
@@ -76,6 +78,11 @@ for type in vpn tun wireguard; do
   pin "$cloudflare" "$type" no
   refute_modify "dispatcher leaves $type connections to the DNS they push"
 done
+
+pin "$cloudflare" 802-11-wireless yes no
+grep -Fx "$modify" "$work/log" >/dev/null ||
+  fail "dispatcher pins a profile whose IPv6 DNS is still automatic" "log: $(cat "$work/log")"
+pass "dispatcher pins a profile whose IPv6 DNS is still automatic"
 
 pin "$cloudflare" 802-11-wireless yes
 refute_modify "dispatcher leaves an already pinned profile alone"
