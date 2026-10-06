@@ -84,6 +84,26 @@ Item {
     return key !== Qt.Key_Backspace && key !== Qt.Key_Delete
   }
 
+  // Lives on the root rather than inline in Keys.onPressed so the shortcuts can
+  // be driven without a real key event, which needs a focused window.
+  function handlePasswordKey(event) {
+    wakeRequested()
+    if (event.isAutoRepeat && dropsAutoRepeat(event.key)) {
+      event.accepted = true
+      return
+    }
+    if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)) {
+      passwordTextEdited("")
+      event.accepted = true
+    } else if (event.modifiers === Qt.ControlModifier && event.key === Qt.Key_Space) {
+      // Ctrl+Space (not Alt-based, so it won't collide with AltGr
+      // composition on non-US keyboard layouts) reveals the password
+      // without touching the mouse.
+      toggleReveal()
+      event.accepted = true
+    }
+  }
+
   function syncPasswordText() {
     if (passwordInput.text === passwordText) return
     syncingPasswordText = true
@@ -187,6 +207,7 @@ Item {
 
       TextInput {
         id: passwordInput
+        objectName: "passwordInput"
         anchors.fill: parent
         anchors.topMargin: inputField.borderTop
         // Reserve the icons' width on both sides so the centered dots stay
@@ -238,23 +259,7 @@ Item {
           if (submitted.length > 0) root.submitPassword(submitted)
         }
 
-        Keys.onPressed: function(event) {
-          root.wakeRequested()
-          if (event.isAutoRepeat && root.dropsAutoRepeat(event.key)) {
-            event.accepted = true
-            return
-          }
-          if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)) {
-            root.passwordTextEdited("")
-            event.accepted = true
-          } else if (event.modifiers === Qt.ControlModifier && event.key === Qt.Key_Space) {
-            // Ctrl+Space (not Alt-based, so it won't collide with AltGr
-            // composition on non-US keyboard layouts) reveals the password
-            // without touching the mouse.
-            root.toggleReveal()
-            event.accepted = true
-          }
-        }
+        Keys.onPressed: function(event) { root.handlePasswordKey(event) }
       }
 
       Text {
