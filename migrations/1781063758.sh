@@ -3,80 +3,60 @@ echo "Update Hyprland Lua entrypoint to load Omarchy bootstrap"
 hyprland_config="$HOME/.config/hypr/hyprland.lua"
 
 if [[ -f $hyprland_config ]] && ! grep -Fq '/default/hypr/bootstrap.lua' "$hyprland_config"; then
+  # Only the preambles Omarchy shipped are rewritten: with either OMARCHY_PATH
+  # fallback it carried, each as installed and as 1781043107 left it after adding
+  # the state path. A preamble the user edited is their own Lua, and guessing
+  # where it ends cost them their config.
+  preambles=()
+  for omarchy_fallback in '"/usr/share/omarchy"' '(os.getenv("HOME") .. "/.local/share/omarchy")'; do
+    for state_path in "" $'\n  .. "/.local/state/?.lua;"\n  .. os.getenv("HOME")'; do
+      preambles+=("-- Load user modules from ~/.config and Omarchy defaults from \$OMARCHY_PATH.
+package.path = os.getenv(\"HOME\")$state_path
+  .. \"/.config/?.lua;\"
+  .. (os.getenv(\"OMARCHY_PATH\") or $omarchy_fallback)
+  .. \"/?.lua;\"
+  .. package.path")
+    done
+  done
+
+  bootstrap_dofile='dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/bootstrap.lua")'
   tmp=$(mktemp)
-  consumed=$(mktemp)
 
-  awk -v consumed="$consumed" '
-    BEGIN { replaced = 0 }
+  # The shipped block can also be the start of a longer assignment the user
+  # extended, or a copy they commented out above their own. So the rewrite is
+  # installed only if Lua can load it and nothing in it still sets the path the
+  # bootstrap now owns.
+  if PREAMBLES=$(printf '%s\036' "${preambles[@]}") \
+    BOOTSTRAP="-- Omarchy's bootstrap keeps path setup out of this user config."$'\n'"$bootstrap_dofile" \
+    awk '
+      { file = file "\n" $0 }
 
-    !replaced && $0 == "-- Load user modules from ~/.config and Omarchy defaults from $OMARCHY_PATH." {
-      comment = $0
-      got_next = getline next_line
-      if (got_next > 0 && next_line == "package.path = os.getenv(\"HOME\")") {
-        print "-- Omarchy'\''s bootstrap keeps path setup out of this user config."
-        print "dofile((os.getenv(\"OMARCHY_PATH\") or \"/usr/share/omarchy\") .. \"/default/hypr/bootstrap.lua\")"
-        replaced = 1
+      END {
+        file = file "\n"
+        count = split(ENVIRON["PREAMBLES"], preambles, "\036")
 
-        # The assignment ends where its continuations do, however the user has
-        # wrapped it. Anything else is the next statement and is printed, not
-        # dropped: looking for one exact terminator line ran to EOF and took
-        # the rest of the config with it.
-        # A line ending in ".." continues onto the next, and a blank or comment
-        # line is only part of the assignment if a continuation follows it.
-        open = 0
-        held = ""
-        while ((got = (getline line)) > 0) {
-          if (open || line ~ /^[[:space:]]*\.\./ || line ~ /^[[:space:]]*package\.path[[:space:]]*$/) {
-            printf "%s%s\n", held, line > consumed
-            held = ""
-            open = line ~ /\.\.[[:space:]]*$/
-            continue
-          }
-          if (line ~ /^[[:space:]]*(--.*)?$/) {
-            held = held line "\n"
-            continue
-          }
-          break
+        for (i = 1; i <= count; i++) {
+          if (preambles[i] == "") continue
+
+          block = "\n" preambles[i] "\n"
+          pos = index(file, block)
+          if (!pos) continue
+
+          printf "%s%s\n%s", substr(file, 2, pos - 1), ENVIRON["BOOTSTRAP"], substr(file, pos + length(block))
+          exit 0
         }
 
-        printf "%s", held
-        if (got > 0) { print line }
-
-        next
+        exit 1
       }
-
-      print comment
-      if (got_next > 0) { print next_line }
-      next
-    }
-
-    { print }
-  ' "$hyprland_config" >"$tmp"
-
-  # Keep a copy only when the preamble was not the shipped one, so a path entry
-  # the user added is recoverable rather than absorbed without trace.
-  stock=$(mktemp)
-  cat >"$stock" <<'STOCK'
-  .. "/.config/?.lua;"
-  .. (os.getenv("OMARCHY_PATH") or "/usr/share/omarchy")
-  .. "/?.lua;"
-  .. package.path
-STOCK
-
-  if cmp -s "$tmp" "$hyprland_config"; then
-    # No preamble of the shape this migration rewrites, so there is nothing to
-    # replace and nothing to keep a copy of.
-    rm -f "$tmp"
-  else
-    if ! cmp -s "$consumed" "$stock"; then
-      backup="$hyprland_config.omarchy-bootstrap.bak"
-      cp "$hyprland_config" "$backup"
-      echo "Your hyprland.lua set package.path itself; the bootstrap owns that now."
-      echo "Saved your previous file as $backup."
-    fi
-
+    ' "$hyprland_config" >"$tmp" && luac -p "$tmp" 2>/dev/null && ! grep -Fq 'package.path' "$tmp"; then
     mv "$tmp" "$hyprland_config"
-  fi
+  else
+    rm -f "$tmp"
 
-  rm -f "$consumed" "$stock"
+    if grep -Fq 'package.path' "$hyprland_config"; then
+      echo "Left $hyprland_config unchanged: its package.path setup is not one Omarchy shipped."
+      echo "To load Omarchy's bootstrap, replace that setup with:"
+      echo "  $bootstrap_dofile"
+    fi
+  fi
 fi
