@@ -46,7 +46,9 @@ if [[ -z $agent ]]; then
   exit 1
 fi
 
-if omarchy-cmd-missing "$agent"; then
+# OpenClaw's launcher sets OpenClaw up when the package became the seed before
+# this user's OpenClaw moved, so with the package a missing command is its to fix.
+if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
   echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
   exit 1
 fi
