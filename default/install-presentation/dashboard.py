@@ -98,6 +98,23 @@ class Dashboard:
     self.terminal_mode = False
     self.pty_fd = None
     self.terminal = None
+    self.log_viewer = None
+    self.log_error = False
+
+  def open_live_log(self):
+    # A separate terminal leaves the worker's PTY draining and its prompts
+    # intact while the user reads earlier output. In less, F follows new output.
+    if self.log_viewer is None or self.log_viewer.poll() is not None:
+      try:
+        self.log_viewer = subprocess.Popen(
+          ["xdg-terminal-exec", "--app-id=org.omarchy.terminal", "--title=Installation log",
+           "-e", "less", "+G", "--", self.log_path],
+          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+          start_new_session=True)
+        self.log_error = False
+      except OSError:
+        # A log-window failure must not interrupt an installation transaction.
+        self.log_error = True
 
   def restore(self):
     if self.original is not None:
@@ -201,7 +218,9 @@ class Dashboard:
       available = max(0, min(4, rows - 4 - (title_row + 5)))
       for i, log in enumerate(list(self.lines)[-available:] if available else []):
         line(title_row + 5 + i, log, DIM, center=False)
-    footer = "Enter  Close   ·   L  Full log" if self.status is not None else "Use the controls above   ·   Ctrl+C  Cancel" if embedded else "Ctrl+C  Cancel"
+    footer = "Enter  Close   ·   L  Full log" if self.status is not None else "Ctrl+G  Full log   ·   Ctrl+C  Cancel" if embedded else "Ctrl+C  Cancel"
+    if self.log_error and self.status is None:
+      footer = "Log window unavailable   ·   Ctrl+C  Cancel"
     line(rows - 3, footer + ("" if embedded else "   ·   D  Hide details" if expanded else "   ·   D  Show details"), DIM)
     if failed:
       line(rows - 1, "Full log is saved locally", DIM)
@@ -239,10 +258,7 @@ class Dashboard:
       size = shutil.get_terminal_size()
       if size != terminal_size:
         _, _, height, width = self.embedded_geometry()
-        if self.terminal is None:
-          self.terminal = Terminal(height, width)
-        else:
-          self.terminal.resize(height, width)
+        self.terminal.resize(height, width)
         fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack("HHHH", height, width, 0, 0))
         terminal_size = size
 
@@ -307,11 +323,16 @@ class Dashboard:
               self.cancel()
               break
             if self.terminal_mode:
-              # The worker controls echo, including hidden passwords. All
-              # keys go straight to it without a dashboard focus toggle.
-              if key == b"\x03":
-                self.cancelled = True
-              os.write(master, key)
+              # Reserve Ctrl+G for log access. Ordinary L, tabs and escape
+              # sequences still reach the worker, which controls password echo.
+              parts = key.split(b"\x07")
+              for index, part in enumerate(parts):
+                if index:
+                  self.open_live_log()
+                if b"\x03" in part:
+                  self.cancelled = True
+                if part:
+                  os.write(master, part)
             elif self.status is not None and key in (b"\r", b"\n", b"q", b"\x1b"):
               break
             elif key.lower() == b"l" and self.status is not None:
@@ -437,6 +458,18 @@ def main():
   if args.interactive:
     dashboard = Dashboard(args.name)
     dashboard.installing = "install" in args.command.lower() or "omarchy-pkg" in args.command
+    _, _, height, width = dashboard.embedded_geometry()
+    try:
+      dashboard.terminal = Terminal(height, width)
+    except OSError:
+      # Updates can start before the libvterm migration has run. Preserve the
+      # original terminal presentation without retrying a started command.
+      os.execvp("bash", ["bash", "-c", '''omarchy-show-logo
+bash -c "$1"
+code=$?
+if (( code != 130 )); then omarchy-show-done "$code"; fi
+exit "$code"
+''', "omarchy-presentation", args.command])
     return dashboard.run_interactive(args.command)
   missing = subprocess.call(["omarchy-pkg-missing", *packages]) == 0
   if missing and os.geteuid() != 0:
