@@ -42,7 +42,6 @@ thermald
 webp-pixbuf-loader
 yay-debug
 tuxedo-drivers-nocompatcheck-dkms
-yt6801-dkms
 zram-generator
 
 # Intel encoding processing
@@ -65,7 +64,7 @@ dell-xps13-sidecar-amps
 lsp-plugins-lv2
 
 # T2 MacBook support packages
-apple-bcm-firmware
+apple-bcm-firmware-fetcher
 apple-t2-audio-config
 linux-t2
 linux-t2-headers

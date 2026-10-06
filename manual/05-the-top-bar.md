@@ -45,6 +45,7 @@ Clicking a bar icon opens a panel, which is a proper popup with sliders, lists, 
 | `Super + Ctrl + D` | Display |
 | `Super + Ctrl + P` | Power |
 | `Super + Ctrl + Alt + D` | Calendar |
+| `Super + Ctrl + Alt + E` | World clock |
 | `Super + Ctrl + 1-9` | Toggle the nth panel in the right section |
 
 The panels aren't read-outs. They're where you actually do the thing:
@@ -72,7 +73,7 @@ Removing either service takes its widget back off the bar.
 
 ## Indicators
 
-The little cluster in the center is the indicators widget. These are status glyphs for modes you've turned on: do not disturb, night light, a queued [reminder](09-reminders.md), an active screen recording, stay awake, and [dictation](11-text-extraction-dictation.md). They light up when the mode is active and otherwise stay out of the way — hover the center of the bar to peek at the inactive ones. Clicking an indicator toggles that mode.
+The little cluster in the center is the indicators widget. These are status glyphs for modes you've turned on: do not disturb, night light, a queued [reminder](09-reminders.md), an active screen recording, stay awake, and [dictation](11-text-extraction-dictation.md). They light up when the mode is active and otherwise stay out of the way — hover to the left of the clock (above it on a vertical bar) to peek at the inactive ones. Clicking an indicator toggles that mode.
 
 If you'd rather they were always visible, set `alwaysShow` to `true` on the widget. And if you only care about some of them, list the ones you want in `items`: `["Dnd", "Reminder", "NightLight"]`. You can have more than one indicators widget, so different sections can show different subsets.
 
