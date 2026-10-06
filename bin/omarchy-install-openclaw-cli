@@ -102,6 +102,14 @@ moved_before() {
   [[ -e $runtime_command ]] || { [[ -L $command_path ]] && command_ours; }
 }
 
+# The migration that moves OpenClaw to ~/.openclaw ran once per user, and on a
+# machine without the package it found nothing to move and was marked done. An
+# install of the package that is OpenClaw itself after that clears the record,
+# so the migration waits for the seed again and moves it when it arrives.
+rearm_move() {
+  rm -f "${OMARCHY_MIGRATION_STATE:-$HOME/.local/state/omarchy/migrations}/1790397381.sh"
+}
+
 package_in_the_way() {
   echo "OpenClaw is set up in $prefix, but the openclaw package is OpenClaw itself again and comes first on PATH." >&2
   echo "The update that brings the openclaw package back as the seed puts this right." >&2
@@ -246,6 +254,7 @@ case "$mode" in
       package_in_the_way
       exit 1
     fi
+    rearm_move
     exit 0
   fi
   ;;
@@ -288,6 +297,7 @@ if package_is_openclaw; then
     package_in_the_way
     exit 1
   fi
+  rearm_move
   echo "OpenClaw runs from its package until an update brings the release that sets up the self-updating copy."
   exit 0
 fi
