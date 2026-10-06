@@ -29,6 +29,10 @@ BarWidget {
   // matching what the old per-plugin IpcHandler did.
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
 
+  // Same `onRightClick` key as custom command modules, so a layout entry can
+  // swap the full-weather notification for something else.
+  readonly property string rightClickCommand: String(setting("onRightClick", "")) || "omarchy-notification-send \"$(omarchy-weather-status)\""
+
   function open() {
     if (panelLoader.item && panelLoader.item.openFromHotkey) panelLoader.item.openFromHotkey()
   }
@@ -75,7 +79,7 @@ BarWidget {
 
     onPressed: function(b) {
       if (!root.bar) return
-      if (b === Qt.RightButton) root.bar.run("omarchy-notification-send \"$(omarchy-weather-status)\"")
+      if (b === Qt.RightButton) root.bar.run(root.rightClickCommand)
       else if (b === Qt.MiddleButton) root.refresh()
       else root.togglePanel()
     }
