@@ -1717,6 +1717,12 @@ ShellRoot {
     }
 
     function applyTheme(colorsB64: string, shellB64: string): string {
+      var background = shell.firstPartyServiceFor("omarchy.background")
+      if (background && typeof background.setPendingTheme === "function" && typeof background.applyPendingTheme === "function") {
+        background.setPendingTheme(colorsB64, shellB64)
+        background.applyPendingTheme()
+        return "ok"
+      }
       var colorsRaw = ""
       var shellRaw = ""
       try { colorsRaw = Qt.atob(String(colorsB64 || "")) } catch (e) { colorsRaw = "" }

@@ -44,10 +44,12 @@ printf 'shell: %s\n' "$*" >>"$TEST_LOG"
 STUB
 cat >"$commands/owe" <<'STUB'
 #!/bin/bash
+if [[ $1 == intro && -n ${TEST_RELEASE:-} ]]; then
+  printf '%s\n' "$$" >"$TEST_INTRO_PID"
+fi
 printf 'owe: %s\n' "$*" >>"$TEST_LOG"
 [[ ${TEST_OWE_FAIL:-false} != true ]] || exit 1
 if [[ $1 == intro && -n ${TEST_RELEASE:-} ]]; then
-  printf '%s\n' "$$" >"$TEST_INTRO_PID"
   for attempt in {1..100}; do
     [[ ! -f $TEST_RELEASE ]] || exit 0
     sleep 0.05
