@@ -12,6 +12,8 @@
 # The schedule is carried out by hyprsunset itself: saving rewrites
 # ~/.config/hypr/hyprsunset.conf with a day and a night profile (or the
 # identity-only profile when the schedule is off) and restarts hyprsunset.
+# A hand-written hyprsunset.conf is copied to hyprsunset.conf.bak.<epoch>
+# before the first save replaces it.
 #
 #   (no args)   the schedule in words; --json for the saved state
 #   edit        open the night light config in the Omarchy shell
@@ -133,6 +135,32 @@ restart_hyprsunset() {
   return 1
 }
 
+# The profiles with comments and blank lines dropped and whitespace squeezed,
+# so a file can be compared by what it tells hyprsunset to do.
+profile_content() {
+  sed -e 's/#.*//' -e 's/[[:space:]]\+//g' -e '/^$/d'
+}
+
+# True when hyprsunset.conf holds nothing a person wrote: this command
+# generated it, or it is the shipped identity-only profile (current or older
+# comments alike). Anything else is someone's hand-written schedule.
+config_is_ours() {
+  [[ ! -s $CONFIG_FILE ]] && return 0
+  grep -q '^# Written by omarchy-nightlight-config' "$CONFIG_FILE" && return 0
+  [[ $(profile_content <"$CONFIG_FILE") == "$(render_config off 07:00 20:00 4000 | profile_content)" ]]
+}
+
+# Keeps a hand-written hyprsunset.conf before the first save replaces it.
+# Before this command, hand-writing profiles there was the only way to get a
+# schedule, so the people trying it are the ones most likely to have one.
+backup_hand_written_config() {
+  config_is_ours && return 0
+
+  BACKUP_FILE="$CONFIG_FILE.bak.$(date +%s)"
+  cp -p "$CONFIG_FILE" "$BACKUP_FILE" || { echo "Could not back up $CONFIG_FILE; not replacing it" >&2; return 1; }
+  echo "Saved your hyprsunset.conf as $BACKUP_FILE"
+}
+
 # Writes stdin to a file through a temp file of its own, so concurrent writers
 # never share one and a failed write leaves the old file alone.
 write_atomically() {
@@ -172,6 +200,9 @@ save() {
   exec 9>"$LOCK_FILE"
   flock -w 30 9 || { echo "Another night light save is still running" >&2; exit 1; }
 
+  BACKUP_FILE=""
+  backup_hand_written_config || exit 1
+
   # Profiles first: if they cannot be written, the saved settings stay as they
   # were instead of describing a schedule hyprsunset never got.
   render_config "$scheduled" "$day" "$night" "$temperature" | write_atomically "$CONFIG_FILE" || exit 1
@@ -190,10 +221,13 @@ save() {
 
   omarchy-shell -q nightlight refresh
 
+  local backup_note=""
+  [[ -z $BACKUP_FILE ]] || backup_note=" Your previous hyprsunset.conf is saved as ${BACKUP_FILE/#$HOME/\~}."
+
   if [[ $scheduled == "on" ]]; then
-    omarchy-notification-send -g "󰔎" "Night light config saved" "Warm at ${temperature}K from $night to $day. Change it anytime in Setup > Config > Night Light Config."
+    omarchy-notification-send -g "󰔎" "Night light config saved" "Warm at ${temperature}K from $night to $day. Change it anytime in Setup > Config > Night Light Config.$backup_note"
   else
-    omarchy-notification-send -g "󰔎" "Night light schedule off" "Night light is manual again, at ${temperature}K. Turn the schedule on in Setup > Config > Night Light Config."
+    omarchy-notification-send -g "󰔎" "Night light schedule off" "Night light is manual again, at ${temperature}K. Turn the schedule on in Setup > Config > Night Light Config.$backup_note"
   fi
 }
 

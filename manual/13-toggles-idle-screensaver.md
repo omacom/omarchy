@@ -52,7 +52,7 @@ The warmth slider changes the screen as you drag it whenever night light is on, 
 
 Bring the config back any time from Setup > Config > Night Light Config in the Omarchy menu, or with `omarchy nightlight config edit`. `omarchy nightlight config` prints the current settings, and `omarchy nightlight config set on 07:00 20:30 3800` sets them without the card.
 
-Saving writes `~/.config/hypr/hyprsunset.conf` for you and starts hyprsunset at login while the schedule is on.
+Saving writes `~/.config/hypr/hyprsunset.conf` for you and starts hyprsunset at login while the schedule is on. If you had written your own profiles in that file, the first save keeps a copy next to it as `hyprsunset.conf.bak.<number>` and the save notification tells you where.
 
 ### Do not disturb
 

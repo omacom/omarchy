@@ -205,6 +205,59 @@ pass "nightlight schedule reports when none was ever saved"
 [[ $(config_cli --json | jq -r .saved) == "false" ]] || fail "nightlight schedule json marks a missing file unsaved"
 pass "nightlight schedule json marks a missing file unsaved"
 
+# The shipped identity-only profile, current or with the older comments, holds
+# nothing of the user's, so replacing it keeps no backup.
+mkdir -p "$(dirname "$CONFIG_FILE")"
+cat >"$CONFIG_FILE" <<'CONF'
+# Makes hyprsunset do nothing to the screen by default
+# Without this, the default applies some tint to the monitor
+profile {
+    time = 07:00
+    identity = true
+}
+
+# To enable auto switch to nightlight, add to your .config/hypr/autostart.lua:
+# o.launch_on_start("hyprsunset")
+# and use the following:
+# profile {
+#     time = 20:00
+#     temperature = 4000
+# }
+CONF
+config_cli set off 07:00 20:00 4000 >/dev/null
+compgen -G "$CONFIG_FILE.bak.*" >/dev/null && fail "nightlight config keeps no backup of the older shipped profile" "$(ls "$(dirname "$CONFIG_FILE")")"
+cp "$ROOT/config/hypr/hyprsunset.conf" "$CONFIG_FILE"
+config_cli set off 07:00 20:00 4000 >/dev/null
+compgen -G "$CONFIG_FILE.bak.*" >/dev/null && fail "nightlight config keeps no backup of the current shipped profile"
+pass "nightlight config keeps no backup of the shipped profile"
+
+# A hand-written schedule is kept before the first save replaces it.
+cat >"$CONFIG_FILE" <<'CONF'
+profile {
+    time = 07:30
+    identity = true
+}
+profile {
+    time = 19:00
+    temperature = 3700
+}
+CONF
+hand_written=$(cat "$CONFIG_FILE")
+: >"$SHELL_LOG"
+config_cli set off 07:00 20:00 4000 >/dev/null
+backups=("$CONFIG_FILE".bak.*)
+(( ${#backups[@]} == 1 )) && [[ -f ${backups[0]} ]] || fail "nightlight config backs up a hand-written hyprsunset.conf" "$(ls "$(dirname "$CONFIG_FILE")")"
+[[ $(cat "${backups[0]}") == "$hand_written" ]] || fail "nightlight config backup holds the hand-written profiles"
+grep -Fq 'hyprsunset.conf.bak.' "$SHELL_LOG" || fail "nightlight config says where the backup went"
+pass "nightlight config backs up a hand-written hyprsunset.conf and says where"
+
+# Its own file is replaced without another backup.
+config_cli set off 07:00 20:00 4000 >/dev/null
+backups=("$CONFIG_FILE".bak.*)
+(( ${#backups[@]} == 1 )) || fail "nightlight config does not back up a file it wrote itself"
+pass "nightlight config does not back up a file it wrote itself"
+rm -f "$CONFIG_FILE" "$CONFIG_FILE".bak.* "$STATE_FILE"
+
 : >"$SHELL_LOG"
 config_cli set on 06:45 21:30 3600
 [[ $(jq -c . "$STATE_FILE") == '{"scheduled":true,"day":"06:45","night":"21:30","temperature":3600}' ]] ||
