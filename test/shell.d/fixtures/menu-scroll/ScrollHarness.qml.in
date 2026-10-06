@@ -1,0 +1,41 @@
+import QtQuick
+Item {
+  id: root
+  width: 300
+  height: 500
+  property bool opened: false
+  property bool cursorActive: true
+  property int selectedIndex: 0
+  property int rowPeek: 28
+  property int rowSpacing: 3
+  property real listHeight: 450
+  property alias view: resultList
+  property alias surface: panel
+  QtObject {
+    id: panel
+    property bool shown: false
+    property real width: 300
+    property real height: 720
+  }
+  ListModel { id: displayModel }
+  function populate(count) {
+    displayModel.clear()
+    for (var i = 0; i < count; i++) displayModel.append({label: "Row " + i})
+  }
+  @REVEAL_CURSOR@
+  ListView {
+    id: resultList
+    width: root.width
+    height: root.listHeight
+    model: displayModel
+    clip: true
+    spacing: root.rowSpacing
+    boundsBehavior: Flickable.StopAtBounds
+    @GEOMETRY_HANDLERS@
+    delegate: Rectangle {
+      required property int index
+      width: ListView.view.width
+      height: 50
+    }
+  }
+}
