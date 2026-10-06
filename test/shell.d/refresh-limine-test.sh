@@ -52,16 +52,18 @@ log, initial_config, boot_dir, root = sys.argv[1:]
 events = Path(log).read_text().splitlines()
 expected = [
     'sudo -k',
-    f'sudo test -f {boot_dir}/EFI/Linux/omarchy_linux.efi',
-    f'sudo test -f {boot_dir}/limine.conf',
+    'sudo /usr/bin/true',
+    'sudo -h',
+    f'sudo -N test -f {boot_dir}/EFI/Linux/omarchy_linux.efi',
+    f'sudo -N test -f {boot_dir}/limine.conf',
 ]
 if initial_config == 'present':
-    expected.append(f'sudo mv {boot_dir}/limine.conf {boot_dir}/limine.conf.bak')
+    expected.append(f'sudo -N mv {boot_dir}/limine.conf {boot_dir}/limine.conf.bak')
 expected += [
-    f'sudo cp {root}/default/limine/limine.conf {boot_dir}/limine.conf',
-    'sudo limine-update',
+    f'sudo -N cp {root}/default/limine/limine.conf {boot_dir}/limine.conf',
+    'sudo -N limine-update',
     'step:limine-update ',
-    'sudo limine-snapper-sync',
+    'sudo -N limine-snapper-sync',
     'step:limine-snapper-sync ',
     'sudo -k',
 ]

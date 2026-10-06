@@ -22,6 +22,10 @@ omarchy_security_require_source_root "$0"
 # whatever a caller's environment points at.
 omarchy_security_install_sudo_cleanup_traps
 omarchy_security_revoke_sudo_timestamp || exit 1
+# Authorize once, then run the privileged steps behind the command-scoped sudo
+# wrapper so they reuse that timestamp and sudo resolves from a fixed PATH.
+/usr/bin/sudo /usr/bin/true || exit 1
+omarchy_security_enable_no_update_sudo
 
 legacy_uki="/boot/EFI/Linux/$(cat /etc/machine-id)_linux.efi"
 
