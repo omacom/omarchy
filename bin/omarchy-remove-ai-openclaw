@@ -42,6 +42,7 @@ for unit_file in "$unit_dir"/openclaw-gateway.service "$unit_dir"/openclaw-node.
     # A unit that had been failing stays listed as "not-found failed" after
     # its file is gone until its failed state is reset.
     systemctl --user reset-failed "$unit" 2>/dev/null || true
+    rm -f "$HOME/.local/state/omarchy/openclaw-stopped/$role"
   else
     echo "Could not stop $unit; OpenClaw was not removed." >&2
     exit 1

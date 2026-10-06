@@ -218,3 +218,33 @@ run_nodb() {
 run_nodb >/dev/null || fail "a deferral without a package database does not fail the run"
 run_nodb --pending | grep -qx '100-waits.sh' || fail "a deferral without a package database counts as pending"
 pass "a deferral that cannot be checked against packages counts as pending"
+
+# --rearm runs a migration marked done again on the next run, waiting until
+# then, so it is not pending before a package changes.
+rearm_root="$test_tmp/rearm-omarchy"
+rearm_home="$test_tmp/rearm-home"
+rearm_db="$test_tmp/rearm-db"
+rearm_calls="$test_tmp/rearm-calls"
+rearm_state="$rearm_home/.local/state/omarchy/migrations"
+mkdir -p "$rearm_root/migrations" "$rearm_state" "$rearm_db"
+cat >"$rearm_root/migrations/100-moves.sh" <<'SH'
+echo moves >>"$TEST_CALLS"
+SH
+touch "$rearm_state/100-moves.sh"
+run_rearm() {
+  HOME="$rearm_home" OMARCHY_PATH="$rearm_root" OMARCHY_PACKAGE_DB="$rearm_db" TEST_CALLS="$rearm_calls" \
+    "$ROOT/bin/omarchy-migrate" "$@"
+}
+run_rearm --rearm 100-moves.sh || fail "--rearm takes a migration name"
+[[ ! -f $rearm_state/100-moves.sh ]] || fail "--rearm clears the migration's completion record"
+if run_rearm --pending >/dev/null; then
+  fail "a rearmed migration is not pending while packages are unchanged"
+fi
+touch -d "@$(($(stat -c %Y "$rearm_db") + 60))" "$rearm_db"
+run_rearm --pending | grep -qx '100-moves.sh' || fail "a rearmed migration is pending once a package changes"
+run_rearm >/dev/null || fail "a rearmed migration runs"
+grep -qx moves "$rearm_calls" && [[ -f $rearm_state/100-moves.sh ]] || fail "a rearmed migration runs on the next run and is marked done"
+if run_rearm --rearm ../100-moves.sh 2>/dev/null; then
+  fail "--rearm takes only a migration's file name"
+fi
+pass "--rearm runs a finished migration again, waiting until a package changes"

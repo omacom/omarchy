@@ -97,6 +97,7 @@ touch "$seed/openclaw.tgz"
 # Scratch copies of the actual scripts, with only the package's path and
 # /usr/local/bin swapped.
 mkdir -p "$test_tmp/usr-local-bin"
+cp "$ROOT/bin/omarchy-migrate" "$mock_bin/omarchy-migrate"
 for script in bin/omarchy-install-openclaw-cli migrations/1790397381.sh; do
   sed -e "s|/usr/share/openclaw|$seed|g" -e "s|/usr/local/bin|$test_tmp/usr-local-bin|g" "$ROOT/$script" >"$mock_bin/${script##*/}"
 done
@@ -116,18 +117,19 @@ new_home() {
 # test can drop another openclaw. The system's commands come from a directory
 # of their own, so an openclaw on the machine running this is never found.
 mkdir -p "$test_tmp/usr-bin" "$test_tmp/tools"
-for tool in bash cat chmod cp cut env grep head ln mkdir mv readlink realpath rm sed timeout touch true; do
+for tool in bash cat chmod cp cut env grep head ln mkdir mv readlink realpath rm sed stat timeout touch true; do
   ln -s "$(type -P "$tool")" "$test_tmp/tools/$tool"
 done
+mkdir -p "$test_tmp/package-db"
 run() {
-  HOME="$test_home" OMARCHY_TEST_ROOT="$test_tmp" MISE_SHIMS_DIR='' MISE_DATA_DIR='' XDG_DATA_HOME='' PATH="$test_tmp/usr-bin:$mock_bin:$test_home/.local/bin:$test_tmp/tools" \
+  HOME="$test_home" OMARCHY_TEST_ROOT="$test_tmp" OMARCHY_PACKAGE_DB="$test_tmp/package-db" MISE_SHIMS_DIR='' MISE_DATA_DIR='' XDG_DATA_HOME='' PATH="$test_tmp/usr-bin:$mock_bin:$test_home/.local/bin:$test_tmp/tools" \
     "$@" >"$test_tmp/output" 2>&1
 }
 
 # omarchy update runs migrations on a fixed system PATH, without
 # /usr/local/bin, mise's shims or ~/.local/bin.
 run_update() {
-  HOME="$test_home" OMARCHY_TEST_ROOT="$test_tmp" MISE_SHIMS_DIR='' MISE_DATA_DIR='' XDG_DATA_HOME='' PATH="$mock_bin:$test_tmp/tools" \
+  HOME="$test_home" OMARCHY_TEST_ROOT="$test_tmp" OMARCHY_PACKAGE_DB="$test_tmp/package-db" MISE_SHIMS_DIR='' MISE_DATA_DIR='' XDG_DATA_HOME='' PATH="$mock_bin:$test_tmp/tools" \
     "$@" >"$test_tmp/output" 2>&1
 }
 
@@ -170,7 +172,8 @@ run omarchy-install-openclaw-cli --check && fail "--check calls OpenClaw missing
 OMARCHY_TEST_PACKAGE_COMMAND=1 run omarchy-install-openclaw-cli --now || fail "--now installs a package that is still OpenClaw itself" "$(cat "$test_tmp/output")"
 grep -Fxq "pkg-add openclaw" "$events" || fail "--now installs the package that is still OpenClaw" "$(cat "$events")"
 grep -q "runs from its package" "$test_tmp/output" || fail "--now says OpenClaw runs from its package for now" "$(cat "$test_tmp/output")"
-[[ ! -e $moved_record ]] || fail "installing the package that is OpenClaw itself makes the migration move it once the seed arrives"
+[[ ! -e $moved_record && -f ${moved_record%/*}/deferred/1790397381.sh ]] ||
+  fail "installing the package that is OpenClaw itself makes the migration wait to move it once the seed arrives"
 run omarchy-install-openclaw-cli --check || fail "--check takes a package that is still OpenClaw itself as installed"
 : >"$events"
 run omarchy-install-openclaw-cli --now || fail "--now accepts a package that is still OpenClaw itself" "$(cat "$test_tmp/output")"

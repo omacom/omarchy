@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # omarchy:summary=Run pending Omarchy migrations.
-# omarchy:args=[--pending]
+# omarchy:args=[--pending|--rearm <migration>]
 
 set -euo pipefail
 
 mode="run"
 
 usage() {
-  echo "Usage: omarchy-migrate [--pending]"
+  echo "Usage: omarchy-migrate [--pending | --rearm <migration>]"
 }
 
 while (($#)); do
@@ -16,6 +16,12 @@ while (($#)); do
     --pending|--check)
       mode="pending"
       shift
+      ;;
+    --rearm)
+      [[ ${2:-} =~ ^[[:alnum:]_.-]+\.sh$ ]] || { usage >&2; exit 1; }
+      mode="rearm"
+      rearm_name=$2
+      shift 2
       ;;
     -h|--help)
       usage
@@ -75,6 +81,16 @@ pending_migrations() {
     fi
   done < <(migration_entries)
 }
+
+# A migration marked done can have work again when something it moves turns up
+# after it ran: --rearm runs it on the next update, waiting until then like a
+# deferral, so it is not pending before it can do anything.
+if [[ $mode == "rearm" ]]; then
+  rm -f "$STATE_DIR/$rearm_name"
+  mkdir -p "$DEFERRED_DIR"
+  package_db_stamp >"$DEFERRED_DIR/$rearm_name" || true
+  exit 0
+fi
 
 if [[ $mode == "pending" ]]; then
   pending_output=$(pending_migrations)

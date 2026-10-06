@@ -104,10 +104,10 @@ moved_before() {
 
 # The migration that moves OpenClaw to ~/.openclaw ran once per user, and on a
 # machine without the package it found nothing to move and was marked done. An
-# install of the package that is OpenClaw itself after that clears the record,
-# so the migration waits for the seed again and moves it when it arrives.
+# install of the package that is OpenClaw itself after that runs it again, so it
+# waits for the seed and moves it when it arrives.
 rearm_move() {
-  rm -f "${OMARCHY_MIGRATION_STATE:-$HOME/.local/state/omarchy/migrations}/1790397381.sh"
+  omarchy-migrate --rearm 1790397381.sh
 }
 
 package_in_the_way() {

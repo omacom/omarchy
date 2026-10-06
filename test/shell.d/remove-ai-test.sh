@@ -403,3 +403,22 @@ rc=0
 ! grep -q '^drop:openclaw$' "$TEST_LOG" ||
   fail "OpenClaw removal aborts when systemd cannot be reached" "package dropped anyway"
 pass "OpenClaw removal aborts when systemd cannot be reached"
+
+# A removal that fails after taking a service down still drops that service's
+# restart record, so nothing later tries to start a unit that is gone.
+fresh_openclaw_home
+cat >"$tmp_dir/bin/systemctl" <<'SCRIPT'
+#!/bin/bash
+printf 'systemctl:%s\n' "$*" >>"$TEST_LOG"
+SCRIPT
+chmod +x "$tmp_dir/bin/systemctl"
+mv "$tmp_dir/bin/omarchy-pkg-drop" "$tmp_dir/omarchy-pkg-drop.real"
+printf '#!/bin/bash\nexit 1\n' >"$tmp_dir/bin/omarchy-pkg-drop"
+chmod +x "$tmp_dir/bin/omarchy-pkg-drop"
+if "$ROOT/bin/omarchy-remove-ai-openclaw" >/dev/null 2>&1; then
+  fail "OpenClaw removal fails when the package cannot be dropped"
+fi
+[[ ! -e $HOME/.local/state/omarchy/openclaw-stopped/gateway ]] ||
+  fail "OpenClaw removal drops a service's restart record with the service, before anything else can fail"
+mv "$tmp_dir/omarchy-pkg-drop.real" "$tmp_dir/bin/omarchy-pkg-drop"
+pass "OpenClaw removal drops a service's restart record with the service, before anything else can fail"
