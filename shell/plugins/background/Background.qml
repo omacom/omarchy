@@ -37,6 +37,7 @@ Item {
   property var sizeQueue: []
   property bool finishingTransition: false
   property int backgroundVersion: 0
+  property int reloadVersion: 0
   property int revealStartedVersion: -1
   property int pendingThemeVersion: -1
   property string pendingColorsRaw: ""
@@ -56,7 +57,8 @@ Item {
   }
 
   function setBackground(path, instant) {
-    transitionBackground("", path, path, instant, false)
+    if (instant) reloadVersion += 1
+    transitionBackground("", path, path, instant, instant)
   }
 
   function transitionBackground(fromPath, path, finalPath, instant, force) {
@@ -337,6 +339,8 @@ Item {
         id: base
         anchors.fill: parent
         path: root.displayedBackground
+        version: root.reloadVersion
+        cached: true
         constrainDecode: true
         decodeSize: panel.decodeSize(root.displayedBackground)
         onReadyChanged: {

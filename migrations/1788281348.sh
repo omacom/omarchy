@@ -6,7 +6,7 @@ theme_name_path="$HOME/.local/state/omarchy/current/theme.name"
 
 theme_name=$(<"$theme_name_path")
 [[ $theme_name =~ ^[[:alnum:]_][[:alnum:].+_-]*$ ]] || exit 0
-[[ -d $OMARCHY_PATH/themes/$theme_name/intros ]] || exit 0
+[[ -d $OMARCHY_PATH/themes/$theme_name/backgrounds/intros ]] || exit 0
 
 omarchy-theme-refresh
 

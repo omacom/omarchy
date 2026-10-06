@@ -12,6 +12,8 @@ ShellRoot {
   PluginShellApi { id: facade; pluginId: "intro-test.background" }
   Clone.Background { id: background; shell: facade }
   BackgroundIntro { id: intro; host: test }
+  property bool stillReported: false
+  FileView { id: release; path: Quickshell.env("INTRO_TEST_RELEASE"); watchChanges: true; onFileChanged: reload() }
   FileView { id: result; path: Quickshell.env("INTRO_TEST_RESULT"); atomicWrites: true }
 
   Timer {
@@ -26,11 +28,16 @@ ShellRoot {
     }))
   }
   Timer {
-    interval: 2200
+    interval: 100
     running: true
+    repeat: true
     onTriggered: {
-      result.setText(JSON.stringify({ phase: "still", covered: intro.cover }))
+      if (release.text().trim() === "done") {
+        Qt.quit()
+      } else if (release.text().trim() === "captured" && !intro.cover && !test.stillReported) {
+        test.stillReported = true
+        result.setText(JSON.stringify({ phase: "still", covered: intro.cover }))
+      }
     }
   }
-  Timer { interval: 4000; running: true; onTriggered: Qt.quit() }
 }

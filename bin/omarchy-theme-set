@@ -171,7 +171,7 @@ set_theme_background_link() {
 }
 
 set_theme_background() {
-  local new_background new_background_snapshot
+  local new_background new_background_snapshot theme_id
 
   if [[ -z $CHOSEN_THEME_BACKGROUND || ! -f $CHOSEN_THEME_BACKGROUND ]]; then
     if ! choose_theme_background; then
@@ -182,6 +182,20 @@ set_theme_background() {
   fi
 
   new_background="$CHOSEN_THEME_BACKGROUND"
+  if [[ -n $THEME_BACKGROUND_INTRO ]]; then
+    theme_id=$(stat -Lc '%d:%i' "$CURRENT_THEME_PATH")
+    ln -nsf "$new_background" "$CURRENT_BACKGROUND_LINK"
+    shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
+    (
+      if ! omarchy-theme-bg-boot-intro --theme-switch "$new_background" "$theme_id"; then
+        if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$(readlink -f "$new_background")" &&
+          $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
+          shell_ipc background setInstant "$new_background" || true
+        fi
+      fi
+    ) 9>&- &
+    return
+  fi
   new_background_snapshot=""
   if [[ -n $PREPARED_BACKGROUND_SNAPSHOT && $PREPARED_BACKGROUND == "$new_background" ]]; then
     new_background_snapshot="$PREPARED_BACKGROUND_SNAPSHOT"
@@ -365,11 +379,18 @@ OLD_BACKGROUND_SNAPSHOT=""
 PREPARED_BACKGROUND=""
 PREPARED_BACKGROUND_SNAPSHOT=""
 BACKGROUND_TRANSITION_SNAPSHOTS=true
+THEME_BACKGROUND_INTRO=""
 if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
   # Resolve the staged choice while the old theme still exists. Video changes
   # switch directly to the durable path in QML, so neither side needs a copy.
   if choose_staged_theme_background; then
-    if background_transition_uses_snapshots "$CHOSEN_THEME_BACKGROUND"; then
+    if [[ $PREVIOUS_THEME_NAME != "$THEME_NAME" && ! -f $HOME/.local/state/omarchy/toggles/background-intros-off ]] &&
+      [[ $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r '.bool') == "true" ]]; then
+      THEME_BACKGROUND_INTRO=$(omarchy-theme-bg-boot-intro --resolve-only "$STAGED_THEME_BACKGROUND")
+    fi
+    if [[ -n $THEME_BACKGROUND_INTRO ]]; then
+      BACKGROUND_TRANSITION_SNAPSHOTS=false
+    elif background_transition_uses_snapshots "$CHOSEN_THEME_BACKGROUND"; then
       OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
 
       # Hand the shell the next background now, so it decodes while the

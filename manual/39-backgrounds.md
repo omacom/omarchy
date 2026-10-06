@@ -6,11 +6,9 @@ You can do this most easily by going to _Install > Style > Background_ in the Om
 
 Backgrounds can be videos as well as stills. Drop an `mp4`, `m4v`, `mov`, `webm`, `mkv`, or `avi` file in the same folder and it appears alongside the images. Videos are played by the OWE wallpaper engine. It decodes the video once for all monitors and plays its sound through the default audio output, and it stops playback whenever nothing can see it. The lock screen draws the same decode, muted, through OWE. A video wallpaper still costs far more power than a still one.
 
-A still background can have a short boot intro that plays once per system boot and ends on the already-loaded image. Use _Style > Boot Intro > Set Intro_ to choose a video for the current background. Omarchy stores it separately from regular backgrounds, so it stays out of the background picker and never loops.
+Themes can include a short intro for a still background. For `backgrounds/road.webp`, the matching video lives at `backgrounds/intros/road.mp4`. It plays automatically at boot and when switching to a theme with that background selected, then returns to the still. Intro videos stay out of the background picker and never loop.
 
-Boot intros are bound to the exact contents of a background rather than only its filename. Replacing an image with a different one under the same name therefore cannot play a mismatched intro. _Remove Intro_ removes your intro and suppresses any default supplied by the theme; _Restore Default_ allows the theme's intro again. Use the _Enabled_ switch to turn all boot intros on or off. Boot intros also stay off while animations are turned off (_Toggle > Animations_), which Omarchy does by default in a virtual machine.
-
-Theme authors can include a default intro such as `intros/0-winding-road.mp4` with a matching `intros/0-winding-road.sha256`. The checksum file contains the SHA-256 of `backgrounds/0-winding-road.webp`.
+Use _Style > Background Intros_ to turn intros on or off globally. They also stay off while animations are turned off (_Toggle > Animations_), which Omarchy does by default in a virtual machine. Refreshing a theme or choosing another background within the same theme does not play an intro.
 
 You can find a huge collection of cool curated backgrounds on https://github.com/dharmx/walls.
 
