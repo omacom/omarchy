@@ -112,7 +112,7 @@ Item {
     text: OsdModel.widestIcon
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "osd"
     function show(payloadJson: string): string {
       root.open(payloadJson)
@@ -123,15 +123,11 @@ Item {
     function ping(): string { return "ok" }
   }
 
-  PanelWindow {
+  OverlayWindow {
     id: panel
-    visible: root.opened
-    anchors { top: true; bottom: true; left: true; right: true }
-    color: "transparent"
+    shown: root.opened
+    shownKeyboardFocus: WlrKeyboardFocus.None
     WlrLayershell.namespace: "omarchy-osd"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-    exclusionMode: ExclusionMode.Ignore
     // Visual-only surface: keep the layer-shell input region empty so the OSD
     // never blocks clicks to the desktop below it.
     mask: Region {}
@@ -159,6 +155,7 @@ Item {
           width: root.iconWidth
           height: parent.height
           Text {
+            textFormat: Text.PlainText
             // Sit the glyph's ink flush in the column, centered when the
             // column is wider than this particular glyph.
             x: Math.round((root.iconWidth - root.iconInkWidth) / 2 - iconMetrics.tightBoundingRect.x)
@@ -181,11 +178,12 @@ Item {
 
             Behavior on width {
               enabled: root.opened
-              NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+              NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
             }
           }
         }
         Text {
+          textFormat: Text.PlainText
           visible: root.message !== ""
           width: root.hasProgress ? root.valueWidth : root.messageWidth
           // The readout hugs the card edge so a short percentage doesn't leave

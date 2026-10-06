@@ -52,7 +52,7 @@ BorderSurface {
   color: Style.controlFill(activeFocus, _hot, foreground, accent)
   borderSpec: _borderSpec
 
-  Behavior on color { ColorAnimation { duration: 100 } }
+  Behavior on color { ColorAnimation { duration: Style.duration(100) } }
 
   Row {
     id: content
@@ -69,6 +69,7 @@ BorderSurface {
       anchors.verticalCenter: parent.verticalCenter
 
       Text {
+        textFormat: Text.PlainText
         text: root.label
         color: root.foreground
         font.family: root.fontFamily
@@ -79,6 +80,7 @@ BorderSurface {
       }
 
       Text {
+        textFormat: Text.PlainText
         visible: root.description !== ""
         text: root.description
         color: Qt.darker(root.foreground, 1.5)

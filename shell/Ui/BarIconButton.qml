@@ -9,7 +9,8 @@ WidgetButton {
   property real slotSize: Style.bar.iconSlot
   property real opticalSize: Style.bar.iconCanvas
   property bool debugOpticalBounds: Quickshell.env("OMARCHY_DEBUG_BAR_ICONS") === "1"
-  readonly property real opticalCenterErrorX: glyph.visible ? glyph.paintedCenterX - opticalCanvas.width / 2 : 0
+  // Measured against the slot, which the open-panel underline centers on.
+  readonly property real opticalCenterErrorX: glyph.visible ? opticalCanvas.x + glyph.paintedCenterX - root.width / 2 : 0
   readonly property real glyphPaintedWidth: glyph.visible ? glyph.tightWidth : 0
   readonly property real glyphBaselineY: glyph.visible ? glyph.baselineY : 0
   readonly property int glyphFontSize: glyph.visible ? glyph.renderedFontSize : 0
@@ -22,7 +23,10 @@ WidgetButton {
 
   Item {
     id: opticalCanvas
-    anchors.centerIn: parent
+    // Placed exactly, not anchored: centerIn snaps an even canvas in an odd slot
+    // to a whole pixel, pulling every glyph off the open-panel underline.
+    x: (root.width - width) / 2
+    y: (root.height - height) / 2
     width: root.opticalSize
     height: root.opticalSize
 

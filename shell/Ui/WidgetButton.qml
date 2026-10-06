@@ -25,6 +25,8 @@ Item {
   property bool useActiveColor: true
   property bool maintainIndicatorReveal: false
   property bool labelVisible: true
+  // Off for icon-font labels, whose figure metrics say nothing about the glyph.
+  property bool centerFigures: true
   property bool hasVisualContent: text !== ""
   property var revealHost: bar
   property string tooltipText: ""
@@ -70,7 +72,7 @@ Item {
   implicitHeight: fixedHeight > 0 ? fixedHeight : (vertical ? Math.max(12, label.implicitHeight + scaledVerticalPadding * 2) : barSize)
 
   Behavior on opacity {
-    NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+    NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
   }
 
   // Text.NativeRendering (below and in BarIconButton's glyph) does not
@@ -85,7 +87,7 @@ Item {
   }
 
   SequentialAnimation on blinkOpacity {
-    running: root.blinking
+    running: root.blinking && !Style.reduceMotion
     loops: Animation.Infinite
     alwaysRunToEnd: true
     NumberAnimation { from: 1.0; to: 0.25; duration: 500; easing.type: Easing.InOutSine }
@@ -94,8 +96,15 @@ Item {
 
   Text {
     id: label
+    textFormat: Text.PlainText
     visible: root.labelVisible
     anchors.centerIn: parent
+    // Centering the line box puts the figures above the bar's middle, since
+    // the box keeps room for descenders. Center the figure height instead, so
+    // labels line up with the icons beside them.
+    anchors.verticalCenterOffset: !root.centerFigures || root.vertical || root.text.indexOf("\n") !== -1
+      ? 0
+      : (labelMetrics.descent - labelMetrics.ascent + labelMetrics.tightBoundingRect("0").height) / 2
     text: root.text
     color: root.blinkedColor(root.active && root.useActiveColor ? root.activeColor : root.foreground)
     font.family: root.fontFamily
@@ -110,8 +119,13 @@ Item {
     // sine pulse into a muddy fade instead of following it cleanly.
     Behavior on color {
       enabled: !root.blinking && (!root.bar || root.bar.foregroundAnimationEnabled)
-      ColorAnimation { duration: 160 }
+      ColorAnimation { duration: Style.duration(160) }
     }
+  }
+
+  FontMetrics {
+    id: labelMetrics
+    font: label.font
   }
 
   MouseArea {
