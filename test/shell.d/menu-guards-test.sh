@@ -118,7 +118,11 @@ Version         : 9.2-1
 INFO
   ;;
 -Q)
-  shift
+  if [[ $2 == "--" ]]; then
+    shift 2
+  else
+    shift
+  fi
   for want in "$@"; do
     case "${want%%[<>=]*}" in bash | gvim | sh | vim | xxd) ;; *) exit 1 ;; esac
   done
