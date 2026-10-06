@@ -83,6 +83,14 @@ path_clear() {
   ! foreign_openclaw >/dev/null
 }
 
+# Until the channel serves the seed, the openclaw package is still OpenClaw
+# itself, in /usr, as it was before this release. Until then that is the
+# OpenClaw a machine has: --check takes it as installed, --now installs it and
+# stops there, and the migration moves it to ~/.openclaw once the seed arrives.
+package_is_openclaw() {
+  [[ ! -r $seed/install-cli.sh || ! -r $seed/openclaw.tgz ]]
+}
+
 # The package counts too: without it --now has a pacman step to take, and
 # answering yes here would run that where no terminal can ask for a password.
 installed() {
@@ -204,9 +212,12 @@ stopped_note() {
 
 case "$mode" in
 --check)
+  if omarchy-pkg-present openclaw && package_is_openclaw; then exit 0; fi
   if installed; then exit 0; else exit 1; fi
   ;;
---now) ;;
+--now)
+  if omarchy-pkg-present openclaw && package_is_openclaw; then exit 0; fi
+  ;;
 *)
   echo "Usage: omarchy-install-openclaw-cli <--check|--now>" >&2
   exit 1
@@ -241,9 +252,9 @@ if ! omarchy-pkg-present openclaw; then
   echo "Installing OpenClaw..."
   omarchy-pkg-add openclaw
 fi
-if [[ $seeding == "true" && ( ! -r $seed/install-cli.sh || ! -r $seed/openclaw.tgz ) ]]; then
-  echo "The installed OpenClaw package cannot set up a self-updating OpenClaw. Run 'omarchy update', then try again." >&2
-  exit 1
+if package_is_openclaw; then
+  echo "OpenClaw runs from its package until an update brings the release that sets up the self-updating copy."
+  exit 0
 fi
 
 # What the old package installed, and what of it was running and enabled, read

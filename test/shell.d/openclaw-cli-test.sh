@@ -153,14 +153,22 @@ run omarchy-install-openclaw-cli --now || fail "--now reseeds behind its own dan
 [[ -x $runtime && $(readlink -- "$command") == "$runtime" ]] || fail "--now reseeds behind its own dangling link"
 pass "a link Omarchy left behind is rewritten, and a missing runtime reseeded"
 
+# Until the channel serves the seed, the package is OpenClaw itself, as before
+# this release: it is installed, and nothing is seeded, linked or moved.
 new_home old-package
-touch "$test_tmp/package-installed"
 mv "$seed" "$seed.old"
-run omarchy-install-openclaw-cli --now && fail "a package with no seed cannot set OpenClaw up"
-grep -q "Run 'omarchy update'" "$test_tmp/output" || fail "a package with no seed says to update" "$(cat "$test_tmp/output")"
-[[ ! -e $test_home/.openclaw && ! -e $command ]] || fail "a package with no seed leaves the home untouched"
+run omarchy-install-openclaw-cli --check && fail "--check calls OpenClaw missing before its package is installed"
+OMARCHY_TEST_PACKAGE_COMMAND=1 run omarchy-install-openclaw-cli --now || fail "--now installs a package that is still OpenClaw itself" "$(cat "$test_tmp/output")"
+grep -Fxq "pkg-add openclaw" "$events" || fail "--now installs the package that is still OpenClaw" "$(cat "$events")"
+grep -q "runs from its package" "$test_tmp/output" || fail "--now says OpenClaw runs from its package for now" "$(cat "$test_tmp/output")"
+run omarchy-install-openclaw-cli --check || fail "--check takes a package that is still OpenClaw itself as installed"
+: >"$events"
+run omarchy-install-openclaw-cli --now || fail "--now accepts a package that is still OpenClaw itself" "$(cat "$test_tmp/output")"
+[[ ! -s $events && ! -e $test_home/.openclaw && ! -e $command ]] ||
+  fail "a package that is still OpenClaw itself is left as it is: nothing seeded, linked or moved" "$(cat "$events")"
+rm "$test_tmp/usr-bin/openclaw"
 mv "$seed.old" "$seed"
-pass "a package that is still the runtime is refused before anything is touched"
+pass "a package that is still OpenClaw itself is the installation until the seed arrives"
 
 new_home broken
 OMARCHY_TEST_INSTALL_BROKEN=1 run omarchy-install-openclaw-cli --now && fail "a runtime that does not run is not a finished install"
