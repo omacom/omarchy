@@ -42,11 +42,15 @@ DEFERRED_DIR="$STATE_DIR/deferred"
 PACKAGE_DB="${OMARCHY_PACKAGE_DB:-/var/lib/pacman/local}"
 
 package_db_stamp() {
-  stat -c %Y "$PACKAGE_DB" 2>/dev/null || true
+  stat -c %Y "$PACKAGE_DB" 2>/dev/null
 }
 
+# Without a package database to compare against, a deferral cannot be shown to
+# still hold, so it counts as pending.
 waiting() {
-  [[ -f $DEFERRED_DIR/$1 && $(<"$DEFERRED_DIR/$1") == "$(package_db_stamp)" ]]
+  local stamp
+  stamp=$(package_db_stamp) || return 1
+  [[ -n $stamp && -f $DEFERRED_DIR/$1 && $(<"$DEFERRED_DIR/$1") == "$stamp" ]]
 }
 
 migration_entries() {
@@ -102,28 +106,45 @@ wait_for_pacman_transaction
 mkdir -p "$STATE_DIR"
 [[ -d $MIGRATIONS_DIR ]] || exit 0
 
+deferred_now=()
+
+run_migration() {
+  local name=$1 file=$2 marker=$3 note status=0
+
+  echo -e "\e[32m\nRunning migration (${name%.sh})\e[0m"
+  rm -f "$DEFERRED_DIR/$name"
+  note=$(mktemp)
+  OMARCHY_PATH="$OMARCHY_PATH" OMARCHY_MIGRATION_DEFER="$note" bash -euo pipefail "$file" 3<&- || status=$?
+  if (( status == DEFERRED_STATUS )) && [[ -s $note ]]; then
+    rm -f "$note"
+    mkdir -p "$DEFERRED_DIR"
+    package_db_stamp >"$DEFERRED_DIR/$name" || true
+    deferred_now+=("$name"$'\t'"$file"$'\t'"$marker")
+    echo -e "\e[33mMigration ${name%.sh} will run again on the next update.\e[0m"
+    return 0
+  fi
+  rm -f "$note"
+  (( status == 0 )) || exit "$status"
+  mkdir -p "$(dirname "$marker")"
+  touch "$marker"
+}
+
 while IFS=$'\t' read -r name file marker <&3; do
   [[ -n $name ]] || continue
 
   if [[ ! -f $marker ]]; then
-    echo -e "\e[32m\nRunning migration (${name%.sh})\e[0m"
-    rm -f "$DEFERRED_DIR/$name"
-    note=$(mktemp)
-    status=0
-    OMARCHY_PATH="$OMARCHY_PATH" OMARCHY_MIGRATION_DEFER="$note" bash -euo pipefail "$file" 3<&- || status=$?
-    if (( status == DEFERRED_STATUS )) && [[ -s $note ]]; then
-      rm -f "$note"
-      mkdir -p "$DEFERRED_DIR"
-      package_db_stamp >"$DEFERRED_DIR/$name"
-      echo -e "\e[33mMigration ${name%.sh} will run again on the next update.\e[0m"
-      continue
-    fi
-    rm -f "$note"
-    (( status == 0 )) || exit "$status"
-    mkdir -p "$(dirname "$marker")"
-    touch "$marker"
+    run_migration "$name" "$file" "$marker"
   fi
 done 3< <(migration_entries)
+
+# A later migration can change packages after one deferred, and that change
+# would make it pending the moment this run ends, so it gets a second look.
+for entry in "${deferred_now[@]}"; do
+  IFS=$'\t' read -r name file marker <<<"$entry"
+  if ! waiting "$name"; then
+    run_migration "$name" "$file" "$marker"
+  fi
+done
 
 # Clear a login-time notification the user left sitting there and then resolved
 # by running migrations some other way. The substring matches both the current

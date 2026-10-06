@@ -184,3 +184,37 @@ fi
   ! -e $accident_home/.local/state/omarchy/migrations/deferred/100-accident.sh ]] ||
   fail "a migration that exits 75 without a note stops the queue and is not deferred"
 pass "only a migration that says why it waits is deferred"
+
+# A later migration in the same run can change packages after one deferred. The
+# deferral is checked again before the run ends, so it is not left looking
+# pending, which would also stop the 4.0 upgrade.
+later_root="$test_tmp/later-omarchy"
+later_home="$test_tmp/later-home"
+later_calls="$test_tmp/later-calls"
+later_db="$test_tmp/later-db"
+mkdir -p "$later_root/migrations" "$later_home" "$later_db"
+cp "$defer_root/migrations/100-waits.sh" "$later_root/migrations/"
+cat >"$later_root/migrations/200-changes-packages.sh" <<'SH'
+touch -d "@$(($(stat -c %Y "$OMARCHY_PACKAGE_DB") + 60))" "$OMARCHY_PACKAGE_DB"
+SH
+run_later() {
+  HOME="$later_home" OMARCHY_PATH="$later_root" OMARCHY_PACKAGE_DB="$later_db" TEST_CALLS="$later_calls" \
+    TEST_READY="$test_tmp/later-ready" TEST_BROKEN="$test_tmp/later-broken" "$ROOT/bin/omarchy-migrate" "$@"
+}
+run_later >/dev/null || fail "a run whose later migration changes packages succeeds"
+(( $(grep -c '^waits$' "$later_calls") == 2 )) || fail "a deferred migration is checked again after a later package change" "$(cat "$later_calls")"
+if run_later --pending >"$test_tmp/later-pending.out"; then
+  fail "a deferred migration checked again at the end of the run is not pending" "$(cat "$test_tmp/later-pending.out")"
+fi
+pass "a package change later in the same run does not leave a deferral looking pending"
+
+# With no package database there is nothing to show the wait still holds.
+nodb_home="$test_tmp/nodb-home"
+mkdir -p "$nodb_home"
+run_nodb() {
+  HOME="$nodb_home" OMARCHY_PATH="$defer_root" OMARCHY_PACKAGE_DB="$test_tmp/no-such-db" TEST_CALLS="$test_tmp/nodb-calls" \
+    TEST_READY="$test_tmp/nodb-ready" TEST_BROKEN="$test_tmp/nodb-broken" "$ROOT/bin/omarchy-migrate" "$@"
+}
+run_nodb >/dev/null || fail "a deferral without a package database does not fail the run"
+run_nodb --pending | grep -qx '100-waits.sh' || fail "a deferral without a package database counts as pending"
+pass "a deferral that cannot be checked against packages counts as pending"
