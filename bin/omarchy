@@ -413,6 +413,9 @@ resolve_direct_route() {
     route="omarchy $(join_words " " "${args[@]:0:prefix_count}")"
 
     binary="omarchy-$(join_words "-" "${args[@]:0:prefix_count}")"
+    if [[ $binary == *".."* || $binary == *"/"* || $binary == *" "* ]]; then
+      continue
+    fi
     candidate="$OMARCHY_BIN_DIR/$binary"
     if [[ -f $candidate && -x $candidate ]]; then
       DIRECT_RESOLVED_BINARY="$binary"
