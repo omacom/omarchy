@@ -40,6 +40,7 @@ cleanup() {
 trap cleanup EXIT
 
 write() { # RAM CORES DISK USER PASS TZ
+  mkdir -p "$HOME/.windows" "$HOME/Windows"
   printf 'RAM=%s\nCORES=%s\nDISK=%s\nUSERNAME=%s\nPASSWORD=%s\nTZ=%s\n' \
     "$@" | __priv_write_compose
 }
@@ -217,6 +218,7 @@ pass "a post-validation path swap cannot redirect Docker away from the pinned sh
 # the familiar path with /, then verifies that the real bind anchor still names
 # the caller-owned directory that was pinned before the race.
 reset_case
+mkdir -p "$HOME/.windows" "$HOME/Windows"
 touch "$HOME/Windows/safe-marker"
 write 4G 2 64G concurrent pw UTC
 resolve_caller
@@ -343,6 +345,7 @@ pass "cheap startup permits a bind alias, but bounded removal discovery refuses 
 
 # A late writer failure rolls back both newly-created binds.
 reset_case
+mkdir -p "$HOME/.windows" "$HOME/Windows"
 mv() { return 1; }
 write 4G 2 64G rollback pw UTC 2>/dev/null && fail "forced writer failure succeeded"
 unset -f mv
@@ -354,6 +357,7 @@ pass "atomic writer failure rolls back both new bind mounts"
 # Revalidate ancestry during removal: move the already-bound shared inode below
 # storage, keep its familiar path as a symlink, and prove nothing is deleted.
 reset_case
+mkdir -p "$HOME/.windows" "$HOME/Windows"
 write 4G 2 64G moved pw UTC
 touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
 mv "$HOME/Windows" "$HOME/.windows/moved-shared"
@@ -367,6 +371,7 @@ pass "removal revalidates pinned ancestry and leaves moved shared data untouched
 # Even when both familiar paths remain disjoint, a same-filesystem bind of the
 # pinned shared inode introduced below storage must stop removal before change.
 reset_case
+mkdir -p "$HOME/.windows" "$HOME/Windows"
 write 4G 2 64G removal-alias pw UTC
 touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
 mkdir "$HOME/.windows/shared-bind-alias"
@@ -380,6 +385,7 @@ pass "removal tree discovery catches a shared alias not used by either home path
 # mountpoint and must be rejected, while unrelated separate filesystems remain
 # supported by the root suite.
 reset_case
+mkdir -p "$HOME/.windows" "$HOME/Windows"
 mount -t tmpfs -o uid="$(id -u)",gid="$(id -g)",mode=0700,size=8m crossdev-shared "$HOME/Windows"
 touch "$HOME/Windows/keep.txt"
 write 4G 2 64G crossdev-alias pw UTC
@@ -397,6 +403,7 @@ pass "removal catches a direct different-filesystem shared alias at the xdev bou
 # failing scanner must fail closed before the disk, share, compose, or mounts
 # are changed.
 reset_case
+mkdir -p "$HOME/.windows" "$HOME/Windows"
 write 4G 2 64G scan-failure pw UTC
 touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
 scan_helper="$TMPDIR/tree-scan-helper"
@@ -423,6 +430,7 @@ pass "removal scan timeout and errors fail closed without changing VM state"
 
 # Removal rejects stacks, then deletes disk only through verified binds.
 reset_case
+mkdir -p "$HOME/.windows" "$HOME/Windows"
 write 4G 2 64G remove pw UTC
 resolve_caller
 touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
