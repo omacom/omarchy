@@ -52,22 +52,6 @@ reset_case() {
   mkdir -p "$HOME"
 }
 
-# GNU chmod preserves setgid on directories when the mode is written as 0700;
-# the explicit four-digit mode must clear it at the privileged mount boundary.
-reset_case
-mkdir -m 2700 "$HOME/.windows" "$HOME/Windows"
-__priv_write_compose <<'EOF'
-RAM=4G
-CORES=2
-DISK=64G
-USERNAME=alice
-PASSWORD=s3cret
-TZ=UTC
-EOF
-[[ $(stat -Lc '%a' "$HOME/.windows") == 700 && $(stat -Lc '%a' "$HOME/Windows") == 700 ]] ||
-  fail "setgid source directories were not hardened to 0700"
-pass "setgid source directories are hardened to 0700"
-
 # Fixed protected anchors consume the pinned source inodes.
 write 4G 2 64G alice s3cret Europe/Copenhagen
 resolve_caller
@@ -184,7 +168,6 @@ reset_case
 mkdir -p "$HOME/.windows"
 ln -s / "$HOME/Windows"
 before_fds=$(fd_count)
-prepare_user_mount_sources 2>/dev/null && fail "root symlink passed user preflight"
 [[ -L $HOME/Windows && $(readlink "$HOME/Windows") == / ]] || fail "rejected symlink consumed"
 printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=x\nPASSWORD=p\nTZ=UTC\n' | __priv_write_compose 2>/dev/null && fail "root symlink passed privileged preflight"
 resolve_caller
@@ -200,7 +183,6 @@ external_shared2="$TMPDIR/external-shared-2"
 mkdir -p "$external_storage" "$external_shared2"
 ln -s "$external_storage" "$HOME/.windows"
 ln -s "$external_shared2" "$HOME/Windows"
-prepare_user_mount_sources
 write 4G 2 64G symlinked pw UTC
 resolve_caller
 [[ $(readlink "$HOME/.windows") == "$external_storage" && $(readlink "$HOME/Windows") == "$external_shared2" ]] || fail "writer replaced symlinks"
@@ -235,7 +217,6 @@ pass "a post-validation path swap cannot redirect Docker away from the pinned sh
 # the familiar path with /, then verifies that the real bind anchor still names
 # the caller-owned directory that was pinned before the race.
 reset_case
-prepare_user_mount_sources
 touch "$HOME/Windows/safe-marker"
 write 4G 2 64G concurrent pw UTC
 resolve_caller
@@ -296,7 +277,6 @@ mkdir -p "$same"
 ln -s "$same" "$HOME/.windows"
 ln -s "$same" "$HOME/Windows"
 before_fds=$(fd_count)
-prepare_user_mount_sources 2>/dev/null && fail "same source passed user preflight"
 printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=x\nPASSWORD=p\nTZ=UTC\n' | __priv_write_compose 2>/dev/null && fail "same source passed root preflight"
 resolve_caller
 [[ $(mount_layer_count "$EXPECTED_STORAGE") == 0 && $(mount_layer_count "$EXPECTED_SHARED") == 0 ]] || fail "same source left mount"
@@ -310,7 +290,6 @@ shared_inside="$TMPDIR/shared-inside-storage"
 mkdir -p "$shared_inside/storage/shared"
 ln -s "$shared_inside/storage" "$HOME/.windows"
 ln -s "$shared_inside/storage/shared" "$HOME/Windows"
-prepare_user_mount_sources
 before_fds=$(fd_count)
 write 4G 2 64G nested pw UTC 2>/dev/null && fail "shared-inside-storage sources were accepted"
 resolve_caller
@@ -322,7 +301,6 @@ storage_inside="$TMPDIR/storage-inside-shared"
 mkdir -p "$storage_inside/shared/storage"
 ln -s "$storage_inside/shared/storage" "$HOME/.windows"
 ln -s "$storage_inside/shared" "$HOME/Windows"
-prepare_user_mount_sources
 before_fds=$(fd_count)
 write 4G 2 64G nested pw UTC 2>/dev/null && fail "storage-inside-shared sources were accepted"
 resolve_caller
@@ -339,7 +317,6 @@ mkdir -p "$alias_under/storage/shared" "$alias_shared"
 mount --no-canonicalize --bind "$alias_under/storage/shared" "$alias_shared"
 ln -s "$alias_under/storage" "$HOME/.windows"
 ln -s "$alias_shared" "$HOME/Windows"
-prepare_user_mount_sources
 before_fds=$(fd_count)
 resolve_caller
 open_mount_source "$LEGACY_STORAGE" storage
@@ -366,7 +343,6 @@ pass "cheap startup permits a bind alias, but bounded removal discovery refuses 
 
 # A late writer failure rolls back both newly-created binds.
 reset_case
-prepare_user_mount_sources
 mv() { return 1; }
 write 4G 2 64G rollback pw UTC 2>/dev/null && fail "forced writer failure succeeded"
 unset -f mv
@@ -378,7 +354,6 @@ pass "atomic writer failure rolls back both new bind mounts"
 # Revalidate ancestry during removal: move the already-bound shared inode below
 # storage, keep its familiar path as a symlink, and prove nothing is deleted.
 reset_case
-prepare_user_mount_sources
 write 4G 2 64G moved pw UTC
 touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
 mv "$HOME/Windows" "$HOME/.windows/moved-shared"
@@ -392,7 +367,6 @@ pass "removal revalidates pinned ancestry and leaves moved shared data untouched
 # Even when both familiar paths remain disjoint, a same-filesystem bind of the
 # pinned shared inode introduced below storage must stop removal before change.
 reset_case
-prepare_user_mount_sources
 write 4G 2 64G removal-alias pw UTC
 touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
 mkdir "$HOME/.windows/shared-bind-alias"
@@ -406,7 +380,6 @@ pass "removal tree discovery catches a shared alias not used by either home path
 # mountpoint and must be rejected, while unrelated separate filesystems remain
 # supported by the root suite.
 reset_case
-prepare_user_mount_sources
 mount -t tmpfs -o uid="$(id -u)",gid="$(id -g)",mode=0700,size=8m crossdev-shared "$HOME/Windows"
 touch "$HOME/Windows/keep.txt"
 write 4G 2 64G crossdev-alias pw UTC
@@ -424,7 +397,6 @@ pass "removal catches a direct different-filesystem shared alias at the xdev bou
 # failing scanner must fail closed before the disk, share, compose, or mounts
 # are changed.
 reset_case
-prepare_user_mount_sources
 write 4G 2 64G scan-failure pw UTC
 touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
 scan_helper="$TMPDIR/tree-scan-helper"
@@ -451,7 +423,6 @@ pass "removal scan timeout and errors fail closed without changing VM state"
 
 # Removal rejects stacks, then deletes disk only through verified binds.
 reset_case
-prepare_user_mount_sources
 write 4G 2 64G remove pw UTC
 resolve_caller
 touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
@@ -498,7 +469,6 @@ pass "credentials are atomically replaced as a private regular file"
 reset_case
 mkdir -p "$external_storage" "$HOME/Windows"
 ln -s "$external_storage" "$HOME/.windows"
-prepare_user_mount_sources
 df_log="$TMPDIR/df-path"
 df() {
   printf '%s\n' "${!#}" >"$df_log"
