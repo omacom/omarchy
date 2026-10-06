@@ -97,7 +97,7 @@ assert(/root\.vpnFailureReason/.test(vpnRow[0]), 'VpnRow renders the failure rea
 // one handler covers both input styles at once -- nothing arrow-specific to
 // test separately.
 assert(/property int vpnIndex: -1/.test(panelSource), 'network panel declares vpnIndex')
-assert(/"header" \| "band" \| "dns" \| "vpn" \| "wifi"/.test(panelSource), 'focusSection docs list vpn between dns and wifi')
+assert(/"dns" \| "vpn" \| "wifi"/.test(panelSource), 'focusSection docs list vpn between dns and wifi')
 
 const moveHandler = panelSource.match(/onMoveRequested: function\(dx, dy\) \{[\s\S]*?\n {6}\}\n {4}\}/)
 assert(moveHandler, 'network panel has the onMoveRequested handler')

@@ -17,6 +17,14 @@ cat >"$stub_bin/sudo" <<'STUB'
 exec "$@"
 STUB
 
+# omarchy-update-pacman wraps the transaction in a real PID 1 scope; the tests
+# must stay inside the fixture, so drop the wrapper's options and run the command.
+cat >"$stub_bin/systemd-run" <<'STUB'
+#!/bin/bash
+while [[ $1 == -* ]]; do shift; done
+exec "$@"
+STUB
+
 # Fails the first -Syu with the report under test, then succeeds. Every call
 # records its arguments and which of its streams reached a terminal: pacman puts
 # its questions on stderr once it is not running --noconfirm, so a retry meant
@@ -39,7 +47,7 @@ fi
 echo "upgrade complete"
 STUB
 
-chmod +x "$stub_bin/sudo" "$stub_bin/pacman"
+chmod +x "$stub_bin/sudo" "$stub_bin/systemd-run" "$stub_bin/pacman"
 
 # Everything a blocked qemu-common upgrade leaves on stderr, and no more. The
 # ":: ... Remove qemu-block-gluster? [y/N]" pacman asked is deliberately absent:

@@ -100,11 +100,13 @@ Panel {
     return list
   }
 
-  // Feed Repeaters with panel-local snapshots instead of the live PipeWire
-  // model. PipeWire can remove nodes while Quickshell is dispatching the
-  // removal signal; rebuilding a Repeater from that signal path has crashed
-  // in Quickshell's PipeWire service. The snapshot timer lets that mutation
-  // settle first, and closed panels keep their repeaters detached entirely.
+  // Feed Repeaters with panel-local snapshots of primitives instead of the live
+  // PipeWire model. PipeWire can remove nodes while Quickshell is dispatching
+  // the removal signal, and a row still holding the PwNode is a QObject Qt
+  // dereferences without a null check, which segfaults the shell. Rows carry id
+  // and name only; every delegate resolves its own node through nodeFor(). The
+  // snapshot timer lets the mutation settle first, and closed panels keep their
+  // repeaters detached entirely.
   property var displayAudioSinks: []
   property var displayAudioSources: []
   property var displayAudioStreams: []
@@ -281,7 +283,7 @@ Panel {
       return
     }
     if (focusSection === "streams" && selectedIndex >= 0 && selectedIndex < displayAudioStreams.length) {
-      var s = displayAudioStreams[selectedIndex]
+      var s = nodeFor(displayAudioStreams[selectedIndex])
       if (s && s.audio) s.audio.volume = Math.max(0, Math.min(1.5, s.audio.volume + delta))
     }
   }
@@ -291,18 +293,18 @@ Panel {
     if (focusSection === "header") { toggleAllMuted(); return }
     if (focusSection === "output") {
       if (selectedIndex === -1) { toggleOutputMute(); return }
-      var sink = displayAudioSinks[selectedIndex]
+      var sink = nodeFor(displayAudioSinks[selectedIndex])
       if (sink) setDefaultSink(sink)
       return
     }
     if (focusSection === "input") {
       if (selectedIndex === -1) { toggleInputMute(); return }
-      var src = displayAudioSources[selectedIndex]
+      var src = nodeFor(displayAudioSources[selectedIndex])
       if (src) setDefaultSource(src)
       return
     }
     if (focusSection === "streams" && selectedIndex >= 0) {
-      var st = displayAudioStreams[selectedIndex]
+      var st = nodeFor(displayAudioStreams[selectedIndex])
       if (st && st.audio) st.audio.muted = !st.audio.muted
     }
   }
@@ -324,15 +326,27 @@ Panel {
   onAudioSourcesChanged: scheduleDisplayAudioModelRefresh()
   onAudioStreamsChanged: scheduleDisplayAudioModelRefresh()
 
-  function listSnapshot(list) {
-    return Model.listSnapshot(list)
+  function rowSnapshot(list) {
+    return Model.rowSnapshot(list)
+  }
+
+  // A row that outlives its node resolves to null, or to a node PipeWire recreated
+  // under the same id and name; every binding below guards for null, and a row
+  // that never held the node cannot dangle.
+  function nodeFor(row) {
+    if (!row) return null
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i]
+      if (n && n.id === row.id && String(n.name || "") === row.name) return n
+    }
+    return null
   }
 
   function refreshDisplayAudioModels() {
     if (!opened) return
-    displayAudioSinks = listSnapshot(audioSinks)
-    displayAudioSources = listSnapshot(audioSources)
-    displayAudioStreams = listSnapshot(audioStreams)
+    displayAudioSinks = rowSnapshot(audioSinks)
+    displayAudioSources = rowSnapshot(audioSources)
+    displayAudioStreams = rowSnapshot(audioStreams)
     clampCursor()
   }
 
@@ -559,15 +573,18 @@ Panel {
     // Spotify exposes its PipeWire stream as "audio-src". For generic stream
     // names, use the one MPRIS player not already represented by another audio
     // stream (e.g. Chromium, or ALSA apps like cliamp).
-    return Model.unmatchedMprisStreamLabel(label, mprisPlayers, displayAudioStreams)
+    return Model.unmatchedMprisStreamLabel(label, mprisPlayers, audioStreams)
   }
 
+  // These read the other streams' node properties, so they take the live list --
+  // displayAudioStreams carries primitives now, and resolving each row back
+  // would only rebuild what audioStreams already is.
   function streamLabel(node) {
-    return Model.streamLabel(node, mprisPlayers, displayAudioStreams)
+    return Model.streamLabel(node, mprisPlayers, audioStreams)
   }
 
   function streamRepresentsPlayer(node, player) {
-    return Model.streamRepresentsPlayer(node, player, mprisPlayers, displayAudioStreams)
+    return Model.streamRepresentsPlayer(node, player, mprisPlayers, audioStreams)
   }
 
   implicitWidth: button.implicitWidth
@@ -675,7 +692,7 @@ Panel {
           if (!root.cursorActive) return
           if (root.focusSection === "streams" && root.selectedIndex >= 0
               && root.selectedIndex < root.displayAudioStreams.length) {
-            var s = root.displayAudioStreams[root.selectedIndex]
+            var s = root.nodeFor(root.displayAudioStreams[root.selectedIndex])
             if (s && s.audio) s.audio.muted = !s.audio.muted
           } else if (root.focusSection === "input") {
             root.toggleInputMute()
@@ -711,6 +728,7 @@ Panel {
             // Status only — the switch owns muting, mouse and keyboard alike.
             Text {
               id: heroIcon
+              textFormat: Text.PlainText
               text: root.outputIcon()
               color: root.bar.foreground
               font.family: root.bar.fontFamily
@@ -761,6 +779,7 @@ Panel {
 
               Text {
                 id: heroLabel
+                textFormat: Text.PlainText
                 text: root.outputVolumeName(
                   outputSlider.dragging ? outputSlider.liveValue : root.outputVolume,
                   root.outputMuted
@@ -800,6 +819,7 @@ Panel {
 
               Text {
                 id: outputPercent
+                textFormat: Text.PlainText
                 text: Math.round((outputSlider.dragging ? outputSlider.liveValue : root.outputVolume) * 100) + "%"
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
@@ -854,7 +874,7 @@ Panel {
                 required property var modelData
                 required property int index
                 width: panelColumn.width
-                node: modelData
+                node: root.nodeFor(modelData)
                 rowIndex: index
               }
             }
@@ -886,6 +906,7 @@ Panel {
 
               Text {
                 id: microphonePercent
+                textFormat: Text.PlainText
                 text: Math.round((inputSlider.dragging ? inputSlider.liveValue : root.inputVolume) * 100) + "%"
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
@@ -940,7 +961,7 @@ Panel {
                     height: parent.height
                     width: parent.width * Math.max(0, Math.min(1, inputPeakMonitor.peak))
                     color: root.bar.foreground
-                    Behavior on width { NumberAnimation { duration: 70 } }
+                    Behavior on width { NumberAnimation { duration: Style.duration(70) } }
                   }
                 }
               }
@@ -961,7 +982,7 @@ Panel {
                 required property var modelData
                 required property int index
                 width: panelColumn.width
-                node: modelData
+                node: root.nodeFor(modelData)
                 rowIndex: index
               }
             }
@@ -991,7 +1012,7 @@ Panel {
                 required property var modelData
                 required property int index
                 width: panelColumn.width
-                node: modelData
+                node: root.nodeFor(modelData)
                 rowIndex: index
               }
             }
@@ -1030,6 +1051,7 @@ Panel {
       spacing: Style.space(8)
 
       Text {
+        textFormat: Text.PlainText
         text: root.sinkGlyph(sinkRow.node)
         color: root.bar.foreground
         font.family: root.bar.fontFamily
@@ -1040,6 +1062,7 @@ Panel {
       }
 
       Text {
+        textFormat: Text.PlainText
         text: root.nodeLabel(sinkRow.node)
         color: root.bar.foreground
         font.family: root.bar.fontFamily
@@ -1089,6 +1112,7 @@ Panel {
       spacing: Style.space(8)
 
       Text {
+        textFormat: Text.PlainText
         text: root.sourceGlyph(sourceRow.node)
         color: root.bar.foreground
         font.family: root.bar.fontFamily
@@ -1099,6 +1123,7 @@ Panel {
       }
 
       Text {
+        textFormat: Text.PlainText
         text: root.nodeLabel(sourceRow.node)
         color: root.bar.foreground
         font.family: root.bar.fontFamily
@@ -1159,6 +1184,7 @@ Panel {
 
         Text {
           id: streamMuteIcon
+          textFormat: Text.PlainText
           text: streamRow.streamMuted ? "󰝟" : "󰕾"
           color: root.bar.foreground
           font.family: root.bar.fontFamily
@@ -1179,6 +1205,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           text: root.streamLabel(streamRow.node)
           color: root.bar.foreground
           font.family: root.bar.fontFamily
@@ -1191,6 +1218,7 @@ Panel {
 
         Text {
           id: streamPct
+          textFormat: Text.PlainText
           text: Math.round(streamRow.streamVolume * 100) + "%"
           color: Qt.darker(root.bar.foreground, 1.5)
           font.family: root.bar.fontFamily
