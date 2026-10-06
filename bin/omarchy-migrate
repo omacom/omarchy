@@ -32,11 +32,22 @@ OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 STATE_DIR="${OMARCHY_MIGRATION_STATE:-$HOME/.local/state/omarchy/migrations}"
 MIGRATIONS_DIR="$OMARCHY_PATH/migrations"
 
-# A migration exits 75 (EX_TEMPFAIL) to wait for something outside Omarchy, like
-# another repository's package reaching the machine. It stays unmarked and runs
-# again next time, without stopping the queue or counting as pending.
+# A migration waiting for another repository's package defers: it writes why to
+# $OMARCHY_MIGRATION_DEFER and exits 75 (EX_TEMPFAIL). A 75 without that note is
+# an ordinary failure. It stays unmarked, the queue goes on, and it runs again
+# next time; it counts as pending again once any package changes after it
+# deferred, so the login notifier still reaches a direct pacman or another user.
 DEFERRED_STATUS=75
 DEFERRED_DIR="$STATE_DIR/deferred"
+PACKAGE_DB="${OMARCHY_PACKAGE_DB:-/var/lib/pacman/local}"
+
+package_db_stamp() {
+  stat -c %Y "$PACKAGE_DB" 2>/dev/null || true
+}
+
+waiting() {
+  [[ -f $DEFERRED_DIR/$1 && $(<"$DEFERRED_DIR/$1") == "$(package_db_stamp)" ]]
+}
 
 migration_entries() {
   [[ -d $MIGRATIONS_DIR ]] || return 0
@@ -55,7 +66,7 @@ pending_migrations() {
 
   while IFS=$'\t' read -r name file marker; do
     [[ -n $name ]] || continue
-    if [[ ! -f $marker && ! -f $DEFERRED_DIR/$name ]]; then
+    if [[ ! -f $marker ]] && ! waiting "$name"; then
       printf '%s\n' "$name"
     fi
   done < <(migration_entries)
@@ -96,19 +107,21 @@ while IFS=$'\t' read -r name file marker <&3; do
 
   if [[ ! -f $marker ]]; then
     echo -e "\e[32m\nRunning migration (${name%.sh})\e[0m"
+    rm -f "$DEFERRED_DIR/$name"
+    note=$(mktemp)
     status=0
-    OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&- || status=$?
-    if (( status == DEFERRED_STATUS )); then
+    OMARCHY_PATH="$OMARCHY_PATH" OMARCHY_MIGRATION_DEFER="$note" bash -euo pipefail "$file" 3<&- || status=$?
+    if (( status == DEFERRED_STATUS )) && [[ -s $note ]]; then
+      rm -f "$note"
       mkdir -p "$DEFERRED_DIR"
-      touch "$DEFERRED_DIR/$name"
+      package_db_stamp >"$DEFERRED_DIR/$name"
       echo -e "\e[33mMigration ${name%.sh} will run again on the next update.\e[0m"
       continue
-    elif (( status != 0 )); then
-      exit "$status"
     fi
+    rm -f "$note"
+    (( status == 0 )) || exit "$status"
     mkdir -p "$(dirname "$marker")"
     touch "$marker"
-    rm -f "$DEFERRED_DIR/$name"
   fi
 done 3< <(migration_entries)
 

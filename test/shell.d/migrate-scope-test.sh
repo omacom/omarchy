@@ -104,38 +104,83 @@ grep -q '^after-reader$' "$stdin_calls" ||
   fail "migration runner marks both stdin-isolated migrations complete"
 pass "migration queue uses a private file descriptor instead of migration stdin"
 
-# A migration waiting on something outside Omarchy defers with 75: it stays
-# unmarked, the queue goes on, and it is not pending while it waits.
+# A migration waiting for another repository's package defers: it leaves a note
+# and exits 75. It stays unmarked, the queue goes on, and it is not pending
+# while it waits, until a package changes.
 defer_root="$test_tmp/defer-omarchy"
 defer_home="$test_tmp/defer-home"
 defer_calls="$test_tmp/defer-calls"
 defer_state="$defer_home/.local/state/omarchy/migrations"
-mkdir -p "$defer_root/migrations" "$defer_home"
+package_db="$test_tmp/package-db"
+mkdir -p "$defer_root/migrations" "$defer_home" "$package_db"
 
 cat >"$defer_root/migrations/100-waits.sh" <<'SH'
 echo waits >>"$TEST_CALLS"
-[[ -e $TEST_READY ]] || exit 75
+if [[ ! -e $TEST_READY ]]; then
+  echo "waiting for a package" >"$OMARCHY_MIGRATION_DEFER"
+  exit 75
+fi
+[[ ! -e $TEST_BROKEN ]]
 SH
 cat >"$defer_root/migrations/200-after.sh" <<'SH'
 echo after >>"$TEST_CALLS"
 SH
 
 run_defer() {
-  HOME="$defer_home" OMARCHY_PATH="$defer_root" TEST_CALLS="$defer_calls" TEST_READY="$test_tmp/defer-ready" \
-    "$ROOT/bin/omarchy-migrate" "$@"
+  HOME="$defer_home" OMARCHY_PATH="$defer_root" OMARCHY_PACKAGE_DB="$package_db" TEST_CALLS="$defer_calls" \
+    TEST_READY="$test_tmp/defer-ready" TEST_BROKEN="$test_tmp/defer-broken" "$ROOT/bin/omarchy-migrate" "$@"
+}
+packages_change() {
+  touch -d "@$(($(stat -c %Y "$package_db") + 60))" "$package_db"
 }
 
 run_defer >"$test_tmp/defer.out" || fail "a deferred migration does not fail the run" "$(cat "$test_tmp/defer.out")"
 [[ ! -f $defer_state/100-waits.sh ]] || fail "a deferred migration is not marked complete"
 [[ -f $defer_state/200-after.sh ]] || fail "the queue goes on past a deferred migration"
 if run_defer --pending >"$test_tmp/defer-pending.out"; then
-  fail "a deferred migration does not count as pending" "$(cat "$test_tmp/defer-pending.out")"
+  fail "a deferred migration is not pending while nothing has changed" "$(cat "$test_tmp/defer-pending.out")"
 fi
 run_defer >/dev/null || fail "a deferred migration does not fail a later run"
 (( $(grep -c '^waits$' "$defer_calls") == 2 && $(grep -c '^after$' "$defer_calls") == 1 )) ||
   fail "a deferred migration runs again on the next run, and only it" "$(cat "$defer_calls")"
-touch "$test_tmp/defer-ready"
+pass "a deferred migration waits without stopping the queue or counting as pending"
+
+packages_change
+run_defer --pending | grep -qx '100-waits.sh' ||
+  fail "a deferred migration is pending again once a package changes, so the login notifier reaches it"
+run_defer >/dev/null
+if run_defer --pending >/dev/null; then
+  fail "deferring again after the change waits again"
+fi
+pass "a package change makes a deferred migration pending again until it runs"
+
+touch "$test_tmp/defer-ready" "$test_tmp/defer-broken"
+if run_defer >/dev/null 2>&1; then
+  fail "a deferred migration that then fails fails the run"
+fi
+run_defer --pending | grep -qx '100-waits.sh' ||
+  fail "a deferred migration that then fails is pending, not still waiting"
+rm "$test_tmp/defer-broken"
 run_defer >/dev/null || fail "a deferred migration that can finish does"
 [[ -f $defer_state/100-waits.sh && ! -e $defer_state/deferred/100-waits.sh ]] ||
   fail "a deferred migration that finishes is marked complete and no longer deferred"
-pass "a deferred migration waits without stopping the queue or counting as pending, and finishes once it can"
+pass "a deferred migration that fails is pending, and one that finishes is complete"
+
+# Exiting 75 without the note is a failure like any other: a command inside a
+# migration can return 75 without meaning to wait.
+accident_root="$test_tmp/accident-omarchy"
+accident_home="$test_tmp/accident-home"
+mkdir -p "$accident_root/migrations" "$accident_home"
+cat >"$accident_root/migrations/100-accident.sh" <<'SH'
+exit 75
+SH
+cat >"$accident_root/migrations/200-after.sh" <<'SH'
+true
+SH
+if HOME="$accident_home" OMARCHY_PATH="$accident_root" OMARCHY_PACKAGE_DB="$package_db" "$ROOT/bin/omarchy-migrate" >/dev/null 2>&1; then
+  fail "a migration that exits 75 without a note fails the run"
+fi
+[[ ! -e $accident_home/.local/state/omarchy/migrations/200-after.sh &&
+  ! -e $accident_home/.local/state/omarchy/migrations/deferred/100-accident.sh ]] ||
+  fail "a migration that exits 75 without a note stops the queue and is not deferred"
+pass "only a migration that says why it waits is deferred"

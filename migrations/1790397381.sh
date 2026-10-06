@@ -5,7 +5,9 @@ omarchy-pkg-present openclaw || exit 0
 
 # The package can turn into the seed after this release reaches a machine. Until it does it is still the runtime, and the OpenClaw it runs keeps working, so this waits for it rather than stopping the update.
 if [[ ! -r /usr/share/openclaw/install-cli.sh || ! -r /usr/share/openclaw/openclaw.tgz ]]; then
-  echo "OpenClaw moves to ~/.openclaw once the openclaw package that sets it up arrives."
+  waiting="OpenClaw moves to ~/.openclaw once the openclaw package that sets it up arrives."
+  echo "$waiting"
+  echo "$waiting" >"${OMARCHY_MIGRATION_DEFER:-/dev/null}"
   exit 75
 fi
 

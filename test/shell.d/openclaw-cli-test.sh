@@ -406,8 +406,9 @@ new_home migration-old
 touch "$test_tmp/package-installed"
 mv "$seed" "$seed.old"
 status=0
-run bash -euo pipefail "$test_tmp/migration.sh" || status=$?
-(( status == 75 )) || fail "an old package defers the migration rather than failing the update" "status $status: $(cat "$test_tmp/output")"
+OMARCHY_MIGRATION_DEFER="$test_tmp/defer-note" run bash -euo pipefail "$test_tmp/migration.sh" || status=$?
+(( status == 75 )) && grep -q "once the openclaw package that sets it up arrives" "$test_tmp/defer-note" ||
+  fail "an old package defers the migration, saying why, rather than failing the update" "status $status: $(cat "$test_tmp/output")"
 [[ ! -e $test_home/.openclaw ]] || fail "an old package leaves the home untouched"
 mv "$seed.old" "$seed"
 
