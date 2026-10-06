@@ -32,7 +32,7 @@ user_fonts_conf="$test_home/.config/fontconfig/fonts.conf"
 # Case 1: Fresh install - omarchy-font-set writes to drop-in conf.d
 run_font_set "Test Font"
 [[ -f $dropin_conf ]] || fail "omarchy-font-set creates conf.d drop-in file"
-grep -q "<string>Test Font</string>" "$dropin_conf" || fail "drop-in contains selected font"
+grep -q "<family>Test Font</family>" "$dropin_conf" || fail "drop-in contains selected font"
 [[ ! -e $user_fonts_conf ]] || fail "user fonts.conf is not created by omarchy-font-set"
 pass "omarchy-font-set creates conf.d drop-in file and leaves fonts.conf absent"
 
@@ -47,7 +47,7 @@ custom_rule='<?xml version="1.0"?>
 printf '%s\n' "$custom_rule" >"$user_fonts_conf"
 
 run_font_set "Other Font"
-grep -q "<string>Other Font</string>" "$dropin_conf" || fail "drop-in updated with new font"
+grep -q "<family>Other Font</family>" "$dropin_conf" || fail "drop-in updated with new font"
 [[ -f $user_fonts_conf ]] || fail "user fonts.conf preserved"
 [[ $(cat "$user_fonts_conf") == "$custom_rule" ]] || fail "custom user fonts.conf content was not truncated or modified"
 pass "custom user fonts.conf is preserved and not truncated by omarchy-font-set"
@@ -68,7 +68,7 @@ legacy_rule='<?xml version="1.0"?>
 printf '%s\n' "$legacy_rule" >"$user_fonts_conf"
 
 run_font_set "Test Font"
-grep -q "<string>Test Font</string>" "$dropin_conf" || fail "drop-in updated with new font"
+grep -q "<family>Test Font</family>" "$dropin_conf" || fail "drop-in updated with new font"
 [[ ! -f $user_fonts_conf ]] || fail "legacy pure Omarchy fonts.conf should be retired by font-set"
 pass "legacy pure Omarchy fonts.conf is retired by omarchy-font-set"
 
@@ -89,7 +89,7 @@ mixed_rule='<?xml version="1.0"?>
 printf '%s\n' "$mixed_rule" >"$user_fonts_conf"
 
 run_font_set "Test Font"
-grep -q "<string>Test Font</string>" "$dropin_conf" || fail "drop-in updated with new font"
+grep -q "<family>Test Font</family>" "$dropin_conf" || fail "drop-in updated with new font"
 [[ -f $user_fonts_conf ]] || fail "mixed user fonts.conf preserved"
 grep -q "Alternate Serif" "$user_fonts_conf" || fail "custom serif rule was lost"
 ! grep -q "Old Legacy Font" "$user_fonts_conf" || fail "legacy rule still overrides selected font"

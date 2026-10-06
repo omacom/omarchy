@@ -139,17 +139,22 @@ try:
       print(f'Leaving {legacy} unchanged ({error}); if it overrides the selected font, remove its old monospace rule manually.', file=sys.stderr)
     for start, end in reversed(ranges):
       remaining = remaining[:start] + remaining[end:]
+  # An alias rather than a prepend_first edit: /etc/fonts/conf.d/48-guessfamily.conf
+  # appends the generic "monospace" to every pattern whose family name merely
+  # contains "mono", so a request for "Liberation Mono" arrives here carrying the
+  # generic too. prepend_first would put the chosen family at the head of that
+  # list, ahead of the family the application actually asked for, and every
+  # installed font with "mono" in its name would resolve to this one. The alias
+  # inserts the chosen family where the generic sits instead.
   xml = '''<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
-  <match target="pattern">
-    <test name="family" qual="any">
-      <string>monospace</string>
-    </test>
-    <edit name="family" mode="prepend_first" binding="strong">
-      <string>%s</string>
-    </edit>
-  </match>
+  <alias binding="strong">
+    <family>monospace</family>
+    <prefer>
+      <family>%s</family>
+    </prefer>
+  </alias>
 </fontconfig>
 ''' % escape(font_name)
   # Never retire the old rule unless its replacement is safely on disk.
