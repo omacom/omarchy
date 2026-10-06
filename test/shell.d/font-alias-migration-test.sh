@@ -118,7 +118,7 @@ with tempfile.TemporaryDirectory() as directory:
   # Processing instructions may carry tool metadata at any document depth.
   # Neither migration nor setter may delete them while retiring an old rule.
   instruction = '<?tool preserve="yes"?>'
-  for label, data in [
+  instruction_cases = [
     ('prolog', legacy.replace('<fontconfig>', instruction + '<fontconfig>')),
     ('root', legacy.replace('<fontconfig>', '<fontconfig>' + instruction)),
     ('match', legacy.replace('<test name=', instruction + '<test name=')),
@@ -127,11 +127,14 @@ with tempfile.TemporaryDirectory() as directory:
     ('string', legacy.replace('Adwaita Mono', 'Adwaita' + instruction + ' Mono')),
     ('epilog', legacy + instruction),
     ('stylesheet', legacy.replace('<fontconfig>', '<?xml-stylesheet href="custom.xsl"?><fontconfig>')),
-  ]:
+    ('generic string', legacy.replace('>monospace<', '>mono' + instruction + 'space<')),
+  ]
+  for label, data in instruction_cases:
     dropin.write_bytes(data.encode())
     result = migrate()
-    assert dropin.read_bytes() == data.encode(), label
-    assert b'processing instructions' in result.stderr
+    alias()
+    assert instruction.encode() in dropin.read_bytes() or b'<?xml-stylesheet' in dropin.read_bytes(), label
+    assert b'prepend_first' not in dropin.read_bytes()
     source = config / 'fonts.conf'
     source.write_bytes(data.encode())
     subprocess.run(['bash', '-euo', 'pipefail', str(root / 'migrations/1790098827.sh')], env=env, check=True, capture_output=True)
@@ -184,6 +187,14 @@ with tempfile.TemporaryDirectory() as directory:
         answer = subprocess.check_output(['fc-match', '-f', '%{family}', request], env=env).decode()
         assert expected in answer.split(','), (request, answer)
       print('ok - reformatted upgrade selects generic font without capturing named font')
+      for label, data in instruction_cases:
+        dropin.write_bytes(data.encode())
+        migrate()
+        for request, expected in [('monospace', 'Adwaita Mono'), ('iA Writer Mono S', 'iA Writer Mono S')]:
+          answer = subprocess.check_output(['fc-match', '-f', '%{family}', request], env=env).decode()
+          assert expected in answer.split(','), (label, request, answer)
+        assert b'<?tool' in dropin.read_bytes() or b'<?xml-stylesheet' in dropin.read_bytes()
+      print('ok - instruction-bearing aliases preserve metadata and native font resolution')
     else:
       print('ok - native resolution # SKIP required fonts unavailable')
   else:

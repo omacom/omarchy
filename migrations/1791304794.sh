@@ -17,7 +17,6 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 from xml.parsers import expat
-from xml.sax.saxutils import escape
 
 path = Path.home() / '.config/fontconfig/conf.d/50-omarchy-monospace.conf'
 
@@ -29,9 +28,7 @@ class ManualMigration(ValueError):
 def override_range(data):
   parser = expat.ParserCreate()
   depth = 0
-  start = 0
-  spans = []
-  comments = []
+  replacements = []
 
   def declaration(version, encoding, standalone):
     if encoding and encoding.lower() not in ('utf-8', 'utf8', 'ascii', 'us-ascii'):
@@ -40,43 +37,38 @@ def override_range(data):
   def entity(*args):
     raise ManualMigration('custom XML entities')
 
-  def instruction(*args):
-    raise ManualMigration('XML processing instructions')
-
   def opened(name, attrs):
-    nonlocal depth, start
-    if depth == 1:
-      start = parser.CurrentByteIndex
+    nonlocal depth
+    if depth >= 1:
+      index = parser.CurrentByteIndex
+      replacement = {'match': b'<alias binding="strong">', 'test': b'',
+                     'edit': b'<prefer>', 'string': b'<family>'}.get(name)
+      replacements.append((index, data.index(b'>', index) + 1, replacement))
     depth += 1
 
   def closed(name):
     nonlocal depth
     depth -= 1
-    if depth == 1:
-      end = parser.CurrentByteIndex
-      if not data[start:end].rstrip().endswith(b'/>'):
-        end = data.index(b'>', end) + 1
-      spans.append((start, end))
+    if depth >= 1:
+      index = parser.CurrentByteIndex
+      replacement = {'match': b'</alias>', 'test': b'',
+                     'edit': b'</prefer>', 'string': b'</family>'}.get(name)
+      replacements.append((index, data.index(b'>', index) + 1, replacement))
 
-  def comment(value):
-    index = parser.CurrentByteIndex
-    comments.append((index, data.index(b'-->', index) + 3))
-
-  parser.CommentHandler = comment
   parser.XmlDeclHandler = declaration
   parser.EntityDeclHandler = entity
-  parser.ProcessingInstructionHandler = instruction
   parser.StartElementHandler = opened
   parser.EndElementHandler = closed
   parser.Parse(data, True)
-  root = ET.fromstring(data, parser=ET.XMLParser(target=ET.TreeBuilder(insert_comments=True)))
-  children = [item for item in root if item.tag is not ET.Comment]
-  if root.tag != 'fontconfig' or root.attrib or len(children) != 1 or len(spans) != 1:
+  root = ET.fromstring(data, parser=ET.XMLParser(target=ET.TreeBuilder(insert_comments=True, insert_pis=True)))
+  annotations = (ET.Comment, ET.ProcessingInstruction)
+  children = [item for item in root if item.tag not in annotations]
+  if root.tag != 'fontconfig' or root.attrib or len(children) != 1:
     return None
   if (root.text or '').strip() or any((item.tail or '').strip() for item in root):
     return None
   node = children[0]
-  elements = [item for item in node if item.tag is not ET.Comment]
+  elements = [item for item in node if item.tag not in annotations]
   if node.tag != 'match' or node.attrib != {'target': 'pattern'} or len(elements) != 2:
     return None
   test, edit = elements
@@ -84,22 +76,27 @@ def override_range(data):
     return None
   if edit.tag != 'edit' or edit.attrib != {'name': 'family', 'mode': 'prepend_first', 'binding': 'strong'}:
     return None
-  tests = [item for item in test if item.tag is not ET.Comment]
-  edits = [item for item in edit if item.tag is not ET.Comment]
+  tests = [item for item in test if item.tag not in annotations]
+  edits = [item for item in edit if item.tag not in annotations]
   if len(tests) != 1 or len(edits) != 1:
     return None
   family, font = tests[0], edits[0]
-  if any(item.tag != 'string' or item.attrib or len(item) for item in (family, font)):
+  if any(item.tag != 'string' or item.attrib or any(child.tag not in annotations for child in item) for item in (family, font)):
     return None
-  if family.text != 'monospace' or not font.text:
+  def text(item):
+    return (item.text or '') + ''.join(child.tail or '' for child in item)
+
+  if text(family) != 'monospace' or not text(font):
     return None
   if any((item.text or '').strip() for item in (node, test, edit)):
     return None
   if any((item.tail or '').strip() for item in [*node, *test, *edit]):
     return None
-  start, end = spans[0]
-  retained_comments = b''.join(data[a:b] + b'\n  ' for a, b in comments if start <= a < end)
-  return (start, end, font.text, retained_comments)
+  # Change only the element wrappers. Text, comments and processing
+  # instructions stay in their original order and position within the rule.
+  for start, end, replacement in sorted(replacements, reverse=True):
+    data = data[:start] + replacement + data[end:]
+  return data
 
 
 try:
@@ -116,19 +113,12 @@ try:
     sys.exit(0)
   if recognized is None:
     sys.exit(0)
-  start, end, font, comments = recognized
-  alias = ('<alias binding="strong">\n'
-           '    <family>monospace</family>\n'
-           '    <prefer>\n'
-           f'      <family>{escape(font)}</family>\n'
-           '    </prefer>\n'
-           '  </alias>').encode('utf-8')
   # Preserve comments and other surrounding bytes, and follow dotfile symlinks.
   target = path.resolve(strict=True)
   fd, temporary = tempfile.mkstemp(prefix='.' + target.name + '.', dir=target.parent)
   try:
     with os.fdopen(fd, 'wb') as stream:
-      stream.write(data[:start] + comments + alias + data[end:])
+      stream.write(recognized)
       stream.flush()
       os.fsync(stream.fileno())
       os.fchmod(stream.fileno(), target.stat().st_mode & 0o777)

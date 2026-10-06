@@ -150,7 +150,16 @@ mkdir -p "$(dirname "$fontconfig_file")"
 legacy_override "Test Mono S" >"$fontconfig_file"
 run_migration
 
-[[ $(<"$fontconfig_file") == "$(expected_override "Test Mono S")" ]] ||
+migration_family=$(python3 - "$fontconfig_file" <<'PY'
+import sys, xml.etree.ElementTree as ET
+root = ET.parse(sys.argv[1]).getroot()
+assert root.find('match') is None
+assert root.find('alias').attrib == {'binding': 'strong'}
+assert root.find('alias/family').text == 'monospace'
+print(root.find('alias/prefer/family').text)
+PY
+)
+[[ $migration_family == "Test Mono S" ]] ||
   fail "migration rewrites the legacy override and keeps the chosen family" "$(cat "$fontconfig_file")"
 pass "migration rewrites the legacy override and keeps the chosen family"
 
