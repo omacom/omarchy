@@ -9,47 +9,130 @@ echo "Rewrite the font override that captured every family named *mono*"
 # migration moved that override into conf.d unchanged. Restate it as the alias
 # it should have been, which inserts the family at the generic instead.
 
-dropin_file="$HOME/.config/fontconfig/conf.d/50-omarchy-monospace.conf"
+# Match XML structure, not spelling: the previous migration preserves formatting.
+python3 - <<'PYTHON'
+import os
+from pathlib import Path
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+from xml.parsers import expat
+from xml.sax.saxutils import escape
 
-[[ -f $dropin_file ]] || exit 0
+path = Path.home() / '.config/fontconfig/conf.d/50-omarchy-monospace.conf'
 
-font_name=$(sed -n '/mode="prepend_first"/{n;s#^ *<string>\(.*\)</string> *$#\1#p;}' "$dropin_file")
 
-[[ -n $font_name ]] || exit 0
+class ManualMigration(ValueError):
+  pass
 
-previous_override() {
-  cat <<XML
-<?xml version="1.0"?>
-<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
-<fontconfig>
-  <match target="pattern">
-    <test name="family" qual="any">
-      <string>monospace</string>
-    </test>
-    <edit name="family" mode="prepend_first" binding="strong">
-      <string>$font_name</string>
-    </edit>
-  </match>
-</fontconfig>
-XML
-}
 
-# The whole file has to be what Omarchy wrote, so an override someone has
-# edited by hand is left as it is rather than silently replaced.
-[[ $(<"$dropin_file") == "$(previous_override)" ]] || exit 0
+def override_range(data):
+  parser = expat.ParserCreate()
+  depth = 0
+  start = 0
+  spans = []
+  comments = []
 
-temporary=$(mktemp "${dropin_file%/*}/.50-omarchy-monospace.conf.XXXXXX") || exit 1
-chmod --reference="$dropin_file" "$temporary" || { rm -f "$temporary"; exit 1; }
-cat >"$temporary" <<XML
-<?xml version="1.0"?>
-<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
-<fontconfig>
-  <alias binding="strong">
-    <family>monospace</family>
-    <prefer>
-      <family>$font_name</family>
-    </prefer>
-  </alias>
-</fontconfig>
-XML
-mv -fT "$temporary" "$dropin_file" || { rm -f "$temporary"; exit 1; }
+  def declaration(version, encoding, standalone):
+    if encoding and encoding.lower() not in ('utf-8', 'utf8', 'ascii', 'us-ascii'):
+      raise ManualMigration('non-UTF-8 XML encoding')
+
+  def entity(*args):
+    raise ManualMigration('custom XML entities')
+
+  def opened(name, attrs):
+    nonlocal depth, start
+    if depth == 1:
+      start = parser.CurrentByteIndex
+    depth += 1
+
+  def closed(name):
+    nonlocal depth
+    depth -= 1
+    if depth == 1:
+      end = parser.CurrentByteIndex
+      if not data[start:end].rstrip().endswith(b'/>'):
+        end = data.index(b'>', end) + 1
+      spans.append((start, end))
+
+  def comment(value):
+    index = parser.CurrentByteIndex
+    comments.append((index, data.index(b'-->', index) + 3))
+
+  parser.CommentHandler = comment
+  parser.XmlDeclHandler = declaration
+  parser.EntityDeclHandler = entity
+  parser.StartElementHandler = opened
+  parser.EndElementHandler = closed
+  parser.Parse(data, True)
+  root = ET.fromstring(data, parser=ET.XMLParser(target=ET.TreeBuilder(insert_comments=True)))
+  children = [item for item in root if item.tag is not ET.Comment]
+  if root.tag != 'fontconfig' or root.attrib or len(children) != 1 or len(spans) != 1:
+    return None
+  if (root.text or '').strip() or any((item.tail or '').strip() for item in root):
+    return None
+  node = children[0]
+  elements = [item for item in node if item.tag is not ET.Comment]
+  if node.tag != 'match' or node.attrib != {'target': 'pattern'} or len(elements) != 2:
+    return None
+  test, edit = elements
+  if test.tag != 'test' or test.attrib != {'name': 'family', 'qual': 'any'}:
+    return None
+  if edit.tag != 'edit' or edit.attrib != {'name': 'family', 'mode': 'prepend_first', 'binding': 'strong'}:
+    return None
+  tests = [item for item in test if item.tag is not ET.Comment]
+  edits = [item for item in edit if item.tag is not ET.Comment]
+  if len(tests) != 1 or len(edits) != 1:
+    return None
+  family, font = tests[0], edits[0]
+  if any(item.tag != 'string' or item.attrib or len(item) for item in (family, font)):
+    return None
+  if family.text != 'monospace' or not font.text:
+    return None
+  if any((item.text or '').strip() for item in (node, test, edit)):
+    return None
+  if any((item.tail or '').strip() for item in [*node, *test, *edit]):
+    return None
+  start, end = spans[0]
+  retained_comments = b''.join(data[a:b] + b'\n  ' for a, b in comments if start <= a < end)
+  return (start, end, font.text, retained_comments)
+
+
+try:
+  if not path.exists():
+    sys.exit(0)
+  data = path.read_bytes()
+  try:
+    if b'\x00' in data:
+      raise ManualMigration('non-UTF-8 XML encoding')
+    data.decode('utf-8')
+    recognized = override_range(data)
+  except (UnicodeError, ManualMigration) as error:
+    print(f'Leaving {path} unchanged ({error}); select a font again to replace its override.', file=sys.stderr)
+    sys.exit(0)
+  if recognized is None:
+    sys.exit(0)
+  start, end, font, comments = recognized
+  alias = ('<alias binding="strong">\n'
+           '    <family>monospace</family>\n'
+           '    <prefer>\n'
+           f'      <family>{escape(font)}</family>\n'
+           '    </prefer>\n'
+           '  </alias>').encode('utf-8')
+  # Preserve comments and other surrounding bytes, and follow dotfile symlinks.
+  target = path.resolve(strict=True)
+  fd, temporary = tempfile.mkstemp(prefix='.' + target.name + '.', dir=target.parent)
+  try:
+    with os.fdopen(fd, 'wb') as stream:
+      stream.write(data[:start] + comments + alias + data[end:])
+      stream.flush()
+      os.fsync(stream.fileno())
+      os.fchmod(stream.fileno(), target.stat().st_mode & 0o777)
+    os.replace(temporary, target)
+  finally:
+    if os.path.exists(temporary):
+      os.unlink(temporary)
+except (OSError, ValueError, ET.ParseError, expat.ExpatError) as error:
+  print(f'Could not migrate {path}: {error}', file=sys.stderr)
+  sys.exit(1)
+PYTHON
