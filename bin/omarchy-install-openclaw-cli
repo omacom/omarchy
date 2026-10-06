@@ -35,6 +35,10 @@ prefix="$HOME/.openclaw"
 runtime_command="$prefix/bin/openclaw"
 command_path="$HOME/.local/bin/openclaw"
 seed=/usr/share/openclaw
+# The services a run stopped, kept until a run completes: one that fails after
+# the stop leaves them stopped, and the next would take them for stopped by the
+# user.
+stopped_dir="$HOME/.local/state/omarchy/openclaw-stopped"
 
 # Usable means the command answers, not that the file is there: upstream's
 # wrapper execs the prefix's own Node, so a prefix missing either fails here.
@@ -152,6 +156,8 @@ stop_legacy_services() {
     fi
     if [[ " ${running[*]} " == *" $role "* ]]; then
       stopped+=("$role")
+      mkdir -p "$stopped_dir"
+      touch "$stopped_dir/$role"
     fi
   done
 }
@@ -205,7 +211,7 @@ stopped_note() {
   local role
   for role in "${stopped[@]}"; do
     if ! systemctl --user is-active --quiet "openclaw-$role.service"; then
-      echo "The OpenClaw $role service was stopped for this and is not running now." >&2
+      echo "The OpenClaw $role service was stopped for this and is not running now; it starts again once this completes." >&2
     fi
   done
 }
@@ -293,6 +299,15 @@ mkdir -p "${command_path%/*}"
 ln -sfn "$runtime_command" "$command_path"
 
 rehome_services
+
+# A service a failed run stopped was running before it, so it runs again now,
+# whether this run moved it or an earlier one already had.
+for role in gateway node; do
+  if [[ -e $stopped_dir/$role ]]; then
+    systemctl --user is-active --quiet "openclaw-$role.service" || systemctl --user start "openclaw-$role.service" || true
+    rm -f "$stopped_dir/$role"
+  fi
+done
 
 if ! on_path; then
   echo "$runtime_command is ready, but another openclaw is on PATH at $(foreign_openclaw), which Omarchy could run instead." >&2

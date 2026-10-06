@@ -38,6 +38,10 @@ case "$2" in
     [[ ${OMARCHY_TEST_STOP_FAIL:-} != "$3" ]] || exit 1
     rm -f "$HOME/active-$3"
     ;;
+  start)
+    printf 'systemctl %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
+    touch "$HOME/active-$3"
+    ;;
   is-active) [[ -e $HOME/active-$4 ]] ;;
   is-enabled) [[ -e $HOME/enabled-$4 ]] ;;
   disable)
@@ -355,6 +359,32 @@ OMARCHY_TEST_START_FAIL=1 run omarchy-install-openclaw-cli --now && fail "a move
 grep -q "Could not move the OpenClaw gateway service" "$test_tmp/output" && grep -q "is not running now" "$test_tmp/output" ||
   fail "a moved gateway that does not start is named, and so is its being stopped" "$(cat "$test_tmp/output")"
 pass "a gateway that was running is running again from the runtime, or the install fails saying it is stopped"
+
+# A run that fails after stopping the gateway leaves it stopped, and the run
+# that then succeeds would otherwise take it for one the user stopped.
+new_home retry
+mkdir -p "$test_home/.config/systemd/user"
+printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
+touch "$test_home/active-openclaw-gateway.service" "$test_home/enabled-openclaw-gateway.service"
+OMARCHY_TEST_INSTALL_BROKEN=1 run omarchy-install-openclaw-cli --now && fail "a setup that does not complete fails the install"
+grep -q "starts again once this completes" "$test_tmp/output" || fail "a failed run says the gateway it stopped starts again" "$(cat "$test_tmp/output")"
+[[ ! -e $test_home/active-openclaw-gateway.service ]] || fail "a failed run leaves the gateway it stopped stopped"
+run omarchy-install-openclaw-cli --now || fail "the next run finishes the move" "$(cat "$test_tmp/output")"
+[[ -e $test_home/active-openclaw-gateway.service && ! -e $test_home/.local/state/omarchy/openclaw-stopped/gateway ]] ||
+  fail "a gateway a failed run stopped is running again once a later run finishes" "$(cat "$events")"
+pass "a gateway a failed run stopped is running again once a later run finishes"
+
+# The same when upstream's installer moved the unit before the failure, so the
+# later run has nothing to move.
+new_home retry-moved
+run omarchy-install-openclaw-cli --now || fail "--now sets OpenClaw up" "$(cat "$test_tmp/output")"
+mkdir -p "$test_home/.config/systemd/user" "$test_home/.local/state/omarchy/openclaw-stopped"
+printf 'ExecStart=%s/.openclaw/tools/node-v24.19.0/bin/node %s/.openclaw/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js gateway\n' "$test_home" "$test_home" >"$test_home/.config/systemd/user/openclaw-gateway.service"
+touch "$test_home/.local/state/omarchy/openclaw-stopped/gateway"
+run omarchy-install-openclaw-cli --now || fail "--now finishes with a moved, stopped gateway" "$(cat "$test_tmp/output")"
+[[ -e $test_home/active-openclaw-gateway.service && ! -e $test_home/.local/state/omarchy/openclaw-stopped/gateway ]] ||
+  fail "a moved gateway a failed run stopped is started" "$(cat "$events")"
+pass "a gateway a failed run stopped after it was moved is started too"
 
 # With the runtime already in place nothing is seeded, so the move is Omarchy's.
 new_home runtime-first
