@@ -134,7 +134,7 @@ prompt_for_github_user() {
 authorize_pasted_key() {
   local key
 
-  key=$(gum input --prompt "Public key> " --placeholder "ssh-ed25519 AAAA... user@host") || exit 1
+  key=$(gum input --char-limit=0 --prompt "Public key> " --placeholder "ssh-ed25519 AAAA... user@host") || exit 1
   if [[ -z $key ]]; then
     echo -e "\e[31mNo SSH key given.\e[0m" >&2
     exit 1
