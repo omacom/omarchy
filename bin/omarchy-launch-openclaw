@@ -21,7 +21,11 @@ fi
 # for the seed by a route that never ran the migration again. --now sets it up.
 if ! omarchy-cmd-present openclaw && omarchy-pkg-present openclaw; then
   if [[ $tui == "true" ]]; then
-    omarchy-install-openclaw-cli --now
+    # The agent's terminal closes when this exits, so a failure waits to be read.
+    if ! omarchy-install-openclaw-cli --now; then
+      omarchy-show-done 1
+      exit 1
+    fi
   else
     exec omarchy-launch-floating-terminal-with-presentation 'omarchy-install-openclaw-cli --now && omarchy-launch-openclaw'
   fi
