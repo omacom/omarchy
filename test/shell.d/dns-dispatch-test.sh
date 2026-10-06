@@ -39,12 +39,19 @@ if [[ $* == "-g connection.type,ipv4.ignore-auto-dns,ipv6.ignore-auto-dns connec
   printf '%s\n%s\n%s\n' "$STUB_TYPE" "$STUB_IGNORE4" "$STUB_IGNORE6"
 fi
 SH
-chmod +x "$work/bin/nmcli"
+cat >"$work/bin/systemctl" <<'SH'
+#!/bin/bash
+# Report every unit inactive so the provider path skips its NetworkManager
+# reloads; reload/restart of resolved just succeed.
+[[ $1 != "is-active" ]]
+SH
+chmod +x "$work/bin/nmcli" "$work/bin/systemctl"
 touch "$work/resolved.conf"
 mount --bind "$work/bin" /usr/local/bin
 mount --bind "$work/resolved.conf" /etc/systemd/resolved.conf
-mkdir -p "$work/lock"
+mkdir -p "$work/lock" "$work/NetworkManager"
 mount --bind "$work/lock" /run/lock
+mount --bind "$work/NetworkManager" /etc/NetworkManager
 
 cloudflare='[Resolve]
 DNS=1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com 2606:4700:4700::1111#cloudflare-dns.com 2606:4700:4700::1001#cloudflare-dns.com'
@@ -92,12 +99,44 @@ refute_modify "dispatcher leaves an already pinned profile alone"
 pin "$dhcp" 802-11-wireless no
 refute_modify "dispatcher does nothing while DHCP DNS is the selected provider"
 
-# A provider switch holds the lock for its whole run; a hook firing meanwhile
-# must wait rather than pin servers from a resolved.conf about to change.
-exec {held}>"$work/lock/omarchy-dns.lock"
-flock -x "$held"
-if timeout 1 bash -c 'STUB_LOG=/dev/null STUB_TYPE=802-11-wireless STUB_IGNORE4=no STUB_IGNORE6=no bash "$1" --pin-connection "$2" wlan0' _ "$dns" "$uuid"; then
-  fail "dispatcher waits for an in-flight provider change"
+# Provider switches and the hook share one lock, so a hook can't pin servers
+# from a resolved.conf a switch is about to replace. Hold the lock, start each
+# side in the background, and check it has done nothing while blocked, then
+# that it finishes the job once the lock is released. The child must not
+# inherit the held descriptor, or releasing it here would not unlock.
+hold_lock() {
+  exec {held}>"$work/lock/omarchy-dns.lock"
+  flock -x "$held"
+}
+
+release_lock() {
+  exec {held}>&-
+}
+
+printf '%s\n' "$cloudflare" >"$work/resolved.conf"
+: >"$work/log"
+hold_lock
+STUB_LOG="$work/log" STUB_TYPE=802-11-wireless STUB_IGNORE4=no STUB_IGNORE6=no \
+  bash "$dns" --pin-connection "$uuid" wlan0 {held}>&- &
+pid=$!
+sleep 0.5
+[[ ! -s $work/log ]] || fail "dispatcher leaves profiles alone while a provider change holds the lock" "log: $(cat "$work/log")"
+release_lock
+wait "$pid" || fail "dispatcher finishes once the lock is released"
+grep -Fx "$modify" "$work/log" >/dev/null ||
+  fail "dispatcher pins the profile once the lock is released" "log: $(cat "$work/log")"
+pass "dispatcher waits for an in-flight provider change, then pins"
+
+printf '%s\n' "$dhcp" >"$work/resolved.conf"
+hold_lock
+STUB_LOG="$work/log" bash "$dns" Cloudflare {held}>&- </dev/null >/dev/null 2>&1 &
+pid=$!
+sleep 0.5
+if grep -q '^DNS=' "$work/resolved.conf"; then
+  fail "provider switch leaves resolved.conf alone while the hook holds the lock"
 fi
-exec {held}>&-
-pass "dispatcher waits for an in-flight provider change"
+release_lock
+wait "$pid" || fail "provider switch finishes once the lock is released"
+grep -q '^DNS=1.1.1.1#cloudflare-dns.com' "$work/resolved.conf" ||
+  fail "provider switch writes resolved.conf once the lock is released" "got: $(cat "$work/resolved.conf")"
+pass "provider switch waits for an in-flight hook, then applies"
