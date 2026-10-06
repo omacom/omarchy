@@ -32,6 +32,12 @@ OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 STATE_DIR="${OMARCHY_MIGRATION_STATE:-$HOME/.local/state/omarchy/migrations}"
 MIGRATIONS_DIR="$OMARCHY_PATH/migrations"
 
+# A migration exits 75 (EX_TEMPFAIL) to wait for something outside Omarchy, like
+# another repository's package reaching the machine. It stays unmarked and runs
+# again next time, without stopping the queue or counting as pending.
+DEFERRED_STATUS=75
+DEFERRED_DIR="$STATE_DIR/deferred"
+
 migration_entries() {
   [[ -d $MIGRATIONS_DIR ]] || return 0
 
@@ -49,7 +55,7 @@ pending_migrations() {
 
   while IFS=$'\t' read -r name file marker; do
     [[ -n $name ]] || continue
-    if [[ ! -f $marker ]]; then
+    if [[ ! -f $marker && ! -f $DEFERRED_DIR/$name ]]; then
       printf '%s\n' "$name"
     fi
   done < <(migration_entries)
@@ -90,9 +96,19 @@ while IFS=$'\t' read -r name file marker <&3; do
 
   if [[ ! -f $marker ]]; then
     echo -e "\e[32m\nRunning migration (${name%.sh})\e[0m"
-    OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&-
+    status=0
+    OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&- || status=$?
+    if (( status == DEFERRED_STATUS )); then
+      mkdir -p "$DEFERRED_DIR"
+      touch "$DEFERRED_DIR/$name"
+      echo -e "\e[33mMigration ${name%.sh} will run again on the next update.\e[0m"
+      continue
+    elif (( status != 0 )); then
+      exit "$status"
+    fi
     mkdir -p "$(dirname "$marker")"
     touch "$marker"
+    rm -f "$DEFERRED_DIR/$name"
   fi
 done 3< <(migration_entries)
 

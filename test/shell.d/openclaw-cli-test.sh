@@ -405,7 +405,9 @@ run bash -euo pipefail "$test_tmp/migration.sh" || fail "a machine without OpenC
 new_home migration-old
 touch "$test_tmp/package-installed"
 mv "$seed" "$seed.old"
-run bash -euo pipefail "$test_tmp/migration.sh" && fail "an old package keeps the migration pending"
+status=0
+run bash -euo pipefail "$test_tmp/migration.sh" || status=$?
+(( status == 75 )) || fail "an old package defers the migration rather than failing the update" "status $status: $(cat "$test_tmp/output")"
 [[ ! -e $test_home/.openclaw ]] || fail "an old package leaves the home untouched"
 mv "$seed.old" "$seed"
 
@@ -424,7 +426,7 @@ new_home migration-foreign
 touch "$test_tmp/package-installed"
 printf '#!/bin/bash\n' >"$command"
 run bash -euo pipefail "$test_tmp/migration.sh" && fail "a migration that cannot finish stays pending"
-pass "the migration moves a packaged OpenClaw to its runtime, and stays pending until it can"
+pass "the migration moves a packaged OpenClaw to its runtime, and defers until the package can seed it"
 
 new_home migration-update
 touch "$test_tmp/package-installed"

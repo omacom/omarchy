@@ -128,6 +128,7 @@ New migration format:
 - Be idempotent. Check existing state before changing it.
 - Don't take the migration's own `PATH` for a session's. Under `omarchy update` it is a fixed system path without `/usr/local/bin`, mise's shims or `~/.local/bin`; from the login notifier or by hand it is the session's, and that order differs again between a terminal and the desktop. Call a user's command by its full path, and when looking for what a session might run, look in those directories too without relying on their order.
 - Migrations are strictly ordered and synchronous. A migration that cannot finish must exit non-zero, remain pending, and stop the queue; never mark later migrations complete against state an earlier migration has not established.
+- The one exception is a migration that is only waiting on something outside Omarchy, like another repository's package reaching the machine. It may defer: say what it waits for, then exit 75. The runner leaves it unmarked, goes on with the rest, and runs it again on every `omarchy update` and `omarchy-migrate`; `--pending` leaves it out, so neither the login notifier nor the 4.0 upgrade treats it as unfinished. Defer only when the machine works as it is until then and no later migration depends on this one.
 - Use helper commands such as `omarchy-cmd-present`, `omarchy-cmd-missing`,
   `omarchy-pkg-add`, `omarchy-pkg-drop`, `omarchy-pkg-present`, and
   `omarchy-pkg-missing` when appropriate.

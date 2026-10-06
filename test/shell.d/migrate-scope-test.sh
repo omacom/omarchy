@@ -103,3 +103,39 @@ grep -q '^after-reader$' "$stdin_calls" ||
   -f $stdin_home/.local/state/omarchy/migrations/200-after.sh ]] ||
   fail "migration runner marks both stdin-isolated migrations complete"
 pass "migration queue uses a private file descriptor instead of migration stdin"
+
+# A migration waiting on something outside Omarchy defers with 75: it stays
+# unmarked, the queue goes on, and it is not pending while it waits.
+defer_root="$test_tmp/defer-omarchy"
+defer_home="$test_tmp/defer-home"
+defer_calls="$test_tmp/defer-calls"
+defer_state="$defer_home/.local/state/omarchy/migrations"
+mkdir -p "$defer_root/migrations" "$defer_home"
+
+cat >"$defer_root/migrations/100-waits.sh" <<'SH'
+echo waits >>"$TEST_CALLS"
+[[ -e $TEST_READY ]] || exit 75
+SH
+cat >"$defer_root/migrations/200-after.sh" <<'SH'
+echo after >>"$TEST_CALLS"
+SH
+
+run_defer() {
+  HOME="$defer_home" OMARCHY_PATH="$defer_root" TEST_CALLS="$defer_calls" TEST_READY="$test_tmp/defer-ready" \
+    "$ROOT/bin/omarchy-migrate" "$@"
+}
+
+run_defer >"$test_tmp/defer.out" || fail "a deferred migration does not fail the run" "$(cat "$test_tmp/defer.out")"
+[[ ! -f $defer_state/100-waits.sh ]] || fail "a deferred migration is not marked complete"
+[[ -f $defer_state/200-after.sh ]] || fail "the queue goes on past a deferred migration"
+if run_defer --pending >"$test_tmp/defer-pending.out"; then
+  fail "a deferred migration does not count as pending" "$(cat "$test_tmp/defer-pending.out")"
+fi
+run_defer >/dev/null || fail "a deferred migration does not fail a later run"
+(( $(grep -c '^waits$' "$defer_calls") == 2 && $(grep -c '^after$' "$defer_calls") == 1 )) ||
+  fail "a deferred migration runs again on the next run, and only it" "$(cat "$defer_calls")"
+touch "$test_tmp/defer-ready"
+run_defer >/dev/null || fail "a deferred migration that can finish does"
+[[ -f $defer_state/100-waits.sh && ! -e $defer_state/deferred/100-waits.sh ]] ||
+  fail "a deferred migration that finishes is marked complete and no longer deferred"
+pass "a deferred migration waits without stopping the queue or counting as pending, and finishes once it can"
