@@ -269,6 +269,22 @@ if ! provider=$(provider_from_arg "$1"); then
 fi
 
 require_root "$provider"
+
+# Ask for Custom servers before taking the lock: a prompt left open must not
+# hold up other provider changes or the dispatcher hook.
+if [[ $provider == "Custom" ]]; then
+  echo "Enter your DNS servers (space-separated, e.g. '192.168.1.1 1.1.1.1'):"
+  if ! read -r dns_servers; then
+    dns_servers=""
+  fi
+
+  dns_servers=$(normalize_servers "$dns_servers")
+  if [[ -z $dns_servers ]]; then
+    echo "Error: No DNS servers provided." >&2
+    exit 1
+  fi
+fi
+
 lock_dns_changes
 
 rm -f "$NM_DNS_CONF"
@@ -318,17 +334,6 @@ EOF
   ;;
 
 Custom)
-  echo "Enter your DNS servers (space-separated, e.g. '192.168.1.1 1.1.1.1'):"
-  if ! read -r dns_servers; then
-    dns_servers=""
-  fi
-
-  dns_servers=$(normalize_servers "$dns_servers")
-  if [[ -z $dns_servers ]]; then
-    echo "Error: No DNS servers provided." >&2
-    exit 1
-  fi
-
   split_dns_servers "$dns_servers"
   # omarchy:heredoc-expands paths=none -- $dns_servers is a normalized,
   # single-line DNS server list; the //,/ turns its comma separators into the

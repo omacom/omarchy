@@ -140,3 +140,25 @@ wait "$pid" || fail "provider switch finishes once the lock is released"
 grep -q '^DNS=1.1.1.1#cloudflare-dns.com' "$work/resolved.conf" ||
   fail "provider switch writes resolved.conf once the lock is released" "got: $(cat "$work/resolved.conf")"
 pass "provider switch waits for an in-flight hook, then applies"
+
+# Custom prompts for its servers. A prompt left open must not hold the lock:
+# with Custom waiting on input, the hook still pins, then Custom applies what
+# it is given.
+mkfifo "$work/custom-input"
+printf '%s\n' "$cloudflare" >"$work/resolved.conf"
+STUB_LOG=/dev/null bash "$dns" Custom <"$work/custom-input" >/dev/null 2>&1 &
+custom_pid=$!
+exec {custom_input}>"$work/custom-input"
+sleep 0.5
+: >"$work/log"
+STUB_LOG="$work/log" STUB_TYPE=802-11-wireless STUB_IGNORE4=no STUB_IGNORE6=no \
+  timeout 5 bash "$dns" --pin-connection "$uuid" wlan0 {custom_input}>&- ||
+  fail "dispatcher runs while Custom waits at its prompt"
+grep -Fx "$modify" "$work/log" >/dev/null ||
+  fail "dispatcher pins while Custom waits at its prompt" "log: $(cat "$work/log")"
+printf '%s\n' "9.9.9.9 149.112.112.112" >&"$custom_input"
+exec {custom_input}>&-
+wait "$custom_pid" || fail "Custom finishes once it reads its servers"
+grep -Fx 'DNS=9.9.9.9 149.112.112.112' "$work/resolved.conf" >/dev/null ||
+  fail "Custom writes the servers it read" "got: $(cat "$work/resolved.conf")"
+pass "an open Custom prompt does not hold up the dispatcher"
