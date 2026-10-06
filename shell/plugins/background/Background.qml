@@ -171,7 +171,7 @@ Item {
   // the wallpapers still in play.
   function pruneNativeSizes() {
     var kept = {}
-    var paths = [displayedBackground, incomingBackground, oldBackground, preparedBackground]
+    var paths = [displayedBackground, incomingBackground, oldBackground, preparedBackground, pendingInstantBackground]
     for (var i = 0; i < paths.length; i++) {
       if (paths[i] && nativeSizes[paths[i]] !== undefined) kept[paths[i]] = nativeSizes[paths[i]]
     }

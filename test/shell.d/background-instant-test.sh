@@ -60,6 +60,18 @@ assertEqual(s.displayedBackground, 'b.png', 'the new path is displayed once its 
 assertEqual(s.pendingInstantBackground, '', 'the completed instant request releases its pending path')
 
 s = state()
+s.setBackground('b.png', true)
+// Keep a completed size result if pruning runs before the pending switch has
+// consumed it. A stale wallpaper should still be removed from the cache.
+s.nativeSizes['b.png'] = { width: 1280, height: 720 }
+s.nativeSizes['stale.png'] = { width: 640, height: 480 }
+s.pruneNativeSizes()
+assertDeepEqual(s.nativeSizes['b.png'], { width: 1280, height: 720 }, 'pruning retains the size of a pending instant wallpaper')
+assertEqual(s.displayedBackground, 'b.png', 'pruning lets a sized pending instant wallpaper become displayed')
+assertEqual(s.pendingInstantBackground, '', 'pruning releases the pending path after its size becomes available')
+assertEqual(s.nativeSizes['stale.png'], undefined, 'pruning still drops wallpaper sizes that are no longer in use')
+
+s = state()
 s.nativeSizes['b.png'] = { width: 1280, height: 720 }
 s.setBackground('b.png', true)
 assertEqual(s.displayedBackground, 'b.png', 'known-size instant switch does not wait for another probe')
