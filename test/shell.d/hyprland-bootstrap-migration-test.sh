@@ -12,19 +12,27 @@ test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
 # Writes the given hyprland.lua into a fresh fake $HOME and runs the migration
-# there. Echoes the config path so assertions can read what it produced.
+# there, keeping its output and exit status. Echoes the config path so
+# assertions can read what it produced.
 run_migration() {
-  local name="$1" home="$test_tmp/$1"
+  local name="$1" home="$test_tmp/$1" status=0
 
   rm -rf "$home"
   mkdir -p "$home/.config/hypr"
   cat >"$home/.config/hypr/hyprland.lua"
   cp "$home/.config/hypr/hyprland.lua" "$test_tmp/$name.original"
 
-  HOME="$home" OMARCHY_PATH="$ROOT" bash -euo pipefail "$migration" >"$test_tmp/$name.out" 2>&1 ||
-    fail "migration succeeds on $name" "$(cat "$test_tmp/$name.out")"
+  HOME="$home" OMARCHY_PATH="$ROOT" bash -euo pipefail "$migration" >"$test_tmp/$name.out" 2>&1 || status=$?
+  printf '%s\n' "$status" >"$test_tmp/$name.status"
 
   printf '%s\n' "$home/.config/hypr/hyprland.lua"
+}
+
+assert_status() {
+  local name="$1" expected="$2"
+
+  [[ $(<"$test_tmp/$name.status") == "$expected" ]] ||
+    fail "$name: migration exits $expected" "$(cat "$test_tmp/$name.out")"
 }
 
 # The preamble as Omarchy shipped it, with the given OMARCHY_PATH fallback; the
@@ -51,22 +59,25 @@ LUA
 assert_rewritten() {
   local name="$1" config="$2"
 
+  assert_status "$name" 0
   grep -Fqx 'dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/bootstrap.lua")' "$config" ||
     fail "$name: the bootstrap dofile is installed" "$(cat "$config")"
   ! grep -Fq 'package.path' "$config" || fail "$name: the old path preamble is gone" "$(cat "$config")"
   grep -Fqx 'require("hypr.monitors")' "$config" || fail "$name: the user's requires stay"
   luac -p "$config" 2>/dev/null || fail "$name: the result parses" "$(cat "$config")"
-  ! grep -Fq 'Left ' "$test_tmp/$name.out" || fail "$name: no hand-edit notice"
+  ! grep -Fq 'Could not switch' "$test_tmp/$name.out" || fail "$name: no hand-edit notice"
   ! compgen -G "$config.*" >/dev/null || fail "$name: Omarchy's own preamble needs no backup" "$(ls "$config".*)"
 }
 
 # A preamble that is not exactly one Omarchy shipped is the user's own Lua: the
-# file comes out byte for byte, and the user is told what to change by hand.
+# file comes out byte for byte, the user is told what to change by hand, and the
+# migration fails so it stays pending until they have.
 assert_left_alone() {
   local name="$1" config="$2"
 
+  assert_status "$name" 1
   cmp -s "$config" "$test_tmp/$name.original" || fail "$name: the config is left byte for byte" "$(cat "$config")"
-  grep -Fq "Left $config unchanged" "$test_tmp/$name.out" ||
+  grep -Fq "Could not switch $config to Omarchy's bootstrap" "$test_tmp/$name.out" ||
     fail "$name: the user is told to switch by hand" "$(cat "$test_tmp/$name.out")"
 }
 
@@ -124,12 +135,19 @@ pass "migration rewrites every preamble Omarchy shipped, before and after 178104
 config=$({ shipped_preamble; printf '%s\n' '' '-- My overrides' 'local gaps = 8 -- px'; body; } | run_migration followed)
 assert_rewritten followed "$config"
 grep -Fqx 'local gaps = 8 -- px' "$config" || fail "followed: the user's own lines stay"
+config=$({ shipped_preamble; printf '%s\n' 'package.path = package.path .. ";/mine/?.lua"'; body; } | run_migration appended)
+assert_status appended 0
+grep -Fqx 'package.path = package.path .. ";/mine/?.lua"' "$config" || fail "appended: the user's own path entry stays"
 pass "migration rewrites a shipped preamble followed by the user's code"
 
 # A config that never carried this preamble is not this migration's business.
 config=$(body | run_migration foreign)
+assert_status foreign 0
 cmp -s "$config" "$test_tmp/foreign.original" || fail "an unrelated config is left byte for byte"
-! grep -Fq 'Left ' "$test_tmp/foreign.out" || fail "an unrelated config draws no notice"
+! grep -Fq 'Could not switch' "$test_tmp/foreign.out" || fail "an unrelated config draws no notice"
+config=$({ printf '%s\n' '-- Omarchy sets package.path in its bootstrap.'; body; } | run_migration foreign-comment)
+assert_status foreign-comment 0
+cmp -s "$config" "$test_tmp/foreign-comment.original" || fail "a comment mentioning package.path is left alone"
 pass "migration ignores a config it has nothing to rewrite"
 
 # The shipped block can be the start of a longer assignment the user extended;
@@ -169,17 +187,19 @@ config=$({ shipped_preamble; printf '%s\n' '--[[ mine ]] .. ";/custom/?.lua"'; b
 assert_left_alone long-comment "$config"
 pass "migration never installs a hyprland.lua that Lua cannot load"
 
-# The shipped preamble commented out above the user's own: rewriting the dead
-# copy would bury the bootstrap in a comment and mark the migration done.
+# The shipped preamble commented out, alone or above the user's own: rewriting
+# the dead copy would bury the bootstrap in a comment and mark the migration done.
+config=$({ echo '--[['; shipped_preamble; echo ']]'; body; } | run_migration commented-out)
+assert_left_alone commented-out "$config"
 config=$({
   echo '--[['
   shipped_preamble
   echo ']]'
   printf '%s\n' 'package.path = os.getenv("HOME") .. "/dotfiles/?.lua;" .. package.path'
   body
-} | run_migration commented-out)
-assert_left_alone commented-out "$config"
-pass "migration leaves a config alone when the live path setup is the user's own"
+} | run_migration commented-out-own)
+assert_left_alone commented-out-own "$config"
+pass "migration only counts a bootstrap that the compiled config really calls"
 
 # The file is either rewritten from Omarchy's own preamble or left as it was, so
 # there is never a copy to keep.

@@ -23,9 +23,8 @@ package.path = os.getenv(\"HOME\")$state_path
   tmp=$(mktemp)
 
   # The shipped block can also be the start of a longer assignment the user
-  # extended, or a copy they commented out above their own. So the rewrite is
-  # installed only if Lua can load it and nothing in it still sets the path the
-  # bootstrap now owns.
+  # extended, or a copy they commented out. So the rewrite is installed only if
+  # Lua can load it and its compiled code really calls the bootstrap.
   if PREAMBLES=$(printf '%s\036' "${preambles[@]}") \
     BOOTSTRAP="-- Omarchy's bootstrap keeps path setup out of this user config."$'\n'"$bootstrap_dofile" \
     awk '
@@ -48,15 +47,21 @@ package.path = os.getenv(\"HOME\")$state_path
 
         exit 1
       }
-    ' "$hyprland_config" >"$tmp" && luac -p "$tmp" 2>/dev/null && ! grep -Fq 'package.path' "$tmp"; then
+    ' "$hyprland_config" >"$tmp" &&
+    listing=$(luac -l -p "$tmp" 2>/dev/null) &&
+    grep -Fq '"/default/hypr/bootstrap.lua"' <<<"$listing"; then
     mv "$tmp" "$hyprland_config"
   else
     rm -f "$tmp"
 
-    if grep -Fq 'package.path' "$hyprland_config"; then
-      echo "Left $hyprland_config unchanged: its package.path setup is not one Omarchy shipped."
-      echo "To load Omarchy's bootstrap, replace that setup with:"
-      echo "  $bootstrap_dofile"
+    # The user's own path setup is theirs to switch. Until they do, the
+    # migration stays pending and runs again on the next omarchy-migrate. A
+    # comment that only mentions package.path is not a setup to switch.
+    if awk '!/^[[:space:]]*--/ && /package\.path[[:space:]]*=([^=]|$)/ { found = 1; exit } END { exit !found }' "$hyprland_config"; then
+      echo "Could not switch $hyprland_config to Omarchy's bootstrap: its package.path setup is not one Omarchy shipped." >&2
+      echo "Replace that setup with the line below, then run omarchy-migrate again:" >&2
+      echo "  $bootstrap_dofile" >&2
+      exit 1
     fi
   fi
 fi
