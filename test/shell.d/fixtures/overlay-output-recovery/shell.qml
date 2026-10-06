@@ -35,7 +35,7 @@ ShellRoot {
         anchors.fill: parent
         focus: true
         Keys.onPressed: function(event) {
-          root.keyCount += 1
+          if (event.key === Qt.Key_A && !event.isAutoRepeat) root.keyCount += 1
           event.accepted = true
         }
       }

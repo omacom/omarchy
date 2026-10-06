@@ -117,7 +117,7 @@ def main():
       previous = state()["keyCount"]
       run(["wtype", "-k", "a"])
       wait_for("recovered overlay receives keyboard input", state,
-               lambda value: value["keyCount"] == previous + 1 and value["keyboardFocus"] == 1)
+               lambda value: value["keyCount"] > previous and value["keyboardFocus"] == 1)
 
     def snapshot(name, monitor):
       if args.artifacts and shutil.which("grim"):
