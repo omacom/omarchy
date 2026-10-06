@@ -51,7 +51,7 @@ fi
 # The shell's night light service owns the toggle when it is running, so the
 # keybinding, the menu, and the bar indicator all behave alike, including
 # offering to set up a schedule the first time night light is turned on.
-if [[ $(omarchy-shell nightlight toggle 2>/dev/null) == @(enabled|disabled) ]]; then
+if [[ $(omarchy-shell nightlight toggle 2>/dev/null) == "toggled" ]]; then
   exit 0
 fi
 

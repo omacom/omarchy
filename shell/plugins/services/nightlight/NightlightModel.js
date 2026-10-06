@@ -98,6 +98,16 @@ function kelvinColor(kelvin) {
   return { r: unit(r), g: unit(g), b: unit(b) }
 }
 
+// A saved warmth is used as written when it is in range; only out-of-range or
+// non-numeric values fall back. Rounding here would let the shell disagree
+// with the profile the command wrote.
+function savedTemperature(value) {
+  var number = Number(value)
+  if (!isFinite(number) || Math.round(number) !== number) return clampTemperature(value)
+  if (number < MIN_TEMPERATURE || number > MAX_TEMPERATURE) return clampTemperature(value)
+  return number
+}
+
 // Reads the saved schedule, falling back field by field to the defaults so a
 // hand-edited or partial file still opens. `saved` tells a first run apart.
 function parseSchedule(text) {
@@ -111,8 +121,26 @@ function parseSchedule(text) {
     scheduled: parsed.scheduled === true,
     day: isTime(parsed.day) ? parsed.day : DEFAULT_SCHEDULE.day,
     night: isTime(parsed.night) ? parsed.night : DEFAULT_SCHEDULE.night,
-    temperature: parsed.temperature === undefined ? DEFAULT_SCHEDULE.temperature : clampTemperature(parsed.temperature)
+    temperature: parsed.temperature === undefined ? DEFAULT_SCHEDULE.temperature : savedTemperature(parsed.temperature)
   }
+}
+
+// Milliseconds from `now` until the next day or night start, so the service
+// can re-read the screen when hyprsunset switches profiles on its own. Aims a
+// couple of seconds past the boundary to land after hyprsunset has switched.
+function msUntilNextBoundary(day, night, now) {
+  if (!isTime(day) || !isTime(night)) return -1
+  var date = now instanceof Date ? now : new Date(now)
+  var current = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds()
+  var best = -1
+  var times = [day, night]
+  for (var i = 0; i < times.length; i++) {
+    var target = minutesOfDay(times[i]) * 60 + 2
+    var wait = ((target - current) % 86400 + 86400) % 86400
+    if (wait === 0) wait = 86400
+    if (best < 0 || wait < best) best = wait
+  }
+  return best * 1000 - date.getMilliseconds()
 }
 
 // One line saying what the schedule will do, or why it cannot be saved.
@@ -138,6 +166,8 @@ if (typeof module !== "undefined") {
     nightMinutes: nightMinutes,
     formatDuration: formatDuration,
     clampTemperature: clampTemperature,
+    savedTemperature: savedTemperature,
+    msUntilNextBoundary: msUntilNextBoundary,
     kelvinColor: kelvinColor,
     parseSchedule: parseSchedule,
     describeSchedule: describeSchedule

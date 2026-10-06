@@ -27,6 +27,10 @@ Item {
   property bool opened: false
   property bool firstRun: false
   property bool saved: false
+  // The save in flight from this card, and why the last one failed. The card
+  // stays open until the command reports success.
+  property bool saving: false
+  property string saveError: ""
 
   // Draft, seeded from the service on every open.
   property bool scheduled: true
@@ -66,6 +70,8 @@ Item {
     root.temperature = saved.temperature
     root.cursor = 0
     root.saved = false
+    root.saving = false
+    root.saveError = ""
     root.opened = true
 
     // The surface is created hidden, so focus taken during creation lands
@@ -74,7 +80,9 @@ Item {
   }
 
   function close() {
-    if (root.opened && !root.saved && root.service) root.service.endPreview()
+    // A save still running owns the screen's warmth; restoring the preview
+    // now would race it.
+    if (root.opened && !root.saved && !root.saving && root.service) root.service.endPreview()
     root.opened = false
   }
 
@@ -122,14 +130,25 @@ Item {
 
   function save() {
     root.leaveField()
+    if (root.saving) return
     if (!root.summary.valid) {
       root.focusRow(root.day === "" ? 1 : 2)
       return
     }
-    if (root.service && root.service.saveConfig(root.scheduled, root.day, root.night, root.temperature)) {
-      root.saved = true
-      root.dismiss()
-    }
+    if (!root.service) return
+
+    root.saveError = ""
+    var started = root.service.saveConfig(root.scheduled, root.day, root.night, root.temperature, function(ok, error) {
+      root.saving = false
+      if (ok) {
+        root.saved = true
+        if (root.opened) root.dismiss()
+      } else {
+        root.saveError = error || "Saving failed"
+      }
+    })
+    if (started) root.saving = true
+    else root.saveError = "A night light save is already running"
   }
 
   // Shared behavior for the two time fields: arrows step the time, Enter and
@@ -393,8 +412,8 @@ Item {
             textFormat: Text.PlainText
             width: parent.width
             wrapMode: Text.WordWrap
-            text: root.summary.text
-            color: root.summary.valid ? root.dim : Color.urgent
+            text: root.saveError !== "" ? "Couldn't save: " + root.saveError : root.summary.text
+            color: root.summary.valid && root.saveError === "" ? root.dim : Color.urgent
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
           }
@@ -421,13 +440,13 @@ Item {
               id: saveButton
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
-              text: "Save"
+              text: root.saving ? "Saving…" : "Save"
               bordered: true
-              selected: root.summary.valid
+              selected: root.summary.valid && !root.saving
               hasCursor: root.cursor === 4
               foreground: root.foreground
               fontFamily: root.fontFamily
-              opacity: root.summary.valid ? 1 : 0.5
+              opacity: root.summary.valid && !root.saving ? 1 : 0.5
               onClicked: { root.cursor = 4; root.save() }
               onHovered: function(isHovered) { if (isHovered && !root.editing) root.cursor = 4 }
             }

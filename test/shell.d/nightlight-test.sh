@@ -45,6 +45,14 @@ assertDeepEqual(nightlight.parseSchedule(''), { saved: false, scheduled: false, 
 assertDeepEqual(nightlight.parseSchedule('[]'), { saved: false, scheduled: false, day: '07:00', night: '20:00', temperature: 4000 }, 'nightlight schedule treats a non-object file as never saved')
 assertDeepEqual(nightlight.parseSchedule('{"scheduled":true,"day":"06:30","night":"21:15","temperature":3200}'), { saved: true, scheduled: true, day: '06:30', night: '21:15', temperature: 3200 }, 'nightlight schedule reads a saved schedule')
 assertDeepEqual(nightlight.parseSchedule('{"scheduled":true,"day":"25:00","temperature":99999}'), { saved: true, scheduled: true, day: '07:00', night: '20:00', temperature: nightlight.MAX_TEMPERATURE }, 'nightlight schedule repairs bad fields one at a time')
+assertEqual(nightlight.parseSchedule('{"temperature":3850}').temperature, 3850, 'nightlight schedule loads an in-range warmth exactly as the command saved it')
+assertEqual(nightlight.parseSchedule('{"temperature":3850.5}').temperature, 3900, 'nightlight schedule rounds a fractional saved warmth')
+
+// 19:59:00 -> next boundary is 20:00 (+2s grace) = 62s.
+assertEqual(nightlight.msUntilNextBoundary('07:00', '20:00', new Date(2026, 0, 1, 19, 59, 0, 0)), 62000, 'nightlight schedule finds the next night start')
+// 23:00:00 -> next boundary is 07:00 tomorrow (+2s) = 8h + 2s.
+assertEqual(nightlight.msUntilNextBoundary('07:00', '20:00', new Date(2026, 0, 1, 23, 0, 0, 0)), (8 * 3600 + 2) * 1000, 'nightlight schedule wraps to the next day start')
+assertEqual(nightlight.msUntilNextBoundary('', '20:00', new Date()), -1, 'nightlight schedule has no boundary without valid times')
 
 assertEqual(nightlight.describeSchedule(true, '07:00', '20:00').text, 'Warm from 20:00 to 07:00 · 11h', 'nightlight schedule summarizes the warm stretch')
 assertEqual(nightlight.describeSchedule(false, '07:00', '20:00').valid, true, 'nightlight schedule can be saved switched off')
@@ -70,6 +78,7 @@ if [[ ${1:-} == "hyprsunset" && ${2:-} == "temperature" ]]; then
   if [[ -n ${3:-} ]]; then
     printf '%s\n' "$3" >"$HYPRSUNSET_STATE"
   else
+    [[ ! -e $HYPRSUNSET_STATE.killed ]] || exit 1
     cat "$HYPRSUNSET_STATE" 2>/dev/null || exit 1
   fi
   exit 0
@@ -101,7 +110,19 @@ if [[ $1 == "nightlight" && $2 == "toggle" ]]; then
 fi
 SH
 
-for stub in setsid omarchy-notification-send; do
+# Starting hyprsunset brings it back: pgrep sees it again and it answers.
+cat >"$TMPDIR/bin/setsid" <<'SH'
+#!/bin/bash
+printf 'setsid %s\n' "$*" >>"$OMARCHY_SHELL_LOG"
+# A long-lived daemon must not inherit the save lock (fd 9).
+[[ -e /proc/self/fd/9 ]] && printf 'setsid inherited-lock\n' >>"$OMARCHY_SHELL_LOG"
+if [[ $* == *hyprsunset* && -z ${HYPRSUNSET_WONT_START:-} ]]; then
+  rm -f "$HYPRSUNSET_STATE.killed"
+  [[ -s $HYPRSUNSET_STATE ]] || printf '6500\n' >"$HYPRSUNSET_STATE"
+fi
+SH
+
+for stub in omarchy-notification-send; do
   cat >"$TMPDIR/bin/$stub" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "$(basename "$0")" "$*" >>"$OMARCHY_SHELL_LOG"
@@ -168,7 +189,7 @@ pass "nightlight toggle leaves indicator refresh to the nightlight service"
 # the schedule; the script must not also flip hyprsunset behind its back.
 printf '6500\n' >"$STATE"
 : >"$SHELL_LOG"
-SHELL_TOGGLE_REPLY=enabled nightlight_cli >/dev/null
+SHELL_TOGGLE_REPLY=toggled nightlight_cli >/dev/null
 grep -Fqx 'nightlight toggle' "$SHELL_LOG" || fail "nightlight toggle hands off to the shell service"
 [[ $(<"$STATE") == 6500 ]] || fail "nightlight toggle leaves hyprsunset to the shell service"
 pass "nightlight toggle hands off to the shell service when it is running"
@@ -244,6 +265,71 @@ pass "nightlight schedule rejects bad times, equal starts, and out-of-range warm
 config_cli edit
 grep -Fqx 'shell summon omarchy.nightlight' "$SHELL_LOG" || fail "nightlight config edit opens the shell editor"
 pass "nightlight config edit opens the shell editor"
+
+# --keep-on: night light that was on stays on at the new warmth, applied by
+# the command after the restarted hyprsunset answers (not on a timer).
+printf '4000\n' >"$STATE"
+config_cli set --keep-on on 06:45 21:30 3300
+[[ $(<"$STATE") == 3300 ]] || fail "nightlight config keep-on re-applies the new warmth after the restart" "$(<"$STATE")"
+pass "nightlight config keep-on re-applies the new warmth after the restart"
+
+printf '4000\n' >"$STATE"
+config_cli set on 06:45 21:30 3200
+[[ $(<"$STATE") == 4000 ]] || fail "nightlight config without keep-on leaves the warmth to hyprsunset's profiles"
+pass "nightlight config without keep-on leaves the warmth to hyprsunset's profiles"
+
+# A hyprsunset that never comes back fails the save instead of reporting
+# success over a screen with no night light.
+if HYPRSUNSET_WONT_START=1 config_cli set on 06:45 21:30 3200 2>/dev/null; then
+  fail "nightlight config fails when hyprsunset does not come back"
+fi
+pass "nightlight config fails when hyprsunset does not come back"
+
+# An unwritable profile fails the save and leaves the saved settings alone.
+before=$(cat "$STATE_FILE")
+chmod a-w "$(dirname "$CONFIG_FILE")"
+if config_cli set on 05:00 22:00 2800 2>/dev/null; then
+  chmod u+w "$(dirname "$CONFIG_FILE")"
+  fail "nightlight config fails when the profiles cannot be written"
+fi
+chmod u+w "$(dirname "$CONFIG_FILE")"
+[[ $(cat "$STATE_FILE") == "$before" ]] || fail "nightlight config keeps the saved settings when the profiles cannot be written"
+pass "nightlight config fails cleanly when the profiles cannot be written"
+
+# Overlapping saves are serialized and leave matching settings and profiles.
+config_cli set on 06:00 21:00 3000 &
+config_cli set on 06:30 22:30 3400 &
+wait
+saved_night=$(jq -r .night "$STATE_FILE")
+profile_night=$(awk '/^profile/{p++} p==2 && /time =/{print $3}' "$CONFIG_FILE")
+[[ $saved_night == "$profile_night" ]] || fail "nightlight config overlapping saves leave settings and profiles in step" "$saved_night vs $profile_night"
+compgen -G "$CONFIG_FILE.*" >/dev/null && fail "nightlight config leaves no temp files behind" "$(ls "$(dirname "$CONFIG_FILE")")"
+pass "nightlight config overlapping saves leave settings and profiles in step"
+
+grep -Fq 'flock' "$ROOT/bin/omarchy-nightlight-config" || fail "nightlight config serializes saves with a lock"
+pass "nightlight config serializes saves with a lock"
+
+: >"$SHELL_LOG"
+config_cli set on 06:30 22:30 3400
+grep -Fq 'setsid inherited-lock' "$SHELL_LOG" && fail "nightlight config keeps the save lock out of the hyprsunset it starts"
+pass "nightlight config keeps the save lock out of the hyprsunset it starts"
+
+# A second save right after the first must not wait on a lock the restarted
+# hyprsunset is holding.
+timeout 10 bash -c "$(declare -f config_cli); TMPDIR='$TMPDIR' STATE='$STATE' SHELL_LOG='$SHELL_LOG' ROOT='$ROOT' config_cli set on 06:45 21:30 3300" ||
+  fail "nightlight config saves back to back without waiting on a held lock"
+pass "nightlight config saves back to back without waiting on a held lock"
+
+# The shell toggles from a fresh reading and the bar goes through the same
+# path, so a schedule switch since the last reading cannot invert it.
+rg -q 'nightlightService.toggle\(\)' "$ROOT/shell/plugins/bar/indicators/NightLight.qml" ||
+  fail "the bar indicator toggles through the service's fresh-reading path"
+pass "the bar indicator toggles through the service's fresh-reading path"
+
+if rg -q 'execDetached\(\["omarchy-nightlight-config"' "$ROOT/shell/plugins/services/nightlight/Service.qml"; then
+  fail "the nightlight service waits for the save command's result"
+fi
+pass "the nightlight service waits for the save command's result"
 
 grep -Fq '"action":"omarchy-nightlight-config edit"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
   fail "the menu offers the night light config"
