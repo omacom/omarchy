@@ -19,5 +19,8 @@ require("default.hypr.qconsole")
 require("default.hypr.input")
 require("default.hypr.windows")
 
--- Current theme overrides.
+-- Current theme overrides. Any theme may describe its look as data in
+-- hyprland.toml; only a theme the user wrote, or Omarchy's own, may also ship
+-- hyprland.lua, which loads last so it can refine that look.
+require("default.hypr.theme-looknfeel").apply_file()
 require_optional.module("omarchy.current.theme.hyprland")

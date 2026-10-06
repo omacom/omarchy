@@ -34,9 +34,16 @@ the terminal configs `alacritty.toml`, `foot.ini`, `ghostty.conf` and
 through `$OMARCHY_PATH/default/themed/*.tpl`, and named on stderr.
 
 Everything else a cloned theme ships is kept, including `btop.theme`,
-`chromium.theme`, `helix.toml`, `icons.theme`, `keyboard.rgb` and `shell.toml`.
-Omarchy tells a cloned theme from the user's own by the `.git` directory a clone
-leaves behind.
+`chromium.theme`, `helix.toml`, `hyprland.toml`, `icons.theme`, `keyboard.rgb`
+and `shell.toml`. Omarchy tells a cloned theme from the user's own by the `.git`
+directory a clone leaves behind.
+
+A theme sets Hyprland's look — gaps, rounding, shadows, blur, window opacity,
+blur behind the shell, animations — in `hyprland.toml`, not `hyprland.lua`. It
+is data: `$OMARCHY_PATH/default/hypr/theme-looknfeel.lua` checks each value
+against a fixed list of options and Hyprland's ranges and skips the rest, so it
+works in a cloned theme too. See `docs/theming.md` in the Omarchy repo for the
+sections and keys.
 
 To change how Omarchy themes an app for every theme, write the template rather
 than the theme: `~/.config/omarchy/themed/<config-name>.tpl` overrides the

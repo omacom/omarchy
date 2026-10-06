@@ -11,7 +11,7 @@ ship `backgrounds/` (users overlay their own via
 `~/.config/omarchy/backgrounds/<name>/`; the active image is the
 `~/.local/state/omarchy/current/background` symlink), `preview.png` and
 `preview-unlock.png` for the theme switcher, `icons.theme`, `keyboard.rgb`,
-`unlock.png`, and a `light.mode` marker file.
+`unlock.png`, a `light.mode` marker file, and a [`hyprland.toml`](#hyprlandtoml) describing Hyprland's look.
 
 A theme installed from a git repo is held to a much shorter list; see [What an installed theme may not ship](#what-an-installed-theme-may-not-ship).
 
@@ -58,6 +58,8 @@ Last, it starts `omarchy-theme-set-herdr-machines` detached. That command sets t
 - `vscode.json` — names the extension `omarchy-theme-set-vscode` installs, and a VS Code extension is arbitrary JavaScript
 
 Symlinks are dropped with them, at any depth; in a cloned theme they point wherever the theme author chose. Everything a cloned theme ships that is colour is kept, including files Omarchy would otherwise have generated — `btop.theme`, `chromium.theme`, `helix.toml`, `shell.toml`, `icons.theme`, `keyboard.rgb` and the rest — so a theme can still say exactly how it wants each app to look. What is dropped gets generated from `default/themed/*.tpl` instead, and is named on stderr.
+
+Dropping `hyprland.lua` does not take Hyprland's look with it. `hyprland.toml` describes gaps, rounding, shadows, blur, window opacity, blur behind the shell and animations as data, which Omarchy's own `default/hypr/theme-looknfeel.lua` checks and applies, so a cloned theme keeps it like any other file that is not code. See [`hyprland.toml`](#hyprlandtoml).
 
 A denylist is only right while it is maintained. Adding a template for another terminal, or for another editor that loads Lua, means adding it to `INSTALLED_THEME_DENIED` in `bin/omarchy-theme-set`; `test/shell.d/theme-staging-test.sh` fails on any `default/themed/*.tpl` whose output is recorded as neither code nor colour, so a new template cannot be added without that decision being made.
 
@@ -373,9 +375,69 @@ For a gradient it renders:
 local active_border_color = { colors = { "rgba(33ccffee)", "rgba(00ff99ee)" }, angle = 45 }
 ```
 
+## `hyprland.toml`
+
+`hyprland.lua` is code, so a theme cloned from a git repo cannot ship one. `hyprland.toml` is how any theme sets the rest of Hyprland's look instead. `default/hypr/theme-looknfeel.lua` reads it from the current theme every time Hyprland loads its config: after Omarchy's defaults, and before the theme's own `hyprland.lua` and the user's `~/.config/hypr/*.lua`, so a hand-written theme and the user's config can still refine it.
+
+The file is parsed, never run. Every value is checked against a fixed list of look-and-feel options, with the type and range Hyprland publishes in `hyprctl descriptions`, before Hyprland sees it. A value that fails its check is skipped on its own, rather than handed to Hyprland, which reports a bad value as a config error even from inside `pcall`. Anything outside the list — input, bindings, `exec`, `misc`, monitors — is never applied.
+
+```toml
+[general]
+gaps_in = 4
+gaps_out = 8
+border_size = 2
+
+[decoration]
+rounding = 10
+rounding_power = 3
+active_opacity = 0.92
+inactive_opacity = 0.88
+
+[decoration.shadow]
+enabled = true
+range = 25
+color = "rgba(00000055)"
+offset = [0, 5]
+
+[decoration.blur]
+enabled = true
+size = 20
+passes = 3
+contrast = 1.15
+popups = true
+
+[opacity]
+windows = [0.92, 0.88]
+browsers = [0.92, 0.88]
+terminals = [0.80, 0.76]
+
+[shell]
+blur = true
+blur_ignore_alpha = 0.33
+
+[curves]
+water = [0.22, 0.9, 0.36, 1.0]
+
+[animations.windowsIn]
+speed = 2.8
+curve = "water"
+style = "popin 80%"
+
+[animations.workspaces]
+enabled = false
+```
+
+- `[general]`, `[decoration]`, `[decoration.shadow]` and `[decoration.blur]` take Hyprland's own option names. The full list, with types and ranges, is `OPTIONS` in `default/hypr/theme-looknfeel.lua`. Integer options take whole numbers (`8.0` is fine, `8.5` is skipped). Colours take `#rrggbb`, `#rrggbbaa`, `0xaarrggbb`, `rgb(...)` and `rgba(...)`. Window border colours stay in `colors.toml` as `hyprland_active_border` and `hyprland_inactive_border`.
+- `[opacity]` sets window opacity as `[active, inactive, fullscreen]` (one to three values from 0 to 1) through the tags Omarchy already gives windows: `windows` is `default-opacity`, `browsers` the Chromium- and Firefox-based browser tags, and `terminals` the `terminal` tag. Apps that opt out of `default-opacity` stay opted out.
+- `[shell] blur = true` adds one layer rule that blurs behind Omarchy's own shell surfaces — the bar and its popups, menu, clipboard, emojis, polkit, image selector, panels, notifications, OSD and reminders — listed in `shell_blur_namespaces`. Pixels at or below `blur_ignore_alpha` (default `0`) are not blurred, which keeps a translucent scrim from frosting the whole screen: set it between the theme's `scrim-alpha` and its surfaces' `background-alpha` in `shell.toml`. Layer blur needs `[decoration.blur] enabled = true`.
+- `[curves]` defines bezier curves as `[x1, y1, x2, y2]`, registered as `theme_<name>` so they never replace a curve Omarchy's own animations use. `[animations.<leaf>]` takes a `speed`, a `curve` (a theme curve or `default`) and an optional `style` that Hyprland accepts for that leaf, or `enabled = false`. Parents are applied before their children.
+
+The format is the part of TOML this needs: strings, numbers, booleans, flat arrays of numbers, `[section]` headers and dotted keys. A line it cannot read is skipped. `test/shell.d/hyprland-theme-looknfeel-test.sh` hands every accepted option and style to `Hyprland --verify-config`, compares the ranges with `hyprctl descriptions` when Hyprland is running, and fails on a shell surface that is neither blurred nor deliberately left out.
+
 ## Adding or overriding theme files
 
 - Add palette values to `themes/<name>/colors.toml`.
+- Describe Hyprland's look in `themes/<name>/hyprland.toml`, and keep `hyprland.lua` for what data cannot say; a theme cloned from a git repo cannot ship it.
 - Hand-written overrides work everywhere except a `.lua`, a terminal config or a `vscode.json` in a theme cloned from a git repo; see [What an installed theme may not ship](#what-an-installed-theme-may-not-ship).
 - Prefer generated files when the theme can be expressed with templates.
 - Add a hand-written file in `themes/<name>/` only when that theme needs to
