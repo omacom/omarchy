@@ -18,7 +18,14 @@ if (( EUID == 0 )); then
   export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
 fi
 
+# Earlier releases wrote a [global-dns] drop-in here; it overrode VPN DNS, so it
+# is now only removed.
 NM_DNS_CONF=/etc/NetworkManager/conf.d/20-omarchy-dns.conf
+
+# NetworkManager runs every executable in dispatcher.d as root. Link the packaged
+# path, never a dev checkout, for the same reason PACKAGED_PATH does below.
+NM_DISPATCHER_LINK=/etc/NetworkManager/dispatcher.d/90-omarchy-dns
+NM_DISPATCHER_TARGET=/usr/bin/omarchy-dns-dispatch
 
 provider_from_arg() {
   case "${1:-}" in
@@ -72,22 +79,6 @@ require_root() {
   fi
 }
 
-networkmanager_global_dns() {
-  [[ -f $NM_DNS_CONF ]] || return 0
-
-  awk -F= '
-    /^[[:space:]]*#/ { next }
-    /^[[:space:]]*\[global-dns-domain-\*\][[:space:]]*$/ { in_default = 1; next }
-    /^[[:space:]]*\[/ { in_default = 0 }
-    in_default && /^[[:space:]]*servers[[:space:]]*=/ {
-      value = $0
-      sub(/^[^=]*=/, "", value)
-      print value
-      exit
-    }
-  ' "$NM_DNS_CONF"
-}
-
 resolved_dns() {
   awk -F= '
     /^[[:space:]]*#/ { next }
@@ -104,10 +95,7 @@ current_dns_provider() {
   local dns=""
   local compact=""
 
-  dns=$(networkmanager_global_dns)
-  if [[ -z $(printf '%s' "$dns" | tr -d '[:space:],') ]]; then
-    dns=$(resolved_dns)
-  fi
+  dns=$(resolved_dns)
 
   compact=$(printf '%s' "$dns" | tr -d '[:space:],')
 
@@ -150,31 +138,20 @@ split_dns_servers() {
   done
 }
 
-write_networkmanager_dns() {
-  local servers="$1"
-
-  install -d -m 0755 "$(dirname "$NM_DNS_CONF")"
-  # omarchy:heredoc-expands paths=none -- $servers is a normalized, single-line
-  # DNS server list written as data, not a path or command; nothing user-writable
-  # is resolved or executed from the root-owned drop-in.
-  cat >"$NM_DNS_CONF" <<EOF
-# Managed by omarchy-dns. Remove this file or run omarchy dns DHCP to use DHCP DNS again.
-[global-dns]
-
-[global-dns-domain-*]
-servers=$servers
-EOF
-}
-
-clear_networkmanager_dns() {
-  rm -f "$NM_DNS_CONF"
-}
-
 networkmanager_dns_connection() {
   case "$1" in
     802-11-wireless|802-3-ethernet) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+pin_profile_dns() {
+  nmcli connection modify "$1" \
+    ipv4.ignore-auto-dns yes \
+    ipv4.dns "$2" \
+    ipv6.ignore-auto-dns yes \
+    ipv6.dns "$3" \
+    >/dev/null
 }
 
 set_connection_dns() {
@@ -186,12 +163,7 @@ set_connection_dns() {
     [[ -n $uuid ]] || continue
     networkmanager_dns_connection "$type" || continue
 
-    nmcli connection modify "$uuid" \
-      ipv4.ignore-auto-dns yes \
-      ipv4.dns "$ipv4_dns" \
-      ipv6.ignore-auto-dns yes \
-      ipv6.dns "$ipv6_dns" \
-      >/dev/null
+    pin_profile_dns "$uuid" "$ipv4_dns" "$ipv6_dns"
   done < <(nmcli -t -f UUID,TYPE connection show)
 }
 
@@ -209,6 +181,26 @@ clear_connection_dns() {
       ipv6.dns "" \
       >/dev/null
   done < <(nmcli -t -f UUID,TYPE connection show)
+}
+
+# NetworkManager's dispatcher hook calls this as a profile comes up. Profiles
+# created after the provider was chosen still take DHCP DNS, so pin the provider
+# on Wi-Fi/Ethernet ones; VPNs keep the DNS they push.
+pin_connection() {
+  local uuid="$1" device="$2" dns type ignore_auto_dns
+
+  dns=$(resolved_dns)
+  [[ -n $uuid && -n ${dns//[[:space:]]/} ]] || return 0
+
+  { read -r type; read -r ignore_auto_dns; } < <(nmcli -g connection.type,ipv4.ignore-auto-dns connection show "$uuid")
+  networkmanager_dns_connection "$type" || return 0
+  [[ $ignore_auto_dns == "no" ]] || return 0
+
+  split_dns_servers "$dns"
+  pin_profile_dns "$uuid" "$ipv4_dns" "$ipv6_dns"
+  if [[ -n $device ]]; then
+    nmcli device reapply "$device" >/dev/null 2>&1 || true
+  fi
 }
 
 reapply_active_dns_connections() {
@@ -251,6 +243,12 @@ if (( $# == 0 )); then
   exit 0
 fi
 
+if [[ $1 == "--pin-connection" ]]; then
+  require_root "$@"
+  pin_connection "${2:-}" "${3:-}"
+  exit 0
+fi
+
 if (( $# > 1 )); then
   usage
   exit 1
@@ -263,9 +261,12 @@ fi
 
 require_root "$provider"
 
+rm -f "$NM_DNS_CONF"
+install -d -m 0755 "$(dirname "$NM_DISPATCHER_LINK")"
+ln -sfn "$NM_DISPATCHER_TARGET" "$NM_DISPATCHER_LINK"
+
 case "$provider" in
 Cloudflare)
-  write_networkmanager_dns "1.1.1.1,1.0.0.1,2606:4700:4700::1111,2606:4700:4700::1001"
   set_connection_dns "1.1.1.1 1.0.0.1" "2606:4700:4700::1111 2606:4700:4700::1001"
   tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
 [Resolve]
@@ -276,7 +277,6 @@ EOF
   ;;
 
 Google)
-  write_networkmanager_dns "8.8.8.8,8.8.4.4,2001:4860:4860::8888,2001:4860:4860::8844"
   set_connection_dns "8.8.8.8 8.8.4.4" "2001:4860:4860::8888 2001:4860:4860::8844"
   tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
 [Resolve]
@@ -300,7 +300,6 @@ EOF
   ;;
 
 DHCP)
-  clear_networkmanager_dns
   clear_connection_dns
   tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
 [Resolve]
@@ -321,7 +320,6 @@ Custom)
   fi
 
   split_dns_servers "$dns_servers"
-  write_networkmanager_dns "$dns_servers"
   set_connection_dns "$ipv4_dns" "$ipv6_dns"
   # omarchy:heredoc-expands paths=none -- $dns_servers is a normalized,
   # single-line DNS server list; the //,/ turns its comma separators into the

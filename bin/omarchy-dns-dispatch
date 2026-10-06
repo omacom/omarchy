@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=NetworkManager dispatcher hook that pins the DNS provider on new Wi-Fi and Ethernet profiles
+# omarchy:args=<interface> <action>
+# omarchy:hidden=true
+
+# omarchy-dns links /etc/NetworkManager/dispatcher.d/90-omarchy-dns here, and
+# NetworkManager runs it as root, so hand off to the packaged omarchy-dns,
+# never one a dev link could resolve out of a checkout.
+if [[ ${2:-} == "up" && -n ${CONNECTION_UUID:-} ]]; then
+  exec /usr/bin/omarchy-dns --pin-connection "$CONNECTION_UUID" "${DEVICE_IFACE:-}"
+fi
