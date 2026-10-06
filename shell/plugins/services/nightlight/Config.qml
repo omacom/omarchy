@@ -119,7 +119,11 @@ Item {
     else if (row === "save") root.save()
   }
 
+  // Warmth is frozen while a save runs: a preview sent now would race the
+  // save's restart of hyprsunset, and the draft being saved must not change
+  // under it.
   function setWarmth(value) {
+    if (root.saving) return
     root.temperature = NightlightModel.clampTemperature(value)
     if (root.service) root.service.previewWarmth(root.temperature)
   }
@@ -377,6 +381,8 @@ Item {
                 PanelSlider {
                   width: parent.width - kelvinText.width - Style.space(14) - parent.spacing * 2
                   anchors.verticalCenter: parent.verticalCenter
+                  enabled: !root.saving
+                  opacity: root.saving ? 0.5 : 1
                   minimum: NightlightModel.MIN_TEMPERATURE
                   maximum: NightlightModel.MAX_TEMPERATURE
                   step: NightlightModel.TEMPERATURE_STEP

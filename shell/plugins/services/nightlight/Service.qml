@@ -25,16 +25,23 @@ Item {
   property bool hasPendingTemperature: false
   property int pendingTemperature: 0
 
-  // A toggle asked for while the screen's real temperature is being re-read.
+  // Toggles asked for while the screen's real temperature is being re-read.
   // hyprsunset switches profiles on its own, so the cached reading can be
-  // stale; the toggle direction is decided from a fresh one.
-  property bool toggleQueued: false
+  // stale; the toggle direction is decided from a fresh one. A count, not a
+  // flag, so a quick double toggle lands back where it started.
+  property int pendingToggles: 0
 
-  // The save in flight, if any. `saving` keeps a second save from starting
-  // while the first still owns hyprsunset's restart.
-  readonly property bool saving: saveProcess.running
+  // The save in flight, if any, from the moment it is asked for: a save waits
+  // for any temperature command still running before it restarts hyprsunset.
+  // While `saving`, nothing else talks to hyprsunset; toggles are remembered
+  // and applied once the save is done.
+  property bool saving: false
   property string saveError: ""
   property var onSaveFinished: null
+  property var queuedSaveCommand: null
+  // "on" or "off" for a toggle made during the save, "" for none.
+  property string requestedDuringSave: ""
+  property int savingTemperature: 0
 
   // The config as last saved by bin/omarchy-nightlight-config. `saved` is
   // false until one has been saved, which is what makes the first turn-on
@@ -44,7 +51,10 @@ Item {
   readonly property string scheduleFile: Quickshell.env("HOME") + "/.local/state/omarchy/settings/nightlight.json"
   readonly property string pluginId: (manifest && manifest.id) || "omarchy.nightlight"
 
+  // A save restarts hyprsunset, so a reading taken meanwhile would see it gone
+  // and report night light off. The save re-reads when it finishes.
   function refresh() {
+    if (root.saving) return
     if (!statusProbe.running) statusProbe.running = true
   }
 
@@ -66,9 +76,15 @@ Item {
   }
 
   // Toggles from the screen's real state, not the cached one: a schedule can
-  // have warmed or cleared the screen since the last reading.
+  // have warmed or cleared the screen since the last reading. During a save
+  // hyprsunset cannot be read, so the toggle flips what the user last saw,
+  // which setNightlight keeps current while the save runs.
   function toggle() {
-    root.toggleQueued = true
+    if (root.saving) {
+      root.setNightlight(!root.enabled)
+      return
+    }
+    root.pendingToggles++
     refresh()
   }
 
@@ -78,14 +94,16 @@ Item {
   }
 
   // Live warmth preview from the config editor. Only touches the screen while
-  // night light is on, so dragging the slider by day never tints it.
+  // night light is on, so dragging the slider by day never tints it, and never
+  // during a save, which owns the screen's warmth until it finishes.
   function previewWarmth(temperature) {
-    if (!root.enabled) return
+    if (!root.enabled || root.saving) return
     applyTemperature(NightlightModel.clampTemperature(temperature))
   }
 
   // Puts the saved warmth back after a preview the editor did not save.
   function endPreview() {
+    if (root.saving) return
     if (root.enabled && root.temperature !== root.nightTemperature) applyTemperature(root.nightTemperature)
   }
 
@@ -93,28 +111,43 @@ Item {
   // state file, restarts hyprsunset, and waits for it to answer; with
   // --keep-on it re-applies the warmth itself, so nothing here has to guess
   // when the new process is ready. `done(ok, error)` runs when it finishes.
-  property string requestedDuringSave: ""
-  property int savingTemperature: 0
-
+  //
+  // A temperature command still running (a preview, a toggle) could reach the
+  // old hyprsunset mid-restart or start a competing one, so the save waits for
+  // it; previews still queued behind it are dropped, since the save sets the
+  // warmth itself.
   function saveConfig(scheduled, day, night, temperature, done) {
     var kelvin = NightlightModel.clampTemperature(temperature)
     if (root.saving) return false
     if (!NightlightModel.describeSchedule(scheduled, day, night).valid) return false
 
+    root.saving = true
     root.requestedDuringSave = ""
     root.savingTemperature = kelvin
     root.saveError = ""
     root.onSaveFinished = done || null
+    root.hasPendingTemperature = false
     var args = ["omarchy-nightlight-config", "set"]
     if (root.enabled) args.push("--keep-on")
-    saveProcess.command = args.concat([scheduled ? "on" : "off", day, night, String(kelvin)])
-    saveProcess.running = true
+    root.queuedSaveCommand = args.concat([scheduled ? "on" : "off", day, night, String(kelvin)])
+    if (!applyProcess.running) root.startQueuedSave()
     return true
+  }
+
+  function startQueuedSave() {
+    if (!root.queuedSaveCommand) return
+    saveProcess.command = root.queuedSaveCommand
+    root.queuedSaveCommand = null
+    saveProcess.running = true
   }
 
   function applyTemperature(temp) {
     root.temperature = temp
     root.stateLoaded = true
+
+    // A save owns hyprsunset until it finishes; setNightlight records toggles
+    // for it to apply afterwards.
+    if (root.saving) return
 
     if (applyProcess.running) {
       root.pendingTemperature = temp
@@ -138,19 +171,22 @@ Item {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        // A reading that raced a save's restart describes a hyprsunset that
+        // is going away; the save re-reads when it finishes.
+        if (root.saving) return
         root.temperature = NightlightModel.temperatureFromOutput(text)
         root.stateLoaded = true
       }
     }
     onExited: function(exitCode) {
-      if (exitCode !== 0) {
+      if (exitCode !== 0 && !root.saving) {
         root.temperature = null
         root.stateLoaded = true
       }
-      if (root.toggleQueued) {
-        root.toggleQueued = false
-        root.setNightlight(!root.enabled)
-      }
+      // An even number of toggles cancels out; an odd one flips once.
+      var flips = root.pendingToggles
+      root.pendingToggles = 0
+      if (flips % 2 === 1) root.setNightlight(!root.enabled)
     }
   }
 
@@ -161,6 +197,7 @@ Item {
       var ok = exitCode === 0
       var requested = root.requestedDuringSave
       root.requestedDuringSave = ""
+      root.saving = false
       root.saveError = ok ? "" : (String(saveStderr.text || "").trim().split("\n").pop() || "Saving failed")
       scheduleView.reload()
       // A toggle made during the save is the latest word. Use the warmth just
@@ -177,6 +214,13 @@ Item {
   Process {
     id: applyProcess
     onExited: function() {
+      // A save was waiting for this command to finish before restarting
+      // hyprsunset.
+      if (root.queuedSaveCommand) {
+        root.startQueuedSave()
+        return
+      }
+
       if (root.hasPendingTemperature) {
         root.hasPendingTemperature = false
         root.runApply(root.pendingTemperature)
