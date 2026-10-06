@@ -187,14 +187,14 @@ clear_connection_dns() {
 # created after the provider was chosen still take DHCP DNS, so pin the provider
 # on Wi-Fi/Ethernet ones; VPNs keep the DNS they push.
 pin_connection() {
-  local uuid="$1" device="$2" dns type ignore_auto_dns
+  local uuid="$1" device="$2" dns type ipv4_ignore ipv6_ignore
 
   dns=$(resolved_dns)
   [[ -n $uuid && -n ${dns//[[:space:]]/} ]] || return 0
 
-  { read -r type; read -r ignore_auto_dns; } < <(nmcli -g connection.type,ipv4.ignore-auto-dns connection show "$uuid")
+  { read -r type; read -r ipv4_ignore; read -r ipv6_ignore; } < <(nmcli -g connection.type,ipv4.ignore-auto-dns,ipv6.ignore-auto-dns connection show "$uuid")
   networkmanager_dns_connection "$type" || return 0
-  [[ $ignore_auto_dns == "no" ]] || return 0
+  [[ $ipv4_ignore == "yes" && $ipv6_ignore == "yes" ]] && return 0
 
   split_dns_servers "$dns"
   pin_profile_dns "$uuid" "$ipv4_dns" "$ipv6_dns"
@@ -267,23 +267,23 @@ ln -sfn "$NM_DISPATCHER_TARGET" "$NM_DISPATCHER_LINK"
 
 case "$provider" in
 Cloudflare)
-  set_connection_dns "1.1.1.1 1.0.0.1" "2606:4700:4700::1111 2606:4700:4700::1001"
   tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
 [Resolve]
 DNS=1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com 2606:4700:4700::1111#cloudflare-dns.com 2606:4700:4700::1001#cloudflare-dns.com
 FallbackDNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
 DNSOverTLS=opportunistic
 EOF
+  set_connection_dns "1.1.1.1 1.0.0.1" "2606:4700:4700::1111 2606:4700:4700::1001"
   ;;
 
 Google)
-  set_connection_dns "8.8.8.8 8.8.4.4" "2001:4860:4860::8888 2001:4860:4860::8844"
   tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
 [Resolve]
 DNS=8.8.8.8#dns.google 8.8.4.4#dns.google 2001:4860:4860::8888#dns.google 2001:4860:4860::8844#dns.google
 FallbackDNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
 DNSOverTLS=opportunistic
 EOF
+  set_connection_dns "8.8.8.8 8.8.4.4" "2001:4860:4860::8888 2001:4860:4860::8844"
   ;;
 
 AliDNS)
@@ -300,11 +300,11 @@ EOF
   ;;
 
 DHCP)
-  clear_connection_dns
   tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
 [Resolve]
 DNSOverTLS=no
 EOF
+  clear_connection_dns
   ;;
 
 Custom)
@@ -320,7 +320,6 @@ Custom)
   fi
 
   split_dns_servers "$dns_servers"
-  set_connection_dns "$ipv4_dns" "$ipv6_dns"
   # omarchy:heredoc-expands paths=none -- $dns_servers is a normalized,
   # single-line DNS server list; the //,/ turns its comma separators into the
   # spaces resolved.conf wants. It is written as data, not a path or command.
@@ -329,6 +328,7 @@ Custom)
 DNS=${dns_servers//,/ }
 FallbackDNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
 EOF
+  set_connection_dns "$ipv4_dns" "$ipv6_dns"
   ;;
 esac
 
