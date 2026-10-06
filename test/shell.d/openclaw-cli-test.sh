@@ -40,6 +40,7 @@ case "$2" in
     ;;
   start)
     printf 'systemctl %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
+    [[ -z ${OMARCHY_TEST_SYSTEMCTL_START_FAIL:-} ]] || exit 1
     touch "$HOME/active-$3"
     ;;
   is-active) [[ -e $HOME/active-$4 ]] ;;
@@ -56,7 +57,8 @@ chmod +x "$mock_bin/"*
 # real one does, execing into the prefix's tools, and that command logs what
 # it is asked. OMARCHY_TEST_INSTALL_BROKEN leaves a command that cannot run.
 # Like upstream, `<role> install --force` rewrites the unit onto the runtime
-# and starts it, OMARCHY_TEST_START_FAIL making the start fail, and the
+# and starts it, OMARCHY_TEST_START_FAIL making the start fail (1 for any
+# role, or the one it names), and the
 # installer does that itself for a gateway it finds loaded. As upstream does
 # since 2026.9.6, a rewrite keeps the Node the unit already ran unless
 # --runtime-path pins one.
@@ -80,7 +82,7 @@ if [[ \${2:-} == "install" ]]; then
     node=\$(sed -n 's/^ExecStart=\([^ ]*\).*/\1/p' "\$unit")
   fi
   printf 'ExecStart=%s $prefix/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js %s\n' "\$node" "\$1" >"\$unit"
-  [[ -z "\${OMARCHY_TEST_START_FAIL:-}" ]] || exit 1
+  [[ -z "\${OMARCHY_TEST_START_FAIL:-}" || ( "\$OMARCHY_TEST_START_FAIL" != 1 && "\$OMARCHY_TEST_START_FAIL" != "\$1" ) ]] || exit 1
   touch "\$HOME/active-openclaw-\$1.service" "\$HOME/enabled-openclaw-\$1.service"
 fi
 exec true "$prefix/tools/node-v24.19.0/lib/node_modules/openclaw/dist/entry.js" "\$@"
@@ -385,6 +387,56 @@ run omarchy-install-openclaw-cli --now || fail "--now finishes with a moved, sto
 [[ -e $test_home/active-openclaw-gateway.service && ! -e $test_home/.local/state/omarchy/openclaw-stopped/gateway ]] ||
   fail "a moved gateway a failed run stopped is started" "$(cat "$events")"
 pass "a gateway a failed run stopped after it was moved is started too"
+
+# One that will not start keeps its record and fails the run, rather than the
+# migration finishing with the gateway down.
+new_home retry-start-fails
+run omarchy-install-openclaw-cli --now || fail "--now sets OpenClaw up" "$(cat "$test_tmp/output")"
+mkdir -p "$test_home/.config/systemd/user" "$test_home/.local/state/omarchy/openclaw-stopped"
+printf 'ExecStart=%s/.openclaw/tools/node-v24.19.0/bin/node %s/.openclaw/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js gateway\n' "$test_home" "$test_home" >"$test_home/.config/systemd/user/openclaw-gateway.service"
+touch "$test_home/.local/state/omarchy/openclaw-stopped/gateway"
+OMARCHY_TEST_SYSTEMCTL_START_FAIL=1 run omarchy-install-openclaw-cli --now && fail "a gateway that will not start again fails the run"
+grep -q "Could not start the OpenClaw gateway service again" "$test_tmp/output" || fail "a gateway that will not start again is named" "$(cat "$test_tmp/output")"
+[[ -e $test_home/.local/state/omarchy/openclaw-stopped/gateway ]] || fail "a gateway that will not start again keeps its record"
+pass "a gateway a failed run stopped that will not start again fails the run and keeps its record"
+
+# Each record goes as soon as its own service is back, so one that moved does
+# not keep a record for a later run to act on after the user stops it.
+new_home retry-partial
+mkdir -p "$test_home/.config/systemd/user"
+for role in gateway node; do
+  printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js %s\n' "$role" >"$test_home/.config/systemd/user/openclaw-$role.service"
+  touch "$test_home/active-openclaw-$role.service" "$test_home/enabled-openclaw-$role.service"
+done
+OMARCHY_TEST_START_FAIL=node run omarchy-install-openclaw-cli --now && fail "a node host that does not start fails the run"
+[[ ! -e $test_home/.local/state/omarchy/openclaw-stopped/gateway && -e $test_home/.local/state/omarchy/openclaw-stopped/node ]] ||
+  fail "the gateway that moved loses its record and the node host that did not keeps it" "$(ls "$test_home/.local/state/omarchy/openclaw-stopped" 2>&1)"
+pass "a service that moved loses its record even when another fails"
+
+# The record is written before the stop, so a run that cannot write it stops nothing.
+new_home record-unwritable
+mkdir -p "$test_home/.config/systemd/user" "$test_home/.local/state/omarchy"
+printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
+touch "$test_home/active-openclaw-gateway.service" "$test_home/.local/state/omarchy/openclaw-stopped"
+run omarchy-install-openclaw-cli --now && fail "a record that cannot be written fails the run"
+[[ -e $test_home/active-openclaw-gateway.service ]] || fail "a run that cannot record the gateway leaves it running" "$(cat "$events")"
+pass "a gateway is recorded before it is stopped"
+
+# A machine that moved and then got the package that is OpenClaw itself back
+# has an older copy ahead of its own on PATH: that is not an installation.
+new_home moved-then-old-package
+run omarchy-install-openclaw-cli --now || fail "--now sets OpenClaw up" "$(cat "$test_tmp/output")"
+mv "$seed" "$seed.old"
+printf '#!/bin/bash\n' >"$test_tmp/usr-bin/openclaw"
+chmod +x "$test_tmp/usr-bin/openclaw"
+run omarchy-install-openclaw-cli --check && fail "--check does not take the old package for installed after a move"
+: >"$events"
+run omarchy-install-openclaw-cli --now && fail "--now refuses the old package after a move"
+grep -q "is OpenClaw itself again and comes first on PATH" "$test_tmp/output" || fail "--now says the old package is in the way" "$(cat "$test_tmp/output")"
+[[ ! -s $events && $(readlink -- "$command") == "$runtime" ]] || fail "--now touches nothing when the old package is back" "$(cat "$events")"
+rm "$test_tmp/usr-bin/openclaw"
+mv "$seed.old" "$seed"
+pass "after a move, the package that is OpenClaw itself again is named, not accepted"
 
 # With the runtime already in place nothing is seeded, so the move is Omarchy's.
 new_home runtime-first

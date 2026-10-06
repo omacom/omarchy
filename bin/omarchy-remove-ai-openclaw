@@ -58,6 +58,9 @@ if [[ -L $HOME/.local/bin/openclaw && $(readlink -- "$HOME/.local/bin/openclaw")
   rm -f "$HOME/.local/bin/openclaw"
 fi
 
+# What omarchy-install-openclaw-cli kept of services it stopped goes with them.
+rm -rf "$HOME/.local/state/omarchy/openclaw-stopped"
+
 # The web app launcher and icon omarchy-install-ai-openclaw created.
 rm -f "$HOME/.local/share/applications/OpenClaw.desktop"
 rm -f "$HOME/.local/share/icons/hicolor/256x256/apps/openclaw.png"

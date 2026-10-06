@@ -242,7 +242,8 @@ chmod +x "$tmp_dir/bin/openclaw"
 fresh_openclaw_home() {
   fresh_home
   mkdir -p "$HOME/.config/systemd/user/default.target.wants" "$HOME/.openclaw" \
-    "$HOME/.local/share/applications" "$HOME/.local/share/icons/hicolor/256x256/apps"
+    "$HOME/.local/share/applications" "$HOME/.local/share/icons/hicolor/256x256/apps" \
+    "$HOME/.local/state/omarchy/openclaw-stopped"
   touch "$HOME/.config/systemd/user/openclaw-gateway.service" \
     "$HOME/.config/systemd/user/openclaw-gateway.service.bak" \
     "$HOME/.config/systemd/user/openclaw-gateway.service.reconcile-0f1e.bak" \
@@ -250,7 +251,8 @@ fresh_openclaw_home() {
     "$HOME/.config/systemd/user/openclaw-node.service" \
     "$HOME/.openclaw/openclaw.json" \
     "$HOME/.local/share/applications/OpenClaw.desktop" \
-    "$HOME/.local/share/icons/hicolor/256x256/apps/openclaw.png"
+    "$HOME/.local/share/icons/hicolor/256x256/apps/openclaw.png" \
+    "$HOME/.local/state/omarchy/openclaw-stopped/gateway"
   ln -s ../openclaw-gateway.service \
     "$HOME/.config/systemd/user/default.target.wants/openclaw-gateway.service"
   ln -s ../openclaw-node.service \
@@ -277,7 +279,8 @@ for gone in .config/systemd/user/openclaw-gateway.service \
   .config/systemd/user/openclaw-node.service \
   .config/systemd/user/default.target.wants/openclaw-node.service \
   .local/share/applications/OpenClaw.desktop \
-  .local/share/icons/hicolor/256x256/apps/openclaw.png; do
+  .local/share/icons/hicolor/256x256/apps/openclaw.png \
+  .local/state/omarchy/openclaw-stopped; do
   [[ ! -e $HOME/$gone && ! -L $HOME/$gone ]] || fail "OpenClaw removal deletes the service and launcher it installed" "$gone"
 done
 pass "OpenClaw removal deletes the service and launcher it installed"

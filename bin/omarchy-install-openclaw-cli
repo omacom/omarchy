@@ -95,6 +95,18 @@ package_is_openclaw() {
   [[ ! -r $seed/install-cli.sh || ! -r $seed/openclaw.tgz ]]
 }
 
+# A machine that already moved has its OpenClaw in ~/.openclaw, and the package
+# being OpenClaw again only puts an older copy ahead of it on PATH. That is not
+# an installation to accept; the update that brings the seed back puts it right.
+moved_before() {
+  [[ -e $runtime_command ]] || { [[ -L $command_path ]] && command_ours; }
+}
+
+package_in_the_way() {
+  echo "OpenClaw is set up in $prefix, but the openclaw package is OpenClaw itself again and comes first on PATH." >&2
+  echo "The update that brings the openclaw package back as the seed puts this right." >&2
+}
+
 # The package counts too: without it --now has a pacman step to take, and
 # answering yes here would run that where no terminal can ask for a password.
 installed() {
@@ -150,14 +162,16 @@ unit_path() {
 stop_legacy_services() {
   local role
   for role in "${moving[@]}"; do
+    if [[ " ${running[*]} " == *" $role "* ]]; then
+      mkdir -p "$stopped_dir"
+      touch "$stopped_dir/$role"
+    fi
     if ! systemctl --user stop "openclaw-$role.service"; then
       echo "Could not stop the OpenClaw $role service, so OpenClaw was not moved to $prefix." >&2
       return 1
     fi
     if [[ " ${running[*]} " == *" $role "* ]]; then
       stopped+=("$role")
-      mkdir -p "$stopped_dir"
-      touch "$stopped_dir/$role"
     fi
   done
 }
@@ -203,6 +217,9 @@ rehome_services() {
     if [[ " ${enabled[*]} " != *" $role "* ]]; then
       systemctl --user disable "openclaw-$role.service" 2>/dev/null || true
     fi
+    if systemctl --user is-active --quiet "openclaw-$role.service"; then
+      rm -f "$stopped_dir/$role"
+    fi
   done
 }
 
@@ -218,11 +235,19 @@ stopped_note() {
 
 case "$mode" in
 --check)
-  if omarchy-pkg-present openclaw && package_is_openclaw; then exit 0; fi
+  if omarchy-pkg-present openclaw && package_is_openclaw; then
+    if moved_before; then exit 1; else exit 0; fi
+  fi
   if installed; then exit 0; else exit 1; fi
   ;;
 --now)
-  if omarchy-pkg-present openclaw && package_is_openclaw; then exit 0; fi
+  if omarchy-pkg-present openclaw && package_is_openclaw; then
+    if moved_before; then
+      package_in_the_way
+      exit 1
+    fi
+    exit 0
+  fi
   ;;
 *)
   echo "Usage: omarchy-install-openclaw-cli <--check|--now>" >&2
@@ -259,6 +284,10 @@ if ! omarchy-pkg-present openclaw; then
   omarchy-pkg-add openclaw
 fi
 if package_is_openclaw; then
+  if moved_before; then
+    package_in_the_way
+    exit 1
+  fi
   echo "OpenClaw runs from its package until an update brings the release that sets up the self-updating copy."
   exit 0
 fi
@@ -304,7 +333,10 @@ rehome_services
 # whether this run moved it or an earlier one already had.
 for role in gateway node; do
   if [[ -e $stopped_dir/$role ]]; then
-    systemctl --user is-active --quiet "openclaw-$role.service" || systemctl --user start "openclaw-$role.service" || true
+    if ! systemctl --user is-active --quiet "openclaw-$role.service" && ! systemctl --user start "openclaw-$role.service"; then
+      echo "Could not start the OpenClaw $role service again. Start it with: systemctl --user start openclaw-$role.service" >&2
+      exit 1
+    fi
     rm -f "$stopped_dir/$role"
   fi
 done
