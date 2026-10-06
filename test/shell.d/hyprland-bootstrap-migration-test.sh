@@ -199,7 +199,9 @@ config=$({
   body
 } | run_migration commented-out-own)
 assert_left_alone commented-out-own "$config"
-pass "migration only counts a bootstrap that the compiled config really calls"
+config=$({ echo 'local function old_setup()'; shipped_preamble; echo 'end'; body; } | run_migration in-function)
+assert_left_alone in-function "$config"
+pass "migration only counts a bootstrap in the top-level code of the config"
 
 # The file is either rewritten from Omarchy's own preamble or left as it was, so
 # there is never a copy to keep.

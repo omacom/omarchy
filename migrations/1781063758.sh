@@ -23,8 +23,9 @@ package.path = os.getenv(\"HOME\")$state_path
   tmp=$(mktemp)
 
   # The shipped block can also be the start of a longer assignment the user
-  # extended, or a copy they commented out. So the rewrite is installed only if
-  # Lua can load it and its compiled code really calls the bootstrap.
+  # extended, or a copy they commented out or wrapped in a function. So the
+  # rewrite is installed only if Lua can load it and the bootstrap is in its
+  # top-level code: luac lists the main chunk before any function.
   if PREAMBLES=$(printf '%s\036' "${preambles[@]}") \
     BOOTSTRAP="-- Omarchy's bootstrap keeps path setup out of this user config."$'\n'"$bootstrap_dofile" \
     awk '
@@ -49,7 +50,7 @@ package.path = os.getenv(\"HOME\")$state_path
       }
     ' "$hyprland_config" >"$tmp" &&
     listing=$(luac -l -p "$tmp" 2>/dev/null) &&
-    grep -Fq '"/default/hypr/bootstrap.lua"' <<<"$listing"; then
+    awk '/^function </ { exit } index($0, "\"/default/hypr/bootstrap.lua\"") { found = 1; exit } END { exit !found }' <<<"$listing"; then
     mv "$tmp" "$hyprland_config"
   else
     rm -f "$tmp"
