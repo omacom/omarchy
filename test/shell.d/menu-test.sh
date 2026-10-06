@@ -504,6 +504,21 @@ for (const [row, value] of [[tabRows[0], 'tab-1'], [tabRows[1], hostileValue]]) 
   assertEqual(execFileSync('bash', ['-c', row.action], { encoding: 'utf8' }), value, `provider action passes ${JSON.stringify(value)} through as one literal word`)
 }
 
+// {value} is inserted already quoted, so a template that wraps it in its own
+// quotes turns the quoting inside out and the shell expands the value. This pins
+// that behavior; the docs tell extension authors to use {value} bare.
+const expandingValue = '$(printf pwned)'
+assertEqual(
+  execFileSync('bash', ['-c', menu.providerAction("printf '%s' {value}", expandingValue)], { encoding: 'utf8' }),
+  expandingValue,
+  'a bare {value} keeps a command substitution literal'
+)
+assertEqual(
+  execFileSync('bash', ['-c', menu.providerAction("printf '%s' '{value}'", expandingValue)], { encoding: 'utf8' }),
+  'pwned',
+  "a {value} wrapped in single quotes lets the shell expand the value"
+)
+
 // Opening the menu clears a volatile provider's rows, so a search made before
 // the list runs again cannot pick a row that is gone.
 const withTabs = menu.swapProviderRows(mergedExtension.items, mergedExtension.itemOrder, 'tabs', tabRows)

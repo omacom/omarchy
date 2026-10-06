@@ -135,7 +135,7 @@ An extension declares its own provider as an object instead of a name. It holds 
 "notes": {"icon": "󰎞", "label": "Notes", "provider": {"command": "ls ~/notes", "action": "omarchy-launch-editor ~/notes/{value}", "volatile": true}}
 ```
 
-`command` prints rows in the same `label\tvalue\tcurrent\tdescription` contract, and `action` runs with every `{value}` replaced by the chosen row's value, shell-quoted. `icon` and `volatile` are optional. `normalizeProvider` in `MenuModel.js` drops an object without a `command`, or whose `action` never uses `{value}`, so a malformed entry leaves an empty submenu rather than rows that all run the same thing. This opens no new trust boundary: the same file already runs shell through `action`, `when` and `checked`.
+`command` prints rows in the same `label\tvalue\tcurrent\tdescription` contract, and `action` runs with every `{value}` replaced by the chosen row's value, already shell-quoted. Use `{value}` bare, never inside single or double quotes: `"focus-tab {value}"` is right, `"focus-tab '{value}'"` turns the quoting inside out, so a value such as a tab title containing spaces or `$(...)` is split or expanded by the shell. `icon` and `volatile` are optional. `normalizeProvider` in `MenuModel.js` drops an object without a `command`, or whose `action` never uses `{value}`, so a malformed entry leaves an empty submenu rather than rows that all run the same thing. This opens no new trust boundary: the same file already runs shell through `action`, `when` and `checked`.
 
 Rows from a provider are searchable from the root, so an application that lists its own items here — a browser's open tabs, a notes folder — makes them reachable by typing their names into the menu.
 

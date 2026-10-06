@@ -24,7 +24,9 @@
   //
   // A provider object's command prints one row per line,
   // label<TAB>value<TAB>current<TAB>description, and selecting a row runs its
-  // action with {value} replaced by the row's quoted value. With
+  // action with {value} replaced by the row's value, already shell-quoted. Use
+  // {value} bare, never inside quotes: "focus-tab {value}" is right, but
+  // "focus-tab '{value}'" lets a value with spaces or $(...) run as shell. With
   // "volatile": true the rows are listed again each time the menu opens.
   // Static submenus only need dotted ids.
   // "notes": {"icon":"󰎞","label":"Notes","provider":{"command":"ls ~/notes","action":"omarchy-launch-editor ~/notes/{value}","volatile":true}},
