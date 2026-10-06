@@ -44,16 +44,15 @@ Inactive indicators are hidden. Hover the area around them and they fade in dimm
 
 `Super + Ctrl + N` warms the screen to 4000K, and hitting it again puts it back to 6500K. It's driven by hyprsunset, which the toggle starts for you if it isn't already running.
 
-By default hyprsunset does nothing to your screen at all. `~/.config/hypr/hyprsunset.conf` ships with an identity profile precisely so the display stays untouched until you ask for warmth. If you'd rather have it switch by the clock, replace that with a time profile:
+By default hyprsunset does nothing to your screen at all. `~/.config/hypr/hyprsunset.conf` ships with an identity profile precisely so the display stays untouched until you ask for warmth.
 
-```
-profile {
-    time = 20:00
-    temperature = 4000
-}
-```
+The first time you turn night light on, Omarchy opens the night light config. It asks whether night light should follow a schedule, when day light and night light start, and how warm the night should be. Move between the controls with the arrow keys or `Tab`, and press `Enter` to edit a time, flip the schedule, or save. Type times like `7`, `730`, or `20:30`, or nudge them with the arrow keys. Close the card with `Esc` if you'd rather keep toggling by hand.
 
-Then start hyprsunset at login by adding `o.launch_on_start("hyprsunset")` to `~/.config/hypr/autostart.lua`. The 4000K/6500K pair used by the toggle is fixed, so the config file is where you go if you want a different temperature.
+The warmth slider changes the screen as you drag it whenever night light is on, schedule or not, so you can pick a warmth by eye. Save keeps it, and both the schedule and `Super + Ctrl + N` use it from then on; closing without saving puts the old warmth back.
+
+Bring the config back any time from Setup > Config > Night Light Config in the Omarchy menu, or with `omarchy nightlight config edit`. `omarchy nightlight config` prints the current settings, and `omarchy nightlight config set on 07:00 20:30 3800` sets them without the card.
+
+Saving writes `~/.config/hypr/hyprsunset.conf` for you and starts hyprsunset at login while the schedule is on.
 
 ### Do not disturb
 
