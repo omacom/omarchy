@@ -216,17 +216,19 @@ def main():
           print((logs / filename).read_text()[-4000:], flush=True)
       return 1
     finally:
-      (logs / "commands.json").write_text(json.dumps(history, indent=2) + "\n")
-      for compositor_log in (directory / "hypr").glob("*/hyprland.log"):
-        shutil.copyfile(compositor_log, logs / "compositor.log")
-      for process in reversed(processes):
-        if process.poll() is None:
-          process.terminate()
-          try:
-            process.wait(timeout=5)
-          except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=5)
+      try:
+        (logs / "commands.json").write_text(json.dumps(history, indent=2) + "\n")
+        for compositor_log in (directory / "hypr").glob("*/hyprland.log"):
+          shutil.copyfile(compositor_log, logs / "compositor.log")
+      finally:
+        for process in reversed(processes):
+          if process.poll() is None:
+            process.terminate()
+            try:
+              process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+              process.kill()
+              process.wait(timeout=5)
 
 
 if __name__ == "__main__":
