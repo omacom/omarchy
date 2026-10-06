@@ -34,6 +34,8 @@ const serviceSource = fs.readFileSync(root + '/shell/plugins/services/battery/Se
 const dismissMatch = serviceSource.match(/dismissProcess\.command = \["omarchy-notification-dismiss", "([^"]+)"\]/)
 assert(!!dismissMatch, 'battery service dismisses the low-battery toast through Omarchy command')
 assert(/if \(!UPower\.onBattery && persisted\.notifiedLowBattery\) root\.dismissLowBatteryWarning\(\)/.test(serviceSource), 'battery service dismisses the low-battery toast on plug-in')
+assert(/id: warningProcess[\s\S]*?onExited: if \(!UPower\.onBattery\) root\.dismissLowBatteryWarning\(\)/.test(serviceSource), 'battery service dismisses a warning that finished sending after plug-in')
+assert(/pendingDismiss = true[\s\S]*?id: dismissProcess[\s\S]*?onExited: if \(root\.pendingDismiss\) root\.dismissLowBatteryWarning\(\)/.test(serviceSource), 'battery service queues a dismiss requested while one is in flight')
 
 // The dismiss above matches by title, independently of the title
 // omarchy-battery-low sends — assert they're the same string so the two

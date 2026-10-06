@@ -63,4 +63,11 @@ assert(/readonly property bool batteryWarning: Model\.isBatteryLow\(/.test(panel
 assert(/readonly property bool batteryDanger: Model\.isBatteryLow\(/.test(panelSource), 'power derives batteryDanger from the shared model function')
 assert(/readonly property bool batteryCritical: Model\.isBatteryLow\(/.test(panelSource), 'power derives batteryCritical from the shared model function')
 assert(/active: root\.batteryWarning[\s\S]*?activeColor: root\.batteryDanger[\s\S]*?blinking: root\.batteryCritical/.test(panelSource), 'power turns the bar icon yellow at warning, red at danger, and blinking at critical')
+
+// A cloned power widget gets a PluginBarApi instead of the host bar, so the
+// yellow tier needs the facade to carry `warning` alongside `urgent`.
+const barApiSource = fs.readFileSync(root + '/shell/Ui/PluginBarApi.qml', 'utf8')
+const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
+assert(/property color warning:/.test(barApiSource), 'plugin bar api exposes the warning color to cloned widgets')
+assert(/api\.warning = Qt\.binding\(function\(\) \{ return root\.warning \}\)/.test(barSource), 'bar mirrors its warning color into the plugin bar api')
 JS

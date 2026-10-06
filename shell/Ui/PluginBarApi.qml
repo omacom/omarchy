@@ -15,6 +15,7 @@ QtObject {
   property color barForeground: "transparent"
   property color background: "transparent"
   property color urgent: "transparent"
+  property color warning: "transparent"
   property string fontFamily: ""
   property string position: "top"
   property bool vertical: false

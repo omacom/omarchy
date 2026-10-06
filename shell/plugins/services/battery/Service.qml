@@ -12,6 +12,7 @@ Item {
 
   readonly property int batteryThreshold: 10
   property string pendingPowerSource: ""
+  property bool pendingDismiss: false
   property string activePowerProfile: ""
   readonly property bool powerSaverOnBattery: UPower.onBattery && activePowerProfile === "power-saver"
 
@@ -44,13 +45,18 @@ Item {
     warningProcess.running = true
   }
 
-  // Dismiss the toast on plug-in rather than leaving it to its own expiry —
+  // Dismiss the toast on plug-in rather than leaving it to its own expiry:
   // the warning is moot once the user has already acted on it. The title
   // below must match bin/omarchy-battery-low's exactly, or it stops
   // matching the live toast; test/shell.d/battery-test.sh asserts the two
-  // stay in sync.
+  // stay in sync. A dismiss only removes toasts that already exist, so a
+  // request arriving while one is in flight is queued instead of dropped.
   function dismissLowBatteryWarning() {
-    if (dismissProcess.running) return
+    if (dismissProcess.running) {
+      pendingDismiss = true
+      return
+    }
+    pendingDismiss = false
     dismissProcess.command = ["omarchy-notification-dismiss", "Time to recharge!"]
     dismissProcess.running = true
   }
@@ -80,8 +86,18 @@ Item {
     }
   }
 
-  Process { id: warningProcess }
-  Process { id: dismissProcess }
+  Process {
+    id: warningProcess
+    // A warning still being sent when the charger goes in lands after the
+    // plug-in dismiss has already run, and checkBattery() has cleared
+    // notifiedLowBattery by then, so nothing else would take it down.
+    onExited: if (!UPower.onBattery) root.dismissLowBatteryWarning()
+  }
+
+  Process {
+    id: dismissProcess
+    onExited: if (root.pendingDismiss) root.dismissLowBatteryWarning()
+  }
 
   Process {
     id: powerProfileProcess

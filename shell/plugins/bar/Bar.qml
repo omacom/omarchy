@@ -133,6 +133,7 @@ Item {
     api.barForeground = Qt.binding(function() { return root.barForeground })
     api.background = Qt.binding(function() { return root.background })
     api.urgent = Qt.binding(function() { return root.urgent })
+    api.warning = Qt.binding(function() { return root.warning })
     api.fontFamily = Qt.binding(function() { return root.fontFamily })
     api.position = Qt.binding(function() { return root.position })
     api.vertical = Qt.binding(function() { return root.vertical })
