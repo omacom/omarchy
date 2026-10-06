@@ -7,6 +7,24 @@ dropin_file="$dropin_dir/50-omarchy-monospace.conf"
 is_pure_omarchy_fontconfig() {
   local file="$1"
   [[ -f $file ]] || return 1
+  # XML declarations are harmless, but processing instructions are user/tool
+  # content. In particular, the normalization below must not erase xml-stylesheet.
+  python3 - "$file" <<'PYTHON' || return 1
+from pathlib import Path
+import sys
+from xml.parsers import expat
+
+def reject(*args):
+  raise ValueError('custom XML content')
+
+try:
+  parser = expat.ParserCreate()
+  parser.ProcessingInstructionHandler = reject
+  parser.EntityDeclHandler = reject
+  parser.Parse(Path(sys.argv[1]).read_bytes(), True)
+except (OSError, ValueError, expat.ExpatError):
+  sys.exit(1)
+PYTHON
   local stripped
   stripped=$(sed -E \
     -e 's/<!--([^-]|-[^-])*-->//g' \

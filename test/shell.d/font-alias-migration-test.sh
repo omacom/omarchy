@@ -115,6 +115,40 @@ with tempfile.TemporaryDirectory() as directory:
     assert dropin.read_bytes() == data
   print('ok - unsupported XML formats remain byte-identical')
 
+  # Processing instructions may carry tool metadata at any document depth.
+  # Neither migration nor setter may delete them while retiring an old rule.
+  instruction = '<?tool preserve="yes"?>'
+  for label, data in [
+    ('prolog', legacy.replace('<fontconfig>', instruction + '<fontconfig>')),
+    ('root', legacy.replace('<fontconfig>', '<fontconfig>' + instruction)),
+    ('match', legacy.replace('<test name=', instruction + '<test name=')),
+    ('test', legacy.replace('<string>monospace', instruction + '<string>monospace')),
+    ('edit', legacy.replace('<string>Adwaita', instruction + '<string>Adwaita')),
+    ('string', legacy.replace('Adwaita Mono', 'Adwaita' + instruction + ' Mono')),
+    ('epilog', legacy + instruction),
+    ('stylesheet', legacy.replace('<fontconfig>', '<?xml-stylesheet href="custom.xsl"?><fontconfig>')),
+  ]:
+    dropin.write_bytes(data.encode())
+    result = migrate()
+    assert dropin.read_bytes() == data.encode(), label
+    assert b'processing instructions' in result.stderr
+    source = config / 'fonts.conf'
+    source.write_bytes(data.encode())
+    subprocess.run(['bash', '-euo', 'pipefail', str(root / 'migrations/1790098827.sh')], env=env, check=True, capture_output=True)
+    assert source.exists() and source.read_bytes() == data.encode(), label
+    setter_env = dict(env, PATH=str(work / 'bin') + ':' + str(root / 'bin') + ':' + env['PATH'])
+    (work / 'bin').mkdir(exist_ok=True)
+    for name, body in [('fc-list', 'echo "Adwaita Mono"'), ('omarchy-cmd-present', 'exit 1'), ('pgrep', 'exit 1'), ('omarchy-restart-shell', 'exit 0'), ('omarchy-hook', 'exit 0'), ('omarchy-notification-send', 'exit 0')]:
+      command = work / 'bin' / name
+      command.write_text('#!/bin/bash\n' + body + '\n')
+      command.chmod(0o755)
+    result = subprocess.run(['bash', str(root / 'bin/omarchy-font-set'), 'Adwaita Mono'], env=setter_env, capture_output=True, check=True)
+    assert source.read_bytes() == data.encode(), label
+    assert b'processing instructions' in result.stderr
+    assert ET.parse(dropin).find('alias/prefer/family').text == 'Adwaita Mono'
+    source.unlink()
+    print(f'ok - migration and setter retain {label} processing instructions')
+
   if os.geteuid() != 0:
     dropin.write_text(legacy)
     dropin.parent.chmod(0o500)

@@ -55,6 +55,9 @@ def legacy_ranges(data):
   def reject_entity(*args):
     raise ManualMigration('custom XML entities')
 
+  def reject_instruction(*args):
+    raise ManualMigration('XML processing instructions')
+
   def open_element(name, attrs):
     nonlocal depth, start
     if depth == 0 and name != 'fontconfig':
@@ -101,6 +104,7 @@ def legacy_ranges(data):
   parser.StartElementHandler = open_element
   parser.EndElementHandler = close_element
   parser.EntityDeclHandler = reject_entity
+  parser.ProcessingInstructionHandler = reject_instruction
   parser.Parse(data, True)
   return ranges
 

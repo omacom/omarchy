@@ -40,6 +40,9 @@ def override_range(data):
   def entity(*args):
     raise ManualMigration('custom XML entities')
 
+  def instruction(*args):
+    raise ManualMigration('XML processing instructions')
+
   def opened(name, attrs):
     nonlocal depth, start
     if depth == 1:
@@ -62,6 +65,7 @@ def override_range(data):
   parser.CommentHandler = comment
   parser.XmlDeclHandler = declaration
   parser.EntityDeclHandler = entity
+  parser.ProcessingInstructionHandler = instruction
   parser.StartElementHandler = opened
   parser.EndElementHandler = closed
   parser.Parse(data, True)
