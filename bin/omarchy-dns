@@ -183,6 +183,14 @@ clear_connection_dns() {
   done < <(nmcli -t -f UUID,TYPE connection show)
 }
 
+# Provider changes and the dispatcher hook both read resolved.conf and write
+# profiles; serialize them so a hook can't pin servers a switch just replaced.
+lock_dns_changes() {
+  install -d -m 0755 /run/lock
+  exec {dns_lock_fd}>/run/lock/omarchy-dns.lock
+  flock -x "$dns_lock_fd"
+}
+
 # NetworkManager's dispatcher hook calls this as a profile comes up. Profiles
 # created after the provider was chosen still take DHCP DNS, so pin the provider
 # on Wi-Fi/Ethernet ones; VPNs keep the DNS they push.
@@ -245,6 +253,7 @@ fi
 
 if [[ $1 == "--pin-connection" ]]; then
   require_root "$@"
+  lock_dns_changes
   pin_connection "${2:-}" "${3:-}"
   exit 0
 fi
@@ -260,6 +269,7 @@ if ! provider=$(provider_from_arg "$1"); then
 fi
 
 require_root "$provider"
+lock_dns_changes
 
 rm -f "$NM_DNS_CONF"
 install -d -m 0755 "$(dirname "$NM_DISPATCHER_LINK")"

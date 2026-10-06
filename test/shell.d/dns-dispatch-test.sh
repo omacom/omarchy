@@ -43,6 +43,8 @@ chmod +x "$work/bin/nmcli"
 touch "$work/resolved.conf"
 mount --bind "$work/bin" /usr/local/bin
 mount --bind "$work/resolved.conf" /etc/systemd/resolved.conf
+mkdir -p "$work/lock"
+mount --bind "$work/lock" /run/lock
 
 cloudflare='[Resolve]
 DNS=1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com 2606:4700:4700::1111#cloudflare-dns.com 2606:4700:4700::1001#cloudflare-dns.com'
@@ -89,3 +91,13 @@ refute_modify "dispatcher leaves an already pinned profile alone"
 
 pin "$dhcp" 802-11-wireless no
 refute_modify "dispatcher does nothing while DHCP DNS is the selected provider"
+
+# A provider switch holds the lock for its whole run; a hook firing meanwhile
+# must wait rather than pin servers from a resolved.conf about to change.
+exec {held}>"$work/lock/omarchy-dns.lock"
+flock -x "$held"
+if timeout 1 bash -c 'STUB_LOG=/dev/null STUB_TYPE=802-11-wireless STUB_IGNORE4=no STUB_IGNORE6=no bash "$1" --pin-connection "$2" wlan0' _ "$dns" "$uuid"; then
+  fail "dispatcher waits for an in-flight provider change"
+fi
+exec {held}>&-
+pass "dispatcher waits for an in-flight provider change"
