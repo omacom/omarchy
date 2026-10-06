@@ -57,6 +57,7 @@ if [[ -n ${3:-} ]]; then
   printf 'set %s\n' "$3" >>"$NIGHTLIGHT_TEST_DIR/log"
 else
   printf 'get\n' >>"$NIGHTLIGHT_TEST_DIR/log"
+  sleep "$(cat "$NIGHTLIGHT_TEST_DIR/get-delay" 2>/dev/null || echo 0)"
   cat "$NIGHTLIGHT_TEST_DIR/state"
 fi
 SH

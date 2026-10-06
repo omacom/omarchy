@@ -194,6 +194,36 @@ ShellRoot {
         }),
         function(next) { root.assertTrue(!root.service.enabled, "night light stays off after the save"); next() },
 
+        // A toggle still waiting on a slow reading when Save is pressed is
+        // settled before the save; it cannot overturn a later choice made
+        // during the save once its reading lands.
+        root.setScreen(6500),
+        root.refreshed,
+        root.setControl("get-delay", "0.8"),
+        root.setControl("save-delay", "1.2"),
+        function(next) {
+          root.service.toggle()
+          next()
+        },
+        root.wait(100),
+        function(next) {
+          root.service.saveConfig(true, "07:00", "20:00", 3400, null)
+          root.assertTrue(root.service.enabled, "a toggle pending when Save is pressed is applied before the save")
+          root.service.setNightlight(false)
+          next()
+        },
+        root.wait(2000),
+        root.setControl("get-delay", "0"),
+        root.wait(500),
+        root.withLog(function(lines) {
+          var saveStart = lines.findIndex(function(line) { return line.indexOf("save-start") === 0 })
+          var saveEnd = root.indexOf(lines, "save-end 0")
+          root.assertTrue(saveStart >= 0 && lines[saveStart].indexOf("--keep-on") > 0, "the save keeps on the night light the earlier toggle turned on: " + lines.join(" | "))
+          root.assertTrue(lines.lastIndexOf("set 6500") > saveEnd, "the later off choice is applied after the save: " + lines.join(" | "))
+          root.assertTrue(root.sets(lines.slice(saveEnd + 1)).every(function(line) { return line === "set 6500" }), "nothing turns night light back on after the save: " + lines.join(" | "))
+        }),
+        function(next) { root.assertTrue(!root.service.enabled, "the later off choice wins over the earlier toggle"); next() },
+
         // A failed save reports its error to the caller.
         root.setScreen(6500),
         root.refreshed,

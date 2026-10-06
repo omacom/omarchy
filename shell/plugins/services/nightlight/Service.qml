@@ -121,12 +121,24 @@ Item {
     if (root.saving) return false
     if (!NightlightModel.describeSchedule(scheduled, day, night).valid) return false
 
+    // Previews queued behind a running command are dropped: the save sets the
+    // warmth itself.
+    root.hasPendingTemperature = false
+
+    // Toggles still waiting on a reading came before this save, so they are
+    // settled now, from the last reading, rather than when the reading lands
+    // mid-save and could overturn a choice made after them. Applying one here
+    // runs (or queues) a temperature command the save then waits for, and
+    // --keep-on below sees its result.
+    var flips = root.pendingToggles
+    root.pendingToggles = 0
+    if (flips % 2 === 1) root.setNightlight(!root.enabled)
+
     root.saving = true
     root.requestedDuringSave = ""
     root.savingTemperature = kelvin
     root.saveError = ""
     root.onSaveFinished = done || null
-    root.hasPendingTemperature = false
     var args = ["omarchy-nightlight-config", "set"]
     if (root.enabled) args.push("--keep-on")
     root.queuedSaveCommand = args.concat([scheduled ? "on" : "off", day, night, String(kelvin)])
@@ -214,16 +226,18 @@ Item {
   Process {
     id: applyProcess
     onExited: function() {
-      // A save was waiting for this command to finish before restarting
-      // hyprsunset.
-      if (root.queuedSaveCommand) {
-        root.startQueuedSave()
-        return
-      }
-
+      // Anything still queued was asked for before a waiting save (previews
+      // are dropped when the save starts), so it goes first.
       if (root.hasPendingTemperature) {
         root.hasPendingTemperature = false
         root.runApply(root.pendingTemperature)
+        return
+      }
+
+      // A save was waiting for these commands to finish before restarting
+      // hyprsunset.
+      if (root.queuedSaveCommand) {
+        root.startQueuedSave()
         return
       }
 
