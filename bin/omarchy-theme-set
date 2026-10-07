@@ -76,24 +76,6 @@ snapshot_current_background() {
   snapshot_background_path "$current_background" "previous"
 }
 
-cache_intro_frame() {
-  local intro="$1" cache key frame staged
-  cache="$HOME/.cache/omarchy/background-intro-frames"
-  key=$(sha256sum "$intro")
-  frame="$cache/${key%% *}.png"
-  if [[ ! -s $frame ]]; then
-    mkdir -p "$cache"
-    staged=$(mktemp "$cache/.frame.XXXXXX.png")
-    if ffmpeg -v error -nostdin -y -i "$intro" -frames:v 1 -vf 'scale=min(2560\,iw):-2' "$staged"; then
-      mv -f "$staged" "$frame"
-    else
-      rm -f "$staged"
-      return 1
-    fi
-  fi
-  printf '%s\n' "$frame"
-}
-
 theme_background_state_file() {
   local theme="$1"
 
@@ -189,7 +171,7 @@ set_theme_background_link() {
 }
 
 set_theme_background() {
-  local new_background new_background_snapshot theme_id intro_frame
+  local new_background new_background_snapshot theme_id
 
   if [[ -z $CHOSEN_THEME_BACKGROUND || ! -f $CHOSEN_THEME_BACKGROUND ]]; then
     if ! choose_theme_background; then
@@ -202,10 +184,7 @@ set_theme_background() {
   new_background="$CHOSEN_THEME_BACKGROUND"
   if [[ -n $THEME_BACKGROUND_INTRO ]]; then
     theme_id=$(stat -Lc '%d:%i' "$CURRENT_THEME_PATH")
-    wait "$INTRO_FRAME_PID" || true
-    intro_frame=$(cat "$INTRO_FRAME_RESULT")
-    rm -f "$INTRO_FRAME_RESULT"
-    shell_ipc shell prepareThemeIntro "$OLD_BACKGROUND_SNAPSHOT" "$theme_id" "$colors_payload" "$shell_payload" "$intro_frame" || \
+    shell_ipc shell prepareThemeIntro "$OLD_BACKGROUND_SNAPSHOT" "$theme_id" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
     ln -nsf "$new_background" "$CURRENT_BACKGROUND_LINK"
     (
@@ -414,12 +393,6 @@ if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
     fi
     if [[ -n $THEME_BACKGROUND_INTRO ]]; then
       OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
-      INTRO_FRAME_RESULT=$(mktemp)
-      # Pin the staged video before the theme swap renames its directory.
-      exec {intro_frame_fd}<"$THEME_BACKGROUND_INTRO"
-      cache_intro_frame "/proc/self/fd/$intro_frame_fd" >"$INTRO_FRAME_RESULT" 9>&- &
-      INTRO_FRAME_PID=$!
-      exec {intro_frame_fd}<&-
     elif background_transition_uses_snapshots "$CHOSEN_THEME_BACKGROUND"; then
       OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
 

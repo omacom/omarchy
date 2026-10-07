@@ -14,44 +14,33 @@ Item {
   property bool checked: false
   property string themeToken: ""
   property string themeBackground: ""
-  property string themeFirstFrame: ""
-  property bool themeFadeStarted: false
   property string themeColors: ""
   property string themeShell: ""
   property real themeOpacity: 1
   readonly property bool backgroundActive: !!(host && host.services && host.firstPartyServiceFor("omarchy.background"))
 
-  function prepareTheme(fromPath, token, colors, shell, firstFrame) {
+  function prepareTheme(fromPath, token, colors, shell) {
     framePoll.stop()
     themeFade.stop()
     themeToken = token
     themeBackground = fromPath
-    themeFirstFrame = String(firstFrame || "")
-    themeFadeStarted = false
     themeColors = colors
     themeShell = shell
     themeOpacity = 1
     themeFallback.restart()
-    if (themeFirstFrame) startThemeFade()
-  }
-
-  function startThemeFade() {
-    Color.loadColors(Util.decodeBase64(themeColors))
-    Color.loadShell(Util.decodeBase64(themeShell))
-    Style.scheduleRefresh()
-    themeFadeStarted = true
-    themeFade.restart()
   }
 
   function revealTheme() {
     if (!themeToken) return
     framePoll.stop()
     themeFallback.stop()
-    if (!themeFadeStarted) startThemeFade()
-    themeFirstFrame = ""
+    Color.loadColors(Util.decodeBase64(themeColors))
+    Color.loadShell(Util.decodeBase64(themeShell))
+    Style.scheduleRefresh()
     themeToken = ""
     themeColors = ""
     themeShell = ""
+    themeFade.restart()
   }
 
   function finishTheme(token) {
@@ -64,7 +53,6 @@ Item {
     themeFade.stop()
     themeToken = ""
     themeBackground = ""
-    themeFirstFrame = ""
     themeColors = ""
     themeShell = ""
   }
@@ -104,7 +92,7 @@ Item {
       if (exitCode !== 0 || token !== root.themeToken || !token) return
       try {
         var status = JSON.parse(frameStatusOut.text)
-        if (status.kind === "video" && status.ready && !status.has_transition && status.time_pos >= 0)
+        if (status.kind === "video" && status.ready && !status.has_transition && status.time_pos > 0)
           root.revealTheme()
       } catch (e) {}
     }
@@ -147,7 +135,7 @@ Item {
     PanelWindow {
       required property var modelData
       screen: modelData
-      visible: root.cover || root.themeBackground !== "" || root.themeFirstFrame !== ""
+      visible: root.cover || root.themeBackground !== ""
       color: root.cover ? "black" : "transparent"
       mask: Region {}
       anchors { top: true; bottom: true; left: true; right: true }
@@ -155,13 +143,6 @@ Item {
       WlrLayershell.layer: WlrLayer.Bottom
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       WlrLayershell.namespace: "omarchy-background"
-
-      Image {
-        anchors.fill: parent
-        source: root.themeFirstFrame ? Util.fileUrl(root.themeFirstFrame) : ""
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: false
-      }
 
       Image {
         anchors.fill: parent
