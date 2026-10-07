@@ -7,6 +7,10 @@ BarIndicator {
   id: root
 
   readonly property string launchCommand: "omarchy-launch-floating-terminal-with-presentation omarchy-sudo-passwordless"
+  // Overridable so the contract test can drive the indicator without sudo.
+  property var statusCommand: ["omarchy-sudo-passwordless", "status", "--json"]
+  property var disableCommand: ["omarchy-sudo-passwordless", "disable"]
+  property bool revoking: false
 
   // `omarchy-sudo-passwordless status` exits 0 while a grant is live, 3 when
   // none is, and anything else when it cannot tell. An unknown answer stays
@@ -27,7 +31,8 @@ BarIndicator {
   inactiveTooltipText: "Passwordless Sudo"
 
   function refresh() {
-    if (!statusProc.running) statusProc.running = true
+    if (!root.bar || statusProc.running) return
+    statusProc.running = true
   }
 
   function update(exitCode, raw) {
@@ -59,7 +64,7 @@ BarIndicator {
 
   Process {
     id: statusProc
-    command: ["omarchy-sudo-passwordless", "status", "--json"]
+    command: root.statusCommand
     stdout: StdioCollector { id: statusOutput; waitForEnd: true }
     onExited: function(exitCode) { root.update(exitCode, statusOutput.text) }
   }
@@ -68,8 +73,9 @@ BarIndicator {
   // needed. If sudo still wants one, fall back to the interactive toggle.
   Process {
     id: disableProc
-    command: ["omarchy-sudo-passwordless", "disable"]
+    command: root.disableCommand
     onExited: function(exitCode) {
+      root.revoking = false
       if (exitCode !== 0 && root.bar) root.bar.run(root.launchCommand)
       root.refresh()
     }
@@ -78,7 +84,9 @@ BarIndicator {
   onPressed: function() {
     if (!root.bar) return
     if (root.granted && !root.unknown) {
-      if (!disableProc.running) disableProc.running = true
+      if (root.revoking) return
+      root.revoking = true
+      disableProc.running = true
     } else {
       root.bar.run(root.launchCommand)
     }

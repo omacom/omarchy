@@ -208,6 +208,37 @@ ShellRoot {
         root.assertTrue(root.commandCount("omarchy-voxtype-model") === 0, "Dictation clicks do not run model command")
       }
 
+      var passwordlessSudo = root.createIndicator("PasswordlessSudo")
+      if (passwordlessSudo) {
+        var sudoToggle = "omarchy-launch-floating-terminal-with-presentation omarchy-sudo-passwordless"
+        passwordlessSudo.moduleName = "PasswordlessSudo"
+        // Stand-ins keep the test away from sudo; replies are fed to update().
+        passwordlessSudo.statusCommand = ["sh", "-c", "exit 3"]
+        passwordlessSudo.disableCommand = ["sh", "-c", "exit 1"]
+        root.injectBar(passwordlessSudo)
+
+        passwordlessSudo.update(3, "")
+        root.assertTrue(passwordlessSudo.active === false, "Passwordless Sudo is inactive when status confirms no grant")
+        passwordlessSudo.triggerPress(Qt.LeftButton)
+        root.assertTrue(root.commandCount(sudoToggle) === 1, "Passwordless Sudo left click opens the toggle when inactive")
+
+        var sudoDeadline = new Date(Date.now() + 12 * 60000).toISOString()
+        passwordlessSudo.update(0, JSON.stringify({ active: true, remaining_seconds: 720, deadline: sudoDeadline }))
+        root.assertTrue(passwordlessSudo.active === true && passwordlessSudo.unknown === false, "Passwordless Sudo is active while a grant is live")
+        root.assertTrue(passwordlessSudo.tooltipText.indexOf("12m left") !== -1, "Passwordless Sudo tooltip shows the remaining minutes")
+        passwordlessSudo.triggerPress(Qt.LeftButton)
+        root.assertTrue(passwordlessSudo.revoking === true, "Passwordless Sudo left click revokes a live grant")
+        root.assertTrue(root.commandCount(sudoToggle) === 1, "Passwordless Sudo revokes without opening a terminal first")
+
+        passwordlessSudo.update(2, "")
+        root.assertTrue(passwordlessSudo.active === true && passwordlessSudo.unknown === true, "Passwordless Sudo shows a failed status as unknown, not inactive")
+        passwordlessSudo.triggerPress(Qt.LeftButton)
+        root.assertTrue(root.commandCount(sudoToggle) === 2, "Passwordless Sudo left click opens the toggle when status is unknown")
+
+        passwordlessSudo.update(0, "not json")
+        root.assertTrue(passwordlessSudo.active === true && passwordlessSudo.unknown === true, "Passwordless Sudo treats a malformed reply as unknown")
+      }
+
       var stayAwake = root.createIndicator("StayAwake")
       if (stayAwake) {
         stayAwake.moduleName = "StayAwake"
