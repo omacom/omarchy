@@ -10,11 +10,14 @@ require_command magick
 
 stage=$(mktemp -d)
 qs_pid=""
+cursor=$(hyprctl -j cursorpos)
 cleanup() {
   [[ -z $qs_pid ]] || { kill "$qs_pid" 2>/dev/null || true; wait "$qs_pid" 2>/dev/null || true; }
+  hyprctl dispatch "hl.dsp.cursor.move({ x = $(jq -r .x <<<"$cursor"), y = $(jq -r .y <<<"$cursor") })" >/dev/null
   rm -rf "$stage"
 }
 trap cleanup EXIT
+hyprctl dispatch "$(hyprctl -j monitors | jq -r '.[0] | "hl.dsp.cursor.move({ x = \(.x + .width / .scale / 2), y = \(.y + .height / .scale / 2) })"')" >/dev/null
 mkdir -p "$stage/bin" "$stage/home/.local/state/omarchy/current"
 cat >"$stage/bin/noop" <<'SH'
 #!/bin/bash
@@ -58,7 +61,7 @@ capture_pixel() {
   hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null
   local output
   output=$(hyprctl -j monitors | jq -r '.[0].name')
-  timeout -k 1 3 grim -o "$output" "$stage/$1.png"
+  timeout -k 1 3 grim -c -o "$output" "$stage/$1.png"
   magick "$stage/$1.png" -format '%[hex:p{32,256}]' info:
 }
 for consumed in false true; do
@@ -77,12 +80,14 @@ for consumed in false true; do
     pixel=$(capture_pixel cover)
     [[ $pixel == "000000" ]] || fail "a fresh login keeps the cloned wallpaper hidden until startup is ready" "$pixel"
     [[ $(magick "$stage/cover.png" -format '%[hex:p{32,10}]' info:) == "000000" ]] || fail "the startup cover hides the bar as well as the wallpaper"
+    [[ $(magick "$stage/cover.png" -format '%[fx:maxima]' info:) == "0" ]] || fail "the startup cover hides the cursor as well as the desktop"
   else
     [[ $(capture_pixel cover) == "FF00FF" ]] || fail "a consumed login does not flash a cover over the cloned background"
   fi
   printf 'captured\n' >"$stage/release"
   wait_phase still
   [[ $(capture_pixel still) == "FF00FF" ]] || fail "releasing the shared cover reveals the cloned background"
+  [[ $(magick "$stage/still.png" -format '%[fx:maxima.g]' info:) != "0" ]] || fail "the cursor returns when the startup cover releases the desktop"
   printf 'done\n' >"$stage/release"
   wait "$qs_pid" || fail "the cloned background fixture exits cleanly" "$(cat "$stage/quickshell.log")"
   qs_pid=""

@@ -29,6 +29,10 @@ Item {
   readonly property bool backgroundActive: !!backgroundService && !backgroundService.suspended
   readonly property bool backgroundReady: backgroundActive && backgroundService.ready !== false
 
+  function restoreStartupCursor() {
+    Quickshell.execDetached(["hyprctl", "eval", "if omarchy_startup_cursor_pending then omarchy_startup_cursor_pending = false; hl.config({ cursor = { invisible = false } }) end"])
+  }
+
   function finishStartup() {
     if (!cover || !startupSettled) return
     var registry = host ? host.pluginRegistry : null
@@ -130,6 +134,7 @@ Item {
     to: 0
     duration: Style.duration(420)
     easing.type: Easing.OutCubic
+    onStarted: root.restoreStartupCursor()
     onFinished: root.startupPending = false
   }
 
@@ -208,9 +213,12 @@ Item {
 
   Component.onCompleted: {
     checked = true
+    if (sessionConsumed) restoreStartupCursor()
     if (!startupBackgroundPath && !startupPending) startupBackground.running = true
     introProc.running = true
   }
+
+  Component.onDestruction: if (startupPending) restoreStartupCursor()
 
   onBackgroundActiveChanged: {
     if (!backgroundActive && checked) {
@@ -233,17 +241,29 @@ Item {
       screen: modelData
       visible: root.startupPending
       color: "transparent"
-      mask: Region {}
+      mask: root.startupOpacity === 1 ? null : emptyMask
+      Region { id: emptyMask }
       anchors { top: true; bottom: true; left: true; right: true }
       exclusionMode: ExclusionMode.Ignore
       WlrLayershell.layer: WlrLayer.Overlay
-      WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+      // Take focus while black so the blank cursor applies without mouse movement.
+      WlrLayershell.keyboardFocus: root.startupOpacity === 1 ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
       WlrLayershell.namespace: "omarchy-background"
 
       Rectangle {
         anchors.fill: parent
         color: "black"
         opacity: root.startupOpacity
+      }
+
+      // Cursor config changes are polled by Hyprland. Hide the pointer here
+      // immediately while the compositor catches up, then release it on fade.
+      MouseArea {
+        anchors.fill: parent
+        enabled: root.startupOpacity === 1
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton
+        cursorShape: Qt.BlankCursor
       }
 
       FrameAnimation {

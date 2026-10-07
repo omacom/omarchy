@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import "services"
 
 ShellRoot {
@@ -29,6 +30,7 @@ ShellRoot {
     property bool ready: false
   }
   BackgroundIntro { id: intro; host: test }
+  FileView { id: cursorLog; path: Quickshell.env("STARTUP_CURSOR_LOG"); printErrors: false }
 
   Timer {
     interval: 400
@@ -38,6 +40,9 @@ ShellRoot {
       test.check(intro.cover && !intro.themeBackground, "fresh startup does not prepare an outgoing still image")
       test.check(intro.startupSettled, "the launcher has finished without an intro")
       test.check(intro.startupPending && intro.startupOpacity === 1, "a fresh login hides the desktop until its media and bar are ready")
+      cursorLog.reload()
+      cursorLog.waitForJob()
+      test.check(!cursorLog.text().trim(), "startup does not restore the cursor while media is loading")
       test.services = ({ "omarchy.background": background })
     }
   }
@@ -55,6 +60,9 @@ ShellRoot {
     onTriggered: {
       test.check(!intro.cover && !intro.themeBackground, "a ready plugin releases the startup cover and its image")
       test.check(intro.startupPending && intro.startupOpacity === 1, "a ready background alone cannot reveal an unready bar")
+      cursorLog.reload()
+      cursorLog.waitForJob()
+      test.check(!cursorLog.text().trim(), "startup does not restore the cursor before the bar is ready")
       test.bar = ({})
     }
   }
@@ -63,6 +71,9 @@ ShellRoot {
     running: true
     onTriggered: {
       test.check(!intro.startupPending && intro.startupOpacity === 0, "the desktop fades in after both the media and bar are ready")
+      cursorLog.reload()
+      cursorLog.waitForJob()
+      test.check(cursorLog.text().includes("invisible = false"), "the opening fade restores the cursor")
       test.services = ({})
       intro.cover = true
       test.pluginRegistry = registry

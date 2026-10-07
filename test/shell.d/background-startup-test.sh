@@ -19,9 +19,20 @@ cat >"$stage/bin/omarchy-theme-bg-boot-intro" <<'SH'
 exit 0
 SH
 chmod +x "$stage/bin/omarchy-theme-bg-boot-intro"
-output=$(HOME="$stage/home" PATH="$stage/bin:$PATH" timeout 6 quickshell -p "$stage" --no-color 2>&1) || fail "background startup fixture exits cleanly" "$output"
+cat >"$stage/bin/hyprctl" <<'SH'
+#!/bin/bash
+if [[ $1 == "eval" ]]; then
+  printf '%s\n' "$*" >>"$STARTUP_CURSOR_LOG"
+else
+  /usr/bin/hyprctl "$@"
+fi
+SH
+chmod +x "$stage/bin/hyprctl"
+: >"$stage/cursor.log"
+output=$(HOME="$stage/home" PATH="$stage/bin:$PATH" STARTUP_CURSOR_LOG="$stage/cursor.log" timeout 6 quickshell -p "$stage" --no-color 2>&1) || fail "background startup fixture exits cleanly" "$output"
 [[ $output == *"RESULT pass"* ]] || fail "the wallpaper restores before background plugin loading" "$output"
 if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
   fail "background startup fixture has no QML errors" "$output"
 fi
 pass "fresh startup hides the desktop until both the background and bar are ready"
+pass "the startup cursor stays hidden until the desktop begins fading in"
