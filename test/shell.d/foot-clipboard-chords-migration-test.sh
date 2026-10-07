@@ -143,15 +143,20 @@ printf '%s\n' '[key-bindings]' 'clipboard-copy=Control+Insert' >"$home/locked/fo
 ln -sf "$home/locked/foot.ini" "$foot_config"
 chmod 555 "$home/locked"
 
-status=0
-run_migration 2>/dev/null || status=$?
-chmod 755 "$home/locked"
-(( status == 0 )) || fail "chord repair succeeds on a config in a read-only directory"
+# Root can write to the directory anyway, so only another user reaches the in-place write.
+if [[ -w $home/locked ]]; then
+  chmod 755 "$home/locked"
+else
+  status=0
+  run_migration 2>/dev/null || status=$?
+  chmod 755 "$home/locked"
+  (( status == 0 )) || fail "chord repair succeeds on a config in a read-only directory"
 
-grep -qx 'clipboard-copy=Control+Insert Control+Shift+c XF86Copy' "$home/locked/foot.ini" ||
-  fail "chord repair rewrites a config in a read-only directory" "$(cat "$home/locked/foot.ini")"
-[[ $(ls "$home/locked") == foot.ini ]] || fail "chord repair leaves nothing beside a config in a read-only directory" "$(ls "$home/locked")"
-pass "chord repair rewrites a config in a read-only directory"
+  grep -qx 'clipboard-copy=Control+Insert Control+Shift+c XF86Copy' "$home/locked/foot.ini" ||
+    fail "chord repair rewrites a config in a read-only directory" "$(cat "$home/locked/foot.ini")"
+  [[ $(ls "$home/locked") == foot.ini ]] || fail "chord repair leaves nothing beside a config in a read-only directory" "$(ls "$home/locked")"
+  pass "chord repair rewrites a config in a read-only directory"
+fi
 
 # Machines without foot have nothing to repair.
 reset_home
