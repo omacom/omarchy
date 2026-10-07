@@ -147,7 +147,7 @@ assert(
 )
 assert(
   /OverlayWindow \{\s*id: panel\s*shown: root\.opened\s*shownKeyboardFocus: root\.imagesLoaded \? WlrKeyboardFocus\.Exclusive : WlrKeyboardFocus\.None/.test(imagePickerQml),
-  'image picker parks on OverlayWindow and takes the keyboard once images load'
+  'image picker uses OverlayWindow and takes the keyboard once images load'
 )
 assert(
   /model: visibleImages/.test(imagePickerQml) &&
