@@ -22,6 +22,8 @@ It works by restoring the baseline snapshot the installer takes, so it's only av
 
 Sometimes you want `sudo` to stop asking, most often when an AI agent is doing a long stretch of system work for you. _Setup > Security > Passwordless Sudo_ turns that off for 15 wall-clock minutes and then puts it back automatically, including immediately after resuming from a suspend that crossed the deadline. A package-owned boot-time cleanup rule removes the grant before logins if the computer restarts first. Run the command again before the timer runs out to end it early, and pass your own number of minutes (from 1 to 1440) with `omarchy-sudo-passwordless 30` if 15 isn't enough.
 
+While a grant is active, a highlighted Passwordless Sudo indicator in the bar shows how long is left when you hover it; click it to end the grant immediately. Hover the indicators to reveal it when no grant is active, then click it to start one. From a terminal, `omarchy-sudo-passwordless status` shows the same information and `omarchy-sudo-passwordless disable` ends a grant without the toggle.
+
 Updating or removing Omarchy's settings package ends any temporary grant before its expiry support changes. If the command reports an authorization or cleanup error, resolve it before trying to enable another grant; an error does not mean passwordless access is inactive.
 
 Be clear-eyed about this one: while it's on, anything running as your user can do anything as root without being asked. That's the whole point, and it's also the whole risk.
