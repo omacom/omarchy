@@ -143,11 +143,32 @@ def jwt_claims(token: str) -> dict[str, Any]:
     return {}
 
 
+# Missing credentials confirm sign-out; unreadable or partially written ones
+# do not. Returning None lets identity() leave the last known registry fields
+# alone, including the subscription that owns pending reset notifications.
+def identity_json(path: Path) -> dict[str, Any] | None:
+  try:
+    value = json.loads(path.read_text(encoding="utf-8"))
+  except FileNotFoundError:
+    return {}
+  except (OSError, ValueError):
+    return None
+  return value if isinstance(value, dict) else None
+
+
 # Who a home is signed in as, from files the CLI wrote at login. Only
 # display-safe fields come out; an empty accountId means nobody is signed in.
+# An empty update means identity could not be read, so retain the last one.
 def identity(provider: str, home: Path) -> dict[str, str]:
   if provider == "claude":
-    account = (read_json(claude_account_file(home)) or {}).get("oauthAccount") or {}
+    profile = identity_json(claude_account_file(home))
+    if profile is None:
+      return {}
+    account = profile.get("oauthAccount")
+    if account is None:
+      account = {}
+    if not isinstance(account, dict):
+      return {}
     login = (read_json(home / ".credentials.json") or {}).get("claudeAiOauth") or {}
     return {
       "accountId": str(account.get("accountUuid") or ""),
@@ -159,8 +180,14 @@ def identity(provider: str, home: Path) -> dict[str, str]:
   if provider == "grok":
     return grok_identity(home)
 
-  auth = read_json(home / "auth.json") or {}
-  tokens = auth.get("tokens") or {}
+  auth = identity_json(home / "auth.json")
+  if auth is None:
+    return {}
+  tokens = auth.get("tokens")
+  if tokens is None:
+    tokens = {}
+  if not isinstance(tokens, dict):
+    return {}
   claims = jwt_claims(str(tokens.get("id_token") or ""))
   openai = claims.get("https://api.openai.com/auth") or {}
   plan = str(openai.get("chatgpt_plan_type") or "")
@@ -338,7 +365,7 @@ def register(provider: str, label: str, pending: Path) -> dict[str, Any]:
     raise AccountError(f"{pending} is not a pending {PROVIDERS[provider]['name']} login")
 
   found = identity(provider, pending)
-  if not found["accountId"]:
+  if not found.get("accountId"):
     shutil.rmtree(pending, ignore_errors=True)
     raise AccountError("The login didn't finish, so no account was added.")
 
