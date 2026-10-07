@@ -357,6 +357,18 @@ function sortVpnConnections(rows) {
   return conns
 }
 
+// Row of the profile called `name`, or -1. The list reorders itself whenever
+// a profile goes up or down (active first), so the keyboard cursor has to
+// follow a profile by name rather than sit on a row number.
+function vpnIndexForName(rows, name) {
+  var conns = Array.isArray(rows) ? rows : []
+  if (!name) return -1
+  for (var i = 0; i < conns.length; i++) {
+    if (conns[i] && conns[i].name === name) return i
+  }
+  return -1
+}
+
 function wifiSectionTitle(wifiNetworks, index) {
   var networks = Array.isArray(wifiNetworks) ? wifiNetworks : []
   if (index < 0 || index >= networks.length) return ""
@@ -446,6 +458,7 @@ if (typeof module !== "undefined") {
     sortWifiRows: sortWifiRows,
     parseVpnConnections: parseVpnConnections,
     sortVpnConnections: sortVpnConnections,
+    vpnIndexForName: vpnIndexForName,
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,

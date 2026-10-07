@@ -805,7 +805,16 @@ Panel {
   // the same way would wipe the message before the user ever saw it. That
   // one clears only when a new toggle supersedes it, in vpnActionProc.onExited.
   function updateVpnConnections(raw) {
+    // Sorting puts the active profile first, so a toggle reshuffles the rows.
+    // Carry the cursor by profile name across the swap: left on its old row
+    // number it would land on a different profile, and a second Space would
+    // connect that one instead of disconnecting the one just brought up.
+    var selectedName = vpnIndex >= 0 && vpnIndex < vpnConnections.length ? vpnConnections[vpnIndex].name : ""
+
     vpnConnections = Model.sortVpnConnections(Model.parseVpnConnections(raw))
+
+    var selectedRow = Model.vpnIndexForName(vpnConnections, selectedName)
+    if (selectedRow >= 0) vpnIndex = selectedRow
 
     if (vpnFailureName === "" || vpnFailureReason !== "Connected, no traffic") return
     var stillActive = vpnConnections.some(function(conn) { return conn.name === vpnFailureName && conn.active })

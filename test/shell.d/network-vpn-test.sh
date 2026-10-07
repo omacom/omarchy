@@ -35,6 +35,28 @@ assertDeepEqual(
   'sortVpnConnections puts the active connection first, then sorts by name'
 )
 
+// vpnIndexForName: the keyboard cursor follows a profile by name, because the
+// active-first sort reshuffles rows on every toggle.
+assertEqual(
+  network.vpnIndexForName([{ name: 'pvpn-ch', active: false }, { name: 'pvpn-fr', active: false }], 'pvpn-fr'),
+  1,
+  'vpnIndexForName finds a profile by name'
+)
+assertEqual(network.vpnIndexForName([{ name: 'pvpn-ch', active: false }], 'pvpn-de'), -1, 'vpnIndexForName reports a missing profile')
+assertEqual(network.vpnIndexForName([{ name: 'pvpn-ch', active: false }], ''), -1, 'vpnIndexForName ignores an empty name')
+assertEqual(network.vpnIndexForName(undefined, 'pvpn-ch'), -1, 'vpnIndexForName handles a missing list')
+
+// Activating the second of two inactive profiles moves it to the top; the
+// cursor has to move with it, or a second Space lands on the other profile.
+assertEqual(
+  network.vpnIndexForName(
+    network.sortVpnConnections([{ name: 'pvpn-ch', active: false }, { name: 'pvpn-fr', active: true }]),
+    'pvpn-fr'
+  ),
+  0,
+  'vpnIndexForName follows a profile to its new row once it sorts first'
+)
+
 // Structural checks against Panel.qml, same style as network-test.sh: catch a
 // wiring mistake (poll timer not gated, action not clearing busy state, list
 // section still visible with nothing to show) without a running compositor.
@@ -63,6 +85,15 @@ assert(
 assert(
   /if \(!stillActive\) vpnFailureName = ""/.test(updateVpnConnections[0]),
   'updateVpnConnections drops a failure once its connection is no longer active'
+)
+
+assert(
+  /var selectedName = vpnIndex >= 0 && vpnIndex < vpnConnections\.length \? vpnConnections\[vpnIndex\]\.name : ""\n\n\s*vpnConnections = /.test(updateVpnConnections[0]),
+  'updateVpnConnections records which profile holds the cursor before replacing the list'
+)
+assert(
+  /var selectedRow = Model\.vpnIndexForName\(vpnConnections, selectedName\)\n\s*if \(selectedRow >= 0\) vpnIndex = selectedRow/.test(updateVpnConnections[0]),
+  'updateVpnConnections keeps the cursor on the same profile when the list reorders'
 )
 
 const vpnActionProc = panelSource.match(/Process \{\n {4}id: vpnActionProc[\s\S]*?\n {2}\}/)
