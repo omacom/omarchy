@@ -126,6 +126,12 @@ ori)
   command=(ori code)
   [[ -n ${prompt:-} ]] && command+=(--interactive --prompt "$prompt")
   ;;
+dsh)
+  # DSH's installer ships the web profile, which serves the harness's own UI on
+  # a local port rather than running a terminal UI: there are no permission
+  # prompts to skip and no prompt to seed.
+  command=(dsh web)
+  ;;
 pi)
   command=(pi)
   [[ -n ${prompt:-} ]] && command+=("$prompt")
