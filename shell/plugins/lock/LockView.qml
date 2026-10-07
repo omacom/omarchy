@@ -7,13 +7,20 @@ Item {
   id: root
 
   property string backgroundPath: ""
+  property string videoPosterPath: ""
   property int backgroundVersion: 0
   property bool fingerprintConfigured: false
+  property bool fingerprintUnavailable: false
   property bool authenticatingPassword: false
   property string failureMessage: ""
   property int failedAttempts: 0
   property bool inputEnabled: true
   property bool loadBackground: true
+  // A locked session blanks the displays after a few seconds. Nothing is
+  // visible from then until the user wakes it, so a video must not keep
+  // decoding through what is usually the longest part of a lock.
+  property bool displaysBlank: false
+  property bool powerSaverActive: false
   property string passwordText: ""
   property bool syncingPasswordText: false
 
@@ -38,19 +45,13 @@ Item {
     ? Border.surfaceSpec("lock", "border-error", Color.lock.borderError, root.outlineThickness, "border-alpha")
     : Border.surfaceSpec("lock", "border-active", Color.lock.borderActive, root.outlineThickness, "border-alpha")
 
+  readonly property bool video: Util.isVideoPath(root.backgroundPath)
+  readonly property bool feedActive: root.video && root.loadBackground && !root.displaysBlank && !root.powerSaverActive
+
   signal submitPassword(string password)
   signal passwordTextEdited(string password)
   signal clearFailureRequested()
   signal wakeRequested()
-
-  // Cache-busts the lock background by appending `?v=`. Adding a query
-  // string keeps Image's loader happy while forcing it to reload when the
-  // user picks a new background mid-session.
-  function fileUrl(path) {
-    if (!path) return ""
-    var encoded = String(path).split("/").map(encodeURIComponent).join("/")
-    return "file://" + encoded + "?v=" + backgroundVersion
-  }
 
   function forcePasswordFocus() {
     passwordInput.forceActiveFocus()
@@ -58,6 +59,14 @@ Item {
 
   function clearPassword() {
     passwordTextEdited("")
+  }
+
+  // Waking a DPMS-blanked display can stall the compositor for seconds while
+  // the monitor modesets, so the wake key's release arrives late and client-side
+  // key repeat floods the field with that character. A held key has no business
+  // typing a password; only holding Backspace/Delete to clear stays useful.
+  function dropsAutoRepeat(key) {
+    return key !== Qt.Key_Backspace && key !== Qt.Key_Delete
   }
 
   function syncPasswordText() {
@@ -90,26 +99,49 @@ Item {
     anchors.fill: parent
     color: Color.background
 
-    Image {
+    BackgroundMedia {
       id: wallpaper
+      objectName: "lockWallpaper"
       anchors.fill: parent
-      source: root.loadBackground ? root.fileUrl(root.backgroundPath) : ""
-      fillMode: Image.PreserveAspectCrop
-      asynchronous: true
-      cache: false
-      sourceSize.width: width
-      sourceSize.height: height
+      path: root.loadBackground ? (root.video ? root.videoPosterPath : root.backgroundPath) : ""
+      version: root.backgroundVersion
+      // Decode only once sized, at the lock's own size: an unsized first
+      // request decoded the file at its native resolution, then again once
+      // sized. That size is what the lock service keeps decoded ahead of the
+      // lock, so the first frame has the wallpaper.
+      cached: true
+      constrainDecode: true
+      decodeSize: Qt.size(width, height)
     }
 
     MultiEffect {
       anchors.fill: wallpaper
       source: wallpaper
       autoPaddingEnabled: false
-      blurEnabled: root.loadBackground && wallpaper.status === Image.Ready
+      blurEnabled: root.loadBackground && wallpaper.ready
       blur: 1.0
       blurMax: 128
       blurMultiplier: 1.25
       contrast: -0.08
+    }
+
+    // The cached poster stays behind the feed when policy pauses playback,
+    // the module is unavailable, or a new connection has not received a frame.
+    Loader {
+      id: feedLoader
+      objectName: "lockFeedLoader"
+      anchors.fill: parent
+      active: root.feedActive
+      source: "LockFeedSurface.qml"
+      visible: status === Loader.Ready
+    }
+
+    // The feed item cannot be sampled by MultiEffect on every renderer.
+    // Keep video wallpapers visible and darken them slightly for legibility.
+    Rectangle {
+      anchors.fill: feedLoader
+      visible: root.video
+      color: "#22000000"
     }
 
     MouseArea {
@@ -176,6 +208,10 @@ Item {
 
         Keys.onPressed: function(event) {
           root.wakeRequested()
+          if (event.isAutoRepeat && root.dropsAutoRepeat(event.key)) {
+            event.accepted = true
+            return
+          }
           if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)) {
             root.passwordTextEdited("")
             event.accepted = true
@@ -200,20 +236,41 @@ Item {
       // Fingerprint hint pinned inside the field's right edge when a sensor is
       // enrolled, so the user knows they can touch to unlock instead of typing.
       // Matches hyprlock, which draws its fingerprint icon in the same spot.
+      // A reader the shell cannot reach crosses out rather than disappears, so
+      // it stops inviting touches that can never unlock.
       Text {
         id: fingerprintIcon
         objectName: "fingerprintIndicator"
+        textFormat: Text.PlainText
         anchors.right: parent.right
         anchors.rightMargin: inputField.borderRight + 18
         anchors.verticalCenter: parent.verticalCenter
         visible: root.fingerprintConfigured
-        text: "󰈷"
-        color: Color.lock.placeholder
+        text: root.fingerprintUnavailable ? "󰺱" : "󰈷"
+        color: root.fingerprintUnavailable ? Color.lock.textError : Color.lock.placeholder
         font.family: Style.font.family
         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
       }
+    }
+
+    // The crossed-out icon has no meaning to a user who has never seen it — it
+    // is not intuitive that it signals a broken reader — so the words carry the
+    // explanation and the icon only reinforces it.
+    Text {
+      objectName: "fingerprintUnavailableNotice"
+      textFormat: Text.PlainText
+      anchors.top: inputField.bottom
+      anchors.topMargin: 18
+      anchors.horizontalCenter: inputField.horizontalCenter
+      visible: root.fingerprintConfigured && root.fingerprintUnavailable
+      text: "Fingerprint reader unavailable"
+      color: Color.lock.textError
+      font.family: Style.font.family
+      font.pixelSize: Style.font.heading
+      font.italic: true
+      horizontalAlignment: Text.AlignHCenter
     }
   }
 }

@@ -45,7 +45,7 @@ Item {
     id: panelController
   }
 
-  IpcHandler {
+  ShellIpc {
     enabled: root.manageIpc && root.ipcTarget !== ""
     target: root.ipcTarget
 

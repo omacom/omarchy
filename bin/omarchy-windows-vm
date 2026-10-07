@@ -580,7 +580,9 @@ prepare_caller_mounts() {
   # Privacy is an explicit preflight step for both already-pinned sources, not
   # a side effect halfway through the two-mount transaction. Old umask-022
   # installs are hardened together before either Docker-facing anchor changes.
-  chmod 0700 -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" || {
+  # The mode is symbolic because a numeric chmod keeps setuid/setgid on a
+  # directory, and dockur marks an initially empty /shared setgid (2777).
+  chmod u=rwx,go=,a-s -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" || {
     exec {storage_fd}<&-
     exec {shared_fd}<&-
     return 1
@@ -590,6 +592,7 @@ prepare_caller_mounts() {
   if [[ $storage_mode != 700 || $shared_mode != 700 ]]; then
     exec {storage_fd}<&-
     exec {shared_fd}<&-
+    echo "omarchy-windows-vm: could not make the VM data directories private: $LEGACY_STORAGE is mode ${storage_mode:-unknown}, $LEGACY_SHARED is mode ${shared_mode:-unknown} (expected 700)" >&2
     return 1
   fi
 
@@ -1015,7 +1018,7 @@ prepare_user_mount_sources() {
     echo "omarchy-windows-vm: storage and shared must be different directories" >&2
     return 1
   }
-  chmod 0700 -- "$storage" "$shared"
+  chmod u=rwx,go=,a-s -- "$storage" "$shared"
 }
 
 storage_space_path() {
@@ -1457,8 +1460,31 @@ To stop: omarchy-windows-vm stop"
   fi
   # If scale is less than 130%, don't set any scale (use default 100)
 
-  # Connect with RDP in fullscreen (auto-detects resolution)
-  xfreerdp3 /u:"$WIN_USER" /p:"$WIN_PASS" /v:127.0.0.1:3389 -grab-keyboard /sound /microphone /clipboard /cert:ignore /title:"Windows VM - Omarchy" /dynamic-resolution /gfx:AVC444 /floatbar:sticky:off,default:visible,show:fullscreen $RDP_SCALE
+  RDP_ARGS=(
+    "/u:$WIN_USER"
+    "/p:$WIN_PASS"
+    /v:127.0.0.1:3389
+    -grab-keyboard
+    /sound
+    /microphone
+    /clipboard
+    /cert:ignore
+    "/title:Windows VM - Omarchy"
+    /dynamic-resolution
+    /gfx:AVC444
+    /floatbar:sticky:off,default:visible,show:fullscreen
+  )
+  if [[ -n $RDP_SCALE ]]; then
+    RDP_ARGS+=("$RDP_SCALE")
+  fi
+
+  # Connect with RDP in fullscreen (auto-detects resolution). The arguments go
+  # in over stdin rather than on the command line: /proc/<pid>/cmdline is
+  # world-readable, so passing the VM password as /p:"$WIN_PASS" would show it
+  # to every other user on the machine for as long as the session is open.
+  # /args-from must stay the only argument here — FreeRDP rejects it outright
+  # when it is combined with any other, so new flags belong in RDP_ARGS above.
+  printf '%s\n' "${RDP_ARGS[@]}" | xfreerdp3 /args-from:stdin
 
   # After RDP closes, stop the container unless --keep-alive was specified
   if [[ $KEEP_ALIVE = "false" ]]; then
