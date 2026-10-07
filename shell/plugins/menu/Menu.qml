@@ -1069,6 +1069,17 @@ Item {
     id: panel
     shown: root.opened && root.rowsLoaded
     WlrLayershell.namespace: "omarchy-menu"
+    // Settle on OnDemand so on-screen keyboard taps are not routed to the scrim;
+    // the Exclusive prime takes focus, since the mapped surface never re-maps.
+    shownKeyboardFocus: focusPrimed ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive
+    exclusionMode: ExclusionMode.Auto
+    property bool focusPrimed: false
+
+    Timer {
+      id: focusPrimeTimer
+      interval: 75
+      onTriggered: if (panel.shown) panel.focusPrimed = true
+    }
 
     // The card opens centered exactly as always. The first search keystroke
     // or submenu move freezes the top line where it currently sits — from
@@ -1087,7 +1098,16 @@ Item {
       }
     }
     // The surface stays mapped between opens, so closing is shown going false.
-    onShownChanged: if (!shown) { cardTop = -1; maxRowsHeight = -1 }
+    onShownChanged: {
+      focusPrimed = false
+      if (shown) {
+        focusPrimeTimer.restart()
+      } else {
+        focusPrimeTimer.stop()
+        cardTop = -1
+        maxRowsHeight = -1
+      }
+    }
 
     Rectangle {
       anchors.fill: parent

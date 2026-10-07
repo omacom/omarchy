@@ -55,7 +55,7 @@ for (const [file, shown] of Object.entries(overlays)) {
 // Window visibility never changes now, so close-time resets key off shown.
 const menuQml = read('shell/plugins/menu/Menu.qml')
 assert(
-  menuQml.includes('onShownChanged: if (!shown) { cardTop = -1; maxRowsHeight = -1 }') &&
+  /onShownChanged: \{[\s\S]*?\} else \{[\s\S]*?cardTop = -1\s*maxRowsHeight = -1/.test(menuQml) &&
     menuQml.includes('if (shown && cardTop < 0) {') &&
     !/onVisibleChanged: if \(!visible\) \{ cardTop/.test(menuQml),
   'the menu unfreezes its layout when the overlay hides'
