@@ -8,9 +8,8 @@ BarIndicator {
 
   property bool granted: false
 
-  visible: effectiveActive || inactiveRevealed
   active: granted
-  activeText: "󰀦"
+  activeText: "󰟵"
   inactiveText: "󰟵"
   activeTooltipText: "Danger: Passwordless sudo is enabled. Click to disable."
   inactiveTooltipText: "Passwordless Sudo"

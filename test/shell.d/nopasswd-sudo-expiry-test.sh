@@ -32,7 +32,7 @@ for status in 1 2 3; do
   else
     (( result != 0 )) && ! grep -q '^gum ' "$test_tmp/commands" || fail "inspection errors must not offer enablement"
   fi
-  grep -q '^sudo -N -- .* __status ' "$test_tmp/commands" || fail "status must not publish reusable authorization"
+  grep -q '^sudo -n -N -l -l -- .* __status ' "$test_tmp/commands" || fail "status must inspect policy without authentication"
   [[ $(tail -1 "$test_tmp/commands") == 'sudo -k' ]] || fail "public exit must revoke its authorization"
 done
 pass "public status distinguishes inactive from errors and revokes authorization on exit"
@@ -295,3 +295,11 @@ for status in 0 3; do
   fi
 done
 pass "explicit disable never enables access even when a displayed grant has expired"
+
+: >"$test_tmp/commands"
+TEST_STATUS=3 TEST_CHOICE='15 minutes' TEST_CONFIRM_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" >"$test_tmp/public.log" 2>&1
+[[ $(grep -c '^sudo -N -- ' "$test_tmp/commands") == 1 ]] || fail "enable must authenticate exactly one sudo call"
+grep -q '^sudo -N -- .* __enable .* 15$' "$test_tmp/commands"
+! grep -q '^sudo -n -N -- .* __status ' "$test_tmp/commands" || fail "inactive flow attempted root status"
+[[ $(tail -1 "$test_tmp/commands") == 'sudo -k' ]]
+pass "enabling from inactive policy has exactly one password-capable sudo invocation"
