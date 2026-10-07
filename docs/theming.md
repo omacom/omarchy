@@ -28,6 +28,8 @@ A theme installed from a git repo is held to a much shorter list; see [What an i
 
 Copy, palette conversion, and template rendering failures abort activation before changing the current theme, name, or background. If publishing the theme name fails after the directory exchange, activation restores the previous theme and returns an error. A first activation uses a rename instead of an exchange and removes the new directory if name publication fails. If rollback itself fails, the previous theme remains in a unique `.theme-swap.*` directory alongside the current theme; the error reports that recovery path, and later activation attempts leave it intact. These checks handle command failures; the directory and name are separate filesystem operations, not a crash-safe transaction.
 
+If an activation fails after preparing a background intro, cleanup cancels only that activation's cover before deleting its snapshot. Cancellation does not apply palette payloads, so the active shell colors and overrides stay in place.
+
 Template rendering only happens when the staged theme has `colors.toml`.
 Existing files are never overwritten by a template, so a hand-written
 `themes/<name>/shell.toml` or `hyprland.lua` wins over

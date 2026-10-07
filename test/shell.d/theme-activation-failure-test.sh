@@ -16,6 +16,7 @@ mkdir -p "$stub_bin" "$scratch/runtime" "$scratch/temporary"
 
 cat >"$stub_bin/omarchy-theme-set-templates" <<'STUB'
 #!/bin/bash
+printf '%s\n' "$PPID" >"$TEST_STATE/activation-pid"
 [[ ${TEST_FAILURE:-} != "renderer" ]] || exit 42
 if [[ ${TEST_FAILURE:-} == "cancel-render" ]]; then
   kill -TERM "$PPID"
@@ -103,7 +104,45 @@ STUB
 cat >"$stub_bin/omarchy-shell" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$*" >>"$TEST_IPC"
+case $2 in
+  prepareThemeIntro)
+    if [[ -z $5 && -z $6 ]]; then
+      printf '%s\n' "$3" >"$TEST_STATE/prepared-cover"
+      printf '%s\n' "$4" >"$TEST_STATE/prepared-token"
+    fi
+    ;;
+  cancelThemeIntro)
+    [[ $3 == "$(cat "$TEST_STATE/prepared-token")" ]] || exit 42
+    [[ -f $(cat "$TEST_STATE/prepared-cover") ]] || exit 42
+    touch "$TEST_STATE/canceled-before-removal"
+    ;;
+  themeIntroCoverStatus)
+    if [[ ${TEST_FAILURE:-} == "cancel-cover" ]]; then
+      kill -TERM "$(cat "$TEST_STATE/activation-pid")"
+    fi
+    echo ready
+    ;;
+  themeIntroStatus) echo ready ;;
+esac
 STUB
+
+cat >"$stub_bin/hyprctl" <<'STUB'
+#!/bin/bash
+printf '{"bool":true}\n'
+STUB
+cat >"$stub_bin/owe" <<'STUB'
+#!/bin/bash
+[[ $1 != render ]] || exit 1
+STUB
+# Keep successful desktop retries inside the fixture, including login-shell hooks.
+cat >"$stub_bin/bash" <<'STUB'
+#!/bin/bash
+[[ $1 != -lc ]] || exit 0
+exec /bin/bash "$@"
+STUB
+for command in omarchy-hook omarchy-theme-set-herdr-machines omarchy-theme-bg-cache omarchy-restart-hyprctl; do
+  printf '#!/bin/bash\nexit 0\n' >"$stub_bin/$command"
+done
 chmod +x "$stub_bin/"*
 
 reset_fixture() {
@@ -114,6 +153,8 @@ reset_fixture() {
   printf 'previous image\n' >"$state/theme/background.png"
   printf 'old-theme\n' >"$state/theme.name"
   ln -s "$state/theme/background.png" "$state/background"
+  cp "$ROOT/themes/tokyo-night/colors.toml" "$state/theme/colors.toml"
+  printf '[bar]\nbackground = "#123456"\n' >"$state/theme/shell.toml"
   cp -a "$state/." "$scratch/expected/"
   cp "$ROOT/themes/tokyo-night/colors.toml" "$shipped/themes/new/colors.toml"
   printf 'accent={{ accent }}\n' >"$shipped/default/themed/example.conf.tpl"
@@ -252,6 +293,37 @@ for failure in renderer cancel-render name; do
   [[ $(find "$test_home/.cache/omarchy/background-transitions" -type f | wc -l) == 1 ]] || fail "failed activation removes its snapshots"
   grep -Fx 'another activation' "$test_home/.cache/omarchy/background-transitions/unrelated.png" >/dev/null || fail "unrelated snapshots survive"
   pass "$failure cleans prepared snapshots and preserves unrelated snapshots"
+done
+
+# Intro preparation owns a token before rendering; cleanup must cancel it while
+# its snapshot still exists, including after a failed exchange/name rollback.
+for failure in renderer cancel-render cancel-cover staging-move replacement name; do
+  reset_fixture
+  mkdir -p "$shipped/themes/new/backgrounds/intros" "$test_home/.cache/omarchy/background-transitions"
+  printf 'next image\n' >"$shipped/themes/new/backgrounds/next.png"
+  printf 'intro\n' >"$shipped/themes/new/backgrounds/intros/next.mp4"
+  printf 'another activation\n' >"$test_home/.cache/omarchy/background-transitions/unrelated.png"
+  if run_theme "$failure" 0; then fail "$failure with a prepared intro returns failure"; fi
+  [[ -s $state/prepared-token && -f $state/canceled-before-removal ]] || fail "$failure cancels its token before deleting its cover"
+  [[ ! -e $(cat "$state/prepared-cover") ]] || fail "$failure removes the canceled cover"
+  if grep -qE 'finishThemeIntro|themeTransition|applyTheme' "$scratch/ipc"; then fail "$failure never applies a palette"; fi
+  [[ $(find "$test_home/.cache/omarchy/background-transitions" -type f | wc -l) == 1 ]] || fail "$failure preserves only unrelated snapshots"
+  : >"$scratch/ipc"
+  assert_previous
+  run_theme "" 0 || fail "intro activation can retry after $failure" "$(cat "$scratch/output")"
+  [[ $(cat "$state/theme.name") == new && -f $state/theme/example.conf ]] || fail "retry publishes the rendered theme"
+  prepared_token=$(cat "$state/prepared-token")
+  [[ $prepared_token == "$(stat -Lc '%d:%i' "$state/theme")" ]] || fail "publication preserves the prepared intro token"
+  awk '$2 == "prepareThemeIntro" && NF == 6 { found = 1 } END { exit !found }' "$scratch/ipc" || fail "retry supplies both palette payloads"
+  ! grep -q 'cancelThemeIntro' "$scratch/ipc" || fail "successful publication keeps the intro"
+  # Wait for the successful intro's detached cleanup before resetting the fixture.
+  for attempt in {1..100}; do
+    [[ -f $(cat "$state/prepared-cover") ]] || break
+    sleep 0.02
+  done
+  [[ ! -f $(cat "$state/prepared-cover") ]] || fail "successful retry finishes intro cleanup"
+  grep -Fxq "shell finishThemeIntro $prepared_token" "$scratch/ipc" || fail "retry finishes the published intro"
+  pass "$failure cancels the prepared intro before snapshot removal and permits a successful retry"
 done
 
 reset_fixture

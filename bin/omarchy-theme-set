@@ -55,6 +55,7 @@ copy_theme_files() (
 STAGED_NAME_PATH=""
 THEME_SWAP_PATH=""
 THEME_SWAP_MODE=""
+PREPARED_INTRO_TOKEN=""
 
 cleanup_theme_staging() {
   local status=$?
@@ -79,9 +80,12 @@ cleanup_theme_staging() {
   fi
   [[ -z $STAGED_NAME_PATH ]] || rm -f -- "$STAGED_NAME_PATH"
 
-  # Preparation precedes rendering. Failed activations never hand these
-  # snapshots to the transition, so remove only this activation's copies.
+  # Cancel our prepared cover without applying its empty palette payloads,
+  # before removing the snapshot it may still be decoding.
   if (( status != 0 )); then
+    if [[ -n $PREPARED_INTRO_TOKEN ]]; then
+      shell_ipc shell cancelThemeIntro "$PREPARED_INTRO_TOKEN" || true
+    fi
     [[ -z ${OLD_BACKGROUND_SNAPSHOT:-} ]] || rm -f -- "$OLD_BACKGROUND_SNAPSHOT"
     [[ -z ${PREPARED_BACKGROUND_SNAPSHOT:-} ]] || rm -f -- "$PREPARED_BACKGROUND_SNAPSHOT"
   fi
@@ -520,7 +524,8 @@ if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
       # OWE retains the opened clip across the staged directory's rename.
       owe intro-prepare "$THEME_BACKGROUND_INTRO" >/dev/null 2>&1 9>&- &
       INTRO_PREPARE_PID=$!
-      shell_ipc shell prepareThemeIntro "$OLD_BACKGROUND_SNAPSHOT" "$(stat -Lc '%d:%i' "$NEXT_THEME_PATH")" "" "" || true
+      PREPARED_INTRO_TOKEN=$(stat -Lc '%d:%i' "$NEXT_THEME_PATH")
+      shell_ipc shell prepareThemeIntro "$OLD_BACKGROUND_SNAPSHOT" "$PREPARED_INTRO_TOKEN" "" "" || true
     elif background_transition_uses_snapshots "$CHOSEN_THEME_BACKGROUND"; then
       OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
 
@@ -544,7 +549,7 @@ omarchy-theme-set-templates || fail "could not render the theme"
 # Replacing the theme's still can cancel an active OWE intro even before the
 # background link changes. Present its cover before replacing either path.
 if [[ -n $THEME_BACKGROUND_INTRO ]]; then
-  wait_for_theme_intro themeIntroCoverStatus "$(stat -Lc '%d:%i' "$NEXT_THEME_PATH")" "loading"
+  wait_for_theme_intro themeIntroCoverStatus "$PREPARED_INTRO_TOKEN" "loading"
 fi
 
 # Finish this short commit or its rollback before accepting cancellation.

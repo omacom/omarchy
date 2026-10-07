@@ -1717,6 +1717,11 @@ ShellRoot {
       shell.bootIntro.prepareTheme(fromPath, token, colorsB64, shellB64)
     }
 
+    function cancelThemeIntro(token: string): void {
+      // A failed activation must not reveal its empty palette or cancel a newer cover.
+      if (token && token === shell.bootIntro.themeToken) shell.bootIntro.cancelTheme()
+    }
+
     function finishThemeIntro(token: string): void {
       shell.bootIntro.finishTheme(token)
     }
