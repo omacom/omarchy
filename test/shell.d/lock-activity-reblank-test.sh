@@ -11,10 +11,10 @@ const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/lock/Service.q
 // The compositor part of this file is skipped on headless machines, so pin
 // the activity monitor's wiring here too: enabled only while locked, real
 // input only (inhibitors do not count as idle), and every resume re-arms
-// the blank.
+// the blank, as does input stopping after a burst that outlasted it.
 assert(
-  /IdleMonitor \{[\s\S]*?id: activityMonitor[\s\S]*?enabled: root\.lockRequested[\s\S]*?respectInhibitors: false[\s\S]*?onIsIdleChanged: if \(!isIdle\) root\.handleActivityResumed\(\)/.test(serviceQml),
-  'the activity monitor is enabled while locked, ignores inhibitors, and re-arms the blank on every resume'
+  /IdleMonitor \{[\s\S]*?id: activityMonitor[\s\S]*?enabled: root\.lockRequested[\s\S]*?respectInhibitors: false[\s\S]*?onIsIdleChanged: \{\s*if \(isIdle\) root\.handleActivityIdle\(\)\s*else root\.handleActivityResumed\(\)/.test(serviceQml),
+  'the activity monitor is enabled while locked, ignores inhibitors, and re-arms the blank on every resume and when input stops'
 )
 
 assert(

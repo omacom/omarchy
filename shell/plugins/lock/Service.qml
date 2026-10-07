@@ -336,6 +336,14 @@ Item {
     armBlankTimer()
   }
 
+  // Input lasting past the countdown blanks mid-burst and relights the panel
+  // while the monitor is still active, so no resume follows; re-arm once it stops.
+  function handleActivityIdle() {
+    if (!lockRequested || authenticatingPassword || idleBlankTimer.running) return
+    logEvent("blank-rearmed: input-stopped")
+    armBlankTimer()
+  }
+
   function submitPassword(value) {
     var password = String(value || "")
     if (!lockRequested || authenticatingPassword || password.length === 0) return
@@ -626,7 +634,10 @@ Item {
     // an inhibitor appearing counts as a resume in its own right. Only real
     // input belongs here.
     respectInhibitors: false
-    onIsIdleChanged: if (!isIdle) root.handleActivityResumed()
+    onIsIdleChanged: {
+      if (isIdle) root.handleActivityIdle()
+      else root.handleActivityResumed()
+    }
   }
 
   // Detect resume both during an active attempt and during backoff.

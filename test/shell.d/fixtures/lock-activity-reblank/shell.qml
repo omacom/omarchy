@@ -131,14 +131,28 @@ ShellRoot {
         "the re-armed timer spawns the blank within 20s, got " + lock.lastEvent)
       root.assertTrue(lock.blankArmed === false, "the blank timer is spent once it has fired")
 
-      // 6. Unlocking turns the monitor back off, and activity after that point
+      // 6. Input that outlasted the countdown blanked mid-burst and relit the
+      // panel with no resume to follow, so input stopping re-arms a spent timer.
+      lock.handleActivityIdle()
+      root.assertTrue(lock.blankArmed === true, "input stopping re-arms a spent blank timer")
+      root.assertTrue(lock.lastEvent === "blank-rearmed: input-stopped",
+        "the re-arm on input stopping is logged, got " + lock.lastEvent)
+
+      lock.authenticatingPassword = true
+      lock.handleActivityIdle()
+      root.assertTrue(lock.blankArmed === false, "input stopping during a password check does not re-arm the blank timer")
+
+      // 7. Unlocking turns the monitor back off, and activity after that point
       // must never re-arm anything.
       lock.lockRequested = false
+      lock.authenticatingPassword = false
       root.assertTrue(lock.activityMonitor.enabled === false, "activity monitor turns back off once the lock is released")
+      var lastBeforeUnlockedActivity = lock.lastEvent
 
       lock.handleActivityResumed()
+      lock.handleActivityIdle()
       root.assertTrue(lock.blankArmed === false, "activity while unlocked never arms the blank timer")
-      root.assertTrue(lock.lastEvent === "blank-started",
+      root.assertTrue(lock.lastEvent === lastBeforeUnlockedActivity,
         "activity while unlocked is not logged as a re-arm, got " + lock.lastEvent)
 
       lock.destroy()
