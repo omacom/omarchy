@@ -50,6 +50,13 @@ shell_ipc() {
   timeout 2 omarchy-shell "$@" >/dev/null 2>&1
 }
 
+wait_for_theme_intro() {
+  local method="$1" token="$2" pending="$3" deadline=$((SECONDS + 3))
+  while (( SECONDS < deadline )) && [[ $(omarchy-shell shell "$method" "$token" 2>/dev/null) == "$pending" ]]; do
+    sleep 0.02
+  done
+}
+
 is_video_path() {
   [[ ${1,,} =~ \.(mp4|m4v|mov|webm|mkv|avi)$ ]]
 }
@@ -70,10 +77,18 @@ snapshot_background_path() {
 }
 
 snapshot_current_background() {
-  local current_background
+  local current_background snapshot
 
-  current_background=$(readlink -f "$CURRENT_BACKGROUND_LINK" 2>/dev/null || true)
-  snapshot_background_path "$current_background" "previous"
+  # An interrupted intro is still moving; its final still would flash as a
+  # cover. Capture the frame already playing instead, when OWE supports it.
+  mkdir -p "$BACKGROUND_TRANSITION_CACHE"
+  snapshot="$BACKGROUND_TRANSITION_CACHE/previous-$$.ppm"
+  if owe render "$(jq -nc --arg path "$snapshot" '{cmd: "snapshot", path: $path}')" >/dev/null 2>&1; then
+    echo "$snapshot"
+  else
+    current_background=$(readlink -f "$CURRENT_BACKGROUND_LINK" 2>/dev/null || true)
+    snapshot_background_path "$current_background" "previous"
+  fi
 }
 
 theme_background_state_file() {
@@ -358,6 +373,12 @@ fi
 exec 9>"$THEME_SET_LOCK"
 flock 9
 
+# A current video frame only represents the screen after its opening fade.
+# Finish that short reveal before capturing the next outgoing cover.
+if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
+  wait_for_theme_intro themeIntroStatus "$(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null)" "pending"
+fi
+
 PREVIOUS_THEME_NAME=$(cat "$CURRENT_THEME_NAME_PATH" 2>/dev/null || true)
 remember_current_theme_background
 
@@ -423,6 +444,12 @@ fi
 # Generate dynamic configs
 omarchy-theme-set-templates
 
+# Replacing the theme's still can cancel an active OWE intro even before the
+# background link changes. Present its cover before replacing either path.
+if [[ -n $THEME_BACKGROUND_INTRO ]]; then
+  wait_for_theme_intro themeIntroCoverStatus "$(stat -Lc '%d:%i' "$NEXT_THEME_PATH")" "loading"
+fi
+
 # Swap next theme in as current
 rm -rf "$CURRENT_THEME_PATH"
 mv "$NEXT_THEME_PATH" "$CURRENT_THEME_PATH"
@@ -474,10 +501,7 @@ if [[ $THEME_HEADLESS != "1" ]]; then
   # Let the wallpaper and bar finish their reveal before app retints and the
   # compositor reload compete with decoding and the shell's frame rendering.
   if [[ -n $THEME_INTRO_TOKEN ]]; then
-    deadline=$((SECONDS + 3))
-    while (( SECONDS < deadline )) && [[ $(omarchy-shell shell themeIntroStatus "$THEME_INTRO_TOKEN" 2>/dev/null) == "pending" ]]; do
-      sleep 0.02
-    done
+    wait_for_theme_intro themeIntroStatus "$THEME_INTRO_TOKEN" "pending"
   fi
   run_parallel "${post_theme_commands[@]}"
 

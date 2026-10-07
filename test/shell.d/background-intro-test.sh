@@ -43,6 +43,7 @@ cat >"$command_bin/owe" <<'SH'
 printf 'owe: %s\n' "$*" >>"$COMMAND_LOG"
 case ${1:-} in
   intro)
+    [[ -z ${COVER_READY_FILE:-} || -f $COVER_READY_FILE ]] || exit 1
     [[ ${OWE_FAIL:-} != "interrupted" && ${OWE_FAIL:-} != "unavailable" ]] || exit 1
     [[ -z ${OWE_READY_FILE:-} || -f $OWE_READY_FILE ]] || exit 1
     ;;
@@ -60,6 +61,17 @@ printf '{"option":"animations:enabled","int":%s,"bool":%s}\n' \
   "$([[ ${ANIMATIONS:-on} == on ]] && echo 1 || echo 0)" "$([[ ${ANIMATIONS:-on} == on ]] && echo true || echo false)"
 SH
 chmod +x "$command_bin/hyprctl"
+cat >"$command_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+if [[ $2 == "themeIntroCoverStatus" ]]; then
+  if [[ -n ${COVER_READY_FILE:-} && ! -f $COVER_READY_FILE ]]; then
+    echo "loading"
+  else
+    echo "${COVER_STATUS:-ready}"
+  fi
+fi
+SH
+chmod +x "$command_bin/omarchy-shell"
 
 mkdir -p "$(dirname "$toggle")"
 touch "$toggle"
@@ -180,6 +192,16 @@ grep -Fxq "owe: intro --start first-frame $theme_intro_dir/road.mp4" "$command_l
 PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i' "$intro_state/theme")" true
 grep -Fxq "owe: intro --start first-frame --refresh $theme_intro_dir/road.mp4" "$command_log" || fail "prepared theme switching synchronizes and starts in one call"
 ! grep -Fxq 'owe: refresh' "$command_log" || fail "prepared playback avoids an extra refresh call"
+cover_ready="$test_tmp/cover-ready"
+(sleep 0.2; touch "$cover_ready") &
+cover_pid=$!
+PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" COVER_READY_FILE="$cover_ready" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i' "$intro_state/theme")" true || fail "playback waits for the outgoing cover before starting"
+wait "$cover_pid"
+: >"$command_log"
+if PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" COVER_STATUS=error "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i' "$intro_state/theme")" true; then
+  fail "a failed cover requests the still fallback"
+fi
+! grep -q '^owe: intro ' "$command_log" || fail "a failed outgoing cover cannot expose an intro"
 [[ $(<"$marker") == "$before_marker" ]] || fail "theme switching does not reopen the boot marker"
 : >"$command_log"
 PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$custom_background" "$(stat -Lc '%d:%i' "$intro_state/theme")"

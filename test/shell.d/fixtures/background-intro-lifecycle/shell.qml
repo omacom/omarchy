@@ -30,7 +30,8 @@ ShellRoot {
     onTriggered: {
       test.check(intro.checked, "startup runs even when OWE left the background disabled for a video")
       test.services = ({ "omarchy.background": retainedBackground })
-      intro.prepareTheme("", "theme-one", Qt.btoa('background = "#123456"'), "")
+      intro.prepareTheme(Quickshell.env("INTRO_TEST_COVER"), "theme-one", Qt.btoa('background = "#123456"'), "")
+      test.check(intro.themeCoverStatus("theme-one") === "loading", "the cover waits for decoding and presentation")
       test.check(intro.themeStatus("theme-one") === "pending", "app retints wait for the intro reveal")
       test.check(!Qt.colorEqual(Commons.Color.background, "#123456"), "the palette waits for OWE's first frame")
       intro.finishTheme("superseded-theme")
@@ -42,6 +43,7 @@ ShellRoot {
     running: true
     onTriggered: {
       test.check(intro.cover, "the still stays covered while the launcher waits")
+      test.check(intro.themeCoverStatus("theme-one") === "ready", "the outgoing cover is presented before the shell is hidden")
       retainedBackground.suspended = true
     }
   }

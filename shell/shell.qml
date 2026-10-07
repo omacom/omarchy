@@ -1725,6 +1725,10 @@ ShellRoot {
       return shell.bootIntro.themeStatus(token)
     }
 
+    function themeIntroCoverStatus(token: string): string {
+      return shell.bootIntro.themeCoverStatus(token)
+    }
+
     function ping(): string {
       return "ok"
     }

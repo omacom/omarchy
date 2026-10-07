@@ -160,6 +160,24 @@ elif [[ $theme_switch == false ]]; then
   (( SECONDS < deadline )) || exit 0
 fi
 
+# The asynchronous outgoing cover must reach the compositor before playback
+# can hide the shell background. Older shells have no readiness method.
+if [[ $theme_switch == true ]]; then
+  deadline=$((SECONDS + 3))
+  while true; do
+    cover_status=$(omarchy-shell shell themeIntroCoverStatus "$expected_theme" 2>/dev/null || true)
+    case $cover_status in
+      loading)
+        (( SECONDS < deadline )) || exit 1
+        sleep 0.01
+        ;;
+      error) exit 1 ;;
+      superseded) exit 0 ;;
+      *) break ;;
+    esac
+  done
+fi
+
 if [[ $theme_switch == true ]] && ! selection_current; then
   exit 0
 fi

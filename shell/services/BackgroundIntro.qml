@@ -58,6 +58,16 @@ Item {
     return token === transitionToken && (themeToken || themeFade.running) ? "pending" : "ready"
   }
 
+  function themeCoverStatus(token) {
+    if (token !== themeToken) return "superseded"
+    if (!themeBackground) return "ready"
+    for (var panel of covers.instances) {
+      if (panel.coverFailed) return "error"
+      if (!panel.coverReady) return "loading"
+    }
+    return covers.instances.length > 0 ? "ready" : "loading"
+  }
+
   function cancelTheme() {
     framePoll.stop()
     themeFallback.stop()
@@ -142,10 +152,15 @@ Item {
   }
 
   Variants {
+    id: covers
     model: Quickshell.screens
 
     PanelWindow {
+      id: panel
       required property var modelData
+      property int coverFrames: 0
+      readonly property bool coverReady: outgoingFrame.status === Image.Ready && coverFrames >= 2
+      readonly property bool coverFailed: outgoingFrame.status === Image.Error
       screen: modelData
       visible: root.cover || root.themeBackground !== ""
       color: root.cover ? "black" : "transparent"
@@ -157,6 +172,7 @@ Item {
       WlrLayershell.namespace: "omarchy-background"
 
       Image {
+        id: outgoingFrame
         anchors.fill: parent
         source: root.themeBackground ? Util.fileUrl(root.themeBackground) : ""
         sourceSize: {
@@ -169,6 +185,14 @@ Item {
         opacity: root.themeOpacity
         // Start decoding while the remaining theme configs render.
         asynchronous: true
+        onStatusChanged: panel.coverFrames = 0
+      }
+
+      // Give the ready image a frame to reach the compositor before OWE
+      // releases the shell's wallpaper underneath this cover.
+      FrameAnimation {
+        running: outgoingFrame.status === Image.Ready && panel.coverFrames < 2
+        onTriggered: panel.coverFrames += 1
       }
     }
   }
