@@ -8,8 +8,11 @@ BarWidget {
   id: root
   moduleName: "omarchy.indicators"
 
-  readonly property var defaultIndicatorEntries: [ "Dictation", "ScreenRecording", "Reminder", "NightLight", "Dnd", "StayAwake" ]
+  readonly property var defaultIndicatorEntries: [ "PasswordlessSudo", "Dictation", "ScreenRecording", "Reminder", "NightLight", "Dnd", "StayAwake" ]
   readonly property var indicatorEntries: indicatorEntriesFromSettings(settings)
+  // Security stays to the left of Dictation even when inactive indicators
+  // are revealed; ordinary indicators retain their activation ordering.
+  readonly property var regularIndicatorEntries: indicatorEntries.filter(function(entry) { return entryId(entry) !== "PasswordlessSudo" })
   property var activeIndicatorIds: []
   property var indicatorActiveStates: ({})
   property bool indicatorAreaHovered: false
@@ -196,8 +199,8 @@ BarWidget {
     id: horizontalIndicatorsTree
 
     Item {
-      implicitWidth: activeHorizontalBlock.implicitWidth + inactiveHorizontalArea.implicitWidth
-      implicitHeight: Math.max(activeHorizontalBlock.implicitHeight, inactiveHorizontalArea.implicitHeight)
+      implicitWidth: sudoHorizontal.implicitWidth + activeHorizontalBlock.implicitWidth + inactiveHorizontalArea.implicitWidth
+      implicitHeight: Math.max(sudoHorizontal.implicitHeight, activeHorizontalBlock.implicitHeight, inactiveHorizontalArea.implicitHeight)
       width: implicitWidth
       height: implicitHeight
 
@@ -208,6 +211,13 @@ BarWidget {
 
         HoverHandler {
           onHoveredChanged: root.setIndicatorAreaHovered(hovered)
+        }
+
+        IndicatorLoader {
+          id: sudoHorizontal
+          entry: root.hasIndicatorId("PasswordlessSudo") ? root.entryForId("PasswordlessSudo") : ""
+          indicatorsModule: root
+          indicatorBlock: "single"
         }
 
         Item {
@@ -223,7 +233,7 @@ BarWidget {
             id: inactiveHorizontalBlock
             anchors.verticalCenter: parent.verticalCenter
             indicatorsModule: root
-            indicatorEntries: root.indicatorEntries
+            indicatorEntries: root.regularIndicatorEntries
             indicatorBlock: "inactive"
             horizontal: true
             reportActiveState: !root.vertical
@@ -249,8 +259,8 @@ BarWidget {
     id: verticalIndicatorsTree
 
     Item {
-      implicitWidth: Math.max(activeVerticalBlock.implicitWidth, inactiveVerticalArea.implicitWidth)
-      implicitHeight: activeVerticalBlock.implicitHeight + inactiveVerticalArea.implicitHeight
+      implicitWidth: Math.max(sudoVertical.implicitWidth, activeVerticalBlock.implicitWidth, inactiveVerticalArea.implicitWidth)
+      implicitHeight: sudoVertical.implicitHeight + activeVerticalBlock.implicitHeight + inactiveVerticalArea.implicitHeight
       width: implicitWidth
       height: implicitHeight
 
@@ -261,6 +271,13 @@ BarWidget {
 
         HoverHandler {
           onHoveredChanged: root.setIndicatorAreaHovered(hovered)
+        }
+
+        IndicatorLoader {
+          id: sudoVertical
+          entry: root.hasIndicatorId("PasswordlessSudo") ? root.entryForId("PasswordlessSudo") : ""
+          indicatorsModule: root
+          indicatorBlock: "single"
         }
 
         Item {
@@ -276,7 +293,7 @@ BarWidget {
             id: inactiveVerticalBlock
             anchors.horizontalCenter: parent.horizontalCenter
             indicatorsModule: root
-            indicatorEntries: root.indicatorEntries
+            indicatorEntries: root.regularIndicatorEntries
             indicatorBlock: "inactive"
             horizontal: false
             reportActiveState: root.vertical

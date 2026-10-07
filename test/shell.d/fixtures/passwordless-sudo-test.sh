@@ -70,6 +70,11 @@ case "$name" in
   sudo)
     if [[ ${1:-} == -h ]]; then echo 'usage: sudo [-N] command'; exit 0; fi
     if [[ ${1:-} == -k ]]; then exit 0; fi
+    if [[ ${1:-} == -n ]]; then
+      [[ ${TEST_POLICY_FAILURE:-0} != 1 ]] || exit 1
+      printf '%s\n' "${TEST_POLICY:-    Options: authenticate}"
+      exit 0
+    fi
     if [[ ${1:-} == -N ]]; then shift; fi
     if [[ ${1:-} == -- ]]; then shift; fi
     if [[ ${TEST_MIGRATION:-0} == 1 ]]; then

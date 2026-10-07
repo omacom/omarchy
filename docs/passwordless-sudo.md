@@ -2,6 +2,8 @@
 
 `omarchy-sudo-passwordless` publishes a timed or permanent grant for the numeric UID authenticated by sudo. Its user interface runs without a reusable sudo timestamp; fixed installed internal actions run as root and serialize on `/run/lock/omarchy-sudo-passwordless.lock`.
 
+The menu bar's `PasswordlessSudo` indicator polls `--active` every five seconds and shows a red warning to the left of Dictation while access is active. The probe uses sudo's noninteractive long policy listing for the installed `__status` action and checks its `!authenticate` tag, without executing a privileged command or updating cached credentials. Clicking the active indicator passes `--disable`, so a grant expiring between display and click cannot start the enable flow.
+
 ## Grant lifecycle
 
 The sudoers rule is the only grant record. A timed grant contains the resolved account name and a UTC `NOTAFTER` deadline enforced by sudo itself, including after suspend. Publication validates a dot-prefixed temporary file with `visudo`, arms a calendar cleanup timer, then atomically renames the complete rule into place. There is no separate per-user state file to publish, parse, or reconcile. Failure after renewal starts removes the old grant; failed revocation remains an error and leaves the cleanup timer armed.

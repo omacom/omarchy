@@ -273,3 +273,25 @@ reset_grant
   assert_status 3 status_locked 01000
 )
 pass "renewal replaces the existing rule atomically and zero-padded UIDs share one policy"
+
+
+for policy in '    Options: !authenticate' '    Options: authenticate'; do
+  : >"$test_tmp/commands"
+  expected=1
+  [[ $policy != *'!authenticate'* ]] || expected=0
+  assert_status "$expected" env TEST_POLICY="$policy" /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
+  [[ $(wc -l <"$test_tmp/commands") == 1 ]]
+  grep -q '^sudo -n -N -l -l -- .* __status ' "$test_tmp/commands"
+done
+assert_status 1 env TEST_POLICY_FAILURE=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
+pass "menu probe reads policy tags without executing a privileged action or changing the timestamp"
+
+for status in 0 3; do
+  : >"$test_tmp/commands"
+  TEST_STATUS=$status /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >"$test_tmp/public.log" 2>&1
+  ! grep -q '^gum\|__enable ' "$test_tmp/commands" || fail "explicit disable offered enablement"
+  if (( status == 0 )); then
+    grep -q '__disable ' "$test_tmp/commands"
+  fi
+done
+pass "explicit disable never enables access even when a displayed grant has expired"
