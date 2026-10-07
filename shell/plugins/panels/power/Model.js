@@ -49,6 +49,16 @@ function batteryFraction(device) {
   return device && device.isPresent ? Math.max(0, Math.min(1, device.percentage)) : 0
 }
 
+// Below 20% — drives the red tint on the indicator.
+function batteryIsLow(device) {
+  return !!(device && device.isPresent) && batteryFraction(device) < 0.2
+}
+
+// Below 5% — additionally surfaces the exclamation mark.
+function batteryIsCritical(device) {
+  return !!(device && device.isPresent) && batteryFraction(device) < 0.05
+}
+
 function chargeThresholdActive(device, onBattery, states) {
   var d = device || {}
   var s = states || {}
@@ -97,6 +107,8 @@ if (typeof module !== "undefined") {
     parseProfiles: parseProfiles,
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
+    batteryIsLow: batteryIsLow,
+    batteryIsCritical: batteryIsCritical,
     chargeThresholdActive: chargeThresholdActive,
     batteryIcon: batteryIcon,
     modeLabel: modeLabel
