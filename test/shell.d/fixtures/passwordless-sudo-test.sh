@@ -79,7 +79,7 @@ case "$name" in
       exit 0
     fi
     if [[ ${1:-} == -n ]]; then shift; fi
-    if [[ ${1:-} == -N ]]; then shift; fi
+    if [[ ${1:-} == -N || ${1:-} == -kn ]]; then shift; fi
     if [[ ${1:-} == -- ]]; then shift; fi
     if [[ ${TEST_MIGRATION:-0} == 1 ]]; then
       [[ ${TEST_NO_SUDO:-0} != 1 ]] || exit 1

@@ -349,3 +349,29 @@ reset_grant
   [[ -f $timed && ! -e $(rule_file 1000 permanent) ]]
 )
 pass "paired policy recovery rejects mismatched or unsafe rules and allows a complete duration change"
+
+: >"$test_tmp/commands"
+TEST_POLICY_FAILURE=1 TEST_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >"$test_tmp/public.log" 2>&1
+grep -q '^sudo -n -N -- .* __disable ' "$test_tmp/commands"
+! grep -q '^gum\|^sudo -N -- ' "$test_tmp/commands" || fail "listpw=always disable prompted"
+TEST_POLICY_FAILURE=1 TEST_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
+assert_status 1 env TEST_POLICY_FAILURE=1 TEST_STATUS=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
+: >"$test_tmp/commands"
+TEST_POLICY_FAILURE=1 TEST_STATUS=1 TEST_CONFIRM_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" 15 >"$test_tmp/public.log" 2>&1
+[[ $(grep -c '^sudo -N -- ' "$test_tmp/commands") == 1 ]] || fail "listing failure must leave one enable authentication"
+grep -q '^sudo -N -- .* __enable .* 15$' "$test_tmp/commands"
+: >"$test_tmp/commands"
+assert_status 1 env TEST_POLICY_FAILURE=1 TEST_STATUS=2 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" 15 >"$test_tmp/public.log" 2>&1
+! grep -q '^gum\|__enable ' "$test_tmp/commands" || fail "unsafe grant was offered enablement"
+pass "password-required listings do not block enabling, disabling, or active detection"
+
+: >"$test_tmp/commands"
+TEST_POLICY_FAILURE=1 TEST_STATUS=2 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
+grep -q '^sudo -kn -- .* __status ' "$test_tmp/commands" || fail "fallback probe must ignore cached credentials"
+(
+  source "$library"
+  with_root_lock() { return 1; }
+  verify_sudo_caller() { return 0; }
+  assert_status 2 root_dispatch __status 1000
+)
+pass "status lock failures remain inspection errors and an authenticated unsafe grant keeps its warning"
