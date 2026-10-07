@@ -12,7 +12,7 @@ BarIndicator {
   active: granted
   activeText: "󰟵"
   inactiveText: "󰟵"
-  activeTooltipText: "Danger: Passwordless sudo is enabled. Click to disable."
+  activeTooltipText: "Disable Passwordless Sudo"
   inactiveTooltipText: "Passwordless Sudo"
   useActiveColor: true
   activeColor: Color.urgent
