@@ -39,6 +39,10 @@ assert(
   /id: monitorDpmsTimer[\s\S]*?running: root\.locked && \(root\.videoBackground \|\| root\.displaysBlank\)/.test(serviceQml),
   'the panel state is polled while the lock has blanked it, whatever the wallpaper'
 )
+assert(
+  /function applyMonitorDpms\(text\) \{[\s\S]*?if \(!monitorDpmsTimer\.running\) return/.test(serviceQml),
+  'a poll answer arriving after the wake stopped the poll is dropped, not recorded as a dark panel'
+)
 
 // Resume is detected from the clock jump the frozen shell sees on its first
 // tick back, and the panel is woken without waiting for input.

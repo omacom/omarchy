@@ -304,6 +304,10 @@ Item {
   }
 
   function applyMonitorDpms(text) {
+    // A wake stops the poll and drops the last answer; a poll still in flight
+    // at that moment must not land afterwards, or it records the panel as
+    // dark with nothing left to correct it and the next key is eaten.
+    if (!monitorDpmsTimer.running) return
     var monitors
     try {
       monitors = JSON.parse(String(text || ""))
