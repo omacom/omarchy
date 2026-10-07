@@ -6,12 +6,14 @@ source "$(dirname "$0")/base-test.sh"
 
 setup_script="$ROOT/install/user/xdg-desktop-portal.sh"
 migration="$ROOT/migrations/1787508122.sh"
+secret_migration="$ROOT/migrations/1788261467.sh"
 
 fresh=$(mktemp -d)
 legacy=$(mktemp -d)
 busless=$(mktemp -d)
 xdg_home=$(mktemp -d)
-trap 'rm -rf "$fresh" "$legacy" "$busless" "$xdg_home"' EXIT
+upgrade=$(mktemp -d)
+trap 'rm -rf "$fresh" "$legacy" "$busless" "$xdg_home" "$upgrade"' EXIT
 
 # Keep each case isolated and use non-default XDG paths so the test proves the
 # setup script honours the base-directory variables instead of hard-coding HOME.
@@ -22,6 +24,7 @@ run_in_home() {
     HOME="$home" \
     XDG_CONFIG_HOME="$home/xdg-config" \
     XDG_DATA_HOME="$home/xdg-data" \
+    OMARCHY_PATH="$ROOT" \
     "$@"
 }
 
@@ -35,6 +38,8 @@ assert_generated() {
     fail "$label: Nautilus is selected for file chooser requests"
   grep -Fx 'default=hyprland;gtk' "$conf" >/dev/null ||
     fail "$label: Hyprland and GTK remain the default portal backends"
+  grep -Fx 'org.freedesktop.impl.portal.Secret=gnome-keyring' "$conf" >/dev/null ||
+    fail "$label: GNOME Keyring remains the Secret portal backend"
   grep -Fx 'DBusName=org.gnome.Nautilus' "$portal" >/dev/null ||
     fail "$label: portal descriptor names the Nautilus D-Bus service"
   grep -Fx 'Interfaces=org.freedesktop.impl.portal.FileChooser' "$portal" >/dev/null ||
@@ -101,16 +106,17 @@ grep -Fx 'org.freedesktop.impl.portal.FileChooser = kde' "$fresh_conf" >/dev/nul
   fail "A spaced file chooser preference is preserved"
 pass "a preference written with spaces around the separator is preserved"
 
-# 2d. An empty portals.conf. `sed 1i` is a line address and inserts nothing into
-# a zero-line file, so a plain -e existence check leaves the file untouched.
+# 2d. An empty hyprland-portals.conf is seeded like a missing one, not left as is.
 : >"$fresh_conf"
 run_in_home "$fresh" bash -euo pipefail "$setup_script"
 grep -Fx 'org.freedesktop.impl.portal.FileChooser=nautilus' "$fresh_conf" >/dev/null ||
   fail "An empty portal preference file is populated"
-pass "an empty portals.conf is populated rather than left untouched"
+grep -Fx 'org.freedesktop.impl.portal.Secret=gnome-keyring' "$fresh_conf" >/dev/null ||
+  fail "An empty portal preference file is seeded with the Secret backend"
+pass "an empty hyprland-portals.conf is seeded rather than left untouched"
 
 # Unset XDG dirs: files must land in the $HOME defaults.
-HOME="$xdg_home" env -u XDG_CONFIG_HOME -u XDG_DATA_HOME bash -euo pipefail "$setup_script"
+HOME="$xdg_home" OMARCHY_PATH="$ROOT" env -u XDG_CONFIG_HOME -u XDG_DATA_HOME bash -euo pipefail "$setup_script"
 [[ -e $xdg_home/.config/xdg-desktop-portal/hyprland-portals.conf ]] ||
   fail "without XDG overrides, portal preference is written under ~/.config"
 [[ -e $xdg_home/.local/share/xdg-desktop-portal/portals/nautilus.portal ]] ||
@@ -145,3 +151,13 @@ run_in_home "$busless" PATH="$busless_stub:$PATH" OMARCHY_PATH="$ROOT" \
   fail "migration tolerates an unreachable user bus"
 assert_generated "$busless" "migration without a user bus"
 pass "the migration does not abort when no user bus is reachable"
+
+# 5. Upgrading with both portal migrations pending runs this one first, and the
+# Secret migration then skips the file it finds, so this one must carry it.
+upgrade_stub=$(install_recording_systemctl "$upgrade")
+for pending in "$migration" "$secret_migration"; do
+  run_in_home "$upgrade" PATH="$upgrade_stub:$PATH" SYSTEMCTL_LOG="$upgrade/systemctl.log" \
+    bash -euo pipefail "$pending" >/dev/null
+done
+assert_generated "$upgrade" "upgrade with the Secret migration pending"
+pass "an upgrade running both portal migrations keeps the Secret routing"

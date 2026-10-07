@@ -14,20 +14,18 @@ mkdir -p \
   "$(dirname "$nautilus_portal")" \
   "$(dirname "$nautilus_dbus_service")"
 
-# -s, not -e: sed's `1i` is a line address, so it inserts nothing into a
-# zero-line file. An empty portals.conf would otherwise be left untouched and
-# the preference silently never written.
+# Start from Omarchy's shipped preferences so the Secret routing survives: its
+# migration skips any existing file. -s, not -e, so an empty file is seeded too.
 if [[ ! -s $portal_config ]]; then
-  printf '%s\n' \
-    '[preferred]' \
-    'default=hyprland;gtk' \
-    'org.freedesktop.impl.portal.FileChooser=nautilus' >"$portal_config"
+  install -Dm644 "$OMARCHY_PATH/config/xdg-desktop-portal/hyprland-portals.conf" "$portal_config"
+fi
+
 # GKeyFile allows whitespace around the separator, so the existing-preference
 # check has to as well. Matching only `key=` misses `key = kde`, and the
 # insertion below then adds a second FileChooser key; GKeyFile resolves a
 # duplicate key to the last occurrence, so the user's backend keeps winning and
 # this whole script becomes a silent no-op on exactly the installs it targets.
-elif ! grep -qE '^[[:space:]]*org\.freedesktop\.impl\.portal\.FileChooser[[:space:]]*=' "$portal_config"; then
+if ! grep -qE '^[[:space:]]*org\.freedesktop\.impl\.portal\.FileChooser[[:space:]]*=' "$portal_config"; then
   # Same tolerance on the section header, so a padded [preferred] is amended
   # rather than gaining a confusing second copy of itself.
   if grep -qE '^[[:space:]]*\[preferred\][[:space:]]*$' "$portal_config"; then
