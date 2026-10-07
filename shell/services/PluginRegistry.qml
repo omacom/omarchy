@@ -20,7 +20,7 @@ QtObject {
   property var shellConfigProvider: null
   property var shellConfigMutator: null
 
-  // { pluginId: manifest } — manifests have __sourceDir and __isFirstParty stamped in.
+  // { pluginId: manifest } — manifests have source/trust metadata stamped in.
   property var installedPlugins: ({})
   property int registryRevision: 0
   property bool scanning: false
@@ -78,8 +78,7 @@ QtObject {
       }
     }
     // Every entry point must be a relative path inside the plugin's source
-    // directory. Reject the whole manifest if anything looks like an attempt
-    // to escape the plugin's sandbox.
+    // directory. Reject the whole manifest if an entry point escapes it.
     for (var key in manifest.entryPoints) {
       if (!isSafeEntryPoint(manifest.entryPoints[key])) {
         console.warn("PluginRegistry: unsafe entryPoint '" + key + "'='"
@@ -88,6 +87,32 @@ QtObject {
       }
     }
     return manifest
+  }
+
+  function trustedCapabilities(manifest) {
+    if (!manifest || !manifest.__isFirstParty) return []
+    var metadata = Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
+    var declared = metadata && Array.isArray(metadata.capabilities) ? metadata.capabilities : []
+    var out = []
+    for (var i = 0; i < declared.length; i++) {
+      var capability = String(declared[i] || "")
+      if (capability && out.indexOf(capability) === -1) out.push(capability)
+    }
+    return out
+  }
+
+  function stampHostCapabilities(firstParty, thirdParty) {
+    for (var firstPartyId in firstParty)
+      firstParty[firstPartyId].__hostCapabilities = trustedCapabilities(firstParty[firstPartyId])
+
+    for (var thirdPartyId in thirdParty) {
+      var manifest = thirdParty[thirdPartyId]
+      var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
+      var clonedFrom = metadata ? String(metadata.clonedFrom || "") : ""
+      var source = clonedFrom ? firstParty[clonedFrom] : null
+      manifest.__hostCapabilities = source && Array.isArray(source.__hostCapabilities)
+        ? source.__hostCapabilities.slice() : []
+    }
   }
 
   function entryPointUrl(manifest, kind) {
@@ -193,6 +218,16 @@ QtObject {
     return { found: false }
   }
 
+  // A caller naming a widget that has been cloned means the clone that took
+  // its place, the way resolveEnabledId routes calls to it.
+  function findRelativeBarLocation(config, id, section) {
+    var location = findBarLocation(config, id, section)
+    if (location.found) return location
+    if (!Util.isPlainObject(config) || !Util.isPlainObject(config.bar)) return { found: false }
+    var clone = activeCloneFor(config, Util.canonicalWidgetId(String(id)))
+    return clone ? findBarLocation(config, clone, section) : { found: false }
+  }
+
   function findEntryLocation(config, id) {
     if (!Util.isPlainObject(config)) return { found: false }
     var key = Util.canonicalWidgetId(String(id))
@@ -218,7 +253,7 @@ QtObject {
       ? String(target.section) : fallbackSection
     var relativeId = String(target.before || target.after || "")
     if (relativeId) {
-      var relative = findBarLocation(config, relativeId, section && target.section ? section : "")
+      var relative = findRelativeBarLocation(config, relativeId, section && target.section ? section : "")
       if (!relative.found) return { error: "could not find target widget " + relativeId }
       return {
         section: relative.section,
@@ -233,7 +268,7 @@ QtObject {
     }
 
     var anchors = { left: "omarchy.workspaces", center: "omarchy.weather", right: "omarchy.tray" }
-    var anchor = findBarLocation(config, anchors[section], section)
+    var anchor = findRelativeBarLocation(config, anchors[section], section)
     return {
       section: section,
       index: anchor.found ? anchor.index + 1 : config.bar.layout[section].length
@@ -279,6 +314,29 @@ QtObject {
     registryRevision++
     pluginsChanged()
     return ""
+  }
+
+  // put is the unattended verb: where enable errors, it falls back, and it
+  // leaves a widget that is already on the bar where its owner put it.
+  function putBarWidget(id, placement) {
+    if (inBar(id)) return ""
+    var config = shellConfigProvider ? shellConfigProvider() : null
+    // Enabling a source whose clone is active switches back to the built-in,
+    // which is the owner's call, not an unattended caller's.
+    if (findRelativeBarLocation(config, id, "").found) return ""
+    // The manifest scan is a subprocess and IPC answers before it returns, so
+    // an id it has not reached yet is not one that does not exist.
+    if (scanning && !installedPlugins[Util.canonicalWidgetId(String(id))]) return "not ready"
+    var target = Util.isPlainObject(placement) ? Util.cloneJson(placement) : {}
+    var relativeId = String(target.before || target.after || "")
+    if (relativeId) {
+      if (!findRelativeBarLocation(config, relativeId, String(target.section || "")).found) {
+        delete target.before
+        delete target.after
+      }
+    }
+    if (setEnabled(id, true, target)) return ""
+    return lastEnableError || "unknown"
   }
 
   function setBarWidget(id, key, value, selector) {
@@ -436,7 +494,7 @@ QtObject {
 
       if (value && placement && (placement.before || placement.after)) {
         var relativeId = String(placement.before || placement.after)
-        if (!findBarLocation(config, relativeId, String(placement.section || "")).found) {
+        if (!findRelativeBarLocation(config, relativeId, String(placement.section || "")).found) {
           lastEnableError = "could not find target widget " + relativeId
           return
         }
@@ -560,6 +618,8 @@ QtObject {
       if (currentSource) currentJson.push(line)
     }
     flush()
+
+    stampHostCapabilities(firstParty, thirdParty)
 
     var merged = {}
     for (var fk in firstParty) merged[fk] = firstParty[fk]

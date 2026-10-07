@@ -23,6 +23,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Audio         | `omarchy.audio`           | `bar-widget`            | `panels/audio/Panel.qml`              |
 | Bluetooth     | `omarchy.bluetooth`       | `bar-widget`            | `panels/bluetooth/Panel.qml`          |
 | Clock         | `omarchy.clock`           | `bar-widget`            | `panels/clock/BarWidget.qml`          |
+| Elsewhen      | `omarchy.elsewhen`        | `bar-widget`            | `panels/elsewhen/Panel.qml`           |
 | Monitor       | `omarchy.monitor`         | `bar-widget`            | `panels/monitor/Panel.qml`            |
 | Network       | `omarchy.network`         | `bar-widget`            | `panels/network/Panel.qml`            |
 | Power         | `omarchy.power`           | `bar-widget`            | `panels/power/Panel.qml`              |
@@ -76,6 +77,8 @@ clears it without writing a selection.
 The plugin has `keepLoaded: true` so the layer-shell window survives
 between summons within a single shell session.
 
+The carousel renders only the slices that fit on the screen plus one prefetch slice per side, capped at 33 cards. It preserves overlapping delegates during navigation, decodes images asynchronously at card size, and loads the selected preview before its neighbors. Lazy thumbnail preparation runs below normal CPU and I/O priority in one shared worker pool per image list: one worker on single/dual-core machines and at most two on larger machines. Opening and navigating the picker does not wait for that queue to finish.
+
 ## Lock screen
 
 Session-lock surface using Quickshell's native `WlSessionLock` and two
@@ -83,6 +86,9 @@ separate PAM services: `omarchy-lock-password` for password auth and,
 only when fingerprints are enrolled, `omarchy-lock-fingerprint` for
 fingerprint auth. It mirrors the previous lock screen field dimensions,
 colors, blurred wallpaper, placeholder, and Hyprland-driven corners.
+The plugin sets `keepLoaded: true` so a plugin hot-reload (for example
+an installed bar widget changing on disk) does not destroy the lock
+client while Hyprland still holds the session lock.
 
 ## Polkit agent
 

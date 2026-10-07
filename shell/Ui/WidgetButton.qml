@@ -24,6 +24,8 @@ Item {
   property bool useActiveColor: true
   property bool maintainIndicatorReveal: false
   property bool labelVisible: true
+  // Off for icon-font labels, whose figure metrics say nothing about the glyph.
+  property bool centerFigures: true
   property bool hasVisualContent: text !== ""
   property var revealHost: bar
   property string tooltipText: ""
@@ -69,13 +71,20 @@ Item {
   implicitHeight: fixedHeight > 0 ? fixedHeight : (vertical ? Math.max(12, label.implicitHeight + scaledVerticalPadding * 2) : barSize)
 
   Behavior on opacity {
-    NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+    NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
   }
 
   Text {
     id: label
+    textFormat: Text.PlainText
     visible: root.labelVisible
     anchors.centerIn: parent
+    // Centering the line box puts the figures above the bar's middle, since
+    // the box keeps room for descenders. Center the figure height instead, so
+    // labels line up with the icons beside them.
+    anchors.verticalCenterOffset: !root.centerFigures || root.vertical || root.text.indexOf("\n") !== -1
+      ? 0
+      : (labelMetrics.descent - labelMetrics.ascent + labelMetrics.tightBoundingRect("0").height) / 2
     text: root.text
     color: root.active && root.useActiveColor ? root.activeColor : root.foreground
     font.family: root.fontFamily
@@ -87,8 +96,13 @@ Item {
 
     Behavior on color {
       enabled: !root.bar || root.bar.foregroundAnimationEnabled
-      ColorAnimation { duration: 160 }
+      ColorAnimation { duration: Style.duration(160) }
     }
+  }
+
+  FontMetrics {
+    id: labelMetrics
+    font: label.font
   }
 
   MouseArea {

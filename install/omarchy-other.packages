@@ -5,7 +5,7 @@ autoconf-archive
 asusctl
 base
 base-devel
-broadcom-wl
+broadcom-wl-dkms
 btrfs-progs
 dkms
 egl-wayland
@@ -20,11 +20,9 @@ libva-nvidia-driver
 limine
 limine-mkinitcpio-hook
 limine-snapper-sync
-linux
 linux-firmware
-linux-headers
-linux-ptl
-linux-ptl-headers
+linux-omarchy
+linux-omarchy-headers
 macbook12-spi-driver-dkms
 nvidia-580xx-dkms
 nvidia-dkms
@@ -44,7 +42,6 @@ thermald
 webp-pixbuf-loader
 yay-debug
 tuxedo-drivers-nocompatcheck-dkms
-yt6801-dkms
 zram-generator
 
 # Intel encoding processing
@@ -61,12 +58,14 @@ linux-firmware-marvell
 
 # Dell laptop support packages
 dell-xps-touchpad-haptics
+dell-xps13-sidecar-amps
+linux-firmware-cirrus-dx13260
 
 # Speaker tunings (LV2 limiter every tuning ends in)
 lsp-plugins-lv2
 
 # T2 MacBook support packages
-apple-bcm-firmware
+apple-bcm-firmware-fetcher
 apple-t2-audio-config
 linux-t2
 linux-t2-headers

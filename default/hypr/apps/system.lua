@@ -20,34 +20,22 @@ o.window({
 }, { tag = "+floating-window" })
 
 -- The About fastfetch layout needs more columns than the standard float provides.
--- This size only positions the first paint: omarchy-launch-about then measures
--- the rendered content and fits the window to it exactly.
+-- This size only covers the first launch: omarchy-launch-about measures the
+-- rendered content, remembers the size that hugs it, and applies that as its own
+-- rule before every later launch.
 o.window("org.omarchy.about", { float = true })
 o.window("org.omarchy.about", { center = true })
 o.window("org.omarchy.about", { size = { 920, 480 } })
 
-o.window("dev.tensaku.Tensaku", { float = true })
-o.window("dev.tensaku.Tensaku", { center = true })
 o.window("omacalc", { float = true })
 
 -- Fullscreen screensaver.
 o.window("org.omarchy.screensaver", { fullscreen = true })
 o.window("org.omarchy.screensaver", { float = true })
 o.window("org.omarchy.screensaver", { animation = "slide" })
-
--- No transparency on media windows.
-o.window(
-  "^(zoom|vlc|mpv|org.kde.kdenlive|com.obsproject.Studio|com.github.PintaProject.Pinta|imv|org.gnome.NautilusPreviewer)$",
-  {
-    tag = "-default-opacity",
-  }
-)
-o.window(
-  "^(zoom|vlc|mpv|org.kde.kdenlive|com.obsproject.Studio|com.github.PintaProject.Pinta|imv|org.gnome.NautilusPreviewer)$",
-  {
-    opacity = "1 1",
-  }
-)
+-- The launcher picks each screensaver's workspace. A terminal mapped again as it closes lands out of sight instead,
+-- where its fullscreen rule cannot take fullscreen from a window.
+o.window("org.omarchy.screensaver", { workspace = "special:screensaver silent" })
 
 -- Popped window rounding.
 o.window({ tag = "pop" }, { rounding = 8 })

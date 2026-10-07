@@ -22,13 +22,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ -z ${WAYLAND_DISPLAY:-} ]]; then
-  pass "no Wayland compositor; skipping tray menu activation test"
-  exit 0
-fi
+require_compositor "tray menu activation test"
 
 if ! command -v quickshell >/dev/null 2>&1; then
-  pass "quickshell not installed; skipping tray menu activation test"
+  skip "quickshell not installed; skipping tray menu activation test"
   exit 0
 fi
 
@@ -39,7 +36,7 @@ python - <<'PY' || {
 import dbus
 import gi
 PY
-  pass "python DBus bindings unavailable; skipping tray menu activation test"
+  skip "python DBus bindings unavailable; skipping tray menu activation test"
   exit 0
 }
 
