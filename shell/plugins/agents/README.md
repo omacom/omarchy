@@ -74,6 +74,13 @@ light surfaces — and the bar glyph stands in when there is none.
 | `codex` | The Codex app-server RPC | native Codex CLI session files on the built-in `openai` provider (plus pi and opencode sessions) |
 | `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn), plus `summary.json` for sessions |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `hermes` | None (Hermes has no subscription of its own) | `state.db` in Hermes' home and in each named profile under `~/.hermes/profiles`, read-only |
+| `agy` | Google's Cloud Code API (`loadCodeAssist` for the plan, `retrieveUserQuotaSummary` for the 5-hour and weekly windows) | `history.jsonl`, `conversation_summaries.db`, and each conversation's `transcript.jsonl` under `~/.gemini/antigravity-cli/` (`AGY_DIR`) |
+| `zai` | Z.ai's coding-plan monitor endpoint (5-hour session + 7-day weekly) | pi/omp sessions on the Z.ai provider (`glm-*` models) |
+| `ollama` | Ollama Cloud's usage endpoint (5-hour session + 7-day weekly) | pi and omp sessions on the `ollama-cloud` provider |
+| `minimax` | MiniMax Token Plan API (5-hour session + 7-day weekly) | Not available from the quota API |
+| `openrouter` | Prepaid balance from `/credits`, key-limit meter from `/key` | opencode sessions on the OpenRouter provider, or the `/activity` billing API with a management key |
+| `deepseek` | Live prepaid balance from `GET https://api.deepseek.com/user/balance`, with the optional `fundedAmount` estimate for the funded-versus-spent line | pi/omp session files whose assistant messages ran on the deepseek provider, plus opencode sessions on a deepseek provider |
 
 When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json`
 registers more than one account, the `claude`, `codex`, and `grok` records
@@ -93,7 +100,11 @@ Codex CLI will front any OpenAI-compatible backend — `--oss`, or a custom `mod
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
-`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`, Grok via `GROK_HOME`. Grok's
+`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`, Grok via `GROK_HOME`, Hermes via
+`HERMES_HOME`, Antigravity via `AGY_DIR`. Antigravity's plan and limits are
+asked with the sign-in `agy` keeps in the Secret Service keyring (service
+`gemini`, username `antigravity`); the record's id is `agy`, the name the
+default agent knows it by. Grok's
 plan comes from the settings it caches in its home, and its limit from the
 credits endpoint its own `/usage` view reads, asked with each account's
 sign-in; a sign-in left to lapse shows the last credits until Grok runs
@@ -103,6 +114,48 @@ again. Fireworks reads
 pi stores in `~/.pi/agent/auth.json` when Fireworks is signed in there
 (honoring `PI_CODING_AGENT_DIR`, and pi's literal and `$ENV_VAR` key forms),
 and finally the key opencode stores in `~/.local/share/opencode/auth.json`.
+
+Z.ai limits need a key that carries a GLM Coding Plan; a pay-as-you-go key
+reports "no coding plan" and the panel falls back to local stats only. The key
+comes from `~/.config/omarchy/agents/zai.json`, then `ZAI_API_KEY` /
+`ZHIPU_API_KEY` in the environment, then pi/omp's `.env`. Set `platform` to
+`"zhipu"` in the config for the China (`open.bigmodel.cn`) host.
+
+### Ollama Cloud limits
+
+Ollama Cloud reads `OLLAMA_API_KEY` first, then the key pi or omp signed in
+with in `~/.pi/agent/auth.json` or `~/.omp/agent/auth.json`.
+
+Ollama's usage endpoint reports the account's session and weekly usage as
+0..1 fractions but not the reset times, so those windows show no reset time
+rather than a guessed one. The limits cover the whole
+account — every model the key can reach — while the local stats count pi and
+omp sessions on the `ollama-cloud` provider. To count only the Claude models
+Ollama Cloud serves, set a model prefix in
+`~/.config/omarchy/agents/ollama.json`:
+
+```json
+{
+  "modelPrefix": "claude",
+  "apiKey": ""
+}
+```
+
+`modelPrefix` restricts the local stats to models whose name starts with the
+prefix (empty means every model); `apiKey` overrides the key lookup order.
+
+MiniMax reads `MINIMAX_API_KEY` first, then the API key or OAuth session
+saved by MiniMax's own `mmx` CLI if you use it, then the key opencode stores
+when MiniMax is signed in there. It uses the region and resource URL saved by
+`mmx`, or the global `https://api.minimax.io` endpoint by default;
+`MINIMAX_BASE_URL` overrides both.
+
+DeepSeek reads `DEEPSEEK_API_KEY` first, then the key pi
+stores in `~/.pi/agent/auth.json`, then the key opencode stores in its own
+`auth.json` when DeepSeek is signed in there. Its `fundedAmount` estimate
+lives in `~/.config/omarchy/agents/deepseek.json`, the same shape the
+fireworks collector uses; without it the panel shows the live remaining
+credit and skips the funded-versus-spent line.
 
 ### Fireworks balance
 
@@ -131,6 +184,40 @@ period. `accountId` only matters when one API key can access several
 accounts. Without a configured `fundedAmount` the tab still shows token
 usage, just no balance. With a live ledger, `fundedAmount` is optional and
 only adds the meter and the spent-of-funded line under the real figure.
+
+### OpenRouter balance and history
+
+OpenRouter reads `OPENROUTER_API_KEY` first, then the key
+opencode stores in `~/.local/share/opencode/auth.json` when OpenRouter is
+signed in there, then `apiKey` in `~/.config/omarchy/agents/openrouter.json`.
+A management key in `OPENROUTER_MANAGEMENT_KEY` (or `managementKey` in that
+file, from `openrouter.ai/settings/management-keys`) switches the token
+history from the local opencode scan to the account-global `/activity` API;
+on its own it also reads the balance, with no key-limit meter.
+
+The collector reads the prepaid ledger from `GET /api/v1/credits`
+(`remaining = total_credits - total_usage`) and reports it as a live,
+non-estimated balance. A key with a credit limit additionally gets a
+draining key-limit meter from `GET /api/v1/key`, labeled with how often the
+limit starts over; a failed lookup keeps the last meter, dimmed as stale.
+
+Token history comes in two tiers, selected automatically by key type:
+
+```json
+{
+  "apiKey": "",
+  "managementKey": ""
+}
+```
+
+Without a management key, tokens come from the local opencode database
+(`providerID == "openrouter"`, read-only), like the claude/codex collectors.
+With `OPENROUTER_MANAGEMENT_KEY` (or `managementKey` in
+`~/.config/omarchy/agents/openrouter.json`), the last 30 days come from
+`GET /api/v1/activity` instead: account-global per-day/per-model tokens that
+cover every machine and client. That record carries `"scope": "account"` and
+`hasPromptStats: false`, like Fireworks, so synced aggregation merges it by
+widest value instead of summing it.
 
 ## Interactions
 
