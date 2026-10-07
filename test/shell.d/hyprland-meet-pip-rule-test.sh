@@ -4,12 +4,13 @@ source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
 require_command lua
 
-exclusion=$(OMARCHY_PATH="$ROOT" lua <<'LUA'
+rule=$(OMARCHY_PATH="$ROOT" lua <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 o = {
   window = function(match)
-    if type(match) == "table" and match.title == "^Meet - .+" then
+    if type(match) == "table" and match.title and match.title:find("^%^Meet ") then
+      print(match.title)
       print(match.initial_title)
     end
   end,
@@ -18,6 +19,14 @@ o = {
 require("default.hypr.apps.pip")
 LUA
 )
+
+{ read -r title; read -r exclusion; } <<<"$rule"
+
+# The PiP takes its dash from the meeting page.
+for pip in "Meet - abc-defg-hij" "Meet – Team standup" "Meet — Team standup"; do
+  grep -Eq "$title" <<<"$pip" || fail "Meet PiP rule matches the overlay: $pip"
+done
+pass "Meet PiP rule matches every dash"
 
 [[ $exclusion == "negative:"* ]] || fail "Meet PiP rule excludes browser windows by initial title" "$exclusion"
 exclusion=${exclusion#negative:}
