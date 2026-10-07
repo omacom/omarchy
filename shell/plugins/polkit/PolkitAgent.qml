@@ -25,6 +25,9 @@ Item {
 
   property bool closing: false
   property bool submitted: false
+  // Enter was pressed before PAM asked for the password; the dialog hides and
+  // the typed text is submitted as soon as PAM asks.
+  property bool submitQueued: false
   property string currentMessage: ""
   property string currentPrompt: ""
   property string currentSupplementary: ""
@@ -92,6 +95,7 @@ Item {
     closeTimer.stop()
     closing = false
     submitted = false
+    submitQueued = false
     passwordInput.text = ""
     refreshLidState()
     syncFromFlow()
@@ -108,18 +112,23 @@ Item {
 
   function submitResponse() {
     var flow = polkitAgent.flow
-    if (!flow || !flow.isResponseRequired) return
+    if (!flow) return
+    if (!flow.isResponseRequired) {
+      submitQueued = passwordInput.text.length > 0
+      return
+    }
     submitted = true
+    submitQueued = false
     errorFlash = false
     flow.submit(passwordInput.text)
     passwordInput.text = ""
-    keyCatcher.forceActiveFocus()
   }
 
   function cancelRequest() {
     var flow = polkitAgent.flow
     passwordInput.text = ""
     submitted = false
+    submitQueued = false
     closing = true
     closeTimer.restart()
     if (flow) flow.cancelAuthenticationRequest()
@@ -127,6 +136,7 @@ Item {
 
   function triggerFailureFeedback() {
     submitted = false
+    submitQueued = false
     errorFlash = true
     passwordInput.text = ""
     errorTimer.restart()
@@ -194,6 +204,10 @@ Item {
     function onIsResponseRequiredChanged() {
       root.syncFromFlow()
       if (!polkitAgent.flow || !polkitAgent.flow.isResponseRequired) passwordInput.text = ""
+      else if (root.submitQueued && passwordInput.text.length > 0) {
+        Qt.callLater(function() { if (root.submitQueued) root.submitResponse() })
+        return
+      }
       Qt.callLater(root.refocus)
     }
 
@@ -220,7 +234,8 @@ Item {
 
   PanelWindow {
     id: panel
-    visible: root.dialogVisible
+    // Hidden from Enter until PAM answers; a wrong password brings it back.
+    visible: root.dialogVisible && !root.submitQueued && !root.submitted
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
     WlrLayershell.namespace: "omarchy-polkit"
@@ -319,8 +334,8 @@ Item {
             echoMode: root.responseVisible ? TextInput.Normal : TextInput.Password
             passwordCharacter: "\u2022"
             color: root.errorFlash ? Color.polkit.textError : root.foreground
-            cursorVisible: activeFocus && !root.submitted && !root.errorFlash
-            readOnly: root.submitted || root.errorFlash
+            cursorVisible: activeFocus && !root.errorFlash
+            readOnly: root.errorFlash
             enabled: root.dialogVisible
             onAccepted: root.submitResponse()
             Keys.onPressed: function(event) {
@@ -336,7 +351,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.errorFlash ? "Wrong" : (root.submitted ? "Checking..." : "Enter password")
+            text: root.errorFlash ? "Wrong" : "Enter password"
             color: root.errorFlash ? Color.polkit.textError : root.foreground
             opacity: root.errorFlash ? 1 : 0.36
             font.family: root.fontFamily
@@ -351,7 +366,7 @@ Item {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             color: root.errorFlash ? Color.polkit.textError : root.foreground
-            visible: passwordInput.visible && passwordInput.activeFocus && passwordInput.text.length === 0 && !root.submitted && !root.errorFlash
+            visible: passwordInput.visible && passwordInput.activeFocus && passwordInput.text.length === 0 && !root.errorFlash
           }
 
           MouseArea {
