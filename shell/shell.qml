@@ -63,7 +63,10 @@ ShellRoot {
   Timer {
     id: localPluginReloadTimer
     interval: 150
-    onTriggered: shell.reloadPlugins()
+    onTriggered: {
+      console.log("Reloading local plugins")
+      shell.reloadPlugins()
+    }
   }
 
   onShellConfigChanged: {
@@ -1502,7 +1505,10 @@ ShellRoot {
   Connections {
     target: shell.pluginRegistry
     function onLocalPluginChanged(pluginId) {
-      console.log("Local plugin changed, reloading:", pluginId)
+      // A burst of file events lands here one line at a time, and a message
+      // that says "reloading" from this path describes reloads that the timer
+      // below will coalesce away. Name the event for what it is; the actual
+      // reload logs when it runs.
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {
