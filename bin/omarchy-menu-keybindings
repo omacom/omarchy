@@ -211,7 +211,24 @@ noop = setmetatable({}, {
   __call = function()
     return noop
   end,
+  __lt = function()
+    return false
+  end,
+  __le = function()
+    return false
+  end,
 })
+
+local function empty_list()
+  return setmetatable({}, {
+    __index = function(_, key)
+      if type(key) == "number" then
+        return nil
+      end
+      return noop
+    end,
+  })
+end
 
 hl = setmetatable({
   dsp = dsp_proxy("hl.dsp"),
@@ -244,8 +261,8 @@ hl = setmetatable({
   end,
 }, {
   __index = function(_, key)
-    if key:match("^get_.*s$") then
-      return function() return {} end
+    if type(key) == "string" and key:match("^get_.*s$") then
+      return empty_list
     end
     return noop
   end,
@@ -255,9 +272,11 @@ local config = os.getenv("HOME") .. "/.config/hypr/hyprland.lua"
 local file = io.open(config, "r")
 
 local ok, err = true, nil
+local instruction_exhausted = false
 if file then
   file:close()
   debug.sethook(function()
+    instruction_exhausted = true
     error("instruction limit exceeded")
   end, "", 50000000)
   ok, err = pcall(dofile, config)
@@ -270,7 +289,9 @@ if not ok then
   if os.getenv("DEBUG") == "1" then
     io.stderr:write("[DEBUG] lua bind scan failed: " .. tostring(err) .. "\n")
   end
-  os.exit(1)
+end
+if instruction_exhausted then
+  os.exit(2)
 end
 LUA
   ) || scan_status=$?
@@ -567,8 +588,8 @@ output_binding_records_uncached() {
     parse_binding_records |
     prioritize_entries
 
-  # Fail when Hyprland reported no binds so the fallout of a broken hyprctl
-  # is never cached.
+  # Do not cache instruction exhaustion or missing Hyprland binds. Ordinary
+  # config errors can still cache the recovered records.
   [[ -n $dynamic ]] && (( scan_status == 0 ))
 }
 

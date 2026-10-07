@@ -249,17 +249,25 @@ $(lua_bind 64 "SUPER + RETURN" "Terminal")
 BINDS
 
 # The default config can encounter unsupported runtime values after its binds;
-# dispatch recovery must work even when that scan cannot be cached.
+# dispatch recovery must work even when that scan encounters an error.
 env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" OMARCHY_PATH="$ROOT" SCANNER="$tmpdir/scanner.sh" \
   bash -c 'source "$SCANNER"; output_binding_records_uncached' >"$tmpdir/terminal-records"
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir/terminal-records" ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir/terminal-records")"
 pass "picking the terminal bind from the menu launches a terminal"
 
-# Plural queries must be empty tables so even an empty ipairs loop terminates.
-for query in workspaces monitors clients windows devices; do
+# Plural queries must be empty lists while singular suffix getters allow fields.
+for query in workspaces monitors clients windows devices cursor_pos status options; do
   cat >"$home/.config/hypr/hyprland.lua" <<LUA
-for _, ws in ipairs(hl.get_$query()) do end
+local result = hl.get_$query()
+assert(#result == 0)
+for _, ws in ipairs(result) do error("unexpected list item") end
+for _, ws in pairs(result) do error("unexpected field") end
+if hl.get_cursor_pos().x > 0 then end
+if hl.get_cursor_pos().x <= 0 then end
+assert(hl.get_status().foo.bar)
+assert(hl.get_options().foo.bar)
+assert(hl[1].foo)
 assert(hl.get_config() == nil)
 hl.bind("SUPER + A", hl.dsp.exec_cmd("echo after"), {description = "After query"})
 if hl.get_active_monitor() then
@@ -279,10 +287,19 @@ BINDS
   pass "$query loop terminates and following bindings are recovered"
 done
 
-# Failed scans retain collected metadata but must retry even with unchanged config.
-for workload in 'error("scan failed")' 'while true do end'; do
+# Ordinary errors are cacheable; instruction exhaustion must retry unchanged config.
+for failure in error guard; do
+  if [[ $failure == "error" ]]; then
+    workload='error("scan failed")'
+  else
+    workload='while true do end'
+  fi
   touch "$home/fail-scan"
+  rm -f "$home/scan-count"
   cat >"$home/.config/hypr/hyprland.lua" <<LUA
+local counter = assert(io.open(os.getenv("HOME") .. "/scan-count", "a"))
+counter:write("scan\n")
+counter:close()
 hl.bind("SUPER + A", hl.dsp.exec_cmd("echo partial"), {description = "Interrupted binding"})
 local marker = io.open(os.getenv("HOME") .. "/fail-scan", "r")
 if marker then
@@ -297,17 +314,34 @@ BINDS
   rm -rf "$tmpdir/cache"
   timeout 5 env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
     XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
-    bash "$ROOT/bin/omarchy-menu-keybindings" --print >"$tmpdir/interrupted" || fail "interrupted scan still renders rows"
+    bash "$ROOT/bin/omarchy-menu-keybindings" --print >"$tmpdir/interrupted" || fail "$failure scan still renders rows"
+  grep -q 'SUPER + A .*→ Interrupted binding' "$tmpdir/interrupted" || fail "$failure scan preserves the recovered chord"
   grep -q '→ Native binding' "$tmpdir/interrupted" || fail "native binding remains available"
-  [[ -z $(find "$tmpdir/cache" -name '*.records') ]] || fail "interrupted scan publishes no cache"
+  first_scan_count=$(wc -l <"$home/scan-count")
+  if [[ $failure == "error" ]]; then
+    (( first_scan_count == 1 )) || fail "ordinary error scans once"
+    grep -qP '→ Interrupted binding\texec\techo partial$' "$tmpdir"/cache/omarchy/*.records || fail "ordinary error publishes partial metadata cache"
+    keybindings >/dev/null
+    (( $(wc -l <"$home/scan-count") == 1 )) || fail "ordinary error uses cache without rescanning"
+  else
+    [[ -z $(find "$tmpdir/cache" -name '*.records') ]] || fail "instruction exhaustion publishes no cache"
+    keybindings >/dev/null
+    (( $(wc -l <"$home/scan-count") > first_scan_count )) || fail "instruction exhaustion rescans on next invocation"
+  fi
+  scan_status=0
   env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" OMARCHY_PATH="$ROOT" SCANNER="$tmpdir/scanner.sh" \
-    bash -c 'source "$SCANNER"; output_binding_records_uncached' >"$tmpdir/partial-records"
-  [[ $? == 1 ]] || fail "interrupted uncached scan returns failure"
-  grep -qP 'SUPER \+ A .*→ Interrupted binding\texec\techo partial$' "$tmpdir/partial-records" || fail "interrupted scan preserves collected metadata"
+    bash -c 'source "$SCANNER"; output_binding_records_uncached' >"$tmpdir/partial-records" || scan_status=$?
+  if [[ $failure == "error" ]]; then
+    (( scan_status == 0 )) || fail "ordinary error remains cacheable"
+  else
+    (( scan_status == 1 )) || fail "instruction exhaustion uncached output returns failure"
+  fi
+  grep -qP 'SUPER \+ A .*→ Interrupted binding\texec\techo partial$' "$tmpdir/partial-records" || fail "$failure scan preserves collected metadata"
+  grep -qP '→ Native binding\texec\techo native$' "$tmpdir/partial-records" || fail "$failure scan preserves native metadata"
   rm "$home/fail-scan"
   keybindings >/dev/null
-  grep -qP '→ Interrupted binding\texec\techo partial$' "$tmpdir"/cache/omarchy/*.records || fail "unchanged config retries successfully"
-  pass "failed scans preserve metadata without caching and retry unchanged config"
+  grep -qP '→ Interrupted binding\texec\techo partial$' "$tmpdir"/cache/omarchy/*.records || fail "unchanged config caches after failure marker removal"
+  pass "$failure scan preserves metadata with the expected caching and retry behavior"
 done
 
 # Valid finite work must not trip the generous instruction limit.
