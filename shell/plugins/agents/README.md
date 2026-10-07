@@ -73,6 +73,7 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files on the built-in `openai` provider (plus pi and opencode sessions) |
 | `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn), plus `summary.json` for sessions |
+| `kimchi` | The plan, prepaid credits, and any spend budgets from the gateway's `/v1/credits` and `/v1/budget`, the endpoints Kimchi's own status line reads | Kimchi's pi session files under `~/.config/kimchi/harness/sessions`: tokens by model per assistant reply |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
 
 When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json`
@@ -103,6 +104,19 @@ again. Fireworks reads
 pi stores in `~/.pi/agent/auth.json` when Fireworks is signed in there
 (honoring `PI_CODING_AGENT_DIR`, and pi's literal and `$ENV_VAR` key forms),
 and finally the key opencode stores in `~/.local/share/opencode/auth.json`.
+Kimchi reads `KIMCHI_API_KEY` first, then the key in
+`~/.config/kimchi/config.json`, and asks the gateway its region names (or
+`KIMCHI_BASE_URL`); its sessions follow `KIMCHI_CODING_AGENT_DIR`. The
+credits answer says how much remains but not how much was bought, so the
+balance shows the remaining figure without a funded meter; a spend budget's
+cap is what may be spent, not what was bought, so it never stands in. Every
+budget is a limit line that resets when its period ends, titled Monthly or
+Weekly when the period is one, with each capped provider inside it a tick on
+that line (or a line of its own in a period of another length). Each
+endpoint falls back on its own: when one can't be reached, its last answer
+stays up, dimmed and dated, beside the other's fresh one. A rejected key
+reads as such rather than offering the panel's sign-in, since Kimchi signs
+in through its own CLI.
 
 ### Fireworks balance
 
@@ -182,7 +196,8 @@ edit `shell.json` directly):
 omarchy bar set omarchy.agents providers '{
   "claude": { "enabled": true },
   "codex": { "enabled": false },
-  "fireworks": { "enabled": true }
+  "fireworks": { "enabled": true },
+  "kimchi": { "enabled": true }
 }' --json
 ```
 

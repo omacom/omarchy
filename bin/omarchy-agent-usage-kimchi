@@ -1,0 +1,404 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Kimchi usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Kimchi usage into one display-ready JSON record.
+
+The plan, prepaid credits, and spend budgets come from the gateway endpoints
+Kimchi's own status line reads (<llm base>/v1/credits and /v1/budget), asked
+with the API key Kimchi signs in with. Tokens and prompts come from its pi
+session files: one line per message, each assistant reply carrying its model
+and token usage. The agents panel only ever reads the JSON this prints.
+"""
+
+import argparse
+import hashlib
+import json
+import os
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+AGENT_ID = "kimchi"
+AGENT_NAME = "Kimchi"
+AUTH_HELP = "Start Kimchi and log in, or set KIMCHI_API_KEY."
+REGION_LLM_BASE = {"us": "https://llm.kimchi.dev", "eu": "https://llm.eu.kimchi.dev"}
+PLAN_LABELS = {"community": "Community", "coder": "Coder", "teams": "Teams", "enterprise": "Enterprise"}
+BUDGET_LABELS = {
+  "API_KEY": "API key budget",
+  "USER": "Budget",
+  "TEAM_PER_USER": "Team budget",
+  "TEAM_POOLED": "Team pool",
+  "ORGANIZATION_SOFT": "Org budget",
+  "ORGANIZATION_HARD": "Org budget",
+}
+# A limits-only refresh needs fresh credits, not a fresh history scan.
+LIMITS_ONLY_SCAN_REUSE_SECONDS = 900
+
+
+def read_json(path):
+  try:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+  except Exception:
+    return None
+
+
+# A temporary file of its own per write, so overlapping runs can't rename
+# each other's away.
+def write_json(path, payload):
+  path = Path(path)
+  path.parent.mkdir(parents=True, exist_ok=True)
+  fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
+  try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+      json.dump(payload, handle)
+    os.replace(tmp, path)
+  except Exception:
+    Path(tmp).unlink(missing_ok=True)
+    raise
+
+
+def cache_root():
+  return Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+
+
+def number(value):
+  try:
+    return max(0, int(value or 0))
+  except Exception:
+    return 0
+
+
+# Kimchi sends dollar amounts as strings, sometimes with a sign or unit.
+def usd(value):
+  if isinstance(value, bool):
+    return None
+  if isinstance(value, (int, float)):
+    return float(value)
+  text = str(value or "").lower().replace("$", "").replace("usd", "").replace(",", ".").strip()
+  try:
+    return float(text) if text else None
+  except ValueError:
+    return None
+
+
+# pi stamps entries with ISO strings and messages with epoch milliseconds.
+def local_day(value):
+  if isinstance(value, (int, float)) and not isinstance(value, bool):
+    return datetime.fromtimestamp(value / 1000 if value > 10_000_000_000 else value).astimezone().date().isoformat()
+  try:
+    parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+  except ValueError:
+    return None
+  return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).astimezone().date().isoformat()
+
+
+# The harness directory Kimchi keeps its sessions under: KIMCHI_CODING_AGENT_DIR
+# when set, as the CLI itself reads it, else ~/.config/kimchi/harness.
+def harness_dir():
+  return Path(os.environ.get("KIMCHI_CODING_AGENT_DIR") or (Path.home() / ".config" / "kimchi" / "harness"))
+
+
+# Every session file under <harness>/sessions/<folder>/. Only assistant
+# messages carry usage, and a resumed session can repeat an entry, so each
+# entry id counts once per file.
+def local_stats(sessions_root):
+  now = datetime.now().astimezone()
+  today = now.date().isoformat()
+  week = [(now.date() - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
+  prompts = today_prompts = today_tokens = 0
+  sessions, today_sessions, days = set(), set(), set()
+  by_day = {day: 0 for day in week}
+  today_by_model = {}
+  models = {}
+  files = sorted(Path(sessions_root).glob("*/*.jsonl"))
+  for path in files:
+    seen = set()
+    try:
+      lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+      continue
+    for line in lines:
+      if '"usage"' not in line:
+        continue
+      try:
+        entry = json.loads(line)
+      except ValueError:
+        continue
+      message = entry.get("message") if isinstance(entry, dict) and entry.get("type") == "message" else None
+      if not isinstance(message, dict) or message.get("role") != "assistant":
+        continue
+      entry_id = str(entry.get("id") or "")
+      if entry_id and entry_id in seen:
+        continue
+      seen.add(entry_id)
+
+      usage = message.get("usage") or {}
+      uncached = number(usage.get("input"))
+      output = number(usage.get("output"))
+      cached = number(usage.get("cacheRead"))
+      created = number(usage.get("cacheWrite"))
+      if not (uncached or output or cached or created):
+        uncached = number(usage.get("totalTokens"))
+      tokens = uncached + output + cached + created
+      if not tokens:
+        continue
+
+      day = local_day(entry.get("timestamp") or message.get("timestamp")) or today
+      model = str(message.get("model") or AGENT_ID)
+      prompts += 1
+      sessions.add(path.name)
+      days.add(day)
+      totals = models.setdefault(model, {"inputTokens": 0, "outputTokens": 0, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0})
+      totals["inputTokens"] += uncached
+      totals["outputTokens"] += output
+      totals["cacheReadInputTokens"] += cached
+      totals["cacheCreationInputTokens"] += created
+      if day in by_day:
+        by_day[day] += tokens
+      if day == today:
+        today_prompts += 1
+        today_sessions.add(path.name)
+        today_tokens += tokens
+        today_by_model[model] = today_by_model.get(model, 0) + tokens
+
+  return {
+    "hasLocalStats": bool(sessions),
+    "todayPrompts": today_prompts,
+    "todaySessions": len(today_sessions),
+    "todayTotalTokens": today_tokens,
+    "todayTokensByModel": today_by_model,
+    "recentDays": [{"date": day, "messageCount": by_day[day]} for day in week],
+    "totalPrompts": prompts,
+    "totalSessions": len(sessions),
+    "activeDays": len(days),
+    "activeDates": sorted(days),
+    "modelUsage": models,
+  }
+
+
+# A scan from before midnight would count yesterday's sessions as today's.
+def cached_local_stats(sessions_root, max_age):
+  cache = cache_root() / "kimchi-stats.json"
+  cached = read_json(cache) or {}
+  today = datetime.now().astimezone().date().isoformat()
+  if cached.get("root") == str(sessions_root) and cached.get("day") == today and time.time() - float(cached.get("at") or 0) < max_age:
+    return cached["stats"]
+  stats = local_stats(sessions_root)
+  write_json(cache, {"root": str(sessions_root), "day": today, "at": time.time(), "stats": stats})
+  return stats
+
+
+# The key and gateway Kimchi itself would use: KIMCHI_API_KEY, KIMCHI_BASE_URL,
+# and KIMCHI_REGION over ~/.config/kimchi/config.json, the region's gateway
+# when nothing names one.
+def gateway():
+  config = read_json(Path.home() / ".config" / "kimchi" / "config.json") or {}
+  key = os.environ.get("KIMCHI_API_KEY") or config.get("apiKey") or config.get("api_key") or ""
+  base = os.environ.get("KIMCHI_BASE_URL") or config.get("llmEndpoint") or ""
+  if not base:
+    region = os.environ.get("KIMCHI_REGION") or config.get("region")
+    base = REGION_LLM_BASE.get(str(region or ""), REGION_LLM_BASE["us"])
+  base = str(base).strip().rstrip("/")
+  if base.lower().endswith("/openai/v1"):
+    base = base[: -len("/openai/v1")]
+  return str(key).strip(), base
+
+
+def get_json(url, key):
+  request = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}", "Accept": "application/json", "User-Agent": "omarchy-agent-usage-kimchi"})
+  with urllib.request.urlopen(request, timeout=8) as response:
+    return json.loads(response.read())
+
+
+def plan_label(raw):
+  text = str(raw or "").strip().lower().replace("_", "-").replace(" ", "-")
+  if text in ("community", "free", "free-tier", "free-slow"):
+    return PLAN_LABELS["community"]
+  if text in ("starter", "individual"):
+    return PLAN_LABELS["coder"]
+  if text == "team":
+    return PLAN_LABELS["teams"]
+  for plan in ("coder", "teams", "enterprise"):
+    if text == plan or text.startswith(plan + "-"):
+      return PLAN_LABELS[plan]
+  return str(raw or "")
+
+
+# The credits answer names the plan and what's left of the prepaid balance.
+# It says how much remains but not how much was bought, so the gauge shows
+# the remaining figure alone.
+def credits_part(data):
+  if data.get("serverless") is False:
+    return {}
+  tier = next((data[k] for k in ("tier", "tier_name", "tierName") if k in data), "")
+  part = {"tierLabel": plan_label(tier)}
+  remaining = usd(data.get("remaining"))
+  if remaining is not None and remaining >= 0:
+    part["balance"] = {"remaining": remaining, "funded": 0, "spent": 0, "currency": "USD", "estimated": False}
+  has_credits = next((data[k] for k in ("has_credits", "hasCredits") if k in data), None)
+  if has_credits is False or (remaining is not None and remaining <= 0):
+    part["usageStatusText"] = "Out of credits, rate limited"
+  return part
+
+
+def parse_time(value):
+  try:
+    parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+  except ValueError:
+    return None
+  return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+# The panel titles a window by its clock, so a budget period that spans a
+# month or a week says so rather than leaving the panel to guess from a label.
+def period_title(period):
+  start, end = parse_time(period.get("startTime")), parse_time(period.get("endTime"))
+  if not (start and end):
+    return ""
+  days = (end - start).days
+  if 27 <= days <= 31:
+    return "Monthly"
+  if days == 7:
+    return "Weekly"
+  return ""
+
+
+# Each spend budget is a limit window: spend against its cap until the
+# period ends. A provider capped inside it is its own allowance on the same
+# clock, which the panel draws as a tick on that budget's meter; in a period
+# the panel has no clock name for, it gets a line of its own. A cap is what
+# may be spent, not what was bought, so it never funds the balance gauge.
+def budget_part(data):
+  period = data.get("period") if isinstance(data.get("period"), dict) else {}
+  resets = str(period.get("endTime") or "")
+  title = period_title(period)
+  limits = []
+  for entry in data.get("budgets") or []:
+    if not isinstance(entry, dict):
+      continue
+    cap = usd(entry.get("budgetLimitUsd"))
+    spent = usd(entry.get("totalSpendUsd"))
+    if not cap or spent is None:
+      continue
+    limit = {"label": BUDGET_LABELS.get(entry.get("scope"), "Budget"), "percent": max(0.0, min(1.0, spent / cap))}
+    if title:
+      limit["title"] = title
+    if resets:
+      limit["resetsAt"] = resets
+    limits.append(limit)
+    for provider in entry.get("providerBudgets") or []:
+      if not isinstance(provider, dict) or not str(provider.get("limitType") or "").endswith("CAPPED"):
+        continue
+      provider_cap = usd(provider.get("budgetLimitUsd"))
+      used = usd(provider.get("usageUsd"))
+      name = str(provider.get("provider") or "").strip()
+      if not (provider_cap and used is not None and name):
+        continue
+      name = name[:1].upper() + name[1:]
+      scoped = {"label": f"{name} budget", "title": f"{name} {title}" if title else f"{name} budget", "percent": max(0.0, min(1.0, used / provider_cap))}
+      if resets:
+        scoped["resetsAt"] = resets
+      limits.append(scoped)
+  return {"limits": limits}
+
+
+# Keyed by the API key and the gateway it was asked of, so a machine signed
+# in to someone else, or pointed at another region, never shows the last
+# one's numbers. One file per endpoint, so a run only ever writes the answer
+# it actually got.
+def billing_cache(key, base, resource):
+  digest = hashlib.sha256((base + "\n" + key).encode()).hexdigest()[:16]
+  return cache_root() / f"kimchi-{resource}-{digest}.json"
+
+
+# Refreshes can overlap (the panel's own and a limits retry), so an answer
+# only replaces one fetched after it.
+def remember(path, part):
+  current = read_json(path) or {}
+  if float(current.get("fetchedAtMs") or 0) <= part["fetchedAtMs"]:
+    write_json(path, part)
+
+
+# The two endpoints answer on their own, and so does each fall back: a part
+# that didn't come back is the last one that did, dimmed and dated, so one
+# endpoint failing never blanks or overwrites what the other said. Any part
+# that didn't come back fresh marks the record stale, cached or not.
+def collect_billing():
+  result = {"tierLabel": "", "limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP, "signedIn": False, "limitsStale": False, "limitsFetchedAt": 0}
+  key, base = gateway()
+  if not key:
+    return result
+  result["signedIn"] = True
+
+  parts = {}
+  failed = set()
+  rejected = False
+  for resource, parse in (("credits", credits_part), ("budget", budget_part)):
+    cache = billing_cache(key, base, resource)
+    try:
+      data = get_json(f"{base}/v1/{resource}", key)
+      parts[resource] = dict(parse(data if isinstance(data, dict) else {}), fetchedAtMs=round(time.time() * 1000))
+      remember(cache, parts[resource])
+      continue
+    except urllib.error.HTTPError as error:
+      rejected = rejected or error.code in (401, 403)
+    except Exception:
+      pass
+    failed.add(resource)
+    cached = read_json(cache)
+    if isinstance(cached, dict) and cached.get("fetchedAtMs"):
+      parts[resource] = cached
+
+  credits = parts.get("credits") or {}
+  result["tierLabel"] = credits.get("tierLabel") or ""
+  if credits.get("balance"):
+    result["balance"] = credits["balance"]
+  result["limits"] = (parts.get("budget") or {}).get("limits") or []
+  result["limitsStale"] = bool(failed)
+  if parts:
+    result["limitsFetchedAt"] = min(part["fetchedAtMs"] for part in parts.values())
+
+  # A rejected key can't be fixed from the panel: Kimchi signs in through
+  # its own CLI, not omarchy-agent-account-add, so this status deliberately
+  # isn't one the panel offers its Sign-in link for.
+  if rejected:
+    result["usageStatusText"] = "Kimchi key rejected"
+  elif credits.get("usageStatusText"):
+    result["usageStatusText"] = credits["usageStatusText"]
+  elif "credits" not in parts:
+    result["usageStatusText"] = "Kimchi credits unavailable"
+  if parts and not rejected:
+    result["authHelpText"] = ""
+  if failed and not rejected:
+    # Usually the seconds after login before the network is up, or a
+    # gateway hiccup; the panel tries once more soon instead of waiting out
+    # its refresh interval.
+    result["retryAdvised"] = True
+  return result
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  billing = collect_billing()
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": billing.pop("signedIn"),
+  }
+  record.update(billing)
+  record.update(cached_local_stats(harness_dir() / "sessions", LIMITS_ONLY_SCAN_REUSE_SECONDS if args.limits_only and not args.force else 0))
+  print(json.dumps(record, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+  main()
