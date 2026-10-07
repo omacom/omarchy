@@ -279,6 +279,13 @@ run_theme || fail "empty optional gradients render successfully" "$(cat "$scratc
 [[ $(cat "$state/theme/empty.conf") == '""||' ]] || fail "empty gradients retain their empty values"
 pass "empty optional gradients render successfully"
 
+reset_fixture
+printf 'padded_rgb = "rgb(08,16,24)"\n' >>"$shipped/themes/new/colors.toml"
+printf '{{ gradient_start padded_rgb }}\n' >"$shipped/default/themed/padded.conf.tpl"
+run_theme || fail "decimal colors with leading zeros render successfully" "$(cat "$scratch/output")"
+[[ $(cat "$state/theme/padded.conf") == "#081018" ]] || fail "leading zeros are read as decimal"
+pass "decimal colors with leading zeros render successfully"
+
 # A failed glob must not turn an unreadable source into an empty theme.
 for source in builtin overlay installed nested templates template-file; do
   reset_fixture

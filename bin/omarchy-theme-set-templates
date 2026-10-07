@@ -90,9 +90,10 @@ color_to_shell_hex() {
   elif [[ $color =~ ^[Rr][Gg][Bb][Aa]?\(([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?\)$ ]]; then
     REPLY="#${BASH_REMATCH[1]}"
   elif [[ $color =~ ^[Rr][Gg][Bb][Aa]?\(([0-9]+),([0-9]+),([0-9]+)(,[0-9.]+)?\)$ ]]; then
-    r=${BASH_REMATCH[1]}
-    g=${BASH_REMATCH[2]}
-    b=${BASH_REMATCH[3]}
+    # Decimal components may carry leading zeros, which bash reads as octal.
+    r=$((10#${BASH_REMATCH[1]}))
+    g=$((10#${BASH_REMATCH[2]}))
+    b=$((10#${BASH_REMATCH[3]}))
     (( r > 255 )) && r=255
     (( g > 255 )) && g=255
     (( b > 255 )) && b=255
