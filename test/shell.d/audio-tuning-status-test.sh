@@ -54,7 +54,7 @@ export XDG_CONFIG_HOME="$HOME/.config"
 export OMARCHY_PATH="$test_tmp/omarchy"
 export OMARCHY_TEST_MUTATIONS="$test_tmp/mutations"
 
-for model in j316 j314 j413; do
+for model in j316 j314 j413 mini studio; do
   export OMARCHY_TEST_DSP_SINK="audio_effect.$model-convolver"
   output=$("$ROOT/bin/omarchy-audio-tuning" status)
   [[ $output == *"Asahi DSP:    present ($OMARCHY_TEST_DSP_SINK)"* ]] ||

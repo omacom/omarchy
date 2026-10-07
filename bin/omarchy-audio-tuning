@@ -43,9 +43,10 @@ sink_matching() {
 
 # Asahi hosts its model-specific speaker DSP independently of Omarchy's tuning
 # service. A present sink is evidence of that graph even when no Omarchy tuning
-# matches, and while another output (headphones, for example) is selected.
+# matches, and while another output (headphones, for example) is selected. Asahi
+# names most graphs by board ID, but the Mac mini's and Mac Studio's by product.
 asahi_tuning_sink() {
-  sink_matching '^audio_effect[.]j[0-9]+-convolver$'
+  sink_matching '^audio_effect[.](j[0-9]+|mini|studio)-convolver$'
 }
 
 # Dell keys its Cirrus speaker firmware on the DMI product SKU, which makes it the
