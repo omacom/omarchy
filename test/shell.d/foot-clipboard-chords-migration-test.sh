@@ -107,6 +107,26 @@ grep -qx 'clipboard-copy=Control+Insert Control+Shift+c XF86Copy' "$home/dotfile
   fail "chord repair rewrites the symlink target" "$(cat "$home/dotfiles/foot.ini")"
 pass "chord repair writes through a symlinked config"
 
+# A rewrite that cannot be put in place, as on a full disk, leaves the config as it was and nothing beside it.
+reset_home
+printf '%s\n' '[key-bindings]' 'clipboard-copy=Control+Insert' >"$foot_config"
+chmod 640 "$foot_config"
+before=$(cat "$foot_config")
+mkdir -p "$test_dir/bin"
+for tool in cat mv; do
+  printf '%s\n' '#!/bin/bash' 'exit 1' >"$test_dir/bin/$tool"
+  chmod +x "$test_dir/bin/$tool"
+done
+
+PATH="$test_dir/bin:$PATH" run_migration 2>/dev/null && fail "chord repair reports a failed rewrite"
+[[ $(cat "$foot_config") == "$before" ]] || fail "chord repair leaves the config whole when the rewrite fails" "$(cat -A "$foot_config")"
+[[ $(ls "$home/.config/foot") == foot.ini ]] || fail "chord repair cleans up after a failed rewrite" "$(ls "$home/.config/foot")"
+pass "chord repair leaves the config whole when the rewrite fails"
+
+run_migration
+[[ $(stat -c %a "$foot_config") == 640 ]] || fail "chord repair keeps the config's mode" "$(stat -c %a "$foot_config")"
+pass "chord repair keeps the config's mode"
+
 # Machines without foot have nothing to repair.
 reset_home
 rmdir "$home/.config/foot"

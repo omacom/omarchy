@@ -9,7 +9,10 @@ echo "Teach older foot configs the Ctrl+Shift clipboard chords that Super+C and 
 foot_config="$HOME/.config/foot/foot.ini"
 
 if [[ -f $foot_config ]] && grep -qx 'clipboard-copy=Control+Insert\|clipboard-paste=Shift+Insert' "$foot_config"; then
-  tmp=$(mktemp)
+  # The rewrite is renamed over the real file, so a failed write leaves it whole and a symlink survives.
+  target=$(readlink -f "$foot_config")
+  tmp=$(mktemp "$target.XXXXXX")
+  trap 'rm -f "$tmp"' EXIT
   # Two passes: the first notes every key bound in [key-bindings] or [text-bindings],
   # one set to foot, since a chord bound twice makes foot reject the whole config.
   awk '
@@ -41,6 +44,6 @@ if [[ -f $foot_config ]] && grep -qx 'clipboard-copy=Control+Insert\|clipboard-p
     section == "[key-bindings]" && $0 == "clipboard-paste=Shift+Insert" { $0 = add($0, "Control+Shift+v XF86Paste") }
     { print }
   ' "$foot_config" "$foot_config" >"$tmp"
-  cat "$tmp" >"$foot_config"
-  rm -f "$tmp"
+  chmod --reference="$target" "$tmp"
+  mv "$tmp" "$target"
 fi
