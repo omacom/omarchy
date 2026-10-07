@@ -138,16 +138,27 @@ pi)
   ;;
 esac
 
-# Claude and Codex start as the active subscription account, the same as the
-# shell functions in default/bash/fns/agent-accounts. The home travels in the
-# command itself, since a terminal launched through uwsm doesn't inherit this
-# process's environment.
-if [[ $agent == "claude" && -z ${CLAUDE_CONFIG_DIR:-} ]]; then
-  home=$(omarchy-agent-account-home claude)
-  [[ -n $home ]] && command=(env "CLAUDE_CONFIG_DIR=$home" "${command[@]}")
-elif [[ $agent == "codex" && -z ${CODEX_HOME:-} ]]; then
-  home=$(omarchy-agent-account-home codex)
-  [[ -n $home ]] && command=(env "CODEX_HOME=$home" "${command[@]}")
+# A new session uses the current selection rather than its parent's account
+# pin. Explicit provider homes still override the selection. Carry the new pin
+# in the command, since terminals launched through uwsm don't inherit our env.
+case "$agent" in
+claude) home_env="CLAUDE_CONFIG_DIR" ;;
+codex) home_env="CODEX_HOME" ;;
+grok) home_env="GROK_HOME" ;;
+*) home_env="" ;;
+esac
+if [[ -n $home_env ]]; then
+  account_pin="OMARCHY_AGENT_${agent^^}_HOME"
+  if [[ -v $account_pin && ${!home_env:-} == "${!account_pin}" ]]; then
+    unset "$home_env"
+  fi
+  unset "$account_pin"
+  if [[ -z ${!home_env:-} ]]; then
+    home=$(omarchy-agent-account-home "$agent")
+    account_env=(env -u "$home_env" "$account_pin=$home")
+    [[ -n $home ]] && account_env+=("$home_env=$home")
+    command=("${account_env[@]}" "${command[@]}")
+  fi
 fi
 
 if [[ $inline == "true" ]]; then

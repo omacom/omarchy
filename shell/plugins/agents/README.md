@@ -19,8 +19,9 @@ Every subscription on one page, limits first.
   per limit window: its meter and the time until it resets (the exact percentage
   on hover). A model-scoped allowance on the same clock (Claude's Fable weekly
   limit) is a tick on that window's meter rather than a line of its own; the
-  row's tooltip names it. Sign-in and endpoint trouble shows under the name in the urgent
-  color. Limits kept from an earlier check after a failed one dim, and their
+  row's tooltip names it. A lapsed or missing sign-in shows a _Sign-in required_ link that signs
+  that account in again from the panel; other endpoint trouble shows under the
+  name in the urgent color. Limits kept from an earlier check after a failed one dim, and their
   tooltip says how old they are.
 - **Accounts** — an agent with more than one subscription account (see
   `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
@@ -71,11 +72,13 @@ light surfaces — and the bar glyph stands in when there is none.
 | Collector | Limits | Local stats |
 |---|---|---|
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
-| `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
+| `codex` | The Codex app-server RPC | native Codex CLI session files on the built-in `openai` provider (plus pi and opencode sessions) |
+| `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn), plus `summary.json` for sessions |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
 
-When `~/.local/state/omarchy/agents/accounts/<claude|codex>.json` registers
-more than one account, the `claude` and `codex` records also carry
+When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json`
+registers more than one account, the `claude`, `codex`, and `grok` records
+also carry
 `accounts: [{ id, label, email, plan, active, limits, stale, usageStatusText,
 authHelpText }]`, each account probed with its own sign-in (Claude caches each
 account's limits separately; Codex runs one app-server per account home), and
@@ -87,13 +90,20 @@ since every account shares the primary home's history. After each run,
 active account crosses its threshold, and re-collects the record if the active
 account changed.
 
+Codex CLI will front any OpenAI-compatible backend — `--oss`, or a custom `model_provider` in `config.toml` aimed at Ollama, LM Studio, or a gateway — and those rollouts sit in the same sessions directory as OpenAI-backed ones. The Codex collector skips a rollout whose first `session_meta.model_provider` names anything but the built-in `openai` provider. Rollouts written before Codex recorded that field carry no provider and still count.
+
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
-`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`. Fireworks reads
+`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`, Grok via `GROK_HOME`. Grok's
+plan comes from the settings it caches in its home, and its limit from the
+credits endpoint its own `/usage` view reads, asked with each account's
+sign-in; a sign-in left to lapse shows the last credits until Grok runs
+again. Fireworks reads
 `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
-opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
-signed in there.
+pi stores in `~/.pi/agent/auth.json` when Fireworks is signed in there
+(honoring `PI_CODING_AGENT_DIR`, and pi's literal and `$ENV_VAR` key forms),
+and finally the key opencode stores in `~/.local/share/opencode/auth.json`.
 
 ### Fireworks balance
 
@@ -129,9 +139,12 @@ only adds the meter and the spent-of-funded line under the real figure.
   urgent when any account new sessions use is at 90% of a window, or a
   prepaid balance is down to its last 10%.
 - Panel: the arrows (or `h`/`j`/`k`/`l`) walk a cursor over everything that
-  does something, row by row: the hero's buttons, each switchable account
-  (landing on Use, with Autoswitch to its left), and the starter tiles, or the
-  agents to add. Hovering moves the same cursor. Enter acts on it, or
+  does something, row by row: the hero's buttons, each agent's header, each
+  switchable account (landing on Use, with Autoswitch to its left), and the
+  starter tiles, or the agents to add. Ctrl+Up/Down (or Ctrl+`k`/`j`) moves the
+  agent the cursor is in up or down the page; dragging an agent by its mark
+  does the same, lighting the header it will land on. The order is kept in
+  `~/.local/state/omarchy/agents/order.json`. Hovering moves the same cursor. Enter acts on it, or
   refreshes when nothing is lit; `r` refreshes, Tab moves to the neighboring
   bar panel, Esc closes.
 - Accounts: `1`–`9` jump to an account across every agent, and Enter makes it

@@ -1,11 +1,12 @@
 #!/usr/bin/python3
-# omarchy:summary=Read and change the registry of Claude and Codex subscription accounts
+# omarchy:summary=Read and change the registry of Claude, Codex, and Grok subscription accounts
 # omarchy:args=<registry|home|homes|list|refresh|begin|register|use|rename|remove|mode|link|autoswitch> [provider] [args...]
 # omarchy:hidden=true
 """The account registry behind `omarchy agent account`.
 
-An account is a Claude Code or Codex login Omarchy keeps a home for. The
-login you already have stays where the CLI put it (~/.claude, ~/.codex) and
+An account is a Claude Code, Codex, or Grok login Omarchy keeps a home for.
+The login you already have stays where the CLI put it (~/.claude, ~/.codex,
+~/.grok) and
 is the primary account; added accounts get a home of their own under
 ~/.local/state/omarchy/agents/accounts/<provider>/<id>/ that holds only that
 account's credentials and links everything else back to the primary home, so
@@ -51,13 +52,20 @@ PROVIDERS = {
     "shared_files": ["config.toml", "AGENTS.md", "history.jsonl", "hooks.json"],
     "carried_keys": [],
   },
+  "grok": {
+    "name": "Grok",
+    "home_env": "GROK_HOME",
+    "shared_dirs": ["sessions", "skills", "agents", "plugins", "installed-plugins", "marketplace-cache", "hooks", "memory", "memory-v2", "rules", "commands", "workflows", "personas", "worktrees"],
+    "shared_files": ["config.toml", "settings.json", "lsp.json", "pager.toml", "sandbox.toml", "trusted_folders.toml", "statusline.sh", "worktrees.db"],
+    "carried_keys": [],
+  },
 }
 
 DEFAULT_THRESHOLD = 95
 # Ids an account can't take because something else already answers to them:
 # `use next` cycles, a provider name is read as the provider when it comes
 # first, and the menu's Add Account row is `.add`.
-RESERVED_IDS = {"next", "add", "claude", "codex", "primary"}
+RESERVED_IDS = {"next", "add", "claude", "codex", "grok", "primary"}
 SWITCH_MODES = ("manual", "auto")
 
 
@@ -85,11 +93,12 @@ def usage_record_path(provider: str) -> Path:
 
 
 # The primary home is where the CLI keeps a login when nothing tells it
-# otherwise. It is deliberately not read from CLAUDE_CONFIG_DIR / CODEX_HOME:
+# otherwise. It is deliberately not read from CLAUDE_CONFIG_DIR / CODEX_HOME /
+# GROK_HOME:
 # those are how an added account is selected, so honoring them here would make
 # whichever account launched this command look like the primary.
 def primary_home(provider: str) -> Path:
-  return Path.home() / (".claude" if provider == "claude" else ".codex")
+  return Path.home() / f".{provider}"
 
 
 def account_home(provider: str, account: dict[str, Any]) -> Path:
@@ -147,6 +156,9 @@ def identity(provider: str, home: Path) -> dict[str, str]:
       "plan": plan_label(str(login.get("rateLimitTier") or ""), str(login.get("subscriptionType") or "")),
     }
 
+  if provider == "grok":
+    return grok_identity(home)
+
   auth = read_json(home / "auth.json") or {}
   tokens = auth.get("tokens") or {}
   claims = jwt_claims(str(tokens.get("id_token") or ""))
@@ -157,6 +169,23 @@ def identity(provider: str, home: Path) -> dict[str, str]:
     "email": str(claims.get("email") or ""),
     "org": "",
     "plan": plan[0].upper() + plan[1:] if plan else "",
+  }
+
+
+# Grok keeps one login per issuer in auth.json, and the plan only in the
+# settings it caches from xAI, as a JSON string inside that file.
+def grok_identity(home: Path) -> dict[str, str]:
+  auth = read_json(home / "auth.json") or {}
+  login = next((v for v in auth.values() if isinstance(v, dict)), {}) if isinstance(auth, dict) else {}
+  try:
+    settings = json.loads((read_json(home / "settings_cache.json") or {}).get("payload") or "{}").get("settings") or {}
+  except Exception:
+    settings = {}
+  return {
+    "accountId": str(login.get("user_id") or ""),
+    "email": str(login.get("email") or ""),
+    "org": "",
+    "plan": str(settings.get("subscription_tier_display") or ""),
   }
 
 
@@ -655,7 +684,7 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
 
 def provider_arg(args: list[str]) -> str:
   if not args or args[0] not in PROVIDERS:
-    raise AccountError("Name a provider: claude or codex")
+    raise AccountError("Name a provider: claude, codex, or grok")
   return args[0]
 
 
