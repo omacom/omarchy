@@ -133,6 +133,18 @@ Item {
     onFinished: root.startupPending = false
   }
 
+  // A missing wallpaper or failed plugin must not leave applications hidden.
+  Timer {
+    interval: 10000
+    running: root.startupPending
+    onTriggered: {
+      root.cover = false
+      if (!root.themeToken) root.themeBackground = ""
+      root.startupMediaReady = true
+      startupFade.start()
+    }
+  }
+
   NumberAnimation {
     id: themeFade
     target: root
