@@ -75,6 +75,18 @@ ShellRoot {
     }
   }
   Timer {
+    interval: 1800
+    running: true
+    onTriggered: {
+      intro.prepareTheme("", "cached-theme", Qt.btoa('background = "#abcdef"'), "", Quickshell.env("INTRO_TEST_FIRST_FRAME"))
+      test.check(Qt.colorEqual(Commons.Color.background, "#abcdef") && intro.themeFadeStarted, "a cached first frame starts the palette and wallpaper fade without waiting for the renderer")
+      test.check(intro.themeToken === "cached-theme" && intro.themeFirstFrame !== "", "the cached frame remains until playback is ready")
+      intro.cancelTheme()
+      intro.finishTheme("failed-theme")
+      test.check(Qt.colorEqual(Commons.Color.background, "#abcdef") && !intro.themeFirstFrame, "cancellation clears the placeholder and rejects an older completion")
+    }
+  }
+  Timer {
     interval: 2300
     running: true
     onTriggered: {

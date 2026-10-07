@@ -1713,8 +1713,8 @@ ShellRoot {
   ShellIpc {
     target: "shell"
 
-    function prepareThemeIntro(fromPath: string, token: string, colorsB64: string, shellB64: string): void {
-      shell.bootIntro.prepareTheme(fromPath, token, colorsB64, shellB64)
+    function prepareThemeIntro(fromPath: string, token: string, colorsB64: string, shellB64: string, firstFrame: string): void {
+      shell.bootIntro.prepareTheme(fromPath, token, colorsB64, shellB64, firstFrame)
     }
 
     function finishThemeIntro(token: string): void {
