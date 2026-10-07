@@ -63,10 +63,7 @@ ShellRoot {
   Timer {
     id: localPluginReloadTimer
     interval: 150
-    onTriggered: {
-      console.log("Reloading local plugins")
-      shell.reloadPlugins()
-    }
+    onTriggered: shell.reloadPlugins()
   }
 
   onShellConfigChanged: {
@@ -1485,6 +1482,7 @@ ShellRoot {
       shell.pluginReloadPending = true
       return
     }
+    console.log("Reloading local plugins")
     shell.pluginReloading = true
     shell.unloadPanels()
     shell.unloadPluginServices()
