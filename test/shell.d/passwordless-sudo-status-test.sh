@@ -85,6 +85,43 @@ pass "status treats a past deadline as inactive and an untrusted or malformed ma
 reset_grant
 (
   source "$library"
+  enable_locked 1000 30
+  read_grant 1000
+  longer=$(cat "$marker")
+  cp "$(rule_file 1000)" "$test_tmp/longer-rule"
+  # A publisher killed between the marker and the rule must leave the marker
+  # covering the old, later deadline the still-live rule carries.
+  TEST_KILL_RULE_PUBLISH=1 assert_status 137 enable_locked 1000 5
+  rm -f "$test_tmp/etc/sudoers.d/".omarchy-nopasswd.*
+  cmp "$(rule_file 1000)" "$test_tmp/longer-rule"
+  (( $(cat "$marker") >= longer ))
+  assert_status 0 print_status 1 1000 >/dev/null
+  : >"$test_tmp/commands"
+  enable_locked 1000 5
+  read_grant 1000
+  [[ $(/usr/bin/date -u -d "@$(cat "$marker")" +%Y%m%d%H%M%SZ) == "$GRANT_DEADLINE" ]]
+  (( $(grep -c "^mv .*$status_dir/1000\$" "$test_tmp/commands") == 2 ))
+)
+pass "a shortening renewal keeps the marker at the later deadline until the new rule is live"
+
+reset_grant
+(
+  source "$library"
+  enable_locked 1000 15
+  # Root can still search a mode-0700 directory, but the user cannot: every
+  # marker test would fail and look like inactivity.
+  chmod 0700 "$status_dir"
+  assert_status 2 print_status 1 1000 >/dev/null
+  chmod 0755 "$status_dir"
+  cleanup_uid_locked 1000
+  rmdir "$status_dir"
+  assert_status 3 print_status 1 1000 >/dev/null
+)
+pass "status reports an untrusted or unsearchable status directory as an error"
+
+reset_grant
+(
+  source "$library"
   install -d -m 0755 "$status_dir"
   TEST_BAD_PATH="$status_dir" assert_status 1 enable_locked 1000 15
   [[ ! -e $(rule_file 1000) && ! -e $marker ]]
