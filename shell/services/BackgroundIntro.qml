@@ -189,13 +189,21 @@ Item {
       readonly property bool coverFailed: outgoingFrame.status === Image.Error
       screen: modelData
       visible: root.cover || root.themeBackground !== ""
-      color: root.cover ? Color.background : "transparent"
+      // Keep the window transparent throughout the fade. Paint the startup
+      // color inside it so changing the window format cannot flash black.
+      color: "transparent"
       mask: Region {}
       anchors { top: true; bottom: true; left: true; right: true }
       exclusionMode: ExclusionMode.Ignore
       WlrLayershell.layer: WlrLayer.Bottom
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       WlrLayershell.namespace: "omarchy-background"
+
+      Rectangle {
+        anchors.fill: parent
+        visible: root.cover
+        color: Color.background
+      }
 
       Image {
         id: outgoingFrame
