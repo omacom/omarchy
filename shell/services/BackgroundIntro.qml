@@ -30,7 +30,7 @@ Item {
   readonly property bool backgroundReady: backgroundActive && backgroundService.ready !== false
 
   function restoreStartupCursor() {
-    Quickshell.execDetached(["hyprctl", "eval", "if omarchy_startup_cursor_pending then omarchy_startup_cursor_pending = false; hl.config({ cursor = { invisible = false } }) end"])
+    Quickshell.execDetached(["hyprctl", "eval", "if omarchy_startup_cursor_restore then omarchy_startup_cursor_restore() end"])
   }
 
   function finishStartup() {
@@ -241,29 +241,17 @@ Item {
       screen: modelData
       visible: root.startupPending
       color: "transparent"
-      mask: root.startupOpacity === 1 ? null : emptyMask
-      Region { id: emptyMask }
+      mask: Region {}
       anchors { top: true; bottom: true; left: true; right: true }
       exclusionMode: ExclusionMode.Ignore
       WlrLayershell.layer: WlrLayer.Overlay
-      // Take focus while black so the blank cursor applies without mouse movement.
-      WlrLayershell.keyboardFocus: root.startupOpacity === 1 ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+      WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       WlrLayershell.namespace: "omarchy-background"
 
       Rectangle {
         anchors.fill: parent
         color: "black"
         opacity: root.startupOpacity
-      }
-
-      // Cursor config changes are polled by Hyprland. Hide the pointer here
-      // immediately while the compositor catches up, then release it on fade.
-      MouseArea {
-        anchors.fill: parent
-        enabled: root.startupOpacity === 1
-        hoverEnabled: true
-        acceptedButtons: Qt.NoButton
-        cursorShape: Qt.BlankCursor
       }
 
       FrameAnimation {

@@ -1,13 +1,11 @@
+require("default.hypr.startup-cursor")
+
 hl.on("hyprland.start", function()
-  -- Keep the pointer off the black startup screen until the shell reveals it.
-  omarchy_startup_cursor_pending = true
-  hl.config({ cursor = { invisible = true } })
-  hl.timer(function()
-    if omarchy_startup_cursor_pending then
-      omarchy_startup_cursor_pending = false
-      hl.config({ cursor = { invisible = false } })
-    end
-  end, { timeout = 15000, type = "oneshot" })
+  -- Applications inherit the user's cursor; only the compositor starts blank.
+  if omarchy_startup_cursor_pending then
+    hl.env("XCURSOR_PATH", omarchy_startup_cursor.path)
+    hl.env("XCURSOR_THEME", omarchy_startup_cursor.xcursor)
+  end
 
   -- Slow app launch fix -- set systemd vars before starting session services.
   hl.exec_cmd("systemctl --user import-environment $(env | cut -d'=' -f 1)")

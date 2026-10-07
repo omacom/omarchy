@@ -73,7 +73,7 @@ ShellRoot {
       test.check(!intro.startupPending && intro.startupOpacity === 0, "the desktop fades in after both the media and bar are ready")
       cursorLog.reload()
       cursorLog.waitForJob()
-      test.check(cursorLog.text().includes("invisible = false"), "the opening fade restores the cursor")
+      test.check(cursorLog.text().includes("omarchy_startup_cursor_restore()"), "the opening fade restores the cursor")
       test.services = ({})
       intro.cover = true
       test.pluginRegistry = registry

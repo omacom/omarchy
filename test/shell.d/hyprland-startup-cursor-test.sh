@@ -6,42 +6,61 @@ require_command lua
 
 lua <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
-local startup, recovery
-local invisible = false
-local writes = 0
+local events, recovery, command = {}, nil, nil
+local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
+local env = { XCURSOR_THEME = "my-xcursor", HYPRCURSOR_THEME = "my-hyprcursor", XCURSOR_PATH = "/my/icons" }
+local getenv = os.getenv
+os.getenv = function(name) return env[name] or getenv(name) end
+local monitors = {}
 hl = {
-  on = function(event, callback)
-    assert(event == "hyprland.start")
-    startup = callback
-  end,
-  config = function(config)
-    invisible = config.cursor.invisible
-    writes = writes + 1
+  on = function(event, callback) events[event] = callback end,
+  get_monitors = function() return monitors end,
+  get_config = function(key) return config[key:match("%.(.+)")] end,
+  env = function(name, value) env[name] = value end,
+  config = function(values)
+    for name, value in pairs(values.cursor) do config[name] = value end
   end,
   timer = function(callback, options)
     assert(options.timeout == 15000 and options.type == "oneshot")
     recovery = callback
   end,
-  exec_cmd = function(command)
-    if command == "omarchy-launch-shell" then
-      assert(invisible, "cursor must be hidden before the shell starts")
+  exec_cmd = function(value)
+    if value == "omarchy-launch-shell" then
+      assert(config.invisible and env.XCURSOR_THEME == "my-xcursor", "hide the compositor cursor while restoring application settings before launch")
     end
+    command = value
   end,
 }
-o = { launch = function(command) return command end }
+o = { shell_quote = function(value) return "'" .. value .. "'" end, launch = function(value) return value end }
 
 require("default.hypr.autostart")
-assert(writes == 0, "loading configuration must not hide the cursor again")
-startup()
-assert(invisible and omarchy_startup_cursor_pending)
-recovery()
-assert(not invisible and not omarchy_startup_cursor_pending, "a failed shell must not strand a hidden cursor")
+assert(not config.invisible, "loading the module must wait for user configuration")
+events["config.reloaded"]()
+assert(config.invisible and not config.enable_hyprcursor and not config.sync_gsettings_theme)
+assert(env.XCURSOR_THEME == "omarchy-startup" and env.XCURSOR_PATH:match("/default/hypr/cursors:/my/icons$"))
+assert(omarchy_startup_cursor_pending, "the first compositor frame must use the blank cursor")
+events["hyprland.start"]()
+assert(env.XCURSOR_THEME == "my-xcursor" and env.XCURSOR_PATH == "/my/icons", "applications must inherit the user's cursor")
+assert(config.invisible, "starting applications must not reveal the cursor")
 
-startup()
--- The shell clears ownership when its startup fade begins.
-omarchy_startup_cursor_pending = false
-local previous_writes = writes
+local previous_recovery = recovery
+events["config.reloaded"]()
+assert(recovery ~= previous_recovery and config.invisible, "a config reload must retain startup hiding and rearm recovery")
 recovery()
-assert(writes == previous_writes, "recovery must not change the cursor after the shell has revealed it")
+assert(command:match("setcursor 'my%-xcursor'"), "restore the Xcursor fallback before revealing the pointer")
+assert(config.invisible, "wait for the normal theme before restoring visibility")
+omarchy_startup_cursor_restore(true)
+assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme)
+assert(command:match("setcursor 'my%-hyprcursor'"), "restore the user's Hyprcursor theme")
+local previous_command = command
+previous_recovery()
+assert(command == previous_command, "recovery must not change a revealed cursor")
+events["config.reloaded"]()
+assert(not config.invisible and env.XCURSOR_THEME == "my-xcursor", "ordinary config reloads must not hide the cursor")
+
+omarchy_startup_cursor_pending = nil
+monitors = { {} }
+events["config.reloaded"]()
+assert(not omarchy_startup_cursor_pending and not config.invisible, "installing the fix in a running compositor must leave its cursor alone")
 LUA
-pass "startup hides the cursor before launching the shell and recovers a failed reveal"
+pass "the first compositor frame starts blank and the reveal restores user cursor settings"
