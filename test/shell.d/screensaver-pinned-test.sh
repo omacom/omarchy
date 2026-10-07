@@ -56,20 +56,29 @@ local saver = { class = "org.omarchy.screensaver", pinned = false, tags = {} }
 handlers["window.open_early"](saver)
 stack[#stack + 1] = saver
 handlers["window.open"](saver)
+
+local function pins()
+  local out = {}
+  for _, w in ipairs(stack) do
+    if w ~= saver then out[#out + 1] = w.class .. (w.pinned and "+" or "-") end
+  end
+  return table.concat(out, " ")
+end
+
+local during = pins()
 table.remove(stack)
 handlers["window.destroy"](saver)
-
-local out = {}
-for _, w in ipairs(stack) do out[#out + 1] = w.class .. (w.pinned and "+" or "-") end
-print(table.concat(out, " "))
+print(during .. " | " .. pins())
 LUA
 }
 
 order=$(cycle true)
-[[ $order == "a+ b+" ]] || fail "pinned windows come back pinned in the order they had" "bottom to top: $order"
+[[ $order == "a- b- | "* ]] || fail "the screensaver unpins the windows pinned over it" "bottom to top: $order"
+pass "the screensaver unpins the windows pinned over it"
+[[ $order == *" | a+ b+" ]] || fail "pinned windows come back pinned in the order they had" "bottom to top: $order"
 pass "pinned windows come back pinned in the order they had"
 
 order=$(cycle false)
-[[ $order == "a+ b+" ]] ||
+[[ $order == "a- b- | a+ b+" ]] ||
   fail "a window pinned without a raise keeps its place under a pop-out" "bottom to top: $order"
 pass "a window pinned without a raise keeps its place under a pop-out"
