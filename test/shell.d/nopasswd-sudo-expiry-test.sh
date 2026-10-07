@@ -309,3 +309,43 @@ TEST_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >
 grep -q '^sudo -n -N -- .* __disable ' "$test_tmp/commands" || fail "disable must refuse interactive authentication"
 ! grep -q '^sudo -N -- ' "$test_tmp/commands" || fail "disable attempted an interactive sudo command"
 pass "disabling active access is fully noninteractive"
+
+for duration in permanent 15; do
+  reset_grant
+  (
+    source "$library"
+    if [[ $duration == permanent ]]; then
+      enable_locked 1000 15
+    else
+      enable_locked 1000 permanent
+    fi
+    assert_status 137 env TEST_KILL_AFTER_PUBLISH=1 TEST_EUID=0 SUDO_UID=1000 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" __enable 1000 "$duration"
+    [[ -f $(rule_file 1000) && -f $(rule_file 1000 permanent) ]]
+    status_locked 1000
+    TEST_EXPIRED=1 expire_locked 1000
+    [[ -f $(rule_file 1000 permanent) ]]
+    cleanup_uid_locked 1000
+    assert_status 3 status_locked 1000
+  )
+done
+pass "SIGKILL during either duration switch leaves access inspectable and revocable without expiring permanent policy"
+
+reset_grant
+(
+  source "$library"
+  enable_locked 1000 permanent
+  timed=$(rule_file 1000)
+  printf 'otheruser ALL=(ALL) NOTAFTER=99991231235959Z NOPASSWD: ALL\n' >"$timed"
+  assert_status 2 read_grant 1000
+  assert_status 1 enable_locked 1000 15
+  printf 'audituser ALL=(ALL) NOTAFTER=99991231235959Z NOPASSWD: ALL\n' >"$timed"
+  TEST_BAD_PATH="$timed" assert_status 2 read_grant 1000
+  rm "$timed"
+  ln -s "$(rule_file 1000 permanent)" "$timed"
+  assert_status 2 read_grant 1000
+  rm "$timed"
+  printf 'audituser ALL=(ALL) NOTAFTER=99991231235959Z NOPASSWD: ALL\n' >"$timed"
+  enable_locked 1000 15
+  [[ -f $timed && ! -e $(rule_file 1000 permanent) ]]
+)
+pass "paired policy recovery rejects mismatched or unsafe rules and allows a complete duration change"

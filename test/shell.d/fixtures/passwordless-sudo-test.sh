@@ -54,6 +54,7 @@ case "$name" in
     [[ ${TEST_PUBLISH_FAIL:-0} != 1 ]] || exit 1
     [[ ${TEST_REQUIRE_EXISTING_TARGET:-0} != 1 || -f ${@: -1} ]] || exit 1
     /usr/bin/mv "$@"
+    [[ ${TEST_KILL_AFTER_PUBLISH:-0} != 1 ]] || /usr/bin/kill -KILL "$PPID"
     [[ ${TEST_POST_PUBLISH_FAIL:-0} != 1 ]] || : >"$TEST_GRANT_ROOT/run/omarchy-sudo-passwordless-package-removing"
     ;;
   systemd-run)
