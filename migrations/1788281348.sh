@@ -13,6 +13,10 @@ omarchy-theme-refresh
 state_dir="$HOME/.local/state/omarchy"
 marker="$state_dir/background-intro.session-id"
 session_id=${OMARCHY_SESSION_ID:-${HYPRLAND_INSTANCE_SIGNATURE:-}}
+if [[ -z $session_id ]]; then
+  hypr_dir=$(find "${XDG_RUNTIME_DIR:-/run/user/$UID}/hypr" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -n 1 | cut -d' ' -f2- || true)
+  session_id=${hypr_dir##*/}
+fi
 [[ -n $session_id ]] || exit 0
 mkdir -p "$state_dir"
 marker_staged=$(mktemp "$state_dir/.background-intro.session-id.XXXXXX")

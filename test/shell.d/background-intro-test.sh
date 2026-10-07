@@ -244,6 +244,17 @@ HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_c
 [[ $(<"$migration_calls") == "refresh" ]] || fail "the migration refreshes an active theme with packaged intros"
 [[ $(<"$migration_home/.local/state/omarchy/background-intro.session-id") == "migration-boot" ]] || fail "the migration defers a newly installed intro until the next login"
 
+mkdir -p "$intro_runtime/hypr/older-session" "$intro_runtime/hypr/current-session"
+touch -d '2 minutes ago' "$intro_runtime/hypr/older-session"
+HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
+  OMARCHY_SESSION_ID="" HYPRLAND_INSTANCE_SIGNATURE="" XDG_RUNTIME_DIR="$intro_runtime" \
+  bash -euo pipefail "$ROOT/migrations/1788281348.sh" >/dev/null
+[[ $(<"$migration_home/.local/state/omarchy/background-intro.session-id") == "current-session" ]] || fail "an update outside Hyprland consumes the session that shell restart will use"
+HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
+  OMARCHY_SESSION_ID="" HYPRLAND_INSTANCE_SIGNATURE="" XDG_RUNTIME_DIR="$test_tmp/no-session" \
+  bash -euo pipefail "$ROOT/migrations/1788281348.sh" >/dev/null
+[[ $(<"$migration_home/.local/state/omarchy/background-intro.session-id") == "current-session" ]] || fail "a headless update leaves the previous session marker alone"
+
 pass "the migration does not start a login intro during an update"
 
 packaged_pairs=0
