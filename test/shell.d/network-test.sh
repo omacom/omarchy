@@ -99,11 +99,11 @@ assertEqual(network.connectionIcon('wifi', 80), network.wifiIconFor(80), 'networ
 const kindBinding = panelSource.match(/readonly property string kind: \{[\s\S]*?\n {2}\}/)
 assert(kindBinding, 'network has a kind binding')
 assert(
-  /if \(wifiDevice && wifiDevice\.connected && wifiDevice\.mode === WifiDeviceMode\.Station\) return "wifi"/.test(kindBinding[0]),
-  'network keeps showing Wi-Fi while a station device is connected but no network is listed as connected'
+  /if \(wifiDevice && wifiDevice\.connected && wifiDevice\.mode !== WifiDeviceMode\.AccessPoint\) return "wifi"/.test(kindBinding[0]),
+  'network keeps showing Wi-Fi while the device is connected but no network is listed as connected'
 )
 assert(
-  kindBinding[0].indexOf('connectedWifiNetwork) return "wifi"') < kindBinding[0].indexOf('wifiDevice.connected && wifiDevice.mode === WifiDeviceMode.Station) return "wifi"'),
+  kindBinding[0].indexOf('connectedWifiNetwork) return "wifi"') < kindBinding[0].indexOf('wifiDevice.connected && wifiDevice.mode !== WifiDeviceMode.AccessPoint) return "wifi"'),
   'network prefers the listed connected network before falling back to device state'
 )
 assert(

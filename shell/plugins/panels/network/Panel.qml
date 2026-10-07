@@ -447,9 +447,9 @@ Panel {
     // that list. An OWE transition-mode network does this between scans: the
     // in-use access point carries the hidden "_owetm_" SSID, so the profile
     // for the open SSID looks out of range even while it is connected. Trust
-    // the device's own state then instead of flickering to disconnected. Only
-    // do this in station mode: a card running a hotspot is connected with no uplink.
-    if (wifiDevice && wifiDevice.connected && wifiDevice.mode === WifiDeviceMode.Station) return "wifi"
+    // the device's own state then instead of flickering to disconnected, unless
+    // it is running a hotspot: that is connected with no uplink.
+    if (wifiDevice && wifiDevice.connected && wifiDevice.mode !== WifiDeviceMode.AccessPoint) return "wifi"
     return "disconnected"
   }
   readonly property int signalStrength: kind === "wifi"
