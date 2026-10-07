@@ -14,6 +14,8 @@ BarWidget {
   property bool expanded: false
   property bool managePopupOpen: false
   property bool trayMenuOpen: false
+  // A click whose menu has no rows yet; the popup opens when they arrive.
+  property bool trayMenuPending: false
   property var activeTrayItem: null
   property var activeTrayAnchor: null
   readonly property color foreground: bar ? bar.foreground : Color.foreground
@@ -112,14 +114,27 @@ BarWidget {
   function close() {
     managePopupOpen = false
     trayMenuOpen = false
+    trayMenuPending = false
+  }
+
+  function syncTrayMenuOpen() {
+    var hasChildren = TrayModel.menuModelHasChildren(trayMenuOpener.children)
+    if (hasChildren && trayMenuPending) {
+      trayMenuPending = false
+      trayMenuOpen = true
+    } else if (!hasChildren && trayMenuOpen) {
+      // Not close(): switching items empties the model too, and the click on
+      // the new item must stay pending.
+      trayMenuOpen = false
+    }
   }
 
   function openTrayMenu(item, anchorItem, mouse) {
-    if (!item || !item.menu) {
-      var point = anchorItem.QsWindow.contentItem.mapFromItem(anchorItem, mouse.x, mouse.y)
-      item.display(anchorItem.QsWindow.window, point.x, point.y)
-      return
-    }
+    // Unready SNI (Menu/IconName Get still failing) has no menu handle.
+    // Taking the popup grab before QsMenuOpener has children leaves an empty
+    // input owner over the bar, so an unready item is a no-op.
+    trayMenuPending = false
+    if (!item || !item.menu) return
 
     // Reset before switching items: trayMenuOpener.menu binds to
     // activeTrayItem.menu, so assigning a new item invalidates the old root's
@@ -128,7 +143,9 @@ BarWidget {
     resetTrayMenu()
     activeTrayItem = item
     activeTrayAnchor = anchorItem
-    trayMenuOpen = true
+    trayMenuPending = true
+    trayMenuPendingTimer.restart()
+    syncTrayMenuOpen()
   }
 
   function trayIconSource(icon) {
@@ -516,6 +533,31 @@ BarWidget {
   QsMenuOpener {
     id: trayMenuOpener
     menu: root.activeTrayItem ? root.activeTrayItem.menu : null
+    onChildrenChanged: Qt.callLater(root.syncTrayMenuOpen)
+  }
+
+  // Rows a loaded menu gains or loses arrive as valuesChanged on the same
+  // model, one per row, so a menu replacing every row passes through empty.
+  // Settle once the update is done rather than closing on the gap.
+  Connections {
+    target: trayMenuOpener.children
+    function onValuesChanged() { Qt.callLater(root.syncTrayMenuOpen) }
+  }
+
+  // A menu that never loads must not open long after the click was abandoned.
+  Timer {
+    id: trayMenuPendingTimer
+    interval: 3000
+    onTriggered: root.trayMenuPending = false
+  }
+
+  // Another bar popup took over before the rows arrived: drop the stale click.
+  Connections {
+    target: root.bar
+    ignoreUnknownSignals: true
+    function onActivePopoutChanged() {
+      if (root.bar.activePopout) root.trayMenuPending = false
+    }
   }
 
   PopupCard {

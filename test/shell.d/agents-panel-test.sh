@@ -41,4 +41,10 @@ assert(/function moveProvider\(id, to\)/.test(mainSource) && /return orderedProv
 const catcherSource = fs.readFileSync(root + '/shell/Ui/PanelKeyCatcher.qml', 'utf8')
 assert(/if \(reorderable && \(event\.modifiers & Qt\.ControlModifier\)\)/.test(catcherSource), 'only panels that ask for it turn Ctrl+Up/Down into a reorder')
 assert(/if \(\["account", "autoswitch", "signin"\]\.indexOf\(target\.kind\) < 0\) return -1/.test(panelSource), 'Ctrl+Up/Down does nothing outside an agent')
+assert(panelSource.includes('var estimated = /\\best\\.?\\b/i.test(raw)'),
+  'windowTitle est marker uses word boundaries')
+assert(!panelSource.includes('var estimated = /est\\.?/i.test(raw)'),
+  'windowTitle does not use unanchored /est.?/i')
+assert(!/LimitRow/.test(panelSource), 'LimitRow hunk is dropped; CompactLimit owns % used')
+
 JS
