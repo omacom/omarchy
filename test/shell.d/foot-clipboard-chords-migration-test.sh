@@ -127,6 +127,32 @@ run_migration
 [[ $(stat -c %a "$foot_config") == 640 ]] || fail "chord repair keeps the config's mode" "$(stat -c %a "$foot_config")"
 pass "chord repair keeps the config's mode"
 
+# Someone who shares the config through an ACL keeps it.
+if command -v setfacl >/dev/null && setfacl -m u:nobody:r "$foot_config" 2>/dev/null; then
+  printf '%s\n' '[key-bindings]' 'clipboard-copy=Control+Insert' >"$foot_config"
+  run_migration
+  getfacl -p "$foot_config" 2>/dev/null | grep -qx 'user:nobody:r--' ||
+    fail "chord repair keeps the config's ACL" "$(getfacl -p "$foot_config" 2>&1)"
+  pass "chord repair keeps the config's ACL"
+fi
+
+# A linked config in a directory the user can't write to is still repaired, in place.
+reset_home
+mkdir -p "$home/locked"
+printf '%s\n' '[key-bindings]' 'clipboard-copy=Control+Insert' >"$home/locked/foot.ini"
+ln -sf "$home/locked/foot.ini" "$foot_config"
+chmod 555 "$home/locked"
+
+status=0
+run_migration 2>/dev/null || status=$?
+chmod 755 "$home/locked"
+(( status == 0 )) || fail "chord repair succeeds on a config in a read-only directory"
+
+grep -qx 'clipboard-copy=Control+Insert Control+Shift+c XF86Copy' "$home/locked/foot.ini" ||
+  fail "chord repair rewrites a config in a read-only directory" "$(cat "$home/locked/foot.ini")"
+[[ $(ls "$home/locked") == foot.ini ]] || fail "chord repair leaves nothing beside a config in a read-only directory" "$(ls "$home/locked")"
+pass "chord repair rewrites a config in a read-only directory"
+
 # Machines without foot have nothing to repair.
 reset_home
 rmdir "$home/.config/foot"
