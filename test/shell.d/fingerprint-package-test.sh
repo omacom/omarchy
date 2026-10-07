@@ -167,6 +167,7 @@ LIBFPRINT_OWNER=libfprint-tod INSTALLED=$'libfprint-tod\nfprintd\nusbutils' run_
 if grep -q '^pacman ' "$CALL_LOG"; then
   fail "a TOD machine with everything installed does not touch pacman"
 fi
+grep -qx enroll "$CALL_LOG" || fail "a TOD machine with everything installed reaches enrollment"
 pass "a TOD machine with everything installed goes straight to enrollment"
 
 LIBFPRINT_OWNER=libfprint run_setup
