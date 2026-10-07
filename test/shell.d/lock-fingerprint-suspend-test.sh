@@ -45,8 +45,8 @@ const prepareForSleep = serviceQml.match(/function prepareForSleep\(sleeping\) \
 assert(!/abort\(\)/.test(prepareForSleep), 'suspend leaves a running scan alone')
 
 assert(
-  /if \(sleeping\) \{\s*fingerprintRetryTimer\.stop\(\)\s*return\s*\}/.test(prepareForSleep),
-  'suspend stops retries'
+  /if \(sleeping\) \{[^}]*fingerprintRetryTimer\.stop\(\)\s*fingerprintReachTimer\.stop\(\)\s*return\s*\}/.test(prepareForSleep),
+  'suspend stops retries and the reach bound'
 )
 
 // The sleep watch would notice the same resume and abort the scan started here.

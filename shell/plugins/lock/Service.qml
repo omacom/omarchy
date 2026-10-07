@@ -155,9 +155,7 @@ Item {
   // before the machine sleeps, and an fprintd call in that window activates
   // the daemon mid-transition: it resets the reader as the USB bus goes down,
   // and a Synaptics reader comes back "unsupported firmware version" for the
-  // rest of that daemon's life. The availability check then reads no reader
-  // and the lock stays password-only until the next lock. Hold new fprintd
-  // calls until resume.
+  // rest of that daemon's life. Hold new fprintd calls until resume.
   //
   // A scan already in flight is left alone. fprintd suspends and resumes the
   // reader itself, and while a scan runs, libfprint lets the kernel
@@ -173,7 +171,9 @@ Item {
     logEvent(sleeping ? "suspending" : "resumed")
 
     if (sleeping) {
+      // The reach bound would abort the scan; resume settles it instead.
       fingerprintRetryTimer.stop()
+      fingerprintReachTimer.stop()
       return
     }
 
