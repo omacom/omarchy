@@ -88,12 +88,16 @@ OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme alpha
 ! grep -q '^owe: intro ' "$log" || fail "theme refresh does not play an intro"
 pass "same-theme cycling and refresh keep the normal background behavior"
 
+printf '%s\n' "$state/theme/backgrounds/2-road.webp" >"$home/.local/state/omarchy/theme-backgrounds/beta"
 mkdir -p "$home/.local/state/omarchy/toggles"
 touch "$home/.local/state/omarchy/toggles/background-intros-off"
 set_theme beta
+grep -q '^shell: background themeTransition ' "$log" || fail "disabled intros use the normal still transition"
 ! grep -q '^owe: intro ' "$log" || fail "disabled intros do not play on theme selection"
 rm "$home/.local/state/omarchy/toggles/background-intros-off"
+printf '%s\n' "$state/theme/backgrounds/2-road.webp" >"$home/.local/state/omarchy/theme-backgrounds/alpha"
 TEST_ANIMATIONS=false set_theme alpha
+grep -q '^shell: background themeTransition ' "$log" || fail "disabled animations use the normal still transition"
 ! grep -q '^owe: intro ' "$log" || fail "disabled animations do not play an intro"
 OMARCHY_THEME_HEADLESS=1 set_theme beta
 ! grep -q '^owe: intro ' "$log" || fail "headless theme setup does not play an intro"
