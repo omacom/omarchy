@@ -74,6 +74,10 @@ record=$(collect)
 [[ $(jq -c '{ready, tierLabel, stale: .limitsStale, label: .limits[0].label, percent: .limits[0].percent}' <<<"$record") == '{"ready":true,"tierLabel":"X Premium+","stale":false,"label":"Weekly","percent":0.42}' ]] ||
   fail "Grok's plan and credits come from its own home" "$record"
 [[ -n $(jq -r '.limits[0].resetsAt' <<<"$record") ]] || fail "the credits window says when the period ends" "$record"
+[[ $(jq -r '.authHelpText' <<<"$record") == "" ]] || fail "a successful Grok probe drops the login hint" "$record"
+record=$(collect)
+[[ $(jq -c '{percent: .limits[0].percent, help: .authHelpText}' <<<"$record") == '{"percent":0.42,"help":""}' ]] ||
+  fail "reused Grok limits drop the login hint" "$record"
 pass "Grok's plan and credits come from its own home"
 
 signed_in "$HOME/.grok" token-main u-main "$past" "X Premium+"
@@ -81,6 +85,44 @@ record=$(collect)
 [[ $(jq -c '{usageStatusText, first: .limits[0].percent, stale: .limitsStale}' <<<"$record") == '{"usageStatusText":"Sign-in expired","first":0.42,"stale":true}' ]] ||
   fail "a lapsed sign-in keeps the last credits and says so" "$record"
 pass "a lapsed sign-in keeps the last credits and says so"
+
+# A lapsed access token with a refresh token is routine: Grok renews it when it
+# starts, and while it hasn't run nothing here has spent its allowance, so the
+# last numbers stand as current, with no sign-in asked for.
+jq '.[].refresh_token = "r"' "$HOME/.grok/auth.json" >"$test_tmp/auth.json"
+mv "$test_tmp/auth.json" "$HOME/.grok/auth.json"
+record=$(collect)
+[[ $(jq -c '{usageStatusText, first: .limits[0].percent, stale: .limitsStale}' <<<"$record") == '{"usageStatusText":"","first":0.42,"stale":false}' ]] ||
+  fail "a lapsed access token with a refresh token keeps showing the last numbers" "$record"
+pass "a lapsed access token with a refresh token keeps showing the last numbers"
+
+# A week that reset while Grok sat idle starts over at 0%, a week later.
+cache=$(ls "$XDG_CACHE_HOME"/omarchy/agent-usage/grok-limits-*.json | head -1)
+reset_past=$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=1)).isoformat())')
+jq --arg at "$reset_past" '.limits[0].resetsAt = $at' "$cache" >"$test_tmp/cache.json"
+mv "$test_tmp/cache.json" "$cache"
+record=$(collect)
+next_reset=$(jq -r '.limits[0].resetsAt' <<<"$record")
+[[ $(jq -r '.limits[0].percent' <<<"$record") == 0.0 ]] &&
+  python3 -c 'import datetime as dt, sys; n = dt.datetime.fromisoformat(sys.argv[1]); d = n - dt.datetime.now(dt.timezone.utc); sys.exit(0 if dt.timedelta(days=6) < d < dt.timedelta(days=7) else 1)' "$next_reset" ||
+  fail "a week that reset while Grok was idle starts over a week later" "$record"
+pass "a week that reset while Grok was idle starts over a week later"
+
+# Without cached numbers there's nothing to show, so it says how to get them.
+rm -f "$XDG_CACHE_HOME"/omarchy/agent-usage/grok-limits-*.json
+record=$(collect)
+[[ $(jq -c '{usageStatusText, limits}' <<<"$record") == '{"usageStatusText":"Limits paused","limits":[]}' ]] ||
+  fail "a lapsed token with nothing cached says to start Grok" "$record"
+pass "a lapsed token with nothing cached says to start Grok"
+
+# A refresh token past Grok's 30-day sign-in can't renew anything: signed out.
+long_ago=$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=31)).isoformat())')
+jq --arg at "$long_ago" '.[].expires_at = $at' "$HOME/.grok/auth.json" >"$test_tmp/auth.json"
+mv "$test_tmp/auth.json" "$HOME/.grok/auth.json"
+record=$(collect)
+[[ $(jq -r '.usageStatusText' <<<"$record") == "Sign-in expired" ]] ||
+  fail "a sign-in lapsed past Grok's 30 days asks for a sign-in" "$record"
+pass "a sign-in lapsed past Grok's 30 days asks for a sign-in"
 
 # A period with nothing used yet comes without a percentage.
 signed_in "$HOME/.grok" token-fresh u-main "$future" "X Premium+"
@@ -102,17 +144,25 @@ record=$(collect)
   fail "every Grok account reports its own plan and credits" "$record"
 pass "every Grok account reports its own plan and credits"
 
-# Prompts and sessions come from each session's summary; no tokens are claimed.
+# Sessions come from each session's summary; tokens and today's prompts from
+# its usage.json, one entry per finished turn, with cached input kept apart.
 sessions="$HOME/.grok/sessions/%2Fhome%2Fme"
 now=$(python3 -c 'import datetime as dt; print(dt.datetime.now(dt.timezone.utc).isoformat())')
 mkdir -p "$sessions/today-1" "$sessions/today-2" "$sessions/old"
-jq -n --arg at "$now" '{last_active_at: $at, num_messages: 3, current_model_id: "grok-4.7"}' >"$sessions/today-1/summary.json"
+jq -n --arg at "$now" '{last_active_at: $at, num_messages: 3}' >"$sessions/today-1/summary.json"
 jq -n --arg at "$now" '{last_active_at: $at, num_messages: 2}' >"$sessions/today-2/summary.json"
 jq -n '{last_active_at: "2026-01-02T10:00:00Z", num_messages: 5}' >"$sessions/old/summary.json"
+jq -n --arg at "$now" '{turns: [
+  {endedAt: $at, modelUsage: {"grok-4.7-build": {inputTokens: 1000, cachedReadTokens: 800, outputTokens: 50, cacheCreationTokens: 0, totalTokens: 1050}}},
+  {endedAt: $at, modelUsage: {"grok-4.7-build": {inputTokens: 200, cachedReadTokens: 100, outputTokens: 10, cacheCreationTokens: 5, totalTokens: 210}}}
+]}' >"$sessions/today-1/usage.json"
+jq -n '{turns: [{endedAt: "2026-01-02T10:00:00Z", modelUsage: {"grok-4.6": {inputTokens: 500, cachedReadTokens: 0, outputTokens: 20, cacheCreationTokens: 0, totalTokens: 520}}}]}' >"$sessions/old/usage.json"
 record=$(collect)
-[[ $(jq -c '{hasLocalStats, todaySessions, totalPrompts, totalSessions, activeDays, claimed: (has("todayTotalTokens") or has("todayPrompts"))}' <<<"$record") == '{"hasLocalStats":true,"todaySessions":2,"totalPrompts":10,"totalSessions":3,"activeDays":2,"claimed":false}' ]] ||
-  fail "Grok counts prompts and sessions from its session summaries" "$record"
-pass "Grok counts prompts and sessions from its session summaries"
+[[ $(jq -c '{hasLocalStats, todayPrompts, todaySessions, totalPrompts, totalSessions, activeDays, todayTotalTokens, todayTokensByModel, today: .recentDays[6].messageCount}' <<<"$record") == '{"hasLocalStats":true,"todayPrompts":2,"todaySessions":2,"totalPrompts":10,"totalSessions":3,"activeDays":2,"todayTotalTokens":1265,"todayTokensByModel":{"grok-4.7-build":1265},"today":1265}' ]] ||
+  fail "Grok counts sessions, prompts, and tokens from its session files" "$record"
+[[ $(jq -cS '.modelUsage' <<<"$record") == '{"grok-4.6":{"cacheCreationInputTokens":0,"cacheReadInputTokens":0,"inputTokens":500,"outputTokens":20},"grok-4.7-build":{"cacheCreationInputTokens":5,"cacheReadInputTokens":900,"inputTokens":300,"outputTokens":60}}' ]] ||
+  fail "Grok's tokens by model keep cached input apart" "$record"
+pass "Grok counts sessions, prompts, and tokens from its session files"
 
 # A limits-only refresh reuses the last scan rather than reading every summary.
 mkdir -p "$sessions/later"
@@ -120,3 +170,11 @@ jq -n --arg at "$now" '{last_active_at: $at, num_messages: 1}' >"$sessions/later
 record=$(COLLECT_ARGS="--limits-only" collect)
 [[ $(jq -r '.totalSessions' <<<"$record") == 3 ]] || fail "a limits-only refresh reuses the session scan" "$record"
 pass "a limits-only refresh reuses the session scan"
+
+# A scan from another day is never reused, so yesterday's sessions don't
+# count as today's after midnight.
+jq '.day = "2000-01-01"' "$XDG_CACHE_HOME/omarchy/agent-usage/grok-stats.json" >"$test_tmp/stats.json"
+mv "$test_tmp/stats.json" "$XDG_CACHE_HOME/omarchy/agent-usage/grok-stats.json"
+record=$(COLLECT_ARGS="--limits-only" collect)
+[[ $(jq -r '.totalSessions' <<<"$record") == 4 ]] || fail "a scan from another day is made again" "$record"
+pass "a scan from another day is made again"
