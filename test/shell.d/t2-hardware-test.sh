@@ -28,8 +28,8 @@ grep -Fq 'apple-bcm-firmware-fetcher' "$other_packages" ||
   fail "the default package list installs the firmware fetcher"
 grep -Fq 'default/udev/t2-usbc-hotplug.rules' "$fix_t2" ||
   fail "T2 setup installs the USB-C hot-plug udev rule"
-grep -Fq 'ATTR{device}=="0x15ec", ATTR{power/control}="on"' "$usbc_rule" ||
-  fail "the USB-C rule keeps the Titan Ridge host controllers out of runtime suspend"
+grep -Fxq 'ACTION=="add|bind", SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{device}=="0x15ec", ATTR{power/control}="on"' "$usbc_rule" ||
+  fail "the USB-C rule keeps the Titan Ridge host controllers out of runtime suspend on add and on bind"
 pass "fresh T2 setup uses t2bce-compatible suspend, fan, and Touch Bar defaults"
 
 test_tmp=$(mktemp -d)
@@ -259,8 +259,14 @@ PATH="$stub_bin:$PATH" \
   OMARCHY_T2_USBC_RULE="$usbc_rule_target" \
   bash -euo pipefail "$usbc_migration" >/dev/null
 
-[[ ! -s $calls ]] || fail "an already repaired T2 install is left unchanged" "$(cat "$calls")"
-pass "T2 USB-C migration is idempotent"
+# A run that copied the rule and then failed at the reload or the trigger is
+# retried with the file in place: the copy is skipped, the live steps are not.
+! grep -q $'sudo\tinstall' "$calls" || fail "a rule already in place is not copied again" "$(cat "$calls")"
+grep -Fq $'udevadm\tcontrol\t--reload' "$calls" ||
+  fail "a retry with the rule in place still reloads udev" "$(cat "$calls")"
+grep -Fq $'udevadm\ttrigger\t--action=add\t--subsystem-match=pci' "$calls" ||
+  fail "a retry with the rule in place still applies the rule to the running controllers" "$(cat "$calls")"
+pass "T2 USB-C migration repeats the live steps on a retry and only skips the copy"
 
 rm -rf "$test_tmp/rules.d"
 : >"$calls"
