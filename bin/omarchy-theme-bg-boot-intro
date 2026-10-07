@@ -37,15 +37,61 @@ resolve_intro() {
   return 1
 }
 
+# Preparation is speculative: the selected staged clip is compared again by OWE.
+prepare_theme_intro() {
+  local theme="$1" background remembered name source intro
+  local -a names=()
+  [[ -n $theme && $theme != .* && $theme != */* ]] || return 0
+  [[ ! -f $toggle ]] && ! animations_off || return 0
+  owe warm >/dev/null 2>&1 || return 0
+  [[ $(cat "$current_dir/theme.name" 2>/dev/null) != "$theme" ]] || return 0
+  remembered=$(cat "$state_home/omarchy/theme-backgrounds/$theme" 2>/dev/null || true)
+  if [[ ${remembered%/*} == "$current_dir/theme/backgrounds" ]]; then
+    name=${remembered##*/}
+  elif [[ -f $remembered ]]; then
+    background="$remembered"
+  else
+    mapfile -d '' -t names < <(
+      find -L "$HOME/.config/omarchy/backgrounds/$theme" -maxdepth 1 -type f -print0 2>/dev/null | sort -z
+    )
+    if (( ${#names[@]} > 0 )); then
+      background=${names[0]}
+    else
+      mapfile -d '' -t names < <(
+        find -L "$OMARCHY_PATH/themes/$theme/backgrounds" "$HOME/.config/omarchy/themes/$theme/backgrounds" -maxdepth 1 -type f \
+          \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.bmp' -o -iname '*.webp' \) -printf '%f\0' 2>/dev/null | sort -zu
+      )
+      (( ${#names[@]} > 0 )) || return 0
+      name=${names[0]}
+    fi
+  fi
+  if [[ -n ${name:-} ]]; then
+    for source in "$HOME/.config/omarchy/themes/$theme" "$OMARCHY_PATH/themes/$theme"; do
+      if [[ -f $source/backgrounds/$name ]]; then
+        background="$source/backgrounds/$name"
+        break
+      fi
+    done
+  fi
+  [[ -n ${background:-} ]] || return 0
+  intro=$(resolve_intro "$background" || true)
+  [[ -z $intro ]] || owe intro-prepare "$intro" >/dev/null 2>&1 || true
+}
+
 animations_off() {
   [[ $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r '.bool' 2>/dev/null) == "false" ]]
 }
 
 theme_switch=false
+intro_prepared=false
 expected_background=""
 expected_theme=""
 case ${1:-} in
   "") ;;
+  --prepare-theme)
+    prepare_theme_intro "${2:-}"
+    exit 0
+    ;;
   --resolve-only)
     resolve_intro "${2:-}" || true
     exit 0
@@ -54,10 +100,11 @@ case ${1:-} in
     theme_switch=true
     expected_background=$(readlink -f "${2:-}" 2>/dev/null) || exit 1
     expected_theme=${3:-}
+    intro_prepared=${4:-false}
     [[ -n $expected_theme ]] || exit 1
     ;;
   *)
-    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--theme-switch background theme-id]" >&2
+    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--prepare-theme theme|--theme-switch background theme-id [prepared]]" >&2
     exit 1
     ;;
 esac
@@ -100,9 +147,9 @@ if [[ -z $intro ]]; then
   exit 0
 fi
 
-if [[ $theme_switch == true ]]; then
+if [[ $theme_switch == true && $intro_prepared != "true" ]]; then
   owe refresh >/dev/null || exit 1
-else
+elif [[ $theme_switch == false ]]; then
   deadline=$((SECONDS + 5))
   while ! timeout 1 owe status >/dev/null 2>&1; do
     if (( SECONDS >= deadline )); then
@@ -119,7 +166,11 @@ fi
 
 # A selection or setting changed while OWE was starting no longer permits this intro.
 if [[ ! -f $toggle && $intro == "$(resolve_intro || true)" ]] && ! animations_off; then
-  owe intro --start first-frame "$intro"
+  if [[ $theme_switch == true && $intro_prepared == "true" ]]; then
+    owe intro --start first-frame --refresh "$intro"
+  else
+    owe intro --start first-frame "$intro"
+  fi
 elif [[ $theme_switch == true ]]; then
   exit 1
 fi

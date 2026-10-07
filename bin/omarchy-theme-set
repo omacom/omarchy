@@ -171,7 +171,7 @@ set_theme_background_link() {
 }
 
 set_theme_background() {
-  local new_background new_background_snapshot theme_id
+  local new_background new_background_snapshot theme_id intro_prepared=false
 
   if [[ -z $CHOSEN_THEME_BACKGROUND || ! -f $CHOSEN_THEME_BACKGROUND ]]; then
     if ! choose_theme_background; then
@@ -183,12 +183,16 @@ set_theme_background() {
 
   new_background="$CHOSEN_THEME_BACKGROUND"
   if [[ -n $THEME_BACKGROUND_INTRO ]]; then
+    if [[ -n $INTRO_PREPARE_PID ]] && wait "$INTRO_PREPARE_PID"; then
+      intro_prepared=true
+    fi
     theme_id=$(stat -Lc '%d:%i' "$CURRENT_THEME_PATH")
+    THEME_INTRO_TOKEN="$theme_id"
     shell_ipc shell prepareThemeIntro "$OLD_BACKGROUND_SNAPSHOT" "$theme_id" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
     ln -nsf "$new_background" "$CURRENT_BACKGROUND_LINK"
     (
-      if ! omarchy-theme-bg-boot-intro --theme-switch "$new_background" "$theme_id"; then
+      if ! omarchy-theme-bg-boot-intro --theme-switch "$new_background" "$theme_id" "$intro_prepared"; then
         if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$(readlink -f "$new_background")" &&
           $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
           shell_ipc background setInstant "$new_background" || true
@@ -383,6 +387,8 @@ PREPARED_BACKGROUND=""
 PREPARED_BACKGROUND_SNAPSHOT=""
 BACKGROUND_TRANSITION_SNAPSHOTS=true
 THEME_BACKGROUND_INTRO=""
+INTRO_PREPARE_PID=""
+THEME_INTRO_TOKEN=""
 if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
   # Resolve the staged choice while the old theme still exists. Video changes
   # switch directly to the durable path in QML, so neither side needs a copy.
@@ -393,6 +399,10 @@ if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
     fi
     if [[ -n $THEME_BACKGROUND_INTRO ]]; then
       OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
+      # OWE retains the opened clip across the staged directory's rename.
+      owe intro-prepare "$THEME_BACKGROUND_INTRO" >/dev/null 2>&1 9>&- &
+      INTRO_PREPARE_PID=$!
+      shell_ipc shell prepareThemeIntro "$OLD_BACKGROUND_SNAPSHOT" "$(stat -Lc '%d:%i' "$NEXT_THEME_PATH")" "" "" || true
     elif background_transition_uses_snapshots "$CHOSEN_THEME_BACKGROUND"; then
       OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
 
@@ -461,6 +471,14 @@ post_theme_commands=(
 )
 
 if [[ $THEME_HEADLESS != "1" ]]; then
+  # Let the wallpaper and bar finish their reveal before app retints and the
+  # compositor reload compete with decoding and the shell's frame rendering.
+  if [[ -n $THEME_INTRO_TOKEN ]]; then
+    deadline=$((SECONDS + 3))
+    while (( SECONDS < deadline )) && [[ $(omarchy-shell shell themeIntroStatus "$THEME_INTRO_TOKEN" 2>/dev/null) == "pending" ]]; do
+      sleep 0.02
+    done
+  fi
   run_parallel "${post_theme_commands[@]}"
 
   # Call hook on theme set

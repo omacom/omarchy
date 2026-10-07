@@ -4,8 +4,8 @@ import Quickshell.Wayland
 import Quickshell.Io
 import qs.Commons
 
-// OWE destroys and recreates the background service during playback, so the
-// startup process and cover state belong to the persistent shell host.
+// Keep startup and cover state in the persistent host, including handoffs
+// with older OWE versions that destroy and recreate the background service.
 Item {
   id: root
 
@@ -13,16 +13,23 @@ Item {
   property bool cover: String(bootMarker.text() || "").trim() !== (Quickshell.env("OMARCHY_BOOT_ID") || String(bootId.text() || "").trim())
   property bool checked: false
   property string themeToken: ""
+  property string transitionToken: ""
   property string themeBackground: ""
+  property var themeNativeSize: null
   property string themeColors: ""
   property string themeShell: ""
   property real themeOpacity: 1
-  readonly property bool backgroundActive: !!(host && host.services && host.firstPartyServiceFor("omarchy.background"))
+  readonly property var backgroundService: host && host.services ? host.firstPartyServiceFor("omarchy.background") : null
+  readonly property bool backgroundActive: !!backgroundService && !backgroundService.suspended
 
   function prepareTheme(fromPath, token, colors, shell) {
     framePoll.stop()
     themeFade.stop()
     themeToken = token
+    transitionToken = token
+    if (themeBackground !== fromPath) {
+      themeNativeSize = backgroundService && backgroundService.nativeSizes ? backgroundService.nativeSizes[backgroundService.displayedBackground] : null
+    }
     themeBackground = fromPath
     themeColors = colors
     themeShell = shell
@@ -47,11 +54,16 @@ Item {
     if (token === themeToken) revealTheme()
   }
 
+  function themeStatus(token) {
+    return token === transitionToken && (themeToken || themeFade.running) ? "pending" : "ready"
+  }
+
   function cancelTheme() {
     framePoll.stop()
     themeFallback.stop()
     themeFade.stop()
     themeToken = ""
+    transitionToken = ""
     themeBackground = ""
     themeColors = ""
     themeShell = ""
@@ -147,10 +159,16 @@ Item {
       Image {
         anchors.fill: parent
         source: root.themeBackground ? Util.fileUrl(root.themeBackground) : ""
+        sourceSize: {
+          var w = Math.ceil(parent.width * modelData.devicePixelRatio)
+          var h = Math.ceil(parent.height * modelData.devicePixelRatio)
+          var native = root.themeNativeSize
+          return native && (native.width < w || native.height < h) ? Qt.size(native.width, native.height) : Qt.size(w, h)
+        }
         fillMode: Image.PreserveAspectCrop
         opacity: root.themeOpacity
-        // Decode before the IPC returns and the current theme is replaced.
-        asynchronous: false
+        // Start decoding while the remaining theme configs render.
+        asynchronous: true
       }
     }
   }

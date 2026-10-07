@@ -174,8 +174,12 @@ pass "background intros have one global on/off control"
 : >"$command_log"
 before_marker=$(<"$marker")
 PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i' "$intro_state/theme")"
-grep -Fxq 'owe: refresh' "$command_log" || fail "theme switching first synchronizes OWE with the selected image"
+grep -Fxq 'owe: refresh' "$command_log" || fail "unprepared theme switching synchronizes OWE with the selected image"
 grep -Fxq "owe: intro --start first-frame $theme_intro_dir/road.mp4" "$command_log" || fail "theme switching plays its matching intro even after boot was consumed"
+: >"$command_log"
+PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i' "$intro_state/theme")" true
+grep -Fxq "owe: intro --start first-frame --refresh $theme_intro_dir/road.mp4" "$command_log" || fail "prepared theme switching synchronizes and starts in one call"
+! grep -Fxq 'owe: refresh' "$command_log" || fail "prepared playback avoids an extra refresh call"
 [[ $(<"$marker") == "$before_marker" ]] || fail "theme switching does not reopen the boot marker"
 : >"$command_log"
 PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$custom_background" "$(stat -Lc '%d:%i' "$intro_state/theme")"
@@ -225,3 +229,24 @@ for intro in "$ROOT"/themes/*/backgrounds/intros/*.mp4; do
 done
 (( packaged_pairs > 0 )) || fail "no packaged theme intros were found"
 pass "theme intro filenames match their sibling background images"
+
+# Picker preparation is speculative and must not consume boot startup or play.
+prepare_root="$test_tmp/prepare-repo"
+prepare_backgrounds="$prepare_root/themes/demo/backgrounds"
+mkdir -p "$prepare_backgrounds/intros" "$intro_home/.local/state/omarchy/theme-backgrounds"
+printf 'first still\n' >"$prepare_backgrounds/1-first.webp"
+printf 'remembered still\n' >"$prepare_backgrounds/2-remembered.webp"
+printf 'remembered video\n' >"$prepare_backgrounds/intros/2-remembered.mp4"
+printf '%s\n' "$intro_state/theme/backgrounds/2-remembered.webp" >"$intro_home/.local/state/omarchy/theme-backgrounds/demo"
+rm -f "$toggle"
+: >"$command_log"
+marker_before=$(<"$marker")
+PATH="$command_bin:$PATH" HOME="$intro_home" OMARCHY_PATH="$prepare_root" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --prepare-theme demo
+grep -Fxq "owe: intro-prepare $prepare_backgrounds/intros/2-remembered.mp4" "$command_log" || fail "picker preparation follows the theme's remembered background"
+! grep -q '^owe: intro ' "$command_log" || fail "preparation does not play an intro"
+[[ $(<"$marker") == "$marker_before" ]] || fail "preparation leaves boot startup alone"
+touch "$toggle"
+: >"$command_log"
+PATH="$command_bin:$PATH" HOME="$intro_home" OMARCHY_PATH="$prepare_root" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --prepare-theme demo
+[[ ! -s $command_log ]] || fail "disabled intros do not warm the renderer"
+pass "picker preparation respects the remembered background, boot startup, and intro toggle"

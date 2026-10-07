@@ -1721,6 +1721,10 @@ ShellRoot {
       shell.bootIntro.finishTheme(token)
     }
 
+    function themeIntroStatus(token: string): string {
+      return shell.bootIntro.themeStatus(token)
+    }
+
     function ping(): string {
       return "ok"
     }

@@ -11,6 +11,7 @@ Item {
   id: root
 
   property var shell: null
+  property bool suspended: false
   readonly property string home: Quickshell.env("HOME")
   readonly property string stateHome: home + "/.local/state"
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
@@ -225,6 +226,10 @@ Item {
       root.setBackground(path, true)
     }
 
+    function setSuspended(value: string): void {
+      root.suspended = value === "true"
+    }
+
     function transition(fromPath: string, path: string): void {
       root.transitionBackground(fromPath, path, path, false, false)
     }
@@ -281,7 +286,7 @@ Item {
       required property var modelData
 
       screen: modelData
-      visible: !remapGuard.remapping
+      visible: !remapGuard.remapping && !root.suspended
       anchors { top: true; bottom: true; left: true; right: true }
 
       ScreenMoveRemap {

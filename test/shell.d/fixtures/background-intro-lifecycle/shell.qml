@@ -16,6 +16,7 @@ ShellRoot {
     }
   }
 
+  QtObject { id: retainedBackground; property bool suspended: false }
   BackgroundIntro { id: intro; host: test }
 
   Process {
@@ -28,8 +29,9 @@ ShellRoot {
     running: true
     onTriggered: {
       test.check(intro.checked, "startup runs even when OWE left the background disabled for a video")
-      test.services = ({ "omarchy.background": {} })
+      test.services = ({ "omarchy.background": retainedBackground })
       intro.prepareTheme("", "theme-one", Qt.btoa('background = "#123456"'), "")
+      test.check(intro.themeStatus("theme-one") === "pending", "app retints wait for the intro reveal")
       test.check(!Qt.colorEqual(Commons.Color.background, "#123456"), "the palette waits for OWE's first frame")
       intro.finishTheme("superseded-theme")
       test.check(intro.themeToken === "theme-one", "an older intro cannot release the pending handoff")
@@ -40,7 +42,7 @@ ShellRoot {
     running: true
     onTriggered: {
       test.check(intro.cover, "the still stays covered while the launcher waits")
-      test.services = ({})
+      retainedBackground.suspended = true
     }
   }
   Timer {
@@ -57,14 +59,16 @@ ShellRoot {
     onTriggered: {
       test.check(!intro.cover && intro.checked, "OWE taking the background releases the cover")
       test.check(intro.themeToken === "" && Qt.colorEqual(Commons.Color.background, "#123456"), "first-frame handoff starts the palette and wallpaper fade together")
-      test.services = ({ "omarchy.background": {} })
-      Qt.callLater(function() { test.check(!intro.cover, "recreating the background cannot cover or retry playback") })
+      test.check(intro.themeStatus("theme-one") === "pending", "app retints also wait through the opening crossfade")
+      retainedBackground.suspended = false
+      Qt.callLater(function() { test.check(!intro.cover, "resuming the retained background cannot cover or retry playback") })
     }
   }
   Timer {
     interval: 1500
     running: true
     onTriggered: {
+      test.check(intro.themeStatus("theme-one") === "ready", "the completed crossfade releases app retints")
       intro.prepareTheme("", "failed-theme", Qt.btoa('background = "#654321"'), "")
       intro.finishTheme("failed-theme")
       test.check(Qt.colorEqual(Commons.Color.background, "#654321"), "failed playback still releases its pending palette")
