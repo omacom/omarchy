@@ -174,6 +174,21 @@ assert(/clip: true/.test(vpnListView[0]), 'vpnList clips overflow instead of pus
 assert(/currentIndex: root\.vpnIndex/.test(vpnListView[0]), 'vpnList follows the keyboard cursor')
 assert(/positionViewAtIndex\(currentIndex, ListView\.Contain\)/.test(vpnListView[0]), 'vpnList scrolls the keyboard-selected row into view')
 
+// Both lists are capped, but two capped lists plus the sections above them
+// can still be taller than a short or scaled screen. The card as a whole
+// scrolls, and a keyboard move brings the cursor's row back onto it.
+const panelFlick = panelSource.match(/Flickable \{\n {6}id: panelFlick[\s\S]*?\n\n/)
+assert(panelFlick, 'network panel wraps its content in a panelFlick Flickable')
+assert(/contentHeight: column\.implicitHeight/.test(panelFlick[0]), 'panelFlick scrolls over the full content height')
+assert(/interactive: contentHeight > height/.test(panelFlick[0]), 'panelFlick only scrolls when the content overflows the card')
+assert(/root\.scrollCursorIntoView\(\)\n {6}\}/.test(moveHandler[0]), 'a keyboard move scrolls the cursor row back onto the card')
+
+const scrollCursorIntoView = panelSource.match(/function scrollCursorIntoView\(\) \{[\s\S]*?\n {2}\}/)
+assert(scrollCursorIntoView, 'network panel has a scrollCursorIntoView function')
+assert(/vpnList\.itemAtIndex\(vpnIndex\)/.test(scrollCursorIntoView[0]), 'scrollCursorIntoView targets the selected VPN row')
+assert(/networkList\.itemAtIndex\(selectedIndex\)/.test(scrollCursorIntoView[0]), 'scrollCursorIntoView targets the selected wifi row')
+assert(/if \(panelFlick\) panelFlick\.contentY = 0/.test(panelSource), 'opening the panel starts it scrolled to the top')
+
 // A long connection name must not run under the status text on its right.
 assert(/elide: Text\.ElideRight/.test(vpnRow[0]), 'VpnRow elides a name too long to fit')
 assert(/anchors\.right: statusText\.left/.test(vpnRow[0]), 'VpnRow name is width-constrained against the status text, not free to overlap it')

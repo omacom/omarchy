@@ -336,6 +336,7 @@ Panel {
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
     if (opened) {
+      if (panelFlick) panelFlick.contentY = 0
       refresh(true)
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
@@ -427,6 +428,36 @@ Panel {
     if (selectedIndex < 0) selectedIndex = delta > 0 ? 0 : wifiNetworks.length - 1
     else selectedIndex = Math.max(0, Math.min(wifiNetworks.length - 1, selectedIndex + delta))
     wifiActionFocused = false
+  }
+
+  // Scrolls the card (panelFlick) so `item` is on screen. The two lists keep
+  // their own selected row in view with positionViewAtIndex, but that only
+  // moves the list's own contents, not the card around it.
+  function scrollItemIntoView(item) {
+    if (!panelFlick || !item) return
+    Qt.callLater(function() {
+      if (!item) return
+      var margin = Style.space(6)
+      var point = item.mapToItem(panelFlick.contentItem, 0, 0)
+      var top = point.y
+      var bottom = top + item.height
+      var viewTop = panelFlick.contentY
+      var viewBottom = viewTop + panelFlick.height
+      var maxY = Math.max(0, panelFlick.contentHeight - panelFlick.height)
+      if (top < viewTop + margin) panelFlick.contentY = Math.max(0, top - margin)
+      else if (bottom > viewBottom - margin) panelFlick.contentY = Math.min(maxY, bottom + margin - panelFlick.height)
+    })
+  }
+
+  // Called after a keyboard move only, never bound to the cursor itself:
+  // hover moves the cursor too, and the card must not jump under the mouse.
+  function scrollCursorIntoView() {
+    if (focusSection === "header") scrollItemIntoView(heroActions)
+    else if (focusSection === "portal") scrollItemIntoView(portalAction)
+    else if (focusSection === "band") scrollItemIntoView(bandAutoFocused ? bandAutoRow : bandRow)
+    else if (focusSection === "dns") scrollItemIntoView(dnsRow)
+    else if (focusSection === "vpn") scrollItemIntoView(vpnList.itemAtIndex(vpnIndex) || vpnList)
+    else scrollItemIntoView(networkList.itemAtIndex(selectedIndex) || networkList)
   }
 
   function selectVpnByDelta(delta) {
@@ -1354,6 +1385,7 @@ Panel {
           else if (root.focusSection === "dns") root.selectDnsByDelta(dx)
           else if (root.focusSection === "wifi") root.selectWifiActionByDelta(dx)
         }
+        root.scrollCursorIntoView()
       }
       onActivateRequested: {
         if (root.cursorActive) {
@@ -1372,11 +1404,25 @@ Panel {
         else if (t === "w" || t === "W") root.toggleNetwork()
       }
 
+    // The whole card scrolls, not just the two lists inside it: each list
+    // caps its own height, but the card is capped at the screen height too,
+    // and on a short or scaled screen the sections above plus both capped
+    // lists can add up to more than that. Without this the wifi rows at the
+    // bottom would simply fall off the card with no way to reach them.
+    Flickable {
+      id: panelFlick
+      anchors.fill: parent
+      contentWidth: width
+      contentHeight: column.implicitHeight
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      flickableDirection: Flickable.VerticalFlick
+      interactive: contentHeight > height
+      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
     Column {
       id: column
-      anchors.left: parent.left
-      anchors.right: parent.right
-      anchors.top: parent.top
+      width: panelFlick.width
       spacing: Style.space(12)
 
       // ---------- Hero: network icon · SSID + state · actions ----------
@@ -1916,6 +1962,7 @@ Panel {
           }
         }
       }
+    }
     }
     }
   }
