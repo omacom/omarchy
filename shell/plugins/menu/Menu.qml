@@ -1086,7 +1086,6 @@ Item {
         maxRowsHeight = root.visibleRowsHeight
       }
     }
-    // The surface stays mapped between opens, so closing is shown going false.
     onShownChanged: if (!shown) { cardTop = -1; maxRowsHeight = -1 }
 
     Rectangle {
