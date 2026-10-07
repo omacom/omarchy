@@ -59,6 +59,8 @@
   "trigger.capture.screenshot": {"icon":"","label":"Screenshot","action":"omarchy-capture-screenshot"},
   "trigger.capture.screenrecord.stop": {"icon":"","label":"Stop Screenrecording","when":"pgrep -f '^gpu-screen-recorder'","action":"omarchy-capture-screenrecording --stop-recording"},
   "trigger.capture.screenrecord": {"icon":"","label":"Screenrecord"},
+  "trigger.capture.voicerecord-stop": {"icon":"","label":"Stop Recording","description":"Stop and save the voice recording","when":"pgrep -f '^omarchy-voicerecorder '","action":"omarchy-capture-voicerecording --stop-recording"},
+  "trigger.capture.voicerecord": {"icon":"","label":"Voice Recording","when":"! pgrep -f '^omarchy-voicerecorder '","action":"omarchy-capture-voicerecording"},
   "trigger.capture.text": {"icon":"󰴑","label":"Text","action":"omarchy-capture-text"},
   "trigger.capture.qr": {"icon":"󰐲","label":"QR Code","action":"omarchy-capture-qr"},
   "trigger.capture.color": {"icon":"󰃉","label":"Color","action":"pkill hyprpicker || hyprpicker -a"},

@@ -1,0 +1,120 @@
+#!/bin/bash
+
+# omarchy:summary=Start or stop a microphone-only voice recording
+# omarchy:group=capture
+# omarchy:args=[--stop-recording]
+#
+# Records the default input -- the same microphone a screen recording picks up
+# with --with-microphone-audio -- without capturing the screen.
+# gpu-screen-recorder always needs a video source, so this records through
+# ffmpeg's PulseAudio input, which PipeWire serves.
+
+[[ -f ~/.config/user-dirs.dirs ]] && source ~/.config/user-dirs.dirs
+OUTPUT_DIR="${OMARCHY_VOICERECORD_DIR:-${XDG_MUSIC_DIR:-$HOME/Music}}"
+
+STOP_RECORDING="false"
+# Private for the same reason as the screen recording state: the stop path reads
+# this back and writes, moves, and deletes at the path it names.
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}"
+RECORDING_FILE="$RUNTIME_DIR/omarchy-voicerecord-filename"
+# ffmpeg runs under this name so the menu, the bar, and this script can find
+# the recorder without matching any other ffmpeg that happens to be running.
+RECORDER_NAME="omarchy-voicerecorder"
+
+for arg in "$@"; do
+  case "$arg" in
+  --stop-recording) STOP_RECORDING="true" ;;
+  esac
+done
+
+start_voicerecording() {
+  if [[ ! -d $OUTPUT_DIR ]]; then
+    omarchy-notification-send -u critical -t 3000 "Voice recording directory does not exist: $OUTPUT_DIR"
+    return 1
+  fi
+
+  mkdir -p "$RUNTIME_DIR" || return 1
+  # XDG_STATE_HOME may be outside a private home; protect existing fallbacks too.
+  if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+    chmod 700 "$RUNTIME_DIR" || return 1
+  fi
+
+  local filename="$OUTPUT_DIR/voicerecording-$(date +'%Y-%m-%d_%H-%M-%S').m4a"
+
+  (exec -a "$RECORDER_NAME" ffmpeg -hide_banner -loglevel error -nostdin -f pulse -i default -c:a aac "$filename") &
+  local pid=$!
+
+  while kill -0 $pid 2>/dev/null && [[ ! -f $filename ]]; do
+    sleep 0.2
+  done
+
+  if kill -0 $pid 2>/dev/null; then
+    echo "$filename" >"$RECORDING_FILE"
+    toggle_voicerecording_indicator
+    omarchy-notification-send -g 󰍰 "Voice recording started" "Stop from the Capture menu (or click this)" \
+      --exec omarchy-capture-voicerecording --stop-recording
+  else
+    omarchy-notification-send -u critical -t 3000 "Voice recording failed to start" "Could not record from the default microphone"
+    return 1
+  fi
+}
+
+stop_voicerecording() {
+  pkill -SIGINT -f "^$RECORDER_NAME " # SIGINT lets ffmpeg finish writing the file
+
+  # Wait a maximum of 5 seconds to finish before hard killing
+  local count=0
+  while voicerecording_active && ((count < 50)); do
+    sleep 0.1
+    count=$((count + 1))
+  done
+
+  if voicerecording_active; then
+    pkill -9 -f "^$RECORDER_NAME "
+    omarchy-notification-send -u critical -t 5000 "Voice recording error" "Recording process had to be force-killed. Audio may be corrupted."
+  else
+    finalize_recording
+    local filename=$(cat "$RECORDING_FILE" 2>/dev/null)
+    echo "$filename"
+
+    omarchy-notification-send -g 󰍰 "Voice recording saved" "Open with Super + Alt + , (or click this)" -t 10000 \
+      --exec mpv --player-operation-mode=pseudo-gui -- "$filename"
+  fi
+
+  toggle_voicerecording_indicator
+  rm -f "$RECORDING_FILE"
+}
+
+toggle_voicerecording_indicator() {
+  omarchy-shell -q omarchy.indicators refresh
+}
+
+voicerecording_active() {
+  pgrep -f "^$RECORDER_NAME " >/dev/null
+}
+
+finalize_recording() {
+  local latest
+  latest=$(cat "$RECORDING_FILE" 2>/dev/null)
+  [[ -f $latest ]] || return
+
+  # Same cleanup as screen recordings: hard-mute the first 400ms to drop the
+  # PipeWire capture-open pop, fade in over 50ms to avoid a click, then normalize
+  # to -14 LUFS. loudnorm resamples to 192kHz internally, so set the rate back.
+  local processed="${latest%.m4a}-processed.m4a"
+  if ffmpeg -y -i "$latest" \
+    -af "volume=enable='lt(t,0.4)':volume=0,afade=t=in:st=0.4:d=0.05,loudnorm=I=-14:TP=-1.5:LRA=11" \
+    -ar 48000 -c:a aac "$processed" -loglevel quiet 2>/dev/null; then
+    mv "$processed" "$latest"
+  else
+    rm -f "$processed"
+  fi
+}
+
+if voicerecording_active; then
+  stop_voicerecording
+elif [[ $STOP_RECORDING == "true" ]]; then
+  exit 1
+else
+  start_voicerecording
+fi
