@@ -83,7 +83,7 @@ Rectangle {
       }
     }
   ]
-  z: dragged ? 2 : 0
+  z: dragged ? 2 : lit ? 1 : 0
   opacity: dragged ? 0.9 : 1
   Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
 
@@ -291,18 +291,22 @@ Rectangle {
 
   // The last city stays; removing it would leave no way back.
   PanelActionButton {
-    anchors.right: parent.right
-    anchors.top: parent.top
-    anchors.margins: Style.space(1)
+    id: removeButton
+    anchors.horizontalCenter: parent.right
+    anchors.horizontalCenterOffset: -Style.space(22) * 5 / 24
+    anchors.verticalCenter: parent.top
+    size: fontSize + (Style.space(22) - fontSize) * 0.85
+    radius: size / 2
+    color: Model.mix(Color.popups.background, row.foreground, _hot ? 0.24 : 0.14)
+    borderSpec: Border.flat(Model.mix(Color.popups.background, row.foreground, _hot ? 0.65 : 0.35), Style.space(1))
     iconText: "\u00d7"
     tooltipText: "Remove"
-    foreground: row.fainter
+    foreground: row.dim
     hoverColor: row.foreground
     fontFamily: row.fontFamily
     fontSize: Style.font.bodySmall
     enabled: row.removable
-    // Shown on the keyboard's pick too, so Delete's target is plain.
-    opacity: row.removable && row.lit ? 1 : 0
+    opacity: row.removable && (rowHover.hovered || removeButton._hot) ? 1 : 0
     visible: opacity > 0
     Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
     onClicked: row.panel.removeCityAt(row.index)

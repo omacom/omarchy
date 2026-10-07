@@ -223,3 +223,8 @@ function o.window(match, rules)
 
   hl.window_rule(rules)
 end
+
+-- Opt a window in to Omarchy's standard active/inactive transparency.
+function o.transparent_window(match, opacity)
+  o.window(match, { opacity = opacity or "0.985 0.96" })
+end
