@@ -30,6 +30,20 @@ result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --back
 [[ $result == "#ffffff" ]] || fail "transparent bar text falls back to text color when sampling fails" "expected #ffffff, got $result"
 pass "transparent bar text falls back to text color when sampling fails"
 
+# The shell can pass the strip's average colour it already read, so no file is
+# decoded; an invalid sample falls back to the text colour.
+result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --sample '#f5f5f5' --background "$TMPDIR/missing.png")
+[[ $result == "#101010" ]] || fail "transparent bar text uses a sample passed by the shell" "expected #101010, got $result"
+pass "transparent bar text uses a sample passed by the shell"
+
+result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --sample '#202020')
+[[ $result == "#ffffff" ]] || fail "transparent bar text keeps text color for a dark sample" "expected #ffffff, got $result"
+pass "transparent bar text keeps text color for a dark sample"
+
+result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --sample 'f5f5f5' --background "$light_top" --screen 100x100)
+[[ $result == "#ffffff" ]] || fail "transparent bar text falls back on an invalid sample" "expected #ffffff, got $result"
+pass "transparent bar text falls back on an invalid sample"
+
 # A video background must be sampled one frame at a time. Reading the whole file
 # emits a value per frame, which parses as nothing and silently falls back —
 # and decodes the entire wallpaper to find that out.

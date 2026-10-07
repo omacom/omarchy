@@ -59,6 +59,17 @@ const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
 const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
 const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
 
+// The background plugin has already decoded the wallpaper, so the bar asks it
+// for the strip's average first and only decodes the file again without one.
+// Only the latest request may start a choice, and a wallpaper the shell learns
+// of after the state link moved samples again.
+assert(
+  /backgroundService\.sampleBarStrip\(root\.position, root\.barSize, function\(sample\) \{\s*if \(request === root\.transparentSampleRequest\) root\.chooseTransparentForeground\(sample\)/.test(barSource) &&
+    /if \(sample\) command\.push\("--sample", sample\)/.test(barSource) &&
+    /target: root\.backgroundService[\s\S]*?function onCurrentBackgroundChanged\(\) \{\s*root\.scheduleTransparentForegroundRefresh\(\)/.test(barSource),
+  'transparent bar samples the strip from the decoded wallpaper and falls back to the file'
+)
+
 assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.toggleTransparency\(\)/.test(shellSource), 'shell exposes the bar transparency toggle over IPC')
 
 // put tolerates a placement target the bar does not carry, so the IPC call

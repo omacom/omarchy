@@ -42,6 +42,9 @@ Item {
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
+  // The transparent bar's text colour needs the average of the wallpaper under
+  // the bar. The request waits here until the current background has decoded.
+  property var stripRequest: null
 
   function isVideo(path) {
     return Util.isVideoPath(path)
@@ -164,6 +167,28 @@ Item {
     nativeSizes = kept
   }
 
+  // Calls back with the average colour ("#rrggbb") of the strip a bar of
+  // barSize covers along `position` of the first screen, read from the decoded
+  // image of the current background, or with "" when there is none (a video,
+  // a failed decode, or no decoded image within the timeout).
+  function sampleBarStrip(position, barSize, callback) {
+    if (stripRequest) stripRequest.callback("")
+    stripRequest = null
+    if (!currentBackground || isVideo(currentBackground)) {
+      callback("")
+      return
+    }
+    stripRequest = { position: position, barSize: barSize, callback: callback }
+    stripRequestTimer.restart()
+  }
+
+  function finishStripRequest(request, sample) {
+    if (stripRequest !== request) return
+    stripRequest = null
+    stripRequestTimer.stop()
+    request.callback(sample)
+  }
+
   function openSelector() {
     if (!bgSwitchProc.running) bgSwitchProc.running = true
   }
@@ -245,6 +270,15 @@ Item {
     onTriggered: root.preparedBackground = ""
   }
 
+  // A background that never reaches a decoded image falls back to sampling the
+  // file.
+  Timer {
+    id: stripRequestTimer
+    interval: 3000
+    repeat: false
+    onTriggered: if (root.stripRequest) root.finishStripRequest(root.stripRequest, "")
+  }
+
   Timer {
     id: pendingThemeFallbackTimer
     interval: 300
@@ -316,6 +350,43 @@ Item {
         return Qt.size(decodeWidth, decodeHeight)
       }
 
+      // The first screen samples for the bar, as `omarchy-bar-text-color` reads
+      // the first monitor's size.
+      readonly property bool samplesBar: modelData === Quickshell.screens[0]
+
+      // Checks the image's own source, not the paths bound to it, which can
+      // still name the previous wallpaper while the change propagates. A url
+      // reads back with spaces and accents decoded, so compare decoded forms.
+      function shows(image, path) {
+        return !!image && !!path && image.status === Image.Ready
+          && decodeURIComponent(String(image.source)) === decodeURIComponent(root.imageUrl(path))
+      }
+
+      // The decoded image showing `path`, if any: the incoming frame of a
+      // transition, or the still on screen. A theme switch reveals a snapshot
+      // copy of its wallpaper, so its incoming frame stands for the final path.
+      function decodedImage(path) {
+        if (shows(incomingFrame, path)) return incomingFrame
+        if (root.currentBackground === path && shows(incomingFrame, root.incomingBackground)) return incomingFrame
+        if (shows(base.current, path)) return base.current
+        return null
+      }
+
+      function maybeSampleStrip() {
+        var request = root.stripRequest
+        if (!samplesBar || !request || request.sampling) return
+        if (root.isVideo(root.currentBackground)) {
+          root.finishStripRequest(request, "")
+          return
+        }
+        var image = decodedImage(root.currentBackground)
+        if (!image) return
+        request.sampling = true
+        stripSampler.sample(image, request.position, request.barSize, function(sample) {
+          root.finishStripRequest(request, sample)
+        })
+      }
+
       function maybeStartReveal() {
         if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
         if (incomingFrame.status !== Image.Ready) return
@@ -340,6 +411,7 @@ Item {
         constrainDecode: true
         decodeSize: panel.decodeSize(root.displayedBackground)
         onReadyChanged: {
+          panel.maybeSampleStrip()
           if (ready && root.finishingTransition) {
             root.incomingBackground = ""
             root.oldBackground = ""
@@ -394,7 +466,10 @@ Item {
           cache: false
           smooth: true
           mipmap: true
-          onStatusChanged: panel.maybeStartReveal()
+          onStatusChanged: {
+            panel.maybeStartReveal()
+            panel.maybeSampleStrip()
+          }
         }
       }
 
@@ -432,6 +507,21 @@ Item {
           panel.maskReady = false
           panel.maybeStartReveal()
         }
+        function onStripRequestChanged() {
+          panel.maybeSampleStrip()
+        }
+        // transitionBackground() moves currentBackground before
+        // incomingBackground, so sampling at once could take the previous
+        // transition's frame for the new wallpaper. Wait until both have moved.
+        function onCurrentBackgroundChanged() {
+          Qt.callLater(panel.maybeSampleStrip)
+        }
+      }
+
+      // Below every frame, so the strip it renders while sampling stays hidden.
+      BarStripSampler {
+        id: stripSampler
+        z: -1
       }
 
       MouseArea {
