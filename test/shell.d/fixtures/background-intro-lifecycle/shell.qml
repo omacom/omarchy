@@ -53,23 +53,58 @@ ShellRoot {
     onTriggered: {
       test.check(intro.themeToken === "theme-one", "a leftover renderer still stays covered until video is revealed")
       revealVideo.running = true
+      handoffDeadline = Date.now() + 3000
+      handoff.start()
+    }
+  }
+  property double handoffDeadline: 0
+  property bool openingFadeObserved: false
+  Connections {
+    target: intro
+    function onThemeTokenChanged() {
+      if (handoff.running && intro.themeToken === "") {
+        Qt.callLater(function() {
+          test.check(intro.themeStatus("theme-one") === "pending", "app retints also wait through the opening crossfade")
+          test.openingFadeObserved = true
+        })
+      }
     }
   }
   Timer {
-    interval: 700
-    running: true
+    id: handoff
+    interval: 16
+    repeat: true
     onTriggered: {
+      if (intro.themeToken || !test.openingFadeObserved) {
+        if (Date.now() >= test.handoffDeadline) {
+          test.check(false, "the ready video releases its cover before the deadline")
+          Qt.quit()
+        }
+        return
+      }
+      stop()
       test.check(!intro.cover && intro.checked, "OWE taking the background releases the cover")
       test.check(intro.themeToken === "" && Qt.colorEqual(Commons.Color.background, "#123456"), "first-frame handoff starts the palette and wallpaper fade together")
-      test.check(intro.themeStatus("theme-one") === "pending", "app retints also wait through the opening crossfade")
       retainedBackground.suspended = false
       Qt.callLater(function() { test.check(!intro.cover, "resuming the retained background cannot cover or retry playback") })
+      completionDeadline = Date.now() + 3000
+      completion.start()
     }
   }
+  property double completionDeadline: 0
   Timer {
-    interval: 1500
-    running: true
+    id: completion
+    interval: 16
+    repeat: true
     onTriggered: {
+      if (intro.themeStatus("theme-one") !== "ready" || !intro.startupSettled) {
+        if (Date.now() >= test.completionDeadline) {
+          test.check(false, "the fade and launcher complete before the deadline")
+          Qt.quit()
+        }
+        return
+      }
+      stop()
       test.check(intro.themeStatus("theme-one") === "ready", "the completed crossfade releases app retints")
       intro.prepareTheme("", "failed-theme", Qt.btoa('background = "#654321"'), "")
       intro.finishTheme("failed-theme")
@@ -78,12 +113,6 @@ ShellRoot {
       intro.cancelTheme()
       intro.finishTheme("cancelled-theme")
       test.check(Qt.colorEqual(Commons.Color.background, "#654321") && !intro.themeToken, "a superseding theme cannot be overwritten by an older completion")
-    }
-  }
-  Timer {
-    interval: 2300
-    running: true
-    onTriggered: {
       test.check(!intro.cover, "launcher completion leaves the still uncovered")
       if (!test.failed) console.log("RESULT pass")
       Qt.quit()

@@ -22,6 +22,7 @@ chmod +x "$stage/bin/omarchy-theme-bg-boot-intro"
 cat >"$stage/bin/owe" <<'SH'
 #!/bin/bash
 if [[ -f $INTRO_TEST_FRAME_READY ]]; then
+  sleep 0.25
   printf '{"kind":"video","ready":true,"has_transition":false,"time_pos":0.05}\n'
 else
   printf '{"kind":"video","ready":true,"has_transition":true,"time_pos":0}\n'
