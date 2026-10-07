@@ -443,6 +443,7 @@ ShellRoot {
     if (!api) return null
     api.barHidden = Qt.binding(function() { return shell.bar ? shell.bar.barHidden === true : false })
     api.barSize = Qt.binding(function() { return shell.bar ? Math.max(0, shell.bar.barSize || 0) : 0 })
+    api.barMargins = Qt.binding(function() { return shell.bar && shell.bar.barMargins ? shell.bar.barMargins : ({ top: 0, right: 0, bottom: 0, left: 0 }) })
     api.fontFamily = Qt.binding(function() { return shell.bar ? String(shell.bar.fontFamily || "") : "" })
     api.position = Qt.binding(function() { return shell.bar ? String(shell.bar.position || "top") : "top" })
     var next = ({})

@@ -135,6 +135,7 @@ Item {
     api.position = Qt.binding(function() { return root.position })
     api.vertical = Qt.binding(function() { return root.vertical })
     api.barSize = Qt.binding(function() { return root.barSize })
+    api.barMargins = Qt.binding(function() { return root.barMargins })
     api.transparent = Qt.binding(function() { return root.transparent })
     api.foregroundAnimationEnabled = Qt.binding(function() { return root.foregroundAnimationEnabled })
     api.centerSectionRevealHeld = Qt.binding(function() { return root.centerSectionRevealHeld })
@@ -443,10 +444,17 @@ Item {
     var y = scenePoint ? scenePoint.y : 0
     if (!window || !window.screen) return { x: x, y: y }
 
-    if (root.position === "bottom")
-      y += Math.max(0, window.screen.height - window.height)
-    else if (root.position === "right")
-      x += Math.max(0, window.screen.width - window.width)
+    // A detached bar sits inside every edge it touches, so its origin is the
+    // gap itself on the axes it spans, and the far edge less its own size and
+    // gap on the one it is anchored to. At margin 0 this is the flush bar's
+    // plain screen-corner offset.
+    var margins = root.barMargins
+    x += root.position === "right"
+      ? Math.max(0, window.screen.width - window.width - margins.right)
+      : margins.left
+    y += root.position === "bottom"
+      ? Math.max(0, window.screen.height - window.height - margins.bottom)
+      : margins.top
 
     return { x: x, y: y }
   }
@@ -567,6 +575,23 @@ Item {
 
   readonly property bool vertical: position === "left" || position === "right"
   readonly property int barSize: vertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
+  // A detached bar floats barMargins away from every screen edge it touches
+  // and rounds its corners by barRadius. Every side is 0 by default, which
+  // anchors the bar flush against its edge with square corners. The keys are
+  // the position names, so barMargins[position] is the anchored edge's gap.
+  //
+  // bar.floating in shell.json switches the gap on or off; unset, the theme's
+  // margin decides. Without a theme margin a floating bar keeps Hyprland's
+  // gaps_out, and an unset radius follows Hyprland's rounding.
+  property var floatingSetting: undefined
+  readonly property bool floating: BarModel.barFloating(floatingSetting, Style.bar.margins, position)
+  readonly property var barMargins: floating ? BarModel.barMargins(true, Style.bar.margins, Style.gapsOutEdges, position) : BarModel.NO_MARGINS
+  readonly property bool floatInGap: BarModel.floatsInGap(floating, Style.bar.margins, position)
+  readonly property int barRadius: BarModel.barRadius(
+    floating,
+    Style.barOverrides["radius"] !== undefined ? Style.bar.radius : undefined,
+    Style.cornerRadius,
+    barSize)
 
   function normalizePosition(value) {
     return BarModel.normalizePosition(value)
@@ -595,6 +620,7 @@ Item {
     var config = Util.isPlainObject(barConfig) ? barConfig : fallbackBarConfig
 
     position = normalizePosition(config.position)
+    floatingSetting = typeof config.floating === "boolean" ? config.floating : undefined
     setRequestedTransparency(config.transparent === true)
     centerAnchor = Util.canonicalWidgetId(config.centerAnchor || "")
 
@@ -1078,13 +1104,20 @@ Item {
       root.position,
       String(root.barSize),
       colorHex(root.themeForeground),
-      colorHex(root.themeContrastForeground)
+      colorHex(root.themeContrastForeground),
+      // A detached bar no longer covers the strip at the screen edge, so the
+      // sample has to move in with it or the contrast is picked against pixels
+      // the bar does not sit on.
+      "--inset",
+      [root.barMargins.top, root.barMargins.right,
+       root.barMargins.bottom, root.barMargins.left].join(" ")
     ]
     transparentForegroundProc.running = true
   }
 
   onRequestedTransparentChanged: scheduleTransparentForegroundRefresh()
   onPositionChanged: scheduleTransparentForegroundRefresh()
+  onBarMarginsChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
 
@@ -1253,18 +1286,32 @@ Item {
     // textures — which measures ~150ms against ~20ms to tear down. Parking
     // keeps the surface alive, so showing is only a margin change.
     visible: !remapGuard.remapping
-    exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Auto
+    exclusionMode: root.barHidden ? ExclusionMode.Ignore : (root.floatInGap ? ExclusionMode.Normal : ExclusionMode.Auto)
+    // Quickshell's exclusiveZone setter also switches exclusionMode to
+    // Normal, and a binding re-runs it on every change of its inputs. So the
+    // zone is written only while the bar floats in the gap, where Normal is
+    // the mode anyway; otherwise it is never touched and Auto or Ignore hold.
+    Binding {
+      target: barWindow
+      property: "exclusiveZone"
+      when: root.floatInGap && !root.barHidden
+      value: BarModel.exclusiveZone(true, root.barSize, root.barMargins, root.position)
+      restoreMode: Binding.RestoreNone
+    }
 
     ScreenMoveRemap {
       id: remapGuard
       window: barWindow
     }
 
+    // Floating margins on the edges the bar touches; hidden, parked past its
+    // anchored edge.
+    readonly property var windowMargins: BarModel.windowMargins(root.position, root.barMargins, root.barSize, root.barHidden)
     margins {
-      top: root.barHidden && root.position === "top" ? -root.barSize : 0
-      bottom: root.barHidden && root.position === "bottom" ? -root.barSize : 0
-      left: root.barHidden && root.position === "left" ? -root.barSize : 0
-      right: root.barHidden && root.position === "right" ? -root.barSize : 0
+      top: windowMargins.top
+      right: windowMargins.right
+      bottom: windowMargins.bottom
+      left: windowMargins.left
     }
 
     anchors {
@@ -1276,10 +1323,21 @@ Item {
 
     implicitWidth: root.vertical ? root.barSize : 0
     implicitHeight: root.vertical ? 0 : root.barSize
-    color: root.transparent ? "transparent" : root.background
+    // The surface itself stays transparent so the rounded background below can
+    // paint the corners; a window color would square them off again.
+    color: "transparent"
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
+
+    // Declared before the loader so it paints behind the widgets. Carries the
+    // bar's background instead of the window, which is what lets barRadius
+    // round the corners.
+    Rectangle {
+      anchors.fill: parent
+      color: root.transparent ? "transparent" : root.background
+      radius: root.barRadius
+    }
 
     Loader {
       anchors.fill: parent
@@ -1511,11 +1569,17 @@ Item {
         required property string modelData
         readonly property bool edgeVertical: modelData === "left" || modelData === "right"
         readonly property int edgeSize: edgeVertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
+        // Where the bar would sit on that edge, floating margins included. A
+        // theme margin can float the bar on one edge and not another, so the
+        // floating state is the target edge's.
+        readonly property bool edgeFloating: BarModel.barFloating(root.floatingSetting, Style.bar.margins, modelData)
+        readonly property var edgeMargins: edgeFloating ? BarModel.barMargins(true, Style.bar.margins, Style.gapsOutEdges, modelData) : BarModel.NO_MARGINS
 
-        x: modelData === "right" ? parent.width - edgeSize : 0
-        y: modelData === "bottom" ? parent.height - edgeSize : 0
-        width: edgeVertical ? edgeSize : parent.width
-        height: edgeVertical ? parent.height : edgeSize
+        x: modelData === "right" ? parent.width - edgeSize - edgeMargins.right : edgeMargins.left
+        y: modelData === "bottom" ? parent.height - edgeSize - edgeMargins.bottom : edgeMargins.top
+        width: edgeVertical ? edgeSize : parent.width - edgeMargins.left - edgeMargins.right
+        height: edgeVertical ? parent.height - edgeMargins.top - edgeMargins.bottom : edgeSize
+        radius: BarModel.barRadius(edgeFloating, Style.barOverrides["radius"] !== undefined ? Style.bar.radius : undefined, Style.cornerRadius, edgeSize)
         color: root.transparent ? "transparent" : root.background
         borderSpec: Border.flat(root.barForeground, 1)
         visible: opacity > 0
