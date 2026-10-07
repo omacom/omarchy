@@ -7,6 +7,10 @@
 
 set -e
 
+# lib32 drivers come from Arch's multilib repository, which only exists on
+# x86_64. aarch64 runs Valve's native arm64 Steam client and needs none.
+[[ $(uname -m) == x86_64 ]] || exit 0
+
 echo "Installing lib32 graphics drivers..."
 
 PACKAGES=()
