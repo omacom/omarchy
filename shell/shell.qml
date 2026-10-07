@@ -443,6 +443,7 @@ ShellRoot {
     if (!api) return null
     api.barHidden = Qt.binding(function() { return shell.bar ? shell.bar.barHidden === true : false })
     api.barSize = Qt.binding(function() { return shell.bar ? Math.max(0, shell.bar.barSize || 0) : 0 })
+    api.barMargins = Qt.binding(function() { return shell.bar && shell.bar.barMargins ? shell.bar.barMargins : ({ top: 0, right: 0, bottom: 0, left: 0 }) })
     api.fontFamily = Qt.binding(function() { return shell.bar ? String(shell.bar.fontFamily || "") : "" })
     api.position = Qt.binding(function() { return shell.bar ? String(shell.bar.position || "top") : "top" })
     var next = ({})
@@ -1738,6 +1739,24 @@ ShellRoot {
     function toggleBarTransparency(): string {
       if (shell.bar && typeof shell.bar.toggleTransparency === "function") {
         shell.bar.toggleTransparency()
+        return "ok"
+      }
+      return "no-bar"
+    }
+
+    // The bar toggles from what it shows: theme defaults and the last pill
+    // mode included, which shell.json alone does not know.
+    function toggleBarPills(): string {
+      if (shell.bar && typeof shell.bar.togglePills === "function") {
+        shell.bar.togglePills()
+        return "ok"
+      }
+      return "no-bar"
+    }
+
+    function toggleBarFloating(): string {
+      if (shell.bar && typeof shell.bar.toggleFloating === "function") {
+        shell.bar.toggleFloating()
         return "ok"
       }
       return "no-bar"

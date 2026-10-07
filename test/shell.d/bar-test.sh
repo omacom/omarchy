@@ -60,6 +60,26 @@ const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
 const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
 
 assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.toggleTransparency\(\)/.test(shellSource), 'shell exposes the bar transparency toggle over IPC')
+assert(/function toggleBarPills\(\): string \{[\s\S]*?shell\.bar\.togglePills\(\)/.test(shellSource), 'shell exposes the bar pills toggle over IPC')
+assert(/function toggleBarFloating\(\): string \{[\s\S]*?shell\.bar\.toggleFloating\(\)/.test(shellSource), 'shell exposes the bar floating toggle over IPC')
+
+// A right button held past pressAndHoldInterval never reports a click, so the
+// bar options open on press.
+const gestureSource = barSource.slice(barSource.indexOf('component CenterGestureArea'))
+assert(
+  /onPressed: function\(mouse\) \{[\s\S]*?if \(mouse\.button === Qt\.RightButton\) \{\s*if \(dragging \|\| \(mouse\.buttons & Qt\.LeftButton\)\) \{\s*if \(!\(gestureArea\.pressedButtons & Qt\.LeftButton\)\) mouse\.accepted = false\s*return\s*\}\s*if \(menuOpen\) menuOpen = false\s*else if \(!openMenu\(mouse\.x, mouse\.y\)\) mouse\.accepted = false\s*return\s*\}\s*menuOpen = false\s*dragging = false/.test(gestureSource) &&
+  /onReleased: function\(mouse\) \{\s*if \(mouse\.button === Qt\.RightButton\) return\s*if \(!dragging\) return/.test(gestureSource),
+  'a right press opens or closes the bar options, does nothing during a left press or drag without taking a widget\'s grab, and passes on a press it does not use'
+)
+assert(
+  /var slot = root\.moduleSlotAtScene\(scenePoint, root\.targetWindow\(gestureArea\)\)\s*if \(slot && !root\.inPillGap\(slot, scenePoint\)\) return false/.test(gestureSource),
+  'the bar options open only off widgets, gaps between pills included'
+)
+assert(/onPositionChanged: function\(mouse\) \{\s*if \(!\(mouse\.buttons & Qt\.LeftButton\)\) return/.test(gestureSource), 'only the left button drags the bar')
+assert(/function toggleFloating\(\) \{\s*setBarOption\("floating", !floating\)/.test(barSource), 'the floating switch starts from what the bar shows, theme margin included')
+assert(/function togglePills\(\) \{\s*setBarOption\("pills", pillsOn \? "off" : lastPillMode\)/.test(barSource) && /onPillModeChanged: if \(pillMode !== "off"\) lastPillMode = pillMode/.test(barSource), 'the pills switch comes back in the last mode used')
+assert(/Component\.onCompleted: \{[^}]*if \(pillMode !== "off"\) lastPillMode = pillMode[^}]*applyBarConfig\(\)/.test(barSource), 'a theme\'s default pill mode counts as the last mode used')
+assert(/onPressAndHold: function\(mouse\) \{[^}]*?pressedButtons\s*&\s*Qt\.LeftButton[^}]*?startDrag/.test(gestureSource), 'only a left press-and-hold moves the bar')
 
 // put tolerates a placement target the bar does not carry, so the IPC call
 // must reach the registry's put rather than route back through enable.
@@ -76,15 +96,314 @@ assert(
   'bar stays mapped while hidden so revealing it does not rebuild the surface'
 )
 assert(
-  /exclusionMode: root\.barHidden \? ExclusionMode\.Ignore : ExclusionMode\.Auto/.test(barSource),
+  /exclusionMode: root\.barHidden \? ExclusionMode\.Ignore : \(root\.floatInGap \? ExclusionMode\.Normal : ExclusionMode\.Auto\)/.test(barSource),
   'a hidden bar reserves no space for itself'
 )
+
+// Every bar size token is read through barToken(), so the [bar] parser must
+// hand every numeric key over instead of naming a few: icon-slot, icon-canvas,
+// icon-font and status-slot were silently dropped (#11359). Run the real
+// parser and token reader rather than matching their text.
+const vm = require('vm')
+const styleSource = fs.readFileSync(root + '/shell/Commons/Style.qml', 'utf8')
+function qmlFunction(source, name) {
+  const start = source.indexOf(`function ${name}(`)
+  let depth = 0
+  for (let i = source.indexOf('{', start); start >= 0 && i < source.length; i++) {
+    if (source[i] === '{') depth++
+    else if (source[i] === '}' && --depth === 0) return source.slice(start, i + 1)
+  }
+  throw new Error(`Style.qml has no function ${name}`)
+}
+const style = vm.createContext({})
+vm.runInContext(
+  ['barToken', 'boolToken', 'applyShellValues'].map(name => qmlFunction(styleSource, name)).join('\n') +
+  '\nvar fontScale = 1, barScaleWithFont = true, barOverrides = {}',
+  style
+)
+style.applyShellValues({
+  'bar.size-horizontal': '32', 'bar.size-vertical': '34', 'bar.icon-slot': '30',
+  'bar.icon-canvas': '20', 'bar.icon-font': '17', 'bar.status-slot': '25'
+})
+for (const [key, value] of [['size-horizontal', 32], ['size-vertical', 34], ['icon-slot', 30],
+                            ['icon-canvas', 20], ['icon-font', 17], ['status-slot', 25]]) {
+  assertEqual(style.barToken(key, 1), value, `[bar] ${key} in shell.toml reaches barToken()`)
+}
+
+// The gap is a width spec, not a scalar, so a bar can sit further off the edges
+// it spans than off the one it hangs from. The anchored edge reads out of the
+// same object by position name.
+assert(
+  /Geometry\.parseWidthSpec\(barOverrides\["margin"\], 0\)/.test(styleSource),
+  'the bar margin is parsed as a per-edge width spec'
+)
+assert(
+  /barOut\[key\] = raw/.test(styleSource),
+  'the bar margin reaches the parser unparsed, so a list survives'
+)
+// The drag overlays are full-screen, so a bar-local point becomes a screen point
+// by adding the bar window's origin. A detached bar's origin is the gap itself on the
+// axes it spans, and the far edge less its own size and gap on the one it is
+// anchored to; without that the drop marker and the drag ghost sit a margin away
+// from the cursor.
+const windowScreenPoint = barSource.slice(
+  barSource.indexOf('function windowScreenPoint'),
+  barSource.indexOf('function barDragScreenPoint')
+)
+assert(
+  /var margins = root\.barMargins/.test(windowScreenPoint),
+  'mapping a bar point to the screen accounts for a detached bar'
+)
+assert(
+  /window\.screen\.height - window\.height - margins\.bottom/.test(windowScreenPoint),
+  'a detached bottom bar maps from its own top edge, not the screen edge'
+)
+assert(
+  /window\.screen\.width - window\.width - margins\.right/.test(windowScreenPoint),
+  'a detached right bar maps from its own left edge, not the screen edge'
+)
+
+// omarchy-bar-text-color samples the wallpaper under the bar to pick a legible
+// transparent-mode foreground. It crops from the screen edge unless told
+// otherwise, so a detached bar has to hand it the gap or the contrast is
+// decided against pixels the bar does not cover.
+const transparentForeground = barSource.slice(
+  barSource.indexOf('function refreshTransparentForeground'),
+  barSource.indexOf('onRequestedTransparentChanged')
+)
+assert(
+  /"--inset",\s*\n\s*\[root\.barMargins\.top/.test(transparentForeground),
+  'transparent bar text samples the strip a detached bar covers'
+)
+assert(
+  /onBarMarginsChanged: scheduleTransparentForegroundRefresh\(\)/.test(barSource),
+  'changing the bar margin re-samples the transparent bar text color'
+)
+
+// Floating: bar.floating wins when set; unset, a non-zero theme margin floats
+// the bar, as it always did. With no theme margin a floating bar takes
+// Hyprland's gaps_out, and a flush bar has no margin at all.
+const themeMargin = { top: 4, right: 8, bottom: 4, left: 8 }
+const noMargin = { top: 0, right: 0, bottom: 0, left: 0 }
+const gaps = { top: 12, right: 12, bottom: 12, left: 12 }
+assertEqual(bar.barFloating(undefined, noMargin, 'top'), false, 'a bar with no theme margin and no setting is flush')
+assertEqual(bar.barFloating(undefined, themeMargin, 'top'), true, 'a theme margin floats the bar when shell.json says nothing')
+assertEqual(bar.barFloating(false, themeMargin, 'top'), false, 'bar.floating false keeps the bar flush over a theme margin')
+assertEqual(bar.barFloating(true, noMargin, 'top'), true, 'bar.floating true floats the bar without a theme margin')
+assertDeepEqual(bar.barMargins(false, themeMargin, gaps, 'top'), noMargin, 'a flush bar has no margin')
+assertDeepEqual(bar.barMargins(true, themeMargin, gaps, 'top'), themeMargin, 'a floating bar takes the theme margin as given')
+assertDeepEqual(bar.barMargins(true, noMargin, gaps, 'top'), { top: 6, right: 12, bottom: 12, left: 12 }, 'a default floating top bar sits half of gaps_out from the edge, full gaps_out at its ends')
+assertDeepEqual(bar.barMargins(true, noMargin, gaps, 'left'), { top: 12, right: 12, bottom: 12, left: 6 }, 'a default floating left bar halves the left gap')
+assertDeepEqual(bar.barMargins(true, noMargin, noMargin, 'top'), noMargin, 'zero gaps give a floating bar no margin')
+// Uneven gaps and margins, every edge: the anchored edge takes half its own
+// gap, the others keep theirs, and a theme margin is used as given.
+const unevenGaps = { top: 10, right: 14, bottom: 18, left: 22 }
+const unevenTheme = { top: 3, right: 7, bottom: 11, left: 13 }
+for (const edge of ['top', 'right', 'bottom', 'left']) {
+  const expected = Object.assign({}, unevenGaps, { [edge]: Math.round(unevenGaps[edge] / 2) })
+  assertDeepEqual(bar.barMargins(true, noMargin, unevenGaps, edge), expected, `a default floating ${edge} bar halves only its own gap`)
+  assertDeepEqual(bar.barMargins(true, unevenTheme, unevenGaps, edge), unevenTheme, `a floating ${edge} bar takes an uneven theme margin as given`)
+}
+assertEqual(bar.barRadius(false, 8, 12, 26), 0, 'a flush bar stays square whatever the theme radius')
+assertEqual(bar.barRadius(true, undefined, 12, 26), 12, 'a floating bar follows Hyprland rounding when the theme sets none')
+assertEqual(bar.barRadius(true, 4, 12, 26), 4, 'a theme radius overrides Hyprland rounding on a floating bar')
+assertEqual(bar.barRadius(true, 0, 12, 26), 0, 'a theme radius of 0 keeps a floating bar square')
+assertEqual(bar.barRadius(true, 40, 12, 26), 13, 'the radius is capped at half the bar thickness')
+assertEqual(bar.floatsInGap(true, noMargin, 'top'), true, 'the default floating bar keeps the windows where they are')
+assertEqual(bar.floatsInGap(true, themeMargin, 'top'), false, 'a theme margin is reserved on top of the bar')
+assertEqual(bar.floatsInGap(false, noMargin, 'top'), false, 'a flush bar reserves as it always has')
+// Only the edges a bar touches take a margin, so a theme margin on the far
+// side alone neither floats the bar nor stops it floating in the gap.
+const farOnly = { top: 0, right: 0, bottom: 10, left: 0 }
+assertEqual(bar.barFloating(undefined, farOnly, 'top'), false, 'a margin only on the far side leaves a top bar flush')
+assertEqual(bar.barFloating(undefined, farOnly, 'bottom'), true, 'the same margin floats a bottom bar, whose edge it is')
+assertEqual(bar.barFloating(undefined, farOnly, 'left'), true, 'the same margin floats a side bar, which spans that edge')
+assertEqual(bar.floatsInGap(true, farOnly, 'top'), true, 'a top bar switched to floating over a far-side margin floats in the gap')
+assertDeepEqual(bar.barMargins(true, farOnly, gaps, 'top'), { top: 6, right: 12, bottom: 12, left: 12 }, 'and takes the gap margins, not the far-side theme margin')
+assert(/BarModel\.barFloating\(floatingSetting, Style\.bar\.margins, position\)/.test(barSource) && /BarModel\.floatsInGap\(floating, Style\.bar\.margins, position\)/.test(barSource), 'the bar asks the floating rules for its own edge')
+// A flush bar must not depend on Hyprland's gaps at all: a gaps refresh
+// would otherwise re-run everything that watches barMargins.
+assert(
+  /readonly property var barMargins: floating \? BarModel\.barMargins\(true, Style\.bar\.margins, Style\.gapsOutEdges, position\) : BarModel\.NO_MARGINS/.test(barSource),
+  'the bar takes its margins from the floating rules, and none while flush'
+)
+
+// Window margins: only the edges the bar touches take a gap, and a hidden bar
+// parks past its anchored edge, clearing its margin as well as its own size,
+// or the margin leaves a sliver of it on screen.
+const inGapTop = { top: 6, right: 12, bottom: 12, left: 12 }
+assertDeepEqual(bar.windowMargins('top', noMargin, 26, false), noMargin, 'a flush bar window has no margins')
+assertDeepEqual(bar.windowMargins('top', inGapTop, 26, false), { top: 6, right: 12, bottom: 0, left: 12 }, 'a floating top bar is inset at its edge and both ends, not at its far face')
+assertDeepEqual(bar.windowMargins('left', { top: 12, right: 12, bottom: 12, left: 6 }, 28, false), { top: 12, right: 0, bottom: 12, left: 6 }, 'a floating left bar is inset at its edge and both ends')
+const unevenWindow = {
+  top: { top: 3, right: 7, bottom: 0, left: 13 },
+  bottom: { top: 0, right: 7, bottom: 11, left: 13 },
+  left: { top: 3, right: 0, bottom: 11, left: 13 },
+  right: { top: 3, right: 7, bottom: 11, left: 0 }
+}
 for (const edge of ['top', 'bottom', 'left', 'right']) {
+  assertDeepEqual(bar.windowMargins(edge, unevenTheme, 26, false), unevenWindow[edge], `a floating ${edge} bar window takes each touching edge's own margin`)
+  assertEqual(bar.windowMargins(edge, noMargin, 26, true)[edge], -26, `a hidden flush bar parks past the ${edge} edge`)
+  assertEqual(bar.windowMargins(edge, themeMargin, 26, true)[edge], -(26 + themeMargin[edge]), `a hidden floating bar parks past the ${edge} edge, margin included`)
+}
+
+// Hyprland reserves the zone plus the anchored margin, so a bar floating in
+// the gap reserves exactly what a flush bar does.
+assertEqual(bar.exclusiveZone(false, 26, noMargin, 'top'), 26, 'a flush bar reserves its size')
+assertEqual(bar.exclusiveZone(false, 26, themeMargin, 'top'), 26, 'a theme margin is reserved on top of the bar size')
+assertEqual(bar.exclusiveZone(true, 26, inGapTop, 'top') + inGapTop.top, 26, 'a bar floating in the gap reserves what a flush bar reserves')
+assertEqual(bar.exclusiveZone(true, 26, { top: 40, right: 80, bottom: 80, left: 80 }, 'top'), 1, 'the zone stays positive once the edge margin reaches the bar size')
+for (const edge of ['top', 'right', 'bottom', 'left']) {
+  assertEqual(bar.exclusiveZone(true, 26, unevenTheme, edge) + unevenTheme[edge], 26, `a ${edge} bar floating in the gap reserves what a flush bar reserves`)
+}
+// Quickshell's exclusiveZone setter also sets exclusionMode to Normal, so the
+// zone is written only while the bar floats in the gap and is visible.
+assert(
+  !/^    exclusiveZone:/m.test(barSource) &&
+  /Binding \{\s*target: barWindow\s*property: "exclusiveZone"\s*when: root\.floatInGap && !root\.barHidden\s*value: BarModel\.exclusiveZone\(true, root\.barSize, root\.barMargins, root\.position\)\s*restoreMode: Binding\.RestoreNone/.test(barSource) &&
+  /BarModel\.windowMargins\(root\.position, root\.barMargins, root\.barSize, root\.barHidden\)/.test(barSource) &&
+  ['top', 'right', 'bottom', 'left'].every(edge => new RegExp(`${edge}: windowMargins\\.${edge}\\b`).test(barSource)),
+  'the bar window takes its zone and margins from BarModel, and sets no zone when flush'
+)
+// The move preview shows the bar where it would land, floating included.
+assert(
+  /readonly property bool edgeFloating: BarModel\.barFloating\(root\.floatingSetting, Style\.bar\.margins, modelData\)/.test(barSource) &&
+  /readonly property var edgeMargins: edgeFloating \? BarModel\.barMargins\(true, Style\.bar\.margins, Style\.gapsOutEdges, modelData\) : BarModel\.NO_MARGINS/.test(barSource) &&
+  /x: modelData === "right" \? parent\.width - edgeSize - edgeMargins\.right : edgeMargins\.left/.test(barSource) &&
+  /radius: BarModel\.barRadius\(edgeFloating,/.test(barSource),
+  'the move preview shows each edge as the bar would float there, margins and radius included'
+)
+assert(/floatingSetting = typeof config\.floating === "boolean" \? config\.floating : undefined/.test(barSource), 'the bar reads bar.floating from shell.json')
+assert(
+  /color: "transparent"\s*\n\s*surfaceFormat\.opaque: false/.test(barSource) && /color: root\.transparent \? "transparent" : root\.background\s*\n\s*radius: root\.barRadius/.test(barSource),
+  'the background is painted with the bar radius, not by the square window'
+)
+
+// gaps_out comes from hyprctl as a CSS-style list; each side is kept. Runs
+// the real Style.qml function, in a block so its helpers stay local.
+{
+  const vm = require('vm')
+  const styleFunction = name => {
+    const start = styleSource.indexOf(`function ${name}(`)
+    let depth = 0
+    for (let i = styleSource.indexOf('{', start); start >= 0 && i < styleSource.length; i++) {
+      if (styleSource[i] === '{') depth++
+      else if (styleSource[i] === '}' && --depth === 0) return styleSource.slice(start, i + 1)
+    }
+    throw new Error(`Style.qml has no function ${name}`)
+  }
+  const geometrySource = fs.readFileSync(root + '/shell/Commons/BorderGeometry.js', 'utf8').replace(/^\.pragma library\n/, '')
+  const geometry = vm.createContext({})
+  vm.runInContext(geometrySource, geometry)
+  const gapsStyle = vm.createContext({ Geometry: geometry })
+  vm.runInContext(styleFunction('applyGapsOutJson') + '\nvar gapsOut = 5, gapsOutEdges = null', gapsStyle)
+  const edges = () => JSON.parse(JSON.stringify(gapsStyle.gapsOutEdges))
+  gapsStyle.applyGapsOutJson('{"option":"general:gaps_out","css":"10 20 30 40"}')
+  assertDeepEqual(edges(), { top: 10, right: 20, bottom: 30, left: 40 }, 'per-side gaps_out reaches the floating bar')
+  gapsStyle.applyGapsOutJson('{"option":"general:gaps_out","css":"12"}')
+  assertDeepEqual(edges(), { top: 12, right: 12, bottom: 12, left: 12 }, 'a single gaps_out value applies to every side')
+  // [bar] radius is a number like the sizes; margin stays a raw list.
+  const parseStyle = vm.createContext({})
+  vm.runInContext(['barToken', 'barInsetToken', 'boolToken', 'applyShellValues'].map(styleFunction).join('\n') + '\nvar fontScale = 1, barScaleWithFont = true, barOverrides = {}', parseStyle)
+  parseStyle.applyShellValues({ 'bar.radius': '9', 'bar.margin': '4 8' })
+  assertEqual(parseStyle.barInsetToken('radius', 0), 9, '[bar] radius in shell.toml reaches the bar')
+  assertEqual(parseStyle.barOverrides.margin, '4 8', '[bar] margin reaches the bar as the list it was written as')
+  gapsStyle.applyGapsOutJson('not json')
+  assertDeepEqual(edges(), { top: 12, right: 12, bottom: 12, left: 12 }, 'unreadable hyprctl output keeps the last gaps')
+}
+
+// Popouts and toasts place themselves from the bar's outer face, which a
+// floating bar moves off the screen edge. The arithmetic runs by value; the
+// QML is checked only for feeding it the bar's margins.
+{
+  const vm = require('vm')
+  const panelGeometry = vm.createContext({})
+  vm.runInContext(fs.readFileSync(root + '/shell/Commons/PanelGeometry.js', 'utf8').replace(/^\.pragma library\n/, ''), panelGeometry)
+  const flush = { top: 0, right: 0, bottom: 0, left: 0 }
+  const inGap = { top: 6, right: 12, bottom: 12, left: 12 }
+  const origin = (position, margins, w, h) => JSON.parse(JSON.stringify(panelGeometry.barOrigin(position, margins, w, h, 2000, 1250)))
+  assertDeepEqual(origin('top', flush, 2000, 26), { x: 0, y: 0 }, 'a flush top bar starts at the screen corner')
+  assertDeepEqual(origin('top', inGap, 1976, 26), { x: 12, y: 6 }, 'a floating top bar starts at its margins')
+  assertDeepEqual(origin('bottom', { top: 12, right: 12, bottom: 6, left: 12 }, 1976, 26), { x: 12, y: 1218 }, 'a floating bottom bar ends its margin above the screen edge')
+  assertDeepEqual(origin('right', { top: 12, right: 6, bottom: 12, left: 12 }, 28, 1226), { x: 1966, y: 12 }, 'a floating right bar ends its margin left of the screen edge')
+
+  const card = (position, margins, barW, barH, anchor, centerOnBar) => {
+    const o = panelGeometry.barOrigin(position, margins, barW, barH, 2000, 1250)
+    return JSON.parse(JSON.stringify(panelGeometry.cardOrigin({
+      position, centerOnBar: !!centerOnBar, origin: o, barW, barH, anchor,
+      width: 300, height: 200, gap: 6, margin: 6, screenW: 2000, screenH: 1250
+    })))
+  }
+  // An icon at x 988..1012 on screen: 976 inside a bar that starts at x 12.
+  const icon = { x: 988, y: 1, w: 24, h: 24 }
+  assertDeepEqual(card('top', flush, 2000, 26, icon), { x: 850, y: 32 }, 'a flush top bar opens its card gap below the bar, centred on the icon')
+  assertDeepEqual(card('top', inGap, 1976, 26, icon), { x: 850, y: 38 }, 'a floating top bar opens its card gap below its outer face, centred on the icon')
+  assertDeepEqual(card('top', { top: 6, right: 30, bottom: 12, left: 10 }, 1960, 26, icon, true), { x: 840, y: 38 }, 'a centred card follows the bar, not the screen, with uneven margins')
+  assertDeepEqual(card('bottom', { top: 12, right: 12, bottom: 6, left: 12 }, 1976, 26, icon), { x: 850, y: 1012 }, 'a floating bottom bar opens its card gap above its outer face')
+  assertDeepEqual(card('left', { top: 12, right: 12, bottom: 12, left: 6 }, 28, 1226, { x: 8, y: 600, w: 20, h: 20 }), { x: 40, y: 510 }, 'a floating left bar opens its card gap right of its outer face')
+  assertDeepEqual(card('right', { top: 12, right: 6, bottom: 12, left: 12 }, 28, 1226, { x: 1970, y: 600, w: 20, h: 20 }), { x: 1660, y: 510 }, 'a floating right bar opens its card gap left of its outer face')
+  assertDeepEqual(card('top', inGap, 1976, 26, { x: 1980, y: 1, w: 24, h: 24 }), { x: 1694, y: 38 }, 'a card near the screen end stays inside the screen margin')
+  assertDeepEqual(card('left', { top: 30, right: 12, bottom: 10, left: 6 }, 28, 1210, { x: 8, y: 600, w: 20, h: 20 }, true), { x: 40, y: 535 }, 'a centred card on a side bar follows the bar, not the screen')
+  // Room for a card: across the bar it loses the bar, its edge margin and
+  // the reserve; along the bar only the reserve.
+  assertEqual(panelGeometry.availableLength(1250, true, 26 + 6, 12, 12), 1206, 'a card below a floating bar loses the bar and its margin')
+  assertEqual(panelGeometry.availableLength(1250, true, 26, 12, 12), 1212, 'a card below a flush bar loses the bar')
+  assertEqual(panelGeometry.availableLength(2000, false, 26 + 6, 12, 12), 1988, 'a card along the bar loses only the reserve')
+  assertEqual(panelGeometry.availableLength(100, true, 26, 12, 12), 120, 'a card keeps at least 120 px')
+  assertEqual(panelGeometry.barStripSize(26, 26, 6, 6), 38, 'clicks up to the gap below a floating bar count as the bar')
+  assertEqual(panelGeometry.barStripSize(26, 26, 0, 6), 32, 'a flush bar strip is the bar and the gap')
+
+  const panelSource = fs.readFileSync(root + '/shell/Ui/KeyboardPanel.qml', 'utf8')
   assert(
-    new RegExp(`${edge}: root\\.barHidden && root\\.position === "${edge}" \\? -root\\.barSize : 0`).test(barSource),
-    `a hidden bar parks past the ${edge} edge`
+    /readonly property var barMargins: bar && bar\.barMargins \? bar\.barMargins :/.test(panelSource) &&
+    /readonly property real barEdgeMargin: barMargins\[barPos\]/.test(panelSource) &&
+    /readonly property var barOrigin: PanelGeometry\.barOrigin\(barPos, barMargins, barW, barH, screenW, screenH\)/.test(panelSource) &&
+    /readonly property real barX: barOrigin\.x/.test(panelSource) && /readonly property real barY: barOrigin\.y/.test(panelSource) &&
+    /return Qt\.point\(p\.x \+ barX, p\.y \+ barY\)/.test(panelSource) &&
+    /PanelGeometry\.cardOrigin\(\{[\s\S]*?origin: barOrigin[\s\S]*?anchor: \{ x: anchorScreenPos\.x, y: anchorScreenPos\.y/.test(panelSource) &&
+    /PanelGeometry\.barStripSize\(bar\.barSize, actual, root\.barEdgeMargin, root\.gap\)/.test(panelSource) &&
+    /PanelGeometry\.availableLength\(screenW, barPos === "left" \|\| barPos === "right", barW \+ barEdgeMargin, gap \+ margin, margin \* 2\)/.test(panelSource) &&
+    /PanelGeometry\.availableLength\(screenH, barPos === "top" \|\| barPos === "bottom", barH \+ barEdgeMargin, gap \+ margin, margin \* 2\)/.test(panelSource) &&
+    /return Qt\.point\(px - root\.barX, py - root\.barY\)/.test(panelSource),
+    'bar popouts place and forward through the bar window origin and margins'
+  )
+
+  // Tray menus, the media popup and the bar options size themselves the same way.
+  const popupSource = fs.readFileSync(root + '/shell/Ui/PopupCard.qml', 'utf8')
+  assert(
+    /readonly property real barEdgeMargin: bar && bar\.barMargins \? \(bar\.barMargins\[bar\.position\] \|\| 0\) : 0/.test(popupSource) &&
+    /PanelGeometry\.availableLength\(screenW, !!bar && \(bar\.position === "left" \|\| bar\.position === "right"\), barW \+ barEdgeMargin, root\.margin \* 2, root\.margin \* 2\)/.test(popupSource) &&
+    /PanelGeometry\.availableLength\(screenH, !!bar && \(bar\.position === "top" \|\| bar\.position === "bottom"\), barH \+ barEdgeMargin, root\.margin \* 2, root\.margin \* 2\)/.test(popupSource),
+    'popup cards leave room for a floating bar\'s edge margin'
+  )
+
+  const notificationLogic = requireFromRoot('shell/plugins/notifications/NotificationLogic.js')
+  assertEqual(notificationLogic.barClearance(26, null, 'top', 6), 32, 'toasts clear a flush or hidden bar by its size and the gap')
+  assertEqual(notificationLogic.barClearance(26, inGap, 'top', 6), 38, 'toasts clear a floating top bar\'s edge margin')
+  assertEqual(notificationLogic.barClearance(28, { top: 12, right: 6, bottom: 12, left: 12 }, 'right', 6), 40, 'toasts clear a floating right bar\'s edge margin')
+  const notificationSource = fs.readFileSync(root + '/shell/plugins/notifications/Service.qml', 'utf8')
+  assert(
+    /liveBarMargins: shell && shell\.bar && !shell\.bar\.barHidden && shell\.bar\.barMargins \? shell\.bar\.barMargins : null/.test(notificationSource) &&
+    /barClearance: NotificationLogic\.barClearance\(liveBarSize, liveBarMargins, barPosition, Style\.gapsOut\)/.test(notificationSource),
+    'toasts take the live bar margins'
+  )
+
+  // Widgets and plugins that place their own windows get the margins too.
+  const pluginApiSource = fs.readFileSync(root + '/shell/Ui/PluginBarApi.qml', 'utf8')
+  const stateApiSource = fs.readFileSync(root + '/shell/services/PluginBarStateApi.qml', 'utf8')
+  assert(
+    /property var barMargins:/.test(pluginApiSource) && /api\.barMargins = Qt\.binding\(function\(\) \{ return root\.barMargins \}\)/.test(barSource),
+    'bar widgets get bar.barMargins'
+  )
+  assert(
+    /property var barMargins:/.test(stateApiSource) && /api\.barMargins = Qt\.binding\(function\(\) \{ return shell\.bar && shell\.bar\.barMargins \? shell\.bar\.barMargins :/.test(shellSource),
+    'plugins positioning their own windows get shell.bar.barMargins'
   )
 }
+
+// The floating switch and the radius reach the bar through these bindings.
+assert(/readonly property bool floating: BarModel\.barFloating\(floatingSetting, Style\.bar\.margins, position\)/.test(barSource), 'the floating state comes from bar.floating and the theme margin')
+assert(/readonly property int barRadius: BarModel\.barRadius\(\s*floating,\s*Style\.barOverrides\["radius"\] !== undefined \? Style\.bar\.radius : undefined,\s*Style\.cornerRadius,\s*barSize\)/.test(barSource), 'the bar radius comes from the floating state, the theme radius and Hyprland rounding')
 
 // The center section declares two arrangements and shows one; the hidden one
 // must not build its modules or every center widget exists twice.
@@ -377,6 +696,129 @@ assertEqual(
   '/home/dhh/.config/omarchy/bar/modules/local.weather.qml',
   'bar builds default custom module paths'
 )
+
+// Pills. A run is the DMS segment model: spacers break it, hidden widgets drop
+// out of it without breaking it, and runs of one are a whole pill.
+assertEqual(bar.pillMode(undefined), 'off', 'pills are off by default')
+assertEqual(bar.pillMode('section'), 'section', 'pills accept section mode')
+assertEqual(bar.pillMode('widget'), 'widget', 'pills accept widget mode')
+assertEqual(bar.pillMode('bogus'), 'off', 'an unknown pill mode draws no pills')
+
+assertEqual(bar.pillState({ id: 'omarchy.clock' }, true), true, 'a drawn widget joins a pill')
+assertEqual(bar.pillState({ id: 'omarchy.clock' }, false), null, 'a hidden widget is skipped')
+assertEqual(bar.pillState({ id: 'omarchy.spacer', size: 0 }, false), false, 'a zero-size spacer still breaks a pill')
+assertEqual(bar.pillState({ id: 'omarchy.spacer', size: 8 }, true), false, 'a spacer never draws a pill')
+assertEqual(bar.pillState({ id: 'omarchy.clock', pill: false }, true), false, 'pill: false opts a widget out and breaks the run')
+assertEqual(bar.pillState({ id: 'omarchy.clock', pill: false }, false), null, 'a hidden opted-out widget is skipped')
+
+const pillEntries = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'omarchy.spacer' }, { id: 'd' }, { id: 'e' }]
+const pillDrawn = pillEntries.map(entry => bar.pillState(entry, true))
+assertDeepEqual(bar.pillRoles(pillEntries, pillDrawn, 'off'), ['none', 'none', 'none', 'none', 'none', 'none'], 'off mode draws no pills')
+assertDeepEqual(bar.pillRoles(pillEntries, pillDrawn, 'section'), ['first', 'middle', 'last', 'none', 'first', 'last'], 'section mode joins runs and a spacer splits them')
+assertDeepEqual(bar.pillRoles(pillEntries, pillDrawn, 'widget'), ['solo', 'solo', 'solo', 'none', 'solo', 'solo'], 'widget mode gives each widget its own pill')
+assertDeepEqual(bar.pillRoles(pillEntries, [true, null, true, false, null, true], 'section'), ['first', 'none', 'last', 'none', 'none', 'solo'], 'hidden widgets drop out of a run without breaking it')
+assertDeepEqual(bar.pillRoles(pillEntries, [], 'section'), ['none', 'none', 'none', 'none', 'none', 'none'], 'widgets that have not reported draw nothing')
+assertDeepEqual(bar.pillRoles([], [], 'section'), [], 'an empty section has no roles')
+
+const groupEntries = [{ id: 'a' }, { id: 'b', group: 'net' }, { id: 'c', group: 'net' }, { id: 'd', group: 'power' }, { id: 'e' }, { id: 'f' }]
+assertDeepEqual(
+  bar.pillRoles(groupEntries, groupEntries.map(entry => bar.pillState(entry, true)), 'section'),
+  ['solo', 'first', 'last', 'solo', 'first', 'last'],
+  'a change of group key splits a run with no spacer'
+)
+assertDeepEqual(
+  bar.pillRoles(groupEntries, [true, true, null, true, true, true], 'section'),
+  ['solo', 'solo', 'none', 'solo', 'first', 'last'],
+  'a group left with one drawn widget is a whole pill'
+)
+
+// Section ends: an outer pill sits pillInset from the bar end (its slot
+// carries half the gap), a bare outer widget keeps the stock margin.
+assertEqual(bar.sectionEndMargin([true, true], false, false, 2, 6, 8), 8, 'without pills a section keeps the stock end margin')
+assertEqual(bar.sectionEndMargin([true, false], false, true, 2, 6, 8), -1, 'an outer pill carries half the gap itself')
+assertEqual(bar.sectionEndMargin([null, false, true], false, true, 2, 6, 8), 8, 'a bare outer widget keeps the stock margin, hidden ones skipped')
+assertEqual(bar.sectionEndMargin([true, false, null], true, true, 2, 6, 8), 8, 'the far end reads the last drawn widget')
+assertEqual(bar.sectionEndMargin([], true, true, 2, 6, 8), 8, 'an empty section keeps the stock margin')
+// An odd gap splits unevenly, and two neighbours still add up to it.
+assertEqual(bar.pillGapLead(7) + (7 - bar.pillGapLead(7)), 7, 'the gap halves of two neighbouring pills add up to pill-gap')
+assertEqual(bar.pillGapLead(6), 3, 'an even gap splits evenly')
+assertEqual(bar.sectionEndMargin([true], false, true, 2, 7, 8), -1, 'the start of a section takes the smaller half of an odd gap')
+assertEqual(bar.sectionEndMargin([true], true, true, 2, 7, 8), -2, 'the end of a section takes the larger half of an odd gap')
+const slotSource = barSource.slice(barSource.indexOf('component ModuleSlot'))
+assert(
+  /readonly property int pillGapLead: BarModel\.pillGapLead\(Style\.bar\.pillGap\)/.test(slotSource) &&
+  /readonly property int pillGapTrail: Style\.bar\.pillGap - pillGapLead/.test(slotSource) &&
+  /pillTrail: BarModel\.pillEndsRound\(pillRole\) \? Style\.bar\.pillPadding \+ pillGapTrail/.test(slotSource) &&
+  /width: root\.vertical \? slot\.width - inset \* 2 : slot\.pillLength - slot\.pillGapLead - slot\.pillGapTrail/.test(slotSource),
+  'a pill is drawn between the two gap halves of its run'
+)
+assert(/pillPadding: root\.barInsetToken\("pill-padding", 4\)/.test(styleSource) && /pillGap: +root\.barInsetToken\("pill-gap", +6\)/.test(styleSource), 'pill-padding and pill-gap keep a deliberate 0')
+// Dragging the slot that draws a multi-widget pill must not lift the pill
+// over the rest of the run, and the ghost is the widget, not the slot.
+assert(/z: modulePointer\.dragging && !\(slot\.pillLength > 0 && slot\.pillRole === "first"\) \? 100 : 0/.test(slotSource), 'dragging the first widget of a pill keeps the pill under its neighbours')
+assert(
+  /color: root\.pillsOn\s*\? \(root\.transparent \? root\.pillFill : Qt\.tint\(root\.background, root\.pillFill\)\)\s*: \(root\.transparent \? "transparent" : root\.background\)/.test(barSource),
+  'the drag ghost sits on the pill colour while pills are on, and on the bar colour otherwise'
+)
+assert(
+  /root\.barDragOffsetX = pressedX - \(root\.vertical \? 0 : slot\.pillLead\)/.test(slotSource) &&
+  /root\.barDragOffsetY = pressedY - \(root\.vertical \? slot\.pillLead : 0\)/.test(slotSource),
+  'the drag ghost stays under the pointer inside a pill'
+)
+// Pills off must leave the bar as it was: these are the switches.
+assert(/property color barForeground: pillsOn && /.test(barSource), 'bar text follows pills only while pills are on')
+assert(/readonly property var roles: root\.pillsOn \? BarModel\.pillRoles\(/.test(barSource), 'no pill roles while pills are off')
+assert(/readonly property color pillForeground: !pillsOn \? themeForeground :/.test(barSource), 'no pill text colour work while pills are off')
+assert(/readonly property bool pillTextSampled: pillsOn && !pillTextFixed && requestedTransparent && Color\.bar\.pill\.a < 1/.test(barSource), 'pill text is sampled only for a translucent pill on a transparent bar')
+assert(/readonly property bool pillRaised: !transparent && Color\.pick\("bar\.pill", ""\) === ""/.test(barSource), 'the raised pill tone is used only on the drawn bar without a theme pill')
+assert(/x: BarModel\.anchorOffset\(parent\.width, width, pillLead, pillTrail\)/.test(barSource) && /y: BarModel\.anchorOffset\(parent\.height, height, pillLead, pillTrail\)/.test(barSource), 'the anchored centre widget is placed by anchorOffset on both axes')
+assert(
+  /if \(root\.pillsOn \|\| root\.transparentForegroundBlended\) root\.transparentForegroundPending = true/.test(barSource) &&
+  /root\.transparentForegroundBlended = root\.pillBlendArgs\.length > 0/.test(barSource) &&
+  /onExited: \{\s*if \(!root\.transparentForegroundPending\) return\s*root\.transparentForegroundPending = false\s*Qt\.callLater\(root\.refreshTransparentForeground\)/.test(barSource),
+  'with pills on, a text colour refresh asked for during a sample runs after it'
+)
+
+// The anchored centre widget must sit where anchors.centerIn puts it without
+// pills: Qt rounds each half on its own, round(P/2) - round(s/2).
+let anchorMismatches = 0
+for (let parent = 1000; parent < 1100; parent++) {
+  for (let size = 20; size < 120; size++) {
+    if (bar.anchorOffset(parent, size, 0, 0) !== Math.round(parent / 2) - Math.round(size / 2)) anchorMismatches++
+  }
+}
+assertEqual(anchorMismatches, 0, 'without pills the anchor matches anchors.centerIn to the pixel')
+
+// Tray icons on the bar sit on the pill and take its text colour; the tray
+// popups sit on the popup background and keep the theme text.
+const traySource = fs.readFileSync(root + '/shell/plugins/bar/widgets/Tray.qml', 'utf8')
+const trayItem = traySource.slice(traySource.indexOf('component TrayItem'))
+assert(/readonly property color foreground: bar \? bar\.foreground : Color\.foreground/.test(traySource), 'tray popups keep the theme text colour')
+assert(/readonly property color barIconColor: bar \? \(bar\.pillsOn \? bar\.barForeground : bar\.foreground\)/.test(traySource), 'tray bar icons follow the pill text while pills are on')
+assert(/property color tint: root\.foreground/.test(traySource) && /colorizationColor: trayIconRoot\.tint/.test(traySource), 'tray icons are tinted with their own tint, the popup colour by default')
+assert(/TrayIcon \{[^}]*tint: root\.barIconColor/.test(trayItem), 'the tray icon on the bar takes the bar icon colour')
+// A cloned tray gets the plugin facade, which must carry pillsOn for that.
+assert(/property bool pillsOn: false/.test(fs.readFileSync(root + '/shell/Ui/PluginBarApi.qml', 'utf8')) && /api\.pillsOn = Qt\.binding\(function\(\) \{ return root\.pillsOn \}\)/.test(barSource), 'bar widgets outside the shell see whether pills are on')
+assertEqual(bar.anchorOffset(1080, 81 + 14, 7, 7), bar.anchorOffset(1080, 81, 0, 0) - 7, 'pill padding does not move the anchored widget')
+
+assertEqual(
+  bar.inlineSettingsDelta({ left: [{ id: 'a' }], center: [], right: [] }, { left: [{ id: 'a', pill: false }], center: [], right: [] }),
+  null,
+  'bar rebuilds when an entry opts out of pills'
+)
+assertEqual(
+  bar.inlineSettingsDelta({ left: [{ id: 'a', group: 'x' }], center: [], right: [] }, { left: [{ id: 'a', group: 'y' }], center: [], right: [] }),
+  null,
+  'bar rebuilds when an entry changes pill group'
+)
+
+assertEqual(bar.blendHex('#ffffff', 0.5, '#000000'), '#808080', 'pill colour blends over its backdrop')
+assertEqual(bar.blendHex('#1a1b26', 1, '#ffffff'), '#1a1b26', 'an opaque pill hides its backdrop')
+assertEqual(bar.blendHex('bogus', 1, '#ffffff'), '', 'blending rejects a malformed colour')
+assertEqual(bar.pickTextColor('#ffffff', '#101010', '#f5f5f5'), '#101010', 'pill text flips to the background colour on a light pill')
+assertEqual(bar.pickTextColor('#ffffff', '#101010', '#202020'), '#ffffff', 'pill text keeps the bar text on a dark pill')
+assertEqual(bar.pickTextColor('#ffffff', '#101010', 'bogus'), '#ffffff', 'pill text keeps the bar text when the backdrop is unknown')
+assert(Math.abs(bar.contrastRatio('#ffffff', '#000000') - 21) < 1e-9, 'contrast ratio follows WCAG')
 JS
 
 put_tmp=$(mktemp -d)
