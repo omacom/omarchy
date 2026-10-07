@@ -74,4 +74,14 @@ assert(
     /function prepareBackground[\s\S]*?requestNativeSize\(path\)/.test(backgroundQml),
   'background never probes videos and probes a prepared frame ahead of its transition'
 )
+assert(
+  backgroundQml.includes('property int readyPanels: 0') &&
+    backgroundQml.includes('id: revealWaitTimer') &&
+    /function panelReady\(panel\)[\s\S]*readyPanels \+= 1[\s\S]*if \(readyPanels >= Quickshell\.screens\.length\) startReveal\(\)/.test(backgroundQml),
+  'background waits for all screen panels to load before starting reveal animation'
+)
+assert(
+  /function maybeStartReveal\(\)[\s\S]*root\.revealProgress >= 1[\s\S]*root\.panelReady\(panel\)/.test(backgroundQml),
+  'late screens set maskReady and join running reveal animation'
+)
 JS

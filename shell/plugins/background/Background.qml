@@ -39,6 +39,7 @@ Item {
   property int backgroundVersion: 0
   property int revealStartedVersion: -1
   property int pendingThemeVersion: -1
+  property int readyPanels: 0
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
@@ -74,6 +75,8 @@ Item {
     currentBackground = finalPath
     backgroundVersion += 1
     revealStartedVersion = -1
+    readyPanels = 0
+    revealWaitTimer.stop()
 
     revealAnimation.stop()
     finishingTransition = false
@@ -122,11 +125,26 @@ Item {
     if (!incomingBackground || revealProgress >= 1) applyPendingTheme()
   }
 
-  function startReveal(panel) {
+  // All screens share one reveal animation, but each screen loads its own copy
+  // of the image. Start the reveal when all screens have their image, or when
+  // revealWaitTimer ends. A screen that is late joins the running reveal.
+  function panelReady(panel) {
     if (!incomingBackground) return
     panel.maskReady = true
     if (revealStartedVersion === backgroundVersion) return
+    if (panel.readyVersion !== backgroundVersion) {
+      panel.readyVersion = backgroundVersion
+      readyPanels += 1
+    }
+    if (readyPanels >= Quickshell.screens.length) startReveal()
+    else if (!revealWaitTimer.running) revealWaitTimer.restart()
+  }
+
+  function startReveal() {
+    if (!incomingBackground) return
+    if (revealStartedVersion === backgroundVersion) return
     revealStartedVersion = backgroundVersion
+    revealWaitTimer.stop()
     applyPendingTheme()
     revealAnimation.restart()
   }
@@ -245,9 +263,18 @@ Item {
     onTriggered: root.preparedBackground = ""
   }
 
+  // Maximum wait for slow screens. Keep it shorter than
+  // pendingThemeFallbackTimer, so the colors change when the reveal starts.
+  Timer {
+    id: revealWaitTimer
+    interval: 250
+    repeat: false
+    onTriggered: root.startReveal()
+  }
+
   Timer {
     id: pendingThemeFallbackTimer
-    interval: 300
+    interval: 500
     repeat: false
     onTriggered: root.applyPendingTheme()
   }
@@ -294,6 +321,7 @@ Item {
       updatesEnabled: true
 
       property bool maskReady: false
+      property int readyVersion: -1
 
       // Decode the wallpaper at the size this screen can show, not the size
       // it was shipped at. With PreserveAspectCrop Qt takes sourceSize as the
@@ -317,12 +345,12 @@ Item {
       }
 
       function maybeStartReveal() {
-        if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
+        if (!root.incomingBackground || root.revealProgress >= 1 || maskReady) return
         if (incomingFrame.status !== Image.Ready) return
         Qt.callLater(function() {
-          if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
+          if (!root.incomingBackground || root.revealProgress >= 1 || maskReady) return
           if (incomingFrame.status !== Image.Ready) return
-          root.startReveal(panel)
+          root.panelReady(panel)
         })
       }
 
