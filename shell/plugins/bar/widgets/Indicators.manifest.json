@@ -27,6 +27,11 @@
         "emptyText": "No indicators",
         "options": [
           {
+            "value": "PasswordlessSudo",
+            "label": "Passwordless sudo",
+            "description": "Warning while passwordless root access is enabled"
+          },
+          {
             "value": "Dictation",
             "label": "Dictation",
             "description": "Voice typing status"

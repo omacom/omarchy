@@ -22,6 +22,10 @@ grep -Fq 'KERNEL_CMDLINE[default]+=" intel_iommu=on iommu=pt pm_async=off mem_sl
   fail "T2 setup leaves optional Touch Bar customization uninstalled"
 ! grep -qx 'tiny-dfr' "$other_packages" ||
   fail "the ISO no longer caches tiny-dfr"
+grep -Fq 'apple-bcm-firmware-fetcher' "$fix_t2" ||
+  fail "T2 setup installs the firmware fetcher"
+grep -Fq 'apple-bcm-firmware-fetcher' "$other_packages" ||
+  fail "the default package list installs the firmware fetcher"
 grep -Fq 'default/udev/t2-usbc-hotplug.rules' "$fix_t2" ||
   fail "T2 setup installs the USB-C hot-plug udev rule"
 grep -Fq 'ATTR{device}=="0x15ec", ATTR{power/control}="on"' "$usbc_rule" ||
