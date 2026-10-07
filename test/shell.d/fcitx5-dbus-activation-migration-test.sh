@@ -27,6 +27,7 @@ cat >"$stub_bin/systemctl" <<'SH'
 #!/bin/bash
 case "$2" in
   is-active) exit 0 ;;
+  is-enabled) [[ ${UNIT_ENABLED:-true} == "true" ]] ;;
   show) printf '42\n' ;;
   *) exit 2 ;;
 esac
@@ -39,9 +40,9 @@ SH
 chmod +x "$stub_bin"/*
 
 run_case() {
-  local owner="$1" expected_restarts="$2" description="$3"
+  local owner="$1" expected_restarts="$2" description="$3" enabled="${4:-true}"
   : >"$calls"
-  OWNER_PID="$owner" RESTART_CALLS="$calls" PATH="$stub_bin:$PATH" \
+  OWNER_PID="$owner" UNIT_ENABLED="$enabled" RESTART_CALLS="$calls" PATH="$stub_bin:$PATH" \
     HOME="$test_tmp/home" OMARCHY_PATH="$ROOT" \
     bash -euo pipefail "$migration" >/dev/null || fail "$description: migration exits successfully"
   (( $(wc -l <"$calls") == expected_restarts )) || fail "$description: expected $expected_restarts restarts, got $(wc -l <"$calls")"
@@ -51,3 +52,4 @@ run_case() {
 run_case 42 0 "fcitx5 unit owns the bus name"
 run_case 99 1 "another process owns the bus name"
 run_case "" 0 "nobody owns the bus name"
+run_case 99 0 "another process owns the bus name while the unit is disabled or masked" false
