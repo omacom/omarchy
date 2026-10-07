@@ -34,6 +34,7 @@
     "userMessageBackgroundHover": "{{ mix background foreground 10% }}",
     "bashMessageBackgroundColor": "{{ mix background foreground 6% }}",
     "memoryBackgroundColor": "{{ mix background foreground 6% }}",
+    "composerSidebarBackground": "{{ mix background foreground 6% }}",
     "selectionBg": "{{ selection_background }}",
     "rate_limit_fill": "{{ accent }}",
     "rate_limit_empty": "{{ mix background foreground 20% }}",
