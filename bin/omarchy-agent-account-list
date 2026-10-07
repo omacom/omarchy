@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# omarchy:summary=List Claude, Codex, and Grok subscription accounts and their limits
+# omarchy:args=[claude|codex|grok] [--json]
+# omarchy:examples=omarchy agent account list | omarchy agent account list claude --json
+
+set -uo pipefail
+
+provider=""
+json=false
+for arg in "$@"; do
+  case "$arg" in
+  claude | codex | grok) provider="$arg" ;;
+  --json) json=true ;;
+  *)
+    echo "Usage: omarchy-agent-account-list [claude|codex|grok] [--json]" >&2
+    exit 1
+    ;;
+  esac
+done
+
+usage_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage"
+accounts=$(omarchy-agent-account-state list $provider) || exit 1
+
+# Join each account with the limits its provider's usage record last saw. With
+# a single account the collectors keep its limits at the record's top level.
+accounts=$(jq -c --arg dir "$usage_dir" '
+  map(. as $p | .accounts |= map(. + {limits: []}))' <<<"$accounts")
+for p in claude codex grok; do
+  record="$usage_dir/$p.json"
+  [[ -f $record ]] || continue
+  accounts=$(jq -c --arg p "$p" --slurpfile record "$record" '
+    map(if .provider == $p then
+      .accounts |= map(. as $a | . + {limits: (
+        if ($record[0].accounts // []) | length > 0 then
+          [$record[0].accounts[] | select(.id == $a.id) | .limits] | first // []
+        elif $a.primary then
+          $record[0].limits // []
+        else
+          []
+        end)})
+    else . end)' <<<"$accounts")
+done
+
+if [[ $json == "true" ]]; then
+  echo "$accounts"
+else
+  # A provider nobody has signed in to has nothing to list.
+  for (( i = 0; i < $(jq length <<<"$accounts"); i++ )); do
+    jq -e ".[$i].accounts | any(.signedIn)" <<<"$accounts" >/dev/null || continue
+    jq -r ".[$i] | \"\(.name) — \(.switch) switching at \(.threshold)%\"" <<<"$accounts"
+    jq -r ".[$i].accounts[] |
+      \"\(if .active then \"*\" else \" \" end)\t\(.id)\t\(.label)\t\(.plan)\t\(.email)\t\" +
+      ([.limits[]? | select(.percent != null) | \"\(.label): \((.percent * 100) | round)%\"] | join(\", \"))" <<<"$accounts" |
+      column -t -s $'\t' | sed 's/^/  /'
+    echo
+  done
+fi

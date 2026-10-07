@@ -250,8 +250,14 @@ pass "Omarchy 4 upgrade removes stale nofile drop-ins"
 
 cmdline_line=$(grep -n '^preserve_kernel_cmdline_root$' "$upgrade_to_quattro" | cut -d: -f1)
 packages_line=$(grep -n '^install_omarchy_quattro_packages$' "$upgrade_to_quattro" | cut -d: -f1)
-[[ -n $cmdline_line && -n $packages_line ]] || fail "kernel cmdline preservation and package install calls exist"
-(( packages_line < cmdline_line )) || fail "kernel cmdline preservation runs once limine-mkinitcpio is installed"
+verify_line=$(grep -n '^verify_kernel_cmdline_root$' "$upgrade_to_quattro" | cut -d: -f1)
+[[ -n $cmdline_line && -n $packages_line && -n $verify_line ]] ||
+  fail "kernel cmdline preservation, verification and package install calls exist"
+# The package transaction installs the += drop-in that drops root=, so the pin
+# has to be on disk before it runs or the UKI it bakes is unbootable.
+(( cmdline_line < packages_line )) || fail "kernel cmdline is pinned before the packages that can drop root="
+# The UKIs are rebuilt by the transaction, so they can only be checked after it.
+(( verify_line > packages_line )) || fail "kernel cmdline is verified after the packages are installed"
 grep -F '/etc/default/limine' "$upgrade_to_quattro" >/dev/null
 grep -F 'KERNEL_CMDLINE[default]+=" ${boot_params[*]}"' "$upgrade_to_quattro" >/dev/null
 grep -F 'cat /proc/cmdline' "$upgrade_to_quattro" >/dev/null
@@ -260,13 +266,84 @@ grep -F 'rootflags=subvol=' "$upgrade_to_quattro" >/dev/null
 grep -F 'cryptdevice' "$upgrade_to_quattro" >/dev/null
 pass "Omarchy 4 upgrade preserves the kernel cmdline root parameters"
 
-# The += drop-ins make limine-entry-tool ignore /etc/kernel/cmdline and
-# /proc/cmdline, so only the tool's own merge can say whether root= survives.
-# Queried for the default key, so a kernel-specific pin cannot cover for the
-# entries this repairs.
-grep -F 'limine-entry-tool --get-cmdline default' "$upgrade_to_quattro" >/dev/null
-grep -F "grep -qE '(^|[[:space:]])root='" "$upgrade_to_quattro" >/dev/null
-pass "Omarchy 4 upgrade asks limine-entry-tool whether root= survives"
+# The tool's effective cmdline still resolves root= from /proc/cmdline until the
+# first += drop-in lands, so it reads healthy on exactly the machines about to
+# break. Ask the config layers whether root= is stated instead, for the default
+# key alone so a fallback or kernel-specific pin cannot cover for it.
+grep -F 'kernel_cmdline_root_pinned' "$upgrade_to_quattro" >/dev/null
+grep -F 'KERNEL_CMDLINE\[default\]' "$upgrade_to_quattro" >/dev/null
+! grep -F 'limine-entry-tool --get-cmdline' "$upgrade_to_quattro" >/dev/null ||
+  fail "the pin check does not depend on the fallback it is about to lose"
+pass "Omarchy 4 upgrade checks whether root= is pinned in the limine config"
+
+# Run the pin check against fixture config layers. A false positive skips the
+# pin and the next boot has no root=; a false negative appends a second pin.
+eval "$(sed -n '/^kernel_cmdline_root_pinned() {$/,/^}$/p' "$upgrade_to_quattro")"
+pin_root=$(mktemp -d)
+trap 'rm -rf "$pin_root"' EXIT
+as_root() {
+  local script=${3//\/etc\//$pin_root/etc/}
+  bash -c "${script//\/usr\/share\//$pin_root/usr/share/}"
+}
+# Takes pairs of a config layer and a line to append to it.
+root_pinned() {
+  rm -rf "${pin_root:?}"/{etc,usr}
+  mkdir -p "$pin_root/etc/default" "$pin_root/etc/limine-entry-tool.d" "$pin_root/usr/share/limine-entry-tool.d"
+  while (($#)); do
+    printf '%s\n' "$2" >>"$pin_root/$1"
+    shift 2
+  done
+  kernel_cmdline_root_pinned
+}
+root_pinned etc/default/limine 'KERNEL_CMDLINE[default]+=" root=UUID=abc rw"' || fail "a quoted root= pin is recognised"
+root_pinned etc/default/limine 'KERNEL_CMDLINE[default]=root=UUID=abc' || fail "an unquoted root= pin is recognised"
+root_pinned etc/default/limine 'KERNEL_CMDLINE[default]+=" dm-mod.create="foo" root=UUID=abc rw"' ||
+  fail "a pin with a quoted parameter before root= is recognised"
+root_pinned usr/share/limine-entry-tool.d/root.conf 'KERNEL_CMDLINE[default]+="root=UUID=abc"' \
+  etc/default/limine 'KERNEL_CMDLINE[default]+=" rw"' || fail "an appending layer keeps an earlier pin"
+root_pinned etc/default/limine 'KERNEL_CMDLINE[default] += " root=UUID=abc rw"' || fail "a pin spaced around += is recognised"
+! root_pinned etc/default/limine "KERNEL_CMDLINE[default]+='root=UUID=abc rw'" ||
+  fail "single quotes are kept, as limine-entry-tool keeps them"
+! root_pinned etc/default/limine 'OLD_KERNEL_CMDLINE[default]+=" root=UUID=abc rw"' || fail "a renamed key is not a pin"
+! root_pinned etc/default/limine '# KERNEL_CMDLINE[default]+=" root=UUID=abc rw"' || fail "a commented-out pin is not a pin"
+! root_pinned etc/default/limine 'KERNEL_CMDLINE[fallback]+=" root=UUID=abc rw"' || fail "a fallback-only pin does not cover default"
+! root_pinned etc/default/limine 'KERNEL_CMDLINE[default]+=" rootflags=subvol=@ rw"' || fail "rootflags= is not root="
+! root_pinned etc/default/limine 'KERNEL_CMDLINE[default]+=" systemd.setenv="root=UUID=abc" rw"' ||
+  fail "root= inside another parameter's value is not a pin"
+! root_pinned etc/default/limine 'KERNEL_CMDLINE[default]+=" systemd.setenv="NOTE=x root=UUID=abc" rw"' ||
+  fail "root= after a space inside a quoted value is not a pin"
+! root_pinned etc/default/limine 'KERNEL_CMDLINE[default]=systemd.setenv="NOTE=x root=UUID=abc rw' ||
+  fail "root= after an unmatched quote is not a pin"
+! root_pinned etc/default/limine 'KERNEL_CMDLINE[default]=ro"x"ot=UUID=abc rw' ||
+  fail "a quoted segment inside a parameter name does not make it root="
+! root_pinned etc/limine-entry-tool.conf 'KERNEL_CMDLINE[default]=root=UUID=abc rw' \
+  etc/default/limine 'KERNEL_CMDLINE[default]=quiet' || fail "a pin replaced by a later layer is not a pin"
+! root_pinned etc/default/limine 'KERNEL_CMDLINE[default]+=" root=UUID=abc rw"' \
+  etc/default/limine 'KERNEL_CMDLINE[default]="quiet"' || fail "a pin replaced later in the same layer is not a pin"
+unset -f as_root
+pass "Omarchy 4 upgrade recognises exactly the root= pins that hold"
+
+# Installing the limine packages can deploy limine on a machine that had no
+# limine.conf when the pin ran, so verification pins whatever the first call skipped.
+(
+  eval "$(sed -n '/^kernel_cmdline_root_checked=/p;/^preserve_kernel_cmdline_root() {$/,/^}$/p;/^verify_kernel_cmdline_root() {$/,/^}$/p' "$upgrade_to_quattro")"
+  limine_conf=0 pin_checks=0
+  as_root() {
+    if [[ $1 == "test" ]]; then
+      ((limine_conf))
+    fi
+  }
+  kernel_cmdline_root_pinned() { ((++pin_checks)); }
+  limine-mkinitcpio() { :; }
+  preserve_kernel_cmdline_root
+  ((pin_checks == 0)) || fail "the pin waits for a limine.conf"
+  limine_conf=1
+  verify_kernel_cmdline_root
+  ((pin_checks == 1)) || fail "kernel cmdline verification pins a machine the transaction put on limine"
+  verify_kernel_cmdline_root
+  ((pin_checks == 1)) || fail "kernel cmdline verification pins a machine only once"
+)
+pass "Omarchy 4 upgrade pins root= on machines the transaction moves to limine"
 
 # The crypt layer hides in the parents on LVM-on-LUKS, and a partial cmdline
 # for an encrypted root must not be written at all.
@@ -286,3 +363,46 @@ reboot_line=$(grep -n 'Rebooting because --reboot was passed' "$upgrade_to_quatt
 [[ -n $unsafe_line && -n $reboot_line ]] || fail "reboot gate and reboot branch exist"
 (( unsafe_line < reboot_line )) || fail "an unverified kernel cmdline blocks the reboot"
 pass "Omarchy 4 upgrade verifies the UKIs and refuses to reboot unverified"
+
+# Lazydocker is optional on fresh installs, but a pre-quattro install keeps it.
+lazydocker_body=$(function_body migrate_lazydocker_package)
+[[ -n $lazydocker_body ]] || fail "upgrade has a Lazydocker replacement step"
+eval "migrate_lazydocker_package() { $lazydocker_body; }"
+lazydocker_calls=""
+package_installed_exact() { [[ $1 == "lazydocker-bin" && $legacy_lazydocker == "yes" ]]; }
+log() { :; }
+warn() { :; }
+as_root() {
+  lazydocker_calls+="swap:$*"$'\n'
+  return "$lazydocker_swap_status"
+}
+mark_packages_explicit() { lazydocker_calls+="explicit:$*"$'\n'; }
+
+legacy_lazydocker=no
+lazydocker_swap_status=0
+migrate_lazydocker_package
+[[ -z $lazydocker_calls ]] || fail "upgrade does not install Lazydocker for users without the legacy package"
+pass "upgrade does not install Lazydocker for users without the legacy package"
+
+legacy_lazydocker=yes
+migrate_lazydocker_package
+grep -Fxq 'swap:pacman -S --needed --noconfirm --ask 4 lazydocker' <<<"$lazydocker_calls" ||
+  fail "upgrade replaces existing lazydocker-bin with lazydocker"
+grep -Fxq 'explicit:lazydocker' <<<"$lazydocker_calls" || fail "upgrade retains Lazydocker as an explicit package"
+pass "upgrade replaces existing lazydocker-bin with lazydocker and keeps it explicit"
+
+lazydocker_calls=""
+lazydocker_swap_status=1
+migrate_lazydocker_package
+if grep -Fq 'explicit:' <<<"$lazydocker_calls"; then
+  fail "failed Lazydocker replacement does not mark an absent package explicit"
+fi
+for cleanup in remove_conflicting_legacy_packages remove_retired_default_packages; do
+  if grep -qw lazydocker-bin <<<"$(function_body "$cleanup")"; then
+    fail "upgrade cleanup must not remove existing Lazydocker when replacement fails"
+  fi
+done
+pass "upgrade cleanup preserves existing Lazydocker when replacement fails"
+
+grep -Fxq migrate_lazydocker_package "$upgrade_to_quattro" || fail "upgrade invokes the Lazydocker replacement step"
+pass "upgrade invokes the Lazydocker replacement step"
