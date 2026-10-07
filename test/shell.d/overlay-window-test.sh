@@ -151,6 +151,13 @@ assert(
     !/onVisibleChanged: if \(!visible\) \{ cardTop/.test(menuQml),
   'the menu unfreezes its layout when the overlay hides'
 )
+const screenHandler = /onTargetScreenChanged: \{([^\n]*)\}/.exec(menuQml)[1]
+const changeScreen = new Function('panel', `with (panel) { ${screenHandler} }`)
+const menuPanel = { shown: true, cardTop: 945, maxRowsHeight: 510 }
+changeScreen(menuPanel)
+assertEqual(menuPanel.cardTop, -1, 'moving an open menu off a disconnected output unfreezes its old top edge')
+assertEqual(menuPanel.maxRowsHeight, -1, 'moving an open menu drops the old output row-height limit')
+assert(menuPanel.shown, 'resetting the layout keeps the menu open')
 
 // Fullscreen overlays open without an additional compositor animation.
 const shellRules = read('default/hypr/apps/omarchy-shell.lua')
