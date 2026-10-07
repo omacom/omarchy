@@ -1,5 +1,6 @@
 module qs.Commons
 singleton Border 1.0 Border.qml
+singleton Shadow 1.0 Shadow.qml
 singleton Color 1.0 Color.qml
 singleton IpcRegistry 1.0 IpcRegistry.qml
 singleton Style 1.0 Style.qml

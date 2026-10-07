@@ -378,6 +378,7 @@ PanelWindow {
 
   BorderSurface {
     id: card
+    shadowSection: "popups"
     x: root.cardOrigin.x
     y: root.cardOrigin.y
     width: root.contentWidth

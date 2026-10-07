@@ -997,6 +997,11 @@ Panel {
 
       Popup {
         id: copyPopup
+        readonly property var shadowInsets: Shadow.surfaceSpec("popups")
+        leftMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.left) : margins
+        rightMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.right) : margins
+        topMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.top) : margins
+        bottomMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.bottom) : margins
         x: copyButton.x + copyButton.width - width
         y: copyButton.y + copyButton.height + Style.space(4)
         width: Style.space(280)
@@ -1035,6 +1040,7 @@ Panel {
           }
         }
         background: BorderSurface {
+          shadowSection: "popups"
           color: Color.background
           borderSpec: Border.flat(root.dim, 1)
           radius: Style.cornerRadius
