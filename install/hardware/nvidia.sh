@@ -21,9 +21,13 @@ if lspci | grep -qi 'nvidia'; then
 options nvidia_drm modeset=1
 EOF
 
-  # Configure mkinitcpio for early loading
+  # Configure mkinitcpio. The names stay in nvidia.conf so omarchy_hooks.conf
+  # can drop kms on an NVIDIA-only machine. The later drop-in removes them
+  # from the image so hibernation resume can freeze the GPU.
   mkdir -p /etc/mkinitcpio.conf.d
   cat > /etc/mkinitcpio.conf.d/nvidia.conf <<'EOF'
 MODULES+=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
 EOF
+  install -Dm644 "$OMARCHY_INSTALL/hardware/nvidia-no-early-load.conf" \
+    /etc/mkinitcpio.conf.d/zz-nvidia-no-early-load.conf
 fi
