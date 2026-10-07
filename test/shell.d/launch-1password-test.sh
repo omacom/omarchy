@@ -45,10 +45,11 @@ grep -Fq '{ omarchy = "1password" }' "$ROOT/default/hypr/bindings/applications.l
   fail "1Password keybinding uses the conditional launcher"
 pass "1Password keybinding uses the conditional launcher"
 
-grep -Fq 'Environment=GSETTINGS_BACKEND=memory' \
-  "$ROOT/etc/systemd/user/app-1password@autostart.service.d/text-scaling.conf" ||
-  fail "1Password autostart drop-in serves default gsettings"
-pass "1Password autostart drop-in serves default gsettings"
+for unit in app-1password@autostart.service app-com.onepassword.OnePassword@autostart.service; do
+  grep -Fq 'Environment=GSETTINGS_BACKEND=memory' "$ROOT/etc/systemd/user/$unit.d/text-scaling.conf" ||
+    fail "1Password autostart drop-in for $unit serves default gsettings"
+  pass "1Password autostart drop-in for $unit serves default gsettings"
+done
 
 grep -Eq '^Exec=env GSETTINGS_BACKEND=memory ' "$ROOT/default/applications/1password.desktop" ||
   fail "1Password desktop override serves default gsettings"
