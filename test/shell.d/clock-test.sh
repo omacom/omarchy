@@ -40,7 +40,15 @@ assertEqual(calendar.isoWeek(2026, 6, 26), 30, 'calendar numbers a midsummer Sun
 // ---- day-of-year arithmetic behind the hero stats
 assertEqual(calendar.dayOfYear(2026, 6, 26), 207, 'calendar counts the day of the year')
 assertEqual(calendar.yearProgressPercentText(new Date(2026, 0, 1)), '0.00', 'calendar starts the year at zero percent done')
-assertEqual(calendar.yearProgressPercentText(new Date(2026, 6, 26)), '56.43', 'calendar reports the share of the year behind you')
+// Local elapsed time includes daylight-saving changes. Exercise both a zone
+// with no clock change and one whose midsummer clock is an hour ahead.
+const originalTimezone = process.env.TZ
+for (const [timezone, expected] of [['UTC', '56.44'], ['America/New_York', '56.43']]) {
+  process.env.TZ = timezone
+  assertEqual(calendar.yearProgressPercentText(new Date(2026, 6, 26)), expected, `calendar reports local elapsed year time in ${timezone}`)
+}
+if (originalTimezone === undefined) delete process.env.TZ
+else process.env.TZ = originalTimezone
 assertEqual(calendar.yearProgressPercentText(new Date(2026, 11, 31, 23, 59, 59)), '100.00', 'calendar finishes the year at a hundred percent')
 assertEqual(calendar.yearProgressPercentText(new Date(2024, 11, 31, 23, 59, 59)), '100.00', 'calendar finishes a leap year too')
 
