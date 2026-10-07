@@ -213,6 +213,23 @@ pass "Grok Bot removal deletes its own data"
 [[ -d $HOME/.grok ]] || fail "Grok Bot removal keeps the Grok CLI's state"
 pass "Grok Bot removal keeps the Grok CLI's state"
 
+# moshi-hook is a separate program. Removing the window must not take the
+# hook binary, its config, or its state.
+fresh_home
+mkdir -p "$HOME/.config/moshi" "$HOME/.local/state/moshi" \
+  "$HOME/.local/share/app.getmoshi.desktop.tauri" "$HOME/.local/bin"
+touch "$HOME/.config/moshi/config.toml" "$HOME/.local/bin/moshi-hook"
+"$ROOT/bin/omarchy-remove-ai-moshi" >/dev/null
+
+for kept in .config/moshi/config.toml .local/state/moshi \
+  .local/share/app.getmoshi.desktop.tauri .local/bin/moshi-hook; do
+  [[ -e $HOME/$kept ]] || fail "Moshi removal keeps moshi-hook and the window profile" "$kept"
+done
+pass "Moshi removal keeps moshi-hook and the window profile"
+
+grep -qx 'drop:moshi-desktop' "$TEST_LOG" || fail "Moshi removal drops the moshi-desktop package"
+pass "Moshi removal drops the moshi-desktop package"
+
 # Every acceleration variant depends on the base package, so package presence is
 # the test the remover can actually act on; the command alone is also provided by
 # builds omarchy-pkg-drop will not touch.
