@@ -68,7 +68,7 @@ ShellRoot {
     var before = NetworkMock.checks
     panel.testPoll.triggered()
     check(NetworkMock.checks === before + 1, "background timer rechecks through NM")
-    panel.testKeys.textKey("r")
+    panel.testKeys.textKey("r", Qt.NoModifier)
     check(NetworkMock.checks === before + 2, "r requests fresh connectivity")
     // Exercise the existing cursor model, not a separate test-only action.
     panel.cursorActive = true

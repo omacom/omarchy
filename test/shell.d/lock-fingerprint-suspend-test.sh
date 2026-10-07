@@ -45,8 +45,19 @@ const prepareForSleep = serviceQml.match(/function prepareForSleep\(sleeping\) \
 assert(!/abort\(\)/.test(prepareForSleep), 'suspend leaves a running scan alone')
 
 assert(
-  /if \(sleeping\) \{\s*fingerprintRetryTimer\.stop\(\)\s*\} else if \(fingerprintCheckDeferred\) \{\s*fingerprintCheckDeferred = false\s*refreshFingerprintStatus\(\)\s*\} else if \(lockRequested\) \{\s*startFingerprint\(\)\s*\}/.test(prepareForSleep),
-  'suspend stops retries; resume runs the held-back check or restarts the scan'
+  /if \(sleeping\) \{\s*fingerprintRetryTimer\.stop\(\)\s*return\s*\}/.test(prepareForSleep),
+  'suspend stops retries'
+)
+
+// The sleep watch would notice the same resume and abort the scan started here.
+assert(
+  /fingerprintSleepWatch\.lastTickMs = Date\.now\(\)\s*if \(lockRequested\) restartFingerprintAfterSleep\(\)/.test(prepareForSleep),
+  'resume runs the sleep watch recovery once'
+)
+
+assert(
+  /if \(fingerprintCheckDeferred\) \{\s*fingerprintCheckDeferred = false\s*refreshFingerprintStatus\(\)\s*\}[\s\S]*?if \(!fingerprintRetryTimer\.running\) startFingerprint\(\)/.test(prepareForSleep),
+  'resume runs the held-back check and restarts the scan'
 )
 
 // A monitor that died cannot deliver resume, so its exit must not leave the
