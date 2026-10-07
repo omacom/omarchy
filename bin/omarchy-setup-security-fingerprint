@@ -140,6 +140,8 @@ if fprintd-verify; then
   echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
 else
   # The print stays saved, even one enrolled just now, so a rerun would skip enrollment.
-  echo -e "\e[31m\nVerification failed. To enroll again, remove the saved fingerprints with\e[0m"
+  # fprintd-verify accepts any saved finger, so the one that failed is not known.
+  echo -e "\e[31m\nVerification failed. fprintd-list $USER shows your saved fingerprints.\e[0m"
+  echo -e "\e[31mRemove one with fprintd-delete $USER -f <finger>, or all of them with\e[0m"
   echo -e "\e[31mfprintd-delete $USER, then run this setup again.\e[0m"
 fi

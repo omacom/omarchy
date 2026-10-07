@@ -80,6 +80,8 @@ FPRINTD_LIST=$enrolled VERIFY_OK=0 run_setup || true
 assert_pam_untouched "an enrolled print that fails to verify leaves PAM alone"
 grep -q 'fprintd-delete tester' "$scratch/out" ||
   fail "an enrolled print that fails to verify says how to start over" "$(<"$scratch/out")"
+grep -q 'fprintd-delete tester -f <finger>' "$scratch/out" ||
+  fail "an enrolled print that fails to verify says how to remove one finger" "$(<"$scratch/out")"
 pass "an enrolled print that fails to verify explains how to enroll again"
 
 FPRINTD_LIST=$none VERIFY_OK=0 run_setup || true
