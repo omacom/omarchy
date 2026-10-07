@@ -105,11 +105,9 @@ cat >"$stub_bin/omarchy-shell" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$*" >>"$TEST_IPC"
 case $2 in
-  prepareThemeIntro)
-    if [[ -z $5 && -z $6 ]]; then
-      printf '%s\n' "$3" >"$TEST_STATE/prepared-cover"
-      printf '%s\n' "$4" >"$TEST_STATE/prepared-token"
-    fi
+  prepareThemeIntroCover)
+    printf '%s\n' "$3" >"$TEST_STATE/prepared-cover"
+    printf '%s\n' "$4" >"$TEST_STATE/prepared-token"
     ;;
   cancelThemeIntro)
     [[ $3 == "$(cat "$TEST_STATE/prepared-token")" ]] || exit 42

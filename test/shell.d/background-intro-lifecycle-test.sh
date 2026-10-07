@@ -14,13 +14,13 @@ const timer = () => ({ running: false, stop() { this.running = false }, restart(
 const state = {
   framePoll: timer(), themeFade: timer(), themeFallback: timer(), startupFade: timer(),
   themeToken: '', transitionToken: '', themeBackground: '', themeColors: '', themeShell: '',
-  themeNativeSize: null, themeOpacity: 1, backgroundService: null, cover: false, startupPending: false,
+  themePaletteReady: false, themeNativeSize: null, themeOpacity: 1, backgroundService: null, cover: false, startupPending: false,
   Color: { loadColors: value => loads.push(['colors', value]), loadShell: value => loads.push(['shell', value]) },
   Style: { scheduleRefresh: () => loads.push(['refresh']) },
   Util: { decodeBase64: value => value }
 }
 vm.createContext(state)
-for (const name of ['prepareTheme', 'cancelTheme', 'revealTheme', 'finishTheme', 'themeStatus']) {
+for (const name of ['prepareThemeCover', 'prepareTheme', 'cancelTheme', 'revealTheme', 'finishTheme', 'themeStatus']) {
   const method = service.match(new RegExp('  function ' + name + '\\([^]*?\\n  }'))
   assert(method, 'service exposes ' + name)
   vm.runInContext(method[0], state)
@@ -29,7 +29,10 @@ const cancel = ipc.match(/    function cancelThemeIntro\(token: string\): void {
 assert(cancel, 'shell exposes cancellation IPC')
 state.shell = { bootIntro: state }
 vm.runInContext('function cancelThemeIntro(token) {' + cancel[1] + '\n}', state)
-state.prepareTheme('old-video-frame', 'failed', '', '')
+const prepareCover = ipc.match(/    function prepareThemeIntroCover\(fromPath: string, token: string\): void {([^]*?)\n    }/)
+assert(prepareCover, 'shell exposes cover-only preparation IPC')
+vm.runInContext('function prepareThemeIntroCover(fromPath, token) {' + prepareCover[1] + '\n}', state)
+state.prepareThemeIntroCover('old-video-frame', 'failed')
 state.framePoll.running = true
 state.cancelThemeIntro('failed')
 assertEqual(state.themeBackground, '', 'cancel removes the prepared still so the active background is visible')
@@ -39,6 +42,19 @@ assert(!state.framePoll.running && !state.themeFallback.running && !state.themeF
 state.finishTheme('failed')
 state.revealTheme() // A queued fallback cannot apply cleared payloads.
 assertDeepEqual(loads, [], 'failure cleanup and late callbacks never change active colors or shell overrides')
+// Simulate the ten-second fallback firing before a slow renderer/publication
+// returns. Both late failure and successful retry must retain their semantics.
+state.prepareThemeIntroCover('slow-cover', 'slow-failure')
+state.revealTheme()
+assertDeepEqual(loads, [], 'prepublication fallback preserves active colors, muted color, and shell overrides')
+assertEqual(state.themeBackground, '', 'prepublication fallback releases the still over the active background')
+assert(!state.themeFallback.running && !state.themeFade.running, 'prepublication fallback fully cancels the cover')
+state.cancelThemeIntro('slow-failure')
+state.finishTheme('slow-failure')
+assertDeepEqual(loads, [], 'late failure after fallback cannot apply a palette')
+state.prepareThemeIntroCover('retry-cover', 'retry')
+state.revealTheme()
+assertDeepEqual(loads, [], 'a slow successful activation also waits for publication before applying a palette')
 state.prepareTheme('new-cover', 'retry', 'new-colors', 'new-shell')
 for (const token of ['failed', '', 'unknown']) state.cancelThemeIntro(token)
 assertEqual(state.themeToken, 'retry', 'stale and empty cancellation tokens preserve the new activation')
@@ -49,6 +65,9 @@ state.finishTheme('retry')
 assertDeepEqual(loads, [['colors', 'new-colors'], ['shell', 'new-shell'], ['refresh']], 'a successful retry applies its own palette')
 state.cancelThemeIntro('retry')
 assert(state.themeFade.running, 'cancellation after reveal does not interrupt the successful fade')
+state.prepareTheme('manual-cover', 'manual', '', '')
+state.finishTheme('manual')
+assertDeepEqual(loads.slice(-3), [['colors', ''], ['shell', ''], ['refresh']], 'a published manual theme can intentionally clear palette overrides')
 pass('prepared intro cancellation preserves the active palette and rejects stale tokens')
 JS
 

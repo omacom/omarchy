@@ -525,7 +525,7 @@ if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
       owe intro-prepare "$THEME_BACKGROUND_INTRO" >/dev/null 2>&1 9>&- &
       INTRO_PREPARE_PID=$!
       PREPARED_INTRO_TOKEN=$(stat -Lc '%d:%i' "$NEXT_THEME_PATH")
-      shell_ipc shell prepareThemeIntro "$OLD_BACKGROUND_SNAPSHOT" "$PREPARED_INTRO_TOKEN" "" "" || true
+      shell_ipc shell prepareThemeIntroCover "$OLD_BACKGROUND_SNAPSHOT" "$PREPARED_INTRO_TOKEN" || true
     elif background_transition_uses_snapshots "$CHOSEN_THEME_BACKGROUND"; then
       OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
 
