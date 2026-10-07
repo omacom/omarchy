@@ -96,7 +96,13 @@ Item {
 
   Process {
     id: dismissProcess
-    onExited: if (root.pendingDismiss) root.dismissLowBatteryWarning()
+    // Replay a queued dismiss only while still on AC: after an unplug the
+    // toast on screen may be a fresh warning, which has to stay up.
+    onExited: {
+      var replay = root.pendingDismiss
+      root.pendingDismiss = false
+      if (replay && !UPower.onBattery) root.dismissLowBatteryWarning()
+    }
   }
 
   Process {
@@ -144,7 +150,8 @@ Item {
   Connections {
     target: UPower
     function onOnBatteryChanged() {
-      if (!UPower.onBattery && persisted.notifiedLowBattery) root.dismissLowBatteryWarning()
+      if (UPower.onBattery) root.pendingDismiss = false
+      else if (persisted.notifiedLowBattery) root.dismissLowBatteryWarning()
       root.checkBattery()
       root.applyPowerProfile()
       root.refreshPowerProfile()

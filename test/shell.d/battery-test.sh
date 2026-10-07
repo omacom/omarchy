@@ -33,12 +33,13 @@ const fs = require('fs')
 const serviceSource = fs.readFileSync(root + '/shell/plugins/services/battery/Service.qml', 'utf8')
 const dismissMatch = serviceSource.match(/dismissProcess\.command = \["omarchy-notification-dismiss", "([^"]+)"\]/)
 assert(!!dismissMatch, 'battery service dismisses the low-battery toast through Omarchy command')
-assert(/if \(!UPower\.onBattery && persisted\.notifiedLowBattery\) root\.dismissLowBatteryWarning\(\)/.test(serviceSource), 'battery service dismisses the low-battery toast on plug-in')
+assert(/else if \(persisted\.notifiedLowBattery\) root\.dismissLowBatteryWarning\(\)/.test(serviceSource), 'battery service dismisses the low-battery toast on plug-in')
+assert(/function onOnBatteryChanged\(\) \{\s*if \(UPower\.onBattery\) root\.pendingDismiss = false/.test(serviceSource), 'battery service drops a queued dismiss on unplug')
 assert(/id: warningProcess[\s\S]*?onExited: if \(!UPower\.onBattery\) root\.dismissLowBatteryWarning\(\)/.test(serviceSource), 'battery service dismisses a warning that finished sending after plug-in')
-assert(/pendingDismiss = true[\s\S]*?id: dismissProcess[\s\S]*?onExited: if \(root\.pendingDismiss\) root\.dismissLowBatteryWarning\(\)/.test(serviceSource), 'battery service queues a dismiss requested while one is in flight')
+assert(/pendingDismiss = true[\s\S]*?id: dismissProcess[\s\S]*?root\.pendingDismiss = false\s*if \(replay && !UPower\.onBattery\) root\.dismissLowBatteryWarning\(\)/.test(serviceSource), 'battery service replays a queued dismiss only while still on AC')
 
 // The dismiss above matches by title, independently of the title
-// omarchy-battery-low sends — assert they're the same string so the two
+// omarchy-battery-low sends: assert they're the same string so the two
 // can't silently drift apart.
 const sendSource = fs.readFileSync(root + '/bin/omarchy-battery-low', 'utf8')
 const sendMatch = sendSource.match(/omarchy-notification-send[^\n]*?"([^"\n]+)"/)
