@@ -82,6 +82,45 @@ function nextSelectedIndexForFilter(images, selectedIndex, filterText) {
   return firstMatchingIndex(images, filterText)
 }
 
+function matchingIndices(images, filterText) {
+  var indices = []
+  for (var i = 0; i < images.length; i++) {
+    if (itemMatches(images, i, filterText)) indices.push(i)
+  }
+  return indices
+}
+
+// Keep the rendered carousel independent of the size of the collection.
+function visibleWindow(indices, selectedIndex, radius) {
+  var position = indices.indexOf(selectedIndex)
+  if (position < 0) position = 0
+  var items = []
+  for (var i = Math.max(0, position - radius); i < Math.min(indices.length, position + radius + 1); i++) {
+    items.push({ imageIndex: indices[i], relativeIndex: i - position })
+  }
+  return items
+}
+
+// Preserve overlapping delegates as selection moves, including their decoded
+// images. Replacing the entire model on every keypress makes previews flicker.
+function syncWindow(model, items) {
+  var wanted = {}
+  for (var i = 0; i < items.length; i++) wanted[items[i].imageIndex] = true
+  for (var i = model.count - 1; i >= 0; i--) {
+    if (!wanted[model.get(i).imageIndex]) model.remove(i)
+  }
+  for (var i = 0; i < items.length; i++) {
+    var existing = i
+    while (existing < model.count && model.get(existing).imageIndex !== items[i].imageIndex) existing++
+    if (existing === model.count) {
+      model.insert(i, items[i])
+    } else {
+      if (existing !== i) model.move(existing, i, 1)
+      model.setProperty(i, "relativeIndex", items[i].relativeIndex)
+    }
+  }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     nameForPath: nameForPath,
@@ -92,6 +131,9 @@ if (typeof module !== "undefined") {
     filteredPosition: filteredPosition,
     selectedFilteredPosition: selectedFilteredPosition,
     indexForSelectedImage: indexForSelectedImage,
-    nextSelectedIndexForFilter: nextSelectedIndexForFilter
+    nextSelectedIndexForFilter: nextSelectedIndexForFilter,
+    matchingIndices: matchingIndices,
+    visibleWindow: visibleWindow,
+    syncWindow: syncWindow
   }
 }
