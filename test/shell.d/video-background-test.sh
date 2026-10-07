@@ -289,7 +289,7 @@ pass "a locked video wallpaper follows the panels' real DPMS state"
 pass "OWE and its lock feed module are declared"
 
 source <(awk '
-  /^(is_video_path|snapshot_background_path|background_transition_uses_snapshots|choose_theme_background|choose_staged_theme_background|set_theme_background)\(\) \{/ { copying=1 }
+  /^(is_video_path|snapshot_background_path|remove_background_snapshots|background_transition_uses_snapshots|choose_theme_background|choose_staged_theme_background|set_theme_background)\(\) \{/ { copying=1 }
   copying { print }
   copying && /^}$/ { copying=0 }
 ' "$ROOT/bin/omarchy-theme-set")

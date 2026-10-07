@@ -36,6 +36,7 @@ Item {
   property var nativeSizes: ({})
   property var sizeQueue: []
   property bool finishingTransition: false
+  property bool refreshFinal: false
   property int backgroundVersion: 0
   property int revealStartedVersion: -1
   property int pendingThemeVersion: -1
@@ -72,6 +73,7 @@ Item {
     requestNativeSize(fromPath || displayedBackground)
     requestNativeSize(finalPath)
     currentBackground = finalPath
+    refreshFinal = force
     backgroundVersion += 1
     revealStartedVersion = -1
 
@@ -84,6 +86,7 @@ Item {
       oldBackground = ""
       incomingBackground = ""
       preparedBackground = ""
+      if (force) forgetNativeSize(finalPath)
       displayedBackground = finalPath
       revealProgress = 1
       return
@@ -141,9 +144,35 @@ Item {
   }
 
   function requestNativeSize(path) {
-    if (!path || isVideo(path) || nativeSizes[path] !== undefined || sizeQueue.indexOf(path) !== -1) return
+    if (!path || isVideo(path)) return
+    queueSizeProbe(path)
+    // The probe doubles as the existence check for a portrait twin.
+    queueSizeProbe(twinPath(path))
+  }
+
+  function queueSizeProbe(path) {
+    if (!path || nativeSizes[path] !== undefined || sizeQueue.indexOf(path) !== -1) return
     sizeQueue = sizeQueue.concat([path])
     probeNextSize()
+  }
+
+  // A theme may ship backgrounds/portrait/<same name> for screens taller than
+  // wide, as may ~/.config/omarchy/backgrounds/<theme>/. omarchy-theme-set
+  // snapshots the twin next to its plain file, so a theme switch finds it
+  // under background-transitions/portrait/ the same way.
+  function twinPath(path) {
+    var match = String(path || "").match(/^(.*\/(?:backgrounds|omarchy\/backgrounds\/[^/]+|background-transitions))\/([^/]+)$/)
+    return match && !isVideo(path) ? match[1] + "/portrait/" + match[2] : ""
+  }
+
+  // A theme switch keeps the durable path but swaps the file and its twin
+  // behind it, so what was read for the previous theme no longer holds.
+  function forgetNativeSize(path) {
+    var known = Object.assign({}, nativeSizes)
+    delete known[path]
+    delete known[twinPath(path)]
+    nativeSizes = known
+    requestNativeSize(path)
   }
 
   function probeNextSize() {
@@ -158,6 +187,7 @@ Item {
   function pruneNativeSizes() {
     var kept = {}
     var paths = [displayedBackground, incomingBackground, oldBackground, preparedBackground]
+    paths = paths.concat(paths.map(twinPath))
     for (var i = 0; i < paths.length; i++) {
       if (paths[i] && nativeSizes[paths[i]] !== undefined) kept[paths[i]] = nativeSizes[paths[i]]
     }
@@ -192,11 +222,13 @@ Item {
       var width = exitCode === 0 ? parseInt(parts[0], 10) : 0
       var height = exitCode === 0 ? parseInt(parts[1], 10) : 0
       var known = Object.assign({}, root.nativeSizes)
-      // An unreadable header records 0x0, which decodes at screen size.
-      known[path] = { width: width > 0 ? width : 0, height: height > 0 ? height : 0 }
+      // An unreadable header records 0x0, which decodes at screen size. A
+      // missing file is recorded as not found, so no screen uses it as a twin.
+      known[path] = { width: width > 0 ? width : 0, height: height > 0 ? height : 0, found: exitCode === 0 }
       root.nativeSizes = known
       root.sizeQueue = root.sizeQueue.filter(function(queued) { return queued !== sizeProbe.path })
       root.probeNextSize()
+      root.finishTransition()
     }
   }
 
@@ -262,16 +294,40 @@ Item {
     easing.type: Easing.InOutCubic
     onFinished: {
       if (root.incomingBackground) {
+        // Read the durable path again while the incoming frame still covers
+        // every screen, so no base frame changes file during the reveal.
+        if (root.refreshFinal) root.forgetNativeSize(root.currentBackground)
         root.displayedBackground = root.currentBackground || root.incomingBackground
         root.finishingTransition = true
       }
       root.revealProgress = 1
+      root.finishTransition()
     }
+  }
+
+  // Screens decode the final wallpaper at their own size, or a portrait twin
+  // in its place, so the incoming frame stays up until every base frame is
+  // ready rather than only the fastest.
+  function finishTransition() {
+    if (!finishingTransition) return
+    // The base frames bind the landing path once its probe, and its twin's,
+    // have answered.
+    if (sizeQueue.indexOf(currentBackground) !== -1 || sizeQueue.indexOf(twinPath(currentBackground)) !== -1) return
+    var panels = backgroundPanels.instances
+    for (var i = 0; i < panels.length; i++) {
+      if (panels[i].sized && !panels[i].baseReady) return
+    }
+    incomingBackground = ""
+    oldBackground = ""
+    preparedBackground = ""
+    finishingTransition = false
+    pruneNativeSizes()
   }
 
   Component.onCompleted: refreshBackground()
 
   Variants {
+    id: backgroundPanels
     model: Quickshell.screens
 
     PanelWindow {
@@ -316,6 +372,18 @@ Item {
         return Qt.size(decodeWidth, decodeHeight)
       }
 
+      // Screens taller than wide show a portrait twin once the probe has found
+      // it. Until the probe answers the frame waits, as it does for the size.
+      readonly property bool portrait: screen.height > screen.width
+      readonly property bool baseReady: base.ready
+
+      function oriented(path) {
+        var twin = portrait ? root.twinPath(path) : ""
+        if (!twin) return path
+        var probed = root.nativeSizes[twin]
+        return probed === undefined ? "" : probed.found ? twin : path
+      }
+
       function maybeStartReveal() {
         if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
         if (incomingFrame.status !== Image.Ready) return
@@ -336,25 +404,18 @@ Item {
       BackgroundMedia {
         id: base
         anchors.fill: parent
-        path: root.displayedBackground
+        path: panel.oriented(root.displayedBackground)
         constrainDecode: true
-        decodeSize: panel.decodeSize(root.displayedBackground)
-        onReadyChanged: {
-          if (ready && root.finishingTransition) {
-            root.incomingBackground = ""
-            root.oldBackground = ""
-            root.preparedBackground = ""
-            root.finishingTransition = false
-            root.pruneNativeSizes()
-          }
-        }
+        decodeSize: panel.decodeSize(path)
+        onReadyChanged: if (ready) root.finishTransition()
       }
 
       Image {
         id: oldFrame
         anchors.fill: parent
-        readonly property size decode: panel.decodeSize(root.oldBackground)
-        source: decode.width > 0 ? root.imageUrl(root.oldBackground) : ""
+        readonly property string framePath: panel.oriented(root.oldBackground)
+        readonly property size decode: panel.decodeSize(framePath)
+        source: decode.width > 0 ? root.imageUrl(framePath) : ""
         sourceSize.width: decode.width
         sourceSize.height: decode.height
         fillMode: Image.PreserveAspectCrop
@@ -384,7 +445,7 @@ Item {
           anchors.fill: parent
           // The same URL and size as a prepared frame keeps its decoded
           // image, so a transition to it can reveal at once.
-          readonly property string framePath: root.incomingBackground || root.preparedBackground
+          readonly property string framePath: panel.oriented(root.incomingBackground || root.preparedBackground)
           readonly property size decode: panel.decodeSize(framePath)
           source: decode.width > 0 ? root.imageUrl(framePath) : ""
           sourceSize.width: decode.width
