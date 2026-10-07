@@ -238,6 +238,9 @@ build_fixture() {
 
   sed "s#<include ignore_missing=\"yes\">conf.d</include>#<include ignore_missing=\"yes\">$fixture/conf.d</include>#" \
     /etc/fonts/fonts.conf >"$fixture/fonts.conf"
+  # An unmatched include would load the host's packaged file instead of the one under test.
+  grep -Fq "<include ignore_missing=\"yes\">$fixture/conf.d</include>" "$fixture/fonts.conf" ||
+    fail "the fixture loads the packaged file under test" "/etc/fonts/fonts.conf has no conf.d include to redirect"
 }
 
 resolve() {
@@ -295,5 +298,5 @@ if ((resolvable)); then
     fail "a named mono family still resolves to itself" "$named -> $answer, chosen was $chosen"
   pass "a named mono family still resolves to itself"
 else
-  pass "no fontconfig fixture on this machine; skipping resolution checks"
+  skip "no fontconfig fixture on this machine; resolution checks"
 fi

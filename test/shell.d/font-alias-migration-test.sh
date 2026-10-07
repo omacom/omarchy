@@ -170,10 +170,9 @@ with tempfile.TemporaryDirectory() as directory:
       fixture = work / 'fixture'
       (fixture / 'conf.d').mkdir(parents=True)
       for file in Path('/etc/fonts/conf.d').glob('*.conf'):
-        if file.name == '50-omarchy.conf':
-          (fixture / 'conf.d' / file.name).write_bytes((root / 'default/fontconfig/conf.avail/50-omarchy.conf').read_bytes())
-        else:
+        if file.name != '50-omarchy.conf':
           (fixture / 'conf.d' / file.name).symlink_to(file)
+      (fixture / 'conf.d/50-omarchy.conf').write_bytes((root / 'default/fontconfig/conf.avail/50-omarchy.conf').read_bytes())
       system = Path('/etc/fonts/fonts.conf').read_text()
       include = '<include ignore_missing="yes">conf.d</include>'
       assert include in system, 'system include changed; fixture would not test candidate'
