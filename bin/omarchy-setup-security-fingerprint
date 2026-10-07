@@ -85,9 +85,10 @@ default_reader() {
 # one " - #N: finger" line per print or "User has no fingers enrolled", which
 # also contains the word finger, so only entry lines under the default count.
 # It exits non-zero when it cannot list, which must not read as no prints.
+# With no default reader there is no print to find, and enrolling reports why.
 fingerprint_enrolled() {
   local reader listing
-  reader=$(default_reader) || return 2
+  reader=$(default_reader) || return 1
   listing=$(fprintd-list "$USER" 2>&1) || return 2
   awk -v reader="$reader" '
     /^Using device / { current = ($3 == reader) }

@@ -30,7 +30,7 @@ stub omarchy-hw-fingerprint 'exit 0'
 # The lock screen PAM file comes from omarchy-apply-lock; the stub writes it where the redirected setup looks.
 stub omarchy-apply-lock 'echo apply-lock >> "$CALL_LOG"; touch "$SCRATCH/pam.d/omarchy-lock-fingerprint"'
 stub omarchy-pkg-missing 'exit 1'
-stub gdbus 'printf "(objectpath %s,)\n" "${DEFAULT_READER:-/net/reactivated/Fprint/Device/0}"'
+stub gdbus '[[ -z $NO_READER ]] || exit 1; printf "(objectpath %s,)\n" "${DEFAULT_READER:-/net/reactivated/Fprint/Device/0}"'
 stub fprintd-list 'printf "%s" "$FPRINTD_LIST"; exit "${LIST_STATUS:-0}"'
 stub fprintd-enroll 'echo "fprintd-enroll $*" >> "$CALL_LOG"; [[ ${ENROLL_OK:-1} == 1 ]]'
 stub fprintd-verify 'echo "fprintd-verify" >> "$CALL_LOG"; [[ ${VERIFY_OK:-1} == 1 ]]'
@@ -112,3 +112,13 @@ fi
 assert_pam_untouched "a failed fprintd-list leaves the lock screen alone"
 grep -q "fprintd-list tester" "$scratch/out" || fail "a failed fprintd-list says what to check" "$(<"$scratch/out")"
 pass "a failed fprintd-list stops before enrollment and says what to check"
+
+# A detected sensor libfprint cannot drive leaves fprintd with no default reader.
+# Enrollment then fails with fprintd's own "No devices available".
+if NO_READER=1 FPRINTD_LIST=$none ENROLL_OK=0 run_setup; then
+  fail "setup with no default reader exits non-zero"
+fi
+grep -qx 'fprintd-enroll tester' "$CALL_LOG" || fail "no default reader still tries to enroll" "$(<"$CALL_LOG")"
+! grep -q 'Could not check' "$scratch/out" || fail "no default reader is not blamed on fprintd-list" "$(<"$scratch/out")"
+assert_pam_untouched "no default reader leaves PAM alone"
+pass "no default reader goes to enrollment, which reports fprintd's error"
