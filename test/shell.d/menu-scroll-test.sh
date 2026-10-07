@@ -7,15 +7,19 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 # A real ListView catches scroll errors that a model-only test cannot. Qt's
 # offscreen platform runs this fixture without touching the desktop session.
 qml_test_runner=""
-if command -v qmltestrunner >/dev/null 2>&1; then
-  qml_test_runner=$(command -v qmltestrunner)
-elif command -v qtpaths6 >/dev/null 2>&1; then
-  qml_test_runner="$(qtpaths6 --query QT_INSTALL_BINS)/qmltestrunner"
-elif [[ -x /usr/lib/qt6/bin/qmltestrunner ]]; then
+if [[ -x /usr/lib/qt6/bin/qmltestrunner ]]; then
   qml_test_runner=/usr/lib/qt6/bin/qmltestrunner
+elif command -v qtpaths6 >/dev/null 2>&1; then
+  qt6_bins=$(qtpaths6 --query QT_INSTALL_BINS 2>/dev/null || true)
+  if [[ -n $qt6_bins && -x "$qt6_bins/qmltestrunner" ]]; then
+    qml_test_runner="$qt6_bins/qmltestrunner"
+  fi
+fi
+if [[ -z $qml_test_runner ]] && command -v qmltestrunner >/dev/null 2>&1; then
+  qml_test_runner=$(command -v qmltestrunner)
 fi
 if [[ ! -x $qml_test_runner ]]; then
-  pass "Qt Quick Test not installed; skipping menu scroll runtime test"
+  skip "Qt Quick Test not installed; skipping menu scroll runtime test"
   exit 0
 fi
 
@@ -51,10 +55,14 @@ output=$(timeout 15s env \
   QT_QPA_PLATFORMTHEME= \
   QT_STYLE_OVERRIDE=Basic \
   QT_QUICK_BACKEND=software \
-  "$qml_test_runner" -input "$test_tmp" 2>&1) || {
+  "$qml_test_runner" -input "$test_tmp" -o -,txt 2>&1) || {
   printf '%s\n' "$output" >&2
   fail "menu keeps cursor rows visible during opening, resizing, and navigation"
 }
 
 printf '%s\n' "$output"
+# A Qt 5 runner from PATH can exit successfully without running the fixture.
+if [[ $output != *"Config: Using QtTest library 6."* || $output != *"PASS   : qmltestrunner::MenuScroll::test_"* ]]; then
+  fail "Qt 6 runner executes menu scroll runtime tests"
+fi
 pass "menu keeps cursor rows visible during opening, resizing, and navigation"
