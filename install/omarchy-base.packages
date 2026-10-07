@@ -21,6 +21,7 @@ cups
 cups-filters
 cups-pk-helper
 ddcutil
+disktree-bin
 docker
 docker-buildx
 docker-compose
