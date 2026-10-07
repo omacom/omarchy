@@ -5,6 +5,10 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_compositor "overlay output recovery runtime test"
+if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  skip "no parent Hyprland instance; skipping overlay output recovery runtime test"
+  exit 0
+fi
 
 for tool in Hyprland quickshell hyprctl wtype python; do
   if ! command -v "$tool" >/dev/null 2>&1; then

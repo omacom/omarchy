@@ -31,7 +31,7 @@ def main():
     logs.mkdir(parents=True, exist_ok=True)
     config = directory / "hyprland.lua"
     config.write_text(
-      'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })\n'
+      'hl.monitor({ output = "", mode = "800x600", position = "auto", scale = 1 })\n'
       'hl.config({ animations = { enabled = false }, xwayland = { enabled = false } })\n'
     )
     fixture = directory / "fixture"
@@ -40,7 +40,8 @@ def main():
     shutil.copyfile(source, fixture / "Ui/OverlayWindow.qml")
     (fixture / "Ui/qmldir").write_text("module qs.Ui\nOverlayWindow 1.0 OverlayWindow.qml\n")
 
-    env = os.environ.copy()
+    parent_env = os.environ.copy()
+    env = parent_env.copy()
     display = Path(env["WAYLAND_DISPLAY"])
     if not display.is_absolute():
       display = Path(env["XDG_RUNTIME_DIR"]) / display
@@ -85,13 +86,16 @@ def main():
       return found
 
     def surface(monitor, shown):
-      return wait_for(
-        f"{'shown' if shown else 'parked'} surface on {monitor}", layers,
+      if not shown:
+        return wait_for("closed overlay has no mapped surface", layers, lambda entries: not entries)
+      entry = wait_for(
+        f"shown surface on {monitor}", layers,
         lambda entries: len(entries) == 1 and entries[0]["monitor"] == monitor
-          and entries[0]["level"] == (3 if shown else 1)
-          and ((entries[0]["w"] > 1 and entries[0]["h"] > 1) if shown
-               else entries[0]["w"] == entries[0]["h"] == 1),
+          and entries[0]["level"] == 3 and entries[0]["w"] > 1 and entries[0]["h"] > 1,
       )[0]
+      wait_for("overlay content is ready and revealed", state,
+               lambda value: value["contentReady"] and value["contentRevealed"])
+      return entry
 
     def pass_check(description):
       print(f"ok - {description}", flush=True)
@@ -124,7 +128,23 @@ def main():
         run(["grim", "-o", monitor, str(logs / f"{name}.png")])
 
     initial = None
+    parent_rule = "omarchyOverlayTest_" + directory.name.replace("-", "_")
+    def parent_eval(expression):
+      result = subprocess.run(["hyprctl", "eval", expression], env=parent_env,
+                              capture_output=True, text=True, timeout=5)
+      history.append({"parent_rule": expression, "status": result.returncode,
+                      "stdout": result.stdout, "stderr": result.stderr})
+      if result.returncode or result.stdout.strip().startswith("error:"):
+        raise AssertionError("parent test-window rule: " + result.stdout + result.stderr)
+
     try:
+      # Only this run's uniquely named nested outputs match. Keep their host
+      # windows fixed-size: tiling resizes can leave the nested backend's Qt
+      # screen geometry stale, obscuring the output-removal behavior under test.
+      parent_eval(parent_rule + ' = hl.window_rule({ name = ' + json.dumps(parent_rule)
+                  + ', match = { class = "^aquamarine$", title = '
+                  + json.dumps('^aquamarine - ' + directory.name + '-.*$')
+                  + ' }, float = true, size = { 800, 600 }, no_anim = true })')
       with (logs / "hyprland.log").open("w") as log:
         compositor = subprocess.Popen(["Hyprland", "--config", str(config)], env=env,
                                       stdout=log, stderr=log)
@@ -136,6 +156,14 @@ def main():
       initial = wait_for("initial nested output", monitors,
                          lambda entries: any(m["width"] > 0 and m["height"] > 0 for m in entries))[0]["name"]
       check(not run(["hyprctl", "configerrors"]), "nested compositor config has errors")
+      # Replace the backend's generic first output before loading Qt, so every
+      # output used by the fixture belongs to the narrowly scoped parent rule.
+      generic = initial
+      initial = directory.name + "-initial"
+      run(["hyprctl", "output", "create", "wayland", initial])
+      wait_for("fixed-size initial output", monitors,
+               lambda entries: any(m["name"] == initial and m["width"] == 800 and m["height"] == 600 for m in entries))
+      run(["hyprctl", "output", "remove", generic])
       with (logs / "fixture.log").open("w") as log:
         shell = subprocess.Popen(["quickshell", "-p", str(fixture), "--no-color"], env=env,
                                  stdout=log, stderr=log)
@@ -144,35 +172,34 @@ def main():
         ["quickshell", "ipc", "-p", str(fixture), "call", "--", "fixture", "state"], check=False),
         lambda output: output.startswith('{"shown":'))
       surface(initial, False)
-      check(state()["keyboardFocus"] == 0, "parked overlay takes keyboard focus")
-      pass_check("initial overlay parks at 1x1 without keyboard focus")
+      check(not state()["visible"], "closed overlay is visible")
+      pass_check("initial closed overlay has no mapped surface")
 
       for shown in [False, True]:
         for cycle in range(3):
           ipc("park")
-          name = f"overlay-{int(shown)}-{cycle}"
+          name = f"{directory.name}-{int(shown)}-{cycle}"
           create(name)
           focus(name)
           ipc("show")
-          # Moving to a live output during show is separately tracked by
-          # #13562. Give that existing behavior one park/show before testing
-          # output removal so it cannot mask the recovery regression.
-          wait_for("overlay targets removable output", state, lambda value: value["screen"] == name)
+          surface(name, True)
           ipc("park")
           surface(name, False)
           if shown:
             ipc("show")
             surface(name, True)
           run(["hyprctl", "output", "remove", name])
+          wait_for("removed output leaves Qt's screen list", state,
+                   lambda value: all(s["name"] != name for s in value["screens"]))
           surface(initial, shown)
           if not shown:
-            check(state()["keyboardFocus"] == 0, "recovered parked overlay takes keyboard focus")
+            check(not state()["visible"], "closed overlay remapped after output removal")
             ipc("show")
             surface(initial, True)
           keyboard()
           snapshot(f"recovered-{int(shown)}-{cycle}", initial)
           check(shell.poll() is None, "fixture exited during recovery")
-          pass_check(f"cycle {cycle + 1}: {'open' if shown else 'parked'} overlay recovers on remaining output and receives input")
+          pass_check(f"cycle {cycle + 1}: {'open' if shown else 'closed'} overlay recovers on remaining output and receives input")
 
       for shown in [args.zero_output_open]:
         ipc("show" if shown else "park")
@@ -196,7 +223,7 @@ def main():
           surface(initial, True)
         keyboard()
         snapshot(f"zero-output-recovered-{int(shown)}", initial)
-        pass_check(f"{'open' if shown else 'parked'} overlay recovers after all outputs disappear without a remap loop")
+        pass_check(f"{'open' if shown else 'closed'} overlay recovers after all outputs disappear without a remap loop")
 
       before = state()["visibilityChanges"]
       time.sleep(0.3)
@@ -229,6 +256,8 @@ def main():
             except subprocess.TimeoutExpired:
               process.kill()
               process.wait(timeout=5)
+        parent_eval('if ' + parent_rule + ' then ' + parent_rule + ':set_enabled(false); '
+                    + parent_rule + ' = nil end')
 
 
 if __name__ == "__main__":

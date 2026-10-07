@@ -50,6 +50,8 @@ ShellRoot {
       return JSON.stringify({
         shown: overlay.shown,
         visible: overlay.visible,
+        contentReady: overlay.contentReady,
+        contentRevealed: overlay.contentRevealed,
         width: overlay.width,
         height: overlay.height,
         screen: overlay.screen ? overlay.screen.name : "",
