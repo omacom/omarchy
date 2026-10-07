@@ -1075,7 +1075,7 @@ Item {
     // then on the card grows and shrinks downward instead of re-centering
     // on every resize, which made the menu jump around. The rows height is
     // frozen at the same moment, so the starting menu also caps how tall the
-    // card may grow from there. Closing unfreezes both.
+    // card may grow from there. Closing or changing screens unfreezes both.
     property int cardTop: -1
     property int maxRowsHeight: -1
     readonly property int centeredTop: Math.max(Style.gapsOut, Math.round((height - root.cardHeight) / 2))
@@ -1086,8 +1086,8 @@ Item {
         maxRowsHeight = root.visibleRowsHeight
       }
     }
-    // The surface stays mapped between opens, so closing is shown going false.
     onShownChanged: if (!shown) { cardTop = -1; maxRowsHeight = -1 }
+    onTargetScreenChanged: { cardTop = -1; maxRowsHeight = -1 }
 
     Rectangle {
       anchors.fill: parent

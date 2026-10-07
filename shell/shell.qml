@@ -21,6 +21,7 @@ ShellRoot {
   property BarWidgetRegistry barWidgetRegistry: BarWidgetRegistry { }
   property AppLibrary appLibrary: AppLibrary { }
   property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
+  property BackgroundIntro bootIntro: BackgroundIntro { host: shell }
 
   property string home: Quickshell.env("HOME")
 
@@ -1704,6 +1705,7 @@ ShellRoot {
     function ping(): string {
       return "ok"
     }
+
   }
 
   // ---------------------------------------------------------- shell IPC
@@ -1711,11 +1713,34 @@ ShellRoot {
   ShellIpc {
     target: "shell"
 
+    function prepareThemeIntro(fromPath: string, token: string, colorsB64: string, shellB64: string): void {
+      shell.bootIntro.prepareTheme(fromPath, token, colorsB64, shellB64)
+    }
+
+    function finishThemeIntro(token: string): void {
+      shell.bootIntro.finishTheme(token)
+    }
+
+    function themeIntroStatus(token: string): string {
+      return shell.bootIntro.themeStatus(token)
+    }
+
+    function themeIntroCoverStatus(token: string): string {
+      return shell.bootIntro.themeCoverStatus(token)
+    }
+
     function ping(): string {
       return "ok"
     }
 
     function applyTheme(colorsB64: string, shellB64: string): string {
+      if (shell.bootIntro) shell.bootIntro.cancelTheme()
+      var background = shell.firstPartyServiceFor("omarchy.background")
+      if (background && typeof background.setPendingTheme === "function" && typeof background.applyPendingTheme === "function") {
+        background.setPendingTheme(colorsB64, shellB64)
+        background.applyPendingTheme()
+        return "ok"
+      }
       var colorsRaw = ""
       var shellRaw = ""
       try { colorsRaw = Qt.atob(String(colorsB64 || "")) } catch (e) { colorsRaw = "" }
