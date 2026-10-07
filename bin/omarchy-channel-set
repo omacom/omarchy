@@ -149,5 +149,10 @@ fi
 
 # The person picked this channel from the menu and is watching the terminal:
 # skip asking them to confirm the update again, but still offer the reboot the
-# new kernel or Hyprland needs.
-OMARCHY_UPDATE_USER_PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update" --confirmed
+# new kernel or Hyprland needs. Without a terminal nobody can answer that, so
+# the update runs unattended, as it always did.
+update_flag=-y
+if [[ -t 0 && -t 2 ]]; then
+  update_flag=--confirmed
+fi
+OMARCHY_UPDATE_USER_PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update" "$update_flag"

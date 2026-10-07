@@ -115,7 +115,17 @@ run_channel() {
     OMARCHY_PATH="${OMARCHY_TEST_PATH:-$package_root}" \
     HOME="$test_tmp/home" \
     PATH="$stub_bin:$ROOT/bin:$PATH" \
-    "${OMARCHY_TEST_PATH:-$package_root}/bin/omarchy-channel-set" "$@"
+    "${OMARCHY_TEST_PATH:-$package_root}/bin/omarchy-channel-set" "$@" </dev/null
+}
+
+# The menu runs the switch in a terminal; script gives it one.
+run_channel_on_terminal() {
+  local command
+
+  : >"$log_file"
+  printf -v command '%q ' env OMARCHY_CHANNEL_TEST_LOG="$log_file" OMARCHY_PATH="$package_root" \
+    HOME="$test_tmp/home" PATH="$stub_bin:$ROOT/bin:$PATH" "$package_root/bin/omarchy-channel-set" "$@"
+  script -qec "$command" /dev/null </dev/null >/dev/null
 }
 
 assert_log_line() {
@@ -130,7 +140,7 @@ run_channel stable
 assert_log_line $'refresh\tstable' "stable refreshes the stable pacman channel"
 assert_log_line $'update-pacman\t-S\t--needed\t--noconfirm\t--ask\t4\tomarchy\tomarchy-settings' "stable installs stable Omarchy packages"
 assert_log_line $'unlink\t--no-reboot' "stable restores the package-backed Omarchy path without an early reboot prompt"
-assert_log_line $'update\t--confirmed\tOMARCHY_PATH='"$package_root" "stable runs the normal update pipeline from the package-backed path"
+assert_log_line $'update\t-y\tOMARCHY_PATH='"$package_root" "stable runs the normal update pipeline from the package-backed path"
 if grep -q $'^state\tset\treboot-required$' "$log_file"; then
   fail "stable does not require reboot when already package-backed" "$(cat "$log_file")"
 fi
@@ -140,7 +150,14 @@ run_channel rc
 assert_log_line $'refresh\trc' "rc refreshes the rc pacman channel"
 assert_log_line $'update-pacman\t-S\t--needed\t--noconfirm\t--ask\t4\tomarchy\tomarchy-settings' "rc installs rc Omarchy packages"
 assert_log_line $'unlink\t--no-reboot' "rc restores the package-backed Omarchy path without an early reboot prompt"
-assert_log_line $'update\t--confirmed\tOMARCHY_PATH='"$package_root" "rc runs the normal update pipeline from the package-backed path"
+assert_log_line $'update\t-y\tOMARCHY_PATH='"$package_root" "rc runs the normal update pipeline from the package-backed path"
+
+# Without a terminal nobody can answer the reboot offer, so the runs above hand off
+# with -y. In the terminal the menu opens, only the update question is skipped.
+for channel in stable rc; do
+  run_channel_on_terminal "$channel"
+  assert_log_line $'update\t--confirmed\tOMARCHY_PATH='"$package_root" "$channel in a terminal skips only the update question, so the reboot is still offered"
+done
 
 active_checkout="$test_tmp/active-checkout"
 cp -a "$package_root" "$active_checkout"
@@ -149,8 +166,8 @@ assert_log_line $'refresh\tedge' "edge refreshes the edge pacman channel"
 assert_log_line $'update-pacman\t-S\t--needed\t--noconfirm\t--ask\t4\tomarchy-dev\tomarchy-settings-dev' "edge installs development Omarchy packages"
 assert_log_line $'unlink\t--no-reboot' "edge unlinks dev without an early reboot prompt"
 assert_log_line $'state\tset\treboot-required' "edge marks reboot required when leaving dev"
-assert_log_line $'update\t--confirmed\tOMARCHY_PATH='"$package_root" "edge runs the normal update pipeline from the package-backed path"
-[[ $(grep -E $'^(unlink|state|update)\t' "$log_file") == $'unlink\t--no-reboot\nstate\tset\treboot-required\nupdate\t--confirmed\tOMARCHY_PATH='"$package_root" ]] ||
+assert_log_line $'update\t-y\tOMARCHY_PATH='"$package_root" "edge runs the normal update pipeline from the package-backed path"
+[[ $(grep -E $'^(unlink|state|update)\t' "$log_file") == $'unlink\t--no-reboot\nstate\tset\treboot-required\nupdate\t-y\tOMARCHY_PATH='"$package_root" ]] ||
   fail "edge defers the reboot prompt until the update restart stage" "$(cat "$log_file")"
 pass "edge defers the reboot prompt until the update restart stage"
 
@@ -174,8 +191,8 @@ assert_log_line $'update-pacman\t-S\t--needed\t--noconfirm\t--ask\t4\tomarchy-de
 assert_log_line $'git\tclone\thttps://github.com/omacom/omarchy.git\t'"$checkout" "dev clones the source checkout to ~/omarchy"
 assert_log_line $'link\t'"$checkout"$'\t--no-reboot' "dev links ~/omarchy without an early reboot prompt"
 assert_log_line $'state\tset\treboot-required' "dev defers the reboot prompt to the update pipeline"
-assert_log_line $'update\t--confirmed\tOMARCHY_PATH='"$checkout" "dev runs the normal update pipeline from the source checkout"
-[[ $(grep -E '^(git|link|state|refresh|sudo|update)' "$log_file") == $'git\tclone\thttps://github.com/omacom/omarchy.git\t'"$checkout"$'\nlink\t'"$checkout"$'\t--no-reboot\nstate\tset\treboot-required\nrefresh\tedge\nupdate-pacman\t-S\t--needed\t--noconfirm\t--ask\t4\tomarchy-dev\tomarchy-settings-dev\nupdate\t--confirmed\tOMARCHY_PATH='"$checkout" ]] ||
+assert_log_line $'update\t-y\tOMARCHY_PATH='"$checkout" "dev runs the normal update pipeline from the source checkout"
+[[ $(grep -E '^(git|link|state|refresh|sudo|update)' "$log_file") == $'git\tclone\thttps://github.com/omacom/omarchy.git\t'"$checkout"$'\nlink\t'"$checkout"$'\t--no-reboot\nstate\tset\treboot-required\nrefresh\tedge\nupdate-pacman\t-S\t--needed\t--noconfirm\t--ask\t4\tomarchy-dev\tomarchy-settings-dev\nupdate\t-y\tOMARCHY_PATH='"$checkout" ]] ||
   fail "dev activates the checkout before changing or updating packages" "$(cat "$log_file")"
 pass "dev activates the checkout before changing or updating packages"
 
