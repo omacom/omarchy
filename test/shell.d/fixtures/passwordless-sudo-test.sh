@@ -52,6 +52,10 @@ case "$name" in
     ;;
   mv)
     [[ ${TEST_PUBLISH_FAIL:-0} != 1 ]] || exit 1
+    if [[ ${TEST_KILL_RULE_PUBLISH:-0} == 1 && ${@: -1} == "$TEST_GRANT_ROOT/etc/sudoers.d/99-omarchy-nopasswd-1000" ]]; then
+      kill -KILL "$PPID"
+      exit 1
+    fi
     /usr/bin/mv "$@"
     [[ ${TEST_POST_PUBLISH_FAIL:-0} != 1 ]] || : >"$TEST_GRANT_ROOT/run/omarchy-sudo-passwordless-package-removing"
     ;;
@@ -121,5 +125,6 @@ assert_status() {
 }
 reset_grant() {
   rm -f "$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-1000" "$test_tmp/run/omarchy-sudo-passwordless-package-removing"
+  rm -rf "$test_tmp/run/omarchy-sudo-passwordless"
   : >"$test_tmp/commands"
 }
