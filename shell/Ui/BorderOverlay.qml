@@ -11,13 +11,14 @@ Item {
 
   property var borderSpec: Border.none()
   property real radius: 0
+  property real roundingPower: 2
 
   readonly property var _widths: borderSpec && borderSpec.widths ? borderSpec.widths : Geometry.parseWidthSpec(0, 0)
   readonly property bool hasBorder: Geometry.maxWidth(_widths) > 0
   readonly property var _gradient: borderSpec && borderSpec.gradient ? borderSpec.gradient : ({ colors: [], angle: 0, enabled: false })
   readonly property var _colors: _gradient.enabled ? _gradient.colors : [Border.color(borderSpec), Border.color(borderSpec)]
   readonly property var _endpoints: Geometry.gradientEndpoints(width, height, _gradient.angle || 0)
-  readonly property string _path: Geometry.ringPath(width, height, radius, _widths)
+  readonly property string _path: Geometry.ringPath(width, height, radius, _widths, roundingPower)
 
   visible: hasBorder && width > 0 && height > 0
   anchors.fill: parent

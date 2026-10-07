@@ -1519,7 +1519,7 @@ Panel {
 
   // A starter: its glyph and what it makes, on a soft tile that warms to the
   // accent on hover.
-  component StarterTile: Rectangle {
+  component StarterTile: CornerRectangle {
     id: tile
     signal clicked()
     signal hovered()
@@ -1572,7 +1572,7 @@ Panel {
   }
 
   // The tinted square in the hero's corner: start an agent, add a subscription.
-  component HeroButton: Rectangle {
+  component HeroButton: CornerRectangle {
     id: heroButton
     signal clicked()
     signal hovered()
