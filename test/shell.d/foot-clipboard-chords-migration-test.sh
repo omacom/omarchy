@@ -136,6 +136,18 @@ if command -v setfacl >/dev/null && setfacl -m u:nobody:r "$foot_config" 2>/dev/
   pass "chord repair keeps the config's ACL"
 fi
 
+# No room beside a config in a writable directory, as on a full disk, stops the repair instead of writing in place.
+reset_home
+printf '%s\n' '[key-bindings]' 'clipboard-copy=Control+Insert' >"$foot_config"
+before=$(cat "$foot_config")
+mkdir -p "$test_dir/full"
+printf '%s\n' '#!/bin/bash' '(( $# )) && exit 1' "exec $(command -v mktemp)" >"$test_dir/full/mktemp"
+chmod +x "$test_dir/full/mktemp"
+
+PATH="$test_dir/full:$PATH" run_migration 2>/dev/null && fail "chord repair reports no room beside the config"
+[[ $(cat "$foot_config") == "$before" ]] || fail "chord repair leaves the config whole with no room beside it" "$(cat -A "$foot_config")"
+pass "chord repair leaves the config whole with no room beside it"
+
 # A linked config in a directory the user can't write to is still repaired, in place.
 reset_home
 mkdir -p "$home/locked"

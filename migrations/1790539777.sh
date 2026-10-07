@@ -12,7 +12,8 @@ if [[ -f $foot_config ]] && grep -qx 'clipboard-copy=Control+Insert\|clipboard-p
   # The rewrite is renamed over the real file, so a failed write leaves it whole and a symlink survives.
   # A config in a directory the user can't write to has no room beside it, so that one is written in place.
   target=$(readlink -f "$foot_config")
-  if tmp=$(mktemp "$target.XXXXXX" 2>/dev/null); then
+  if [[ -w ${target%/*} ]]; then
+    tmp=$(mktemp "$target.XXXXXX")
     replace=1
   else
     tmp=$(mktemp)
