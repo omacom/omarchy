@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Set and show lightweight desktop notification reminders
-# omarchy:args=[-i|--interactive] | <minutes> [message] | show [-j|--json] | clear
-# omarchy:examples=omarchy reminder -i | omarchy reminder 5 | omarchy reminder 30 "Check the oven" | omarchy reminder show | omarchy reminder show --json | omarchy reminder clear
+# omarchy:args=[-i|--interactive] | <minutes|HH:MM> [message] | show [-j|--json] | cancel [--quiet] <unit> | clear
+# omarchy:examples=omarchy reminder -i | omarchy reminder 5 | omarchy reminder 17:00 "Check the oven" | omarchy reminder show | omarchy reminder show --json | omarchy reminder cancel omarchy-reminder-15m-1710000000 | omarchy reminder clear
 
 set -euo pipefail
 
@@ -42,11 +42,56 @@ open_interactive() {
   omarchy-shell shell summon omarchy.reminders "{}"
 }
 
+open_manager() {
+  local output
+  output=$(omarchy-shell shell summon omarchy.reminders '{"mode":"manage"}' 2>/dev/null) || return 1
+  [[ $output == "ok" ]]
+}
+
+valid_unit() {
+  [[ ${1:-} =~ ^omarchy-reminder-[0-9]+m-[0-9]+$ ]]
+}
+
+# Convert a delay in minutes, or a clock time like 17:00 / 5pm, into a positive
+# whole-minute delay. Times already passed today roll to tomorrow.
+when_to_minutes() {
+  local spec=$1
+  local now target minutes
+
+  if [[ $spec =~ ^[0-9]+$ ]]; then
+    if ((spec == 0)); then
+      return 1
+    fi
+    echo "$spec"
+    return 0
+  fi
+
+  now=$(date +%s)
+  if ! target=$(date -d "$spec" +%s 2>/dev/null); then
+    return 1
+  fi
+  if ((target <= now)); then
+    if ! target=$(date -d "tomorrow $spec" +%s 2>/dev/null); then
+      return 1
+    fi
+  fi
+
+  minutes=$(((target - now + 59) / 60))
+  if ((minutes < 1)); then
+    minutes=1
+  fi
+  echo "$minutes"
+}
+
 show_reminders() {
   local timer next remaining reminder reminder_minutes body=""
   local reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
   local reminder_message=""
   local now=$(date +%s)
+
+  if open_manager; then
+    return
+  fi
 
   while IFS=$'\t' read -r timer next; do
     remaining=$((next - now))
@@ -117,6 +162,28 @@ show_json() {
   jq -cn --argjson count "$count" --arg tooltip "$tooltip" --argjson reminders "$reminders_json" '{count:$count,active:($count > 0),tooltip:$tooltip,reminders:$reminders}'
 }
 
+cancel_reminder() {
+  local unit=$1
+  local quiet=$2
+  local reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
+
+  unit=${unit%.timer}
+  unit=${unit%.service}
+
+  if ! valid_unit "$unit"; then
+    echo "Invalid reminder unit: ${1:-}" >&2
+    exit 1
+  fi
+
+  systemctl --user stop "${unit}.timer" "${unit}.service" "$unit" 2>/dev/null || true
+  rm -f "$reminder_dir/${unit}.message"
+  refresh_indicator
+
+  if ((quiet == 0)); then
+    omarchy-notification-send -g 󰢌 "Reminder cancelled"
+  fi
+}
+
 clear_reminders() {
   local units
   local reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
@@ -134,8 +201,9 @@ clear_reminders() {
 
 usage() {
   echo "Usage: omarchy-reminder [-i|--interactive]"
-  echo "       omarchy-reminder <minutes> [message]"
+  echo "       omarchy-reminder <minutes|HH:MM> [message]"
   echo "       omarchy-reminder show [-j|--json]"
+  echo "       omarchy-reminder cancel [--quiet] <unit>"
   echo "       omarchy-reminder clear"
 }
 
@@ -159,21 +227,35 @@ show | list)
   esac
   exit 0
   ;;
+cancel)
+  shift
+  quiet=0
+  if [[ ${1:-} == --quiet ]]; then
+    quiet=1
+    shift
+  fi
+  if [[ -z ${1:-} ]]; then
+    usage
+    exit 1
+  fi
+  cancel_reminder "$1" "$quiet"
+  exit 0
+  ;;
 clear)
   clear_reminders
   exit 0
   ;;
 esac
 
-minutes=${1:-}
+when=${1:-}
 shift || true
 message="$*"
 custom_message="$message"
 
-if [[ -z $minutes ]] || [[ ! $minutes =~ ^[0-9]+$ ]] || ((minutes == 0)); then
+minutes=$(when_to_minutes "$when") || {
   usage
   exit 1
-fi
+}
 
 if [[ -z $message ]]; then
   message="Your ${minutes} minutes are up"
@@ -185,13 +267,24 @@ unit="omarchy-reminder-${minutes}m-$set_at"
 reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
 message_file="$reminder_dir/$unit.message"
 confirmation="You'll be reminded at $remind_at"
-confirmation_title="Reminder set for ${minutes} minutes"
+if [[ $when =~ ^[0-9]+$ ]]; then
+  confirmation_title="Reminder set for ${minutes} minutes"
+else
+  confirmation_title="Reminder set for $remind_at"
+  if [[ -z $custom_message ]]; then
+    message="It's $remind_at"
+  fi
+fi
 
 mkdir -p "$reminder_dir"
 
 if [[ -n $custom_message ]]; then
   printf "%s" "$custom_message" >"$message_file"
-  confirmation_title="$custom_message in ${minutes} minutes"
+  if [[ $when =~ ^[0-9]+$ ]]; then
+    confirmation_title="$custom_message in ${minutes} minutes"
+  else
+    confirmation_title="$custom_message at $remind_at"
+  fi
 fi
 
 systemd-run --user --quiet --collect --on-active="${minutes}m" --unit="$unit" \
