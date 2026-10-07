@@ -359,6 +359,11 @@ assertEqual(
   'omarchy-bar transparent toggle',
   'menu exposes Menu Bar transparency as a toggle'
 )
+assert(
+  !defaultItems.some(item => item.id.startsWith('style.background-intro'))
+    && defaultById['trigger.toggle.animations'].action === 'omarchy-toggle-animations',
+  'menu uses the existing animations toggle without separate background intro controls'
+)
 assertDeepEqual(
   defaultItems.filter(item => item.parent === 'setup.plugin').map(item => item.label),
   ['Enable Plugin', 'Disable Plugin', 'Add Plugin', 'Clone Plugin', 'Remove Plugin'],
