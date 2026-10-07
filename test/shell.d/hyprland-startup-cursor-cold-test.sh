@@ -22,6 +22,7 @@ with tempfile.TemporaryDirectory() as directory:
   stage = pathlib.Path(directory)
   home = stage / "home"
   home.mkdir()
+  (stage / "release").write_text("")
   (stage / "bin").mkdir()
   launcher = stage / "bin/omarchy-theme-bg-boot-intro"
   launcher.write_text("#!/bin/bash\nexit 0\n")
@@ -48,23 +49,35 @@ with tempfile.TemporaryDirectory() as directory:
       time.sleep(0.005)
     display, signature = (stage / "session").read_text().splitlines()
     env.update(WAYLAND_DISPLAY=display, HYPRLAND_INSTANCE_SIGNATURE=signature)
-    started = time.monotonic()
-    early_frames = 0
-    revealed = False
-    while time.monotonic() - started < 3:
-      elapsed = time.monotonic() - started
+    # Capture immediately, including before Quickshell loads its cover. The
+    # fixture cannot reveal while grim or magick is busy taking these frames.
+    deadline = time.monotonic() + 5
+    for sample in range(3):
+      assert time.monotonic() < deadline, "initial compositor captures timed out"
       screenshot = stage / "frame.png"
       subprocess.run(["grim", "-c", str(screenshot)], env=env, check=True,
-               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-      maximum = subprocess.check_output(["magick", str(screenshot), "-format", "%[fx:maxima]", "info:"], text=True)
-      if elapsed < 0.8:
-        assert maximum == "0", "the cursor appeared in the first compositor frames"
-        early_frames += 1
-      elif elapsed > 2.5:
-        green = subprocess.check_output(["magick", str(screenshot), "-channel", "G", "-separate", "-threshold", "0", "-format", "%[fx:mean*w*h]", "info:"], text=True)
-        assert float(green) > 20, "the normal cursor did not return with the desktop"
-        revealed = True
-    assert early_frames >= 3 and revealed, "both initial startup and reveal must be captured"
+               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+      maximum = subprocess.check_output(["magick", str(screenshot), "-format", "%[fx:maxima]", "info:"], text=True, timeout=5)
+      assert maximum == "0", "the cursor appeared in the first compositor frames"
+
+    def wait_phase(expected):
+      deadline = time.monotonic() + 5
+      while not (stage / "phase").exists() or (stage / "phase").read_text() != expected:
+        assert compositor.poll() is None and time.monotonic() < deadline, "startup never reached " + expected
+        time.sleep(0.01)
+
+    wait_phase("holding")
+    (stage / "release").write_text("reveal")
+    wait_phase("revealed")
+    # Cursor visibility is polled by the compositor independently of the fade.
+    deadline = time.monotonic() + 5
+    while True:
+      subprocess.run(["grim", "-c", str(screenshot)], env=env, check=True,
+               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+      green = subprocess.check_output(["magick", str(screenshot), "-channel", "G", "-separate", "-threshold", "0", "-format", "%[fx:mean*w*h]", "info:"], text=True, timeout=5)
+      if float(green) > 20:
+        break
+      assert time.monotonic() < deadline, "the normal cursor did not return with the desktop"
   finally:
     os.killpg(compositor.pid, signal.SIGTERM)
     compositor.wait(timeout=10)
