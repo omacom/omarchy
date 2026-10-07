@@ -4,4 +4,5 @@
 -- fullscreen video podcasts mid-playback. Inhibit while fullscreen, matching the
 -- XWayland class and the app id used under the Wayland backend. Scoping this to
 -- fullscreen keeps idle running while Spotify is merely open playing music.
-o.window("^[sS]potify$", { idle_inhibit = "fullscreen" })
+-- Hyprland counts a maximized window as fullscreen too, so match real fullscreen.
+o.window({ class = "^[sS]potify$", fullscreen_state_internal = 2 }, { idle_inhibit = "fullscreen" })
