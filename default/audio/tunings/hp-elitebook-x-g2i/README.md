@@ -96,7 +96,7 @@ independent of this and stays in place.
 ## Activating
 
 The profile ships with Omarchy, so there is nothing to copy into place. On a
-machine whose DMI product name matches, `install/hardware/speaker-tuning.sh` pulls in
+machine on board 8E86 (`omarchy-hw-hp-elitebook-x-g2i`), `install/hardware/speaker-tuning.sh` pulls in
 `lsp-plugins-lv2` for the limiter and the tuning is available as:
 
 ```
