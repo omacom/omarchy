@@ -161,5 +161,5 @@ if command -v xkbcli >/dev/null; then
     fail "contrast: legacy options still put Caps_Lock on Left Shift" "$broken_lfsh"
   pass "legacy shift:both_capslock_cancel still demonstrates the XWayland trap"
 else
-  pass "xkbcli not installed; skipped keymap shape checks"
+  skip "xkbcli not installed; keymap shape checks not run"
 fi
