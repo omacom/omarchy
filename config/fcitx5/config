@@ -1,0 +1,7 @@
+# Ctrl+Space is the tmux and herdr prefix, so it does not switch input methods.
+# Switching only starts once a second input method is added, and then uses the
+# 全角/半角 key on Japanese keyboards or the 한/영 key on Korean ones. Pick
+# another switching key with fcitx5-configtool.
+[Hotkey/TriggerKeys]
+0=Zenkaku_Hankaku
+1=Hangul

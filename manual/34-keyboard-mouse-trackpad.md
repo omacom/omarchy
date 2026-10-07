@@ -59,7 +59,7 @@ On Dell XPS laptops with a haptic touchpad, you can also set the click strength 
 
 ### Typing in Chinese, Japanese, and other languages
 
-Omarchy runs the [fcitx5](https://fcitx-im.org/) input method framework as part of every session — it's what powers the CapsLock compose sequences. That means the plumbing for non-Latin input is already in place: install an input engine like `fcitx5-mozc` (Japanese) or `fcitx5-chinese-addons` (Chinese) with `omarchy pkg add`, plus `fcitx5-configtool` to add the engine to your input methods and set the key that switches between them.
+Omarchy runs the [fcitx5](https://fcitx-im.org/) input method framework as part of every session — it's what powers the CapsLock compose sequences. That means the plumbing for non-Latin input is already in place: install an input engine like `fcitx5-mozc` (Japanese) or `fcitx5-chinese-addons` (Chinese) with `omarchy pkg add`, plus `fcitx5-configtool` to add the engine to your input methods and set the key that switches between them. Out of the box that is the 全角/半角 key on Japanese keyboards and the 한/영 key on Korean ones; Ctrl+Space is left alone because it's the tmux and herdr prefix.
 
 ### Use ALT as SUPER
 
