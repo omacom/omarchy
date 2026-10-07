@@ -49,7 +49,13 @@ PanelWindow {
     return Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
   }
 
-  onShownChanged: targetScreen = shown ? focusedScreen() : null
+  // Live monitor scaling does not emit a Hyprland monitor event, so its cached
+  // scale can lag behind Qt. Refresh on opening and on scale changes while open.
+  onShownChanged: {
+    targetScreen = shown ? focusedScreen() : null
+    if (shown) Hyprland.refreshMonitors()
+  }
+  onDevicePixelRatioChanged: if (shown) Hyprland.refreshMonitors()
 
   Connections {
     target: Quickshell

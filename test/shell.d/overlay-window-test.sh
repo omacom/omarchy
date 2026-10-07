@@ -74,10 +74,26 @@ assertEqual(focusedScreen({ focusedMonitor: { name: 'DP-1' } }, { screens: [scre
 assertEqual(focusedScreen({ focusedMonitor: null }, { screens: [] }), null,
   'no outputs leaves the overlay unmapped')
 
-const shownHandler = /onShownChanged: ([^\n]+)/.exec(overlay)[1]
-const changeShown = new Function('shown', 'focusedScreen', `let targetScreen = null; ${shownHandler}; return targetScreen`)
-assertEqual(changeShown(false, () => external), null, 'closing drops the previous screen reference')
-assertEqual(changeShown(true, () => screen), screen, 'reopening selects a current screen')
+const shownHandler = /onShownChanged: \{([\s\S]*?)\n  \}/.exec(overlay)[1]
+let refreshed = 0
+const Hyprland = { refreshMonitors() { refreshed++ } }
+const changeShown = new Function('shown', 'focusedScreen', 'Hyprland', `let targetScreen = null; ${shownHandler}; return targetScreen`)
+assertEqual(changeShown(false, () => external, Hyprland), null, 'closing drops the previous screen reference')
+assertEqual(refreshed, 0, 'closing does not refresh monitor data')
+assertEqual(changeShown(true, () => screen, Hyprland), screen, 'reopening selects a current screen')
+assertEqual(refreshed, 1, 'opening refreshes monitor scales after a live change while closed')
+const scaleHandler = /onDevicePixelRatioChanged: ([^\n]+)/.exec(overlay)[1]
+const changeScale = new Function('shown', 'Hyprland', scaleHandler)
+changeScale(false, Hyprland)
+assertEqual(refreshed, 1, 'scale changes on hidden windows do not refresh monitor data')
+const changedScreen = { name: 'eDP-1', width: 960, height: 600 }
+assert(!ready(true, true, 960, 600, changedScreen, monitor, 2),
+  'a stale monitor scale keeps content transparent after a live scale change')
+Hyprland.refreshMonitors = () => { refreshed++; monitor.scale = 2 }
+changeScale(true, Hyprland)
+assertEqual(refreshed, 2, 'a showing window refreshes monitor scales when Qt receives a live change')
+assert(ready(true, true, 960, 600, changedScreen, monitor, 2),
+  'fresh monitor data lets content reveal at the new scale')
 
 const screensChangedBody = /function onScreensChanged\(\) \{([\s\S]*?)\n    \}/.exec(overlay)[1]
 const screensChanged = new Function('window', 'Quickshell', 'Qt', screensChangedBody)
