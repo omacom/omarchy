@@ -96,6 +96,12 @@ case ${1:-} in
     resolve_intro "${2:-}" || true
     exit 0
     ;;
+  --resolve-startup)
+    if [[ ! -f $toggle ]] && ! animations_off; then
+      resolve_intro || true
+    fi
+    exit 0
+    ;;
   --theme-switch)
     theme_switch=true
     expected_background=$(readlink -f "${2:-}" 2>/dev/null) || exit 1
@@ -104,7 +110,7 @@ case ${1:-} in
     [[ -n $expected_theme ]] || exit 1
     ;;
   *)
-    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--prepare-theme theme|--theme-switch background theme-id [prepared]]" >&2
+    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--resolve-startup|--prepare-theme theme|--theme-switch background theme-id [prepared]]" >&2
     exit 1
     ;;
 esac

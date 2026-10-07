@@ -74,7 +74,15 @@ SH
 chmod +x "$command_bin/omarchy-shell"
 
 mkdir -p "$(dirname "$toggle")"
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-startup)
+[[ $resolved == "$theme_intro_dir/road.mp4" ]] || fail "OWE can prepare the selected intro while the shell starts" "$resolved"
+[[ ! -e $marker && ! -s $command_log ]] || fail "startup preparation does not consume the login or start playback"
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" ANIMATIONS=off "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-startup)
+[[ -z $resolved ]] || fail "disabled animations skip startup preparation"
 touch "$toggle"
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" "$ROOT/bin/omarchy-theme-bg-boot-intro" --resolve-startup)
+[[ -z $resolved ]] || fail "disabled intros skip startup preparation"
+pass "speculative login preparation respects settings and leaves playback to the shell"
 resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OMARCHY_SESSION_ID=disabled-boot "$ROOT/bin/omarchy-theme-bg-boot-intro")
 [[ -z $resolved && $(<"$marker") == "disabled-boot" ]] || fail "the global toggle consumes the current login without playing"
 rm "$toggle"
