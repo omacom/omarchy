@@ -8,7 +8,7 @@ set -euo pipefail
 state_home="$HOME/.local/state"
 current_dir="$state_home/omarchy/current"
 current_background_link="$current_dir/background"
-marker="$state_home/omarchy/background-intro.boot-id"
+marker="$state_home/omarchy/background-intro.session-id"
 toggle="$state_home/omarchy/toggles/background-intros-off"
 video_extensions=(mp4 m4v mov webm mkv avi)
 
@@ -114,14 +114,15 @@ if [[ $theme_switch == false ]]; then
   exec 9>"$state_home/omarchy/background-intro.lock"
   flock 9
 
-  boot_id=${OMARCHY_BOOT_ID:-$(< /proc/sys/kernel/random/boot_id)}
-  if [[ -f $marker && $(<"$marker") == "$boot_id" ]]; then
+  session_id=${OMARCHY_SESSION_ID:-${HYPRLAND_INSTANCE_SIGNATURE:-}}
+  [[ -n $session_id ]] || exit 0
+  if [[ -f $marker && $(<"$marker") == "$session_id" ]]; then
     exit 0
   fi
 
-  marker_staged=$(mktemp "$state_home/omarchy/.background-intro.boot-id.XXXXXX")
+  marker_staged=$(mktemp "$state_home/omarchy/.background-intro.session-id.XXXXXX")
   trap 'rm -f "$marker_staged"' EXIT
-  printf '%s\n' "$boot_id" >"$marker_staged"
+  printf '%s\n' "$session_id" >"$marker_staged"
   mv -f "$marker_staged" "$marker"
   trap - EXIT
   exec 9>&-

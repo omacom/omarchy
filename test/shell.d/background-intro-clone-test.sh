@@ -63,7 +63,7 @@ capture_pixel() {
 }
 for consumed in false true; do
   if [[ $consumed == true ]]; then
-    printf '%s\n' "$(</proc/sys/kernel/random/boot_id)" >"$stage/home/.local/state/omarchy/background-intro.boot-id"
+    printf '%s\n' "$HYPRLAND_INSTANCE_SIGNATURE" >"$stage/home/.local/state/omarchy/background-intro.session-id"
   fi
   rm -f "$stage/result.json"
   : >"$stage/release"
@@ -72,12 +72,12 @@ for consumed in false true; do
   qs_pid=$!
   wait_phase cover
   jq -e --argjson consumed "$consumed" '.scoped and .privateCoordinator and .selected and (.covered == ($consumed | not))' "$stage/result.json" >/dev/null || \
-    fail "the clone is scoped and a consumed boot never maps the cover" "$(cat "$stage/result.json")"
+    fail "the clone is scoped and a consumed login never maps the cover" "$(cat "$stage/result.json")"
   if [[ $consumed == false ]]; then
     pixel=$(capture_pixel cover)
-    [[ $pixel == "000000" ]] || fail "the shared startup cover hides the cloned background" "$pixel"
+    [[ $pixel == "FF00FF" ]] || fail "startup immediately restores the selected wallpaper over the cloned background" "$pixel"
   else
-    [[ $(capture_pixel cover) == "FF00FF" ]] || fail "a consumed boot does not flash a cover over the cloned background"
+    [[ $(capture_pixel cover) == "FF00FF" ]] || fail "a consumed login does not flash a cover over the cloned background"
   fi
   printf 'captured\n' >"$stage/release"
   wait_phase still
@@ -89,4 +89,4 @@ for consumed in false true; do
     fail "the cloned background fixture has no QML errors" "$(cat "$stage/quickshell.log")"
   fi
 done
-pass "a real clone is covered only for startup, with its scoped facade and consumed-boot behavior intact"
+pass "a real clone is covered only for startup, with its scoped facade and consumed-login behavior intact"

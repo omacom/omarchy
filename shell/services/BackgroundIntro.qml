@@ -4,23 +4,42 @@ import Quickshell.Wayland
 import Quickshell.Io
 import qs.Commons
 
-// Keep startup and cover state in the persistent host, including handoffs
-// with older OWE versions that destroy and recreate the background service.
+// Restore the wallpaper alongside the bar, before plugin loading finishes.
+// Keep intro and cover state here across background service handoffs.
 Item {
   id: root
 
   property var host: null
-  property bool cover: String(bootMarker.text() || "").trim() !== (Quickshell.env("OMARCHY_BOOT_ID") || String(bootId.text() || "").trim())
+  property bool cover: true
+  property bool startupSettled: String(sessionMarker.text() || "").trim() === (Quickshell.env("OMARCHY_SESSION_ID") || Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE"))
   property bool checked: false
   property string themeToken: ""
   property string transitionToken: ""
-  property string themeBackground: ""
+  readonly property string startupBackgroundPath: Quickshell.env("OMARCHY_STARTUP_BACKGROUND")
+  property string themeBackground: Util.isVideoPath(startupBackgroundPath) ? "" : startupBackgroundPath
   property var themeNativeSize: null
   property string themeColors: ""
   property string themeShell: ""
   property real themeOpacity: 1
   readonly property var backgroundService: host && host.services ? host.firstPartyServiceFor("omarchy.background") : null
   readonly property bool backgroundActive: !!backgroundService && !backgroundService.suspended
+  readonly property bool backgroundReady: backgroundActive && backgroundService.ready !== false
+
+  function finishStartup() {
+    if (!cover || !startupSettled) return
+    var registry = host ? host.pluginRegistry : null
+    var backgroundId = registry ? registry.resolveEnabledId("omarchy.background") : ""
+    var disabled = registry && registry.installedPlugins[backgroundId] && !registry.isEnabled(backgroundId)
+    if (!backgroundReady && !disabled) return
+    cover = false
+    if (!themeToken) themeBackground = ""
+  }
+
+  onBackgroundReadyChanged: finishStartup()
+  Connections {
+    target: root.host && root.host.pluginRegistry ? root.host.pluginRegistry : null
+    function onPluginsChanged() { root.finishStartup() }
+  }
 
   function prepareTheme(fromPath, token, colors, shell) {
     framePoll.stop()
@@ -38,12 +57,15 @@ Item {
   }
 
   function revealTheme() {
-    if (!themeToken) return
+    if (!themeToken && !cover) return
     framePoll.stop()
     themeFallback.stop()
-    Color.loadColors(Util.decodeBase64(themeColors))
-    Color.loadShell(Util.decodeBase64(themeShell))
-    Style.scheduleRefresh()
+    if (themeToken) {
+      Color.loadColors(Util.decodeBase64(themeColors))
+      Color.loadShell(Util.decodeBase64(themeShell))
+      Style.scheduleRefresh()
+    }
+    cover = false
     themeToken = ""
     themeColors = ""
     themeShell = ""
@@ -111,7 +133,7 @@ Item {
     onStarted: token = root.themeToken
     stdout: StdioCollector { id: frameStatusOut }
     onExited: function(exitCode) {
-      if (exitCode !== 0 || token !== root.themeToken || !token) return
+      if (exitCode !== 0 || token !== root.themeToken || (!token && !root.cover)) return
       try {
         var status = JSON.parse(frameStatusOut.text)
         if (status.kind === "video" && status.ready && !status.has_transition && status.time_pos > 0)
@@ -120,31 +142,35 @@ Item {
     }
   }
 
-  // Snapshot startup state: the launcher records this boot before playback.
+  // A shell restart shares this compositor session; a new login does not.
   FileView {
-    id: bootMarker
-    path: Quickshell.env("HOME") + "/.local/state/omarchy/background-intro.boot-id"
+    id: sessionMarker
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/background-intro.session-id"
     blockLoading: true
     watchChanges: false
     printErrors: false
   }
 
-  FileView {
-    id: bootId
-    path: "/proc/sys/kernel/random/boot_id"
-    blockLoading: true
-    watchChanges: false
+  Process {
+    id: startupBackground
+    command: ["readlink", "-f", Quickshell.env("HOME") + "/.local/state/omarchy/current/background"]
+    stdout: StdioCollector { id: startupBackgroundOut }
+    onExited: function(exitCode) {
+      var path = String(startupBackgroundOut.text || "").trim()
+      if (exitCode === 0 && root.cover && !root.themeToken && !Util.isVideoPath(path))
+        root.themeBackground = path
+    }
   }
 
   Component.onCompleted: {
     checked = true
+    if (!startupBackgroundPath) startupBackground.running = true
     introProc.running = true
   }
 
   onBackgroundActiveChanged: {
     if (!backgroundActive && checked) {
-      cover = false
-      if (themeToken) {
+      if (cover || themeToken) {
         framePoll.start()
         if (!frameStatus.running) frameStatus.running = true
       }
@@ -163,7 +189,7 @@ Item {
       readonly property bool coverFailed: outgoingFrame.status === Image.Error
       screen: modelData
       visible: root.cover || root.themeBackground !== ""
-      color: root.cover ? "black" : "transparent"
+      color: root.cover ? Color.background : "transparent"
       mask: Region {}
       anchors { top: true; bottom: true; left: true; right: true }
       exclusionMode: ExclusionMode.Ignore
@@ -176,8 +202,8 @@ Item {
         anchors.fill: parent
         source: root.themeBackground ? Util.fileUrl(root.themeBackground) : ""
         sourceSize: {
-          var w = Math.ceil(parent.width * modelData.devicePixelRatio)
-          var h = Math.ceil(parent.height * modelData.devicePixelRatio)
+          var w = Math.ceil((parent.width || modelData.width) * modelData.devicePixelRatio)
+          var h = Math.ceil((parent.height || modelData.height) * modelData.devicePixelRatio)
           var native = root.themeNativeSize
           return native && (native.width < w || native.height < h) ? Qt.size(native.width, native.height) : Qt.size(w, h)
         }
@@ -200,6 +226,9 @@ Item {
   Process {
     id: introProc
     command: ["omarchy-theme-bg-boot-intro"]
-    onExited: root.cover = false
+    onExited: {
+      root.startupSettled = true
+      root.finishStartup()
+    }
   }
 }

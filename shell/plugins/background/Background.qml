@@ -44,6 +44,14 @@ Item {
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
+  readonly property bool ready: {
+    if (isVideo(displayedBackground)) return true
+    if (backgrounds.instances.length === 0) return false
+    for (var panel of backgrounds.instances) {
+      if (!panel.backgroundReady) return false
+    }
+    return true
+  }
 
   function isVideo(path) {
     return Util.isVideoPath(path)
@@ -279,6 +287,7 @@ Item {
   Component.onCompleted: refreshBackground()
 
   Variants {
+    id: backgrounds
     model: Quickshell.screens
 
     PanelWindow {
@@ -301,6 +310,13 @@ Item {
       updatesEnabled: true
 
       property bool maskReady: false
+      property int readyFrames: 0
+      readonly property bool backgroundReady: base.ready && readyFrames >= 2
+
+      FrameAnimation {
+        running: base.ready && panel.readyFrames < 2
+        onTriggered: panel.readyFrames += 1
+      }
 
       // Decode the wallpaper at the size this screen can show, not the size
       // it was shipped at. With PreserveAspectCrop Qt takes sourceSize as the
@@ -349,6 +365,7 @@ Item {
         constrainDecode: true
         decodeSize: panel.decodeSize(root.displayedBackground)
         onReadyChanged: {
+          panel.readyFrames = 0
           if (ready && root.finishingTransition) {
             root.incomingBackground = ""
             root.oldBackground = ""

@@ -1,4 +1,4 @@
-echo "Re-stage the active theme with packaged boot intro videos"
+echo "Re-stage the active theme with packaged intro videos"
 
 theme_name_path="$HOME/.local/state/omarchy/current/theme.name"
 
@@ -11,11 +11,12 @@ theme_name=$(<"$theme_name_path")
 omarchy-theme-refresh
 
 state_dir="$HOME/.local/state/omarchy"
-marker="$state_dir/background-intro.boot-id"
-boot_id=${OMARCHY_BOOT_ID:-$(< /proc/sys/kernel/random/boot_id)}
+marker="$state_dir/background-intro.session-id"
+session_id=${OMARCHY_SESSION_ID:-${HYPRLAND_INSTANCE_SIGNATURE:-}}
+[[ -n $session_id ]] || exit 0
 mkdir -p "$state_dir"
-marker_staged=$(mktemp "$state_dir/.background-intro.boot-id.XXXXXX")
+marker_staged=$(mktemp "$state_dir/.background-intro.session-id.XXXXXX")
 trap 'rm -f "$marker_staged"' EXIT
-printf '%s\n' "$boot_id" >"$marker_staged"
+printf '%s\n' "$session_id" >"$marker_staged"
 mv -f "$marker_staged" "$marker"
 trap - EXIT

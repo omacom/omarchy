@@ -23,7 +23,7 @@ cp -r "$themes/alpha" "$state/theme"
 printf 'alpha\n' >"$state/theme.name"
 ln -s "$state/theme/backgrounds/1-sky.webp" "$state/background"
 printf '%s\n' "$state/theme/backgrounds/2-road.webp" >"$home/.local/state/omarchy/theme-backgrounds/beta"
-printf 'already-consumed\n' >"$home/.local/state/omarchy/background-intro.boot-id"
+printf 'already-consumed\n' >"$home/.local/state/omarchy/background-intro.session-id"
 
 cat >"$commands/noop" <<'STUB'
 #!/bin/bash
@@ -118,7 +118,7 @@ wait_command '^owe: intro '
 grep -Fxq "owe: intro --start first-frame --refresh $state/theme/backgrounds/intros/2-road.mp4" "$log" || fail "a theme switch plays the remembered background's matching prepared intro"
 [[ $(readlink "$state/background") == "$state/theme/backgrounds/2-road.webp" ]] || fail "the remembered background is selected"
 ! grep -qE '^shell: background (prepare|themeTransition)' "$log" || fail "an intro replaces the normal still transition"
-[[ $(<"$home/.local/state/omarchy/background-intro.boot-id") == already-consumed ]] || fail "a theme switch leaves boot consumption unchanged"
+[[ $(<"$home/.local/state/omarchy/background-intro.session-id") == already-consumed ]] || fail "a theme switch leaves login consumption unchanged"
 pass "switching themes plays the matching intro for the remembered background"
 
 set_theme beta
