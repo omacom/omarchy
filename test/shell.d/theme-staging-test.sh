@@ -77,6 +77,7 @@ printf 'shell = "%s"\n' "$marker" >"$hostile/foot.ini"
 printf 'command = "%s"\n' "$marker" >"$hostile/ghostty.conf"
 printf 'hl.env("GUM_INPUT_PROMPT", "%s")\n' "$marker" >"$hostile/gum_env.lua"
 printf '[bar]\nbackground = "#%s"\n' "000000" >"$hostile/shell.toml"
+printf '[decoration]\nrounding = 7\n' >"$hostile/hyprland.toml"
 printf '{}\n' >"$hostile/vscode.json"
 printf 'Yaru-red\n' >"$hostile/icons.theme"
 printf 'theme[main_bg]="#000000"\n' >"$hostile/btop.theme"
@@ -113,6 +114,11 @@ done
 # Colour is kept, including a file Omarchy would otherwise have generated.
 assert_staged shell.toml "shell.toml is staged"
 grep -q '000000' "$(staged shell.toml)" || fail "an installed theme's shell.toml colours are kept"
+
+# hyprland.toml is data that Omarchy's own default/hypr/theme-looknfeel.lua
+# checks and applies, so it is how an installed theme sets Hyprland's look.
+assert_staged hyprland.toml "hyprland.toml is staged"
+grep -q 'rounding = 7' "$(staged hyprland.toml)" || fail "an installed theme's hyprland.toml is kept"
 
 grep -q 'hyprland.lua' "$test_tmp/stderr" || fail "omarchy-theme-set names the files it ignored"
 ! grep -q 'README.md' "$test_tmp/stderr" || fail "omarchy-theme-set does not report a theme's documentation"

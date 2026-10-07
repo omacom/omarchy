@@ -12,9 +12,37 @@ A theme you write yourself in `~/.config/omarchy/themes` can contain whatever yo
 
 A theme you install from someone else's repo with `omarchy theme install` keeps everything that's colour, and loses the handful of files that would run code on your machine: any `.lua` file, the terminal configs (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`), and `vscode.json`. A theme's `hyprland.lua` is Lua your compositor runs at login, a terminal config names the program your terminal starts, and `vscode.json` names a VSCode extension to install. Installing someone's theme should change what your desktop looks like, never what it runs.
 
-Everything else still works exactly as the theme author wrote it — `btop.theme`, `chromium.theme`, `helix.toml`, `icons.theme`, `shell.toml`, the backgrounds and the previews are all kept. Only what was dropped gets regenerated from `colors.toml` on your machine.
+Everything else still works exactly as the theme author wrote it — `btop.theme`, `chromium.theme`, `helix.toml`, `hyprland.toml`, `icons.theme`, `shell.toml`, the backgrounds and the previews are all kept. Only what was dropped gets regenerated from `colors.toml` on your machine.
 
 Omarchy tells the two apart by whether the theme has its own git repo inside it, which is what `omarchy theme install` leaves behind when it clones. So a theme you wrote stays yours, and one you pulled off the internet stays colours.
+
+### Gaps, rounding, blur and animations
+
+To change how windows are drawn — the gaps between them, rounded corners, shadows, blur, transparency, frosted glass behind the top bar, menu and notifications, and the animations — add a `hyprland.toml` to your theme:
+
+```toml
+[general]
+gaps_in = 4
+gaps_out = 8
+
+[decoration]
+rounding = 10
+
+[decoration.blur]
+enabled = true
+size = 20
+passes = 3
+
+[opacity]
+terminals = [0.80, 0.76]
+
+[shell]
+blur = true
+```
+
+`[general]`, `[decoration]`, `[decoration.shadow]` and `[decoration.blur]` use Hyprland's own setting names. `[opacity]` sets how see-through `windows`, `browsers` and `terminals` are, `[shell] blur` frosts the glass behind the top bar, menu, panels and notifications, and `[curves]` plus `[animations.<name>]` set the animations.
+
+These are plain settings rather than code, so they work the same in a theme you wrote and in one installed from a repo. Omarchy checks every value before handing it to Hyprland and skips any it doesn't recognise or that's out of range, and your own `~/.config/hypr/looknfeel.lua` still has the last word.
 
 ### Light mode
 
@@ -40,6 +68,6 @@ If you want to distribute your theme so others can use it, you need to put it on
 
 That leftover `[themename]` becomes the theme's directory name, so it has to be one Omarchy can hand around safely: it must start with a letter, a digit, or an underscore, and the rest may hold letters, digits, `.`, `_`, `+`, and `-`. Capitals are lowercased for you, but anything else — a space, a quote, a non-English character — is refused at install time rather than turned into a directory name. So `omarchy-tokyo-night-theme`, `omarchy-flexoki_light-theme`, and `omarchy-c++-theme` all install fine.
 
-Remember that once it's installed from a repo, any `.lua`, terminal config or `vscode.json` it ships is dropped, so don't build the theme around those.
+Remember that once it's installed from a repo, any `.lua`, terminal config or `vscode.json` it ships is dropped, so don't build the theme around those. Put Hyprland's look in `hyprland.toml` rather than `hyprland.lua`.
 
 You can have your theme added to [the extra themes page](https://omarchy.org/themes/) by sending a pull request to [the omarchy-site repo](https://github.com/omacom-io/omarchy-site).
