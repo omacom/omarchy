@@ -83,21 +83,31 @@ SH
 chmod 755 "$stub_bin/sudo" "$stub_bin/omarchy-cmd-present"
 printf '%s\n' 'MODULES+=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)' >"$tmp_dir/etc/nvidia.conf"
 
+uki_dir="$tmp_dir/uki"
+mkdir -p "$uki_dir"
+clean_listing=$'usr/lib/firmware/nvidia/ad102/gsp/bootloader.bin.zst\netc/modprobe.d/nvidia.conf\nusr/lib/modules/kernel/drivers/gpu/drm/i915/i915.ko.zst\nusr/lib/modules/kernel/drivers/gpu/drm/nouveau/nouveau.ko.zst\n'
+
 run_migration() {
   PATH="$stub_bin:$PATH" \
     OMARCHY_PATH="$ROOT" \
     OMARCHY_MKINITCPIO_NVIDIA_CONF="$tmp_dir/etc/nvidia.conf" \
     OMARCHY_NVIDIA_NO_EARLY_LOAD_CONF="$tmp_dir/etc/zz-nvidia-no-early-load.conf" \
     OMARCHY_NVIDIA_HIBERNATE_REBUILD_MARKER="$tmp_dir/marker-dir/1791210803" \
+    OMARCHY_BOOT_UKI_DIR="$uki_dir" \
     bash -euo pipefail "$migration"
 }
 
 calls="$tmp_dir/calls"
+cat >"$stub_bin/lsinitcpio" <<'SH'
+#!/bin/bash
+cat -- "$1"
+SH
 cat >"$stub_bin/limine-mkinitcpio" <<SH
 #!/bin/bash
 printf '%s\n' limine-mkinitcpio >>'$calls'
+printf '%s\n' '$clean_listing' >'$uki_dir/omarchy_linux-omarchy.efi'
 SH
-chmod 755 "$stub_bin/limine-mkinitcpio"
+chmod 755 "$stub_bin/limine-mkinitcpio" "$stub_bin/lsinitcpio"
 
 run_migration
 [[ -f $tmp_dir/etc/zz-nvidia-no-early-load.conf ]] || fail "migration installs the late drop-in"
@@ -111,3 +121,28 @@ pass "migration installs the drop-in and rebuilds once"
 run_migration
 [[ ! -s $calls ]] || fail "migration does not rebuild again" "$(cat "$calls")"
 pass "migration does not rebuild again"
+
+rm -f "$tmp_dir/marker-dir/1791210803" "$uki_dir/omarchy_linux-omarchy.efi"
+: >"$calls"
+printf '%s\n' 'usr/lib/modules/kernel/extramodules/nvidia.ko.zst' >"$uki_dir/omarchy_linux-omarchy.efi"
+cat >"$stub_bin/limine-mkinitcpio" <<SH
+#!/bin/bash
+printf '%s\n' limine-mkinitcpio >>'$calls'
+exit 0
+SH
+chmod 755 "$stub_bin/limine-mkinitcpio"
+if run_migration; then
+  fail "a skipped rebuild must fail the migration"
+fi
+[[ ! -e $tmp_dir/marker-dir/1791210803 ]] || fail "a skipped rebuild stays pending"
+pass "a skipped rebuild stays pending"
+
+cat >"$stub_bin/limine-mkinitcpio" <<SH
+#!/bin/bash
+printf '%s\n' limine-mkinitcpio >>'$calls'
+printf '%s\n' '$clean_listing' >'$uki_dir/omarchy_linux-omarchy.efi'
+SH
+chmod 755 "$stub_bin/limine-mkinitcpio"
+run_migration
+[[ -f $tmp_dir/marker-dir/1791210803 ]] || fail "retry records completion after the image omits NVIDIA"
+pass "retry records completion after the image omits NVIDIA"
