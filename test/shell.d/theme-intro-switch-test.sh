@@ -31,9 +31,19 @@ exit 0
 STUB
 chmod +x "$commands/noop"
 # Post-theme retints run through bash -lc; this fixture only exercises selection and presentation.
-for command in bash omarchy-theme-set-templates omarchy-hook omarchy-theme-set-herdr-machines omarchy-theme-bg-cache; do
+for command in omarchy-theme-set-templates omarchy-hook omarchy-theme-set-herdr-machines omarchy-theme-bg-cache; do
   ln -s noop "$commands/$command"
 done
+cat >"$commands/bash" <<'STUB'
+#!/bin/bash
+if [[ $1 == "-lc" && $2 == "omarchy-restart-hyprctl" ]]; then
+  omarchy-restart-hyprctl
+fi
+STUB
+cat >"$commands/omarchy-restart-hyprctl" <<'STUB'
+#!/bin/bash
+echo "hypr-reload" >>"$TEST_LOG"
+STUB
 cat >"$commands/hyprctl" <<'STUB'
 #!/bin/bash
 printf '{"bool":%s}\n' "${TEST_ANIMATIONS:-true}"
@@ -88,7 +98,7 @@ if [[ $1 == intro && -n ${TEST_RELEASE:-} ]]; then
   exit 1
 fi
 STUB
-chmod +x "$commands/hyprctl" "$commands/omarchy-shell" "$commands/owe"
+chmod +x "$commands/bash" "$commands/omarchy-restart-hyprctl" "$commands/hyprctl" "$commands/omarchy-shell" "$commands/owe"
 
 set_theme() {
   : >"$log"
@@ -138,6 +148,7 @@ pass "theme intros respect the global toggle, disabled animations, and headless 
 printf '%s\n' "$state/theme/backgrounds/2-road.webp" >"$home/.local/state/omarchy/theme-backgrounds/alpha"
 TEST_OWE_FAIL=true set_theme alpha
 wait_command '^shell: background setInstant '
+wait_command '^hypr-reload$'
 ! grep -q '^owe: intro ' "$log" || fail "an unavailable renderer falls back to the still"
 pass "unavailable OWE falls back to the selected still image"
 
@@ -164,3 +175,29 @@ wait_command '^owe: intro '
 [[ -f $gates/fade-waited && -f $gates/cover-waited && -f $gates/cover-ready ]] || fail "a rapid selection waits for the opening fade and replacement cover"
 [[ ! -f $gates/premature-swap ]] || fail "the outgoing fade and cover settle before replacing the active theme"
 pass "rapid switches present the outgoing video cover before replacing its still"
+
+wait_command '^hypr-reload$'
+release="$test_tmp/reload-release"
+TEST_INTRO_PID="$test_tmp/intro.pid" TEST_RELEASE="$release" set_theme alpha
+wait_command '^owe: intro '
+! grep -q '^hypr-reload$' "$log" || fail "the compositor is not reloaded during intro playback"
+touch "$release"
+wait_command '^hypr-reload$'
+(( $(grep -c '^hypr-reload$' "$log") == 1 )) || fail "the compositor reloads once after playback"
+pass "theme intros defer the compositor reload until playback finishes"
+
+release="$test_tmp/superseded-release"
+TEST_INTRO_PID="$test_tmp/intro.pid" TEST_RELEASE="$release" set_theme beta
+wait_command '^owe: intro '
+cover=$(awk '/^shell: shell prepareThemeIntro / { print $4; exit }' "$log")
+! grep -q '^hypr-reload$' "$log" || fail "the held intro has not reloaded the compositor"
+OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme alpha
+grep -q '^hypr-reload$' "$log" || fail "a theme refresh reloads the compositor immediately"
+touch "$release"
+for attempt in {1..100}; do
+  [[ -f $cover ]] || break
+  sleep 0.02
+done
+[[ ! -f $cover ]] || fail "the superseded intro finishes cleanup"
+(( $(grep -c '^hypr-reload$' "$log") == 1 )) || fail "the superseded intro cannot reload during a newer theme"
+pass "superseded intros do not reload the compositor"

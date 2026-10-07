@@ -214,6 +214,16 @@ set_theme_background() {
         fi
       fi
       shell_ipc shell finishThemeIntro "$theme_id" || true
+      wait_for_theme_intro themeIntroStatus "$theme_id" "pending"
+      # Reloading Hyprland interrupts video presentation. Wait for playback,
+      # then serialize with theme selection so an old intro cannot reload
+      # the compositor during the next theme's video.
+      (
+        flock 9
+        if [[ $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
+          omarchy-restart-hyprctl
+        fi
+      ) 9>"$THEME_SET_LOCK"
       [[ -z $OLD_BACKGROUND_SNAPSHOT ]] || rm -f "$OLD_BACKGROUND_SNAPSHOT"
     ) 9>&- &
     return
@@ -479,7 +489,6 @@ flock -u 9
 
 post_theme_commands=(
   omarchy-restart-terminal
-  omarchy-restart-hyprctl
   omarchy-restart-btop
   omarchy-restart-opencode
   omarchy-restart-helix
@@ -498,10 +507,13 @@ post_theme_commands=(
 )
 
 if [[ $THEME_HEADLESS != "1" ]]; then
-  # Let the wallpaper and bar finish their reveal before app retints and the
-  # compositor reload compete with decoding and the shell's frame rendering.
+  # Let the wallpaper and bar finish their reveal before app retints compete
+  # with decoding and the shell's frame rendering. An intro reloads Hyprland
+  # after playback; ordinary theme changes reload it with the app retints.
   if [[ -n $THEME_INTRO_TOKEN ]]; then
     wait_for_theme_intro themeIntroStatus "$THEME_INTRO_TOKEN" "pending"
+  else
+    post_theme_commands+=(omarchy-restart-hyprctl)
   fi
   run_parallel "${post_theme_commands[@]}"
 
