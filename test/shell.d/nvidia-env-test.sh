@@ -9,7 +9,7 @@ require_command lua
 # this covers which variables the Lua module actually sets in each branch, so a
 # mistake in the GSP/non-GSP gating cannot pass unnoticed.
 resolved_env() {
-  OMARCHY_PATH="$ROOT" NV_SCENARIO="$1" lua <<'LUA'
+  OMARCHY_PATH="$ROOT" NV_SCENARIO="$1" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local scenario = os.getenv("NV_SCENARIO")
@@ -68,7 +68,7 @@ assert_env() {
   local expected="$3"
   local actual
 
-  actual=$(resolved_env "$scenario")
+  actual=$(resolved_env "$scenario") || fail "$description" "loading default/hypr/nvidia.lua failed"
 
   [[ $actual == "$expected" ]] ||
     fail "$description" "expected: ${expected:-<none>}"$'\n'"actual:   ${actual:-<none>}"
