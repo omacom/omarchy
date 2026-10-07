@@ -575,6 +575,14 @@ pass "pi theme activation preserves existing settings"
 
 PI_TEST_AGENT_DIR="$PI_TMPDIR/pi-work"
 rm -rf "$PI_TMPDIR/.pi"
+mkdir -p "$PI_TEST_AGENT_DIR"
+echo '{"model":"keep-me"}' >"$PI_TEST_AGENT_DIR/settings.json"
+HOME="$PI_TMPDIR" PI_CODING_AGENT_DIR="$PI_TEST_AGENT_DIR" "$ROOT/bin/omarchy-theme-set-pi"
+[[ -f $PI_TEST_AGENT_DIR/themes/omarchy-system.json ]] || fail "pi theme is synced to an existing configured agent directory"
+jq -e '.model == "keep-me" and has("theme") == false' "$PI_TEST_AGENT_DIR/settings.json" >/dev/null || fail "ordinary pi theme sync does not activate the theme"
+pass "ordinary pi theme sync follows PI_CODING_AGENT_DIR"
+
+rm -rf "$PI_TEST_AGENT_DIR"
 HOME="$PI_TMPDIR" PI_CODING_AGENT_DIR="$PI_TEST_AGENT_DIR" "$ROOT/bin/omarchy-theme-set-pi" --activate
 [[ -f $PI_TEST_AGENT_DIR/themes/omarchy-system.json ]] || fail "pi theme is synced to the configured agent directory"
 jq -e '.theme == "omarchy-system"' "$PI_TEST_AGENT_DIR/settings.json" >/dev/null || fail "pi theme is activated in the configured agent directory"
