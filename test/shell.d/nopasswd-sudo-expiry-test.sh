@@ -303,3 +303,9 @@ grep -q '^sudo -N -- .* __enable .* 15$' "$test_tmp/commands"
 ! grep -q '^sudo -n -N -- .* __status ' "$test_tmp/commands" || fail "inactive flow attempted root status"
 [[ $(tail -1 "$test_tmp/commands") == 'sudo -k' ]]
 pass "enabling from inactive policy has exactly one password-capable sudo invocation"
+
+: >"$test_tmp/commands"
+TEST_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >"$test_tmp/public.log" 2>&1
+grep -q '^sudo -n -N -- .* __disable ' "$test_tmp/commands" || fail "disable must refuse interactive authentication"
+! grep -q '^sudo -N -- ' "$test_tmp/commands" || fail "disable attempted an interactive sudo command"
+pass "disabling active access is fully noninteractive"

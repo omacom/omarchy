@@ -7,6 +7,7 @@ BarIndicator {
   id: root
 
   property bool granted: false
+  property bool refreshPending: false
 
   active: granted
   activeText: "󰟵"
@@ -17,7 +18,12 @@ BarIndicator {
   activeColor: Color.urgent
 
   function refresh() {
-    if (!root.bar || statusProc.running) return
+    if (!root.bar) return
+    if (statusProc.running) {
+      root.refreshPending = true
+      return
+    }
+    root.refreshPending = false
     statusProc.running = true
   }
 
@@ -42,10 +48,24 @@ BarIndicator {
     command: ["omarchy-sudo-passwordless", "--active"]
     onExited: function(exitCode, exitStatus) {
       root.granted = exitCode === 0 && exitStatus === 0
+      if (root.refreshPending) Qt.callLater(root.refresh)
+    }
+  }
+
+  Process {
+    id: disableProc
+    command: ["omarchy-sudo-passwordless", "--disable"]
+    onExited: function(exitCode, exitStatus) {
+      if ((exitCode !== 0 || exitStatus !== 0) && root.bar)
+        root.bar.run('omarchy-notification-send "Could not disable passwordless sudo" "Check the sudo configuration and try again."')
+      if (root.indicatorHost) root.indicatorHost.refresh()
+      else root.refresh()
     }
   }
 
   onPressed: function() {
-    if (root.bar) root.bar.run("omarchy-launch-floating-terminal-with-presentation omarchy-sudo-passwordless" + (root.granted ? " --disable" : ""))
+    if (!root.bar || disableProc.running) return
+    if (root.granted) disableProc.running = true
+    else root.bar.run("omarchy-launch-floating-terminal-with-presentation omarchy-sudo-passwordless")
   }
 }

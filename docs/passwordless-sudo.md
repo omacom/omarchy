@@ -2,7 +2,7 @@
 
 `omarchy-sudo-passwordless` publishes a timed or permanent grant for the numeric UID authenticated by sudo. Its user interface inspects sudo policy without prompting and authenticates only the enable action when access is off, without a reusable sudo timestamp; fixed installed internal actions run as root and serialize on `/run/lock/omarchy-sudo-passwordless.lock`.
 
-The menu bar's `PasswordlessSudo` indicator polls `--active` every five seconds and shows the passwordless sudo icon in red while access is active. The probe uses sudo's noninteractive long policy listing for the installed `__status` action and checks its `!authenticate` tag, without executing a privileged command or updating cached credentials. Clicking the active indicator passes `--disable`, so a grant expiring between display and click cannot start the enable flow.
+The menu bar's `PasswordlessSudo` indicator polls `--active` every five seconds and shows the passwordless sudo icon in red while access is active. The probe uses sudo's noninteractive long policy listing for the installed `__status` action and checks its `!authenticate` tag, without executing a privileged command or updating cached credentials. Clicking the active indicator runs `--disable` noninteractively without opening a terminal, so a grant expiring between display and click cannot start the enable flow.
 
 ## Grant lifecycle
 
