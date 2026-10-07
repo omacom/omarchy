@@ -13,5 +13,7 @@ fi
 
 sudo ln -sfn /usr/bin/omarchy-dns-dispatch "$hook"
 sudo rm -f "$conf"
-sudo nmcli general reload conf
-sudo nmcli general reload dns-full
+if systemctl is-active --quiet NetworkManager.service; then
+  sudo nmcli general reload conf >/dev/null 2>&1 || true
+  sudo nmcli general reload dns-full >/dev/null 2>&1 || true
+fi
