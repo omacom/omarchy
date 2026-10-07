@@ -187,8 +187,17 @@ printf 'image-bracket' >"$glob_images/photo[1].png"
 
 glob_cache_key=$(printf '%s' "$glob_images" | md5sum | cut -d ' ' -f 1)
 
-PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
-  "$ROOT/bin/omarchy-menu-images" --lazy-thumbnails --print-rows "$glob_images" >/dev/null
+# Its detached pool must finish before the gated stub below replaces this one.
+setsid env PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
+  "$ROOT/bin/omarchy-menu-images" --lazy-thumbnails --print-rows "$glob_images" >/dev/null &
+glob_group=$!
+lazy_groups+=("$glob_group")
+wait "$glob_group" || fail "lazy image menu prints rows for a globbing filename"
+for attempt in {1..500}; do
+  kill -0 -- "-$glob_group" 2>/dev/null || break
+  sleep 0.02
+done
+! kill -0 -- "-$glob_group" 2>/dev/null || fail "lazy image menu finishes the globbing filename's thumbnail"
 
 cache_dir="$cache_home/omarchy/image-selector"
 [[ ! -e $cache_dir/$glob_cache_key.rows ]] ||
