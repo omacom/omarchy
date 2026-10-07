@@ -159,9 +159,19 @@ chmod 555 "$home/locked"
 if [[ -w $home/locked ]]; then
   chmod 755 "$home/locked"
 else
+  # A write that fails there must not have emptied the config before it started.
+  before=$(cat "$home/locked/foot.ini")
+  failed_status=0
+  PATH="$test_dir/bin:$PATH" run_migration 2>/dev/null || failed_status=$?
+  after_failure=$(cat "$home/locked/foot.ini")
+
   status=0
   run_migration 2>/dev/null || status=$?
   chmod 755 "$home/locked"
+  (( failed_status != 0 )) || fail "chord repair reports a failed write in a read-only directory"
+  [[ $after_failure == "$before" ]] ||
+    fail "chord repair leaves a config in a read-only directory whole when the write fails" "$(printf '%s' "$after_failure" | cat -A)"
+  pass "chord repair leaves a config in a read-only directory whole when the write fails"
   (( status == 0 )) || fail "chord repair succeeds on a config in a read-only directory"
 
   grep -qx 'clipboard-copy=Control+Insert Control+Shift+c XF86Copy' "$home/locked/foot.ini" ||

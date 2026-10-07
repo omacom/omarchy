@@ -10,7 +10,7 @@ foot_config="$HOME/.config/foot/foot.ini"
 
 if [[ -f $foot_config ]] && grep -qx 'clipboard-copy=Control+Insert\|clipboard-paste=Shift+Insert' "$foot_config"; then
   # The rewrite is renamed over the real file, so a failed write leaves it whole and a symlink survives.
-  # A config in a directory the user can't write to has no room beside it, so that one is written in place.
+  # A config in a directory the user can't write to is written over in place rather than truncated first; the rewrite only lengthens lines, so no old bytes are left past its end.
   target=$(readlink -f "$foot_config")
   if [[ -w ${target%/*} ]]; then
     tmp=$(mktemp "$target.XXXXXX")
@@ -56,6 +56,6 @@ if [[ -f $foot_config ]] && grep -qx 'clipboard-copy=Control+Insert\|clipboard-p
     cp --attributes-only --preserve=mode "$target" "$tmp"
     mv "$tmp" "$target"
   else
-    cat "$tmp" >"$target"
+    cat "$tmp" 1<>"$target"
   fi
 fi
