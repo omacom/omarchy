@@ -126,13 +126,29 @@ verify_tunnel() {
   ping -c 1 -W 2 -I "$device" "$internet_probe" >/dev/null 2>&1
 }
 
+# Serializes every toggle, across all callers of this command and not just
+# the one panel: two overlapping `up` calls would otherwise both read the
+# listing before either new profile is active, each skip the other in
+# deactivate_other_vpns, and leave two tunnels up. `down` takes the lock too,
+# so it cannot interleave with another caller's rollback and have the profile
+# it just dropped brought straight back.
+#
+# Waits rather than bailing out: giving up quietly would exit 0 and read as
+# a toggle that worked. The wait outlasts nmcli's own 90s activation timeout
+# plus a rollback, and a holder that never lets go is reported as a failure.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-network-vpn.lock"
+if ! flock -w 300 9; then
+  echo "Error: another VPN change is still in progress." >&2
+  exit 1
+fi
+
 case "$1" in
   up)
     # Nothing at the NetworkManager/WireGuard level stops two tunnels being
     # active at once -- they'd just fight over the default route. Treat VPN
     # selection as exclusive, one profile carrying traffic at a time.
     #
-    # Fetched once and reused below: a bare `x=$(...)` assignment under
+    # Fetched once, under the lock above, and reused below: a bare `x=$(...)` assignment under
     # set -e aborts the whole script outright if the pipeline inside it
     # fails (a transient nmcli/D-Bus hiccup), so `|| true` degrades to "no
     # connections known" instead of killing the up attempt before it starts.

@@ -244,9 +244,11 @@ export CALL_LOG="$call_log" VPN_NAME="" VPN_DEVICE="" VPN_STATE="" VPN_ROUTES=""
   PING_EXIT=0 CONN_LIST="" NMCLI_UP_FAIL="" NMCLI_DOWN_FAIL=""
 
 # $ROOT/bin so omarchy-network-vpn resolves the real omarchy-cmd-present.
+# XDG_RUNTIME_DIR keeps the toggle lock inside the sandbox.
+vpn_lock="$tmp_dir/omarchy-network-vpn.lock"
 vpn_run() {
   : >"$call_log"
-  PATH="$mock_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-network-vpn" "$@"
+  XDG_RUNTIME_DIR="$tmp_dir" PATH="$mock_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-network-vpn" "$@"
 }
 
 logged_before() {
@@ -327,3 +329,34 @@ pass "omarchy-network-vpn activates a profile whose name contains a glob metacha
 grep -Fxq "nmcli connection down workstation" "$call_log" ||
   fail "omarchy-network-vpn deactivates an unrelated profile instead of glob-matching it against the activating name" "$(cat "$call_log")"
 pass "omarchy-network-vpn deactivates an unrelated profile instead of glob-matching it against the activating name"
+
+# Toggles are serialized across callers: with the lock already held, a toggle
+# waits for it rather than reading the listing and switching alongside the
+# holder, which is how two overlapping `up` calls end up with two tunnels.
+CONN_LIST=$'pvpn-ch:wireguard:yes'
+: >"$vpn_lock"
+flock "$vpn_lock" bash -c 'sleep 1; printf "lock released\n" >>"$CALL_LOG"' &
+holder=$!
+while flock -n "$vpn_lock" true 2>/dev/null && kill -0 "$holder" 2>/dev/null; do
+  sleep 0.05
+done
+vpn_run down pvpn-ch || fail "omarchy-network-vpn completes a toggle once the lock frees up"
+wait "$holder"
+pass "omarchy-network-vpn completes a toggle once the lock frees up"
+logged_before "lock released" "nmcli connection down pvpn-ch" ||
+  fail "omarchy-network-vpn waits for a toggle already in progress" "$(cat "$call_log")"
+pass "omarchy-network-vpn waits for a toggle already in progress"
+
+# Listing takes no lock, so the panel's poll never stalls behind a toggle.
+flock "$vpn_lock" sleep 3 &
+holder=$!
+while flock -n "$vpn_lock" true 2>/dev/null && kill -0 "$holder" 2>/dev/null; do
+  sleep 0.05
+done
+list_output=$(vpn_run) || fail "omarchy-network-vpn lists connections during a toggle"
+flock -n "$vpn_lock" true 2>/dev/null &&
+  fail "omarchy-network-vpn lists connections without waiting on the toggle lock"
+wait "$holder"
+[[ $list_output == $'pvpn-ch\tyes' ]] ||
+  fail "omarchy-network-vpn lists connections without waiting on the toggle lock" "$list_output"
+pass "omarchy-network-vpn lists connections without waiting on the toggle lock"
