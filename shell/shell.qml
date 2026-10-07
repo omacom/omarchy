@@ -1705,6 +1705,7 @@ ShellRoot {
     function ping(): string {
       return "ok"
     }
+
   }
 
   // ---------------------------------------------------------- shell IPC
@@ -1712,11 +1713,20 @@ ShellRoot {
   ShellIpc {
     target: "shell"
 
+    function prepareThemeIntro(fromPath: string, token: string, colorsB64: string, shellB64: string): void {
+      shell.bootIntro.prepareTheme(fromPath, token, colorsB64, shellB64)
+    }
+
+    function finishThemeIntro(token: string): void {
+      shell.bootIntro.finishTheme(token)
+    }
+
     function ping(): string {
       return "ok"
     }
 
     function applyTheme(colorsB64: string, shellB64: string): string {
+      if (shell.bootIntro) shell.bootIntro.cancelTheme()
       var background = shell.firstPartyServiceFor("omarchy.background")
       if (background && typeof background.setPendingTheme === "function" && typeof background.applyPendingTheme === "function") {
         background.setPendingTheme(colorsB64, shellB64)

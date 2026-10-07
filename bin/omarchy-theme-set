@@ -184,8 +184,9 @@ set_theme_background() {
   new_background="$CHOSEN_THEME_BACKGROUND"
   if [[ -n $THEME_BACKGROUND_INTRO ]]; then
     theme_id=$(stat -Lc '%d:%i' "$CURRENT_THEME_PATH")
+    shell_ipc shell prepareThemeIntro "$OLD_BACKGROUND_SNAPSHOT" "$theme_id" "$colors_payload" "$shell_payload" || \
+      shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
     ln -nsf "$new_background" "$CURRENT_BACKGROUND_LINK"
-    shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
     (
       if ! omarchy-theme-bg-boot-intro --theme-switch "$new_background" "$theme_id"; then
         if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$(readlink -f "$new_background")" &&
@@ -193,6 +194,8 @@ set_theme_background() {
           shell_ipc background setInstant "$new_background" || true
         fi
       fi
+      shell_ipc shell finishThemeIntro "$theme_id" || true
+      [[ -z $OLD_BACKGROUND_SNAPSHOT ]] || rm -f "$OLD_BACKGROUND_SNAPSHOT"
     ) 9>&- &
     return
   fi
@@ -389,7 +392,7 @@ if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
       THEME_BACKGROUND_INTRO=$(omarchy-theme-bg-boot-intro --resolve-only "$STAGED_THEME_BACKGROUND")
     fi
     if [[ -n $THEME_BACKGROUND_INTRO ]]; then
-      BACKGROUND_TRANSITION_SNAPSHOTS=false
+      OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
     elif background_transition_uses_snapshots "$CHOSEN_THEME_BACKGROUND"; then
       OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
 
