@@ -63,7 +63,7 @@ Item {
     property: "themeOpacity"
     to: 0
     duration: Style.duration(420)
-    easing.type: Easing.InOutCubic
+    easing.type: Easing.OutCubic
     onFinished: root.themeBackground = ""
   }
 
@@ -77,7 +77,7 @@ Item {
   // Keep that preparation hidden until the actual video is fully revealed.
   Timer {
     id: framePoll
-    interval: 80
+    interval: 16
     repeat: true
     onTriggered: if (!frameStatus.running) frameStatus.running = true
   }

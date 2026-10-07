@@ -261,7 +261,7 @@ Item {
     from: 0
     to: 1
     duration: Style.duration(420)
-    easing.type: Easing.InOutCubic
+    easing.type: Easing.OutCubic
     onFinished: {
       if (root.incomingBackground) {
         root.displayedBackground = root.currentBackground || root.incomingBackground
