@@ -73,11 +73,12 @@ if omarchy-pkg-missing libfprint-git fprintd usbutils; then
   sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
 fi
 
-# fprintd-enroll and fprintd-verify use fprintd's default reader.
+# fprintd-enroll and fprintd-verify use fprintd's default reader. Prints its
+# path, or NoSuchDevice when fprintd has no reader it can drive.
 default_reader() {
   gdbus call --system --dest net.reactivated.Fprint --object-path /net/reactivated/Fprint/Manager \
-    --method net.reactivated.Fprint.Manager.GetDefaultDevice 2>/dev/null |
-    grep -o '/net/reactivated/Fprint/Device/[0-9]\+'
+    --method net.reactivated.Fprint.Manager.GetDefaultDevice 2>&1 |
+    grep -o -e '/net/reactivated/Fprint/Device/[0-9]\+' -e 'NoSuchDevice'
 }
 
 # Whether a print is saved on the default reader: 0 yes, 1 no, 2 fprintd could
@@ -85,10 +86,13 @@ default_reader() {
 # one " - #N: finger" line per print or "User has no fingers enrolled", which
 # also contains the word finger, so only entry lines under the default count.
 # It exits non-zero when it cannot list, which must not read as no prints.
-# With no default reader there is no print to find, and enrolling reports why.
 fingerprint_enrolled() {
   local reader listing
-  reader=$(default_reader) || return 1
+  reader=$(default_reader) || return 2
+  # A sensor libfprint cannot drive holds no print; enrolling reports fprintd's error.
+  if [[ $reader == "NoSuchDevice" ]]; then
+    return 1
+  fi
   listing=$(fprintd-list "$USER" 2>&1) || return 2
   awk -v reader="$reader" '
     /^Using device / { current = ($3 == reader) }
