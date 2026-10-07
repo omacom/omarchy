@@ -19,9 +19,10 @@ require_command jq
 
 TMPDIR=$(mktemp -d)
 test_home="$TMPDIR/home"
+export HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config"
 manifest_path="$test_home/.config/chromium/NativeMessagingHosts/com.omarchy.ytdlp.json"
 
-HOME="$test_home" OMARCHY_PATH="$ROOT" omarchy-install-chromium-ytdlp
+HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" OMARCHY_PATH="$ROOT" omarchy-install-chromium-ytdlp
 
 [[ -f $manifest_path ]] || fail "yt-dlp native host installer creates fresh Chromium profile root"
 pass "yt-dlp native host installer creates fresh Chromium profile root"
