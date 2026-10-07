@@ -35,6 +35,7 @@ Item {
   // screen's worth of pixels instead of its own.
   property var nativeSizes: ({})
   property var sizeQueue: []
+  property var sizeGenerations: ({})
   property bool finishingTransition: false
   property int backgroundVersion: 0
   property int revealStartedVersion: -1
@@ -67,6 +68,11 @@ Item {
     if (path !== preparedBackground) preparedBackground = ""
     preparedBackgroundTimer.stop()
     lastTransitionPath = path
+    if (force && finalPath) {
+      sizeGenerations[finalPath] = (sizeGenerations[finalPath] || 0) + 1
+      delete nativeSizes[finalPath]
+      sizeQueue = sizeQueue.filter(function(queued) { return queued !== finalPath })
+    }
     // The incoming frame gates the reveal, so its size is read first.
     requestNativeSize(path)
     requestNativeSize(fromPath || displayedBackground)
@@ -149,6 +155,7 @@ Item {
   function probeNextSize() {
     if (sizeProbe.running || sizeQueue.length === 0) return
     sizeProbe.path = sizeQueue[0]
+    sizeProbe.generation = sizeGenerations[sizeProbe.path] || 0
     sizeProbe.command = ["magick", "identify", "-ping", "-format", "%w %h", sizeProbe.path]
     sizeProbe.running = true
   }
@@ -162,6 +169,18 @@ Item {
       if (paths[i] && nativeSizes[paths[i]] !== undefined) kept[paths[i]] = nativeSizes[paths[i]]
     }
     nativeSizes = kept
+  }
+
+  function finishTransition() {
+    if (!finishingTransition) return
+    for (var i = 0; i < panels.instances.length; i++) {
+      if (!panels.instances[i].baseReady) return
+    }
+    incomingBackground = ""
+    oldBackground = ""
+    preparedBackground = ""
+    finishingTransition = false
+    pruneNativeSizes()
   }
 
   function openSelector() {
@@ -186,16 +205,21 @@ Item {
   Process {
     id: sizeProbe
     property string path: ""
+    property int generation: 0
     stdout: StdioCollector { id: sizeProbeOut }
     onExited: function(exitCode) {
-      var parts = String(sizeProbeOut.text || "").trim().split(/\s+/)
-      var width = exitCode === 0 ? parseInt(parts[0], 10) : 0
-      var height = exitCode === 0 ? parseInt(parts[1], 10) : 0
-      var known = Object.assign({}, root.nativeSizes)
-      // An unreadable header records 0x0, which decodes at screen size.
-      known[path] = { width: width > 0 ? width : 0, height: height > 0 ? height : 0 }
-      root.nativeSizes = known
-      root.sizeQueue = root.sizeQueue.filter(function(queued) { return queued !== sizeProbe.path })
+      // A forced transition may have queued a replacement for this path.
+      // Its dimensions and request belong to the newer generation.
+      if (generation === (root.sizeGenerations[path] || 0)) {
+        var parts = String(sizeProbeOut.text || "").trim().split(/\s+/)
+        var width = exitCode === 0 ? parseInt(parts[0], 10) : 0
+        var height = exitCode === 0 ? parseInt(parts[1], 10) : 0
+        var known = Object.assign({}, root.nativeSizes)
+        // An unreadable header records 0x0, which decodes at screen size.
+        known[path] = { width: width > 0 ? width : 0, height: height > 0 ? height : 0 }
+        root.nativeSizes = known
+        root.sizeQueue = root.sizeQueue.filter(function(queued) { return queued !== sizeProbe.path })
+      }
       root.probeNextSize()
     }
   }
@@ -266,12 +290,14 @@ Item {
         root.finishingTransition = true
       }
       root.revealProgress = 1
+      Qt.callLater(function() { root.finishTransition() })
     }
   }
 
   Component.onCompleted: refreshBackground()
 
   Variants {
+    id: panels
     model: Quickshell.screens
 
     PanelWindow {
@@ -294,6 +320,7 @@ Item {
       updatesEnabled: true
 
       property bool maskReady: false
+      property alias baseReady: base.ready
 
       // Decode the wallpaper at the size this screen can show, not the size
       // it was shipped at. With PreserveAspectCrop Qt takes sourceSize as the
@@ -337,17 +364,11 @@ Item {
         id: base
         anchors.fill: parent
         path: root.displayedBackground
+        version: root.backgroundVersion
+        cached: true
         constrainDecode: true
         decodeSize: panel.decodeSize(root.displayedBackground)
-        onReadyChanged: {
-          if (ready && root.finishingTransition) {
-            root.incomingBackground = ""
-            root.oldBackground = ""
-            root.preparedBackground = ""
-            root.finishingTransition = false
-            root.pruneNativeSizes()
-          }
-        }
+        onReadyChanged: root.finishTransition()
       }
 
       Image {

@@ -74,4 +74,99 @@ assert(
     /function prepareBackground[\s\S]*?requestNativeSize\(path\)/.test(backgroundQml),
   'background never probes videos and probes a prepared frame ahead of its transition'
 )
+assert(
+  /BackgroundMedia\s*\{[\s\S]*id: base[\s\S]*version: root\.backgroundVersion/.test(backgroundQml),
+  'displayed wallpaper binds backgroundVersion to bust cache across same-name theme switches'
+)
+// Execute the QML JavaScript with process and panel state controlled by the test.
+const vm = require('vm')
+function blockAfter(marker) {
+  const start = backgroundQml.indexOf(marker)
+  assert(start !== -1, 'background contains ' + marker)
+  const open = backgroundQml.indexOf('{', start)
+  let depth = 1
+  let end = open + 1
+  while (depth && end < backgroundQml.length) {
+    if (backgroundQml[end] === '{') depth++
+    if (backgroundQml[end] === '}') depth--
+    end++
+  }
+  return backgroundQml.slice(open + 1, end - 1)
+}
+
+const state = {
+  nativeSizes: {}, sizeQueue: [], sizeGenerations: {},
+  sizeProbe: { running: false }, sizeProbeOut: { text: '' },
+  currentBackground: 'wallpaper', displayedBackground: 'wallpaper',
+  incomingBackground: '', oldBackground: '', preparedBackground: '',
+  backgroundVersion: 0, finishingTransition: false,
+  preparedBackgroundTimer: { stop() {} }, revealAnimation: { stop() {} },
+  isVideo() { return false },
+  panels: { instances: [{ baseReady: true }, { baseReady: false }] },
+  Qt: { callLater(callback) { deferred.push(callback) } }
+}
+const deferred = []
+state.root = state
+const context = vm.createContext(state)
+for (const name of ['transitionBackground', 'requestNativeSize', 'probeNextSize', 'pruneNativeSizes', 'finishTransition']) {
+  vm.runInContext('function ' + name + backgroundQml.slice(
+    backgroundQml.indexOf('(', backgroundQml.indexOf('function ' + name)),
+    backgroundQml.indexOf('{', backgroundQml.indexOf('function ' + name))
+  ) + '{' + blockAfter('function ' + name + '(') + '}', context)
+}
+const completeProbe = vm.runInContext('(function(exitCode) {' +
+  blockAfter('onExited: function(exitCode)') + '})', context)
+function complete(width, height) {
+  state.sizeProbeOut.text = width + ' ' + height
+  state.sizeProbe.running = false
+  context.path = state.sizeProbe.path
+  context.generation = state.sizeProbe.generation
+  completeProbe(0)
+}
+
+state.requestNativeSize('wallpaper')
+state.transitionBackground('old-snapshot', 'new-snapshot', 'wallpaper', false, true)
+complete(640, 480)
+assertEqual(state.nativeSizes.wallpaper, undefined, 'stale probe cannot restore invalidated dimensions')
+assert(state.sizeQueue.includes('wallpaper'), 'stale completion preserves the replacement request')
+assertEqual(state.sizeProbe.path, 'new-snapshot', 'stale completion advances the probe queue')
+complete(3840, 2160)
+complete(1920, 1080)
+assertEqual(state.sizeProbe.path, 'wallpaper', 'replacement probe starts after snapshot probes')
+complete(3840, 2160)
+assertDeepEqual(state.nativeSizes.wallpaper, { width: 3840, height: 2160 }, 'fresh probe caches the replacement dimensions')
+assertEqual(state.sizeQueue.length, 0, 'fresh completion removes its queued request')
+
+state.requestNativeSize('unrelated')
+state.transitionBackground('old-snapshot', 'new-snapshot', 'wallpaper', false, true)
+complete(800, 600)
+assertDeepEqual(state.nativeSizes.unrelated, { width: 800, height: 600 }, 'invalidation leaves unrelated in-flight probes valid')
+complete(4096, 2304)
+
+const revealFinished = vm.runInContext('(function() {' + blockAfter('onFinished:') + '})', context)
+const readyChanged = backgroundQml.match(/onReadyChanged: ([^\n]+)/)[1]
+revealFinished()
+deferred.shift()()
+assertEqual(state.incomingBackground, 'new-snapshot', 'deferred cleanup retains incoming frame while any base is loading')
+assertEqual(state.finishingTransition, true, 'transition waits for all panel bases')
+vm.runInContext(readyChanged, context)
+assertEqual(state.incomingBackground, 'new-snapshot', 'one ready panel cannot clear the shared incoming frame')
+state.panels.instances[1].baseReady = true
+vm.runInContext(readyChanged, context)
+assertEqual(state.incomingBackground, '', 'base readiness clears incoming frame once all panels are ready')
+assertEqual(state.oldBackground, '', 'base readiness clears old frame')
+assertEqual(state.preparedBackground, '', 'base readiness clears prepared frame')
+assertEqual(state.finishingTransition, false, 'base readiness finishes transition')
+assertDeepEqual(state.nativeSizes, { wallpaper: { width: 4096, height: 2304 } }, 'cleanup prunes unused native sizes')
+
+state.incomingBackground = 'cached-snapshot'
+state.oldBackground = 'old-snapshot'
+state.preparedBackground = 'cached-snapshot'
+revealFinished()
+assertEqual(state.incomingBackground, 'cached-snapshot', 'reveal defers cleanup of an already-ready base')
+deferred.shift()()
+assertEqual(state.incomingBackground, '', 'deferred check cleans up an already-ready base')
+state.incomingBackground = 'next-snapshot'
+vm.runInContext(readyChanged, context)
+assertEqual(state.incomingBackground, 'next-snapshot', 'readiness outside transition completion preserves incoming frame')
 JS
