@@ -22,7 +22,9 @@
   exit 2
 }
 
-for dir in /sys/bus/acpi/devices/"$1":*; do
+acpi_devices="${OMARCHY_ACPI_DEVICES_PATH:-/sys/bus/acpi/devices}"
+
+for dir in "$acpi_devices"/"$1":*; do
   [ -d "$dir" ] || continue
   if [ -r "$dir/status" ]; then
     (($(cat "$dir/status") & 1)) && exit 0
