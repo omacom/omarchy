@@ -4,19 +4,23 @@ import Quickshell.Wayland
 import Quickshell.Io
 import qs.Commons
 
-// Restore the wallpaper alongside the bar, before plugin loading finishes.
-// Keep intro and cover state here across background service handoffs.
+// Keep startup and theme covers alive across background service handoffs.
 Item {
   id: root
 
   property var host: null
   property bool cover: true
-  property bool startupSettled: String(sessionMarker.text() || "").trim() === (Quickshell.env("OMARCHY_SESSION_ID") || Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE"))
+  readonly property bool sessionConsumed: String(sessionMarker.text() || "").trim() === (Quickshell.env("OMARCHY_SESSION_ID") || Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE"))
+  property bool startupSettled: sessionConsumed
+  property bool startupPending: !sessionConsumed
+  property bool startupMediaReady: false
+  property real startupOpacity: startupPending ? 1 : 0
+  readonly property bool desktopReady: !host || (!host.pluginReloading && (!host.pluginRegistry || !host.pluginRegistry.scanning) && (!("bar" in host) || !!host.bar))
   property bool checked: false
   property string themeToken: ""
   property string transitionToken: ""
   readonly property string startupBackgroundPath: Quickshell.env("OMARCHY_STARTUP_BACKGROUND")
-  property string themeBackground: Util.isVideoPath(startupBackgroundPath) ? "" : startupBackgroundPath
+  property string themeBackground: sessionConsumed && !Util.isVideoPath(startupBackgroundPath) ? startupBackgroundPath : ""
   property var themeNativeSize: null
   property string themeColors: ""
   property string themeShell: ""
@@ -33,8 +37,19 @@ Item {
     if (!backgroundReady && !disabled) return
     cover = false
     if (!themeToken) themeBackground = ""
+    startupMediaReady = true
+    revealStartup()
   }
 
+  function revealStartup() {
+    if (!startupPending || startupFade.running || !startupMediaReady || !desktopReady) return
+    if (!startupCovers.instances.length) return
+    for (var panel of startupCovers.instances)
+      if (panel.readyFrames < 2) return
+    startupFade.start()
+  }
+
+  onDesktopReadyChanged: revealStartup()
   onBackgroundReadyChanged: finishStartup()
   Connections {
     target: root.host && root.host.pluginRegistry ? root.host.pluginRegistry : null
@@ -69,7 +84,14 @@ Item {
     themeToken = ""
     themeColors = ""
     themeShell = ""
-    themeFade.restart()
+    if (startupPending) {
+      // The login reveal starts on moving video, without showing its final still.
+      themeBackground = ""
+      startupMediaReady = true
+      revealStartup()
+    } else {
+      themeFade.restart()
+    }
   }
 
   function finishTheme(token) {
@@ -77,7 +99,7 @@ Item {
   }
 
   function themeStatus(token) {
-    return token === transitionToken && (themeToken || themeFade.running) ? "pending" : "ready"
+    return token === transitionToken && (themeToken || themeFade.running || startupFade.running) ? "pending" : "ready"
   }
 
   function themeCoverStatus(token) {
@@ -99,6 +121,16 @@ Item {
     themeBackground = ""
     themeColors = ""
     themeShell = ""
+  }
+
+  NumberAnimation {
+    id: startupFade
+    target: root
+    property: "startupOpacity"
+    to: 0
+    duration: Style.duration(420)
+    easing.type: Easing.OutCubic
+    onFinished: root.startupPending = false
   }
 
   NumberAnimation {
@@ -157,14 +189,14 @@ Item {
     stdout: StdioCollector { id: startupBackgroundOut }
     onExited: function(exitCode) {
       var path = String(startupBackgroundOut.text || "").trim()
-      if (exitCode === 0 && root.cover && !root.themeToken && !Util.isVideoPath(path))
+      if (exitCode === 0 && root.cover && !root.startupPending && !root.themeToken && !Util.isVideoPath(path))
         root.themeBackground = path
     }
   }
 
   Component.onCompleted: {
     checked = true
-    if (!startupBackgroundPath) startupBackground.running = true
+    if (!startupBackgroundPath && !startupPending) startupBackground.running = true
     introProc.running = true
   }
 
@@ -173,6 +205,41 @@ Item {
       if (cover || themeToken) {
         framePoll.start()
         if (!frameStatus.running) frameStatus.running = true
+      }
+    }
+  }
+
+  // Cover the bar as well as the wallpaper on a new login. Shell restarts
+  // retain the current desktop and never map this startup cover.
+  Variants {
+    id: startupCovers
+    model: Quickshell.screens
+
+    PanelWindow {
+      required property var modelData
+      property int readyFrames: 0
+      screen: modelData
+      visible: root.startupPending
+      color: "transparent"
+      mask: Region {}
+      anchors { top: true; bottom: true; left: true; right: true }
+      exclusionMode: ExclusionMode.Ignore
+      WlrLayershell.layer: WlrLayer.Overlay
+      WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+      WlrLayershell.namespace: "omarchy-background"
+
+      Rectangle {
+        anchors.fill: parent
+        color: "black"
+        opacity: root.startupOpacity
+      }
+
+      FrameAnimation {
+        running: root.startupPending && root.desktopReady && readyFrames < 2
+        onTriggered: {
+          readyFrames += 1
+          if (readyFrames === 2) root.revealStartup()
+        }
       }
     }
   }
@@ -188,7 +255,7 @@ Item {
       readonly property bool coverReady: outgoingFrame.status === Image.Ready && coverFrames >= 2
       readonly property bool coverFailed: outgoingFrame.status === Image.Error
       screen: modelData
-      visible: root.cover || root.themeBackground !== ""
+      visible: (!root.startupPending && root.cover) || root.themeBackground !== ""
       // Keep the window transparent throughout the fade. Paint the startup
       // color inside it so changing the window format cannot flash black.
       color: "transparent"

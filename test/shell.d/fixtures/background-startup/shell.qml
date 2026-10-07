@@ -6,6 +6,7 @@ ShellRoot {
   id: test
   property var services: ({})
   property var pluginRegistry: null
+  property var bar: null
   property bool failed: false
   function firstPartyServiceFor(id) { return services[id] || null }
   function check(ok, message) {
@@ -34,8 +35,9 @@ ShellRoot {
     running: true
     onTriggered: {
       test.check(!intro.backgroundActive, "the plugin has not loaded yet")
-      test.check(intro.cover && intro.themeCoverStatus("") === "ready", "the startup wallpaper has already decoded and reached the compositor")
+      test.check(intro.cover && !intro.themeBackground, "fresh startup does not prepare an outgoing still image")
       test.check(intro.startupSettled, "the launcher has finished without an intro")
+      test.check(intro.startupPending && intro.startupOpacity === 1, "a fresh login hides the desktop until its media and bar are ready")
       test.services = ({ "omarchy.background": background })
     }
   }
@@ -52,6 +54,15 @@ ShellRoot {
     running: true
     onTriggered: {
       test.check(!intro.cover && !intro.themeBackground, "a ready plugin releases the startup cover and its image")
+      test.check(intro.startupPending && intro.startupOpacity === 1, "a ready background alone cannot reveal an unready bar")
+      test.bar = ({})
+    }
+  }
+  Timer {
+    interval: 1400
+    running: true
+    onTriggered: {
+      test.check(!intro.startupPending && intro.startupOpacity === 0, "the desktop fades in after both the media and bar are ready")
       test.services = ({})
       intro.cover = true
       test.pluginRegistry = registry

@@ -34,7 +34,7 @@ ShellRoot {
     onTriggered: {
       if (release.text().trim() === "done") {
         Qt.quit()
-      } else if (release.text().trim() === "captured" && !intro.cover && !test.stillReported) {
+      } else if (release.text().trim() === "captured" && !intro.cover && !intro.startupPending && !test.stillReported) {
         test.stillReported = true
         result.setText(JSON.stringify({ phase: "still", covered: intro.cover }))
       }

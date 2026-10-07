@@ -24,4 +24,4 @@ output=$(HOME="$stage/home" PATH="$stage/bin:$PATH" timeout 6 quickshell -p "$st
 if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
   fail "background startup fixture has no QML errors" "$output"
 fi
-pass "startup restores the wallpaper before plugin loading and retains it until the background is ready"
+pass "fresh startup hides the desktop until both the background and bar are ready"

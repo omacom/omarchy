@@ -75,7 +75,8 @@ for consumed in false true; do
     fail "the clone is scoped and a consumed login never maps the cover" "$(cat "$stage/result.json")"
   if [[ $consumed == false ]]; then
     pixel=$(capture_pixel cover)
-    [[ $pixel == "FF00FF" ]] || fail "startup immediately restores the selected wallpaper over the cloned background" "$pixel"
+    [[ $pixel == "000000" ]] || fail "a fresh login keeps the cloned wallpaper hidden until startup is ready" "$pixel"
+    [[ $(magick "$stage/cover.png" -format '%[hex:p{32,10}]' info:) == "000000" ]] || fail "the startup cover hides the bar as well as the wallpaper"
   else
     [[ $(capture_pixel cover) == "FF00FF" ]] || fail "a consumed login does not flash a cover over the cloned background"
   fi
