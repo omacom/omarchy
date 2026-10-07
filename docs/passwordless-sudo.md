@@ -4,13 +4,21 @@
 
 ## Grant lifecycle
 
-The sudoers rule is the only grant record: it contains the resolved account name and a UTC `NOTAFTER` deadline enforced by sudo itself, including after suspend. Publication validates a dot-prefixed temporary file with `visudo`, arms a calendar cleanup timer, then atomically renames the complete rule into place. There is no separate per-user state file to publish, parse, or reconcile. Failure after renewal starts removes the old grant; failed revocation remains an error and leaves the cleanup timer armed.
+The sudoers rule is the only grant record: it contains the resolved account name and a UTC `NOTAFTER` deadline enforced by sudo itself, including after suspend. Publication validates a dot-prefixed temporary file with `visudo`, arms a calendar cleanup timer, then atomically renames the complete rule into place. No other file authorizes anything or is consulted to decide whether a grant exists; the advisory status marker below only mirrors the deadline for display. Failure after renewal starts removes the old grant; failed revocation remains an error and leaves the cleanup timer armed.
 
 An internal status result is `0` for an active, validated grant and `3` for confirmed inactive access. All other results are errors, including failed authentication and failed revocation. The user interface only offers a new grant after result `3`. It must not turn an inspection failure into a claim that no grant exists.
 
 Calendar timers clean up expired files; their liveness does not define authorization. Callbacks read the current rule and remove it only when expired. Earlier callbacks cannot shorten a renewed grant, so no timer identity needs to be persisted. Old UID-only and token-bearing callbacks remain accepted. Pending callbacks after renewal or manual disable are harmless and expire within the maximum 24-hour grant window. Boot-time tmpfiles cleanup removes the reserved generated filename namespace before users log in; routine non-boot tmpfiles maintenance leaves live grants alone.
 
 Legacy cleanup uses a root-owned machine marker under `/var/lib/omarchy/migrations/`, written only after successful cleanup under the grant lock. Later accounts can finish their migration queues without sudo and without revoking grants created after the repair. Old grant state files are no longer consulted. A legacy grant is recognized by its exact filename and rule relationship, since the old command wrote the caller's unvalidated name into both, so accounts outside the current name policy are still cleaned up. The generated filename prefix is reserved: boot cleanup and the package hook already remove everything under it, and the old writer could emit a rule whose body differs from its filename, so the migration moves any other file found there into a fresh root-only directory under `/var/lib/omarchy/sudoers-quarantine/`, as `policy` with the original name stored beside it, rather than leaving it live or deleting its content.
+
+## Status marker
+
+The bar indicator and `omarchy-sudo-passwordless status [--json]` run without sudo, but the sudoers rule is readable only by root. Under the grant lock, publication therefore also writes the deadline in epoch seconds to `/run/omarchy-sudo-passwordless/<uid>`, a mode-0644 file in a root-owned mode-0755 directory that only root can write. The marker is advisory: sudo never reads it, and status reports only what it says.
+
+Ordering keeps the marker from hiding a grant. It is published before the rule is renamed into place and removed only after the rule is gone, so a live rule always has a marker, and a marker without a rule can only overstate access. Revocation, expiry callbacks, migration cleanup and package removal all remove markers whose rules are gone; a marker whose rule could not be removed stays. `/run` is a tmpfs, so markers vanish at reboot along with the boot-time removal of grants. Publication and removal refuse a status directory that is not a root-owned mode-0755 directory.
+
+Public status exits `0` with an unexpired marker, `3` with none or an expired one, and `2` when a marker is present but untrusted or malformed. The indicator shows exit `2` as active with an unknown status rather than as inactive. Public `disable` calls the fixed internal revoke action directly; while a grant is live sudo needs no password for it, so the indicator can revoke without a terminal and falls back to the interactive toggle when sudo asks for one.
 
 ## Package ownership
 
@@ -22,6 +30,6 @@ The runtime marker need not survive reboot: pre-removal revokes the old grants b
 
 ## Validation
 
-The two passwordless-sudo test suites share a private filesystem and command fixture. They cover caller validation, the public prompt boundary, atomic publication, renewal failures, expiry, old callbacks, machine migration, and the source/package lock. Supply `OMARCHY_PKGS_PATH` as either a repository root or its `pkgbuilds` directory. An optional `OMARCHY_TEST_SUDOERS` path to sudo's upstream `testsudoers` executable evaluates the generated policy before and after its deadline without root or changing host policy.
+The three passwordless-sudo test suites share a private filesystem and command fixture. They cover caller validation, the public prompt boundary, the status marker, atomic publication, renewal failures, expiry, old callbacks, machine migration, and the source/package lock. Supply `OMARCHY_PKGS_PATH` as either a repository root or its `pkgbuilds` directory. An optional `OMARCHY_TEST_SUDOERS` path to sudo's upstream `testsudoers` executable evaluates the generated policy before and after its deadline without root or changing host policy.
 
 These local tests do not establish release readiness. The simplified candidate needs fresh installed-package, suspend/resume, boot-cleanup, and package-removal validation in a disposable VM. The shared security library and its interface are unchanged for downstream PRs.

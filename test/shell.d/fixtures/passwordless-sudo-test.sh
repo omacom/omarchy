@@ -121,5 +121,6 @@ assert_status() {
 }
 reset_grant() {
   rm -f "$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-1000" "$test_tmp/run/omarchy-sudo-passwordless-package-removing"
+  rm -rf "$test_tmp/run/omarchy-sudo-passwordless"
   : >"$test_tmp/commands"
 }
