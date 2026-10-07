@@ -1,0 +1,114 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true when a Windows Hello compatible IR face sensor is present
+# omarchy:hidden=true
+
+# Requires an infrared (IR) camera sensor. Plain RGB webcams are deliberately
+# excluded: 2D RGB image recognition is vulnerable to photo and video spoofing,
+# and does not provide Windows Hello security parity.
+
+video_dir="/sys/class/video4linux"
+dev_dir="/dev"
+
+# 1. Affirmative IR identity: check USB interface descriptor and V4L2 device name in sysfs.
+# This takes precedence over compression formats (e.g. IR cameras using MJPG for bus bandwidth).
+if [[ -d $video_dir ]]; then
+  for dev in "$video_dir"/video*; do
+    [[ -e $dev ]] || continue
+
+    if [[ -r $dev/device/interface ]]; then
+      interface=$(<"$dev/device/interface")
+      if [[ ${interface,,} =~ (^|[^a-z0-9])(ir|infrared|realsense)([^a-z0-9]|$) ]]; then
+        exit 0
+      fi
+    fi
+
+    if [[ -r $dev/name ]]; then
+      name=$(<"$dev/name")
+      name_lower=${name,,}
+      if [[ $name_lower =~ (^|[^a-z0-9])(ir|infrared|realsense)([^a-z0-9]|$) ]] || [[ $name_lower == *hm1092* || $name_lower == *ov01a1s* ]]; then
+        exit 0
+      fi
+    fi
+  done
+fi
+
+# 2. If v4l2-ctl is installed, check for dedicated infrared or depth pixel formats.
+if command -v v4l2-ctl &>/dev/null; then
+  for dev_node in "$dev_dir"/video*; do
+    [[ -e $dev_node ]] || continue
+    formats=$(v4l2-ctl --device="$dev_node" --list-formats 2>/dev/null || true)
+
+    # Raw infrared or depth sensor formats
+    if echo "$formats" | grep -qE "'(Z16 |INVZ|INVR|INVO|Y10P|Y10 |Y12 |Y16 )'"; then
+      exit 0
+    fi
+
+    # Skip generic nodes advertising consumer RGB/color video formats
+    if echo "$formats" | grep -qE "'(MJPG|RGB3|BGR3|NV12|RGB4|BGR4)'"; then
+      continue
+    fi
+
+    # GREY format on generic nodes requires hardware IR corroboration (e.g. UVC Extension units)
+    if echo "$formats" | grep -qE "'GREY'"; then
+      if v4l2-ctl --device="$dev_node" --all 2>/dev/null | grep -qiE 'Extension|infrared|(\b|_)ir(\b|_)'; then
+        exit 0
+      fi
+    fi
+  done
+fi
+
+# 3. If v4l-utils is not yet installed, enumerate V4L2 pixel formats via native ioctl (VIDIOC_ENUM_FMT).
+if command -v python3 &>/dev/null; then
+  if python3 -c '
+import os, fcntl, struct
+VIDIOC_ENUM_FMT = 0xc0405602
+IR_FMTS = {b"Z16 ", b"INVZ", b"INVR", b"INVO", b"Y10P", b"Y10 ", b"Y12 ", b"Y16 "}
+COLOR_FMTS = {b"MJPG", b"RGB3", b"BGR3", b"NV12", b"RGB4", b"BGR4"}
+dev_dir = "'"$dev_dir"'"
+video_dir = "'"$video_dir"'"
+if os.path.isdir(dev_dir):
+    for dev in sorted(os.listdir(dev_dir)):
+        if not dev.startswith("video"): continue
+        dev_path = os.path.join(dev_dir, dev)
+        fmts = set()
+        fmt_file = os.path.join(video_dir, dev, "formats")
+        if os.path.isfile(fmt_file):
+            with open(fmt_file, "rb") as f:
+                for line in f:
+                    token = line.strip()[:4]
+                    if len(token) == 3: token += b" "
+                    fmts.add(token)
+        else:
+            try:
+                fd = os.open(dev_path, os.O_RDONLY | os.O_NONBLOCK)
+            except Exception: continue
+            try:
+                for idx in range(32):
+                    buf = bytearray(64)
+                    struct.pack_into("II", buf, 0, idx, 1)
+                    try:
+                        fcntl.ioctl(fd, VIDIOC_ENUM_FMT, buf)
+                        fmts.add(bytes(buf[44:48]))
+                    except OSError: break
+            finally:
+                os.close(fd)
+        if fmts & IR_FMTS:
+            raise SystemExit(0)
+        if (b"GREY" in fmts) and not (fmts & COLOR_FMTS):
+            real_node = os.path.realpath(dev_path)
+            sys_path = os.path.join(video_dir, os.path.basename(real_node))
+            if os.path.isdir(sys_path):
+                desc_path = os.path.join(sys_path, "device", "..", "descriptors")
+                if os.path.isfile(desc_path):
+                    with open(desc_path, "rb") as f:
+                        content = f.read()
+                        if b"IR" in content or b"Infrared" in content:
+                            raise SystemExit(0)
+raise SystemExit(1)
+' 2>/dev/null; then
+    exit 0
+  fi
+fi
+
+exit 1
