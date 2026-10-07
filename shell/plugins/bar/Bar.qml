@@ -74,6 +74,15 @@ Item {
   property color themeForeground: Color.bar.text
   property color themeContrastForeground: Color.background
   property color transparentForeground: Color.bar.text
+  property bool transparentForegroundRefreshQueued: false
+  // The background plugin moves this in the same step as a theme's colors, so
+  // a theme switch samples once, after both have arrived. Watching the state
+  // directory instead fired when the switch began, before either had.
+  readonly property var backgroundService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.background") : null
+  readonly property string appliedBackground: backgroundService ? String(backgroundService.appliedBackground || "") : ""
+  // No background plugin, or one cloned before appliedBackground existed: fall
+  // back to the state directory, so a wallpaper-only change still re-samples.
+  readonly property bool backgroundTracksApplied: !!backgroundService && backgroundService.appliedBackground !== undefined
   property color foreground: themeForeground
   property color barForeground: useTransparentForeground ? transparentForeground : themeForeground
   property bool foregroundAnimationEnabled: true
@@ -1071,15 +1080,26 @@ Item {
   }
 
   function refreshTransparentForeground() {
-    if (!requestedTransparent || transparentForegroundProc.running) return
+    if (!requestedTransparent) return
+    // A sample still running was taken for older inputs: discard its answer and
+    // sample again when it exits, rather than dropping this request.
+    if (transparentForegroundProc.running) {
+      transparentForegroundRefreshQueued = true
+      return
+    }
+    // The discarded answer can still arrive after its process exits, so it
+    // stays blocked until this replacement sample starts.
+    transparentForegroundRefreshQueued = false
 
-    transparentForegroundProc.command = [
+    var command = [
       "omarchy-bar-text-color",
       root.position,
       String(root.barSize),
       colorHex(root.themeForeground),
       colorHex(root.themeContrastForeground)
     ]
+    if (root.appliedBackground) command.push("--background", root.appliedBackground)
+    transparentForegroundProc.command = command
     transparentForegroundProc.running = true
   }
 
@@ -1087,6 +1107,7 @@ Item {
   onPositionChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
+  onAppliedBackgroundChanged: scheduleTransparentForegroundRefresh()
 
   Timer {
     id: transparentForegroundTimer
@@ -1100,7 +1121,7 @@ Item {
     stdout: SplitParser {
       onRead: function(line) {
         var value = String(line || "").trim()
-        if (!/^#[0-9A-Fa-f]{6}$/.test(value)) return
+        if (root.transparentForegroundRefreshQueued || !/^#[0-9A-Fa-f]{6}$/.test(value)) return
 
         root.foregroundAnimationEnabled = false
         root.transparentForeground = value
@@ -1111,13 +1132,14 @@ Item {
         root.restoreForegroundAnimation()
       }
     }
+    onExited: if (root.transparentForegroundRefreshQueued) root.scheduleTransparentForegroundRefresh()
   }
 
   FileView {
     path: root.stateHome + "/omarchy/current"
     watchChanges: true
     printErrors: false
-    onFileChanged: root.scheduleTransparentForegroundRefresh()
+    onFileChanged: if (!root.backgroundTracksApplied) root.scheduleTransparentForegroundRefresh()
   }
 
   function runProcess(process) {
