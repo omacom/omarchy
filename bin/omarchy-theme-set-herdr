@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# omarchy:summary=Apply current Omarchy theme colors to running Herdr clients
+# omarchy:hidden=true
+
+COLORS_TOML="$HOME/.local/state/omarchy/current/theme/colors.toml"
+
+command -v herdr >/dev/null 2>&1 || exit 0
+[[ -f $COLORS_TOML ]] || exit 0
+[[ $(herdr status server --json 2>/dev/null | jq -r '.running') == "true" ]] || exit 0
+
+theme_osc=$(omarchy-theme-osc "$COLORS_TOML")
+
+if [[ -n $theme_osc ]]; then
+  declare -A retinted_ttys=()
+
+  while IFS= read -r herdr_pid; do
+    [[ -n $herdr_pid ]] || continue
+
+    tty=$(readlink "/proc/$herdr_pid/fd/1" 2>/dev/null || true)
+    [[ $tty == /dev/pts/* ]] || continue
+
+    if [[ -z ${retinted_ttys[$tty]:-} ]]; then
+      printf '%b' "$theme_osc" >"$tty" 2>/dev/null || true
+      retinted_ttys[$tty]=1
+    fi
+
+    # Herdr 0.9.2+ re-queries host terminal colors on SIGWINCH. Older versions
+    # simply redraw, so this remains safe while omarchy-restart-herdr provides
+    # the config-reload fallback.
+    kill -WINCH "$herdr_pid" 2>/dev/null || true
+  done < <(pgrep -x herdr 2>/dev/null || true)
+fi
+
+omarchy-restart-herdr
