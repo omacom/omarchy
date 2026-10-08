@@ -269,7 +269,6 @@ and/or a working user systemd instance:
 
 - `omarchy-hook-install post-update` for the two shipped hooks
   (`setup-fingerprint.hook`, `setup-agent.hook`).
-- `install/user/first-run/dictation.sh` — after the shell is ready, configures the packaged Superwhisper service for fresh users with cloud processing and no offline model downloads.
 - `install/user/first-run/enable-user-units.sh` — daemon-reload, then
   `systemctl --user enable --now` the shipped user units (`bt-agent`,
   `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`,

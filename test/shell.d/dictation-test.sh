@@ -213,30 +213,8 @@ pass "dictation shortcuts require a selection without limiting backend names"
 # Fresh users receive the backend choice through the settings package's skel.
 cp "$ROOT/config/omarchy/defaults/dictation" "$config"
 [[ $(omarchy-default-dictation) == "superwhisper" ]] || fail "fresh users default to Superwhisper"
-: > "$DICTATION_LOG"
-/bin/bash "$ROOT/install/user/first-run/dictation.sh"
-[[ $(cat "$DICTATION_LOG") == $'setup-user\nsuperwhisper models select cloud\nhyprctl reload' ]] || fail "first login configures cloud dictation without installation or settings prompts"
-# A retry must retain the user's processing choice after successful cloud setup.
-: > "$DICTATION_LOG"
-/bin/bash "$ROOT/install/user/first-run/dictation.sh"
-! grep -q 'models select cloud' "$DICTATION_LOG" || fail "retry preserves the processing mode"
-mkdir -p "$XDG_CONFIG_HOME/superwhisper"
-touch "$XDG_CONFIG_HOME/superwhisper/omarchy-panel.pending"
-if /bin/bash "$ROOT/install/user/first-run/dictation.sh" > "$test_tmp/output" 2>&1; then fail "pending panel must keep first login retryable"; fi
-rm "$XDG_CONFIG_HOME/superwhisper/omarchy-panel.pending"
-rm "$HOME/.local/state/omarchy/done/dictation-cloud-default"
-: > "$DICTATION_LOG"
-if DICTATION_EXIT=7 /bin/bash "$ROOT/install/user/first-run/dictation.sh" > "$test_tmp/output" 2>&1; then fail "failed cloud setup must remain retryable"; fi
-! grep -q 'hyprctl reload' "$DICTATION_LOG" || fail "failed setup does not claim dictation is ready"
 printf '%s\n' voxtype > "$config"
-: > "$DICTATION_LOG"
-/bin/bash "$ROOT/install/user/first-run/dictation.sh"
-[[ ! -s $DICTATION_LOG ]] || fail "first login preserves another backend choice"
-rm "$config"
-/bin/bash "$ROOT/install/user/first-run/dictation.sh"
-[[ ! -s $DICTATION_LOG ]] || fail "first login leaves unconfigured existing users alone"
-printf '%s\n' voxtype > "$config"
-pass "fresh users get cloud dictation without prompts while existing choices are preserved"
+pass "fresh users get Superwhisper as their default backend"
 
 lua <<'LUA'
 local root = os.getenv("ROOT")
