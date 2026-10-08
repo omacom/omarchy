@@ -201,7 +201,9 @@ set_theme_background() {
     if [[ -n $INTRO_PREPARE_PID ]] && wait "$INTRO_PREPARE_PID"; then
       intro_prepared=true
     fi
-    theme_id=$(stat -Lc '%d:%i' "$CURRENT_THEME_PATH")
+    # Each switch replaces the theme directory, and a filesystem may hand its
+    # freed inode to the next staging. The birth time tells the two apart.
+    theme_id=$(stat -Lc '%d:%i:%.9W' "$CURRENT_THEME_PATH")
     THEME_INTRO_TOKEN="$theme_id"
     shell_ipc shell prepareThemeIntro "$OLD_BACKGROUND_SNAPSHOT" "$theme_id" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
@@ -209,7 +211,7 @@ set_theme_background() {
     (
       if ! omarchy-theme-bg-boot-intro --theme-switch "$new_background" "$theme_id" "$intro_prepared"; then
         if [[ $(readlink -f "$CURRENT_BACKGROUND_LINK") == "$(readlink -f "$new_background")" &&
-          $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
+          $(stat -Lc '%d:%i:%.9W' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
           shell_ipc background setInstant "$new_background" || true
         fi
       fi
@@ -220,7 +222,7 @@ set_theme_background() {
       # the compositor during the next theme's video.
       (
         flock 9
-        if [[ $(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
+        if [[ $(stat -Lc '%d:%i:%.9W' "$CURRENT_THEME_PATH" 2>/dev/null) == "$theme_id" ]]; then
           omarchy-restart-hyprctl
         fi
       ) 9>"$THEME_SET_LOCK"
@@ -386,7 +388,7 @@ flock 9
 # A current video frame only represents the screen after its opening fade.
 # Finish that short reveal before capturing the next outgoing cover.
 if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
-  wait_for_theme_intro themeIntroStatus "$(stat -Lc '%d:%i' "$CURRENT_THEME_PATH" 2>/dev/null)" "pending"
+  wait_for_theme_intro themeIntroStatus "$(stat -Lc '%d:%i:%.9W' "$CURRENT_THEME_PATH" 2>/dev/null)" "pending"
 fi
 
 PREVIOUS_THEME_NAME=$(cat "$CURRENT_THEME_NAME_PATH" 2>/dev/null || true)
@@ -433,7 +435,7 @@ if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
       # OWE retains the opened clip across the staged directory's rename.
       owe intro-prepare "$THEME_BACKGROUND_INTRO" >/dev/null 2>&1 9>&- &
       INTRO_PREPARE_PID=$!
-      shell_ipc shell prepareThemeIntro "$OLD_BACKGROUND_SNAPSHOT" "$(stat -Lc '%d:%i' "$NEXT_THEME_PATH")" "" "" || true
+      shell_ipc shell prepareThemeIntro "$OLD_BACKGROUND_SNAPSHOT" "$(stat -Lc '%d:%i:%.9W' "$NEXT_THEME_PATH")" "" "" || true
     elif background_transition_uses_snapshots "$CHOSEN_THEME_BACKGROUND"; then
       OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
 
@@ -457,7 +459,7 @@ omarchy-theme-set-templates
 # Replacing the theme's still can cancel an active OWE intro even before the
 # background link changes. Present its cover before replacing either path.
 if [[ -n $THEME_BACKGROUND_INTRO ]]; then
-  wait_for_theme_intro themeIntroCoverStatus "$(stat -Lc '%d:%i' "$NEXT_THEME_PATH")" "loading"
+  wait_for_theme_intro themeIntroCoverStatus "$(stat -Lc '%d:%i:%.9W' "$NEXT_THEME_PATH")" "loading"
 fi
 
 # Swap next theme in as current

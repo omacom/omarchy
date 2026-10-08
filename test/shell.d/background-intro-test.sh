@@ -203,28 +203,28 @@ pass "background intros have one global on/off control"
 
 : >"$command_log"
 before_marker=$(<"$marker")
-PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i' "$intro_state/theme")"
+PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i:%.9W' "$intro_state/theme")"
 grep -Fxq 'owe: refresh' "$command_log" || fail "unprepared theme switching synchronizes OWE with the selected image"
 grep -Fxq "owe: intro --start first-frame $theme_intro_dir/road.mp4" "$command_log" || fail "theme switching plays its matching intro even after boot was consumed"
 : >"$command_log"
-PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i' "$intro_state/theme")" true
+PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i:%.9W' "$intro_state/theme")" true
 grep -Fxq "owe: intro --start first-frame --refresh $theme_intro_dir/road.mp4" "$command_log" || fail "prepared theme switching synchronizes and starts in one call"
 ! grep -Fxq 'owe: refresh' "$command_log" || fail "prepared playback avoids an extra refresh call"
 cover_ready="$test_tmp/cover-ready"
 (sleep 0.2; touch "$cover_ready") &
 cover_pid=$!
-PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" COVER_READY_FILE="$cover_ready" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i' "$intro_state/theme")" true || fail "playback waits for the outgoing cover before starting"
+PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" COVER_READY_FILE="$cover_ready" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i:%.9W' "$intro_state/theme")" true || fail "playback waits for the outgoing cover before starting"
 wait "$cover_pid"
 : >"$command_log"
-if PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" COVER_STATUS=error "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i' "$intro_state/theme")" true; then
+if PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" COVER_STATUS=error "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$(stat -Lc '%d:%i:%.9W' "$intro_state/theme")" true; then
   fail "a failed cover requests the still fallback"
 fi
 ! grep -q '^owe: intro ' "$command_log" || fail "a failed outgoing cover cannot expose an intro"
 [[ $(<"$marker") == "$before_marker" ]] || fail "theme switching does not reopen the session marker"
 : >"$command_log"
-PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$custom_background" "$(stat -Lc '%d:%i' "$intro_state/theme")"
+PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$custom_background" "$(stat -Lc '%d:%i:%.9W' "$intro_state/theme")"
 ! grep -q '^owe: intro ' "$command_log" || fail "a superseded theme switch does not play an old intro"
-theme_id=$(stat -Lc '%d:%i' "$intro_state/theme")
+theme_id=$(stat -Lc '%d:%i:%.9W' "$intro_state/theme")
 : >"$command_log"
 if PATH="$command_bin:$PATH" HOME="$intro_home" COMMAND_LOG="$command_log" ANIMATIONS=off "$ROOT/bin/omarchy-theme-bg-boot-intro" --theme-switch "$background" "$theme_id"; then
   fail "a current theme launch requests its still fallback when animations were disabled"

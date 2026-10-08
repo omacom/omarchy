@@ -201,3 +201,26 @@ done
 [[ ! -f $cover ]] || fail "the superseded intro finishes cleanup"
 (( $(grep -c '^hypr-reload$' "$log") == 1 )) || fail "the superseded intro cannot reload during a newer theme"
 pass "superseded intros do not reload the compositor"
+
+# ext4 hands the replaced theme directory's inode to the next staging, so two
+# switches later the newer theme can sit at the superseded intro's inode.
+# tmpfs and btrfs never reuse it, so this only bites when the test runs on ext4.
+release="$test_tmp/reused-release"
+TEST_INTRO_PID="$test_tmp/intro.pid" TEST_RELEASE="$release" set_theme beta
+wait_command '^owe: intro '
+cover=$(awk '/^shell: shell prepareThemeIntro / { print $4; exit }' "$log")
+OMARCHY_THEME_SKIP_BACKGROUND=1 set_theme alpha
+newer_release="$test_tmp/newer-release"
+TEST_INTRO_PID="$test_tmp/newer-intro.pid" TEST_RELEASE="$newer_release" set_theme beta
+wait_command '^owe: intro '
+: >"$log"
+touch "$release"
+for attempt in {1..100}; do
+  [[ -f $cover ]] || break
+  sleep 0.02
+done
+[[ ! -f $cover ]] || fail "the superseded intro finishes cleanup after its directory is replaced twice"
+! grep -q '^hypr-reload$' "$log" || fail "a superseded intro cannot reload when its theme directory's inode is reused"
+touch "$newer_release"
+wait_command '^hypr-reload$'
+pass "superseded intros stay superseded when the theme directory's inode is reused"

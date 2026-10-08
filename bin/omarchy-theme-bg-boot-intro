@@ -136,7 +136,7 @@ fi
 
 selection_current() {
   [[ $(readlink -f "$current_background_link") == "$expected_background" &&
-    $(stat -Lc '%d:%i' "$current_dir/theme" 2>/dev/null) == "$expected_theme" ]]
+    $(stat -Lc '%d:%i:%.9W' "$current_dir/theme" 2>/dev/null) == "$expected_theme" ]]
 }
 
 if [[ $theme_switch == true ]] && ! selection_current; then
