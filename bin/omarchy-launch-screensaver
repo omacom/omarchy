@@ -22,6 +22,13 @@ case $terminal in
 esac
 
 hypr_focus_monitor() {
+  # hyprctl reports whatever name the output carries, and the dispatch below is
+  # eval'd as Lua, so only a plain connector name may pass.
+  if [[ ! $1 =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "Refusing unsafe monitor name" >&2
+    return 1
+  fi
+
   hyprctl dispatch "hl.dsp.focus({ monitor = \"$1\" })" >/dev/null 2>&1 || hyprctl dispatch focusmonitor "$1" >/dev/null
 }
 
