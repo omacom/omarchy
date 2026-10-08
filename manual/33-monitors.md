@@ -38,6 +38,10 @@ When you're extending, closing the lid on the laptop will automatically turn off
 
 ### Arranging multiple screens
 
+Open the display popup in the top bar and choose **Arrange displays…**. Drag screens in the layout preview, or enter their X and Y positions for precise placement. Select a display to choose its orientation and one of its supported resolution / refresh rate combinations. Enter workspace numbers separated by spaces to assign them to that screen.
+
+Choose **Preview** to try the layout. Choose **Keep** within 20 seconds to save it, or **Revert** to restore the previous layout. If the popup closes or the shell restarts, the preview still reverts automatically. Saved monitor and workspace rules live in a marked block at the end of `~/.config/hypr/monitors.lua`; existing personal settings remain outside that block. The editor arranges enabled, extended displays; enable screens or turn off mirroring before arranging them.
+
 Hyprland works great with multiple screens. Read more about how to lay them out in [the Hyprland monitor documentation](https://wiki.hypr.land/Configuring/Basics/Monitors/). You can [bind specific workspaces to specific monitors](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) as well. In Omarchy, these rules go in `~/.config/hypr/monitors.lua` as `hl.monitor` entries — the file ships with commented examples for pinning a specific monitor to a resolution, position, and rotation.
 
 You can also checkout [Hyprmon](https://github.com/erans/hyprmon/), if you'd like a TUI to help you with the positioning of multiple screens.

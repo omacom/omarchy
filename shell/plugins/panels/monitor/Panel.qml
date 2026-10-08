@@ -26,6 +26,7 @@ Panel {
   property string monitorScale: ""
   property var displays: []
   property int enabledDisplayCount: 0
+  property bool layoutExpanded: false
 
   // Carry sub-notch touchpad deltas between wheel events.
   property real wheelAccumulator: 0
@@ -73,7 +74,7 @@ Panel {
   }
 
   readonly property var visibleSections: {
-    var list = []
+    var list = ["layout"]
     if (brightnessAvailable) list.push("brightness")
     list.push("textsize")
     list.push("scale")
@@ -82,6 +83,7 @@ Panel {
   }
 
   function sectionCount(section) {
+    if (section === "layout") return 1
     if (section === "brightness") return 0  // only the slider sentinel at -1
     if (section === "textsize") return 0    // slider sentinel at -1, like brightness
     if (section === "scale") return scaleValues.length
@@ -91,7 +93,7 @@ Panel {
 
   function sectionIsSingleRow(section) {
     // brightness and text size are lone sliders; scale presets sit horizontally.
-    return section === "brightness" || section === "textsize" || section === "scale"
+    return section === "layout" || section === "brightness" || section === "textsize" || section === "scale"
   }
 
   function sectionFirstIndex(section) {
@@ -147,6 +149,7 @@ Panel {
   }
 
   function activateCursor() {
+    if (focusSection === "layout") { root.layoutExpanded = !root.layoutExpanded; return }
     if (focusSection === "scale" && selectedIndex >= 0 && selectedIndex < scaleValues.length) {
       setScale(scaleValues[selectedIndex])
       return
@@ -297,6 +300,7 @@ Panel {
   }
 
   function toggleDisplay(name, enabled) {
+    if (layoutLoader.item && layoutLoader.item.pending) return
     if (!name) return
     if (enabled && root.enabledDisplayCount <= 1) return
 
@@ -311,6 +315,7 @@ Panel {
   }
 
   function setScale(scale) {
+    if (layoutLoader.item && layoutLoader.item.pending) return
     actionProc.command = ["bash", "-c", "omarchy-hyprland-monitor-scaling " + scale]
     if (!actionProc.running) actionProc.running = true
   }
@@ -363,6 +368,7 @@ Panel {
   onOpenedChanged: {
     if (opened) {
       refresh()
+      if (layoutLoader.item) layoutLoader.item.refresh()
       if (brightnessAvailable) {
         focusSection = "brightness"
         selectedIndex = -1
@@ -495,10 +501,11 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(380))
-    contentHeight: panel.fittedContentHeight(panelColumn.implicitHeight, Style.space(560))
+    contentHeight: panel.fittedContentHeight(panelColumn.implicitHeight, Style.space(root.layoutExpanded ? 860 : 560))
 
     PanelKeyCatcher {
       id: keyCatcher
+      blocked: root.layoutExpanded
       anchors.fill: parent
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
@@ -584,14 +591,44 @@ Panel {
             }
           }
 
+          Button {
+            width: parent.width
+            text: root.layoutExpanded ? "Close layout editor" : "Arrange displays…"
+            hasCursor: root.cursorActive && root.focusSection === "layout"
+            onHovered: function(hovered) { if (hovered) { root.cursorActive = true; root.focusSection = "layout"; root.selectedIndex = 0 } }
+            bordered: true
+            focusable: true
+            onClicked: {
+              root.layoutExpanded = !root.layoutExpanded
+              if (root.layoutExpanded && layoutLoader.item) layoutLoader.item.refresh()
+            }
+          }
+
+          Loader {
+            id: layoutLoader
+            width: parent.width
+            active: root.layoutExpanded
+            visible: active
+            source: "LayoutEditor.qml"
+            onLoaded: item.forceActiveFocus()
+          }
+
+          Connections {
+            target: layoutLoader.item
+            function onCloseRequested() {
+              root.layoutExpanded = false
+              keyCatcher.forceActiveFocus()
+            }
+          }
+
           // ---------- Brightness ----------
           PanelSeparator {
-            visible: root.brightnessAvailable
+            visible: root.brightnessAvailable && !root.layoutExpanded
             foreground: root.bar.foreground
           }
 
           Column {
-            visible: root.brightnessAvailable
+            visible: root.brightnessAvailable && !root.layoutExpanded
             width: parent.width
             spacing: Style.space(6)
 
@@ -661,10 +698,12 @@ Panel {
 
           // ---------- Text size ----------
           PanelSeparator {
+            visible: !root.layoutExpanded
             foreground: root.bar.foreground
           }
 
           Column {
+            visible: !root.layoutExpanded
             width: parent.width
             spacing: Style.space(6)
 
@@ -733,10 +772,12 @@ Panel {
 
           // ---------- Scale ----------
           PanelSeparator {
+            visible: !root.layoutExpanded
             foreground: root.bar.foreground
           }
 
           Column {
+            visible: !root.layoutExpanded
             width: parent.width
             spacing: Style.space(10)
 
@@ -798,14 +839,14 @@ Panel {
 
           // ---------- Monitors ----------
           PanelSeparator {
-            visible: root.displays.length > 1
+            visible: root.displays.length > 1 && !root.layoutExpanded
             foreground: root.bar.foreground
           }
 
           Column {
             width: parent.width
             spacing: Style.space(10)
-            visible: root.displays.length > 1
+            visible: root.displays.length > 1 && !root.layoutExpanded
 
             PanelSectionHeader {
               text: "DISPLAYS"
