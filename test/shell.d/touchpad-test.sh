@@ -290,12 +290,27 @@ print(keys(touchpad.gesture_settings_schema))
 local apps = {}
 for _, app in ipairs(touchpad.default_apps) do apps[#apps + 1] = app.match .. "=" .. app.scroll end
 print(table.concat(apps, ","))
+local function specs(...)
+  local list = {}
+  for _, schema in ipairs({ ... }) do
+    for key, spec in pairs(schema) do
+      local text = key .. ":" .. spec.type
+      if spec.min then text = text .. ":" .. spec.min .. ":" .. spec.max end
+      if spec.values then text = text .. ":" .. keys(spec.values) end
+      list[#list + 1] = text
+    end
+  end
+  table.sort(list)
+  return table.concat(list, ";")
+end
+print(specs(touchpad.touchpad_schema, touchpad.pointer_schema))
+print(specs(touchpad.gesture_settings_schema))
 LUA
 )
 
 LUA_LISTS="$lua_lists" run_node_test <<'JS'
 const model = requireFromRoot('shell/plugins/touchpad/Model.js')
-const [actions, directions, settings, gestureSettings, apps] = process.env.LUA_LISTS.split('\n')
+const [actions, directions, settings, gestureSettings, apps, loaderSettings, loaderGestureSettings] = process.env.LUA_LISTS.split('\n')
 const sorted = list => list.slice().sort().join(',')
 
 assertEqual(sorted(model.ACTIONS.map(a => a.value)), actions, 'the window offers exactly the gesture actions the loader maps')
@@ -309,6 +324,14 @@ assertEqual(
 for (const key of Object.keys(model.GESTURE_SETTINGS)) {
   assert(gestureSettings.split(',').includes(key), `the loader accepts the ${key} gesture setting`)
 }
+const specs = schema => Object.keys(schema).map(key => {
+  const spec = schema[key]
+  if (spec.type === 'bool') return `${key}:boolean`
+  if (spec.type === 'choice') return `${key}:enum:${spec.options.map(o => o.value).sort().join(',')}`
+  return `${key}:${spec.integer ? 'integer' : 'number'}:${spec.min}:${spec.max}`
+}).sort().join(';')
+assertEqual(specs(model.LOADER_SETTINGS), loaderSettings, 'the window keeps exactly the settings and ranges the loader accepts')
+assertEqual(specs(model.LOADER_GESTURE_SETTINGS), loaderGestureSettings, 'the window keeps exactly the gesture settings and ranges the loader accepts')
 assertEqual(
   model.DEFAULT_APPS.map(app => `${app.match}=${app.scroll.toFixed(1)}`).join(','),
   apps,
@@ -327,6 +350,23 @@ const state = model.parse(JSON.stringify({
 }))
 assertDeepEqual(state.touchpad, { natural_scroll: true, drag_3fg: 1 }, 'the window keeps only valid touchpad settings')
 assertDeepEqual(state.devices, { 'elan-touchpad': { sensitivity: 0.5 } }, 'the window keeps only valid device overrides')
+
+const handEdited = model.normalize({
+  touchpad: { flip_x: true, scroll_factor: 3, scroll_method: 'on_button_down' },
+  gestures: {
+    settings: { workspace_swipe_cancel_ratio: 0.3, workspace_swipe_distance: 1500, workspace_swipe_min_speed_to_force: 40 },
+    bindings: [
+      { fingers: 3, direction: 'up', action: 'special', scale: 1.5, workspace_name: 'notes' },
+      { fingers: 4, direction: 'up', action: 'special', scale: 20, workspace_name: 'bad name' }
+    ]
+  }
+})
+assertDeepEqual(handEdited.touchpad, { scroll_factor: 3, flip_x: true, scroll_method: 'on_button_down' }, 'settings the window does not offer survive a save')
+assertDeepEqual(handEdited.gestures.settings, { workspace_swipe_distance: 1500, workspace_swipe_cancel_ratio: 0.3, workspace_swipe_min_speed_to_force: 40 }, 'gesture settings beyond the sliders survive a save')
+assertDeepEqual(handEdited.gestures.bindings, [
+  { fingers: 3, direction: 'up', action: 'special', scale: 1.5, workspace_name: 'notes' },
+  { fingers: 4, direction: 'up', action: 'special' }
+], 'valid gesture scale and scratchpad names survive a save')
 assertDeepEqual(state.gestures.bindings, [{ fingers: 3, direction: 'horizontal', action: 'workspace' }], 'the window keeps only complete gesture bindings')
 assertDeepEqual(state.apps, [{ match: 'foot', scroll: 2 }], 'the window keeps only valid app rules')
 assertDeepEqual(model.parse('not json'), model.normalize({}), 'a malformed file reads as an empty document')

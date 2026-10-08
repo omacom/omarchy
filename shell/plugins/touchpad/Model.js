@@ -251,6 +251,52 @@ var DEFAULT_APPS = [
   { match: "com.mitchellh.ghostty", scroll: 0.2 }
 ]
 
+function loaderBool() {
+  return { type: "bool" }
+}
+
+function loaderNumber(min, max, integer) {
+  return { type: "number", min: min, max: max, integer: integer === true }
+}
+
+function loaderChoice() {
+  return { type: "choice", options: Array.prototype.map.call(arguments, function(value) { return { value: value } }) }
+}
+
+// Everything default/hypr/touchpad.lua accepts, which is wider than what the
+// window offers: hand-edited keys it does not show and values beyond its
+// sliders still apply, so saving an unrelated edit must keep them. Keep in
+// sync with M.touchpad_schema, M.pointer_schema, and
+// M.gesture_settings_schema there.
+var LOADER_SETTINGS = {
+  natural_scroll: loaderBool(),
+  scroll_factor: loaderNumber(0.05, 5),
+  tap_to_click: loaderBool(),
+  tap_button_map: loaderChoice("lrm", "lmr"),
+  clickfinger_behavior: loaderBool(),
+  middle_button_emulation: loaderBool(),
+  disable_while_typing: loaderBool(),
+  tap_and_drag: loaderBool(),
+  drag_lock: loaderNumber(0, 2, true),
+  drag_3fg: loaderNumber(0, 2, true),
+  flip_x: loaderBool(),
+  flip_y: loaderBool(),
+  sensitivity: loaderNumber(-1, 1),
+  accel_profile: loaderChoice("adaptive", "flat"),
+  left_handed: loaderBool(),
+  scroll_method: loaderChoice("2fg", "edge", "on_button_down", "no_scroll")
+}
+
+var LOADER_GESTURE_SETTINGS = {
+  workspace_swipe_distance: loaderNumber(50, 2000, true),
+  workspace_swipe_invert: loaderBool(),
+  workspace_swipe_create_new: loaderBool(),
+  workspace_swipe_forever: loaderBool(),
+  workspace_swipe_cancel_ratio: loaderNumber(0, 1),
+  workspace_swipe_min_speed_to_force: loaderNumber(0, 200, true),
+  workspace_swipe_direction_lock: loaderBool()
+}
+
 function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
 }
@@ -306,19 +352,25 @@ function validBinding(binding) {
   return true
 }
 
+// Scale and a scratchpad name are not offered here but the loader honours
+// them, so a binding keeps them as long as they are valid there.
 function cleanBinding(binding) {
   var result = { fingers: binding.fingers, direction: binding.direction, action: binding.action }
   if (binding.mods) result.mods = binding.mods
+  if (typeof binding.scale === "number" && binding.scale >= 0.1 && binding.scale <= 10) result.scale = binding.scale
+  if (binding.action === "special" && validText(binding.workspace_name, 64) && /^[A-Za-z0-9_-]+$/.test(binding.workspace_name)) {
+    result.workspace_name = binding.workspace_name
+  }
   return result
 }
 
 // The saved document, reduced to what the Lua side will accept. Anything the
 // loader would drop is dropped here too, so the window never shows a setting
-// as saved when Hyprland is ignoring it.
+// as saved when Hyprland is ignoring it, and anything it keeps is kept here.
 function normalize(data) {
   var source = isObject(data) ? data : {}
   var state = {
-    touchpad: pickValid(source.touchpad, SETTINGS),
+    touchpad: pickValid(source.touchpad, LOADER_SETTINGS),
     devices: {},
     gestures: { settings: {}, bindings: [] },
     apps: null
@@ -326,12 +378,12 @@ function normalize(data) {
 
   if (isObject(source.devices)) {
     for (var name in source.devices) {
-      if (validText(name, 256)) state.devices[name] = pickValid(source.devices[name], SETTINGS)
+      if (validText(name, 256)) state.devices[name] = pickValid(source.devices[name], LOADER_SETTINGS)
     }
   }
 
   if (isObject(source.gestures)) {
-    state.gestures.settings = pickValid(source.gestures.settings, GESTURE_SETTINGS)
+    state.gestures.settings = pickValid(source.gestures.settings, LOADER_GESTURE_SETTINGS)
     if (Array.isArray(source.gestures.bindings)) {
       state.gestures.bindings = source.gestures.bindings.filter(validBinding).map(cleanBinding)
     }
@@ -549,6 +601,8 @@ if (typeof module !== "undefined") {
   module.exports = {
     SETTINGS: SETTINGS,
     GESTURE_SETTINGS: GESTURE_SETTINGS,
+    LOADER_SETTINGS: LOADER_SETTINGS,
+    LOADER_GESTURE_SETTINGS: LOADER_GESTURE_SETTINGS,
     PAGES: PAGES,
     PAGE_SETTINGS: PAGE_SETTINGS,
     DEVICE_SETTINGS: DEVICE_SETTINGS,
