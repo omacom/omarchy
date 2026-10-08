@@ -7,6 +7,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const fs = require('fs')
 const utilities = fs.readFileSync(path.join(root, 'default/hypr/bindings/utilities.lua'), 'utf8')
+const lines = new Set(utilities.split('\n').map((line) => line.trim()))
 
 // Hyprland compares a switch bind against the device name byte for byte and
 // offers no wildcard, so a lid reporting any other name never fires at all.
@@ -28,7 +29,7 @@ for (const device of devices) {
     const bind = `o.bind("switch:${edge}:${device}", nil, "${handler}", { locked = true })`
 
     assert(
-      utilities.includes(bind),
+      lines.has(bind),
       `${device} binds ${edge} to ${handler} and fires while locked`,
       `missing line: ${bind}`
     )
