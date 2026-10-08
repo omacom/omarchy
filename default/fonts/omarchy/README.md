@@ -18,5 +18,7 @@ The private-use glyphs in `omarchy.ttf` are:
 - `U+E90D` — Cursor, from <https://simpleicons.org/icons/cursor.svg>
 - `U+E90E` — Claude, from <https://simpleicons.org/icons/claude.svg>
 
+`U+100000` maps to the same Omarchy glyph as `U+E900`, at a codepoint no Nerd Font uses. Nerd Fonts 3.5 put a COBOL devicon at `U+E900`, so terminal text such as fastfetch's OS line uses `U+100000` to fall back to the mark.
+
 The agent marks are monochrome so the menu can render them using the active
 theme's foreground and selection colors.

@@ -665,4 +665,10 @@ JS
 
 font_charset=$(fc-query --format='%{charset}' "$ROOT/default/fonts/omarchy/omarchy.ttf")
 [[ $font_charset == *"e900-e90e"* ]] || fail "Omarchy icon font includes every custom menu glyph"
-pass "Omarchy icon font includes the official agent marks"
+# Terminals draw a codepoint from their Nerd Font before falling back, so the
+# mark fastfetch prints must sit where no Nerd Font has a glyph.
+font_glyphs=$("$ROOT/bin/omarchy-dev-font" list --font "$ROOT/default/fonts/omarchy/omarchy.ttf")
+[[ $(awk '$1 == "U+100000" { print $3 }' <<<"$font_glyphs") == "omarchy" ]] ||
+  fail "Omarchy icon font carries the Omarchy mark outside the Nerd Font ranges"
+grep -Fq '"key": "\udbc0\udc00 OS"' "$ROOT/etc/fastfetch/config.jsonc" || fail "fastfetch prints the terminal Omarchy mark"
+pass "Omarchy icon font includes the official agent marks and the terminal Omarchy mark"

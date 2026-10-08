@@ -54,6 +54,15 @@ The command prints these, and all of them matter:
 - Check the README line the command added, and give it a proper display name
   with `--label` if the glyph name is not the brand's name.
 
+Terminal text cannot name a font, so a terminal draws the user's Nerd Font
+glyph whenever one exists at the codepoint, and Nerd Fonts 3.5 fills the
+`U+E9xx` run with devicons. A mark printed in a terminal, like fastfetch's
+Omarchy mark, needs an alias outside the Nerd Font ranges, as `U+100000` is:
+
+```bash
+omarchy dev font alias U+E900 U+100000
+```
+
 The font is package-owned: `omarchy-settings` installs it to
 `/usr/share/fonts/omarchy/omarchy.ttf`, so a new glyph reaches the desktop
 through a settings release, not through `omarchy update`. Between the merge and
