@@ -265,31 +265,3 @@ function iconForCode(code, night) {
   }
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    parseLocationFile: parseLocationFile,
-    wttrLocationQuery: wttrLocationQuery,
-    parseGeocodingResults: parseGeocodingResults,
-    locationCommit: locationCommit,
-    isFutureForecastDate: isFutureForecastDate,
-    roundedTemp: roundedTemp,
-    celsiusToFahrenheit: celsiusToFahrenheit,
-    formatTemp: formatTemp,
-    normalizedUnit: normalizedUnit,
-    localeUsesImperial: localeUsesImperial,
-    countryUsesImperial: countryUsesImperial,
-    shouldUseImperial: shouldUseImperial,
-    dayName: dayName,
-    openMeteoForecastDays: openMeteoForecastDays,
-    openMeteoCurrentCondition: openMeteoCurrentCondition,
-    currentIcon: currentIcon,
-    provisionalCurrentIcon: provisionalCurrentIcon,
-    weatherResponseCompletesSave: weatherResponseCompletesSave,
-    wttrNextForecastDays: wttrNextForecastDays,
-    buildForecastDays: buildForecastDays,
-    bareTempForDay: bareTempForDay,
-    dayIcon: dayIcon,
-    iconForOpenMeteoCode: iconForOpenMeteoCode,
-    iconForCode: iconForCode
-  }
-}

@@ -384,39 +384,3 @@ function shouldRepromptPassphrase(reason, needsCredentials, reasons) {
   if (!needsCredentials) return false
   return reason === r.NoSecrets || reason === r.WifiAuthTimeout
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    parseNetworkStatus: parseNetworkStatus,
-    wifiIconFor: wifiIconFor,
-    connectionIcon: connectionIcon,
-    connectedSignalStrength: connectedSignalStrength,
-    parseActiveApSignal: parseActiveApSignal,
-    connectivityState: connectivityState,
-    captivePortalUrl: captivePortalUrl,
-    formatHeaderSpeed: formatHeaderSpeed,
-    formatHeaderFreq: formatHeaderFreq,
-    headerDetail: headerDetail,
-    bandLabel: bandLabel,
-    bandSectionTitle: bandSectionTitle,
-    bandTooltip: bandTooltip,
-    parseBandStatus: parseBandStatus,
-    decodeIwSsid: decodeIwSsid,
-    parseKeyValue: parseKeyValue,
-    throughputState: throughputState,
-    pingLatencyState: pingLatencyState,
-    pingPacketLossPercent: pingPacketLossPercent,
-    formatPacketLoss: formatPacketLoss,
-    formatBytes: formatBytes,
-    formatRate: formatRate,
-    formatPingLatency: formatPingLatency,
-    wifiRow: wifiRow,
-    sortWifiRows: sortWifiRows,
-    wifiSectionTitle: wifiSectionTitle,
-    requiresCredentials: requiresCredentials,
-    canForgetNetwork: canForgetNetwork,
-    enterpriseConnectScript: enterpriseConnectScript,
-    networkFailureReason: networkFailureReason,
-    shouldRepromptPassphrase: shouldRepromptPassphrase
-  }
-}

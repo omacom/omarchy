@@ -120,20 +120,3 @@ function syncWindow(model, items) {
     }
   }
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    nameForPath: nameForPath,
-    labelForPath: labelForPath,
-    loadRows: loadRows,
-    itemMatches: itemMatches,
-    firstMatchingIndex: firstMatchingIndex,
-    filteredPosition: filteredPosition,
-    selectedFilteredPosition: selectedFilteredPosition,
-    indexForSelectedImage: indexForSelectedImage,
-    nextSelectedIndexForFilter: nextSelectedIndexForFilter,
-    matchingIndices: matchingIndices,
-    visibleWindow: visibleWindow,
-    syncWindow: syncWindow
-  }
-}

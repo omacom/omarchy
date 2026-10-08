@@ -255,32 +255,3 @@ function streamRepresentsPlayer(node, player, players, streams) {
   if (!streamLabelIsGeneric(label)) return streamRepresentsMprisPlayer(label, playerLabel)
   return streamRepresentsMprisPlayer(streamLabel(node, players, streams), playerLabel)
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    isPlaybackStream: isPlaybackStream,
-    isAudioSource: isAudioSource,
-    nodeRow: nodeRow,
-    rowSnapshot: rowSnapshot,
-    outputVolumeName: outputVolumeName,
-    parseSinkAvailability: parseSinkAvailability,
-    friendlyDeviceLabel: friendlyDeviceLabel,
-    nodeProps: nodeProps,
-    nodeLabel: nodeLabel,
-    isHeadphones: isHeadphones,
-    sinkGlyph: sinkGlyph,
-    sourceGlyph: sourceGlyph,
-    friendlyStreamLabel: friendlyStreamLabel,
-    streamLabelKey: streamLabelKey,
-    streamLabelIsGeneric: streamLabelIsGeneric,
-    rawStreamLabel: rawStreamLabel,
-    mprisPlayerLabel: mprisPlayerLabel,
-    mprisPlayerIsProxy: mprisPlayerIsProxy,
-    streamRepresentsMprisPlayer: streamRepresentsMprisPlayer,
-    mprisLabelsFor: mprisLabelsFor,
-    matchingMprisStreamLabel: matchingMprisStreamLabel,
-    unmatchedMprisStreamLabel: unmatchedMprisStreamLabel,
-    streamLabel: streamLabel,
-    streamRepresentsPlayer: streamRepresentsPlayer
-  }
-}

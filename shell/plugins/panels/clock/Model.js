@@ -278,31 +278,3 @@ function stepMonth(year, month, delta) {
   return { year: target.getFullYear(), month: target.getMonth() }
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    dateKey: dateKey,
-    keyForDate: keyForDate,
-    normalizedWeekStart: normalizedWeekStart,
-    weekStartSettingName: weekStartSettingName,
-    toggledWeekStart: toggledWeekStart,
-    weekdayOrder: weekdayOrder,
-    isoWeek: isoWeek,
-    dayOfYear: dayOfYear,
-    daysInYear: daysInYear,
-    yearProgress: yearProgress,
-    yearProgressPercent: yearProgressPercent,
-    parseAge: parseAge,
-    parseBirthYear: parseBirthYear,
-    ageFromBirthYear: ageFromBirthYear,
-    parseLifeExpectancy: parseLifeExpectancy,
-    lifeProgress: lifeProgress,
-    lifeProgressPercent: lifeProgressPercent,
-    monthGrid: monthGrid,
-    stepMonth: stepMonth,
-    clockFormats: clockFormats,
-    clockNeedsSeconds: clockNeedsSeconds,
-    clockFormatRing: clockFormatRing,
-    nextClockFormat: nextClockFormat,
-    isoWeekLiteral: isoWeekLiteral
-  }
-}

@@ -111,14 +111,3 @@ function parseDisplays(raw) {
   }
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    clampBrightness: clampBrightness,
-    normalizeScale: normalizeScale,
-    cleanScale: cleanScale,
-    matchingScaleIndex: matchingScaleIndex,
-    availableScales: availableScales,
-    brightnessName: brightnessName,
-    parseDisplays: parseDisplays
-  }
-}

@@ -130,7 +130,10 @@ function assertDeepEqual(actual, expected, description) {
   )
 }
 
+const { requireFromRoot: loadModel } = require(path.join(root, 'test/shell.d/js-model-loader.js'))
+
 function requireFromRoot(relativePath) {
+  if (relativePath.startsWith('shell/')) return loadModel(root, relativePath)
   return require(path.join(root, relativePath))
 }
 

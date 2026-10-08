@@ -84,7 +84,8 @@ require_command node
 unlock_action=$(node -e '
   const fs = require("fs")
   const path = require("path")
-  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+  const { requireFromRoot } = require(path.join(process.env.ROOT, "test/shell.d/js-model-loader.js"))
+  const menu = requireFromRoot(process.env.ROOT, "shell/plugins/menu/MenuModel.js")
   const items = menu.parseMenuJsonc(fs.readFileSync(path.join(process.env.ROOT, "default/omarchy/omarchy-menu.jsonc"), "utf8"))
   process.stdout.write(items.find(item => item.id === "style.unlock").action)
 ')
