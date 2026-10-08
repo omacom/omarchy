@@ -158,7 +158,7 @@ PATH="$mock_bin:$PATH" OMARCHY_TEST_PKILL_CALLS="$pkill_calls" \
   "$ROOT/bin/omarchy-restart-app" "-9 kitty"
 
 pkill_argv=$(<"$pkill_calls")
-[[ $pkill_argv == $'<-x>\n<-->\n<-9 kitty>' ]] ||
+[[ $pkill_argv == "<-u>"$'\n'"<$USER>"$'\n<-x>\n<-->\n<-9 kitty>' ]] ||
   fail "restart-app treats the application name as one literal pkill pattern" "$pkill_argv"
 pass "restart-app treats the application name as one literal pkill pattern"
 

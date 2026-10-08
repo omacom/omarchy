@@ -90,3 +90,32 @@ if rg -q 'omarchy.indicators' "$ROOT/bin/omarchy-toggle-nightlight"; then
   fail "nightlight toggle leaves indicator refresh to the nightlight service"
 fi
 pass "nightlight toggle leaves indicator refresh to the nightlight service"
+
+# Another user's hyprsunset belongs to their Hyprland session, so it must not
+# stop the toggle from starting one for this user.
+cat >"$TMPDIR/bin/pgrep" <<'SH'
+#!/bin/bash
+[[ ${1:-} == "-u" ]] && exit 1
+exit 0
+SH
+
+UWSM_LOG="$TMPDIR/uwsm-app-log"
+cat >"$TMPDIR/bin/uwsm-app" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$UWSM_APP_LOG"
+SH
+chmod +x "$TMPDIR/bin/uwsm-app"
+
+printf '6500\n' >"$STATE"
+UWSM_APP_LOG="$UWSM_LOG" nightlight_cli >/dev/null
+for _ in {1..20}; do
+  [[ -s $UWSM_LOG ]] && break
+  sleep 0.1
+done
+grep -Fqx -- '-- hyprsunset' "$UWSM_LOG" || fail "nightlight toggle starts hyprsunset when only another user runs one"
+pass "nightlight toggle starts hyprsunset when only another user runs one"
+
+if rg -q 'pgrep -x hyprsunset' "$ROOT/shell/plugins/services/nightlight/Service.qml"; then
+  fail "nightlight service only looks for this user's hyprsunset"
+fi
+pass "nightlight service only looks for this user's hyprsunset"
