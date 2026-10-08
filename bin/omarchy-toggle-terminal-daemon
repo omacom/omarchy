@@ -15,6 +15,76 @@ usage() {
   echo "Usage: omarchy-toggle-terminal-daemon <alacritty|foot|kitty> [on|off|toggle]" >&2
 }
 
+install_desktop() {
+  local src=$1 expr=$2 body
+  if ! body=$(sed "$expr" "$src"); then
+    echo "failed to read $src" >&2
+    return 1
+  fi
+  if ! printf '%s\n' "$body" >"$desktop"; then
+    echo "failed to write $desktop" >&2
+    return 1
+  fi
+}
+
+desktop_done=0
+server_done=0
+
+update_desktop() {
+  case $terminal in
+    foot)
+      if [[ $action == on ]]; then
+        install_desktop "$OMARCHY_PATH/applications/foot.desktop" 's/^Exec=foot$/Exec=footclient --client-environment/'
+      else
+        if ! cp "$OMARCHY_PATH/applications/foot.desktop" "$desktop"; then
+          echo "failed to restore $desktop" >&2
+          return 1
+        fi
+      fi
+      ;;
+    kitty)
+      if [[ $action == on ]]; then
+        install_desktop /usr/share/applications/kitty.desktop 's/^Exec=kitty$/Exec=kitty --single-instance/'
+      else
+        if ! rm -f "$desktop"; then
+          echo "failed to remove $desktop" >&2
+          return 1
+        fi
+      fi
+      ;;
+    alacritty)
+      if [[ $action == on ]]; then
+        install_desktop "$OMARCHY_PATH/default/alacritty/Alacritty.desktop" 's/^Exec=alacritty$/Exec=alacritty msg create-window/'
+      else
+        if ! cp "$OMARCHY_PATH/default/alacritty/Alacritty.desktop" "$desktop"; then
+          echo "failed to restore $desktop" >&2
+          return 1
+        fi
+      fi
+      ;;
+  esac
+}
+
+fail() {
+  echo "$1" >&2
+  if (( server_done )); then
+    if [[ $action == on ]]; then
+      systemctl --user disable --now "omarchy-$terminal-server.service" || echo "failed to stop the server" >&2
+    else
+      systemctl --user enable --now "omarchy-$terminal-server.service" || echo "failed to start the server" >&2
+    fi
+  fi
+  if (( desktop_done )); then
+    if [[ $action == on ]]; then
+      action=off
+    else
+      action=on
+    fi
+    update_desktop || echo "failed to revert $desktop" >&2
+  fi
+  exit 1
+}
+
 case $terminal in
   alacritty|foot|kitty) ;;
   *) usage; exit 1 ;;
@@ -32,32 +102,11 @@ ln -sfn "$OMARCHY_PATH/default/systemd/user/omarchy-kitty-server.service" "$unit
 ln -sfn "$OMARCHY_PATH/default/systemd/user/omarchy-alacritty-server.service" "$unit_dir/omarchy-alacritty-server.service"
 systemctl --user daemon-reload || exit 1
 
-case $terminal in
-  foot)
-    [[ -f $apps/foot.desktop ]] || cp "$OMARCHY_PATH/applications/foot.desktop" "$apps/foot.desktop"
-    if [[ $action == on ]]; then
-      sed -i 's/^Exec=foot$/Exec=footclient/' "$apps/foot.desktop"
-    else
-      sed -i 's/^Exec=footclient$/Exec=foot/' "$apps/foot.desktop"
-    fi
-    ;;
-  kitty)
-    [[ -f $apps/kitty.desktop ]] || cp /usr/share/applications/kitty.desktop "$apps/kitty.desktop" || exit 1
-    if [[ $action == on ]]; then
-      sed -i 's/^Exec=kitty$/Exec=kitty --single-instance/' "$apps/kitty.desktop"
-    else
-      sed -i 's/^Exec=kitty --single-instance$/Exec=kitty/' "$apps/kitty.desktop"
-    fi
-    ;;
-  alacritty)
-    [[ -f $apps/Alacritty.desktop ]] || cp "$OMARCHY_PATH/default/alacritty/Alacritty.desktop" "$apps/Alacritty.desktop"
-    if [[ $action == on ]]; then
-      sed -i 's/^Exec=alacritty$/Exec=alacritty msg create-window/' "$apps/Alacritty.desktop"
-    else
-      sed -i 's/^Exec=alacritty msg create-window$/Exec=alacritty/' "$apps/Alacritty.desktop"
-    fi
-    ;;
-esac
+if [[ $terminal == alacritty ]]; then
+  desktop=$apps/Alacritty.desktop
+else
+  desktop=$apps/$terminal.desktop
+fi
 
 if [[ $action == on ]]; then
   cmd=enable
@@ -65,7 +114,19 @@ else
   cmd=disable
 fi
 
-omarchy-toggle "$flag" "$action"
-systemctl --user $cmd --now "omarchy-$terminal-server.service" || exit 1
+update_desktop || fail "failed to update $desktop"
+desktop_done=1
+systemctl --user $cmd --now "omarchy-$terminal-server.service" || fail "failed to $cmd the server"
+server_done=1
 
-omarchy-notification-send -g "" "${terminal^} single-instance mode ${cmd}d"
+omarchy-toggle "$flag" "$action" || fail "failed to set $flag"
+
+if [[ $action == on && $terminal == alacritty ]]; then
+  echo "WARNING: due to limitations with alacritty, every window will share an environment with the server" >&2
+fi
+
+if [[ "$action" == on ]]; then
+  omarchy-notification-send -g "" "${terminal^} single-instance mode enabled"
+else
+  omarchy-notification-send -g "" "${terminal^} single-instance mode disabled"
+fi

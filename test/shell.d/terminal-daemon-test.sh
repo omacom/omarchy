@@ -52,7 +52,12 @@ check() {
 
   : >"$SYSTEMCTL_LOG"
   run_toggle "omarchy-toggle-$terminal-daemon" off
-  grep -qx "$off" "$apps/$desktop" || fail "$terminal off restores $off"
+  if [[ -n $off ]]; then
+    grep -qx "$off" "$apps/$desktop" || fail "$terminal off restores $off"
+    grep -qx 'X-TerminalArgExec=-e' "$apps/$desktop" || fail "$terminal off keeps the launcher keys"
+  else
+    [[ ! -f $apps/$desktop ]] || fail "$terminal off removes the override"
+  fi
   grep -Fqx -- "--user disable --now omarchy-$terminal-server.service" "$SYSTEMCTL_LOG" ||
     fail "$terminal off stops the server"
   grep -Fqx -- "-g  ${terminal^} single-instance mode disabled" "$NOTIFY_LOG" ||
@@ -61,15 +66,32 @@ check() {
   pass "$terminal single-instance toggles"
 }
 
-check foot foot.desktop 'Exec=footclient' 'Exec=foot'
+check foot foot.desktop 'Exec=footclient --client-environment' 'Exec=foot'
 
 if [[ -f /usr/share/applications/kitty.desktop ]]; then
-  check kitty kitty.desktop 'Exec=kitty --single-instance' 'Exec=kitty'
+  check kitty kitty.desktop 'Exec=kitty --single-instance' ''
 else
   skip "kitty single-instance toggles"
 fi
 
 check alacritty Alacritty.desktop 'Exec=alacritty msg create-window' 'Exec=alacritty'
+
+
+rm -f "$apps/foot.desktop" "$flags/terminal-daemon-foot"
+cat >"$TMPDIR/bin/systemctl" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$SYSTEMCTL_LOG"
+[[ $* == *daemon-reload* ]] && exit 0
+exit 1
+SH
+if run_toggle omarchy-toggle-foot-daemon on; then
+  fail "enable failure is ignored"
+fi
+[[ ! -f $flags/terminal-daemon-foot ]] || fail "failed enable does not set the flag"
+grep -qx 'Exec=foot' "$apps/foot.desktop" || fail "failed enable restores Exec=foot"
+grep -qx 'X-TerminalArgExec=-e' "$apps/foot.desktop" || fail "failed enable restores the launcher"
+! grep -qx 'Exec=footclient --client-environment' "$apps/foot.desktop" || fail "failed enable leaves the client desktop"
+pass "failed enable restores the desktop"
 
 if grep -E 'omarchy-(foot|kitty|alacritty)-server\.service' "$ROOT/install/user/first-run/enable-user-units.sh"; then
   fail "terminal servers are started for every new login"
