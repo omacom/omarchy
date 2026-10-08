@@ -83,12 +83,11 @@ Panel {
   }
 
   readonly property var visibleSections: {
-    var list = []
+    var list = ["settings"]
     if (brightnessAvailable) list.push("brightness")
     list.push("textsize")
     list.push("scale")
     if (displays.length > 1) list.push("monitors")
-    list.push("settings")
     return list
   }
 
@@ -546,10 +545,10 @@ Panel {
           width: scrollArea.availableWidth
           spacing: Style.space(14)
 
-          // ---------- Hero: display icon · title/status ----------
+          // ---------- Hero: display icon · title/status · settings ----------
           Item {
             width: parent.width
-            implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight)
+            implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, advancedButton.implicitHeight)
 
             Text {
               id: heroIcon
@@ -562,11 +561,38 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
             }
 
+            Button {
+              id: advancedButton
+              objectName: "display-advanced-button"
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              iconText: "󰒓"
+              tooltipText: "Advanced settings"
+              Accessible.name: tooltipText
+              Accessible.role: Accessible.Button
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+              iconSize: Style.font.subtitle * 1.5
+              horizontalPadding: Style.space(5)
+              verticalPadding: Style.space(2)
+              hasCursor: root.cursorActive && root.focusSection === "settings"
+              onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(this)
+              onHovered: function(hovered) {
+                if (hovered && !root.reflowingText) {
+                  root.cursorActive = true
+                  root.focusSection = "settings"
+                  root.selectedIndex = 0
+                }
+              }
+              onClicked: root.openSettings()
+            }
+
             Column {
               id: heroLabels
               anchors.left: heroIcon.right
               anchors.leftMargin: Style.space(14)
-              anchors.right: parent.right
+              anchors.right: advancedButton.left
+              anchors.rightMargin: Style.space(12)
               anchors.verticalCenter: parent.verticalCenter
               spacing: Style.space(2)
 
@@ -840,32 +866,6 @@ Panel {
                 display: modelData
                 rowIndex: index
               }
-            }
-          }
-
-          Item {
-            width: parent.width
-            implicitHeight: advancedButton.implicitHeight
-
-            Button {
-              id: advancedButton
-              objectName: "display-advanced-button"
-              anchors.right: parent.right
-              text: "Advanced…"
-              foreground: root.bar.foreground
-              fontFamily: root.bar.fontFamily
-              fontSize: Style.font.caption
-              bordered: true
-              hasCursor: root.cursorActive && root.focusSection === "settings"
-              onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(this)
-              onHovered: function(hovered) {
-                if (hovered && !root.reflowingText) {
-                  root.cursorActive = true
-                  root.focusSection = "settings"
-                  root.selectedIndex = 0
-                }
-              }
-              onClicked: root.openSettings()
             }
           }
 
