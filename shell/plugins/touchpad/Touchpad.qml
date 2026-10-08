@@ -46,6 +46,7 @@ Item {
   property bool closingFromHost: false
   property bool reloadPending: false
   property bool applyQueued: false
+  property bool applyHandedOff: false
   property string applyError: ""
   property bool confirmingReset: false
 
@@ -115,20 +116,24 @@ Item {
       return
     }
     applyQueued = false
+    applyHandedOff = false
     applyProc.command = reloadPending ? ["omarchy-touchpad-apply", "--reload"] : ["omarchy-touchpad-apply"]
     reloadPending = false
     applyProc.running = true
   }
 
   // Closing the window unloads it along with its timer and process, so an
-  // edit still waiting to apply is handed to a detached helper instead.
+  // edit still waiting to apply is handed to a detached helper instead. The
+  // host calls close() and then destroys the window, so a running apply is
+  // handed off only once.
   function flushApply() {
-    var running = applyProc.running
+    var running = applyProc.running && !applyHandedOff
     if (!applyTimer.running && !applyQueued && !running) return
     var reload = reloadPending || (running && applyProc.command.indexOf("--reload") >= 0)
     applyTimer.stop()
     applyQueued = false
     reloadPending = false
+    applyHandedOff = true
     Quickshell.execDetached(reload ? ["omarchy-touchpad-apply", "--reload"] : ["omarchy-touchpad-apply"])
   }
 
