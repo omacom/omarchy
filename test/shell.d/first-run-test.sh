@@ -41,7 +41,7 @@ run_bin="$test_tmp/run-bin"
 run_omarchy="$test_tmp/run-omarchy/install/user/first-run"
 mkdir -p "$run_bin" "$run_omarchy"
 
-for hook in install-voxtype setup-fingerprint setup-agent; do
+for hook in setup-fingerprint setup-agent; do
   touch "$run_omarchy/$hook.hook"
 done
 for step in enable-user-units gnome-theme gtk-primary-paste audio-tuning welcome wifi; do
