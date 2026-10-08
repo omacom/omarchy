@@ -135,6 +135,7 @@ Panel {
   readonly property var current: (hasConfiguredCoordinates && openMeteoCurrent) ? openMeteoCurrent : ((report && report.current_condition && report.current_condition[0]) ? report.current_condition[0] : openMeteoCurrent)
   readonly property var areaInfo: report && report.nearest_area && report.nearest_area[0] ? report.nearest_area[0] : null
   readonly property var forecastDays: buildForecastDays()
+  readonly property var todayForecast: buildTodayForecast()
   readonly property string reportCountry: areaInfo && areaInfo.country && areaInfo.country[0] ? areaInfo.country[0].value : ""
 
   readonly property bool useImperial: Model.shouldUseImperial(setting("unit", ""), Qt.locale().name, reportCountry)
@@ -281,6 +282,10 @@ Panel {
 
   function buildForecastDays() {
     return Model.buildForecastDays(report, dailyForecastReport, Qt.formatDate(new Date(), "yyyy-MM-dd"))
+  }
+
+  function buildTodayForecast() {
+    return Model.todayForecastEntry(report, dailyForecastReport, Qt.formatDate(new Date(), "yyyy-MM-dd"))
   }
 
   function openMeteoForecastDays() {
@@ -544,29 +549,48 @@ Panel {
             font.pixelSize: 64
           }
 
-          Row {
+          Column {
+            id: heroTemp
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(2)
+            spacing: Style.space(4)
 
-            Text {
-              id: tempBig
-              textFormat: Text.PlainText
-              text: root.reportTempNum || "—"
-              color: root.bar.foreground
-              font.family: root.bar.fontFamily
-              // Hero temperature read-out; deliberately oversized, outside
-              // the Style.font.* scale.
-              font.pixelSize: 56
-              font.bold: true
+            Row {
+              spacing: Style.space(2)
+
+              Text {
+                id: tempBig
+                textFormat: Text.PlainText
+                text: root.reportTempNum || "—"
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                // Hero temperature read-out; deliberately oversized, outside
+                // the Style.font.* scale.
+                font.pixelSize: 56
+                font.bold: true
+              }
+              Text {
+                textFormat: Text.PlainText
+                text: root.current ? root.tempUnit : ""
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.display
+                anchors.top: tempBig.top
+                anchors.topMargin: Style.space(10)
+              }
             }
+
+            // Today's own hi/lo — the forecast row only lists future days.
             Text {
+              visible: !!root.todayForecast
               textFormat: Text.PlainText
-              text: root.current ? root.tempUnit : ""
-              color: root.bar.foreground
+              text: root.todayForecast
+                ? "H " + root.bareTempForDay(root.todayForecast, "max")
+                  + "   L " + root.bareTempForDay(root.todayForecast, "min")
+                : ""
+              color: Qt.darker(root.bar.foreground, 1.4)
               font.family: root.bar.fontFamily
-              font.pixelSize: Style.font.display
-              anchors.top: tempBig.top
-              anchors.topMargin: Style.space(10)
+              font.pixelSize: Style.font.bodySmall
+              font.letterSpacing: 1
             }
           }
         }
