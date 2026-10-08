@@ -40,7 +40,7 @@ chmod +x "$test_dir/bin/"*
 
 run() {
   : >"$CALL_LOG"
-  env HOME="$test_dir/home" OMARCHY_PATH="$ROOT" PATH="$test_dir/bin:$ROOT/bin:$PATH" "$@" \
+  env -u XDG_CACHE_HOME HOME="$test_dir/home" OMARCHY_PATH="$ROOT" PATH="$test_dir/bin:$ROOT/bin:$PATH" "$@" \
     bash -euo pipefail "$migration" >"$test_dir/output" 2>&1
 }
 
