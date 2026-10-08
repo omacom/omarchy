@@ -70,6 +70,25 @@ done
 
 pass "a URL naming a transport git does not implement never reaches git"
 
+# Theme assets are persisted and fed to desktop content handlers. Git's
+# plaintext network transports let an on-path peer replace those assets, so the
+# install flow accepts only authenticated network transports or local sources.
+for url in \
+  "git://example.com/omarchy-cool-theme.git" \
+  "http://example.com/omarchy-cool-theme.git" \
+  "ftp://example.com/omarchy-cool-theme.git"; do
+  if install_theme "$url"; then
+    fail "omarchy-theme-install refuses the unauthenticated URL '$url'"
+  fi
+
+  grep -qF "network transport is not authenticated" "$test_tmp/out" ||
+    fail "omarchy-theme-install explains the unauthenticated URL '$url'" "$(cat "$test_tmp/out")"
+  [[ ! -s $git_calls ]] ||
+    fail "omarchy-theme-install refuses '$url' before running git" "$(cat "$git_calls")"
+done
+
+pass "an unauthenticated network transport never reaches theme clone"
+
 # The checker is a separate command, so its absence has to refuse the URL rather
 # than wave it through to git. Installed machines carry the packaged checker in
 # /usr/bin, so absence is simulated by shadowing it with a stub that reports

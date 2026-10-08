@@ -125,6 +125,24 @@ for bad in "ext://sh -c id" "gcrypt://example.com/x"; do
 done
 pass "plugin add rejects transport-scheme URLs before cloning"
 
+# Git implements these transports itself, but they do not authenticate the
+# server (git://) or protect the fetched objects in transit (HTTP/FTP). Plugin
+# QML executes with the desktop user's authority, so these must be refused even
+# though the generic helper recognizes them as Git transports.
+for bad in \
+  "git://example.com/acme/repo.git" \
+  "http://example.com/acme/repo.git" \
+  "ftp://example.com/acme/repo.git"; do
+  rm -f "$clone_marker"
+  output=$(add_url "$bad") &&
+    fail "plugin add rejects an unauthenticated network URL: $bad" "$output"
+  grep -qF "network transport is not authenticated" <<<"$output" ||
+    fail "plugin add explains the unauthenticated network URL: $bad" "$output"
+  [[ ! -e $clone_marker ]] ||
+    fail "plugin add reached git clone for an unauthenticated URL: $bad"
+done
+pass "plugin add rejects unauthenticated network transports before cloning"
+
 # Option-shaped URLs on argv are refused before clone — by the option parser
 # (`-*` falls to "unknown add option"), not the guard. The guard's own
 # leading-dash arm is only reachable through the interactive gum prompt and is

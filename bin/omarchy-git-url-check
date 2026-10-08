@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Check that a git URL names a repository, not a transport helper
-# omarchy:args=<git-url>
+# omarchy:args=[--require-authenticated-network] <git-url>
 # omarchy:hidden=true
 
 set -euo pipefail
@@ -20,12 +20,22 @@ set -euo pipefail
 # two are spelled like a helper but are read as plain ssh. `ext` and `fd` are
 # left out deliberately -- git ships a helper for each, and `ext` runs whatever
 # command the URL carries.
+# Some callers only need to know whether Git handles a URL itself. Content
+# installers additionally opt into a policy that refuses network transports
+# without peer authentication.
 TRANSPORTS=(ssh git git+ssh ssh+git http https ftp ftps file)
+UNAUTHENTICATED_NETWORK_TRANSPORTS=(git http ftp)
 
 fail() {
   echo "omarchy-git-url-check: $*" >&2
   exit 1
 }
+
+require_authenticated_network=0
+if [[ ${1-} == "--require-authenticated-network" ]]; then
+  require_authenticated_network=1
+  shift
+fi
 
 url="${1-}"
 
@@ -42,6 +52,13 @@ if [[ $url =~ ^([A-Za-z0-9][A-Za-z0-9+.-]*):// ]]; then
 
   for transport in "${TRANSPORTS[@]}"; do
     if [[ $scheme == "$transport" ]]; then
+      if (( require_authenticated_network )); then
+        for unauthenticated in "${UNAUTHENTICATED_NETWORK_TRANSPORTS[@]}"; do
+          if [[ $scheme == "$unauthenticated" ]]; then
+            fail "the '$scheme' network transport is not authenticated; use HTTPS, SSH, FTPS, or a local repository."
+          fi
+        done
+      fi
       exit 0
     fi
   done

@@ -16,10 +16,11 @@ if [[ -z $REPO_URL ]]; then
   exit 1
 fi
 
-# Refuse a URL that names a git option or a transport helper before cloning. The
-# check is shared with omarchy-plugin-add and explains itself; a missing checker
-# leaves this non-zero, which refuses the URL rather than cloning it.
-omarchy-git-url-check "$REPO_URL" || exit 1
+# Refuse a URL that names a git option, a transport helper, or a network
+# transport without peer authentication before cloning. The check is shared
+# with omarchy-plugin-add and explains itself; a missing checker leaves this
+# non-zero, which refuses the URL rather than cloning it.
+omarchy-git-url-check --require-authenticated-network "$REPO_URL" || exit 1
 
 THEMES_DIR="$HOME/.config/omarchy/themes"
 

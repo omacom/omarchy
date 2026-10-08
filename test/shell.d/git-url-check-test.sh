@@ -37,6 +37,36 @@ done
 
 pass "a <scheme>://<address> URL outside git's own transports is refused"
 
+# Plugins and downloaded themes are executable or security-sensitive content.
+# Their callers opt into a stricter policy that keeps local repositories and
+# authenticated network transports, but refuses the plaintext transports where
+# an on-path peer can replace the fetched objects.
+for url in \
+  "git://example.com/repo.git" \
+  "http://example.com/repo.git" \
+  "ftp://example.com/repo.git"; do
+  output=$(check --require-authenticated-network "$url") &&
+    fail "the authenticated-network policy refuses '$url'" "$output"
+  grep -qF "network transport is not authenticated" <<<"$output" ||
+    fail "the authenticated-network rejection explains '$url'" "$output"
+done
+
+for url in \
+  "https://github.com/acme/repo.git" \
+  "ssh://git@github.com/acme/repo.git" \
+  "git+ssh://git@example.com/acme/repo.git" \
+  "ssh+git://git@example.com/acme/repo.git" \
+  "ftps://example.com/repo.git" \
+  "file:///home/me/repo" \
+  "git@github.com:acme/repo.git" \
+  "/home/me/repo" \
+  "./repo"; do
+  output=$(check --require-authenticated-network "$url") ||
+    fail "the authenticated-network policy accepts '$url'" "$output"
+done
+
+pass "the content policy keeps authenticated network and local transports only"
+
 # A leading dash is an option to git, not a URL.
 for url in "-x" "--upload-pack=touch /tmp/pwned" "-oProxyCommand=x"; do
   output=$(check "$url") &&
@@ -50,9 +80,10 @@ output=$(check) && fail "omarchy-git-url-check refuses a missing URL" "$output"
 
 pass "an empty URL is refused"
 
-# Everything a user actually pastes. The scp-style forms carry a single colon,
-# which git never reads as a helper, and the IPv6 host carries `::` inside
-# brackets rather than at the start.
+# The generic helper still identifies transports independently of the stricter
+# content policy. The scp-style forms carry a single colon, which git never
+# reads as a helper, and the IPv6 host carries `::` inside brackets rather than
+# at the start.
 for url in \
   "https://github.com/acme/omarchy-weather.git" \
   "http://example.com/a/b.git" \
