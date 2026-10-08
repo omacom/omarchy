@@ -24,6 +24,7 @@ RESUME_COUNTDOWN_SECONDS="${OMARCHY_BATTERY_GUARD_RESUME_COUNTDOWN_SECONDS:-30}"
 MAX_ONESHOT_CYCLES="${OMARCHY_BATTERY_GUARD_MAX_ONESHOT_CYCLES:-1}"
 DRY_RUN="${OMARCHY_BATTERY_GUARD_DRY_RUN:-false}"
 CLOCK_PATH="${OMARCHY_BATTERY_GUARD_CLOCK_PATH:-/proc/uptime}"
+SUSPEND_STATS_PATH="${OMARCHY_BATTERY_GUARD_SUSPEND_STATS_PATH:-/sys/power/suspend_stats/success}"
 
 normalize_int() {
   local value="$1"
@@ -426,8 +427,8 @@ request_window_close() {
 write_state() {
   local mode="$1" state_tmp uid line
   state_tmp=$(mktemp --tmpdir="$STATE_ROOT" .state.XXXXXX)
-  printf 'mode=%s\ndeadline=%s\nboot=%s\nclosed=%s\n' \
-    "$mode" "$countdown_deadline" "$boot_id" "$close_requested" >"$state_tmp"
+  printf 'mode=%s\ndeadline=%s\nboot=%s\nclosed=%s\nsleep=%s\n' \
+    "$mode" "$countdown_deadline" "$boot_id" "$close_requested" "$sleep_mark_seen" >"$state_tmp"
   for uid in "${!close_plans[@]}"; do
     while read -r line; do
       [[ -z $line ]] || printf 'plan:%s=%s\n' "$uid" "$line" >>"$state_tmp"
@@ -451,8 +452,17 @@ now_seconds() {
   printf '%s\n' "${uptime%%.*}"
 }
 
+# The kernel's count of completed suspends changes only when the machine really
+# slept. Hibernation is not counted, so resuming from it keeps the deadline.
+sleep_mark() {
+  local count=0
+  [[ ! -r $SUSPEND_STATS_PATH ]] || read -r count <"$SUSPEND_STATS_PATH" || count=0
+  [[ $count =~ ^[0-9]+$ ]] || count=0
+  printf '%s\n' "$count"
+}
+
 read_persisted_countdown() {
-  local key value mode="" deadline="" boot="" closed="false"
+  local key value mode="" deadline="" boot="" closed="false" slept_mark=""
   [[ -r $STATE_FILE ]] || return 0
   while IFS='=' read -r key value; do
     case "$key" in
@@ -460,6 +470,7 @@ read_persisted_countdown() {
       deadline) deadline=$value ;;
       boot) boot=$value ;;
       closed) closed=$value ;;
+      sleep) slept_mark=$value ;;
       snapshot:*)
         [[ ${key#*:} =~ ^[0-9]+$ && $value == "1" ]] || continue
         close_complete[${key#*:}]=true
@@ -478,6 +489,8 @@ read_persisted_countdown() {
     countdown_deadline=$deadline
     countdown_active=true
     [[ $closed != "true" ]] || close_requested=true
+    # A restart after sleeping past the saved deadline still gets a save window.
+    [[ ! $slept_mark =~ ^[0-9]+$ || $slept_mark == "$sleep_mark_seen" ]] || resumed=true
     # Replacement IDs are intentionally not reused across a daemon/server restart.
   else
     close_plans=() close_done=() close_complete=()
@@ -520,6 +533,7 @@ countdown_deadline=0
 close_requested=false
 last_notice=61
 resumed=false
+sleep_mark_seen=$(sleep_mark)
 read_persisted_countdown
 cycle=0
 
@@ -581,9 +595,14 @@ while true; do
   if $oneshot && (( cycle >= MAX_ONESHOT_CYCLES )); then exit 0; fi
   slept_from=$(now_seconds)
   sleep "$POLL_INTERVAL"
-  # Uptime counts through suspend and hibernation, so a poll that overruns by
-  # more than a few seconds slept. Only the poll is timed: slow notification or
-  # close requests must never look like a resume and extend the deadline.
+  # Uptime counts through suspend, so a poll that overruns may have slept, but a
+  # stalled process overruns too. Only a suspend the kernel counted restarts the
+  # save window, so stalls can never postpone shutdown. Only the poll is timed,
+  # so slow requests are not even checked.
   resumed=false
-  (( $(now_seconds) - slept_from <= POLL_INTERVAL + 5 )) || resumed=true
+  if (( $(now_seconds) - slept_from > POLL_INTERVAL + 5 )); then
+    mark=$(sleep_mark)
+    [[ $mark == "$sleep_mark_seen" ]] || resumed=true
+    sleep_mark_seen=$mark
+  fi
 done

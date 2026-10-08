@@ -7,6 +7,7 @@ mkdir -p "$tmp_dir/bin" "$tmp_dir/power/BAT0" "$tmp_dir/power/AC"
 export OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power"
 export OMARCHY_BATTERY_GUARD_STATE_DIR="$tmp_dir/state"
 export OMARCHY_BATTERY_GUARD_CLOCK_PATH="$tmp_dir/clock"
+export OMARCHY_BATTERY_GUARD_SUSPEND_STATS_PATH="$tmp_dir/suspend-success"
 export OMARCHY_BATTERY_GUARD_MAX_ONESHOT_CYCLES=70
 export OMARCHY_BATTERY_GUARD_DRY_RUN=false
 export EVENTS="$tmp_dir/events" SCENARIO=""
@@ -17,10 +18,13 @@ cat >"$tmp_dir/bin/sleep" <<'SH'
 #!/bin/bash
 read -r now _ <"$OMARCHY_BATTERY_GUARD_CLOCK_PATH"
 next=$((now + 1))
-# The machine sleeps during the poll: uptime keeps counting through suspend.
+# The machine sleeps during the poll: uptime keeps counting through suspend,
+# and the kernel counts the suspend. A stalled process leaves no such record.
+slept() { printf '%s\n' "$(($(<"$OMARCHY_BATTERY_GUARD_SUSPEND_STATS_PATH") + 1))" >"$OMARCHY_BATTERY_GUARD_SUSPEND_STATS_PATH"; }
 case "$SCENARIO:$now" in
   suspend:20|suspend-plug:20|suspend-runtime:20)
     next=3620
+    slept
     printf '2\n' >"$OMARCHY_POWER_SUPPLY_PATH/BAT0/capacity"
     if [[ $SCENARIO == "suspend-plug" ]]; then
       printf '1\n' >"$OMARCHY_POWER_SUPPLY_PATH/AC/online"
@@ -28,8 +32,16 @@ case "$SCENARIO:$now" in
     fi
     [[ $SCENARIO != "suspend-runtime" ]] || printf '40\n' >"$OMARCHY_POWER_SUPPLY_PATH/BAT0/time_to_empty_now"
     ;;
-  lid:50) next=70 ;;
-  nap:5) next=15 ;;
+  lid:50) next=70; slept ;;
+  nap:5) next=15; slept ;;
+  stall:50) next=70 ;;
+  suspend-stall:20) next=3620; slept ;;
+  suspend-stall:3645) next=3660 ;;
+  hibernate:20)
+    # The kernel does not count hibernation as a suspend.
+    next=3620
+    printf '2\n' >"$OMARCHY_POWER_SUPPLY_PATH/BAT0/capacity"
+    ;;
 esac
 printf '%s 0\n' "$next" >"$OMARCHY_BATTERY_GUARD_CLOCK_PATH"
 if [[ $SCENARIO == "plug" && $now == "46" ]]; then
@@ -123,6 +135,7 @@ reset_fixture() {
   mkdir -p "$tmp_dir/power/BAT0"
   rm -f "$EVENTS.rejected"
   printf '0 0\n' >"$tmp_dir/clock"
+  printf '0\n' >"$tmp_dir/suspend-success"
   : >"$EVENTS"
   printf 'Battery\n' >"$tmp_dir/power/BAT0/type"
   printf 'Discharging\n' >"$tmp_dir/power/BAT0/status"
@@ -274,6 +287,29 @@ grep -Fx 'power 3630 0 poweroff --no-wall' "$EVENTS" >/dev/null || fail "resume 
 reset_fixture
 SCENARIO=slow-toast run_guard
 grep -Fx 'power 60 0 poweroff --no-wall' "$EVENTS" >/dev/null || fail "slow notification delivery cannot extend the deadline"
+# An awake stall overruns the poll like a sleep does, but nothing recorded a
+# sleep: shutdown proceeds at once instead of restarting the window.
+reset_fixture
+SCENARIO=stall run_guard
+grep -Fx 'power 70 0 poweroff --no-wall' "$EVENTS" >/dev/null || fail "an awake stall cannot extend the deadline" "$(cat "$EVENTS")"
+reset_fixture
+SCENARIO=suspend-stall run_guard
+grep -Fx 'power 3660 0 poweroff --no-wall' "$EVENTS" >/dev/null || fail "each recorded sleep restarts the window at most once" "$(cat "$EVENTS")"
+reset_fixture
+SCENARIO=hibernate run_guard
+grep -Fx 'power 3620 0 poweroff --no-wall' "$EVENTS" >/dev/null || fail "resume from hibernation keeps the deadline"
+# The guard can restart after a sleep that outlasted its saved deadline.
+reset_fixture
+OMARCHY_BATTERY_GUARD_MAX_ONESHOT_CYCLES=21 run_guard
+printf '3620 0\n' >"$tmp_dir/clock"
+printf '1\n' >"$tmp_dir/suspend-success"
+run_guard
+grep -Fx 'power 3650 0 poweroff --no-wall' "$EVENTS" >/dev/null || fail "a restart after sleeping past the deadline gives a fresh save window" "$(cat "$EVENTS")"
+reset_fixture
+OMARCHY_BATTERY_GUARD_MAX_ONESHOT_CYCLES=21 run_guard
+printf '3620 0\n' >"$tmp_dir/clock"
+run_guard
+grep -Fx 'power 3620 0 poweroff --no-wall' "$EVENTS" >/dev/null || fail "a restart after awake downtime keeps the deadline"
 
 reset_fixture
 SCENARIO=unknown run_guard
