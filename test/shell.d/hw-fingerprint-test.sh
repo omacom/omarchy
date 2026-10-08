@@ -125,8 +125,12 @@ write_sep 396400000 ready
 write_platform_readers '# Touch ID' '' "$tmp_dir/sep/*.sep/diag/touchid ready"
 assert_detects "a reader the platform names is detected once its file reads the value"
 
-write_sep 396400000 absent
-assert_rejects "a reader the platform names is not detected while its file reads another value"
+# The kernel's other diag/touchid values: not-ready contains ready, so only a
+# whole-value match keeps it from counting.
+for value in not-ready unknown failed; do
+  write_sep 396400000 "$value"
+  assert_rejects "a reader the platform names is not detected while its file reads $value"
+done
 
 write_sep 196400000 ready
 assert_detects "any file the platform's glob matches can show the reader"
@@ -145,12 +149,15 @@ assert_rejects "relative paths, a missing value, an extra word and comments name
 # A platform file that matches nothing never hides a USB reader on the same
 # machine: the USB scan still runs after it.
 write_usb_devices '1234:5678:Goodix Fingerprint USB Device'
-write_sep 396400000 absent
+write_sep 396400000 not-ready
 write_platform_readers "$tmp_dir/sep/*.sep/diag/touchid ready"
 assert_detects "a USB reader is detected while the platform's reader is not ready"
 write_platform_readers "$tmp_dir/nowhere/*/diag/touchid ready"
 assert_detects "a USB reader is detected while the platform's glob matches nothing"
 write_usb_devices '27c6:1234'
 assert_detects "a USB reader found by vendor is detected beside a platform file"
+write_platform_readers "$tmp_dir/sep/*.sep/diag/touchid ready"
+write_sep 396400000 not-ready
+assert_detects "a USB reader found by vendor is detected while Touch ID reads not-ready"
 
 rm -f "$platform_root/fingerprint-readers"
