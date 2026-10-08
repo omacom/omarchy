@@ -74,6 +74,16 @@ assert_detached_installer_launch() {
 assert_detached_installer_launch omarchy-install-editor-emacs emacsclient
 assert_detached_installer_launch omarchy-install-editor-vscode code
 assert_detached_installer_launch omarchy-install-editor-zed dev.zed.Zed
+
+: >"$OMARCHY_TEST_LOG"
+if OMARCHY_TEST_PKG_STATUS=1 bash "$ROOT/bin/omarchy-install-editor-zed"; then
+  fail "Zed installer propagates package failure"
+fi
+if grep -q '^launch:' "$OMARCHY_TEST_LOG"; then
+  fail "Zed does not launch after package failure"
+fi
+pass "Zed installer stops on package failure"
+
 assert_detached_installer_launch omarchy-install-gaming-heroic heroic
 assert_detached_installer_launch omarchy-install-gaming-steam steam
 

@@ -8,7 +8,8 @@
 source omarchy-restart-gum
 
 cmd="$*"
-# 130 is the user bailing with Ctrl-C; anything else gets the Done/Failed prompt.
-presentation_script="omarchy-show-logo; $cmd; code=\$?; if (( code != 130 )); then omarchy-show-done \$code; fi"
-
-exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.terminal --title=Omarchy -e bash -c "$presentation_script"
+# Every caller gets the same dashboard. Its PTY preserves interactive setup,
+# password prompts and AUR builds without per-installer registrations.
+exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.terminal --title=Omarchy \
+  -e python3 "$OMARCHY_PATH/default/install-presentation/dashboard.py" \
+  --interactive --name "${OMARCHY_INSTALL_NAME:-}" --command "$cmd"
