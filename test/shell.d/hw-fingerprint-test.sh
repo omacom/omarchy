@@ -34,8 +34,14 @@ write_usb_devices() {
   done
 }
 
+# A copy of the command reads its platform file from a fixture root: none
+# unless a case writes one, whatever the machine running the suite has installed.
+platform_root="$tmp_dir/platform"
+mkdir -p "$platform_root" "$tmp_dir/bin"
+platform_root_copy "$ROOT/bin/omarchy-hw-fingerprint" "$tmp_dir/bin/omarchy-hw-fingerprint" "$platform_root"
+
 hw_fingerprint() {
-  OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" "$ROOT/bin/omarchy-hw-fingerprint"
+  OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" "$tmp_dir/bin/omarchy-hw-fingerprint"
 }
 
 assert_detects() {
@@ -103,3 +109,37 @@ assert_detects "a self-named reader is detected with a driver bound"
 
 write_usb_devices '1234:5678:Generic USB Device'
 assert_rejects "a machine with no matching USB devices detects nothing"
+
+# A reader the platform names: a file and the value it reads once usable, as a
+# Mac's Secure Enclave reports Touch ID. No USB device takes part.
+write_platform_readers() {
+  printf '%s\n' "$@" >"$platform_root/fingerprint-readers"
+}
+write_sep() {
+  mkdir -p "$tmp_dir/sep/$1.sep/diag"
+  printf '%s\n' "$2" >"$tmp_dir/sep/$1.sep/diag/touchid"
+}
+write_usb_devices '1234:5678:Generic USB Device'
+rm -rf "$tmp_dir/sep"
+write_sep 396400000 ready
+write_platform_readers '# Touch ID' '' "$tmp_dir/sep/*.sep/diag/touchid ready"
+assert_detects "a reader the platform names is detected once its file reads the value"
+
+write_sep 396400000 absent
+assert_rejects "a reader the platform names is not detected while its file reads another value"
+
+write_sep 196400000 ready
+assert_detects "any file the platform's glob matches can show the reader"
+
+rm -rf "$tmp_dir/sep"
+assert_rejects "a reader whose file is missing is not detected"
+
+write_sep 396400000 ready
+printf '%s ready\r\n' "$tmp_dir/sep/*.sep/diag/touchid" >"$platform_root/fingerprint-readers"
+assert_detects "a fingerprint-readers file saved with CRLF line ends reads the same"
+
+write_platform_readers "sep/*.sep/diag/touchid ready" "$tmp_dir/sep/*.sep/diag/touchid" \
+  "$tmp_dir/sep/*.sep/diag/touchid ready now" "#$tmp_dir/sep/*.sep/diag/touchid ready"
+assert_rejects "relative paths, a missing value, an extra word and comments name no reader"
+
+rm -f "$platform_root/fingerprint-readers"

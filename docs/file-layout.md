@@ -157,6 +157,7 @@ A platform's runtime package (omarchy-mac on Apple Silicon, say) adds its deskto
   display-cutouts.json         camera cutouts the top bar keeps out of (see omarchy-shell.md)
   keyrings                     signing keyring packages of the repositories the platform adds, one per line
   audio.json                   audio processing nodes the audio panel and microphone widget leave out (below)
+  fingerprint-readers          readers the kernel drives without USB, and the file that shows each one is usable (below)
 ```
 
 See [lifecycle-dispatch.md](lifecycle-dispatch.md#platform-files).
@@ -172,6 +173,12 @@ See [lifecycle-dispatch.md](lifecycle-dispatch.md#platform-files).
 - `ddc-require-connector-ddc`: the display driver registers no DDC channel, so a probe would only walk unrelated I2C buses. An external monitor (other than an Apple Studio or XDR Display, which `omarchy-brightness-display-apple` drives with asdcontrol) is probed only when its DRM connector has a `ddc` node (`/sys/class/drm/card*-<connector>/ddc`); otherwise it gets no DDC or backlight control, and the built-in panel is never dimmed in its place.
 
 No environment variable moves the file: these commands also run under `sudo` and from the brightness keys. Their tests (`test/shell.d/hw-display-test.sh`, `test/shell.d/brightness-display-test.sh`) run a copy rewritten to read a fixture in its place.
+
+#### Fingerprint readers (`fingerprint-readers`)
+
+`omarchy-hw-fingerprint` finds USB readers by their product string or vendor. A reader the kernel drives some other way (a Mac's Touch ID sensor, behind its Secure Enclave) is named by the platform package in `/usr/share/omarchy-platform/fingerprint-readers`; Omarchy ships none. Each line is an absolute path, a shell glob, then the value that file reads once the reader is usable; the reader is present when any file the glob matches reads exactly that value. Blank lines, whole-line `#` comments, relative paths and lines with a missing or extra word are ignored. On Apple Silicon, omarchy-mac names `/sys/bus/platform/drivers/apple_sep/*/diag/touchid ready`.
+
+A platform that names its readers supplies the libfprint that drives them. `omarchy-setup-security-fingerprint` then installs only fprintd, never `libfprint-git` in place of the platform's library, and `omarchy-remove-security-fingerprint` drops only fprintd. The setup's first-run invitation follows `omarchy-hw-fingerprint`, so it reaches a machine once its platform's reader is usable. The tests (`test/shell.d/hw-fingerprint-test.sh`, `fingerprint-package-test.sh`, `fingerprint-remove-test.sh`) run copies rewritten to read a fixture in place of the file.
 
 #### Audio hints (`audio.json`)
 

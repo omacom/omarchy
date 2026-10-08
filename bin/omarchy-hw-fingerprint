@@ -11,6 +11,22 @@
 fingerprint_vendors=" 27c6 138a 06cb 08ff 1c7a 147e "
 usb_devices_path="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
 
+# A reader the kernel drives without USB (a Mac's Touch ID, behind its Secure
+# Enclave) is the platform's to name: each line of its fingerprint-readers file
+# is a file (a shell glob) and the value that file reads once the reader is
+# usable (see docs/file-layout.md).
+platform_readers=/usr/share/omarchy-platform/fingerprint-readers
+if [[ -r $platform_readers ]]; then
+  while IFS=$' \t\r' read -r reader_glob reader_value extra || [[ -n $reader_glob ]]; do
+    [[ $reader_glob == /* && -n $reader_value && -z $extra ]] || continue
+    for reader_file in $reader_glob; do
+      if [[ -r $reader_file && $(<"$reader_file") == "$reader_value" ]]; then
+        exit 0
+      fi
+    done
+  done <"$platform_readers"
+fi
+
 # libfprint drives every reader it supports from userspace over libusb, so a
 # real reader sits there with no kernel driver bound to any of its interfaces.
 # The other things these vendors build — Synaptics webcam bridges (usbio-bridge
