@@ -151,6 +151,10 @@ fi
 # skip asking them to confirm the update again, but still offer the reboot the
 # new kernel or Hyprland needs. Without a terminal nobody can answer that, so
 # the update runs unattended, as it always did.
+# This runs the destination channel's omarchy-update. Releases before
+# --confirmed (stable 4.0.4 and older) ignore it, so a switch to one of them
+# asks "Ready to update?" a second time. That's harmless and goes away once
+# stable ships this flag.
 update_flag=-y
 if [[ -t 0 && -t 2 ]]; then
   update_flag=--confirmed
