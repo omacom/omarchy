@@ -14,6 +14,21 @@ PanelWindow {
   property int shownLayer: WlrLayer.Overlay
   property int shownKeyboardFocus: WlrKeyboardFocus.Exclusive
 
+  // Exclusive keyboard focus makes Hyprland route every pointer and touch event
+  // to this surface, including those aimed at a surface drawn above it, so an
+  // on-screen keyboard over the overlay cannot be tapped. A cooperative overlay
+  // holds Exclusive only until keyboard focus arrives, then settles on OnDemand,
+  // which lets those surfaces be reached. Off by default: an overlay opts in
+  // only where yielding the pointer is safe, never for a password prompt.
+  property bool cooperativeFocus: false
+  readonly property bool cooperating: shown && cooperativeFocus && shownKeyboardFocus === WlrKeyboardFocus.Exclusive
+  property bool focusHeld: false
+  // Asks the owner to dismiss through its own cancel path: a click landed on
+  // another output, or keyboard focus left.
+  signal dismissRequested()
+
+  onCooperatingChanged: focusHeld = cooperating && focusProbe.active
+
   property var targetScreen: null
   readonly property var targetMonitor: {
     var monitors = Hyprland.monitors.values
@@ -77,7 +92,52 @@ PanelWindow {
   color: "transparent"
   exclusionMode: ExclusionMode.Ignore
   WlrLayershell.layer: shownLayer
-  WlrLayershell.keyboardFocus: shownKeyboardFocus
+  WlrLayershell.keyboardFocus: cooperating && focusHeld ? WlrKeyboardFocus.OnDemand : shownKeyboardFocus
+
+  // OnDemand lets keyboard focus leave, where Exclusive refuses the change. When
+  // a focus keybinding or another surface takes the keyboard, ask to be
+  // dismissed rather than stay drawn while keystrokes go elsewhere. Returning
+  // to Exclusive would take focus back, but also from a password prompt.
+  Item {
+    id: focusProbe
+    readonly property bool active: Window.active
+
+    onActiveChanged: {
+      // A closing overlay loses focus too, and has already cleared shown.
+      if (!window.shown || !window.visible || !window.cooperating) return
+      if (active) window.focusHeld = true
+      else if (window.focusHeld) window.dismissRequested()
+    }
+  }
+
+  // OnDemand also stops routing clicks on other outputs here. Give each of
+  // them a transparent twin that catches the click, as Ui/KeyboardPanel.qml
+  // does. Keyboard focus is None so the pointer merely crossing onto another
+  // output does not move focus to a window there.
+  Variants {
+    model: window.cooperating ? Quickshell.screens : []
+
+    delegate: Component {
+      PanelWindow {
+        required property var modelData
+
+        screen: modelData
+        visible: window.cooperating && window.visible && modelData.name !== window.targetScreen.name
+        anchors { top: true; left: true; bottom: true; right: true }
+        color: "transparent"
+        exclusionMode: ExclusionMode.Ignore
+        WlrLayershell.namespace: "omarchy-overlay-dismiss"
+        WlrLayershell.layer: window.shownLayer
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+        MouseArea {
+          anchors.fill: parent
+          acceptedButtons: Qt.AllButtons
+          onPressed: window.dismissRequested()
+        }
+      }
+    }
+  }
 
   // Opacity preserves keyboard handling while the scale arrives, including
   // search keystrokes and Escape pressed immediately after opening.

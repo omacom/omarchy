@@ -176,6 +176,7 @@ Rules:
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
 7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
 8. `version: 1` is required.
+9. `overlays.cooperativeFocus` is off unless set to `true`. On, the menu and the emoji, clipboard and image pickers hold exclusive keyboard focus only until the keyboard arrives, then yield the pointer so a surface drawn above them, such as an on-screen keyboard, can be tapped. They dismiss when keyboard focus leaves or another output is clicked. The password prompt and lock screen always keep exclusive focus.
 
 `config/omarchy/shell.json` describes the fresh-install state. When no
 user `shell.json` exists, defaults are used verbatim. Once the user

@@ -14,6 +14,7 @@ Item {
 
   // Injected by omarchy-shell; defaults to the session OMARCHY_PATH.
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
+  property var shell: null
   property string stateHome: Quickshell.env("HOME") + "/.local/state"
   property string imageDirs: Quickshell.env("OMARCHY_IMAGE_SELECTOR_DIRS") || Quickshell.env("OMARCHY_IMAGE_SELECTOR_DIR") || Quickshell.env("OMARCHY_STOCK_BACKGROUNDS_DIR") || (stateHome + "/omarchy/current/theme/backgrounds")
   property string imageRows: ""
@@ -486,6 +487,8 @@ Item {
     id: panel
     shown: root.opened
     shownKeyboardFocus: root.imagesLoaded ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    cooperativeFocus: !!root.shell && root.shell.overlaysCooperativeFocus === true
+    onDismissRequested: root.cancel()
     WlrLayershell.namespace: "omarchy-image-selector"
 
     Rectangle {

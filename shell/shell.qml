@@ -117,6 +117,11 @@ ShellRoot {
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
+  // Off unless the user asks for it: lets the overlays that allow it yield the
+  // pointer to a surface drawn above them, such as an on-screen keyboard.
+  readonly property bool overlaysCooperativeFocus: !!shellConfig && Util.isPlainObject(shellConfig.overlays)
+    && shellConfig.overlays.cooperativeFocus === true
+
   readonly property var barConfig: shellConfig && Util.isPlainObject(shellConfig.bar) ? shellConfig.bar : builtinShellConfig.bar
   onBarConfigChanged: {
     if (bar && "barConfig" in bar)
