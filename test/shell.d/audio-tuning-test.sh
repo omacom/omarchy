@@ -17,10 +17,19 @@ cat >"$scratch/bin/pactl" <<'SH'
 case "$*" in
   "list sinks short") cat "$AUDIO_TEST_FIXTURES/sinks" ;;
   "list sink-inputs") cat "$AUDIO_TEST_FIXTURES/inputs" ;;
+  set-default-sink* | move-sink-input*) echo "$*" >>"$AUDIO_TEST_FIXTURES/pactl.log" ;;
   *) exit 1 ;;
 esac
 SH
 chmod +x "$scratch/bin/pactl"
+
+# Stopping the host is what makes the tuning sink vanish.
+cat >"$scratch/bin/systemctl" <<'SH'
+#!/bin/bash
+[[ $* == *"disable --now"* ]] && sed -i '/omarchy_speaker_tuning/d' "$AUDIO_TEST_FIXTURES/sinks"
+exit 0
+SH
+chmod +x "$scratch/bin/systemctl"
 
 cat >"$scratch/sinks" <<'EOF'
 1 alsa_output.speakers PipeWire
@@ -79,3 +88,29 @@ if actual="$(fronted_sink)"; then
 fi
 [[ -z $actual ]] || fail "absent tuning prints no sink" "$actual"
 pass "absent tuning leaves physical outputs available"
+
+# Removing a community tuning hands its speakers back, as it does for a shipped one.
+rm -rf "$scratch/default/audio/tunings/test"
+cat >"$scratch/sinks" <<'EOF'
+1 alsa_output.speakers PipeWire
+2 omarchy_speaker_tuning PipeWire
+3 alsa_output.headphones PipeWire
+EOF
+cat >"$scratch/inputs" <<'EOF'
+Sink Input #42
+  Sink: 1
+  Properties:
+    node.name = "omarchy_speaker_tuning.output"
+Sink Input #43
+  Sink: 2
+  Properties:
+    application.name = "Spotify"
+EOF
+mkdir -p "$XDG_CONFIG_HOME/pipewire/omarchy-speaker-tuning.conf.d"
+: >"$XDG_CONFIG_HOME/pipewire/omarchy-speaker-tuning.conf.d/90-tuning.conf"
+bash "$ROOT/bin/omarchy-audio-tuning" off >/dev/null
+grep -qx "set-default-sink alsa_output.speakers" "$scratch/pactl.log" ||
+  fail "off restores a community tuning's speakers as the default" "$(cat "$scratch/pactl.log" 2>/dev/null)"
+grep -qx "move-sink-input 43 alsa_output.speakers" "$scratch/pactl.log" ||
+  fail "off moves streams to a community tuning's speakers" "$(cat "$scratch/pactl.log" 2>/dev/null)"
+pass "off restores a community tuning's speakers"

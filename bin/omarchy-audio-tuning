@@ -150,6 +150,19 @@ tuning_downstream_sink() {
   omarchy-audio-output-sink "$sink_name" 2>/dev/null
 }
 
+# Follow the live graph for community tunings too, which need not match a
+# shipped hardware profile. An idle, unlinked filter resolves to itself;
+# retain the hardware fallback for shipped tunings in that case.
+fronted_physical_sink() {
+  local downstream
+  downstream="$(tuning_downstream_sink)"
+  if [[ -n $downstream && $downstream != "$sink_name" ]]; then
+    printf '%s\n' "$downstream"
+  else
+    tuned_hardware_sink
+  fi
+}
+
 easyeffects_running() {
   pactl list sinks short 2>/dev/null | awk '{print $2}' | grep -x easyeffects_sink >/dev/null ||
     pgrep -u "$(id -u)" -x easyeffects >/dev/null 2>&1 ||
@@ -181,15 +194,7 @@ case "$action" in
     # "is a tuning in place", not "where should volume go" -- for the latter see
     # omarchy-audio-output-sink, which follows the current default output.
     tuning_present || exit 1
-    # Follow the live graph for community tunings too, which need not match a
-    # shipped hardware profile. An idle, unlinked filter resolves to itself;
-    # retain the hardware fallback for shipped tunings in that case.
-    downstream="$(tuning_downstream_sink)"
-    if [[ -n $downstream && $downstream != "$sink_name" ]]; then
-      printf '%s\n' "$downstream"
-    else
-      tuned_hardware_sink
-    fi
+    fronted_physical_sink
     ;;
 
   status)
@@ -226,7 +231,7 @@ case "$action" in
       exit 0
     fi
 
-    speakers="$(tuned_hardware_sink)" || speakers=""
+    speakers="$(fronted_physical_sink)" || speakers=""
 
     systemctl --user disable --now "$unit_name" >/dev/null 2>&1
     rm -f "$fragment" "$host_config" "$unit" "$stale_shared"
