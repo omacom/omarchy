@@ -77,10 +77,13 @@ Item {
 
   // Host-initiated close (`shell hide`): the host already knows.
   function close() {
+    flushApply()
     closingFromHost = true
     window.visible = false
     closingFromHost = false
   }
+
+  Component.onDestruction: flushApply()
 
   // User-initiated close: tell the host so `toggle` keeps working.
   function requestClose() {
@@ -115,6 +118,18 @@ Item {
     applyProc.command = reloadPending ? ["omarchy-touchpad-apply", "--reload"] : ["omarchy-touchpad-apply"]
     reloadPending = false
     applyProc.running = true
+  }
+
+  // Closing the window unloads it along with its timer and process, so an
+  // edit still waiting to apply is handed to a detached helper instead.
+  function flushApply() {
+    var running = applyProc.running
+    if (!applyTimer.running && !applyQueued && !running) return
+    var reload = reloadPending || (running && applyProc.command.indexOf("--reload") >= 0)
+    applyTimer.stop()
+    applyQueued = false
+    reloadPending = false
+    Quickshell.execDetached(reload ? ["omarchy-touchpad-apply", "--reload"] : ["omarchy-touchpad-apply"])
   }
 
   // A touchpad the file does not name yet only gets the shared pointer
