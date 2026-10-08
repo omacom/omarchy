@@ -1,9 +1,0 @@
-#!/bin/bash
-
-set -e
-
-if omarchy-done ensure voxtype-install-invitation; then
-  omarchy-notification-send -u critical -g  "Install Dictation" \
-    "Click to install voice dictation for Omarchy." \
-    --exec omarchy-menu summon setup.default.dictation
-fi
