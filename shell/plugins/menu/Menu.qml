@@ -2,6 +2,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
+import QtQuick.Effects
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -79,6 +80,17 @@ Item {
   // Shared application engine (entries, hidden filters, icons, launch,
   // removal), owned by the shell and also used by the standalone launcher.
   readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
+
+  function customIconSource(icon) {
+    var value = String(icon || "")
+    if (value.length === 0) return ""
+    if (value.indexOf("file://") === 0 || value.indexOf("image://") === 0) return value
+    if (value.charAt(0) === "/") return Util.fileUrl(value)
+    var themed = Quickshell.iconPath(value, true)
+    if (themed.length > 0) return themed
+    return root.appLibrary ? root.appLibrary.iconSource(value) : ""
+  }
+
   property bool deleteConfirmOpen: false
   property var deleteTarget: null
   onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null }
@@ -581,6 +593,8 @@ Item {
         kind: "dmenu",
         icon: icon,
         iconFont: "",
+        iconName: "",
+        iconSymbolic: false,
         appIcon: "",
         appId: "",
         label: label,
@@ -1252,6 +1266,8 @@ Item {
               required property string kind
               required property string icon
               required property string iconFont
+              required property string iconName
+              required property bool iconSymbolic
               required property string appIcon
               required property string appId
               required property string label
@@ -1264,7 +1280,11 @@ Item {
 
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
-              readonly property bool hasIcon: row.icon.length > 0 || row.isApp
+              readonly property bool hasImageIcon: row.iconName.length > 0
+              // A symbolic image icon is recolored to the row's text colour,
+              // like a glyph, so it follows the theme and the selected row.
+              readonly property bool tintImageIcon: row.hasImageIcon && row.iconSymbolic && !row.isApp
+              readonly property bool hasIcon: row.icon.length > 0 || row.hasImageIcon || row.isApp
 
               width: ListView.view.width
               height: root.rowHeightForDetail(row.detail)
@@ -1289,7 +1309,7 @@ Item {
               Text {
                 id: iconText
                 textFormat: Text.PlainText
-                visible: row.hasIcon && !row.isApp
+                visible: row.icon.length > 0 && !row.isApp && !row.hasImageIcon
                 text: row.icon
                 color: row.hasCursor ? root.selectedText : root.foreground
                 font.family: row.iconFont.length > 0 ? row.iconFont : root.fontFamily
@@ -1303,8 +1323,10 @@ Item {
               }
 
               Image {
-                id: appIconImage
-                visible: row.isApp
+                id: rowIconImage
+                visible: (row.isApp || row.hasImageIcon) && !row.tintImageIcon
+                // Hidden layer when tinted so the effect can sample it.
+                layer.enabled: row.tintImageIcon
                 width: Style.font.iconLarge
                 height: Style.font.iconLarge
                 fillMode: Image.PreserveAspectFit
@@ -1312,11 +1334,22 @@ Item {
                 // PNG icons upscaled and blurry on HiDPI displays.
                 sourceSize.width: width * Screen.devicePixelRatio
                 sourceSize.height: height * Screen.devicePixelRatio
-                source: row.isApp && root.appLibrary ? root.appLibrary.iconSource(row.appIcon) : ""
+                source: row.isApp
+                  ? (root.appLibrary ? root.appLibrary.iconSource(row.appIcon) : "")
+                  : root.customIconSource(row.iconName)
                 asynchronous: true
                 anchors.left: parent.left
                 anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8) + (Style.space(36) - width) / 2
                 y: contentColumn.y + labelText.y + (labelText.height - height) / 2
+              }
+
+              // Same recolor technique as the tray's symbolic icons.
+              MultiEffect {
+                anchors.fill: rowIconImage
+                source: rowIconImage
+                visible: row.tintImageIcon
+                colorization: 1.0
+                colorizationColor: row.hasCursor ? root.selectedText : root.foreground
               }
 
               Column {

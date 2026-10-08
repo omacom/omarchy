@@ -53,6 +53,8 @@ assertDeepEqual(
     kind: 'action',
     icon: '',
     iconFont: '',
+    iconName: '',
+    iconSymbolic: false,
     label: 'Themes',
     title: '',
     target: '',
@@ -65,6 +67,21 @@ assertDeepEqual(
     disabled: ''
   },
   'menu normalizes parsed items'
+)
+assertEqual(
+  menu.normalizeItem('clinical.athena', { icon: 'a', iconName: 'athenaone', label: 'athenaOne' }).iconName,
+  'athenaone',
+  'menu preserves image icon names for custom rows'
+)
+assertEqual(
+  menu.normalizeItem('clinical.athena', { iconName: 'athenaone', iconSymbolic: true, label: 'athenaOne' }).iconSymbolic,
+  true,
+  'menu preserves the symbolic flag for image icons'
+)
+assertEqual(
+  menu.normalizeItem('clinical.athena', { iconName: 'athenaone', iconSymbolic: 'yes', label: 'athenaOne' }).iconSymbolic,
+  false,
+  'menu treats a non-boolean iconSymbolic as off'
 )
 
 const user = [
@@ -130,6 +147,8 @@ assertDeepEqual(
     kind: 'action',
     icon: '',
     iconFont: '',
+    iconName: '',
+    iconSymbolic: false,
     appIcon: '',
     appId: '',
     label: 'Theme picker',
@@ -469,6 +488,17 @@ assertEqual(
 assert(
   /font\.family: row\.iconFont\.length > 0 \? row\.iconFont : root\.fontFamily/.test(menuQml),
   'menu rows support per-icon font families'
+)
+assert(
+  /visible: row\.icon\.length > 0 && !row\.isApp && !row\.hasImageIcon/.test(menuQml)
+    && /visible: \(row\.isApp \|\| row\.hasImageIcon\) && !row\.tintImageIcon/.test(menuQml)
+    && /: root\.customIconSource\(row\.iconName\)/.test(menuQml),
+  'menu image icons take precedence over glyphs and use custom icon resolution'
+)
+assert(
+  /readonly property bool tintImageIcon: row\.hasImageIcon && row\.iconSymbolic && !row\.isApp/.test(menuQml)
+    && /colorizationColor: row\.hasCursor \? root\.selectedText : root\.foreground/.test(menuQml),
+  'menu recolors symbolic image icons to the row text colour'
 )
 
 assert(
