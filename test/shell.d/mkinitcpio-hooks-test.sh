@@ -9,7 +9,7 @@ require_platform_fixtures "the composed mkinitcpio HOOKS"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
-for platform in apple-silicon generic-aarch64 generic; do
+for platform in apple-silicon qualcomm generic-aarch64 generic; do
   fake_platform "$test_tmp/platforms/$platform" "$platform"
 done
 # omarchy-settings without the runtime package: no detector on PATH.
@@ -124,6 +124,7 @@ assert_hooks() {
 # Each platform starts from its own baseline, whatever mkinitcpio.conf says.
 new_etc
 assert_hooks "Apple Silicon starts from the systemd baseline" apple-silicon "$apple_hooks"
+assert_hooks "Qualcomm starts from the Omarchy baseline" qualcomm "$omarchy_hooks"
 assert_hooks "generic aarch64 starts from the Omarchy baseline" generic-aarch64 "$omarchy_hooks"
 assert_hooks "x86 starts from the Omarchy baseline" generic "$omarchy_hooks"
 assert_hooks "without the detector the Omarchy baseline stays" no-detector "$omarchy_hooks"
@@ -180,6 +181,8 @@ unset _fragment_hooks _fragment_hook
 CONF
 assert_hooks "a platform fragment's hooks survive on Apple Silicon" apple-silicon \
   "base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block platform-firmware filesystems fsck platform-late"
+assert_hooks "a platform fragment's hooks survive on Qualcomm" qualcomm \
+  "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
 assert_hooks "a platform fragment's hooks survive on generic aarch64" generic-aarch64 \
   "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
 assert_hooks "a platform fragment's hooks survive on x86" generic \
@@ -242,7 +245,7 @@ assert_composed "a Surface is unchanged" generic \
 
 # Snapdragon and other aarch64 machines build the same image as x86, whatever
 # systemd line their mkinitcpio.conf starts from.
-for platform in generic-aarch64; do
+for platform in qualcomm generic-aarch64; do
   new_etc
   drop_in omarchy_resume.conf <<<"HOOKS+=(resume)"
   drop_in 99-omarchy-provisioning-key.conf <<<"FILES+=(/etc/omarchy/provisioning.key)"

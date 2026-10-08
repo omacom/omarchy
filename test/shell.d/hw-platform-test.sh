@@ -8,7 +8,7 @@ detector="$ROOT/bin/omarchy-hw-platform"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
-for platform in apple-silicon generic-aarch64 generic; do
+for platform in apple-silicon qualcomm generic-aarch64 generic; do
   fake_platform "$test_tmp/$platform" "$platform"
 done
 
@@ -21,8 +21,8 @@ if (( EUID != 0 )); then
 fi
 if (( EUID == 0 )) || unshare --user --map-root-user true 2>/dev/null; then
   live=$("${root_runner[@]}" "$detector") || fail "root detects the live platform"
-  [[ $live =~ ^(apple-silicon|generic-aarch64|generic)$ ]] || fail "root detects the live platform" "live: $live"
-  for platform in apple-silicon generic-aarch64 generic; do
+  [[ $live =~ ^(apple-silicon|qualcomm|generic-aarch64|generic)$ ]] || fail "root detects the live platform" "live: $live"
+  for platform in apple-silicon qualcomm generic-aarch64 generic; do
     fixture="$test_tmp/$platform"
     if [[ -f $fixture/proc/device-tree/compatible ]]; then
       mkdir -p "$fixture/sys/firmware/devicetree/base"
@@ -51,8 +51,8 @@ pass "the detector and the Apple predicate refuse an ordinary Bash launch with a
 
 require_platform_fixtures "the platform fixtures"
 
-# The three platforms every caller is written against.
-for platform in apple-silicon generic-aarch64 generic; do
+# The four platforms every caller is written against.
+for platform in apple-silicon qualcomm generic-aarch64 generic; do
   fixture="$test_tmp/$platform"
   actual=$(OMARCHY_PROC_ROOT="$fixture/proc" PATH="$fixture/bin:$ROOT/bin:$PATH" "$detector") ||
     fail "the $platform fixture is detected"
@@ -132,7 +132,7 @@ for board in m1-pro m2-max m1-mini; do
   expect "$board" aarch64 apple-silicon "the $board device tree is Apple Silicon"
 done
 for board in yoga-slim7x xps13-9345 t14s; do
-  expect "$board" aarch64 generic-aarch64 "the $board device tree is generic aarch64, never Apple Silicon"
+  expect "$board" aarch64 qualcomm "the $board device tree is Qualcomm"
 done
 pass "real Apple and Snapdragon device trees are recognised"
 
@@ -154,7 +154,7 @@ pass "only a token's vendor prefix identifies the board"
 # /proc/device-tree is a link into sysfs; read sysfs when it is missing.
 write_tree sysfs-qualcomm sys lenovo,yoga-slim7x qcom,x1e80100
 write_tree sysfs-apple sys apple,j314s apple,t6000 apple,arm-platform
-expect sysfs-qualcomm aarch64 generic-aarch64 "sysfs reads a Snapdragon tree without /proc/device-tree"
+expect sysfs-qualcomm aarch64 qualcomm "sysfs identifies Qualcomm without /proc/device-tree"
 expect sysfs-apple aarch64 apple-silicon "sysfs identifies Apple Silicon without /proc/device-tree"
 write_tree agree proc apple,j314s apple,t6000 apple,arm-platform
 write_tree agree sys apple,j314s apple,t6000 apple,arm-platform
@@ -186,3 +186,20 @@ if OMARCHY_PROC_ROOT="$test_tmp/cases/acpi/proc" PATH="$failing_uname:$PATH" "$d
 fi
 grep -Fq "cannot read the CPU architecture" "$test_tmp/error" || fail "an unreadable CPU architecture explains itself" "$(cat "$test_tmp/error")"
 pass "an unreadable CPU architecture fails instead of guessing generic"
+
+# Dragon's omarchy-hw-qualcomm-soc: any "qcom," token in the boot device tree.
+dragon_qualcomm() {
+  tr '\0' '\n' <"$1" | grep '^qcom,' >/dev/null
+}
+for case_dir in "$test_tmp"/cases/*; do
+  name=$(basename "$case_dir")
+  compatible="$case_dir/proc/device-tree/compatible"
+  [[ -f $compatible && ! -f $case_dir/sys/firmware/devicetree/base/compatible ]] || continue
+  platform=$(detect "$name" aarch64 2>/dev/null) || continue
+  if dragon_qualcomm "$compatible"; then
+    [[ $platform == "qualcomm" ]] || fail "Qualcomm detection matches Dragon on $name" "platform: $platform"
+  else
+    [[ $platform != "qualcomm" ]] || fail "Qualcomm detection matches Dragon on $name"
+  fi
+done
+pass "Qualcomm detection matches Dragon's omarchy-hw-qualcomm-soc on every aarch64 fixture"

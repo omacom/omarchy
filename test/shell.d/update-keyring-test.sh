@@ -111,7 +111,7 @@ pass "update-keyring still reinstalls archlinux-keyring"
 # An aarch64 machine keeps Arch Linux ARM's keyring current alongside Arch's.
 : >"$log_file"
 rm -f "$test_tmp/list-calls"
-for platform in apple-silicon generic-aarch64; do
+for platform in apple-silicon qualcomm generic-aarch64; do
   : >"$log_file"
   rm -f "$test_tmp/list-calls"
   KEYRING_TEST_ARM=1 KEYRING_TEST_PLATFORM=$platform run_keyring >"$test_tmp/arm.out"

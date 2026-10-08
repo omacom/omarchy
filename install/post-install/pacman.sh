@@ -8,7 +8,7 @@ source "$OMARCHY_PATH/install/helpers/pacman.sh"
 platform=$(omarchy-hw-platform)
 templates=$(omarchy_pacman_templates "$platform")
 
-if [[ $platform == "generic-aarch64" ]]; then
+if [[ $platform == "qualcomm" || $platform == "generic-aarch64" ]]; then
   omarchy-pkg-add archlinuxarm-keyring
 fi
 
@@ -19,7 +19,7 @@ channel=${OMARCHY_MIRROR:-}
 cp -f "$templates/pacman-$channel.conf" /etc/pacman.conf
 cp -f "$templates/mirrorlist-$channel" /etc/pacman.d/mirrorlist
 
-if [[ $platform == "generic-aarch64" ]]; then
+if [[ $platform == "qualcomm" || $platform == "generic-aarch64" ]]; then
   pacman-key --init
   pacman-key --populate
 fi

@@ -8,7 +8,7 @@
 omarchy_pacman_templates() {
   case ${1:-} in
     generic) echo "$OMARCHY_PATH/default/pacman" ;;
-    generic-aarch64) echo "$OMARCHY_PATH/default/pacman/aarch64" ;;
+    qualcomm | generic-aarch64) echo "$OMARCHY_PATH/default/pacman/aarch64" ;;
     apple-silicon) echo "$OMARCHY_PATH/default/pacman/apple-silicon" ;;
     *)
       echo "Error: Unknown platform '${1:-}'." >&2
@@ -24,7 +24,7 @@ omarchy_pacman_templates() {
 omarchy_pacman_default_channel() {
   case ${1:-} in
     generic) echo stable ;;
-    generic-aarch64 | apple-silicon) echo edge ;;
+    qualcomm | generic-aarch64 | apple-silicon) echo edge ;;
     *)
       echo "Error: Unknown platform '${1:-}'." >&2
       return 1

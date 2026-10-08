@@ -13,7 +13,7 @@ The first form runs the operation. `--resolve` prints the entrypoint the operati
 
 | Situation | Run | `--resolve` |
 | --- | --- | --- |
-| The platform registers no package (`generic` and `generic-aarch64` today) | no-op, exit 0 | prints nothing, exit 0 |
+| The platform registers no package (`generic`, `generic-aarch64`, and `qualcomm` today) | no-op, exit 0 | prints nothing, exit 0 |
 | The entrypoint exists and passes the trust rules | execs it; its exit status is the result | prints its path |
 | A required operation has no entrypoint, and the package is not installed | exit 3 (an entrypoint's own status could also be 3; with `--resolve` it is only this): `Error: <operation> on <platform> needs <package>, which provides <path>; it is not installed` | same error |
 | A required operation has no entrypoint, but the package is installed (its pacman record says so) | exit 1: `Error: <operation> on <platform> needs <path>, which <package> <version> does not provide; update <package>` | same error |
@@ -55,7 +55,7 @@ Registration is code in `bin/omarchy-lifecycle-dispatch`, not configuration. No 
 | --- | --- | --- | --- |
 | `apple-silicon` | `/usr/lib/omarchy/mac-boot` | `omarchy-mac-boot` | all its operations |
 | `apple-silicon`: `setup-system`, `setup-user`, `post-install`, `pre-remove` | `/usr/lib/omarchy/mac` | `omarchy-mac` | none |
-| `generic`, `generic-aarch64` | none | none | none: every operation is a no-op, and callers keep their generic path |
+| `generic`, `generic-aarch64`, `qualcomm` | none | none | none: every operation is a no-op, and callers keep their generic path |
 
 The entrypoint for an operation is `<implementation directory>/<operation>`. A registered platform's required operations must be shipped. Its optional operations may be left out, and then they are no-ops.
 
@@ -136,15 +136,20 @@ A platform's runtime package describes its hardware in files under the platform 
 
 `omarchy-mac-boot`, from omacom/omarchy-mac-pkgs, implements the Apple boot operations as small entrypoints around its boot modules and installs them in `/usr/lib/omarchy/mac-boot`. `omarchy-mac`, from the same repository, implements `setup-system`, `setup-user`, `post-install` and `pre-remove` in `/usr/lib/omarchy/mac`. Their documentation describes each one. Nothing Apple-specific lives in Omarchy beyond the registration above.
 
-## Snapdragon
+## Qualcomm
 
-Snapdragon laptops are `generic-aarch64` here: they boot Limine with unified kernel images, like x86, every operation is a no-op there, and provisioning uses the Limine UKI callbacks, so Dragon behaves exactly as before.
+Snapdragon laptops boot Limine with unified kernel images, like x86, and `qualcomm` is unregistered. Every operation is a no-op there, and provisioning uses the Limine UKI callbacks, so Dragon behaves exactly as before. To plug in a Qualcomm implementation:
+
+1. Ship the entrypoints from a Qualcomm boot package as `/usr/lib/omarchy/<name>/<operation>`, root-owned, mode 755. `<name>` is a short directory name, as `mac-boot` is for `omarchy-mac-boot`.
+2. Add a `qualcomm)` case to the registration in `bin/omarchy-lifecycle-dispatch` with that directory, the package name, and the operations it requires.
+3. Operations it neither requires nor ships stay no-ops. For provisioning, ship `provision-commit` and `provision-verify` together, or neither to keep the Limine UKI path.
+4. Move `qualcomm` in `test/shell.d/lifecycle-dispatch-test.sh` from the no-op platforms to its own cases, like Apple's.
 
 ## Tests
 
 - `test/shell.d/lifecycle-dispatch-test.sh` covers the dispatcher on every platform fixture:
   - the setup and app-install operations: no-ops off Apple, `omarchy-mac`'s directory on Apple (never `omarchy-mac-boot`'s), no-ops without `omarchy-mac`, the user operations refused as root and given only their allowlisted environment
-  - no-ops on x86 and generic aarch64, even with Mac entrypoints on disk
+  - no-ops on x86, generic aarch64 and Qualcomm, even with Mac entrypoints on disk
   - Apple with and without the boot package, and with one too old to ship an operation
   - arguments, exit status and the cleared environment
   - untrusted entrypoints
@@ -160,5 +165,5 @@ Snapdragon laptops are `generic-aarch64` here: they boot Limine with unified ker
 - `test/shell.d/platform-app-hooks-test.sh` runs every browser install and Steam's install and removal through the real dispatcher: on Apple each calls its hook once, after the package and flags (before removal for `pre-remove`), and fails with it; on x86 none runs, even with Mac entrypoints on disk.
 - `test/shell.d/update-file-conflict-test.sh` checks the takeover: on x86 it goes ahead asking no one; on Apple it goes ahead only when the boot package's `update-takeover` vouches for exactly the files that move, and a refusal, a missing boot package or one too old keep every file.
 - `test/shell.d/factory-reset-dispatch-test.sh` runs the reset through the real dispatcher: on x86 with Mac entrypoints on disk that must not run (generic path unchanged), and on Apple into a fake boot package, covering a finished reset, a failed verification and a failed switch that roll back, an unconfirmed throwaway slot found by its key and revoked, a failed commit after the switch, and a missing or partial package.
-- `test/shell.d/update-boot-verify-test.sh` runs `omarchy update` through the real `omarchy-update-boot` and dispatcher inside the sudo boundary fixture: no-ops and no root on x86 and generic aarch64; on Apple, verify after AUR through the no-update wrapper, a failed verification that offers no reboot, and a Mac without the package or with one too old.
+- `test/shell.d/update-boot-verify-test.sh` runs `omarchy update` through the real `omarchy-update-boot` and dispatcher inside the sudo boundary fixture: no-ops and no root on x86, generic aarch64 and Qualcomm; on Apple, verify after AUR through the no-update wrapper, a failed verification that offers no reboot, and a Mac without the package or with one too old.
 - `test/shell.d/drive-password-test.sh` checks that an Apple password change records the owner's new slot through `luks-slots`, including after an interruption, and that x86 never calls it; that `--owner` failing (1, or a slot that isn't a number) stops the change with the reason; and that with no owner slot recorded (4) a one-key disk changes and records its slot, also after an interruption, while a disk with another key, or one that gains a key during the prompts, is refused unchanged.

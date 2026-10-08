@@ -11,7 +11,7 @@ trap 'rm -rf "$tmp"' EXIT
 operations=(provision-prepare provision-commit provision-verify reset-prepare reset-verify reset-commit reset-rollback update-verify update-takeover luks-slots setup-boot)
 apple_optional=()
 
-for platform in apple-silicon generic-aarch64 generic; do
+for platform in apple-silicon qualcomm generic-aarch64 generic; do
   fake_platform "$tmp/$platform" "$platform"
 done
 mkdir -p "$tmp/contradiction/proc/device-tree"
@@ -61,10 +61,10 @@ install_implementation "$full"
 empty=$tmp/empty
 mkdir -p "$empty"
 
-# x86 and generic aarch64 register no boot package: every operation
+# x86, generic aarch64 and Qualcomm register no boot package: every operation
 # is a no-op there, even with Mac entrypoints on disk that would fail.
 echo 9 >"$tmp/fail-with"
-for platform in generic generic-aarch64; do
+for platform in generic generic-aarch64 qualcomm; do
   for operation in "${operations[@]}"; do
     rm -f "$tmp/ran"
     output=$(on "$platform" "$full" "$operation" --flag 2>&1) || fail "$platform: $operation is a no-op" "$output"
@@ -257,7 +257,7 @@ rm -rf "$boot_only"
 install_setup "$boot_only" "$implementation"
 
 echo 9 >"$tmp/fail-with"
-for platform in generic generic-aarch64; do
+for platform in generic generic-aarch64 qualcomm; do
   for operation in "${setup_operations[@]}"; do
     rm -f "$tmp/ran"
     output=$(on "$platform" "$with_mac" "$operation" 2>&1) && [[ -z $output && ! -e $tmp/ran ]] ||
@@ -267,7 +267,7 @@ for platform in generic generic-aarch64; do
   done
 done
 rm -f "$tmp/fail-with"
-pass "x86 and generic aarch64: setup and app-install operations are no-ops, even with Mac entrypoints on disk"
+pass "x86, generic aarch64 and Qualcomm: setup and app-install operations are no-ops, even with Mac entrypoints on disk"
 
 for operation in "${setup_operations[@]}"; do
   rm -f "$tmp/ran"
@@ -319,7 +319,7 @@ pass "apple: a setup entrypoint that fails the trust rules never runs"
 # installer run with sudo still finishes elsewhere. As root the dispatcher runs
 # the detector beside it, so each platform gets a copy beside a stub.
 if unshare --user --map-root-user true 2>/dev/null; then
-  for platform in apple-silicon generic generic-aarch64; do
+  for platform in apple-silicon generic qualcomm generic-aarch64; do
     mkdir -p "$tmp/root-$platform"
     cp "$dispatch" "$tmp/root-$platform/"
     printf '#!/bin/bash\necho %s\n' "$platform" >"$tmp/root-$platform/omarchy-hw-platform"

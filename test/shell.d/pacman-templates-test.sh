@@ -15,7 +15,7 @@ trap 'rm -rf "$work"' EXIT
 export OMARCHY_PATH="$ROOT"
 source "$ROOT/install/helpers/pacman.sh"
 
-platforms="generic generic-aarch64 apple-silicon"
+platforms="generic qualcomm generic-aarch64 apple-silicon"
 # aarch64 has edge alone: stable and rc there would install the release line,
 # which has no aarch64 support.
 channels_for() {
@@ -25,13 +25,14 @@ channels_for() {
 # ── the templates ────────────────────────────────────────────────────────────
 
 [[ $(omarchy_pacman_templates generic) == "$ROOT/default/pacman" ]] || fail "x86 keeps its templates where they were"
+[[ $(omarchy_pacman_templates qualcomm) == "$ROOT/default/pacman/aarch64" ]] || fail "Snapdragon uses the aarch64 templates"
 [[ $(omarchy_pacman_templates generic-aarch64) == "$ROOT/default/pacman/aarch64" ]] || fail "generic aarch64 uses the aarch64 templates"
 [[ $(omarchy_pacman_templates apple-silicon) == "$ROOT/default/pacman/apple-silicon" ]] || fail "Apple Silicon uses its own templates"
 ! omarchy_pacman_templates riscv 2>/dev/null || fail "an unknown platform has no templates"
 pass "each platform's templates sit in a directory of their own, x86_64's where they always were"
 
 [[ $(omarchy_pacman_default_channel generic) == stable ]] || fail "x86 defaults to stable"
-for platform in generic-aarch64 apple-silicon; do
+for platform in qualcomm generic-aarch64 apple-silicon; do
   [[ $(omarchy_pacman_default_channel "$platform") == edge ]] || fail "$platform defaults to edge"
 done
 ! omarchy_pacman_default_channel riscv 2>/dev/null || fail "an unknown platform has no default channel"
@@ -57,7 +58,7 @@ for platform in $platforms; do
     list=$(repos "$templates" "$channel") || fail "$platform $channel: pacman reads the template"
     case $platform in
       generic) expected="core extra multilib omarchy " ;;
-      generic-aarch64) expected="core extra alarm aur omarchy " ;;
+      qualcomm | generic-aarch64) expected="core extra alarm aur omarchy " ;;
       apple-silicon) expected="omarchy asahi-alarm core extra alarm aur " ;;
     esac
     [[ $list == "$expected" ]] || fail "$platform $channel: repositories in order" "$list"
@@ -116,7 +117,7 @@ events() {
 for platform in $platforms; do
   case $platform in
     generic) templates=$SUDO_TEST_ROOT/default/pacman ;;
-    generic-aarch64) templates=$SUDO_TEST_ROOT/default/pacman/aarch64 ;;
+    qualcomm | generic-aarch64) templates=$SUDO_TEST_ROOT/default/pacman/aarch64 ;;
     apple-silicon) templates=$SUDO_TEST_ROOT/default/pacman/apple-silicon ;;
   esac
   # No channel named refreshes to the platform's default one.
@@ -147,7 +148,7 @@ pass "a refresh backs up and copies the platform's channel template and mirrorli
 
 # A channel the platform has no template for (stable or rc on aarch64), or a
 # machine whose platform can't be told, stops before anything changes.
-for platform in generic-aarch64 apple-silicon; do
+for platform in qualcomm apple-silicon; do
   for channel in stable rc; do
     reset_boundary
     if SUDO_TEST_PLATFORM=$platform refresh "$channel"; then fail "$platform: $channel is refused"; fi

@@ -366,13 +366,13 @@ finalization. It sources:
 Logging goes to `/var/log/omarchy-install.log` via
 `install/helpers/logging.sh`.
 
-Platform-specific setup asks `omarchy-hw-platform`, which prints `apple-silicon`, `generic-aarch64` or `generic`. It reads the vendor prefix of each token in the device tree's root `compatible` (`apple,` or `qcom,`, from `/proc/device-tree` or `/sys/firmware/devicetree/base`) and the CPU architecture, and fails when they contradict each other. A Snapdragon laptop's `qcom,` tree is `generic-aarch64`.
+Platform-specific setup asks `omarchy-hw-platform`, which prints `apple-silicon`, `qualcomm`, `generic-aarch64` or `generic`. It reads the vendor prefix of each token in the device tree's root `compatible` (`apple,` or `qcom,`, from `/proc/device-tree` or `/sys/firmware/devicetree/base`) and the CPU architecture, and fails when they contradict each other.
 
 The package lists the ISO pacstraps live at `install/omarchy-base.packages`
 and `install/omarchy-other.packages`; the ISO builder also reads them when
 constructing its offline mirror.
 
-A platform's default package set is the base list, then its architecture's additions, then its own: `install/omarchy-aarch64.packages` on every aarch64 platform, then `install/omarchy-<platform>.packages` when that platform has one (`install/omarchy-apple-silicon.packages` on Apple Silicon). x86_64 installs the base list alone. `omarchy-pkg-defaults [platform]` prints the composed set, for the running machine by default (via `omarchy-hw-platform`), and `omarchy-reinstall-pkgs` installs it.
+A platform's default package set is the base list, then its architecture's additions, then its own: `install/omarchy-aarch64.packages` on every aarch64 platform, then `install/omarchy-<platform>.packages` when that platform has one (`install/omarchy-apple-silicon.packages` on Apple Silicon, `install/omarchy-qualcomm.packages` on Qualcomm). x86_64 installs the base list alone. `omarchy-pkg-defaults [platform]` prints the composed set, for the running machine by default (via `omarchy-hw-platform`), and `omarchy-reinstall-pkgs` installs it.
 
 ## Platform display hints (`/usr/share/omarchy-platform/displays.conf`)
 

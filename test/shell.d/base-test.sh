@@ -99,6 +99,7 @@ fake_platform() {
 
   case $platform in
     apple-silicon) compatible=(apple,j416c apple,t6021 apple,arm-platform) ;;
+    qualcomm) compatible=(lenovo,yoga-slim7x qcom,x1e80100) ;;
     generic-aarch64) compatible=(raspberrypi,5-model-b brcm,bcm2712) ;;
     generic) machine=x86_64 ;;
     *) fail "fake_platform knows the platform $platform" ;;

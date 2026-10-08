@@ -1,12 +1,11 @@
 #!/bin/bash -p
 
-# omarchy:summary=Print the hardware platform: apple-silicon, generic-aarch64 or generic.
+# omarchy:summary=Print the hardware platform: apple-silicon, qualcomm, generic-aarch64 or generic.
 
 # ARM laptops have no DMI, so the board identity is the root node of the device
 # tree the firmware hands the kernel: "apple,<model>" from Asahi's m1n1 on every
-# Apple Silicon Mac, "qcom,<soc>" on Snapdragon laptops, which are generic
-# aarch64 here and must never pass for a Mac. Each compatible string is a
-# NUL-separated list, and only a token's vendor prefix counts.
+# Apple Silicon Mac, "qcom,<soc>" on Snapdragon laptops. Each compatible string
+# is a NUL-separated list, and only a token's vendor prefix counts.
 #
 # Fixture roots let unprivileged tests fake the device tree. Naming either makes
 # the whole view a fixture: nothing live is read. A privileged caller must not
@@ -84,7 +83,7 @@ case $vendor in
     if [[ $vendor == "apple" ]]; then
       echo apple-silicon
     else
-      echo generic-aarch64
+      echo qualcomm
     fi
     ;;
   *)

@@ -86,9 +86,8 @@ if ! platform=$("${detect[@]}"); then
   exit 1
 fi
 
-# Generic and generic-aarch64 machines (Snapdragon laptops among them) have no
-# registered package: every operation is a no-op there and callers keep their
-# generic path.
+# Generic, generic-aarch64 and Qualcomm machines have no registered package:
+# every operation is a no-op there and callers keep their generic path.
 # Apple Silicon's boot operations belong to omarchy-mac-boot, and its system and
 # user setup and app-install hooks to omarchy-mac (both omacom/omarchy-mac-pkgs).
 # Provisioning and factory reset have no other path on a Mac, only update-verify

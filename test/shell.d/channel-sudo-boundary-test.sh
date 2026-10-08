@@ -70,7 +70,7 @@ for channel in stable rc edge dev; do
 done
 
 # Every aarch64 platform switches to edge and dev, copying its own templates.
-for platform in generic-aarch64 apple-silicon; do
+for platform in qualcomm generic-aarch64 apple-silicon; do
   case $platform in
     apple-silicon) templates=default/pacman/apple-silicon ;;
     *) templates=default/pacman/aarch64 ;;
@@ -90,7 +90,7 @@ pass "aarch64 platforms switch to edge and dev through their own templates"
 
 # stable and rc would install the release line, which has no aarch64 support:
 # an aarch64 machine refuses them before anything changes.
-for platform in generic-aarch64 apple-silicon; do
+for platform in qualcomm generic-aarch64 apple-silicon; do
   for channel in stable rc; do
     reset_boundary
     if SUDO_TEST_PLATFORM=$platform run_channel "$channel"; then fail "$platform accepted $channel"; fi
@@ -130,7 +130,7 @@ pass "a stale dev checkout is rejected before linking or privileged work"
 # once it tells platforms apart: a checkout without that is refused the same way.
 checkout="$SUDO_TEST_HOME/omarchy"
 for required in bin/omarchy-hw-platform install/helpers/pacman.sh; do
-  for platform in generic-aarch64; do
+  for platform in qualcomm generic-aarch64; do
     reset_boundary
     mv "$checkout/$required" "$boundary_tmp/saved-required"
     if SUDO_TEST_PLATFORM=$platform run_channel dev; then fail "$platform: a dev checkout without $required was accepted"; fi
@@ -150,12 +150,12 @@ pass "on aarch64 a dev checkout that can't keep the machine's repositories is re
 template=$checkout/default/pacman/aarch64/mirrorlist-edge
 mv "$template" "$boundary_tmp/saved-template"
 reset_boundary
-if SUDO_TEST_PLATFORM=generic-aarch64 run_channel dev; then fail "a dev checkout without its templates was accepted"; fi
+if SUDO_TEST_PLATFORM=qualcomm run_channel dev; then fail "a dev checkout without its templates was accepted"; fi
 mv "$boundary_tmp/saved-template" "$template"
 if grep -Eq '^step:omarchy-(dev-link|state)|^step:pacman|^sudo -N ' "$SUDO_TEST_LOG"; then
   fail "a dev checkout without its templates changed the system before rejection" "$(<"$SUDO_TEST_LOG")"
 fi
-grep -q "Update the checkout before switching to dev; it has no edge templates for generic-aarch64" "$boundary_tmp/output" ||
+grep -q "Update the checkout before switching to dev; it has no edge templates for qualcomm" "$boundary_tmp/output" ||
   fail "the rejection names the missing templates" "$(<"$boundary_tmp/output")"
 assert_boundary_cold "checkout without templates"
 pass "a dev checkout without its templates for the platform is rejected before linking"
