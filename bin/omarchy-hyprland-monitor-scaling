@@ -80,8 +80,8 @@ set_scale() {
   local width="$(echo "$monitor_info" | jq -r '.width')"
   local height="$(echo "$monitor_info" | jq -r '.height')"
 
-  # active_monitor is written into the Lua string eval'd below, so only a plain
-  # connector name may pass; a hostile output name could execute otherwise.
+  # The layout backend generates Lua rules, so accept only plain connector
+  # names at this entry point as well.
   if [[ ! $active_monitor =~ ^[A-Za-z0-9._-]+$ ]]; then
     echo "Refusing unsafe monitor name" >&2
     exit 1
