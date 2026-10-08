@@ -23,7 +23,7 @@ cat >"$mock_bin/git" <<'SH'
 #!/bin/bash
 for arg in "$@"; do
   if [[ $arg == "pull" ]]; then
-    touch "$OMARCHY_TEST_PULL_MARKER"
+    printf '%s\n' "$*" >"$OMARCHY_TEST_PULL_MARKER"
     exit 70
   fi
 done
@@ -79,6 +79,53 @@ for url in \
 done
 
 pass "theme update preserves authenticated network and local origins"
+
+# A bare `git pull` reads the current branch's configured remote, which need not
+# be named origin. Check and pass that exact remote so a secure origin cannot
+# hide a plaintext upstream, and a securely renamed remote keeps working.
+branch=$("$real_git" -C "$theme" symbolic-ref --quiet --short HEAD)
+"$real_git" -C "$theme" remote add upstream http://example.com/acme/theme.git
+"$real_git" -C "$theme" config "branch.$branch.remote" upstream
+"$real_git" -C "$theme" remote set-url origin https://example.com/acme/theme.git
+rm -f "$pull_marker"
+
+if update_theme; then
+  fail "theme update refuses the branch's plaintext upstream remote"
+fi
+[[ ! -e $pull_marker ]] ||
+  fail "theme update checks the branch remote before pull" "$(cat "$pull_marker")"
+grep -qF "'upstream' remote" "$test_tmp/out" ||
+  fail "theme update identifies the refused branch remote" "$(cat "$test_tmp/out")"
+grep -qF "remote set-url upstream URL" "$test_tmp/out" ||
+  fail "theme update gives a migration command for the branch remote" "$(cat "$test_tmp/out")"
+
+"$real_git" -C "$theme" remote set-url upstream https://example.com/acme/theme.git
+"$real_git" -C "$theme" remote remove origin
+rm -f "$pull_marker"
+update_theme && fail "the pull stub fails after accepting the renamed secure remote"
+[[ $(<"$pull_marker") == "-C $theme pull -- upstream" ]] ||
+  fail "theme update pulls explicitly from the checked branch remote" "$(cat "$pull_marker")"
+
+"$real_git" -C "$theme" config "branch.$branch.remote" http://example.com/acme/theme.git
+rm -f "$pull_marker"
+if update_theme; then
+  fail "theme update refuses a plaintext URL used directly as the branch remote"
+fi
+[[ ! -e $pull_marker ]] ||
+  fail "theme update checks a direct branch URL before pull" "$(cat "$pull_marker")"
+grep -qF "config branch.$branch.remote URL" "$test_tmp/out" ||
+  fail "theme update gives a migration command for a direct branch URL" "$(cat "$test_tmp/out")"
+
+"$real_git" -C "$theme" config "branch.$branch.remote" https://example.com/acme/theme.git
+rm -f "$pull_marker"
+update_theme && fail "the pull stub fails after accepting the direct secure branch URL"
+[[ $(<"$pull_marker") == "-C $theme pull -- https://example.com/acme/theme.git" ]] ||
+  fail "theme update pulls explicitly from the checked direct branch URL" "$(cat "$pull_marker")"
+
+"$real_git" -C "$theme" config --unset "branch.$branch.remote"
+"$real_git" -C "$theme" remote add origin https://example.com/acme/theme.git
+
+pass "theme update checks and pulls from the current branch remote or URL"
 
 "$real_git" -C "$theme" remote set-url origin shorthand:acme/theme.git
 "$real_git" config --file "$test_tmp/home/.gitconfig" url.git://example.com/.insteadOf shorthand:

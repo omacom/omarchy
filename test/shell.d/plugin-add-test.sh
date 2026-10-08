@@ -74,10 +74,18 @@ STUB
 chmod +x "$guard_stubs/omarchy-shell"
 
 clone_marker="$TMPDIR/git-clone-reached"
-cat >"$guard_stubs/git" <<STUB
+cat >"$guard_stubs/git" <<'STUB'
 #!/bin/bash
-if [[ \$1 == "clone" ]]; then
-  touch "$clone_marker"
+if [[ $1 == "ls-remote" && $2 == "--get-url" ]]; then
+  url=${!#}
+  if [[ -n ${OMARCHY_TEST_REWRITE_FROM-} && $url == "$OMARCHY_TEST_REWRITE_FROM"* ]]; then
+    url="$OMARCHY_TEST_REWRITE_TO${url#"$OMARCHY_TEST_REWRITE_FROM"}"
+  fi
+  printf '%s\n' "$url"
+  exit 0
+fi
+if [[ $1 == "clone" ]]; then
+  printf '%s\n' "$*" >"$OMARCHY_TEST_CLONE_MARKER"
   exit 1
 fi
 exit 0
@@ -96,6 +104,9 @@ chmod +x "$guard_stubs/gum"
 
 add_url() {
   HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$guard_stubs:$ROOT/bin:$PATH" \
+    OMARCHY_TEST_CLONE_MARKER="$clone_marker" \
+    OMARCHY_TEST_REWRITE_FROM="${OMARCHY_TEST_REWRITE_FROM-}" \
+    OMARCHY_TEST_REWRITE_TO="${OMARCHY_TEST_REWRITE_TO-}" \
     omarchy-plugin-add "$1" --yes 2>&1
 }
 
@@ -142,6 +153,24 @@ for bad in \
     fail "plugin add reached git clone for an unauthenticated URL: $bad"
 done
 pass "plugin add rejects unauthenticated network transports before cloning"
+
+rm -f "$clone_marker"
+output=$(OMARCHY_TEST_REWRITE_FROM="https://secure-looking.example/" \
+  OMARCHY_TEST_REWRITE_TO="git://plain.example/" \
+  add_url "https://secure-looking.example/acme/repo.git") &&
+  fail "plugin add rejects an HTTPS argument rewritten to git://" "$output"
+grep -qF "network transport is not authenticated" <<<"$output" ||
+  fail "plugin add explains the rewritten unauthenticated destination" "$output"
+[[ ! -e $clone_marker ]] ||
+  fail "plugin add reached clone after an authenticated URL rewrote to git://" "$(cat "$clone_marker")"
+
+rm -f "$clone_marker"
+OMARCHY_TEST_REWRITE_FROM="trusted:" OMARCHY_TEST_REWRITE_TO="https://secure.example/" \
+  add_url "trusted:acme/repo.git" >/dev/null || true
+grep -Fq 'clone -- https://secure.example/acme/repo.git ' "$clone_marker" ||
+  fail "plugin add clones the effective URL it checked" "$(cat "$clone_marker" 2>/dev/null)"
+
+pass "plugin add validates and clones the same effective URL"
 
 # Option-shaped URLs on argv are refused before clone — by the option parser
 # (`-*` falls to "unknown add option"), not the guard. The guard's own
