@@ -20,6 +20,7 @@ POLL_INTERVAL="${OMARCHY_BATTERY_GUARD_POLL_INTERVAL:-1}"
 COUNTDOWN_SECONDS="${OMARCHY_BATTERY_GUARD_COUNTDOWN_SECONDS:-60}"
 THRESHOLD_PERCENT="${OMARCHY_BATTERY_GUARD_THRESHOLD_PERCENT:-5}"
 TIMELEFT_TRIGGER_SECONDS="${OMARCHY_BATTERY_GUARD_TIMELEFT_TRIGGER_SECONDS:-90}"
+RESUME_COUNTDOWN_SECONDS="${OMARCHY_BATTERY_GUARD_RESUME_COUNTDOWN_SECONDS:-30}"
 MAX_ONESHOT_CYCLES="${OMARCHY_BATTERY_GUARD_MAX_ONESHOT_CYCLES:-1}"
 DRY_RUN="${OMARCHY_BATTERY_GUARD_DRY_RUN:-false}"
 CLOCK_PATH="${OMARCHY_BATTERY_GUARD_CLOCK_PATH:-/proc/uptime}"
@@ -49,6 +50,7 @@ POLL_INTERVAL=$(normalize_int "$POLL_INTERVAL" 1 1)
 COUNTDOWN_SECONDS=$(normalize_int "$COUNTDOWN_SECONDS" 60 1)
 THRESHOLD_PERCENT=$(normalize_int "$THRESHOLD_PERCENT" 5 0 100)
 TIMELEFT_TRIGGER_SECONDS=$(normalize_int "$TIMELEFT_TRIGGER_SECONDS" 90 1)
+RESUME_COUNTDOWN_SECONDS=$(normalize_int "$RESUME_COUNTDOWN_SECONDS" 30 1)
 MAX_ONESHOT_CYCLES=$(normalize_int "$MAX_ONESHOT_CYCLES" 1 1)
 
 oneshot=false
@@ -517,6 +519,7 @@ countdown_active=false
 countdown_deadline=0
 close_requested=false
 last_notice=61
+resumed=false
 read_persisted_countdown
 cycle=0
 
@@ -538,6 +541,12 @@ while true; do
       last_notice=61
     fi
     if $countdown_active; then
+      # Sleep pauses the save window instead of consuming it. Resuming on
+      # battery with less than a fresh window left restarts a shorter one.
+      if $resumed && (( countdown_deadline < now + RESUME_COUNTDOWN_SECONDS )); then
+        countdown_deadline=$((now + RESUME_COUNTDOWN_SECONDS))
+        last_notice=61
+      fi
       # Leave 30 seconds for the OS to stop services and flush storage.
       # Runtime estimates can deteriorate; shorten, never extend a deadline.
       if (( seconds_to_empty > 0 && now + seconds_to_empty - 30 < countdown_deadline )); then
@@ -570,5 +579,11 @@ while true; do
   fi
   cycle=$((cycle + 1))
   if $oneshot && (( cycle >= MAX_ONESHOT_CYCLES )); then exit 0; fi
+  slept_from=$(now_seconds)
   sleep "$POLL_INTERVAL"
+  # Uptime counts through suspend and hibernation, so a poll that overruns by
+  # more than a few seconds slept. Only the poll is timed: slow notification or
+  # close requests must never look like a resume and extend the deadline.
+  resumed=false
+  (( $(now_seconds) - slept_from <= POLL_INTERVAL + 5 )) || resumed=true
 done

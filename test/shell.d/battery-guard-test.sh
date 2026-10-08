@@ -16,7 +16,22 @@ unset OMARCHY_BATTERY_GUARD_THRESHOLD_PERCENT OMARCHY_BATTERY_GUARD_COUNTDOWN_SE
 cat >"$tmp_dir/bin/sleep" <<'SH'
 #!/bin/bash
 read -r now _ <"$OMARCHY_BATTERY_GUARD_CLOCK_PATH"
-printf '%s 0\n' "$((now + 1))" >"$OMARCHY_BATTERY_GUARD_CLOCK_PATH"
+next=$((now + 1))
+# The machine sleeps during the poll: uptime keeps counting through suspend.
+case "$SCENARIO:$now" in
+  suspend:20|suspend-plug:20|suspend-runtime:20)
+    next=3620
+    printf '2\n' >"$OMARCHY_POWER_SUPPLY_PATH/BAT0/capacity"
+    if [[ $SCENARIO == "suspend-plug" ]]; then
+      printf '1\n' >"$OMARCHY_POWER_SUPPLY_PATH/AC/online"
+      printf 'Charging\n' >"$OMARCHY_POWER_SUPPLY_PATH/BAT0/status"
+    fi
+    [[ $SCENARIO != "suspend-runtime" ]] || printf '40\n' >"$OMARCHY_POWER_SUPPLY_PATH/BAT0/time_to_empty_now"
+    ;;
+  lid:50) next=70 ;;
+  nap:5) next=15 ;;
+esac
+printf '%s 0\n' "$next" >"$OMARCHY_BATTERY_GUARD_CLOCK_PATH"
 if [[ $SCENARIO == "plug" && $now == "46" ]]; then
   printf '1\n' >"$OMARCHY_POWER_SUPPLY_PATH/AC/online"
   printf 'Charging\n' >"$OMARCHY_POWER_SUPPLY_PATH/BAT0/status"
@@ -85,6 +100,11 @@ SH
 cat >"$tmp_dir/bin/omarchy-notification-send" <<'SH'
 #!/bin/bash
 printf 'toast %s\n' "$*" >>"$EVENTS"
+# A notification server that stalls delivery is not a resume from sleep.
+if [[ $SCENARIO == "slow-toast" && $* == *"Shutdown in 10s."* ]]; then
+  read -r now _ <"$OMARCHY_BATTERY_GUARD_CLOCK_PATH"
+  printf '%s 0\n' "$((now + 8))" >"$OMARCHY_BATTERY_GUARD_CLOCK_PATH"
+fi
 if [[ $SCENARIO == "final-plug" && $* == *"Shutting down…"* ]]; then
   printf '1\n' >"$OMARCHY_POWER_SUPPLY_PATH/AC/online"
   printf 'Charging\n' >"$OMARCHY_POWER_SUPPLY_PATH/BAT0/status"
@@ -230,6 +250,30 @@ reset_fixture
 SCENARIO=reject-once run_guard
 [[ $(grep -c '^dispatch 0xabc$' "$EVENTS") == 2 ]] || fail "explicit rejection unmarks the attempt for one successful retry"
 [[ $(grep -c '^snapshot$' "$EVENTS") == 1 ]] || fail "explicit rejection reuses the original snapshot"
+
+# Sleep pauses the save window instead of consuming it: resuming on battery
+# after the deadline passed gives a fresh 30-second window, not a shutdown.
+reset_fixture
+SCENARIO=suspend run_guard
+grep -Fx 'power 3650 0 poweroff --no-wall' "$EVENTS" >/dev/null || fail "resume after the deadline gives a fresh save window" "$(cat "$EVENTS")"
+grep -F 'Shutdown in 30s.' "$EVENTS" >/dev/null || fail "resume announces the fresh save window"
+grep -Fx 'close 3635 0' "$EVENTS" >/dev/null || fail "resume repeats the 15-second close phase"
+reset_fixture
+SCENARIO=suspend-plug run_guard
+! grep '^power ' "$EVENTS" >/dev/null || fail "resume on a charger cancels shutdown"
+reset_fixture
+OMARCHY_BATTERY_GUARD_MAX_ONESHOT_CYCLES=90 SCENARIO=lid run_guard
+grep -Fx 'power 100 0 poweroff --no-wall' "$EVENTS" >/dev/null || fail "a short sleep past the deadline gives a fresh save window"
+[[ $(grep -c 'Shutdown in 30s.' "$EVENTS") == 2 ]] || fail "a short sleep past the deadline announces the fresh save window"
+reset_fixture
+SCENARIO=nap run_guard
+grep -Fx 'power 60 0 poweroff --no-wall' "$EVENTS" >/dev/null || fail "resume never shortens a later deadline"
+reset_fixture
+SCENARIO=suspend-runtime run_guard
+grep -Fx 'power 3630 0 poweroff --no-wall' "$EVENTS" >/dev/null || fail "resume keeps the 30-second shutdown reserve"
+reset_fixture
+SCENARIO=slow-toast run_guard
+grep -Fx 'power 60 0 poweroff --no-wall' "$EVENTS" >/dev/null || fail "slow notification delivery cannot extend the deadline"
 
 reset_fixture
 SCENARIO=unknown run_guard
