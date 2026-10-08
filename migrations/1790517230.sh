@@ -41,6 +41,11 @@ if [[ ! -f $limine_config_dir/zz-omarchy-dgx-spark.conf ]]; then
   sudo bash "$OMARCHY_PATH/install/hardware/nvidia-dgx-spark-boot.sh"
 fi
 
+if ! grep -Fxqs 'ENABLE_UKI=no' "$limine_config_dir/zz-omarchy-dgx-spark.conf"; then
+  echo "Couldn't apply the DGX Spark non-UKI setting; leaving the boot migration pending" >&2
+  exit 1
+fi
+
 sudo limine-mkinitcpio
 sudo install -Dm644 /dev/null "$rebuild_marker"
 

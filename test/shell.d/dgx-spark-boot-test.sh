@@ -38,6 +38,7 @@ cat >"$scratch/bin/sudo" <<'SH'
 #!/bin/bash
 printf 'sudo %s\n' "$*" >>"$CALL_LOG"
 [[ ${TEST_SUDO_STATUS:-0} == 0 ]] || exit "$TEST_SUDO_STATUS"
+[[ $1 != "${TEST_SUDO_FAIL_COMMAND:-}" ]] || exit 1
 exec "$@"
 SH
 cat >"$scratch/bin/limine-mkinitcpio" <<'SH'
@@ -206,6 +207,34 @@ grep -Fxqs "ENABLE_UKI=no" "$scratch/apply-spark/limine-entry-tool.d/$config_nam
   fail "omarchy apply hardware still turns off the UKI on a Spark without Direct Boot"
 pass "omarchy apply hardware keeps a Direct Boot Spark on its UKI"
 
+# The migration reads EFI twice before hardware setup reads it again. A failure
+# in that last read makes hardware setup succeed without writing the drop-in.
+printf '0\n' >"$efi_calls"
+output=$(TEST_EFI_FAIL_AFTER=2 TEST_EFI_CALLS_FILE="$efi_calls" \
+  run spark "$scratch/setup-flaky" bash -euo pipefail "$migration" 2>&1) &&
+  fail "a failed EFI read during hardware setup keeps the migration pending"
+[[ $(cat "$efi_calls") == 3 ]] || fail "the failure reaches hardware setup's EFI read"
+[[ ! -e $scratch/setup-flaky/limine-entry-tool.d/$config_name ]] ||
+  fail "the failed EFI read leaves the UKI setting unchanged"
+! grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "a missing setting prevents the rebuild"
+[[ ! -e $scratch/setup-flaky/marker ]] || fail "a missing setting records no rebuild"
+grep -q "Couldn't apply the DGX Spark non-UKI setting" <<<"$output" ||
+  fail "the migration explains why it stays pending" "$output"
+run spark "$scratch/setup-flaky" bash -euo pipefail "$migration" >/dev/null
+grep -Fxqs 'ENABLE_UKI=no' "$scratch/setup-flaky/limine-entry-tool.d/$config_name" ||
+  fail "the retry applies the setting"
+grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "the retry rebuilds the boot entries"
+[[ -f $scratch/setup-flaky/marker ]] || fail "the retry records the completed rebuild"
+pass "the migration retries when hardware setup could not apply the setting"
+
+mkdir -p "$scratch/wrong-setting/limine-entry-tool.d"
+printf 'ENABLE_UKI=yes\n' >"$scratch/wrong-setting/limine-entry-tool.d/$config_name"
+run spark "$scratch/wrong-setting" bash -euo pipefail "$migration" >/dev/null 2>&1 &&
+  fail "an existing drop-in must turn off the UKI before rebuilding"
+! grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "an unapplied setting prevents the rebuild"
+[[ ! -e $scratch/wrong-setting/marker ]] || fail "an unapplied setting records no rebuild"
+pass "the migration checks the setting in an existing drop-in"
+
 TEST_EFIBOOTMGR_STATUS=1 run spark "$scratch/efi-failed" bash -euo pipefail "$migration" >/dev/null &&
   fail "an unreadable EFI configuration stays pending"
 [[ ! -e $scratch/efi-failed ]] || fail "an unreadable EFI configuration changes no boot files"
@@ -219,4 +248,11 @@ TEST_SUDO_STATUS=1 run spark "$scratch/failed" bash -euo pipefail "$migration" >
 TEST_MKINITCPIO_STATUS=1 run spark "$scratch/rebuild-failed" bash -euo pipefail "$migration" >/dev/null &&
   fail "a failed rebuild stays pending"
 [[ ! -e $scratch/rebuild-failed/marker ]] || fail "a failed rebuild records no marker"
+TEST_SUDO_FAIL_COMMAND=limine-mkinitcpio run spark "$scratch/rebuild-sudo-failed" bash -euo pipefail "$migration" >/dev/null &&
+  fail "a refused rebuild stays pending"
+[[ ! -e $scratch/rebuild-sudo-failed/marker ]] || fail "a refused rebuild records no marker"
+TEST_SUDO_FAIL_COMMAND=install run spark "$scratch/marker-failed" bash -euo pipefail "$migration" >/dev/null &&
+  fail "a failed marker write stays pending"
+grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "the marker failure follows the rebuild"
+[[ ! -e $scratch/marker-failed/marker ]] || fail "a failed marker write records no rebuild"
 pass "the migration leaves other machines alone and retries after a failure"
