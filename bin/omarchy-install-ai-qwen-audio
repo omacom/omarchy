@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Install the Qwen Audio Agent realtime voice runtime
+# omarchy:examples=omarchy install ai qwen-audio | omarchy install-ai-qwen-audio
+
+set -euo pipefail
+
+if omarchy-cmd-present qwenaudio; then
+  echo "Qwen Audio Agent is already installed."
+  exit 0
+fi
+
+echo "Installing Qwen Audio Agent..."
+omarchy-mise-install npm:qwen-audio-agent qwenaudio
+
+echo ""
+echo "Qwen Audio Agent has been installed."
+echo "Configure it with 'qwenaudio config', then run 'qwenaudio' for the voice gateway and 'qwenaudio tui' for the terminal UI."

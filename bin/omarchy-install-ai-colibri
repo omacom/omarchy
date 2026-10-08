@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# omarchy:summary=Build and install the Colibrì MoE inference engine
+# omarchy:examples=omarchy install ai colibri | omarchy install-ai-colibri
+
+set -euo pipefail
+
+if omarchy-cmd-present coli; then
+  echo "Colibrì is already installed."
+  exit 0
+fi
+
+for tool in git make gcc; do
+  if omarchy-cmd-missing "$tool"; then
+    echo "Colibrì needs $tool. Install a build toolchain first, for example 'omarchy pkg add base-devel git'." >&2
+    exit 1
+  fi
+done
+
+src="$HOME/.local/share/colibri"
+mkdir -p "$(dirname "$src")"
+
+if [[ ! -d $src/.git ]]; then
+  if [[ -e $src ]]; then
+    echo "$src already exists but is not a Colibrì checkout; move it aside and try again." >&2
+    exit 1
+  fi
+  echo "Cloning Colibrì..."
+  git clone --depth 1 https://github.com/JustVugg/colibri "$src"
+fi
+
+if [[ ! -x $src/c/colibri ]]; then
+  echo "Building the Colibrì engine (needs a C compiler with OpenMP)..."
+  make -s -C "$src/c" colibri
+fi
+
+cat >"$HOME/.local/bin/coli" <<'EOF'
+#!/bin/bash
+exec "$HOME/.local/share/colibri/c/coli" "$@"
+EOF
+chmod +x "$HOME/.local/bin/coli"
+
+echo ""
+echo "Colibrì has been installed as 'coli'."
+echo "Start a chat with 'coli chat'. Model weights are fetched separately and are large: GLM-5.2 is around 372 GB, while smaller models like OLMoE fit in about 4 GB."
