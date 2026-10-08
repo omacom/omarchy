@@ -160,6 +160,26 @@ function o.launch(command)
   return "uwsm-app -- " .. command
 end
 
+-- The command each function bind stands for, so the keybindings menu can still
+-- run a bind that Hyprland only reports as Lua.
+o.bind_commands = {}
+
+-- Hand the launcher the focused window's pid, which it would otherwise ask
+-- Hyprland for, to open the new terminal in that terminal's directory.
+function o.launch_terminal()
+  local function launch()
+    local window = hl.get_active_window()
+    if window and window.pid then
+      hl.exec_cmd("omarchy-launch-terminal --pid=" .. window.pid)
+    else
+      hl.exec_cmd("omarchy-launch-terminal")
+    end
+  end
+
+  o.bind_commands[launch] = "omarchy-launch-terminal"
+  return launch
+end
+
 function o.exec_on_start(command)
   hl.on("hyprland.start", function()
     hl.exec_cmd(command)
@@ -202,4 +222,9 @@ function o.window(match, rules)
   end
 
   hl.window_rule(rules)
+end
+
+-- Opt a window in to Omarchy's standard active/inactive transparency.
+function o.transparent_window(match, opacity)
+  o.window(match, { opacity = opacity or "0.985 0.96" })
 end

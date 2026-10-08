@@ -5,6 +5,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "ImagePickerModel.js" as ImagePickerModel
 
@@ -25,6 +26,7 @@ Item {
   property bool showLabels: false
   property bool filterable: false
   property bool layoutSettled: false
+  property bool neighborImagesEnabled: false
   property bool requestActive: false
   property int requestSerial: 0
   property int applySerial: 0
@@ -36,14 +38,14 @@ Item {
   property string themeRows: ""
   property bool themeMode: false
   property bool themeOpenPending: false
-  // Bound to the central [image-picker] section in shell.toml via Color.qml.
+  // Bound to the central [image-picker] section in shell.toml via Commons.Color.qml.
   // `dimColor` tints unselected slices and text outlines on top of the scrim;
   // it intentionally tracks the foundational background, not a surface role.
-  property color dimColor: Color.background
-  property color foreground: Color.imagePicker.text
-  property color scrim: Color.imagePicker.scrim
-  property color selectedBorder: Color.imagePicker.selectedBorder
-  property color unselectedBorder: Color.imagePicker.unselectedBorder
+  property color dimColor: Commons.Color.background
+  property color foreground: Commons.Color.imagePicker.text
+  property color scrim: Commons.Color.imagePicker.scrim
+  property color selectedBorder: Commons.Color.imagePicker.selectedBorder
+  property color unselectedBorder: Commons.Color.imagePicker.unselectedBorder
   property int expandedWidth: 768
   property int expandedHeight: 475
   property int sliceWidth: 108
@@ -51,6 +53,9 @@ Item {
   property int sliceSpacing: -30
   property int skewOffset: 28
   property int bottomChromeHeight: showLabels ? (filterable ? 104 : 74) : (filterable ? 60 : 30)
+  // Render only what fits on this display, plus one prefetch slice per side.
+  readonly property int previewRadius: Math.max(1, Math.min(16, Math.ceil((panel.width - expandedWidth) / (2 * (sliceWidth + sliceSpacing))) + 1))
+  onPreviewRadiusChanged: updateVisibleItems()
 
   onOpenedChanged: if (!opened) layoutSettled = false
 
@@ -98,14 +103,6 @@ Item {
 
   function firstMatchingIndex() {
     return ImagePickerModel.firstMatchingIndex(imageArray, filterText)
-  }
-
-  function filteredPosition(index) {
-    return ImagePickerModel.filteredPosition(imageArray, index, filterText)
-  }
-
-  function selectedFilteredPosition() {
-    return ImagePickerModel.selectedFilteredPosition(imageArray, selectedIndex, filterText)
   }
 
   function select(index, immediate) {
@@ -214,9 +211,12 @@ Item {
     var newImages = ImagePickerModel.loadRows(rows)
 
     root.loadedImageRows = rows
-    root.selectedIndex = root.indexForSelectedImage(newImages)
+    var nextIndex = root.indexForSelectedImage(newImages)
+    root.selectedIndex = ImagePickerModel.nextSelectedIndexForFilter(newImages, nextIndex, root.filterText)
+    root.neighborImagesEnabled = false
     root.imageArray = newImages
     root.imagesLoaded = true
+    Qt.callLater(root.enableNeighborsWhenReady)
 
     if (reveal !== false) {
       root.opened = true
@@ -273,6 +273,44 @@ Item {
   }
 
   property var imageArray: []
+  readonly property var matchingImageIndices: ImagePickerModel.matchingIndices(imageArray, filterText)
+  onMatchingImageIndicesChanged: updateVisibleItems()
+  onSelectedIndexChanged: {
+    updateVisibleItems()
+    introPrepareTimer.restart()
+  }
+  onThemeModeChanged: if (themeMode) introPrepareTimer.restart()
+
+  Timer {
+    id: introPrepareTimer
+    interval: 75
+    onTriggered: {
+      if (root.opened && root.themeMode && !introPrepare.running) {
+        introPrepare.theme = root.nameForPath(root.currentPath())
+        introPrepare.command = ["omarchy-theme-bg-boot-intro", "--prepare-theme", root.nameForPath(root.currentPath())]
+        introPrepare.running = true
+      }
+    }
+  }
+
+  Process {
+    id: introPrepare
+    property string theme: ""
+    onExited: if (root.opened && root.themeMode && theme !== root.nameForPath(root.currentPath())) introPrepareTimer.restart()
+  }
+
+  function updateVisibleItems() {
+    ImagePickerModel.syncWindow(visibleImages, ImagePickerModel.visibleWindow(matchingImageIndices, selectedIndex, previewRadius))
+  }
+
+  function enableNeighborsWhenReady() {
+    for (var i = 0; i < imageCards.count; i++) {
+      var item = imageCards.itemAt(i)
+      if (item && item.selected && item.previewReady) neighborImagesEnabled = true
+    }
+  }
+
+  ListModel { id: visibleImages }
 
 
   function currentThemePreview() {
@@ -465,6 +503,8 @@ Item {
     Item {
       id: card
       visible: root.opened && root.imagesLoaded && root.layoutSettled && root.imageArray.length > 0
+      opacity: root.layoutSettled ? 1 : 0
+      Behavior on opacity { NumberAnimation { duration: 90 } }
       width: Math.min(parent.width - 80, root.expandedWidth + 13 * (root.sliceWidth + root.sliceSpacing) + 40)
       height: root.expandedHeight + Style.space(30) + root.bottomChromeHeight
       anchors.centerIn: parent
@@ -515,30 +555,32 @@ Item {
           Component.onCompleted: forceActiveFocus()
 
           Repeater {
-            model: root.imageArray.length
+            id: imageCards
+            model: visibleImages
 
             delegate: Item {
               id: item
-              required property int index
+              required property int imageIndex
+              required property int relativeIndex
 
-              readonly property var imageData: root.imageArray[index]
+              readonly property var imageData: root.imageArray[imageIndex]
               readonly property string filePath: imageData ? imageData.filePath : ""
               readonly property string fileName: imageData ? imageData.fileName : ""
               readonly property string thumbnailPath: imageData ? imageData.thumbnailPath : ""
 
-              readonly property bool matched: root.itemMatches(index)
-              readonly property int relativeIndex: root.filteredPosition(index) - root.selectedFilteredPosition()
-              readonly property bool selected: matched && index === root.selectedIndex
-              readonly property bool nearby: matched && Math.abs(relativeIndex) <= 16
-              property bool sourceActivated: nearby
-              onNearbyChanged: if (nearby) sourceActivated = true
+              readonly property bool selected: imageIndex === root.selectedIndex
+              readonly property bool previewReady: image.status === Image.Ready || image.status === Image.Error
+              onSelectedChanged: if (selected && previewReady) root.neighborImagesEnabled = true
 
-              visible: nearby
               x: selected ? carousel.previewX : (relativeIndex < 0 ? carousel.previewX + relativeIndex * carousel.itemStep : carousel.previewX + root.expandedWidth + root.sliceSpacing + (relativeIndex - 1) * carousel.itemStep)
               width: selected ? root.expandedWidth : root.sliceWidth
               height: selected ? root.expandedHeight : root.sliceHeight
               y: selected ? 0 : (root.expandedHeight - root.sliceHeight) / 2
               z: selected ? 100 : 50 - Math.min(Math.abs(relativeIndex), 40)
+              Behavior on x { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+              Behavior on y { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+              Behavior on width { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+              Behavior on height { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
 
               readonly property real skAbs: Math.abs(root.skewOffset)
               readonly property real topLeft: root.skewOffset >= 0 ? skAbs : 0
@@ -579,17 +621,27 @@ Item {
                   maskSpreadAtMin: 0.3
                 }
 
+                Rectangle { anchors.fill: parent; color: root.dimColor }
+
                 Image {
                   id: image
                   anchors.fill: parent
-                  // Load only the initial/visited nearby images, but keep the
-                  // source once activated so Qt does not tear textures down as
-                  // selection moves through the carousel.
-                  source: item.sourceActivated && item.thumbnailPath ? Util.fileUrl(item.thumbnailPath) : ""
+                  // Decode at the expanded card's physical size, off the GUI
+                  // thread. Keep that size during navigation to avoid reloads.
+                  // Departing cards release their images instead of retaining
+                  // every preview visited in a large collection.
+                  // Queue the selected preview first; neighbors must not delay
+                  // the image the user opened the picker to see.
+                  source: (item.selected || root.neighborImagesEnabled) && item.thumbnailPath ? Util.fileUrl(item.thumbnailPath) : ""
+                  sourceSize.width: Math.ceil(root.expandedWidth * Screen.devicePixelRatio)
+                  sourceSize.height: Math.ceil(root.expandedHeight * Screen.devicePixelRatio)
                   fillMode: Image.PreserveAspectCrop
-                  asynchronous: false
-                  cache: true
+                  asynchronous: true
+                  cache: false
                   smooth: true
+                  opacity: status === Image.Ready ? 1 : 0
+                  Behavior on opacity { NumberAnimation { duration: 90 } }
+                  onStatusChanged: if (item.selected && (status === Image.Ready || status === Image.Error)) root.neighborImagesEnabled = true
                 }
 
                 Rectangle {
@@ -617,7 +669,7 @@ Item {
               MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: item.selected ? root.applySelected() : root.select(index)
+                onClicked: item.selected ? root.applySelected() : root.select(item.imageIndex)
               }
             }
           }
