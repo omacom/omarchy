@@ -7,5 +7,6 @@ if o.shell_succeeds("omarchy-default-dictation") then
   -- A modifier's mask changes between its press and release. Match the keysym
   -- independently of that mask; AltGr layouts use a different keysym.
   o.bind("ALT + Alt_R", "Start dictation (push-to-talk)", "omarchy-dictation start", { ignore_mods = true })
-  o.bind("ALT + Alt_R", "Stop dictation (push-to-talk)", "omarchy-dictation stop", { release = true, ignore_mods = true })
+  -- Its release is transparent for the same reason as F9's.
+  o.bind("ALT + Alt_R", "Stop dictation (push-to-talk)", "omarchy-dictation stop", { release = true, transparent = true, ignore_mods = true })
 end
