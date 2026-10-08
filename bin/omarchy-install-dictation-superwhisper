@@ -11,7 +11,7 @@ bash /usr/share/superwhisper/setup-user
 # Omarchy's push-to-talk keys.
 superwhisper shortcuts set toggle "Alt+Space" >/dev/null
 superwhisper shortcuts set hold none >/dev/null
-omarchy-dictation-set-backend superwhisper
+omarchy-dictation-use superwhisper
 hyprctl reload >/dev/null
 omarchy-notification-send -g  "Superwhisper Dictation Ready" "Hold Right Alt or F9 to dictate (or toggle with Super + Ctrl + X)." -t 10000
 superwhisper settings

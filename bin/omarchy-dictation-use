@@ -7,7 +7,7 @@
 set -e
 
 if (($# != 1)) || [[ ! $1 =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
-  echo "Usage: omarchy-dictation-set-backend <backend>" >&2
+  echo "Usage: omarchy-dictation-use <backend>" >&2
   exit 1
 fi
 

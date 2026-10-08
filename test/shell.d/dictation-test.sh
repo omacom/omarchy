@@ -157,22 +157,22 @@ omarchy-install-dictation-voxtype
 pass "Voxtype retries incomplete model and service setup without replacing configuration"
 
 : > "$DICTATION_LOG"
-if DICTATION_EXIT=7 omarchy-dictation-set-backend superwhisper > "$test_tmp/output" 2>&1; then fail "failed stop must prevent switching"; fi
+if DICTATION_EXIT=7 omarchy-dictation-use superwhisper > "$test_tmp/output" 2>&1; then fail "failed stop must prevent switching"; fi
 [[ $(cat "$config") == "voxtype" ]] || fail "failed stop preserves selection"
-omarchy-dictation-set-backend superwhisper
+omarchy-dictation-use superwhisper
 [[ $(cat "$DICTATION_LOG") == $'voxtype status\nvoxtype record stop\nvoxtype status\nvoxtype record stop' ]] || fail "switch stops the previous backend"
 [[ $(cat "$config") == "superwhisper" ]] || fail "successful stop permits switching"
 : > "$DICTATION_LOG"
-omarchy-dictation-set-backend superwhisper
+omarchy-dictation-use superwhisper
 [[ ! -s $DICTATION_LOG ]] || fail "reselecting does not interrupt recording"
 printf '%s\n' voxtype > "$config"
-VOXTYPE_STATUS=stopped omarchy-dictation-set-backend superwhisper
+VOXTYPE_STATUS=stopped omarchy-dictation-use superwhisper
 [[ $(cat "$config") == "superwhisper" ]] || fail "a stopped Voxtype daemon permits switching"
 printf '%s\n' superwhisper > "$config"
-DICTATION_SERVICE_ACTIVE=0 omarchy-dictation-set-backend voxtype
+DICTATION_SERVICE_ACTIVE=0 omarchy-dictation-use voxtype
 [[ $(cat "$config") == "voxtype" ]] || fail "a stopped Superwhisper service permits switching"
 printf '%s\n' removed-backend > "$config"
-omarchy-dictation-set-backend voxtype
+omarchy-dictation-use voxtype
 [[ $(cat "$config") == "voxtype" ]] || fail "a removed adapter permits recovery"
 pass "switching stops recordings, preserves failed stops, and recovers unavailable providers"
 
@@ -185,8 +185,8 @@ pass "switching stops recordings, preserves failed stops, and recovers unavailab
 ) &
 reader=$!
 for ((i = 0; i < 20; i++)); do
-  omarchy-dictation-set-backend voxtype
-  omarchy-dictation-set-backend superwhisper
+  omarchy-dictation-use voxtype
+  omarchy-dictation-use superwhisper
 done
 wait "$reader" || fail "concurrent readers always see a complete selection"
 printf '%s\n' voxtype > "$config"
