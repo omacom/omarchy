@@ -30,6 +30,42 @@ Before you reboot, try restarting the offending subsystem on its own. _Update > 
 
 Probably because they're not set as the primary output. Click on the speaker icon on the right side of the bar, and it'll open the volume popup where you can pick the output device (and mix per-app volumes too).
 
+### Audio stops when my phone connects over Bluetooth
+
+If your WirePlumber log shows `org.bluez.Error.NotAuthorized` followed by a `create-node.lua` error when a paired phone connects, try disabling automatic A2DP source connection for that phone. This is a workaround for the reported WirePlumber failure, not a repair of its node-creation code.
+
+`a2dp_sink` connects audio output devices such as speakers and headphones. `a2dp_source` lets your PC receive media audio from a phone, so removing it also stops that phone from automatically connecting for phone-to-PC music playback. Calls use separate HFP/HSP profiles. Omarchy keeps both A2DP directions enabled by default.
+
+Find the affected phone's Bluetooth address with `bluetoothctl devices`. Create `~/.config/wireplumber/wireplumber.conf.d/zz-local-bluetooth-a2dp.conf` with the following content, replacing `AA:BB:CC:DD:EE:FF` with that address. If the directory is missing, create it with `mkdir -p ~/.config/wireplumber/wireplumber.conf.d`. If the file already exists, add this rule to its `monitor.bluez.rules` array instead of replacing existing settings.
+
+```ini
+monitor.bluez.rules = [
+  {
+    matches = [
+      {
+        device.name = "~bluez_card.*"
+        api.bluez5.address = "AA:BB:CC:DD:EE:FF"
+      }
+    ]
+    actions = {
+      update-props = {
+        bluez5.auto-connect = [ a2dp_sink ]
+      }
+    }
+  }
+]
+```
+
+The `zz-` prefix puts this rule after Omarchy's `bluetooth-a2dp-autoconnect.conf`. Keep any other custom fragments that change this setting in mind: the last matching rule wins. This rule changes only the named phone; other devices retain their existing policy. To opt out for every Bluetooth device instead, remove the `api.bluez5.address` line.
+
+Restart WirePlumber to load the change; this briefly interrupts audio:
+
+```bash
+systemctl --user restart wireplumber.service
+```
+
+If the bar stops responding after audio recovery, restart the shell with `omarchy restart shell`. To undo the workaround, remove only the rule you added (or its file if it contains nothing else) and restart WirePlumber again. Your other Bluetooth customizations stay in place. If the failure persists, share the relevant `journalctl --user -u wireplumber.service` output when reporting the problem.
+
 ### My laptop speakers sound off
 
 On some laptops, Omarchy automatically applies a speaker tuning that corrects the built-in speakers' frequency response. `omarchy audio tuning status` tells you whether one is active on your machine, and `omarchy audio tuning off` turns it off if you'd rather hear the speakers raw.
