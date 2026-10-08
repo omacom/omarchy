@@ -18,7 +18,7 @@ ColumnLayout {
   property string error: ""
   property bool dirty: false
   readonly property var display: displays.filter(function(d) { return d.name === root.selected })[0] || null
-  readonly property bool busy: action.running
+  readonly property bool busy: action.running || resize.running
   readonly property var pages: ["layout", "displays", "workspaces"]
   readonly property var pageLabels: ["Arrangement", "Displays", "Workspaces"]
   signal closeRequested()
@@ -34,6 +34,11 @@ ColumnLayout {
   function changed() { dirty = true; error = "" }
   function change(key, value) {
     if (!display || pending || busy) return
+    if (["mode", "scale", "transform"].indexOf(key) >= 0) {
+      resize.command = ["omarchy-monitor-layout", "resize", JSON.stringify(Model.request(displays, workspaces)), selected, key, String(value)]
+      resize.running = true
+      return
+    }
     displays = displays.map(function(d) {
       var copy = Object.assign({}, d)
       if (d.name === root.selected) copy[key] = value
@@ -54,6 +59,27 @@ ColumnLayout {
     reference = displays.filter(function(d) { return d.name !== name }).map(function(d) { return d.name })[0] || ""
   }
 
+  Process {
+    id: resize
+    property var result: null
+    onRunningChanged: if (running) { result = null; root.error = "" }
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try { resize.result = JSON.parse(text) }
+        catch (e) { root.error = "Could not resize display layout" }
+      }
+    }
+    stderr: StdioCollector { onStreamFinished: if (text.trim()) root.error = text.trim() }
+    onExited: function(code) {
+      if (code === 0 && result) {
+        // Retain labels and advertised modes, which are not request fields.
+        root.displays = root.displays.map(function(d) {
+          return Object.assign({}, d, resize.result.displays.filter(function(v) { return v.name === d.name })[0])
+        })
+        root.changed()
+      } else if (!root.error) root.error = "Could not preserve display arrangement"
+    }
+  }
   Process {
     id: state
     command: ["omarchy-monitor-layout", "state"]

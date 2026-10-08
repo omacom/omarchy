@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Preview, keep, or revert display layouts
-# omarchy:args=state | preview JSON | keep TOKEN | revert TOKEN
+# omarchy:args=state | resize JSON OUTPUT FIELD VALUE | scale OUTPUT SCALE | preview JSON | keep TOKEN | revert TOKEN
 
 set -euo pipefail
 umask 077
@@ -85,6 +85,34 @@ restore() {
 }
 
 case "${1:-}" in
+resize)
+  python3 "$OMARCHY_PATH/default/hypr/monitor-layout.py" "${3:-}" "${4:-}" "${5:-}" <<<"${2:-}"
+  ;;
+scale)
+  # Reuse the same geometry, verification, rollback and persistence as the
+  # editor. Release our lock before invoking the transactional subcommands.
+  [[ ! -f $STATE_DIR/pending.json ]] || fail "Keep or revert the current preview first"
+  monitors=$(hyprctl -j monitors all)
+  request=$(jq -n --argjson monitors "$monitors" --argjson assignments "$(saved_assignments)" '{
+    displays: [$monitors[] | select(.disabled != true) | . as $m | {
+      name, x, y, scale, transform,
+      mode: ([.availableModes[] | sub("Hz$"; "") |
+        select(startswith(($m.width|tostring) + "x" + ($m.height|tostring) + "@"))] |
+        sort_by((split("@")[1]|tonumber) - $m.refreshRate | fabs) | first)
+    }], workspaces: $assignments
+  }')
+  request=$(python3 "$OMARCHY_PATH/default/hypr/monitor-layout.py" "${2:-}" scale "${3:-}" <<<"$request")
+  # Preserve occupied workspace ownership as well as saved empty rules.
+  workspaces=$(hyprctl -j workspaces)
+  request=$(jq --argjson occupied "$workspaces" '
+    .workspaces = (($occupied | map(select(.id > 0) | {id, monitor})) + .workspaces | group_by(.id) | map(last)) |
+    . as $layout | .workspaces |= map(select(.monitor as $m | any($layout.displays[]; .name == $m)))
+  ' <<<"$request")
+  flock -u 9
+  cli=$(readlink -f "${BASH_SOURCE[0]}")
+  token=$("$cli" preview "$request" | jq -er .token)
+  "$cli" keep "$token"
+  ;;
 state)
   monitors=$(hyprctl -j monitors all)
   workspaces=$(hyprctl -j workspaces)
@@ -189,6 +217,13 @@ keep | revert)
       "$CONFIG" >"$STATE_DIR/monitors.lua.new"
     {
       echo '-- BEGIN OMARCHY DISPLAY LAYOUT'
+      # Retain our generated rules for disconnected outputs. A later hotplug
+      # must not lose its arrangement when another display changes scale.
+      awk '/^-- BEGIN OMARCHY DISPLAY LAYOUT$/{inside=1; next} /^-- END OMARCHY DISPLAY LAYOUT$/{inside=0} inside' "$CONFIG" |
+        jq -Rr --argjson active "$(jq '[.displays[].name]' "$STATE_DIR/after.json")" '
+          select(startswith("hl.monitor(")) | . as $line |
+          capture("output = \"(?<name>[A-Za-z0-9._-]+)\"") |
+          select(.name as $name | $active | index($name) == null) | $line'
       monitor_code "$STATE_DIR/after.json"
       jq -r '.workspaces[] | "hl.workspace_rule({ workspace = \((.id|tostring)|tojson), monitor = \(.monitor|tojson) })"' "$STATE_DIR/kept.json"
       echo '-- END OMARCHY DISPLAY LAYOUT'
@@ -207,11 +242,12 @@ keep | revert)
       restore
       fail "$errors"
     fi
+    layout_matches || { restore; fail "Saved display layout did not survive reload"; }
     rm -f "$STATE_DIR/pending.json" "$STATE_DIR/config.changed"
   fi
   ;;
 -h | --help)
-  echo 'Usage: omarchy monitor layout state | preview JSON | keep TOKEN | revert TOKEN'
+  echo 'Usage: omarchy monitor layout state | resize JSON OUTPUT FIELD VALUE | scale OUTPUT SCALE | preview JSON | keep TOKEN | revert TOKEN'
   ;;
-*) fail 'Usage: omarchy monitor layout state | preview JSON | keep TOKEN | revert TOKEN' ;;
+*) fail 'Usage: omarchy monitor layout state | resize JSON OUTPUT FIELD VALUE | scale OUTPUT SCALE | preview JSON | keep TOKEN | revert TOKEN' ;;
 esac

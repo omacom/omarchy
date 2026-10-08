@@ -57,16 +57,24 @@ case "$*" in
 configerrors) [[ ${TEST_LAYOUT_ERROR:-0} == 0 ]] || echo 'invalid config' ;;
 *)
   printf '%s\n' "$*" >>"$TEST_LAYOUT_LOG"
-  if [[ $1 == "eval" && $2 == *'hl.monitor('* ]]; then
-    python3 - "$2" "$TEST_LAYOUT_LOG.monitors" <<'PY'
-import json, re, sys
-match = re.search(r'output = "([^"]+)", mode = "([^"]+)", position = "(-?\d+)x(-?\d+)", scale = ([\d.]+), transform = (\d+)', sys.argv[1])
-if match:
+  if [[ $1 == "eval" || $1 == "reload" ]]; then
+    python3 - "$1" "${2:-}" "$TEST_LAYOUT_LOG.monitors" "$XDG_CONFIG_HOME/hypr/monitors.lua" <<'PY_STUB'
+import json, os, re, sys
+verb, code, runtime, config = sys.argv[1:]
+monitors = json.load(open(runtime)) if os.path.exists(runtime) else [dict(name='DP-1', width=1920, height=1080, refreshRate=60, x=0, y=0, scale=1, transform=0, mirrorOf='none', availableModes=['1920x1080@60.00Hz'])]
+if verb == 'reload':
+  code = open(config).read()
+for match in re.finditer(r'output = "([^"\n]+)", mode = "([^"\n]+)", position = "(-?\d+)x(-?\d+)", scale = ([\d.]+), transform = (\d+)', code):
   name, mode, x, y, scale, transform = match.groups()
   width, height, rate = re.split(r'[x@]', mode)
-  with open(sys.argv[2], 'w') as f:
-    json.dump([dict(name=name, width=int(width), height=int(height), refreshRate=float(rate), x=int(x), y=int(y), scale=float(scale), transform=int(transform), mirrorOf='none', availableModes=['1920x1080@60.00Hz'])], f)
-PY
+  for monitor in monitors:
+    if monitor['name'] == name:
+      monitor.update(width=int(width), height=int(height), refreshRate=float(rate), x=int(x), y=int(y), scale=float(scale), transform=int(transform))
+if verb == 'reload' and os.environ.get('TEST_LAYOUT_RELOAD_MISMATCH') == '1':
+  monitors[0]['x'] += 10
+with open(runtime, 'w') as f:
+  json.dump(monitors, f)
+PY_STUB
   fi
   echo ok
   ;;
@@ -75,7 +83,7 @@ SH
 chmod +x "$sandbox/bin/hyprctl"
 printf '#!/bin/bash\nexit "${TEST_LAYOUT_TIMER_FAIL:-0}"\n' >"$sandbox/bin/systemd-run"
 chmod +x "$sandbox/bin/systemd-run"
-export PATH="$sandbox/bin:$PATH"
+export PATH="$sandbox/bin:$PATH" OMARCHY_PATH="$ROOT"
 printf '%s\n' '-- personal settings' 'hl.env("GDK_SCALE", "1")' >"$XDG_CONFIG_HOME/hypr/monitors.lua"
 original=$(cat "$XDG_CONFIG_HOME/hypr/monitors.lua")
 request='{"displays":[{"name":"DP-1","mode":"1920x1080@60.00","x":-1080,"y":0,"scale":1,"transform":1}],"workspaces":[{"id":1,"monitor":"DP-1"},{"id":2,"monitor":"DP-1"}]}'
@@ -153,3 +161,34 @@ for invalid in \
   if "$cli" preview "$invalid" >/dev/null 2>&1; then fail 'rejects invalid layout'; fi
 done
 pass 'rejects injection, unsupported rates, invalid workspaces and empty layouts'
+
+# The saved file is not enough: a successful reload must reproduce runtime geometry.
+before=$(cat "$XDG_CONFIG_HOME/hypr/monitors.lua")
+token=$("$cli" preview "$request" | jq -r .token)
+if TEST_LAYOUT_RELOAD_MISMATCH=1 "$cli" keep "$token" >/dev/null 2>&1; then fail 'detects reload geometry mismatch'; fi
+[[ $(cat "$XDG_CONFIG_HOME/hypr/monitors.lua") == "$before" ]] || fail 'reload mismatch restores file'
+pass 'reload geometry mismatch restores file and runtime'
+
+sed -i '/^-- END OMARCHY DISPLAY LAYOUT$/i hl.monitor({ output = "HDMI-A-1", mode = "1920x1080@60.00", position = "4000x0", scale = 1, transform = 0, disabled = false })' "$XDG_CONFIG_HOME/hypr/monitors.lua"
+"$cli" scale DP-1 2
+rg -q 'output = "DP-1".*position = "-1080x0".*scale = 2.*transform = 1' "$XDG_CONFIG_HOME/hypr/monitors.lua" || fail 'scale retains portrait and position'
+rg -q 'output = "HDMI-A-1".*position = "4000x0"' "$XDG_CONFIG_HOME/hypr/monitors.lua" || fail 'retains unplugged monitor rule'
+"$cli" state | jq -e '.monitors[0].scale == 2 and .monitors[0].transform == 1 and .monitors[0].x == -1080 and .pending == null' >/dev/null || fail 'scale survives reload'
+pass 'focused scale persists explicit geometry and disconnected rules'
+
+# Preview and scale share a single pending transaction.
+token=$("$cli" preview "$request" | jq -r .token)
+if "$cli" scale DP-1 1.25 >/dev/null 2>&1; then fail 'scale rejects concurrent preview'; fi
+"$cli" revert "$token"
+pass 'scale cannot overwrite an active preview'
+
+# Exercise the actual scale -> resize -> preview -> keep -> reload pipeline with
+# three outputs. The stub reload reads the persisted file, not the request.
+python3 - "$TEST_LAYOUT_LOG.monitors" <<'PY_FIXTURE'
+import json, sys
+monitors = [dict(name=name, width=1920, height=1080, refreshRate=60, x=x, y=0, scale=1, transform=0, mirrorOf='none', availableModes=['1920x1080@60.00Hz']) for name, x in [('eDP-1', 0), ('DP-1', 1920), ('DP-2', 3840)]]
+json.dump(monitors, open(sys.argv[1], 'w'))
+PY_FIXTURE
+"$cli" scale DP-1 2
+"$cli" state | jq -e '.monitors | any(.name == "eDP-1" and .x == 0 and .scale == 1) and any(.name == "DP-1" and .x == 1920 and .scale == 2) and any(.name == "DP-2" and .x == 2880)' >/dev/null || fail 'chain resize survives actual file reload'
+pass 'three-output resize preserves anchor and chain across saved-file reload'

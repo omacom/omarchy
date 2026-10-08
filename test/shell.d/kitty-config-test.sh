@@ -111,6 +111,12 @@ if [[ $1 == "get" ]]; then
   fi
 fi
 SH
+cat >"$test_dir/bin/hyprctl" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_FONT_MONITOR_CALLS"
+exit 1
+SH
+export OMARCHY_TEST_FONT_MONITOR_CALLS="$test_dir/monitor-calls"
 chmod +x "$test_dir/bin/"*
 
 run_command() {
@@ -152,3 +158,6 @@ if "$ROOT/bin/omarchy-cmd-present" kitty; then
 else
   skip "Kitty not installed; skipping native config parser checks"
 fi
+
+[[ ! -e $OMARCHY_TEST_FONT_MONITOR_CALLS ]] || fail "font controls must never change monitor geometry"
+pass "font controls never call monitor configuration"

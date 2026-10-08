@@ -16,8 +16,8 @@ function fromMonitors(monitors) {
 
 function size(display) {
   var mode = String(display.mode || "").split("@")[0].split("x")
-  var w = Number(mode[0]) / display.scale
-  var h = Number(mode[1]) / display.scale
+  var w = Math.round(Number(mode[0]) / display.scale)
+  var h = Math.round(Number(mode[1]) / display.scale)
   return display.transform % 2 ? { width: h, height: w } : { width: w, height: h }
 }
 
