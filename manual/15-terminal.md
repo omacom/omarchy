@@ -6,6 +6,8 @@ If you use Tmux, you may not mind, but if not, we fully support _Alacritty_, _Gh
 
 You start a new terminal using `Super + Return`. (This binding will automatically point to whichever Terminal you've installed via _Install > Terminal_, and you can switch between installed terminals under _Setup > Defaults > Terminal_.)
 
+You enable single-instance mode for a set of terminals using `omarchy toggle foot-daemon`, `omarchy toggle kitty-daemon`, and `omarchy toggle alacritty-daemon`. Doing so typically results in lower memory usage and much faster terminal startup times (especially for kitty). Closing the server will close all windows associated with it.
+
 ## Tmux
 
 Tmux provides a consistent, programmable interface for panes, windows (aka tabs), and resumable sessions regardless of your terminal. It even works on remote hosts, so when you're SSH'ing into a server, you can use the same approach.

@@ -15,3 +15,10 @@ if [[ -f "$OMARCHY_PATH/install/user/mise.sh" ]]; then
 fi
 
 update-desktop-database ~/.local/share/applications
+
+for terminal in foot kitty alacritty; do
+  if omarchy-toggle-enabled terminal-daemon-$terminal; then
+    omarchy-toggle-$terminal-daemon on
+  fi
+done
+

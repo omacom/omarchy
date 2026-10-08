@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# omarchy:summary=Enable or disable single-instance mode for a terminal (improves startup time and memory usage)
+# omarchy:args=<alacritty|foot|kitty> [on|off|toggle]
+# omarchy:examples=omarchy toggle terminal-daemon foot | omarchy toggle alacritty-daemon off
+
+terminal=${1:-}
+action=${2:-toggle}
+flag=terminal-daemon-$terminal
+apps=${XDG_DATA_HOME:-$HOME/.local/share}/applications
+config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+unit_dir=$config_home/systemd/user
+
+usage() {
+  echo "Usage: omarchy-toggle-terminal-daemon <alacritty|foot|kitty> [on|off|toggle]" >&2
+}
+
+case $terminal in
+  alacritty|foot|kitty) ;;
+  *) usage; exit 1 ;;
+esac
+
+case $action in
+  on|off) ;;
+  toggle) omarchy-toggle-enabled "$flag" && action=off || action=on ;;
+  *) usage; exit 1 ;;
+esac
+
+mkdir -p "$apps" "$unit_dir"
+ln -sfn "$OMARCHY_PATH/default/systemd/user/omarchy-foot-server.service" "$unit_dir/omarchy-foot-server.service"
+ln -sfn "$OMARCHY_PATH/default/systemd/user/omarchy-kitty-server.service" "$unit_dir/omarchy-kitty-server.service"
+ln -sfn "$OMARCHY_PATH/default/systemd/user/omarchy-alacritty-server.service" "$unit_dir/omarchy-alacritty-server.service"
+systemctl --user daemon-reload || exit 1
+
+case $terminal in
+  foot)
+    [[ -f $apps/foot.desktop ]] || cp "$OMARCHY_PATH/applications/foot.desktop" "$apps/foot.desktop"
+    if [[ $action == on ]]; then
+      sed -i 's/^Exec=foot$/Exec=footclient/' "$apps/foot.desktop"
+    else
+      sed -i 's/^Exec=footclient$/Exec=foot/' "$apps/foot.desktop"
+    fi
+    ;;
+  kitty)
+    [[ -f $apps/kitty.desktop ]] || cp /usr/share/applications/kitty.desktop "$apps/kitty.desktop" || exit 1
+    if [[ $action == on ]]; then
+      sed -i 's/^Exec=kitty$/Exec=kitty --single-instance/' "$apps/kitty.desktop"
+    else
+      sed -i 's/^Exec=kitty --single-instance$/Exec=kitty/' "$apps/kitty.desktop"
+    fi
+    ;;
+  alacritty)
+    [[ -f $apps/Alacritty.desktop ]] || cp "$OMARCHY_PATH/default/alacritty/Alacritty.desktop" "$apps/Alacritty.desktop"
+    if [[ $action == on ]]; then
+      sed -i 's/^Exec=alacritty$/Exec=alacritty msg create-window/' "$apps/Alacritty.desktop"
+    else
+      sed -i 's/^Exec=alacritty msg create-window$/Exec=alacritty/' "$apps/Alacritty.desktop"
+    fi
+    ;;
+esac
+
+if [[ $action == on ]]; then
+  cmd=enable
+else
+  cmd=disable
+fi
+
+omarchy-toggle "$flag" "$action"
+systemctl --user $cmd --now "omarchy-$terminal-server.service" || exit 1
+
+omarchy-notification-send -g "" "${terminal^} single-instance mode ${cmd}d"

@@ -99,6 +99,9 @@
   "trigger.toggle.window-gaps": {"icon":"","label":"Window Gaps","action":"omarchy-hyprland-window-gaps-toggle"},
   "trigger.toggle.animations": {"icon":"󰕟","label":"Animations","action":"omarchy-toggle-animations"},
   "trigger.toggle.one-window-ratio": {"icon":"","label":"1-Window Ratio","action":"omarchy-hyprland-window-single-square-aspect-toggle"},
+  "trigger.toggle.foot-daemon": {"icon":"","label":"Foot Daemon","when":"omarchy-pkg-present foot","action":"omarchy-toggle-foot-daemon"},
+  "trigger.toggle.kitty-daemon": {"icon":"","label":"Kitty Daemon","when":"omarchy-pkg-present kitty","action":"omarchy-toggle-kitty-daemon"},
+  "trigger.toggle.alacritty-daemon": {"icon":"","label":"Alacritty Daemon","when":"omarchy-pkg-present alacritty","action":"omarchy-toggle-alacritty-daemon"},
   "trigger.tests.network-speedtest": {"icon":"󰓅","label":"Network Speed Test","action":"omarchy-shell shell summon omarchy.speedtest"},
   "trigger.tests.disk-speedtest": {"icon":"󰋊","label":"Disk Speed Test","action":"omarchy-shell shell summon omarchy.disk-speedtest"},
 
