@@ -47,9 +47,7 @@ Item {
   }
 
   function runApply(temp) {
-    applyProcess.command = ["bash", "-lc",
-      "pgrep -u \"$USER\" -x hyprsunset >/dev/null || { setsid uwsm-app -- hyprsunset >/dev/null 2>&1 & sleep 1; }; " +
-      "hyprctl hyprsunset temperature " + Number(temp)]
+    applyProcess.command = NightlightModel.applyCommand(temp)
     applyProcess.running = true
   }
 
