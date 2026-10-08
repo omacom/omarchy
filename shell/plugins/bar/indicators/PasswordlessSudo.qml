@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 BarIndicator {
@@ -15,7 +16,7 @@ BarIndicator {
   activeTooltipText: "Disable Passwordless Sudo"
   inactiveTooltipText: "Passwordless Sudo"
   useActiveColor: true
-  activeColor: Color.urgent
+  activeColor: Commons.Color.urgent
 
   function refresh() {
     if (!root.bar) return
