@@ -117,6 +117,14 @@ Item {
     applyProc.running = true
   }
 
+  // A touchpad the file does not name yet only gets the shared pointer
+  // settings once it has an entry, so add it as soon as one shows up.
+  function adoptDevices() {
+    var pointer = Object.keys(doc.touchpad).some(function(key) { return Model.SETTINGS[key] && Model.SETTINGS[key].pointer })
+    var missing = devices.some(function(name) { return !doc.devices[name] })
+    if (pointer && missing) commit(edited(), false)
+  }
+
   function refreshStatus() {
     if (!statusProc.running) statusProc.running = true
   }
@@ -311,6 +319,7 @@ Item {
         root.devices = Array.isArray(status.devices) ? status.devices : []
         root.clients = Array.isArray(status.clients) ? status.clients : []
         root.disabledName = String(status.disabled || "")
+        root.adoptDevices()
       }
     }
   }

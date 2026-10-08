@@ -65,7 +65,7 @@ run_apply() {
   local file="$1"
   local times="${2:-1}"
 
-  ROOT="$ROOT" SETTINGS="$file" TIMES="$times" lua <<'LUA'
+  ROOT="$ROOT" SETTINGS="$file" TIMES="$times" INPUT_DEVICES="${INPUT_DEVICES:-$tmpdir/no-input-devices}" lua <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 
 local function flat(value, prefix, out)
@@ -101,6 +101,7 @@ hl = {
 }
 
 local touchpad = require("default.hypr.touchpad")
+touchpad.input_devices_path = os.getenv("INPUT_DEVICES")
 for i = 1, tonumber(os.getenv("TIMES")) do
   if i > 1 then print("--") end
   touchpad.apply(os.getenv("SETTINGS"))
@@ -175,6 +176,28 @@ rule firefox 0.8'
 pass "settings are validated against the schema before they reach Hyprland"
 pass "pointer settings target each touchpad by name instead of every mouse"
 pass "shadowed, two-finger, and unknown gestures are dropped before Hyprland rejects them"
+
+cat >"$tmpdir/input-devices" <<'DEVICES'
+I: Bus=0018 Vendor=04f3 Product=3195 Version=0100
+N: Name="ELAN0678:00 04F3:3195 Mouse"
+
+I: Bus=0018 Vendor=04f3 Product=3195 Version=0100
+N: Name="ELAN0678:00 04F3:3195 Touchpad"
+
+I: Bus=0011 Vendor=0002 Product=000a Version=0063
+N: Name="TPPS/2 Elan TrackPoint"
+
+I: Bus=0005 Vendor=004c Product=0265 Version=0001
+N: Name="Apple Trackpad"
+DEVICES
+
+connected_output=$(INPUT_DEVICES="$tmpdir/input-devices" run_apply "$tmpdir/settings.json" | grep '^device')
+expected_connected='device accel_profile=flat name=apple-trackpad natural_scroll=false sensitivity=-0.2
+device accel_profile=flat name=elan-touchpad sensitivity=0.3
+device accel_profile=flat name=elan0678:00-04f3:3195-touchpad sensitivity=0.3'
+[[ $connected_output == "$expected_connected" ]] ||
+  fail "connected touchpads get the shared pointer settings without a saved entry" "expected:"$'\n'"$expected_connected"$'\n'"actual:"$'\n'"$connected_output"
+pass "connected touchpads get the shared pointer settings without a saved entry"
 
 reapply_output=$(run_apply "$tmpdir/settings.json" 2)
 second=${reapply_output#*$'--\n'}

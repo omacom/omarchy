@@ -23,6 +23,10 @@ local M = {}
 -- write there regardless of XDG_CONFIG_HOME.
 M.path = paths.home .. "/.config/omarchy/touchpad.json"
 
+-- Where connected input devices are listed. Read as a plain file, since asking
+-- Hyprland through hyprctl from inside its own config load would deadlock.
+M.input_devices_path = "/proc/bus/input/devices"
+
 local function boolean()
   return { type = "boolean" }
 end
@@ -396,6 +400,51 @@ local function merge(...)
   return result
 end
 
+-- Hyprland names a device by its kernel name, lowercased with spaces turned
+-- into dashes, and treats it as a touchpad by the same test as
+-- omarchy-hw-touchpad. Hyprland has no device-added event, so a pad first
+-- plugged in mid-session picks the shared settings up on the next apply.
+function M.connected_touchpads(path)
+  local names = {}
+  local file = io.open(path or M.input_devices_path, "r")
+  if not file then
+    return names
+  end
+
+  for line in file:lines() do
+    local name = line:match('^N: Name="(.*)"$')
+    if name then
+      name = name:lower():gsub(" ", "-")
+      if (name:find("touchpad", 1, true) or name:find("trackpad", 1, true)) and valid_text(name, 256) then
+        names[#names + 1] = name
+      end
+    end
+  end
+  file:close()
+
+  return names
+end
+
+-- Saved devices, plus any connected touchpad the file does not name yet, so
+-- shared pointer settings reach every pad and not only those seen at a save.
+local function devices_with_connected(devices)
+  local result = {}
+  local known = {}
+  for _, device in ipairs(devices) do
+    result[#result + 1] = device
+    known[device.name] = true
+  end
+
+  for _, name in ipairs(M.connected_touchpads()) do
+    if not known[name] then
+      result[#result + 1] = { name = name, settings = {} }
+      known[name] = true
+    end
+  end
+
+  return result
+end
+
 local function report(what, err)
   print("Touchpad settings: could not apply " .. what .. ": " .. tostring(err))
 end
@@ -419,7 +468,7 @@ function M.apply(path)
     end
   end
 
-  for _, device in ipairs(settings.devices) do
+  for _, device in ipairs(devices_with_connected(settings.devices)) do
     local spec = merge(settings.pointer, device.settings)
     if next(spec) then
       spec.name = device.name
