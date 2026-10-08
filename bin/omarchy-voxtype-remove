@@ -12,10 +12,16 @@ if omarchy-cmd-present voxtype; then
 
   # Remove services
   systemctl --user disable --now voxtype.service 2>/dev/null || true
+  systemctl --user stop voxtype-cohere-vulkan.service 2>/dev/null || true
+  rm -f ~/.config/systemd/user/voxtype.service.d/40-omarchy-cohere.conf
+  rm -f ~/.config/systemd/user/voxtype-cohere-vulkan.service
   systemctl --user daemon-reload
 
   # Remove packages and configs
   omarchy-pkg-drop voxtype-bin
+  if omarchy-pkg-present voxtype-cohere-vulkan; then
+    omarchy-pkg-drop voxtype-cohere-vulkan
+  fi
   rm -rf ~/.config/voxtype
   rm -rf ~/.local/share/voxtype
   hyprctl reload >/dev/null
