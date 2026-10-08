@@ -20,10 +20,16 @@ trusted_path() {
 guard=/usr/bin/omarchy-battery-guard
 helper=/usr/share/omarchy/default/battery-guard/close-windows
 unit=/usr/share/omarchy/default/systemd/system/omarchy-battery-guard.service
+# migrations/1790872998.sh skips the optional guard on this status rather than
+# retrying, since package files that are not root-owned do not fix themselves.
+untrusted=78
 for source in "$guard" "$helper" "$unit"; do
-  if ! trusted_path "$source"; then
-    echo "Battery guard requires current root-owned Omarchy packages: $source" >&2
+  if [[ ! -e $source && ! -L $source ]]; then
+    echo "Battery guard requires current Omarchy packages: $source is missing" >&2
     exit 1
+  elif ! trusted_path "$source"; then
+    echo "Battery guard requires root-owned Omarchy packages: $source" >&2
+    exit "$untrusted"
   fi
 done
 
@@ -37,9 +43,15 @@ fi
 
 # Executables remain package-owned. Only the enabled unit and a checksum record
 # live under /etc; the record detects payload updates without copying binaries.
-trusted_path /etc/systemd/system || exit 1
+if ! trusted_path /etc/systemd/system; then
+  echo "Battery guard requires a root-owned /etc/systemd/system" >&2
+  exit "$untrusted"
+fi
 for target in /etc/systemd/system/omarchy-battery-guard.service.new /etc/systemd/system/omarchy-battery-guard.service.sha256.new; do
-  [[ ! -L $target ]] || exit 1
+  if [[ -L $target ]]; then
+    echo "Battery guard will not write through the symlink $target" >&2
+    exit "$untrusted"
+  fi
 done
 # Replace the original linked unit without writing through its symlink.
 install -o root -g root -m 0644 "$unit" /etc/systemd/system/omarchy-battery-guard.service.new
