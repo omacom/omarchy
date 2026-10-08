@@ -97,6 +97,13 @@ Install rows should therefore carry `disabled:` with the presence check, not
 `when:`; Remove rows are the opposite, hiding via `when:` what is not there
 to remove. `menu-test.sh` enforces the Install side of this convention.
 
+AirPods removal also checks for the installed plugin checkout and user service
+unit, so its row remains available if the daemon binary is missing. Its
+uninstaller must confirm release before teardown; a missing binary with owned
+or unknown guard state refuses removal and retains recovery files. Restore the
+daemon and rerun removal as described in the
+[plugin's recovery instructions](https://github.com/artinlenz/omarchy-airpods#removal).
+
 ## Providers
 
 A submenu with `provider: "name"` gets its rows at runtime instead of from
