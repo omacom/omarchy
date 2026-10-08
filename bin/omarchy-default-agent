@@ -42,7 +42,11 @@ muse | muse-code | musecode)
   agent_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
   ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
-goose) agent="goose"; name="Goose"; agent_package="github:aaif-goose/goose" ;;
+goose)
+  agent="goose"; name="Goose"
+  # Releases also carry -vulkan and musl archives; take the glibc one for this architecture.
+  agent_package="github:aaif-goose/goose[matching=unknown-linux-gnu.tar]"
+  ;;
 *)
   echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|goose>"
   exit 1

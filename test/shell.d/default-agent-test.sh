@@ -133,7 +133,7 @@ agy_package="antigravity-cli"
 ori_package="github:OpenRouterLabs/ori-releases"
 cursor_agent_package="cursor-agent"
 muse_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
-goose_package="github:aaif-goose/goose"
+goose_package="github:aaif-goose/goose[matching=unknown-linux-gnu.tar]"
 
 assert_lazy_stub() {
   local package=$1
