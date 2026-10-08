@@ -110,7 +110,6 @@ Item {
     var next = {}
     var alive = {}
     var serial = playSerial
-    var lastActive = {}
 
     for (var i = 0; i < players.length; i++) {
       var p = players[i]
@@ -118,10 +117,7 @@ Item {
       if (!key) continue
 
       alive[key] = true
-      if (playerLastActiveAt[key] !== undefined) lastActive[key] = playerLastActiveAt[key]
       if (!p.isPlaying) continue
-
-      lastActive[key] = Date.now()
 
       if (playerStartedAt[key] === undefined) {
         serial += 1
@@ -133,9 +129,11 @@ Item {
 
     if (preferredPlayerKey && !alive[preferredPlayerKey]) setPreferred("")
 
+    // playerStartedAt still holds the previous sync's playing set here, which
+    // is what lets a player that just stopped be stamped at its stop.
+    playerLastActiveAt = MediaModel.lastActiveStamps(players, playerLastActiveAt, playerStartedAt, Date.now())
     playSerial = serial
     playerStartedAt = next
-    playerLastActiveAt = lastActive
   }
 
   function mostRecentlyActivePlayer() {

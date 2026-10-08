@@ -136,7 +136,9 @@ function mostRecentlyActivePlayer(players, lastActiveAt) {
 
   for (var i = 0; i < list.length; i++) {
     var p = list[i]
-    if (!p || isProxyPlayer(p) || !hasMetadata(p)) continue
+    // A player that can no longer play (a browser tab whose video ended) can't
+    // be resumed, so it must not outrank one that can.
+    if (!p || isProxyPlayer(p) || !hasMetadata(p) || !canHandleAction(p, "play")) continue
 
     var key = playerKey(p)
     var at = key ? active[key] : undefined
@@ -149,6 +151,29 @@ function mostRecentlyActivePlayer(players, lastActiveAt) {
   }
 
   return best
+}
+
+// The next playerKey() -> last-active map. A player is stamped `now` while it
+// plays and once more on the change that stops it, so its recency is when it
+// last stopped, not when it started: a browser that played on for hours after
+// Spotify was paused counts as newer. `wasPlaying` maps the keys that were
+// playing at the previous sync. Players that have gone away are dropped.
+function lastActiveStamps(players, previous, wasPlaying, now) {
+  var list = players || []
+  var prev = previous || {}
+  var playing = wasPlaying || {}
+  var next = {}
+
+  for (var i = 0; i < list.length; i++) {
+    var p = list[i]
+    var key = playerKey(p)
+    if (!key) continue
+
+    if (p.isPlaying || playing[key] !== undefined) next[key] = now
+    else if (prev[key] !== undefined) next[key] = prev[key]
+  }
+
+  return next
 }
 
 // Orders the two paused-player fallbacks by which signal is newer. An explicit
@@ -205,6 +230,7 @@ if (typeof module !== "undefined") {
     labelFor: labelFor,
     osdMessage: osdMessage,
     mostRecentlyActivePlayer: mostRecentlyActivePlayer,
+    lastActiveStamps: lastActiveStamps,
     recencyOrderedFallbacks: recencyOrderedFallbacks,
     volumeKeyStep: volumeKeyStep,
     volumeOsdIcon: volumeOsdIcon
