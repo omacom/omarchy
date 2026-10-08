@@ -97,7 +97,11 @@ If `pkexec` exits 126 or 127, read its output before deciding why. `pkexec` uses
 
 A person typing in a visible terminal uses `sudo`.
 
-Do not put `sudo` or `pkexec` in front of a command that already elevates itself, except where that command's own elevation is `sudo` and an agent is the caller. `omarchy pkg add` calls `sudo` unless it is already root, so an agent runs it as `pkexec --disable-internal-agent /usr/bin/omarchy-pkg-add <pkgs>`. Do not run `omarchy pkg aur add` that way: `yay` will not build as root.
+Do not put `sudo` or `pkexec` in front of a command that already elevates itself. The only exception is a command checked to be safe as root: it does nothing but the privileged work, it does not need the caller's environment, and it does not write the user's home. A `requires-sudo` header is not that check. `omarchy-pkg-add` is safe. It calls `sudo` unless it is already root, and that `sudo` only runs `pacman`, so an agent runs it as `pkexec --disable-internal-agent /usr/bin/omarchy-pkg-add <pkgs>`.
+
+Do not wrap a command that also sets up the user. `omarchy-install-terminal` installs the package, then copies a desktop entry and config and writes `xdg-terminals.list` under the caller's home. Those copies need `OMARCHY_PATH`. Under `pkexec` the package installs as root, the writes land in root's home, and `OMARCHY_PATH` is not in the minimal environment, so the user's terminal settings never change. Install the package with `omarchy-pkg-add` under `pkexec`, then run `omarchy-install-terminal` as the user. The package is already present, so that second run does not call `sudo`, and the setup is written for the user. Do not assume another installer is sudo-free on a second run. If it still elevates for something other than the package, do not wrap it; run only the root step under `pkexec` and do the user step as the user.
+
+Do not run `omarchy pkg aur add` under `pkexec`. `yay` will not build as root, so that stays on a visible terminal.
 
 ## System Architecture
 
@@ -259,7 +263,7 @@ When user requests system changes:
 2. **Is it a config edit?** Edit in `~/.config/`, never `/usr/share/omarchy/`
 3. **Is it a theme customization?** Follow [`theming.md`](theming.md); create a NEW custom theme directory
 4. **Is it automation?** Follow [`hooks.md`](hooks.md); use `omarchy hook install` and the hook `.d` directories
-5. **Is it a package install?** Use `omarchy pkg add <pkgs...>` (or `omarchy pkg aur add <pkgs...>` for AUR-only packages). An agent runs `pkg add` under `pkexec` as the Privilege Escalation section says. `pkg aur add` still needs a person at a visible terminal.
+5. **Is it a package install?** Use `omarchy pkg add <pkgs...>` (or `omarchy pkg aur add <pkgs...>` for AUR-only packages). An agent runs `pkg add` under `pkexec` as the Privilege Escalation section says. `pkg aur add` still needs a person at a visible terminal. Do not run a mixed installer such as `omarchy-install-terminal` under `pkexec`; that section says to install the package first, then do the user setup as the user.
 6. **Is it built-in shell/plugin code?** Follow [`plugins.md`](plugins.md); clone it with `omarchy plugin clone`, never edit the packaged copy
 7. **Unsure if command exists?** Run `omarchy commands` (or `omarchy <group> --help` for one group)
 
