@@ -77,3 +77,16 @@ omarchy font list               # Available fonts
 omarchy font current            # Current font
 omarchy font set <name>         # Change font
 ```
+
+## What a Theme Can and Cannot Scope
+
+A theme's `colors.toml`, `shell.toml`, `icons.theme`, and `backgrounds/` are
+theme-scoped: they apply only while that theme is active and switching themes
+swaps them out.
+
+Font (`omarchy font set`) and bar position/layout (in
+`~/.config/omarchy/shell.json`) are **global user settings, not theme-scoped**.
+Setting a font or moving the bar while building or customizing a theme changes
+it for every theme, not just the one being worked on, and the change persists
+after switching away. There is no way to scope either setting to a single
+theme.
