@@ -10,7 +10,7 @@ if (($# > 1)); then
 fi
 
 if (($# == 0)); then
-  config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/dictation-backend"
+  config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/defaults/dictation"
   if [[ ! -s $config ]]; then
     echo "No dictation backend configured. Select one in Setup > Defaults > Dictation." >&2
     exit 1

@@ -11,7 +11,7 @@ if (($# != 1)) || [[ ! $1 =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
   exit 1
 fi
 
-config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/dictation-backend"
+config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/defaults/dictation"
 mkdir -p "${config%/*}"
 exec 9> "$config.lock"
 if ! flock -w 5 9; then

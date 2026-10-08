@@ -14,7 +14,7 @@ Install [Voxtype](https://voxtype.io/) or [Superwhisper](https://superwhisper.co
 
 Once installed, you dictate by holding down `Right Alt` or `F9`, or by toggling with `Super + Ctrl + X`, and the dictated text will appear in the focused input area. These shortcuts are enabled only after selecting a backend. Right Alt also starts dictation when used in a modifier chord; use Left Alt for those chords. On keyboard layouts where Right Alt is AltGr, use `F9` to keep AltGr available for typing.
 
-The same shortcuts can use an installed Superwhisper instead. Select your backend through Setup > Defaults > Dictation. The backend installer configures it and saves the selection. Run `omarchy default dictation` to see which one is selected. Dictation requires an explicit selection.
+The same shortcuts can use an installed Superwhisper instead. Select your backend through Setup > Defaults > Dictation. The backend installer configures it and saves the selection. Run `omarchy default dictation` to see which one is selected. The selection is saved in `~/.config/omarchy/defaults/dictation`. Dictation requires an explicit selection.
 
 Omarchy loads the selected backend's desktop integration automatically. No Superwhisper configuration is needed in `~/.config/hypr/`.
 

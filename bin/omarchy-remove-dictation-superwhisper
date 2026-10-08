@@ -28,7 +28,7 @@ for agent in .agents .claude .codex .pi/agent; do
   unlink_package_link "$HOME/$agent/skills/superwhisper" /opt/superwhisper/assets/agent-skill/superwhisper
 done
 
-backend_config="$config_home/omarchy/dictation-backend"
+backend_config="$config_home/omarchy/defaults/dictation"
 if [[ -f $backend_config && $(< "$backend_config") == "superwhisper" ]]; then
   rm "$backend_config"
 fi

@@ -7,9 +7,9 @@ test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 export HOME="$test_tmp/home" XDG_CONFIG_HOME="$test_tmp/config" OMARCHY_PATH="$ROOT"
 export DICTATION_LOG="$test_tmp/calls" DICTATION_INSTALLED="voxtype superwhisper"
-mkdir -p "$test_tmp/bin" "$XDG_CONFIG_HOME/omarchy"
+mkdir -p "$test_tmp/bin" "$XDG_CONFIG_HOME/omarchy/defaults"
 export PATH="$test_tmp/bin:$ROOT/bin:$PATH"
-config="$XDG_CONFIG_HOME/omarchy/dictation-backend"
+config="$XDG_CONFIG_HOME/omarchy/defaults/dictation"
 
 cat > "$test_tmp/bin/omarchy-cmd-present" <<'SH'
 #!/bin/bash
