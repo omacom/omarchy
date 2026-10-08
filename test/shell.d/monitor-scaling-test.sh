@@ -29,15 +29,6 @@ fi
 SH
 chmod +x "$stub_bin/hyprctl"
 
-# Unit seam: scaling delegates persistence/geometry to the transactional CLI.
-cat >"$stub_bin/omarchy-monitor-layout" <<'SH'
-#!/bin/bash
-[[ $1 == "scale" && $2 == "eDP-1" ]] || exit 1
-[[ ${OMARCHY_TEST_LAYOUT_FAIL:-0} == 0 ]] || exit 1
-printf 'scale = %s\n' "$3" >"$OMARCHY_TEST_HYPRCTL_EVAL_OUT"
-SH
-chmod +x "$stub_bin/omarchy-monitor-layout"
-
 write_monitor_config() {
   cat >"$monitor_lua" <<'LUA'
 local omarchy_gdk_scale = 2
@@ -57,34 +48,43 @@ run_scaling() {
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling up
 grep -F 'scale = 3' "$eval_out" >/dev/null || fail "monitor scaling up reaches 3x"
+grep -Fx 'local omarchy_monitor_scale = 3' "$monitor_lua" >/dev/null || fail "monitor scaling up persists 3x"
 grep -F $'requested=up\tcurrent=2\tnew=3\tmonitor=eDP-1' "$scale_log" >/dev/null || fail "monitor scaling up writes audit log"
 pass "monitor scaling up reaches 3x"
 
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=3 run_scaling down
 grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down recovers 3x to 2x"
+grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling down persists 2x from 3x"
 pass "monitor scaling down recovers 3x to 2x"
 
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=3.0000000000000004 run_scaling down
 grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down snaps floating point 3x to 2x"
+grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling down persists 2x from floating point 3x"
 pass "monitor scaling down snaps floating point 3x to 2x"
 
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
 grep -F 'scale = 3' "$eval_out" >/dev/null || fail "monitor scaling explicit 3x remains available"
+grep -Fx 'local omarchy_monitor_scale = 3' "$monitor_lua" >/dev/null || fail "monitor scaling explicit 3x persists"
+grep -Fx 'local omarchy_gdk_scale = 3' "$monitor_lua" >/dev/null || fail "monitor scaling explicit 3x persists GDK scale"
 pass "monitor scaling explicit 3x remains available"
 
-# Fractional scales are passed to the layout transaction unchanged.
+# GTK only honors integer GDK_SCALE, so fractional monitor scales persist a
+# rounded GDK scale.
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.6
 grep -F 'scale = 1.6' "$eval_out" >/dev/null || fail "monitor scaling explicit 1.6x remains available"
-pass "monitor scaling delegates fractional 1.6x"
+grep -Fx 'local omarchy_monitor_scale = 1.6' "$monitor_lua" >/dev/null || fail "monitor scaling explicit 1.6x persists"
+grep -Fx 'local omarchy_gdk_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling 1.6x persists integer GDK scale 2"
+pass "monitor scaling 1.6x persists integer GDK scale 2"
 
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.25
-grep -F 'scale = 1.25' "$eval_out" >/dev/null || fail "monitor scaling delegates fractional 1.25x"
-pass "monitor scaling delegates fractional 1.25x"
+grep -Fx 'local omarchy_monitor_scale = 1.25' "$monitor_lua" >/dev/null || fail "monitor scaling explicit 1.25x persists"
+grep -Fx 'local omarchy_gdk_scale = 1' "$monitor_lua" >/dev/null || fail "monitor scaling 1.25x persists integer GDK scale 1"
+pass "monitor scaling 1.25x persists integer GDK scale 1"
 
 scale=$(OMARCHY_TEST_MONITOR_SCALE=3 run_scaling)
 [[ $scale == "3" ]] || fail "monitor scaling reports explicit 3x scale" "actual: $scale"
@@ -98,6 +98,8 @@ pass "monitor scaling reports the actual non-preset scale"
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_MONITOR_WIDTH=1280 OMARCHY_TEST_MONITOR_HEIGHT=800 run_scaling 3
 grep -F 'scale = 3.2' "$eval_out" >/dev/null || fail "monitor scaling approximates explicit 3x as 3.2x"
+grep -Fx 'local omarchy_monitor_scale = 3.2' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists approximated 3.2x"
 pass "monitor scaling approximates explicit 3x as 3.2x"
 
 write_monitor_config
@@ -124,15 +126,6 @@ pass "monitor scaling accepts displayed approximate values"
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=4 OMARCHY_TEST_MONITOR_WIDTH=1280 OMARCHY_TEST_MONITOR_HEIGHT=804 run_scaling down
 grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down skips duplicate 4x approximation"
+grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling down persists 2x after skipping duplicate approximation"
 pass "monitor scaling down skips duplicate approximation"
-
-write_monitor_config
-before=$(cat "$monitor_lua")
-run_scaling 1.6
-[[ $(cat "$monitor_lua") == "$before" ]] || fail "focused scaling leaves catch-all defaults untouched"
-pass "focused scaling leaves catch-all defaults untouched"
-
-before=$(cat "$scale_log")
-if OMARCHY_TEST_LAYOUT_FAIL=1 run_scaling 2; then fail "failed transaction reports failure"; fi
-[[ $(cat "$scale_log") == "$before" ]] || fail "failed transaction is not audited as success"
-pass "failed transaction is not audited as success"

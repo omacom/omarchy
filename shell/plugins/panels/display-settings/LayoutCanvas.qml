@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Ui
 import qs.Commons
+import qs.Commons as Commons
 import "LayoutModel.js" as Layout
 
 BorderSurface {
@@ -21,8 +22,8 @@ BorderSurface {
   signal selectedDisplay(string name)
   signal moveRequested(string name, int x, int y)
 
-  color: Color.popups.background
-  borderSpec: Border.localOrSurfaceSpec("popups", "border", Color.popups.border, Color.popups.border, Style.normalBorderWidth)
+  color: Commons.Color.popups.background
+  borderSpec: Border.localOrSurfaceSpec("popups", "border", Commons.Color.popups.border, Commons.Color.popups.border, Style.normalBorderWidth)
   radius: Style.cornerRadius
   clip: true
 
@@ -42,8 +43,8 @@ BorderSurface {
       width: logicalSize.width * canvas.ratio
       height: logicalSize.height * canvas.ratio
       z: moving ? 1 : 0
-      color: display.name === canvas.selected ? Style.selectedFillFor(Color.popups.text, Color.accent) : Style.hoverFillFor(Color.popups.text, Color.accent)
-      border.color: display.name === canvas.selected ? Color.accent : Color.popups.text
+      color: display.name === canvas.selected ? Style.selectedFillFor(Commons.Color.popups.text, Commons.Color.accent) : Style.hoverFillFor(Commons.Color.popups.text, Commons.Color.accent)
+      border.color: display.name === canvas.selected ? Commons.Color.accent : Commons.Color.popups.text
       border.width: 2
       radius: Style.cornerRadius
       Text {
@@ -53,7 +54,7 @@ BorderSurface {
         text: tile.display.name
         elide: Text.ElideRight
         horizontalAlignment: Text.AlignHCenter
-        color: Color.popups.text
+        color: Commons.Color.popups.text
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
       }

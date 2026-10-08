@@ -4,6 +4,7 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import qs.Ui
 import qs.Commons
+import qs.Commons as Commons
 
 // Independent layer-shell popup: moving a bar or remapping its surface must
 // not destroy an active preview's confirmation controls.
@@ -58,8 +59,8 @@ Item {
       anchors.topMargin: Style.space(40)
       width: Math.min(Style.space(900), window.width - Style.space(24))
       height: Math.min(Style.space(720), window.height - Style.space(52))
-      color: Color.popups.background
-      borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
+      color: Commons.Color.popups.background
+      borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Math.max(1, Style.space(2)))
       radius: Style.cornerRadius
       MouseArea { anchors.fill: parent }
       Editor {

@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import qs.Ui
 import qs.Commons
+import qs.Commons as Commons
 import "LayoutModel.js" as Model
 
 ColumnLayout {
@@ -39,7 +40,7 @@ ColumnLayout {
     Layout.fillWidth: true
     text: "One monitor per workspace. Moving an assigned workspace requires confirmation."
     wrapMode: Text.WordWrap
-    color: Color.popups.text
+    color: Commons.Color.popups.text
     font.family: Style.font.family
     font.pixelSize: Style.font.caption
   }
@@ -53,7 +54,7 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.preferredWidth: 1
         implicitHeight: summary.implicitHeight + Style.space(20)
-        color: Style.hoverFillFor(Color.popups.text, Color.accent)
+        color: Style.hoverFillFor(Commons.Color.popups.text, Commons.Color.accent)
         radius: Style.cornerRadius
         Column {
           id: summary
@@ -65,7 +66,7 @@ ColumnLayout {
             textFormat: Text.PlainText
             text: modelData.name
             elide: Text.ElideRight
-            color: Color.popups.text
+            color: Commons.Color.popups.text
             font.family: Style.font.family
             font.pixelSize: Style.font.body
             font.bold: true
@@ -75,7 +76,7 @@ ColumnLayout {
             textFormat: Text.PlainText
             text: root.workspaces.filter(function(w) { return w.monitor === modelData.name }).map(function(w) { return w.id }).join(" · ") || "No assigned workspaces"
             wrapMode: Text.WordWrap
-            color: Color.popups.text
+            color: Commons.Color.popups.text
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
           }
@@ -103,7 +104,7 @@ ColumnLayout {
             Layout.preferredWidth: Style.space(125)
             textFormat: Text.PlainText
             text: "Workspace " + modelData
-            color: Color.popups.text
+            color: Commons.Color.popups.text
             font.family: Style.font.family
             font.pixelSize: Style.font.body
           }
@@ -124,7 +125,7 @@ ColumnLayout {
     visible: !!root.transfer
     implicitHeight: transferColumn.implicitHeight + Style.space(20)
     radius: Style.cornerRadius
-    color: Style.selectedFillFor(Color.popups.text, Color.accent)
+    color: Style.selectedFillFor(Commons.Color.popups.text, Commons.Color.accent)
     Column {
       id: transferColumn
       anchors.left: parent.left
@@ -137,7 +138,7 @@ ColumnLayout {
         textFormat: Text.PlainText
         text: root.transfer ? "Move workspace " + root.transfer.id + " from " + root.transfer.from + " to " + root.transfer.to + "?" : ""
         wrapMode: Text.WordWrap
-        color: Color.popups.text
+        color: Commons.Color.popups.text
         font.family: Style.font.family
         font.pixelSize: Style.font.body
       }
@@ -172,7 +173,7 @@ ColumnLayout {
     textFormat: Text.PlainText
     text: root.error
     wrapMode: Text.WordWrap
-    color: Color.urgent
+    color: Commons.Color.urgent
     font.family: Style.font.family
     font.pixelSize: Style.font.caption
   }

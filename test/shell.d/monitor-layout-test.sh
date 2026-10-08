@@ -170,25 +170,7 @@ if TEST_LAYOUT_RELOAD_MISMATCH=1 "$cli" keep "$token" >/dev/null 2>&1; then fail
 pass 'reload geometry mismatch restores file and runtime'
 
 sed -i '/^-- END OMARCHY DISPLAY LAYOUT$/i hl.monitor({ output = "HDMI-A-1", mode = "1920x1080@60.00", position = "4000x0", scale = 1, transform = 0, disabled = false })' "$XDG_CONFIG_HOME/hypr/monitors.lua"
-"$cli" scale DP-1 2
-rg -q 'output = "DP-1".*position = "-1080x0".*scale = 2.*transform = 1' "$XDG_CONFIG_HOME/hypr/monitors.lua" || fail 'scale retains portrait and position'
-rg -q 'output = "HDMI-A-1".*position = "4000x0"' "$XDG_CONFIG_HOME/hypr/monitors.lua" || fail 'retains unplugged monitor rule'
-"$cli" state | jq -e '.monitors[0].scale == 2 and .monitors[0].transform == 1 and .monitors[0].x == -1080 and .pending == null' >/dev/null || fail 'scale survives reload'
-pass 'focused scale persists explicit geometry and disconnected rules'
-
-# Preview and scale share a single pending transaction.
 token=$("$cli" preview "$request" | jq -r .token)
-if "$cli" scale DP-1 1.25 >/dev/null 2>&1; then fail 'scale rejects concurrent preview'; fi
-"$cli" revert "$token"
-pass 'scale cannot overwrite an active preview'
-
-# Exercise the actual scale -> resize -> preview -> keep -> reload pipeline with
-# three outputs. The stub reload reads the persisted file, not the request.
-python3 - "$TEST_LAYOUT_LOG.monitors" <<'PY_FIXTURE'
-import json, sys
-monitors = [dict(name=name, width=1920, height=1080, refreshRate=60, x=x, y=0, scale=1, transform=0, mirrorOf='none', availableModes=['1920x1080@60.00Hz']) for name, x in [('eDP-1', 0), ('DP-1', 1920), ('DP-2', 3840)]]
-json.dump(monitors, open(sys.argv[1], 'w'))
-PY_FIXTURE
-"$cli" scale DP-1 2
-"$cli" state | jq -e '.monitors | any(.name == "eDP-1" and .x == 0 and .scale == 1) and any(.name == "DP-1" and .x == 1920 and .scale == 2) and any(.name == "DP-2" and .x == 2880)' >/dev/null || fail 'chain resize survives actual file reload'
-pass 'three-output resize preserves anchor and chain across saved-file reload'
+"$cli" keep "$token"
+rg -q 'output = "HDMI-A-1".*position = "4000x0"' "$XDG_CONFIG_HOME/hypr/monitors.lua" || fail 'retains unplugged monitor rule'
+pass 'editor Keep retains disconnected monitor rules'
