@@ -391,6 +391,7 @@ Panel {
           badgeColor: root.urgent
           crossed: !tailscale.active && !tailscale.needsLogin
           warning: tailscale.needsLogin
+          exitNode: tailscale.active && tailscale.usingExitNode
         }
       }
     }
