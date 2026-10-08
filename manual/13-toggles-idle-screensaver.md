@@ -93,7 +93,7 @@ You can start it on demand from _System > Screensaver_ (`Super + Esc`), which fo
 
 `omarchy toggle screensaver` is what turns the idle one off, if you'd rather go straight from working to locked. It needs a terminal it knows how to configure — Alacritty, Foot, Ghostty, or Kitty — and will tell you so if your default terminal is something else.
 
-The logo it draws is yours to change, under _Style > Screensaver_. Upload a png or svg and Omarchy converts it to ASCII. See [branding](41-branding.md).
+The logo it draws is yours to change, under _Style > Screensaver_. Upload a png or svg and Omarchy converts it to ASCII. See [branding](41-branding.md). A theme can ship its own screensaver art too, in which case it's shown instead of your branding art while that theme is active.
 
 ### The lock screen
 

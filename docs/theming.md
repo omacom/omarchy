@@ -6,7 +6,7 @@ Omarchy themes live under `themes/<name>/` in the source tree (installed at
 `colors.toml`; Omarchy generates the active theme files from
 `default/themed/*.tpl` when `omarchy-theme-set <name>` runs.
 
-Beyond `colors.toml` and hand-written config overrides, a first-party theme can ship `backgrounds/` (users overlay their own via `~/.config/omarchy/backgrounds/<name>/`; the active image is the `~/.local/state/omarchy/current/background` symlink), `preview.png` and `preview-unlock.png` for the theme switcher, `icons.theme`, `keyboard.rgb`, `unlock.png`, and a `light.mode` marker file.
+Beyond `colors.toml` and hand-written config overrides, a first-party theme can ship `backgrounds/` (users overlay their own via `~/.config/omarchy/backgrounds/<name>/`; the active image is the `~/.local/state/omarchy/current/background` symlink), `preview.png` and `preview-unlock.png` for the theme switcher, `icons.theme`, `keyboard.rgb`, `unlock.png`, a `light.mode` marker file, and the screensaver's `screensaver.txt` / `screensaver.conf` (see [The screensaver](#the-screensaver) below).
 
 A theme can pair a still background with a silent intro video using matching filenames: `backgrounds/0-winding-road.webp` and `backgrounds/intros/0-winding-road.mp4`. The video plays automatically at login and when switching to that theme with this background selected. No registration, checksum file or manual setting is needed. Supported video extensions are `mp4`, `m4v`, `mov`, `webm`, `mkv` and `avi`. Intro videos stay inside the nested `intros/` directory so the background picker does not list them as looping wallpapers. An image selected from another directory looks for its intro in that directory's own `intros/`, so a same-named custom image cannot inherit a theme's video.
 
@@ -371,6 +371,23 @@ For a gradient it renders:
 
 ```lua
 local active_border_color = { colors = { "rgba(33ccffee)", "rgba(00ff99ee)" }, angle = 45 }
+```
+
+## The screensaver
+
+`omarchy-screensaver` reads `~/.config/omarchy/branding/screensaver.txt` as the ASCII art it feeds to `ttfx --random-effect`, and that file is global: set once via `omarchy branding screensaver`, it does not vary by theme.
+
+A theme can opt into its own art by shipping `screensaver.txt` at the root of `themes/<name>/`. When present, it takes precedence over the global branding file; when absent, behavior is unchanged. It is kept as-is by `omarchy-theme-set` for both first-party and installed themes — it is plain data, not one of the files listed in [What an installed theme may not ship](#what-an-installed-theme-may-not-ship) — so it lands at `~/.local/state/omarchy/current/theme/screensaver.txt` the same way `colors.toml` does.
+
+A theme can also ship `screensaver.conf`: extra `ttfx` arguments, one per line, blank lines and lines starting with `#` ignored. These are appended to the invocation in `bin/omarchy-screensaver`, and any flag a theme sets there drops the script's own default for that same flag, since `ttfx` (clap) errors out if a flag is passed twice. This covers which effects `--random-effect` may pick (`--include-effects`/`--exclude-effects`), frame rate, canvas size, and the rest of `ttfx`'s top-level options — but not per-effect color flags such as `--final-gradient-stops`: those belong to a specific effect subcommand and `ttfx` rejects them outright alongside `--random-effect`, which is why theming the screensaver's colors from `colors.toml` is not supported.
+
+```
+# themes/<name>/screensaver.conf
+--include-effects
+matrix
+rain
+--frame-rate
+30
 ```
 
 ## Adding or overriding theme files
