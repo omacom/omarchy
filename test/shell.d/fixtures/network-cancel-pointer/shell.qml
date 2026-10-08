@@ -143,8 +143,43 @@ ShellRoot {
     return walk(row)
   }
 
-  function singleClick(slot) {
-    ev.mouseMove(slot, slot.width / 2, slot.height / 2, -1, Qt.NoButton, Qt.NoModifier)
+  // A prompt action button (Cancel/Connect) on this row's subtree, found by
+  // tooltip. Unlike the right-edge slot glyph, the prompt Cancel button is a
+  // focusable PanelActionButton, so the tooltip match is unambiguous.
+  function actionButton(ssid, tip) {
+    var row = rowItem(ssid)
+    if (!row) return null
+    function walk(it) {
+      if (!it) return null
+      if (it.tooltipText === tip) return it
+      var kids = it.children
+      for (var i = 0; i < kids.length; i++) {
+        var found = walk(kids[i])
+        if (found) return found
+      }
+      return null
+    }
+    return walk(row)
+  }
+
+  // A credential field on this row's subtree, found by placeholder text.
+  function credentialField(ssid, placeholder) {
+    var row = rowItem(ssid)
+    if (!row) return null
+    function walk(it) {
+      if (!it) return null
+      if (it.placeholderText === placeholder) return it
+      var kids = it.children
+      for (var i = 0; i < kids.length; i++) {
+        var found = walk(kids[i])
+        if (found) return found
+      }
+      return null
+    }
+    return walk(row)
+  }
+
+  function singleClick(slot) {    ev.mouseMove(slot, slot.width / 2, slot.height / 2, -1, Qt.NoButton, Qt.NoModifier)
     ev.mouseClick(slot, slot.width / 2, slot.height / 2, Qt.LeftButton, Qt.NoModifier, -1)
   }
 
@@ -248,13 +283,21 @@ ShellRoot {
           "a second Enter does not Forget the network")
         arm()
       } else if (step === 7) {
-        // Prompt Cancel stays keyboard-reachable while connecting: Enter and
-        // Esc on it abort through cancelNetworkAction, the prompt stays open
-        // for correcting the credentials, and a following Esc closes it.
+        // Prompt Cancel stays keyboard-reachable while connecting. Real key
+        // injection reaches no QML item on the offscreen platform (verified
+        // with a bare focused Item), so this drives the exact handlers the
+        // keys reach and asserts the focus chain around them instead: the
+        // Cancel button must actually hold focus when it appears, and the
+        // passphrase field must take it back after the abort for the retry.
         panel.openPasswordPrompt("HomeNet")
         check(panel.passwordSsid === "HomeNet", "the passphrase prompt opens")
         panel.connectWithPassphrase("HomeNet", "hunter2")
         check(panel.isConnectTarget("HomeNet"), "the passphrase connect arms the lane")
+      } else if (step === 8) {
+        var cancelBtn = actionButton("HomeNet", "Cancel")
+        check(cancelBtn !== null, "the prompt shows a Cancel button while connecting")
+        check(cancelBtn !== null && cancelBtn.activeFocus,
+          "the prompt Cancel button takes keyboard focus when it appears")
         panel.cancelNetworkAction()
         check(NetworkMock.device.disconnects === 1,
           "the prompt Cancel aborts the activation")
@@ -262,6 +305,12 @@ ShellRoot {
           "the prompt Cancel clears the connect lane")
         check(panel.passwordSsid === "HomeNet",
           "the prompt stays open so the credentials can be corrected")
+      } else if (step === 9) {
+        var pwField = credentialField("HomeNet", "Passphrase")
+        check(pwField !== null && pwField.visible && pwField.enabled,
+          "the passphrase field is back after the abort")
+        check(pwField !== null && pwField.activeFocus,
+          "focus returns to the passphrase field for correcting the credentials")
         panel.cancelPasswordPrompt()
         check(panel.passwordSsid === "",
           "a following Esc can still close the prompt")

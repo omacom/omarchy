@@ -870,6 +870,10 @@ Panel {
   }
 
   function connectEnterprise(ssid, identity, passphrase) {
+    // No already-running guard is needed: Quickshell's Process only spawns
+    // when none is running and otherwise queues the request, so a retry
+    // while the old helper is stopping starts after it exits (minting a
+    // fresh UUID at spawn); cancelling clears the queued request again.
     runNetworkAction("connect", networkForSsid(ssid), function(network) {
       enterpriseConnect.secret = passphrase
       enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity]

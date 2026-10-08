@@ -340,7 +340,8 @@ assert(
 )
 assert(
   /id: cancelPwBtn[\s\S]{0,400}focusable: true/.test(panelSource) &&
-    /id: cancelPwBtn[\s\S]{0,600}Keys\.onEscapePressed: root\.cancelNetworkAction\(\)/.test(panelSource),
+    /id: cancelPwBtn[\s\S]{0,600}Keys\.onEscapePressed: root\.cancelNetworkAction\(\)/.test(panelSource) &&
+    /id: cancelPwBtn[\s\S]{0,800}onVisibleChanged: if \(visible\) Qt\.callLater\(forceActiveFocus\)/.test(panelSource),
   'network keeps the prompt Cancel keyboard-reachable while the fields are disabled'
 )
 assert(
