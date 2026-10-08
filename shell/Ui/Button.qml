@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import qs.Commons
+import qs.Commons as Commons
 
 // The button. One component for every clickable thing in the kit.
 // States compose independently and are applied in priority order:
@@ -32,9 +33,9 @@ BorderSurface {
   property bool bordered: false
 
   // Colors. Defaults track the theme; per-instance overrides are honored.
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property color background: "transparent"
-  property color accent: Color.accent
+  property color accent: Commons.Color.accent
 
   // Sizing.
   property string fontFamily: Style.font.family
@@ -54,9 +55,9 @@ BorderSurface {
   // Tooltip palette. Auto-rendered if tooltipText is set. Defaults pull
   // from [tooltip] in shell.toml; override per-instance only when a button
   // intentionally wants a tooltip that diverges from the theme.
-  property color tooltipBackground: Color.tooltip.background
-  property color tooltipForeground: Color.tooltip.text
-  property color tooltipBorder: Color.tooltip.border
+  property color tooltipBackground: Commons.Color.tooltip.background
+  property color tooltipForeground: Commons.Color.tooltip.text
+  property color tooltipBorder: Commons.Color.tooltip.border
 
   signal clicked()
   signal rightClicked()
@@ -77,7 +78,7 @@ BorderSurface {
   readonly property bool hot: mouseArea.containsMouse || hasCursor
   readonly property bool _showFocusRing: focusable && activeFocus
   readonly property color _selectedColor: Style.selectedStateColor(root.foreground, root.accent)
-  readonly property var _tooltipBorderSpec: Border.localOrSurfaceSpec("tooltip", "border", root.tooltipBorder, Color.tooltip.border, Math.max(1, Style.normalBorderWidth))
+  readonly property var _tooltipBorderSpec: Border.localOrSurfaceSpec("tooltip", "border", root.tooltipBorder, Commons.Color.tooltip.border, Math.max(1, Style.normalBorderWidth))
   readonly property var _focusBorderSpec: Border.controlSpec("focus", root.foreground, root.accent)
   readonly property var _hoverBorderSpec: Border.controlSpec("hover-cursor", root.foreground, root.accent)
   readonly property var _selectedBorderSpec: Border.controlSpec("selected", root.foreground, root.accent)
@@ -125,7 +126,7 @@ BorderSurface {
   // dedicated selected border.
   borderSpec: _borderSpec
 
-  Behavior on color { ColorAnimation { duration: 120 } }
+  Behavior on color { ColorAnimation { duration: Style.duration(120) } }
 
   ToolTip {
     visible: root.tooltipText !== "" && mouseArea.containsMouse
@@ -174,7 +175,7 @@ BorderSurface {
         to: 360
         duration: 900
         loops: Animation.Infinite
-        running: root.iconSpinning
+        running: root.iconSpinning && !Style.reduceMotion
       }
     }
 

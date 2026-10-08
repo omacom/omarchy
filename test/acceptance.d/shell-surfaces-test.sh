@@ -24,7 +24,7 @@ open_and_close() {
 # Search and select an emoji. The host harness separately proves the shortcut
 # with a QMP hardware key chord, while this test focuses on UI behavior.
 omarchy-shell shell summon omarchy.emojis >/dev/null
-wait_until "emoji picker opens" 15 layer_present "omarchy-emojis"
+wait_until "emoji picker opens" 15 layer_on_overlay "omarchy-emojis"
 wtype "rocket"
 sleep 1
 screenshot "success-emoji-picker-search"
@@ -39,7 +39,7 @@ printf '%s' "clipboard decoy" | wl-copy
 sleep 1
 
 omarchy-shell shell summon omarchy.clipboard >/dev/null
-wait_until "clipboard opens" 15 layer_present "omarchy-clipboard"
+wait_until "clipboard opens" 15 layer_on_overlay "omarchy-clipboard"
 wtype "$clipboard_token"
 wait_until "clipboard search finds test text" 15 screen_contains "Omarchy acceptance clipboard"
 screenshot "success-clipboard-search"
@@ -49,7 +49,7 @@ wait_until "clipboard selection restores test text" 15 bash -c '[[ $(wl-paste --
 
 # Exercise the system branch without invoking any destructive action.
 omarchy-shell shell summon omarchy.menu '{"menu":"system"}' >/dev/null
-wait_until "system menu opens" 15 layer_present "omarchy-menu"
+wait_until "system menu opens" 15 layer_on_overlay "omarchy-menu"
 wait_until "system menu content is visible" 15 screen_contains "Shutdown"
 screenshot "success-system-menu"
 wtype -k Escape
@@ -58,14 +58,14 @@ wait_until "system menu closes" 15 layer_absent "omarchy-menu"
 # Preview both visual selectors and cancel without changing user state. These
 # cover thumbnail generation, the image-grid overlay, and current selection.
 launch_app "omarchy-theme-bg-switcher"
-wait_until "background selector opens" 30 layer_present "omarchy-image-selector"
+wait_until "background selector opens" 30 layer_on_overlay "omarchy-image-selector"
 sleep 1
 screenshot "success-background-selector"
 wtype -k Escape
 wait_until "background selector closes" 15 layer_absent "omarchy-image-selector"
 
 launch_app "omarchy-theme-switcher"
-wait_until "theme selector opens" 30 layer_present "omarchy-image-selector"
+wait_until "theme selector opens" 30 layer_on_overlay "omarchy-image-selector"
 sleep 1
 screenshot "success-theme-selector"
 wtype -k Escape
@@ -74,7 +74,7 @@ wait_until "theme selector closes" 15 layer_absent "omarchy-image-selector"
 # Walk the reminder flow through each input screen, but dismiss before it
 # schedules a real timer in the test user's session.
 omarchy-shell shell summon omarchy.reminders >/dev/null
-wait_until "reminder flow opens" 15 layer_present "omarchy-reminders"
+wait_until "reminder flow opens" 15 layer_on_overlay "omarchy-reminders"
 screenshot "success-reminder-01-minutes-prompt"
 wtype "5"
 sleep 1
@@ -101,7 +101,7 @@ if window_present "(?i)omawrite" >/dev/null 2>&1; then
 fi
 
 omarchy-menu summon apps >/dev/null
-wait_until "apps menu opens" 15 layer_present "omarchy-menu"
+wait_until "apps menu opens" 15 layer_on_overlay "omarchy-menu"
 sleep 1
 screenshot "success-apps-menu-open"
 
