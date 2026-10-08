@@ -194,14 +194,25 @@ whole lifetime: Chromium draws its own bare popup windows for the rest of the
 session instead of sending toasts here.
 
 So `o.launch_on_start` routes through `bin/omarchy-launch-autostart`, which
-waits with `gdbus wait` for the notification service (up to 15 s) and then
-execs `uwsm-app -- <command>` unchanged. In the normal case the name is on the
-bus within a couple of seconds. Past the deadline the app launches anyway and
-one `omarchy-autostart` line in the journal names the missing service, so a
-disabled notifications plugin costs a slower login, never a missing app. A
-launch that must not wait can bypass the helper with
-`o.exec_on_start(o.launch("my-daemon"))`. Keybind launches (`o.launch`,
-`o.bind` with a command) run in an established session and stay immediate.
+waits with `gdbus wait --activate` for the notification service (up to 15 s)
+and then execs `uwsm-app -- <command>` unchanged. In the normal case the name
+is on the bus within a couple of seconds. Past the deadline the app launches
+anyway and one `omarchy-autostart` line in the journal names the missing
+service, so a disabled notifications plugin costs a slower login, never a
+missing app. Keybind launches (`o.launch`, `o.bind` with a command) run in an
+established session and stay immediate.
+
+A leading Hyprland exec rule such as `[workspace 4 silent]` stays in front of
+the helper in the exec string, where Hyprland consumes it; anywhere later it
+would reach the launched program as an argument. Hyprland keeps an exec rule
+for a minute, so the wait fits inside it.
+
+With the shell's notifications plugin disabled, `--activate` starts a
+D-Bus-activatable daemon (mako, dunst and swaync all ship a service file for
+the name) so the wait ends at once. A daemon started from `autostart.lua`
+instead would wait for the name it is about to claim itself, so it must use
+the no-wait form `o.exec_on_start(o.launch("mako"))`; the same form suits any
+launch that must not wait.
 
 ## Helper commands
 

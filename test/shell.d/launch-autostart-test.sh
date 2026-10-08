@@ -4,6 +4,8 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+require_command lua
+
 command_path="$ROOT/bin/omarchy-launch-autostart"
 helpers="$ROOT/default/hypr/helpers.lua"
 
@@ -29,10 +31,12 @@ cat >"$fakes/logger" <<'EOF'
 printf '%s\n' "$*" >>"$FAKE_LOG_DIR/logger"
 EOF
 
+# Records one argument per line so a broken argv (say "--timeout 15" as one
+# word, which real gdbus rejects at once) cannot pass as the right call.
 write_gdbus() {
   cat >"$fakes/gdbus" <<EOF
 #!/bin/bash
-printf '%s\n' "\$*" >>"\$FAKE_LOG_DIR/gdbus"
+printf '%s\n' "\$@" >>"\$FAKE_LOG_DIR/gdbus"
 [[ -e "\$FAKE_LOG_DIR/uwsm-app" ]] && echo launched-before-wait >>"\$FAKE_LOG_DIR/gdbus"
 exit $1
 EOF
@@ -49,7 +53,8 @@ run_command() {
 write_gdbus 0
 run_command chromium --new-window --app="https://example.com/" "two words"
 
-[[ $(cat "$FAKE_LOG_DIR/gdbus") == "wait --session --timeout 15 org.freedesktop.Notifications" ]] ||
+expected_wait=$'wait\n--session\n--activate\n--timeout\n15\norg.freedesktop.Notifications'
+[[ $(cat "$FAKE_LOG_DIR/gdbus") == "$expected_wait" ]] ||
   fail "autostart waits for the notification service before launching" "$(cat "$FAKE_LOG_DIR/gdbus")"
 pass "autostart waits for the notification service before launching"
 
@@ -76,12 +81,36 @@ grep -Fq 'org.freedesktop.Notifications' "$FAKE_LOG_DIR/logger" ||
   fail "autostart names the missing bus name in its journal line" "$(cat "$FAKE_LOG_DIR/logger")"
 grep -Fq -- '-t omarchy-autostart' "$FAKE_LOG_DIR/logger" ||
   fail "autostart tags its journal line" "$(cat "$FAKE_LOG_DIR/logger")"
+grep -Fq 'was not available after waiting up to 15s' "$FAKE_LOG_DIR/logger" ||
+  fail "autostart's journal line stays true when gdbus fails for any reason" "$(cat "$FAKE_LOG_DIR/logger")"
 pass "autostart reports a timed-out wait to the journal"
 
-# The Hyprland helper routes autostart through the command; binds stay immediate.
-grep -Fq 'o.exec_on_start("omarchy-launch-autostart " .. command)' "$helpers" ||
-  fail "o.launch_on_start routes through omarchy-launch-autostart"
-pass "o.launch_on_start routes through omarchy-launch-autostart"
+# The Hyprland helper routes autostart through the command and keeps a leading
+# Hyprland exec rule outside it; binds stay immediate. Evaluated with a stub hl
+# rather than read from the source, so a commented-out routing line cannot pass.
+helper_output=$(OMARCHY_PATH="$ROOT" lua <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+local handlers, executed = {}, {}
+hl = {
+  on = function(event, fn)
+    handlers[event] = handlers[event] or {}
+    table.insert(handlers[event], fn)
+  end,
+  exec_cmd = function(command) table.insert(executed, command) end,
+}
+require("default.hypr.helpers")
+o.launch_on_start("my-app --flag")
+o.launch_on_start("[workspace 4 silent] foot")
+o.launch_on_start("[float] kitty --class notes")
+for _, fn in ipairs(handlers["hyprland.start"] or {}) do fn() end
+print(table.concat(executed, "\n"))
+print(o.launch("my-app --flag"))
+LUA
+) || fail "helpers.lua can be evaluated with a stub hl"
 
-grep -Fxq '  return "uwsm-app -- " .. command' "$helpers" || fail "o.launch still launches immediately for binds"
+helper_expected=$'omarchy-launch-autostart my-app --flag\n[workspace 4 silent] omarchy-launch-autostart foot\n[float] omarchy-launch-autostart kitty --class notes\nuwsm-app -- my-app --flag'
+[[ $helper_output == "$helper_expected" ]] ||
+  fail "o.launch_on_start routes through omarchy-launch-autostart with exec rules kept outside it" "$helper_output"
+pass "o.launch_on_start routes through omarchy-launch-autostart"
+pass "o.launch_on_start keeps a Hyprland exec rule in front of the helper"
 pass "o.launch still launches immediately for binds"
