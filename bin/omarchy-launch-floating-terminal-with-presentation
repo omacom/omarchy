@@ -1,15 +1,28 @@
 #!/bin/bash
 
 # omarchy:summary=Launch a floating terminal with the Omarchy presentation wrapper
-# omarchy:args=<command>
+# omarchy:args=[--plain] <command>
 
 # Export the current theme's gum styling so gum widgets match the active theme
 # even after a theme switch (the inherited environment is captured at login).
 source omarchy-restart-gum
 
+# Setup and recovery callers can retain the original terminal presentation.
+plain=false
+if [[ ${1:-} == "--plain" ]]; then
+  plain=true
+  shift
+fi
 cmd="$*"
-# Every caller gets the same dashboard. Its PTY preserves interactive setup,
-# password prompts and AUR builds without per-installer registrations.
-exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.terminal --title=Omarchy \
-  -e python3 "$OMARCHY_PATH/default/install-presentation/dashboard.py" \
-  --interactive --name "${OMARCHY_INSTALL_NAME:-}" --command "$cmd"
+if [[ $plain == "true" ]]; then
+  exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.terminal --title=Omarchy \
+    -e bash -c 'omarchy-show-logo
+bash -c "$1"
+code=$?
+if (( code != 130 )); then omarchy-show-done "$code"; fi
+exit "$code"' omarchy-presentation "$cmd"
+else
+  exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.terminal --title=Omarchy \
+    -e python3 "$OMARCHY_PATH/default/install-presentation/dashboard.py" \
+    --interactive --name "${OMARCHY_INSTALL_NAME:-}" --command "$cmd"
+fi

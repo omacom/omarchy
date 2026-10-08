@@ -11,5 +11,5 @@ if [[ -n $WINDOW_ADDRESS ]]; then
 elif [[ -x /usr/bin/spotify ]]; then
   exec setsid uwsm-app -- /usr/bin/spotify
 else
-  exec omarchy-launch-floating-terminal-with-presentation omarchy-install-service-spotify
+  exec omarchy-launch-floating-terminal-with-presentation --plain omarchy-install-service-spotify
 fi

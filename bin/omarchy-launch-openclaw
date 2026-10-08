@@ -33,7 +33,7 @@ if [[ ! -f $HOME/.openclaw/openclaw.json ]]; then
     # finishing it lands the user in the app. Single quotes so $HOME expands
     # in the spawned terminal.
     # shellcheck disable=SC2016
-    exec omarchy-launch-floating-terminal-with-presentation \
+    exec omarchy-launch-floating-terminal-with-presentation --plain \
       'omarchy-openclaw-onboard && [[ -f $HOME/.openclaw/openclaw.json ]] && omarchy-launch-openclaw'
   fi
 fi

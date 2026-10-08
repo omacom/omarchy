@@ -32,6 +32,38 @@ if "NO_COLOR" in os.environ:
 ANSI = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]")
 
 
+def prune_logs(log_dir, keep=20):
+  """Best-effort retention; never remove a log held by a running dashboard."""
+  logs = []
+  try:
+    candidates = list(log_dir.glob("install-*.log"))
+  except OSError:
+    return
+  for path in candidates:
+    try:
+      logs.append((path.stat().st_mtime_ns, path))
+    except OSError:
+      continue
+  for _, path in sorted(logs, reverse=True)[keep:]:
+    try:
+      with path.open("rb") as old:
+        fcntl.flock(old, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        path.unlink(missing_ok=True)
+    except OSError:
+      # Concurrent runs, an open active log, or cleanup permissions must not
+      # prevent the requested command from starting.
+      continue
+
+
+def create_log():
+  log_dir = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "omarchy/installs"
+  log_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+  fd, path = tempfile.mkstemp(prefix="install-", suffix=".log", dir=log_dir)
+  fcntl.flock(fd, fcntl.LOCK_EX)
+  prune_logs(log_dir)
+  return fd, path
+
+
 def clean(text):
   return "".join(c for c in ANSI.sub("", text) if not unicodedata.category(c).startswith("C"))
 
@@ -240,9 +272,7 @@ class Dashboard:
 
   def run_interactive(self, command):
     """Keep output and input in one embedded terminal throughout the task."""
-    log_dir = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "omarchy/installs"
-    log_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-    fd, self.log_path = tempfile.mkstemp(prefix="install-", suffix=".log", dir=log_dir)
+    fd, self.log_path = create_log()
     master, slave = pty.openpty()
     self.pty_fd = master
     env = dict(os.environ, LC_ALL="C.UTF-8")
@@ -358,9 +388,7 @@ class Dashboard:
     return 130 if self.cancelled else self.child.returncode
 
   def run(self, command):
-    log_dir = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "omarchy/installs"
-    log_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-    fd, self.log_path = tempfile.mkstemp(prefix="install-", suffix=".log", dir=log_dir)
+    fd, self.log_path = create_log()
     env = dict(os.environ, LC_ALL="C", OMARCHY_INSTALL_AUTHENTICATED="1")
     env.pop("OMARCHY_INSTALL_NAME", None)
     env.pop("OMARCHY_INSTALL_PACKAGES", None)

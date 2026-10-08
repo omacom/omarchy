@@ -11,5 +11,5 @@ if [[ -n $WINDOW_ADDRESS ]]; then
 elif [[ -x /usr/bin/signal-desktop ]]; then
   exec setsid uwsm-app -- /usr/bin/signal-desktop
 else
-  exec omarchy-launch-floating-terminal-with-presentation omarchy-install-service-signal
+  exec omarchy-launch-floating-terminal-with-presentation --plain omarchy-install-service-signal
 fi

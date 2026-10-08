@@ -43,3 +43,41 @@ launch=$(<"$TEST_LOG")
 [[ $launch == *'--interactive'* && $launch == *'--command omarchy-setup-security-fingerprint' ]] ||
   fail "interactive setup gets a real terminal through the dashboard" "$launch"
 pass "interactive setup gets a real terminal through the dashboard"
+
+for command in omarchy-system-factory-reset omarchy-setup-direct-boot omarchy-install-ai-openclaw omarchy-install-service-tailscale; do
+  "$ROOT/bin/omarchy-launch-floating-terminal-with-presentation" --plain "$command"
+  launch=$(<"$TEST_LOG")
+  [[ $launch == *'-e bash -c omarchy-show-logo'* && $launch != *'dashboard.py'* && $launch == *"omarchy-presentation $command" ]] ||
+    fail "plain presentation bypasses dashboard for $command" "$launch"
+done
+pass "plain setup and recovery routes bypass dashboard"
+
+# Execute the actual launcher argv with desktop transport stubbed out.
+cat >"$tmp_dir/setsid" <<'SCRIPT'
+#!/bin/bash
+while [[ $1 != -e ]]; do shift; done
+shift
+exec "$@"
+SCRIPT
+cat >"$tmp_dir/omarchy-show-logo" <<'SCRIPT'
+#!/bin/bash
+echo logo >>"$TEST_LOG"
+SCRIPT
+cat >"$tmp_dir/omarchy-show-done" <<'SCRIPT'
+#!/bin/bash
+echo "done:$1" >>"$TEST_LOG"
+SCRIPT
+chmod +x "$tmp_dir"/omarchy-show-*
+for status in 0 7 130; do
+  : >"$TEST_LOG"
+  actual=0
+  "$ROOT/bin/omarchy-launch-floating-terminal-with-presentation" --plain "echo 'quoted argument' >>\"\$TEST_LOG\"; exit $status" || actual=$?
+  [[ $actual == "$status" ]] || fail "plain exit status" "$actual"
+  [[ $(grep -c '^quoted argument$' "$TEST_LOG") == 1 ]] || fail "plain command executes once"
+  if (( status == 130 )); then
+    ! grep -q '^done:' "$TEST_LOG" || fail "cancel skips completion prompt"
+  else
+    grep -q "^done:$status$" "$TEST_LOG" || fail "completion receives exit status"
+  fi
+done
+pass "plain presentation preserves quoting, execution count and exit statuses"
