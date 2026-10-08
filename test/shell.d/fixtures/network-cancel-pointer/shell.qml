@@ -3,6 +3,7 @@ import QtTest
 import Quickshell
 import Quickshell.Networking
 import qs.Commons
+import qs.Commons as Commons
 import "mocks"
 import "network" as Network
 
@@ -39,9 +40,9 @@ ShellRoot {
     Network.Panel {
       id: panel
       bar: QtObject {
-        property color foreground: Color.foreground
-        property color barForeground: Color.foreground
-        property color urgent: Color.urgent
+        property color foreground: Commons.Color.foreground
+        property color barForeground: Commons.Color.foreground
+        property color urgent: Commons.Color.urgent
         property string fontFamily: Style.font.family
         property string position: "top"
         property int barSize: 24
