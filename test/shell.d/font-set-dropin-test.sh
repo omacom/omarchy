@@ -7,7 +7,7 @@ test_dir=$(mktemp -d)
 trap 'rm -rf "$test_dir"' EXIT
 test_home="$test_dir/home"
 test_bin="$test_dir/bin"
-migration="$ROOT/migrations/1790098827.sh"
+migration="$ROOT/migrations/1791479460.sh"
 
 mkdir -p "$test_home/.config/fontconfig" "$test_bin"
 

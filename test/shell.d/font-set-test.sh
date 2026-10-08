@@ -6,7 +6,7 @@ source "$(dirname "$0")/base-test.sh"
 
 require_command python3
 
-migration="$ROOT/migrations/1791304794.sh"
+migration="$ROOT/migrations/1791479461.sh"
 default_fontconfig="$ROOT/default/fontconfig/conf.avail/50-omarchy.conf"
 
 test_dir=$(mktemp -d)

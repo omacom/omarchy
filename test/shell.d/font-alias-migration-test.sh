@@ -37,8 +37,8 @@ with tempfile.TemporaryDirectory() as directory:
 
   def migrate(first=False, success=True):
     if first:
-      subprocess.run(['bash', '-euo', 'pipefail', str(root / 'migrations/1790098827.sh')], env=env, check=True, capture_output=True)
-    result = subprocess.run(['bash', '-euo', 'pipefail', str(root / 'migrations/1791304794.sh')], env=env, capture_output=True)
+      subprocess.run(['bash', '-euo', 'pipefail', str(root / 'migrations/1791479460.sh')], env=env, check=True, capture_output=True)
+    result = subprocess.run(['bash', '-euo', 'pipefail', str(root / 'migrations/1791479461.sh')], env=env, capture_output=True)
     assert (result.returncode == 0) == success, result.stderr.decode()
     return result
 
@@ -137,7 +137,7 @@ with tempfile.TemporaryDirectory() as directory:
     assert b'prepend_first' not in dropin.read_bytes()
     source = config / 'fonts.conf'
     source.write_bytes(data.encode())
-    subprocess.run(['bash', '-euo', 'pipefail', str(root / 'migrations/1790098827.sh')], env=env, check=True, capture_output=True)
+    subprocess.run(['bash', '-euo', 'pipefail', str(root / 'migrations/1791479460.sh')], env=env, check=True, capture_output=True)
     assert source.exists() and source.read_bytes() == data.encode(), label
     setter_env = dict(env, PATH=str(work / 'bin') + ':' + str(root / 'bin') + ':' + env['PATH'])
     (work / 'bin').mkdir(exist_ok=True)
