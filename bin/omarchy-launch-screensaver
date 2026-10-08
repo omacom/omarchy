@@ -51,6 +51,19 @@ wait_for_screensaver_window() {
 }
 
 while read -r m special; do
+  # Both names come from hyprctl and are written into the Lua below, so only a
+  # plain connector/workspace name may pass; a hostile output name could
+  # execute otherwise.
+  if [[ ! $m =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "Refusing unsafe monitor name" >&2
+    continue
+  fi
+
+  if [[ -n $special && ! $special =~ ^special:[A-Za-z0-9._-]+$ ]]; then
+    echo "Refusing unsafe special workspace name" >&2
+    continue
+  fi
+
   hypr_focus_monitor "$m"
   # Share a special workspace that is already showing, like the scratchpad, so it is still open afterwards.
   workspace=${special:-special:screensaver-$m}
