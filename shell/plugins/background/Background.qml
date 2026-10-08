@@ -5,12 +5,14 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Item {
   id: root
 
   property var shell: null
+  property bool suspended: false
   readonly property string home: Quickshell.env("HOME")
   readonly property string stateHome: home + "/.local/state"
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
@@ -37,11 +39,20 @@ Item {
   property var sizeQueue: []
   property bool finishingTransition: false
   property int backgroundVersion: 0
+  property int reloadVersion: 0
   property int revealStartedVersion: -1
   property int pendingThemeVersion: -1
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
+  readonly property bool ready: {
+    if (isVideo(displayedBackground)) return true
+    if (backgrounds.instances.length === 0) return false
+    for (var panel of backgrounds.instances) {
+      if (!panel.backgroundReady) return false
+    }
+    return true
+  }
 
   function isVideo(path) {
     return Util.isVideoPath(path)
@@ -56,7 +67,8 @@ Item {
   }
 
   function setBackground(path, instant) {
-    transitionBackground("", path, path, instant, false)
+    if (instant) reloadVersion += 1
+    transitionBackground("", path, path, instant, instant)
   }
 
   function transitionBackground(fromPath, path, finalPath, instant, force) {
@@ -106,10 +118,10 @@ Item {
     // pending; the latest theme payload should still apply.
     if (pendingThemeVersion < 0) return
     pendingThemeFallbackTimer.stop()
-    Color.loadColors(pendingColorsRaw)
-    // Color.loadShell also refreshes Style so the type scale flips with the
+    Commons.Color.loadColors(pendingColorsRaw)
+    // Commons.Color.loadShell also refreshes Style so the type scale flips with the
     // background reveal instead of waiting for a separate reload path.
-    Color.loadShell(pendingShellRaw)
+    Commons.Color.loadShell(pendingShellRaw)
     Style.scheduleRefresh()
     pendingThemeVersion = -1
     pendingColorsRaw = ""
@@ -223,6 +235,10 @@ Item {
       root.setBackground(path, true)
     }
 
+    function setSuspended(value: string): void {
+      root.suspended = value === "true"
+    }
+
     function transition(fromPath: string, path: string): void {
       root.transitionBackground(fromPath, path, path, false, false)
     }
@@ -259,7 +275,7 @@ Item {
     from: 0
     to: 1
     duration: Style.duration(420)
-    easing.type: Easing.InOutCubic
+    easing.type: Easing.OutCubic
     onFinished: {
       if (root.incomingBackground) {
         root.displayedBackground = root.currentBackground || root.incomingBackground
@@ -272,6 +288,7 @@ Item {
   Component.onCompleted: refreshBackground()
 
   Variants {
+    id: backgrounds
     model: Quickshell.screens
 
     PanelWindow {
@@ -279,7 +296,7 @@ Item {
       required property var modelData
 
       screen: modelData
-      visible: !remapGuard.remapping
+      visible: !remapGuard.remapping && !root.suspended
       anchors { top: true; bottom: true; left: true; right: true }
 
       ScreenMoveRemap {
@@ -294,6 +311,13 @@ Item {
       updatesEnabled: true
 
       property bool maskReady: false
+      property int readyFrames: 0
+      readonly property bool backgroundReady: base.ready && readyFrames >= 2
+
+      FrameAnimation {
+        running: base.ready && panel.readyFrames < 2
+        onTriggered: panel.readyFrames += 1
+      }
 
       // Decode the wallpaper at the size this screen can show, not the size
       // it was shipped at. With PreserveAspectCrop Qt takes sourceSize as the
@@ -337,9 +361,12 @@ Item {
         id: base
         anchors.fill: parent
         path: root.displayedBackground
+        version: root.reloadVersion
+        cached: true
         constrainDecode: true
         decodeSize: panel.decodeSize(root.displayedBackground)
         onReadyChanged: {
+          panel.readyFrames = 0
           if (ready && root.finishingTransition) {
             root.incomingBackground = ""
             root.oldBackground = ""

@@ -325,6 +325,7 @@ assertDeepEqual(
   [
     'remove.package',
     'remove.ai',
+    'remove.dictation',
     'remove.service',
     'remove.development',
     'remove.theme',
@@ -336,7 +337,7 @@ assertDeepEqual(
     'remove.preinstalls',
     'remove.security'
   ],
-  'menu orders Remove categories like their Install counterparts, followed by Remove-only categories'
+  'menu keeps the Remove category order'
 )
 assert(
   defaultById['setup.security.passwordless-sudo'].action.includes('omarchy-sudo-passwordless'),
@@ -358,6 +359,11 @@ assertEqual(
   defaultById['style.bar.transparency'].action,
   'omarchy-bar transparent toggle',
   'menu exposes Menu Bar transparency as a toggle'
+)
+assert(
+  !defaultItems.some(item => item.id.startsWith('style.background-intro'))
+    && defaultById['trigger.toggle.animations'].action === 'omarchy-toggle-animations',
+  'menu uses the existing animations toggle without separate background intro controls'
 )
 assertDeepEqual(
   defaultItems.filter(item => item.parent === 'setup.plugin').map(item => item.label),

@@ -74,6 +74,10 @@ record=$(collect)
 [[ $(jq -c '{ready, tierLabel, stale: .limitsStale, label: .limits[0].label, percent: .limits[0].percent}' <<<"$record") == '{"ready":true,"tierLabel":"X Premium+","stale":false,"label":"Weekly","percent":0.42}' ]] ||
   fail "Grok's plan and credits come from its own home" "$record"
 [[ -n $(jq -r '.limits[0].resetsAt' <<<"$record") ]] || fail "the credits window says when the period ends" "$record"
+[[ $(jq -r '.authHelpText' <<<"$record") == "" ]] || fail "a successful Grok probe drops the login hint" "$record"
+record=$(collect)
+[[ $(jq -c '{percent: .limits[0].percent, help: .authHelpText}' <<<"$record") == '{"percent":0.42,"help":""}' ]] ||
+  fail "reused Grok limits drop the login hint" "$record"
 pass "Grok's plan and credits come from its own home"
 
 signed_in "$HOME/.grok" token-main u-main "$past" "X Premium+"
@@ -81,6 +85,44 @@ record=$(collect)
 [[ $(jq -c '{usageStatusText, first: .limits[0].percent, stale: .limitsStale}' <<<"$record") == '{"usageStatusText":"Sign-in expired","first":0.42,"stale":true}' ]] ||
   fail "a lapsed sign-in keeps the last credits and says so" "$record"
 pass "a lapsed sign-in keeps the last credits and says so"
+
+# A lapsed access token with a refresh token is routine: Grok renews it when it
+# starts, and while it hasn't run nothing here has spent its allowance, so the
+# last numbers stand as current, with no sign-in asked for.
+jq '.[].refresh_token = "r"' "$HOME/.grok/auth.json" >"$test_tmp/auth.json"
+mv "$test_tmp/auth.json" "$HOME/.grok/auth.json"
+record=$(collect)
+[[ $(jq -c '{usageStatusText, first: .limits[0].percent, stale: .limitsStale}' <<<"$record") == '{"usageStatusText":"","first":0.42,"stale":false}' ]] ||
+  fail "a lapsed access token with a refresh token keeps showing the last numbers" "$record"
+pass "a lapsed access token with a refresh token keeps showing the last numbers"
+
+# A week that reset while Grok sat idle starts over at 0%, a week later.
+cache=$(ls "$XDG_CACHE_HOME"/omarchy/agent-usage/grok-limits-*.json | head -1)
+reset_past=$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=1)).isoformat())')
+jq --arg at "$reset_past" '.limits[0].resetsAt = $at' "$cache" >"$test_tmp/cache.json"
+mv "$test_tmp/cache.json" "$cache"
+record=$(collect)
+next_reset=$(jq -r '.limits[0].resetsAt' <<<"$record")
+[[ $(jq -r '.limits[0].percent' <<<"$record") == 0.0 ]] &&
+  python3 -c 'import datetime as dt, sys; n = dt.datetime.fromisoformat(sys.argv[1]); d = n - dt.datetime.now(dt.timezone.utc); sys.exit(0 if dt.timedelta(days=6) < d < dt.timedelta(days=7) else 1)' "$next_reset" ||
+  fail "a week that reset while Grok was idle starts over a week later" "$record"
+pass "a week that reset while Grok was idle starts over a week later"
+
+# Without cached numbers there's nothing to show, so it says how to get them.
+rm -f "$XDG_CACHE_HOME"/omarchy/agent-usage/grok-limits-*.json
+record=$(collect)
+[[ $(jq -c '{usageStatusText, limits}' <<<"$record") == '{"usageStatusText":"Limits paused","limits":[]}' ]] ||
+  fail "a lapsed token with nothing cached says to start Grok" "$record"
+pass "a lapsed token with nothing cached says to start Grok"
+
+# A refresh token past Grok's 30-day sign-in can't renew anything: signed out.
+long_ago=$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=31)).isoformat())')
+jq --arg at "$long_ago" '.[].expires_at = $at' "$HOME/.grok/auth.json" >"$test_tmp/auth.json"
+mv "$test_tmp/auth.json" "$HOME/.grok/auth.json"
+record=$(collect)
+[[ $(jq -r '.usageStatusText' <<<"$record") == "Sign-in expired" ]] ||
+  fail "a sign-in lapsed past Grok's 30 days asks for a sign-in" "$record"
+pass "a sign-in lapsed past Grok's 30 days asks for a sign-in"
 
 # A period with nothing used yet comes without a percentage.
 signed_in "$HOME/.grok" token-fresh u-main "$future" "X Premium+"

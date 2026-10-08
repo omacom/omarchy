@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Panel {
@@ -11,11 +12,11 @@ Panel {
   ipcTarget: "omarchy.agents"
   manageIpc: false
 
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
-  readonly property color urgent: bar ? bar.urgent : Color.urgent
+  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
+  readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.55)
-  readonly property color surface: Color.popups.background
-  readonly property color track: Style.selectedFillFor(foreground, Color.accent)
+  readonly property color surface: Commons.Color.popups.background
+  readonly property color track: Style.selectedFillFor(foreground, Commons.Color.accent)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   // Every subscription on one page, limits first: the question this panel
@@ -24,7 +25,7 @@ Panel {
 
   property bool cursorActive: false
 
-  // Countdowns and "as of" ages read this instead of Date.now() so the
+  // Countdowns and "last updated" ages read this instead of Date.now() so the
   // panel keeps telling the truth while it sits open.
   property double nowMs: Date.now()
 
@@ -419,7 +420,11 @@ Panel {
 
   function otherTrouble(item) {
     var status = String(item && item.usageStatusText || "")
-    return status !== "" && !needsSignIn(item) ? status : ""
+    return status !== "" && status !== "Limits paused" && !needsSignIn(item) ? status : ""
+  }
+
+  function pausedWithoutLimits(item) {
+    return !!item && item.usageStatusText === "Limits paused" && limitWindows(item).length === 0
   }
 
   // Sign an account that's already here in again, following along in the
@@ -499,10 +504,12 @@ Panel {
   // titled after its model, and a name like "Opus 5 (1M context)" would parse
   // as a one-minute window.
   function limitWindow(label, percent, resetAt, title) {
+    var reset = new Date(String(resetAt || "")).getTime()
+    var expired = isFinite(reset) && reset <= root.nowMs
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
-      percent: Number(percent),
-      resetAt: String(resetAt || "")
+      percent: expired ? 0 : Number(percent),
+      resetAt: expired ? "" : String(resetAt || "")
     }
   }
 
@@ -713,7 +720,7 @@ Panel {
   function iconCandidatesForProvider(p, surfaceColor) {
     if (!p) return []
     var candidates = []
-    if (colorLuminance(surfaceColor || Color.background) >= 0.5)
+    if (colorLuminance(surfaceColor || Commons.Color.background) >= 0.5)
       candidates.push(Qt.resolvedUrl("assets/" + p.providerId + "-light.svg"))
     candidates.push(Qt.resolvedUrl("assets/" + p.providerId + ".svg"))
     return candidates
@@ -1103,7 +1110,7 @@ Panel {
               anchors.horizontalCenter: parent.horizontalCenter
               textFormat: Text.PlainText
               text: choice.modelData.providerName
-              color: choice.hasCursor ? Color.accent : root.foreground
+              color: choice.hasCursor ? Commons.Color.accent : root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
               font.bold: true
@@ -1181,7 +1188,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           text: root.addCode
-          color: Color.accent
+          color: Commons.Color.accent
           font.family: root.fontFamily
           font.pixelSize: Style.font.display
           font.bold: true
@@ -1333,11 +1340,18 @@ Panel {
       visible: !section.multi && root.otherTrouble(section.provider) !== ""
       width: parent.width
       textFormat: Text.PlainText
-      text: section.provider ? String(section.provider.authHelpText || "") : ""
+      // Shown for the status, so a record with no help to offer says the status rather than nothing.
+      text: section.provider ? String(section.provider.authHelpText || section.provider.usageStatusText || "") : ""
       color: root.urgent
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
       wrapMode: Text.WordWrap
+    }
+
+    UnavailableUsage {
+      visible: !section.multi && root.pausedWithoutLimits(section.provider)
+      width: parent.width
+      record: section.provider
     }
 
     Column {
@@ -1446,6 +1460,11 @@ Panel {
           width: parent.width
           spacing: Style.space(12)
 
+          UnavailableUsage {
+            width: parent.width
+            record: accountBlock.modelData
+          }
+
           Repeater {
             model: root.displayWindows({ limits: accountBlock.modelData.limits || [] })
 
@@ -1510,7 +1529,7 @@ Panel {
     property bool hasCursor: false
     implicitHeight: tileBody.implicitHeight + Style.space(20)
     radius: Style.cornerRadius
-    color: hasCursor ? root.alpha(Color.accent, 0.14) : root.alpha(root.foreground, 0.05)
+    color: hasCursor ? root.alpha(Commons.Color.accent, 0.14) : root.alpha(root.foreground, 0.05)
     onHasCursorChanged: if (hasCursor) root.revealItem(tile)
 
     Row {
@@ -1522,7 +1541,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         text: tile.glyph
-        color: Color.accent
+        color: Commons.Color.accent
         font.family: root.fontFamily
         font.pixelSize: Style.font.heading
       }
@@ -1531,7 +1550,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         text: tile.title
-        color: tile.hasCursor ? Color.accent : root.foreground
+        color: tile.hasCursor ? Commons.Color.accent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: true
@@ -1565,16 +1584,16 @@ Panel {
     implicitHeight: implicitWidth
     radius: Style.cornerRadius
     // The cursor needs more than a shade deeper to read on a tinted square.
-    color: root.alpha(Color.accent, hasCursor ? 0.3 : 0.12)
+    color: root.alpha(Commons.Color.accent, hasCursor ? 0.3 : 0.12)
     border.width: hasCursor ? Math.max(1, Style.hoverBorderWidth) : 0
-    border.color: Color.accent
+    border.color: Commons.Color.accent
     onHasCursorChanged: if (hasCursor) root.revealItem(heroButton)
 
     Text {
       anchors.centerIn: parent
       textFormat: Text.PlainText
       text: heroButton.glyph
-      color: Color.accent
+      color: Commons.Color.accent
       font.family: root.fontFamily
       font.pixelSize: Style.font.heading
     }
@@ -1606,7 +1625,7 @@ Panel {
     readonly property bool hot: linkMouse.containsMouse || picked
     onPickedChanged: if (picked) root.revealItem(link)
     textFormat: Text.PlainText
-    color: current ? Color.accent : (hot ? root.foreground : idleColor)
+    color: current ? Commons.Color.accent : (hot ? root.foreground : idleColor)
     font.family: root.fontFamily
     font.pixelSize: Style.font.caption
     font.bold: current
@@ -1687,7 +1706,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         width: Math.min(implicitWidth, parent.width * 0.6)
         text: head.label
-        color: head.picked ? Color.accent : root.foreground
+        color: head.picked ? Commons.Color.accent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: head.isActive
@@ -1792,7 +1811,7 @@ Panel {
         visible: head.isActive
         anchors.right: parent.right
         text: "ACTIVE"
-        color: Color.accent
+        color: Commons.Color.accent
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
         font.bold: true
@@ -1830,16 +1849,38 @@ Panel {
     }
   }
 
+  // With no measured windows, leave a place to discover how to get usage.
+  component UnavailableUsage: Item {
+    id: unavailable
+    property var record: null
+    visible: root.pausedWithoutLimits(record)
+    implicitHeight: unavailableLabel.implicitHeight
+
+    Text {
+      id: unavailableLabel
+      text: "Usage unavailable"
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+    }
+
+    HoverHandler { id: unavailableHover }
+
+    PanelToolTip {
+      visible: unavailableHover.hovered && unavailable.visible
+      text: unavailable.record ? String(unavailable.record.authHelpText || "Usage has not been updated yet.") : ""
+    }
+  }
+
   // One line per limit window: title, meter, percentage, and reset. A
   // model-scoped allowance on the same clock ("Fable" on Weekly) is a marker
   // on this row's meter, named in the row's tooltip.
   component CompactLimit: Item {
     id: compact
     property var window: null
-    // Numbers kept past a failed check dim, and say how old they are on hover.
+    // The age of numbers kept past a failed check is shown only on hover.
     property bool stale: false
     property real fetchedAt: 0
-    opacity: stale ? 0.5 : 1.0
     readonly property var scoped: window && window.scoped ? window.scoped : []
     readonly property bool alarming: window && window.percent >= 0.9
     readonly property real resetMs: root.resetMsFor(window)
@@ -1857,8 +1898,8 @@ Panel {
         }
         if (compact.stale)
           lines.push(compact.fetchedAt > 0 && root.nowMs - compact.fetchedAt > 60000
-            ? "As of " + root.formatDuration(root.nowMs - compact.fetchedAt) + " ago"
-            : "Last known")
+            ? "Last updated " + root.formatDuration(root.nowMs - compact.fetchedAt) + " ago"
+            : compact.fetchedAt > 0 ? "Last updated less than a minute ago" : "Last updated time unavailable")
         for (var i = 0; i < compact.scoped.length; i++)
           lines.push(compact.scoped[i].title + ": " + Math.round(compact.scoped[i].percent * 100) + "% of its "
             + String(compact.window ? compact.window.title : "").toLowerCase() + " allowance")
