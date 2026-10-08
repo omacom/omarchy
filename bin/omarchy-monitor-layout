@@ -90,9 +90,11 @@ state)
   workspaces=$(hyprctl -j workspaces)
   pending=null
   [[ ! -f $STATE_DIR/pending.json ]] || pending=$(cat "$STATE_DIR/pending.json")
+  preview=null
+  [[ $pending == "null" ]] || preview=$(cat "$STATE_DIR/after.json")
   assignments=$(saved_assignments)
-  jq -n --argjson monitors "$monitors" --argjson workspaces "$workspaces" --argjson assignments "$assignments" --argjson pending "$pending" \
-    '{monitors: $monitors, workspaces: $workspaces, pending: $pending,
+  jq -n --argjson monitors "$monitors" --argjson workspaces "$workspaces" --argjson assignments "$assignments" --argjson pending "$pending" --argjson preview "$preview" \
+    '{monitors: $monitors, workspaces: $workspaces, pending: $pending, preview: $preview,
       assignments: (($workspaces | map(select(.id > 0) | {id, monitor})) + $assignments | group_by(.id) | map(last))}'
   ;;
 preview)

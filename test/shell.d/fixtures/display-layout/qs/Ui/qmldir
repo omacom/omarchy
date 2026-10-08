@@ -1,0 +1,5 @@
+module qs.Ui
+BorderSurface 1.0 BorderSurface.qml
+Dropdown 1.0 Dropdown.qml
+Button 1.0 Button.qml
+NumberField 1.0 NumberField.qml
