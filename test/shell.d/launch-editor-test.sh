@@ -14,6 +14,7 @@ mkdir -p "$mock_bin" "$test_home/.local/state/omarchy/defaults"
 
 cat >"$mock_bin/setsid" <<'SH'
 #!/bin/bash
+IFS='|'
 printf '%s\n' "$*" >"$OMARCHY_TEST_EDITOR_LAUNCH"
 SH
 for command in emacs emacsclient code; do
@@ -31,17 +32,22 @@ launch_editor() {
 
 echo emacs >"$test_home/.local/state/omarchy/defaults/editor"
 launch_editor
-[[ $(<"$launch_log") == "uwsm-app -- emacsclient --alternate-editor=emacs --create-frame" ]] ||
+[[ $(<"$launch_log") == "uwsm-app|--|emacsclient|--alternate-editor=emacs --|--create-frame|--" ]] ||
   fail "emacs default opens a frame on the Emacs daemon" "actual: $(<"$launch_log")"
 pass "emacs default opens a frame on the Emacs daemon"
 
 launch_editor --inline notes.txt
-[[ $(<"$launch_log") == "uwsm-app -- emacsclient --alternate-editor=emacs --create-frame notes.txt" ]] ||
+[[ $(<"$launch_log") == "uwsm-app|--|emacsclient|--alternate-editor=emacs --|--create-frame|--|notes.txt" ]] ||
   fail "emacs default opens files in a new daemon frame" "actual: $(<"$launch_log")"
 pass "emacs default opens files in a new daemon frame"
 
+launch_editor -notes.txt
+[[ $(<"$launch_log") == "uwsm-app|--|emacsclient|--alternate-editor=emacs --|--create-frame|--|-notes.txt" ]] ||
+  fail "emacs default and its standalone fallback treat dash-leading paths as files" "actual: $(<"$launch_log")"
+pass "emacs default and its standalone fallback treat dash-leading paths as files"
+
 echo code >"$test_home/.local/state/omarchy/defaults/editor"
 launch_editor notes.txt
-[[ $(<"$launch_log") == "uwsm-app -- code notes.txt" ]] ||
+[[ $(<"$launch_log") == "uwsm-app|--|code|--|notes.txt" ]] ||
   fail "other graphical editors launch directly" "actual: $(<"$launch_log")"
 pass "other graphical editors launch directly"
