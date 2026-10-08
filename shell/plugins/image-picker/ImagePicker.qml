@@ -5,6 +5,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "ImagePickerModel.js" as ImagePickerModel
 
@@ -37,14 +38,14 @@ Item {
   property string themeRows: ""
   property bool themeMode: false
   property bool themeOpenPending: false
-  // Bound to the central [image-picker] section in shell.toml via Color.qml.
+  // Bound to the central [image-picker] section in shell.toml via Commons.Color.qml.
   // `dimColor` tints unselected slices and text outlines on top of the scrim;
   // it intentionally tracks the foundational background, not a surface role.
-  property color dimColor: Color.background
-  property color foreground: Color.imagePicker.text
-  property color scrim: Color.imagePicker.scrim
-  property color selectedBorder: Color.imagePicker.selectedBorder
-  property color unselectedBorder: Color.imagePicker.unselectedBorder
+  property color dimColor: Commons.Color.background
+  property color foreground: Commons.Color.imagePicker.text
+  property color scrim: Commons.Color.imagePicker.scrim
+  property color selectedBorder: Commons.Color.imagePicker.selectedBorder
+  property color unselectedBorder: Commons.Color.imagePicker.unselectedBorder
   property int expandedWidth: 768
   property int expandedHeight: 475
   property int sliceWidth: 108

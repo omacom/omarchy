@@ -197,7 +197,7 @@ The filename decides the target section, so the `[lock]` header is optional.
 
 The running shell reads `shell.toml` into two QML singletons:
 
-- `Color` for palette and surface roles like `Color.menu.border`.
+- `Color` for palette and surface roles like `Commons.Color.menu.border`.
 - `Style` for controls, spacing, font scale, corner radius, and bar sizing.
 
 ### Borders
@@ -326,11 +326,12 @@ Plugin and shell QML should use `BorderSurface` for theme-aware borders:
 
 ```qml
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 BorderSurface {
-  color: Color.popups.background
-  borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, 2)
+  color: Commons.Color.popups.background
+  borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, 2)
   padding: Style.spacing.popupPadding
 
   Item {
@@ -347,7 +348,7 @@ Use `Border.surfaceSpec(section, token, fallbackColor, fallbackWidth, alphaKey)`
 for shell theme tokens (the optional `alphaKey` names the alpha token, e.g.
 `"border-alpha"`), `Border.controlSpec(state, foreground, accent, urgent)` for
 shared controls, and `Border.flat(color, width)` for a deliberate local border
-that should not be overridden by the active theme. `Color.<section>.border` is the
+that should not be overridden by the active theme. `Commons.Color.<section>.border` is the
 flat first-stop color for consumers that cannot render full border specs.
 
 ## Hyprland templates

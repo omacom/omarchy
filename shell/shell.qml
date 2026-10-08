@@ -5,6 +5,7 @@ import Quickshell.Hyprland
 import Quickshell.Io
 
 import qs.Commons
+import qs.Commons as Commons
 
 import "plugins/bar"
 import "services"
@@ -1745,8 +1746,8 @@ ShellRoot {
       var shellRaw = ""
       try { colorsRaw = Qt.atob(String(colorsB64 || "")) } catch (e) { colorsRaw = "" }
       try { shellRaw = Qt.atob(String(shellB64 || "")) } catch (e2) { shellRaw = "" }
-      Color.loadColors(colorsRaw)
-      Color.loadShell(shellRaw)
+      Commons.Color.loadColors(colorsRaw)
+      Commons.Color.loadShell(shellRaw)
       Style.scheduleRefresh()
       return "ok"
     }
