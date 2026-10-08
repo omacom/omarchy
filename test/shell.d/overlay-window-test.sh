@@ -18,7 +18,8 @@ assert(
 )
 
 const readyExpression = /readonly property bool contentReady: ([^\n]*(?:\n    &&[^\n]*)*)/.exec(overlay)[1]
-const ready = new Function('shown', 'backingWindowVisible', 'width', 'height', 'targetScreen', 'targetMonitor', 'devicePixelRatio', `return ${readyExpression}`)
+const readyReserving = new Function('shown', 'backingWindowVisible', 'width', 'height', 'targetScreen', 'targetMonitor', 'devicePixelRatio', 'reservedSpace', `return ${readyExpression}`)
+const ready = (...args) => readyReserving(...args, [0, 0, 0, 0])
 const screen = { name: 'eDP-1', width: 1200, height: 750 }
 const monitor = { name: 'eDP-1', scale: 1.6 }
 for (const scale of [2, 1, 1.6]) {
@@ -205,6 +206,32 @@ assert(
   /model: window\.cooperating \? Quickshell\.screens : \[\]/.test(overlay) &&
     /WlrLayershell\.namespace: "omarchy-overlay-dismiss"[\s\S]*?WlrLayershell\.keyboardFocus: WlrKeyboardFocus\.None[\s\S]*?onPressed: window\.dismissRequested\(\)/.test(overlay),
   'only cooperative overlays map keyboard-free dismissal surfaces on other outputs'
+)
+
+// A cooperative overlay sits beside reserved space instead of covering it.
+assert(
+  overlay.includes('exclusionMode: cooperativeFocus ? ExclusionMode.Normal : ExclusionMode.Ignore'),
+  'only cooperative overlays leave reserved space uncovered'
+)
+const reservedBody = /readonly property var reservedSpace: \{([\s\S]*?)\n  \}/.exec(overlay)[1]
+const reservedSpace = new Function('cooperativeFocus', 'targetMonitor', reservedBody)
+assertDeepEqual(reservedSpace(false, { lastIpcObject: { reserved: [0, 26, 0, 300] } }), [0, 0, 0, 0],
+  'stock overlays still measure against the whole screen')
+assertDeepEqual(reservedSpace(true, { lastIpcObject: { reserved: [0, 26, 0, 300] } }), [0, 26, 0, 300],
+  'a cooperative overlay reads the reserved space Hyprland reports')
+assertDeepEqual(reservedSpace(true, { lastIpcObject: {} }), [0, 0, 0, 0],
+  'missing reserved space falls back to the whole screen')
+assertDeepEqual(reservedSpace(true, null), [0, 0, 0, 0], 'reserved space waits for monitor information')
+const tablet = { name: 'eDP-1', width: 1200, height: 750 }
+const tabletMonitor = { name: 'eDP-1', scale: 1.6 }
+assert(readyReserving(true, true, 1200, 424, tablet, tabletMonitor, 1.6, [0, 26, 0, 300]),
+  'a cooperative overlay reveals at the size left above an on-screen keyboard')
+assert(!readyReserving(true, true, 1200, 724, tablet, tabletMonitor, 1.6, [0, 26, 0, 300]),
+  'a stale reserved space keeps content transparent until Hyprland is asked again')
+assert(
+  overlay.includes('onWidthChanged: if (shown && cooperativeFocus) Hyprland.refreshMonitors()') &&
+    overlay.includes('onHeightChanged: if (shown && cooperativeFocus) Hyprland.refreshMonitors()'),
+  'a keyboard appearing or leaving refreshes the reserved space'
 )
 
 const shellQml = read('shell/shell.qml')

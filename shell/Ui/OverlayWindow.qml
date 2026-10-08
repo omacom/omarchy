@@ -38,11 +38,19 @@ PanelWindow {
     return null
   }
 
+  // A cooperative overlay also leaves alone the space other surfaces reserve,
+  // so it sits above an on-screen keyboard instead of running underneath it.
+  // Hyprland reports that space as [left, top, right, bottom].
+  readonly property var reservedSpace: {
+    var reserved = cooperativeFocus && targetMonitor && targetMonitor.lastIpcObject ? targetMonitor.lastIpcObject.reserved : null
+    return reserved && reserved.length === 4 ? reserved : [0, 0, 0, 0]
+  }
+
   // Wait for fullscreen geometry as well as scale so no smaller opening frame
   // is stretched across the output. Fractional scale uses units of 1/120;
   // compare in those units to tolerate floating point rounding.
   readonly property bool contentReady: shown && backingWindowVisible && !!targetScreen
-    && width === targetScreen.width && height === targetScreen.height
+    && width === targetScreen.width - reservedSpace[0] - reservedSpace[2] && height === targetScreen.height - reservedSpace[1] - reservedSpace[3]
     && !!targetMonitor && Math.round(devicePixelRatio * 120) === Math.round(targetMonitor.scale * 120)
   property bool contentRevealed: false
 
@@ -71,6 +79,10 @@ PanelWindow {
     if (shown) Hyprland.refreshMonitors()
   }
   onDevicePixelRatioChanged: if (shown) Hyprland.refreshMonitors()
+  // A keyboard appearing or leaving resizes a cooperative overlay; the reserved
+  // space cached from Hyprland lags behind in the same way.
+  onWidthChanged: if (shown && cooperativeFocus) Hyprland.refreshMonitors()
+  onHeightChanged: if (shown && cooperativeFocus) Hyprland.refreshMonitors()
 
   Connections {
     target: Quickshell
@@ -90,7 +102,7 @@ PanelWindow {
   screen: targetScreen
   anchors { top: true; left: true; bottom: true; right: true }
   color: "transparent"
-  exclusionMode: ExclusionMode.Ignore
+  exclusionMode: cooperativeFocus ? ExclusionMode.Normal : ExclusionMode.Ignore
   WlrLayershell.layer: shownLayer
   WlrLayershell.keyboardFocus: cooperating && focusHeld ? WlrKeyboardFocus.OnDemand : shownKeyboardFocus
 
