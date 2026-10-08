@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Check whether an active Omarchy Direct Boot EFI entry is configured.
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# An inactive entry (no *) isn't booted. efibootmgr 18 follows each label with
+# a tab and the device path. Exit 2 when that list cannot be read, so callers
+# keep the UKI instead of treating a failure as "no Direct Boot".
+if ! efi_labels=$(efibootmgr | cut -f1); then
+  exit 2
+fi
+
+grep -Eq '^Boot[0-9A-Fa-f]+\*[[:space:]]+Omarchy[[:space:]]*$' <<<"$efi_labels"
