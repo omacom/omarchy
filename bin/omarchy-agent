@@ -53,33 +53,58 @@ fi
 
 # Agents launched from the keybinding or menu run unattended, so each one starts
 # with its own spelling of "don't stop to ask". Pi and Ori have none to skip.
+# A file at ~/.config/omarchy/agents/<agent>.flags replaces those flags with the
+# user's own, one argument per line, skipping blank lines and # comments. An
+# empty file launches with no flags, leaving the agent's own settings to decide.
+# OpenClaw's launcher takes no agent flags, so it has nothing to replace.
+flags_file="$HOME/.config/omarchy/agents/$agent.flags"
+flags=()
+
+unattended() {
+  if [[ -f $flags_file ]]; then
+    local flag
+    while read -r flag || [[ -n $flag ]]; do
+      [[ -z $flag || $flag == "#"* ]] || flags+=("$flag")
+    done <"$flags_file"
+  else
+    flags=("$@")
+  fi
+}
+
 case "$agent" in
 opencode)
-  command=(opencode --auto)
+  unattended --auto
+  command=(opencode "${flags[@]}")
   [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
   ;;
 agy)
-  command=(agy --dangerously-skip-permissions)
+  unattended --dangerously-skip-permissions
+  command=(agy "${flags[@]}")
   [[ -n ${prompt:-} ]] && command+=(--prompt-interactive "$prompt")
   ;;
 copilot)
-  command=(copilot --allow-all)
+  unattended --allow-all
+  command=(copilot "${flags[@]}")
   [[ -n ${prompt:-} ]] && command+=(--interactive "$prompt")
   ;;
 crush)
-  # --yolo belongs to the interactive command only; `crush run` never prompts.
+  # --yolo belongs to the interactive command only; `crush run` never prompts,
+  # so it takes no flags of Omarchy's or the user's.
   if [[ -n ${prompt:-} ]]; then
     command=(crush run "$prompt")
   else
-    command=(crush --yolo)
+    unattended --yolo
+    command=(crush "${flags[@]}")
   fi
   ;;
 claude)
-  command=(claude --permission-mode auto)
+  unattended --permission-mode auto
+  command=(claude "${flags[@]}")
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 grok)
-  command=(grok --permission-mode bypassPermissions)
+  unattended --permission-mode bypassPermissions
+  command=(grok "${flags[@]}")
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 openclaw)
@@ -92,7 +117,8 @@ openclaw)
   [[ -n ${prompt:-} ]] && command+=(--message "$prompt")
   ;;
 codex)
-  command=(codex --approve-for-me)
+  unattended --approve-for-me
+  command=(codex "${flags[@]}")
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 cursor-agent)
@@ -100,34 +126,40 @@ cursor-agent)
   # A one-word prompt naming a subcommand (update, login, help) still runs that
   # subcommand after a bare --, so the agent subcommand is named outright, and
   # -- after it keeps a prompt starting with a dash from being read as an option.
-  command=(cursor-agent --yolo --trust)
+  unattended --yolo --trust
+  command=(cursor-agent "${flags[@]}")
   [[ -n ${prompt:-} ]] && command+=(agent -- "$prompt")
   ;;
 hermes)
+  unattended --yolo
   if [[ -n ${prompt:-} ]]; then
-    command=(env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=$prompt")
+    command=(env -u HERMES_SESSION_SOURCE hermes chat "${flags[@]}" --tui "--query=$prompt")
   else
-    command=(hermes --yolo)
+    command=(hermes "${flags[@]}")
   fi
   ;;
 muse)
   # --approval-mode never skips the tool prompts but keeps Muse's own sandbox.
-  command=(muse --approval-mode never)
+  unattended --approval-mode never
+  command=(muse "${flags[@]}")
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 omp)
-  command=(omp --auto-approve)
+  unattended --auto-approve
+  command=(omp "${flags[@]}")
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 ori)
   # Ori is a harness launcher, and `ori code` is the agent it runs itself.
   # A prompt alone means one headless turn there, printed after the turn ends,
   # so --interactive is what seeds the session with it and keeps the window.
-  command=(ori code)
+  unattended
+  command=(ori code "${flags[@]}")
   [[ -n ${prompt:-} ]] && command+=(--interactive --prompt "$prompt")
   ;;
 pi)
-  command=(pi)
+  unattended
+  command=(pi "${flags[@]}")
   [[ -n ${prompt:-} ]] && command+=("$prompt")
   ;;
 *)
