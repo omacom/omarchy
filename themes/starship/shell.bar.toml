@@ -1,0 +1,9 @@
+# Launch-photo surfaces and text; NASA red marks attention states.
+[bar]
+background = "#0a0503"
+background-alpha = 1.0
+text = "#f3e1a5"
+active = "#e60d2e"
+scale-with-font = true
+size-horizontal = 26
+size-vertical = 28

@@ -1,0 +1,580 @@
+{
+  "tool": "Aether",
+  "version": "4.32.0",
+  "extraction_mode": "normal",
+  "base_wallpaper": "backgrounds/00-starship-launch.webp",
+  "extraction_command": "aether --extract-palette <source Space theme 0-starship-launch.jpg> --json",
+  "generation_command": "aether --generate <source Space theme 0-starship-launch.jpg> --no-apply --output /tmp/starship-launch-aether --no-zed --no-vscode --no-neovim --icon-theme automatic",
+  "notes": "The base and ANSI palette are generated from the default launch photo. Aether applies image analysis and tonal adjustments, so not every hex is an unchanged pixel sample. Muted text is lightened with Aether for readability. NASA blue selection and NASA red bar attention remain small explicit brand accents.",
+  "selected_tokens": {
+    "accent": {
+      "value": "#527dbc",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "accent"
+    },
+    "muted": {
+      "value": "#8b8683",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "muted",
+      "adjustment": "aether --lighten #6e6864 20 --json"
+    },
+    "background": {
+      "value": "#0a0503",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "background"
+    },
+    "dark_background": {
+      "value": "#080402",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "dark_bg"
+    },
+    "darker_background": {
+      "value": "#050302",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "darker_bg"
+    },
+    "lighter_background": {
+      "value": "#231e1c",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "lighter_bg"
+    },
+    "foreground": {
+      "value": "#f3e1a5",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "foreground"
+    },
+    "dark_foreground": {
+      "value": "#b6a97c",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "dark_fg"
+    },
+    "light_foreground": {
+      "value": "#f5e6b3",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "light_fg"
+    },
+    "bright_foreground": {
+      "value": "#f6e9bc",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "bright_fg"
+    },
+    "red": {
+      "value": "#ab7233",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "red"
+    },
+    "yellow": {
+      "value": "#fee389",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "yellow"
+    },
+    "orange": {
+      "value": "#b88752",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "orange"
+    },
+    "green": {
+      "value": "#e8c97c",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "green"
+    },
+    "cyan": {
+      "value": "#69b3e2",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "cyan"
+    },
+    "blue": {
+      "value": "#527dbc",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "blue"
+    },
+    "magenta": {
+      "value": "#5083c0",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "magenta"
+    },
+    "brown": {
+      "value": "#6e5131",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "brown"
+    },
+    "bright_red": {
+      "value": "#d69641",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "bright_red"
+    },
+    "bright_yellow": {
+      "value": "#ffea4d",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "bright_yellow"
+    },
+    "bright_green": {
+      "value": "#fed64c",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "bright_green"
+    },
+    "bright_cyan": {
+      "value": "#86d6ff",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "bright_cyan"
+    },
+    "bright_blue": {
+      "value": "#73a0f0",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "bright_blue"
+    },
+    "bright_magenta": {
+      "value": "#70a6f4",
+      "wallpaper": "backgrounds/00-starship-launch.webp",
+      "template_variable": "bright_magenta"
+    }
+  },
+  "base_palette": {
+    "colors": [
+      "#0a0503",
+      "#ab7233",
+      "#e8c97c",
+      "#fee389",
+      "#527dbc",
+      "#5083c0",
+      "#69b3e2",
+      "#F3E1A5",
+      "#6e6864",
+      "#d69641",
+      "#fed64c",
+      "#ffea4d",
+      "#73a0f0",
+      "#70a6f4",
+      "#86d6ff",
+      "#ffeb80"
+    ],
+    "lightMode": false,
+    "mode": "normal",
+    "wallpaper": "backgrounds/00-starship-launch.webp",
+    "extracted_from": "Space theme source JPEG before WebP encoding"
+  },
+  "generated_variables": {
+    "accent": "#527dbc",
+    "background": "#0a0503",
+    "bg": "#0a0503",
+    "black": "#0a0503",
+    "blue": "#527dbc",
+    "bright_black": "#6e6864",
+    "bright_blue": "#73a0f0",
+    "bright_cyan": "#86d6ff",
+    "bright_fg": "#f6e9bc",
+    "bright_green": "#fed64c",
+    "bright_magenta": "#70a6f4",
+    "bright_red": "#d69641",
+    "bright_white": "#ffeb80",
+    "bright_yellow": "#ffea4d",
+    "brown": "#6e5131",
+    "color0": "#0a0503",
+    "color1": "#ab7233",
+    "color10": "#fed64c",
+    "color11": "#ffea4d",
+    "color12": "#73a0f0",
+    "color13": "#70a6f4",
+    "color14": "#86d6ff",
+    "color15": "#ffeb80",
+    "color2": "#e8c97c",
+    "color3": "#fee389",
+    "color4": "#527dbc",
+    "color5": "#5083c0",
+    "color6": "#69b3e2",
+    "color7": "#F3E1A5",
+    "color8": "#6e6864",
+    "color9": "#d69641",
+    "cursor": "#F3E1A5",
+    "cyan": "#69b3e2",
+    "dark_bg": "#080402",
+    "dark_fg": "#b6a97c",
+    "darker_bg": "#050302",
+    "fg": "#F3E1A5",
+    "foreground": "#F3E1A5",
+    "green": "#e8c97c",
+    "light_fg": "#f5e6b3",
+    "lighter_bg": "#231e1c",
+    "magenta": "#5083c0",
+    "mode": "dark",
+    "muted": "#6e6864",
+    "orange": "#b88752",
+    "red": "#ab7233",
+    "selection": "#231e1c",
+    "selection_background": "#F3E1A5",
+    "selection_foreground": "#0a0503",
+    "theme_type": "dark",
+    "white": "#F3E1A5",
+    "yellow": "#fee389"
+  },
+  "additional_photo_palettes": [
+    {
+      "colors": [
+        "#070709",
+        "#9f89c5",
+        "#79ceff",
+        "#8bffff",
+        "#687dbc",
+        "#a4a1f5",
+        "#91e0ff",
+        "#CBD0DB",
+        "#5d5d63",
+        "#b79be6",
+        "#73e7ff",
+        "#64ffff",
+        "#7791df",
+        "#b8b3ff",
+        "#94f8ff",
+        "#f1f5ff"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/01-orbital-coast.webp"
+    },
+    {
+      "colors": [
+        "#050607",
+        "#b9876b",
+        "#84b490",
+        "#e9d798",
+        "#6c78ac",
+        "#6a75a8",
+        "#61a797",
+        "#E7E3C8",
+        "#575c61",
+        "#e4ab86",
+        "#a4dcac",
+        "#fde575",
+        "#8f9add",
+        "#8d97d9",
+        "#7fcfba",
+        "#f5eeaf"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/02-starbase-dawn.webp"
+    },
+    {
+      "colors": [
+        "#070507",
+        "#e7c193",
+        "#c2ab75",
+        "#ae8f43",
+        "#6678ab",
+        "#667ab2",
+        "#6f88b5",
+        "#D9C3B6",
+        "#6c676c",
+        "#ffca76",
+        "#e5cd85",
+        "#d6b54d",
+        "#889adc",
+        "#889ce4",
+        "#91ace5",
+        "#facaa7"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/03-ignition.webp"
+    },
+    {
+      "colors": [
+        "#070805",
+        "#b78e54",
+        "#d0c66e",
+        "#fff287",
+        "#658e4f",
+        "#e4985b",
+        "#d4e675",
+        "#EBE273",
+        "#5d5f59",
+        "#d4a157",
+        "#ebdd66",
+        "#fff164",
+        "#74a658",
+        "#ffa855",
+        "#eaff6f",
+        "#f9f5ea"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/04-across-the-water.webp"
+    },
+    {
+      "colors": [
+        "#05070c",
+        "#998bc8",
+        "#71d0fd",
+        "#83ffff",
+        "#617fbc",
+        "#9ba4f7",
+        "#85e3ff",
+        "#E7C6CA",
+        "#5b5d63",
+        "#b09dea",
+        "#67eaff",
+        "#54ffff",
+        "#6e94df",
+        "#adb7ff",
+        "#84fcff",
+        "#f0f5ff"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/05-leaving-starbase.webp"
+    },
+    {
+      "colors": [
+        "#000518",
+        "#b9776e",
+        "#e6b88b",
+        "#ffdfa7",
+        "#647eae",
+        "#a1789f",
+        "#617db2",
+        "#EBDCC6",
+        "#585c61",
+        "#e5998d",
+        "#ffc06e",
+        "#ffe581",
+        "#86a1df",
+        "#ca99cb",
+        "#83a0e4",
+        "#ffe7b1"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/06-raptor-array.webp"
+    },
+    {
+      "colors": [
+        "#060808",
+        "#b68a81",
+        "#e5b998",
+        "#ffe3c1",
+        "#9f717f",
+        "#d7999d",
+        "#fed29a",
+        "#D8A8B5",
+        "#586060",
+        "#d39c92",
+        "#ffcca1",
+        "#ffe0b5",
+        "#bc8294",
+        "#f8aab0",
+        "#ffe7a1",
+        "#fff2ef"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/07-liftoff.webp"
+    },
+    {
+      "colors": [
+        "#030608",
+        "#c25a4b",
+        "#f0b54c",
+        "#e6d62e",
+        "#4e7bd6",
+        "#ba5b9b",
+        "#79aeff",
+        "#DCDDD7",
+        "#63696d",
+        "#f17b66",
+        "#ffbe00",
+        "#f9e500",
+        "#6f9cff",
+        "#e878c9",
+        "#96cdff",
+        "#e8eec9"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/08-launch-plume.webp"
+    },
+    {
+      "colors": [
+        "#050612",
+        "#9987c3",
+        "#72cbfc",
+        "#84ffff",
+        "#627bb9",
+        "#9d9ff2",
+        "#89deff",
+        "#EBCFD9",
+        "#5c5d63",
+        "#b199e5",
+        "#6be5ff",
+        "#5effff",
+        "#718fdc",
+        "#b0b1ff",
+        "#8af6ff",
+        "#f0f5ff"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/09-ascent.webp"
+    },
+    {
+      "colors": [
+        "#080708",
+        "#9d8ac6",
+        "#76ceff",
+        "#89ffff",
+        "#667ebc",
+        "#a1a2f6",
+        "#8de1ff",
+        "#ECECEB",
+        "#615c61",
+        "#b59ce8",
+        "#6fe8ff",
+        "#5fffff",
+        "#7492df",
+        "#b5b4ff",
+        "#8ff9ff",
+        "#f1f5ff"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/10-above-earth.webp"
+    },
+    {
+      "colors": [
+        "#120013",
+        "#af80af",
+        "#9cc0ff",
+        "#ffccfe",
+        "#8271b0",
+        "#c094de",
+        "#c1ceff",
+        "#D8DCDF",
+        "#605b60",
+        "#cb91cb",
+        "#a7d5ff",
+        "#ffc6ff",
+        "#9883d1",
+        "#dca3ff",
+        "#d3e3ff",
+        "#f7f3fd"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/11-engine-bay.webp"
+    },
+    {
+      "colors": [
+        "#07070a",
+        "#a089c4",
+        "#7acdff",
+        "#8dffff",
+        "#697dbc",
+        "#a5a0f5",
+        "#93dfff",
+        "#D1D5DC",
+        "#5d5d63",
+        "#b89be6",
+        "#76e6ff",
+        "#68ffff",
+        "#7990df",
+        "#bab3ff",
+        "#98f7ff",
+        "#f1f5ff"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/12-blue-planet.webp"
+    },
+    {
+      "colors": [
+        "#0b0500",
+        "#9a8a4b",
+        "#847a27",
+        "#bfb64f",
+        "#6f77b4",
+        "#5d7cb4",
+        "#a2c7fd",
+        "#DCDDDF",
+        "#6c6963",
+        "#c0b05b",
+        "#a9a02b",
+        "#ded644",
+        "#9299e7",
+        "#7e9fe7",
+        "#a1d2ff",
+        "#deeaff"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/13-on-the-pad.webp"
+    },
+    {
+      "colors": [
+        "#0d0602",
+        "#b38d6d",
+        "#d7c188",
+        "#ffeda9",
+        "#a77067",
+        "#da9b7e",
+        "#e5de8f",
+        "#E8E8E8",
+        "#625d58",
+        "#d0a178",
+        "#f3d78b",
+        "#ffeb96",
+        "#c48175",
+        "#fcac87",
+        "#fef692",
+        "#fcf4ea"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/14-golden-flight.webp"
+    },
+    {
+      "colors": [
+        "#050509",
+        "#987638",
+        "#a19139",
+        "#92800e",
+        "#6992d2",
+        "#87a9db",
+        "#a8ccff",
+        "#E9E0C4",
+        "#68676e",
+        "#c09b47",
+        "#c8b83d",
+        "#b8a600",
+        "#8bb5ff",
+        "#a8ccff",
+        "#a6d7ff",
+        "#fcecac"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/15-stainless-steel.webp"
+    },
+    {
+      "colors": [
+        "#06070d",
+        "#9d8bc0",
+        "#83cdf8",
+        "#9bffff",
+        "#6a7eb5",
+        "#a3a3ec",
+        "#9ae0ff",
+        "#d5f5ff",
+        "#5c5d64",
+        "#b49ee0",
+        "#83e6ff",
+        "#7fffff",
+        "#7a93d6",
+        "#b7b7ff",
+        "#a0f8ff",
+        "#f1f5ff"
+      ],
+      "lightMode": false,
+      "mode": "normal",
+      "wallpaper": "backgrounds/16-grid-fin.webp"
+    }
+  ]
+}

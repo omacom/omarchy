@@ -1,0 +1,37 @@
+# Starship — launch-photo palette extracted with Aether.
+# Launch night, exhaust cream, sky blue, and NASA signals.
+# See palette.json for extraction and tonal adjustments.
+mode = "dark"
+
+accent = "#527dbc"
+selection = "#0033ab"
+muted = "#8b8683"
+
+background = "#0a0503"
+dark_background = "#080402"
+darker_background = "#050302"
+lighter_background = "#231e1c"
+
+foreground = "#f3e1a5"
+dark_foreground = "#b6a97c"
+light_foreground = "#f5e6b3"
+bright_foreground = "#f6e9bc"
+
+red = "#ab7233"
+yellow = "#fee389"
+orange = "#b88752"
+green = "#e8c97c"
+cyan = "#69b3e2"
+blue = "#527dbc"
+magenta = "#5083c0"
+brown = "#6e5131"
+
+bright_red = "#d69641"
+bright_yellow = "#ffea4d"
+bright_green = "#fed64c"
+bright_cyan = "#86d6ff"
+bright_blue = "#73a0f0"
+bright_magenta = "#70a6f4"
+
+hyprland_active_border = "#527dbc"
+hyprland_inactive_border = "#231e1c"
