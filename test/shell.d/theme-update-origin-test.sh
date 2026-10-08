@@ -116,6 +116,18 @@ fi
 grep -qF "config branch.$branch.remote URL" "$test_tmp/out" ||
   fail "theme update gives a migration command for a direct branch URL" "$(cat "$test_tmp/out")"
 
+"$real_git" -C "$theme" config "branch.$branch.remote" secure-theme:acme/theme.git
+"$real_git" -C "$theme" config url.git://plain.example/.insteadOf secure-theme:
+rm -f "$pull_marker"
+if update_theme; then
+  fail "theme update refuses a direct branch URL rewritten by checkout-local Git config"
+fi
+[[ ! -e $pull_marker ]] ||
+  fail "theme update uses the theme checkout's URL rewrites before pull" "$(cat "$pull_marker")"
+grep -qF "network transport is not authenticated" "$test_tmp/out" ||
+  fail "theme update explains a checkout-local rewrite to plaintext" "$(cat "$test_tmp/out")"
+"$real_git" -C "$theme" config --unset-all url.git://plain.example/.insteadOf
+
 "$real_git" -C "$theme" config "branch.$branch.remote" https://example.com/acme/theme.git
 rm -f "$pull_marker"
 update_theme && fail "the pull stub fails after accepting the direct secure branch URL"

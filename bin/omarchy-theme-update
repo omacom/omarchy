@@ -27,7 +27,9 @@ for theme in "${themes[@]}"; do
         continue
       fi
     else
-      if ! pull_source=$(omarchy-git-url-check --require-authenticated-network --resolve "$remote"); then
+      # Resolve direct branch URLs from inside the checkout so repository-local
+      # url.*.insteadOf rules are part of the destination we validate.
+      if ! pull_source=$(cd -- "$theme" && omarchy-git-url-check --require-authenticated-network --resolve "$remote"); then
         echo "omarchy-theme-update: $(basename "$theme") cannot be updated from its branch remote." >&2
         echo "Set the branch remote to an HTTPS, SSH, FTPS, or local URL before updating:" >&2
         printf '  git -C %q config %q URL\n' "$theme" "branch.$branch.remote" >&2
