@@ -30,6 +30,12 @@ if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI w
     rm -f ~/.local/bin/muse
   fi
 
+  # Goose's own installer writes the same path, so only the mise wrapper goes.
+  if [[ -f ~/.local/bin/goose && ! -L ~/.local/bin/goose ]] &&
+    grep -Eq '^mise use -g .*"github:aaif-goose/goose"' ~/.local/bin/goose; then
+    rm -f ~/.local/bin/goose
+  fi
+
   omarchy-pkg-drop \
     aether \
     cliamp \
