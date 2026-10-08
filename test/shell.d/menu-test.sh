@@ -325,6 +325,7 @@ assertDeepEqual(
   [
     'remove.package',
     'remove.ai',
+    'remove.creative',
     'remove.service',
     'remove.development',
     'remove.theme',
