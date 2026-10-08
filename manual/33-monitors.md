@@ -38,7 +38,7 @@ When you're extending, closing the lid on the laptop will automatically turn off
 
 ### Arranging multiple screens
 
-Open the display popup in the top bar. **Arrange displays…**, **Display settings…**, and **Assign workspaces…** open the corresponding tab in a settings popup.
+Open the display popup in the top bar and choose **Advanced…** at the bottom right to open the settings popup. Its tabs cover arrangement, display modes, and workspace assignments.
 
 - **Arrangement:** drag screens; nearby edges snap together. Enter precise X/Y positions or place a screen left, right, above, or below another.
 - **Displays:** select a screen, resolution, supported refresh rate, and orientation.

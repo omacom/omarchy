@@ -26,15 +26,9 @@ Panel {
   property string monitorScale: ""
   property var displays: []
   property int enabledDisplayCount: 0
-  readonly property var settingsEntries: [
-    { page: "layout", label: "Arrange displays…" },
-    { page: "displays", label: "Display settings…" },
-    { page: "workspaces", label: "Assign workspaces…" }
-  ]
-
-  function openSettings(page) {
+  function openSettings() {
     if (settingsProc.running) return
-    settingsProc.command = ["omarchy-shell", "shell", "summon", "omarchy.display-settings", JSON.stringify({ page: page, screen: root.focusedMonitor })]
+    settingsProc.command = ["omarchy-shell", "shell", "summon", "omarchy.display-settings", JSON.stringify({ page: "layout", screen: root.focusedMonitor })]
     settingsProc.running = true
   }
 
@@ -89,16 +83,17 @@ Panel {
   }
 
   readonly property var visibleSections: {
-    var list = ["settings"]
+    var list = []
     if (brightnessAvailable) list.push("brightness")
     list.push("textsize")
     list.push("scale")
     if (displays.length > 1) list.push("monitors")
+    list.push("settings")
     return list
   }
 
   function sectionCount(section) {
-    if (section === "settings") return settingsEntries.length
+    if (section === "settings") return 1
     if (section === "brightness") return 0  // only the slider sentinel at -1
     if (section === "textsize") return 0    // slider sentinel at -1, like brightness
     if (section === "scale") return scaleValues.length
@@ -164,8 +159,8 @@ Panel {
   }
 
   function activateCursor() {
-    if (focusSection === "settings" && selectedIndex >= 0 && selectedIndex < settingsEntries.length) {
-      openSettings(settingsEntries[selectedIndex].page)
+    if (focusSection === "settings") {
+      openSettings()
       return
     }
     if (focusSection === "scale" && selectedIndex >= 0 && selectedIndex < scaleValues.length) {
@@ -605,27 +600,6 @@ Panel {
             }
           }
 
-          Column {
-            width: parent.width
-            spacing: Style.space(6)
-            Repeater {
-              model: root.settingsEntries
-              Button {
-                required property var modelData
-                required property int index
-                width: parent.width
-                text: modelData.label
-                bordered: true
-                hasCursor: root.cursorActive && root.focusSection === "settings" && root.selectedIndex === index
-                onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(this)
-                onHovered: function(hovered) {
-                  if (hovered) { root.cursorActive = true; root.focusSection = "settings"; root.selectedIndex = index }
-                }
-                onClicked: root.openSettings(modelData.page)
-              }
-            }
-          }
-
           // ---------- Brightness ----------
           PanelSeparator {
             visible: root.brightnessAvailable
@@ -866,6 +840,32 @@ Panel {
                 display: modelData
                 rowIndex: index
               }
+            }
+          }
+
+          Item {
+            width: parent.width
+            implicitHeight: advancedButton.implicitHeight
+
+            Button {
+              id: advancedButton
+              objectName: "display-advanced-button"
+              anchors.right: parent.right
+              text: "Advanced…"
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+              fontSize: Style.font.caption
+              bordered: true
+              hasCursor: root.cursorActive && root.focusSection === "settings"
+              onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(this)
+              onHovered: function(hovered) {
+                if (hovered && !root.reflowingText) {
+                  root.cursorActive = true
+                  root.focusSection = "settings"
+                  root.selectedIndex = 0
+                }
+              }
+              onClicked: root.openSettings()
             }
           }
 
