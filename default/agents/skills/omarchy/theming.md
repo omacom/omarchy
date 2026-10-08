@@ -80,9 +80,10 @@ omarchy font set <name>         # Change font
 
 ## What a Theme Can and Cannot Scope
 
-A theme's `colors.toml`, `shell.toml`, `icons.theme`, and `backgrounds/` are
-theme-scoped: they apply only while that theme is active and switching themes
-swaps them out.
+A theme's `colors.toml`, `shell.toml`, and `icons.theme` are theme-scoped:
+switching themes replaces them. Backgrounds are selected per theme, but
+switching to a theme with no available background leaves the current
+background link unchanged.
 
 Font (`omarchy font set`) and bar position/layout (in
 `~/.config/omarchy/shell.json`) are **global user settings, not theme-scoped**.
