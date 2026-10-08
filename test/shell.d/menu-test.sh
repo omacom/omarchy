@@ -424,3 +424,10 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+# Terminals draw a codepoint from their Nerd Font before falling back, so the
+# mark fastfetch prints must sit where no Nerd Font has a glyph.
+font_glyphs=$("$ROOT/bin/omarchy-dev-font" list --font "$ROOT/default/fonts/omarchy/omarchy.ttf")
+[[ $(awk '$1 == "U+100000" { print $3 }' <<<"$font_glyphs") == "omarchy" ]] ||
+  fail "Omarchy icon font carries the Omarchy mark outside the Nerd Font ranges"
+pass "Omarchy icon font carries the terminal Omarchy mark"

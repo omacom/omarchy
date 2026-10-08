@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # omarchy:summary=Add branded glyphs to the Omarchy icon font
-# omarchy:args=[list|add] <name> <svg-file-or-url> [--codepoint U+E9xx] [--font PATH]
-# omarchy:examples=omarchy dev font list | omarchy dev font add ollama https://simpleicons.org/icons/ollama.svg
+# omarchy:args=[list|add <name> <svg-file-or-url> [--codepoint U+E9xx]|alias <existing> <codepoint>] [--font PATH]
+# omarchy:examples=omarchy dev font list | omarchy dev font add ollama https://simpleicons.org/icons/ollama.svg | omarchy dev font alias U+E900 U+100000
 """Append monochrome SVG marks to default/fonts/omarchy/omarchy.ttf.
 
 The font is a private-use icon font: the menu renders a mark by setting
@@ -549,6 +549,25 @@ def add_glyph(font_path, codepoint, name, contours):
     open(font_path, 'wb').write(assemble(tables))
 
 
+def alias_glyph(font_path, existing, codepoint):
+    """Map another codepoint to the glyph an existing codepoint already uses."""
+    d, t, ng = load_font(font_path)
+    cmap = read_cmap(d, t['cmap'][0])
+    if existing not in cmap:
+        sys.exit('U+%04X has no glyph to alias' % existing)
+    if codepoint in cmap:
+        sys.exit('U+%04X is already used' % codepoint)
+    cmap[codepoint] = cmap[existing]
+
+    head = bytearray(d[t['head'][0]:t['head'][0] + t['head'][1]])
+    struct.pack_into('>I', head, 8, 0)  # checkSumAdjustment, recomputed below
+
+    tables = {tag: d[s:s + l] for tag, (s, l) in t.items()}
+    tables['cmap'] = build_cmap(cmap)
+    tables['head'] = bytes(head)
+    open(font_path, 'wb').write(assemble(tables))
+
+
 def read_svg(location):
     if not location.startswith(('http://', 'https://')):
         return open(location, encoding='utf-8').read()
@@ -614,6 +633,10 @@ def main():
     add.add_argument('svg', help='SVG file or URL')
     add.add_argument('--codepoint', help='private-use codepoint (default: next free)')
     add.add_argument('--label', help='README label (default: the glyph name)')
+    alias = sub.add_parser('alias', parents=[common],
+                           help='map another codepoint to an existing mark')
+    alias.add_argument('existing', help='codepoint that has the mark, e.g. U+E900')
+    alias.add_argument('codepoint', help='codepoint to add for it, e.g. U+100000')
     args = p.parse_args()
 
     font = args.font or default_font()
@@ -625,13 +648,25 @@ def main():
             print('U+%04X  %s  %-12s %s' % (cp, chr(cp), name, box))
         return
 
+    if args.command == 'alias':
+        try:
+            existing, cp = (int(c.upper().replace('U+', ''), 16) for c in (args.existing, args.codepoint))
+        except ValueError:
+            sys.exit('codepoints must be hex like U+E900')
+        if not any(a <= cp <= b for a, b in ((0xE000, 0xF8FF), (0xF0000, 0xFFFFD), (0x100000, 0x10FFFD))):
+            sys.exit('U+%04X is outside the private-use ranges' % cp)
+        alias_glyph(font, existing, cp)
+        print('Mapped U+%04X to the glyph at U+%04X' % (cp, existing))
+        return
+
     taken = {cp for cp, _, _ in glyph_list(font)}
     if args.codepoint:
         cp = int(args.codepoint.upper().replace('U+', ''), 16)
         if cp in taken:
             sys.exit('U+%04X is already used' % cp)
     else:
-        cp = max(taken) + 1 if taken else PUA_FIRST
+        # Marks beyond the BMP alias existing glyphs; new ones continue the E9xx run.
+        cp = max((c for c in taken if c <= 0xFFFF), default=PUA_FIRST - 1) + 1
 
     contours = svg_contours(read_svg(args.svg), args.svg)
     add_glyph(font, cp, args.name, contours)
