@@ -320,13 +320,23 @@ assert(
   /if \(isActivationPending\(\)\) wifiDevice\.disconnect\(\)/.test(panelSource),
   'network aborts the activation through the device, not the profile'
 )
+const pendingFn = panelSource.match(/function isActivationPending\(\) \{[\s\S]*?\n {2}\}/)
+assert(pendingFn, 'network gates the abort on a pending activation')
+assert(
+  /networkForSsid\(actionSsid\)/.test(pendingFn[0]) && /network\.state === ConnectionState\.Connecting/.test(pendingFn[0]),
+  'network pins the abort to the tracked SSID instead of any device activation'
+)
 assert(
   !/network\.disconnect\(\)/.test(panelSource.match(/function cancelNetworkAction\(\) \{[\s\S]*?\n {2}\}/)[0]),
   'network does not reach for the profile-level disconnect, which no-ops while connecting'
 )
 assert(
   /wifiActionFocused = false/.test(panelSource.match(/function cancelNetworkAction\(\) \{[\s\S]*?\n {2}\}/)[0]),
-  'network disarms the slot on cancel so a second click cannot land on Forget'
+  'network clears the keyboard action focus on cancel'
+)
+assert(
+  /id: rightMouse[\s\S]*?onDoubleClicked: \{\}/.test(panelSource),
+  'network suppresses the double-click second clicked event on the right-edge slot'
 )
 assert(
   /id: cancelPwBtn[\s\S]{0,400}focusable: true/.test(panelSource) &&

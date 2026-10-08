@@ -43,6 +43,10 @@ QtObject {
       state = ConnectionState.Disconnected
       cafe.connected = false
       cafe.stateChanging = false
+      // NM destroys the pending ActiveConnection, so every profile drops
+      // back to Deactivated alongside the device.
+      cafe.state = ConnectionState.Disconnected
+      home.state = ConnectionState.Disconnected
     }
   }
 
@@ -52,6 +56,9 @@ QtObject {
     property bool connected: false
     property bool known: true
     property bool stateChanging: false
+    // Mirrors the real backend binding: the profile reports Connecting while
+    // its own ActiveConnection is activating.
+    property int state: ConnectionState.Disconnected
     property real signalStrength: 0.8
     property int security: WifiSecurityType.Open
     property int disconnects: 0
@@ -66,6 +73,7 @@ QtObject {
       // device is no longer Disconnected. `connected` stays false, which is
       // exactly the state the panel has to be able to cancel from.
       device.state = ConnectionState.Connecting
+      cafe.state = ConnectionState.Connecting
     }
 
     function connectWithPsk(psk) { connect() }
@@ -81,6 +89,7 @@ QtObject {
       disconnects++
       device.state = ConnectionState.Disconnected
       connected = false
+      cafe.state = ConnectionState.Disconnected
     }
 
     function forget() {
@@ -99,6 +108,7 @@ QtObject {
     property bool connected: false
     property bool known: true
     property bool stateChanging: false
+    property int state: ConnectionState.Disconnected
     property real signalStrength: 0.6
     property int security: WifiSecurityType.Wpa2Psk
     property int disconnects: 0
@@ -108,13 +118,17 @@ QtObject {
     signal connectionFailed(int reason)
     property var device: NetworkMock.device
 
-    function connect() { device.state = ConnectionState.Connecting }
+    function connect() {
+      device.state = ConnectionState.Connecting
+      home.state = ConnectionState.Connecting
+    }
     function connectWithPsk(psk) { connect() }
     function disconnect() {
       if (!connected) { refusedDisconnects++; return }
       disconnects++
       device.state = ConnectionState.Disconnected
       connected = false
+      home.state = ConnectionState.Disconnected
     }
     function forget() {
       if (!known || connected) { refusedForgets++; return }

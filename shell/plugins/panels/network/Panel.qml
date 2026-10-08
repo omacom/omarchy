@@ -780,13 +780,26 @@ Panel {
     return actionKind === "connect" && actionSsid !== "" && actionSsid === (ssid || "")
   }
 
-  // Whether NetworkManager is part-way through activating this SSID. Quickshell
-  // maps NetworkManager's device states 40-90 (prepare, config, need-auth,
-  // ip-config, ip-check, second-connection) onto ConnectionState.Connecting,
-  // which is the only state a pending activation can be aborted from.
+  // Whether NetworkManager is part-way through activating the tracked SSID.
+  // The device alone cannot tell whose activation is in flight (another one
+  // may have been started externally while this panel tracks its own), so the
+  // abort additionally requires the tracked profile to report Connecting,
+  // which Quickshell binds to the profile's own ActiveConnection state. A
+  // profile that no longer resolves (vanished mid-connect) falls back to the
+  // device state. Either way the device must actually be activating: a Cancel
+  // aimed at a request NM has not picked up yet only stops tracking the row
+  // instead of tearing down the connection the user is on. That leaves a
+  // narrow early window (the async D-Bus hop after connect(), longer for the
+  // PSK settings write in connectWithPsk) where Cancel clears the UI without
+  // reaching the backend; Quickshell exposes no per-activation handle to
+  // close it, so it needs a hardware timing test rather than a wider
+  // disconnect.
   function isActivationPending() {
     var device = wifiDevice
-    return !!device && device.state === ConnectionState.Connecting
+    if (!device || device.state !== ConnectionState.Connecting) return false
+    var network = networkForSsid(actionSsid)
+    if (!network) return true
+    return network.state === ConnectionState.Connecting
   }
 
   function runNetworkAction(kind, network, callback) {
@@ -928,7 +941,9 @@ Panel {
   // for dropping a pending activation, and it refuses only while the device is
   // already Disconnected or Disconnecting -- hence the gate, which also keeps a
   // Cancel aimed at a request NM has not picked up yet from tearing down a
-  // connection the user is actually on.
+  // connection the user is actually on. The gate is pinned to the tracked
+  // SSID's own activation state so it cannot abort a different network's
+  // activation either; see isActivationPending.
   //
   // Consequence: NetworkManager's Device.Disconnect blocks automatic
   // activation on that device until a connection is activated again, the same
@@ -939,8 +954,9 @@ Panel {
   // The enterprise helper is killed first so it cannot finish behind us; its
   // script deletes the half-built 802.1X profile when it is terminated. The
   // passphrase prompt (if open) stays open with its fields restored so the
-  // user can correct and retry. The slot is disarmed so a second click on the
-  // spot that showed Cancel cannot land on Forget.
+  // user can correct and retry. Clearing the keyboard action focus keeps a
+  // second Enter from reaching Forget; pointer safety comes from the slot's
+  // onDoubleClicked handler, which suppresses the second clicked event.
   function cancelNetworkAction() {
     if (actionKind !== "connect") return
     if (enterpriseConnect.running) enterpriseConnect.running = false
@@ -2024,6 +2040,9 @@ Panel {
             if (row.isCancellable) root.cancelNetworkAction()
             else if (row.net) root.forget(row.net)
           }
+          // A double-click on Cancel must not Forget on its second click:
+          // accepting doubleClicked suppresses the second clicked event.
+          onDoubleClicked: {}
         }
 
         PanelToolTip {

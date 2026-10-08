@@ -46,9 +46,11 @@ ShellRoot {
     NetworkMock.cafe.connected = false
     NetworkMock.cafe.known = true
     NetworkMock.cafe.stateChanging = false
+    NetworkMock.cafe.state = ConnectionState.Disconnected
     NetworkMock.home.connected = false
     NetworkMock.home.known = true
     NetworkMock.home.stateChanging = false
+    NetworkMock.home.state = ConnectionState.Disconnected
     NetworkMock.device.connected = false
     NetworkMock.device.state = ConnectionState.Disconnected
     NetworkMock.device.disconnects = 0
@@ -119,7 +121,7 @@ ShellRoot {
     check(panel.failureSsid === "" && panel.failureReason === "",
       "cancel records no failure")
     check(panel.wifiActionFocused === false,
-      "cancel disarms the slot so a second click cannot land on Forget")
+      "cancel clears the keyboard action focus")
     noWait()
   }
 
@@ -178,6 +180,32 @@ ShellRoot {
     check(NetworkMock.device.disconnects === 0,
       "cancel leaves the device alone unless it is actually activating")
     check(panel.actionKind === "", "cancel still stops tracking the action")
+    cancelPinnedToTrackedSsid()
+  }
+
+  // The abort is pinned to the tracked SSID: with the device activating for
+  // another network (e.g. one started externally while the panel tracks its
+  // own request), Cancel must leave that activation alone and only stop
+  // tracking. With the tracked profile itself activating, the abort lands.
+  function cancelPinnedToTrackedSsid() {
+    arm()
+    panel.actionSsid = "Cafe WiFi"
+    panel.actionKind = "connect"
+    NetworkMock.device.state = ConnectionState.Connecting
+    NetworkMock.device.disconnects = 0
+    panel.cancelNetworkAction()
+    check(NetworkMock.device.disconnects === 0,
+      "cancel does not abort another SSID's activation")
+    check(panel.actionKind === "", "cancel still stops tracking the action")
+    arm()
+    panel.actionSsid = "Cafe WiFi"
+    panel.actionKind = "connect"
+    NetworkMock.device.state = ConnectionState.Connecting
+    NetworkMock.cafe.state = ConnectionState.Connecting
+    NetworkMock.device.disconnects = 0
+    panel.cancelNetworkAction()
+    check(NetworkMock.device.disconnects === 1,
+      "cancel still aborts the tracked SSID's own activation")
     forgetLaneDuringConnect()
   }
 
