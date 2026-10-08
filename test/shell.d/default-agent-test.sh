@@ -126,6 +126,7 @@ export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
 export OMARCHY_PATH="$ROOT"
 
 grok_package="grok"
+freebuff_package="npm:freebuff"
 legacy_grok_package="npm:@xai-official/grok"
 omp_package="github:can1357/oh-my-pi"
 crush_package="crush"
@@ -148,6 +149,7 @@ assert_lazy_stub() {
 }
 
 assert_lazy_stub "$grok_package" grok
+assert_lazy_stub "$freebuff_package" freebuff
 assert_lazy_stub "$omp_package" omp
 assert_lazy_stub "$crush_package" crush
 assert_lazy_stub "$ori_package" ori
@@ -156,12 +158,14 @@ assert_lazy_stub "$muse_package" muse
 pass "custom agent lazy stubs preserve their mise packages"
 
 OMARCHY_TEST_MISSING_COMMAND=cursor-agent source "$ROOT/install/user/mise.sh"
+grep -Fx "$freebuff_package freebuff" "$stub_log" >/dev/null && fail "user setup does not preinstall Freebuff"
 grep -Fx "$agy_package agy" "$stub_log" >/dev/null || fail "user setup creates the Antigravity lazy stub"
 grep -Fx "$grok_package" "$stub_log" >/dev/null || fail "user setup creates the Grok lazy stub"
 grep -Fx "$cursor_agent_package" "$stub_log" >/dev/null || fail "user setup creates the Cursor CLI lazy stub"
 grep -Fx "$omp_package omp" "$stub_log" >/dev/null || fail "user setup creates the Oh My Pi lazy stub"
 grep -Fx "$crush_package" "$stub_log" >/dev/null || fail "user setup creates the Crush lazy stub"
 grep -Fx "$ori_package ori" "$stub_log" >/dev/null || fail "user setup creates the Ori lazy stub"
+pass "user setup leaves Freebuff opt-in"
 OMARCHY_TEST_MISSING_COMMAND=muse source "$ROOT/install/user/mise.sh"
 grep -Fx "$muse_package muse" "$stub_log" >/dev/null || fail "user setup creates the Muse lazy stub"
 pass "user setup creates the custom agent lazy stubs"
@@ -184,7 +188,6 @@ OMARCHY_TEST_MISSING_COMMAND=muse source "$ROOT/migrations/1788724825.sh" >/dev/
 [[ ! -s $stub_log ]] || fail "Muse migration ignores the preinstall opt-out"
 rm "$test_home/.local/state/omarchy/preinstalls-removed"
 pass "Muse migration preserves existing installs and the preinstall opt-out"
-
 
 : >"$stub_log"
 source "$ROOT/migrations/1785617047.sh" >/dev/null
@@ -420,9 +423,10 @@ grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null ||
 pass "agent migrations install working wrappers without overriding the preinstall opt-out"
 
 "$ROOT/bin/omarchy-mise-install" "$muse_package" muse
+"$ROOT/bin/omarchy-mise-install" "$freebuff_package" freebuff
 touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
 omarchy-remove-preinstalls >/dev/null
-for command in agy omp ori grok crush cursor-agent muse; do
+for command in agy omp ori grok crush cursor-agent muse freebuff; do
   [[ ! -e $test_home/.local/bin/$command ]] || fail "Remove Preinstalls deletes the $command lazy stub"
 done
 pass "Remove Preinstalls deletes every optional agent lazy stub"
@@ -441,6 +445,12 @@ omarchy-remove-preinstalls >/dev/null
 [[ $("$test_home/.local/bin/muse") == "user-muse" ]] || fail "Remove Preinstalls deletes a user-managed Muse"
 rm "$test_home/.local/bin/muse"
 pass "Remove Preinstalls keeps a user-managed Muse install"
+printf '%s\n' '#!/bin/bash' 'echo user-freebuff' >"$test_home/.local/bin/freebuff"
+chmod +x "$test_home/.local/bin/freebuff"
+omarchy-remove-preinstalls >/dev/null
+[[ $("$test_home/.local/bin/freebuff") == "user-freebuff" ]] || fail "Remove Preinstalls preserves a user-managed Freebuff"
+rm "$test_home/.local/bin/freebuff"
+pass "Remove Preinstalls keeps a user-managed Freebuff install"
 
 
 [[ -z $(omarchy-default-agent) ]] || fail "default agent is unset until one is chosen"
@@ -478,6 +488,9 @@ pass "agent launcher has a keyboard shortcut"
 
 cat >"$mock_bin/omarchy-agent" <<'SH'
 #!/bin/bash
+if [[ ${OMARCHY_TEST_REAL_AGENT:-false} == "true" ]]; then
+  exec "$OMARCHY_PATH/bin/omarchy-agent" "$@"
+fi
 printf '%s\0' omarchy-agent "$@" >"$OMARCHY_TEST_AGENT_OPEN_LOG"
 SH
 chmod +x "$mock_bin/omarchy-agent"
@@ -496,6 +509,7 @@ declare -A expected_agents=(
   [codex]="codex"
   [crush]="crush"
   [grok]="grok"
+  [freebuff]="freebuff"
   [agy]="agy"
   [antigravity]="agy"
   [antigravity-cli]="agy"
@@ -519,6 +533,7 @@ declare -A expected_packages=(
   [codex]="codex"
   [crush]="$crush_package"
   [grok]="$grok_package"
+  [freebuff]="$freebuff_package"
   [agy]="$agy_package"
   [copilot]="copilot"
   [cursor-agent]="$cursor_agent_package"
@@ -643,6 +658,18 @@ pass "default agent rejects unsupported providers without changing the selection
 
 : >"$notification_history"
 : >"$agent_open_log"
+# Install-only must leave both a pre-existing default and an unset default unchanged.
+OMARCHY_TEST_AGENT_INSTALLED=false omarchy-default-agent --install-only freebuff >"$test_tmp/freebuff-install-only"
+[[ $(omarchy-default-agent) == "copilot" ]] || fail "Freebuff install-only preserves the selected default"
+[[ ! -s $agent_open_log ]] || fail "Freebuff install-only does not launch an agent"
+grep -F "Choose it with: omarchy default agent freebuff" "$test_tmp/freebuff-install-only" >/dev/null || fail "Freebuff install-only explains how to select it"
+rm -f "$agent_file"
+OMARCHY_TEST_AGENT_INSTALLED=false omarchy-default-agent --install-only freebuff >/dev/null
+[[ -z $(omarchy-default-agent) ]] || fail "Freebuff install-only preserves an unset default"
+OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent copilot
+: >"$agent_open_log"
+pass "Freebuff install-only does not select or launch the agent"
+
 if OMARCHY_TEST_MISE_FAIL=true omarchy-default-agent --install codex >"$test_tmp/install-failure-output" 2>&1; then
   fail "default agent rejects a failed mise installation"
 fi
@@ -790,7 +817,7 @@ assert_launch cursor-agent cursor-agent --yolo --trust agent -- "Review this pro
 assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=Review this project"
 assert_launch agy agy --dangerously-skip-permissions --prompt-interactive "Review this project"
 assert_launch copilot copilot --allow-all --interactive "Review this project"
-pass "agent launcher adapts initial prompts for every supported agent"
+pass "agent launcher adapts initial prompts for supported agents"
 
 literal_muse_prompt=$'--disable-sandbox !Crash {$(touch must-not-run)}\ntrailing\\ '
 printf '%s\n' "muse" >"$agent_file"
@@ -818,6 +845,7 @@ assert_bypass cursor-agent cursor-agent --yolo --trust
 assert_bypass hermes hermes --yolo
 assert_bypass agy agy --dangerously-skip-permissions
 assert_bypass copilot copilot --allow-all
+assert_bypass freebuff freebuff
 pass "agent launcher skips permission prompts for every supported agent"
 
 printf '%s\n' "opencode" >"$agent_file"
@@ -873,6 +901,19 @@ fi
 grep -F "missing is not installed" "$test_tmp/missing-output" >/dev/null ||
   fail "agent launcher explains when the default command is missing"
 pass "agent launcher reports a missing default command"
+
+# Freebuff's TUI does not accept initial prompts, so this route must refuse
+# instead of taking over stdin and breaking the interactive session.
+printf '%s\n' freebuff >"$agent_file"
+: >"$launch_log"
+if OMARCHY_TEST_REAL_AGENT=true \
+  "$ROOT/bin/omarchy-agent-prompt" "Review this project" >"$test_tmp/freebuff-prompt" 2>&1; then
+  fail "Freebuff refuses an unsupported prompt-seeded launch"
+fi
+grep -F "Freebuff does not support prompt-seeded launches" "$test_tmp/freebuff-prompt" >/dev/null ||
+  fail "Freebuff prompt launch explains the limitation"
+[[ ! -s $launch_log ]] || fail "unsupported Freebuff prompt starts no process"
+pass "Freebuff prompt route fails clearly rather than losing terminal input"
 
 # OpenClaw is its own self-updating runtime, not mise's: choosing it must route
 # through omarchy-install-openclaw-cli and never touch a mise environment.

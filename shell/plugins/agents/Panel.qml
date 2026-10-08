@@ -22,6 +22,10 @@ Panel {
   // Every subscription on one page, limits first: the question this panel
   // answers is how much room is left, and where.
   readonly property var providers: usage.enabledProviders
+  readonly property string home: Quickshell.env("HOME") || ""
+  property string defaultAgent: ""
+  property bool defaultAgentLoaded: false
+  readonly property bool supportsPromptSeeds: defaultAgentLoaded && defaultAgent !== "" && defaultAgent !== "freebuff"
 
   property bool cursorActive: false
 
@@ -47,8 +51,8 @@ Panel {
 
   // The keyboard walks everything on the page that does something, in
   // reading order, one row at a time: the hero's buttons, then each agent's
-  // header, its Sign-in required link or switchable accounts, and the starter
-  // tiles, or the agents to add while picking one. Up and down change rows, left and right move along one.
+  // header, its Sign-in required link or switchable accounts, and supported
+  // starter tiles, or the agents to add while picking one. Up and down change rows, left and right move along one.
   // Hovering moves the same cursor, so only one thing is lit.
   readonly property var keyRows: {
     var rows = []
@@ -84,7 +88,7 @@ Panel {
           if (row.length > 0) rows.push(row)
         }
       }
-      if (!blankSlate) {
+      if (!blankSlate && root.supportsPromptSeeds) {
         var tiles = []
         for (var j = 0; j < starterPrompts.length; j++) tiles.push({ kind: "starter", index: j })
         rows.push(tiles)
@@ -345,6 +349,7 @@ Panel {
   ]
 
   function startPrompt(prompt) {
+    if (!root.supportsPromptSeeds) return
     root.close()
     Util.execArgv(["omarchy-agent-prompt", prompt])
   }
@@ -782,6 +787,21 @@ Panel {
     settings: root.settings
   }
 
+  FileView {
+    path: root.home + "/.config/omarchy/defaults/agent"
+    watchChanges: true
+    printErrors: false
+    onLoaded: {
+      root.defaultAgent = text().trim()
+      root.defaultAgentLoaded = true
+    }
+    onFileChanged: reload()
+    onLoadFailed: {
+      root.defaultAgent = ""
+      root.defaultAgentLoaded = true
+    }
+  }
+
   Process {
     id: checkProcess
     running: false
@@ -1001,12 +1021,12 @@ Panel {
 
           // ---------- Make something ----------
           PanelSeparator {
-            visible: root.addStage === "" && !root.blankSlate
+            visible: root.addStage === "" && !root.blankSlate && root.supportsPromptSeeds
             foreground: root.foreground
           }
 
           Column {
-            visible: root.addStage === "" && !root.blankSlate
+            visible: root.addStage === "" && !root.blankSlate && root.supportsPromptSeeds
             width: parent.width
             spacing: Style.space(12)
 

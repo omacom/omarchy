@@ -1,14 +1,22 @@
 #!/bin/bash
 
 # omarchy:summary=Set and launch the default coding agent
-# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse]
+# omarchy:args=[--install|--install-only] <pi|omp|opencode|ori|claude|codex|grok|freebuff|openclaw|agy|hermes|copilot|crush|cursor-agent|muse>
 # omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
 
 installing=false
-if [[ ${1:-} == "--install" ]]; then
-  installing=true
-  shift
-fi
+install_only=false
+case ${1:-} in
+  --install)
+    installing=true
+    shift
+    ;;
+  --install-only)
+    installing=true
+    install_only=true
+    shift
+    ;;
+esac
 
 agent_file="$HOME/.config/omarchy/defaults/agent"
 
@@ -32,6 +40,7 @@ claude | claude-code) agent="claude"; name="Claude Code" ;;
 codex) agent="codex"; name="Codex" ;;
 crush) agent="crush"; name="Crush" ;;
 grok) agent="grok"; name="Grok" ;;
+freebuff) agent="freebuff"; name="Freebuff"; agent_package="npm:freebuff" ;;
 openclaw) agent="openclaw"; name="OpenClaw"; agent_installer="omarchy-install-openclaw-cli" ;;
 agy | antigravity | antigravity-cli | gemini | gemini-cli) agent="agy"; name="Antigravity"; agent_package="antigravity-cli" ;;
 hermes) agent="hermes"; name="Hermes"; agent_installer="omarchy-install-hermes-cli" ;;
@@ -43,7 +52,7 @@ muse | muse-code | musecode)
   ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
 *)
-  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse>"
+  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|freebuff|openclaw|agy|hermes|copilot|crush|cursor-agent|muse>"
   exit 1
   ;;
 esac
@@ -87,6 +96,11 @@ if ! agent_install; then
     echo "Could not set $name as the default coding agent" >&2
   fi
   exit 1
+fi
+
+if [[ $install_only == "true" ]]; then
+  echo "$name is installed. Choose it with: omarchy default agent $agent"
+  exit 0
 fi
 
 if [[ $agent == "claude" ]]; then

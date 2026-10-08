@@ -1,0 +1,375 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Freebuff usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Freebuff usage into one display-ready JSON record.
+
+Freebuff keeps chats under ~/.config/manicode/projects/<project>/chats/<UTC
+timestamp>/: chat-messages.json (a JSON array of user prompts and AI replies),
+chat-meta.json, and a debug log. It records no per-message token usage — the
+free tier meters credits server-side ("creditsCharged": "server") — so token
+counts here are estimates from message text (~4 characters per token),
+attributed to a single "freebuff" model bucket. Prompts, sessions, and active
+days are exact counts, dated from the epoch milliseconds embedded in every
+message id (user-1790830285538). The agents panel only ever reads the JSON
+this prints.
+"""
+
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+import re
+import sys
+import tempfile
+import time
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+AGENT_ID = "freebuff"
+AGENT_NAME = "Freebuff"
+AUTH_HELP = "Start Freebuff, or run `freebuff login`, to sign in."
+
+# A scan this recent is only reused to dedup concurrent collector runs (the
+# update command backgrounds one per agent while the panel refreshes on its
+# own); every periodic widget refresh lands a real rescan, however low
+# refreshIntervalSec is set. --limits-only promises only fresh limits, so it
+# may reuse a scan for up to 15 minutes. Freebuff exposes no limits endpoint,
+# so both windows exist purely to keep the rescan cost down.
+SCAN_REUSE_SECONDS = 20
+LIMITS_ONLY_REUSE_SECONDS = 900
+
+CHARS_PER_TOKEN = 4
+# Message ids look like user-1790830285538 / ai-1790830285726-8f3c26a13464e:
+# the number after the variant is the creation time in epoch milliseconds
+# (10-digit values would be seconds; accept both).
+MESSAGE_ID_TS = re.compile(r"^(?:user|ai)-(\d{10,})")
+
+now = datetime.now()
+today = now.strftime("%Y-%m-%d")
+recent_dates = [(now - timedelta(days=offset)).strftime("%Y-%m-%d") for offset in range(6, -1, -1)]
+recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
+
+
+def manicode_dir():
+  # Freebuff's supported override; it must be absolute. The compatibility
+  # variable remains useful for isolated collector tests.
+  configured = os.environ.get("FREEBUFF_CONFIG_DIR") or os.environ.get("MANICODE_CONFIG_DIR")
+  if configured:
+    path = Path(configured).expanduser()
+    if path.is_absolute():
+      return path
+    print("omarchy-agent-usage-freebuff: ignoring relative config directory", file=sys.stderr)
+  return Path.home() / ".config" / "manicode"
+
+
+def local_day_from_epoch(value):
+  try:
+    seconds = value / 1000.0 if value > 10_000_000_000 else float(value)
+    return datetime.fromtimestamp(seconds).strftime("%Y-%m-%d")
+  except (OverflowError, OSError, ValueError):
+    return None
+
+
+def message_day(message):
+  match = MESSAGE_ID_TS.match(str(message.get("id") or ""))
+  if match:
+    day = local_day_from_epoch(int(match.group(1)))
+    if day:
+      return day
+  return None
+
+
+def message_text(message):
+  """User prompts are plain strings; AI replies keep text in typed blocks."""
+  parts = []
+  content = message.get("content")
+  if isinstance(content, str):
+    parts.append(content)
+  blocks = message.get("blocks")
+  if isinstance(blocks, list):
+    for block in blocks:
+      if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("content"), str):
+        parts.append(block["content"])
+  return "".join(parts)
+
+
+def chat_fallback_day(path):
+  """Day for messages whose id carries no timestamp: the file's last write."""
+  try:
+    return datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d")
+  except OSError:
+    return today
+
+
+def scan_chat_file(path):
+  """Return (per-day usage, complete) for one chat.
+
+  A malformed, unreadable, or concurrently modified file is omitted from this
+  run and marks the scan incomplete, so a partial snapshot never enters cache.
+  """
+  try:
+    before = path.stat()
+    raw = path.read_text(encoding="utf-8")
+    after = path.stat()
+  except (OSError, UnicodeError):
+    return {}, False
+
+  if before.st_size != after.st_size or before.st_mtime_ns != after.st_mtime_ns:
+    return {}, False
+
+  try:
+    data = json.loads(raw)
+  except (json.JSONDecodeError, UnicodeError):
+    return {}, False
+  if not isinstance(data, list):
+    return {}, False
+
+  fallback_day = chat_fallback_day(path)
+  per_day = {}
+  for message in data:
+    if not isinstance(message, dict):
+      continue
+    variant = message.get("variant")
+    if variant not in ("user", "ai"):
+      continue
+    text = message_text(message)
+    if not text:
+      continue
+    day = message_day(message) or fallback_day
+    bucket = per_day.setdefault(day, {"prompts": 0, "inChars": 0, "outChars": 0})
+    if variant == "user":
+      bucket["prompts"] += 1
+      bucket["inChars"] += len(text)
+    else:
+      bucket["outChars"] += len(text)
+  return per_day, True
+
+
+def chat_roots():
+  root = manicode_dir() / "projects"
+  if not root.is_dir():
+    return []
+  try:
+    return sorted(root.glob("*/chats/*/chat-messages.json"))
+  except OSError:
+    return []
+
+
+def cache_root():
+  root = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def cache_paths():
+  digest = hashlib.sha1((str(Path.home()) + "\n" + str(manicode_dir())).encode("utf-8")).hexdigest()[:16]
+  root = cache_root()
+  return root / f"freebuff-scan-{digest}.json", root / f"freebuff-scan-{digest}.lock"
+
+
+def read_fresh_cache(path, max_age_seconds):
+  if max_age_seconds <= 0 or not path.exists():
+    return None
+  try:
+    # A negative age means the mtime is in the future: the clock moved
+    # backwards since the write, so the cache's freshness cannot be trusted.
+    age = time.time() - path.stat().st_mtime
+    if 0 <= age <= max_age_seconds:
+      cached = json.loads(path.read_text(encoding="utf-8"))
+      if isinstance(cached, dict) and cached.get("schemaVersion") == 1 and cached.get("scanDate") == today:
+        files = cached.get("files")
+        if isinstance(files, dict):
+          return files
+  except Exception:
+    return None
+  return None
+
+
+def write_cache(path, entries):
+  handle_fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+  tmp = Path(tmp_name)
+  try:
+    with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+      payload = {
+        "schemaVersion": 1,
+        "scanDate": today,
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+        "files": entries,
+      }
+      handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+    tmp.chmod(0o644)
+    tmp.replace(path)
+  except BaseException:
+    tmp.unlink(missing_ok=True)
+    raise
+
+
+def collect_entries(max_age):
+  """Per-chat usage entries, reusing unchanged files across scans.
+
+  Each entry is {"mtime": float, "size": int, "perDay": {...}} keyed by the
+  chat-messages.json path. A file whose stat still matches its entry is reused
+  as-is; only new or rewritten chats are re-read, so the mid-session chat that
+  Freebuff rewrites on every message is the only recurring parse cost.
+  """
+  cache_file, lock_file = cache_paths()
+
+  with lock_file.open("w") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    fresh = read_fresh_cache(cache_file, max_age)
+    if fresh is not None:
+      return fresh
+
+    old_entries = {}
+    try:
+      cached = json.loads(cache_file.read_text(encoding="utf-8")) if cache_file.exists() else None
+      if isinstance(cached, dict) and cached.get("schemaVersion") == 1 and isinstance(cached.get("files"), dict):
+        old_entries = cached["files"]
+    except Exception:
+      old_entries = {}
+
+    entries = {}
+    complete = True
+    for path in chat_roots():
+      key = str(path)
+      try:
+        stat = path.stat()
+      except OSError:
+        complete = False
+        continue
+      old = old_entries.get(key)
+      if isinstance(old, dict) and old.get("size") == stat.st_size and abs(float(old.get("mtime") or -1) - stat.st_mtime) < 1e-6:
+        entries[key] = old
+        continue
+      per_day, file_complete = scan_chat_file(path)
+      complete = complete and file_complete
+      if per_day:
+        entries[key] = {"mtime": stat.st_mtime, "size": stat.st_size, "perDay": per_day}
+
+    if complete:
+      try:
+        write_cache(cache_file, entries)
+      except Exception as exc:
+        print(f"omarchy-agent-usage-freebuff: could not write usage cache ({exc})", file=sys.stderr)
+    else:
+      # The old snapshot predates this incomplete observation and can be
+      # reused by --limits-only; discard it so the next request must rescan.
+      try:
+        cache_file.unlink(missing_ok=True)
+      except OSError as exc:
+        print(f"omarchy-agent-usage-freebuff: could not invalidate usage cache ({exc})", file=sys.stderr)
+      print("omarchy-agent-usage-freebuff: incomplete scan; not caching partial usage", file=sys.stderr)
+    return entries
+
+
+def authentication_status():
+  """Return (status, help text) without treating a keychain pointer as a token.
+
+  Freebuff may move authToken into the OS keychain, which this collector cannot
+  query. Report that state as unverifiable rather than claiming sign-in.
+  """
+  path = manicode_dir() / "credentials.json"
+  try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+  except FileNotFoundError:
+    return "signed-out", AUTH_HELP
+  except (OSError, UnicodeError, json.JSONDecodeError):
+    return "unverified", "Could not read Freebuff credentials; sign-in status is unknown."
+
+  profile = data.get("default") if isinstance(data, dict) else None
+  if not isinstance(profile, dict):
+    return "signed-out", AUTH_HELP
+  token = profile.get("authToken")
+  if isinstance(token, str) and token.strip():
+    return "signed-in", ""
+  if profile.get("tokenStore") == "keychain":
+    return "unverified", "Freebuff credentials are stored in the system keychain; sign-in status cannot be verified here."
+  return "signed-out", AUTH_HELP
+
+
+def build_record(entries):
+  total_prompts = 0
+  total_input_tokens = 0
+  total_output_tokens = 0
+  total_sessions = set()
+  active_days = set()
+  today_prompts = 0
+  today_sessions = set()
+  today_total_tokens = 0
+  today_tokens_by_model = {}
+  model_usage_bucket = {"inputTokens": 0, "outputTokens": 0, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0}
+
+  for key, entry in entries.items():
+    per_day = entry.get("perDay") if isinstance(entry, dict) else None
+    if not isinstance(per_day, dict) or not per_day:
+      continue
+    total_sessions.add(key)
+    for day, bucket in per_day.items():
+      if not isinstance(bucket, dict):
+        continue
+      prompts = int(bucket.get("prompts") or 0)
+      input_tokens = int(bucket.get("inChars") or 0) // CHARS_PER_TOKEN
+      output_tokens = int(bucket.get("outChars") or 0) // CHARS_PER_TOKEN
+      total = input_tokens + output_tokens
+      total_prompts += prompts
+      total_input_tokens += input_tokens
+      total_output_tokens += output_tokens
+      model_usage_bucket["inputTokens"] += input_tokens
+      model_usage_bucket["outputTokens"] += output_tokens
+      active_days.add(day)
+      if day in recent:
+        recent[day]["messageCount"] += total
+      if day == today:
+        today_prompts += prompts
+        today_total_tokens += total
+        today_sessions.add(key)
+        today_tokens_by_model[AGENT_ID] = today_tokens_by_model.get(AGENT_ID, 0) + total
+
+  auth_status, auth_help = authentication_status()
+  authenticated = auth_status == "signed-in"
+  has_tokens = (total_input_tokens + total_output_tokens) > 0
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": authenticated,
+    "hasLocalStats": True,
+    "hasPromptStats": True,
+    "tierLabel": "Free" if authenticated else "",
+    "usageStatusText": "" if authenticated else ("Freebuff not signed in" if auth_status == "signed-out" else "Freebuff sign-in status unknown"),
+    "authHelpText": auth_help,
+    "limits": [],
+    "todayPrompts": today_prompts,
+    "todaySessions": len(today_sessions),
+    "todayTotalTokens": today_total_tokens,
+    "todayTokensByModel": today_tokens_by_model,
+    "recentDays": [recent[day] for day in recent_dates],
+    "totalPrompts": total_prompts,
+    "totalSessions": len(total_sessions),
+    "activeDays": len(active_days),
+    "activeDates": sorted(active_days),
+    "modelUsage": {AGENT_ID: model_usage_bucket} if has_tokens else {},
+  }
+  return record
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
+  try:
+    entries = collect_entries(max_age)
+  except Exception as exc:
+    print(f"omarchy-agent-usage-freebuff: scan unavailable ({exc})", file=sys.stderr)
+    entries = {}
+  print(json.dumps(build_record(entries), separators=(",", ":")))
+
+
+if __name__ == "__main__":
+  main()

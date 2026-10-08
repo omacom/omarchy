@@ -248,7 +248,7 @@ const expectedAgents = {
   crush: { icon: '󰋑', label: 'Crush' },
   muse: { icon: '󰛤', label: 'Muse Code' },
   'cursor-agent': { icon: '\ue90d', iconFont: 'omarchy', label: 'Cursor CLI' },
-
+  freebuff: { icon: '󰙱', label: 'Freebuff' }
 }
 assert(
   Object.entries(expectedAgents).every(([agent, expected]) => {
@@ -267,7 +267,7 @@ assertDeepEqual(
   defaultItems
     .filter(item => item.parent === 'setup.default.agent')
     .map(item => item.label),
-  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
+  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Freebuff', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
   'menu sorts coding agents alphabetically'
 )
 const expectedDefaults = {
@@ -284,6 +284,16 @@ assert(
   'menu always exposes every supported browser, terminal, and editor under Defaults'
 )
 assert(!defaultById['install.ai.crush'], 'menu removes Crush from Install > AI')
+assertEqual(
+  defaultById['install.ai.freebuff'].action,
+  "omarchy-launch-floating-terminal-with-presentation 'omarchy-default-agent --install-only freebuff'",
+  'Freebuff install menu installs without selecting or launching it'
+)
+assertEqual(
+  defaultById['install.ai.freebuff'].disabled,
+  'omarchy-cmd-present freebuff',
+  'Freebuff install menu disables once the CLI is installed'
+)
 // Software you already have keeps its place in Install, dimmed rather than
 // dropped, so the list reads as a catalog of what Omarchy can install.
 // Chromium Account is the sole Install row with anything left to hide for, so

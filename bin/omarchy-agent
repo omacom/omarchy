@@ -130,6 +130,16 @@ pi)
   command=(pi)
   [[ -n ${prompt:-} ]] && command+=("$prompt")
   ;;
+freebuff)
+  # The Freebuff CLI currently accepts no initial prompt argument, and piping
+  # stdin is not a supported TUI input mode. Do not start a session that loses
+  # its terminal input; users can launch Freebuff and type into its TUI.
+  if [[ -n ${prompt:-} ]]; then
+    echo "Freebuff does not support prompt-seeded launches. Start it with 'omarchy agent' and enter the prompt in its TUI." >&2
+    exit 2
+  fi
+  command=(freebuff)
+  ;;
 *)
   echo "Unsupported default agent: $agent" >&2
   exit 1
