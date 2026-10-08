@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import "Arc.js" as Arc
 
 // One line of text arched over what sits below it, each character turned to
@@ -13,7 +14,7 @@ Item {
   property real rise: 6
   property string fontFamily: Style.font.family
   property int pixelSize: Style.font.caption
-  property color color: Color.foreground
+  property color color: Commons.Color.foreground
 
   FontMetrics {
     id: metrics

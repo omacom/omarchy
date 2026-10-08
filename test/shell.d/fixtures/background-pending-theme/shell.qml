@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import "background" as BackgroundPlugin
 
 ShellRoot {
@@ -24,10 +25,10 @@ ShellRoot {
     interval: 1300
     running: true
     onTriggered: {
-      if (Qt.colorEqual(Color.accent, "#123456")) {
+      if (Qt.colorEqual(Commons.Color.accent, "#123456")) {
         console.log("RESULT pass")
       } else {
-        console.log("RESULT fail previous colors returned: " + Color.accent)
+        console.log("RESULT fail previous colors returned: " + Commons.Color.accent)
       }
       Qt.quit()
     }
