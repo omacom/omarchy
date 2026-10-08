@@ -142,4 +142,15 @@ write_platform_readers "sep/*.sep/diag/touchid ready" "$tmp_dir/sep/*.sep/diag/t
   "$tmp_dir/sep/*.sep/diag/touchid ready now" "#$tmp_dir/sep/*.sep/diag/touchid ready"
 assert_rejects "relative paths, a missing value, an extra word and comments name no reader"
 
+# A platform file that matches nothing never hides a USB reader on the same
+# machine: the USB scan still runs after it.
+write_usb_devices '1234:5678:Goodix Fingerprint USB Device'
+write_sep 396400000 absent
+write_platform_readers "$tmp_dir/sep/*.sep/diag/touchid ready"
+assert_detects "a USB reader is detected while the platform's reader is not ready"
+write_platform_readers "$tmp_dir/nowhere/*/diag/touchid ready"
+assert_detects "a USB reader is detected while the platform's glob matches nothing"
+write_usb_devices '27c6:1234'
+assert_detects "a USB reader found by vendor is detected beside a platform file"
+
 rm -f "$platform_root/fingerprint-readers"

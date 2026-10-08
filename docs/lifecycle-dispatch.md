@@ -128,7 +128,7 @@ Omarchy has no disk recovery key: the disk, the login user and root share one pa
 
 ## Platform files
 
-A platform's runtime package describes its hardware in files under the platform root, `/usr/share/omarchy-platform/`, without an operation and without a branch in Omarchy's code: display hints, camera cutouts, audio nodes, keyrings and key names (see [file-layout.md](file-layout.md#platform-root)). Only the one installed platform package owns the root, and Omarchy ships nothing in it. The root is fixed: no environment variable moves it, and a development checkout in `OMARCHY_PATH` doesn't replace it. A missing root or file means no platform additions. It changes no binds, settings or gestures: Omarchy behaves the same on every machine.
+A platform's runtime package describes its hardware in files under the platform root, `/usr/share/omarchy-platform/`, without an operation and without a branch in Omarchy's code: display hints, camera cutouts, audio nodes, keyrings, key names and fingerprint readers (see [file-layout.md](file-layout.md#platform-root)). Only the one installed platform package owns the root, and Omarchy ships nothing in it. The root is fixed: no environment variable moves it, and a development checkout in `OMARCHY_PATH` doesn't replace it. A missing root or file means no platform additions. It changes no binds, settings or gestures: Omarchy behaves the same on every machine.
 
 - **Key names: `key-names`**, one `<keysym> <name>` per line, which the keybindings menu shows in place of the keysym (a MacBook's `XF86MonBrightnessUp` is its F2 key). Its tests run copies of the menu that read a fixture root (`platform_root_copy` in `base-test.sh`).
 
