@@ -19,10 +19,25 @@ function shouldWarnLowBattery(device, onBattery, dischargingState, threshold, al
   }
 }
 
+function lidAwakeBatteryFloor(value, fallback) {
+  var parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+
+  parsed = Math.round(parsed)
+  return parsed >= 0 && parsed <= 100 ? parsed : fallback
+}
+
+function hasReachedLidAwakeBatteryFloor(device, onBattery, dischargingState, floor) {
+  var level = batteryPercentage(device)
+  return level >= 0 && floor > 0 && isDischarging(device, onBattery, dischargingState) && level <= floor
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     batteryPercentage: batteryPercentage,
     isDischarging: isDischarging,
-    shouldWarnLowBattery: shouldWarnLowBattery
+    shouldWarnLowBattery: shouldWarnLowBattery,
+    lidAwakeBatteryFloor: lidAwakeBatteryFloor,
+    hasReachedLidAwakeBatteryFloor: hasReachedLidAwakeBatteryFloor
   }
 }

@@ -1,0 +1,119 @@
+#!/bin/bash
+
+# omarchy:summary=Keep a laptop running with the lid closed: it still locks and blanks, but does not suspend
+# omarchy:group=toggle
+# omarchy:args=[toggle|on|off|status]
+# omarchy:examples=omarchy toggle lid awake | omarchy toggle lid awake on | omarchy-toggle-lid-awake --status
+
+# A transient user unit holds a logind handle-lid-switch inhibitor while this
+# is on. Logind grants that to an active local session without a password, and
+# the unit is gone after a reboot, so a laptop can't be left stuck awake in a
+# bag. Closing the lid still runs omarchy-system-lid-close, so the session locks
+# and the panel blanks as usual.
+
+UNIT="omarchy-lid-awake"
+
+check_battery_floor() {
+  # The regular battery poll is deliberately infrequent. Check immediately
+  # after enabling too, so a laptop already at its floor cannot stay awake for
+  # one poll interval.
+  omarchy-shell -q battery checkLidAwakeFloor >/dev/null 2>&1 || true
+}
+
+lid_awake_enabled() {
+  systemctl --user --quiet is-active "$UNIT"
+}
+
+# Match the inhibitor by the unit's own process: other Omarchy commands, such
+# as shutdown, hold lid-switch inhibitors under the same name.
+lid_switch_inhibited() {
+  local pid
+  pid=$(systemctl --user show --property=MainPID --value "$UNIT" 2>/dev/null)
+  [[ -n $pid && $pid != "0" ]] || return 1
+
+  systemd-inhibit --list --json=short 2>/dev/null |
+    jq -e --argjson pid "$pid" 'any(.[]; .pid == $pid and (.what | split(":") | index("handle-lid-switch")))' >/dev/null
+}
+
+enable_lid_awake() {
+  if lid_awake_enabled; then
+    return 0
+  fi
+
+  systemd-run --user --collect --quiet --unit="$UNIT" \
+    --property=Restart=on-failure --property=RestartSec=1 \
+    systemd-inhibit --what=handle-lid-switch --mode=block \
+    --who="Omarchy" --why="Stay running with the lid closed" \
+    sleep infinity || return
+
+  # The unit starting does not mean logind granted the inhibitor, so wait for
+  # it to show up, and stop the unit if it never does.
+  local attempt
+  for attempt in {1..20}; do
+    if lid_switch_inhibited; then
+      check_battery_floor
+      return 0
+    fi
+    sleep 0.1
+  done
+
+  systemctl --user stop "$UNIT" 2>/dev/null
+  echo "Could not take the lid-switch inhibitor" >&2
+  return 1
+}
+
+# Stop unconditionally rather than asking first: a failed is-active query looks
+# the same as an inactive unit, and would skip a stop that was needed. Exit 5
+# means the unit is not loaded, which is already off.
+disable_lid_awake() {
+  local status=0
+  systemctl --user stop "$UNIT" 2>/dev/null || status=$?
+  if (( status == 5 )); then
+    status=0
+  fi
+  return $status
+}
+
+print_status() {
+  if lid_awake_enabled; then
+    printf '{"enabled":true,"class":"enabled","tooltip":"Allow Lid-Close Suspend"}\n'
+  else
+    printf '{"enabled":false,"class":"disabled","tooltip":"Stay On With Lid Closed"}\n'
+  fi
+}
+
+refresh_indicator() {
+  omarchy-shell omarchy.indicators refresh >/dev/null 2>&1 || true
+}
+
+# A failed start or stop must not read as success: a caller that believes
+# suspend is back could put a laptop that will not sleep in a bag.
+status=0
+
+case "${1:-toggle}" in
+  toggle)
+    if lid_awake_enabled; then
+      disable_lid_awake || status=$?
+    else
+      enable_lid_awake || status=$?
+    fi
+    refresh_indicator
+    ;;
+  on)
+    enable_lid_awake || status=$?
+    refresh_indicator
+    ;;
+  off)
+    disable_lid_awake || status=$?
+    refresh_indicator
+    ;;
+  status|--status)
+    print_status
+    ;;
+  *)
+    echo "Usage: omarchy-toggle-lid-awake [toggle|on|off|status]" >&2
+    exit 1
+    ;;
+esac
+
+exit $status

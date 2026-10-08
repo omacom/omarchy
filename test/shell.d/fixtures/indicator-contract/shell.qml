@@ -42,11 +42,17 @@ ShellRoot {
   }
 
   QtObject {
+    id: batteryService
+    property bool lidAwakeFloorReached: false
+  }
+
+  QtObject {
     id: mockShell
     function firstPartyServiceFor(id) {
       if (id === "omarchy.notifications") return notificationService
       if (id === "omarchy.idle") return idleService
       if (id === "omarchy.nightlight") return nightlightService
+      if (id === "omarchy.battery") return batteryService
       return null
     }
   }
@@ -214,6 +220,15 @@ ShellRoot {
         root.injectBar(stayAwake)
         stayAwake.triggerPress(Qt.LeftButton)
         root.assertTrue(idleService.stayAwake === true, "Stay Awake left click toggles the idle service")
+      }
+
+      var lidAwake = root.createIndicator("LidAwake")
+      if (lidAwake) {
+        lidAwake.moduleName = "LidAwake"
+        root.injectBar(lidAwake)
+        root.assertTrue(lidAwake.inactiveTooltipText === "Stay On With Lid Closed", "Lid Awake explains its inactive state")
+        batteryService.lidAwakeFloorReached = true
+        root.assertTrue(lidAwake.inactiveTooltipText === "Battery floor reached", "Lid Awake explains a battery-floor disarm")
       }
 
       root.checkIndicatorTray()

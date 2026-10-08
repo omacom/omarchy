@@ -13,6 +13,7 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Night light | `Super + Ctrl + N` | `omarchy toggle nightlight` |
 | Silence notifications | `Super + Ctrl + ,` | `omarchy toggle notification silencing` |
 | Stay awake (no idle lock) | `Super + Ctrl + I` | `omarchy toggle idle` |
+| Lid awake (no lid-close suspend) | — | `omarchy toggle lid awake` |
 | Crash capture | — | `omarchy toggle crash-capture` |
 | Screensaver | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) theme sync | — | `omarchy toggle theme sync` |
@@ -36,7 +37,7 @@ The flags are named for the off state — `screensaver-off`, `suspend-off`, `bar
 
 ### Indicators in the bar
 
-When a mode is on, you get a small glyph in the middle of the top bar next to the clock. That's the indicators widget, and it carries dictation, screen recording, pending reminders, night light, do not disturb, and stay awake.
+When a mode is on, you get a small glyph in the middle of the top bar next to the clock. That's the indicators widget, and it carries dictation, screen recording, pending reminders, night light, do not disturb, stay awake, and (on a laptop) lid awake.
 
 Inactive indicators are hidden. Hover the area around them and they fade in dimmed, so you can click one to turn it on without knowing its hotkey. Clicking an active one turns it back off. If you'd rather see all of them all the time, set `alwaysShow` to `true` on the `omarchy.indicators` entry in `~/.config/omarchy/shell.json` — see [the top bar](05-the-top-bar.md) for how bar widgets are configured.
 
@@ -83,7 +84,7 @@ If you dismiss the screensaver before the lock deadline, that counts as activity
 
 To stop locking on idle entirely, `Super + Ctrl + I` — or `omarchy toggle idle` — flips stay awake on, and the coffee cup indicator appears in the bar. That's the one to hit before a long presentation or a build you want to watch. Hit it again to go back to normal. `omarchy toggle idle status` prints the current state as JSON if you need it from a script.
 
-This is about locking and the screensaver, not power. Suspend and hibernation have their own setup in [system sleep](36-system-sleep.md).
+This is about locking and the screensaver, not power. Stay awake does nothing when you close the lid, which still suspends a laptop. To keep a laptop running with the lid shut, use lid awake instead; see [system sleep](36-system-sleep.md), where suspend and hibernation have their own setup too.
 
 ### The screensaver
 

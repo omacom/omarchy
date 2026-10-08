@@ -44,6 +44,9 @@ ShellRoot {
       screensaver: 150,
       lock: 300
     },
+    lidAwake: {
+      batteryFloor: 10
+    },
     bar: {
       position: "top",
       transparent: false,
