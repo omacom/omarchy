@@ -6,7 +6,7 @@ require_command lua
 
 resolved_input_for() {
   local module="$1"
-  OMARCHY_PATH="$ROOT" OMARCHY_MODULE="$module" OMARCHY_VCONSOLE="${2-}" lua <<'LUA'
+  OMARCHY_PATH="$ROOT" OMARCHY_MODULE="$module" OMARCHY_VCONSOLE="${2-}" lua_script <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local vconsole = os.getenv("OMARCHY_VCONSOLE")
@@ -58,9 +58,9 @@ assert_resolved_input() {
   local actual
 
   if (( $# > 3 )); then
-    actual=$("$resolver" "$4")
+    actual=$("$resolver" "$4") || fail "$description" "the Lua script failed"
   else
-    actual=$("$resolver")
+    actual=$("$resolver") || fail "$description" "the Lua script failed"
   fi
 
   [[ $actual == "$expected" ]] ||
