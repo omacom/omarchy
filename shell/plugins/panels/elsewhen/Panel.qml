@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 import "GlobeModel.js" as Solar
@@ -80,7 +81,7 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
+  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property color fainter: Qt.darker(foreground, 2.1)
   // A literal gold: several themes' "yellow" is not yellow.
@@ -712,6 +713,7 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
+    slotSize: Style.bar.statusSlot
     text: "󰇧"
     tooltipText: "World clock"
     onPressed: function(buttonCode) {
@@ -776,6 +778,7 @@ Panel {
       Flickable {
         id: scroller
         anchors.fill: parent
+        anchors.rightMargin: -Style.space(12)
         clip: true
         interactive: false
         contentWidth: width
@@ -820,7 +823,7 @@ Panel {
 
         Column {
           id: content
-          width: scroller.width
+          width: scroller.width - Style.space(12)
           spacing: Style.spacing.panelGap
 
           HeroTitle {
@@ -828,7 +831,7 @@ Panel {
             width: parent.width
             caption: root.hereLine
             // Accent while scrubbed, so a shifted time is never taken for now.
-            captionColor: root.scrubMinutes !== 0 ? Color.accent : root.dim
+            captionColor: root.scrubMinutes !== 0 ? Commons.Color.accent : root.dim
             captionClickable: root.focusIndex >= 0
             foreground: root.foreground
             dim: root.dim
@@ -856,11 +859,15 @@ Panel {
             // Clipped, so knocked rows fall out of the panel.
             Item {
               anchors.fill: parent
+              // Let circular actions straddle the rows' top-right corners.
+              anchors.topMargin: -Style.space(12)
+              anchors.rightMargin: -Style.space(12)
               clip: true
 
               Column {
                 id: listWrap
-                width: parent.width
+                y: Style.space(12)
+                width: stage.width
                 spacing: Style.spacing.panelGap
 
                 Column {

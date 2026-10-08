@@ -34,8 +34,12 @@ Item {
   id: root
 
   property bool blocked: false
+  // Panels that let items be reordered set this, and Ctrl+Up/Down (or
+  // Ctrl+k/j) then asks to move the current item instead of the cursor.
+  property bool reorderable: false
 
   signal moveRequested(int dx, int dy)
+  signal reorderRequested(int dy)
   signal activateRequested()
   signal returnRequested()
   signal closeRequested()
@@ -56,6 +60,13 @@ Item {
       tabRequested((event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab ? -1 : 1)
       event.accepted = true
       return
+    }
+    if (reorderable && (event.modifiers & Qt.ControlModifier)) {
+      var up = event.key === Qt.Key_Up || event.key === Qt.Key_K
+      var down = event.key === Qt.Key_Down || event.key === Qt.Key_J
+      if (up || down) {
+        reorderRequested(down ? 1 : -1); event.accepted = true; return
+      }
     }
     if (event.key === Qt.Key_Down || event.text === "j") {
       moveRequested(0, 1); event.accepted = true; return

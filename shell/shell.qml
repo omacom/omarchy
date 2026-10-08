@@ -5,6 +5,7 @@ import Quickshell.Hyprland
 import Quickshell.Io
 
 import qs.Commons
+import qs.Commons as Commons
 
 import "plugins/bar"
 import "services"
@@ -21,6 +22,7 @@ ShellRoot {
   property BarWidgetRegistry barWidgetRegistry: BarWidgetRegistry { }
   property AppLibrary appLibrary: AppLibrary { }
   property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
+  property BackgroundIntro bootIntro: BackgroundIntro { host: shell }
 
   property string home: Quickshell.env("HOME")
 
@@ -319,7 +321,8 @@ ShellRoot {
     if (!manifest) return null
     if (manifest.__isFirstParty) return manifest
     var copy = JSON.parse(JSON.stringify(manifest))
-    delete copy.__sourceDir
+    // Keep __sourceDir: third-party plugins find their bundled scripts through it.
+    // Only the host trust markers are withheld.
     delete copy.__isFirstParty
     delete copy.__hostCapabilities
     return copy
@@ -1703,6 +1706,7 @@ ShellRoot {
     function ping(): string {
       return "ok"
     }
+
   }
 
   // ---------------------------------------------------------- shell IPC
@@ -1710,17 +1714,40 @@ ShellRoot {
   ShellIpc {
     target: "shell"
 
+    function prepareThemeIntro(fromPath: string, token: string, colorsB64: string, shellB64: string): void {
+      shell.bootIntro.prepareTheme(fromPath, token, colorsB64, shellB64)
+    }
+
+    function finishThemeIntro(token: string): void {
+      shell.bootIntro.finishTheme(token)
+    }
+
+    function themeIntroStatus(token: string): string {
+      return shell.bootIntro.themeStatus(token)
+    }
+
+    function themeIntroCoverStatus(token: string): string {
+      return shell.bootIntro.themeCoverStatus(token)
+    }
+
     function ping(): string {
       return "ok"
     }
 
     function applyTheme(colorsB64: string, shellB64: string): string {
+      if (shell.bootIntro) shell.bootIntro.cancelTheme()
+      var background = shell.firstPartyServiceFor("omarchy.background")
+      if (background && typeof background.setPendingTheme === "function" && typeof background.applyPendingTheme === "function") {
+        background.setPendingTheme(colorsB64, shellB64)
+        background.applyPendingTheme()
+        return "ok"
+      }
       var colorsRaw = ""
       var shellRaw = ""
       try { colorsRaw = Qt.atob(String(colorsB64 || "")) } catch (e) { colorsRaw = "" }
       try { shellRaw = Qt.atob(String(shellB64 || "")) } catch (e2) { shellRaw = "" }
-      Color.loadColors(colorsRaw)
-      Color.loadShell(shellRaw)
+      Commons.Color.loadColors(colorsRaw)
+      Commons.Color.loadShell(shellRaw)
       Style.scheduleRefresh()
       return "ok"
     }

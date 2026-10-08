@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Suspend can wedge fprintd's claim; restart it after resume to clear it.
+# Upstream: https://gitlab.freedesktop.org/libfprint/fprintd/-/issues/173
+
+if [[ $1 == "post" ]]; then
+  # user.slice stays frozen until this hook returns; enqueue rather than wait.
+  systemctl --no-block try-restart fprintd.service 2>/dev/null || true
+fi
