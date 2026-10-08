@@ -197,13 +197,15 @@ Item {
     if (!binding) return
     if (field === "mods" && value === "") delete binding.mods
     else binding[field] = value
-    commit(next, false)
+    commit(next, field !== "action")
   }
 
+  // A saved gesture unsets any input.lua gesture on the same swipe, and only a
+  // reload brings that one back once the saved gesture moves or goes away.
   function removeGesture(index) {
     var next = edited()
     next.gestures.bindings.splice(index, 1)
-    commit(next, false)
+    commit(next, true)
   }
 
   // Window rules only apply as windows open, so app edits reload Hyprland to
