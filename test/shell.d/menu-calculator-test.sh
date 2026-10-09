@@ -109,7 +109,7 @@ assert(
 )
 
 assert(
-  /action: "printf '%s' " \+ Util\.shellQuote\(result\) \+ " \| wl-copy"/.test(menuQml),
-  'calculator row copies its result through a quoted argument'
+  /action: "printf '%s' " \+ Util\.shellQuote\(result\) \+ " \| wl-copy && omarchy-notification-send [^"]*" \+ Util\.shellQuote\(result\)/.test(menuQml),
+  'calculator row copies its result through a quoted argument and confirms it with a toast'
 )
 JS

@@ -537,7 +537,7 @@ Item {
       detail: "Copy to clipboard",
       path: "",
       childCount: 0,
-      action: "printf '%s' " + Util.shellQuote(result) + " | wl-copy",
+      action: "printf '%s' " + Util.shellQuote(result) + " | wl-copy && omarchy-notification-send -g 󰃬 'Copied to clipboard' " + Util.shellQuote(result),
       provider: "",
       score: 0,
       section: ""
