@@ -4,7 +4,7 @@ echo "Make the Surface keyboard modules append to MODULES so earlier modules sta
 # after nvidia.conf and so dropped its nvidia modules from every initramfs (#7111).
 
 surface_conf="${OMARCHY_SURFACE_MKINITCPIO_CONF:-/etc/mkinitcpio.conf.d/surface_device_modules.conf}"
-rebuild_marker="${OMARCHY_SURFACE_REBUILD_MARKER:-/var/lib/omarchy/migrations/1791403252}"
+rebuild_marker="${OMARCHY_SURFACE_REBUILD_MARKER:-/var/lib/omarchy/migrations/1791403253}"
 
 [[ -f $surface_conf ]] || exit 0
 
