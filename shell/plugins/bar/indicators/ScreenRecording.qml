@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import qs.Ui
 
@@ -15,7 +16,8 @@ BarIndicator {
 
   function refresh() {
     if (!root.bar || statusProc.running) return
-    statusProc.command = ["pgrep", "--quiet", "-f", "^gpu-screen-recorder"]
+    var runtimeDir = Quickshell.env("XDG_RUNTIME_DIR") || (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy"
+    statusProc.command = ["gsr-cli", "-ipc", runtimeDir + "/omarchy-gsr.sock", "status"]
     statusProc.running = true
   }
 
