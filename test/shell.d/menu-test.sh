@@ -522,6 +522,13 @@ assert(
   /\(event\.key === Qt\.Key_Backspace \|\| event\.key === Qt\.Key_Left\) && !root\.filterText[\s\S]*root\.goBack\(\)/.test(menuQml),
   'menu Left key follows empty-filter Backspace navigation'
 )
+{
+  const typesIntoFilter = new Function('event', 'Qt', `return Boolean(${menuQml.match(/else if \((event\.text && event\.text\.length === 1[^\n]*)\) \{\n\s*root\.setFilter\(root\.filterText \+ event\.text\)/)[1]})`)
+  const Qt = { NoModifier: 0, ShiftModifier: 0x02000000, ControlModifier: 0x04000000, KeypadModifier: 0x20000000 }
+  assert(typesIntoFilter({ text: '1', modifiers: Qt.KeypadModifier }, Qt), 'menu filter takes keypad digits, which Qt marks with KeypadModifier')
+  assert(typesIntoFilter({ text: 'A', modifiers: Qt.ShiftModifier }, Qt), 'menu filter takes shifted text')
+  assert(!typesIntoFilter({ text: '1', modifiers: Qt.ControlModifier }, Qt), 'menu filter leaves Ctrl-modified keys to shortcuts')
+}
 assert(
   /PointerMoveGate\s*\{[\s\S]*id: pointerGate[\s\S]*referenceItem: card[\s\S]*\}/.test(menuQml),
   'menu uses shared pointer movement gate in card coordinates'

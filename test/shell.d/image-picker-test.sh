@@ -174,4 +174,12 @@ assert(
     /onStatusChanged: if \(item.selected && \(status === Image.Ready \|\| status === Image.Error\)\) root.neighborImagesEnabled = true/.test(imagePickerQml),
   'image picker prioritizes the selected preview and releases neighbors on success or failure'
 )
+{
+  const typesIntoFilter = new Function('event', 'Qt', 'root', `return Boolean(${imagePickerQml.match(/else if \((root\.filterable && event\.text[^\n]*)\) \{\n\s*root\.updateFilter\(root\.filterText \+ event\.text\)/)[1]})`)
+  const Qt = { NoModifier: 0, ShiftModifier: 0x02000000, ControlModifier: 0x04000000, KeypadModifier: 0x20000000 }
+  const root = { filterable: true }
+  assert(typesIntoFilter({ text: '1', modifiers: Qt.KeypadModifier }, Qt, root), 'image picker filter takes keypad digits, which Qt marks with KeypadModifier')
+  assert(typesIntoFilter({ text: 'A', modifiers: Qt.ShiftModifier }, Qt, root), 'image picker filter takes shifted text')
+  assert(!typesIntoFilter({ text: '1', modifiers: Qt.ControlModifier }, Qt, root), 'image picker filter leaves Ctrl-modified keys to shortcuts')
+}
 JS
