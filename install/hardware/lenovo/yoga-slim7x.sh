@@ -26,6 +26,7 @@ if omarchy-hw-qualcomm-soc &&
 MODULES+=(i2c-hid-of qrtr ps883x pmic_glink_altmode)
 
 # The board-signed zap shader is included by qcom-firmware-extract.
+# Search like the kernel does: each suffix in every directory, then the next.
 for firmware in \
   qcom/gen70500_sqe.fw \
   qcom/gen70500_gmu.bin; do
