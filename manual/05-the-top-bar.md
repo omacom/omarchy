@@ -90,6 +90,7 @@ The same things have commands, which is what you want for a [dotfiles](31-dotfil
 ```bash
 omarchy bar position bottom
 omarchy bar transparent toggle
+omarchy bar floating toggle
 omarchy bar move omarchy.clock --section center --index 0
 omarchy bar set omarchy.clock format "HH:mm"
 omarchy bar defaults          # back to the shipped layout
@@ -101,6 +102,10 @@ To add or remove a widget entirely, use the plugin commands. `omarchy plugin lis
 omarchy plugin enable omarchy.media --section center
 omarchy plugin disable omarchy.weather
 ```
+
+## Floating the bar
+
+`omarchy bar floating true` lifts the bar off the screen edge. It sits one window gap away from the edge and both sides, so it lines up with your windows, and takes the same corner rounding they do. Toggling window gaps (`Super + Shift + Backspace`) tucks it back against the edge along with the windows. `omarchy bar floating false` docks it again.
 
 ## Hiding the bar
 
@@ -116,6 +121,7 @@ All of it is stored in `~/.config/omarchy/shell.json`, under the `bar` key. Here
   "bar": {
     "position": "top",
     "transparent": false,
+    "floating": false,
     "centerAnchor": "omarchy.clock",
     "layout": {
       "left": [{ "id": "omarchy.menu" }, { "id": "omarchy.workspaces" }],

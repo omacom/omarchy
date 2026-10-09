@@ -49,7 +49,11 @@ Item {
   readonly property bool barVertical: barPosition === "left" || barPosition === "right"
   readonly property int defaultBarSize: barVertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
   readonly property int liveBarSize: shell && shell.bar && !shell.bar.barHidden ? Math.max(0, shell.bar.barSize) : defaultBarSize
-  readonly property int barClearance: liveBarSize + Style.gapsOut
+  // A floating bar reaches past barSize + gapsOut; clear its full extent when
+  // the bar reports one, else the plain size plus the gap.
+  readonly property int liveBarExtent: shell && shell.bar && !shell.bar.barHidden && shell.bar.barExtent !== undefined
+    ? Math.max(0, shell.bar.barExtent) : -1
+  readonly property int barClearance: Math.max(liveBarExtent, liveBarSize + Style.gapsOut)
 
   // Live Notification objects by originalId, kept OUT of the ListModels: a
   // QObject stored in a model role becomes a dangling C++ pointer when the

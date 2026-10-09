@@ -76,15 +76,37 @@ assert(
   'bar stays mapped while hidden so revealing it does not rebuild the surface'
 )
 assert(
-  /exclusionMode: root\.barHidden \? ExclusionMode\.Ignore : ExclusionMode\.Auto/.test(barSource),
+  /exclusionMode: root\.barHidden \? ExclusionMode\.Ignore : ExclusionMode\.Normal/.test(barSource),
   'a hidden bar reserves no space for itself'
 )
 for (const edge of ['top', 'bottom', 'left', 'right']) {
   assert(
-    new RegExp(`${edge}: root\\.barHidden && root\\.position === "${edge}" \\? -root\\.barSize : 0`).test(barSource),
+    new RegExp(`${edge}: root\\.barHidden && root\\.position === "${edge}" \\? -root\\.windowExtent : 0`).test(barSource),
     `a hidden bar parks past the ${edge} edge`
   )
 }
+
+// A floating bar insets its card by one Hyprland gaps_out (Style.gapsOut is
+// half of it) and reserves only the space it covers.
+assert(/floatGap: floating && !windowGapsOff \? \(Style\.gapsOut > 0 \? Style\.gapsOut \* 2 : lastGap\) : 0/.test(barSource), 'a floating bar insets by one Hyprland gaps_out')
+assert(/exclusiveZone: root\.barExtent/.test(barSource), 'the bar reserves its card plus the floating gap')
+// Resizing a layer surface can show one stale, stretched frame, so a gap
+// change (window-gaps toggle) must only move the card inside a window of
+// fixed size, never resize the window itself.
+assert(/implicitHeight: root\.vertical \? 0 : root\.windowExtent/.test(barSource), 'the bar window height does not follow the animated gap')
+assert(/implicitWidth: root\.vertical \? root\.windowExtent : 0/.test(barSource), 'the bar window width does not follow the animated gap')
+assert(/windowExtent: barSize \+ \(floating \? Math\.max\(lastGap, floatGap\) : 0\)/.test(barSource), 'a floating bar window keeps its size when gaps turn off')
+assert(/mask: Region \{ item: barSurface \}/.test(barSource), 'the floating gap passes clicks through to the desktop')
+assert(/toggles\/hypr\/window-no-gaps\.lua/.test(barSource), 'the bar follows the window-gaps toggle without waiting for Style')
+assert(/floating = config\.floating === true/.test(barSource), 'the bar reads bar.floating from shell.json')
+// The last real gap is captured at startup, not bound, so the first window-gaps
+// toggle starts from the live value; a gaps_out of 0 only counts as real while
+// the toggle flag is off.
+assert(/property int lastGap: 0/.test(barSource) && /lastGap = Style\.gapsOut \* 2/.test(barSource), 'the last gap is captured at startup instead of bound')
+assert(/onGapsOutChanged\(\) \{ if \(Style\.gapsOut > 0 \|\| !root\.windowGapsOff\) root\.lastGap/.test(barSource), 'a toggled-off gap is not remembered as the last real gap')
+// Toasts clear a floating bar's full extent, not just its size plus one gap.
+const notificationsSource = fs.readFileSync(root + '/shell/plugins/notifications/Service.qml', 'utf8')
+assert(/barClearance: Math\.max\(liveBarExtent, liveBarSize \+ Style\.gapsOut\)/.test(notificationsSource), 'toasts clear a floating bar')
 
 // The center section declares two arrangements and shows one; the hidden one
 // must not build its modules or every center widget exists twice.
