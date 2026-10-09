@@ -269,7 +269,8 @@ worker_cases='[
   ["dotnet", "dotnet", "(?<a>x)(y)", [], "xy", [0,2,1,2,0,1]],
   ["cpp", "cpp", "(\\w)(é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
   ["resid", "resid", "(\\w)(?P<n>é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
-  ["resid", "resid", "\\\\|\\n", [], "a\\b\nc", [1,2,3,4]]
+  ["resid", "resid", "\\\\|\\n", [], "a\\b\nc", [1,2,3,4]],
+  ["resid", "resid", "=", [], "=", [0,1]]
 ]'
 
 # Compiled workers build into a throwaway cache rather than the developer's.

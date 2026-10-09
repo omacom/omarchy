@@ -778,7 +778,7 @@ class Resid:
         if self.text is text:
             body = "="
         else:
-            body = self.escape(text)
+            body = "+" + self.escape(text)
             self.text = text
         message = flags + "\n" + self.escape(request["pattern"]) + "\n" + body + "\n"
         started = time.monotonic()

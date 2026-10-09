@@ -1,8 +1,8 @@
 // Rex worker for Resid's lib/regex.resid. The JSON side of the protocol is
 // handled by rex_worker.py, which runs this program and speaks to it in
-// lines: for each request it writes the flags, the pattern, and the text (or
-// "=" to keep the last text), with backslash and newline escaped as \\ and
-// \n. This program answers with one line: "ERR <message>", or "OK" followed
+// lines: for each request it writes the flags, the pattern, and the text
+// (after a "+") or a lone "=" to keep the last text, with backslash and
+// newline escaped as \\ and \n. This program answers with one line: "ERR <message>", or "OK" followed
 // by the group count, the group names, and every match's offsets in code
 // points, separated by tabs.
 import "regex.resid";
@@ -59,7 +59,7 @@ Int serve(Str text) {
     if (flags_line == "") { return 0; }
     Str pattern = unescape(chomp(resid_read_line()));
     Str raw = chomp(resid_read_line());
-    Str next = if (raw == "=") { text } else { unescape(raw) };
+    Str next = if (raw == "=") { text } else { unescape(str_slice(raw, 1, str_len(raw))) };
     println(answer(chomp(flags_line), pattern, next));
     return serve(next);
 }
