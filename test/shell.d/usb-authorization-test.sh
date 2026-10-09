@@ -967,18 +967,23 @@ grep -Fqx 'migrate-setup <--yes>' "$calls" || fail "migration repairs an active 
 pass "USB migration repairs enabled protection and preserves opt-out"
 
 # Boot-time denial writes Limine's own configuration, which a Mac's boot
-# package owns: it is refused there before anything changes.
-fake_platform "$scratch/apple" apple-silicon
-mkdir -p "$scratch/apple-stubs"
-printf '#!/bin/bash\necho "sudo $*" >>"%s"\n' "$scratch/apple-sudo" >"$scratch/apple-stubs/sudo"
-chmod +x "$scratch/apple-stubs/sudo"
-status=0
-OMARCHY_PROC_ROOT="$scratch/apple/proc" PATH="$scratch/apple/bin:$scratch/apple-stubs:$ROOT/bin:$PATH" \
-  "$scratch/setup" --boot --yes >"$scratch/apple-out" 2>&1 || status=$?
-(( status == 2 )) || fail "Apple Silicon refuses USB authorization from boot" "$(cat "$scratch/apple-out")"
-grep -Fq "not available on Apple Silicon" "$scratch/apple-out" || fail "the refusal says why" "$(cat "$scratch/apple-out")"
-[[ ! -e $scratch/apple-sudo ]] || fail "the refusal changes nothing" "$(cat "$scratch/apple-sudo")"
-pass "USB authorization from boot is refused on Apple Silicon before anything changes"
+# package owns: it is refused there before anything changes. Root's platform
+# check reads this machine, never the fixture, so this runs unprivileged only.
+if (( EUID == 0 )); then
+  skip "running as root, where the platform check ignores its fixture; skipping the Apple Silicon refusal"
+else
+  fake_platform "$scratch/apple" apple-silicon
+  mkdir -p "$scratch/apple-stubs"
+  printf '#!/bin/bash\necho "sudo $*" >>"%s"\n' "$scratch/apple-sudo" >"$scratch/apple-stubs/sudo"
+  chmod +x "$scratch/apple-stubs/sudo"
+  status=0
+  OMARCHY_PROC_ROOT="$scratch/apple/proc" PATH="$scratch/apple/bin:$scratch/apple-stubs:$ROOT/bin:$PATH" \
+    "$scratch/setup" --boot --yes >"$scratch/apple-out" 2>&1 || status=$?
+  (( status == 2 )) || fail "Apple Silicon refuses USB authorization from boot" "$(cat "$scratch/apple-out")"
+  grep -Fq "not available on Apple Silicon" "$scratch/apple-out" || fail "the refusal says why" "$(cat "$scratch/apple-out")"
+  [[ ! -e $scratch/apple-sudo ]] || fail "the refusal changes nothing" "$(cat "$scratch/apple-sudo")"
+  pass "USB authorization from boot is refused on Apple Silicon before anything changes"
+fi
 
 # On Apple Silicon the boot helper never touches Limine: enabling is refused,
 # disabling what is not configured succeeds (so USB authorization can still be
