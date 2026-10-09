@@ -320,4 +320,10 @@ finally:
     bus_daemon.kill()
     bus_daemon.wait()
 
-test_quickshell_connection()
+if shutil.which("quickshell") is None:
+  print(
+    "ok - quickshell unavailable; skipping session lock bridge QML lifecycle # SKIP",
+    flush=True,
+  )
+else:
+  test_quickshell_connection()
