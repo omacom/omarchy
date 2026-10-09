@@ -32,7 +32,7 @@ file_is_canonical() {
   [[ $(stat -c '%U:%G %a' "$file") == "root:root 644" ]]
 }
 
-# Skip the privileged policy write and browser refreshes entirely when every
+# Skip the privileged policy write and Chromium refreshes when every
 # existing managed color.json is already canonical. The writer only touches
 # directories that exist, so a browser installed since then has no color.json
 # yet and takes the write.
@@ -48,9 +48,16 @@ for dir in "${POLICY_DIRS[@]}"; do
     break
   fi
 done
-$saw_any && $all_unchanged && exit 0
 
 failed=0
+# Vivaldi follows the full palette and Hyprland appearance, independently of
+# Chromium's policy color, so it must refresh even when that color is unchanged.
+if ! "$OMARCHY_PATH/default/vivaldi/vivaldi-theme-refresh"; then
+  failed=1
+  echo "omarchy-theme-set-browser: Vivaldi theme refresh failed" >&2
+fi
+$saw_any && $all_unchanged && exit "$failed"
+
 # A script's background job reads /dev/null unless told otherwise, which would
 # turn the writer's terminal sudo prompt into a pkexec dialog. Keep stdin.
 omarchy-theme-set-browser-policy "${THEME_HEX_COLOR#\#}" <&0 &
@@ -91,8 +98,4 @@ for pid in "${refresh_pids[@]}"; do
   wait "$pid"
 done
 
-if ! "$OMARCHY_PATH/default/vivaldi/vivaldi-theme-refresh"; then
-  failed=1
-  echo "omarchy-theme-set-browser: Vivaldi theme refresh failed" >&2
-fi
 exit "$failed"

@@ -24,8 +24,10 @@ if [[ -z $browser_exec ]]; then
   exit 1
 fi
 
-# this wont be needed when a style hook (theme and look) exists
-if [[ $browser_exec == *vivaldi* ]]; then
+# Persist the theme before startup; theme changes refresh an already-running
+# Vivaldi through the live channel, without doing that work on every link open.
+if [[ $browser_exec == *vivaldi* ]] &&
+  ! pgrep -u "$UID" -x 'vivaldi|vivaldi-bin' >/dev/null 2>&1; then
   "$OMARCHY_PATH/default/vivaldi/vivaldi-theme-refresh" || true
 fi
 
