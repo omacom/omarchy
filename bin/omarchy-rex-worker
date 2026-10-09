@@ -74,6 +74,9 @@ ensure_built() {
 
   # Rex starts a worker per channel, so several can arrive here at once on
   # first use. One builds while the rest wait, then find its build complete.
+  # Every one of them says it is building first, so Rex gives a worker that
+  # waits on another's build the same time as the one building.
+  printf '{"building":%s}\n' "$(json_string "$name")"
   mkdir -p "$CACHE"
   exec {lock}>"$CACHE/.$name.lock"
   flock "$lock"
@@ -82,7 +85,6 @@ ensure_built() {
     return 0
   fi
 
-  printf '{"building":%s}\n' "$(json_string "$name")"
   tmp=$(mktemp -d "$CACHE/.$name-build.XXXXXX")
   cp -r "$WORKERS/$name/." "$tmp/src"
   log="$tmp/build.log"
