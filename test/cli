@@ -622,6 +622,43 @@ pass "vscode generated theme clears obsolete extension marker"
 jq -e '.[] | select(.identifier.id == "local.omarchy-theme" and .relativeLocation == "omarchy-theme")' "$PI_TMPDIR/.vscode/extensions/extensions.json" >/dev/null || fail "vscode generated theme registers local extension"
 pass "vscode generated theme registers local extension"
 
+cat >"$FAKE_BIN/wpctl" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+chmod +x "$FAKE_BIN/wpctl"
+
+# 41 is a filter-chain capture marked node.virtual = false, as asahi-audio's
+# microphone chain is: pipewire-pulse gives it a client, but it is no application.
+cat >"$FAKE_BIN/pactl" <<'EOF'
+#!/bin/bash
+case "$*" in
+  "list short source-outputs")
+    printf '41\t50\t12\tPipeWire\tfloat32le 1ch 48000Hz\n'
+    printf '42\t50\t87\tPipeWire\tfloat32le 1ch 48000Hz\n'
+    printf '43\t50\t88\tPipeWire\tfloat32le 1ch 48000Hz\n'
+    printf '44\t50\t-\tPipeWire\tfloat32le 1ch 48000Hz\n'
+    ;;
+  "list source-outputs")
+    printf 'Source Output #41\n\tClient: 12\n\tProperties:\n\t\tnode.virtual = "false"\n\t\tmedia.name = "Microphone"\n'
+    printf 'Source Output #42\n\tClient: 87\n\tProperties:\n\t\tmedia.name = "pw-record"\n\t\tapplication.name = "pw-record"\n'
+    printf 'Source Output #43\n\tClient: 88\n\tProperties:\n\t\tapplication.name = "EasyEffects"\n'
+    printf 'Source Output #44\n\tClient: n/a\n\tProperties:\n\t\tmedia.name = "filter-chain capture"\n'
+    ;;
+  move-source-output*)
+    echo "$*" >>"${PACTL_LOG:-/dev/null}"
+    ;;
+esac
+EOF
+chmod +x "$FAKE_BIN/pactl"
+
+PACTL_LOG="$PI_TMPDIR/pactl.log" PATH="$FAKE_BIN:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-audio-input-set-default" 43 alsa_input.mic
+grep -qx 'move-source-output 42 alsa_input.mic' "$PI_TMPDIR/pactl.log" || fail "input set default moves application source outputs"
+pass "input set default moves application source outputs"
+[[ $(grep -c 'move-source-output' "$PI_TMPDIR/pactl.log") == "1" ]] || fail "input set default leaves filter chains and EasyEffects in place"
+pass "input set default leaves filter chains and EasyEffects in place"
+rm -f "$FAKE_BIN/wpctl" "$FAKE_BIN/pactl"
+
 for binary in \
   omarchy-update \
   omarchy-theme-set \
