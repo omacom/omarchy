@@ -1127,7 +1127,7 @@ migrate_legacy_compose() {
   fi
   # Moved aside rather than deleted: only the settings above carry over, so any
   # hand edits have to be re-applied from it.
-  mv -f -- "$LEGACY_COMPOSE_FILE" "$LEGACY_COMPOSE_FILE.bak" || return 1
+  mv -fT -- "$LEGACY_COMPOSE_FILE" "$LEGACY_COMPOSE_FILE.bak" || return 1
   echo "Your previous configuration is kept at $LEGACY_COMPOSE_FILE.bak; re-apply any hand edits from it with sudo."
 }
 
