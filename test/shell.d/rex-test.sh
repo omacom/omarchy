@@ -315,3 +315,75 @@ pass "a worker reports the engine's own error"
 reply=$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-rex-worker" python <<<'{"op":"match","id":1,"flavor":"python","pattern":"a","flags":[],"textId":9}')
 [[ $(jq -r .error <<<"$reply") == "missing-text" ]] || fail "a worker asks again for a text it does not hold" "$reply"
 pass "a worker asks again for a text it does not hold"
+
+# ---- replacement templates and split ----------------------------------------
+
+run_node_test <<'JS'
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const R = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Replace.js'))
+
+// Matches as an engine reports them, from V8 with the d flag.
+function engine(pattern, text) {
+  const re = new RegExp(pattern, 'gd')
+  const out = []
+  let m, count = 0, stride = 2
+  while ((m = re.exec(text)) !== null) {
+    stride = m.length * 2
+    for (const pair of m.indices) out.push(...(pair || [-1, -1]))
+    count++
+    if (m[0] === '') re.lastIndex++
+  }
+  const names = {}
+  let index = 0
+  pattern.replace(/\\.|\((\?<(\w+)>|(?!\?))/g, (all, open, name) => { if (open !== undefined) { index++; if (name) names[name] = index } })
+  return { matches: out, count, stride: count ? stride : 2, names }
+}
+
+function substitutes(syntax, pattern, template, text, expected) {
+  const e = engine(pattern, text)
+  const parsed = R.parse(template, syntax, e.stride / 2 - 1, e.names)
+  if (parsed.errors.length) fail(`${syntax} expands ${template}`, parsed.errors.map(x => x.message).join('; '))
+  assertEqual(R.substitute(parsed, text, e.matches, e.count, e.stride, e.names).text, expected, `${syntax} expands ${template} like the language does`)
+}
+
+// Each expectation is what the language itself produces.
+const text = 'John Smith, Jane Doe'
+const pattern = '(?<first>\\w+) (\\w+)'
+substitutes('js', pattern, '$2 $1 [$&] $<first> $$ $3', text, text.replace(new RegExp(pattern, 'g'), '$2 $1 [$&] $<first> $$ $3'))
+substitutes('js', '(a)', "$`|$'", 'xay', 'xx|yy')
+substitutes('python', '(?<first>\\w+) (\\w+)', '\\2 \\g<1> \\g<first>\\n', text, 'Smith John John\n, Doe Jane Jane\n')
+substitutes('ruby', '(?<first>\\w+) (\\w+)', '\\2 \\k<first> \\0', text, 'Smith John John Smith, Doe Jane Jane Doe')
+substitutes('dotnet', '(?<first>\\w+) (\\w+)', '$2 ${first} $+ $$', text, 'Smith John Smith $, Doe Jane Doe $')
+substitutes('java', '(?<first>\\w+) (\\w+)', '$2 ${first} \\$', text, 'Smith John $, Doe Jane $')
+substitutes('go', '(?<first>\\w+) (\\w+)', '$2 ${first} $1x $$', text, 'Smith John  $, Doe Jane  $')
+substitutes('pcre2', '(?<first>\\w+) (\\w+)', '\\U$2\\E ${first} \\1', text, 'SMITH John John, DOE Jane Jane')
+substitutes('perl', '(?<first>\\w+) (\\w+)', '\\u\\L$2\\E $+{first} $&', text, 'Smith John John Smith, Doe Jane Jane Doe')
+substitutes('sed', '(\\w+) (\\w+)', '\\2 & \\&', text, 'Smith John Smith &, Doe Jane Doe &')
+substitutes('awk', '(\\w+) (\\w+)', '[&] \\&', text, '[John Smith] &, [Jane Doe] &')
+substitutes('vim', '(\\w+) (\\w+)', '\\u\\2 \\U\\1\\E \\0', 'john smith', 'Smith JOHN john smith')
+substitutes('lua', '(\\w+) (\\w+)', '%2 %1 %% %0', text, 'Smith John % John Smith, Doe Jane % Jane Doe')
+substitutes('lua', '\\w+', '<%1>', 'ab cd', '<ab> <cd>')
+substitutes('resid', '(?<first>\\w+) (\\w+)', '$2 ${first} $$', text, 'Smith John $, Doe Jane $')
+
+const java = R.parse('$9', 'java', 1, {})
+assert(java.errors.length === 1, 'Java rejects a reference to a missing group')
+const python = R.parse('\\q', 'python', 0, {})
+assert(python.errors.length === 1, 'Python rejects an unknown escape in a replacement')
+
+function splits(syntax, pattern, text, expected) {
+  const e = engine(pattern, text)
+  const pieces = R.split(syntax, text, e.matches, e.count, e.stride).map(p => p.text)
+  assertDeepEqual(pieces, expected, `${syntax} splits ${JSON.stringify(text)} on /${pattern}/ like the language does`)
+}
+
+splits('js', 'x*', 'abc', 'abc'.split(/x*/))
+splits('js', '(,)', 'a,b,', 'a,b,'.split(/(,)/))
+splits('python', 'x*', 'abc', ['', 'a', 'b', 'c', ''])
+splits('python', '(,)', 'a,b,', ['a', ',', 'b', ',', ''])
+splits('java', ',', 'a,b,,', ['a', 'b'])
+splits('perl', '(,)', 'a,b,,', ['a', ',', 'b', ',', '', ','])
+splits('ruby', ',', 'a,b,,', ['a', 'b'])
+splits('java', ',', ',a', ['', 'a'])
+splits('java', 'x*', 'abc', ['a', 'b', 'c'])
+splits('pcre2', ',', 'a,b,,', ['a', 'b', '', ''])
+JS

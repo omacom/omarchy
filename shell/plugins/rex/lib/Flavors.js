@@ -674,7 +674,7 @@ var FLAVORS = [
     worker: "resid",
     requires: ["residc"],
     units: "cp",
-    replace: "",
+    replace: "resid",
     features: features({
       lookahead: false, lookbehind: "none", atomic: false, possessive: false, backrefs: false,
       namedGroups: ["python", "angle"], namedBackrefs: [], gBackrefs: false, relativeBackrefs: false,

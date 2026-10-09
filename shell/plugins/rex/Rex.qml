@@ -7,6 +7,7 @@ import "views"
 import "lib/Flavors.js" as Flavors
 import "lib/Parser.js" as Parser
 import "lib/Colors.js" as Colors
+import "lib/Replace.js" as Replace
 
 // Rex, the offline regular expression workbench. Launched from Apps
 // (applications/Rex.desktop) through omarchy-launch-rex, or directly:
@@ -36,6 +37,10 @@ Item {
   property string flavor: Flavors.DEFAULT_FLAVOR
   property var flags: Flavors.byId(Flavors.DEFAULT_FLAVOR).defaultFlags.slice()
   property bool all: true
+  // "", "substitute", "list" or "split"
+  property string tool: ""
+  property string replacement: ""
+  property string listTemplate: "$&\n"
 
   readonly property var flavorInfo: Flavors.byId(flavor)
   readonly property var flavorOptions: Flavors.FLAVORS
@@ -60,6 +65,30 @@ Item {
     }
     return out
   }
+
+  // ---- substitute, list, split ----
+
+  readonly property string replaceSyntax: flavorInfo.replace
+  readonly property var groupIndex: {
+    var names = result.names && Object.keys(result.names).length ? result.names : parsed.names
+    return names || {}
+  }
+  readonly property string replaceSyntaxNote: replaceSyntax === ""
+    ? flavorInfo.name + " only finds matches; there is no replacement"
+    : Replace.SYNTAXES[replaceSyntax]
+  readonly property string splitNote: Replace.SPLIT_NOTES[Replace.splitRule(replaceSyntax)]
+  readonly property var replaceParsed: Replace.parse(tool === "list" ? listTemplate : replacement, replaceSyntax, groupCount, groupIndex)
+  readonly property string replaceProblem: replaceParsed.errors.length ? replaceParsed.errors[0].message : ""
+  readonly property bool resultUsable: result.ok !== false && pattern !== ""
+  readonly property var substitution: tool === "substitute" && resultUsable && replaceSyntax !== ""
+    ? Replace.substitute(replaceParsed, testText, result.matches, result.count, result.stride, groupIndex)
+    : { text: tool === "substitute" ? testText : "", spans: [] }
+  readonly property string listOutput: tool === "list" && resultUsable && replaceSyntax !== ""
+    ? Replace.list(replaceParsed, testText, result.matches, result.count, result.stride, groupIndex)
+    : ""
+  readonly property var splitPieces: tool === "split" && resultUsable
+    ? Replace.split(replaceSyntax, testText, result.matches, result.count, result.stride)
+    : []
 
   property var result: ({ ok: true, done: true, matches: [], stride: 2, count: 0, elapsed: 0 })
   property int pendingId: 0
@@ -180,6 +209,9 @@ Item {
     if (typeof payload.pattern === "string" && payload.pattern !== "") pattern = payload.pattern
     if (typeof payload.text === "string") testText = payload.text
     if (typeof payload.flavor === "string") setFlavor(payload.flavor)
+    if (Array.isArray(payload.flags)) flags = Flavors.validFlags(flavor, payload.flags)
+    if (typeof payload.replacement === "string") replacement = payload.replacement
+    if (typeof payload.tool === "string") tool = payload.tool
 
     window.visible = true
     Qt.callLater(function() { if (window.visible) workbench.focusPattern() })

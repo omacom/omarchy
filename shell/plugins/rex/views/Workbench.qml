@@ -103,19 +103,34 @@ Item {
       Layout.fillHeight: true
       spacing: Style.spacing.panelGap
 
-      TestEditor {
-        id: editor
+      ColumnLayout {
         Layout.fillWidth: true
         Layout.fillHeight: true
-        foreground: root.foreground
-        accent: root.accent
-        text: root.app.testText
-        matches: root.app.result.matches
-        stride: root.app.result.stride
-        count: root.app.result.count
-        groupColors: root.app.groupColors
-        selectedMatch: root.app.selectedMatch
-        onEdited: function(value) { root.app.testText = value }
+        spacing: Style.spacing.lg
+
+        TestEditor {
+          id: editor
+          Layout.fillWidth: true
+          Layout.fillHeight: true
+          foreground: root.foreground
+          accent: root.accent
+          text: root.app.testText
+          matches: root.app.result.matches
+          stride: root.app.result.stride
+          count: root.app.result.count
+          groupColors: root.app.groupColors
+          selectedMatch: root.app.selectedMatch
+          onEdited: function(value) { root.app.testText = value }
+        }
+
+        ToolPanel {
+          Layout.fillWidth: true
+          // A layout fills by default; the editor gets whatever is left.
+          Layout.fillHeight: false
+          Layout.preferredHeight: root.app.tool === "" ? implicitHeight : root.height * 0.38
+          Layout.maximumHeight: Layout.preferredHeight
+          app: root.app
+        }
       }
 
       MatchList {
