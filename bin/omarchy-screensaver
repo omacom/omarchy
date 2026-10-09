@@ -60,7 +60,7 @@ wait_for_terminal_resize
 theme_defines_flag() {
   local flag="$1" arg
   for arg in "${theme_args[@]}"; do
-    [[ $arg == "$flag" ]] && return 0
+    [[ $arg == "$flag" || $arg == "$flag="* ]] && return 0
   done
   return 1
 }
