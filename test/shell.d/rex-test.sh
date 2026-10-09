@@ -386,6 +386,11 @@ splits('perl', '(,)', 'a,b,,', ['a', ',', 'b', ',', '', ','])
 splits('ruby', ',', 'a,b,,', ['a', 'b'])
 splits('java', ',', ',a', ['', 'a'])
 splits('java', 'x*', 'abc', ['a', 'b', 'c'])
+
+// A right-to-left search reports matches last first; the result is the same.
+const reversed = { matches: [2, 3, 0, 1], count: 2, stride: 2 }
+assertEqual(R.substitute(R.parse('X', 'dotnet', 0, {}), 'aba', reversed.matches, 2, 2, {}).text, 'XbX', 'a right-to-left search substitutes in text order')
+assertDeepEqual(R.split('dotnet', 'aba', reversed.matches, 2, 2).map(p => p.text), ['', 'b', ''], 'a right-to-left search splits in text order')
 splits('pcre2', ',', 'a,b,,', ['a', 'b', '', ''])
 JS
 

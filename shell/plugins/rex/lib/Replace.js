@@ -264,13 +264,29 @@ function expandOne(parsed, text, matches, i, stride, names) {
   return out
 }
 
+// Match indices in text order. Engines searching right to left (.NET's
+// RightToLeft, the regex module's REVERSE) report matches last first.
+function textOrder(matches, count, stride) {
+  var order = []
+  for (var i = 0; i < count; i++) order.push(i)
+  for (var k = 1; k < count; k++) {
+    if (matches[k * stride] < matches[(k - 1) * stride]) {
+      order.sort(function(a, b) { return matches[a * stride] - matches[b * stride] })
+      break
+    }
+  }
+  return order
+}
+
 // The text with every match replaced. Returns { text, spans } where spans
 // are [start, end] of each replacement in the result, for highlighting.
 function substitute(parsed, text, matches, count, stride, names) {
   var out = ""
   var spans = []
   var at = 0
-  for (var i = 0; i < count; i++) {
+  var order = textOrder(matches, count, stride)
+  for (var k = 0; k < count; k++) {
+    var i = order[k]
     var s = matches[i * stride], e = matches[i * stride + 1]
     out += text.substring(at, s)
     var replacement = expandOne(parsed, text, matches, i, stride, names)
@@ -322,7 +338,9 @@ function split(syntax, text, matches, count, stride) {
   var rule = SPLIT[splitRule(syntax)]
   var out = []
   var at = 0
-  for (var i = 0; i < count; i++) {
+  var order = textOrder(matches, count, stride)
+  for (var k = 0; k < count; k++) {
+    var i = order[k]
     var s = matches[i * stride], e = matches[i * stride + 1]
     if (rule.skipEmptyMatchAtEdges && s === e && (s === 0 || s === text.length)) continue
     out.push({ text: text.substring(at, s), group: 0 })
@@ -349,6 +367,7 @@ if (typeof module !== "undefined") module.exports = {
   parse: parse,
   expandOne: expandOne,
   substitute: substitute,
+  textOrder: textOrder,
   list: list,
   split: split,
   splitRule: splitRule,

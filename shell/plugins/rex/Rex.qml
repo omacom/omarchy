@@ -315,6 +315,9 @@ Item {
         count: reply.ok ? matches.length / reply.stride : 0,
         elapsed: reply.elapsed,
       }
+      // A right-to-left search reports matches last first; the views read
+      // them in text order.
+      if (reply.done && reply.ok) next.matches = root.inTextOrder(next.matches, next.stride)
       // Everything bound to the result redraws when it changes, so slices of
       // a long search are shown at most every publishInterval.
       if (first || reply.done || !reply.ok) {
@@ -328,6 +331,17 @@ Item {
   }
 
   property var pendingResult: null
+
+  function inTextOrder(matches, stride) {
+    var order = Replace.textOrder(matches, matches.length / stride, stride)
+    var sorted = true
+    for (var i = 0; i < order.length && sorted; i++) sorted = order[i] === i
+    if (sorted) return matches
+    var out = []
+    for (var k = 0; k < order.length; k++)
+      for (var j = 0; j < stride; j++) out.push(matches[order[k] * stride + j])
+    return out
+  }
 
   Timer {
     id: publishTimer
