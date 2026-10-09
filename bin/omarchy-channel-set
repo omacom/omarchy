@@ -47,9 +47,31 @@ validate_dev_checkout() {
   fi
 }
 
+# The dev channel refreshes pacman with the checkout's own tools. A checkout
+# without this machine's region profile would silently drop its repositories.
+validate_dev_region() {
+  local checkout="$1" region_file="${OMARCHY_REGION_FILE:-/etc/omarchy/region}" region=global
+
+  [[ -f $region_file ]] && region=$(<"$region_file")
+  [[ $region == "global" ]] && return 0
+
+  # The refresh after linking needs a runnable helper and every fragment, not
+  # just a directory with the region's name: dev refreshes edge, and leaving
+  # dev later refreshes stable or rc with this checkout's tools.
+  local profile="$checkout/default/regions/$region/pacman" fragment supported=true
+  [[ -x $checkout/bin/omarchy-apply-pacman ]] || supported=false
+  for fragment in pacman.conf.append mirrorlist-stable.prepend mirrorlist-rc.prepend mirrorlist-edge.prepend; do
+    [[ -r $profile/$fragment ]] || supported=false
+  done
+  if ! $supported; then
+    fail "$checkout does not support the '$region' region, so switching would drop its package repositories. Check out a branch with default/regions/$region, or remove $region_file to use global defaults."
+  fi
+}
+
 link_dev_checkout() {
   local checkout="$1" required
   [[ -d $checkout/.git ]] || git clone https://github.com/omacom/omarchy.git "$checkout"
+  validate_dev_region "$checkout"
 
   # Check the destination before changing /etc/omarchy.conf or sudo's path.
   # An existing checkout is not pulled automatically and may predate this policy.

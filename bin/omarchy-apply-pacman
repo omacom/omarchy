@@ -1,0 +1,77 @@
+#!/bin/bash
+
+# omarchy:summary=Restore channel and regional pacman defaults in an installed target
+# omarchy:args=<stable|rc|edge> [target-root] | --render <stable|rc|edge> <output-dir> [target-root]
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: omarchy-apply-pacman <stable|rc|edge> [target-root]" >&2
+  echo "       omarchy-apply-pacman --render <stable|rc|edge> <output-dir> [target-root]" >&2
+  exit 1
+}
+
+# --render only builds the two files, so an unprivileged caller can hand root
+# nothing but plain copies of the finished result.
+render_dir=""
+if [[ ${1:-} == "--render" ]]; then
+  (( $# == 3 || $# == 4 )) || usage
+  channel="$2"
+  render_dir="$3"
+  [[ -d $render_dir ]] || { echo "Render directory not found: $render_dir" >&2; exit 1; }
+  etc="${4:-/}/etc"
+else
+  (( $# >= 1 && $# <= 2 )) || usage
+  channel="$1"
+  etc="${2:-/}/etc"
+fi
+
+case "$channel" in
+  stable|rc|edge) ;;
+  *) echo "Invalid pacman channel: $channel" >&2; exit 1 ;;
+esac
+
+# The ISO writes this plain-text marker before target finalization. Missing
+# markers keep existing installations global; never source it as shell code.
+region=global
+if [[ -e $etc/omarchy/region ]]; then
+  region=$(<"$etc/omarchy/region")
+fi
+case "$region" in
+  global|cn) ;;
+  *) echo "Unsupported region: $region (expected global or cn)" >&2; exit 1 ;;
+esac
+
+# Build both files before replacing either. Explicit refreshes retain backups;
+# ordinary updates do not call this command or enforce regional defaults.
+if [[ -n $render_dir ]]; then
+  staging="$render_dir"
+else
+  staging=$(mktemp -d)
+  trap 'rm -rf "$staging"' EXIT
+fi
+cp "$OMARCHY_PATH/default/pacman/pacman-$channel.conf" "$staging/pacman.conf"
+if [[ $region == "global" ]]; then
+  cp "$OMARCHY_PATH/default/pacman/mirrorlist-$channel" "$staging/mirrorlist"
+else
+  profile="$OMARCHY_PATH/default/regions/$region/pacman"
+  printf '\n' >> "$staging/pacman.conf"
+  cat "$profile/pacman.conf.append" >> "$staging/pacman.conf"
+  # pacman tries servers in order, so the regional mirror leads and the
+  # channel's own mirror stays as the fallback.
+  cat "$profile/mirrorlist-$channel.prepend" "$OMARCHY_PATH/default/pacman/mirrorlist-$channel" > "$staging/mirrorlist"
+fi
+
+if [[ -z $render_dir ]]; then
+  mkdir -p "$etc/pacman.d"
+  for file in pacman.conf pacman.d/mirrorlist; do
+    if [[ -e $etc/$file ]]; then
+      cp -f "$etc/$file" "$etc/$file.bak"
+    fi
+  done
+  # Copying over an existing file keeps its owner and mode, as refresh always has.
+  cp -f "$staging/pacman.conf" "$etc/pacman.conf"
+  cp -f "$staging/mirrorlist" "$etc/pacman.d/mirrorlist"
+fi

@@ -9,7 +9,11 @@ export SUDO_TEST_LOG="$boundary_tmp/events"
 export SUDO_TEST_CACHE="$boundary_tmp/cache"
 export OMARCHY_PATH="$SUDO_TEST_ROOT"
 export SUDO_TEST_HOME="$boundary_tmp/home"
-mkdir -p "$SUDO_TEST_HOME"
+# The machine the render reads its region marker from. It starts global; a test
+# writes etc/omarchy/region here to model a regional install, never the host's.
+export SUDO_TEST_TARGET="$boundary_tmp/target"
+export OMARCHY_REGION_FILE="$SUDO_TEST_TARGET/etc/omarchy/region"
+mkdir -p "$SUDO_TEST_HOME" "$SUDO_TEST_TARGET/etc"
 mkdir -p "$SUDO_TEST_ROOT/bin" "$SUDO_TEST_ROOT/mock" "$SUDO_TEST_ROOT/default/omarchy/sudo-no-update"
 : >"$SUDO_TEST_LOG"
 
@@ -24,6 +28,10 @@ s=(source/name).read_text().replace('$HOME', '$SUDO_TEST_HOME')
 for command in ['sudo','pkexec','pacman','omarchy-pkg-missing','systemd-inhibit','setpriv','snapper']:
  s=s.replace('/usr/bin/'+command, str(target/'mock'/command))
 s=s.replace('PATH=/usr/bin:/usr/sbin:/bin:/sbin', 'PATH="'+str(target/'bin')+':/usr/bin:/usr/sbin:/bin:/sbin"')
+if name.name == 'omarchy-apply-pacman':
+ render_etc='etc="${4:-/}/etc"'
+ assert s.count(render_etc)==1, 'render target lookup moved'
+ s=s.replace(render_etc, 'etc="${4:-$SUDO_TEST_TARGET}/etc"')
 p.write_text(s)
 p.chmod((source/name).stat().st_mode & 0o777)
 PY

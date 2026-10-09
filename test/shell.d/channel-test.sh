@@ -113,6 +113,7 @@ run_channel() {
   : >"$log_file"
   OMARCHY_CHANNEL_TEST_LOG="$log_file" \
     OMARCHY_PATH="${OMARCHY_TEST_PATH:-$package_root}" \
+    OMARCHY_REGION_FILE="${OMARCHY_TEST_REGION_FILE:-$test_tmp/no-region}" \
     HOME="$test_tmp/home" \
     PATH="$stub_bin:$ROOT/bin:$PATH" \
     "${OMARCHY_TEST_PATH:-$package_root}/bin/omarchy-channel-set" "$@"
@@ -189,6 +190,58 @@ if grep -q $'^git\tclone\t' "$log_file"; then
 fi
 assert_log_line $'link\t'"$checkout"$'\t--no-reboot' "switching back to dev links ~/omarchy"
 pass "switching back to dev reuses the existing ~/omarchy checkout"
+
+printf 'cn\n' >"$test_tmp/region"
+if OMARCHY_TEST_REGION_FILE="$test_tmp/region" run_channel dev >"$test_tmp/region.out" 2>"$test_tmp/region.err"; then
+  fail "dev refuses a checkout without this machine's region"
+fi
+grep -q "does not support the 'cn' region" "$test_tmp/region.err" || fail "dev explains the missing region" "$(cat "$test_tmp/region.err")"
+if grep -Eq $'^(link|refresh)\t' "$log_file"; then
+  fail "dev refuses before linking or refreshing pacman" "$(cat "$log_file")"
+fi
+pass "dev refuses a checkout without the region before touching pacman"
+
+# A directory with the region's name, or a helper that cannot run, is not
+# support: the refresh after linking would fail with dev already linked.
+mkdir -p "$checkout/default/regions/cn"
+touch "$checkout/bin/omarchy-apply-pacman"
+chmod +x "$checkout/bin/omarchy-apply-pacman"
+if OMARCHY_TEST_REGION_FILE="$test_tmp/region" run_channel dev >"$test_tmp/region.out" 2>"$test_tmp/region.err"; then
+  fail "dev refuses an empty region profile"
+fi
+if grep -Eq $'^(link|refresh)\t' "$log_file"; then
+  fail "dev refuses an empty region profile before linking or refreshing pacman" "$(cat "$log_file")"
+fi
+mkdir -p "$checkout/default/regions/cn/pacman"
+cn_fragments=(pacman.conf.append mirrorlist-stable.prepend mirrorlist-rc.prepend mirrorlist-edge.prepend)
+for missing in "${cn_fragments[@]}"; do
+  for fragment in "${cn_fragments[@]}"; do
+    if [[ $fragment == "$missing" ]]; then
+      rm -f "$checkout/default/regions/cn/pacman/$fragment"
+    else
+      touch "$checkout/default/regions/cn/pacman/$fragment"
+    fi
+  done
+  if OMARCHY_TEST_REGION_FILE="$test_tmp/region" run_channel dev >"$test_tmp/region.out" 2>"$test_tmp/region.err"; then
+    fail "dev refuses a region profile without $missing"
+  fi
+  if grep -Eq $'^(link|refresh)\t' "$log_file"; then
+    fail "dev refuses a profile without $missing before linking or refreshing pacman" "$(cat "$log_file")"
+  fi
+done
+touch "${cn_fragments[@]/#/$checkout/default/regions/cn/pacman/}"
+chmod -x "$checkout/bin/omarchy-apply-pacman"
+if OMARCHY_TEST_REGION_FILE="$test_tmp/region" run_channel dev >"$test_tmp/region.out" 2>"$test_tmp/region.err"; then
+  fail "dev refuses a checkout whose pacman helper cannot run"
+fi
+if grep -Eq $'^(link|refresh)\t' "$log_file"; then
+  fail "dev refuses incomplete region support before linking or refreshing pacman" "$(cat "$log_file")"
+fi
+pass "dev refuses a region profile missing any fragment or a helper that cannot run"
+
+chmod +x "$checkout/bin/omarchy-apply-pacman"
+OMARCHY_TEST_REGION_FILE="$test_tmp/region" run_channel dev
+assert_log_line $'refresh\tedge' "dev proceeds with a checkout that supports the region"
 
 current_channel() {
   OMARCHY_TEST_VERSION_CHANNEL="$1" \
