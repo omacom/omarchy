@@ -98,9 +98,14 @@ assertDeepEqual(
   'bluetooth projects device rows with primitives only'
 )
 assertEqual(
-  bluetooth.deviceLabel(bluetooth.deviceRow({ name: 'Generic', deviceName: 'MX Master 3S', address: '2', connected: true })),
+  bluetooth.deviceLabel(bluetooth.deviceRow({ name: 'Bluetooth Alias', deviceName: 'MX Master 3S', address: '2', connected: true })),
+  'Bluetooth Alias',
+  'bluetooth labels device rows with the alias-aware name when one is set'
+)
+assertEqual(
+  bluetooth.deviceLabel(bluetooth.deviceRow({ name: '', deviceName: 'MX Master 3S', address: '2', connected: true })),
   'MX Master 3S',
-  'bluetooth keeps deviceName in row projections so labels survive QObject-free rows'
+  'bluetooth falls back to deviceName when no alias-aware name is set'
 )
 
 assertDeepEqual(
