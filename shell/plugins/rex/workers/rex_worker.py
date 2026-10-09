@@ -167,6 +167,7 @@ class Pcre2:
     UTF = 0x80000
     UCP = 0x20000
     NOTEMPTY_ATSTART = 0x8
+    NO_UTF_CHECK = 0x40000000
     NO_JIT = 0x2000
     ERROR_NOMATCH = -1
     ERROR_MATCHLIMIT = -47
@@ -289,9 +290,13 @@ class Pcre2:
         start = 0
         options = 0
         no_jit = 0
+        utf_checked = 0
         try:
             while True:
-                rc = lib.pcre2_match_8(code, subject, length, start, options | no_jit, data, self.context)
+                # In UTF mode PCRE2 checks the whole subject on every call
+                # unless told it already has; the first call checks it.
+                rc = lib.pcre2_match_8(code, subject, length, start, options | no_jit | utf_checked, data, self.context)
+                utf_checked = self.NO_UTF_CHECK if utf else 0
                 if rc == self.ERROR_JIT_STACKLIMIT and not no_jit:
                     no_jit = self.NO_JIT
                     continue
@@ -763,6 +768,11 @@ def main():
         if "text" in request:
             texts.clear()
             texts[request.get("textId")] = request["text"]
+        elif "textPath" in request:
+            # A file opened in Rex is read here rather than sent over the pipe.
+            texts.clear()
+            with open(request["textPath"], encoding="utf-8", errors="replace", newline="") as f:
+                texts[request.get("textId")] = f.read()
         text = texts.get(request.get("textId"))
         if text is None:
             send({"id": rid, "ok": False, "done": True, "error": "missing-text"})

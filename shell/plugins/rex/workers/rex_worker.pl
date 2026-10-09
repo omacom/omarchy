@@ -134,6 +134,14 @@ while (defined(my $line = read_line())) {
     send_reply({ id => $id, ok => JSON::PP::true, done => JSON::PP::true, versions => { perl => sprintf("%vd", $^V) } });
     next;
   }
+  if (exists $request->{textPath}) {
+    # A file opened in Rex is read here rather than sent over the pipe.
+    if (open(my $fh, "<:encoding(UTF-8)", $request->{textPath})) {
+      local $/;
+      $request->{text} = <$fh>;
+      close $fh;
+    }
+  }
   if (exists $request->{text}) {
     %texts = ();
     %astrals = ();

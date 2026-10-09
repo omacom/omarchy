@@ -129,6 +129,11 @@ for line in io.stdin:lines() do
       local v = vim.version()
       send({ id = request.id, ok = true, done = true, versions = { vim = "Neovim " .. v.major .. "." .. v.minor .. "." .. v.patch } })
     else
+      if request.textPath ~= nil then
+        -- A file opened in Rex is read here rather than sent over the pipe.
+        local f = io.open(request.textPath, "rb")
+        if f then request.text = f:read("*a") f:close() end
+      end
       if request.text ~= nil then
         text_id = request.textId
         text = request.text

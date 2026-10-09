@@ -387,3 +387,38 @@ splits('java', ',', ',a', ['', 'a'])
 splits('java', 'x*', 'abc', ['a', 'b', 'c'])
 splits('pcre2', ',', 'a,b,,', ['a', 'b', '', ''])
 JS
+
+# A file opened in Rex is read by the worker itself.
+printf 'aé b😀\nc' >"$tmpdir/opened.txt"
+declare -A path_flavor=([python]=pcre2 [perl]=perl [ruby]=ruby [lua]=lua [vim]=vim [node]=node [go]=go [rust]=rust [java]=java [dotnet]=dotnet [cpp]=cpp [resid]=resid)
+declare -A path_pattern=([lua]='%a' [vim]='\a')
+for worker in python perl ruby lua vim node go rust java dotnet cpp resid; do
+  command -v "${worker_command[$worker]}" >/dev/null || continue
+  [[ $worker == "dotnet" && -z $(dotnet --list-sdks 2>/dev/null) ]] && continue
+  pattern=${path_pattern[$worker]:-[a-z]}
+  request=$(jq -cn --arg flavor "${path_flavor[$worker]}" --arg path "$tmpdir/opened.txt" --arg pattern "$pattern" '{op: "match", id: 1, flavor: $flavor, pattern: $pattern, flags: [], textPath: $path, textId: 7}')
+  reply=$(OMARCHY_PATH="$ROOT" timeout 300 "$ROOT/bin/omarchy-rex-worker" "$worker" <<<"$request" | grep -v '^{"building"')
+  [[ $(jq -c .matches <<<"$reply") == "[0,1,3,4,7,8]" ]] || fail "the $worker worker reads an opened file itself" "$reply"
+done
+pass "workers read an opened file themselves"
+
+# ---- large texts --------------------------------------------------------------
+
+run_node_test <<'JS'
+const fs = require('fs')
+// rows.js is a WorkerScript; stand in for the WorkerScript object it uses.
+let reply
+const WorkerScript = { sendMessage: r => { reply = r } }
+new Function('WorkerScript', fs.readFileSync(path.join(root, 'shell/plugins/rex/workers/rows.js'), 'utf8'))(WorkerScript)
+
+WorkerScript.onMessage({ id: 1, text: 'ab\ncd\n\nef' })
+assertDeepEqual([reply.starts, reply.lines], [[0, 3, 6, 7], [1, 2, 3, 4]], 'rows start at every line')
+
+const long = 'x'.repeat(4500) + '\ny'
+WorkerScript.onMessage({ id: 2, text: long })
+assertDeepEqual([reply.starts, reply.lines], [[0, 2000, 4000, 4501], [1, 0, 0, 2]], 'a long line is cut into rows that continue it')
+
+const astral = 'x'.repeat(1999) + '😀' + 'z'
+WorkerScript.onMessage({ id: 3, text: astral })
+assertDeepEqual(reply.starts, [0, 1999], 'a row never ends inside a surrogate pair')
+JS

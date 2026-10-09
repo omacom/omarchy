@@ -21,6 +21,7 @@ type request struct {
 	Flags   []string `json:"flags"`
 	Text    *string  `json:"text"`
 	TextID  int      `json:"textId"`
+	Path    string   `json:"textPath"`
 	All     *bool    `json:"all"`
 	Limit   int      `json:"limit"`
 }
@@ -160,6 +161,13 @@ func main() {
 				if req.Op == "info" {
 					send(reply{ID: req.ID, OK: true, Done: true, Versions: map[string]string{"go": runtime.Version()}})
 				} else {
+					if req.Path != "" {
+						// A file opened in Rex is read here rather than sent over the pipe.
+						if data, err := os.ReadFile(req.Path); err == nil {
+							s := strings.ToValidUTF8(string(data), "\uFFFD")
+							req.Text = &s
+						}
+					}
 					if req.Text != nil {
 						text, textID, offsets = *req.Text, req.TextID, newOffsets(*req.Text)
 					}

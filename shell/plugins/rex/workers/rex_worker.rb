@@ -124,6 +124,10 @@ loop do
     send_reply({ id: id, ok: true, done: true, versions: { ruby: RUBY_VERSION } })
     next
   end
+  if request.key?("textPath")
+    # A file opened in Rex is read here rather than sent over the pipe.
+    request["text"] = File.read(request["textPath"], encoding: "UTF-8").scrub
+  end
   if request.key?("text")
     texts.clear
     text = request["text"]

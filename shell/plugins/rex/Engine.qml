@@ -28,20 +28,27 @@ Item {
   // Flavors whose engines are installed, filled in by `detect`.
   property var installed: ({ ecmascript: true })
   property bool detected: false
-  // How long a worker may stay silent before it is stopped.
-  property int timeoutMs: 5000
+  // How long a worker may stay silent before it is stopped: longer for
+  // larger texts, which a fast engine still takes a while to get through.
+  property int baseTimeoutMs: 5000
+  property int textLength: 0
+  readonly property int timeoutMs: baseTimeoutMs + Math.round(textLength / 1000000 * 3000)
   // How long a compiled worker may take to build on first use.
   property int buildTimeoutMs: 300000
 
   property var workers: ({})
+  property int ecmascriptVersion: -1
 
   function supports(flavorId) {
     return installed[flavorId] === true
   }
 
-  // request: { flavor, pattern, flags, text, textVersion, all, limit, parsed }
+  // request: { flavor, pattern, flags, text, textPath, textVersion, all,
+  // limit, parsed }. textPath names the file the text was read from, which
+  // a worker then reads itself instead of receiving the text.
   function match(request) {
     var id = ++lastId
+    textLength = request.text.length
     var flavor = Flavors.byId(request.flavor)
     if (!supports(flavor.id)) {
       root.result({ id: id, ok: false, done: true, error: flavor.name + " is not installed", matches: [], stride: 2, elapsed: 0 })
@@ -52,17 +59,24 @@ Item {
       var rewritten = parsed && parsed.errors.length === 0
         ? Indices.rewrite(request.pattern, parsed)
         : { source: request.pattern, plan: [] }
-      ecmascript.sendMessage({
+      var message = {
         op: "match",
         id: id,
         source: rewritten.source,
         plan: rewritten.plan,
         groups: parsed ? parsed.groupCount : 0,
         flags: request.flags,
-        text: request.text,
+        textVersion: request.textVersion,
         all: request.all,
         limit: request.limit,
-      })
+      }
+      // Copying a large text into the worker costs the UI thread, so it
+      // only goes over when it changed.
+      if (ecmascriptVersion !== request.textVersion) {
+        message.text = request.text
+        ecmascriptVersion = request.textVersion
+      }
+      ecmascript.sendMessage(message)
       return id
     }
     worker(flavor.worker).send({
@@ -74,7 +88,7 @@ Item {
       groups: request.parsed ? request.parsed.groupCount : 0,
       all: request.all,
       limit: request.limit,
-    }, request.text, request.textVersion)
+    }, request.text, request.textVersion, request.textPath || "")
     return id
   }
 
@@ -132,14 +146,16 @@ Item {
       property var current: null
       property string currentText: ""
       property int currentVersion: -1
+      property string currentPath: ""
       // Writes before the process has started would be lost; the request
       // goes out from onStarted instead.
       property bool started: false
 
-      function send(request, text, version) {
+      function send(request, text, version, path) {
         current = request
         currentText = text
         currentVersion = version
+        currentPath = path
         if (!proc.running) {
           textVersion = -1
           proc.running = true
@@ -154,7 +170,8 @@ Item {
         for (var key in request) payload[key] = request[key]
         payload.textId = currentVersion
         if (textVersion !== currentVersion) {
-          payload.text = currentText
+          if (currentPath !== "") payload.textPath = currentPath
+          else payload.text = currentText
           textVersion = currentVersion
         }
         proc.write(JSON.stringify(payload) + "\n")

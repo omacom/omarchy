@@ -8,6 +8,8 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <fstream>
+#include <iterator>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -214,7 +216,13 @@ int main() {
     if (auto op = get(request, "op"); op && std::holds_alternative<std::string>(op->v) && std::get<std::string>(op->v) == "info") {
       reply = "{\"id\":" + std::to_string(id) + ",\"ok\":true,\"done\":true,\"versions\":{\"cpp\":\"libstdc++ " + std::to_string(__GLIBCXX__) + "\"}}";
     } else {
-      if (auto t = get(request, "text"); t && std::holds_alternative<std::string>(t->v)) {
+      if (auto p = get(request, "textPath"); p && std::holds_alternative<std::string>(p->v)) {
+        // A file opened in Rex is read here rather than sent over the pipe.
+        std::ifstream file(std::get<std::string>(p->v), std::ios::binary);
+        text.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+        text_id = std::get<double>(get(request, "textId")->v);
+        have_text = true;
+      } else if (auto t = get(request, "text"); t && std::holds_alternative<std::string>(t->v)) {
         text = std::get<std::string>(t->v);
         text_id = std::get<double>(get(request, "textId")->v);
         have_text = true;

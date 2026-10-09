@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import "views"
@@ -101,6 +102,7 @@ Item {
     if (result.ok === false) return "Error"
     var n = result.count
     var text = n === 1 ? "1 match" : n.toLocaleString(Qt.locale(), "f", 0) + " matches"
+    if (n >= 1000000 || (n >= 100000 && !largeText)) text += "+ (stopped counting)"
     if (!result.done) return text + " so far…"
     return text + " · " + formatMs(result.elapsed)
   }
@@ -140,6 +142,44 @@ Item {
   }
 
   onPatternChanged: runTimer.restart()
+  // The file the test text was read from, or "" for typed text. Workers
+  // read an opened file themselves.
+  property string textFile: ""
+  property string textFileError: ""
+  // Above this many characters the text is shown read-only in a view that
+  // only lays out what is on screen.
+  readonly property int largeThreshold: 65536
+  readonly property bool largeText: testText.length > largeThreshold
+
+  function openFile(path) {
+    textFileError = ""
+    fileReader.path = ""
+    fileReader.path = path
+  }
+
+  function closeFile() {
+    textFile = ""
+    testText = ""
+  }
+
+  function setTypedText(value) {
+    textFile = ""
+    testText = value
+  }
+
+  FileView {
+    id: fileReader
+    blockLoading: false
+    printErrors: false
+    onLoaded: {
+      root.testText = text()
+      root.textFile = path
+    }
+    onLoadFailed: function(error) {
+      root.textFileError = "Could not read " + path
+    }
+  }
+
   // Workers keep the text between requests; a new version is sent again.
   property int textVersion: 0
   onTestTextChanged: {
@@ -168,9 +208,10 @@ Item {
       pattern: pattern,
       flags: flags,
       text: testText,
+      textPath: textFile,
       textVersion: textVersion,
       all: all,
-      limit: 100000,
+      limit: largeText ? 1000000 : 100000,
       parsed: parsed,
     })
   }
@@ -184,7 +225,7 @@ Item {
       var first = root.result.id !== reply.id
       var matches = first ? reply.matches : root.result.matches
       if (!first) for (var i = 0; i < reply.matches.length; i++) matches.push(reply.matches[i])
-      root.result = {
+      var next = {
         id: reply.id,
         ok: reply.ok,
         done: reply.done,
@@ -197,6 +238,26 @@ Item {
         count: reply.ok ? matches.length / reply.stride : 0,
         elapsed: reply.elapsed,
       }
+      // Everything bound to the result redraws when it changes, so slices of
+      // a long search are shown at most every publishInterval.
+      if (first || reply.done || !reply.ok) {
+        publishTimer.stop()
+        root.result = next
+      } else {
+        root.pendingResult = next
+        if (!publishTimer.running) publishTimer.start()
+      }
+    }
+  }
+
+  property var pendingResult: null
+
+  Timer {
+    id: publishTimer
+    interval: 100
+    onTriggered: {
+      if (root.pendingResult && root.pendingResult.id === root.pendingId) root.result = root.pendingResult
+      root.pendingResult = null
     }
   }
 
@@ -207,7 +268,8 @@ Item {
     var payload = {}
     try { payload = JSON.parse(payloadJson || "{}") || {} } catch (e) {}
     if (typeof payload.pattern === "string" && payload.pattern !== "") pattern = payload.pattern
-    if (typeof payload.text === "string") testText = payload.text
+    if (typeof payload.text === "string") setTypedText(payload.text)
+    if (typeof payload.file === "string" && payload.file !== "") openFile(payload.file)
     if (typeof payload.flavor === "string") setFlavor(payload.flavor)
     if (Array.isArray(payload.flags)) flags = Flavors.validFlags(flavor, payload.flags)
     if (typeof payload.replacement === "string") replacement = payload.replacement

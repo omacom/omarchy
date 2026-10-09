@@ -90,6 +90,10 @@ lines.on('line', line => {
     send({ id: request.id, ok: true, done: true, versions: { node: 'Node ' + process.version + ', V8 ' + process.versions.v8 } })
     return
   }
+  if ('textPath' in request) {
+    // A file opened in Rex is read here rather than sent over the pipe.
+    request.text = require('fs').readFileSync(request.textPath, 'utf8')
+  }
   if ('text' in request) {
     texts.clear()
     texts.set(request.textId, request.text)

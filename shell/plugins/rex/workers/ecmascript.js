@@ -4,6 +4,7 @@
 // request can take over between slices.
 //
 // Requests:  { op: "match", id, source, plan, groups, flags, text, all, limit }
+//            text is left out when it has not changed since the last request
 //            source and plan come from lib/Indices.js
 //            { op: "continue", id }
 // Replies:   { id, ok, done, matches, stride, error, elapsed }
@@ -13,6 +14,7 @@
 var SLICE_MS = 40
 
 var job = null
+var text = ""
 
 function compile(request) {
   var flags = "g"
@@ -89,6 +91,7 @@ WorkerScript.onMessage = function(request) {
     return
   }
   job = null
+  if (request.text !== undefined) text = request.text
   var re
   try {
     re = compile(request)
@@ -99,7 +102,7 @@ WorkerScript.onMessage = function(request) {
   job = {
     id: request.id,
     re: re,
-    text: request.text,
+    text: text,
     all: request.all !== false,
     limit: request.limit || 100000,
     stride: (request.groups + 1) * 2,

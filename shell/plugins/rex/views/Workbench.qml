@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import qs.Commons
 import qs.Commons as Commons
@@ -19,6 +20,22 @@ Item {
   readonly property color dim: Qt.darker(foreground, 1.5)
 
   function focusPattern() { patternField.forceActiveFocus() }
+
+  function localPath(url) {
+    return decodeURIComponent(String(url).replace(/^file:\/\//, ""))
+  }
+
+  function sizeText(chars) {
+    if (chars < 1024) return chars + " characters"
+    if (chars < 1048576) return (chars / 1024).toFixed(0) + "K characters"
+    return (chars / 1048576).toFixed(1) + "M characters"
+  }
+
+  FileDialog {
+    id: fileDialog
+    title: "Open a text to search"
+    onAccepted: root.app.openFile(root.localPath(selectedFile))
+  }
 
   ColumnLayout {
     anchors.fill: parent
@@ -108,19 +125,87 @@ Item {
         Layout.fillHeight: true
         spacing: Style.spacing.lg
 
-        TestEditor {
-          id: editor
+        // ---- the text's source ----
+        RowLayout {
+          Layout.fillWidth: true
+          spacing: Style.spacing.md
+
+          Text {
+            Layout.fillWidth: true
+            text: root.app.textFile !== ""
+              ? root.app.textFile + " · " + root.sizeText(root.app.testText.length) + (root.app.largeText ? " · read-only" : "")
+              : (root.app.largeText ? root.sizeText(root.app.testText.length) + " · read-only" : "Test text")
+            color: root.dim
+            elide: Text.ElideMiddle
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+            textFormat: Text.PlainText
+          }
+
+          Text {
+            visible: root.app.textFileError !== ""
+            text: root.app.textFileError
+            color: Commons.Color.urgent
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+          }
+
+          Button {
+            text: "Open file…"
+            tooltipText: "Search a file; large files open read-only. You can also drop a file here."
+            bordered: true
+            onClicked: fileDialog.open()
+          }
+
+          Button {
+            visible: root.app.textFile !== "" || root.app.largeText
+            iconText: "󰅖"
+            tooltipText: "Close the text"
+            onClicked: root.app.closeFile()
+          }
+        }
+
+        Item {
           Layout.fillWidth: true
           Layout.fillHeight: true
-          foreground: root.foreground
-          accent: root.accent
-          text: root.app.testText
-          matches: root.app.result.matches
-          stride: root.app.result.stride
-          count: root.app.result.count
-          groupColors: root.app.groupColors
-          selectedMatch: root.app.selectedMatch
-          onEdited: function(value) { root.app.testText = value }
+
+          TestEditor {
+            id: editor
+            anchors.fill: parent
+            visible: !root.app.largeText
+            foreground: root.foreground
+            accent: root.accent
+            text: root.app.largeText ? "" : root.app.testText
+            matches: root.app.largeText ? [] : root.app.result.matches
+            stride: root.app.result.stride
+            count: root.app.largeText ? 0 : root.app.result.count
+            groupColors: root.app.groupColors
+            selectedMatch: root.app.selectedMatch
+            onEdited: function(value) { root.app.setTypedText(value) }
+          }
+
+          Loader {
+            id: largeLoader
+            anchors.fill: parent
+            active: root.app.largeText
+            sourceComponent: LargeTextView {
+              foreground: root.foreground
+              accent: root.accent
+              text: root.app.testText
+              matches: root.app.result.matches
+              stride: root.app.result.stride
+              count: root.app.result.count
+              groupColors: root.app.groupColors
+              selectedMatch: root.app.selectedMatch
+            }
+          }
+
+          DropArea {
+            anchors.fill: parent
+            onDropped: function(drop) {
+              if (drop.hasUrls && drop.urls.length) root.app.openFile(root.localPath(drop.urls[0]))
+            }
+          }
         }
 
         ToolPanel {
@@ -148,7 +233,8 @@ Item {
         selectedMatch: root.app.selectedMatch
         onPicked: function(index) {
           root.app.selectedMatch = index
-          editor.selectMatch(index)
+          if (root.app.largeText) largeLoader.item.selectMatch(index)
+          else editor.selectMatch(index)
         }
       }
     }

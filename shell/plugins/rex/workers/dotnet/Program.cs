@@ -111,7 +111,13 @@ static class RexWorker
                 Send(output, new JsonObject { ["id"] = id, ["ok"] = true, ["done"] = true, ["versions"] = new JsonObject { ["dotnet"] = ".NET " + Environment.Version } });
                 continue;
             }
-            if (request["text"] != null)
+            if (request["textPath"] != null)
+            {
+                // A file opened in Rex is read here rather than sent over the pipe.
+                text = File.ReadAllText((string)request["textPath"], new UTF8Encoding(false));
+                textId = (double)request["textId"];
+            }
+            else if (request["text"] != null)
             {
                 text = (string)request["text"];
                 textId = (double)request["textId"];

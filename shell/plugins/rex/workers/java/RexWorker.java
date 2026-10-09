@@ -189,6 +189,10 @@ public class RexWorker {
         send("{\"id\":" + id + ",\"ok\":true,\"done\":true,\"versions\":{\"java\":" + quote("Java " + Runtime.version()) + "}}");
         continue;
       }
+      if (request.get("textPath") instanceof String path) {
+        // A file opened in Rex is read here rather than sent over the pipe.
+        request.put("text", new String(java.nio.file.Files.readAllBytes(java.nio.file.Path.of(path)), StandardCharsets.UTF_8));
+      }
       if (request.containsKey("text")) {
         text = (String) request.get("text");
         textId = request.get("textId") instanceof Double d ? d : Double.NaN;

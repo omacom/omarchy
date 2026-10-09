@@ -259,6 +259,11 @@ for line in io.stdin:lines() do
     if request.op == "info" then
       reply = { id = request.id, ok = true, done = true, versions = { lua = _VERSION } }
     else
+      if request.textPath then
+        -- A file opened in Rex is read here rather than sent over the pipe.
+        local f = io.open(request.textPath, "rb")
+        if f then request.text = f:read("*a") f:close() end
+      end
       if request.text then
         texts = { [request.textId] = { request.text, converter(request.text) } }
       end

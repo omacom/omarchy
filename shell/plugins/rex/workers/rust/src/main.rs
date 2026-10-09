@@ -271,8 +271,16 @@ fn main() {
         let reply = if matches!(request.get("op"), Some(Json::Str(op)) if op == "info") {
             format!("{{\"id\":{},\"ok\":true,\"done\":true,\"versions\":{{\"rust\":\"regex crate 1.x\"}}}}", id)
         } else {
-            if let Some(Json::Str(t)) = request.get("text") {
-                text = t.clone();
+            let from_file = match request.get("textPath") {
+                // A file opened in Rex is read here rather than sent over the pipe.
+                Some(Json::Str(path)) => std::fs::read(path).ok().map(|bytes| String::from_utf8_lossy(&bytes).into_owned()),
+                _ => None,
+            };
+            if let Some(t) = from_file.or_else(|| match request.get("text") {
+                Some(Json::Str(t)) => Some(t.clone()),
+                _ => None,
+            }) {
+                text = t;
                 text_id = match request.get("textId") {
                     Some(Json::Number(n)) => *n,
                     _ => f64::NAN,
