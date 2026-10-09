@@ -37,6 +37,28 @@ from a dead server generation (ids restart from 1 each shell process), so
 they are keyed by timestamp+id and never matched against live objects — a
 fresh notification reusing an old id must not dismiss or replace them.
 
+## Fullscreen
+
+Toasts are Overlay-layer surfaces, so they draw over a fullscreen client
+whatever the layer ordering. The popup window for the output a fullscreen window
+covers is held back while it covers it: the other outputs keep showing their
+toasts, and their countdowns keep running, so a film playing fullscreen on one
+screen still delivers notifications on the others.
+
+When *every* output is covered there is nowhere left to deliver a toast, so the
+notification is silenced the way DND silences it: no toast, a history entry
+instead, which the notification centre shows. Anything already in the stack then
+stops counting down — nothing can be seen, and the only arrivals that still
+reach the stack in that state are the DND bypasses, so a "Screenshot saved"
+confirmation waits for a screen to come back rather than burning its lifetime
+unseen. It is a pause, not a park: as soon as an output can show toasts again,
+the countdowns resume with the lifetime they had left.
+
+The condition is per monitor's active workspace: a fullscreen window on a
+workspace nobody is showing covers nothing. It reads the Wayland toplevel's
+fullscreen state, not the workspace's `hasFullscreen` flag, which is also set
+for a merely maximized window.
+
 ## Silencing
 
 Do-not-disturb is a single boolean, persisted as the `dnd` key in

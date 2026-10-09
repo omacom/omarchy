@@ -463,6 +463,56 @@ function historyRows(raw, liveRows, normalUrgency, limit) {
   return out.slice(0, max)
 }
 
+// A toast is an Overlay-layer surface, so a fullscreen client can never cover
+// one. What holds a toast back is the fullscreen state of the Wayland toplevel
+// itself, not the workspace's hasFullscreen flag: Hyprland sets that flag for a
+// merely maximized window too, and a maximized window still leaves the bar and
+// the desktop's edges in view.
+function toplevelFullscreen(toplevel) {
+  return !!(toplevel && toplevel.wayland && toplevel.wayland.fullscreen)
+}
+
+// Quickshell hands a workspace's toplevels over as an ObjectModel, whose values
+// live behind `.values`; a test hands over a plain array, whose own `.values` is
+// Array.prototype.values. Read the array first, or the fallback finds a function
+// with no length and concludes the workspace is empty.
+function workspaceToplevels(workspace) {
+  if (!workspace || !workspace.toplevels) return []
+  var toplevels = Array.isArray(workspace.toplevels) ? workspace.toplevels : workspace.toplevels.values
+  return toplevels && toplevels.length ? toplevels : []
+}
+
+// Whether the workspace an output is showing is covered by a fullscreen window
+// — the condition that holds that output's toasts back. Surfaces are per
+// output, so this is asked per output; nothing global is decided here.
+function workspaceHoldsFullscreen(workspace) {
+  var toplevels = workspaceToplevels(workspace)
+  for (var i = 0; i < toplevels.length; i++) {
+    if (toplevelFullscreen(toplevels[i])) return true
+  }
+  return false
+}
+
+// Whether *every* output is covered, i.e. there is nowhere left to deliver a
+// toast. Then the notification is silenced the way DND silences it, instead of
+// being created to queue up behind a fullscreen window. A toast wait here would
+// have to be a decision about one shared stack: the stack and its expiry serve
+// every output, so holding a toast back for one output either expires it under
+// that output (the other output's countdown removes the row for everyone) or
+// stops every output's toasts from ever expiring.
+//
+// Read the monitors the shell draws on, not every monitor Hyprland knows: an
+// output with no popup window is not a delivery target either way.
+function everyWorkspaceHoldsFullscreen(monitors) {
+  var list = Array.isArray(monitors) ? monitors : (monitors ? monitors.values : null)
+  if (!list || !list.length) return false
+  for (var i = 0; i < list.length; i++) {
+    var monitor = list[i]
+    if (!monitor || !workspaceHoldsFullscreen(monitor.activeWorkspace)) return false
+  }
+  return true
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isChromiumDerived: isChromiumDerived,
@@ -492,6 +542,8 @@ if (typeof module !== "undefined") {
     serializePopup: serializePopup,
     parsePopupFiles: parsePopupFiles,
     popupExpired: popupExpired,
-    popupPlacement: popupPlacement
+    popupPlacement: popupPlacement,
+    workspaceHoldsFullscreen: workspaceHoldsFullscreen,
+    everyWorkspaceHoldsFullscreen: everyWorkspaceHoldsFullscreen
   }
 }
