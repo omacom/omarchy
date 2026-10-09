@@ -130,6 +130,10 @@ rekey_state_put() {
   crash_point "journal $*"
 }
 
+# The fixture's stale entries come from another identity with no entry for
+# this machine, so the entry tool cannot drop them: the menu starts over.
+drop_foreign_limine_entries() { return 1; }
+
 reset_limine_config() {
   echo reset >>"$TMP/limine-ran"
   crash_point "auto-unlock files removed"
