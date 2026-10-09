@@ -7,9 +7,13 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 lid_close="$ROOT/bin/omarchy-system-lid-close"
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
+export OMARCHY_DRM_PATH="$tmpdir/drm"
+mkdir -p "$OMARCHY_DRM_PATH/card0-eDP-1" "$OMARCHY_DRM_PATH/card0-DP-1" "$OMARCHY_DRM_PATH/card0-DP-2"
+for connector in eDP-1 DP-1 DP-2; do
+  printf 'connected\n' >"$OMARCHY_DRM_PATH/card0-$connector/status"
+done
 
-# closed/docked are the two facts logind uses to decide whether a lid close
-# suspends, so each scenario pins them and records what the lid handler did.
+# Pin the lid state and whether Hyprland has an active external display.
 setup_scenario() {
   scenario_dir="$tmpdir/$1"
   mock_bin="$scenario_dir/bin"
@@ -23,7 +27,7 @@ setup_scenario() {
 #!/bin/bash
 exit $closed
 SH
-  cat >"$mock_bin/omarchy-hw-external-monitors" <<SH
+  cat >"$mock_bin/omarchy-hyprland-monitor-external-active" <<SH
 #!/bin/bash
 exit $docked
 SH
@@ -91,3 +95,43 @@ run_lid_close
 [[ ${calls[1]} == "omarchy-hyprland-monitor-clamshell" ]] ||
   fail "a failing lock still reconciles displays" "calls: ${calls[*]}"
 pass "a failing lock still reconciles displays"
+
+# A Touch Bar may report a connected DRM connector without appearing in
+# Hyprland's monitor list. Exercise the real active-monitor helper here.
+setup_scenario touch_bar 0 1
+cp "$ROOT/bin/omarchy-hyprland-monitor-external-active" "$mock_bin/omarchy-hyprland-monitor-external-active"
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+printf '%s\n' '[{"name":"eDP-1","disabled":false}]'
+SH
+cat >"$mock_bin/omarchy-hw-external-monitors" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$mock_bin/hyprctl" "$mock_bin/omarchy-hw-external-monitors"
+run_lid_close
+[[ ${calls[0]} == "omarchy-system-lock" ]] || fail "a Touch Bar does not suppress locking"
+pass "a connected DRM device outside Hyprland does not suppress locking"
+
+for scenario in external headless renamed-headless disabled missed-query; do
+  setup_scenario "real-$scenario" 0 1
+  cp "$ROOT/bin/omarchy-hyprland-monitor-external-active" "$mock_bin/omarchy-hyprland-monitor-external-active"
+  cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+case $MONITOR_SCENARIO in
+  external) echo '[{"name":"eDP-1","disabled":false},{"name":"DP-1","disabled":false}]' ;;
+  headless) echo '[{"name":"eDP-1","disabled":false},{"name":"HEADLESS-1","disabled":false}]' ;;
+  renamed-headless) echo '[{"name":"eDP-1","disabled":false},{"name":"my-virtual-display","disabled":false}]' ;;
+  disabled) echo '[{"name":"eDP-1","disabled":false},{"name":"DP-1","disabled":true}]' ;;
+  missed-query) exit 1 ;;
+esac
+SH
+  chmod +x "$mock_bin/hyprctl"
+  MONITOR_SCENARIO="$scenario" run_lid_close
+  if [[ $scenario == "external" ]]; then
+    [[ ${calls[*]} != *omarchy-system-lock* ]] || fail "the real helper keeps an active clamshell session usable"
+  else
+    [[ ${calls[0]} == "omarchy-system-lock" ]] || fail "$scenario does not suppress lid locking"
+  fi
+done
+pass "real monitor queries distinguish usable displays and fail safely"

@@ -1,6 +1,24 @@
 #!/bin/bash
 
-# omarchy:summary=Returns true when Hyprland has an active external monitor
+# omarchy:summary=Returns true when Hyprland has an active physical external monitor
 # omarchy:hidden=true
 
-hyprctl monitors all -j | jq -e '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not) | select(.disabled == false)' >/dev/null 2>&1
+set -o pipefail
+
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
+external=()
+for status in "$drm_path"/card*-*/status; do
+  [[ -f $status ]] || continue
+  connector=${status%/status}
+  connector=${connector##*/}
+  connector=${connector#*-}
+  case $connector in eDP-* | LVDS-* | DSI-*) continue ;; esac
+  [[ $(<"$status") == "connected" ]] || continue
+  external+=("$connector")
+done
+(( ${#external[@]} > 0 )) || exit 1
+
+hyprctl monitors all -j | jq -e --args '
+  [.[] | select(.disabled == false) | .name] as $active |
+  any($ARGS.positional[]; . as $name | $active | index($name) != null)
+' -- "${external[@]}" >/dev/null 2>&1
