@@ -13,7 +13,7 @@ declare -A LUA_BIND_ARG_MAP
 # via the compiled keymap, with a small fallback for common keys so the menu
 # remains readable if xkbcli cannot resolve a symbol.
 parse_keycodes() {
-  awk '
+  awk -F, -v OFS=, '
     BEGIN {
       split("10=1 11=2 12=3 13=4 14=5 15=6 16=7 17=8 18=9 19=0 20=MINUS 21=EQUAL 59=COMMA 60=PERIOD 61=SLASH", fallbacks, " ")
       for (i in fallbacks) {
@@ -48,19 +48,22 @@ parse_keycodes() {
       mouse_symbol["273"] = "RIGHT MOUSE BUTTON"
       mouse_symbol["274"] = "MIDDLE MOUSE BUTTON"
     }
-    {
-      if (match($0, /code:([0-9]+)/, match_parts)) {
-        code = match_parts[1]
-        symbol = keycode_symbol[code]
-        if (symbol == "") symbol = "code:" code
-        sub("code:" code, symbol)
-      } else if (match($0, /mouse:([0-9]+)/, match_parts)) {
-        code = match_parts[1]
-        symbol = mouse_symbol[code]
-        if (symbol == "") symbol = "mouse:" code
-        sub("mouse:" code, symbol)
+    # A row inside a mode carries the chord that enters it as well as its own,
+    # so resolve every key in the two chord fields.
+    function resolve(chord,    resolved, code, symbol, match_parts) {
+      resolved = ""
+      while (match(chord, /(code|mouse):([0-9]+)/, match_parts)) {
+        code = match_parts[2]
+        symbol = match_parts[1] == "code" ? keycode_symbol[code] : mouse_symbol[code]
+        if (symbol == "") symbol = match_parts[1] ":" code
+        resolved = resolved substr(chord, 1, RSTART - 1) symbol
+        chord = substr(chord, RSTART + RLENGTH)
       }
-
+      return resolved chord
+    }
+    {
+      if ($1 ~ /(code|mouse):[0-9]/) $1 = resolve($1)
+      if ($2 ~ /(code|mouse):[0-9]/) $2 = resolve($2)
       print
     }
   '
@@ -273,7 +276,7 @@ modmask_to_text() {
 # - Map numeric modifier key mask to a textual rendition
 # - Output comma-separated values that the parser can understand
 dynamic_bindings() {
-  local modmask key keycode description dispatcher arg modifiers cache_key
+  local modmask submap key keycode description dispatcher arg modifiers cache_key enters
 
   # Parse the plain `hyprctl binds` output rather than `hyprctl -j binds`:
   # Hyprland 0.56.0 emits invalid JSON for binds (misaligned fields in
@@ -282,13 +285,13 @@ dynamic_bindings() {
     function emit() {
       if (!seen) return
       seen = 0
-      printf "%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", f["modmask"], f["key"], f["keycode"], f["description"], f["dispatcher"], f["arg"]
+      printf "%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", f["modmask"], f["submap"], f["key"], f["keycode"], f["description"], f["dispatcher"], f["arg"]
     }
     /^bind/ { emit(); seen = 1; delete f; next }
     seen && match($0, /^\t[a-z]+: /) { f[substr($0, 2, RLENGTH - 3)] = substr($0, RLENGTH + 1) }
     END { emit() }
   ' |
-    while IFS=$'\x1f' read -r modmask key keycode description dispatcher arg; do
+    while IFS=$'\x1f' read -r modmask submap key keycode description dispatcher arg; do
       # Lua binds report their full display key ("SUPER + code:20"); the
       # modifiers are already carried separately in modmask.
       key="${key##* + }"
@@ -324,8 +327,55 @@ dynamic_bindings() {
       modifiers=$(modmask_to_text "$modmask")
       arg="${arg//~\/.local\/share\/omarchy\/bin\//}"
 
-      printf '%s,%s,%s,%s,%s\n' "$modifiers" "$key" "$description" "$dispatcher" "$arg"
-    done
+      # The mode this bind enters, if any: hyprland.conf reports dispatcher
+      # submap, and a Lua bind resolves to its hl.dsp.submap() call above.
+      enters=""
+      if [[ $dispatcher == "submap" ]]; then
+        enters="$arg"
+      elif [[ $dispatcher == "lua" && $arg =~ ^hl\.dsp\.submap\(\"([^\"]+)\"\)$ ]]; then
+        enters="${BASH_REMATCH[1]}"
+      fi
+      [[ $enters == "reset" ]] && enters=""
+
+      printf '%s\x1f%s\x1f%s\x1f%s\x1f%s,%s,%s\n' "$enters" "$submap" "$modifiers" "$key" "$description" "$dispatcher" "$arg"
+    done |
+    awk -F $'\x1f' '
+      # A submap binding only fires inside its mode, so lead with the chords that
+      # reach the mode from outside every mode, or with its name when none do.
+      function named(mode,    i, outer, result) {
+        if (mode in visiting || !(mode in entries)) return ""
+        visiting[mode] = 1
+        result = ""
+        for (i = 1; i <= entries[mode] && result == ""; i++) {
+          if (entry_scope[mode, i] == "") result = entry[mode, i]
+        }
+        for (i = 1; i <= entries[mode] && result == ""; i++) {
+          outer = entry_scope[mode, i] == "" ? "" : named(entry_scope[mode, i])
+          if (outer != "") result = outer " > " entry[mode, i]
+        }
+        delete visiting[mode]
+        return result
+      }
+      {
+        submap[NR] = $2; modifiers[NR] = $3; key[NR] = $4; rest[NR] = $5
+        if ($1 != "") {
+          entries[$1]++
+          entry[$1, entries[$1]] = ($3 != "" ? $3 " + " : "") $4
+          entry_scope[$1, entries[$1]] = $2
+        }
+      }
+      END {
+        for (i = 1; i <= NR; i++) {
+          if (submap[i] != "") {
+            mode = named(submap[i])
+            if (mode == "") mode = submap[i]
+            if (modifiers[i] != "") modifiers[i] = mode " > " modifiers[i]
+            else key[i] = mode " > " key[i]
+          }
+          printf "%s,%s,%s\n", modifiers[i], key[i], rest[i]
+        }
+      }
+    '
 }
 
 # Hardcoded bindings, like the copy-url extension and such
@@ -406,7 +456,10 @@ BEGIN {
     # since a label is only what a chord is called; an unresolved dispatcher
     # says nothing at all, so it never counts as agreement.
     if (action != "") {
-        action_key = action SUBSEP dispatcher SUBSEP arg;
+        # A chord inside a mode only shares a row with another in the same mode.
+        mode = key_combo;
+        if (!sub(/ > [^>]*$/, "", mode)) mode = "";
+        action_key = action SUBSEP dispatcher SUBSEP arg SUBSEP mode;
         together = "";
 
         if (action in shares_a_row && dispatcher != "" && action_key in leads) {
@@ -502,7 +555,37 @@ prioritize_entries() {
     printf "%d\t%s\n", prio, $0
   }' |
   sort -k1,1n -k2,2 |
-  cut -f2-
+  cut -f2- |
+  group_mode_entries
+}
+
+# A binding inside a mode ("SUPER + P > H") follows the row of the chord that
+# enters the mode, in the order the rows were ranked; every other row stays put.
+group_mode_entries() {
+  awk -F '\t' '
+  {
+    rows[NR] = $0
+    chord = $1
+    sub(/ \/ [^→]*→/, " →", chord)
+    sub(/ *→.*/, "", chord)
+    if (split(chord, parts, " > ") > 1) modes[NR] = parts[1]
+    else entry[chord] = NR
+  }
+  END {
+    for (i = 1; i <= NR; i++) {
+      if (modes[i] != "" && modes[i] in entry) {
+        inside[i] = 1
+        children[entry[modes[i]]] = children[entry[modes[i]]] SUBSEP i
+      }
+    }
+
+    for (i = 1; i <= NR; i++) {
+      if (i in inside) continue
+      print rows[i]
+      count = split(substr(children[i], 2), members, SUBSEP)
+      for (k = 1; k <= count; k++) print rows[members[k]]
+    }
+  }'
 }
 
 # Drop repeated records while keeping the order Hyprland reported them in, so
@@ -533,7 +616,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v14\n'
+    printf 'v15\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
