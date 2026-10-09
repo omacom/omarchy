@@ -103,7 +103,7 @@ pass "registry mutation and ownership boundaries are host-controlled"
 
 qml_matches "$bar_qml" 'root\.moduleWidgets\( *moduleName *\)' ||
   fail "custom bar module widget lookups use their real module name"
-qml_matches "$shell_qml" 'shell\.pluginShellForBarEntry\( *cacheKey *\+ *":" *\+ *ownerId, *moduleName *\)' ||
+qml_matches "$shell_qml" 'shell\.pluginShellForBarEntry\( *cacheKey *\+ *":" *\+ *ownerId, *moduleName, *hasCurrentBarCapabilities *\)' ||
   fail "full-bar plugins receive a scoped settings facade for custom modules"
 pass "custom bar modules retain settings and popout identity"
 

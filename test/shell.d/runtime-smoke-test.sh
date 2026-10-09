@@ -282,8 +282,12 @@ Item {
   id: root
   property var shell: null
   property var retainedShell: null
+  property var retainedProxy: null
 
-  onShellChanged: if (!retainedShell && shell) retainedShell = shell
+  onShellChanged: {
+    if (!retainedShell && shell) retainedShell = shell
+    if (!retainedProxy && shell) retainedProxy = shell.firstPartyServiceFor("omarchy.notifications")
+  }
 
   function mutationAllowed(candidate) {
     if (!candidate) return false
@@ -295,12 +299,22 @@ Item {
     }
   }
 
+  function proxyControls(candidate) {
+    if (!candidate) return false
+    var before = candidate.doNotDisturb
+    candidate.setDoNotDisturb(!before)
+    var changed = candidate.doNotDisturb !== before
+    if (changed) candidate.setDoNotDisturb(before)
+    return changed
+  }
+
   IpcHandler {
     target: "acme-review-capability"
     function probe(): string {
       return JSON.stringify({
         currentAllowed: root.mutationAllowed(root.shell),
-        retainedAllowed: root.mutationAllowed(root.retainedShell)
+        retainedAllowed: root.mutationAllowed(root.retainedShell),
+        retainedProxyAllowed: root.proxyControls(root.retainedProxy)
       })
     }
   }
@@ -720,7 +734,7 @@ bar_config_after=$(shell_ipc shell listShellConfig | jq -c '.bar')
 pass "replacement-bar service and configuration boundaries hold at runtime"
 
 capability_before=$(shell_ipc acme-review-capability probe)
-jq -e '.currentAllowed == true and .retainedAllowed == true' \
+jq -e '.currentAllowed == true and .retainedAllowed == true and .retainedProxyAllowed == true' \
   <<<"$capability_before" >/dev/null ||
   fail_with_log "bar service fixture did not initially receive bar capabilities"
 
@@ -733,7 +747,7 @@ mv "$review_bar_dir/manifest.json.tmp" "$review_bar_dir/manifest.json"
 capability_after=""
 for _ in {1..80}; do
   capability_after=$(shell_ipc acme-review-capability probe 2>/dev/null || true)
-  if jq -e '.currentAllowed == false and .retainedAllowed == false' \
+  if jq -e '.currentAllowed == false and .retainedAllowed == false and .retainedProxyAllowed == false' \
     <<<"$capability_after" >/dev/null 2>&1; then
     break
   fi
@@ -742,7 +756,7 @@ for _ in {1..80}; do
   fi
   sleep 0.1
 done
-jq -e '.currentAllowed == false and .retainedAllowed == false' \
+jq -e '.currentAllowed == false and .retainedAllowed == false and .retainedProxyAllowed == false' \
   <<<"$capability_after" >/dev/null || {
   printf 'Capability revocation probe: %s\n' "$capability_after" >&2
   fail_with_log "cached plugin facades revoke capabilities removed from the manifest"
