@@ -107,6 +107,21 @@ assertEqual(bar.pickDrawnSlot([placeholder]), placeholder, 'bar falls back to th
 assertEqual(bar.pickDrawnSlot([]), null, 'bar reports no slot when there are none')
 assertEqual(bar.pickDrawnSlot(null), null, 'bar tolerates a missing slot list')
 
+// The center sat at the bar's midpoint whatever the edge sections held, so a
+// vertical bar with many workspaces drew them under the indicators (#8540).
+assertEqual(bar.centerStart(800, 81, 140, 90, 100, 650), 360, 'the center stays centered while the edge sections leave it room')
+assertEqual(bar.centerStart(800, 81, 140, 90, 330, 650), 470, 'the center gives way to a leading section that reaches it')
+assertEqual(bar.centerStart(800, 81, 140, 90, 100, 500), 329, 'the center gives way to a trailing section that reaches it')
+const centerModules = barSource.slice(barSource.indexOf('component CenterModules'), barSource.indexOf('component CenterGestureArea'))
+assert(
+  !/anchors\.centerIn/.test(centerModules) &&
+    /x: BarModel\.centerStart\(parent\.width, width, centerBefore\.width, centerAfter\.width/.test(centerModules) &&
+    /y: BarModel\.centerStart\(parent\.height, height, centerBefore\.height, centerAfter\.height/.test(centerModules) &&
+    /leadingEnd: horizontalLeft\.x \+ horizontalLeft\.width\s+trailingStart: horizontalRight\.x/.test(barSource) &&
+    /leadingEnd: verticalLeft\.y \+ verticalLeft\.height\s+trailingStart: verticalRight\.y/.test(barSource),
+  'the center section is placed between the edge sections in both orientations'
+)
+
 // Revealing the indicators can slide a neighbouring widget under a stationary
 // pointer; collapsing the peek on that un-hover re-opens it and stutters the
 // bar, so the peek stays held while the pointer is anywhere on the bar.

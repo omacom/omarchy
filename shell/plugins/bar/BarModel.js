@@ -65,6 +65,13 @@ function entriesAfter(entries, name) {
   return index === -1 ? [] : entries.slice(index + 1)
 }
 
+// Where a center widget starts along the bar: centered, unless that would draw
+// the widgets `before` and `after` it over an edge section, which it gives way to.
+function centerStart(length, extent, before, after, leadingEnd, trailingStart) {
+  var centered = Math.round((length - extent) / 2)
+  return Math.max(leadingEnd + before, Math.min(centered, trailingStart - after - extent))
+}
+
 // A shell.json write that only changes inline widget settings (the battery
 // percentage toggle, a clock format change) must not rebuild the bar.
 // Compare two normalized layouts: when the structure is unchanged — same
@@ -222,6 +229,7 @@ if (typeof module !== "undefined") {
     entryIndex: entryIndex,
     entriesBefore: entriesBefore,
     entriesAfter: entriesAfter,
+    centerStart: centerStart,
     inlineSettingsDelta: inlineSettingsDelta,
     expandPath: expandPath,
     customModuleSafeName: customModuleSafeName,

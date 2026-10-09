@@ -1367,15 +1367,21 @@ Item {
       Item {
         anchors.fill: parent
 
-        CenterModules { anchors.fill: parent }
+        CenterModules {
+          anchors.fill: parent
+          leadingEnd: horizontalLeft.x + horizontalLeft.width
+          trailingStart: horizontalRight.x
+        }
 
         LeftModules {
+          id: horizontalLeft
           anchors.left: parent.left
           anchors.leftMargin: Style.space(8)
           anchors.verticalCenter: parent.verticalCenter
         }
 
         RightModules {
+          id: horizontalRight
           anchors.right: parent.right
           anchors.rightMargin: Style.space(8)
           anchors.verticalCenter: parent.verticalCenter
@@ -1389,15 +1395,21 @@ Item {
       Item {
         anchors.fill: parent
 
-        CenterModules { anchors.fill: parent }
+        CenterModules {
+          anchors.fill: parent
+          leadingEnd: verticalLeft.y + verticalLeft.height
+          trailingStart: verticalRight.y
+        }
 
         LeftModules {
+          id: verticalLeft
           anchors.top: parent.top
           anchors.topMargin: Style.space(8)
           anchors.horizontalCenter: parent.horizontalCenter
         }
 
         RightModules {
+          id: verticalRight
           anchors.bottom: parent.bottom
           anchors.bottomMargin: Style.space(8)
           anchors.horizontalCenter: parent.horizontalCenter
@@ -1551,6 +1563,9 @@ Item {
     property var entries: root.layoutEntries("center")
     readonly property bool hasAnchor: root.entryIndex(entries, root.centerAnchor) !== -1
     readonly property var anchorEntry: root.findCenterAnchorEntry()
+    // Where the edge sections end and begin along the bar, which the center gives way to.
+    property real leadingEnd: -Infinity
+    property real trailingStart: Infinity
 
     Loader {
       anchors.fill: parent
@@ -1580,10 +1595,12 @@ Item {
           visible: !centerRoot.hasAnchor
           entries: centerRoot.entries
           region: "center"
-          anchors.centerIn: parent
+          anchors.verticalCenter: parent.verticalCenter
+          x: BarModel.centerStart(parent.width, width, 0, 0, centerRoot.leadingEnd, centerRoot.trailingStart)
         }
 
         ModuleList {
+          id: centerBefore
           visible: centerRoot.hasAnchor
           entries: root.entriesBefore(centerRoot.entries, root.centerAnchor)
           region: "center"
@@ -1596,10 +1613,12 @@ Item {
           visible: centerRoot.hasAnchor
           entry: centerRoot.anchorEntry
           region: "center"
-          anchors.centerIn: parent
+          anchors.verticalCenter: parent.verticalCenter
+          x: BarModel.centerStart(parent.width, width, centerBefore.width, centerAfter.width, centerRoot.leadingEnd, centerRoot.trailingStart)
         }
 
         ModuleList {
+          id: centerAfter
           visible: centerRoot.hasAnchor
           entries: root.entriesAfter(centerRoot.entries, root.centerAnchor)
           region: "center"
@@ -1632,10 +1651,12 @@ Item {
           visible: !centerRoot.hasAnchor
           entries: centerRoot.entries
           region: "center"
-          anchors.centerIn: parent
+          anchors.horizontalCenter: parent.horizontalCenter
+          y: BarModel.centerStart(parent.height, height, 0, 0, centerRoot.leadingEnd, centerRoot.trailingStart)
         }
 
         ModuleList {
+          id: centerBefore
           visible: centerRoot.hasAnchor
           entries: root.entriesBefore(centerRoot.entries, root.centerAnchor)
           region: "center"
@@ -1648,10 +1669,12 @@ Item {
           visible: centerRoot.hasAnchor
           entry: centerRoot.anchorEntry
           region: "center"
-          anchors.centerIn: parent
+          anchors.horizontalCenter: parent.horizontalCenter
+          y: BarModel.centerStart(parent.height, height, centerBefore.height, centerAfter.height, centerRoot.leadingEnd, centerRoot.trailingStart)
         }
 
         ModuleList {
+          id: centerAfter
           visible: centerRoot.hasAnchor
           entries: root.entriesAfter(centerRoot.entries, root.centerAnchor)
           region: "center"
