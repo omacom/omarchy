@@ -10,6 +10,11 @@ conf="${OMARCHY_BRCMFMAC_CONF:-/etc/modprobe.d/brcmfmac.conf}"
 
 sys_vendor="$(cat "$dmi_vendor" 2>/dev/null || true)"
 
+# BCM4364 on T2 Macs is exempt; see the installer for why.
+if lspci -nn | grep "106b:180[12]" >/dev/null && lspci -nn | grep "14e4:4464" >/dev/null; then
+  exit 0
+fi
+
 if ! lspci -nn | grep "106b:180[12]" >/dev/null &&
   ! { [[ $sys_vendor == Apple* ]] &&
     lspci -nn | grep -E "14e4:(43ba|43bb|43bc|43a3|43dc|4464|4488|4425|4433)" >/dev/null; }; then
@@ -31,9 +36,9 @@ sudo mkdir -p "$(dirname "$conf")"
 # feature_disable. The leading newline also covers a file that ends without one.
 sudo tee -a "$conf" >/dev/null <<'EOF'
 
-# Broadcom's firmware supplicant and authenticator fail the WPA four-way
-# handshake on Apple hardware, which surfaces as a rejected password. Disable
-# both so wpa_supplicant performs the handshake instead.
+# Broadcom's firmware WPA handling fails on affected Apple hardware, which
+# surfaces as a rejected password. Disable firmware supplication and SAE so
+# transition-mode networks use the software WPA2 handshake instead.
 options brcmfmac feature_disable=0x82000
 EOF
 

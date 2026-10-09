@@ -89,6 +89,13 @@ grep -q 'feature_disable=0x82000' "$conf" 2>/dev/null ||
   fail "a T2 Mac still gets the quirk" "$(ls -R "$test_tmp/etc" 2>&1)"
 pass "a T2 Mac still gets the quirk"
 
+# BCM4364 firmware on T2 Macs needs its firmware SAE offload to join WPA3-only
+# networks. 0x82000 disables SAE (bit 19), leaving wpa_supplicant with no SAE
+# path on firmware that does not advertise SAE_EXT.
+run_leaf "Apple Inc." 4464 1 >/dev/null
+[[ ! -f $conf ]] || fail "BCM4364 on a T2 Mac keeps WPA3 firmware offload"
+pass "BCM4364 on a T2 Mac keeps WPA3 firmware offload"
+
 # Every Broadcom part brcmfmac drives, on a Mac with no T2 to detect: BCM43602
 # and its single-band variants, BCM4350, BCM4355, BCM4364, BCM4378, BCM4387.
 for wifi_id in 43ba 43bb 43bc 43a3 43dc 4464 4425 4433; do
@@ -147,6 +154,12 @@ run_migration "Apple Inc." 4488 1
   fail "the migration is idempotent" "$(cat "$conf")"
 [[ ! -s $calls ]] || fail "a repaired install is left untouched" "$(cat "$calls")"
 pass "the migration is idempotent"
+
+rm -rf "$test_tmp/etc"
+run_migration "Apple Inc." 4464 1
+[[ ! -e $conf ]] || fail "the migration leaves BCM4364 T2 WPA3 support enabled" "$(cat "$conf")"
+[[ ! -s $calls ]] || fail "the migration escalates nothing on BCM4364 T2 Macs" "$(cat "$calls")"
+pass "the migration leaves BCM4364 T2 WPA3 support enabled"
 
 # The machine this was written for, with no T2 to fall back on.
 rm -rf "$test_tmp/etc"
