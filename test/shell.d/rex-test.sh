@@ -263,6 +263,7 @@ worker_cases='[
   ["vim", "vim", "\\(a\\(a\\)\\)", [], "xaa", [1,3,1,3,2,3], 2],
   ["python", "sed-e", "(a(a))", [], "aa", [0,2,0,2,1,2], 2],
   ["python", "sed-e", "(b)(x)?", [], "ab", [1,2,1,2,-1,-1], 2],
+  ["python", "sed-e", ".+", [], "a\u007fb\u001fc", [0,5]],
   ["node", "node", "(\\w)(?<n>é|😀)?", ["u"], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
   ["node", "node", "(?<=a)b(c)?", [], "ab", [1,2,-1,-1]],
   ["go", "go", "(\\w)(?P<n>é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
@@ -480,6 +481,7 @@ const switched = E.explain(P.parse('(?i)a(?-i)b', 'pcre2', []), [])
 assertDeepEqual(switched.filter(r => r.type === 'literal').map(r => r.detail), ['matches itself, in either case', 'matches itself'], 'a flag turned off stops applying')
 const carried = E.explain(P.parse('(?:a(?i)b|c)', 'pcre2', []), [])
 assertEqual(carried.filter(r => r.type === 'literal').pop().detail, 'matches itself, in either case', 'a flag set in one alternative carries into the next, as in PCRE2')
+assertEqual(E.explain(P.parse('(?i)hello', 'pcre2', []), [])[0].title, 'Flags', 'a standalone flag is explained')
 const ruby = E.explain(P.parse('^', 'ruby', []), [])
 assertEqual(ruby[0].title, 'Start of a line', "Ruby's ^ always means a line")
 const digit = (flavor, flags) => E.explain(P.parse('\\d', flavor, flags), flags)[0].detail

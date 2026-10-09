@@ -671,7 +671,10 @@ def sed_job(request, text):
     # says what groups matched; where they matched comes from glibc's regex,
     # the engine GNU sed is built on, run at the place sed found the match. A
     # group it cannot place keeps the text sed gave it.
-    separator = b"\x7f" if b"\x7f" not in subject else b"\x1f"
+    separator = next((bytes([c]) for c in (0x7F, 0x1F, 0x1E, 0x1D, 0x1C, 0x1B, 0x0E, 0x0F, 0x10, 0x11) if bytes([c]) not in subject and bytes([c]) not in (open_mark, close_mark)), None)
+    if separator is None:
+        yield {"ok": False, "error": "Rex cannot mark matches in a text that uses every control character"}
+        return
     replacement = open_mark + b"&" + b"".join(separator + b"\\" + str(g).encode() for g in range(1, groups + 1)) + close_mark
     pattern = request["pattern"].encode("utf-8", "surrogatepass")
     # The s command's delimiter must not occur in the pattern or replacement.
