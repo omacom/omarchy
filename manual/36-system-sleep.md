@@ -2,6 +2,8 @@
 
 Omarchy enables suspend and hibernation by default, but if you're having issues with either on your machine, you can toggle them off.
 
+Closing a laptop lid locks immediately, then suspends a couple of seconds later if the lid is still shut. That delay is so a quick close/open does not put the machine to sleep with the lid already open. 2016–2017 MacBook Pros wait 20 seconds instead, because leaving S3 on those machines takes long enough that a short close would still feel like a hang. Any machine can set the wait in `/etc/omarchy/lid-suspend-delay` (one number, seconds). Docked (clamshell) lid close stays awake on the external display.
+
 ### Power profiles
 
 On a laptop, Omarchy remembers your power profile separately for plugged in and running on battery, and switches between the two as you plug and unplug. Out of the box that means performance on AC and balanced on battery.
