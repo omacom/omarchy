@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Install Sublime Text and configure it with the current Omarchy theme
+
+echo "Installing Sublime Text..."
+omarchy-pkg-add sublime-text-4
+
+# Ensure the rendered scheme exists for users whose current theme predates this template.
+if [[ ! -e $HOME/.local/state/omarchy/current/theme/Omarchy.sublime-color-scheme ]]; then
+  omarchy-theme-refresh
+fi
+
+omarchy-theme-set-sublime
+
+setsid uwsm-app -- gtk-launch sublime_text >/dev/null 2>&1 &
