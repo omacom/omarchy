@@ -46,6 +46,7 @@ Item {
     { id: "debug", icon: Icons.ICONS.debug, label: "Debugger (PCRE2)" },
     { id: "bench", icon: Icons.ICONS.bench, label: "Benchmark" },
     { id: "code", icon: Icons.ICONS.code, label: "Code" },
+    { id: "reference", icon: Icons.ICONS.reference, label: "Reference" },
   ]
   property string page: "workbench"
   // Pages are built the first time they are shown and kept after that.
@@ -421,6 +422,13 @@ Item {
           active: root.visited.code === true
           visible: root.page === "code"
           sourceComponent: CodePage { app: root }
+        }
+
+        Loader {
+          anchors.fill: parent
+          active: root.visited.reference === true
+          visible: root.page === "reference"
+          sourceComponent: ReferencePage { app: root }
         }
 
         Loader {

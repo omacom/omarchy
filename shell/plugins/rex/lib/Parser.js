@@ -472,7 +472,7 @@ function parseGroup(st, depth) {
       return rec
     }
   }
-  if (c === "R" || isDigit(c) || ((c === "+" || c === "-") && isDigit(st.peek(1))) || c === "&") {
+  if (st.f.recursion && (c === "R" || isDigit(c) || ((c === "+" || c === "-") && isDigit(st.peek(1))) || c === "&")) {
     var r = /^(R|[+-]?\d+|&[A-Za-z_][A-Za-z0-9_]*)\)/.exec(st.src.substr(st.pos))
     if (r) {
       st.pos += r[0].length
@@ -517,6 +517,7 @@ function parseGroup(st, depth) {
     }
     var info = { on: on, off: off, caret: flagMatch[1] === "^" }
     if (flagMatch[4] === ")") {
+      if (!st.f.globalInlineFlags && allowed !== "") st.error(st.flavor.name + " only takes flags scoped to a group, as in (?" + on + ":...)", start, st.pos)
       if (st.flavor.id === "python" && start > 0) st.error("Python only accepts global flags like (?" + on + ") at the start of the pattern", start, st.pos)
       return node("flags", start, st.pos, info)
     }
@@ -703,6 +704,15 @@ function parseEscape(st) {
   }
 
   st.pos++
+  if (meaning === "notnewline" && st.peek() === "{" && st.flavor.id === "pcre2") {
+    var named = /^\{(U\+[0-9a-fA-F]+)\}/.exec(st.src.substr(st.pos))
+    if (!named) {
+      st.error("PCRE2 does not support \\N{name}; only \\N{U+hhhh} in UTF mode", start, st.pos + 1)
+      return node("chartype", start, st.pos, { kind: meaning, negated: false })
+    }
+    st.pos += named[0].length
+    return node("literal", start, st.pos, { value: parseInt(named[1].substr(2), 16), escaped: true })
+  }
   if (CHARTYPES[meaning] !== undefined || meaning === "newline" || meaning === "notnewline" || meaning === "grapheme")
     return node("chartype", start, st.pos, { kind: meaning, negated: false })
   if (meaning.indexOf("char:") === 0)
@@ -716,7 +726,7 @@ function parseSpecialEscape(st, start, c, meaning, inClass) {
   var m
   switch (meaning) {
   case "hexEscape":
-    if (!st.js && (m = /^\{([0-9a-fA-F]+)\}/.exec(rest)) && st.flavor.id !== "python" && st.flavor.id !== "dotnet") {
+    if (!st.js && st.f.bracedHex && (m = /^\{([0-9a-fA-F]+)\}/.exec(rest))) {
       st.pos += m[0].length
       return codeLiteral(st, start, parseInt(m[1], 16))
     }
@@ -737,7 +747,7 @@ function parseSpecialEscape(st, start, c, meaning, inClass) {
       st.error("\\U needs eight hexadecimal digits", start, st.pos)
       return codeLiteral(st, start, 0)
     }
-    if ((m = /^\{([0-9a-fA-F]+)\}/.exec(rest)) && (st.mode.u || st.flavor.id === "rust" || st.flavor.id === "resid")) {
+    if ((m = /^\{([0-9a-fA-F ]+)\}/.exec(rest)) && (st.mode.u || st.flavor.id === "rust" || st.flavor.id === "ruby")) {
       st.pos += m[0].length
       return codeLiteral(st, start, parseInt(m[1], 16))
     }
@@ -809,6 +819,12 @@ function parseProperty(st, start, negated) {
   var m = /^\{(\^?)([^}]*)\}/.exec(st.src.substr(st.pos))
   if (m) {
     st.pos += m[0].length
+    // Java and .NET take general categories bare, but scripts and blocks
+    // only with a prefix: \p{IsGreek}.
+    if ((st.flavor.id === "java" || st.flavor.id === "dotnet") && !GENERAL_CATEGORIES[m[2]] && !/^(Is|In|script=|sc=|block=|blk=|general_category=|gc=)/i.test(m[2])
+        && !(st.flavor.id === "java" && JAVA_PROPERTIES[m[2]])) {
+      st.error(st.flavor.name + " names scripts and blocks with a prefix, as in \\p{Is" + m[2] + "}", start, st.pos)
+    }
     return node("property", start, st.pos, { name: m[2], negated: negated !== (m[1] === "^") })
   }
   if (st.f.shortProperties && /^[A-Za-z]/.test(st.peek())) {
@@ -819,6 +835,11 @@ function parseProperty(st, start, negated) {
   st.error("\\p needs a property name such as \\p{L}", start, st.pos)
   return node("property", start, st.pos, { name: "", negated: negated })
 }
+
+var GENERAL_CATEGORIES = {}
+"L Lu Ll Lt Lm Lo LC M Mn Mc Me N Nd Nl No P Pc Pd Ps Pe Pi Pf Po S Sm Sc Sk So Z Zs Zl Zp C Cc Cf Cs Co Cn".split(" ").forEach(function(c) { GENERAL_CATEGORIES[c] = true })
+var JAVA_PROPERTIES = {}
+"Lower Upper ASCII Alpha Digit Alnum Punct Graph Print Blank Cntrl XDigit Space javaLowerCase javaUpperCase javaWhitespace javaMirrored".split(" ").forEach(function(c) { JAVA_PROPERTIES[c] = true })
 
 function parseDigitEscape(st, start) {
   var m = /^\d+/.exec(st.src.substr(st.pos))
@@ -831,6 +852,13 @@ function parseDigitEscape(st, start) {
     return node("literal", start, st.pos, { value: parseInt(oct, 8), escaped: true })
   }
   if (!st.f.backrefs) {
+    // Without backreferences, \12 and \123 are octal escapes (Go); a
+    // lone \1 is an error.
+    var octal = /^[0-7]{2,3}/.exec(digits)
+    if (st.f.octal && octal) {
+      st.pos += octal[0].length
+      return node("literal", start, st.pos, { value: parseInt(octal[0], 8), escaped: true })
+    }
     st.pos += digits.length
     st.unsupported("Backreferences", start, st.pos)
     return node("backref", start, st.pos, { ref: number, relative: false })
@@ -996,7 +1024,7 @@ function parseClass(st) {
         items.push(node("range", item.start, to.end, { from: item, to: to }))
         continue
       }
-      if (st.flavor.id === "python" || st.flavor.id === "java" || st.flavor.id === "go" || st.flavor.id === "rust" || st.mode.u)
+      if (st.f.classEscapeRange === "error" || st.mode.u)
         st.error("A range needs a single character on each side", item.start, to ? to.end : st.pos)
       items.push(item)
       items.push(node("literal", dash, dash + 1, { value: 45 }))

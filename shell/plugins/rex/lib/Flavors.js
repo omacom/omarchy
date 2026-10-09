@@ -109,6 +109,13 @@ var PERL = {
   quantifiedAssertions: true,
   // Duplicate group names accepted
   duplicateNames: false,
+  // A class shorthand such as \w as the end of a range, as in [\w-z]:
+  // "error", or "literal" when the - is taken as itself
+  classEscapeRange: "error",
+  // A standalone (?i) that changes flags for the rest of the pattern
+  globalInlineFlags: true,
+  // \x{...} with braces
+  bracedHex: true,
 }
 
 function features(overrides) {
@@ -167,6 +174,7 @@ var FLAVORS = [
       escapes: { h: null, v: "char:11", R: null, N: null, X: null, o: null, e: null, K: null, Q: null, g: null, a: null, p: null, u: "unicodeEscape" },
       unknownEscape: "literal", openMinRepeat: false, verbs: false, callouts: false, emptyClass: true,
       maxRepeat: 0,
+      classEscapeRange: "literal", bracedHex: false,
     }),
     flags: [
       flag("i", "Ignore case", CASE, ""),
@@ -197,6 +205,7 @@ var FLAVORS = [
       escapes: { h: null, v: "char:11", R: null, N: null, X: null, o: null, e: null, K: null, Q: null, g: null, a: null, u: "unicodeEscape" },
       unknownEscape: "literal", openMinRepeat: false, verbs: false, callouts: false, emptyClass: true,
       duplicateNames: true, maxRepeat: 0,
+      classEscapeRange: "literal", globalInlineFlags: false, bracedHex: false,
     }),
     flags: [
       flag("i", "Ignore case", CASE),
@@ -251,6 +260,7 @@ var FLAVORS = [
     features: features({
       inlineFlags: "imnsxpadlu", verbs: true, callouts: false,
       escapes: { N: "namedChar" },
+      classEscapeRange: "literal", gSubroutines: false,
     }),
     flags: [
       flag("i", "Ignore case", CASE),
@@ -281,6 +291,7 @@ var FLAVORS = [
       anchors: "AZbB", posixClasses: false, unicodeProperties: false, shortProperties: false,
       escapes: { h: null, v: "char:11", R: null, N: "namedChar", X: null, o: null, e: null, K: null, Q: null, g: null, c: null, p: null, k: null, u: "unicodeEscape", U: "unicodeEscape" },
       verbs: false, callouts: false, maxRepeat: 4294967295,
+      bracedHex: false,
     }),
     flags: [
       flag("i", "Ignore case", CASE),
@@ -340,8 +351,9 @@ var FLAVORS = [
       gBackrefs: false, relativeBackrefs: false, recursion: false, gSubroutines: true, branchReset: false,
       inlineFlags: "imx", caretFlags: false, quoting: false,
       anchors: "AzZGbB", classIntersection: true, nestedClasses: true,
-      escapes: { h: "hex", v: "char:11", N: null, o: null, Q: null, g: "gref" },
+      escapes: { h: "hex", v: "char:11", N: "notnewline", o: null, Q: null, g: "gref", u: "unicodeEscape" },
       verbs: false, callouts: false, absent: true, maxRepeat: 100000,
+      unknownEscape: "literal", bracedHex: false,
     }),
     flags: [
       flag("i", "Ignore case", CASE),
@@ -367,8 +379,10 @@ var FLAVORS = [
       gBackrefs: false, relativeBackrefs: false, recursion: false, gSubroutines: false, branchReset: false,
       inlineFlags: "imnsx", caretFlags: false, quoting: false, resetStart: false,
       anchors: "AzZGbB", posixClasses: false, shortProperties: false, classSubtraction: "net", openMinRepeat: false,
-      escapes: PLAIN_ESCAPES, verbs: false, callouts: false, balancing: true, duplicateNames: true,
+      escapes: { h: null, v: "char:11", R: null, N: null, X: null, o: null, e: "char:27", K: null, Q: null, g: null, u: "unicodeEscape" },
+      verbs: false, callouts: false, balancing: true, duplicateNames: true,
       maxRepeat: 2147483647,
+      bracedHex: false,
     }),
     flags: [
       flag("i", "Ignore case", CASE),
@@ -400,9 +414,10 @@ var FLAVORS = [
       recursion: false, gSubroutines: false, conditionals: false, branchReset: false,
       inlineFlags: "idmsuxU", caretFlags: false,
       anchors: "AzZGbB", posixClasses: false, classIntersection: true, nestedClasses: true,
-      escapes: { e: "char:27", o: null, g: null, K: null, N: "namedChar" },
+      escapes: { e: "char:27", o: null, g: null, K: null, N: "namedChar", u: "unicodeEscape" },
       verbs: false, callouts: false, openMinRepeat: false, strayBrace: "error",
       maxRepeat: 2147483647,
+      comments: false,
     }),
     flags: [
       flag("i", "Case insensitive", CASE),
@@ -465,6 +480,7 @@ var FLAVORS = [
       anchors: "AzbB", classIntersection: true, classSubtraction: "--", nestedClasses: true,
       escapes: { h: null, v: "char:11", R: null, N: null, X: null, o: null, e: null, K: null, Q: null, g: null, k: null, c: null, u: "unicodeEscape", U: "unicodeEscape" },
       octal: false, openMinRepeat: false, verbs: false, callouts: false, maxRepeat: 0,
+      strayBrace: "error",
     }),
     flags: [
       flag("i", "Case insensitive", CASE),
@@ -497,6 +513,7 @@ var FLAVORS = [
       escapes: { h: null, v: "char:11", R: null, N: null, X: null, o: null, e: null, K: null, Q: null, g: null, a: null, p: null, k: null, u: "unicodeEscape" },
       unknownEscape: "error", openMinRepeat: false, strayBrace: "error", verbs: false, callouts: false,
       maxRepeat: 0,
+      unknownEscape: "literal", octal: false, bracedHex: false,
     }),
     flags: [
       flag("i", "icase", CASE, ""),
@@ -683,6 +700,7 @@ var FLAVORS = [
       anchors: "AzbB", unicodeProperties: false, shortProperties: false,
       escapes: { h: null, v: "char:11", R: null, N: null, X: null, o: null, K: null, Q: null, g: null, k: null, c: null, p: null, u: "unicodeEscape" },
       octal: false, verbs: false, callouts: false, maxRepeat: 0,
+      comments: true, anchors: "AzZbB",
     }),
     flags: [
       flag("i", "Ignore case", CASE),

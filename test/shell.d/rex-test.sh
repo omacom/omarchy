@@ -606,3 +606,54 @@ for language in "${!ran[@]}"; do
   [[ ${ran[$language]} == "true" ]] || fail "generated $language code matches the pattern it was given" "${ran[$language]}"
 done
 pass "generated code carries the pattern intact in ${!ran[*]}"
+
+# ---- the reference agrees with the engines ------------------------------------------
+
+# Rex's parser decides which reference entries a flavor has; each engine
+# must accept exactly those. A few constructs compile in some engines while
+# meaning something else (Perl's \u uppercases the next character, Python
+# reads [[:upper:]] as an ordinary set); Rex rightly calls those unsupported.
+declare -A means_else=(
+  [python]='[[:alpha:]]'
+  [perl]='\uhhhh'
+  [ruby]='\g{-1}'
+  [node]='\p{L} \P{L}|\p{Greek}|[[:alpha:]]'
+  [rust]='*+ ++ ?+'
+  [java]='[[:alpha:]]'
+  [dotnet]='[[:alpha:]]'
+  [cpp]='*+ ++ ?+'
+)
+for flavor in pcre2 python perl ruby node go rust java dotnet cpp resid; do
+  worker=${flavor}
+  [[ $flavor == "pcre2" ]] && worker=python
+  command -v "${worker_command[$worker]}" >/dev/null || continue
+  [[ $worker == "dotnet" && -z $(dotnet --list-sdks 2>/dev/null) ]] && continue
+  requests=$(ROOT="$ROOT" node -e '
+const { loadQmlJs } = require(process.env.ROOT + "/test/shell.d/fixtures/qml-js-loader.js")
+const R = loadQmlJs(process.env.ROOT + "/shell/plugins/rex/lib/Reference.js")
+R.forFlavor(process.argv[1]).forEach((e, i) => console.log(JSON.stringify({ op: "match", id: i, flavor: process.argv[1], pattern: e.pattern, flags: [], text: "x", textId: i, rex: e.supported, syntax: e.syntax })))' "$flavor")
+  replies=$(OMARCHY_PATH="$ROOT" timeout 300 "$ROOT/bin/omarchy-rex-worker" "$worker" <<<"$requests" | grep -v '^{"building"')
+  [[ $replies == *buildError* ]] && continue
+  disagreements=$(python3 - "$flavor" "${means_else[$flavor]:-}" 3<<<"$requests" 4<<<"$replies" <<'PY'
+import json, os, sys
+requests = [json.loads(l) for l in os.fdopen(3) if l.strip()]
+replies = {r["id"]: r for r in (json.loads(l) for l in os.fdopen(4) if l.strip())}
+allowed = set(filter(None, sys.argv[2].split("|")))
+for q in requests:
+    r = replies.get(q["id"])
+    if r is None:
+        print(q["syntax"] + ": no reply")
+    elif r["ok"] != q["rex"] and q["syntax"] not in allowed:
+        print(q["syntax"] + ": Rex says " + ("yes" if q["rex"] else "no") + ", the engine " + ("accepts it" if r["ok"] else "says " + r.get("error", "")[:80]))
+PY
+)
+  [[ -z $disagreements ]] || fail "the $flavor reference agrees with the engine" "$disagreements"
+done
+pass "every reference entry's support agrees with the real engines"
+
+run_node_test <<'JS'
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const R = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Reference.js'))
+assert(R.forFlavor('lua').every(e => e.category === 'Lua'), 'Lua gets only Lua patterns')
+assert(R.search(R.forFlavor('pcre2'), 'lookbehind').some(e => e.syntax === '(?<=…)'), 'searching finds entries by meaning')
+JS
