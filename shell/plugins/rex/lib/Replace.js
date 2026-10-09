@@ -343,6 +343,9 @@ function split(syntax, text, matches, count, stride) {
     var i = order[k]
     var s = matches[i * stride], e = matches[i * stride + 1]
     if (rule.skipEmptyMatchAtEdges && s === e && (s === 0 || s === text.length)) continue
+    // JavaScript also skips an empty match right where the last separator
+    // ended: "ab".split(/a*/) is ["", "b"].
+    if (syntax === "js" && s === e && s === at && k > 0) continue
     out.push({ text: text.substring(at, s), group: 0 })
     if (rule.groups) {
       for (var g = 1; g < stride / 2; g++) {

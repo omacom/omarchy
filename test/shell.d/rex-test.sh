@@ -386,6 +386,8 @@ splits('perl', '(,)', 'a,b,,', ['a', ',', 'b', ',', '', ','])
 splits('ruby', ',', 'a,b,,', ['a', 'b'])
 splits('java', ',', ',a', ['', 'a'])
 splits('java', 'x*', 'abc', ['a', 'b', 'c'])
+splits('js', 'a*', 'ab', 'ab'.split(/a*/))
+splits('js', 'a*', 'bab', 'bab'.split(/a*/))
 
 // A right-to-left search reports matches last first; the result is the same.
 const reversed = { matches: [2, 3, 0, 1], count: 2, stride: 2 }
