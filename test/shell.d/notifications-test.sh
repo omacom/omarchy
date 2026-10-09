@@ -163,6 +163,154 @@ assertEqual(
   'notifications keep the body markup the body-markup capability advertises'
 )
 
+// Clients that relay escaped markup (KDE Connect forwarding a phone app's
+// notification) hand over `&lt;b&gt;`/`&lt;br/&gt;`. Those are decoded back
+// into the inline markup the body-markup capability advertises, so the tags
+// render instead of showing. The decoded set is exactly b/i/u plus br.
+//
+// The real KDE Connect payloads behind the report, run through the whole
+// pipeline the card binds to.
+assertEqual(
+  notifications.styledBody(
+    'Pull Request Review Group (INS Teams): &lt;b&gt;Yichen Li&lt;/b&gt;\nFixed, thanks!&lt;br/&gt;&lt;b&gt;Shawn Tang&lt;/b&gt;\nthis pr still need a review',
+    'KDE Connect', ''),
+  'Pull Request Review Group (INS Teams): <b>Yichen Li</b><br/>Fixed, thanks!<br/><b>Shawn Tang</b><br/>this pr still need a review',
+  'notifications render a real KDE Connect body: bold names and line breaks'
+)
+assertEqual(
+  notifications.styledBody('announcements: &lt;b&gt;OldManBroski&lt;/b&gt;\n@room', 'KDE Connect', ''),
+  'announcements: <b>OldManBroski</b><br/>@room',
+  'notifications render an escaped bold name ahead of a real newline'
+)
+
+// Every spelling of an escaped tag we mean to decode.
+const decodedMarkup = [
+  ['&lt;b&gt;bold&lt;/b&gt;', '<b>bold</b>', 'bold'],
+  ['&lt;i&gt;italic&lt;/i&gt;', '<i>italic</i>', 'italic'],
+  ['&lt;u&gt;underlined&lt;/u&gt;', '<u>underlined</u>', 'underline'],
+  ['&lt;br&gt;', '<br>', 'line break'],
+  ['&lt;br/&gt;', '<br/>', 'self-closed line break'],
+  ['&lt;br /&gt;', '<br/>', 'line break with a space before the slash'],
+  ['&lt;br &gt;', '<br>', 'line break with a space before the angle bracket'],
+  ['&lt;B&gt;x&lt;/B&gt;', '<B>x</B>', 'uppercase tag'],
+  ['&lt;I&gt;x&lt;/I&gt;', '<I>x</I>', 'uppercase italic tag'],
+  ['a&lt;br&gt;b', 'a<br>b', 'line break between words'],
+  ['&lt;b&gt;A&lt;/b&gt; and &lt;i&gt;B&lt;/i&gt;', '<b>A</b> and <i>B</i>', 'run of inline tags'],
+]
+for (const [input, expected, label] of decodedMarkup) {
+  assertEqual(
+    notifications.sanitizeBody(input, 'KDE Connect', ''),
+    expected,
+    `notifications decode an escaped ${label}`
+  )
+}
+
+// Everything outside b/i/u/br stays escaped: the renderer shows the text as it
+// stands, and no tag is materialised. Asserted on the whole output, which is
+// what proves nothing was promoted.
+const leftEscaped = [
+  ['&lt;a href=&quot;https://example.com&quot;&gt;link&lt;/a&gt;', 'an anchor'],
+  ['&lt;img src="http://host/x.png"&gt;', 'an image'],
+  ['&lt;font color="red"&gt;x&lt;/font&gt;', 'a colour span'],
+  ['&lt;h1&gt;heading&lt;/h1&gt;', 'a heading'],
+  ['&lt;p&gt;paragraph&lt;/p&gt;', 'a paragraph'],
+  ['&lt;pre&gt;block&lt;/pre&gt;', 'a preformatted block'],
+  ['&lt;ol&gt;&lt;li&gt;item&lt;/li&gt;&lt;/ol&gt;', 'a list'],
+  ['&lt;strong&gt;x&lt;/strong&gt;', 'a strong tag Qt renders but we do not advertise'],
+  ['&lt;s&gt;x&lt;/s&gt;', 'a strike tag Qt renders but we do not advertise'],
+  ['&lt;del&gt;x&lt;/del&gt;', 'a del tag Qt renders but we do not advertise'],
+  ['&lt;em&gt;x&lt;/em&gt;', 'an em tag Qt does not render at all'],
+  ['&lt;span&gt;x&lt;/span&gt;', 'a span Qt does not render at all'],
+  ['&lt;unknown&gt;x&lt;/unknown&gt;', 'an unknown tag'],
+  ['&lt;b class="x"&gt;x', 'a tag carrying attributes'],
+  ['&lt;b/&gt;', 'a self-closed emphasis tag, which only br may be'],
+  ['&lt;bb&gt;x&lt;/bb&gt;', 'a name that only starts with b'],
+  ['&lt;brx&gt;', 'a name that only starts with br'],
+  ['&lt;u2&gt;x&lt;/u2&gt;', 'a name that only starts with u'],
+]
+for (const [input, label] of leftEscaped) {
+  assertEqual(
+    notifications.sanitizeBody(input, 'KDE Connect', ''),
+    input,
+    `notifications leave ${label} escaped instead of decoding it`
+  )
+}
+
+// A bare `&lt;` is not a tag: `5 &lt; 10` must survive to render as a
+// comparison, not be read as the opening of a malformed tag named `10`.
+assertEqual(
+  notifications.sanitizeBody('5 &lt; 10 and &gt; 3', 'KDE Connect', ''),
+  '5 &lt; 10 and &gt; 3',
+  'notifications leave escaped comparisons alone instead of reading them as tags'
+)
+assertEqual(
+  notifications.sanitizeBody('a &lt; b &gt; c', 'KDE Connect', ''),
+  'a &lt; b &gt; c',
+  'notifications leave a spaced escaped angle pair as text'
+)
+assertEqual(
+  notifications.sanitizeBody('a &lt;b c&gt; d', 'KDE Connect', ''),
+  'a &lt;b c&gt; d',
+  'notifications leave an escaped name with trailing words as text'
+)
+// Numeric angle entities are Qt's to decode as text; we must not promote them.
+assertEqual(
+  notifications.sanitizeBody('&#60;b&#62;x', 'KDE Connect', ''),
+  '&#60;b&#62;x',
+  'notifications leave numeric angle entities for the renderer, never a tag'
+)
+
+// img is not in the set, so an escaped image tag stays inert text rather than
+// becoming a live remote GET. Asserted on the whole output, and through
+// styledBody too, so neither the newline rewrite nor a kept tag can expose one.
+assertEqual(
+  notifications.sanitizeBody('&lt;img src="http://host/x.png"&gt;kept', 'KDE Connect', ''),
+  '&lt;img src="http://host/x.png"&gt;kept',
+  'notifications do not turn an escaped image tag into a live one'
+)
+assertNoImageSurvives(
+  '&lt;img src="http://host/escaped.png"&gt;',
+  'notifications leave no image tag when the payload was HTML-escaped'
+)
+assertNoImageSurvives(
+  '&lt;b&gt;x&lt;img src="http://host/escaped-inner.png"&gt;&lt;/b&gt;',
+  'notifications leave no image tag when an escaped image sits beside decoded markup'
+)
+assertNoImageSurvives(
+  '&lt;b&gt;\n<img src="http://host/raw-split.png">',
+  'notifications strip a raw image tag the newline rewrite exposes beside decoded markup'
+)
+assertNoImageSurvives(
+  '&lt;b onclick=&quot;&gt;&lt;img src="http://host/smuggled.png"&gt;&quot;&gt;',
+  'notifications leave no image tag smuggled through an escaped attribute'
+)
+
+// Decode exactly once: a doubly-escaped tag stays escaped, so an encoded
+// `&lt;` cannot be promoted to markup a second level down.
+assertEqual(
+  notifications.sanitizeBody('&amp;lt;b&amp;gt;', 'KDE Connect', ''),
+  '&amp;lt;b&amp;gt;',
+  'notifications decode an escaped body once, never twice'
+)
+assertEqual(
+  notifications.sanitizeBody('&amp;lt;br/&amp;gt;', 'KDE Connect', ''),
+  '&amp;lt;br/&amp;gt;',
+  'notifications do not promote a double-escaped line break to a real one'
+)
+assertEqual(
+  notifications.sanitizeBody('Tom &amp; Jerry', 'KDE Connect', ''),
+  'Tom &amp; Jerry',
+  'notifications leave entity-encoded plain text for the renderer'
+)
+
+// Raw (unescaped) markup is the sender's own and is left exactly as before;
+// the decode only ever adds to the escaped forms.
+assertEqual(
+  notifications.sanitizeBody('<b>raw</b>\n<i>markup</i>', 'KDE Connect', ''),
+  '<b>raw</b>\n<i>markup</i>',
+  'notifications leave raw markup untouched while decoding escaped markup elsewhere'
+)
+
 assertEqual(
   notifications.sanitizeBody('<a href="https://example.com">example.com</a> Message body', 'Chromium', ''),
   'Message body',
