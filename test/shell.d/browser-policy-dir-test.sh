@@ -298,7 +298,12 @@ exit "$POLICY_STATUS"
 SH
 cat >"$integration_omarchy/default/vivaldi/vivaldi-theme-refresh" <<'SH'
 #!/bin/bash
+echo refresh >>"$VIVALDI_REFRESH_LOG"
 exit "$VIVALDI_STATUS"
+SH
+cat >"$integration_bin/stat" <<'SH'
+#!/bin/bash
+echo 'root:root 644'
 SH
 cat >"$integration_bin/omarchy-cmd-present" <<'SH'
 #!/bin/bash
@@ -309,6 +314,7 @@ chmod +x "$integration_bin"/* \
 
 run_browser_theme_set() {
   POLICY_STATUS="$1" VIVALDI_STATUS="$2" \
+    VIVALDI_REFRESH_LOG="$integration_root/refreshes" \
     HOME="$integration_root/home" OMARCHY_PATH="$integration_omarchy" \
     PATH="$integration_bin:/usr/bin:/bin" \
     bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null 2>&1
@@ -327,6 +333,7 @@ run_browser_theme_set 0 0 ||
   fail "omarchy-theme-set-browser succeeds when policy and Vivaldi refresh both succeed"
 vivaldi_stderr=$(
   POLICY_STATUS=0 VIVALDI_STATUS=1 \
+    VIVALDI_REFRESH_LOG="$integration_root/refreshes" \
     HOME="$integration_root/home" OMARCHY_PATH="$integration_omarchy" \
     PATH="$integration_bin:/usr/bin:/bin" \
     bash "$ROOT/bin/omarchy-theme-set-browser" 2>&1 >/dev/null || true
@@ -334,6 +341,22 @@ vivaldi_stderr=$(
 [[ $vivaldi_stderr == *"Vivaldi theme refresh failed"* ]] ||
   fail "omarchy-theme-set-browser names a failed Vivaldi refresh"
 pass "omarchy-theme-set-browser aggregates policy and Vivaldi failures"
+
+# The Chromium policy color is unchanged, but Vivaldi's other colors or
+# Hyprland appearance may have changed. It still needs its independent refresh.
+canonical_dir="$integration_root/policies"
+mkdir -p "$canonical_dir"
+printf '%s\n' '{"BrowserThemeColor": "#1c2027", "BrowserColorScheme": "device"}' \
+  >"$canonical_dir/color.json"
+rm -f "$integration_root/refreshes"
+OMARCHY_BROWSER_POLICY_DIRS="$canonical_dir" run_browser_theme_set 1 0 ||
+  fail "unchanged Chromium policies skip the policy writer"
+[[ $(cat "$integration_root/refreshes") == "refresh" ]] ||
+  fail "unchanged Chromium policies still refresh Vivaldi exactly once"
+if OMARCHY_BROWSER_POLICY_DIRS="$canonical_dir" run_browser_theme_set 0 1; then
+  fail "unchanged Chromium policies still report a Vivaldi refresh failure"
+fi
+pass "unchanged Chromium policies do not skip Vivaldi refresh or hide its failure"
 
 # Bash 5.3 adopts the EXIT trap's last status as the script's exit status, so a
 # handler ending on a false test turns a clean run into a failure and aborts the
