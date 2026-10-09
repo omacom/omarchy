@@ -51,6 +51,7 @@ Item {
   }
 
   function reset() {
+    checkSerial++
     answer = ""
     results = []
     showHint = false
@@ -60,10 +61,17 @@ Item {
 
   onVisibleChanged: if (visible) Qt.callLater(function() { answerField.focusEditor() })
 
+  // A check answers for the lesson, exercise, and answer it was started
+  // with; one that comes back after any of them changed is dropped.
+  property int checkSerial: 0
+
   function check() {
+    var serial = ++checkSerial
+    var lessonId = current, exerciseIndex = exercise
     runner.run("lesson", answer, taskFlavor, taskFlags, task.tests, function(r) {
+      if (serial !== root.checkSerial) return
       root.results = r
-      if (root.solved) root.app.markLessonDone(root.current, root.exercise)
+      if (r.length && r.every(function(x) { return x && x.pass })) root.app.markLessonDone(lessonId, exerciseIndex)
     })
   }
 
