@@ -180,8 +180,14 @@ choose_staged_theme_background() {
   fi
 }
 
+# A theme without an image has no wallpaper, so the shell draws none and
+# Hyprland's own background colour shows. A link left behind would point into
+# the theme directory the swap just replaced.
 set_theme_background_link() {
-  choose_theme_background || return 1
+  if ! choose_theme_background; then
+    rm -f "$CURRENT_BACKGROUND_LINK"
+    return 1
+  fi
   ln -nsf "$CHOSEN_THEME_BACKGROUND" "$CURRENT_BACKGROUND_LINK"
 }
 
@@ -190,6 +196,8 @@ set_theme_background() {
 
   if [[ -z $CHOSEN_THEME_BACKGROUND || ! -f $CHOSEN_THEME_BACKGROUND ]]; then
     if ! choose_theme_background; then
+      rm -f "$CURRENT_BACKGROUND_LINK"
+      shell_ipc background clear || true
       omarchy-notification-send "No background was found for theme" -t 2000
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
       return
@@ -238,6 +246,10 @@ set_theme_background() {
     fi
   fi
 
+  # Linked before the shell hears of it, so a link read that lands mid-transition
+  # finds the new wallpaper rather than no link, which would clear the transition.
+  ln -nsf "$new_background" "$CURRENT_BACKGROUND_LINK"
+
   if [[ -f $OLD_BACKGROUND_SNAPSHOT && -f $new_background_snapshot ]]; then
     shell_ipc background themeTransition "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot" "$new_background" "$colors_payload" "$shell_payload" || \
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
@@ -253,8 +265,6 @@ set_theme_background() {
       (sleep 3; rm -f "$OLD_BACKGROUND_SNAPSHOT") &
     fi
   fi
-
-  ln -nsf "$new_background" "$CURRENT_BACKGROUND_LINK"
 }
 
 is_denied_installed_file() {

@@ -74,4 +74,9 @@ assert(
     /function prepareBackground[\s\S]*?requestNativeSize\(path\)/.test(backgroundQml),
   'background never probes videos and probes a prepared frame ahead of its transition'
 )
+
+assert(
+  /if ! choose_theme_background; then\s*rm -f "\$CURRENT_BACKGROUND_LINK"\s*shell_ipc background clear/.test(themeSet),
+  'a theme without a wallpaper removes the link and clears the running shell'
+)
 JS

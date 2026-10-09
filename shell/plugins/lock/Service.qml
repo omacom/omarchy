@@ -626,7 +626,7 @@ Item {
 
   Process {
     id: readlinkProc
-    command: ["bash", "-c", "path=$(readlink -f -- \"$1\") && printf '%s\\n%s\\n' \"$path\" \"$(stat -Lc %Y:%s -- \"$path\" 2>/dev/null)\"", "_", root.currentBackgroundLink]
+    command: ["bash", "-c", "path=$(readlink -e -- \"$1\") && printf '%s\\n%s\\n' \"$path\" \"$(stat -Lc %Y:%s -- \"$path\" 2>/dev/null)\"", "_", root.currentBackgroundLink]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
