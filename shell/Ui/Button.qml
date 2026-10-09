@@ -156,9 +156,10 @@ BorderSurface {
     anchors.verticalCenter: parent.verticalCenter
     anchors.left: root.leftAlign ? parent.left : undefined
     anchors.leftMargin: root.leftAlign ? root._reservedContentLeftInset : 0
-    // Center on whole pixels. Glyph widths are fractional (e.g. 14.98px for
-    // a Nerd Font icon), and a half-pixel offset lets the glyph round a pixel
-    // away from the box center while the fill does not.
+    // Center with one rounding step. Glyph widths are fractional (e.g.
+    // 14.98px for a Nerd Font icon), and anchors.horizontalCenter rounds
+    // the parent's center and the row's half-width separately, which can
+    // leave the content a pixel right of center.
     x: Math.round((root.width - width) / 2)
     spacing: Style.spacing.controlGap
 
