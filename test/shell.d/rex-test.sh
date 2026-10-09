@@ -234,8 +234,10 @@ JS
 
 # ---- engine workers ---------------------------------------------------------
 
-# Each case runs on the real engine. Offsets are UTF-16 code units, so the
-# accented and astral characters check every worker's conversion.
+# Each case runs on the real engine: [worker, flavor, pattern, flags, text,
+# expected matches, group count]. Offsets are UTF-16 code units, so the
+# accented and astral characters check every worker's conversion. The tools
+# and Vim only report group text, so they are told how many groups there are.
 worker_cases='[
   ["python", "python", "(\\w)(?P<n>é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
   ["python", "pcre2", "(\\w)(?<n>é|😀)?", ["u"], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
@@ -249,16 +251,24 @@ worker_cases='[
   ["ruby", "ruby", "(\\w)(?<n>é|😀)?", [], "aé b😀 c", [0,2,1,2,3,6,4,6,7,8,-1,-1]],
   ["lua", "lua", "(%a)%1", [], "xaay", [1,3,1,2]],
   ["lua", "lua", "%b()", [], "x(a(b)c)y()", [1,8,9,11]],
-  ["lua", "lua", "()é", [], "aéé", [1,2,1,1,2,3,2,2]]
+  ["lua", "lua", "()é", [], "aéé", [1,2,1,1,2,3,2,2]],
+  ["python", "grep-e", "[a-z]+é?", [], "aé b😀 cé\nxyz", [0,2,3,4,7,9,10,13]],
+  ["python", "grep", "a\\|é", ["i"], "Aé", [0,1,1,2]],
+  ["python", "sed-e", "([a-z])(é)", [], "aé b😀 cé", [0,2,0,1,1,2,7,9,7,8,8,9], 2],
+  ["python", "sed", "x*", [], "ab", [0,0,1,1,2,2]],
+  ["python", "gawk", "([a-z])(é)?", [], "aé b😀\nc", [0,2,0,1,1,2,3,4,3,4,-1,-1,7,8,7,8,-1,-1], 2],
+  ["vim", "vim", "\\v(\\w)(é)", [], "aé b😀 cé", [0,2,0,1,1,2,7,9,7,8,8,9], 2],
+  ["vim", "vim", "a\\nb", [], "xa\nbc", [1,4]],
+  ["vim", "vim", "foo\\zsbar", [], "foobar", [3,6]]
 ]'
 
-declare -A worker_command=([python]=python3 [perl]=perl [ruby]=ruby [lua]=lua5.1)
-for worker in python perl ruby lua; do
+declare -A worker_command=([python]=python3 [perl]=perl [ruby]=ruby [lua]=lua5.1 [vim]=nvim)
+for worker in python perl ruby lua vim; do
   if ! command -v "${worker_command[$worker]}" >/dev/null; then
     skip "the $worker worker reports matches in UTF-16 offsets (${worker_command[$worker]} is not installed)"
     continue
   fi
-  requests=$(jq -c --arg worker "$worker" 'to_entries[] | select(.value[0] == $worker) | {op: "match", id: .key, flavor: .value[1], pattern: .value[2], flags: .value[3], text: .value[4], textId: .key}' <<<"$worker_cases")
+  requests=$(jq -c --arg worker "$worker" 'to_entries[] | select(.value[0] == $worker) | {op: "match", id: .key, flavor: .value[1], pattern: .value[2], flags: .value[3], text: .value[4], textId: .key, groups: (.value[6] // 0)}' <<<"$worker_cases")
   replies=$(OMARCHY_PATH="$ROOT" timeout 20 "$ROOT/bin/omarchy-rex-worker" "$worker" <<<"$requests")
   while IFS= read -r reply; do
     id=$(jq -r .id <<<"$reply")

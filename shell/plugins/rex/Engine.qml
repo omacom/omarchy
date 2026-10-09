@@ -69,6 +69,7 @@ Item {
       flavor: flavor.id,
       pattern: request.pattern,
       flags: request.flags,
+      groups: request.parsed ? request.parsed.groupCount : 0,
       all: request.all,
       limit: request.limit,
     }, request.text, request.textVersion)

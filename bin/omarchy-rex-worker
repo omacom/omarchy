@@ -16,6 +16,10 @@ list_flavors() {
   omarchy-cmd-present perl && echo perl
   omarchy-cmd-present ruby && echo ruby
   omarchy-cmd-present lua5.1 && echo lua
+  omarchy-cmd-present grep && printf '%s\n' grep grep-e
+  omarchy-cmd-present sed && printf '%s\n' sed sed-e
+  omarchy-cmd-present gawk && echo gawk
+  omarchy-cmd-present nvim && echo vim
   return 0
 }
 
@@ -25,8 +29,9 @@ case ${1:-} in
   perl) exec perl "$WORKERS/rex_worker.pl" ;;
   ruby) exec ruby "$WORKERS/rex_worker.rb" ;;
   lua) exec lua5.1 "$WORKERS/rex_worker.lua" ;;
+  vim) exec nvim --clean --headless -l "$WORKERS/rex_worker_vim.lua" ;;
   *)
-    echo "Usage: omarchy-rex-worker <python|perl|ruby|lua>|--flavors" >&2
+    echo "Usage: omarchy-rex-worker <python|perl|ruby|lua|vim>|--flavors" >&2
     exit 1
     ;;
 esac

@@ -444,6 +444,187 @@ class Posix:
             libc.regfree(regex)
 
 
+# ---- grep, sed, gawk ------------------------------------------------------------
+#
+# The tools run once per request on the whole text, the way a user runs them
+# on a file, and report matches line by line as they do.
+
+import subprocess
+
+TOOL_ENV = dict(os.environ, LC_ALL="C.UTF-8")
+
+
+def run_tool(command, data, env=None):
+    result = subprocess.run(command, input=data, capture_output=True, env=env or TOOL_ENV, timeout=60)
+    return result.returncode, result.stdout, result.stderr.decode("utf-8", "replace").strip()
+
+
+def tool_error(stderr, name):
+    # "grep: Unmatched ( or \(" -> "Unmatched ( or \("
+    return stderr.split("\n")[0].split(": ", 1)[-1] if stderr else name + " failed"
+
+
+def place_groups(subject, match_start, match_end, values, convert, base_unit, out):
+    """Groups reported only as text sit at the first place their text occurs
+    in the match, after the group before them."""
+    matched = subject[match_start:match_end]
+    at = 0
+    for value in values:
+        if value is None:
+            out.extend((-1, -1))
+            continue
+        found = matched.find(value, at)
+        if found < 0:
+            out.extend((-1, -1))
+            continue
+        out.append(convert.relative(match_start, base_unit, match_start + found))
+        out.append(convert.relative(match_start, base_unit, match_start + found + len(value)))
+        at = found
+
+
+def grep_job(request, text):
+    flags = request.get("flags", [])
+    command = ["grep", "-o", "-b", "-a"]
+    if request.get("flavor") == "grep-e":
+        command.append("-E")
+    command += ["-" + f for f in flags if f in ("i", "w", "x")]
+    command += ["-e", request["pattern"]]
+    subject = text.encode("utf-8", "surrogatepass")
+    started = time.monotonic()
+    code, stdout, stderr = run_tool(command, subject)
+    if code > 1:
+        yield {"ok": False, "error": tool_error(stderr, "grep")}
+        return
+    convert = Bytes(subject)
+    out = []
+    limit = request.get("limit", 100000)
+    for line in stdout.split(b"\n"):
+        if not line:
+            continue
+        offset, _, value = line.partition(b":")
+        start = int(offset)
+        out.append(convert.utf16(start))
+        out.append(convert.utf16(start + len(value)))
+        if len(out) // 2 >= limit or not request.get("all", True):
+            break
+    yield {"ok": True, "done": True, "matches": out, "stride": 2, "elapsed": elapsed(started), "names": {}}
+
+
+def marker_bytes(subject):
+    """Two bytes that do not occur in the text, to mark where matches are."""
+    for a, b in ((1, 2), (3, 4), (5, 6), (14, 15), (16, 17), (18, 19), (20, 21), (22, 23)):
+        if bytes([a]) not in subject and bytes([b]) not in subject:
+            return bytes([a]), bytes([b])
+    return None, None
+
+
+def sed_job(request, text):
+    flags = request.get("flags", [])
+    groups = min(int(request.get("groups", 0)), 9)
+    subject = text.encode("utf-8", "surrogatepass")
+    open_mark, close_mark = marker_bytes(subject)
+    if open_mark is None:
+        yield {"ok": False, "error": "Rex cannot mark matches in a text that uses every control character"}
+        return
+    # Each match becomes OPEN match SEP group1 SEP group2 ... CLOSE.
+    separator = b"\x7f" if b"\x7f" not in subject else b"\x1f"
+    replacement = open_mark + b"&" + b"".join(separator + b"\\" + str(g).encode() for g in range(1, groups + 1)) + close_mark
+    pattern = request["pattern"].encode("utf-8", "surrogatepass")
+    # The s command's delimiter must not occur in the pattern or replacement.
+    delimiter = next((bytes([c]) for c in range(1, 32) if c != 10 and bytes([c]) not in pattern and bytes([c]) not in replacement), None)
+    if delimiter is None or b"\0" in pattern:
+        yield {"ok": False, "error": "Rex cannot hand this pattern to sed"}
+        return
+    script = b"s" + delimiter + pattern + delimiter + replacement + delimiter + b"g"
+    script += b"".join(f.upper().encode() for f in flags if f in ("i", "m"))
+    command = [b"sed"] + ([b"-E"] if request.get("flavor") == "sed-e" else []) + [b"-e", script]
+    started = time.monotonic()
+    code, stdout, stderr = run_tool(command, subject)
+    if code != 0:
+        yield {"ok": False, "error": tool_error(stderr, "sed")}
+        return
+    convert = Bytes(subject)
+    out = []
+    position = 0
+    index = 0
+    limit = request.get("limit", 100000)
+    while True:
+        at = stdout.find(open_mark, index)
+        if at < 0:
+            break
+        position += at - index
+        end = stdout.find(close_mark, at)
+        parts = stdout[at + 1:end].split(separator)
+        whole = parts[0]
+        base_unit = convert.utf16(position)
+        out.append(base_unit)
+        out.append(convert.relative(position, base_unit, position + len(whole)))
+        place_groups(subject, position, position + len(whole), parts[1:1 + groups] + [None] * (groups - len(parts[1:])), convert, base_unit, out)
+        position += len(whole)
+        index = end + 1
+        if len(out) // ((groups + 1) * 2) >= limit or not request.get("all", True):
+            break
+    yield {"ok": True, "done": True, "matches": out, "stride": (groups + 1) * 2, "elapsed": elapsed(started), "names": {}}
+
+
+GAWK_PROGRAM = r"""
+BEGIN { re = ENVIRON["REX_PATTERN"]; groups = ENVIRON["REX_GROUPS"] + 0; IGNORECASE = ENVIRON["REX_ICASE"] + 0; RS = "\n" }
+{
+  line = $0
+  n = split(line, pieces, re, seps)
+  at = 0
+  for (i = 1; i < n; i++) {
+    at += length(pieces[i])
+    printf "%d %d %d", NR, at, length(seps[i])
+    if (groups > 0 && match(substr(line, at + 1), re, m)) {
+      for (g = 1; g <= groups; g++) {
+        if ((g, "start") in m) printf " %d %d", at + m[g, "start"] - 1, m[g, "length"]
+        else printf " -1 -1"
+      }
+    } else {
+      for (g = 1; g <= groups; g++) printf " -1 -1"
+    }
+    printf "\n"
+    at += length(seps[i])
+  }
+}
+"""
+
+
+def gawk_job(request, text):
+    groups = int(request.get("groups", 0))
+    env = dict(TOOL_ENV, REX_PATTERN=request["pattern"], REX_GROUPS=str(groups), REX_ICASE="1" if "i" in request.get("flags", []) else "0")
+    started = time.monotonic()
+    code, stdout, stderr = run_tool(["gawk", "--re-interval", GAWK_PROGRAM], text.encode("utf-8", "surrogatepass"), env)
+    if code != 0 or (stderr and "fatal" in stderr):
+        yield {"ok": False, "error": tool_error(stderr, "gawk")}
+        return
+    # gawk counts characters in a UTF-8 locale; lines are split on \n.
+    line_starts = [0]
+    for i, c in enumerate(text):
+        if c == "\n":
+            line_starts.append(i + 1)
+    convert = CodePoints(text)
+    out = []
+    limit = request.get("limit", 100000)
+    for row in stdout.decode("utf-8", "replace").splitlines():
+        numbers = [int(x) for x in row.split()]
+        base = line_starts[numbers[0] - 1]
+        start = base + numbers[1]
+        out.append(convert.utf16(start))
+        out.append(convert.utf16(start + numbers[2]))
+        for g in range(groups):
+            gs, gl = numbers[3 + 2 * g], numbers[4 + 2 * g]
+            if gs < 0:
+                out.extend((-1, -1))
+            else:
+                out.append(convert.utf16(base + gs))
+                out.append(convert.utf16(base + gs + gl))
+        if len(out) // ((groups + 1) * 2) >= limit or not request.get("all", True):
+            break
+    yield {"ok": True, "done": True, "matches": out, "stride": (groups + 1) * 2, "elapsed": elapsed(started), "names": {}}
+
+
 # ---- dispatch ---------------------------------------------------------------------
 
 engines = {}
@@ -471,6 +652,12 @@ def job_for(request, text):
         return engine("pcre2").job(request, text)
     if flavor in ("posix-ere", "posix-bre"):
         return engine("posix").job(request, text)
+    if flavor in ("grep", "grep-e"):
+        return grep_job(request, text)
+    if flavor in ("sed", "sed-e"):
+        return sed_job(request, text)
+    if flavor == "gawk":
+        return gawk_job(request, text)
     raise ValueError("this worker does not run " + str(flavor))
 
 
@@ -485,6 +672,13 @@ def info():
         out["pcre2"] = engine("pcre2").version()
     except OSError:
         pass
+    for tool, flavors in (("grep", ("grep", "grep-e")), ("sed", ("sed", "sed-e")), ("gawk", ("gawk",))):
+        try:
+            first = subprocess.run([tool, "--version"], capture_output=True, timeout=5).stdout.decode().splitlines()[0]
+            for flavor in flavors:
+                out[flavor] = first
+        except (OSError, IndexError, subprocess.SubprocessError):
+            pass
     try:
         libc = ctypes.CDLL(ctypes.util.find_library("c"))
         libc.gnu_get_libc_version.restype = ctypes.c_char_p
