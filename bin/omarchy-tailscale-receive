@@ -40,15 +40,17 @@ claim_path() {
       candidate="$dir/$base-$index$ext"
     fi
 
-    if ln -- "$staged" "$candidate" 2>/dev/null; then
+    # Treat a directory or a symlink to one as a taken name, not a destination.
+    if ln -T -- "$staged" "$candidate" 2>/dev/null; then
       rm -f -- "$staged"
       printf '%s\n' "$candidate"
       return 0
     fi
 
     # Only a taken name is worth another spin. Anything else failed the link
-    # itself, and the file keeps its place in staging for the next run.
-    [[ -e $candidate ]] || return 1
+    # itself, and the file keeps its place in staging for the next run. Dangling
+    # symlinks take a name too, even though their targets do not exist.
+    [[ -e $candidate || -L $candidate ]] || return 1
 
     ((index++))
   done
