@@ -19,7 +19,7 @@ Item {
   readonly property color accent: app.accent
   readonly property color dim: Qt.darker(foreground, 1.5)
 
-  function focusPattern() { patternField.forceActiveFocus() }
+  function focusPattern() { patternField.focusEditor() }
 
   function localPath(url) {
     return decodeURIComponent(String(url).replace(/^file:\/\//, ""))
@@ -94,13 +94,20 @@ Item {
     }
 
     // ---- pattern ----
-    TextField {
+    PatternEditor {
       id: patternField
       Layout.fillWidth: true
-      font.pixelSize: Style.font.title
-      placeholderText: "Type a regular expression"
+      foreground: root.foreground
+      accent: root.accent
       text: root.app.pattern
-      onTextEdited: root.app.pattern = text
+      tokens: root.app.patternTokens
+      errors: root.app.parsed.errors
+      groupColors: root.app.groupColors
+      kindColors: root.app.kindColors
+      highlight: root.app.patternHighlight
+      multiline: root.app.flags.indexOf("x") >= 0
+      onEdited: function(value) { root.app.pattern = value }
+      onCursorPositionChanged: root.app.patternCursor = cursorPosition
     }
 
     Text {
@@ -218,23 +225,54 @@ Item {
         }
       }
 
-      MatchList {
-        id: matchList
-        Layout.preferredWidth: Math.max(Style.space(300), root.width * 0.32)
+      ColumnLayout {
+        Layout.preferredWidth: Math.max(Style.space(320), root.width * 0.34)
+        Layout.fillWidth: false
         Layout.fillHeight: true
-        foreground: root.foreground
-        accent: root.accent
-        text: root.app.testText
-        matches: root.app.result.matches
-        stride: root.app.result.stride
-        count: root.app.result.count
-        groupNames: root.app.groupNames
-        groupColors: root.app.groupColors
-        selectedMatch: root.app.selectedMatch
-        onPicked: function(index) {
-          root.app.selectedMatch = index
-          if (root.app.largeText) largeLoader.item.selectMatch(index)
-          else editor.selectMatch(index)
+        spacing: Style.spacing.lg
+
+        ButtonGroup {
+          options: [
+            { value: "matches", label: "Matches" },
+            { value: "explain", label: "Explain" },
+          ]
+          value: root.app.sideTab
+          onChanged: function(value) { root.app.sideTab = value }
+        }
+
+          MatchList {
+            id: matchList
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: root.app.sideTab === "matches"
+            foreground: root.foreground
+            accent: root.accent
+            text: root.app.testText
+            matches: root.app.result.matches
+            stride: root.app.result.stride
+            count: root.app.result.count
+            groupNames: root.app.groupNames
+            groupColors: root.app.groupColors
+            selectedMatch: root.app.selectedMatch
+            onPicked: function(index) {
+              root.app.selectedMatch = index
+              if (root.app.largeText) largeLoader.item.selectMatch(index)
+              else editor.selectMatch(index)
+            }
+          }
+
+        ExplainPanel {
+          Layout.fillWidth: true
+          Layout.fillHeight: true
+          visible: root.app.sideTab === "explain"
+          foreground: root.foreground
+          accent: root.accent
+          rows: root.app.explainRows
+          groupColors: root.app.groupColors
+          kindColors: root.app.kindColors
+          cursor: root.app.patternCursor
+          onHovered: function(start, end) { root.app.patternHighlight = start < 0 ? [] : [start, end] }
+          onPicked: function(start, end) { patternField.select(start, end) }
         }
       }
     }

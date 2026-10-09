@@ -9,6 +9,7 @@ import "lib/Flavors.js" as Flavors
 import "lib/Parser.js" as Parser
 import "lib/Colors.js" as Colors
 import "lib/Replace.js" as Replace
+import "lib/Explain.js" as Explain
 
 // Rex, the offline regular expression workbench. Launched from Apps
 // (applications/Rex.desktop) through omarchy-launch-rex, or directly:
@@ -66,6 +67,23 @@ Item {
     }
     return out
   }
+
+  // ---- explanation ----
+
+  readonly property var explainRows: Explain.explain(parsed, flags)
+  readonly property var patternTokens: Explain.tokens(parsed)
+  // One color per kind of syntax, spread around the wheel like the groups'.
+  readonly property var kindColors: {
+    function pick(i) { var c = Colors.groupColor(i, accent, background); return Qt.hsla(c.h, c.s, c.l, 1) }
+    return {
+      literal: foreground, escape: pick(11), class: pick(5), quantifier: accent,
+      anchor: pick(8), assertion: pick(13), meta: Qt.darker(foreground, 1.3), comment: Qt.darker(foreground, 1.8),
+    }
+  }
+  // The side panel's tab: "matches" or "explain".
+  property string sideTab: "matches"
+  property var patternHighlight: []
+  property int patternCursor: -1
 
   // ---- substitute, list, split ----
 
@@ -274,6 +292,7 @@ Item {
     if (Array.isArray(payload.flags)) flags = Flavors.validFlags(flavor, payload.flags)
     if (typeof payload.replacement === "string") replacement = payload.replacement
     if (typeof payload.tool === "string") tool = payload.tool
+    if (typeof payload.side === "string") sideTab = payload.side
 
     window.visible = true
     Qt.callLater(function() { if (window.visible) workbench.focusPattern() })

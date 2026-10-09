@@ -422,3 +422,50 @@ const astral = 'x'.repeat(1999) + '😀' + 'z'
 WorkerScript.onMessage({ id: 3, text: astral })
 assertDeepEqual(reply.starts, [0, 1999], 'a row never ends inside a surrogate pair')
 JS
+
+# ---- explanations -------------------------------------------------------------
+
+run_node_test <<'JS'
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const P = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Parser.js'))
+const E = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Explain.js'))
+const Flavors = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Flavors.js'))
+
+function titles(pattern, flavor, flags = []) {
+  return E.explain(P.parse(pattern, flavor, flags), flags).map(r => '  '.repeat(r.depth) + r.title)
+}
+
+assertDeepEqual(titles('^(?<y>\\d{4})+?$', 'pcre2'), [
+  'Start of the text',
+  'One or more times',
+  '  Named capturing group 1',
+  '    Exactly 4 times',
+  '      A digit',
+  'End of the text',
+], 'a pattern is explained as a tree in reading order')
+
+const multiline = E.explain(P.parse('^a$', 'pcre2', ['m']), ['m'])
+assertEqual(multiline[0].title, 'Start of a line', 'the m flag changes what ^ means')
+const ruby = E.explain(P.parse('^', 'ruby', []), [])
+assertEqual(ruby[0].title, 'Start of a line', "Ruby's ^ always means a line")
+const digit = (flavor, flags) => E.explain(P.parse('\\d', flavor, flags), flags)[0].detail
+assert(digit('python', []).includes('Unicode-aware'), "Python 3's \\d is Unicode-aware")
+assert(digit('node', []).includes('ASCII only'), "JavaScript's \\d is ASCII only")
+assert(digit('pcre2', []).includes('ASCII only') && digit('pcre2', ['u']).includes('Unicode-aware'), "PCRE2's \\d follows UCP")
+
+// Every flavor's tokens stay inside the pattern and never overlap, so the
+// pattern editor's tints never stack.
+const samples = ['(a|b)*c[^d-f]\\w+(?=x)\\1', '%d+(%a-)%b()', '\\(ab\\)\\{2\\}', '\\v(a|b)+\\@=', '(?P<n>x)(?P=n)']
+for (const flavor of Flavors.FLAVORS) {
+  for (const pattern of samples) {
+    const tokens = E.tokens(P.parse(pattern, flavor.id, []))
+    let at = 0
+    for (const t of tokens) {
+      if (t.start < at || t.end > pattern.length || t.end <= t.start)
+        fail(`${flavor.id} tokens for ${pattern} stay apart`, JSON.stringify(tokens))
+      at = t.end
+    }
+  }
+}
+pass('pattern tokens never overlap in any flavor')
+JS
