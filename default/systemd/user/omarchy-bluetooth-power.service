@@ -1,0 +1,16 @@
+[Unit]
+Description=Restore and save Bluetooth power preference
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+# Stay active while waiting for BlueZ, rather than skipping the session when
+# bluetoothd or a USB adapter becomes available after graphical login.
+Type=simple
+ExecStart=/usr/bin/omarchy-bluetooth-power monitor
+# On TERM, snapshot ready adapters without replacing pending preferences.
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

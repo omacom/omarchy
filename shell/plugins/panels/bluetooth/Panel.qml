@@ -625,10 +625,9 @@ Panel {
     }
   }
 
-  // Not adapter.enabled: that writes BlueZ's Powered, which nothing persists, so
-  // the adapter came back on at the next boot. omarchy-bluetooth-power moves the
-  // rfkill soft block instead, which systemd-rfkill restores across reboots.
-  // Powered still follows the block, so the switch and icon read it as before.
+  // The helper sets BlueZ Powered and remembers the preference for next login.
+  // Do not rfkill-block normal off: other applications must be able to power
+  // Bluetooth back on (for example Chromium's phone passkey prompt).
   //
   // Asking for a direction rather than a toggle: the helper runs detached and the
   // switch only moves once BlueZ catches up, so a second click inside that window

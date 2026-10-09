@@ -14,6 +14,7 @@ set -euo pipefail
 systemctl --user daemon-reload
 systemctl --user enable --now \
   bt-agent.service \
+  omarchy-bluetooth-power.service \
   owed.service \
   omarchy-recover-internal-monitor.service \
   omarchy-sleep-lock.service \
