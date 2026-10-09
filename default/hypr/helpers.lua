@@ -39,13 +39,21 @@ end
 -- Like o.shell_succeeds, but returns the command's trimmed stdout instead of
 -- a boolean, or nil when it fails or prints nothing.
 function o.shell_output(command)
-  local pipe = io.popen("( " .. command .. " ) 2>/dev/null")
+  -- Marker on its own line, so a failing command's stdout can't be mistaken
+  -- for success even when it printed something before failing.
+  local pipe = io.popen("( " .. command .. " ) 2>/dev/null && printf '\\nOK\\n'")
   if not pipe then
     return nil
   end
 
   local output = pipe:read("*a") or ""
   pipe:close()
+
+  local marker = "\nOK\n"
+  if output:sub(-#marker) ~= marker then
+    return nil
+  end
+  output = output:sub(1, -#marker - 1)
 
   output = output:match("^%s*(.-)%s*$")
   if output == "" then
