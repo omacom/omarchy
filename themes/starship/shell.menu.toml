@@ -1,0 +1,6 @@
+background-alpha      = 0.65
+scrim-alpha           = 0.0
+border                = "hyprland.active-border"
+border-width          = 1
+selected-border       = "hyprland.active-border-foreground"
+selected-border-alpha = 0.25
