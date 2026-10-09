@@ -3,6 +3,21 @@
   let cssSynced = '';
   let prefsSynced = '';
   let loggedError = false;
+  let loggedPrefsError = false;
+  let channelPath = '';
+
+  const readChannel = async () => {
+    // The UI script is machine-wide, but palettes and Hyprland appearance are
+    // per user. Vivaldi's native file API can read private files outside /opt.
+    if (!channelPath) {
+      const env = await window.vivaldi.utilities.getEnvVars(['HOME']);
+      if (!env || typeof env.HOME !== 'string' || !env.HOME.startsWith('/')) {
+        throw new Error('Omarchy: Vivaldi HOME is unavailable');
+      }
+      channelPath = env.HOME + '/.local/state/omarchy/vivaldi/theme.json';
+    }
+    return window.vivaldi.mailPrivate.readFileToText(channelPath);
+  };
 
   const isOmarchyTheme = (theme) =>
     !!theme && String(theme.name || '').indexOf(OMARCHY_THEME) === 0;
@@ -137,7 +152,7 @@
 
   const refresh = async () => {
     try {
-      const text = await (await fetch('style/omarchy.json', { cache: 'no-store' })).text();
+      const text = await readChannel();
       const data = JSON.parse(text);
       const colors = data && data.colors || {};
       const bg = colors.bg;
@@ -166,8 +181,18 @@
       }
       if (text !== prefsSynced) {
         syncNativeTheme(bg, fg, accent, lighterBg, radius, dimBlurred, blur, contrast, alpha)
-          .then(function (ok) { if (ok) prefsSynced = text; })
-          .catch(function () {});
+          .then(function (ok) {
+            if (ok) {
+              prefsSynced = text;
+              loggedPrefsError = false;
+            }
+          })
+          .catch(function (error) {
+            if (!loggedPrefsError) {
+              loggedPrefsError = true;
+              console.error('Omarchy: Vivaldi theme save failed', error);
+            }
+          });
       }
     } catch (e) {
       if (!loggedError) {
