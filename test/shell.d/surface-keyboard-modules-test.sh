@@ -25,6 +25,16 @@ echo 'Module                  Size  Used by'
 echo 'pinctrl_tigerlake      28672  0'
 SH
 
+cat >"$stub_bin/cat" <<'SH'
+#!/bin/bash
+
+if [[ $1 == "/sys/class/dmi/id/product_name" ]]; then
+  echo 'Surface Laptop 3'
+else
+  exec /usr/bin/cat "$@"
+fi
+SH
+
 cat >"$stub_bin/sudo" <<'SH'
 #!/bin/bash
 
@@ -42,6 +52,7 @@ cat >"$stub_bin/limine-mkinitcpio" <<'SH'
 #!/bin/bash
 
 echo 'limine-mkinitcpio' >>"$TEST_LOG"
+exit "${TEST_REBUILD_STATUS:-0}"
 SH
 
 chmod +x "$stub_bin"/*
@@ -78,7 +89,7 @@ modules=$(resolved_modules)
   fail "later drop-ins still append" "actual: $modules"
 pass "the Surface keyboard drop-in appends to MODULES"
 
-migration="$ROOT/migrations/1791403252.sh"
+migration="$ROOT/migrations/1791403253.sh"
 surface_conf="$conf_d/surface_device_modules.conf"
 marker="$test_tmp/rebuild-marker"
 
@@ -142,3 +153,73 @@ for content in "${hand_written[@]}"; do
   [[ ! -s $calls ]] || fail "a hand-written Surface drop-in triggers nothing" "$(cat "$calls")"
 done
 pass "the migration leaves a hand-written drop-in alone"
+
+# 1791403252 is already the repository-priority migration. Exercise the real
+# ordered runner with a harmless stand-in for that work, the unchanged Surface
+# migration, and later work. Only the host pacman-lock probe is redirected.
+queue="$test_tmp/queue"
+queue_state="$test_tmp/queue-state"
+mkdir -p "$queue/migrations" "$test_tmp/queue-home"
+cat >"$queue/migrations/1791403252.sh" <<'SH'
+echo repository-priority >>"$TEST_LOG"
+SH
+cp "$migration" "$queue/migrations/${migration##*/}"
+cat >"$queue/migrations/1791403254.sh" <<'SH'
+echo later >>"$TEST_LOG"
+SH
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/omarchy-notification-dismiss"
+chmod +x "$stub_bin/omarchy-notification-dismiss"
+sed "s|local lock_file=/var/lib/pacman/db.lck|local lock_file=$test_tmp/pacman.lock|" \
+  "$ROOT/bin/omarchy-migrate" >"$test_tmp/omarchy-migrate"
+
+run_queue() {
+  HOME="$test_tmp/queue-home" OMARCHY_PATH="$queue" \
+    OMARCHY_MIGRATION_STATE="$queue_state" \
+    PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
+    TEST_REBUILD_STATUS="${TEST_REBUILD_STATUS:-0}" \
+    OMARCHY_SURFACE_MKINITCPIO_CONF="$surface_conf" \
+    OMARCHY_SURFACE_REBUILD_MARKER="$marker" \
+    bash "$test_tmp/omarchy-migrate" "$@"
+}
+
+reset_queue() {
+  rm -rf "$queue_state"
+  rm -f "$marker"
+  printf 'MODULES=(pinctrl_tigerlake %s)\n' "$installer_modules" >"$surface_conf"
+  : >"$calls"
+}
+
+reset_queue
+[[ $(run_queue --pending) == $'1791403252.sh\n1791403253.sh\n1791403254.sh' ]] ||
+  fail "the Surface repair has a distinct place after repository priority"
+run_queue >/dev/null
+[[ $(grep -v $'^sudo\t' "$calls") == $'repository-priority\nlimine-mkinitcpio\nlater' ]] ||
+  fail "repository priority, Surface repair, and later work run in order" "$(cat "$calls")"
+[[ -f $queue_state/1791403252.sh && -f $queue_state/1791403253.sh && -f $queue_state/1791403254.sh && -f $marker ]] ||
+  fail "each migration records its own successful completion"
+grep -q '^MODULES+=(pinctrl_tigerlake ' "$surface_conf" || fail "the queued Surface repair appends modules"
+: >"$calls"
+run_queue >/dev/null
+[[ ! -s $calls ]] || fail "completed queue work is not repeated" "$(cat "$calls")"
+pass "repository priority and the Surface repair retain distinct ordered completion"
+
+reset_queue
+mkdir -p "$queue_state"
+touch "$queue_state/1791403252.sh"
+run_queue >/dev/null
+[[ $(grep -v $'^sudo\t' "$calls") == $'limine-mkinitcpio\nlater' && -f $queue_state/1791403253.sh ]] ||
+  fail "completed repository priority does not hide the Surface repair" "$(cat "$calls")"
+pass "a prior repository-priority marker leaves the Surface repair pending"
+
+reset_queue
+if TEST_REBUILD_STATUS=1 run_queue >"$test_tmp/queue-failure.out" 2>&1; then
+  fail "a failed Surface rebuild must stop the queue"
+fi
+[[ -f $queue_state/1791403252.sh && ! -e $queue_state/1791403253.sh && ! -e $queue_state/1791403254.sh && ! -e $marker ]] ||
+  fail "a failed Surface rebuild completes neither its repair nor later work"
+! grep -Fxq later "$calls" || fail "later work does not run after a failed rebuild"
+: >"$calls"
+run_queue >/dev/null
+[[ $(grep -v $'^sudo\t' "$calls") == $'limine-mkinitcpio\nlater' && -f $queue_state/1791403253.sh && -f $marker ]] ||
+  fail "the same repaired file retries before later work" "$(cat "$calls")"
+pass "a failed queued Surface rebuild remains pending and retries before later work"
