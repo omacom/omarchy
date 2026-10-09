@@ -115,6 +115,7 @@ only a live session can prove.
 ## Conventions worth copying
 
 - **Redirect background output.** Send background fixtures' stdout to a log or `/dev/null` and clean up the processes on exit. An inherited output pipe can hold the runner open after the test exits.
+- **Ask for a user namespace before mapping ids.** `unshare --map-users`, `--map-groups` and `--map-auto` fork a helper before calling unshare(2) and leave it holding stdout when the call fails, so where user namespaces are refused the file skips and the runner hangs on that pipe. Gate those forms on `user_namespace_available` from `base-test.sh`, which tries the same namespaces without mappings and fails cleanly; `user-namespace-probe-test.sh` fails any test that maps ids without calling it.
 - **Stub the world, run the real code.** Tests build a scratch `bin/` of stub
   executables (`sudo`, `tmux`, `gsettings`, helper commands) that log their
   arguments to a file, prepend it to `PATH`, and then run the real script
