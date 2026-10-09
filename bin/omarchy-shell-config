@@ -52,11 +52,16 @@ trap cleanup_shell_config_tmp EXIT
 
 commit() {
   local program="$1"
+  local target="$CONFIG_FILE"
   shift
-  mkdir -p "$(dirname "$CONFIG_FILE")"
-  _SHELL_CONFIG_TMP=$(mktemp)
+  if [[ -L $CONFIG_FILE ]]; then
+    [[ -e $CONFIG_FILE ]] || fail "shell config symlink target does not exist"
+    target=$(readlink -f -- "$CONFIG_FILE") || fail "could not resolve shell config symlink"
+  fi
+  mkdir -p "$(dirname "$target")"
+  _SHELL_CONFIG_TMP=$(mktemp "$(dirname "$target")/.shell.json.XXXXXX") || fail "could not create temporary shell config"
   jq -S -e "$@" "$program" "$(source_file)" >"$_SHELL_CONFIG_TMP" || fail "could not update shell config"
-  mv "$_SHELL_CONFIG_TMP" "$CONFIG_FILE"
+  mv "$_SHELL_CONFIG_TMP" "$target"
   _SHELL_CONFIG_TMP=""
   refresh_shell_config
 }

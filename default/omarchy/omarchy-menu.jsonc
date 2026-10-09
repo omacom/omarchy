@@ -109,6 +109,7 @@
   "style.font": {"icon":"","label":"Font","provider":"fonts"},
   "style.bar": {"icon":"󰍜","label":"Menu Bar"},
   "style.bar.position": {"icon":"","label":"Position"},
+  "style.bar.widgets": {"icon":"󰍹","label":"Widgets per Display","action":"omarchy-menu-bar-widgets"},
   "style.bar.transparency": {"icon":"󰂵","label":"Transparency","action":"omarchy-bar transparent toggle"},
   "style.hyprland": {"icon":"","label":"Hyprland","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/looknfeel.lua\""},
   "style.screensaver": {"icon":"󱄄","label":"Screensaver"},
