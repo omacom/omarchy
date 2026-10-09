@@ -51,6 +51,12 @@ Item {
   })
   property var layoutConfig: fallbackBarConfig.layout
   property string centerAnchor: ""
+
+// Optional per-section pill containers. Themed via [bar] tokens in
+// shell.toml; zero/transparent defaults keep the stock bar unchanged.
+readonly property real sectionPillPaddingX: Style.barToken("section-padding-x", 0)
+readonly property real sectionPillPaddingY: Style.barToken("section-padding-y", 0)
+readonly property real sectionPillRadius: Style.barToken("section-radius", 0)
   property bool requestedTransparent: false
   property bool useTransparentForeground: false
   property bool transparent: false
@@ -1369,16 +1375,20 @@ Item {
 
         CenterModules { anchors.fill: parent }
 
-        LeftModules {
+        SectionPill {
           anchors.left: parent.left
           anchors.leftMargin: Style.space(8)
           anchors.verticalCenter: parent.verticalCenter
+
+          LeftModules {}
         }
 
-        RightModules {
+        SectionPill {
           anchors.right: parent.right
           anchors.rightMargin: Style.space(8)
           anchors.verticalCenter: parent.verticalCenter
+
+          RightModules {}
         }
       }
     }
@@ -1391,16 +1401,20 @@ Item {
 
         CenterModules { anchors.fill: parent }
 
-        LeftModules {
+        SectionPill {
           anchors.top: parent.top
           anchors.topMargin: Style.space(8)
           anchors.horizontalCenter: parent.horizontalCenter
+
+          LeftModules {}
         }
 
-        RightModules {
+        SectionPill {
           anchors.bottom: parent.bottom
           anchors.bottomMargin: Style.space(8)
           anchors.horizontalCenter: parent.horizontalCenter
+
+          RightModules {}
         }
       }
     }
@@ -1545,6 +1559,38 @@ Item {
     region: "right"
   }
 
+  // Optional pill container behind a bar section (left/center/right).
+  // Driven by [bar] theme tokens; transparent by default so the stock
+  // single-background bar is unchanged.
+  component SectionPill: Item {
+    id: pill
+
+    default property alias contentChildren: contentHost.data
+
+    readonly property bool pillVisible: Color.bar.sectionBackground.a > 0
+    readonly property real padX: root.sectionPillPaddingX
+    readonly property real padY: root.sectionPillPaddingY
+
+    implicitWidth: contentHost.implicitWidth + padX * 2
+    implicitHeight: contentHost.implicitHeight + padY * 2
+
+    Rectangle {
+      anchors.fill: parent
+      visible: pill.pillVisible
+      radius: root.sectionPillRadius
+      color: Color.bar.sectionBackground
+      border.color: Color.bar.sectionBorder
+      border.width: 1
+    }
+
+    Item {
+      id: contentHost
+      anchors.centerIn: parent
+      implicitWidth: contentHost.childrenRect.width
+      implicitHeight: contentHost.childrenRect.height
+    }
+  }
+
   component CenterModules: Item {
     id: centerRoot
 
@@ -1563,6 +1609,27 @@ Item {
       Item {
         anchors.fill: parent
 
+        // Center pill sized to the anchored content (before + anchor + after).
+        Rectangle {
+          id: centerPill
+          anchors.centerIn: parent
+          visible: Color.bar.sectionBackground.a > 0
+          radius: root.sectionPillRadius
+          color: Color.bar.sectionBackground
+          border.color: Color.bar.sectionBorder
+          border.width: 1
+          width: centerContentWidth + root.sectionPillPaddingX * 2
+          height: centerContentHeight + root.sectionPillPaddingY * 2
+        }
+
+        readonly property real centerContentWidth: centerRoot.hasAnchor
+          ? centerBeforeList.width + centerAnchorModule.width + centerAfterList.width
+          : centerSingleList.width
+        readonly property real centerContentHeight: Math.max(
+          centerRoot.hasAnchor
+            ? Math.max(centerBeforeList.height, centerAnchorModule.height, centerAfterList.height)
+            : centerSingleList.height, 1)
+
         CenterGestureArea { anchors.fill: parent }
 
         Item {
@@ -1577,6 +1644,7 @@ Item {
         }
 
         ModuleList {
+          id: centerSingleList
           visible: !centerRoot.hasAnchor
           entries: centerRoot.entries
           region: "center"
@@ -1584,6 +1652,7 @@ Item {
         }
 
         ModuleList {
+          id: centerBeforeList
           visible: centerRoot.hasAnchor
           entries: root.entriesBefore(centerRoot.entries, root.centerAnchor)
           region: "center"
@@ -1600,6 +1669,7 @@ Item {
         }
 
         ModuleList {
+          id: centerAfterList
           visible: centerRoot.hasAnchor
           entries: root.entriesAfter(centerRoot.entries, root.centerAnchor)
           region: "center"
@@ -1615,6 +1685,27 @@ Item {
       Item {
         anchors.fill: parent
 
+        // Center pill sized to the anchored content (before + anchor + after).
+        Rectangle {
+          id: centerPillV
+          anchors.centerIn: parent
+          visible: Color.bar.sectionBackground.a > 0
+          radius: root.sectionPillRadius
+          color: Color.bar.sectionBackground
+          border.color: Color.bar.sectionBorder
+          border.width: 1
+          width: centerContentWidthV + root.sectionPillPaddingX * 2
+          height: centerContentHeightV + root.sectionPillPaddingY * 2
+        }
+
+        readonly property real centerContentWidthV: Math.max(
+          centerRoot.hasAnchor
+            ? Math.max(centerBeforeListV.width, centerAnchorModuleV.width, centerAfterListV.width)
+            : centerSingleListV.width, 1)
+        readonly property real centerContentHeightV: centerRoot.hasAnchor
+          ? centerBeforeListV.height + centerAnchorModuleV.height + centerAfterListV.height
+          : centerSingleListV.height
+
         CenterGestureArea { anchors.fill: parent }
 
         Item {
@@ -1629,6 +1720,7 @@ Item {
         }
 
         ModuleList {
+          id: centerSingleListV
           visible: !centerRoot.hasAnchor
           entries: centerRoot.entries
           region: "center"
@@ -1636,15 +1728,16 @@ Item {
         }
 
         ModuleList {
+          id: centerBeforeListV
           visible: centerRoot.hasAnchor
           entries: root.entriesBefore(centerRoot.entries, root.centerAnchor)
           region: "center"
-          anchors.bottom: centerAnchorModule.top
-          anchors.horizontalCenter: centerAnchorModule.horizontalCenter
+          anchors.bottom: centerAnchorModuleV.top
+          anchors.horizontalCenter: centerAnchorModuleV.horizontalCenter
         }
 
         ModuleSlot {
-          id: centerAnchorModule
+          id: centerAnchorModuleV
           visible: centerRoot.hasAnchor
           entry: centerRoot.anchorEntry
           region: "center"
@@ -1652,11 +1745,12 @@ Item {
         }
 
         ModuleList {
+          id: centerAfterListV
           visible: centerRoot.hasAnchor
           entries: root.entriesAfter(centerRoot.entries, root.centerAnchor)
           region: "center"
-          anchors.top: centerAnchorModule.bottom
-          anchors.horizontalCenter: centerAnchorModule.horizontalCenter
+          anchors.top: centerAnchorModuleV.bottom
+          anchors.horizontalCenter: centerAnchorModuleV.horizontalCenter
         }
       }
     }
