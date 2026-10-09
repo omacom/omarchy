@@ -117,7 +117,7 @@ new_home() {
 # test can drop another openclaw. The system's commands come from a directory
 # of their own, so an openclaw on the machine running this is never found.
 mkdir -p "$test_tmp/usr-bin" "$test_tmp/tools"
-for tool in bash cat chmod cp cut env grep head ln mkdir mv readlink realpath rm sed stat timeout touch true; do
+for tool in bash cat chmod cp cut env grep head ln mkdir mv readlink realpath rm sed sha256sum stat timeout touch true; do
   ln -s "$(type -P "$tool")" "$test_tmp/tools/$tool"
 done
 mkdir -p "$test_tmp/package-db"

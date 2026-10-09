@@ -47,8 +47,17 @@ DEFERRED_STATUS=75
 DEFERRED_DIR="$STATE_DIR/deferred"
 PACKAGE_DB="${OMARCHY_PACKAGE_DB:-/var/lib/pacman/local}"
 
+# Which packages are installed: any install, upgrade or removal changes it,
+# however soon it follows a deferral, where a timestamp has a resolution. The
+# order is the C locale's, so a terminal and the login notifier agree, and a
+# database that cannot be listed gives no stamp rather than an empty one.
 package_db_stamp() {
-  stat -c %Y "$PACKAGE_DB" 2>/dev/null
+  [[ -d $PACKAGE_DB && -r $PACKAGE_DB && -x $PACKAGE_DB ]] || return 1
+  (
+    LC_ALL=C
+    shopt -s nullglob
+    printf '%s\n' "$PACKAGE_DB"/*/
+  ) | sha256sum | cut -d' ' -f1
 }
 
 # Without a package database to compare against, a deferral cannot be shown to
@@ -57,6 +66,14 @@ waiting() {
   local stamp
   stamp=$(package_db_stamp) || return 1
   [[ -n $stamp && -f $DEFERRED_DIR/$1 && $(<"$DEFERRED_DIR/$1") == "$stamp" ]]
+}
+
+# Packages have changed since it deferred. Without a package database nothing
+# shows that, so a deferral is not run again for it.
+changed_since_deferral() {
+  local stamp
+  stamp=$(package_db_stamp) || return 1
+  [[ -n $stamp && -f $DEFERRED_DIR/$1 && $(<"$DEFERRED_DIR/$1") != "$stamp" ]]
 }
 
 migration_entries() {
@@ -157,7 +174,7 @@ done 3< <(migration_entries)
 # would make it pending the moment this run ends, so it gets a second look.
 for entry in "${deferred_now[@]}"; do
   IFS=$'\t' read -r name file marker <<<"$entry"
-  if ! waiting "$name"; then
+  if changed_since_deferral "$name"; then
     run_migration "$name" "$file" "$marker"
   fi
 done

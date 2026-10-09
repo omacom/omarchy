@@ -130,8 +130,9 @@ run_defer() {
   HOME="$defer_home" OMARCHY_PATH="$defer_root" OMARCHY_PACKAGE_DB="$package_db" TEST_CALLS="$defer_calls" \
     TEST_READY="$test_tmp/defer-ready" TEST_BROKEN="$test_tmp/defer-broken" "$ROOT/bin/omarchy-migrate" "$@"
 }
+# A package database is a directory per installed package.
 packages_change() {
-  touch -d "@$(($(stat -c %Y "$package_db") + 60))" "$package_db"
+  mktemp -d "$package_db/pkg-XXXXXX" >/dev/null
 }
 
 run_defer >"$test_tmp/defer.out" || fail "a deferred migration does not fail the run" "$(cat "$test_tmp/defer.out")"
@@ -195,7 +196,7 @@ later_db="$test_tmp/later-db"
 mkdir -p "$later_root/migrations" "$later_home" "$later_db"
 cp "$defer_root/migrations/100-waits.sh" "$later_root/migrations/"
 cat >"$later_root/migrations/200-changes-packages.sh" <<'SH'
-touch -d "@$(($(stat -c %Y "$OMARCHY_PACKAGE_DB") + 60))" "$OMARCHY_PACKAGE_DB"
+mktemp -d "$OMARCHY_PACKAGE_DB/pkg-XXXXXX" >/dev/null
 SH
 run_later() {
   HOME="$later_home" OMARCHY_PATH="$later_root" OMARCHY_PACKAGE_DB="$later_db" TEST_CALLS="$later_calls" \
@@ -216,8 +217,27 @@ run_nodb() {
     TEST_READY="$test_tmp/nodb-ready" TEST_BROKEN="$test_tmp/nodb-broken" "$ROOT/bin/omarchy-migrate" "$@"
 }
 run_nodb >/dev/null || fail "a deferral without a package database does not fail the run"
+(( $(grep -c '^waits$' "$test_tmp/nodb-calls") == 1 )) ||
+  fail "a deferral without a package database is not run again in the same run" "$(cat "$test_tmp/nodb-calls")"
 run_nodb --pending | grep -qx '100-waits.sh' || fail "a deferral without a package database counts as pending"
-pass "a deferral that cannot be checked against packages counts as pending"
+pass "a deferral that cannot be checked against packages counts as pending, and runs once a run"
+
+# A package that arrives in the same second the migration deferred still counts:
+# the database's timestamp is put back, and the list of packages tells.
+same_home="$test_tmp/same-home"
+same_db="$test_tmp/same-db"
+mkdir -p "$same_home" "$same_db"
+run_same() {
+  HOME="$same_home" OMARCHY_PATH="$defer_root" OMARCHY_PACKAGE_DB="$same_db" TEST_CALLS="$test_tmp/same-calls" \
+    TEST_READY="$test_tmp/same-ready" TEST_BROKEN="$test_tmp/same-broken" "$ROOT/bin/omarchy-migrate" "$@"
+}
+run_same >/dev/null || fail "a deferral in the same second as a package change does not fail the run"
+before=$(stat -c %y "$same_db")
+mktemp -d "$same_db/pkg-XXXXXX" >/dev/null
+touch -d "$before" "$same_db"
+run_same --pending | grep -qx '100-waits.sh' ||
+  fail "a package that arrives in the same second as the deferral makes it pending"
+pass "a package that arrives in the same second as the deferral makes it pending"
 
 # --rearm runs a migration marked done again on the next run, waiting until
 # then, so it is not pending before a package changes.
@@ -240,7 +260,7 @@ run_rearm --rearm 100-moves.sh || fail "--rearm takes a migration name"
 if run_rearm --pending >/dev/null; then
   fail "a rearmed migration is not pending while packages are unchanged"
 fi
-touch -d "@$(($(stat -c %Y "$rearm_db") + 60))" "$rearm_db"
+mktemp -d "$rearm_db/pkg-XXXXXX" >/dev/null
 run_rearm --pending | grep -qx '100-moves.sh' || fail "a rearmed migration is pending once a package changes"
 run_rearm >/dev/null || fail "a rearmed migration runs"
 grep -qx moves "$rearm_calls" && [[ -f $rearm_state/100-moves.sh ]] || fail "a rearmed migration runs on the next run and is marked done"
@@ -248,3 +268,42 @@ if run_rearm --rearm ../100-moves.sh 2>/dev/null; then
   fail "--rearm takes only a migration's file name"
 fi
 pass "--rearm runs a finished migration again, waiting until a package changes"
+
+# The stamp is the same whatever the caller's locale, and a database that cannot
+# be listed gives none, so a deferral against it is pending.
+locale_db="$test_tmp/locale-db"
+mkdir -p "$locale_db/a-1" "$locale_db/B-1" "$locale_db/_-1"
+locale_home="$test_tmp/locale-home"
+mkdir -p "$locale_home"
+run_locale() {
+  HOME="$locale_home" OMARCHY_PATH="$defer_root" OMARCHY_PACKAGE_DB="$locale_db" TEST_CALLS="$test_tmp/locale-calls" \
+    TEST_READY="$test_tmp/locale-ready" TEST_BROKEN="$test_tmp/locale-broken" "$ROOT/bin/omarchy-migrate" "$@"
+}
+LC_ALL=C run_locale >/dev/null || fail "a deferral under the C locale does not fail the run"
+# C.UTF-8 collates like C, so only a locale that sorts differently shows it.
+utf8=$(locale -a 2>/dev/null | grep -i -m1 -E '^en_US\.utf-?8$' || true)
+if [[ -n $utf8 ]]; then
+  if LC_ALL=$utf8 run_locale --pending | grep -qx '100-waits.sh'; then
+    fail "a deferral written under one locale is still waiting under another" "locale $utf8"
+  fi
+  pass "a deferral's stamp does not depend on the locale"
+else
+  skip "a deferral's stamp does not depend on the locale (no en_US.UTF-8 here)"
+fi
+# A deferral made while the database cannot be listed has nothing to compare a
+# later change against, so it is pending rather than waiting forever.
+locked_db="$test_tmp/locked-db"
+locked_home="$test_tmp/locked-home"
+mkdir -p "$locked_db/a-1" "$locked_home"
+chmod 000 "$locked_db"
+if [[ -r $locked_db ]]; then
+  skip "a deferral against a package database that cannot be listed is pending (running as root)"
+else
+  HOME="$locked_home" OMARCHY_PATH="$defer_root" OMARCHY_PACKAGE_DB="$locked_db" TEST_CALLS="$test_tmp/locked-calls" \
+    TEST_READY="$test_tmp/locked-ready" TEST_BROKEN="$test_tmp/locked-broken" "$ROOT/bin/omarchy-migrate" >/dev/null ||
+    fail "a deferral against a database that cannot be listed does not fail the run"
+  HOME="$locked_home" OMARCHY_PATH="$defer_root" OMARCHY_PACKAGE_DB="$locked_db" "$ROOT/bin/omarchy-migrate" --pending | grep -qx '100-waits.sh' ||
+    fail "a deferral against a database that cannot be listed is pending"
+  pass "a deferral against a package database that cannot be listed is pending"
+fi
+chmod 755 "$locked_db"
