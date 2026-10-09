@@ -33,11 +33,21 @@ Item {
   property int benchVersion: 0
   readonly property var ranked: Bench.rank(rows)
 
+  // Everything a run measures, fixed when it starts, so editing the
+  // workbench or the controls mid-run cannot mix inputs into one result.
+  property var frozen: null
+
   function start() {
     var flavors = Flavors.FLAVORS.filter(function(f) { return root.app.engine.supports(f.id) })
     var text = root.app.testText
     benchText = scale === 1 ? text : new Array(scale + 1).join(text)
     benchVersion = 2000000 + Math.floor(Math.random() * 1000000)
+    frozen = {
+      pattern: root.app.pattern,
+      flags: root.app.flags.slice(),
+      textPath: scale === 1 ? root.app.textFile : "",
+      textVersion: scale === 1 ? root.app.textVersion : benchVersion,
+    }
     rows = flavors.map(function(f) { return { flavor: f.id, name: f.name, times: [], matches: null, error: "" } })
     var jobs = []
     // A warm-up run first, which is not counted, then the timed runs.
@@ -57,37 +67,43 @@ Item {
     if (!queue.length) { running = false; pendingId = 0; return }
     var job = queue[0]
     queue = queue.slice(1)
-    var flags = Flavors.validFlags(job.flavor, root.app.flags)
+    var flags = Flavors.validFlags(job.flavor, frozen.flags)
     pendingFlavor = job.flavor
     pendingWarmup = job.warmup
+    pendingCount = 0
     pendingId = root.app.engine.match({
       flavor: job.flavor,
-      pattern: root.app.pattern,
+      pattern: frozen.pattern,
       flags: flags,
       text: benchText,
       // A repeated text is sent to each worker once; an opened file is read
       // from disk as on the workbench.
-      textPath: scale === 1 ? root.app.textFile : "",
-      textVersion: scale === 1 ? root.app.textVersion : benchVersion,
+      textPath: frozen.textPath,
+      textVersion: frozen.textVersion,
       all: true,
       limit: 1000000,
-      parsed: Parser.parse(root.app.pattern, job.flavor, flags),
+      parsed: Parser.parse(frozen.pattern, job.flavor, flags),
       channel: "bench",
     })
   }
 
   property bool pendingWarmup: false
+  // Matches so far for the request in flight; streaming engines send them
+  // in batches.
+  property int pendingCount: 0
 
   Connections {
     target: root.app.engine
     function onResult(reply) {
-      if (reply.id !== root.pendingId || !reply.done) return
+      if (reply.id !== root.pendingId) return
+      if (reply.ok !== false) root.pendingCount += reply.matches.length / reply.stride
+      if (!reply.done) return
       var updated = root.rows.map(function(r) {
         if (r.flavor !== root.pendingFlavor) return r
         var copy = { flavor: r.flavor, name: r.name, times: r.times.slice(), matches: r.matches, error: r.error }
         if (reply.ok === false) copy.error = reply.error || "failed"
         else {
-          copy.matches = reply.matches.length / reply.stride
+          copy.matches = root.pendingCount
           if (!root.pendingWarmup) copy.times.push(reply.elapsed)
         }
         copy.median = Bench.median(copy.times)
@@ -144,7 +160,7 @@ Item {
 
     Text {
       Layout.fillWidth: true
-      text: "Each engine compiles the pattern and finds every match in the test text" + (root.scale > 1 ? " repeated " + root.scale + " times" : "") + ", " + root.runs + " times after a warm-up run. Engines run one at a time. Times include compiling, which interpreted engines usually cache."
+      text: "Each engine compiles the pattern and finds every match in the test text" + (root.running && root.frozen && root.frozen.pattern !== root.app.pattern ? " (running the pattern as it was when the run started)" : "") + (root.scale > 1 ? " repeated " + root.scale + " times" : "") + ", " + root.runs + " times after a warm-up run. Engines run one at a time. Times include compiling, which interpreted engines usually cache."
       textFormat: Text.PlainText
       color: root.dim
       wrapMode: Text.Wrap
