@@ -49,3 +49,8 @@ hl.layer_rule({
   blur = true,
   ignore_alpha = 0.3,
 })
+
+hl.window_rule({
+  match = { class = "^(org\\.gnome\\.Nautilus)$" },
+  opacity = "0.75 0.75",
+})
