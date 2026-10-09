@@ -1,5 +1,6 @@
 module qs.Commons
 singleton AudioNodes 1.0 AudioNodes.qml
+singleton BluetoothPairing 1.0 BluetoothPairing.qml
 singleton Border 1.0 Border.qml
 singleton Color 1.0 Color.qml
 singleton IpcRegistry 1.0 IpcRegistry.qml
