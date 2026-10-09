@@ -56,6 +56,37 @@ EOF
   fi
 }
 
+# PAM for sudo and polkit, then the lock screen and its resume recovery, then
+# confirmation that the lock screen picked it up.
+enable_fingerprint_login() {
+  setup_pam_config
+  "$OMARCHY_PATH/bin/omarchy-apply-lock"
+  if [[ ! -f /etc/pam.d/omarchy-lock-fingerprint ]]; then
+    echo "Fingerprint enrollment succeeded, but lock-screen configuration could not be confirmed. Run omarchy-apply-lock and try again." >&2
+    exit 1
+  fi
+}
+
+# The enrollment overlay turns fingerprint login on through
+# omarchy-fingerprint-setup-helper, once a print is enrolled and confirmed.
+if [[ ${1:-} == "--enable-login" ]]; then
+  enable_fingerprint_login
+  exit 0
+fi
+
+# Inside a running shell the whole flow is the fingerprint overlay: it
+# installs packages through omarchy-fingerprint-setup-helper, guides the
+# enrollment on screen, confirms the print with a touch, and then turns
+# fingerprint login on with --enable-login above. Later runs open its finger
+# picker.
+if [[ $(omarchy-shell shell ping 2>/dev/null) == "ok" ]]; then
+  if ! omarchy-hw-fingerprint; then
+    echo -e "\e[31mNo fingerprint sensor detected.\e[0m"
+    exit 1
+  fi
+  exec omarchy-fingerprint-enroll
+fi
+
 echo -e "\e[32mSetting up fingerprint scanner for authentication.\n\e[0m"
 
 # Bail before installing anything if there's no reader to talk to.
@@ -88,12 +119,7 @@ if sudo fprintd-enroll "$USER"; then
     # sensor outside the elanmoc table gets this far and then fails to enroll.
     # Editing the stacks up front would leave those machines pointing at
     # pam_fprintd with nothing to match.
-    setup_pam_config
-    "$OMARCHY_PATH/bin/omarchy-apply-lock"
-    if [[ ! -f /etc/pam.d/omarchy-lock-fingerprint ]]; then
-      echo "Fingerprint enrollment succeeded, but lock-screen configuration could not be confirmed. Run omarchy-apply-lock and try again." >&2
-      exit 1
-    fi
+    enable_fingerprint_login
     echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
     echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
   else

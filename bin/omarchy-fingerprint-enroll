@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# omarchy:summary=Enroll fingerprints with the on-screen guide
+# omarchy:args=[finger]
+# omarchy:examples=omarchy fingerprint enroll | omarchy fingerprint enroll right-thumb
+
+# Without a finger, open the finger picker and return at once. With one,
+# enroll that finger and wait: exit 0 on success, 1 on failure or cancel,
+# the same contract as fprintd-enroll. Without a running shell, fall back to
+# fprintd-enroll itself.
+
+set -uo pipefail
+
+finger=${1:-}
+plugin=omarchy.fingerprint-enroll
+
+if [[ -n $finger && ! $finger =~ ^(left|right)-(thumb|(index|middle|ring|little)-finger)$ ]]; then
+  echo "Unknown finger: $finger (for example right-index-finger or left-thumb)" >&2
+  exit 2
+fi
+
+if [[ $(omarchy-shell shell ping 2>/dev/null) != "ok" ]]; then
+  exec fprintd-enroll ${finger:+-f "$finger"}
+fi
+
+if [[ -z $finger ]]; then
+  if [[ $(omarchy-shell shell summon "$plugin" '{}' 2>/dev/null) == "ok" ]]; then
+    exit 0
+  fi
+  exec fprintd-enroll
+fi
+
+# The overlay writes its result into a directory only this user can enter, so
+# no other local process can plant a result or race the file into existence.
+result_dir=$(mktemp -d)
+trap 'rm -rf "$result_dir"' EXIT
+done_file="$result_dir/result"
+
+if [[ $(omarchy-shell shell summon "$plugin" "{\"finger\":\"$finger\",\"doneFile\":\"$done_file\"}" 2>/dev/null) != "ok" ]]; then
+  rm -rf "$result_dir"
+  exec fprintd-enroll -f "$finger"
+fi
+
+# fprintd times out an idle enrollment itself; this is only a safety net.
+for _ in $(seq 1 1200); do
+  [[ -f $done_file ]] && break
+  sleep 0.5
+done
+
+[[ $(cat "$done_file" 2>/dev/null) == "ok" ]]

@@ -60,6 +60,18 @@ exit "${VERIFY_STATUS:-1}"
 STUB
 chmod +x "$scratch/bin/"*
 
+# No running shell unless a case sets SHELL_RUNNING: the text flow is what
+# these cases exercise. With one, setup hands over to the enrollment overlay.
+cat > "$scratch/bin/omarchy-shell" <<'STUB'
+#!/bin/bash
+[[ ${SHELL_RUNNING:-0} == "1" && $* == "shell ping" ]] && echo ok
+STUB
+cat > "$scratch/bin/omarchy-fingerprint-enroll" <<'STUB'
+#!/bin/bash
+echo overlay >> "$CALL_LOG"
+STUB
+chmod +x "$scratch/bin/omarchy-shell" "$scratch/bin/omarchy-fingerprint-enroll"
+
 cat > "$scratch/bin/omarchy-apply-lock" <<'STUB'
 #!/bin/bash
 echo apply-lock >> "$CALL_LOG"
@@ -133,3 +145,62 @@ if grep -q 'Perfect!\|You can use your fingerprint' "$scratch/output"; then
   fail "inconclusive setup does not promise fingerprint unlock"
 fi
 pass "an inconclusive lock installer cannot report successful lock setup"
+
+# With the shell running, setup is the overlay's job: hand over before any
+# package, enrollment or PAM step.
+: > "$CALL_LOG"
+SHELL_RUNNING=1 OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 ||
+  fail "setup hands over to the overlay when the shell is running"
+[[ $(cat "$CALL_LOG") == "overlay" ]] || fail "the overlay hand-over runs nothing else" "$(cat "$CALL_LOG")"
+pass "setup hands over to the enrollment overlay when the shell is running"
+
+: > "$CALL_LOG"
+SHELL_RUNNING=1 HARDWARE_STATUS=1 OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 &&
+  fail "setup without a reader does not open the overlay"
+[[ ! -s $CALL_LOG ]] || fail "setup without a reader does not open the overlay"
+pass "setup without a reader does not open the overlay"
+
+# --enable-login is how the overlay turns login on after its own enrollment
+# and confirmation: the same PAM and lock steps, and nothing before them.
+rm -f "$TEST_LOCK_PAM"
+: > "$CALL_LOG"
+OMARCHY_PATH="$scratch" "$setup_script" --enable-login > "$scratch/output" 2>&1 ||
+  fail "--enable-login configures authentication"
+grep -qx apply-lock "$CALL_LOG" || fail "--enable-login configures the lock screen"
+if grep -qE '^(pacman|enroll|verify|overlay)' "$CALL_LOG"; then
+  fail "--enable-login does not install, enroll, verify or open the overlay"
+fi
+pass "--enable-login configures login and nothing before it"
+
+rm -f "$TEST_LOCK_PAM"
+if LOCK_SETUP_UNKNOWN=1 OMARCHY_PATH="$scratch" "$setup_script" --enable-login > "$scratch/output" 2>&1; then
+  fail "--enable-login fails when the lock screen cannot be confirmed"
+fi
+pass "--enable-login fails when the lock screen cannot be confirmed"
+
+# The overlay's first run installs through omarchy-fingerprint-setup-helper.
+# Run its install step against the same pacman stub: one transaction on a
+# fresh machine, no pacman when everything is present, failure reported.
+helper_install=$(sed -n '/^install_packages()/,/^}/p' "$ROOT/bin/omarchy-fingerprint-setup-helper")
+[[ -n $helper_install ]] || fail "the setup helper defines install_packages"
+
+run_helper_install() {
+  : > "$CALL_LOG"
+  bash -c "set -euo pipefail; $helper_install; install_packages" > "$scratch/output" 2>&1
+}
+
+run_helper_install || fail "the helper installs on a fresh machine"
+assert_installs "the helper installs libfprint-git, fprintd and usbutils"
+pass "the helper's install step makes the same single transaction"
+
+INSTALLED=$'libfprint-git\nfprintd\nusbutils' run_helper_install ||
+  fail "the helper succeeds when everything is installed"
+if grep -q '^pacman' "$CALL_LOG"; then
+  fail "the helper does not touch pacman when everything is installed"
+fi
+pass "the helper skips pacman when everything is installed"
+
+if INSTALL_STATUS=1 run_helper_install; then
+  fail "the helper fails when the package transaction fails"
+fi
+pass "the helper reports a failed package transaction"
