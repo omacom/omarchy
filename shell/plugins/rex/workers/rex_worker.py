@@ -625,6 +625,58 @@ def gawk_job(request, text):
     yield {"ok": True, "done": True, "matches": out, "stride": (groups + 1) * 2, "elapsed": elapsed(started), "names": {}}
 
 
+# ---- Resid ------------------------------------------------------------------------
+
+
+class Resid:
+    """Resid's lib/regex.resid, compiled into a small program that speaks
+    escaped lines (workers/resid/rex_worker.resid). The program path comes
+    from omarchy-rex-worker, which builds it."""
+
+    def __init__(self, program):
+        def die_with_parent():
+            libc = ctypes.CDLL(ctypes.util.find_library("c"))
+            libc.prctl(1, 15)  # PR_SET_PDEATHSIG, SIGTERM
+
+        self.process = subprocess.Popen([program], stdin=subprocess.PIPE, stdout=subprocess.PIPE, preexec_fn=die_with_parent)
+        self.text = None
+
+    @staticmethod
+    def escape(s):
+        return s.replace("\\", "\\\\").replace("\n", "\\n")
+
+    def job(self, request, text):
+        flags = "".join(f for f in request.get("flags", []) if f in "imsx")
+        if self.text is text:
+            body = "="
+        else:
+            body = self.escape(text)
+            self.text = text
+        message = flags + "\n" + self.escape(request["pattern"]) + "\n" + body + "\n"
+        started = time.monotonic()
+        self.process.stdin.write(message.encode("utf-8", "surrogatepass"))
+        self.process.stdin.flush()
+        line = self.process.stdout.readline().decode("utf-8", "replace").rstrip("\n")
+        if not line:
+            self.text = None
+            yield {"ok": False, "error": "The Resid worker stopped unexpectedly"}
+            return
+        if line.startswith("ERR "):
+            yield {"ok": False, "error": line[4:]}
+            return
+        fields = line.split("\t")
+        groups = int(fields[1])
+        names = {name: i for i, name in enumerate(fields[2:2 + groups]) if name}
+        offsets = [int(x) for x in fields[2 + groups:]]
+        convert = CodePoints(text)
+        stride = groups * 2
+        limit = request.get("limit", 100000)
+        if not request.get("all", True):
+            limit = 1
+        out = [convert.utf16(x) for x in offsets[:limit * stride]]
+        yield {"ok": True, "done": True, "matches": out, "stride": stride, "elapsed": elapsed(started), "names": names}
+
+
 # ---- dispatch ---------------------------------------------------------------------
 
 engines = {}
@@ -639,6 +691,8 @@ def engine(name):
         elif name == "regex":
             import regex
             engines[name] = regex
+        elif name == "resid":
+            engines[name] = Resid(os.environ["REX_RESID_PROGRAM"])
     return engines[name]
 
 
@@ -658,6 +712,8 @@ def job_for(request, text):
         return sed_job(request, text)
     if flavor == "gawk":
         return gawk_job(request, text)
+    if flavor == "resid":
+        return engine("resid").job(request, text)
     raise ValueError("this worker does not run " + str(flavor))
 
 

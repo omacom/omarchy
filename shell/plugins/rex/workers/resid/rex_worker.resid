@@ -1,0 +1,69 @@
+// Rex worker for Resid's lib/regex.resid. The JSON side of the protocol is
+// handled by rex_worker.py, which runs this program and speaks to it in
+// lines: for each request it writes the flags, the pattern, and the text (or
+// "=" to keep the last text), with backslash and newline escaped as \\ and
+// \n. This program answers with one line: "ERR <message>", or "OK" followed
+// by the group count, the group names, and every match's offsets in code
+// points, separated by tabs.
+import "regex.resid";
+
+Str chomp(Str s) {
+    return if (str_ends_with(s, "\n")) { str_slice(s, 0, str_len(s) - 1) } else { s };
+}
+
+Str unescape_at(Str s, Int i, Int n, StrBuf b) {
+    if (i >= n) { return b.finish(); }
+    Int c = str_char_at(s, i);
+    if (c == 92 && i + 1 < n) {
+        Int e = str_char_at(s, i + 1);
+        Int out = if (e == 110) { 10 } else { e };
+        return unescape_at(s, i + 2, n, b.push_char(out));
+    }
+    return unescape_at(s, i + 1, n, b.push_char(c));
+}
+
+Str unescape(Str s) {
+    return unescape_at(s, 0, str_len(s), StrBuf());
+}
+
+// Message text on one line.
+Str one_line(Str s) {
+    return str_replace(str_replace(s, "\n", " "), "\t", " ");
+}
+
+StrBuf offsets(List(Int) xs, Int i, StrBuf b) {
+    if (i >= xs.len()) { return b; }
+    return offsets(xs, i + 1, b.push_char(9).push(f"{xs[i]}"));
+}
+
+StrBuf all_matches(List(RegexMatch) ms, Int i, StrBuf b) {
+    if (i >= ms.len()) { return b; }
+    return all_matches(ms, i + 1, offsets(ms[i].groups, 0, b));
+}
+
+StrBuf names_at(List(Str) names, Int i, StrBuf b) {
+    if (i >= names.len()) { return b; }
+    return names_at(names, i + 1, b.push_char(9).push(names[i]));
+}
+
+Str answer(Str flags, Str pattern, Str text) {
+    Str source = if (flags == "") { pattern } else { "(?" + flags + ")" + pattern };
+    return match (regex_compile(source)) {
+        Err(message) => "ERR " + one_line(message),
+        Ok(re) => all_matches(regex_captures_all(re, text), 0, names_at(re.names, 0, StrBuf().push(f"OK\t{regex_groups(re)}"))).finish(),
+    };
+}
+
+Int serve(Str text) {
+    Str flags_line = resid_read_line();
+    if (flags_line == "") { return 0; }
+    Str pattern = unescape(chomp(resid_read_line()));
+    Str raw = chomp(resid_read_line());
+    Str next = if (raw == "=") { text } else { unescape(raw) };
+    println(answer(chomp(flags_line), pattern, next));
+    return serve(next);
+}
+
+Int main() {
+    return serve("");
+}

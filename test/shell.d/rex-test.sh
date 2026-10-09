@@ -267,13 +267,15 @@ worker_cases='[
   ["java", "java", "(\\w)(?<n>é|😀)?", ["U"], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
   ["dotnet", "dotnet", "(\\w)(?<n>é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
   ["dotnet", "dotnet", "(?<a>x)(y)", [], "xy", [0,2,1,2,0,1]],
-  ["cpp", "cpp", "(\\w)(é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]]
+  ["cpp", "cpp", "(\\w)(é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
+  ["resid", "resid", "(\\w)(?P<n>é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
+  ["resid", "resid", "\\\\|\\n", [], "a\\b\nc", [1,2,3,4]]
 ]'
 
 # Compiled workers build into a throwaway cache rather than the developer's.
 export XDG_CACHE_HOME="$tmpdir/cache"
-declare -A worker_command=([python]=python3 [perl]=perl [ruby]=ruby [lua]=lua5.1 [vim]=nvim [node]=node [go]=go [rust]=cargo [java]=javac [dotnet]=dotnet [cpp]=g++)
-for worker in python perl ruby lua vim node go rust java dotnet cpp; do
+declare -A worker_command=([python]=python3 [perl]=perl [ruby]=ruby [lua]=lua5.1 [vim]=nvim [node]=node [go]=go [rust]=cargo [java]=javac [dotnet]=dotnet [cpp]=g++ [resid]=residc)
+for worker in python perl ruby lua vim node go rust java dotnet cpp resid; do
   if [[ $worker == "dotnet" ]] && command -v dotnet >/dev/null && [[ -z $(dotnet --list-sdks 2>/dev/null) ]]; then
     skip "the dotnet worker reports matches in UTF-16 offsets (no .NET SDK to build it)"
     continue

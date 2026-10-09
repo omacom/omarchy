@@ -43,6 +43,7 @@ list_flavors() {
     echo dotnet
   fi
   omarchy-cmd-present g++ && echo cpp
+  omarchy-cmd-present residc && echo resid
   return 0
 }
 
@@ -111,6 +112,10 @@ build_dotnet() {
   dotnet build -c Release -o "$1" -v q --nologo
 }
 
+build_resid() {
+  mkdir -p "$1" && residc rex_worker.resid -o "$1/rex-worker"
+}
+
 build_cpp() {
   mkdir -p "$1" && g++ -O2 -std=c++17 -o "$1/rex-worker" rex_worker.cpp
 }
@@ -134,6 +139,10 @@ case ${1:-} in
     ensure_built "$1"
     exec "$BUILT/rex-worker"
     ;;
+  resid)
+    ensure_built resid
+    REX_RESID_PROGRAM="$BUILT/rex-worker" exec python3 -u "$WORKERS/rex_worker.py"
+    ;;
   java)
     ensure_built java
     exec java -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -cp "$BUILT" RexWorker
@@ -148,7 +157,7 @@ case ${1:-} in
     exec dotnet "$BUILT/RexWorker.dll"
     ;;
   *)
-    echo "Usage: omarchy-rex-worker <python|perl|ruby|lua|vim|node|go|rust|java|dotnet|cpp>|--flavors|--fetch rust" >&2
+    echo "Usage: omarchy-rex-worker <python|perl|ruby|lua|vim|node|go|rust|java|dotnet|cpp|resid>|--flavors|--fetch rust" >&2
     exit 1
     ;;
 esac
