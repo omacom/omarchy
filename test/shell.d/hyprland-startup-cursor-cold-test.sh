@@ -67,6 +67,10 @@ with tempfile.TemporaryDirectory() as directory:
         time.sleep(0.01)
 
     wait_phase("holding")
+    # Monitor recovery can reload the config before the reveal. The reload starts
+    # a fresh Lua state, and the reveal must still replace the blank theme.
+    subprocess.run(["hyprctl", "reload"], env=env, check=True,
+             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
     (stage / "release").write_text("reveal")
     wait_phase("revealed")
     # Cursor visibility is polled by the compositor independently of the fade.
@@ -83,4 +87,4 @@ with tempfile.TemporaryDirectory() as directory:
     compositor.wait(timeout=10)
     log.close()
 PY
-pass "a fresh compositor never exposes its cursor before the desktop reveal"
+pass "a fresh compositor never exposes its cursor before the desktop reveal, even across a reload"
