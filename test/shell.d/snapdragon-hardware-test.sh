@@ -97,3 +97,10 @@ if grep -Fq 'x1e80100-test-el2.dtb' "$scratch/uki.conf"; then
 fi
 
 pass "Snapdragon setup tolerates missing firmware and preserves UKI settings"
+
+other_packages="$ROOT/install/omarchy-other.packages"
+for package in linux-firmware-qcom qcom-firmware-extract systemd-ukify vulkan-freedreno; do
+  grep -qx "$package" "$other_packages" ||
+    fail "the ISO caches $package for offline Snapdragon setup"
+done
+pass "the ISO caches every package Snapdragon setup installs"
