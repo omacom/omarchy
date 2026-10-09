@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Omacloud, leaving your files and your storage as they are.
+# omarchy:requires-sudo=true
+
+set -e
+
+# Remembered so a failed removal puts sync back exactly as it was.
+was_enabled=false
+was_active=false
+systemctl --user -q is-enabled omacloud 2>/dev/null && was_enabled=true
+systemctl --user -q is-active omacloud 2>/dev/null && was_active=true
+
+systemctl --user disable --now omacloud 2>/dev/null || true
+if ! omarchy-pkg-drop omacloud; then
+  if $was_enabled; then systemctl --user enable omacloud 2>/dev/null || true; fi
+  if $was_active; then systemctl --user start omacloud 2>/dev/null || true; fi
+  exit 1
+fi
+
+echo ""
+echo "Omacloud has been removed."
+echo "Your files stay in your folders and in your storage, and ~/.config/omacloud keeps this computer's setup."
