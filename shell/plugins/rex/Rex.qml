@@ -15,6 +15,7 @@ import "lib/Icons.js" as Icons
 import "lib/Analyze.js" as Analyze
 import "lib/Tests.js" as Tests
 import "lib/Store.js" as Store
+import "lib/Lessons.js" as Lessons
 
 // Rex, the offline regular expression workbench. Launched from Apps
 // (applications/Rex.desktop) through omarchy-launch-rex, or directly:
@@ -48,6 +49,7 @@ Item {
     { id: "bench", icon: Icons.ICONS.bench, label: "Benchmark" },
     { id: "code", icon: Icons.ICONS.code, label: "Code" },
     { id: "reference", icon: Icons.ICONS.reference, label: "Reference" },
+    { id: "lessons", icon: Icons.ICONS.lessons, label: "Lessons" },
     { id: "library", icon: Icons.ICONS.library, label: "Library" },
   ]
   property string page: "workbench"
@@ -454,6 +456,21 @@ Item {
     onLoaded: root.library = Store.readLibrary(text())
   }
 
+  property var lessonProgress: ({ done: {} })
+
+  function markLessonDone(lessonId, exercise) {
+    lessonProgress = Lessons.markDone(lessonProgress, lessonId, exercise)
+    if (storageReady) lessonsFile.setText(Lessons.writeProgress(lessonProgress))
+  }
+
+  FileView {
+    id: lessonsFile
+    path: root.storageReady ? root.dataDir + "/lessons.json" : ""
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.lessonProgress = Lessons.readProgress(text())
+  }
+
   FileView {
     id: historyFile
     path: root.storageReady ? root.dataDir + "/history.json" : ""
@@ -578,6 +595,13 @@ Item {
           active: root.visited.library === true
           visible: root.page === "library"
           sourceComponent: LibraryPage { app: root }
+        }
+
+        Loader {
+          anchors.fill: parent
+          active: root.visited.lessons === true
+          visible: root.page === "lessons"
+          sourceComponent: LessonsPage { app: root }
         }
 
         Loader {

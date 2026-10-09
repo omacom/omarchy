@@ -683,3 +683,53 @@ history = S.remember(history, { pattern: 'b', flavor: 'pcre2' }, 2)
 history = S.remember(history, { pattern: 'a', flavor: 'pcre2' }, 3)
 assertDeepEqual(history.map(h => h.pattern), ['a', 'b'], 'history keeps the newest use of a pattern first')
 JS
+
+# ---- lessons ------------------------------------------------------------------------------
+
+# Every exercise's solution has to pass its own tests on the engine the
+# exercise runs on.
+requests=$(ROOT="$ROOT" node -e '
+const { loadQmlJs } = require(process.env.ROOT + "/test/shell.d/fixtures/qml-js-loader.js")
+const L = loadQmlJs(process.env.ROOT + "/shell/plugins/rex/lib/Lessons.js")
+let id = 0
+for (const lesson of L.LESSONS) lesson.exercises.forEach((e, i) => e.tests.forEach(t => {
+  const flavor = e.flavor || "pcre2"
+  console.log(JSON.stringify({ op: "match", id: id++, flavor, pattern: e.solution, flags: (e.flags || []).concat(flavor === "pcre2" ? ["u"] : []), text: t.text, textId: id, all: false, limit: 1, where: lesson.id + " exercise " + (i + 1), test: t }))
+}))')
+replies=$(grep '"flavor":"pcre2"' <<<"$requests" | OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-rex-worker" python)
+if command -v go >/dev/null; then
+  replies+=$'\n'$(grep '"flavor":"go"' <<<"$requests" | OMARCHY_PATH="$ROOT" timeout 300 "$ROOT/bin/omarchy-rex-worker" go | grep -v '^{"building"')
+else
+  requests=$(grep -v '"flavor":"go"' <<<"$requests")
+fi
+failures=$(REQUESTS="$requests" REPLIES="$replies" run_node_test <<'JS' 2>&1 || true
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const T = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Tests.js'))
+const replies = {}
+for (const line of process.env.REPLIES.split('\n').filter(Boolean)) { const r = JSON.parse(line); replies[r.id] = r }
+for (const line of process.env.REQUESTS.split('\n').filter(Boolean)) {
+  const q = JSON.parse(line)
+  const r = replies[q.id]
+  const verdict = r ? T.evaluate(q.test, r, r.names) : { pass: false, detail: 'no reply' }
+  if (!verdict.pass) console.log(`${q.where}: ${q.pattern} on ${JSON.stringify(q.test.text)}: ${verdict.detail}`)
+}
+JS
+)
+[[ -z $failures ]] || fail "every lesson's solution passes its own tests" "$failures"
+pass "every lesson's solution passes its own tests"
+
+reply=$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-rex-worker" python <<<'{"op":"match","id":1,"flavor":"pcre2","pattern":"(a+)+$","flags":["u"],"text":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!","textId":1,"all":false,"limit":1}')
+[[ $(jq -r .kind <<<"$reply") == "limit" ]] || fail "the catastrophic backtracking lesson's pattern really runs away" "$reply"
+pass "the catastrophic backtracking lesson's pattern really runs away"
+
+run_node_test <<'JS'
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const L = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Lessons.js'))
+assertEqual(L.LESSONS.length, 30, 'the course has thirty lessons')
+assertEqual(new Set(L.LESSONS.map(l => l.id)).size, L.LESSONS.length, 'lesson ids are unique')
+let progress = L.readProgress('{"done": {"literals": [0], "nonsense": [1]}}')
+assertDeepEqual(Object.keys(progress.done), ['literals'], 'progress for lessons that no longer exist is dropped')
+progress = L.markDone(progress, 'literals', 1)
+assert(L.complete(progress, L.byId('literals')), 'a lesson is complete when every exercise is done')
+assertDeepEqual(L.readProgress(L.writeProgress(progress)), progress, 'progress survives a round trip')
+JS
