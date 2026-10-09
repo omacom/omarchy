@@ -12,6 +12,7 @@ import "lib/Colors.js" as Colors
 import "lib/Replace.js" as Replace
 import "lib/Explain.js" as Explain
 import "lib/Icons.js" as Icons
+import "lib/Analyze.js" as Analyze
 
 // Rex, the offline regular expression workbench. Launched from Apps
 // (applications/Rex.desktop) through omarchy-launch-rex, or directly:
@@ -106,7 +107,8 @@ Item {
       anchor: pick(8), assertion: pick(13), meta: Qt.darker(foreground, 1.3), comment: Qt.darker(foreground, 1.8),
     }
   }
-  // The side panel's tab: "matches" or "explain".
+  readonly property var findings: Analyze.analyze(pattern, flavor, flags)
+  // The side panel's tab: "matches", "explain" or "optimize".
   property string sideTab: "matches"
   property var patternHighlight: []
   property int patternCursor: -1

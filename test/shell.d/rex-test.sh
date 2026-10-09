@@ -507,3 +507,33 @@ assertDeepEqual(D.hotspots(steps).map(h => [h.start, h.count, h.backtracks]), [[
 assertDeepEqual(D.attempts(steps), [0, 1], 'each new attempt is found')
 assertEqual(D.summary({ match: [1, 4] }, steps), 'A match at 1–4 after 4 steps', 'the summary says where the match is')
 JS
+
+# ---- the optimizer --------------------------------------------------------------
+
+run_node_test <<'JS'
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const A = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Analyze.js'))
+const find = (pattern, flavor, id, flags = []) => A.analyze(pattern, flavor, flags).find(f => f.id === id)
+
+const nested = find('(a+)+b', 'pcre2', 'nested-quantifier')
+assert(nested && nested.severity === 'danger', 'nested repetition is catastrophic')
+assertEqual(nested.rewrite, '(a++)+b', 'PCRE2 gets a possessive fix')
+assertEqual(A.witness(nested, 4), 'aaaa!', 'the witness repeats what both repetitions match, then fails')
+assertEqual(find('(?:a+)+b', 'python', 'nested-quantifier').rewrite, 'a+b', 'a redundant outer repetition collapses')
+assertEqual(find('(\\w+\\s?)*$', 'node', 'nested-quantifier').rewrite, '', 'JavaScript has no possessive fix to offer')
+assert(!find('(a+)+b', 'go', 'nested-quantifier'), 'linear-time engines have no backtracking risk')
+assert(find('(a|ab)*c', 'java', 'overlapping-alternation'), 'overlapping repeated alternatives are a risk')
+assert(!find('(a|b)*c', 'java', 'overlapping-alternation'), 'exclusive alternatives are not')
+assert(find('\\d+\\d+x', 'perl', 'adjacent-quantifiers'), 'competing repetitions are flagged')
+assertEqual(find('\\d+[a-z]', 'java', 'possessive').rewrite, '\\d++[a-z]', 'a repetition that can never give back usefully becomes possessive')
+assertEqual(find('\\d+[a-z]', 'dotnet', 'possessive').rewrite, '(?>\\d+)[a-z]', '.NET gets an atomic group instead')
+assert(!find('\\w+[a-z]', 'java', 'possessive'), 'not when what follows overlaps')
+assertEqual(find('".*?"', 'python', 'lazy-dot').rewrite, '"[^"\\n]*"', 'a lazy dot before a delimiter becomes a negated class')
+assertEqual(find('(?:a|b|c)', 'pcre2', 'alternation-to-class').rewrite, '[abc]', 'single-character alternatives become a class')
+assertEqual(find('(?:foo|fob)', 'pcre2', 'common-prefix').rewrite, 'fo(?:o|b)', 'a shared prefix is factored out')
+assertEqual(find('a{0,1}', 'pcre2', 'quantifier-shorthand').rewrite, 'a?', '{0,1} is ?')
+assertEqual(find('[^\\s]', 'pcre2', 'negated-shorthand').rewrite, '\\S', '[^\\s] is \\S')
+assert(!find('[0-9]', 'python', 'digit-class'), "[0-9] is not \\d in Python, where \\d is Unicode")
+assertEqual(find('[0-9]', 'node', 'digit-class').rewrite, '\\d', '[0-9] is \\d in JavaScript')
+assertEqual(A.analyze('(', 'pcre2', []).length, 0, 'a pattern with errors is not reviewed')
+JS

@@ -235,6 +235,7 @@ Item {
           options: [
             { value: "matches", label: "Matches" },
             { value: "explain", label: "Explain" },
+            { value: "optimize", label: root.app.findings.length ? "Optimize (" + root.app.findings.length + ")" : "Optimize" },
           ]
           value: root.app.sideTab
           onChanged: function(value) { root.app.sideTab = value }
@@ -260,6 +261,13 @@ Item {
               else editor.selectMatch(index)
             }
           }
+
+        OptimizePanel {
+          Layout.fillWidth: true
+          Layout.fillHeight: true
+          visible: root.app.sideTab === "optimize"
+          app: root.app
+        }
 
         ExplainPanel {
           Layout.fillWidth: true
