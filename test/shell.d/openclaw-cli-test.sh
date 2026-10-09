@@ -51,6 +51,27 @@ case "$2" in
     ;;
 esac
 SH
+# The running manager's unit directories over D-Bus, whatever the caller's
+# environment, one of them with a space in its name.
+cat >"$mock_bin/busctl" <<'SH'
+#!/bin/bash
+[[ -z ${OMARCHY_TEST_UNITPATH_FAIL:-} ]] || exit 1
+if [[ -n ${OMARCHY_TEST_UNITPATH_PARTIAL:-} ]]; then
+  echo '{"type":"as","data":["/nowhere"]}'
+  exit 1
+fi
+if [[ -n ${OMARCHY_TEST_UNITPATH_EMPTY:-} ]]; then
+  echo '{"type":"as","data":[]}'
+  exit 0
+fi
+printf '{"type":"as","data":["%s","%s","%s"]}\n' "$HOME/.config/systemd/user" "$HOME/Unit Files/systemd/user" "$HOME/.local/share/systemd/user"
+SH
+# systemd-analyze works its directories out from the caller's own environment,
+# not the running manager's, as the real one does.
+cat >"$mock_bin/systemd-analyze" <<'SH'
+#!/bin/bash
+printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user" "${XDG_DATA_HOME:-$HOME/.local/share}/systemd/user"
+SH
 chmod +x "$mock_bin/"*
 
 # Stands in for upstream's install-cli.sh: it writes the command the way the
@@ -117,7 +138,7 @@ new_home() {
 # test can drop another openclaw. The system's commands come from a directory
 # of their own, so an openclaw on the machine running this is never found.
 mkdir -p "$test_tmp/usr-bin" "$test_tmp/tools"
-for tool in bash cat chmod cp cut env grep head ln mkdir mv readlink realpath rm sed sha256sum stat timeout touch true; do
+for tool in bash cat chmod cp cut env grep head jq ln mkdir mv readlink realpath rm sed sha256sum stat timeout touch true; do
   ln -s "$(type -P "$tool")" "$test_tmp/tools/$tool"
 done
 mkdir -p "$test_tmp/package-db"
@@ -409,6 +430,78 @@ OMARCHY_TEST_SYSTEMCTL_START_FAIL=1 run omarchy-install-openclaw-cli --now && fa
 grep -q "Could not start the OpenClaw gateway service again" "$test_tmp/output" || fail "a gateway that will not start again is named" "$(cat "$test_tmp/output")"
 [[ -e $test_home/.local/state/omarchy/openclaw-stopped/gateway ]] || fail "a gateway that will not start again keeps its record"
 pass "a gateway a failed run stopped that will not start again fails the run and keeps its record"
+# One the user removed since is gone: the record goes too, nothing is started,
+# and the run is not stuck on a unit that no longer exists.
+rm "$test_home/.config/systemd/user/openclaw-gateway.service"
+: >"$events"
+OMARCHY_TEST_SYSTEMCTL_START_FAIL=1 run omarchy-install-openclaw-cli --now || fail "a removed gateway does not block the run" "$(cat "$test_tmp/output")"
+[[ ! -e $test_home/.local/state/omarchy/openclaw-stopped/gateway ]] && ! grep -q 'systemctl --user start' "$events" ||
+  fail "a removed gateway's record goes and nothing is started" "$(cat "$events")"
+pass "a gateway the user removed after a failed run is not started again and does not block the run"
+
+# A unit moved to the other user directory is still the gateway systemd knows,
+# so it is started again before its record goes.
+new_home retry-relocated
+run omarchy-install-openclaw-cli --now || fail "--now sets OpenClaw up" "$(cat "$test_tmp/output")"
+mkdir -p "$test_home/.local/share/systemd/user" "$test_home/.local/state/omarchy/openclaw-stopped"
+printf 'ExecStart=%s/.openclaw/tools/node-v24.19.0/bin/node %s/.openclaw/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js gateway\n' "$test_home" "$test_home" >"$test_home/.local/share/systemd/user/openclaw-gateway.service"
+touch "$test_home/.local/state/omarchy/openclaw-stopped/gateway"
+: >"$events"
+run omarchy-install-openclaw-cli --now || fail "--now finishes with a relocated, stopped gateway" "$(cat "$test_tmp/output")"
+grep -Fxq 'systemctl --user start openclaw-gateway.service' "$events" && [[ -e $test_home/active-openclaw-gateway.service && ! -e $test_home/.local/state/omarchy/openclaw-stopped/gateway ]] ||
+  fail "a relocated gateway a failed run stopped is started before its record goes" "$(cat "$events")"
+pass "a gateway moved to another unit directory after a failed run is started again"
+
+# A unit file that is there but cannot be read is not removed, and neither is
+# one when the manager's unit directories cannot be had in full: it is tried,
+# and a start that fails keeps the record.
+for case in unreadable no-paths partial-paths empty-paths; do
+  new_home "retry-$case"
+  run omarchy-install-openclaw-cli --now || fail "--now sets OpenClaw up" "$(cat "$test_tmp/output")"
+  mkdir -p "$test_home/.config/systemd/user" "$test_home/.local/state/omarchy/openclaw-stopped"
+  touch "$test_home/.config/systemd/user/openclaw-gateway.service" "$test_home/.local/state/omarchy/openclaw-stopped/gateway"
+  unitpath_fail='' unitpath_partial='' unitpath_empty=''
+  case $case in
+    unreadable) chmod 000 "$test_home/.config/systemd/user/openclaw-gateway.service" ;;
+    no-paths)
+      unitpath_fail=1
+      rm "$test_home/.config/systemd/user/openclaw-gateway.service"
+      ;;
+    partial-paths) unitpath_partial=1 ;;
+    empty-paths) unitpath_empty=1 ;;
+  esac
+  : >"$events"
+  OMARCHY_TEST_UNITPATH_FAIL=$unitpath_fail OMARCHY_TEST_UNITPATH_PARTIAL=$unitpath_partial OMARCHY_TEST_UNITPATH_EMPTY=$unitpath_empty OMARCHY_TEST_SYSTEMCTL_START_FAIL=1 run omarchy-install-openclaw-cli --now &&
+    fail "a gateway that is not shown removed is started, and one that will not start fails the run ($case)"
+  grep -Fxq 'systemctl --user start openclaw-gateway.service' "$events" && [[ -e $test_home/.local/state/omarchy/openclaw-stopped/gateway ]] ||
+    fail "a gateway that is not shown removed is tried and keeps its record ($case)" "$(cat "$events")"
+  chmod 644 "$test_home/.config/systemd/user/openclaw-gateway.service" 2>/dev/null || true
+done
+pass "a gateway is taken for removed only when no unit directory holds it"
+
+# The directories are the running manager's: a caller with another
+# XDG_CONFIG_HOME still finds the gateway's unit and starts it.
+new_home retry-caller-env
+run omarchy-install-openclaw-cli --now || fail "--now sets OpenClaw up" "$(cat "$test_tmp/output")"
+mkdir -p "$test_home/.config/systemd/user" "$test_home/.local/state/omarchy/openclaw-stopped"
+printf 'ExecStart=%s/.openclaw/tools/node-v24.19.0/bin/node %s/.openclaw/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js gateway\n' "$test_home" "$test_home" >"$test_home/.config/systemd/user/openclaw-gateway.service"
+touch "$test_home/.local/state/omarchy/openclaw-stopped/gateway"
+: >"$events"
+run env XDG_CONFIG_HOME="$test_tmp/elsewhere" omarchy-install-openclaw-cli --now || fail "--now finishes from a caller with another XDG_CONFIG_HOME" "$(cat "$test_tmp/output")"
+grep -Fxq 'systemctl --user start openclaw-gateway.service' "$events" && [[ ! -e $test_home/.local/state/omarchy/openclaw-stopped/gateway ]] ||
+  fail "a caller with another XDG_CONFIG_HOME still starts the gateway again" "$(cat "$events")"
+pass "the unit directories are the running manager's, whatever the caller's environment"
+
+# A unit directory with a space in its name is one directory.
+new_home retry-spaced
+run omarchy-install-openclaw-cli --now || fail "--now sets OpenClaw up" "$(cat "$test_tmp/output")"
+mkdir -p "$test_home/Unit Files/systemd/user" "$test_home/.local/state/omarchy/openclaw-stopped"
+touch "$test_home/Unit Files/systemd/user/openclaw-gateway.service" "$test_home/.local/state/omarchy/openclaw-stopped/gateway"
+: >"$events"
+run omarchy-install-openclaw-cli --now || fail "--now finishes with a gateway in a unit directory with a space" "$(cat "$test_tmp/output")"
+grep -Fxq 'systemctl --user start openclaw-gateway.service' "$events" ||
+  fail "a gateway in a unit directory with a space in its name is started again" "$(cat "$events")"
+pass "a unit directory with a space in its name is read as one directory"
 
 # Each record goes as soon as its own service is back, so one that moved does
 # not keep a record for a later run to act on after the user stops it.

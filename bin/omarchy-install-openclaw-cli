@@ -341,9 +341,24 @@ rehome_services
 
 # A service a failed run stopped was running before it, so it runs again now,
 # whether this run moved it or an earlier one already had.
+# One whose file is in none of the directories the running user manager loads
+# units from was removed since; its cached state could still call it loaded, and
+# this caller's environment can name other directories. Without the list it is tried.
+# The list comes from D-Bus as JSON because systemctl show quotes a path with spaces.
+unit_removed() {
+  local paths dir
+  local -a dirs
+  paths=$(busctl --user --json=short get-property org.freedesktop.systemd1 /org/freedesktop/systemd1 \
+    org.freedesktop.systemd1.Manager UnitPath 2>/dev/null | jq -r '.data[]' 2>/dev/null) && [[ -n $paths ]] || return 1
+  mapfile -t dirs <<<"$paths"
+  for dir in "${dirs[@]}"; do
+    [[ ! -e $dir/openclaw-$1.service && ! -L $dir/openclaw-$1.service ]] || return 1
+  done
+}
+
 for role in gateway node; do
   if [[ -e $stopped_dir/$role ]]; then
-    if ! systemctl --user is-active --quiet "openclaw-$role.service" && ! systemctl --user start "openclaw-$role.service"; then
+    if ! unit_removed "$role" && ! systemctl --user is-active --quiet "openclaw-$role.service" && ! systemctl --user start "openclaw-$role.service"; then
       echo "Could not start the OpenClaw $role service again. Start it with: systemctl --user start openclaw-$role.service" >&2
       exit 1
     fi
