@@ -657,3 +657,29 @@ const R = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Reference.js'))
 assert(R.forFlavor('lua').every(e => e.category === 'Lua'), 'Lua gets only Lua patterns')
 assert(R.search(R.forFlavor('pcre2'), 'lookbehind').some(e => e.syntax === '(?<=…)'), 'searching finds entries by meaning')
 JS
+
+# ---- saved patterns, history, and the session --------------------------------------
+
+run_node_test <<'JS'
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const S = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Store.js'))
+
+const session = S.readSession(S.writeSession({ pattern: 'a+', flavor: 'python', flags: ['i', 'J'], text: 'aaa', tool: 'split', tests: [{ text: 'a', expect: 'match' }] }))
+assertDeepEqual([session.pattern, session.flavor, session.flags, session.tool, session.tests.length], ['a+', 'python', ['i'], 'split', 1], 'a session survives a round trip, keeping only flags the flavor has')
+assertEqual(S.readSession('not json'), null, 'an unreadable session is ignored')
+assertEqual(S.readSession('{"session": {"flavor": "klingon", "tool": "dance"}}').flavor, 'pcre2', 'an unknown flavor falls back to the default')
+assertEqual(S.readSession(S.writeSession({ text: 'x'.repeat(100000) })).text.length, S.MAX_TEXT, 'a large typed text is cut to fit')
+
+let library = S.save([], { pattern: 'a', flavor: 'pcre2' }, 'First', 1000)
+library = S.save(library, { pattern: 'b', flavor: 'pcre2' }, 'Second', 2000)
+library = S.save(library, { pattern: 'c', flavor: 'pcre2' }, 'First', 3000)
+assertDeepEqual(library.map(e => [e.name, e.pattern, e.created, e.updated]), [['Second', 'b', 2000, 2000], ['First', 'c', 1000, 3000]], 'saving under a name in use replaces that pattern')
+assertDeepEqual(S.readLibrary(S.writeLibrary(library)).map(e => e.name), ['Second', 'First'], 'the library survives a round trip')
+assertDeepEqual(S.search(library, 'sec').map(e => e.name), ['Second'], 'the library searches names')
+assertEqual(S.remove(library, library[0].id).length, 1, 'a saved pattern can be deleted')
+
+let history = S.remember([], { pattern: 'a', flavor: 'pcre2' }, 1)
+history = S.remember(history, { pattern: 'b', flavor: 'pcre2' }, 2)
+history = S.remember(history, { pattern: 'a', flavor: 'pcre2' }, 3)
+assertDeepEqual(history.map(h => h.pattern), ['a', 'b'], 'history keeps the newest use of a pattern first')
+JS

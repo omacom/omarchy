@@ -14,6 +14,7 @@ import "lib/Explain.js" as Explain
 import "lib/Icons.js" as Icons
 import "lib/Analyze.js" as Analyze
 import "lib/Tests.js" as Tests
+import "lib/Store.js" as Store
 
 // Rex, the offline regular expression workbench. Launched from Apps
 // (applications/Rex.desktop) through omarchy-launch-rex, or directly:
@@ -47,6 +48,7 @@ Item {
     { id: "bench", icon: Icons.ICONS.bench, label: "Benchmark" },
     { id: "code", icon: Icons.ICONS.code, label: "Code" },
     { id: "reference", icon: Icons.ICONS.reference, label: "Reference" },
+    { id: "library", icon: Icons.ICONS.library, label: "Library" },
   ]
   property string page: "workbench"
   // Pages are built the first time they are shown and kept after that.
@@ -126,7 +128,7 @@ Item {
     testRunner.run("workbench", pattern, flavor, flags, tests, function(results) { root.testResults = results })
   }
 
-  onTestsChanged: { testResults = tests.map(function() { return null }); testTimer.restart() }
+  onTestsChanged: { testResults = tests.map(function() { return null }); testTimer.restart(); sessionTimer.restart() }
   Timer { id: testTimer; interval: 120; onTriggered: root.runTests() }
 
   TestRunner {
@@ -213,7 +215,7 @@ Item {
     flags = next
   }
 
-  onPatternChanged: { runTimer.restart(); testTimer.restart() }
+  onPatternChanged: { runTimer.restart(); testTimer.restart(); sessionTimer.restart(); rememberTimer.restart() }
   // The file the test text was read from, or "" for typed text. Workers
   // read an opened file themselves.
   property string textFile: ""
@@ -257,9 +259,10 @@ Item {
   onTestTextChanged: {
     textVersion++
     runTimer.restart()
+    sessionTimer.restart()
   }
-  onFlavorChanged: { runTimer.restart(); testTimer.restart() }
-  onFlagsChanged: { runTimer.restart(); testTimer.restart() }
+  onFlavorChanged: { runTimer.restart(); testTimer.restart(); sessionTimer.restart() }
+  onFlagsChanged: { runTimer.restart(); testTimer.restart(); sessionTimer.restart() }
   onAllChanged: runTimer.restart()
 
   Timer {
@@ -333,12 +336,146 @@ Item {
     }
   }
 
+  // ---- what Rex keeps between sessions -------------------------------------
+
+  // ~/.local/share/omarchy is Omarchy's own installation, so Rex keeps its
+  // data beside it.
+  readonly property string dataDir: (Quickshell.env("XDG_DATA_HOME") || Quickshell.env("HOME") + "/.local/share") + "/rex"
+  property bool storageReady: false
+  property bool restored: false
+  property var library: []
+  property var history: []
+
+  function currentWork() {
+    return {
+      pattern: pattern, flavor: flavor, flags: flags,
+      text: textFile !== "" ? "" : testText, textFile: textFile,
+      replacement: replacement, listTemplate: listTemplate, tests: tests, all: all,
+      tool: tool, sideTab: sideTab, page: page,
+    }
+  }
+
+  function applyWork(work) {
+    setFlavor(work.flavor)
+    flags = work.flags
+    pattern = work.pattern
+    replacement = work.replacement
+    listTemplate = work.listTemplate
+    tests = work.tests
+    all = work.all
+    if (work.textFile !== "") openFile(work.textFile)
+    else setTypedText(work.text)
+  }
+
+  // The session file has been read (or found missing), so open() can
+  // restore it.
+  property bool sessionLoaded: false
+
+  function restoreSession() {
+    restored = true
+    var session = sessionFile.loaded ? Store.readSession(sessionFile.text()) : null
+    if (!session) return
+    applyWork(session)
+    tool = session.tool
+    sideTab = session.sideTab
+    if (session.page !== "workbench" && pages.some(function(p) { return p.id === session.page })) showPage(session.page)
+  }
+
+  function saveSession() {
+    if (!storageReady || !restored) return
+    sessionFile.setText(Store.writeSession(currentWork()))
+  }
+
+  function saveToLibrary(name) {
+    library = Store.save(library, currentWork(), name)
+    libraryFile.setText(Store.writeLibrary(library))
+  }
+
+  function removeFromLibrary(id) {
+    library = Store.remove(library, id)
+    libraryFile.setText(Store.writeLibrary(library))
+  }
+
+  function openSaved(entry) {
+    applyWork(Store.normalizeSession(entry))
+    showPage("workbench")
+  }
+
+  Timer { id: sessionTimer; interval: 800; onTriggered: root.saveSession() }
+  onPageChanged: sessionTimer.restart()
+  onSideTabChanged: sessionTimer.restart()
+  onToolChanged: sessionTimer.restart()
+  onReplacementChanged: sessionTimer.restart()
+  onListTemplateChanged: sessionTimer.restart()
+  onTextFileChanged: sessionTimer.restart()
+
+  // A pattern that has stayed put for a moment and works goes into history.
+  Timer {
+    id: rememberTimer
+    interval: 2500
+    onTriggered: {
+      if (!root.storageReady || root.pattern === "" || root.result.ok === false || root.parsed.errors.length) return
+      root.history = Store.remember(root.history, { pattern: root.pattern, flavor: root.flavor, flags: root.flags })
+      historyFile.setText(Store.writeHistory(root.history))
+    }
+  }
+
+  Process {
+    id: makeDataDir
+    command: ["mkdir", "-p", root.dataDir]
+    onExited: root.storageReady = true
+  }
+
+  FileView {
+    id: sessionFile
+    path: root.storageReady ? root.dataDir + "/session.json" : ""
+    atomicWrites: true
+    printErrors: false
+    property bool loaded: false
+    onLoaded: { loaded = true; root.sessionReady() }
+    onLoadFailed: root.sessionReady()
+  }
+
+  function sessionReady() {
+    if (sessionLoaded) return
+    sessionLoaded = true
+    if (!restored && window.visible) {
+      var payload = pendingPayload
+      pendingPayload = ""
+      open(payload)
+    }
+  }
+
+  FileView {
+    id: libraryFile
+    path: root.storageReady ? root.dataDir + "/library.json" : ""
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.library = Store.readLibrary(text())
+  }
+
+  FileView {
+    id: historyFile
+    path: root.storageReady ? root.dataDir + "/history.json" : ""
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.history = Store.readHistory(text())
+  }
+
+  Component.onCompleted: makeDataDir.running = true
+  Component.onDestruction: if (sessionTimer.running) saveSession()
+
   // ---- lifecycle ----------------------------------------------------------
 
   function open(payloadJson) {
     closingFromHost = false
     var payload = {}
     try { payload = JSON.parse(payloadJson || "{}") || {} } catch (e) {}
+    // The last session comes back first; anything the caller asks for wins.
+    if (!restored) {
+      if (sessionLoaded) restoreSession()
+      else pendingPayload = payloadJson
+    }
     if (typeof payload.pattern === "string" && payload.pattern !== "") pattern = payload.pattern
     if (typeof payload.text === "string") setTypedText(payload.text)
     if (typeof payload.file === "string" && payload.file !== "") openFile(payload.file)
@@ -354,8 +491,13 @@ Item {
     Qt.callLater(function() { if (window.visible && root.page === "workbench") workbench.focusPattern() })
   }
 
+  // open() can arrive before the session file is read; it runs again once
+  // the session can be restored.
+  property string pendingPayload: ""
+
   // Host-initiated close (`shell hide`): the host already knows.
   function close() {
+    saveSession()
     closingFromHost = true
     window.visible = false
     closingFromHost = false
@@ -429,6 +571,13 @@ Item {
           active: root.visited.reference === true
           visible: root.page === "reference"
           sourceComponent: ReferencePage { app: root }
+        }
+
+        Loader {
+          anchors.fill: parent
+          active: root.visited.library === true
+          visible: root.page === "library"
+          sourceComponent: LibraryPage { app: root }
         }
 
         Loader {
