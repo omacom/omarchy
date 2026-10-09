@@ -143,7 +143,9 @@ Item {
         for (var b = 0; b < reply.matches.length; b++) c.matches.push(reply.matches[b])
         if (!reply.done) return
         var f = root.findings[key]
-        var result = { ok: reply.ok, matches: c.matches, stride: reply.stride, count: reply.ok ? c.matches.length / reply.stride : 0, error: reply.error }
+        // In text order, as the workbench's own result is.
+        var ordered = reply.ok ? root.app.inTextOrder(c.matches, reply.stride) : []
+        var result = { ok: reply.ok, matches: ordered, stride: reply.stride, count: reply.ok ? ordered.length / reply.stride : 0, error: reply.error }
         var verdict, detail
         if (reply.ok === false) { verdict = "error"; detail = "The rewrite does not compile: " + reply.error }
         else {
