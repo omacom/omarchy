@@ -28,6 +28,18 @@
 # no gain, so they are bypassed alongside the discards they were once there to
 # make safe.
 #
+# allow-discards is a tradeoff rather than a free win, and this is the place to
+# say so. With discards allowed through, an observer of the raw disk can see
+# which blocks are free, which can reveal the filesystem type and usage patterns
+# even though it does not expose file contents (cryptsetup FAQ §5.19). Most
+# distributions accept that, and on an SSD the alternative is worse: without it
+# the controller keeps treating freed blocks as live data, which costs write
+# amplification and endurance. A machine that would rather not leak allocation
+# patterns can drop allow-discards from the cryptdevice= parameter and keep the
+# two workqueue bypasses, or drop all three to go back to no TRIM at all — the
+# parameter is the whole switch, which is why this helper writes it there rather
+# than into the LUKS2 header.
+#
 # A machine that unlocks through rd.luks.* has no cryptdevice= parameter to
 # extend and is left alone.
 

@@ -176,7 +176,12 @@ require_command script
 reset_fixture
 script -qec "bash -euo pipefail $(printf '%q' "$migration")" /dev/null > "$scratch/output" 2>&1 ||
   fail "the migration applies the options to the running mapping in a terminal" "$(<"$scratch/output")"
-grep -Fxq 'cryptsetup refresh --allow-discards --perf-no_read_workqueue --perf-no_write_workqueue --persistent omarchy_root' "$CALL_LOG" ||
-  fail "the running mapping is refreshed with the persistent flags" "$(<"$CALL_LOG")"
+grep -Fxq 'cryptsetup refresh --allow-discards --perf-no_read_workqueue --perf-no_write_workqueue omarchy_root' "$CALL_LOG" ||
+  fail "the running mapping is refreshed with the TRIM options" "$(<"$CALL_LOG")"
+# --persistent would write the options into the LUKS2 header, which outlives the
+# cmdline parameter this migration writes and so would survive removing it. The
+# repair has to stay revertible by editing the cmdline alone.
+! grep -q 'persistent' "$CALL_LOG" ||
+  fail "the refresh must not record the options in the LUKS2 header" "$(<"$CALL_LOG")"
 ! grep -q '^state ' "$CALL_LOG" || fail "a refreshed mapping does not need a reboot" "$(<"$CALL_LOG")"
-pass "a terminal refreshes the running mapping with the persistent flags instead of deferring to the next boot"
+pass "a terminal refreshes the running mapping without recording anything in the LUKS2 header"

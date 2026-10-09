@@ -56,16 +56,23 @@ if ! as_root limine-entry-tool --get-cmdline default 2>/dev/null | grep -q 'allo
 fi
 
 # Apply the options to the mapping that is open right now, so the SSD can be
-# trimmed without waiting for a reboot, and record them in the LUKS2 metadata
-# where a plain activation picks them up too. cryptsetup asks for the LUKS
-# passphrase for both, so this needs a terminal: without one it fails with
-# "Nothing to read on input" instead of prompting. The next boot applies the
-# cmdline option either way.
+# trimmed without waiting for a reboot. The refresh is deliberately NOT
+# --persistent. That flag records the options in the LUKS2 header, where a plain
+# activation picks them up even after someone removes the cmdline parameter, so
+# the cmdline would stop being the single source of truth and undoing this would
+# stop being a matter of editing it away. Without it the header is untouched,
+# the running mapping is the only thing this changes, and the cmdline this
+# migration wrote is what makes the change stick across reboots.
+#
+# cryptsetup asks for the LUKS passphrase to refresh a mapping, so this needs a
+# terminal: without one it fails with "Nothing to read on input" instead of
+# prompting. That is why a non-interactive `omarchy update` skips the refresh
+# and records reboot-required rather than trying to refresh blind.
 mapping=$(omarchy_luks_mapping_name "$limine_conf") || mapping=""
 trim_live=0
 if [[ -n $mapping && -t 0 && -t 1 ]]; then
   if as_root cryptsetup refresh --allow-discards --perf-no_read_workqueue \
-    --perf-no_write_workqueue --persistent "$mapping"; then
+    --perf-no_write_workqueue "$mapping"; then
     trim_live=1
   else
     echo "The running mapping was left as it is; the options apply at the next boot." >&2
