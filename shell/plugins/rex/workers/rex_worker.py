@@ -350,6 +350,129 @@ class Pcre2:
             lib.pcre2_code_free_8(code)
 
 
+class CalloutBlock(ctypes.Structure):
+    _fields_ = [
+        ("version", ctypes.c_uint32),
+        ("callout_number", ctypes.c_uint32),
+        ("capture_top", ctypes.c_uint32),
+        ("capture_last", ctypes.c_uint32),
+        ("offset_vector", ctypes.POINTER(ctypes.c_size_t)),
+        ("mark", ctypes.c_void_p),
+        ("subject", ctypes.c_void_p),
+        ("subject_length", ctypes.c_size_t),
+        ("start_match", ctypes.c_size_t),
+        ("current_position", ctypes.c_size_t),
+        ("pattern_position", ctypes.c_size_t),
+        ("next_item_length", ctypes.c_size_t),
+        ("callout_string_offset", ctypes.c_size_t),
+        ("callout_string_length", ctypes.c_size_t),
+        ("callout_string", ctypes.c_void_p),
+        ("callout_flags", ctypes.c_uint32),
+    ]
+
+
+CALLOUT = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.POINTER(CalloutBlock), ctypes.c_void_p)
+
+DEBUG_MAX_STEPS = 200_000
+DEBUG_MAX_TEXT = 65_536
+
+
+def utf16_table(data):
+    """UTF-16 offset of every UTF-8 byte offset, for positions that jump
+    back and forth as a match backtracks."""
+    table = [0] * (len(data) + 1)
+    unit = 0
+    i = 0
+    n = len(data)
+    while i < n:
+        b = data[i]
+        size = 1 if b < 0x80 else 4 if b >= 0xF0 else 3 if b >= 0xE0 else 2 if b >= 0xC0 else 1
+        for k in range(size):
+            if i + k <= n:
+                table[i + k] = unit
+        unit += 2 if size == 4 else 1
+        i += size
+    table[n] = unit
+    return table
+
+
+def pcre2_debug(pcre, request, text):
+    """Every step PCRE2 takes until the first match (or failure), from its
+    automatic callouts. With optimizations off, as by default, the steps are
+    the textbook backtracking algorithm; with them on, they are what PCRE2
+    really does, skipping work it can prove pointless."""
+    lib = pcre.lib
+    flags = request.get("flags", [])
+    truncated_text = len(text) > DEBUG_MAX_TEXT
+    text = text[:DEBUG_MAX_TEXT]
+    options = pcre.options(flags) | 0x4  # PCRE2_AUTO_CALLOUT
+    if not request.get("optimize"):
+        options |= 0x4000 | 0x8000 | 0x10000  # NO_AUTO_POSSESS, NO_DOTSTAR_ANCHOR, NO_START_OPTIMIZE
+    pattern = request["pattern"].encode("utf-8", "surrogatepass")
+    error = ctypes.c_int()
+    offset = ctypes.c_size_t()
+    code = lib.pcre2_compile_8(pattern, len(pattern), options, ctypes.byref(error), ctypes.byref(offset), None)
+    if not code:
+        yield {"ok": False, "error": pcre.message(error.value)}
+        return
+    subject = text.encode("utf-8", "surrogatepass")
+    text_units = utf16_table(subject)
+    pattern_units = utf16_table(pattern)
+    groups = pcre.info(code, pcre.INFO_CAPTURECOUNT)
+    steps = []
+    unset = ctypes.c_size_t(-1).value
+
+    def unit(table, b):
+        return table[b] if b <= len(table) - 1 else table[-1]
+
+    def on_callout(block_pointer, _):
+        block = block_pointer.contents
+        if len(steps) >= DEBUG_MAX_STEPS:
+            return -37  # PCRE2_ERROR_CALLOUT: stop here
+        step = [
+            unit(text_units, block.start_match),
+            unit(text_units, block.current_position),
+            unit(pattern_units, block.pattern_position),
+            unit(pattern_units, block.pattern_position + block.next_item_length) - unit(pattern_units, block.pattern_position),
+            block.callout_flags,
+        ]
+        ovector = block.offset_vector
+        for g in range(1, groups + 1):
+            if g < block.capture_top and ovector[2 * g] != unset:
+                step.append(unit(text_units, ovector[2 * g]))
+                step.append(unit(text_units, ovector[2 * g + 1]))
+            else:
+                step.append(-1)
+                step.append(-1)
+        steps.append(step)
+        return 0
+
+    callback = CALLOUT(on_callout)
+    context = lib.pcre2_match_context_create_8(None)
+    lib.pcre2_set_match_limit_8(context, MATCH_LIMIT)
+    lib.pcre2_set_callout_8.argtypes = [ctypes.c_void_p, CALLOUT, ctypes.c_void_p]
+    lib.pcre2_set_callout_8(context, callback, None)
+    data = lib.pcre2_match_data_create_from_pattern_8(code, None)
+    started = time.monotonic()
+    try:
+        rc = lib.pcre2_match_8(code, subject, len(subject), 0, pcre.NO_JIT, data, context)
+        match = None
+        error_text = ""
+        if rc > 0:
+            ovector = lib.pcre2_get_ovector_pointer_8(data)
+            match = [unit(text_units, ovector[0]), unit(text_units, ovector[1])]
+        elif rc not in (pcre.ERROR_NOMATCH, -37):
+            error_text = pcre.message(rc)
+        yield {
+            "ok": True, "done": True, "steps": steps, "groups": groups, "match": match,
+            "stopped": rc == -37, "limit": error_text, "textTruncated": truncated_text,
+            "elapsed": elapsed(started), "matches": [], "stride": 2,
+        }
+    finally:
+        lib.pcre2_match_data_free_8(data)
+        lib.pcre2_code_free_8(code)
+
+
 # ---- POSIX (glibc) --------------------------------------------------------------
 
 
@@ -703,6 +826,10 @@ def engine(name):
 
 def job_for(request, text):
     flavor = request.get("flavor")
+    if request.get("op") == "debug":
+        if flavor != "pcre2":
+            raise ValueError("the debugger runs on PCRE2 only")
+        return pcre2_debug(engine("pcre2"), request, text)
     if flavor == "python":
         return python_job(re, request, text)
     if flavor == "python-regex":

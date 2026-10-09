@@ -53,7 +53,8 @@ Item {
   }
 
   // request: { flavor, pattern, flags, text, textPath, textVersion, all,
-  // limit, parsed, channel, keep }. textPath names the file the text was
+  // limit, parsed, channel, keep, op, options }. op is "match" unless said
+  // otherwise ("debug" asks PCRE2 for every step it takes). textPath names the file the text was
   // read from, which a worker then reads itself instead of receiving it.
   function match(request) {
     var id = ++lastId
@@ -68,8 +69,8 @@ Item {
       script(channel).send(id, request)
       return id
     }
-    worker(flavor.worker, channel).send({
-      op: "match",
+    var payload = {
+      op: request.op || "match",
       id: id,
       flavor: flavor.id,
       pattern: request.pattern,
@@ -78,7 +79,10 @@ Item {
       all: request.all,
       limit: request.limit,
       keep: request.keep === true,
-    }, request.text, request.textVersion, request.textPath || "")
+    }
+    // Options particular to an operation, such as the debugger's.
+    for (var key in request.options || {}) payload[key] = request.options[key]
+    worker(flavor.worker, channel).send(payload, request.text, request.textVersion, request.textPath || "")
     return id
   }
 

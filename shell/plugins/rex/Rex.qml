@@ -41,6 +41,7 @@ Item {
   readonly property var pages: [
     { id: "workbench", icon: Icons.ICONS.workbench, label: "Workbench" },
     { id: "compare", icon: Icons.ICONS.compare, label: "Compare flavors" },
+    { id: "debug", icon: Icons.ICONS.debug, label: "Debugger (PCRE2)" },
   ]
   property string page: "workbench"
   // Pages are built the first time they are shown and kept after that.
@@ -52,6 +53,7 @@ Item {
     next[id] = true
     visited = next
     page = id
+    if (id === "workbench") Qt.callLater(function() { workbench.focusPattern() })
   }
 
   // ---- the session --------------------------------------------------------
@@ -67,6 +69,8 @@ Item {
   property string listTemplate: "$&\n"
 
   readonly property var flavorInfo: Flavors.byId(flavor)
+  // The workbench's flags as PCRE2 understands them, for the debugger.
+  readonly property var pcre2Flags: Flavors.validFlags("pcre2", flags.concat(["u"]))
   readonly property var flavorOptions: Flavors.FLAVORS
     .filter(function(f) { return engine.supports(f.id) })
     .map(function(f) { return { value: f.id, label: f.name } })
@@ -318,7 +322,7 @@ Item {
     if (typeof payload.page === "string") showPage(payload.page)
 
     window.visible = true
-    Qt.callLater(function() { if (window.visible) workbench.focusPattern() })
+    Qt.callLater(function() { if (window.visible && root.page === "workbench") workbench.focusPattern() })
   }
 
   // Host-initiated close (`shell hide`): the host already knows.
@@ -368,6 +372,13 @@ Item {
           anchors.fill: parent
           visible: root.page === "workbench"
           app: root
+        }
+
+        Loader {
+          anchors.fill: parent
+          active: root.visited.debug === true
+          visible: root.page === "debug"
+          sourceComponent: DebuggerPage { app: root; visible: root.page === "debug"; focus: true }
         }
 
         Loader {

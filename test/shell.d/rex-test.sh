@@ -484,3 +484,26 @@ assertDeepEqual([different.verdict, different.firstDifference], ['different', 1]
 assertEqual(C.compare(result([0, 2], 2), result([0, 2, 5, 7], 2)).detail, '2 matches instead of 1', 'extra matches are counted')
 assertEqual(C.compare(result([], 2), { ok: false, error: 'bad' }).verdict, 'error', 'a flavor that rejects the pattern is an error')
 JS
+
+# ---- the PCRE2 debugger -------------------------------------------------------
+
+reply=$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-rex-worker" python <<<'{"op":"debug","id":1,"flavor":"pcre2","pattern":"a+b","flags":["u"],"text":"xaab","textId":1}')
+[[ $(jq -c '[.match, (.steps | length), .steps[0][0:5], .steps[1][4]]' <<<"$reply") == '[[1,4],4,[0,0,0,2,1],3]' ]] ||
+  fail "the debugger reports PCRE2's steps, attempts, and backtracks" "$reply"
+pass "the debugger reports PCRE2's steps, attempts, and backtracks"
+
+reply=$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-rex-worker" python <<<'{"op":"debug","id":1,"flavor":"pcre2","pattern":"(a+)+b","flags":[],"text":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","textId":1}')
+[[ $(jq -r '.stopped' <<<"$reply") == "true" && $(jq '.steps | length' <<<"$reply") == 200000 ]] ||
+  fail "the debugger stops a runaway pattern after a fixed number of steps" "$(jq -c '{stopped, limit, n: (.steps | length)}' <<<"$reply")"
+pass "the debugger stops a runaway pattern after a fixed number of steps"
+
+run_node_test <<'JS'
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const D = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Debug.js'))
+const steps = [[0, 0, 0, 2, 1], [1, 1, 0, 2, 3], [1, 3, 2, 1, 0], [1, 4, 3, 0, 0]]
+assertEqual(D.describe(steps[1], 'a+b', 'xaab'), 'Try a+ at 1, facing "a" (new attempt from 1, after backtracking)', 'a step says what the engine tries and why')
+assertEqual(D.describe(steps[3], 'a+b', 'xaab'), 'End of the pattern: a match', 'reaching the end of the pattern is a match')
+assertDeepEqual(D.hotspots(steps).map(h => [h.start, h.count, h.backtracks]), [[0, 2, 1], [2, 1, 0]], 'the busiest items come first')
+assertDeepEqual(D.attempts(steps), [0, 1], 'each new attempt is found')
+assertEqual(D.summary({ match: [1, 4] }, steps), 'A match at 1–4 after 4 steps', 'the summary says where the match is')
+JS
