@@ -112,6 +112,67 @@ rendered=$(keybindings)
   fail "a shared chord does not change where its entry ranks" "$rendered"
 pass "a shared chord does not change where its entry ranks"
 
+# A media key reads as what is printed on it, and renaming it must not lift it
+# out of the tail. A keysym the menu has no name for keeps its XKB name.
+stub_hyprctl <<BINDS
+$(exec_bind 0 "XF86AudioRaiseVolume" "Volume up" "true")
+$(exec_bind 1 "XF86AudioMute" "Switch audio output" "true")
+$(exec_bind 0 "XF86Launch5" "Launch five" "true")
+$(exec_bind 8 "ALT + TAB" "Reveal active window on top" "true")
+BINDS
+
+rendered=$(keybindings)
+grep -q '^VOLUME UP  *→ Volume up$' <<<"$rendered" &&
+  grep -q '^SHIFT + MUTE  *→ Switch audio output$' <<<"$rendered" &&
+  grep -q '^XF86Launch5  *→ Launch five$' <<<"$rendered" ||
+  fail "a media key reads as the label printed on it" "$rendered"
+pass "a media key reads as the label printed on it"
+
+(( $(grep -n '→ Reveal active window on top$' <<<"$rendered" | cut -d: -f1) <
+   $(grep -n '→ Volume up$' <<<"$rendered" | cut -d: -f1) )) ||
+  fail "a renamed media key stays in the tail" "$rendered"
+pass "a renamed media key stays in the tail"
+
+# Bound by keycode, a media key arrives as an upper-cased keysym and still takes
+# its label. The Pause/Break key resolves to PAUSE, the label of a media key, but
+# what ranks an entry is the keysym, so it stays out of the media tail.
+cat >"$stub_bin/xkbcli" <<'KEYMAP'
+#!/bin/bash
+cat <<'END'
+xkb_keycodes "test" {
+	<PAUS> = 127;
+	<I172> = 172;
+};
+xkb_symbols "test" {
+	key <PAUS> {	[ Pause, Break ] };
+	key <I172> {	[ XF86AudioPlay, XF86AudioPause ] };
+};
+END
+KEYMAP
+chmod +x "$stub_bin/xkbcli"
+
+keycode_bind() {
+  printf 'bind\n\tmodmask: %s\n\tsubmap: \n\tkey: \n\tkeycode: %s\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: exec\n\targ: true\n' "$1" "$2" "$3"
+}
+
+stub_hyprctl <<BINDS
+$(keycode_bind 0 172 "Play")
+$(keycode_bind 0 127 "Pause the game")
+$(exec_bind 8 "ALT + TAB" "Reveal active window on top" "true")
+BINDS
+
+rendered=$(keybindings)
+rm "$stub_bin/xkbcli"
+
+grep -q '^PLAY  *→ Play$' <<<"$rendered" ||
+  fail "a media key bound by keycode takes its label too" "$rendered"
+pass "a media key bound by keycode takes its label too"
+
+(( $(grep -n '→ Pause the game$' <<<"$rendered" | cut -d: -f1) <
+   $(grep -n '→ Reveal active window on top$' <<<"$rendered" | cut -d: -f1) )) ||
+  fail "a key named like a media key stays out of the tail" "$rendered"
+pass "a key named like a media key stays out of the tail"
+
 # The same key written as a keycode arrives by the other road: Hyprland reports
 # the code and the keymap resolves it, after the rename above has run.
 stub_hyprctl <<'BINDS'

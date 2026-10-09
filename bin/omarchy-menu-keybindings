@@ -9,6 +9,33 @@ declare -A LUA_BIND_KEY_MAP
 declare -A LUA_BIND_DISPATCHER_MAP
 declare -A LUA_BIND_ARG_MAP
 
+# Media and hardware keys arrive as XKB keysym names. Name each after what is
+# printed on the key, so the menu reads "VOLUME UP", not "XF86AudioRaiseVolume".
+# A keysym missing here keeps its XKB name and still ranks with the media keys.
+media_key_labels() {
+  cat <<'LABELS'
+XF86AudioRaiseVolume=VOLUME UP
+XF86AudioLowerVolume=VOLUME DOWN
+XF86AudioMute=MUTE
+XF86AudioMicMute=MIC MUTE
+XF86AudioPlay=PLAY
+XF86AudioPause=PAUSE
+XF86AudioNext=NEXT TRACK
+XF86AudioPrev=PREVIOUS TRACK
+XF86MonBrightnessUp=BRIGHTNESS UP
+XF86MonBrightnessDown=BRIGHTNESS DOWN
+XF86KbdBrightnessUp=KEYBOARD LIGHT UP
+XF86KbdBrightnessDown=KEYBOARD LIGHT DOWN
+XF86KbdLightOnOff=KEYBOARD LIGHT
+XF86TouchpadToggle=TOUCHPAD TOGGLE
+XF86TouchpadOn=TOUCHPAD ON
+XF86TouchpadOff=TOUCHPAD OFF
+XF86Calculator=CALCULATOR
+XF86Eject=EJECT
+XF86PowerOff=POWER
+LABELS
+}
+
 # Hyprland reports XKB keycodes for code: bindings. Resolve them to symbols
 # via the compiled keymap, with a small fallback for common keys so the menu
 # remains readable if xkbcli cannot resolve a symbol.
@@ -355,9 +382,10 @@ ACTIONS
 # - Joins the key combination (e.g., "SUPER + Q").
 # - Joins the command that the key executes.
 # - Puts an action's alternative chord on the row with the first one.
-# - Prints display text and dispatch metadata as tab-separated fields.
+# - Names media keys after what is printed on them.
+# - Prints a media-key flag, display text and dispatch metadata as tab-separated fields.
 parse_binding_records() {
-  awk -F, -v alternatives="$(alternative_chord_actions)" '
+  awk -F, -v alternatives="$(alternative_chord_actions)" -v media_keys="$(media_key_labels)" '
 BEGIN {
     # The column every row pads its chords to. Nothing is allowed past it: the
     # menu renders in monospace, and a row that overruns pushes its arrow out
@@ -368,10 +396,24 @@ BEGIN {
     for (i in named) {
         if (named[i] != "") shares_a_row[named[i]] = 1;
     }
+
+    # Keyed in upper case: a keysym bound by name keeps its case, but one
+    # resolved from a keycode arrives upper-cased.
+    split(media_keys, media_key_lines, "\n");
+    for (i in media_key_lines) {
+        separator = index(media_key_lines[i], "=");
+        if (separator) media_label[toupper(substr(media_key_lines[i], 1, separator - 1))] = substr(media_key_lines[i], separator + 1);
+    }
 }
 {
+    # A media key is known by its keysym, not by its label: the Pause/Break key
+    # resolves to PAUSE too, and it is no media key.
+    key = $2;
+    is_media = (toupper(key) ~ /^XF86/);
+    if (toupper(key) in media_label) key = media_label[toupper(key)];
+
     # Combine the modifier and key (first two fields)
-    key_combo = $1 " + " $2;
+    key_combo = $1 " + " key;
 
     # Clean up: strip leading "+" if present, trim spaces
     gsub(/^[ \t]*\+?[ \t]*/, "", key_combo);
@@ -423,13 +465,14 @@ BEGIN {
             actions[entries] = action;
             dispatchers[entries] = dispatcher;
             args[entries] = arg;
+            media[entries] = is_media;
             leads[action_key] = entries;
         }
     }
 }
 END {
     for (entry = 1; entry <= entries; entry++) {
-        printf "%-*s → %s\t%s\t%s\n", column, chords[entry], actions[entry], dispatchers[entry], args[entry];
+        printf "%d\t%-*s → %s\t%s\t%s\n", media[entry], column, chords[entry], actions[entry], dispatchers[entry], args[entry];
     }
 }'
 }
@@ -437,11 +480,14 @@ END {
 prioritize_entries() {
   awk -F '\t' '
   {
+    is_media = $1
+    record = substr($0, index($0, "\t") + 1)
+
     # Alternative chords are display only. Classifying on them would read
     # "SUPER SHIFT + RETURN / SUPER SHIFT + B" as the alternate browser chord
     # and drop the browser 20 rows down its own list, so match the chord that
     # leads the row and ignore the rest.
-    line = $1
+    line = $2
     sub(/ \/ [^→]*→/, " →", line)
 
     prio = 50
@@ -494,12 +540,12 @@ prioritize_entries() {
     if (match(line, /Cycle to/))  prio = 96
     if (match(line, /Reveal active/))  prio = 97
     if (match(line, /Apple Display/))  prio = 98
-    if (match(line, /XF86/))  prio = 99
+    if (is_media)  prio = 99
     if (match(line, /Tmux keybindings/)) prio = 100
     if (match(line, /Herdr keybindings/)) prio = 101
 
     # print "priority<TAB>record"
-    printf "%d\t%s\n", prio, $0
+    printf "%d\t%s\n", prio, record
   }' |
   sort -k1,1n -k2,2 |
   cut -f2-
@@ -533,7 +579,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v14\n'
+    printf 'v15\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
