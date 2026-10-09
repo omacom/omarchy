@@ -301,7 +301,6 @@ function explain(parsed, flags) {
       }
       return current
     }
-    if (n.type === "flags") return active
     if (n.type === "empty" && depth > 0) return active
     var d = describe(n, f, active)
     rows.push({ depth: depth, title: d.title, detail: d.detail, start: n.start, end: n.end, kind: d.kind, group: d.group || 0, type: n.type })
