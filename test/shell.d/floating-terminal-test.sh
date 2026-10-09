@@ -73,6 +73,17 @@ result=$(own_client)
 [[ $result == "0xmine 321 222" ]] || fail "own_client matches its own pid over an unrelated window of the same class" "$result"
 pass "own_client matches its own pid over an unrelated window of the same class"
 
+# A single-instance terminal maps every window of the class from one process, so
+# a shared pid is as ambiguous as no pid at all.
+clients_json=$(jq -n --arg pid "$$" \
+  '[{class:"org.omarchy.terminal", pid: ($pid | tonumber), address:"0xinstaller", size:[875,600]},
+    {class:"org.omarchy.terminal", pid: ($pid | tonumber), address:"0xmine", size:[875,600]}]')
+if result=$(own_client); then
+  fail "own_client refuses to guess between two clients sharing its pid" "$result"
+else
+  pass "own_client refuses to guess between two clients sharing its pid"
+fi
+
 # A terminal running as a persistent server (e.g. `foot --server`) maps the
 # window from a process that isn't this script's ancestor, so the ancestry
 # walk never matches. $APP_ID is exclusive to this launcher, so when exactly

@@ -48,6 +48,9 @@ own_client() {
   while [[ -n $pid && $pid != 1 ]]; do
     match=$(hyprctl clients -j | jq -r --arg id "$APP_ID" --arg p "$pid" \
       '.[] | select(.class == $id and (.pid | tostring) == $p) | "\(.address) \(.size[0]) \(.size[1])"')
+    # A single-instance terminal owns every window of this class from one pid, so
+    # more than one match could be the menu's package installer rather than us.
+    [[ $match == *$'\n'* ]] && return 1
     [[ -n $match ]] && { printf '%s\n' "$match"; return 0; }
     ppid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
     [[ $ppid == $pid ]] && break
@@ -57,9 +60,9 @@ own_client() {
   # The ancestry walk only finds a window whose owning process is a descendant
   # of this script -- which misses a terminal that runs as a persistent server
   # (e.g. `foot --server`), since the process that maps the window there is
-  # never our ancestor. $APP_ID is exclusive to this launcher, so when exactly
-  # one client carries it, that one is unambiguously ours even without a pid
-  # match; more than one is ambiguous and left to the caller to skip.
+  # never our ancestor. This window carries $APP_ID, so when exactly one client
+  # does, that one is ours even without a pid match; more than one is ambiguous
+  # and left to the caller to skip.
   match=$(hyprctl clients -j | jq -r --arg id "$APP_ID" \
     '[.[] | select(.class == $id)] | if length == 1 then .[0] | "\(.address) \(.size[0]) \(.size[1])" else empty end')
   [[ -n $match ]] && { printf '%s\n' "$match"; return 0; }
