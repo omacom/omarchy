@@ -100,6 +100,7 @@ Rectangle {
     anchors.margins: Style.spacing.lg
     visible: root.text === "" && root.placeholder !== ""
     text: root.placeholder
+    textFormat: Text.PlainText
     color: Qt.darker(root.foreground, 1.8)
     font.family: Style.font.family
     font.pixelSize: Style.font.subtitle

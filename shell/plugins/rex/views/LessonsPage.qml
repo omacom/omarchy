@@ -107,6 +107,7 @@ Item {
         topPadding: Style.spacing.lg
         bottomPadding: Style.spacing.xs
         text: Lessons.LEVELS[parseInt(section, 10)]
+        textFormat: Text.PlainText
         color: root.accent
         font.family: Style.font.family
         font.pixelSize: Style.font.bodySmall
@@ -137,6 +138,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           anchors.margins: Style.spacing.sm
           text: (entry.done ? "✓ " : "") + (entry.index + 1) + ". " + entry.modelData.title
+          textFormat: Text.PlainText
           color: entry.done ? root.accent : root.foreground
           elide: Text.ElideRight
           font.family: Style.font.family
@@ -170,6 +172,7 @@ Item {
 
         Text {
           text: Lessons.LEVELS[root.lesson.level] + " · lesson " + (Lessons.index(root.current) + 1) + " of " + Lessons.LESSONS.length
+          textFormat: Text.PlainText
           color: root.dim
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
@@ -178,6 +181,7 @@ Item {
         Text {
           Layout.fillWidth: true
           text: root.lesson.title
+          textFormat: Text.PlainText
           color: root.foreground
           wrapMode: Text.Wrap
           font.family: Style.font.family
@@ -254,6 +258,7 @@ Item {
 
             Text {
               text: "Exercise " + (root.exercise + 1) + " of " + root.lesson.exercises.length + " · " + Flavors.byId(root.taskFlavor).name + (root.task.flags && root.task.flags.length ? " · flags " + root.task.flags.join("") : "")
+              textFormat: Text.PlainText
               color: root.dim
               font.family: Style.font.family
               font.pixelSize: Style.font.caption
@@ -297,6 +302,7 @@ Item {
 
                 Text {
                   text: !outcome ? "·" : (outcome.pass ? "✓" : "✗")
+                  textFormat: Text.PlainText
                   color: !outcome ? root.dim : (outcome.pass ? root.accent : Commons.Color.urgent)
                   font.family: Style.font.family
                   font.pixelSize: Style.font.body

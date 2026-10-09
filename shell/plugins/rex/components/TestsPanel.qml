@@ -78,6 +78,7 @@ ColumnLayout {
     Layout.fillWidth: true
     visible: root.app.tests.length > 0
     text: root.app.testsPassed + " of " + root.app.tests.length + " pass"
+    textFormat: Text.PlainText
     color: root.app.testsPassed === root.app.tests.length ? root.accent : Commons.Color.urgent
     font.family: Style.font.family
     font.pixelSize: Style.font.caption
@@ -117,6 +118,7 @@ ColumnLayout {
 
         Text {
           text: !row.outcome ? "…" : (row.outcome.pass ? "✓" : "✗")
+          textFormat: Text.PlainText
           color: !row.outcome ? root.dim : (row.outcome.pass ? root.accent : Commons.Color.urgent)
           font.family: Style.font.family
           font.pixelSize: Style.font.body

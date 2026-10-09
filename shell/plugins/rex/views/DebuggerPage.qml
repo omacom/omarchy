@@ -133,6 +133,7 @@ Item {
       Text {
         Layout.fillWidth: true
         text: root.app.flavor === "pcre2" ? "PCRE2, step by step" : "Runs the pattern on PCRE2, which may read it differently from " + root.app.flavorInfo.name
+        textFormat: Text.PlainText
         color: root.dim
         elide: Text.ElideRight
         font.family: Style.font.family

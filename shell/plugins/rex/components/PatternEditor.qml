@@ -156,6 +156,7 @@ Rectangle {
     Text {
       visible: edit.length === 0
       text: root.placeholder
+      textFormat: Text.PlainText
       color: Qt.darker(root.foreground, 1.8)
       font: edit.font
     }

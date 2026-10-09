@@ -87,6 +87,7 @@ Item {
         Layout.alignment: Qt.AlignTop | Qt.AlignRight
         Layout.topMargin: Style.spacing.md
         text: root.app.statusText
+        textFormat: Text.PlainText
         color: root.app.result.ok === false ? Commons.Color.urgent : root.dim
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
@@ -152,6 +153,7 @@ Item {
           Text {
             visible: root.app.textFileError !== ""
             text: root.app.textFileError
+            textFormat: Text.PlainText
             color: Commons.Color.urgent
             font.family: Style.font.family
             font.pixelSize: Style.font.caption

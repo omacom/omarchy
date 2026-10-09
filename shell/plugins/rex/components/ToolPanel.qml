@@ -105,6 +105,7 @@ ColumnLayout {
       Text {
         Layout.preferredWidth: Style.space(44)
         text: String(modelData.index) + (modelData.group ? " $" + modelData.group : "")
+        textFormat: Text.PlainText
         color: modelData.group ? root.accent : root.dim
         horizontalAlignment: Text.AlignRight
         font.family: Style.font.family

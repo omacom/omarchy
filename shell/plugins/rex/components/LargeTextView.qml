@@ -161,6 +161,7 @@ Rectangle {
         width: root.gutterWidth - lineMetrics.advanceWidth
         horizontalAlignment: Text.AlignRight
         text: root.lineNumbers[row.index] > 0 ? root.lineNumbers[row.index] : "↪"
+        textFormat: Text.PlainText
         color: Qt.darker(root.foreground, 2)
         font: lineMetrics.font
         y: (lineMetrics.height < edit.cursorRectangle.height) ? (edit.cursorRectangle.height - lineMetrics.height) / 2 : 0

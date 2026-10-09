@@ -46,6 +46,7 @@ Item {
       Text {
         Layout.fillWidth: true
         text: Flavors.byId(root.target).language
+        textFormat: Text.PlainText
         color: root.dim
         elide: Text.ElideRight
         font.family: Style.font.family
@@ -65,6 +66,7 @@ Item {
       Layout.fillWidth: true
       visible: root.target !== root.app.flavor
       text: "The workbench uses " + root.app.flavorInfo.name + "; " + Flavors.byId(root.target).name + " may read the pattern differently. Compare flavors shows how."
+      textFormat: Text.PlainText
       color: root.dim
       wrapMode: Text.Wrap
       font.family: Style.font.family
@@ -116,6 +118,7 @@ Item {
             Text {
               Layout.fillWidth: true
               text: card.modelData.title
+              textFormat: Text.PlainText
               color: root.foreground
               font.family: Style.font.family
               font.pixelSize: Style.font.body
@@ -124,6 +127,7 @@ Item {
 
             Text {
               text: card.modelData.language
+              textFormat: Text.PlainText
               color: root.dim
               font.family: Style.font.family
               font.pixelSize: Style.font.caption

@@ -149,6 +149,7 @@ Item {
                 text: Flavors.byId(card.modelData.flavor).name + (card.modelData.flags.length ? " · " + card.modelData.flags.join("") : "")
                   + (card.modelData.tests.length ? " · " + card.modelData.tests.length + " tests" : "")
                   + " · " + root.age(card.modelData.updated)
+                textFormat: Text.PlainText
                 color: root.dim
                 elide: Text.ElideRight
                 font.family: Style.font.family
@@ -179,6 +180,7 @@ Item {
           horizontalAlignment: Text.AlignHCenter
           visible: root.saved.length === 0
           text: root.app.library.length ? "Nothing saved matches" : "Saved patterns appear here, with everything needed to pick them up again."
+          textFormat: Text.PlainText
           color: root.dim
           wrapMode: Text.Wrap
           font.family: Style.font.family

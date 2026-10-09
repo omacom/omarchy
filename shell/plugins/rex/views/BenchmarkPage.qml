@@ -145,6 +145,7 @@ Item {
     Text {
       Layout.fillWidth: true
       text: "Each engine compiles the pattern and finds every match in the test text" + (root.scale > 1 ? " repeated " + root.scale + " times" : "") + ", " + root.runs + " times after a warm-up run. Engines run one at a time. Times include compiling, which interpreted engines usually cache."
+      textFormat: Text.PlainText
       color: root.dim
       wrapMode: Text.Wrap
       font.family: Style.font.family
@@ -169,6 +170,7 @@ Item {
         Text {
           Layout.preferredWidth: Style.space(150)
           text: modelData.name
+          textFormat: Text.PlainText
           color: root.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.body
@@ -208,6 +210,7 @@ Item {
           text: modelData.median === null || modelData.median === undefined
             ? (root.running && !modelData.error ? "…" : "")
             : root.app.formatMs(modelData.median) + " median, " + root.app.formatMs(modelData.min) + " best"
+          textFormat: Text.PlainText
           color: root.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
@@ -217,6 +220,7 @@ Item {
           Layout.preferredWidth: Style.space(90)
           horizontalAlignment: Text.AlignRight
           text: modelData.matches === null ? "" : modelData.matches + " found"
+          textFormat: Text.PlainText
           color: root.dim
           font.family: Style.font.family
           font.pixelSize: Style.font.caption

@@ -47,6 +47,7 @@ Item {
 
       Text {
         text: root.app.flavorInfo.name
+        textFormat: Text.PlainText
         color: root.dim
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
@@ -70,6 +71,7 @@ Item {
     Text {
       Layout.fillWidth: true
       text: root.app.flavorInfo.description + (root.app.flavorInfo.replace ? "  Replacements: " + Replace.SYNTAXES[root.app.flavorInfo.replace] + "." : "")
+      textFormat: Text.PlainText
       color: root.dim
       wrapMode: Text.Wrap
       font.family: Style.font.family
@@ -91,6 +93,7 @@ Item {
         topPadding: Style.spacing.lg
         bottomPadding: Style.spacing.sm
         text: section
+        textFormat: Text.PlainText
         color: root.accent
         font.family: Style.font.family
         font.pixelSize: Style.font.subtitle

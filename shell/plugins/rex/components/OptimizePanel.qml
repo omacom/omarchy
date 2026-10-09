@@ -194,6 +194,7 @@ Item {
 
           Text {
             text: { return { danger: "Danger", warning: "Warning", tip: "Tip", info: "Note" }[card.modelData.severity] }
+            textFormat: Text.PlainText
             color: root.severityColor(card.modelData.severity)
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
@@ -290,6 +291,7 @@ Item {
               required property int index
               readonly property var time: card.measured.times[index]
               text: card.measured.sizes[index] + " chars: " + (time === null ? "…" : (typeof time === "number" ? root.app.formatMs(time) : time))
+              textFormat: Text.PlainText
               color: typeof time === "string" ? Commons.Color.urgent : root.foreground
               font.family: Style.font.family
               font.pixelSize: Style.font.caption
@@ -306,6 +308,7 @@ Item {
     horizontalAlignment: Text.AlignHCenter
     visible: root.findings.length === 0
     text: root.app.pattern === "" ? "Type a pattern to have it reviewed" : (root.app.parsed.errors.length ? "Fix the pattern's errors first" : "Nothing to improve that Rex can see")
+    textFormat: Text.PlainText
     color: root.dim
     wrapMode: Text.Wrap
     font.family: Style.font.family

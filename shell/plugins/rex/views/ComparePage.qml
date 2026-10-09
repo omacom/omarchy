@@ -134,6 +134,7 @@ Item {
     Text {
       Layout.fillWidth: true
       text: "The workbench's pattern and text on every installed engine, measured against " + root.app.flavorInfo.name + ". Each flavor gets the flags it shares with " + root.app.flavorInfo.name + "."
+      textFormat: Text.PlainText
       color: root.dim
       wrapMode: Text.Wrap
       font.family: Style.font.family
@@ -201,6 +202,7 @@ Item {
             Text {
               Layout.preferredWidth: Style.space(150)
               text: row.info.name
+              textFormat: Text.PlainText
               color: root.foreground
               font.family: Style.font.family
               font.pixelSize: Style.font.body
@@ -211,6 +213,7 @@ Item {
             Text {
               Layout.preferredWidth: Style.space(110)
               text: row.result && row.result.done && row.result.ok !== false ? (row.result.count === 1 ? "1 match" : row.result.count + " matches") : ""
+              textFormat: Text.PlainText
               color: root.foreground
               font.family: Style.font.family
               font.pixelSize: Style.font.bodySmall
@@ -219,6 +222,7 @@ Item {
             Text {
               Layout.preferredWidth: Style.space(80)
               text: row.result && row.result.done && row.result.ok !== false ? root.app.formatMs(row.result.elapsed) : ""
+              textFormat: Text.PlainText
               color: root.dim
               horizontalAlignment: Text.AlignRight
               font.family: Style.font.family
@@ -280,6 +284,7 @@ Item {
             Text {
               visible: !!row.entry && row.entry.flags.join("") !== root.app.flags.join("")
               text: "Ran with flags: " + (row.entry && row.entry.flags.length ? row.entry.flags.join(" ") : "none")
+              textFormat: Text.PlainText
               color: root.dim
               font.family: Style.font.family
               font.pixelSize: Style.font.caption

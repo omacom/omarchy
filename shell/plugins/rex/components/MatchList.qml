@@ -78,6 +78,7 @@ Item {
 
           Text {
             text: "Match " + (row.index + 1)
+            textFormat: Text.PlainText
             color: root.accent
             font.family: Style.font.family
             font.pixelSize: Style.font.bodySmall
@@ -86,6 +87,7 @@ Item {
 
           Text {
             text: root.matches[row.base] + "–" + root.matches[row.base + 1]
+            textFormat: Text.PlainText
             color: root.dim
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
@@ -124,6 +126,7 @@ Item {
 
             Text {
               text: root.groupNames[group] ? group + " " + root.groupNames[group] : "Group " + group
+              textFormat: Text.PlainText
               color: root.dim
               font.family: Style.font.family
               font.pixelSize: Style.font.caption
@@ -132,6 +135,7 @@ Item {
             Text {
               visible: start >= 0
               text: start + "–" + end
+              textFormat: Text.PlainText
               color: root.dim
               font.family: Style.font.family
               font.pixelSize: Style.font.caption
