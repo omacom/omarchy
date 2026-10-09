@@ -79,4 +79,12 @@ assert(
   /id: revealAnimation[\s\S]*?duration: Style\.duration\(840\)/.test(backgroundQml),
   'background reveal takes 840ms'
 )
+// OWE draws theme intros while the shell is suspended, and the theme switch
+// replaces current/theme underneath. Resuming must not draw the stale path.
+assert(
+  /function setSuspended\(value: string\): void \{[\s\S]*?if \(resuming\) root\.resumeBackground\(\)/.test(backgroundQml) &&
+    /function resumeBackground\(\) \{\s*readlinkProc\.instant = true\s*refreshBackground\(\)/.test(backgroundQml) &&
+    backgroundQml.includes('root.setBackground(String(text || "").trim(), instant)'),
+  'background rereads and reloads the current link when OWE hands the still back'
+)
 JS

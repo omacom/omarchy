@@ -66,6 +66,15 @@ Item {
     if (!readlinkProc.running) readlinkProc.running = true
   }
 
+  // OWE draws while the shell is suspended, and a theme switch replaces
+  // current/theme underneath it. The path held from before may no longer
+  // exist, or may name the previous theme's file, so the link is read again
+  // and reloaded when the shell draws the still once more.
+  function resumeBackground() {
+    readlinkProc.instant = true
+    refreshBackground()
+  }
+
   function setBackground(path, instant) {
     if (instant) reloadVersion += 1
     transitionBackground("", path, path, instant, instant)
@@ -214,9 +223,14 @@ Item {
 
   Process {
     id: readlinkProc
+    property bool instant: false
     command: ["readlink", "-f", root.currentBackgroundLink]
     stdout: StdioCollector {
-      onStreamFinished: root.setBackground(String(text || "").trim(), false)
+      onStreamFinished: {
+        var instant = readlinkProc.instant
+        readlinkProc.instant = false
+        root.setBackground(String(text || "").trim(), instant)
+      }
     }
   }
 
@@ -236,7 +250,9 @@ Item {
     }
 
     function setSuspended(value: string): void {
+      var resuming = root.suspended && value !== "true"
       root.suspended = value === "true"
+      if (resuming) root.resumeBackground()
     }
 
     function transition(fromPath: string, path: string): void {
