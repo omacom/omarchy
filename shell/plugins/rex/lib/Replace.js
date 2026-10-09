@@ -146,9 +146,17 @@ function parse(template, syntax, groupCount, names) {
           i += m[0].length
           continue
         }
-        if ((m = /^\\(\d{1,2})/.exec(rest)) && m[1].charAt(0) !== "0") {
+        // As re reads it: \0 and three octal digits are a character code;
+        // otherwise one or two digits name a group, which must exist.
+        if ((m = /^\\(0[0-7]{0,2}|[0-7]{3})/.exec(rest))) {
+          var code = parseInt(m[1], 8)
+          if (code > 255) errors.push({ message: "Octal escape value \\" + m[1] + " outside of range 0-0o377", start: i, end: i + 1 + m[1].length })
+          text += String.fromCharCode(code)
+          i += 1 + m[1].length
+          continue
+        }
+        if ((m = /^\\(\d{1,2})/.exec(rest))) {
           var pn = parseInt(m[1], 10)
-          if (pn > groupCount && m[1].length === 2) { m[1] = m[1].charAt(0); pn = parseInt(m[1], 10) }
           if (pn > groupCount) errors.push({ message: "Invalid group reference " + pn, start: i, end: i + 1 + m[1].length })
           push({ kind: "group", ref: pn })
           i += 1 + m[1].length

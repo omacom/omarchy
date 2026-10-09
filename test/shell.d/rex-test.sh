@@ -368,6 +368,9 @@ substitutes('resid', '(?<first>\\w+) (\\w+)', '$2 ${first} $$', text, 'Smith Joh
 
 const java = R.parse('$9', 'java', 1, {})
 assert(java.errors.length === 1, 'Java rejects a reference to a missing group')
+substitutes('python', '(a)', '\\1\\0101', 'a', 'a\x081')
+assertEqual(R.parse('\\12', 'python', 1, {}).errors[0].message, 'Invalid group reference 12', 'Python rejects a two-digit reference to a missing group')
+assertEqual(R.parse('\\0', 'python', 0, {}).parts[0].value, '\0', 'Python reads \\0 as a NUL character')
 const python = R.parse('\\q', 'python', 0, {})
 assert(python.errors.length === 1, 'Python rejects an unknown escape in a replacement')
 
