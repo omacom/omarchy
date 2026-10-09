@@ -162,12 +162,68 @@ done
 
 pass "every wrapper form Omarchy has written is replaced"
 
-# A symlink is unlinked rather than written through, so whatever it points at is
-# untouched.
-printf 'real binary\n' >"$tmpdir/real-codex"
-ln -s "$tmpdir/real-codex" "$home/.local/bin/codex"
-install_wrapper codex >/dev/null
-[[ ! -L $home/.local/bin/codex ]] || fail "a symlink at the path is replaced by the wrapper"
-grep -Fqx 'real binary' "$tmpdir/real-codex" || fail "a symlink's target is left as it was"
+# The generator has always written regular scripts. A link belongs to another
+# installer or to the user, even if its target looks like an Omarchy wrapper.
+# Native providers are never executed; only link text and target bytes matter.
+check_link() {
+  local description=$1 command=$2 link=$3 target=${4:-}
+  local entry="$home/.local/bin/$command" mode
+  rm -f "$entry"
+  ln -s -- "$link" "$entry"
+  if [[ -n $target ]]; then
+    cp "$target" "$tmpdir/link-target.expected"
+    mode=$(stat -c '%a' "$target")
+  fi
 
-pass "a symlink is replaced without touching its target"
+  install_wrapper "$command" >/dev/null 2>"$tmpdir/err" || fail "$description does not stop the reinstall"
+  [[ -L $entry && $(readlink "$entry") == "$link" ]] || fail "$description preserves the original link"
+  grep -Fq 'not a wrapper Omarchy wrote' "$tmpdir/err" || fail "$description explains why the link is kept"
+  if [[ -n $target ]]; then
+    cmp -s "$target" "$tmpdir/link-target.expected" || fail "$description keeps target bytes"
+    [[ $(stat -c '%a' "$target") == "$mode" ]] || fail "$description keeps target permissions"
+  fi
+  pass "$description"
+}
+
+native="$home/.local/share/claude/versions/fixture-native"
+mkdir -p "${native%/*}"
+printf 'native Claude fixture\0retained\n' >"$native"
+chmod 750 "$native"
+check_link "an absolute native Claude link survives reinstall" claude "$native" "$native"
+check_link "a relative native Claude link survives reinstall" claude '../share/claude/versions/fixture-native' "$native"
+check_link "a dangling native Claude link survives reinstall" claude '../share/claude/versions/missing-native'
+[[ ! -e $home/.local/share/claude/versions/missing-native ]] || fail "a dangling link does not create its target"
+
+linked_wrapper="$tmpdir/linked-gh-wrapper"
+printf '%s' "${legacy_wrappers[0]}" >"$linked_wrapper"
+chmod 750 "$linked_wrapper"
+check_link "a link to an exact historical wrapper remains user-owned" gh "$linked_wrapper" "$linked_wrapper"
+
+# A target inside Mise's installs is not evidence that Omarchy created the
+# link. Preserve a user's pinned link there too.
+pinned="$home/.local/share/mise/installs/codex/fixture-version/bin/codex"
+mkdir -p "${pinned%/*}"
+printf 'pinned Mise fixture\n' >"$pinned"
+chmod 750 "$pinned"
+check_link "a user link into a Mise install survives reinstall" codex "$pinned" "$pinned"
+
+# The actual refresh leaf reruns every wrapper install. It must preserve native
+# routing while continuing to refresh regular generated wrappers. Mise and
+# command probes are stubs, so no package/provider operation runs.
+rm -f "$home/.local/bin/claude" "$home/.local/bin/gh"
+ln -s '../share/claude/versions/fixture-native' "$home/.local/bin/claude"
+printf '%s' "${legacy_wrappers[0]}" >"$home/.local/bin/gh"
+cp "$native" "$tmpdir/native.expected"
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/omarchy-cmd-missing"
+chmod +x "$stub_bin/omarchy-cmd-missing"
+: >"$tmpdir/refresh.log"
+HOME="$home" OMARCHY_MISE_TEST_LOG="$tmpdir/refresh.log" PATH="$stub_bin:$ROOT/bin:$PATH" \
+  bash "$ROOT/install/user/mise.sh" >/dev/null 2>"$tmpdir/err"
+[[ -L $home/.local/bin/claude && $(readlink "$home/.local/bin/claude") == '../share/claude/versions/fixture-native' ]] ||
+  fail "refresh keeps the native Claude launcher"
+cmp -s "$native" "$tmpdir/native.expected" || fail "refresh leaves native Claude bytes alone"
+[[ $(stat -c '%a' "$native") == "750" ]] || fail "refresh leaves native Claude permissions alone"
+grep -Fqx 'mise use -g --quiet "gh" || exit 1' "$home/.local/bin/gh" || fail "refresh still updates a regular historical wrapper"
+[[ -f $home/.local/bin/opencode && ! -L $home/.local/bin/opencode && -x $home/.local/bin/opencode ]] ||
+  fail "refresh still generates an absent regular wrapper"
+pass "the actual Mise refresh preserves native links and refreshes regular wrappers"
