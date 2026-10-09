@@ -147,8 +147,11 @@ trap 'rm -rf "$tmpdir"' EXIT
 home="$tmpdir/home"
 stub_bin="$tmpdir/bin"
 mkdir -p "$home" "$stub_bin"
-touch "$stub_bin/voxtype"
-chmod +x "$stub_bin/voxtype"
+cat > "$stub_bin/omarchy-default-dictation" <<'SH'
+#!/bin/bash
+echo voxtype
+SH
+chmod +x "$stub_bin/omarchy-default-dictation"
 
 bindings=$(PATH="$stub_bin:$PATH" list_bindings "$home")
 [[ -n $bindings ]] || fail "default bindings load for the conflict check"

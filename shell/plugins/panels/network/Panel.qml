@@ -6,6 +6,7 @@ import Quickshell.Io
 import Quickshell.Networking
 import qs.Ui
 import qs.Commons
+import qs.Commons as Commons
 import "Model.js" as Model
 
 Panel {
@@ -207,7 +208,7 @@ Panel {
     Qt.callLater(function() { root.refresh(true) })
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "omarchy.network"
 
     function open() { root.open() }
@@ -291,8 +292,8 @@ Panel {
   // `selectedIndex`). Mouse hover and keyboard nav both mutate this state
   // at the root; items never read containsMouse for visuals. See
   // CursorSurface for the shared chrome shared by rows and pills.
-  readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Color.accent) : "transparent"
-  readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "transparent"
+  readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Commons.Color.accent) : "transparent"
+  readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Commons.Color.accent) : "transparent"
 
   // scannerEnabled lives on the shared WifiDevice, which has no reference
   // counting, and a bar widget is instantiated once per monitor. Tracking the
@@ -388,6 +389,7 @@ Panel {
   onWifiDeviceChanged: {
     setScannerEnabled(true)
     syncWifiNetworks()
+    resetActiveApSignal()
   }
 
   onWifiNetworkObjectsChanged: syncWifiNetworks()
@@ -441,11 +443,52 @@ Panel {
   readonly property string kind: {
     if (wiredDevice && wiredDevice.connected) return "ethernet"
     if (connectedWifiNetwork) return "wifi"
+    // NetworkManager can leave the active profile out of the device's
+    // AvailableConnections, and Quickshell only builds known networks from
+    // that list. An OWE transition-mode network does this between scans: the
+    // in-use access point carries the hidden "_owetm_" SSID, so the profile
+    // for the open SSID looks out of range even while it is connected. Trust
+    // the device's own state then instead of flickering to disconnected.
+    if (wifiDevice && wifiDevice.connected) return "wifi"
     return "disconnected"
   }
-  readonly property int signalStrength: connectedWifiNetwork
-    ? Math.round((connectedWifiNetwork.signalStrength || 0) * 100)
+  readonly property int signalStrength: kind === "wifi"
+    ? Model.connectedSignalStrength(connectedWifiNetwork ? connectedWifiNetwork.signalStrength : 0, activeApSignal)
     : -1
+  // Filled by activeApSignalPoll from nmcli while the connected network has no
+  // strength of its own to report.
+  property int activeApSignal: -1
+  readonly property bool needsActiveApSignal: kind === "wifi"
+    && !(connectedWifiNetwork && connectedWifiNetwork.signalStrength > 0)
+  // Bumped whenever the cached reading stops describing the current link, so
+  // an nmcli read still in flight from before cannot write a stale strength.
+  property int activeApSignalGeneration: 0
+  property int activeApSignalRequest: -1
+  onKindChanged: if (kind !== "wifi") resetActiveApSignal()
+
+  // Switching Wi-Fi networks always passes through a non-"wifi" kind (both the
+  // device and the old network drop out of the connected state while the new
+  // profile activates), so this also covers a change of network.
+  function resetActiveApSignal() {
+    activeApSignal = -1
+    activeApSignalGeneration++
+  }
+
+  function pollActiveApSignal() {
+    if (activeApSignalProc.running) return
+    activeApSignalRequest = activeApSignalGeneration
+    activeApSignalProc.running = true
+  }
+
+  function finishActiveApSignal(raw) {
+    if (activeApSignalRequest !== activeApSignalGeneration) {
+      // The link changed mid-read and the restarted poll skipped while this
+      // one was running; read again now instead of a full interval later.
+      if (needsActiveApSignal) activeApSignalPoll.restart()
+      return
+    }
+    activeApSignal = Model.parseActiveApSignal(raw)
+  }
 
   function copyToClipboard(value) {
     if (!value || !root.bar) return
@@ -464,8 +507,11 @@ Panel {
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
   readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
-  readonly property string connectionKey: kind === "wifi" && wifiDevice && connectedWifiNetwork
-    ? kind + ":" + wifiDevice.name + ":" + connectedWifiNetwork.name
+  // Keyed on the device rather than the SSID: on an OWE transition-mode
+  // network the listed network comes and goes with every scan while the link
+  // stays up, and a real network switch already passes through "disconnected".
+  readonly property string connectionKey: kind === "wifi" && wifiDevice
+    ? kind + ":" + wifiDevice.name
     : (kind === "ethernet" && wiredDevice ? kind + ":" + wiredDevice.name : "")
 
   onConnectionKeyChanged: Qt.callLater(checkConnectivity)
@@ -871,6 +917,26 @@ Panel {
     }
   }
 
+  // Reads the in-use access point's strength without triggering a scan, for
+  // the connected network that has none of its own (see signalStrength).
+  Process {
+    id: activeApSignalProc
+    command: ["nmcli", "-t", "-f", "IN-USE,SIGNAL", "device", "wifi", "list", "ifname", root.wifiDevice ? root.wifiDevice.name : "", "--rescan", "no"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.finishActiveApSignal(text)
+    }
+  }
+
+  Timer {
+    id: activeApSignalPoll
+    interval: 5000
+    repeat: true
+    triggeredOnStart: true
+    running: root.needsActiveApSignal
+    onTriggered: root.pollActiveApSignal()
+  }
+
   Timer {
     id: scanRestart
     interval: 100
@@ -965,14 +1031,14 @@ Panel {
     id: connectionPhraseSwap
     PropertyAnimation {
       target: heroMeta; property: "opacity"
-      to: 0.0; duration: 180; easing.type: Easing.OutQuad
+      to: 0.0; duration: Style.duration(180); easing.type: Easing.OutQuad
     }
     ScriptAction {
       script: root.connectionPhraseIndex = (root.connectionPhraseIndex + 1) % root.connectionPhrases.length
     }
     PropertyAnimation {
       target: heroMeta; property: "opacity"
-      to: 1.0; duration: 260; easing.type: Easing.InQuad
+      to: 1.0; duration: Style.duration(260); easing.type: Easing.InQuad
     }
   }
 
@@ -1472,10 +1538,10 @@ Panel {
           opacity: root.bandPillsVisible ? 1 : 0
 
           Behavior on height {
-            NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
           }
           Behavior on opacity {
-            NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
           }
 
           Row {
@@ -2013,7 +2079,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         height: Style.spacing.controlHeight
         color: Style.normalFillFor(root.bar.foreground)
-        borderSpec: Border.controlSpec("normal", root.bar.foreground, Color.accent)
+        borderSpec: Border.controlSpec("normal", root.bar.foreground, Commons.Color.accent)
         radius: Style.cornerRadius
 
         Text {
