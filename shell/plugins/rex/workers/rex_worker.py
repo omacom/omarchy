@@ -518,14 +518,15 @@ class Posix:
         """Every group's [start, end) for the match found at start within
         one line, or None when the engine does not match there."""
         matches = (self.Match * (groups + 1))()
-        # REG_STARTEND counts from the line handed over, so hand over the line.
-        line = subject[line_start:line_end]
-        matches[0].rm_so = start - line_start
-        matches[0].rm_eo = len(line)
+        # REG_STARTEND searches subject[start:line_end] in place, with $
+        # matching at the line's end; copying the line for every match would
+        # make a long line quadratic.
+        matches[0].rm_so = start
+        matches[0].rm_eo = line_end
         eflags = self.REG_STARTEND | (self.REG_NOTBOL if start > line_start else 0)
-        if self.libc.regexec(regex, line, groups + 1, matches, eflags) != 0:
+        if self.libc.regexec(regex, subject, groups + 1, matches, eflags) != 0:
             return None
-        return [(m.rm_so + line_start, m.rm_eo + line_start) if m.rm_so >= 0 else (-1, -1) for m in matches]
+        return [(m.rm_so, m.rm_eo) if m.rm_so >= 0 else (-1, -1) for m in matches]
 
     def job(self, request, text):
         libc = self.libc
