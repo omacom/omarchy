@@ -6,9 +6,9 @@ if omarchy-cmd-missing wezterm; then
   exit 0
 fi
 
-if [[ ! -e ~/.config/wezterm ]]; then
-  mkdir -p ~/.config
-  cp -Rpf "$OMARCHY_PATH/config/wezterm" ~/.config/
+if [[ ! -e ~/.config/wezterm/wezterm.lua ]]; then
+  mkdir -p ~/.config/wezterm
+  cp "$OMARCHY_PATH/config/wezterm/wezterm.lua" ~/.config/wezterm/
 fi
 
 # The packaged WezTerm desktop entry carries no X-TerminalArg* keys, so
