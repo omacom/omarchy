@@ -478,6 +478,8 @@ const scoped = E.explain(P.parse('(?s:.).', 'pcre2', []), [])
 assertDeepEqual(scoped.filter(r => r.type === 'dot').map(r => r.title), ['Any character', 'Any character except a line break'], 'a scoped flag applies only inside its group')
 const switched = E.explain(P.parse('(?i)a(?-i)b', 'pcre2', []), [])
 assertDeepEqual(switched.filter(r => r.type === 'literal').map(r => r.detail), ['matches itself, in either case', 'matches itself'], 'a flag turned off stops applying')
+const carried = E.explain(P.parse('(?:a(?i)b|c)', 'pcre2', []), [])
+assertEqual(carried.filter(r => r.type === 'literal').pop().detail, 'matches itself, in either case', 'a flag set in one alternative carries into the next, as in PCRE2')
 const ruby = E.explain(P.parse('^', 'ruby', []), [])
 assertEqual(ruby[0].title, 'Start of a line', "Ruby's ^ always means a line")
 const digit = (flavor, flags) => E.explain(P.parse('\\d', flavor, flags), flags)[0].detail

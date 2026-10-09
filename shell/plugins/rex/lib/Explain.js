@@ -287,9 +287,10 @@ function explain(parsed, flags) {
   var rows = []
 
   // active is the flags in force where n sits. A standalone (?i) changes
-  // them for the rest of its group; (?i:...) only inside.
+  // them for the rest of its group, alternatives after it included, as in
+  // Perl and PCRE2; (?i:...) only inside. Returns the flags in force after n.
   function visit(n, depth, active) {
-    if (!n) return
+    if (!n) return active
     // Sequences and the empty pattern add nothing a reader needs.
     if (n.type === "sequence") {
       var current = active
@@ -298,29 +299,32 @@ function explain(parsed, flags) {
         if (item.type === "flags") current = withFlags(current, item.vim ? { on: item.on, off: item.off } : item)
         visit(item, depth, current)
       }
-      return
+      return current
     }
-    if (n.type === "empty" && depth > 0) return
+    if (n.type === "flags") return active
+    if (n.type === "empty" && depth > 0) return active
     var d = describe(n, f, active)
     rows.push({ depth: depth, title: d.title, detail: d.detail, start: n.start, end: n.end, kind: d.kind, group: d.group || 0, type: n.type })
     if (n.type === "conditional") {
       if (n.condition.assertion) visit(n.condition.assertion, depth + 1, active)
       visit(n.yes, depth + 1, active)
       if (n.no) visit(n.no, depth + 1, active)
-      return
+      return active
     }
     if (n.type === "alternation") {
+      var running = active
       for (var a = 0; a < n.alternatives.length; a++) {
         var alt = n.alternatives[a]
         rows.push({ depth: depth + 1, title: "Alternative " + (a + 1), detail: "", start: alt.start, end: alt.end, kind: "meta", group: 0, type: "alternative" })
-        visit(alt, depth + 2, active)
+        running = visit(alt, depth + 2, running)
       }
-      return
+      return running
     }
-    if (n.type === "range" || n.type === "quote") return
+    if (n.type === "range" || n.type === "quote") return active
     var inner = n.type === "group" && n.kind === "flags" && n.flags ? withFlags(active, n.flags) : active
     var kids = Parser.children(n)
     for (var j = 0; j < kids.length; j++) visit(kids[j], depth + 1, inner)
+    return active
   }
 
   visit(parsed.ast, 0, (flags || []).slice())
