@@ -1,6 +1,6 @@
 # Plan: Rex — an offline regular expression workbench
 
-Revision 2.
+Revision 3: matches what was built.
 
 ## Problem
 
@@ -25,7 +25,7 @@ Everything works offline. Every flavor runs on the real engine for that language
 - **Code generator**: idiomatic snippet for each language (match, find all, replace, split), with correct escaping for that language's string literals.
 - **Reference**: searchable quick reference filtered to the selected flavor, every entry with a runnable example.
 - **Lessons**: an interactive course from first literal to recursion, Unicode properties, and engine internals; each lesson has exercises checked against hidden tests; progress saved.
-- **Library**: named, tagged patterns with their test text, flags, flavor, and unit tests; history of recent sessions; the last session restored on open. Stored under `~/.local/share/omarchy/rex/`.
+- **Library**: named patterns with their test text, flags, flavor, replacement, and unit tests; recent patterns; the last session restored on open. Stored under `~/.local/share/rex/` (`~/.local/share/omarchy` is Omarchy's own installation).
 
 ## Flavors
 
@@ -43,13 +43,13 @@ Grouped by how Rex reaches the engine. "Base" means it is always available on an
 | .NET | dotnet | detected (needs SDK to build once) | C# worker, built to cache |
 | Java | JDK | detected | single-file `java` worker |
 | Go `regexp` (RE2) | go | detected | Go worker, built to cache |
-| Rust `regex` | cargo | detected | Rust worker, built to cache (crate vendored with the source) |
+| Rust `regex` | cargo | detected | Rust worker, built to cache offline from Cargo's local crate cache (`omarchy-rex-worker --fetch rust` fills it once) |
 | C++ `std::regex` (all six grammars) | gcc | base (base-devel) | C++ worker, built to cache |
 | POSIX ERE/BRE (glibc) | libc | base | Python `ctypes` worker over `regcomp`/`regexec` |
 | grep / egrep / grep -P, sed, gawk | the tools | base | run the real tool per request |
 | Vim / Neovim | nvim | base | headless `nvim` worker using `matchstrpos` |
 | Lua patterns | lua5.1 | base | Lua worker |
-| Resid | residc | detected (`~/.resid`) | Resid worker over `lib/regex.resid`, built to cache |
+| Resid | residc | detected (`~/.resid/bin`, found even when only an interactive shell puts it on PATH) | a small Resid program over `lib/regex.resid`, built to cache, driven by the Python worker |
 
 Compiled workers are built on first use into `~/.cache/omarchy/rex/workers/<flavor>-<source hash>/` and rebuilt when the source changes, so nothing compiled is checked in and an update invalidates stale builds automatically.
 
@@ -78,17 +78,19 @@ All logic lives in plain JavaScript modules under `shell/plugins/rex/lib/`, impo
 - `Flavors.js` — the flavor table: capabilities (lookbehind kinds, atomic groups, possessive, recursion, conditionals, Unicode properties, named-group syntax, flags, replacement syntax, offsets unit).
 - `Parser.js` — one parser producing a shared AST, parameterised by the flavor table, with precise source spans and flavor-specific errors.
 - `Explain.js` — AST to explanation tree.
-- `Analyze.js` — ReDoS detection (nested and overlapping quantifiers via NFA ambiguity analysis, with a witness string), lint rules, and rewrite suggestions.
+- `Analyze.js` — ReDoS detection (nested and overlapping repetitions, judged on a broad sample of characters, with a witness string), lint rules, and rewrite suggestions.
 - `Codegen.js` — snippet templates and per-language string escaping.
 - `Engines.js` — the worker protocol, request coalescing, and result normalisation.
 - `Store.js` — library, history, and lesson progress serialisation.
-- `Lessons.js` + `lessons/*.json` — course content.
+- `Lessons.js` — course content.
+- `Indices.js` — exact group positions for Qt's JavaScript engine, which only reports group text.
+- `Replace.js`, `Compare.js`, `Debug.js`, `Bench.js`, `Tests.js`, `Reference.js` — the logic behind each page.
 
 Workers live in `shell/plugins/rex/workers/<flavor>/`.
 
 ### Storage
 
-`~/.local/share/omarchy/rex/`:
+`~/.local/share/rex/`:
 
 - `library.json` — saved patterns.
 - `history.json` — recent sessions (capped).
@@ -101,8 +103,8 @@ Every file is written atomically (write to a temp file, then rename) and carries
 
 - `applications/Rex.desktop` and `applications/icons/Rex.png` — listed under Apps.
 - `bin/omarchy-launch-rex` — summons the plugin (`omarchy-shell shell summon omarchy.rex`), optionally with a pattern or file payload.
-- Hidden helpers: `bin/omarchy-rex-worker` (starts a flavor's worker, building it into the cache first when needed) and `bin/omarchy-rex-flavors` (prints detected flavors as JSON).
-- `default/hypr/apps/omarchy-shell.lua` — Rex's window tiles like a normal app (no float rule).
+- A hidden helper, `bin/omarchy-rex-worker`, starts a flavor's worker (building it into the cache first when needed) and, with `--flavors`, lists the flavors this machine can run.
+- A migration adds `Rex.desktop` for existing installs.
 - `manual/` — a Rex page.
 - `shell/plugins/README.md` — plugin table entry.
 
@@ -146,7 +148,8 @@ Each commit leaves Rex working and its tests passing:
 - **Debugger**: PCRE2 only for now.
 - **Large files**: shown read-only in the virtualized view.
 - **Optimizer**: one-click apply, gated on an equivalence check against the test text and unit tests.
-- **Lessons**: about 30 lessons, beginner to engine internals, progress saved.
+- **Lessons**: thirty lessons, beginner to engine internals, progress saved.
 - **Window**: a tiled application window.
 - **Session restore**: on.
 - **Flavors**: a flavor works only when its engine is installed; tests skip missing ones with a notice.
+- **SQL regex dialects**: out of scope. A separate tool for benchmarking SQL against specific engines may follow Rex.
