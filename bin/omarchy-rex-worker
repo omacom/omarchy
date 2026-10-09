@@ -72,8 +72,17 @@ ensure_built() {
   BUILT="$target"
   [[ -f $target/.complete ]] && return 0
 
-  printf '{"building":%s}\n' "$(json_string "$name")"
+  # Rex starts a worker per channel, so several can arrive here at once on
+  # first use. One builds while the rest wait, then find its build complete.
   mkdir -p "$CACHE"
+  exec {lock}>"$CACHE/.$name.lock"
+  flock "$lock"
+  if [[ -f $target/.complete ]]; then
+    exec {lock}>&-
+    return 0
+  fi
+
+  printf '{"building":%s}\n' "$(json_string "$name")"
   tmp=$(mktemp -d "$CACHE/.$name-build.XXXXXX")
   cp -r "$WORKERS/$name/." "$tmp/src"
   log="$tmp/build.log"
@@ -85,6 +94,7 @@ ensure_built() {
     rm -rf "$tmp"
     # Builds of older sources are never used again.
     find "$CACHE" -maxdepth 1 -name "$name-*" ! -path "$target" -exec rm -rf {} +
+    exec {lock}>&-
     return 0
   fi
 

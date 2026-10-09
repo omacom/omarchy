@@ -766,3 +766,18 @@ process.stdout.write(C.snippets("perl", "(a)\x27\\$x", [], "\\U$1/X").find(s => 
   [[ $replaced == 'zA/Xz' ]] || fail "generated Perl replacements interpolate groups and case escapes" "$replaced"
   pass "generated Perl replacements interpolate groups and case escapes"
 fi
+
+# Workers on several channels start at once on first use; they share one
+# build instead of deleting each other's.
+if command -v go >/dev/null; then
+  race_cache="$tmpdir/race-cache"
+  for i in 1 2 3 4; do
+    (XDG_CACHE_HOME="$race_cache" OMARCHY_PATH="$ROOT" timeout 300 "$ROOT/bin/omarchy-rex-worker" go \
+      <<<'{"op":"match","id":'"$i"',"flavor":"go","pattern":"a","flags":[],"text":"xa","textId":1}' | grep -v '^{"building"' >"$tmpdir/race-$i") &
+  done
+  wait
+  for i in 1 2 3 4; do
+    [[ $(jq -c .matches "$tmpdir/race-$i" 2>/dev/null) == "[1,2]" ]] || fail "concurrent first builds of a worker all succeed" "$(cat "$tmpdir"/race-*)"
+  done
+  pass "concurrent first builds of a worker all succeed"
+fi
