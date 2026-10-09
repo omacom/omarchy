@@ -7,7 +7,7 @@ function isDischarging(device, onBattery, dischargingState) {
   return !!(device && device.isPresent && onBattery && device.state === dischargingState)
 }
 
-function shouldWarnLowBattery(device, onBattery, dischargingState, threshold, alreadyNotified, warningMayBeShown) {
+function shouldWarnLowBattery(device, onBattery, dischargingState, threshold, alreadyNotified) {
   var level = batteryPercentage(device)
   if (level < 0) return { level: level, notify: false, notifiedLowBattery: false, dismiss: false }
 
@@ -16,11 +16,11 @@ function shouldWarnLowBattery(device, onBattery, dischargingState, threshold, al
     level: level,
     notify: low && !alreadyNotified,
     notifiedLowBattery: low,
-    // The warning is critical, so it never expires on its own. Once the
-    // battery is no longer low, nothing else takes it off screen. This can't
-    // rely on alreadyNotified: a restored warning outlives a shell restart,
-    // but that flag does not.
-    dismiss: !low && !!warningMayBeShown
+    // The warning is critical, so it never expires on its own. Dismiss on
+    // every check while the battery is not low, not only when it recovers:
+    // a warning restored after a shell restart can appear after the first
+    // check, and this service has no record of sending it.
+    dismiss: !low
   }
 }
 
