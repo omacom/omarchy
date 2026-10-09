@@ -36,9 +36,24 @@ device=$(hw_display)
 [[ $device == "intel_backlight" ]] || fail "the candidate order is honored" "actual: $device"
 pass "the candidate order is honored"
 
-write_backlights nvidia_wmi_ec_backlight
+write_backlights acpi_video0 nvidia_wmi_ec_backlight
 device=$(hw_display)
-[[ $device == "nvidia_wmi_ec_backlight" ]] || fail "an unknown backlight falls back to the first device" "actual: $device"
+[[ $device == "nvidia_wmi_ec_backlight" ]] || fail "nvidia_wmi_ec_backlight beats the alphabetical fallback" "actual: $device"
+pass "nvidia_wmi_ec_backlight beats the alphabetical fallback"
+
+write_backlights intel_backlight nvidia_wmi_ec_backlight
+device=$(hw_display)
+[[ $device == "nvidia_wmi_ec_backlight" ]] || fail "nvidia_wmi_ec_backlight outranks intel_backlight" "actual: $device"
+pass "nvidia_wmi_ec_backlight outranks intel_backlight"
+
+write_backlights intel_backlight nvidia_0
+device=$(hw_display)
+[[ $device == "nvidia_0" ]] || fail "nvidia_0 outranks intel_backlight" "actual: $device"
+pass "nvidia_0 outranks intel_backlight"
+
+write_backlights some_vendor_backlight
+device=$(hw_display)
+[[ $device == "some_vendor_backlight" ]] || fail "an unknown backlight falls back to the first device" "actual: $device"
 pass "an unknown backlight falls back to the first device"
 
 write_backlights appletb_backlight gmux_backlight

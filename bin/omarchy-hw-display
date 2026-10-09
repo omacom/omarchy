@@ -11,7 +11,11 @@ backlight_path="${OMARCHY_BACKLIGHT_PATH:-/sys/class/backlight}"
 device="$(ls -1 "$backlight_path" 2>/dev/null | grep -vx appletb_backlight | head -n1)"
 # gmux comes first: apple-gmux only registers when the kernel has already picked it, and on
 # dual-GPU Macs the GPU's own PWM stops driving the panel once that GPU suspends.
-for candidate in "$backlight_path"/gmux_backlight "$backlight_path"/amdgpu_bl* "$backlight_path"/intel_backlight "$backlight_path"/acpi_video*; do
+# nvidia_wmi_ec_backlight (surfaced as nvidia_wmi_ec_backlight* or the legacy nvidia_0 name,
+# depending on how the kernel registered it) is the vendor-advertised authoritative backlight
+# on NVIDIA Optimus/hybrid laptops when present. Prefer it over the Intel iGPU's generic PWM
+# interface, which the firmware may not wire to the panel on these machines.
+for candidate in "$backlight_path"/gmux_backlight "$backlight_path"/amdgpu_bl* "$backlight_path"/nvidia_wmi_ec_backlight* "$backlight_path"/nvidia_0 "$backlight_path"/intel_backlight "$backlight_path"/acpi_video*; do
   if [[ -e $candidate ]]; then
     device="${candidate##*/}"
     break
