@@ -1,17 +1,43 @@
 #!/bin/bash
 
 # omarchy:summary=Send the low battery warning notification and run battery-low hooks.
-# omarchy:args=<percentage>
+# omarchy:args=<percentage> [--quiet] [--display-percentage <percentage>]
 # omarchy:hidden=true
 
 set -euo pipefail
 
-if (($# != 1)); then
-  echo "Usage: omarchy-battery-low <percentage>" >&2
+usage() {
+  echo "Usage: omarchy-battery-low <percentage> [--quiet] [--display-percentage <percentage>]" >&2
   exit 1
-fi
-
+}
+(( $# > 0 )) || usage
 level=$1
+shift
+quiet=false
+display_override=""
+while (( $# > 0 )); do
+  case $1 in
+    --quiet) quiet=true; shift ;;
+    --display-percentage)
+      (( $# >= 2 )) || usage
+      [[ $2 =~ ^(0|[1-9][0-9]?|100)$ ]] || usage
+      display_override=$2
+      shift 2
+      ;;
+    *) usage ;;
+  esac
+done
 
-omarchy-notification-send -g 󱐋 -u critical "Time to recharge!" "Battery is down to ${level}%" -i battery-caution -t 30000
+display_level=$(awk -v p="$level" 'BEGIN {
+  if (p <= 0) { print 0; exit }
+  if (p > 100) p = 100
+  usable = int((p - 4) * 100 / 96 + 0.5 + 1e-9)
+  print (usable < 1 ? 1 : usable)
+}')
+
+[[ -z $display_override ]] || display_level=$display_override
+
+if ! $quiet; then
+  omarchy-notification-send -g 󱐋 -u critical "Time to recharge!" "Battery is down to ${display_level}%" -i battery-caution -t 30000
+fi
 omarchy-hook battery-low "$level"

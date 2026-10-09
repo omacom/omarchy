@@ -32,15 +32,19 @@ Item {
   function checkBattery() {
     var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
     persisted.notifiedLowBattery = state.notifiedLowBattery
-    if (state.notify) sendLowBatteryWarning(state.level)
+    if (state.notify) sendLowBatteryWarning(state.level, batteryPercentage())
   }
 
-  function sendLowBatteryWarning(level) {
+  function sendLowBatteryWarning(level, displayLevel) {
     if (warningProcess.running) return
     warningProcess.command = [
       "omarchy-battery-low",
-      String(level)
+      String(level),
+      "--display-percentage",
+      String(displayLevel)
     ]
+    // The guard owns the critical toast, but battery-low hooks still run once.
+    if (level <= 5) warningProcess.command = warningProcess.command.concat(["--quiet"])
     warningProcess.running = true
   }
 

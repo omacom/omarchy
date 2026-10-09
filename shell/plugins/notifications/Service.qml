@@ -127,6 +127,8 @@ Item {
   //     Trusted because it's almost always omarchy or system shell scripts —
   //     chat apps set app_name to their brand (Discord/Slack/Vesktop), which
   //     falls outside this rule.
+  //   - urgency=critical AND app_name=omarchy-battery-guard: save-work and
+  //     charger warnings before automatic shutdown, plus recovery updates.
   function shouldBypassDnd(notification) {
     return NotificationLogic.shouldBypassDnd(notification, NotificationUrgency.Critical)
   }

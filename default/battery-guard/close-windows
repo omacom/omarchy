@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# Called by the guard only after dropping to the graphical session's UID.
+set -euo pipefail
+(( EUID != 0 )) || exit 1
+battery_path="${1:-}"
+[[ -n $battery_path ]] || exit 2
+action="${2:-}"
+
+power_recovered() {
+  local supply online=false confirmed=false count=0
+  for supply in "${battery_path%/*}"/*; do
+    [[ -r $supply/type && -r $supply/online ]] || continue
+    case $(<"$supply/type") in Mains|USB|USB_*|Wireless) ;; *) continue ;; esac
+    [[ $(<"$supply/online") != "1" ]] || online=true
+  done
+  $online || return 1
+  for supply in "${battery_path%/*}"/*; do
+    [[ -r $supply/type && $(<"$supply/type") == "Battery" ]] || continue
+    [[ ! -r $supply/present || $(<"$supply/present") == "1" ]] || continue
+    [[ ! -r $supply/scope || $(<"$supply/scope") != "Device" ]] || continue
+    (( count += 1 ))
+    [[ -r $supply/status ]] || return 1
+    case $(<"$supply/status") in
+      Charging|Full) confirmed=true ;;
+      "Not charging") ;;
+      *) return 1 ;;
+    esac
+  done
+  (( count > 0 )) && $confirmed
+}
+
+valid_instance() {
+  [[ $signature =~ ^[a-zA-Z0-9_-]+$ && $pid =~ ^[0-9]+$ && $wayland =~ ^wayland-[0-9]+$ ]] || return 1
+  [[ $(stat -c %u "/proc/$pid" 2>/dev/null) == "$EUID" ]] || return 1
+  local socket="$XDG_RUNTIME_DIR/hypr/$signature/.socket.sock"
+  [[ -S $socket && $(stat -c %u "$socket") == "$EUID" ]]
+}
+
+case $action in
+  --snapshot)
+    (( $# == 2 )) || exit 2
+    # Read-only phase: no dispatch is possible until the root daemon persists
+    # the complete snapshot and subsequently calls --close-one.
+    instances=$(hyprctl -j instances | jq -r '.[] | [.instance, .pid, .wl_socket] | @tsv')
+    while IFS=$'\t' read -r signature pid wayland; do
+      valid_instance || continue
+      export HYPRLAND_INSTANCE_SIGNATURE="$signature" WAYLAND_DISPLAY="$wayland"
+      clients=$(hyprctl -j clients | jq -r '.[].address')
+      while read -r address; do
+        [[ $address =~ ^0x[0-9a-fA-F]+$ ]] || continue
+        printf '%s %s %s %s\n' "$signature" "$pid" "$wayland" "$address"
+      done <<<"$clients"
+    done <<<"$instances"
+    ;;
+  --close-one)
+    (( $# == 6 )) || exit 2
+    signature=$3 pid=$4 wayland=$5 address=$6
+    valid_instance || exit 2
+    [[ $address =~ ^0x[0-9a-fA-F]+$ ]] || exit 2
+    power_recovered && exit 3
+    export HYPRLAND_INSTANCE_SIGNATURE="$signature" WAYLAND_DISPLAY="$wayland"
+    # The root daemon has already persisted this attempt. A transport failure
+    # is ambiguous (exit 1); only an explicit rejection allows retry (exit 2).
+    if reply=$(hyprctl dispatch "hl.dsp.window.close({ window = \"address:$address\" })"); then
+      [[ ${reply,,} != *"error:"* ]] || exit 2
+    else
+      exit 1
+    fi
+    ;;
+  *) exit 2 ;;
+esac
