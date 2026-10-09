@@ -129,6 +129,8 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 
 ## Launching apps
 
+The file manager shortcuts use the default folder application (`inode/directory`). Run `omarchy default filemanager` to see its desktop ID, or `omarchy default filemanager com.thisisgm.flea.desktop` to select an installed file manager. Changes apply to the next launch without editing keybindings. `omarchy launch filemanager [directory]` opens a folder with the same default. The background-folder and RetroArch Games-folder actions also follow this selection. “Show in folder” actions in other applications may require separate file-manager integration.
+
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
 | `Super + Return`           | Terminal    |

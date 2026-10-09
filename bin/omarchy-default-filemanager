@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Get or set the default file manager via the XDG folder association
+# omarchy:args=[desktop-id]
+# omarchy:examples=omarchy default filemanager | omarchy default filemanager org.gnome.Nautilus.desktop
+
+if (($# == 0)); then
+  exec xdg-mime query default inode/directory
+elif (($# == 1)) && [[ $1 == *.desktop && $1 != */* && $1 != -* ]]; then
+  xdg-mime default "$1" inode/directory || exit 1
+  if [[ $(xdg-mime query default inode/directory) != "$1" ]]; then
+    echo "Could not select $1; check that its desktop entry is installed and executable." >&2
+    exit 1
+  fi
+else
+  echo "Usage: omarchy default filemanager [desktop-id]" >&2
+  exit 1
+fi
