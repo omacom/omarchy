@@ -965,3 +965,33 @@ touch "$TEST_GUARD_ACTIVE"
 bash -euo pipefail "$ROOT/migrations/1790608617.sh" >/dev/null
 grep -Fqx 'migrate-setup <--yes>' "$calls" || fail "migration repairs an active daemon without a watcher"
 pass "USB migration repairs enabled protection and preserves opt-out"
+
+# Boot-time denial writes Limine's own configuration, which a Mac's boot
+# package owns: it is refused there before anything changes.
+fake_platform "$scratch/apple" apple-silicon
+mkdir -p "$scratch/apple-stubs"
+printf '#!/bin/bash\necho "sudo $*" >>"%s"\n' "$scratch/apple-sudo" >"$scratch/apple-stubs/sudo"
+chmod +x "$scratch/apple-stubs/sudo"
+status=0
+OMARCHY_PROC_ROOT="$scratch/apple/proc" PATH="$scratch/apple/bin:$scratch/apple-stubs:$ROOT/bin:$PATH" \
+  "$scratch/setup" --boot --yes >"$scratch/apple-out" 2>&1 || status=$?
+(( status == 2 )) || fail "Apple Silicon refuses USB authorization from boot" "$(cat "$scratch/apple-out")"
+grep -Fq "not available on Apple Silicon" "$scratch/apple-out" || fail "the refusal says why" "$(cat "$scratch/apple-out")"
+[[ ! -e $scratch/apple-sudo ]] || fail "the refusal changes nothing" "$(cat "$scratch/apple-sudo")"
+pass "USB authorization from boot is refused on Apple Silicon before anything changes"
+
+# On Apple Silicon the boot helper never touches Limine: enabling is refused,
+# disabling what is not configured succeeds (so USB authorization can still be
+# turned off), and a configuration from elsewhere is left with removal steps.
+(
+  drop_in=$scratch/apple-boot/usb-authorization.conf
+  limine_defaults=$scratch/apple-boot/limine
+  mkdir -p "$scratch/apple-boot"
+  status=0; usb_authorization_apple_boot enable 2>/dev/null || status=$?
+  (( status == 2 )) || fail "Apple Silicon refuses boot-time USB authorization in the helper"
+  usb_authorization_apple_boot disable || fail "a clean Mac disables boot-time USB authorization as a no-op"
+  echo "$setting" >"$drop_in"
+  if usb_authorization_apple_boot disable 2>"$scratch/apple-boot/err"; then fail "an inherited boot-time setting is not claimed removed"; fi
+  grep -Fq "Remove it by hand" "$scratch/apple-boot/err" || fail "the inherited setting comes with removal steps"
+)
+pass "the boot helper leaves a Mac's boot files alone and still lets USB authorization be turned off"

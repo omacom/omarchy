@@ -694,6 +694,22 @@ usb_authorization_sync_and_verify() (
   usb_authorization_verify_boot_entries "$expected" "$config" "$esp" "$machine_id"
 )
 
+# A Mac's boot chain belongs to its boot package, so boot-time denial is not
+# managed here. Disabling what is not configured succeeds, so turning USB
+# authorization off still works; anything configured by another route is left
+# to the owner, since this cannot rebuild a Mac's boot files.
+usb_authorization_apple_boot() {
+  if [[ ${1:-} == "enable" ]]; then
+    echo "USB authorization from boot is not available on Apple Silicon yet." >&2
+    return 2
+  fi
+  if [[ -e $drop_in ]] || grep -Fqx "$snapshot_begin" "$limine_defaults" 2>/dev/null; then
+    echo "Boot-time USB authorization is configured in $drop_in or $limine_defaults, which this command cannot remove on Apple Silicon." >&2
+    echo "Remove it by hand: delete $drop_in and the lines from '$snapshot_begin' to '$snapshot_end' in $limine_defaults, then rebuild the boot files." >&2
+    return 1
+  fi
+}
+
 usb_authorization_main() {
   local had_drop_in=0 had_snapshot_setting=0 snapshot_status temporary
 
@@ -791,7 +807,9 @@ main() {
   fi
   case "${1:-}" in
   enable|disable)
-    if usb_authorization_secure_boot_enabled; then
+    if /usr/bin/omarchy-hw-apple-silicon; then
+      usb_authorization_apple_boot "$1"
+    elif usb_authorization_secure_boot_enabled; then
       usb_authorization_boot_transaction "$1"
     else
       usb_authorization_main "$1"

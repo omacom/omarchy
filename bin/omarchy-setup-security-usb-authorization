@@ -40,6 +40,13 @@ while (( $# > 0 )); do
   shift
 done
 
+# Boot-time blocking goes into Limine's own configuration, which a Mac's boot
+# package owns, so it is not offered there.
+if (( from_boot )) && omarchy-hw-apple-silicon; then
+  echo "USB authorization from boot is not available on Apple Silicon yet; USB device authorization after login still works." >&2
+  exit 2
+fi
+
 state_dir="$HOME/.local/state/omarchy/usb-authorization"
 unit_source="$OMARCHY_PATH/default/systemd/user/omarchy-usb-authorization.service"
 unit="$HOME/.config/systemd/user/omarchy-usb-authorization.service"
