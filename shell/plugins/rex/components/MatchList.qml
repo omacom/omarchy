@@ -143,7 +143,8 @@ Item {
 
             Text {
               Layout.fillWidth: true
-              text: start < 0 ? "did not take part" : root.preview(start, end)
+              // -2: the engine matched the group but does not say where.
+              text: start === -2 ? "position not reported by this engine" : (start < 0 ? "did not take part" : root.preview(start, end))
               color: start < 0 ? root.dim : root.foreground
               font.italic: start < 0
               elide: Text.ElideRight

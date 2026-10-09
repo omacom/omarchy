@@ -260,6 +260,9 @@ worker_cases='[
   ["vim", "vim", "\\v(\\w)(é)", [], "aé b😀 cé", [0,2,0,1,1,2,7,9,7,8,8,9], 2],
   ["vim", "vim", "a\\nb", [], "xa\nbc", [1,4]],
   ["vim", "vim", "foo\\zsbar", [], "foobar", [3,6]],
+  ["vim", "vim", "\\(a\\(a\\)\\)", [], "xaa", [1,3,1,3,2,3], 2],
+  ["python", "sed-e", "(a(a))", [], "aa", [0,2,0,2,1,2], 2],
+  ["python", "sed-e", "(b)(x)?", [], "ab", [1,2,1,2,-1,-1], 2],
   ["node", "node", "(\\w)(?<n>é|😀)?", ["u"], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
   ["node", "node", "(?<=a)b(c)?", [], "ab", [1,2,-1,-1]],
   ["go", "go", "(\\w)(?P<n>é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
@@ -286,6 +289,20 @@ for worker in python perl ruby lua vim node go rust java dotnet cpp resid; do
     continue
   fi
   requests=$(jq -c --arg worker "$worker" 'to_entries[] | select(.value[0] == $worker) | {op: "match", id: .key, flavor: .value[1], pattern: .value[2], flags: .value[3], text: .value[4], textId: .key, groups: (.value[6] // 0)}' <<<"$worker_cases")
+  # Vim finds groups from where their bodies sit in the pattern, as Engine.qml
+  # sends them.
+  if [[ $worker == "vim" ]]; then
+    requests=$(ROOT="$ROOT" REQUESTS="$requests" node -e '
+const { loadQmlJs } = require(process.env.ROOT + "/test/shell.d/fixtures/qml-js-loader.js")
+const P = loadQmlJs(process.env.ROOT + "/shell/plugins/rex/lib/Parser.js")
+for (const line of process.env.REQUESTS.split("\n")) {
+  const r = JSON.parse(line)
+  const spans = []
+  P.walk(P.parse(r.pattern, "vim", r.flags).ast, n => { if (n.type === "group" && n.index) spans[n.index - 1] = [n.body.start, n.body.end] })
+  r.groupSpans = spans
+  console.log(JSON.stringify(r))
+}')
+  fi
   replies=$(OMARCHY_PATH="$ROOT" timeout 300 "$ROOT/bin/omarchy-rex-worker" "$worker" <<<"$requests" | grep -v '^{"building"')
   if [[ $replies == *buildError* && $worker == "rust" && $replies == *"--fetch rust"* ]]; then
     skip "the rust worker reports matches in UTF-16 offsets (the regex crate is not in Cargo's cache)"

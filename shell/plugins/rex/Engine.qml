@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import "lib/Flavors.js" as Flavors
 import "lib/Indices.js" as Indices
+import "lib/Parser.js" as Parser
 
 // Runs patterns on whichever engine a flavor names, off the UI thread, and
 // reports every reply through `result`; callers keep the ids `match`
@@ -24,7 +25,8 @@ import "lib/Indices.js" as Indices
 // A reply: { id, ok, done, error, kind, matches, stride, elapsed, names }
 // where matches is flat, stride numbers per match: [start, end] for the
 // whole match and then each group, in UTF-16 offsets into the text, -1 for
-// a group that did not take part.
+// a group that did not take part, -2 for one the engine matched without
+// saying where.
 Item {
   id: root
 
@@ -80,10 +82,23 @@ Item {
       limit: request.limit,
       keep: request.keep === true,
     }
+    // Vim reports what groups matched but not where; it can find each one
+    // with \zs and \ze placed around the group, which needs to know where
+    // in the pattern each group's body sits.
+    if (flavor.family === "vim" && request.parsed) payload.groupSpans = groupSpans(request.parsed)
     // Options particular to an operation, such as the debugger's.
     for (var key in request.options || {}) payload[key] = request.options[key]
     worker(flavor.worker, channel).send(payload, request.text, request.textVersion, request.textPath || "")
     return id
+  }
+
+  // [bodyStart, bodyEnd] in the pattern for each group, by number.
+  function groupSpans(parsed) {
+    var out = []
+    Parser.walk(parsed.ast, function(n) {
+      if (n.type === "group" && n.index && !n.postfix) out[n.index - 1] = [n.body.start, n.body.end]
+    })
+    return out
   }
 
   function worker(name, channel) {

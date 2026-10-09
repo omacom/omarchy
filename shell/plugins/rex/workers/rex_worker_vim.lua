@@ -5,9 +5,11 @@
 --
 -- The text goes into a scratch buffer and is searched the way / searches it,
 -- so ^ and $ mean line starts and ends and \n crosses lines. Vim reports
--- where a match starts and ends but only what its groups matched, so a
--- group is placed at the first place its text occurs in the match, after
--- the group before it.
+-- where a match starts and ends but only what its groups matched. Rex sends
+-- where each group's body sits in the pattern (groupSpans), and the worker
+-- finds the group by matching again with \zs and \ze around that body. A
+-- group it cannot place that way (in a match across lines, or in a pattern
+-- that sets \zs itself) is reported as -2, unknown.
 
 local SLICE_SECONDS = 0.05
 
@@ -60,6 +62,24 @@ vim.api.nvim_set_current_buf(buffer)
 
 local text_id, text, starts, utf16, relative
 
+-- Where group g of a match found at col (0-based, in this line) sits, as
+-- 0-based byte offsets into the line: -1 when it matched nothing (Vim cannot
+-- tell an empty group from one that did not take part), -2 when unknown.
+local function locate(pattern, icase, span, line, col, value)
+  if value == nil or not span then return -2, -2 end
+  if value == "" then return -1, -1 end
+  if pattern:find("\\z[se]") then return -2, -2 end
+  -- groupSpans count UTF-16 units; Lua strings count bytes.
+  local function byte_at(units)
+    return vim.str_byteindex(pattern, "utf-16", units, false)
+  end
+  local open, close = byte_at(span[1]), byte_at(span[2])
+  local marked = (icase and "\\c" or "") .. pattern:sub(1, open) .. "\\zs" .. pattern:sub(open + 1, close) .. "\\ze" .. pattern:sub(close + 1)
+  local ok, found = pcall(vim.fn.matchstrpos, line, marked, col)
+  if not ok or found[2] < 0 or found[1] ~= value then return -2, -2 end
+  return found[2], found[3]
+end
+
 local function run_match(request)
   local pattern = request.pattern
   if vim.tbl_contains(request.flags or {}, "i") then pattern = "\\c" .. pattern end
@@ -102,19 +122,18 @@ local function run_match(request)
     local start_unit = utf16(start_byte)
     out[#out + 1] = start_unit
     out[#out + 1] = relative(start_byte, start_unit, end_byte)
-    local matched = text:sub(start_byte + 1, end_byte)
-    local from = 1
     for g = 1, groups do
-      local value = submatches and submatches[g + 1]
-      local at = value and value ~= "" and matched:find(value, from, true)
-      if value == "" and submatches then at = from end
-      if at then
-        out[#out + 1] = relative(start_byte, start_unit, start_byte + at - 1)
-        out[#out + 1] = relative(start_byte, start_unit, start_byte + at - 1 + #value)
-        from = at
+      local s0, e0 = locate(request.pattern, pattern ~= request.pattern, request.groupSpans and request.groupSpans[g], line, s[2] - 1, submatches and submatches[g + 1])
+      if s0 == -1 then
+        out[#out + 1] = -1
+        out[#out + 1] = -1
+      elseif s0 == -2 then
+        out[#out + 1] = -2
+        out[#out + 1] = -2
       else
-        out[#out + 1] = -1
-        out[#out + 1] = -1
+        local line_start = starts[s[1]]
+        out[#out + 1] = relative(start_byte, start_unit, line_start + s0)
+        out[#out + 1] = relative(start_byte, start_unit, line_start + e0)
       end
     end
     count = count + 1

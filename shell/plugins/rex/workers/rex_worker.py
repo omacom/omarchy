@@ -501,6 +501,29 @@ class Posix:
         libc.regfree.argtypes = [ctypes.c_void_p]
         self.libc = libc
 
+    def compile(self, pattern, cflags):
+        """A compiled regex_t and its group count, or None and the error."""
+        regex = ctypes.create_string_buffer(self.REGEX_T_SIZE)
+        rc = self.libc.regcomp(regex, pattern.encode("utf-8", "surrogatepass"), cflags)
+        if rc != 0:
+            buffer = ctypes.create_string_buffer(256)
+            self.libc.regerror(rc, regex, buffer, 256)
+            return None, buffer.value.decode()
+        return regex, ctypes.c_size_t.from_buffer(regex, self.NSUB_OFFSET).value
+
+    def groups_at(self, regex, groups, subject, line_start, line_end, start):
+        """Every group's [start, end) for the match found at start within
+        one line, or None when the engine does not match there."""
+        matches = (self.Match * (groups + 1))()
+        # REG_STARTEND counts from the line handed over, so hand over the line.
+        line = subject[line_start:line_end]
+        matches[0].rm_so = start - line_start
+        matches[0].rm_eo = len(line)
+        eflags = self.REG_STARTEND | (self.REG_NOTBOL if start > line_start else 0)
+        if self.libc.regexec(regex, line, groups + 1, matches, eflags) != 0:
+            return None
+        return [(m.rm_so + line_start, m.rm_eo + line_start) if m.rm_so >= 0 else (-1, -1) for m in matches]
+
     def job(self, request, text):
         libc = self.libc
         flags = request.get("flags", [])
@@ -592,22 +615,9 @@ def tool_error(stderr, name):
     return stderr.split("\n")[0].split(": ", 1)[-1] if stderr else name + " failed"
 
 
-def place_groups(subject, match_start, match_end, values, convert, base_unit, out):
-    """Groups reported only as text sit at the first place their text occurs
-    in the match, after the group before them."""
-    matched = subject[match_start:match_end]
-    at = 0
-    for value in values:
-        if value is None:
-            out.extend((-1, -1))
-            continue
-        found = matched.find(value, at)
-        if found < 0:
-            out.extend((-1, -1))
-            continue
-        out.append(convert.relative(match_start, base_unit, match_start + found))
-        out.append(convert.relative(match_start, base_unit, match_start + found + len(value)))
-        at = found
+# A group whose position the engine does not report is -2, which Rex shows
+# as unknown rather than guessing.
+UNKNOWN = -2
 
 
 def grep_job(request, text):
@@ -654,9 +664,13 @@ def sed_job(request, text):
     if open_mark is None:
         yield {"ok": False, "error": "Rex cannot mark matches in a text that uses every control character"}
         return
-    # Each match becomes OPEN match SEP group1 SEP group2 ... CLOSE.
-    separator = b"\x7f" if b"\x7f" not in subject else b"\x1f"
-    replacement = open_mark + b"&" + b"".join(separator + b"\\" + str(g).encode() for g in range(1, groups + 1)) + close_mark
+    # Each match becomes OPEN match CLOSE. sed only reports what groups
+    # matched, so where they matched comes from glibc's regex, which is the
+    # engine GNU sed is built on, run at the place sed found the match.
+    replacement = open_mark + b"&" + close_mark
+    posix = engine("posix")
+    cflags = (posix.REG_EXTENDED if request.get("flavor") == "sed-e" else 0) | (posix.REG_ICASE if "i" in flags else 0)
+    located, located_groups = posix.compile(request["pattern"], cflags)
     pattern = request["pattern"].encode("utf-8", "surrogatepass")
     # The s command's delimiter must not occur in the pattern or replacement.
     delimiter = next((bytes([c]) for c in range(1, 32) if c != 10 and bytes([c]) not in pattern and bytes([c]) not in replacement), None)
@@ -682,12 +696,25 @@ def sed_job(request, text):
             break
         position += at - index
         end = stdout.find(close_mark, at)
-        parts = stdout[at + 1:end].split(separator)
-        whole = parts[0]
+        whole = stdout[at + 1:end]
         base_unit = convert.utf16(position)
         out.append(base_unit)
         out.append(convert.relative(position, base_unit, position + len(whole)))
-        place_groups(subject, position, position + len(whole), parts[1:1 + groups] + [None] * (groups - len(parts[1:])), convert, base_unit, out)
+        spans = None
+        if located is not None and located_groups == groups:
+            line_start = subject.rfind(b"\n", 0, position) + 1
+            line_end = subject.find(b"\n", position)
+            spans = posix.groups_at(located, groups, subject, line_start, len(subject) if line_end < 0 else line_end, position)
+            if spans and spans[0] != (position, position + len(whole)):
+                spans = None
+        for g in range(1, groups + 1):
+            if spans is None:
+                out.extend((UNKNOWN, UNKNOWN))
+            elif spans[g][0] < 0:
+                out.extend((-1, -1))
+            else:
+                out.append(convert.relative(position, base_unit, spans[g][0]))
+                out.append(convert.relative(position, base_unit, spans[g][1]))
         position += len(whole)
         index = end + 1
         if len(out) // ((groups + 1) * 2) >= limit or not request.get("all", True):
