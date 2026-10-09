@@ -534,7 +534,9 @@ output_binding_records_uncached() {
 keybindings_cache_key() {
   {
     printf 'v14\n'
-    hyprctl devices 2>/dev/null | grep -F 'active keymap:'
+    # One line per keymap, not per keyboard: a keyboard coming and going, like the
+    # virtual one wtype or an input method attaches with keymap none, is not a new key.
+    hyprctl devices 2>/dev/null | awk 'sub(/.*active keymap: /, "") && $0 != "none"' | sort -u
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
 }
@@ -549,7 +551,9 @@ refresh_keybindings_cache() {
 
   if output_binding_records_uncached >"$tmp_file"; then
     mv "$tmp_file" "$cache_file"
-    find "$cache_dir" -maxdepth 1 -type f -name 'keybindings-*.records' ! -name "$cache_name" -delete 2>/dev/null || true
+    # Keep a few newest besides this one, so switching layout and back finds its cache.
+    find "$cache_dir" -maxdepth 1 -type f -name 'keybindings-*.records' ! -name "$cache_name" -printf '%T@\t%p\n' 2>/dev/null |
+      sort -rn | tail -n +4 | cut -f2- | xargs -r -d '\n' rm -f -- || true
   else
     rm -f "$tmp_file"
     return 1

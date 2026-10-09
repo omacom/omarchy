@@ -13,6 +13,7 @@ home="$tmpdir/home"
 stub_bin="$tmpdir/bin"
 mkdir -p "$home/.config" "$stub_bin"
 cp -r "$ROOT/config/hypr" "$home/.config/hypr"
+printf '\t\t\tactive keymap: English (US)\n' >"$tmpdir/devices"
 
 # The menu reads binds from Hyprland, which is not running here, so stand in for
 # it. A Lua bind reports dispatcher __lua and no arg, and the menu recovers both
@@ -34,7 +35,7 @@ stub_hyprctl() {
     cat
     echo 'BINDS'
     echo '  ;;'
-    echo '  devices) echo "active keymap: English (US)" ;;'
+    echo "  devices) cat '$tmpdir/devices' ;;"
     echo 'esac'
   } >"$stub_bin/hyprctl"
   chmod +x "$stub_bin/hyprctl"
@@ -232,3 +233,40 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# A rebuild runs the whole Lua config, so the cache has to survive what does not
+# change the menu: another keyboard coming and going, or a layout and back.
+cached_records() {
+  # The inode tells a cache read back from one rebuilt under the same name.
+  stat -c '%i %n' "$tmpdir"/cache/omarchy/keybindings-*.records
+}
+
+first_records=$(cached_records)
+printf '\t\t\tactive keymap: English (US)\n\t\t\tactive keymap: English (US)\n' >"$tmpdir/devices"
+keybindings >/dev/null
+[[ $(cached_records) == "$first_records" ]] ||
+  fail "plugging in another keyboard on the same layout keeps the cache" "$(cached_records)"
+pass "plugging in another keyboard on the same layout keeps the cache"
+
+printf '\t\t\tactive keymap: English (US)\n\t\t\tactive keymap: none\n' >"$tmpdir/devices"
+keybindings >/dev/null
+[[ $(cached_records) == "$first_records" ]] ||
+  fail "a virtual keyboard with no keymap keeps the cache" "$(cached_records)"
+pass "a virtual keyboard with no keymap keeps the cache"
+
+printf '\t\t\tactive keymap: German\n' >"$tmpdir/devices"
+keybindings >/dev/null
+printf '\t\t\tactive keymap: English (US)\n' >"$tmpdir/devices"
+keybindings >/dev/null
+grep -qxF "$first_records" <<<"$(cached_records)" && (( $(cached_records | wc -l) == 2 )) ||
+  fail "switching layout and back keeps the cache for both" "$(cached_records)"
+pass "switching layout and back keeps the cache for both"
+
+for keymap in "Layout: One" "Layout: Two" "Layout: Three" "Layout: Four"; do
+  printf '\t\t\tactive keymap: %s\n' "$keymap" >"$tmpdir/devices"
+  keybindings >/dev/null
+done
+latest_records=$(cached_records)
+(( $(wc -l <<<"$latest_records") == 4 )) && ! grep -qxF "$first_records" <<<"$latest_records" ||
+  fail "the cache keeps the four newest and tells keymap names apart past a colon" "$latest_records"
+pass "the cache keeps the four newest and tells keymap names apart past a colon"
