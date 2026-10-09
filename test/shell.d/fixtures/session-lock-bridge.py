@@ -1,9 +1,13 @@
+import json
 import os
 import select
+import shutil
+import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from gi.repository import Gio, GLib
 
@@ -30,8 +34,8 @@ connection.signal_subscribe(
 )
 
 
-def wait_for(condition):
-  deadline = time.monotonic() + 3
+def wait_for(condition, timeout=3):
+  deadline = time.monotonic() + timeout
   while time.monotonic() < deadline:
     while context.pending():
       context.iteration(False)
@@ -72,6 +76,157 @@ def send_lock_state(child, state):
 
 def pass_check(description):
   print(f"ok - {description}", flush=True)
+
+
+def bus_call(method, arguments, return_type):
+  return connection.call_sync(
+    "org.freedesktop.DBus",
+    "/org/freedesktop/DBus",
+    "org.freedesktop.DBus",
+    method,
+    arguments,
+    GLib.VariantType.new(return_type),
+    Gio.DBusCallFlags.NONE,
+    2000,
+    None,
+  ).unpack()[0]
+
+
+def bridge_has_owner():
+  return bus_call("NameHasOwner", GLib.Variant("(s)", (BUS_NAME,)), "(b)")
+
+
+def bridge_process_id():
+  return bus_call("GetConnectionUnixProcessID", GLib.Variant("(s)", (BUS_NAME,)), "(u)")
+
+
+def test_quickshell_connection():
+  source_path = Path(os.environ["ROOT"])
+  lock_events.clear()
+  activatable_names = bus_call("ListActivatableNames", None, "(as)")
+  assert set(activatable_names) <= {"org.freedesktop.DBus"}, activatable_names
+  pass_check("test bus cannot activate portals or other desktop services")
+  with TemporaryDirectory(prefix="omarchy-lock-bridge-") as temporary_path:
+    runtime_path = Path(temporary_path) / "runtime"
+    runtime_path.mkdir(mode=0o700)
+    fixture_path = Path(temporary_path) / "shell"
+    fixture_path.mkdir()
+    shutil.copyfile(
+      source_path / "test/shell.d/fixtures/session-lock-bridge/shell.qml",
+      fixture_path / "shell.qml",
+    )
+    shutil.copyfile(
+      source_path / "shell/plugins/lock/SessionLockBridge.qml",
+      fixture_path / "SessionLockBridge.qml",
+    )
+    environment = os.environ | {
+      "QT_QPA_PLATFORM": "offscreen",
+      "QT_QUICK_BACKEND": "software",
+      "QT_QPA_PLATFORMTHEME": "",
+      "QT_ACCESSIBILITY": "0",
+      "NO_AT_BRIDGE": "1",
+      "GIO_USE_VFS": "local",
+      "OMARCHY_PATH": os.environ["ROOT"],
+      "XDG_RUNTIME_DIR": str(runtime_path),
+      "XDG_CACHE_HOME": temporary_path,
+    }
+    for variable in ("WAYLAND_DISPLAY", "DISPLAY"):
+      environment.pop(variable, None)
+
+    def ipc(method, *arguments):
+      result = subprocess.run(
+        [
+          "quickshell",
+          "ipc",
+          "-p",
+          str(fixture_path),
+          "call",
+          "session-lock-bridge-test",
+          method,
+          *arguments,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=2,
+        env=environment,
+        check=True,
+      )
+      return result.stdout.strip()
+
+    def bridge_ready():
+      return json.loads(ipc("status"))["ready"]
+
+    log_path = Path(temporary_path) / "quickshell.log"
+    with log_path.open("w") as log_file:
+      shell_process = subprocess.Popen(
+        ["quickshell", "-n", "-p", str(fixture_path), "--no-color"],
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+        env=environment,
+        start_new_session=True,
+      )
+      try:
+        wait_for(bridge_has_owner, timeout=5)
+        wait_for(bridge_ready)
+        runtime_status = json.loads(ipc("status"))
+        assert runtime_status["platform"] == "offscreen", runtime_status
+        assert not runtime_status["waylandDisplay"], runtime_status
+        assert not runtime_status["x11Display"], runtime_status
+        pass_check(
+          "Quickshell fixture runs offscreen without access to the desktop display"
+        )
+        wait_for(lambda: lock_events == [True])
+        assert get_active() is True
+        pass_check(
+          "real Quickshell receives ready and publishes an initially secure session"
+        )
+
+        assert ipc("setSecure", "false") == "ok"
+        wait_for(lambda: lock_events == [True, False])
+        assert get_active() is False
+        assert ipc("setSecure", "true") == "ok"
+        wait_for(lambda: lock_events == [True, False, True])
+        assert get_active() is True
+        pass_check(
+          "real Quickshell writes unlock and lock changes to the Python bridge"
+        )
+
+        previous_bridge_pid = bridge_process_id()
+        os.kill(previous_bridge_pid, signal.SIGKILL)
+        wait_for(lambda: not bridge_ready())
+        pass_check("real Quickshell clears readiness when the Python bridge fails")
+        wait_for(
+          lambda: bridge_has_owner() and bridge_process_id() != previous_bridge_pid
+        )
+        wait_for(bridge_ready)
+        wait_for(lambda: lock_events == [True, False, True, True])
+        assert get_active() is True
+        pass_check(
+          "real Quickshell restarts the bridge and republishes the current secure state"
+        )
+
+        assert ipc("setSecure", "false") == "ok"
+        wait_for(lambda: lock_events == [True, False, True, True, False])
+        assert get_active() is False
+        pass_check("restarted Quickshell bridge continues forwarding unlock changes")
+      except Exception:
+        log_file.flush()
+        print(log_path.read_text(), file=sys.stderr)
+        raise
+      finally:
+        try:
+          os.killpg(shell_process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+          pass
+        try:
+          shell_process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+          os.killpg(shell_process.pid, signal.SIGKILL)
+          shell_process.wait()
+    wait_for(lambda: not bridge_has_owner())
+    pass_check(
+      "Quickshell fixture exits without leaving a bridge or D-Bus owner behind"
+    )
 
 
 child = start_bridge()
@@ -164,3 +319,5 @@ finally:
   if bus_daemon.poll() is None:
     bus_daemon.kill()
     bus_daemon.wait()
+
+test_quickshell_connection()
