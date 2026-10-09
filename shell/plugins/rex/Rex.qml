@@ -67,6 +67,7 @@ Item {
 
   readonly property string statusText: {
     if (pattern === "") return ""
+    if (result.building) return "Building the " + result.building + " engine (first use only)…"
     if (result.kind === "timeout") return "Timed out"
     if (result.ok === false) return "Error"
     var n = result.count
@@ -160,6 +161,7 @@ Item {
         done: reply.done,
         error: reply.error || "",
         kind: reply.kind || "",
+        building: reply.building || "",
         names: reply.names || (first ? null : root.result.names),
         matches: matches,
         stride: reply.stride,

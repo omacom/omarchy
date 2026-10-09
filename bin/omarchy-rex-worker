@@ -1,10 +1,25 @@
 #!/bin/bash
 
 # omarchy:summary=Run one of Rex's regex engine workers, or list the flavors this machine can run
-# omarchy:args=<worker>|--flavors
+# omarchy:args=<worker>|--flavors|--fetch rust
 # omarchy:hidden=true
 
+# Interpreted workers run straight from the source. Compiled ones are built
+# on first use into the cache, in a directory named for a hash of their
+# source, so an Omarchy update that changes a worker builds it again and
+# nothing compiled is ever shipped. While building, the worker prints one
+# {"building": ...} line so Rex can say what it is waiting for; a build that
+# fails prints {"buildError": ...} and exits.
+
 WORKERS="$OMARCHY_PATH/shell/plugins/rex/workers"
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/rex/workers"
+
+export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+export GOTOOLCHAIN=local GOFLAGS=-buildvcs=false
+
+dotnet_sdk_present() {
+  omarchy-cmd-present dotnet && [[ -n $(dotnet --list-sdks 2>/dev/null) ]]
+}
 
 # Flavors whose engine is installed, one per line.
 list_flavors() {
@@ -20,18 +35,120 @@ list_flavors() {
   omarchy-cmd-present sed && printf '%s\n' sed sed-e
   omarchy-cmd-present gawk && echo gawk
   omarchy-cmd-present nvim && echo vim
+  omarchy-cmd-present node && echo node
+  omarchy-cmd-present go && echo go
+  omarchy-cmd-present cargo && echo rust
+  omarchy-cmd-present javac && omarchy-cmd-present java && echo java
+  if dotnet_sdk_present || compgen -G "$CACHE/dotnet-*/RexWorker.dll" >/dev/null && omarchy-cmd-present dotnet; then
+    echo dotnet
+  fi
+  omarchy-cmd-present g++ && echo cpp
   return 0
+}
+
+source_hash() {
+  (cd "$WORKERS/$1" && find . -type f -print0 | sort -z | xargs -0 sha256sum) | sha256sum | cut -c1-16
+}
+
+json_string() {
+  printf '%s' "$1" | jq -Rs .
+}
+
+# Builds worker $1 with the function build_$1 unless its current build is
+# already in the cache, and sets BUILT to the directory holding it.
+ensure_built() {
+  local name="$1" target tmp log
+
+  target="$CACHE/$name-$(source_hash "$name")"
+  BUILT="$target"
+  [[ -f $target/.complete ]] && return 0
+
+  printf '{"building":%s}\n' "$(json_string "$name")"
+  mkdir -p "$CACHE"
+  tmp=$(mktemp -d "$CACHE/.$name-build.XXXXXX")
+  cp -r "$WORKERS/$name/." "$tmp/src"
+  log="$tmp/build.log"
+
+  if (cd "$tmp/src" && "build_$name" "$tmp/out") >"$log" 2>&1; then
+    rm -rf "$target"
+    mv "$tmp/out" "$target"
+    touch "$target/.complete"
+    rm -rf "$tmp"
+    # Builds of older sources are never used again.
+    find "$CACHE" -maxdepth 1 -name "$name-*" ! -path "$target" -exec rm -rf {} +
+    return 0
+  fi
+
+  printf '{"buildError":%s}\n' "$(json_string "$(build_error "$name" "$log")")"
+  rm -rf "$tmp"
+  exit 1
+}
+
+build_error() {
+  local name="$1" log="$2"
+
+  if [[ $name == "rust" ]] && grep -q -e 'offline' -e 'no matching package' "$log"; then
+    echo "Rust's regex crate is not in Cargo's local cache yet. Run 'omarchy-rex-worker --fetch rust' once while online."
+  else
+    echo "Building the $name engine failed: $(tail -n 5 "$log")"
+  fi
+}
+
+build_go() {
+  go build -trimpath -o "$1/rex-worker" .
+}
+
+build_rust() {
+  cargo build --release --offline --quiet --target-dir "$PWD/target" &&
+    mkdir -p "$1" && cp target/release/rex-worker "$1/rex-worker"
+}
+
+build_java() {
+  javac -d "$1" RexWorker.java
+}
+
+build_dotnet() {
+  dotnet build -c Release -o "$1" -v q --nologo
+}
+
+build_cpp() {
+  mkdir -p "$1" && g++ -O2 -std=c++17 -o "$1/rex-worker" rex_worker.cpp
 }
 
 case ${1:-} in
   --flavors) list_flavors ;;
+  --fetch)
+    [[ ${2:-} == "rust" ]] || { echo "Usage: omarchy-rex-worker --fetch rust" >&2; exit 1; }
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    cp -r "$WORKERS/rust/." "$tmp"
+    (cd "$tmp" && cargo fetch)
+    ;;
   python) exec python3 -u "$WORKERS/rex_worker.py" ;;
   perl) exec perl "$WORKERS/rex_worker.pl" ;;
   ruby) exec ruby "$WORKERS/rex_worker.rb" ;;
   lua) exec lua5.1 "$WORKERS/rex_worker.lua" ;;
   vim) exec nvim --clean --headless -l "$WORKERS/rex_worker_vim.lua" ;;
+  node) exec node "$WORKERS/rex_worker.js" ;;
+  go | rust | cpp)
+    ensure_built "$1"
+    exec "$BUILT/rex-worker"
+    ;;
+  java)
+    ensure_built java
+    exec java -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -cp "$BUILT" RexWorker
+    ;;
+  dotnet)
+    # The runtime alone can run a build made earlier, if the SDK has gone.
+    if ! dotnet_sdk_present; then
+      built=$(compgen -G "$CACHE/dotnet-*/RexWorker.dll" | head -n 1)
+      [[ -n $built ]] && exec dotnet "$built"
+    fi
+    ensure_built dotnet
+    exec dotnet "$BUILT/RexWorker.dll"
+    ;;
   *)
-    echo "Usage: omarchy-rex-worker <python|perl|ruby|lua|vim>|--flavors" >&2
+    echo "Usage: omarchy-rex-worker <python|perl|ruby|lua|vim|node|go|rust|java|dotnet|cpp>|--flavors|--fetch rust" >&2
     exit 1
     ;;
 esac

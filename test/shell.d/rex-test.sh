@@ -259,17 +259,35 @@ worker_cases='[
   ["python", "gawk", "([a-z])(é)?", [], "aé b😀\nc", [0,2,0,1,1,2,3,4,3,4,-1,-1,7,8,7,8,-1,-1], 2],
   ["vim", "vim", "\\v(\\w)(é)", [], "aé b😀 cé", [0,2,0,1,1,2,7,9,7,8,8,9], 2],
   ["vim", "vim", "a\\nb", [], "xa\nbc", [1,4]],
-  ["vim", "vim", "foo\\zsbar", [], "foobar", [3,6]]
+  ["vim", "vim", "foo\\zsbar", [], "foobar", [3,6]],
+  ["node", "node", "(\\w)(?<n>é|😀)?", ["u"], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
+  ["node", "node", "(?<=a)b(c)?", [], "ab", [1,2,-1,-1]],
+  ["go", "go", "(\\w)(?P<n>é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
+  ["rust", "rust", "(\\w)(?P<n>é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
+  ["java", "java", "(\\w)(?<n>é|😀)?", ["U"], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
+  ["dotnet", "dotnet", "(\\w)(?<n>é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
+  ["dotnet", "dotnet", "(?<a>x)(y)", [], "xy", [0,2,1,2,0,1]],
+  ["cpp", "cpp", "(\\w)(é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]]
 ]'
 
-declare -A worker_command=([python]=python3 [perl]=perl [ruby]=ruby [lua]=lua5.1 [vim]=nvim)
-for worker in python perl ruby lua vim; do
+# Compiled workers build into a throwaway cache rather than the developer's.
+export XDG_CACHE_HOME="$tmpdir/cache"
+declare -A worker_command=([python]=python3 [perl]=perl [ruby]=ruby [lua]=lua5.1 [vim]=nvim [node]=node [go]=go [rust]=cargo [java]=javac [dotnet]=dotnet [cpp]=g++)
+for worker in python perl ruby lua vim node go rust java dotnet cpp; do
+  if [[ $worker == "dotnet" ]] && command -v dotnet >/dev/null && [[ -z $(dotnet --list-sdks 2>/dev/null) ]]; then
+    skip "the dotnet worker reports matches in UTF-16 offsets (no .NET SDK to build it)"
+    continue
+  fi
   if ! command -v "${worker_command[$worker]}" >/dev/null; then
     skip "the $worker worker reports matches in UTF-16 offsets (${worker_command[$worker]} is not installed)"
     continue
   fi
   requests=$(jq -c --arg worker "$worker" 'to_entries[] | select(.value[0] == $worker) | {op: "match", id: .key, flavor: .value[1], pattern: .value[2], flags: .value[3], text: .value[4], textId: .key, groups: (.value[6] // 0)}' <<<"$worker_cases")
-  replies=$(OMARCHY_PATH="$ROOT" timeout 20 "$ROOT/bin/omarchy-rex-worker" "$worker" <<<"$requests")
+  replies=$(OMARCHY_PATH="$ROOT" timeout 300 "$ROOT/bin/omarchy-rex-worker" "$worker" <<<"$requests" | grep -v '^{"building"')
+  if [[ $replies == *buildError* && $worker == "rust" && $replies == *"--fetch rust"* ]]; then
+    skip "the rust worker reports matches in UTF-16 offsets (the regex crate is not in Cargo's cache)"
+    continue
+  fi
   while IFS= read -r reply; do
     id=$(jq -r .id <<<"$reply")
     expected=$(jq -c ".[$id][5]" <<<"$worker_cases")

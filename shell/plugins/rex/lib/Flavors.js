@@ -392,7 +392,7 @@ var FLAVORS = [
     family: "perl",
     engine: "backtracking",
     worker: "java",
-    requires: ["java"],
+    requires: ["javac", "java"],
     units: "utf16",
     replace: "java",
     features: features({

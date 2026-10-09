@@ -30,6 +30,8 @@ Item {
   property bool detected: false
   // How long a worker may stay silent before it is stopped.
   property int timeoutMs: 5000
+  // How long a compiled worker may take to build on first use.
+  property int buildTimeoutMs: 300000
 
   property var workers: ({})
 
@@ -162,6 +164,24 @@ Item {
       function handle(line) {
         var reply
         try { reply = JSON.parse(line) } catch (e) { return }
+        // A compiled worker builds itself on first use, which can take a
+        // while; say so instead of timing out.
+        if (reply.building !== undefined) {
+          watchdog.interval = root.buildTimeoutMs
+          watchdog.restart()
+          if (current) root.deliver({ id: current.id, ok: true, done: false, building: reply.building, matches: [], stride: 2, elapsed: 0 })
+          return
+        }
+        if (reply.buildError !== undefined) {
+          if (current) {
+            var failed = current
+            current = null
+            watchdog.stop()
+            root.deliver({ id: failed.id, ok: false, done: true, kind: "build", error: reply.buildError, matches: [], stride: 2, elapsed: 0 })
+          }
+          return
+        }
+        watchdog.interval = root.timeoutMs
         if (!current || reply.id !== current.id) return
         if (reply.error === "missing-text") {
           textVersion = -1
