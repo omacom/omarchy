@@ -11,7 +11,8 @@ import "BrightnessModel.js" as BrightnessModel
 // device, reading, writing and reading back, then an IPC client for the OSD.
 // They step, clamp and read back the way that script does, so either path
 // lands on the same level and OSD. External and Apple displays go through the
-// script, which drives them over DDC or their own helper.
+// script, which drives them through their connector's kernel backlight when
+// they have one, else over DDC or their own helper.
 Item {
   id: root
 

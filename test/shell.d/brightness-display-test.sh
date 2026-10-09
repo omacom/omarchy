@@ -10,11 +10,38 @@ trap 'rm -rf "$test_tmp"' EXIT
 mock_bin="$test_tmp/bin"
 call_log="$test_tmp/calls"
 runtime_dir="$test_tmp/runtime"
+drm_dir="$test_tmp/drm"
 mkdir -p "$mock_bin" "$runtime_dir"
+
+# DP-3 has a connector backlight and DP-1 only a non-backlight child. eDP-1's i915-style backlight must
+# not override omarchy-hw-display, and card1's disconnected DP-3 backlight must be ignored. DP-4 is
+# connected on two cards, so card2's backlight can't be told apart from card1's plain monitor.
+mkdir -p "$drm_dir/card2-DP-3/apple-DP-3-bl" "$drm_dir/card2-DP-1/power" "$drm_dir/card0-eDP-1/intel_backlight" \
+  "$drm_dir/card1-DP-3/other-DP-3-bl" "$drm_dir/card2-DP-4/apple-DP-4-bl" "$drm_dir/card1-DP-4"
+ln -s ../../../../class/backlight "$drm_dir/card2-DP-3/apple-DP-3-bl/subsystem"
+ln -s ../../../../class/backlight "$drm_dir/card0-eDP-1/intel_backlight/subsystem"
+ln -s ../../../../bus/platform "$drm_dir/card2-DP-1/power/subsystem"
+ln -s ../../../../class/backlight "$drm_dir/card1-DP-3/other-DP-3-bl/subsystem"
+ln -s ../../../../class/backlight "$drm_dir/card2-DP-4/apple-DP-4-bl/subsystem"
+for connector in card2-DP-3 card2-DP-1 card0-eDP-1 card2-DP-4 card1-DP-4; do
+  printf 'connected\n' >"$drm_dir/$connector/status"
+done
+printf 'disconnected\n' >"$drm_dir/card1-DP-3/status"
 
 cat >"$mock_bin/omarchy-hyprland-monitor-focused-apple" <<'SH'
 #!/bin/bash
-exit 1
+printf 'omarchy-hyprland-monitor-focused-apple %s\n' "$*" >>"$CALL_LOG"
+[[ ${APPLE_DISPLAY:-0} == "1" ]]
+SH
+
+cat >"$mock_bin/omarchy-brightness-display-apple" <<'SH'
+#!/bin/bash
+printf 'omarchy-brightness-display-apple %s\n' "$*" >>"$CALL_LOG"
+SH
+
+cat >"$mock_bin/omarchy-osd" <<'SH'
+#!/bin/bash
+printf 'omarchy-osd %s\n' "$*" >>"$CALL_LOG"
 SH
 
 cat >"$mock_bin/omarchy-hyprland-monitor-focused" <<'SH'
@@ -31,7 +58,10 @@ cat >"$mock_bin/brightnessctl" <<'SH'
 #!/bin/bash
 printf 'brightnessctl %s\n' "$*" >>"$CALL_LOG"
 if [[ $* == *" -m"* ]]; then
+  [[ -n ${BRIGHTNESSCTL_READ_FAIL:-} && $* == "-d $BRIGHTNESSCTL_READ_FAIL "* ]] && exit 1
   printf 'mock_backlight,backlight,40,40%%\n'
+elif [[ -n ${BRIGHTNESSCTL_WRITE_FAIL:-} && $* == "-d $BRIGHTNESSCTL_WRITE_FAIL set "* ]]; then
+  exit 1
 fi
 SH
 
@@ -54,7 +84,7 @@ SH
 chmod +x "$mock_bin"/*
 
 run_brightness() {
-  CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" PATH="$mock_bin:$ROOT/bin:$PATH" \
+  CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" OMARCHY_DRM_PATH="$drm_dir" PATH="$mock_bin:$ROOT/bin:$PATH" \
     "$ROOT/bin/omarchy-brightness-display" "$@"
 }
 
@@ -128,6 +158,72 @@ DDC_CURRENT=4 DDC_MAXIMUM=100 run_brightness --no-osd --monitor DP-1 +5%
 grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 5' "$call_log" >/dev/null || \
   fail "external low brightness writes the one-percent target"
 pass "external low brightness uses a one-percent step"
+
+: >"$call_log"
+brightness=$(APPLE_DISPLAY=1 run_brightness --monitor DP-3)
+[[ $brightness == "40" ]] || fail "connector backlight reports brightness" "actual: $brightness"
+grep -F 'brightnessctl -d apple-DP-3-bl -m' "$call_log" >/dev/null || \
+  fail "connector backlight is queried through brightnessctl"
+pass "connector backlight reports brightness"
+
+: >"$call_log"
+APPLE_DISPLAY=1 run_brightness --monitor DP-3 +5%
+grep -Fx 'brightnessctl -d apple-DP-3-bl set 45%' "$call_log" >/dev/null || \
+  fail "connector backlight steps through brightnessctl" "$(cat "$call_log")"
+grep -Fx 'omarchy-osd -i brightness -p 40' "$call_log" >/dev/null || \
+  fail "connector backlight shows the OSD" "$(cat "$call_log")"
+if grep -E 'omarchy-brightness-display-apple|omarchy-hyprland-monitor-focused-apple|ddcutil' "$call_log"; then
+  fail "connector backlight skips the Apple and DDC backends"
+fi
+pass "connector backlight wins over the Apple and DDC backends"
+
+: >"$call_log"
+FOCUSED_MONITOR=DP-3 run_brightness --no-osd 1%-
+grep -Fx 'brightnessctl -d apple-DP-3-bl set 1%-' "$call_log" >/dev/null || \
+  fail "focused monitor's connector backlight takes precise steps" "$(cat "$call_log")"
+pass "focused monitor's connector backlight takes precise steps"
+
+: >"$call_log"
+APPLE_DISPLAY=1 run_brightness --no-osd --monitor DP-1 +5%
+grep -Fx 'omarchy-brightness-display-apple --no-osd +5%' "$call_log" >/dev/null || \
+  fail "Apple display without a connector backlight keeps asdcontrol" "$(cat "$call_log")"
+pass "Apple display without a connector backlight keeps asdcontrol"
+
+: >"$call_log"
+APPLE_DISPLAY=1 BRIGHTNESSCTL_WRITE_FAIL=apple-DP-3-bl run_brightness --monitor DP-3 +5%
+grep -Fx 'omarchy-brightness-display-apple +5%' "$call_log" >/dev/null || \
+  fail "unwritable connector backlight falls back to asdcontrol" "$(cat "$call_log")"
+if grep -F 'omarchy-osd' "$call_log"; then
+  fail "unwritable connector backlight shows no OSD of its own"
+fi
+pass "unwritable connector backlight falls back to asdcontrol"
+
+: >"$call_log"
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-3.bus"
+DDC_CONNECTOR=DP-3 DDC_CURRENT=40 DDC_MAXIMUM=100 BRIGHTNESSCTL_WRITE_FAIL=apple-DP-3-bl \
+  run_brightness --no-osd --monitor DP-3 30%
+grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 30' "$call_log" >/dev/null || \
+  fail "unwritable connector backlight falls back to DDC with the requested step" "$(cat "$call_log")"
+pass "unwritable connector backlight falls back to DDC with the requested step"
+
+: >"$call_log"
+APPLE_DISPLAY=1 BRIGHTNESSCTL_READ_FAIL=apple-DP-3-bl run_brightness --monitor DP-3 >/dev/null
+grep -Fx 'omarchy-brightness-display-apple ' "$call_log" >/dev/null || \
+  fail "unreadable connector backlight falls back to asdcontrol for its level" "$(cat "$call_log")"
+pass "unreadable connector backlight falls back to asdcontrol for its level"
+
+stderr=$(APPLE_DISPLAY=1 run_brightness --no-osd --monitor HEADLESS-1 +5% 2>&1 >/dev/null)
+[[ -z $stderr ]] || fail "monitor without a DRM connector looks up its backlight quietly" "$stderr"
+pass "monitor without a DRM connector looks up its backlight quietly"
+
+: >"$call_log"
+APPLE_DISPLAY=1 run_brightness --no-osd --monitor DP-4 +5%
+if grep -F 'apple-DP-4-bl' "$call_log"; then
+  fail "connector name shared by two connected cards uses neither backlight"
+fi
+grep -Fx 'omarchy-brightness-display-apple --no-osd +5%' "$call_log" >/dev/null || \
+  fail "connector name shared by two connected cards keeps the other backends" "$(cat "$call_log")"
+pass "connector name shared by two connected cards uses neither backlight"
 
 cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash

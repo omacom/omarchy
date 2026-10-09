@@ -35,6 +35,42 @@ monitor_is_internal() {
   [[ $monitor =~ ^(eDP|LVDS|DSI)- ]]
 }
 
+# Hyprland monitor names are DRM connector names, so a backlight on the monitor's connected external
+# connector is its own. Another card can expose a connector with the same name; when more than one is
+# connected the name can't tell them apart, so neither backlight is used. Internal panels stay on
+# omarchy-hw-display: GPU drivers can register an eDP backlight that doesn't drive the panel.
+connector_backlight() {
+  local status connector="" subsystem
+
+  if [[ -z $monitor ]] || monitor_is_internal; then
+    return 1
+  fi
+
+  for status in "${OMARCHY_DRM_PATH:-/sys/class/drm}"/card*-"$monitor"/status; do
+    [[ -e $status ]] || continue
+
+    if [[ $(<"$status") == "connected" ]]; then
+      [[ -z $connector ]] || return 1
+      connector="${status%/status}"
+    fi
+  done
+
+  [[ -n $connector ]] || return 1
+
+  for subsystem in "$connector"/*/subsystem; do
+    if [[ $(readlink "$subsystem") == */class/backlight ]]; then
+      subsystem="${subsystem%/subsystem}"
+      printf '%s\n' "${subsystem##*/}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# A connector backlight that can't be read or written falls back to the display's other backends
+device="$(connector_backlight)"
+
 use_apple_display() {
   omarchy-hyprland-monitor-focused-apple "$monitor"
 }
@@ -43,8 +79,47 @@ use_ddc_display() {
   [[ -n $monitor ]] && ! monitor_is_internal
 }
 
+# Step a kernel backlight and show its new level, failing when it can't be read or written
+step_backlight() {
+  local device="$1" step="$2" current target
+
+  # Current brightness percentage
+  current=$(backlight_brightness "$device") || return 1
+
+  # Apply non-uniform step size: 1% steps if at or below 5%, otherwise set an
+  # absolute target percentage to avoid raw backlight rounding causing uneven OSD steps.
+  if [[ $step == "+5%" ]]; then
+    if (( current < 5 )); then
+      (( target = current + 1 ))
+    else
+      (( target = current + 5 ))
+    fi
+
+    (( target > 100 )) && target=100
+    step="$target%"
+  elif [[ $step == "5%-" ]]; then
+    if (( current <= 5 )); then
+      (( target = current - 1 ))
+    else
+      (( target = current - 5 ))
+    fi
+
+    (( target < 1 )) && target=1
+    step="$target%"
+  fi
+
+  # Set brightness of the display device.
+  brightnessctl -d "$device" set "$step" >/dev/null || return 1
+
+  # Show the new brightness in OSD
+  (( no_osd )) || omarchy-osd -i brightness -p "$(backlight_brightness "$device")"
+  return 0
+}
+
 if (( $# == 0 )); then
-  if use_apple_display; then
+  if [[ -n $device ]] && backlight_brightness "$device"; then
+    exit
+  elif use_apple_display; then
     omarchy-brightness-display-apple
     exit
   elif use_ddc_display; then
@@ -76,47 +151,19 @@ fi
 exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
 flock -n "$lock_fd" || exit 0
 
-if use_apple_display; then
-  if (( no_osd )); then
-    omarchy-brightness-display-apple --no-osd "$step"
+if [[ -z $device ]] || ! step_backlight "$device" "$step"; then
+  if use_apple_display; then
+    if (( no_osd )); then
+      omarchy-brightness-display-apple --no-osd "$step"
+    else
+      omarchy-brightness-display-apple "$step"
+    fi
+  elif use_ddc_display; then
+    brightness="$(omarchy-brightness-display-ddc "$monitor" "$step")" || exit 1
+    (( no_osd )) || omarchy-osd -i brightness -p "$brightness"
   else
-    omarchy-brightness-display-apple "$step"
+    # The most likely panel backlight
+    device="$(omarchy-hw-display)" || exit 1
+    step_backlight "$device" "$step" || exit 1
   fi
-elif use_ddc_display; then
-  brightness="$(omarchy-brightness-display-ddc "$monitor" "$step")" || exit 1
-  (( no_osd )) || omarchy-osd -i brightness -p "$brightness"
-else
-  # Current device highlighted
-  device="$(omarchy-hw-display)" || exit 1
-
-  # Current brightness percentage
-  current=$(backlight_brightness "$device") || exit 1
-
-  # Apply non-uniform step size: 1% steps if at or below 5%, otherwise set an
-  # absolute target percentage to avoid raw backlight rounding causing uneven OSD steps.
-  if [[ $step == "+5%" ]]; then
-    if (( current < 5 )); then
-      (( target = current + 1 ))
-    else
-      (( target = current + 5 ))
-    fi
-
-    (( target > 100 )) && target=100
-    step="$target%"
-  elif [[ $step == "5%-" ]]; then
-    if (( current <= 5 )); then
-      (( target = current - 1 ))
-    else
-      (( target = current - 5 ))
-    fi
-
-    (( target < 1 )) && target=1
-    step="$target%"
-  fi
-
-  # Set brightness of the display device.
-  brightnessctl -d "$device" set "$step" >/dev/null
-
-  # Show the new brightness in OSD
-  (( no_osd )) || omarchy-osd -i brightness -p "$(backlight_brightness "$device")"
 fi
