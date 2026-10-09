@@ -4,6 +4,7 @@ set -euo pipefail
 
 source "$(dirname "$0")/base-test.sh"
 
+setup="${SETUP_SECURITY_SSHD_UNDER_TEST:-$ROOT/bin/omarchy-setup-security-sshd}"
 test_dir=$(mktemp -d)
 trap 'rm -rf "$test_dir"' EXIT
 
@@ -35,6 +36,12 @@ exit 130
 STUB
 cat >"$stub_bin/sshd" <<'STUB'
 #!/bin/bash
+printf 'sshd %s\n' "$*" >>"${CALL_LOG:?}"
+# Fresh installations have no host keys until ssh-keygen -A has run.
+if [[ $1 == "-t" || $1 == "-T" ]] && [[ ! -e ${TEST_ROOT:?}/host-keys-ready ]]; then
+  echo "sshd: no host keys available in test fixture" >&2
+  exit 1
+fi
 case $1 in
 -t)
   [[ ${SSHD_SYNTAX_VALID:-1} == 1 ]]
@@ -66,7 +73,9 @@ rm)
   /usr/bin/rm -f "${TEST_ROOT:?}${3:?}"
   ;;
 ssh-keygen)
+  [[ $* == "ssh-keygen -A" ]] || exit 2
   printf 'sudo %s\n' "$*" >>"${CALL_LOG:?}"
+  : >"${TEST_ROOT:?}/host-keys-ready"
   ;;
 *)
   exec "$@"
@@ -91,7 +100,7 @@ run_setup() {
     SSHD_PASSWORD_AUTH="${SSHD_PASSWORD_AUTH:-no}" \
     SSHD_KBD_AUTH="${SSHD_KBD_AUTH:-no}" \
     PATH="$stub_bin:$PATH" \
-    bash "$ROOT/bin/omarchy-setup-security-sshd" --key="$key"
+    bash "$setup" --key="$key"
 }
 
 # Nothing may listen or be opened while passwords could still be accepted.
@@ -108,7 +117,8 @@ output=$(run_setup success)
 config="$test_dir/success/root/etc/ssh/sshd_config.d/10-omarchy-hardening.conf"
 grep -qxF "PasswordAuthentication no" "$config" || fail "SSH setup disables password authentication"
 grep -qxF "KbdInteractiveAuthentication no" "$config" || fail "SSH setup disables keyboard-interactive authentication"
-grep -qxF "sudo ssh-keygen -A" "$test_dir/success.calls" || fail "SSH setup generates host keys before validating"
+grep -qxF "sshd -t" "$test_dir/success.calls" || fail "SSH setup validates syntax after generating host keys"
+grep -qxF "sshd -T" "$test_dir/success.calls" || fail "SSH setup checks effective settings after generating host keys"
 grep -qxF "systemctl reload-or-restart sshd.service" "$test_dir/success.calls" || fail "SSH setup starts sshd with the validated config"
 grep -qxF "ufw limit 22/tcp comment omarchy-sshd" "$test_dir/success.calls" || fail "SSH setup opens the SSH port"
 ! grep -qxF "exposed before hardening" "$test_dir/success.calls" || fail "SSH setup starts sshd and opens the port only after passwords are off"
@@ -153,7 +163,7 @@ pass "SSH setup starts nothing and opens nothing when no key is authorized"
 mkdir -p "$test_dir/cancelled/home" "$test_dir/cancelled/root"
 : >"$test_dir/cancelled.calls"
 if HOME="$test_dir/cancelled/home" TEST_ROOT="$test_dir/cancelled/root" CALL_LOG="$test_dir/cancelled.calls" \
-  PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-setup-security-sshd" >/dev/null 2>&1; then
+  PATH="$stub_bin:$PATH" bash "$setup" >/dev/null 2>&1; then
   fail "SSH setup must fail when the key prompt is cancelled"
 fi
 assert_nothing_exposed cancelled
