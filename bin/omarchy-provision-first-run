@@ -11,7 +11,7 @@ usage() {
 Usage: omarchy-provision-first-run [--force]
 
 Run first-login user setup and notification hooks. By default this only runs
-once per user. Use --force to rerun the full sequence and refresh user setup.
+once per user.
 USAGE
 }
 
@@ -39,7 +39,7 @@ done
 state_dir=~/.local/state/omarchy
 FIRST_RUN_DONE="first-run-user"
 if omarchy-done check "$FIRST_RUN_DONE" && (( force == 0 )); then
-  echo "First-run already complete (rerun with --force to refresh)."
+  echo "First-run already complete."
   exit 0
 fi
 
@@ -68,8 +68,6 @@ run_first_run_step() {
   fi
 }
 
-run_first_run_step "install Voxtype post-update hook" \
-  omarchy-hook-install post-update "$OMARCHY_PATH/install/user/first-run/install-voxtype.hook"
 run_first_run_step "install fingerprint setup post-update hook" \
   omarchy-hook-install post-update "$OMARCHY_PATH/install/user/first-run/setup-fingerprint.hook"
 run_first_run_step "install agent setup post-update hook" \

@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 
@@ -63,7 +64,9 @@ Panel {
   }
 
   function setCenterHoverRevealSuppressed(value) {
-    if (root.bar && "centerHoverRevealSuppressed" in root.bar)
+    if (root.bar && typeof root.bar.setCenterHoverRevealSuppressed === "function")
+      root.bar.setCenterHoverRevealSuppressed(value)
+    else if (root.bar && "centerHoverRevealSuppressed" in root.bar)
       root.bar.centerHoverRevealSuppressed = value
   }
 
@@ -473,7 +476,7 @@ Panel {
     onTriggered: root.refresh()
   }
 
-  IpcHandler {
+  ShellIpc {
     target: root.ipcTarget
 
     function open(): void { root.openFromHotkey() }
@@ -531,6 +534,7 @@ Panel {
 
           Text {
             id: heroIcon
+            textFormat: Text.PlainText
             anchors.verticalCenter: parent.verticalCenter
             anchors.verticalCenterOffset: 5
             text: root.label || "—"
@@ -547,6 +551,7 @@ Panel {
 
             Text {
               id: tempBig
+              textFormat: Text.PlainText
               text: root.reportTempNum || "—"
               color: root.bar.foreground
               font.family: root.bar.fontFamily
@@ -556,6 +561,7 @@ Panel {
               font.bold: true
             }
             Text {
+              textFormat: Text.PlainText
               text: root.current ? root.tempUnit : ""
               color: root.bar.foreground
               font.family: root.bar.fontFamily
@@ -593,6 +599,7 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
             }
             Text {
+              textFormat: Text.PlainText
               text: (root.reportLocation || "").toUpperCase()
               color: Qt.darker(root.bar.foreground, 1.4)
               font.family: root.bar.fontFamily
@@ -640,9 +647,10 @@ Panel {
               height: Style.space(18)
               anchors.verticalCenter: parent.verticalCenter
               radius: Math.min(4, Style.cornerRadius)
-              color: !root.savingLocation && clearLocationArea.containsMouse ? Style.hoverFillFor(root.bar.foreground, Color.accent) : "transparent"
+              color: !root.savingLocation && clearLocationArea.containsMouse ? Style.hoverFillFor(root.bar.foreground, Commons.Color.accent) : "transparent"
 
               Text {
+                textFormat: Text.PlainText
                 anchors.centerIn: parent
                 text: root.savingLocation ? "󰦖" : "✕"
                 font.family: root.bar.fontFamily
@@ -650,7 +658,7 @@ Panel {
                 font.pixelSize: Style.font.bodySmall
 
                 RotationAnimator on rotation {
-                  running: root.savingLocation
+                  running: root.savingLocation && !Style.reduceMotion
                   from: 0; to: 360
                   duration: 800
                   loops: Animation.Infinite
@@ -683,6 +691,7 @@ Panel {
                 font.letterSpacing: 1
               }
               Text {
+                textFormat: Text.PlainText
                 text: root.reportFeels
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
@@ -700,6 +709,7 @@ Panel {
                 font.letterSpacing: 1
               }
               Text {
+                textFormat: Text.PlainText
                 text: root.reportWind
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
@@ -717,6 +727,7 @@ Panel {
                 font.letterSpacing: 1
               }
               Text {
+                textFormat: Text.PlainText
                 text: root.reportHumidity
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
@@ -742,7 +753,7 @@ Panel {
             width: parent.width
             height: suggestionRow.implicitHeight + Style.space(12)
             radius: Style.cornerRadius
-            color: index === root.suggestionIndex ? Style.hoverFillFor(root.bar.foreground, Color.accent) : "transparent"
+            color: index === root.suggestionIndex ? Style.hoverFillFor(root.bar.foreground, Commons.Color.accent) : "transparent"
 
             Row {
               id: suggestionRow
@@ -752,12 +763,14 @@ Panel {
               spacing: Style.space(8)
 
               Text {
+                textFormat: Text.PlainText
                 text: modelData.name
-                color: index === root.suggestionIndex ? Style.hoverStateColor(root.bar.foreground, Color.accent) : root.bar.foreground
+                color: index === root.suggestionIndex ? Style.hoverStateColor(root.bar.foreground, Commons.Color.accent) : root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.body
               }
               Text {
+                textFormat: Text.PlainText
                 visible: text !== ""
                 text: modelData.description
                 color: Qt.darker(root.bar.foreground, 1.5)
@@ -817,6 +830,7 @@ Panel {
               spacing: Style.space(10)
 
               Text {
+                textFormat: Text.PlainText
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.dayIcon(modelData)
                 color: root.bar.foreground
@@ -829,6 +843,7 @@ Panel {
                 spacing: Style.space(2)
 
                 Text {
+                  textFormat: Text.PlainText
                   text: root.dayName(modelData.date).toUpperCase()
                   color: Qt.darker(root.bar.foreground, 1.4)
                   font.family: root.bar.fontFamily
@@ -840,12 +855,14 @@ Panel {
                   spacing: Style.space(6)
 
                   Text {
+                    textFormat: Text.PlainText
                     text: root.bareTempForDay(modelData, "max")
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
                   }
                   Text {
+                    textFormat: Text.PlainText
                     text: root.bareTempForDay(modelData, "min")
                     color: Qt.darker(root.bar.foreground, 1.5)
                     font.family: root.bar.fontFamily
