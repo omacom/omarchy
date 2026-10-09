@@ -1,0 +1,294 @@
+#!/bin/bash
+
+# omarchy:summary=Drive keyboard backlight from the ambient light sensor
+# omarchy:args=[--once|--available|--map-lux N]
+# omarchy:examples=omarchy brightness keyboard auto --once | omarchy brightness keyboard auto --map-lux 12
+
+# Inverse of display auto-brightness: dark rooms need the keys lit, bright
+# rooms do not. Dedicated keyboard-brightness keys, firmware Fn keys and any
+# other write to the LED pause auto until ambient light moves enough that the
+# old choice no longer fits, off included. The lock screen's blank and a 1%
+# leftover nobody chose are not a choice: auto resumes.
+
+set -euo pipefail
+
+POLL_SECONDS=5
+DARK_LUX=8
+BRIGHT_LUX=180
+DEADBAND_PERCENT=4
+OVERRIDE_LUX_DELTA=20
+OVERRIDE_LUX_RATIO=40
+# 2/255 is 1% and invisible, so that band counts as off.
+EFFECTIVELY_OFF_PERCENT=2
+MANUAL_LEVEL_FILE="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}/omarchy-brightness-keyboard-manual"
+
+once=0
+available_only=0
+map_lux=""
+
+while (($#)); do
+  case "$1" in
+    --once)
+      once=1
+      shift
+      ;;
+    --available)
+      available_only=1
+      shift
+      ;;
+    --map-lux)
+      if [[ -z ${2:-} ]]; then
+        echo "Usage: omarchy-brightness-keyboard-auto --map-lux N" >&2
+        exit 1
+      fi
+      map_lux=$2
+      shift 2
+      ;;
+    -h|--help)
+      echo "Usage: omarchy-brightness-keyboard-auto [--once|--available|--map-lux N]"
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      echo "Usage: omarchy-brightness-keyboard-auto [--once|--available|--map-lux N]" >&2
+      exit 1
+      ;;
+  esac
+done
+
+lux_to_percent() {
+  local lux=$1
+  (( lux < 0 )) && lux=0
+
+  if (( lux <= DARK_LUX )); then
+    echo 100
+  elif (( lux >= BRIGHT_LUX )); then
+    echo 0
+  else
+    echo $(( (100 * (BRIGHT_LUX - lux)) / (BRIGHT_LUX - DARK_LUX) ))
+  fi
+}
+
+if [[ -n $map_lux ]]; then
+  [[ $map_lux =~ ^[0-9]+$ ]] || {
+    echo "lux must be a non-negative integer" >&2
+    exit 1
+  }
+  lux_to_percent "$map_lux"
+  exit 0
+fi
+
+find_als() {
+  local d name
+  local iio_devices_dir=${OMARCHY_IIO_DEVICES_DIR:-/sys/bus/iio/devices}
+
+  # Prefer a device that names itself as ALS. Apple AOP exposes the lid-angle
+  # sensor (aop-sensors-las) next to the illuminance sensor (aop-sensors-als);
+  # walking sysfs in device-number order would otherwise pick whichever one
+  # happens to publish an illuminance channel first.
+  for d in "$iio_devices_dir"/iio:device*; do
+    [[ -r $d/name ]] || continue
+    name=$(<"$d/name")
+    [[ $name == *als* ]] || continue
+    if [[ -r $d/in_illuminance_input ]]; then
+      printf '%s\n' "$d/in_illuminance_input"
+      return 0
+    fi
+    if [[ -r $d/in_illuminance_raw ]]; then
+      printf '%s\n' "$d/in_illuminance_raw"
+      return 0
+    fi
+  done
+
+  for d in "$iio_devices_dir"/iio:device*; do
+    if [[ -r $d/in_illuminance_input ]]; then
+      printf '%s\n' "$d/in_illuminance_input"
+      return 0
+    fi
+    if [[ -r $d/in_illuminance_raw ]]; then
+      printf '%s\n' "$d/in_illuminance_raw"
+      return 0
+    fi
+  done
+  return 1
+}
+
+find_kbd() {
+  local candidate
+  local leds_dir=${OMARCHY_LEDS_DIR:-/sys/class/leds}
+
+  for candidate in "$leds_dir"/*kbd_backlight*; do
+    if [[ -e $candidate/brightness && -r $candidate/max_brightness ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+als_path=$(find_als || true)
+kbd_path=$(find_kbd || true)
+
+if [[ $available_only == 1 ]]; then
+  if [[ -n $als_path && -n $kbd_path ]]; then
+    exit 0
+  else
+    exit 1
+  fi
+fi
+
+if [[ -z $als_path || -z $kbd_path ]]; then
+  exit 0
+fi
+
+device=$(basename "$kbd_path")
+max=$(<"$kbd_path/max_brightness")
+[[ $max =~ ^[1-9][0-9]*$ ]] || exit 0
+
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  mkdir -p "${MANUAL_LEVEL_FILE%/*}"
+  chmod 700 "${MANUAL_LEVEL_FILE%/*}"
+fi
+
+last_set=""
+paused=0
+pause_lux=0
+
+# Asked while holding the lock the lock screen's blank waits for, so a
+# compositor that does not answer in time counts as locked.
+session_locked() {
+  local status=0
+  timeout -k 1 1 omarchy-hyprland-session-locked >/dev/null 2>&1 || status=$?
+  (( status == 0 || status == 124 || status == 137 ))
+}
+
+lid_closed() {
+  omarchy-hw-laptop-closed >/dev/null 2>&1
+}
+
+# in_illuminance_input is lux already. A raw channel is lux only after its
+# offset and scale: (raw + offset) * scale, as the IIO ABI defines them.
+read_lux() {
+  local value scale=1 offset=0 dir=${als_path%/*}
+
+  value=$(<"$als_path") || return 1
+  if [[ $als_path == *_raw ]]; then
+    [[ -r $dir/in_illuminance_scale ]] && scale=$(<"$dir/in_illuminance_scale")
+    [[ -r $dir/in_illuminance_offset ]] && offset=$(<"$dir/in_illuminance_offset")
+  fi
+
+  awk -v value="$value" -v scale="$scale" -v offset="$offset" 'BEGIN {
+    number = "^-?[0-9]+([.][0-9]+)?$"
+    if (value !~ number || scale !~ number || offset !~ number) exit 1
+    lux = (value + offset) * scale
+    printf "%d\n", (lux < 0 ? 0 : lux)
+  }'
+}
+
+apply_percent() {
+  local percent=$1
+  local target current delta
+
+  (( percent < 0 )) && percent=0
+  (( percent > 100 )) && percent=100
+  target=$(( max * percent / 100 ))
+
+  current=$(brightnessctl -d "$device" get) || return 0
+  delta=$(( current - target ))
+  (( delta < 0 )) && delta=$(( -delta ))
+  if (( delta * 100 < max * DEADBAND_PERCENT )); then
+    last_set=$current
+    return 0
+  fi
+
+  brightnessctl -d "$device" set "$target" >/dev/null
+  # Auto has overridden any level set by hand, so that record is stale.
+  rm -f "$MANUAL_LEVEL_FILE"
+  last_set=$(brightnessctl -d "$device" get || echo "$target")
+}
+
+# Off by accident rather than by choice. The keyboard-brightness keys record
+# every level they set, and the lock screen's off records "blank". Firmware Fn
+# keys write the LED directly, so an unrecorded 0 is a choice; an unrecorded
+# 1% is a leftover.
+left_off() {
+  local current=$1 manual=""
+
+  (( current * 100 <= max * EFFECTIVELY_OFF_PERCENT )) || return 1
+  [[ -r $MANUAL_LEVEL_FILE ]] && manual=$(<"$MANUAL_LEVEL_FILE")
+  [[ $manual != "$current" ]] || return 1
+  (( current != 0 )) || [[ $manual == "blank" || $manual == "blank restored" ]]
+}
+
+tick() {
+  local lux current delta threshold restored=0
+
+  lux=$(read_lux) || return 0
+  # logind can take its whole timeout to answer, so ask before taking the lock.
+  if lid_closed; then
+    return 0
+  fi
+
+  flock -n 9 || return 0
+  if session_locked; then
+    return 0
+  fi
+
+  current=$(brightnessctl -d "$device" get) || return 0
+  if [[ -r $MANUAL_LEVEL_FILE && $(<"$MANUAL_LEVEL_FILE") == "restored "* ]]; then
+    if [[ $(<"$MANUAL_LEVEL_FILE") == "restored $current" ]]; then
+      if (( paused )); then
+        brightnessctl -d "$device" set "$last_set" >/dev/null || return 0
+        current=$last_set
+      else
+        restored=1
+      fi
+    fi
+    rm -f "$MANUAL_LEVEL_FILE"
+  fi
+
+  if [[ -n $last_set && $current != "$last_set" ]]; then
+    last_set=$current
+    if (( ! restored )); then
+      if left_off "$current"; then
+        paused=0
+        # Taken back, so a later 0 nobody recorded is a choice again.
+        rm -f "$MANUAL_LEVEL_FILE"
+      else
+        paused=1
+        pause_lux=$lux
+        return 0
+      fi
+    fi
+  fi
+
+  if (( paused )); then
+    delta=$(( lux - pause_lux ))
+    (( delta < 0 )) && delta=$(( -delta ))
+    threshold=$OVERRIDE_LUX_DELTA
+    if (( pause_lux * OVERRIDE_LUX_RATIO / 100 > threshold )); then
+      threshold=$(( pause_lux * OVERRIDE_LUX_RATIO / 100 ))
+    fi
+    if (( delta < threshold )); then
+      return 0
+    fi
+    paused=0
+  fi
+
+  apply_percent "$(lux_to_percent "$lux")"
+} 9>>"$MANUAL_LEVEL_FILE.lock"
+
+tick
+
+if (( ! once )); then
+  while true; do
+    sleep "$POLL_SECONDS"
+    als_path=$(find_als || true)
+    kbd_path=$(find_kbd || true)
+    [[ -n $als_path && -n $kbd_path ]] || continue
+    device=$(basename "$kbd_path")
+    max=$(<"$kbd_path/max_brightness")
+    [[ $max =~ ^[1-9][0-9]*$ ]] || continue
+    tick
+  done
+fi

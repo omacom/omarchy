@@ -1,0 +1,15 @@
+[Unit]
+Description=Omarchy keyboard backlight from ambient light
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=simple
+ExecCondition=/usr/bin/omarchy-brightness-keyboard-auto --available
+ExecStart=/usr/bin/omarchy-brightness-keyboard-auto
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
