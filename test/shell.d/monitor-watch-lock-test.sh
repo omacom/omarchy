@@ -101,22 +101,25 @@ start_watcher() {
   mkfifo "$events"
   : >"$call_log"
 
+  # A writer-only open waits forever if startup fails before socat connects.
+  # Keep both ends open here; await_call bounds readiness instead.
+  exec {events_fd}<>"$events"
+
   PATH="$fake_bin:$PATH" \
   XDG_RUNTIME_DIR="$test_tmp" \
   HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_EVENTS="$events" \
   OMARCHY_TEST_FACTS="$test_tmp/facts" \
   OMARCHY_TEST_CALL_LOG="$call_log" \
-    setsid "$ROOT/bin/omarchy-hyprland-monitor-watch" &
+    setsid "$ROOT/bin/omarchy-hyprland-monitor-watch" >"$test_tmp/watcher.log" 2>&1 &
   watch_pid=$!
-
-  exec {events_fd}>"$events"
 }
 
 await_call() {
   local waited
 
   for (( waited = 0; waited < 40; waited++ )); do
+    kill -0 "$watch_pid" 2>/dev/null || return 1
     grep -qx "$1" "$call_log" 2>/dev/null && return 0
     sleep 0.05
   done
@@ -129,11 +132,11 @@ await_call() {
 remove_monitor() {
   set_facts "$@"
   start_watcher
-  await_call omarchy-hw-laptop || fail "the watcher finishes its startup sync"
+  await_call omarchy-hw-laptop || fail "the watcher finishes its startup sync" "$(<"$test_tmp/watcher.log")"
   : >"$call_log"
 
   printf 'monitorremovedv2>>1,DP-1,Test Monitor\n' >&"$events_fd"
-  await_call omarchy-hw-laptop || fail "the watcher handles a removed monitor"
+  await_call omarchy-hw-laptop || fail "the watcher handles a removed monitor" "$(<"$test_tmp/watcher.log")"
   mapfile -t calls <"$call_log"
   stop_watcher
 }
