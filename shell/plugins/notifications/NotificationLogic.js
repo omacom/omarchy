@@ -373,6 +373,193 @@ function serializePopup(entry, normalUrgency) {
   return JSON.stringify(popupEntry(entry, normalUrgency))
 }
 
+// UTF-8 byte length of a string, without Buffer, so it works under QML too.
+// String.length is UTF-16 code units, which undercounts any non-ASCII text
+// once the arguments are passed to execve as UTF-8. A valid surrogate pair is
+// four bytes; a lone surrogate is counted as the three-byte replacement
+// character the argument encoders emit for it, never skipped as if it were
+// half of a pair.
+function utf8Bytes(value) {
+  var s = value === undefined || value === null ? "" : String(value)
+  var bytes = 0
+  for (var i = 0; i < s.length; i++) {
+    var code = s.charCodeAt(i)
+    if (code < 0x80) bytes += 1
+    else if (code < 0x800) bytes += 2
+    else if (code >= 0xd800 && code <= 0xdbff &&
+      i + 1 < s.length && s.charCodeAt(i + 1) >= 0xdc00 && s.charCodeAt(i + 1) <= 0xdfff) {
+      bytes += 4
+      i += 1
+    } else bytes += 3
+  }
+  return bytes
+}
+
+// Every argv string a persist item contributes — name, json, copy count and
+// each copy's from/to — plus a small allowance for the pointer and NUL that
+// execve adds per argument.
+function persistItemBytes(item) {
+  var it = item || {}
+  var copies = Array.isArray(it.copies) ? it.copies : []
+  var bytes = utf8Bytes(it.name) + utf8Bytes(it.json) + utf8Bytes(String(copies.length))
+  for (var i = 0; i < copies.length; i++) {
+    var copy = copies[i] || {}
+    bytes += utf8Bytes(copy.from) + utf8Bytes(copy.to)
+  }
+  return bytes + 8 * (3 + copies.length * 2)
+}
+
+// Linux caps a single argument at MAX_ARG_STRLEN (32 pages, 128 KiB on 4 KiB
+// pages), the terminating NUL included. Leave a page of headroom so an entry
+// that only just fits is still isolated rather than failing with a batch.
+var PERSIST_MAX_ARG_BYTES = 131072 - 4096
+
+// The largest single argument a persist item contributes. An item over the
+// per-argument limit cannot be passed at all, so it must be kept out of any
+// batch holding items that can.
+function persistItemMaxArgBytes(item) {
+  var it = item || {}
+  var copies = Array.isArray(it.copies) ? it.copies : []
+  var max = Math.max(utf8Bytes(it.name), utf8Bytes(it.json), utf8Bytes(String(copies.length)))
+  for (var i = 0; i < copies.length; i++) {
+    var copy = copies[i] || {}
+    max = Math.max(max, utf8Bytes(copy.from), utf8Bytes(copy.to))
+  }
+  return max
+}
+
+// Group persist items into batches that each stay within maxCount entries and
+// maxBytes of UTF-8 argument bytes. Restoring a large backlog must not run one
+// shell process per entry, and bounding each command's argv keeps it
+// comfortably below typical ARG_MAX. An item too large to pass as a single
+// argument is isolated into a batch of its own: it still fails, but cannot
+// take valid neighbours down with it and cost them their reset deadlines.
+// Every batch takes at least one item, even when that item alone is over the
+// byte cap.
+function persistItemBatches(items, maxCount, maxBytes) {
+  var list = Array.isArray(items) ? items : []
+  var count = Number(maxCount)
+  if (!isFinite(count) || count < 1) count = 256
+  var cap = Number(maxBytes)
+  if (!isFinite(cap) || cap < 1) cap = 524288
+  var out = []
+  var start = 0
+  while (start < list.length) {
+    // Too big for a single argument: its own batch, so it fails alone.
+    if (persistItemMaxArgBytes(list[start]) > PERSIST_MAX_ARG_BYTES) {
+      out.push([list[start]])
+      start += 1
+      continue
+    }
+    var end = start + 1
+    var size = persistItemBytes(list[start])
+    while (end < list.length && end - start < count) {
+      // Never let an unpasseable item join, and keep the total under the cap.
+      if (persistItemMaxArgBytes(list[end]) > PERSIST_MAX_ARG_BYTES) break
+      var itemBytes = persistItemBytes(list[end])
+      if (size + itemBytes > cap) break
+      size += itemBytes
+      end += 1
+    }
+    out.push(list.slice(start, end))
+    start = end
+  }
+  return out
+}
+
+// A FIFO job queue with amortised O(1) enqueue and dequeue. The obvious
+// concat()/slice() pair rebuilt the whole array on every operation, which made
+// queueing a restore backlog quadratic in its length. The consumed prefix is
+// reclaimed only once at least half the array is consumed, so the occasional
+// slice still amortises to O(1) per job.
+function createJobQueue(compactThreshold) {
+  var items = []
+  var head = 0
+  var threshold = Number(compactThreshold)
+  if (!isFinite(threshold) || threshold < 1) threshold = 64
+  return {
+    size: function() { return items.length - head },
+    enqueue: function(item) { items.push(item) },
+    dequeue: function() {
+      if (head >= items.length) {
+        items = []
+        head = 0
+        return null
+      }
+      var item = items[head]
+      head += 1
+      if (head >= threshold && head * 2 >= items.length) {
+        items = items.slice(head)
+        head = 0
+      }
+      return item
+    }
+  }
+}
+
+// ---------------------------------------------------- persisted file jobs
+//
+// These are the `bash -c` jobs the shell runs one at a time for persisted
+// popups. Building them here keeps the shell text pure and executable by
+// tests, and leaves the QML free of it.
+
+function copyPairScript() {
+  return "copy_pair() {\n" +
+    "  if [[ -f $1 ]] && timeout 5 head -c 5242881 -- \"$1\" > \"$2.tmp\" 2>/dev/null &&\n" +
+    "     (( $(stat -c%s -- \"$2.tmp\") <= 5242880 )); then mv -f -- \"$2.tmp\" \"$2\"; else rm -f -- \"$2.tmp\"; fi\n" +
+    "}\n"
+}
+
+function copyImagesScript() {
+  return copyPairScript() +
+    "while (( $# >= 2 )); do copy_pair \"$1\" \"$2\"; shift 2; done\n"
+}
+
+function trimHistoryScript() {
+  return "ls -1 \"$hist\" 2>/dev/null | sort -n | head -n \"-$limit\" | while IFS= read -r stale; do rm -f \"$hist/$stale\" \"$imgs/${stale%.json}\"-*; done"
+}
+
+// One job writes any number of persisted entries and copies their images. Each
+// entry contributes name/json/copy-count then its from/to pairs.
+function persistBatchCommand(items, dir, imagesDir) {
+  var list = Array.isArray(items) ? items : []
+  var command = ["bash", "-c",
+    "mkdir -p \"$1\" \"$2\" || exit 0\n" +
+    "dir=\"$1\" imgs=\"$2\"\n" +
+    "shift 2\n" +
+    copyPairScript() +
+    "while (( $# > 0 )); do\n" +
+    "  name=\"$1\" json=\"$2\" n=\"$3\"\n" +
+    "  shift 3\n" +
+    "  for (( c=0; c<n; c++ )); do copy_pair \"$1\" \"$2\"; shift 2; done\n" +
+    "  printf '%s\\n' \"$json\" > \"$dir/$name\"\n" +
+    "done", "--",
+    String(dir || ""), String(imagesDir || "")]
+  for (var i = 0; i < list.length; i++) {
+    var item = list[i] || {}
+    var copies = Array.isArray(item.copies) ? item.copies : []
+    command.push(String(item.name || ""), String(item.json || ""), String(copies.length))
+    for (var j = 0; j < copies.length; j++)
+      command.push(String((copies[j] || {}).from || ""), String((copies[j] || {}).to || ""))
+  }
+  return command
+}
+
+// One job moves any number of live popup files into history and trims it. The
+// names sort numerically by their leading timestamp.
+function archiveBatchCommand(names, historyDir, limit, stateDir, imagesDir) {
+  var list = Array.isArray(names) ? names : []
+  var command = ["bash", "-c",
+    "mkdir -p \"$1\" || exit 0\n" +
+    "hist=\"$1\" limit=\"$2\" src=\"$3\" imgs=\"$4\"\n" +
+    "shift 4\n" +
+    "while (( $# > 0 )); do mv -f \"$src/$1\" \"$hist/$1\" 2>/dev/null; shift; done\n" +
+    trimHistoryScript(), "--",
+    String(historyDir || ""), String(limit), String(stateDir || ""), String(imagesDir || "")]
+  for (var i = 0; i < list.length; i++) command.push(String(list[i] || ""))
+  return command
+}
+
 // Parse the concatenation of every persisted popup file into entries,
 // newest-first. Deliberately NO dedupe by originalId: ids restart from 1
 // with every server process, so two files sharing an id are usually
@@ -410,6 +597,28 @@ function popupExpired(entry, duration, now) {
   var lifetime = Number(duration || 0)
   if (!isFinite(lifetime) || lifetime <= 0) return false
   return (Number(now) - Number((entry || {}).timestamp || 0)) >= lifetime
+}
+
+// Startup must never hydrate an unbounded number of live rows: every append
+// into popupModel does synchronous delegate-model insertion work on the main
+// thread, so restoring a large backlog held the event loop hostage until it
+// finished and the shell looked dead from the user's side.
+//
+// Persisted entries arrive newest-first (see parsePopupFiles), so the newest
+// `limit` become the toasts and everything older comes back for archiving. The
+// caller chooses that limit (Service.restorePopupLimit); it is deliberately not
+// historyLimit, because "how much history is kept" and "how many live rows may
+// be restored" are different policies that only happen to share a value. Order
+// is preserved on both sides; nothing is dropped or duplicated between them.
+//
+// A non-finite or negative limit falls back to the default rather than
+// disabling the cap, so the boundary can never be handed an unbounded value.
+function splitRestoredEntries(entries, limit) {
+  var max = limit === undefined || limit === null ? 10 : Number(limit)
+  if (!isFinite(max) || max < 0) max = 10
+  max = Math.floor(max)
+  var rows = Array.isArray(entries) ? entries : []
+  return { live: rows.slice(0, max), archive: rows.slice(max) }
 }
 
 function popupPlacement(barPosition, barClearance, gapsOut) {
@@ -490,8 +699,20 @@ if (typeof module !== "undefined") {
     localImageFile: localImageFile,
     persistablePopup: persistablePopup,
     serializePopup: serializePopup,
+    utf8Bytes: utf8Bytes,
+    persistItemBytes: persistItemBytes,
+    persistItemMaxArgBytes: persistItemMaxArgBytes,
+    PERSIST_MAX_ARG_BYTES: PERSIST_MAX_ARG_BYTES,
+    persistItemBatches: persistItemBatches,
+    createJobQueue: createJobQueue,
+    copyPairScript: copyPairScript,
+    copyImagesScript: copyImagesScript,
+    trimHistoryScript: trimHistoryScript,
+    persistBatchCommand: persistBatchCommand,
+    archiveBatchCommand: archiveBatchCommand,
     parsePopupFiles: parsePopupFiles,
     popupExpired: popupExpired,
+    splitRestoredEntries: splitRestoredEntries,
     popupPlacement: popupPlacement
   }
 }

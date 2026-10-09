@@ -512,6 +512,222 @@ assertEqual(
   'notifications name image copies by the stem of the entry file they belong to'
 )
 
+// A restore must run a bounded number of shell processes, never one per entry.
+const persistItems = (n, size) =>
+  Array.from({ length: n }, () => ({ json: 'x'.repeat(size) }))
+assertEqual(
+  notifications.persistItemBatches(persistItems(3, 10), 2, 1000000).length,
+  2,
+  'notifications split persist items at the entry cap'
+)
+assertEqual(
+  notifications.persistItemBatches(persistItems(3, 10), 2, 1000000)[0].length,
+  2,
+  'notifications fill a persist batch up to the entry cap'
+)
+assertEqual(
+  notifications.persistItemBatches(persistItems(2, 100), 256, 200).length,
+  2,
+  'notifications split persist items at the byte cap'
+)
+assertEqual(
+  notifications.persistItemBatches([], 256, 200).length,
+  0,
+  'notifications make no batch from an empty restore'
+)
+assertEqual(
+  notifications.persistItemBatches([{ json: 'x'.repeat(1000) }], 256, 200).length,
+  1,
+  'notifications keep one over-cap persist item in its own batch'
+)
+assertEqual(
+  notifications.persistItemBatches(persistItems(5, 10), 2, 1000000)
+    .reduce((sum, batch) => sum + batch.length, 0),
+  5,
+  'notifications carry every persist item into exactly one batch'
+)
+
+// The batch cap is a UTF-8 byte budget over every argument the job passes, not
+// a UTF-16 length of the JSON alone.
+assertEqual(notifications.utf8Bytes('abc'), 3, 'notifications count ASCII as one byte per character')
+assertEqual(notifications.utf8Bytes('é'), 2, 'notifications count a two-byte character as two bytes')
+assertEqual(notifications.utf8Bytes('😀'), 4, 'notifications count an astral character as four bytes')
+assertEqual(notifications.utf8Bytes(''), 0, 'notifications count the empty string as zero bytes')
+assertEqual(notifications.utf8Bytes('\ud83d\ude00'), 4, 'notifications count a valid surrogate pair as four bytes')
+assertEqual(notifications.utf8Bytes('\ud800'), 3, 'notifications count a lone high surrogate as a replacement character')
+assertEqual(notifications.utf8Bytes('\udc00'), 3, 'notifications count a lone low surrogate as a replacement character')
+assertEqual(notifications.utf8Bytes('a\ud800b'), 5, 'notifications keep counting after a lone surrogate')
+assertEqual(
+  notifications.persistItemBytes({ name: 'a.json', json: '{}', copies: [{ from: '/x', to: '/y' }] }),
+  notifications.utf8Bytes('a.json') + notifications.utf8Bytes('{}') + notifications.utf8Bytes('1') +
+    notifications.utf8Bytes('/x') + notifications.utf8Bytes('/y') + 8 * 5,
+  'notifications size a persist item by every argument it contributes'
+)
+assertEqual(
+  notifications.persistItemBatches([{ json: 'é'.repeat(100) }, { json: 'é'.repeat(100) }], 256, 300).length,
+  2,
+  'notifications size persist batches in UTF-8 bytes, not UTF-16 units'
+)
+
+// An entry too large to pass as a single argument cannot be grouped with a
+// valid neighbour, or the whole batch fails with E2BIG and the neighbour loses
+// the reset deadline it was being re-persisted for.
+const oversizedEntry = { name: 'huge.json', json: 'x'.repeat(200000) }
+const validEntry = { name: 'ok.json', json: '{"summary":"ok"}' }
+assert(
+  notifications.persistItemMaxArgBytes(oversizedEntry) > notifications.PERSIST_MAX_ARG_BYTES,
+  'notifications measure the largest argument an entry contributes'
+)
+const isolated = notifications.persistItemBatches([validEntry, oversizedEntry, validEntry], 256, 10000000)
+assertEqual(isolated.length, 3, 'notifications isolate an oversized entry from its neighbours')
+assert(
+  isolated[0].length === 1 && isolated[0][0] === validEntry,
+  'notifications keep the entry before an oversized one out of its batch'
+)
+assert(
+  isolated[1].length === 1 && isolated[1][0] === oversizedEntry,
+  'notifications put an oversized entry in a batch of its own'
+)
+assert(
+  isolated[2].length === 1 && isolated[2][0] === validEntry,
+  'notifications keep the entry after an oversized one out of its batch'
+)
+
+// The queue must stay FIFO and O(1) under the load a restore creates.
+const jobQueue = notifications.createJobQueue()
+assertEqual(jobQueue.size(), 0, 'notifications queue starts empty')
+jobQueue.enqueue('a')
+jobQueue.enqueue('b')
+assertEqual(jobQueue.dequeue(), 'a', 'notifications queue returns the oldest job first')
+assertEqual(jobQueue.size(), 1, 'notifications queue shrinks as jobs are taken')
+assertEqual(jobQueue.dequeue(), 'b', 'notifications queue returns jobs in order')
+assertEqual(jobQueue.dequeue(), null, 'notifications queue returns null when drained')
+assertEqual(jobQueue.size(), 0, 'notifications queue is empty after draining')
+
+const bulkQueue = notifications.createJobQueue()
+for (let i = 0; i < 5000; i++) bulkQueue.enqueue(i)
+const drained = []
+let queuedJob
+while ((queuedJob = bulkQueue.dequeue()) !== null) drained.push(queuedJob)
+assertEqual(drained.length, 5000, 'notifications queue drains a large backlog')
+assert(
+  drained.every((value, index) => value === index),
+  'notifications queue preserves FIFO order across compaction'
+)
+
+// The generated shell jobs must actually do what the queue promises. Run them.
+const childProcess = require('child_process')
+const os = require('os')
+const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'omarchy-notifications-'))
+const runShell = command => childProcess.spawnSync(command[0], command.slice(1), { encoding: 'utf8' })
+try {
+  const stateDir = path.join(workdir, 'notifications')
+  const historyDir = path.join(stateDir, 'history')
+  const imagesDir = path.join(stateDir, 'images')
+  const sourceDir = path.join(workdir, 'source')
+  fs.mkdirSync(historyDir, { recursive: true })
+  fs.mkdirSync(imagesDir, { recursive: true })
+  fs.mkdirSync(sourceDir, { recursive: true })
+  fs.writeFileSync(path.join(sourceDir, 'avatar'), 'sender image')
+
+  const persist = runShell(notifications.persistBatchCommand([
+    {
+      name: '1000-1.json',
+      json: '{"summary":"one"}',
+      copies: [{ from: path.join(sourceDir, 'avatar'), to: path.join(imagesDir, '1000-1-appIcon') }]
+    },
+    { name: '2000-2.json', json: '{"summary":"two"}', copies: [] }
+  ], stateDir, imagesDir))
+  assertEqual(persist.status, 0, 'notifications persist batch runs cleanly')
+  assertEqual(
+    fs.readFileSync(path.join(stateDir, '1000-1.json'), 'utf8').trim(),
+    '{"summary":"one"}',
+    'notifications persist batch writes the first entry'
+  )
+  assertEqual(
+    fs.readFileSync(path.join(stateDir, '2000-2.json'), 'utf8').trim(),
+    '{"summary":"two"}',
+    'notifications persist batch writes every entry, not just the first'
+  )
+  assertEqual(
+    fs.readFileSync(path.join(imagesDir, '1000-1-appIcon'), 'utf8'),
+    'sender image',
+    'notifications persist batch copies each referenced image'
+  )
+  assertEqual(
+    fs.readdirSync(stateDir).filter(name => name.endsWith('.tmp')).length,
+    0,
+    'notifications persist batch leaves no temp files'
+  )
+
+  // The source can vanish between receipt and persistence, so a failed image
+  // copy must not stop the entry's JSON from being written.
+  const missingSource = runShell(notifications.persistBatchCommand([
+    {
+      name: '3000-3.json',
+      json: '{"summary":"three"}',
+      copies: [{ from: path.join(sourceDir, 'gone'), to: path.join(imagesDir, '3000-3-image') }]
+    }
+  ], stateDir, imagesDir))
+  assertEqual(missingSource.status, 0, 'notifications persist batch tolerates a missing image source')
+  assertEqual(
+    fs.readFileSync(path.join(stateDir, '3000-3.json'), 'utf8').trim(),
+    '{"summary":"three"}',
+    'notifications persist batch still writes the entry when its image copy fails'
+  )
+  assertEqual(
+    fs.existsSync(path.join(imagesDir, '3000-3-image')),
+    false,
+    'notifications persist batch leaves no copy for a missing image source'
+  )
+  assertEqual(
+    fs.readdirSync(imagesDir).filter(name => name.endsWith('.tmp')).length,
+    0,
+    'notifications persist batch leaves no temp file for a missing image source'
+  )
+
+  // A valid entry next to an oversized one must still save its write: the
+  // oversized entry is isolated into its own (failing) batch.
+  const isolatedBatches = notifications.persistItemBatches([
+    { name: 'neighbour.json', json: '{"summary":"neighbour"}' },
+    { name: 'oversized.json', json: 'x'.repeat(200000) }
+  ], 256, 10000000)
+  assertEqual(isolatedBatches.length, 2, 'notifications isolate an oversized entry into its own batch')
+  const neighbourWrite = runShell(notifications.persistBatchCommand(isolatedBatches[0], stateDir, imagesDir))
+  assertEqual(neighbourWrite.status, 0, 'notifications run the batch holding an oversized entry\'s neighbour')
+  assertEqual(
+    fs.readFileSync(path.join(stateDir, 'neighbour.json'), 'utf8').trim(),
+    '{"summary":"neighbour"}',
+    'notifications save a valid entry whose oversized neighbour is isolated'
+  )
+
+  for (let i = 1; i <= 13; i++)
+    fs.writeFileSync(path.join(historyDir, String(i).padStart(4, '0') + '-9.json'), 'x\n')
+  fs.writeFileSync(path.join(imagesDir, '0001-9-image'), 'img')
+  for (const name of ['1000-1.json', '2000-2.json'])
+    fs.writeFileSync(path.join(stateDir, name), 'y\n')
+
+  const archive = runShell(notifications.archiveBatchCommand(
+    ['1000-1.json', '2000-2.json'], historyDir, 10, stateDir, imagesDir))
+  assertEqual(archive.status, 0, 'notifications archive batch runs cleanly')
+  assert(
+    ['1000-1.json', '2000-2.json'].every(name => fs.existsSync(path.join(historyDir, name))),
+    'notifications archive batch moves every named popup into history'
+  )
+  assertEqual(
+    fs.readdirSync(historyDir).filter(name => name.endsWith('.json')).length,
+    10,
+    'notifications archive batch trims history to its limit'
+  )
+  assertEqual(
+    fs.existsSync(path.join(imagesDir, '0001-9-image')),
+    false,
+    'notifications archive batch drops a trimmed entry\'s image copies'
+  )
+} finally {
+  fs.rmSync(workdir, { recursive: true, force: true })
+}
+
 const popupFiles = notifications.parsePopupFiles(
   [
     notifications.serializePopup({ id: 1, originalId: 1, summary: 'old-generation', urgency: 2, timestamp: 100 }, 1),
@@ -552,6 +768,150 @@ assertEqual(
   'deadline' in notifications.popupEntry({ id: 1, timestamp: 5 }, 1),
   false,
   'notifications omit the deadline field until a restore sets it'
+)
+
+// Startup must hydrate a bounded number of live rows: every append into the
+// popup model does synchronous work on the shell's main thread, so restore
+// keeps the newest restorePopupLimit entries live and archives the rest.
+const entryAt = timestamp => ({ id: timestamp, originalId: timestamp, timestamp, summary: 's' + timestamp })
+assertDeepEqual(
+  notifications.splitRestoredEntries([], 10),
+  { live: [], archive: [] },
+  'notifications restore no live rows from an empty popup dir'
+)
+const few = [entryAt(300), entryAt(200), entryAt(100)]
+assertDeepEqual(
+  notifications.splitRestoredEntries(few, 10),
+  { live: few, archive: [] },
+  'notifications restore every entry live when the backlog is under the limit'
+)
+const exact = Array.from({ length: 10 }, (_, i) => entryAt(1000 - i))
+assertDeepEqual(
+  notifications.splitRestoredEntries(exact, 10),
+  { live: exact, archive: [] },
+  'notifications restore every entry live when the backlog is exactly the limit'
+)
+const eleven = Array.from({ length: 11 }, (_, i) => entryAt(1100 - i * 100))
+const elevenSplit = notifications.splitRestoredEntries(eleven, 10)
+assertEqual(elevenSplit.live.length, 10, 'notifications cap restored live rows at the limit')
+assertEqual(elevenSplit.archive.length, 1, 'notifications send exactly the entry past the limit to archive')
+assertEqual(elevenSplit.archive[0].timestamp, 100, 'notifications archive the oldest entry when the limit overflows')
+
+const backlog = Array.from({ length: 20000 }, (_, i) => entryAt(20000 - i))
+const backlogSplit = notifications.splitRestoredEntries(backlog, 10)
+assertEqual(backlogSplit.live.length, 10, 'notifications hydrate 10 live rows from a 20,000-entry backlog')
+assertEqual(backlogSplit.archive.length, 19990, 'notifications archive the other 19,990 entries of a 20,000-entry backlog')
+assertEqual(backlogSplit.live[0].timestamp, 20000, 'notifications keep the newest entry live')
+assertEqual(backlogSplit.live[9].timestamp, 19991, 'notifications keep exactly the newest entries live')
+assertEqual(backlogSplit.archive[0].timestamp, 19990, 'notifications archive everything older than the live rows')
+assertDeepEqual(
+  backlogSplit.live.concat(backlogSplit.archive).map(row => row.timestamp),
+  backlog.map(row => row.timestamp),
+  'notifications preserve newest-first order across the split with nothing lost or duplicated'
+)
+assertEqual(
+  new Set(backlogSplit.live.concat(backlogSplit.archive).map(row => row.timestamp)).size,
+  20000,
+  'notifications split the backlog into disjoint live and archive sets'
+)
+assertEqual(
+  notifications.splitRestoredEntries(Array.from({ length: 12 }, (_, i) => entryAt(1200 - i))).live.length,
+  10,
+  'notifications default the restore cap to the default limit'
+)
+const twelve = Array.from({ length: 12 }, (_, i) => entryAt(1200 - i))
+assertEqual(
+  notifications.splitRestoredEntries(twelve, Infinity).live.length,
+  10,
+  'notifications treat a non-finite restore limit as the default rather than unbounded'
+)
+assertEqual(
+  notifications.splitRestoredEntries(twelve, NaN).live.length,
+  10,
+  'notifications treat a NaN restore limit as the default'
+)
+assertEqual(
+  notifications.splitRestoredEntries(twelve, -5).live.length,
+  10,
+  'notifications treat a negative restore limit as the default'
+)
+assertEqual(
+  notifications.splitRestoredEntries(twelve, 3.9).live.length,
+  3,
+  'notifications floor a fractional restore limit'
+)
+
+// Mirrors Service.restorePopups' partitioning — drop expired entries first,
+// then cap what is left — so the restore policy itself is observable here.
+// The Service wiring is pinned by the source assertions further down.
+function restorePartition(raw, limit, now, duration) {
+  const entries = notifications.parsePopupFiles(raw, 1)
+  const survivors = []
+  const archive = []
+  for (const entry of entries) {
+    if (notifications.popupExpired(entry, entry.urgency === 2 ? 0 : duration, now)) {
+      archive.push(notifications.popupFileName(entry))
+      continue
+    }
+    survivors.push(entry)
+  }
+  const split = notifications.splitRestoredEntries(survivors, limit)
+  for (const entry of split.archive) archive.push(notifications.popupFileName(entry))
+  const persist = split.live.filter(entry => (entry.urgency === 2 ? 0 : duration) > 0)
+  return { live: split.live, archive: archive, persist: persist }
+}
+
+// 25 entries, newest first: the three newest are critical (never expire, so
+// they are shown but never re-persisted), the ten oldest expired before this
+// restart, and the rest are ordinary toasts still within their lifetime.
+const restoreEntries = Array.from({ length: 25 }, (_, i) => ({
+  id: i + 1,
+  originalId: i + 1,
+  app: 'app',
+  summary: 'n' + (i + 1),
+  body: '',
+  urgency: i < 3 ? 2 : 1,
+  expireTimeout: 0,
+  timestamp: 25000 - i * 1000
+}))
+const partition = restorePartition(
+  restoreEntries.map(entry => notifications.serializePopup(entry, 1)).join('\n'),
+  10,
+  20000,
+  10000
+)
+assertEqual(partition.live.length, 10, 'notifications restore path keeps only restorePopupLimit live rows')
+assertEqual(partition.archive.length, 15, 'notifications restore path archives the expired entries together with the overflow')
+assertDeepEqual(
+  partition.live.map(row => row.summary),
+  restoreEntries.slice(0, 10).map(entry => entry.summary),
+  'notifications restore path retains the newest entries'
+)
+assertEqual(
+  partition.persist.length,
+  7,
+  'notifications restore path re-persists only the retained entries that still have a lifetime'
+)
+assert(
+  partition.persist.every(row => partition.live.some(live => live.timestamp === row.timestamp && live.id === row.id)),
+  'notifications restore path persists nothing it is not also showing'
+)
+assert(
+  partition.persist.every(row => !partition.archive.includes(notifications.popupFileName(row))),
+  'notifications restore path never archives an entry it still persists'
+)
+assert(
+  restoreEntries.slice(10, 15).every(entry => partition.archive.includes(notifications.popupFileName(entry))),
+  'notifications restore path sends the entries past the limit to archive batching'
+)
+assert(
+  restoreEntries.slice(15).every(entry => partition.archive.includes(notifications.popupFileName(entry))),
+  'notifications restore path still archives entries that expired before the restart'
+)
+assertEqual(
+  new Set(partition.live.map(row => notifications.popupFileName(row)).concat(partition.archive)).size,
+  restoreEntries.length,
+  'notifications restore path loses or duplicates no entry across live and archive'
 )
 
 // The click action (an argv vector) is the only kind that survives a shell
@@ -595,9 +955,14 @@ assert(!('exec' in legacyRestored), 'a restored legacy popup drops the old exec 
 assertEqual(notifications.parseExecArgv(legacyRestored.execArgv || ''), null, 'a restored legacy popup has no runnable click action')
 
 const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/notifications/Service.qml'), 'utf8')
+const logicJs = fs.readFileSync(path.join(root, 'shell/plugins/notifications/NotificationLogic.js'), 'utf8')
 assert(
   /readonly property int historyLimit: 10/.test(serviceQml),
   'notifications service keeps the last ten notifications in history'
+)
+assert(
+  /readonly property int restorePopupLimit: 10/.test(serviceQml),
+  'notifications service caps startup hydration with its own limit, separate from history'
 )
 assert(
   /function showHistory\(\): string \{\s*return service\.showRecentHistory\(\)\s*\}/.test(serviceQml),
@@ -616,28 +981,28 @@ assert(
   'notifications service archives the popup file when a popup leaves the screen'
 )
 assert(
-  /mv -f \\"\$4\/\$3\\" \\"\$1\/\$3\\"/.test(serviceQml),
-  'notifications service archives by moving the popup file into the history dir'
+  /mv -f \\"\$src\/\$1\\" \\"\$hist\/\$1\\"/.test(logicJs),
+  'notifications archive job moves the popup file into the history dir'
 )
 assert(
-  /head -n \\"-\$limit\\"/.test(serviceQml),
-  'notifications service trims history to the newest entries in the same job'
+  /head -n \\"-\$limit\\"/.test(logicJs),
+  'notifications archive job trims history to the newest entries in the same job'
 )
 assert(
-  /\\"\$imgs\/\$\{stale%\.json\}\\"-\*/.test(serviceQml),
-  'notifications service drops a trimmed history entry\'s image copies with it'
+  /\\"\$imgs\/\$\{stale%\.json\}\\"-\*/.test(logicJs),
+  'notifications archive job drops a trimmed history entry\'s image copies with it'
 )
 assert(
   /readonly property string imagesDir: popupStateDir \+ "images\/"/.test(serviceQml),
   'notifications service keeps image copies beside the popup and history files'
 )
 assert(
-  /copyImagesScript \+\n\s*"printf/.test(serviceQml),
-  'notifications service copies images before writing the JSON that references them'
+  /function persistBatchCommand\(items, dir, imagesDir\) \{[\s\S]{0,800}?copy_pair \\"\$1\\" \\"\$2\\"[\s\S]{0,300}?printf/.test(logicJs),
+  'notifications persist job copies images before writing the JSON that references them'
 )
 assert(
-  /timeout 5 head -c 5242881 -- \\"\$1\\" > \\"\$2\.tmp\\"[\s\S]{0,120}?mv -f -- \\"\$2\.tmp\\" \\"\$2\\"/.test(serviceQml),
-  'notifications service bounds image copies through a validated temp file'
+  /timeout 5 head -c 5242881 -- \\"\$1\\" > \\"\$2\.tmp\\"[\s\S]{0,120}?mv -f -- \\"\$2\.tmp\\" \\"\$2\\"/.test(logicJs),
+  'notifications persist job bounds image copies through a validated temp file'
 )
 assert(
   /rm -f \\"\$1\/\$2\.json\\" \\"\$3\/\$2\\"-\*/.test(serviceQml),
@@ -706,6 +1071,49 @@ assert(
 assert(
   /function runNextPopupFileJob\(\) \{\s*\n\s*if \(readHistoryProc\.running \|\| popupFileProc\.running\) return/.test(serviceQml),
   'notifications service holds queued file work until a history read finishes'
+)
+assert(
+  /popupFileQueue\.enqueue\(\{ command: command, done: done \|\| null \}\)/.test(serviceQml) &&
+    !/popupFileQueue = popupFileQueue\.(concat|slice)/.test(serviceQml),
+  'notifications service enqueues file jobs without rebuilding the queue array'
+)
+assert(
+  /property var popupFileQueue: NotificationLogic\.createJobQueue\(\)/.test(serviceQml) &&
+    /var job = popupFileQueue\.dequeue\(\)/.test(serviceQml),
+  'notifications service takes file jobs through the shared queue'
+)
+assert(
+  /readonly property int popupFileBatchSize: 256/.test(serviceQml),
+  'notifications service bounds how many entries share one persist shell'
+)
+assert(
+  /NotificationLogic\.persistItemBatches\(items, popupFileBatchSize, popupFileBatchBytes\)/.test(serviceQml),
+  'notifications service splits persist batches within the entry and byte caps'
+)
+assert(
+  /enqueuePersistBatch\(persistItems\)[\s\S]{0,200}?enqueueArchiveBatch\(archiveNames\)/.test(serviceQml),
+  'notifications service batches a restore instead of queueing one job per entry'
+)
+assert(
+  /if \(NotificationLogic\.popupExpired\(entry, duration, now\)\) \{[\s\S]{0,200}?archiveNames\.push\(NotificationLogic\.popupFileName\(entry\)\)/.test(serviceQml),
+  'notifications service still archives entries that expired before the restart'
+)
+assert(
+  /var split = NotificationLogic\.splitRestoredEntries\(survivors, restorePopupLimit\)/.test(serviceQml),
+  'notifications service caps restored live rows at restorePopupLimit'
+)
+assert(
+  /for \(var j = 0; j < split\.archive\.length; j\+\+\)\s*\n\s*archiveNames\.push\(NotificationLogic\.popupFileName\(split\.archive\[j\]\)\)/.test(serviceQml),
+  'notifications service sends the entries past the limit straight to archive batching'
+)
+assert(
+  /for \(var k = 0; k < split\.live\.length; k\+\+\)/.test(serviceQml) &&
+    !/persistItemFor\(entry\)/.test(serviceQml),
+  'notifications service re-persists only the rows it keeps on screen'
+)
+assert(
+  /Qt\.callLater\(function\(\) \{\s*\n\s*for \(var li = 0; li < split\.live\.length; li\+\+\)/.test(serviceQml),
+  'notifications service hydrates the popup model from the retained rows only'
 )
 assert(
   /id: readHistoryProc[\s\S]{0,300}?onExited: service\.runNextPopupFileJob\(\)/.test(serviceQml),

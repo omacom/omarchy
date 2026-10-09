@@ -95,6 +95,14 @@ Item {
   // many `showHistory` can replay.
   readonly property int historyLimit: 10
 
+  // How many persisted popups may hydrate the live model on startup. Kept
+  // separate from historyLimit on purpose: that one caps the archive, this one
+  // bounds the synchronous delegate-model inserts that block the shell's main
+  // thread during a restore. Entries past it go to history instead of coming
+  // back as live rows, so an old critical alert beyond this limit is no longer
+  // carried across a restart (see #9671).
+  readonly property int restorePopupLimit: 10
+
   readonly property int lowPopupDuration: 5000
   readonly property int normalPopupDuration: 8000
   readonly property int maxPopupDuration: 30000
@@ -470,27 +478,30 @@ Item {
   // history it sees is the one that existed when the replay was asked for.
   // Everything queued after it — a clear, an archive, a silenced write — waits
   // for it, and no amount of later traffic can push it back.
-  property var popupFileQueue: []
+  //
+  // NotificationLogic.createJobQueue backs this with an append-only array plus
+  // a head index, so enqueue and dequeue stay amortised O(1) instead of
+  // rebuilding the array (the old concat()/slice() pair was quadratic).
+  property var popupFileQueue: NotificationLogic.createJobQueue()
 
   // Done callback of the job popupFileProc is currently running.
   property var runningPopupFileJobDone: null
 
   function enqueuePopupFileJob(command, done) {
-    popupFileQueue = popupFileQueue.concat([{ command: command, done: done || null }])
+    popupFileQueue.enqueue({ command: command, done: done || null })
     runNextPopupFileJob()
   }
 
   function enqueueHistoryRead() {
-    popupFileQueue = popupFileQueue.concat([{ read: true }])
+    popupFileQueue.enqueue({ read: true })
     runNextPopupFileJob()
   }
 
   function runNextPopupFileJob() {
     if (readHistoryProc.running || popupFileProc.running) return
-    if (popupFileQueue.length === 0) return
 
-    var job = popupFileQueue[0]
-    popupFileQueue = popupFileQueue.slice(1)
+    var job = popupFileQueue.dequeue()
+    if (!job) return
 
     if (job.read) {
       startHistoryRead()
@@ -519,36 +530,40 @@ Item {
     }
   }
 
-  // Consumes the remaining args as from/to pairs. Bounded read into a temp
-  // file, validated, then renamed into place: the source path is
-  // sender-controlled and may grow, block, or become a FIFO mid-copy, and
-  // must neither hang the serialized queue nor fill the state dir.
-  readonly property string copyImagesScript:
-    "while (( $# >= 2 )); do\n" +
-    "  if [[ -f $1 ]] && timeout 5 head -c 5242881 -- \"$1\" > \"$2.tmp\" 2>/dev/null &&\n" +
-    "     (( $(stat -c%s -- \"$2.tmp\") <= 5242880 )); then mv -f -- \"$2.tmp\" \"$2\"; else rm -f -- \"$2.tmp\"; fi\n" +
-    "  shift 2\n" +
-    "done\n"
+  // The shell job scripts live in NotificationLogic so tests can execute them;
+  // these names are the only place the QML refers to them.
+  readonly property string copyImagesScript: NotificationLogic.copyImagesScript()
+  readonly property string trimHistoryScript: NotificationLogic.trimHistoryScript()
+
+  // Restoring a large backlog rebuilds one file per entry. Running one bash
+  // process per entry made startup scale with the entry count, so persist and
+  // archive jobs are grouped into bounded batches that each run a single
+  // shell. The queue keeps the batches themselves in order.
+  readonly property int popupFileBatchSize: 256
+  // Persist batches also cap the total UTF-8 size of the arguments they pass,
+  // to stay comfortably below typical ARG_MAX; archive names are short enough
+  // that the entry count alone bounds them.
+  readonly property int popupFileBatchBytes: 524288
+
+  // The JSON travels as an argument, not through shell interpolation, so
+  // summaries/bodies with quotes or backticks can't break the command.
+  function persistItemFor(snapshot) {
+    var persistable = NotificationLogic.persistablePopup(snapshot, imagesDir)
+    return {
+      name: NotificationLogic.popupFileName(snapshot),
+      json: NotificationLogic.serializePopup(persistable.entry, NotificationUrgency.Normal),
+      copies: persistable.copies
+    }
+  }
 
   function persistPopupFile(snapshot) {
-    // The JSON travels as an argument, not through shell interpolation, so
-    // summaries/bodies with quotes or backticks can't break the command. The
-    // mkdir guards notifications that arrive before ensureDirsProc has run.
-    // Copies run before the JSON referencing them, while the source exists.
-    var persistable = NotificationLogic.persistablePopup(snapshot, imagesDir)
-    var command = ["bash", "-c",
-      "mkdir -p \"$1\" \"$2\" || exit 0\n" +
-      "dir=\"$1\" json=\"$3\" name=\"$4\"\n" +
-      "shift 4\n" +
-      copyImagesScript +
-      "printf '%s\\n' \"$json\" > \"$dir/$name\"", "--",
-      popupStateDir,
-      imagesDir,
-      NotificationLogic.serializePopup(persistable.entry, NotificationUrgency.Normal),
-      NotificationLogic.popupFileName(snapshot)]
-    for (var i = 0; i < persistable.copies.length; i++)
-      command.push(persistable.copies[i].from, persistable.copies[i].to)
-    enqueuePopupFileJob(command)
+    enqueuePersistBatch([persistItemFor(snapshot)])
+  }
+
+  function enqueuePersistBatch(items) {
+    var batches = NotificationLogic.persistItemBatches(items, popupFileBatchSize, popupFileBatchBytes)
+    for (var i = 0; i < batches.length; i++)
+      enqueuePopupFileJob(NotificationLogic.persistBatchCommand(batches[i], popupStateDir, imagesDir))
   }
 
   function deletePopupFileFor(row) {
@@ -567,24 +582,16 @@ Item {
   // job: the names sort numerically by their leading millisecond timestamp,
   // so everything but the newest historyLimit files is the tail to drop,
   // image copies included. Callers set $hist, $limit and $imgs first.
-  readonly property string trimHistoryScript:
-    "ls -1 \"$hist\" 2>/dev/null | sort -n | head -n \"-$limit\" | while IFS= read -r stale; do rm -f \"$hist/$stale\" \"$imgs/${stale%.json}\"-*; done"
-
   function archivePopupFileFor(row) {
     if (!row) return
-    // A history replay or the empty-history placeholder has no file to move;
-    // the failed mv leaves the history untouched, trimming included. Image
-    // copies stay put — live and archived entries share imagesDir.
-    enqueuePopupFileJob(["bash", "-c",
-      "mkdir -p \"$1\" || exit 0\n" +
-      "hist=\"$1\" limit=\"$2\" imgs=\"$5\"\n" +
-      "mv -f \"$4/$3\" \"$1/$3\" 2>/dev/null || exit 0\n" +
-      trimHistoryScript, "--",
-      historyDir,
-      String(historyLimit),
-      NotificationLogic.popupFileName(row),
-      popupStateDir,
-      imagesDir])
+    enqueueArchiveBatch([NotificationLogic.popupFileName(row)])
+  }
+
+  function enqueueArchiveBatch(names) {
+    for (var start = 0; start < names.length; start += popupFileBatchSize)
+      enqueuePopupFileJob(NotificationLogic.archiveBatchCommand(
+        names.slice(start, start + popupFileBatchSize),
+        historyDir, historyLimit, popupStateDir, imagesDir))
   }
 
   // Record a notification that never made it to the screen (DND silenced it),
@@ -756,45 +763,67 @@ Item {
   function restorePopups(raw) {
     var entries = NotificationLogic.parsePopupFiles(raw, NotificationUrgency.Normal)
     var now = Date.now()
-    var live = []
+    var survivors = []
+    var archiveNames = []
     for (var i = 0; i < entries.length; i++) {
       var entry = entries[i]
       var duration = durationFor(entry.urgency, entry.expireTimeout)
       if (NotificationLogic.popupExpired(entry, duration, now)) {
         // It would have expired on screen had the shell kept running, so it
         // gets archived exactly like an expiry that happened while it did.
-        archivePopupFileFor(entry)
+        archiveNames.push(NotificationLogic.popupFileName(entry))
         continue
       }
-      // Survivors restart with a full lifetime on purpose: shell restarts
-      // are rare, and a full look after the restart flicker beats resuming
-      // a toast with a second left on its clock. The reset is persisted as
-      // an absolute deadline so a second restart while the toast is still
-      // on screen judges it by the reset clock, not the original timestamp.
-      if (duration > 0) {
-        entry.deadline = now + duration
-        persistPopupFile(entry)
+      survivors.push(entry)
+    }
+    // Startup hydrates at most restorePopupLimit rows. Each append does
+    // synchronous delegate-model work on the main thread, so an unbounded
+    // backlog blocked the shell for as long as it took to insert. Restored
+    // entries past that limit are moved to history rather than hydrated.
+    var split = NotificationLogic.splitRestoredEntries(survivors, restorePopupLimit)
+    for (var j = 0; j < split.archive.length; j++)
+      archiveNames.push(NotificationLogic.popupFileName(split.archive[j]))
+
+    // Survivors restart with a full lifetime on purpose: shell restarts
+    // are rare, and a full look after the restart flicker beats resuming
+    // a toast with a second left on its clock. The reset is persisted as
+    // an absolute deadline so a second restart while the toast is still
+    // on screen judges it by the reset clock, not the original timestamp.
+    // Only the rows that stay on screen are written back — the overflow was
+    // already handed to the archives above, so it must not also be persisted.
+    var persistItems = []
+    for (var k = 0; k < split.live.length; k++) {
+      var survivor = split.live[k]
+      var liveDuration = durationFor(survivor.urgency, survivor.expireTimeout)
+      if (liveDuration > 0) {
+        survivor.deadline = now + liveDuration
+        persistItems.push(persistItemFor(survivor))
         // deadline is persistence metadata, not a model role — fresh rows
         // never carry it, and ListModel roles must stay consistent.
-        delete entry.deadline
+        delete survivor.deadline
       }
-      live.push(entry)
     }
-    if (live.length === 0) return
+
+    // Save reset deadlines before archiving the backlog, so another restart
+    // does not judge retained rows by their old deadlines.
+    enqueuePersistBatch(persistItems)
+    enqueueArchiveBatch(archiveNames)
+    if (split.live.length === 0) return
 
     Qt.callLater(function() {
-      for (var j = 0; j < live.length; j++) {
-        var restored = live[j]
+      for (var li = 0; li < split.live.length; li++) {
+        var restored = split.live[li]
         // A notification received while the restore was reading the dir can
         // already occupy this originalId with the same timestamp — then it
         // IS this entry, live with its own file, and must be left alone. A
         // different timestamp is indistinguishable between a genuine
         // cross-restart replaces_id and a new-generation id coincidence, so
         // show both: a briefly duplicated toast beats silently dropping a
-        // restored critical alert.
+        // restored critical alert. The live set is capped, so this scan is
+        // bounded too.
         var duplicate = false
-        for (var k = 0; k < popupModel.count; k++) {
-          var row = popupModel.get(k)
+        for (var ri = 0; ri < popupModel.count; ri++) {
+          var row = popupModel.get(ri)
           if (row && row.originalId === restored.originalId && row.timestamp === restored.timestamp) {
             duplicate = true
             break
