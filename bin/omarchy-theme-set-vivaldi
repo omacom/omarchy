@@ -34,7 +34,7 @@ fi
 # there when it exists and fall back to Vivaldi's own defaults otherwise. An
 # absent alpha means Hyprland has no window opacity configured, so the theme
 # keeps whatever transparency the user chose.
-channel=${VIVALDI_OMARCHY_JSON:-/opt/vivaldi/resources/vivaldi/style/omarchy.json}
+channel=${VIVALDI_OMARCHY_JSON:-$HOME/.local/state/omarchy/vivaldi/theme.json}
 radius=8
 dim_blurred=false
 blur=0
@@ -62,16 +62,31 @@ for preferences in "$HOME"/.config/vivaldi/*/Preferences; do
     CHANNEL_BLUR="$blur" CHANNEL_CONTRAST="$contrast" \
     CHANNEL_ALPHA="$alpha" \
     python3 - "$preferences" <<'PYTHON' || failed=1
+import fcntl
 import io
 import json
 import os
+import subprocess
 import sys
+import tempfile
 import uuid
 
 path = sys.argv[1]
 prefix = "Omarchy"
 
 try:
+    # Lock a stable sidecar, not Preferences: os.replace changes its inode.
+    # Keep the lock through the read-modify-write and never unlink it; the
+    # interpreter closes the descriptor on exit, including after a failure.
+    lock = os.open(path + ".omarchy-lock", os.O_CREAT | os.O_RDWR, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    # A launch may have started Vivaldi while this writer waited for the lock.
+    if subprocess.run(
+        ["pgrep", "-u", str(os.getuid()), "-x", "vivaldi|vivaldi-bin"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    ).returncode == 0:
+        sys.exit(0)
     with io.open(path, encoding="utf-8") as preferences:
         data = json.load(preferences)
 except (OSError, ValueError):
@@ -157,17 +172,25 @@ schedule["dark"] = current["id"]
 # Write through a temporary file so an interrupted run cannot leave a profile
 # with truncated preferences. Preserve the profile file mode: Vivaldi creates
 # it as private, and a fresh file would widen it to the user's umask.
-staged = path + ".omarchy-staged"
+staged = None
 try:
     mode = os.stat(path).st_mode & 0o7777
-    with io.open(staged, "w", encoding="utf-8") as preferences:
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=os.path.dirname(path),
+        prefix=".Preferences.omarchy-",
+        delete=False,
+    ) as preferences:
+        staged = preferences.name
         preferences.write(json.dumps(data, separators=(",", ":")))
-    os.chmod(staged, mode)
+        os.fchmod(preferences.fileno(), mode)
     os.replace(staged, path)
 except OSError:
-    if os.path.exists(staged):
-        os.remove(staged)
     sys.exit(1)
+finally:
+    if staged is not None and os.path.exists(staged):
+        os.remove(staged)
 PYTHON
 done
 
