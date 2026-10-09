@@ -222,9 +222,23 @@ o = {
 }
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "unconfigured dictation leaves application keys available")
+assert(next(o.dictation_keys) == nil, "unconfigured dictation advertises no owned chords")
 configured = true
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 5, "any configured backend receives the same bindings")
+local chords = 0
+for keys, owned in pairs(o.dictation_keys) do
+  assert(owned == true)
+  chords = chords + 1
+end
+assert(chords == 3, "press and release share one registry entry")
+for _, binding in ipairs(bindings) do
+  assert(o.dictation_keys[binding[1]], "every installed dictation chord is registered")
+end
+
+configured = false
+dofile(root .. "/default/hypr/bindings/dictation.lua")
+assert(next(o.dictation_keys) == nil, "reloading without a backend clears the registry")
 LUA
 pass "dictation shortcuts require a selection without limiting backend names"
 

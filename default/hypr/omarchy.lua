@@ -5,6 +5,8 @@ local require_optional = require("default.hypr.require_optional")
 
 -- Use Omarchy defaults, but don't edit these directly.
 require("default.hypr.autostart")
+-- Clear ownership on every load, including when default bindings are disabled.
+o.dictation_keys = {}
 if _G.omarchy_default_bindings ~= false then
   require("default.hypr.bindings.media")
   require("default.hypr.bindings.clipboard")

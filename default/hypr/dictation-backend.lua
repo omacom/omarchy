@@ -1,5 +1,5 @@
 -- Backends may supply their own desktop integration without editing the
--- user's Hyprland config. Recording bindings remain owned by Omarchy.
+-- user's Hyprland config. They can take over chords listed in o.dictation_keys.
 local paths = require("default.hypr.paths")
 local pipe = io.popen("omarchy-default-dictation 2>/dev/null", "r")
 if not pipe then

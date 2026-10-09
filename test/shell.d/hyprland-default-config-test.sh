@@ -92,6 +92,11 @@ hl = setmetatable({
 })
 
 require("default.hypr.omarchy")
+assert(type(o.dictation_keys) == "table", "dictation registry is always available")
+if _G.omarchy_default_bindings == false then
+  assert(next(o.dictation_keys) == nil, "disabled defaults clear previous dictation ownership")
+  print("DICTATION_REGISTRY_CLEARED")
+end
 LUA
 }
 
@@ -140,8 +145,9 @@ pass "preinstalled binding variable skips optional application bindings"
 
 no_bindings_home="$tmpdir/no-bindings-home"
 mkdir -p "$no_bindings_home"
-no_bindings_output=$(run_omarchy_bindings "$no_bindings_home" 'omarchy_default_bindings = false')
-[[ -z $no_bindings_output ]] || fail "default binding variable disables all Omarchy bindings" "$no_bindings_output"
+no_bindings_output=$(run_omarchy_bindings "$no_bindings_home" 'o = { dictation_keys = { F9 = true } }; omarchy_default_bindings = false') ||
+  fail "disabled defaults clear previous dictation ownership"
+[[ $no_bindings_output == "DICTATION_REGISTRY_CLEARED" ]] || fail "default binding variable disables all Omarchy bindings and clears dictation ownership" "$no_bindings_output"
 pass "default binding variable disables all Omarchy bindings"
 
 dictation_home="$tmpdir/dictation-home"
