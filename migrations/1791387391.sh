@@ -5,6 +5,10 @@ product_name=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
 
 source "$OMARCHY_PATH/install/hardware/apple/fix-suspend-nvme.sh"
 
+# The boot parameters are installed only for the tested MacBookPro14,1.
+# Other models in the installer match keep their current sleep mode.
+[[ $product_name == MacBookPro14,1 ]] || exit 0
+
 # Drop-ins are merged into the UKI command line by limine-mkinitcpio. Skip the
 # rebuild when this boot already has the parameters.
 if [[ -r /proc/cmdline ]]; then
