@@ -120,7 +120,8 @@ touch "$seed/openclaw.tgz"
 mkdir -p "$test_tmp/usr-local-bin"
 cp "$ROOT/bin/omarchy-migrate" "$mock_bin/omarchy-migrate"
 for script in bin/omarchy-install-openclaw-cli migrations/1790397381.sh; do
-  sed -e "s|/usr/share/openclaw|$seed|g" -e "s|/usr/local/bin|$test_tmp/usr-local-bin|g" "$ROOT/$script" >"$mock_bin/${script##*/}"
+  sed -e "s|/usr/share/openclaw|$seed|g" -e "s|/usr/local/bin|$test_tmp/usr-local-bin|g" -e "s|/usr/bin/openclaw|$test_tmp/usr-bin/openclaw|g" \
+    "$ROOT/$script" >"$mock_bin/${script##*/}"
 done
 mv "$mock_bin/1790397381.sh" "$test_tmp/migration.sh"
 chmod +x "$mock_bin/omarchy-install-openclaw-cli"
@@ -203,6 +204,18 @@ run omarchy-install-openclaw-cli --now || fail "--now accepts a package that is 
 touch "$moved_record"
 run omarchy-install-openclaw-cli --now || fail "--now accepts an installed package that is still OpenClaw itself" "$(cat "$test_tmp/output")"
 [[ ! -e $moved_record ]] || fail "accepting the package that is OpenClaw itself makes the migration move it once the seed arrives"
+# Its command is then the one OpenClaw, and one a session would run ahead of it
+# is refused as it is for the runtime.
+shims="$test_home/.local/share/mise/shims"
+mkdir -p "$shims"
+printf '#!/bin/bash\n' >"$shims/openclaw"
+chmod +x "$shims/openclaw"
+run omarchy-install-openclaw-cli --check && fail "--check refuses a mise shim ahead of the package that is OpenClaw itself"
+run omarchy-install-openclaw-cli --now && fail "--now refuses a mise shim ahead of the package that is OpenClaw itself"
+grep -q "Another openclaw is on PATH at $shims/openclaw, which Omarchy could run instead of $test_tmp/usr-bin/openclaw" "$test_tmp/output" ||
+  fail "--now names the openclaw ahead of the package's own" "$(cat "$test_tmp/output")"
+rm "$shims/openclaw"
+run omarchy-install-openclaw-cli --check || fail "--check takes the package again once nothing is ahead of it"
 rm "$test_tmp/usr-bin/openclaw"
 mv "$seed.old" "$seed"
 pass "a package that is still OpenClaw itself is the installation until the seed arrives, and the migration will move it"
@@ -430,6 +443,7 @@ OMARCHY_TEST_SYSTEMCTL_START_FAIL=1 run omarchy-install-openclaw-cli --now && fa
 grep -q "Could not start the OpenClaw gateway service again" "$test_tmp/output" || fail "a gateway that will not start again is named" "$(cat "$test_tmp/output")"
 [[ -e $test_home/.local/state/omarchy/openclaw-stopped/gateway ]] || fail "a gateway that will not start again keeps its record"
 pass "a gateway a failed run stopped that will not start again fails the run and keeps its record"
+
 # One the user removed since is gone: the record goes too, nothing is started,
 # and the run is not stuck on a unit that no longer exists.
 rm "$test_home/.config/systemd/user/openclaw-gateway.service"

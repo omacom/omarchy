@@ -67,10 +67,12 @@ session_openclaws() {
   PATH="$shims:$HOME/.local/share/mise/shims:/usr/local/bin:$PATH:$HOME/.local/bin" type -aP openclaw
 }
 
+# Any openclaw a session might run other than the expected one, the runtime's
+# unless another is named.
 foreign_openclaw() {
-  local found
+  local expected=${1:-$runtime_command} found
   while IFS= read -r found; do
-    if [[ $(realpath -m -- "$found") != "$(realpath -m -- "$runtime_command")" ]]; then
+    if [[ $(realpath -m -- "$found") != "$(realpath -m -- "$expected")" ]]; then
       echo "$found"
       return 0
     fi
@@ -108,6 +110,17 @@ moved_before() {
 # waits for the seed and moves it when it arrives.
 rearm_move() {
   omarchy-migrate --rearm 1790397381.sh
+}
+
+# While the package is OpenClaw itself its command is the one OpenClaw, and
+# anything a session would run ahead of it is refused as it is for the runtime.
+package_command=/usr/bin/openclaw
+
+package_shadowed() {
+  local found
+  found=$(foreign_openclaw "$package_command") || return 1
+  echo "Another openclaw is on PATH at $found, which Omarchy could run instead of $package_command." >&2
+  echo "Remove it, then run omarchy-install-openclaw-cli --now again." >&2
 }
 
 package_in_the_way() {
@@ -244,7 +257,7 @@ stopped_note() {
 case "$mode" in
 --check)
   if omarchy-pkg-present openclaw && package_is_openclaw; then
-    if moved_before; then exit 1; else exit 0; fi
+    if moved_before || package_shadowed 2>/dev/null; then exit 1; else exit 0; fi
   fi
   if installed; then exit 0; else exit 1; fi
   ;;
@@ -255,6 +268,7 @@ case "$mode" in
       exit 1
     fi
     rearm_move
+    if package_shadowed; then exit 1; fi
     exit 0
   fi
   ;;
@@ -298,6 +312,7 @@ if package_is_openclaw; then
     exit 1
   fi
   rearm_move
+  if package_shadowed; then exit 1; fi
   echo "OpenClaw runs from its package until an update brings the release that sets up the self-updating copy."
   exit 0
 fi
