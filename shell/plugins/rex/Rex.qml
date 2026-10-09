@@ -242,6 +242,8 @@ Item {
   }
 
   function setTypedText(value) {
+    // A file still loading would replace this text when it arrives.
+    fileReader.path = ""
     textFile = ""
     testText = value
   }
