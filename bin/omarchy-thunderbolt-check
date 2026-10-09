@@ -62,7 +62,9 @@ if [[ -f $state_file ]]; then
   done <"$state_file"
 fi
 
-# Devices still unauthorized that were never notified about this session.
+# Devices still unauthorized that have not been notified yet. Notification
+# state persists across sessions (see the pruning block below), so this is
+# not scoped to the current session.
 pending_ids=()
 for unique_id in "${unauthorized_ids[@]}"; do
   [[ -z ${notified[$unique_id]+x} ]] && pending_ids+=("$unique_id")
