@@ -552,3 +552,13 @@ const ranked = B.rank([
 ])
 assertDeepEqual(ranked.map(r => [r.flavor, r.share]), [['fast', 0.2], ['slow', 1], ['broken', 0]], 'the fastest come first, failures last')
 JS
+
+# Toolchains installed under the home directory are found without the
+# interactive shell's PATH, which the desktop session never sees.
+fake_home="$tmpdir/resid-home"
+mkdir -p "$fake_home/.resid/bin"
+printf '#!/bin/bash\n' >"$fake_home/.resid/bin/residc"
+chmod +x "$fake_home/.resid/bin/residc"
+flavors=$(env -i HOME="$fake_home" PATH="$ROOT/bin:/usr/bin:/bin" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-rex-worker" --flavors)
+grep -qx resid <<<"$flavors" || fail "Resid is found in its own install directory" "$flavors"
+pass "Resid is found in its own install directory"
