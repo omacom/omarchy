@@ -27,7 +27,7 @@ hypr_focus_monitor() {
 
 hypr_exec() {
   local command
-  printf -v command '%q ' "$@"
+  printf -v command '%q ' env "OMARCHY_SCREENSAVER_LAUNCH_PID=$$" "$@"
 
   hyprctl dispatch "hl.dsp.exec_cmd([[$command]])" >/dev/null 2>&1 || hyprctl dispatch exec -- bash -lc "$command" >/dev/null
 }

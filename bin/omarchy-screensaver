@@ -6,6 +6,10 @@ screensaver_in_focus() {
   hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
 }
 
+screensaver_launch_in_progress() {
+  [[ -n ${OMARCHY_SCREENSAVER_LAUNCH_PID:-} ]] && kill -0 "$OMARCHY_SCREENSAVER_LAUNCH_PID" 2>/dev/null
+}
+
 exit_screensaver() {
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
   pkill -x ttfx 2>/dev/null
@@ -26,10 +30,10 @@ tty=$(tty 2>/dev/null)
 # that monitor's window has mapped, so early on a screensaver can look unfocused
 # purely because a sibling instance has not appeared yet. screensaver_in_focus
 # is a global check and exit_screensaver's pkill is global, so acting on it then
-# tears down every instance on multi-monitor setups. Hold off until a screensaver
-# has actually held focus once; the deadline is the safety net for a launch that
-# never produces a window at all. Slow-starting terminals like WezTerm are what
-# make this window wide enough to matter.
+# tears down every instance on multi-monitor setups. Hold off for the launcher's
+# entire lifetime, including its final focus restore. For standalone instances,
+# wait until a screensaver has held focus once, with a deadline for a window
+# that never appears. Slow-starting terminals like WezTerm widen this race.
 LAUNCH_GRACE_SECONDS=10
 
 seen_focus=false
@@ -58,7 +62,7 @@ while true; do
       exit_screensaver
     elif screensaver_in_focus; then
       seen_focus=true
-    elif [[ $seen_focus == "true" ]] || ((SECONDS >= launch_deadline)); then
+    elif ! screensaver_launch_in_progress && { [[ $seen_focus == "true" ]] || ((SECONDS >= launch_deadline)); }; then
       exit_screensaver
     fi
   done
