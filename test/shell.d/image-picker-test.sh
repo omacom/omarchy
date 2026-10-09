@@ -258,4 +258,186 @@ reveal = revealContext([true], 2)
 reveal.opened = false
 reveal.settleReveal()
 assert(!reveal.layoutSettled, 'settle does nothing once the picker is closed')
+
+assertEqual(typeof picker.parseThemeNames, 'function', 'image picker model parses extra theme listings')
+assertDeepEqual(picker.parseThemeNames('fjord\ngiants\n\nspace\n'), ['fjord', 'giants', 'space'], 'image picker parses extra theme names one per line')
+assertDeepEqual(picker.parseThemeNames(''), [], 'image picker parses an empty extra theme listing')
+assert(picker.canDeleteTheme('fjord', ['fjord', 'giants']), 'an extra theme can be deleted from the picker')
+assert(!picker.canDeleteTheme('nord', ['fjord', 'giants']), 'a stock theme cannot be deleted from the picker')
+assert(!picker.canDeleteTheme('', ['fjord']), 'no selection cannot be deleted from the picker')
+assert(!picker.canDeleteTheme('fjord', []), 'nothing can be deleted before extra themes are known')
+assert(!picker.canDeleteTheme('nord', ['nord', 'fjord'], ['nord']), 'a user override of a stock theme is not deleted from the picker')
+assert(picker.canDeleteTheme('fjord', ['fjord'], ['nord']), 'an extra theme beside the stock list can be deleted from the picker')
+assert(
+  /command: \["find", root\.userThemesPath, "-mindepth", "1", "-maxdepth", "1", "-type", "d", "!", "-xtype", "l", "-printf", "%f\\n"\]/.test(imagePickerQml) &&
+    /root\.extraThemeNames = ImagePickerModel\.parseThemeNames\(String\(text \|\| ""\)\)/.test(imagePickerQml) &&
+    /function openThemes\(\) \{[\s\S]*?refreshExtraThemes\(\)/.test(imagePickerQml),
+  'image picker learns extra themes the way theme remove lists them'
+)
+assert(
+  /ConfirmDialog \{\s*id: deleteConfirm\s*anchors\.fill: parent\s*opened: root\.deleteConfirmOpen\s*z: 10\s*message: "Do you want to delete " \+ \(root\.pendingDeleteTheme \? root\.labelForPath\(root\.pendingDeleteTheme\) : ""\) \+ "\?"\s*confirmText: "Delete"/.test(imagePickerQml) &&
+    /onCanceled: root\.cancelDeleteTheme\(\)\s*onConfirmed: root\.confirmDeleteTheme\(\)/.test(imagePickerQml),
+  'image picker confirms theme deletion in a faded centered dialog'
+)
+assert(
+  /if \(root\.deleteConfirmOpen\) \{\s*if \(deleteConfirm\.handleKey\(event\)\) event\.accepted = true\s*return\s*\}/.test(imagePickerQml) &&
+    imagePickerQml.indexOf('if (root.deleteConfirmOpen) {') < imagePickerQml.indexOf('if (!root.layoutSettled) {') &&
+    /else if \(event\.key === Qt\.Key_Delete && !\(event\.modifiers & \(Qt\.ControlModifier \| Qt\.AltModifier \| Qt\.MetaModifier\)\)\) \{\s*root\.requestDeleteSelectedTheme\(\)\s*event\.accepted = true/.test(imagePickerQml),
+  'image picker routes keys to the delete confirmation first and maps Delete to it'
+)
+assert(
+  /onOpenedChanged: if \(!opened\) \{ layoutSettled = false; renderedFrames = 0; deleteConfirmOpen = false; pendingDeleteTheme = ""; deleteSelectionPath = "" \}/.test(imagePickerQml) &&
+    /id: deleteThemeProc\s*onExited: function\(exitCode\) \{\s*if \(exitCode !== 0\) root\.deleteSelectionPath = ""\s*root\.refreshExtraThemes\(\)\s*root\.refreshThemeRows\(\)/.test(imagePickerQml),
+  'image picker drops a pending deletion on close and refreshes after one runs'
+)
+
+// Run the delete flow itself against a mocked selection and remove process.
+const deleteFns = [
+  imagePickerQml.match(/function selectedThemeName\(\) \{[\s\S]*?\n  \}/)[0],
+  imagePickerQml.match(/function canDeleteSelectedTheme\(\) \{[\s\S]*?\n  \}/)[0],
+  imagePickerQml.match(/function requestDeleteSelectedTheme\(\) \{[\s\S]*?\n  \}/)[0],
+  imagePickerQml.match(/function cancelDeleteTheme\(\) \{[\s\S]*?\n  \}/)[0],
+  imagePickerQml.match(/function confirmDeleteTheme\(\) \{[\s\S]*?\n  \}/)[0]
+].join('\n')
+function deleteContext(path, extras, inThemeMode) {
+  const ctx = {
+    themeMode: inThemeMode,
+    extraThemeNames: extras,
+    stockThemeNames: [],
+    pendingDeleteTheme: '',
+    deleteSelectionPath: '',
+    deleteConfirmOpen: false,
+    imageArray: [{ filePath: path }],
+    selectedIndex: 0,
+    filterText: '',
+    deleteThemeProc: { running: false, command: [] },
+    deleteConfirm: { selectedIndex: 0 },
+    ImagePickerModel: picker,
+    nameForPath: picker.nameForPath,
+    currentPath() { return path }
+  }
+  ctx.root = ctx
+  require('vm').runInNewContext(deleteFns, ctx)
+  return ctx
+}
+let deletion = deleteContext('/cache/previews/fjord.jpg', ['fjord', 'giants'], true)
+deletion.requestDeleteSelectedTheme()
+assert(deletion.deleteConfirmOpen && deletion.pendingDeleteTheme === 'fjord', 'Delete asks to confirm the selected extra theme')
+deletion.cancelDeleteTheme()
+assert(!deletion.deleteConfirmOpen && deletion.pendingDeleteTheme === '' && deletion.deleteThemeProc.command.length === 0, 'canceling deletion removes nothing')
+deletion.requestDeleteSelectedTheme()
+deletion.confirmDeleteTheme()
+assertDeepEqual(deletion.deleteThemeProc.command, ['omarchy-theme-remove', 'fjord'], 'confirming deletion removes exactly the selected theme')
+assert(deletion.deleteThemeProc.running && !deletion.deleteConfirmOpen, 'confirming deletion runs the removal and closes the dialog')
+deletion = deleteContext('/cache/previews/nord.png', ['fjord'], true)
+deletion.requestDeleteSelectedTheme()
+assert(!deletion.deleteConfirmOpen, 'Delete does nothing on a stock theme')
+deletion = deleteContext('/cache/previews/fjord.jpg', ['fjord'], false)
+deletion.requestDeleteSelectedTheme()
+assert(!deletion.deleteConfirmOpen, 'Delete does nothing in the background picker')
+deletion = deleteContext('/cache/previews/fjord.jpg', ['fjord'], true)
+deletion.requestDeleteSelectedTheme()
+deletion.deleteThemeProc.running = true
+deletion.confirmDeleteTheme()
+assertEqual(deletion.deleteThemeProc.command.length, 0, 'a second removal cannot start while one is running')
+
+assertEqual(typeof picker.replacementSelectionPath, 'function', 'image picker model finds where to land after a deletion')
+const siblings = ['/p/alpha.png', '/p/bravo.png', '/p/charlie.png'].map(filePath => ({ filePath }))
+assertEqual(picker.replacementSelectionPath(siblings, 1, ''), '/p/alpha.png', 'deleting a theme lands on the one before it')
+assertEqual(picker.replacementSelectionPath(siblings, 2, ''), '/p/bravo.png', 'deleting the last theme lands on the one before it')
+assertEqual(picker.replacementSelectionPath(siblings, 0, ''), '/p/bravo.png', 'deleting the first theme lands on the new first theme')
+assertEqual(picker.replacementSelectionPath(siblings.slice(0, 1), 0, ''), '', 'deleting the only theme has nowhere to land')
+assertEqual(picker.replacementSelectionPath(siblings, 9, ''), '', 'a stale selection has nowhere to land')
+const mixed = ['/p/dark-a.png', '/p/light-b.png', '/p/dark-c.png', '/p/dark-d.png'].map(filePath => ({ filePath }))
+assertEqual(picker.replacementSelectionPath(mixed, 2, 'dark'), '/p/dark-a.png', 'deleting a filtered theme lands on the previous match')
+assertEqual(picker.replacementSelectionPath(mixed, 0, 'dark'), '/p/dark-c.png', 'deleting the first match lands on the next match')
+assert(
+  /function confirmDeleteTheme\(\) \{[\s\S]*?if \(name === selectedThemeName\(\)\) deleteSelectionPath = ImagePickerModel\.replacementSelectionPath\(imageArray, selectedIndex, filterText\)/.test(imagePickerQml) &&
+    /selectedImage = deleteSelectionPath \|\| currentPath\(\) \|\| currentThemePreview\(\)\s*deleteSelectionPath = ""/.test(imagePickerQml),
+  'image picker retains its place by selecting the previous theme after a deletion'
+)
+
+function retentionContext(paths, selected, filter) {
+  const ctx = deleteContext(paths[selected], paths.map(filePath => picker.nameForPath(filePath)), true)
+  ctx.imageArray = paths.map(filePath => ({ filePath }))
+  ctx.selectedIndex = selected
+  ctx.filterText = filter
+  ctx.deleteSelectionPath = ''
+  return ctx
+}
+const trio = ['/p/alpha.png', '/p/bravo.png', '/p/charlie.png']
+let retention = retentionContext(trio, 1, '')
+retention.requestDeleteSelectedTheme()
+retention.confirmDeleteTheme()
+assertEqual(retention.deleteSelectionPath, '/p/alpha.png', 'confirming a deletion remembers the theme before it')
+retention = retentionContext(trio, 0, '')
+retention.requestDeleteSelectedTheme()
+retention.confirmDeleteTheme()
+assertEqual(retention.deleteSelectionPath, '/p/bravo.png', 'confirming the first theme remembers the one after it')
+retention = retentionContext(trio, 1, '')
+retention.requestDeleteSelectedTheme()
+retention.currentPath = () => '/p/charlie.png'
+retention.confirmDeleteTheme()
+assertEqual(retention.deleteSelectionPath, '', 'no landing is remembered when the selection moved off the deleted theme')
+assertDeepEqual(retention.deleteThemeProc.command, ['omarchy-theme-remove', 'bravo'], 'the confirmed theme is still the one removed')
+
+assert(
+  /id: stockThemesProc\s*command: \["find", root\.omarchyPath \+ "\/themes", "-mindepth", "1", "-maxdepth", "1", "-type", "d", "-printf", "%f\\n"\]/.test(imagePickerQml) &&
+    /root\.stockThemeNames = ImagePickerModel\.parseThemeNames\(String\(text \|\| ""\)\)/.test(imagePickerQml) &&
+    /canDeleteTheme\(selectedThemeName\(\), extraThemeNames, stockThemeNames\)/.test(imagePickerQml),
+  'image picker knows stock theme names so overrides stay undeletable'
+)
+assert(
+  /function refreshThemeRows\(\) \{\s*if \(themeRowsProc\.running\) \{ themeRowsProc\.queued = true; return \}/.test(imagePickerQml) &&
+    /function refreshExtraThemes\(\) \{\s*if \(extraThemesProc\.running\) \{ extraThemesProc\.queued = true; return \}/.test(imagePickerQml) &&
+    (imagePickerQml.match(/property bool queued: false/g) || []).length === 2 &&
+    (imagePickerQml.match(/onExited: \{\s*if \(queued\) \{\s*queued = false\s*running = true\s*\}\s*\}/g) || []).length === 2,
+  'theme row and extra theme refreshes queue behind a running refresh'
+)
+assert(
+  /function applySelected\(\) \{\s*if \(themeMode && deleteThemeProc\.running\) return/.test(imagePickerQml) &&
+    /function canDeleteSelectedTheme\(\) \{\s*return themeMode && !deleteThemeProc\.running && ImagePickerModel\.canDeleteTheme/.test(imagePickerQml) &&
+    /function requestDeleteSelectedTheme\(\) \{[\s\S]*?deleteConfirm\.selectedIndex = 1\s*deleteConfirmOpen = true/.test(imagePickerQml) &&
+    /function openSelector\([^)]*\) \{\s*deleteConfirmOpen = false\s*pendingDeleteTheme = ""\s*deleteSelectionPath = ""/.test(imagePickerQml),
+  'image picker cannot apply or re-ask mid-removal and resets delete state per open'
+)
+
+deletion = deleteContext('/cache/previews/nord.png', ['nord', 'fjord'], true)
+deletion.stockThemeNames = ['nord']
+deletion.requestDeleteSelectedTheme()
+assert(!deletion.deleteConfirmOpen, 'Delete does nothing on a stock theme override')
+deletion = deleteContext('/cache/previews/fjord.jpg', ['fjord'], true)
+deletion.stockThemeNames = ['nord']
+deletion.deleteThemeProc.running = true
+deletion.requestDeleteSelectedTheme()
+assert(!deletion.deleteConfirmOpen, 'Delete does not ask while a removal is running')
+
+const refreshFn = imagePickerQml.match(/function refreshThemeRows\(\) \{[\s\S]*?\n  \}/)[0]
+const refreshCtx = { themeRowsProc: { running: true, queued: false } }
+require('vm').runInNewContext(refreshFn, refreshCtx)
+refreshCtx.refreshThemeRows()
+assert(refreshCtx.themeRowsProc.queued && refreshCtx.themeRowsProc.running, 'a refresh asked mid-refresh queues behind it')
+refreshCtx.themeRowsProc.running = false
+refreshCtx.themeRowsProc.queued = false
+refreshCtx.refreshThemeRows()
+assert(refreshCtx.themeRowsProc.running, 'a refresh asked while idle starts at once')
+
+const updateFn = imagePickerQml.match(/function updateThemeRows\(rows\) \{[\s\S]*?\n  \}/)[0]
+const updateCtx = {
+  themeRows: 'old', themeOpenPending: false, themeMode: true, opened: true,
+  deleteSelectionPath: '/p/alpha.png', selectedImage: '', imageRows: '', loaded: null,
+  currentPath() { return '/p/bravo.png' },
+  currentThemePreview() { return '' },
+  openThemeRows() {},
+  loadRows(rows, reveal) { updateCtx.loaded = [rows, reveal] }
+}
+require('vm').runInNewContext(updateFn, updateCtx)
+updateCtx.updateThemeRows('new-rows')
+assertEqual(updateCtx.selectedImage, '/p/alpha.png', 'a row refresh after deletion selects the remembered previous theme')
+assertEqual(updateCtx.deleteSelectionPath, '', 'the remembered landing is spent by the refresh using it')
+assertDeepEqual(updateCtx.loaded, ['new-rows', false], 'the refresh reloads rows without reopening the picker')
+updateCtx.themeRows = 'new-rows'
+updateCtx.loaded = null
+updateCtx.updateThemeRows('new-rows')
+assertEqual(updateCtx.selectedImage, '/p/alpha.png', 'an unchanged refresh leaves the selection alone')
 JS
