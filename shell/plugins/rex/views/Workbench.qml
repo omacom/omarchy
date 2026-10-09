@@ -236,6 +236,7 @@ Item {
             { value: "matches", label: "Matches" },
             { value: "explain", label: "Explain" },
             { value: "optimize", label: root.app.findings.length ? "Optimize (" + root.app.findings.length + ")" : "Optimize" },
+            { value: "tests", label: root.app.tests.length ? "Tests " + root.app.testsPassed + "/" + root.app.tests.length : "Tests" },
           ]
           value: root.app.sideTab
           onChanged: function(value) { root.app.sideTab = value }
@@ -261,6 +262,13 @@ Item {
               else editor.selectMatch(index)
             }
           }
+
+        TestsPanel {
+          Layout.fillWidth: true
+          Layout.fillHeight: true
+          visible: root.app.sideTab === "tests"
+          app: root.app
+        }
 
         OptimizePanel {
           Layout.fillWidth: true

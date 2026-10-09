@@ -28,6 +28,33 @@ Item {
   property var measures: ({})
   property int generation: 0
 
+  TestRunner {
+    id: rewriteTests
+    engine: root.app.engine
+    channel: "verify-tests"
+  }
+
+  function setCheck(index, check) {
+    var next = {}
+    for (var k in checks) next[k] = checks[k]
+    next[index] = check
+    checks = next
+  }
+
+  // A rewrite that matches the same on the text must also pass the tests.
+  function checkTests(index, detail) {
+    var f = findings[index]
+    var id = checks[index].id
+    setCheck(index, { id: id, verdict: "checking", detail: detail + "; running the tests…" })
+    rewriteTests.run("finding-" + index + "-" + generation, f.rewrite, app.flavor, app.flags, app.tests, function(results) {
+      if (!root.checks[index] || root.checks[index].id !== id) return
+      var failed = results.filter(function(r) { return r && !r.pass }).length
+      setCheck(index, failed
+        ? { id: id, verdict: "different", detail: detail + ", but " + failed + " of " + results.length + " tests fail" }
+        : { id: id, verdict: "same", detail: detail + ", and all " + results.length + " tests pass" })
+    })
+  }
+
   function severityColor(s) {
     if (s === "danger") return Commons.Color.urgent
     if (s === "warning") return Qt.hsla(0.1, 0.8, 0.6, 1)
@@ -84,6 +111,10 @@ Item {
   onFindingsChanged: verifyTimer.restart()
   Connections {
     target: root.app
+    function onTestsChanged() { verifyTimer.restart() }
+  }
+  Connections {
+    target: root.app
     function onResultChanged() { if (root.app.result.done) verifyTimer.restart() }
   }
 
@@ -103,10 +134,8 @@ Item {
           if (cmp.verdict === "same" || (cmp.verdict === "groups" && f.changesGroups)) { verdict = "same"; detail = "The same matches on your text" + (f.changesGroups ? " (group numbers change)" : "") + (reply.elapsed !== undefined ? ", in " + root.app.formatMs(reply.elapsed) + " against " + root.app.formatMs(root.app.result.elapsed) : "") }
           else { verdict = "different"; detail = "Not the same on your text: " + cmp.detail }
         }
-        var next = {}
-        for (var k in root.checks) next[k] = root.checks[k]
-        next[key] = { id: c.id, verdict: verdict, detail: detail }
-        root.checks = next
+        root.setCheck(key, { id: c.id, verdict: verdict, detail: detail })
+        if (verdict === "same" && root.app.tests.length) root.checkTests(key, detail)
         return
       }
       for (var m in root.measures) {

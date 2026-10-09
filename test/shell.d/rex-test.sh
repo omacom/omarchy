@@ -562,3 +562,22 @@ chmod +x "$fake_home/.resid/bin/residc"
 flavors=$(env -i HOME="$fake_home" PATH="$ROOT/bin:/usr/bin:/bin" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-rex-worker" --flavors)
 grep -qx resid <<<"$flavors" || fail "Resid is found in its own install directory" "$flavors"
 pass "Resid is found in its own install directory"
+
+# ---- unit tests for patterns --------------------------------------------------------
+
+run_node_test <<'JS'
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const T = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Tests.js'))
+const reply = (matches, stride) => ({ ok: true, matches, stride })
+const t = (text, expect, group, value) => T.normalize({ text, expect, group, value })
+
+assert(T.evaluate(t('xab', 'match'), reply([1, 3], 2)).pass, 'a match anywhere passes "matches"')
+assert(!T.evaluate(t('xab', 'nomatch'), reply([1, 3], 2)).pass, 'a match fails "does not match"')
+assert(T.evaluate(t('xab', 'nomatch'), reply([], 2)).pass, 'no match passes "does not match"')
+assert(!T.evaluate(t('xab', 'full'), reply([1, 3], 2)).pass, 'a partial match fails "matches all of it"')
+assert(T.evaluate(t('ab', 'full'), reply([0, 2], 2)).pass, 'a whole match passes "matches all of it"')
+assert(T.evaluate(t('ab', 'group', 'n', 'b'), reply([0, 2, 1, 2], 4), { n: 1 }).pass, 'a named group capturing the value passes')
+assertEqual(T.evaluate(t('ab', 'group', '2', 'b'), reply([0, 2, 1, 2], 4), {}).detail, 'there is no group 2', 'a missing group is reported')
+assertEqual(T.evaluate(t('ab', 'group', '1', 'a'), reply([0, 2, 1, 2], 4), {}).detail, 'group 1 is "b", not "a"', 'a wrong capture says what it got')
+assertEqual(T.normalize({ expect: 'bogus' }).expect, 'match', 'an unknown expectation falls back to "matches"')
+JS

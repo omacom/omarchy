@@ -13,6 +13,7 @@ import "lib/Replace.js" as Replace
 import "lib/Explain.js" as Explain
 import "lib/Icons.js" as Icons
 import "lib/Analyze.js" as Analyze
+import "lib/Tests.js" as Tests
 
 // Rex, the offline regular expression workbench. Launched from Apps
 // (applications/Rex.desktop) through omarchy-launch-rex, or directly:
@@ -109,6 +110,28 @@ Item {
     }
   }
   readonly property var findings: Analyze.analyze(pattern, flavor, flags)
+
+  // ---- unit tests ----
+
+  property var tests: []
+  property var testResults: []
+  readonly property int testsPassed: testResults.filter(function(r) { return r && r.pass }).length
+
+  function addTest(test) { tests = tests.concat([Tests.normalize(test)]) }
+  function removeTest(index) { tests = tests.filter(function(t, i) { return i !== index }) }
+
+  function runTests() {
+    testRunner.run("workbench", pattern, flavor, flags, tests, function(results) { root.testResults = results })
+  }
+
+  onTestsChanged: { testResults = tests.map(function() { return null }); testTimer.restart() }
+  Timer { id: testTimer; interval: 120; onTriggered: root.runTests() }
+
+  TestRunner {
+    id: testRunner
+    engine: engine
+    channel: "tests"
+  }
   // The side panel's tab: "matches", "explain" or "optimize".
   property string sideTab: "matches"
   property var patternHighlight: []
@@ -188,7 +211,7 @@ Item {
     flags = next
   }
 
-  onPatternChanged: runTimer.restart()
+  onPatternChanged: { runTimer.restart(); testTimer.restart() }
   // The file the test text was read from, or "" for typed text. Workers
   // read an opened file themselves.
   property string textFile: ""
@@ -233,8 +256,8 @@ Item {
     textVersion++
     runTimer.restart()
   }
-  onFlavorChanged: runTimer.restart()
-  onFlagsChanged: runTimer.restart()
+  onFlavorChanged: { runTimer.restart(); testTimer.restart() }
+  onFlagsChanged: { runTimer.restart(); testTimer.restart() }
   onAllChanged: runTimer.restart()
 
   Timer {
@@ -265,7 +288,7 @@ Item {
 
   Engine {
     id: engine
-    onDetectedChanged: root.run()
+    onDetectedChanged: { root.run(); testTimer.restart() }
     onResult: function(reply) {
       if (reply.id !== root.pendingId) return
       // Slices of one search arrive in order; later ones extend the first.
@@ -323,6 +346,7 @@ Item {
     if (typeof payload.tool === "string") tool = payload.tool
     if (typeof payload.side === "string") sideTab = payload.side
     if (typeof payload.page === "string") showPage(payload.page)
+    if (Array.isArray(payload.tests)) tests = payload.tests.map(Tests.normalize)
 
     window.visible = true
     Qt.callLater(function() { if (window.visible && root.page === "workbench") workbench.focusPattern() })
