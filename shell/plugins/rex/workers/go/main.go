@@ -84,6 +84,18 @@ func (o *utf16Offsets) units(from, to int) int {
 	return n
 }
 
+// relative converts b from a nearby offset already converted, without
+// moving the cursor: a match's groups sit close to its start.
+func (o *utf16Offsets) relative(from, fromUnit, b int) int {
+	if b < 0 || o.ascii {
+		return b
+	}
+	if b >= from {
+		return fromUnit + o.units(from, b)
+	}
+	return fromUnit - o.units(b, from)
+}
+
 func (o *utf16Offsets) convert(b int) int {
 	if b < 0 || o.ascii {
 		return b
@@ -133,8 +145,9 @@ func run(req request, text string, offsets *utf16Offsets) {
 	groups := re.NumSubexp()
 	matches := []int{}
 	for _, m := range re.FindAllStringSubmatchIndex(text, limit) {
+		base := offsets.convert(m[0])
 		for _, b := range m {
-			matches = append(matches, offsets.convert(b))
+			matches = append(matches, offsets.relative(m[0], base, b))
 		}
 	}
 	names := map[string]int{}

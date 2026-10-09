@@ -175,6 +175,19 @@ struct Offsets<'a> {
 }
 
 impl<'a> Offsets<'a> {
+    /// b converted from a nearby offset already converted, without moving
+    /// the cursor: a match's groups sit close to its start.
+    fn relative(&self, from: usize, from_unit: usize, b: usize) -> usize {
+        if self.ascii {
+            return b;
+        }
+        if b >= from {
+            from_unit + self.text[from..b].chars().map(char::len_utf16).sum::<usize>()
+        } else {
+            from_unit - self.text[b..from].chars().map(char::len_utf16).sum::<usize>()
+        }
+    }
+
     fn convert(&mut self, b: usize) -> usize {
         if self.ascii {
             return b;
@@ -228,9 +241,14 @@ fn run(request: &BTreeMap<String, Json>, id: i64, text: &str) -> String {
         if count >= limit {
             break;
         }
+        let whole = caps.get(0).unwrap();
+        let base = offsets.convert(whole.start());
         for g in 0..groups {
             let (s, e) = match caps.get(g) {
-                Some(m) => (offsets.convert(m.start()) as i64, offsets.convert(m.end()) as i64),
+                Some(m) => (
+                    offsets.relative(whole.start(), base, m.start()) as i64,
+                    offsets.relative(whole.start(), base, m.end()) as i64,
+                ),
                 None => (-1, -1),
             };
             if !matches.is_empty() {

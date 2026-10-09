@@ -128,6 +128,24 @@ struct Offsets {
   bool ascii;
   long at_byte = 0, at_unit = 0;
 
+  long units(long from, long to) const {
+    long n = 0;
+    for (long i = from; i < to;) {
+      unsigned char c = text[i];
+      int size = c < 0x80 ? 1 : c >= 0xF0 ? 4 : c >= 0xE0 ? 3 : c >= 0xC0 ? 2 : 1;
+      n += size == 4 ? 2 : 1;
+      i += size;
+    }
+    return n;
+  }
+
+  // b converted from a nearby offset already converted, without moving the
+  // cursor: a match's groups sit close to its start.
+  long relative(long from, long from_unit, long b) const {
+    if (b < 0 || ascii) return b;
+    return b >= from ? from_unit + units(from, b) : from_unit - units(b, from);
+  }
+
   long convert(long b) {
     if (b < 0 || ascii) return b;
     if (b < at_byte) at_byte = at_unit = 0;
@@ -178,12 +196,14 @@ static std::string run(const Object &request, long id, const std::string &text) 
   try {
     for (auto it = std::sregex_iterator(text.begin(), text.end(), re); it != std::sregex_iterator() && count < limit; ++it, ++count) {
       const auto &m = *it;
+      long whole = m.position(0);
+      long base = offsets.convert(whole);
       for (size_t g = 0; g <= groups; g++) {
         if (!first) matches << ',';
         first = false;
         if (m[g].matched) {
           long start = m.position(g);
-          matches << offsets.convert(start) << ',' << offsets.convert(start + m.length(g));
+          matches << offsets.relative(whole, base, start) << ',' << offsets.relative(whole, base, start + m.length(g));
         } else {
           matches << "-1,-1";
         }

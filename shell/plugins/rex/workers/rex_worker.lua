@@ -148,13 +148,21 @@ local function converter(text)
     end
     return n
   end
-  return function(b)
+  local function convert(b)
     if b < 0 or ascii then return b end
     if b < at_byte then at_byte, at_unit = 0, 0 end
     at_unit = at_unit + units(at_byte, b)
     at_byte = b
     return at_unit
   end
+  -- b from a nearby offset already converted, without moving the cursor: a
+  -- match's captures sit close to its start.
+  local function relative(from, from_unit, b)
+    if b < 0 or ascii then return b end
+    if b >= from then return from_unit + units(from, b) end
+    return from_unit - units(b, from)
+  end
+  return { convert = convert, relative = relative }
 end
 
 -- ---- patterns -------------------------------------------------------------------
@@ -224,17 +232,18 @@ local function run_match(request, text, convert)
     local found = { string.find(text, pattern, init) }
     if not found[1] then break end
     local s, e = found[1], found[2]
-    local start_unit = convert(s - 1)
+    local start_unit = convert.convert(s - 1)
+    local function near(b) return convert.relative(s - 1, start_unit, b) end
     out[#out + 1] = start_unit
-    out[#out + 1] = convert(e)
+    out[#out + 1] = near(e)
     for k = 1, captures do
       local position, value = found[2 + 2 * k - 1], found[2 + 2 * k]
       if type(value) == "number" then
-        out[#out + 1] = convert(value - 1)
-        out[#out + 1] = convert(value - 1)
+        out[#out + 1] = near(value - 1)
+        out[#out + 1] = near(value - 1)
       elseif position then
-        out[#out + 1] = convert(position - 1)
-        out[#out + 1] = convert(position - 1 + #value)
+        out[#out + 1] = near(position - 1)
+        out[#out + 1] = near(position - 1 + #value)
       else
         out[#out + 1] = -1
         out[#out + 1] = -1

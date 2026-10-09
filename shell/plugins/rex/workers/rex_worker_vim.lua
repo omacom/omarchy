@@ -45,13 +45,20 @@ local function layout(text)
     at_byte = b
     return at_unit
   end
-  return starts, utf16
+  -- b from a nearby offset already converted, without moving the cursor: a
+  -- match's groups sit close to its start.
+  local function relative(from, from_unit, b)
+    if b < 0 or ascii then return b end
+    if b >= from then return from_unit + units(from, b) end
+    return from_unit - units(b, from)
+  end
+  return starts, utf16, relative
 end
 
 local buffer = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_set_current_buf(buffer)
 
-local text_id, text, starts, utf16
+local text_id, text, starts, utf16, relative
 
 local function run_match(request)
   local pattern = request.pattern
@@ -94,7 +101,7 @@ local function run_match(request)
     end
     local start_unit = utf16(start_byte)
     out[#out + 1] = start_unit
-    out[#out + 1] = utf16(end_byte)
+    out[#out + 1] = relative(start_byte, start_unit, end_byte)
     local matched = text:sub(start_byte + 1, end_byte)
     local from = 1
     for g = 1, groups do
@@ -102,8 +109,8 @@ local function run_match(request)
       local at = value and value ~= "" and matched:find(value, from, true)
       if value == "" and submatches then at = from end
       if at then
-        out[#out + 1] = utf16(start_byte + at - 1)
-        out[#out + 1] = utf16(start_byte + at - 1 + #value)
+        out[#out + 1] = relative(start_byte, start_unit, start_byte + at - 1)
+        out[#out + 1] = relative(start_byte, start_unit, start_byte + at - 1 + #value)
         from = at
       else
         out[#out + 1] = -1
@@ -137,7 +144,7 @@ for line in io.stdin:lines() do
       if request.text ~= nil then
         text_id = request.textId
         text = request.text
-        starts, utf16 = layout(text)
+        starts, utf16, relative = layout(text)
         vim.api.nvim_buf_set_lines(buffer, 0, -1, false, vim.split(text, "\n", { plain = true }))
       end
       if text_id ~= request.textId then
