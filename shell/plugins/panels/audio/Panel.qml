@@ -124,6 +124,11 @@ Panel {
   // selected while a tuning still exists.
   property string volumeSinkName: ""
 
+  // Serialize the pactl fallback used for device-routed sinks. Slider movement
+  // may arrive faster than an external process can finish, so keep at most one
+  // in-flight write plus the newest pending value.
+  property var outputVolumeWriteState: Model.newVolumeWriteState()
+
   // Carry sub-notch touchpad deltas between wheel events.
   property real wheelAccumulator: 0
 
@@ -438,10 +443,51 @@ Panel {
     return Model.outputVolumeName(volume, muted)
   }
 
+  function queueOutputVolumeWrite(sinkName, percents) {
+    if (!sinkName) return
+    outputVolumeWriteState = Model.queueVolumeWrite(
+      outputVolumeWriteState,
+      sinkName,
+      percents
+    )
+    if (!outputVolumeWriteProc.running) outputVolumeWriteTimer.restart()
+  }
+
+  function flushOutputVolumeWrite() {
+    if (outputVolumeWriteProc.running) return
+
+    var next = Model.beginVolumeWrite(outputVolumeWriteState)
+    outputVolumeWriteState = next
+    if (!next.running) return
+
+    outputVolumeWriteProc.sinkName = next.activeSink
+    outputVolumeWriteProc.percents = next.activePercents && next.activePercents.length
+      ? next.activePercents.slice()
+      : [next.activePercent]
+    outputVolumeWriteProc.running = true
+  }
+
   function setOutputVolume(v) {
     if (!volumeSink || !volumeSink.audio) return outputVolume
     var volume = Math.max(0, Math.min(1, v))
+
+    // Keep the panel responsive immediately. For device-routed sinks where
+    // Quickshell drops this PwNodeAudio write, the serialized pactl path below
+    // is the authoritative fallback.
+    //
+    // QS scales channels proportionally on the volume setter. Read the scaled
+    // per-channel volumes afterward and pass one pactl VOLUME per channel —
+    // a single N% would flatten 40/80 balance to N/N (e.g. 55/55).
     volumeSink.audio.volume = volume
+
+    var volumes = volumeSink.audio.volumes
+    var percents = volumes && volumes.length
+      ? Model.channelPercentsFromVolumes(volumes)
+      : Model.channelPercentsFromVolumes(Model.scaleChannelVolumes([], volume))
+    // The node whose channels were just read, not volumeSinkName, which can
+    // still name an output that has gone while volumeSink has fallen back.
+    var name = volumeSink.name ? String(volumeSink.name) : ""
+    root.queueOutputVolumeWrite(name, percents)
     return volume
   }
 
@@ -617,6 +663,32 @@ Panel {
       waitForEnd: true
       onStreamFinished: root.volumeSinkName = String(text).trim()
     }
+  }
+
+  Process {
+    id: outputVolumeWriteProc
+    property string sinkName: ""
+    property var percents: []
+
+    // One VOLUME arg per channel preserves left/right balance.
+    command: {
+      var args = ["pactl", "set-sink-volume", sinkName]
+      var list = percents && percents.length ? percents : [0]
+      for (var i = 0; i < list.length; i++) args.push(String(list[i]) + "%")
+      return args
+    }
+
+    onExited: {
+      root.outputVolumeWriteState = Model.finishVolumeWrite(root.outputVolumeWriteState)
+      root.flushOutputVolumeWrite()
+    }
+  }
+
+  Timer {
+    id: outputVolumeWriteTimer
+    interval: 35
+    repeat: false
+    onTriggered: root.flushOutputVolumeWrite()
   }
 
   Timer {

@@ -256,6 +256,127 @@ function streamRepresentsPlayer(node, player, players, streams) {
   return streamRepresentsMprisPlayer(streamLabel(node, players, streams), playerLabel)
 }
 
+// Scale each channel so the max channel equals newVolume, preserving balance.
+// Quickshell's audio.volume setter scales proportionally the same way; pactl
+// set-sink-volume SINK N% alone would flatten every channel to N%.
+function scaleChannelVolumes(volumes, newVolume) {
+  var target = Math.max(0, Math.min(1, Number(newVolume) || 0))
+  var channels = Array.isArray(volumes) ? volumes : []
+  if (channels.length === 0) return [target]
+
+  var max = 0
+  for (var i = 0; i < channels.length; i++) {
+    var v = Number(channels[i]) || 0
+    if (v > max) max = v
+  }
+
+  if (max <= 0) {
+    var filled = []
+    for (var j = 0; j < channels.length; j++) filled.push(target)
+    return filled
+  }
+
+  var scale = target / max
+  var out = []
+  for (var k = 0; k < channels.length; k++) {
+    out.push(Math.max(0, Math.min(1, (Number(channels[k]) || 0) * scale)))
+  }
+  return out
+}
+
+function channelPercentsFromVolumes(volumes) {
+  // audio.volumes is a QML sequence, which Array.isArray rejects.
+  var channels = volumes && typeof volumes.length === "number" ? volumes : []
+  var percents = []
+  for (var i = 0; i < channels.length; i++) {
+    percents.push(channelPercent((Number(channels[i]) || 0) * 100))
+  }
+  return percents.length > 0 ? percents : [0]
+}
+
+// Neither rounded to whole percents nor capped at 100: either would change the
+// balance Quickshell's setter just preserved, at the bottom or the top of the range.
+function channelPercent(percent) {
+  return Math.max(0, Math.round((Number(percent) || 0) * 100) / 100)
+}
+
+function normalizePercents(percentOrPercents) {
+  if (Array.isArray(percentOrPercents)) {
+    var list = []
+    for (var i = 0; i < percentOrPercents.length; i++) {
+      list.push(channelPercent(percentOrPercents[i]))
+    }
+    return list.length > 0 ? list : [0]
+  }
+  return [channelPercent(percentOrPercents)]
+}
+
+function newVolumeWriteState() {
+  return {
+    running: false,
+    activeSink: "",
+    activePercent: -1,
+    activePercents: [],
+    pendingSink: "",
+    pendingPercent: -1,
+    pendingPercents: []
+  }
+}
+
+function queueVolumeWrite(state, sink, percentOrPercents) {
+  var current = state || newVolumeWriteState()
+  var target = String(sink || "")
+  var percents = target ? normalizePercents(percentOrPercents) : []
+  return {
+    running: current.running === true,
+    activeSink: String(current.activeSink || ""),
+    activePercent: Number(current.activePercent),
+    activePercents: Array.isArray(current.activePercents) ? current.activePercents.slice() : [],
+    pendingSink: target,
+    pendingPercent: percents.length === 1 ? percents[0] : (percents.length > 0 ? percents[0] : -1),
+    pendingPercents: percents
+  }
+}
+
+function beginVolumeWrite(state) {
+  var current = state || newVolumeWriteState()
+  var pending = Array.isArray(current.pendingPercents) ? current.pendingPercents : []
+  if (current.running || !current.pendingSink || pending.length === 0) {
+    return {
+      running: current.running === true,
+      activeSink: String(current.activeSink || ""),
+      activePercent: Number(current.activePercent),
+      activePercents: Array.isArray(current.activePercents) ? current.activePercents.slice() : [],
+      pendingSink: String(current.pendingSink || ""),
+      pendingPercent: Number(current.pendingPercent),
+      pendingPercents: pending.slice()
+    }
+  }
+
+  return {
+    running: true,
+    activeSink: String(current.pendingSink),
+    activePercent: pending.length === 1 ? pending[0] : pending[0],
+    activePercents: pending.slice(),
+    pendingSink: "",
+    pendingPercent: -1,
+    pendingPercents: []
+  }
+}
+
+function finishVolumeWrite(state) {
+  var current = state || newVolumeWriteState()
+  return {
+    running: false,
+    activeSink: "",
+    activePercent: -1,
+    activePercents: [],
+    pendingSink: String(current.pendingSink || ""),
+    pendingPercent: Number(current.pendingPercent),
+    pendingPercents: Array.isArray(current.pendingPercents) ? current.pendingPercents.slice() : []
+  }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isPlaybackStream: isPlaybackStream,
@@ -281,6 +402,12 @@ if (typeof module !== "undefined") {
     matchingMprisStreamLabel: matchingMprisStreamLabel,
     unmatchedMprisStreamLabel: unmatchedMprisStreamLabel,
     streamLabel: streamLabel,
-    streamRepresentsPlayer: streamRepresentsPlayer
+    streamRepresentsPlayer: streamRepresentsPlayer,
+    scaleChannelVolumes: scaleChannelVolumes,
+    channelPercentsFromVolumes: channelPercentsFromVolumes,
+    newVolumeWriteState: newVolumeWriteState,
+    queueVolumeWrite: queueVolumeWrite,
+    beginVolumeWrite: beginVolumeWrite,
+    finishVolumeWrite: finishVolumeWrite
   }
 }
