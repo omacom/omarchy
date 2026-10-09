@@ -315,7 +315,8 @@ Item {
         kind: reply.kind || "",
         building: reply.building || "",
         names: reply.names || (first ? null : root.result.names),
-        groupTexts: root.mergeTexts(first ? {} : root.result.groupTexts, reply.groupTexts),
+        // Batches not yet shown sit in pendingResult; merge with the latest.
+        groupTexts: root.mergeTexts(first ? {} : (root.pendingResult && root.pendingResult.id === reply.id ? root.pendingResult : root.result).groupTexts, reply.groupTexts),
         matches: matches,
         stride: reply.stride,
         count: reply.ok ? matches.length / reply.stride : 0,
