@@ -193,6 +193,11 @@ grep -Fx "$dsh_package dsh" "$stub_log" >/dev/null || fail "DeepSeek Harness mig
 : >"$stub_log"
 source "$ROOT/migrations/1791520761.sh" >/dev/null
 [[ ! -s $stub_log ]] || fail "DeepSeek Harness migration replaces an existing command"
+mkdir -p "$test_home/.local/state/omarchy"
+touch "$test_home/.local/state/omarchy/preinstalls-removed"
+OMARCHY_TEST_MISSING_COMMAND=dsh source "$ROOT/migrations/1791520761.sh" >/dev/null
+[[ ! -s $stub_log ]] || fail "DeepSeek Harness migration ignores the preinstall opt-out"
+rm "$test_home/.local/state/omarchy/preinstalls-removed"
 pass "DeepSeek Harness migration installs the lazy stub an existing install is missing"
 
 
