@@ -29,10 +29,12 @@ for card in "$drm_path"/card[0-9]*; do
   # only the GPU device nodes themselves.
   [[ $card =~ /card[0-9]+$ ]] || continue
   vendor_file="$card/device/vendor"
-  [[ -f $vendor_file ]] || continue
-  if [[ $(< "$vendor_file") == "0x10de" ]]; then
+  if [[ -f $vendor_file ]] && [[ $(< "$vendor_file") == "0x10de" ]]; then
     nvidia_cards+=("$card")
   else
+    # No vendor file (e.g. a USB/DisplayLink GPU) can't be confirmed as NVIDIA,
+    # so treat it as "other" rather than dropping it from both arrays — it
+    # still gets checked for a connected display below.
     other_cards+=("$card")
   fi
 done
