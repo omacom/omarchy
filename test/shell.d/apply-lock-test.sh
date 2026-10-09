@@ -18,6 +18,15 @@ if grep -E '(\.local/bin|target_user|target_home)' <<<"$root_path_guard" >/dev/n
 fi
 pass "the root lock helper uses only trusted command directories"
 
+grep -F 'command_path=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}")' "$apply_lock" >/dev/null ||
+  fail "the lock helper resolves the command that is actually running"
+grep -F 'source_root=${command_path%/bin/*}' "$apply_lock" >/dev/null ||
+  fail "the lock helper derives its source tree from the running command"
+if grep -F '$OMARCHY_PATH/default/systemd/' "$apply_lock" >/dev/null; then
+  fail "the lock helper does not select privileged install sources from inherited OMARCHY_PATH"
+fi
+pass "the lock helper binds privileged install sources to its own source tree"
+
 grep -F '[[ -x /usr/bin/fprintd-list ]]' "$apply_lock" >/dev/null ||
   fail "the lock helper checks the trusted fprintd-list executable"
 grep -F '/usr/bin/fprintd-list "$target_user"' "$apply_lock" >/dev/null ||
@@ -62,16 +71,21 @@ attack_marker="$test_tmp/user-fprintd-list-ran"
 trusted_uid="$test_tmp/trusted-fprintd-list.uid"
 trusted_args="$test_tmp/trusted-fprintd-list.args"
 attack_args="$test_tmp/user-fprintd-list.args"
-patched_helper="$test_tmp/omarchy-apply-lock-patched"
-absolute_only_helper="$test_tmp/omarchy-apply-lock-absolute-only"
-root_path_only_helper="$test_tmp/omarchy-apply-lock-root-path-only"
-unprotected_helper="$test_tmp/omarchy-apply-lock-unprotected"
-hook_source="$test_tmp/fprintd-resume-source"
-cp "$ROOT/default/systemd/system-sleep/fprintd-resume" "$hook_source"
-timeout_source="$test_tmp/fprintd-stop-timeout-source"
-cp "$ROOT/default/systemd/system/fprintd.service.d/10-stop-timeout.conf" "$timeout_source"
+patched_helper="$test_tmp/bin/omarchy-apply-lock-patched"
+absolute_only_helper="$test_tmp/bin/omarchy-apply-lock-absolute-only"
+root_path_only_helper="$test_tmp/bin/omarchy-apply-lock-root-path-only"
+unprotected_helper="$test_tmp/bin/omarchy-apply-lock-unprotected"
+hook_source="$test_tmp/default/systemd/system-sleep/fprintd-resume"
+timeout_source="$test_tmp/default/systemd/system/fprintd.service.d/10-stop-timeout.conf"
+poison_root="$test_tmp/poison-root"
 target_user=omarchy-regression-user
-mkdir -p "$poison_bin" "$trusted_root_bin"
+mkdir -p "$poison_bin" "$trusted_root_bin" "$(dirname "$patched_helper")" \
+  "$(dirname "$hook_source")" "$(dirname "$timeout_source")" \
+  "$poison_root/default/systemd/system-sleep" "$poison_root/default/systemd/system/fprintd.service.d"
+cp "$ROOT/default/systemd/system-sleep/fprintd-resume" "$hook_source"
+cp "$ROOT/default/systemd/system/fprintd.service.d/10-stop-timeout.conf" "$timeout_source"
+printf '#!/bin/bash\nprintf "inherited OMARCHY_PATH payload\\n"\n' >"$poison_root/default/systemd/system-sleep/fprintd-resume"
+printf '[Service]\nTimeoutStopSec=99s\n' >"$poison_root/default/systemd/system/fprintd.service.d/10-stop-timeout.conf"
 
 # The runtime copy pins to this isolated root path. It contains every bare
 # command the exercised helper needs, but deliberately no fprintd-list.
@@ -114,9 +128,7 @@ prepare_helper() {
     -v trusted_fprintd="$trusted_fprintd" \
     -v keep_root_path="$keep_root_path" \
     -v use_absolute_fprintd="$use_absolute_fprintd" \
-    -v hook_src="$hook_source" \
     -v hook_dst="$test_tmp/system-sleep/fprintd-resume" \
-    -v timeout_src="$timeout_source" \
     -v timeout_dst="$test_tmp/fprintd.service.d/10-stop-timeout.conf" '
     {
       line = $0
@@ -147,16 +159,8 @@ prepare_helper() {
         }
         next
       }
-      if (line == "resume_hook_src=\"$OMARCHY_PATH/default/systemd/system-sleep/fprintd-resume\"") {
-        print "resume_hook_src=\"" hook_src "\""
-        next
-      }
       if (line == "resume_hook_dst=/usr/lib/systemd/system-sleep/fprintd-resume") {
         print "resume_hook_dst=\"" hook_dst "\""
-        next
-      }
-      if (line == "stop_timeout_src=\"$OMARCHY_PATH/default/systemd/system/fprintd.service.d/10-stop-timeout.conf\"") {
-        print "stop_timeout_src=\"" timeout_src "\""
         next
       }
       if (line == "stop_timeout_dst=/etc/systemd/system/fprintd.service.d/10-stop-timeout.conf") {
@@ -201,7 +205,7 @@ reset_runtime_files() {
 run_as_root() {
   local helper="$1" description="$2" output
 
-  if ! output=$(PATH="$poison_bin:/usr/bin:/bin" OMARCHY_INSTALL_USER="$target_user" \
+  if ! output=$(PATH="$poison_bin:/usr/bin:/bin" OMARCHY_PATH="$poison_root" OMARCHY_INSTALL_USER="$target_user" \
     "${root_runner[@]}" /bin/bash "$helper" 2>&1); then
     fail "$description" "$output"
   fi
@@ -218,6 +222,10 @@ grep -Fx "$target_user" "$trusted_args" >/dev/null || fail "the trusted fprintd-
   fail "the lock helper installs the resume hook beside the fingerprint PAM file"
 [[ -f $test_tmp/fprintd.service.d/10-stop-timeout.conf ]] ||
   fail "the lock helper installs the stop-timeout drop-in beside the resume hook"
+cmp -s "$test_tmp/system-sleep/fprintd-resume" "$hook_source" ||
+  fail "the lock helper ignores an inherited OMARCHY_PATH when selecting the resume hook"
+cmp -s "$test_tmp/fprintd.service.d/10-stop-timeout.conf" "$timeout_source" ||
+  fail "the lock helper ignores an inherited OMARCHY_PATH when selecting the service drop-in"
 pass "the hardened root lock helper uses the trusted fingerprint probe"
 
 reset_runtime_files

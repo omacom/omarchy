@@ -69,14 +69,23 @@ fi
 STUB
 chmod +x "$scratch/bin/omarchy-apply-lock"
 
+poison_root="$scratch/poison-root"
+mkdir -p "$poison_root/bin"
+cat > "$poison_root/bin/omarchy-apply-lock" <<'STUB'
+#!/bin/bash
+echo poisoned-apply-lock >> "$CALL_LOG"
+exit 99
+STUB
+chmod +x "$poison_root/bin/omarchy-apply-lock"
+
 export TEST_LOCK_PAM="$scratch/omarchy-lock-fingerprint"
-setup_script="$scratch/omarchy-setup-security-fingerprint"
+setup_script="$scratch/bin/omarchy-setup-security-fingerprint"
 sed "s|/etc/pam.d/omarchy-lock-fingerprint|$TEST_LOCK_PAM|g" "$ROOT/bin/omarchy-setup-security-fingerprint" > "$setup_script"
 chmod +x "$setup_script"
 
 run_setup() {
   : > "$CALL_LOG"
-  if OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1; then
+  if OMARCHY_PATH="$poison_root" "$setup_script" > "$scratch/output" 2>&1; then
     fail "setup stops on the simulated enrollment or installation failure"
   fi
   if grep -Eq '^(pam |apply-lock$|Unexpected privileged call)' "$CALL_LOG"; then
@@ -117,14 +126,17 @@ pass "missing hardware performs no package operations"
 
 # Successful setup must reuse the same lock/recovery installer as updates.
 : > "$CALL_LOG"
-OMARCHY_PATH="$scratch" ENROLL_STATUS=0 VERIFY_STATUS=0 \
+OMARCHY_PATH="$poison_root" ENROLL_STATUS=0 VERIFY_STATUS=0 \
   "$setup_script" > "$scratch/output" 2>&1 || fail "successful enrollment configures authentication"
 [[ $(grep -E '^(enroll|verify|apply-lock)$' "$CALL_LOG") == $'enroll\nverify\napply-lock' ]] ||
   fail "setup configures lock recovery once, after enrollment and verification"
+if grep -q '^poisoned-apply-lock$' "$CALL_LOG"; then
+  fail "setup dispatches the lock helper through inherited OMARCHY_PATH"
+fi
 pass "setup reuses apply-lock after enrollment and verification"
 
 rm -f "$TEST_LOCK_PAM"
-if OMARCHY_PATH="$scratch" ENROLL_STATUS=0 VERIFY_STATUS=0 LOCK_SETUP_UNKNOWN=1 \
+if OMARCHY_PATH="$poison_root" ENROLL_STATUS=0 VERIFY_STATUS=0 LOCK_SETUP_UNKNOWN=1 \
   "$setup_script" > "$scratch/output" 2>&1; then
   fail "an inconclusive lock installer cannot report successful lock setup"
 fi
