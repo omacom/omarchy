@@ -140,6 +140,12 @@ logo.{txt,svg}, icon.{txt,png}  ──► omarchy-settings    /usr/share/omarchy
 
 The hardware-conditional `force-igpu` and `keyboard-backlight` sources also live under `default/systemd/system-sleep/`, but their setup commands publish root-owned copies only on machines that need them; they are not installed by `omarchy-settings`.
 
+`default/systemd/system/omarchy-docked-lid-inhibit.service` also ships through `omarchy-settings` to `/usr/lib/systemd/system/omarchy-docked-lid-inhibit.service`. Its live definition follows package updates, while administrator overrides and masks remain under `/etc/systemd/system/`. The matching settings package must ship with the runtime change; system setup fails and remains retryable if the vendor unit is missing.
+
+Fresh installation and the upgrade migration share root-scoped initialization under `install/config/docked-lid-inhibit.sh`, with completion recorded in `/var/lib/omarchy/docked-lid-inhibit.initialized` so another user's migration cannot reverse an administrator's later opt-out. Initialization removes only unchanged unit copies from earlier PR builds and relinks their enablement to the vendor unit; customized definitions and masks are preserved.
+
+The package hook reloads unit definitions on update; an already-running helper picks up code and unit changes on its next restart or boot.
+
 ### Why `etc-overrides/` exists
 
 Some files under `/etc/` (`.bashrc` in `/etc/skel`, `nsswitch.conf`,
