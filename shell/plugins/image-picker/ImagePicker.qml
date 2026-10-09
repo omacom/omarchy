@@ -42,6 +42,8 @@ Item {
   property bool themeOpenPending: false
   property var extraThemeNames: []
   property var stockThemeNames: []
+  property bool stockThemesKnown: false
+  property bool awaitingDeleteRefresh: false
   property string pendingDeleteTheme: ""
   property string deleteSelectionPath: ""
   property bool deleteConfirmOpen: false
@@ -64,7 +66,7 @@ Item {
   readonly property int previewRadius: Math.max(1, Math.min(16, Math.ceil((panel.width - expandedWidth) / (2 * (sliceWidth + sliceSpacing))) + 1))
   onPreviewRadiusChanged: updateVisibleItems()
 
-  onOpenedChanged: if (!opened) { layoutSettled = false; renderedFrames = 0; deleteConfirmOpen = false; pendingDeleteTheme = ""; deleteSelectionPath = "" }
+  onOpenedChanged: if (!opened) { layoutSettled = false; renderedFrames = 0; deleteConfirmOpen = false; pendingDeleteTheme = ""; deleteSelectionPath = ""; awaitingDeleteRefresh = false }
 
   function scriptPath(name) {
     return omarchyPath + "/shell/plugins/image-picker/" + name
@@ -185,7 +187,7 @@ Item {
   }
 
   function applySelected() {
-    if (themeMode && deleteThemeProc.running) return
+    if (themeMode && (deleteThemeProc.running || awaitingDeleteRefresh)) return
     var path = currentPath()
 
     if (themeMode) {
@@ -261,6 +263,7 @@ Item {
     deleteConfirmOpen = false
     pendingDeleteTheme = ""
     deleteSelectionPath = ""
+    awaitingDeleteRefresh = false
     if (requestActive && doneFile && doneFile !== nextDoneFile)
       finishDoneFile(doneFile)
 
@@ -396,7 +399,7 @@ Item {
   }
 
   function canDeleteSelectedTheme() {
-    return themeMode && !deleteThemeProc.running && ImagePickerModel.canDeleteTheme(selectedThemeName(), extraThemeNames, stockThemeNames)
+    return themeMode && !deleteThemeProc.running && !awaitingDeleteRefresh && stockThemesKnown && ImagePickerModel.canDeleteTheme(selectedThemeName(), extraThemeNames, stockThemeNames)
   }
 
   function requestDeleteSelectedTheme() {
@@ -437,6 +440,7 @@ Item {
       // a just-deleted selection lands on the theme before it.
       selectedImage = deleteSelectionPath || currentPath() || currentThemePreview()
       deleteSelectionPath = ""
+      awaitingDeleteRefresh = false
       imageRows = rows
       loadRows(rows, false)
     }
@@ -487,12 +491,16 @@ Item {
     stdout: StdioCollector {
       onStreamFinished: root.stockThemeNames = ImagePickerModel.parseThemeNames(String(text || ""))
     }
+    // Until this lands, stockThemeNames is empty and an override would look
+    // deletable: deletion stays disabled unless the listing succeeded.
+    onExited: function(exitCode) { if (exitCode === 0) root.stockThemesKnown = true }
   }
 
   Process {
     id: deleteThemeProc
     onExited: function(exitCode) {
-      if (exitCode !== 0) root.deleteSelectionPath = ""
+      if (exitCode === 0) root.awaitingDeleteRefresh = true
+      else root.deleteSelectionPath = ""
       root.refreshExtraThemes()
       root.refreshThemeRows()
     }
