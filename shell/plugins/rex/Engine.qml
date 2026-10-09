@@ -140,6 +140,12 @@ Item {
   }
 
   // ---- Qt's own engine ----------------------------------------------------
+  //
+  // A WorkerScript's thread cannot be stopped in the middle of a match. A
+  // channel whose script stays silent past the timeout reports its requests
+  // as timed out, retires that script, and starts a fresh one; the retired
+  // one is destroyed when its match finally returns, which QV4's own
+  // backtracking limit makes sure it does.
 
   Component {
     id: scriptComponent
@@ -151,6 +157,9 @@ Item {
       // Kept requests waiting while another runs.
       property var queue: []
       property int running: 0
+      property var js: null
+
+      Component.onCompleted: js = jsComponent.createObject(channelScript)
 
       function send(id, request) {
         var parsed = request.parsed
@@ -180,30 +189,66 @@ Item {
       function start(message) {
         running = message.id
         // Copying a large text into the worker costs the UI thread, so it
-        // only goes over when it changed.
-        if (version === message.version) delete message.text
+        // only goes over when it changed. The whole text is kept with the
+        // message in case a fresh script needs it.
+        var outgoing = {}
+        for (var key in message) outgoing[key] = message[key]
+        if (version === message.version) delete outgoing.text
         version = message.version
-        js.sendMessage(message)
+        js.sendMessage(outgoing)
+        watchdog.interval = root.timeoutMs
+        watchdog.restart()
       }
 
-      WorkerScript {
-        id: js
-        source: "workers/ecmascript.js"
-        onMessage: function(reply) {
-          if (reply.id !== channelScript.running) return
-          if (!reply.done) {
-            root.result(reply)
-            js.sendMessage({ op: "continue", id: reply.id })
-            return
-          }
-          // Finished before telling anyone, since whoever hears may send the
-          // next request at once.
-          channelScript.running = 0
+      function handle(reply) {
+        if (reply.id !== running) return
+        if (!reply.done) {
+          watchdog.restart()
           root.result(reply)
-          if (channelScript.running === 0 && channelScript.queue.length) {
-            var next = channelScript.queue[0]
-            channelScript.queue = channelScript.queue.slice(1)
-            channelScript.start(next)
+          js.sendMessage({ op: "continue", id: reply.id })
+          return
+        }
+        watchdog.stop()
+        // Finished before telling anyone, since whoever hears may send the
+        // next request at once.
+        running = 0
+        root.result(reply)
+        if (running === 0 && queue.length) {
+          var next = queue[0]
+          queue = queue.slice(1)
+          start(next)
+        }
+      }
+
+      Timer {
+        id: watchdog
+        onTriggered: {
+          var stopped = [channelScript.running].concat(channelScript.queue.map(function(m) { return m.id }))
+          channelScript.running = 0
+          channelScript.queue = []
+          channelScript.js.retired = true
+          channelScript.js = jsComponent.createObject(channelScript)
+          channelScript.version = -1
+          for (var i = 0; i < stopped.length; i++) {
+            if (!stopped[i]) continue
+            root.result({
+              id: stopped[i], ok: false, done: true, kind: "timeout",
+              error: "Stopped after " + Math.round(watchdog.interval / 1000) + " seconds without finishing. The pattern may be backtracking catastrophically on this text.",
+              matches: [], stride: 2, elapsed: watchdog.interval,
+            })
+          }
+        }
+      }
+
+      Component {
+        id: jsComponent
+
+        WorkerScript {
+          property bool retired: false
+          source: "workers/ecmascript.js"
+          onMessage: function(reply) {
+            if (retired) { destroy(); return }
+            channelScript.handle(reply)
           }
         }
       }
