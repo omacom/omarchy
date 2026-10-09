@@ -223,10 +223,16 @@ function parse(template, syntax, groupCount, names) {
   return { parts: parts, errors: errors }
 }
 
-function groupText(text, matches, base, stride, ref, names) {
+// texts holds, by match, what groups matched when an engine reports what
+// but not where (position -2).
+function groupText(text, matches, base, stride, ref, names, texts) {
   var index = typeof ref === "number" ? ref : names[ref]
   if (index === undefined || index * 2 >= stride) return ""
   var s = matches[base + index * 2], e = matches[base + index * 2 + 1]
+  if (s === -2 && index > 0) {
+    var known = texts && texts[String(base / stride)]
+    return known && known[index - 1] !== undefined && known[index - 1] !== null ? known[index - 1] : ""
+  }
   return s < 0 ? "" : text.substring(s, e)
 }
 
@@ -243,7 +249,7 @@ function applyCase(value, state) {
 }
 
 // The template expanded for match i.
-function expandOne(parsed, text, matches, i, stride, names) {
+function expandOne(parsed, text, matches, i, stride, names, texts) {
   var base = i * stride
   var out = ""
   var state = { mode: "", one: "" }
@@ -252,14 +258,14 @@ function expandOne(parsed, text, matches, i, stride, names) {
     var value
     switch (part.kind) {
     case "text": value = part.value; break
-    case "group": value = groupText(text, matches, base, stride, part.ref, names); break
+    case "group": value = groupText(text, matches, base, stride, part.ref, names, texts); break
     case "before": value = text.substring(0, matches[base]); break
     case "after": value = text.substring(matches[base + 1]); break
     case "input": value = text; break
     case "last":
       value = ""
       for (var g = stride / 2 - 1; g >= 1; g--) {
-        if (matches[base + g * 2] >= 0) { value = groupText(text, matches, base, stride, g, names); break }
+        if (matches[base + g * 2] >= 0 || matches[base + g * 2] === -2) { value = groupText(text, matches, base, stride, g, names, texts); break }
       }
       break
     case "case":
@@ -288,7 +294,7 @@ function textOrder(matches, count, stride) {
 
 // The text with every match replaced. Returns { text, spans } where spans
 // are [start, end] of each replacement in the result, for highlighting.
-function substitute(parsed, text, matches, count, stride, names) {
+function substitute(parsed, text, matches, count, stride, names, texts) {
   var out = ""
   var spans = []
   var at = 0
@@ -297,7 +303,7 @@ function substitute(parsed, text, matches, count, stride, names) {
     var i = order[k]
     var s = matches[i * stride], e = matches[i * stride + 1]
     out += text.substring(at, s)
-    var replacement = expandOne(parsed, text, matches, i, stride, names)
+    var replacement = expandOne(parsed, text, matches, i, stride, names, texts)
     spans.push(out.length, out.length + replacement.length)
     out += replacement
     at = e
@@ -307,9 +313,9 @@ function substitute(parsed, text, matches, count, stride, names) {
 }
 
 // The template expanded for every match, one after another.
-function list(parsed, text, matches, count, stride, names) {
+function list(parsed, text, matches, count, stride, names, texts) {
   var out = []
-  for (var i = 0; i < count; i++) out.push(expandOne(parsed, text, matches, i, stride, names))
+  for (var i = 0; i < count; i++) out.push(expandOne(parsed, text, matches, i, stride, names, texts))
   return out.join("")
 }
 

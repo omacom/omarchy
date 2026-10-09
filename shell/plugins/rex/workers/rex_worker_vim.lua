@@ -95,19 +95,26 @@ local function run_match(request)
   local started = now()
   local slice = started
   local out = {}
+  -- What groups matched, for any whose position stays unknown, by match.
+  local texts = vim.empty_dict()
   local count = 0
   vim.fn.cursor(1, 1)
   local flags = "cW"
+  -- Where the previous match on the current line ended: matching the line
+  -- again from there finds this match even when \zs moved its start.
+  local last_line, last_end = 0, 0
   while true do
     local s = vim.fn.searchpos(pattern, flags)
     if s[1] == 0 then break end
     local line = vim.fn.getline(s[1])
+    local from = s[1] == last_line and last_end or 0
     local start_byte = starts[s[1]] + s[2] - 1
-    local found = vim.fn.matchstrpos(line, pattern, s[2] - 1)
+    local found = vim.fn.matchstrpos(line, pattern, from)
     local end_byte, submatches
     if found[2] == s[2] - 1 and (found[3] < #line or not pattern:find("\\n") and not pattern:find("\\_")) then
       end_byte = starts[s[1]] + found[3]
-      submatches = vim.fn.matchlist(line, pattern, s[2] - 1)
+      submatches = vim.fn.matchlist(line, pattern, from)
+      last_line, last_end = s[1], math.max(found[3], found[2] + 1)
     else
       local e = vim.fn.searchpos(pattern, "cenW")
       if e[1] == 0 then
@@ -123,13 +130,22 @@ local function run_match(request)
     out[#out + 1] = start_unit
     out[#out + 1] = relative(start_byte, start_unit, end_byte)
     for g = 1, groups do
-      local s0, e0 = locate(request.pattern, pattern ~= request.pattern, request.groupSpans and request.groupSpans[g], line, s[2] - 1, submatches and submatches[g + 1])
+      local s0, e0 = locate(request.pattern, pattern ~= request.pattern, request.groupSpans and request.groupSpans[g], line, from, submatches and submatches[g + 1])
       if s0 == -1 then
         out[#out + 1] = -1
         out[#out + 1] = -1
       elseif s0 == -2 then
         out[#out + 1] = -2
         out[#out + 1] = -2
+        if submatches then
+          local key = tostring(count)
+          if texts[key] == nil then
+            -- A full list, so it encodes as a JSON array.
+            texts[key] = {}
+            for i = 1, groups do texts[key][i] = vim.NIL end
+          end
+          texts[key][g] = submatches[g + 1]
+        end
       else
         local line_start = starts[s[1]]
         out[#out + 1] = relative(start_byte, start_unit, line_start + s0)
@@ -140,12 +156,13 @@ local function run_match(request)
     if count >= limit or not all then break end
     flags = "W"
     if now() - slice > SLICE_SECONDS then
-      send({ id = request.id, ok = true, done = false, matches = out, stride = stride, elapsed = (now() - started) * 1000 })
+      send({ id = request.id, ok = true, done = false, matches = out, stride = stride, elapsed = (now() - started) * 1000, groupTexts = texts })
       out = {}
+      texts = vim.empty_dict()
       slice = now()
     end
   end
-  send({ id = request.id, ok = true, done = true, matches = out, stride = stride, elapsed = (now() - started) * 1000, names = vim.empty_dict() })
+  send({ id = request.id, ok = true, done = true, matches = out, stride = stride, elapsed = (now() - started) * 1000, names = vim.empty_dict(), groupTexts = texts })
 end
 
 for line in io.stdin:lines() do

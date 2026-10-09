@@ -798,3 +798,15 @@ if command -v go >/dev/null; then
   done
   pass "concurrent first builds of a worker all succeed"
 fi
+
+# A group the engine matched without saying where keeps its text.
+reply=$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-rex-worker" python <<<'{"op":"match","id":1,"flavor":"sed-e","pattern":"(a\\t)","flags":[],"groups":1,"text":"xa\tb","textId":1}')
+[[ $(jq -c '[.matches, .groupTexts]' <<<"$reply") == '[[1,3,-2,-2],{"0":["a\t"]}]' ]] || fail "sed keeps the text of a group it cannot place" "$reply"
+pass "sed keeps the text of a group it cannot place"
+
+run_node_test <<'JS'
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const R = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Replace.js'))
+const parsed = R.parse('[\\1]', 'sed', 1, {})
+assertEqual(R.substitute(parsed, 'xa\tb', [1, 3, -2, -2], 1, 4, {}, { 0: ['a\t'] }).text, 'x[a\t]b', 'a replacement keeps a group whose position is unknown')
+JS

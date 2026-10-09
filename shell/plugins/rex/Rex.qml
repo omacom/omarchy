@@ -158,10 +158,10 @@ Item {
   readonly property string replaceProblem: replaceParsed.errors.length ? replaceParsed.errors[0].message : ""
   readonly property bool resultUsable: result.ok !== false && pattern !== ""
   readonly property var substitution: tool === "substitute" && resultUsable && replaceSyntax !== ""
-    ? Replace.substitute(replaceParsed, testText, result.matches, result.count, result.stride, groupIndex)
+    ? Replace.substitute(replaceParsed, testText, result.matches, result.count, result.stride, groupIndex, result.groupTexts)
     : { text: tool === "substitute" ? testText : "", spans: [] }
   readonly property string listOutput: tool === "list" && resultUsable && replaceSyntax !== ""
-    ? Replace.list(replaceParsed, testText, result.matches, result.count, result.stride, groupIndex)
+    ? Replace.list(replaceParsed, testText, result.matches, result.count, result.stride, groupIndex, result.groupTexts)
     : ""
   readonly property var splitPieces: tool === "split" && resultUsable
     ? Replace.split(replaceSyntax, testText, result.matches, result.count, result.stride)
@@ -315,6 +315,7 @@ Item {
         kind: reply.kind || "",
         building: reply.building || "",
         names: reply.names || (first ? null : root.result.names),
+        groupTexts: root.mergeTexts(first ? {} : root.result.groupTexts, reply.groupTexts),
         matches: matches,
         stride: reply.stride,
         count: reply.ok ? matches.length / reply.stride : 0,
@@ -336,6 +337,14 @@ Item {
   }
 
   property var pendingResult: null
+
+  function mergeTexts(known, more) {
+    if (!more || !Object.keys(more).length) return known || {}
+    var out = {}
+    for (var k in known) out[k] = known[k]
+    for (var m in more) out[m] = more[m]
+    return out
+  }
 
   function inTextOrder(matches, stride) {
     var order = Replace.textOrder(matches, matches.length / stride, stride)

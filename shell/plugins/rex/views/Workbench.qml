@@ -256,6 +256,7 @@ Item {
             stride: root.app.result.stride
             count: root.app.result.count
             groupNames: root.app.groupNames
+            groupTexts: root.app.result.groupTexts || ({})
             groupColors: root.app.groupColors
             selectedMatch: root.app.selectedMatch
             onPicked: function(index) {

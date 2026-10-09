@@ -17,6 +17,8 @@ Item {
   property int count: 0
   property var groupNames: []
   property var groupColors: []
+  // By match, what groups matched where the engine does not say where.
+  property var groupTexts: ({})
   property int selectedMatch: -1
 
   readonly property color dim: Qt.darker(foreground, 1.5)
@@ -30,6 +32,12 @@ Item {
     s = s.replace(/\n/g, "⏎").replace(/\t/g, "⇥").replace(/\r/g, "␍")
     if (end - start > previewLength) s += "…"
     return s === "" ? "(empty)" : s
+  }
+
+  function unplaced(match, group) {
+    var known = groupTexts && groupTexts[String(match)]
+    var value = known ? known[group - 1] : undefined
+    return (value !== undefined && value !== null ? JSON.stringify(value) + ", " : "") + "position not reported by this engine"
   }
 
   function positionAt(index) {
@@ -144,7 +152,7 @@ Item {
             Text {
               Layout.fillWidth: true
               // -2: the engine matched the group but does not say where.
-              text: start === -2 ? "position not reported by this engine" : (start < 0 ? "did not take part" : root.preview(start, end))
+              text: start === -2 ? root.unplaced(row.index, group) : (start < 0 ? "did not take part" : root.preview(start, end))
               color: start < 0 ? root.dim : root.foreground
               font.italic: start < 0
               elide: Text.ElideRight
