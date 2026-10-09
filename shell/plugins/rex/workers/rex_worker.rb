@@ -94,7 +94,7 @@ def run_match(request, text, convert, lines)
       send_reply({ id: id, ok: true, done: false, matches: out, stride: stride, elapsed: (monotonic - started) * 1000 })
       out = []
       slice = monotonic
-      return if lines.waiting?
+      return if lines.waiting? && !request["keep"]
     end
   end
   stride ||= (groups_in(re) + 1) * 2

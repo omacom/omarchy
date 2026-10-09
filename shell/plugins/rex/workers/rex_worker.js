@@ -70,7 +70,7 @@ async function run(request, text) {
       out = []
       // Let a newer request in before carrying on.
       await new Promise(resolve => setImmediate(resolve))
-      if (current !== id) return
+      if (current !== id && !request.keep) return
       slice = performance.now()
     }
   }

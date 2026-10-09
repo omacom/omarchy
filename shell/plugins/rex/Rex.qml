@@ -5,11 +5,13 @@ import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import "views"
+import "components"
 import "lib/Flavors.js" as Flavors
 import "lib/Parser.js" as Parser
 import "lib/Colors.js" as Colors
 import "lib/Replace.js" as Replace
 import "lib/Explain.js" as Explain
+import "lib/Icons.js" as Icons
 
 // Rex, the offline regular expression workbench. Launched from Apps
 // (applications/Rex.desktop) through omarchy-launch-rex, or directly:
@@ -31,6 +33,26 @@ Item {
   readonly property color accent: Commons.Color.accent
 
   property bool closingFromHost: false
+
+  property alias engine: engine
+
+  // ---- pages --------------------------------------------------------------
+
+  readonly property var pages: [
+    { id: "workbench", icon: Icons.ICONS.workbench, label: "Workbench" },
+    { id: "compare", icon: Icons.ICONS.compare, label: "Compare flavors" },
+  ]
+  property string page: "workbench"
+  // Pages are built the first time they are shown and kept after that.
+  property var visited: ({ workbench: true })
+
+  function showPage(id) {
+    var next = {}
+    for (var key in visited) next[key] = visited[key]
+    next[id] = true
+    visited = next
+    page = id
+  }
 
   // ---- the session --------------------------------------------------------
 
@@ -293,6 +315,7 @@ Item {
     if (typeof payload.replacement === "string") replacement = payload.replacement
     if (typeof payload.tool === "string") tool = payload.tool
     if (typeof payload.side === "string") sideTab = payload.side
+    if (typeof payload.page === "string") showPage(payload.page)
 
     window.visible = true
     Qt.callLater(function() { if (window.visible) workbench.focusPattern() })
@@ -323,10 +346,37 @@ Item {
         root.shell.hide(root.pluginId)
     }
 
-    Workbench {
-      id: workbench
+    RowLayout {
       anchors.fill: parent
-      app: root
+      spacing: 0
+
+      NavRail {
+        Layout.fillHeight: true
+        foreground: root.foreground
+        accent: root.accent
+        pages: root.pages
+        current: root.page
+        onPicked: function(page) { root.showPage(page) }
+      }
+
+      Item {
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+
+        Workbench {
+          id: workbench
+          anchors.fill: parent
+          visible: root.page === "workbench"
+          app: root
+        }
+
+        Loader {
+          anchors.fill: parent
+          active: root.visited.compare === true
+          visible: root.page === "compare"
+          sourceComponent: ComparePage { app: root; visible: root.page === "compare" }
+        }
+      }
     }
   }
 }

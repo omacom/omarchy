@@ -104,7 +104,7 @@ sub run_match {
       send_reply({ id => $id, ok => JSON::PP::true, done => JSON::PP::false, matches => [@out], stride => $stride, elapsed => (time - $started) * 1000 });
       @out = ();
       $slice = time;
-      return if waiting();
+      return if waiting() && !$request->{keep};
     }
   }
   send_reply({ id => $id, ok => JSON::PP::true, done => JSON::PP::true, matches => \@out, stride => $stride, elapsed => (time - $started) * 1000, names => named_groups($re) });

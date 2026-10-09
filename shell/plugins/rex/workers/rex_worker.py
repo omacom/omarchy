@@ -786,7 +786,8 @@ def main():
                 send(reply)
                 if reply["done"]:
                     break
-                if lines.waiting():
+                # A newer request supersedes this one, unless it was kept.
+                if lines.waiting() and not request.get("keep"):
                     break
         except Exception as e:
             send({"id": rid, "ok": False, "done": True, "error": str(e), "matches": [], "stride": 2})

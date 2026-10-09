@@ -469,3 +469,18 @@ for (const flavor of Flavors.FLAVORS) {
 }
 pass('pattern tokens never overlap in any flavor')
 JS
+
+# ---- comparing flavors --------------------------------------------------------
+
+run_node_test <<'JS'
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const C = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Compare.js'))
+const result = (matches, stride) => ({ ok: true, matches, stride, count: matches.length / stride })
+
+assertEqual(C.compare(result([0, 2, 0, 1], 4), result([0, 2, 0, 1], 4)).verdict, 'same', 'identical matches compare the same')
+assertEqual(C.compare(result([0, 2, 0, 1], 4), result([0, 2, 1, 2], 4)).verdict, 'groups', 'differing groups are told apart from differing matches')
+const different = C.compare(result([0, 2, 5, 7], 2), result([0, 2, 5, 8], 2))
+assertDeepEqual([different.verdict, different.firstDifference], ['different', 1], 'the first differing match is found')
+assertEqual(C.compare(result([0, 2], 2), result([0, 2, 5, 7], 2)).detail, '2 matches instead of 1', 'extra matches are counted')
+assertEqual(C.compare(result([], 2), { ok: false, error: 'bad' }).verdict, 'error', 'a flavor that rejects the pattern is an error')
+JS
