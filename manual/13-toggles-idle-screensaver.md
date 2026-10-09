@@ -81,7 +81,7 @@ Both numbers are seconds counted from the moment you went idle — not from each
 
 If you dismiss the screensaver before the lock deadline, that counts as activity and the pending lock is cancelled. You don't get locked out for glancing at your machine.
 
-To stop locking on idle entirely, `Super + Ctrl + I` — or `omarchy toggle idle` — flips stay awake on, and the coffee cup indicator appears in the bar. That's the one to hit before a long presentation or a build you want to watch. Hit it again to go back to normal. `omarchy toggle idle status` prints the current state as JSON if you need it from a script.
+To stop locking on idle entirely, `Super + Ctrl + I` — or `omarchy toggle idle` — flips stay awake on, and the coffee cup indicator appears in the bar. That's the one to hit before a long presentation or a build you want to watch. Hit it again for the third mode, stay awake while agents work: the coffee cup gains a spinner badge and idle lock stays off only while a coding agent is working, so the machine still locks when you walk away. Hit it once more to go back to normal. `omarchy toggle idle status` prints the current state as JSON if you need it from a script.
 
 This is about locking and the screensaver, not power. Suspend and hibernation have their own setup in [system sleep](36-system-sleep.md).
 

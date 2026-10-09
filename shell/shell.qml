@@ -471,6 +471,14 @@ ShellRoot {
         var target = service()
         if (target && typeof target.setIdleEnabled === "function") target.setIdleEnabled(value)
       },
+      _setStayAwakeMode: function(mode) {
+        var target = service()
+        if (target && typeof target.setStayAwakeMode === "function") target.setStayAwakeMode(mode)
+      },
+      _cycleStayAwakeMode: function() {
+        var target = service()
+        if (target && typeof target.cycleStayAwakeMode === "function") target.cycleStayAwakeMode()
+      },
       _setNightlight: function(value) {
         var target = service()
         if (target && typeof target.setNightlight === "function") target.setNightlight(value)
@@ -496,6 +504,15 @@ ShellRoot {
     api.stayAwake = Qt.binding(function() {
       var target = service()
       return target ? target.stayAwake === true : false
+    })
+    api.stayAwakeMode = Qt.binding(function() {
+      var target = service()
+      var mode = target ? String(target.stayAwakeMode || "") : ""
+      return mode === "awake" || mode === "agents" ? mode : "allow"
+    })
+    api.agentsWorking = Qt.binding(function() {
+      var target = service()
+      return target ? target.agentsWorking === true : false
     })
     api.enabled = Qt.binding(function() {
       var target = service()

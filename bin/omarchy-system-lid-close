@@ -17,4 +17,14 @@ if omarchy-hw-laptop-closed && ! omarchy-hw-external-monitors; then
   omarchy-system-lock >/dev/null 2>&1 || true
 fi
 
+# Record the close for omarchy-system-lid-guard, which polls: a close that
+# reopens between two polls would otherwise never consume a one-shot skip,
+# leaving it armed for a later close. Same directory the guard reads its
+# previous lid state from.
+if omarchy-hw-laptop-closed >/dev/null 2>&1; then
+  lid_guard_dir="${XDG_RUNTIME_DIR:-/tmp/omarchy-$UID}/omarchy-lid-guard"
+  mkdir -p "$lid_guard_dir" 2>/dev/null &&
+    printf 'closed\n' >"$lid_guard_dir/prev-lid" 2>/dev/null || true
+fi
+
 omarchy-hyprland-monitor-clamshell

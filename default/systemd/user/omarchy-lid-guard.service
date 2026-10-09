@@ -1,0 +1,16 @@
+[Unit]
+Description=Block lid-close suspend while agents are working
+After=graphical-session.target
+PartOf=graphical-session.target
+# No lid switch, nothing to guard.
+ConditionPathExists=/proc/acpi/button/lid
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-system-lid-guard
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
