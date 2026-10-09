@@ -67,12 +67,12 @@ cat >"$stub_bin/omarchy-pkg-present" <<'SH'
 SH
 chmod +x "$stub_bin/omarchy-pkg-present"
 
-cat >"$stub_bin/omarchy-hw-platform" <<'SH'
+cat >"$stub_bin/omarchy-hw-aarch64" <<'SH'
 #!/bin/bash
 
-echo "${KEYRING_TEST_PLATFORM:-x86}"
+[[ ${KEYRING_TEST_PLATFORM:-x86} == aarch64* ]]
 SH
-chmod +x "$stub_bin/omarchy-hw-platform"
+chmod +x "$stub_bin/omarchy-hw-aarch64"
 
 cat >"$stub_bin/omarchy-pkg-add" <<'SH'
 #!/bin/bash

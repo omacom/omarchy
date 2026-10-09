@@ -186,3 +186,18 @@ if OMARCHY_PROC_ROOT="$test_tmp/cases/acpi/proc" PATH="$failing_uname:$PATH" "$d
 fi
 grep -Fq "cannot read the CPU architecture" "$test_tmp/error" || fail "an unreadable CPU architecture explains itself" "$(cat "$test_tmp/error")"
 pass "an unreadable CPU architecture fails instead of guessing generic"
+
+# The architecture predicates answer from the CPU alone: aarch64 covers every
+# ARM family, Apple Silicon included, and x86 none of them.
+for platform in x86 aarch64 aarch64-apple; do
+  fake_platform "$test_tmp/arch-$platform" "$platform"
+  arch_path="$test_tmp/arch-$platform/bin:$ROOT/bin:$PATH"
+  if [[ $platform == "x86" ]]; then
+    PATH=$arch_path omarchy-hw-x86 || fail "x86: omarchy-hw-x86 accepts it"
+    ! PATH=$arch_path omarchy-hw-aarch64 || fail "x86: omarchy-hw-aarch64 rejects it"
+  else
+    PATH=$arch_path omarchy-hw-aarch64 || fail "$platform: omarchy-hw-aarch64 accepts it"
+    ! PATH=$arch_path omarchy-hw-x86 || fail "$platform: omarchy-hw-x86 rejects it"
+  fi
+done
+pass "omarchy-hw-x86 and omarchy-hw-aarch64 split every platform by its CPU"

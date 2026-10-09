@@ -32,10 +32,10 @@ export HOME=/home/alice
 unset OMARCHY_WINDOWS_DIR
 # The command refuses any CPU but x86_64 before defining anything, and sourcing
 # it there would exit this test with it. What is under test is the x86_64 path,
-# so answer uname as one.
+# so omarchy-hw-x86 answers as one.
 mkdir -p "$test_tmp/bin"
-printf '#!/bin/bash\nif [[ $1 == "-m" ]]; then echo x86_64; else exec /usr/bin/uname "$@"; fi\n' >"$test_tmp/bin/uname"
-chmod +x "$test_tmp/bin/uname"
+printf '#!/bin/bash\nexit 0\n' >"$test_tmp/bin/omarchy-hw-x86"
+chmod +x "$test_tmp/bin/omarchy-hw-x86"
 PATH="$test_tmp/bin:$PATH"
 set -- help
 source "$test_tmp/omarchy-windows-vm" >/dev/null 2>&1

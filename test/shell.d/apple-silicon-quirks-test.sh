@@ -60,7 +60,7 @@ pass "Apple Silicon keeps its own keyboard mode"
 # The Windows guest is x86_64, so every other CPU refuses it before it touches
 # anything, Apple Silicon or not.
 for machine in aarch64 armv7l; do
-  output=$(UNAME_M=$machine APPLE_SILICON=0 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-windows-vm" install 2>&1) &&
+  output=$(UNAME_M=$machine APPLE_SILICON=0 PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-windows-vm" install 2>&1) &&
     fail "Windows VM install fails on $machine"
   [[ $output == *"needs an x86_64 machine"* ]] || fail "Windows VM says why it refuses on $machine" "$output"
 done
@@ -78,7 +78,7 @@ output=$(APPLE_SILICON=1 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-hibernat
 pass "direct boot and hibernation step aside on Apple Silicon"
 
 # On x86_64 the Windows VM goes on to its own commands, as before.
-output=$(UNAME_M=x86_64 PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-windows-vm" help 2>&1) || true
+output=$(UNAME_M=x86_64 PATH="$stub_bin:$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-windows-vm" help 2>&1) || true
 [[ $output != *"x86_64 machine"* && $output == *"install"* ]] || fail "Windows VM runs as before on x86_64" "$output"
 pass "Windows VM runs as before on x86_64"
 

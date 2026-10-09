@@ -5,7 +5,7 @@
 # omarchy:requires-sudo=true
 
 # The VM is an x86_64 Windows guest under KVM, which only an x86_64 host runs.
-if [[ $(uname -m) != "x86_64" ]]; then
+if ! omarchy-hw-x86; then
   echo "Windows VM needs an x86_64 machine (it runs an x86_64 guest under KVM)." >&2
   exit 1
 fi

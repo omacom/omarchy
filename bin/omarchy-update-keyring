@@ -25,13 +25,9 @@ fi
 # An aarch64 machine's Arch Linux ARM repositories are signed with keys of
 # their own, so its keyring is kept current the same way.
 keyrings=(archlinux-keyring)
-case $(omarchy-hw-platform 2>/dev/null) in
-  aarch64*)
-    if omarchy-pkg-present archlinuxarm-keyring; then
-      keyrings+=(archlinuxarm-keyring)
-    fi
-    ;;
-esac
+if omarchy-hw-aarch64 && omarchy-pkg-present archlinuxarm-keyring; then
+  keyrings+=(archlinuxarm-keyring)
+fi
 # A platform package names the signing keyrings of the repositories it adds,
 # one package per line. Only installed ones are refreshed, so this adds no
 # repository the machine didn't already trust; a refreshed keyring may carry

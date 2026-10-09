@@ -22,11 +22,11 @@ mkdir -p "$HOME"
 
 # The command refuses any CPU but x86_64 before defining anything, and sourcing
 # it there would exit this test with it. What is under test is the x86_64 path,
-# so answer uname as one.
+# so omarchy-hw-x86 answers as one.
 STUB_BIN="$TMPDIR/bin"
 mkdir -p "$STUB_BIN"
-printf '#!/bin/bash\nif [[ $1 == "-m" ]]; then echo x86_64; else exec /usr/bin/uname "$@"; fi\n' >"$STUB_BIN/uname"
-chmod +x "$STUB_BIN/uname"
+printf '#!/bin/bash\nexit 0\n' >"$STUB_BIN/omarchy-hw-x86"
+chmod +x "$STUB_BIN/omarchy-hw-x86"
 PATH="$STUB_BIN:$PATH"
 
 set -- help
