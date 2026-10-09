@@ -1,0 +1,3 @@
+# The M5606UA emoji key must not toggle the Bluetooth radio.
+evdev:name:Asus WMI hotkeys:dmi:*:svnASUSTeKCOMPUTERINC.:pnASUSVivobookS16M5606UA_M5606UA:*
+ KEYBOARD_KEY_7e=prog2
