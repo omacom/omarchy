@@ -82,14 +82,42 @@ require_http_url() {
   fi
 }
 
+# Validate URL is public (not private/internal) and HTTP/HTTPS only
+validate_public_url() {
+  local url=$1
+  local host
+  host=$(sed -E 's|^https?://([^/]+).*|\1|' <<<"$url" | cut -d: -f1)
+
+  case $host in
+    localhost|127.*|10.*|192.168.*|169.254.*|::1|fe80::) 
+      echo "Error: Private/internal URLs not allowed" >&2
+      return 1
+      ;;
+    172.*)
+      IFS=. read -r _ a b _ <<<"$host"
+      if (( a >= 16 && a <= 31 )); then
+        echo "Error: Private/internal URLs not allowed" >&2
+        return 1
+      fi
+      ;;
+  esac
+
+  if [[ ! ${url,,} =~ ^https?:// ]]; then
+    echo "Error: Only HTTP/HTTPS allowed" >&2
+    return 1
+  fi
+}
+
 fetch_site_icon() {
   local site_url="$1" dest="$2"
+  validate_public_url "$site_url" || return 1
+
   local origin page icon_url
   origin=$(sed -E 's|^(https?://[^/]+).*|\1|' <<<"$site_url")
 
   # Prefer the site's own high-res icon (apple-touch-icon is typically 180px+),
   # then the well-known path, then Google's favicon service as a last resort.
-  page=$(curl -fsSL --max-time 5 "$site_url" 2>/dev/null | head -c 100000 | tr '\n' ' ')
+  page=$(curl -fsSL --max-time 5 --max-redirs 3 "$site_url" 2>/dev/null | head -c 100000 | tr '\n' ' ')
   icon_url=$(grep -oiE "<link[^>]*rel=[\"'][^\"']*apple-touch-icon[^\"']*[\"'][^>]*>" <<<"$page" |
     grep -oiE "href=[\"'][^\"']+" | head -1 | sed -E "s/^href=[\"']//")
 
@@ -100,9 +128,11 @@ fetch_site_icon() {
   ?*) icon_url="$origin/$icon_url" ;;
   esac
 
+  local google_domain="${origin#*://}"
+
   { [[ -n $icon_url ]] && download_icon "$icon_url" "$dest"; } ||
     download_icon "$origin/apple-touch-icon.png" "$dest" ||
-    download_icon "https://www.google.com/s2/favicons?domain=${site_url}&sz=256" "$dest"
+    download_icon "https://www.google.com/s2/favicons?domain=${google_domain}&sz=256" "$dest"
 }
 
 desktop_string_escape() {
@@ -186,6 +216,7 @@ if [[ -z $ICON_REF ]]; then
 elif [[ $ICON_REF =~ ^https?:// ]]; then
   ICON_VALUE=$(safe_icon_name "$APP_NAME")
   mkdir -p "$ICON_DIR"
+  validate_public_url "$ICON_REF" || exit 1
   if ! download_icon "$ICON_REF" "$ICON_DIR/$ICON_VALUE.png"; then
     echo "Error: Failed to download icon."
     exit 1
