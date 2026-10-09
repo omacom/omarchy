@@ -95,7 +95,16 @@ function phpPattern(pattern, modifiers) {
 // quoted heredoc instead, which takes any text as it is.
 function perlPattern(pattern) {
   if (pattern.indexOf("'") < 0 && pattern.indexOf("\n") < 0) return { setup: "", match: "m'" + pattern + "'" }
-  return { setup: "chomp(my $pattern = <<'PATTERN');\n" + pattern + "\nPATTERN\n", match: "m/$pattern/" }
+  return { setup: perlHeredoc(pattern), match: "m/$pattern/" }
+}
+
+// A heredoc holding the pattern in $pattern, ended by a marker that is not
+// itself a line of the pattern.
+function perlHeredoc(pattern) {
+  var lines = pattern.split("\n")
+  var marker = "PATTERN"
+  while (lines.indexOf(marker) >= 0) marker += "_END"
+  return "chomp(my $pattern = <<'" + marker + "');\n" + pattern + "\n" + marker + "\n"
 }
 
 function rubyLiteral(pattern) {
@@ -142,7 +151,7 @@ function snippets(flavorId, pattern, flags, replacement) {
     var setup = perl.setup
     // The replacement has to interpolate ($1, \U), so the pattern comes
     // from a quoted heredoc and the replacement sits in an s/// of its own.
-    var replaceSetup = "chomp(my $pattern = <<'PATTERN');\n" + pattern + "\nPATTERN\n"
+    var replaceSetup = perlHeredoc(pattern)
     var sub = "s/$pattern/" + rep.replace(/\//g, "\\/") + "/g" + pf
     return [
       { title: "Test", language: "perl", code: setup + "my $found = $text =~ " + pm + pf + ";" },

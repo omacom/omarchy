@@ -810,3 +810,12 @@ const R = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Replace.js'))
 const parsed = R.parse('[\\1]', 'sed', 1, {})
 assertEqual(R.substitute(parsed, 'xa\tb', [1, 3, -2, -2], 1, 4, {}, { 0: ['a\t'] }).text, 'x[a\t]b', 'a replacement keeps a group whose position is unknown')
 JS
+
+if command -v perl >/dev/null; then
+  marker_code=$(ROOT="$ROOT" node -e '
+const { loadQmlJs } = require(process.env.ROOT + "/test/shell.d/fixtures/qml-js-loader.js")
+const C = loadQmlJs(process.env.ROOT + "/shell/plugins/rex/lib/Codegen.js")
+process.stdout.write(C.snippets("perl", "PATTERN", [], "x").find(s => s.title === "Replace").code)')
+  [[ $(perl -e 'my $text = q{a PATTERN b};'"$marker_code"' print $result') == 'a x b' ]] || fail "a Perl pattern that is the heredoc marker still works" "$marker_code"
+  pass "a Perl pattern that is the heredoc marker still works"
+fi
