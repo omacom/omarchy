@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# omarchy:summary=Apply your configs from your private dots repository
+# omarchy:args=[url]
+# omarchy:examples=omarchy dots pull | omarchy dots pull https://github.com/you/omarchy-dots.git
+
+# On a machine that is already connected, applies what other machines pushed.
+# With a URL on a machine that is not, sets the machine up from that
+# repository. Either way, a file that differs takes the repository's version
+# only after this machine's version is saved, so `omarchy dots restore` brings
+# it back. Files kept per machine, like monitors.lua, are never touched.
+
+set -euo pipefail
+
+url="${1:-}"
+origin=$(mise dot status --json 2>/dev/null | jq -r '.history.sync.origin // empty')
+
+if [[ -n $origin ]]; then
+  if [[ -n $url && $url != "$origin" ]]; then
+    echo "This machine already uses $origin for dots." >&2
+    exit 1
+  fi
+  mise dot sync --fetch-only
+  conflicts=$(mise dot status --json | jq '.history.sync.conflicts | length')
+  if (( conflicts > 0 )); then
+    mise dot status
+    if gum confirm "Use the repository's version of the files that differ? This machine's versions are saved first."; then
+      mise dot pull --take-remote-all --yes
+    else
+      echo "Nothing applied. Decide each file with: mise dot pull --take-remote <file> or --keep-local <file>"
+      exit 1
+    fi
+  else
+    mise dot pull
+  fi
+else
+  if [[ -z $url ]]; then
+    url=$(gum input --header "Git URL of your dots repository")
+  fi
+  if [[ -z $url ]]; then
+    exit 1
+  fi
+  if ! omarchy-dots-enabled; then
+    omarchy-dots-enable
+  fi
+  # This machine's own history is replaced by the repository's, which then
+  # holds the versions of every machine; files that differ are saved first.
+  mise bootstrap --adopt "$url" --replace-history --take-remote-all --only dotfiles
+fi

@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# omarchy:summary=Restore a saved version of a config file
+# omarchy:args=[file] [--at <version>]
+# omarchy:examples=omarchy dots restore | omarchy dots restore ~/.config/hypr/bindings.lua | omarchy dots restore ~/.config/hypr/bindings.lua --at 42
+
+# Without a file, pick one of the files that have saved versions; without a
+# version, pick one of that file's. Restoring saves the current file first, so
+# `omarchy dots restore` can bring it back too.
+
+set -euo pipefail
+
+file=""
+at=""
+
+while (($#)); do
+  case "$1" in
+    --at)
+      at="${2:?--at needs a version from omarchy dots log}"
+      shift
+      ;;
+    -*)
+      echo "Usage: omarchy-dots-restore [file] [--at <version>]" >&2
+      exit 1
+      ;;
+    *)
+      file="$1"
+      ;;
+  esac
+  shift
+done
+
+if [[ -z $file ]]; then
+  file=$(mise dot history --json --limit 0 |
+    jq -r '[.[].changes | (.modified // []) + (.added // []) + (.deleted // [])] | add // [] | unique[]' |
+    gum filter --placeholder "Restore which file?")
+fi
+file="${file/#\~/$HOME}"
+
+if [[ -z $at ]]; then
+  versions=$(mise dot history --json --limit 0 --path "$file" |
+    jq -r '.[] | "\(.id)\t\(.created_at[0:16] | sub("T"; " "))\t\(.description)"')
+  if [[ -z $versions ]]; then
+    echo "No saved versions of ${file/#$HOME/\~}" >&2
+    exit 1
+  fi
+  choice=$(gum choose --header "Restore ${file/#$HOME/\~} to which saved version?" <<<"$versions")
+  at="${choice%%$'\t'*}"
+fi
+
+mise dot rollback "$file" --to "$at"

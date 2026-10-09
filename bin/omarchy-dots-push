@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# omarchy:summary=Publish your configs to your private dots repository
+
+# The first push connects a private repository: a new one on GitHub when gh is
+# signed in, or any Git URL. Pushing is always deliberate; nothing publishes in
+# the background. Every saved version is published, so keep secrets out of the
+# files dots saves. mise refuses to publish a version that looks like it holds
+# a secret, and says which file and line.
+
+set -euo pipefail
+
+if ! omarchy-dots-enabled; then
+  echo "Turn on Omarchy dots first: omarchy dots enable" >&2
+  exit 1
+fi
+
+# The URL of a private repository for dots, on stdout.
+choose_repository() {
+  local user name url
+
+  if gh auth status &>/dev/null; then
+    user=$(gh api user --jq .login)
+    name=$(gum input --value omarchy-dots --header "Private GitHub repository for your dots")
+    if gh repo view "$user/$name" &>/dev/null; then
+      if [[ $(gh repo view "$user/$name" --json isPrivate --jq .isPrivate) != "true" ]]; then
+        echo "$user/$name is public. Dots must go to a private repository." >&2
+        exit 1
+      fi
+    else
+      gh repo create "$user/$name" --private --description "Omarchy dots" >&2
+    fi
+    # lets git, and the watcher, reach the repository with gh's sign-in
+    echo "Running gh auth setup-git: gh becomes your global git credential helper for github.com." >&2
+    gh auth setup-git >&2
+    echo "https://github.com/$user/$name.git"
+  else
+    url=$(gum input --header "Git URL of a private repository for your dots (or sign in with gh auth login first)")
+    if [[ -z $url ]]; then
+      exit 1
+    fi
+    echo "Make sure this repository is private: every saved version will be published to it." >&2
+    echo "$url"
+  fi
+}
+
+origin=$(mise dot status --json | jq -r '.history.sync.origin // empty')
+if [[ -z $origin ]]; then
+  origin=$(choose_repository)
+  mise dot origin set "$origin" --sync manual
+fi
+
+mise dot save --best-effort
+mise dot sync

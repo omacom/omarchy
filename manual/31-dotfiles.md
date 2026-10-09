@@ -18,7 +18,23 @@ Here's a list of the key files in `~/.config` and what they control:
 | `~/.config/foot/foot.ini` | Controls your terminal (foot is the default). |
 | `~/.XCompose` | Defines your quick-access emoji and name/email autocomplete. Make sure to run `omarchy-restart-xcompose` after making changes. |
 
-If you end up making a lot of changes to tweak your own setup, it's a good idea to backup all these dotfiles. [Stow is a great way to do that](https://www.youtube.com/watch?v=NoFiYOqnC4o).
+### Going back to an earlier version
+
+Omarchy saves the history of these files, along with `~/.bashrc`, your terminal configs, `~/.config/omarchy/hooks`, and a few more, every time you change them. You keep editing them where they are; [mise](https://mise.jdx.dev/dotfiles.html) saves each version in the background.
+
+If an edit, an agent, or an update made a mess, go to _Setup > Dots > Restore File_, pick the file, and pick the version to go back to. Restoring saves the current version first, so you can change your mind again. _Setup > Dots > Last Change_ shows exactly what the last update or config reset changed in your files.
+
+From the terminal, that's `omarchy dots restore`, `omarchy dots diff`, and `omarchy dots log` to list the saved versions.
+
+### Using the same setup on several machines
+
+Your tweaks can follow you to another machine through a private Git repository. On the machine you've set up the way you like, go to _Setup > Dots > Push_ (or run `omarchy dots push`). The first time, it creates a private GitHub repository for you if you're signed in with `gh auth login`, or takes the URL of any private Git repository.
+
+On the other machine, go to _Setup > Dots > Pull_ (or run `omarchy dots pull <url>`) and give it the same repository. The files that differ get the repository's version, and this machine's version is saved first, so _Restore File_ brings back anything you wanted to keep. After that, push and pull whenever you want to bring the machines in line. Nothing is shared until you push.
+
+Each machine keeps its own `~/.config/hypr/monitors.lua`, since your laptop's screen layout has no business on your desktop.
+
+Every saved version is pushed, so keep secrets like API keys out of these files (`~/.bashrc` and your hooks are the usual culprits). Dots refuses to push a version that looks like it holds a token or key, and tells you which file and line. Removing a secret from a file doesn't remove it from earlier versions, so rotate it and clear that history first. When Omarchy creates the repository for you, it also runs `gh auth setup-git`, which makes `gh` your git credential helper for github.com. If you already manage your dotfiles with Stow, chezmoi, or yadm, Omarchy leaves dots off; turn them on anyway with `omarchy dots enable --force`, or off with `omarchy dots disable`.
 
 ### Starting your own apps with the session
 
@@ -78,4 +94,4 @@ If you insist on hacking on the internal Omarchy files, switch to the dev channe
 
 ### Resetting any changes
 
-If you end up making a mess of the configurations, you can always revert them to the defaults via _Update > Config_ in the Omarchy menu. Or by running `omarchy reinstall configs` to reset everything.
+If you end up making a mess of the configurations, you can always revert them to the defaults via _Update > Config_ in the Omarchy menu. Or by running `omarchy reinstall configs` to reset everything. Changed your mind after a reset? _Update > Config > Restore Previous_ takes a file back to the version you had.

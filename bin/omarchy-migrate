@@ -85,6 +85,12 @@ wait_for_pacman_transaction
 mkdir -p "$STATE_DIR"
 [[ -d $MIGRATIONS_DIR ]] || exit 0
 
+# Snapshot the configs before and after the pending migrations as one change,
+# so `omarchy dots diff` shows what this update did to them.
+if [[ -z ${OMARCHY_DOTS_CAPTURED:-} && -n $(pending_migrations) ]] && omarchy-dots-enabled 2>/dev/null; then
+  exec omarchy-dots-capture "omarchy update" -- "$0"
+fi
+
 while IFS=$'\t' read -r name file marker <&3; do
   [[ -n $name ]] || continue
 

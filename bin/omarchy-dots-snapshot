@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Save a version of your configs now
+# omarchy:args=[label]
+
+if (($#)); then
+  exec mise dot save --label "$1"
+else
+  exec mise dot save
+fi

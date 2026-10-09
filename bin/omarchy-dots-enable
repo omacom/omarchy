@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# omarchy:summary=Save the history of your Omarchy configs
+# omarchy:args=[--force]
+
+# Links Omarchy's list of dotfiles (default/mise/dots.toml) into the user's
+# mise configuration, saves the first snapshot, and starts the mise watcher
+# that saves later edits. Install, first run, and the enabling migration call
+# this with --auto, which respects `omarchy dots disable` and stands down
+# quietly instead of failing.
+
+set -euo pipefail
+
+auto=0
+force=0
+
+while (($#)); do
+  case "$1" in
+    --auto)
+      auto=1
+      ;;
+    --force)
+      force=1
+      ;;
+    *)
+      echo "Usage: omarchy-dots-enable [--force]" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+config_dir="${MISE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/mise}"
+link="$config_dir/conf.d/omarchy-dots.toml"
+disabled="$HOME/.local/state/omarchy/dots-disabled"
+
+stand_down() {
+  echo "$1"
+  if (( auto )); then
+    exit 0
+  else
+    exit 1
+  fi
+}
+
+# Another dotfile manager already keeps these files. Saving them a second time
+# is not harmful, but it is not what the user chose either.
+other_manager() {
+  local path
+
+  if [[ -e $HOME/.git ]]; then
+    echo "your home directory is a Git repository"
+    return 0
+  fi
+  if [[ -d $HOME/.local/share/chezmoi ]]; then
+    echo "chezmoi manages your dotfiles"
+    return 0
+  fi
+  if [[ -d $HOME/.local/share/yadm || -d $HOME/.config/yadm ]]; then
+    echo "yadm manages your dotfiles"
+    return 0
+  fi
+  # Stow may link any tracked file, a directory above it, or a file inside a
+  # tracked directory, so check each entry of the dots list all three ways.
+  local entry
+  while read -r entry; do
+    entry="${entry/#\~/$HOME}"
+    path=$entry
+    while [[ $path == "$HOME"/* ]]; do
+      if [[ -L $path ]]; then
+        echo "${path/#$HOME/\~} is a link, as a dotfile manager like Stow makes"
+        return 0
+      fi
+      path=$(dirname "$path")
+    done
+    for path in "$entry"/*; do
+      if [[ -L $path ]]; then
+        echo "${path/#$HOME/\~} is a link, as a dotfile manager like Stow makes"
+        return 0
+      fi
+    done
+  done < <(grep -oE '^"~[^"]+"' "$OMARCHY_PATH/default/mise/dots.toml" | tr -d '"')
+  return 1
+}
+
+if (( auto )) && [[ -e $disabled ]]; then
+  exit 0
+fi
+
+# machine variants keep monitors.lua per machine; --take-remote-all lets
+# `omarchy dots pull <url>` set up a machine that already has history; and
+# `mise dot sync` must refuse to publish saved versions that look like secrets
+if ! mise dot track --help 2>/dev/null | grep -q -- '--machine' ||
+  ! mise bootstrap --help 2>/dev/null | grep -q -- '--take-remote-all' ||
+  ! mise dot sync --help 2>/dev/null | grep -q -- 'look like they contain secrets'; then
+  stand_down "Omarchy dots needs a newer mise. Run omarchy update, then omarchy dots enable."
+fi
+
+if (( ! force )) && reason=$(other_manager); then
+  stand_down "Omarchy dots stayed off: $reason. To save Omarchy's history of these files too, run: omarchy dots enable --force"
+fi
+
+rm -f "$disabled"
+mkdir -p "$config_dir/conf.d"
+ln -sfn "$OMARCHY_PATH/default/mise/dots.toml" "$link"
+
+# The first snapshot: every later version is compared with it.
+mise dot save --label "omarchy dots enabled" --best-effort
+
+# Save edits as they happen. The user manager is not running in the install
+# chroot, so first run starts the watcher there.
+if systemctl --user show-environment &>/dev/null; then
+  if ! mise bootstrap services apply --yes; then
+    echo "Could not start the dots watcher; changes are still saved around Omarchy updates. Retry with: omarchy dots enable"
+  fi
+fi
+
+echo "Omarchy dots are on. See what they save with: omarchy dots status"

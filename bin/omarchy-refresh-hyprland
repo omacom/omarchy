@@ -2,6 +2,11 @@
 
 # omarchy:summary=Overwrite all the user Hyprland Lua configs in ~/.config/hypr with the Omarchy defaults.
 
+# Snapshot the configs this changes, so `omarchy dots restore` can take it back.
+if [[ -z ${OMARCHY_DOTS_CAPTURED:-} ]] && omarchy-dots-enabled 2>/dev/null; then
+  exec omarchy-dots-capture "omarchy refresh hyprland" -- "$0" "$@"
+fi
+
 omarchy-refresh-config hypr/.luarc.json
 omarchy-refresh-config hypr/autostart.lua
 omarchy-refresh-config hypr/bindings.lua

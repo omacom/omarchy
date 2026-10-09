@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=List the saved versions of your configs
+# omarchy:args=[file]
+
+if (($#)); then
+  exec mise dot history --path "$1"
+else
+  exec mise dot history
+fi

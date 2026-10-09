@@ -2,5 +2,10 @@
 
 # omarchy:summary=Overwrite the user config for hyprsunset with the Omarchy default and restart the service.
 
+# Snapshot the configs this changes, so `omarchy dots restore` can take it back.
+if [[ -z ${OMARCHY_DOTS_CAPTURED:-} ]] && omarchy-dots-enabled 2>/dev/null; then
+  exec omarchy-dots-capture "omarchy refresh hyprsunset" -- "$0" "$@"
+fi
+
 omarchy-refresh-config hypr/hyprsunset.conf
 omarchy-restart-hyprsunset

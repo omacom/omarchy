@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Show what the last Omarchy update or reset changed in your configs
+# omarchy:args=[version]
+# omarchy:examples=omarchy dots diff | omarchy dots diff 42
+
+# Without a version, the last update, config reset, restore, or pull, from its
+# before snapshot to its after snapshot. With one, that version against the
+# version before it; `omarchy dots log` lists them.
+
+if (($#)); then
+  exec mise dot history diff "$1" --patch
+else
+  exec mise dot history diff --operation --patch
+fi

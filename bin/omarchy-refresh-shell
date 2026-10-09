@@ -3,6 +3,11 @@
 # omarchy:summary=Reset shell.json to Omarchy defaults
 # omarchy:examples=omarchy refresh shell
 
+# Snapshot the configs this changes, so `omarchy dots restore` can take it back.
+if [[ -z ${OMARCHY_DOTS_CAPTURED:-} ]] && omarchy-dots-enabled 2>/dev/null; then
+  exec omarchy-dots-capture "omarchy refresh shell" -- "$0" "$@"
+fi
+
 set -euo pipefail
 
 omarchy-refresh-config omarchy/shell.json

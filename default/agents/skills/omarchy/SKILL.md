@@ -214,6 +214,16 @@ omarchy refresh hyprland
 # 3. Restarts the component where the refresh needs it (e.g. `refresh shell`)
 ```
 
+### Undo a Config Change
+
+When `omarchy dots status` says dots are on, every version of the user's key configs is saved, including the version before each refresh and update. Prefer these over hunting for `.bak` files:
+
+```bash
+omarchy dots diff                      # what the last update or refresh changed
+omarchy dots log ~/.config/hypr/bindings.lua
+omarchy dots restore ~/.config/hypr/bindings.lua --at <version>
+```
+
 ## System Commands
 
 ```bash

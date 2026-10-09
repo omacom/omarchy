@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Run a command between two labeled dots snapshots
+# omarchy:args=<label> -- <command> [args...]
+# omarchy:hidden=true
+
+# Wraps the Omarchy operations that rewrite user configs (migrations, config
+# resets) so `omarchy dots diff` shows what they changed and `omarchy dots
+# restore` can take it back. The command always runs exactly once: history is
+# best effort, so a snapshot that fails only warns, and a mise that cannot start
+# the command at all falls back to running it directly.
+
+set -uo pipefail
+
+if (( $# < 3 )) || [[ $2 != "--" ]]; then
+  echo "Usage: omarchy-dots-capture <label> -- <command> [args...]" >&2
+  exit 2
+fi
+
+label="$1"
+shift 2
+
+# A command run inside a capture belongs to it: omarchy-refresh-hyprland calls
+# omarchy-refresh-config seven times, and that is one change, not seven.
+if [[ -n ${OMARCHY_DOTS_CAPTURED:-} ]]; then
+  exec "$@"
+fi
+export OMARCHY_DOTS_CAPTURED=1
+
+if ! omarchy-dots-enabled; then
+  exec "$@"
+fi
+
+started_dir=$(mktemp -d)
+trap 'rm -rf "$started_dir"' EXIT
+
+# The marker says the command started, so a failed mise never runs it twice.
+# shellcheck disable=SC2016 # expanded by the inner bash
+mise dot capture --label "$label" -- bash -c 'touch "$0" && exec "$@"' "$started_dir/started" "$@"
+status=$?
+
+if [[ ! -e $started_dir/started ]]; then
+  echo "omarchy dots: could not snapshot this change; running it without one" >&2
+  "$@"
+  status=$?
+fi
+
+exit "$status"

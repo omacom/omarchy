@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Check whether dots history is on for this user
+# omarchy:hidden=true
+
+# Dots are on while Omarchy's list of dotfiles is linked into the user's mise
+# configuration. `omarchy dots enable` links it; `omarchy dots disable` removes
+# the link.
+
+[[ -L ${MISE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/mise}/conf.d/omarchy-dots.toml ]]

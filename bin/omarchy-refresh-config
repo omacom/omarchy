@@ -5,6 +5,11 @@
 
 config_file=${1:-}
 
+# Snapshot the config this replaces, so `omarchy dots restore` can take it back.
+if [[ -n $config_file && -z ${OMARCHY_DOTS_CAPTURED:-} ]] && omarchy-dots-enabled 2>/dev/null; then
+  exec omarchy-dots-capture "omarchy refresh config $config_file" -- "$0" "$@"
+fi
+
 if [[ -z $config_file ]]; then
   cat <<USAGE
   Usage: $0 [config_file]

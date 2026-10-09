@@ -75,6 +75,8 @@ run_first_run_step "install agent setup post-update hook" \
 
 run_first_run_step "enable user systemd units" \
   bash "$OMARCHY_PATH/install/user/first-run/enable-user-units.sh"
+run_first_run_step "start dots watcher" \
+  bash "$OMARCHY_PATH/install/user/first-run/dots-watcher.sh"
 run_first_run_step "set GNOME theme" \
   bash "$OMARCHY_PATH/install/user/first-run/gnome-theme.sh"
 run_first_run_step "set GTK primary paste" \

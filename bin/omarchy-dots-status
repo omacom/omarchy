@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# omarchy:summary=Show what dots saves, when it last saved, and how it syncs
+
+if omarchy-dots-enabled; then
+  exec mise dot status "$@"
+else
+  echo "Omarchy dots are off. Turn them on with: omarchy dots enable"
+fi

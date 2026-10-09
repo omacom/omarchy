@@ -1,0 +1,39 @@
+# Omarchy dots: the personal configuration whose history mise saves and,
+# once a dots repository is connected, shares between machines.
+#
+# Linked into ~/.config/mise/conf.d/omarchy-dots.toml by `omarchy dots enable`.
+# This list is the deny line: nothing outside it is saved. Plugins and themes
+# are git clones managed by their own commands, backgrounds are large binaries,
+# and application state (Chromium, fcitx5, opencode, xournalpp) is left out.
+#
+# Turn off one entry in ~/.config/mise/config.toml, for example:
+#   [dotfiles]
+#   "~/.config/starship.toml" = { mode = "track", enabled = false }
+
+[dotfiles]
+"~/.bashrc" = { mode = "track" }
+"~/.XCompose" = { mode = "track" }
+"~/.config/hypr" = { mode = "track", include = ["*.lua", "*.conf"] }
+"~/.config/omarchy/shell.json" = { mode = "track" }
+"~/.config/omarchy/extensions" = { mode = "track" }
+"~/.config/omarchy/hooks" = { mode = "track" }
+"~/.config/alacritty/alacritty.toml" = { mode = "track" }
+"~/.config/foot/foot.ini" = { mode = "track" }
+"~/.config/ghostty/config" = { mode = "track" }
+"~/.config/kitty/kitty.conf" = { mode = "track" }
+"~/.config/btop/btop.conf" = { mode = "track" }
+"~/.config/starship.toml" = { mode = "track" }
+
+# Machine-specific: each machine keeps its own history of these files, and
+# sync never applies one machine's version on another.
+"~/.config/hypr/monitors.lua" = { mode = "track", variants = [{ machine = true }] }
+
+# Save edits as they happen, not only around Omarchy updates. This is the name
+# mise documents, so a user's own declaration replaces it instead of adding a
+# second watcher.
+[bootstrap.services.mise-history]
+builtin = "history-watch"
+
+[settings.history]
+# Sharing is an explicit `omarchy dots push` / `omarchy dots pull`, never automatic.
+sync = "manual"

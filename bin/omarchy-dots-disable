@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Stop saving the history of your Omarchy configs
+
+# Removes the link to Omarchy's list of dotfiles and stops the watcher. Saved
+# history stays in mise's store, and a connected dots repository stays
+# connected, so `omarchy dots enable` picks up where this left off.
+
+set -euo pipefail
+
+config_dir="${MISE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/mise}"
+link="$config_dir/conf.d/omarchy-dots.toml"
+disabled="$HOME/.local/state/omarchy/dots-disabled"
+
+if [[ -L $link ]]; then
+  rm "$link"
+fi
+
+# Install, first run, and migrations never turn dots back on after this.
+mkdir -p "$(dirname "$disabled")"
+touch "$disabled"
+
+# The watcher belongs to the user's own mise configuration when it declares one.
+if ! grep -qs 'mise-history' "$config_dir"/config*.toml "$config_dir"/conf.d/*.toml; then
+  mise bootstrap services remove mise-history >/dev/null 2>&1 || true
+fi
+
+echo "Omarchy dots are off. Your saved history is kept; turn them back on with: omarchy dots enable"
