@@ -60,9 +60,14 @@ fi
 step="$1"
 
 if [[ $step == "off" ]]; then
+  # A blanked HDMI/DP display reads as unplugged to the audio stack. Have
+  # WirePlumber hold its outputs so audio doesn't jump to the speakers.
+  timeout 2s wpctl settings omarchy.displays-blanked true >/dev/null 2>&1
   hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
   exit 0
 elif [[ $step == "on" ]]; then
+  timeout 2s wpctl settings omarchy.displays-blanked false >/dev/null 2>&1
+
   # Skip the dispatch when every active display is already lit: a redundant
   # DPMS enable right after system resume forces another modeset, which blanks
   # the panel for a beat (visible flash at the unlock screen).

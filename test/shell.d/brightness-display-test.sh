@@ -144,3 +144,33 @@ if PATH="$mock_bin:$PATH" "$ROOT/bin/omarchy-hyprland-monitor-focused-apple"; th
   fail "focused non-Apple display is not detected as Apple"
 fi
 pass "named Apple display is detected independently of focus"
+
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+printf 'hyprctl %s\n' "$*" >>"$CALL_LOG"
+if [[ $1 == "monitors" ]]; then
+  printf '[{"name":"DP-1","disabled":false,"dpmsStatus":true}]\n'
+fi
+SH
+cat >"$mock_bin/wpctl" <<'SH'
+#!/bin/bash
+printf 'wpctl %s\n' "$*" >>"$CALL_LOG"
+SH
+chmod +x "$mock_bin/hyprctl" "$mock_bin/wpctl"
+
+: >"$call_log"
+run_brightness off
+[[ $(head -n 1 "$call_log") == "wpctl settings omarchy.displays-blanked true" ]] || \
+  fail "audio outputs are held before the displays are blanked" "actual: $(cat "$call_log")"
+grep -F 'hyprctl dispatch hl.dsp.dpms({ action = "disable" })' "$call_log" >/dev/null || \
+  fail "display off blanks the displays"
+pass "audio outputs are held before the displays are blanked"
+
+: >"$call_log"
+run_brightness on
+grep -Fx 'wpctl settings omarchy.displays-blanked false' "$call_log" >/dev/null || \
+  fail "audio outputs are released when the displays are already lit" "actual: $(cat "$call_log")"
+if grep -F 'hyprctl dispatch' "$call_log" >/dev/null; then
+  fail "display on skips the dispatch when the displays are already lit"
+fi
+pass "audio outputs are released when the displays are already lit"
