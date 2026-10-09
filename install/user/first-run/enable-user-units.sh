@@ -11,6 +11,11 @@
 
 set -euo pipefail
 
+if [[ ! -f /usr/lib/systemd/user/omarchy-audio-inhibit.service && -f $OMARCHY_PATH/default/systemd/user/omarchy-audio-inhibit.service ]]; then
+  mkdir -p "$HOME/.config/systemd/user"
+  cp "$OMARCHY_PATH/default/systemd/user/omarchy-audio-inhibit.service" "$HOME/.config/systemd/user/"
+fi
+
 systemctl --user daemon-reload
 systemctl --user enable --now \
   bt-agent.service \
@@ -19,6 +24,7 @@ systemctl --user enable --now \
   omarchy-sleep-lock.service \
   omarchy-migrate-notify.service \
   omarchy-fcitx5.service \
-  omarchy-crash-watch.service
+  omarchy-crash-watch.service \
+  omarchy-audio-inhibit.service
 
 omarchy-hook-install theme-set /usr/share/owe/10-owe-sync
