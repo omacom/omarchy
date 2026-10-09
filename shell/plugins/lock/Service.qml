@@ -42,6 +42,7 @@ Item {
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
+  property bool sessionLockBridgeReady: false
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
@@ -132,6 +133,13 @@ Item {
     lastEvent = event
     lastEventAt = new Date().toISOString()
     console.log("omarchy lock " + lastEventAt + " " + event)
+  }
+
+  // Desktop apps listen to D-Bus; only the compositor can confirm a secure lock.
+  function publishLockState() {
+    if (sessionLockBridgeReady && sessionLockBridgeProcess.running) {
+      sessionLockBridgeProcess.write((sessionLock.secure ? "true" : "false") + "\n")
+    }
   }
 
   function resetAuthenticationState() {
@@ -283,6 +291,7 @@ Item {
 
     onSecureStateChanged: {
       root.logEvent("secure=" + secure)
+      root.publishLockState()
       if (secure) {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
@@ -412,6 +421,31 @@ Item {
     interval: 250
     repeat: false
     onTriggered: root.startFingerprint()
+  }
+
+  Process {
+    id: sessionLockBridgeProcess
+    command: ["python3", Quickshell.env("OMARCHY_PATH") + "/shell/plugins/lock/session-lock-bridge.py"]
+    stdinEnabled: true
+    running: true
+    stdout: SplitParser {
+      onRead: function(line) {
+        if (line === "ready") {
+          root.sessionLockBridgeReady = true
+          root.publishLockState()
+        }
+      }
+    }
+    onExited: function(exitCode) {
+      root.sessionLockBridgeReady = false
+      if (exitCode !== 0) sessionLockBridgeRetryTimer.restart()
+    }
+  }
+
+  Timer {
+    id: sessionLockBridgeRetryTimer
+    interval: 1000
+    onTriggered: sessionLockBridgeProcess.running = true
   }
 
   Process {
