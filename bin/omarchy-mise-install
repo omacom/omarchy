@@ -48,12 +48,12 @@ target="$HOME/.local/bin/$command"
 
 # True only for a wrapper this command wrote, whole and unedited, in one of the
 # forms it has had. Updates rerun the installs, so anything else is left alone,
-# including the escaped wrapper an exotic package name gets.
+# including symlinks and the escaped wrapper an exotic package name gets.
 omarchy_wrapper() {
   local use run package bin form
   local word='^"[^"$`\\!]*"$' nl=$'\n' args='"$@"'
 
-  [[ -f $1 ]] || return 1
+  [[ -f $1 && ! -L $1 ]] || return 1
   (($(stat -c%s "$1") <= 1024)) || return 1
 
   use=$(grep -m1 '^mise use -g ' "$1") || return 1
@@ -84,7 +84,7 @@ omarchy_wrapper() {
   return 1
 }
 
-if [[ -e $target && ! -L $target ]] && ! omarchy_wrapper "$target"; then
+if [[ -e $target || -L $target ]] && ! omarchy_wrapper "$target"; then
   echo "omarchy-mise-install: leaving $target alone, it is not a wrapper Omarchy wrote" >&2
 else
   # These tools install and upgrade on first run, so mise's release cooldown
