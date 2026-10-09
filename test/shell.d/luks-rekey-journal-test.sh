@@ -92,7 +92,8 @@ grep -q '^luks_auto_unlock_drop() {' "$tmp/unlock.sh" && grep -q '^limine_auto_u
 sed -n '/^rekey_luks() {/,/^}/p; /^run_provisioning() {/,/^}/p; /^cleanup_oem_state() {/,/^}/p
   /^platform_ready() {/,/^}/p; /^run_setup() {/,/^}/p
   /^rekey_accepts_password() {/,/^}/p' \
-  "$ROOT/bin/omarchy-provision-owner" | sed "s|/etc/|$tmp/etc/|g" >"$tmp/provision.sh"
+  "$ROOT/bin/omarchy-provision-owner" |
+  sed -e "s|/etc/|$tmp/etc/|g" -e "s|/usr/bin/omarchy-thunderbolt-authorization-admin|omarchy-thunderbolt-authorization-admin|" >"$tmp/provision.sh"
 grep -q '^run_provisioning() {' "$tmp/provision.sh" && grep -q '^run_setup() {' "$tmp/provision.sh" ||
   fail "omarchy-provision-owner defines its setup and provisioning worker"
 
@@ -240,6 +241,11 @@ setup_functions() {
   configure_hostname() { :; }
   configure_timezone() { :; }
   finalize_user() { :; }
+  # Accessory enrollment, recorded with whether the staged unlock was gone.
+  omarchy-pkg-present() { return 1; }
+  omarchy-thunderbolt-authorization-admin() {
+    if luks_staged_unlock_remains; then echo "$* early" >>"$TMP/accessories"; else echo "$*" >>"$TMP/accessories"; fi
+  }
   limine_entries_stale() {
     crash_point "re-key returned"
     [[ -e $TMP/stale ]]
@@ -329,7 +335,7 @@ slot_count() {
 fixture() {
   local format=${1:-luks2}
   rm -rf "$tmp/provisioning" "$tmp/etc" "$tmp/boot" "$tmp/log" "$tmp/output" "$tmp/trace" "$tmp/rebuilds" "$tmp/adds" "$tmp/rebuild-fail" "$tmp/kill-noop" \
-    "$tmp/prepare-fail" "$tmp/screen" "$tmp/stale" "$tmp/token-slot" "$tmp/slot-record" "$tmp/record-fail"
+    "$tmp/prepare-fail" "$tmp/screen" "$tmp/stale" "$tmp/token-slot" "$tmp/slot-record" "$tmp/record-fail" "$tmp/accessories"
   mkdir -p "$tmp/provisioning"
   chmod 755 "$tmp/provisioning"
   touch "$tmp/provisioning/pending"
@@ -468,6 +474,8 @@ for run_spec in "${matrix[@]}"; do
   fixture "$format"
   run attempt "$owner_password" || fail "$backend: uninterrupted setup completes" "$(cat "$tmp/log" "$tmp/output")"
   assert_provisioned "uninterrupted" "$owner_password"
+  [[ $(cat "$tmp/accessories" 2>/dev/null) == "owner" ]] ||
+    fail "$backend: accessories are enrolled once, after the staged unlock is gone" "$(cat "$tmp/accessories" 2>/dev/null)"
   total_steps=$(cat "$tmp/steps")
   (( total_steps >= 11 )) || fail "$backend: every durable step is a crash point" "$(cat "$tmp/trace")"
   if [[ $platform == "apple" ]]; then
