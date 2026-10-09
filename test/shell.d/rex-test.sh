@@ -172,3 +172,62 @@ rejects('%q', 'lua', 'not a Lua character class')
 assertDeepEqual(P.width(P.parse('ab?c{2,3}', 'pcre2', []).ast), { min: 3, max: 5 }, 'width counts quantified spans')
 assertDeepEqual(P.width(P.parse('a|bcd*', 'pcre2', []).ast), { min: 1, max: -1 }, 'width of an unbounded alternative is unbounded')
 JS
+
+# ---- group positions for engines without them -------------------------------
+
+run_node_test <<'JS'
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const P = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Parser.js'))
+const I = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Indices.js'))
+
+// V8's d flag knows where every group matched; the rewrite has to agree
+// with it on every match, and match exactly what the original matches.
+function agrees(pattern, text) {
+  const parsed = P.parse(pattern, 'ecmascript', [])
+  if (parsed.errors.length) return `parse error: ${parsed.errors[0].message}`
+  const { source, plan } = I.rewrite(pattern, parsed)
+  const rewritten = new RegExp(source, 'g'), reference = new RegExp(pattern, 'gd')
+  let r
+  while ((r = reference.exec(text)) !== null) {
+    const m = rewritten.exec(text)
+    if (!m) return `the rewrite ${source} misses a match`
+    const got = JSON.stringify(I.locate(m, plan, parsed.groupCount))
+    const want = JSON.stringify(r.indices.flatMap(x => x || [-1, -1]))
+    if (got !== want) return `${source} on ${JSON.stringify(text)}: ${got}, expected ${want}`
+    if (r[0] === '') { reference.lastIndex++; rewritten.lastIndex++ }
+  }
+  return rewritten.exec(text) === null ? '' : `the rewrite ${source} finds an extra match`
+}
+
+const fixed = [
+  ['(a)(a)', 'aa'], ['x(a|ab)(c|bcd)(d*)', 'xabcd'], ['(?:(a)|b)+', 'aab'], ['(a(b)?)+', 'ababa'],
+  ['(\\d+)-(?<y>\\d+)\\1', '12-34 5-6-5'], ['(a*)*b', 'aaab'], ['(?=(a+))a*b\\1', 'baaabac'],
+  ['(z)((a+)?(b+)?(c))*', 'zaacbbbcac'], ['(.)\\1{2}', 'xaaay'], ['()', 'a'], ['(?<a>.)(?<b>.)\\k<a>', 'xyx'],
+]
+for (const [pattern, text] of fixed) {
+  const problem = agrees(pattern, text)
+  if (problem) fail(`group positions for ${pattern} agree with V8`, problem)
+}
+pass('group positions agree with V8 on hand-picked patterns')
+
+// Random patterns from a small grammar, with a fixed seed.
+let seed = 12345
+const random = n => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n }
+function gen(depth) {
+  const pick = random(depth > 2 ? 4 : 9)
+  if (pick < 4) return ['a', 'b', '[ab]', '.'][random(4)]
+  if (pick === 4) return '(' + gen(depth + 1) + ')'
+  if (pick === 5) return '(?:' + gen(depth + 1) + '|' + gen(depth + 1) + ')'
+  if (pick === 6) return gen(depth + 1) + ['*', '+', '?', '{1,2}', '*?'][random(5)]
+  if (pick === 7) return '(' + gen(depth + 1) + gen(depth + 1) + ')'
+  return gen(depth + 1) + gen(depth + 1)
+}
+for (let i = 0; i < 400; i++) {
+  let pattern = gen(0)
+  if (/^[*+?{]/.test(pattern)) continue
+  const text = Array.from({ length: 12 }, () => 'abba'[random(4)]).join('')
+  const problem = agrees(pattern, text)
+  if (problem && !problem.startsWith('parse error')) fail('group positions agree with V8 on random patterns', `${pattern}: ${problem}`)
+}
+pass('group positions agree with V8 on random patterns')
+JS
