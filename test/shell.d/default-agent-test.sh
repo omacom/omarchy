@@ -165,6 +165,7 @@ grep -Fx "$crush_package" "$stub_log" >/dev/null || fail "user setup creates the
 grep -Fx "$ori_package ori" "$stub_log" >/dev/null || fail "user setup creates the Ori lazy stub"
 OMARCHY_TEST_MISSING_COMMAND=muse source "$ROOT/install/user/mise.sh"
 grep -Fx "$muse_package muse" "$stub_log" >/dev/null || fail "user setup creates the Muse lazy stub"
+grep -Fx "$dsh_package dsh" "$stub_log" >/dev/null || fail "user setup creates the DeepSeek Harness lazy stub"
 pass "user setup creates the custom agent lazy stubs"
 
 : >"$stub_log"
@@ -185,6 +186,14 @@ OMARCHY_TEST_MISSING_COMMAND=muse source "$ROOT/migrations/1788724825.sh" >/dev/
 [[ ! -s $stub_log ]] || fail "Muse migration ignores the preinstall opt-out"
 rm "$test_home/.local/state/omarchy/preinstalls-removed"
 pass "Muse migration preserves existing installs and the preinstall opt-out"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=dsh source "$ROOT/migrations/1791520761.sh" >/dev/null
+grep -Fx "$dsh_package dsh" "$stub_log" >/dev/null || fail "DeepSeek Harness migration creates its lazy stub"
+: >"$stub_log"
+source "$ROOT/migrations/1791520761.sh" >/dev/null
+[[ ! -s $stub_log ]] || fail "DeepSeek Harness migration replaces an existing command"
+pass "DeepSeek Harness migration installs the lazy stub an existing install is missing"
 
 
 : >"$stub_log"
