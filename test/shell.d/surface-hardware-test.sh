@@ -20,6 +20,16 @@ run_surface_setup() (
   uname() { [[ $1 == "-m" ]] && printf '%s\n' "$machine"; }
   omarchy-pkg-add() { printf '%s\n' "$*" >>"$scratch/packages"; }
   lsmod() { printf 'lsmod\n' >>"$scratch/probes"; }
+  # The keyboard script reads the DMI product name from sysfs, which ARM
+  # machines and containers may not have. Answer that read as an Intel Surface
+  # so the test does not depend on the host's firmware tables.
+  cat() {
+    if [[ $* == "/sys/class/dmi/id/product_name" ]]; then
+      printf 'Surface Laptop 3\n'
+    else
+      command cat "$@"
+    fi
+  }
   source "$script"
 )
 
@@ -35,5 +45,9 @@ run_surface_setup aarch64 "$keyboard_setup" >/dev/null
 run_surface_setup x86_64 "$surface_setup" >/dev/null
 [[ $(<"$scratch/packages") == "linux-firmware-marvell" ]] ||
   fail "Surface setup installs Marvell firmware on Intel Surfaces"
+
+run_surface_setup x86_64 "$keyboard_setup" >/dev/null
+[[ -e $scratch/probes ]] ||
+  fail "Surface keyboard setup probes modules on Intel Surfaces"
 
 pass "Surface hardware setup applies Intel fixes only on x86_64"
