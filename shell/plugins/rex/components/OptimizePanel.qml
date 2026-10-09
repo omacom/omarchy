@@ -46,7 +46,7 @@ Item {
     var f = findings[index]
     var id = checks[index].id
     setCheck(index, { id: id, verdict: "checking", detail: detail + "; running the tests…" })
-    rewriteTests.run("finding-" + index + "-" + generation, f.rewrite, app.flavor, app.flags, app.tests, function(results) {
+    rewriteTests.run("finding-" + index + "-" + generation, f.rewrite, app.flavor, app.flags, referenceTests, function(results) {
       if (!root.checks[index] || root.checks[index].id !== id) return
       var failed = results.filter(function(r) { return r && !r.pass }).length
       setCheck(index, failed
@@ -63,11 +63,26 @@ Item {
   }
 
   // Each rewrite runs as soon as the original's result is in.
+  // What the checks under way were started against: the original's result
+  // and the tests, so a reply is judged by the inputs it was run on.
+  property var reference: null
+  property var referenceTests: []
+
+  // Any change to what a rewrite was checked against withdraws every
+  // approval at once, before new checks start.
+  function invalidate() {
+    generation++
+    checks = ({})
+    verifyTimer.restart()
+  }
+
   function verifyAll() {
     generation++
     measures = ({})
     var next = {}
     if (!app.result.done || app.result.ok === false || app.result.id === undefined) { checks = next; return }
+    reference = { ok: true, matches: app.result.matches, stride: app.result.stride, count: app.result.count }
+    referenceTests = app.tests
     for (var i = 0; i < findings.length; i++) {
       var f = findings[i]
       if (!f.rewrite) continue
@@ -79,12 +94,12 @@ Item {
         textPath: app.textFile,
         textVersion: app.textVersion,
         all: app.all,
-        limit: 100000,
+        limit: app.matchLimit,
         parsed: Parser.parse(f.rewrite, app.flavor, app.flags),
         channel: "verify",
         keep: true,
       })
-      next[i] = { id: id, verdict: "checking", detail: "Checking on your text…" }
+      next[i] = { id: id, verdict: "checking", detail: "Checking on your text…", matches: [] }
     }
     checks = next
   }
@@ -108,36 +123,39 @@ Item {
   }
 
   Timer { id: verifyTimer; interval: 150; onTriggered: root.verifyAll() }
-  onFindingsChanged: verifyTimer.restart()
+  onFindingsChanged: invalidate()
   Connections {
     target: root.app
-    function onTestsChanged() { verifyTimer.restart() }
-  }
-  Connections {
-    target: root.app
-    function onResultChanged() { if (root.app.result.done) verifyTimer.restart() }
+    function onTestsChanged() { root.invalidate() }
+    function onResultChanged() { root.invalidate() }
+    function onTestTextChanged() { root.invalidate() }
+    function onFlagsChanged() { root.invalidate() }
+    function onFlavorChanged() { root.invalidate() }
   }
 
   Connections {
     target: root.app.engine
     function onResult(reply) {
-      if (!reply.done) return
       for (var key in root.checks) {
         var c = root.checks[key]
         if (c.id !== reply.id) continue
+        // Streaming engines send their matches in batches; gather them all.
+        for (var b = 0; b < reply.matches.length; b++) c.matches.push(reply.matches[b])
+        if (!reply.done) return
         var f = root.findings[key]
-        var result = { ok: reply.ok, matches: reply.matches, stride: reply.stride, count: reply.ok ? reply.matches.length / reply.stride : 0, error: reply.error }
+        var result = { ok: reply.ok, matches: c.matches, stride: reply.stride, count: reply.ok ? c.matches.length / reply.stride : 0, error: reply.error }
         var verdict, detail
         if (reply.ok === false) { verdict = "error"; detail = "The rewrite does not compile: " + reply.error }
         else {
-          var cmp = Compare.compare(root.app.result, result)
+          var cmp = Compare.compare(root.reference, result)
           if (cmp.verdict === "same" || (cmp.verdict === "groups" && f.changesGroups)) { verdict = "same"; detail = "The same matches on your text" + (f.changesGroups ? " (group numbers change)" : "") + (reply.elapsed !== undefined ? ", in " + root.app.formatMs(reply.elapsed) + " against " + root.app.formatMs(root.app.result.elapsed) : "") }
           else { verdict = "different"; detail = "Not the same on your text: " + cmp.detail }
         }
         root.setCheck(key, { id: c.id, verdict: verdict, detail: detail })
-        if (verdict === "same" && root.app.tests.length) root.checkTests(key, detail)
+        if (verdict === "same" && root.referenceTests.length) root.checkTests(key, detail)
         return
       }
+      if (!reply.done) return
       for (var m in root.measures) {
         var entry = root.measures[m]
         var at = entry.ids.indexOf(reply.id)

@@ -178,7 +178,7 @@ Item {
     if (result.ok === false) return "Error"
     var n = result.count
     var text = n === 1 ? "1 match" : n.toLocaleString(Qt.locale(), "f", 0) + " matches"
-    if (n >= 1000000 || (n >= 100000 && !largeText)) text += "+ (stopped counting)"
+    if (n >= matchLimit) text += "+ (stopped counting)"
     if (!result.done) return text + " so far…"
     return text + " · " + formatMs(result.elapsed)
   }
@@ -226,6 +226,9 @@ Item {
   // only lays out what is on screen.
   readonly property int largeThreshold: 65536
   readonly property bool largeText: testText.length > largeThreshold
+  // How many matches a search collects; anything that compares with the
+  // workbench's result has to collect as many.
+  readonly property int matchLimit: largeText ? 1000000 : 100000
 
   function openFile(path) {
     textFileError = ""
@@ -288,7 +291,7 @@ Item {
       textPath: textFile,
       textVersion: textVersion,
       all: all,
-      limit: largeText ? 1000000 : 100000,
+      limit: matchLimit,
       parsed: parsed,
     })
   }
