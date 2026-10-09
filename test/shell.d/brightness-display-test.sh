@@ -51,6 +51,21 @@ elif [[ $* == *" getvcp 10 "* ]]; then
 fi
 SH
 
+# The native command asks Hyprland for its monitor list over the compositor's
+# socket and falls back to hyprctl, so the focused monitor is answered here
+# rather than by a stub for the script it no longer calls.
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+case "$*" in
+  *-j*)
+    printf '[\n'
+    printf '  {"id":0,"name":"%s","focused":true,"make":"LENOVO","model":"21N9","disabled":false,"dpmsStatus":true}\n' "${FOCUSED_MONITOR:-eDP-1}"
+    printf ']\n'
+    ;;
+esac
+exit 0
+SH
+
 chmod +x "$mock_bin"/*
 
 run_brightness() {
@@ -80,10 +95,17 @@ grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 24' "$call_log" 
   fail "absolute external brightness skips write verification"
 pass "absolute external brightness reuses the cached VCP range"
 
-brightness=$(run_brightness --monitor eDP-1)
+# The native command reads the kernel node itself rather than asking
+# brightnessctl, so the fake device lives where the kernel would expose it.
+mkdir -p "$test_tmp/backlight/mock_backlight"
+printf '40\n' >"$test_tmp/backlight/mock_backlight/brightness"
+printf '100\n' >"$test_tmp/backlight/mock_backlight/max_brightness"
+
+brightness=$(OMARCHY_BACKLIGHT_PATH="$test_tmp/backlight" run_brightness --monitor eDP-1)
 [[ $brightness == "40" ]] || fail "internal monitor uses the kernel backlight" "actual: $brightness"
-grep -F 'brightnessctl -d mock_backlight -m' "$call_log" >/dev/null || \
-  fail "internal monitor queries brightnessctl"
+if grep -F 'brightnessctl -d mock_backlight -m' "$call_log" >/dev/null; then
+  fail "internal monitor reads the kernel directly"
+fi
 pass "internal monitor uses the kernel backlight"
 
 brightness=$(FOCUSED_MONITOR=DP-1 run_brightness)
