@@ -879,47 +879,24 @@ Item {
   }
 
   function rawEntryIndex(entries, name) {
-    for (var i = 0; i < entries.length; i++) {
-      if (root.entryId(entries[i]) === name) return i
-    }
-
-    return -1
+    return BarModel.entryIndex(entries, name)
   }
 
-  function moveModuleInConfig(config, fromRegion, fromName, toRegion, beforeName) {
-    var fromEntries = rawLayoutSection(config, fromRegion)
-    var toEntries = rawLayoutSection(config, toRegion)
-    var fromIndex = rawEntryIndex(fromEntries, fromName)
-    if (fromIndex < 0) return false
-
-    var toIndex = beforeName ? rawEntryIndex(toEntries, beforeName) : toEntries.length
-    if (toIndex < 0) toIndex = toEntries.length
-
-    if (fromRegion === toRegion && fromIndex === toIndex) return false
-
-    var movedEntry = fromEntries[fromIndex]
-    fromEntries.splice(fromIndex, 1)
-
-    if (fromRegion === toRegion && fromIndex < toIndex) toIndex -= 1
-    if (toIndex < 0) toIndex = 0
-    if (toIndex > toEntries.length) toIndex = toEntries.length
-    if (fromRegion === toRegion && fromIndex === toIndex) {
-      fromEntries.splice(fromIndex, 0, movedEntry)
-      return false
-    }
-
-    toEntries.splice(toIndex, 0, movedEntry)
-    return true
+  function moveModuleInConfig(config, fromRegion, fromName, toRegion, beforeName, fromIndex, toIndex) {
+    return BarModel.moveModuleInConfig(config, fromRegion, fromName, toRegion, beforeName, fromIndex, toIndex)
   }
 
-  function dropBarModule(source, toRegion, beforeName) {
+  function dropBarModule(source, toRegion, beforeName, targetSlot, afterTarget) {
     if (!source || !source.region || !source.moduleName || !toRegion) return false
-    if (source.region === toRegion && source.moduleName === beforeName) return false
     if (!root.shell || typeof root.shell.mutateShellConfig !== "function") return false
 
     var changed = false
     root.shell.mutateShellConfig(function(config) {
-      changed = moveModuleInConfig(config, source.region, source.moduleName, toRegion, beforeName)
+      var fromIndex = BarModel.rawSlotIndex(rawLayoutSection(config, source.region), layoutEntries(source.region), source.slotIndex)
+      var toIndex = targetSlot
+        ? BarModel.rawInsertIndex(rawLayoutSection(config, toRegion), layoutEntries(toRegion), targetSlot.slotIndex + (afterTarget ? 1 : 0))
+        : -1
+      changed = moveModuleInConfig(config, source.region, source.moduleName, toRegion, beforeName, fromIndex, toIndex)
     })
     return changed
   }
@@ -990,7 +967,7 @@ Item {
     if (!sourceSlot || !targetSlot) return false
 
     var beforeName = afterTarget ? nextVisibleModuleName(targetSlot.region, targetSlot.moduleName, sourceSlot) : targetSlot.moduleName
-    return dropBarModule(sourceSlot, targetSlot.region, beforeName)
+    return dropBarModule(sourceSlot, targetSlot.region, beforeName, targetSlot, afterTarget)
   }
 
   function moduleTargetClickable(target) {
@@ -1587,6 +1564,7 @@ Item {
           visible: centerRoot.hasAnchor
           entries: root.entriesBefore(centerRoot.entries, root.centerAnchor)
           region: "center"
+          indexOffset: 0
           anchors.right: centerAnchorModule.left
           anchors.verticalCenter: centerAnchorModule.verticalCenter
         }
@@ -1596,6 +1574,7 @@ Item {
           visible: centerRoot.hasAnchor
           entry: centerRoot.anchorEntry
           region: "center"
+          slotIndex: root.entryIndex(centerRoot.entries, root.centerAnchor)
           anchors.centerIn: parent
         }
 
@@ -1603,6 +1582,7 @@ Item {
           visible: centerRoot.hasAnchor
           entries: root.entriesAfter(centerRoot.entries, root.centerAnchor)
           region: "center"
+          indexOffset: root.entryIndex(centerRoot.entries, root.centerAnchor) + 1
           anchors.left: centerAnchorModule.right
           anchors.verticalCenter: centerAnchorModule.verticalCenter
         }
@@ -1639,6 +1619,7 @@ Item {
           visible: centerRoot.hasAnchor
           entries: root.entriesBefore(centerRoot.entries, root.centerAnchor)
           region: "center"
+          indexOffset: 0
           anchors.bottom: centerAnchorModule.top
           anchors.horizontalCenter: centerAnchorModule.horizontalCenter
         }
@@ -1648,6 +1629,7 @@ Item {
           visible: centerRoot.hasAnchor
           entry: centerRoot.anchorEntry
           region: "center"
+          slotIndex: root.entryIndex(centerRoot.entries, root.centerAnchor)
           anchors.centerIn: parent
         }
 
@@ -1655,6 +1637,7 @@ Item {
           visible: centerRoot.hasAnchor
           entries: root.entriesAfter(centerRoot.entries, root.centerAnchor)
           region: "center"
+          indexOffset: root.entryIndex(centerRoot.entries, root.centerAnchor) + 1
           anchors.top: centerAnchorModule.bottom
           anchors.horizontalCenter: centerAnchorModule.horizontalCenter
         }
@@ -1749,6 +1732,7 @@ Item {
 
     property var entries: []
     property string region: ""
+    property int indexOffset: 0
 
     visible: entries.length > 0
     // A hidden list must not build its modules. The center section declares
@@ -1772,8 +1756,10 @@ Item {
 
           ModuleSlot {
             required property var modelData
+            required property int index
             entry: modelData
             region: moduleListRoot.region
+            slotIndex: moduleListRoot.indexOffset + index
           }
         }
       }
@@ -1790,8 +1776,10 @@ Item {
 
           ModuleSlot {
             required property var modelData
+            required property int index
             entry: modelData
             region: moduleListRoot.region
+            slotIndex: moduleListRoot.indexOffset + index
           }
         }
       }
@@ -1803,6 +1791,7 @@ Item {
 
     required property var entry
     property string region: ""
+    property int slotIndex: -1
     readonly property string moduleName: root.entryId(entry)
     readonly property var moduleSettings: root.entrySettings(entry)
     readonly property string customType: root.customModuleType(entry)
