@@ -73,3 +73,102 @@ done
 cmp -s "$migration_home/.local/share/applications/Rex.desktop" "$ROOT/applications/Rex.desktop" ||
   fail "the migration adds Rex to Apps on existing installs"
 pass "the migration adds Rex to Apps on existing installs"
+
+# ---- parser -----------------------------------------------------------------
+
+run_node_test <<'JS'
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const P = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Parser.js'))
+const Flavors = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Flavors.js'))
+
+// A compact rendering of the AST, so expectations read like the pattern.
+function show(n) {
+  switch (n.type) {
+  case 'literal': return JSON.stringify(String.fromCodePoint(n.value))
+  case 'sequence': return '(' + n.items.map(show).join(' ') + ')'
+  case 'alternation': return '(alt ' + n.alternatives.map(show).join(' | ') + ')'
+  case 'group': return '(' + n.kind + (n.index ? '#' + n.index : '') + (n.name ? ':' + n.name : '') + ' ' + show(n.body) + ')'
+  case 'quantifier': return '{' + n.min + ',' + (n.max < 0 ? 'inf' : n.max) + ' ' + n.mode + ' ' + show(n.body) + '}'
+  case 'class': return '[' + (n.negated ? '^' : '') + n.items.map(show).join(' ') + ']'
+  case 'range': return show(n.from) + '-' + show(n.to)
+  case 'setop': return '(' + show(n.left) + ' ' + n.op + ' ' + show(n.right) + ')'
+  case 'chartype': return (n.negated ? '!' : '') + n.kind
+  case 'anchor': return '@' + n.kind
+  case 'backref': return '\\' + n.ref
+  case 'recursion': return '(?' + n.ref + ')'
+  case 'property': return (n.negated ? '!' : '') + 'p:' + n.name
+  case 'posixclass': return ':' + n.name + ':'
+  case 'quote': return 'Q' + n.items.map(show).join('')
+  default: return n.type
+  }
+}
+
+function parses(pattern, flavor, expected, flags) {
+  const r = P.parse(pattern, flavor, flags || [])
+  const errors = r.errors.map(e => e.message).join('; ')
+  if (errors) fail(`${flavor} parses ${pattern}`, errors)
+  assertEqual(show(r.ast), expected, `${flavor} parses ${pattern}`)
+}
+
+function rejects(pattern, flavor, message, span) {
+  const r = P.parse(pattern, flavor, [])
+  const e = r.errors.find(e => e.message.includes(message))
+  assert(e, `${flavor} rejects ${pattern}: ${message}`, r.errors.map(e => e.message).join('; ') || 'no errors')
+  if (span) assertDeepEqual([e.start, e.end], span, `${flavor} points at the right part of ${pattern}`)
+}
+
+for (const flavor of Flavors.FLAVORS) {
+  const r = P.parse('', flavor.id, [])
+  assert(r.ast.type === 'empty' && r.errors.length === 0, `${flavor.id} parses the empty pattern`)
+}
+
+parses('(\\d{3})-(?<x>\\w+)\\k<x>', 'pcre2', '((capture#1 {3,3 greedy digit}) "-" (named#2:x {1,inf greedy word}) \\x)')
+parses('[a-z\\d_-]+?', 'pcre2', '{1,inf lazy ["a"-"z" digit "_" "-"]}')
+parses('(?|(a)|(b))\\1', 'pcre2', '((branchReset (alt (capture#1 "a") | (capture#1 "b"))) \\1)')
+parses('\\Qa.b\\E+', 'pcre2', '(Q"a""." {1,inf greedy "b"})')
+parses('(?x) a b # comment\n c', 'pcre2', '(flags "a" "b" "c")')
+parses('(a)(?1)(?R)', 'pcre2', '((capture#1 "a") (?1) (?0))')
+parses('[[:^alpha:]]', 'pcre2', '[:alpha:]')
+parses('(?i:a)', 'node', '(flags "a")')
+parses('[\\p{L}--[a-z]]', 'node', '[([p:L] -- ["a"-"z"])]', ['v'])
+parses('[a-z&&[^aeiou]]', 'java', '[(["a"-"z"] && [^"a" "e" "i" "o" "u"])]')
+parses('(?P<n>x)(?P=n)', 'python', '((named#1:n "x") \\n)')
+parses('(?<=ab|cd)e', 'python', '((lookbehind (alt ("a" "b") | ("c" "d"))) "e")')
+parses('(?<a>x)(y)', 'dotnet', '((named#2:a "x") (capture#1 "y"))')
+parses('[a-z-[aeiou]]', 'dotnet', '[(["a"-"z"] net ["a" "e" "i" "o" "u"])]')
+parses('\\u{1F600}', 'node', '"😀"', ['u'])
+parses('\\h+', 'ruby', '{1,inf greedy hex}')
+parses('\\(a\\)\\1*', 'posix-bre', '((capture#1 "a") {0,inf greedy \\1})')
+parses('a+(b|c)?', 'posix-bre', '("a" "+" "(" "b" "|" "c" ")" "?")')
+parses('a\\{2,3\\}', 'posix-bre', '{2,3 greedy "a"}')
+parses('(a|b)+$', 'posix-ere', '({1,inf greedy (capture#1 (alt "a" | "b"))} @lineEnd)')
+parses('\\v(a|b)+\\1', 'vim', '(flags {1,inf greedy (capture#1 (alt "a" | "b"))} \\1)')
+parses('\\(foo\\)\\@<=bar\\{-1,}', 'vim', '((lookbehind (capture#1 ("f" "o" "o"))) "b" "a" {1,inf lazy "r"})')
+parses('%d+%s-(%a+)', 'lua', '({1,inf greedy digit} {0,inf lazy space} (capture#1 {1,inf greedy alpha}))')
+parses('^%b()$', 'lua', '(@start balanced @end)')
+
+rejects('(?<=a+)b', 'pcre2', 'bounded length', [0, 7])
+rejects('(?<=ab|c)d', 'python', 'same fixed length')
+rejects('(?<=a)b', 'go', 'does not support lookbehind')
+rejects('(a)\\1', 'rust', 'does not support backreferences')
+rejects('a++', 'node', 'does not support possessive quantifiers', [2, 3])
+rejects('a(?i)b', 'python', 'only accepts global flags')
+rejects('(a)\\2', 'pcre2', 'no group 2', [3, 5])
+rejects('\\k<nope>', 'pcre2', "No group is named 'nope'")
+rejects('a{3,1}', 'pcre2', 'maximum is less than its minimum')
+rejects('a{1001}', 'go', 'above 1000')
+rejects('*a', 'pcre2', 'nothing to repeat', [0, 1])
+rejects('(a', 'pcre2', 'Missing closing parenthesis')
+rejects('a)', 'pcre2', 'Unmatched closing parenthesis', [1, 2])
+rejects('[abc', 'pcre2', 'missing its closing ]')
+rejects('[z-a]', 'python', 'out of order')
+rejects('\\q', 'python', 'not a valid escape')
+rejects('(?<a>x)(?<a>y)', 'pcre2', 'already used')
+rejects('\\p{L}', 'python', 'not a valid escape')
+parses('\\p{L}', 'ecmascript', '("p" "{" "L" "}")')
+
+rejects('%q', 'lua', 'not a Lua character class')
+
+assertDeepEqual(P.width(P.parse('ab?c{2,3}', 'pcre2', []).ast), { min: 3, max: 5 }, 'width counts quantified spans')
+assertDeepEqual(P.width(P.parse('a|bcd*', 'pcre2', []).ast), { min: 1, max: -1 }, 'width of an unbounded alternative is unbounded')
+JS
