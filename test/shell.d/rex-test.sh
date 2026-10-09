@@ -581,3 +581,28 @@ assertEqual(T.evaluate(t('ab', 'group', '2', 'b'), reply([0, 2, 1, 2], 4), {}).d
 assertEqual(T.evaluate(t('ab', 'group', '1', 'a'), reply([0, 2, 1, 2], 4), {}).detail, 'group 1 is "b", not "a"', 'a wrong capture says what it got')
 assertEqual(T.normalize({ expect: 'bogus' }).expect, 'match', 'an unknown expectation falls back to "matches"')
 JS
+
+# ---- generated code -------------------------------------------------------------------
+
+# The generated code has to carry a pattern full of quotes, slashes,
+# backslashes, and sigils intact; run it in each language that is installed.
+snippet() {
+  ROOT="$ROOT" node -e '
+const { loadQmlJs } = require(process.env.ROOT + "/test/shell.d/fixtures/qml-js-loader.js")
+const C = loadQmlJs(process.env.ROOT + "/shell/plugins/rex/lib/Codegen.js")
+process.stdout.write(C.snippets(process.argv[1], process.argv[2], [], "X").find(s => s.title === "Test").code)' "$1" "$2"
+}
+code_pattern='a/b"'"'"'c\\d\$x@y#\{z\}\t'
+export REX_TEXT=$'a/b"\'c\\d$x@y#{z}\t'
+declare -A ran=()
+ran[node]=$(node -e "const text = process.env.REX_TEXT; $(snippet node "$code_pattern"); console.log(found)")
+ran[python]=$(python3 -c "import os
+text = os.environ['REX_TEXT']
+$(snippet python "$code_pattern")
+print(str(found).lower())")
+command -v perl >/dev/null && ran[perl]=$(perl -e 'my $text = $ENV{REX_TEXT};'"$(snippet perl "$code_pattern")"' print($found ? "true" : "false")')
+command -v ruby >/dev/null && ran[ruby]=$(ruby -e 'text = ENV["REX_TEXT"]'$'\n'"$(snippet ruby "$code_pattern")"$'\n''puts found')
+for language in "${!ran[@]}"; do
+  [[ ${ran[$language]} == "true" ]] || fail "generated $language code matches the pattern it was given" "${ran[$language]}"
+done
+pass "generated code carries the pattern intact in ${!ran[*]}"
