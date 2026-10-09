@@ -8,7 +8,8 @@
 // family      which grammar the parser uses: "perl" (the Perl-derived syntax
 //             nearly everything speaks), "ere" / "bre" (POSIX), "vim", "lua"
 // engine      "backtracking" or "automaton" (linear time, no backtracking)
-// worker      the worker that runs it (bin/omarchy-rex-worker <worker>)
+// worker      the worker process that runs it (bin/omarchy-rex-worker
+//             <worker>); "" for Qt's own engine in a WorkerScript
 // requires    commands that must be present for the flavor to be offered
 // units       what the engine counts offsets in: "utf16", "cp", or "byte"
 // replace     replacement-string syntax, see Replace in Codegen.js
@@ -216,7 +217,7 @@ var FLAVORS = [
     description: "Perl Compatible Regular Expressions 2 through libpcre2, the engine behind PHP's preg_* functions, grep -P, and much else. Runs JIT-compiled.",
     family: "perl",
     engine: "backtracking",
-    worker: "pcre2",
+    worker: "python",
     requires: [],
     units: "byte",
     replace: "pcre2",
@@ -511,7 +512,7 @@ var FLAVORS = [
     description: "POSIX extended regular expressions through glibc's regcomp with REG_EXTENDED: leftmost-longest matching.",
     family: "ere",
     engine: "backtracking",
-    worker: "posix",
+    worker: "python",
     requires: [],
     units: "byte",
     replace: "sed",
@@ -529,7 +530,7 @@ var FLAVORS = [
     description: "POSIX basic regular expressions through glibc's regcomp, with GNU's \\+, \\?, and \\| extensions.",
     family: "bre",
     engine: "backtracking",
-    worker: "posix",
+    worker: "python",
     requires: [],
     units: "byte",
     replace: "sed",

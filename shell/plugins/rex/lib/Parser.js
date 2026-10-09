@@ -141,6 +141,8 @@ function countGroups(src) {
 
 function parsePerl(st) {
   st.totalGroups = countGroups(st.src)
+  // Once a Ruby pattern names a group, plain parentheses stop capturing.
+  if (st.flavor.id === "ruby" && /\(\?(<[A-Za-z_]|'[A-Za-z_])/.test(st.src)) st.mode.n = true
   var ast = parseAlternation(st, 0)
   while (!st.eof()) {
     // Only a stray ) stops the top level early.

@@ -33,8 +33,8 @@ Item {
 
   property string pattern: ""
   property string testText: ""
-  property string flavor: "ecmascript"
-  property var flags: []
+  property string flavor: Flavors.DEFAULT_FLAVOR
+  property var flags: Flavors.byId(Flavors.DEFAULT_FLAVOR).defaultFlags.slice()
   property bool all: true
 
   readonly property var flavorInfo: Flavors.byId(flavor)
@@ -43,14 +43,17 @@ Item {
     .map(function(f) { return { value: f.id, label: f.name } })
 
   readonly property var parsed: Parser.parse(pattern, flavor, flags)
+  // The engine's own account of group names wins over Rex's parser.
   readonly property var groupNames: {
+    var names = result.names && Object.keys(result.names).length ? result.names : parsed.names
     var out = []
-    for (var name in parsed.names) out[parsed.names[name]] = name
+    for (var name in names) out[names[name]] = name
     return out
   }
+  readonly property int groupCount: Math.max(parsed.groupCount, result.stride / 2 - 1)
   readonly property var groupColors: {
     var out = []
-    for (var g = 0; g < Math.max(1, parsed.groupCount); g++) {
+    for (var g = 0; g < Math.max(1, groupCount); g++) {
       // Hue 0 is the accent, which already marks whole matches.
       var c = Colors.groupColor(g + 1, accent, background)
       out.push(Qt.hsla(c.h, c.s, c.l, 1))
@@ -64,11 +67,12 @@ Item {
 
   readonly property string statusText: {
     if (pattern === "") return ""
+    if (result.kind === "timeout") return "Timed out"
     if (result.ok === false) return "Error"
     var n = result.count
     var text = n === 1 ? "1 match" : n.toLocaleString(Qt.locale(), "f", 0) + " matches"
     if (!result.done) return text + " so far…"
-    return text + " · " + result.elapsed + " ms"
+    return text + " · " + formatMs(result.elapsed)
   }
 
   // The engine's own error comes first; Rex's parser explains where.
@@ -81,6 +85,14 @@ Item {
       lines.push(e.message + " (at " + e.start + ")")
     }
     return lines.join("\n")
+  }
+
+  function formatMs(ms) {
+    if (ms === undefined || ms === null) return ""
+    if (ms < 1) return ms.toFixed(2) + " ms"
+    if (ms < 10) return ms.toFixed(1) + " ms"
+    if (ms < 10000) return Math.round(ms) + " ms"
+    return (ms / 1000).toFixed(1) + " s"
   }
 
   function setFlavor(id) {
@@ -98,7 +110,12 @@ Item {
   }
 
   onPatternChanged: runTimer.restart()
-  onTestTextChanged: runTimer.restart()
+  // Workers keep the text between requests; a new version is sent again.
+  property int textVersion: 0
+  onTestTextChanged: {
+    textVersion++
+    runTimer.restart()
+  }
   onFlavorChanged: runTimer.restart()
   onFlagsChanged: runTimer.restart()
   onAllChanged: runTimer.restart()
@@ -121,6 +138,7 @@ Item {
       pattern: pattern,
       flags: flags,
       text: testText,
+      textVersion: textVersion,
       all: all,
       limit: 100000,
       parsed: parsed,
@@ -129,6 +147,7 @@ Item {
 
   Engine {
     id: engine
+    onDetectedChanged: root.run()
     onResult: function(reply) {
       if (reply.id !== root.pendingId) return
       // Slices of one search arrive in order; later ones extend the first.
@@ -140,6 +159,8 @@ Item {
         ok: reply.ok,
         done: reply.done,
         error: reply.error || "",
+        kind: reply.kind || "",
+        names: reply.names || (first ? null : root.result.names),
         matches: matches,
         stride: reply.stride,
         count: reply.ok ? matches.length / reply.stride : 0,
@@ -156,7 +177,7 @@ Item {
     try { payload = JSON.parse(payloadJson || "{}") || {} } catch (e) {}
     if (typeof payload.pattern === "string" && payload.pattern !== "") pattern = payload.pattern
     if (typeof payload.text === "string") testText = payload.text
-    if (typeof payload.flavor === "string" && engine.supports(payload.flavor)) setFlavor(payload.flavor)
+    if (typeof payload.flavor === "string") setFlavor(payload.flavor)
 
     window.visible = true
     Qt.callLater(function() { if (window.visible) workbench.focusPattern() })

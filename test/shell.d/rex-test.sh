@@ -231,3 +231,57 @@ for (let i = 0; i < 400; i++) {
 }
 pass('group positions agree with V8 on random patterns')
 JS
+
+# ---- engine workers ---------------------------------------------------------
+
+# Each case runs on the real engine. Offsets are UTF-16 code units, so the
+# accented and astral characters check every worker's conversion.
+worker_cases='[
+  ["python", "python", "(\\w)(?P<n>é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
+  ["python", "pcre2", "(\\w)(?<n>é|😀)?", ["u"], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
+  ["python", "pcre2", "x*", ["u"], "aé", [0,0,1,1,2,2]],
+  ["python", "pcre2", "(?<=é)\\w", ["u"], "aéb", [2,3]],
+  ["python", "posix-ere", "([a-z])(é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
+  ["python", "posix-bre", "\\(a\\)\\1", [], "xaay", [1,3,1,2]],
+  ["perl", "perl", "(\\w)(?<n>é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
+  ["perl", "perl", "(a)|(b)", [], "ba", [0,1,-1,-1,0,1,1,2,1,2,-1,-1]],
+  ["ruby", "ruby", "(\\w)(é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
+  ["ruby", "ruby", "(\\w)(?<n>é|😀)?", [], "aé b😀 c", [0,2,1,2,3,6,4,6,7,8,-1,-1]],
+  ["lua", "lua", "(%a)%1", [], "xaay", [1,3,1,2]],
+  ["lua", "lua", "%b()", [], "x(a(b)c)y()", [1,8,9,11]],
+  ["lua", "lua", "()é", [], "aéé", [1,2,1,1,2,3,2,2]]
+]'
+
+declare -A worker_command=([python]=python3 [perl]=perl [ruby]=ruby [lua]=lua5.1)
+for worker in python perl ruby lua; do
+  if ! command -v "${worker_command[$worker]}" >/dev/null; then
+    skip "the $worker worker reports matches in UTF-16 offsets (${worker_command[$worker]} is not installed)"
+    continue
+  fi
+  requests=$(jq -c --arg worker "$worker" 'to_entries[] | select(.value[0] == $worker) | {op: "match", id: .key, flavor: .value[1], pattern: .value[2], flags: .value[3], text: .value[4], textId: .key}' <<<"$worker_cases")
+  replies=$(OMARCHY_PATH="$ROOT" timeout 20 "$ROOT/bin/omarchy-rex-worker" "$worker" <<<"$requests")
+  while IFS= read -r reply; do
+    id=$(jq -r .id <<<"$reply")
+    expected=$(jq -c ".[$id][5]" <<<"$worker_cases")
+    actual=$(jq -c .matches <<<"$reply")
+    [[ $actual == "$expected" ]] ||
+      fail "the $worker worker reports matches in UTF-16 offsets" "$(jq -c ".[$id][1:5]" <<<"$worker_cases"): expected $expected, got $reply"
+  done <<<"$replies"
+  [[ $(grep -c . <<<"$replies") == $(grep -c . <<<"$requests") ]] || fail "the $worker worker answers every request" "$replies"
+  pass "the $worker worker reports matches in UTF-16 offsets"
+done
+
+# A pattern that would create a file if Perl ran the code inside it.
+marker="$tmpdir/perl-ran-code"
+request=$(jq -cn --arg marker "$marker" '{op: "match", id: 1, flavor: "perl", pattern: ("(?{ open(my $f, \">\", \"" + $marker + "\") })x"), flags: [], text: "x", textId: 1}')
+reply=$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-rex-worker" perl <<<"$request")
+[[ $(jq -r .ok <<<"$reply") == "false" && ! -e $marker ]] || fail "the Perl worker refuses code in patterns" "$reply"
+pass "the Perl worker refuses code in patterns"
+
+reply=$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-rex-worker" python <<<'{"op":"match","id":1,"flavor":"pcre2","pattern":"(","flags":[],"text":"x","textId":1}')
+[[ $(jq -r '.ok, .error' <<<"$reply" | tr '\n' ' ') == "false missing closing parenthesis " ]] || fail "a worker reports the engine's own error" "$reply"
+pass "a worker reports the engine's own error"
+
+reply=$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-rex-worker" python <<<'{"op":"match","id":1,"flavor":"python","pattern":"a","flags":[],"textId":9}')
+[[ $(jq -r .error <<<"$reply") == "missing-text" ]] || fail "a worker asks again for a text it does not hold" "$reply"
+pass "a worker asks again for a text it does not hold"

@@ -49,8 +49,8 @@ Item {
 
           Button {
             required property var modelData
-            text: modelData.label
-            tooltipText: modelData.description
+            text: modelData.id
+            tooltipText: modelData.label + ": " + modelData.description
             bordered: true
             selected: root.app.flags.indexOf(modelData.id) >= 0
             onClicked: root.app.toggleFlag(modelData.id)
@@ -58,7 +58,7 @@ Item {
         }
 
         Button {
-          text: root.app.all ? "All matches" : "First match"
+          text: root.app.all ? "all" : "first"
           tooltipText: "Find every match, or stop at the first"
           bordered: true
           selected: root.app.all

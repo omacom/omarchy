@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# omarchy:summary=Run one of Rex's regex engine workers, or list the flavors this machine can run
+# omarchy:args=<worker>|--flavors
+# omarchy:hidden=true
+
+WORKERS="$OMARCHY_PATH/shell/plugins/rex/workers"
+
+# Flavors whose engine is installed, one per line.
+list_flavors() {
+  echo pcre2
+  echo posix-ere
+  echo posix-bre
+  echo python
+  python3 -c 'import regex' 2>/dev/null && echo python-regex
+  omarchy-cmd-present perl && echo perl
+  omarchy-cmd-present ruby && echo ruby
+  omarchy-cmd-present lua5.1 && echo lua
+  return 0
+}
+
+case ${1:-} in
+  --flavors) list_flavors ;;
+  python) exec python3 -u "$WORKERS/rex_worker.py" ;;
+  perl) exec perl "$WORKERS/rex_worker.pl" ;;
+  ruby) exec ruby "$WORKERS/rex_worker.rb" ;;
+  lua) exec lua5.1 "$WORKERS/rex_worker.lua" ;;
+  *)
+    echo "Usage: omarchy-rex-worker <python|perl|ruby|lua>|--flavors" >&2
+    exit 1
+    ;;
+esac
