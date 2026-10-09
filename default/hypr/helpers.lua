@@ -206,6 +206,63 @@ function o.bind_toggle(keys, description, toggle, options)
   o.bind(keys, description, "omarchy-toggle-" .. toggle, options)
 end
 
+-- Bind one action to a key's press and another to its release, as for
+-- push-to-talk. Hyprland skips a plain release bind once another key or mouse
+-- button is released during the hold, or once the modifiers have changed, so
+-- typing while holding the key would never run the release. The release half
+-- here is transparent and ignores modifiers, and runs only after its own press
+-- did, so letting go of the key without the rest of the chord does nothing. It
+-- is also non-consuming: a release bind that ignores modifiers would otherwise
+-- take the key from apps whenever it is pressed with other modifiers, such as
+-- Shift+F9, or without them, such as a plain x for SUPER + X.
+function o.bind_hold(keys, press_description, press, release_description, release, options)
+  local held = false
+  press, release = command_from(press, press_description), command_from(release, release_description)
+
+  local function run(dispatcher)
+    if type(dispatcher) == "string" then
+      hl.exec_cmd(dispatcher)
+    elseif type(dispatcher) == "function" then
+      dispatcher()
+    else
+      hl.dispatch(dispatcher)
+    end
+  end
+
+  local function on_press()
+    held = true
+    run(press)
+  end
+
+  local function on_release()
+    if held then
+      held = false
+      run(release)
+    end
+  end
+
+  if type(press) == "string" then
+    o.bind_commands[on_press] = press
+  end
+  if type(release) == "string" then
+    o.bind_commands[on_release] = release
+  end
+
+  local press_options, release_options = {}, {}
+  for key, value in pairs(options or {}) do
+    press_options[key], release_options[key] = value, value
+  end
+  -- Options that change when the press half fires would break the release half.
+  for _, key in ipairs({ "repeating", "long_press", "click", "drag" }) do
+    release_options[key] = nil
+  end
+  release_options.release, release_options.transparent = true, true
+  release_options.ignore_mods, release_options.non_consuming = true, true
+
+  o.bind(keys, press_description, on_press, press_options)
+  o.bind(keys, release_description, on_release, release_options)
+end
+
 function o.notify(message)
   return "omarchy-notification-send -u low " .. shell_quote(message)
 end

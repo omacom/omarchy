@@ -198,6 +198,8 @@ yet and silently runs the packaged copy of one it has. The drop-in is validated
 with `visudo -c` before install and removed by `omarchy-dev-unlink`; unlike
 `/etc/omarchy.conf`, it takes effect without a reboot.
 
+Factory reset is an exception: it always self-elevates through `/usr/bin/omarchy-system-factory-reset` and refuses a checkout copy that differs from the installed command, including when invoked with `sudo`. Install the matching package before resetting so a newer checkout cannot silently hand off to older account-scrubbing code.
+
 ## Runtime finalization (`omarchy-provision-user`)
 
 Runs once per user. It does **not** copy `~/.config/**`, `~/.bashrc`,
@@ -267,8 +269,8 @@ first runs `omarchy-provision-user || true` so finalize catches up if it
 never ran, then handles the steps that need a running graphical session
 and/or a working user systemd instance:
 
-- `omarchy-hook-install post-update` for the three shipped hooks
-  (`install-voxtype.hook`, `setup-fingerprint.hook`, `setup-agent.hook`).
+- `omarchy-hook-install post-update` for the two shipped hooks
+  (`setup-fingerprint.hook`, `setup-agent.hook`).
 - `install/user/first-run/enable-user-units.sh` — daemon-reload, then
   `systemctl --user enable --now` the shipped user units (`bt-agent`,
   `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`,

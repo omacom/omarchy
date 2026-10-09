@@ -17,7 +17,7 @@ fi
 drop_npm_grok() {
   omarchy-cmd-present mise || return 0
   if [[ -n $(mise ls -g "$npm_grok") ]]; then
-    mise unuse -g "$npm_grok"
+    mise unuse -y -g "$npm_grok"
   fi
   if [[ -n $(mise ls -i "$npm_grok") ]]; then
     mise uninstall -y --all "$npm_grok"

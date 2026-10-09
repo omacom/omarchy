@@ -68,8 +68,6 @@ run_first_run_step() {
   fi
 }
 
-run_first_run_step "install Voxtype post-update hook" \
-  omarchy-hook-install post-update "$OMARCHY_PATH/install/user/first-run/install-voxtype.hook"
 run_first_run_step "install fingerprint setup post-update hook" \
   omarchy-hook-install post-update "$OMARCHY_PATH/install/user/first-run/setup-fingerprint.hook"
 run_first_run_step "install agent setup post-update hook" \
