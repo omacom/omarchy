@@ -140,11 +140,14 @@ function snippets(flavorId, pattern, flags, replacement) {
     var pm = perl.match
     var pf = flagLetters(flags, "imsxna")
     var setup = perl.setup
-    var sub = perl.setup === "" && rep.indexOf("'") < 0 ? "s'" + pattern + "'" + rep + "'g" + pf : "s/" + (perl.setup ? "$pattern" : slashed(pattern)) + "/" + rep.replace(/\//g, "\\/") + "/g" + pf
+    // The replacement has to interpolate ($1, \U), so the pattern comes
+    // from a quoted heredoc and the replacement sits in an s/// of its own.
+    var replaceSetup = "chomp(my $pattern = <<'PATTERN');\n" + pattern + "\nPATTERN\n"
+    var sub = "s/$pattern/" + rep.replace(/\//g, "\\/") + "/g" + pf
     return [
       { title: "Test", language: "perl", code: setup + "my $found = $text =~ " + pm + pf + ";" },
       { title: "Every match with its groups", language: "perl", code: setup + "while ($text =~ " + pm + "g" + pf + ") {\n    print \"$-[0]: $&\\n\";   # $1, $2 ... and %+ hold the groups\n}" },
-      { title: "Replace", language: "perl", code: setup + "(my $result = $text) =~ " + sub + ";" },
+      { title: "Replace", language: "perl", code: replaceSetup + "(my $result = $text) =~ " + sub + ";" },
       { title: "Split", language: "perl", code: setup + "my @parts = split " + pm + pf + ", $text;" },
     ]
   }

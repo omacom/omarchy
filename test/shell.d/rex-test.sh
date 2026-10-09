@@ -741,3 +741,13 @@ const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-load
 const C = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Codegen.js'))
 assert(C.snippets('grep-e', '-foo', [], '').every(s => s.code.includes("-e '-foo'")), 'generated grep keeps a leading - in the pattern from reading as an option')
 JS
+
+if command -v perl >/dev/null; then
+  replace_code=$(ROOT="$ROOT" node -e '
+const { loadQmlJs } = require(process.env.ROOT + "/test/shell.d/fixtures/qml-js-loader.js")
+const C = loadQmlJs(process.env.ROOT + "/shell/plugins/rex/lib/Codegen.js")
+process.stdout.write(C.snippets("perl", "(a)\x27\\$x", [], "\\U$1/X").find(s => s.title === "Replace").code)')
+  replaced=$(perl -e 'my $text = q{za'"'"'$xz};'"$replace_code"' print $result')
+  [[ $replaced == 'zA/Xz' ]] || fail "generated Perl replacements interpolate groups and case escapes" "$replaced"
+  pass "generated Perl replacements interpolate groups and case escapes"
+fi
