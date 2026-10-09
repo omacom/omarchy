@@ -537,3 +537,18 @@ assert(!find('[0-9]', 'python', 'digit-class'), "[0-9] is not \\d in Python, whe
 assertEqual(find('[0-9]', 'node', 'digit-class').rewrite, '\\d', '[0-9] is \\d in JavaScript')
 assertEqual(A.analyze('(', 'pcre2', []).length, 0, 'a pattern with errors is not reviewed')
 JS
+
+# ---- benchmarks -------------------------------------------------------------------
+
+run_node_test <<'JS'
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const B = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Bench.js'))
+assertEqual(B.median([5, 1, 3]), 3, 'the median of an odd count is the middle time')
+assertEqual(B.median([4, 1, 3, 2]), 2.5, 'the median of an even count averages the middle two')
+const ranked = B.rank([
+  { flavor: 'slow', median: 10, error: '' },
+  { flavor: 'broken', median: null, error: 'bad' },
+  { flavor: 'fast', median: 2, error: '' },
+])
+assertDeepEqual(ranked.map(r => [r.flavor, r.share]), [['fast', 0.2], ['slow', 1], ['broken', 0]], 'the fastest come first, failures last')
+JS

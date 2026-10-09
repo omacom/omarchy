@@ -176,13 +176,16 @@ Item {
         source: "workers/ecmascript.js"
         onMessage: function(reply) {
           if (reply.id !== channelScript.running) return
-          root.result(reply)
           if (!reply.done) {
+            root.result(reply)
             js.sendMessage({ op: "continue", id: reply.id })
             return
           }
+          // Finished before telling anyone, since whoever hears may send the
+          // next request at once.
           channelScript.running = 0
-          if (channelScript.queue.length) {
+          root.result(reply)
+          if (channelScript.running === 0 && channelScript.queue.length) {
             var next = channelScript.queue[0]
             channelScript.queue = channelScript.queue.slice(1)
             channelScript.start(next)

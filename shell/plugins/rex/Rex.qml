@@ -43,6 +43,7 @@ Item {
     { id: "workbench", icon: Icons.ICONS.workbench, label: "Workbench" },
     { id: "compare", icon: Icons.ICONS.compare, label: "Compare flavors" },
     { id: "debug", icon: Icons.ICONS.debug, label: "Debugger (PCRE2)" },
+    { id: "bench", icon: Icons.ICONS.bench, label: "Benchmark" },
   ]
   property string page: "workbench"
   // Pages are built the first time they are shown and kept after that.
@@ -381,6 +382,13 @@ Item {
           active: root.visited.debug === true
           visible: root.page === "debug"
           sourceComponent: DebuggerPage { app: root; visible: root.page === "debug"; focus: true }
+        }
+
+        Loader {
+          anchors.fill: parent
+          active: root.visited.bench === true
+          visible: root.page === "bench"
+          sourceComponent: BenchmarkPage { app: root }
         }
 
         Loader {
