@@ -264,6 +264,7 @@ worker_cases='[
   ["python", "sed-e", "(a(a))", [], "aa", [0,2,0,2,1,2], 2],
   ["python", "sed-e", "(b)(x)?", [], "ab", [1,2,1,2,-1,-1], 2],
   ["python", "sed-e", ".+", [], "a\u007fb\u001fc", [0,5]],
+  ["python", "sed-e", "^(a)", [], "x\na", [2,3,2,3], 1],
   ["node", "node", "(\\w)(?<n>é|😀)?", ["u"], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
   ["node", "node", "(?<=a)b(c)?", [], "ab", [1,2,-1,-1]],
   ["go", "go", "(\\w)(?P<n>é|😀)?", [], "aé b😀 c", [0,2,0,1,1,2,3,6,3,4,4,6,7,8,7,8,-1,-1]],
@@ -616,6 +617,7 @@ assert(T.evaluate(t('ab', 'group', 'n', 'b'), reply([0, 2, 1, 2], 4), { n: 1 }).
 assertEqual(T.evaluate(t('ab', 'group', '2', 'b'), reply([0, 2, 1, 2], 4), {}).detail, 'there is no group 2', 'a missing group is reported')
 assertEqual(T.evaluate(t('ab', 'group', '1', 'a'), reply([0, 2, 1, 2], 4), {}).detail, 'group 1 is "b", not "a"', 'a wrong capture says what it got')
 assertEqual(T.normalize({ expect: 'bogus' }).expect, 'match', 'an unknown expectation falls back to "matches"')
+assert(T.evaluate(t('a\t', 'group', '1', 'a\t'), { ok: true, matches: [0, 2, -2, -2], stride: 4, groupTexts: { 0: ['a\t'] } }, {}).pass, 'a capture with an unknown position is judged by its text')
 JS
 
 # ---- generated code -------------------------------------------------------------------

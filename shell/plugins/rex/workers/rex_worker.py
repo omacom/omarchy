@@ -514,19 +514,20 @@ class Posix:
     def free(self, regex):
         self.libc.regfree(regex)
 
-    def groups_at(self, regex, groups, subject, line_start, line_end, start):
+    def groups_at(self, regex, groups, buffer, line_start, line_end, start):
         """Every group's [start, end) for the match found at start within
-        one line, or None when the engine does not match there."""
+        one line, or None when the engine does not match there. buffer is a
+        ctypes copy of the whole subject, made once: the search points into
+        it at the line's start, so ^ sees the line's beginning, and nothing is
+        copied per match."""
         matches = (self.Match * (groups + 1))()
-        # REG_STARTEND searches subject[start:line_end] in place, with $
-        # matching at the line's end; copying the line for every match would
-        # make a long line quadratic.
-        matches[0].rm_so = start
-        matches[0].rm_eo = line_end
+        matches[0].rm_so = start - line_start
+        matches[0].rm_eo = line_end - line_start
         eflags = self.REG_STARTEND | (self.REG_NOTBOL if start > line_start else 0)
-        if self.libc.regexec(regex, subject, groups + 1, matches, eflags) != 0:
+        line = ctypes.c_char_p(ctypes.addressof(buffer) + line_start)
+        if self.libc.regexec(regex, line, groups + 1, matches, eflags) != 0:
             return None
-        return [(m.rm_so, m.rm_eo) if m.rm_so >= 0 else (-1, -1) for m in matches]
+        return [(m.rm_so + line_start, m.rm_eo + line_start) if m.rm_so >= 0 else (-1, -1) for m in matches]
 
     def job(self, request, text):
         libc = self.libc
@@ -710,6 +711,7 @@ def sed_job(request, text):
         # each line boundary is found once.
         line_start, line_end = 0, subject.find(b"\n")
         line_end = len(subject) if line_end < 0 else line_end
+        buffer = ctypes.create_string_buffer(subject, len(subject)) if located is not None else None
         limit = request.get("limit", 100000)
         while True:
             at = stdout.find(open_mark, index)
@@ -728,7 +730,7 @@ def sed_job(request, text):
                     line_start = line_end + 1
                     line_end = subject.find(b"\n", line_start)
                     line_end = len(subject) if line_end < 0 else line_end
-                spans = posix.groups_at(located, groups, subject, line_start, line_end, position)
+                spans = posix.groups_at(located, groups, buffer, line_start, line_end, position)
                 if spans and spans[0] != (position, position + len(whole)):
                     spans = None
             for g in range(1, groups + 1):
