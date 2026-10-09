@@ -46,8 +46,10 @@ function evaluate(test, reply, names) {
     if (index === undefined) return { pass: false, detail: "there is no group " + test.group }
     if (index * 2 >= reply.stride) return { pass: false, detail: "there is no group " + test.group }
     var gs = reply.matches[index * 2], ge = reply.matches[index * 2 + 1]
-    if (gs < 0) return { pass: false, detail: "group " + test.group + " did not take part" }
-    var got = test.text.substring(gs, ge)
+    // -2: the engine said what the group matched but not where.
+    var known = gs === -2 && reply.groupTexts && reply.groupTexts["0"] ? reply.groupTexts["0"][index - 1] : null
+    if (gs < 0 && (known === null || known === undefined)) return { pass: false, detail: "group " + test.group + " did not take part" }
+    var got = gs < 0 ? known : test.text.substring(gs, ge)
     return got === test.value
       ? { pass: true, detail: "group " + test.group + " is " + JSON.stringify(got) }
       : { pass: false, detail: "group " + test.group + " is " + JSON.stringify(got) + ", not " + JSON.stringify(test.value) }
