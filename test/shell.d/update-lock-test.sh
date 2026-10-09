@@ -60,6 +60,7 @@ for command in \
   omarchy-toggle-idle \
   pkexec \
   systemd-inhibit \
+  omarchy-update-verify-package-database \
   omarchy-update-pkg-prune \
   omarchy-update-dev \
   omarchy-update-keyring \

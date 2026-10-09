@@ -9,6 +9,9 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 stub_bin="$test_tmp/bin"
 mkdir -p "$stub_bin"
+mkdir -p "$test_tmp/database/local"
+printf '#!/bin/bash\nprintf "%%s\\n" %q\n' "$test_tmp/database" >"$stub_bin/pacman-conf"
+chmod +x "$stub_bin/pacman-conf"
 
 cat >"$stub_bin/sudo" <<'STUB'
 #!/bin/bash
