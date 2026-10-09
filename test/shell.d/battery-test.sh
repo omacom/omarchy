@@ -25,18 +25,28 @@ assertDeepEqual(
   'battery keeps low-battery notified state'
 )
 assertDeepEqual(
-  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.4, state: discharging }, true, discharging, 10, true),
+  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.4, state: discharging }, true, discharging, 10, true, true),
   { level: 40, notify: false, notifiedLowBattery: false, dismiss: true },
   'battery clears notified state after recovery'
 )
 assertDeepEqual(
-  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: charging }, false, discharging, 10, true),
+  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: charging }, false, discharging, 10, true, true),
   { level: 8, notify: false, notifiedLowBattery: false, dismiss: true },
   'battery dismisses the low-battery warning when the charger is plugged in'
 )
 assertDeepEqual(
-  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: charging }, false, discharging, 10, false),
+  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: charging }, false, discharging, 10, false, true),
+  { level: 8, notify: false, notifiedLowBattery: false, dismiss: true },
+  'battery dismisses a warning restored after a shell restart'
+)
+assertDeepEqual(
+  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: charging }, false, discharging, 10, false, false),
   { level: 8, notify: false, notifiedLowBattery: false, dismiss: false },
-  'battery has no warning to dismiss when it never warned'
+  'battery has no warning to dismiss once it was taken down'
+)
+assertDeepEqual(
+  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging }, true, discharging, 10, true, true),
+  { level: 8, notify: false, notifiedLowBattery: true, dismiss: false },
+  'battery keeps the warning while the battery is still low'
 )
 JS

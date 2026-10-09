@@ -21,6 +21,10 @@ Item {
     property bool notifiedLowBattery: false
   }
 
+  // Starts true because the notification service restores a warning from
+  // before a shell restart, which this service has no record of sending.
+  property bool warningMayBeShown: true
+
   function batteryPercentage() {
     return BatteryModel.batteryPercentage(UPower.displayDevice)
   }
@@ -30,7 +34,7 @@ Item {
   }
 
   function checkBattery() {
-    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
+    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery, warningMayBeShown)
     persisted.notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
     if (state.dismiss) dismissLowBatteryWarning()
@@ -38,6 +42,7 @@ Item {
 
   function sendLowBatteryWarning(level) {
     if (warningProcess.running) return
+    warningMayBeShown = true
     warningProcess.command = [
       "omarchy-battery-low",
       String(level)
@@ -47,6 +52,7 @@ Item {
 
   function dismissLowBatteryWarning() {
     if (dismissProcess.running) return
+    warningMayBeShown = false
     dismissProcess.command = [
       "omarchy-notification-dismiss",
       "Time to recharge"
@@ -79,7 +85,15 @@ Item {
     }
   }
 
-  Process { id: warningProcess }
+  Process {
+    id: warningProcess
+    // The charger may have been plugged in while the warning was being sent,
+    // and a dismissal that ran in the meantime found nothing to take down.
+    onExited: {
+      root.warningMayBeShown = true
+      root.checkBattery()
+    }
+  }
 
   Process { id: dismissProcess }
 
