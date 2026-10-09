@@ -27,7 +27,9 @@ fi
 # /etc/sudoers.d is root-only, so report what sudo resolves rather than reading
 # the drop-in — and say so plainly instead of guessing when there is no cached
 # credential to ask with. A missing entry here is what makes `sudo omarchy-*`
-# run the packaged copy of a command the checkout has changed.
+# run the packaged copy of a command the checkout has changed. The drop-in is
+# scoped to the user who ran `omarchy dev link`, so asking sudo as the current
+# user is also what answers whether it applies to them.
 sudo_bin_dir() {
   local resolved
 
@@ -47,7 +49,7 @@ sudo_bin_dir() {
 if (( linked )); then
   echo "dev-link: configured"
   echo "  /etc/omarchy.conf -> OMARCHY_PATH=$configured"
-  echo "  sudo resolves omarchy-* from: $(sudo_bin_dir)"
+  echo "  sudo resolves commands from: $(sudo_bin_dir) (as $(id -un))"
   echo "  status: reboot required before all session layers use this checkout"
 else
   echo "dev-link: inactive"
