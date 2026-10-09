@@ -8,7 +8,7 @@ detector="$ROOT/bin/omarchy-hw-platform"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
-for platform in apple-silicon generic-aarch64 generic; do
+for platform in aarch64-apple aarch64 x86; do
   fake_platform "$test_tmp/$platform" "$platform"
 done
 
@@ -21,8 +21,8 @@ if (( EUID != 0 )); then
 fi
 if (( EUID == 0 )) || unshare --user --map-root-user true 2>/dev/null; then
   live=$("${root_runner[@]}" "$detector") || fail "root detects the live platform"
-  [[ $live =~ ^(apple-silicon|generic-aarch64|generic)$ ]] || fail "root detects the live platform" "live: $live"
-  for platform in apple-silicon generic-aarch64 generic; do
+  [[ $live =~ ^(aarch64-apple|aarch64|x86)$ ]] || fail "root detects the live platform" "live: $live"
+  for platform in aarch64-apple aarch64 x86; do
     fixture="$test_tmp/$platform"
     if [[ -f $fixture/proc/device-tree/compatible ]]; then
       mkdir -p "$fixture/sys/firmware/devicetree/base"
@@ -41,7 +41,7 @@ fi
 
 # -p in the shebang is what keeps exported functions and BASH_ENV out, so an
 # ordinary Bash launch with a decoy -p argument is refused before it reads anything.
-for command in omarchy-hw-platform omarchy-hw-apple-silicon; do
+for command in omarchy-hw-platform omarchy-hw-aarch64-apple omarchy-hw-apple-silicon; do
   if /usr/bin/bash "$ROOT/bin/$command" -p >/dev/null 2>"$test_tmp/error"; then
     fail "$command refuses an ordinary Bash launch"
   fi
@@ -52,15 +52,15 @@ pass "the detector and the Apple predicate refuse an ordinary Bash launch with a
 require_platform_fixtures "the platform fixtures"
 
 # The three platforms every caller is written against.
-for platform in apple-silicon generic-aarch64 generic; do
+for platform in aarch64-apple aarch64 x86; do
   fixture="$test_tmp/$platform"
   actual=$(OMARCHY_PROC_ROOT="$fixture/proc" PATH="$fixture/bin:$ROOT/bin:$PATH" "$detector") ||
     fail "the $platform fixture is detected"
   [[ $actual == "$platform" ]] || fail "the $platform fixture is detected" "actual: $actual"
 
   apple_status=0
-  OMARCHY_PROC_ROOT="$fixture/proc" PATH="$fixture/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hw-apple-silicon" || apple_status=$?
-  if [[ $platform == "apple-silicon" ]]; then
+  OMARCHY_PROC_ROOT="$fixture/proc" PATH="$fixture/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hw-aarch64-apple" || apple_status=$?
+  if [[ $platform == "aarch64-apple" ]]; then
     (( apple_status == 0 )) || fail "the Apple predicate accepts the Apple fixture"
   else
     (( apple_status != 0 )) || fail "the Apple predicate rejects the $platform fixture"
@@ -70,8 +70,8 @@ done
 
 # Systemd and the shell run the predicate by absolute path with whatever PATH
 # they have; it must use the detector shipped beside it.
-fixture="$test_tmp/apple-silicon"
-OMARCHY_PROC_ROOT="$fixture/proc" PATH="$fixture/bin:/usr/bin:/bin" "$ROOT/bin/omarchy-hw-apple-silicon" ||
+fixture="$test_tmp/aarch64-apple"
+OMARCHY_PROC_ROOT="$fixture/proc" PATH="$fixture/bin:/usr/bin:/bin" "$ROOT/bin/omarchy-hw-aarch64-apple" ||
   fail "the Apple predicate finds its detector without Omarchy on PATH"
 pass "the Apple predicate finds its detector without Omarchy on PATH"
 
@@ -129,36 +129,36 @@ write_tree yoga-slim7x proc lenovo,yoga-slim7x qcom,x1e80100
 write_tree xps13-9345 proc dell,xps13-9345 qcom,x1e80100
 write_tree t14s proc lenovo,thinkpad-t14s qcom,x1e78100 qcom,x1e80100
 for board in m1-pro m2-max m1-mini; do
-  expect "$board" aarch64 apple-silicon "the $board device tree is Apple Silicon"
+  expect "$board" aarch64 aarch64-apple "the $board device tree is Apple Silicon"
 done
 for board in yoga-slim7x xps13-9345 t14s; do
-  expect "$board" aarch64 generic-aarch64 "the $board device tree is generic aarch64, never Apple Silicon"
+  expect "$board" aarch64 aarch64 "the $board device tree is plain aarch64, never Apple Silicon"
 done
 pass "real Apple and Snapdragon device trees are recognised"
 
 write_tree qemu-virt proc linux,dummy-virt
 write_tree raspberry-pi proc raspberrypi,5-model-b brcm,bcm2712
 mkdir -p "$test_tmp/cases/acpi/proc" "$test_tmp/cases/acpi/sys"
-expect qemu-virt aarch64 generic-aarch64 "a QEMU virt board is generic aarch64"
-expect raspberry-pi aarch64 generic-aarch64 "a Raspberry Pi is generic aarch64"
-expect acpi aarch64 generic-aarch64 "an aarch64 machine without a device tree is generic aarch64"
-expect acpi x86_64 generic "an x86 machine without a device tree is generic"
-pass "unknown aarch64 and x86 machines are generic"
+expect qemu-virt aarch64 aarch64 "a QEMU virt board is plain aarch64"
+expect raspberry-pi aarch64 aarch64 "a Raspberry Pi is plain aarch64"
+expect acpi aarch64 aarch64 "an aarch64 machine without a device tree is plain aarch64"
+expect acpi x86_64 x86 "an x86 machine without a device tree is x86"
+pass "unknown aarch64 and x86 machines need no family"
 
 # Only a token's vendor prefix identifies the board; the old detector matched
 # "apple," anywhere in the file.
 write_tree substring proc pineapple,board acmeqcom,soc vendor,apple,x vendor,qcom,y
-expect substring aarch64 generic-aarch64 "vendor names inside other tokens do not identify the board"
+expect substring aarch64 aarch64 "vendor names inside other tokens do not identify the board"
 pass "only a token's vendor prefix identifies the board"
 
 # /proc/device-tree is a link into sysfs; read sysfs when it is missing.
 write_tree sysfs-qualcomm sys lenovo,yoga-slim7x qcom,x1e80100
 write_tree sysfs-apple sys apple,j314s apple,t6000 apple,arm-platform
-expect sysfs-qualcomm aarch64 generic-aarch64 "sysfs reads a Snapdragon tree without /proc/device-tree"
-expect sysfs-apple aarch64 apple-silicon "sysfs identifies Apple Silicon without /proc/device-tree"
+expect sysfs-qualcomm aarch64 aarch64 "sysfs reads a Snapdragon tree without /proc/device-tree"
+expect sysfs-apple aarch64 aarch64-apple "sysfs identifies Apple Silicon without /proc/device-tree"
 write_tree agree proc apple,j314s apple,t6000 apple,arm-platform
 write_tree agree sys apple,j314s apple,t6000 apple,arm-platform
-expect agree aarch64 apple-silicon "matching proc and sysfs trees agree"
+expect agree aarch64 aarch64-apple "matching proc and sysfs trees agree"
 pass "sysfs is the fallback for the device tree"
 
 write_tree both-vendors proc apple,j314s qcom,x1e80100
@@ -172,7 +172,7 @@ expect_contradiction vendor-vs-none aarch64 "proc naming Apple while sysfs names
 expect_contradiction m1-pro x86_64 "an Apple device tree on an x86 CPU fails"
 expect_contradiction yoga-slim7x x86_64 "a Qualcomm device tree on an x86 CPU fails"
 if TEST_ARCH=x86_64 OMARCHY_PROC_ROOT="$test_tmp/cases/m1-pro/proc" PATH="$stub_bin:$ROOT/bin:$PATH" \
-  "$ROOT/bin/omarchy-hw-apple-silicon" 2>/dev/null; then
+  "$ROOT/bin/omarchy-hw-aarch64-apple" 2>/dev/null; then
   fail "the Apple predicate fails closed on contradictory identity"
 fi
 pass "contradictory identity fails with an explanation"

@@ -53,7 +53,7 @@ SH
 chmod +x "$stub_bin"/*
 export LEAF_CALLS="$test_tmp/leaf-calls" REBUILDS="$test_tmp/rebuilds"
 
-fake_platform "$test_tmp/hw" apple-silicon
+fake_platform "$test_tmp/hw" aarch64-apple
 base_path="$test_tmp/hw/bin:$stub_bin:$ROOT/bin:/usr/local/bin:/usr/bin:/bin"
 
 # An Omarchy tree whose hardware setup is three leaves that log their runs.
@@ -92,7 +92,7 @@ new_root() {
 }
 
 write_manifest() {
-  local root=$1 body=${2:-$'format=1\nplatform=apple-silicon\n'}
+  local root=$1 body=${2:-$'format=1\nplatform=aarch64-apple\n'}
   mkdir -p "$root/var/lib/omarchy/image"
   chmod 0755 "$root/var/lib/omarchy/image"
   printf '%s' "$body" >"$root/var/lib/omarchy/image/target"
@@ -133,7 +133,7 @@ $expected
 queued:
 $(queue_of "$root")"
 [[ ! -e $LEAF_CALLS ]] || fail "an image build runs no hardware leaf" "$(cat "$LEAF_CALLS")"
-[[ $output == *"Image build for apple-silicon: deferred $(wc -l <<<"$expected") hardware steps to first boot"* ]] ||
+[[ $output == *"Image build for aarch64-apple: deferred $(wc -l <<<"$expected") hardware steps to first boot"* ]] ||
   fail "an image build reports what it deferred" "$output"
 pass "an image build queues every hardware leaf in order and runs none of them"
 
@@ -199,7 +199,7 @@ check_refused() {
 }
 
 root=$(new_root format)
-write_manifest "$root" $'format=2\nplatform=apple-silicon\n'
+write_manifest "$root" $'format=2\nplatform=aarch64-apple\n'
 check_refused "a manifest of an unknown format" "$root"
 
 root=$(new_root platform)
@@ -238,7 +238,7 @@ build "$root" >/dev/null || fail "the fixture image builds"
 output=$(first_boot "$root") || fail "the first boot finishes the deferred hardware setup" "$output"
 [[ $(cat "$RUNS") == $'a user= path='"$fixture"$'\nb\nc' ]] ||
   fail "the first boot runs each deferred leaf once, in order, with no install user" "$(cat "$RUNS")"
-[[ $output == *"First boot of an image built for apple-silicon, on apple-silicon hardware"* ]] ||
+[[ $output == *"First boot of an image built for aarch64-apple, on aarch64-apple hardware"* ]] ||
   fail "the first boot reports the image target and the live platform" "$output"
 [[ ! -e $root/var/lib/omarchy/image/target && -f $root/var/lib/omarchy/image/target.booted ]] ||
   fail "the first boot retires the build manifest"
@@ -260,8 +260,8 @@ pass "running the first-boot hardware setup again does nothing"
 
 # The live platform is asked once the manifest is retired, so it is the
 # hardware's even where the detector cannot tell a booted root (this fixture
-# runs no systemd): an Apple Silicon image booted in a VM reports generic aarch64.
-fake_platform "$test_tmp/vm" generic-aarch64
+# runs no systemd): an Apple Silicon image booted in a VM reports plain aarch64.
+fake_platform "$test_tmp/vm" aarch64
 reset_logs
 root=$(new_root vm)
 write_manifest "$root"
@@ -269,7 +269,7 @@ build "$root" >/dev/null || fail "the fixture image builds for a VM boot"
 output=$(OMARCHY_IMAGE_ROOT="$root" OMARCHY_PATH="$fixture" OMARCHY_PROC_ROOT="$test_tmp/vm/proc" \
   PATH="$test_tmp/vm/bin:$stub_bin:$ROOT/bin:/usr/local/bin:/usr/bin:/bin" "$ROOT/bin/omarchy-provision-hardware") ||
   fail "the first boot on other hardware finishes" "$output"
-[[ $output == *"First boot of an image built for apple-silicon, on generic-aarch64 hardware"* ]] ||
+[[ $output == *"First boot of an image built for aarch64-apple, on aarch64 hardware"* ]] ||
   fail "the first boot reports the hardware it runs on, not the image target" "$output"
 pass "the first boot reports the hardware it runs on, not the image target"
 
@@ -360,7 +360,7 @@ pass "a step that only changed module options gets the rebuild"
 
 # --- The pacman keyring -------------------------------------------------------
 
-# Install finalization makes the pacman keyring on generic aarch64.
+# Install finalization makes the pacman keyring on plain aarch64.
 # An image build asks for it instead, so every machine flashed from the image
 # makes its own master key on its first boot, before any step installs a package.
 keyring_bin="$test_tmp/keyring-bin"
@@ -395,7 +395,7 @@ keyring_boot() {
     PATH="$keyring_bin:$base_path" "$ROOT/bin/omarchy-provision-hardware"
 }
 
-for platform in generic-aarch64; do
+for platform in aarch64; do
   rm -f "$KEYRING"
   root=$(new_root "install-$platform")
   finalize "$root" "$platform" || fail "$platform: install finalization succeeds"
@@ -412,7 +412,7 @@ for platform in generic-aarch64; do
     fail "$platform: an image build makes no pacman keyring" "$(cat "$KEYRING")"
   [[ -f $root/$request ]] || fail "$platform: an image build asks its first boot for the keyring"
 done
-for platform in apple-silicon generic; do
+for platform in aarch64-apple x86; do
   rm -f "$KEYRING"
   root=$(new_root "image-$platform")
   write_manifest "$root" $'format=1\nplatform='"$platform"$'\n'
@@ -421,11 +421,11 @@ for platform in apple-silicon generic; do
   finalize "$(new_root "install-$platform")" "$platform" || fail "$platform: install finalization succeeds"
   [[ ! -e $KEYRING && ! -e $root/$request ]] || fail "$platform: finalization leaves the keyring alone" "$(cat "$KEYRING" 2>/dev/null)"
 done
-pass "an image build on generic aarch64 leaves the pacman keyring to the first boot"
+pass "an image build on plain aarch64 leaves the pacman keyring to the first boot"
 
 reset_logs
 rm -f "$KEYRING"
-root=$(new_root image-apple-silicon)
+root=$(new_root image-aarch64-apple)
 write_manifest "$root"
 build "$root" >/dev/null || fail "the Mac fixture image builds"
 keyring_boot "$root" >/dev/null || fail "a Mac image's first boot finishes"
@@ -433,7 +433,7 @@ keyring_boot "$root" >/dev/null || fail "a Mac image's first boot finishes"
 pass "a first boot nobody asked for a keyring leaves the keyring alone"
 
 reset_logs
-root=$test_tmp/root-image-generic-aarch64
+root=$test_tmp/root-image-aarch64
 mkdir -p "$root/etc/pacman.d/gnupg"
 touch "$root/etc/pacman.d/gnupg/build-master-key" "$KEYRING_FAIL"
 status=0

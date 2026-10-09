@@ -1,5 +1,5 @@
 # Apple Silicon additions, composed after omarchy-base.packages and
-# omarchy-aarch64.packages (omarchy-pkg-defaults apple-silicon); never on Intel
+# omarchy-aarch64.packages (omarchy-pkg-defaults aarch64-apple); never on Intel
 # Macs or other aarch64 machines. The kernel and boot chain come with the
 # Mac's image, as the kernel and bootloader do from the ISO on x86_64. What a
 # Mac cannot work without (its speaker stack, audio server and GPU driver)

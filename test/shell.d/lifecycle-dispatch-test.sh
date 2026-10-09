@@ -11,12 +11,12 @@ trap 'rm -rf "$tmp"' EXIT
 operations=(provision-prepare provision-commit provision-verify reset-prepare reset-verify reset-commit reset-rollback update-verify update-takeover luks-slots setup-boot)
 apple_optional=()
 
-for platform in apple-silicon generic-aarch64 generic; do
+for platform in aarch64-apple aarch64 x86; do
   fake_platform "$tmp/$platform" "$platform"
 done
 mkdir -p "$tmp/contradiction/proc/device-tree"
 printf '%s\0' apple,j416c qcom,x1e80100 >"$tmp/contradiction/proc/device-tree/compatible"
-cp -r "$tmp/apple-silicon/bin" "$tmp/contradiction/bin"
+cp -r "$tmp/aarch64-apple/bin" "$tmp/contradiction/bin"
 
 # A root-owned directory of entrypoints stands in for the boot package; in a
 # fixture root the caller's own files count as root's.
@@ -61,10 +61,10 @@ install_implementation "$full"
 empty=$tmp/empty
 mkdir -p "$empty"
 
-# x86 and generic aarch64 register no boot package: every operation
+# x86 and plain aarch64 register no boot package: every operation
 # is a no-op there, even with Mac entrypoints on disk that would fail.
 echo 9 >"$tmp/fail-with"
-for platform in generic generic-aarch64; do
+for platform in x86 aarch64; do
   for operation in "${operations[@]}"; do
     rm -f "$tmp/ran"
     output=$(on "$platform" "$full" "$operation" --flag 2>&1) || fail "$platform: $operation is a no-op" "$output"
@@ -81,17 +81,17 @@ rm -f "$tmp/fail-with"
 export CALLER_SECRET=leak
 for operation in "${operations[@]}"; do
   rm -f "$tmp/ran"
-  on apple-silicon "$full" "$operation" first "second arg" || fail "apple: $operation runs its entrypoint"
+  on aarch64-apple "$full" "$operation" first "second arg" || fail "apple: $operation runs its entrypoint"
   [[ $(cat "$tmp/ran") == "$operation first second\\ arg" ]] || fail "apple: $operation passes its arguments" "$(cat "$tmp/ran")"
   ! grep -q CALLER_SECRET "$tmp/env" || fail "apple: $operation does not pass the caller's environment" "$(cat "$tmp/env")"
   grep -qx 'PATH=/usr/local/sbin:/usr/local/bin:/usr/bin' "$tmp/env" || fail "apple: $operation runs with a fixed PATH" "$(cat "$tmp/env")"
-  resolved=$(on apple-silicon "$full" --resolve "$operation") || fail "apple: $operation resolves"
+  resolved=$(on aarch64-apple "$full" --resolve "$operation") || fail "apple: $operation resolves"
   [[ $resolved == "$full/$implementation/$operation" ]] || fail "apple: $operation resolves to its entrypoint" "$resolved"
 done
 unset CALLER_SECRET
 echo 7 >"$tmp/fail-with"
 status=0
-on apple-silicon "$full" provision-commit || status=$?
+on aarch64-apple "$full" provision-commit || status=$?
 (( status == 7 )) || fail "apple: the entrypoint's exit status is the dispatcher's" "status: $status"
 rm -f "$tmp/fail-with"
 pass "apple: each operation runs the boot package's entrypoint with its arguments and status"
@@ -100,17 +100,17 @@ pass "apple: each operation runs the boot package's entrypoint with its argument
 # and entrypoint; optional ones are no-ops.
 for operation in "${operations[@]}"; do
   status=0
-  output=$(on apple-silicon "$empty" "$operation" 2>&1) || status=$?
+  output=$(on aarch64-apple "$empty" "$operation" 2>&1) || status=$?
   if [[ " ${apple_optional[*]} " == *" $operation "* ]]; then
     (( status == 0 )) && [[ -z $output ]] || fail "apple: optional $operation is a no-op without the boot package" "$output"
-    output=$(on apple-silicon "$empty" --resolve "$operation" 2>&1) && [[ -z $output ]] ||
+    output=$(on aarch64-apple "$empty" --resolve "$operation" 2>&1) && [[ -z $output ]] ||
       fail "apple: optional $operation resolves to nothing without the boot package" "$output"
   else
     (( status == 3 )) || fail "apple: required $operation fails with status 3 without the boot package" "status: $status"
-    [[ $output == "Error: $operation on apple-silicon needs omarchy-mac-boot, which provides /usr/lib/omarchy/mac-boot/$operation; it is not installed" ]] ||
+    [[ $output == "Error: $operation on aarch64-apple needs omarchy-mac-boot, which provides /usr/lib/omarchy/mac-boot/$operation; it is not installed" ]] ||
       fail "apple: required $operation names the missing package and entrypoint" "$output"
     status=0
-    on apple-silicon "$empty" --resolve "$operation" >/dev/null 2>&1 || status=$?
+    on aarch64-apple "$empty" --resolve "$operation" >/dev/null 2>&1 || status=$?
     (( status == 3 )) || fail "apple: required $operation does not resolve without the boot package" "status: $status"
   fi
 done
@@ -123,8 +123,8 @@ mkdir -p "$older/usr/lib/omarchy/mac-boot" "$older/var/lib/pacman/local/omarchy-
 for operation in "${operations[@]}"; do
   [[ " ${apple_optional[*]} " == *" $operation "* ]] && continue
   status=0
-  output=$(on apple-silicon "$older" "$operation" 2>&1) || status=$?
-  (( status == 1 )) && [[ $output == "Error: $operation on apple-silicon needs /usr/lib/omarchy/mac-boot/$operation, which omarchy-mac-boot 20260921-10 does not provide; update omarchy-mac-boot" ]] ||
+  output=$(on aarch64-apple "$older" "$operation" 2>&1) || status=$?
+  (( status == 1 )) && [[ $output == "Error: $operation on aarch64-apple needs /usr/lib/omarchy/mac-boot/$operation, which omarchy-mac-boot 20260921-10 does not provide; update omarchy-mac-boot" ]] ||
     fail "apple: an omarchy-mac-boot without $operation is named with its version" "status $status: $output"
 done
 pass "apple: an installed omarchy-mac-boot that lacks a required operation fails asking for its update"
@@ -133,12 +133,12 @@ pass "apple: an installed omarchy-mac-boot that lacks a required operation fails
 untrusted() {
   local description=$1 operation=$2
   rm -f "$tmp/ran"
-  if output=$(on apple-silicon "$full" "$operation" 2>&1); then
+  if output=$(on aarch64-apple "$full" "$operation" 2>&1); then
     fail "apple: $description is refused"
   fi
   [[ ! -e $tmp/ran ]] || fail "apple: $description never runs"
   [[ $output == *"refusing /usr/lib/omarchy/mac-boot/$operation"* ]] || fail "apple: $description is named" "$output"
-  if on apple-silicon "$full" --resolve "$operation" >/dev/null 2>&1; then
+  if on aarch64-apple "$full" --resolve "$operation" >/dev/null 2>&1; then
     fail "apple: $description does not resolve"
   fi
 }
@@ -175,12 +175,12 @@ install_implementation "$full"
 for arguments in "" "unknown-operation" "--resolve" "--resolve unknown-operation"; do
   rm -f "$tmp/ran"
   status=0
-  output=$(on apple-silicon "$full" $arguments 2>&1) || status=$?
+  output=$(on aarch64-apple "$full" $arguments 2>&1) || status=$?
   (( status == 2 )) && [[ $output == Usage:* ]] || fail "'$arguments' is a usage error" "status $status: $output"
   [[ ! -e $tmp/ran ]] || fail "'$arguments' runs nothing"
 done
 status=0
-output=$(on apple-silicon "$full" "provision-prepare provision-commit" 2>&1) || status=$?
+output=$(on aarch64-apple "$full" "provision-prepare provision-commit" 2>&1) || status=$?
 (( status == 2 )) && [[ ! -e $tmp/ran ]] || fail "two operation names in one argument are a usage error" "status $status: $output"
 pass "an operation outside the fixed set is a usage error"
 
@@ -193,7 +193,7 @@ fi
 pass "an undetermined platform fails closed"
 
 rm -f "$tmp/ran"
-if output=$(cd "$tmp" && on apple-silicon full provision-commit 2>&1); then
+if output=$(cd "$tmp" && on aarch64-apple full provision-commit 2>&1); then
   fail "a relative fixture root is refused"
 fi
 [[ ! -e $tmp/ran && $output == "Error: OMARCHY_LIFECYCLE_ROOT must be an absolute path" ]] ||
@@ -206,7 +206,7 @@ pass "a relative fixture root is refused"
 if unshare --user --map-root-user true 2>/dev/null; then
   mkdir -p "$tmp/rootbin"
   cp "$dispatch" "$tmp/rootbin/"
-  printf '#!/bin/bash\necho apple-silicon\n' >"$tmp/rootbin/omarchy-hw-platform"
+  printf '#!/bin/bash\necho aarch64-apple\n' >"$tmp/rootbin/omarchy-hw-platform"
   chmod +x "$tmp/rootbin/omarchy-hw-platform"
   rm -f "$tmp/ran"
   status=0
@@ -257,7 +257,7 @@ rm -rf "$boot_only"
 install_setup "$boot_only" "$implementation"
 
 echo 9 >"$tmp/fail-with"
-for platform in generic generic-aarch64; do
+for platform in x86 aarch64; do
   for operation in "${setup_operations[@]}"; do
     rm -f "$tmp/ran"
     output=$(on "$platform" "$with_mac" "$operation" 2>&1) && [[ -z $output && ! -e $tmp/ran ]] ||
@@ -267,15 +267,15 @@ for platform in generic generic-aarch64; do
   done
 done
 rm -f "$tmp/fail-with"
-pass "x86 and generic aarch64: setup and app-install operations are no-ops, even with Mac entrypoints on disk"
+pass "x86 and plain aarch64: setup and app-install operations are no-ops, even with Mac entrypoints on disk"
 
 for operation in "${setup_operations[@]}"; do
   rm -f "$tmp/ran"
-  resolved=$(on apple-silicon "$with_mac" --resolve "$operation") && [[ $resolved == "$with_mac/$setup_implementation/$operation" ]] ||
+  resolved=$(on aarch64-apple "$with_mac" --resolve "$operation") && [[ $resolved == "$with_mac/$setup_implementation/$operation" ]] ||
     fail "apple: $operation resolves to omarchy-mac's entrypoint" "$resolved"
-  output=$(on apple-silicon "$empty" "$operation" 2>&1) && [[ -z $output ]] ||
+  output=$(on aarch64-apple "$empty" "$operation" 2>&1) && [[ -z $output ]] ||
     fail "apple: $operation is a no-op without omarchy-mac" "$output"
-  output=$(on apple-silicon "$boot_only" "$operation" 2>&1) && [[ -z $output && ! -e $tmp/ran ]] ||
+  output=$(on aarch64-apple "$boot_only" "$operation" 2>&1) && [[ -z $output && ! -e $tmp/ran ]] ||
     fail "apple: $operation never runs from omarchy-mac-boot's directory" "$output"
 done
 pass "apple: setup and the app-install hooks resolve in omarchy-mac's directory, and are no-ops without omarchy-mac"
@@ -283,8 +283,8 @@ pass "apple: setup and the app-install hooks resolve in omarchy-mac's directory,
 session=(CALLER_SECRET=leak HOME=/home/owner USER=owner XDG_RUNTIME_DIR=/run/user/1000 XDG_CONFIG_HOME=/home/owner/.cfg
   XDG_STATE_HOME=/home/owner/.st XDG_DATA_HOME=/home/owner/.data DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus OMARCHY_PATH=/usr/share/omarchy)
 rm -f "$tmp/ran"
-env -u WAYLAND_DISPLAY "${session[@]}" OMARCHY_PROC_ROOT="$tmp/apple-silicon/proc" OMARCHY_LIFECYCLE_ROOT="$with_mac" \
-  PATH="$tmp/apple-silicon/bin:$PATH" "$dispatch" setup-system image-first-boot || fail "apple: setup-system runs"
+env -u WAYLAND_DISPLAY "${session[@]}" OMARCHY_PROC_ROOT="$tmp/aarch64-apple/proc" OMARCHY_LIFECYCLE_ROOT="$with_mac" \
+  PATH="$tmp/aarch64-apple/bin:$PATH" "$dispatch" setup-system image-first-boot || fail "apple: setup-system runs"
 [[ $(cat "$tmp/ran") == "setup-system image-first-boot" ]] || fail "apple: setup-system gets its argument" "$(cat "$tmp/ran")"
 [[ $(grep -Ev '^(_|PWD|OLDPWD|SHLVL)=' "$tmp/env" | sort) == "PATH=/usr/local/sbin:/usr/local/bin:/usr/bin" ]] ||
   fail "apple: setup-system gets PATH alone" "$(cat "$tmp/env")"
@@ -292,22 +292,22 @@ expected=$(printf '%s\n' DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus H
   PATH=/usr/local/sbin:/usr/local/bin:/usr/bin USER=owner XDG_CONFIG_HOME=/home/owner/.cfg XDG_RUNTIME_DIR=/run/user/1000 XDG_STATE_HOME=/home/owner/.st)
 for invocation in "setup-user" "post-install steam" "pre-remove steam"; do
   rm -f "$tmp/ran"
-  env -u WAYLAND_DISPLAY "${session[@]}" OMARCHY_PROC_ROOT="$tmp/apple-silicon/proc" OMARCHY_LIFECYCLE_ROOT="$with_mac" \
-    PATH="$tmp/apple-silicon/bin:$PATH" "$dispatch" $invocation || fail "apple: $invocation runs"
+  env -u WAYLAND_DISPLAY "${session[@]}" OMARCHY_PROC_ROOT="$tmp/aarch64-apple/proc" OMARCHY_LIFECYCLE_ROOT="$with_mac" \
+    PATH="$tmp/aarch64-apple/bin:$PATH" "$dispatch" $invocation || fail "apple: $invocation runs"
   [[ $(cat "$tmp/ran") == "$invocation" ]] || fail "apple: $invocation runs its entrypoint with its argument" "$(cat "$tmp/ran")"
   [[ $(grep -Ev '^(_|PWD|OLDPWD|SHLVL)=' "$tmp/env" | sort) == "$expected" ]] ||
     fail "apple: $invocation gets the user's home and session, and nothing else" "$(cat "$tmp/env")"
 done
 echo 3 >"$tmp/fail-with"
 status=0
-on apple-silicon "$with_mac" setup-user || status=$?
+on aarch64-apple "$with_mac" setup-user || status=$?
 (( status == 3 )) || fail "apple: a setup entrypoint's own status 3 passes through" "status $status"
 rm -f "$tmp/fail-with"
 pass "apple: setup-system gets PATH alone and the user operations the user's home and session, with the entrypoint's status"
 
 chmod o+w "$with_mac/$setup_implementation/setup-user"
 rm -f "$tmp/ran"
-if output=$(on apple-silicon "$with_mac" setup-user 2>&1); then
+if output=$(on aarch64-apple "$with_mac" setup-user 2>&1); then
   fail "apple: a world-writable setup entrypoint is refused"
 fi
 [[ ! -e $tmp/ran && $output == *"refusing /usr/lib/omarchy/mac/setup-user"* ]] ||
@@ -319,7 +319,7 @@ pass "apple: a setup entrypoint that fails the trust rules never runs"
 # installer run with sudo still finishes elsewhere. As root the dispatcher runs
 # the detector beside it, so each platform gets a copy beside a stub.
 if unshare --user --map-root-user true 2>/dev/null; then
-  for platform in apple-silicon generic generic-aarch64; do
+  for platform in aarch64-apple x86 aarch64; do
     mkdir -p "$tmp/root-$platform"
     cp "$dispatch" "$tmp/root-$platform/"
     printf '#!/bin/bash\necho %s\n' "$platform" >"$tmp/root-$platform/omarchy-hw-platform"
@@ -331,7 +331,7 @@ if unshare --user --map-root-user true 2>/dev/null; then
         output=$(OMARCHY_LIFECYCLE_ROOT="$with_mac" unshare --user --map-root-user \
           "$tmp/root-$platform/omarchy-lifecycle-dispatch" $arguments 2>&1) || status=$?
         [[ ! -e $tmp/ran ]] || fail "$platform: root never runs '$arguments'"
-        if [[ $platform == "apple-silicon" ]]; then
+        if [[ $platform == "aarch64-apple" ]]; then
           (( status == 1 )) && [[ $output == "Error: $operation runs as the user, never as root" ]] ||
             fail "apple: root is refused '$arguments'" "status $status: $output"
         else

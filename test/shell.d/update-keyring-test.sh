@@ -59,7 +59,7 @@ SH
 chmod +x "$stub_bin/omarchy-pkg-missing"
 
 # KEYRING_TEST_ARM=1: Arch Linux ARM's keyring is installed.
-# KEYRING_TEST_PLATFORM: the platform (default generic).
+# KEYRING_TEST_PLATFORM: the platform (default x86).
 cat >"$stub_bin/omarchy-pkg-present" <<'SH'
 #!/bin/bash
 
@@ -70,7 +70,7 @@ chmod +x "$stub_bin/omarchy-pkg-present"
 cat >"$stub_bin/omarchy-hw-platform" <<'SH'
 #!/bin/bash
 
-echo "${KEYRING_TEST_PLATFORM:-generic}"
+echo "${KEYRING_TEST_PLATFORM:-x86}"
 SH
 chmod +x "$stub_bin/omarchy-hw-platform"
 
@@ -111,7 +111,7 @@ pass "update-keyring still reinstalls archlinux-keyring"
 # An aarch64 machine keeps Arch Linux ARM's keyring current alongside Arch's.
 : >"$log_file"
 rm -f "$test_tmp/list-calls"
-for platform in apple-silicon generic-aarch64; do
+for platform in aarch64-apple aarch64; do
   : >"$log_file"
   rm -f "$test_tmp/list-calls"
   KEYRING_TEST_ARM=1 KEYRING_TEST_PLATFORM=$platform run_keyring >"$test_tmp/arm.out"
@@ -131,7 +131,7 @@ printf '%s\n' '# Asahi' '' asahi-alarm-keyring archlinuxarm-keyring other-keyrin
 printf 'asahi-alarm-keyring' >>"$platform_keyrings"
 : >"$log_file"
 rm -f "$test_tmp/list-calls"
-KEYRING_TEST_ARM=1 KEYRING_TEST_PLATFORM=apple-silicon KEYRING_TEST_INSTALLED=asahi-alarm-keyring run_keyring >"$test_tmp/platform.out"
+KEYRING_TEST_ARM=1 KEYRING_TEST_PLATFORM=aarch64-apple KEYRING_TEST_INSTALLED=asahi-alarm-keyring run_keyring >"$test_tmp/platform.out"
 grep -Eq $'^sudo\tpacman\t-Sy\t--noconfirm\tarchlinux-keyring\tarchlinuxarm-keyring\tasahi-alarm-keyring$' "$log_file" ||
   fail "update-keyring reinstalls the installed keyrings the platform names, once each" "$(cat "$log_file")"
 pass "update-keyring reinstalls the installed keyrings the platform names, once each"

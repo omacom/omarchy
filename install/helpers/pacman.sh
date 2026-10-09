@@ -1,15 +1,14 @@
 # Pacman repository templates. Every platform has a pacman.conf and mirrorlist
-# for each channel it offers, copied into place whole, as x86_64's always were:
-# x86_64's in default/pacman, each ARM platform's in a directory of its own. Sourcing this
-# file only defines functions; it never changes the system.
+# for each channel it offers, copied into place whole, as x86's always were:
+# x86's in default/pacman, each ARM platform's in a directory named for it.
+# Sourcing this file only defines functions; it never changes the system.
 
 # The directory holding <platform>'s pacman-<channel>.conf and
 # mirrorlist-<channel>. A channel without both files isn't offered there.
 omarchy_pacman_templates() {
   case ${1:-} in
-    generic) echo "$OMARCHY_PATH/default/pacman" ;;
-    generic-aarch64) echo "$OMARCHY_PATH/default/pacman/aarch64" ;;
-    apple-silicon) echo "$OMARCHY_PATH/default/pacman/apple-silicon" ;;
+    x86) echo "$OMARCHY_PATH/default/pacman" ;;
+    aarch64 | aarch64-apple) echo "$OMARCHY_PATH/default/pacman/$1" ;;
     *)
       echo "Error: Unknown platform '${1:-}'." >&2
       return 1
@@ -23,8 +22,8 @@ omarchy_pacman_templates() {
 # platforms have edge templates only until a release does.
 omarchy_pacman_default_channel() {
   case ${1:-} in
-    generic) echo stable ;;
-    generic-aarch64 | apple-silicon) echo edge ;;
+    x86) echo stable ;;
+    aarch64 | aarch64-apple) echo edge ;;
     *)
       echo "Error: Unknown platform '${1:-}'." >&2
       return 1

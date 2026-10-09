@@ -14,7 +14,7 @@ umask 022
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
-apple_manifest=$'format=1\nplatform=apple-silicon\n'
+apple_manifest=$'format=1\nplatform=aarch64-apple\n'
 
 # $1 world, $2 CPU, then the host's device-tree tokens (none: no device tree).
 world() {
@@ -99,15 +99,15 @@ fi
 if (( EUID == 0 )) || unshare --user --map-root-user true 2>/dev/null; then
   live=$("${root_runner[@]}" "$detector") || fail "root detects the live platform"
   apple_live=0
-  "${root_runner[@]}" "$ROOT/bin/omarchy-hw-apple-silicon" || apple_live=$?
+  "${root_runner[@]}" "$ROOT/bin/omarchy-hw-aarch64-apple" || apple_live=$?
 
   # A world that would make any environment-led detector answer with another
   # platform than the live one.
-  if [[ $live == "apple-silicon" ]]; then
-    hostile=generic-aarch64
+  if [[ $live == "aarch64-apple" ]]; then
+    hostile=aarch64
     hostile_tokens=("raspberrypi,5-model-b" "brcm,bcm2712")
   else
-    hostile=apple-silicon
+    hostile=aarch64-apple
     hostile_tokens=("apple,j416c" "apple,t6021" "apple,arm-platform")
   fi
   world hostile aarch64 "${hostile_tokens[@]}"
@@ -139,7 +139,7 @@ if (( EUID == 0 )) || unshare --user --map-root-user true 2>/dev/null; then
 hostile: $overridden"
   done
   apple_hostile=0
-  env "${hostile_env[@]}" "${root_runner[@]}" "$ROOT/bin/omarchy-hw-apple-silicon" || apple_hostile=$?
+  env "${hostile_env[@]}" "${root_runner[@]}" "$ROOT/bin/omarchy-hw-aarch64-apple" || apple_hostile=$?
   (( apple_hostile == apple_live )) || fail "the Apple predicate ignores a hostile root environment"
   pass "root ignores fixture roots, PATH, BASH_ENV and exported functions"
 else
@@ -169,8 +169,8 @@ if (( EUID != 0 )) && "$test_tmp/init/bash" -c true 2>/dev/null &&
     fail "root detects the live platform in a PID namespace"
 
   # A target the hardware would not give, so only the manifest can name it.
-  target=apple-silicon
-  [[ $baseline != "apple-silicon" ]] || target=generic-aarch64
+  target=aarch64-apple
+  [[ $baseline != "aarch64-apple" ]] || target=aarch64
   fixture="$test_tmp/live-root"
   mkdir -p "$fixture/var/lib/omarchy/image" "$fixture/run"
   printf 'format=1\nplatform=%s\n' "$target" >"$fixture/var/lib/omarchy/image/target"
@@ -220,49 +220,63 @@ require_platform_fixtures "the image-target fixtures"
 world x86-host aarch64
 pid1 x86-host chroot
 manifest x86-host "$apple_manifest"
-expect x86-host apple-silicon "an Apple image built in a chroot on an x86 host is Apple Silicon"
+expect x86-host aarch64-apple "an Apple image built in a chroot on an x86 host is Apple Silicon"
 
 # The same with the host's /run bound into the chroot, systemd's directory and all.
 systemd_runs x86-host
-expect x86-host apple-silicon "a chroot build ignores the host's systemd in a bound /run"
+expect x86-host aarch64-apple "a chroot build ignores the host's systemd in a bound /run"
 
-# On a generic aarch64 host, whose own device tree the chroot can see.
+# On a plain aarch64 host, whose own device tree the chroot can see.
 world arm-host aarch64 linux,dummy-virt
 pid1 arm-host chroot
 manifest arm-host "$apple_manifest"
-expect arm-host apple-silicon "an Apple image built in a chroot on a generic aarch64 host is Apple Silicon"
+expect arm-host aarch64-apple "an Apple image built in a chroot on a plain aarch64 host is Apple Silicon"
 
 # The image builder's isolated chroot: a PID namespace whose PID 1 is the build.
 world builder aarch64 raspberrypi,5-model-b brcm,bcm2712
 pid1 builder own bash
 manifest builder "$apple_manifest"
-expect builder apple-silicon "an Apple image built in its own PID namespace is Apple Silicon"
+expect builder aarch64-apple "an Apple image built in its own PID namespace is Apple Silicon"
 
 # The same with the host's /run bound in: PID 1 is still not systemd.
 systemd_runs builder
-expect builder apple-silicon "a PID namespace build ignores the host's systemd in a bound /run"
+expect builder aarch64-apple "a PID namespace build ignores the host's systemd in a bound /run"
 
 # A root without /proc, with a /run of its own.
 world no-proc aarch64
 manifest no-proc "$apple_manifest"
-expect no-proc apple-silicon "an Apple image built without /proc is Apple Silicon"
+expect no-proc aarch64-apple "an Apple image built without /proc is Apple Silicon"
 
 # The host never decides the target, even when it is a Mac or its tree is
 # contradictory.
 world on-a-mac aarch64 apple,j416c apple,t6021 apple,arm-platform
 pid1 on-a-mac chroot
-manifest on-a-mac $'format=1\nplatform=generic-aarch64\n'
-expect on-a-mac generic-aarch64 "a generic aarch64 image built on a Mac is generic aarch64"
+manifest on-a-mac $'format=1\nplatform=aarch64\n'
+expect on-a-mac aarch64 "a plain aarch64 image built on a Mac is plain aarch64"
 world odd-host aarch64 apple,j416c qcom,x1e80100
 pid1 odd-host chroot
-manifest odd-host $'format=1\nplatform=generic-aarch64\n'
-expect odd-host generic-aarch64 "a build never reads the host's device tree"
+manifest odd-host $'format=1\nplatform=aarch64\n'
+expect odd-host aarch64 "a build never reads the host's device tree"
+
+# Image builders written before the platform names settled write the old ones.
+world legacy-apple aarch64
+pid1 legacy-apple chroot
+manifest legacy-apple $'format=1\nplatform=apple-silicon\n'
+expect legacy-apple aarch64-apple "an old builder's apple-silicon manifest reads as aarch64-apple"
+world legacy-arm aarch64
+pid1 legacy-arm chroot
+manifest legacy-arm $'format=1\nplatform=generic-aarch64\n'
+expect legacy-arm aarch64 "an old builder's generic-aarch64 manifest reads as aarch64"
+world legacy-x86 x86_64
+pid1 legacy-x86 chroot
+manifest legacy-x86 $'format=1\nplatform=generic\n'
+expect legacy-x86 x86 "an old builder's generic manifest reads as x86"
 
 # Comments and keys a later format adds are ignored.
 world commented aarch64
 pid1 commented chroot
-manifest commented $'# written by the image builder\nformat=1\nbuilder=ci\nplatform=apple-silicon\n'
-expect commented apple-silicon "comments and unknown manifest keys are ignored"
+manifest commented $'# written by the image builder\nformat=1\nbuilder=ci\nplatform=aarch64-apple\n'
+expect commented aarch64-apple "comments and unknown manifest keys are ignored"
 
 # --- Booted systems -----------------------------------------------------------
 
@@ -271,41 +285,41 @@ expect commented apple-silicon "comments and unknown manifest keys are ignored"
 world booted-mac aarch64 apple,j416c apple,t6021 apple,arm-platform
 pid1 booted-mac own
 systemd_runs booted-mac
-manifest booted-mac $'format=1\nplatform=generic-aarch64\n'
-expect booted-mac apple-silicon "a booted Mac with a stale manifest is Apple Silicon"
+manifest booted-mac $'format=1\nplatform=aarch64\n'
+expect booted-mac aarch64-apple "a booted Mac with a stale manifest is Apple Silicon"
 manifest booted-mac "not a manifest"
-expect booted-mac apple-silicon "a booted Mac ignores a malformed stale manifest"
+expect booted-mac aarch64-apple "a booted Mac ignores a malformed stale manifest"
 
 world booted-qualcomm aarch64 lenovo,yoga-slim7x qcom,x1e80100
 pid1 booted-qualcomm own
 systemd_runs booted-qualcomm
 manifest booted-qualcomm "$apple_manifest"
-expect booted-qualcomm generic-aarch64 "a booted Snapdragon laptop with an Apple manifest is generic aarch64"
+expect booted-qualcomm aarch64 "a booted Snapdragon laptop with an Apple manifest is plain aarch64"
 
 world booted-x86 x86_64
 pid1 booted-x86 own
 systemd_runs booted-x86
 manifest booted-x86 "$apple_manifest"
-expect booted-x86 generic "a booted x86 machine with an Apple manifest is generic"
+expect booted-x86 x86 "a booted x86 machine with an Apple manifest is x86"
 
 # An Apple image under VM acceptance, booted before its first-boot setup ran.
 world booted-vm aarch64 linux,dummy-virt
 pid1 booted-vm own
 systemd_runs booted-vm
 manifest booted-vm "$apple_manifest"
-expect booted-vm generic-aarch64 "a booted VM with an Apple manifest is generic aarch64"
+expect booted-vm aarch64 "a booted VM with an Apple manifest is plain aarch64"
 
 # What a normal user cannot see never makes a build: PID 1's root, or PID 1
 # itself behind hidepid.
 world user-view aarch64 apple,j416c apple,t6021 apple,arm-platform
 pid1 user-view hidden
 systemd_runs user-view
-manifest user-view $'format=1\nplatform=generic-aarch64\n'
-expect user-view apple-silicon "a booted system whose PID 1 root cannot be compared uses its hardware"
+manifest user-view $'format=1\nplatform=aarch64\n'
+expect user-view aarch64-apple "a booted system whose PID 1 root cannot be compared uses its hardware"
 world hidepid aarch64 apple,j416c apple,t6021 apple,arm-platform
 systemd_runs hidepid
 manifest hidepid "not a manifest"
-expect hidepid apple-silicon "a booted system whose PID 1 is hidden uses its hardware"
+expect hidepid aarch64-apple "a booted system whose PID 1 is hidden uses its hardware"
 
 # --- No manifest --------------------------------------------------------------
 
@@ -313,14 +327,14 @@ expect hidepid apple-silicon "a booted system whose PID 1 is hidden uses its har
 # manifest: the hardware it runs on is the target.
 world installer aarch64 apple,j314s apple,t6000 apple,arm-platform
 pid1 installer chroot
-expect installer apple-silicon "a chroot without a manifest uses the hardware"
+expect installer aarch64-apple "a chroot without a manifest uses the hardware"
 
 # A manifest retired by the first boot no longer names anything.
 world retired aarch64 linux,dummy-virt
 pid1 retired chroot
 manifest retired "$apple_manifest"
 mv "$test_tmp/worlds/retired/image/var/lib/omarchy/image/target" "$test_tmp/worlds/retired/image/var/lib/omarchy/image/target.booted"
-expect retired generic-aarch64 "a retired manifest is not read"
+expect retired aarch64 "a retired manifest is not read"
 
 # --- Invalid manifests stop a build -------------------------------------------
 
@@ -332,21 +346,21 @@ invalid() {
   expect_refused "$name" "$message" "$description"
 }
 
-invalid no-format $'platform=apple-silicon\n' "is not format=1" "a manifest without a format is refused"
-invalid format-2 $'format=2\nplatform=apple-silicon\n' "is not format=1" "a manifest of another format is refused"
+invalid no-format $'platform=aarch64-apple\n' "is not format=1" "a manifest without a format is refused"
+invalid format-2 $'format=2\nplatform=aarch64-apple\n' "is not format=1" "a manifest of another format is refused"
 invalid empty "" "is not format=1" "an empty manifest is refused"
 invalid unknown $'format=1\nplatform=intel-mac\n' "names no known platform: intel-mac" "a manifest naming an unknown platform is refused"
 invalid no-platform $'format=1\n' "names no known platform: none" "a manifest naming no platform is refused"
-invalid bare-line $'format=1\napple-silicon\n' "is malformed: apple-silicon" "a manifest line without a key is refused"
+invalid bare-line $'format=1\naarch64-apple\n' "is malformed: aarch64-apple" "a manifest line without a key is refused"
 
 world x86-cpu x86_64
 pid1 x86-cpu chroot
 manifest x86-cpu "$apple_manifest"
-expect_refused x86-cpu "names apple-silicon hardware but the CPU is x86_64" "an Apple manifest on an x86 CPU contradicts it"
+expect_refused x86-cpu "names aarch64-apple hardware but the CPU is x86_64" "an Apple manifest on an x86 CPU contradicts it"
 world arm-generic aarch64
 pid1 arm-generic chroot
-manifest arm-generic $'format=1\nplatform=generic\n'
-expect_refused arm-generic "names generic hardware but the CPU is aarch64" "an x86 manifest on an aarch64 CPU contradicts it"
+manifest arm-generic $'format=1\nplatform=x86\n'
+expect_refused arm-generic "names x86 hardware but the CPU is aarch64" "an x86 manifest on an aarch64 CPU contradicts it"
 
 untrusted="is not a root-owned regular file"
 world symlink aarch64
@@ -398,20 +412,27 @@ expect_refused other-owner "$untrusted" "a manifest another user owns is refused
 
 # The Apple predicate of an Apple image built on an x86 host, and of a generic
 # image built on a Mac.
-in_world x86-host "$ROOT/bin/omarchy-hw-apple-silicon" || fail "the Apple predicate accepts an Apple image build"
-if in_world on-a-mac "$ROOT/bin/omarchy-hw-apple-silicon"; then
-  fail "the Apple predicate rejects a generic image built on a Mac"
+in_world x86-host "$ROOT/bin/omarchy-hw-aarch64-apple" || fail "the Apple predicate accepts an Apple image build"
+if in_world on-a-mac "$ROOT/bin/omarchy-hw-aarch64-apple"; then
+  fail "the Apple predicate rejects a plain aarch64 image built on a Mac"
 fi
 pass "the Apple predicate follows the image target"
 
+# omarchy-mac's packages and units still call the predicate by its old name.
+in_world x86-host "$ROOT/bin/omarchy-hw-apple-silicon" || fail "the old Apple predicate name accepts an Apple image build"
+if in_world on-a-mac "$ROOT/bin/omarchy-hw-apple-silicon"; then
+  fail "the old Apple predicate name rejects a plain aarch64 image built on a Mac"
+fi
+pass "the old Apple predicate name answers as omarchy-hw-aarch64-apple"
+
 packages=$(in_world x86-host env OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-pkg-defaults") || fail "an Apple image build composes its packages"
-[[ $packages == "$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-pkg-defaults" apple-silicon)" ]] ||
+[[ $packages == "$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-pkg-defaults" aarch64-apple)" ]] ||
   fail "an Apple image build installs the Apple Silicon package set"
-packages=$(in_world on-a-mac env OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-pkg-defaults") || fail "a generic image build composes its packages"
-[[ $packages == "$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-pkg-defaults" generic-aarch64)" ]] ||
-  fail "a generic image built on a Mac installs the generic aarch64 package set"
+packages=$(in_world on-a-mac env OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-pkg-defaults") || fail "a plain aarch64 image build composes its packages"
+[[ $packages == "$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-pkg-defaults" aarch64)" ]] ||
+  fail "a plain aarch64 image built on a Mac installs the plain aarch64 package set"
 packages=$(in_world odd-host env OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-pkg-defaults") || fail "an image built on a contradictory host composes its packages"
-[[ $packages == "$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-pkg-defaults" generic-aarch64)" ]] ||
+[[ $packages == "$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-pkg-defaults" aarch64)" ]] ||
   fail "an image built on a contradictory host installs its target's package set"
 pass "the default package set follows the image target"
 

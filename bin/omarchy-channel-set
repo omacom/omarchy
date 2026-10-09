@@ -68,7 +68,7 @@ link_dev_checkout() {
 
   # On aarch64 one from before it had platform templates would replace this
   # machine's repositories with x86's.
-  if [[ $platform != "generic" ]]; then
+  if [[ $platform != "x86" ]]; then
     for required in bin/omarchy-hw-platform install/helpers/pacman.sh; do
       if [[ ! -f $checkout/$required || ! -r $checkout/$required ||
         ( $required == "bin/omarchy-hw-platform" && ! -x $checkout/$required ) ]]; then

@@ -5,7 +5,7 @@ echo "Run the WPA handshake in software on Macs with Broadcom Wi-Fi"
 # firmware supplicant makes firmware commands time out and breaks scanning
 # entirely. A fresh install marks this done only for its first user, so an
 # account added later still runs it.
-omarchy-hw-apple-silicon && exit 0
+omarchy-hw-aarch64-apple && exit 0
 
 # The install-time quirk only reaches machines set up after it shipped, and it
 # never covered Macs without a T2 at all, so an existing install on one still

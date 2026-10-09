@@ -42,7 +42,7 @@ done
 
 # Boot-time blocking goes into Limine's own configuration, which a Mac's boot
 # package owns, so it is not offered there.
-if (( from_boot )) && omarchy-hw-apple-silicon; then
+if (( from_boot )) && omarchy-hw-aarch64-apple; then
   echo "USB authorization from boot is not available on Apple Silicon yet; USB device authorization after login still works." >&2
   exit 2
 fi

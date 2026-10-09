@@ -18,7 +18,7 @@ names() {
 base=$(names "$ROOT/install/omarchy-base.packages")
 aarch64=$(names "$ROOT/install/omarchy-aarch64.packages")
 
-for platform in apple-silicon generic-aarch64 generic; do
+for platform in aarch64-apple aarch64 x86; do
   fake_platform "$work/$platform" "$platform"
   defaults=$(OMARCHY_PROC_ROOT="$work/$platform/proc" PATH="$work/$platform/bin:$ROOT/bin:$PATH" omarchy-pkg-defaults)
   [[ $defaults == "$(omarchy-pkg-defaults "$platform")" ]] ||
@@ -28,12 +28,12 @@ for platform in apple-silicon generic-aarch64 generic; do
   [[ -z $(sort "$work/$platform.packages" | uniq -d) ]] || fail "$platform: each package is listed once"
   # aarch64 platforms leave out the base packages only x86_64 builds.
   expected_base=$base
-  [[ $platform == "generic" ]] || expected_base=$(grep -vxF -f <(names "$ROOT/install/omarchy-x86_64-only.packages") <<<"$base")
+  [[ $platform == "x86" ]] || expected_base=$(grep -vxF -f <(names "$ROOT/install/omarchy-x86_64-only.packages") <<<"$base")
   [[ $(head -n "$(wc -l <<<"$expected_base")" "$work/$platform.packages") == "$expected_base" ]] ||
     fail "$platform: the base list comes first, unchanged"
 
   case $platform in
-    generic)
+    x86)
       [[ $defaults == "$base" ]] || fail "x86_64 installs exactly the base list"
       [[ $defaults == "$(grep -v '^#' "$ROOT/install/omarchy-base.packages" | grep -v '^$')" ]] ||
         fail "x86_64 installs what omarchy-reinstall-pkgs read from the base list before"
@@ -48,7 +48,7 @@ for platform in apple-silicon generic-aarch64 generic; do
   # The Mac's packages, and wf-recorder, which records its screen: nothing else
   # captures on Apple Silicon.
   for package in omarchy-mac omarchy-mac-boot wf-recorder; do
-    if [[ $platform == "apple-silicon" ]]; then
+    if [[ $platform == "aarch64-apple" ]]; then
       grep -Fxq "$package" "$work/$platform.packages" || fail "Apple Silicon adds $package"
     else
       ! grep -Fxq "$package" "$work/$platform.packages" || fail "$platform: no $package"
@@ -57,15 +57,15 @@ for platform in apple-silicon generic-aarch64 generic; do
 done
 pass "each platform composes the base, architecture and platform lists"
 
-# A platform's own list joins only that platform's set, after the base and
-# architecture lists; a platform without one composes the others alone.
+# A hardware family's own list joins only that family's set, after the base and
+# architecture lists; plain aarch64 composes the others alone.
 tree="$work/tree"
 mkdir -p "$tree/install"
 cp "$ROOT"/install/omarchy-*.packages "$tree/install/"
-printf '# test addition\nexample-board-support\nzram-generator\n' >"$tree/install/omarchy-generic-aarch64.packages"
-for platform in apple-silicon generic-aarch64 generic; do
+printf '# test addition\nexample-board-support\nzram-generator\n' >"$tree/install/omarchy-aarch64-apple.packages"
+for platform in aarch64-apple aarch64 x86; do
   defaults=$(OMARCHY_PATH="$tree" omarchy-pkg-defaults "$platform")
-  if [[ $platform == "generic-aarch64" ]]; then
+  if [[ $platform == "aarch64-apple" ]]; then
     [[ $(tail -n 1 <<<"$defaults") == "example-board-support" ]] || fail "a platform list is added after the others" "$defaults"
     (( $(grep -cx zram-generator <<<"$defaults") == 1 )) || fail "a name in two lists is installed once" "$defaults"
   else
@@ -74,12 +74,19 @@ for platform in apple-silicon generic-aarch64 generic; do
 done
 pass "a platform list joins only its own platform's set"
 
+# Image builders written before the platform names settled pass the old names.
+for legacy in apple-silicon:aarch64-apple generic-aarch64:aarch64 generic:x86; do
+  [[ $(omarchy-pkg-defaults "${legacy%%:*}") == "$(omarchy-pkg-defaults "${legacy#*:}")" ]] ||
+    fail "the old name ${legacy%%:*} composes the ${legacy#*:} set"
+done
+pass "the old platform names compose the same sets"
+
 # Base packages that only x86_64 builds stay out of every aarch64 set.
-for platform in apple-silicon generic-aarch64 generic; do
+for platform in aarch64-apple aarch64 x86; do
   defaults=$(OMARCHY_PATH="$ROOT" omarchy-pkg-defaults "$platform")
   while read -r name; do
     [[ -n $name && $name != \#* ]] || continue
-    if [[ $platform == "generic" ]]; then
+    if [[ $platform == "x86" ]]; then
       grep -Fxq "$name" <<<"$defaults" || fail "x86_64 keeps $name"
     else
       ! grep -Fxq "$name" <<<"$defaults" || fail "$platform leaves out the x86_64-only $name"
@@ -110,7 +117,7 @@ printf 'refresh %s\n' "$*" >>"$STUB_LOG"
 SH
 chmod +x "$work/stubs/"*
 
-for platform in generic-aarch64 generic; do
+for platform in aarch64 x86; do
   export STUB_LOG="$work/$platform.log"
   : >"$STUB_LOG"
   OMARCHY_PROC_ROOT="$work/$platform/proc" PATH="$work/stubs:$work/$platform/bin:$ROOT/bin:$PATH" \
@@ -130,7 +137,7 @@ reinstall_on() {
   OMARCHY_PROC_ROOT="$work/$platform/proc" PATH="$work/stubs:$work/$platform/bin:$ROOT/bin:$PATH" \
     omarchy-reinstall-pkgs >"$work/channel.out" 2>&1
 }
-for platform in generic generic-aarch64 apple-silicon; do
+for platform in x86 aarch64 aarch64-apple; do
   reinstall_on "$platform" || fail "$platform: reinstall completes" "$(cat "$work/channel.out")"
   [[ $(head -n 1 "$STUB_LOG") == "refresh " ]] || fail "$platform: reinstall refreshes on stable" "$(cat "$STUB_LOG")"
   expected="-Syu --noconfirm --needed $(tr '\n' ' ' <"$work/$platform.packages")"
@@ -138,7 +145,7 @@ for platform in generic generic-aarch64 apple-silicon; do
 done
 pass "omarchy-reinstall-pkgs refreshes on stable on every platform"
 
-if REFRESH_FAILS=1 reinstall_on generic-aarch64; then
+if REFRESH_FAILS=1 reinstall_on aarch64; then
   fail "reinstall stops when the refresh fails"
 fi
 [[ $(cat "$STUB_LOG") == "refresh " ]] || fail "reinstall runs nothing after a failed refresh" "$(cat "$STUB_LOG")"

@@ -18,15 +18,15 @@ tmp=$(mktemp -d)
 token_key=""
 trap 'rm -rf "$tmp"; [[ -z $token_key ]] || keyctl unlink "$token_key" @s >/dev/null 2>&1 || true' EXIT
 
-fake_platform "$tmp/x86" generic
-fake_platform "$tmp/apple" apple-silicon
+fake_platform "$tmp/x86" x86
+fake_platform "$tmp/apple" aarch64-apple
 platform=x86
 
 # Root's dispatcher ignores the fixtures and sees this machine, which stands in
 # for x86 only where no boot package is registered.
 platforms=(x86 apple)
 if (( EUID == 0 )); then
-  if [[ $("$ROOT/bin/omarchy-hw-platform") == "apple-silicon" ]]; then
+  if [[ $("$ROOT/bin/omarchy-hw-platform") == "aarch64-apple" ]]; then
     skip "running as root on Apple Silicon, where dispatch ignores fixtures; skipping"
     exit 0
   fi
@@ -853,7 +853,7 @@ if [[ " ${platforms[*]} " == *" apple "* ]]; then
     rm -f "$tmp/limine-ran" "$tmp/mac-boot-ran"
     if run setup "$owner_password"; then fail "apple ($package package): setup refuses without provisioning entrypoints"; fi
     ! grep -qx 'owner form' "$tmp/screen" || fail "apple ($package package): the owner is asked nothing"
-    grep -q 'provision-prepare on apple-silicon needs omarchy-mac-boot' "$tmp/screen" ||
+    grep -q 'provision-prepare on aarch64-apple needs omarchy-mac-boot' "$tmp/screen" ||
       fail "apple ($package package): the boot package is named on the screen" "$(cat "$tmp/screen" 2>/dev/null)"
     grep -q '/usr/lib/omarchy/mac-boot/provision-prepare' "$tmp/log" || fail "apple ($package package): the log names the entrypoint" "$(cat "$tmp/log")"
     if run provision "$owner_password"; then fail "apple ($package package): provisioning fails"; fi

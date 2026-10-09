@@ -13,7 +13,7 @@ The first form runs the operation. `--resolve` prints the entrypoint the operati
 
 | Situation | Run | `--resolve` |
 | --- | --- | --- |
-| The platform registers no package (`generic` and `generic-aarch64` today) | no-op, exit 0 | prints nothing, exit 0 |
+| The platform registers no package (`x86` and `aarch64` today) | no-op, exit 0 | prints nothing, exit 0 |
 | The entrypoint exists and passes the trust rules | execs it; its exit status is the result | prints its path |
 | A required operation has no entrypoint, and the package is not installed | exit 3 (an entrypoint's own status could also be 3; with `--resolve` it is only this): `Error: <operation> on <platform> needs <package>, which provides <path>; it is not installed` | same error |
 | A required operation has no entrypoint, but the package is installed (its pacman record says so) | exit 1: `Error: <operation> on <platform> needs <path>, which <package> <version> does not provide; update <package>` | same error |
@@ -53,9 +53,9 @@ Registration is code in `bin/omarchy-lifecycle-dispatch`, not configuration. No 
 
 | Platform | Implementation directory | Package | Required operations |
 | --- | --- | --- | --- |
-| `apple-silicon` | `/usr/lib/omarchy/mac-boot` | `omarchy-mac-boot` | all its operations |
-| `apple-silicon`: `setup-system`, `setup-user`, `post-install`, `pre-remove` | `/usr/lib/omarchy/mac` | `omarchy-mac` | none |
-| `generic`, `generic-aarch64` | none | none | none: every operation is a no-op, and callers keep their generic path |
+| `aarch64-apple` | `/usr/lib/omarchy/mac-boot` | `omarchy-mac-boot` | all its operations |
+| `aarch64-apple`: `setup-system`, `setup-user`, `post-install`, `pre-remove` | `/usr/lib/omarchy/mac` | `omarchy-mac` | none |
+| `x86`, `aarch64` | none | none | none: every operation is a no-op, and callers keep their generic path |
 
 The entrypoint for an operation is `<implementation directory>/<operation>`. A registered platform's required operations must be shipped. Its optional operations may be left out, and then they are no-ops.
 
@@ -81,14 +81,14 @@ Failing closed holds on every platform: where `omarchy-hw-platform` can't settle
 ### Owner provisioning (`bin/omarchy-provision-owner`)
 
 - `platform_ready` runs `provision-prepare` and resolves `luks-slots` at the start of each setup attempt, before the keyboard and account forms. If either fails, the owner sees its error, the log records it, and the attempt ends in the retry or root-shell screen.
-- The shared re-key (`install/provisioning/luks-rekey.sh`) asks the caller for two callbacks: `luks_auto_unlock_present` and `luks_auto_unlock_drop`. `unlock_owner` resolves `provision-commit` and `provision-verify` once per process. If both resolve, the platform owns the unlock: drop is `provision-commit`, and present is `provision-verify` failing. If neither resolves, the Limine UKI callbacks run unchanged (x86, Snapdragon, generic aarch64). If only one resolves, or resolution fails, the unlock counts as present and can't be dropped, so setup never finishes.
+- The shared re-key (`install/provisioning/luks-rekey.sh`) asks the caller for two callbacks: `luks_auto_unlock_present` and `luks_auto_unlock_drop`. `unlock_owner` resolves `provision-commit` and `provision-verify` once per process. If both resolve, the platform owns the unlock: drop is `provision-commit`, and present is `provision-verify` failing. If neither resolves, the Limine UKI callbacks run unchanged (x86, Snapdragon, other aarch64). If only one resolves, or resolution fails, the unlock counts as present and can't be dropped, so setup never finishes.
 - After a factory reset left Limine entries for another machine identity, `run_provisioning` starts the menu over from the template and runs `limine-update`, on every platform.
 - The shared re-key calls the caller's `luks_record_slots` once it has verified that only the owner's slot remains and before it destroys the staged key; `omarchy-provision-owner` runs `luks-slots owner=<slot> recovery=` there, a no-op where nothing records them.
 - Everything else stays as it is: the wizard, account and login, the journal, slot retirement, the proof that the staged key opens nothing, and cleanup.
 
 ### Factory reset (`bin/omarchy-system-factory-reset`)
 
-- `reset_boot_owner` resolves the four reset operations before the reset is confirmed. If all resolve, the platform owns the factory root's boot chain; if none do, the generic path runs unchanged (x86, Snapdragon, generic aarch64: throwaway slot, keyfile in the Limine UKI, `limine-update`, `verify_limine_hashes`). If only some resolve, or resolution fails (a Mac without `omarchy-mac-boot`'s entrypoints), the reset stops before anything changes.
+- `reset_boot_owner` resolves the four reset operations before the reset is confirmed. If all resolve, the platform owns the factory root's boot chain; if none do, the generic path runs unchanged (x86, Snapdragon, other aarch64: throwaway slot, keyfile in the Limine UKI, `limine-update`, `verify_limine_hashes`). If only some resolve, or resolution fails (a Mac without `omarchy-mac-boot`'s entrypoints), the reset stops before anything changes.
 - Where the platform owns it, the order is: authorise with the current passphrase and stage the throwaway in the factory root's `/var/lib/omarchy/provisioning/luks-key`; `reset-prepare`; `reset-verify`; add the throwaway slot; switch the subvolumes; `reset-commit` with the throwaway on standard input. The slot comes after verification, so a failed rebuild adds no credential, and the platform writes its boot-time key only after the switch, so a power loss before it leaves the previous root asking for its password, never unlocked unattended.
 - Any failure before the switch runs `reset-rollback` (once `reset-prepare` started), then revokes the slot this attempt added (found by the throwaway key when the add was not confirmed) and deletes the clone: the previous root stays the one that boots, with its boot files and encryption state. Operation output goes to the reset log; a failure shows the operation's last line.
 - Everything else stays as it is: the @factory clone, identity and account scrub, provisioning markers and units, LUKS discovery, the passphrase check, the throwaway slot, and the subvolume switch.
@@ -138,13 +138,13 @@ A platform's runtime package describes its hardware in files under the platform 
 
 ## Snapdragon
 
-Snapdragon laptops are `generic-aarch64` here: they boot Limine with unified kernel images, like x86, every operation is a no-op there, and provisioning uses the Limine UKI callbacks, so Dragon behaves exactly as before.
+Snapdragon laptops are `aarch64` here: they boot Limine with unified kernel images, like x86, every operation is a no-op there, and provisioning uses the Limine UKI callbacks, so Dragon behaves exactly as before.
 
 ## Tests
 
 - `test/shell.d/lifecycle-dispatch-test.sh` covers the dispatcher on every platform fixture:
   - the setup and app-install operations: no-ops off Apple, `omarchy-mac`'s directory on Apple (never `omarchy-mac-boot`'s), no-ops without `omarchy-mac`, the user operations refused as root and given only their allowlisted environment
-  - no-ops on x86 and generic aarch64, even with Mac entrypoints on disk
+  - no-ops on x86 and plain aarch64, even with Mac entrypoints on disk
   - Apple with and without the boot package, and with one too old to ship an operation
   - arguments, exit status and the cleared environment
   - untrusted entrypoints
@@ -160,5 +160,5 @@ Snapdragon laptops are `generic-aarch64` here: they boot Limine with unified ker
 - `test/shell.d/platform-app-hooks-test.sh` runs every browser install and Steam's install and removal through the real dispatcher: on Apple each calls its hook once, after the package and flags (before removal for `pre-remove`), and fails with it; on x86 none runs, even with Mac entrypoints on disk.
 - `test/shell.d/update-file-conflict-test.sh` checks the takeover: on x86 it goes ahead asking no one; on Apple it goes ahead only when the boot package's `update-takeover` vouches for exactly the files that move, and a refusal, a missing boot package or one too old keep every file.
 - `test/shell.d/factory-reset-dispatch-test.sh` runs the reset through the real dispatcher: on x86 with Mac entrypoints on disk that must not run (generic path unchanged), and on Apple into a fake boot package, covering a finished reset, a failed verification and a failed switch that roll back, an unconfirmed throwaway slot found by its key and revoked, a failed commit after the switch, and a missing or partial package.
-- `test/shell.d/update-boot-verify-test.sh` runs `omarchy update` through the real `omarchy-update-boot` and dispatcher inside the sudo boundary fixture: no-ops and no root on x86 and generic aarch64; on Apple, verify after AUR through the no-update wrapper, a failed verification that offers no reboot, and a Mac without the package or with one too old.
+- `test/shell.d/update-boot-verify-test.sh` runs `omarchy update` through the real `omarchy-update-boot` and dispatcher inside the sudo boundary fixture: no-ops and no root on x86 and plain aarch64; on Apple, verify after AUR through the no-update wrapper, a failed verification that offers no reboot, and a Mac without the package or with one too old.
 - `test/shell.d/drive-password-test.sh` checks that an Apple password change records the owner's new slot through `luks-slots`, including after an interruption, and that x86 never calls it; that `--owner` failing (1, or a slot that isn't a number) stops the change with the reason; and that with no owner slot recorded (4) a one-key disk changes and records its slot, also after an interruption, while a disk with another key, or one that gains a key during the prompts, is refused unchanged.

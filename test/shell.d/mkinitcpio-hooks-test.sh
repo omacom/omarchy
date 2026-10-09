@@ -9,13 +9,13 @@ require_platform_fixtures "the composed mkinitcpio HOOKS"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
-for platform in apple-silicon generic-aarch64 generic; do
+for platform in aarch64-apple aarch64 x86; do
   fake_platform "$test_tmp/platforms/$platform" "$platform"
 done
 # omarchy-settings without the runtime package: no detector on PATH.
 mkdir -p "$test_tmp/platforms/no-detector/bin"
 # A device tree naming both Apple and Qualcomm, which the detector refuses.
-fake_platform "$test_tmp/platforms/contradiction" apple-silicon
+fake_platform "$test_tmp/platforms/contradiction" aarch64-apple
 printf '%s\0' apple,j416c qcom,x1e80100 >"$test_tmp/platforms/contradiction/proc/device-tree/compatible"
 
 etc="$test_tmp/etc"
@@ -123,9 +123,9 @@ assert_hooks() {
 
 # Each platform starts from its own baseline, whatever mkinitcpio.conf says.
 new_etc
-assert_hooks "Apple Silicon starts from the systemd baseline" apple-silicon "$apple_hooks"
-assert_hooks "generic aarch64 starts from the Omarchy baseline" generic-aarch64 "$omarchy_hooks"
-assert_hooks "x86 starts from the Omarchy baseline" generic "$omarchy_hooks"
+assert_hooks "Apple Silicon starts from the systemd baseline" aarch64-apple "$apple_hooks"
+assert_hooks "plain aarch64 starts from the Omarchy baseline" aarch64 "$omarchy_hooks"
+assert_hooks "x86 starts from the Omarchy baseline" x86 "$omarchy_hooks"
 assert_hooks "without the detector the Omarchy baseline stays" no-detector "$omarchy_hooks"
 
 if composed=$(compose contradiction 2>"$test_tmp/contradiction.err"); then
@@ -144,15 +144,15 @@ legacy_plain="base udev autodetect microcode modconf kms keyboard keymap console
 for legacy in "$legacy_encrypted" "$legacy_plain" "${legacy_encrypted/ asahi / }"; do
   new_etc
   sed -i "s/^HOOKS=.*/HOOKS=($legacy)/" "$etc/mkinitcpio.conf"
-  assert_hooks "a Mac keeps its own HOOKS=($legacy)" apple-silicon "$legacy"
+  assert_hooks "a Mac keeps its own HOOKS=($legacy)" aarch64-apple "$legacy"
 done
 new_etc
 sed -i "s/^HOOKS=.*/HOOKS=($legacy_plain)/" "$etc/mkinitcpio.conf"
-assert_hooks "an asahi root keeps its HOOKS off a Mac" generic-aarch64 "$legacy_plain"
+assert_hooks "an asahi root keeps its HOOKS off a Mac" aarch64 "$legacy_plain"
 # A legacy GRUB Mac has the asahi hook right after base, where Asahi's images
 # put it, and may run a runtime older than the detector.
 legacy_grub="base asahi udev plymouth autodetect microcode modconf kms keyboard keymap consolefont block encrypt filesystems fsck"
-for platform in apple-silicon no-detector; do
+for platform in aarch64-apple no-detector; do
   for legacy in "$legacy_grub" "${legacy_grub/ encrypt / }"; do
     new_etc
     sed -i "s/^HOOKS=.*/HOOKS=($legacy)/" "$etc/mkinitcpio.conf"
@@ -161,10 +161,10 @@ for platform in apple-silicon no-detector; do
 done
 new_etc
 sed -i "s/^HOOKS=.*/HOOKS=(base udev autodetect modconf block encrypt filesystems fsck)/" "$etc/mkinitcpio.conf"
-assert_hooks "busybox encrypt off Apple Silicon still gets the Omarchy baseline" generic "$omarchy_hooks"
+assert_hooks "busybox encrypt off Apple Silicon still gets the Omarchy baseline" x86 "$omarchy_hooks"
 new_etc
 sed -i "s/^HOOKS=.*/HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block filesystems fsck)/" "$etc/mkinitcpio.conf"
-assert_hooks "a Mac with a stock busybox line and no asahi hook gets the systemd baseline" apple-silicon "$apple_hooks"
+assert_hooks "a Mac with a stock busybox line and no asahi hook gets the systemd baseline" aarch64-apple "$apple_hooks"
 
 # A platform fragment sorts after the baseline and before omarchy_hooks.conf,
 # as omarchy-mac-boot's 90- drop-ins do. Its hooks must reach the image.
@@ -178,40 +178,40 @@ done
 HOOKS=("${_fragment_hooks[@]}" platform-late)
 unset _fragment_hooks _fragment_hook
 CONF
-assert_hooks "a platform fragment's hooks survive on Apple Silicon" apple-silicon \
+assert_hooks "a platform fragment's hooks survive on Apple Silicon" aarch64-apple \
   "base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block platform-firmware filesystems fsck platform-late"
-assert_hooks "a platform fragment's hooks survive on generic aarch64" generic-aarch64 \
+assert_hooks "a platform fragment's hooks survive on plain aarch64" aarch64 \
   "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
-assert_hooks "a platform fragment's hooks survive on x86" generic \
+assert_hooks "a platform fragment's hooks survive on x86" x86 \
   "base udev plymouth keyboard autodetect microcode modconf kms keymap consolefont block encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
 
 # The NVIDIA filter still runs after the fragment and removes only kms.
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 pci_devices 0x10de:0x030000
-assert_hooks "the NVIDIA filter keeps a platform fragment's hooks" generic \
+assert_hooks "the NVIDIA filter keeps a platform fragment's hooks" x86 \
   "base udev plymouth keyboard autodetect microcode modconf keymap consolefont block encrypt platform-firmware filesystems fsck btrfs-overlayfs platform-late"
 
 # Existing x86 configurations build the image they built before the baseline
 # moved: the same HOOKS, MODULES and FILES.
 new_etc
-assert_composed "a machine without hardware drop-ins is unchanged" generic \
+assert_composed "a machine without hardware drop-ins is unchanged" x86 \
   "$omarchy_hooks" "thunderbolt" ""
 
 new_etc
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 pci_devices 0x10de:0x030000
-assert_composed "NVIDIA-only drops only kms" generic \
+assert_composed "NVIDIA-only drops only kms" x86 \
   "$omarchy_hooks_without_kms" "$nvidia_modules thunderbolt" ""
 
 new_etc
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 pci_devices 0x8086:0x030000 0x10de:0x030200
-assert_composed "hybrid graphics keeps kms for the iGPU" generic \
+assert_composed "hybrid graphics keeps kms for the iGPU" x86 \
   "$omarchy_hooks" "$nvidia_modules thunderbolt" ""
 
 new_etc
 pci_devices 0x10de:0x030000
-assert_composed "NVIDIA-only without early nvidia_drm keeps kms" generic \
+assert_composed "NVIDIA-only without early nvidia_drm keeps kms" x86 \
   "$omarchy_hooks" "thunderbolt" ""
 
 new_etc
@@ -219,30 +219,30 @@ drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 drop_in omarchy_resume.conf <<<"HOOKS+=(resume)"
 drop_in 99-omarchy-provisioning-key.conf <<<"FILES+=(/etc/omarchy/provisioning.key)"
 pci_devices 0x10de:0x030000
-assert_composed "NVIDIA-only with hibernation and a provisioning key is unchanged" generic \
+assert_composed "NVIDIA-only with hibernation and a provisioning key is unchanged" x86 \
   "$omarchy_hooks_without_kms resume" "$nvidia_modules thunderbolt" "/etc/omarchy/provisioning.key"
 
 new_etc
 drop_in apple-t2.conf <<<"MODULES+=(t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd)"
-assert_composed "a T2 Mac is unchanged" generic \
+assert_composed "a T2 Mac is unchanged" x86 \
   "$omarchy_hooks" "t2bce_vhci usbhid hid_apple hid_generic xhci_pci xhci_hcd thunderbolt" ""
 
 new_etc
 drop_in macbook_spi_modules.conf <<<"MODULES=(applespi intel_lpss_pci spi_pxa2xx_platform)"
-assert_composed "an SPI keyboard MacBook is unchanged" generic \
+assert_composed "an SPI keyboard MacBook is unchanged" x86 \
   "$omarchy_hooks" "applespi intel_lpss_pci spi_pxa2xx_platform thunderbolt" ""
 
 new_etc
 drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
 drop_in surface_device_modules.conf <<<"MODULES=(pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)"
 pci_devices 0x8086:0x030000
-assert_composed "a Surface is unchanged" generic \
+assert_composed "a Surface is unchanged" x86 \
   "$omarchy_hooks" "pinctrl_tigerlake surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw thunderbolt" ""
 
 
 # Snapdragon and other aarch64 machines build the same image as x86, whatever
 # systemd line their mkinitcpio.conf starts from.
-for platform in generic-aarch64; do
+for platform in aarch64; do
   new_etc
   drop_in omarchy_resume.conf <<<"HOOKS+=(resume)"
   drop_in 99-omarchy-provisioning-key.conf <<<"FILES+=(/etc/omarchy/provisioning.key)"
@@ -254,11 +254,11 @@ done
 # systemd initramfs writes MODULES into modules-load.d as they are, so neither
 # an optional thunderbolt? nor a module the kernel lacks may reach it.
 new_etc
-assert_composed "Apple Silicon early-loads the Aurora kernel's thunderbolt module" apple-silicon \
+assert_composed "Apple Silicon early-loads the Aurora kernel's thunderbolt module" aarch64-apple \
   "$apple_hooks" "thunderbolt" ""
 new_etc
-KERNEL_MODULES="" assert_composed "a generic aarch64 kernel without thunderbolt leaves it out" generic-aarch64 \
+KERNEL_MODULES="" assert_composed "a plain aarch64 kernel without thunderbolt leaves it out" aarch64 \
   "$omarchy_hooks" "" ""
 new_etc
-KERNEL_MODULES="" KERNEL_BUILTINS=thunderbolt assert_composed "a kernel with thunderbolt built in leaves it out" generic \
+KERNEL_MODULES="" KERNEL_BUILTINS=thunderbolt assert_composed "a kernel with thunderbolt built in leaves it out" x86 \
   "$omarchy_hooks" "" ""

@@ -13,8 +13,8 @@ require_platform_fixtures "app-install hooks on platform fixtures"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-fake_platform "$tmp/apple" apple-silicon
-fake_platform "$tmp/x86" generic
+fake_platform "$tmp/apple" aarch64-apple
+fake_platform "$tmp/x86" x86
 
 # The hooks record what they were called with and which flags files the
 # browser install had written by then.

@@ -807,7 +807,7 @@ main() {
   fi
   case "${1:-}" in
   enable|disable)
-    if /usr/bin/omarchy-hw-apple-silicon; then
+    if /usr/bin/omarchy-hw-aarch64-apple; then
       usb_authorization_apple_boot "$1"
     elif usb_authorization_secure_boot_enabled; then
       usb_authorization_boot_transaction "$1"

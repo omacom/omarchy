@@ -14,7 +14,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 # omarchy-lifecycle-dispatch; on the x86 fixture that is a no-op.
 
 # Root's dispatcher ignores the fixtures and sees this machine.
-if (( EUID == 0 )) && [[ $("$ROOT/bin/omarchy-hw-platform") == "apple-silicon" ]]; then
+if (( EUID == 0 )) && [[ $("$ROOT/bin/omarchy-hw-platform") == "aarch64-apple" ]]; then
   skip "running as root on Apple Silicon, where dispatch ignores fixtures; skipping"
   exit 0
 fi
@@ -229,8 +229,8 @@ chmod +x "$tmp"/bin/* "$tmp/real/cryptsetup"
 
 # The boot package's luks-slots, run by dispatch with an empty environment: it
 # records its arguments and is a crash point like the rest.
-fake_platform "$tmp/x86" generic
-fake_platform "$tmp/apple" apple-silicon
+fake_platform "$tmp/x86" x86
+fake_platform "$tmp/apple" aarch64-apple
 mkdir -p "$tmp/lifecycle/usr/lib/omarchy/mac-boot"
 cat >"$tmp/lifecycle/usr/lib/omarchy/mac-boot/luks-slots" <<SH
 #!/bin/bash

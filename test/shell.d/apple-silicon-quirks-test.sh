@@ -15,7 +15,7 @@ calls="$test_tmp/calls.log"
 conf="$test_tmp/modprobe.d/hid_apple.conf"
 mkdir -p "$stub_bin"
 
-cat >"$stub_bin/omarchy-hw-apple-silicon" <<'SH'
+cat >"$stub_bin/omarchy-hw-aarch64-apple" <<'SH'
 #!/bin/bash
 [[ ${APPLE_SILICON:-0} == "1" ]]
 SH
@@ -88,6 +88,6 @@ const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
 const items = menu.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8'))
 const when = id => (items.find(entry => entry.id === id) || {}).when
 assertEqual(when('install.windows'), 'omarchy-hw-x86', 'install.windows is offered on x86_64 only')
-assertEqual(when('setup.direct-boot'), '! omarchy-hw-apple-silicon', 'setup.direct-boot is hidden on Apple Silicon only')
+assertEqual(when('setup.direct-boot'), '! omarchy-hw-aarch64-apple', 'setup.direct-boot is hidden on Apple Silicon only')
 JS
 pass "the menu offers Windows on x86_64 only and hides Direct Boot on Apple Silicon only"

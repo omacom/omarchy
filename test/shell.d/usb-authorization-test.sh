@@ -972,7 +972,7 @@ pass "USB migration repairs enabled protection and preserves opt-out"
 if (( EUID == 0 )); then
   skip "running as root, where the platform check ignores its fixture; skipping the Apple Silicon refusal"
 else
-  fake_platform "$scratch/apple" apple-silicon
+  fake_platform "$scratch/apple" aarch64-apple
   mkdir -p "$scratch/apple-stubs"
   printf '#!/bin/bash\necho "sudo $*" >>"%s"\n' "$scratch/apple-sudo" >"$scratch/apple-stubs/sudo"
   chmod +x "$scratch/apple-stubs/sudo"

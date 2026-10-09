@@ -16,8 +16,8 @@ require_platform_fixtures "factory reset through lifecycle dispatch"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-fake_platform "$tmp/x86" generic
-fake_platform "$tmp/apple" apple-silicon
+fake_platform "$tmp/x86" x86
+fake_platform "$tmp/apple" aarch64-apple
 
 # Load the production functions without self-elevation or the reset entrypoint.
 awk '
@@ -314,13 +314,13 @@ pass "apple: an unencrypted reset rebuilds and verifies the boot files without a
 fixture
 mv "$mac_boot" "$tmp/mac-boot.off"
 if run owner apple; then fail "apple without the boot package: the reset refuses"; fi
-grep -q 'reset-prepare on apple-silicon needs omarchy-mac-boot' "$tmp/out" || fail "apple without the boot package: the package is named" "$(cat "$tmp/out")"
+grep -q 'reset-prepare on aarch64-apple needs omarchy-mac-boot' "$tmp/out" || fail "apple without the boot package: the package is named" "$(cat "$tmp/out")"
 mkdir -p "$mac_boot"
 cp -p "$tmp/mac-boot.off/reset-prepare" "$tmp/mac-boot.off/reset-verify" "$mac_boot/"
 chmod -R go-w "$lifecycle"
 run owner x86 && [[ $(cat "$tmp/out") == "generic" ]] || fail "x86: a partial boot package on disk is ignored" "$(cat "$tmp/out")"
 if run owner apple; then fail "apple with part of the boot package: the reset refuses"; fi
-grep -q 'reset-commit on apple-silicon needs omarchy-mac-boot' "$tmp/out" || fail "apple with part of the boot package: the missing operation is named" "$(cat "$tmp/out")"
+grep -q 'reset-commit on aarch64-apple needs omarchy-mac-boot' "$tmp/out" || fail "apple with part of the boot package: the missing operation is named" "$(cat "$tmp/out")"
 rm -rf "$mac_boot"
 mv "$tmp/mac-boot.off" "$mac_boot"
 pass "apple: without the boot package's reset operations, or with only some of them, the reset refuses naming the package"

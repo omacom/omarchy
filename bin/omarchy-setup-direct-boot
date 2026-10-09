@@ -6,7 +6,7 @@
 # Apple Silicon boots m1n1, then U-Boot, which finds the bootloader on its own
 # and creates its boot entries itself, so there is no direct-boot entry to add
 # or remove.
-if omarchy-hw-apple-silicon; then
+if omarchy-hw-aarch64-apple; then
   echo "Error: Direct boot is not supported on Apple Silicon: U-Boot finds the bootloader itself" >&2
   exit 1
 fi

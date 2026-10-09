@@ -14,7 +14,7 @@ for arg in "$@"; do
 done
 
 # Resume is Limine-oriented and hibernate is unreliable on Asahi.
-if omarchy-hw-apple-silicon; then
+if omarchy-hw-aarch64-apple; then
   echo "Skipping hibernation setup (not supported on Apple Silicon)"
   exit 0
 fi

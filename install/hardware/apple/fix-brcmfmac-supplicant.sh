@@ -22,7 +22,7 @@
 # Apple Silicon is excluded even though its BCM4387 is in that list: there the
 # firmware supplicant is what works, and disabling it makes firmware commands
 # time out and breaks scanning entirely.
-if omarchy-hw-apple-silicon; then
+if omarchy-hw-aarch64-apple; then
   return 0
 fi
 

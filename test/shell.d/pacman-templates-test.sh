@@ -15,23 +15,23 @@ trap 'rm -rf "$work"' EXIT
 export OMARCHY_PATH="$ROOT"
 source "$ROOT/install/helpers/pacman.sh"
 
-platforms="generic generic-aarch64 apple-silicon"
+platforms="x86 aarch64 aarch64-apple"
 # aarch64 has edge alone: stable and rc there would install the release line,
 # which has no aarch64 support.
 channels_for() {
-  if [[ $1 == "generic" ]]; then echo "stable rc edge"; else echo "edge"; fi
+  if [[ $1 == "x86" ]]; then echo "stable rc edge"; else echo "edge"; fi
 }
 
 # ── the templates ────────────────────────────────────────────────────────────
 
-[[ $(omarchy_pacman_templates generic) == "$ROOT/default/pacman" ]] || fail "x86 keeps its templates where they were"
-[[ $(omarchy_pacman_templates generic-aarch64) == "$ROOT/default/pacman/aarch64" ]] || fail "generic aarch64 uses the aarch64 templates"
-[[ $(omarchy_pacman_templates apple-silicon) == "$ROOT/default/pacman/apple-silicon" ]] || fail "Apple Silicon uses its own templates"
+[[ $(omarchy_pacman_templates x86) == "$ROOT/default/pacman" ]] || fail "x86 keeps its templates where they were"
+[[ $(omarchy_pacman_templates aarch64) == "$ROOT/default/pacman/aarch64" ]] || fail "plain aarch64 uses the aarch64 templates"
+[[ $(omarchy_pacman_templates aarch64-apple) == "$ROOT/default/pacman/aarch64-apple" ]] || fail "Apple Silicon uses its own templates"
 ! omarchy_pacman_templates riscv 2>/dev/null || fail "an unknown platform has no templates"
 pass "each platform's templates sit in a directory of their own, x86_64's where they always were"
 
-[[ $(omarchy_pacman_default_channel generic) == stable ]] || fail "x86 defaults to stable"
-for platform in generic-aarch64 apple-silicon; do
+[[ $(omarchy_pacman_default_channel x86) == stable ]] || fail "x86 defaults to stable"
+for platform in aarch64 aarch64-apple; do
   [[ $(omarchy_pacman_default_channel "$platform") == edge ]] || fail "$platform defaults to edge"
 done
 ! omarchy_pacman_default_channel riscv 2>/dev/null || fail "an unknown platform has no default channel"
@@ -47,7 +47,7 @@ repos() {
 for platform in $platforms; do
   templates=$(omarchy_pacman_templates "$platform")
   for channel in stable rc; do
-    [[ $platform == "generic" ]] && continue
+    [[ $platform == "x86" ]] && continue
     [[ ! -e $templates/pacman-$channel.conf && ! -e $templates/mirrorlist-$channel ]] ||
       fail "$platform has no $channel template or mirrorlist"
   done
@@ -56,9 +56,9 @@ for platform in $platforms; do
       fail "$platform has a $channel template and mirrorlist"
     list=$(repos "$templates" "$channel") || fail "$platform $channel: pacman reads the template"
     case $platform in
-      generic) expected="omarchy core extra multilib " ;;
-      generic-aarch64) expected="omarchy core extra alarm aur " ;;
-      apple-silicon) expected="omarchy asahi-alarm core extra alarm aur " ;;
+      x86) expected="omarchy core extra multilib " ;;
+      aarch64) expected="omarchy core extra alarm aur " ;;
+      aarch64-apple) expected="omarchy asahi-alarm core extra alarm aur " ;;
     esac
     [[ $list == "$expected" ]] || fail "$platform $channel: repositories in order" "$list"
     # $arch stays literal: pacman fills it in on the machine.
@@ -121,9 +121,9 @@ events() {
 
 for platform in $platforms; do
   case $platform in
-    generic) templates=$SUDO_TEST_ROOT/default/pacman ;;
-    generic-aarch64) templates=$SUDO_TEST_ROOT/default/pacman/aarch64 ;;
-    apple-silicon) templates=$SUDO_TEST_ROOT/default/pacman/apple-silicon ;;
+    x86) templates=$SUDO_TEST_ROOT/default/pacman ;;
+    aarch64) templates=$SUDO_TEST_ROOT/default/pacman/aarch64 ;;
+    aarch64-apple) templates=$SUDO_TEST_ROOT/default/pacman/aarch64-apple ;;
   esac
   # No channel named refreshes to the platform's default one.
   for channel in $(channels_for "$platform") ""; do
@@ -153,7 +153,7 @@ pass "a refresh backs up and copies the platform's channel template and mirrorli
 
 # A channel the platform has no template for (stable or rc on aarch64), or a
 # machine whose platform can't be told, stops before anything changes.
-for platform in generic-aarch64 apple-silicon; do
+for platform in aarch64 aarch64-apple; do
   for channel in stable rc; do
     reset_boundary
     if SUDO_TEST_PLATFORM=$platform refresh "$channel"; then fail "$platform: $channel is refused"; fi

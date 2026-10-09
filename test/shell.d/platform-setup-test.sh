@@ -21,8 +21,8 @@ require_platform_fixtures "platform setup on platform fixtures"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-fake_platform "$tmp/apple" apple-silicon
-fake_platform "$tmp/x86" generic
+fake_platform "$tmp/apple" aarch64-apple
+fake_platform "$tmp/x86" x86
 
 lifecycle=$tmp/lifecycle
 mkdir -p "$lifecycle/usr/lib/omarchy/mac" "$lifecycle/usr/lib/omarchy/mac-boot"
@@ -69,7 +69,7 @@ mv "$lifecycle/usr/lib/omarchy/mac-boot/setup-boot" "$tmp/setup-boot.saved"
 if leaf apple "$hardware_leaf"; then
   fail "apple: a Mac whose boot package lacks setup-boot fails the leaf instead of skipping its boot setup"
 fi
-grep -q "setup-boot on apple-silicon needs omarchy-mac-boot" "$tmp/output" || fail "apple: the failure names the boot package" "$(cat "$tmp/output")"
+grep -q "setup-boot on aarch64-apple needs omarchy-mac-boot" "$tmp/output" || fail "apple: the failure names the boot package" "$(cat "$tmp/output")"
 mv "$tmp/setup-boot.saved" "$lifecycle/usr/lib/omarchy/mac-boot/setup-boot"
 pass "apple: the system setup leaf runs omarchy-mac-boot's setup-boot, then omarchy-mac's setup-system, says when it is an image's first boot, and fails with either"
 

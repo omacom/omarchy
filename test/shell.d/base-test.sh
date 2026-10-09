@@ -98,9 +98,9 @@ fake_platform() {
   local -a compatible=()
 
   case $platform in
-    apple-silicon) compatible=(apple,j416c apple,t6021 apple,arm-platform) ;;
-    generic-aarch64) compatible=(raspberrypi,5-model-b brcm,bcm2712) ;;
-    generic) machine=x86_64 ;;
+    aarch64-apple) compatible=(apple,j416c apple,t6021 apple,arm-platform) ;;
+    aarch64) compatible=(raspberrypi,5-model-b brcm,bcm2712) ;;
+    x86) machine=x86_64 ;;
     *) fail "fake_platform knows the platform $platform" ;;
   esac
 

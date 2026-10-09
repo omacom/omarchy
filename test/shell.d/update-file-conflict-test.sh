@@ -55,7 +55,7 @@ replaced="$test_tmp/replaced"
 # Every case says which platform it runs on (x86 unless it sets PLATFORM), and
 # which boot package entrypoints are installed (none unless it sets
 # LIFECYCLE_ROOT), rather than inherit the machine running the suite.
-for platform in generic apple-silicon; do
+for platform in x86 aarch64-apple; do
   fake_platform "$test_tmp/$platform" "$platform"
 done
 mkdir -p "$test_tmp/no-boot-package"
@@ -68,7 +68,7 @@ if (( EUID == 0 )); then
 fi
 
 run_update() {
-  local platform=${PLATFORM:-generic}
+  local platform=${PLATFORM:-x86}
   OMARCHY_REPLACED_DIR="$replaced" \
     RETRY_FAILS="${RETRY_FAILS:-}" \
     RETRY_INSTALLS="${RETRY_INSTALLS:-}" \
@@ -320,7 +320,7 @@ echo "ours" >"$stray"
 write_report omarchy-settings "$stray"
 echo 0 >"$test_tmp/takeover-status"
 rm -f "$test_tmp/vouched"
-PLATFORM=apple-silicon LIFECYCLE_ROOT="$boot_package" run_update >"$test_tmp/out" 2>"$test_tmp/err" ||
+PLATFORM=aarch64-apple LIFECYCLE_ROOT="$boot_package" run_update >"$test_tmp/out" 2>"$test_tmp/err" ||
   fail "a takeover the boot package vouches for goes ahead" "$(cat "$test_tmp/err")"
 [[ ! -e $stray && -f $replaced$stray && $(cat "$test_tmp/vouched") == "$stray" ]] ||
   fail "the boot package is asked about exactly the files that move"
@@ -330,7 +330,7 @@ fresh_work
 echo "ours" >"$stray"
 write_report omarchy-settings "$stray"
 echo 1 >"$test_tmp/takeover-status"
-if PLATFORM=apple-silicon LIFECYCLE_ROOT="$boot_package" run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
+if PLATFORM=aarch64-apple LIFECYCLE_ROOT="$boot_package" run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
   fail "a takeover the boot package refuses stops the upgrade"
 fi
 [[ -f $stray && ! -e $replaced$stray && $(cat "$test_tmp/attempts") == 1 ]] ||
@@ -345,7 +345,7 @@ for root in "$test_tmp/no-boot-package" "$older"; do
   fresh_work
   echo "ours" >"$stray"
   write_report omarchy-settings "$stray"
-  if PLATFORM=apple-silicon LIFECYCLE_ROOT="$root" run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
+  if PLATFORM=aarch64-apple LIFECYCLE_ROOT="$root" run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
     fail "a Mac whose boot package can't answer keeps the files" "$root"
   fi
   [[ -f $stray && ! -e $replaced$stray ]] || fail "a Mac whose boot package can't answer moves nothing" "$root"

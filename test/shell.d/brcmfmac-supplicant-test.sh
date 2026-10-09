@@ -12,7 +12,7 @@ migration="$ROOT/migrations/1786391100.sh"
 # Apple Silicon's BCM4387 is in the ID list, but there the firmware supplicant
 # is the one that works, so the leaf and the migration step aside: a fresh
 # install marks the migration done only for its first user.
-grep -Fq 'omarchy-hw-apple-silicon && exit 0' "$migration" || fail "Broadcom migration excludes Apple Silicon"
+grep -Fq 'omarchy-hw-aarch64-apple && exit 0' "$migration" || fail "Broadcom migration excludes Apple Silicon"
 
 grep -q 'apple/fix-brcmfmac-supplicant.sh' "$all" ||
   fail "the brcmfmac quirk runs during hardware setup"
@@ -66,7 +66,7 @@ printf '\t%s' "$@" >>"$TEST_LOG"
 printf '\n' >>"$TEST_LOG"
 SH
 
-cat >"$stub_bin/omarchy-hw-apple-silicon" <<'SH'
+cat >"$stub_bin/omarchy-hw-aarch64-apple" <<'SH'
 #!/bin/bash
 
 (( ${APPLE_SILICON:-0} == 1 ))

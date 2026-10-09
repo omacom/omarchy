@@ -9,7 +9,7 @@ trap 'rm -rf "$tmp_dir"' EXIT
 
 baseline_conf="$ROOT/etc/mkinitcpio.conf.d/00-omarchy-hooks.conf"
 hooks_conf="$ROOT/etc/mkinitcpio.conf.d/omarchy_hooks.conf"
-fake_platform "$tmp_dir/generic" generic
+fake_platform "$tmp_dir/generic" x86
 
 # Each argument is a PCI device as "vendor:class", in sysfs's own format.
 write_pci_devices() {

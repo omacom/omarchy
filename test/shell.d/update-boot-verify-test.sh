@@ -21,7 +21,7 @@ export OMARCHY_UPDATE_LOGGED=1
 
 tmp=$boundary_tmp/boot
 mkdir -p "$tmp"
-for platform in apple-silicon generic-aarch64 generic; do
+for platform in aarch64-apple aarch64 x86; do
   fake_platform "$tmp/$platform" "$platform"
 done
 
@@ -62,9 +62,9 @@ reboot_offered() {
   grep -q '^step:omarchy-update-restart --reboot-only' "$SUDO_TEST_LOG"
 }
 
-# x86 and generic aarch64: the boot check is a no-op, even with a
+# x86 and plain aarch64: the boot check is a no-op, even with a
 # failing boot-package entrypoint on disk, and nothing asks for root.
-for platform in generic generic-aarch64; do
+for platform in x86 aarch64; do
   run_update "$platform" "$tmp/failing"
   (( status == 0 )) || fail "$platform: an update reports success" "status $status: $(cat "$tmp/err")"
   [[ ! -e $tmp/boot-ran ]] || fail "$platform: no boot-package entrypoint runs" "$(cat "$tmp/boot-ran")"
@@ -73,11 +73,11 @@ for platform in generic generic-aarch64; do
   reboot_offered || fail "$platform: the reboot is offered" "$(cat "$SUDO_TEST_LOG")"
   assert_boundary_cold "$platform update"
 done
-pass "x86 and generic aarch64 updates are unchanged: no boot check runs, nothing asks for root and the reboot is offered"
+pass "x86 and plain aarch64 updates are unchanged: no boot check runs, nothing asks for root and the reboot is offered"
 
 # Apple: verify runs once the last package step, AUR, is done, cold through
 # the no-update wrapper, before the reboot offer.
-run_update apple-silicon "$tmp/passing"
+run_update aarch64-apple "$tmp/passing"
 (( status == 0 )) || fail "apple: an update whose boot check passes reports success" "status $status: $(cat "$tmp/err")"
 [[ $(cat "$tmp/boot-ran") == "update-verify" ]] || fail "apple: verify runs once" "$(cat "$tmp/boot-ran")"
 aur=$(at 'step:omarchy-update-aur-pkgs') verify=$(at 'sudo -N omarchy-lifecycle-dispatch update-verify') hook=$(at 'step:omarchy-hook post-update')
@@ -99,7 +99,7 @@ pass "omarchy-update-boot refuses an argument"
 
 # A failed verification lets the update finish its remaining steps, then fails
 # it without offering the reboot.
-run_update apple-silicon "$tmp/unverified"
+run_update aarch64-apple "$tmp/unverified"
 (( status == 1 )) || fail "apple: a failed verification fails the update" "status $status: $(cat "$tmp/err")"
 ! reboot_offered || fail "apple: a failed verification offers no reboot"
 grep -q '^step:omarchy-update-stay-awake stop' "$SUDO_TEST_LOG" ||
@@ -112,15 +112,15 @@ pass "apple: a failed verification fails the update, explained, with no reboot o
 
 # A Mac without the boot package at all predates it: the update warns that its
 # boot files were not verified and finishes, asking for no root.
-run_update apple-silicon "$tmp/none"
+run_update aarch64-apple "$tmp/none"
 (( status == 0 )) && reboot_offered || fail "apple without the boot package: the update finishes and offers the reboot" "status $status: $(cat "$tmp/err")"
-grep -q 'update-verify on apple-silicon needs omarchy-mac-boot' "$tmp/err" && grep -q 'The boot files were not verified' "$tmp/err" ||
+grep -q 'update-verify on aarch64-apple needs omarchy-mac-boot' "$tmp/err" && grep -q 'The boot files were not verified' "$tmp/err" ||
   fail "apple without the boot package: the update says the boot files were not verified" "$(cat "$tmp/err")"
 ! grep -q 'omarchy-lifecycle-dispatch' "$SUDO_TEST_LOG" || fail "apple without the boot package: nothing asks for root"
 pass "apple: without the boot package the update warns that the boot files were not verified"
 
 # A boot package from before update-verify is one package update away.
-run_update apple-silicon "$tmp/older"
+run_update aarch64-apple "$tmp/older"
 (( status == 1 )) && ! reboot_offered || fail "apple: a boot package without update-verify fails the update" "status $status: $(cat "$tmp/err")"
 grep -q 'which omarchy-mac-boot 20260921-10 does not provide; update omarchy-mac-boot' "$tmp/err" ||
   fail "apple: a boot package without update-verify is named with its version" "$(cat "$tmp/err")"

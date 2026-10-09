@@ -40,7 +40,7 @@ cp -r "$ROOT/default/pacman" "$SUDO_TEST_ROOT/default/"
 # test reads the host's hardware.
 cat >"$SUDO_TEST_ROOT/bin/omarchy-hw-platform" <<'STUB'
 #!/bin/bash
-echo "${SUDO_TEST_PLATFORM:-generic}"
+echo "${SUDO_TEST_PLATFORM:-x86}"
 STUB
 chmod +x "$SUDO_TEST_ROOT/bin/omarchy-hw-platform"
 

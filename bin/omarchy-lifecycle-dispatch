@@ -86,7 +86,7 @@ if ! platform=$("${detect[@]}"); then
   exit 1
 fi
 
-# Generic and generic-aarch64 machines (Snapdragon laptops among them) have no
+# x86 and plain aarch64 machines (Snapdragon laptops among them) have no
 # registered package: every operation is a no-op there and callers keep their
 # generic path.
 # Apple Silicon's boot operations belong to omarchy-mac-boot, and its system and
@@ -102,12 +102,12 @@ fi
 # apple_optional in test/shell.d/lifecycle-dispatch-test.sh and the Apple column
 # and registration table in docs/lifecycle-dispatch.md.
 case $platform:$operation in
-  apple-silicon:setup-system | apple-silicon:setup-user | apple-silicon:post-install | apple-silicon:pre-remove)
+  aarch64-apple:setup-system | aarch64-apple:setup-user | aarch64-apple:post-install | aarch64-apple:pre-remove)
     implementation=/usr/lib/omarchy/mac
     package=omarchy-mac
     required=()
     ;;
-  apple-silicon:*)
+  aarch64-apple:*)
     implementation=/usr/lib/omarchy/mac-boot
     package=omarchy-mac-boot
     required=(

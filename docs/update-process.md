@@ -288,7 +288,7 @@ x86_64's are `default/pacman/pacman-<channel>.conf` and
 x86_64 puts it ahead of Arch's (migration 1791403252 reorders existing
 machines the same way, and a refresh can then move a package Omarchy also
 publishes to Omarchy's build, downgrading it if that build is older); Apple
-Silicon uses `default/pacman/apple-silicon/`, which puts Omarchy and Asahi ALARM
+Silicon uses `default/pacman/aarch64-apple/`, which puts Omarchy and Asahi ALARM
 ahead of Arch Linux ARM. Omarchy publishes aarch64 packages on edge alone so
 far, and the `omarchy` and `omarchy-settings` packages there for stable and rc
 are the release line, which has no aarch64 support, so ARM platforms have edge

@@ -1,12 +1,17 @@
 #!/bin/bash -p
 
-# omarchy:summary=Print the hardware platform: apple-silicon, generic-aarch64 or generic.
+# omarchy:summary=Print the hardware platform: x86, aarch64 or aarch64-apple.
 
+# Platform names are the CPU architecture, then the hardware family when it
+# needs handling of its own: x86, aarch64 (every ARM machine without one) and
+# aarch64-apple (Apple Silicon). A later family is aarch64-<family>, so
+# "aarch64*" always means ARM (AGENTS.md, Platforms).
+#
 # ARM laptops have no DMI, so the board identity is the root node of the device
 # tree the firmware hands the kernel: "apple,<model>" from Asahi's m1n1 on every
-# Apple Silicon Mac, "qcom,<soc>" on Snapdragon laptops, which are generic
-# aarch64 here and must never pass for a Mac. Each compatible string is a
-# NUL-separated list, and only a token's vendor prefix counts.
+# Apple Silicon Mac, "qcom,<soc>" on Snapdragon laptops, which are plain aarch64
+# here and must never pass for a Mac. Each compatible string is a NUL-separated
+# list, and only a token's vendor prefix counts.
 #
 # An image is built away from the machine it will run on, so while this root is
 # being built rather than booted, the image-target manifest the builder wrote
@@ -93,8 +98,10 @@ trusted() {
   [[ $owner =~ ^[0-9]+$ && $mode =~ ^[0-7]+$ ]] && (( owner == image_owner && (8#$mode & 8#022) == 0 ))
 }
 
-# The manifest: format=1, platform= one of the four names, comments and unknown
-# keys ignored, and any other line refused. The detector reads it itself, so it
+# The manifest: format=1, platform= one of the platform names, comments and
+# unknown keys ignored, and any other line refused. Image builders written before
+# the names settled say apple-silicon, generic-aarch64 or generic, which still
+# read as aarch64-apple, aarch64 and x86. The detector reads it itself, so it
 # stands alone wherever a package ships a copy of it.
 image_platform() {
   local line key value format="" platform=""
@@ -122,7 +129,12 @@ image_platform() {
     echo "Error: the image manifest $manifest is not format=1" >&2
     return 1
   fi
-  if [[ ! $platform =~ ^(apple-silicon|generic-aarch64|generic)$ ]]; then
+  case $platform in
+    apple-silicon) platform=aarch64-apple ;;
+    generic-aarch64) platform=aarch64 ;;
+    generic) platform=x86 ;;
+  esac
+  if [[ ! $platform =~ ^(x86|aarch64|aarch64-apple)$ ]]; then
     echo "Error: the image manifest $manifest names no known platform: ${platform:-none}" >&2
     return 1
   fi
@@ -132,7 +144,7 @@ image_platform() {
 
 if [[ -n $image_dir ]] && [[ -e $manifest || -L $manifest ]] && ! booted; then
   platform=$(image_platform) || exit 1
-  if [[ $platform == "generic" ]]; then
+  if [[ $platform == "x86" ]]; then
     [[ $machine != "aarch64" ]] || contradiction "$manifest names $platform hardware but the CPU is $machine"
   else
     [[ $machine == "aarch64" ]] || contradiction "$manifest names $platform hardware but the CPU is $machine"
@@ -175,16 +187,16 @@ case $vendor in
   apple | qcom)
     [[ $machine == "aarch64" ]] || contradiction "$vendor_source names $vendor hardware but the CPU is $machine"
     if [[ $vendor == "apple" ]]; then
-      echo apple-silicon
+      echo aarch64-apple
     else
-      echo generic-aarch64
+      echo aarch64
     fi
     ;;
   *)
     if [[ $machine == "aarch64" ]]; then
-      echo generic-aarch64
+      echo aarch64
     else
-      echo generic
+      echo x86
     fi
     ;;
 esac

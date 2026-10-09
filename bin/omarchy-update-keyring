@@ -26,7 +26,7 @@ fi
 # their own, so its keyring is kept current the same way.
 keyrings=(archlinux-keyring)
 case $(omarchy-hw-platform 2>/dev/null) in
-  apple-silicon | generic-aarch64)
+  aarch64*)
     if omarchy-pkg-present archlinuxarm-keyring; then
       keyrings+=(archlinuxarm-keyring)
     fi
