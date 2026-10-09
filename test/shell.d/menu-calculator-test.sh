@@ -41,6 +41,18 @@ assertEqual(calculator.evaluate('(pi)'), null, 'a grouped constant is not a calc
 assertEqual(calculator.evaluate('sqrt(4, 9)'), null, 'refuses an extra argument instead of dropping it')
 assertEqual(calculator.evaluate('round(1.234, 2, 3)'), null, 'refuses a third argument to round')
 assertEqual(calculator.evaluate('min(5)'), null, 'refuses a missing argument')
+
+// A comma between digits is a decimal mark, as a Nordic or German keypad types
+// it, everywhere but in an argument list -- and never before exactly three
+// digits, where it could as well be grouping thousands.
+assertDeepEqual(calculator.evaluate('3,5*2'), ['7'], 'reads a decimal comma')
+assertDeepEqual(calculator.evaluate('12,50 * 3'), ['37.5'], 'reads a decimal comma with two places')
+assertDeepEqual(calculator.evaluate('(3,5+1)*2'), ['9'], 'reads a decimal comma inside plain parentheses')
+assertDeepEqual(calculator.evaluate('2,5 kg to lb'), ['5.51155655462 lb'], 'reads a decimal comma in a conversion')
+assertDeepEqual(calculator.evaluate('max(3,9,2)'), ['9'], 'a comma in an argument list still separates arguments')
+assertEqual(calculator.evaluate('1,000*2'), null, 'refuses a comma that could be grouping thousands')
+assertEqual(calculator.evaluate('1,5,3*2'), null, 'refuses a second comma after a decimal one')
+assertEqual(calculator.evaluate('3,5'), null, 'a bare decimal-comma number is not a calculation')
 assertDeepEqual(calculator.evaluate('50% of 80 kg'), ['88.184904874 lb', '40000 g'], 'expands a quantity computed from a share')
 
 assertDeepEqual(calculator.evaluate('20 km to mi'), ['12.4274238447 mi'], 'converts length')

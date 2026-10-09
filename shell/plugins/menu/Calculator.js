@@ -213,11 +213,26 @@ function isLetter(character) {
   return (character >= "a" && character <= "z") || (character >= "A" && character <= "Z")
 }
 
+// Whether the comma at `index` is a decimal mark rather than a separator. Half
+// the world writes 3,5 and the keypad of a Nordic or German layout types it, so
+// a comma between digits reads as a decimal -- except inside a function call,
+// where it separates arguments, and before exactly three digits, where 1,000 is
+// a thousand to one reader and one to another and no answer beats a wrong one.
+function isDecimalComma(text, index, inCall) {
+  if (inCall || text.charAt(index) !== ",") return false
+  var digits = 0
+  while (isDigit(text.charAt(index + 1 + digits))) digits++
+  return digits > 0 && digits !== 3
+}
+
 // Returns null on anything it cannot read, which is most of what a search box
 // contains: the caller treats that as "this query is not a calculation".
 function tokenize(text) {
   var tokens = []
   var index = 0
+  // One entry per open parenthesis, true when it opened a function call, so a
+  // comma knows whether it sits in an argument list.
+  var groups = []
 
   while (index < text.length) {
     var character = text.charAt(index)
@@ -230,7 +245,7 @@ function tokenize(text) {
     if (isDigit(character) || (character === "." && isDigit(text.charAt(index + 1)))) {
       var numberStart = index
       while (index < text.length && isDigit(text.charAt(index))) index++
-      if (text.charAt(index) === ".") {
+      if (text.charAt(index) === "." || isDecimalComma(text, index, groups.indexOf(true) >= 0)) {
         index++
         while (index < text.length && isDigit(text.charAt(index))) index++
       }
@@ -246,7 +261,7 @@ function tokenize(text) {
           index = exponent
         }
       }
-      tokens.push({ type: "number", value: Number(text.slice(numberStart, index)) })
+      tokens.push({ type: "number", value: Number(text.slice(numberStart, index).replace(",", ".")) })
       continue
     }
 
@@ -262,6 +277,13 @@ function tokenize(text) {
     if (character === "×") { tokens.push({ type: "*" }); index++; continue }
     if (character === "÷") { tokens.push({ type: "/" }); index++; continue }
     if (character === "−") { tokens.push({ type: "-" }); index++; continue }
+
+    if (character === "(") {
+      var callee = tokens.length > 0 ? tokens[tokens.length - 1] : null
+      groups.push(callee !== null && callee.type === "name" && FUNCTIONS.hasOwnProperty(callee.value))
+    } else if (character === ")") {
+      groups.pop()
+    }
 
     if ("+-*/%^(),".indexOf(character) >= 0) {
       tokens.push({ type: character })
