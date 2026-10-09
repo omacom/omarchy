@@ -618,6 +618,7 @@ assertEqual(T.evaluate(t('ab', 'group', '2', 'b'), reply([0, 2, 1, 2], 4), {}).d
 assertEqual(T.evaluate(t('ab', 'group', '1', 'a'), reply([0, 2, 1, 2], 4), {}).detail, 'group 1 is "b", not "a"', 'a wrong capture says what it got')
 assertEqual(T.normalize({ expect: 'bogus' }).expect, 'match', 'an unknown expectation falls back to "matches"')
 assert(T.evaluate(t('a\t', 'group', '1', 'a\t'), { ok: true, matches: [0, 2, -2, -2], stride: 4, groupTexts: { 0: ['a\t'] } }, {}).pass, 'a capture with an unknown position is judged by its text')
+assert(!T.evaluate(t('a\t', 'group', '2', ''), { ok: true, matches: [0, 2, -2, -2, -2, -2], stride: 6, groupTexts: { 0: ['a\t', ''] } }, {}).pass, 'an empty capture with an unknown position proves nothing')
 JS
 
 # ---- generated code -------------------------------------------------------------------

@@ -49,6 +49,9 @@ function evaluate(test, reply, names) {
     // -2: the engine said what the group matched but not where.
     var known = gs === -2 && reply.groupTexts && reply.groupTexts["0"] ? reply.groupTexts["0"][index - 1] : null
     if (gs < 0 && (known === null || known === undefined)) return { pass: false, detail: "group " + test.group + " did not take part" }
+    // An empty text there may be an empty capture or a group that did not
+    // take part; the engine does not say which, so nothing is proved.
+    if (gs === -2 && known === "") return { pass: false, detail: "group " + test.group + " matched nothing or did not take part; " + "this engine does not say which" }
     var got = gs < 0 ? known : test.text.substring(gs, ge)
     return got === test.value
       ? { pass: true, detail: "group " + test.group + " is " + JSON.stringify(got) }
