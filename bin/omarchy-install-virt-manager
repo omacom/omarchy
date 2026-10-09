@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# omarchy:summary=Install QEMU and Virtual Machine Manager.
+# omarchy:requires-sudo=true
+
+set -e
+
+if [[ $1 == "--fix-python" ]]; then
+  sed -i '/env python3/ c\#!/bin/python3' /usr/bin/virt-manager
+else
+  echo "Installing QEMU and Virtual Machine Manager..."
+  if ! omarchy-pkg-add dnsmasq qemu-desktop virt-manager; then
+    echo "Package installation failed"
+    exit 1
+  fi
+
+  # The pacman hook repeats this edit after every virt-manager upgrade.
+  if ! sudo omarchy-install-virt-manager --fix-python; then
+    echo "Failed to configure virt-manager to use the system Python"
+    exit 1
+  fi
+
+  echo "Starting the libvirt QEMU, storage, and network daemons..."
+  if ! sudo systemctl enable --now virtqemud.socket virtstoraged.socket virtnetworkd.socket; then
+    echo "Failed to enable libvirt services"
+    exit 1
+  fi
+
+  # libvirt ships a default NAT network but does not enable it by default.
+  if ! sudo virsh net-autostart default; then
+    echo "Failed to enable the default libvirt network"
+    exit 1
+  fi
+
+  if ! network_info=$(sudo virsh net-info default); then
+    echo "Failed to check the default libvirt network"
+    exit 1
+  fi
+
+  if ! rg -q '^Active:.*yes$' <<<"$network_info"; then
+    if ! sudo virsh net-start default; then
+      echo "Failed to start the default libvirt network"
+      exit 1
+    fi
+  fi
+
+  # UFW's default-deny input policy otherwise drops DHCP and DNS from guests.
+  if ! sudo ufw allow in on virbr0 to any port 53 proto tcp comment 'omarchy-libvirt-dns' >/dev/null; then
+    echo "Failed to allow DNS over TCP for virtual machines"
+    exit 1
+  fi
+
+  if ! sudo ufw allow in on virbr0 to any port 53 proto udp comment 'omarchy-libvirt-dns' >/dev/null; then
+    echo "Failed to allow DNS over UDP for virtual machines"
+    exit 1
+  fi
+
+  if ! sudo ufw allow in on virbr0 to any port 67 proto udp comment 'omarchy-libvirt-dhcp' >/dev/null; then
+    echo "Failed to allow DHCP for virtual machines"
+    exit 1
+  fi
+
+  # Keep guests off private LANs while allowing them to reach the internet.
+  sudo ufw --force delete route allow in on virbr0 comment 'omarchy-libvirt-forward' >/dev/null 2>&1 || true
+  if ! sudo ufw route deny in on virbr0 to 10.0.0.0/8 comment 'omarchy-libvirt-private' >/dev/null || ! sudo ufw route deny in on virbr0 to 172.16.0.0/12 comment 'omarchy-libvirt-private' >/dev/null || ! sudo ufw route deny in on virbr0 to 192.168.0.0/16 comment 'omarchy-libvirt-private' >/dev/null; then
+    echo "Failed to block virtual machines from private networks"
+    exit 1
+  fi
+
+  if ! sudo ufw route allow in on virbr0 comment 'omarchy-libvirt-forward' >/dev/null; then
+    echo "Failed to allow virtual machines to reach the internet"
+    exit 1
+  fi
+
+  if ! sudo ufw reload >/dev/null; then
+    echo "Failed to reload UFW"
+    exit 1
+  fi
+fi
