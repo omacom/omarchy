@@ -3,6 +3,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Notifications
@@ -988,117 +989,140 @@ Item {
 
   // -------------------------------------------------------------- popup UI
   //
-  // One PanelWindow per output (Variants on Quickshell.screens) holding the
-  // stacked toast cards. Layer is Overlay, exclusionMode Ignore, no
+  // One PanelWindow holding the stacked toast cards, on the output that was
+  // focused when the stack appeared. Layer is Overlay, exclusionMode Ignore, no
   // keyboard focus — popups are passive surfaces and must never steal input
   // from the focused application.
 
-  Variants {
-    model: Quickshell.screens
+  // Held until the stack empties, so a toast never jumps screens mid-read.
+  readonly property bool popupsShown: popupModel.count > 0
+  property var popupScreen: null
 
-    PanelWindow {
-      id: popupWindow
-      required property var modelData
-      screen: modelData
-      visible: popupModel.count > 0
+  function focusedScreen() {
+    var monitor = Hyprland.focusedMonitor
+    var name = monitor ? String(monitor.name || "") : ""
+    for (var i = 0; i < Quickshell.screens.length; i++) {
+      if (Quickshell.screens[i].name === name) return Quickshell.screens[i]
+    }
+    return Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
+  }
 
-      WlrLayershell.namespace: "omarchy-notifications"
-      WlrLayershell.layer: WlrLayer.Overlay
-      WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-      exclusionMode: ExclusionMode.Ignore
-      color: "transparent"
+  onPopupsShownChanged: popupScreen = popupsShown ? focusedScreen() : null
 
-      readonly property var popupPlacement: NotificationLogic.popupPlacement(
-        service.barPosition, service.barClearance, Style.gapsOut)
+  Connections {
+    target: Quickshell
+    function onScreensChanged() {
+      if (service.popupsShown && Quickshell.screens.indexOf(service.popupScreen) < 0) {
+        service.popupScreen = null
+        // Let the removed output close its window before mapping a new one.
+        Qt.callLater(function() {
+          if (service.popupsShown && !service.popupScreen) service.popupScreen = service.focusedScreen()
+        })
+      }
+    }
+  }
 
-      // Full-screen, fixed-size surface (like the OSD overlay). Adding or
-      // removing a toast changes only the content inside; the Wayland surface
-      // never resizes, so the compositor can't briefly scale a stale buffer --
-      // which is what stretched/squished the cards during count changes.
-      anchors { top: true; bottom: true; left: true; right: true }
+  PanelWindow {
+    id: popupWindow
+    screen: service.popupScreen
+    visible: service.popupsShown && !!service.popupScreen
 
-      // Keep the surface click-through except over the toast column, so the
-      // rest of the (invisible) full-screen overlay never eats input.
-      mask: Region { item: popupColumn }
+    WlrLayershell.namespace: "omarchy-notifications"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    exclusionMode: ExclusionMode.Ignore
+    color: "transparent"
 
-      ColumnLayout {
-        id: popupColumn
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.topMargin: popupWindow.popupPlacement.margins.top
-        anchors.rightMargin: popupWindow.popupPlacement.margins.right
-        spacing: Style.space(8)
+    readonly property var popupPlacement: NotificationLogic.popupPlacement(
+      service.barPosition, service.barClearance, Style.gapsOut)
 
-        Repeater {
-          model: popupModel
+    // Full-screen, fixed-size surface (like the OSD overlay). Adding or
+    // removing a toast changes only the content inside; the Wayland surface
+    // never resizes, so the compositor can't briefly scale a stale buffer --
+    // which is what stretched/squished the cards during count changes.
+    anchors { top: true; bottom: true; left: true; right: true }
 
-          // The delegate is a slot Item that owns lifetime timer state. The
-          // actual visuals live in NotificationCard, which the history panel
-          // also reuses.
-          delegate: Item {
-            id: cardSlot
-            required property int index
-            required property string app
-            required property string appIcon
-            required property string summary
-            required property string body
-            required property string image
-            required property string glyph
-            required property int urgency
-            required property double expireTimeout
-            required property double timestamp
+    // Keep the surface click-through except over the toast column, so the
+    // rest of the (invisible) full-screen overlay never eats input.
+    mask: Region { item: popupColumn }
 
-            // Each card sizes itself based on mode (text vs media); the slot
-            // tracks the card so the column auto-fits to whichever is widest.
-            Layout.preferredWidth: card.implicitWidth
-            Layout.alignment: Qt.AlignRight
-            implicitHeight: card.implicitHeight
+    ColumnLayout {
+      id: popupColumn
+      anchors.right: parent.right
+      anchors.top: parent.top
+      anchors.topMargin: popupWindow.popupPlacement.margins.top
+      anchors.rightMargin: popupWindow.popupPlacement.margins.right
+      spacing: Style.space(8)
 
-            readonly property real lifetime: service.durationFor(cardSlot.urgency, cardSlot.expireTimeout)
-            property real remainingLifetime: 1.0
-            readonly property bool ticking: cardSlot.lifetime > 0 && !card.hovered
+      Repeater {
+        model: popupModel
 
-            // A client updating this notification in place rewrites the row
-            // under the card (see refreshPopup). New text deserves a full look,
-            // so the countdown starts over instead of running out the clock the
-            // superseded text was already most of the way through. Delegates
-            // keep their own row as the model changes around them, so only a
-            // real content change lands here.
-            onSummaryChanged: cardSlot.remainingLifetime = 1.0
-            onBodyChanged: cardSlot.remainingLifetime = 1.0
-            onImageChanged: cardSlot.remainingLifetime = 1.0
+        // The delegate is a slot Item that owns lifetime timer state. The
+        // actual visuals live in NotificationCard, which the history panel
+        // also reuses.
+        delegate: Item {
+          id: cardSlot
+          required property int index
+          required property string app
+          required property string appIcon
+          required property string summary
+          required property string body
+          required property string image
+          required property string glyph
+          required property int urgency
+          required property double expireTimeout
+          required property double timestamp
 
-            Timer {
-              interval: 50
-              repeat: true
-              running: cardSlot.ticking
-              onTriggered: {
-                if (cardSlot.lifetime <= 0) return
-                cardSlot.remainingLifetime -= 50.0 / cardSlot.lifetime
-                if (cardSlot.remainingLifetime <= 0) {
-                  cardSlot.remainingLifetime = 0
-                  service.expirePopup(cardSlot.index)
-                }
+          // Each card sizes itself based on mode (text vs media); the slot
+          // tracks the card so the column auto-fits to whichever is widest.
+          Layout.preferredWidth: card.implicitWidth
+          Layout.alignment: Qt.AlignRight
+          implicitHeight: card.implicitHeight
+
+          readonly property real lifetime: service.durationFor(cardSlot.urgency, cardSlot.expireTimeout)
+          property real remainingLifetime: 1.0
+          readonly property bool ticking: cardSlot.lifetime > 0 && !card.hovered
+
+          // A client updating this notification in place rewrites the row
+          // under the card (see refreshPopup). New text deserves a full look,
+          // so the countdown starts over instead of running out the clock the
+          // superseded text was already most of the way through. Delegates
+          // keep their own row as the model changes around them, so only a
+          // real content change lands here.
+          onSummaryChanged: cardSlot.remainingLifetime = 1.0
+          onBodyChanged: cardSlot.remainingLifetime = 1.0
+          onImageChanged: cardSlot.remainingLifetime = 1.0
+
+          Timer {
+            interval: 50
+            repeat: true
+            running: cardSlot.ticking
+            onTriggered: {
+              if (cardSlot.lifetime <= 0) return
+              cardSlot.remainingLifetime -= 50.0 / cardSlot.lifetime
+              if (cardSlot.remainingLifetime <= 0) {
+                cardSlot.remainingLifetime = 0
+                service.expirePopup(cardSlot.index)
               }
             }
+          }
 
-            NotificationCard {
-              id: card
-              anchors.right: parent.right
-              app: cardSlot.app
-              appIcon: cardSlot.appIcon
-              summary: cardSlot.summary
-              body: cardSlot.body
-              image: cardSlot.image
-              urgency: cardSlot.urgency
-              timestamp: cardSlot.timestamp
-              cornerRadius: service.cornerRadius
-              fontFamily: service.shell && service.shell.bar ? service.shell.bar.fontFamily : ""
-              glyph: cardSlot.glyph
+          NotificationCard {
+            id: card
+            anchors.right: parent.right
+            app: cardSlot.app
+            appIcon: cardSlot.appIcon
+            summary: cardSlot.summary
+            body: cardSlot.body
+            image: cardSlot.image
+            urgency: cardSlot.urgency
+            timestamp: cardSlot.timestamp
+            cornerRadius: service.cornerRadius
+            fontFamily: service.shell && service.shell.bar ? service.shell.bar.fontFamily : ""
+            glyph: cardSlot.glyph
 
-              onCloseRequested: service.dismissPopup(cardSlot.index)
-              onCardClicked: service.invokePopupDefault(cardSlot.index)
-            }
+            onCloseRequested: service.dismissPopup(cardSlot.index)
+            onCardClicked: service.invokePopupDefault(cardSlot.index)
           }
         }
       }
