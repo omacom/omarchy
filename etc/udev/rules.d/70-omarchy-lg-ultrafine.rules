@@ -1,0 +1,9 @@
+# The LG UltraFine has no DDC/CI. Its brightness is a HID feature report on the
+# "USB Controls" device behind the display's hub, which omarchy-brightness-display-lg
+# reads and writes through hidraw. Give the user at the seat access to it.
+#
+# Other UltraFine models use other product IDs; add a line per model once it
+# has been tested. Sorted before 73-seat-late.rules so the uaccess tag applies.
+
+# UltraFine 5K
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="043e", ATTRS{idProduct}=="9a40", TAG+="uaccess"

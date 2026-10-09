@@ -39,6 +39,10 @@ use_apple_display() {
   omarchy-hyprland-monitor-focused-apple "$monitor"
 }
 
+use_lg_display() {
+  omarchy-hyprland-monitor-focused-lg "$monitor"
+}
+
 use_ddc_display() {
   [[ -n $monitor ]] && ! monitor_is_internal
 }
@@ -46,6 +50,9 @@ use_ddc_display() {
 if (( $# == 0 )); then
   if use_apple_display; then
     omarchy-brightness-display-apple
+    exit
+  elif use_lg_display; then
+    omarchy-brightness-display-lg
     exit
   elif use_ddc_display; then
     omarchy-brightness-display-ddc "$monitor"
@@ -82,6 +89,9 @@ if use_apple_display; then
   else
     omarchy-brightness-display-apple "$step"
   fi
+elif use_lg_display; then
+  brightness="$(omarchy-brightness-display-lg "$step")" || exit 1
+  (( no_osd )) || omarchy-osd -i brightness -p "$brightness"
 elif use_ddc_display; then
   brightness="$(omarchy-brightness-display-ddc "$monitor" "$step")" || exit 1
   (( no_osd )) || omarchy-osd -i brightness -p "$brightness"

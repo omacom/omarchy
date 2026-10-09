@@ -17,6 +17,22 @@ cat >"$mock_bin/omarchy-hyprland-monitor-focused-apple" <<'SH'
 exit 1
 SH
 
+cat >"$mock_bin/omarchy-hyprland-monitor-focused-lg" <<'SH'
+#!/bin/bash
+[[ -n ${LG_MONITOR:-} && ${1:-} == "$LG_MONITOR" ]]
+SH
+
+cat >"$mock_bin/omarchy-brightness-display-lg" <<'SH'
+#!/bin/bash
+printf 'lg %s\n' "$*" >>"$CALL_LOG"
+printf '%s\n' "${LG_BRIGHTNESS:-63}"
+SH
+
+cat >"$mock_bin/omarchy-osd" <<'SH'
+#!/bin/bash
+printf 'osd %s\n' "$*" >>"$CALL_LOG"
+SH
+
 cat >"$mock_bin/omarchy-hyprland-monitor-focused" <<'SH'
 #!/bin/bash
 printf '%s\n' "${FOCUSED_MONITOR:-eDP-1}"
@@ -129,11 +145,21 @@ grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 5' "$call_log" >
   fail "external low brightness writes the one-percent target"
 pass "external low brightness uses a one-percent step"
 
+detect_count=$(grep -c ' detect --brief' "$call_log")
+brightness=$(LG_MONITOR=DP-3 run_brightness --monitor DP-3)
+[[ $brightness == "63" ]] || fail "LG UltraFine brightness comes from its HID backend" "actual: $brightness"
+LG_MONITOR=DP-3 LG_BRIGHTNESS=58 run_brightness --monitor DP-3 5%-
+grep -Fx 'lg 5%-' "$call_log" >/dev/null || fail "LG UltraFine step is passed to its HID backend"
+grep -Fx 'osd -i brightness -p 58' "$call_log" >/dev/null || fail "LG UltraFine step shows the brightness it reports"
+(( $(grep -c ' detect --brief' "$call_log") == detect_count )) || fail "LG UltraFine is not probed over DDC"
+pass "LG UltraFine uses its HID backend instead of DDC"
+
 cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
 printf '%s\n' '[
   {"name":"DP-1","focused":true,"make":"HPN","model":"OMEN X 25f"},
-  {"name":"DP-2","focused":false,"make":"Apple Computer Inc","model":"StudioDisplay"}
+  {"name":"DP-2","focused":false,"make":"Apple Computer Inc","model":"StudioDisplay"},
+  {"name":"DP-3","focused":false,"make":"LG Electronics","model":"LG UltraFine"}
 ]'
 SH
 chmod +x "$mock_bin/hyprctl"
@@ -144,3 +170,10 @@ if PATH="$mock_bin:$PATH" "$ROOT/bin/omarchy-hyprland-monitor-focused-apple"; th
   fail "focused non-Apple display is not detected as Apple"
 fi
 pass "named Apple display is detected independently of focus"
+
+PATH="$mock_bin:$PATH" "$ROOT/bin/omarchy-hyprland-monitor-focused-lg" DP-3 || \
+  fail "named LG UltraFine display is detected independently of focus"
+if PATH="$mock_bin:$PATH" "$ROOT/bin/omarchy-hyprland-monitor-focused-lg"; then
+  fail "focused non-LG display is not detected as an LG UltraFine"
+fi
+pass "named LG UltraFine display is detected independently of focus"
