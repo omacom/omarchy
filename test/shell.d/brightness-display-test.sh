@@ -144,3 +144,44 @@ if PATH="$mock_bin:$PATH" "$ROOT/bin/omarchy-hyprland-monitor-focused-apple"; th
   fail "focused non-Apple display is not detected as Apple"
 fi
 pass "named Apple display is detected independently of focus"
+
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+if [[ $1 == "monitors" ]]; then
+  printf '%s\n' "${MONITORS_JSON:-[]}"
+else
+  printf 'hyprctl %s\n' "$*" >>"$CALL_LOG"
+fi
+SH
+chmod +x "$mock_bin/hyprctl"
+
+: >"$call_log"
+FOCUSED_MONITOR=DP-1 run_brightness --monitor DP-2 off
+grep -Fx 'hyprctl dispatch hl.dsp.dpms({ action = "disable", monitor = "DP-2" })' "$call_log" >/dev/null || \
+  fail "off with a named monitor blanks only that monitor" "$(cat "$call_log")"
+pass "off with a named monitor blanks only that monitor"
+
+: >"$call_log"
+FOCUSED_MONITOR=DP-1 run_brightness off
+grep -Fx 'hyprctl dispatch hl.dsp.dpms({ action = "disable" })' "$call_log" >/dev/null || \
+  fail "off without a monitor blanks every display, not just the focused one" "$(cat "$call_log")"
+pass "off without a monitor blanks every display, not just the focused one"
+
+lit_dp2='[{"name":"DP-1","disabled":false,"dpmsStatus":false},{"name":"DP-2","disabled":false,"dpmsStatus":true}]'
+
+: >"$call_log"
+MONITORS_JSON=$lit_dp2 FOCUSED_MONITOR=DP-2 run_brightness on
+grep -Fx 'hyprctl dispatch hl.dsp.dpms({ action = "enable" })' "$call_log" >/dev/null || \
+  fail "on without a monitor wakes every display, not just the focused one" "$(cat "$call_log")"
+pass "on without a monitor wakes every display, not just the focused one"
+
+: >"$call_log"
+MONITORS_JSON=$lit_dp2 run_brightness --monitor DP-1 on
+grep -Fx 'hyprctl dispatch hl.dsp.dpms({ action = "enable", monitor = "DP-1" })' "$call_log" >/dev/null || \
+  fail "on with a named monitor wakes only that monitor" "$(cat "$call_log")"
+pass "on with a named monitor wakes only that monitor"
+
+: >"$call_log"
+MONITORS_JSON=$lit_dp2 run_brightness --monitor DP-2 on
+[[ ! -s $call_log ]] || fail "on skips a named monitor that is already lit" "$(cat "$call_log")"
+pass "on skips a named monitor that is already lit"

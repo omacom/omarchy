@@ -29,6 +29,8 @@ backlight_brightness() {
   brightnessctl -d "$1" -m 2>/dev/null | awk -F, '{ gsub("%", "", $4); print $4; found=1 } END{ exit !found }'
 }
 
+# DPMS off/on stays on every display unless --monitor names one.
+dpms_monitor="$monitor"
 [[ -n $monitor ]] || monitor="$(omarchy-hyprland-monitor-focused 2>/dev/null || true)"
 
 monitor_is_internal() {
@@ -60,14 +62,23 @@ fi
 step="$1"
 
 if [[ $step == "off" ]]; then
-  hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
+  if [[ -n $dpms_monitor ]]; then
+    hyprctl dispatch "hl.dsp.dpms({ action = \"disable\", monitor = \"$dpms_monitor\" })" >/dev/null 2>&1
+  else
+    hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
+  fi
   exit 0
 elif [[ $step == "on" ]]; then
-  # Skip the dispatch when every active display is already lit: a redundant
+  # Skip the dispatch when every targeted display is already lit: a redundant
   # DPMS enable right after system resume forces another modeset, which blanks
   # the panel for a beat (visible flash at the unlock screen).
-  hyprctl monitors -j 2>/dev/null | jq -e '[.[] | select(.disabled == false)] | length > 0 and all(.dpmsStatus)' >/dev/null 2>&1 && exit 0
-  hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1
+  hyprctl monitors -j 2>/dev/null | jq -e --arg name "$dpms_monitor" '[.[] | select(.disabled == false and ($name == "" or .name == $name))] | length > 0 and all(.dpmsStatus)' >/dev/null 2>&1 && exit 0
+
+  if [[ -n $dpms_monitor ]]; then
+    hyprctl dispatch "hl.dsp.dpms({ action = \"enable\", monitor = \"$dpms_monitor\" })" >/dev/null 2>&1
+  else
+    hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1
+  fi
   exit 0
 fi
 
