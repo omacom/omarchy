@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source "$(dirname "$0")/base-test.sh"
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 test_tmp=$(mktemp -d) || fail "test temp directory is available"
 trap 'rm -rf "$test_tmp"' EXIT
@@ -28,18 +28,33 @@ esac
 printf '%s\n' "${SUPPORTED_MODES:-Integrated Hybrid}"
 STUB
 
-cat >"$fake_bin/lspci" <<'STUB'
-#!/bin/bash
+chmod +x "$fake_bin/supergfxctl"
 
-for _ in $(seq "${GPU_COUNT:-1}"); do
-  echo "0000:00:02.0 VGA compatible controller: Stub GPU"
-done
-STUB
+devices_dir="$test_tmp/devices"
 
-chmod +x "$fake_bin"/*
+# Write N PCI display controllers as sysfs device directories. The class prefix
+# 0x03 is what the detector counts and covers VGA, 3D, and Display controllers.
+write_display_devices() {
+  rm -rf "$devices_dir"
+  mkdir -p "$devices_dir"
+
+  local index=0
+  for _ in $(seq "${1:-0}"); do
+    local slot
+    slot=$(printf '0000:%02x:00.0' "$index")
+    mkdir -p "$devices_dir/$slot"
+    printf '0x0000\n' >"$devices_dir/$slot/vendor"
+    printf '0x030000\n' >"$devices_dir/$slot/class"
+    index=$((index + 1))
+  done
+}
 
 hybrid_gpu() {
-  PATH="$fake_bin:$PATH" timeout --kill-after=1s 10s bash "$ROOT/bin/omarchy-hw-hybrid-gpu"
+  write_display_devices "${GPU_COUNT:-0}"
+  PATH="$fake_bin:$PATH" \
+    OMARCHY_PATH="$ROOT" \
+    OMARCHY_PCI_DEVICES_PATH="$devices_dir" \
+    timeout --kill-after=1s 10s bash "$ROOT/bin/omarchy-hw-hybrid-gpu"
 }
 
 hybrid_gpu ||
