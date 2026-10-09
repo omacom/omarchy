@@ -3,10 +3,11 @@
 # Turning off D3cold is not enough for MacBookPro14,1. Firmware S3 resume does
 # not come back, and on s2idle the 106b:2003 controller is left in a power
 # state it cannot leave. The kernel parameters below resumed that machine from
-# a short sleep and from a lid close. intel_idle.max_cstate=1 was part of that
-# combo and was not tested alone; it uses more power while the machine is awake.
-# The udev rule matches 106b:2003, so it does not write D3cold onto the GPU at
-# 0000:01:00.0 on the 15-inch MacBookPro13,3 and 14,3.
+# a short sleep and from a lid close. They are installed only on MacBookPro14,1,
+# the one machine where that combo was tested. intel_idle.max_cstate=1 was part
+# of the combo and was not tested alone; it uses more power while the machine
+# is awake. The udev rule matches 106b:2003, so it does not write D3cold onto
+# the GPU at 0000:01:00.0 on the 15-inch MacBookPro13,3 and 14,3.
 MACBOOK_MODEL=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
 
 if [[ $MACBOOK_MODEL =~ MacBook(8,1|9,1|10,1)|MacBookPro13,[123]|MacBookPro14,[123] ]]; then
@@ -18,12 +19,15 @@ if [[ $MACBOOK_MODEL =~ MacBook(8,1|9,1|10,1)|MacBookPro13,[123]|MacBookPro14,[1
 ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x106b", ATTR{device}=="0x2003", ATTR{d3cold_allowed}="0"
 EOF
 
-  sudo mkdir -p /etc/limine-entry-tool.d
-  sudo tee /etc/limine-entry-tool.d/apple-s3x-suspend.conf >/dev/null <<'EOF'
-# 2016-2017 MacBooks with Apple's S3X NVMe do not resume from S3.
-# intel_idle.max_cstate=1 raises idle power use.
+  # MacBookPro14,2 has this same SSD and should stay on deep sleep. The 15-inch
+  # models do not have 106b:2003. Widen this only after the same suspend test.
+  if [[ $MACBOOK_MODEL == MacBookPro14,1 ]]; then
+    sudo mkdir -p /etc/limine-entry-tool.d
+    sudo tee /etc/limine-entry-tool.d/apple-s3x-suspend.conf >/dev/null <<'EOF'
+# Tested on MacBookPro14,1 only. intel_idle.max_cstate=1 raises idle power use.
 KERNEL_CMDLINE[default]+=" mem_sleep_default=s2idle nvme_core.default_ps_max_latency_us=0 intel_idle.max_cstate=1"
 EOF
+  fi
 
   NVME_DEVICE="/sys/bus/pci/devices/0000:01:00.0/d3cold_allowed"
 
