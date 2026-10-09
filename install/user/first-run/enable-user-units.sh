@@ -19,6 +19,9 @@ systemctl --user enable --now \
   omarchy-sleep-lock.service \
   omarchy-migrate-notify.service \
   omarchy-fcitx5.service \
-  omarchy-crash-watch.service
+  omarchy-crash-watch.service \
+  omarchy-thunderbolt-notify.service \
+  omarchy-thunderbolt-notify.path \
+  omarchy-thunderbolt-notify.timer
 
 omarchy-hook-install theme-set /usr/share/owe/10-owe-sync

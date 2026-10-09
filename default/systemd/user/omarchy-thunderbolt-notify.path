@@ -1,0 +1,17 @@
+[Unit]
+Description=Watch the Thunderbolt bus for device changes
+# Not a working instant trigger: Linux kernfs emits no fsnotify create event
+# when a device node appears, so on current kernels this unit does not fire on
+# connect. It is kept as a harmless best-effort for kernels that do deliver
+# events; the 30s backstop timer is what guarantees detection.
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionPathExists=!%h/.local/state/omarchy/toggles/thunderbolt-auth-off
+
+[Path]
+PathChanged=/sys/bus/thunderbolt/devices
+Unit=omarchy-thunderbolt-notify.service
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,156 @@
+#!/bin/bash
+
+# omarchy:summary=Detect unauthorized Thunderbolt devices and notify once per device
+# omarchy:hidden=true
+
+set -euo pipefail
+
+devices_dir=${OMARCHY_THUNDERBOLT_DEVICES_PATH:-/sys/bus/thunderbolt/devices}
+state_dir=$HOME/.local/state/omarchy/thunderbolt
+state_file=$state_dir/notified
+lock_file=$state_file.lock
+
+# A machine without a Thunderbolt controller (or with the module not loaded)
+# has no bus directory at all; that is a normal case, not an error.
+[[ -d $devices_dir ]] || exit 0
+
+# Only real peripherals expose all three attributes. domain0 never does, and
+# the host router 0-0 is skipped by name because newer kernels expose the trio
+# for it too -- it is the machine's own controller, never something to authorize.
+unauthorized_ids=()
+declare -A device_names=()
+declare -A device_vendors=()
+
+for device_path in "$devices_dir"/*/; do
+  device_dir=$(basename "$device_path")
+  [[ $device_dir != domain* && $device_dir != "0-0" ]] || continue
+
+  # A device can be unplugged mid-scan, and its sysfs directory vanishes with
+  # it. `[[ -r ]]` cannot protect the read that follows, so read every
+  # attribute tolerantly and skip the device instead of letting set -e abort
+  # the whole scan. unique_id is the real requirement.
+  authorized=$(cat "${device_path}authorized" 2>/dev/null) || continue
+  [[ $authorized == "0" ]] || continue
+
+  unique_id=$(cat "${device_path}unique_id" 2>/dev/null) || continue
+  [[ -n $unique_id ]] || continue
+
+  unauthorized_ids+=("$unique_id")
+  # device_name is optional: the kernel hides it when the device DROM lacks a
+  # name, it fails to parse, or it holds an empty value. Fall back to the
+  # unique id so the toast never shows a blank name.
+  device_names[$unique_id]=$(cat "${device_path}device_name" 2>/dev/null) || device_names[$unique_id]="$unique_id"
+  [[ -n ${device_names[$unique_id]} ]] || device_names[$unique_id]="$unique_id"
+  device_vendors[$unique_id]=$(cat "${device_path}vendor_name" 2>/dev/null) || device_vendors[$unique_id]=""
+done
+
+mkdir -p "$state_dir"
+
+declare -A notified=()
+if [[ -f $state_file ]]; then
+  while IFS= read -r known_id; do
+    [[ -n $known_id ]] || continue
+    notified[$known_id]=1
+  done <"$state_file"
+fi
+
+# Devices still unauthorized that have not been notified yet. Notification
+# state persists across sessions (see the pruning block below), so this is
+# not scoped to the current session.
+pending_ids=()
+for unique_id in "${unauthorized_ids[@]}"; do
+  [[ -z ${notified[$unique_id]+x} ]] && pending_ids+=("$unique_id")
+done
+
+if ((${#pending_ids[@]} > 0)); then
+  # This runs from omarchy-thunderbolt-notify.service, triggered by the path
+  # unit or the timer, which can fire before the shell has claimed
+  # org.freedesktop.Notifications. Without the wait the toast is sent into the
+  # void and the user never learns a device is waiting.
+  omarchy-notification-wait || true
+fi
+
+handover_failed=0
+notified_this_run=()
+
+for unique_id in "${pending_ids[@]}"; do
+  name=${device_names[$unique_id]}
+  vendor=${device_vendors[$unique_id]}
+
+  if [[ -n $vendor ]]; then
+    subject="$vendor $name"
+  else
+    subject="$name"
+  fi
+
+  # The shell keeps the click command with the toast, so this oneshot can hand
+  # the prompt over and exit instead of staying activated until it is answered.
+  if omarchy-notification-send -u critical -g ⚡ \
+    "Thunderbolt device waiting for authorization" \
+    "$subject connected — USB ports stay disabled until it is authorized. Click to review." \
+    --exec omarchy-launch-floating-terminal-with-presentation omarchy-thunderbolt; then
+    notified_this_run+=("$unique_id")
+    echo "notified: $unique_id ($name)"
+  else
+    # Not in the state file, so the next run retries this device.
+    echo "notify failed, will retry: $unique_id" >&2
+    handover_failed=1
+  fi
+done
+
+# Reached when at least one notification could not be handed off, so fall back
+# to telling the user in the terminal.
+if (( handover_failed )); then
+  hint="A Thunderbolt device is waiting for authorization. Run omarchy-thunderbolt in a terminal to review it."
+
+  if [[ -t 1 ]]; then
+    echo "$hint"
+  else
+    echo "$hint" >&2
+  fi
+fi
+
+# Drop ids that left sysfs or became authorized, so a future unauthorized event
+# for the same device notifies again. The state persists across sessions (in
+# ~/.local/state), so a device toasted once stays quiet on later logins until
+# it disconnects or gets authorized -- intentional, it avoids re-nagging about
+# the same dock every session.
+declare -A unauthorized_lookup=()
+for unique_id in "${unauthorized_ids[@]}"; do
+  unauthorized_lookup[$unique_id]=1
+done
+
+# omarchy-thunderbolt rewrites this same file when a device is authorized, so
+# the read-modify-write is serialized on a shared lock and merges the on-disk
+# set at write time: a scan that started before a menu removed an authorized id
+# must not resurrect it, and two writers must never share one temporary file.
+if exec {lock_fd}>"$lock_file" 2>/dev/null && flock -w 10 "$lock_fd"; then
+  declare -A merged=()
+  if [[ -f $state_file ]]; then
+    while IFS= read -r known_id; do
+      [[ -n $known_id ]] || continue
+      merged[$known_id]=1
+    done <"$state_file"
+  fi
+
+  # Ids this run successfully notified, merged on top of the current on-disk
+  # set rather than replacing it.
+  for unique_id in ${notified_this_run[@]+"${notified_this_run[@]}"}; do
+    merged[$unique_id]=1
+  done
+
+  for known_id in "${!merged[@]}"; do
+    if [[ -z ${unauthorized_lookup[$known_id]+x} ]]; then
+      unset "merged[$known_id]"
+      echo "pruned: $known_id"
+    fi
+  done
+
+  if ((${#merged[@]} > 0)); then
+    printf '%s\n' "${!merged[@]}" >"$state_file"
+  else
+    : >"$state_file"
+  fi
+
+  exec {lock_fd}<&-
+fi
