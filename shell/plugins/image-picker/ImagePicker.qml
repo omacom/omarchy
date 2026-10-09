@@ -27,6 +27,7 @@ Item {
   property bool filterable: false
   property bool layoutSettled: false
   property bool neighborImagesEnabled: false
+  property int renderedFrames: 0
   property bool requestActive: false
   property int requestSerial: 0
   property int applySerial: 0
@@ -39,11 +40,11 @@ Item {
   property bool themeMode: false
   property bool themeOpenPending: false
   // Bound to the central [image-picker] section in shell.toml via Commons.Color.qml.
-  // `dimColor` tints unselected slices and text outlines on top of the scrim;
-  // it intentionally tracks the foundational background, not a surface role.
+  // `dimColor` tints unselected slices and text outlines against the desktop
+  // behind the picker; it intentionally tracks the foundational background,
+  // not a surface role.
   property color dimColor: Commons.Color.background
   property color foreground: Commons.Color.imagePicker.text
-  property color scrim: Commons.Color.imagePicker.scrim
   property color selectedBorder: Commons.Color.imagePicker.selectedBorder
   property color unselectedBorder: Commons.Color.imagePicker.unselectedBorder
   property int expandedWidth: 768
@@ -57,7 +58,7 @@ Item {
   readonly property int previewRadius: Math.max(1, Math.min(16, Math.ceil((panel.width - expandedWidth) / (2 * (sliceWidth + sliceSpacing))) + 1))
   onPreviewRadiusChanged: updateVisibleItems()
 
-  onOpenedChanged: if (!opened) layoutSettled = false
+  onOpenedChanged: if (!opened) { layoutSettled = false; renderedFrames = 0 }
 
   function scriptPath(name) {
     return omarchyPath + "/shell/plugins/image-picker/" + name
@@ -70,10 +71,35 @@ Item {
 
   function revealWhenSettled(serial) {
     Qt.callLater(function() {
-      if (serial === root.requestSerial && root.opened && root.imagesLoaded && root.imageArray.length > 0) {
-        root.layoutSettled = true
-        root.focusPicker()
-      }
+      if (serial === root.requestSerial) root.maybeReveal()
+    })
+  }
+
+  // The card renders at opacity 0 until every visible preview has decoded
+  // and its masked layers have presented, so the picker lands in one
+  // complete frame instead of flashing its images in as each asynchronous
+  // decode and layer upload finishes.
+  function allPreviewsSettled() {
+    if (!opened || !imagesLoaded || layoutSettled || imageArray.length === 0 || imageCards.count === 0) return false
+    for (var i = 0; i < imageCards.count; i++) {
+      var item = imageCards.itemAt(i)
+      if (!item || !item.previewSettled) return false
+    }
+    return true
+  }
+
+  function settleReveal() {
+    if (!opened || !imagesLoaded || layoutSettled || imageArray.length === 0) return
+    layoutSettled = true
+    focusPicker()
+  }
+
+  function maybeReveal() {
+    if (!allPreviewsSettled() || renderedFrames < 2) return
+    // Confirm on the next tick: delegates inserted later in the same window
+    // sync must not pop in after an early all-ready reading.
+    Qt.callLater(function() {
+      if (root.allPreviewsSettled() && root.renderedFrames >= 2) root.settleReveal()
     })
   }
 
@@ -450,7 +476,7 @@ Item {
     // Theme/background set hooks can warm selector rows after a picker was
     // dismissed. Ignore those preloads while a user-visible request is open;
     // otherwise the preload resets layoutSettled without revealing again,
-    // leaving only the fullscreen scrim.
+    // leaving the picker invisible behind its own open overlay.
     if (opened || requestActive) return
 
     requestSerial += 1
@@ -488,28 +514,39 @@ Item {
     shownKeyboardFocus: root.imagesLoaded ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     WlrLayershell.namespace: "omarchy-image-selector"
 
-    Rectangle {
-      anchors.fill: parent
-      visible: root.opened && root.imagesLoaded
-      color: root.scrim
-    }
-
     MouseArea {
       anchors.fill: parent
       enabled: root.opened && root.imagesLoaded
       onClicked: root.cancel()
     }
 
+    // Count presented frames while the card pre-renders below; two frames
+    // prove its masked layers uploaded on this fresh surface.
+    FrameAnimation {
+      running: root.opened && !root.layoutSettled && root.renderedFrames < 2
+      onTriggered: {
+        root.renderedFrames += 1
+        root.maybeReveal()
+      }
+    }
+
+    // A preview stuck decoding (slow disk, huge original) must not hold an
+    // invisible picker with the keyboard grabbed: reveal anyway shortly.
+    Timer {
+      interval: 400
+      running: root.opened && root.imagesLoaded && !root.layoutSettled && root.imageArray.length > 0
+      onTriggered: root.settleReveal()
+    }
+
     Item {
       id: card
-      visible: root.opened && root.imagesLoaded && root.layoutSettled && root.imageArray.length > 0
+      visible: root.opened && root.imagesLoaded && root.imageArray.length > 0
       opacity: root.layoutSettled ? 1 : 0
-      Behavior on opacity { NumberAnimation { duration: 90 } }
       width: Math.min(parent.width - 80, root.expandedWidth + 13 * (root.sliceWidth + root.sliceSpacing) + 40)
       height: root.expandedHeight + Style.space(30) + root.bottomChromeHeight
       anchors.centerIn: parent
 
-        MouseArea { anchors.fill: parent; onClicked: {} }
+        MouseArea { anchors.fill: parent; enabled: root.layoutSettled; onClicked: {} }
 
         Item {
           id: carousel
@@ -527,6 +564,15 @@ Item {
 
           Keys.priority: Keys.BeforeItem
           Keys.onPressed: function(event) {
+            // Nothing is visible before the reveal: only let the user back
+            // out, never filter into a dead end or apply an unseen pick.
+            if (!root.layoutSettled) {
+              if (event.key === Qt.Key_Escape) {
+                root.cancel()
+                event.accepted = true
+              }
+              return
+            }
             if (event.key === Qt.Key_Escape) {
               if (root.filterText) {
                 root.updateFilter("")
@@ -557,6 +603,7 @@ Item {
           Repeater {
             id: imageCards
             model: visibleImages
+            onCountChanged: root.maybeReveal()
 
             delegate: Item {
               id: item
@@ -570,6 +617,8 @@ Item {
 
               readonly property bool selected: imageIndex === root.selectedIndex
               readonly property bool previewReady: image.status === Image.Ready || image.status === Image.Error
+              readonly property bool previewSettled: !thumbnailPath || previewReady
+              onPreviewSettledChanged: if (previewSettled) root.maybeReveal()
               onSelectedChanged: if (selected && previewReady) root.neighborImagesEnabled = true
 
               x: selected ? carousel.previewX : (relativeIndex < 0 ? carousel.previewX + relativeIndex * carousel.itemStep : carousel.previewX + root.expandedWidth + root.sliceSpacing + (relativeIndex - 1) * carousel.itemStep)
@@ -577,10 +626,6 @@ Item {
               height: selected ? root.expandedHeight : root.sliceHeight
               y: selected ? 0 : (root.expandedHeight - root.sliceHeight) / 2
               z: selected ? 100 : 50 - Math.min(Math.abs(relativeIndex), 40)
-              Behavior on x { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
-              Behavior on y { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
-              Behavior on width { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
-              Behavior on height { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
 
               readonly property real skAbs: Math.abs(root.skewOffset)
               readonly property real topLeft: root.skewOffset >= 0 ? skAbs : 0
@@ -640,7 +685,6 @@ Item {
                   cache: false
                   smooth: true
                   opacity: status === Image.Ready ? 1 : 0
-                  Behavior on opacity { NumberAnimation { duration: 90 } }
                   onStatusChanged: if (item.selected && (status === Image.Ready || status === Image.Error)) root.neighborImagesEnabled = true
                 }
 
@@ -668,6 +712,7 @@ Item {
 
               MouseArea {
                 anchors.fill: parent
+                enabled: root.layoutSettled
                 cursorShape: Qt.PointingHandCursor
                 onClicked: item.selected ? root.applySelected() : root.select(item.imageIndex)
               }

@@ -174,4 +174,88 @@ assert(
     /onStatusChanged: if \(item.selected && \(status === Image.Ready \|\| status === Image.Error\)\) root.neighborImagesEnabled = true/.test(imagePickerQml),
   'image picker prioritizes the selected preview and releases neighbors on success or failure'
 )
+assert(
+  !/Behavior on (opacity|x|y|width|height)/.test(imagePickerQml) && !imagePickerQml.includes('NumberAnimation'),
+  'image picker appears instantly with no fade or geometry transitions'
+)
+assertEqual((imagePickerQml.match(/layoutSettled = true/g) || []).length, 1, 'image picker settles its layout in exactly one place')
+assert(
+  /readonly property bool previewSettled: !thumbnailPath \|\| previewReady/.test(imagePickerQml) &&
+    /onPreviewSettledChanged: if \(previewSettled\) root\.maybeReveal\(\)/.test(imagePickerQml) &&
+    /function allPreviewsSettled\(\) \{[\s\S]*?for \(var i = 0; i < imageCards\.count; i\+\+\) \{[\s\S]*?if \(!item \|\| !item\.previewSettled\) return false[\s\S]*?return true/.test(imagePickerQml) &&
+    /function maybeReveal\(\) \{\s*if \(!allPreviewsSettled\(\) \|\| renderedFrames < 2\) return[\s\S]*?Qt\.callLater\(function\(\) \{\s*if \(root\.allPreviewsSettled\(\) && root\.renderedFrames >= 2\) root\.settleReveal\(\)/.test(imagePickerQml) &&
+    /function settleReveal\(\) \{\s*if \(!opened \|\| !imagesLoaded \|\| layoutSettled \|\| imageArray\.length === 0\) return\s*layoutSettled = true\s*focusPicker\(\)/.test(imagePickerQml),
+  'image picker reveals only once every visible preview has loaded'
+)
+assert(
+  /id: card\s*visible: root\.opened && root\.imagesLoaded && root\.imageArray\.length > 0\s*opacity: root\.layoutSettled \? 1 : 0/.test(imagePickerQml) &&
+    /FrameAnimation \{\s*running: root\.opened && !root\.layoutSettled && root\.renderedFrames < 2\s*onTriggered: \{\s*root\.renderedFrames \+= 1\s*root\.maybeReveal\(\)/.test(imagePickerQml) &&
+    /if \(!allPreviewsSettled\(\) \|\| renderedFrames < 2\) return/.test(imagePickerQml) &&
+    /MouseArea \{ anchors\.fill: parent; enabled: root\.layoutSettled; onClicked: \{\} \}/.test(imagePickerQml),
+  'image picker pre-renders hidden for two frames so its first visible frame is complete'
+)
+assert(
+  !imagePickerQml.includes('color: root.scrim') && !/property color scrim:/.test(imagePickerQml),
+  'image picker shows no fullscreen scrim wash behind the carousel'
+)
+const colorQml = fs.readFileSync(path.join(root, 'shell/Commons/Color.qml'), 'utf8')
+const shellTpl = fs.readFileSync(path.join(root, 'default/themed/shell.toml.tpl'), 'utf8')
+const pickerSection = shellTpl.slice(shellTpl.indexOf('[image-picker]'), shellTpl.indexOf('\n[', shellTpl.indexOf('[image-picker]') + 1))
+assert(
+  !colorQml.includes('image-picker.scrim') && !pickerSection.includes('scrim'),
+  'image picker scrim theme tokens are gone with the backdrop'
+)
+assert(
+  /Timer \{\s*interval: 400\s*running: root\.opened && root\.imagesLoaded && !root\.layoutSettled && root\.imageArray\.length > 0\s*onTriggered: root\.settleReveal\(\)/.test(imagePickerQml),
+  'image picker reveals anyway after a short wait if a preview stalls'
+)
+assert(
+  /if \(!root\.layoutSettled\) \{\s*if \(event\.key === Qt\.Key_Escape\) \{\s*root\.cancel\(\)\s*event\.accepted = true\s*\}\s*return\s*\}/.test(imagePickerQml) &&
+    imagePickerQml.indexOf('if (!root.layoutSettled) {') < imagePickerQml.indexOf('if (root.filterText) {'),
+  'image picker only accepts Escape before it is visible'
+)
+
+// Run the QML reveal guards themselves, the way the loadRows handler above
+// runs, against mocked delegates in each state the gate must decide.
+const revealFns = [
+  imagePickerQml.match(/function allPreviewsSettled\(\) \{[\s\S]*?\n  \}/)[0],
+  imagePickerQml.match(/function settleReveal\(\) \{[\s\S]*?\n  \}/)[0],
+  imagePickerQml.match(/function maybeReveal\(\) \{[\s\S]*?\n  \}/)[0]
+].join('\n')
+function revealContext(settledFlags, frames) {
+  const ctx = {
+    opened: true,
+    imagesLoaded: true,
+    layoutSettled: false,
+    renderedFrames: frames,
+    imageArray: settledFlags.map(() => ({})),
+    focused: 0,
+    Qt: { callLater(callback) { callback() } }
+  }
+  const items = settledFlags.map(previewSettled => ({ previewSettled }))
+  ctx.imageCards = { count: items.length, itemAt(i) { return items[i] } }
+  ctx.focusPicker = () => { ctx.focused += 1 }
+  ctx.root = ctx
+  require('vm').runInNewContext(revealFns, ctx)
+  return ctx
+}
+let reveal = revealContext([true, true], 2)
+reveal.maybeReveal()
+assert(reveal.layoutSettled && reveal.focused === 1, 'reveal settles and focuses once every preview is settled and frames presented')
+reveal = revealContext([true, false], 2)
+reveal.maybeReveal()
+assert(!reveal.layoutSettled, 'an unsettled preview holds the reveal')
+reveal = revealContext([true, true], 1)
+reveal.maybeReveal()
+assert(!reveal.layoutSettled, 'reveal waits for presented frames')
+reveal = revealContext([], 2)
+reveal.maybeReveal()
+assert(!reveal.layoutSettled, 'reveal waits while no cards are rendered')
+reveal = revealContext([false], 0)
+reveal.settleReveal()
+assert(reveal.layoutSettled, 'fallback settle reveals despite a stalled preview')
+reveal = revealContext([true], 2)
+reveal.opened = false
+reveal.settleReveal()
+assert(!reveal.layoutSettled, 'settle does nothing once the picker is closed')
 JS
