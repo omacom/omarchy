@@ -1,0 +1,6 @@
+polkit.addRule(function(action, subject) {
+  if (action.id === "org.omarchy.usb.approve" &&
+      subject.active && subject.local && subject.isInGroup("wheel")) {
+    return polkit.Result.YES;
+  }
+});

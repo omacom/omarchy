@@ -274,7 +274,7 @@ Item {
     property: "revealProgress"
     from: 0
     to: 1
-    duration: Style.duration(420)
+    duration: Style.duration(840)
     easing.type: Easing.OutCubic
     onFinished: {
       if (root.incomingBackground) {

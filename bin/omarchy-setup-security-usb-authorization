@@ -1,0 +1,184 @@
+#!/bin/bash
+
+# omarchy:summary=Ask before new USB devices can access the system
+# omarchy:args=[--boot] [--yes] [--review-existing]
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+assume_yes=0
+from_boot=0
+review_existing=0
+
+while (( $# > 0 )); do
+  case "$1" in
+  --yes) assume_yes=1 ;;
+  --boot) from_boot=1 ;;
+  --review-existing) review_existing=1 ;;
+  -h | --help)
+    echo "Usage: omarchy-setup-security-usb-authorization [--boot] [--yes] [--review-existing]"
+    echo
+    echo "Trusts USB devices that are connected now, then blocks new devices"
+    echo "until you approve them from an Omarchy notification."
+    echo
+    echo "--boot also blocks USB devices from the start of kernel boot. Connected"
+    echo "devices are added to USBGuard's policy, but remain unavailable before"
+    echo "USBGuard starts, including at an encrypted-disk password prompt."
+    echo "Older snapshots without USBGuard keep all USB disabled after startup,"
+    echo "including keyboards, network adapters, and storage. Use --boot only if"
+    echo "disk unlock and recovery work without any USB devices."
+    echo
+    echo "--review-existing reviews connected devices with older port-bound approvals."
+    echo "Each portable approval requires confirmation; existing rules are preserved."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-setup-security-usb-authorization: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
+state_dir="$HOME/.local/state/omarchy/usb-authorization"
+unit_source="$OMARCHY_PATH/default/systemd/user/omarchy-usb-authorization.service"
+unit="$HOME/.config/systemd/user/omarchy-usb-authorization.service"
+rules_file=/etc/usbguard/rules.conf
+daemon_config=/etc/usbguard/usbguard-daemon.conf
+
+source "$OMARCHY_PATH/install/helpers/usb-authorization.sh"
+
+if (( review_existing )); then
+  # Older Omarchy rules have no per-rule ownership marker. They cannot safely
+  # be distinguished from intentionally restricted administrator rules.
+  (( ! assume_yes && ! from_boot )) || { echo "Review requires individual confirmation; do not combine it with --yes or --boot." >&2; exit 2; }
+  policy=$(usbguard list-rules)
+  declare -A reviewed=()
+  # Keep stdin attached to the terminal for gum (and any sudo prompt).
+  mapfile -t policy_lines <<<"$policy"
+  for line in "${policy_lines[@]}"; do
+    if [[ $line =~ ^[0-9]+:[[:space:]] ]]; then
+      rule=${line#*: }
+      [[ $rule == allow\ * ]] || continue
+      portable=$(usb_authorization_portable_rule "$rule") || continue
+      [[ ${portable% label *} != "$rule" ]] || continue
+      devices=$(usbguard list-devices "$rule")
+      mapfile -t candidates <<<"$devices"
+      for device in "${candidates[@]}"; do
+        [[ $device =~ ^([0-9]+):[[:space:]](allow[[:space:]].*)$ ]] || continue
+        id=${BASH_REMATCH[1]} current=${BASH_REMATCH[2]}
+        [[ ! -v reviewed[$id] ]] || continue
+        reviewed[$id]=1
+        echo
+        printf '%s\n' "$current" | LC_ALL=C tr -c '\11\12\15\40-\176' '?'
+        echo "This device has a location-bound approval. Details are supplied by the device."
+        if gum confirm "Trust this device on any USB port or hub?"; then
+          sudo /usr/bin/omarchy-usb-authorization-approve "$id" "$current"
+        fi
+      done
+    fi
+  done
+  echo "Review complete. Disconnected devices can be approved when reconnected."
+  exit 0
+fi
+
+# The watcher runs in the session's environment, which may differ from a
+# command invoked in a checkout. Fail before enabling blocking on mismatched
+# or incomplete installations, including dangling dev-link unit symlinks.
+session_environment=$(systemctl --user show-environment)
+grep -Fqx -- "OMARCHY_PATH=$OMARCHY_PATH" <<<"$session_environment" || {
+  echo "The session and this command use different Omarchy installations. Update the session before enabling USB protection." >&2
+  exit 1
+}
+for required in "$unit_source" /usr/share/omarchy/install/helpers/usb-authorization-policy.sh; do
+  [[ -r $required ]] || { echo "USB authorization installation is incomplete: $required" >&2; exit 1; }
+done
+for required in "$OMARCHY_PATH/bin/omarchy-usb-authorization-watch" \
+  "$OMARCHY_PATH/bin/omarchy-usb-authorization-event" \
+  "$OMARCHY_PATH/bin/omarchy-usb-authorization-review" \
+  /usr/bin/omarchy-usb-authorization-approve; do
+  [[ -r $required && -x $required ]] || { echo "USB authorization command is unavailable: $required" >&2; exit 1; }
+done
+
+if (( ! assume_yes )); then
+  if (( from_boot )); then
+    gum style --foreground 212 --bold "USB authorization from boot"
+  else
+    gum style --foreground 212 --bold "USB device authorization"
+  fi
+  echo
+  echo "Devices connected now will be trusted. Disconnect anything you do not trust."
+  echo "New USB devices will remain blocked until you approve them."
+  if (( from_boot )); then
+    echo
+    echo "Boot-time protection blocks all USB devices until USBGuard starts."
+    echo "A USB keyboard will not work at an encrypted-disk password prompt, even"
+    echo "when it is connected now."
+    echo
+    echo "Older snapshots without USBGuard keep ALL USB disabled after startup,"
+    echo "including keyboards, network adapters, and storage."
+    echo "Continue only if disk unlock and recovery work without any USB devices."
+  fi
+  echo
+  if (( from_boot )); then
+    gum confirm "Enable USB authorization from kernel boot?" || exit 130
+  else
+    gum confirm "Enable USB device authorization?" || exit 130
+  fi
+fi
+
+omarchy-pkg-add usbguard
+
+usb_authorization_require_secure_settings "$daemon_config"
+
+mkdir -p "$state_dir" "${unit%/*}"
+chmod 700 "$state_dir"
+
+if ! usb_authorization_rules_present "$rules_file"; then
+  policy=$(mktemp "${TMPDIR:-/tmp}/omarchy-usb-policy.XXXXXXXXXX")
+  trap 'rm -f "$policy"' EXIT
+  chmod 600 "$policy"
+  usb_authorization_generate_policy "$policy"
+  sudo install -Dm600 -o root -g root "$policy" "$rules_file"
+  touch "$state_dir/policy-generated-by-omarchy"
+fi
+
+# This user can inspect USBGuard events and approve the device named by an
+# event. Policy and daemon parameters remain unavailable through the IPC ACL.
+sudo usbguard add-user "$USER" \
+  --devices=list,listen,modify \
+  --policy=list \
+  --exceptions=listen
+
+sudo install -Dm644 "$OMARCHY_PATH/default/polkit/org.omarchy.usb.policy" /usr/share/polkit-1/actions/org.omarchy.usb.policy
+
+# Install a real file: a link into a checkout can become dangling on a branch
+# switch. Start the waiting watcher before USBGuard can block new devices.
+unit_temporary=$(mktemp "${unit}.XXXXXXXXXX")
+install -m644 "$unit_source" "$unit_temporary"
+mv -fT "$unit_temporary" "$unit"
+systemctl --user daemon-reload
+systemctl --user enable omarchy-usb-authorization.service
+systemctl --user restart omarchy-usb-authorization.service
+systemctl --user is-active --quiet omarchy-usb-authorization.service
+
+sudo systemctl enable usbguard.service
+# add-user ACL changes are loaded only when the daemon starts, so restart an
+# existing service as well as starting a fresh one.
+sudo systemctl restart usbguard.service
+systemctl is-active --quiet usbguard.service
+systemctl --user is-active --quiet omarchy-usb-authorization.service
+
+if (( from_boot )); then
+  # The fixed helper independently verifies each full live device snapshot.
+  usb_authorization_trust_present_devices
+  sudo omarchy-usb-authorization-boot enable
+fi
+
+echo
+echo "USB device authorization is enabled."
+echo "Devices connected during setup remain trusted; new devices require approval."
+echo "To review older port-bound approvals, run: omarchy-setup-security-usb-authorization --review-existing"
+if (( from_boot )); then
+  echo "Boot-time authorization is enabled and takes effect after reboot."
+fi
