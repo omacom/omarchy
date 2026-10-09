@@ -503,6 +503,12 @@ assert(
   /function rebuildDisplay\(\)[\s\S]*?root\.settleCursor\(\)/.test(menuQml),
   'menu parks the cursor on a selectable row after the rows change'
 )
+// Rebuilding recreates every row, so a click pressed on one as the guard batch
+// lands would be lost; results the menu already shows leave the rows alone.
+assert(
+  /var changed = JSON\.stringify\(nextWhen\) !== JSON\.stringify\(root\.whenResults\)\s*\n\s*\|\| JSON\.stringify\(nextChecked\) !== JSON\.stringify\(root\.checkedResults\)\s*\n\s*\|\| JSON\.stringify\(nextDisabled\) !== JSON\.stringify\(root\.disabledResults\)[\s\S]*?if \(root\.opened && changed\) root\.rebuildDisplay\(\)/.test(menuQml),
+  'menu rebuilds rows after a guard batch only when a result changed'
+)
 // A menu with nothing selectable in it has no cursor, and Return must not
 // conjure one onto a disabled row just because rows exist.
 assert(
