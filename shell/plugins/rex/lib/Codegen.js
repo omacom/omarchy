@@ -236,9 +236,10 @@ function snippets(flavorId, pattern, flags, replacement) {
   case "grep-e": {
     var gopts = (f.id === "grep-e" ? " -E" : "") + flags.filter(function(x) { return "iwx".indexOf(x) >= 0 }).map(function(x) { return " -" + x }).join("")
     return [
-      { title: "Lines that match", language: "shell", code: "grep" + gopts + " " + shellQuoted(pattern) + " file.txt" },
-      { title: "Every match, with its byte offset", language: "shell", code: "grep" + gopts + " -o -b " + shellQuoted(pattern) + " file.txt" },
-      { title: "Count matching lines", language: "shell", code: "grep" + gopts + " -c " + shellQuoted(pattern) + " file.txt" },
+      // -e keeps a pattern that starts with - from reading as options.
+      { title: "Lines that match", language: "shell", code: "grep" + gopts + " -e " + shellQuoted(pattern) + " file.txt" },
+      { title: "Every match, with its byte offset", language: "shell", code: "grep" + gopts + " -o -b -e " + shellQuoted(pattern) + " file.txt" },
+      { title: "Count matching lines", language: "shell", code: "grep" + gopts + " -c -e " + shellQuoted(pattern) + " file.txt" },
     ]
   }
   case "sed":

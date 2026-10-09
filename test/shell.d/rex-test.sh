@@ -733,3 +733,11 @@ progress = L.markDone(progress, 'literals', 1)
 assert(L.complete(progress, L.byId('literals')), 'a lesson is complete when every exercise is done')
 assertDeepEqual(L.readProgress(L.writeProgress(progress)), progress, 'progress survives a round trip')
 JS
+
+# ---- review fixes -----------------------------------------------------------------
+
+run_node_test <<'JS'
+const { loadQmlJs } = require(path.join(root, 'test/shell.d/fixtures/qml-js-loader.js'))
+const C = loadQmlJs(path.join(root, 'shell/plugins/rex/lib/Codegen.js'))
+assert(C.snippets('grep-e', '-foo', [], '').every(s => s.code.includes("-e '-foo'")), 'generated grep keeps a leading - in the pattern from reading as an option')
+JS
