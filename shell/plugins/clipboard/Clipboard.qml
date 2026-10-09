@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "ClipboardHistory.js" as ClipboardHistory
+import "ClipboardSelection.js" as ClipboardSelection
 
 Item {
   id: root
@@ -17,6 +18,10 @@ Item {
   property bool cursorActive: false
   property bool clearConfirmOpen: false
   property var history: []
+  property var selectedEntries: []
+  property string selectionMessage: ""
+  property string pendingCombinedText: ""
+  property bool pendingCopyOnly: false
 
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
@@ -41,7 +46,10 @@ Item {
   property int historyLimit: 500
 
   function open(payloadJson) {
+    if (combinedCopy.running || combinedPasteTimer.running) return
     root.opened = true
+    root.selectedEntries = []
+    root.selectionMessage = ""
     root.filterText = ""
     root.selectedIndex = 0
     root.cursorActive = true
@@ -70,6 +78,7 @@ Item {
 
   function loadHistory(raw) {
     root.history = ClipboardHistory.parseHistory(raw)
+    root.selectedEntries = ClipboardSelection.retain(root.selectedEntries, root.history)
     if (root.opened) root.rebuildDisplay()
   }
 
@@ -82,6 +91,7 @@ Item {
     if (!normalized) return
 
     root.history = ClipboardHistory.addEntry(root.history, normalized, root.historyLimit)
+    root.selectedEntries = ClipboardSelection.retain(root.selectedEntries, root.history)
     root.saveHistory()
     if (root.opened) root.rebuildDisplay()
   }
@@ -103,6 +113,7 @@ Item {
   }
 
   function confirmClearHistory() {
+    root.selectedEntries = []
     root.history = ClipboardHistory.clearHistory()
     root.saveHistory()
     root.selectedIndex = 0
@@ -117,6 +128,7 @@ Item {
     if (index < 0 || index >= displayModel.count) return
 
     var row = displayModel.get(index)
+    root.selectedEntries = ClipboardSelection.remove(root.selectedEntries, root.history[row.historyIndex])
     root.history = ClipboardHistory.removeEntryAt(root.history, row.historyIndex)
     root.saveHistory()
 
@@ -196,21 +208,55 @@ Item {
   }
 
   function activateIndex(index) {
-    if (index < 0 || index >= displayModel.count) return
-    var row = displayModel.get(index)
-    root.applySelected(row)
+    var row = index >= 0 && index < displayModel.count ? displayModel.get(index) : null
+    if (row && row.entryType !== "text") {
+      root.applySelected(row)
+      return
+    }
+    if (root.selectedEntries.length > 0) {
+      root.applyCombined(false)
+      return
+    }
+    if (row) root.applySelected(row)
   }
 
   function copyIndex(index) {
-    if (index < 0 || index >= displayModel.count) return
-    var row = displayModel.get(index)
-    root.copySelected(row)
+    var row = index >= 0 && index < displayModel.count ? displayModel.get(index) : null
+    if (row && row.entryType !== "text") {
+      root.copySelected(row)
+      return
+    }
+    if (root.selectedEntries.length > 0) {
+      root.applyCombined(true)
+      return
+    }
+    if (row) root.copySelected(row)
   }
 
   function openIndex(index) {
     if (index < 0 || index >= displayModel.count) return
     var row = displayModel.get(index)
     root.openSelected(row)
+  }
+
+  function toggleIndex(index) {
+    if (index < 0 || index >= displayModel.count) return
+    var row = displayModel.get(index)
+    if (row.entryType !== "text") {
+      root.selectionMessage = "Only text entries can be selected together."
+      return
+    }
+    root.selectedEntries = ClipboardSelection.toggle(root.selectedEntries, root.history[row.historyIndex])
+    root.selectionMessage = ""
+  }
+
+  function applyCombined(copyOnly) {
+    if (root.selectedEntries.length === 0 || combinedCopy.running) return
+    root.pendingCombinedText = ClipboardSelection.join(root.selectedEntries)
+    root.pendingCopyOnly = copyOnly
+    root.opened = false
+    combinedCopy.stdinEnabled = true
+    combinedCopy.running = true
   }
 
   function applySelected(row) {
@@ -242,6 +288,34 @@ Item {
   Component.onCompleted: initProc.running = true
 
   ListModel { id: displayModel }
+
+  // Send the complete text through stdin, so large clips are not truncated by
+  // command-line limits and copied shell syntax always stays literal text.
+  Process {
+    id: combinedCopy
+    command: ["wl-copy", "--type", "text/plain;charset=utf-8"]
+    onStarted: {
+      write(root.pendingCombinedText)
+      stdinEnabled = false
+    }
+    onExited: function(exitCode, exitStatus) {
+      root.pendingCombinedText = ""
+      if (exitCode === 0) {
+        if (!root.pendingCopyOnly) combinedPasteTimer.restart()
+        root.selectedEntries = []
+      } else {
+        root.selectionMessage = "Could not copy. Press Enter to retry."
+        root.opened = true
+        Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+      }
+    }
+  }
+
+  Timer {
+    id: combinedPasteTimer
+    interval: 150
+    onTriggered: Quickshell.execDetached(["wtype", "-M", "shift", "-k", "Insert", "-m", "shift"])
+  }
 
   PointerMoveGate {
     id: pointerGate
@@ -356,6 +430,9 @@ Item {
             if (root.filterText) root.setFilter("")
             else root.close()
             event.accepted = true
+          } else if (event.key === Qt.Key_Space && (event.modifiers & Qt.ControlModifier)) {
+            if (root.cursorActive) root.toggleIndex(root.selectedIndex)
+            event.accepted = true
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
             event.accepted = true
@@ -443,7 +520,7 @@ Item {
 
         Item {
           width: parent.width
-          height: parent.height - root.headerHeight - root.contentSpacing
+          height: parent.height - root.headerHeight - selectionFooter.height - root.contentSpacing * 2
 
           Row {
             anchors.fill: parent
@@ -470,13 +547,16 @@ Item {
                   required property string previewText
                   required property string fullText
                   required property string previewImage
+                  required property int historyIndex
 
                   readonly property bool hasCursor: root.cursorActive && index === root.selectedIndex
+                  readonly property int selectionPosition: ClipboardSelection.position(root.selectedEntries, root.history[historyIndex])
+                  readonly property bool marked: selectionPosition >= 0
 
                   width: ListView.view.width
                   height: root.rowHeight
                   radius: root.cornerRadius
-                  color: hasCursor ? root.selectedBackground : "transparent"
+                  color: hasCursor ? root.selectedBackground : (marked ? Util.alpha(root.selectedBackground, 0.45) : "transparent")
 
                   Row {
                     anchors.fill: parent
@@ -485,6 +565,18 @@ Item {
                     anchors.topMargin: Style.space(8)
                     anchors.bottomMargin: Style.space(8)
                     spacing: Style.space(10)
+
+                    Text {
+                      textFormat: Text.PlainText
+                      width: Style.space(26)
+                      height: parent.height
+                      text: row.marked ? String(row.selectionPosition + 1) + "." : ""
+                      color: row.hasCursor ? root.selectedText : root.foreground
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.title
+                      verticalAlignment: Text.AlignVCenter
+                      horizontalAlignment: Text.AlignHCenter
+                    }
 
                     Image {
                       visible: parent.parent.previewImage.length > 0
@@ -498,7 +590,7 @@ Item {
 
                     Text {
                       textFormat: Text.PlainText
-                      width: parent.width - (parent.parent.previewImage.length > 0 ? parent.height + parent.spacing : 0)
+                      width: parent.width - Style.space(26) - parent.spacing - (parent.parent.previewImage.length > 0 ? parent.height + parent.spacing : 0)
                       height: parent.height
                       text: parent.parent.previewText
                       color: parent.parent.hasCursor ? root.selectedText : root.foreground
@@ -518,10 +610,11 @@ Item {
                     onPositionChanged: function(mouse) {
                       root.selectFromPointer(row.index, row, mouse)
                     }
-                    onClicked: {
+                    onClicked: function(mouse) {
                       root.cursorActive = true
                       root.selectedIndex = row.index
-                      root.activateIndex(row.index)
+                      if (mouse.modifiers & Qt.ControlModifier) root.toggleIndex(row.index)
+                      else root.activateIndex(row.index)
                     }
                   }
                 }
@@ -534,6 +627,7 @@ Item {
               clip: true
 
               property var activeRow: displayModel.count > 0 && root.selectedIndex >= 0 && root.selectedIndex < displayModel.count ? displayModel.get(root.selectedIndex) : null
+              property bool previewSelection: root.selectedEntries.length > 0 && (!activeRow || activeRow.entryType === "text")
 
               Rectangle {
                 anchors.left: parent.left
@@ -545,13 +639,13 @@ Item {
 
               Text {
                 textFormat: Text.PlainText
-                visible: parent.activeRow && !parent.activeRow.previewImage
+                visible: parent.previewSelection || (parent.activeRow && !parent.activeRow.previewImage)
                 anchors.fill: parent
                 anchors.leftMargin: root.contentMargin
                 anchors.rightMargin: 0
                 anchors.topMargin: 0
                 anchors.bottomMargin: 0
-                text: parent.activeRow ? parent.activeRow.fullText : ""
+                text: parent.previewSelection ? ClipboardSelection.preview(root.selectedEntries, 8192) : (parent.activeRow ? parent.activeRow.fullText : "")
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.title
@@ -561,7 +655,7 @@ Item {
               }
 
               Image {
-                visible: parent.activeRow && parent.activeRow.previewImage
+                visible: !parent.previewSelection && parent.activeRow && parent.activeRow.previewImage
                 anchors.fill: parent
                 anchors.leftMargin: root.contentMargin
                 anchors.rightMargin: 0
@@ -579,7 +673,7 @@ Item {
           Column {
             anchors.centerIn: parent
             spacing: Style.space(8)
-            visible: displayModel.count === 0
+            visible: displayModel.count === 0 && root.selectedEntries.length === 0
 
             Text {
               text: "󰅌"
@@ -601,6 +695,32 @@ Item {
               horizontalAlignment: Text.AlignHCenter
               width: parent.width
             }
+          }
+        }
+
+        Column {
+          id: selectionFooter
+          width: parent.width
+          spacing: Style.space(4)
+
+          Text {
+            width: parent.width
+            textFormat: Text.PlainText
+            text: root.selectionMessage || (root.selectedEntries.length > 0 ? root.selectedEntries.length + " selected · selection order · joined with newlines" : "Ctrl + click or Ctrl + Space to select texts")
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
+          }
+
+          Text {
+            width: parent.width
+            text: "Enter: paste · Shift + Enter: copy · Esc: close"
+            color: root.foreground
+            opacity: 0.7
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
           }
         }
       }
