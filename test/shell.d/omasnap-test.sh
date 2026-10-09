@@ -61,6 +61,80 @@ OMASNAP_TEST_LOG="$capture_log" PATH="$stub_bin:$PATH" \
 
 pass "the Omarchy screenshot route delegates compatible arguments to Omasnap"
 
+delay_bin="$test_tmp/delay-bin"
+mkdir -p "$delay_bin"
+cat >"$delay_bin/omasnap" <<'SH'
+#!/bin/bash
+printf 'omasnap\t%s\n' "$*" >>"$DELAY_TEST_LOG"
+SH
+cat >"$delay_bin/omarchy-osd" <<'SH'
+#!/bin/bash
+printf 'osd\t%s\n' "$4" >>"$DELAY_TEST_LOG"
+SH
+cat >"$delay_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+printf 'shell\t%s\n' "$*" >>"$DELAY_TEST_LOG"
+SH
+cat >"$delay_bin/sleep" <<'SH'
+#!/bin/bash
+printf 'sleep\t%s\n' "$*" >>"$DELAY_TEST_LOG"
+[[ -n ${DELAY_TEST_INTERRUPT:-} ]] && kill -TERM "$PPID"
+exit 0
+SH
+# Each call reports the next monitor listed in the focus file as focused.
+cat >"$delay_bin/hyprctl" <<'SH'
+#!/bin/bash
+calls=$(( $(cat "$DELAY_TEST_FOCUS.calls" 2>/dev/null || echo 0) + 1 ))
+echo "$calls" >"$DELAY_TEST_FOCUS.calls"
+printf '[{"name":"%s","focused":true}]\n' "$(sed -n "${calls}p" "$DELAY_TEST_FOCUS")"
+SH
+chmod +x "$delay_bin"/*
+
+delay_log="$test_tmp/delay.log"
+delay_focus="$test_tmp/delay-focus"
+run_delayed() {
+  : >"$delay_log"
+  rm -f "$delay_focus.calls"
+  DELAY_TEST_LOG="$delay_log" DELAY_TEST_FOCUS="$delay_focus" PATH="$delay_bin:$PATH" \
+    "$ROOT/bin/omarchy-capture-screenshot" "$@"
+}
+
+printf 'DP-1\nDP-1\nDP-1\n' >"$delay_focus"
+run_delayed region --delay=3
+expected=$'shell\t-q osd close\nosd\tScreenshot in 3\nsleep\t1\nosd\tScreenshot in 2\nsleep\t1\nosd\tScreenshot in 1\nsleep\t1\nshell\t-q osd close\nsleep\t0.1\nomasnap\tregion'
+[[ $(<"$delay_log") == "$expected" ]] ||
+  fail "a delayed screenshot counts down on the OSD, then hides it before Omasnap captures" "$(<"$delay_log")"
+
+printf 'DP-1\nHDMI-A-1\nHDMI-A-1\n' >"$delay_focus"
+run_delayed --delay=3
+[[ $(grep -c $'^shell\t-q osd close$' "$delay_log") == 3 ]] ||
+  fail "the countdown reopens the OSD only when focus moves to another monitor" "$(<"$delay_log")"
+
+run_delayed
+[[ $(<"$delay_log") == $'omasnap\t' ]] || fail "a screenshot without a delay opens Omasnap straight away"
+
+if run_delayed --delay=soon 2>/dev/null; then
+  fail "a non-numeric delay is rejected"
+fi
+[[ ! -s $delay_log ]] || fail "a rejected delay never opens Omasnap"
+
+printf 'DP-1\n%.0s' {1..8} >"$delay_focus"
+run_delayed --delay=08
+[[ $(grep -c $'^osd\t' "$delay_log") == 8 && $(tail -n 1 "$delay_log") == $'omasnap\t' ]] ||
+  fail "a delay with a leading zero counts down in base 10" "$(<"$delay_log")"
+
+printf 'DP-1\nDP-1\n' >"$delay_focus"
+: >"$delay_log"
+rm -f "$delay_focus.calls"
+if (DELAY_TEST_INTERRUPT=1 DELAY_TEST_LOG="$delay_log" DELAY_TEST_FOCUS="$delay_focus" PATH="$delay_bin:$PATH" \
+  "$ROOT/bin/omarchy-capture-screenshot" --delay=5; exit $?) 2>/dev/null; then
+  fail "an interrupted countdown exits unsuccessfully"
+fi
+[[ $(tail -n 1 "$delay_log") == $'shell\t-q osd close' ]] && ! grep -q '^omasnap' "$delay_log" ||
+  fail "an interrupted countdown closes the OSD and never opens Omasnap" "$(<"$delay_log")"
+
+pass "the screenshot route counts down on the focused monitor before a delayed capture"
+
 cat >"$stub_bin/omarchy-pkg-add" <<'SH'
 #!/bin/bash
 printf 'add\t%s\n' "$*" >>"$OMASNAP_MIGRATION_LOG"
