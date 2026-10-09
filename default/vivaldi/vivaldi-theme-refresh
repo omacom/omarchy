@@ -3,7 +3,7 @@ set -eu
 
 omarchy-cmd-present vivaldi-stable || exit 0
 
-JSON=${VIVALDI_OMARCHY_JSON:-/opt/vivaldi/resources/vivaldi/style/omarchy.json}
+JSON=${VIVALDI_OMARCHY_JSON:-$HOME/.local/state/omarchy/vivaldi/theme.json}
 
 # A palette key can be absent (accent is optional); under set -e a missing key
 # must fall through to the guard below, not abort the refresh.
@@ -86,27 +86,28 @@ read_appearance() {
 
 read_appearance
 
-# Live path: the loader injected into Vivaldi's UI polls this channel every
-# couple of seconds. The resources directory is root-owned, so the file is
-# created there by vivaldi-post-update but owned by the user; rewrite it in
-# place, because a non-root refresh cannot create a temp file or rename into
-# that directory. The loader tolerates a transient partial read and retries.
-if [[ -w $JSON ]]; then
-  jq -n \
-    --arg bg "$bg" --arg fg "$fg" --arg accent "$accent" --arg lighter_bg "$lighter_bg" \
-    --argjson radius "$radius" --argjson dimBlurred "$dim_blurred" \
-    --argjson blur "$blur" --argjson contrast "$contrast" \
-    --argjson alpha "${alpha:-null}" \
-    '{
-      schemaVersion: 1,
-      colors: { bg: $bg, fg: $fg, accent: $accent, lighterBg: $lighter_bg },
-      radius: $radius,
-      dimBlurred: $dimBlurred,
-      blur: $blur,
-      contrast: $contrast,
-      alpha: $alpha
-    }' > "$JSON"
-fi
+# Only the loader code is shared. Each user's browser reads its own private
+# channel through Vivaldi's file API, so updates need neither sudo nor a shared
+# writable resource. Publish a complete JSON even when refreshes overlap.
+channel_dir=$(dirname "$JSON")
+install -d -m 0700 "$channel_dir"
+staged=$(mktemp "$channel_dir/.theme.XXXXXX")
+trap 'rm -f "$staged"' EXIT
+jq -n \
+  --arg bg "$bg" --arg fg "$fg" --arg accent "$accent" --arg lighter_bg "$lighter_bg" \
+  --argjson radius "$radius" --argjson dimBlurred "$dim_blurred" \
+  --argjson blur "$blur" --argjson contrast "$contrast" \
+  --argjson alpha "${alpha:-null}" \
+  '{
+    schemaVersion: 1,
+    colors: { bg: $bg, fg: $fg, accent: $accent, lighterBg: $lighter_bg },
+    radius: $radius,
+    dimBlurred: $dimBlurred,
+    blur: $blur,
+    contrast: $contrast,
+    alpha: $alpha
+  }' > "$staged"
+mv -fT "$staged" "$JSON"
 
 # Reliable path: persist the same colors and appearance into Vivaldi's own
 # theme preferences, so the theme survives even when the live loader is

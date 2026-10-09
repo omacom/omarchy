@@ -42,6 +42,8 @@ Vivaldi ignores the Chromium theme policy the rest of them are colored with, so 
 
 A Vivaldi update replaces the files the live theme sync hooks into; the next `omarchy update` re-applies it automatically.
 
+Vivaldi's theme sync is separate for each Linux user. Another user's theme changes or Omarchy updates won't replace your browser colors or appearance. After an update changes the live sync code, restart Vivaldi to load it.
+
 ## Removing one again
 
 Anything you installed here can be taken back off under _Remove > Browser_. Chromium isn't in that list — it's part of the base system.
