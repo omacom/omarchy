@@ -71,6 +71,7 @@ lazygit
 less
 libsecret
 libvips
+libxml2-legacy
 libyaml
 libreoffice-fresh
 llvm
@@ -104,6 +105,7 @@ owe
 owe-lockfeed
 pacman-contrib
 pamixer
+patchelf
 pinta
 plocate
 plymouth
