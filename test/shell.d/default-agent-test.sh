@@ -435,9 +435,10 @@ grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null ||
 pass "agent migrations install working wrappers without overriding the preinstall opt-out"
 
 "$ROOT/bin/omarchy-mise-install" "$muse_package" muse
+"$ROOT/bin/omarchy-mise-install" "$dsh_package" dsh
 touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
 omarchy-remove-preinstalls >/dev/null
-for command in agy omp ori grok crush cursor-agent muse; do
+for command in agy omp ori grok crush cursor-agent muse dsh; do
   [[ ! -e $test_home/.local/bin/$command ]] || fail "Remove Preinstalls deletes the $command lazy stub"
 done
 pass "Remove Preinstalls deletes every optional agent lazy stub"
