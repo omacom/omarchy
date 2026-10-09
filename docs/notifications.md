@@ -20,14 +20,9 @@ A toast lives on screen for at least 5s (low), 8s (normal), or forever
 it — new text deserves a full look. Left-click invokes the default action,
 right-click or the hover-revealed close button dismisses.
 
-Every on-screen popup is mirrored to its own file under
-`~/.local/state/omarchy/notifications/` (one JSON line per file, named
-`<timestamp>-<id>.json`), so live toasts survive the shell restart that
-`omarchy-update` performs. When a toast leaves the screen — expiry, dismissal,
-or click — its file moves into `notifications/history/`, trimmed to the newest
-ten. That directory *is* the history: `showHistory` replays exactly what has
-been moved in there. Referenced avatars/images are copied into
-`notifications/images/`, because senders delete their originals on close.
+Every on-screen popup is mirrored to its own file under `~/.local/state/omarchy/notifications/` (one JSON line per file, named `<timestamp>-<id>.json`), so live toasts survive the shell restart that `omarchy-update` performs. Referenced avatars/images are copied into `notifications/images/`, because senders delete their originals on close.
+
+When a toast expires, its file moves into `notifications/history/`, trimmed to the newest ten. Clicking a toast or manually dismissing it deletes its popup file, any matching history file, and its copied images. This also removes acknowledged history replays; timed-out and DND-silenced notifications remain available. Replaying history preserves live popups while moving them into history. That directory *is* the history: `showHistory` replays exactly what has been moved in there.
 
 `replaces_id` updates never produce a second notification signal: the server
 writes new content onto the object the service already holds, so the service
