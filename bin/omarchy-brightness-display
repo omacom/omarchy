@@ -39,8 +39,17 @@ use_apple_display() {
   omarchy-hyprland-monitor-focused-apple "$monitor"
 }
 
+# An all-in-one wires its built-in panel to a DP connector, which DDC/CI does not answer.
+# When that is the only display and the kernel has a backlight, take the backlight to be its own.
+monitor_is_panel_without_ddc() {
+  [[ $monitor == DP-* ]] &&
+    hyprctl monitors all -j 2>/dev/null | jq -e --arg monitor "$monitor" 'length == 1 and .[0].name == $monitor' >/dev/null 2>&1 &&
+    omarchy-hw-display >/dev/null 2>&1 &&
+    ! omarchy-brightness-display-ddc "$monitor" >/dev/null 2>&1
+}
+
 use_ddc_display() {
-  [[ -n $monitor ]] && ! monitor_is_internal
+  [[ -n $monitor ]] && ! monitor_is_internal && ! monitor_is_panel_without_ddc
 }
 
 if (( $# == 0 )); then

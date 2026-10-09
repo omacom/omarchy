@@ -24,7 +24,14 @@ SH
 
 cat >"$mock_bin/omarchy-hw-display" <<'SH'
 #!/bin/bash
+[[ ${NO_BACKLIGHT:-0} == "1" ]] && exit 1
 printf 'mock_backlight\n'
+SH
+
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+default='[{"name":"eDP-1"},{"name":"DP-1"},{"name":"DP-2"}]'
+printf '%s\n' "${HYPR_MONITORS:-$default}"
 SH
 
 cat >"$mock_bin/brightnessctl" <<'SH'
@@ -45,6 +52,8 @@ Display 1
    I2C bus:             /dev/i2c-${DDC_BUS:-7}
    DRM connector:       card1-${DDC_CONNECTOR:-DP-1}
 EOF
+elif [[ $* == *" setvcp 10 "* ]]; then
+  [[ ${DDC_WRITE_FAIL:-0} != "1" ]]
 elif [[ $* == *" getvcp 10 "* ]]; then
   [[ ${DDC_READ_FAIL:-0} == "1" ]] && exit 1
   printf 'VCP 10 C %s %s\n' "${DDC_CURRENT:-40}" "${DDC_MAXIMUM:-80}"
@@ -128,6 +137,72 @@ DDC_CURRENT=4 DDC_MAXIMUM=100 run_brightness --no-osd --monitor DP-1 +5%
 grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 5' "$call_log" >/dev/null || \
   fail "external low brightness writes the one-percent target"
 pass "external low brightness uses a one-percent step"
+
+# An all-in-one's built-in panel on DP-1 is listed by ddcutil but does not answer it.
+aio_panel() {
+  rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
+  HYPR_MONITORS='[{"name":"DP-1"}]' DDC_READ_FAIL=1 run_brightness "$@"
+}
+
+: >"$call_log"
+brightness=$(aio_panel --monitor DP-1) || true
+[[ $brightness == "40" ]] || fail "all-in-one panel on a DP connector reads the kernel backlight" "actual: $brightness"
+aio_panel --no-osd --monitor DP-1 60%
+grep -Fx 'brightnessctl -d mock_backlight set 60%' "$call_log" >/dev/null || \
+  fail "all-in-one panel on a DP connector sets the kernel backlight" "$(cat "$call_log")"
+if grep -F 'setvcp' "$call_log"; then
+  fail "all-in-one panel on a DP connector writes nothing over DDC"
+fi
+pass "all-in-one panel on a DP connector falls back to the kernel backlight"
+
+: >"$call_log"
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
+brightness=$(HYPR_MONITORS='[{"name":"DP-1"}]' run_brightness --monitor DP-1)
+[[ $brightness == "50" ]] || fail "a lone DP display that answers DDC keeps DDC" "actual: $brightness"
+HYPR_MONITORS='[{"name":"DP-1"}]' run_brightness --no-osd --monitor DP-1 25%
+grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 20' "$call_log" >/dev/null || \
+  fail "a lone DP display that answers DDC is set over DDC" "$(cat "$call_log")"
+if grep -F 'brightnessctl' "$call_log"; then
+  fail "a lone DP display that answers DDC leaves the kernel backlight alone"
+fi
+pass "a lone DP display that answers DDC keeps DDC"
+
+: >"$call_log"
+if HYPR_MONITORS='[{"name":"DP-1"}]' DDC_WRITE_FAIL=1 run_brightness --no-osd --monitor DP-1 +5%; then
+  fail "a failed DDC write is reported"
+fi
+grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 44' "$call_log" >/dev/null || \
+  fail "a failed DDC write was attempted over DDC" "$(cat "$call_log")"
+if grep -F 'brightnessctl' "$call_log"; then
+  fail "a failed DDC write on a readable display leaves the kernel backlight alone"
+fi
+pass "a failed DDC write on a readable display leaves the kernel backlight alone"
+
+: >"$call_log"
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
+if HYPR_MONITORS='[{"name":"DP-1"},{"name":"HDMI-A-1"}]' DDC_READ_FAIL=1 run_brightness --no-osd --monitor DP-1 +5%; then
+  fail "a DP display without DDC beside another display has no brightness backend"
+fi
+if grep -F 'brightnessctl' "$call_log"; then
+  fail "a DP display without DDC beside another display leaves the kernel backlight alone"
+fi
+pass "a DP display without DDC beside another display leaves the kernel backlight alone"
+
+: >"$call_log"
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
+if HYPR_MONITORS='[{"name":"DP-1"}]' NO_BACKLIGHT=1 DDC_READ_FAIL=1 run_brightness --no-osd --monitor DP-1 +5%; then
+  fail "a lone DP display without DDC or a backlight has no brightness backend"
+fi
+pass "a lone DP display without DDC or a backlight has no brightness backend"
+
+: >"$call_log"
+if HYPR_MONITORS='[{"name":"HEADLESS-1"}]' run_brightness --no-osd --monitor HEADLESS-1 +5%; then
+  fail "a lone virtual output has no brightness backend"
+fi
+if grep -F 'brightnessctl' "$call_log"; then
+  fail "a lone virtual output leaves the kernel backlight alone"
+fi
+pass "a lone virtual output leaves the kernel backlight alone"
 
 cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
