@@ -72,6 +72,9 @@ wait_for_position top || fail_with_log "shell falls back to defaults on an unrea
 
 reply=$(shell_ipc shell setBarWidget omarchy.clock format '"HH:mm"' '{}') || fail_with_log "bar widget setting is accepted"
 [[ $reply == "ok" ]] || fail_with_log "bar widget setting is applied: $reply"
+shell_ipc shell listShellConfig | jq -e 'any(.bar.layout[][]; .id == "omarchy.clock" and .format == "HH:mm")' >/dev/null ||
+  fail_with_log "blocked persistence still applies the clock setting in memory"
+pass "blocked persistence still applies the clock setting in memory"
 sleep 1
 cmp -s "$config" "$TMPDIR/broken.json" || fail "a bar change leaves an unreadable shell.json as the user left it" "$(cat "$config")"
 pass "a bar change leaves an unreadable shell.json as the user left it"
