@@ -21,6 +21,7 @@ next_sink_json_volume=""
     IFS= read -r -d '' next_sink_json_volume
 } < <(LC_ALL=C timeout 2 pactl -f json list sinks |
   jq -j --arg fronted "$fronted" --arg current "$current_sink_name" '
+    def valid: select(. != null and . != "" and . != "(null)" and . != "null");
     [.[]
       | select((.ports | length == 0) or ([.ports[]? | .availability != "not available"] | any))
       | select($fronted == "" or .name != $fronted)] as $sinks
@@ -31,7 +32,7 @@ next_sink_json_volume=""
         | [
             (.index | tostring),
             .name,
-            ((.description // .properties."device.description" // .name) | gsub("[\t\r\n]"; " ")),
+            (((.description | valid) // (.properties."device.description" | valid) // "") | gsub("[\t\r\n]"; " ")),
             ((.volume | to_entries[0]?.value.value_percent // "") | sub("%$"; ""))
           ]
         | map(. + "\u0000") | add
@@ -41,6 +42,15 @@ next_sink_json_volume=""
 if [[ -z $next_sink_name ]]; then
   omarchy-osd -m "$(omarchy-i18n audio.noDevices)"
   exit 1
+fi
+
+# PipeWire sometimes reports a non-ASCII description as the literal "(null)";
+# its node graph still holds the real name, so look it up there before falling
+# back to the sink's internal name.
+if [[ -z $next_sink_description ]]; then
+  next_sink_description=$(pw-dump 2>/dev/null | jq -r --arg n "$next_sink_name" \
+    'first(.[] | select(.type == "PipeWire:Interface:Node" and .info.props."node.name" == $n) | .info.props."node.description") // empty')
+  [[ -n $next_sink_description && $next_sink_description != "(null)" ]] || next_sink_description=$next_sink_name
 fi
 
 # A tuning sink sits at a fixed 100% and unmuted while real loudness lives on the
