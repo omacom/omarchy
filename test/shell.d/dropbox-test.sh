@@ -31,4 +31,10 @@ assertEqual(
   '1h ago · Docs',
   'dropbox file metadata includes relative time and folder'
 )
+
+const day = 86400 * 1000
+assertEqual(dropbox.relativeTime(1, 1000 + 359 * day), '11mo ago', 'dropbox shows months just under a year')
+assertEqual(dropbox.relativeTime(1, 1000 + 360 * day), '11mo ago', 'dropbox never shows zero years at 360 days')
+assertEqual(dropbox.relativeTime(1, 1000 + 364 * day), '11mo ago', 'dropbox never shows zero years at 364 days')
+assertEqual(dropbox.relativeTime(1, 1000 + 365 * day), '1y ago', 'dropbox shows one year at 365 days')
 JS

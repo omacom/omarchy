@@ -108,8 +108,7 @@ function relativeTime(timestampSec, nowMs) {
   if (hours < 24) return hours + "h ago"
   var days = Math.floor(hours / 24)
   if (days < 30) return days + "d ago"
-  var months = Math.floor(days / 30)
-  if (months < 12) return months + "mo ago"
+  if (days < 365) return Math.min(11, Math.floor(days / 30)) + "mo ago"
   return Math.floor(days / 365) + "y ago"
 }
 
