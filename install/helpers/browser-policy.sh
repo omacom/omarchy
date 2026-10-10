@@ -26,6 +26,7 @@ BROWSER_POLICY_PARENT_DIRS=(
 
 BROWSER_POLICY_FIREFOX_DIRS=(
   /usr/lib/firefox/distribution
+  /etc/librewolf/policies
   /opt/zen-browser/distribution
 )
 
@@ -165,4 +166,47 @@ browser_policy_setup_firefox_distribution() {
   browser_policy_setup_parent "$distribution_dir"
   browser_policy_purge_dir "$distribution_dir"
   browser_policy_install_firefox_policies "$distribution_dir" "$policies"
+}
+
+# LibreWolf ignores its packaged policies whenever /etc/librewolf/policies/
+# policies.json exists, so that file must carry LibreWolf's own policies next
+# to Omarchy's. Shipping a frozen merged copy would drift on every LibreWolf
+# update, so Omarchy keeps only its own Preferences and deep-merges them over
+# the packaged file at install time; the overlay wins on conflicts.
+browser_policy_librewolf_merged_policies() {
+  local packaged=$1
+  local overlay=${2:-$OMARCHY_PATH/default/librewolf/policies.json}
+
+  jq -s '.[0] * .[1]' "$packaged" "$overlay"
+}
+
+browser_policy_install_librewolf_policies() {
+  local policy_dir=$1
+  local packaged=${2:-/usr/lib/librewolf/distribution/policies.json}
+  local overlay=${3:-$OMARCHY_PATH/default/librewolf/policies.json}
+  local tmp
+
+  tmp=$(mktemp) || return 1
+  if ! browser_policy_librewolf_merged_policies "$packaged" "$overlay" >"$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+
+  if as_root install -m 644 -o root -g root -T "$tmp" "$policy_dir/policies.json"; then
+    rm -f "$tmp"
+    return 0
+  fi
+
+  rm -f "$tmp"
+  return 1
+}
+
+browser_policy_setup_librewolf_policies() {
+  local policy_dir=$1
+  local packaged=${2:-/usr/lib/librewolf/distribution/policies.json}
+  local overlay=${3:-$OMARCHY_PATH/default/librewolf/policies.json}
+
+  browser_policy_setup_parent "$policy_dir"
+  browser_policy_purge_dir "$policy_dir"
+  browser_policy_install_librewolf_policies "$policy_dir" "$packaged" "$overlay"
 }
