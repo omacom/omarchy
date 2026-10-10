@@ -19,6 +19,8 @@ o.bind("SUPER + SHIFT + CTRL + SPACE", "Theme menu", { menu = "theme" })
 o.bind("SUPER + BACKSPACE", "Toggle transparency on a window", "omarchy-hyprland-window-transparency-toggle")
 o.bind("SUPER + SHIFT + BACKSPACE", "Toggle window gaps", "omarchy-hyprland-window-gaps-toggle")
 o.bind("SUPER + CTRL + BACKSPACE", "Toggle single-window square aspect", "omarchy-hyprland-window-single-square-aspect-toggle")
+o.bind("SUPER + code:49", "Switch keyboard layout", "omarchy-hyprland-keyboard-layout-switch")
+o.bind("SUPER + SHIFT + K", "Switch keyboard layout", "omarchy-hyprland-keyboard-layout-switch")
 o.bind_toggle("SUPER + CTRL + ALT + F", "Toggle full screen desktop", "fullscreen-desktop")
 
 -- xkbcommon names the comma keysym "comma"; the upper-case "COMMA" does not match.

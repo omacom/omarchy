@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Cycle to the next keyboard layout across all input devices
+# omarchy:examples=omarchy hyprland keyboard-layout-switch
+
+hyprctl switchxkblayout all next
