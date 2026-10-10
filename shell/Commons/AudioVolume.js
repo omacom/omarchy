@@ -20,10 +20,11 @@ function fromDecibels(db) {
   return db <= floor + 0.01 ? 0 : Math.pow(10, db / 60)
 }
 
-// A slider position in 0..1, linear in dB on the decibel scale.
+// A slider position, linear in dB on the decibel scale. A boosted output sits
+// past 1, so the slider's wheel brings it down to 100% rather than below.
 function position(volume, scale) {
-  if (scale !== "decibel") return clamp(volume)
-  return clamp(1 - decibels(volume) / floor)
+  if (scale !== "decibel") return Math.max(0, volume)
+  return Math.max(0, 1 - decibels(volume) / floor)
 }
 
 function volume(position, scale) {
