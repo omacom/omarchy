@@ -55,6 +55,9 @@ elif [[ $action =~ ^([+-])([0-9]+)$ ]]; then
   direction="${BASH_REMATCH[1]}"
   step="${BASH_REMATCH[2]}"
 
+  exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-audio-output-volume.lock"
+  flock 9
+
   current="$(volume_percent)"
   if [[ -z $current ]]; then
     echo "Could not read volume for $sink." >&2
@@ -71,6 +74,7 @@ elif [[ $action =~ ^([+-])([0-9]+)$ ]]; then
 
   pactl set-sink-mute "$sink" 0
   pactl set-sink-volume "$sink" "${next}%"
+  flock -u 9
 else
   echo "Unknown volume action: $action"
   exit 1
