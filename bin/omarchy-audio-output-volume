@@ -34,6 +34,12 @@ if [[ -z $sink ]]; then
   exit 1
 fi
 
+# A volume step is a read-modify-write, and the shell runs the script detached,
+# so repeated presses can overlap and both read the same volume, dropping a
+# step. Serialize the mutation; the lock is released when the script exits.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-audio-output-volume.lock"
+flock 9
+
 # pactl reports the same percentage scale wpctl does (both are the raw volume
 # over PA_VOLUME_NORM), so the OSD reads identically either way.
 volume_percent() {

@@ -75,18 +75,18 @@ assertEqual(media.activeVolumeSink(speakers, [link({ isStream: false, isSink: tr
 assertEqual(media.activeVolumeSink(speakers, [link(stream(), { name: 'monitor', isSink: false })]), null, 'a stream linked to a non-sink is not followed')
 
 // The shell reads the sink each stream is linked to from PipeWire's link groups
-// synchronously, so the fast path stays on an ALSA sink and the keys defer to
-// the script only for a non-ALSA active sink (a Bluetooth headset, a DSP chain).
+// synchronously and defers to the script for any non-default output, so the
+// script's corked-aware resolution steps the right sink; the fast path stays on
+// the default sink only.
 const fs = require('fs')
 const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/services/media/Service.qml'), 'utf8')
 assert(
-  serviceQml.includes('readonly property var activeSink:') &&
-    serviceQml.includes('MediaModel.activeVolumeSink(defaultSink, links)') &&
+  serviceQml.includes('readonly property var volumeSink: defaultSink && String(defaultSink.name).indexOf("alsa_output.") === 0 ? defaultSink : null') &&
+    serviceQml.includes('MediaModel.activeVolumeSink(defaultSink, activeLinksSnapshot())') &&
     serviceQml.includes('Pipewire.linkGroups') &&
     serviceQml.includes('PwLinkState.Active') &&
-    serviceQml.includes('var sink = activeSink || defaultSink') &&
     !serviceQml.includes('activeSinkName'),
-  'volume keys step an ALSA active sink in-process and defer to the script otherwise'
+  'volume keys fast-path only the default sink and defer to the script for another output'
 )
 const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
 assert(
