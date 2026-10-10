@@ -33,6 +33,13 @@ STUB
   cat >"$mock_bin/systemctl" <<'STUB'
 #!/bin/bash
 printf 'systemctl %s\n' "$*" >> "$CALLS"
+unit_file="$HOME/.config/systemd/user/omarchy-thunderbolt-authorization.service"
+if [[ $1 == --user ]]; then
+  case $2 in
+    cat|enable) [[ -f $unit_file ]] || { echo "Unit does not exist" >&2; exit 1; } ;;
+    disable) [[ -z ${DISABLE_FAIL:-} ]] || { echo "Failed to disable unit" >&2; exit 1; } ;;
+  esac
+fi
 exit 0
 STUB
   chmod +x "$mock_bin/systemctl"
@@ -70,6 +77,22 @@ STUB
     fail "removal cleans up user systemd unit"
   grep -Fqx 'systemctl --user disable --now omarchy-thunderbolt-authorization.service' "$calls" ||
     fail "removal disables user systemd unit"
+
+  # A failing disable must abort removal and keep the unit for a retry
+  CALLS="$calls" HOME="$mock_home" PATH="$mock_bin:$PATH" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-setup-security-thunderbolt-authorization" --quiet
+  if DISABLE_FAIL=1 CALLS="$calls" HOME="$mock_home" PATH="$mock_bin:$PATH" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-remove-security-thunderbolt-authorization" 2>/dev/null; then
+    fail "removal fails when disabling the unit fails"
+  fi
+  [[ -f "$mock_home/.config/systemd/user/omarchy-thunderbolt-authorization.service" ]] ||
+    fail "removal keeps the unit when disabling fails"
+
+  # A missing unit is tolerated
+  rm -f "$mock_home/.config/systemd/user/omarchy-thunderbolt-authorization.service"
+  CALLS="$calls" HOME="$mock_home" PATH="$mock_bin:$PATH" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-remove-security-thunderbolt-authorization" >/dev/null ||
+    fail "removal tolerates a missing unit"
 
   pass "Thunderbolt setup and removal manages user systemd unit lifecycle"
 }
