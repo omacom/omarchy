@@ -96,8 +96,11 @@ keeps with the popup, which the persistence files preserve: a restored toast
 clicks through exactly like a live one, and oneshot senders can exit
 immediately. For third-party clients the click falls back to the libnotify
 `default` action while the sender is alive, then to focusing the sender's
-window by class via `omarchy-hyprland-focus-app` — chat apps rarely register
-an action and just expect click-to-jump.
+window by class via `omarchy-hyprland-focus-app --or-launch` — chat apps rarely
+register an action and just expect click-to-jump, and those closed to their
+tray have no window at all, so the helper launches their desktop entry instead:
+the one the sender named in its `desktop-entry` hint, else the entry declaring
+that window class, matching the app name as an entry id, or as an entry name.
 
 ### Click commands are argv, never shell strings
 
