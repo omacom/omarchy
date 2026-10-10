@@ -50,12 +50,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    return Model.batteryIcon(device, UPower.onBattery, upowerStates())
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates())
+    return Model.modeLabel(device, UPower.onBattery, upowerStates())
   }
 
   function profileIcon(name) {
@@ -68,11 +68,12 @@ Panel {
   }
   readonly property bool discharging: {
     var device = UPower.displayDevice
-    return !!(device && device.isPresent && UPower.onBattery)
+    // A state that is neither charging nor discharging falls back to onBattery, as the icon and mode label do.
+    return !!(device && device.isPresent && (device.state === UPowerDeviceState.Discharging || (UPower.onBattery && device.state !== UPowerDeviceState.Charging)))
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates())
+    return Model.chargeThresholdActive(device, UPower.onBattery, upowerStates())
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
@@ -85,7 +86,7 @@ Panel {
 
   readonly property bool charging: {
     var d = UPower.displayDevice
-    return d && d.isPresent && !UPower.onBattery && !root.batteryFlowIdle
+    return !!(d && d.isPresent && d.state === UPowerDeviceState.Charging && !root.batteryFlowIdle)
   }
 
   readonly property color batteryFillColor: {
@@ -166,7 +167,7 @@ Panel {
 
   function setProfile(profile) {
     if (!profile || actionProc.running) return
-    actionProc.command = ["omarchy-powerprofiles-set", root.discharging ? "battery" : "ac", profile]
+    actionProc.command = ["omarchy-powerprofiles-set", UPower.onBattery ? "battery" : "ac", profile]
     actionProc.running = true
   }
 
