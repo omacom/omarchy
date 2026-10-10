@@ -67,6 +67,7 @@ function omarchy_startup_cursor_restore(loaded)
     omarchy_startup_cursor_pending = false
     hl.env(phase_key, done_phase)
     hl.config({ cursor = cursor.config })
+    hl.exec_cmd("xsetroot -cursor_name left_ptr >/dev/null 2>&1 || true")
     local theme = (cursor.config.enable_hyprcursor and cursor.hyprcursor and cursor.hyprcursor ~= "" and cursor.hyprcursor) or cursor.xcursor
     hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(theme) .. " " .. cursor.size)
     omarchy_startup_cursor_drop()

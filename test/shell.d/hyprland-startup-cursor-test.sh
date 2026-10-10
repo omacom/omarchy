@@ -15,7 +15,7 @@ trap 'rm -rf "$XDG_RUNTIME_DIR" "$lua_test"' EXIT
 # mask every assertion below. Run the program from a file so failures fail.
 cat >"$lua_test" <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
-local events, recovery, command = {}, nil, nil
+local events, recovery, command, commands = {}, nil, nil, {}
 local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
 local env = { OMARCHY_PATH = os.getenv("ROOT"), HYPRLAND_INSTANCE_SIGNATURE = "test-instance-a", XCURSOR_THEME = "my-xcursor", HYPRCURSOR_THEME = "my-hyprcursor", XCURSOR_PATH = "/my/icons" }
 local getenv = os.getenv
@@ -38,6 +38,7 @@ hl = {
       assert(config.invisible and env.XCURSOR_THEME == "my-xcursor", "hide the compositor cursor while restoring application settings before launch")
     end
     command = value
+    table.insert(commands, value)
   end,
 }
 o = { shell_quote = function(value) return "'" .. value .. "'" end, launch = function(value) return value end }
@@ -82,6 +83,7 @@ omarchy_startup_cursor_restore(true)
 assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme)
 assert(command:match("setcursor 'my%-hyprcursor'"), "restore the user's Hyprcursor theme")
 assert(not io.open(state_file, "r"), "a revealed cursor must drop its capture so later reloads stay untouched")
+assert(commands[#commands - 1]:match("xsetroot %-cursor_name left_ptr"), "restore the X11/XWayland root cursor after a Lua-state reload")
 local previous_command = command
 previous_recovery()
 assert(command == previous_command, "recovery must not change a revealed cursor")
