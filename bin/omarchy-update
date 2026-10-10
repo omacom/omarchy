@@ -26,8 +26,8 @@ unset OMARCHY_UPDATE_USER_PATH
 # prompt below always belongs to this update, never to an earlier session.
 omarchy_security_install_sudo_cleanup_traps
 omarchy_security_revoke_sudo_timestamp || exit 1
-# Validate the no-update wrapper up front: the AUR phase depends on it. Every
-# other phase shares the one authorization, so it stays off PATH until then.
+# Validate the no-update wrapper before authorizing the trusted system phases.
+# Hooks and third-party installers use it after that authorization is revoked.
 omarchy_security_enable_no_update_sudo
 PATH="$OMARCHY_PATH/bin:/usr/bin:/usr/sbin:/bin:/sbin"
 unset OMARCHY_SUDO_NO_UPDATE
@@ -37,8 +37,8 @@ export PATH OMARCHY_UPDATE_SUDO_SESSION=1
 update_stay_awake_stopped=0
 sudo_keepalive_pid=""
 
-# Ask for the password once, then keep sudo's timestamp fresh so long package
-# downloads, migrations, hooks, and mise never outlast it and prompt again.
+# Ask for the password once, then keep sudo's timestamp fresh so system-package
+# downloads and migrations never outlast it and prompt again.
 # Authorize by running a command rather than sudo -v: under the default
 # verifypw=all, -v prompts even when passwordless sudo is enabled.
 authorize_update() {
@@ -96,8 +96,6 @@ trap 'echo ""; echo -e "\033[0;31mSomething went wrong during the update!\n\nPle
 trap cleanup_update EXIT
 omarchy_security_install_signal_exit_traps
 
-omarchy-update-requires-free-space
-
 # -y suppresses Omarchy confirmation prompts; sudo authorization is still
 # required. Interactive review steps report and move on instead of waiting.
 [[ ${1:-} != "-y" ]] || export OMARCHY_UPDATE_UNATTENDED=1
@@ -108,6 +106,9 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # Before the snapshot: the cache is on the snapshotted subvolume, so pruning
   # after it frees nothing until that snapshot ages out.
   omarchy-update-pkg-prune
+  # Give bounded cache cleanup a chance to recover a low-space system, but
+  # never snapshot or change packages unless the original space guard passes.
+  omarchy-update-requires-free-space
 
   # 127 means Snapper is deliberately absent. Any other failure already said
   # what went wrong, and a missing snapshot is not worth blocking an update
@@ -136,15 +137,27 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # performs no privileged work.
   omarchy-update-restart --services-only
 
-  # Hooks and mise run with the caller's PATH so user-installed tools resolve.
-  PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-hook" post-update
-  PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update-mise"
+  # Downloaded mise installers must not inherit system-update authorization.
+  # Hooks may invoke them too, so end the trusted phase before either runs.
+  end_update_authorization
+  unset OMARCHY_UPDATE_SUDO_SESSION
+  # A package transaction may replace the running checkout with an older
+  # release. Do not let a missing wrapper silently fall through to plain sudo.
+  if [[ ! -x $OMARCHY_PATH/default/omarchy/sudo-no-update/sudo ]]; then
+    echo "The sudo boundary changed during the update. Start the installed release's update from a fresh terminal." >&2
+    exit 1
+  fi
+  # Keep user tools reachable, with command-scoped sudo first. Revoke between
+  # phases too: a hook may deliberately invoke /usr/bin/sudo directly.
+  PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$user_path" OMARCHY_SUDO_NO_UPDATE=1 "$OMARCHY_PATH/bin/omarchy-hook" post-update
+  omarchy_security_revoke_sudo_timestamp
+  PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$user_path" OMARCHY_SUDO_NO_UPDATE=1 "$OMARCHY_PATH/bin/omarchy-update-mise"
+  omarchy_security_revoke_sudo_timestamp
 
   # AUR builds run third-party PKGBUILD code, so they go last and never see the
-  # update's authorization: revoke it, then authenticate each sudo call with
+  # update's authorization: authenticate each sudo call with
   # the no-update wrapper, for yay and any bare sudo a PKGBUILD runs, so an AUR
   # install prompts without caching anything.
-  end_update_authorization
   PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$PATH" OMARCHY_SUDO_NO_UPDATE=1 omarchy-update-aur-pkgs
   omarchy_security_revoke_sudo_timestamp
 

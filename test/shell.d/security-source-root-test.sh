@@ -51,7 +51,7 @@ pass "a package link must resolve to its named command"
 # Run the protected entrypoints themselves with a mismatched root. These must
 # stop before any sudo or operational fixture command, not merely validate in
 # an isolated library test.
-for command in omarchy-update omarchy-refresh-pacman omarchy-update-stay-awake omarchy-channel-set; do
+for command in omarchy-update omarchy-refresh-pacman omarchy-update-stay-awake omarchy-channel-set omarchy-pkg-aur-install; do
   rm -f "$SUDO_TEST_ROOT/bin/$command"
   copy_boundary_file "bin/$command"
   for root in "$boundary_tmp/other-root" .; do

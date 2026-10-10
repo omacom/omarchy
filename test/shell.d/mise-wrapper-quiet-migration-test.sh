@@ -81,8 +81,9 @@ pass "migration preserves a scoped npm package name"
 
 grep -qF 'mise use -g --quiet "github:someone/custom-tool" || exit 1' "$bin_dir/custom-tool" ||
   fail "migration rewrites a wrapper on the pre-export template"
-grep -qF 'export MISE_MINIMUM_RELEASE_AGE=0' "$bin_dir/custom-tool" ||
-  fail "migration brings a pre-export wrapper up to the current template"
+if grep -qF 'export MISE_MINIMUM_RELEASE_AGE=' "$bin_dir/custom-tool"; then
+  fail "migration's current wrapper respects the configured release-age policy"
+fi
 pass "migration rewrites wrappers on the pre-export template"
 
 grep -qF 'mise use -g --quiet "npm:some/tool" || exit 1' "$bin_dir/mise-exec-era" ||

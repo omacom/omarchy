@@ -63,7 +63,15 @@ if [[ ${1:-} == "-k" || ${1:-} == "-K" ]]; then
   /usr/bin/rm -f "$SUDO_TEST_CACHE"
   exit 0
 fi
-if [[ ${1:-} == "-n" && ! -e $SUDO_TEST_CACHE ]]; then
+noninteractive=0
+for argument in "$@"; do
+  case "$argument" in
+    -n) noninteractive=1 ;;
+    -N) ;;
+    *) break ;;
+  esac
+done
+if (( noninteractive )) && [[ ! -e $SUDO_TEST_CACHE ]]; then
   # Non-interactive sudo cannot authenticate without a cached credential.
   exit 1
 fi
@@ -107,11 +115,9 @@ if [[ $step == "systemd-run" ]]; then
   while (( $# )) && [[ $1 == -* ]]; do shift; done
   exec "$@"
 fi
-# omarchy update shares one authorization with its post-update hook and mise.
-# Standalone hooks, such as the pre-refresh one, and AUR builds run cold.
-if [[ $step == "omarchy-hook" && ${1:-} == "post-update" ]] || [[ $step == "omarchy-update-mise" ]]; then
-  [[ -e $SUDO_TEST_CACHE ]] || exit 94
-elif [[ $step == "omarchy-hook" || $step == "yay" ]]; then
+# Hooks and third-party installation phases must not inherit authorization
+# from trusted system updates or from an earlier hook.
+if [[ $step == "omarchy-hook" || $step == "omarchy-update-mise" || $step == "yay" ]]; then
   [[ ! -e $SUDO_TEST_CACHE ]] || exit 91
 fi
 if [[ -n ${SUDO_TEST_REMOVE_WRAPPER_STEP:-} && "$step $*" == $SUDO_TEST_REMOVE_WRAPPER_STEP ]]; then

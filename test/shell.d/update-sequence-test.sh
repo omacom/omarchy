@@ -64,9 +64,9 @@ steps_run() {
 expected_steps() {
   printf '%s\n' \
     omarchy-update-lock \
-    omarchy-update-requires-free-space \
     ${1:+omarchy-update-confirm} \
     omarchy-update-pkg-prune \
+    omarchy-update-requires-free-space \
     omarchy-snapshot \
     omarchy-update-stay-awake \
     omarchy-update-dev \

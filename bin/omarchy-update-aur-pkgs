@@ -1,18 +1,32 @@
-#!/bin/bash
+#!/bin/bash -p
 
 # omarchy:summary=Update AUR packages if any are installed
+# omarchy:requires-sudo=true
 
-sudo_options=()
-if [[ ${OMARCHY_SUDO_NO_UPDATE:-0} == "1" ]]; then
-  sudo_wrapper="$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo"
-  [[ -x $sudo_wrapper ]] || exit 1
-  sudo_options=(--sudo "$sudo_wrapper" --sudoloop=false)
+# This helper is also a direct CLI entrypoint. Establish the same cold boundary
+# whether the full updater called it or the user requested only AUR updates.
+# Privileged Bash suppresses startup injection before credentials are revoked.
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup." >&2
+  exit 126
 fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+set -e
+omarchy_security_sanitize_bash_environment "$0" "$@"
+omarchy_security_require_source_root "$0"
+omarchy_security_install_sudo_cleanup_traps
+omarchy_security_revoke_sudo_timestamp || exit 1
+omarchy_security_enable_no_update_sudo
+unset OMARCHY_UPDATE_SUDO_SESSION
+sudo_wrapper="$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo"
 
 if pacman -Qem >/dev/null; then
   if omarchy-pkg-aur-accessible; then
     echo -e "\e[32m\nUpdate AUR packages\e[0m"
-    yay "${sudo_options[@]}" -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs || exit 1
+    yay --sudo "$sudo_wrapper" --sudoloop=false -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs || exit 1
     echo
   else
     echo -e "\e[31m\nAUR is unavailable (so skipping updates)\e[0m"
