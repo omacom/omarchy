@@ -11,7 +11,11 @@ if [[ ${1:-} == "--install" ]]; then
 fi
 
 if (($# == 0)); then
-  case "$(env -u BROWSER xdg-settings get default-web-browser)" in
+  # Read mimeapps.list directly, like the browser launchers do. xdg-settings
+  # does not know Hyprland and probes for XFCE with xprop, which starts
+  # Xwayland at login when the menu checks the default browser.
+  desktop_id=$(omarchy-cmd-default-browser)
+  case "$desktop_id" in
   chromium.desktop) echo "chromium" ;;
   google-chrome.desktop) echo "chrome" ;;
   brave-browser.desktop) echo "brave" ;;
@@ -19,7 +23,7 @@ if (($# == 0)); then
   microsoft-edge.desktop) echo "edge" ;;
   firefox.desktop) echo "firefox" ;;
   zen.desktop) echo "zen" ;;
-  *) env -u BROWSER xdg-settings get default-web-browser ;;
+  *) echo "$desktop_id" ;;
   esac
   exit 0
 fi
