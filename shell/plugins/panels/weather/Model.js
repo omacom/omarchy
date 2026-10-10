@@ -32,6 +32,14 @@ function wttrLocationQuery(location, latitude, longitude) {
   return name === "" ? "" : encodeURIComponent(name)
 }
 
+// Label for wttr's IP-detected %l: "City, Country" becomes the city, but a
+// raw "lat,lon" fallback is kept whole rather than cut to a latitude (#9706).
+function autoLocationLabel(raw) {
+  var text = String(raw || "").replace(/^\s+|\s+$/g, "")
+  if (/^-?[0-9]+(\.[0-9]+)?,-?[0-9]+(\.[0-9]+)?$/.test(text)) return text
+  return text.split(",")[0]
+}
+
 // Open-Meteo geocoding response → suggestion rows for the location picker.
 function parseGeocodingResults(raw) {
   try {
@@ -269,6 +277,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     parseLocationFile: parseLocationFile,
     wttrLocationQuery: wttrLocationQuery,
+    autoLocationLabel: autoLocationLabel,
     parseGeocodingResults: parseGeocodingResults,
     locationCommit: locationCommit,
     isFutureForecastDate: isFutureForecastDate,
