@@ -7,8 +7,8 @@
 # their colors in parallel with this hook, so nudge once now and once after they have settled;
 # Hunk only repaints when the palette actually changed.
 
-if pgrep -x hunk >/dev/null; then
-  pkill -WINCH -x hunk
+if pgrep -u "$UID" -x hunk >/dev/null; then
+  pkill -u "$UID" -WINCH -x hunk
   sleep 1
-  pkill -WINCH -x hunk
+  pkill -u "$UID" -WINCH -x hunk
 fi

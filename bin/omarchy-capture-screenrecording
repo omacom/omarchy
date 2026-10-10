@@ -139,7 +139,7 @@ start_webcam_overlay() {
 }
 
 cleanup_webcam() {
-  pkill -f "WebcamOverlay" 2>/dev/null
+  pkill -u "$UID" -f "WebcamOverlay" 2>/dev/null
   rm -f "$REGION_FILE"
 }
 

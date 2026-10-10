@@ -135,16 +135,16 @@ geo_at_cursor() {
 # surface (default/hypr/bindings/utilities.lua) invoke these modes. The
 # --take-* modes flag the intent with a marker file and dismiss slurp.
 if [[ ${1:-} == "--take-fullscreen" ]]; then
-  pgrep -x slurp >/dev/null || exit 0
+  pgrep -u "$UID" -x slurp >/dev/null || exit 0
   touch "$FULLSCREEN_MARKER"
-  pkill -x slurp
+  pkill -u "$UID" -x slurp
   exit 0
 fi
 
 if [[ ${1:-} == "--take-window" ]]; then
-  pgrep -x slurp >/dev/null || exit 0
+  pgrep -u "$UID" -x slurp >/dev/null || exit 0
   touch "$WINDOW_MARKER"
-  pkill -x slurp
+  pkill -u "$UID" -x slurp
   exit 0
 fi
 
