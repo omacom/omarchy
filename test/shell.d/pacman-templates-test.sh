@@ -131,12 +131,16 @@ for platform in $platforms; do
     SUDO_TEST_PLATFORM=$platform refresh $channel || fail "$platform refreshes to '$channel'" "$(cat "$boundary_tmp/output")"
     [[ -n $channel ]] || channel=$(omarchy_pacman_default_channel "$platform")
     python3 - "$SUDO_TEST_LOG" "$templates" "$channel" <<'PY'
-import sys
+import re, sys
 events = [e for e in open(sys.argv[1]).read().splitlines() if e not in ('sudo -h', 'sudo -k')]
 templates, channel = sys.argv[2:]
+# Backups carry the run's epoch, one stamp shared by the pair.
+backup = next((e for e in events if e.startswith('step:cp -f /etc/pacman.conf /etc/pacman.conf.bak.')), '')
+stamp = backup.rsplit('.', 1)[-1]
+assert re.fullmatch(r'\d+', stamp), events
 expected = [
-  'step:cp -f /etc/pacman.conf /etc/pacman.conf.bak',
-  'step:cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak',
+  f'step:cp -f /etc/pacman.conf /etc/pacman.conf.bak.{stamp}',
+  f'step:cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak.{stamp}',
   f'step:cp -f {templates}/pacman-{channel}.conf /etc/pacman.conf',
   f'step:cp -f {templates}/mirrorlist-{channel} /etc/pacman.d/mirrorlist',
 ]
