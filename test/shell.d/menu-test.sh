@@ -505,10 +505,44 @@ assert(
 )
 // Rebuilding recreates every row, so a click pressed on one as the guard batch
 // lands would be lost; results the menu already shows leave the rows alone.
-assert(
-  /var changed = JSON\.stringify\(nextWhen\) !== JSON\.stringify\(root\.whenResults\)\s*\n\s*\|\| JSON\.stringify\(nextChecked\) !== JSON\.stringify\(root\.checkedResults\)\s*\n\s*\|\| JSON\.stringify\(nextDisabled\) !== JSON\.stringify\(root\.disabledResults\)[\s\S]*?if \(root\.opened && changed\) root\.rebuildDisplay\(\)/.test(menuQml),
-  'menu rebuilds rows after a guard batch only when a result changed'
-)
+// Run the guard process's real exit handler against a stand-in root, so the
+// test follows what the handler does rather than how it is spelled.
+const guardExitStart = menuQml.indexOf('onExited: function(exitCode, exitStatus) {', menuQml.indexOf('id: guardProc'))
+assert(guardExitStart >= 0, 'menu guard process has an exit handler')
+const guardExitBodyStart = menuQml.indexOf('{', guardExitStart) + 1
+let guardExitBodyEnd = guardExitBodyStart
+for (let depth = 1; depth > 0; guardExitBodyEnd++) {
+  if (menuQml[guardExitBodyEnd] === '{') depth++
+  else if (menuQml[guardExitBodyEnd] === '}') depth--
+}
+const guardExited = new Function('root', 'guardProc', 'Qt',
+  `return function(exitCode, exitStatus) {${menuQml.slice(guardExitBodyStart, guardExitBodyEnd - 1)}}`)
+function finishGuardBatch(output, { opened = true } = {}) {
+  const root = {
+    opened,
+    guardsPending: false,
+    whenResults: { 'system.lock': true },
+    checkedResults: { 'style.dark': false },
+    disabledResults: { 'setup.wifi': false },
+    rebuilds: 0,
+    rebuildDisplay() { this.rebuilds++ },
+    evaluateGuards() {}
+  }
+  guardExited(root, { collected: output }, { callLater() {} })(0, 0)
+  return root
+}
+const unchangedGuards = 'system.lock:w:1\nstyle.dark:c:0\nsetup.wifi:d:0\n'
+assertEqual(finishGuardBatch(unchangedGuards).rebuilds, 0, 'menu keeps its rows when a guard batch repeats the results it shows')
+for (const [output, name, results, expected] of [
+  ['system.lock:w:0\nstyle.dark:c:0\nsetup.wifi:d:0\n', 'visibility', 'whenResults', { 'system.lock': false }],
+  ['system.lock:w:1\nstyle.dark:c:1\nsetup.wifi:d:0\n', 'checked', 'checkedResults', { 'style.dark': true }],
+  ['system.lock:w:1\nstyle.dark:c:0\nsetup.wifi:d:1\n', 'disabled', 'disabledResults', { 'setup.wifi': true }]
+]) {
+  const root = finishGuardBatch(output)
+  assertEqual(root.rebuilds, 1, `menu rebuilds its rows when a guard batch changes a ${name} result`)
+  assertDeepEqual(root[results], expected, `menu keeps the changed ${name} result from a guard batch`)
+}
+assertEqual(finishGuardBatch('system.lock:w:0\n', { opened: false }).rebuilds, 0, 'menu does not rebuild rows while it is closed')
 // A menu with nothing selectable in it has no cursor, and Return must not
 // conjure one onto a disabled row just because rows exist.
 assert(
