@@ -54,19 +54,38 @@ assertEqual(media.volumeOsdIcon(48, false), 'volume-high', 'volume OSD shows the
 assertEqual(media.volumeOsdIcon(48, true), 'volume-muted', 'volume OSD shows muted when muted')
 assertEqual(media.volumeOsdIcon(0, false), 'volume-muted', 'volume OSD shows muted at zero')
 
-// The shell cannot see which sink each stream is linked to, so the active sink
-// is resolved in a process (omarchy-audio-output-sink --active) and the volume
-// applied by omarchy-audio-output-volume --follow-active, which resolves
-// synchronously on every press. handleVolumeKey always declines so the caller
-// runs that script rather than act on a stale answer.
+// The active-sink lookup the volume keys defer to.
+const speakers = { name: 'alsa_output.pci.speakers', isSink: true }
+const headset = { name: 'alsa_output.usb.headset', isSink: true }
+const hdmi = { name: 'alsa_output.pci.hdmi', isSink: true }
+const stream = (role) => ({ isStream: true, isSink: false, type: 'Stream/Output/Audio', properties: role ? { 'media.role': role } : {} })
+const link = (source, target, active) => ({ source: source, target: target, active: active !== false })
+assert(media.isCommunicationStream(stream('phone')), 'media detects a phone stream')
+assert(media.isCommunicationStream(stream('Communication')), 'media detects a communication stream')
+assert(!media.isCommunicationStream(stream('music')), 'media rejects a music stream')
+assert(!media.isCommunicationStream({ isStream: true }), 'media rejects a stream without a role')
+assertEqual(media.activeVolumeSink(speakers, []), null, 'no links answer the default sink')
+assertEqual(media.activeVolumeSink(speakers, [link(stream(), headset)]), headset, 'an uncorked stream on another output answers that output')
+assertEqual(media.activeVolumeSink(speakers, [link(stream(), speakers)]), null, 'a stream on the default sink answers the default')
+assertEqual(media.activeVolumeSink(speakers, [link(stream('phone'), headset)]), headset, 'a call on another output answers that output')
+assertEqual(media.activeVolumeSink(speakers, [link(stream('phone'), speakers), link(stream(), hdmi)]), speakers, 'a call on the default sink outranks music elsewhere')
+assertEqual(media.activeVolumeSink(speakers, [link(stream(), headset), link(stream('phone'), hdmi)]), hdmi, 'a call outranks background playback')
+assertEqual(media.activeVolumeSink(speakers, [link(stream('phone'), headset, false)]), null, 'a corked call is not followed')
+assertEqual(media.activeVolumeSink(speakers, [link({ isStream: false, isSink: true, type: 'Audio/Sink' }, headset)]), null, 'a non-stream source is not followed')
+assertEqual(media.activeVolumeSink(speakers, [link(stream(), { name: 'monitor', isSink: false })]), null, 'a stream linked to a non-sink is not followed')
+
+// The shell reads the active sink from PipeWire's link groups synchronously, so
+// the fast path stays and the keys defer to the script only when an uncorked
+// stream plays on another output.
 const fs = require('fs')
 const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/services/media/Service.qml'), 'utf8')
 assert(
-  /function handleVolumeKey\(action\) \{\s*return false\s*\}/.test(serviceQml) &&
-    !serviceQml.includes('activeSinkName') &&
-    !serviceQml.includes('activeSinkProc') &&
-    !serviceQml.includes('volumeSinkName'),
-  'volume keys always defer to the script, which resolves the active stream synchronously'
+  serviceQml.includes('readonly property var volumeSink: defaultSink && String(defaultSink.name).indexOf("alsa_output.") === 0 ? defaultSink : null') &&
+    serviceQml.includes('MediaModel.activeVolumeSink(defaultSink, activeLinksSnapshot())') &&
+    serviceQml.includes('Pipewire.linkGroups') &&
+    serviceQml.includes('PwLinkState.Active') &&
+    !serviceQml.includes('activeSinkName'),
+  'volume keys read the active sink from link groups and defer to the script for another output'
 )
 const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
 assert(

@@ -458,18 +458,78 @@ Item {
 
   // ------------------------------------------------------------- volume keys
   //
-  // Volume keys arrive as global shortcuts. During a call the headset is a
-  // separate, non-default sink, so the keys would otherwise move the default
-  // speakers while the call plays elsewhere. The shell cannot see which sink
-  // each stream is linked to, so the active sink is resolved in a process
-  // (omarchy-audio-output-sink --active) and the volume applied by
-  // omarchy-audio-output-volume --follow-active, which resolves synchronously
-  // on every press. handleVolumeKey therefore always declines so the caller
-  // runs that script: resolving in the shell would be asynchronous, and its
-  // first press could land on a stale answer.
-  function handleVolumeKey(action) {
-    return false
+  // The volume keys arrive as global shortcuts and change the volume here,
+  // with no process per press, stepping, clamping, unmuting and debouncing the
+  // way omarchy-audio-output-volume does, so either path lands on the same
+  // volume and OSD. That script resolves a DSP sink through to the physical
+  // sink it feeds on every press, from the live routing. An ALSA sink is its
+  // own physical sink, so only then do the keys act here; any other default
+  // sink falls back to the script.
+  //
+  // During a call the headset is a separate, non-default sink, so Linux routes
+  // the volume keys to the default sink and they would move the speakers while
+  // the call plays into the headset. PipeWire's link groups say which sink each
+  // stream feeds, so the active sink is read here synchronously -- no process
+  // and no cached answer. When an uncorked stream plays on another output,
+  // handleVolumeKey defers to the script, which repeats the resolution and
+  // steps that sink.
+  readonly property var defaultSink: Pipewire.defaultAudioSink
+  readonly property var volumeSink: defaultSink && String(defaultSink.name).indexOf("alsa_output.") === 0 ? defaultSink : null
+  property double lastMuteToggle: 0
+
+  // PipeWire's link groups as { source, target, active }: source is the stream,
+  // target the sink it feeds, active true while the stream is uncorked.
+  function activeLinksSnapshot() {
+    var links = []
+    var groups = Pipewire.linkGroups ? Pipewire.linkGroups.values : []
+    for (var i = 0; i < groups.length; i++) {
+      var group = groups[i]
+      if (!group) continue
+      links.push({ source: group.source, target: group.target, active: group.state === PwLinkState.Active })
+    }
+    return links
   }
+
+  // Returns false when the default sink is not one to control here, or when an
+  // uncorked stream plays on another output, so the caller falls back to the
+  // script.
+  function handleVolumeKey(action) {
+    var audio = volumeSink && volumeSink.audio
+    if (!audio) return false
+
+    var active = MediaModel.activeVolumeSink(defaultSink, activeLinksSnapshot())
+    if (active && String(active.name) !== String(defaultSink.name)) return false
+
+    var step = MediaModel.volumeKeyStep(action, Math.round(audio.volume * 100), audio.muted)
+    if (!step) return false
+
+    if (action === "mute-toggle") {
+      // Some keyboards bounce the mute key; the script ignores a second
+      // toggle within 250ms too.
+      var now = Date.now()
+      if (now - lastMuteToggle < 250) return true
+      lastMuteToggle = now
+      audio.muted = step.muted
+    } else {
+      audio.muted = false
+      audio.volume = step.percent / 100
+    }
+
+    // The payload omarchy-osd builds, from the values just set: the node may
+    // not report them back before the OSD draws.
+    shell.summon("omarchy.osd", JSON.stringify({
+      icon: MediaModel.volumeOsdIcon(step.percent, step.muted),
+      message: "",
+      value: String(step.percent),
+      progressText: step.percent + "%",
+      max: "100",
+      duration: ""
+    }))
+    return true
+  }
+
+  PwObjectTracker { objects: root.defaultSink ? [root.defaultSink] : [] }
+  PwObjectTracker { objects: Pipewire.linkGroups ? Pipewire.linkGroups.values : [] }
 
   function statusJson() {
     var p = activePlayer
