@@ -115,7 +115,17 @@ run_channel() {
     OMARCHY_PATH="${OMARCHY_TEST_PATH:-$package_root}" \
     HOME="$test_tmp/home" \
     PATH="$stub_bin:$ROOT/bin:$PATH" \
-    "${OMARCHY_TEST_PATH:-$package_root}/bin/omarchy-channel-set" "$@"
+    "${OMARCHY_TEST_PATH:-$package_root}/bin/omarchy-channel-set" "$@" </dev/null
+}
+
+# The menu runs the switch in a terminal; script gives it one.
+run_channel_on_terminal() {
+  local command
+
+  : >"$log_file"
+  printf -v command '%q ' env OMARCHY_CHANNEL_TEST_LOG="$log_file" OMARCHY_PATH="$package_root" \
+    HOME="$test_tmp/home" PATH="$stub_bin:$ROOT/bin:$PATH" "$package_root/bin/omarchy-channel-set" "$@"
+  script -qec "$command" /dev/null </dev/null >/dev/null
 }
 
 assert_log_line() {
@@ -141,6 +151,13 @@ assert_log_line $'refresh\trc' "rc refreshes the rc pacman channel"
 assert_log_line $'update-pacman\t-S\t--needed\t--noconfirm\t--ask\t4\tomarchy\tomarchy-settings' "rc installs rc Omarchy packages"
 assert_log_line $'unlink\t--no-reboot' "rc restores the package-backed Omarchy path without an early reboot prompt"
 assert_log_line $'update\t-y\tOMARCHY_PATH='"$package_root" "rc runs the normal update pipeline from the package-backed path"
+
+# Without a terminal nobody can answer the reboot offer, so the runs above hand off
+# with -y. In the terminal the menu opens, only the update question is skipped.
+for channel in stable rc; do
+  run_channel_on_terminal "$channel"
+  assert_log_line $'update\t--confirmed\tOMARCHY_PATH='"$package_root" "$channel in a terminal skips only the update question, so the reboot is still offered"
+done
 
 active_checkout="$test_tmp/active-checkout"
 cp -a "$package_root" "$active_checkout"

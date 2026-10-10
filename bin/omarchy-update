@@ -2,7 +2,7 @@
 
 # omarchy:summary=Update Omarchy and system packages
 # omarchy:alias=omarchy up
-# omarchy:args=[-y]
+# omarchy:args=[-y|--confirmed]
 # omarchy:examples=omarchy update | omarchy update -y
 # omarchy:requires-sudo=true
 
@@ -102,7 +102,10 @@ omarchy-update-requires-free-space
 # required. Interactive review steps report and move on instead of waiting.
 [[ ${1:-} != "-y" ]] || export OMARCHY_UPDATE_UNATTENDED=1
 
-if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
+# --confirmed skips only the "Ready to update?" question, for a caller that
+# already asked it, such as a channel switch. Someone is still watching, so the
+# reboot offer and the other interactive steps still ask.
+if [[ ${1:-} == "-y" || ${1:-} == "--confirmed" ]] || omarchy-update-confirm; then
   authorize_update
 
   # Before the snapshot: the cache is on the snapshotted subvolume, so pruning

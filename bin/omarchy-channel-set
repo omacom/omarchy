@@ -175,4 +175,16 @@ if [[ -z $dev_checkout ]]; then
   omarchy_security_enable_no_update_sudo 2>/dev/null || stop_for_older_destination
 fi
 
-OMARCHY_UPDATE_USER_PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update" -y
+# The person picked this channel from the menu and is watching the terminal:
+# skip asking them to confirm the update again, but still offer the reboot the
+# new kernel or Hyprland needs. Without a terminal nobody can answer that, so
+# the update runs unattended, as it always did.
+# This runs the destination channel's omarchy-update. Releases before
+# --confirmed (stable 4.0.4 and older) ignore it, so a switch to one of them
+# asks "Ready to update?" a second time. That's harmless and goes away once
+# stable ships this flag.
+update_flag=-y
+if [[ -t 0 && -t 2 ]]; then
+  update_flag=--confirmed
+fi
+OMARCHY_UPDATE_USER_PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update" "$update_flag"
