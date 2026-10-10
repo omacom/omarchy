@@ -1,0 +1,141 @@
+#!/bin/bash
+
+# omarchy:summary=Compact the occupied workspaces of every monitor, closing the gaps in their numbering
+# omarchy:args=[--dry-run]
+# omarchy:examples=omarchy hyprland workspace compact | omarchy hyprland workspace compact --dry-run
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: omarchy-hyprland-workspace-compact [--dry-run]" >&2
+  exit 1
+}
+
+dry_run=false
+case "${1:-}" in
+  "")
+    ;;
+  --dry-run)
+    dry_run=true
+    ;;
+  -h | --help)
+    echo "Usage: omarchy-hyprland-workspace-compact [--dry-run]"
+    exit 0
+    ;;
+  *)
+    usage
+    ;;
+esac
+(( $# <= 1 )) || usage
+
+# Occupied workspaces (id > 0 with windows) are packed per monitor into the
+# lowest consecutive numbering, starting from the monitor's lowest occupied
+# workspace. The split-monitor-workspaces ranges stay separate because a window
+# only ever moves to a number this monitor already occupies. Workspaces declared
+# persistent are anchors: they keep their own number and that number is never
+# handed to another workspace, so reserved workspaces survive compaction.
+# Special/scratchpad workspaces have negative ids and never participate.
+PLAN_JQ=$(cat <<'JQ'
+def next_free($fixed; $start):
+  if ($fixed | index($start)) then next_free($fixed; $start + 1) else $start end;
+
+def destinations($fixed):
+  def step($ids; $next; $acc):
+    if ($ids | length) == 0 then $acc
+    else
+      $ids[0] as $id
+      | if ($fixed | index($id)) then
+          step($ids[1:]; ([$next, $id + 1] | max); ($acc + [[$id, $id]]))
+        else
+          (next_free($fixed; $next)) as $dest
+          | step($ids[1:]; ($dest + 1); ($acc + [[$id, $dest]]))
+        end
+    end;
+  step(.; .[0]; []);
+
+def plan($clients):
+  [ .[]
+    | select((.id | type) == "number" and .id > 0) ]
+  | group_by(.monitor)
+  | [ .[]
+      | .[0].monitor as $monitor
+      | (map(select(.ispersistent == true) | .id)) as $fixed
+      | (map(select(.windows > 0) | .id) | sort) as $occupied
+      | [ $occupied | destinations($fixed)[]
+          | select(.[0] != .[1])
+          | .[0] as $source
+          | .[1] as $destination
+          | { monitor: $monitor, source: $source, destination: $destination,
+              addresses: [ $clients[] | select(.workspace.id == $source) | .address ] } ]
+    ]
+  | flatten;
+
+plan($clients)
+JQ
+)
+
+workspaces_json=$(hyprctl workspaces -j)
+clients_json=$(hyprctl clients -j)
+monitors_json=$(hyprctl monitors -j)
+
+jq -e 'type == "array"' >/dev/null <<<"$workspaces_json"
+jq -e 'type == "array"' >/dev/null <<<"$clients_json"
+jq -e 'type == "array"' >/dev/null <<<"$monitors_json"
+
+plan=$(jq -r --argjson clients "$clients_json" "$PLAN_JQ" <<<"$workspaces_json")
+
+if $dry_run; then
+  if ! jq -e 'length > 0' >/dev/null <<<"$plan"; then
+    echo "No gaps between occupied workspaces."
+    exit 0
+  fi
+
+  jq -r '
+    group_by(.monitor)
+    | .[]
+    | .[0].monitor as $monitor
+    | .[] as $move
+    | ($move.addresses | length) as $count
+    | "[\($monitor)] \($move.source) -> \($move.destination) (\($count) window\(if $count == 1 then "" else "s" end))"
+  ' <<<"$plan"
+  exit 0
+fi
+
+moves=()
+while IFS=$'\t' read -r source destination address; do
+  moves+=("dispatch hl.dsp.window.move({ workspace = \"$destination\", follow = false, window = \"address:$address\" })")
+done < <(jq -r '
+  .[] | . as $move
+  | $move.addresses[]
+  | [$move.source, $move.destination, .] | @tsv
+' <<<"$plan")
+
+if ((${#moves[@]} == 0)); then
+  exit 0
+fi
+
+dest_for() {
+  jq -er --argjson source "$1" 'first(.[] | select(.source == $source) | .destination) // empty' <<<"$plan"
+}
+
+# The moves use follow = false, so focus only moves where it must: every
+# monitor whose visible workspace was renumbered follows it, and the focused
+# monitor is restored last so the intended workspace ends up focused.
+focused_destination=
+while IFS=$'\t' read -r is_focused active; do
+  ((active > 0)) || continue
+  if dest=$(dest_for "$active"); then
+    if [[ $is_focused == "true" ]]; then
+      focused_destination=$dest
+    else
+      moves+=("dispatch hl.dsp.focus({ workspace = \"$dest\" })")
+    fi
+  fi
+done < <(jq -r '.[] | [(.focused == true), .activeWorkspace.id] | @tsv' <<<"$monitors_json")
+
+if [[ -n $focused_destination ]]; then
+  moves+=("dispatch hl.dsp.focus({ workspace = \"$focused_destination\" })")
+fi
+
+printf -v batch '%s;' "${moves[@]}"
+hyprctl --batch "${batch%;}" >/dev/null
