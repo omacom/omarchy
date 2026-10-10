@@ -335,7 +335,12 @@ function imageStem(entry) {
 // a copy can't capture: themed icon names, in-process image:// URLs, empty.
 function localImageFile(value) {
   var s = String(value || "")
-  if (s.indexOf("file://") === 0) {
+  // Quickshell hands a bare-path image-path hint (Chromium's page icon) back
+  // as image://icon/<path>, unencoded; its provider splits off these queries.
+  if (s.indexOf("image://icon//") === 0) {
+    s = s.slice("image://icon/".length)
+    if (/\?(path|fallback)=/.test(s)) return ""
+  } else if (s.indexOf("file://") === 0) {
     s = s.slice(7)
     try { s = decodeURIComponent(s) } catch (e) {}
   }

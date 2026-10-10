@@ -487,6 +487,34 @@ assertEqual(
 assertEqual(notifications.localImageFile('/tmp/avatar.png'), '/tmp/avatar.png', 'notifications treat absolute paths as copyable')
 assertEqual(notifications.localImageFile('mail'), '', 'notifications leave themed icon names uncopied')
 assertEqual(notifications.localImageFile('image://notifs/1'), '', 'notifications cannot copy in-process image URLs')
+assertEqual(
+  notifications.localImageFile('image://icon//tmp/scoped_dir/icon.png'),
+  '/tmp/scoped_dir/icon.png',
+  'notifications resolve Quickshell icon URLs wrapping an image-path to copyable paths'
+)
+assertEqual(notifications.localImageFile('image://icon/mail'), '', 'notifications leave themed image-path icons uncopied')
+assertEqual(
+  notifications.localImageFile('image://icon//tmp/page.png?fallback=mail'),
+  '',
+  'notifications leave icon URLs carrying provider queries uncopied rather than copying a file that is not there'
+)
+
+// Chromium sends its own logo as app_icon and the page's icon as a bare
+// image-path, so dropping the image puts the Chromium logo on every web app
+// notification replayed from history.
+const webApp = notifications.persistablePopup(
+  { id: 11, originalId: 11, timestamp: 4000, appIcon: 'file:///tmp/scoped/logo.png', image: 'image://icon//tmp/scoped/icon.png' },
+  '/state/images/'
+)
+assertDeepEqual(
+  webApp.copies,
+  [
+    { from: '/tmp/scoped/logo.png', to: '/state/images/4000-11-appIcon' },
+    { from: '/tmp/scoped/icon.png', to: '/state/images/4000-11-image' }
+  ],
+  'notifications copy a web app page icon delivered through image-path'
+)
+assertEqual(webApp.entry.image, 'file:///state/images/4000-11-image', 'notifications persist the web app page icon instead of dropping it')
 
 const persistable = notifications.persistablePopup(
   { id: 9, originalId: 9, timestamp: 2000, appIcon: 'file:///tmp/scoped/logo.png', image: 'image://notifs/9', summary: 'Hi' },
