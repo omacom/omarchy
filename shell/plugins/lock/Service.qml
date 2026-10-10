@@ -19,6 +19,7 @@ Item {
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
 
   property bool lockRequested: false
+  property bool sessionLocked: false
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
@@ -56,7 +57,7 @@ Item {
   property bool strandedLock: false
   property bool strandedLockResolved: false
 
-  readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
+  readonly property bool locked: lockRequested || sessionLocked || sessionLock.secure
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
   readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
   readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
@@ -87,7 +88,7 @@ Item {
   }
 
   function requestSessionLock() {
-    if (!lockRequested || sessionLock.locked || sessionLock.secure) return
+    if (!lockRequested || sessionLocked || sessionLock.locked || sessionLock.secure) return
     if (sessionLockStabilizeTimer.running) return
 
     if (!hasRealScreen()) {
@@ -99,6 +100,7 @@ Item {
 
     pendingSessionLock = false
     pendingSessionLockTimer.stop()
+    sessionLocked = true
     sessionLock.locked = true
   }
 
@@ -221,6 +223,7 @@ Item {
     if (!root.locked && !lockRequested) return
 
     lockRequested = false
+    sessionLocked = false
     pendingSessionLock = false
     sessionLockStabilizeTimer.stop()
     pendingSessionLockTimer.stop()
@@ -440,15 +443,19 @@ Item {
     onSecureStateChanged: {
       root.logEvent("secure=" + secure)
       if (secure) {
+        root.sessionLocked = true
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
         root.startFingerprint()
+      } else if (!locked) {
+        root.sessionLocked = false
       }
     }
 
     onLockStateChanged: {
       root.logEvent("session-locked=" + locked)
+      root.sessionLocked = locked
 
       if (locked) {
         root.pendingSessionLock = false
@@ -846,7 +853,7 @@ Item {
         locked: root.locked,
         requested: root.lockRequested,
         pending: root.pendingSessionLock,
-        sessionLocked: sessionLock.locked,
+        sessionLocked: root.sessionLocked,
         secure: sessionLock.secure,
         realScreens: root.realScreenCount(),
         passwordPam: root.passwordPamConfigured,
