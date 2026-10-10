@@ -27,6 +27,10 @@ fail() {
   exit 1
 }
 
+# Name a bare assertion that set -e ends the file on, which fail never saw. Top
+# level only (no set -E, no ( ... )): tests run expected failures inside those.
+trap '[[ $- == *e* && ( $BASH_COMMAND != "("* || $BASH_COMMAND == "(("* ) ]] && printf "not ok - %s:%s: %s\n" "${BASH_SOURCE[0]##*/}" "$LINENO" "$BASH_COMMAND" >&2 || true' ERR
+
 # The IPC socket a shell running an OMARCHY_PATH's config on this display
 # serves, derived as omarchy-shell derives it. A test that starts the real
 # shell removes it afterwards: killing the shell leaves the file behind.

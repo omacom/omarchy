@@ -76,8 +76,8 @@ grep -F 'omarchy-hyprland-monitor-internal-mirror recover >/dev/null 2>&1 || tru
 grep -F 'internal-monitor-clamshell.lua' "$clamshell" >/dev/null
 grep -F 'disabled = true' "$clamshell" >/dev/null
 grep -F 'MANUAL_DISABLE_FLAG' "$clamshell" >/dev/null
-! grep -F 'rm -f "$MANUAL_DISABLE_FLAG"' "$clamshell" >/dev/null
-! grep -F '>"$MANUAL_DISABLE_FLAG"' "$clamshell" >/dev/null
+! grep -F 'rm -f "$MANUAL_DISABLE_FLAG"' "$clamshell" >/dev/null || fail "clamshell sync never removes the manual disable flag"
+! grep -F '>"$MANUAL_DISABLE_FLAG"' "$clamshell" >/dev/null || fail "clamshell sync never sets the manual disable flag"
 grep -F 'read_monitor_scale' "$clamshell" >/dev/null
 grep -F 'scale = $scale' "$clamshell" >/dev/null
 grep -F 'hyprctl dispatch "hl.dsp.dpms({ action = \"$action\", monitor = \"$INTERNAL\" })"' "$clamshell" >/dev/null
