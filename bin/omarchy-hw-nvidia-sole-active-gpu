@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# omarchy:summary=Print the NVIDIA DRM device path when it is the only GPU driving a display.
+
+# On a desktop with an idle iGPU still on the PCI bus and an NVIDIA card driving
+# every monitor, Aquamarine opens a DRM backend for both GPUs. That makes
+# Hyprland treat the system as multi-GPU and fall back to software cursors on
+# NVIDIA (hyprwm/Hyprland Monitor.cpp: shouldUseSoftwareCursors() checks
+# isNvidia() && isMgpu()), which also blocks direct scanout whenever the
+# cursor is visible. Pinning Aquamarine to the sole active GPU via
+# AQ_DRM_DEVICES restores both.
+#
+# A laptop where the panel is wired to the iGPU (or a desktop with a monitor
+# plugged into the iGPU's own ports) must be left alone: this only fires when
+# no other GPU has any connected connector, panel included.
+#
+# Read sysfs directly rather than lspci, which reads PCI config space and
+# resumes a runtime-suspended GPU.
+
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
+
+shopt -s nullglob
+
+nvidia_cards=()
+other_cards=()
+
+for card in "$drm_path"/card[0-9]*; do
+  # The glob above also matches connector directories like card0-DP-1; keep
+  # only the GPU device nodes themselves.
+  [[ $card =~ /card[0-9]+$ ]] || continue
+  vendor_file="$card/device/vendor"
+  if [[ -f $vendor_file ]] && [[ $(< "$vendor_file") == "0x10de" ]]; then
+    nvidia_cards+=("$card")
+  else
+    # No vendor file (e.g. a USB/DisplayLink GPU) can't be confirmed as NVIDIA,
+    # so treat it as "other" rather than dropping it from both arrays — it
+    # still gets checked for a connected display below.
+    other_cards+=("$card")
+  fi
+done
+
+# Ambiguous (no NVIDIA, or more than one) or nothing to fix (NVIDIA is already
+# the only GPU, so Aquamarine only ever finds the one card).
+(( ${#nvidia_cards[@]} == 1 )) || exit 1
+(( ${#other_cards[@]} > 0 )) || exit 1
+
+for other in "${other_cards[@]}"; do
+  for status in "$other"-*/status; do
+    [[ -e $status ]] || continue
+    [[ $(< "$status") == "connected" ]] && exit 1
+  done
+done
+
+printf '/dev/dri/%s\n' "$(basename "${nvidia_cards[0]}")"
