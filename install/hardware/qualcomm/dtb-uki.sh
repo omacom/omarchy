@@ -45,7 +45,16 @@ if omarchy-hw-aarch64-qualcomm; then
       echo "$managed_end"
     } >>"$uki_tmp"
 
-    mv -f "$uki_tmp" "$uki_config"
+    if [[ -f $uki_config ]] && cmp -s "$uki_tmp" "$uki_config"; then
+      rm -f "$uki_tmp"
+    else
+      mv -f "$uki_tmp" "$uki_config"
+      # The UKI carries the trees once it is rebuilt. An image's first boot
+      # rebuilds after its last step, but does not watch this file.
+      if [[ -n ${OMARCHY_IMAGE_BOOT_REBUILD:-} ]]; then
+        : >"$OMARCHY_IMAGE_BOOT_REBUILD"
+      fi
+    fi
     echo "Listed ${#dtbs[@]} device trees in $uki_config"
   fi
 fi

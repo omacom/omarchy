@@ -96,6 +96,18 @@ if grep -Fq 'x1e80100-test-el2.dtb' "$scratch/uki.conf"; then
   fail "Snapdragon DTB setup excludes EL2-only device trees"
 fi
 
+# An image's first boot rebuilds once after its last step and does not watch
+# uki.conf, so a changed list asks for that rebuild and an unchanged one does not.
+request="$scratch/boot-rebuild"
+: >"$scratch/dtbs/x1e80100-added.dtb"
+(export OMARCHY_IMAGE_BOOT_REBUILD="$request" && run_dtb_setup)
+[[ -e $request ]] ||
+  fail "a changed device tree list asks an image's first boot for the rebuild"
+rm -f "$request"
+(export OMARCHY_IMAGE_BOOT_REBUILD="$request" && run_dtb_setup)
+[[ ! -e $request ]] ||
+  fail "an unchanged device tree list asks for no rebuild"
+
 pass "Snapdragon setup tolerates missing firmware and preserves UKI settings"
 
 defaults=$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-pkg-defaults" aarch64-qualcomm)
