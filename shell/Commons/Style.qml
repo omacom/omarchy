@@ -501,8 +501,8 @@ QtObject {
   }
 
   // Resolve the fontconfig alias to a concrete family name. `omarchy font
-  // set <name>` rewrites ~/.config/fontconfig/fonts.conf and restarts the
-  // shell, but rerun on file change anyway so manual edits propagate too.
+  // set <name>` rewrites ~/.config/fontconfig/conf.d/50-omarchy-monospace.conf
+  // and restarts the shell, but rerun on file change anyway so manual edits propagate too.
   function resolveFontFamily() {
     fcMatchProc.running = true
   }
@@ -519,8 +519,28 @@ QtObject {
     }
   }
 
+  // FileView observes creation only when the parent directory already exists.
+  // Arm both watches after creating the drop-in directory on a fresh install.
+  property bool fontconfigWatchReady: false
+  property Process fontconfigWatchSetup: Process {
+    command: ["mkdir", "-p", Quickshell.env("HOME") + "/.config/fontconfig/conf.d"]
+    running: true
+    onExited: function(exitCode) {
+      root.fontconfigWatchReady = exitCode === 0
+    }
+  }
+
   property FileView fontconfigFile: FileView {
-    path: Quickshell.env("HOME") + "/.config/fontconfig/fonts.conf"
+    path: root.fontconfigWatchReady ? Quickshell.env("HOME") + "/.config/fontconfig/conf.d/50-omarchy-monospace.conf" : ""
+    watchChanges: true
+    printErrors: false
+    onFileChanged: root.resolveFontFamily()
+    onLoaded: root.resolveFontFamily()
+    onLoadFailed: root.resolveFontFamily()
+  }
+
+  property FileView userFontconfigFile: FileView {
+    path: root.fontconfigWatchReady ? Quickshell.env("HOME") + "/.config/fontconfig/fonts.conf" : ""
     watchChanges: true
     printErrors: false
     onFileChanged: root.resolveFontFamily()
