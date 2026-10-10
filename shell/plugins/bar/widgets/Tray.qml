@@ -46,14 +46,18 @@ BarWidget {
   // model, so collapsing the stack to a single opener would destroy the very
   // entry being displayed (submenu turns up empty).
   property var submenuStack: []
+  // Invalidates queued submenu transitions when the popup closes/resets. A
+  // deferred callback must still belong to the same open menu generation
+  // before it may mutate the Repeater model.
+  property int trayMenuGeneration: 0
   readonly property int submenuDepth: submenuStack.length
   readonly property string currentTitle: submenuDepth > 0 ? submenuStack[submenuDepth - 1].title : ""
   readonly property var currentChildren: submenuDepth > 0
     ? submenuStack[submenuDepth - 1].opener.children
     : trayMenuOpener.children
 
-  // Changing level rebuilds the row delegates synchronously, so the next
-  // row lands under a cursor that hasn't moved. Submenu clicks used to be
+  // Changing level rebuilds the row delegates a tick after the click, so the
+  // next row lands under a cursor that hasn't moved. Submenu clicks used to be
   // silent no-ops, which trained users to click them twice, and that second
   // click would now fire whatever entry took the spot. Ignore row clicks for
   // a beat after each level change; a deliberate follow-up click is slower.
@@ -76,6 +80,7 @@ BarWidget {
   }
 
   function resetTrayMenu() {
+    trayMenuGeneration++
     menuLevelSettling = false
     menuLevelSettleTimer.stop()
     // Flickable keeps its offset across a model swap whenever the new content
@@ -93,24 +98,47 @@ BarWidget {
   }
 
   function enterSubmenu(entry, title) {
+    var generation = trayMenuGeneration
     var opener = submenuOpenerComponent.createObject(root, { menu: entry })
     if (!opener) return
     var stack = submenuStack.slice()
     stack.push({ opener: opener, title: title })
-    submenuStack = stack
+    // Defer the model swap: this runs synchronously from a row's own
+    // MouseArea.onClicked, and reassigning submenuStack destroys that row's
+    // delegate (incl. the MouseArea still mid-event) via Repeater.regenerate.
+    //
+    // The popup can close/reopen before the queued tick. Only the generation
+    // that created this opener may publish it; reset cannot see an opener that
+    // has not entered submenuStack yet, so stale enter work owns its teardown.
+    Qt.callLater(function() {
+      if (!TrayModel.submenuTransitionCurrent(generation, root.trayMenuGeneration, root.trayMenuOpen)) {
+        opener.destroy()
+        return
+      }
+      root.submenuStack = stack
+    })
     settleMenuLevel()
   }
 
   function leaveSubmenu() {
     if (submenuStack.length === 0) return
+    var generation = trayMenuGeneration
     var stack = submenuStack.slice()
     var top = stack.pop()
-    submenuStack = stack
-    top.opener.destroy()
+    // Defer the model swap past the triggering click's call stack. If the menu
+    // generation changed, reset/close owns teardown of the published opener.
+    Qt.callLater(function() {
+      if (!TrayModel.submenuTransitionCurrent(generation, root.trayMenuGeneration, root.trayMenuOpen)) return
+      root.submenuStack = stack
+      top.opener.destroy()
+    })
     settleMenuLevel()
   }
 
   function close() {
+    // Invalidate queued submenu work immediately; waiting for the popup fade's
+    // reset would let an old callback mutate state during close/reopen.
+    trayMenuGeneration++
     managePopupOpen = false
     trayMenuOpen = false
   }
@@ -748,8 +776,7 @@ BarWidget {
                 onClicked: {
                   if (root.menuLevelSettling) return
                   if (menuRow.modelData.hasChildren) {
-                    // Reset scroll BEFORE swapping the model: the swap destroys
-                    // this delegate synchronously and ids stop resolving after.
+                    // Reset scroll before entering so the submenu shows from the top.
                     trayMenuFlick.contentY = 0
                     root.enterSubmenu(menuRow.modelData, menuRow.rowText)
                   } else {

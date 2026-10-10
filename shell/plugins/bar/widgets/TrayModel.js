@@ -38,11 +38,16 @@ function ownedByOmarchy(item, layout) {
     || (layoutHasWidget(layout, "omarchy.dropbox") && itemNamed(item, "dropbox"))
 }
 
+function submenuTransitionCurrent(capturedGeneration, currentGeneration, trayMenuOpen) {
+  return Boolean(trayMenuOpen) && capturedGeneration === currentGeneration
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     itemNamed: itemNamed,
     entryId: entryId,
     layoutHasWidget: layoutHasWidget,
-    ownedByOmarchy: ownedByOmarchy
+    ownedByOmarchy: ownedByOmarchy,
+    submenuTransitionCurrent: submenuTransitionCurrent
   }
 }
