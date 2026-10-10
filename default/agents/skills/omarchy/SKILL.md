@@ -227,6 +227,8 @@ omarchy system reboot           # Reboot
 
 **IMPORTANT:** Always run `omarchy debug` with `--no-sudo --print` flags to avoid interactive sudo prompts that will hang the terminal.
 
+If the route is unknown, run `omarchy-debug --no-sudo --print`.
+
 ## Troubleshooting
 
 ```bash
