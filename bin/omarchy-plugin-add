@@ -127,6 +127,11 @@ if ! omarchy-plugin-validate "$stage"; then
   fail "refusing to add: validation failed"
 fi
 
+if ! omarchy-plugin-fix-palette "$stage"; then
+  rm -rf "$stage"
+  fail "could not qualify the plugin's shell palette references"
+fi
+
 id=$(jq -r '.id' "$stage/manifest.json")
 existing_manifest=$(plugin_id_manifest "$id") || {
   rm -rf "$stage"

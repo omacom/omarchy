@@ -202,7 +202,7 @@ Rectangle {
 }
 ```
 
-The unqualified import can remain for `Style`, `Util`, and `Border`. Existing third-party plugins that use bare `Color` must make the same change; fixing the host shell does not change a plugin's import scope.
+The unqualified import can remain for `Style`, `Util`, and `Border`. Fixing the host shell does not change a plugin's import scope, so `omarchy-plugin-fix-palette` makes the same change to installed plugins: a migration runs it over `~/.config/omarchy/plugins`, and `omarchy plugin add` and `omarchy plugin update` run it on what they check out. It rewrites only files that import `qs.Commons` unqualified, and in a git checkout it records what it rewrote so an update can put those files back before fast-forwarding. Plugin authors should still make the change themselves: a plugin copied into place by hand is never rewritten.
 
 See [`theming.md`](theming.md) for the full theme/template workflow,
 including generated `*.tpl` files, gradient helpers, and shell border syntax.
