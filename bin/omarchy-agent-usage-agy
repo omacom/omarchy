@@ -1,0 +1,463 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Antigravity CLI usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Antigravity CLI (agy) usage into one display-ready JSON record.
+
+Everything the agents panel shows for Antigravity comes from this one
+command: local transcript stats from ~/.gemini/antigravity-cli/brain,
+and the authoritative rate limits and quotas from Google's usage probe
+via `agy -p "/usage"`.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import glob
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "agy"
+AGENT_NAME = "Antigravity"
+PROBE_CACHE_TTL_MS = 60000
+SCAN_REUSE_SECONDS = 20
+LIMITS_ONLY_SCAN_REUSE_SECONDS = 900
+
+
+
+def cache_root() -> Path:
+  root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def state_root() -> Path:
+  root = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "omarchy" / "agents" / "usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def gemini_root() -> Path:
+  return Path(os.environ.get("GEMINI_DIR", Path.home() / ".gemini")).resolve()
+
+
+def agy_root() -> Path:
+  return (gemini_root() / "antigravity-cli").resolve()
+
+
+def get_active_account(gemini_dir: Path) -> str:
+  accounts_file = gemini_dir / "google_accounts.json"
+  if accounts_file.is_file():
+    try:
+      with open(accounts_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+        if isinstance(data, dict) and data.get("active"):
+          return str(data["active"])
+    except Exception:
+      pass
+  return ""
+
+
+def empty_bucket() -> dict[str, int]:
+  return {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  }
+
+
+def parse_local_date(created_at: str, fallback: str) -> str:
+  if not created_at:
+    return fallback
+  try:
+    iso = created_at.replace("Z", "+00:00")
+    dt_val = dt.datetime.fromisoformat(iso)
+    local_dt = dt_val.astimezone()
+    return local_dt.date().isoformat()
+  except Exception:
+    return created_at[:10] if len(created_at) >= 10 else fallback
+
+
+def parse_reset_time(resets_at: str) -> dt.datetime | None:
+  if not resets_at:
+    return None
+  try:
+    iso = resets_at.replace("Z", "+00:00")
+    dt_val = dt.datetime.fromisoformat(iso)
+    if dt_val.tzinfo is None:
+      dt_val = dt_val.replace(tzinfo=dt.timezone.utc)
+    return dt_val
+  except Exception:
+    return None
+
+
+def any_limit_reset_passed(limits: list[dict[str, Any]]) -> bool:
+  now = dt.datetime.now(dt.timezone.utc)
+  for limit in limits:
+    resets = parse_reset_time(str(limit.get("resetsAt", "")))
+    if resets and resets <= now:
+      return True
+  return False
+
+
+def fetch_limits(account: str, force: bool = False) -> tuple[list[dict[str, Any]], bool, int]:
+  cache_file = cache_root() / "agy-limits.json"
+  now_ms = round(time.time() * 1000)
+
+  cached_limits: list[dict[str, Any]] = []
+  cached_at = 0
+  if cache_file.is_file():
+    try:
+      with open(cache_file, "r", encoding="utf-8") as f:
+        cdata = json.load(f)
+        # Invalidate cache if it was probed under a different account
+        if cdata.get("account") == account:
+          cached_limits = cdata.get("limits", [])
+          cached_at = int(cdata.get("fetchedAtMs", 0))
+    except Exception:
+      pass
+
+  if not force and cached_limits and not any_limit_reset_passed(cached_limits) and (now_ms - cached_at < PROBE_CACHE_TTL_MS):
+    return cached_limits, False, cached_at
+
+  try:
+    res = subprocess.run(["agy", "-p", "/usage"], capture_output=True, text=True, timeout=8)
+    if res.returncode == 0 and res.stdout.strip():
+      limits = []
+      for line in res.stdout.strip().split("\n"):
+        parts = [p.strip() for p in line.split("\t")]
+        if len(parts) < 4:
+          continue
+        model_group, limit_name, pct_str, reset_iso = parts[0], parts[1], parts[2], parts[3]
+        try:
+          rem_pct = int(pct_str.rstrip("%"))
+        except ValueError:
+          continue
+        used_pct = round(max(0.0, min(1.0, (100 - rem_pct) / 100.0)), 4)
+
+        is_session = "Five Hour" in limit_name or "5-hour" in limit_name.lower() or "session" in limit_name.lower()
+        is_weekly = "Weekly" in limit_name or "7-day" in limit_name.lower()
+
+        if "Gemini" in model_group:
+          title = "Session" if is_session else ("Weekly" if is_weekly else limit_name)
+          label = "Current session (5-hour)" if is_session else ("Weekly (7-day)" if is_weekly else limit_name)
+        else:
+          prefix = "Claude & GPT"
+          title = f"{prefix} Session" if is_session else (f"{prefix} Weekly" if is_weekly else f"{prefix} {limit_name}")
+          label = f"{prefix} ({limit_name})"
+
+        limits.append({
+          "title": title,
+          "label": label,
+          "percent": used_pct,
+          "resetsAt": reset_iso,
+        })
+
+      order_map = {"Session": 0, "Weekly": 1, "Claude & GPT Session": 2, "Claude & GPT Weekly": 3}
+      limits.sort(key=lambda x: order_map.get(x["title"], 99))
+
+      if limits:
+        with open(cache_file, "w", encoding="utf-8") as f:
+          json.dump({"account": account, "limits": limits, "fetchedAtMs": now_ms}, f)
+        return limits, False, now_ms
+  except Exception:
+    pass
+
+  if cached_limits:
+    return cached_limits, True, cached_at
+
+  return [], False, 0
+
+
+def scan_transcripts(agy_dir: Path, today_str: str, today_date: dt.date) -> dict[str, Any]:
+  recent_days_dict = {
+    (today_date - dt.timedelta(days=i)).isoformat(): 0
+    for i in reversed(range(7))
+  }
+
+  active_dates: set[str] = set()
+  total_prompts = 0
+  today_prompts = 0
+  today_total_tokens = 0
+  today_tokens_by_model: dict[str, int] = {}
+  model_usage: dict[str, dict[str, int]] = {}
+  sessions_seen: set[str] = set()
+  today_sessions: set[str] = set()
+
+  brain_dir = agy_dir / "brain"
+  transcripts = glob.glob(str(brain_dir / "*" / ".system_generated" / "logs" / "transcript.jsonl"))
+
+  model_regex = re.compile(r"Model Selection` from \S+ to (.+?)\.\s*No need")
+
+  for transcript_path in transcripts:
+    conv_id = Path(transcript_path).parents[2].name
+    sessions_seen.add(conv_id)
+    current_session_model = "Gemini 3.8 Flash"
+    session_dates: set[str] = set()
+
+    try:
+      with open(transcript_path, "r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+          if not line.strip():
+            continue
+          try:
+            step = json.loads(line)
+          except Exception:
+            continue
+
+          stype = step.get("type")
+          created_at = step.get("created_at", "")
+          date_str = parse_local_date(created_at, today_str)
+
+          if date_str:
+            session_dates.add(date_str)
+
+          content = step.get("content", "")
+          if isinstance(content, str) and "Model Selection" in content:
+            m = model_regex.search(content)
+            if m:
+              current_session_model = m.group(1).strip()
+
+          if step.get("model"):
+            current_session_model = str(step["model"])
+
+          if stype == "USER_INPUT":
+            total_prompts += 1
+            if date_str == today_str:
+              today_prompts += 1
+
+          try:
+            inp = int(step.get("input_tokens") or 0)
+            out = int(step.get("output_tokens") or 0)
+            cache_read = int(step.get("cache_read_tokens") or 0)
+            cache_write = int(step.get("cache_write_tokens") or 0)
+          except (ValueError, TypeError):
+            inp = out = cache_read = cache_write = 0
+
+          turn_tokens = inp + out + cache_read + cache_write
+
+          if turn_tokens > 0:
+            if date_str:
+              active_dates.add(date_str)
+              if date_str in recent_days_dict:
+                recent_days_dict[date_str] += turn_tokens
+
+            if current_session_model not in model_usage:
+              model_usage[current_session_model] = empty_bucket()
+
+            b = model_usage[current_session_model]
+            b["inputTokens"] += inp
+            b["outputTokens"] += out
+            b["cacheReadInputTokens"] += cache_read
+            b["cacheCreationInputTokens"] += cache_write
+
+            if date_str == today_str:
+              today_total_tokens += turn_tokens
+              today_tokens_by_model[current_session_model] = (
+                today_tokens_by_model.get(current_session_model, 0) + turn_tokens
+              )
+    except Exception:
+      continue
+
+    if today_str in session_dates:
+      today_sessions.add(conv_id)
+
+  recent_days = [
+    {"date": d, "messageCount": recent_days_dict[d]}
+    for d in sorted(recent_days_dict)
+  ]
+
+  return {
+    "todayPrompts": today_prompts,
+    "todaySessions": max(len(today_sessions), 1 if today_prompts > 0 else 0),
+    "todayTotalTokens": today_total_tokens,
+    "todayTokensByModel": today_tokens_by_model,
+    "recentDays": recent_days,
+    "totalPrompts": total_prompts,
+    "totalSessions": len(sessions_seen),
+    "activeDays": len(active_dates),
+    "activeDates": sorted(active_dates),
+    "modelUsage": model_usage,
+  }
+
+
+def stats_cache_path(agy_dir: Path) -> Path:
+  key = hashlib.sha1(str(agy_dir).encode("utf-8")).hexdigest()[:8]
+  return cache_root() / f"agy-stats-{key}.json"
+
+
+def cached_local_stats(agy_dir: Path, max_age: float, today_str: str, today_date: dt.date) -> dict[str, Any]:
+  cache_file = stats_cache_path(agy_dir)
+  if max_age > 0 and cache_file.is_file():
+    try:
+      with open(cache_file, "r", encoding="utf-8") as f:
+        cached = json.load(f)
+        if (
+          isinstance(cached, dict)
+          and cached.get("home") == str(agy_dir)
+          and cached.get("day") == today_str
+          and 0 <= (time.time() - float(cached.get("at", 0))) < max_age
+          and isinstance(cached.get("stats"), dict)
+        ):
+          return cached["stats"]
+    except Exception:
+      pass
+
+  stats = scan_transcripts(agy_dir, today_str, today_date)
+  try:
+    with open(cache_file, "w", encoding="utf-8") as f:
+      json.dump({"home": str(agy_dir), "day": today_str, "at": time.time(), "stats": stats}, f)
+  except Exception:
+    pass
+  return stats
+
+
+def is_valid_base_record(
+  base_record: dict[str, Any],
+  email: str,
+  today_str: str,
+  max_age: float,
+  agy_dir: Path,
+) -> bool:
+  if max_age <= 0 or not isinstance(base_record, dict):
+    return False
+
+  # Validate transcript home matches agy_dir
+  if base_record.get("home") and str(base_record.get("home")) != str(agy_dir):
+    return False
+
+  saved_accounts = base_record.get("accounts")
+  saved_email = ""
+  if isinstance(saved_accounts, list) and saved_accounts:
+    saved_email = str(saved_accounts[0].get("email") or saved_accounts[0].get("id") or "")
+  if saved_email != email:
+    return False
+
+  updated_at = base_record.get("updatedAt")
+  if not updated_at:
+    return False
+  if parse_local_date(str(updated_at), "") != today_str:
+    return False
+
+  try:
+    record_dt = dt.datetime.fromisoformat(str(updated_at).replace("Z", "+00:00"))
+    age = time.time() - record_dt.timestamp()
+    if age < 0 or age > max_age:
+      return False
+  except Exception:
+    return False
+
+  required_fields = ("todayPrompts", "todayTotalTokens", "recentDays", "activeDates", "modelUsage")
+  return all(k in base_record for k in required_fields)
+
+
+def collect_usage(
+  gemini_dir: Path,
+  agy_dir: Path,
+  force: bool = False,
+  limits_only: bool = False,
+  base_record: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+  now_utc = dt.datetime.now(dt.timezone.utc).isoformat()
+  email = get_active_account(gemini_dir)
+  tier_label = f"Google ({email})" if email else "Google Account"
+  today_date = dt.datetime.now().astimezone().date()
+  today_str = today_date.isoformat()
+
+  limits, limits_stale, limits_fetched_at = fetch_limits(email, force=force)
+
+  max_scan_age = 0 if force else (LIMITS_ONLY_SCAN_REUSE_SECONDS if limits_only else SCAN_REUSE_SECONDS)
+
+  stats: dict[str, Any] | None = None
+  if base_record and is_valid_base_record(base_record, email, today_str, max_scan_age, agy_dir):
+    stats = {
+      "todayPrompts": base_record.get("todayPrompts", 0),
+      "todaySessions": base_record.get("todaySessions", 0),
+      "todayTotalTokens": base_record.get("todayTotalTokens", 0),
+      "todayTokensByModel": base_record.get("todayTokensByModel", {}),
+      "recentDays": base_record.get("recentDays", []),
+      "totalPrompts": base_record.get("totalPrompts", 0),
+      "totalSessions": base_record.get("totalSessions", 0),
+      "activeDays": base_record.get("activeDays", 0),
+      "activeDates": base_record.get("activeDates", []),
+      "modelUsage": base_record.get("modelUsage", {}),
+    }
+  else:
+    stats = cached_local_stats(agy_dir, max_scan_age, today_str, today_date)
+
+  ready = (
+    stats.get("totalPrompts", 0) > 0
+    or len(limits) > 0
+    or bool(email)
+  )
+
+  record: dict[str, Any] = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "home": str(agy_dir),
+    "tierLabel": tier_label,
+    "ready": ready,
+    "hasLocalStats": True,
+    **stats,
+    "limits": limits,
+    "limitsStale": limits_stale,
+    "limitsFetchedAt": limits_fetched_at,
+    "usageStatusText": "" if email else "Waiting for auth",
+    "authHelpText": "" if email else "Run `agy` to authenticate.",
+    "updatedAt": now_utc,
+  }
+
+  if email:
+    record["accounts"] = [
+      {
+        "id": email,
+        "label": "Personal",
+        "email": email,
+        "plan": "Google Account",
+        "active": True,
+        "primary": True,
+        "limits": limits,
+        "stale": limits_stale,
+        "fetchedAt": limits_fetched_at,
+        "usageStatusText": "",
+        "authHelpText": "",
+      }
+    ]
+
+  return record
+
+
+def main() -> None:
+  parser = argparse.ArgumentParser(description="Omarchy Antigravity usage collector")
+  parser.add_argument("--force", action="store_true", help="Force refresh")
+  parser.add_argument("--limits-only", action="store_true", help="Skip transcript parsing")
+  args = parser.parse_args()
+
+  gemini_dir = gemini_root()
+  agy_dir = agy_root()
+
+  target_file = state_root() / f"{AGENT_ID}.json"
+  base_record = None
+  if args.limits_only and target_file.is_file():
+    try:
+      with open(target_file, "r", encoding="utf-8") as f:
+        base_record = json.load(f)
+    except Exception:
+      pass
+
+  record = collect_usage(gemini_dir, agy_dir, force=args.force, limits_only=args.limits_only, base_record=base_record)
+  print(json.dumps(record, indent=2))
+
+
+if __name__ == "__main__":
+  main()
