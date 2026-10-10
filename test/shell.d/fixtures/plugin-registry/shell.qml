@@ -456,6 +456,13 @@ ShellRoot {
     root.assertEqual(registry.localPluginIdForPath(registry.pluginsDir + "/acme.clock/BarWidget.qml"), "acme.clock", "installed plugin changes are watched")
     root.assertEqual(registry.localPluginIdForPath(cloneBase + "/.git/index"), "", "plugin git metadata is ignored")
     root.assertEqual(registry.localPluginIdForPath(registry.pluginsDir + "/.clone.abc123/manifest.json"), "", "hidden staging and backup dirs are ignored")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/helper/__pycache__/x.cpython-314.pyc"), "", "python bytecode is ignored")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/helper/__pycache__/x.cpython-314.pyc.1234"), "", "python bytecode temp files are ignored")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/helper/__pycache__"), "", "python bytecode dirs are ignored")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/BarWidget.qml~"), "", "editor backups are ignored")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/.BarWidget.qml.swp"), "", "editor swap files are ignored")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/helper/x.py"), "dhh.clock", "plugin helper sources are watched")
+    root.assertEqual(registry.localPluginIdForPath(registry.pluginsDir + "/acme.__pycache__widget/BarWidget.qml"), "acme.__pycache__widget", "plugin ids containing __pycache__ are watched")
 
     root.assertTrue(changeCount > 0, "registry emits change notifications")
     writeResult()
