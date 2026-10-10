@@ -36,9 +36,9 @@ if [[ -s $config_file ]]; then
         end
       end;
 
-    # Respect a bar the user already curated: only place the widget when it is
-    # absent from every section, never a second copy.
-    if has_widget("omarchy.agents") then
+    # Respect a bar the user already curated: only place the widget when it is absent from every
+    # section under either id, since 1786099804 renames omarchy.model-usage to omarchy.agents next.
+    if has_widget("omarchy.agents") or has_widget("omarchy.model-usage") then
       .
     else
       .bar.layout.right |= insert_after("omarchy.tray"; { id: "omarchy.agents" })
