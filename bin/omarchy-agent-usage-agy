@@ -1,19 +1,19 @@
 #!/usr/bin/python3
 # omarchy:summary=Print the Antigravity usage record as JSON
-# omarchy:args=[--force] [--limits-only]
+# omarchy:args=[--force] [--limits-only] [--output <path>]
 # omarchy:hidden=true
 """Collect Google Antigravity usage into one display-ready JSON record.
 
 Data comes from ~/.gemini/antigravity-cli/:
 - brain/<conversation-id>/transcript.jsonl: model inference, tokens, and steps
-- history.jsonl: timestamped prompt logs, active days, and 7-day activity array
+- history.jsonl: timestamped prompt history and active dates
 - conversation_summaries.db: SQLite database for session counts
-- Rolling rate limits: 5h session window and 7d weekly window
 """
 
 import argparse
 import json
 import os
+import re
 import sqlite3
 import sys
 import tempfile
@@ -25,21 +25,38 @@ AGENT_ID = "agy"
 AGENT_NAME = "Antigravity"
 SCAN_REUSE_SECONDS = 20
 LIMITS_ONLY_REUSE_SECONDS = 900
-DEFAULT_TIER = "Google AI Pro"
+
+
+def empty_record():
+    return {
+        "schemaVersion": 1,
+        "id": AGENT_ID,
+        "name": AGENT_NAME,
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+        "ready": False,
+        "hasLocalStats": False,
+        "todayPrompts": 0,
+        "todaySessions": 0,
+        "todayTotalTokens": 0,
+        "todayTokensByModel": {},
+        "recentDays": [],
+        "totalPrompts": 0,
+        "totalSessions": 0,
+        "activeDays": 0,
+        "activeDates": [],
+        "modelUsage": {},
+        "limits": [],
+        "tierLabel": "",
+        "usageStatusText": "",
+        "authHelpText": "",
+    }
 
 
 def parse_history(history_file, now):
     today_str = now.strftime("%Y-%m-%d")
-    recent_dates = [(now - timedelta(days=offset)).strftime("%Y-%m-%d") for offset in range(6, -1, -1)]
-    recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
     active_dates = set()
-
     total_prompts = 0
     today_prompts = 0
-    recent_timestamps_5h = []
-    recent_timestamps_7d = []
-    cutoff_5h = (now - timedelta(hours=5)).timestamp()
-    cutoff_7d = (now - timedelta(days=7)).timestamp()
 
     if os.path.exists(history_file):
         try:
@@ -56,17 +73,11 @@ def parse_history(history_file, now):
                     ts_ms = item.get("timestamp")
                     if ts_ms:
                         ts_sec = ts_ms / 1000.0
-                        dt = datetime.fromtimestamp(ts_sec)
+                        dt = datetime.fromtimestamp(ts_sec).astimezone()
                         day_str = dt.strftime("%Y-%m-%d")
                         active_dates.add(day_str)
-                        if day_str in recent:
-                            recent[day_str]["messageCount"] += 1
                         if day_str == today_str:
                             today_prompts += 1
-                        if ts_sec >= cutoff_5h:
-                            recent_timestamps_5h.append(ts_sec)
-                        if ts_sec >= cutoff_7d:
-                            recent_timestamps_7d.append(ts_sec)
         except Exception:
             pass
 
@@ -75,13 +86,11 @@ def parse_history(history_file, now):
         "todayPrompts": today_prompts,
         "activeDates": sorted(list(active_dates)),
         "activeDays": len(active_dates),
-        "recentDays": list(recent.values()),
-        "timestamps5h": sorted(recent_timestamps_5h),
-        "timestamps7d": sorted(recent_timestamps_7d),
     }
 
 
-def parse_sessions(db_file, brain_dir):
+def parse_sessions(db_file, brain_dir, now):
+    today_str = now.strftime("%Y-%m-%d")
     total_sessions = 0
     today_sessions = 0
 
@@ -89,17 +98,22 @@ def parse_sessions(db_file, brain_dir):
         try:
             conn = sqlite3.connect(f"file:{db_file}?immutable=1", uri=True)
             cur = conn.cursor()
-            cur.execute("SELECT count(*) FROM conversation_summaries")
-            row = cur.fetchone()
-            if row:
-                total_sessions = int(row[0] or 0)
-            cur.execute(
-                "SELECT count(*) FROM conversation_summaries WHERE date(last_modified_time) = date('now')"
-            )
-            row = cur.fetchone()
-            if row:
-                today_sessions = int(row[0] or 0)
+            cur.execute("SELECT last_modified_time FROM conversation_summaries")
+            rows = cur.fetchall()
             conn.close()
+            for (raw_time,) in rows:
+                total_sessions += 1
+                if raw_time:
+                    try:
+                        clean = str(raw_time).strip()
+                        if " " in clean and "T" not in clean:
+                            clean = clean.replace(" ", "T", 1)
+                        clean = re.sub(r"(\.\d{6})\d+", r"\1", clean)
+                        dt = datetime.fromisoformat(clean).astimezone()
+                        if dt.strftime("%Y-%m-%d") == today_str:
+                            today_sessions += 1
+                    except Exception:
+                        pass
             return total_sessions, today_sessions
         except Exception:
             pass
@@ -113,31 +127,51 @@ def parse_sessions(db_file, brain_dir):
                 and not d.startswith(".")
             ]
             total_sessions = len(entries)
-            today_sessions = min(1, total_sessions)
+            for d in entries:
+                p = os.path.join(brain_dir, d)
+                mtime = os.path.getmtime(p)
+                dt = datetime.fromtimestamp(mtime).astimezone()
+                if dt.strftime("%Y-%m-%d") == today_str:
+                    today_sessions += 1
         except Exception:
             pass
 
     return total_sessions, today_sessions
 
 
+def slugify_model(name):
+    clean = name.lower().strip()
+    if "flash" in clean:
+        return "gemini-3.8-flash"
+    elif "pro" in clean:
+        return "gemini-3.5-pro"
+    elif "sonnet" in clean:
+        return "claude-3.7-sonnet"
+    slug = re.sub(r"[^a-z0-9.]+", "-", clean).strip("-")
+    return slug or "default"
+
+
 def parse_transcripts(brain_dir, now):
     today_str = now.strftime("%Y-%m-%d")
+    recent_dates = [(now - timedelta(days=offset)).strftime("%Y-%m-%d") for offset in range(6, -1, -1)]
+    tokens_by_day = {day: 0 for day in recent_dates}
     model_usage = {}
     today_tokens_by_model = {}
     today_total_tokens = 0
-    primary_model = "gemini-3.8-flash"
 
     if not os.path.exists(brain_dir):
         return {
             "modelUsage": model_usage,
             "todayTokensByModel": today_tokens_by_model,
             "todayTotalTokens": today_total_tokens,
+            "recentDays": [{"date": d, "messageCount": 0} for d in recent_dates],
         }
 
     for root, dirs, files in os.walk(brain_dir):
         for f in files:
             if f.startswith("transcript") and f.endswith(".jsonl"):
                 full_path = os.path.join(root, f)
+                session_model = None
                 try:
                     with open(full_path, encoding="utf-8", errors="replace") as fh:
                         for line in fh:
@@ -149,17 +183,35 @@ def parse_transcripts(brain_dir, now):
                             except Exception:
                                 continue
 
+                            content = str(data.get("content", ""))
+                            if "Model Selection" in content:
+                                match = re.search(
+                                    r"Model Selection.*?\sto\s+([^.\n<]+(?:\.[0-9]+[^.\n<]*)?)",
+                                    content,
+                                )
+                                if match:
+                                    session_model = slugify_model(match.group(1))
+
                             step_type = data.get("type")
                             created_at = data.get("created_at", "")
-                            is_today = created_at.startswith(today_str) if created_at else False
+
+                            step_day = None
+                            if created_at:
+                                try:
+                                    clean_ts = created_at.replace("Z", "+00:00")
+                                    clean_ts = re.sub(r"(\.\d{6})\d+", r"\1", clean_ts)
+                                    dt = datetime.fromisoformat(clean_ts).astimezone()
+                                    step_day = dt.strftime("%Y-%m-%d")
+                                except Exception:
+                                    step_day = created_at[:10]
 
                             in_chars = 0
                             out_chars = 0
                             if step_type in ("USER_INPUT", "GENERIC", "SYSTEM_MESSAGE"):
-                                in_chars += len(str(data.get("content", "")))
+                                in_chars += len(content)
                             elif step_type == "PLANNER_RESPONSE":
                                 out_chars += len(str(data.get("thinking", "")))
-                                out_chars += len(str(data.get("content", "")))
+                                out_chars += len(content)
                                 out_chars += len(str(data.get("tool_calls", "")))
 
                             in_tok = max(1, in_chars // 4) if in_chars else 0
@@ -168,8 +220,9 @@ def parse_transcripts(brain_dir, now):
                             if tok_sum == 0:
                                 continue
 
+                            active_model = session_model or "default"
                             bucket = model_usage.setdefault(
-                                primary_model,
+                                active_model,
                                 {
                                     "inputTokens": 0,
                                     "outputTokens": 0,
@@ -180,63 +233,42 @@ def parse_transcripts(brain_dir, now):
                             bucket["inputTokens"] += in_tok
                             bucket["outputTokens"] += out_tok
 
-                            if is_today:
+                            if step_day and step_day in tokens_by_day:
+                                tokens_by_day[step_day] += tok_sum
+
+                            if step_day == today_str:
                                 today_total_tokens += tok_sum
-                                today_tokens_by_model[primary_model] = (
-                                    today_tokens_by_model.get(primary_model, 0) + tok_sum
+                                today_tokens_by_model[active_model] = (
+                                    today_tokens_by_model.get(active_model, 0) + tok_sum
                                 )
                 except Exception:
                     continue
+
+    recent_days = [{"date": day, "messageCount": tokens_by_day[day]} for day in recent_dates]
 
     return {
         "modelUsage": model_usage,
         "todayTokensByModel": today_tokens_by_model,
         "todayTotalTokens": today_total_tokens,
+        "recentDays": recent_days,
     }
 
 
-def compute_limits(history_stats, now, limits_override_path):
-    if os.path.exists(limits_override_path):
+def compute_limits(config_dir):
+    limits_file = os.path.join(config_dir, "agy.json")
+    if os.path.exists(limits_file):
         try:
-            with open(limits_override_path, encoding="utf-8") as f:
+            with open(limits_file, encoding="utf-8") as f:
                 data = json.load(f)
-                if "limits" in data and isinstance(data["limits"], list):
-                    tier = data.get("tierLabel", DEFAULT_TIER)
-                    return data["limits"], tier
+                if isinstance(data, dict):
+                    limits = data.get("limits", [])
+                    tier = data.get("tierLabel", "")
+                    status = data.get("usageStatusText", "")
+                    return limits, tier, status
         except Exception:
             pass
 
-    ts_5h = history_stats["timestamps5h"]
-    ts_7d = history_stats["timestamps7d"]
-
-    count_5h = len(ts_5h)
-    count_7d = len(ts_7d)
-
-    percent_5h = min(1.0, max(0.05, count_5h / 50.0)) if count_5h else 0.0
-    if ts_5h:
-        reset_5h_dt = datetime.fromtimestamp(ts_5h[0] + 5 * 3600, timezone.utc)
-    else:
-        reset_5h_dt = datetime.now(timezone.utc) + timedelta(hours=5)
-
-    percent_7d = min(1.0, max(0.10, count_7d / 200.0)) if count_7d else 0.0
-    if ts_7d:
-        reset_7d_dt = datetime.fromtimestamp(ts_7d[0] + 7 * 86400, timezone.utc)
-    else:
-        reset_7d_dt = datetime.now(timezone.utc) + timedelta(days=7)
-
-    limits = [
-        {
-            "label": "5h window",
-            "percent": round(percent_5h, 2),
-            "resetsAt": reset_5h_dt.isoformat(),
-        },
-        {
-            "label": "Weekly (7-day)",
-            "percent": round(percent_7d, 2),
-            "resetsAt": reset_7d_dt.isoformat(),
-        },
-    ]
-    return limits, DEFAULT_TIER
+    return [], "", ""
 
 
 def main():
@@ -250,14 +282,31 @@ def main():
     antigravity_dir = os.path.join(home, ".gemini/antigravity-cli")
     cache_dir = os.path.join(home, ".cache/omarchy/agent-usage")
     cache_file = os.path.join(cache_dir, f"{AGENT_ID}.json")
-    limits_override = os.path.join(cache_dir, f"{AGENT_ID}-limits.json")
+    config_dir = os.path.join(home, ".config/omarchy/agents")
     default_target_dir = os.path.join(home, ".local/state/omarchy/agents/usage")
     default_target = os.path.join(default_target_dir, f"{AGENT_ID}.json")
     target_file = args.output or default_target
 
-    now = datetime.now()
+    now = datetime.now().astimezone()
     now_ts = now.timestamp()
 
+    # Unused check: emit empty record if no directory exists
+    if not os.path.exists(antigravity_dir):
+        record = empty_record()
+        record_json = json.dumps(record, separators=(",", ":"))
+        if target_file:
+            try:
+                os.makedirs(os.path.dirname(target_file), exist_ok=True)
+                with tempfile.NamedTemporaryFile("w", dir=os.path.dirname(target_file), delete=False) as tf:
+                    tf.write(record_json)
+                    temp_target = tf.name
+                os.replace(temp_target, target_file)
+            except Exception:
+                pass
+        print(record_json)
+        return
+
+    # Check cache
     max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
     cached_record = None
     if max_age > 0 and os.path.exists(cache_file):
@@ -271,61 +320,66 @@ def main():
 
     if cached_record:
         cached_record["updatedAt"] = datetime.now(timezone.utc).isoformat()
-        record_json = json.dumps(cached_record, separators=(",", ":"))
-        print(record_json)
-        return
+        record = cached_record
+    else:
+        history_file = os.path.join(antigravity_dir, "history.jsonl")
+        db_file = os.path.join(antigravity_dir, "conversation_summaries.db")
+        brain_dir = os.path.join(antigravity_dir, "brain")
 
-    history_file = os.path.join(antigravity_dir, "history.jsonl")
-    db_file = os.path.join(antigravity_dir, "conversation_summaries.db")
-    brain_dir = os.path.join(antigravity_dir, "brain")
+        hist_stats = parse_history(history_file, now)
+        total_sess, today_sess = parse_sessions(db_file, brain_dir, now)
+        trans_stats = parse_transcripts(brain_dir, now)
+        limits, tier, usage_status = compute_limits(config_dir)
 
-    hist_stats = parse_history(history_file, now)
-    total_sess, today_sess = parse_sessions(db_file, brain_dir)
-    trans_stats = parse_transcripts(brain_dir, now)
-    limits, tier = compute_limits(hist_stats, now, limits_override)
+        if hist_stats["totalPrompts"] == 0 and total_sess == 0 and len(hist_stats["activeDates"]) == 0:
+            record = empty_record()
+        else:
+            record = {
+                "schemaVersion": 1,
+                "id": AGENT_ID,
+                "name": AGENT_NAME,
+                "updatedAt": datetime.now(timezone.utc).isoformat(),
+                "ready": True,
+                "hasLocalStats": True,
+                "todayPrompts": hist_stats["todayPrompts"],
+                "todaySessions": today_sess,
+                "todayTotalTokens": trans_stats["todayTotalTokens"],
+                "todayTokensByModel": trans_stats["todayTokensByModel"],
+                "recentDays": trans_stats["recentDays"],
+                "totalPrompts": hist_stats["totalPrompts"],
+                "totalSessions": total_sess,
+                "activeDays": hist_stats["activeDays"],
+                "activeDates": hist_stats["activeDates"],
+                "modelUsage": trans_stats["modelUsage"],
+                "limits": limits,
+                "tierLabel": tier,
+                "usageStatusText": usage_status,
+                "authHelpText": "",
+            }
 
-    record = {
-        "schemaVersion": 1,
-        "id": AGENT_ID,
-        "name": AGENT_NAME,
-        "updatedAt": datetime.now(timezone.utc).isoformat(),
-        "ready": True,
-        "hasLocalStats": True,
-        "todayPrompts": hist_stats["todayPrompts"],
-        "todaySessions": today_sess,
-        "todayTotalTokens": trans_stats["todayTotalTokens"],
-        "todayTokensByModel": trans_stats["todayTokensByModel"],
-        "recentDays": hist_stats["recentDays"],
-        "totalPrompts": hist_stats["totalPrompts"],
-        "totalSessions": total_sess,
-        "activeDays": hist_stats["activeDays"],
-        "activeDates": hist_stats["activeDates"],
-        "modelUsage": trans_stats["modelUsage"],
-        "limits": limits,
-        "tierLabel": tier,
-        "usageStatusText": "",
-        "authHelpText": "",
-    }
+        # Write cache
+        record_json = json.dumps(record, separators=(",", ":"))
+        try:
+            os.makedirs(cache_dir, exist_ok=True)
+            with tempfile.NamedTemporaryFile("w", dir=cache_dir, delete=False) as tf:
+                tf.write(record_json)
+                temp_cache = tf.name
+            os.replace(temp_cache, cache_file)
+        except Exception:
+            pass
 
     record_json = json.dumps(record, separators=(",", ":"))
 
-    try:
-        os.makedirs(cache_dir, exist_ok=True)
-        with tempfile.NamedTemporaryFile("w", dir=cache_dir, delete=False) as tf:
-            tf.write(record_json)
-            temp_cache = tf.name
-        os.replace(temp_cache, cache_file)
-    except Exception:
-        pass
-
-    try:
-        os.makedirs(os.path.dirname(target_file), exist_ok=True)
-        with tempfile.NamedTemporaryFile("w", dir=os.path.dirname(target_file), delete=False) as tf:
-            tf.write(record_json)
-            temp_target = tf.name
-        os.replace(temp_target, target_file)
-    except Exception:
-        pass
+    # Write target file for both cached and fresh runs
+    if target_file:
+        try:
+            os.makedirs(os.path.dirname(target_file), exist_ok=True)
+            with tempfile.NamedTemporaryFile("w", dir=os.path.dirname(target_file), delete=False) as tf:
+                tf.write(record_json)
+                temp_target = tf.name
+            os.replace(temp_target, target_file)
+        except Exception:
+            pass
 
     print(record_json)
 
