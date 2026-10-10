@@ -1,0 +1,148 @@
+#!/bin/bash
+
+# omarchy:summary=Apply the current theme color to Framework Desktop ARGB fans
+# omarchy:hidden=true
+
+# Apply theme accent color to Framework Desktop ARGB fan via framework_tool.
+#
+# Color selection priority:
+# 1. User override: ~/.config/omarchy/fan-colors/<theme-name>.txt (one to eight
+#    #RRGGBB colors, one per line; blank lines and "# ..." comments are ignored)
+# 2. Theme accent color from ~/.local/state/omarchy/current/theme/framework-desktop-fan.rgb
+#
+# Template-generated colors pass through calibration
+# (~/.config/omarchy/fan-colors/calibration.conf). Override files are user-tuned
+# for the hardware and are applied directly without calibration.
+
+if ! omarchy-hw-framework-desktop; then
+  exit 0
+fi
+
+if ! omarchy-cmd-present framework_tool; then
+  exit 0
+fi
+
+WRAPPER=/usr/bin/omarchy-framework-tool-rgb
+
+# --- Calibration ---
+CALIBRATION_FILE="$HOME/.config/omarchy/fan-colors/calibration.conf"
+RED_PERCENT=100
+GREEN_PERCENT=100
+BLUE_PERCENT=100
+
+# Parse only KEY=VAL lines for the three known channels. Never source the file:
+# it lives in the user's config tree and this runs on every theme change.
+read_calibration() {
+  local line key value
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line =~ ^[[:space:]]*(RED_PERCENT|GREEN_PERCENT|BLUE_PERCENT)[[:space:]]*=[[:space:]]*([0-9]+)[[:space:]]*$ ]] || continue
+
+    key=${BASH_REMATCH[1]}
+    value=${BASH_REMATCH[2]}
+
+    case $key in
+      RED_PERCENT) RED_PERCENT=$value ;;
+      GREEN_PERCENT) GREEN_PERCENT=$value ;;
+      BLUE_PERCENT) BLUE_PERCENT=$value ;;
+    esac
+  done < "$1"
+}
+
+if [[ -f $CALIBRATION_FILE ]]; then
+  read_calibration "$CALIBRATION_FILE"
+fi
+
+# Apply per-channel percentage to a hex color (#RRGGBB -> #RRGGBB)
+calibrate_color() {
+  local hex="${1#\#}"
+  local r g b
+
+  r=$(( 0x${hex:0:2} * RED_PERCENT / 100 ))
+  g=$(( 0x${hex:2:2} * GREEN_PERCENT / 100 ))
+  b=$(( 0x${hex:4:2} * BLUE_PERCENT / 100 ))
+
+  # Clamp to 0-255
+  (( r > 255 )) && r=255
+  (( g > 255 )) && g=255
+  (( b > 255 )) && b=255
+
+  printf "#%02x%02x%02x" "$r" "$g" "$b"
+}
+
+# Read override colors into the global `colors` array as 0xRRGGBB. Accepts
+# "#RRGGBB" or "RRGGBB", ignores blank lines and full-line "# ..." comments,
+# and rejects every other line so a typo cannot silently change what is
+# applied.
+parse_override_colors() {
+  local line
+
+  colors=()
+  while IFS= read -r line || [[ -n $line ]]; do
+    # Trim surrounding whitespace.
+    line=${line#"${line%%[![:space:]]*}"}
+    line=${line%"${line##*[![:space:]]}"}
+
+    [[ -z $line ]] && continue
+    [[ $line =~ ^#([[:space:]]|$) ]] && continue
+
+    if [[ $line =~ ^#?([0-9A-Fa-f]{6})$ ]]; then
+      colors+=("0x${BASH_REMATCH[1]}")
+    else
+      echo "omarchy-theme-set-fan-framework-desktop: invalid color in $1: '$line'" >&2
+      return 1
+    fi
+  done < "$1"
+}
+
+# Send eight colors to the root-owned wrapper. -n keeps a missing sudoers rule
+# from turning into an interactive password prompt, and failures are reported
+# rather than hidden.
+apply_rgb() {
+  if ! sudo -n "$WRAPPER" --rgbkbd 0 "$@"; then
+    echo "omarchy-theme-set-fan-framework-desktop: failed to set fan RGB (is the $WRAPPER sudoers rule installed?)" >&2
+    return 1
+  fi
+}
+
+# --- Main ---
+THEME_NAME=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
+OVERRIDE_FILE="$HOME/.config/omarchy/fan-colors/${THEME_NAME}.txt"
+THEME_FILE="$HOME/.local/state/omarchy/current/theme/framework-desktop-fan.rgb"
+
+colors=()
+
+# A user override wins. A malformed override is reported and nothing is
+# applied, so a typo cannot masquerade as a successful color change.
+if [[ -n $THEME_NAME && -f $OVERRIDE_FILE ]]; then
+  parse_override_colors "$OVERRIDE_FILE" || exit 1
+fi
+
+# A single color fills all eight fan zones.
+if (( ${#colors[@]} == 1 )); then
+  while (( ${#colors[@]} < 8 )); do
+    colors+=("${colors[0]}")
+  done
+fi
+
+if (( ${#colors[@]} == 8 )); then
+  # Override colors bypass calibration: they are already hardware-tuned.
+  apply_rgb "${colors[@]}" || exit 1
+elif (( ${#colors[@]} > 0 )); then
+  echo "omarchy-theme-set-fan-framework-desktop: $OVERRIDE_FILE must define 1 or 8 colors, got ${#colors[@]}" >&2
+  exit 1
+elif [[ -f $THEME_FILE ]]; then
+  # No override: use the calibrated theme accent color.
+  color=$(cat "$THEME_FILE")
+  color=${color//[[:space:]]/}
+
+  if [[ ! $color =~ ^#?([0-9A-Fa-f]{6})$ ]]; then
+    echo "omarchy-theme-set-fan-framework-desktop: invalid theme color in $THEME_FILE: '$color'" >&2
+    exit 1
+  fi
+
+  color="#${BASH_REMATCH[1]}"
+  color=$(calibrate_color "$color")
+  color=${color//#/0x}
+  apply_rgb "$color" "$color" "$color" "$color" "$color" "$color" "$color" "$color" || exit 1
+fi
