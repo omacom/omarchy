@@ -296,7 +296,16 @@ def link_shared(provider: str, home: Path) -> None:
   home.mkdir(parents=True, exist_ok=True)
   os.chmod(home, 0o700)
   for name in spec["shared_dirs"]:
-    (primary / name).mkdir(parents=True, exist_ok=True)
+    shared = primary / name
+    # A dangling symlink is the person's own setup, such as a dotfiles link
+    # whose target hasn't synced yet, so leave it for its target to appear.
+    # mkdir would fail on it. A link to a file or a loop still fails here.
+    if shared.is_symlink() and not shared.exists():
+      try:
+        shared.resolve(strict=True)
+      except FileNotFoundError:
+        continue
+    shared.mkdir(parents=True, exist_ok=True)
   for name in spec["shared_dirs"] + spec["shared_files"]:
     target = home / name
     if target.exists() or target.is_symlink():
@@ -328,7 +337,11 @@ def begin(provider: str) -> Path:
   pending.mkdir(parents=True, exist_ok=True)
   os.chmod(pending.parent, 0o700)
   home = Path(tempfile.mkdtemp(prefix="login-", dir=str(pending)))
-  link_shared(provider, home)
+  try:
+    link_shared(provider, home)
+  except Exception:
+    shutil.rmtree(home, ignore_errors=True)
+    raise
   return home
 
 
