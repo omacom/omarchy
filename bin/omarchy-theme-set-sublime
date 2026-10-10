@@ -9,7 +9,10 @@ source_scheme="$HOME/.local/state/omarchy/current/theme/Omarchy.sublime-color-sc
 user_package="$HOME/.config/sublime-text/Packages/User"
 target_scheme="$user_package/Omarchy.sublime-color-scheme"
 
-omarchy-toggle-enabled skip-sublime-theme-changes && exit 0
+# Skipping keeps the installed scheme; a first install still needs one.
+if [[ -f $target_scheme ]] && omarchy-toggle-enabled skip-sublime-theme-changes; then
+  exit 0
+fi
 [[ -f $source_scheme && -d $user_package ]] || exit 0
 cmp -s "$source_scheme" "$target_scheme" && exit 0
 
