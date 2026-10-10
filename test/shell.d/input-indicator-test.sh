@@ -170,4 +170,33 @@ with patch.object(indicator.GLib, "MainLoop", return_value=loop), patch.object(i
   assert call.call_args.args[1] == "SetCurrentIM"
 print("ok - a failed compositor query leaves the bar click reader alive for the next request")
 
+keyboards = [{"name": "physical", "layout": "us,dk", "active_layout_index": 0}]
+with patch.object(indicator, "snapshot", side_effect=indicator.GLib.Error("no fcitx")), patch.object(indicator.subprocess, "run", side_effect=fake_process):
+  indicator.Indicator(None).select_next()
+  assert keyboards[0]["active_layout_index"] == 1
+print("ok - the shortcut reader cycles compositor layouts when Fcitx is unavailable")
+
 PY
+
+stubs=$(mktemp -d)
+trap 'rm -rf "$stubs"' EXIT
+calls="$stubs/calls"
+cat >"$stubs/omarchy-shell" <<'SH'
+#!/bin/bash
+echo "shell $*" >>"$CALLS"
+echo "$SHELL_REPLY"
+SH
+cat >"$stubs/python" <<'SH'
+#!/bin/bash
+echo "python ${*##*/}" >>"$CALLS"
+SH
+chmod +x "$stubs/omarchy-shell" "$stubs/python"
+
+CALLS=$calls SHELL_REPLY=ok PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-input-method" cycle
+[[ $(<"$calls") == "shell shell cycleInput" ]] || fail "Super+I goes through the shell's reader" "$(<"$calls")"
+pass "Super+I goes through the shell's reader, which retains a choice made without focus"
+
+: >"$calls"
+CALLS=$calls SHELL_REPLY="" PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-input-method" cycle
+[[ $(<"$calls") == $'shell shell cycleInput\npython indicator.py cycle' ]] || fail "Super+I switches directly without the shell" "$(<"$calls")"
+pass "Super+I switches directly when the shell does not answer"

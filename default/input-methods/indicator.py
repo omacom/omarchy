@@ -112,12 +112,18 @@ class Indicator:
     self.entries = {}
 
   def select_next(self):
-    state = snapshot(self.bus)
+    devices = subprocess.run(["hyprctl", "-j", "devices"], check=True, text=True, capture_output=True)
+    keyboards = json.loads(devices.stdout).get("keyboards", [])
+    try:
+      state = snapshot(self.bus)
+    except GLib.Error:
+      # Without Fcitx, Super+I still cycles the compositor layouts.
+      for command in layout_switches(keyboards):
+        subprocess.run(command, check=True, capture_output=True)
+      return
     methods = state["methods"]
     current = self.pending or state["current"] or self.last
     state["current"] = current if current in methods else next(iter(methods), "")
-    devices = subprocess.run(["hyprctl", "-j", "devices"], check=True, text=True, capture_output=True)
-    keyboards = json.loads(devices.stdout).get("keyboards", [])
     following, index = cycle_choice(state, keyboards)
     if following is None:
       return

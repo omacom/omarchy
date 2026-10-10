@@ -8,7 +8,9 @@ Singleton {
   property var state: ({})
 
   function cycle() {
-    if (watcher.running) watcher.write("cycle\n")
+    if (!watcher.running) return false
+    watcher.write("cycle\n")
+    return true
   }
 
   // One reader and pending selection for every monitor's keyboard widget.

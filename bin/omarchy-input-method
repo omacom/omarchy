@@ -7,7 +7,11 @@
 set -euo pipefail
 
 if [[ ${1:-} == "cycle" ]]; then
-  python "$OMARCHY_PATH/default/input-methods/indicator.py" cycle
+  # The shell's reader retains a choice made while nothing has focus. Without
+  # the shell, switch directly.
+  if [[ $(omarchy-shell shell cycleInput 2>/dev/null) != "ok" ]]; then
+    python "$OMARCHY_PATH/default/input-methods/indicator.py" cycle
+  fi
 else
   python "$OMARCHY_PATH/default/input-methods/configure.py" "$@"
 fi
