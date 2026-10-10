@@ -2,7 +2,7 @@
 
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
-source "$ROOT/bin/omarchy-usb-authorization-boot"
+source "$ROOT/migrations/retired-device-authorization/usb-boot.sh"
 
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
@@ -137,7 +137,7 @@ if [[ ${USB_TEST_NAMESPACE:-0} == 1 ]]; then
     tar -cf "$case_dir/limine.bak" -C "$case_dir" limine_x64.efi
     lock_inode=$(stat -Lc '%d:%i' /run/lock/boot-partition.lock)
     # Source the shipped functions in both the parent and namespace child.
-    sed '/^if \[\[ ${BASH_SOURCE\[0\]} == "\$0" \]\]; then/,$d' "$ROOT/bin/omarchy-usb-authorization-boot" >"$case_dir/helper"
+    sed '/^if \[\[ ${BASH_SOURCE\[0\]} == "\$0" \]\]; then/,$d' "$ROOT/migrations/retired-device-authorization/usb-boot.sh" >"$case_dir/helper"
     for variable in scratch case_dir boot_path cache limine_conf limine_defaults drop_in image lock_inode; do
       printf '%s=%q\n' "$variable" "${!variable}" >>"$case_dir/helper"
     done

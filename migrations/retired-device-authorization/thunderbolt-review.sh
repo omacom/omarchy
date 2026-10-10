@@ -26,15 +26,12 @@ tb_notify() {
 tb_attention() {
   omarchy-notification-wait 1 >/dev/null || return 1
   timeout 10 omarchy-notification-send --app-name omarchy-action --urgency critical \
-    'Thunderbolt protection needs attention' 'The approval or firmware policy could not be confirmed. Click for details.' \
-    --exec omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-thunderbolt-authorization status
+    'Accessory removal needs attention' 'Removal could not finish. Click to retry it.' \
+    --exec omarchy-launch-floating-terminal-with-presentation omarchy-migrate
 }
 
 tb_setup_notice() {
-  omarchy-notification-wait 1 >/dev/null || return 1
-  timeout 10 omarchy-notification-send --app-name omarchy-action --urgency critical \
-    'Finish Thunderbolt protection setup' 'A connected accessory needs secure enrollment. Protection is not enabled. Click to finish safely.' \
-    --exec omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-thunderbolt-authorization
+  tb_attention
 }
 
 tb_token() {

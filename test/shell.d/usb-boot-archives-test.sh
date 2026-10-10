@@ -2,7 +2,7 @@
 
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
-source "$ROOT/bin/omarchy-usb-authorization-boot"
+source "$ROOT/migrations/retired-device-authorization/usb-boot.sh"
 
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
