@@ -62,6 +62,41 @@ ShellRoot {
     return isFinite(n) && n >= 0
   }
 
+  function calendarOf(item) {
+    for (var i = 0; i < item.children.length; i++) {
+      var child = item.children[i]
+      if (child && child.item && ("viewMonth" in child.item)) return child.item
+    }
+    return null
+  }
+
+  // After a suspend the label and the calendar can be behind the wall clock.
+  // The resync has to refresh the label and leave a month the user is browsing
+  // alone, and the periodic check has to catch a calendar whose day fell behind.
+  // That the resync restarts SystemClock is checked in clock-test.sh: a clock
+  // that was never stopped has nothing to catch up on here.
+  function assertClockResync(item) {
+    var calendar = calendarOf(item)
+    root.assertTrue(calendar !== null, "omarchy.clock loads its calendar")
+    if (!calendar) return
+
+    calendar.viewMonth = (calendar.viewMonth + 3) % 12
+    var browsed = calendar.viewMonth
+    item.displayDate = new Date(Date.now() - 3600000)
+    item.resyncClock()
+    root.assertTrue(Math.abs(item.displayDate.getTime() - Date.now()) < 5000, "omarchy.clock resync refreshes a stale label")
+    item.displayDate = new Date(Date.now() - 3600000)
+    item.checkClock()
+    root.assertTrue(Math.abs(item.displayDate.getTime() - Date.now()) < 5000, "omarchy.clock check refreshes a stale label")
+    root.assertEqual(calendar.viewMonth, browsed, "omarchy.clock resync leaves a browsed month alone")
+
+    calendar.today = new Date(Date.now() - 2 * 86400000)
+    root.assertTrue(calendar.todayIsStale(new Date()), "omarchy.clock calendar sees a stale day")
+    item.checkClock()
+    root.assertTrue(!calendar.todayIsStale(new Date()), "omarchy.clock check catches the calendar up")
+    root.assertEqual(calendar.viewMonth, browsed, "omarchy.clock calendar catch-up leaves a browsed month alone")
+  }
+
   function loadWidget(entry) {
     var component = Qt.createComponent(entry.url, Component.PreferSynchronous)
     if (component.status !== Component.Ready) {
@@ -158,6 +193,7 @@ ShellRoot {
           var id = root.createdIds[j]
           root.assertTrue(root.finiteDimension(item.implicitWidth), id + " has a finite implicitWidth")
           root.assertTrue(root.finiteDimension(item.implicitHeight), id + " has a finite implicitHeight")
+          if (id === "omarchy.clock") root.assertClockResync(item)
         }
 
         fakeBar.vertical = true

@@ -40,6 +40,29 @@ BarWidget {
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
   }
 
+  // Restart the minute timer from now. A re-enabled SystemClock re-reads the
+  // wall clock and re-arms its next tick, so the clock catches up at the cause
+  // rather than only in the label. The calendar's clock gets the same, which
+  // moves its today without leaving a month the user is browsing.
+  function resyncClock() {
+    clock.enabled = false
+    clock.enabled = true
+    displayDate = new Date()
+    if (panelLoader.item && panelLoader.item.resyncClock) panelLoader.item.resyncClock()
+  }
+
+  // A label whose minute fell behind the wall clock restarts both clocks. A
+  // seconds label recovers on its own within a second, but the calendar's
+  // minute clock does not, so the calendar is checked on its own as well.
+  function checkClock() {
+    var now = new Date()
+    if (!root.showsSeconds && Model.clockMinuteIsStale(root.displayDate, now)) {
+      root.resyncClock()
+    } else if (panelLoader.item && panelLoader.item.todayIsStale && panelLoader.item.todayIsStale(now)) {
+      panelLoader.item.resyncClock()
+    }
+  }
+
   function cycleFormat() {
     var current = String(configuredFormat)
     var next = Model.nextClockFormat(formatRing, current)
@@ -117,6 +140,18 @@ BarWidget {
     id: clock
     precision: root.showsSeconds ? SystemClock.Seconds : SystemClock.Minutes
     onDateChanged: root.displayDate = date
+  }
+
+  // SystemClock waits out the rest of the minute on a monotonic timer, which
+  // stops during suspend, so after a wake the label kept the time from before
+  // it for up to a minute. Check the wall clock every two seconds and resync.
+  // This needs no extra process or D-Bus, and also covers a wall clock set
+  // forward or back.
+  Timer {
+    interval: 2000
+    repeat: true
+    running: true
+    onTriggered: root.checkClock()
   }
 
   Loader {

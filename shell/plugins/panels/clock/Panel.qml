@@ -131,6 +131,20 @@ Panel {
     root.goToToday()
   }
 
+  // The bar widget calls this when the clock fell behind, after a suspend or a
+  // wall clock step. Re-arming the calendar's clock moves today through
+  // onDateChanged below, which keeps a month the user is browsing.
+  function resyncClock() {
+    clock.enabled = false
+    clock.enabled = true
+  }
+
+  // Whether today is out of step with the wall clock. The calendar's own clock
+  // only notices at its next minute, which after a suspend can be a minute away.
+  function todayIsStale(now) {
+    return Model.calendarDayIsStale(root.today, now)
+  }
+
   function goToToday() {
     root.viewYear = today.getFullYear()
     root.viewMonth = today.getMonth()
