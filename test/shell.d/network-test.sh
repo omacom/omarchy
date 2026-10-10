@@ -229,6 +229,11 @@ for (const name of ['Wpa3SuiteB192', 'Sae', 'Wpa2Eap', 'Wpa2Psk', 'WpaEap', 'Wpa
 }
 assertEqual(network.requiresCredentials(security.Owe, security.Open, security.Owe), false, 'network does not ask for OWE credentials')
 assertEqual(network.requiresCredentials(security.Open, security.Open, security.Owe), false, 'network does not ask for open-network credentials')
+assertEqual(network.wifiSecurity({ known: true, security: security.Unknown }, security.Unknown, security.Open), security.Open, 'network treats a saved profile without a security setting as open')
+assertEqual(network.wifiSecurity({ known: false, security: security.Unknown }, security.Unknown, security.Open), security.Unknown, 'network keeps unsaved Unknown networks credentialed')
+assertEqual(network.wifiSecurity({ known: true, security: security.Wpa2Psk }, security.Unknown, security.Open), security.Wpa2Psk, 'network keeps saved secured networks as reported')
+assertEqual(network.wifiRow({ connected: true, known: true, name: 'Cafe', signalStrength: 0.5, security: security.Unknown }, security.Unknown, security.Open).security, security.Open, 'network rows carry the effective security of saved open networks')
+assertEqual(network.wifiRow({ connected: false, known: false, name: 'Mystery', signalStrength: 0.5, security: security.Unknown }, security.Unknown, security.Open).security, security.Unknown, 'network rows keep unsaved Unknown networks credentialed')
 
 assert(
   /Model\.requiresCredentials\(security, WifiSecurityType\.Open, WifiSecurityType\.Owe\)/.test(panelSource),
@@ -247,7 +252,11 @@ assert(
   'network failure reprompts use the row credential requirement'
 )
 assert(
-  /networkFailureReason\(reason, requiresCredentials\(network\.security\)\)/.test(panelSource),
+  /Model\.wifiRow\(network, WifiSecurityType\.Unknown, WifiSecurityType\.Open\)/.test(panelSource),
+  'network panel builds its rows with the effective security'
+)
+assert(
+  /networkFailureReason\(reason, requiresCredentials\(wifiSecurity\(network\)\)\)/.test(panelSource),
   'network failure copy uses the live network credential requirement'
 )
 assert(

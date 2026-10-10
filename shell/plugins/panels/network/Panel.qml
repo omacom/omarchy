@@ -701,7 +701,7 @@ Panel {
       var network = networks[i]
       if (!network) continue
       checkActionCompletion(network)
-      var row = Model.wifiRow(network)
+      var row = Model.wifiRow(network, WifiSecurityType.Unknown, WifiSecurityType.Open)
       if (row) nets.push(row)
     }
     wifiNetworks = Model.sortWifiRows(nets)
@@ -785,6 +785,10 @@ Panel {
     return Model.requiresCredentials(security, WifiSecurityType.Open, WifiSecurityType.Owe)
   }
 
+  function wifiSecurity(network) {
+    return Model.wifiSecurity(network, WifiSecurityType.Unknown, WifiSecurityType.Open)
+  }
+
   function openPasswordPrompt(ssid) {
     if (passwordSsid !== ssid) {
       passwordText = ""
@@ -836,7 +840,7 @@ Panel {
     if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
     actionTimeout.stop()
     failureSsid = actionSsid
-    failureReason = networkFailureReason(reason, requiresCredentials(network.security))
+    failureReason = networkFailureReason(reason, requiresCredentials(wifiSecurity(network)))
     actionSsid = ""
     actionKind = ""
     refresh()
