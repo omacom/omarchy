@@ -51,6 +51,17 @@ Updating or removing Omarchy's settings package ends any temporary grant before 
 
 Be clear-eyed about this one: while it's on, anything running as your user can do anything as root without being asked. That's the whole point, and it's also the whole risk.
 
+## Customizing the kernel command line
+
+If you want to add your own kernel parameters — say, `lsm=landlock,lockdown,yama,apparmor,bpf` to turn on AppArmor — don't edit `/etc/kernel/cmdline`. Omarchy's boot tooling doesn't read it, so anything you put there is silently ignored. The command line Omarchy actually boots with is assembled by `limine-entry-tool`/`limine-update` from `KERNEL_CMDLINE[default]` in `/etc/default/limine` plus any drop-ins under `/etc/limine-entry-tool.d/*.conf`. Add your own drop-in there instead, then rebuild and reboot:
+
+```
+printf '%s\n' 'KERNEL_CMDLINE[default]+=" your-param=here"' | sudo tee /etc/limine-entry-tool.d/custom.conf
+sudo limine-update
+```
+
+Any name ending in `.conf` works. This is for adding parameters: don't count on a drop-in's name to override one Omarchy already sets, like `loglevel`, because `limine-entry-tool` places drop-ins on the command line in reverse name order, so a `zz-` file lands before Omarchy's defaults rather than after them. After rebooting, confirm with `cat /proc/cmdline`.
+
 ## Signing Keys
 
 The public key for all ISO signatures and Omarchy repo package is `40DFB630FF42BCFFB047046CF0134EE680CAC571` ([verify at openpgp.org](https://keys.openpgp.org/search?q=pkgs%40omarchy.org)). The `omarchy/omarchy-keyring` package contains this as well and will be used to rollout any potential updates seamlessly.
