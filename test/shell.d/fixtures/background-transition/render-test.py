@@ -147,7 +147,8 @@ try:
   for stage, colors in (("initial", (b"\xff\0\0", b"\0\0\xff")),
                         ("captured", (b"\xff\0\0", b"\0\0\xff")),
                         ("held", (b"\xff\xff\0", b"\0\xff\xff")),
-                        ("finished", (b"\xff\xff\0", b"\0\xff\xff"))):
+                        ("finished", (b"\xff\xff\0", b"\0\xff\xff")),
+                        ("reloaded", (b"\xff\0\xff", b"\xff\0\0"))):
     for points, color in ((("5,5", "80,45", "155,85"), colors[0]),
                           (("185,5", "225,80", "265,155"), colors[1])):
       for point in points:

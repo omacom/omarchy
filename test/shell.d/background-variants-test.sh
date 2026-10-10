@@ -31,6 +31,20 @@ const transition = {
   backgroundPanels: {instances: [{backgroundReady: true}, {backgroundReady: false}]}
 }
 vm.createContext(transition)
+const ready = backgroundQml.match(/  readonly property bool ready: \{([\s\S]*?)\n  \}/)[1]
+transition.isVideo = () => false
+transition.variantCatalog = {busy: true, generation: 1}
+transition.resolvedVariantGeneration = 0
+transition.backgroundPanels.instances[1].backgroundReady = true
+assert(!vm.runInContext('(function() {' + ready + '})()', transition), 'startup readiness waits for the variant catalog even with a decoded default')
+transition.variantCatalog.busy = false
+assert(!vm.runInContext('(function() {' + ready + '})()', transition), 'startup readiness cannot release the cover between scan exit and candidate application')
+transition.resolvedVariantGeneration = 1
+transition.backgroundPanels.instances[1].backgroundReady = false
+assert(!vm.runInContext('(function() {' + ready + '})()', transition), 'startup readiness waits for every output to present its variant')
+transition.backgroundPanels.instances[1].backgroundReady = true
+assert(vm.runInContext('(function() {' + ready + '})()', transition), 'startup readiness releases the cover after all variants are presented')
+transition.backgroundPanels.instances[1].backgroundReady = false
 vm.runInContext(finish + '\n' + prune + '\nfinishTransition()', transition)
 assert(transition.finishingTransition && transition.incomingBackground === 'snapshot', 'transition retains the incoming frame until every output is ready')
 transition.backgroundPanels.instances[1].backgroundReady = true

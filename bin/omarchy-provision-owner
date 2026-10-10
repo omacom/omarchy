@@ -9,7 +9,9 @@
 # behind. Asks for the user (the configurator's Step 2), creates it with the
 # groups system setup recorded, finalizes it offline from the stashed Node
 # tarball, re-keys LUKS from the throwaway install passphrase to the user's
-# password, and hands off to SDDM.
+# password, and hands off to SDDM. A platform whose boot package owns its boot
+# chain prepares it, drops the install key's unlock from it and records the
+# kept key slot through omarchy-lifecycle-dispatch.
 
 set -euo pipefail
 
@@ -32,6 +34,9 @@ if [[ -f $PROVISIONING_DIR/wipe-pending ]]; then
 fi
 
 export PATH="$OMARCHY_PATH/bin:$PATH"
+
+REKEY_STATE=$PROVISIONING_DIR/luks-rekey.state
+source "$OMARCHY_PATH/install/provisioning/luks-rekey.sh"
 
 # The shared setup form — the same questions, prompts, and validation the ISO
 # configurator's user step asks. The ISO vendors this very file out of the
@@ -579,14 +584,27 @@ greeter_screen() {
 # The keyboard step the ISO configurator runs — deferred to first boot for OEM
 # installs, so the machine's owner picks their own layout. Applied immediately
 # (live VT + persisted) so the password typed next, and the LUKS re-key below,
-# use the chosen layout.
+# use the chosen layout. A layout that did not take is asked for again: the
+# password form must never be typed in a layout the disk unlock won't use.
+# Three failures in a row mean the machine can't set a layout at all (a
+# missing or broken localectl, say), so the attempt fails and setup's own
+# retry-or-console screen takes over instead of asking forever.
 keyboard_form() {
-  local status
+  local status failures=0
 
   while true; do
     step "Let's setup your keyboard..."
     omarchy_prompt_keyboard && status=0 || status=$?
-    ((status == 0)) && break
+    if ((status == 0)); then
+      apply_keyboard "$keyboard" && break
+      if ((++failures >= 3)); then
+        log_step "no keyboard layout could be set after $failures attempts"
+        notice "Setup could not set a keyboard layout on this machine." 4
+        return 1
+      fi
+      notice "Could not set the ${keyboard_label:-$keyboard} keyboard layout. Choose it again." 4
+      continue
+    fi
 
     # Esc means "back", and nothing precedes the first screen, so re-ask.
     ((status == OMARCHY_FORM_BACK)) && continue
@@ -597,8 +615,6 @@ keyboard_form() {
     # re-key below. Confirm it so a stray Ctrl+C doesn't bounce the machine.
     confirm_reboot && exec systemctl reboot
   done
-
-  apply_keyboard "$keyboard"
 }
 
 confirm_reboot() {
@@ -609,21 +625,74 @@ confirm_reboot() {
   gum confirm --affirmative "Yes, reboot" --negative "No, keep setting up" "Reboot this machine?"
 }
 
-# Load the layout on the live VT and persist it for the installed system.
-# systemd-firstboot writes both the console KEYMAP and the XKB layout Hyprland
-# reads, matching what the ISO's configure_keyboard does at install time. A
-# keymap localectl doesn't know keeps the default rather than failing (defensive;
-# the picker no longer offers any such layout).
-apply_keyboard() {
-  local keymap="$1"
-  [[ $(tty 2>/dev/null) == /dev/tty* ]] && loadkeys "$keymap" 2>/dev/null || true
+# XKB settings for the form's keymaps that kbd-model-map lacks, as its rows for
+# the nearest keymap give them, so the desktop types what the console does:
+# kbd's cz is QWERTY, bg-cp1251 phonetic and azerty French AZERTY. Non-Latin
+# layouts keep a US layout to switch to, so the shared password stays typeable.
+keyboard_xkb_settings() {
+  local layout variant="" options=terminate:ctrl_alt_bksp
+  local switch=terminate:ctrl_alt_bksp,grp:shifts_toggle,grp_led:scroll
 
-  if localectl --no-pager list-keymaps 2>/dev/null | grep -qix "$keymap"; then
-    systemd-firstboot --keymap="$keymap" --force >>"$LOG_FILE" 2>&1 || \
-      localectl set-keymap "$keymap" >>"$LOG_FILE" 2>&1 || \
-      log_step "could not persist keymap $keymap"
-  else
-    log_step "keymap $keymap unknown to localectl; keeping the default"
+  case $1 in
+    colemak) layout=us variant=colemak ;;
+    azerty) layout=fr ;;
+    bg-cp1251) layout=bg,us variant=phonetic, options=$switch ;;
+    cz) layout=cz,us variant=qwerty, options=$switch ;;
+    de_CH-latin1) layout=ch ;;
+    kyrgyz) layout=kg,us options=$switch ;;
+    no-latin1) layout=no ;;
+    pl) layout=pl ;;
+    ua) layout=ua,us options=$switch ;;
+    *) return 1 ;;
+  esac
+
+  printf 'XKBLAYOUT=%s\nXKBMODEL=pc105\n' "$layout"
+  [[ -z $variant ]] || printf 'XKBVARIANT=%s\n' "$variant"
+  printf 'XKBOPTIONS=%s\n' "$options"
+}
+
+# Load the layout on the live VT and persist it for the installed system, or
+# fail. systemd-firstboot writes both the console KEYMAP and the XKB layout
+# Hyprland reads, matching what the ISO's configure_keyboard does at install
+# time. The boot files ask for the disk password in the layout vconsole.conf
+# names, so a keymap localectl doesn't know, a failed loadkeys, or a file that
+# does not read back as the chosen keymap with an XKB layout is a failure.
+apply_keyboard() {
+  local keymap=$1 keymaps saved
+
+  if [[ $(tty 2>/dev/null) == /dev/tty* ]] && ! loadkeys "$keymap" >>"$LOG_FILE" 2>&1; then
+    log_step "loadkeys could not load keymap $keymap"
+    return 1
+  fi
+
+  if ! keymaps=$(localectl --no-pager list-keymaps 2>>"$LOG_FILE"); then
+    log_step "localectl could not list keymaps to check $keymap"
+    return 1
+  fi
+  if ! grep -qxF -- "$keymap" <<<"$keymaps"; then
+    log_step "keymap $keymap unknown to localectl"
+    return 1
+  fi
+
+  if ! systemd-firstboot --keymap="$keymap" --force >>"$LOG_FILE" 2>&1 &&
+    ! localectl set-keymap "$keymap" >>"$LOG_FILE" 2>&1; then
+    log_step "could not persist keymap $keymap"
+    return 1
+  fi
+
+  # systemd-firstboot writes an XKB layout only for keymaps in kbd-model-map,
+  # and several the form offers are not, so Hyprland would come up in US.
+  if ! grep -q '^XKBLAYOUT=.' /etc/vconsole.conf 2>/dev/null; then
+    keyboard_xkb_settings "$keymap" >>/etc/vconsole.conf 2>>"$LOG_FILE" ||
+      log_step "no XKB layout known for keymap $keymap"
+  fi
+
+  # A clean shell, so nothing this process exported stands in for the file.
+  saved=$(env -i /bin/bash --noprofile --norc -c \
+    '. /etc/vconsole.conf && [[ -n ${XKBLAYOUT:-} ]] && printf %s "${KEYMAP:-}"' 2>>"$LOG_FILE") || saved=""
+  if [[ $saved != "$keymap" ]]; then
+    log_step "/etc/vconsole.conf does not read back as keymap $keymap with an XKB layout"
+    return 1
   fi
 }
 
@@ -714,7 +783,7 @@ luks_device() {
   local src part
   src=$(findmnt -no SOURCE / | sed 's/\[.*//')
   [[ -n $src ]] || return 1
-  part=$(lsblk -nspo NAME,FSTYPE "$src" 2>/dev/null | awk '$2=="crypto_LUKS"{print $1; exit}')
+  part=$(lsblk -nsrpo NAME,FSTYPE "$src" 2>/dev/null | awk '$2=="crypto_LUKS"{print $1; exit}')
   [[ -n $part ]] && { echo "$part"; return 0; }
   return 1
 }
@@ -822,13 +891,24 @@ configure_hostname() {
 # step, overwriting the placeholder (UTC) the deferred install seeded.
 configure_timezone() {
   [[ -n ${timezone:-} ]] || return 0
-  if timedatectl set-timezone "$timezone" 2>&1; then
-    return 0
+  if ! timedatectl set-timezone "$timezone" 2>&1; then
+    # Fallback only if the zone file exists, so a bad zone can't point
+    # /etc/localtime at nothing and break every localtime read afterward.
+    [[ -e /usr/share/zoneinfo/$timezone ]] &&
+      ln -sf "/usr/share/zoneinfo/$timezone" /etc/localtime 2>&1 || true
   fi
-  # Fallback only if the zone file exists, so a bad zone can't point
-  # /etc/localtime at nothing and break every localtime read afterward.
-  [[ -e /usr/share/zoneinfo/$timezone ]] &&
-    ln -sf "/usr/share/zoneinfo/$timezone" /etc/localtime 2>&1 || true
+  configure_wireless_regdom
+}
+
+# The install's hardware step found only the UTC placeholder, which names no
+# country, so the wireless regulatory domain comes from the owner's timezone
+# here. No reboot follows setup, so the radios get it now the way udev applies
+# it at every boot.
+configure_wireless_regdom() {
+  bash "$OMARCHY_PATH/install/hardware/set-wireless-regdom.sh" 2>&1 || return 0
+  if omarchy-cmd-present set-wireless-regdom; then
+    set-wireless-regdom 2>&1 || true
+  fi
 }
 
 finalize_user() {
@@ -851,16 +931,99 @@ finalize_user() {
     "$OMARCHY_PATH/bin/omarchy-provision-user" --force --first-install
 }
 
+# During the provisioning window the staged key rides in the UKI's initramfs,
+# named on the kernel cmdline, so boot unlocks unattended.
+PROVISIONING_UNLOCK_FILES=(
+  /etc/omarchy/provisioning.key
+  /etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf
+  /etc/mkinitcpio.conf.d/99-omarchy-provisioning-key.conf
+)
+
+limine_auto_unlock_present() {
+  local file
+  for file in "${PROVISIONING_UNLOCK_FILES[@]}"; do
+    [[ -e $file ]] && return 0
+  done
+  return 1
+}
+
+# Rebuild the UKI without the embedded keyfile. A failed rebuild restores the
+# auto-unlock, so the retry still boots unattended.
+limine_auto_unlock_drop() {
+  rm -f "${PROVISIONING_UNLOCK_FILES[@]}"
+  reset_limine_config
+  if limine-update >>"$LOG_FILE" 2>&1; then
+    return 0
+  fi
+
+  # Once the staged key is destroyed there is no auto-unlock to restore: the
+  # boot files already ask for the owner's password. The rebuild is still
+  # retried for the boot entries.
+  if [[ -f $PROVISIONING_DIR/luks-key ]]; then
+    log_step "limine-update failed during re-key; restoring auto-unlock for retry"
+    install -Dm600 "$PROVISIONING_DIR/luks-key" /etc/omarchy/provisioning.key
+    echo 'KERNEL_CMDLINE[default]+=" cryptkey=rootfs:/etc/omarchy/provisioning.key"' \
+      >/etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf
+    echo 'FILES+=(/etc/omarchy/provisioning.key)' >/etc/mkinitcpio.conf.d/99-omarchy-provisioning-key.conf
+  else
+    log_step "limine-update failed during re-key; the staged key is gone, so no auto-unlock is restored"
+  fi
+  limine-update >>"$LOG_FILE" 2>&1 || true
+  return 1
+}
+
+# A platform whose boot package implements provision-commit and provision-verify
+# stages the unlock in its own boot chain and owns it; everywhere else it rides
+# in the Limine UKI above. Deciding fails closed: the unlock then counts as
+# present and cannot be dropped.
+UNLOCK_OWNER=""
+
+unlock_owner() {
+  [[ -z ${UNLOCK_OWNER:-} ]] || return 0
+
+  local commit verify
+  commit=$("$OMARCHY_PATH/bin/omarchy-lifecycle-dispatch" --resolve provision-commit) || return 1
+  verify=$("$OMARCHY_PATH/bin/omarchy-lifecycle-dispatch" --resolve provision-verify) || return 1
+  if [[ -n $commit && -n $verify ]]; then
+    UNLOCK_OWNER=platform
+  elif [[ -z $commit && -z $verify ]]; then
+    UNLOCK_OWNER=limine
+  else
+    log_step "the platform implements only one of provision-commit and provision-verify"
+    return 1
+  fi
+}
+
+luks_auto_unlock_present() {
+  unlock_owner || return 0
+  if [[ $UNLOCK_OWNER == "platform" ]]; then
+    ! "$OMARCHY_PATH/bin/omarchy-lifecycle-dispatch" provision-verify >>"$LOG_FILE" 2>&1
+  else
+    limine_auto_unlock_present
+  fi
+}
+
+luks_auto_unlock_drop() {
+  unlock_owner || return 1
+  if [[ $UNLOCK_OWNER == "platform" ]]; then
+    "$OMARCHY_PATH/bin/omarchy-lifecycle-dispatch" provision-commit >>"$LOG_FILE" 2>&1
+  else
+    limine_auto_unlock_drop
+  fi
+}
+
+# The platform records the slot the re-key keeps, and no recovery slot; a no-op
+# where nothing does.
+luks_record_slots() {
+  "$OMARCHY_PATH/bin/omarchy-lifecycle-dispatch" luks-slots "owner=$1" "recovery=" >>"$LOG_FILE" 2>&1
+}
+
 # Move the LUKS volume from the throwaway install passphrase to the user's
-# password: add the user's key, kill every other slot (throwaway + any seller
-# keys a reset left behind), then rebuild the UKI without the embedded
-# auto-unlock keyfile.
-#
-# Failing here must be LOUD (abort the attempt, offer retry): silently keeping
-# the staged auto-unlock keyfile would leave the disk effectively unencrypted
-# forever.
+# password and retire every other slot (throwaway + any seller keys a reset
+# left behind). luks_rekey journals each step, so an interrupted attempt
+# resumes where it stopped.
 rekey_luks() {
-  [[ -f $PROVISIONING_DIR/luks-key ]] || return 0
+  luks_rekey_pending || return 0
 
   local device
   if ! device=$(luks_device) || [[ ! -e $device ]]; then
@@ -869,61 +1032,32 @@ rekey_luks() {
     return 1
   fi
 
-  if ! cryptsetup open --test-passphrase --key-file "$PROVISIONING_DIR/luks-key" "$device" 2>>"$LOG_FILE"; then
-    log_step "staged LUKS key does not unlock $device"
-    say --foreground 1 "The staged LUKS key no longer unlocks $device."
-    return 1
-  fi
+  luks_rekey "$device"
+}
 
-  # Add the user's key (a retry with a different password just adds another
-  # slot; all but the current one are killed once the rebuild succeeds).
-  cryptsetup luksAddKey --key-file "$PROVISIONING_DIR/luks-key" "$device" <(printf '%s' "$password")
-
-  # Rebuild the no-auto-unlock UKI FIRST, keeping the throwaway key and slot as
-  # a fallback. Only once that succeeds do we kill the other slots and destroy
-  # the staged key — so a limine-update failure leaves a recoverable,
-  # still-auto-unlocking state to retry, never a disk locked to a password the
-  # user may have just changed.
-  rm -f /etc/omarchy/provisioning.key \
-    /etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf \
-    /etc/mkinitcpio.conf.d/99-omarchy-provisioning-key.conf
-  reset_limine_config
-  if ! limine-update >>"$LOG_FILE" 2>&1; then
-    log_step "limine-update failed during re-key; restoring auto-unlock for retry"
-    install -Dm600 "$PROVISIONING_DIR/luks-key" /etc/omarchy/provisioning.key
-    echo 'KERNEL_CMDLINE[default]+=" cryptkey=rootfs:/etc/omarchy/provisioning.key"' \
-      >/etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf
-    echo 'FILES+=(/etc/omarchy/provisioning.key)' >/etc/mkinitcpio.conf.d/99-omarchy-provisioning-key.conf
-    limine-update >>"$LOG_FILE" 2>&1 || true
-    return 1
+# The re-key's fingerprint of the console keyboard layout the boot files ask for
+# the disk password in: a hash of vconsole.conf's keymap and XKB settings, in
+# file order since a later duplicate wins, so the journal never names the layout.
+luks_boot_layout() {
+  if [[ ! -f /etc/vconsole.conf ]]; then
+    echo none
+    return
   fi
+  awk '/^[ \t]*(KEYMAP|KEYMAP_TOGGLE|XKB[A-Z_]*)=/ { sub(/^[ \t]+/, ""); print }' /etc/vconsole.conf |
+    sha256sum | cut -d' ' -f1
+}
 
-  local new_slot slot other_slots
-  new_slot=$(cryptsetup open --test-passphrase --verbose --key-file <(printf '%s' "$password") "$device" 2>&1 |
-    grep -o 'Key slot [0-9]* unlocked' | grep -o '[0-9]*' | head -1)
-  # Retiring the throwaway/seller slots must be all-or-nothing: if we can't
-  # identify the user's slot or a kill fails, keep the staged key and retry —
-  # never shred it while a slot the seller knows still unlocks the disk.
-  if [[ -z $new_slot ]]; then
-    log_step "could not identify the user's LUKS slot after re-key; keeping the staged key for retry"
-    say --foreground 1 "Could not confirm the LUKS re-key; will retry."
-    return 1
+# A re-key interrupted after the staged key was retired can only finish with
+# the password the disk already holds.
+rekey_accepts_password() {
+  local -
+  set +x
+  local device
+  [[ -f $REKEY_STATE ]] || return 0
+  if ! device=$(luks_device) || [[ ! -e $device ]]; then
+    return 0
   fi
-  if ! other_slots=$(cryptsetup luksDump "$device" | awk '/^ +[0-9]+: luks2/ { sub(":", "", $1); print $1 }'); then
-    log_step "luksDump failed while retiring slots; keeping the staged key for retry"
-    say --foreground 1 "Could not enumerate LUKS slots; will retry."
-    return 1
-  fi
-  for slot in $other_slots; do
-    [[ $slot == "$new_slot" ]] && continue
-    if ! cryptsetup luksKillSlot -q --key-file <(printf '%s' "$password") "$device" "$slot"; then
-      log_step "failed to kill LUKS slot $slot; keeping the staged key for retry"
-      say --foreground 1 "Could not remove the throwaway LUKS key; will retry."
-      return 1
-    fi
-  done
-
-  shred -u "$PROVISIONING_DIR/luks-key" 2>/dev/null || rm -f "$PROVISIONING_DIR/luks-key"
+  luks_rekey_accepts_password "$device"
 }
 
 # Start the ESP's limine.conf over from the shipped template and drop foreign
@@ -990,7 +1124,7 @@ reset_limine_config() {
 cleanup_oem_state() {
   # Keep groups + packages: omarchy-system-factory-reset stages the bundled Node
   # tarball from these live copies when the factory snapshot predates it.
-  rm -f "$PROVISIONING_DIR/pending" "$PROVISIONING_DIR/authorized_keys" "$PROVISIONING_DIR/setup-user"
+  rm -f "$PROVISIONING_DIR/pending" "$PROVISIONING_DIR/authorized_keys" "$PROVISIONING_DIR/setup-user" "$REKEY_STATE"
 
   rm -f /etc/systemd/system/multi-user.target.wants/omarchy-provision-owner.service
   systemctl daemon-reload 2>/dev/null || true
@@ -1017,7 +1151,7 @@ run_provisioning() {
     touch "$FINALIZE_WARNING_FLAG"
   fi
 
-  if [[ -f $PROVISIONING_DIR/luks-key ]]; then
+  if luks_rekey_pending; then
     log_step "re-keying LUKS to the user's password"
     echo rekey >"$STATE_FILE"
     rekey_luks
@@ -1034,16 +1168,51 @@ run_provisioning() {
     limine-update
   fi
 
+  if luks_staged_unlock_remains; then
+    log_step "refusing to finish setup while the staged LUKS key or its auto-unlock remains"
+    return 1
+  fi
+
+  if omarchy-pkg-present usbguard; then
+    log_step "enrolling the owner's USB devices"
+    source "$OMARCHY_PATH/install/helpers/usb-authorization.sh"
+    usb_authorization_provision_owner "$username"
+  fi
+
+  log_step "enrolling the owner's Thunderbolt accessories"
+  /usr/bin/omarchy-thunderbolt-authorization-admin owner
+
   log_step "cleaning up provisioning state"
   cleanup_oem_state
   log_step "first-boot setup complete"
 }
 
+# Where the platform's boot package owns the boot chain, it must be ready to
+# finish setup, and able to record the kept key slot, before the owner is asked
+# anything.
+platform_ready() {
+  local error
+  if error=$("$OMARCHY_PATH/bin/omarchy-lifecycle-dispatch" provision-prepare 2>&1 >>"$LOG_FILE") &&
+    error=$("$OMARCHY_PATH/bin/omarchy-lifecycle-dispatch" --resolve luks-slots 2>&1 >/dev/null); then
+    return 0
+  fi
+  error=${error:-"The boot package could not prepare this machine for setup."}
+
+  log_step "the boot package is not ready for setup: $error"
+  clear_logo
+  echo
+  say --foreground 1 "$error"
+  sleep 5
+  return 1
+}
+
 run_setup() {
   local status
 
+  platform_ready || return 1
+
   while true; do
-    keyboard_form
+    keyboard_form || return 1
     user_form && status=0 || status=$?
     if ((status != 0)); then
       # Esc unwinds to the keyboard step. Ctrl+C is the only other way out of a
@@ -1051,7 +1220,12 @@ run_setup() {
       ((status == OMARCHY_FORM_SIGNAL)) && confirm_reboot && exec systemctl reboot
       continue
     fi
-    confirm_form && break
+    confirm_form || continue
+    if ! rekey_accepts_password; then
+      notice "Setup already set the disk password. Enter that same password." 4
+      continue
+    fi
+    break
   done
 
   touch "$LOG_FILE"

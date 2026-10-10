@@ -22,4 +22,4 @@ if ! env -u WAYLAND_DISPLAY -u QT_QUICK_BACKEND -u QSG_RHI_BACKEND \
   xvfb-run -a python "$SHELL_TEST_DIR/fixtures/background-transition/render-test.py" "$ROOT" "$render_dir"; then
   fail "rendered background transitions preserve per-output frames" "Artifacts: $render_dir"
 fi
-pass "rendered transitions capture each output's variant and hold incoming pixels until all outputs decode"
+pass "rendered transitions hold per-output variants until presented and instant reloads replace same-path pixels"

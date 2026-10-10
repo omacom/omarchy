@@ -5,6 +5,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "BackgroundVariants.js" as BackgroundVariants
 
@@ -12,6 +13,7 @@ Item {
   id: root
 
   property var shell: null
+  property bool suspended: false
   readonly property string home: Quickshell.env("HOME")
   readonly property string stateHome: home + "/.local/state"
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
@@ -44,7 +46,18 @@ Item {
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
+  readonly property bool ready: {
+    if (isVideo(displayedBackground)) return true
+    // A scan clears busy before onResolved installs its dimensions and paths.
+    // Keep startup covered until those candidates and every output settle.
+    if (variantCatalog.busy || resolvedVariantGeneration !== variantCatalog.generation || backgroundPanels.instances.length === 0) return false
+    for (var panel of backgroundPanels.instances) {
+      if (!panel.backgroundReady) return false
+    }
+    return true
+  }
   property var displayedCandidates: []
+  property int resolvedVariantGeneration: -1
   signal captureBackground()
 
   BackgroundVariantCatalog {
@@ -60,6 +73,7 @@ Item {
       }
       root.nativeSizes = known
       if (!root.incomingBackground) root.displayedCandidates = candidates
+      root.resolvedVariantGeneration = variantCatalog.generation
     }
   }
 
@@ -76,7 +90,7 @@ Item {
   }
 
   function setBackground(path, instant) {
-    transitionBackground("", path, path, instant, false)
+    transitionBackground("", path, path, instant, instant)
   }
 
   function transitionBackground(fromPath, path, finalPath, instant, force) {
@@ -130,10 +144,10 @@ Item {
     // pending; the latest theme payload should still apply.
     if (pendingThemeVersion < 0) return
     pendingThemeFallbackTimer.stop()
-    Color.loadColors(pendingColorsRaw)
-    // Color.loadShell also refreshes Style so the type scale flips with the
+    Commons.Color.loadColors(pendingColorsRaw)
+    // Commons.Color.loadShell also refreshes Style so the type scale flips with the
     // background reveal instead of waiting for a separate reload path.
-    Color.loadShell(pendingShellRaw)
+    Commons.Color.loadShell(pendingShellRaw)
     Style.scheduleRefresh()
     pendingThemeVersion = -1
     pendingColorsRaw = ""
@@ -260,6 +274,10 @@ Item {
       root.setBackground(path, true)
     }
 
+    function setSuspended(value: string): void {
+      root.suspended = value === "true"
+    }
+
     function transition(fromPath: string, path: string): void {
       root.transitionBackground(fromPath, path, path, false, false)
     }
@@ -295,8 +313,8 @@ Item {
     property: "revealProgress"
     from: 0
     to: 1
-    duration: Style.duration(420)
-    easing.type: Easing.InOutCubic
+    duration: Style.duration(840)
+    easing.type: Easing.OutCubic
     onFinished: {
       if (root.incomingBackground) {
         root.displayedCandidates = variantCatalog.candidates
@@ -321,7 +339,7 @@ Item {
       required property var modelData
 
       screen: modelData
-      visible: !remapGuard.remapping
+      visible: !remapGuard.remapping && !root.suspended
       anchors { top: true; bottom: true; left: true; right: true }
 
       ScreenMoveRemap {
@@ -336,7 +354,15 @@ Item {
       updatesEnabled: true
 
       property bool maskReady: false
-      readonly property bool backgroundReady: base.ready
+      property int readyFrames: 0
+      readonly property bool backgroundReady: base.ready && readyFrames >= 2
+      onBackgroundReadyChanged: if (backgroundReady) Qt.callLater(root.finishTransition)
+
+      FrameAnimation {
+        running: base.ready && panel.readyFrames < 2
+        onTriggered: panel.readyFrames += 1
+      }
+
       property var failedVariants: []
       // ShellScreen's ratio is rounded up on Wayland; the window follows
       // wp_fractional_scale_v1 and reports the actual output scale.
@@ -401,7 +427,7 @@ Item {
         constrainDecode: true
         decodeSize: panel.decodeSize(panel.displayedPath)
         onReadyChanged: {
-          if (ready) Qt.callLater(root.finishTransition)
+          panel.readyFrames = 0
         }
       }
 

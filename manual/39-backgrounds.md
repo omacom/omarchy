@@ -8,6 +8,10 @@ Backgrounds can be videos as well as stills. Drop an `mp4`, `m4v`, `mov`, `webm`
 
 A still background can have alternatives for different monitor shapes and resolutions. Keep the default image in the background folder (for example, `design.webp`) and put alternatives directly in a sibling folder named without the extension (`design/`). Only the default appears in the picker; each monitor automatically chooses its best-fitting image. The lock screen continues to use the default. See [Background sizes](43-making-your-own-theme.md#background-sizes) for an example and supported formats.
 
+Themes can include a short intro for a still background. For `backgrounds/road.webp`, the matching video lives at `backgrounds/intros/road.mp4`. It plays automatically at boot and when switching to a theme with that background selected, then returns to the still. Intro videos stay out of the background picker and never loop.
+
+Turning off _Toggle > Animations_ also turns off background intros. Omarchy does this by default in a virtual machine. The `omarchy theme bg intro toggle` command can toggle intros separately. Refreshing a theme or choosing another background within the same theme does not play an intro.
+
 You can find a huge collection of cool curated backgrounds on https://github.com/dharmx/walls.
 
 Video backgrounds keep a cached still on the lock screen while playback is paused or unavailable. Animated GIFs play on the desktop and show a still frame on the lock screen.

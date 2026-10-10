@@ -45,6 +45,15 @@ ShellRoot {
     command: ["touch", test.directory + "/release"]
   }
 
+  Process {
+    id: replaceImages
+    command: ["bash", "-c", 'magick -size 160x90 xc:magenta "$1/new/wide.png" && magick -size 90x160 xc:red "$1/new/portrait.png"', "--", test.images]
+    onExited: function(exitCode) {
+      if (exitCode !== 0) test.fail("could not replace variant images")
+      else test.step = 7
+    }
+  }
+
   Timer {
     interval: 50
     repeat: true
@@ -60,7 +69,7 @@ ShellRoot {
       if (test.step === 0) {
         background.setBackground(test.images + "old.png", true)
         test.step = 1
-      } else if (test.step === 1 && wide.testBase.ready && portrait.testBase.ready &&
+      } else if (test.step === 1 && background.ready &&
                  /wide.png$/.test(wide.displayedPath) && /portrait.png$/.test(portrait.displayedPath)) {
         test.capture("initial", function() {
           background.transitionBackground("", test.images + "new.png", test.images + "new.png", false, false)
@@ -96,12 +105,25 @@ ShellRoot {
           release.running = true
           test.step = 5
         })
-      } else if (test.step === 5 && wide.testBase.ready && portrait.testBase.ready && !background.incomingBackground) {
+      } else if (test.step === 5 && background.ready && !background.incomingBackground) {
         if (background.finishingTransition || background.oldBackground || background.preparedBackground) {
           test.fail("transition frames were not released")
           return
         }
         test.capture("finished", function() {
+          test.step = 6
+          replaceImages.running = true
+        })
+      } else if (test.step === 7) {
+        background.setBackground(test.images + "new.png", true)
+        if (background.ready) {
+          test.fail("instant reload reported ready before the variant scan finished")
+          return
+        }
+        test.step = 8
+      } else if (test.step === 8 && background.ready &&
+                 /wide.png$/.test(wide.displayedPath) && /portrait.png$/.test(portrait.displayedPath)) {
+        test.capture("reloaded", function() {
           console.log("PASS rendered transition")
           Qt.quit()
         })
