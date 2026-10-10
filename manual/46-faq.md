@@ -80,6 +80,10 @@ And you can use _Remove > Web App_ from the Omarchy menu to remove any of the pr
 
 Or run _Remove > Preinstalls_ to sweep out all the preinstalled extras — web apps, TUIs, and optional applications — in one go. The hotkeys that launched them go away with them, so you're left with a clean slate of bindings to fill with your own in `~/.config/hypr/bindings.lua`.
 
+### How do I get into my BIOS or UEFI settings?
+
+Pick _Reboot to Firmware_ from the _System_ menu to restart straight into your firmware's setup screen, with no key to catch while the machine boots. You can also run `omarchy system firmware setup` from the terminal. The option only appears when your firmware supports it. If it doesn't, press your manufacturer's setup key (usually `F2`, `F12`, or `Del`) as the machine starts.
+
 ---
 
 For errors and broken bits, see [the Troubleshooting section](45-troubleshooting.md).
