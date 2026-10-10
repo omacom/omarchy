@@ -165,3 +165,10 @@ renders under the label, filters with it, and comes back as
 `label\tsubtext` so callers with same-named rows get a stable key. This is
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
+
+A select caller can also name typed characters that close the menu, like
+fzf's `--expect`: `omarchy-menu-select <prompt> -- --expect '?'` passes
+`expectKeys` in the payload. The menu checks them before the filter takes
+typed text, and the result is then two lines, the key that closed the menu
+(empty for Enter) and the row under the cursor. Without `--expect` the
+result is unchanged, and Right still picks like Enter.

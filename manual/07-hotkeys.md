@@ -2,6 +2,8 @@
 
 You can see all the main keyboard bindings with `Super + K` (Tmux bindings with `Super + Alt + K` and Herdr bindings with `Super + Ctrl + K`).
 
+To find out what a single combination does, open that list with `Super + K`, press `?`, and then press the combination. It isn't run; a notification tells you what it's bound to instead, much like `describe-key` (`C-h k`) in Emacs. `Escape` cancels.
+
 ## Navigating
 
 | Hotkey                  | Function              |

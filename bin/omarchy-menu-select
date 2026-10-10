@@ -3,14 +3,18 @@
 # omarchy:summary=Pick one option from a menu
 # omarchy:group=menu
 # omarchy:name=select
-# omarchy:args=prompt [option...] [-- menu args...]
-# omarchy:examples=omarchy menu select Format jpg png|omarchy-menu-select Resolution 4k 1080p 720p -- --width 400
+# omarchy:args=prompt [option...] [-- [--width N] [--height N] [--expect KEY]...]
+# omarchy:examples=omarchy menu select Format jpg png|omarchy-menu-select Resolution 4k 1080p 720p -- --width 400|omarchy-menu-select Pick a b -- --expect '?'
 
 # An option may lead with an icon, as "<glyph><TAB><label>", and may trail a
 # subtext shown under the label, as "<glyph><TAB><label><TAB><subtext>". The
 # menu shows the glyph but never returns it. A plain option returns the label
 # alone; an option with a subtext returns "<label><TAB><subtext>", so callers
 # with same-named rows get the subtext back as the stable key.
+#
+# --expect KEY, like fzf's, lets a typed character close the menu as well as
+# Enter. A caller that passes it gets two lines back: the key that closed the
+# menu (empty for Enter), then the selection.
 
 set -euo pipefail
 
@@ -25,6 +29,7 @@ shift
 options=()
 menu_width=""
 menu_maxheight=""
+expect_keys=()
 
 while (( $# > 0 )); do
   if [[ $1 == "--" ]]; then
@@ -47,6 +52,14 @@ while (( $# > 0 )); do
             exit 1
           fi
           menu_maxheight="$1"
+          ;;
+        --expect)
+          shift
+          if (( $# == 0 )); then
+            echo "omarchy-menu-select: --expect requires a key" >&2
+            exit 1
+          fi
+          expect_keys+=("$1")
           ;;
       esac
       shift
@@ -73,6 +86,7 @@ rm -f "$done_file"
 trap 'rm -f "$selection_file" "$done_file"' EXIT
 
 options_json=$(perl -MEncode=decode -MJSON::PP=encode_json -e 'print encode_json([map { decode("UTF-8", $_) } @ARGV])' "${options[@]}")
+expect_json=$(perl -MEncode=decode -MJSON::PP=encode_json -e 'print encode_json([map { decode("UTF-8", $_) } @ARGV])' "${expect_keys[@]}")
 payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
   my $payload = {
     mode => "select",
@@ -83,8 +97,10 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
   };
   $payload->{width} = int($ARGV[4]) if length($ARGV[4] // "");
   $payload->{maxHeight} = int($ARGV[5]) if length($ARGV[5] // "");
+  my $expect_keys = decode_json($ARGV[6]);
+  $payload->{expectKeys} = $expect_keys if @$expect_keys;
   print encode_json($payload)
-' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight")
+' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$expect_json")
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null
 
