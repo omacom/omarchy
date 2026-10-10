@@ -68,6 +68,27 @@ Panel {
   readonly property string connectionPhrase: connectionPhrases[connectionPhraseIndex % connectionPhrases.length]
   readonly property bool networkManagerAvailable: Networking.backend === NetworkBackendType.NetworkManager
   readonly property var networkDevices: Networking.devices ? Networking.devices.values : []
+  // Observe native device state independently of route-derived kind, which
+  // may still describe the previous link while the panel is closed.
+  readonly property string routeConnectionKey: networkDevices.map(function(device) {
+    return device.name + ":" + device.connected
+  }).join("|")
+  property int detailsGeneration: 0
+  property int detailsRequest: 0
+
+  onRouteConnectionKeyChanged: {
+    detailsGeneration += 1
+    info = ({})
+    Qt.callLater(pollDetails)
+  }
+
+  function pollDetails() {
+    if (detailsProc.running) return
+    detailsRequest = detailsGeneration
+    detailsProc.command = opened ? ["omarchy-network-status", "--verbose"] : ["omarchy-network-status", "--verbose", "--no-ping"]
+    detailsProc.running = true
+  }
+
   readonly property var wifiDevice: findDevice(DeviceType.Wifi)
   readonly property var wifiNetworkObjects: wifiDevice && wifiDevice.networks ? wifiDevice.networks.values : []
   readonly property var connectedWifiNetwork: findConnectedWifiNetwork()
@@ -436,11 +457,15 @@ Panel {
     connectDirectly(net.ssid)
   }
 
-  // Bar pill state, derived from the native NetworkManager service so the
-  // icon reflects connection changes without polling. Wired is preferred
-  // when both are up, matching the default-route device.
+  // Bar pill state follows the selected uplink, with native NetworkManager
+  // state as a fallback until route/details polling returns.
   readonly property var wiredDevice: findDevice(DeviceType.Wired)
   readonly property string kind: {
+    // Prefer route-based status: Clash TUN can look like "wired" to NM while
+    // the main-table uplink is Wi-Fi (#13525).
+    if (info.type === "wifi") return "wifi"
+    if (info.type === "ethernet") return "ethernet"
+    if (info.type === "vpn") return "vpn"
     if (wiredDevice && wiredDevice.connected) return "ethernet"
     if (connectedWifiNetwork) return "wifi"
     // NetworkManager can leave the active profile out of the device's
@@ -571,7 +596,7 @@ Panel {
   function refresh(scanWifi) {
     checkConnectivity()
     if (scanWifi === undefined) scanWifi = false
-    if (!detailsProc.running) detailsProc.running = true
+    pollDetails()
     if (!dnsProc.running) {
       dnsProc.command = ["bash", "-c", root.dnsCommand("")]
       dnsProc.running = true
@@ -911,9 +936,15 @@ Panel {
   Process {
     id: detailsProc
     command: ["omarchy-network-status", "--verbose"]
+    onExited: {
+      // A connection change during this read queued a replacement sample.
+      if (root.detailsRequest !== root.detailsGeneration) Qt.callLater(root.pollDetails)
+    }
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.updateDetails(text)
+      onStreamFinished: {
+        if (root.detailsRequest === root.detailsGeneration) root.updateDetails(text)
+      }
     }
   }
 
@@ -1009,14 +1040,14 @@ Panel {
     }
   }
 
-  // Poll details while the panel is open so the IP/route header catches up
-  // as soon as NetworkManager finishes activating a connection.
+  // Poll slowly without pings while closed to catch route changes between connected devices,
+  // and faster while open to keep the IP/route header current.
   Timer {
     id: detailsPoll
-    interval: 1500
+    interval: root.opened ? 1500 : 30000
     repeat: true
-    running: root.opened
-    onTriggered: if (!detailsProc.running) detailsProc.running = true
+    running: true
+    onTriggered: root.pollDetails()
   }
 
   Timer {
@@ -1314,6 +1345,7 @@ Panel {
               if (root.kind === "wifi" && root.connectedWifiNetwork) return root.connectedWifiNetwork.name || "Wi-Fi"
               if (root.info.type === "wifi") return root.info.ssid || "Wi-Fi"
               if (root.info.type === "ethernet") return "Ethernet"
+              if (root.info.type === "vpn" || root.kind === "vpn") return root.info.iface || "VPN"
               return root.info.iface || (root.kind === "disconnected" ? "Disconnected" : "No connection")
             }
             readonly property string detail: root.headerDetail()
@@ -1339,6 +1371,7 @@ Panel {
                 return ""
               }
               if (root.info.type === "ethernet") return root.connectionPhrase.toUpperCase()
+              if (root.info.type === "vpn" || root.kind === "vpn") return "TUNNELING"
               if (root.kind === "disconnected") return "NOT CONNECTED"
               return ""
             }

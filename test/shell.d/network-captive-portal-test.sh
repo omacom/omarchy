@@ -33,6 +33,7 @@ for (const state of ['full', 'unknown', 'none', undefined]) {
     assertEqual(network.connectionIcon('wifi', signal, state), network.wifiIconFor(signal), `${state} preserves Wi-Fi strength ${signal}`)
   }
   assertEqual(network.connectionIcon('ethernet', -1, state), '󰈀', `${state} preserves the Ethernet icon`)
+  assertEqual(network.connectionIcon('vpn', -1, state), '󰖂', `${state} preserves the VPN icon`)
 }
 const url = new URL(network.captivePortalUrl)
 assertEqual(url.protocol, 'http:', 'browser entry point uses plain HTTP so a portal can intercept it')
@@ -65,6 +66,8 @@ source = source.replace('  id: root', `  id: root
   property alias testKeys: keyCatcher
   property alias testMeta: heroMeta
   property alias testTitle: heroSsid
+  property alias testDetailsPoll: detailsPoll
+  property alias testDetailsProc: detailsProc
   property alias testPoll: connectivityPoll
   property alias testBarButton: button`)
 fs.writeFileSync(`${stage}/network/Panel.qml`, source)
@@ -74,9 +77,15 @@ chmod +x "$stage/bin/noop"
 for command in omarchy-dns omarchy-network-band; do
   ln -s noop "$stage/bin/$command"
 done
-# Preview uses only synthetic details, never the host's SSID or addresses.
-# Normal assertions keep the details empty to exercise missing-route handling.
-printf '#!/bin/bash\nif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then\n  printf "type\\twifi\\niface\\ttest-wifi\\nssid\\tGuest Wi-Fi\\nip\\t192.0.2.10\\ngateway\\t192.0.2.1\\n"\nfi\n' > "$stage/bin/omarchy-network-status"
+# Preview and route-switch assertions use synthetic details only.
+cat > "$stage/bin/omarchy-network-status" <<'SH'
+#!/bin/bash
+if [[ -f $NETWORK_TEST_ROUTE_FILE ]]; then
+  printf 'type\tethernet\niface\ttest-ethernet\n'
+elif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then
+  printf 'type\twifi\niface\ttest-wifi\nssid\tGuest Wi-Fi\nip\t192.0.2.10\ngateway\t192.0.2.1\n'
+fi
+SH
 chmod +x "$stage/bin/omarchy-network-status"
 printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$NETWORK_TEST_BROWSER_LOG"\n' > "$stage/bin/omarchy-launch-browser"
 chmod +x "$stage/bin/omarchy-launch-browser"
@@ -84,7 +93,7 @@ chmod +x "$stage/bin/omarchy-launch-browser"
 # All networking and external actions are mocked; the real connection and
 # browser are never touched, and the fixture writes only to its scratch HOME.
 output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
-  NETWORK_TEST_BROWSER_LOG="$stage/browser.log" \
+  NETWORK_TEST_BROWSER_LOG="$stage/browser.log" NETWORK_TEST_ROUTE_FILE="$stage/route" \
   timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "network portal fixture exits cleanly" "$output"
 [[ $output == *"RESULT pass"* ]] || fail "network portal runtime assertions pass" "$output"
 if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<< "$output"; then

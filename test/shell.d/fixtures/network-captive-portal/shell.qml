@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Networking
 import qs.Commons
 import qs.Commons as Commons
@@ -125,6 +126,54 @@ ShellRoot {
   function disconnectedChecks() {
     check(panel.kind === "disconnected" && !panel.hasCaptivePortal, "disconnect clears stale portal")
     check(!panel.testButton.visible && panel.icon === "󰤮", "disconnected icon not portal icon")
+    NetworkMock.network.connected = true
+    NetworkMock.wifi.connected = true
+    NetworkMock.connectivity = NetworkConnectivity.Full
+    NetworkMock.devices = ({ values: [NetworkMock.wifi, NetworkMock.ethernet] })
+    routeReady.start()
+  }
+
+  Timer {
+    id: routeReady
+    interval: 100
+    onTriggered: {
+      if (panel.testDetailsProc.running) { restart(); return }
+      panel.info = ({ type: "wifi", iface: "test-wifi" })
+      test.check(!panel.opened && panel.kind === "wifi", "closed panel starts on Wi-Fi")
+      routeSwitch.running = true
+    }
+  }
+
+  Process {
+    id: routeSwitch
+    command: ["touch", Quickshell.env("NETWORK_TEST_ROUTE_FILE")]
+    onExited: {
+      test.check(NetworkMock.wifi.connected && NetworkMock.ethernet.connected, "both links remain connected")
+      test.check(panel.testDetailsPoll.running && panel.testDetailsPoll.interval === 30000, "closed details timer stays active at slow interval")
+      panel.testDetailsPoll.triggered()
+      routeUpdated.start()
+    }
+  }
+
+  Timer {
+    id: routeUpdated
+    interval: 100
+    onTriggered: {
+      if (panel.testDetailsProc.running) { restart(); return }
+      test.check(!panel.opened && panel.kind === "ethernet" && panel.icon === "󰈀", "closed timer refreshes route kind and bar icon")
+      NetworkMock.devices = ({ values: [NetworkMock.wifi] })
+      panel.info = ({})
+      routeCleanup.running = true
+    }
+  }
+
+  Process {
+    id: routeCleanup
+    command: ["rm", "-f", Quickshell.env("NETWORK_TEST_ROUTE_FILE")]
+    onExited: test.finishChecks()
+  }
+
+  function finishChecks() {
     if (failed) { Qt.quit(); return }
     console.log("RESULT pass")
     var preview = Quickshell.env("NETWORK_TEST_PREVIEW")
