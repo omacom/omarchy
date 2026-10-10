@@ -4,6 +4,9 @@
 # omarchy:hidden=true
 
 CONFIG_FILE="$HOME/.config/omarchy/shell.json"
+if [[ -L $CONFIG_FILE ]]; then
+  CONFIG_FILE=$(readlink -f -- "$CONFIG_FILE")
+fi
 DEFAULTS_FILE="$OMARCHY_PATH/config/omarchy/shell.json"
 
 fail() {

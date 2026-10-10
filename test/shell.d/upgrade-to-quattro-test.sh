@@ -61,10 +61,10 @@ if grep -F '"$root/bin/omarchy-done"' "$upgrade_to_quattro" >/dev/null; then
 fi
 pass "Omarchy 4 upgrade writes completion markers without the packaged omarchy-done"
 
-for guarded_step in omarchy-refresh-applications 'omarchy-bar defaults'; do
-  grep -F "run_as_user_omarchy $guarded_step ||" "$upgrade_to_quattro" >/dev/null ||
-    fail "Omarchy 4 upgrade survives a packaged tree without $guarded_step"
-done
+grep -F 'run_as_user_omarchy omarchy-refresh-applications ||' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade survives a missing application refresh command"
+grep -F 'if run_as_user_omarchy omarchy-bar defaults --preserve-layout; then' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade retains pending bar initialization when the packaged command is missing"
 pass "Omarchy 4 upgrade survives a packaged tree missing top-level commands"
 
 grep -F 'configure_snapper_policy' "$upgrade_to_quattro" >/dev/null
@@ -231,7 +231,7 @@ pass "Omarchy 4 upgrade reports an aborted run instead of exiting silently"
   fail "Omarchy 4 upgrade leaves the retired session processes running until reboot"
 pass "Omarchy 4 upgrade leaves the Omarchy 3 session alone until the reboot"
 
-grep -F 'omarchy-bar defaults' "$upgrade_to_quattro" >/dev/null
+grep -F 'omarchy-bar defaults --preserve-layout' "$upgrade_to_quattro" >/dev/null
 pass "Omarchy 4 upgrade restores service-aware bar defaults"
 
 grep -F 'install_hardware_transition_packages' "$upgrade_to_quattro" >/dev/null

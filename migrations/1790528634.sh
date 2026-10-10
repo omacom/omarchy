@@ -2,6 +2,9 @@ echo "Move Elsewhen, the world clock, into Omarchy as omarchy.elsewhen"
 
 # The widget keeps its entry, and with it the cities and settings stored there.
 config_file="$HOME/.config/omarchy/shell.json"
+if [[ -L $config_file ]]; then
+  config_file=$(readlink -f -- "$config_file")
+fi
 if [[ -s $config_file ]]; then
   tmp=$(mktemp)
   jq '
