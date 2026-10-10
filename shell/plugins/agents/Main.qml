@@ -123,6 +123,7 @@ Item {
 
   property int refreshIntervalSec: Math.max(30, Number(setting("refreshIntervalSec", 900)))
   property string pendingUpdateKind: ""
+  property var pendingUpdateAgentIds: null
 
   // A fifteen-minute interval can't catch an account crossing its switch
   // threshold, so while any provider with several accounts has its active one
@@ -160,8 +161,10 @@ Item {
       root.reloadRecords()
       if (root.pendingUpdateKind !== "") {
         var kind = root.pendingUpdateKind
+        var agentIds = root.pendingUpdateAgentIds
         root.pendingUpdateKind = ""
-        root.runUpdate(kind)
+        root.pendingUpdateAgentIds = null
+        root.runUpdate(kind, agentIds)
       }
     }
 
@@ -179,7 +182,7 @@ Item {
     for (var id in providers) {
       if (providers[id] && providers[id].enabled === false) command.push("--except", id)
     }
-    if (agentIds) {
+    if (agentIds && agentIds.length > 0) {
       for (var i = 0; i < agentIds.length; i++) command.push(agentIds[i])
     }
     return command
@@ -189,7 +192,10 @@ Item {
     if (updateProcess.running) {
       // Collapse queued requests to one full rerun; a forced refresh outranks
       // the cheaper kinds it might have been queued behind.
-      if (kind === "force" || root.pendingUpdateKind === "") root.pendingUpdateKind = kind
+      if (kind === "force" || root.pendingUpdateKind === "") {
+        root.pendingUpdateKind = kind
+        root.pendingUpdateAgentIds = agentIds || null
+      }
       return
     }
     updateProcess.command = updateCommand(kind, agentIds)

@@ -34,6 +34,7 @@ assert(/if \(!accounts\[a\]\.active\) \{/.test(panelSource) && /if \(row\.length
 assert(/text: section\.provider \? String\(section\.provider\.authHelpText \|\| section\.provider\.usageStatusText \|\| ""\) : ""/.test(panelSource), 'the trouble line falls back to the usage status when a record has no auth help')
 const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
 assert(/var from = Math\.min\(0\.8, \(threshold - 15\) \/ 100\)/.test(mainSource), 'faster checks start 15 points below the switch threshold')
+assert(/root\.pendingUpdateAgentIds = agentIds \|\| null/.test(mainSource) && /root\.runUpdate\(kind, agentIds\)/.test(mainSource), 'queued retries preserve targeted agent ids')
 assert(/rows\.push\(\[\{ kind: "provider", index: p \}\]\)/.test(panelSource), "every agent's header is a keyboard stop")
 assert(/reorderable: root\.addStage === "" && !root\.renaming/.test(panelSource) && /onEditingChanged: root\.renaming = editing/.test(panelSource) && /onReorderRequested: function\(dy\) \{ root\.reorderProvider\(dy\) \}/.test(panelSource), 'Ctrl+Up/Down moves the agent the cursor is in')
 assert(/onReleased: root\.dropProvider\(\)/.test(panelSource), 'an agent can be dragged by its mark')
