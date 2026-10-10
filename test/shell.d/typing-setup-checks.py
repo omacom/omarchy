@@ -63,6 +63,23 @@ class TypingSetupTest(unittest.TestCase):
           typing.save_inputs(["mozc"])
       self.assertFalse((Path(temporary) / "fontconfig/conf.d/50-omarchy-input-method.conf").exists())
 
+  def test_an_engine_installed_after_fcitx_started_loads_on_selection(self):
+    group = ("Default", "us", [["keyboard-us", ""]])
+    present = subprocess.CompletedProcess([], 0)
+    with patch.object(typing.setup, "live_group", return_value=group), patch.object(typing.setup, "available_methods", return_value=[]), patch.object(typing.subprocess, "run", return_value=present), patch.object(typing.setup, "run") as run, patch.object(typing.setup, "wait_ready") as ready, patch.object(typing, "set_inputs") as save, patch.object(typing.setup, "font_default"):
+      typing.save_inputs(["mozc"])
+    run.assert_called_once_with(["omarchy-restart-xcompose"])
+    ready.assert_called_once_with("mozc")
+    self.assertEqual(save.call_args.args[3], [["keyboard-us", ""], ["mozc", ""]])
+
+  def test_an_uninstalled_engine_names_its_package_without_restarting(self):
+    absent = subprocess.CompletedProcess([], 1)
+    with patch.object(typing.setup, "live_group", return_value=("Default", "us", [["keyboard-us", ""]])), patch.object(typing.setup, "available_methods", return_value=[]), patch.object(typing.subprocess, "run", return_value=absent), patch.object(typing.setup, "run") as run, patch.object(typing, "set_inputs") as save:
+      with self.assertRaisesRegex(RuntimeError, "Install fcitx5-mozc to use Japanese"):
+        typing.save_inputs(["mozc"])
+    run.assert_not_called()
+    save.assert_not_called()
+
   def test_failed_font_write_restores_the_input_group(self):
     before = [["keyboard-us", ""]]
     with patch.object(typing.setup, "live_group", return_value=("Default", "us", before)), patch.object(typing.setup, "available_methods", return_value=[["mozc", "Mozc"]]), patch.object(typing, "set_inputs"), patch.object(typing.setup, "font_default", side_effect=OSError("read-only")), patch.object(typing.setup, "live_set") as setter:

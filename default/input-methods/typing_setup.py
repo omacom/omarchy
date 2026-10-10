@@ -106,12 +106,27 @@ def configure_inputs():
   choose("Input Methods", catalog, current, "input", dict(items))
 
 
+def load_engines(names, catalog):
+  packages = sorted({package for name in names for package in setup.PRESETS.get(name, {}).get("packages", [])})
+  absent = [package for package in packages
+            if subprocess.run(["omarchy-pkg-present", package], capture_output=True).returncode]
+  if absent or any(name not in setup.PRESETS for name in names):
+    labels = ", ".join(catalog.get(name, name) for name in names)
+    raise RuntimeError(f"Install {' '.join(absent) or 'its engine'} to use {labels}")
+  # Fcitx discovers engines only at startup, so one installed while it was
+  # running (by an update, say) needs a restart before it can be selected.
+  setup.run(["omarchy-restart-xcompose"])
+  for name in names:
+    setup.wait_ready(name)
+
+
 def save_inputs(selected, overrides=None):
   group, layout, items = setup.live_group()
   catalog, available = input_catalog(items)
-  missing = [catalog.get(name, name) for name in selected if name not in available]
+  missing = [name for name in selected if name not in available]
   if missing:
-    raise RuntimeError("Restart input after updating Omarchy to use: " + ", ".join(missing))
+    load_engines(missing, catalog)
+    group, layout, items = setup.live_group()
   set_inputs(group, layout, items, input_items(items, selected, overrides))
   # Only a saved engine claims the CJK font fallback, and a failed font write
   # returns the group so the menu's restored checks stay true.
