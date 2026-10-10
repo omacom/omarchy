@@ -1,30 +1,41 @@
-# Fix NVMe suspend issues on MacBook models
-# This prevents NVMe drives from failing to wake from sleep properly
-MACBOOK_MODEL=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
+# Fix NVMe suspend issues on MacBook models. Resolve controllers through the
+# NVMe class instead of assuming a PCI address: 0000:01:00.0 is the Radeon on
+# MacBookPro13,3, so the old fixed path disabled D3cold on the GPU and left the
+# actual NVMe controller unchanged.
+product_file="${OMARCHY_MACBOOK_DMI_PRODUCT:-/sys/class/dmi/id/product_name}"
+product_name=$(cat "$product_file" 2>/dev/null || true)
 
-if [[ $MACBOOK_MODEL =~ MacBook(8,1|9,1|10,1)|MacBookPro13,[123]|MacBookPro14,[123] ]]; then
-  echo "Detected MacBook model: $MACBOOK_MODEL"
+if [[ $product_name =~ ^MacBook(8,1|9,1|10,1)$|^MacBookPro1[34],[123]$ ]]; then
+  helper_source="$OMARCHY_INSTALL/hardware/apple/macbook-nvme-suspend"
+  helper_target="${OMARCHY_MACBOOK_NVME_HELPER:-/etc/omarchy/hardware/macbook-nvme-suspend}"
+  unit_file="${OMARCHY_MACBOOK_NVME_UNIT:-/etc/systemd/system/omarchy-nvme-suspend-fix.service}"
+  root_setting=$("$helper_source" --print-target)
 
-  NVME_DEVICE="/sys/bus/pci/devices/0000:01:00.0/d3cold_allowed"
+  if [[ -z $root_setting ]]; then
+    echo "No unambiguous NVMe root controller; skipping the MacBook NVMe suspend fix"
 
-  if [[ -f $NVME_DEVICE ]]; then
-    echo "Applying NVMe suspend fix..."
-
-    sudo mkdir -p /etc/systemd/system
-    sudo tee /etc/systemd/system/omarchy-nvme-suspend-fix.service >/dev/null <<'EOF'
-[Unit]
-Description=Omarchy NVMe Suspend Fix for MacBook
-
-[Service]
-ExecStart=/bin/bash -c 'echo 0 > /sys/bus/pci/devices/0000\:01\:00.0/d3cold_allowed'
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    sudo systemctl enable omarchy-nvme-suspend-fix.service
+    if [[ -f $unit_file ]]; then
+      sudo systemctl disable --now omarchy-nvme-suspend-fix.service
+      sudo mv -f "$unit_file" "$unit_file.disabled-non-nvme-root"
+      sudo systemctl daemon-reload
+    fi
   else
-    echo "Warning: NVMe device not found at expected PCI address (0000:01:00.0)"
-    echo "This fix may not be needed for this MacBook model"
+    echo "Detected $product_name with an NVMe root controller; disabling D3cold"
+
+    sudo install -D -m 0755 "$helper_source" "$helper_target"
+    {
+      echo '[Unit]'
+      echo 'Description=Omarchy NVMe Suspend Fix for MacBook'
+      echo
+      echo '[Service]'
+      echo 'Type=oneshot'
+      echo "ExecStart=$helper_target"
+      echo
+      echo '[Install]'
+      echo 'WantedBy=multi-user.target'
+    } | sudo tee "$unit_file" >/dev/null
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now omarchy-nvme-suspend-fix.service
   fi
 fi
