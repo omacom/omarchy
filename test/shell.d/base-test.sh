@@ -36,6 +36,15 @@ shell_ipc_socket() {
   printf '%s/omarchy-shell-%s.sock\n' "${XDG_RUNTIME_DIR:-/run/user/$UID}" "${id:0:16}"
 }
 
+# Quickshell exits on SIGTERM without reaping its children, so a test starts it
+# under setsid and stops the whole group, or its inotifywait outlives the test.
+stop_process_group() {
+  local pid="$1"
+
+  kill -- "-$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+}
+
 require_command() {
   local command="$1"
 

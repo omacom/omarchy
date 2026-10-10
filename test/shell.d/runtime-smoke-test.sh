@@ -8,9 +8,8 @@ TMPDIR=""
 QS_PID=""
 
 cleanup() {
-  if [[ -n $QS_PID ]] && kill -0 "$QS_PID" 2>/dev/null; then
-    kill "$QS_PID" 2>/dev/null || true
-    wait "$QS_PID" 2>/dev/null || true
+  if [[ -n $QS_PID ]]; then
+    stop_process_group "$QS_PID"
   fi
   [[ -n ${test_root:-} ]] && rm -f "$(shell_ipc_socket "$test_root")"
   [[ -n $TMPDIR && -d $TMPDIR ]] && rm -rf "$TMPDIR"
@@ -337,7 +336,7 @@ XDG_CONFIG_HOME="$test_home/.config" \
 XDG_CACHE_HOME="$test_home/.cache" \
 XDG_STATE_HOME="$test_home/.local/state" \
 PATH="$stub_bin:$ROOT/bin:$PATH" \
-  quickshell -p "$test_root/shell" --no-color >"$log" 2>&1 &
+  setsid quickshell -p "$test_root/shell" --no-color >"$log" 2>&1 &
 QS_PID=$!
 
 for _ in {1..80}; do
