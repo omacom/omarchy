@@ -44,16 +44,60 @@ case "$bin" in
   *) bin_arg="\"$bin\"" ;;
 esac
 
-# These tools install and upgrade on first run, so mise's release cooldown would
-# hold a new version back for days after it ships. Exported rather than set on
-# the install line alone, so resolving the version to execute agrees with the
-# one just installed.
-rm -f "$HOME/.local/bin/$command"
-cat >"$HOME/.local/bin/$command" <<EOF
+target="$HOME/.local/bin/$command"
+
+# True only for a wrapper this command wrote, whole and unedited, in one of the
+# forms it has had. Updates rerun the installs, so anything else is left alone,
+# including the escaped wrapper an exotic package name gets.
+omarchy_wrapper() {
+  local use run package bin form
+  local word='^"[^"$`\\!]*"$' nl=$'\n' args='"$@"'
+
+  [[ -f $1 ]] || return 1
+  (($(stat -c%s "$1") <= 1024)) || return 1
+
+  use=$(grep -m1 '^mise use -g ' "$1") || return 1
+  run=$(grep -m1 '^exec ' "$1") || return 1
+
+  package=${use#mise use -g }
+  package=${package#--quiet }
+  package=${package% || exit 1}
+  bin=${run#exec }
+  bin=${bin% "$args"}
+  bin=${bin#mise x "$package" -- }
+  bin=${bin#mise exec "$package" -- }
+
+  [[ $package =~ $word && $bin =~ $word ]] || return 1
+
+  for form in \
+    "export MISE_MINIMUM_RELEASE_AGE=0${nl}mise use -g --quiet $package || exit 1${nl}exec mise x $package -- $bin $args" \
+    "export MISE_MINIMUM_RELEASE_AGE=0${nl}mise use -g $package || exit 1${nl}exec mise x $package -- $bin $args" \
+    "mise use -g $package || exit 1${nl}exec mise x $package -- $bin $args" \
+    "mise use -g $package${nl}exec mise exec $package -- $bin $args" \
+    "mise use -g $package${nl}exec $bin $args"; do
+    # Compared as bytes, since reading the file into a variable would drop NULs.
+    if cmp -s "$1" <(printf '#!/bin/bash\n%s\n' "$form"); then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+if [[ -e $target && ! -L $target ]] && ! omarchy_wrapper "$target"; then
+  echo "omarchy-mise-install: leaving $target alone, it is not a wrapper Omarchy wrote" >&2
+else
+  # These tools install and upgrade on first run, so mise's release cooldown
+  # would hold a new version back for days after it ships. Exported rather than
+  # set on the install line alone, so resolving the version to execute agrees
+  # with the one just installed.
+  rm -f "$target"
+  cat >"$target" <<EOF
 #!/bin/bash
 export MISE_MINIMUM_RELEASE_AGE=0
 mise use -g --quiet $package_arg || exit 1
 exec mise x $package_arg -- $bin_arg "\$@"
 EOF
 
-chmod +x "$HOME/.local/bin/$command"
+  chmod +x "$target"
+fi
