@@ -119,11 +119,30 @@ HOME="$TMPDIR" PATH="$browser_bin:$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT"
 
 refreshed=$(sort "$refresh_log" | tr '\n' ' ')
 # Chrome running as plain google-chrome is refreshed through that name; Edge is
-# installed but not running; brave-origin matches on its binary path, and the
-# running "brave" process refreshes plain brave too.
-[[ $refreshed == "brave brave-origin chromium google-chrome " ]] ||
+# installed but not running; Brave Origin runs as plain "brave" and matches on
+# its binary path, so plain Brave, installed but not running, is left alone.
+[[ $refreshed == "brave-origin chromium google-chrome " ]] ||
   fail "setter refreshes exactly the running browsers (got: $refreshed)"
 pass "setter refreshes exactly the running browsers"
+
+# Plain Brave is refreshed when its own executable is running.
+cat >"$browser_bin/ps" <<'FAKE'
+#!/bin/bash
+printf '%s\n' \
+  'brave /opt/brave-bin/brave --type=renderer' \
+  'bash bash -c ls /opt/brave-origin-bin/brave'
+FAKE
+chmod +x "$browser_bin/ps"
+rm -f "$refresh_log"
+HOME="$TMPDIR" PATH="$browser_bin:$TMP_BIN:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp" CALL_LOG="$CALL_LOG" REFRESH_LOG="$refresh_log" BROWSER_BIN="$browser_bin" \
+  bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null
+
+refreshed=$(sort "$refresh_log" | tr '\n' ' ')
+# A command line merely naming Brave Origin's path is not Brave Origin.
+[[ $refreshed == "brave " ]] ||
+  fail "setter refreshes plain Brave on its executable (got: $refreshed)"
+pass "setter refreshes plain Brave on its executable"
 
 grep -q '<&0 &$' "$ROOT/bin/omarchy-theme-set-browser" ||
   fail "setter keeps stdin for the backgrounded policy writer"

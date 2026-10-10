@@ -58,11 +58,10 @@ policy_pid=$!
 
 # While the policy writes, find the running browsers with one process table
 # read. A pgrep per browser rescans /proc each time, ~40ms apiece.
-declare -A running_names=()
-running_args=""
-while read -r name args; do
+declare -A running_names=() running_executables=()
+while read -r name executable _; do
   running_names[$name]=1
-  running_args+="$args"$'\n'
+  running_executables[$executable]=1
 done < <(ps -eo comm=,args=)
 
 # Chrome installs as either binary name, so take whichever exists.
@@ -70,12 +69,14 @@ chrome=google-chrome-stable
 omarchy-cmd-present "$chrome" || chrome=google-chrome
 
 browsers_to_refresh=()
-for browser in chromium:chromium "chrome:$chrome" msedge:microsoft-edge-stable brave:brave; do
+for browser in chromium:chromium "chrome:$chrome" msedge:microsoft-edge-stable; do
   [[ -n ${running_names[${browser%%:*}]:-} ]] && omarchy-cmd-present "${browser#*:}" && browsers_to_refresh+=("${browser#*:}")
 done
-# Match on the binary path: the running process is named plain "brave", and a
-# bare brave-origin pattern would also match the installer's own terminal.
-[[ $running_args == *"/opt/brave-origin-bin/"* ]] && omarchy-cmd-present brave-origin && browsers_to_refresh+=(brave-origin)
+# Match Brave on the executable: Brave and Brave Origin both run as plain
+# "brave", and a pattern on the whole command line also matches the installer's
+# own terminal.
+[[ -n ${running_executables[/opt/brave-bin/brave]:-} ]] && omarchy-cmd-present brave && browsers_to_refresh+=(brave)
+[[ -n ${running_executables[/opt/brave-origin-bin/brave]:-} ]] && omarchy-cmd-present brave-origin && browsers_to_refresh+=(brave-origin)
 
 wait "$policy_pid" || failed=1
 
