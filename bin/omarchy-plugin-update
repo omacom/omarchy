@@ -40,12 +40,17 @@ update_one() {
   local id="$1"
   local dir="$PLUGINS_DIR/$id"
 
-  if ! git -C "$dir" fetch --quiet origin HEAD; then
+  # A plugin added with --branch records that ref; every other plugin follows
+  # whatever the remote's default branch is now, even if it was renamed.
+  local ref
+  ref=$(git -C "$dir" config --get omarchy.ref) || ref="HEAD"
+
+  if ! git -C "$dir" fetch --quiet origin "$ref"; then
     echo "omarchy-plugin-update: fetch failed for '$id'" >&2
     return 1
   fi
 
-  if [[ $(git -C "$dir" rev-parse HEAD) == $(git -C "$dir" rev-parse FETCH_HEAD) ]]; then
+  if [[ $(git -C "$dir" rev-parse HEAD) == $(git -C "$dir" rev-parse 'FETCH_HEAD^{commit}') ]]; then
     echo "$id is up to date."
     return 0
   fi
