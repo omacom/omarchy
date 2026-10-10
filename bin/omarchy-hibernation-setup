@@ -83,7 +83,7 @@ if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; 
 fi
 
 if ! $FORCE; then
-  MEM_TOTAL_HUMAN=$(free --human | awk '/Mem/ {print $2}')
+  MEM_TOTAL_HUMAN=$(LC_ALL=C free --human | awk '/Mem/ {print $2}')
   if ! gum confirm "Use $MEM_TOTAL_HUMAN on boot drive to make hibernation available?"; then
     exit 0
   fi
