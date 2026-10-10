@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Handle Thunderbolt device approval review
+
+set -euo pipefail
+source "$OMARCHY_PATH/install/helpers/thunderbolt-policy.sh"
+source "$OMARCHY_PATH/install/helpers/thunderbolt-review.sh"
+[[ $# == 1 ]] || exit 64
+tb_review "$1"

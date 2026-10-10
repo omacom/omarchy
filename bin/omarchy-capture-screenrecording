@@ -2,7 +2,7 @@
 
 # omarchy:summary=Start or stop screen recording
 # omarchy:group=capture
-# omarchy:args=[--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording]
+# omarchy:args=[--fullscreen] [--with-desktop-audio] [--with-microphone-audio] [--with-webcam] [--webcam-device=<device>] [--webcam-size=<small|medium|large>] [--resolution=<size>] [--stop-recording] [--status]
 # omarchy:examples=omarchy screenrecord | omarchy capture screenrecording --with-desktop-audio
 # omarchy:aliases=omarchy screenrecord
 #
@@ -14,18 +14,19 @@
 # DMA-BUF modifier import on some configurations, leaving recording unable to
 # start.
 #
-# Env: OMARCHY_SCREENRECORD_DEBUG=true appends gpu-screen-recorder's stderr (and
-# the picker target it was launched with) to
-# $XDG_RUNTIME_DIR/omarchy-screenrecord.log so users can attach a log when
-# reporting capture failures.
+# Env: OMARCHY_SCREENRECORD_DEBUG=true appends the recorder's stderr (and the
+# picker target it was launched with) to $XDG_RUNTIME_DIR/omarchy-screenrecord.log
+# so users can attach a log when reporting capture failures.
+#
+# Backend: gpu-screen-recorder. Where it is not installed, or it exits before
+# the recording starts (it knows only NVIDIA, AMD, Intel and Broadcom GPUs, and
+# aborts on others such as Apple Silicon's), wf-recorder records instead when
+# it is installed. wf-recorder encodes on the CPU and captures one audio
+# device, so desktop and microphone audio together go through a temporary null
+# sink. Portal capture and --resolution are gpu-screen-recorder only.
 
 [[ -f ~/.config/user-dirs.dirs ]] && source ~/.config/user-dirs.dirs
 OUTPUT_DIR="${OMARCHY_SCREENRECORD_DIR:-${XDG_VIDEOS_DIR:-$HOME/Videos}}"
-
-if [[ ! -d $OUTPUT_DIR ]]; then
-  omarchy-notification-send -u critical -t 3000 "Screen recording directory does not exist: $OUTPUT_DIR"
-  exit 1
-fi
 
 DESKTOP_AUDIO="false"
 MICROPHONE_AUDIO="false"
@@ -35,6 +36,7 @@ WEBCAM_SIZE="medium"
 RESOLUTION=""
 FULLSCREEN="false"
 STOP_RECORDING="false"
+STATUS="false"
 # Both of these live in the per-user runtime directory, which is 0700. What
 # RECORDING_FILE holds is read back on stop and used as a path -- ffmpeg writes
 # beside it, `mv` replaces it, and `rm -f` deletes its preview -- so a name in
@@ -46,6 +48,17 @@ STOP_RECORDING="false"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}"
 RECORDING_FILE="$RUNTIME_DIR/omarchy-screenrecord-filename"
 REGION_FILE="$RUNTIME_DIR/omarchy-screenrecord-region"
+# The recorder's pid, so stop and status act on that process alone.
+REC_PID_FILE="$RUNTIME_DIR/omarchy-screenrecord-pid"
+# The PulseAudio module ids of a combined-audio null sink, for cleanup.
+PA_MODULES_FILE="$RUNTIME_DIR/omarchy-screenrecord-pa-modules"
+# Present while a start holds the lock; another toggle or stop then leaves
+# CANCEL_FILE for that start instead of queueing behind its picker or recorder.
+STARTING_FILE="$RUNTIME_DIR/omarchy-screenrecord-starting"
+CANCEL_FILE="$RUNTIME_DIR/omarchy-screenrecord-cancel"
+# How long a recorder may take to create its file, except through the portal,
+# whose picker waits on the user.
+READY_TIMEOUT_TICKS=75
 LOG_FILE=$([[ ${OMARCHY_SCREENRECORD_DEBUG:-false} == "true" ]] && echo "$RUNTIME_DIR/omarchy-screenrecord.log" || echo "/dev/null")
 
 for arg in "$@"; do
@@ -58,6 +71,7 @@ for arg in "$@"; do
   --resolution=*) RESOLUTION="${arg#*=}" ;;
   --fullscreen) FULLSCREEN="true" ;;
   --stop-recording) STOP_RECORDING="true" ;;
+  --status) STATUS="true" ;;
   esac
 done
 
@@ -68,6 +82,13 @@ small | medium | large) ;;
   exit 1
   ;;
 esac
+
+# --status only answers whether our recording runs, for the bar and the menu, so
+# it needs no recordings directory and never notifies.
+if [[ $STATUS != "true" && ! -d $OUTPUT_DIR ]]; then
+  omarchy-notification-send -u critical -t 3000 "Screen recording directory does not exist: $OUTPUT_DIR"
+  exit 1
+fi
 
 start_webcam_overlay() {
   cleanup_webcam
@@ -99,7 +120,7 @@ start_webcam_overlay() {
     '--vf=lavfi=[crop=ih*8/9:ih]' \
     --title="WebcamOverlay" --wayland-app-id="WebcamOverlay-$WEBCAM_SIZE" \
     --no-border --no-audio --no-osc --osd-level=0 \
-    --really-quiet &>/dev/null &
+    --really-quiet 9>&- &>/dev/null &
 
   # The move has to settle before gpu-screen-recorder starts, or the camera is
   # recorded sliding into its corner. Waiting for the map is what the blind
@@ -153,12 +174,132 @@ select_capture_target() {
   echo "region:${BASH_REMATCH[3]}x${BASH_REMATCH[4]}+${BASH_REMATCH[1]}+${BASH_REMATCH[2]}"
 }
 
-start_screenrecording() {
-  mkdir -p "$RUNTIME_DIR" || return 1
-  # XDG_STATE_HOME may be outside a private home; protect existing fallbacks too.
-  if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
-    chmod 700 "$RUNTIME_DIR" || return 1
+# gpu-screen-recorder first, then wf-recorder, of those installed. The base
+# packages carry gpu-screen-recorder, but an architecture may build none.
+recorder_backends() {
+  local backend found=false
+
+  for backend in gpu-screen-recorder wf-recorder; do
+    if omarchy-cmd-present "$backend"; then
+      echo "$backend"
+      found=true
+    fi
+  done
+
+  # Neither installed: fail the way a missing gpu-screen-recorder always has.
+  $found || echo gpu-screen-recorder
+}
+
+# wf-recorder records a single audio device. Map the desktop/mic flags onto one:
+# desktop -> default sink monitor, mic -> default source. When both are requested,
+# route them through a throwaway null sink so a single track carries both; the
+# module ids are saved to PA_MODULES_FILE so stop can unload them. A requested
+# source that can't be recorded is left out with a notification naming it, and
+# the recording carries whichever source remains.
+wf_audio_device() {
+  local sink="" source="" m
+  [[ $DESKTOP_AUDIO == "true" ]] && sink=$(pactl get-default-sink 2>/dev/null)
+  [[ $MICROPHONE_AUDIO == "true" ]] && source=$(pactl get-default-source 2>/dev/null)
+
+  if [[ -n $sink && -n $source ]]; then
+    if m=$(pactl load-module module-null-sink sink_name=omarchy_screenrec sink_properties=device.description=omarchy_screenrec 2>/dev/null); then
+      echo "$m" >"$PA_MODULES_FILE"
+      if m=$(pactl load-module module-loopback source="${sink}.monitor" sink=omarchy_screenrec latency_msec=20 2>/dev/null); then
+        echo "$m" >>"$PA_MODULES_FILE"
+      else
+        sink=""
+      fi
+      if m=$(pactl load-module module-loopback source="$source" sink=omarchy_screenrec latency_msec=20 2>/dev/null); then
+        echo "$m" >>"$PA_MODULES_FILE"
+      else
+        source=""
+      fi
+      if [[ -n $sink && -n $source ]]; then
+        echo "omarchy_screenrec.monitor"
+        return
+      fi
+      wf_audio_cleanup
+    else
+      # No device to mix into: desktop audio records alone, as it always has.
+      source=""
+    fi
   fi
+
+  [[ $DESKTOP_AUDIO == "true" && -z $sink ]] && wf_audio_unavailable desktop
+  [[ $MICROPHONE_AUDIO == "true" && -z $source ]] && wf_audio_unavailable microphone
+  if [[ -n $sink ]]; then
+    echo "${sink}.monitor"
+  elif [[ -n $source ]]; then
+    echo "$source"
+  fi
+}
+
+wf_audio_unavailable() {
+  omarchy-notification-send -u critical -t 5000 "Recording without $1 audio" "The $1 audio could not be added to this recording." >/dev/null 2>&1
+}
+
+wf_audio_cleanup() {
+  [[ -f $PA_MODULES_FILE ]] || return
+  # Unload in reverse so the loopbacks drop before the null sink they feed.
+  tac "$PA_MODULES_FILE" 2>/dev/null | while read -r m; do
+    [[ -n $m ]] && pactl unload-module "$m" 2>/dev/null
+  done
+  rm -f "$PA_MODULES_FILE"
+}
+
+# Launches wf-recorder for the given picker target, backgrounded, with REC_PID set.
+launch_wf_recorder() {
+  local target=$1 filename=$2
+  local geom_args=()
+
+  case $target in
+  monitor:*)
+    geom_args=(-o "${target#monitor:}")
+    ;;
+  region:*)
+    # region:WxH+X+Y (logical coords) -> wf-recorder -g "X,Y WxH" (same space).
+    [[ ${target#region:} =~ ^([0-9]+)x([0-9]+)\+(-?[0-9]+)\+(-?[0-9]+)$ ]] || return 1
+    geom_args=(-g "${BASH_REMATCH[3]},${BASH_REMATCH[4]} ${BASH_REMATCH[1]}x${BASH_REMATCH[2]}")
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+
+  local audio_args=() dev
+  dev=$(wf_audio_device)
+  [[ -n $dev ]] && audio_args=(--audio="$dev")
+
+  # -r 60 caps the framerate: capturing a 120 Hz panel at its native rate makes
+  # needlessly large files. -R 48000 keeps the AAC track at 48 kHz rather than
+  # following a sink that advertises 96 kHz into a file many players, and some
+  # speaker DSPs, play as silence.
+  wf-recorder "${geom_args[@]}" -r 60 -R 48000 "${audio_args[@]}" -f "$filename" 9>&- 2>>"$LOG_FILE" &
+  REC_PID=$!
+}
+
+start_cancelled() {
+  [[ -e $CANCEL_FILE ]]
+}
+
+# Stops a recorder this start launched: TERM, two seconds to exit, then KILL.
+end_launched_recorder() {
+  local pid=$1 waited=0 state
+  kill "$pid" 2>/dev/null
+  while (( waited++ < 20 )); do
+    state=$(<"/proc/$pid/stat") 2>/dev/null || break
+    state=${state##*) }
+    [[ ${state:0:1} != "Z" ]] || break
+    sleep 0.1
+  done
+  kill -KILL "$pid" 2>/dev/null
+  wait "$pid" 2>/dev/null
+}
+
+start_screenrecording() {
+  # A pid left by a recording that ended without a stop would otherwise hide
+  # this one from the toggle until it has started and saved its own.
+  rm -f "$REC_PID_FILE"
   local capture_args=()
   local target
 
@@ -174,6 +315,7 @@ start_screenrecording() {
     capture_args=(-w portal -s "${RESOLUTION:-$(default_resolution)}")
   else
     target=$(select_capture_target) || return 1
+    start_cancelled && return 1
 
     case $target in
     monitor:*)
@@ -187,50 +329,101 @@ start_screenrecording() {
   fi
 
   [[ $WEBCAM == "true" ]] && start_webcam_overlay "$target"
+  start_cancelled && return 1
 
   local filename="$OUTPUT_DIR/screenrecording-$(date +'%Y-%m-%d_%H-%M-%S').mp4"
-  local audio_devices=""
-  local audio_args=()
+  local backend pid=""
 
-  [[ $DESKTOP_AUDIO == "true" ]] && audio_devices+="default_output"
+  for backend in $(recorder_backends); do
+    [[ $backend == "wf-recorder" && $target == "portal" ]] && continue
+    echo "===== $(date '+%F %T') args: $* backend: $backend target: $target =====" >>"$LOG_FILE"
 
-  if [[ $MICROPHONE_AUDIO == "true" ]]; then
-    # Merge audio tracks into one - separate tracks only play one at a time in most players
-    [[ -n $audio_devices ]] && audio_devices+="|"
-    audio_devices+="default_input"
-  fi
+    if [[ $backend == "wf-recorder" ]]; then
+      launch_wf_recorder "$target" "$filename" || continue
+      pid=$REC_PID
+    else
+      local audio_devices=""
+      local audio_args=()
 
-  [[ -n $audio_devices ]] && audio_args+=(-a "$audio_devices" -ac aac)
+      [[ $DESKTOP_AUDIO == "true" ]] && audio_devices+="default_output"
 
-  echo "===== $(date '+%F %T') args: $* target: $target =====" >>"$LOG_FILE"
-  gpu-screen-recorder "${capture_args[@]}" -k auto -f 60 -fm cfr -fallback-cpu-encoding yes -o "$filename" "${audio_args[@]}" 2>>"$LOG_FILE" &
-  local pid=$!
+      if [[ $MICROPHONE_AUDIO == "true" ]]; then
+        # Merge audio tracks into one - separate tracks only play one at a time in most players
+        [[ -n $audio_devices ]] && audio_devices+="|"
+        audio_devices+="default_input"
+      fi
 
-  while kill -0 $pid 2>/dev/null && [[ ! -f $filename ]]; do
-    sleep 0.2
+      [[ -n $audio_devices ]] && audio_args+=(-a "$audio_devices" -ac aac)
+
+      gpu-screen-recorder "${capture_args[@]}" -k auto -f 60 -fm cfr -fallback-cpu-encoding yes -o "$filename" "${audio_args[@]}" 9>&- 2>>"$LOG_FILE" &
+      pid=$!
+    fi
+
+    local ticks=0
+    while kill -0 $pid 2>/dev/null && [[ ! -f $filename ]]; do
+      start_cancelled && break
+      if [[ $target != "portal" ]] && (( ++ticks > READY_TIMEOUT_TICKS )); then
+        end_launched_recorder "$pid"
+        wf_audio_cleanup
+        rm -f "$filename"
+        continue 2
+      fi
+      sleep 0.2
+    done
+
+    if start_cancelled; then
+      end_launched_recorder "$pid"
+      wf_audio_cleanup
+      rm -f "$filename"
+      return 1
+    fi
+
+    if kill -0 $pid 2>/dev/null; then
+      echo "$pid" >"$REC_PID_FILE"
+      echo "$filename" >"$RECORDING_FILE"
+      toggle_screenrecording_indicator
+      return 0
+    fi
+
+    wf_audio_cleanup
+    rm -f "$filename"
   done
 
-  if kill -0 $pid 2>/dev/null; then
-    echo "$filename" >"$RECORDING_FILE"
-    toggle_screenrecording_indicator
-  fi
+  return 1
 }
 
+# Selects the recorder this script started, by the pid it saved. A saved pid
+# that is no longer a recorder is a recording that ended without a stop, so
+# nothing of ours is recording and no other recorder is touched. Without a
+# saved pid (a recording started before the pid was saved), every recorder the
+# user runs counts, as for the bar indicator and the menu.
+select_recorder() {
+  RECORDER=()
+  [[ -f $REC_PID_FILE ]] || return 0
+
+  local pid
+  pid=$(<"$REC_PID_FILE")
+  [[ $pid =~ ^[0-9]+$ ]] && omarchy-capture-screenrecording-process --pid "$pid" || return 1
+  RECORDER=(--pid "$pid")
+}
+
+# Stops the recorder screenrecording_active selected.
 stop_screenrecording() {
-  pkill -SIGINT -f "^gpu-screen-recorder" # SIGINT required to save video properly
+  omarchy-capture-screenrecording-process "${RECORDER[@]}" --signal INT # SIGINT required to save video properly
 
   # Wait a maximum of 5 seconds to finish before hard killing
   local count=0
-  while pgrep -f "^gpu-screen-recorder" >/dev/null && ((count < 50)); do
+  while omarchy-capture-screenrecording-process "${RECORDER[@]}" && ((count < 50)); do
     sleep 0.1
     count=$((count + 1))
   done
 
   toggle_screenrecording_indicator
   cleanup_webcam
+  wf_audio_cleanup
 
-  if pgrep -f "^gpu-screen-recorder" >/dev/null; then
-    pkill -9 -f "^gpu-screen-recorder"
+  if omarchy-capture-screenrecording-process "${RECORDER[@]}"; then
+    omarchy-capture-screenrecording-process "${RECORDER[@]}" --signal KILL
     omarchy-notification-send -u critical -t 5000 "Screen recording error" "Recording process had to be force-killed. Video may be corrupted."
   else
     finalize_recording
@@ -251,10 +444,10 @@ stop_screenrecording() {
     (
       sleep 2
       rm -f "$preview"
-    ) &
+    ) 9>&- &
   fi
 
-  rm -f "$RECORDING_FILE"
+  rm -f "$RECORDING_FILE" "$REC_PID_FILE"
 }
 
 toggle_screenrecording_indicator() {
@@ -262,7 +455,14 @@ toggle_screenrecording_indicator() {
 }
 
 screenrecording_active() {
-  pgrep -f "^gpu-screen-recorder" >/dev/null
+  if select_recorder && omarchy-capture-screenrecording-process "${RECORDER[@]}"; then
+    return 0
+  else
+    if [[ -f $REC_PID_FILE ]]; then
+      wf_audio_cleanup
+    fi
+    return 1
+  fi
 }
 
 finalize_recording() {
@@ -283,7 +483,10 @@ finalize_recording() {
     # Hard-mute the first 400ms to drop the PipeWire capture-open pop (a near-clipping
     # transient around 130-200ms that a gentle fade-in can't attenuate enough), then a
     # 50ms fade avoids a click at the boundary before loudnorm normalizes the rest.
-    args+=(-af "volume=enable='lt(t,0.4)':volume=0,afade=t=in:st=0.4:d=0.05,loudnorm=I=-14:TP=-1.5:LRA=11")
+    #
+    # loudnorm declares 192 kHz output, so without -ar the AAC encoder writes
+    # 96 kHz from a 48 kHz recording.
+    args+=(-ar 48000 -af "volume=enable='lt(t,0.4)':volume=0,afade=t=in:st=0.4:d=0.05,loudnorm=I=-14:TP=-1.5:LRA=11")
   fi
 
   local processed="${latest%.mp4}-processed.mp4"
@@ -294,10 +497,66 @@ finalize_recording() {
   fi
 }
 
-if screenrecording_active; then
-  stop_screenrecording
-elif [[ $STOP_RECORDING == "true" ]]; then
-  exit 1
-else
-  start_screenrecording || cleanup_webcam
+mkdir -p "$RUNTIME_DIR" || exit 1
+# XDG_STATE_HOME may be outside a private home; protect existing fallbacks too.
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  chmod 700 "$RUNTIME_DIR" || exit 1
 fi
+
+# Serialize changes to the recorder and its files; background children close 9.
+# A busy status query stays read-only so a picker cannot stall the bar.
+{
+  if [[ $STATUS == "true" ]]; then
+    if flock -n 9; then
+      screenrecording_active
+    else
+      select_recorder && omarchy-capture-screenrecording-process "${RECORDER[@]}"
+    fi
+  else
+    # A start still in its picker or waiting on its recorder is cancelled, not
+    # queued behind: that toggle would otherwise begin another recording.
+    # The start reads CANCEL_FILE only after it removes STARTING_FILE, so a
+    # request left while STARTING_FILE stands is always seen. One that finds it
+    # gone waits its turn, and a request the start used up by then is done.
+    if ! flock -w 1 9; then
+      touch "$CANCEL_FILE"
+      # A start that was killed leaves its marker: it counts only while that
+      # start still runs.
+      starter=""
+      [[ -r $STARTING_FILE ]] && starter=$(<"$STARTING_FILE")
+      if [[ $starter =~ ^[0-9]+$ ]] && kill -0 "$starter" 2>/dev/null; then
+        exit 0
+      fi
+      flock 9 || exit 1
+      [[ -e $CANCEL_FILE ]] || exit 0
+      rm -f "$CANCEL_FILE"
+    fi
+    if screenrecording_active; then
+      stop_screenrecording
+    elif [[ $STOP_RECORDING == "true" ]]; then
+      exit 1
+    else
+      rm -f "$CANCEL_FILE"
+      echo $$ >"$STARTING_FILE"
+      if start_screenrecording; then
+        rm -f "$STARTING_FILE"
+        # Cancelled while the recording was being saved as started.
+        if start_cancelled; then
+          end_launched_recorder "$(<"$REC_PID_FILE")"
+          wf_audio_cleanup
+          cleanup_webcam
+          rm -f "$(<"$RECORDING_FILE")" "$REC_PID_FILE" "$RECORDING_FILE"
+          toggle_screenrecording_indicator
+          rm -f "$CANCEL_FILE"
+        fi
+        # A request after that check is left for its requester, who stops this
+        # recording once it has the lock.
+      else
+        rm -f "$STARTING_FILE"
+        wf_audio_cleanup
+        cleanup_webcam
+        rm -f "$CANCEL_FILE"
+      fi
+    fi
+  fi
+} 9>>"$RUNTIME_DIR/omarchy-screenrecord.lock"
