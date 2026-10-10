@@ -90,7 +90,7 @@ assert_fires() {
   shift 2
   local actual
 
-  actual=$(fire "$@")
+  actual=$(fire "$@") || fail "$description" "$actual"
   [[ $actual == "$expected" ]] ||
     fail "$description" "expected: $expected"$'\n'"actual:   $actual"
   pass "$description"
