@@ -355,6 +355,7 @@ Panel {
   // The KeyboardPanel's focusTarget covers initial popup-open; this handles
   // the inline-editor case where focus was handed off to a child.
   onPasswordSsidChanged: {
+    if (passwordSsid === "") syncWifiNetworks()
     if (passwordSsid === "" && opened) {
       passwordText = ""
       Qt.callLater(function() { if (keyCatcher) keyCatcher.forceActiveFocus() })
@@ -704,7 +705,9 @@ Panel {
       var row = Model.wifiRow(network)
       if (row) nets.push(row)
     }
-    wifiNetworks = Model.sortWifiRows(nets)
+    // A new list rebuilds every delegate and re-sorts the open prompt's row away
+    // mid-typing, so hold it until the prompt closes and resyncs.
+    if (passwordSsid === "") wifiNetworks = Model.sortWifiRows(nets)
     wifiStationAvailable = !!wifiDevice
     scanning = false
   }
@@ -1798,6 +1801,9 @@ Panel {
 
     function submitCredentials() {
       if (!net || root.busy || root.passwordText.length === 0) return
+      // The list holds still while typing, so the network may have left the
+      // scan; closing the prompt shows the list as it now is.
+      if (!root.networkForSsid(net.ssid)) return root.cancelPasswordPrompt()
       if (!isEnterprise) return root.connectWithPassphrase(net.ssid, root.passwordText)
       if (root.identityText.length > 0) root.connectEnterprise(net.ssid, root.identityText, root.passwordText)
     }
