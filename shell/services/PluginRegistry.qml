@@ -23,6 +23,10 @@ QtObject {
   // { pluginId: manifest } — manifests have source/trust metadata stamped in.
   property var installedPlugins: ({})
   property int registryRevision: 0
+  // Bumped on each plugin hot-reload so entryPointUrl values change. QML's Qt
+  // object does not expose QQmlEngine::clearComponentCache (issue #10568); a
+  // distinct URL is what forces Loaders / createComponent to re-read disk.
+  property int componentCacheEpoch: 0
   property bool scanning: false
   property string lastEnableError: ""
 
@@ -129,7 +133,13 @@ QtObject {
       console.warn("PluginRegistry: entry point escapes sourceDir: " + resolved)
       return ""
     }
-    return Util.fileUrl(resolved)
+    var url = Util.fileUrl(resolved)
+    // Cache-bust after hot-reload so the engine cannot reuse a stale component
+    // compiled from the previous file contents (see componentCacheEpoch).
+    if (componentCacheEpoch > 0) {
+      url += (url.indexOf("?") >= 0 ? "&" : "?") + "omarchyReload=" + componentCacheEpoch
+    }
+    return url
   }
 
   // Enabled = the plugin id is referenced somewhere in shell.json. That can
