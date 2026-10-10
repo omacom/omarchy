@@ -42,6 +42,11 @@ assertEqual(volume.position(0, 'decibel'), 0, 'silence is the left end')
 near(volume.position(atDecibels(-30), 'decibel'), 0.5, '-30 dB is the middle')
 assertEqual(volume.position(1, 'decibel'), 1, '0 dB is the right end')
 assertEqual(volume.volume(0, 'decibel'), 0, 'the left end is silence')
+// PanelSlider's wheel steps from the position and clamps it to 1.
+for (const scale of ['linear', 'decibel']) {
+  const notch = scale === 'decibel' ? 2 / 60 : 0.05
+  assertEqual(volume.volume(Math.min(1, volume.position(1.2, scale) - notch), scale), 1, 'a wheel notch down brings a boosted output to 100%: ' + scale)
+}
 for (const level of [0.2, 0.5, 1]) {
   near(volume.volume(volume.position(level, 'decibel'), 'decibel'), level, 'the slider round-trips ' + level)
   near(volume.volume(volume.position(level, 'linear'), 'linear'), level, 'the linear slider round-trips ' + level)
