@@ -51,6 +51,11 @@ case ${1:-} in
     ;;
 esac
 
+# The sleep-lock unit restarts after every suspend. Catch the bar clock up: its
+# SystemClock timer freezes on CLOCK_MONOTONIC across sleep and otherwise shows
+# the pre-suspend minute for up to 60s (#13504).
+omarchy-shell -q omarchy.clock refresh >/dev/null 2>&1 &
+
 sleep_monitor="$OMARCHY_PATH/bin/omarchy-system-sleep-monitor"
 
 exec systemd-inhibit \
