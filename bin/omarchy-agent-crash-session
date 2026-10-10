@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# omarchy:summary=Hold a crash diagnosis guard for the lifetime of its agent
+# omarchy:hidden=true
+
+set -uo pipefail
+
+name=${1:?missing program name}
+prompt=${2:?missing diagnosis prompt}
+name=${name##*/}
+[[ -n $name && $name != "-" && $name != "." && $name != ".." ]] || name=unknown
+state_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy/crash-diagnosis"
+
+# Keep the inode: unlinking it would let another session acquire a different
+# lock while this one is still held. No timestamp cleanup is needed; the kernel
+# releases the lock when the session's processes exit.
+if mkdir -p "$state_dir" 2>/dev/null && { exec 9>"$state_dir/$name"; } 2>/dev/null; then
+  status=0
+  flock -n -E 200 9 || status=$?
+  if (( status == 200 )); then
+    echo "A crash diagnosis for $name is already running."
+    exit 0
+  elif (( status != 0 )); then
+    exec 9>&-
+  fi
+fi
+
+# The parent keeps the lock even if the harness closes inherited descriptors.
+# A failed runtime-directory/lock operation must not prevent diagnosis.
+omarchy-agent --inline --prompt "$prompt" 9>&-
+exit $?
