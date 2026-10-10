@@ -130,6 +130,14 @@ pi)
   command=(pi)
   [[ -n ${prompt:-} ]] && command+=("$prompt")
   ;;
+vibe)
+  # Vibe seeds an interactive session from a bare prompt, and --auto-approve is
+  # its unattended spelling: the default agent profile stops to ask about
+  # tools beyond file edits, and a keybinding launch has no one to answer.
+  # The -- keeps a prompt starting with a dash from reading as a flag.
+  command=(vibe --auto-approve)
+  [[ -n ${prompt:-} ]] && command+=("--" "$prompt")
+  ;;
 *)
   echo "Unsupported default agent: $agent" >&2
   exit 1
