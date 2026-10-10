@@ -6,7 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 rm "$SUDO_TEST_ROOT/bin/omarchy-update-restart"
 copy_boundary_file bin/omarchy-update-restart
-for step in omarchy-state omarchy-restart-sshd omarchy-restart-shell omarchy-system-reboot; do
+for step in omarchy-state omarchy-restart-sshd omarchy-restart-shell omarchy-system-reboot systemctl; do
   ln -s test-step "$SUDO_TEST_ROOT/bin/$step"
 done
 cat >"$SUDO_TEST_ROOT/bin/gum" <<'STUB'
@@ -24,10 +24,11 @@ for mode in --services-only --reboot-only; do
   if [[ $mode == "--services-only" ]]; then
     grep -q '^step:omarchy-restart-sshd ' "$SUDO_TEST_LOG" || fail "service phase did not restart a marked service"
     grep -q '^step:omarchy-restart-shell ' "$SUDO_TEST_LOG" || fail "service phase did not restart the shell"
+    grep -q '^step:systemctl --user try-restart omarchy-crash-watch.service$' "$SUDO_TEST_LOG" || fail "service phase left the crash watcher running the replaced script"
     if grep -q '^prompt:' "$SUDO_TEST_LOG"; then fail "service phase offered a reboot before update cleanup"; fi
   else
     grep -q '^prompt:' "$SUDO_TEST_LOG" || fail "reboot phase did not offer the required reboot"
-    if grep -q '^step:omarchy-restart-' "$SUDO_TEST_LOG"; then fail "reboot phase performed later service work"; fi
+    if grep -Eq '^step:(omarchy-restart-|systemctl )' "$SUDO_TEST_LOG"; then fail "reboot phase performed later service work"; fi
   fi
   pass "restart $mode performs only its selected phase"
 done
