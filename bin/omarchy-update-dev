@@ -4,6 +4,8 @@
 
 set -euo pipefail
 
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+
 [[ $OMARCHY_PATH != "/usr/share/omarchy" ]] || exit 0
 
 if ! git -C "$OMARCHY_PATH" rev-parse --is-inside-work-tree >/dev/null 2>&1; then

@@ -79,6 +79,22 @@ grep -F "OMARCHY_PATH is not a git checkout: $checkout" "$test_tmp/invalid.err" 
   fail "invalid dev checkout reports the configured path" "$(cat "$test_tmp/invalid.err")"
 pass "invalid dev checkout fails with a useful error"
 
+: >"$git_log"
+if ! env -u OMARCHY_PATH PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-update-dev" >"$test_tmp/unset.out" 2>"$test_tmp/unset.err"; then
+  fail "unset OMARCHY_PATH should skip like the packaged install" "$(cat "$test_tmp/unset.err")"
+fi
+[[ ! -s $git_log ]] || fail "unset OMARCHY_PATH does not invoke git" "$(cat "$git_log")"
+pass "unset OMARCHY_PATH defaults to the packaged install and skips git"
+
 grep -qE '^ *omarchy-update-dev$' "$ROOT/bin/omarchy-update" ||
   fail "top-level update includes the dev checkout step"
 pass "top-level update includes the dev checkout step"
+
+# The source-root check runs in omarchy-update, before omarchy-update-dev.
+# pkexec omarchy-update -y arrives with OMARCHY_PATH unset, so the default
+# has to be established here or the check exits before the helper runs.
+default_line=$(grep -n 'export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"' "$ROOT/bin/omarchy-update" | head -1 | cut -d: -f1)
+check_line=$(grep -n 'omarchy_security_require_source_root' "$ROOT/bin/omarchy-update" | head -1 | cut -d: -f1)
+[[ -n $default_line && -n $check_line && $default_line -lt $check_line ]] ||
+  fail "update entry point defaults OMARCHY_PATH before the source-root check"
+pass "update entry point defaults OMARCHY_PATH before the source-root check"

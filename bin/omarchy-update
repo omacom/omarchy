@@ -16,6 +16,10 @@ source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
 omarchy_security_require_privileged_bash_startup || exit 126
 set -e
 omarchy_security_sanitize_bash_environment "$0" "$@"
+# pkexec strips the login environment before this entry point runs. A dev
+# checkout already exports its own root; packaged installs use this path.
+# The source-root check below still rejects any other value.
+export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 omarchy_security_require_source_root "$0"
 # Logging and lock acquisition re-exec this command with a sanitized PATH.
 # Preserve the caller's path only for the later hook/mise phases.
