@@ -492,7 +492,8 @@ assert(
 assert(
   /visible: row\.icon\.length > 0 && !row\.isApp && !row\.hasImageIcon/.test(menuQml)
     && /visible: \(row\.isApp \|\| row\.hasImageIcon\) && !row\.tintImageIcon/.test(menuQml)
-    && /: root\.customIconSource\(row\.iconName\)/.test(menuQml),
+    && /readonly property bool hasImageIcon: row\.customImage\.length > 0/.test(menuQml)
+    && /: row\.customImage\n/.test(menuQml),
   'menu image icons take precedence over glyphs and use custom icon resolution'
 )
 assert(

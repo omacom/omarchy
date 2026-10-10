@@ -1286,7 +1286,10 @@ Item {
 
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
-              readonly property bool hasImageIcon: row.iconName.length > 0
+              // The custom row's image: "" when iconName is unset or resolves
+              // to nothing, in which case the row's glyph is the fallback.
+              readonly property string customImage: row.isApp ? "" : root.customIconSource(row.iconName)
+              readonly property bool hasImageIcon: row.customImage.length > 0
               // A symbolic image icon is recolored to the row's text colour,
               // like a glyph, so it follows the theme and the selected row.
               readonly property bool tintImageIcon: row.hasImageIcon && row.iconSymbolic && !row.isApp
@@ -1342,7 +1345,7 @@ Item {
                 sourceSize.height: height * Screen.devicePixelRatio
                 source: row.isApp
                   ? (root.appLibrary ? root.appLibrary.iconSource(row.appIcon) : "")
-                  : root.customIconSource(row.iconName)
+                  : row.customImage
                 asynchronous: true
                 anchors.left: parent.left
                 anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8) + (Style.space(36) - width) / 2
