@@ -26,7 +26,7 @@ BROWSER_POLICY_PARENT_DIRS=(
 
 BROWSER_POLICY_FIREFOX_DIRS=(
   /usr/lib/firefox/distribution
-  /opt/zen-browser/distribution
+  /opt/zen-browser-bin/distribution
 )
 
 BROWSER_POLICY_DEFAULT_COLOR="#1c2027"
