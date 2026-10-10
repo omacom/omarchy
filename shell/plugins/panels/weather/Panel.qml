@@ -136,6 +136,8 @@ Panel {
   readonly property var areaInfo: report && report.nearest_area && report.nearest_area[0] ? report.nearest_area[0] : null
   readonly property var forecastDays: buildForecastDays()
   readonly property var todayForecast: buildTodayForecast()
+  readonly property string todayHigh: todayForecast ? bareTempForDay(todayForecast, "max") : ""
+  readonly property string todayLow: todayForecast ? bareTempForDay(todayForecast, "min") : ""
   readonly property string reportCountry: areaInfo && areaInfo.country && areaInfo.country[0] ? areaInfo.country[0].value : ""
 
   readonly property bool useImperial: Model.shouldUseImperial(setting("unit", ""), Qt.locale().name, reportCountry)
@@ -581,12 +583,9 @@ Panel {
 
             // Today's own hi/lo — the forecast row only lists future days.
             Text {
-              visible: !!root.todayForecast
+              visible: root.todayHigh !== "" || root.todayLow !== ""
               textFormat: Text.PlainText
-              text: root.todayForecast
-                ? "H " + root.bareTempForDay(root.todayForecast, "max")
-                  + "   L " + root.bareTempForDay(root.todayForecast, "min")
-                : ""
+              text: "H " + root.todayHigh + "   L " + root.todayLow
               color: Qt.darker(root.bar.foreground, 1.4)
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.bodySmall

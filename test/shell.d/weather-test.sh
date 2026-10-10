@@ -164,8 +164,8 @@ assert(
   'weather hero and bar use the same resolved icon'
 )
 assert(
-  panelSource.includes('visible: !!root.todayForecast') && panelSource.includes('bareTempForDay(root.todayForecast, "max")') && panelSource.includes('bareTempForDay(root.todayForecast, "min")'),
-  'weather shows today high/low under the hero temperature'
+  panelSource.includes('readonly property string todayHigh') && panelSource.includes('readonly property string todayLow') && panelSource.includes('visible: root.todayHigh !== "" || root.todayLow !== ""'),
+  'weather shows today high/low under the hero temperature once a value resolves'
 )
 assert(
   panelSource.includes('onReturnRequested: root.startEditingLocation()'),
