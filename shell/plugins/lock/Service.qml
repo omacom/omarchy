@@ -32,6 +32,10 @@ Item {
   property double fingerprintLastSettleMs: 0
   property double fingerprintResumedAtMs: 0
   property int fingerprintProbeStreak: 0
+  // Unknown until the lid probe returns. A closed lid hides the deck reader,
+  // so fingerprint must not start — and must not treat "not yet known" as open.
+  property bool laptopClosedKnown: false
+  property bool laptopClosed: false
   property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
@@ -256,7 +260,7 @@ Item {
       }
       return
     }
-    if (!fingerprintConfigured) return
+    if (!fingerprintConfigured || laptopClosed) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
     if (!fingerprintRetryTimer.running) return
     var now = Date.now()
@@ -355,8 +359,35 @@ Item {
     runWake()
   }
 
+  function refreshLaptopClosed() {
+    if (!laptopClosedProc.running) laptopClosedProc.running = true
+  }
+
+  // Lid shut: the deck reader is unreachable. Drop any in-flight verify and
+  // do not re-arm, or a clamshell lock retries pam_fprintd until the 30s
+  // timeout forever. Lid open resumes from the password-only fallback.
+  function applyLaptopClosed(closed) {
+    var wasKnown = laptopClosedKnown
+    var wasClosed = laptopClosed
+    laptopClosed = closed
+    laptopClosedKnown = true
+    if (closed) {
+      fingerprintRetryTimer.stop()
+      if (fingerprintPam.active) fingerprintPam.abort()
+      settleFingerprintAttempt()
+      return
+    }
+    if (wasKnown && !wasClosed) return
+    if (lockRequested && sessionLock.secure && fingerprintConfigured) startFingerprint()
+  }
+
   function startFingerprint() {
     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
+    if (!laptopClosedKnown) {
+      refreshLaptopClosed()
+      return
+    }
+    if (laptopClosed) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
     fingerprintAuthenticating = true
@@ -395,7 +426,10 @@ Item {
     if (!fingerprintAuthenticating) return
     fingerprintAuthenticating = false
     fingerprintReachTimer.stop()
-    if (!lockRequested || !fingerprintConfigured) return
+    if (!lockRequested || !fingerprintConfigured || laptopClosed) {
+      fingerprintRetryTimer.stop()
+      return
+    }
 
     // An error can arrive before the sleep watcher notices the wall-clock gap.
     var now = Date.now()
@@ -443,6 +477,9 @@ Item {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
+        // A later lock must not trust the previous lock's lid result.
+        root.laptopClosedKnown = false
+        root.refreshLaptopClosed()
         root.startFingerprint()
       }
     }
@@ -476,8 +513,8 @@ Item {
         backgroundPath: root.backgroundPath
         videoPosterPath: root.videoPosterPath
         backgroundVersion: root.backgroundVersion
-        fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
-        fingerprintUnavailable: root.fingerprintUnavailable
+        fingerprintConfigured: (root.fingerprintConfigured && !root.laptopClosed) || (root.fingerprintUnavailable && !root.laptopClosed)
+        fingerprintUnavailable: root.fingerprintUnavailable && !root.laptopClosed
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -606,7 +643,7 @@ Item {
     id: fingerprintSleepWatch
     interval: 1000
     repeat: true
-    running: root.lockRequested && root.fingerprintConfigured
+    running: root.lockRequested && root.fingerprintConfigured && !root.laptopClosed
     property double lastTickMs: 0
     onRunningChanged: lastTickMs = Date.now()
     onTriggered: {
@@ -662,6 +699,27 @@ Item {
   }
 
   // Keep fprintd errors distinguishable from an explicit empty enrollment.
+  Process {
+    id: laptopClosedProc
+    command: ["bash", "-c", "omarchy-hw-laptop-closed && echo closed || echo open"]
+    stdout: StdioCollector { id: laptopClosedOut; waitForEnd: true }
+    onExited: function(exitCode, exitStatus) {
+      // A superseded probe must not publish a stale lid result.
+      if (laptopClosedProc.running) return
+      root.applyLaptopClosed(String(laptopClosedOut.text || "").trim() === "closed")
+    }
+  }
+
+  // A lid can close after the lock is already up. Recheck while locked so a
+  // clamshell session does not keep claiming the deck reader.
+  Timer {
+    id: laptopClosedTimer
+    interval: 2000
+    repeat: true
+    running: root.lockRequested && root.fingerprintConfigured
+    onTriggered: root.refreshLaptopClosed()
+  }
+
   Process {
     id: fingerprintCheckProc
     command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1; then LC_ALL=C fprintd-list \"$USER\" 2>&1; else echo no; fi"]
