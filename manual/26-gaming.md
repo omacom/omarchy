@@ -66,6 +66,10 @@ If both your Omarchy machine and the remote gaming PC are hardwired, the experie
 
 You can also turn an Omarchy machine into the host by running `omarchy install service sunshine`, which installs Sunshine and opens the Moonlight streaming ports for your LAN and Tailscale.
 
+Open **Sunshine Admin** from the launcher to configure the host at `https://localhost:47990`. Sunshine uses a self-signed certificate, so your browser may show a certificate warning. Check that you are visiting this exact local address and that you just started your own Sunshine host before using the browser's option to continue. If the app window does not offer that option, open the same address in a regular browser window. Do not disable certificate validation for the browser.
+
+If you used Sunshine Admin before updating Omarchy, fully quit the browser and reopen it after the update to clear the old shortcut's certificate bypass. Updates repair unmodified generated shortcuts; if you customized yours, remove `--ignore-certificate-errors` from its launch command yourself.
+
 ## Battle.net
 
 Install [Battle.net](https://eu.shop.battle.net/en-us) by selecting _Install > Gaming > Battle.net_ from the Omarchy menu (`Super + Space`). This gives you titles like Diablo, Starcraft, and World of Warcraft as a standalone install running under GE-Proton — no Steam, Lutris, or Heroic needed.
