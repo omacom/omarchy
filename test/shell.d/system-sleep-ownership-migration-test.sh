@@ -684,22 +684,20 @@ grep -Fq '"mode": "Integrated"' "$hook_config" ||
 pass "force-igpu handles both phases of suspend-then-hibernate"
 
 keyboard_hook_copy="$test_tmp/keyboard-backlight-hook"
-keyboard_calls="$test_tmp/keyboard-backlight-calls"
 keyboard_led_dir="$test_tmp/leds"
 mkdir -p "$keyboard_led_dir/asus::kbd_backlight"
-sed "s|/sys/class/leds/\*kbd_backlight\*|$keyboard_led_dir/*kbd_backlight*|" \
+echo 3 >"$keyboard_led_dir/asus::kbd_backlight/brightness"
+sed -e "s|^leds_dir=/sys/class/leds$|leds_dir=$keyboard_led_dir|" \
+  -e "s|^state_dir=/run/omarchy-kbd-backlight$|state_dir=$test_tmp/keyboard-backlight-state|" \
   "$ROOT/default/systemd/system-sleep/keyboard-backlight" >"$keyboard_hook_copy"
-cat >"$stub_bin/brightnessctl" <<'SH'
-#!/bin/bash
-printf '%s\n' "$*" >>"$KEYBOARD_CALLS"
-SH
-chmod +x "$stub_bin/brightnessctl"
+grep -q "^leds_dir=$keyboard_led_dir$" "$keyboard_hook_copy" &&
+  grep -q "^state_dir=$test_tmp/keyboard-backlight-state$" "$keyboard_hook_copy" ||
+  fail "keyboard-backlight test copy points at the fake LED and state directories"
 
-SYSTEMD_SLEEP_ACTION=suspend KEYBOARD_CALLS="$keyboard_calls" PATH="$stub_bin:$PATH" \
-  bash "$keyboard_hook_copy" pre suspend-then-hibernate
-[[ ! -e $keyboard_calls ]] || fail "keyboard-backlight runs during the suspend phase of compound sleep"
-SYSTEMD_SLEEP_ACTION=hibernate KEYBOARD_CALLS="$keyboard_calls" PATH="$stub_bin:$PATH" \
-  bash "$keyboard_hook_copy" pre suspend-then-hibernate
-grep -Fqx -- '-d asus::kbd_backlight set 0' "$keyboard_calls" ||
+SYSTEMD_SLEEP_ACTION=suspend bash "$keyboard_hook_copy" pre suspend-then-hibernate
+[[ $(<"$keyboard_led_dir/asus::kbd_backlight/brightness") == 3 ]] ||
+  fail "keyboard-backlight runs during the suspend phase of compound sleep"
+SYSTEMD_SLEEP_ACTION=hibernate bash "$keyboard_hook_copy" pre suspend-then-hibernate
+[[ $(<"$keyboard_led_dir/asus::kbd_backlight/brightness") == 0 ]] ||
   fail "keyboard-backlight skips the hibernate phase of compound sleep"
 pass "keyboard-backlight handles the hibernate phase of suspend-then-hibernate"
