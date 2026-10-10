@@ -27,6 +27,10 @@ Panel {
   property string monitorScale: ""
   property var displays: []
   property int enabledDisplayCount: 0
+  property string arrangeDirection: ""
+  property string arrangeMonitorLabel: ""
+  readonly property var arrangeDirections: ["left", "right", "above", "below"]
+  readonly property var arrangeLabels: ["Left", "Right", "Above", "Below"]
 
   // Carry sub-notch touchpad deltas between wheel events.
   property real wheelAccumulator: 0
@@ -38,6 +42,7 @@ Panel {
   //   "scale"      - 6 Button scale presets; treated as a single
   //                  horizontal row from j/k's perspective. h/l moves
   //                  between presets, identical to bluetooth's header.
+  //   "arrange"    - Left / Right / Above / Below. One horizontal row.
   //   "monitors"   - vertical display row list for enabling/disabling displays;
   //                  j/k walks each row.
   // Mouse hover on a target updates root state via the components' `hovered`
@@ -78,6 +83,7 @@ Panel {
     if (brightnessAvailable) list.push("brightness")
     list.push("textsize")
     list.push("scale")
+    if (enabledDisplayCount > 1) list.push("arrange")
     if (displays.length > 1) list.push("monitors")
     return list
   }
@@ -86,13 +92,14 @@ Panel {
     if (section === "brightness") return 0  // only the slider sentinel at -1
     if (section === "textsize") return 0    // slider sentinel at -1, like brightness
     if (section === "scale") return scaleValues.length
+    if (section === "arrange") return arrangeDirections.length
     if (section === "monitors") return displays.length
     return 0
   }
 
   function sectionIsSingleRow(section) {
     // brightness and text size are lone sliders; scale presets sit horizontally.
-    return section === "brightness" || section === "textsize" || section === "scale"
+    return section === "brightness" || section === "textsize" || section === "scale" || section === "arrange"
   }
 
   function sectionFirstIndex(section) {
@@ -134,10 +141,11 @@ Panel {
   // because adjustBrightness handles horizontal motion on the brightness
   // slider.
   function moveCursorH(delta) {
-    if (focusSection !== "scale") return
+    if (focusSection !== "scale" && focusSection !== "arrange") return
+    var count = focusSection === "scale" ? scaleValues.length : arrangeDirections.length
     var next = selectedIndex + delta
     if (next < 0) next = 0
-    if (next > scaleValues.length - 1) next = scaleValues.length - 1
+    if (next > count - 1) next = count - 1
     selectedIndex = next
   }
 
@@ -150,6 +158,10 @@ Panel {
   function activateCursor() {
     if (focusSection === "scale" && selectedIndex >= 0 && selectedIndex < scaleValues.length) {
       setScale(scaleValues[selectedIndex])
+      return
+    }
+    if (focusSection === "arrange" && selectedIndex >= 0 && selectedIndex < arrangeDirections.length) {
+      setArrangement(arrangeDirections[selectedIndex])
       return
     }
     if (focusSection === "monitors" && selectedIndex >= 0 && selectedIndex < displays.length) {
@@ -232,6 +244,25 @@ Panel {
 
   function refresh() {
     if (!stateProc.running) stateProc.running = true
+    if (!arrangeStatusProc.running) arrangeStatusProc.running = true
+  }
+
+  function applyArrangeStatus(raw) {
+    var parsed = {}
+    try {
+      parsed = JSON.parse(String(raw || "").trim() || "{}")
+    } catch (e) {
+      parsed = {}
+    }
+    root.arrangeDirection = String(parsed.direction || "")
+    var model = String(parsed.model || "")
+    var name = String(parsed.monitor || "")
+    root.arrangeMonitorLabel = model !== "" && model.indexOf("0x") !== 0 ? model : name
+  }
+
+  function setArrangement(direction) {
+    actionProc.command = ["omarchy-hyprland-monitor-arrange", direction]
+    if (!actionProc.running) actionProc.running = true
   }
 
   function setBrightness(value) {
@@ -312,7 +343,9 @@ Panel {
   }
 
   function setScale(scale) {
-    actionProc.command = ["bash", "-c", "omarchy-hyprland-monitor-scaling " + scale]
+    // The scaler parks the focused screen on position auto. This puts the
+    // saved side back after the scale change.
+    actionProc.command = ["omarchy-hyprland-monitor-arrange", "scale", String(scale)]
     if (!actionProc.running) actionProc.running = true
   }
 
@@ -388,6 +421,15 @@ Panel {
     running: root.opened
     repeat: true
     onTriggered: root.refresh()
+  }
+
+  Process {
+    id: arrangeStatusProc
+    command: ["omarchy-hyprland-monitor-arrange", "status"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyArrangeStatus(text)
+    }
   }
 
   Process {
@@ -507,7 +549,7 @@ Panel {
         else if (dx !== 0) {
           if (root.focusSection === "brightness") root.adjustBrightness(dx * 5)
           else if (root.focusSection === "textsize") root.adjustTextSize(dx)
-          else if (root.focusSection === "scale") root.moveCursorH(dx)
+          else if (root.focusSection === "scale" || root.focusSection === "arrange") root.moveCursorH(dx)
         }
       }
       onActivateRequested: if (root.cursorActive) root.activateCursor()
@@ -797,6 +839,71 @@ Panel {
             }
           }
 
+          // ---------- Arrange ----------
+          PanelSeparator {
+            visible: root.enabledDisplayCount > 1
+            foreground: root.bar.foreground
+          }
+
+          Column {
+            width: parent.width
+            spacing: Style.space(10)
+            visible: root.enabledDisplayCount > 1
+
+            Item {
+              width: parent.width
+              implicitHeight: Math.max(arrangeHeader.implicitHeight, arrangeTarget.implicitHeight)
+
+              PanelSectionHeader {
+                id: arrangeHeader
+                text: "ARRANGE"
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              Text {
+                id: arrangeTarget
+                textFormat: Text.PlainText
+                text: root.arrangeMonitorLabel
+                visible: root.arrangeMonitorLabel !== ""
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(6)
+                anchors.verticalCenter: parent.verticalCenter
+              }
+            }
+
+            Grid {
+              id: arrangeRow
+              width: parent.width
+              columns: root.arrangeLabels.length
+              spacing: Style.spacing.xs
+
+              readonly property real cellWidth: root.arrangeLabels.length > 0
+                ? (width - spacing * (columns - 1)) / columns
+                : 0
+
+              Repeater {
+                model: root.arrangeLabels
+
+                ArrangePill {
+                  required property string modelData
+                  required property int index
+
+                  label: modelData
+                  direction: root.arrangeDirections[index]
+                  pillIndex: index
+                  width: arrangeRow.cellWidth
+                }
+              }
+            }
+          }
+
           // ---------- Monitors ----------
           PanelSeparator {
             visible: root.displays.length > 1
@@ -859,6 +966,32 @@ Panel {
       root.cursorActive = true
       root.focusSection = "scale"
       root.selectedIndex = pill.scaleIndex
+    }
+  }
+
+  component ArrangePill: Button {
+    id: arrangePill
+    required property string label
+    required property string direction
+    required property int pillIndex
+
+    text: label
+    fontSize: Style.font.caption
+    foreground: root.bar.foreground
+    fontFamily: root.bar.fontFamily
+    horizontalPadding: Style.spacing.xs
+    verticalPadding: Style.spacing.controlPaddingY
+    bordered: true
+
+    active: root.arrangeDirection === direction
+    hasCursor: root.cursorActive && root.focusSection === "arrange" && root.selectedIndex === pillIndex
+
+    onClicked: root.setArrangement(direction)
+    onHovered: function(isHovered) {
+      if (!isHovered || root.reflowingText) return
+      root.cursorActive = true
+      root.focusSection = "arrange"
+      root.selectedIndex = arrangePill.pillIndex
     }
   }
 

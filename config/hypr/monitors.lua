@@ -5,6 +5,9 @@
 -- Wayland-native, accepts fractions (1.6, 1.75), and applies immediately.
 -- "auto" lets Hyprland pick per display.
 local omarchy_monitor_scale = "auto"
+
+-- With two screens, the Display panel writes an arrange block above the
+-- fallback rule: Left, Right, Above, or Below the laptop.
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })
 
 -- Configure a specific monitor.
