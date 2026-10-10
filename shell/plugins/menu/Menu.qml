@@ -1459,7 +1459,7 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: root.filterText ? "No matches for “" + root.filterText + "”" : "Nothing here yet"
+              text: root.filterText ? "No matches found" : "Nothing here yet"
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily
