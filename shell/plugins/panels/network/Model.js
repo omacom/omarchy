@@ -325,6 +325,50 @@ function sortWifiRows(rows) {
   return nets
 }
 
+// omarchy-network-vpn prints "name\tactive" lines, one per NetworkManager
+// wireguard/vpn connection profile -- known profiles whether or not they are
+// currently up, mirroring how the Wi-Fi list carries known-but-disconnected
+// networks.
+function parseVpnConnections(raw) {
+  var lines = String(raw || "").split("\n")
+  var rows = []
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i]
+    if (!line) continue
+    var idx = line.indexOf("\t")
+    if (idx === -1) continue
+
+    rows.push({
+      name: line.substring(0, idx),
+      active: line.substring(idx + 1).trim() === "yes"
+    })
+  }
+
+  return rows
+}
+
+function sortVpnConnections(rows) {
+  var conns = Array.isArray(rows) ? rows.slice() : []
+  conns.sort(function(a, b) {
+    if (a.active !== b.active) return a.active ? -1 : 1
+    return a.name.localeCompare(b.name)
+  })
+  return conns
+}
+
+// Row of the profile called `name`, or -1. The list reorders itself whenever
+// a profile goes up or down (active first), so the keyboard cursor has to
+// follow a profile by name rather than sit on a row number.
+function vpnIndexForName(rows, name) {
+  var conns = Array.isArray(rows) ? rows : []
+  if (!name) return -1
+  for (var i = 0; i < conns.length; i++) {
+    if (conns[i] && conns[i].name === name) return i
+  }
+  return -1
+}
+
 function wifiSectionTitle(wifiNetworks, index) {
   var networks = Array.isArray(wifiNetworks) ? wifiNetworks : []
   if (index < 0 || index >= networks.length) return ""
@@ -412,6 +456,9 @@ if (typeof module !== "undefined") {
     formatPingLatency: formatPingLatency,
     wifiRow: wifiRow,
     sortWifiRows: sortWifiRows,
+    parseVpnConnections: parseVpnConnections,
+    sortVpnConnections: sortVpnConnections,
+    vpnIndexForName: vpnIndexForName,
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,

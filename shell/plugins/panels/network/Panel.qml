@@ -84,6 +84,19 @@ Panel {
   property var bandAvailable: []
   property string pendingBand: ""
 
+  // VPN/WireGuard connection profiles from `omarchy-network-vpn`.
+  // `vpnActionName`/`vpnActionKind` are the profile currently being brought
+  // up/down and which direction, so its row can render a busy state while
+  // the toggle is in flight. `vpnFailureName`/`vpnFailureReason` are the
+  // profile whose last toggle didn't end in a plain success -- either nmcli
+  // itself failed, or (see verify_tunnel in omarchy-network-vpn) it reported
+  // connected without a live peer behind it.
+  property var vpnConnections: []
+  property string vpnActionName: ""
+  property string vpnActionKind: ""  // "up" | "down"
+  property string vpnFailureName: ""
+  property string vpnFailureReason: ""
+
   // Per-row in-flight state. `actionSsid` flips on for the row whose action
   // is currently running so it can render "Connecting…" / "Disconnecting…" /
   // "Forgetting…". `passwordSsid` is the row currently expanded into
@@ -118,11 +131,13 @@ Panel {
   property int selectedIndex: -1
   property bool wifiActionFocused: false
   property bool cursorActive: false
+  // Index into `vpnConnections` for keyboard navigation. -1 = no selection.
+  property int vpnIndex: -1
 
   // Keyboard focus zone for the panel. j/k crosses row boundaries:
-  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
+  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ VPN ⇄ Wi-Fi networks. h/l move
   // within header actions, band pills, or DNS providers.
-  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "wifi"
+  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "vpn" | "wifi"
   property int headerIndex: 0
   readonly property bool canDisconnect: !!connectedWifiNetwork
   readonly property bool headerHasDisconnect: false
@@ -322,6 +337,7 @@ Panel {
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
     if (opened) {
+      if (panelFlick) panelFlick.contentY = 0
       refresh(true)
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
@@ -386,6 +402,20 @@ Panel {
     }
   }
 
+  // Keep vpnIndex valid as the VPN list refreshes on its poll, mirroring
+  // onWifiNetworksChanged above: an emptied list bounces the cursor back to
+  // DNS instead of leaving focusSection pointed at rows that no longer exist.
+  onVpnConnectionsChanged: {
+    if (vpnConnections.length === 0) {
+      vpnIndex = -1
+      if (focusSection === "vpn") focusSection = "dns"
+    } else if (vpnIndex >= vpnConnections.length) {
+      vpnIndex = vpnConnections.length - 1
+    } else if (vpnIndex < 0 && opened) {
+      vpnIndex = 0
+    }
+  }
+
   onWifiDeviceChanged: {
     setScannerEnabled(true)
     syncWifiNetworks()
@@ -399,6 +429,50 @@ Panel {
     if (selectedIndex < 0) selectedIndex = delta > 0 ? 0 : wifiNetworks.length - 1
     else selectedIndex = Math.max(0, Math.min(wifiNetworks.length - 1, selectedIndex + delta))
     wifiActionFocused = false
+  }
+
+  // Scrolls the card (panelFlick) so `item` is on screen. The two lists keep
+  // their own selected row in view with positionViewAtIndex, but that only
+  // moves the list's own contents, not the card around it.
+  function scrollItemIntoView(item) {
+    if (!panelFlick || !item) return
+    Qt.callLater(function() {
+      if (!item) return
+      var margin = Style.space(6)
+      var point = item.mapToItem(panelFlick.contentItem, 0, 0)
+      var top = point.y
+      var bottom = top + item.height
+      var viewTop = panelFlick.contentY
+      var viewBottom = viewTop + panelFlick.height
+      var maxY = Math.max(0, panelFlick.contentHeight - panelFlick.height)
+      if (top < viewTop + margin) panelFlick.contentY = Math.max(0, top - margin)
+      else if (bottom > viewBottom - margin) panelFlick.contentY = Math.min(maxY, bottom + margin - panelFlick.height)
+    })
+  }
+
+  // Called after a keyboard move only, never bound to the cursor itself:
+  // hover moves the cursor too, and the card must not jump under the mouse.
+  function scrollCursorIntoView() {
+    if (focusSection === "header") scrollItemIntoView(heroActions)
+    else if (focusSection === "portal") scrollItemIntoView(portalAction)
+    else if (focusSection === "band") scrollItemIntoView(bandAutoFocused ? bandAutoRow : bandRow)
+    else if (focusSection === "dns") scrollItemIntoView(dnsRow)
+    else if (focusSection === "vpn") scrollItemIntoView(vpnList.itemAtIndex(vpnIndex) || vpnList)
+    else scrollItemIntoView(networkList.itemAtIndex(selectedIndex) || networkList)
+  }
+
+  function selectVpnByDelta(delta) {
+    if (vpnConnections.length === 0) { vpnIndex = -1; return }
+    if (vpnIndex < 0) vpnIndex = delta > 0 ? 0 : vpnConnections.length - 1
+    else vpnIndex = Math.max(0, Math.min(vpnConnections.length - 1, vpnIndex + delta))
+  }
+
+  // Enter/Space on the highlighted VPN row. Mirrors row-click semantics.
+  function activateVpn() {
+    if (vpnIndex < 0 || vpnIndex >= vpnConnections.length) return
+    var conn = vpnConnections[vpnIndex]
+    if (!conn) return
+    toggleVpn(conn.name, conn.active)
   }
 
   function canForgetNetwork(net) {
@@ -580,6 +654,7 @@ Panel {
       bandProc.command = ["omarchy-network-band"]
       bandProc.running = true
     }
+    if (!vpnProc.running) vpnProc.running = true
     // A closed panel has no nearby-network list to fill, and bare refresh()
     // reaches here from action completion, timeouts and construction.
     if (opened && wifiDevice) {
@@ -744,6 +819,49 @@ Panel {
     root.pendingBand = band
     actionProc.command = ["omarchy-network-band", band]
     actionProc.running = true
+  }
+
+  // A failure tied to a connection that has since gone inactive (dropped,
+  // or torn down from outside the panel) no longer means anything -- clear
+  // it here rather than leaving a stale "Connected, no traffic" on a row
+  // that plainly is not connected. This does not catch the opposite case,
+  // a still-active tunnel that silently starts passing traffic again on its
+  // own: that would need re-running the ping check on a timer, which is
+  // more polling than a once-per-toggle verification is worth.
+  // Only the "connected but not passing traffic" warning goes stale on its
+  // own: if that connection is later found inactive (dropped, or torn down
+  // from outside the panel), the warning no longer describes anything real.
+  // A plain "Failed to connect"/"Failed to disconnect" reflects the toggle
+  // that just ran, not the connection's current active state -- a failed
+  // connect leaves the row inactive by definition, so clearing on inactive
+  // the same way would wipe the message before the user ever saw it. That
+  // one clears only when a new toggle supersedes it, in vpnActionProc.onExited.
+  function updateVpnConnections(raw) {
+    // Sorting puts the active profile first, so a toggle reshuffles the rows.
+    // Carry the cursor by profile name across the swap: left on its old row
+    // number it would land on a different profile, and a second Space would
+    // connect that one instead of disconnecting the one just brought up.
+    var selectedName = vpnIndex >= 0 && vpnIndex < vpnConnections.length ? vpnConnections[vpnIndex].name : ""
+
+    vpnConnections = Model.sortVpnConnections(Model.parseVpnConnections(raw))
+
+    var selectedRow = Model.vpnIndexForName(vpnConnections, selectedName)
+    if (selectedRow >= 0) vpnIndex = selectedRow
+
+    if (vpnFailureName === "" || vpnFailureReason !== "Connected, no traffic") return
+    var stillActive = vpnConnections.some(function(conn) { return conn.name === vpnFailureName && conn.active })
+    if (!stillActive) vpnFailureName = ""
+  }
+
+  // Toggling stays open, same as setBand -- the row's own busy/active state
+  // is the feedback, and closing the panel would hide a failed toggle.
+  function toggleVpn(name, active) {
+    if (!name || vpnActionProc.running) return
+
+    vpnActionName = name
+    vpnActionKind = active ? "down" : "up"
+    vpnActionProc.command = ["omarchy-network-vpn", vpnActionKind, name]
+    vpnActionProc.running = true
   }
 
   // The speed test is its own panel plugin (omarchy.speedtest) so a
@@ -986,6 +1104,56 @@ Panel {
     }
   }
 
+  Process {
+    id: vpnProc
+    command: ["omarchy-network-vpn"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.updateVpnConnections(text)
+    }
+  }
+
+  // Same cadence as bandPoll: an nmcli listing, not something that needs
+  // detailsPoll's faster tick. Gated on already having profiles to show --
+  // most machines have none, and there's nothing worth polling nmcli every
+  // 4s for on those. refresh() still checks once on open either way, so a
+  // profile added after that point needs a close/reopen to show up, which
+  // is a fair trade against shelling out to nmcli forever for nothing.
+  Timer {
+    id: vpnPoll
+    interval: 4000
+    repeat: true
+    running: root.opened && root.vpnConnections.length > 0
+    onTriggered: if (!vpnProc.running) vpnProc.running = true
+  }
+
+  // Separate from actionProc: a VPN toggle can legitimately outlive a DNS or
+  // band change still in flight, and each needs its own exit handler.
+  Process {
+    id: vpnActionProc
+    // Exit 75 is omarchy-network-vpn's own private signal: nmcli brought the
+    // profile up, but the post-activation ping through the tunnel device
+    // found no real peer behind it. It deliberately sits outside nmcli's own
+    // documented 0-10 exit code range, so a raw nmcli failure (which can
+    // itself exit 2, "invalid user input") is never confused with it. Any
+    // other nonzero code is nmcli itself failing the up/down outright. Only
+    // the most recent toggle's outcome is kept, same as the single
+    // failureSsid/failureReason pair Wi-Fi rows use.
+    onExited: function(exitCode) {
+      if (exitCode === 0) {
+        root.vpnFailureName = ""
+      } else {
+        root.vpnFailureName = root.vpnActionName
+        root.vpnFailureReason = exitCode === 75
+          ? "Connected, no traffic"
+          : (root.vpnActionKind === "down" ? "Failed to disconnect" : "Failed to connect")
+      }
+      root.vpnActionName = ""
+      root.vpnActionKind = ""
+      if (!vpnProc.running) vpnProc.running = true
+    }
+  }
+
   // Action runner for DNS provider changes. Wi-Fi actions use the
   // Quickshell.Networking NetworkManager backend directly.
   Process {
@@ -1164,8 +1332,8 @@ Panel {
             }
           } else if (root.focusSection === "dns") {
             // k from DNS moves up into the band section when it's on screen,
-            // then the disconnect button; otherwise stays put. j drops into the
-            // wifi list if there's anywhere to land.
+            // then the disconnect button; otherwise stays put. j drops into
+            // VPN if there's anywhere to land there, otherwise the wifi list.
             if (dy < 0) {
               if (root.canSelectBand) {
                 root.focusSection = "band"
@@ -1176,15 +1344,37 @@ Panel {
                 root.focusSection = "header"
                 root.headerIndex = 0
               }
+            } else if (root.vpnConnections.length > 0) {
+              root.focusSection = "vpn"
+              if (root.vpnIndex < 0) root.vpnIndex = 0
             } else if (root.wifiNetworks.length > 0) {
               root.focusSection = "wifi"
               if (root.selectedIndex < 0) root.selectedIndex = 0
             }
-          } else {  // wifi
-            // k from the top row escapes back up to the DNS row rather than
-            // wrapping around to the bottom of the list.
-            if (dy < 0 && root.selectedIndex <= 0) {
+          } else if (root.focusSection === "vpn") {
+            // k from the top row escapes back up to DNS; j from the bottom
+            // row drops into wifi if there's anywhere to land there.
+            if (dy < 0 && root.vpnIndex <= 0) {
               root.focusSection = "dns"
+            } else if (dy > 0 && root.vpnIndex >= root.vpnConnections.length - 1) {
+              if (root.wifiNetworks.length > 0) {
+                root.focusSection = "wifi"
+                if (root.selectedIndex < 0) root.selectedIndex = 0
+              }
+            } else {
+              root.selectVpnByDelta(dy)
+            }
+          } else {  // wifi
+            // k from the top row escapes back up to VPN when it's on screen,
+            // otherwise DNS, rather than wrapping around to the bottom of
+            // the list.
+            if (dy < 0 && root.selectedIndex <= 0) {
+              if (root.vpnConnections.length > 0) {
+                root.focusSection = "vpn"
+                root.vpnIndex = root.vpnConnections.length - 1
+              } else {
+                root.focusSection = "dns"
+              }
               root.wifiActionFocused = false
             }
             else root.selectByDelta(dy)
@@ -1196,6 +1386,7 @@ Panel {
           else if (root.focusSection === "dns") root.selectDnsByDelta(dx)
           else if (root.focusSection === "wifi") root.selectWifiActionByDelta(dx)
         }
+        root.scrollCursorIntoView()
       }
       onActivateRequested: {
         if (root.cursorActive) {
@@ -1203,6 +1394,7 @@ Panel {
           else if (root.focusSection === "portal") root.openCaptivePortal()
           else if (root.focusSection === "band") root.activateBand()
           else if (root.focusSection === "dns") root.activateDns()
+          else if (root.focusSection === "vpn") root.activateVpn()
           else root.activateSelected()
         }
       }
@@ -1213,11 +1405,25 @@ Panel {
         else if (t === "w" || t === "W") root.toggleNetwork()
       }
 
+    // The whole card scrolls, not just the two lists inside it: each list
+    // caps its own height, but the card is capped at the screen height too,
+    // and on a short or scaled screen the sections above plus both capped
+    // lists can add up to more than that. Without this the wifi rows at the
+    // bottom would simply fall off the card with no way to reach them.
+    Flickable {
+      id: panelFlick
+      anchors.fill: parent
+      contentWidth: width
+      contentHeight: column.implicitHeight
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      flickableDirection: Flickable.VerticalFlick
+      interactive: contentHeight > height
+      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
     Column {
       id: column
-      anchors.left: parent.left
-      anchors.right: parent.right
-      anchors.top: parent.top
+      width: panelFlick.width
       spacing: Style.space(12)
 
       // ---------- Hero: network icon · SSID + state · actions ----------
@@ -1631,6 +1837,61 @@ Panel {
         }
       }
 
+      // VPN/WireGuard connections (only shown once NetworkManager knows
+      // about at least one profile -- most machines have none).
+      PanelSeparator {
+        visible: root.vpnConnections.length > 0
+        foreground: root.bar.foreground
+      }
+
+      Column {
+        width: parent.width
+        spacing: Style.space(6)
+        visible: root.vpnConnections.length > 0
+
+        PanelSectionHeader {
+          text: "VPN"
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+        }
+
+        // Capped and scrollable like networkList below: a handful of saved
+        // profiles is the common case, but nothing stops someone importing
+        // many, and an uncapped column would push the DNS/wifi sections
+        // below it off the card instead of scrolling.
+        ListView {
+          id: vpnList
+          width: parent.width
+          height: Math.min(contentHeight, Style.space(240))
+          spacing: Style.space(4)
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
+          interactive: contentHeight > height
+
+          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+          model: root.vpnConnections
+          currentIndex: root.vpnIndex
+          onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+
+          // Wrapper takes modelData/index from the Repeater's delegate
+          // context, which doesn't bind into nested `component`
+          // declarations -- same shape as the band pills and networkList.
+          delegate: Item {
+            required property var modelData
+            required property int index
+            width: ListView.view.width
+            height: vpnRow.implicitHeight
+
+            VpnRow {
+              id: vpnRow
+              width: parent.width
+              conn: modelData
+              index: parent.index
+            }
+          }
+        }
+      }
 
       // Wi-Fi networks (only if a Wi-Fi station is available).
       PanelSeparator {
@@ -1700,6 +1961,7 @@ Panel {
       }
     }
     }
+    }
   }
 
   // One Wi-Fi band pill. `active` (fill) is the band actually in use and
@@ -1762,6 +2024,80 @@ Panel {
       root.cursorActive = true
       root.focusSection = "dns"
       root.dnsIndex = pill.index
+    }
+  }
+
+  // A single VPN/WireGuard connection profile. Click toggles it up/down.
+  // Busy state comes from vpnActionName rather than a per-row Connections
+  // block: nmcli connection up/down is a single fire-and-forget call with no
+  // WifiNetwork-style signal to listen on.
+  component VpnRow: CursorSurface {
+    id: row
+    required property var conn
+    required property int index
+
+    readonly property bool isActive: !!(conn && conn.active)
+    readonly property bool isBusy: root.vpnActionName !== "" && conn && root.vpnActionName === conn.name
+    readonly property bool isFailed: !isBusy && root.vpnFailureName !== "" && conn && root.vpnFailureName === conn.name
+    readonly property bool isSelected: root.focusSection === "vpn" && root.vpnIndex === index
+
+    current: isActive
+    foreground: root.bar.foreground
+    fill: root.hoverFill
+    currentFill: root.selectedFill
+    hasCursor: root.cursorActive && isSelected
+
+    implicitHeight: rowBody.implicitHeight
+
+    MouseArea {
+      id: mouseArea
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      // Locks every row while any VPN toggle is in flight, not just this
+      // one's -- clicking a different row mid-toggle would otherwise no-op
+      // silently against toggleVpn's own vpnActionProc.running guard.
+      enabled: root.vpnActionName === ""
+      onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "vpn"; root.vpnIndex = row.index }
+      onClicked: root.toggleVpn(row.conn.name, row.isActive)
+    }
+
+    Item {
+      id: rowBody
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.leftMargin: Style.space(10)
+      anchors.rightMargin: Style.space(10)
+      implicitHeight: Math.max(nameText.implicitHeight, statusText.implicitHeight) + Style.spacing.rowPaddingX
+
+      Text {
+        id: nameText
+        textFormat: Text.PlainText
+        text: row.conn ? row.conn.name : ""
+        color: root.bar.foreground
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        elide: Text.ElideRight
+        anchors.left: parent.left
+        anchors.right: statusText.left
+        anchors.rightMargin: Style.space(8)
+        anchors.verticalCenter: parent.verticalCenter
+      }
+
+      Text {
+        id: statusText
+        textFormat: Text.PlainText
+        text: {
+          if (row.isBusy) return row.isActive ? "Disconnecting…" : "Connecting…"
+          if (row.isFailed) return root.vpnFailureReason
+          return row.isActive ? "Connected" : ""
+        }
+        color: row.isFailed ? root.bar.urgent : (row.isActive ? root.bar.foreground : Qt.darker(root.bar.foreground, 1.5))
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+      }
     }
   }
 
