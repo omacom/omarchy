@@ -59,6 +59,39 @@ rm)
   ;;
 esac
 STUB
+# gum input stops at 400 characters unless the caller sets --char-limit=0.
+cat >"$stub_bin/gum" <<'STUB'
+#!/bin/bash
+mode=""
+limit=400
+prompt=""
+
+while (( $# )); do
+  case $1 in
+  input | choose) mode=$1 ;;
+  --char-limit=*) limit=${1#--char-limit=} ;;
+  --prompt)
+    shift
+    prompt=$1
+    ;;
+  --prompt=*) prompt=${1#--prompt=} ;;
+  esac
+  shift
+done
+
+printf 'mode=%s limit=%s prompt=%s\n' "$mode" "$limit" "$prompt" >>"${GUM_LOG:?}"
+
+if [[ $mode == "choose" ]]; then
+  printf '%s\n' "Paste key manually"
+  exit 0
+fi
+
+key=$(tr -d '\n' <"${PASTE_PUBLIC_KEY:?}")
+if (( limit != 0 && ${#key} > limit )); then
+  key=${key:0:limit}
+fi
+printf '%s\n' "$key"
+STUB
 chmod +x "$stub_bin"/*
 
 ssh-keygen -q -t ed25519 -N "" -f "$test_dir/key"
@@ -115,3 +148,27 @@ fi
 ! grep -q "Password logins are off" "$test_dir/invalid.output" ||
   fail "SSH setup must not claim rejected hardening succeeded"
 pass "SSH setup fails safely when sshd rejects the config"
+
+ssh-keygen -q -t rsa -b 3072 -N "" -C "sshd-setup-test" -f "$test_dir/rsa"
+rsa_key=$(tr -d '\n' <"$test_dir/rsa.pub")
+(( ${#rsa_key} > 400 )) || fail "generated RSA public key is longer than gum's default limit" "${#rsa_key}"
+
+paste_home="$test_dir/paste/home"
+paste_root="$test_dir/paste/root"
+mkdir -p "$paste_home" "$paste_root"
+: >"$test_dir/paste.calls"
+: >"$test_dir/paste.gum"
+
+paste_output=$(
+  HOME="$paste_home" TEST_ROOT="$paste_root" CALL_LOG="$test_dir/paste.calls" \
+    PASTE_PUBLIC_KEY="$test_dir/rsa.pub" GUM_LOG="$test_dir/paste.gum" \
+    PATH="$stub_bin:$PATH" \
+    bash "$ROOT/bin/omarchy-setup-security-sshd" 2>&1
+) || fail "pasted RSA public key is authorized" "$paste_output"
+grep -qxF "$rsa_key" "$paste_home/.ssh/authorized_keys" ||
+  fail "pasted RSA public key is stored in full"
+grep -qxF "mode=input limit=0 prompt=Public key> " "$test_dir/paste.gum" ||
+  fail "public key prompt disables gum's character limit" "$(<"$test_dir/paste.gum")"
+grep -q "Password logins are off" <<<"$paste_output" ||
+  fail "pasted RSA public key still disables password logins"
+pass "pasted RSA public key is authorized in full"

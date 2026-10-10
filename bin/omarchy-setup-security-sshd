@@ -134,7 +134,10 @@ prompt_for_github_user() {
 authorize_pasted_key() {
   local key
 
-  key=$(gum input --prompt "Public key> " --placeholder "ssh-ed25519 AAAA... user@host") || exit 1
+  # gum input otherwise stops at 400 characters. A 3072-bit ssh-rsa key is
+  # about 570 characters, and an OpenSSH certificate is longer, so the default
+  # limit hands ssh-keygen a truncated key and the prompt reports it as invalid.
+  key=$(gum input --prompt "Public key> " --placeholder "ssh-ed25519 AAAA... user@host" --char-limit=0) || exit 1
   if [[ -z $key ]]; then
     echo -e "\e[31mNo SSH key given.\e[0m" >&2
     exit 1
