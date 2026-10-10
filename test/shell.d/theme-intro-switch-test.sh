@@ -118,6 +118,7 @@ wait_command '^owe: intro '
 grep -Fxq "owe: intro --start first-frame --refresh $state/theme/backgrounds/intros/2-road.mp4" "$log" || fail "a theme switch plays the remembered background's matching prepared intro"
 [[ $(readlink "$state/background") == "$state/theme/backgrounds/2-road.webp" ]] || fail "the remembered background is selected"
 ! grep -qE '^shell: background (prepare|themeTransition)' "$log" || fail "an intro replaces the normal still transition"
+wait_command '^hypr-reload$'
 [[ $(<"$home/.local/state/omarchy/background-intro.session-id") == already-consumed ]] || fail "a theme switch leaves login consumption unchanged"
 pass "switching themes plays the matching intro for the remembered background"
 
@@ -161,11 +162,13 @@ cover=$(awk '/^shell: shell prepareThemeIntro / { print $4; exit }' "$log")
 kill -0 "$(<"$test_tmp/intro.pid")" || fail "the fake renderer is still playing during the lock check"
 timeout 1 flock "$test_tmp/omarchy-theme-set.lock" true || fail "theme playback does not retain the theme selection lock"
 touch "$release"
+wait_command '^hypr-reload$'
 pass "interrupted playback uses its current frame and releases the theme selection lock"
 
 TEST_OWE_NO_PREPARE=true set_theme alpha
 wait_command '^owe: intro '
 grep -Fxq "owe: intro --start first-frame $state/theme/backgrounds/intros/2-road.mp4" "$log" || fail "older OWE uses the ordinary intro path"
+wait_command '^hypr-reload$'
 pass "older OWE keeps the ordinary intro startup path"
 
 gates="$test_tmp/gates"
