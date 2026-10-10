@@ -189,6 +189,10 @@ Item {
       Util.execArgv(["omarchy-shell", "shell", "summon", "omarchy.image-picker", payload])
   }
 
+  function openAppsMenu() {
+    if (!appsMenuProc.running) appsMenuProc.running = true
+  }
+
   Process {
     id: bgSwitchProc
     command: ["bash", "-c", "background=$(omarchy-theme-bg-switcher); [[ -n $background ]] && omarchy-theme-bg-set \"$background\""]
@@ -210,6 +214,11 @@ Item {
       root.sizeQueue = root.sizeQueue.filter(function(queued) { return queued !== sizeProbe.path })
       root.probeNextSize()
     }
+  }
+
+  Process {
+    id: appsMenuProc
+    command: ["omarchy-menu", "toggle", "apps"]
   }
 
   Process {
@@ -461,10 +470,26 @@ Item {
         }
       }
 
+      // A right click on the bare desktop opens the apps menu, the same one
+      // SUPER + ALT + SPACE reaches. It waits out the double-click interval
+      // first because the second click of a right double-click still belongs
+      // to the theme switcher, and a menu opened on the first of the two would
+      // swallow it.
+      Timer {
+        id: appsMenuTimer
+        interval: Qt.styleHints.mouseDoubleClickInterval
+        onTriggered: root.openAppsMenu()
+      }
+
       MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onClicked: function(mouse) {
+          if (mouse.button === Qt.RightButton) appsMenuTimer.restart()
+          mouse.accepted = true
+        }
         onDoubleClicked: function(mouse) {
+          appsMenuTimer.stop()
           if (mouse.button === Qt.RightButton) root.openThemeSwitcher()
           else root.openSelector()
           mouse.accepted = true
