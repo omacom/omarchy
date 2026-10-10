@@ -1240,9 +1240,35 @@ ShellRoot {
     return openPanelIds[id] === true
   }
 
+  // The last menu shortcut that ran an action (background, theme) instead of
+  // opening the menu, so only a re-press of it closes the picker it spawned.
+  property string lastMenuActionPayload: ""
+
   function toggle(pluginId, payloadJson) {
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
-    return isPluginOpen(id) ? hide(id) : summon(id, payloadJson)
+    if (isPluginOpen(id)) return hide(id)
+    var isMenu = id === shell.pluginRegistry.resolveEnabledId("omarchy.menu")
+    var payload = String(payloadJson || "")
+    // A menu action (e.g. style.background, style.theme) self-closes the menu
+    // and then spawns the image-picker via shell.summon. The menu sets
+    // `opened = false` directly without calling shell.hide, so its
+    // openPanelIds entry stays true while isPluginOpen reports false. When the
+    // same menu shortcut is pressed again, close that picker instead of
+    // re-running the action; any other shortcut, menu or not, summons as
+    // before. Clean up the stale entry either way so a menu action that
+    // spawns nothing reopens the menu on the next press.
+    if (openPanelIds[id]) {
+      hide(id)
+      var pickerId = shell.pluginRegistry.resolveEnabledId("omarchy.image-picker")
+      if (isMenu && payload === lastMenuActionPayload && pickerId && isPluginOpen(pickerId)) {
+        hide(pickerId)
+        return true
+      }
+    }
+    var summoned = summon(id, payloadJson)
+    // The menu is keepLoaded, so by now an action route has closed it again.
+    if (isMenu) lastMenuActionPayload = isPluginOpen(id) ? "" : payload
+    return summoned
   }
 
   // Map of pluginId -> Loader, populated by the Instantiator delegate below.
