@@ -4,10 +4,15 @@ function omarchy_startup_cursor_restore(loaded)
   local cursor = omarchy_startup_cursor
   if loaded then
     omarchy_startup_cursor_pending = false
-    hl.config({ cursor = cursor.config })
-    if cursor.config.enable_hyprcursor and cursor.hyprcursor then
-      hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.hyprcursor) .. " " .. cursor.size)
-    end
+    -- The pointer only picks up the restored theme when it is shown again, and
+    -- the compositor checks cursor.invisible every 500ms, so hide it past one check.
+    hl.config({ cursor = { invisible = true } })
+    hl.timer(function()
+      hl.config({ cursor = cursor.config })
+      if cursor.config.enable_hyprcursor and cursor.hyprcursor then
+        hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.hyprcursor) .. " " .. cursor.size)
+      end
+    end, { timeout = 600, type = "oneshot" })
   elseif not cursor.restoring then
     -- Reload the normal Xcursor fallback before enabling Hyprcursor or GSettings.
     cursor.restoring = true

@@ -6,7 +6,7 @@ require_command lua
 
 lua <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
-local events, recovery, command = {}, nil, nil
+local events, recovery, reveal, command = {}, nil, nil, nil
 local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
 local env = { XCURSOR_THEME = "my-xcursor", HYPRCURSOR_THEME = "my-hyprcursor", XCURSOR_PATH = "/my/icons" }
 local getenv = os.getenv
@@ -21,8 +21,13 @@ hl = {
     for name, value in pairs(values.cursor) do config[name] = value end
   end,
   timer = function(callback, options)
-    assert(options.timeout == 15000 and options.type == "oneshot")
-    recovery = callback
+    assert(options.type == "oneshot")
+    if options.timeout == 15000 then
+      recovery = callback
+    else
+      assert(options.timeout > 500, "outlast the compositor's 500ms cursor visibility check")
+      reveal = callback
+    end
   end,
   exec_cmd = function(value)
     if value == "omarchy-launch-shell" then
@@ -50,6 +55,8 @@ recovery()
 assert(command:match("setcursor 'my%-xcursor'"), "restore the Xcursor fallback before revealing the pointer")
 assert(config.invisible, "wait for the normal theme before restoring visibility")
 omarchy_startup_cursor_restore(true)
+assert(config.invisible and not command:match("my%-hyprcursor"), "stay hidden until the compositor has applied the hide")
+reveal()
 assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme)
 assert(command:match("setcursor 'my%-hyprcursor'"), "restore the user's Hyprcursor theme")
 local previous_command = command
