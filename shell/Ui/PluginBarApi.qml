@@ -39,6 +39,7 @@ QtObject {
   property var _targetBelongsToWindow: null
   property var _moduleWidgets: null
   property var _run: null
+  property var _runProgram: null
   property var _setCenterHoverRevealSuppressed: null
 
   function setCenterHoverRevealSuppressed(value) {
@@ -83,5 +84,15 @@ QtObject {
 
   function run(command) {
     if (_run) _run(String(command || ""))
+  }
+
+  function runProgram(argv) {
+    if (!_runProgram || !Array.isArray(argv) || argv.length === 0) return
+    var args = []
+    for (var i = 0; i < argv.length; i++) {
+      if (typeof argv[i] !== "string") return
+      args.push(argv[i])
+    }
+    _runProgram(args)
   }
 }
