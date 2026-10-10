@@ -27,10 +27,10 @@ chmod +x "$mock_bin"/*
 PATH="$mock_bin:$PATH" CALL_LOG="$call_log" "$ROOT/bin/omarchy-system-lock"
 mapfile -t shutdown < <(rg '^(pkill|timeout) ' "$call_log")
 
-[[ ${shutdown[0]} == "pkill -x ttfx" ]] ||
+[[ ${shutdown[0]} == "pkill -u $UID -x ttfx" ]] ||
   fail "system lock stops ttfx before closing its terminal" "calls: ${shutdown[*]}"
 [[ ${shutdown[1]} == "timeout 1s pidwait -x ttfx" ]] ||
   fail "system lock waits for ttfx to exit" "calls: ${shutdown[*]}"
-[[ ${shutdown[2]} == "pkill -f [o]rg.omarchy.screensaver" ]] ||
+[[ ${shutdown[2]} == "pkill -u $UID -f [o]rg.omarchy.screensaver" ]] ||
   fail "system lock closes the screensaver terminal after ttfx exits" "calls: ${shutdown[*]}"
 pass "system lock waits for ttfx before closing its terminal"

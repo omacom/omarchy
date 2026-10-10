@@ -81,7 +81,7 @@ for kept in .claude .claude.json .cache/claude-cli-nodejs; do
 done
 pass "Claude removal keeps the Claude Code CLI's state"
 
-grep -qx 'pkill:-x claude-desktop' "$TEST_LOG" || fail "Claude removal quits the running app before deleting its state"
+grep -Eqx 'pkill:-u [0-9]+ -x claude-desktop' "$TEST_LOG" || fail "Claude removal quits the running app before deleting its state"
 pass "Claude removal quits the running app before deleting its state"
 
 # LM Studio's models follow a relocatable home, named only by the pointer file.
