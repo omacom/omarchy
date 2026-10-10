@@ -1,12 +1,23 @@
 #!/bin/bash
 
 # omarchy:summary=Toggle nightlight screen temperature
-# omarchy:args=[--status]
+# omarchy:args=[--status|--setup|--reset]
 # omarchy:examples=omarchy toggle nightlight
+#
+# Bare invocation flips day/night temperature on the running hyprsunset
+# (between the on/off temperatures below). --setup writes
+# ~/.config/hypr/hyprsunset.conf with sunrise/sunset profiles at the
+# user's location, and starts hyprsunset if it isn't running. --reset
+# restores Omarchy's stock conf (the no-tint default).
 
 ON_TEMP=4000
 OFF_TEMP=6500
 IDENTITY_TEMP=6000
+
+# State shared with omarchy-weather-location: if the user has set a weather
+# location, reuse those coords. Otherwise wttr.in IP-detection answers.
+NL_LOC_FILE="$HOME/.local/state/omarchy/settings/weather.json"
+NL_CONF="$HOME/.config/hypr/hyprsunset.conf"
 
 current_temp() {
   local output
@@ -29,10 +40,161 @@ status_json() {
     '{enabled:$enabled, temperature:(($temp | tonumber?) // null)}'
 }
 
+# Resolve the user's location for night-light scheduling. Prefers an existing
+# weather.json (which omarchy-weather-location owns), then asks
+# omarchy-weather-location itself (which does wttr.in IP-detection when
+# nothing is stored), and back-fills lat/lon into weather.json so subsequent
+# weather-panel calls are precise.
+#
+# Writes "<name>\t<lat>\t<lon>" to stdout, or returns 1 with no output.
+nl_resolve_location() {
+  local lat="" lon="" name=""
+
+  if [[ -f $NL_LOC_FILE ]]; then
+    lat=$(jq -r '.latitude  // empty' "$NL_LOC_FILE" 2>/dev/null || true)
+    lon=$(jq -r '.longitude // empty' "$NL_LOC_FILE" 2>/dev/null || true)
+    name=$(jq -r '.name      // empty' "$NL_LOC_FILE" 2>/dev/null || true)
+  fi
+
+  if [[ -z $lat || -z $lon ]]; then
+    # omarchy-weather-location prints the IP-detected city name when nothing
+    # is stored, or the stored name when it is. Use it as a fallback name.
+    name=$(omarchy-weather-location 2>/dev/null || true)
+    if [[ -n $name ]]; then
+      local resp pair
+      resp=$(curl -fsS --max-time 6 "https://wttr.in/$(jq -rn --arg n "$name" '$n|@uri')?format=j1" 2>/dev/null || true)
+      if [[ -n $resp ]]; then
+        pair=$(jq -r '.nearest_area[0] | [.latitude, .longitude] | @tsv' <<<"$resp" 2>/dev/null || true)
+        if [[ -n $pair ]]; then
+          local IFS=$'\t'
+          read -r lat lon <<<"$pair"
+        fi
+      fi
+    fi
+  fi
+
+  [[ -z $lat || -z $lon ]] && return 1
+  printf '%s\t%s\t%s\n' "${name:-unknown}" "$lat" "$lon"
+}
+
+# Fetch today's sunrise/sunset as ISO 8601 UTC timestamps from Open-Meteo,
+# for the given coords. The URL is the public API; no key, no auth.
+# Returns 0 with two ISO strings on stdout on success.
+# Returns 1 on network failure, 2 if Open-Meteo returned no sunrise/sunset
+# (polar region).
+nl_fetch_sun_times() {
+  local lat=$1 lon=$2
+  local url="https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&daily=sunrise,sunset&timezone=UTC&forecast_days=1"
+  local resp sunrise sunset
+  resp=$(curl -fsS --max-time 8 "$url" 2>/dev/null) || return 1
+
+  sunrise=$(jq -r '.daily.sunrise[0] // empty' <<<"$resp" 2>/dev/null || true)
+  sunset=$(jq -r  '.daily.sunset[0]  // empty' <<<"$resp" 2>/dev/null || true)
+
+  # Open-Meteo returns literal `null` for polar regions where the sun does
+  # not rise or set. Reject those before they can land in hyprsunset.conf.
+  if [[ -z $sunrise || -z $sunset || $sunrise == null || $sunset == null ]]; then
+    return 2
+  fi
+  printf '%s\n%s\n' "$sunrise" "$sunset"
+}
+
+# Convert an ISO 8601 UTC timestamp to machine-local HH:MM. `date -d` does
+# the timezone conversion using the system's TZ, so the result lands in the
+# same wall-clock frame hyprsunset's profile scheduler uses.
+nl_iso_to_hm() {
+  # Open-Meteo returns ISO 8601 timestamps in UTC but without the trailing
+  # `Z` (e.g. "2026-09-27T14:07"). `date -d` would otherwise interpret them
+  # as local time and return the UTC clock value unchanged. Append `Z` so
+  # the timestamp parses as UTC and converts to the machine's timezone.
+  local iso=$1
+  [[ $iso == *T* ]] || { echo "omarchy-nightlight: not an ISO timestamp: $iso" >&2; return 1; }
+  [[ $iso == Z || $iso == *Z ]] || iso="${iso}Z"
+  date -d "$iso" +%H:%M
+}
+
+setup_conf() {
+  local loc name lat lon
+  if ! loc=$(nl_resolve_location); then
+    echo "omarchy-nightlight: could not determine location." >&2
+    echo "Set one with: omarchy weather location --set <name> [lat,lon]" >&2
+    return 1
+  fi
+  IFS=$'\t' read -r name lat lon <<<"$loc"
+
+  local sunrise_iso sunset_iso fetch_rc=0
+  nl_fetch_sun_times "$lat" "$lon" >/tmp/.nl_sun.$$ 2>/dev/null || fetch_rc=$?
+  case $fetch_rc in
+    0) ;;
+    2) rm -f /tmp/.nl_sun.$$; echo "omarchy-nightlight: no sunrise/sunset at this location (polar region?)" >&2; return 1 ;;
+    *) rm -f /tmp/.nl_sun.$$; echo "omarchy-nightlight: Open-Meteo unreachable; try again later" >&2; return 1 ;;
+  esac
+  sunrise_iso=$(head -n1 /tmp/.nl_sun.$$)
+  sunset_iso=$(sed -n '2p' /tmp/.nl_sun.$$)
+  rm -f /tmp/.nl_sun.$$
+
+  local sunrise_hm sunset_hm
+  sunrise_hm=$(nl_iso_to_hm "$sunrise_iso")
+  sunset_hm=$(nl_iso_to_hm "$sunset_iso")
+
+  mkdir -p "$(dirname "$NL_CONF")"
+  cat >"$NL_CONF" <<EOF
+# Generated by 'omarchy toggle nightlight --setup' on $(date -Iseconds)
+# Location: $name ($lat, $lon). Reset with: omarchy toggle nightlight --reset
+
+profile {
+    time = $sunrise_hm
+    identity = true
+}
+
+profile {
+    time = $sunset_hm
+    temperature = $ON_TEMP
+}
+EOF
+
+  # Start hyprsunset if not running, then tell it to reload by signalling it
+  # with the new temperature (hyprsunset does not expose a reload IPC, but it
+  # re-reads the conf on the next temperature change).
+  if ! pgrep -x hyprsunset >/dev/null; then
+    setsid uwsm-app -- hyprsunset >/dev/null 2>&1 &
+    sleep 1
+  fi
+  hyprctl hyprsunset temperature "$OFF_TEMP" >/dev/null 2>&1 || true
+
+  echo "Night light scheduled: sunrise $sunrise_hm, sunset $sunset_hm ($name)"
+}
+
+reset_conf() {
+  local stock="$OMARCHY_PATH/config/hypr/hyprsunset.conf"
+  if [[ ! -f $stock ]]; then
+    echo "omarchy-nightlight: cannot find stock conf at $stock" >&2
+    return 1
+  fi
+  if [[ -f $NL_CONF ]]; then
+    cp "$NL_CONF" "${NL_CONF}.bak.$(date +%s)"
+  fi
+  mkdir -p "$(dirname "$NL_CONF")"
+  cp "$stock" "$NL_CONF"
+  echo "Night light reset to Omarchy default (no tint)."
+}
+
 if [[ ${1:-} == "--status" ]]; then
   status_json
   exit 0
 fi
+
+if [[ ${1:-} == "--setup" ]]; then
+  setup_conf
+  exit $?
+fi
+
+if [[ ${1:-} == "--reset" ]]; then
+  reset_conf
+  exit $?
+fi
+
+# Bare invocation: flip day/night temperature on the running hyprsunset.
 
 # Ensure hyprsunset is running
 if ! pgrep -x hyprsunset >/dev/null; then
