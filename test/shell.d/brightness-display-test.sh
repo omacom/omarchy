@@ -40,11 +40,23 @@ cat >"$mock_bin/ddcutil" <<'SH'
 printf 'ddcutil %s\n' "$*" >>"$CALL_LOG"
 
 if [[ $* == *" detect --brief"* ]]; then
+  invalid_block() {
+    [[ -n ${DDC_INVALID_CONNECTOR:-} ]] || return 0
+    cat <<EOF
+Invalid display
+   I2C bus:             /dev/i2c-${DDC_INVALID_BUS:-9}
+   DRM connector:       card1-${DDC_INVALID_CONNECTOR}
+
+EOF
+  }
+  [[ ${DDC_INVALID_AFTER:-0} == "1" ]] || invalid_block
   cat <<EOF
 Display 1
    I2C bus:             /dev/i2c-${DDC_BUS:-7}
    DRM connector:       card1-${DDC_CONNECTOR:-DP-1}
+
 EOF
+  [[ ${DDC_INVALID_AFTER:-0} == "1" ]] && invalid_block
 elif [[ $* == *" getvcp 10 "* ]]; then
   [[ ${DDC_READ_FAIL:-0} == "1" ]] && exit 1
   printf 'VCP 10 C %s %s\n' "${DDC_CURRENT:-40}" "${DDC_MAXIMUM:-80}"
@@ -110,6 +122,39 @@ fi
 (( $(grep -c ' detect --brief' "$call_log") == detect_count + 1 )) || \
   fail "unsupported external monitor detection is temporarily cached"
 pass "unsupported external monitor has no brightness backend"
+
+# ddcutil lists a monitor it could not talk to over DDC as "Invalid display" and
+# still prints its I2C bus. Reading VCP on that bus fails slowly (seconds of
+# EIO retries), so the bus must be ignored and the monitor cached as unavailable.
+detect_count=$(grep -c ' detect --brief' "$call_log")
+if DDC_INVALID_CONNECTOR=DP-3 DDC_INVALID_BUS=9 run_brightness --monitor DP-3 >/dev/null 2>&1; then
+  fail "invalid DDC display has no brightness backend"
+fi
+if grep -F 'ddcutil --bus 9 ' "$call_log" >/dev/null; then
+  fail "invalid DDC display is not probed on its bus"
+fi
+if DDC_INVALID_CONNECTOR=DP-3 DDC_INVALID_BUS=9 run_brightness --monitor DP-3 >/dev/null 2>&1; then
+  fail "cached invalid DDC display has no brightness backend"
+fi
+(( $(grep -c ' detect --brief' "$call_log") == detect_count + 1 )) || \
+  fail "invalid DDC display detection is temporarily cached"
+pass "invalid DDC display is ignored and cached as unavailable"
+
+# Both orders: an invalid block after a valid one must not inherit "usable",
+# and a valid block after an invalid one must still be usable.
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-3.bus"
+if DDC_INVALID_AFTER=1 DDC_INVALID_CONNECTOR=DP-3 DDC_INVALID_BUS=9 run_brightness --monitor DP-3 >/dev/null 2>&1; then
+  fail "invalid DDC display listed after a valid one has no brightness backend"
+fi
+if grep -F 'ddcutil --bus 9 ' "$call_log" >/dev/null; then
+  fail "invalid DDC display listed after a valid one is not probed on its bus"
+fi
+pass "invalid DDC display listed after a valid one is ignored"
+
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
+brightness=$(DDC_INVALID_CONNECTOR=DP-3 DDC_INVALID_BUS=9 run_brightness --monitor DP-1)
+[[ $brightness == "50" ]] || fail "valid DDC display listed after an invalid one is still usable" "actual: $brightness"
+pass "valid DDC display listed after an invalid one is still usable"
 
 rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
 detect_count=$(grep -c ' detect --brief' "$call_log")
