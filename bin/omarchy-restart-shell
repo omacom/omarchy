@@ -3,19 +3,83 @@
 # omarchy:summary=Restart the Omarchy shell
 # omarchy:examples=omarchy restart shell
 
-# A caller opened after dev link/unlink may disagree with the still-running
-# desktop. The user manager receives Hyprland's environment at session start.
-session_omarchy_path=$(systemctl --user show-environment 2>/dev/null | sed -n 's/^OMARCHY_PATH=//p' | tail -n 1)
-: "${session_omarchy_path:=$OMARCHY_PATH}"
+# The user manager is a fallback for a stale or absent caller signature. Its
+# Omarchy path may belong to a different session, so resolve that separately
+# from the selected compositor below.
+session_environment=$(systemctl --user show-environment 2>/dev/null || true)
+session_hyprland_signature=$(sed -n 's/^HYPRLAND_INSTANCE_SIGNATURE=//p' <<<"$session_environment" | tail -n 1)
 
+# Prefer the caller's live session so lock checks and restart target that exact
+# desktop. A stale or absent caller falls back to the user manager, then the
+# newest runtime instances. This check must happen before killing Quickshell.
+hyprland_reachable() {
+  local signature=$1 attempt
+
+  for attempt in 1 2 3; do
+    if HYPRLAND_INSTANCE_SIGNATURE="$signature" timeout --kill-after=1s 1s hyprctl -j monitors >/dev/null 2>&1; then
+      return 0
+    fi
+    (( attempt < 3 )) && sleep 0.1
+  done
+
+  return 1
+}
+
+hyprland_candidates=()
+if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  hyprland_candidates+=("$HYPRLAND_INSTANCE_SIGNATURE")
+fi
+if [[ -n $session_hyprland_signature && $session_hyprland_signature != "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
+  hyprland_candidates+=("$session_hyprland_signature")
+fi
+
+hyprland_runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}/hypr"
+while IFS= read -r hypr_dir; do
+  [[ -n $hypr_dir ]] && hyprland_candidates+=("${hypr_dir##*/}")
+done < <(find "$hyprland_runtime_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -rn | cut -d' ' -f2-)
+
+selected_hyprland_signature=
+for candidate in "${hyprland_candidates[@]}"; do
+  [[ -n $candidate ]] || continue
+  if hyprland_reachable "$candidate"; then
+    selected_hyprland_signature=$candidate
+    break
+  fi
+done
+
+if [[ -z $selected_hyprland_signature ]]; then
+  echo "No responsive Hyprland instance found; refusing to stop the Omarchy shell." >&2
+  exit 1
+fi
+export HYPRLAND_INSTANCE_SIGNATURE=$selected_hyprland_signature
+
+# Hyprland's instance list is the authoritative signature-to-Wayland-socket
+# mapping. Without a unique socket, shell IPC and Quickshell's display filter
+# cannot be guaranteed to address the same session as the lock check/dispatch.
+hyprland_instances=$(timeout --kill-after=1s 1s hyprctl instances -j 2>/dev/null) || {
+  echo "Could not resolve the Wayland display for Hyprland ($selected_hyprland_signature); refusing to stop the Omarchy shell." >&2
+  exit 1
+}
+selected_wayland_display=$(jq -er --arg signature "$selected_hyprland_signature" \
+  '[.[] | select(.instance == $signature) | .wl_socket | select(type == "string" and length > 0)] | if length == 1 then .[0] else empty end' \
+  <<<"$hyprland_instances" 2>/dev/null) || {
+  echo "Could not uniquely resolve the Wayland display for Hyprland ($selected_hyprland_signature); refusing to stop the Omarchy shell." >&2
+  exit 1
+}
+export WAYLAND_DISPLAY=$selected_wayland_display
+
+# Query the same compositor that will launch the replacement. Neither the
+# caller nor the user manager is authoritative after dev link/unlink or when
+# two live sessions use different checkouts. Refuse before killing anything
+# if its launch environment cannot identify a usable shell configuration.
+session_omarchy_path=$(timeout --kill-after=1s 1s hyprctl repl 'return os.getenv("OMARCHY_PATH")' 2>/dev/null) || {
+  echo "Could not resolve the Omarchy path for Hyprland ($selected_hyprland_signature); refusing to stop the Omarchy shell." >&2
+  exit 1
+}
 CONFIG_DIR="$session_omarchy_path/shell"
-[[ -f $CONFIG_DIR/shell.qml ]] || { echo "Omarchy shell config not found: $CONFIG_DIR" >&2; exit 1; }
-
-# Allow running from outside the session (e.g. over ssh) by deriving the
-# Hyprland instance signature from the newest instance runtime dir.
-if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-  hypr_dir=$(find "${XDG_RUNTIME_DIR:-/run/user/$UID}/hypr" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -n 1 | cut -d' ' -f2-)
-  [[ -n $hypr_dir ]] && export HYPRLAND_INSTANCE_SIGNATURE=${hypr_dir##*/}
+if [[ $session_omarchy_path != /* || ! -f $CONFIG_DIR/shell.qml ]]; then
+  echo "Omarchy shell config not found for Hyprland ($selected_hyprland_signature): $CONFIG_DIR; refusing to stop the Omarchy shell." >&2
+  exit 1
 fi
 
 # Restarting a live lock client would kill the lock screen and strand the
@@ -81,7 +145,7 @@ fi
 # so the client gets time to see that through, and the wait below covers a
 # client that timed out anyway: the fresh shell refuses to start next to a
 # still-dying instance (-n), which is how a restart used to end with no bar.
-while timeout 30 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
+while timeout 30 quickshell kill -p "$CONFIG_DIR" >/dev/null 2>&1; do :; done
 
 shell_instance_running() {
   quickshell list -a -j 2>/dev/null |
@@ -95,7 +159,10 @@ done
 
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.
-hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
+if ! hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null 2>&1; then
+  echo "Failed to launch the Omarchy shell through Hyprland ($HYPRLAND_INSTANCE_SIGNATURE)." >&2
+  exit 1
+fi
 
 shell_ready=0
 # The shell answers once its plugins have loaded, which on a large bar is
