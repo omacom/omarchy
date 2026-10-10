@@ -8,7 +8,7 @@ lua <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 local events, recovery, command = {}, nil, nil
 local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
-local env = { XCURSOR_THEME = "my-xcursor", HYPRCURSOR_THEME = "my-hyprcursor", XCURSOR_PATH = "/my/icons" }
+local env = { OMARCHY_PATH = os.getenv("ROOT"), XCURSOR_THEME = "my-xcursor", HYPRCURSOR_THEME = "my-hyprcursor", XCURSOR_PATH = "/my/icons" }
 local getenv = os.getenv
 os.getenv = function(name) return env[name] or getenv(name) end
 local monitors = {}
@@ -57,6 +57,19 @@ previous_recovery()
 assert(command == previous_command, "recovery must not change a revealed cursor")
 events["config.reloaded"]()
 assert(not config.invisible and env.XCURSOR_THEME == "my-xcursor", "ordinary config reloads must not hide the cursor")
+
+omarchy_startup_cursor_pending = true
+omarchy_startup_cursor = {
+  config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true },
+  hyprcursor = nil,
+  size = 24,
+  path = "/my/icons",
+  xcursor = "my-xcursor",
+}
+command = nil
+omarchy_startup_cursor_restore(true)
+assert(not config.invisible and config.sync_gsettings_theme)
+assert(command:match("setcursor 'my%-xcursor'"), "restore the Xcursor fallback when Hyprcursor theme is unset")
 
 omarchy_startup_cursor_pending = nil
 monitors = { {} }

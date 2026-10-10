@@ -5,9 +5,8 @@ function omarchy_startup_cursor_restore(loaded)
   if loaded then
     omarchy_startup_cursor_pending = false
     hl.config({ cursor = cursor.config })
-    if cursor.config.enable_hyprcursor and cursor.hyprcursor then
-      hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(cursor.hyprcursor) .. " " .. cursor.size)
-    end
+    local theme = (cursor.config.enable_hyprcursor and cursor.hyprcursor and cursor.hyprcursor ~= "" and cursor.hyprcursor) or cursor.xcursor
+    hl.exec_cmd("hyprctl setcursor " .. o.shell_quote(theme) .. " " .. cursor.size)
   elseif not cursor.restoring then
     -- Reload the normal Xcursor fallback before enabling Hyprcursor or GSettings.
     cursor.restoring = true
