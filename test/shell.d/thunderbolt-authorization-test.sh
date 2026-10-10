@@ -7,7 +7,8 @@ bash "$ROOT/test/shell.d/fixtures/thunderbolt/policy-test.sh"
 bash "$ROOT/test/shell.d/fixtures/thunderbolt/startup-test.sh"
 
 test_setup_and_removal_unit_lifecycle() {
-  local fixture=$(mktemp -d)
+  fixture=$(mktemp -d)
+  trap 'rm -rf "${fixture:-}"' EXIT
   local mock_bin="$fixture/bin"
   local mock_home="$fixture/home"
   local calls="$fixture/calls"
@@ -24,7 +25,8 @@ elif [[ $1 == systemctl && $2 == daemon-reload ]]; then
 elif [[ $1 == /usr/bin/omarchy-thunderbolt-authorization-admin ]]; then
   exit 0
 fi
-exec /usr/bin/sudo "$@"
+echo "unexpected sudo call: $*" >&2
+exit 1
 STUB
   chmod +x "$mock_bin/sudo"
 
@@ -52,6 +54,15 @@ STUB
   grep -Fqx 'systemctl --user enable --now omarchy-thunderbolt-authorization.service' "$calls" ||
     fail "setup enables user systemd unit"
 
+  # Re-running setup must be idempotent and leave no temporary files behind
+  CALLS="$calls" HOME="$mock_home" PATH="$mock_bin:$PATH" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-setup-security-thunderbolt-authorization" --quiet
+  cmp -s "$ROOT/default/systemd/user/omarchy-thunderbolt-authorization.service" \
+    "$mock_home/.config/systemd/user/omarchy-thunderbolt-authorization.service" ||
+    fail "second setup keeps installed unit identical to source"
+  [[ $(ls -A "$mock_home/.config/systemd/user" | wc -l) == 1 ]] ||
+    fail "setup leaves no temporary files in the user unit directory"
+
   CALLS="$calls" HOME="$mock_home" PATH="$mock_bin:$PATH" OMARCHY_PATH="$ROOT" \
     bash "$ROOT/bin/omarchy-remove-security-thunderbolt-authorization"
 
@@ -60,7 +71,6 @@ STUB
   grep -Fqx 'systemctl --user disable --now omarchy-thunderbolt-authorization.service' "$calls" ||
     fail "removal disables user systemd unit"
 
-  rm -rf "$fixture"
   pass "Thunderbolt setup and removal manages user systemd unit lifecycle"
 }
 

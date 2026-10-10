@@ -29,6 +29,7 @@ elif [[ $# == 0 || ( $# == 1 && $1 == "--quiet" ) ]]; then
   unit="$HOME/.config/systemd/user/omarchy-thunderbolt-authorization.service"
   mkdir -p "${unit%/*}"
   unit_temporary=$(mktemp "${unit}.XXXXXXXXXX")
+  trap 'rm -f "$unit_temporary"' EXIT
   install -m644 "$unit_source" "$unit_temporary"
   mv -fT "$unit_temporary" "$unit"
   systemctl --user daemon-reload

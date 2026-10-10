@@ -6,7 +6,14 @@ set -euo pipefail
 
 gum confirm "Restore Bolt's previous policy? New accessories may be authorized automatically when IOMMU protection is active." || exit 0
 sudo /usr/bin/omarchy-thunderbolt-authorization-admin disable
-systemctl --user disable --now omarchy-thunderbolt-authorization.service 2>/dev/null || true
-rm -f "$HOME/.config/systemd/user/omarchy-thunderbolt-authorization.service"
+unit_name=omarchy-thunderbolt-authorization.service
+unit_dir="$HOME/.config/systemd/user"
+# Only a missing unit is tolerated; real disable failures abort before cleanup.
+if systemctl --user cat "$unit_name" >/dev/null 2>&1; then
+  systemctl --user disable --now "$unit_name"
+fi
+rm -f "$unit_dir/$unit_name"
+# Drop any dangling enablement symlinks left behind
+find "$unit_dir" -maxdepth 2 -type l -name "$unit_name" -delete 2>/dev/null || true
 systemctl --user daemon-reload
 echo "Previous Bolt policy restored. Saved Omarchy trust is retained for re-enabling."
