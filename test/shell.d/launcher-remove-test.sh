@@ -7,7 +7,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
-mkdir -p "$tmp_dir/data/applications" "$tmp_dir/system/applications" "$tmp_dir/bin"
+mkdir -p "$tmp_dir/data/applications" "$tmp_dir/data/applications/wine/Programs/Example App" "$tmp_dir/system/applications" "$tmp_dir/packages" "$tmp_dir/bin"
 
 write_fake_command() {
   local name="$1"
@@ -56,16 +56,30 @@ Name=Docker
 Exec=xdg-terminal-exec --app-id=TUI.tile -e lazydocker
 DESKTOP
 
-cat >"$tmp_dir/system/applications/native.desktop" <<'DESKTOP'
+cat >"$tmp_dir/packages/native.desktop" <<'DESKTOP'
 [Desktop Entry]
 Name=Native
 Exec=native
+DESKTOP
+ln -s "$tmp_dir/packages/native.desktop" "$tmp_dir/system/applications/native.desktop"
+
+# Its ID is wine-native, so removing native must not take it.
+cat >"$tmp_dir/data/applications/wine/native.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Wine Native
+Exec=wine native.exe
 DESKTOP
 
 cat >"$tmp_dir/data/applications/aliens.desktop" <<'DESKTOP'
 [Desktop Entry]
 Name=Aliens
 Exec=retroarch -L /usr/lib/libretro/fbneo_libretro.so /home/example/Games/roms/fbneo/aliens.zip
+DESKTOP
+
+cat >"$tmp_dir/data/applications/wine/Programs/Example App/example.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Example App
+Exec=wine "C:\\Program Files\\Example App\\example.exe"
 DESKTOP
 
 export TEST_LOG="$tmp_dir/log"
@@ -77,6 +91,7 @@ export XDG_DATA_DIRS="$tmp_dir/system"
 "$ROOT/bin/omarchy-remove-launcher-entry" Docker.desktop Docker
 "$ROOT/bin/omarchy-remove-launcher-entry" native.desktop Native
 "$ROOT/bin/omarchy-remove-launcher-entry" aliens.desktop Aliens
+"$ROOT/bin/omarchy-remove-launcher-entry" wine-Programs-Example\ App-example.desktop "Example App"
 
 mapfile -t lines <"$TEST_LOG"
 
@@ -89,8 +104,14 @@ pass "launcher remove routes TUIs by desktop name"
 [[ ${lines[2]} == "terminal::echo Uninstalling Native...; sudo pacman -Rns native-pkg" ]] || fail "launcher remove opens package uninstall flow" "${lines[2]}"
 pass "launcher remove opens package uninstall flow"
 
+[[ -e $tmp_dir/data/applications/wine/native.desktop ]] || fail "launcher remove matches nested entries by full desktop ID"
+pass "launcher remove matches nested entries by full desktop ID"
+
 [[ ! -e $tmp_dir/data/applications/aliens.desktop ]] || fail "launcher remove deletes user-owned desktop files"
 pass "launcher remove deletes user-owned desktop files"
+
+[[ ! -e "$tmp_dir/data/applications/wine/Programs/Example App/example.desktop" ]] || fail "launcher remove deletes nested user-owned desktop files"
+pass "launcher remove deletes nested user-owned desktop files"
 
 (( ${#lines[@]} == 3 )) || fail "launcher remove does not notify for user-owned desktop files" "$(printf '%s\n' "${lines[@]}")"
 pass "launcher remove does not notify for user-owned desktop files"
