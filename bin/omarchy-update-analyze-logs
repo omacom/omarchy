@@ -4,6 +4,11 @@
 
 update_log="/tmp/omarchy-update.log"
 
+if [[ ! -f $update_log ]]; then
+  echo "No update log found; nothing to analyze."
+  exit 0
+fi
+
 # Check for initramfs generation failure
 if grep -q "Updating linux initcpios" "$update_log"; then
   if ! grep -q "Initcpio image generation successful" "$update_log"; then
