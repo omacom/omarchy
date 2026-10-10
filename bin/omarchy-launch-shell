@@ -15,7 +15,9 @@
 # against a half-written tree, and that failed reload leaves a second engine
 # generation behind that turns the next restart's IPC kill into a crash.
 run_shell() {
-  QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
+  local startup_background
+  startup_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
+  OMARCHY_STARTUP_BACKGROUND="$startup_background" QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!
 

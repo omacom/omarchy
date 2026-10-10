@@ -3,12 +3,9 @@ import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
 
-// A fullscreen overlay whose surface outlives each open. A fresh surface draws
-// its first frames before the compositor sends its fractional scale, so an
-// overlay mapped per open flashed blurry until the scale arrived. Closed, the
-// surface parks as a 1x1, input-less, content-less layer below windows: small
-// enough to cost nothing, off the overlay layer so it never blocks direct
-// scanout for fullscreen apps. Opening only resizes and raises it.
+// Map a fresh fullscreen surface on each open. Keep its first frames
+// transparent until Qt receives the output's scale, so it opens sharp without
+// retaining a parked surface that can be closed when a monitor disconnects.
 PanelWindow {
   id: window
 
@@ -17,11 +14,31 @@ PanelWindow {
   property int shownLayer: WlrLayer.Overlay
   property int shownKeyboardFocus: WlrKeyboardFocus.Exclusive
 
-  // The surface no longer lands on the focused output by being mapped there,
-  // so it follows the focused monitor each time it is shown. Unset until the
-  // first show lets the compositor choose.
   property var targetScreen: null
-  property Region emptyRegion: Region {}
+  readonly property var targetMonitor: {
+    var monitors = Hyprland.monitors.values
+    for (var i = 0; i < monitors.length; i++) {
+      if (targetScreen && monitors[i].name === targetScreen.name) return monitors[i]
+    }
+    return null
+  }
+
+  // Wait for fullscreen geometry as well as scale so no smaller opening frame
+  // is stretched across the output. Fractional scale uses units of 1/120;
+  // compare in those units to tolerate floating point rounding.
+  readonly property bool contentReady: shown && backingWindowVisible && !!targetScreen
+    && width === targetScreen.width && height === targetScreen.height
+    && !!targetMonitor && Math.round(devicePixelRatio * 120) === Math.round(targetMonitor.scale * 120)
+  property bool contentRevealed: false
+
+  onContentReadyChanged: {
+    contentRevealed = false
+    // Resize and scale notifications arrive while Qt is still updating the
+    // window. Reveal on the next turn, once its content layout has caught up.
+    if (contentReady) Qt.callLater(function() {
+      if (window.contentReady) window.contentRevealed = true
+    })
+  }
 
   function focusedScreen() {
     var monitor = Hyprland.focusedMonitor
@@ -29,28 +46,44 @@ PanelWindow {
     for (var i = 0; i < Quickshell.screens.length; i++) {
       if (Quickshell.screens[i].name === name) return Quickshell.screens[i]
     }
-    return null
+    return Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
   }
 
-  onShownChanged: if (shown) targetScreen = focusedScreen() || targetScreen
+  // Live monitor scaling does not emit a Hyprland monitor event, so its cached
+  // scale can lag behind Qt. Refresh on opening and on scale changes while open.
+  onShownChanged: {
+    targetScreen = shown ? focusedScreen() : null
+    if (shown) Hyprland.refreshMonitors()
+  }
+  onDevicePixelRatioChanged: if (shown) Hyprland.refreshMonitors()
 
-  visible: true
+  Connections {
+    target: Quickshell
+    function onScreensChanged() {
+      if (window.shown && Quickshell.screens.indexOf(window.targetScreen) < 0) {
+        window.targetScreen = null
+        // Let the removed output finish closing its old window before mapping
+        // a replacement, rather than recreating it during Qt's teardown.
+        Qt.callLater(function() {
+          if (window.shown && !window.targetScreen) window.targetScreen = window.focusedScreen()
+        })
+      }
+    }
+  }
+
+  visible: shown && !!targetScreen && !!targetMonitor
   screen: targetScreen
-  anchors { top: true; left: true; bottom: shown; right: shown }
-  implicitWidth: 1
-  implicitHeight: 1
-  mask: shown ? null : emptyRegion
+  anchors { top: true; left: true; bottom: true; right: true }
   color: "transparent"
   exclusionMode: ExclusionMode.Ignore
-  WlrLayershell.layer: shown ? shownLayer : WlrLayer.Bottom
-  WlrLayershell.keyboardFocus: shown ? shownKeyboardFocus : WlrKeyboardFocus.None
+  WlrLayershell.layer: shownLayer
+  WlrLayershell.keyboardFocus: shownKeyboardFocus
 
-  // Draw nothing until the surface has actually grown. A frame drawn while it
-  // is still 1x1 holds only the scrim's color, which the compositor would
-  // stretch across the whole screen until the fullscreen frame arrives.
+  // Opacity preserves keyboard handling while the scale arrives, including
+  // search keystrokes and Escape pressed immediately after opening.
   Binding {
     target: window.contentItem
-    property: "visible"
-    value: window.shown && window.width > 1 && window.height > 1
+    property: "opacity"
+    value: window.contentRevealed ? 1 : 0
   }
 }
