@@ -82,11 +82,12 @@ def input_catalog(items):
 
 
 def input_items(items, selected, overrides=None):
-  keyboard = [item for item in items if item[0].startswith("keyboard-")]
-  if not keyboard:
+  if not any(item[0].startswith("keyboard-") for item in items):
     raise RuntimeError("The current input group has no keyboard input")
-  existing = {**(overrides or {}), **dict(items)}
-  return keyboard + [[name, existing.get(name, "")] for name in selected]
+  # Retained entries keep their switching order; new engines follow them.
+  kept = [item for item in items if item[0].startswith("keyboard-") or item[0] in selected]
+  current = dict(items)
+  return kept + [[name, (overrides or {}).get(name, "")] for name in selected if name not in current]
 
 
 def set_inputs(group, layout, before, after):

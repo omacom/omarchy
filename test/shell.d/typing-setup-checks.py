@@ -48,8 +48,13 @@ class TypingSetupTest(unittest.TestCase):
 
   def test_input_deselection_keeps_keyboard_and_selected_overrides(self):
     items = [["keyboard-us", ""], ["mozc", "jp"], ["hangul", ""], ["custom", "de"]]
-    self.assertEqual(typing.input_items(items, ["custom", "mozc"]), [["keyboard-us", ""], ["custom", "de"], ["mozc", "jp"]])
+    self.assertEqual(typing.input_items(items, ["custom", "mozc"]), [["keyboard-us", ""], ["mozc", "jp"], ["custom", "de"]])
     self.assertEqual(typing.input_items(items, []), [["keyboard-us", ""]])
+
+  def test_input_changes_keep_the_switching_order(self):
+    items = [["keyboard-us", ""], ["mozc", ""], ["keyboard-fr", ""], ["hangul", ""]]
+    self.assertEqual(typing.input_items(items, ["mozc"]), [["keyboard-us", ""], ["mozc", ""], ["keyboard-fr", ""]])
+    self.assertEqual(typing.input_items(items, ["pinyin", "hangul", "mozc"]), items + [["pinyin", ""]])
 
   def test_cancellation_does_not_change_input_settings(self):
     with patch.object(typing.setup, "live_group", return_value=("Default", "us", [["keyboard-us", ""]])), patch.object(typing, "input_catalog", return_value=({"mozc": "Japanese"}, {"mozc": "Japanese"})), patch.object(typing, "choose", return_value=None), patch.object(typing.setup, "live_set") as setter:
