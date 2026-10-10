@@ -42,8 +42,11 @@ Cloning switches the bar to the cloned copy (e.g. `<username>.workspaces`),
 which is yours to edit and survives updates.
 
 Saving a file anywhere under `~/.config/omarchy/plugins/` reloads plugin code
-automatically. If a change somehow fails to apply, force a reload with
-`omarchy-shell shell rescanPlugins`.
+automatically. `omarchy-shell shell rescanPlugins` runs that same reload by
+hand, which helps when a save was missed but not when the reload itself left
+old code running. If a change still doesn't apply, restart the shell with
+`omarchy restart shell`. A service whose plugin sets `keepLoaded: true` is kept
+across reloads, so changes to its code always need the restart.
 
 ## Idle and Lock
 
