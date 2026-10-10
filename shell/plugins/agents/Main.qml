@@ -117,12 +117,33 @@ Item {
   Component.onCompleted: {
     rescanAgents()
     if (syncConfigured()) scheduleSync()
+    refreshProviderIds()
   }
 
   // -------------------------------------------------------------- refresh
 
   property int refreshIntervalSec: Math.max(30, Number(setting("refreshIntervalSec", 900)))
   property string pendingUpdateKind: ""
+  property var pendingAgentIds: []
+  property bool pendingAllProviders: false
+
+  // ModuleSlot builds moduleName and moduleSettings with the layout entry.
+  // When its loader finishes, injectProps assigns bar, moduleName, and
+  // settings on the widget synchronously, and Qt.callLater assigns them
+  // again. Panel binds settingsReady to a non-null bar, which is that
+  // assignment, so the first collection sees provider settings. An empty
+  // providers map then means the entry has none. A host that never assigns
+  // a bar would leave collection stopped, so the fallback below still starts
+  // it. The fallback is not ordered against Qt.callLater.
+  property bool settingsReady: false
+  property bool readyDeadlinePassed: false
+
+  Timer {
+    interval: 6000
+    running: !root.settingsReady && !root.readyDeadlinePassed
+    repeat: false
+    onTriggered: root.readyDeadlinePassed = true
+  }
 
   // A fifteen-minute interval can't catch an account crossing its switch
   // threshold, so while any provider with several accounts has its active one
@@ -146,7 +167,7 @@ Item {
 
   Timer {
     interval: root.nearLimit ? Math.min(180, root.refreshIntervalSec) * 1000 : root.refreshIntervalSec * 1000
-    running: true
+    running: root.settingsReady || root.readyDeadlinePassed
     repeat: true
     triggeredOnStart: true
     onTriggered: root.runUpdate(root.nearLimit ? "limits" : "normal")
@@ -158,11 +179,7 @@ Item {
     onExited: {
       root.rescanAgents()
       root.reloadRecords()
-      if (root.pendingUpdateKind !== "") {
-        var kind = root.pendingUpdateKind
-        root.pendingUpdateKind = ""
-        root.runUpdate(kind)
-      }
+      root.startPendingUpdate()
     }
 
     stderr: StdioCollector {
@@ -185,11 +202,62 @@ Item {
     return command
   }
 
+  // force outranks a normal refresh, and a normal refresh outranks limits-only.
+  function updateRank(kind) {
+    if (kind === "force") return 3
+    if (kind === "normal") return 2
+    if (kind === "limits") return 1
+    return 0
+  }
+
+  function unionIds(left, right) {
+    var seen = ({})
+    var out = []
+    var lists = [left || [], right || []]
+    for (var l = 0; l < lists.length; l++) {
+      for (var i = 0; i < lists[l].length; i++) {
+        var key = String(lists[l][i] || "")
+        if (key === "" || seen[key]) continue
+        seen[key] = true
+        out.push(key)
+      }
+    }
+    return out
+  }
+
+  // Remember one follow-up while a collector is busy. Ids from several
+  // targeted requests are unioned. A request with no ids covers every
+  // provider, and a later targeted request cannot shrink that.
+  function enqueueUpdate(kind, agentIds) {
+    var incomingAll = !agentIds || agentIds.length === 0
+    if (root.pendingUpdateKind === "") {
+      root.pendingUpdateKind = kind
+      root.pendingAllProviders = incomingAll
+      root.pendingAgentIds = incomingAll ? [] : unionIds([], agentIds)
+      return
+    }
+    if (updateRank(kind) > updateRank(root.pendingUpdateKind)) root.pendingUpdateKind = kind
+    if (root.pendingAllProviders || incomingAll) {
+      root.pendingAllProviders = true
+      root.pendingAgentIds = []
+      return
+    }
+    root.pendingAgentIds = unionIds(root.pendingAgentIds, agentIds)
+  }
+
+  function startPendingUpdate() {
+    if (root.pendingUpdateKind === "") return
+    var kind = root.pendingUpdateKind
+    var ids = root.pendingAllProviders ? null : root.pendingAgentIds.slice()
+    root.pendingUpdateKind = ""
+    root.pendingAgentIds = []
+    root.pendingAllProviders = false
+    root.runUpdate(kind, ids)
+  }
+
   function runUpdate(kind, agentIds) {
     if (updateProcess.running) {
-      // Collapse queued requests to one full rerun; a forced refresh outranks
-      // the cheaper kinds it might have been queued behind.
-      if (kind === "force" || root.pendingUpdateKind === "") root.pendingUpdateKind = kind
+      enqueueUpdate(kind, agentIds)
       return
     }
     updateProcess.command = updateCommand(kind, agentIds)
@@ -206,10 +274,10 @@ Item {
 
   // ------------------------------------------------------------- providers
 
-  // An agent earns a place in the bar and the panel by being switched on in
-  // settings and having actually produced numbers — locally or on a synced
-  // device. With nothing to show, the whole module collapses out of the bar
-  // rather than sitting there dimmed.
+  // An agent earns a place in the panel by being switched on in settings and
+  // having actually produced numbers, locally or on a synced device. The bar
+  // icon stays either way, so the switches that turn an agent back on remain
+  // reachable.
   property var enabledProviders: {
     var rev = dataRevision
     var syncRev = syncRevision
@@ -244,6 +312,7 @@ Item {
   // the ones it does.
   readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/order.json"
   property var providerOrder: []
+  onProviderOrderChanged: refreshProviderIds()
 
   function orderedProviders(list) {
     var order = providerOrder
@@ -285,6 +354,101 @@ Item {
   function providerEnabled(id) {
     if (!settings || !settings.providers || !settings.providers[id]) return true
     return settings.providers[id].enabled !== false
+  }
+
+  // Stable id list for the settings repeater. Reassign only when the ordered
+  // ids change, so a collector returning cannot tear the rows down under the
+  // pointer. The order is the panel's saved provider order, then any id that
+  // order does not name yet.
+  property var providerIds: []
+  onSettingsChanged: refreshProviderIds()
+  onSyncRevisionChanged: refreshProviderIds()
+  onDataRevisionChanged: refreshProviderIds()
+  onAgentIdsChanged: refreshProviderIds()
+
+  function refreshProviderIds() {
+    var ids = []
+    var seen = ({})
+    function push(id) {
+      var key = String(id || "")
+      if (key === "" || seen[key]) return
+      seen[key] = true
+      ids.push(key)
+    }
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i] ? agents[i].record : null
+      if (record && record.id) push(record.id)
+    }
+    for (var f = 0; f < agentIds.length; f++) push(agentIds[f])
+    var syncedProviders = syncConfigured() && aggregateData && aggregateData.providers ? aggregateData.providers : {}
+    for (var syncedId in syncedProviders) push(syncedId)
+    var configured = settings && settings.providers ? settings.providers : {}
+    for (var configuredId in configured) push(configuredId)
+    var order = providerOrder || []
+    ids.sort(function(a, b) {
+      var ia = order.indexOf(a)
+      var ib = order.indexOf(b)
+      if (ia < 0) ia = order.length
+      if (ib < 0) ib = order.length
+      if (ia !== ib) return ia - ib
+      if (a < b) return -1
+      if (a > b) return 1
+      return 0
+    })
+    if (JSON.stringify(ids) !== JSON.stringify(providerIds)) providerIds = ids
+  }
+
+  // Providers that have produced numbers, ignoring the enable switch. Empty
+  // leftover records do not count, so they cannot keep a dead icon around.
+  readonly property int collectedCount: {
+    var rev = dataRevision
+    var syncRev = syncRevision
+    var count = 0
+    var localIds = {}
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i] ? agents[i].record : null
+      if (!record || !record.id) continue
+      var id = String(record.id)
+      localIds[id] = true
+      if (providerHasData(displayProvider(record))) count++
+    }
+    var syncedProviders = syncConfigured() && aggregateData && aggregateData.providers ? aggregateData.providers : {}
+    for (var syncedId in syncedProviders) {
+      if (localIds[syncedId]) continue
+      var stats = syncedProviders[syncedId] || {}
+      if (providerHasData(displayProvider({ id: syncedId, name: stats.providerName || syncedId }))) count++
+    }
+    return count
+  }
+
+  function providerName(id) {
+    var rev = dataRevision
+    var syncRev = syncRevision
+    var key = String(id || "")
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i] ? agents[i].record : null
+      if (record && String(record.id) === key && record.name)
+        return String(record.name)
+    }
+    var syncedProviders = syncConfigured() && aggregateData && aggregateData.providers ? aggregateData.providers : {}
+    var stats = syncedProviders[key]
+    if (stats && stats.providerName) return String(stats.providerName)
+    return key
+  }
+
+  function providerCollected(id) {
+    var rev = dataRevision
+    var syncRev = syncRevision
+    var key = String(id || "")
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i] ? agents[i].record : null
+      if (record && String(record.id) === key)
+        return providerHasData(displayProvider(record))
+    }
+    var syncedProviders = syncConfigured() && aggregateData && aggregateData.providers ? aggregateData.providers : {}
+    if (!syncedProviders[key]) return false
+    var stats = syncedProviders[key] || {}
+    return providerHasData(displayProvider({ id: key, name: stats.providerName || key }))
   }
 
   // All-time keeps a quiet day from hiding an agent; today's counts admit a

@@ -1091,11 +1091,12 @@ ShellRoot {
     }
   }
 
-  // Writes inline settings to a bar layout entry or top-level plugin entry in
-  // shell.json. moduleName is the entry id; settings is the merged plugin
-  // state. Returns true if anything actually changed. Compute the proposed
-  // new shellConfig in a local clone, and only persist if anything actually
-  // changed so reactive bindings do not dirty shell.json unnecessarily.
+  // Writes inline settings onto every matching bar layout entry, promoting a
+  // string id to an object, and onto a top-level plugin entry when the bar
+  // layout has none. Order and unrelated entries stay. Returns true when the
+  // saved config changed. The proposed shellConfig is a local clone, and it
+  // is persisted only when something changed so reactive bindings do not
+  // dirty shell.json for a no-op.
   function updateEntryInline(moduleName, settings) {
     var stripped = Util.canonicalWidgetId(moduleName)
     var copy = JSON.parse(JSON.stringify(shellConfig || builtinShellConfig))
@@ -1103,32 +1104,42 @@ ShellRoot {
     if (!Util.isPlainObject(copy.bar.layout)) copy.bar.layout = { left: [], center: [], right: [] }
     if (!Array.isArray(copy.plugins)) copy.plugins = []
 
+    function entryIdOf(entry) {
+      if (typeof entry === "string") return Util.canonicalWidgetId(entry)
+      if (Util.isPlainObject(entry) && entry.id) return Util.canonicalWidgetId(entry.id)
+      return ""
+    }
+
+    function storedEntry() {
+      var next = { id: stripped }
+      for (var key in settings) if (key !== "id") next[key] = settings[key]
+      return next
+    }
+
     var sections = ["left", "center", "right"]
     var foundInLayout = false
     var dirty = false
     for (var s = 0; s < sections.length; s++) {
       var arr = copy.bar.layout[sections[s]] || []
       for (var i = 0; i < arr.length; i++) {
-        if (arr[i] && Util.canonicalWidgetId(arr[i].id) === stripped) {
-          var next = { id: stripped }
-          for (var k in settings) if (k !== "id") next[k] = settings[k]
-          if (JSON.stringify(arr[i]) !== JSON.stringify(next)) {
-            arr[i] = next
-            dirty = true
-          }
-          foundInLayout = true
+        var currentId = entryIdOf(arr[i])
+        if (currentId === "" || currentId !== stripped) continue
+        var next = storedEntry()
+        if (JSON.stringify(arr[i]) !== JSON.stringify(next)) {
+          arr[i] = next
+          dirty = true
         }
+        foundInLayout = true
       }
     }
     if (!foundInLayout) {
       for (var j = 0; j < copy.plugins.length; j++) {
-        if (copy.plugins[j] && copy.plugins[j].id === stripped) {
-          var pnext = { id: stripped }
-          for (var pk in settings) if (pk !== "id") pnext[pk] = settings[pk]
-          if (JSON.stringify(copy.plugins[j]) !== JSON.stringify(pnext)) {
-            copy.plugins[j] = pnext
-            dirty = true
-          }
+        var pluginId = entryIdOf(copy.plugins[j])
+        if (pluginId === "" || pluginId !== stripped) continue
+        var pnext = storedEntry()
+        if (JSON.stringify(copy.plugins[j]) !== JSON.stringify(pnext)) {
+          copy.plugins[j] = pnext
+          dirty = true
         }
       }
     }

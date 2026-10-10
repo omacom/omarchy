@@ -1,9 +1,10 @@
 # Agents
 
 One bar icon and one panel for every AI coding subscription on the machine.
-The panel is strictly a display: it watches the usage records that
+The panel watches the usage records that
 `omarchy-agent-usage-update` writes to `~/.local/state/omarchy/agents/usage/`
-and draws whatever appears there. `Panel.qml` owns the bar button and the
+and draws whatever appears there. It also writes this widget's `providers`
+map. `Panel.qml` owns the bar button and the
 popup; `Main.qml` discovers and watches the records (and handles the optional
 cross-device aggregation); `Agent.qml` is the per-record file watcher.
 
@@ -14,7 +15,8 @@ Every subscription on one page, limits first.
 - **Hero** — the agents robot, and a line that rotates through what the
   token counts add up to across every agent: tokens this week and today, the
   most used model, the busiest day, and today's prompts and sessions. Its
-  corner has + to add a subscription and >_ to start the default agent.
+  corner has + to add a subscription, >_ to start the default agent, and a
+  gear that opens the provider switches.
 - **One section per agent** — its mark, name, and plan, then a compact line
   per limit window: its meter and the time until it resets (the exact percentage
   on hover). A model-scoped allowance on the same clock (Claude's Fable weekly
@@ -47,7 +49,8 @@ Every subscription on one page, limits first.
   reopen the sign-in page. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
   carries on and its result arrives as a notification.
 
-The icon is always in the bar. On a machine with no agent yet, the panel is
+The icon is always in the bar, including when every provider is switched off,
+so the switches stay reachable. On a machine with no agent yet, the panel is
 the blank slate for setting one up: it opens on the same choice of Claude,
 Codex, or Grok, and the first agent signed in becomes the default agent if
 none was picked. An agent appears once it is enabled in settings and has
@@ -146,7 +149,12 @@ only adds the meter and the spent-of-funded line under the real figure.
   does the same, lighting the header it will land on. The order is kept in
   `~/.local/state/omarchy/agents/order.json`. Hovering moves the same cursor. Enter acts on it, or
   refreshes when nothing is lit; `r` refreshes, Tab moves to the neighboring
-  bar panel, Esc closes.
+  bar panel, Esc closes. `s` or the gear swaps the page for one switch per
+  provider, with the first switch highlighted. `j` and `k` move and stay
+  inside that list, keeping the highlighted switch in view, and `h` and `l`
+  do nothing there. Enter or Space flips the highlighted switch. Esc returns
+  to the dashboard when one is showing, and closes the panel when every
+  provider is off.
 - Accounts: `1`–`9` jump to an account across every agent, and Enter makes it
   active (picking alone never switches). `m` toggles automatic switching for
   the picked account's agent. While an agent
@@ -175,9 +183,25 @@ omarchy bar set omarchy.agents refreshIntervalSec 300 --json
 omarchy bar set omarchy.agents syncDir '~/Sync/agent-usage'
 ```
 
-Per-agent enablement is nested, and `set` writes its key literally rather
-than walking a dotted path — so pass the whole `providers` object as JSON (or
-edit `shell.json` directly):
+The gear in the panel hero, or `s`, opens a switch per provider. Flipping a
+switch merges that one id into the existing `providers` map. The flipped
+entry keeps any extra keys and overwrites `enabled`. Other entries stay as
+they were. A flip that would not change whether the provider is on does not
+write and does not collect. If the writer is missing or refuses the change,
+the previous settings are restored and a notification is sent. Switching a
+provider back on asks the collector for a normal refresh of that provider.
+The updater's `--except` list is every id in the map with `enabled` set to
+`false`.
+
+Off hides the agent in the panel and stops its collector refreshing. Agents
+default to on: a missing map, or a map that does not name an id, counts as
+enabled. Only `enabled: false` turns one off. Switching every agent off
+leaves the bar icon in place. To remove the widget itself, use
+`omarchy plugin disable omarchy.agents`.
+
+The same map can be written by hand. `set` writes its key literally rather
+than walking a dotted path, so pass the whole object as JSON (or edit
+`shell.json` directly):
 
 ```bash
 omarchy bar set omarchy.agents providers '{
@@ -186,10 +210,6 @@ omarchy bar set omarchy.agents providers '{
   "fireworks": { "enabled": true }
 }' --json
 ```
-
-`enabled` defaults to `true` for every discovered agent; set it to `false` to
-hide a subscription that is installed. Disabled agents are also skipped when
-the records regenerate.
 
 With `syncMode` on, every `*.json` snapshot in `syncDir` is merged, so today,
 the last 7 days, and the all-time totals cover every machine you code on —
@@ -203,3 +223,26 @@ One caveat on "all-time": the Codex collector only reads native session files
 touched in the last 30 days, and Fireworks requests the last 30 days from its
 billing API, so their totals and day counts cover that window. Claude's cover
 every transcript still on disk.
+
+## Acceptance restoration
+
+The provider-switch acceptance test captures and restores shell settings, usage
+records and collector caches. The normal usage updater and the direct Claude,
+Codex and Grok collectors take a shared lock at
+`$XDG_STATE_HOME/omarchy/agents/.usage-restore.lock` (or the usual state directory
+under HOME). Acceptance capture and cleanup hold it exclusively through final
+verification and snapshot removal. The gate comes before account-registry and
+provider scan locks. All participants must use the same state context; do not
+remove or replace its inode. Unrelated writers remain outside this protocol.
+
+Live collectors are quiet only when the kernel proves they are blocked on that
+held gate. Unknown probes or unreadable paths keep the snapshot for retry.
+A normal refresh can publish again after cleanup releases the gate.
+
+When `OMARCHY_ACCEPTANCE_DIR` is set, the helper retains captured and restored
+checkpoint manifests there while holding the exclusive gate. They record
+existence, types, modes and SHA-256 hashes of bytes, entry names and symlink
+targets, without account names or contents. The evidence directory must be
+outside the three restored trees and the snapshot. Requested evidence failures
+retain the snapshot and fail acceptance; later filesystem observations can
+include legitimate writes after the gate has been released.

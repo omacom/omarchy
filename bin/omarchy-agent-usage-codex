@@ -1074,4 +1074,9 @@ def main():
 
 
 if __name__ == "__main__":
-  main()
+  # Direct collector runs share the same outer gate as the normal updater.
+  # Resolve the helper beside the actual source, including symlink discovery.
+  sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+  from omarchy_agent_usage_gate import shared_gate
+  with shared_gate():
+    main()

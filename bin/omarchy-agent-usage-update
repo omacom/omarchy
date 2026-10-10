@@ -9,6 +9,14 @@
 # agents panel watches them. Adding an agent is adding a collector — the
 # panel picks up any record that appears here.
 
+# Shared before mkdir, collector cache writes, and the final usage record mv.
+# The descriptor remains held through child waits and autoswitch recollection.
+# This inode is outside both trees that acceptance cleanup replaces.
+usage_gate_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents"
+mkdir -p "$usage_gate_dir" || exit 1
+exec {usage_gate_fd}<>"$usage_gate_dir/.usage-restore.lock" || exit 1
+flock --shared "$usage_gate_fd" || exit 1
+
 USAGE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage"
 mkdir -p "$USAGE_DIR"
 
