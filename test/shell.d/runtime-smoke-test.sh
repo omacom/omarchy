@@ -8,9 +8,17 @@ TMPDIR=""
 QS_PID=""
 
 cleanup() {
-  if [[ -n $QS_PID ]] && kill -0 "$QS_PID" 2>/dev/null; then
-    kill "$QS_PID" 2>/dev/null || true
+  # The shell's helpers (agent-usage collectors, the image picker's
+  # thumbnailer) are its grandchildren and write into $TMPDIR, so end its
+  # whole process group before removing it.
+  if [[ -n $QS_PID ]]; then
+    kill -- "-$QS_PID" 2>/dev/null || true
     wait "$QS_PID" 2>/dev/null || true
+    for _ in {1..50}; do
+      kill -0 -- "-$QS_PID" 2>/dev/null || break
+      sleep 0.1
+    done
+    kill -KILL -- "-$QS_PID" 2>/dev/null || true
   fi
   [[ -n ${test_root:-} ]] && rm -f "$(shell_ipc_socket "$test_root")"
   [[ -n $TMPDIR && -d $TMPDIR ]] && rm -rf "$TMPDIR"
@@ -27,12 +35,15 @@ fi
 
 require_command jq
 
+# The 2 s default is a budget for a person at a keybinding. These checks are
+# about what the shell answers, and a loaded runner can keep a busy shell
+# (a plugin rescan, first render) past it.
 shell_ipc() {
-  OMARCHY_PATH="$test_root" "$ROOT/bin/omarchy-shell" "$@"
+  OMARCHY_PATH="$test_root" OMARCHY_SHELL_IPC_TIMEOUT="${TEST_SHELL_IPC_TIMEOUT:-30s}" "$ROOT/bin/omarchy-shell" "$@"
 }
 
 shell_ipc_quiet() {
-  OMARCHY_PATH="$test_root" "$ROOT/bin/omarchy-shell" -q "$@"
+  OMARCHY_PATH="$test_root" OMARCHY_SHELL_IPC_TIMEOUT="${TEST_SHELL_IPC_TIMEOUT:-30s}" "$ROOT/bin/omarchy-shell" -q "$@"
 }
 
 fail_with_log() {
@@ -337,7 +348,7 @@ XDG_CONFIG_HOME="$test_home/.config" \
 XDG_CACHE_HOME="$test_home/.cache" \
 XDG_STATE_HOME="$test_home/.local/state" \
 PATH="$stub_bin:$ROOT/bin:$PATH" \
-  quickshell -p "$test_root/shell" --no-color >"$log" 2>&1 &
+  setsid quickshell -p "$test_root/shell" --no-color >"$log" 2>&1 &
 QS_PID=$!
 
 for _ in {1..80}; do
@@ -497,18 +508,21 @@ visible_default_ids='[
   "omarchy.monitor"
 ]'
 
+# Weather and the update badge show once their stubs have answered, which on a
+# slow runner is seconds after the slots exist: wait for what is asserted below.
 geometry=""
-for _ in {1..80}; do
-  geometry=$(shell_ipc shell debugBarGeometry 2>/dev/null || true)
-  if jq -e --argjson expected "$default_ids" '
-    . as $rows | all($expected[]; . as $id | any($rows[]; .id == $id))
-  ' <<<"$geometry" >/dev/null 2>&1; then
-    break
-  fi
+deadline=$((SECONDS + 60))
+until jq -e --argjson expected "$default_ids" --argjson visibleExpected "$visible_default_ids" '
+  . as $rows |
+  all($expected[]; . as $id | any($rows[]; .id == $id)) and
+  all($visibleExpected[]; . as $id | any($rows[]; .id == $id and .visible == true and .width > 0 and .height > 0))
+' <<<"$geometry" >/dev/null 2>&1; do
   if ! kill -0 "$QS_PID" 2>/dev/null; then
     fail_with_log "test shell exited before default bar geometry settled"
   fi
+  (( SECONDS < deadline )) || break
   sleep 0.1
+  geometry=$(shell_ipc shell debugBarGeometry 2>/dev/null || true)
 done
 
 if [[ -z $geometry ]]; then

@@ -301,6 +301,9 @@ CURRENT_BACKGROUND_LINK="$transition_home/.local/state/omarchy/current/backgroun
 BACKGROUND_TRANSITION_CACHE="$transition_home/.cache/omarchy/background-transitions"
 THEME_NAME="video-test"
 PREVIOUS_THEME_NAME="$THEME_NAME"
+# Script-level state the copied functions read; omarchy-theme-set starts both empty.
+PREPARED_BACKGROUND=""
+PREPARED_BACKGROUND_SNAPSHOT=""
 HOME="$transition_home"
 mkdir -p "$CURRENT_THEME_PATH/backgrounds" "$NEXT_THEME_PATH/backgrounds" "$HOME/.config/omarchy/backgrounds/$THEME_NAME"
 printf 'old image\n' >"$CURRENT_THEME_PATH/backgrounds/old.png"

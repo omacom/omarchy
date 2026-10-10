@@ -540,7 +540,7 @@ set -euo pipefail
 fixture=$1
 run_id=$2
 mount -t tmpfs -o mode=1777 tmpfs /tmp
-mkdir -m 755 "$fixture"
+mkdir -p -m 755 "$fixture"
 tar -C "$fixture" -xf /proc/self/fd/9
 exec 9<&-
 mkdir -m 700 /tmp/victim-home

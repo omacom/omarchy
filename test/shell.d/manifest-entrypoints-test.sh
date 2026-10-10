@@ -8,9 +8,17 @@ TMPDIR=""
 QS_PID=""
 
 cleanup() {
-  if [[ -n $QS_PID ]] && kill -0 "$QS_PID" 2>/dev/null; then
-    kill "$QS_PID" 2>/dev/null || true
+  # Quickshell's helpers (the agent-usage collectors, the image picker's
+  # thumbnailer) are its grandchildren and write into $TMPDIR, so end its
+  # whole process group before removing it.
+  if [[ -n $QS_PID ]]; then
+    kill -- "-$QS_PID" 2>/dev/null || true
     wait "$QS_PID" 2>/dev/null || true
+    for _ in {1..50}; do
+      kill -0 -- "-$QS_PID" 2>/dev/null || break
+      sleep 0.1
+    done
+    kill -KILL -- "-$QS_PID" 2>/dev/null || true
   fi
   if [[ -n $TMPDIR && -d $TMPDIR ]]; then
     rm -rf "$TMPDIR"
@@ -85,7 +93,7 @@ XDG_STATE_HOME="$TMPDIR/home/.local/state" \
 QML2_IMPORT_PATH="$ROOT/shell${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}" \
 QML_IMPORT_PATH="$ROOT/shell${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}" \
 PATH="$ROOT/bin:$PATH" \
-  quickshell -p "$config_dir" --no-color >"$log" 2>&1 &
+  setsid quickshell -p "$config_dir" --no-color >"$log" 2>&1 &
 QS_PID=$!
 
 for _ in {1..80}; do

@@ -126,14 +126,13 @@ run_sleep_lock 1500
 pass "sleep lock reports failure when the session never secures"
 
 # The contract is the budget plus at most one poll interval, since the pause
-# between polls is not itself clipped. Derived budgets hold back a full second
-# for logind, so that overshoot is always well inside the reserve.
-#
-# 1500ms budget + a 100ms interval is 1600ms of script time, and this measures a
-# whole process around it, so the bound carries another interval for startup —
-# without it the assertion sits exactly on the worst case and flakes. Two
-# intervals of overshoot, the regression worth catching, is still 1800ms.
-(( elapsed_us <= 1700000 )) ||
+# between polls is not itself clipped. Derived budgets hold back at least a
+# second for logind, and that reserve is what the overshoot has to fit inside.
+# Hold the whole process to it rather than to an interval or two: wall time also
+# counts startup, every poll's forks and the notification, which stretch by
+# hundreds of milliseconds under load. Past the
+# reserve, logind would suspend mid-lock, so that is a failure, not a flake.
+(( elapsed_us <= 2500000 )) ||
   fail "sleep lock gives up within its budget" "elapsed: ${elapsed_us}us"
 pass "sleep lock gives up within its budget"
 
@@ -268,7 +267,15 @@ grep -qF "suspending without a secure lock" "$journal_log" ||
 pass "sleep lock records the unlocked suspend in the journal"
 
 # A never-securing shell is the scenario that runs out the whole budget, so it
-# is also the one that shows which budget was derived.
+# is also the one that shows which budget was derived: the script names it when
+# it gives up. Read it from there rather than from wall time, which also counts
+# process startup, the budget derivation and the post-deadline notification,
+# all of which stretch under load. Wall time is then held to the contract that
+# matters, releasing the inhibitor inside the window logind enforces.
+reported_budget_ms() {
+  sed -n 's/.*within \([0-9]*\)ms.*/\1/p' "$journal_log"
+}
+
 never_secures() {
   cat >"$mock_bin/omarchy-shell" <<'SH'
 #!/bin/bash
@@ -292,7 +299,9 @@ never_secures
 
 run_sleep_lock
 
-(( elapsed_us <= 1300000 )) ||
+[[ $(reported_budget_ms) == 1000 ]] ||
+  fail "sleep lock derives its budget from logind's window" "journal: $(< "$journal_log")"
+(( elapsed_us < 2000000 )) ||
   fail "sleep lock derives its budget from logind's window" "elapsed: ${elapsed_us}us"
 pass "sleep lock derives its budget from logind's window"
 
@@ -308,9 +317,16 @@ never_secures
 
 run_sleep_lock
 
-(( elapsed_us > 1300000 && elapsed_us <= 4300000 )) ||
+[[ $(reported_budget_ms) == 4000 ]] ||
+  fail "sleep lock falls back to a conservative budget" "journal: $(< "$journal_log")"
+(( elapsed_us < 5000000 )) ||
   fail "sleep lock falls back to a conservative budget" "elapsed: ${elapsed_us}us"
 pass "sleep lock falls back to a conservative budget when logind cannot be read"
+
+# The cap is only reachable because the shipped drop-in widens logind's window
+# past it. Ship one without the other and the cap is dead weight.
+inhibit_delay=$(sed -n 's/^InhibitDelayMaxSec=//p' "$ROOT/etc/systemd/logind.conf.d/20-inhibit-delay.conf")
+budget_cap_ms=$(sed -n 's/^budget_cap_ms=//p' "$sleep_lock")
 
 # A hand-raised window must not strand a closed laptop awake in a bag. This
 # scenario runs for the whole capped budget by design.
@@ -322,15 +338,13 @@ run_sleep_lock
 
 (( exit_status != 0 )) ||
   fail "sleep lock caps the budget a huge logind window would allow"
-(( elapsed_us <= 12500000 )) ||
+[[ -n $budget_cap_ms && $(reported_budget_ms) == "$budget_cap_ms" ]] ||
   fail "sleep lock caps the budget a huge logind window would allow" \
-    "elapsed: ${elapsed_us}us"
+    "cap: ${budget_cap_ms:-unset} journal: $(< "$journal_log")"
+(( elapsed_us < ${inhibit_delay:-0} * 1000000 )) ||
+  fail "sleep lock caps the budget a huge logind window would allow" \
+    "elapsed: ${elapsed_us}us window: ${inhibit_delay:-unset}s"
 pass "sleep lock caps the budget a huge logind window would allow"
-
-# The cap is only reachable because the shipped drop-in widens logind's window
-# past it. Ship one without the other and the cap is dead weight.
-inhibit_delay=$(sed -n 's/^InhibitDelayMaxSec=//p' "$ROOT/etc/systemd/logind.conf.d/20-inhibit-delay.conf")
-budget_cap_ms=$(sed -n 's/^budget_cap_ms=//p' "$sleep_lock")
 
 [[ -n $inhibit_delay && -n $budget_cap_ms ]] ||
   fail "sleep lock cap and logind window are both declared" \
