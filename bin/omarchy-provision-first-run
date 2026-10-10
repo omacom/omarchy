@@ -81,6 +81,8 @@ run_first_run_step "run the platform's user setup" \
   omarchy-lifecycle-dispatch setup-user
 run_first_run_step "set GNOME theme" \
   bash "$OMARCHY_PATH/install/user/first-run/gnome-theme.sh"
+run_first_run_step "enroll encrypted application keyring" \
+  omarchy-setup-security-keyring
 run_first_run_step "set GTK primary paste" \
   bash "$OMARCHY_PATH/install/user/first-run/gtk-primary-paste.sh"
 run_first_run_step "apply speaker tuning" \
