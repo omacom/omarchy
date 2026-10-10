@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Close the focused Hyprland window, force-killing XWayland zombies
+# omarchy:hidden=true
+
+# Some apps (notably JUCE/XWayland clients like Surge XT) accept the close
+# request and quit their process while leaving an empty shell mapped. Clear
+# that leftover surface only after confirming the XWayland PID is gone (#13308).
+
+active=$(hyprctl activewindow -j 2>/dev/null) || exit 0
+addr=$(jq -r '.address // empty' <<<"$active")
+pid=$(jq -r '.pid // 0' <<<"$active")
+
+[[ -n $addr ]] || exit 0
+
+hyprctl dispatch "hl.dsp.window.close({ window = \"address:$addr\" })" >/dev/null 2>&1 ||
+  hyprctl dispatch closewindow "address:$addr" >/dev/null 2>&1 || true
+
+# Give clients a beat to finish a cooperative close. Remaining mapped can
+# also mean the client is waiting for an answer to a save/discard dialog.
+for _ in 1 2 3 4 5; do
+  sleep 0.05
+  if ! hyprctl clients -j 2>/dev/null | jq -e --arg addr "$addr" \
+    'any(.[]; .address == $addr)' >/dev/null 2>&1; then
+    exit 0
+  fi
+done
+
+# Only a confirmed orphaned XWayland surface warrants cleanup. Live clients
+# may still be handling the close request; never signal their entire process.
+if ! jq -e '.xwayland == true' <<<"$active" >/dev/null 2>&1 ||
+  [[ ! $pid =~ ^[1-9][0-9]*$ ]] || [[ -e /proc/$pid ]]; then
+  exit 0
+fi
+
+if hyprctl clients -j 2>/dev/null | jq -e --arg addr "$addr" \
+  'any(.[]; .address == $addr)' >/dev/null 2>&1; then
+  hyprctl dispatch "hl.dsp.window.close({ window = \"address:$addr\" })" >/dev/null 2>&1 ||
+    hyprctl dispatch killwindow "address:$addr" >/dev/null 2>&1 ||
+    hyprctl dispatch closewindow "address:$addr" >/dev/null 2>&1 || true
+fi
