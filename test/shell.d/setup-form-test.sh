@@ -33,11 +33,6 @@ cat >"$tmp_dir/tzupdate" <<'EOF'
 printf '%s\n' "$TZ_GUESS"
 EOF
 
-cat >"$tmp_dir/timedatectl" <<'EOF'
-#!/bin/bash
-printf '%s\n' UTC Europe/Copenhagen America/Chicago
-EOF
-
 # Calls one prompt bare under `set -euo pipefail` — the shape that makes the
 # status capture load-bearing. A cancelled prompt is a failing assignment, so a
 # regression to a plain `status=$?` kills the shell before the function can
@@ -72,7 +67,7 @@ printf 'hostname=%s\n' "${hostname:-}"
 printf 'timezone=%s\n' "${timezone:-}"
 EOF
 
-chmod +x "$tmp_dir/gum" "$tmp_dir/tzupdate" "$tmp_dir/timedatectl" "$tmp_dir/driver"
+chmod +x "$tmp_dir/gum" "$tmp_dir/tzupdate" "$tmp_dir/driver"
 export PATH="$tmp_dir:$PATH"
 export GUM_DIR="$tmp_dir" GUM_SCRIPT="$tmp_dir/script" GUM_ARGS="$tmp_dir/args" GUM_COUNT="$tmp_dir/count"
 export NOTICES="$tmp_dir/notices" MARKER="$tmp_dir/marker"
@@ -216,7 +211,15 @@ assert_status 0 "timezone prompt accepts the geo guess"
 [[ $(field timezone) == "Europe/Copenhagen" ]] || fail "timezone prompt keeps the chosen timezone"
 grep -qF -- '--selected Europe/Copenhagen' "$GUM_ARGS" || fail "timezone prompt preselects the geo guess"
 grep -qF UTC "$tmp_dir/stdin.1" || fail "timezone prompt offers the system timezone list"
+grep -qFx Asia/Ashgabat "$tmp_dir/stdin.1" || fail "timezone prompt offers the canonical zone"
+! grep -qFx Asia/Ashkhabad "$tmp_dir/stdin.1" || fail "timezone prompt drops tzdata backward-compatibility aliases"
+grep -qFx Etc/GMT+5 "$tmp_dir/stdin.1" || fail "timezone prompt offers the fixed-offset zones"
 pass "timezone prompt preselects the geo guess when one is available"
+
+TZ_GUESS=Asia/Calcutta run_prompt omarchy_prompt_timezone "0:Asia/Kolkata"
+assert_status 0 "timezone prompt accepts an aliased geo guess"
+grep -qF -- '--selected Asia/Kolkata' "$GUM_ARGS" || fail "timezone prompt preselects the zone an aliased geo guess links to"
+pass "timezone prompt resolves an aliased geo guess to a listed zone"
 
 # An unnetworked first boot has no guess, and the fallback has to survive `set -e`
 run_prompt omarchy_prompt_timezone "0:America/Chicago"
