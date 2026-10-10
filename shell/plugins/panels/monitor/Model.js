@@ -7,6 +7,7 @@ function clampBrightness(value) {
 function normalizeScale(scale) {
   var n = parseFloat(String(scale || ""))
   if (!isFinite(n)) return ""
+  // hyprctl reports two decimal places; use that precision only for matching.
   return String(Math.round(n * 100) / 100)
 }
 
@@ -28,9 +29,20 @@ function cleanScale(scale, width, height) {
 
   var divisor = gcd(Math.round(modeWidth * 120), Math.round(modeHeight * 120))
   var scaleUnits = Math.round(requested * 120)
+  if (scaleUnits < 1) return ""
   if (scaleUnits > divisor) scaleUnits = divisor
   while (divisor % scaleUnits !== 0) scaleUnits++
-  return normalizeScale(scaleUnits / 120)
+  return String(scaleUnits / 120)
+}
+
+function scaleLabel(scale) {
+  return String(Math.round(Number(scale) * 1000) / 1000) + "x"
+}
+
+function desktopSize(scale, width, height) {
+  var value = Number(scale)
+  if (!isFinite(value) || value <= 0 || width <= 0 || height <= 0) return ""
+  return Math.round(width / value) + " × " + Math.round(height / value)
 }
 
 function matchingScaleIndex(scales, currentScale, width, height) {
@@ -41,7 +53,7 @@ function matchingScaleIndex(scales, currentScale, width, height) {
   var bestDistance = Infinity
   var normalizedCurrent = normalizeScale(current)
   for (var i = 0; i < scales.length; i++) {
-    if (cleanScale(scales[i], width, height) !== normalizedCurrent) continue
+    if (normalizeScale(cleanScale(scales[i], width, height)) !== normalizedCurrent) continue
 
     var distance = Math.abs(Number(scales[i]) - current)
     if (distance < bestDistance) {
@@ -116,6 +128,8 @@ if (typeof module !== "undefined") {
     clampBrightness: clampBrightness,
     normalizeScale: normalizeScale,
     cleanScale: cleanScale,
+    scaleLabel: scaleLabel,
+    desktopSize: desktopSize,
     matchingScaleIndex: matchingScaleIndex,
     availableScales: availableScales,
     brightnessName: brightnessName,

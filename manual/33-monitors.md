@@ -18,7 +18,9 @@ local omarchy_monitor_scale = 1
 
 Changes to `GDK_SCALE` apply to applications started after the change (and GTK only honors whole numbers, so keep it at the nearest integer of your monitor scale). So make sure you quit the windows that you have that are oversized after the change (or close all windows with `Ctrl + Alt + Del`!).
 
-You can also quickly step through the major monitor scaling ratios (1x, 1.25x, 1.6x, 2x, 3x, 4x) using `Super + /` to go higher and `Super + Alt + /` to go lower. If you have the default configuration, these changes will also persist past reboot.
+You can also quickly step through the major monitor scaling ratios (0.75x, 0.8x, 0.833x, 1x, 1.25x, 1.6x, 2x, 3x, 4x) using `Super + /` to go higher and `Super + Alt + /` to go lower, or select a scale in the Display panel. If you have the default configuration, these changes will also persist past reboot.
+
+Scales below 1x make everything smaller to provide more desktop space. On a 1920×1080 display, 0.75x provides a 2560×1440 desktop, 0.8x provides 2400×1350, and 0.833x provides 2304×1296. The 0.833x option applies the precise 5/6 scale. The panel shows the current desktop size and previews each choice in its tooltip. These values avoid fractional desktop dimensions, but fine lines can still appear softer and some applications may not handle scales below 1x correctly. Keep 1x for native pixel alignment, or adjust text size separately.
 
 ### Making text bigger or smaller
 

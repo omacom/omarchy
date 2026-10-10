@@ -4,12 +4,12 @@
 # omarchy:args=[up|down|SCALE]
 # omarchy:examples=omarchy hyprland monitor scaling | omarchy hyprland monitor scaling 1.6 | omarchy hyprland monitor scaling up | omarchy hyprland monitor scaling down
 
-SCALES=(1 1.25 1.6 2 3 4)
+SCALES=(0.75 0.8 0.8333333333333334 1 1.25 1.6 2 3 4)
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
 SCALE_LOG="$STATE_DIR/monitor-scaling.log"
 
 usage() {
-  echo "Usage: omarchy-hyprland-monitor-scaling [up|down|SCALE]"
+  echo "Usage: omarchy-hyprland-monitor-scaling [up|down|SCALE (0.75–4)]"
 }
 
 focused_monitor_scale() {
@@ -63,7 +63,7 @@ clean_scale() {
       k = int(scale * 120 + 0.5)
       if (k > g) k = g
       while (g % k != 0) k++
-      printf "%g\n", k / 120
+      printf "%.12g\n", k / 120
     }'
 }
 
@@ -74,7 +74,11 @@ normalize_scale() {
 set_scale() {
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
-  local monitor_info="$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')"
+  local monitor_info
+  monitor_info=$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)') || {
+    echo "Could not read the focused monitor." >&2
+    return 1
+  }
   local active_monitor="$(echo "$monitor_info" | jq -r '.name')"
   local current_scale="$(echo "$monitor_info" | jq -r '.scale')"
   local width="$(echo "$monitor_info" | jq -r '.width')"
@@ -91,10 +95,18 @@ set_scale() {
   local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
   # GTK only honors integer GDK_SCALE values, so persist the nearest whole
   # factor even when the monitor scale itself is fractional.
-  local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
+  local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { n = int(scale + 0.5); printf "%d", n < 1 ? 1 : n }')"
   local monitor_lua="$HOME/.config/hypr/monitors.lua"
 
-  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
+  local response
+  response=$(hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })") || {
+    echo "Could not apply display scale: $response" >&2
+    return 1
+  }
+  if [[ $response != "ok" ]]; then
+    echo "Could not apply display scale: $response" >&2
+    return 1
+  fi
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 
   # Persist to monitors.lua if the user still has Omarchy's generic catch-all
@@ -193,7 +205,7 @@ down)
   ;;
 *)
   if [[ $1 =~ ^[0-9]+([.][0-9]+)?$ ]] &&
-    awk -v scale="$1" 'BEGIN { exit !(scale >= 1 && scale <= 4) }'; then
+    awk -v scale="$1" 'BEGIN { exit !(scale >= 0.75 && scale <= 4) }'; then
     set_scale "$1" "$1"
   else
     usage >&2

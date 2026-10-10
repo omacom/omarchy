@@ -16,8 +16,30 @@ assertEqual(monitor.normalizeScale('1.250'), '1.25', 'monitor normalizes fractio
 assertEqual(monitor.normalizeScale('nope'), '', 'monitor rejects invalid scale')
 assertEqual(monitor.cleanScale(3, 1280, 800), '3.2', 'monitor matches clean VM scale')
 assertEqual(monitor.cleanScale(1.25, 1280, 800), '1.25', 'monitor preserves an already clean scale')
-assertEqual(monitor.cleanScale(1.25, 6016, 3384), '1.33', 'monitor matches clean physical display scale')
+assertEqual(monitor.cleanScale(1.25, 6016, 3384), String(4 / 3), 'monitor retains the precise physical display scale')
 assertEqual(monitor.cleanScale(1.6, 0, 800), '', 'monitor rejects a missing display mode')
+assertEqual(monitor.cleanScale(0.001, 1920, 1080), '', 'monitor rejects scales below one Wayland step')
+assertEqual(monitor.normalizeScale('0.83'), '0.83', 'monitor preserves compositor precision for matching')
+assertEqual(monitor.scaleLabel(5 / 6), '0.833x', 'monitor keeps the five-sixths button label compact')
+
+const expandedScales = ['0.75', '0.8', String(5 / 6), '1', '1.25', '1.6', '2', '3', '4']
+for (const [scale, size] of [['0.75', '2560 × 1440'], ['0.8', '2400 × 1350'], [String(5 / 6), '2304 × 1296']]) {
+  assertEqual(monitor.cleanScale(scale, 1920, 1080), scale, `monitor preserves the precise ${scale} scale`)
+  assertEqual(monitor.desktopSize(scale, 1920, 1080), size, `monitor shows the ${scale} desktop dimensions`)
+}
+assertDeepEqual(monitor.availableScales(expandedScales, 1920, 1080), expandedScales, 'monitor offers all nine presets on 1080p')
+assertEqual(monitor.matchingScaleIndex(expandedScales, '0.83', 1920, 1080), 2, 'monitor selects five-sixths from rounded live state')
+assertEqual(monitor.cleanScale(5 / 6, 1792, 1008), '0.875', 'monitor retains seven-eighths when a mode requires it')
+assertEqual(monitor.matchingScaleIndex(expandedScales, '0.88', 1792, 1008), 2, 'monitor matches rounded seven-eighths without snapping it to another Wayland step')
+assertEqual(monitor.matchingScaleIndex(expandedScales, '1', 1920, 1080), 3, 'monitor still selects native scale')
+assertEqual(monitor.desktopSize('', 1920, 1080), '', 'monitor omits desktop dimensions until the scale is known')
+
+for (const [width, height] of [[1366, 768], [2560, 1440], [3840, 2160]]) {
+  const effective = monitor.availableScales(expandedScales, width, height).map(scale => Number(monitor.cleanScale(scale, width, height)))
+  assertEqual(new Set(effective).size, effective.length, `monitor deduplicates expanded scales for ${width}x${height}`)
+  assert(effective.every(scale => Math.abs(width / scale - Math.round(width / scale)) < 1e-6
+    && Math.abs(height / scale - Math.round(height / scale)) < 1e-6), `monitor scales produce whole logical dimensions for ${width}x${height}`)
+}
 assertEqual(
   monitor.matchingScaleIndex(['1', '1.25', '1.6', '2', '3', '4'], 3.2, 1280, 800),
   4,

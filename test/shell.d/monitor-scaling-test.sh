@@ -23,6 +23,8 @@ if [[ $1 == "monitors" && $2 == "-j" ]]; then
     "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}"
 elif [[ $1 == "eval" ]]; then
   printf '%s\n' "$2" >"$OMARCHY_TEST_HYPRCTL_EVAL_OUT"
+  printf '%s\n' "${OMARCHY_TEST_HYPRCTL_RESPONSE:-ok}"
+  exit "${OMARCHY_TEST_HYPRCTL_STATUS:-0}"
 else
   exit 1
 fi
@@ -129,3 +131,44 @@ grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down skips d
 grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
   fail "monitor scaling down persists 2x after skipping duplicate approximation"
 pass "monitor scaling down skips duplicate approximation"
+
+# These scales divide a 1080p mode into whole logical pixels, including 5/6
+# whose exact value must survive both the eval and configuration round trip.
+for scale in 0.75 0.8 0.8333333333333334; do
+  write_monitor_config
+  OMARCHY_TEST_MONITOR_WIDTH=1920 OMARCHY_TEST_MONITOR_HEIGHT=1080 run_scaling "$scale"
+  expected="$scale"
+  [[ $scale == "0.8333333333333334" ]] && expected="0.833333333333"
+  grep -F "scale = $expected }" "$eval_out" >/dev/null || fail "monitor scaling applies $scale precisely"
+  grep -Fx "local omarchy_monitor_scale = $expected" "$monitor_lua" >/dev/null || fail "monitor scaling persists $scale precisely"
+  grep -Fx 'local omarchy_gdk_scale = 1' "$monitor_lua" >/dev/null || fail "monitor scaling below 1 keeps GDK scale at 1"
+  pass "monitor scaling applies and persists $scale with GDK scale 1"
+done
+
+for transition in '1 down 0.833333333333' '0.83 down 0.8' '0.8 up 0.833333333333' '0.83 up 1' '0.8 down 0.75' '0.75 down 0.75'; do
+  read -r current direction expected <<<"$transition"
+  write_monitor_config
+  OMARCHY_TEST_MONITOR_SCALE="$current" OMARCHY_TEST_MONITOR_WIDTH=1920 OMARCHY_TEST_MONITOR_HEIGHT=1080 run_scaling "$direction"
+  grep -Fx "local omarchy_monitor_scale = $expected" "$monitor_lua" >/dev/null || fail "monitor scaling steps $direction from $current to $expected"
+  pass "monitor scaling steps $direction from $current to $expected"
+done
+
+for invalid_scale in 0 0.7 4.1 nope; do
+  write_monitor_config
+  rm -f "$eval_out"
+  if run_scaling "$invalid_scale" >/dev/null 2>&1; then
+    fail "monitor scaling rejects $invalid_scale"
+  fi
+  [[ ! -e $eval_out ]] || fail "monitor scaling does not apply rejected input"
+  grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling does not persist rejected input"
+  pass "monitor scaling rejects $invalid_scale without changing the display"
+done
+
+for status in 0 1; do
+  write_monitor_config
+  if OMARCHY_TEST_HYPRCTL_RESPONSE="Lua error: rejected" OMARCHY_TEST_HYPRCTL_STATUS="$status" run_scaling 0.8 >/dev/null 2>&1; then
+    fail "monitor scaling reports compositor rejection with exit status $status"
+  fi
+  grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling never persists compositor rejection"
+  pass "monitor scaling does not persist compositor rejection with exit status $status"
+done
