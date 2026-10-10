@@ -77,10 +77,13 @@ Item {
   // base layer, and an image draws nothing while it loads. Dropping the reveal
   // layers as soon as the first screen's base is ready left the slower screens
   // empty for about 100 ms, so keep them until every screen has drawn its base.
-  onReadyChanged: finishTransition()
+  // A screen whose image never loads must not hold the layers, or the queue,
+  // forever: finishTransitionTimer ends the wait after a second.
+  onReadyChanged: finishTransition(false)
 
-  function finishTransition() {
-    if (!finishingTransition || !ready) return
+  function finishTransition(timedOut) {
+    if (!finishingTransition || (!ready && !timedOut)) return
+    finishTransitionTimer.stop()
     incomingBackground = ""
     oldBackground = ""
     preparedBackground = ""
@@ -100,8 +103,11 @@ Item {
     // Restarting a running reveal starts from displayedBackground, which is
     // still the image from before that reveal, so the screen jumped back one
     // wallpaper. Let the running reveal finish and keep only the latest switch.
-    if (!instant && incomingBackground && revealProgress > 0 && revealProgress < 1) {
-      queuedTransition = finalPath === currentBackground ? null
+    // The wait for the base images belongs to the reveal: a switch there would
+    // replace the incoming image that still covers a loading base. A forced
+    // switch can share the final path (theme backgrounds land in one folder).
+    if (!instant && incomingBackground && (finishingTransition || (revealProgress > 0 && revealProgress < 1))) {
+      queuedTransition = !force && finalPath === currentBackground ? null
         : { fromPath: fromPath, path: path, finalPath: finalPath, force: force }
       return
     }
@@ -120,6 +126,7 @@ Item {
 
     revealAnimation.stop()
     finishingTransition = false
+    finishTransitionTimer.stop()
 
     // Video frames are not fed through the image-only reveal stack. Switching
     // instantly also avoids decoding two full videos during a transition.
@@ -311,12 +318,20 @@ Item {
       if (root.incomingBackground) {
         root.displayedBackground = root.currentBackground || root.incomingBackground
         root.finishingTransition = true
+        finishTransitionTimer.restart()
       }
       root.revealProgress = 1
       // A base image served from the pixmap cache can be ready without a
       // change of root.ready.
-      Qt.callLater(root.finishTransition)
+      Qt.callLater(root.finishTransition, false)
     }
+  }
+
+  Timer {
+    id: finishTransitionTimer
+    interval: 1000
+    repeat: false
+    onTriggered: root.finishTransition(true)
   }
 
   Component.onCompleted: refreshBackground()
