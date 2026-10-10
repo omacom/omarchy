@@ -96,8 +96,21 @@ record=$(collect)
   fail "a lapsed access token with a refresh token keeps showing the last numbers" "$record"
 pass "a lapsed access token with a refresh token keeps showing the last numbers"
 
-# A week that reset while Grok sat idle starts over at 0%, a week later.
+# The record says when its numbers were read, and a window that has not reset is
+# still as of the fetch it was cached from — however long ago that was.
 cache=$(ls "$XDG_CACHE_HOME"/omarchy/agent-usage/grok-limits-*.json | head -1)
+old_stamp=$(python3 -c 'import time; print(round((time.time() - 10 * 86400) * 1000))')
+jq --arg at "$old_stamp" '.fetchedAtMs = ($at | tonumber)' "$cache" >"$test_tmp/cache.json"
+mv "$test_tmp/cache.json" "$cache"
+record=$(collect)
+[[ $(jq --argjson at "$old_stamp" '.limitsFetchedAt == $at' <<<"$record") == "true" ]] ||
+  fail "a window that has not reset keeps the fetch its numbers came from" "$record"
+pass "a window that has not reset keeps the fetch its numbers came from"
+
+# A week that reset while Grok sat idle starts over at 0%, a week later — and as of
+# now, because that is when the numbers it serves became true. The panel paces a
+# window against its stamp, so a roll left on the old stamp would be read against a
+# cycle that has already ended.
 reset_past=$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=1)).isoformat())')
 jq --arg at "$reset_past" '.limits[0].resetsAt = $at' "$cache" >"$test_tmp/cache.json"
 mv "$test_tmp/cache.json" "$cache"
@@ -106,6 +119,8 @@ next_reset=$(jq -r '.limits[0].resetsAt' <<<"$record")
 [[ $(jq -r '.limits[0].percent' <<<"$record") == 0.0 ]] &&
   python3 -c 'import datetime as dt, sys; n = dt.datetime.fromisoformat(sys.argv[1]); d = n - dt.datetime.now(dt.timezone.utc); sys.exit(0 if dt.timedelta(days=6) < d < dt.timedelta(days=7) else 1)' "$next_reset" ||
   fail "a week that reset while Grok was idle starts over a week later" "$record"
+[[ $(jq --argjson at "$((old_stamp + 60000))" '.limitsFetchedAt > $at' <<<"$record") == "true" ]] ||
+  fail "a week that reset is stamped as read now, not as when it was cached" "$record"
 pass "a week that reset while Grok was idle starts over a week later"
 
 # Without cached numbers there's nothing to show, so it says how to get them.

@@ -483,9 +483,17 @@ Panel {
     var text = String(label || "").toLowerCase()
     if (text.indexOf("month") >= 0 || text.indexOf("30-day") >= 0) return 30 * 24 * 3600 * 1000
     if (windowIsLong(text)) return 7 * 24 * 3600 * 1000
-    var hours = text.match(/(\d+)\s*-?\s*h(?:our)?\b/)
+    var hours = text.match(/(\d+)\s*-?\s*h(?:our)?s?\b/)
     if (hours) return Number(hours[1]) * 3600 * 1000
-    var minutes = text.match(/(\d+)\s*-?\s*m(?:in(?:ute)?s?)?\b/)
+    // A context size is not a cycle, and it sits exactly where a duration would:
+    // "Opus 5 (1M context) Session" is a five-hour session whose "1M" would
+    // otherwise parse as one minute — and "1m" is indistinguishable from it once
+    // the label is lowercased, so the word "context" is the only tell. A number
+    // is dropped only where that word says it is a context size, so a collector
+    // stating a real cycle beside one keeps it, and "30m", "90m" and
+    // "120m window" stay cycles at any length.
+    var minutes = text.replace(/\b\d+\s*m(?=\s*(?:context|million))/g, " ")
+      .match(/(\d+)\s*-?\s*(?:min(?:ute)?s?\b|m\b)/)
     if (minutes) return Number(minutes[1]) * 60 * 1000
     return 0
   }
@@ -509,7 +517,12 @@ Panel {
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: expired ? 0 : Number(percent),
-      resetAt: expired ? "" : String(resetAt || "")
+      resetAt: expired ? "" : String(resetAt || ""),
+      // The cycle the label names, kept because the display title — "Session" is
+      // what a five-hour window is called on screen — drops the duration the pace
+      // marker needs, and it has to be read from the raw label before the title
+      // is derived from it.
+      spanMs: windowSpanMs(label)
     }
   }
 
@@ -569,10 +582,15 @@ Panel {
     return best
   }
 
-  function resetMsFor(w) {
+  // How long until the window resets, measured from `atMs` when one is given:
+  // the pace marker compares the spend with the clock at the instant the spend was
+  // read, not at the instant it happens to be drawn, or a reading kept past a
+  // failed check would drift while its percentage stood still.
+  function resetMsFor(w, atMs) {
     if (!w || w.resetAt === "") return -1
     var ms = new Date(w.resetAt).getTime()
-    return isFinite(ms) ? ms - root.nowMs : -1
+    var at = atMs === undefined || atMs <= 0 ? root.nowMs : atMs
+    return isFinite(ms) ? ms - at : -1
   }
 
   function formatDuration(ms) {
@@ -1884,6 +1902,38 @@ Panel {
     readonly property var scoped: window && window.scoped ? window.scoped : []
     readonly property bool alarming: window && window.percent >= 0.9
     readonly property real resetMs: root.resetMsFor(window)
+    // How far through its cycle the window is: the elapsed fraction of the label's
+    // cycle, or -1 when the label names no cycle (a model-scoped limit, a window
+    // stated without a duration) or the window has already reset.
+    //
+    // Read at `fetchedAt` when the collector states it, so the clock is read at the
+    // same instant as the percentage it is compared with. A reading kept past a
+    // failed check then holds its position instead of drifting as `nowMs` advances,
+    // which would let stale numbers read as current while the row is only dimmed.
+    readonly property real elapsed: {
+      var span = compact.window ? Number(compact.window.spanMs || 0) : 0
+      if (span <= 0) return -1
+      // Read the clock at the moment the percentage was, so a reading kept past a
+      // failed check holds its position instead of drifting as `nowMs` advances.
+      // A collector that rolls a window forward declares it by stamping the record
+      // with the roll, since only it knows the cycle restarted; the panel infers
+      // nothing, because a label's cycle is approximate where it matters — a month
+      // is 28-31 days and says only "Monthly", so a 30-day assumption cannot tell a
+      // rolled window from one that has just begun.
+      var at = compact.fetchedAt
+      var remaining = at > 0 ? root.resetMsFor(compact.window, at) : compact.resetMs
+      if (remaining < 0) return -1
+      return root.clamp(1 - remaining / span, 0, 1)
+    }
+    readonly property bool paceKnown: compact.elapsed >= 0 && !!compact.window && compact.window.percent >= 0
+    readonly property real paceDelta: compact.paceKnown ? compact.window.percent - compact.elapsed : 0
+    // Under a point either way reads as level rather than as noise.
+    readonly property string paceCaption: {
+      if (!compact.paceKnown) return ""
+      var points = Math.round(Math.abs(compact.paceDelta) * 100)
+      if (points < 1) return "on pace"
+      return points + "% " + (compact.paceDelta > 0 ? "ahead" : "behind")
+    }
     implicitHeight: Math.max(compactTitle.implicitHeight, compactValue.implicitHeight)
 
     HoverHandler { id: compactHover }
@@ -1896,6 +1946,10 @@ Panel {
           lines.push(compact.window.title + ": " + Math.round(compact.window.percent * 100) + "% used"
             + (compact.resetMs > 0 ? " · resets in " + root.formatDuration(compact.resetMs) : ""))
         }
+        // The row shows the pace as a band and a notch on the meter; the words
+        // live here, with the exact percentage, so the row stays one line.
+        if (compact.paceCaption !== "")
+          lines.push(Math.round(compact.elapsed * 100) + "% of the cycle elapsed · " + compact.paceCaption)
         if (compact.stale)
           lines.push(compact.fetchedAt > 0 && root.nowMs - compact.fetchedAt > 60000
             ? "Last updated " + root.formatDuration(root.nowMs - compact.fetchedAt) + " ago"
@@ -1925,6 +1979,7 @@ Panel {
       anchors.rightMargin: Style.space(20)
       anchors.verticalCenter: parent.verticalCenter
       value: compact.window ? compact.window.percent : -1
+      elapsed: compact.elapsed
       alarming: compact.alarming
       markers: compact.scoped
     }
@@ -1959,6 +2014,10 @@ Panel {
     id: meter
     property real value: -1
     property bool alarming: false
+    // How far through its cycle the window is, or -1 when its label names no
+    // cycle. Drawn dimly behind the fill, so the fill can be read against the
+    // clock: past the notch is ahead of it, short of it is behind.
+    property real elapsed: -1
     property real thickness: Math.max(Style.space(4), Math.round(Style.spacing.controlHeight * 0.14))
 
     // Other allowances on the same clock, drawn as ticks across the track.
@@ -1973,6 +2032,17 @@ Panel {
       color: root.track
     }
 
+    // The elapsed part of the cycle, dim under the fill.
+    Rectangle {
+      visible: meter.elapsed >= 0
+      anchors.left: meterTrack.left
+      anchors.verticalCenter: meterTrack.verticalCenter
+      height: meterTrack.height
+      radius: meterTrack.radius
+      width: meterTrack.width * root.clamp(meter.elapsed, 0, 1)
+      color: root.alpha(root.foreground, 0.22)
+    }
+
     Rectangle {
       anchors.left: meterTrack.left
       anchors.verticalCenter: meterTrack.verticalCenter
@@ -1984,6 +2054,18 @@ Panel {
       Behavior on width {
         NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic }
       }
+    }
+
+    // Where the clock stands in the cycle, marked so the fill can be compared
+    // with it. Dim, so it reads as the clock rather than as another allowance.
+    Rectangle {
+      visible: meter.elapsed >= 0
+      width: Math.max(2, Math.round(meter.thickness * 0.5))
+      height: meter.thickness * 2.5
+      radius: width / 2
+      anchors.verticalCenter: meterTrack.verticalCenter
+      x: root.clamp(meterTrack.width * root.clamp(meter.elapsed, 0, 1) - width / 2, 0, meterTrack.width - width)
+      color: root.dim
     }
 
     Repeater {

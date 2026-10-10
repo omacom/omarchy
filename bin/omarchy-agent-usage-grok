@@ -195,8 +195,14 @@ def credits_limit(data):
 
 # A window whose reset has passed starts over empty. A weekly one's next
 # reset is a whole number of weeks later; a monthly one's isn't known.
+#
+# Reports whether anything rolled. A rolled window is asserted as of now — the
+# allowance has stood still while the agent was idle — not as of the fetch the
+# cached numbers came from, and the record's timestamp has to say which, or the
+# panel reads the clock at the wrong instant.
 def rolled_forward(limits):
   now = datetime.now(timezone.utc)
+  rolled_any = False
   rolled = []
   for limit in limits:
     resets = parse_time(limit.get("resetsAt"))
@@ -205,8 +211,9 @@ def rolled_forward(limits):
       if limit.get("label") == "Weekly":
         weeks = (now - resets) // timedelta(weeks=1) + 1
         limit["resetsAt"] = (resets + weeks * timedelta(weeks=1)).isoformat()
+      rolled_any = True
     rolled.append(limit)
-  return rolled
+  return rolled, rolled_any
 
 
 def collect_limits(home, key, force):
@@ -230,7 +237,13 @@ def collect_limits(home, key, force):
     # sign-out. And while Grok hasn't run, nothing here has spent its
     # allowance, so the last numbers still stand, rolled past any reset.
     if entry.get("refresh_token") and time.time() - expires.timestamp() < REFRESH_LIFETIME_SECONDS:
-      result.update(limits=rolled_forward(result["limits"]), live=True)
+      limits, rolled = rolled_forward(result["limits"])
+      result.update(limits=limits, live=True)
+      # A window that rolled starts over at 0% as of now, so the record is
+      # current as of now; without this the timestamp still names the fetch the
+      # numbers were cached from, which is a different cycle.
+      if rolled:
+        result["fetchedAtMs"] = round(time.time() * 1000)
       if not result["limits"]:
         result["usageStatusText"] = "Limits paused"
         result["authHelpText"] = "Start Grok to see its limits; signing in again is not needed."
