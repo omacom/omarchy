@@ -95,3 +95,14 @@ fi
   fail "an escaping command name removes nothing outside ~/.local/bin"
 
 pass "an escaping command name removes nothing outside ~/.local/bin"
+
+# A global exact pin is indistinguishable from an old offline install's pin.
+# Upgrades must preserve the user's chosen version and surrounding settings.
+mkdir -p "$home/.config/mise"
+for version in 22.14.0 latest lts; do
+  printf '[tools]\nnode = "%s"\npython = "3.13"\n' "$version" >"$home/.config/mise/config.toml"
+  cp "$home/.config/mise/config.toml" "$tmpdir/before.toml"
+  HOME="$home" bash -euo pipefail "$ROOT/migrations/1790457067.sh" >/dev/null
+  cmp -s "$tmpdir/before.toml" "$home/.config/mise/config.toml" || fail "migration preserves the chosen Node version: $version"
+done
+pass "Node migration preserves exact, latest and LTS choices"
