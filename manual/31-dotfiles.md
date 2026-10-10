@@ -42,6 +42,8 @@ Omarchy fires hooks at a handful of moments, and you can hang your own scripts o
 | `theme-set` | After a theme change (theme name in `$1`) |
 | `font-set` | After a font change (font name in `$1`) |
 | `battery-low` | When the battery gets low (percentage in `$1`) |
+| `plugin-added` | After `omarchy plugin add` moves the cloned plugin into place (plugin id in `$1`, source URL in `$2`) |
+| `plugin-removed` | After `omarchy plugin remove` deletes or moves the plugin out (plugin id in `$1`) |
 
 The `pre-refresh-pacman` hook is where custom repositories or `IgnorePkg` lines belong, since it runs before the package transaction. Both update-related hooks run as your user after Omarchy clears its cached sudo authorization, so a hook that uses `sudo` needs its own authorization and may ask for your password.
 
