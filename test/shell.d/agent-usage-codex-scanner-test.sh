@@ -7,6 +7,8 @@ require_command python3
 require_command git
 require_command rg
 
+unset PI_CODING_AGENT_DIR XDG_CACHE_HOME
+
 # Every fixture home lives under one scratch directory, cleaned up at exit.
 SCRATCH=$(mktemp -d)
 trap 'rm -rf "$SCRATCH"' EXIT
@@ -165,6 +167,214 @@ result=$(HOME="$GIT_HOME" CODEX_HOME="$GIT_HOME/.codex" XDG_DATA_HOME="$GIT_HOME
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "8" ]] ||
   fail "Codex collector counts pi sessions when HOME is a git checkout" "$result"
 pass "Codex collector counts pi sessions when HOME is a git checkout"
+
+# Pi keeps its whole agent tree in PI_CODING_AGENT_DIR when that is set, so
+# sessions written that way are found nowhere else.
+AGENT_HOME=$(signed_in_home)
+cp "$TEST_HOME/bin/codex" "$AGENT_HOME/bin/codex"
+mkdir -p "$AGENT_HOME/.pi/agent/sessions/project" "$AGENT_HOME/.config/pi/sessions/project"
+cat >"$AGENT_HOME/.pi/agent/sessions/project/pi.jsonl" <<EOF
+{"type":"message","id":"pi-default-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-pi","usage":{"input":10,"output":4,"cacheRead":3,"cacheWrite":2,"totalTokens":19}}}
+EOF
+cat >"$AGENT_HOME/.config/pi/sessions/project/pi-config.jsonl" <<EOF
+{"type":"message","id":"pi-config-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","api":"openai-codex-responses","model":"gpt-pi-config","usage":{"input":30,"output":6,"cacheRead":5,"cacheWrite":2,"totalTokens":43}}}
+EOF
+
+agent_usage() {
+  HOME="$AGENT_HOME" CODEX_HOME="$AGENT_HOME/.codex" XDG_DATA_HOME="$AGENT_HOME/.local/share" \
+    PATH="$AGENT_HOME/bin:$PATH" PI_CODING_AGENT_DIR="$1" "$ROOT/bin/omarchy-agent-usage-codex" "${@:2}"
+}
+
+result=$(agent_usage "$AGENT_HOME/.config/pi")
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "62" ]] ||
+  fail "Codex collector counts usage under PI_CODING_AGENT_DIR" "$result"
+[[ $(jq -c '.modelUsage["gpt-pi-config"]' <<<"$result") == '{"inputTokens":30,"outputTokens":6,"cacheReadInputTokens":5,"cacheCreationInputTokens":2}' ]] ||
+  fail "Codex collector reads usage from PI_CODING_AGENT_DIR" "$result"
+pass "Codex collector counts usage under PI_CODING_AGENT_DIR"
+
+# An alias of the default directory is scanned once, and a fork finds its
+# parent whichever of the two spellings it was written under.
+ln -s "$AGENT_HOME/.pi/agent" "$AGENT_HOME/pi-alias"
+for spelling in pi-alias .pi/agent; do
+  cat >"$AGENT_HOME/.pi/agent/sessions/project/pi-fork-${spelling//\//-}.jsonl" <<EOF
+{"type":"session","id":"pi-fork","parentSession":"$AGENT_HOME/$spelling/sessions/project/pi.jsonl"}
+{"type":"message","id":"pi-default-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-pi","usage":{"input":10,"output":4,"cacheRead":3,"cacheWrite":2,"totalTokens":19}}}
+EOF
+done
+result=$(agent_usage "$AGENT_HOME/pi-alias" --force)
+[[ $(jq -c '[.todayTotalTokens,.todaySessions,.totalSessions]' <<<"$result") == '[19,1,1]' ]] ||
+  fail "Codex collector scans an aliased PI_CODING_AGENT_DIR once" "$result"
+pass "Codex collector scans an aliased PI_CODING_AGENT_DIR once"
+rm "$AGENT_HOME/.pi/agent/sessions/project/"pi-fork-*.jsonl
+
+result=$(agent_usage "~/.config/pi" --force)
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "62" ]] ||
+  fail "Codex collector expands ~ in PI_CODING_AGENT_DIR" "$result"
+pass "Codex collector expands ~ in PI_CODING_AGENT_DIR"
+
+# Pi expands only ~ and ~/, so ~name is a directory of that name, not a home.
+mkdir -p "$AGENT_HOME/cwd-tilde/~omarchy-codex-7194/sessions/project"
+cat >"$AGENT_HOME/cwd-tilde/~omarchy-codex-7194/sessions/project/pi-literal.jsonl" <<EOF
+{"type":"message","id":"pi-literal-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-pi-literal","usage":{"input":4,"output":1,"cacheRead":0,"cacheWrite":0,"totalTokens":5}}}
+EOF
+result=$(cd "$AGENT_HOME/cwd-tilde" && agent_usage "~omarchy-codex-7194" --force)
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "24" ]] ||
+  fail "Codex collector reads ~name in PI_CODING_AGENT_DIR literally, as Pi does" "$result"
+pass "Codex collector reads ~name in PI_CODING_AGENT_DIR literally, as Pi does"
+
+mkdir -p "$AGENT_HOME/pi-custom/sessions/project" "$AGENT_HOME/pi-other/sessions/project"
+cat >"$AGENT_HOME/pi-custom/sessions/project/pi-custom.jsonl" <<EOF
+{"type":"message","id":"pi-custom-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-pi-custom","usage":{"input":7,"output":2,"cacheRead":1,"cacheWrite":1,"totalTokens":11}}}
+EOF
+cat >"$AGENT_HOME/pi-other/sessions/project/pi-other.jsonl" <<EOF
+{"type":"message","id":"pi-other-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-pi-other","usage":{"input":12,"output":5,"cacheRead":4,"cacheWrite":2,"totalTokens":23}}}
+EOF
+
+result=$(agent_usage "$AGENT_HOME/pi-custom")
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "30" ]] ||
+  fail "Codex collector honors PI_CODING_AGENT_DIR" "$result"
+cache_count_before=$(find "$AGENT_HOME/.cache/omarchy/agent-usage" -type f -name 'codex-scan-*.json' | wc -l)
+
+result=$(agent_usage "$AGENT_HOME/pi-other")
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "42" ]] ||
+  fail "Codex collector rescans after PI_CODING_AGENT_DIR changes" "$result"
+cache_count_after=$(find "$AGENT_HOME/.cache/omarchy/agent-usage" -type f -name 'codex-scan-*.json' | wc -l)
+(( cache_count_after == cache_count_before + 1 )) ||
+  fail "Codex collector keys its cache by PI_CODING_AGENT_DIR" "before: $cache_count_before, after: $cache_count_after"
+pass "Codex collector keys its cache by PI_CODING_AGENT_DIR"
+
+mkdir -p "$AGENT_HOME/cwd-a/pi-relative/sessions/project" "$AGENT_HOME/cwd-b/pi-relative/sessions/project"
+cat >"$AGENT_HOME/cwd-a/pi-relative/sessions/project/pi-relative.jsonl" <<EOF
+{"type":"message","id":"pi-relative-a","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-pi-relative-a","usage":{"input":13,"output":2,"cacheRead":1,"cacheWrite":1,"totalTokens":17}}}
+EOF
+cat >"$AGENT_HOME/cwd-b/pi-relative/sessions/project/pi-relative.jsonl" <<EOF
+{"type":"message","id":"pi-relative-b","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-pi-relative-b","usage":{"input":20,"output":4,"cacheRead":3,"cacheWrite":2,"totalTokens":29}}}
+EOF
+
+result=$(cd "$AGENT_HOME/cwd-a" && agent_usage pi-relative)
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "36" ]] ||
+  fail "Codex collector resolves a relative PI_CODING_AGENT_DIR" "$result"
+result=$(cd "$AGENT_HOME/cwd-b" && agent_usage pi-relative)
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "48" ]] ||
+  fail "Codex collector keys a relative PI_CODING_AGENT_DIR by working directory" "$result"
+pass "Codex collector keys a relative PI_CODING_AGENT_DIR by working directory"
+
+# A symlinked PI_CODING_AGENT_DIR keeps its own spelling when the link is
+# repointed, so the cache has to be keyed by where it resolves to.
+mkdir -p "$AGENT_HOME/pi-link-a/sessions/project" "$AGENT_HOME/pi-link-b/sessions/project"
+cat >"$AGENT_HOME/pi-link-a/sessions/project/pi-link.jsonl" <<EOF
+{"type":"message","id":"pi-link-a","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-pi-link-a","usage":{"input":14,"output":2,"cacheRead":1,"cacheWrite":1,"totalTokens":18}}}
+EOF
+cat >"$AGENT_HOME/pi-link-b/sessions/project/pi-link.jsonl" <<EOF
+{"type":"message","id":"pi-link-b","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-pi-link-b","usage":{"input":21,"output":4,"cacheRead":3,"cacheWrite":2,"totalTokens":30}}}
+EOF
+ln -s "$AGENT_HOME/pi-link-a" "$AGENT_HOME/pi-link"
+result=$(agent_usage "$AGENT_HOME/pi-link" --force)
+[[ $(jq -c '.modelUsage | has("gpt-pi-link-a")' <<<"$result") == "true" ]] ||
+  fail "Codex collector reads a symlinked PI_CODING_AGENT_DIR" "$result"
+ln -sfn "$AGENT_HOME/pi-link-b" "$AGENT_HOME/pi-link"
+result=$(agent_usage "$AGENT_HOME/pi-link")
+[[ $(jq -c '.modelUsage | has("gpt-pi-link-b")' <<<"$result") == "true" ]] ||
+  fail "Codex collector rescans after a PI_CODING_AGENT_DIR symlink is repointed" "$result"
+pass "Codex collector rescans after a PI_CODING_AGENT_DIR symlink is repointed"
+
+# CODEX_HOME is cached by the same rule: repointing a symlink to it must not
+# bring back the old directory's totals.
+LINK_HOME=$(signed_in_home)
+cp "$TEST_HOME/bin/codex" "$LINK_HOME/bin/codex"
+for side in a b; do
+  mkdir -p "$LINK_HOME/codex-$side/sessions/$(date +%Y/%m/%d)"
+  touch "$LINK_HOME/codex-$side/auth.json"
+done
+for side_tokens in a:10 b:20; do
+  side=${side_tokens%%:*}
+  tokens=${side_tokens##*:}
+  cat >"$LINK_HOME/codex-$side/sessions/$(date +%Y/%m/%d)/rollout.jsonl" <<EOF
+{"timestamp":"$timestamp","type":"turn_context","payload":{"model":"gpt-home-$side"}}
+{"timestamp":"$timestamp","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":$tokens,"output_tokens":2,"total_tokens":$((tokens + 2))},"last_token_usage":{"input_tokens":$tokens,"output_tokens":2,"total_tokens":$((tokens + 2))}}}}
+EOF
+done
+codex_home_usage() {
+  HOME="$LINK_HOME" CODEX_HOME="$LINK_HOME/codex-link" XDG_DATA_HOME="$LINK_HOME/.local/share" \
+    PATH="$LINK_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" "$@"
+}
+ln -s "$LINK_HOME/codex-a" "$LINK_HOME/codex-link"
+result=$(codex_home_usage --force)
+[[ $(jq -c '.modelUsage | has("gpt-home-a")' <<<"$result") == "true" ]] ||
+  fail "Codex collector reads a symlinked CODEX_HOME" "$result"
+ln -sfn "$LINK_HOME/codex-b" "$LINK_HOME/codex-link"
+result=$(codex_home_usage)
+[[ $(jq -c '.modelUsage | has("gpt-home-b")' <<<"$result") == "true" ]] ||
+  fail "Codex collector rescans after a CODEX_HOME symlink is repointed" "$result"
+pass "Codex collector rescans after a CODEX_HOME symlink is repointed"
+
+# The per-file cache is keyed by session path, spelled through the link, so
+# only its file name keeps the two homes apart. Same size and mtime on both
+# sides make a stale record look current; dropping the aggregate cache leaves
+# the per-file cache as the only thing that could replay the old totals.
+for side_tokens in c:10 d:20; do
+  side=${side_tokens%%:*}
+  tokens=${side_tokens##*:}
+  mkdir -p "$LINK_HOME/codex-$side/sessions/$(date +%Y/%m/%d)"
+  touch "$LINK_HOME/codex-$side/auth.json"
+  cat >"$LINK_HOME/codex-$side/sessions/$(date +%Y/%m/%d)/rollout.jsonl" <<EOF
+{"timestamp":"$timestamp","type":"turn_context","payload":{"model":"gpt-home-$side"}}
+{"timestamp":"$timestamp","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":$tokens,"output_tokens":2,"total_tokens":$((tokens + 2))},"last_token_usage":{"input_tokens":$tokens,"output_tokens":2,"total_tokens":$((tokens + 2))}}}}
+EOF
+done
+touch -r "$LINK_HOME/codex-c/sessions/$(date +%Y/%m/%d)/rollout.jsonl" "$LINK_HOME/codex-d/sessions/$(date +%Y/%m/%d)/rollout.jsonl"
+ln -sfn "$LINK_HOME/codex-c" "$LINK_HOME/codex-link"
+result=$(codex_home_usage --force)
+[[ $(jq -c '.modelUsage | has("gpt-home-c")' <<<"$result") == "true" ]] ||
+  fail "Codex collector reads the first CODEX_HOME for the per-file cache check" "$result"
+ln -sfn "$LINK_HOME/codex-d" "$LINK_HOME/codex-link"
+find "$LINK_HOME/.cache/omarchy/agent-usage" -type f -name 'codex-scan-*.json' -delete
+result=$(codex_home_usage)
+[[ $(jq -c '.modelUsage | has("gpt-home-d") and (has("gpt-home-c") | not)' <<<"$result") == "true" ]] ||
+  fail "Codex collector does not replay per-file records after a CODEX_HOME symlink is repointed" "$result"
+pass "Codex collector does not replay per-file records after a CODEX_HOME symlink is repointed"
+
+if ! python3 - "$ROOT/bin/omarchy-agent-usage-codex" <<'PY'
+import runpy
+import sys
+import tempfile
+from pathlib import Path
+
+collector = runpy.run_path(sys.argv[1])
+collector_globals = collector["_cached_local_stats"].__globals__
+root_values = iter([[Path("/profile-a/sessions")], [Path("/profile-b/sessions")]])
+seen = {}
+
+
+def fake_pi_session_roots():
+  return next(root_values)
+
+
+with tempfile.TemporaryDirectory() as temp_dir:
+  temp = Path(temp_dir)
+
+  def fake_scan_cache_paths(roots):
+    seen["cache"] = roots
+    return temp / "stats.json", temp / "stats.lock"
+
+  def fake_run_local_scans(max_age, roots=None):
+    seen["scan"] = roots if roots is not None else fake_pi_session_roots()
+    return {}, False
+
+  collector_globals["pi_session_roots"] = fake_pi_session_roots
+  collector_globals["scan_cache_paths"] = fake_scan_cache_paths
+  collector_globals["run_local_scans"] = fake_run_local_scans
+  collector_globals["read_cached_stats"] = lambda *_: None
+  collector["_cached_local_stats"](0)
+
+if seen["cache"] != seen["scan"]:
+  print(f"cache roots: {seen['cache']}; scan roots: {seen['scan']}", file=sys.stderr)
+  raise SystemExit(1)
+PY
+then
+  fail "Codex collector scans the same Pi roots used by its cache key"
+fi
+pass "Codex collector scans the same Pi roots used by its cache key"
 
 # A subscription burned entirely through opencode has no native session files;
 # usage must come from opencode's message database, filtered to OpenAI.
