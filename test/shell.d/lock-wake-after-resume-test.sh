@@ -1,0 +1,53 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
+run_node_test <<'JS'
+const fs = require('fs')
+const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/lock/Service.qml'), 'utf8')
+const viewQml = fs.readFileSync(path.join(root, 'shell/plugins/lock/LockView.qml'), 'utf8')
+
+// The lock knows when it blanked the panel and when a wake brought it back.
+assert(/property bool displaysBlank: false/.test(serviceQml), 'the lock tracks whether it blanked the panel')
+assert(
+  /function runBlank\(\) \{\s*root\.displaysBlank = true/.test(serviceQml),
+  'blanking the panel marks the displays as blank'
+)
+assert(
+  /function runWake\(\) \{\s*root\.displaysBlank = false/.test(serviceQml),
+  'a wake clears the blank state'
+)
+
+// Keys hit at a dark panel wake it instead of landing in the password field.
+assert(/property bool displaysBlank: false/.test(viewQml), 'the lock view knows when the panel is blank')
+assert(/displaysBlank: root\.screenBlank\(/.test(serviceQml), 'the lock view is told when its panel is blank')
+assert(
+  /Keys\.onPressed: function\(event\) \{[\s\S]*?var wasBlank = root\.displaysBlank\s*root\.wakeRequested\(\)[\s\S]*?if \(wasBlank\) \{\s*event\.accepted = true\s*return\s*\}/.test(viewQml),
+  'a key pressed at a blank panel is consumed after requesting the wake, judged before the wake clears the state'
+)
+assert(
+  /var wasBlank = root\.displaysBlank[\s\S]*?event\.isAutoRepeat[\s\S]*?if \(wasBlank\)/.test(viewQml),
+  'the auto-repeat drop keeps its place ahead of the wake-key swallow'
+)
+
+// The swallow judges the panel by what Hyprland reports, so the poll that
+// reconciles displaysBlank runs whenever the lock has blanked the panel, not
+// only under a video wallpaper where a stale flag would freeze the playback.
+assert(
+  /id: monitorDpmsTimer[\s\S]*?running: root\.locked && \(root\.videoBackground \|\| root\.displaysBlank\)/.test(serviceQml),
+  'the panel state is polled while the lock has blanked it, whatever the wallpaper'
+)
+assert(
+  /function applyMonitorDpms\(text\) \{[\s\S]*?if \(!monitorDpmsTimer\.running\) return/.test(serviceQml),
+  'a poll answer arriving after the wake stopped the poll is dropped, not recorded as a dark panel'
+)
+
+// Resume is detected from the clock jump the frozen shell sees on its first
+// tick back, and the panel is woken without waiting for input.
+assert(
+  /id: resumeWatchTimer[\s\S]*?running: root\.lockRequested[\s\S]*?now - lastTick > interval \+ 2000[\s\S]*?if \(resumed\) \{[\s\S]*?root\.runWake\(\)/.test(serviceQml),
+  'the lock wakes the panel on its own after resume'
+)
+JS

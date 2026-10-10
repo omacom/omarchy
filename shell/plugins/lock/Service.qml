@@ -305,6 +305,10 @@ Item {
   }
 
   function applyMonitorDpms(text) {
+    // A wake stops the poll and drops the last answer; a poll still in flight
+    // at that moment must not land afterwards, or it records the panel as
+    // dark with nothing left to correct it and the next key is eaten.
+    if (!monitorDpmsTimer.running) return
     var monitors
     try {
       monitors = JSON.parse(String(text || ""))
@@ -704,8 +708,12 @@ Item {
   }
 
   // Quickshell exposes no DPMS signal, so the panel state is polled while a
-  // video is the locked wallpaper. A wake or blank request drops the last
-  // answer, so its optimistic state applies until the next poll confirms it.
+  // video is the locked wallpaper, and while the lock has blanked the panel:
+  // the wake-key swallow in the view reads screenBlank(), and a panel relit
+  // behind the lock's back (a resume that kept the outputs, a hotplug) would
+  // otherwise keep eating the first key until the lock's own wake ran. A wake
+  // or blank request drops the last answer, so its optimistic state applies
+  // until the next poll confirms it.
   Process {
     id: monitorDpmsProcess
     command: ["hyprctl", "monitors", "-j"]
@@ -719,7 +727,7 @@ Item {
     interval: 3000
     repeat: true
     triggeredOnStart: true
-    running: root.locked && root.videoBackground
+    running: root.locked && (root.videoBackground || root.displaysBlank)
     onTriggered: {
       if (!monitorDpmsProcess.running) monitorDpmsProcess.running = true
     }
@@ -745,6 +753,27 @@ Item {
       // fingerprint PAM stays armed for the whole lock, so gating on
       // `authenticating` here would keep the panel lit until unlock.
       if (root.lockRequested && !root.authenticatingPassword) root.runBlank()
+    }
+  }
+
+  // Suspend freezes the shell, so the first tick after resume sees the clock
+  // jump. Wake the panel right away instead of leaving the user at a dark
+  // lock screen pressing keys to bring it back.
+  Timer {
+    id: resumeWatchTimer
+    interval: 1000
+    repeat: true
+    running: root.lockRequested
+    property double lastTick: 0
+    onRunningChanged: lastTick = 0
+    onTriggered: {
+      var now = Date.now()
+      var resumed = lastTick > 0 && now - lastTick > interval + 2000
+      lastTick = now
+      if (resumed) {
+        root.logEvent("resume-detected")
+        root.runWake()
+      }
     }
   }
 
