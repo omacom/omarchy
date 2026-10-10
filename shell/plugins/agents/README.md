@@ -75,6 +75,7 @@ light surfaces — and the bar glyph stands in when there is none.
 | `codex` | The Codex app-server RPC | native Codex CLI session files on the built-in `openai` provider (plus pi and opencode sessions) |
 | `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn), plus `summary.json` for sessions |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `agy` | Google's Cloud Code API (`loadCodeAssist` for the plan, `retrieveUserQuotaSummary` for the 5-hour and weekly windows), or `omp usage` for omp's sign-in | `history.jsonl`, `conversation_summaries.db`, and each conversation's `transcript.jsonl` under `~/.gemini/antigravity-cli/` (`AGY_DIR`), plus pi, omp, and OpenClaw sessions on the `google-antigravity` provider and opencode sessions on its Antigravity plugin's `antigravity-` models |
 
 When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json`
 registers more than one account, the `claude`, `codex`, and `grok` records
@@ -94,7 +95,24 @@ Codex CLI will front any OpenAI-compatible backend — `--oss`, or a custom `mod
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
-`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`, Grok via `GROK_HOME`. Grok's
+`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`, Grok via `GROK_HOME`,
+Antigravity via `AGY_DIR`. Antigravity's plan and limits are
+asked with the sign-in `agy` keeps in the Secret Service keyring (service
+`gemini`, username `antigravity`, or `antigravity-oauth-token` under
+`AGY_DIR` without a keyring). Without `agy`, the Antigravity sign-in of
+another harness stands in: omp's `agent.db`, pi's `auth.json` (both under
+`PI_CODING_AGENT_DIR` when set), or opencode's `google` sign-in when the
+Antigravity plugin's `antigravity-accounts.json` is there. Of these, the
+token refreshed most recently is asked first, and one Google refuses gives
+way to the next. omp is asked through `omp usage`, which refreshes its own
+sign-in, and its token then only names the plan. Every other harness
+refreshes its token while it runs; one left to lapse shows the last limits
+until that harness runs again. Because the panel's _Sign-in required_ link
+runs a sign-in flow that knows Claude, Codex, and Grok only, the Antigravity
+record names that state in words and puts the instruction in `authHelpText`
+instead of asking for a link. Hermes reaches Antigravity only through
+plugins that run `agy`, so its usage is agy's own. The record's id is
+`agy`, the name the default agent knows it by. Grok's
 plan comes from the settings it caches in its home, and its limit from the
 credits endpoint its own `/usage` view reads, asked with each account's
 sign-in; a sign-in left to lapse shows the last credits until Grok runs

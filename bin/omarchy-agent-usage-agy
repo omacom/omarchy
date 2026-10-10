@@ -1,0 +1,774 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Antigravity usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Google Antigravity usage into one display-ready JSON record.
+
+The id is agy, the name omarchy-default-agent and omarchy-agent know the CLI
+by, so the record and the default agent agree on which agent this is.
+
+Local stats come from Antigravity's history log, conversation summaries, and
+conversation transcripts under ~/.gemini/antigravity-cli/, and from the
+Antigravity answers pi, omp, OpenClaw, and opencode's Antigravity plugin
+recorded. The plan and limits come from the Google Cloud Code API
+(v1internal:loadCodeAssist and v1internal:retrieveUserQuotaSummary), asked
+with the sign-in agy keeps in the Secret Service keyring, or with the
+Antigravity sign-in pi or opencode keeps; omp's come from `omp usage`. The
+agents panel only ever reads the JSON this prints.
+"""
+
+import argparse
+import base64
+import hashlib
+import json
+import os
+import sqlite3
+import shutil
+import subprocess
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+AGENT_ID = "agy"
+AGENT_NAME = "Antigravity"
+AUTH_HELP = "Run `agy` to sign in, or sign in to Antigravity in omp, pi, or opencode."
+# The panel reads "Waiting for auth" and "Sign-in expired" as "offer to sign
+# in here", and its link runs omarchy-agent-account-add, which knows Claude,
+# Codex, and Grok only. Antigravity is signed in outside the panel, so its
+# record names the state in words and leaves the instruction to authHelpText,
+# which the panel prints where the link would have been.
+NO_SIGN_IN = "No Antigravity sign-in"
+LAPSED = "Antigravity sign-in expired"
+# How each source is named when its sign-in needs refreshing.
+SOURCE_NAMES = {"agy": "`agy`", "omp": "omp", "pi": "pi", "opencode": "opencode"}
+# A panel opened and shut repeatedly reuses an answer for about a minute.
+PROBE_REUSE_SECONDS = 60
+# A limits-only refresh needs fresh limits, not a fresh history scan.
+LIMITS_ONLY_SCAN_REUSE_SECONDS = 900
+
+
+def app_root():
+  return Path(os.environ.get("AGY_DIR") or (Path.home() / ".gemini" / "antigravity-cli"))
+
+
+def cache_root():
+  return Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+
+
+def read_json(path):
+  try:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+  except Exception:
+    return None
+
+
+# A temporary file of its own per write, so overlapping runs can't rename
+# each other's away.
+def write_json(path, payload):
+  path = Path(path)
+  path.parent.mkdir(parents=True, exist_ok=True)
+  fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
+  try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+      json.dump(payload, handle)
+    os.replace(tmp, path)
+  except Exception:
+    Path(tmp).unlink(missing_ok=True)
+    raise
+
+
+def parse_time(value):
+  if value is None or value == "" or isinstance(value, bool):
+    return None
+  try:
+    if isinstance(value, (int, float)) or str(value).isdigit():
+      stamp = float(value)
+      parsed = datetime.fromtimestamp(stamp / 1000 if stamp > 1e12 else stamp, timezone.utc)
+    else:
+      parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+      if not parsed.tzinfo:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+  except (ValueError, OverflowError, OSError):
+    return None
+  # Go's zero time marks an uninitialized summary, not dated activity.
+  return None if parsed == datetime.min.replace(tzinfo=timezone.utc) else parsed
+
+
+def local_day(value):
+  parsed = parse_time(value)
+  if parsed is None:
+    return ""
+  try:
+    return parsed.astimezone().date().isoformat()
+  except (ValueError, OverflowError, OSError):
+    # Even a parsed date can cross years 1/9999 during local conversion.
+    return ""
+
+
+# The sign-in agy keeps in the keyring: its access token, when that lapses,
+# and which kind of account it is. Without a Secret Service, agy keeps the
+# same token in a file under its home instead.
+def login():
+  try:
+    raw = subprocess.check_output(
+      ["secret-tool", "lookup", "service", "gemini", "username", "antigravity"],
+      text=True, stderr=subprocess.DEVNULL, timeout=3,
+    )
+    data = json.loads(raw) if raw.strip() else None
+  except Exception:
+    data = None
+  if not isinstance(data, dict):
+    data = read_json(app_root() / "antigravity-oauth-token")
+  if not isinstance(data, dict):
+    return None
+
+  token = data.get("token") if isinstance(data.get("token"), dict) else {}
+  expires = parse_time(token.get("expiry") or data.get("expiry"))
+  return {
+    "source": "agy",
+    "accessToken": str(token.get("access_token") or data.get("access_token") or ""),
+    "expiresAt": expires.timestamp() if expires else 0,
+    "authMethod": str(data.get("auth_method") or "consumer"),
+    "email": email_of(data.get("id_token")),
+    "refresh": str(token.get("refresh_token") or data.get("refresh_token") or ""),
+  }
+
+
+# omp, pi, and opencode's Antigravity plugin sign in with the same Google
+# client agy uses, so the access tokens they keep reach the same plan and
+# quota. Each refreshes its token while it runs; these are only ever read.
+def harness_login(source, data):
+  if not isinstance(data, dict) or data.get("type", "oauth") != "oauth" or not data.get("access"):
+    return None
+  expires = parse_time(data.get("expires"))
+  return {
+    "source": source,
+    "accessToken": str(data["access"]),
+    "expiresAt": expires.timestamp() if expires else 0,
+    "authMethod": "consumer",
+    "email": str(data.get("email") or ""),
+    "refresh": str(data.get("refresh") or ""),
+  }
+
+
+# omp and pi both honor PI_CODING_AGENT_DIR for their agent directory.
+def harness_dir(name):
+  return Path(os.environ.get("PI_CODING_AGENT_DIR") or (Path.home() / name / "agent"))
+
+
+def omp_logins():
+  database = harness_dir(".omp") / "agent.db"
+  if not database.is_file():
+    return []
+  try:
+    conn = sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+    try:
+      rows = conn.execute(
+        "SELECT data FROM auth_credentials WHERE provider = 'google-antigravity' "
+        "AND credential_type = 'oauth' AND disabled_cause IS NULL"
+      ).fetchall()
+    finally:
+      conn.close()
+  except sqlite3.Error:
+    return []
+  logins = []
+  for (data,) in rows:
+    try:
+      entry = harness_login("omp", json.loads(data))
+    except (TypeError, ValueError):
+      continue
+    if entry:
+      logins.append(entry)
+  return logins
+
+
+def pi_logins():
+  auth = read_json(harness_dir(".pi") / "auth.json")
+  entry = harness_login("pi", auth.get("google-antigravity")) if isinstance(auth, dict) else None
+  return [entry] if entry else []
+
+
+# opencode files the Antigravity plugin's sign-in under its "google"
+# provider, which other Google sign-ins share, so it only counts alongside
+# the plugin's own accounts file.
+def opencode_logins():
+  config_home = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config"))
+  if not (config_home / "opencode" / "antigravity-accounts.json").is_file():
+    return []
+  data_home = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+  auth = read_json(data_home / "opencode" / "auth.json")
+  entry = harness_login("opencode", auth.get("google")) if isinstance(auth, dict) else None
+  return [entry] if entry else []
+
+
+def logins():
+  entry = login()
+  return ([entry] if entry else []) + omp_logins() + pi_logins() + opencode_logins()
+
+
+def expired_help(entry):
+  name = SOURCE_NAMES[entry["source"]]
+  return f"The Antigravity sign-in {name} keeps expired. Start {name} to refresh it."
+
+
+# Which Google account a sign-in belongs to, so limits kept from an earlier
+# check can be tied to it: the email when the harness records one, otherwise
+# a digest of that harness' own token. The refresh token outlives the access
+# tokens that rotate; the access token, which changes with the account or a
+# refresh, drops the cache rather than let it pass for another's.
+def identity_of(entry):
+  if entry.get("email"):
+    return str(entry["email"])
+  secret = str(entry.get("refresh") or entry.get("accessToken") or "")
+  return f"{entry['source']}:{hashlib.sha256(secret.encode()).hexdigest()[:16]}" if secret else ""
+
+
+def email_of(id_token):
+  try:
+    claims = str(id_token).split(".")[1]
+    return str(json.loads(base64.urlsafe_b64decode(claims + "=" * (-len(claims) % 4))).get("email") or "")
+  except Exception:
+    return ""
+
+
+def normalize_tier_label(name, tier_id=""):
+  for word in ("ultra", "pro", "free"):
+    if word in tier_id.lower() or word in name.lower():
+      return word.capitalize()
+  if name.lower().startswith("google ai "):
+    return name[10:].strip()
+  return name or tier_id.replace("-tier", "").capitalize()
+
+
+# A paid tier names the plan; without one, the current tier does.
+def extract_tier(data):
+  for key in ("paidTier", "currentTier"):
+    tier = data.get(key)
+    if isinstance(tier, dict):
+      name = str(tier.get("name") or "").strip()
+      tier_id = str(tier.get("id") or "").strip()
+      if name or tier_id:
+        return normalize_tier_label(name, tier_id)
+  return ""
+
+
+def used(bucket):
+  return round(max(0.0, min(1.0, 1.0 - float(bucket.get("remainingFraction", 1.0)))), 4)
+
+
+def reset_of(bucket):
+  parsed = parse_time(bucket.get("resetTime"))
+  return parsed.isoformat() if parsed else ""
+
+
+# The Gemini group's 5-hour and weekly buckets are the plan's own limits; the
+# other groups (Claude and GPT models) are scoped allowances, shown once
+# they have been touched.
+def extract_limits(data):
+  groups = [g for g in data.get("groups") or [] if isinstance(g, dict)]
+  if not groups:
+    return []
+  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), groups[0])
+
+  limits = []
+  session = weekly = None
+  for bucket in gemini.get("buckets") or []:
+    if not isinstance(bucket, dict):
+      continue
+    window = str(bucket.get("window") or "").lower()
+    bucket_id = str(bucket.get("bucketId") or "").lower()
+    name = str(bucket.get("displayName") or "").lower()
+    if window == "5h" or "5h" in bucket_id or "five" in name:
+      session = bucket
+    elif window == "weekly" or "weekly" in bucket_id or "week" in name:
+      weekly = bucket
+  if session:
+    limits.append({"label": "Session (5-hour)", "title": "Session", "percent": used(session), "resetsAt": reset_of(session)})
+  if weekly:
+    limits.append({"label": "Weekly (7-day)", "title": "Weekly", "percent": used(weekly), "resetsAt": reset_of(weekly)})
+
+  for group in groups:
+    if group is gemini:
+      continue
+    group_name = str(group.get("displayName") or "").strip()
+    short = "Claude/GPT" if "claude" in group_name.lower() else (group_name or "3P")
+    for bucket in group.get("buckets") or []:
+      if isinstance(bucket, dict) and used(bucket) > 0:
+        title = f"{short} {'Weekly' if 'week' in str(bucket.get('window') or '').lower() else 'Session'}"
+        limits.append({"label": title, "title": title, "percent": used(bucket), "resetsAt": reset_of(bucket)})
+  return limits
+
+
+def post(endpoint, token):
+  base = (os.environ.get("CLOUD_CODE_URL") or "https://daily-cloudcode-pa.googleapis.com").rstrip("/")
+  request = urllib.request.Request(
+    f"{base}/v1internal:{endpoint}", data=b"{}",
+    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "antigravity"},
+  )
+  with urllib.request.urlopen(request, timeout=8) as response:
+    return json.loads(response.read().decode("utf-8", errors="replace"))
+
+
+# A window kept from an earlier check is dropped once it has reset, since
+# what it said no longer holds. A damaged cache entry is dropped with it
+# rather than taken down the collector.
+def open_windows(limits):
+  now = datetime.now(timezone.utc)
+  return [
+    limit for limit in (limits if isinstance(limits, list) else [])
+    if isinstance(limit, dict) and (not parse_time(limit.get("resetsAt")) or parse_time(limit.get("resetsAt")) > now)
+  ]
+
+
+# omp refreshes its own Antigravity sign-in when asked for usage, so its
+# limits come from `omp usage` even after the token it keeps has lapsed. The
+# report is folded back into the shape Google's quota summary has.
+def omp_usage(omp):
+  try:
+    output = subprocess.run(
+      [omp, "usage", "--json", "--provider", "google-antigravity"],
+      capture_output=True, text=True, timeout=30, check=True,
+    ).stdout
+    reports = [r for r in json.loads(output).get("reports") or [] if isinstance(r, dict) and r.get("provider") == "google-antigravity"]
+  except (OSError, ValueError, AttributeError, subprocess.SubprocessError):
+    return None
+  if not reports:
+    return None
+  groups, seen = {}, set()
+  for limit in reports[0].get("limits") or []:
+    if not isinstance(limit, dict):
+      continue
+    window = limit.get("window") if isinstance(limit.get("window"), dict) else {}
+    amount = limit.get("amount") if isinstance(limit.get("amount"), dict) else {}
+    label = str(limit.get("label") or "")
+    # A shared allowance is listed once per model family that draws on it.
+    if (label, window.get("id")) in seen:
+      continue
+    seen.add((label, window.get("id")))
+    try:
+      remaining = 1.0 - float(amount.get("usedFraction") or 0)
+    except (TypeError, ValueError):
+      continue
+    groups.setdefault(label, []).append({"window": str(window.get("id") or ""), "remainingFraction": remaining, "resetTime": window.get("resetsAt")})
+  metadata = reports[0].get("metadata") if isinstance(reports[0].get("metadata"), dict) else {}
+  quota = {"groups": [{"displayName": name, "buckets": buckets} for name, buckets in groups.items()]}
+  return quota, str(metadata.get("email") or "")
+
+
+class Lapsed(Exception):
+  pass
+
+
+def token_fresh(entry, now):
+  return bool(entry["accessToken"]) and (not entry["expiresAt"] or entry["expiresAt"] > now)
+
+
+# The plan and limits one sign-in answers with. omp is asked through its CLI,
+# and its own token, just refreshed, then only names the plan.
+def probe(entry, omp, now):
+  if entry["source"] == "omp" and omp:
+    answer = omp_usage(omp)
+    if answer:
+      quota, email = answer
+      refreshed = next((e for e in omp_logins() if not email or e["email"] == email), entry)
+      try:
+        tier = extract_tier(post("loadCodeAssist", refreshed["accessToken"])) if token_fresh(refreshed, time.time()) else ""
+      except Exception:
+        tier = ""
+      return tier, extract_limits(quota) or None, identity_of(refreshed)
+    if not token_fresh(entry, now):
+      raise Lapsed()
+  tier = extract_tier(post("loadCodeAssist", entry["accessToken"]))
+  return tier, extract_limits(post("retrieveUserQuotaSummary", entry["accessToken"])) or None, identity_of(entry)
+
+
+def collect_limits(entries, force):
+  result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": AUTH_HELP, "live": False, "fetchedAtMs": 0}
+  if not entries:
+    result["usageStatusText"] = NO_SIGN_IN
+    return result
+
+  now = time.time()
+  omp = shutil.which("omp")
+  # Every harness refreshes its own token while it runs, so the one lapsing
+  # last was refreshed most recently. A token of unknown expiry is tried
+  # last, and only Google can say whether it still holds.
+  signed_in = sorted((e for e in entries if e["accessToken"] or (e["source"] == "omp" and omp)), key=lambda e: e["expiresAt"], reverse=True)
+  usable = [e for e in signed_in if token_fresh(e, now) or (e["source"] == "omp" and omp)]
+
+  cache = cache_root() / "agy-limits.json"
+  cached = read_json(cache) or {}
+  fetched_at = int(cached.get("fetchedAtMs") or 0)
+  kept = open_windows(cached.get("limits"))
+  tier = str(cached.get("tierLabel") or "")
+  # Limits kept from an earlier check belong to the account that earned them,
+  # so they stand in only while a sign-in for that account is still here:
+  # another account's never stand in for it, and without an identity to match
+  # they are dropped rather than shown.
+  signed_in_as = {identity_of(e) for e in entries}
+  if str(cached.get("identity") or "") not in signed_in_as - {""}:
+    kept, tier, fetched_at = [], "", 0
+  lead = (usable or signed_in or [{}])[0]
+  result.update(fetchedAtMs=fetched_at, tierLabel=tier)
+
+  if not signed_in:
+    result.update(limits=kept, usageStatusText=NO_SIGN_IN)
+    return result
+
+  # A token left to lapse can't be used until its harness runs again.
+  if not usable:
+    result.update(limits=kept, usageStatusText=LAPSED, authHelpText=expired_help(lead))
+    return result
+
+  # A panel opened and shut repeatedly reuses the answer it just got, but
+  # only for the account that answer describes.
+  if kept and not force and identity_of(lead) == str(cached.get("identity") or "") and now - fetched_at / 1000 < PROBE_REUSE_SECONDS:
+    result.update(limits=kept, live=True)
+    return result
+
+  # A sign-in Google refuses gives way to the next one.
+  tier_from_probe, limits, identity, rejected = "", None, "", None
+  for entry in usable:
+    try:
+      tier_from_probe, limits, identity = probe(entry, omp, now)
+    except Lapsed:
+      rejected = rejected or entry
+      continue
+    except urllib.error.HTTPError as error:
+      if error.code in (401, 403):
+        rejected = rejected or entry
+        continue
+    except Exception:
+      pass
+    rejected = None
+    break
+  if rejected:
+    result.update(usageStatusText=LAPSED, authHelpText=expired_help(rejected))
+
+  # A plan label, and limits, kept from an earlier check describe the account
+  # that earned them: they stand in for that account, or for a run nothing
+  # answered at all, but never beside another account's answer.
+  cached_identity = str(cached.get("identity") or "")
+  if identity and identity != cached_identity:
+    result["tierLabel"] = ""
+    kept = []
+  if tier_from_probe:
+    result["tierLabel"] = tier_from_probe
+
+  if limits:
+    result.update(limits=limits, live=True, fetchedAtMs=round(time.time() * 1000))
+    write_json(cache, {"fetchedAtMs": result["fetchedAtMs"], "limits": limits, "tierLabel": result["tierLabel"], "identity": identity})
+  else:
+    result["limits"] = kept
+    if not result["usageStatusText"] and not kept:
+      result["usageStatusText"] = "Antigravity limits unavailable"
+  return result
+
+
+def model_bucket(models, model):
+  return models.setdefault(model, {"inputTokens": 0, "outputTokens": 0, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0})
+
+
+def history_entries(root):
+  try:
+    lines = (root / "history.jsonl").read_text(encoding="utf-8", errors="ignore").splitlines()
+  except OSError:
+    return
+  for line in lines:
+    try:
+      entry = json.loads(line)
+    except ValueError:
+      continue
+    if isinstance(entry, dict):
+      yield entry
+
+
+def number(value):
+  try:
+    return max(0, int(value or 0))
+  except (TypeError, ValueError):
+    return 0
+
+
+# `omp --profile=<name>` (and pi's equivalent) moves the whole agent tree
+# under <base>/profiles/<name>/, so each profile's sessions are scanned too.
+# OpenClaw keeps the same transcript format, one directory per agent.
+def session_roots():
+  roots = []
+  if os.environ.get("PI_CODING_AGENT_DIR"):
+    roots.append(Path(os.environ["PI_CODING_AGENT_DIR"]) / "sessions")
+  for base in (Path.home() / ".pi", Path.home() / ".omp"):
+    roots.append(base / "agent" / "sessions")
+    try:
+      roots.extend(sorted(child / "agent" / "sessions" for child in (base / "profiles").iterdir() if child.is_dir()))
+    except OSError:
+      pass
+  openclaw = Path(os.environ.get("OPENCLAW_STATE_DIR") or (Path.home() / ".openclaw"))
+  try:
+    roots.extend(sorted(child / "sessions" for child in (openclaw / "agents").iterdir() if child.is_dir()))
+  except OSError:
+    pass
+  return list(dict.fromkeys(roots))
+
+
+# Each answer pi, omp, or OpenClaw got through its google-antigravity
+# provider: the session it belongs to, its day, its model, and its input,
+# output, cache read, and cache write tokens.
+def session_messages():
+  rg = shutil.which("rg")
+  if not rg:
+    return
+  seen = set()
+  for root in session_roots():
+    if not root.is_dir():
+      continue
+    try:
+      proc = subprocess.Popen(
+        # --no-ignore: a home that is itself a git checkout would otherwise
+        # hide every session file behind its ignore rules.
+        [rg, "--json", "--no-ignore", "-e", r'"provider"\s*:\s*"google-antigravity"', str(root)],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, errors="replace",
+      )
+    except OSError:
+      return
+    for raw in proc.stdout:
+      try:
+        event = json.loads(raw)
+        if event.get("type") != "match":
+          continue
+        path = event["data"]["path"]["text"]
+        entry = json.loads(event["data"]["lines"]["text"])
+      except (ValueError, KeyError, TypeError):
+        continue
+      if not isinstance(entry, dict) or entry.get("type") != "message":
+        continue
+      message = entry.get("message") if isinstance(entry.get("message"), dict) else {}
+      if message.get("role") != "assistant" or message.get("provider") != "google-antigravity":
+        continue
+      # A fork copies its parent's entries, and they keep their id, so each
+      # answer counts once.
+      if entry.get("id"):
+        key = (entry["id"], entry.get("timestamp")) if entry.get("timestamp") else (path, entry["id"])
+        if key in seen:
+          continue
+        seen.add(key)
+      usage = message.get("usage") if isinstance(message.get("usage"), dict) else {}
+      tokens = (number(usage.get("input")), number(usage.get("output")), number(usage.get("cacheRead")), number(usage.get("cacheWrite")))
+      if not any(tokens):
+        tokens = (number(usage.get("totalTokens")), 0, 0, 0)
+      day = local_day(entry.get("timestamp") or message.get("timestamp"))
+      if any(tokens) and day:
+        yield path, day, str(message.get("model") or "unknown"), tokens
+    try:
+      proc.wait(timeout=1)
+    except Exception:
+      proc.kill()
+
+
+# opencode's Antigravity plugin runs under the "google" provider, with model
+# ids it prefixes with antigravity- to keep them apart from Gemini API ones.
+def opencode_messages():
+  data_home = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+  database = data_home / "opencode" / "opencode.db"
+  if not database.is_file():
+    return
+  try:
+    conn = sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+  except sqlite3.Error:
+    return
+  try:
+    # The SQL is only acceleration: the Python filter below is the authority
+    # for which rows are this subscription's, and the guards in front can
+    # gate out a row it would have accepted.
+    rows = conn.execute(
+      "SELECT session_id, data FROM message"
+      " WHERE data LIKE '%\"role\"%:%\"assistant\"%' AND data LIKE '%antigravity-%'"
+      " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.role') END = 'assistant'"
+    ).fetchall()
+  except sqlite3.Error:
+    rows = []
+  finally:
+    conn.close()
+  for session, raw in rows:
+    try:
+      entry = json.loads(raw)
+      provider = str(entry.get("providerID") or "")
+      model = str(entry.get("modelID") or "")
+      # antigravity- is what the plugin prefixes its models with; Gemini
+      # asked for through the same provider id is a different subscription.
+      if not provider.startswith("google") or not model.startswith("antigravity-"):
+        continue
+      tokens = entry.get("tokens") if isinstance(entry.get("tokens"), dict) else {}
+      cache = tokens.get("cache") if isinstance(tokens.get("cache"), dict) else {}
+      created = (entry.get("time") or {}).get("created")
+    except (ValueError, AttributeError):
+      continue
+    # opencode keeps thinking tokens out of output; both are generated.
+    counts = (number(tokens.get("input")), number(tokens.get("output")) + number(tokens.get("reasoning")), number(cache.get("read")), number(cache.get("write")))
+    day = local_day(created)
+    if any(counts) and day:
+      yield "opencode:" + str(session), day, model, counts
+
+
+# Hermes reaches Antigravity only through plugins that run agy itself, so its
+# sign-in and transcripts are agy's own, which local_stats reads already.
+def harness_messages():
+  yield from session_messages()
+  yield from opencode_messages()
+
+
+# Every prompt from history.jsonl, every conversation from it and from the
+# conversation summaries, and the tokens each model step in a transcript
+# reports. Steps that report no usage add no tokens. Antigravity driven from
+# another harness adds each answer it recorded as a prompt, the way the Codex
+# collector counts them, with every token it reports.
+def local_stats(root):
+  today = datetime.now().astimezone().date()
+  week = [(today - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
+  today = today.isoformat()
+  by_day = {day: 0 for day in week}
+  prompts = today_prompts = today_tokens = 0
+  days, sessions, today_sessions = set(), set(), set()
+  today_by_model, models = {}, {}
+
+  for entry in history_entries(root):
+    day = local_day(entry.get("timestamp"))
+    if not day:
+      continue
+    prompts += 1
+    days.add(day)
+    conversation = entry.get("conversationId") or entry.get("conversation_id")
+    if conversation:
+      sessions.add(conversation)
+    if day == today:
+      today_prompts += 1
+      if conversation:
+        today_sessions.add(conversation)
+
+  summaries = root / "conversation_summaries.db"
+  if summaries.is_file():
+    try:
+      conn = sqlite3.connect(summaries.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+      try:
+        for conversation, modified in conn.execute("SELECT conversation_id, last_modified_time FROM conversation_summaries"):
+          if conversation:
+            sessions.add(conversation)
+            if local_day(modified) == today:
+              today_sessions.add(conversation)
+      finally:
+        conn.close()
+    except sqlite3.Error:
+      pass
+
+  for transcript in (root / "brain").glob("*/.system_generated/logs/transcript.jsonl"):
+    try:
+      lines = transcript.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except OSError:
+      continue
+    for line in lines:
+      try:
+        step = json.loads(line)
+      except ValueError:
+        continue
+      usage = step.get("usage") if isinstance(step, dict) else None
+      if not isinstance(usage, dict):
+        continue
+      uncached = number(usage.get("prompt_token_count") or usage.get("input_tokens") or 0)
+      output = number(usage.get("candidates_token_count") or usage.get("output_tokens") or 0)
+      model = str(step.get("model") or "unknown")
+      bucket = model_bucket(models, model)
+      bucket["inputTokens"] += uncached
+      bucket["outputTokens"] += output
+      day = local_day(step.get("created_at"))
+      if day:
+        days.add(day)
+      if day in by_day:
+        by_day[day] += uncached + output
+      if day == today:
+        today_tokens += uncached + output
+        today_by_model[model] = today_by_model.get(model, 0) + uncached + output
+
+  for session, day, model, counts in harness_messages():
+    total = sum(counts)
+    prompts += 1
+    days.add(day)
+    sessions.add(session)
+    bucket = model_bucket(models, model)
+    bucket["inputTokens"] += counts[0]
+    bucket["outputTokens"] += counts[1]
+    bucket["cacheReadInputTokens"] += counts[2]
+    bucket["cacheCreationInputTokens"] += counts[3]
+    if day in by_day:
+      by_day[day] += total
+    if day == today:
+      today_prompts += 1
+      today_sessions.add(session)
+      today_tokens += total
+      today_by_model[model] = today_by_model.get(model, 0) + total
+
+  return {
+    "hasLocalStats": prompts > 0 or bool(sessions) or bool(models),
+    "todayPrompts": today_prompts,
+    "todaySessions": len(today_sessions),
+    "todayTotalTokens": today_tokens,
+    "todayTokensByModel": today_by_model,
+    "recentDays": [{"date": day, "messageCount": by_day[day]} for day in week],
+    "totalPrompts": prompts,
+    "totalSessions": len(sessions),
+    "activeDays": len(days),
+    "activeDates": sorted(days),
+    "modelUsage": models,
+  }
+
+
+# A scan from before midnight would count yesterday's prompts as today's.
+def cached_local_stats(root, max_age):
+  cache = cache_root() / "agy-stats.json"
+  cached = read_json(cache) or {}
+  today = datetime.now().astimezone().date().isoformat()
+  if cached.get("root") == str(root) and cached.get("day") == today and time.time() - float(cached.get("at") or 0) < max_age:
+    return cached["stats"]
+  stats = local_stats(root)
+  write_json(cache, {"root": str(root), "day": today, "at": time.time(), "stats": stats})
+  return stats
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  # Nobody signed in to Antigravity here: no limits and no plan, so without
+  # local history the panel skips the record.
+  entries = logins()
+  limits = collect_limits(entries, args.force)
+  agy = next((e for e in entries if e["source"] == "agy"), None)
+  tier = limits["tierLabel"]
+  if not tier and agy and agy["authMethod"] == "enterprise":
+    tier = "Enterprise"
+  elif not tier and agy and agy["authMethod"] in ("cloud", "vertex"):
+    tier = "Cloud"
+
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": bool(entries),
+    "tierLabel": tier,
+    "usageStatusText": limits["usageStatusText"],
+    "authHelpText": limits["authHelpText"],
+    "limits": limits["limits"],
+    "limitsStale": not limits["live"],
+    "limitsFetchedAt": limits["fetchedAtMs"],
+  }
+  record.update(cached_local_stats(app_root(), LIMITS_ONLY_SCAN_REUSE_SECONDS if args.limits_only and not args.force else 0))
+  print(json.dumps(record, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+  main()
