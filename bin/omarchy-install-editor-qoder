@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Install Qoder from the AUR
+
+echo "Installing Qoder..."
+omarchy-pkg-aur-add qoder-ide-bin
+
+setsid uwsm-app -- gtk-launch qoder-ide >/dev/null 2>&1 &
