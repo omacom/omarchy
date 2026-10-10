@@ -552,6 +552,30 @@ kernel_cmdline_root_pinned() {
   '
 }
 
+preserve_legacy_kernel_cmdline() {
+  local legacy_cmdline_file=/etc/kernel/cmdline
+  local default_conf=/etc/default/limine
+  local marker="# Preserved from $legacy_cmdline_file by omarchy-upgrade-to-quattro"
+  local cmdline
+
+  as_root test -s "$legacy_cmdline_file" || return 0
+  if as_root test -f "$default_conf" && as_root grep -Fqx "$marker" "$default_conf"; then
+    return 0
+  fi
+
+  cmdline=$(as_root cat "$legacy_cmdline_file")
+  [[ -n $cmdline ]] || return 0
+  cmdline=${cmdline//\\/\\\\}
+  cmdline=${cmdline//\"/\\\"}
+
+  log "Preserving the legacy kernel cmdline in $default_conf"
+  as_root install -d -m 0755 /etc/default
+  as_root tee -a "$default_conf" >/dev/null <<EOF
+$marker
+KERNEL_CMDLINE[default]+=" $cmdline"
+EOF
+}
+
 preserve_kernel_cmdline_root() {
   local default_conf=/etc/default/limine
   local cmdline param key root_source root_stack root_uuid subvol
@@ -2425,6 +2449,7 @@ install_keyrings
 remove_legacy_installer_package
 remove_legacy_limine_configs
 remove_conflicting_legacy_packages
+preserve_legacy_kernel_cmdline
 preserve_kernel_cmdline_root
 install_omarchy_quattro_packages
 install_hardware_transition_packages

@@ -248,16 +248,18 @@ grep -F '/etc/systemd/system.conf.d/99-omarchy-nofile.conf' "$upgrade_to_quattro
 grep -F '/etc/systemd/user.conf.d/99-omarchy-nofile.conf' "$upgrade_to_quattro" >/dev/null
 pass "Omarchy 4 upgrade removes stale nofile drop-ins"
 
+legacy_cmdline_line=$(grep -n '^preserve_legacy_kernel_cmdline$' "$upgrade_to_quattro" | cut -d: -f1)
 cmdline_line=$(grep -n '^preserve_kernel_cmdline_root$' "$upgrade_to_quattro" | cut -d: -f1)
 packages_line=$(grep -n '^install_omarchy_quattro_packages$' "$upgrade_to_quattro" | cut -d: -f1)
 verify_line=$(grep -n '^verify_kernel_cmdline_root$' "$upgrade_to_quattro" | cut -d: -f1)
-[[ -n $cmdline_line && -n $packages_line && -n $verify_line ]] ||
+[[ -n $legacy_cmdline_line && -n $cmdline_line && -n $packages_line && -n $verify_line ]] ||
   fail "kernel cmdline preservation, verification and package install calls exist"
 # The package transaction installs the += drop-in that drops root=, so the pin
 # has to be on disk before it runs or the UKI it bakes is unbootable.
 (( cmdline_line < packages_line )) || fail "kernel cmdline is pinned before the packages that can drop root="
 # The UKIs are rebuilt by the transaction, so they can only be checked after it.
 (( verify_line > packages_line )) || fail "kernel cmdline is verified after the packages are installed"
+(( legacy_cmdline_line < packages_line )) || fail "legacy kernel cmdline is preserved before package drop-ins disable it"
 grep -F '/etc/default/limine' "$upgrade_to_quattro" >/dev/null
 grep -F 'KERNEL_CMDLINE[default]+=" ${boot_params[*]}"' "$upgrade_to_quattro" >/dev/null
 grep -F 'cat /proc/cmdline' "$upgrade_to_quattro" >/dev/null
@@ -265,6 +267,41 @@ grep -F 'findmnt -no UUID /' "$upgrade_to_quattro" >/dev/null
 grep -F 'rootflags=subvol=' "$upgrade_to_quattro" >/dev/null
 grep -F 'cryptdevice' "$upgrade_to_quattro" >/dev/null
 pass "Omarchy 4 upgrade preserves the kernel cmdline root parameters"
+
+grep -F '/etc/kernel/cmdline' "$upgrade_to_quattro" >/dev/null
+grep -F 'Preserved from $legacy_cmdline_file by omarchy-upgrade-to-quattro' "$upgrade_to_quattro" >/dev/null
+grep -F 'KERNEL_CMDLINE[default]+=" $cmdline"' "$upgrade_to_quattro" >/dev/null
+pass "Omarchy 4 upgrade preserves the complete legacy kernel cmdline"
+
+(
+  eval "$(sed -n '/^preserve_legacy_kernel_cmdline() {$/,/^}$/p' "$upgrade_to_quattro")"
+  legacy_root=$(mktemp -d)
+  trap 'rm -rf "$legacy_root"' EXIT
+  mkdir -p "$legacy_root/etc/kernel"
+  legacy_cmdline='root=UUID=abc rw nvme_core.default_ps_max_latency_us=0 systemd.setenv="NOTE=a b" path=C:\\firmware'
+  printf '%s\n' "$legacy_cmdline" >"$legacy_root/etc/kernel/cmdline"
+  as_root() {
+    local arg
+    local args=()
+    for arg in "$@"; do
+      if [[ $arg == /etc/* ]]; then
+        args+=("$legacy_root$arg")
+      else
+        args+=("$arg")
+      fi
+    done
+    "${args[@]}"
+  }
+  log() { :; }
+  preserve_legacy_kernel_cmdline
+  preserve_legacy_kernel_cmdline
+  declare -A KERNEL_CMDLINE=()
+  source "$legacy_root/etc/default/limine"
+  [[ ${KERNEL_CMDLINE[default]} == " $legacy_cmdline" ]] || fail "legacy kernel cmdline changes while being preserved"
+  [[ $(grep -Fc 'Preserved from /etc/kernel/cmdline' "$legacy_root/etc/default/limine") == 1 ]] ||
+    fail "legacy kernel cmdline preservation is not idempotent"
+)
+pass "Omarchy 4 upgrade preserves quoted legacy kernel parameters once"
 
 # The tool's effective cmdline still resolves root= from /proc/cmdline until the
 # first += drop-in lands, so it reads healthy on exactly the machines about to
