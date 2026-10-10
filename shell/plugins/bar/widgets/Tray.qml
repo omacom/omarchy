@@ -122,6 +122,13 @@ BarWidget {
       return
     }
 
+    // The bar sits inside the popup's focus grab, so a second click on the open
+    // item lands here instead of dismissing; close it, as the trigger implies.
+    if (trayMenuOpen && activeTrayItem === item) {
+      trayMenuOpen = false
+      return
+    }
+
     // Reset before switching items: trayMenuOpener.menu binds to
     // activeTrayItem.menu, so assigning a new item invalidates the old root's
     // children immediately, before any nested opener referencing them would
