@@ -124,11 +124,19 @@ choose_theme_background() {
   local current_background remembered_background state_file index next_index i
 
   CHOSEN_THEME_BACKGROUND=""
+  local media_filter=(
+    -maxdepth 1 -type f
+    \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp'
+       -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \)
+    -print0
+  )
+
+  # Shared backgrounds follow the theme's own, so they never become its default.
+  # Most themes have no user folder, and that find failure must not end the
+  # listing early for a caller running under errexit and pipefail.
   mapfile -d '' -t backgrounds < <(
-    find -L "$HOME/.config/omarchy/backgrounds/$THEME_NAME/" "$theme_path/backgrounds/" -maxdepth 1 -type f \
-      \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp' \
-         -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \) \
-      -print0 2>/dev/null | sort -z
+    find -L "$HOME/.config/omarchy/backgrounds/$THEME_NAME/" "$theme_path/backgrounds/" "${media_filter[@]}" 2>/dev/null | sort -z || true
+    find -L "$HOME/.config/omarchy/backgrounds/" "${media_filter[@]}" 2>/dev/null | sort -z
   )
 
   (( ${#backgrounds[@]} > 0 )) || return 1

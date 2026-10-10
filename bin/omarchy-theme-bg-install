@@ -1,9 +1,23 @@
 #!/bin/bash
 
-# omarchy:summary=Open the current theme's user background folder
+# omarchy:summary=Open the user background folder for the current theme or for all themes
+# omarchy:args=[current|all]
+# omarchy:examples=omarchy theme bg install | omarchy theme bg install all
 
-CURRENT_THEME_NAME=$(cat "$HOME/.local/state/omarchy/current/theme.name")
-THEME_USER_BACKGROUNDS="$HOME/.config/omarchy/backgrounds/$CURRENT_THEME_NAME"
+USER_BACKGROUNDS="$HOME/.config/omarchy/backgrounds"
 
-mkdir -p "$THEME_USER_BACKGROUNDS"
-nautilus "$THEME_USER_BACKGROUNDS"
+case "${1:-current}" in
+  current)
+    BACKGROUNDS_FOLDER="$USER_BACKGROUNDS/$(cat "$HOME/.local/state/omarchy/current/theme.name")"
+    ;;
+  all)
+    BACKGROUNDS_FOLDER="$USER_BACKGROUNDS"
+    ;;
+  *)
+    echo "Usage: omarchy-theme-bg-install [current|all]" >&2
+    exit 1
+    ;;
+esac
+
+mkdir -p "$BACKGROUNDS_FOLDER"
+nautilus "$BACKGROUNDS_FOLDER"

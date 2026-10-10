@@ -176,7 +176,7 @@ All capture options are also accessible under _Trigger > Capture_ in the Omarchy
 | `Super + Backspace` | Toggle transparency on a window |
 | `Super + Ctrl + Backspace` | Toggle single-window square aspect |
 
-Extra background images live in `~/.config/omarchy/backgrounds/<theme name>`. Also available via _Install > Style > Background_ in the Omarchy menu.
+Extra background images live in `~/.config/omarchy/backgrounds/<theme name>`, or directly in `~/.config/omarchy/backgrounds` to share them across every theme. Both folders are available via _Install > Style > Background_ in the Omarchy menu.
 
 All style options are also accessible under _Style_ in the Omarchy menu (`Super + Space`).
 
