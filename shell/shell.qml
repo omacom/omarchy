@@ -426,6 +426,7 @@ ShellRoot {
       ownerPluginId: pluginId,
       _entryName: function(entry) { return shell.appLibrary.entryName(entry) },
       _entrySubtext: function(entry) { return shell.appLibrary.entrySubtext(entry) },
+      _searchableId: function(entry) { return shell.appLibrary.searchableId(entry) },
       _sortedEntries: function(query) { return shell.appLibrary.sortedEntries(query) },
       _iconSource: function(icon) { return shell.appLibrary.iconSource(icon) },
       _refreshIcons: function() { shell.appLibrary.refreshIcons() },

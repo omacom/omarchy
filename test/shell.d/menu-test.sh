@@ -187,6 +187,36 @@ assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'power_menu'), 'sy
 assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, ''), 'root', 'menu routes empty input to root')
 assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'no-such-route'), 'no-such-route', 'menu falls through to the literal input')
 assert(menu.matchesQuery(routed.items['apps.htop'], 'system', true), 'menu still finds an app by its keywords in search')
+
+// A web app installed from a Chromium browser's "Install" menu item gets a
+// generated .desktop id (<browser>-<32-letter extension id>-<profile>). Rows
+// are built the way Menu.qml's mergeAppRows builds them, so typing the
+// profile name must not match every web app installed under it.
+const appSearch = requireFromRoot('shell/services/AppSearch.js')
+const appRow = (name, appId) => ({
+  id: 'apps.' + appId, parent: 'apps', kind: 'app', label: name, description: '', aliases: [],
+  appId, searchId: appSearch.searchableId({ id: appId })
+})
+const webapp = appRow('YouTube', 'chrome-agimnkijcaahngcdmfeangaknmldooml-Default')
+assert(!menu.matchesQuery(webapp, 'default', true), 'menu does not match a web app by its generated id')
+assert(menu.matchesQuery(webapp, 'youtube', true), 'menu still matches a web app by its name')
+assertEqual(webapp.id, 'apps.chrome-agimnkijcaahngcdmfeangaknmldooml-Default', 'a web app row keeps its real id')
+assert(
+  menu.matchesQuery(appRow('Files', 'org.gnome.Nautilus'), 'nautilus', true),
+  'menu matches a normal app by its id'
+)
+assert(
+  /searchId: root\.appLibrary\.searchableId\(entry\)/.test(menuQml),
+  'menu app rows carry the searchable id from the shared app search'
+)
+// A cloned menu is handed PluginAppLibraryApi rather than AppLibrary, so every
+// method Menu.qml calls on it has to exist there and be wired in shell.qml.
+const pluginAppLibraryQml = fs.readFileSync(path.join(root, 'shell/services/PluginAppLibraryApi.qml'), 'utf8')
+const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
+for (const [, method] of menuQml.matchAll(/root\.appLibrary\.(\w+)\(/g)) {
+  assert(new RegExp(`function ${method}\\(`).test(pluginAppLibraryQml), `a cloned menu's app library has ${method}`)
+  assert(new RegExp(`_${method}: function`).test(shellQml), `the shell wires ${method} into a cloned menu's app library`)
+}
 assert(
   /function resolveRoute\(input\) \{\s*\n\s*return MenuModel\.resolveRoute\(root\.items, root\.itemOrder, input\)\s*\n\s*\}/.test(menuQml),
   'menu delegates route resolution to the shared model'

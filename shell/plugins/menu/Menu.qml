@@ -312,6 +312,7 @@ Item {
         icon: "",
         appIcon: String(entry.icon || ""),
         appId: appId,
+        searchId: root.appLibrary.searchableId(entry),
         label: root.appLibrary.entryName(entry),
         title: "",
         target: "",
