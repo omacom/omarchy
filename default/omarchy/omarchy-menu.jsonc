@@ -183,6 +183,7 @@
   "setup.plugin.clone": {"icon":"󰆏","label":"Clone Plugin","action":"omarchy-menu-plugin clone"},
   "setup.plugin.remove": {"icon":"󰭌","label":"Remove Plugin","when":"compgen -G \"$HOME/.config/omarchy/plugins/*/manifest.json\"","action":"omarchy-menu-plugin remove"},
   "setup.security": {"icon":"","label":"Security"},
+  "setup.security.keyring": {"icon":"","label":"Application Keyring","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-keyring"},
   "setup.config": {"icon":"","label":"Config"},
   "setup.security.thunderbolt": {"icon":"󱐋","label":"Thunderbolt","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-thunderbolt-authorization"},
   "setup.security.thunderbolt-boot": {"icon":"󱐋","label":"Thunderbolt Boot","when":"[[ -f /etc/omarchy/thunderbolt-authorization.enabled ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-thunderbolt-boot"},

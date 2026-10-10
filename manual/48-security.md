@@ -35,6 +35,18 @@ With Secure Boot enabled, changing USB boot protection requires access to your s
 
 You have two passwords on an encrypted install: the one that unlocks the drive at boot, and the one you log in and `sudo` with. Setup makes them the same. Both can be changed under _Update > Password_ in the Omarchy menu — _Drive Encryption_ for the first, _User_ for the second. Changing the drive password asks for the current one first, so have it handy. If a change is interrupted, run _Drive Encryption_ again: it asks for the password that unlocks the drive now and finishes the change.
 
+## Application keyring
+
+Applications can save passwords and tokens in the GNOME keyring. On a new installation, a password-based desktop login lets GNOME create and unlock an encrypted `login` keyring. Automatic desktop login after unlocking an encrypted disk is still supported: the first desktop session asks you to choose a keyring password in GNOME's own dialog. Choose a nonempty password and keep it safe. Matching your user password lets a later password-based login unlock the `login` keyring through PAM.
+
+Automatic login, fingerprint login, and disk unlocking do not supply a user password to the keyring. GNOME may therefore ask you to unlock it when an application first needs saved credentials. _Setup > Security > Application Keyring_ or `omarchy-setup-security-keyring` also opens the native enrollment or unlock dialog.
+
+Older Omarchy versions created an unencrypted `Default_keyring`. The update migration asks GNOME to encrypt that same collection in place, preserving its saved items and default alias. When GNOME asks for its old password, leave that field empty; choose a nonempty new password. Setup does not reset application credentials or choose a password for you. The legacy collection retains its name, so it still needs a native unlock prompt after login; PAM automatically unlocks the `login` collection only.
+
+Cancelling setup, leaving the new password empty, or updating outside a graphical desktop leaves the encryption migration pending. Complete setup in your desktop session, then run `omarchy-migrate` again. The password dialog times out after two minutes and can be retried. A customized SDDM authentication configuration may need manual PAM review before the migration can continue.
+
+Encryption protects the saved keyring while it is locked. Applications running as your user can access secrets after it is unlocked. Re-encrypting the current collection does not remove plaintext from existing backups or snapshots; handle those copies according to your retention policy.
+
 ## Passing on a machine you've already used
 
 If you're handing your machine over to someone else, you don't have to reinstall it. Run _Setup > Reset Computer_ in the Omarchy menu, type `reset` to confirm, and reboot. That wipes every user account and everything in `/home`, throws away all the packages and system changes you made since installation, and clears the machine's identity — network connections, host keys, and all. What comes back up is the setup wizard from the first boot, ready for its new owner to enter their own name, password, and encryption password.

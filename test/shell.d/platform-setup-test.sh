@@ -116,7 +116,9 @@ case "$1:$2" in
   mark:first-run-user) touch "$FIRST_RUN_MARKER" ;;
 esac
 SH
-for helper in omarchy-provision-user omarchy-hook-install omarchy-notification-wait; do
+# Keep unrelated enrollment outside this platform-dispatch fixture. Its native
+# prompts and failed-enrollment lifecycle markers are covered by keyring-test.
+for helper in omarchy-provision-user omarchy-hook-install omarchy-notification-wait omarchy-setup-security-keyring; do
   printf '#!/bin/bash\nexit 0\n' >"$first_bin/$helper"
 done
 chmod +x "$first_bin"/*

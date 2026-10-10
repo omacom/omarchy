@@ -1517,10 +1517,8 @@ EOF
     /etc/systemd/user.conf.d/99-omarchy-nofile.conf
   as_root systemctl daemon-reload >/dev/null 2>&1 || true
 
-  if [[ -f /etc/pam.d/sddm ]]; then
-    as_root sed -i '/-auth.*pam_gnome_keyring\.so/d' /etc/pam.d/sddm
-    as_root sed -i '/-password.*pam_gnome_keyring\.so/d' /etc/pam.d/sddm
-  fi
+  # The post-upgrade keyring migration restores native PAM integration without
+  # rewriting custom authentication stacks or changing existing collections.
 
   if [[ -f /etc/pam.d/system-auth ]]; then
     as_root sed -i 's|^\(auth\s\+required\s\+pam_faillock.so\)\s\+preauth.*$|\1 preauth silent deny=10 unlock_time=120|' /etc/pam.d/system-auth
@@ -2197,26 +2195,13 @@ for unit in pipewire-pulse.service pipewire-pulse.socket; do
   fi
 done
 
-keyring_dir="$HOME/.local/share/keyrings"
-keyring_file="$keyring_dir/Default_keyring.keyring"
-default_file="$keyring_dir/default"
-mkdir -p "$keyring_dir"
-if [[ ! -f $keyring_file ]]; then
-  cat >"$keyring_file" <<EOF
-[keyring]
-display-name=Default keyring
-ctime=$(date +%s)
-mtime=0
-lock-on-idle=false
-lock-after=false
-EOF
+# Preserve existing keyrings and aliases; native password enrollment runs in
+# the post-upgrade migration, with GNOME owning all password entry.
+keyring_dir="${XDG_DATA_HOME:-$HOME/.local/share}/keyrings"
+if [[ ! -d $keyring_dir && -d $HOME/.gnome2/keyrings ]]; then
+  keyring_dir="$HOME/.gnome2/keyrings"
 fi
-if [[ ! -f $default_file ]]; then
-  printf 'Default_keyring\n' >"$default_file"
-fi
-chmod 700 "$keyring_dir"
-chmod 600 "$keyring_file"
-chmod 644 "$default_file"
+install -d -m 700 "$keyring_dir"
 
 mkdir -p "$HOME/.local/share/applications"
 rm -f "$HOME/.config/autostart/walker.desktop"
