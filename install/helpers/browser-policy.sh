@@ -109,8 +109,25 @@ browser_policy_install_color() {
   [[ -d $policy_dir && ! -L $policy_dir ]] || return 0
   [[ $hex =~ ^#[0-9a-f]{6}$ ]] || return 1
 
-  tmp=$(mktemp) || return 1
+  # Stage a hidden sibling of color.json and finish with rename(2), so a
+  # browser reading the policy sees the old file or the new one rather than an
+  # absent or half-written one. install(1) unlinks the destination before
+  # recreating it, so it cannot do that.
+  #
+  # The sibling has to be in this directory and not merely on the same
+  # filesystem: rename(2) fails across two mount points even where the same
+  # filesystem is behind both, so a stage in $policy_dir's parent or in
+  # $TMPDIR would turn the swap back into a copy.
+  #
+  # The browser enumerates every file in $policy_dir, dotfiles included, so the
+  # stage is briefly visible to it. The content is complete before the rename,
+  # ConfigDirPolicyLoader skips a file it cannot parse rather than applying it,
+  # and a stage that outlives the write cannot win the merge anyway: the
+  # provider gives priority to the last file in lexicographic order and this
+  # name sorts before color.json.
+  tmp=$(mktemp "${policy_dir}/.${dest##*/}.omarchy.XXXXXX") || return 1
   printf '{"BrowserThemeColor": "%s", "BrowserColorScheme": "device"}\n' "$hex" >"$tmp"
+  chmod 0644 "$tmp"
 
   if [[ -L $dest || -d $dest ]]; then
     if ! rm -rf -- "$dest" 2>/dev/null; then
@@ -119,8 +136,9 @@ browser_policy_install_color() {
     fi
   fi
 
-  if install -m 0644 -T "$tmp" "$dest" 2>/dev/null; then
-    rm -f "$tmp"
+  # -T keeps a planted color.json directory from becoming a directory the
+  # staged file is moved into.
+  if mv -Tf -- "$tmp" "$dest" 2>/dev/null; then
     return 0
   fi
 

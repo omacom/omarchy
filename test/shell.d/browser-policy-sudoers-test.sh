@@ -45,10 +45,39 @@ policy_dir_count=$(sed -n '/^POLICY_DIRS=(/,/^)/p' "$helper" | grep -c '^  /')
   fail "omarchy-theme-set-browser-policy writes only the four known policy directories" \
     "got: $policy_dir_count"
 
-grep -F 'install -m 0644 -o root -g root -T' "$helper" >/dev/null ||
-  fail "omarchy-theme-set-browser-policy installs color.json with install -T"
-if grep -E 'mv -f' "$helper" >/dev/null; then
+# The write has to land as one rename(2), or a browser reading color.json
+# during a theme switch can catch the destination between install(1) unlinking
+# it and recreating it. rename(2) fails across two mount points even where the
+# same filesystem is behind both, so the stage has to be a sibling *in* the
+# policy directory: $TMPDIR or the parent would both be a cross-directory
+# rename, which degrades to a copy. Nothing here has to detect anything.
+grep -F 'mktemp "${policy_dir}/.${dest##*/}.omarchy.XXXXXX"' "$helper" >/dev/null ||
+  fail "omarchy-theme-set-browser-policy stages a hidden sibling in the policy directory"
+grep -F 'mv -Tf -- "$staged" "$dest"' "$helper" >/dev/null ||
+  fail "omarchy-theme-set-browser-policy replaces color.json with a single rename"
+
+# The bans below read code only. The comments above legitimately name TMPDIR,
+# install and chmod while explaining why the code avoids them.
+helper_code=$(grep -vE '^[[:space:]]*#' "$helper")
+if grep -E 'mktemp *\)' <<<"$helper_code" >/dev/null; then
+  fail "omarchy-theme-set-browser-policy does not stage in \$TMPDIR"
+fi
+if grep -E '\$\{?TMPDIR|"/tmp/|=/tmp/' <<<"$helper_code" >/dev/null; then
+  fail "omarchy-theme-set-browser-policy does not stage outside the policy directory"
+fi
+if grep -E '\$\{policy_dir%/\*\}' <<<"$helper_code" >/dev/null; then
+  fail "omarchy-theme-set-browser-policy does not stage in the policy directory's parent"
+fi
+if grep -E 'install -m 0644.*-T .*"\$dest"' <<<"$helper_code" >/dev/null; then
+  fail "omarchy-theme-set-browser-policy does not install straight into color.json"
+fi
+if grep -E 'mv -f' <<<"$helper_code" >/dev/null; then
   fail "omarchy-theme-set-browser-policy does not mv into a planted color.json directory"
+fi
+# Mode and ownership belong on the stage: chmod or chown applied after the
+# rename would leave a published policy file briefly wrong.
+if grep -E 'chmod .*"\$dest"|chown .*"\$dest"' <<<"$helper_code" >/dev/null; then
+  fail "omarchy-theme-set-browser-policy fixes mode before publishing color.json"
 fi
 
 pass "browser policy helper writes a fixed set of policy directories"

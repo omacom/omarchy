@@ -5,7 +5,18 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+spin_pid=""
+# The spinning reader below has to be stopped and reaped however this file
+# exits, including a fail inside the write loop, or it keeps burning a core
+# through every remaining test file.
+stop_spinning() {
+  if [[ -n $spin_pid ]]; then
+    : >"$test_tmp/stop-spinning"
+    wait "$spin_pid" 2>/dev/null || true
+    spin_pid=""
+  fi
+}
+trap 'stop_spinning; chmod -R u+rwX "$test_tmp" 2>/dev/null; rm -rf "$test_tmp"' EXIT
 
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_PROVISIONING_DIR="$test_tmp/provisioning"
@@ -46,18 +57,119 @@ mode=$(stat -c '%a' "$write_dir/color.json")
 pass "theme colour writes a 0644 color.json"
 
 if (( EUID == 0 )); then
-  skip "running as root; skipping the mktemp-failure check"
+  skip "running as root; skipping the staging-failure check"
 else
-  chmod u+w "$write_dir"
-  export TMPDIR=$test_tmp/missing-tmp
-  if browser_policy_install_color "$write_dir" "#dead00" 2>/dev/null; then
-    fail "theme colour fails when mktemp cannot create a file"
+  # The staged file lands in the policy directory itself, so that is the
+  # directory that has to be unwritable for staging to fail.
+  locked=$test_tmp/locked
+  mkdir -p "$locked/managed"
+  printf '{"BrowserThemeColor": "#aabbcc", "BrowserColorScheme": "device"}\n' >"$locked/managed/color.json"
+  chmod 0555 "$locked/managed"
+  if browser_policy_install_color "$locked/managed" "#dead00" 2>/dev/null; then
+    chmod 0755 "$locked/managed"
+    fail "theme colour fails when it cannot stage a file in the policy directory"
   fi
-  unset TMPDIR
-  grep -F '"BrowserThemeColor": "#aabbcc"' "$write_dir/color.json" >/dev/null ||
-    fail "a failed mktemp leaves an existing color.json intact"
-  pass "a failed mktemp does not truncate color.json"
+  chmod 0755 "$locked/managed"
+  grep -F '"BrowserThemeColor": "#aabbcc"' "$locked/managed/color.json" >/dev/null ||
+    fail "a failed staging write leaves an existing color.json intact"
+  pass "a failed staging write does not truncate color.json"
 fi
+
+# Why stage at all: a browser reading its managed policy while the theme
+# changes must see the old file or the new one, never an absent one and never
+# a half-written one. install(1) unlinks the destination before recreating it,
+# which opens exactly that window; a rename(2) has no such window. Spin a
+# reader against repeated writes and require it never to catch one.
+#
+# The stage is a sibling inside the policy directory, so it is briefly visible
+# to the browser's enumeration. What has to hold is narrower and checkable:
+# color.json is always one of the two complete policies, the directory holds
+# nothing but color.json and at most one in-flight stage, and the parent --
+# where an earlier version staged, which a bind mount there would turn back
+# into a cross-directory copy -- is never written to at all.
+spin=$test_tmp/spin
+mkdir -p "$spin/managed"
+spin_old='{"BrowserThemeColor": "#000000", "BrowserColorScheme": "device"}'
+spin_new='{"BrowserThemeColor": "#aabbcc", "BrowserColorScheme": "device"}'
+printf '%s\n' "$spin_old" >"$spin/managed/color.json"
+
+(
+  # dotglob so a staged .color.json.omarchy.XXXXXX counts as an entry rather
+  # than hiding behind the plain-* glob; nullglob so an empty directory is
+  # zero entries instead of the literal pattern. A read that races a
+  # disappearing file says so on stderr; count it and keep the output clean.
+  shopt -s nullglob dotglob
+  exec 2>/dev/null
+  # This subshell measures the reader, so it must survive whatever the writer
+  # does. Under set -e a file that vanishes mid-read kills the read *and* the
+  # subshell, which would turn the defect this loop exists to catch into an
+  # unexplained exit instead of a bad-read count.
+  set +e
+  reads=0
+  bad=0
+  stages=0
+  while (( reads < 500000 )) && [[ ! -e $test_tmp/stop-spinning ]]; do
+    reads=$((reads + 1))
+    # Whole-file equality against both known-good contents, not a prefix and
+    # not just the first line: a truncated color.json still starts with
+    # '{"BrowserThemeColor": "#', and a valid first line followed by garbage is
+    # still a malformed policy file. $(<file) rather than read, which stops at
+    # the first newline; a file that vanished mid-read is a bad read, not a
+    # reason to end the subshell under set -e.
+    content=$(<"$spin/managed/color.json") || content=""
+    if [[ $content != "$spin_old" && $content != "$spin_new" ]]; then
+      bad=$((bad + 1))
+    fi
+
+    # color.json plus at most one stage that is being written right now.
+    entries=("$spin/managed"/*)
+    case ${#entries[@]} in
+      1) [[ ${entries[0]} == "$spin/managed/color.json" ]] || bad=$((bad + 1)) ;;
+      2)
+        [[ ${entries[0]} == "$spin/managed/color.json" ]] || bad=$((bad + 1))
+        [[ ${entries[1]} == "$spin/managed"/.color.json.omarchy.* ]] || bad=$((bad + 1))
+        stages=$((stages + 1))
+        ;;
+      *) bad=$((bad + 1));;
+    esac
+
+    # A stage in the parent would be a cross-directory rename waiting to
+    # degrade into a copy, which is what a bind mount there would cause.
+    parents=("$spin"/*)
+    (( ${#parents[@]} == 1 )) || bad=$((bad + 1))
+  done
+  printf '%s %s %s\n' "$reads" "$bad" "$stages" >"$test_tmp/spin-result"
+) &
+spin_pid=$!
+
+for _ in $(seq 1 300); do
+  browser_policy_install_color "$spin/managed" "#aabbcc" ||
+    fail "theme colour rewrites color.json while a reader is watching"
+done
+: >"$test_tmp/stop-spinning"
+wait "$spin_pid" || true
+spin_pid=""
+
+read -r spin_reads spin_bad spin_stages <"$test_tmp/spin-result" 2>/dev/null ||
+  fail "the watching reader died instead of reporting" "no result file at $test_tmp/spin-result"
+(( spin_reads > 1000 )) ||
+  fail "the watching reader got too few reads to prove anything" "reads=$spin_reads"
+(( spin_stages > 0 )) ||
+  fail "the reader never caught a stage in flight, so it proved nothing about one" \
+    "reads=$spin_reads"
+(( spin_bad == 0 )) ||
+  fail "a reader never catches color.json absent, half-written, or joined by anything else" \
+    "reads=$spin_reads bad=$spin_bad"
+
+# A stage that outlived its write would sit in the browser's policy directory
+# until something removed it.
+shopt -s nullglob dotglob
+spin_left=("$spin/managed"/*)
+shopt -u nullglob dotglob
+(( ${#spin_left[@]} == 1 )) && [[ ${spin_left[0]} == "$spin/managed/color.json" ]] ||
+  fail "a finished write leaves nothing but color.json in the policy directory" \
+    "${spin_left[*]##*/}"
+pass "replacing color.json never exposes a missing or partial file, and leaves no stage behind"
 
 printf 'original\n' >"$test_tmp/pwn"
 rm -f "$write_dir/color.json"

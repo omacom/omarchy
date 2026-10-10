@@ -10,7 +10,7 @@ set -euo pipefail
 # sudoers rule, or re-execed by require_root below — sudo's secure_path decides
 # where a bare helper resolves, and a dev link (etc/sudoers.d/omarchy-dev-path)
 # prepends a user-writable checkout bin/ to it. Every helper this script calls
-# by bare name (printf's builtin aside: install, mktemp, rm) is a system tool,
+# by bare name (printf's builtin aside: chmod, mktemp, mv, rm) is a system tool,
 # never an omarchy-* command, so pin PATH to trusted system directories and keep
 # root from resolving one out of that checkout. The unprivileged wrapper phase
 # keeps the caller's PATH so it can still find sudo/pkexec.
@@ -92,11 +92,33 @@ for policy_dir in "${POLICY_DIRS[@]}"; do
   [[ -d $policy_dir && ! -L $policy_dir ]] || continue
 
   dest=$policy_dir/color.json
-  staged=$(mktemp) || {
+  # Stage a hidden sibling of color.json and finish with rename(2), so a
+  # browser reading the policy during a theme switch sees the old file or the
+  # new one, never an absent one and never a half-written one. install(1)
+  # cannot do this: it unlinks the destination before recreating it, and it
+  # copies into place rather than renaming.
+  #
+  # The sibling has to be in this directory and not merely on the same
+  # filesystem. rename(2) fails across two mount points even where the same
+  # filesystem is behind both, so a stage anywhere else -- $TMPDIR, or a parent
+  # that is itself a bind mount -- turns the swap back into a copy. Inside this
+  # directory there is nothing to detect and nothing to get wrong.
+  #
+  # The browser enumerates every file in $policy_dir, dotfiles included, so a
+  # stage here is briefly visible to it. That is bounded twice over: the content
+  # is complete before the rename, and ConfigDirPolicyLoader skips a file it
+  # cannot parse rather than applying it. A stage left behind by something the
+  # EXIT trap cannot catch cannot win either, since the provider gives priority
+  # to the last file in lexicographic order and this name sorts before
+  # color.json.
+  staged=$(mktemp "${policy_dir}/.${dest##*/}.omarchy.XXXXXX") || {
     failed=1
     continue
   }
   printf '{"BrowserThemeColor": "#%s", "BrowserColorScheme": "device"}\n' "$color" >"$staged"
+  # Root-owned already: the privileged half of this script is what created it,
+  # which is all install(1)'s -o root -g root was ever asserting here.
+  chmod 0644 "$staged"
 
   if [[ -L $dest || -d $dest ]]; then
     if ! rm -rf -- "$dest"; then
@@ -108,7 +130,10 @@ for policy_dir in "${POLICY_DIRS[@]}"; do
     fi
   fi
 
-  if ! install -m 0644 -o root -g root -T "$staged" "$dest"; then
+  # -T so a planted color.json directory is a destination to replace rather
+  # than a directory to move the staged file into. -f because this script can
+  # run from a terminal, where overwriting a file would otherwise ask first.
+  if ! mv -Tf -- "$staged" "$dest"; then
     rm -f "$staged"
     staged=""
     echo "omarchy-theme-set-browser-policy: cannot write $dest" >&2
@@ -116,7 +141,6 @@ for policy_dir in "${POLICY_DIRS[@]}"; do
     continue
   fi
 
-  rm -f "$staged"
   staged=""
 done
 
