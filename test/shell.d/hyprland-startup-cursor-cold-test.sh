@@ -66,20 +66,29 @@ with tempfile.TemporaryDirectory() as directory:
         assert compositor.poll() is None and time.monotonic() < deadline, "startup never reached " + expected
         time.sleep(0.01)
 
+    # Only the cursor has green in it: the cover is black and the desktop magenta.
+    def cursor_pixels():
+      subprocess.run(["grim", "-c", str(screenshot)], env=env, check=True,
+               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+      green = subprocess.check_output(["magick", str(screenshot), "-channel", "G", "-separate", "-threshold", "0", "-format", "%[fx:mean*w*h]", "info:"], text=True, timeout=5)
+      return float(green)
+
     wait_phase("holding")
     # Monitor recovery can reload the config before the reveal. The reload starts
-    # a fresh Lua state, and the reveal must still replace the blank theme.
+    # a fresh Lua state: the cursor must stay hidden through it, and the reveal
+    # must still replace the blank theme.
     subprocess.run(["hyprctl", "reload"], env=env, check=True,
              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+    # A restore takes a few hundred milliseconds to show, so watch for a second.
+    watch = time.monotonic() + 1
+    while time.monotonic() < watch:
+      assert cursor_pixels() == 0, "the cursor appeared after a reload before the reveal"
     (stage / "release").write_text("reveal")
     wait_phase("revealed")
     # Cursor visibility is polled by the compositor independently of the fade.
     deadline = time.monotonic() + 5
     while True:
-      subprocess.run(["grim", "-c", str(screenshot)], env=env, check=True,
-               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
-      green = subprocess.check_output(["magick", str(screenshot), "-channel", "G", "-separate", "-threshold", "0", "-format", "%[fx:mean*w*h]", "info:"], text=True, timeout=5)
-      if float(green) > 20:
+      if cursor_pixels() > 20:
         break
       assert time.monotonic() < deadline, "the normal cursor did not return with the desktop"
   finally:
