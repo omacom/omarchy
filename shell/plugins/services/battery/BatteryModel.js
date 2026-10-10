@@ -9,13 +9,18 @@ function isDischarging(device, onBattery, dischargingState) {
 
 function shouldWarnLowBattery(device, onBattery, dischargingState, threshold, alreadyNotified) {
   var level = batteryPercentage(device)
-  if (level < 0) return { level: level, notify: false, notifiedLowBattery: false }
+  if (level < 0) return { level: level, notify: false, notifiedLowBattery: false, dismiss: false }
 
   var low = isDischarging(device, onBattery, dischargingState) && level <= threshold
   return {
     level: level,
     notify: low && !alreadyNotified,
-    notifiedLowBattery: low
+    notifiedLowBattery: low,
+    // The warning is critical, so it never expires on its own. Dismiss on
+    // every check while the battery is not low, not only when it recovers:
+    // a warning restored after a shell restart can appear after the first
+    // check, and this service has no record of sending it.
+    dismiss: !low
   }
 }
 

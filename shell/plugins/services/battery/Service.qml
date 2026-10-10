@@ -33,6 +33,7 @@ Item {
     var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
     persisted.notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
+    if (state.dismiss) dismissLowBatteryWarning()
   }
 
   function sendLowBatteryWarning(level) {
@@ -42,6 +43,15 @@ Item {
       String(level)
     ]
     warningProcess.running = true
+  }
+
+  function dismissLowBatteryWarning() {
+    if (dismissProcess.running) return
+    dismissProcess.command = [
+      "omarchy-notification-dismiss",
+      "Time to recharge"
+    ]
+    dismissProcess.running = true
   }
 
   function applyPowerProfile() {
@@ -70,6 +80,8 @@ Item {
   }
 
   Process { id: warningProcess }
+
+  Process { id: dismissProcess }
 
   Process {
     id: powerProfileProcess
