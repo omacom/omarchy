@@ -90,3 +90,53 @@ if rg -q 'omarchy.indicators' "$ROOT/bin/omarchy-toggle-nightlight"; then
   fail "nightlight toggle leaves indicator refresh to the nightlight service"
 fi
 pass "nightlight toggle leaves indicator refresh to the nightlight service"
+
+# Another user's hyprsunset belongs to their Hyprland session, so it must not
+# stop night light from starting one for this user. Only the exact lookup
+# scoped to this user finds nothing; any other lookup sees theirs.
+cat >"$TMPDIR/bin/pgrep" <<'SH'
+#!/bin/bash
+if [[ $* == "-u $USER -x hyprsunset" ]]; then
+  exit 1
+else
+  exit 0
+fi
+SH
+
+UWSM_LOG="$TMPDIR/uwsm-app-log"
+cat >"$TMPDIR/bin/uwsm-app" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$UWSM_APP_LOG"
+SH
+chmod +x "$TMPDIR/bin/uwsm-app"
+
+wait_for_uwsm_launch() {
+  for _ in {1..20}; do
+    [[ -s $UWSM_LOG ]] && break
+    sleep 0.1
+  done
+}
+
+printf '6500\n' >"$STATE"
+: >"$UWSM_LOG"
+UWSM_APP_LOG="$UWSM_LOG" nightlight_cli >/dev/null
+wait_for_uwsm_launch
+grep -Fqx -- '-- hyprsunset' "$UWSM_LOG" || fail "nightlight toggle starts hyprsunset when only another user runs one"
+pass "nightlight toggle starts hyprsunset when only another user runs one"
+
+mapfile -d '' -t apply_command < <(run_node_test <<'JS'
+const nightlight = requireFromRoot('shell/plugins/services/nightlight/NightlightModel.js')
+process.stdout.write(nightlight.applyCommand(4000).map(arg => arg + '\0').join(''))
+JS
+)
+
+printf '6500\n' >"$STATE"
+: >"$UWSM_LOG"
+PATH="$TMPDIR/bin:$PATH" HYPRSUNSET_STATE="$STATE" UWSM_APP_LOG="$UWSM_LOG" \
+  "${apply_command[@]}"
+wait_for_uwsm_launch
+grep -Fqx -- '-- hyprsunset' "$UWSM_LOG" || fail "nightlight service starts hyprsunset when only another user runs one"
+pass "nightlight service starts hyprsunset when only another user runs one"
+
+[[ $(<"$STATE") == 4000 ]] || fail "nightlight service applies the requested temperature"
+pass "nightlight service applies the requested temperature"
