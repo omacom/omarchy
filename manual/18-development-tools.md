@@ -26,6 +26,10 @@ By default your user is *not* in the `docker` group. That group is effectively p
 
 You can setup the common databases for local development in Docker using _Install > Development > Docker DB_ in the Omarchy menu.
 
+Published ports default to localhost on the default bridge and newly created bridge networks. For example, `sudo docker run -p 8080:80 ...` is reachable from your own computer. To deliberately share a service on your network, name the listening address, such as `-p 0.0.0.0:8080:80`. Private-address networks are trusted by the Docker firewall integration, so an explicit public binding can also be reachable by other people on shared Wi-Fi. Keep authentication enabled on services you share.
+
+The default applies after Docker next starts. Existing containers keep their published addresses, and existing bridge networks keep their options; inspect them before assuming an upgrade has made a running service private. Recreate the containers and, where appropriate, their networks with the intended binding. An explicit `127.0.0.1:8080:80` mapping works for an existing network too. If you customized `/etc/docker/daemon.json`, review the packaged `.pacnew` settings rather than replacing your configuration.
+
 ## GitHub CLI
 
 [The GitHub CLI](https://cli.github.com/) let's you authenticate with your GitHub account and clone private repositories using it. It's wired up as one of the lazy-loading mise stubs, so the first time you run `gh`, it installs itself. To authenticate, run `gh auth login`. Then you can checkout private repositories using `gh repo clone org/repo`.

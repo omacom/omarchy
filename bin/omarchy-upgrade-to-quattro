@@ -1433,7 +1433,11 @@ EOF
     "log-driver": "json-file",
     "log-opts": { "max-size": "10m", "max-file": "5" },
     "dns": ["172.17.0.1"],
-    "bip": "172.17.0.1/16"
+    "bip": "172.17.0.1/16",
+    "ip": "127.0.0.1",
+    "default-network-opts": {
+        "bridge": { "com.docker.network.bridge.host_binding_ipv4": "127.0.0.1" }
+    }
 }
 EOF
   as_root ln -sfn ../run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
