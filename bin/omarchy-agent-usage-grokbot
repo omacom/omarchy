@@ -1,0 +1,218 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Grok Bot usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Grok Bot usage into one display-ready JSON record.
+
+Grok Bot runs on a Cursor account, but its weekly allowance is metered apart
+from Cursor's own plan: the dashboard's GetSandUsageStatus RPC (Sand is Grok
+Bot's internal name) says how much of this week's included usage is gone and
+when it resets. It is asked as the same account the Cursor collector reads,
+so the two never describe different people. Grok Bot keeps
+nothing countable on disk, so the record carries the limit alone, and an
+account without a Grok Bot allowance gives an empty record, which the panel
+skips. The agents panel only ever reads the JSON this prints.
+"""
+
+import argparse
+import base64
+import hashlib
+import http.client
+import json
+import os
+import sqlite3
+import tempfile
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+AGENT_ID = "grokbot"
+AGENT_NAME = "Grok Bot"
+AUTH_HELP = "Sign in to the Cursor editor, or run `cursor-agent login`, with your Grok Bot account."
+USAGE_URL = "https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus"
+
+
+def config_home():
+  return Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config"))
+
+
+def cache_root():
+  return Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+
+
+def read_json(path):
+  try:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+  except (OSError, ValueError):
+    return {}
+  return data if isinstance(data, dict) else {}
+
+
+# A temporary file of its own per write, so overlapping runs can't rename
+# each other's away.
+def write_json(path, payload):
+  path.parent.mkdir(parents=True, exist_ok=True)
+  fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
+  try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+      json.dump(payload, handle)
+    os.replace(tmp, path)
+  except Exception:
+    Path(tmp).unlink(missing_ok=True)
+    raise
+
+
+def parse_time(value):
+  try:
+    parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+  except ValueError:
+    return None
+  return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+# The editor's sign-in, read-only: the editor may be writing its database
+# right now. No immutable=1, so a live database with an active WAL still reads.
+def read_ide_token(state_db):
+  if not state_db.is_file():
+    return ""
+  try:
+    conn = sqlite3.connect(state_db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+  except sqlite3.Error:
+    return ""
+  try:
+    row = conn.execute("SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken' LIMIT 1").fetchone()
+  except sqlite3.Error:
+    return ""
+  finally:
+    conn.close()
+  value = row[0] if row else ""
+  if isinstance(value, bytes):
+    value = value.decode("utf-8", errors="replace")
+  return str(value or "").strip()
+
+
+# The same account the Cursor collector reads, in the same order: the key the
+# user exported, the credential the Cursor CLI stores, or the editor's sign-in.
+def read_token():
+  token = str(os.environ.get("CURSOR_API_KEY") or "").strip()
+  token = token or str(read_json(config_home() / "cursor" / "auth.json").get("accessToken") or "").strip()
+  return token or read_ide_token(config_home() / "Cursor" / "User" / "globalStorage" / "state.vscdb")
+
+
+# Who the token signs in as (the JWT's subject), so a machine signed in to
+# someone else never shows the last one's limit, and a refreshed token keeps
+# the same cache.
+def account_key(token):
+  parts = token.split(".")
+  subject = ""
+  if len(parts) == 3:
+    try:
+      subject = str(json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4))).get("sub") or "")
+    except (ValueError, AttributeError):
+      subject = ""
+  return hashlib.sha256((subject or token).encode("utf-8")).hexdigest()[:16]
+
+
+def fetch_status(token):
+  request = urllib.request.Request(
+    USAGE_URL,
+    data=b"{}",
+    headers={
+      "Content-Type": "application/json",
+      "Connect-Protocol-Version": "1",
+      "Authorization": f"Bearer {token}",
+      "x-cursor-client-type": "cli",
+    },
+    method="POST",
+  )
+  with urllib.request.urlopen(request, timeout=15) as response:
+    return json.loads(response.read() or b"{}")
+
+
+# The answer is protobuf JSON, which leaves out a field holding zero or
+# false: no included limit means no Grok Bot allowance on this account, and
+# a week with nothing used yet has no percentage at all.
+def weekly_limits(status):
+  if status.get("hasNonZeroIncludedLimit") is not True:
+    return []
+  resets = parse_time(status.get("nextResetTimestampUtc"))
+  return [{
+    "label": "Weekly",
+    "percent": max(0.0, min(1.0, float(status.get("usagePercent") or 0) / 100)),
+    "resetsAt": resets.isoformat() if resets else "",
+  }]
+
+
+def collect():
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": False,
+    "hasLocalStats": False,
+    "hasPromptStats": False,
+    "tierLabel": "",
+    "usageStatusText": "",
+    "authHelpText": AUTH_HELP,
+    "limits": [],
+    "limitsStale": False,
+    "limitsFetchedAt": 0,
+  }
+  token = read_token()
+  if not token:
+    return record
+
+  cache = cache_root() / f"grokbot-limits-{account_key(token)}.json"
+  try:
+    status = fetch_status(token)
+    limits = weekly_limits(status)
+  except urllib.error.HTTPError as error:
+    auth = error.code in (401, 403)
+  # Unreachable, timed out, or reset mid-read are all OSError; a body cut
+  # short is an HTTPException.
+  except (OSError, http.client.HTTPException, ValueError, TypeError, AttributeError):
+    auth = False
+  else:
+    fetched_at = round(datetime.now(timezone.utc).timestamp() * 1000)
+    tier = str(status.get("grokPlanLabel") or "")
+    record.update(ready=bool(limits), tierLabel=tier, authHelpText="", limits=limits, limitsFetchedAt=fetched_at)
+    # The cache only backs a later failed check; failing to keep it never
+    # costs this run's live answer.
+    try:
+      write_json(cache, {"fetchedAtMs": fetched_at, "tierLabel": tier, "limits": limits})
+    except OSError:
+      pass
+    return record
+
+  # A failed check keeps the last good limit until its week ends, marked
+  # stale so the panel dims it; one with no known end isn't kept at all.
+  # With nothing kept, the record stays empty, so a Cursor account that
+  # never had Grok Bot doesn't appear on a blip.
+  cached = read_json(cache)
+  now = datetime.now(timezone.utc)
+  limits = [limit for limit in cached.get("limits") or [] if (resets := parse_time(limit.get("resetsAt"))) and resets > now]
+  record.update(
+    ready=bool(limits),
+    tierLabel=str(cached.get("tierLabel") or ""),
+    usageStatusText="Waiting for auth" if auth else ("" if limits else "Grok Bot limits unavailable"),
+    limits=limits,
+    limitsStale=True,
+    limitsFetchedAt=int(cached.get("fetchedAtMs") or 0) if limits else 0,
+  )
+  return record
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Print the Grok Bot usage record as JSON")
+  # Every run is one live call, so there is no cache to force past and no
+  # scan to skip; the flags exist so every collector takes the same invocation.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  parser.parse_args()
+  print(json.dumps(collect(), separators=(",", ":")))
+
+
+if __name__ == "__main__":
+  main()
