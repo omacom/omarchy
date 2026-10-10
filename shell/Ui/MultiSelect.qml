@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC
 import QtQuick.Window
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 
 // Searchable multi-select dropdown. Trigger shape matches Dropdown /
 // SearchableDropdown; the popup shows a search field, an optional refresh
@@ -33,11 +34,11 @@ Item {
   property string triggerLabel: ""
   property bool showLabel: true
 
-  property color foreground: Color.popups.text
-  property color background: Color.popups.background
-  property color popupBorder: Color.popups.border
-  property color accent: Color.accent
-  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Color.popups.border, Style.normalBorderWidth)
+  property color foreground: Commons.Color.popups.text
+  property color background: Commons.Color.popups.background
+  property color popupBorder: Commons.Color.popups.border
+  property color accent: Commons.Color.accent
+  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Commons.Color.popups.border, Style.normalBorderWidth)
   property string fontFamily: Style.font.family
   property int rowHeight: Style.spacing.controlHeight
   property int popupRowHeight: Style.spacing.popupRowHeight
@@ -259,6 +260,7 @@ Item {
     spacing: Style.spacing.labelGap
 
     Text {
+      textFormat: Text.PlainText
       visible: root.showLabel && root.label !== ""
       text: root.label
       color: Qt.darker(root.foreground, 1.4)
@@ -298,6 +300,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         anchors.left: parent.left
         anchors.right: chevron.left
         anchors.verticalCenter: parent.verticalCenter
@@ -451,6 +454,7 @@ Item {
                   : Border.controlSpec("normal", root.foreground, root.accent)
 
                 Text {
+                  textFormat: Text.PlainText
                   anchors.centerIn: parent
                   text: root.loadingOptions ? "󰦖" : "󰑐"
                   color: root.foreground
@@ -458,7 +462,7 @@ Item {
                   font.pixelSize: Style.font.body
 
                   RotationAnimator on rotation {
-                    running: root.loadingOptions
+                    running: root.loadingOptions && !Style.reduceMotion
                     from: 0; to: 360
                     duration: 800
                     loops: Animation.Infinite
@@ -486,6 +490,7 @@ Item {
             height: popup.height - searchHeader.height - Style.spacing.xxs - 1
 
             Text {
+              textFormat: Text.PlainText
               anchors.centerIn: parent
               visible: resultList.count === 0
               text: root.loadingOptions ? "Loading…" : (root.optionsError !== "" ? root.optionsError : root.emptyText)
@@ -581,6 +586,7 @@ Item {
                     spacing: Style.spacing.xxs
 
                     Text {
+                      textFormat: Text.PlainText
                       text: modelData.label
                       color: index === resultList.currentIndex ? Style.hoverStateColor(root.foreground, root.accent) : root.foreground
                       font.family: root.fontFamily
@@ -589,6 +595,7 @@ Item {
                       width: parent.width
                     }
                     Text {
+                      textFormat: Text.PlainText
                       visible: text !== ""
                       text: modelData.description
                       color: Qt.darker(root.foreground, 1.5)

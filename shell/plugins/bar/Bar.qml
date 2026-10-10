@@ -5,6 +5,7 @@ import Quickshell.Wayland
 import QtQuick
 import QtQuick.Layouts
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "BarModel.js" as BarModel
 
@@ -12,20 +13,29 @@ Item {
   id: root
 
   // The omarchy-shell host injects omarchyPath from OMARCHY_PATH.
-  required property string omarchyPath
+  property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   // Injected by the host shell so bar slots can resolve enabled widgets.
-  required property var barWidgetRegistry
+  property var barWidgetRegistry: fallbackBarWidgetRegistry
+  // Read-only registry view for third-party full bars; the built-in bar does
+  // not otherwise need it, but declaring it keeps clone construction atomic.
+  property var pluginRegistry: null
   // Injected by the host shell every time shell.json is reloaded. Holds the
   // `bar:` subtree: position, centerAnchor, layout. The host owns file IO;
   // the bar just renders whatever it's handed. The bar font follows the
   // OS-level fontconfig monospace binding — it is not stored in shell.json.
-  required property var barConfig
+  property var barConfig: ({})
   // Injected by the host shell. Used for shell-wide actions such as opening
   // settings and persisting inline widget state.
   property var shell: null
   // Manifest for the active bar option. Present for custom bars and useful for
   // diagnostics; the built-in bar does not otherwise need it.
   property var manifest: null
+  QtObject {
+    id: fallbackBarWidgetRegistry
+    property var widgets: ({})
+    property int revision: 0
+    function metadataFor(id) { return null }
+  }
   // Mirrors the on-disk `bar-off` flag so the user can hide the bar without
   // killing the entire shell. Hidden panels stay mapped but park off-screen
   // without an exclusion zone; updated by the FileView watcher further down.
@@ -62,18 +72,18 @@ Item {
   property string fontFamily: Style.font.family
   // Bound to the central Color singleton so the bar tracks shell.toml's
   // [bar] section. Property names kept for the rest of this file's bindings.
-  property color themeForeground: Color.bar.text
-  property color themeContrastForeground: Color.background
-  property color transparentForeground: Color.bar.text
+  property color themeForeground: Commons.Color.bar.text
+  property color themeContrastForeground: Commons.Color.background
+  property color transparentForeground: Commons.Color.bar.text
   property color foreground: themeForeground
   property color barForeground: useTransparentForeground ? transparentForeground : themeForeground
   property bool foregroundAnimationEnabled: true
-  property color background: Color.bar.background
-  property color urgent: Color.bar.active
+  property color background: Commons.Color.bar.background
+  property color urgent: Commons.Color.bar.active
 
-  Behavior on barForeground { enabled: root.foregroundAnimationEnabled; ColorAnimation { duration: 420; easing.type: Easing.InOutCubic } }
-  Behavior on background { ColorAnimation { duration: 420; easing.type: Easing.InOutCubic } }
-  Behavior on urgent { ColorAnimation { duration: 420; easing.type: Easing.InOutCubic } }
+  Behavior on barForeground { enabled: root.foregroundAnimationEnabled; ColorAnimation { duration: Style.duration(420); easing.type: Easing.OutCubic } }
+  Behavior on background { ColorAnimation { duration: Style.duration(420); easing.type: Easing.OutCubic } }
+  Behavior on urgent { ColorAnimation { duration: Style.duration(420); easing.type: Easing.OutCubic } }
   property var tooltipTarget: null
   property var pendingTooltipTarget: null
   property string tooltipText: ""
@@ -100,6 +110,236 @@ Item {
   property var barMoveScreen: null
   property var clickTargets: []
   property var moduleSlots: []
+  property var pluginBarApis: ({})
+  // target -> { target, pluginId, clickTarget, popout }. Keyed by object so a
+  // registration edits one entry in place instead of copying and rescanning an
+  // array in QML; Qt's Map still finds a key by a native linear scan.
+  readonly property var pluginObjectOwners: new Map()
+  property bool pluginBarApiSyncQueued: false
+
+  Component {
+    id: pluginBarApiComponent
+    PluginBarApi { }
+  }
+
+  function publicLayoutConfig() {
+    return JSON.parse(JSON.stringify(root.layoutConfig || {}))
+  }
+
+  function bindPluginBarApi(api) {
+    if (!api) return
+    api.foreground = Qt.binding(function() { return root.foreground })
+    api.barForeground = Qt.binding(function() { return root.barForeground })
+    api.background = Qt.binding(function() { return root.background })
+    api.urgent = Qt.binding(function() { return root.urgent })
+    api.fontFamily = Qt.binding(function() { return root.fontFamily })
+    api.position = Qt.binding(function() { return root.position })
+    api.vertical = Qt.binding(function() { return root.vertical })
+    api.barSize = Qt.binding(function() { return root.barSize })
+    api.transparent = Qt.binding(function() { return root.transparent })
+    api.foregroundAnimationEnabled = Qt.binding(function() { return root.foregroundAnimationEnabled })
+    api.centerSectionRevealHeld = Qt.binding(function() { return root.centerSectionRevealHeld })
+    api._centerHoverRevealSuppressed = Qt.binding(function() { return root.centerHoverRevealSuppressed })
+    root.syncPluginBarApiObjects(api)
+  }
+
+  // Each api keeps its own detached copy of the layout. A flush serialises
+  // the layout once and passes the string in so it is not re-serialised for
+  // every plugin.
+  function syncPluginBarApiObjects(api, layoutSnapshot) {
+    if (!api) return
+    api.activePopout = root.pluginOwnsBarObject(api.pluginId, root.activePopout)
+      ? root.activePopout : (root.activePopout ? api.foreignPopoutMarker : null)
+    api.clickTargets = root.pluginClickTargets(api.pluginId)
+    api.layoutConfig = layoutSnapshot !== undefined
+      ? JSON.parse(layoutSnapshot) : root.publicLayoutConfig()
+  }
+
+  function pluginObjectRecord(target) {
+    return target ? (pluginObjectOwners.get(target) || null) : null
+  }
+
+  function markPluginObject(pluginId, target, role) {
+    var key = String(pluginId || "")
+    if (!key || !target) return false
+    var record = root.pluginObjectRecord(target)
+    if (record && record.pluginId !== key) return false
+    if (!record) {
+      record = { target: target, pluginId: key, clickTarget: false, popout: false }
+      pluginObjectOwners.set(target, record)
+    }
+    record[role] = true
+    return true
+  }
+
+  function unmarkPluginObject(pluginId, target, role) {
+    var key = String(pluginId || "")
+    var record = root.pluginObjectRecord(target)
+    if (!record || record.pluginId !== key) return
+    record[role] = false
+    if (!record.clickTarget && !record.popout) pluginObjectOwners.delete(target)
+  }
+
+  function pluginOwnsBarObject(pluginId, target) {
+    var record = target ? root.pluginObjectRecord(target) : null
+    return !!record && record.pluginId === String(pluginId || "")
+  }
+
+  function pluginClickTargets(pluginId) {
+    var out = []
+    for (var i = 0; i < root.clickTargets.length; i++) {
+      var target = root.clickTargets[i]
+      if (root.pluginOwnsBarObject(pluginId, target)) out.push(target)
+    }
+    return out
+  }
+
+  // Every click target registration, popout change and layout change used to
+  // resync every plugin api synchronously. Startup alone is hundreds of
+  // registrations, each walking every api and every target, so coalesce them
+  // into one resync per event-loop turn (as onModuleSlotsChanged already does
+  // for prunePluginBarApis). bindPluginBarApi still syncs a brand-new api
+  // directly so a widget never sees an empty api on its first read.
+  function schedulePluginBarApiSync() {
+    if (pluginBarApiSyncQueued) return
+    pluginBarApiSyncQueued = true
+    Qt.callLater(root.syncAllPluginBarApiObjects)
+  }
+
+  function syncAllPluginBarApiObjects() {
+    pluginBarApiSyncQueued = false
+    var layoutSnapshot = JSON.stringify(root.layoutConfig || {})
+    for (var id in pluginBarApis) {
+      var api = pluginBarApis[id]
+      if (api) root.syncPluginBarApiObjects(api, layoutSnapshot)
+    }
+  }
+
+  function registerPluginClickTarget(pluginId, target) {
+    if (!root.markPluginObject(pluginId, target, "clickTarget")) return
+    root.registerClickTarget(target)
+  }
+
+  function unregisterPluginClickTarget(pluginId, target) {
+    if (!root.pluginOwnsBarObject(pluginId, target)) return
+    root.unregisterClickTarget(target)
+    root.unmarkPluginObject(pluginId, target, "clickTarget")
+  }
+
+  // A plugin may read api.activePopout right after asking for its popout, so
+  // its own api is brought up to date inline; everyone else waits for the
+  // coalesced resync.
+  function requestPluginPopout(pluginId, owner) {
+    if (!root.markPluginObject(pluginId, owner, "popout")) return
+    root.requestPopout(owner)
+    root.syncPluginBarApiObjects(pluginBarApis[String(pluginId || "")])
+  }
+
+  function releasePluginPopout(pluginId, owner) {
+    if (!root.pluginOwnsBarObject(pluginId, owner)) return
+    root.releasePopout(owner)
+    root.unmarkPluginObject(pluginId, owner, "popout")
+    root.syncPluginBarApiObjects(pluginBarApis[String(pluginId || "")])
+  }
+
+  function pluginBarApiFor(pluginId, moduleName, registered) {
+    var key = String(pluginId || "")
+    if (!key) return null
+
+    var pluginShell = null
+    if (registered && root.shell && typeof root.shell.pluginShellForId === "function") {
+      // Only the trusted built-in bar receives ShellRoot and can request a
+      // service-capable facade for the widget it is instantiating.
+      pluginShell = root.shell.pluginShellForId(moduleName)
+    } else if (root.shell && typeof root.shell.pluginShellForBarEntry === "function") {
+      // Replacement bars receive a service-less entry facade. Giving an
+      // untrusted bar a generic facade factory would let it retrieve another
+      // third-party plugin's live service object.
+      pluginShell = root.shell.pluginShellForBarEntry(key, moduleName)
+    }
+
+    if (pluginBarApis[key]) {
+      pluginBarApis[key].shell = pluginShell
+      return pluginBarApis[key]
+    }
+
+    var api = pluginBarApiComponent.createObject(null, {
+      pluginId: key,
+      moduleName: String(moduleName || ""),
+      shell: pluginShell,
+      _showTooltip: function(target, text) { root.showTooltip(target, text) },
+      _hideTooltip: function(target) { root.hideTooltip(target) },
+      _registerClickTarget: function(target) { root.registerPluginClickTarget(key, target) },
+      _unregisterClickTarget: function(target) { root.unregisterPluginClickTarget(key, target) },
+      _requestPopout: function(owner) { root.requestPluginPopout(key, owner) },
+      _releasePopout: function(owner) { root.releasePluginPopout(key, owner) },
+      _switchPanelFrom: function(owner, direction) { return root.switchPanelFrom(owner, direction) },
+      _targetBelongsToWindow: function(target, window) { return root.targetBelongsToWindow(target, window) },
+      _moduleWidgets: function(requestedId) {
+        return String(requestedId || "") === String(moduleName || "")
+          ? root.moduleWidgets(moduleName) : []
+      },
+      _run: function(command) { root.run(command) },
+      _setCenterHoverRevealSuppressed: function(value) {
+        root.centerHoverRevealSuppressed = !!value
+      }
+    })
+    if (!api) return null
+    root.bindPluginBarApi(api)
+
+    var next = ({})
+    for (var id in pluginBarApis) next[id] = pluginBarApis[id]
+    next[key] = api
+    pluginBarApis = next
+    return api
+  }
+
+  function pluginBarApiUsed(pluginId) {
+    for (var i = 0; i < moduleSlots.length; i++) {
+      var slot = moduleSlots[i]
+      if (slot && slot.pluginApiId === pluginId) return true
+    }
+    return false
+  }
+
+  function releasePluginObjects(pluginId) {
+    var owned = Array.from(pluginObjectOwners.values())
+    for (var i = 0; i < owned.length; i++) {
+      var record = owned[i]
+      if (!record || record.pluginId !== pluginId) continue
+      if (record.clickTarget) root.unregisterClickTarget(record.target)
+      if (record.popout && root.activePopout === record.target) root.releasePopout(record.target)
+      pluginObjectOwners.delete(record.target)
+    }
+  }
+
+  function prunePluginBarApis() {
+    var next = ({})
+    for (var id in pluginBarApis) {
+      var api = pluginBarApis[id]
+      if (root.pluginBarApiUsed(id)) {
+        next[id] = api
+        continue
+      }
+      root.releasePluginObjects(id)
+      if (api && typeof api.destroy === "function") api.destroy()
+    }
+    pluginBarApis = next
+  }
+
+  onActivePopoutChanged: schedulePluginBarApiSync()
+  onClickTargetsChanged: schedulePluginBarApiSync()
+  onLayoutConfigChanged: schedulePluginBarApiSync()
+  onModuleSlotsChanged: Qt.callLater(prunePluginBarApis)
+
+  Component.onDestruction: {
+    for (var id in pluginBarApis) {
+      root.releasePluginObjects(id)
+      if (pluginBarApis[id] && typeof pluginBarApis[id].destroy === "function")
+        pluginBarApis[id].destroy()
+    }
+    pluginBarApis = ({})
+  }
 
   function registerClickTarget(target) {
     if (!target || clickTargets.indexOf(target) !== -1) return
@@ -328,6 +568,61 @@ Item {
 
   readonly property bool vertical: position === "left" || position === "right"
   readonly property int barSize: vertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
+
+  // Display cutouts (a camera notch) the platform's own package describes in
+  // the fixed platform root, which no environment variable moves. Most machines
+  // have none. It is read as the shell starts (blockLoading), so a bar surface
+  // knows before it maps whether its screen may have one. See
+  // BarModel.parseCutouts.
+  readonly property var displayCutouts: displayCutoutsFile.missing ? [] : BarModel.parseCutouts(displayCutoutsFile.text())
+  FileView {
+    id: displayCutoutsFile
+
+    // A file that went away describes nothing, whatever text() still holds.
+    property bool missing: false
+
+    path: "/usr/share/omarchy-platform/display-cutouts.json"
+    blockLoading: true
+    watchChanges: true
+    printErrors: false
+    onLoaded: missing = false
+    onLoadFailed: missing = true
+    onFileChanged: reload()
+  }
+
+  // The physical mode Hyprland reports for a screen, as hyprctl monitors does.
+  // Qt's whole-number devicePixelRatio can't rebuild it at a fractional scale.
+  function panelModeFor(screen) {
+    var monitor = screen ? Hyprland.monitorFor(screen) : null
+    return monitor ? ({
+      width: monitor.width,
+      height: monitor.height,
+      transform: monitor.lastIpcObject ? monitor.lastIpcObject.transform : 0
+    }) : null
+  }
+
+  // How thick the bar is on a screen. A top bar shorter than a panel's camera
+  // cutout leaves a sliver of every window peeking out beside the camera, so
+  // the cutout is this panel's minimum sensible top-bar height. An
+  // intentionally taller bar still wins.
+  function thicknessFor(screen) {
+    if (root.vertical || !screen) return root.barSize
+    return Math.max(root.barSize, BarModel.notchFloor(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, root.panelModeFor(screen), Style.bar.notchHeight))
+  }
+
+  // Each screen's bar thickness, by screen name: barSize, or more where a notch
+  // floor raises a top bar. Toasts and plugins clear the bar by it; barSize
+  // stays the configured size the widgets are drawn at.
+  readonly property var screenBarSizes: {
+    var sizes = ({})
+    var screens = Quickshell.screens
+    for (var i = 0; i < screens.length; i++) sizes[screens[i].name] = root.thicknessFor(screens[i])
+    return sizes
+  }
+
+  function barSizeFor(screenName) {
+    return BarModel.barSizeFor(root.screenBarSizes, screenName, root.barSize)
+  }
 
   function normalizePosition(value) {
     return BarModel.normalizePosition(value)
@@ -597,6 +892,10 @@ Item {
   function setBarHovered(hovered) {
     barHoverCount = Math.max(0, barHoverCount + (hovered ? 1 : -1))
     if (barHoverCount === 0) centerSectionRevealTimer.restart()
+  }
+
+  function setCenterHoverRevealSuppressed(value) {
+    centerHoverRevealSuppressed = !!value
   }
 
   Timer {
@@ -948,6 +1247,21 @@ Item {
     onFileChanged: barHiddenProbe.running = true
   }
 
+  // The directory watch can permanently stop delivering events after flag
+  // changes land in quick succession, stranding the bar off screen until the
+  // shell restarts. `omarchy-toggle-bar` nudges this after flipping the flag
+  // so the probe re-reads it even when the watch has gone quiet.
+  ShellIpc {
+    target: "omarchy.bar"
+
+    // Start rather than restart: a probe already in flight was launched by the
+    // directory watch after the flag flipped, so its answer is current, and
+    // killing it here can swallow the result entirely.
+    function syncHidden(): void {
+      barHiddenProbe.running = true
+    }
+  }
+
   Variants {
     model: Quickshell.screens
 
@@ -994,7 +1308,12 @@ Item {
     // reveal has to rebuild them — new surface, re-shaped glyphs, re-uploaded
     // textures — which measures ~150ms against ~20ms to tear down. Parking
     // keeps the surface alive, so showing is only a margin change.
-    visible: !remapGuard.remapping
+    //
+    // A top bar that can't tell its notch floor yet waits for Hyprland's mode
+    // before it maps (see BarModel.cutoutPending), so it maps at its floor
+    // instead of growing once the windows are laid out. The wait ends once, for
+    // good: when the mode settles it, or after two seconds without one.
+    visible: !remapGuard.remapping && (cutoutWaitOver || !cutoutPending)
     exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Auto
 
     ScreenMoveRemap {
@@ -1002,11 +1321,13 @@ Item {
       window: barWindow
     }
 
+    // Parked by its full thickness, which a notch floor may make more than
+    // barSize, so no strip of it stays on screen.
     margins {
-      top: root.barHidden && root.position === "top" ? -root.barSize : 0
-      bottom: root.barHidden && root.position === "bottom" ? -root.barSize : 0
-      left: root.barHidden && root.position === "left" ? -root.barSize : 0
-      right: root.barHidden && root.position === "right" ? -root.barSize : 0
+      top: root.barHidden && root.position === "top" ? -barWindow.thickness : 0
+      bottom: root.barHidden && root.position === "bottom" ? -barWindow.thickness : 0
+      left: root.barHidden && root.position === "left" ? -barWindow.thickness : 0
+      right: root.barHidden && root.position === "right" ? -barWindow.thickness : 0
     }
 
     anchors {
@@ -1016,8 +1337,26 @@ Item {
       right: root.position === "right" || !root.vertical
     }
 
-    implicitWidth: root.vertical ? root.barSize : 0
-    implicitHeight: root.vertical ? 0 : root.barSize
+    readonly property var panelMode: root.panelModeFor(screen)
+
+    readonly property bool centerBesideRight: BarModel.centerBesideRight(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode)
+
+    readonly property bool cutoutPending: BarModel.cutoutPending(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode)
+    property bool cutoutWaitOver: false
+    onCutoutPendingChanged: if (!cutoutPending) cutoutWaitOver = true
+    Component.onCompleted: if (!cutoutPending) cutoutWaitOver = true
+
+    Timer {
+      interval: 2000
+      running: barWindow.cutoutPending && !barWindow.cutoutWaitOver
+      onTriggered: barWindow.cutoutWaitOver = true
+    }
+
+    // The same thickness the bar publishes for its screen (screenBarSizes).
+    readonly property int thickness: root.thicknessFor(screen)
+
+    implicitWidth: root.vertical ? thickness : 0
+    implicitHeight: root.vertical ? 0 : thickness
     color: root.transparent ? "transparent" : root.background
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
@@ -1084,15 +1423,16 @@ Item {
         id: tooltipBubble
         implicitWidth: tooltipLabel.implicitWidth + 20
         implicitHeight: tooltipLabel.implicitHeight + 14
-        color: Color.tooltip.background
-        borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
+        color: Commons.Color.tooltip.background
+        borderSpec: Border.surfaceSpec("tooltip", "border", Commons.Color.tooltip.border, 1)
         radius: Style.cornerRadius
 
         Text {
           id: tooltipLabel
+          textFormat: Text.PlainText
           anchors.centerIn: parent
           text: root.tooltipText
-          color: Color.tooltip.text
+          color: Commons.Color.tooltip.text
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
           horizontalAlignment: Text.AlignHCenter
@@ -1107,7 +1447,10 @@ Item {
       Item {
         anchors.fill: parent
 
-        CenterModules { anchors.fill: parent }
+        CenterModules {
+          anchors.fill: parent
+          entries: barWindow.centerBesideRight ? [] : root.layoutEntries("center")
+        }
 
         LeftModules {
           anchors.left: parent.left
@@ -1116,8 +1459,20 @@ Item {
         }
 
         RightModules {
+          id: rightModules
           anchors.right: parent.right
           anchors.rightMargin: Style.space(8)
+          anchors.verticalCenter: parent.verticalCenter
+        }
+
+        // Keeps the center region, so settings pushes, drag and drop, and panel
+        // routing still address it. The gap lets a drop at the seam land in
+        // the section the pointer is nearer to.
+        ModuleList {
+          entries: barWindow.centerBesideRight ? root.layoutEntries("center") : []
+          region: "center"
+          anchors.right: rightModules.left
+          anchors.rightMargin: Style.space(4)
           anchors.verticalCenter: parent.verticalCenter
         }
       }
@@ -1211,7 +1566,7 @@ Item {
       y: targetRect ? Math.round(targetRect.y) : 0
       width: targetRect ? targetRect.width : 0
       height: targetRect ? targetRect.height : 0
-      color: Color.accent
+      color: Commons.Color.accent
       radius: Math.min(width, height) / 2
     }
   }
@@ -1263,14 +1618,13 @@ Item {
         opacity: root.barMoveCandidate === modelData ? (root.transparent ? 0.45 : 0.7) : 0
 
         Behavior on opacity {
-          NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+          NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
         }
       }
     }
   }
 
-  function findCenterAnchorEntry() {
-    var entries = root.layoutEntries("center")
+  function findCenterAnchorEntry(entries) {
     var idx = root.entryIndex(entries, root.centerAnchor)
     return idx === -1 ? null : entries[idx]
   }
@@ -1290,7 +1644,7 @@ Item {
 
     property var entries: root.layoutEntries("center")
     readonly property bool hasAnchor: root.entryIndex(entries, root.centerAnchor) !== -1
-    readonly property var anchorEntry: root.findCenterAnchorEntry()
+    readonly property var anchorEntry: root.findCenterAnchorEntry(entries)
 
     Loader {
       anchors.fill: parent
@@ -1305,8 +1659,15 @@ Item {
 
         CenterGestureArea { anchors.fill: parent }
 
-        HoverHandler {
-          onHoveredChanged: root.setCenterSectionHovered(hovered)
+        Item {
+          anchors.left: parent.left
+          anchors.right: centerRoot.hasAnchor ? centerAnchorModule.left : parent.right
+          anchors.top: parent.top
+          anchors.bottom: parent.bottom
+
+          HoverHandler {
+            onHoveredChanged: root.setCenterSectionHovered(hovered)
+          }
         }
 
         ModuleList {
@@ -1350,8 +1711,15 @@ Item {
 
         CenterGestureArea { anchors.fill: parent }
 
-        HoverHandler {
-          onHoveredChanged: root.setCenterSectionHovered(hovered)
+        Item {
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.top: parent.top
+          anchors.bottom: centerRoot.hasAnchor ? centerAnchorModule.top : parent.bottom
+
+          HoverHandler {
+            onHoveredChanged: root.setCenterSectionHovered(hovered)
+          }
         }
 
         ModuleList {
@@ -1532,6 +1900,9 @@ Item {
     readonly property string moduleName: root.entryId(entry)
     readonly property var moduleSettings: root.entrySettings(entry)
     readonly property string customType: root.customModuleType(entry)
+    readonly property var registryMetadata: root.barWidgetRegistry.metadataFor(root.canonicalWidgetId(moduleName))
+    readonly property bool firstParty: registryMetadata && registryMetadata.firstParty === true
+    readonly property string pluginApiId: registered ? root.canonicalWidgetId(moduleName) : "bar-entry:" + moduleName
     // Re-evaluate when the registry mutates (Component reference changes,
     // plugin enabled/disabled, etc.). Reading the `widgets` property creates
     // the binding dependency — the wrapped function call alone wouldn't.
@@ -1629,7 +2000,7 @@ Item {
 
       visible: opacity > 0
       opacity: slot.panelOpen && !slot.dragSource ? 0.9 : 0
-      color: Color.accent
+      color: Commons.Color.accent
       radius: Math.min(width, height) / 2
       width: root.vertical ? Style.space(2) : slot.panelIndicatorExtent
       height: root.vertical ? slot.panelIndicatorExtent : Style.space(2)
@@ -1637,16 +2008,17 @@ Item {
       // desktop — so it underlines a top bar, overlines a bottom one, and
       // points inward from a left or right one. It reads as pointing at the
       // panel that opens on that side.
+      // Snap toward the start of the slot, matching native glyph rendering.
       x: root.vertical
         ? (root.position === "left" ? parent.width - width - inset : inset)
-        : Math.round((parent.width - width) / 2)
+        : Math.floor((parent.width - width) / 2)
       y: root.vertical
-        ? Math.round((parent.height - height) / 2)
+        ? Math.floor((parent.height - height) / 2)
         : (root.position === "top" ? parent.height - height - inset : inset)
       z: 50
 
       Behavior on opacity {
-        NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
       }
     }
 
@@ -1664,7 +2036,9 @@ Item {
       acceptedButtons: Qt.LeftButton
       enabled: slot.visible && slot.width > 0 && slot.height > 0
       propagateComposedEvents: true
-      cursorShape: root.moduleClickTargetAt(slot, mouseX, mouseY) ? Qt.PointingHandCursor : Qt.ArrowCursor
+      // Only the hovered slot needs the hit test; without the guard every
+      // slot on every monitor re-ran it on each click target change.
+      cursorShape: moduleHover.hovered && root.moduleClickTargetAt(slot, mouseX, mouseY) ? Qt.PointingHandCursor : Qt.ArrowCursor
       // Do not assign drag.target here: ModuleSlot is owned by Row/Column
       // positioners, and mutating slot.x/slot.y can leave stale offsets that
       // make neighboring modules overlap after a small aborted drag.
@@ -1750,7 +2124,8 @@ Item {
     function injectProps() {
       var target = activeItem
       if (!target) return
-      if ("bar" in target) target.bar = root
+      if ("bar" in target) target.bar = firstParty
+        ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
       if ("moduleName" in target) target.moduleName = moduleName
       if ("settings" in target) target.settings = moduleSettings
     }

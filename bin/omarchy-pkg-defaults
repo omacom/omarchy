@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# omarchy:summary=Print the default package set for this computer's platform, or for the named one: the base list plus its architecture's and platform's additions.
+# omarchy:args=[x86|aarch64|aarch64-apple]
+# omarchy:hidden=true
+
+set -eo pipefail
+
+platform=${1:-}
+if [[ -z $platform ]]; then
+  platform=$(omarchy-hw-platform)
+fi
+
+# Image builders written before the platform names settled pass the old ones.
+case $platform in
+  apple-silicon) platform=aarch64-apple ;;
+  generic-aarch64) platform=aarch64 ;;
+  generic) platform=x86 ;;
+esac
+
+case $platform in
+  x86) lists=(base) ;;
+  aarch64) lists=(base aarch64) ;;
+  aarch64-apple) lists=(base aarch64 "$platform") ;;
+  *)
+    echo "Error: unknown platform '$platform'" >&2
+    exit 1
+    ;;
+esac
+
+# The base list always exists. An architecture or platform with nothing to add
+# has no list of its own.
+files=()
+for list in "${lists[@]}"; do
+  file="$OMARCHY_PATH/install/omarchy-$list.packages"
+  if [[ $list == "base" || -f $file ]]; then
+    files+=("$file")
+  fi
+done
+
+names() {
+  sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$@"
+}
+
+# One name per line, first occurrence kept, in list order. An aarch64 platform
+# leaves out the base packages that only x86_64 builds.
+if [[ $platform == "x86" ]]; then
+  names "${files[@]}" | awk '!seen[$0]++'
+else
+  names "${files[@]}" | awk -v skips=<(names "$OMARCHY_PATH/install/omarchy-x86_64-only.packages") '
+    BEGIN { while ((getline name < skips) > 0) skip[name] = 1 }
+    !skip[$0] && !seen[$0]++'
+fi

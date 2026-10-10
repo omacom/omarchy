@@ -6,12 +6,13 @@ Omarchy themes live under `themes/<name>/` in the source tree (installed at
 `colors.toml`; Omarchy generates the active theme files from
 `default/themed/*.tpl` when `omarchy-theme-set <name>` runs.
 
-Beyond `colors.toml` and hand-written config overrides, a theme can ship
-`backgrounds/` (users overlay their own via
-`~/.config/omarchy/backgrounds/<name>/`; the active image is the
-`~/.local/state/omarchy/current/background` symlink), `preview.png` and
-`preview-unlock.png` for the theme switcher, `icons.theme`, `keyboard.rgb`,
-`unlock.png`, and a `light.mode` marker file.
+Beyond `colors.toml` and hand-written config overrides, a first-party theme can ship `backgrounds/` (users overlay their own via `~/.config/omarchy/backgrounds/<name>/`; the active image is the `~/.local/state/omarchy/current/background` symlink), `preview.png` and `preview-unlock.png` for the theme switcher, `icons.theme`, `keyboard.rgb`, `unlock.png`, and a `light.mode` marker file.
+
+A theme can pair a still background with a silent intro video using matching filenames: `backgrounds/0-winding-road.webp` and `backgrounds/intros/0-winding-road.mp4`. The video plays automatically at login and when switching to that theme with this background selected. No registration, checksum file or manual setting is needed. Supported video extensions are `mp4`, `m4v`, `mov`, `webm`, `mkv` and `avi`. Intro videos stay inside the nested `intros/` directory so the background picker does not list them as looping wallpapers. An image selected from another directory looks for its intro in that directory's own `intros/`, so a same-named custom image cannot inherit a theme's video.
+
+Aim for a video between five and seven seconds long that opens on its scene setup and ends on the matching still. The shell provides the opening crossfade, so an added fade from black is unnecessary. OWE owns decoding, mute and the handoff back to that image. The theme picker prepares the highlighted theme's remembered intro offscreen, paused at its opening frame. OWE keeps one prepared clip and an idle renderer for up to one minute, then releases them. A theme switch also starts preparation while its templates render; OWE compares the selected video with the prepared clip before resuming it. Older OWE versions use the ordinary startup path. Hyprland and the SDDM greeter use a black compositor background. On a fresh login, the persistent shell host keeps an opaque black cover above the bar and wallpaper until the bar has loaded and OWE has a moving video frame, then fades both in together over 420 ms. Hyprland initializes with a transparent cursor so its visibility polling cannot expose a pointer in the first frames. The temporary Xcursor theme stays private to the compositor; applications inherit the normal cursor environment. The opening fade restores the selected cursor and settings. Shell restarts and a fifteen-second compositor timeout recover a cursor left hidden by an interrupted startup. With intros disabled or unavailable, it waits for the still to be ready instead. A ten-second deadline releases the cover if a missing wallpaper or failed plugin never becomes ready. Ordinary shell restarts preload the selected still alongside the bar without mapping that login cover. Login intros use the Hyprland instance signature, so logging out and back in plays the intro again. The launcher consumes the current session before waiting up to five seconds for OWE. Shell restarts and a daemon starting after that window cannot play a delayed intro. Theme switches synchronize OWE with the selected image and use its first-frame start mode. An interrupted video supplies its currently playing frame as the outgoing snapshot. Rapid selections wait for the previous opening fade to finish before capturing it. Theme replacement and playback wait for the outgoing cover to decode and reach the compositor on every screen. A persistent layer holds that outgoing wallpaper until OWE hides the shell background and reports a ready video with an advancing playback position and no outgoing still transition, then crossfades it over 420 ms while applying the new bar palette. The shell retains its background service and decoded wallpaper while it is hidden, so handing the still back does not recreate them. App retints wait until the opening crossfade completes, with a three-second bound, so they do not compete with its first frames. The compositor reload waits until playback finishes because reloading Hyprland pauses video presentation. A superseded intro skips that reload. Failed playback releases the pending palette, and a newer theme invalidates the older handoff. Refreshing a theme, headless setup, and cycling backgrounds within the same theme do not trigger intros. Toggle > Animations suppresses playback along with the other animations. The `omarchy theme bg intro toggle` command can toggle intros separately.
+
+A theme installed from a git repo is held to a much shorter list; see [What an installed theme may not ship](#what-an-installed-theme-may-not-ship).
 
 ## Theme activation flow
 
@@ -19,7 +20,7 @@ Beyond `colors.toml` and hand-written config overrides, a theme can ship
 `~/.local/state/omarchy/current/next-theme`:
 
 1. Copy the first-party theme from `themes/<name>/`.
-2. Overlay any user theme files from `~/.config/omarchy/themes/<name>/`.
+2. Overlay `~/.config/omarchy/themes/<name>/`, in full when the user wrote it and filtered when it came from a git repo, naming anything it dropped on stderr.
 3. If needed, generate `colors.toml` from `alacritty.toml`.
 4. Run `omarchy-theme-set-templates` to render templates into the staging
    theme.
@@ -42,6 +43,28 @@ and the rest of the `post_theme_commands` list in `bin/omarchy-theme-set`.
 Making a new app follow theme changes means adding its restart/retint command
 to that list. Runs serialize on a `flock`, so scripted theme changes queue
 instead of racing.
+
+Last, it starts `omarchy-theme-set-herdr-machines` detached. That command sets the same theme on every enabled `herdr machine list` target that runs Omarchy, over SSH inside the remote's live Hyprland session, and logs each machine's result to `~/.local/state/omarchy/theme-set-herdr-machines.log`. Sync is off by default. The `herdr-theme-sync` toggle turns it on, and a machine only sends and accepts themes while it is on. A mirrored change carries `OMARCHY_THEME_SYNC_FROM`, so the receiving machine never sends it on.
+
+## What an installed theme may not ship
+
+`themes/<name>/` in this repo is Omarchy's own code and is trusted. So is a theme the user wrote by hand in `~/.config/omarchy/themes/<name>/`: it is their machine and their file, and both stage in full.
+
+`omarchy theme install <url>` is different. It clones a stranger's git repo straight into that same directory, so the contents are whatever the theme author pushed. `omarchy-theme-set` tells the two apart the way `omarchy-theme-extras` already does — a `.git` directory means it was cloned, while a plain directory or a symlink to a working copy is the user's own — and from a cloned one it drops only what can run code:
+
+- any `*.lua` — Hyprland `require`s a theme's `hyprland.lua` and `gum_env.lua` at login, and Neovim loads its `neovim.lua` at startup
+- `alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf` — each names the program the terminal launches
+- `vscode.json` — names the extension `omarchy-theme-set-vscode` installs, and a VS Code extension is arbitrary JavaScript
+
+Symlinks are dropped with them, at any depth; in a cloned theme they point wherever the theme author chose. Everything a cloned theme ships that is colour is kept, including files Omarchy would otherwise have generated — `btop.theme`, `chromium.theme`, `helix.toml`, `shell.toml`, `icons.theme`, `keyboard.rgb` and the rest — so a theme can still say exactly how it wants each app to look. What is dropped gets generated from `default/themed/*.tpl` instead, and is named on stderr.
+
+A denylist is only right while it is maintained. Adding a template for another terminal, or for another editor that loads Lua, means adding it to `INSTALLED_THEME_DENIED` in `bin/omarchy-theme-set`; `test/shell.d/theme-staging-test.sh` fails on any `default/themed/*.tpl` whose output is recorded as neither code nor colour, so a new template cannot be added without that decision being made.
+
+A theme predating `colors.toml` is not left without a palette: its `alacritty.toml` is read through `omarchy-theme-colors-from-alacritty` into a scratch directory and only the resulting `colors.toml` is staged, so the colors survive and the terminal config does not.
+
+The restriction lives in `omarchy-theme-set` rather than in `omarchy-theme-install` on purpose. Filtering at staging also covers themes installed before the rule existed and files a theme gains later through `omarchy theme update`.
+
+What this does not cover: a theme distributed as an archive rather than a git repo, extracted into `~/.config/omarchy/themes/` by hand, is indistinguishable from one the user wrote and stages in full. `omarchy theme install` only takes git URLs, so the supported path is always filtered, but the check is a statement about where a theme came from and not a sandbox.
 
 ## `colors.toml`
 
@@ -174,7 +197,7 @@ The filename decides the target section, so the `[lock]` header is optional.
 
 The running shell reads `shell.toml` into two QML singletons:
 
-- `Color` for palette and surface roles like `Color.menu.border`.
+- `Color` for palette and surface roles like `Commons.Color.menu.border`.
 - `Style` for controls, spacing, font scale, corner radius, and bar sizing.
 
 ### Borders
@@ -303,11 +326,12 @@ Plugin and shell QML should use `BorderSurface` for theme-aware borders:
 
 ```qml
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 BorderSurface {
-  color: Color.popups.background
-  borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, 2)
+  color: Commons.Color.popups.background
+  borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, 2)
   padding: Style.spacing.popupPadding
 
   Item {
@@ -324,7 +348,7 @@ Use `Border.surfaceSpec(section, token, fallbackColor, fallbackWidth, alphaKey)`
 for shell theme tokens (the optional `alphaKey` names the alpha token, e.g.
 `"border-alpha"`), `Border.controlSpec(state, foreground, accent, urgent)` for
 shared controls, and `Border.flat(color, width)` for a deliberate local border
-that should not be overridden by the active theme. `Color.<section>.border` is the
+that should not be overridden by the active theme. `Commons.Color.<section>.border` is the
 flat first-stop color for consumers that cannot render full border specs.
 
 ## Hyprland templates
@@ -352,6 +376,7 @@ local active_border_color = { colors = { "rgba(33ccffee)", "rgba(00ff99ee)" }, a
 ## Adding or overriding theme files
 
 - Add palette values to `themes/<name>/colors.toml`.
+- Hand-written overrides work everywhere except a `.lua`, a terminal config or a `vscode.json` in a theme cloned from a git repo; see [What an installed theme may not ship](#what-an-installed-theme-may-not-ship).
 - Prefer generated files when the theme can be expressed with templates.
 - Add a hand-written file in `themes/<name>/` only when that theme needs to
   override the generated output entirely.

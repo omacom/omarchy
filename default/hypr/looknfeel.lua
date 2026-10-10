@@ -86,7 +86,6 @@ hl.animation({ leaf = "layersOut", enabled = true, speed = 1.5, bezier = "linear
 hl.animation({ leaf = "fadeLayersIn", enabled = true, speed = 1.79, bezier = "almostLinear" })
 hl.animation({ leaf = "fadeLayersOut", enabled = true, speed = 1.39, bezier = "almostLinear" })
 hl.animation({ leaf = "workspaces", enabled = false })
-hl.animation({ leaf = "specialWorkspace", enabled = true, speed = 3, bezier = "easeOutQuint", style = "slidevert" })
 
 hl.config({
   dwindle = {
@@ -105,6 +104,7 @@ hl.config({
   misc = {
     disable_hyprland_logo = true,
     disable_splash_rendering = true,
+    background_color = "rgb(000000)",
     disable_scale_notification = true,
     focus_on_activate = true,
     anr_missed_pings = 3,

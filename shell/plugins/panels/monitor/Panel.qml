@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Ui
 import qs.Commons
+import qs.Commons as Commons
 import "Model.js" as Model
 
 Panel {
@@ -217,7 +218,7 @@ Panel {
     })
   }
 
-  IpcHandler {
+  ShellIpc {
     target: "omarchy.monitor"
 
     function brightness(percent: string): string { return root.brightnessIpc(percent) }
@@ -300,7 +301,13 @@ Panel {
     if (!name) return
     if (enabled && root.enabledDisplayCount <= 1) return
 
-    actionProc.command = ["hyprctl", "keyword", "monitor", name + (enabled ? ",disable" : ",preferred,auto,auto")]
+    // hyprctl keyword is rejected under the Lua config ("non-legacy parsers"),
+    // so drive the monitor through the hl.monitor eval API instead.
+    var output = '"' + name.replace(/[\\"]/g, "\\$&") + '"'
+    var expr = enabled
+      ? 'hl.monitor({ output = ' + output + ', disabled = true })'
+      : 'hl.monitor({ output = ' + output + ', disabled = false, mode = "preferred", position = "auto", scale = "auto" })'
+    actionProc.command = ["hyprctl", "eval", expr]
     if (!actionProc.running) actionProc.running = true
   }
 
@@ -531,6 +538,7 @@ Panel {
 
             Text {
               id: heroIcon
+              textFormat: Text.PlainText
               text: root.displays.length > 1 ? "󰍺" : "󰍹"
               color: root.bar.foreground
               font.family: root.bar.fontFamily
@@ -559,6 +567,7 @@ Panel {
 
               Text {
                 id: heroLabel
+                textFormat: Text.PlainText
                 text: {
                   if (root.brightnessAvailable) {
                     return root.brightnessName(brightnessSlider.dragging ? brightnessSlider.liveValue : root.brightnessPercent).toUpperCase()
@@ -602,6 +611,7 @@ Panel {
 
               Text {
                 id: brightnessPercent
+                textFormat: Text.PlainText
                 text: Math.round(brightnessSlider.dragging ? brightnessSlider.liveValue : root.brightnessPercent) + "%"
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
@@ -674,6 +684,7 @@ Panel {
 
               Text {
                 id: textSizePx
+                textFormat: Text.PlainText
                 text: (textSizeSlider.dragging
                        ? root.textSizeStops[Math.round(textSizeSlider.liveValue)]
                        : root.displayedTextPx()) + "px"
@@ -747,6 +758,7 @@ Panel {
               // focused one.
               Text {
                 id: scaleMonitor
+                textFormat: Text.PlainText
                 text: root.focusedMonitor
                 // Only worth naming when more than one display is in play.
                 visible: root.focusedMonitor !== "" && root.enabledDisplayCount > 1
@@ -862,8 +874,8 @@ Panel {
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(monitorRow)
     current: isFocused
     foreground: root.bar.foreground
-    fill: Style.hoverFillFor(root.bar.foreground, Color.accent)
-    currentFill: Style.selectedFillFor(root.bar.foreground, Color.accent)
+    fill: Style.hoverFillFor(root.bar.foreground, Commons.Color.accent)
+    currentFill: Style.selectedFillFor(root.bar.foreground, Commons.Color.accent)
     implicitHeight: monitorInner.implicitHeight + Style.spacing.xl
     opacity: canToggle ? 1.0 : 0.45
 
@@ -887,6 +899,7 @@ Panel {
       }
 
       Text {
+        textFormat: Text.PlainText
         text: monitorRow.display.name + (monitorRow.display.focused ? " · focused" : "")
         color: root.bar.foreground
         font.family: root.bar.fontFamily
@@ -897,6 +910,7 @@ Panel {
       }
 
       Text {
+        textFormat: Text.PlainText
         text: monitorRow.display.enabled ? "󰄬" : ""
         color: root.bar.foreground
         font.family: root.bar.fontFamily

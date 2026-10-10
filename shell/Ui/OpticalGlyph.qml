@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 
 Item {
   id: root
@@ -7,7 +8,7 @@ Item {
   property string text: ""
   property string fontFamily: Style.font.family
   property real fontSize: Style.font.body
-  property color color: Color.foreground
+  property color color: Commons.Color.foreground
   property bool debugBounds: false
 
   readonly property int renderedFontSize: Math.max(1, Math.round(fontSize))
@@ -25,10 +26,13 @@ Item {
 
   Text {
     id: glyph
+    textFormat: Text.PlainText
     // Keep the shared line box and baseline intact. Correcting only the
     // horizontal painted bounds avoids per-glyph vertical drift.
-    anchors.centerIn: parent
-    anchors.horizontalCenterOffset: root.horizontalCorrection
+    // The correction is fractional, so x is set exactly: centerIn would snap it
+    // to a whole pixel and undo it. y still snaps, keeping the baseline crisp.
+    x: (root.width - width) / 2 + root.horizontalCorrection
+    y: Math.round((root.height - height) / 2)
     text: root.text
     color: root.color
     font.family: root.fontFamily

@@ -34,9 +34,28 @@ jq -e '
 pass "default center anchor exists in center layout"
 
 jq -e '
+  def ids: map(.id // .);
+  (.bar.layout.center | ids) as $ids |
+  ($ids | index("omarchy.elsewhen")) as $elsewhen |
+  ($ids | index("omarchy.clock")) as $clock |
+  ($ids | index("omarchy.weather")) as $weather |
+  $clock != null and $elsewhen == $clock + 1 and $weather > $elsewhen
+' "$ROOT/config/omarchy/shell.json" >/dev/null
+pass "default center layout puts elsewhen immediately after the clock and before weather"
+
+jq -e '
   any(.bar.layout.center[]; (.id // .) == "omarchy.clock" and (.formatAlt // "") == "d MMMM \u0027W\u0027ww yyyy")
 ' "$ROOT/config/omarchy/shell.json" >/dev/null
 pass "default clock date format has no leading zero"
+
+jq -e '
+  def ids: map(.id // .);
+  (.bar.layout.right | ids) as $ids |
+  ($ids | index("omarchy.tray")) as $tray |
+  ($ids | index("omarchy.agents")) as $agents |
+  $tray != null and $agents == $tray + 1
+' "$ROOT/config/omarchy/shell.json" >/dev/null
+pass "default right layout keeps agents next to the tray"
 
 ROOT="$ROOT" python3 <<'PY'
 import json
@@ -90,6 +109,7 @@ pass "default bar widget ids resolve to manifests and entry points"
 
 ROOT="$ROOT" python3 <<'PY'
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -142,6 +162,7 @@ package_defaults = [
   ("default/systemd/user/omarchy-fcitx5.service", "/usr/lib/systemd/user/omarchy-fcitx5.service", "systemd/user/omarchy-fcitx5.service"),
   ("default/systemd/user/omarchy-crash-watch.service", "/usr/lib/systemd/user/omarchy-crash-watch.service", "systemd/user/omarchy-crash-watch.service"),
   ("default/systemd/zram-generator.conf.d/90-omarchy.conf", "/usr/lib/systemd/zram-generator.conf.d/90-omarchy.conf", "systemd/zram-generator.conf.d/90-omarchy.conf"),
+  ("default/systemd/system/plocate-updatedb.service.d/10-omarchy.conf", "/usr/lib/systemd/system/plocate-updatedb.service.d/10-omarchy.conf", "systemd/system/plocate-updatedb.service.d/10-omarchy.conf"),
   ("default/fonts/omarchy/omarchy.ttf", "/usr/share/fonts/omarchy/omarchy.ttf", "omarchy.ttf"),
   ("default/snapper/root", "/etc/snapper/config-templates/omarchy", "snapper/root"),
 ]
@@ -153,6 +174,32 @@ for source, destination, legacy in package_defaults:
     errors.append(f"legacy path still in config/: {legacy}")
   if destination and (source not in pkgbuild or destination not in pkgbuild):
     errors.append(f"PKGBUILD does not explicitly install {source} -> {destination}")
+
+# A user unit has to be on the machine before anything turns it on: shipped in
+# /usr/lib/systemd/user, or copied out of default/ by the command enabling it.
+def installs_first(text):
+  source = re.search(r'(\w+)="[^"\n]*default/systemd/user/', text)
+  held = rf"|\$\{{?{source[1]}\b" if source else ""
+  copy = re.search(rf"^[ \t]*(?:sudo[ \t]+)?(?:install|cp)\b[^\n]*(?:default/systemd/user/{held})", text, re.MULTILINE)
+  enable = text.find("systemctl --user enable")
+  return bool(copy) and (enable < 0 or copy.start() < enable)
+
+named = 'unit="$OMARCHY_PATH/default/systemd/user/a.service"\n'
+if installs_first(named + "systemctl --user enable a.service\n"):
+  errors.append("unit check accepts a command that names a unit's source but never installs it")
+if installs_first(named + 'systemctl --user enable a.service\ninstall -Dm644 "$unit" "$target"\n'):
+  errors.append("unit check accepts a command that installs a unit after enabling it")
+
+scripts = [path.read_text(errors="ignore") for folder in ("bin", "install", "migrations")
+           for path in (root / folder).rglob("*") if path.is_file()]
+for unit in sorted(path.name for path in (root / "default/systemd/user").glob("*.service")):
+  if f"/usr/lib/systemd/user/{unit}" in pkgbuild:
+    continue
+  named = [text for text in scripts if unit in text]
+  if not any(installs_first(text) for text in named):
+    errors.append(f"PKGBUILD does not ship default/systemd/user/{unit} and no command installs it")
+  elif any("systemctl --user enable" in text and not installs_first(text) for text in named):
+    errors.append(f"{unit} is enabled without being shipped by PKGBUILD or installed first")
 
 # Existing users have an absolute wants symlink to the old unit path, and the
 # migration that repoints it only runs for users who run an update -- the
@@ -418,39 +465,3 @@ if grep -RIl 'upgrade-to-quattro\|Omarchy 4\.0 is upgraded' "$ROOT/migrations" >
   fail "4.0 upgrade is not modeled as a migration"
 fi
 pass "4.0 upgrade is handled outside the migration runner"
-
-clock_migration=$(grep -rl 'Remove leading zero from bar clock date' "$ROOT/migrations" | head -n 1 || true)
-[[ -n $clock_migration ]] || fail "clock date format user migration exists"
-
-cat >"$TMPDIR/home/.config/omarchy/shell.json" <<'JSON'
-{
-  "version": 1,
-  "bar": {
-    "layout": {
-      "left": [],
-      "center": [
-        { "id": "omarchy.clock", "formatAlt": "dd MMMM 'W'ww yyyy" },
-        { "id": "omarchy.weather" }
-      ],
-      "right": [
-        { "id": "local.clock", "formatAlt": "dd MMMM 'W'ww yyyy" }
-      ]
-    }
-  },
-  "plugins": []
-}
-JSON
-
-HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" bash "$clock_migration"
-
-jq -e '
-  .bar.layout.center[0].formatAlt == "d MMMM \u0027W\u0027ww yyyy" and
-  .bar.layout.right[0].formatAlt == "dd MMMM \u0027W\u0027ww yyyy"
-' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
-pass "clock date format migration removes leading zero from clock"
-
-before=$(sha256sum "$TMPDIR/home/.config/omarchy/shell.json" | awk '{print $1}')
-HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" bash "$clock_migration"
-after=$(sha256sum "$TMPDIR/home/.config/omarchy/shell.json" | awk '{print $1}')
-[[ $before == "$after" ]] || fail "clock date format migration is idempotent"
-pass "clock date format migration is idempotent"

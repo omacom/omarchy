@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls as QQC
 import qs.Commons
+import qs.Commons as Commons
 
 // Searchable single-select dropdown. Same trigger shape as Dropdown, but
 // the popup leads with an embedded TextField that filters the option
@@ -25,11 +26,11 @@ Item {
   property string emptyText: "No matches"
   property string triggerLabel: ""
 
-  property color foreground: Color.popups.text
-  property color background: Color.popups.background
-  property color popupBorder: Color.popups.border
-  property color accent: Color.accent
-  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Color.popups.border, Style.normalBorderWidth)
+  property color foreground: Commons.Color.popups.text
+  property color background: Commons.Color.popups.background
+  property color popupBorder: Commons.Color.popups.border
+  property color accent: Commons.Color.accent
+  readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Commons.Color.popups.border, Style.normalBorderWidth)
   property string fontFamily: Style.font.family
   property int rowHeight: Style.spacing.controlHeight
   property int popupRowHeight: Style.spacing.popupRowHeight
@@ -93,6 +94,7 @@ Item {
     spacing: Style.spacing.labelGap
 
     Text {
+      textFormat: Text.PlainText
       visible: root.showLabel && root.label !== ""
       text: root.label
       color: Qt.darker(root.foreground, 1.4)
@@ -132,6 +134,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         anchors.left: parent.left
         anchors.right: chevron.left
         anchors.verticalCenter: parent.verticalCenter
@@ -246,6 +249,7 @@ Item {
             height: popup.height - searchHeader.height - Style.spacing.xxs - 1
 
             Text {
+              textFormat: Text.PlainText
               anchors.centerIn: parent
               visible: resultList.count === 0
               text: root.emptyText
@@ -313,6 +317,7 @@ Item {
                   spacing: Style.spacing.xxs
 
                   Text {
+                    textFormat: Text.PlainText
                     text: root.optionLabel(modelData)
                     color: index === resultList.currentIndex ? Style.hoverStateColor(root.foreground, root.accent) : root.foreground
                     font.family: root.fontFamily
@@ -321,6 +326,7 @@ Item {
                     width: parent.width
                   }
                   Text {
+                    textFormat: Text.PlainText
                     visible: text !== ""
                     text: root.optionDescription(modelData)
                     color: Qt.darker(root.foreground, 1.5)

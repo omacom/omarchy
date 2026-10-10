@@ -9,12 +9,25 @@ declare -A LUA_BIND_KEY_MAP
 declare -A LUA_BIND_DISPATCHER_MAP
 declare -A LUA_BIND_ARG_MAP
 
+# A platform package can name keys the way its keyboards print them: one
+# "<keysym> <name>" per line (on a MacBook, XF86MonBrightnessUp is F2), in the
+# fixed platform root, which no environment variable moves.
+key_names_file=/usr/share/omarchy-platform/key-names
+
 # Hyprland reports XKB keycodes for code: bindings. Resolve them to symbols
 # via the compiled keymap, with a small fallback for common keys so the menu
 # remains readable if xkbcli cannot resolve a symbol.
 parse_keycodes() {
-  awk '
+  awk -v key_names="$key_names_file" '
     BEGIN {
+      while ((getline line < key_names) > 0) {
+        # Blanks around a line and a CRLF line end read the same, as in
+        # displays.conf.
+        gsub(/^[ \t\r]+|[ \t\r]+$/, "", line)
+        if (split(line, name_parts, /[ \t]+/) == 2 && name_parts[1] ~ /^[A-Za-z0-9_]+$/ && name_parts[2] ~ /^[A-Za-z0-9_]+$/) key_name[name_parts[1]] = name_parts[2]
+      }
+      close(key_names)
+
       split("10=1 11=2 12=3 13=4 14=5 15=6 16=7 17=8 18=9 19=0 20=MINUS 21=EQUAL 59=COMMA 60=PERIOD 61=SLASH", fallbacks, " ")
       for (i in fallbacks) {
         separator = index(fallbacks[i], "=")
@@ -38,6 +51,12 @@ parse_keycodes() {
         if (code != "" && symbol != "" && symbol != "NoSymbol") keycode_symbol[code] = toupper(symbol)
       }
 
+      # Read off the keysym rather than the keycode, so the key left of 1 reads
+      # as the symbol printed on it whichever key the active layout puts it on.
+      for (code in keycode_symbol) {
+        if (keycode_symbol[code] == "GRAVE") keycode_symbol[code] = "~"
+      }
+
       mouse_symbol["272"] = "LEFT MOUSE BUTTON"
       mouse_symbol["273"] = "RIGHT MOUSE BUTTON"
       mouse_symbol["274"] = "MIDDLE MOUSE BUTTON"
@@ -53,6 +72,13 @@ parse_keycodes() {
         symbol = mouse_symbol[code]
         if (symbol == "") symbol = "mouse:" code
         sub("mouse:" code, symbol)
+      } else if ((first = index($0, ",")) > 0) {
+        # Only the key (the second field) is renamed: the description, the
+        # dispatcher and its argument are left as they are.
+        rest = substr($0, first + 1)
+        second = index(rest, ",")
+        key = second > 0 ? substr(rest, 1, second - 1) : rest
+        if (key in key_name) $0 = substr($0, 1, first) key_name[key] (second > 0 ? substr(rest, second) : "")
       }
 
       print
@@ -75,7 +101,9 @@ build_lua_bind_cache() {
     LUA_BIND_DISPATCHER_MAP["$cache_key"]="$dispatcher"
     LUA_BIND_ARG_MAP["$cache_key"]="$arg"
   done < <(
-    lua <<'LUA'
+    # -E keeps LUA_INIT and LUA_PATH from the environment out of the scan, which
+    # loads the user's config.
+    lua -E - <<'LUA'
 local modifiers = { SHIFT = 1, CTRL = 4, CONTROL = 4, ALT = 8, SUPER = 64 }
 
 local function split_keys(keys)
@@ -204,6 +232,9 @@ hl = setmetatable({
       elseif type(bind_dispatcher) == "string" and bind_dispatcher ~= "" then
         kind = "exec"
         arg = bind_dispatcher
+      elseif o and o.bind_commands and o.bind_commands[bind_dispatcher] then
+        kind = "exec"
+        arg = o.bind_commands[bind_dispatcher]
       end
 
       print(table.concat({ tostring(modmask), opts.description, key, kind, arg }, "\t"))
@@ -305,6 +336,7 @@ dynamic_bindings() {
 
       case "$key" in
         comma) key="COMMA" ;;
+        grave) key="~" ;;
         period) key="PERIOD" ;;
         minus) key="MINUS" ;;
         equal) key="EQUAL" ;;
@@ -324,15 +356,41 @@ static_bindings() {
   echo "SHIFT ALT,D,Download Video from Web App,sendshortcut,SHIFT ALT,D,"
 }
 
+# Actions Omarchy binds to a second chord meant as an alternative, named one at
+# a time. A rule would be wrong here: Alt + Tab and Shift + Alt + Tab both say
+# "Reveal active window on top" while cycling opposite ways, and a media key is
+# nobody's idea of an alternative to a Super chord. Only chords a user reaches
+# for interchangeably belong on one row.
+alternative_chord_actions() {
+  cat <<'ACTIONS'
+Close window
+Calculator
+Toggle scratchpad
+Move window to scratchpad
+ACTIONS
+}
+
 # Parse and format keybindings
 #
 # `awk` does the heavy lifting:
 # - Set the field separator to a comma ','.
 # - Joins the key combination (e.g., "SUPER + Q").
 # - Joins the command that the key executes.
+# - Puts an action's alternative chord on the row with the first one.
 # - Prints display text and dispatch metadata as tab-separated fields.
 parse_binding_records() {
-  awk -F, '
+  awk -F, -v alternatives="$(alternative_chord_actions)" '
+BEGIN {
+    # The column every row pads its chords to. Nothing is allowed past it: the
+    # menu renders in monospace, and a row that overruns pushes its arrow out
+    # of a column the eye reads straight down.
+    column = 35;
+
+    split(alternatives, named, "\n");
+    for (i in named) {
+        if (named[i] != "") shares_a_row[named[i]] = 1;
+    }
+}
 {
     # Combine the modifier and key (first two fields)
     key_combo = $1 " + " $2;
@@ -365,8 +423,35 @@ parse_binding_records() {
         gsub(/[ \t]+/, " ", key_combo);  # Collapse multiple spaces to one
     }
 
+    # An alternative chord joins the row the first one opened: "SUPER + W /
+    # SUPER + Q -> Close window". Both halves have to agree on what they run,
+    # since a label is only what a chord is called; an unresolved dispatcher
+    # says nothing at all, so it never counts as agreement.
     if (action != "") {
-        printf "%-35s → %s\t%s\t%s\n", key_combo, action, dispatcher, arg;
+        action_key = action SUBSEP dispatcher SUBSEP arg;
+        together = "";
+
+        if (action in shares_a_row && dispatcher != "" && action_key in leads) {
+            together = chords[leads[action_key]] " / " key_combo;
+        }
+
+        if (together != "" && length(together) <= column) {
+            chords[leads[action_key]] = together;
+        } else {
+            # Also the path a pair too wide for the column takes: two rows in
+            # line beat one that juts out of it.
+            entries++;
+            chords[entries] = key_combo;
+            actions[entries] = action;
+            dispatchers[entries] = dispatcher;
+            args[entries] = arg;
+            leads[action_key] = entries;
+        }
+    }
+}
+END {
+    for (entry = 1; entry <= entries; entry++) {
+        printf "%-*s → %s\t%s\t%s\n", column, chords[entry], actions[entry], dispatchers[entry], args[entry];
     }
 }'
 }
@@ -374,7 +459,13 @@ parse_binding_records() {
 prioritize_entries() {
   awk -F '\t' '
   {
+    # Alternative chords are display only. Classifying on them would read
+    # "SUPER SHIFT + RETURN / SUPER SHIFT + B" as the alternate browser chord
+    # and drop the browser 20 rows down its own list, so match the chord that
+    # leads the row and ignore the rest.
     line = $1
+    sub(/ \/ [^→]*→/, " →", line)
+
     prio = 50
     if (match(line, /Keybindings/)) prio = 0
     if (match(line, /Omarchy menu/))  prio = 1
@@ -436,6 +527,12 @@ prioritize_entries() {
   cut -f2-
 }
 
+# Drop repeated records while keeping the order Hyprland reported them in, so
+# the chord a user declared first is the one that leads a merged entry.
+dedupe_binding_records() {
+  awk '!seen[$0]++'
+}
+
 output_binding_records_uncached() {
   local dynamic
 
@@ -446,7 +543,7 @@ output_binding_records_uncached() {
     [[ -n $dynamic ]] && printf '%s\n' "$dynamic"
     static_bindings
   } |
-    sort -u |
+    dedupe_binding_records |
     parse_keycodes |
     parse_binding_records |
     prioritize_entries
@@ -458,8 +555,9 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v11\n'
+    printf 'v14\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
+    cat "$key_names_file" 2>/dev/null
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
 }

@@ -2,13 +2,6 @@
 mkdir -p "$HOME/Work"
 mkdir -p "$HOME/Work/tries"
 
-cat >"$HOME/Work/.mise.toml" <<'EOF'
-[env]
-_.path = "{{ cwd }}/bin"
-EOF
-
-mise trust ~/Work/.mise.toml
-
 # Offline installs unpack the Node tarball bundled by the ISO: from
 # /opt/packages in the ISO chroot, or from the copy staged in provisioning state when
 # omarchy-provision-owner finalizes the user at first boot.
@@ -19,7 +12,12 @@ case ${OMARCHY_SETUP_CONTEXT:-runtime} in
 esac
 
 if [[ -n $NODE_PACKAGE_DIR ]]; then
-  NODE_TARBALL=$(find "$NODE_PACKAGE_DIR" -name "node-v*-linux-x64.tar.gz" -type f 2>/dev/null | head -n1)
+  # The ISO bundles the tarball for its own architecture.
+  case $(uname -m) in
+    aarch64) NODE_PLATFORM=linux-arm64 ;;
+    *) NODE_PLATFORM=linux-x64 ;;
+  esac
+  NODE_TARBALL=$(find "$NODE_PACKAGE_DIR" -name "node-v*-$NODE_PLATFORM.tar.gz" -type f 2>/dev/null | head -n1)
   if [[ -z $NODE_TARBALL ]]; then
     if [[ ${OMARCHY_SETUP_CONTEXT:-} == "provision-owner" ]]; then
       # A factory snapshot predating the bundled tarball may not have it staged.
@@ -31,12 +29,17 @@ if [[ -n $NODE_PACKAGE_DIR ]]; then
       exit 1
     fi
   else
-    NODE_VERSION=$(basename "$NODE_TARBALL" | sed 's/node-v\(.*\)-linux-x64.tar.gz/\1/')
+    NODE_VERSION=$(basename "$NODE_TARBALL" | sed "s/node-v\(.*\)-$NODE_PLATFORM.tar.gz/\1/")
     NODE_INSTALL_DIR="$HOME/.local/share/mise/installs/node/$NODE_VERSION"
 
     mkdir -p "$NODE_INSTALL_DIR"
     tar -xzf "$NODE_TARBALL" --strip-components=1 -C "$NODE_INSTALL_DIR"
     mise use -g node@"$NODE_VERSION"
+
+    # That pinned the exact bundled version, which would exempt Node from
+    # mise up forever. Loosen it to latest, like an online install gets:
+    # mise resolves latest to the installed version while offline.
+    mise config set tools.node latest --file "$HOME/.config/mise/config.toml"
   fi
 else
   mise use -g node@latest

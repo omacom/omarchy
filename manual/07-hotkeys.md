@@ -10,7 +10,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Alt + Space` | Apps menu |
 | `Super + Escape` | System menu (suspend, restart, etc)  |
 | `Super + Ctrl + L` | Lock computer |
-| `Super + W`               | Close window             |
+| `Super + W` or `Super + Q` | Close window             |
 | `Ctrl + Alt + Del` | Close all windows |
 | `Super + T`               | Toggle window between tiling/floating             |
 | `Super + J` | Toggle window position (horizontal/vertical) |
@@ -26,6 +26,8 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Ctrl + Tab` | Jump to former workspace |
 | `Super + Shift + 1/2/3/4` | Move window to workspace |
 | `Super + Shift + Alt + 1/2/3/4` | Move window to workspace without following |
+| `Super + S` / `Super + Grave` | Toggle scratchpad |
+| `Super + Alt + S` / `Super + Shift + Grave` | Move window to scratchpad |
 | `Super + Shift + Alt + Arrows` | Move workspaces to directional monitor |
 | `Super + Arrow`  | Move focus to window in direction of arrow              |
 | `Super + Shift + Arrow`  | Swap window with another in direction of arrow     |
@@ -47,8 +49,6 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Alt + 1/2/3/4/5`               | Jump to specific window in grouping      |
 | `Super + Alt + Arrow`  | Move window into grouping in direction of arrow  |
 | `Super + Ctrl + Left/Right`  | Move between windows inside a tiling group |
-| `Super + S` | Show scratchpad workspace overlay |
-| `Super + Alt + S` | Move window to scratchpad workspace |
 | `Super + Ctrl + Z` | Zoom in on screen (repeat for more zoom) |
 | `Super + Ctrl + Alt + Z` | Zoom fully out from screen |
 | `Super + /` | Step forward through monitor scaling options |
@@ -68,6 +68,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Ctrl + D`           | Display panel    |
 | `Super + Ctrl + P`           | Power panel    |
 | `Super + Ctrl + Alt + D`           | Calendar panel    |
+| `Super + Ctrl + Alt + E`           | World clock panel    |
 | `Super + Ctrl + 1-9`           | Toggle bar panel by position    |
 | `Super + Ctrl + S` | Share menu (via LocalSend) |
 | `Super + Ctrl + T`           | Activity (btop)    |
@@ -117,7 +118,6 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Shift + S`           | Google Maps  |
 | `Super + Shift + Alt + G`           | Messenger (WhatsApp)  |
 | `Super + Shift + Ctrl + G`           | Messenger (Google)  |
-| `Super + Shift + D`           | Docker (LazyDocker)  |
 | `Super + Shift + O`           | Obsidian  |
 | `Super + Shift + W`           | Writing (Omawrite)  |
 | `Super + Shift + X`           | X |
@@ -150,8 +150,8 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | `Super + Alt + ]` | Make webcam overlay larger while recording |
 | `Alt + Shift + L` | Copy current URL from webapp or Chromium |
 | `Alt + Shift + D` | Download the video on the current page to `~/Videos` |
-| `Super + Ctrl + X` | Start/stop dictation (requires _Install > AI > Dictation_) |
-| `F9` | Push-to-talk dictation (requires _Install > AI > Dictation_) |
+| `Super + Ctrl + X` | Start/stop dictation (requires _Setup > Defaults > Dictation_) |
+| `Right Alt` / `F9` | Push-to-talk dictation (requires Voxtype or Superwhisper) |
 
 With screenrecordings, the hotkey first asks which audio you want, then starts recording. Hit it again to stop. See [screenshots and recording](12-screenshots-recording.md) for the details.
 
@@ -192,6 +192,7 @@ All style options are also accessible under _Style_ in the Omarchy menu (`Super 
 | `Shift + Mute` | Switch to next audio output |
 | `Shift + Play` | Switch to next media source |
 | `Super + Shift + Backspace` | Toggle window gaps |
+| `Super + Ctrl + Alt + F` | Toggle full screen desktop (top bar + window gaps) |
 
 ## Reminders
 

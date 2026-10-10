@@ -10,6 +10,24 @@ const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
 const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
 const defaultMenuJsonc = fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8')
 
+assertDeepEqual(
+  menu.summonAction("omarchy-shell shell summon omarchy.speedtest"),
+  { id: 'omarchy.speedtest', payload: '{}' },
+  'menu runs a bare summon action in-process'
+)
+assertDeepEqual(
+  menu.summonAction(`omarchy-shell shell summon omarchy.image-picker '{"source":"themes"}'`),
+  { id: 'omarchy.image-picker', payload: '{"source":"themes"}' },
+  'menu keeps a single-quoted summon payload'
+)
+assertEqual(menu.summonAction("omarchy-shell shell summon omarchy.speedtest && echo done"), null, 'menu leaves compound summon commands to bash')
+assertEqual(menu.summonAction(`omarchy-shell shell summon omarchy.x "$(id)"`), null, 'menu leaves shell-expanded payloads to bash')
+assertEqual(menu.summonAction("omarchy-theme-set nord"), null, 'menu leaves ordinary actions to bash')
+assert(
+  /var summon = MenuModel\.summonAction\(command\)\s*if \(summon && root\.shell && root\.shell\.summon\(summon\.id, summon\.payload\)\) return\s*Util\.execDetached\(command\)/.test(menuQml),
+  'menu falls back to bash when an in-process summon is refused'
+)
+
 const parsed = menu.parseMenuJsonc(`
 {
   // comment
@@ -192,6 +210,11 @@ assert(
   defaultById['update.omarchy'].iconFont === 'omarchy',
   'menu update Omarchy entry renders the private glyph with the Omarchy font'
 )
+assertEqual(
+  defaultById['update.themes'].when,
+  'omarchy-theme-extras',
+  'menu hides Extra Themes until a theme cloned from git is there to update'
+)
 assert(
   defaultById['setup.input'].action.includes('input.lua'),
   'menu keeps Input as a direct config action'
@@ -211,15 +234,21 @@ assertEqual(
   'menu lists Reset Computer last under Setup'
 )
 const expectedAgents = {
+  agy: { icon: '󰫢', label: 'Antigravity' },
   pi: { icon: '\ue901', iconFont: 'omarchy', label: 'Pi' },
   omp: { icon: '\ue903', iconFont: 'omarchy', label: 'omp' },
   opencode: { icon: '\ue902', iconFont: 'omarchy', label: 'OpenCode' },
+  ori: { icon: '\ue909', iconFont: 'omarchy', label: 'Ori' },
   claude: { icon: '󰛄', label: 'Claude' },
   codex: { icon: '\ue905', iconFont: 'omarchy', label: 'Codex' },
   grok: { icon: '\ue904', iconFont: 'omarchy', label: 'Grok' },
-  gemini: { icon: '󰫢', label: 'Gemini' },
+  hermes: { icon: '\ue90a', iconFont: 'omarchy', label: 'Hermes' },
+  openclaw: { icon: '\ue90c', iconFont: 'omarchy', label: 'OpenClaw' },
   copilot: { icon: '', label: 'Copilot' },
   crush: { icon: '󰋑', label: 'Crush' },
+  muse: { icon: '󰛤', label: 'Muse Code' },
+  'cursor-agent': { icon: '\ue90d', iconFont: 'omarchy', label: 'Cursor CLI' },
+
 }
 assert(
   Object.entries(expectedAgents).every(([agent, expected]) => {
@@ -232,13 +261,13 @@ assert(
       && !entry.when
       && entry.checked.includes(`== \"${agent}\"`)
   }),
-  'menu exposes every mise-installable coding agent with its own glyph under Defaults > Agent'
+  'menu exposes every supported coding agent with its own glyph under Defaults > Agent'
 )
 assertDeepEqual(
   defaultItems
     .filter(item => item.parent === 'setup.default.agent')
     .map(item => item.label),
-  ['Claude', 'Codex', 'Copilot', 'Crush', 'Gemini', 'Grok', 'omp', 'OpenCode', 'Pi'],
+  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
   'menu sorts coding agents alphabetically'
 )
 const expectedDefaults = {
@@ -257,18 +286,27 @@ assert(
 assert(!defaultById['install.ai.crush'], 'menu removes Crush from Install > AI')
 // Software you already have keeps its place in Install, dimmed rather than
 // dropped, so the list reads as a catalog of what Omarchy can install.
-// Chromium Account is the sole Install row with anything left to hide for, so
-// any other `when:` here is a row that went back to vanishing once installed.
+// Chromium Account is the sole Install row with anything left to hide for. The
+// Windows VM, whose guest can't run elsewhere, and the installers whose vendors
+// ship Linux builds for x86_64 alone hide only off x86_64, so any other `when:`
+// here is a row that went back to vanishing once installed.
+const windowsGuard = 'omarchy-hw-x86'
+const x86OnlyInstalls = ['install.windows', 'install.browser.edge', 'install.service.dropbox', 'install.service.spotify', 'install.gaming.minecraft', 'install.gaming.heroic']
 assertDeepEqual(
   defaultItems
     .filter(item => item.id.startsWith('install.') && item.action && item.when)
-    .map(item => item.id),
-  ['install.service.chromium-account'],
+    .map(item => item.id)
+    .sort(),
+  [...x86OnlyInstalls, 'install.service.chromium-account'].sort(),
   'menu never hides an Install row because the software is already there'
 )
 assert(
+  x86OnlyInstalls.every(id => defaultById[id].when === windowsGuard),
+  'menu hides the Windows VM and the x86_64-only installers only off x86_64'
+)
+assert(
   ['install.browser.zen', 'install.editor.vscode', 'install.gaming.steam', 'install.development.rust', 'install.windows'].every(
-    id => defaultById[id].disabled && !defaultById[id].when
+    id => defaultById[id].disabled && (!defaultById[id].when || defaultById[id].when === windowsGuard)
   ),
   'menu dims the Install rows for software that is already installed'
 )
@@ -289,9 +327,37 @@ assert(
     && defaultById['remove.browser.zen'].when === 'omarchy-pkg-present zen-browser-bin',
   'menu still hides Remove rows for software that is not installed'
 )
+assertDeepEqual(
+  defaultItems
+    .filter(item => item.parent === 'remove')
+    .map(item => item.id),
+  [
+    'remove.package',
+    'remove.ai',
+    'remove.dictation',
+    'remove.service',
+    'remove.development',
+    'remove.theme',
+    'remove.gaming',
+    'remove.browser',
+    'remove.webapp',
+    'remove.tui',
+    'remove.windows',
+    'remove.preinstalls',
+    'remove.security'
+  ],
+  'menu keeps the Remove category order'
+)
 assert(
   defaultById['setup.security.passwordless-sudo'].action.includes('omarchy-sudo-passwordless'),
   'menu places Passwordless Sudo under Setup > Security'
+)
+assert(
+  defaultById['setup.security.usb-authorization'].action.includes('omarchy-setup-security-usb-authorization')
+    && defaultById['remove.security.usb-authorization'].action.includes('omarchy-remove-security-usb-authorization')
+    && defaultById['setup.security.usb-authorization-boot'].action.includes('omarchy-setup-security-usb-authorization --boot')
+    && defaultById['remove.security.usb-authorization-boot'].action.includes('omarchy-remove-security-usb-authorization --boot-only'),
+  'menu can enable and remove USB device authorization under Security'
 )
 assert(
   !defaultById['trigger.toggle.direct-boot'] && !defaultById['trigger.toggle.passwordless-sudo'],
@@ -309,6 +375,11 @@ assertEqual(
   defaultById['style.bar.transparency'].action,
   'omarchy-bar transparent toggle',
   'menu exposes Menu Bar transparency as a toggle'
+)
+assert(
+  !defaultItems.some(item => item.id.startsWith('style.background-intro'))
+    && defaultById['trigger.toggle.animations'].action === 'omarchy-toggle-animations',
+  'menu uses the existing animations toggle without separate background intro controls'
 )
 assertDeepEqual(
   defaultItems.filter(item => item.parent === 'setup.plugin').map(item => item.label),
@@ -411,6 +482,11 @@ assertEqual(
   defaultById['trigger.capture.screenrecord.webcam'].when,
   'omarchy-hw-webcam',
   'menu only shows webcam screen recording when a webcam is available'
+)
+assertEqual(
+  defaultById['trigger.capture.screenrecord.stop'].when,
+  'omarchy-capture-screenrecording --status',
+  'menu shows Stop Screenrecording only when its stop has a recording to end'
 )
 assert(
   /font\.family: row\.iconFont\.length > 0 \? row\.iconFont : root\.fontFamily/.test(menuQml),
@@ -610,5 +686,5 @@ assert(
 JS
 
 font_charset=$(fc-query --format='%{charset}' "$ROOT/default/fonts/omarchy/omarchy.ttf")
-[[ $font_charset == *"e900-e907"* ]] || fail "Omarchy icon font includes every custom menu glyph"
+[[ $font_charset == *"e900-e90e"* ]] || fail "Omarchy icon font includes every custom menu glyph"
 pass "Omarchy icon font includes the official agent marks"
