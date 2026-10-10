@@ -11,6 +11,8 @@ require_command rg
 SCRATCH=$(mktemp -d)
 trap 'rm -rf "$SCRATCH"' EXIT
 TEST_HOME=$(mktemp -d "$SCRATCH/home.XXXXXX")
+# pi's directory overrides would point every scan at the developer's own sessions.
+unset PI_CODING_AGENT_DIR PI_CODING_AGENT_SESSION_DIR
 
 # A fixture home signed in to Codex, with an empty bin/ for its CLI.
 signed_in_home() {
@@ -165,6 +167,45 @@ result=$(HOME="$GIT_HOME" CODEX_HOME="$GIT_HOME/.codex" XDG_DATA_HOME="$GIT_HOME
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "8" ]] ||
   fail "Codex collector counts pi sessions when HOME is a git checkout" "$result"
 pass "Codex collector counts pi sessions when HOME is a git checkout"
+
+# pi moves its agent tree with PI_CODING_AGENT_DIR and its sessions alone with
+# PI_CODING_AGENT_SESSION_DIR, so usage under either must be counted. An
+# override reaching the default root through a symlink must count it once and
+# still match a fork whose parent is spelled through that symlink.
+CUSTOM_PI_HOME=$(signed_in_home)
+cp "$TEST_HOME/bin/codex" "$CUSTOM_PI_HOME/bin/codex"
+mkdir -p "$CUSTOM_PI_HOME/.config/pi/sessions/project" "$CUSTOM_PI_HOME/pi-sessions" "$CUSTOM_PI_HOME/.pi/agent/sessions/project"
+cat >"$CUSTOM_PI_HOME/.config/pi/sessions/project/agent-dir.jsonl" <<EOF
+{"type":"message","id":"agent-dir-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-agent-dir","usage":{"input":6,"output":2}}}
+EOF
+cat >"$CUSTOM_PI_HOME/pi-sessions/session-dir.jsonl" <<EOF
+{"type":"message","id":"session-dir-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-session-dir","usage":{"input":3,"output":1}}}
+EOF
+cat >"$CUSTOM_PI_HOME/.pi/agent/sessions/project/default.jsonl" <<EOF
+{"type":"message","id":"default-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-default","usage":{"input":5,"output":0}}}
+EOF
+ln -s "$CUSTOM_PI_HOME/.pi/agent" "$CUSTOM_PI_HOME/pi-alias"
+cat >"$CUSTOM_PI_HOME/.pi/agent/sessions/project/default-fork.jsonl" <<EOF
+{"type":"session","id":"default-fork","parentSession":"$CUSTOM_PI_HOME/pi-alias/sessions/project/default.jsonl"}
+{"type":"message","id":"default-1","timestamp":"$timestamp","message":{"role":"assistant","provider":"openai-codex","model":"gpt-default","usage":{"input":5,"output":0}}}
+EOF
+
+result=$(HOME="$CUSTOM_PI_HOME" CODEX_HOME="$CUSTOM_PI_HOME/.codex" XDG_CACHE_HOME="$CUSTOM_PI_HOME/.cache" \
+  XDG_DATA_HOME="$CUSTOM_PI_HOME/.local/share" XDG_STATE_HOME="$CUSTOM_PI_HOME/.local/state" \
+  PI_CODING_AGENT_DIR="~/.config/pi" PI_CODING_AGENT_SESSION_DIR="$CUSTOM_PI_HOME/pi-sessions" \
+  PATH="$CUSTOM_PI_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --force)
+
+[[ $(jq -c '[.todayTotalTokens,.totalSessions]' <<<"$result") == "[17,3]" ]] ||
+  fail "Codex collector counts pi sessions under PI_CODING_AGENT_DIR and PI_CODING_AGENT_SESSION_DIR" "$result"
+
+result=$(HOME="$CUSTOM_PI_HOME" CODEX_HOME="$CUSTOM_PI_HOME/.codex" XDG_CACHE_HOME="$CUSTOM_PI_HOME/.cache" \
+  XDG_DATA_HOME="$CUSTOM_PI_HOME/.local/share" XDG_STATE_HOME="$CUSTOM_PI_HOME/.local/state" \
+  PI_CODING_AGENT_SESSION_DIR="$CUSTOM_PI_HOME/pi-alias/sessions/project" \
+  PATH="$CUSTOM_PI_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --force)
+
+[[ $(jq -c '[.todayTotalTokens,.totalSessions]' <<<"$result") == "[5,1]" ]] ||
+  fail "Codex collector counts a default root reached through a symlinked override once" "$result"
+pass "Codex collector follows pi's agent and session directory overrides"
 
 # A subscription burned entirely through opencode has no native session files;
 # usage must come from opencode's message database, filtered to OpenAI.

@@ -536,7 +536,15 @@ def pi_session_roots() -> list[Path]:
     except OSError:
       # No profiles directory, or it is unreadable: the default root stands.
       pass
-  return roots
+  # pi moves its whole agent tree with PI_CODING_AGENT_DIR and its sessions
+  # alone with PI_CODING_AGENT_SESSION_DIR, both expanding a leading ~.
+  if os.environ.get("PI_CODING_AGENT_DIR"):
+    roots.append(Path(os.environ["PI_CODING_AGENT_DIR"]).expanduser() / "sessions")
+  if os.environ.get("PI_CODING_AGENT_SESSION_DIR"):
+    roots.append(Path(os.environ["PI_CODING_AGENT_SESSION_DIR"]).expanduser())
+  # Canonical roots, so an override that aliases a default root through a
+  # symlink is scanned under one spelling and counted once.
+  return list(dict.fromkeys(root.resolve() for root in roots))
 
 
 def scan_pi_usage(max_age_seconds: float) -> dict[str, Any] | None:
