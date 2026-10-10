@@ -175,6 +175,9 @@ Rules:
    First-party non-bar plugins are enabled unless listed in `disabledPlugins[]`.
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
 7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
+   `idle.screensaverEffect` is optional and pins the screensaver to one
+   `ttfx` effect name instead of picking randomly each cycle; an
+   unrecognized name is ignored (falls back to random) and notifies.
 8. `version: 1` is required.
 
 `config/omarchy/shell.json` describes the fresh-install state. When no
