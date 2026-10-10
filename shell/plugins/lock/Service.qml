@@ -492,6 +492,15 @@ Item {
         onWakeRequested: root.runWake()
       }
 
+      // lockView lives in this per-screen delegate, so the session lock's own
+      // handler cannot see it; refocus from here once the lock is secure.
+      Connections {
+        target: sessionLock
+        function onSecureStateChanged() {
+          if (sessionLock.secure) lockView.forcePasswordFocus()
+        }
+      }
+
     }
   }
 
