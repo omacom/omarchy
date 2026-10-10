@@ -165,7 +165,7 @@ grep -F '  /etc/systemd/system/supergfxd.service.d/delay-start.conf 0644' "$ROOT
 
 delay_install_line=$(rg -n '^    if ! install_root_file .*delay-start\.conf' "$ROOT/bin/omarchy-toggle-hybrid-gpu" | cut -d: -f1)
 force_install_line=$(rg -n '^    if ! install_root_file .*force-igpu' "$ROOT/bin/omarchy-toggle-hybrid-gpu" | cut -d: -f1)
-config_switch_line=$(rg -n '^    sudo sed -i \\' "$ROOT/bin/omarchy-toggle-hybrid-gpu" | tail -1 | cut -d: -f1)
+config_switch_line=$(rg -n '^    sudo sed -i --follow-symlinks \\' "$ROOT/bin/omarchy-toggle-hybrid-gpu" | tail -1 | cut -d: -f1)
 [[ -n $delay_install_line && -n $force_install_line && -n $config_switch_line ]] ||
   fail "hybrid GPU setup keeps recognizable support-file and config-switch steps"
 (( delay_install_line < config_switch_line && force_install_line < config_switch_line )) ||
