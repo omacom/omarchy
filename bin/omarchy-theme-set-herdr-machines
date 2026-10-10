@@ -17,9 +17,18 @@ if [[ $1 == "--available" ]]; then
   exit
 fi
 
+# A fixed name in world-writable /tmp is a name any other local account can
+# claim first: point it at a file we can clobber, or hold its lock forever.
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}"
+mkdir -p "$RUNTIME_DIR" || exit 1
+# XDG_STATE_HOME may be outside a private home; protect the fallback too.
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  chmod 700 "$RUNTIME_DIR" || exit 1
+fi
+
 # Serialize runs and send whichever theme is current once the lock is held,
 # so a slow earlier run can never overwrite a later theme change.
-exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-herdr-machines.lock"
+exec 9>"$RUNTIME_DIR/omarchy-theme-set-herdr-machines.lock"
 flock 9
 
 # A theme that arrived from another machine stops here, so machines never echo it back.
