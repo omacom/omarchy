@@ -315,3 +315,101 @@ if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-editor --install vim >"$test_t
 fi
 [[ $(omarchy-default-editor) == "$previous_editor" ]] || fail "failed installation preserves the default"
 pass "failed installation preserves the current default"
+
+# Defaults > Browser shares the guard read; its query count and answer matter.
+# Keep generated entries independent of the runner's XDG environment.
+export XDG_DATA_HOME="$test_tmp/data-home"
+export XDG_DATA_DIRS="$test_tmp/system-share:$test_tmp/system share"
+browser_call_log="$test_tmp/xdg-settings-log"
+cat >"$mock_bin/xdg-settings" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_XDG_LOG"
+case $1 in
+get) [[ -f $OMARCHY_TEST_BROWSER_FILE ]] && cat "$OMARCHY_TEST_BROWSER_FILE" ;;
+set) printf '%s\n' "$3" >"$OMARCHY_TEST_BROWSER_FILE" ;;
+esac
+SH
+chmod +x "$mock_bin/xdg-settings"
+export OMARCHY_TEST_XDG_LOG="$browser_call_log"
+
+for packaged in chromium.desktop:chromium google-chrome.desktop:chrome brave-browser.desktop:brave \
+  brave-origin.desktop:brave-origin microsoft-edge.desktop:edge firefox.desktop:firefox zen.desktop:zen; do
+  printf '%s\n' "${packaged%%:*}" >"$browser_file"
+  [[ $(omarchy-default-browser) == "${packaged##*:}" ]] || fail "${packaged%%:*} still reads as ${packaged##*:}"
+done
+pass "every packaged browser id still reads as its own name"
+
+# The unmatched arm is where the second call was, and it is the arm any browser
+# that registered itself lands in.
+: >"$browser_call_log"
+printf 'unmatched.desktop\n' >"$browser_file"
+omarchy-default-browser >/dev/null
+[[ $(wc -l <"$browser_call_log") -eq 1 ]] || fail "an unmatched browser id is read with a single xdg-settings call"
+pass "reading an unmatched browser id asks xdg-settings once"
+
+: >"$browser_call_log"
+printf 'firefox.desktop\n' >"$browser_file"
+omarchy-default-browser >/dev/null
+[[ $(wc -l <"$browser_call_log") -eq 1 ]] || fail "a packaged browser id is read with a single xdg-settings call"
+pass "reading a packaged browser id asks xdg-settings once"
+
+# A browser that registers itself gets a generated entry whose filename names no
+# browser. Zen installs exactly this.
+mkdir -p "$XDG_DATA_HOME/applications"
+cat >"$XDG_DATA_HOME/applications/userapp-Zen-81ROQ3.desktop" <<'DESKTOP'
+[Desktop Entry]
+Exec=/opt/zen-browser-bin/zen %u
+Name=Zen
+DESKTOP
+printf 'userapp-Zen-81ROQ3.desktop\n' >"$browser_file"
+[[ $(omarchy-default-browser) == "zen" ]] || fail "a browser registered under a generated id reads as itself"
+pass "a browser registered under a generated desktop id is recognised"
+
+: >"$browser_call_log"
+omarchy-default-browser >/dev/null
+[[ $(wc -l <"$browser_call_log") -eq 1 ]] || fail "a generated id is resolved without a second xdg-settings call"
+pass "resolving a generated id still asks xdg-settings once"
+
+mkdir -p "$test_tmp/system share/applications"
+cat >"$test_tmp/system share/applications/userapp-Firefox-system.desktop" <<'DESKTOP'
+[Desktop Entry]
+Exec=env -u UNUSED "MOZ_ENABLE_WAYLAND=1" "/opt/browser with spaces/firefox" %u
+DESKTOP
+printf 'userapp-Firefox-system.desktop\n' >"$browser_file"
+[[ $(omarchy-default-browser) == "firefox" ]] || fail "wrapped system browser resolves through an XDG directory containing spaces"
+pass "wrapped browser entries resolve without executing their environment"
+
+cat >"$XDG_DATA_HOME/applications/userapp-Literal.desktop" <<DESKTOP
+[Desktop Entry]
+Exec=env "NOTE=\$(touch $test_tmp/exec-must-not-run)" /opt/firefox %u
+DESKTOP
+printf 'userapp-Literal.desktop\n' >"$browser_file"
+[[ $(omarchy-default-browser) == "firefox" && ! -e $test_tmp/exec-must-not-run ]] || fail "desktop Exec data is never evaluated as shell code"
+pass "desktop command substitutions remain literal data"
+
+cat >"$XDG_DATA_HOME/applications/userapp-Unrelated.desktop" <<'DESKTOP'
+[Desktop Entry]
+Exec=unknown-wrapper --label firefox %u
+DESKTOP
+printf 'userapp-Unrelated.desktop\n' >"$browser_file"
+[[ $(omarchy-default-browser) == "userapp-Unrelated.desktop" ]] || fail "an unrelated executable's arguments are not mistaken for a browser"
+pass "unrecognised wrappers retain their desktop id"
+
+cat >"$XDG_DATA_HOME/applications/userapp-Flatpak.desktop" <<'DESKTOP'
+[Desktop Entry]
+Exec=flatpak run --branch=stable --command firefox org.mozilla.firefox %u
+DESKTOP
+printf 'userapp-Flatpak.desktop\n' >"$browser_file"
+[[ $(omarchy-default-browser) == "firefox" ]] || fail "a registered Flatpak browser resolves to its menu name"
+pass "Flatpak browser entries are recognised"
+
+# Trace the shipped resolver's attempted paths without writing into /usr.
+printf 'userapp-system-paths.desktop\n' >"$browser_file"
+env -u XDG_DATA_DIRS bash -x "$ROOT/bin/omarchy-default-browser" >"$test_tmp/default-path-output" 2>"$test_tmp/default-path-trace"
+grep -Fq '/usr/local/share/applications/userapp-system-paths.desktop' "$test_tmp/default-path-trace" || fail "unset XDG_DATA_DIRS searches /usr/local/share/applications"
+grep -Fq '/usr/share/applications/userapp-system-paths.desktop' "$test_tmp/default-path-trace" || fail "unset XDG_DATA_DIRS searches /usr/share/applications"
+pass "unset XDG_DATA_DIRS keeps the standard system application directories"
+
+printf 'something-else.desktop\n' >"$browser_file"
+[[ $(omarchy-default-browser) == "something-else.desktop" ]] || fail "an unrecognised id still reports itself"
+pass "an unrecognised desktop id still reports the raw value"

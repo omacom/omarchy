@@ -10,8 +10,116 @@ if [[ ${1:-} == "--install" ]]; then
   shift
 fi
 
+# Maps the program a desktop entry runs to the name this command answers with.
+# A browser that registers itself through xdg-settings gets a generated entry
+# (Zen installs userapp-Zen-<id>.desktop) whose name matches none of the packaged
+# ids below, so the entry has to be opened and its Exec read to tell which
+# browser it is.
+browser_from_exec() {
+  case "${1##*/}" in
+  chromium | chromium-browser) echo "chromium" ;;
+  google-chrome-stable | google-chrome) echo "chrome" ;;
+  brave | brave-browser) echo "brave" ;;
+  brave-origin) echo "brave-origin" ;;
+  microsoft-edge-stable | microsoft-edge) echo "edge" ;;
+  firefox) echo "firefox" ;;
+  zen | zen-browser) echo "zen" ;;
+  esac
+}
+
+# Read desktop Exec arguments without evaluating expansions or running them.
+browser_from_exec_line() {
+  local line=$1 word="" character quoted=false escaped=false started=false i
+  local -a words=()
+  for ((i = 0; i < ${#line}; i++)); do
+    character=${line:i:1}
+    if [[ $escaped == "true" ]]; then
+      word+=$character
+      escaped=false
+    elif [[ $character == $'\\' ]]; then
+      escaped=true
+      started=true
+    elif [[ $character == '"' ]]; then
+      if [[ $quoted == "true" ]]; then
+        quoted=false
+      else
+        quoted=true
+      fi
+      started=true
+    elif [[ $quoted == "false" && ( $character == " " || $character == $'\t' ) ]]; then
+      if [[ $started == "true" ]]; then
+        words+=("$word")
+        word=""
+        started=false
+      fi
+    else
+      word+=$character
+      started=true
+    fi
+  done
+  [[ $quoted == "false" && $escaped == "false" ]] || return
+  if [[ $started == "true" ]]; then words+=("$word"); fi
+
+  i=0
+  if [[ ${words[0]##*/} == "env" ]]; then
+    i=1
+    while ((i < ${#words[@]})); do
+      if [[ ${words[i]} =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+        ((i += 1))
+        continue
+      fi
+      case "${words[i]}" in
+      -i|--ignore-environment|--unset=*|--chdir=*) ((i += 1)) ;;
+      -u|--unset|-C|--chdir) ((i += 2)) ;;
+      --) ((i += 1)); break ;;
+      -*) return ;;
+      *) break ;;
+      esac
+    done
+  fi
+  ((i < ${#words[@]})) || return
+
+  if [[ ${words[i]##*/} == "flatpak" && ${words[i+1]} == "run" ]]; then
+    ((i += 2))
+    while ((i < ${#words[@]})); do
+      case "${words[i]}" in
+      --arch|--branch|--command|--cwd|--env|--unset-env) ((i += 2)); continue ;;
+      --) ((i += 1)); break ;;
+      -*) ((i += 1)); continue ;;
+      *) break ;;
+      esac
+    done
+    case "${words[i]}" in
+    org.mozilla.firefox) echo "firefox" ;;
+    app.zen_browser.zen) echo "zen" ;;
+    org.chromium.Chromium) echo "chromium" ;;
+    com.google.Chrome) echo "chrome" ;;
+    com.brave.Browser) echo "brave" ;;
+    com.microsoft.Edge) echo "edge" ;;
+    esac
+  else
+    browser_from_exec "${words[i]}"
+  fi
+}
+
+browser_from_desktop_id() {
+  local dir entry exec_line
+  local -a data_dirs
+  IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  for dir in "${data_dirs[@]}"; do
+    entry="$dir/applications/$1"
+    [[ -r $entry ]] || continue
+    exec_line=$(sed -n 's/^Exec=//p' "$entry" | head -n 1)
+    [[ -n $exec_line ]] || continue
+    browser_from_exec_line "$exec_line"
+    return
+  done
+}
+
 if (($# == 0)); then
-  case "$(env -u BROWSER xdg-settings get default-web-browser)" in
+  current=$(env -u BROWSER xdg-settings get default-web-browser)
+
+  case "$current" in
   chromium.desktop) echo "chromium" ;;
   google-chrome.desktop) echo "chrome" ;;
   brave-browser.desktop) echo "brave" ;;
@@ -19,7 +127,13 @@ if (($# == 0)); then
   microsoft-edge.desktop) echo "edge" ;;
   firefox.desktop) echo "firefox" ;;
   zen.desktop) echo "zen" ;;
-  *) env -u BROWSER xdg-settings get default-web-browser ;;
+  *)
+    # A generated entry names the browser in its Exec rather than its filename.
+    # Falling back to the raw id keeps the previous answer for anything this
+    # cannot identify.
+    resolved=$(browser_from_desktop_id "$current")
+    printf '%s\n' "${resolved:-$current}"
+    ;;
   esac
   exit 0
 fi
