@@ -10,7 +10,7 @@ const weather = requireFromRoot('shell/plugins/panels/weather/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/weather/Panel.qml', 'utf8')
 const widgetSource = fs.readFileSync(root + '/shell/plugins/panels/weather/BarWidget.qml', 'utf8')
 
-assertDeepEqual(weather.parseLocationFile('{"name": "Malibu", "latitude": 34.02577, "longitude": -118.7804}\n'), { name: 'Malibu', latitude: 34.02577, longitude: -118.7804 }, 'weather parses name plus coordinates from weather.json')
+assertDeepEqual(weather.parseLocationFile('{"name": "Malibu", "latitude": 34.02577, "longitude": -118.7804}\n'), { name: 'Malibu', latitude: 34.03, longitude: -118.78 }, 'weather parses name plus coordinates from weather.json')
 assertDeepEqual(weather.parseLocationFile('{"name": "New York"}'), { name: 'New York', latitude: null, longitude: null }, 'weather parses a name-only weather.json')
 assertDeepEqual(weather.parseLocationFile('{"name": "Malibu", "latitude": 34.02577}'), { name: 'Malibu', latitude: null, longitude: null }, 'weather requires both coordinates')
 assertDeepEqual(weather.parseLocationFile('not json'), { name: '', latitude: null, longitude: null }, 'weather treats an unparseable weather.json as auto-detect')
@@ -19,13 +19,15 @@ assertDeepEqual(weather.parseLocationFile(''), { name: '', latitude: null, longi
 assertDeepEqual(weather.locationCommit('  Pasadena  ', [], 0), { name: 'Pasadena', latitude: null, longitude: null }, 'weather commits typed locations before suggestions load')
 assertDeepEqual(weather.locationCommit('', [], 0), { name: '', latitude: null, longitude: null }, 'weather commits an empty location as auto-detect')
 assertDeepEqual(
-  weather.locationCommit('mal', [{ name: 'Malibu', latitude: 34.02577, longitude: -118.7804 }], 0),
-  { name: 'Malibu', latitude: 34.02577, longitude: -118.7804 },
+  weather.locationCommit('mal', [{ name: 'Malibu', latitude: 34.03, longitude: -118.78 }], 0),
+  { name: 'Malibu', latitude: 34.03, longitude: -118.78 },
   'weather commits the selected geocoding suggestion when available'
 )
 
-assertEqual(weather.wttrLocationQuery('Malibu', 34.02577, -118.7804), '34.02577,-118.7804', 'weather prefers coordinates for the wttr query')
-assertEqual(weather.wttrLocationQuery('Malibu', '34.02577', '-118.7804'), '34.02577,-118.7804', 'weather accepts string coordinates')
+assertEqual(weather.wttrLocationQuery('Malibu', 34.02577, -118.7804), '34.03,-118.78', 'weather prefers coordinates for the wttr query')
+assertEqual(weather.roundCoordinate(34.02577), 34.03, 'weather rounds coordinates to two decimals')
+assertEqual(weather.roundCoordinate('nope'), null, 'weather ignores unparseable coordinates when rounding')
+assertEqual(weather.wttrLocationQuery('Malibu', '34.02577', '-118.7804'), '34.03,-118.78', 'weather accepts string coordinates')
 assertEqual(weather.wttrLocationQuery('New York', null, null), 'New%20York', 'weather URL-encodes a name-only location')
 assertEqual(weather.wttrLocationQuery('Malibu', 'nope', -118.7804), 'Malibu', 'weather ignores unparseable coordinates')
 assertEqual(weather.wttrLocationQuery('', null, null), '', 'weather falls back to IP auto-detect without a location')
@@ -34,15 +36,15 @@ assertEqual(weather.wttrLocationQuery('  ', null, null), '', 'weather treats a b
 assertDeepEqual(
   weather.parseGeocodingResults(JSON.stringify({
     results: [
-      { name: 'Malibu', latitude: 34.02577, longitude: -118.7804, admin1: 'California', country: 'United States' },
-      { name: 'Malibu', latitude: -7.18333, longitude: 29.65, admin1: 'Tanganyika', country: 'Democratic Republic of Congo' },
+      { name: 'Malibu', latitude: 34.03, longitude: -118.78, admin1: 'California', country: 'United States' },
+      { name: 'Malibu', latitude: -7.18, longitude: 29.65, admin1: 'Tanganyika', country: 'Democratic Republic of Congo' },
       { name: 'Broken', latitude: 1.0 },
       { name: 'Bare', latitude: 2.0, longitude: 3.0 }
     ]
   })),
   [
-    { name: 'Malibu', description: 'California, United States', latitude: 34.02577, longitude: -118.7804 },
-    { name: 'Malibu', description: 'Tanganyika, Democratic Republic of Congo', latitude: -7.18333, longitude: 29.65 },
+    { name: 'Malibu', description: 'California, United States', latitude: 34.03, longitude: -118.78 },
+    { name: 'Malibu', description: 'Tanganyika, Democratic Republic of Congo', latitude: -7.18, longitude: 29.65 },
     { name: 'Bare', description: '', latitude: 2.0, longitude: 3.0 }
   ],
   'weather parses geocoding suggestions and drops incomplete rows'
@@ -163,7 +165,7 @@ weather_location() {
 }
 
 weather_location --set "Malibu" "34.02577,-118.7804"
-[[ $(jq -c . "$test_tmp/.local/state/omarchy/settings/weather.json") == '{"name":"Malibu","latitude":34.02577,"longitude":-118.7804}' ]] || fail "weather location stores name and coordinates as JSON"
+[[ $(jq -c . "$test_tmp/.local/state/omarchy/settings/weather.json") == '{"name":"Malibu","latitude":34.03,"longitude":-118.78}' ]] || fail "weather location stores name and coordinates as JSON"
 pass "weather location stores name and coordinates as JSON"
 
 [[ $(weather_location) == "Malibu" ]] || fail "weather location returns the stored name"

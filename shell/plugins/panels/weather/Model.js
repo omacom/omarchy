@@ -1,15 +1,24 @@
 // weather.json holds {"name": ..., "latitude": ..., "longitude": ...} (see
 // omarchy-weather-location, which owns the format). Missing, blank, or
 // unparseable means the location is auto-detected from the IP address.
+// Geocoder precision is far finer than weather needs and turns into a
+// fingerprint when persisted and sent to open APIs. Two decimals (~1.1 km)
+// is enough for forecasts (#13050).
+function roundCoordinate(value) {
+  var n = parseFloat(String(value))
+  if (isNaN(n)) return null
+  return Math.round(n * 100) / 100
+}
+
 function parseLocationFile(raw) {
   var unset = { name: "", latitude: null, longitude: null }
   try {
     var data = JSON.parse(String(raw || ""))
     if (!data || typeof data !== "object") return unset
 
-    var latitude = parseFloat(data.latitude)
-    var longitude = parseFloat(data.longitude)
-    var hasCoordinates = !isNaN(latitude) && !isNaN(longitude)
+    var latitude = roundCoordinate(data.latitude)
+    var longitude = roundCoordinate(data.longitude)
+    var hasCoordinates = latitude !== null && longitude !== null
     return {
       name: typeof data.name === "string" ? data.name.replace(/^\s+|\s+$/g, "") : "",
       latitude: hasCoordinates ? latitude : null,
@@ -24,9 +33,9 @@ function parseLocationFile(raw) {
 // both are present, the URL-encoded name as a fallback (hand-edited
 // weather.loc files may only carry a name), empty for IP auto-detect.
 function wttrLocationQuery(location, latitude, longitude) {
-  var lat = parseFloat(String(latitude))
-  var lon = parseFloat(String(longitude))
-  if (!isNaN(lat) && !isNaN(lon)) return lat + "," + lon
+  var lat = roundCoordinate(latitude)
+  var lon = roundCoordinate(longitude)
+  if (lat !== null && lon !== null) return lat + "," + lon
 
   var name = String(location || "").replace(/^\s+|\s+$/g, "")
   return name === "" ? "" : encodeURIComponent(name)
@@ -47,8 +56,8 @@ function parseGeocodingResults(raw) {
       out.push({
         name: String(r.name),
         description: region,
-        latitude: r.latitude,
-        longitude: r.longitude
+        latitude: roundCoordinate(r.latitude),
+        longitude: roundCoordinate(r.longitude)
       })
     }
     return out
@@ -64,7 +73,15 @@ function locationCommit(text, suggestions, selectedIndex) {
   var choices = suggestions || []
   var index = Math.max(0, Math.min(parseInt(selectedIndex, 10) || 0, choices.length - 1))
   var suggestion = choices[index]
-  if (suggestion) return suggestion
+  if (suggestion) {
+    var committed = {
+      name: suggestion.name,
+      latitude: roundCoordinate(suggestion.latitude),
+      longitude: roundCoordinate(suggestion.longitude)
+    }
+    if (suggestion.description !== undefined) committed.description = suggestion.description
+    return committed
+  }
 
   return { name: name, latitude: null, longitude: null }
 }
@@ -267,6 +284,7 @@ function iconForCode(code, night) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    roundCoordinate: roundCoordinate,
     parseLocationFile: parseLocationFile,
     wttrLocationQuery: wttrLocationQuery,
     parseGeocodingResults: parseGeocodingResults,
