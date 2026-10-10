@@ -1,0 +1,4 @@
+# Base packages with no aarch64 build in any repository Omarchy configures.
+# omarchy-pkg-defaults leaves them out of every aarch64 platform's set.
+gliff
+superwhisper-bin

@@ -51,8 +51,10 @@ assert(
 )
 JS
 
+require_compositor "pointer movement gate runtime test"
+
 if ! command -v quickshell >/dev/null 2>&1; then
-  pass "quickshell not installed; skipping pointer movement gate runtime test"
+  skip "quickshell not installed; skipping pointer movement gate runtime test"
   exit 0
 fi
 

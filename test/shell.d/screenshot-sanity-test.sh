@@ -12,27 +12,27 @@ cleanup() {
     kill "$QS_PID" 2>/dev/null || true
     wait "$QS_PID" 2>/dev/null || true
   fi
-  [[ -n $TMPDIR && -d $TMPDIR ]] && rm -rf "$TMPDIR"
+  [[ -n ${test_root:-} ]] && rm -f "$(shell_ipc_socket "$test_root")"
+  if [[ -n $TMPDIR && -d $TMPDIR ]]; then
+    rm -rf "$TMPDIR"
+  fi
 }
 trap cleanup EXIT
 
-if [[ -z ${WAYLAND_DISPLAY:-} ]]; then
-  pass "no Wayland compositor; skipping screenshot sanity test"
-  exit 0
-fi
+require_compositor "screenshot sanity test"
 
 if ! command -v quickshell >/dev/null 2>&1; then
-  pass "quickshell not installed; skipping screenshot sanity test"
+  skip "quickshell not installed; skipping screenshot sanity test"
   exit 0
 fi
 
-if pgrep -x slurp >/dev/null 2>&1; then
-  pass "slurp is already running; skipping screenshot sanity test"
+if pgrep -x omasnap >/dev/null 2>&1; then
+  skip "omasnap is already running; skipping screenshot sanity test"
   exit 0
 fi
 
 require_command hyprctl
-require_command grim
+require_command omasnap
 require_command jq
 require_command python3
 
@@ -89,6 +89,9 @@ chmod +x "$stub_bin/curl"
 
 OMARCHY_PATH="$test_root" \
 HOME="$test_home" \
+XDG_CONFIG_HOME="$test_home/.config" \
+XDG_CACHE_HOME="$test_home/.cache" \
+XDG_STATE_HOME="$test_home/.local/state" \
 PATH="$stub_bin:$ROOT/bin:$PATH" \
   quickshell -p "$test_root/shell" --no-color >"$log" 2>&1 &
 QS_PID=$!
@@ -116,13 +119,13 @@ jq -e '
   fail_with_log "screenshot test shell rendered visible bar widgets"
 }
 
-screenshot=$(
-  OMARCHY_PATH="$test_root" \
-  OMARCHY_SCREENSHOT_DIR="$screenshot_dir" \
-  HOME="$test_home" \
-  PATH="$stub_bin:$ROOT/bin:$PATH" \
-    "$ROOT/bin/omarchy" capture screenshot fullscreen save 2>"$screenshot_err" | tail -n 1
-)
+OMARCHY_PATH="$test_root" \
+OMASNAP_SCREENSHOT_DIR="$screenshot_dir" \
+HOME="$test_home" \
+PATH="$stub_bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy" capture screenshot fullscreen save >/dev/null 2>"$screenshot_err"
+
+screenshot=$(find "$screenshot_dir" -maxdepth 1 -type f -name '*.png' -print -quit)
 
 [[ -n $screenshot && -f $screenshot ]] || fail_with_log "fullscreen screenshot was captured"
 

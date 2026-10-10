@@ -36,14 +36,40 @@ grep -F 'sync_poll_state' "$monitor_watch" >/dev/null
 grep -F 'done < <(socat' "$monitor_watch" >/dev/null
 pass "clamshell poll only runs on a docked laptop, not desktops or undocked laptops"
 
+# Recovery costs a reload per attempt, so it must not run on a healthy machine,
+# and only one loop may run across the events that start it.
+grep -F '(( state == 1 )) && break' "$monitor_watch" >/dev/null
+grep -F 'delay = delay * 2 > 60 ? 60 : delay * 2' "$monitor_watch" >/dev/null
+grep -F '9>"$MODELESS_LOCK"' "$monitor_watch" >/dev/null
+grep -F 'flock -w 1 9 || exit 0' "$monitor_watch" >/dev/null
+pass "modeless monitor recovery runs one backing-off loop while a monitor has no mode"
+
+# Nothing fires an event for this state, so an unanswered query must not end
+# recovery -- but a compositor that never answers has gone with the session.
+grep -F '(( state == 2 )) && (( ++unanswered > 20 )) && break' "$monitor_watch" >/dev/null
+pass "modeless recovery retries unanswered queries without waiting on a dead compositor"
+
+grep -F 'configreloaded\>\>*)' "$monitor_watch" >/dev/null
+pass "modeless recovery also runs after a config reload"
+
+grep -F 'omarchy-hyprland-reload-guard paused' "$monitor_watch" >/dev/null
+pass "modeless recovery does not reload into a package transaction"
+
+grep -F '.disabled != true and (.width == 0 or .height == 0)' "$ROOT/bin/omarchy-hyprland-monitor-modeless" >/dev/null
+grep -F 'hyprctl monitors all -j' "$ROOT/bin/omarchy-hyprland-monitor-modeless" >/dev/null
+pass "modeless helper sees mirrors and ignores monitors disabled on purpose"
+
 grep -F 'omarchy-hw-laptop-closed && omarchy-hw-external-monitors' "$hw_clamshell" >/dev/null
-grep -F '/proc/acpi/button/lid/*/state' "$hw_laptop_closed" >/dev/null
+grep -F 'org.freedesktop.login1.Manager LidClosed' "$hw_laptop_closed" >/dev/null
+grep -F 'OMARCHY_ACPI_LID_PATH:-/proc/acpi/button/lid' "$hw_laptop_closed" >/dev/null
 pass "clamshell helper detects closed-lid external monitor state"
 
-grep -F 'hyprctl monitors -j' "$monitor_external_active" >/dev/null
+# A mirrored external is absent from plain `monitors`, so asking without `all`
+# reads as a disconnect and hands the mirror toggle straight to recovery.
+grep -F 'hyprctl monitors all -j' "$monitor_external_active" >/dev/null
 grep -F 'select(.name | test("^(eDP|LVDS|DSI)-") | not)' "$monitor_external_active" >/dev/null
 grep -F 'select(.disabled == false)' "$monitor_external_active" >/dev/null
-pass "active external monitor helper checks Hyprland outputs"
+pass "active external monitor helper sees mirrors and ignores monitors disabled on purpose"
 
 grep -F 'omarchy-hyprland-monitor-internal recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
 grep -F 'omarchy-hyprland-monitor-internal-mirror recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
@@ -74,6 +100,10 @@ pass "internal mirror helper recovers when no active external display remains"
 
 grep -F 'switch:on:Lid Switch", nil, "omarchy-system-lid-close"' "$utilities" >/dev/null
 grep -F 'switch:off:Lid Switch", nil, "omarchy-hyprland-monitor-clamshell"' "$utilities" >/dev/null
+grep -F 'switch:on:Apple SMC power/lid events", nil, "omarchy-system-lid-close"' "$utilities" >/dev/null ||
+  fail "closing an Apple Silicon lid runs the same lid-close as any laptop"
+grep -F 'switch:off:Apple SMC power/lid events", nil, "omarchy-hyprland-monitor-clamshell"' "$utilities" >/dev/null ||
+  fail "opening an Apple Silicon lid restores the panel like any laptop"
 pass "lid switch bindings lock on close and reconcile clamshell display state"
 
 grep -F 'omarchy-hyprland-monitor-clamshell >/dev/null 2>&1 || true' "$system_wake" >/dev/null
@@ -82,6 +112,6 @@ pass "system wake resyncs clamshell display state"
 grep -F 'lock-pending: no-real-screen' "$lock_service" >/dev/null
 grep -F 'lock-pending: screen-stabilizing' "$lock_service" >/dev/null
 grep -F 'id: sessionLockStabilizeTimer' "$lock_service" >/dev/null
-grep -F 'function onScreensChanged() { root.requestSessionLock() }' "$lock_service" >/dev/null
+grep -Pzo 'function onScreensChanged\(\) \{\n(.*\n)*?\s*root\.requestSessionLock\(\)\n' "$lock_service" >/dev/null
 grep -F 'realScreens: root.realScreenCount()' "$lock_service" >/dev/null
 pass "lock service waits for stable real screens before session lock"

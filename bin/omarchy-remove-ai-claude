@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the Claude desktop app along with its configuration and caches.
+# omarchy:requires-sudo=true
+
+# -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
+set -euo pipefail
+
+# The app rewrites ~/.config/Claude for as long as it runs, so a removal that
+# leaves it running deletes the directory and watches it come straight back.
+pkill -x claude-desktop || true
+
+omarchy-pkg-drop claude-desktop
+
+# Not ~/.claude, ~/.claude.json, or ~/.cache/claude-cli-nodejs: those belong
+# to the Claude Code CLI, which ships in a different package that survives
+# this one. The desktop app keeps its state in its own Electron directories.
+rm -rf \
+  "$HOME/.config/Claude" \
+  "$HOME/.cache/Claude"
+
+echo ""
+echo "Claude has been removed."
