@@ -13,6 +13,17 @@ assertEqual(idle.secondsFromConfig('42.9', 10), 42, 'idle floors configured seco
 assertEqual(idle.secondsFromConfig('-1', 10), 10, 'idle rejects negative seconds')
 assertEqual(idle.secondsFromConfig('nope', 10), 10, 'idle rejects invalid seconds')
 assertEqual(idle.secondsFromConfig(0, 300), 0, 'idle keeps an explicit zero timeout')
+assertEqual(idle.secondsFromConfig(2147483, 300), 2147483, 'idle keeps the longest timeout a timer can hold')
+assertEqual(idle.secondsFromConfig(999999999, 300), 2147483, 'idle caps a timeout at the longest timer interval')
+assertEqual(idle.secondsFromConfig(1e12, 300), 2147483, 'idle caps a timeout too large for an int property')
+for (const [screensaverConfig, lockConfig] of [[999999999, 0], [0, 999999999], [999999999, 999999999], [150, 999999999], [999999999, 150]]) {
+  const screensaver = idle.secondsFromConfig(screensaverConfig, 150)
+  const lock = idle.secondsFromConfig(lockConfig, 300)
+  const first = idle.firstIdleTimeout(screensaver, lock)
+  for (const seconds of [first, idle.delayAfterFirstIdle(screensaver, first), idle.delayAfterFirstIdle(lock, first)]) {
+    assert(seconds >= 0 && seconds * 1000 <= 2147483647, `idle keeps screensaver=${screensaverConfig} lock=${lockConfig} within int32 milliseconds`)
+  }
+}
 assertEqual(idle.firstIdleTimeout(150, 300), 150, 'idle uses the sooner of screensaver and lock')
 assertEqual(idle.firstIdleTimeout(0, 300), 300, 'idle ignores a disabled screensaver when computing first idle')
 assertEqual(idle.firstIdleTimeout(150, 0), 150, 'idle ignores a disabled lock when computing first idle')

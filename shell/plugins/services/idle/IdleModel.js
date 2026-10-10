@@ -1,7 +1,11 @@
+// Timer intervals are int32 milliseconds: past this a timeout wraps negative and
+// Qt warns every millisecond of the idle cycle, filling the runtime dir with log.
+var maxTimeoutSeconds = Math.floor(2147483647 / 1000)
+
 function secondsFromConfig(value, fallback) {
   var n = Number(value)
   if (!isFinite(n) || n < 0) return fallback
-  return Math.floor(n)
+  return Math.min(Math.floor(n), maxTimeoutSeconds)
 }
 
 // 0 means the action is disabled, not "fire immediately". min(0, 300) would
