@@ -141,12 +141,7 @@ def parse_sessions(db_file, brain_dir, now):
 
 def slugify_model(name):
     clean = name.lower().strip()
-    if "flash" in clean:
-        return "gemini-3.8-flash"
-    elif "pro" in clean:
-        return "gemini-3.5-pro"
-    elif "sonnet" in clean:
-        return "claude-3.7-sonnet"
+    clean = re.sub(r"\s*\([^)]*\)", "", clean)
     slug = re.sub(r"[^a-z0-9.]+", "-", clean).strip("-")
     return slug or "default"
 
@@ -287,12 +282,31 @@ def main():
     default_target = os.path.join(default_target_dir, f"{AGENT_ID}.json")
     target_file = args.output or default_target
 
+    # Clean up legacy alias record if present to avoid duplicate panel entries
+    legacy_alias = os.path.join(default_target_dir, "antigravity.json")
+    if os.path.exists(legacy_alias) and target_file != legacy_alias:
+        try:
+            os.remove(legacy_alias)
+        except OSError:
+            pass
+
     now = datetime.now().astimezone()
     now_ts = now.timestamp()
 
-    # Unused check: emit empty record if no directory exists
+    limits, tier, usage_status = compute_limits(config_dir)
+    has_configured_limits = bool(limits) or bool(tier)
+
+    # Unused check: emit empty record if no directory exists and no limits configured
     if not os.path.exists(antigravity_dir):
-        record = empty_record()
+        if has_configured_limits:
+            record = empty_record()
+            record["ready"] = True
+            record["tierLabel"] = tier
+            record["limits"] = limits
+            record["usageStatusText"] = usage_status
+        else:
+            record = empty_record()
+
         record_json = json.dumps(record, separators=(",", ":"))
         if target_file:
             try:
@@ -329,9 +343,14 @@ def main():
         hist_stats = parse_history(history_file, now)
         total_sess, today_sess = parse_sessions(db_file, brain_dir, now)
         trans_stats = parse_transcripts(brain_dir, now)
-        limits, tier, usage_status = compute_limits(config_dir)
 
-        if hist_stats["totalPrompts"] == 0 and total_sess == 0 and len(hist_stats["activeDates"]) == 0:
+        has_local_activity = (
+            hist_stats["totalPrompts"] > 0
+            or total_sess > 0
+            or len(hist_stats["activeDates"]) > 0
+        )
+
+        if not has_configured_limits and not has_local_activity:
             record = empty_record()
         else:
             record = {
@@ -339,8 +358,8 @@ def main():
                 "id": AGENT_ID,
                 "name": AGENT_NAME,
                 "updatedAt": datetime.now(timezone.utc).isoformat(),
-                "ready": True,
-                "hasLocalStats": True,
+                "ready": has_configured_limits or has_local_activity,
+                "hasLocalStats": has_local_activity,
                 "todayPrompts": hist_stats["todayPrompts"],
                 "todaySessions": today_sess,
                 "todayTotalTokens": trans_stats["todayTotalTokens"],
