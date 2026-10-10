@@ -202,9 +202,6 @@ BorderSurface {
       if (mouse.button === Qt.RightButton) root.rightClicked()
       else root.clicked()
     }
-  }
-
-  HoverHandler {
-    onHoveredChanged: root.hovered(hovered)
+    onContainsMouseChanged: root.hovered(containsMouse)
   }
 }

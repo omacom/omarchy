@@ -651,10 +651,18 @@ Panel {
               }
 
               HoverHandler {
-                onHoveredChanged: if (hovered && !root.reflowingText) {
-                  root.cursorActive = true
-                  root.focusSection = "brightness"
-                  root.selectedIndex = -1
+                onHoveredChanged: {
+                  if (root.reflowingText) return
+                  Cursor.applyHover(
+                    hovered,
+                    root.cursorActive && root.focusSection === "brightness" && root.selectedIndex === -1,
+                    function() {
+                      root.cursorActive = true
+                      root.focusSection = "brightness"
+                      root.selectedIndex = -1
+                    },
+                    function() { root.cursorActive = false }
+                  )
                 }
               }
             }
@@ -723,10 +731,18 @@ Panel {
               }
 
               HoverHandler {
-                onHoveredChanged: if (hovered && !root.reflowingText) {
-                  root.cursorActive = true
-                  root.focusSection = "textsize"
-                  root.selectedIndex = -1
+                onHoveredChanged: {
+                  if (root.reflowingText) return
+                  Cursor.applyHover(
+                    hovered,
+                    root.cursorActive && root.focusSection === "textsize" && root.selectedIndex === -1,
+                    function() {
+                      root.cursorActive = true
+                      root.focusSection = "textsize"
+                      root.selectedIndex = -1
+                    },
+                    function() { root.cursorActive = false }
+                  )
                 }
               }
             }
@@ -855,10 +871,17 @@ Panel {
 
     onClicked: root.setScale(scaleValue)
     onHovered: function(isHovered) {
-      if (!isHovered || root.reflowingText) return
-      root.cursorActive = true
-      root.focusSection = "scale"
-      root.selectedIndex = pill.scaleIndex
+      if (root.reflowingText) return
+      Cursor.applyHover(
+        isHovered,
+        root.cursorActive && root.focusSection === "scale" && root.selectedIndex === pill.scaleIndex,
+        function() {
+          root.cursorActive = true
+          root.focusSection = "scale"
+          root.selectedIndex = pill.scaleIndex
+        },
+        function() { root.cursorActive = false }
+      )
     }
   }
 
@@ -925,10 +948,18 @@ Panel {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: monitorRow.canToggle ? Qt.PointingHandCursor : Qt.ArrowCursor
-      onContainsMouseChanged: if (containsMouse && !root.reflowingText) {
-        root.cursorActive = true
-        root.focusSection = "monitors"
-        root.selectedIndex = monitorRow.rowIndex
+      onContainsMouseChanged: {
+        if (root.reflowingText) return
+        Cursor.applyHover(
+          containsMouse,
+          root.cursorActive && root.focusSection === "monitors" && root.selectedIndex === monitorRow.rowIndex,
+          function() {
+            root.cursorActive = true
+            root.focusSection = "monitors"
+            root.selectedIndex = monitorRow.rowIndex
+          },
+          function() { root.cursorActive = false }
+        )
       }
       onClicked: if (monitorRow.canToggle) root.toggleDisplay(monitorRow.display.name, monitorRow.display.enabled)
     }
