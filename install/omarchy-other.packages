@@ -73,3 +73,8 @@ t2fanrd
 
 # Framework 16
 qmk-hid
+
+# Elgato Cam Link 4K relay
+v4l2loopback-dkms
+v4l2loopback-utils
+v4l2-relayd
