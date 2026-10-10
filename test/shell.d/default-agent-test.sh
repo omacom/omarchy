@@ -126,6 +126,7 @@ export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
 export OMARCHY_PATH="$ROOT"
 
 grok_package="grok"
+dsh_package="npm:@deepseek-ai/dsh@0.2.0-rc.2"
 legacy_grok_package="npm:@xai-official/grok"
 omp_package="github:can1357/oh-my-pi"
 crush_package="crush"
@@ -164,6 +165,7 @@ grep -Fx "$crush_package" "$stub_log" >/dev/null || fail "user setup creates the
 grep -Fx "$ori_package ori" "$stub_log" >/dev/null || fail "user setup creates the Ori lazy stub"
 OMARCHY_TEST_MISSING_COMMAND=muse source "$ROOT/install/user/mise.sh"
 grep -Fx "$muse_package muse" "$stub_log" >/dev/null || fail "user setup creates the Muse lazy stub"
+grep -Fx "$dsh_package dsh" "$stub_log" >/dev/null || fail "user setup creates the DeepSeek Harness lazy stub"
 pass "user setup creates the custom agent lazy stubs"
 
 : >"$stub_log"
@@ -184,6 +186,19 @@ OMARCHY_TEST_MISSING_COMMAND=muse source "$ROOT/migrations/1788724825.sh" >/dev/
 [[ ! -s $stub_log ]] || fail "Muse migration ignores the preinstall opt-out"
 rm "$test_home/.local/state/omarchy/preinstalls-removed"
 pass "Muse migration preserves existing installs and the preinstall opt-out"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=dsh source "$ROOT/migrations/1791520761.sh" >/dev/null
+grep -Fx "$dsh_package dsh" "$stub_log" >/dev/null || fail "DeepSeek Harness migration creates its lazy stub"
+: >"$stub_log"
+source "$ROOT/migrations/1791520761.sh" >/dev/null
+[[ ! -s $stub_log ]] || fail "DeepSeek Harness migration replaces an existing command"
+mkdir -p "$test_home/.local/state/omarchy"
+touch "$test_home/.local/state/omarchy/preinstalls-removed"
+OMARCHY_TEST_MISSING_COMMAND=dsh source "$ROOT/migrations/1791520761.sh" >/dev/null
+[[ ! -s $stub_log ]] || fail "DeepSeek Harness migration ignores the preinstall opt-out"
+rm "$test_home/.local/state/omarchy/preinstalls-removed"
+pass "DeepSeek Harness migration installs the lazy stub an existing install is missing"
 
 
 : >"$stub_log"
@@ -420,9 +435,10 @@ grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null ||
 pass "agent migrations install working wrappers without overriding the preinstall opt-out"
 
 "$ROOT/bin/omarchy-mise-install" "$muse_package" muse
+"$ROOT/bin/omarchy-mise-install" "$dsh_package" dsh
 touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
 omarchy-remove-preinstalls >/dev/null
-for command in agy omp ori grok crush cursor-agent muse; do
+for command in agy omp ori grok crush cursor-agent muse dsh; do
   [[ ! -e $test_home/.local/bin/$command ]] || fail "Remove Preinstalls deletes the $command lazy stub"
 done
 pass "Remove Preinstalls deletes every optional agent lazy stub"
@@ -494,6 +510,9 @@ declare -A expected_agents=(
   [claude]="claude"
   [claude-code]="claude"
   [codex]="codex"
+  [dsh]="dsh"
+  [deepseek]="dsh"
+  [deepseek-harness]="dsh"
   [crush]="crush"
   [grok]="grok"
   [agy]="agy"
@@ -517,6 +536,7 @@ declare -A expected_packages=(
   [ori]="$ori_package"
   [claude]="claude"
   [codex]="codex"
+  [dsh]="$dsh_package"
   [crush]="$crush_package"
   [grok]="$grok_package"
   [agy]="$agy_package"
