@@ -40,11 +40,15 @@ capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$battery_info")
 time_remaining=$(awk '/time to (empty|full)/ {
   value = $4
   unit = $5
-  if (unit ~ /^minute/) {
+  if (unit ~ /^second/) {
+    printf "%dm", int(value / 60)
+  } else if (unit ~ /^minute/) {
     printf "%dm", int(value)
   } else {
-    hours = int(value)
-    minutes = int((value - hours) * 60)
+    if (unit ~ /^day/) value *= 24
+    total = int(value * 60 + 0.5)
+    hours = int(total / 60)
+    minutes = total % 60
     if (minutes > 0) {
       printf "%dh %dm", hours, minutes
     } else {
