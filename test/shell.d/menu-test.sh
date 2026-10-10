@@ -675,6 +675,11 @@ assert(
   'menu row hover routes through pointer movement gate'
 )
 assert(
+  /dmenuSaved = dmenuSelected\s*\n\s*if \(dmenuOnChange\.length > 0\)/.test(menuQml)
+    && /root\.dmenuSaved = root\.dmenuSelected\s*\n\s*\} else \{\s*root\.dmenuSelected = root\.dmenuSaved/.test(menuQml),
+  'a failed immediate change restores the confirmed checks, even after reopening onto queued ones'
+)
+assert(
   /onEntered: root\.selectFromPointer\(row\.index, row, \{\s*x: mouseArea\.mouseX,\s*y: mouseArea\.mouseY\s*\}\)/.test(menuQml),
   'menu samples pointer movement immediately when entering a row'
 )

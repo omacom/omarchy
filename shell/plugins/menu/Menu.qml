@@ -59,6 +59,8 @@ Item {
   property var dmenuOptions: []
   property bool dmenuMultiple: false
   property var dmenuSelected: []
+  // What the last confirmed change applied; a failed change returns the checks here.
+  property var dmenuSaved: []
   property string dmenuChangeKey: ""
   property var dmenuOnChange: []
   property string selectionFile: ""
@@ -911,6 +913,7 @@ Item {
       && payload.onChange.every(function(arg) { return typeof arg === "string" }) ? payload.onChange : []
     dmenuChangeKey = String(payload.changeKey || JSON.stringify(dmenuOnChange))
     dmenuSelected = MenuModel.dmenuSelections(dmenuOptions, Array.isArray(payload.selected) ? payload.selected : [], dmenuOnChange.length > 0)
+    dmenuSaved = dmenuSelected
     if (dmenuOnChange.length > 0)
       dmenuSelected = MenuModel.dmenuSelections(dmenuOptions, selectionProc.requestedSelection(), true)
     selectionFile = String(payload.selectionFile || "")
@@ -1039,6 +1042,9 @@ Item {
           }
           if (Array.isArray(applied))
             root.dmenuSelected = MenuModel.dmenuSelections(root.dmenuOptions, applied, true)
+          root.dmenuSaved = root.dmenuSelected
+        } else {
+          root.dmenuSelected = root.dmenuSaved
         }
         root.updateDmenuChecks()
       }
