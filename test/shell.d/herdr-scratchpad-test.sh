@@ -63,6 +63,7 @@ cat >"$mock_bin/omarchy-agent" <<'SH'
 #!/bin/bash
 printf '%s\0' "$@" >"$OMARCHY_TEST_AGENT_LOG"
 [[ ${OMARCHY_TEST_AGENT_FAILS:-false} == true ]] && exit 1
+exit 0
 SH
 
 cat >"$mock_bin/test-shell" <<'SH'
@@ -74,22 +75,26 @@ chmod +x "$mock_bin"/*
 
 run_launcher() {
   HOME="$test_home" PATH="$mock_bin:$PATH" HERDR_WORKSPACE_ID=workspace \
-    OMARCHY_TEST_AGENT_LOG="$agent_log" OMARCHY_TEST_SHELL_LOG="$shell_log" \
-    OMARCHY_TEST_RENAME_LOG="$rename_log" "$launcher"
+    SHELL="$mock_bin/test-shell" OMARCHY_TEST_AGENT_LOG="$agent_log" \
+    OMARCHY_TEST_SHELL_LOG="$shell_log" OMARCHY_TEST_RENAME_LOG="$rename_log" \
+    "$launcher"
 }
 
 : >"$agent_log"
 : >"$rename_log"
+rm -f "$shell_log"
 run_launcher
 mapfile -d '' -t agent_args <"$agent_log"
 [[ ${agent_args[*]} == "--inline" ]] ||
   fail "scratchpad panes launch the default agent inline"
 [[ $(<"$rename_log") == "workspace scratchpad" ]] ||
   fail "scratchpad panes rename the Herdr workspace"
+[[ ! -f $shell_log ]] ||
+  fail "a successful agent launch leaves no shell in the scratchpad"
 pass "scratchpad panes start a fresh agent and name their workspace"
 
 : >"$agent_log"
 rm -f "$shell_log"
-OMARCHY_TEST_AGENT_FAILS=true SHELL="$mock_bin/test-shell" run_launcher
+OMARCHY_TEST_AGENT_FAILS=true run_launcher
 [[ -f $shell_log ]] || fail "a failed agent leaves a shell in the scratchpad"
 pass "a failed agent falls back to a shell"
