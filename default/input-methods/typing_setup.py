@@ -25,14 +25,11 @@ def keyboard_catalog():
     mappings.setdefault(fields[0], layout + (":" + variant if variant != "-" else ""))
   # The console names systemd's table lacks convert as keyboard_xkb_settings in
   # omarchy-provision-owner does, so a choice types what it did at install.
-  installer = {"azerty": "fr", "bg-cp1251": "bg:phonetic", "colemak": "us:colemak", "cz": "cz:qwerty",
-               "kyrgyz": "kg", "de_CH-latin1": "ch", "no-latin1": "no"}
-  mappings.update(installer)
+  mappings.update({"bg-cp1251": "bg:phonetic", "colemak": "us:colemak", "cz": "cz:qwerty",
+                   "kyrgyz": "kg", "de_CH-latin1": "ch", "no-latin1": "no"})
   catalog = {}
-  rows = [choice.split("|") for choice in choices.splitlines()]
-  # azerty is French AZERTY, so a converted keymap never renames a layout
-  # another choice names directly.
-  for label, keymap, *input_settings in sorted(rows, key=lambda row: row[1] in installer):
+  for choice in choices.splitlines():
+    label, keymap, *input_settings = choice.split("|")
     layout = input_settings[1] if len(input_settings) > 1 else mappings.get(keymap, keymap)
     if label == "Lao":
       layout = "la"
