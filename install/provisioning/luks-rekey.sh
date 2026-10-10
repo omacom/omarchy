@@ -5,6 +5,10 @@
 # - Set PROVISIONING_DIR (holds the staged luks-key), REKEY_STATE, LOG_FILE and
 #   password. Secrets reach cryptsetup through key files and process
 #   substitution, never argv, and the entry points turn tracing off.
+# - Optionally set extra_passwords, further passphrases the volume keeps beside
+#   the owner's: a child install's parent password. Their slots are added with
+#   the staged key, journaled as extra_slots, kept by the retire step, and the
+#   first is handed to luks_record_slots as the second kept slot.
 # - Define luks_boot_layout, printing a fingerprint of the keyboard layout the
 #   boot files ask for the disk password in (the same value while it is
 #   unchanged, and never the layout's name).
@@ -12,8 +16,8 @@
 #   luks_auto_unlock_present succeeds while any boot-time copy of the staged
 #   key or its unlock configuration remains; luks_auto_unlock_drop removes
 #   them and rebuilds the boot files, restoring the unlock before it fails.
-#   luks_record_slots <owner> records the kept slot wherever the platform's
-#   boot checks look for it, and succeeds where nothing does.
+#   luks_record_slots <owner> [<extra>] records the kept slots wherever the
+#   platform's boot checks look for them, and succeeds where nothing does.
 #
 # The journal (REKEY_STATE) records only the phase, slot numbers and the layout
 # fingerprint, never key material. Phases advance staged → owner → boot → done, each written durably
@@ -46,6 +50,12 @@ luks_dump_slots() {
     /^[^ \t]/ { keyslots = ($0 == "Keyslots:") }
     keyslots && /^ +[0-9]+: luks2/ { sub(":", "", $1); print $1 }
     /^Key Slot [0-9]+: ENABLED/ { sub(":", "", $3); print $3 }'
+}
+
+# Slot numbers as one sorted, de-duplicated line, so two sets compare as
+# strings whatever order they were listed in.
+luks_slot_set() {
+  printf '%s\n' "$@" | awk 'NF && !seen[$0]++' | sort -n | paste -sd' ' -
 }
 
 rekey_state_get() {
@@ -115,7 +125,8 @@ luks_rekey_accepts_password() {
 # instead of adding a duplicate, and a retry with a new password adds its own
 # while the staged key still works; the retire step removes the stale one.
 luks_rekey_owner() {
-  local device=$1 phase=$2 owner
+  local device=$1 phase=$2 owner extra slot kept=""
+  local -a extras=("${extra_passwords[@]+"${extra_passwords[@]}"}")
 
   owner=$(luks_slot_for "$password" "$device")
   if [[ -z $owner ]]; then
@@ -143,17 +154,49 @@ luks_rekey_owner() {
     return 1
   fi
 
+  # The extra passphrases follow the owner's: found, or added while the staged
+  # key still opens the disk. A retry that changed one adds its new slot; the
+  # retire step removes the stale one.
+  for extra in "${extras[@]}"; do
+    slot=$(luks_slot_for "$extra" "$device")
+    if [[ -z $slot ]]; then
+      if [[ -z $(staged_key_slot "$device") ]]; then
+        log_step "an additional password opens no LUKS slot and the staged key no longer unlocks $device"
+        say --foreground 1 "Use the disk passwords chosen earlier in setup."
+        return 1
+      fi
+      if ! cryptsetup luksAddKey --key-file "$PROVISIONING_DIR/luks-key" "$device" <(printf '%s' "$extra"); then
+        log_step "could not add an additional key to $device"
+        say --foreground 1 "Could not add the second password to the disk; will retry."
+        return 1
+      fi
+      slot=$(luks_slot_for "$extra" "$device")
+      if [[ -z $slot ]]; then
+        log_step "could not identify an additional LUKS slot after adding it"
+        say --foreground 1 "Could not confirm the LUKS re-key; will retry."
+        return 1
+      fi
+    fi
+    if [[ $slot == "$(rekey_state_get staged_slot || true)" ]]; then
+      log_step "an additional password is the staged install key; refusing to keep it"
+      say --foreground 1 "Choose disk passwords different from the temporary install key."
+      return 1
+    fi
+    [[ $slot == "$owner" || " $kept " == *" $slot "* ]] || kept+="${kept:+ }$slot"
+  done
+
   if [[ $phase == "staged" ]]; then
-    rekey_state_put owner_slot "$owner" phase owner
+    rekey_state_put owner_slot "$owner" extra_slots "$kept" phase owner
   else
-    rekey_state_put owner_slot "$owner"
+    rekey_state_put owner_slot "$owner" extra_slots "$kept"
   fi
 }
 
 luks_rekey_retire() {
-  local device=$1 owner slot slots
+  local device=$1 owner extras slot slots
 
   owner=$(rekey_state_get owner_slot || true)
+  extras=$(rekey_state_get extra_slots || true)
   if [[ -z $owner ]]; then
     log_step "no owner slot is recorded; refusing to retire LUKS slots"
     return 1
@@ -165,7 +208,7 @@ luks_rekey_retire() {
     return 1
   fi
   for slot in $slots; do
-    [[ $slot == "$owner" ]] && continue
+    [[ $slot == "$owner" || " $extras " == *" $slot "* ]] && continue
     if ! cryptsetup luksKillSlot -q --key-file <(printf '%s' "$password") "$device" "$slot"; then
       log_step "failed to kill LUKS slot $slot; keeping the staged key for retry"
       say --foreground 1 "Could not remove the throwaway LUKS key; will retry."
@@ -174,13 +217,15 @@ luks_rekey_retire() {
   done
 }
 
-# The staged key must open nothing before it is destroyed: only the owner slot
-# remains and no boot-time copy or unlock configuration is left behind.
+# The staged key must open nothing before it is destroyed: only the kept slots
+# (the owner's, plus any extra) remain and no boot-time copy or unlock
+# configuration is left behind.
 luks_rekey_verify() {
-  local device=$1 owner slots
+  local device=$1 owner extras slots
 
   owner=$(rekey_state_get owner_slot || true)
-  if ! slots=$(luks_dump_slots "$device") || [[ -z $owner || $slots != "$owner" ]]; then
+  extras=$(rekey_state_get extra_slots || true)
+  if ! slots=$(luks_dump_slots "$device") || [[ -z $owner || $(luks_slot_set $slots) != "$(luks_slot_set $owner $extras)" ]]; then
     log_step "LUKS slots other than the owner's remain on $device"
     return 1
   fi
@@ -212,14 +257,15 @@ luks_rekey_boot_layout() {
 
 # Order: record the staged slot, add the owner's key, rebuild boot without the
 # auto-unlock (keeping the staged slot as the fallback while that can fail),
-# retire every other slot, then verify, record the kept slot for the platform,
+# retire every other slot, then verify, record the kept slots for the platform,
 # destroy the staged key and record done.
 # Failing is loud: silently keeping the staged key would leave the disk
 # effectively unencrypted.
 luks_rekey() {
   local -
   set +x
-  local device=$1 phase staged layout
+  local device=$1 phase staged layout extra slot extras_kept
+  local -a extras=("${extra_passwords[@]+"${extra_passwords[@]}"}")
 
   if ! layout=$(luks_boot_layout) || [[ -z $layout ]]; then
     log_step "could not fingerprint the keyboard layout for the boot files"
@@ -269,6 +315,14 @@ luks_rekey() {
       say --foreground 1 "Use the disk password chosen earlier in setup."
       return 1
     fi
+    for extra in "${extras[@]}"; do
+      slot=$(luks_slot_for "$extra" "$device")
+      if [[ -z $slot || " $(rekey_state_get owner_slot || true) $(rekey_state_get extra_slots || true) " != *" $slot "* ]]; then
+        log_step "an additional password does not open a slot the finished re-key kept on $device"
+        say --foreground 1 "Use the disk passwords chosen earlier in setup."
+        return 1
+      fi
+    done
     luks_rekey_boot_layout "$layout" || return 1
   fi
 
@@ -276,7 +330,10 @@ luks_rekey() {
     say --foreground 1 "Could not confirm the temporary install key was removed; will retry."
     return 1
   fi
-  if ! luks_record_slots "$(rekey_state_get owner_slot)"; then
+  # The recorder has one field for a second kept slot, so the first extra goes
+  # there: a child install's parent.
+  extras_kept=$(rekey_state_get extra_slots || true)
+  if ! luks_record_slots "$(rekey_state_get owner_slot)" "${extras_kept%% *}"; then
     log_step "the platform could not record the kept LUKS slot"
     say --foreground 1 "Could not record the disk's key slot for the boot checks; will retry."
     return 1

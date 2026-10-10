@@ -14,7 +14,11 @@ omarchy-refresh-pacman
 # Downgrade any packages to that channel's setup
 omarchy-update-pacman -Suu --noconfirm
 
-# Ensure this platform's default packages are installed
+# Ensure this platform's default packages are installed. A child install (kids
+# mode) also carries the child list the ISO installed on top of them.
 default_packages=$(omarchy-pkg-defaults)
 mapfile -t packages <<<"$default_packages"
+if omarchy-profile-child; then
+  mapfile -t -O "${#packages[@]}" packages < <(grep -hv '^#' "$OMARCHY_PATH/install/omarchy-child.packages" | grep -v '^$')
+fi
 omarchy-update-pacman -Syu --noconfirm --needed "${packages[@]}"

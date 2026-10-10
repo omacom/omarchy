@@ -261,7 +261,7 @@ It only does the things `/etc/skel` can't:
   from `/etc/vconsole.conf`; no per-user Hyprland config rewrite is needed.
 - `xdg-settings set default-web-browser chromium.desktop` and
   `xdg-mime default HEY.desktop x-scheme-handler/mailto` (XDG-aware paths).
-- `omarchy-refresh-applications` (composes generated `.desktop` launchers).
+- `omarchy-refresh-applications` (composes generated `.desktop` launchers; `--launchers-only` leaves the mise wrappers in `~/.local/bin` alone, which is how the config reset calls it).
 - Sources `install/user/all.sh` — theme, chromium, git, xcompose, mise,
   keyring, per-user hardware quirks (asus mic/mixer, framework f13 audio, …).
 - On `--first-install`, marks every shipped user migration as already applied
@@ -359,6 +359,7 @@ the legacy finalization marker from `~/.local/state/omarchy/` into `done/`.
 finalization. It sources:
 
 - `install/config/all.sh` — theme links, lockout limits, lockscreen PAM,
+  the child install's parental posture (`omarchy-parent apply`),
   powerprofilesctl shebang fix, SSH command path and keepalive, docker setup,
   Snapper retention, locate index tuning, service enablement, firewall.
 - `install/hardware/all.sh` via `omarchy-apply-hardware` — vendor- and
@@ -370,12 +371,15 @@ finalization. It sources:
 Logging goes to `/var/log/omarchy-install.log` via
 `install/helpers/logging.sh`.
 
+`--profile <default|child>` records the install profile as one word in `/etc/omarchy/profile` and exports it as `OMARCHY_INSTALL_PROFILE` for the leaves. `child` is kids mode, picked by the installer's "Who is this computer for?" question. At runtime `omarchy-profile-child` reads the marker for menu guards, scripts, and first-boot provisioning; a machine installed before profiles existed has no marker and counts as `default`. The marker lives in `/etc`, so a factory reset's `@factory` clone keeps a child machine a child machine.
+
 Platform-specific setup asks `omarchy-hw-platform`, which prints `x86`, `aarch64` or `aarch64-apple` (the naming standard is in AGENTS.md under Platforms). It reads the vendor prefix of each token in the device tree's root `compatible` (`apple,` or `qcom,`, from `/proc/device-tree` or `/sys/firmware/devicetree/base`) and the CPU architecture, and fails when they contradict each other. A Snapdragon laptop's `qcom,` tree is `aarch64`. A manifest written by an older image builder may still say `apple-silicon`, `generic-aarch64` or `generic`, which read as `aarch64-apple`, `aarch64` and `x86`.
 
 An image built away from the machine it will run on names its target in a root-owned manifest, `/var/lib/omarchy/image/target` (`format=1`, `platform=<omarchy-hw-platform value>`, unknown keys ignored). While the root is being built rather than booted, the detector answers from the manifest and never reads the build host's device tree. The root counts as built when it shows it: no `/run/systemd/system`, PID 1's root is another one (a chroot), or PID 1 is not systemd (a PID namespace). A booted system always answers from its hardware, even with a manifest left behind, so no unit that asks the detector may use `PrivatePIDs=`. As root the detector restarts in an empty environment and ignores the fixture variables its tests use.
 
 The package lists the ISO pacstraps live at `install/omarchy-base.packages`
-and `install/omarchy-other.packages`; the ISO builder also reads them when
+and `install/omarchy-other.packages`, plus `install/omarchy-child.packages`
+for what a child install adds on top; the ISO builder also reads them when
 constructing its offline mirror.
 
 A platform's default package set is the base list, then its architecture's additions, then its own: `install/omarchy-aarch64.packages` on every aarch64 platform, then `install/omarchy-<platform>.packages` when that platform has one (`install/omarchy-aarch64-apple.packages` on Apple Silicon). x86 installs the base list alone. `omarchy-pkg-defaults [platform]` prints the composed set, for the running machine by default (via `omarchy-hw-platform`, so an image build gets its target's set), and `omarchy-reinstall-pkgs` installs it.
@@ -420,6 +424,7 @@ return to the packaged default.
 | Per-user file that's static but lives outside `~/.config` | `default/`, then add `install -Dm644 ... $pkgdir/etc/skel/...` in `omarchy-settings` PKGBUILD |
 | Runtime tweak that needs `$HOME` or live system state | extend `omarchy-provision-user`, or add a per-user leaf under `install/user/` and wire into `install/user/all.sh` |
 | One-time root-side setup step | `install/config/*.sh` or `install/hardware/*.sh`, wire into `install/config/all.sh` or `install/hardware/all.sh` |
+| Gate something on the install profile (kids mode) | `omarchy-profile-child`; the marker is `/etc/omarchy/profile`, written by `omarchy-apply-system --profile` |
 | One-time fix for existing installs | `migrations/<unix-timestamp>.sh` |
 | Package-owned path something else may already write | Prefer a path nothing else writes, such as a vendor drop-in under `/usr/lib`. Otherwise the `--overwrite` entry in `bin/omarchy-update-system-pkgs` has to ship a release before the file |
 | User-facing `omarchy-*` command | `bin/omarchy-<group>-<verb>` — see `GROUP_DESCRIPTIONS` in `bin/omarchy` |

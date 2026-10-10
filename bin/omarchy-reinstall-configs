@@ -18,6 +18,12 @@ echo "Resetting Omarchy user configs to shipped defaults..."
 # Trailing dot copies dotfiles; the shell wouldn't glob them with /etc/skel/*.
 cp -af /etc/skel/. ~/
 
+# Skel carries the adult launcher set. Re-run the launcher refresh so a child
+# install drops the hidden webapps instead of resurrecting WhatsApp from skel.
+# Launchers only: the mise wrappers in ~/.local/bin are the user's to keep, and
+# a reset that rewrote them would replace a command the user customized.
+omarchy-refresh-applications --launchers-only
+
 omarchy-refresh-limine
 omarchy-refresh-plymouth
 
