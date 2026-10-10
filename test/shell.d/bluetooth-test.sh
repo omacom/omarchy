@@ -92,6 +92,154 @@ assertDeepEqual(arrayLikeLists.connected.map(bluetooth.deviceLabel), ['Earbuds']
 assertDeepEqual(arrayLikeLists.known.map(bluetooth.deviceLabel), ['Trackpad'], 'bluetooth groups known devices from array-like values')
 assertDeepEqual(arrayLikeLists.discovered.map(bluetooth.deviceLabel), ['Gamepad'], 'bluetooth groups discovered devices from array-like values')
 
+// A click acts on whatever row is under the pointer when the button goes down,
+// so nothing found mid-scan may take a row that is already on screen.
+const scanning = [
+  { name: 'Marshall', address: 'm' },
+  { name: 'Pixel Buds', address: 'p' },
+  { name: 'Sony WH-1000XM4', address: 's' }
+]
+const addresses = function(list) { return list.map(function(d) { return d.address }) }
+const onScreen = addresses(bluetooth.deviceLists(scanning).discovered)
+assertDeepEqual(onScreen, ['m', 'p', 's'], 'bluetooth sorts discovered devices by label while the pointer is away')
+
+assertDeepEqual(
+  addresses(bluetooth.deviceLists(scanning.concat([{ name: 'Anker Soundcore', address: 'a' }]), onScreen).discovered),
+  ['m', 'p', 's', 'a'],
+  'bluetooth appends a device found mid-scan instead of sorting it above the rows on screen'
+)
+
+// BlueZ often resolves a name after the device first appears, which resorts the
+// list exactly as an arrival does.
+assertDeepEqual(
+  addresses(bluetooth.deviceLists([
+    { name: 'Marshall', address: 'm' },
+    { name: 'AirPods Pro', address: 'p' },
+    { name: 'Sony WH-1000XM4', address: 's' }
+  ], onScreen).discovered),
+  ['m', 'p', 's'],
+  'bluetooth holds a row in place when its label changes under the pointer'
+)
+
+assertDeepEqual(
+  addresses(bluetooth.deviceLists(scanning.concat([{ name: 'Anker Soundcore', address: 'a' }]), []).discovered),
+  ['a', 'm', 'p', 's'],
+  'bluetooth sorts the list again once the pointer leaves'
+)
+
+// A device found while the pointer is on the list lands at the end, and the
+// pointer can then move onto it; a later arrival must not take that row either.
+const withZeiss = addresses(bluetooth.deviceLists(scanning.concat([{ name: 'Zeiss', address: 'z' }]), onScreen).discovered)
+assertDeepEqual(
+  addresses(bluetooth.deviceLists(scanning.concat([{ name: 'Zeiss', address: 'z' }, { name: 'Bose', address: 'b' }]), withZeiss).discovered),
+  ['m', 'p', 's', 'z', 'b'],
+  'bluetooth holds a row that arrived while the pointer was on the list'
+)
+const vm = require('vm')
+const capture = panelSource.match(/function capturePinnedRows\(\) \{([\s\S]*?)\n  \}/)
+const pinHandler = panelSource.match(/onRowOrderPinnedChanged: \{([\s\S]*?)\n  \}/)
+const pinBinding = panelSource.match(/readonly property bool rowOrderPinned: (.*)/)
+const scrollRowsHandler = panelSource.match(/onScrollRowsChanged: \{([\s\S]*?)\n  \}/)
+assert(capture && pinHandler && pinBinding && scrollRowsHandler, 'bluetooth exposes the viewport pin lifecycle')
+const context = {
+  opened: true,
+  rowOrderPinned: false,
+  deviceListHover: { hovered: true },
+  scrollRows: [],
+  pinnedOrder: [],
+  pinnedSections: {}
+}
+context.capturePinnedRows = function() { vm.runInNewContext(capture[1], context) }
+function setPin() {
+  context.rowOrderPinned = vm.runInNewContext(pinBinding[1], context)
+  vm.runInNewContext(pinHandler[1], context)
+}
+function updateRows(devices) {
+  context.scrollRows = bluetooth.scrollRows(bluetooth.deviceLists(devices), true, context.pinnedOrder, context.pinnedSections)
+  vm.runInNewContext(scrollRowsHandler[1], context)
+}
+const rowAddresses = rows => rows.map(row => row.dev.address)
+const mixed = [{ name: 'Keyboard', address: 'k', paired: true }].concat(scanning)
+updateRows(mixed)
+setPin()
+assertDeepEqual(Array.from(context.pinnedOrder), ['k', 'm', 'p', 's'], 'bluetooth captures the whole visible viewport on hover')
+updateRows(mixed.concat([{ name: 'Anker', address: 'a', paired: true }]))
+assertDeepEqual(rowAddresses(context.scrollRows), ['k', 'm', 'p', 's', 'a'], 'a new known device cannot move a discovered row under the pointer')
+
+const paired = mixed.map(device => device.address === 'p' ? Object.assign({}, device, { paired: true }) : device)
+updateRows(paired)
+assertDeepEqual(rowAddresses(context.scrollRows), ['k', 'm', 'p', 's'], 'pairing a discovered device preserves its viewport position')
+const pairedRow = context.scrollRows.find(row => row.dev.address === 'p')
+assertEqual(pairedRow.section, 'known', 'a pinned paired device uses its current action section')
+assertEqual(bluetooth.deviceLists(paired).known[pairedRow.indexInSection].address, 'p', 'the paired row index still addresses the correct live device')
+assertEqual(pairedRow.displaySection, 'discovered', 'pairing cannot insert a section heading ahead of pinned rows')
+
+const moveCursor = panelSource.match(/function moveCursor\(delta\) \{([\s\S]*?)\n  \}/)
+assert(moveCursor, 'bluetooth exposes cursor movement')
+const navigation = {
+  connectedDevices: [],
+  scrollRows: context.scrollRows,
+  focusSection: pairedRow.section,
+  selectedIndex: pairedRow.indexInSection,
+  actionFocused: true
+}
+function move(delta) {
+  vm.runInNewContext('(function(delta) {' + moveCursor[1] + '})(' + delta + ')', navigation)
+}
+move(1)
+const visibleNext = context.scrollRows[3]
+assertEqual(navigation.focusSection, visibleNext.section, 'Down from a paired pinned row uses the next visible row section')
+assertEqual(navigation.selectedIndex, visibleNext.indexInSection, 'Down from a paired pinned row uses the next visible row index')
+move(-1)
+assertEqual(navigation.focusSection, pairedRow.section, 'Up returns to the paired pinned row')
+assertEqual(navigation.selectedIndex, pairedRow.indexInSection, 'Up preserves the paired row action index')
+
+const pairedScanning = scanning.map(device => device.address === 'p' ? Object.assign({}, device, { paired: true }) : device)
+navigation.scrollRows = bluetooth.scrollRows(bluetooth.deviceLists(pairedScanning), true, ['m', 'p', 's'], { m: 'discovered', p: 'discovered', s: 'discovered' })
+navigation.focusSection = 'header'
+move(1)
+assertEqual(navigation.focusSection, 'discovered', 'Down from the header chooses the first visible row despite a later known device')
+assertEqual(navigation.selectedIndex, 0, 'the header chooses the first visible discovered row index')
+navigation.connectedDevices = [{ address: 'c1' }, { address: 'c2' }]
+navigation.focusSection = 'connected'
+navigation.selectedIndex = 1
+move(1)
+assertEqual(navigation.focusSection, 'discovered', 'Down from connected devices enters the first viewport row')
+move(-1)
+assertEqual(navigation.focusSection, 'connected', 'Up from the first viewport row returns to connected devices')
+assertEqual(navigation.selectedIndex, 1, 'Up returns to the last connected device')
+
+context.opened = false
+setPin()
+assertEqual(context.pinnedOrder.length, 0, 'closing clears a pin even if the hover handler stays hovered')
+updateRows(paired)
+context.opened = true
+setPin()
+assert(context.pinnedOrder.length > 0, 'reopening recaptures the pin without requiring a new hover change')
+const reopenedOrder = Array.from(context.pinnedOrder)
+updateRows(paired.concat([{ name: 'Anker', address: 'a', paired: true }]))
+assertDeepEqual(rowAddresses(context.scrollRows).slice(0, reopenedOrder.length), reopenedOrder, 'an arrival after a stationary-pointer reopen leaves existing rows in place')
+
+context.scrollRows = []
+context.pinnedOrder = []
+context.pinnedSections = {}
+setPin()
+updateRows([{ name: 'Zeiss', address: 'z' }])
+updateRows([{ name: 'Zeiss', address: 'z' }, { name: 'Anker', address: 'a' }])
+assertDeepEqual(rowAddresses(context.scrollRows), ['z', 'a'], 'hovering an empty list pins its first arrival before later discoveries')
+
+context.deviceListHover.hovered = false
+setPin()
+updateRows(mixed.concat([{ name: 'Anker', address: 'a', paired: true }]))
+assertDeepEqual(rowAddresses(context.scrollRows), ['a', 'k', 'm', 'p', 's'], 'leaving hover restores section grouping and alphabetical order')
+
+const openedHandler = panelSource.match(/onOpenedChanged: \{[\s\S]*?\n  \}/)
+assert(openedHandler, 'bluetooth has the panel open handler')
+assert(
+  /pinnedOrder = \[\]/.test(openedHandler[0]),
+  'bluetooth releases the pinned order when the panel closes'
+)
+
 assertDeepEqual(
   bluetooth.deviceRow({ name: 'Deadbeef', address: '1', connected: false }),
   { address: '1', name: 'Deadbeef', deviceName: '', connected: false, state: -1, batteryAvailable: false, battery: 0, pairing: false },

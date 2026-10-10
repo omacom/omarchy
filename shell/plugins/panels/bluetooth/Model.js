@@ -99,8 +99,26 @@ function deviceRow(d) {
   }
 }
 
-function deviceLists(devices) {
+// Keeps rows already listed in `order` where they are and appends the rest by
+// label. An empty order is just the sort.
+function sortedWithPinnedOrder(devices, order) {
+  var rank = {}
+  for (var i = 0; i < order.length; i++) rank[order[i]] = i
+
+  var pinned = []
+  var arrived = []
+  for (var j = 0; j < devices.length; j++) {
+    if (rank[devices[j].address] === undefined) arrived.push(devices[j])
+    else pinned.push(devices[j])
+  }
+
+  pinned.sort(function(a, b) { return rank[a.address] - rank[b.address] })
+  return pinned.concat(sortedByLabel(arrived))
+}
+
+function deviceLists(devices, pinnedOrder) {
   var values = toArray(devices)
+  var order = pinnedOrder || []
   var connected = []
   var known = []
   var discovered = []
@@ -113,11 +131,42 @@ function deviceLists(devices) {
     else discovered.push(d)
   }
 
+  // Connected devices render above the scroll area, not in the pinned list.
   return {
     connected: sortedByLabel(connected),
-    known: sortedByLabel(known),
-    discovered: sortedByLabel(discovered)
+    known: sortedWithPinnedOrder(known, order),
+    discovered: sortedWithPinnedOrder(discovered, order)
   }
+}
+
+// Pin the whole viewport, including transitions between the two sections.
+// Display section labels stay at the same rows until hover ends; actions use
+// the current section and index, so pairing still reaches the live device.
+function scrollRows(lists, discovering, order, sections) {
+  var rows = []
+  var rank = {}
+  order = order || []
+  sections = sections || {}
+  for (var p = 0; p < order.length; p++) rank[order[p]] = p
+  var names = discovering ? ["known", "discovered"] : ["known"]
+  for (var s = 0; s < names.length; s++) {
+    var name = names[s]
+    var devices = lists[name] || []
+    for (var i = 0; i < devices.length; i++) {
+      var dev = deviceRow(devices[i])
+      rows.push({ dev: dev, section: name, displaySection: sections[dev.address] || name, indexInSection: i })
+    }
+  }
+  var original = rows.slice()
+  rows.sort(function(a, b) {
+    var aRank = rank[a.dev.address]
+    var bRank = rank[b.dev.address]
+    if (aRank === undefined && bRank === undefined) return original.indexOf(a) - original.indexOf(b)
+    if (aRank === undefined) return 1
+    if (bRank === undefined) return -1
+    return aRank - bRank
+  })
+  return rows
 }
 
 function cloneMap(map) {
@@ -168,6 +217,7 @@ if (typeof module !== "undefined") {
     sortedByLabel: sortedByLabel,
     deviceRow: deviceRow,
     deviceLists: deviceLists,
+    scrollRows: scrollRows,
     cloneMap: cloneMap,
     pendingAction: pendingAction,
     withPendingAction: withPendingAction,
