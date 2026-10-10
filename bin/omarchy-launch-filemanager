@@ -1,0 +1,76 @@
+#!/bin/bash
+
+# omarchy:summary=Launch the default file manager determined by xdg-mime
+# omarchy:args=[directory]
+
+default_fm=$(xdg-mime query default inode/directory 2>/dev/null)
+if [[ -z $default_fm ]]; then
+  default_fm="org.gnome.Nautilus.desktop"
+fi
+
+desktop_dirs=()
+if [[ -n ${XDG_DATA_HOME:-} ]]; then
+  desktop_dirs+=("$XDG_DATA_HOME/applications")
+else
+  desktop_dirs+=("$HOME/.local/share/applications")
+fi
+
+if [[ -d "$HOME/.nix-profile/share/applications" ]]; then
+  desktop_dirs+=("$HOME/.nix-profile/share/applications")
+fi
+
+if [[ -n ${XDG_DATA_DIRS:-} ]]; then
+  IFS=: read -ra xdg_dirs <<<"$XDG_DATA_DIRS"
+  for dir in "${xdg_dirs[@]}"; do
+    desktop_dirs+=("$dir/applications")
+  done
+else
+  desktop_dirs+=("/usr/local/share/applications" "/usr/share/applications")
+fi
+
+fm_cmd=()
+for dir in "${desktop_dirs[@]}"; do
+  if [[ -f "$dir/$default_fm" ]]; then
+    raw_exec=$(sed -n 's/^Exec=//p' "$dir/$default_fm" 2>/dev/null | head -1)
+    if [[ -n $raw_exec ]]; then
+      readarray -t -d '' fm_cmd < <(python3 -c '
+import sys, re, shlex
+raw = sys.argv[1]
+cleaned = re.sub(r"(?<!%)%[fFuUdDnNickv]", "", raw).replace("%%", "%")
+lexer = shlex.shlex(cleaned, posix=True)
+lexer.whitespace_split = True
+lexer.commenters = ""
+for tok in lexer:
+    sys.stdout.buffer.write(tok.encode("utf-8") + b"\0")
+' "$raw_exec" 2>/dev/null)
+      if ((${#fm_cmd[@]} > 0)); then
+        break
+      fi
+    fi
+  fi
+done
+
+if ((${#fm_cmd[@]} == 0)); then
+  case "${default_fm,,}" in
+  *nautilus*) fm_cmd=("nautilus") ;;
+  *dolphin*) fm_cmd=("dolphin") ;;
+  *thunar*) fm_cmd=("thunar") ;;
+  *nemo*) fm_cmd=("nemo") ;;
+  *pcmanfm*) fm_cmd=("pcmanfm") ;;
+  *)
+    clean_id="${default_fm%.desktop}"
+    clean_id="${clean_id##*.}"
+    if command -v "${clean_id,,}" &>/dev/null; then
+      fm_cmd=("${clean_id,,}")
+    elif command -v "$clean_id" &>/dev/null; then
+      fm_cmd=("$clean_id")
+    else
+      fm_cmd=("nautilus")
+    fi
+    ;;
+  esac
+fi
+
+target_dir="${1:-$HOME}"
+
+exec setsid uwsm-app -- "${fm_cmd[@]}" "$target_dir"
