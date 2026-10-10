@@ -93,19 +93,6 @@ mkdir -p "$nonmatching"
 [[ ! -e $nonmatching/systemd/yoga-slim7x-remoteprocs.service ]] ||
   fail "nonmatching Qualcomm hardware does not get Yoga services"
 
-(
-  omarchy-hw-aarch64-qualcomm() { return 1; }
-  omarchy-hw-match() { return 0; }
-  systemctl() { fail "a machine off Snapdragon does not enable Yoga services"; }
-  OMARCHY_YOGA_MODULES_LOAD_DIR="$nonmatching/modules-load.d" \
-    OMARCHY_YOGA_MKINITCPIO_DIR="$nonmatching/mkinitcpio.conf.d" \
-    OMARCHY_YOGA_LIMINE_CONFIG_DIR="$nonmatching/limine-entry-tool.d" \
-    OMARCHY_YOGA_SYSTEMD_DIR="$nonmatching/systemd" \
-    source "$setup"
-)
-[[ ! -e $nonmatching/modules-load.d/yoga-slim7x.conf ]] ||
-  fail "a matching DMI name off Snapdragon does not get Yoga setup"
-
 remoteprocs="$scratch/remoteproc"
 mkdir -p "$remoteprocs/remoteproc0" "$remoteprocs/remoteproc1" "$remoteprocs/remoteproc2"
 printf 'qcom/x1e80100/LENOVO/83ED/qcadsp8380.mbn\n' >"$remoteprocs/remoteproc0/firmware"
@@ -196,3 +183,35 @@ printf 'offline\n' >"$late/remoteproc1/state"
   fail "a compute DSP that cannot start is tried on every attempt"
 
 pass "Yoga Slim 7x adds only its board-specific keyboard, display, CPU and DSP setup"
+
+# The family half of the gate is omarchy-hw-aarch64-qualcomm, so ask the real
+# detector: the DMI name sets a Snapdragon laptop up and no other platform.
+require_platform_fixtures "the Yoga Slim 7x gate under the real detector"
+
+run_setup_on() (
+  platform=$1
+  out="$scratch/on/$platform"
+  mkdir -p "$out"
+  fake_platform "$scratch/platforms/$platform" "$platform"
+  export OMARCHY_PROC_ROOT="$scratch/platforms/$platform/proc"
+  export PATH="$scratch/platforms/$platform/bin:$ROOT/bin:$PATH"
+
+  omarchy-hw-match() { [[ $1 == "83ED" ]]; }
+  systemctl() { printf '%s\n' "$*" >>"$out/systemctl.log"; }
+
+  OMARCHY_YOGA_MODULES_LOAD_DIR="$out/modules-load.d" \
+    OMARCHY_YOGA_MKINITCPIO_DIR="$out/mkinitcpio.conf.d" \
+    OMARCHY_YOGA_LIMINE_CONFIG_DIR="$out/limine-entry-tool.d" \
+    OMARCHY_YOGA_SYSTEMD_DIR="$out/systemd" \
+    source "$setup"
+)
+
+run_setup_on aarch64-qualcomm
+[[ -f $scratch/on/aarch64-qualcomm/systemd/yoga-slim7x-remoteprocs.service ]] ||
+  fail "the DMI name on a Snapdragon device tree gets the Yoga setup"
+for platform in aarch64 aarch64-apple x86; do
+  run_setup_on "$platform"
+  [[ -z $(ls -A "$scratch/on/$platform") ]] ||
+    fail "a matching DMI name on $platform gets no Yoga setup" "$(ls -A "$scratch/on/$platform")"
+done
+pass "Yoga Slim 7x setup follows the real platform detector"

@@ -116,3 +116,60 @@ for package in linux-firmware-qcom qcom-firmware-extract systemd-ukify vulkan-fr
     fail "the Snapdragon package set has $package for offline setup"
 done
 pass "the Snapdragon package set has every package its setup installs"
+
+# The leaves ask omarchy-hw-aarch64-qualcomm, so run them under the real
+# detector: a Snapdragon device tree gets the setup and no other platform does.
+require_platform_fixtures "Snapdragon setup under the real detector"
+
+kernel_params_setup="$ROOT/install/hardware/qualcomm/kernel-params.sh"
+bash -n "$kernel_params_setup" || fail "Snapdragon hardware scripts have valid syntax"
+
+run_leaves_on() (
+  platform=$1
+  out="$scratch/on/$platform"
+  mkdir -p "$out"
+  fake_platform "$scratch/platforms/$platform" "$platform"
+  export OMARCHY_PROC_ROOT="$scratch/platforms/$platform/proc"
+  export PATH="$scratch/platforms/$platform/bin:$ROOT/bin:$PATH"
+
+  omarchy-pkg-add() { :; }
+  qcom-firmware-extract() { [[ $1 != "--list-missing" ]]; }
+  findmnt() { printf '/dev/mapper/root\n'; }
+  lsblk() { printf 'nvme\n'; }
+
+  # kernel-params.sh writes a fixed path, so run a copy that writes the fixture.
+  sed "s|/etc/limine-entry-tool.d|$out/limine-entry-tool.d|g" "$kernel_params_setup" >"$out/kernel-params.sh"
+
+  OMARCHY_QUALCOMM_MODPROBE_DIR="$out/modprobe.d"
+  OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs"
+  OMARCHY_QUALCOMM_UKI_CONFIG="$out/uki.conf"
+  source "$firmware_setup"
+  source "$dtb_setup"
+  source "$out/kernel-params.sh"
+)
+
+run_leaves_on aarch64-qualcomm
+snapdragon="$scratch/on/aarch64-qualcomm"
+[[ -f $snapdragon/modprobe.d/qualcomm-adsp-nofw.conf ]] ||
+  fail "a Snapdragon device tree gets the firmware setup"
+grep -Fq "DeviceTreeAuto=" "$snapdragon/uki.conf" ||
+  fail "a Snapdragon device tree gets the device tree list"
+(
+  declare -A KERNEL_CMDLINE=([default]="quiet splash")
+  source "$snapdragon/limine-entry-tool.d/qualcomm-snapdragon.conf"
+  for parameter in clk_ignore_unused pd_ignore_unused arm64.nopauth systemd.tpm2_wait=0; do
+    [[ " ${KERNEL_CMDLINE[default]} " == *" $parameter "* ]] ||
+      fail "a Snapdragon device tree boots with $parameter"
+  done
+  [[ ${KERNEL_CMDLINE[default]} == "quiet splash "* ]] ||
+    fail "Snapdragon setup preserves the existing boot parameters"
+)
+
+for platform in aarch64 aarch64-apple x86; do
+  run_leaves_on "$platform"
+  for written in modprobe.d uki.conf limine-entry-tool.d; do
+    [[ ! -e $scratch/on/$platform/$written ]] ||
+      fail "$platform gets no Snapdragon setup ($written)"
+  done
+done
+pass "Snapdragon setup follows the real platform detector"
