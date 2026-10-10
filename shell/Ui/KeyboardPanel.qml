@@ -23,18 +23,22 @@ import qs.Commons as Commons
 // padding, margin, contentWidth/Height, centerOnBar, default contentItem.
 // Missing on purpose (for now): triggerMode ("hover"), containsMouse.
 //
-// Positioning: full-screen layer-shell with the card placed inside at
-// `cardOrigin`. We use the bar window's height/width for the perpendicular
-// axis (away-from-bar) because mapToItem on the anchor returns
-// bar-content-relative coords with internal layout offsets baked in
-// (e.g. ~13px from the bar's vertical centering of its widget row). The
-// parallel axis (along-the-bar) uses the anchor's content x/y since the
-// bar spans full screen on that axis.
+// Positioning: a layer-shell surface spanning the work area, with the card
+// placed inside at `cardOrigin`. The surface respects exclusive zones and the
+// monitor's reserved area (ExclusionMode.Normal) without claiming a zone of
+// its own, so it starts where the bar ends and the card sits `gap` past the
+// bar's edge whatever pushed the bar away from the screen edge. A hidden bar
+// reserves nothing and parks under the surface, so only then does the bar's
+// own size come back into the offset (`barInset`). The parallel axis
+// (along-the-bar) uses the anchor's content x/y: the bar and this surface
+// share the work area's origin on that axis, so bar content coordinates map
+// straight onto the surface.
 //
-// Outside-click dismissal: an overlay MouseArea catches clicks, with the
-// QsWindow.mask subtracting the bar strip so clicks on the bar still
-// reach the bar widgets (activePopout coordinator hands off to another
-// popup if the user clicks a different bar icon).
+// Outside-click dismissal: an overlay MouseArea catches clicks. A bar that
+// reserves its space lies outside the surface and takes its own clicks; a
+// hidden bar sits under the surface, so clicks in its strip are forwarded to
+// the bar widgets (activePopout coordinator hands off to another popup if the
+// user clicks a different bar icon).
 PanelWindow {
   id: root
 
@@ -81,7 +85,10 @@ PanelWindow {
   screen: anchorWindow ? anchorWindow.screen : null
   visible: open || card.opacity > 0 || popoutSwitching
   color: "transparent"
-  exclusionMode: ExclusionMode.Ignore
+  // Normal, not Ignore: Hyprland then lays the surface out inside the work
+  // area, past the bar's exclusive zone and inside any reserved area, so the
+  // card follows the bar when something has moved it off the screen edge.
+  exclusionMode: ExclusionMode.Normal
 
   WlrLayershell.namespace: "omarchy-keyboard-panel"
   WlrLayershell.layer: WlrLayer.Overlay
@@ -102,11 +109,9 @@ PanelWindow {
 
   onBackingWindowVisibleChanged: beginFocusPrime()
 
-  // Full-screen layer-shell. The visible card is positioned inside via
-  // `cardOrigin`. The `mask` below makes the bar area click-through (so
-  // the user can click another bar icon while the panel is open and the
-  // activePopout coordinator swaps to that popup); everywhere else, the
-  // overlay catches the click and dismisses via the MouseArea below.
+  // Work-area layer-shell. The visible card is positioned inside via
+  // `cardOrigin`; everywhere else, the overlay catches the click and
+  // dismisses via the MouseArea below.
   anchors {
     top: true
     bottom: true
@@ -114,11 +119,12 @@ PanelWindow {
     right: true
   }
 
-  // Clickable region is the whole screen. Clicks in the bar strip are
-  // forwarded to registered bar buttons so switching between panel icons
-  // works in one click even when the overlay surface is above the bar.
+  // Clickable region is the whole surface. A hidden bar parks under it, so
+  // clicks in that bar strip are forwarded to registered bar buttons and
+  // switching between panel icons still works in one click. A bar that
+  // reserves its space is outside the surface, so there is no strip.
   readonly property real _barStripSize: {
-    if (!bar) return 0
+    if (!bar || root.barReservesSpace) return 0
     var actual = (root.barPos === "top" || root.barPos === "bottom") ? root.barH : root.barW
     return Math.max(bar.barSize, actual) + root.gap
   }
@@ -151,11 +157,15 @@ PanelWindow {
   readonly property real anchorH: anchorItem ? anchorItem.height : 0
   readonly property real screenW: screen ? screen.width : 0
   readonly property real screenH: screen ? screen.height : 0
-  readonly property real availableCardWidth: screenW > 0
-    ? Math.max(120, screenW - ((barPos === "left" || barPos === "right") ? barW + gap + margin : margin * 2))
+  // The surface is the work area, which is only the whole screen when nothing
+  // reserves any of it. Fall back to the screen until the surface has a size.
+  readonly property real surfaceW: width > 0 ? width : screenW
+  readonly property real surfaceH: height > 0 ? height : screenH
+  readonly property real availableCardWidth: surfaceW > 0
+    ? Math.max(120, surfaceW - ((barPos === "left" || barPos === "right") ? barInset + gap + margin : margin * 2))
     : 0
-  readonly property real availableCardHeight: screenH > 0
-    ? Math.max(120, screenH - ((barPos === "top" || barPos === "bottom") ? barH + gap + margin : margin * 2))
+  readonly property real availableCardHeight: surfaceH > 0
+    ? Math.max(120, surfaceH - ((barPos === "top" || barPos === "bottom") ? barInset + gap + margin : margin * 2))
     : 0
   readonly property real verticalContentInset: padding * 2 + Border.top(borderSpec) + Border.bottom(borderSpec)
 
@@ -179,43 +189,45 @@ PanelWindow {
     return Math.round(Math.min(desired, maxHeight))
   }
 
-  // Desired top-left of the card in screen coordinates. For the
-  // perpendicular axis (away-from-bar) we anchor to the bar window's edge
-  // directly — not the anchor item's y/x — because mapToItem(barContent)
-  // returns coordinates in the bar's content space, which can be offset
-  // from the bar surface's screen-anchored corner by internal layout
-  // (centering wrappers, padding). The bar's surface IS aligned to its
-  // anchored screen edge, so using `barW`/`barH` gives the right edge
-  // regardless of how the bar's internal widgets are positioned. For the
-  // parallel axis (along the bar) the anchor item's reported position is
-  // still consistent with the bar content origin, so it's accurate for
-  // centering the card under the icon.
+  // Desired top-left of the card in surface coordinates. For the
+  // perpendicular axis (away-from-bar) the surface itself starts at the
+  // bar's edge: the bar's exclusive zone is what pushed the surface there.
+  // Only a hidden bar, which reserves nothing, overlaps the surface, and then
+  // its window size is the offset (`barInset`) — not the anchor item's y/x,
+  // because mapToItem(barContent) returns coordinates in the bar's content
+  // space, which can be offset from the bar surface's edge by internal
+  // layout (centering wrappers, padding). For the parallel axis (along the
+  // bar) the anchor item's reported position is still consistent with the
+  // bar content origin, so it's accurate for centering the card under the
+  // icon.
   readonly property real barW: anchorWindow ? anchorWindow.width : screenW
   readonly property real barH: anchorWindow ? anchorWindow.height : 0
+  readonly property bool barReservesSpace: anchorWindow ? anchorWindow.exclusionMode !== ExclusionMode.Ignore : false
+  readonly property real barInset: barReservesSpace ? 0 : ((barPos === "top" || barPos === "bottom") ? barH : barW)
   readonly property point cardOrigin: {
     if (!anchorItem || !bar) return Qt.point(margin, margin)
     var x = 0, y = 0
     if (centerOnBar && (barPos === "top" || barPos === "bottom")) {
-      x = screenW / 2 - contentWidth / 2
-      y = barPos === "bottom" ? screenH - barH - contentHeight - gap : barH + gap
+      x = surfaceW / 2 - contentWidth / 2
+      y = barPos === "bottom" ? surfaceH - barInset - contentHeight - gap : barInset + gap
     } else if (centerOnBar) {
-      x = barPos === "left" ? barW + gap : screenW - barW - contentWidth - gap
-      y = screenH / 2 - contentHeight / 2
+      x = barPos === "left" ? barInset + gap : surfaceW - barInset - contentWidth - gap
+      y = surfaceH / 2 - contentHeight / 2
     } else if (barPos === "bottom") {
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = screenH - barH - contentHeight - gap
+      y = surfaceH - barInset - contentHeight - gap
     } else if (barPos === "left") {
-      x = barW + gap
+      x = barInset + gap
       y = anchorScreenPos.y + anchorH / 2 - contentHeight / 2
     } else if (barPos === "right") {
-      x = screenW - barW - contentWidth - gap
+      x = surfaceW - barInset - contentWidth - gap
       y = anchorScreenPos.y + anchorH / 2 - contentHeight / 2
     } else { // "top" (default)
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = barH + gap
+      y = barInset + gap
     }
-    x = Math.max(margin, Math.min(x, screenW - contentWidth - margin))
-    y = Math.max(margin, Math.min(y, screenH - contentHeight - margin))
+    x = Math.max(margin, Math.min(x, surfaceW - contentWidth - margin))
+    y = Math.max(margin, Math.min(y, surfaceH - contentHeight - margin))
     return Qt.point(Math.round(x), Math.round(y))
   }
 
@@ -273,9 +285,9 @@ PanelWindow {
 
   // --- outside-click dismissal --------------------------------------------
 
-  // Catches clicks anywhere in the clickable region (i.e. everywhere on
-  // screen except the bar strip, which is masked out). The card has its
-  // own MouseArea below so clicks on it don't bubble up here. Disabled
+  // Catches clicks anywhere on the surface except a hidden bar's strip,
+  // which is forwarded to the bar. The card has its own MouseArea below so
+  // clicks on it don't bubble up here. Disabled
   // during the fade-out so the dying overlay doesn't swallow clicks that
   // were meant for the apps behind it.
   MouseArea {
@@ -288,15 +300,16 @@ PanelWindow {
     cursorShape: hoveringBar ? Qt.PointingHandCursor : Qt.ArrowCursor
 
     function inBarRegion(px, py) {
-      if (root.barPos === "bottom") return py >= root.screenH - root._barStripSize
+      if (root._barStripSize <= 0) return false
+      if (root.barPos === "bottom") return py >= root.surfaceH - root._barStripSize
       if (root.barPos === "left") return px <= root._barStripSize
-      if (root.barPos === "right") return px >= root.screenW - root._barStripSize
+      if (root.barPos === "right") return px >= root.surfaceW - root._barStripSize
       return py <= root._barStripSize
     }
 
     function barPoint(px, py) {
-      if (root.barPos === "bottom") return Qt.point(px, py - (root.screenH - root.barH))
-      if (root.barPos === "right") return Qt.point(px - (root.screenW - root.barW), py)
+      if (root.barPos === "bottom") return Qt.point(px, py - (root.surfaceH - root.barH))
+      if (root.barPos === "right") return Qt.point(px - (root.surfaceW - root.barW), py)
       return Qt.point(px, py)
     }
 
