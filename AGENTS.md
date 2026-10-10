@@ -134,7 +134,9 @@ test entry points:
 
 - `./test/all` - aggregate runner for CLI and shell tests; it intentionally does not run graphical acceptance tests
 - `./test/cli` - CLI routing, command metadata, theme helpers, and safe dispatch coverage
-- `./test/shell` - all Omarchy shell tests under `test/shell.d/`
+- `./test/shell` - all Omarchy shell tests under `test/shell.d/`, each file in its own sandbox (fresh `HOME` and `TMPDIR`, a time limit, everything it starts killed when it ends); `./test/shell name ...` runs only those files, `--rounds N` repeats them to find flaky ones
+- `./test/ci` - what CI runs: `./test/all`, held against `test/ci-known-failures`
+- `./test/ci-vm` - runs `./test/ci` inside a booted Omarchy VM image; `.github/workflows/test.yml` does this on every pull request
 
 New Omarchy shell tests should live in `test/shell.d/*-test.sh` so `./test/shell` picks them up automatically. Source `test/shell.d/base-test.sh` for shared root-path discovery, assertions, and Node test helpers.
 

@@ -1,0 +1,29 @@
+# Test files that do not pass in CI yet, one per line, each with its reason.
+# test/ci fails when a file outside this list fails, and when a file on it
+# passes: take a file off the list in the change that fixes it. A line that
+# starts with "unsteady" names a file that may pass or fail.
+
+# install/config and the setup commands for USB and Thunderbolt approval write
+# polkit policies under /usr/share/polkit-1/actions that no package owns.
+test/shell.d/unowned-system-paths-test.sh
+
+# "Grok registry migration drops the npm tool after opt-out" fails on an
+# installed Omarchy and in a bare Arch container alike.
+test/shell.d/default-agent-test.sh
+
+# The settings packages' scriptlets do not revoke passwordless sudo grants on
+# upgrade and removal yet: omacom/omarchy-pkgs#257.
+test/shell.d/passwordless-grant-lifecycle-test.sh
+
+# These two start a compositor or read the screen. They fail in the CI VM,
+# which has no GPU, run alone as well as beside other tests.
+test/shell.d/hyprland-startup-cursor-cold-test.sh
+test/shell.d/screenshot-sanity-test.sh
+
+# "the compositor is not reloaded during intro playback" fails on about one
+# GitHub runner run in five, alone as well as beside other files, and on no
+# run on a faster machine. Not yet explained. The test selects alpha, beta,
+# then alpha again, and omarchy-theme-set's background job reloads the
+# compositor when its theme is still current: an earlier alpha's job that is
+# still waiting would fit.
+unsteady test/shell.d/theme-intro-switch-test.sh

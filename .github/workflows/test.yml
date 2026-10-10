@@ -1,0 +1,100 @@
+name: Tests
+
+# Runs ./test/all on a real Omarchy install: the VM image of the current
+# release, booted fresh for the run, with this checkout's code copied in.
+# The package recipes and the installer are checked out beside it, because
+# some tests hold this repository against them.
+
+on:
+  pull_request:
+  push:
+    branches: [quattro, ci/shell-suite]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      SITE: https://nightly.omarchy.org
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: src/omarchy
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: omacom/omarchy-pkgs
+          path: src/omarchy-pkgs
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: omacom/omarchy-iso
+          path: src/omarchy-iso
+
+      - name: Install QEMU
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils aria2 jq
+          sudo chmod 0666 /dev/kvm
+
+      # The image of the current release: an installed Omarchy with user
+      # omarchy, built and boot-tested by omarchy-iso. It changes only when a
+      # release does, so it is kept in the cache under its checksum.
+      - name: Find the VM image
+        id: image
+        run: |
+          mkdir -p image
+          curl -fsS --retry 3 -o image/latest.json "$SITE/stable/latest.json"
+          jq -r '"Image: Omarchy \(.omarchy_version), kernel \(.kernel)"' image/latest.json | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "sha256=$(jq -r .vm.sha256 image/latest.json)" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache
+        with:
+          path: image
+          key: vm-image-${{ steps.image.outputs.sha256 }}
+
+      - name: Fetch the VM image
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cd image
+          unpacked=$(jq -r .vm.unpacked latest.json)
+          for file in vmlinuz initrd cmdline; do
+            curl -fsS --retry 3 -o "$file" "$unpacked$file"
+          done
+          aria2c --quiet -x 16 -s 16 -o base.qcow2 "$(jq -r .vm.url latest.json)"
+          echo "$(jq -r .vm.sha256 latest.json)  base.qcow2" | sha256sum -c -
+
+      # Saved from pushes only: a cache saved by a pull request is that pull
+      # request's alone, and each copy is 4.5 GB.
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.cache.outputs.cache-hit != 'true' && github.event_name == 'push'
+        with:
+          path: image
+          key: vm-image-${{ steps.image.outputs.sha256 }}
+
+      - name: Run the tests in the VM
+        run: VM_STATE_DIR="$RUNNER_TEMP" src/omarchy/test/ci-vm image src out
+
+      - name: Summary
+        if: always()
+        run: |
+          [ -f out/run.log ] || exit 0
+          {
+            echo '```'
+            sed -n '/^Skipped checks in/,$p' out/run.log
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: out/
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,0 +1,100 @@
+#!/bin/bash
+
+# Runs ./test/ci on a real Omarchy install: a throwaway copy of an installed
+# VM image, booted for this run, the checkouts copied in, the tests run in the
+# desktop session as the logged-in user. Nothing is left behind.
+#
+#   test/ci-vm <image_dir> <sources_dir> <out_dir>
+#
+#   image_dir    base.qcow2 with vmlinuz, initrd and cmdline beside it: a VM
+#                image omarchy-iso publishes, and its unpacked/ files
+#   sources_dir  holds omarchy/ (what is tested), omarchy-pkgs/ and omarchy-iso/
+#   out_dir      gets run.log (every test file's output, whole) and the boot analysis
+#
+# Env: SMP (default 4), MEM (default 8G), VM_STATE_DIR (where the run's disk
+# and sockets go, default /var/tmp), OMARCHY_TEST_TIMEOUT (seconds a test file
+# may take, default 600: a VM inside a CI runner is several times slower than
+# a laptop).
+
+set -euo pipefail
+
+image=$1 sources=$2 out=$3
+state=$(mktemp -d "${VM_STATE_DIR:-/var/tmp}/ci-vm.XXXXXX") # the socket's path has to stay under 108 bytes
+port=$(( 20000 + RANDOM % 10000 ))
+mkdir -p "$out"
+
+ssh_vm() {
+  ssh -i "$state/id_ed25519" -p "$port" -o BatchMode=yes -o IdentitiesOnly=yes \
+    -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    -o ConnectTimeout="${CONNECT_TIMEOUT:-5}" -o LogLevel=ERROR \
+    -o ControlMaster=auto -o ControlPath="$state/ssh.sock" -o ControlPersist=600 omarchy@127.0.0.1 "$@"
+}
+seconds() { echo $(( SECONDS - started )); }
+cleanup() {
+  ssh -o ControlPath="$state/ssh.sock" -O exit omarchy@127.0.0.1 2>/dev/null || true
+  [[ -f $state/qemu.pid ]] && kill "$(cat "$state/qemu.pid")" 2>/dev/null
+  rm -rf "$state"
+}
+trap cleanup EXIT
+
+# A key made for this run only, handed in through the firmware tables as a
+# systemd credential: the image holds no key, and no run can reuse another's.
+ssh-keygen -q -t ed25519 -N '' -C ci-vm -f "$state/id_ed25519"
+keys=$(printf 'd /home/omarchy/.ssh 0700 omarchy omarchy -\nf+ /home/omarchy/.ssh/authorized_keys 0600 omarchy omarchy - %s\n' \
+  "$(cat "$state/id_ed25519.pub")" | base64 -w0)
+
+qemu-img create -qf qcow2 -b "$(realpath "$image/base.qcow2")" -F qcow2 "$state/run.qcow2"
+started=$SECONDS
+# Straight into the kernel: no firmware, no boot loader. The image takes its
+# machine ID from -uuid, so every run is a machine of its own. The console
+# argument keeps systemd from waiting on a terminal that never answers.
+qemu-system-x86_64 -cpu host -enable-kvm -machine q35,accel=kvm -smp "${SMP:-4}" -m "${MEM:-8G}" \
+  -kernel "$image/vmlinuz" -initrd "$image/initrd" \
+  -append "$(cat "$image/cmdline") systemd.tty.term.console=dumb" \
+  -uuid "$(cat /proc/sys/kernel/random/uuid)" \
+  -drive "file=$state/run.qcow2,format=qcow2,if=none,id=d0" -device virtio-blk-pci,drive=d0 \
+  -smbios "type=11,value=io.systemd.credential.binary:tmpfiles.extra=$keys" \
+  -device virtio-vga -device virtio-rng-pci -display none \
+  -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:$port-:22" -device virtio-net-pci,netdev=n0 \
+  -pidfile "$state/qemu.pid" -daemonize
+
+until CONNECT_TIMEOUT=1 ssh_vm true 2>/dev/null; do
+  (( $(seconds) < 300 )) || { echo "test/ci-vm: no SSH after 300 s" >&2; exit 1; }
+  sleep 0.3
+done
+echo "test/ci-vm: SSH after $(seconds) s"
+
+(cd "$sources" && tar cf - --exclude=.git/objects/pack/tmp_* omarchy omarchy-pkgs omarchy-iso) |
+  ssh_vm 'mkdir -p ~/src && tar xf - -C ~/src'
+
+# The tests keep the environment they start with, so wait for the session to
+# publish its compositor.
+until ssh_vm 'systemctl --user show-environment | grep -q ^HYPRLAND_INSTANCE_SIGNATURE='; do
+  (( $(seconds) < 300 )) || { echo "test/ci-vm: no desktop session after 300 s" >&2; exit 1; }
+  sleep 0.3
+done
+echo "test/ci-vm: sources copied and desktop up after $(seconds) s"
+
+# Nobody touches this machine, and after a few minutes without input Omarchy
+# turns the screen off. The tests that read the screen then read black.
+ssh_vm 'systemd-run --user --quiet --collect --wait omarchy-toggle-idle stay-awake' >/dev/null ||
+  { echo "test/ci-vm: could not keep the session awake" >&2; exit 1; }
+
+# From the user manager: what an Omarchy terminal sees, with default signals.
+command='cd ~/src/omarchy && test/ci >~/run.log 2>&1; echo "rc=$?" >>~/run.log'
+ssh_vm "systemd-run --user --quiet --collect --same-dir \
+  -E OMARCHY_PKGS_PATH=\$HOME/src/omarchy-pkgs -E OMARCHY_ISO_PATH=\$HOME/src/omarchy-iso \
+  -E OMARCHY_TEST_TIMEOUT=${OMARCHY_TEST_TIMEOUT:-600} bash -c $(printf %q "$command")"
+until ssh_vm 'grep -q "^rc=" ~/run.log' 2>/dev/null; do
+  (( $(seconds) < ${CI_VM_TIMEOUT:-1500} )) || { echo "test/ci-vm: the tests did not finish in ${CI_VM_TIMEOUT:-1500} s" >&2; ssh_vm 'cat ~/run.log' >"$out/run.log" || true; exit 1; }
+  sleep 2
+done
+echo "test/ci-vm: tests done after $(seconds) s"
+
+ssh_vm 'cat ~/run.log' >"$out/run.log"
+ssh_vm 'systemd-analyze; systemd-analyze blame | head -25' >"$out/boot.txt" 2>&1 || true
+ssh_vm 'echo "left behind: $(systemctl --user list-units --no-legend "omarchy-test-*" | wc -l) test units; source tree: $(cd ~/src/omarchy && git status --porcelain | wc -l) changed files"'
+
+sed -n '/^Skipped checks in/,$p' "$out/run.log"
+# The tests' verdict is the run's verdict.
+grep -qx 'rc=0' "$out/run.log"

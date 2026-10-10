@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# Runs ./test/all for CI and holds the result against test/ci-known-failures:
+# the test files that do not pass in CI yet, each with its reason.
+#
+# It fails when a file outside that list fails, and when a file on the list
+# passes: the list only ever gets shorter.
+#
+# A line that starts with "unsteady" names a file that fails on some CI runs
+# and passes on others, alone as well: it may do either.
+#
+# The files run several at a time, and some hold a wait to a fraction of a
+# second. A file that fails beside the others is run once more by itself: if
+# it passes then, it is reported and does not fail the run.
+
+set -euo pipefail
+
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+KNOWN="$ROOT/test/ci-known-failures"
+
+output=$(mktemp)
+trap 'rm -f "$output"' EXIT
+
+"$ROOT/test/all" 2>&1 | tee "$output" || true
+
+# A run that ended before its summary has not tested anything.
+grep -qE '^(All [0-9]+ test files passed\.|[0-9]+ test files completed without failures|[0-9]+ of [0-9]+ test files failed:)' "$output" || {
+  echo "test/ci: the shell tests did not reach their summary" >&2
+  exit 1
+}
+
+failed_files() {
+  sed -n '/^[0-9]* of [0-9]* test files failed:$/,/^$/p' "$1" | sed -n 's/^  \(test\/[^ ]*\).*$/\1/p' | sort -u
+}
+
+failed=$(failed_files "$output")
+entries=$(sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' "$KNOWN")
+known=$(grep -v '^unsteady ' <<<"$entries" | sort -u || true)
+unsteady=$(sed -n 's/^unsteady  *//p' <<<"$entries" | sort -u)
+other_suites=$(sed -n '/^[0-9]* of [0-9]* suites failed:$/,$p' "$output" | sed -n 's/^  \(test\/.*\)$/\1/p' | grep -vx 'test/shell' || true)
+tree_changed=$(grep -c '^not ok - round [0-9]* changed the source tree' "$output" || true)
+
+new=$(comm -23 <(printf '%s\n' "$failed") <(printf '%s\n%s\n' "$known" "$unsteady" | sort -u) | sed '/^$/d')
+unsteady_failed=$(comm -12 <(printf '%s\n' "$failed") <(printf '%s\n' "$unsteady") | sed '/^$/d')
+fixed=$(comm -13 <(printf '%s\n' "$failed") <(printf '%s\n' "$known") | sed '/^$/d')
+
+only_beside_others=
+if [[ -n $new ]]; then
+  printf '\ntest/ci: running these once more, one at a time:\n%s\n\n' "$new"
+  again=$(mktemp)
+  mapfile -t names <<<"$new"
+  "$ROOT/test/shell" -j 1 "${names[@]##*/}" 2>&1 | tee "$again" || true
+  still=$(failed_files "$again")
+  # No verdict from the second run leaves the first one standing.
+  if grep -qE '^(All [0-9]+ test files passed\.|[0-9]+ test files completed without failures|[0-9]+ of [0-9]+ test files failed:)' "$again"; then
+    only_beside_others=$(comm -23 <(printf '%s\n' "$new") <(printf '%s\n' "$still") | sed '/^$/d')
+    new=$(comm -12 <(printf '%s\n' "$new") <(printf '%s\n' "$still") | sed '/^$/d')
+  fi
+  rm -f "$again"
+fi
+
+status=0
+if [[ -n $other_suites ]]; then
+  printf '\ntest/ci: failed:\n%s\n' "$other_suites" >&2
+  status=1
+fi
+if (( tree_changed > 0 )); then
+  printf '\ntest/ci: a test changed the source tree.\n' >&2
+  status=1
+fi
+if [[ -n $new ]]; then
+  printf '\ntest/ci: these test files failed:\n%s\n' "$new" >&2
+  status=1
+fi
+if [[ -n $fixed ]]; then
+  printf '\ntest/ci: these pass now. Take them off test/ci-known-failures:\n%s\n' "$fixed" >&2
+  status=1
+fi
+
+[[ -z $unsteady_failed ]] || printf '\ntest/ci: failed this time, and listed as unsteady:\n%s\n' "$unsteady_failed"
+[[ -z $only_beside_others ]] ||
+  printf '\ntest/ci: failed beside the other files and passed alone:\n%s\n' "$only_beside_others"
+if (( status == 0 )); then
+  printf '\ntest/ci: nothing failed outside the %d known failures.\n' "$(printf '%s\n' "$known" | sed '/^$/d' | wc -l)"
+fi
+exit "$status"
