@@ -12,6 +12,15 @@ esac
 
 browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)
 
+# on_focus_under_fullscreen=1 hands the workspace's Hyprland fullscreen mode to
+# a newly mapped tiled window. Chromium --app then shows an Escape-to-exit hint
+# that cannot clear compositor-owned fullscreen (#13170). Leave fullscreen on
+# the focused window first so the web app opens windowed.
+if hyprctl activewindow -j 2>/dev/null | jq -e '(.fullscreen // 0) >= 2' >/dev/null 2>&1; then
+  hyprctl dispatch 'hl.dsp.window.fullscreen_state({ internal = 0, client = 0 })' >/dev/null 2>&1 ||
+    hyprctl dispatch fullscreenstate 0 0 >/dev/null 2>&1 || true
+fi
+
 if ! omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then
   exec setsid uwsm-app -- $browser_exec --app="$1" "${@:2}"
 fi
