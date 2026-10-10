@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # omarchy:summary=Print the sink whose volume and mute a given output really uses
-# omarchy:args=[sink-name]
+# omarchy:args=[--active] [sink-name]
 # omarchy:group=audio
-# omarchy:examples=omarchy audio output sink | omarchy audio output sink omarchy_speaker_tuning
+# omarchy:examples=omarchy audio output sink | omarchy audio output sink --active | omarchy audio output sink omarchy_speaker_tuning
 
 set -uo pipefail
 
@@ -17,8 +17,58 @@ set -uo pipefail
 # HDMI are selected it returns those, not the speakers a tuning happens to front.
 # Callers that need to describe some *other* output -- an output switcher naming
 # the next one in the rotation -- pass that sink explicitly.
+#
+# With --active this instead resolves the sink an uncorked stream is actually
+# playing into when that is not the default sink, so the volume keys follow a
+# call or playback routed to another output (a headset, an HDMI TV) instead of
+# always moving the default. A communication stream (media.role
+# "phone"/"communication", PipeWire's canonical VOIP role) outranks background
+# playback when several streams are playing; with no non-default stream the
+# answer is the default, unchanged.
 
-sink="${1:-$(pactl get-default-sink 2>/dev/null)}"
+# The sink an uncorked stream is playing into, when that is not the default
+# sink. Prints the sink name, or nothing to keep the default.
+active_stream_sink() {
+  local default_sink indices idx name
+  default_sink="$(pactl get-default-sink 2>/dev/null)"
+  [[ -n $default_sink ]] || return 0
+
+  # Sink indices carrying an uncorked stream, call streams first, so a meeting
+  # outranks background playback when several streams are playing at once.
+  indices="$(pactl -f json list sink-inputs 2>/dev/null |
+    jq -r '
+      (.[] | select(.corked == false)
+        | select((.properties["media.role"] // "") | test("phone|communication|voip"; "i"))
+        | .sink),
+      (.[] | select(.corked == false) | .sink)' 2>/dev/null)"
+
+  for idx in $indices; do
+    name="$(pactl -f json list sinks 2>/dev/null |
+      jq -r --argjson i "$idx" '.[] | select(.index == $i) | .name' 2>/dev/null)"
+    [[ -n $name ]] || continue
+    [[ $name == "$default_sink" ]] && continue
+    [[ $name == *.monitor ]] && continue
+    printf '%s\n' "$name"
+    return 0
+  done
+  return 0
+}
+
+follow_active=false
+sink=""
+while (($#)); do
+  case $1 in
+    --active) follow_active=true ;;
+    -*) echo "Unknown option: $1" >&2; exit 1 ;;
+    *) sink="$1" ;;
+  esac
+  shift
+done
+
+if [[ $follow_active == true && -z $sink ]]; then
+  sink="$(active_stream_sink)"
+fi
+sink="${sink:-$(pactl get-default-sink 2>/dev/null)}"
 
 if [[ -z $sink || $sink == alsa_output.* ]]; then
   printf '%s\n' "$sink"

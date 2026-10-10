@@ -465,15 +465,55 @@ Item {
   // sink it feeds on every press, from the live routing. An ALSA sink is its
   // own physical sink, so only then do the keys act here; any other default
   // sink falls back to the script.
+  //
+  // During a call the headset is a separate, non-default sink, so Linux routes
+  // the volume keys to the default sink and they move the speakers while the
+  // call plays into the headset. To make the keys follow the stream that is
+  // actually playing, the active sink is resolved through
+  // omarchy-audio-output-sink --active (an uncorked stream on a non-default
+  // output wins, else the default). The shell cannot see which sink each
+  // stream is linked to, so the resolution runs in a process, refreshed when
+  // the default sink changes, on a timer, and on each press. When the active
+  // sink is not the default, handleVolumeKey defers to the script, which
+  // repeats the same resolution and steps that sink.
   readonly property var defaultSink: Pipewire.defaultAudioSink
   readonly property var volumeSink: defaultSink && String(defaultSink.name).indexOf("alsa_output.") === 0 ? defaultSink : null
   property double lastMuteToggle: 0
+  property string activeSinkName: ""
 
-  // Returns false when the default sink is not one to control here, so the
-  // caller falls back to the script.
+  function refreshActiveSink() {
+    if (!activeSinkProc.running) activeSinkProc.running = true
+  }
+
+  onDefaultSinkChanged: refreshActiveSink()
+
+  Process {
+    id: activeSinkProc
+    command: ["omarchy-audio-output-sink", "--active"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.activeSinkName = String(text).trim()
+    }
+  }
+
+  Timer {
+    interval: 5000
+    running: true
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.refreshActiveSink()
+  }
+
+  // Returns false when the default sink is not one to control here, or when an
+  // active stream plays on another output, so the caller falls back to the
+  // script.
   function handleVolumeKey(action) {
     var audio = volumeSink && volumeSink.audio
     if (!audio) return false
+
+    if (activeSinkName && activeSinkName !== String(defaultSink.name)) return false
+
+    refreshActiveSink()
 
     var step = MediaModel.volumeKeyStep(action, Math.round(audio.volume * 100), audio.muted)
     if (!step) return false

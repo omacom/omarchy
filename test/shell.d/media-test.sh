@@ -56,18 +56,22 @@ assertEqual(media.volumeOsdIcon(0, false), 'volume-muted', 'volume OSD shows mut
 
 // Only an ALSA sink is its own physical sink. Any other default sink, a DSP
 // chain or EasyEffects above all, needs omarchy-audio-output-sink's live
-// resolution on every press, so its keys fall back to the script.
+// resolution on every press, so its keys fall back to the script. The same
+// deferral covers the active-stream resolution: when a stream plays on another
+// output, the keys follow that output through the script, not the default.
 const fs = require('fs')
 const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/services/media/Service.qml'), 'utf8')
 assert(
   serviceQml.includes('readonly property var volumeSink: defaultSink && String(defaultSink.name).indexOf("alsa_output.") === 0 ? defaultSink : null') &&
     /function handleVolumeKey\(action\) \{\s*var audio = volumeSink && volumeSink\.audio\s*if \(!audio\) return false/.test(serviceQml) &&
+    serviceQml.includes('activeSinkName !== String(defaultSink.name)) return false') &&
+    serviceQml.includes('command: ["omarchy-audio-output-sink", "--active"]') &&
     !serviceQml.includes('volumeSinkName'),
-  'volume keys act in the shell only on an ALSA sink and otherwise defer to the script'
+  'volume keys act in the shell only on an ALSA sink, defer to the script for an active stream on another output, and otherwise defer'
 )
 const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
 assert(
-  /if \(!media \|\| !media\.handleVolumeKey\(entry\.target\)\)\s*Util\.execArgv\(\["omarchy-audio-output-volume", entry\.target\]\)/.test(shellQml),
-  'a volume key the shell declines runs omarchy-audio-output-volume'
+  /if \(!media \|\| !media\.handleVolumeKey\(entry\.target\)\)\s*Util\.execArgv\(\["omarchy-audio-output-volume", "--follow-active", entry\.target\]\)/.test(shellQml),
+  'a volume key the shell declines runs omarchy-audio-output-volume --follow-active'
 )
 JS
