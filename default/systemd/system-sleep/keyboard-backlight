@@ -2,19 +2,36 @@
 
 # Turn off keyboard backlight before hibernate to prevent hang on power-off.
 # The ASUS keyboard controller can block S4 shutdown if LEDs are active.
+# On resume (post), restore the previous backlight brightness.
 
 sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
 
-if [[ $1 == "pre" && $sleep_action == "hibernate" ]]; then
-  device=""
-  for candidate in /sys/class/leds/*kbd_backlight*; do
-    if [[ -e "$candidate" ]]; then
-      device="$(basename "$candidate")"
-      break
-    fi
-  done
+device=""
+for candidate in /sys/class/leds/*kbd_backlight*; do
+  if [[ -e "$candidate" ]]; then
+    device="$(basename "$candidate")"
+    break
+  fi
+done
 
-  if [[ -n "$device" ]]; then
-    brightnessctl -d "$device" set 0 >/dev/null 2>&1
+[[ -n "$device" ]] || exit 0
+
+STATE_DIR="/var/lib/systemd/backlight"
+STATE_FILE="$STATE_DIR/keyboard-sleep-state"
+
+if [[ $1 == "pre" && $sleep_action == "hibernate" ]]; then
+  current=$(cat "/sys/class/leds/$device/brightness" 2>/dev/null || echo 0)
+  if (( current > 0 )); then
+    mkdir -p "$STATE_DIR"
+    echo "$current" > "$STATE_FILE"
+  fi
+  brightnessctl -d "$device" set 0 >/dev/null 2>&1
+elif [[ $1 == "post" && $sleep_action == "hibernate" ]]; then
+  if [[ -s "$STATE_FILE" ]]; then
+    target=$(cat "$STATE_FILE" 2>/dev/null || echo 0)
+    if (( target > 0 )); then
+      brightnessctl -d "$device" set "$target" >/dev/null 2>&1
+    fi
   fi
 fi
+

@@ -25,17 +25,65 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+STATE_FILE="$STATE_DIR/keyboard-brightness"
+
+save_persistent_state() {
+  local val="$1"
+  if (( val > 0 )); then
+    mkdir -p "$STATE_DIR"
+    echo "$val" > "$STATE_FILE"
+  fi
+}
+
+get_persistent_state() {
+  if [[ -s "$STATE_FILE" ]]; then
+    cat "$STATE_FILE" 2>/dev/null || echo 0
+  else
+    echo 0
+  fi
+}
+
+current_brightness="$(brightnessctl -d "$device" get 2>/dev/null || echo 0)"
+max_brightness="$(brightnessctl -d "$device" max 2>/dev/null || echo 1)"
+
 if [[ $direction == "off" ]]; then
-  brightnessctl -sd "$device" set 0 >/dev/null
+  # Guard: Only save state if current brightness is positive so we never overwrite with 0
+  if (( current_brightness > 0 )); then
+    save_persistent_state "$current_brightness"
+    brightnessctl -sd "$device" set 0 >/dev/null 2>&1
+  else
+    brightnessctl -d "$device" set 0 >/dev/null 2>&1
+  fi
   exit 0
 elif [[ $direction == "restore" ]]; then
-  brightnessctl -rd "$device" >/dev/null
+  saved_val=$(get_persistent_state)
+  runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  brightnessctl_file="$runtime_dir/brightnessctl/leds/$device"
+
+
+  # Check if brightnessctl temporary file has a positive value
+  if [[ -f "$brightnessctl_file" ]]; then
+    b_val=$(cat "$brightnessctl_file" 2>/dev/null || echo 0)
+    if (( b_val > 0 )); then
+      brightnessctl -rd "$device" >/dev/null 2>&1
+      exit 0
+    fi
+  fi
+
+  # If brightnessctl file was missing or zeroed, restore from persistent state
+  if (( saved_val > 0 )); then
+    brightnessctl -d "$device" set "$saved_val" >/dev/null 2>&1
+    exit 0
+  fi
+
+  # Fallback to sensible default (30% of max) if no previous non-zero state is recorded
+  fallback_step=$(( max_brightness * 30 / 100 ))
+  (( fallback_step < 1 )) && fallback_step=1
+  brightnessctl -d "$device" set "$fallback_step" >/dev/null 2>&1
+  save_persistent_state "$fallback_step"
   exit 0
 fi
-
-# Get current and max brightness to determine step size.
-max_brightness="$(brightnessctl -d "$device" max)"
-current_brightness="$(brightnessctl -d "$device" get)"
 
 # Calculate step as 10% of max brightness. Keyboards with many levels (e.g. 512)
 # need larger steps; keyboards with few levels (e.g. 3) fall back to step=1.
@@ -53,6 +101,9 @@ else
   (( new_brightness < 0 )) && new_brightness=0
 fi
 
-# Set the new brightness.
+# Set the new brightness and persist it if non-zero
 brightnessctl -d "$device" set "$new_brightness" >/dev/null
+if (( new_brightness > 0 )); then
+  save_persistent_state "$new_brightness"
+fi
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"
