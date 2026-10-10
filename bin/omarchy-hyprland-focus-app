@@ -1,31 +1,48 @@
 #!/bin/bash
 
-# omarchy:summary=Focus a Hyprland window by application identity
-# omarchy:args=<app-name>
+# omarchy:summary=Focus a Hyprland window by application identity or exact address
+# omarchy:args=<app-name>|address:0x<addr>
 # omarchy:examples=omarchy hyprland focus app Slack
 
 usage() {
-  echo "Usage: omarchy-hyprland-focus-app <app-name>" >&2
+  echo "Usage: omarchy-hyprland-focus-app <app-name>|address:0x<addr>" >&2
   exit 1
 }
 
 app=${1:-}
 [[ -n $app ]] || usage
 
-# Agent terminals notify as kitty/foot/etc. while their shared window class is
-# org.omarchy.agent, leaving the terminal name only in initialTitle. So match
-# by class first, then fall back to the launch-time title of agent windows.
-address=$(
+# An exact window, when the caller already knows which one it means.
+#
+# Matching by application identity cannot tell one terminal from another, and a
+# notification that came from a particular window wants that window back rather
+# than whichever of nine kitty windows the search happens to reach first. A
+# caller that knows the address says so; anything that is not an address falls
+# through to the identity search below unchanged.
+if [[ $app =~ ^address:0x[0-9a-fA-F]+$ ]]; then
+  target=${app#address:}
+  # Only a window that is actually open. Dispatching at a stale address is
+  # silently ignored by Hyprland, which looks the same as doing nothing.
   hyprctl clients -j 2>/dev/null |
-    jq -r --arg pattern "$app" \
-      'def matches($value): ($value // "") | test($pattern; "i");
-       first(
-         (.[] | select(matches(.class))),
-         (.[] | select(.initialClass == "org.omarchy.agent" and matches(.initialTitle)))
-       ).address // empty'
-)
+    jq -e --arg a "$target" 'any(.[]; .address == $a)' >/dev/null || exit 1
+  hyprctl dispatch "hl.dsp.focus({ window = \"address:$target\" })" >/dev/null 2>&1 ||
+    hyprctl dispatch focuswindow "address:$target" >/dev/null
+else
+  # Agent terminals notify as kitty/foot/etc. while their shared window class is
+  # org.omarchy.agent, leaving the terminal name only in initialTitle. So match
+  # by class first, then fall back to the launch-time title of agent windows.
+  address=$(
+    hyprctl clients -j 2>/dev/null |
+      jq -r --arg pattern "$app" \
+        'def matches($value): ($value // "") | test($pattern; "i");
+         first(
+           (.[] | select(matches(.class))),
+           (.[] | select(.initialClass == "org.omarchy.agent" and matches(.initialTitle)))
+         ).address // empty'
+  )
 
-[[ -n $address ]] || exit 1
+  [[ -n $address ]] || exit 1
 
-hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || \
-  hyprctl dispatch focuswindow "address:$address" >/dev/null
+  hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || \
+    hyprctl dispatch focuswindow "address:$address" >/dev/null
+fi
