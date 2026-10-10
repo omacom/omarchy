@@ -147,6 +147,17 @@ run_command omarchy-display-text-size 16
 grep -qx 'font_size 12.0' "$kitty_config" || fail "size command handles absent config"
 pass "font controls create missing Kitty overrides without restoring the theme include"
 
+printf 'font_family Old Font\nbold_font auto\nbold_font Old Font\nitalic_font Old Font\nbold_italic_font auto\n' >"$kitty_config"
+run_command omarchy-font-set 'Test Font'
+grep -qx 'bold_font Test Font' "$kitty_config" || fail "font command updates bold face past an earlier auto"
+grep -qx 'italic_font Test Font' "$kitty_config" || fail "font command updates italic face"
+grep -qx 'bold_italic_font auto' "$kitty_config" || fail "font command leaves auto faces alone"
+cp "$ROOT/config/kitty/kitty.conf" "$kitty_config"
+printf 'bold_font Old Font\n' >>"$kitty_config"
+run_command omarchy-font-set 'Test Font'
+grep -qx 'bold_font Test Font' "$kitty_config" || fail "font command updates faces when adding the family override"
+pass "font command keeps explicit Kitty faces on the chosen font"
+
 if "$ROOT/bin/omarchy-cmd-present" kitty; then
   kitty +runpy "$(cat "$ROOT/test/shell.d/fixtures/kitty/check-config.py")"
 else
