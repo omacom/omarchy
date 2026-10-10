@@ -53,6 +53,17 @@ if ! rg -q 'sourceComponent: root\.vertical \? verticalIndicatorsTree : horizont
 fi
 pass "indicators instantiate only the tree for the current bar orientation"
 
+if ! rg -q 'canReorder:.*!slot\.locked' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar reorder gate must refuse a locked slot"
+fi
+pass "bar reorder gate refuses a locked slot"
+
+if ! perl -0ne 'exit(/id:\s*modulePointer\b[\s\S]*?onPositionChanged:\s*function[^{]*\{\s*if\s*\(!canReorder\b[^\n]*\)\s*return\b/ ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar widget drag must start only past the reorder gate"
+fi
+pass "bar widget drag starts only past the reorder gate"
+
 run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
@@ -313,6 +324,12 @@ assertDeepEqual(bar.entrySettings({ id: 'omarchy.clock', format: 'HH:mm' }), { f
 assertEqual(bar.entryId({ id: 'omarchy.clock' }), 'omarchy.clock', 'bar extracts object entry ids')
 assertEqual(bar.entryId('omarchy.clock'), 'omarchy.clock', 'bar extracts string entry ids')
 
+assertDeepEqual(bar.entrySettings({ id: 'omarchy.workspaces', locked: true }), { locked: true }, 'bar passes the lock flag through to widget settings')
+assertEqual(bar.entryLocked({ id: 'omarchy.workspaces', locked: true }), true, 'bar reads a locked entry')
+assertEqual(bar.entryLocked({ id: 'omarchy.workspaces' }), false, 'bar treats an entry with no flag as movable')
+assertEqual(bar.entryLocked({ id: 'omarchy.workspaces', locked: 'yes' }), false, 'bar ignores a lock flag that is not literally true')
+assertEqual(bar.entryLocked('omarchy.workspaces'), false, 'bar treats a bare string entry as movable')
+
 const entries = [{ id: 'a' }, { id: 'omarchy.tray' }, { id: 'b' }]
 assertDeepEqual(bar.pinTrayToInner(entries, 'left').map(bar.entryId), ['a', 'b', 'omarchy.tray'], 'bar pins tray to left inner edge')
 assertDeepEqual(bar.pinTrayToInner(entries, 'right').map(bar.entryId), ['omarchy.tray', 'a', 'b'], 'bar pins tray to right inner edge')
@@ -347,6 +364,16 @@ assertEqual(
   ),
   null,
   'bar rebuilds for custom modules, which read their entry directly'
+)
+assertEqual(
+  bar.inlineSettingsDelta(settingsLayout, { left: [{ id: 'omarchy.power', locked: true }], center: settingsLayout.center, right: [] }),
+  null,
+  'bar rebuilds when an entry is locked, since slots read the lock from their entry'
+)
+assertEqual(
+  bar.inlineSettingsDelta({ left: [{ id: 'omarchy.power', locked: true }], center: [], right: [] }, { left: [{ id: 'omarchy.power' }], center: [], right: [] }),
+  null,
+  'bar rebuilds when an entry is unlocked'
 )
 assertEqual(
   bar.inlineSettingsDelta(
