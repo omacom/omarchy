@@ -79,4 +79,24 @@ assert(
   /id: revealAnimation[\s\S]*?duration: Style\.duration\(840\)/.test(backgroundQml),
   'background reveal takes 840ms'
 )
+assert(
+  /onReadyChanged: finishTransition\(false\)/.test(backgroundQml) &&
+    /function finishTransition\(timedOut\) \{\s*if \(!finishingTransition \|\| \(!ready && !timedOut\)\) return/.test(backgroundQml) &&
+    !/onReadyChanged: \{[\s\S]*?root\.incomingBackground = ""/.test(backgroundQml),
+  'background keeps the reveal layers until every screen has drawn its base image'
+)
+assert(
+  /id: finishTransitionTimer[\s\S]*?interval: 1000[\s\S]*?onTriggered: root\.finishTransition\(true\)/.test(backgroundQml) &&
+    /root\.finishingTransition = true\s*finishTransitionTimer\.restart\(\)/.test(backgroundQml),
+  'background stops waiting for a base image that never loads'
+)
+assert(
+  /if \(!instant && incomingBackground && \(finishingTransition \|\| \(revealProgress > 0 && revealProgress < 1\)\)\) \{\s*queuedTransition =/.test(backgroundQml) &&
+    /function finishTransition\(timedOut\)[\s\S]*?if \(queuedTransition\) \{[\s\S]*?transitionBackground\(next\.fromPath/.test(backgroundQml),
+  'background lets a running reveal and its wait for the base images finish, then starts the latest queued switch'
+)
+assert(
+  /queuedTransition = !force && finalPath === currentBackground \? null/.test(backgroundQml),
+  'background keeps a queued forced switch that shares the final path'
+)
 JS
