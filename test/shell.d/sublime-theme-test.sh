@@ -127,21 +127,24 @@ fi
 
 pass "Sublime settings handle empty and malformed files"
 
-python3 - "$ROOT/default/sublime/OmarchyWindow.py" <<'PY' || fail "Sublime window defaults respect existing choices"
+python3 - "$ROOT/default/sublime/OmarchyWindow.py" <<'PY' || fail "Sublime window defaults apply once"
 import runpy
 import sys
 import types
 
 windows = []
-preferences = {}
+state = {}
+saved = []
 sublime = types.ModuleType('sublime')
 sublime.windows = lambda: windows
-sublime.load_settings = lambda _: types.SimpleNamespace(get=lambda key, default: preferences.get(key, default))
+sublime.load_settings = lambda _: types.SimpleNamespace(get=state.get, set=state.__setitem__)
+sublime.save_settings = saved.append
 plugin = types.ModuleType('sublime_plugin')
 plugin.EventListener = object
 sys.modules['sublime'] = sublime
 sys.modules['sublime_plugin'] = plugin
-listener = runpy.run_path(sys.argv[1])['OmarchyWindowDefaults']()
+module = runpy.run_path(sys.argv[1])
+listener = module['OmarchyWindowDefaults']()
 
 
 class Window:
@@ -155,28 +158,23 @@ class Window:
     def set_minimap_visible(self, value):
         self.minimap = value
 
-    def is_menu_visible(self):
-        return self.menu
 
-    def is_minimap_visible(self):
-        return self.minimap
-
+module['plugin_loaded']()
+assert not saved
 
 first = Window()
 windows.append(first)
 listener.on_new_window(first)
 assert not first.menu and not first.minimap
-first.menu = True
+assert saved == ['Omarchy.sublime-settings']
+
+first.menu = first.minimap = True
 second = Window()
 windows.append(second)
 listener.on_new_window(second)
-assert second.menu and not second.minimap
-windows.clear()
-preferences.update(omarchy_hide_menu=False, omarchy_hide_minimap=False)
-third = Window()
-windows.append(third)
-listener.on_new_window(third)
-assert third.menu and third.minimap
+module['plugin_loaded']()
+assert first.menu and first.minimap and second.menu and second.minimap
+assert len(saved) == 1
 PY
 
-pass "Sublime hides chrome by default and respects later window choices"
+pass "Sublime hides the menu and minimap once and then keeps the user's choices"
