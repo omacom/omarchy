@@ -14,6 +14,10 @@ stub_bin="$tmpdir/bin"
 mkdir -p "$home/.config" "$stub_bin"
 cp -r "$ROOT/config/hypr" "$home/.config/hypr"
 
+# No platform package: neither its key names nor its binds.
+menu="$tmpdir/omarchy-menu-keybindings"
+platform_root_copy "$ROOT/bin/omarchy-menu-keybindings" "$menu" "$tmpdir/no-platform"
+
 # The menu reads binds from Hyprland, which is not running here, so stand in for
 # it. A Lua bind reports dispatcher __lua and no arg, and the menu recovers both
 # from the Lua source; an exec bind carries its own command. Both shapes matter:
@@ -43,7 +47,7 @@ stub_hyprctl() {
 keybindings() {
   env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
     XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
-    bash "$ROOT/bin/omarchy-menu-keybindings" --print
+    bash "$menu" --print
 }
 
 # Closing a window and toggling the scratchpad are two of the actions Omarchy
@@ -53,6 +57,7 @@ stub_hyprctl <<BINDS
 $(lua_bind 64 "SUPER + W" "Close window")
 $(lua_bind 64 "SUPER + Q" "Close window")
 $(lua_bind 64 "SUPER + F" "Full screen")
+$(lua_bind 64 "SUPER + I" "Switch input language")
 $(lua_bind 64 "SUPER + S" "Toggle scratchpad")
 $(lua_bind 64 "SUPER + grave" "Toggle scratchpad")
 $(exec_bind 73 "SUPER SHIFT ALT + 0" "Move window silently to workspace 10" "true")
@@ -64,6 +69,20 @@ rendered=$(keybindings)
 grep -q 'SUPER + F  *→ Full screen' <<<"$rendered" ||
   fail "a chord with no alternative renders on its own" "$rendered"
 pass "the keybindings menu renders its entries"
+grep -q 'SUPER + I  *→ Switch input language' <<<"$rendered" ||
+  fail "the input switch shortcut appears in the cheatsheet" "$rendered"
+pass "the input switch shortcut appears in the cheatsheet"
+
+# The menu's own scan of the config runs lua -E, so no LUA_INIT or LUA_PATH from
+# the environment reaches it and nothing there can move the platform root.
+printf "io.open('%s', 'w'):close()\n" "$tmpdir/init-ran" >"$tmpdir/init.lua"
+LUA_INIT="@$tmpdir/init.lua" lua -e '' && [[ -e $tmpdir/init-ran ]] || fail "the LUA_INIT probe runs in a plain lua"
+rm -f "$tmpdir/init-ran"
+env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" XDG_CACHE_HOME="$tmpdir/cache-init" OMARCHY_PATH="$ROOT" \
+  LUA_INIT="@$tmpdir/init.lua" LUA_INIT_5_5="@$tmpdir/init.lua" LUA_INIT_5_4="@$tmpdir/init.lua" LUA_PATH="$tmpdir/?.lua" \
+  bash "$ROOT/bin/omarchy-menu-keybindings" --print >/dev/null
+[[ ! -e $tmpdir/init-ran ]] || fail "the menu's config scan ignores LUA_INIT from the environment"
+pass "the menu's config scan ignores LUA_INIT and LUA_PATH from the environment"
 
 (( $(grep -c '→ Close window$' <<<"$rendered") == 1 )) ||
   fail "an alternative chord joins the row of the first one" "$rendered"

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 import "Sun.js" as Sun
@@ -22,7 +23,7 @@ Item {
   property bool hovered: false
   property bool hour24: false
   property real moonPhase: 0
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property color fainter: Qt.darker(foreground, 2.1)
   property color daylightMarker: "#E5C736"
   property string fontFamily: Style.font.family

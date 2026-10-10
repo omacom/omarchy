@@ -53,9 +53,19 @@ SH
 
 chmod +x "$mock_bin"/*
 
+# A copy of the command reads its platform file from a fixture root (none
+# unless a case writes one, whatever the machine running the suite has
+# installed) and its DRM connectors from a fixture directory.
+platform_root="$test_tmp/platform"
+mkdir -p "$platform_root" "$test_tmp/copy"
+brightness_display="$test_tmp/copy/omarchy-brightness-display"
+platform_root_copy "$ROOT/bin/omarchy-brightness-display" "$brightness_display" "$platform_root"
+sed -i "s|/sys/class/drm|$test_tmp/drm|g" "$brightness_display"
+grep -qF "$test_tmp/drm/card" "$brightness_display" || fail "omarchy-brightness-display reads DRM connectors from the fixture"
+
 run_brightness() {
-  CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" PATH="$mock_bin:$ROOT/bin:$PATH" \
-    "$ROOT/bin/omarchy-brightness-display" "$@"
+  CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" \
+    PATH="$mock_bin:$ROOT/bin:$PATH" "$brightness_display" "$@"
 }
 
 brightness=$(run_brightness --monitor DP-1)
@@ -144,3 +154,43 @@ if PATH="$mock_bin:$PATH" "$ROOT/bin/omarchy-hyprland-monitor-focused-apple"; th
   fail "focused non-Apple display is not detected as Apple"
 fi
 pass "named Apple display is detected independently of focus"
+
+# A platform whose display driver has no DDC channel says so: an external
+# monitor whose connector has no ddc node is not probed and never dims the
+# built-in panel in its place.
+mkdir -p "$test_tmp/drm/card2-USB-1" "$test_tmp/drm/card2-eDP-1"
+# The last line needs no newline.
+printf '%s\n%s' '# no DDC channel on the display driver' 'ddc-require-connector-ddc' >"$platform_root/displays.conf"
+: >"$call_log"
+if run_brightness --monitor USB-1 >/dev/null 2>&1; then
+  fail "an external monitor without a ddc node has no brightness backend"
+fi
+if run_brightness --no-osd --monitor USB-1 +5% >/dev/null 2>&1; then
+  fail "setting an external monitor without a ddc node fails"
+fi
+printf 'ddc-require-connector-ddc\r\n' >"$platform_root/displays.conf"
+if run_brightness --monitor USB-1 >/dev/null 2>&1; then
+  fail "a displays.conf saved with CRLF line ends reads the same"
+fi
+printf '%s\n%s' '# no DDC channel on the display driver' 'ddc-require-connector-ddc' >"$platform_root/displays.conf"
+[[ ! -s $call_log ]] || fail "an external monitor without a ddc node probes nothing" "$(<"$call_log")"
+brightness=$(run_brightness --monitor eDP-1)
+(( brightness == 40 )) || fail "the built-in panel still uses the kernel backlight" "actual: $brightness"
+pass "a platform without DDC channels skips DDC for a connector without one"
+
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/"*
+: >"$test_tmp/drm/card2-USB-1/ddc"
+brightness=$(DDC_CONNECTOR=USB-1 run_brightness --monitor USB-1)
+(( brightness == 50 )) || fail "an external monitor with a ddc node uses DDC" "actual: $brightness"
+pass "a platform without DDC channels still uses DDC where a connector has one"
+
+# Without the directive, every external monitor is probed, ddc node or not.
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/"* "$test_tmp/drm/card2-USB-1/ddc"
+for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
+  printf '%s\n' "$conf" >"$platform_root/displays.conf"
+  rm -f "$runtime_dir/omarchy-brightness-display-ddc/"*
+  brightness=$(DDC_CONNECTOR=USB-1 run_brightness --monitor USB-1)
+  (( brightness == 50 )) || fail "an external monitor is probed without the directive" "conf: $conf, actual: $brightness"
+done
+rm -f "$platform_root/displays.conf"
+pass "every external monitor is probed without the directive"
