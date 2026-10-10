@@ -984,17 +984,28 @@ def fetch_codex_rpc(home=None):
 
 
 # The accounts `omarchy agent account` registered, read straight from its
-# registry. Only a registry holding a second account matters: with one, the
-# record is exactly what it always was.
+# registry. With fewer than two accounts, keep the old record shape but retain
+# whether the registry was read so consumers can distinguish failure from a
+# confirmed single-account setup.
 def registered_accounts():
   state = Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state"))
+  path = state / "omarchy" / "agents" / "accounts" / "codex.json"
   try:
-    registry = json.loads((state / "omarchy" / "agents" / "accounts" / "codex.json").read_text(encoding="utf-8"))
+    registry = json.loads(path.read_text(encoding="utf-8"))
+  except FileNotFoundError:
+    return {"status": "missing", "accounts": []}
   except Exception:
-    return []
-  accounts = [a for a in registry.get("accounts") or [] if isinstance(a, dict) and a.get("id")]
+    return {"status": "unreadable", "accounts": []}
+  if not isinstance(registry, dict):
+    return {"status": "unreadable", "accounts": []}
+  registered = registry.get("accounts", [])
+  if not isinstance(registered, list):
+    return {"status": "unreadable", "accounts": []}
+  if any(not isinstance(account, dict) or not account.get("id") for account in registered):
+    return {"status": "unreadable", "accounts": []}
+  accounts = registered
   if len(accounts) < 2:
-    return []
+    return {"status": "available", "accounts": []}
   active_id = registry.get("active") or accounts[0]["id"]
   if not any(a["id"] == active_id for a in accounts):
     active_id = accounts[0]["id"]
@@ -1004,7 +1015,7 @@ def registered_accounts():
       "mode": "auto" if registry.get("switch") == "auto" else "manual",
       "threshold": registry.get("threshold") or 95,
     }
-  return accounts
+  return {"status": "available", "accounts": accounts}
 
 
 # Each account's app-server runs in that account's home, so it answers for that
@@ -1015,6 +1026,7 @@ def account_limits(account):
   rpc = fetch_codex_rpc(account.get("home") or (Path.home() / ".codex"))
   return {
     "id": account["id"],
+    "accountId": str(account.get("accountId") or ""),
     "label": str(account.get("label") or account["id"]),
     "email": str(account.get("email") or ""),
     "plan": rpc["tierLabel"] or str(account.get("plan") or ""),
@@ -1041,7 +1053,8 @@ def main():
 
   max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
   stats = cached_local_stats(max_age)
-  registered = registered_accounts()
+  registry = registered_accounts()
+  registered = registry["accounts"]
   accounts = [account_limits(account) for account in registered]
   current = next((a for a in accounts if a["active"]), None)
   if current:
@@ -1064,7 +1077,11 @@ def main():
     "updatedAt": datetime.now(timezone.utc).isoformat(),
     "ready": True,
     "hasLocalStats": True,
+    "accountRegistryStatus": registry["status"],
   }
+  if registry["status"] == "unreadable":
+    # fetch_codex_rpc() uses CODEX_HOME when set, otherwise ~/.codex.
+    record["fallbackAccountLabel"] = "Configured home"
   record.update(stats)
   record.update(rpc)
   if accounts:
