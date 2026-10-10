@@ -43,3 +43,15 @@ pass "a new terminal opens in the focused terminal's shell directory"
 output=$(PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" HOME="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd" 2>&1)
 [[ $output == "$test_tmp" ]] || fail "with no focused terminal the new one opens in HOME" "got: $output"
 pass "with no focused terminal the new one opens in HOME, quietly"
+
+# The Super+Return binding hands over the focused window's pid, so Hyprland is
+# not asked again; a hyprctl that fails the test proves it goes unasked.
+cat >"$stub_bin/hyprctl" <<'SH'
+#!/bin/bash
+echo "hyprctl was asked for the active window" >&2
+exit 1
+SH
+
+cwd=$(PATH="$stub_bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" "$ROOT/bin/omarchy-cmd-terminal-cwd" "$terminal_pid" 2>&1)
+[[ $cwd == "$work_dir" ]] || fail "a terminal pid passed in finds its shell directory without hyprctl" "got: $cwd"
+pass "a terminal pid passed in finds its shell directory without hyprctl"

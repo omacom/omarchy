@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# omarchy:summary=Install and configure Voxtype dictation
+# omarchy:requires-sudo=true
+
+set -e
+
+voxtype_lib_path="${OMARCHY_VOXTYPE_LIB_PATH:-/usr/lib/voxtype}"
+
+if omarchy-cmd-missing voxtype; then
+  if gum confirm "Install Voxtype + AI model (~150MB) to enable dictation?"; then
+    omarchy-pkg-add wtype voxtype-bin
+  else
+    exit 0
+  fi
+fi
+
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+mkdir -p "$config_home/voxtype"
+if [[ ! -e $config_home/voxtype/config.toml ]]; then
+  cp "$OMARCHY_PATH/default/voxtype/config.toml" "$config_home/voxtype/"
+  # A Vulkan runtime is not enough: aarch64 voxtype-bin ships no Vulkan backend.
+  if omarchy-hw-vulkan && [[ -x $voxtype_lib_path/voxtype-vulkan ]]; then
+    voxtype setup gpu --enable || true
+  fi
+fi
+
+# Setup reuses the configured model and downloads it only when missing.
+# Retry these steps even when an earlier attempt already installed the binary.
+voxtype setup --download --no-post-install
+voxtype setup systemd
+systemctl --user enable --now voxtype.service
+
+omarchy-dictation-use voxtype
+hyprctl reload >/dev/null
+omarchy-notification-send -g  "Voxtype Dictation Ready" "Hold Right Alt or F9 to dictate (or toggle with Super + Ctrl + X)." -t 10000

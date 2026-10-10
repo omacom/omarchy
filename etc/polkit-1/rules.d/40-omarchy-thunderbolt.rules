@@ -1,0 +1,17 @@
+polkit.addRule(function(action, subject) {
+  if (action.id === "org.omarchy.thunderbolt.approve" &&
+      subject.active && subject.local && subject.isInGroup("wheel")) {
+    return polkit.Result.YES;
+  }
+  // Bolt's vendor rule grants wheel passwordless management, including enabling
+  // automatic approval of every IOMMU device. Keep blanket policy changes behind
+  // administrator authentication; the narrow Omarchy action approves one device.
+  if (action.id === "org.freedesktop.bolt.manage" && subject.user !== "root") {
+    try {
+      polkit.spawn(["/usr/bin/test", "-f", "/etc/omarchy/thunderbolt-authorization.enabled"]);
+      return polkit.Result.AUTH_ADMIN;
+    } catch (error) {
+      // Protection is disabled: retain the packaged Bolt permission rules.
+    }
+  }
+});

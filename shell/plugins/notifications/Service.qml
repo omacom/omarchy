@@ -45,11 +45,15 @@ Item {
   // pull notification popups away from the expected top-right location.
   // Falls back to the bar's default size (26 horizontal / 28 vertical) when
   // shell.bar isn't reachable so the popup never lands on top of the bar.
+  // Each screen clears the bar as thick as it is there: a notch floor can make
+  // a top bar taller than its configured size on one screen only.
   readonly property string barPosition: shell && shell.barConfig ? String(shell.barConfig.position || "top") : "top"
   readonly property bool barVertical: barPosition === "left" || barPosition === "right"
   readonly property int defaultBarSize: barVertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
-  readonly property int liveBarSize: shell && shell.bar && !shell.bar.barHidden ? Math.max(0, shell.bar.barSize) : defaultBarSize
-  readonly property int barClearance: liveBarSize + Style.gapsOut
+
+  function barClearanceFor(screenName) {
+    return NotificationLogic.barClearance(shell ? shell.bar : null, screenName, defaultBarSize, Style.gapsOut)
+  }
 
   // Live Notification objects by originalId, kept OUT of the ListModels: a
   // QObject stored in a model role becomes a dangling C++ pointer when the
@@ -189,6 +193,7 @@ Item {
     // Repeater is mid-incubation while we mutate its model.
     Qt.callLater(function() {
       removePopupsByOriginalId(snapshot.originalId, NotificationLogic.popupFileName(snapshot))
+      removeDuplicatePopups(service.currentContent(notification, snapshot))
       popupModel.insert(0, snapshot)
       // An update that arrived while the insert was deferred found no row to
       // write to, and a property that already changed will not change again.
@@ -307,6 +312,40 @@ Item {
       if (isRestoredRow(row)) continue
       if (NotificationLogic.popupFileName(row) !== keepFileName) deletePopupFileFor(row)
       popupModel.remove(i)
+    }
+  }
+
+  // What the notification says now: a replaces_id update may have landed
+  // while its insert was deferred, and the snapshot still holds the original.
+  function currentContent(notification, snapshot) {
+    try {
+      return NotificationLogic.replacementSnapshot(notification, snapshot.originalId, snapshot.timestamp)
+    } catch (e) {
+      // Torn down by the server meanwhile — the snapshot is all there is.
+      return snapshot
+    }
+  }
+
+  // A notification repeating a toast already on screen takes its place, the
+  // same way a replaces_id update would: the newest copy stays, its timer
+  // starts fresh, and history keeps a single entry. The superseded copy is
+  // dismissed at the server so its sender stops holding it open.
+  // Only toasts with a live notification behind them qualify: a restored or
+  // replayed row shares its images with an entry already in history, and
+  // deleting its file here would leave that entry pointing at nothing.
+  function removeDuplicatePopups(snapshot) {
+    for (var i = popupModel.count - 1; i >= 0; i--) {
+      var row = popupModel.get(i)
+      if (!NotificationLogic.isDuplicatePopup(row, snapshot) || isRestoredRow(row)) continue
+      var ref = liveRefs[row.originalId]
+      if (!ref) continue
+      deletePopupFileFor(row)
+      popupModel.remove(i)
+      try {
+        if (ref.tracked) ref.dismiss()
+      } catch (e) {
+        // Object already torn down by the server — nothing to dismiss.
+      }
     }
   }
 
@@ -974,7 +1013,7 @@ Item {
       color: "transparent"
 
       readonly property var popupPlacement: NotificationLogic.popupPlacement(
-        service.barPosition, service.barClearance, Style.gapsOut)
+        service.barPosition, service.barClearanceFor(modelData ? modelData.name : ""), Style.gapsOut)
 
       // Full-screen, fixed-size surface (like the OSD overlay). Adding or
       // removing a toast changes only the content inside; the Wayland surface

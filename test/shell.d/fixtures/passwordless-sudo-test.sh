@@ -52,7 +52,9 @@ case "$name" in
     ;;
   mv)
     [[ ${TEST_PUBLISH_FAIL:-0} != 1 ]] || exit 1
+    [[ ${TEST_REQUIRE_EXISTING_TARGET:-0} != 1 || -f ${@: -1} ]] || exit 1
     /usr/bin/mv "$@"
+    [[ ${TEST_KILL_AFTER_PUBLISH:-0} != 1 ]] || /usr/bin/kill -KILL "$PPID"
     [[ ${TEST_POST_PUBLISH_FAIL:-0} != 1 ]] || : >"$TEST_GRANT_ROOT/run/omarchy-sudo-passwordless-package-removing"
     ;;
   systemd-run)
@@ -69,7 +71,15 @@ case "$name" in
   sudo)
     if [[ ${1:-} == -h ]]; then echo 'usage: sudo [-N] command'; exit 0; fi
     if [[ ${1:-} == -k ]]; then exit 0; fi
-    if [[ ${1:-} == -N ]]; then shift; fi
+    if [[ ${1:-} == -n && ${3:-} == -l ]]; then
+      [[ ${TEST_POLICY_FAILURE:-0} != 1 ]] || exit 1
+      default_policy='    Options: authenticate'
+      [[ ${TEST_STATUS:-3} == 3 ]] || default_policy='    Options: !authenticate'
+      printf '%s\n' "${TEST_POLICY:-$default_policy}"
+      exit 0
+    fi
+    if [[ ${1:-} == -n ]]; then shift; fi
+    if [[ ${1:-} == -N || ${1:-} == -kn ]]; then shift; fi
     if [[ ${1:-} == -- ]]; then shift; fi
     if [[ ${TEST_MIGRATION:-0} == 1 ]]; then
       [[ ${TEST_NO_SUDO:-0} != 1 ]] || exit 1
@@ -78,7 +88,14 @@ case "$name" in
       [[ ${2:-} != __status ]] || exit "${TEST_STATUS:-3}"
     fi
     ;;
-  gum) exit 1 ;;
+  gum)
+    if [[ $1 == choose ]]; then
+      [[ ${TEST_CHOICE_CANCEL:-0} != 1 ]] || exit 130
+      printf '%s\n' "${TEST_CHOICE:-15 minutes}"
+    else
+      exit "${TEST_CONFIRM_STATUS:-1}"
+    fi
+    ;;
   *) exit 99 ;;
 esac
 STUB
@@ -120,6 +137,6 @@ assert_status() {
   (( actual == expected )) || fail "expected status $expected, got $actual from $*"
 }
 reset_grant() {
-  rm -f "$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-1000" "$test_tmp/run/omarchy-sudo-passwordless-package-removing"
+  rm -f "$test_tmp/etc/sudoers.d/99-omarchy-permanent-nopasswd-1000" "$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-1000" "$test_tmp/run/omarchy-sudo-passwordless-package-removing"
   : >"$test_tmp/commands"
 }
