@@ -64,6 +64,13 @@ hl.config({
   },
 })
 
+-- One visible tiled window on a workspace has no border and no gaps.
+-- A floating window keeps its border.
+-- Two or more keep general.border_size (2), gaps_out (10), and gaps_in (5).
+-- The scratchpad workspace rule is registered later and keeps its own gaps.
+o.window({ float = false, workspace = "w[v1]" }, { border_size = 0 })
+hl.workspace_rule({ workspace = "w[v1]", gaps_out = 0, gaps_in = 0 })
+
 -- Default animations, see https://wiki.hypr.land/Configuring/Advanced-and-Cool/Animations/
 hl.curve("easeOutQuint", { type = "bezier", points = { { 0.23, 1 }, { 0.32, 1 } } })
 hl.curve("easeInOutCubic", { type = "bezier", points = { { 0.65, 0.05 }, { 0.36, 1 } } })
