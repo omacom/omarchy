@@ -2,4 +2,19 @@
 
 # omarchy:summary=Print the name of the built-in laptop display, including disabled outputs.
 
-hyprctl monitors all -j | jq -r '.[] | select(.name | test("^(eDP|LVDS|DSI)-")).name' | head -n 1
+# Same identity test as omarchy-monitor-state: skip an internal connector with
+# no size, modes, or EDID, and keep a powered-down real panel.
+hyprctl monitors all -j | jq -r '
+  def internal: test("^(eDP|LVDS|DSI)-");
+  def present: . != null and . != "";
+  def ghost:
+    (.name | internal) and
+    ((.width // 0) == 0) and
+    ((.height // 0) == 0) and
+    ((.availableModes // []) | length == 0) and
+    (.description | present | not) and
+    (.make | present | not) and
+    (.model | present | not);
+  def real: (.name | internal) and (ghost | not);
+  ([.[] | select(real)][0].name // [.[] | select(.name | internal)][0].name // "")
+'
