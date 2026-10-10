@@ -117,6 +117,36 @@ run_command() {
   env HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$test_dir/bin:$ROOT/bin:$PATH" "$ROOT/bin/$@"
 }
 
+cat >"$test_dir/bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >>"$HOME/notifications"
+printf '\n' >>"$HOME/notifications"
+SH
+chmod +x "$test_dir/bin/omarchy-notification-send"
+cat >"$test_dir/bin/pgrep" <<'SH'
+#!/bin/bash
+printf '12345\n'
+exit 0
+SH
+chmod +x "$test_dir/bin/pgrep"
+output=$(run_command omarchy-font-set 'Test Font')
+[[ -z $output ]] || fail "font restart probes do not print PIDs"
+{
+  printf '%s\0' -g  "You must restart Ghostty to see font change"
+  printf '\n'
+  printf '%s\0' -g  "You must restart Foot to see font change"
+  printf '\n'
+} >"$test_dir/expected-notifications"
+cmp -s "$test_dir/expected-notifications" "$test_home/notifications" || fail "font restart notifications preserve glyph and headline arguments"
+pass "running terminals receive font restart notifications without PID output"
+
+rm "$test_home/notifications"
+printf '#!/bin/bash\nexit 1\n' >"$test_dir/bin/pgrep"
+chmod +x "$test_dir/bin/pgrep"
+run_command omarchy-font-set 'Test Font'
+[[ ! -e $test_home/notifications ]] || fail "unsuccessful process probes produce no notifications"
+pass "stopped terminals receive no font restart notifications"
+
 cp "$ROOT/config/kitty/kitty.conf" "$kitty_config"
 output=$(run_command omarchy-display-text-size)
 [[ $output == *"terminal font: 9 pt"* ]] || fail "size report accounts for inherited Kitty default"
