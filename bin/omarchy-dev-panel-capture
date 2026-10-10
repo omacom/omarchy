@@ -1,0 +1,65 @@
+#!/bin/bash
+
+# omarchy:summary=Save a bar panel's card as a PNG, at the screen's pixels or a multiple
+# omarchy:args=[--scale <n>] <plugin-id> [out.png]
+# omarchy:examples=omarchy dev panel capture omarchy.agents | omarchy dev panel capture --scale 2 omarchy.agents /tmp/agents.png
+
+set -uo pipefail
+
+usage() {
+  echo "Usage: omarchy-dev-panel-capture [--scale <n>] <plugin-id> [out.png]" >&2
+  exit 1
+}
+
+scale=""
+while [[ ${1:-} == --* ]]; do
+  case $1 in
+    --scale)
+      scale=${2:-}
+      [[ $scale =~ ^[0-9]+(\.[0-9]+)?$ ]] || usage
+      shift 2
+      ;;
+    *) usage ;;
+  esac
+done
+
+id=${1:-}
+[[ -n $id ]] || usage
+
+out=$(realpath -m "${2:-${id##*.}-panel.png}")
+if [[ -d $out ]]; then
+  echo "$out is a directory; name the PNG to write" >&2
+  exit 1
+fi
+if [[ $out != *.png ]]; then
+  echo "$out must end in .png; the shell writes PNG only" >&2
+  exit 1
+fi
+
+# The shell writes into a private directory next to the target, and the PNG
+# moves into place only once it's complete, so a failed capture leaves an
+# existing file alone and nothing else can stand in for the capture. The shell
+# creates the file itself, so it gets the usual permissions.
+dir=${out%/*}
+name=${out##*/}
+stage=$(mktemp -d --tmpdir="${dir:-/}" ".${name%.png}.XXXXXX") || exit 1
+tmp="$stage/capture.png"
+
+# The shell closing the file means it has finished writing. The watch is up
+# before the shell is asked, so a quick capture can't slip past it.
+coproc watch { exec inotifywait -m -e close_write --format %f "$stage" 2>&1; }
+trap 'kill "$watch_PID" 2>/dev/null; rm -rf "$stage"' EXIT
+while read -r -t 2 -u "${watch[0]}" line && [[ $line != "Watches established." ]]; do :; done
+
+if [[ $(omarchy-shell shell debugPanelCapture "$id" "$tmp" "$scale") != "ok" ]]; then
+  echo "No bar panel for $id" >&2
+  exit 1
+fi
+
+if read -r -t 2 -u "${watch[0]}" line && [[ $line == "capture.png" ]]; then
+  mv -fT "$tmp" "$out" || exit 1
+  echo "$out"
+else
+  echo "The shell never wrote $out" >&2
+  exit 1
+fi
