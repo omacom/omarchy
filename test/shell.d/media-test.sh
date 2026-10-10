@@ -54,20 +54,19 @@ assertEqual(media.volumeOsdIcon(48, false), 'volume-high', 'volume OSD shows the
 assertEqual(media.volumeOsdIcon(48, true), 'volume-muted', 'volume OSD shows muted when muted')
 assertEqual(media.volumeOsdIcon(0, false), 'volume-muted', 'volume OSD shows muted at zero')
 
-// Only an ALSA sink is its own physical sink. Any other default sink, a DSP
-// chain or EasyEffects above all, needs omarchy-audio-output-sink's live
-// resolution on every press, so its keys fall back to the script. The same
-// deferral covers the active-stream resolution: when a stream plays on another
-// output, the keys follow that output through the script, not the default.
+// The shell cannot see which sink each stream is linked to, so the active sink
+// is resolved in a process (omarchy-audio-output-sink --active) and the volume
+// applied by omarchy-audio-output-volume --follow-active, which resolves
+// synchronously on every press. handleVolumeKey always declines so the caller
+// runs that script rather than act on a stale answer.
 const fs = require('fs')
 const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/services/media/Service.qml'), 'utf8')
 assert(
-  serviceQml.includes('readonly property var volumeSink: defaultSink && String(defaultSink.name).indexOf("alsa_output.") === 0 ? defaultSink : null') &&
-    /function handleVolumeKey\(action\) \{\s*var audio = volumeSink && volumeSink\.audio\s*if \(!audio\) return false/.test(serviceQml) &&
-    serviceQml.includes('activeSinkName !== String(defaultSink.name)) return false') &&
-    serviceQml.includes('command: ["omarchy-audio-output-sink", "--active"]') &&
+  /function handleVolumeKey\(action\) \{\s*return false\s*\}/.test(serviceQml) &&
+    !serviceQml.includes('activeSinkName') &&
+    !serviceQml.includes('activeSinkProc') &&
     !serviceQml.includes('volumeSinkName'),
-  'volume keys act in the shell only on an ALSA sink, defer to the script for an active stream on another output, and otherwise defer'
+  'volume keys always defer to the script, which resolves the active stream synchronously'
 )
 const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
 assert(
