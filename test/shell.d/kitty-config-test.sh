@@ -114,9 +114,11 @@ SH
 chmod +x "$test_dir/bin/"*
 
 run_command() {
-  env HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$test_dir/bin:$ROOT/bin:$PATH" "$ROOT/bin/$@"
+  env HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" OMARCHY_PATH="$ROOT" \
+    PATH="$test_dir/bin:$ROOT/bin:$PATH" "$ROOT/bin/$@"
 }
 
+kitty_local="$test_home/.config/kitty/local.conf"
 cp "$ROOT/config/kitty/kitty.conf" "$kitty_config"
 output=$(run_command omarchy-display-text-size)
 [[ $output == *"terminal font: 9 pt"* ]] || fail "size report accounts for inherited Kitty default"
@@ -126,25 +128,28 @@ grep -qx 'font_family Test Font' "$kitty_config" || fail "font command creates f
 run_command omarchy-font-set Font
 grep -qx 'font_family Font' "$kitty_config" || fail "font command updates family override"
 [[ $(grep -c '^font_family ' "$kitty_config") == "1" ]] || fail "font update avoids duplicate overrides"
-grep -qx 'font_size 12.0' "$kitty_config" || fail "size command creates size override"
+grep -qx 'font_size 12.0' "$kitty_local" || fail "size command creates size overlay" "$(cat "$kitty_local" 2>/dev/null)"
+! grep -qE '^[[:space:]]*font_size[[:space:]]' "$kitty_config" || fail "size command leaves shared Kitty config without font_size"
 grep -qx '# font_size 12' "$kitty_config" || fail "font commands keep commented instructions"
 run_command omarchy-display-text-size 18
-[[ $(grep -c '^font_size ' "$kitty_config") == "1" ]] || fail "size update avoids duplicate overrides"
+[[ $(grep -c '^font_size ' "$kitty_local") == "1" ]] || fail "size update avoids duplicate overlays"
 run_command omarchy-display-text-size reset
-grep -qx 'font_size 9.0' "$kitty_config" || fail "size reset restores default"
+grep -qx 'font_size 9.0' "$kitty_local" || fail "size reset restores default overlay"
 pass "font controls add and update overrides in the minimal template"
 
-rm "$kitty_config"
+rm -f "$kitty_config" "$kitty_local"
 output=$(run_command omarchy-display-text-size)
 [[ $output == *"terminal font: 9 pt"* ]] || fail "size report handles absent Kitty config"
 run_command omarchy-font-set 'Test Font'
 run_command omarchy-display-text-size 16
 grep -qx 'font_family Test Font' "$kitty_config" || fail "font command handles absent config"
-grep -qx 'font_size 12.0' "$kitty_config" || fail "size command handles absent setting"
+grep -qx 'font_size 12.0' "$kitty_local" || fail "size command handles absent setting"
 ! grep -q '^include ' "$kitty_config" || fail "font controls must not opt users back into theming"
-rm "$kitty_config"
+rm -f "$kitty_config" "$kitty_local"
 run_command omarchy-display-text-size 16
-grep -qx 'font_size 12.0' "$kitty_config" || fail "size command handles absent config"
+grep -qx 'font_size 12.0' "$kitty_local" || fail "size command handles absent config"
+grep -Fq 'globinclude ~/.config/kitty/local.conf' "$kitty_config" || fail "size command globincludes the overlay"
+! grep -q '^include ' "$kitty_config" || fail "size command must not restore the theme include"
 pass "font controls create missing Kitty overrides without restoring the theme include"
 
 if "$ROOT/bin/omarchy-cmd-present" kitty; then

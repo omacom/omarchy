@@ -1,0 +1,178 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set terminal font size on this machine
+# omarchy:args=[size]
+# omarchy:examples=omarchy font size | omarchy font size 11
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: omarchy-font-size [size]"
+}
+
+ghostty_local="${XDG_CONFIG_HOME:-$HOME/.config}/ghostty/local"
+kitty_local="${XDG_CONFIG_HOME:-$HOME/.config}/kitty/local.conf"
+foot_local="${XDG_CONFIG_HOME:-$HOME/.config}/foot/local.ini"
+alacritty_local="${XDG_CONFIG_HOME:-$HOME/.config}/alacritty/local.toml"
+ghostty_shared="${XDG_CONFIG_HOME:-$HOME/.config}/ghostty/config"
+kitty_shared="${XDG_CONFIG_HOME:-$HOME/.config}/kitty/kitty.conf"
+foot_shared="${XDG_CONFIG_HOME:-$HOME/.config}/foot/foot.ini"
+alacritty_shared="${XDG_CONFIG_HOME:-$HOME/.config}/alacritty/alacritty.toml"
+
+read_size() {
+  local size=""
+  if [[ -f $ghostty_local ]]; then
+    size=$(sed -n 's/^font-size[[:space:]]*=[[:space:]]*//p' "$ghostty_local" | head -1)
+  fi
+  if [[ -z $size && -f $kitty_local ]]; then
+    size=$(sed -n 's/^font_size[[:space:]]*//p' "$kitty_local" | head -1)
+  fi
+  if [[ -z $size && -f $foot_local ]]; then
+    size=$(sed -n 's/.*:size=\([0-9.]*\).*/\1/p' "$foot_local" | head -1)
+  fi
+  if [[ -z $size && -f $alacritty_local ]]; then
+    size=$(sed -n 's/^size[[:space:]]*=[[:space:]]*//p' "$alacritty_local" | head -1)
+  fi
+  if [[ -z $size && -f $ghostty_shared ]]; then
+    size=$(sed -n 's/^font-size[[:space:]]*=[[:space:]]*//p' "$ghostty_shared" | head -1)
+  fi
+  if [[ -z $size && -f $alacritty_shared ]]; then
+    size=$(sed -n 's/^size[[:space:]]*=[[:space:]]*//p' "$alacritty_shared" | head -1)
+  fi
+  if [[ -z $size && -f $kitty_shared ]]; then
+    size=$(sed -n 's/^[[:space:]]*font_size[[:space:]]*//p' "$kitty_shared" | head -1)
+  fi
+  if [[ -z $size && -f $foot_shared ]]; then
+    size=$(sed -n 's/.*:size=\([0-9.]*\).*/\1/p' "$foot_shared" | head -1)
+  fi
+  size=${size:-9}
+  size=${size%.0}
+  printf '%s\n' "$size"
+}
+
+font_family() {
+  omarchy-font-current 2>/dev/null || printf '%s\n' "JetBrainsMono Nerd Font"
+}
+
+ensure_line() {
+  local file="$1"
+  local line="$2"
+  [[ -f $file ]] || return 0
+  grep -Fqx "$line" "$file" && return 0
+  printf '\n%s\n' "$line" >>"$file"
+}
+
+ensure_includes() {
+  ensure_line "$ghostty_shared" 'config-file = ?"~/.config/ghostty/local"'
+
+  mkdir -p "$(dirname "$kitty_shared")"
+  if [[ ! -f $kitty_shared ]]; then
+    printf 'globinclude ~/.config/kitty/local.conf\n' >"$kitty_shared"
+  elif ! grep -qE '^[[:space:]]*globinclude[[:space:]]+.*kitty/local\.conf' "$kitty_shared" &&
+    ! grep -qE '^[[:space:]]*include[[:space:]]+.*kitty/local\.conf' "$kitty_shared"; then
+    printf '\nglobinclude ~/.config/kitty/local.conf\n' >>"$kitty_shared"
+  fi
+
+  if [[ -f $foot_shared ]] && ! grep -Fq 'foot/local.ini' "$foot_shared"; then
+    printf '\ninclude=%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/foot/local.ini" >>"$foot_shared"
+  fi
+
+  if [[ -f $alacritty_shared ]] && ! grep -Fq 'alacritty/local.toml' "$alacritty_shared"; then
+    if grep -q 'general.import' "$alacritty_shared"; then
+      python3 - "$alacritty_shared" <<'PY' || true
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+needle = '"~/.config/alacritty/local.toml"'
+if needle in text:
+    raise SystemExit(0)
+text, n = re.subn(
+    r'(general\.import\s*=\s*\[)([^\]]*)(\])',
+    lambda m: m.group(1) + m.group(2).rstrip() + (", " if m.group(2).strip() else "") + needle + m.group(3),
+    text,
+    count=1,
+)
+if n:
+    path.write_text(text)
+PY
+    fi
+  fi
+}
+
+write_size() {
+  local size="$1"
+  local family kitty_size
+  family=$(font_family)
+  kitty_size=$size
+  [[ $kitty_size == *.* ]] || kitty_size="${kitty_size}.0"
+
+  mkdir -p "$(dirname "$ghostty_local")" "$(dirname "$kitty_local")" "$(dirname "$foot_local")" "$(dirname "$alacritty_local")"
+
+  cat >"$ghostty_local" <<EOF
+# Machine-local Ghostty overrides. Not part of the shared desktop config.
+font-size = $size
+EOF
+
+  cat >"$kitty_local" <<EOF
+# Machine-local Kitty overrides. Not part of the shared desktop config.
+font_size $kitty_size
+EOF
+
+  cat >"$foot_local" <<EOF
+# Machine-local Foot overrides. Not part of the shared desktop config.
+font=$family:size=$size
+EOF
+
+  cat >"$alacritty_local" <<EOF
+# Machine-local Alacritty overrides. Not part of the shared desktop config.
+[font]
+size = $size
+EOF
+
+  ensure_includes
+}
+
+quiet=0
+size=""
+
+while (($#)); do
+  case $1 in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  --quiet)
+    quiet=1
+    shift
+    ;;
+  *)
+    size=$1
+    shift
+    ;;
+  esac
+done
+
+if [[ -z $size ]]; then
+  read_size
+  exit 0
+fi
+
+if [[ ! $size =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+  echo "Font size must be a number, got: $size" >&2
+  exit 1
+fi
+
+write_size "$size"
+
+if pgrep -x kitty >/dev/null 2>&1; then
+  pkill -USR1 kitty 2>/dev/null || true
+fi
+if pgrep -x ghostty >/dev/null 2>&1; then
+  pkill -SIGUSR2 ghostty 2>/dev/null || true
+  if (( ! quiet )); then
+    omarchy-notification-send -g "Restart Ghostty to see the font size" || true
+  fi
+fi
+if (( ! quiet )) && pgrep -x foot >/dev/null 2>&1; then
+  omarchy-notification-send -g "Restart Foot to see the font size" || true
+fi
