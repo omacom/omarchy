@@ -496,6 +496,10 @@ assert(
   'menu image icons take precedence over glyphs and use custom icon resolution'
 )
 assert(
+  /var fromApps = root\.appLibrary\.iconSource\(value\)[\s\S]*return Quickshell\.iconPath\(value, true\)/.test(menuQml),
+  'menu resolves custom image icons through the app library before the icon theme'
+)
+assert(
   /readonly property bool tintImageIcon: row\.hasImageIcon && row\.iconSymbolic && !row\.isApp/.test(menuQml)
     && /colorizationColor: row\.hasCursor \? root\.selectedText : root\.foreground/.test(menuQml),
   'menu recolors symbolic image icons to the row text colour'

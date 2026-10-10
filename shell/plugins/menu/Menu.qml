@@ -81,14 +81,20 @@ Item {
   // removal), owned by the shell and also used by the standalone launcher.
   readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
 
+  // Image for a custom row's iconName. The app library goes first: its
+  // index resolves an application name such as "zoom" to the application,
+  // where an unconstrained theme lookup would pick an action icon of the
+  // same name. A name nothing resolves yields "", so the row's glyph shows.
   function customIconSource(icon) {
     var value = String(icon || "")
     if (value.length === 0) return ""
     if (value.indexOf("file://") === 0 || value.indexOf("image://") === 0) return value
     if (value.charAt(0) === "/") return Util.fileUrl(value)
-    var themed = Quickshell.iconPath(value, true)
-    if (themed.length > 0) return themed
-    return root.appLibrary ? root.appLibrary.iconSource(value) : ""
+    if (root.appLibrary) {
+      var fromApps = root.appLibrary.iconSource(value)
+      if (fromApps !== Quickshell.iconPath("application-x-executable", true)) return fromApps
+    }
+    return Quickshell.iconPath(value, true)
   }
 
   property bool deleteConfirmOpen: false
