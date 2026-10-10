@@ -79,4 +79,10 @@ assert(
   /id: revealAnimation[\s\S]*?duration: Style\.duration\(840\)/.test(backgroundQml),
   'background reveal takes 840ms'
 )
+assert(
+  /onReadyChanged: finishTransition\(\)/.test(backgroundQml) &&
+    /function finishTransition\(\) \{\s*if \(!finishingTransition \|\| !ready\) return/.test(backgroundQml) &&
+    !/onReadyChanged: \{[\s\S]*?root\.incomingBackground = ""/.test(backgroundQml),
+  'background keeps the reveal layers until every screen has drawn its base image'
+)
 JS

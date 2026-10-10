@@ -71,6 +71,21 @@ Item {
     transitionBackground("", path, path, instant, instant)
   }
 
+  // When the reveal ends, every screen loads the finished image again into its
+  // base layer, and an image draws nothing while it loads. Dropping the reveal
+  // layers as soon as the first screen's base is ready left the slower screens
+  // empty for about 100 ms, so keep them until every screen has drawn its base.
+  onReadyChanged: finishTransition()
+
+  function finishTransition() {
+    if (!finishingTransition || !ready) return
+    incomingBackground = ""
+    oldBackground = ""
+    preparedBackground = ""
+    finishingTransition = false
+    pruneNativeSizes()
+  }
+
   function transitionBackground(fromPath, path, finalPath, instant, force) {
     path = String(path || "").trim()
     finalPath = String(finalPath || path).trim()
@@ -282,6 +297,9 @@ Item {
         root.finishingTransition = true
       }
       root.revealProgress = 1
+      // A base image served from the pixmap cache can be ready without a
+      // change of root.ready.
+      Qt.callLater(root.finishTransition)
     }
   }
 
@@ -365,16 +383,7 @@ Item {
         cached: true
         constrainDecode: true
         decodeSize: panel.decodeSize(root.displayedBackground)
-        onReadyChanged: {
-          panel.readyFrames = 0
-          if (ready && root.finishingTransition) {
-            root.incomingBackground = ""
-            root.oldBackground = ""
-            root.preparedBackground = ""
-            root.finishingTransition = false
-            root.pruneNativeSizes()
-          }
-        }
+        onReadyChanged: panel.readyFrames = 0
       }
 
       Image {
