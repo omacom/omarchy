@@ -53,6 +53,12 @@ cat > "$scratch/bin/fprintd-enroll" <<'STUB'
 echo enroll >> "$CALL_LOG"
 exit "${ENROLL_STATUS:-1}"
 STUB
+# PRINTS lists the user's enrolled fingers in fprintd-list's format.
+cat > "$scratch/bin/fprintd-list" <<'STUB'
+#!/bin/bash
+echo list >> "$CALL_LOG"
+printf '%s' "${PRINTS:-}"
+STUB
 cat > "$scratch/bin/fprintd-verify" <<'STUB'
 #!/bin/bash
 echo verify >> "$CALL_LOG"
@@ -114,6 +120,36 @@ pass "a failed installation stops before enrollment"
 HARDWARE_STATUS=1 run_setup
 [[ ! -s $CALL_LOG ]] || fail "missing hardware stops before package operations"
 pass "missing hardware performs no package operations"
+
+# T1Bridge drives Touch ID with its own libfprint/fprintd pair. Replacing it
+# with libfprint-git would leave the T1 sensor with no driver.
+t1bridge_installed=$'libfprint-t1bridge\nfprintd-t1bridge'
+
+INSTALLED=$t1bridge_installed run_setup
+if grep -q '^pacman' "$CALL_LOG"; then
+  fail "T1Bridge's fingerprint pair is never replaced"
+fi
+grep -qx enroll "$CALL_LOG" || fail "Touch ID with no prints reaches enrollment"
+pass "Touch ID keeps T1Bridge's fingerprint pair and enrolls the first print"
+
+: > "$CALL_LOG"
+INSTALLED=$t1bridge_installed PRINTS=$' - #0: right-index-finger\n' VERIFY_STATUS=0 \
+  OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 ||
+  fail "Touch ID with an enrolled print configures authentication"
+if grep -qE '^(pacman|enroll)' "$CALL_LOG"; then
+  fail "an enrolled Touch ID print is not enrolled again"
+fi
+[[ $(grep -E '^(verify|apply-lock)$' "$CALL_LOG") == $'verify\napply-lock' ]] ||
+  fail "an enrolled Touch ID print is verified before PAM and lock setup"
+pass "an enrolled Touch ID print skips enrollment and is verified"
+
+: > "$CALL_LOG"
+INSTALLED=$t1bridge_installed PRINTS=$' - #0: right-index-finger\n' VERIFY_STATUS=1 \
+  OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 || true
+if grep -Eq '^(pam |apply-lock$|enroll$)' "$CALL_LOG"; then
+  fail "a failed Touch ID verification leaves PAM untouched"
+fi
+pass "a failed Touch ID verification leaves PAM untouched"
 
 # Successful setup must reuse the same lock/recovery installer as updates.
 : > "$CALL_LOG"
