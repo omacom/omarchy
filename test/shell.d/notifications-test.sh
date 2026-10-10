@@ -13,6 +13,27 @@ assert(notifications.isChromiumDerived('', 'microsoft-edge'), 'notifications det
 assert(!notifications.isChromiumDerived('Slack', ''), 'notifications do not treat unrelated apps as chromium-derived')
 
 assertEqual(
+  notifications.webAppHost('Chromium', '', '<a href="https://teams.microsoft.com/">teams.microsoft.com</a>\n\nSender: hi'),
+  'teams.microsoft.com',
+  'notifications read the sending web app host from a chromium body'
+)
+assertEqual(
+  notifications.webAppHost('Brave Origin', '', '<a href="http://localhost:8765/">localhost:8765</a>\n\nhi'),
+  'localhost',
+  'notifications drop the port from a web app host, as the window class does'
+)
+assertEqual(
+  notifications.webAppHost('Slack', '', '<a href="https://example.com/">example.com</a>'),
+  '',
+  'notifications read no web app host from other senders'
+)
+assertEqual(
+  notifications.webAppHost('Chromium', '', 'See <a href="https://example.com/">this</a>'),
+  '',
+  'notifications read a web app host only from the leading origin link'
+)
+
+assertEqual(
   notifications.sanitizeBody('<img src="x">Hello', 'Slack', ''),
   'Hello',
   'notifications strip inline image tags'
@@ -707,6 +728,10 @@ assert(
 assert(
   /if \(!NotificationLogic\.popupRowChanged\(row, updated\)\) return/.test(serviceQml),
   'notifications service leaves the row and its file alone when a refresh finds nothing changed'
+)
+assert(
+  /NotificationLogic\.webAppHost\(entry\.app, entry\.appIcon, entry\.body\)[\s\S]{0,80}?if \(!invoked \|\| webAppHost\) focusApp\(entry, webAppHost\)/.test(serviceQml),
+  'notifications service focuses the sending web app even after invoking the default action'
 )
 assert(
   /popupModel\.insert\(0, snapshot\)[\s\S]{0,300}?service\.refreshPopup\(notification, snapshot\.originalId, snapshot\.timestamp\)/.test(serviceQml),

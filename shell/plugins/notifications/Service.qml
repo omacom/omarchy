@@ -430,19 +430,20 @@ Item {
     // Chat apps (Slack, Discord, Vesktop, etc.) rarely register a "default"
     // libnotify action — they just expect clicking the notification to
     // focus their window. Fall back to focusing the sending app by class so
-    // that click-to-jump actually works.
-    if (!invoked) focusApp(entry)
+    // that click-to-jump actually works. Chromium's own default action raises
+    // no window here, so a web app's toast always focuses the web app.
+    var webAppHost = entry ? NotificationLogic.webAppHost(entry.app, entry.appIcon, entry.body) : ""
+    if (!invoked || webAppHost) focusApp(entry, webAppHost)
     dismissPopup(index)
   }
 
   // Try to focus an existing Hyprland window matching the notification's
   // sender. The helper handles case-insensitive class matching.
-  function focusApp(entry) {
+  function focusApp(entry, webAppHost) {
     if (!entry || !entry.app) return
-    focusAppProc.command = [
-      service.omarchyPath + "/bin/omarchy-hyprland-focus-app",
-      String(entry.app)
-    ]
+    var command = [service.omarchyPath + "/bin/omarchy-hyprland-focus-app", String(entry.app)]
+    if (webAppHost) command.push(webAppHost)
+    focusAppProc.command = command
     focusAppProc.running = true
   }
 

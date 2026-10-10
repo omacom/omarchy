@@ -1,25 +1,29 @@
 #!/bin/bash
 
 # omarchy:summary=Focus a Hyprland window by application identity
-# omarchy:args=<app-name>
+# omarchy:args=<app-name> [web-app-host]
 # omarchy:examples=omarchy hyprland focus app Slack
 
 usage() {
-  echo "Usage: omarchy-hyprland-focus-app <app-name>" >&2
+  echo "Usage: omarchy-hyprland-focus-app <app-name> [web-app-host]" >&2
   exit 1
 }
 
 app=${1:-}
+web_app_host=${2:-}
 [[ -n $app ]] || usage
 
 # Agent terminals notify as kitty/foot/etc. while their shared window class is
 # org.omarchy.agent, leaving the terminal name only in initialTitle. So match
 # by class first, then fall back to the launch-time title of agent windows.
+# Chromium-derived browsers notify under their own name for every web app and
+# class its window <browser>-<host>__<path>-<profile>, so a host comes first.
 address=$(
   hyprctl clients -j 2>/dev/null |
-    jq -r --arg pattern "$app" \
+    jq -r --arg pattern "$app" --arg host "$web_app_host" \
       'def matches($value): ($value // "") | test($pattern; "i");
        first(
+         (.[] | select($host != "" and ((.class // "") | ascii_downcase | (split("__")[0] // "") | sub("^[a-z]+-"; "")) == $host)),
          (.[] | select(matches(.class))),
          (.[] | select(.initialClass == "org.omarchy.agent" and matches(.initialTitle)))
        ).address // empty'
