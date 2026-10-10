@@ -14,6 +14,10 @@ stub_bin="$tmpdir/bin"
 mkdir -p "$home/.config" "$stub_bin"
 cp -r "$ROOT/config/hypr" "$home/.config/hypr"
 
+# No platform package: neither its key names nor its binds.
+menu="$tmpdir/omarchy-menu-keybindings"
+platform_root_copy "$ROOT/bin/omarchy-menu-keybindings" "$menu" "$tmpdir/no-platform"
+
 # The menu reads binds from Hyprland, which is not running here, so stand in for
 # it. A Lua bind reports dispatcher __lua and no arg, and the menu recovers both
 # from the Lua source; an exec bind carries its own command. Both shapes matter:
@@ -43,7 +47,7 @@ stub_hyprctl() {
 keybindings() {
   env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
     XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
-    bash "$ROOT/bin/omarchy-menu-keybindings" --print
+    bash "$menu" --print
 }
 
 # Closing a window and toggling the scratchpad are two of the actions Omarchy
@@ -64,6 +68,17 @@ rendered=$(keybindings)
 grep -q 'SUPER + F  *→ Full screen' <<<"$rendered" ||
   fail "a chord with no alternative renders on its own" "$rendered"
 pass "the keybindings menu renders its entries"
+
+# The menu's own scan of the config runs lua -E, so no LUA_INIT or LUA_PATH from
+# the environment reaches it and nothing there can move the platform root.
+printf "io.open('%s', 'w'):close()\n" "$tmpdir/init-ran" >"$tmpdir/init.lua"
+LUA_INIT="@$tmpdir/init.lua" lua -e '' && [[ -e $tmpdir/init-ran ]] || fail "the LUA_INIT probe runs in a plain lua"
+rm -f "$tmpdir/init-ran"
+env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" XDG_CACHE_HOME="$tmpdir/cache-init" OMARCHY_PATH="$ROOT" \
+  LUA_INIT="@$tmpdir/init.lua" LUA_INIT_5_5="@$tmpdir/init.lua" LUA_INIT_5_4="@$tmpdir/init.lua" LUA_PATH="$tmpdir/?.lua" \
+  bash "$ROOT/bin/omarchy-menu-keybindings" --print >/dev/null
+[[ ! -e $tmpdir/init-ran ]] || fail "the menu's config scan ignores LUA_INIT from the environment"
+pass "the menu's config scan ignores LUA_INIT and LUA_PATH from the environment"
 
 (( $(grep -c '→ Close window$' <<<"$rendered") == 1 )) ||
   fail "an alternative chord joins the row of the first one" "$rendered"
@@ -220,3 +235,15 @@ for action in "${expected_alternatives[@]}"; do
     fail "every action named as having an alternative is bound twice" "$action"
 done
 pass "every action named as having an alternative is bound twice"
+
+# The terminal bind is a Lua function Hyprland reports only as __lua, so picking
+# it from the menu has to run the command the function stands for.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + RETURN" "Terminal")
+BINDS
+
+rm -rf "$tmpdir/cache"
+keybindings >/dev/null
+grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
+pass "picking the terminal bind from the menu launches a terminal"

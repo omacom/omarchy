@@ -36,7 +36,9 @@ SH
 
 chmod +x "$mock_bin"/*
 
-export PATH="$mock_bin:$PATH"
+# $ROOT/bin after the mocks, so the real helpers answer wherever a mock does not
+# shadow them.
+export PATH="$mock_bin:$ROOT/bin:$PATH"
 export HOME="$test_home"
 export OMARCHY_TEST_PKG_LOG="$pkg_log"
 
@@ -63,7 +65,7 @@ for package in "${restored[@]}"; do
 done
 pass "every preinstall is shipped in omarchy-base.packages"
 
-for package in omacut omacalc omawrite; do
+for package in omacut monologue omacalc omawrite hype; do
   printf '%s\n' "${restored[@]}" | grep -qxF "$package" ||
     fail "preinstalls cover the Omacom apps" "$package is missing"
 done

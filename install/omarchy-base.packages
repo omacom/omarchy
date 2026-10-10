@@ -5,6 +5,7 @@ aether
 alsa-utils
 asdcontrol
 avahi
+base-devel
 bash-completion
 bat
 bluez
@@ -20,12 +21,12 @@ cups
 cups-filters
 cups-pk-helper
 ddcutil
+disktree-bin
 docker
 docker-buildx
 docker-compose
 dosfstools
 dotnet-runtime
-dua-cli
 evince
 exfatprogs
 expac
@@ -36,11 +37,13 @@ fcitx5
 fcitx5-gtk
 fcitx5-qt
 fd
+ffmpeg
 ffmpegthumbnailer
 fontconfig
 foot
 fzf
 git
+gliff
 gnome-keyring
 gnome-themes-extra
 grim
@@ -50,6 +53,7 @@ gvfs-mtp
 gvfs-nfs
 gvfs-smb
 herdr
+hype
 hyprland
 hyprland-guiutils
 hyprland-preview-share-picker
@@ -64,7 +68,6 @@ networkmanager
 jq
 kdenlive
 kernel-modules-hook
-lazydocker
 lazygit
 less
 libsecret
@@ -78,6 +81,7 @@ luarocks
 man-db
 mariadb-libs
 mise-bin
+monologue
 moonlight-qt
 mpv
 mpv-mpris
@@ -95,6 +99,10 @@ omacalc
 omacut
 omawrite
 omarchy-nvim
+omasnap
+# OWE owns desktop video backgrounds and feeds the lock screen its frames.
+owe
+owe-lockfeed
 pacman-contrib
 pamixer
 pinta
@@ -104,6 +112,11 @@ postgresql-libs
 power-profiles-daemon
 python-gobject
 python-poetry-core
+qt6-base
+qt6-declarative
+qt6-multimedia
+qt6-svg
+qt6-wayland
 ttfx
 qemu-user-static-binfmt
 qrencode
@@ -111,11 +124,11 @@ qt6-imageformats
 quickshell
 ripgrep
 ruby
-tensaku
 sddm
 slurp
 socat
 starship
+superwhisper-bin
 sushi
 system-config-printer
 tesseract
@@ -131,8 +144,10 @@ udiskie
 ufw
 ufw-docker
 unzip
+usbguard
 usage
 uwsm
+vi
 whois
 wireless-regdb
 wireplumber
