@@ -2,21 +2,59 @@
 
 # omarchy:summary=Control a Bluetooth device
 # omarchy:group=bluetooth
-# omarchy:args=[pair|connect|disconnect|forget] <address>
+# omarchy:args=[pair|connect|disconnect|forget] <address> [device-path]
 # omarchy:examples=omarchy bluetooth device connect 00:11:22:33:44:55
 
 set -e
 
 usage() {
-  echo "Usage: omarchy-bluetooth-device [pair|connect|disconnect|forget] <address>" >&2
+  echo "Usage: omarchy-bluetooth-device [pair|connect|disconnect|forget] <address> [device-path]" >&2
   exit 1
 }
 
 action=${1:-}
 address=${2:-}
+device_path=${3:-}
 
 [[ $action == "pair" || $action == "connect" || $action == "disconnect" || $action == "forget" ]] || usage
 [[ $address =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] || usage
+
+# The panel has an adapter-qualified BlueZ object. Address-only bluetoothctl
+# commands use its default controller, which may not own the clicked device.
+if [[ -n $device_path ]]; then
+  [[ $device_path =~ ^/org/bluez/hci[0-9]+/dev_([0-9A-F]{2}_){5}[0-9A-F]{2}$ ]] || usage
+  device_address=${address^^}
+  [[ ${device_path##*/dev_} == "${device_address//:/_}" ]] || usage
+  adapter_path=${device_path%/dev_*}
+
+  device_call() {
+    busctl --system --timeout=20 call org.bluez "$device_path" org.bluez.Device1 "$1"
+  }
+
+  case "$action" in
+    pair | connect)
+      powered=$(busctl --system --timeout=2 get-property org.bluez "$adapter_path" org.bluez.Adapter1 Powered)
+      if [[ $powered != "b true" ]]; then
+        # The general helper can fail on the default controller; still try
+        # the device's own adapter after it has attempted to lift rfkill.
+        omarchy-bluetooth-power on || true
+        busctl --system set-property org.bluez "$adapter_path" org.bluez.Adapter1 Powered b true
+      fi
+      if [[ $action == "pair" ]]; then
+        device_call Pair
+      fi
+      busctl --system set-property org.bluez "$device_path" org.bluez.Device1 Trusted b true
+      device_call Connect
+      ;;
+    disconnect)
+      device_call Disconnect
+      ;;
+    forget)
+      busctl --system --timeout=20 call org.bluez "$adapter_path" org.bluez.Adapter1 RemoveDevice o "$device_path"
+      ;;
+  esac
+  exit
+fi
 
 power_on() {
   [[ $(timeout 2s bluetoothctl show 2>/dev/null) == *"Powered: yes"* ]] && return

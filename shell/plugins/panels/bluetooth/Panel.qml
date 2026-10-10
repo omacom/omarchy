@@ -17,7 +17,7 @@ Panel {
   // permits — needed for the toggleBluetooth method below.
   manageIpc: false
 
-  // Address -> "connecting" | "disconnecting" | "forgetting".
+  // BlueZ device path -> "connecting" | "disconnecting" | "forgetting".
   // The actual Bluetooth sequencing lives in bin/omarchy-bluetooth-device;
   // this map only keeps the panel responsive while BlueZ catches up.
   property var pendingActions: ({})
@@ -95,8 +95,8 @@ Panel {
 
   // Stable identity for the focused device. Devices move between sections as
   // they connect, disconnect, pair, or get forgotten, so follow the BlueZ
-  // address across section changes instead of preserving a stale row index.
-  property string focusedDeviceAddress: ""
+  // object path across section changes instead of preserving a stale row index.
+  property string focusedDevicePath: ""
 
   // "header" is a virtual section for the hero Bluetooth on/off toggle; it
   // sits above the device sections so the adapter can be toggled by keyboard
@@ -162,10 +162,11 @@ Panel {
   // property declaration), so it is iterated directly.
   function deviceFor(row) {
     if (!row || !row.dev) return null
-    var addr = row.dev.address || ""
+    var path = row.dev.dbusPath || ""
+    if (!path) return null
     var devs = devices || []
     for (var i = 0; i < devs.length; i++) {
-      if ((devs[i].address || "") === addr) return devs[i]
+      if (devs[i].dbusPath === path) return devs[i]
     }
     return null
   }
@@ -254,24 +255,24 @@ Panel {
     return Model.cloneMap(map)
   }
 
-  function pendingAction(address) {
-    return Model.pendingAction(pendingActions, address)
+  function pendingAction(path) {
+    return Model.pendingAction(pendingActions, path)
   }
 
-  function setPendingAction(address, action) {
-    if (!address) return
-    pendingActions = Model.withPendingAction(pendingActions, address, action)
+  function setPendingAction(path, action) {
+    if (!path) return
+    pendingActions = Model.withPendingAction(pendingActions, path, action)
     if (action) pendingTimeout.restart()
   }
 
-  function deviceCommand(action, address) {
-    return ["omarchy-bluetooth-device", action, address]
+  function deviceCommand(action, device) {
+    return ["omarchy-bluetooth-device", action, device.address, device.dbusPath]
   }
 
   function runDeviceAction(device, action, pending) {
-    if (!device || !device.address) return
-    setPendingAction(device.address, pending)
-    Quickshell.execDetached(deviceCommand(action, device.address))
+    if (!device || !device.address || !device.dbusPath) return
+    setPendingAction(device.dbusPath, pending)
+    Quickshell.execDetached(deviceCommand(action, device))
   }
 
   function connectDevice(device) {
@@ -281,15 +282,14 @@ Panel {
   }
 
   function disconnectDevice(device) {
-    if (!device || !device.address) return
+    if (!device || !device.address || !device.dbusPath) return
     if (!device.connected) return
-    setPendingAction(device.address, "disconnecting")
-    if (device.disconnect) device.disconnect()
-    Quickshell.execDetached(deviceCommand("disconnect", device.address))
+    setPendingAction(device.dbusPath, "disconnecting")
+    Quickshell.execDetached(deviceCommand("disconnect", device))
   }
 
   function forgetDevice(device) {
-    if (!device || !device.address) return
+    if (!device || !device.address || !device.dbusPath) return
     runDeviceAction(device, "forget", "forgetting")
   }
 
@@ -297,13 +297,13 @@ Panel {
     var next = cloneMap(pendingActions)
     var changed = false
 
-    for (var address in next) {
-      var action = next[address]
+    for (var path in next) {
+      var action = next[path]
       var found = null
 
       for (var i = 0; i < devices.length; i++) {
         var d = devices[i]
-        if (d && d.address === address) {
+        if (d && d.dbusPath === path) {
           found = d
           break
         }
@@ -314,7 +314,7 @@ Panel {
           || (action === "disconnecting" && found && !found.connected)
           || (action === "forgetting" && (!found || (!found.paired && !found.bonded && !found.trusted)))) {
         if (finishedConnecting) scheduleAudioOutputSwitch(found)
-        delete next[address]
+        delete next[path]
         changed = true
       }
     }
@@ -434,13 +434,13 @@ Panel {
     return null
   }
 
-  function updateFocusedAddress() {
+  function updateFocusedPath() {
     var d = deviceAt(focusSection, selectedIndex)
-    focusedDeviceAddress = d ? (d.address || "") : ""
+    focusedDevicePath = d ? (d.dbusPath || "") : ""
   }
 
   function reselectFocusedDevice() {
-    if (focusedDeviceAddress === "") {
+    if (focusedDevicePath === "") {
       clampCursor()
       return
     }
@@ -451,7 +451,7 @@ Panel {
       if (!sectionVisible(section)) continue
       var list = devicesForSection(section)
       for (var i = 0; i < list.length; i++) {
-        if (list[i] && list[i].address === focusedDeviceAddress) {
+        if (list[i] && list[i].dbusPath === focusedDevicePath) {
           focusSection = section
           selectedIndex = i
           clampCursor()
@@ -463,8 +463,8 @@ Panel {
     clampCursor()
   }
 
-  onSelectedIndexChanged: updateFocusedAddress()
-  onFocusSectionChanged: updateFocusedAddress()
+  onSelectedIndexChanged: updateFocusedPath()
+  onFocusSectionChanged: updateFocusedPath()
   onConnectedDevicesChanged: { reselectFocusedDevice(); syncPendingActions() }
   onKnownDevicesChanged: { reselectFocusedDevice(); syncPendingActions() }
   onDiscoveredDevicesChanged: { reselectFocusedDevice(); syncPendingActions() }
@@ -892,7 +892,7 @@ Panel {
 
     readonly property bool isConnected: dev && dev.connected
     readonly property int devState: dev && dev.state !== undefined ? dev.state : -1
-    readonly property string action: root.pendingAction(dev ? dev.address : "")
+    readonly property string action: root.pendingAction(dev ? dev.dbusPath : "")
     readonly property string actionTooltip: {
       if (!dev) return ""
       if (isConnected) return "Disconnect"

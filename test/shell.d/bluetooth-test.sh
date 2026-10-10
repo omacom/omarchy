@@ -94,7 +94,7 @@ assertDeepEqual(arrayLikeLists.discovered.map(bluetooth.deviceLabel), ['Gamepad'
 
 assertDeepEqual(
   bluetooth.deviceRow({ name: 'Deadbeef', address: '1', connected: false }),
-  { address: '1', name: 'Deadbeef', deviceName: '', connected: false, state: -1, batteryAvailable: false, battery: 0, pairing: false },
+  { address: '1', dbusPath: '', name: 'Deadbeef', deviceName: '', connected: false, state: -1, batteryAvailable: false, battery: 0, pairing: false },
   'bluetooth projects device rows with primitives only'
 )
 assertEqual(
