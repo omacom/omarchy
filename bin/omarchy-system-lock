@@ -5,7 +5,37 @@
 # omarchy:name=lock
 # omarchy:examples=omarchy system lock
 
-omarchy-shell lock lock >/dev/null
+lock_timeout=10
+
+lock_ipc() {
+  local limit=$1
+  shift
+
+  OMARCHY_SHELL_IPC_TIMEOUT="$limit" omarchy-shell "$@" 2>/dev/null
+}
+
+lock_state() {
+  jq -r --arg id "$request_id" \
+    'if .requestId != $id then "invalid"
+     elif .state == "secured" then "secured"
+     elif .state == "pending" then "pending"
+     elif .state == "failed" then "failed"
+     else "invalid" end' \
+    <<<"$(lock_ipc 0.5s lock result "$request_id")" 2>/dev/null
+}
+
+report_unsecured() {
+  printf 'omarchy-system-lock: the session lock was not confirmed (%s)\n' "$1" >&2
+
+  omarchy-notification-send -u critical -g 󰌾 \
+    "Screen did not lock" \
+    "The session lock could not be confirmed ($1)." >/dev/null 2>&1 || true
+
+  exit 1
+}
+
+deadline=$((SECONDS + lock_timeout))
+lock_reply=$(lock_ipc 1s lock request)
 
 # Set keyboard layout to default (first layout)
 hyprctl switchxkblayout all 0 > /dev/null 2>&1
@@ -19,8 +49,35 @@ if pgrep -x "1password" >/dev/null && omarchy-cmd-present 1password; then
   ) 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-1password-lock.lock" &
 fi
 
-# Avoid running screensaver when locked
-pkill -x ttfx 2>/dev/null || true
-# ttfx handles SIGTERM asynchronously, so keep its terminal alive until it exits.
-timeout 1s pidwait -x ttfx 2>/dev/null || true
-pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null || true
+# A refused or stalled lock leaves the screensaver up. Cleanup follows the
+# request's secured receipt, which survives a legitimate immediate unlock.
+close_screensaver() {
+  pkill -x ttfx 2>/dev/null || true
+  # ttfx handles SIGTERM asynchronously, so keep its terminal alive until exit.
+  timeout 1s pidwait -x ttfx 2>/dev/null || true
+  pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null || true
+}
+
+if [[ $(jq -r '.reason // empty' <<<"$lock_reply" 2>/dev/null) == "missing-pam" ]]; then
+  report_unsecured "no lock screen is configured"
+fi
+
+request_id=$(jq -er '.requestId | select(type == "string" and length > 0)' <<<"$lock_reply" 2>/dev/null)
+if [[ -z $request_id ]]; then
+  report_unsecured "the shell could not accept a tracked lock request"
+fi
+
+# A status snapshot cannot distinguish never-secured from already-unlocked.
+# Wait for this request's immutable outcome, without requesting a second lock.
+while (( SECONDS < deadline )); do
+  case $(lock_state) in
+    secured) close_screensaver; exit 0 ;;
+    pending) ;;
+    failed) report_unsecured "the lock request ended before securing the session" ;;
+    *) report_unsecured "the shell no longer has the tracked lock request" ;;
+  esac
+
+  sleep 0.1
+done
+
+report_unsecured "the shell did not secure the session within ${lock_timeout}s"
