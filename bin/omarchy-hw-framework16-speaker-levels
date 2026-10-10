@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# omarchy:summary=Initialize Framework 16 Ryzen AI 300 speaker hardware levels
+# omarchy:hidden=true
+
+set -euo pipefail
+
+if ! omarchy-hw-framework16 || ! omarchy-hw-match '^Laptop 16 (AMD Ryzen AI 300 Series)$'; then
+  exit 0
+fi
+
+# WirePlumber's service can be up before ALSA devices have been discovered.
+# Do not raise hardware gain until the matching card uses software volume:
+# desktop volume/mute then remains in control, including during live playback.
+card=""
+for (( attempt = 0; attempt < 50; attempt++ )); do
+  if card=$(pw-dump | jq -r '
+    [.[] | select(.type == "PipeWire:Interface:Device") | .info.props
+      | select((."alsa.components" // "") | startswith("HDA:10ec0285,f111000d,"))
+      | select(."api.alsa.soft-mixer" == true)
+      | ."api.alsa.card"] | first // empty
+  ') && [[ $card =~ ^[0-9]+$ ]]; then
+    break
+  fi
+  card=""
+  sleep 0.2
+done
+
+if [[ -z $card ]]; then
+  echo "Framework speaker card with software volume was not discovered" >&2
+  # Temporary discovery failure: systemd retries this status only.
+  exit 75
+fi
+
+# Check the complete control layout before changing any levels. The mixer
+# names do not reliably describe which physical driver each path feeds.
+for control in Master Speaker 'Bass Speaker'; do
+  amixer -c "$card" sget "$control" >/dev/null
+done
+for control in Master Speaker 'Bass Speaker'; do
+  amixer -c "$card" sset "$control" 0dB unmute >/dev/null
+done

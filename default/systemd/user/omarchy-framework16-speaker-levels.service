@@ -1,0 +1,19 @@
+[Unit]
+Description=Initialize Framework 16 Ryzen AI 300 speaker levels
+After=pipewire.service wireplumber.service
+Requires=wireplumber.service
+PartOf=wireplumber.service
+# Allow slow discovery, but stop retrying a persistent configuration failure.
+StartLimitIntervalSec=5min
+StartLimitBurst=4
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-hw-framework16-speaker-levels
+TimeoutStartSec=30s
+RemainAfterExit=yes
+RestartForceExitStatus=75
+RestartSec=5s
+
+[Install]
+WantedBy=wireplumber.service
