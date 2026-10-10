@@ -12,6 +12,21 @@ const serviceSource = fs.readFileSync(root + '/shell/plugins/services/idle/Servi
 assertEqual(idle.secondsFromConfig('42.9', 10), 42, 'idle floors configured seconds')
 assertEqual(idle.secondsFromConfig('-1', 10), 10, 'idle rejects negative seconds')
 assertEqual(idle.secondsFromConfig('nope', 10), 10, 'idle rejects invalid seconds')
+assertEqual(
+  idle.secondsFromConfig('999999999', 10),
+  idle.MAX_TIMEOUT_SECONDS,
+  'idle clamps a timeout whose milliseconds overflow the int32 timer'
+)
+assertEqual(
+  idle.secondsFromConfig(idle.MAX_TIMEOUT_SECONDS, 10),
+  idle.MAX_TIMEOUT_SECONDS,
+  'idle keeps the largest timeout that still fits the int32 timer'
+)
+assert(
+  idle.MAX_TIMEOUT_SECONDS * 1000 <= 2147483647,
+  'idle timeout ceiling stays inside a signed 32-bit millisecond interval'
+)
+assertEqual(idle.MAX_TIMEOUT_SECONDS, 2147483, 'idle timeout ceiling is the largest whole second that fits')
 assertEqual(idle.secondsFromConfig(0, 300), 0, 'idle keeps an explicit zero timeout')
 assertEqual(idle.firstIdleTimeout(150, 300), 150, 'idle uses the sooner of screensaver and lock')
 assertEqual(idle.firstIdleTimeout(0, 300), 300, 'idle ignores a disabled screensaver when computing first idle')
@@ -97,3 +112,15 @@ if rg -q 'omarchy-shell' "$ROOT/bin/omarchy-toggle-idle"; then
 fi
 
 pass "Stay Awake toggle persists state without reentrant shell IPC"
+
+# The int32 ceiling is enforced once, inside secondsFromConfig. Reading a
+# timeout straight off idleConfig would walk around it and bring the 1ms timer
+# storm back, so keep both timeouts wired through the model.
+idle_service="$ROOT/shell/plugins/services/idle/Service.qml"
+
+for timeout in screensaver lock; do
+  rg -q "readonly property int ${timeout}TimeoutSeconds: secondsFromConfig\(idleConfig\.${timeout}," "$idle_service" ||
+    fail "idle ${timeout} timeout is clamped through secondsFromConfig"
+done
+
+pass "idle timeouts reach the timers through the clamping model"
