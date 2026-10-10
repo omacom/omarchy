@@ -24,7 +24,11 @@ To install, say, Ruby, you'd run `mise use -g ruby`, which will both install Rub
 
 By default your user is *not* in the `docker` group. That group is effectively passwordless root — anything in it can `docker run -v /:/host` and take over the machine — so a single rogue script or dependency running as you would otherwise be one command away from root. So on the command line you run Docker with `sudo` (`sudo docker ps`, `sudo docker compose up`), and the graphical tools that talk to the daemon — the Windows VM — ask for authorization when they need it. If you want the convenience of a groupless setup back and understand the tradeoff, enable it from **Setup > Security > Sudoless Docker** (or run `omarchy-setup-security-sudoless-docker`), which adds you to the `docker` group after a warning; then plain `docker` and the `d` alias work without `sudo` again.
 
-You can setup the common databases for local development in Docker using _Install > Development > Docker DB_ in the Omarchy menu.
+You can set up MySQL, PostgreSQL, Redis, MongoDB, MariaDB, or SQL Server for local development using _Install > Development > Docker DB_ in the Omarchy menu. Each fresh container gets an independent generated administrator password; the installer passes it through a private Docker env/config file rather than command arguments. Recover the credentials from `~/.config/omarchy/docker-dbs/`, whose directory and files are accessible only to your account. The database ports remain bound to `127.0.0.1`, but authentication is still required because every local account shares the host loopback interface.
+
+New MongoDB containers use the maintained MongoDB 7.0 image series for compatibility with current Linux kernels. Existing containers and their data are left intact; the installer does not upgrade or downgrade an existing database.
+
+The installer never replaces an existing named database container. Containers created by an older Omarchy version may still have empty, trust-based, absent, or publicly known administrator credentials. Back up their data and change authentication with that database's administration tools, or deliberately remove and reinstall the container once you have decided how to preserve its data.
 
 ## GitHub CLI
 
