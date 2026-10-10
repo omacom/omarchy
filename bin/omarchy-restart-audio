@@ -4,6 +4,65 @@
 # omarchy:examples=omarchy restart audio | omarchy-restart-audio
 
 services=(wireplumber.service pipewire.service pipewire-pulse.service)
+apple_hda_pci_id="0000:00:1f.3"
+apple_hda_pci_device="/sys/bus/pci/devices/$apple_hda_pci_id"
+apple_hda_driver="/sys/bus/pci/drivers/snd_hda_intel"
+apple_cs8409_module="snd_hda_codec_cs8409"
+
+macbook_cs8409_needs_reset() {
+  local module_path
+
+  [[ -r /sys/class/dmi/id/product_name ]] || return 1
+  [[ $(</sys/class/dmi/id/product_name) == "MacBookPro13,1" ]] || return 1
+  [[ -e $apple_hda_pci_device ]] || return 1
+
+  module_path=$(modinfo -n "$apple_cs8409_module" 2>/dev/null) || return 1
+  [[ $module_path == */updates/dkms/snd-hda-codec-cs8409.ko* ]] || return 1
+
+  ! compgen -G "$apple_hda_pci_device/sound/card*/pcmC*D0p" >/dev/null
+}
+
+bind_apple_hda_controller() {
+  printf '%s\n' "$apple_hda_pci_id" | sudo tee "$apple_hda_driver/bind" >/dev/null
+}
+
+reset_macbook_cs8409() (
+  local controller_unbound=false
+
+  trap 'if [[ $controller_unbound == true && ! -L $apple_hda_pci_device/driver ]]; then bind_apple_hda_controller || true; fi' EXIT
+
+  echo -e "Resetting the MacBook audio controller...\n"
+
+  sudo -v || return 1
+  printf '%s\n' "$apple_hda_pci_id" | sudo tee "$apple_hda_driver/unbind" >/dev/null || return 1
+
+  controller_unbound=true
+
+  if ! sudo modprobe -r "$apple_cs8409_module"; then
+    return 1
+  fi
+
+  if ! sudo modprobe "$apple_cs8409_module"; then
+    return 1
+  fi
+
+  if ! bind_apple_hda_controller; then
+    return 1
+  fi
+
+  controller_unbound=false
+
+  for _ in {1..10}; do
+    if compgen -G "$apple_hda_pci_device/sound/card*/pcmC*D0p" >/dev/null; then
+      echo "MacBook analog audio is available again."
+      return 0
+    fi
+
+    sleep 1
+  done
+
+  return 1
+)
 
 restart_audio_services() {
   echo -e "Restarting audio services...\n"
@@ -203,7 +262,18 @@ recover_stuck_usb_audio() {
   (( reset_count > 0 ))
 }
 
-restart_audio_services || true
+macbook_audio_recovered=false
+if macbook_cs8409_needs_reset; then
+  if reset_macbook_cs8409; then
+    macbook_audio_recovered=true
+  else
+    echo "The MacBook audio controller reset did not restore analog audio."
+  fi
+fi
+
+if [[ $macbook_audio_recovered == false ]]; then
+  restart_audio_services || true
+fi
 
 if ! wpctl_healthy; then
   echo -e "\nPipeWire is still not responding. Checking for stuck USB audio devices..."
