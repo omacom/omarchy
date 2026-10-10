@@ -553,10 +553,11 @@ output_binding_records_uncached() {
   [[ -n $dynamic ]]
 }
 
+# Hyprland's active keymap stays out of the key: the records resolve keys through
+# xkbcli's built-in default keymap, and that line flips with every layout switch.
 keybindings_cache_key() {
   {
-    printf 'v15\n'
-    hyprctl devices 2>/dev/null | grep -F 'active keymap:'
+    printf 'v16\n'
     cat "$key_names_file" 2>/dev/null
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
