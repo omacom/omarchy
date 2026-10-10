@@ -72,6 +72,21 @@ def key_list(entries):
   return {frozenset(value.split("+")) for value in entries.values()}
 
 
+def without_ctrl_space(text):
+  # Ctrl+Space belongs to tmux and Herdr, and the terminal binding returns to
+  # direct input on it; a Fcitx toggle on the same key would undo that. Without
+  # a TriggerKeys list Fcitx falls back to its default, which has Ctrl+Space.
+  section = re.search(r"(?ms)^\[Hotkey/TriggerKeys\][ \t]*\n(.*?)(?=^\[|\Z)", text)
+  if not section:
+    return text.rstrip() + ("\n\n" if text.strip() else "") + "[Hotkey/TriggerKeys]\n0=Zenkaku_Hankaku\n1=Hangul\n"
+  keys = values(section[1])
+  kept = [keys[key] for key in sorted(keys, key=lambda key: int(key) if key.isdigit() else 0) if keys[key] != "Control+space"]
+  if len(kept) == len(keys):
+    return text
+  body = "".join(f"{index}={key}\n" for index, key in enumerate(kept)) + ("\n" if section[1].endswith("\n\n") else "")
+  return text[:section.start(1)] + body + text[section.end(1):]
+
+
 def defaults(config_home, fresh=False):
   changed = False
   files = ["config", "conf/quickphrase.conf", "conf/wayland.conf", "conf/xcb.conf", "conf/pinyin.conf"]
@@ -80,6 +95,8 @@ def defaults(config_home, fresh=False):
     original = read(target)
     shipped = read(ROOT / "config/fcitx5" / name)
     if name == "config" or name == "conf/quickphrase.conf":
+      if name == "config":
+        original = without_ctrl_space(original)
       existing = sections(original)
       additions = []
       for section, entries in sections(shipped).items():
@@ -89,7 +106,6 @@ def defaults(config_home, fresh=False):
         # Existing lists (including explicitly empty lists) are user choices.
         # A fresh profile has no working IME shortcut to preserve.
         stock_lists = {
-          "Hotkey/TriggerKeys": {"0": "Control+space", "1": "Zenkaku_Hankaku", "2": "Hangul"},
           "Hotkey/ActivateKeys": {"0": "Hangul_Hanja"},
           "Hotkey/DeactivateKeys": {"0": "Hangul_Romaja"},
           "Hotkey/AltTriggerKeys": {"0": "Shift_L"},
@@ -103,7 +119,8 @@ def defaults(config_home, fresh=False):
         if section not in existing:
           additions.append(f"[{section}]\n" + "".join(f"{key}={value}\n" for key, value in entries.items()))
       if additions:
-        changed |= atomic_write(target, original.rstrip() + ("\n\n" if original.strip() else "") + "\n".join(additions))
+        original = original.rstrip() + ("\n\n" if original.strip() else "") + "\n".join(additions)
+      changed |= atomic_write(target, original)
     elif name == "conf/pinyin.conf":
       # Suppress the first-use cloud prompt while preserving any explicit
       # cloud-prediction preference and all other existing engine settings.

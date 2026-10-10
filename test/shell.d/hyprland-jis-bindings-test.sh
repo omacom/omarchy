@@ -107,29 +107,16 @@ assert_fires "the JIS + key zooms the Obsidian Flatpak in with Ctrl + ^" \
   $'send CTRL asciicircum down\nsend CTRL asciicircum up' "$zoom" "md.obsidian.Obsidian"
 
 # The prefix bind has to pass Ctrl + Space on, or tmux and Herdr never see it.
+# Fcitx never toggles on it (configure --defaults removes it from its keys), so
+# a terminal can always return to direct input first.
 prefix="CTRL + SPACE"
-freed=$'[Hotkey/TriggerKeys]\n0=Zenkaku_Hankaku\n\n[Hotkey/ActivateKeys]\n0=Henkan'
-TEST_FCITX5_CONFIG=$freed assert_fires "the terminal prefix switches to direct input once Ctrl + Space no longer toggles" \
-  $'non_consuming\nexec timeout 0.3 fcitx5-remote --check -c' "$prefix" "com.mitchellh.ghostty" "terminal*"
-TEST_FCITX5_CONFIG=$freed assert_fires "the prefix leaves input alone outside terminals" \
-  "non_consuming" "$prefix" "chromium" "browser"
-
-# While fcitx5 still toggles on Ctrl + Space, switching to direct input would
-# undo the toggle it just made.
-assert_fires "the prefix leaves input alone without an fcitx5 config" \
-  "non_consuming" "$prefix" "com.mitchellh.ghostty" "terminal*"
-TEST_FCITX5_CONFIG=$'[Behavior]\nShareInputState=No' assert_fires "the prefix leaves input alone with the default trigger keys" \
-  "non_consuming" "$prefix" "com.mitchellh.ghostty" "terminal*"
-TEST_FCITX5_CONFIG=$'[Hotkey/TriggerKeys]\n0=Zenkaku_Hankaku\n1=Control+space' assert_fires "the prefix leaves input alone while Ctrl + Space is a trigger key" \
-  "non_consuming" "$prefix" "com.mitchellh.ghostty" "terminal*"
-
+direct=$'non_consuming\nexec timeout 0.3 fcitx5-remote --check -c'
+assert_fires "the terminal prefix switches to direct input" "$direct" "$prefix" "com.mitchellh.ghostty" "terminal*"
+assert_fires "the prefix leaves input alone outside terminals" "non_consuming" "$prefix" "chromium" "browser"
 for layout in us kr; do
-  TEST_LAYOUT="$layout" TEST_FCITX5_CONFIG=$freed assert_fires "the terminal prefix works with $layout keyboards too" \
-    $'non_consuming\nexec timeout 0.3 fcitx5-remote --check -c' "$prefix" "foot" "terminal"
+  TEST_LAYOUT="$layout" assert_fires "the terminal prefix works with $layout keyboards too" "$direct" "$prefix" "foot" "terminal"
 done
-
-TEST_KEYBOARD_ONLY=true TEST_FCITX5_CONFIG=$freed assert_fires "keyboard-only profiles skip the terminal controller call" \
-  "non_consuming" "$prefix" "foot" "terminal"
+TEST_KEYBOARD_ONLY=true assert_fires "keyboard-only profiles use the same prefix bind" "$direct" "$prefix" "foot" "terminal"
 
 assert_fires "Super + I cycles configured input independently of custom Fcitx keys" \
   "exec omarchy-input-method cycle" "SUPER + I" "chromium"

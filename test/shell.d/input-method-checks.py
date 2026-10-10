@@ -105,6 +105,14 @@ class InputMethodTest(unittest.TestCase):
     self.assertEqual(config["Behavior"], {"ActiveByDefault": "True"})
     self.assertEqual(quickphrase.read_text(), "[TriggerKey]\n\n")
 
+  def test_ctrl_space_is_removed_from_every_trigger_list(self):
+    path = self.config / "fcitx5/config"
+    setup.atomic_write(path, "[Hotkey/TriggerKeys]\n0=Alt+space\n1=Control+space\n2=Hangul\n\n[Behavior]\nActiveByDefault=True\n")
+    setup.defaults(self.config)
+    config = setup.sections(path.read_text())
+    self.assertEqual(config["Hotkey/TriggerKeys"], {"0": "Alt+space", "1": "Hangul"})
+    self.assertEqual(config["Behavior"], {"ActiveByDefault": "True"})
+
   def test_generated_stock_shortcuts_are_repaired(self):
     path = self.config / "fcitx5/config"
     setup.atomic_write(path, "[Hotkey/TriggerKeys]\n0=Control+space\n1=Zenkaku_Hankaku\n2=Hangul\n\n[Hotkey/EnumerateGroupForwardKeys]\n0=Super+space\n")
@@ -113,11 +121,12 @@ class InputMethodTest(unittest.TestCase):
     self.assertEqual(config["Hotkey/EnumerateGroupForwardKeys"], {})
     self.assertNotIn("Control+space", config["Hotkey/TriggerKeys"].values())
 
-  def test_existing_engine_inherited_hotkeys_are_preserved(self):
+  def test_inherited_hotkeys_keep_fcitx_defaults_except_the_ctrl_space_toggle(self):
     path = self.config / "fcitx5/config"
     setup.atomic_write(path, "[Behavior]\nActiveByDefault=True\n")
     setup.defaults(self.config, fresh=False)
-    self.assertEqual(path.read_text(), "[Behavior]\nActiveByDefault=True\n")
+    self.assertEqual(path.read_text(), "[Behavior]\nActiveByDefault=True\n\n[Hotkey/TriggerKeys]\n0=Zenkaku_Hankaku\n1=Hangul\n")
+    self.assertFalse(setup.defaults(self.config, fresh=False))
 
   def test_lao_preference_keeps_a_latin_fcitx_keyboard(self):
     self.preference.write_text("INPUT_METHOD=none\nXKB_LAYOUT=la\n")
