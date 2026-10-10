@@ -29,6 +29,7 @@ run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-display-backlight.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-b9406-display.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-b9406-touchpad.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-z13-touchpad.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-um3406-touchpad-resume.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/framework/qmk-hid.sh"
 

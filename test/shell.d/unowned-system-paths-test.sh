@@ -174,7 +174,15 @@ config_switch_line=$(rg -n '^    sudo sed -i \\' "$ROOT/bin/omarchy-toggle-hybri
 grep -Fq '/usr/bin/grep -Eq' "$ROOT/default/systemd/system-sleep/force-igpu" ||
   fail "force-igpu does not guard execution with the configured GPU mode"
 
-if rg -n 'cp -p.*(system-sleep|supergfxd\.service\.d)' "$ROOT/bin/omarchy-hibernation-setup" "$ROOT/bin/omarchy-toggle-hybrid-gpu"; then
+# asus-touchpad-resume-test.sh runs the setup, migration and hook; these only
+# cover what that test cannot observe.
+asus_touchpad_leaf="$ROOT/install/hardware/asus/fix-asus-um3406-touchpad-resume.sh"
+grep -F 'sudo /usr/bin/mv -Tf -- "$asus_touchpad_stage" "$asus_touchpad_hook"' "$asus_touchpad_leaf" >/dev/null ||
+  fail "ASUS touchpad resume setup atomically replaces the hook"
+grep -Fx 'run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-um3406-touchpad-resume.sh"' "$ROOT/install/hardware/all.sh" >/dev/null ||
+  fail "hardware setup runs the ASUS touchpad resume setup"
+
+if rg -n 'cp -p.*(system-sleep|supergfxd\.service\.d)' "$ROOT/bin/omarchy-hibernation-setup" "$ROOT/bin/omarchy-toggle-hybrid-gpu" "$asus_touchpad_leaf"; then
   fail "privileged sleep and hybrid GPU files are never copied with source ownership"
 fi
 
