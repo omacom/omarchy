@@ -4,6 +4,9 @@
     "screensaver": 150,
     "lock": 300
   },
+  "lock": {
+    "fingerprintLidClosed": "skip"
+  },
   "bar": {
     "position": "top",
     "transparent": false,

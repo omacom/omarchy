@@ -32,6 +32,8 @@ Item {
   property double fingerprintLastSettleMs: 0
   property double fingerprintResumedAtMs: 0
   property int fingerprintProbeStreak: 0
+  property bool laptopClosed: false
+  property bool laptopClosedKnown: false
   property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
@@ -60,6 +62,9 @@ Item {
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
   readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
   readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
+  readonly property var lockConfig: shell && shell.shellConfig && shell.shellConfig.lock
+    ? shell.shellConfig.lock : ({})
+  readonly property string fingerprintLidClosed: lockConfig.fingerprintLidClosed === "skip" ? "skip" : "try"
   // A prompt clears the unavailable notice before the attempt finishes.
   readonly property bool fingerprintUnavailable: FingerprintModel.isUnavailable(fingerprintProbeStreak) || (fingerprintConfigured && (!fingerprintAttemptReachedDevice || fingerprintAttemptFastError) && FingerprintModel.isUnavailable(fingerprintUnreachedStreak))
 
@@ -141,6 +146,40 @@ Item {
 
   function refreshFingerprintStatus() {
     if (!fingerprintCheckProc.running) fingerprintCheckProc.running = true
+  }
+
+  function refreshLidState() {
+    if (!laptopClosedProc.running) laptopClosedProc.running = true
+  }
+
+  function fingerprintBlockedByLid() {
+    return fingerprintLidClosed === "skip" && laptopClosed
+  }
+
+  function stopFingerprintForLid() {
+    fingerprintAuthenticating = false
+    fingerprintRetryTimer.stop()
+    fingerprintReachTimer.stop()
+    if (fingerprintPam.active) fingerprintPam.abort()
+  }
+
+  function applyLidClosed(closed) {
+    var lidWasKnown = laptopClosedKnown
+    var wasClosed = lidWasKnown && laptopClosed
+    laptopClosed = closed
+    laptopClosedKnown = true
+
+    if (!lockRequested || !fingerprintConfigured) return
+
+    if (fingerprintBlockedByLid()) {
+      stopFingerprintForLid()
+      return
+    }
+
+    // The first reading has to start fingerprint too. Before it arrives,
+    // laptopClosed is still the default false, so starting earlier would arm
+    // PAM on a closed lid. Later polls only start on closed to open.
+    if (!lidWasKnown || (wasClosed && !closed)) startFingerprint()
   }
 
   // Only definitive enrollment results may disable authentication.
@@ -282,6 +321,10 @@ Item {
 
   // A suspended PAM conversation may be orphaned by the daemon restart.
   function restartFingerprintAfterSleep() {
+    if (fingerprintBlockedByLid()) {
+      stopFingerprintForLid()
+      return
+    }
     noteFingerprintResumed()
     if (fingerprintAuthenticating || fingerprintPam.active) {
       if (fingerprintPam.active) fingerprintPam.abort()
@@ -357,6 +400,11 @@ Item {
 
   function startFingerprint() {
     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
+    if (fingerprintLidClosed === "skip" && !laptopClosedKnown) {
+      refreshLidState()
+      return
+    }
+    if (fingerprintBlockedByLid()) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
     fingerprintAuthenticating = true
@@ -622,6 +670,23 @@ Item {
     interval: FingerprintModel.REACH_TIMEOUT_MS
     repeat: false
     onTriggered: root.timeoutFingerprintReach()
+  }
+
+  Timer {
+    id: lidRefreshTimer
+    interval: 1000
+    repeat: true
+    running: root.lockRequested && root.fingerprintLidClosed === "skip"
+    onTriggered: root.refreshLidState()
+  }
+
+  Process {
+    id: laptopClosedProc
+    command: ["bash", "-c", "omarchy-hw-laptop-closed && echo closed || echo open"]
+    stdout: StdioCollector { id: laptopClosedOut; waitForEnd: true }
+    onExited: {
+      root.applyLidClosed(String(laptopClosedOut.text || "").trim() === "closed")
+    }
   }
 
   Process {
