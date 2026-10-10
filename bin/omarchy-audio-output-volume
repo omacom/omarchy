@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # omarchy:summary=Adjust output volume and show the Omarchy OSD
-# omarchy:args=<raise|lower|mute-toggle|+N|-N>
+# omarchy:args=<raise|lower|mute-toggle|+N|-N|=N>
 # omarchy:examples=omarchy audio output volume raise | omarchy audio output volume lower | omarchy audio output volume mute-toggle | omarchy audio output volume +1
 
 action="${1:-}"
 
 if [[ -z $action ]]; then
-  echo "Usage: omarchy-audio-output-volume <raise|lower|mute-toggle|+N|-N>"
+  echo "Usage: omarchy-audio-output-volume <raise|lower|mute-toggle|+N|-N|=N>"
   exit 1
 fi
 
@@ -51,7 +51,7 @@ if [[ $action == "mute-toggle" ]]; then
   printf '%s\n' "$now" >"$debounce_file"
 
   pactl set-sink-mute "$sink" toggle
-elif [[ $action =~ ^([+-])([0-9]+)$ ]]; then
+elif [[ $action =~ ^([-+=])([0-9]+)$ ]]; then
   direction="${BASH_REMATCH[1]}"
   step="${BASH_REMATCH[2]}"
 
@@ -64,9 +64,13 @@ elif [[ $action =~ ^([+-])([0-9]+)$ ]]; then
   if [[ $direction == "+" ]]; then
     next=$((current + step))
     ((next <= 100)) || next=100
-  else
+  elif [[ $direction == "-" ]]; then
     next=$((current - step))
     ((next >= 0)) || next=0
+  else
+    next=$((10#$step))
+    ((next >= 0)) || next=0
+    ((next <= 100)) || next=100
   fi
 
   pactl set-sink-mute "$sink" 0
