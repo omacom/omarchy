@@ -37,6 +37,88 @@ done
 
 pass "a <scheme>://<address> URL outside git's own transports is refused"
 
+# Plugins and downloaded themes are executable or security-sensitive content.
+# Their callers opt into a stricter policy that keeps local repositories and
+# authenticated network transports, but refuses the plaintext transports where
+# an on-path peer can replace the fetched objects.
+for url in \
+  "git://example.com/repo.git" \
+  "http://example.com/repo.git" \
+  "ftp://example.com/repo.git"; do
+  output=$(check --require-authenticated-network "$url") &&
+    fail "the authenticated-network policy refuses '$url'" "$output"
+  grep -qF "network transport is not authenticated" <<<"$output" ||
+    fail "the authenticated-network rejection explains '$url'" "$output"
+done
+
+for url in \
+  "https://github.com/acme/repo.git" \
+  "ssh://git@github.com/acme/repo.git" \
+  "git+ssh://git@example.com/acme/repo.git" \
+  "ssh+git://git@example.com/acme/repo.git" \
+  "ftps://example.com/repo.git" \
+  "file:///home/me/repo" \
+  "git@github.com:acme/repo.git" \
+  "/home/me/repo" \
+  "./repo"; do
+  output=$(check --require-authenticated-network "$url") ||
+    fail "the authenticated-network policy accepts '$url'" "$output"
+done
+
+pass "the content policy keeps authenticated network and local transports only"
+
+# Installers ask for the effective URL and clone exactly that value. Resolve
+# repeatedly because Git expands one insteadOf rule per invocation: checking
+# only the first expansion lets a secure-looking intermediate rewrite again at
+# clone time.
+rewrite_config=$(mktemp)
+trap 'rm -f "$rewrite_config"' EXIT
+
+git_with_rewrites() {
+  GIT_CONFIG_GLOBAL="$rewrite_config" GIT_CONFIG_NOSYSTEM=1 git "$@"
+}
+
+resolved_check() {
+  GIT_CONFIG_GLOBAL="$rewrite_config" GIT_CONFIG_NOSYSTEM=1 \
+    check --require-authenticated-network --resolve "$1"
+}
+
+git_with_rewrites config --global url.https://secure.example/.insteadOf secure:
+resolved=$(resolved_check secure:acme/repo.git) ||
+  fail "effective URL resolution accepts a rewrite to HTTPS" "$resolved"
+[[ $resolved == "https://secure.example/acme/repo.git" ]] ||
+  fail "effective URL resolution prints the checked destination" "got: $resolved"
+
+git_with_rewrites config --global url.git://plain.example/.insteadOf https://public.example/
+output=$(resolved_check https://public.example/acme/repo.git) &&
+  fail "effective URL resolution refuses a rewrite from HTTPS to git://" "$output"
+grep -qF "network transport is not authenticated" <<<"$output" ||
+  fail "effective URL resolution explains the rewritten plaintext transport" "$output"
+
+git_with_rewrites config --global url.https://middle.example/.insteadOf chain:
+git_with_rewrites config --global url.ftp://plain.example/.insteadOf https://middle.example/
+output=$(resolved_check chain:acme/repo.git) &&
+  fail "effective URL resolution refuses a chained rewrite to FTP" "$output"
+grep -qF "network transport is not authenticated" <<<"$output" ||
+  fail "effective URL resolution follows the rewrite chain to its plaintext destination" "$output"
+
+git_with_rewrites config --global url.two:.insteadOf one:
+git_with_rewrites config --global url.one:.insteadOf two:
+output=$(resolved_check one:acme/repo.git) &&
+  fail "effective URL resolution refuses a rewrite cycle" "$output"
+grep -qF "does not resolve to a stable destination" <<<"$output" ||
+  fail "effective URL resolution explains the rewrite cycle" "$output"
+
+git_with_rewrites config --global --unset-all url.two:.insteadOf
+git_with_rewrites config --global --unset-all url.one:.insteadOf
+git_with_rewrites config --global url.xx.insteadOf x
+output=$(resolved_check x/acme/repo.git) &&
+  fail "effective URL resolution refuses a self-expanding rewrite" "$output"
+grep -qF "does not resolve to a stable destination" <<<"$output" ||
+  fail "effective URL resolution bounds a non-repeating rewrite chain" "$output"
+
+pass "effective URL resolution reaches one stable authenticated destination"
+
 # A leading dash is an option to git, not a URL.
 for url in "-x" "--upload-pack=touch /tmp/pwned" "-oProxyCommand=x"; do
   output=$(check "$url") &&
@@ -50,9 +132,10 @@ output=$(check) && fail "omarchy-git-url-check refuses a missing URL" "$output"
 
 pass "an empty URL is refused"
 
-# Everything a user actually pastes. The scp-style forms carry a single colon,
-# which git never reads as a helper, and the IPv6 host carries `::` inside
-# brackets rather than at the start.
+# The generic helper still identifies transports independently of the stricter
+# content policy. The scp-style forms carry a single colon, which git never
+# reads as a helper, and the IPv6 host carries `::` inside brackets rather than
+# at the start.
 for url in \
   "https://github.com/acme/omarchy-weather.git" \
   "http://example.com/a/b.git" \

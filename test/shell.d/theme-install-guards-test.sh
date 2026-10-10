@@ -17,6 +17,14 @@ mkdir -p "$mock_bin"
 
 cat >"$mock_bin/git" <<'SH'
 #!/bin/bash
+if [[ $1 == "ls-remote" && $2 == "--get-url" ]]; then
+  url=${!#}
+  if [[ -n ${OMARCHY_TEST_REWRITE_FROM-} && $url == "$OMARCHY_TEST_REWRITE_FROM"* ]]; then
+    url="$OMARCHY_TEST_REWRITE_TO${url#"$OMARCHY_TEST_REWRITE_FROM"}"
+  fi
+  printf '%s\n' "$url"
+  exit 0
+fi
 printf '%s\n' "$*" >>"$OMARCHY_TEST_GIT_CALLS"
 [[ $1 == "clone" ]] && mkdir -p "${*: -1}"
 exit 0
@@ -42,6 +50,8 @@ install_theme() {
 
   HOME="$test_tmp/home" PATH="${2-$mock_bin:$ROOT/bin:$PATH}" \
     OMARCHY_TEST_GIT_CALLS="$git_calls" OMARCHY_TEST_THEME_CALLS="$theme_calls" \
+    OMARCHY_TEST_REWRITE_FROM="${OMARCHY_TEST_REWRITE_FROM-}" \
+    OMARCHY_TEST_REWRITE_TO="${OMARCHY_TEST_REWRITE_TO-}" \
     bash "$ROOT/bin/omarchy-theme-install" "$1" >"$test_tmp/out" 2>&1 || return $?
 }
 
@@ -69,6 +79,43 @@ for url in "ext://sh -c id" "fd://17" "gcrypt://example.com/x"; do
 done
 
 pass "a URL naming a transport git does not implement never reaches git"
+
+# Theme assets are persisted and fed to desktop content handlers. Git's
+# plaintext network transports let an on-path peer replace those assets, so the
+# install flow accepts only authenticated network transports or local sources.
+for url in \
+  "git://example.com/omarchy-cool-theme.git" \
+  "http://example.com/omarchy-cool-theme.git" \
+  "ftp://example.com/omarchy-cool-theme.git"; do
+  if install_theme "$url"; then
+    fail "omarchy-theme-install refuses the unauthenticated URL '$url'"
+  fi
+
+  grep -qF "network transport is not authenticated" "$test_tmp/out" ||
+    fail "omarchy-theme-install explains the unauthenticated URL '$url'" "$(cat "$test_tmp/out")"
+  [[ ! -s $git_calls ]] ||
+    fail "omarchy-theme-install refuses '$url' before running git" "$(cat "$git_calls")"
+done
+
+pass "an unauthenticated network transport never reaches theme clone"
+
+if OMARCHY_TEST_REWRITE_FROM="https://secure-looking.example/" \
+  OMARCHY_TEST_REWRITE_TO="ftp://plain.example/" \
+  install_theme "https://secure-looking.example/omarchy-cool-theme.git"; then
+  fail "omarchy-theme-install rejects an HTTPS argument rewritten to FTP"
+fi
+grep -qF "network transport is not authenticated" "$test_tmp/out" ||
+  fail "omarchy-theme-install explains the rewritten unauthenticated destination" "$(cat "$test_tmp/out")"
+[[ ! -s $git_calls ]] ||
+  fail "omarchy-theme-install reached clone after HTTPS rewrote to FTP" "$(cat "$git_calls")"
+
+OMARCHY_TEST_REWRITE_FROM="trusted:" OMARCHY_TEST_REWRITE_TO="https://secure.example/" \
+  install_theme "trusted:omarchy-blue-theme.git" ||
+  fail "omarchy-theme-install accepts a rewrite to HTTPS" "$(cat "$test_tmp/out")"
+grep -Fq 'clone -- https://secure.example/omarchy-blue-theme.git ' "$git_calls" ||
+  fail "omarchy-theme-install clones the effective URL it checked" "$(cat "$git_calls")"
+
+pass "theme install validates and clones the same effective URL"
 
 # The checker is a separate command, so its absence has to refuse the URL rather
 # than wave it through to git. Installed machines carry the packaged checker in

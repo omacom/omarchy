@@ -93,12 +93,11 @@ if [[ -z $url ]]; then
   [[ -n $url ]] || fail "a git URL is required"
 fi
 
-# Refuse a URL that names a git option or a transport helper before cloning, so
-# an untrusted URL cannot run a command before the plugin is validated or
-# enabled. The check is shared with omarchy-theme-install and explains itself; a
-# missing checker leaves this non-zero, which refuses the URL rather than
-# cloning it.
-omarchy-git-url-check "$url" || exit 1
+# Resolve Git's url.*.insteadOf rules to a stable destination, then refuse an
+# option, transport helper, or network transport without peer authentication.
+# Clone that exact checked destination so another rewrite cannot change the
+# transport after validation.
+clone_url=$(omarchy-git-url-check --require-authenticated-network --resolve "$url") || exit 1
 
 if (( ! ASSUME_YES )); then
   cat >&2 <<WARN
@@ -117,7 +116,7 @@ mkdir -p "$PLUGINS_DIR"
 
 stage="$PLUGINS_DIR/.add.tmp.$$"
 rm -rf "$stage"
-if ! git clone -- "$url" "$stage"; then
+if ! git clone -- "$clone_url" "$stage"; then
   rm -rf "$stage"
   fail "failed to clone $url"
 fi

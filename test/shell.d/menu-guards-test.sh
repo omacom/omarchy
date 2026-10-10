@@ -217,6 +217,11 @@ cat >"$stub_dir/git" <<'STUB'
 #!/bin/bash
 : "${GIT_CALLS:=/dev/null}"
 { printf '<%s>' "$@"; printf '\n'; } >>"$GIT_CALLS"
+case ${3-} in
+symbolic-ref) printf 'main\n' ;;
+config) printf 'origin\n' ;;
+remote) printf 'https://example.com/theme.git\n' ;;
+esac
 STUB
 chmod +x "$stub_dir/git"
 
@@ -274,6 +279,14 @@ trap 'rm -rf "$stub_dir" "$themes_home" "$git_calls"' EXIT
 HOME="$themes_home/many" LC_ALL=C GIT_CALLS="$git_calls" PATH="$ROOT/bin:$stub_dir:$PATH" \
   "$ROOT/bin/omarchy-theme-update" >/dev/null 2>&1
 pulled=$(<"$git_calls")
-[[ $pulled == "<-C><$many/tokyo night><pull>"$'\n'"<-C><$many/zen><pull>" ]] ||
+expected="<-C><$many/tokyo night><symbolic-ref><--quiet><--short><HEAD>"$'\n'
+expected+="<-C><$many/tokyo night><config><--get><branch.main.remote>"$'\n'
+expected+="<-C><$many/tokyo night><remote><get-url><--><origin>"$'\n'
+expected+="<-C><$many/tokyo night><pull><--><origin>"$'\n'
+expected+="<-C><$many/zen><symbolic-ref><--quiet><--short><HEAD>"$'\n'
+expected+="<-C><$many/zen><config><--get><branch.main.remote>"$'\n'
+expected+="<-C><$many/zen><remote><get-url><--><origin>"$'\n'
+expected+="<-C><$many/zen><pull><--><origin>"
+[[ $pulled == "$expected" ]] ||
   fail "omarchy-theme-update pulls each clone by its whole path" "got: $pulled"
 pass "omarchy-theme-update pulls each clone by its whole path"
