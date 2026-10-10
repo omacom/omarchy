@@ -22,6 +22,7 @@ Panel {
   property string internalMonitor: ""
   property string externalMonitor: ""
   property string focusedMonitor: ""
+  property string mirrorMonitor: ""
   property bool internalEnabled: false
   property bool mirrorEnabled: false
   property string monitorScale: ""
@@ -245,7 +246,9 @@ Panel {
     }
 
     root.brightnessSetQueued = false
-    setBrightnessProc.command = ["omarchy-brightness-display", "--no-osd", "--monitor", root.focusedMonitor, percent + "%"]
+    var targets = Model.brightnessTargets(root.focusedMonitor, root.internalMonitor, root.mirrorEnabled ? root.mirrorMonitor : "")
+    var script = 'pct=$1; shift; for m in "$@"; do omarchy-brightness-display --no-osd --monitor "$m" "$pct"; done'
+    setBrightnessProc.command = ["bash", "-c", script, "_", percent + "%"].concat(targets)
     setBrightnessProc.running = true
   }
 
@@ -403,7 +406,8 @@ Panel {
         root.internalMonitor = String(lines[1] || "").trim()
         root.externalMonitor = String(lines[2] || "").trim()
         root.internalEnabled = String(lines[3] || "").trim() !== ""
-        root.mirrorEnabled = String(lines[4] || "").trim() === root.externalMonitor && root.externalMonitor !== ""
+        root.mirrorMonitor = String(lines[4] || "").trim()
+        root.mirrorEnabled = root.mirrorMonitor !== "" && root.mirrorMonitor === root.externalMonitor
         root.focusedMonitor = String(lines[5] || "").trim()
         root.monitorScale = root.normalizeScale(String(lines[6] || "").trim())
         root.updateDisplays(String(lines[7] || "[]").trim())
