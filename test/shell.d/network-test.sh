@@ -119,6 +119,18 @@ assertEqual(network.formatHeaderFreq('6455.0'), '6ghz', 'network formats 6GHz wi
 assertEqual(network.formatHeaderFreq('18300'), '18.3ghz', 'network falls back to exact GHz for unknown bands')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network header uses ethernet speed')
 
+// Evaluate the actual header binding while the slower details poll is pending.
+const titleBinding = panelSource.match(/id: heroSsid[\s\S]*?readonly property string title: \{([\s\S]*?)\n {12}\}/)
+assert(titleBinding, 'network has a hero title binding')
+const headerTitle = new Function('root', titleBinding[1])
+assertEqual(headerTitle({ kind: 'wifi', info: {}, connectedWifiNetwork: { name: 'Home' } }), 'Home', 'network header shows the active SSID before details arrive')
+assertEqual(headerTitle({ kind: 'wifi', info: {}, connectedWifiNetwork: null }), 'Wi-Fi', 'network header shows Wi-Fi for a connected device before details arrive')
+assertEqual(headerTitle({ kind: 'ethernet', info: {} }), 'Ethernet', 'network header shows Ethernet before details arrive')
+assertEqual(headerTitle({ kind: 'disconnected', info: {} }), 'Disconnected', 'network header shows disconnected when no device is connected')
+assertEqual(headerTitle({ kind: 'wifi', info: { type: 'wifi', ssid: 'Cafe' }, connectedWifiNetwork: null }), 'Cafe', 'network header preserves the SSID from details')
+assertEqual(headerTitle({ kind: 'ethernet', info: { type: 'ethernet', iface: 'eth0' } }), 'Ethernet', 'network header preserves the Ethernet details title')
+assertEqual(headerTitle({ kind: 'wifi', info: { iface: 'wlan0' }, connectedWifiNetwork: null }), 'wlan0', 'network header preserves the interface fallback')
+
 assertDeepEqual(
   network.parseKeyValue('iface\twlan0\nrx_bytes\t100\ntx_bytes\t50\n'),
   { iface: 'wlan0', rx_bytes: '100', tx_bytes: '50' },

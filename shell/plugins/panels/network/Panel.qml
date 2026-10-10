@@ -1314,7 +1314,7 @@ Panel {
               if (root.kind === "wifi" && root.connectedWifiNetwork) return root.connectedWifiNetwork.name || "Wi-Fi"
               if (root.info.type === "wifi") return root.info.ssid || "Wi-Fi"
               if (root.info.type === "ethernet") return "Ethernet"
-              return root.info.iface || (root.kind === "disconnected" ? "Disconnected" : "No connection")
+              return root.info.iface || (root.kind === "disconnected" ? "Disconnected" : root.kind === "ethernet" ? "Ethernet" : root.kind === "wifi" ? "Wi-Fi" : "No connection")
             }
             readonly property string detail: root.headerDetail()
 
