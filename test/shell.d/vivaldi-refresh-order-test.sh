@@ -5,7 +5,17 @@ set -euo pipefail
 source "$(dirname "$0")/base-test.sh"
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+older= newer=
+cleanup() {
+  local pid
+  for pid in "$older" "$newer"; do
+    [[ -n $pid ]] || continue
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+  done
+  rm -rf "$test_tmp"
+}
+trap cleanup EXIT
 mock_bin="$test_tmp/bin"
 mkdir -p "$mock_bin" "$test_tmp/home"
 
