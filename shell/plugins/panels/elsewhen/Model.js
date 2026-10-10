@@ -329,12 +329,13 @@ function moveZone(zones, from, to) {
   return out
 }
 
+// Cities share zones, so only the first match goes (by label too, when given).
 // The last city is never removed.
-function removeZone(zones, id) {
-  if (zones.length <= 1) return zones
-  var out = []
-  for (var i = 0; i < zones.length; i++) if (zones[i].id !== id) out.push(zones[i])
-  return out.length === zones.length ? zones : out
+function removeZone(zones, id, label) {
+  for (var i = 0; i < zones.length; i++)
+    if (zones[i].id === id && (label === undefined || zones[i].label === label))
+      return removeZoneAt(zones, i)
+  return zones
 }
 
 // `timedatectl list-timezones` plus CITY_ALIASES -> picker options, minus `existing`.
