@@ -1,0 +1,5 @@
+module Quickshell.Io
+Process 1.0 Process.qml
+singleton ProcessHarness 1.0 ProcessHarness.qml
+StdioCollector 1.0 StdioCollector.qml
+SplitParser 1.0 SplitParser.qml
