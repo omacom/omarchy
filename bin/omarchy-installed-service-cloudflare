@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Check whether the Cloudflare dashboard service is set up.
+# omarchy:hidden=true
+
+launcher="$HOME/.local/share/applications/Cloudflare.desktop"
+[[ -f $launcher && ! -L $launcher ]] &&
+  [[ $(grep -c '^Exec=' "$launcher") == 1 ]] &&
+  grep -Fxq -e 'Exec=omarchy-launch-webapp "https://dash.cloudflare.com"' \
+    -e 'Exec=omarchy-launch-webapp https://dash.cloudflare.com' "$launcher"
