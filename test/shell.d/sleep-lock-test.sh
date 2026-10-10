@@ -33,6 +33,11 @@ setup_scenario() {
 printf '%s\n' "\$*" >>"$notify_log"
 SH
   chmod +x "$mock_bin/omarchy-notification-send"
+
+  # Sleep lock now refuses to finish without an enabled, named output so a
+  # clamshell undock cannot suspend headless. Default every scenario to one
+  # healthy internal panel; headless cases override this stub.
+  mock_monitors_active
 }
 
 mock_logind_window() {
@@ -52,6 +57,38 @@ echo clamshell >>"\$CALL_LOG"
 sleep ${1:-0}
 SH
   chmod +x "$mock_bin/omarchy-hyprland-monitor-clamshell"
+}
+
+mock_monitors_active() {
+  cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+
+printf 'hyprctl %s\n' "$*" >>"$CALL_LOG"
+if [[ $1 == "monitors" ]]; then
+  printf '[{"name":"eDP-1","disabled":false}]\n'
+  exit 0
+fi
+exit 0
+SH
+  chmod +x "$mock_bin/hyprctl"
+}
+
+mock_monitors_headless() {
+  cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+
+printf 'hyprctl %s\n' "$*" >>"$CALL_LOG"
+if [[ $1 == "monitors" ]]; then
+  if [[ -f $STATE_DIR/output_ready ]]; then
+    printf '[{"name":"eDP-1","disabled":false}]\n'
+  else
+    printf '[{"name":"FALLBACK","disabled":false},{"name":"","disabled":false}]\n'
+  fi
+  exit 0
+fi
+exit 0
+SH
+  chmod +x "$mock_bin/hyprctl"
 }
 
 # Called with no budget to exercise the value derived from logind's window.
@@ -95,8 +132,8 @@ pass "sleep lock succeeds once the session reports secure"
   fail "sleep lock requests the session lock first" "first call: ${calls[0]}"
 pass "sleep lock requests the session lock first"
 
-[[ ${calls[1]} == "clamshell" && ${calls[2]} == "shell lock status" ]] ||
-  fail "sleep lock checks security after clamshell reconciliation"
+[[ ${calls[*]} == *clamshell* && ${calls[*]} == *"shell lock status"* ]] ||
+  fail "sleep lock checks security after clamshell reconciliation" "calls: ${calls[*]}"
 pass "sleep lock checks security after clamshell reconciliation"
 
 (( elapsed_us < 1500000 )) ||
@@ -339,3 +376,79 @@ budget_cap_ms=$(sed -n 's/^budget_cap_ms=//p' "$sleep_lock")
   fail "sleep lock cap leaves logind room to act" \
     "cap: ${budget_cap_ms}ms window: ${inhibit_delay}s"
 pass "sleep lock cap stays inside the shipped logind inhibitor window"
+
+# Undocking with the lid closed briefly leaves only FALLBACK/empty outputs.
+# Sleep lock must keep reconciling clamshell until a real panel appears, then
+# secure the session — otherwise resume wakes to a black screen (#13300).
+setup_scenario undock_headless_then_recover
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+printf 'shell %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == "lock lock" ]]; then
+  printf 'ok\n'
+elif [[ $* == "lock status" ]]; then
+  if [[ -f $STATE_DIR/output_ready ]]; then
+    printf '{"secure":true}\n'
+  else
+    printf '{"secure":false,"requested":true,"pending":true}\n'
+  fi
+fi
+SH
+chmod +x "$mock_bin/omarchy-shell"
+mock_monitors_headless
+cat >"$mock_bin/omarchy-hyprland-monitor-clamshell" <<'SH'
+#!/bin/bash
+echo clamshell >>"$CALL_LOG"
+# The second clamshell sync is what re-enables eDP after undock.
+if [[ -f $STATE_DIR/clamshell_once ]]; then
+  touch "$STATE_DIR/output_ready"
+else
+  touch "$STATE_DIR/clamshell_once"
+fi
+SH
+chmod +x "$mock_bin/omarchy-hyprland-monitor-clamshell"
+
+run_sleep_lock 4000
+
+(( exit_status == 0 )) ||
+  fail "sleep lock recovers an active output before securing" "exit: $exit_status"
+pass "sleep lock recovers an active output before securing"
+
+[[ -f $state_dir/output_ready ]] ||
+  fail "sleep lock waited for clamshell to re-enable a real output"
+pass "sleep lock waited for clamshell to re-enable a real output"
+
+# A permanently headless suspend must fail closed inside the budget rather than
+# reporting secure against a FALLBACK placeholder.
+setup_scenario undock_headless_forever
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+printf 'shell %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == "lock lock" ]]; then
+  printf 'ok\n'
+elif [[ $* == "lock status" ]]; then
+  printf '{"secure":true}\n'
+fi
+SH
+chmod +x "$mock_bin/omarchy-shell"
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+printf 'hyprctl %s\n' "$*" >>"$CALL_LOG"
+if [[ $1 == "monitors" ]]; then
+  printf '[{"name":"FALLBACK","disabled":false}]\n'
+  exit 0
+fi
+exit 0
+SH
+chmod +x "$mock_bin/hyprctl"
+mock_clamshell
+
+run_sleep_lock 1500
+
+(( exit_status != 0 )) ||
+  fail "sleep lock fails when only FALLBACK outputs exist"
+grep -qF "no active display was available before suspend" "$journal_log" ||
+  fail "sleep lock names the missing-display failure" "journal: $(< "$journal_log")"
+pass "sleep lock fails closed when undock leaves no active output"
