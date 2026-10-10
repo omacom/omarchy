@@ -13,10 +13,28 @@ TB_DEVICE=org.freedesktop.bolt1.Device
 TB_DOMAIN=org.freedesktop.bolt1.Domain
 TB_PATH=/org/freedesktop/bolt
 TB_SYSFS=/sys/bus/thunderbolt/devices
+# How often the daemon re-checks Bolt while there is no controller and no boot
+# protection: well inside the 20 s a published snapshot stays valid.
+TB_IDLE_RECHECK=10
 TB_TRUST_JQ='def trusted($state): $state.trusted[.Uid] == {Uid,Name,Vendor} and
   ((.Secure | not) or (.Stored and (.Key | IN("have","new"))));'
 
 tb_fail() { printf '%s\n' "$*" >&2; return 1; }
+
+# Sleeps without forking on each tick: a pipe open for reading and writing
+# never reaches EOF, so a timed read on it returns only on timeout or a signal.
+tb_wait() {
+  [[ -n ${TB_TICK:-} ]] || exec {TB_TICK}<> <(:)
+  read -r -t "$1" -u "$TB_TICK" _ || true
+}
+
+tb_controller_present() {
+  local domain
+  for domain in "$TB_SYSFS"/domain*; do
+    [[ -e $domain ]] && return 0
+  done
+  return 1
+}
 
 tb_json_write() {
   local target=$1 mode=${2:-600} temporary
@@ -287,11 +305,24 @@ tb_reconcile() {
 }
 
 tb_daemon() {
-  local snapshot error
+  local snapshot error policy idle_policy='' idle_since=0
   install -d -m 755 "$TB_RUNTIME"
   cat /proc/sys/kernel/random/uuid > "$TB_RUNTIME/generation"
   chmod 644 "$TB_RUNTIME/generation"
   while [[ -f $TB_MARKER ]]; do
+    policy=''
+    [[ -r $TB_STATE ]] && IFS= read -r -d '' policy < "$TB_STATE" || true
+    # With no controller, no device and no boot protection there is nothing to
+    # restore or reapply, so Bolt is reconciled every TB_IDLE_RECHECK seconds
+    # instead of every tick. A controller appearing, a policy change or a boot
+    # recovery checkpoint brings back the full check at once.
+    if [[ -n $idle_policy && $policy == "$idle_policy" && ! -e ${TB_STATE%/*}/boot-recovery.json ]] &&
+      (( EPOCHSECONDS - idle_since >= 0 && EPOCHSECONDS - idle_since < TB_IDLE_RECHECK )) &&
+      ! tb_controller_present; then
+      tb_wait 2
+      continue
+    fi
+    idle_policy=''
     (
       flock -x 9
       if snapshot=$(tb_reconcile 2> "$TB_RUNTIME/error"); then
@@ -303,7 +334,13 @@ tb_daemon() {
           tb_json_write "$TB_RUNTIME/snapshot.json" 644
       fi
     ) 9> "$TB_LOCK"
-    sleep 2
+    snapshot=''
+    [[ -r $TB_RUNTIME/snapshot.json ]] && IFS= read -r -d '' snapshot < "$TB_RUNTIME/snapshot.json" || true
+    if [[ -n $policy ]] && jq -e '.available == true and .domains == [] and .devices == [] and
+      .warnings == [] and .error == "" and .boot_protection == false' <<< "$snapshot" >/dev/null 2>&1; then
+      idle_policy=$policy idle_since=$EPOCHSECONDS
+    fi
+    tb_wait 2
   done
 }
 
