@@ -377,6 +377,7 @@ stop_locked() {
   local token=""
   local idle_owner=""
   local current_idle_owner=""
+  local presentation_lock_fd=""
   local current_start=""
   local failed=0
   local remove_inhibit_state=1
@@ -392,12 +393,23 @@ stop_locked() {
   if [[ -e $idle_owner_file || -L $idle_owner_file ]]; then
     idle_owner=$(read_state_record "$idle_owner_file" 1 2>/dev/null || true)
     if [[ $idle_owner =~ ^[0-9]+:[0-9]+:[0-9]+$ ]]; then
+      # Serialize idle handover with presentation's snapshot and restoration.
+      mkdir -p "$HOME/.local/state/omarchy"
+      exec {presentation_lock_fd}>"$HOME/.local/state/omarchy/presentation.lock"
+      flock "$presentation_lock_fd"
       if [[ -f $stay_awake_state ]]; then
         current_idle_owner=$(<"$stay_awake_state")
       fi
       if [[ $current_idle_owner == "$idle_owner" ]]; then
-        omarchy-toggle-idle allow-idle >/dev/null 2>&1 || true
+        if [[ -f $HOME/.local/state/omarchy/toggles/presentation ]]; then
+          # Keep presentation awake; its eventual `off` releases the now
+          # expired update ownership instead of restoring it forever.
+          sed -i 's/^stay_awake=1$/stay_awake=0/' "$HOME/.local/state/omarchy/presentation-restore"
+        else
+          omarchy-toggle-idle allow-idle >/dev/null 2>&1 || true
+        fi
       fi
+      exec {presentation_lock_fd}>&-
     else
       echo "Ignoring unsafe Omarchy update idle ownership state." >&2
       failed=1
