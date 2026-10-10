@@ -214,7 +214,7 @@ pass "Firefox setup does not follow a planted distribution symlink"
   fail "theme colour treats leading zeros as decimal"
 for malformed in "" "not,a,color" "1,2" "1,2,3,4" "256,0,0" "999,999,999" "-1,0,0" \
   "1,2,3;id" '1,2,$(id)' "0x10,0,0" "1,2,3 4,5,6"; do
-  [[ $(browser_policy_theme_hex "$malformed") == "#1c2027" ]] ||
+  [[ $(browser_policy_theme_hex "$malformed") == "#1f1f1f" ]] ||
     fail "theme colour falls back to the stock grey for '$malformed'"
 done
 pass "theme colour is six hex digits or the stock grey"
@@ -225,7 +225,7 @@ for theme in "$ROOT"/themes/*/chromium.theme; do
   hex=$(browser_policy_theme_hex "$rgb")
   [[ $hex =~ ^#[0-9a-f]{6}$ ]] ||
     fail "shipped $(basename "$(dirname "$theme")") chromium.theme parses as hex" "got: $hex from $(printf %q "$rgb")"
-  if [[ $hex == "#1c2027" && ! $rgb =~ ^[[:space:]]*28[[:space:]]*,[[:space:]]*32[[:space:]]*,[[:space:]]*39[[:space:]]*$ ]]; then
+  if [[ $hex == "#1f1f1f" && ! $rgb =~ ^[[:space:]]*31[[:space:]]*,[[:space:]]*31[[:space:]]*,[[:space:]]*31[[:space:]]*$ ]]; then
     fail "shipped $(basename "$(dirname "$theme")") chromium.theme is a valid RGB triple" "got: $(printf %q "$rgb")"
   fi
 done
