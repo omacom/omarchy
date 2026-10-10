@@ -320,7 +320,7 @@ unset OMARCHY_TEST_MISE_HAS_NPM_GROK
 [[ ! -s $stub_log ]] || fail "Grok registry migration respects the preinstall opt-out"
 [[ ! -e $test_home/.local/bin/grok ]] || fail "Grok registry migration removes the npm wrapper after opt-out"
 [[ ! -e $test_home/.local/bin/agent ]] || fail "Grok registry migration removes the curl-installer agent symlink"
-grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null ||
+grep -Fx "unuse -y -g $legacy_grok_package" "$mise_history" >/dev/null ||
   fail "Grok registry migration drops the npm tool after opt-out"
 grep -Fx "uninstall -y --all $legacy_grok_package" "$mise_history" >/dev/null ||
   fail "Grok registry migration uninstalls the npm tool after opt-out"
@@ -342,7 +342,7 @@ rm -f "$test_home/.local/bin/grok"
 OMARCHY_TEST_MISE_HAS_NPM_GROK=1 source "$ROOT/migrations/1790863209.sh" >/dev/null
 unset OMARCHY_TEST_MISE_HAS_NPM_GROK
 [[ ! -s $stub_log ]] || fail "Grok registry migration does not reinstall after the preinstall opt-out"
-grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null &&
+grep -Fx "unuse -y -g $legacy_grok_package" "$mise_history" >/dev/null &&
   fail "Grok registry migration leaves a user-installed npm tool after the preinstall opt-out"
 
 rm "$test_home/.local/state/omarchy/preinstalls-removed"
@@ -363,7 +363,7 @@ grep -Fx "$grok_package" "$stub_log" >/dev/null ||
 [[ ! -e $test_home/.grok/bin/grok && ! -e $test_home/.grok/bin/grok-1.0.44 && -e $test_home/.grok/bin/settings-keep ]] ||
   fail "Grok registry migration removes the npm launcher's old binaries and nothing else"
 rm -f "$test_home/.grok/bin/settings-keep"
-grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null ||
+grep -Fx "unuse -y -g $legacy_grok_package" "$mise_history" >/dev/null ||
   fail "Grok registry migration drops the npm tool"
 rm -f "$test_home/.local/bin/grok"
 
@@ -376,7 +376,7 @@ unset OMARCHY_TEST_MISE_HAS_NPM_GROK
 [[ $("$test_home/.local/bin/grok") == "user-grok" ]] ||
   fail "Grok registry migration keeps a user-managed grok"
 [[ ! -s $stub_log ]] || fail "Grok registry migration does not replace a user-managed grok"
-grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null ||
+grep -Fx "unuse -y -g $legacy_grok_package" "$mise_history" >/dev/null ||
   fail "Grok registry migration drops the npm tool beside a user-managed grok"
 
 cat >"$test_home/.local/bin/grok" <<'SH'
@@ -393,7 +393,7 @@ unset OMARCHY_TEST_MISE_HAS_NPM_GROK
 cmp -s "$test_home/.local/bin/grok" "$test_tmp/user-mise-grok" ||
   fail "Grok registry migration keeps a user script that calls mise"
 [[ ! -s $stub_log ]] || fail "Grok registry migration does not replace a user script that calls mise"
-grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null ||
+grep -Fx "unuse -y -g $legacy_grok_package" "$mise_history" >/dev/null ||
   fail "Grok registry migration drops the npm tool beside a user script"
 rm -f "$test_home/.local/bin/grok"
 
@@ -404,7 +404,7 @@ OMARCHY_TEST_MISSING_COMMAND=grok source "$ROOT/migrations/1790863209.sh" >/dev/
 unset OMARCHY_TEST_MISSING_COMMAND
 grep -Fx "$grok_package" "$stub_log" >/dev/null ||
   fail "Grok registry migration installs the stub when grok is missing"
-grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null &&
+grep -Fx "unuse -y -g $legacy_grok_package" "$mise_history" >/dev/null &&
   fail "Grok registry migration does not drop the npm tool when it is not installed"
 
 rm -f "$test_home/.local/bin/grok"
@@ -415,7 +415,7 @@ OMARCHY_TEST_MISE_HAS_NPM_GROK=1 OMARCHY_TEST_MISSING_COMMAND=grok \
 unset OMARCHY_TEST_MISE_HAS_NPM_GROK OMARCHY_TEST_MISSING_COMMAND
 grep -Fx "$grok_package" "$stub_log" >/dev/null ||
   fail "Grok registry migration installs the stub after dropping a leftover npm tool"
-grep -Fx "unuse -g $legacy_grok_package" "$mise_history" >/dev/null ||
+grep -Fx "unuse -y -g $legacy_grok_package" "$mise_history" >/dev/null ||
   fail "Grok registry migration drops a leftover npm tool when the wrapper is gone"
 pass "agent migrations install working wrappers without overriding the preinstall opt-out"
 
