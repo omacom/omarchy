@@ -18,7 +18,9 @@
   //   disabled       shell condition; when it succeeds the row stays listed but
   //                  goes dim, takes a ✓ and can no longer be selected. Install
   //                  rows use it so software already on the machine reads as
-  //                  installed instead of vanishing from the list.
+  //                  installed instead of vanishing from the list. The dim is
+  //                  the theme's [menu] disabled-alpha (default 0.4); a summon
+  //                  can override it per session with payload disabledAlpha.
 
   // Root Menu
   "apps": {"icon":"󰀻","label":"Apps","aliases":["app","applications"],"provider":"apps"},
