@@ -569,7 +569,7 @@ OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent pi
 : >"$terminal_log"
 omarchy-default-agent github-copilot
 mapfile -d '' -t terminal_args <"$terminal_log"
-[[ ${terminal_args[0]} == "omarchy-default-agent" && ${terminal_args[1]} == "--install" && ${terminal_args[2]} == "copilot" ]] ||
+[[ ${terminal_args[0]} == "--close-on-success" && ${terminal_args[1]} == "omarchy-default-agent" && ${terminal_args[2]} == "--install" && ${terminal_args[3]} == "copilot" ]] ||
   fail "missing agent installation opens in a terminal"
 [[ ! -s $notification_history ]] || fail "missing agent installation skips notifications"
 [[ ! -s $agent_open_log ]] || fail "missing agent installation waits to open the agent"
@@ -581,12 +581,10 @@ mapfile -d '' -t mise_args <"$mise_log"
   fail "visible agent installation activates the provider globally through mise"
 [[ $(omarchy-default-agent) == "copilot" ]] || fail "visible agent installation changes the selection after mise succeeds"
 [[ ! -s $notification_history ]] || fail "visible agent installation leaves progress to the terminal"
-[[ $(<"$test_tmp/install-output") == $'\033[2J\033[3J\033[H' ]] ||
-  fail "visible agent installation clears its terminal before opening the agent"
 mapfile -d '' -t agent_open_args <"$agent_open_log"
-[[ ${#agent_open_args[@]} == 2 && ${agent_open_args[0]} == "omarchy-agent" && ${agent_open_args[1]} == "--inline" ]] ||
-  fail "newly installed agent opens in the installation terminal"
-pass "missing agents install visibly and open in the same terminal"
+[[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
+  fail "newly installed agent opens in a new agent window"
+pass "missing agents install visibly and open in a new agent window"
 
 : >"$notification_history"
 : >"$agent_open_log"
@@ -626,7 +624,7 @@ touch "$test_home/.local/bin/cursor-agent"
 : >"$terminal_log"
 omarchy-default-agent cursor-agent
 mapfile -d '' -t terminal_args <"$terminal_log"
-[[ ${terminal_args[*]} == "omarchy-default-agent --install cursor-agent" ]] ||
+[[ ${terminal_args[*]} == "--close-on-success omarchy-default-agent --install cursor-agent" ]] ||
   fail "a dead file at the wrapper's path still installs Cursor CLI"
 rm -f "$test_home/.local/bin/cursor-agent"
 pass "a dead file at the wrapper's path does not pass for an install"
@@ -671,7 +669,7 @@ pass "default agent reports mise failures without notifications"
 : >"$terminal_log"
 omarchy-default-agent muse
 mapfile -d '' -t terminal_args <"$terminal_log"
-[[ ${terminal_args[0]} == "omarchy-default-agent" && ${terminal_args[1]} == "--install" && ${terminal_args[2]} == "muse" ]] ||
+[[ ${terminal_args[0]} == "--close-on-success" && ${terminal_args[1]} == "omarchy-default-agent" && ${terminal_args[2]} == "--install" && ${terminal_args[3]} == "muse" ]] ||
   fail "missing Muse installation opens in a terminal"
 [[ ! -s $notification_history ]] || fail "missing Muse installation skips notifications"
 [[ ! -s $agent_open_log ]] || fail "missing Muse installation waits to open the agent"
@@ -694,8 +692,8 @@ grep -Fx "use -g $muse_package" "$mise_history" >/dev/null || fail "visible Muse
 [[ ! -s $muse_login_log ]] || fail "Muse selection runs a separate login flow"
 [[ $(omarchy-default-agent) == "muse" ]] || fail "visible Muse installation changes the selection"
 mapfile -d '' -t agent_open_args <"$agent_open_log"
-[[ ${#agent_open_args[@]} == 2 && ${agent_open_args[0]} == "omarchy-agent" && ${agent_open_args[1]} == "--inline" ]] ||
-  fail "newly installed Muse opens in the installation terminal"
+[[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
+  fail "newly installed Muse opens in a new agent window"
 pass "Muse installs visibly through mise and opens directly"
 
 : >"$terminal_log"
@@ -776,6 +774,13 @@ assert_bypass() {
   omarchy-agent
   assert_launched "$agent" "skips permission prompts" "$@"
 }
+
+: >"$launch_log"
+: >"$inline_log"
+omarchy-default-agent --install opencode
+assert_launched opencode "hands off installation to a normal window" opencode --auto
+[[ ! -s $inline_log ]] || fail "agent installation does not execute inline"
+pass "agent installation hands off to the normal agent window"
 
 assert_launch pi pi "Review this project"
 assert_launch omp omp --auto-approve -- "Review this project"
@@ -912,17 +917,18 @@ pass "choosing OpenClaw uses its runtime and launches its terminal UI"
 : >"$terminal_log"
 OMARCHY_TEST_OPENCLAW_INSTALLED=false omarchy-default-agent openclaw
 mapfile -d '' -t terminal_args <"$terminal_log"
-[[ ${terminal_args[*]} == "omarchy-default-agent --install openclaw" ]] ||
+[[ ${terminal_args[*]} == "--close-on-success omarchy-default-agent --install openclaw" ]] ||
   fail "a missing OpenClaw routes through the install terminal"
 pass "a missing OpenClaw routes through the install terminal"
 
 : >"$stub_log"
 : >"$inline_log"
+: >"$launch_log"
 OMARCHY_TEST_OPENCLAW_INSTALLED=false omarchy-default-agent --install openclaw >/dev/null
 grep -Fx "install-openclaw-cli --now" "$stub_log" >/dev/null ||
   fail "installing OpenClaw as default agent sets up its runtime"
-mapfile -d '' -t inline_args <"$inline_log"
-[[ ${inline_args[*]} == "omarchy-launch-openclaw --tui" ]] ||
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-launch-openclaw --tui" ]] ||
   fail "installing OpenClaw as default agent hands over to its terminal UI"
 pass "installing OpenClaw as default agent sets up its runtime"
 

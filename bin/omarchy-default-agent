@@ -75,7 +75,7 @@ else
 fi
 
 if [[ $installing == "false" ]] && ! agent_present; then
-  exec omarchy-launch-floating-terminal-with-presentation omarchy-default-agent --install "$agent"
+  exec omarchy-launch-floating-terminal-with-presentation --close-on-success omarchy-default-agent --install "$agent"
 fi
 
 if ! agent_install; then
@@ -96,9 +96,4 @@ fi
 mkdir -p "$(dirname "$agent_file")"
 printf '%s\n' "$agent" >"$agent_file"
 
-if [[ $installing == "true" ]]; then
-  printf '\033[2J\033[3J\033[H'
-  exec omarchy-agent --inline
-else
-  exec omarchy-agent
-fi
+exec omarchy-agent
