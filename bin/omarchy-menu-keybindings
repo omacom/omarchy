@@ -553,13 +553,8 @@ output_binding_records_uncached() {
   [[ -n $dynamic ]]
 }
 
-# Hash only what the records are built from. The active keymap looks like part
-# of the input but is not: while an Omarchy menu holds keyboard focus, Hyprland
-# stops reporting an active keymap altogether, so hashing that line handed
-# every menu-open a second cache name and a cold build that deleted the cache
-# the next press wanted. Keycode resolution goes through xkbcli reading the
-# user's configured XKB defaults, not the session's transiently active keymap,
-# so `hyprctl devices` contributes nothing the cache depends on.
+# Hyprland's active keymap stays out of the key: the records resolve keys through
+# xkbcli's built-in default keymap, and that line flips with every layout switch.
 keybindings_cache_key() {
   {
     printf 'v16\n'
