@@ -12,10 +12,10 @@ if [[ ${1:-} == "cycle" ]]; then
     echo "Usage: omarchy-input-method cycle [back]" >&2
     exit 1
   fi
-  # The shell's reader retains a choice made while nothing has focus. Without
-  # the shell, switch directly.
-  if [[ $(omarchy-shell shell cycleInput "$direction" 2>/dev/null) != "ok" ]]; then
-    python "$OMARCHY_PATH/default/input-methods/indicator.py" cycle "$direction"
+  # The shell's reader retains a choice made while nothing has focus.
+  if [[ $(omarchy-shell shell cycleInput "$direction") != "ok" ]]; then
+    echo "The shell's input reader is not running" >&2
+    exit 1
   fi
 else
   python "$OMARCHY_PATH/default/input-methods/configure.py" "$@"

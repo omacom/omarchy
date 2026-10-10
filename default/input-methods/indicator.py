@@ -28,14 +28,6 @@ def snapshot(bus):
   return {"methods": methods, "current": info[0], "name": info[1], "label": info[4], "language": info[5]}
 
 
-def cycle(bus, state=None):
-  state = state if state is not None else snapshot(bus)
-  methods = state["methods"]
-  if len(methods) > 1 and state["current"] in methods:
-    following = methods[(methods.index(state["current"]) + 1) % len(methods)]
-    call(bus, "SetCurrentIM", GLib.Variant("(s)", (following,)))
-
-
 def layout_keyboard(keyboards):
   typed = [keyboard for keyboard in keyboards if not re.match(
     r"^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus)", keyboard.get("name", ""))]
@@ -83,25 +75,6 @@ def cycle_choice(state, keyboards, step=1):
   if position not in choices:
     return None, None
   return choices[(choices.index(position) + step) % len(choices)]
-
-
-def cycle_input(step=1):
-  try:
-    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-    state = snapshot(bus)
-  except GLib.Error:
-    state = {}
-  devices = subprocess.run(["hyprctl", "-j", "devices"], check=True, text=True, capture_output=True)
-  keyboards = json.loads(devices.stdout).get("keyboards", [])
-  if not state.get("methods"):
-    switches = layout_switches(keyboards, step=step)
-  else:
-    method, index = cycle_choice(state, keyboards, step)
-    if method is not None and method != state.get("current"):
-      call(bus, "SetCurrentIM", GLib.Variant("(s)", (method,)))
-    switches = layout_switches(keyboards, index) if index is not None else []
-  for command in switches:
-    subprocess.run(command, check=True, capture_output=True)
 
 
 class Indicator:
@@ -211,9 +184,6 @@ def watch(bus):
 
 if __name__ == "__main__":
   try:
-    if sys.argv[1:] in (["cycle"], ["cycle", "next"], ["cycle", "back"]):
-      cycle_input(-1 if sys.argv[2:] == ["back"] else 1)
-    else:
-      watch(Gio.bus_get_sync(Gio.BusType.SESSION, None))
+    watch(Gio.bus_get_sync(Gio.BusType.SESSION, None))
   except (GLib.Error, OSError, ValueError, subprocess.CalledProcessError) as error:
     raise SystemExit(str(error))

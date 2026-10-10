@@ -27,14 +27,7 @@ with patch.object(indicator, "call", side_effect=[
 print("ok - live state deduplicates modes and reads language independently of the engine label")
 
 def check_cycle(current, methods, expected):
-  state = {"current": current, "methods": methods}
-  with patch.object(indicator, "snapshot", return_value=state), patch.object(indicator, "call") as call:
-    indicator.cycle(None)
-    if expected is None:
-      call.assert_not_called()
-    else:
-      assert call.call_args.args[1] == "SetCurrentIM"
-      assert call.call_args.args[2].unpack() == (expected,)
+  assert indicator.cycle_choice({"current": current, "methods": methods}, [])[0] == expected
 
 check_cycle("keyboard-us", ["keyboard-us", "mozc"], "mozc")
 check_cycle("mozc", ["keyboard-us", "mozc"], "keyboard-us")
@@ -77,9 +70,9 @@ with patch.object(indicator, "snapshot", side_effect=lambda bus: dict(live)), pa
   assert reader.pending == ""
 print("ok - desktop clicks update the label, cycle pending choices, and apply once a text context exists")
 
-with patch.object(indicator.Gio, "bus_get_sync", return_value=None), patch.object(indicator, "snapshot", return_value={"methods": ["keyboard-us", "keyboard-fr"], "current": "keyboard-us"}), patch.object(indicator, "call") as call, patch.object(indicator.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout='{"keyboards": []}')) as process:
-  indicator.cycle_input()
-  assert call.call_args.args[2].unpack() == ("keyboard-fr",)
+with patch.object(indicator, "snapshot", return_value={"methods": ["keyboard-us", "keyboard-fr"], "current": "keyboard-us"}), patch.object(indicator, "call") as call, patch.object(indicator.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout='{"keyboards": []}')) as process:
+  indicator.Indicator(None).select_next()
+  assert call.call_args_list[0].args[2].unpack() == ("keyboard-fr",)
   assert process.call_count == 1
 print("ok - the shortcut cycles Fcitx keyboard methods without requiring a bar widget")
 
@@ -100,34 +93,29 @@ assert indicator.layout_switches([]) == []
 print("ok - layout switching synchronizes matching devices, wraps, and preserves device-specific layouts")
 
 import json
-import subprocess
-with patch.object(indicator.Gio, "bus_get_sync", return_value=None), patch.object(indicator, "snapshot", return_value={"methods": ["keyboard-us"], "current": "keyboard-us"}), patch.object(indicator.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout=json.dumps({"keyboards": keyboards}))) as process:
-  indicator.cycle_input()
-  assert process.call_args_list[0].args[0] == ["hyprctl", "-j", "devices"]
-  assert [call.args[0] for call in process.call_args_list[1:]] == indicator.layout_switches(keyboards)
+def reader_cycle(state, keyboards):
+  with patch.object(indicator, "snapshot", return_value=dict(state)), patch.object(indicator, "call") as call, patch.object(indicator.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout=json.dumps({"keyboards": keyboards}))) as process:
+    indicator.Indicator(None).select_next()
+  return call, [command.args[0] for command in process.call_args_list[1:]]
+
+call, commands = reader_cycle({"methods": ["keyboard-us"], "current": "keyboard-us"}, keyboards)
+assert commands == indicator.layout_switches(keyboards)
 print("ok - keyboard-only input falls back to compositor layouts")
-with patch.object(indicator.Gio, "bus_get_sync", side_effect=indicator.GLib.Error("no bus")), patch.object(indicator.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout=json.dumps({"keyboards": keyboards}))) as process:
-  indicator.cycle_input()
-  assert [call.args[0] for call in process.call_args_list[1:]] == indicator.layout_switches(keyboards)
-print("ok - compositor layouts switch even when the Fcitx bus is unavailable")
 state = {"methods": ["keyboard-us", "mozc", "hangul"], "current": "keyboard-us"}
 keyboards[1]["active_layout_index"] = 0
 assert indicator.cycle_choice(state, keyboards) == ("keyboard-us", 1)
-with patch.object(indicator.Gio, "bus_get_sync", return_value=None), patch.object(indicator, "snapshot", return_value=state), patch.object(indicator, "call") as call, patch.object(indicator.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout=json.dumps({"keyboards": keyboards}))) as process:
-  indicator.cycle_input()
-  call.assert_not_called()
-  assert all(command.args[0][-1] == "1" for command in process.call_args_list[1:])
-  assert len(process.call_args_list) > 1
+call, commands = reader_cycle(state, keyboards)
+assert commands and all(command[-1] == "1" for command in commands)
+assert all(item.args[2].unpack() == ("keyboard-us",) for item in call.call_args_list if item.args[1] == "SetCurrentIM")
 keyboards[1]["active_layout_index"] = 1
 assert indicator.cycle_choice(state, keyboards) == ("mozc", None)
 state["current"] = "mozc"
 assert indicator.cycle_choice(state, keyboards) == ("hangul", None)
 state["current"] = "hangul"
 assert indicator.cycle_choice(state, keyboards) == ("keyboard-us", 0)
-with patch.object(indicator.Gio, "bus_get_sync", return_value=None), patch.object(indicator, "snapshot", return_value=state), patch.object(indicator, "call") as call, patch.object(indicator.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout=json.dumps({"keyboards": keyboards}))) as process:
-  indicator.cycle_input()
-  assert call.call_args.args[2].unpack() == ("keyboard-us",)
-  assert all(command.args[0][-1] == "0" for command in process.call_args_list[1:])
+call, commands = reader_cycle(state, keyboards)
+assert call.call_args_list[0].args[2].unpack() == ("keyboard-us",)
+assert all(command[-1] == "0" for command in commands)
 print("ok - layouts and composition engines share one cycle and returning to direct input resets the layout")
 
 keyboards = [{"name": "physical", "layout": "us,dk", "active_layout_index": 0}]
@@ -196,25 +184,21 @@ cat >"$stubs/omarchy-shell" <<'SH'
 echo "shell $*" >>"$CALLS"
 echo "$SHELL_REPLY"
 SH
-cat >"$stubs/python" <<'SH'
-#!/bin/bash
-echo "python ${*##*/}" >>"$CALLS"
-SH
-chmod +x "$stubs/omarchy-shell" "$stubs/python"
+chmod +x "$stubs/omarchy-shell"
 
 CALLS=$calls SHELL_REPLY=ok PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-input-method" cycle
 [[ $(<"$calls") == "shell shell cycleInput next" ]] || fail "Super+I goes through the shell's reader" "$(<"$calls")"
 pass "Super+I goes through the shell's reader, which retains a choice made without focus"
 
-: >"$calls"
-CALLS=$calls SHELL_REPLY="" PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-input-method" cycle
-[[ $(<"$calls") == $'shell shell cycleInput next\npython indicator.py cycle next' ]] || fail "Super+I switches directly without the shell" "$(<"$calls")"
-pass "Super+I switches directly when the shell does not answer"
+if CALLS=$calls SHELL_REPLY="not running" PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-input-method" cycle 2>/dev/null; then
+  fail "Super+I reports a missing input reader"
+fi
+pass "Super+I reports a missing input reader instead of silently doing nothing"
 
 : >"$calls"
-CALLS=$calls SHELL_REPLY="" PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-input-method" cycle back
-[[ $(<"$calls") == $'shell shell cycleInput back\npython indicator.py cycle back' ]] || fail "Super+Shift+I cycles back" "$(<"$calls")"
+CALLS=$calls SHELL_REPLY=ok PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-input-method" cycle back
+[[ $(<"$calls") == "shell shell cycleInput back" ]] || fail "Super+Shift+I cycles back" "$(<"$calls")"
 if CALLS=$calls PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-input-method" cycle sideways 2>/dev/null; then
   fail "an unknown cycle direction is rejected"
 fi
-pass "Super+Shift+I cycles back through the shell or directly, and other directions are rejected"
+pass "Super+Shift+I cycles back through the shell, and other directions are rejected"
