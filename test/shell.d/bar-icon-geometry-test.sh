@@ -21,6 +21,7 @@ cat >"$test_tmp/shell.qml" <<'QML'
 import QtQuick
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 ShellRoot {
@@ -32,7 +33,8 @@ ShellRoot {
   }
 
   function checkIcon(icon, name) {
-    if (icon.implicitWidth !== Style.bar.iconSlot) {
+    var expectedWidth = icon.bar.vertical ? Style.bar.sizeVertical : Style.bar.iconSlot
+    if (icon.implicitWidth !== expectedWidth) {
       fail(name + " slot width is " + icon.implicitWidth)
       return false
     }
@@ -53,6 +55,22 @@ ShellRoot {
   }
 
   Component.onCompleted: Qt.callLater(function() {
+    var originalValues = Commons.Color.shellValues
+    Style.applyShellValues({ "bar.icon-font": "16" })
+    if (Style.bar.iconFont !== 16 || Style.font.body !== 12) {
+      fail("icon font override does not preserve text size")
+      return
+    }
+    if (!checkIcon(bluetooth, "horizontal icon override")) return
+    if (!checkIcon(verticalIcon, "vertical icon override")) return
+    Style.applyShellValues({ "bar.icon-font": "16", "font.base-size": "18" })
+    if (Style.bar.iconFont !== 24) {
+      fail("icon font override does not scale with text size")
+      return
+    }
+    if (!checkIcon(bluetooth, "horizontal scaled icon override")) return
+    if (!checkIcon(verticalIcon, "vertical scaled icon override")) return
+    Style.applyShellValues(originalValues)
     if (!checkIcon(bluetooth, "bluetooth")) return
     if (!checkIcon(network, "network")) return
     if (!checkIcon(audio, "audio")) return
