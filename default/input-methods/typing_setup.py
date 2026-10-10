@@ -140,6 +140,13 @@ def save_inputs(selected, overrides=None):
     raise
 
 
+def add_input(method):
+  group, layout, items = setup.live_group()
+  current = [name for name, override in items if not name.startswith("keyboard-")]
+  if method not in current:
+    save_inputs(current + [method])
+
+
 def keyboard_values(selected):
   if not selected:
     raise ValueError("Select at least one keyboard layout")
@@ -217,6 +224,12 @@ def apply_selection(kind, context, values):
 
 
 def main():
+  if sys.argv[1:2] == ["add"] and len(sys.argv) == 3:
+    try:
+      add_input(sys.argv[2])
+    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
+      raise SystemExit(f"Input method could not be added: {error}")
+    return
   applying = len(sys.argv) == 5 and sys.argv[1] == "apply"
   kind = sys.argv[2] if applying else sys.argv[1] if len(sys.argv) == 2 else ""
   if kind not in ("input", "keyboard"):

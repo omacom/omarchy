@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Configure, inspect, or switch input methods
-# omarchy:args=<status|cycle [back]|configure [--seed|--defaults] [none|mozc|hangul|pinyin|chewing]>
+# omarchy:args=<status|cycle [back]|configure --seed|--defaults>
 # omarchy:hidden=true
 
 set -euo pipefail

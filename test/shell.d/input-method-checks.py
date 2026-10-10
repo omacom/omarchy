@@ -47,7 +47,9 @@ class InputMethodTest(unittest.TestCase):
     self.addCleanup(self.process.stop)
 
   def seed(self, method=None):
-    setup.configure(argparse.Namespace(method=method, seed=True, defaults=False))
+    if method:
+      self.preference.write_text(f"INPUT_METHOD={method}\n")
+    setup.configure(argparse.Namespace(seed=True, defaults=False))
 
   def test_every_installer_engine_is_seeded_and_inactive(self):
     for method in ("mozc", "hangul", "pinyin", "chewing"):
@@ -128,18 +130,6 @@ class InputMethodTest(unittest.TestCase):
       self.vconsole.write_text(f"XKBLAYOUT={layout}\nXKBVARIANT={variant}\n")
       self.assertEqual(setup.selection(), ("hangul", expected))
 
-  def test_live_append_keeps_every_method_and_layout(self):
-    info = json.dumps({"data": ["de-nodeadkeys", [["keyboard-de-nodeadkeys", ""], ["mozc", "jp"]]]})
-    updated = json.dumps({"data": ["de-nodeadkeys", [["keyboard-de-nodeadkeys", ""], ["mozc", "jp"], ["hangul", ""]]]})
-    with patch.object(setup, "run", side_effect=["Work", info, "", "", "Work", updated]) as calls:
-      setup.live_append("hangul")
-    self.assertEqual(calls.call_args_list[2].args[0][-10:], ["ssa(ss)", "Work", "de-nodeadkeys", "3", "keyboard-de-nodeadkeys", "", "mozc", "jp", "hangul", ""])
-    self.assertEqual(calls.call_args_list[3].args[0][-1], "Save")
-    info = json.dumps({"data": ["us", [["keyboard-us", ""], ["hangul", ""]]]})
-    with patch.object(setup, "run", side_effect=["Default", info]) as calls:
-      setup.live_append("hangul")
-    self.assertEqual(calls.call_count, 2)
-
   def test_seed_in_a_live_desktop_is_a_harmless_retry(self):
     self.seed()
     profile = self.config / "fcitx5/profile"
@@ -156,49 +146,15 @@ class InputMethodTest(unittest.TestCase):
     self.seed("mozc")
     self.assertIn("Name=mozc", (self.config / "fcitx5/profile").read_text())
 
-  def test_failed_live_setup_restores_disk_and_restarts_the_daemon(self):
-    self.seed()
-    profile = self.config / "fcitx5/profile"
-    original = profile.read_bytes()
-    events = []
-    def append(method):
-      profile.write_text("failed in-memory state")
-      raise RuntimeError("save failed")
-    def command(args):
-      events.append(args)
-      if args == ["omarchy-restart-xcompose"] and len(events) > 2:
-        self.assertEqual(profile.read_bytes(), original)
-      return ""
-    probes = 0
-    def process(args, **kwargs):
-      nonlocal probes
-      if args[0] == "pgrep":
-        probes += 1
-        return subprocess.CompletedProcess([], 0 if probes == 1 else 1)
-      return subprocess.CompletedProcess([], 0)
-    with patch.object(setup.subprocess, "run", side_effect=process), patch.object(setup, "run", side_effect=command), patch.object(setup, "wait_ready"), patch.object(setup, "live_append", side_effect=append), patch.object(setup.time, "sleep"):
-      with self.assertRaisesRegex(RuntimeError, "save failed"):
-        setup.configure(argparse.Namespace(method="mozc", seed=False, defaults=False))
-    self.assertEqual(profile.read_bytes(), original)
-    self.assertIn(["systemctl", "--user", "stop", "omarchy-fcitx5.service"], events)
-    self.assertEqual(events.count(["omarchy-restart-xcompose"]), 2)
-
   def test_readiness_checks_the_dbus_array_payload_and_group(self):
     available = json.dumps({"data": [[["mozc", "Mozc", "", "", "", "ja", False]]]})
     with patch.object(setup, "run", return_value=available), patch.object(setup, "live_group", return_value=("Default", "us", [["keyboard-us", ""]])):
       setup.wait_ready("mozc")
 
-  def test_a_silently_dropped_engine_is_rejected_and_group_restored(self):
-    old = ("Default", "us", [["keyboard-us", ""]])
-    with patch.object(setup, "live_group", side_effect=[old, old]), patch.object(setup, "live_set") as setter:
-      with self.assertRaisesRegex(RuntimeError, "retain"):
-        setup.live_append("mozc")
-    self.assertEqual(setter.call_args_list[-1].args, old)
-
   def test_migration_without_a_bus_keeps_written_activation_and_defaults(self):
     self.seed()
     with patch.object(setup, "run", side_effect=subprocess.CalledProcessError(1, "busctl")):
-      setup.configure(argparse.Namespace(method=None, seed=False, defaults=True))
+      setup.configure(argparse.Namespace(seed=False, defaults=True))
     self.assertTrue((self.home / "data/dbus-1/services/org.fcitx.Fcitx5.service").exists())
 
   def test_live_migration_without_a_bus_does_not_restart_or_rewrite_profile(self):
@@ -206,7 +162,7 @@ class InputMethodTest(unittest.TestCase):
     profile = self.config / "fcitx5/profile"
     original = profile.read_bytes()
     with patch.object(setup.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)), patch.object(setup, "run", side_effect=subprocess.CalledProcessError(1, "busctl")) as calls:
-      setup.configure(argparse.Namespace(method=None, seed=False, defaults=True))
+      setup.configure(argparse.Namespace(seed=False, defaults=True))
     self.assertEqual(profile.read_bytes(), original)
     self.assertFalse(any(call.args[0] == ["omarchy-restart-xcompose"] for call in calls.call_args_list))
 
@@ -217,39 +173,12 @@ class InputMethodTest(unittest.TestCase):
     old = ("Default", "us", [["keyboard-us", ""]])
     new = ("Default", "jp", [["keyboard-jp", ""]])
     with patch.object(setup.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)), patch.object(setup, "live_group", side_effect=[old, new]), patch.object(setup, "available_methods", return_value=[]), patch.object(setup, "live_set") as setter:
-      setup.configure(argparse.Namespace(method=None, seed=False, defaults=True))
+      setup.configure(argparse.Namespace(seed=False, defaults=True))
     self.assertEqual(setter.call_args.args, new)
 
   def test_custom_keyboard_overrides_are_not_stock(self):
     self.assertFalse(setup.stock_profile(setup.profile_text("de", "none").replace("keyboard-de", "keyboard-us")))
     self.assertFalse(setup.stock_profile(setup.profile_text("us", "none").replace("Layout=\n", "Layout=ru\n")))
-
-  def test_selected_live_engine_is_verified_after_the_context_reconnects(self):
-    self.seed("mozc")
-    profile = self.config / "fcitx5/profile"
-    saves = 0
-    def command(args):
-      nonlocal saves
-      if args == setup.CONTROLLER + ["Save"]:
-        saves += 1
-        if saves == 2:
-          profile.write_text(profile.read_text().replace("DefaultIM=mozc", "DefaultIM=hangul"))
-      return "Default" if args == ["fcitx5-remote", "-q"] else ""
-    with patch.object(setup, "run", side_effect=command) as commands, patch.object(setup.time, "sleep"):
-      setup.select_live_method("hangul", profile)
-    self.assertEqual(saves, 2)
-    self.assertEqual(sum(call.args[0] == ["fcitx5-remote", "-c"] for call in commands.call_args_list), 2)
-
-  def test_live_setup_does_not_validate_an_unused_install_layout(self):
-    self.seed("mozc")
-    self.vconsole.write_text("XKBLAYOUT=invalid value\n")
-    with patch.object(setup.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)), patch.object(setup, "run", return_value=""), patch.object(setup, "wait_ready"), patch.object(setup, "live_append"), patch.object(setup, "select_live_method"):
-      setup.configure(argparse.Namespace(method="hangul", seed=False, defaults=False))
-
-  def test_live_configuration_requires_a_desktop(self):
-    with self.assertRaisesRegex(RuntimeError, "Log in"):
-      setup.configure(argparse.Namespace(method="mozc", seed=False, defaults=False))
-    self.assertFalse((self.config / "fcitx5/profile").exists())
 
   def test_atomic_updates_keep_symlinks_and_modes(self):
     target = self.home / "real-config"

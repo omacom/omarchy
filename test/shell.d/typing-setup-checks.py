@@ -80,6 +80,14 @@ class TypingSetupTest(unittest.TestCase):
     run.assert_not_called()
     save.assert_not_called()
 
+  def test_command_line_addition_appends_once(self):
+    group = ("Default", "us", [["keyboard-us", ""], ["hangul", ""]])
+    with patch.object(typing.setup, "live_group", return_value=group), patch.object(typing, "save_inputs") as save:
+      typing.add_input("mozc")
+      save.assert_called_once_with(["hangul", "mozc"])
+      typing.add_input("hangul")
+      save.assert_called_once()
+
   def test_failed_font_write_restores_the_input_group(self):
     before = [["keyboard-us", ""]]
     with patch.object(typing.setup, "live_group", return_value=("Default", "us", before)), patch.object(typing.setup, "available_methods", return_value=[["mozc", "Mozc"]]), patch.object(typing, "set_inputs"), patch.object(typing.setup, "font_default", side_effect=OSError("read-only")), patch.object(typing.setup, "live_set") as setter:

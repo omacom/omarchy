@@ -1,4 +1,4 @@
-"""One Fcitx setup path for offline finalization and a running desktop."""
+"""Fcitx defaults for offline finalization and updates."""
 
 import argparse
 from contextlib import contextmanager
@@ -131,41 +131,19 @@ def activation_default():
 
 
 @contextmanager
-def transaction(config_home, live=False):
+def transaction(config_home):
   data_home = Path(os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local/share"))
   paths = [config_home / "fcitx5" / name for name in ["profile", "config", "conf/quickphrase.conf", "conf/wayland.conf", "conf/xcb.conf", "conf/pinyin.conf"]]
   paths += [config_home / "fontconfig/conf.d/50-omarchy-input-method.conf", data_home / "dbus-1/services/org.fcitx.Fcitx5.service"]
   before = {path.resolve(): path.read_text() if path.exists() else None for path in paths}
   try:
     yield
-  except BaseException as setup_error:
-    if live:
-      # Stop before restoring disk: a graceful stop saves the in-memory profile.
-      try:
-        run(["systemctl", "--user", "stop", "omarchy-fcitx5.service"])
-        subprocess.run(["pkill", "-u", str(os.getuid()), "-x", "fcitx5"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        for attempt in range(50):
-          if subprocess.run(["pgrep", "-u", str(os.getuid()), "-x", "fcitx5"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
-            break
-          time.sleep(0.1)
-        else:
-          raise RuntimeError("Fcitx did not stop for rollback; previous settings could not safely be restored")
-      except (OSError, subprocess.CalledProcessError, RuntimeError) as error:
-        raise RuntimeError(f"Could not stop Fcitx for input rollback: {error} (setup failed: {setup_error})") from error
+  except BaseException:
     for path, original in before.items():
       if original is None:
         path.unlink(missing_ok=True)
       else:
         atomic_write(path, original)
-    if live:
-      # Restore memory as well as disk; otherwise Fcitx saves the failed change
-      # again on exit. Bus activation caches also need to forget the new entry.
-      reload_bus()
-      try:
-        run(["omarchy-restart-xcompose"])
-        run(CONTROLLER + ["ReloadConfig"])
-      except (OSError, subprocess.CalledProcessError, RuntimeError) as error:
-        print(f"Could not reload restored input settings: {error}", file=sys.stderr)
     raise
 
 
@@ -260,109 +238,59 @@ def wait_ready(method):
   raise RuntimeError(f"Fcitx did not load the {method} engine after restart")
 
 
-def live_append(method):
-  group, layout, items = live_group()
-  if any(item[0] == method for item in items):
-    return
-  try:
-    live_set(group, layout, items + [[method, ""]])
-    if not any(item[0] == method for item in live_group()[2]):
-      raise RuntimeError(f"Fcitx did not retain the {method} engine")
-  except BaseException:
-    live_set(group, layout, items)
-    raise
-
-
-def select_live_method(method, profile):
-  # Clients reconnect asynchronously after restart. SetCurrentIM silently does
-  # nothing without a focused input context, so verify the saved group default.
-  for attempt in range(30):
-    run(["fcitx5-remote", "-s", method])
-    run(["fcitx5-remote", "-c"])
-    run(CONTROLLER + ["Save"])
-    group = run(["fcitx5-remote", "-q"])
-    for section, entries in sections(read(profile)).items():
-      if re.fullmatch(r"Groups/\d+", section) and entries.get("Name") == group and entries.get("DefaultIM") == method:
-        return
-    time.sleep(0.1)
-  print(f"Input method added; select {method} in Fcitx settings to switch to it.", file=sys.stderr)
-
-
 def configure(args):
   config_home = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
   running = subprocess.run(["pgrep", "-u", str(os.getuid()), "-x", "fcitx5"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
   # Finalization can be retried after login. A live daemon owns its profile.
   if args.seed and running:
     return
-  with transaction(config_home, live=running and not args.defaults):
+  with transaction(config_home):
     configure_inner(args, config_home, running)
 
 
 def configure_inner(args, config_home, running):
-  if args.seed or args.defaults:
-    method, layout = selection()
-  else:
-    method, layout = args.method or selection()[0], None
-  if args.method:
-    method = args.method
+  method, layout = selection()
   profile = config_home / "fcitx5/profile"
   original = read(profile)
-  if args.seed and not stock_profile(original):
-    return
-  if not args.seed and not args.defaults and not running:
-    raise RuntimeError("Log in to an Omarchy desktop before changing input methods")
-  if not args.seed and not args.defaults and method == "none":
-    raise ValueError("Choose an input engine to add")
-
   if args.seed:
+    if not stock_profile(original):
+      return
     atomic_write(profile, profile_text(layout, method))
     defaults(config_home, fresh=True)
     activation_default()
     font_default(config_home, method)
-  elif args.defaults:
-    fresh = stock_profile(original)
-    changed = defaults(config_home, fresh=fresh)
-    if activation_default():
-      reload_bus()
-    # Upgrades can run through sudo/SSH without access to the live user's bus.
-    # Never overwrite its profile or restart input in that context.
-    if fresh:
-      if running:
-        try:
-          group, old_layout, items = live_group()
-          if old_layout == "us" and items == [["keyboard-us", ""]]:
-            new_items = [[f"keyboard-{layout}", ""]]
-            if method != "none":
-              if any(item[0] == method for item in available_methods()):
-                new_items.append([method, ""])
-              else:
-                print(f"Finish input setup after login: omarchy setup input {method}", file=sys.stderr)
-            live_set(group, layout, new_items)
-            if live_group()[1:] != (layout, new_items):
-              live_set(group, old_layout, items)
-              raise RuntimeError("Fcitx did not retain the installed keyboard settings")
-        except (OSError, ValueError, KeyError, IndexError, RuntimeError, subprocess.CalledProcessError) as error:
-          print(f"Input profile alignment deferred until login: {error}", file=sys.stderr)
-      else:
-        atomic_write(profile, profile_text(layout, method))
-    if running and changed:
-      try:
-        run(CONTROLLER + ["ReloadConfig"])
-      except (OSError, subprocess.CalledProcessError) as error:
-        print(f"Input defaults reload deferred until login: {error}", file=sys.stderr)
-  else:
-    # New addons are discovered only at startup. Supervision remains with the
-    # existing unit; never spawn a second fcitx instance ourselves.
-    activation_default()
-    defaults(config_home, fresh=stock_profile(original))
+    return
+
+  fresh = stock_profile(original)
+  changed = defaults(config_home, fresh=fresh)
+  if activation_default():
     reload_bus()
-    run(["omarchy-restart-xcompose"])
-    wait_ready(method)
-    live_append(method)
-    # The selected language becomes the next active engine; leave Latin input
-    # active until the user deliberately switches. Keep all other group items.
-    select_live_method(method, profile)
-    font_default(config_home, method)
+  # Upgrades can run through sudo/SSH without access to the live user's bus.
+  # Never overwrite its profile or restart input in that context.
+  if fresh:
+    if running:
+      try:
+        group, old_layout, items = live_group()
+        if old_layout == "us" and items == [["keyboard-us", ""]]:
+          new_items = [[f"keyboard-{layout}", ""]]
+          if method != "none":
+            if any(item[0] == method for item in available_methods()):
+              new_items.append([method, ""])
+            else:
+              print(f"Finish input setup after login: omarchy setup input {method}", file=sys.stderr)
+          live_set(group, layout, new_items)
+          if live_group()[1:] != (layout, new_items):
+            live_set(group, old_layout, items)
+            raise RuntimeError("Fcitx did not retain the installed keyboard settings")
+      except (OSError, ValueError, KeyError, IndexError, RuntimeError, subprocess.CalledProcessError) as error:
+        print(f"Input profile alignment deferred until login: {error}", file=sys.stderr)
+    else:
+      atomic_write(profile, profile_text(layout, method))
+  if running and changed:
+    try:
+      run(CONTROLLER + ["ReloadConfig"])
+    except (OSError, subprocess.CalledProcessError) as error:
+      print(f"Input defaults reload deferred until login: {error}", file=sys.stderr)
 
 
 def main():
@@ -370,10 +298,9 @@ def main():
   commands = parser.add_subparsers(dest="command", required=True)
   commands.add_parser("status")
   configure_parser = commands.add_parser("configure")
-  mode = configure_parser.add_mutually_exclusive_group()
+  mode = configure_parser.add_mutually_exclusive_group(required=True)
   mode.add_argument("--seed", action="store_true")
   mode.add_argument("--defaults", action="store_true")
-  configure_parser.add_argument("method", nargs="?", choices=PRESETS)
   args = parser.parse_args()
   if args.command == "status":
     method, layout = selection()
