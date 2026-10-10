@@ -39,11 +39,22 @@ select_bar_widget_placement() {
   local id="$1"
   local section
   local default_section
+  local cloned_from
   interactive || return 0
   (( ASSUME_YES )) && return 0
 
   jq -e '(.kinds // []) | (index("bar") | not) and (index("bar-widget") != null)' \
     "$PLUGINS_DIR/$id/manifest.json" >/dev/null 2>&1 || return 0
+
+  # A clone enabled while its source is on the bar takes over the source's
+  # slot, and any section picked here would move it out again. Ask only when
+  # there is no slot to take.
+  cloned_from=$(jq -r '(.omarchy.clonedFrom? // empty) | strings' \
+    "$PLUGINS_DIR/$id/manifest.json" 2>/dev/null) || cloned_from=""
+  if [[ -n $cloned_from ]] && omarchy-plugin-list --json |
+    jq -e --arg id "$cloned_from" 'any(.[]; .id == $id and .enabled)' >/dev/null; then
+    return 0
+  fi
 
   default_section=$(jq -r '.barWidget.defaultSection // "center"' "$PLUGINS_DIR/$id/manifest.json")
   section=$(printf '%s\n' left center right |
