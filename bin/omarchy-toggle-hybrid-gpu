@@ -112,6 +112,22 @@ case "$gpu_mode" in
     omarchy-system-reboot
   fi
   ;;
+"Vfio")
+  if gum confirm "GPU is in Vfio mode. Return to Hybrid mode and reboot?"; then
+    # Vfio is never a resting state from this menu. The force-igpu resume
+    # hook passes through it and can strand the config here when the trip
+    # back to Integrated fails, so offer the same way out as Integrated.
+    sudo sed -i "s/\"mode\": \".*\"/\"mode\": \"Hybrid\"/" /etc/supergfxd.conf
+
+    # Let hybrid mode be the default after system sleep
+    sudo rm -rf /usr/lib/systemd/system-sleep/force-igpu
+
+    # Remove the startup delay override (not needed for Hybrid mode)
+    sudo rm -rf /etc/systemd/system/supergfxd.service.d/delay-start.conf
+
+    omarchy-system-reboot
+  fi
+  ;;
 *)
   echo "Hybrid GPU not found or in unknown mode."
   exit 1
