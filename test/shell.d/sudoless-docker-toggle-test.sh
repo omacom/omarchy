@@ -15,8 +15,11 @@ home="$test_dir/home"
 stub_bin="$test_dir/bin"
 mkdir -p "$home" "$stub_bin"
 
+# id -un names the account tester, which USER does not, so trusting the
+# environment adds or removes the wrong one.
 cat >"$stub_bin/id" <<'STUB'
 #!/bin/bash
+[[ ${1:-} == -un ]] && { echo tester; exit 0; }
 printf '%s\n' "${STUB_GROUPS:-wheel input}"
 STUB
 cat >"$stub_bin/sudo" <<'STUB'
@@ -52,7 +55,7 @@ run() { # command STUB_GROUPS GUM_ANSWER DEFER(0|1)
   rm -f "$reboot_flag" "$gum_called" "$reboot_called" "$gpasswd_calls" "$usermod_calls"
   local defer_env=()
   [[ ${4:-0} == 1 ]] && defer_env=(OMARCHY_DEFER_REBOOT=1)
-  env HOME="$home" USER="tester" STUB_GROUPS="$2" GUM_ANSWER="$3" \
+  env HOME="$home" USER="spoofed" STUB_GROUPS="$2" GUM_ANSWER="$3" \
     GUM_CALLED="$gum_called" REBOOT_CALLED="$reboot_called" \
     GPASSWD_CALLS="$gpasswd_calls" USERMOD_CALLS="$usermod_calls" \
     PATH="$stub_bin:$ROOT/bin:$PATH" "${defer_env[@]}" \
