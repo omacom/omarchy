@@ -45,6 +45,29 @@ Saving a file anywhere under `~/.config/omarchy/plugins/` reloads plugin code
 automatically. If a change somehow fails to apply, force a reload with
 `omarchy-shell shell rescanPlugins`.
 
+## Managing Installed Plugins
+
+Use the `omarchy plugin` group for the whole lifecycle of installed plugins:
+
+```bash
+omarchy plugin list
+omarchy plugin add <git-url> --enable --yes # installs third-party code
+omarchy plugin enable <id> [placement]
+omarchy plugin disable <id>      # keep it installed, unload it
+omarchy plugin remove <id> --yes # disable, back up (non-git), delete, rescan
+omarchy plugin update [id] --yes # update git-managed plugins
+```
+
+`add`, `update`, and `remove` ask for confirmation, and without a terminal
+they exit with "refusing to continue without confirmation; pass --yes".
+`add` and `update` pull third-party code that runs unsandboxed inside
+`omarchy-shell`, so get the user's OK before passing `--yes` to them.
+
+Prefer these over hand-editing `~/.config/omarchy/shell.json` or deleting
+plugin folders to add or remove plugins: `remove` disables the plugin over
+IPC, backs up non-git plugins, and rescans the plugin directory. Hand edits
+skip all of that and risk mangling unrelated `shell.json` values.
+
 ## Idle and Lock
 
 Set `idle.screensaver` and `idle.lock` in `~/.config/omarchy/shell.json`,
