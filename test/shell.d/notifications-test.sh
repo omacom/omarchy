@@ -164,6 +164,35 @@ assertEqual(
 )
 
 assertEqual(
+  notifications.styledBody('Someone: Reacted 🤓 to &amp;quot;🤗&amp;quot;', 'KDE Connect', ''),
+  'Someone: Reacted 🤓 to &quot;🤗&quot;',
+  'notifications undo a second HTML-escape layer so StyledText can show quotes'
+)
+
+assertEqual(
+  notifications.sanitizeBody('a &amp;amp; b', 'KDE Connect', ''),
+  'a &amp; b',
+  'notifications undo a double-escaped ampersand into one StyledText entity'
+)
+
+assertEqual(
+  notifications.sanitizeBody('keep &quot;quotes&quot;', 'KDE Connect', ''),
+  'keep &quot;quotes&quot;',
+  'notifications leave a single-escaped quote for StyledText to decode'
+)
+
+assertEqual(
+  notifications.sanitizeBody('&amp;lt;img src="http://host/x.png"&amp;gt;', 'KDE Connect', ''),
+  '&amp;lt;img src="http://host/x.png"&amp;gt;',
+  'notifications do not turn double-escaped lt/gt into markup StyledText would parse'
+)
+
+assertNoImageSurvives(
+  '&amp;lt;img src="http://host/entity.png"&amp;gt;',
+  'notifications leave no image tag when lt/gt are double-escaped'
+)
+
+assertEqual(
   notifications.sanitizeBody('<a href="https://example.com">example.com</a> Message body', 'Chromium', ''),
   'Message body',
   'notifications strip chromium leading origin links'
