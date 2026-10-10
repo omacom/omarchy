@@ -1,3 +1,4 @@
+//@ pragma OmarchyLoadPatch
 import QtQuick
 import QtQml.Models
 import Quickshell
@@ -439,12 +440,26 @@ ShellRoot {
     return api
   }
 
+  // A copy of the active bar's per-screen thickness (screen name -> number),
+  // so a plugin holds no reference into the bar. A bar that reports none
+  // gives an empty map.
+  function detachedBarSizes(sizes) {
+    var copy = ({})
+    if (!Util.isPlainObject(sizes)) return copy
+    for (var name in sizes) {
+      var size = Number(sizes[name])
+      if (size > 0) copy[name] = size
+    }
+    return copy
+  }
+
   function pluginBarStateFor(cacheKey, pluginId) {
     if (_pluginBarStateApis[cacheKey]) return _pluginBarStateApis[cacheKey]
     var api = pluginBarStateApiComponent.createObject(null, { ownerPluginId: pluginId })
     if (!api) return null
     api.barHidden = Qt.binding(function() { return shell.bar ? shell.bar.barHidden === true : false })
     api.barSize = Qt.binding(function() { return shell.bar ? Math.max(0, shell.bar.barSize || 0) : 0 })
+    api.barSizes = Qt.binding(function() { return shell.bar ? shell.detachedBarSizes(shell.bar.screenBarSizes) : ({}) })
     api.fontFamily = Qt.binding(function() { return shell.bar ? String(shell.bar.fontFamily || "") : "" })
     api.position = Qt.binding(function() { return shell.bar ? String(shell.bar.position || "top") : "top" })
     var next = ({})
@@ -456,7 +471,7 @@ ShellRoot {
 
   function pluginFirstPartyServiceFor(cacheKey, pluginId, requestedId) {
     var id = String(requestedId || "")
-    var allowed = ["omarchy.idle", "omarchy.media", "omarchy.nightlight", "omarchy.notifications"]
+    var allowed = ["omarchy.idle", "omarchy.media", "omarchy.nightlight", "omarchy.notifications", "omarchy.remote-session"]
     if (allowed.indexOf(id) === -1) return null
     var proxyKey = cacheKey + "::" + id
     if (_pluginFirstPartyServiceApis[proxyKey]) return _pluginFirstPartyServiceApis[proxyKey]
@@ -490,6 +505,10 @@ ShellRoot {
       _selectPlayer: function(playerKey) {
         var target = service()
         if (target && typeof target.selectPlayer === "function") target.selectPlayer(playerKey)
+      },
+      _refresh: function() {
+        var target = service()
+        if (target && typeof target.refresh === "function") target.refresh()
       }
     })
     if (!api) return null
@@ -512,6 +531,14 @@ ShellRoot {
     api.sourcePlayers = Qt.binding(function() {
       var target = service()
       return target && Array.isArray(target.sourcePlayers) ? target.sourcePlayers : []
+    })
+    api.active = Qt.binding(function() {
+      var target = service()
+      return target ? target.active === true : false
+    })
+    api.peers = Qt.binding(function() {
+      var target = service()
+      return target && Array.isArray(target.peers) ? target.peers : []
     })
     var next = ({})
     for (var existing in _pluginFirstPartyServiceApis) next[existing] = _pluginFirstPartyServiceApis[existing]
@@ -588,7 +615,7 @@ ShellRoot {
     // property, even though the resulting proxy is otherwise acyclic.
     var firstPartyServices = ({})
     if (barCapabilities) {
-      var serviceIds = ["omarchy.idle", "omarchy.media", "omarchy.nightlight", "omarchy.notifications"]
+      var serviceIds = ["omarchy.idle", "omarchy.media", "omarchy.nightlight", "omarchy.notifications", "omarchy.remote-session"]
       for (var i = 0; i < serviceIds.length; i++) {
         var serviceId = serviceIds[i]
         firstPartyServices[serviceId] = shell.pluginFirstPartyServiceFor(cacheKey, key, serviceId)

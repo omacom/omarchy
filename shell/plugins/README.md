@@ -34,6 +34,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Battery       | `omarchy.battery`         | `service`               | `services/battery/Service.qml`        |
 | Idle          | `omarchy.idle`            | `service`               | `services/idle/Service.qml`           |
 | Night light   | `omarchy.nightlight`      | `service`               | `services/nightlight/Service.qml`     |
+| Remote session | `omarchy.remote-session` | `service`               | `services/remote-session/Service.qml` |
 | Lock screen   | `omarchy.lock`            | `service`               | `lock/Service.qml`                    |
 | OSD           | `omarchy.osd`             | `panel`                 | `osd/Osd.qml`                         |
 | Polkit agent  | `omarchy.polkit`          | `service`               | `polkit/PolkitAgent.qml`              |

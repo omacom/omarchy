@@ -5,6 +5,8 @@
 
 set -e
 
+voxtype_lib_path="${OMARCHY_VOXTYPE_LIB_PATH:-/usr/lib/voxtype}"
+
 if omarchy-cmd-missing voxtype; then
   if gum confirm "Install Voxtype + AI model (~150MB) to enable dictation?"; then
     omarchy-pkg-add wtype voxtype-bin
@@ -17,7 +19,8 @@ config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 mkdir -p "$config_home/voxtype"
 if [[ ! -e $config_home/voxtype/config.toml ]]; then
   cp "$OMARCHY_PATH/default/voxtype/config.toml" "$config_home/voxtype/"
-  if omarchy-hw-vulkan; then
+  # A Vulkan runtime is not enough: aarch64 voxtype-bin ships no Vulkan backend.
+  if omarchy-hw-vulkan && [[ -x $voxtype_lib_path/voxtype-vulkan ]]; then
     voxtype setup gpu --enable || true
   fi
 fi

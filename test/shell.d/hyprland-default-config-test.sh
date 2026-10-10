@@ -158,6 +158,10 @@ echo future-backend
 SH
 chmod +x "$missing_bin/omarchy-default-dictation"
 dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home")
+if grep -Fq 'dictation' <<<"$dictation_output"; then fail "a selected backend that is not installed leaves application shortcuts available"; fi
+printf '#!/bin/bash\nexit 0\n' > "$missing_bin/future-backend"
+chmod +x "$missing_bin/future-backend"
+dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home")
 for binding in \
   $'SUPER + CTRL + X\tToggle dictation' \
   $'F9\tStart dictation (push-to-talk)' \
@@ -166,7 +170,7 @@ for binding in \
   $'ALT + Alt_R\tStop dictation (push-to-talk)'; do
   grep -Fq "$binding" <<<"$dictation_output" || fail "dictation bindings load for any selected backend" "$binding"
 done
-pass "dictation bindings require a selection without hardcoding backends"
+pass "dictation bindings require an installed selection without hardcoding backends"
 
 # Lazydocker is optional on new installs, while existing installs keep the hotkey.
 lazydocker_bin="$tmpdir/lazydocker-bin"

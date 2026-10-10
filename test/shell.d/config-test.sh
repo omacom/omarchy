@@ -108,6 +108,7 @@ pass "default bar widget ids resolve to manifests and entry points"
 
 ROOT="$ROOT" python3 <<'PY'
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -172,6 +173,32 @@ for source, destination, legacy in package_defaults:
     errors.append(f"legacy path still in config/: {legacy}")
   if destination and (source not in pkgbuild or destination not in pkgbuild):
     errors.append(f"PKGBUILD does not explicitly install {source} -> {destination}")
+
+# A user unit has to be on the machine before anything turns it on: shipped in
+# /usr/lib/systemd/user, or copied out of default/ by the command enabling it.
+def installs_first(text):
+  source = re.search(r'(\w+)="[^"\n]*default/systemd/user/', text)
+  held = rf"|\$\{{?{source[1]}\b" if source else ""
+  copy = re.search(rf"^[ \t]*(?:sudo[ \t]+)?(?:install|cp)\b[^\n]*(?:default/systemd/user/{held})", text, re.MULTILINE)
+  enable = text.find("systemctl --user enable")
+  return bool(copy) and (enable < 0 or copy.start() < enable)
+
+named = 'unit="$OMARCHY_PATH/default/systemd/user/a.service"\n'
+if installs_first(named + "systemctl --user enable a.service\n"):
+  errors.append("unit check accepts a command that names a unit's source but never installs it")
+if installs_first(named + 'systemctl --user enable a.service\ninstall -Dm644 "$unit" "$target"\n'):
+  errors.append("unit check accepts a command that installs a unit after enabling it")
+
+scripts = [path.read_text(errors="ignore") for folder in ("bin", "install", "migrations")
+           for path in (root / folder).rglob("*") if path.is_file()]
+for unit in sorted(path.name for path in (root / "default/systemd/user").glob("*.service")):
+  if f"/usr/lib/systemd/user/{unit}" in pkgbuild:
+    continue
+  named = [text for text in scripts if unit in text]
+  if not any(installs_first(text) for text in named):
+    errors.append(f"PKGBUILD does not ship default/systemd/user/{unit} and no command installs it")
+  elif any("systemctl --user enable" in text and not installs_first(text) for text in named):
+    errors.append(f"{unit} is enabled without being shipped by PKGBUILD or installed first")
 
 # Existing users have an absolute wants symlink to the old unit path, and the
 # migration that repoints it only runs for users who run an update -- the

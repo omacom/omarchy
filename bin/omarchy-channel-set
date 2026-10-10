@@ -60,6 +60,23 @@ link_dev_checkout() {
     fi
   done
 
+  # The checkout's own channel refresh runs next, from its own templates.
+  if [[ ! -f $checkout/${templates#"$OMARCHY_PATH"/}/pacman-$pacman_channel.conf ||
+    ! -f $checkout/${templates#"$OMARCHY_PATH"/}/mirrorlist-$pacman_channel ]]; then
+    fail "Update the checkout before switching to dev; it has no $pacman_channel templates for $platform."
+  fi
+
+  # On aarch64 one from before it had platform templates would replace this
+  # machine's repositories with x86's.
+  if [[ $platform != "x86" ]]; then
+    for required in bin/omarchy-hw-platform install/helpers/pacman.sh; do
+      if [[ ! -f $checkout/$required || ! -r $checkout/$required ||
+        ( $required == "bin/omarchy-hw-platform" && ! -x $checkout/$required ) ]]; then
+        fail "Update the checkout before switching to dev; on $platform it needs $required for this machine's repositories."
+      fi
+    done
+  fi
+
   omarchy-dev-link "$checkout" --no-reboot
 }
 
@@ -102,9 +119,6 @@ case "$channel" in
     packages=(omarchy-dev omarchy-settings-dev)
     ;;
   dev)
-    confirm_dev || { echo "Cancelled."; exit 0; }
-    dev_checkout="$HOME/omarchy"
-    validate_dev_checkout "$dev_checkout"
     pacman_channel=edge
     packages=(omarchy-dev omarchy-settings-dev)
     ;;
@@ -114,6 +128,20 @@ case "$channel" in
     exit 1
     ;;
 esac
+
+# A channel this machine's platform has no templates for is refused before
+# anything changes (install/helpers/pacman.sh).
+source "$OMARCHY_PATH/install/helpers/pacman.sh"
+platform=$(omarchy-hw-platform) || fail "Cannot tell this machine's platform; nothing changed."
+templates=$(omarchy_pacman_templates "$platform") || exit 1
+[[ -f $templates/pacman-$pacman_channel.conf && -f $templates/mirrorlist-$pacman_channel ]] ||
+  fail "Omarchy has no $pacman_channel channel for $platform; nothing changed."
+
+if [[ $channel == "dev" ]]; then
+  confirm_dev || { echo "Cancelled."; exit 0; }
+  dev_checkout="$HOME/omarchy"
+  validate_dev_checkout "$dev_checkout"
+fi
 
 # A failure past this point leaves the channel switch half-applied, so say how
 # to pick it back up rather than dying silently under set -e.
