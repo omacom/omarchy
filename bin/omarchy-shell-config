@@ -53,10 +53,17 @@ trap cleanup_shell_config_tmp EXIT
 commit() {
   local program="$1"
   shift
-  mkdir -p "$(dirname "$CONFIG_FILE")"
-  _SHELL_CONFIG_TMP=$(mktemp)
+  local target
+  target=$(realpath -m -- "$CONFIG_FILE") || fail "could not resolve shell config"
+  mkdir -p "$(dirname "$target")" || fail "could not create shell config directory"
+  # Stage beside the resolved target for an atomic replace that keeps dotfile
+  # symlinks. mktemp creates 0600; retain an existing target's permissions.
+  _SHELL_CONFIG_TMP=$(mktemp "$(dirname "$target")/.shell-config.XXXXXX") || fail "could not stage shell config"
   jq -S -e "$@" "$program" "$(source_file)" >"$_SHELL_CONFIG_TMP" || fail "could not update shell config"
-  mv "$_SHELL_CONFIG_TMP" "$CONFIG_FILE"
+  if [[ -e $target ]]; then
+    chmod --reference="$target" "$_SHELL_CONFIG_TMP" || fail "could not preserve shell config mode"
+  fi
+  mv -- "$_SHELL_CONFIG_TMP" "$target" || fail "could not publish shell config"
   _SHELL_CONFIG_TMP=""
   refresh_shell_config
 }
