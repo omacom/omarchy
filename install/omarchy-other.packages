@@ -73,3 +73,6 @@ t2fanrd
 
 # Framework 16
 qmk-hid
+
+# VMware guest support packages
+open-vm-tools
