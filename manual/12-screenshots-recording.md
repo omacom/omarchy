@@ -61,6 +61,8 @@ There are three sizes — small, medium, and large — and the hotkeys step betw
 
 You can also call it directly with `omarchy-capture-webcam-resize small`, or `reset` to go back to medium.
 
+Omarchy also turns off the camera's auto-exposure priority when it's plugged in. UVC webcams commonly ship with it on, and in ordinary room light that quietly drops them to 10-15 fps while still reporting 30. The trade is a slightly darker picture in a dim room instead of a choppy one, the same trade Chromium already makes every time it opens the camera. If you'd rather have the vendor behaviour, a later-numbered udev rule matching `ACTION=="add|change"` can set `exposure_dynamic_framerate` back to 1.
+
 ## Text, QR codes, and colours
 
 `Super + Ctrl + Print Screen` selects a region and OCRs it to the clipboard. That's covered properly in [Text Extraction & Dictation](11-text-extraction-dictation.md).
