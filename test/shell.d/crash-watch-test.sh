@@ -231,41 +231,50 @@ run_watch "$(events 1001)" NO_AGENT=1
 [[ ! -s $NOTIFY_LOG && ! -s $QUERY_LOG ]] || fail "a watcher without an agent queries crashes"
 pass "watcher skips lookups and notifications until an agent is selected"
 
-# Exercise the drop-in's actual marker commands with real inotify in a scratch
-# directory. This does not install a unit, change the host, or trigger a crash.
-require_command inotifywait
 dropin="$ROOT/etc/systemd/system/systemd-coredump@.service.d/10-omarchy-crash-events.conf"
 grep -Fxq 'RuntimeDirectoryMode=0755' "$dropin" || fail "the event directory is user-writable"
 grep -Fxq 'RuntimeDirectoryPreserve=yes' "$dropin" || fail "handler exit removes the watch directory"
 grep -Fxq 'd /run/omarchy-crash-events 0755 root root -' \
   "$ROOT/etc/tmpfiles.d/omarchy-crash-events.conf" || fail "events are not created root-owned at boot"
 
-mkdir "$TMPDIR/events"
-inotifywait --timeout 3 -e create --format '%f' "$TMPDIR/events" \
-  >"$TMPDIR/event-name" 2>"$TMPDIR/event-log" &
-event_pid=$!
-for attempt in {1..50}; do
-  grep -Fq 'Watches established.' "$TMPDIR/event-log" && break
-  sleep 0.02
-done
-grep -Fq 'Watches established.' "$TMPDIR/event-log" || fail "the marker test never established its watch"
+# Exercise the drop-in's actual marker commands with real inotify in a scratch
+# directory. This does not install a unit, change the host, or trigger a crash.
+if "$ROOT/bin/omarchy-cmd-present" inotifywait; then
+  mkdir "$TMPDIR/events"
+  inotifywait --timeout 3 -e create --format '%f' "$TMPDIR/events" \
+    >"$TMPDIR/event-name" 2>"$TMPDIR/event-log" &
+  event_pid=$!
+  for attempt in {1..50}; do
+    grep -Fq 'Watches established.' "$TMPDIR/event-log" && break
+    sleep 0.02
+  done
+  grep -Fq 'Watches established.' "$TMPDIR/event-log" ||
+    fail "the marker test never established its watch"
 
-while IFS= read -r command; do
-  INVOCATION_ID="$(events 1001)" bash -euc \
-    "${command//\/run\/omarchy-crash-events/$TMPDIR/events}"
-done < <(sed -n 's/^ExecStopPost=-//p' "$dropin")
+  while IFS= read -r command; do
+    INVOCATION_ID="$(events 1001)" bash -euc \
+      "${command//\/run\/omarchy-crash-events/$TMPDIR/events}"
+  done < <(sed -n 's/^ExecStopPost=-//p' "$dropin")
 
-wait "$event_pid" || fail "an ephemeral marker produces no inotify event"
-event_pid=""
-[[ $(cat "$TMPDIR/event-name") == "$(events 1001)" ]] || fail "the event loses its InvocationID"
-[[ ! -e $TMPDIR/events/$(events 1001) ]] || fail "the hook leaves a marker behind"
-pass "the completion hook emits a real inotify event without retaining a marker or a core"
+  wait "$event_pid" || fail "an ephemeral marker produces no inotify event"
+  event_pid=""
+  [[ $(cat "$TMPDIR/event-name") == "$(events 1001)" ]] || fail "the event loses its InvocationID"
+  [[ ! -e $TMPDIR/events/$(events 1001) ]] || fail "the hook leaves a marker behind"
+  pass "the completion hook emits a real inotify event without retaining a marker or a core"
+else
+  skip "inotifywait not installed; skipping native marker event check"
+fi
 
-require_command systemd-analyze
-cp /usr/lib/systemd/system/systemd-coredump@.service "$TMPDIR/"
-mkdir "$TMPDIR/systemd-coredump@.service.d"
-cp "$dropin" "$TMPDIR/systemd-coredump@.service.d/"
-SYSTEMD_UNIT_PATH="$TMPDIR:/usr/lib/systemd/system" \
-  systemd-analyze --man=no --generators=no verify "$TMPDIR/systemd-coredump@.service" \
-  >"$TMPDIR/unit-check" 2>&1 || fail "the coredump drop-in is invalid" "$(cat "$TMPDIR/unit-check")"
-pass "systemd accepts the completion drop-in with the installed coredump service"
+unit=/usr/lib/systemd/system/systemd-coredump@.service
+if "$ROOT/bin/omarchy-cmd-present" systemd-analyze && [[ -r $unit ]]; then
+  cp "$unit" "$TMPDIR/"
+  mkdir "$TMPDIR/systemd-coredump@.service.d"
+  cp "$dropin" "$TMPDIR/systemd-coredump@.service.d/"
+  SYSTEMD_UNIT_PATH="$TMPDIR:/usr/lib/systemd/system" \
+    systemd-analyze --man=no --generators=no verify "$TMPDIR/systemd-coredump@.service" \
+    >"$TMPDIR/unit-check" 2>&1 ||
+    fail "the coredump drop-in is invalid" "$(cat "$TMPDIR/unit-check")"
+  pass "systemd accepts the completion drop-in with the installed coredump service"
+else
+  skip "systemd-analyze or coredump unit unavailable; skipping native unit validation"
+fi
