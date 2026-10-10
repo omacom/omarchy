@@ -15,7 +15,6 @@ NEXT_THEME_PATH="$HOME/.local/state/omarchy/current/next-theme"
 CURRENT_BACKGROUND_LINK="$HOME/.local/state/omarchy/current/background"
 THEME_BACKGROUND_STATE_PATH="$HOME/.local/state/omarchy/theme-backgrounds"
 BACKGROUND_TRANSITION_CACHE="$HOME/.cache/omarchy/background-transitions"
-THEME_SET_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
 USER_THEMES_PATH="$HOME/.config/omarchy/themes"
 OMARCHY_THEMES_PATH="$OMARCHY_PATH/themes"
 
@@ -380,7 +379,16 @@ fi
 # Serialize theme changes. Theme switching rebuilds a shared next-theme staging
 # directory and updates current theme/background symlinks; concurrent calls can
 # otherwise race and make one selection appear to be ignored.
-exec 9>"$THEME_SET_LOCK"
+#
+# Without a session runtime dir, keep the lock beside the state it guards: a
+# fixed name in /tmp can be claimed by another account, and then nothing locks.
+# Private, since flock works on a read-only fd and a home may be traversable.
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-$HOME/.local/state/omarchy}"
+mkdir -p "$RUNTIME_DIR" || exit 1
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  chmod 700 "$RUNTIME_DIR" || exit 1
+fi
+exec 9>"$RUNTIME_DIR/omarchy-theme-set.lock"
 flock 9
 
 # A current video frame only represents the screen after its opening fade.
