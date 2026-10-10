@@ -621,6 +621,15 @@ pass "vscode generated theme contains a copy of the current palette"
 pass "vscode generated theme clears obsolete extension marker"
 jq -e '.[] | select(.identifier.id == "local.omarchy-theme" and .relativeLocation == "omarchy-theme")' "$PI_TMPDIR/.vscode/extensions/extensions.json" >/dev/null || fail "vscode generated theme registers local extension"
 pass "vscode generated theme registers local extension"
+jq '.type = "hc"' "$NEXT_THEME/vscode-theme.json" >"$CURRENT_THEME/vscode-theme.json"
+PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-vscode"
+jq -e '.contributes.themes[0].uiTheme == "hc-black"' "$PI_TMPDIR/.vscode/extensions/omarchy-theme/package.json" >/dev/null || fail "vscode generated high contrast theme uses VS Code hc-black uiTheme"
+pass "vscode generated high contrast theme uses VS Code hc-black uiTheme"
+jq '.type = "hcLight"' "$NEXT_THEME/vscode-theme.json" >"$CURRENT_THEME/vscode-theme.json"
+PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-vscode"
+jq -e '.contributes.themes[0].uiTheme == "hc-light"' "$PI_TMPDIR/.vscode/extensions/omarchy-theme/package.json" >/dev/null || fail "vscode generated light high contrast theme uses VS Code hc-light uiTheme"
+pass "vscode generated light high contrast theme uses VS Code hc-light uiTheme"
+cp "$NEXT_THEME/vscode-theme.json" "$CURRENT_THEME/vscode-theme.json"
 
 for binary in \
   omarchy-update \
