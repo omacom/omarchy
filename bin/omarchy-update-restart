@@ -57,6 +57,18 @@ if [[ $mode != "--reboot-only" ]]; then
     fi
   done
 
+  # A running Herdr server keeps its old version after the package updates.
+  # Restarting it ends every pane and agent, and only Herdr's own updater can
+  # hand panes over live, so name the stale server instead of restarting it.
+  if omarchy-cmd-present herdr; then
+    herdr_installed=$(herdr --version 2>/dev/null | awk '{ print $2 }')
+    herdr_running=$(herdr status server --json 2>/dev/null | jq -r 'select(.running == true) | .version // empty' 2>/dev/null)
+    if [[ -n $herdr_installed && -n $herdr_running && $herdr_running != "$herdr_installed" ]]; then
+      echo -e "\e[33m\nHerdr $herdr_installed is installed, but its server is still running $herdr_running.\e[0m"
+      echo "Run 'herdr server stop' when your panes can close, then start Herdr again."
+    fi
+  fi
+
   # Updates routinely replace the shell's QML, and a stale process can lazy-load
   # new files into old code. A restart failure (locked session, ssh, TTY) only
   # prints its reason: the next update or login gets a fresh shell anyway.
