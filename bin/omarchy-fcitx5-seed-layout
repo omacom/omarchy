@@ -1,0 +1,190 @@
+#!/bin/bash
+
+# omarchy:summary=Seed fcitx5 DefaultIM from /etc/vconsole.conf XKBLAYOUT.
+# omarchy:group=config
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Hyprland already reads XKBLAYOUT from vconsole for kb_layout. fcitx5 ships its
+# own default profile with keyboard-us, and Qt lock-screen fields take that IM's
+# keymap even when the compositor layout is correct (#8060).
+
+vconsole_file=${OMARCHY_VCONSOLE:-/etc/vconsole.conf}
+profile=${OMARCHY_FCITX5_PROFILE:-$HOME/.config/fcitx5/profile}
+
+vconsole_value() {
+  local key="$1"
+
+  [[ -f $vconsole_file ]] || return 0
+
+  awk -v key="$key" '
+    {
+      line = $0
+      sub(/#.*/, "", line)
+      sub(/^[[:space:]]+/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      if (line == "") next
+      eq = index(line, "=")
+      if (eq == 0) next
+      name = substr(line, 1, eq - 1)
+      sub(/[[:space:]]+$/, "", name)
+      if (name != key) next
+      value = substr(line, eq + 1)
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      gsub(/^"/, "", value)
+      gsub(/"$/, "", value)
+      gsub(/^'\''/, "", value)
+      gsub(/'\''$/, "", value)
+      print value
+      exit
+    }
+  ' "$vconsole_file"
+}
+
+# First entry only — same slice Hyprland / mkinitcpio use for the console layout.
+layout=$(vconsole_value XKBLAYOUT)
+variant=$(vconsole_value XKBVARIANT)
+layout=${layout%%,*}
+variant=${variant%%,*}
+layout=${layout:-us}
+
+# Match the leading layout selected by default/hypr/input.lua and the initramfs.
+# Non-Latin installs prepend an unmodified US layout for bindings/passwords.
+case "$layout" in
+  af | am | ara | bd | bg | by | et | ge | gr | il | in | iq | ir | kg | kh | kz | la | lk | mk | mm | mn | mv | np | rs | ru | sy | th | tj | ua)
+    layout=us
+    variant=
+    ;;
+esac
+
+if [[ -n $variant ]]; then
+  default_layout="$layout-$variant"
+  im="keyboard-$layout-$variant"
+else
+  default_layout="$layout"
+  im="keyboard-$layout"
+fi
+
+write_profile() {
+  [[ ! -d $profile ]] || return 1
+  mkdir -p "$(dirname "$profile")"
+  profile_tmp=$(mktemp "${profile}.XXXXXX")
+  cat >"$profile_tmp" <<EOF
+[Groups/0]
+Name=Default
+Default Layout=$default_layout
+DefaultIM=$im
+
+[Groups/0/Items/0]
+Name=$im
+Layout=
+
+[GroupOrder]
+0=Default
+EOF
+  mv -f -- "$profile_tmp" "$profile"
+  profile_tmp=
+}
+
+profile_default_im() {
+  [[ -f $profile ]] || return 0
+
+  awk '
+    {
+      line = $0
+      sub(/#.*/, "", line)
+      sub(/^[[:space:]]+/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      if (line ~ /^\[/) section = line
+      if (section == "[Groups/0]" && line ~ /^DefaultIM=/) {
+        print substr(line, 11)
+        exit
+      }
+    }
+  ' "$profile"
+}
+
+# Stock first-run profile from fcitx5: one group, one keyboard-us item.
+is_stock_keyboard_us_profile() {
+  [[ -f $profile ]] || return 1
+
+  awk '
+    {
+      line = $0
+      sub(/#.*/, "", line)
+      sub(/^[[:space:]]+/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      if (line == "") next
+      if (line ~ /^\[/) {
+        section = line
+        if (section ~ /^\[Groups\/[1-9]/) multi = 1
+        next
+      }
+      if (section == "[Groups/0]") {
+        if (line ~ /^DefaultIM=/) im = substr(line, 11)
+        if (line ~ /^Default Layout=/) layout = substr(line, 16)
+      }
+      if (section ~ /^\[Groups\/0\/Items\// && line ~ /^Layout=/) {
+        item_layout = substr(line, 8)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", item_layout)
+        if (item_layout != "") custom = 1
+      }
+      if (section ~ /^\[Groups\/0\/Items\// && line ~ /^Name=/) {
+        items[++n] = substr(line, 6)
+      }
+    }
+    END {
+      if (multi || custom) exit 1
+      if (im != "keyboard-us") exit 1
+      if (layout != "" && layout != "us") exit 1
+      if (n != 1 || items[1] != "keyboard-us") exit 1
+      exit 0
+    }
+  ' "$profile"
+}
+
+# US console layout: leave missing profiles for fcitx5, and leave stock alone.
+if [[ $im == "keyboard-us" ]]; then
+  exit 0
+fi
+
+# A linked profile is user-managed; do not replace its link during seeding.
+[[ -L $profile ]] && exit 0
+
+if [[ -f $profile ]]; then
+  [[ $(profile_default_im) == "$im" ]] && exit 0
+  is_stock_keyboard_us_profile || exit 0
+fi
+
+# A live fcitx5 flushes its in-memory profile on shutdown and would overwrite
+# the seed we are about to write. Stop it first, and restore the session
+# service on every exit, including a failed stop or profile write.
+profile_tmp=
+restore_running=false
+restore_fcitx5() {
+  [[ -z $profile_tmp ]] || rm -f -- "$profile_tmp" || true
+  if [[ $restore_running == true ]] && systemctl --user is-active --quiet graphical-session.target; then
+    systemctl --user start omarchy-fcitx5.service >/dev/null 2>&1 || true
+  fi
+}
+trap restore_fcitx5 EXIT
+if systemctl --user is-active --quiet omarchy-fcitx5.service 2>/dev/null ||
+  pgrep -u "$UID" -x fcitx5 >/dev/null 2>&1; then
+  restore_running=true
+  systemctl --user stop omarchy-fcitx5.service 2>/dev/null || true
+  pkill -u "$UID" -x fcitx5 >/dev/null 2>&1 || true
+  # Wait for the process to finish saving so our write is the last one.
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    pgrep -u "$UID" -x fcitx5 >/dev/null 2>&1 || break
+    sleep 0.1
+  done
+  if pgrep -u "$UID" -x fcitx5 >/dev/null 2>&1; then
+    echo "fcitx5 still running after stop; not rewriting profile" >&2
+    exit 1
+  fi
+fi
+
+write_profile
+printf 'changed\n'
