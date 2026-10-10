@@ -78,6 +78,15 @@ grep -q 'PROTECT: "Y"' "$COMPOSE" || fail "web console is not password protected
 grep -q -- '- /:/' "$COMPOSE" && fail "compose contains host-root bind"
 pass "writer emits fixed anchors bound to exact private source inodes"
 
+# Rewriting keeps the replaced compose, hand edits included.
+printf '      - /dev/bus/usb:/dev/bus/usb:rshared\n' >>"$COMPOSE"
+write 8G 2 64G alice s3cret Europe/Copenhagen
+grep -q 'RAM_SIZE: "8G"' "$COMPOSE" || fail "rewrite did not apply new settings"
+grep -q '/dev/bus/usb' "$COMPOSE" && fail "rewrite kept a hand edit in the live compose"
+grep -q '/dev/bus/usb' "$COMPOSE.bak" || fail "rewrite did not keep the hand-edited compose"
+[[ $(stat -Lc '%a' "$COMPOSE.bak") == 640 ]] || fail "kept compose is not private"
+pass "rewriting keeps the previous compose beside the new one"
+
 # Input cannot widen a mount or compose field.
 rm -f "$COMPOSE"
 write 4G 2 64G 'x -v /:/h' p UTC 2>/dev/null && fail "malicious username accepted"
@@ -152,6 +161,7 @@ grep -q 'USERNAME: "legacyuser"' "$COMPOSE" || fail "migration lost settings"
 grep -q -- '- /:/' "$COMPOSE" && fail "migration copied malicious storage"
 grep -q -- '- /etc:/shared' "$COMPOSE" && fail "migration copied malicious share"
 [[ ! -f $LEGACY_COMPOSE_FILE ]] || fail "migration left legacy compose"
+grep -q -- '- /etc:/shared' "$LEGACY_COMPOSE_FILE.bak" || fail "migration did not keep the legacy compose aside"
 pass "migration preserves data and symlinks while hardening permissions"
 
 # Bring-up re-proves compose trust, cardinality, and mounted identities.
@@ -447,7 +457,9 @@ pass "removal scan timeout and errors fail closed without changing VM state"
 reset_case
 prepare_user_mount_sources
 write 4G 2 64G remove pw UTC
+write 8G 2 64G remove pw UTC
 resolve_caller
+[[ -f $COMPOSE.bak ]] || fail "rewrite did not keep the previous compose"
 touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
 mount --no-canonicalize --bind "$HOME/.windows" "$EXPECTED_STORAGE"
 dc() { :; }
@@ -463,6 +475,7 @@ __priv_remove
 [[ ! -e $HOME/.windows/disk.img ]] || fail "removal preserved disk data"
 [[ -e $HOME/Windows/keep.txt ]] || fail "removal deleted shared data"
 [[ ! -f $COMPOSE ]] || fail "removal left compose"
+[[ ! -e $COMPOSE.bak ]] || fail "removal left the previous compose"
 resolve_caller
 [[ $(mount_layer_count "$EXPECTED_STORAGE") == 0 && $(mount_layer_count "$EXPECTED_SHARED") == 0 ]] || fail "removal left binds"
 pass "removal rejects stacks, deletes disk, and preserves shared files"
