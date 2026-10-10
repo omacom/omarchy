@@ -29,6 +29,8 @@ Item {
   readonly property int lockDelaySeconds: IdleModel.delayAfterFirstIdle(lockTimeoutSeconds, firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
   readonly property string screensaverClass: "org.omarchy.screensaver"
+  readonly property var activitySettings: IdleModel.activitySettings(idleConfig)
+  readonly property bool watchActivity: IdleModel.activityWatchWanted(root.activitySettings)
 
   property bool stayAwake: false
   property bool stayAwakeStateLoaded: false
@@ -40,6 +42,7 @@ Item {
   property string lastEventAt: ""
   property var screensaverWindows: ({})
   property int screensaverWindowCount: 0
+  property bool externalActivity: false
 
   function secondsFromConfig(value, fallback) {
     return IdleModel.secondsFromConfig(value, fallback)
@@ -190,8 +193,36 @@ Item {
     logEvent("idle-monitor", idleMonitor.isIdle ? "idle" : "active")
     if (!root.idleEnabled || !root.idleTimersEnabled) return
 
-    if (idleMonitor.isIdle) startIdleCycle()
-    else handleActiveSignal()
+    if (!idleMonitor.isIdle) {
+      handleActiveSignal()
+      return
+    }
+
+    // A controller or a playing film is real use, however long the compositor
+    // has gone without seeing a key or a mouse move.
+    if (root.externalActivity) {
+      logEvent("idle-suppressed", "gamepad or audio active")
+      return
+    }
+
+    startIdleCycle()
+  }
+
+  function setExternalActivity(active) {
+    if (root.externalActivity === active) return
+
+    root.externalActivity = active
+    logEvent("external-activity", active ? "gamepad or audio in use" : "cleared")
+
+    // Play resumed, so abandon whatever countdown is already running.
+    if (active) {
+      if (root.idledThisCycle) cancelIdleCycle("external-activity")
+      return
+    }
+
+    // Play stopped while the compositor still sees no input, so the countdown
+    // suppressed back when it reported idle has to start now.
+    if (root.idleEnabled && idleMonitor.isIdle && !root.idledThisCycle) startIdleCycle()
   }
 
   function statusJson() {
@@ -201,6 +232,7 @@ Item {
       stayAwakeStateLoaded: root.stayAwakeStateLoaded,
       stayAwakeStatePath: root.stayAwakeStatePath,
       idle: idleMonitor.isIdle,
+      externalActivity: root.externalActivity,
       inIdleCycle: root.idledThisCycle,
       screensaverStarted: root.screensaverStartedThisCycle,
       screensaver: root.screensaverTimeoutSeconds,
@@ -314,6 +346,51 @@ Item {
   Process {
     id: wakeProcess
     onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "wake exitCode=" + exitCode + " status=" + exitStatus) }
+  }
+
+  Process {
+    id: activityProcess
+    property string signature: ""
+    stdout: SplitParser {
+      onRead: function(line) { root.setExternalActivity(IdleModel.isActivityLine(line)) }
+    }
+    onExited: function(exitCode, exitStatus) {
+      root.logEvent("process-exit", "idle-activity exitCode=" + exitCode + " status=" + exitStatus)
+      root.setExternalActivity(false)
+    }
+  }
+
+  // Owns the probe's lifetime: starts it, restarts it after a crash so a failed
+  // probe degrades to plain compositor idling rather than pinning the screen
+  // awake, and relaunches it when settings change its arguments.
+  Timer {
+    id: activitySupervisor
+    interval: 5000
+    repeat: true
+    running: true
+    triggeredOnStart: true
+    onTriggered: {
+      if (!(root.idleEnabled && root.watchActivity)) {
+        if (activityProcess.running) {
+          activityProcess.running = false
+          root.setExternalActivity(false)
+        }
+        return
+      }
+
+      var command = IdleModel.activityCommand(root.activitySettings)
+      var signature = JSON.stringify(command)
+
+      if (activityProcess.running) {
+        if (activityProcess.signature === signature) return
+        activityProcess.running = false
+        return
+      }
+
+      activityProcess.signature = signature
+      activityProcess.command = command
+      activityProcess.running = true
+    }
   }
 
   Process {
