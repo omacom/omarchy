@@ -277,3 +277,86 @@ pulled=$(<"$git_calls")
 [[ $pulled == "<-C><$many/tokyo night><pull>"$'\n'"<-C><$many/zen><pull>" ]] ||
   fail "omarchy-theme-update pulls each clone by its whole path" "got: $pulled"
 pass "omarchy-theme-update pulls each clone by its whole path"
+
+# Remove > Theme runs omarchy-theme-remove, which offers the themes under
+# ~/.config/omarchy/themes. With none there it prints "No extra themes
+# installed." to a terminal the menu never opened, so the row only closes the
+# menu. Most machines have only the bundled themes, so the row has to stay
+# hidden until the remover has a theme it can remove: one copied or cloned
+# there, but not a symlinked working copy and not a dot-directory. Both sides
+# ask omarchy-theme-removable; the shapes below are what would tell us if one
+# of them stopped.
+remove_theme_batch=$(node -e '
+  const fs = require("fs")
+  const path = require("path")
+  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+  const items = menu.parseMenuJsonc(fs.readFileSync(path.join(process.env.ROOT, "default/omarchy/omarchy-menu.jsonc"), "utf8"))
+  const row = items.find(item => item.id === "remove.theme")
+  process.stdout.write(menu.guardScript({ [row.id]: row }))
+')
+
+# The remover hands its list to the picker, one argument per theme after the
+# prompt. Picking nothing keeps every theme.
+cat >"$stub_dir/omarchy-menu-select" <<'STUB'
+#!/bin/bash
+: "${SELECT_CALLS:=/dev/null}"
+printf '%s\n' "$@" >>"$SELECT_CALLS"
+exit 1
+STUB
+chmod +x "$stub_dir/omarchy-menu-select"
+
+# Run the guard as the menu does, through the whole generated batch, and ask
+# whether the remover then offered a theme it would actually remove.
+assert_remove_theme_guard_agrees() {
+  local description="$1" home="$2" expected="$3"
+  local guarded=0 offered=1 opened=1 calls answer name
+
+  # A row with no when: is always shown.
+  if [[ -n $remove_theme_batch ]]; then
+    answer=$(HOME="$home" PATH="$ROOT/bin:$PATH" bash -c "$remove_theme_batch" 2>/dev/null | command grep '^remove\.theme:w:')
+    [[ $answer == remove.theme:w:1 ]] || guarded=1
+  fi
+  calls=$(mktemp)
+  HOME="$home" SELECT_CALLS="$calls" PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-remove" >/dev/null 2>&1 || true
+  [[ -s $calls ]] && opened=0
+  while IFS= read -r name; do
+    [[ $name == -- ]] && break
+    [[ -z $name || $name == .* ]] || offered=0
+  done < <(tail -n +2 "$calls")
+  rm -f "$calls"
+  ((guarded == expected)) || fail "$description" "$home: guard=$guarded expected=$expected"
+  ((opened == expected)) || fail "$description" "$home: picker opened=$opened expected=$expected"
+  ((offered == expected)) || fail "$description" "$home: remove offered=$offered expected=$expected"
+}
+
+# Any dot-directory is refused, not only .git, and one beside a real theme
+# leaves the row with that theme to offer. A stray file is not a theme.
+mkdir -p "$themes_home/dotted/.config/omarchy/themes/.git" "$themes_home/hidden/.config/omarchy/themes/.backup"
+mkdir -p "$themes_home/mixed/.config/omarchy/themes/.git" "$themes_home/mixed/.config/omarchy/themes/handmade"
+mkdir -p "$themes_home/filed/.config/omarchy/themes"
+: >"$themes_home/filed/.config/omarchy/themes/notes.txt"
+# A name that echo would read as an option is still a theme. A themes folder
+# that is a symlink into someone's dotfiles offers nothing, as before.
+mkdir -p "$themes_home/dashed/.config/omarchy/themes/-n"
+mkdir -p "$themes_home/dotfiles/themes/mine" "$themes_home/folded/.config/omarchy"
+ln -s "$themes_home/dotfiles/themes" "$themes_home/folded/.config/omarchy/themes"
+
+for shape in missing:1 empty:1 copied:0 cloned:0 linked:1 worktree:0 dotted:1 hidden:1 mixed:0 filed:1 dashed:0 folded:1; do
+  assert_remove_theme_guard_agrees \
+    "Remove > Theme shows exactly when omarchy-theme-remove has a theme to offer" \
+    "$themes_home/${shape%:*}" "${shape#*:}"
+done
+pass "Remove > Theme shows exactly when omarchy-theme-remove has a theme to offer"
+
+listed=$(HOME="$themes_home/mixed" LC_ALL=C "$ROOT/bin/omarchy-theme-removable")
+[[ $listed == handmade ]] || fail "omarchy-theme-removable lists real themes and nothing else" "got: $listed"
+pass "omarchy-theme-removable lists real themes and nothing else"
+
+# The picker is offered the same list, so it no longer shows a .git it would
+# refuse to remove.
+calls=$(mktemp)
+HOME="$themes_home/mixed" SELECT_CALLS="$calls" PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-remove" >/dev/null 2>&1 || true
+offered=$(sed -n '2,/^--$/p' "$calls" | command grep -vx -- '--')
+rm -f "$calls"
+[[ $offered == handmade ]] || fail "omarchy-theme-remove offers only the themes it can remove" "got: $offered"
+pass "omarchy-theme-remove offers only the themes it can remove"

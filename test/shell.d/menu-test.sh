@@ -215,6 +215,11 @@ assertEqual(
   'omarchy-theme-extras',
   'menu hides Extra Themes until a theme cloned from git is there to update'
 )
+assertEqual(
+  defaultById['remove.theme'].when,
+  'omarchy-theme-removable',
+  'menu hides Remove > Theme until there is a theme to remove'
+)
 assert(
   defaultById['setup.input'].action.includes('input.lua'),
   'menu keeps Input as a direct config action'

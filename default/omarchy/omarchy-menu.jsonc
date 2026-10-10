@@ -300,7 +300,7 @@
   "remove.dictation": {"icon":"","label":"Dictation","when":"omarchy-pkg-present voxtype-bin || omarchy-pkg-present superwhisper-bin"},
   "remove.service": {"icon":"","label":"Services","title":"Remove"},
   "remove.development": {"icon":"󰵮","label":"Development","title":"Remove"},
-  "remove.theme": {"icon":"󰸌","label":"Theme","action":"omarchy-theme-remove"},
+  "remove.theme": {"icon":"󰸌","label":"Theme","when":"omarchy-theme-removable","action":"omarchy-theme-remove"},
   "remove.gaming": {"icon":"","label":"Gaming","title":"Remove"},
   "remove.browser": {"icon":"","label":"Browser","title":"Remove"},
   "remove.webapp": {"icon":"","label":"Web App","when":"grep -qE '^Exec=.*(omarchy-launch-webapp|omarchy-webapp-handler)' $HOME/.local/share/applications/*.desktop","action":"omarchy-webapp-remove"},

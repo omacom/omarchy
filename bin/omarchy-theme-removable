@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=List the user-installed themes that omarchy theme remove can remove
+# omarchy:examples=omarchy theme removable
+
+# Exits nonzero when there are none, so a caller can ask whether any exist
+# without reading the list. A symlinked theme is someone's working copy, and a
+# dot-directory is never a theme, so neither is offered for removal. Nor is
+# anything in a themes folder that is itself a symlink to someone's dotfiles.
+status=1
+
+[[ -L ~/.config/omarchy/themes ]] && exit $status
+
+for theme in ~/.config/omarchy/themes/*; do
+  [[ -d $theme && ! -L $theme ]] || continue
+  printf '%s\n' "${theme##*/}"
+  status=0
+done
+
+exit $status
