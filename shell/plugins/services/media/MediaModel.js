@@ -135,8 +135,7 @@ function volumeOsdIcon(percent, muted) {
 
 // A stream carrying a call or meeting, by PipeWire's canonical VOIP roles.
 function isCommunicationStream(node) {
-  if (!node || !node.properties) return false
-  var role = String(node.properties["media.role"] || "")
+  var role = String(nodeProps(node)["media.role"] || "")
   return /phone|communication|voip/i.test(role)
 }
 

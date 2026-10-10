@@ -469,19 +469,17 @@ Item {
   // During a call the headset is a separate, non-default sink, so Linux routes
   // the volume keys to the default sink and they would move the speakers while
   // the call plays into the headset. PipeWire's link groups say which sink each
-  // stream feeds, so that is read here synchronously -- no process and no
-  // cached answer. When a stream is linked to another output, handleVolumeKey
-  // defers to the script, which resolves with PipeWire's corked flag and steps
-  // that sink. The link state does not expose corking, so this is deliberately
-  // conservative: it may defer for a paused stream, and the script then steps
-  // the default.
+  // stream feeds, so the active sink is read here synchronously -- no process
+  // and no cached answer. An ALSA active sink is stepped in-process like the
+  // default; only a non-ALSA active sink (a Bluetooth headset, a DSP chain)
+  // defers to the script, which resolves with PipeWire's corked flag. The link
+  // state does not expose corking, so a paused stream on a second output may
+  // still defer; the script then steps the default.
   readonly property var defaultSink: Pipewire.defaultAudioSink
-  readonly property var volumeSink: defaultSink && String(defaultSink.name).indexOf("alsa_output.") === 0 ? defaultSink : null
-  property double lastMuteToggle: 0
 
-  // PipeWire's link groups as { source, target, active }: source is the stream,
-  // target the sink it feeds, active true while the link is up.
-  function activeLinksSnapshot() {
+  // The sink a stream is linked to when it is not the default, else null for
+  // the default. A communication stream wins wherever it plays.
+  readonly property var activeSink: {
     var links = []
     var groups = Pipewire.linkGroups ? Pipewire.linkGroups.values : []
     for (var i = 0; i < groups.length; i++) {
@@ -489,17 +487,24 @@ Item {
       if (!group) continue
       links.push({ source: group.source, target: group.target, active: group.state === PwLinkState.Active })
     }
-    return links
+    return MediaModel.activeVolumeSink(defaultSink, links)
   }
 
-  // Returns false when the default sink is not one to control here, or when a
-  // stream is linked to another output, so the caller falls back to the script.
+  // The sink to control here: the active sink when it is an ALSA sink, else
+  // the default when that is an ALSA sink. A non-ALSA sink falls back to the
+  // script.
+  readonly property var volumeSink: {
+    var sink = activeSink || defaultSink
+    return sink && String(sink.name).indexOf("alsa_output.") === 0 ? sink : null
+  }
+  property double lastMuteToggle: 0
+
+  // Returns false when the sink to control is not an ALSA sink one can step
+  // here (a Bluetooth headset or a DSP chain), so the caller falls back to the
+  // script.
   function handleVolumeKey(action) {
     var audio = volumeSink && volumeSink.audio
     if (!audio) return false
-
-    var active = MediaModel.activeVolumeSink(defaultSink, activeLinksSnapshot())
-    if (active && String(active.name) !== String(defaultSink.name)) return false
 
     var step = MediaModel.volumeKeyStep(action, Math.round(audio.volume * 100), audio.muted)
     if (!step) return false
@@ -530,6 +535,7 @@ Item {
   }
 
   PwObjectTracker { objects: root.defaultSink ? [root.defaultSink] : [] }
+  PwObjectTracker { objects: root.activeSink ? [root.activeSink] : [] }
   PwObjectTracker { objects: Pipewire.linkGroups ? Pipewire.linkGroups.values : [] }
 
   function statusJson() {
