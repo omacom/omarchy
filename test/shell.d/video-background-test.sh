@@ -98,7 +98,7 @@ assert(
   'video thumbnails fan out narrower than single-threaded vips jobs'
 )
 assert(
-  themeSwitcher.includes('fast_signature="v2"'),
+  /^fast_signature="v([2-9]|[1-9]\d+)"/m.test(themeSwitcher),
   'the theme preview cache rebuilds after preview discovery learned about video'
 )
 assert(
