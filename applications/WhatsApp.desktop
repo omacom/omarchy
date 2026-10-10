@@ -1,8 +1,9 @@
 [Desktop Entry]
 Version=1.0
 Name=WhatsApp
-Exec=omarchy-launch-webapp https://web.whatsapp.com/
+Exec=omarchy-webapp-handler-whatsapp %u
 Terminal=false
 Type=Application
 Icon=whatsapp
 StartupNotify=true
+MimeType=x-scheme-handler/whatsapp
