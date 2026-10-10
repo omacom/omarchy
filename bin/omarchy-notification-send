@@ -16,6 +16,7 @@ image=
 expire_timeout=-1
 replaces_id=0
 print_id=0
+bus_name="org.freedesktop.Notifications"
 exec_args=()
 exec_present=0
 parsed_option_args=0
@@ -47,7 +48,7 @@ parse_omarchy_option() {
   fi
 
   case $opt in
-  -g | --glyph | -u | --urgency | --app-name | -i | --icon | --image | -r | --replace-id | -t | --expire-time) ;;
+  -g | --glyph | -u | --urgency | --app-name | --bus-name | -i | --icon | --image | -r | --replace-id | -t | --expire-time) ;;
   *) return 1 ;;
   esac
 
@@ -60,6 +61,13 @@ parse_omarchy_option() {
   -g | --glyph) glyph=$val ;;
   -u | --urgency) urgency=$val ;;
   --app-name) app_name=$val ;;
+  --bus-name)
+    [[ $val =~ ^:[0-9]+(\.[0-9]+)+$ ]] || {
+      echo "Invalid $opt value (unique D-Bus name expected): $val" >&2
+      exit 1
+    }
+    bus_name=$val
+    ;;
   -i | --icon) app_icon=$val ;;
   --image) image=$val ;;
   -r | --replace-id)
@@ -103,8 +111,8 @@ shift
 # Only a recognized option flag or --exec in that slot is not the description.
 known_flag() {
   case $1 in
-  -g | --glyph | -u | --urgency | --app-name | -i | --icon | -t | --expire-time | --image | -r | --replace-id | -p | --print-id | --exec) return 0 ;;
-  --glyph=* | --urgency=* | --app-name=* | --icon=* | --expire-time=* | --image=* | --replace-id=*) return 0 ;;
+  -g | --glyph | -u | --urgency | --app-name | --bus-name | -i | --icon | -t | --expire-time | --image | -r | --replace-id | -p | --print-id | --exec) return 0 ;;
+  --glyph=* | --urgency=* | --app-name=* | --bus-name=* | --icon=* | --expire-time=* | --image=* | --replace-id=*) return 0 ;;
   esac
   return 1
 }
@@ -194,7 +202,7 @@ hint_count=$((${#hints[@]} / 3))
 # in place; -p prints the returned id so a caller can reuse it.
 notify_cmd=(
   busctl --user -- call
-  org.freedesktop.Notifications /org/freedesktop/Notifications
+  "$bus_name" /org/freedesktop/Notifications
   org.freedesktop.Notifications Notify susssasa{sv}i
   "$app_name" "$replaces_id" "$app_icon" "$headline" "$description"
   0

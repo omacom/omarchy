@@ -190,6 +190,7 @@ function snapshotOf(notification, timestamp) {
     originalId: id,
     app: n.appName || "",
     appIcon: n.appIcon || "",
+    appIconSource: n.appIcon || "",
     summary: String(n.summary || ""),
     body: n.body || "",
     image: n.image || "",
@@ -203,7 +204,7 @@ function snapshotOf(notification, timestamp) {
 
 // Everything the popup card draws, and therefore everything an in-place
 // update has to write through to the row and its file.
-var POPUP_ROLES = ["app", "appIcon", "summary", "body", "image", "glyph", "execArgv", "urgency", "expireTimeout"]
+var POPUP_ROLES = ["app", "appIcon", "appIconSource", "summary", "body", "image", "glyph", "execArgv", "urgency", "expireTimeout"]
 
 function popupRoles() {
   return POPUP_ROLES
@@ -229,15 +230,39 @@ function popupRowChanged(row, updated) {
 // is one toast, not a stack of identical ones. The image and click target
 // count too: every screen recording toast shares its text but previews and
 // opens a different file.
-var DUPLICATE_ROLES = ["app", "summary", "body", "image", "execArgv"]
+var DUPLICATE_ROLES = [
+  "app", "appIconSource", "summary", "body", "image", "glyph", "execArgv",
+  "urgency", "expireTimeout"
+]
 
-function isDuplicatePopup(row, snapshot) {
-  if (!row || !snapshot || row.originalId === snapshot.originalId) return false
+function hasDuplicatePopupContent(row, snapshot) {
+  if (!row || !snapshot) return false
   for (var i = 0; i < DUPLICATE_ROLES.length; i++) {
     var role = DUPLICATE_ROLES[i]
     if ((row[role] || "") !== (snapshot[role] || "")) return false
   }
   return true
+}
+
+function isDuplicatePopup(row, snapshot) {
+  return !!row && !!snapshot && row.originalId !== snapshot.originalId &&
+    hasDuplicatePopupContent(row, snapshot)
+}
+
+function startupRestoredDuplicatePlan(row, snapshot, startupRestored) {
+  var removeRow = !!startupRestored && hasDuplicatePopupContent(row, snapshot)
+  return {
+    removeRow: removeRow,
+    deleteFile: removeRow && popupFileName(row) !== popupFileName(snapshot)
+  }
+}
+
+function restoredPopupPlan(row, restored, rowIsRestored) {
+  if (row && restored && row.originalId === restored.originalId && row.timestamp === restored.timestamp)
+    return { disposition: "same", deleteFile: false, append: false }
+  if (row && restored && !rowIsRestored && hasDuplicatePopupContent(row, restored))
+    return { disposition: "superseded", deleteFile: true, append: false }
+  return { disposition: "keep", deleteFile: false, append: true }
 }
 
 // A client updating a notification through replaces_id keeps the identity of
@@ -253,11 +278,15 @@ function replacementSnapshot(notification, originalId, timestamp) {
 
 function historyEntry(value, normalUrgency) {
   var e = value || {}
+  var appIconSource = e.appIconSource
+  if (appIconSource === undefined || appIconSource === null)
+    appIconSource = e.appIcon || ""
   return {
     id: e.id || 0,
     originalId: e.originalId || e.id || 0,
     app: e.app || "",
     appIcon: e.appIcon || "",
+    appIconSource: appIconSource,
     summary: e.summary || "",
     body: e.body || "",
     image: e.image || "",
@@ -342,6 +371,7 @@ function localImageFile(value) {
   return s.charAt(0) === "/" ? s : ""
 }
 
+
 // The entry as it should hit the disk, plus the copies that make it true.
 // File-backed images redirect to their copy under imagesDir; dead image://
 // URLs drop to "" (the card falls back to the app icon). Already-redirected
@@ -350,6 +380,8 @@ function persistablePopup(entry, imagesDir) {
   var e = entry || {}
   var out = {}
   for (var key in e) out[key] = e[key]
+  if (out.appIconSource === undefined || out.appIconSource === null)
+    out.appIconSource = String(out.appIcon || "")
   var copies = []
   for (var i = 0; i < PERSISTED_IMAGE_ROLES.length; i++) {
     var role = PERSISTED_IMAGE_ROLES[i]
@@ -492,7 +524,10 @@ if (typeof module !== "undefined") {
     snapshotOf: snapshotOf,
     popupRoles: popupRoles,
     popupRowChanged: popupRowChanged,
+    hasDuplicatePopupContent: hasDuplicatePopupContent,
     isDuplicatePopup: isDuplicatePopup,
+    startupRestoredDuplicatePlan: startupRestoredDuplicatePlan,
+    restoredPopupPlan: restoredPopupPlan,
     replacementSnapshot: replacementSnapshot,
     historyEntry: historyEntry,
     parseSettings: parseSettings,

@@ -78,6 +78,20 @@ load
 [[ ${args[9]} == "42" ]] || fail "notification wrapper sets replaces_id from -r" "${args[9]}"
 pass "notification wrapper supports -p (print id) and -r (replace id)"
 
+# A caller that resolved the current owner can pin Notify to that unique name,
+# so a server restart between identity lookup and send fails instead of handing
+# a stale replacement id to the new owner of the well-known name.
+: >"$args_file"
+send --bus-name :1.42 -r 42 "Restart Foot" >/dev/null
+load
+[[ ${args[3]} == ":1.42" ]] || fail "notification wrapper targets the resolved unique bus owner" "${args[3]}"
+pass "notification wrapper can pin Notify to a unique D-Bus owner"
+
+if send --bus-name org.freedesktop.Notifications "Head" 2>/dev/null; then
+  fail "notification wrapper accepts a non-unique bus name override"
+fi
+pass "notification wrapper refuses a non-unique bus name override"
+
 # Options may follow the headline and description (Taildrop appends -u critical
 # and -g after the two positionals); they still land on the call, and urgency
 # stays a single hint rather than doubling.
