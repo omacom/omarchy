@@ -30,6 +30,13 @@ Item {
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
   readonly property string screensaverClass: "org.omarchy.screensaver"
 
+  // A retimed IdleMonitor can reuse its notification's address and never rebind
+  // isIdle to the replacement; pulsing it off sends the pointer through null.
+  onFirstIdleTimeoutSecondsChanged: if (root.idleEnabled) {
+    root.logEvent("idle-monitor-rearm", "timeout=" + root.firstIdleTimeoutSeconds)
+    idleMonitorRearmTimer.restart()
+  }
+
   property bool stayAwake: false
   property bool stayAwakeStateLoaded: false
   property bool hasPendingStayAwakePersist: false
@@ -209,6 +216,7 @@ Item {
       lockDelay: root.lockDelaySeconds,
       screensaverWindows: root.screensaverWindowCount,
       timers: {
+        idleMonitorRearm: idleMonitorRearmTimer.running,
         screensaver: screensaverTimer.running,
         lock: lockTimer.running,
         screensaverLaunchGrace: screensaverLaunchGraceTimer.running
@@ -269,10 +277,16 @@ Item {
 
   IdleMonitor {
     id: idleMonitor
-    enabled: root.idleEnabled && root.idleTimersEnabled
+    enabled: root.idleEnabled && root.idleTimersEnabled && !idleMonitorRearmTimer.running
     timeout: Math.max(1, root.firstIdleTimeoutSeconds)
     respectInhibitors: true
     onIsIdleChanged: root.handleIdleChanged()
+  }
+
+  Timer {
+    id: idleMonitorRearmTimer
+    interval: 150
+    repeat: false
   }
 
   Timer {
