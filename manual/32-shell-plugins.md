@@ -84,6 +84,7 @@ A plugin is a directory with a `manifest.json` and some QML. The manifest declar
 | `menu` | A summoned menu surface |
 | `service` | A headless singleton with no UI |
 | `bar` | A full bar that replaces the built-in one |
+| `screensaver` | An executable that replaces the built-in idle screensaver, selected by `idle.screensaverId` |
 
 A plugin can declare several kinds at once — the media plugin is both a `service` and a `bar-widget`. Bar widgets get an extra `barWidget` block with a display name, a category, an optional `defaultSection`, and `allowMultiple`, which says whether it makes sense to have more than one on the bar. Most widgets set it to `false`; spacers and indicators set it to `true`.
 
