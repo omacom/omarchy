@@ -2,12 +2,12 @@
 
 # omarchy:summary=Install a supported development environment
 # omarchy:name=dev-env
-# omarchy:args=<ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala>
+# omarchy:args=<ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala|ios>
 # omarchy:examples=omarchy install dev-env ruby | omarchy install dev-env node
 # omarchy:requires-sudo=true
 
 if [[ -z $1 ]]; then
-  echo "Usage: omarchy-install-dev-env <ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala>" >&2
+  echo "Usage: omarchy-install-dev-env <ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala|ios>" >&2
   exit 1
 fi
 
@@ -124,5 +124,28 @@ scala)
   mise use --global java@latest
   mise use --global scala@latest
   mise use --global scala-cli@latest
+  ;;
+ios)
+  # Swift, xtool and the iOS SDK setup from omarchy-apple-dev. The SDK comes from
+  # Apple's Xcode.xip; the installer says how to get it and how to finish.
+  echo -e "Installing iOS development (Swift, xtool)...\n"
+  repo="$HOME/.local/share/omarchy-apple-dev"
+  # Pinned to a reviewed commit, so a later push to the repo's main branch cannot change what runs here.
+  # OMARCHY_APPLE_DEV_COMMIT=<40-hex hash> picks another commit, after you have read it.
+  commit="${OMARCHY_APPLE_DEV_COMMIT:-d993142030fb3ace65f12c3ad04d3ee15fccb7eb}"
+  if [[ ! $commit =~ ^[0-9a-f]{40}$ ]]; then
+    echo "OMARCHY_APPLE_DEV_COMMIT must be a full 40-character commit hash" >&2
+    exit 1
+  fi
+  [[ -d $repo/.git ]] || git init -q "$repo" || exit 1
+  git -C "$repo" remote get-url origin >/dev/null 2>&1 ||
+    git -C "$repo" remote add origin https://github.com/joshuaswarren/omarchy-apple-dev || exit 1
+  git -C "$repo" fetch -q --depth 1 origin "$commit" || exit 1
+  git -C "$repo" checkout -q --detach FETCH_HEAD || exit 1
+  if [[ $(git -C "$repo" rev-parse HEAD) != "$commit" ]]; then
+    echo "omarchy-apple-dev checkout is not $commit" >&2
+    exit 1
+  fi
+  "$repo/install-toolchain.sh"
   ;;
 esac
