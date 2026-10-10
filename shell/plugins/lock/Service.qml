@@ -24,6 +24,8 @@ Item {
   property bool fingerprintAuthenticating: false
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
+  property bool suspending: false
+  property bool fingerprintCheckDeferred: false
   property int fingerprintUnreachedStreak: 0
   property bool fingerprintAttemptReachedDevice: false
   property bool fingerprintAttemptFastError: false
@@ -140,7 +142,51 @@ Item {
   }
 
   function refreshFingerprintStatus() {
+    // The check D-Bus-activates fprintd. Hold it back while suspending; resume
+    // runs it.
+    if (suspending) {
+      fingerprintCheckDeferred = true
+      return
+    }
     if (!fingerprintCheckProc.running) fingerprintCheckProc.running = true
+  }
+
+  // logind announces suspend with PrepareForSleep(true) and resume with
+  // PrepareForSleep(false). A lid-close lock lands a few hundred milliseconds
+  // before the machine sleeps, and an fprintd call in that window activates
+  // the daemon mid-transition: it resets the reader as the USB bus goes down,
+  // and a Synaptics reader comes back "unsupported firmware version" for the
+  // rest of that daemon's life. Hold new fprintd calls until resume.
+  //
+  // A scan already in flight is left alone. fprintd suspends and resumes the
+  // reader itself, and while a scan runs, libfprint lets the kernel
+  // re-enumerate the reader after sleep. Aborting the scan here makes fprintd
+  // close the reader during the transition instead: the close blocks until
+  // resume, the reader wakes with stale firmware state, and every scan fails
+  // until the daemon exits. On resume the fprintd hook replaces the daemon, so
+  // the sleep watch's recovery runs here and a scan starts on the new one.
+  function prepareForSleep(sleeping) {
+    if (suspending === sleeping) return
+
+    suspending = sleeping
+    logEvent(sleeping ? "suspending" : "resumed")
+
+    if (sleeping) {
+      // The reach bound would abort the scan; resume settles it instead.
+      fingerprintRetryTimer.stop()
+      fingerprintReachTimer.stop()
+      return
+    }
+
+    // Handled here, so the sleep watch must not abort the scan started below.
+    fingerprintSleepWatch.lastTickMs = Date.now()
+    if (lockRequested) restartFingerprintAfterSleep()
+    if (fingerprintCheckDeferred) {
+      fingerprintCheckDeferred = false
+      refreshFingerprintStatus()
+    }
+    // An unknown probe keeps a known enrollment, so the scan cannot wait on it.
+    if (!fingerprintRetryTimer.running) startFingerprint()
   }
 
   // Only definitive enrollment results may disable authentication.
@@ -356,7 +402,7 @@ Item {
   }
 
   function startFingerprint() {
-    if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
+    if (!lockRequested || !sessionLock.secure || !fingerprintConfigured || suspending) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
     fingerprintAuthenticating = true
@@ -661,6 +707,36 @@ Item {
     }
   }
 
+  // One subscription for the shell's whole life, so PrepareForSleep(false) is
+  // never missed: omarchy-system-sleep-monitor exits to release its delay
+  // inhibitor and is restarted after the machine is already awake.
+  Process {
+    id: sleepMonitorProc
+    command: ["dbus-monitor", "--system",
+      "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"]
+    running: true
+    stdout: SplitParser {
+      onRead: function(line) {
+        var text = String(line)
+        if (text.indexOf("boolean true") !== -1) root.prepareForSleep(true)
+        else if (text.indexOf("boolean false") !== -1) root.prepareForSleep(false)
+      }
+    }
+    onExited: function(exitCode) {
+      // A dead monitor cannot report resume, so never leave the lock stuck
+      // suspending.
+      root.prepareForSleep(false)
+      sleepMonitorRestartTimer.restart()
+    }
+  }
+
+  Timer {
+    id: sleepMonitorRestartTimer
+    interval: 5000
+    repeat: false
+    onTriggered: sleepMonitorProc.running = true
+  }
+
   // Keep fprintd errors distinguishable from an explicit empty enrollment.
   Process {
     id: fingerprintCheckProc
@@ -851,6 +927,7 @@ Item {
         realScreens: root.realScreenCount(),
         passwordPam: root.passwordPamConfigured,
         fingerprint: root.fingerprintConfigured,
+        suspending: root.suspending,
         fingerprintUnavailable: root.fingerprintUnavailable,
         authenticating: root.authenticating,
         lastEvent: root.lastEvent,

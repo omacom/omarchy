@@ -143,6 +143,29 @@ ShellRoot {
       check(retry.running && retry.interval === 1000, "resume retries without retaining the capped wait")
       check(service.lockRequested, "resume never unlocks")
 
+      var sleepWatch = timer(service, 1000, true)
+      service.fingerprintAuthenticating = true
+      reach.start()
+      service.prepareForSleep(true)
+      check(service.suspending && !retry.running, "suspend stops retries")
+      check(!reach.running, "suspend stops the reach bound that would abort the scan")
+      check(service.fingerprintAuthenticating, "suspend leaves a running scan alone")
+      service.refreshFingerprintStatus()
+      check(service.fingerprintCheckDeferred, "a status check waits for resume")
+      sleepWatch.lastTickMs = Date.now() - 60000
+      service.prepareForSleep(false)
+      check(!service.suspending && !service.fingerprintCheckDeferred, "resume runs the held-back check")
+      check(!service.fingerprintAuthenticating && retry.running, "resume settles a scan that rode through and retries")
+      check(Date.now() - sleepWatch.lastTickMs < 1000, "the sleep watch does not handle the same resume again")
+      check(service.lockRequested, "resume never unlocks")
+
+      service.fingerprintConfigured = false
+      service.fingerprintResumedAtMs = 0
+      service.prepareForSleep(true)
+      service.prepareForSleep(false)
+      check(service.fingerprintResumedAtMs > 0, "resume opens the grace window while enrollment is still being checked")
+      service.fingerprintConfigured = true
+
       service.fingerprintAuthenticating = true
       reach.start()
       service.timeoutFingerprintReach()
