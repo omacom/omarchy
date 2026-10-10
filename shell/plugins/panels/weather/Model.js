@@ -86,6 +86,12 @@ function celsiusToFahrenheit(value) {
   return isNaN(n) ? "" : (n * 9 / 5) + 32
 }
 
+function kmphToMetersPerSecond(value) {
+  if (value === undefined || value === null || value === "") return ""
+  var n = parseFloat(String(value))
+  return isNaN(n) ? "" : (n / 3.6).toFixed(1)
+}
+
 function formatTemp(value, useImperial) {
   if (value === undefined || value === null || value === "") return ""
   return value + "°" + (useImperial ? "F" : "C")
@@ -100,11 +106,15 @@ function localeUsesImperial(localeName) {
   return /^en[_-]US($|[_.-])/.test(name) || /^en[_-]LR($|[_.-])/.test(name) || /^my($|[_.-])/.test(name)
 }
 
-function countryUsesImperial(countryName) {
-  var country = String(countryName || "")
+function normalizedCountry(countryName) {
+  return String(countryName || "")
     .replace(/^\s+|\s+$/g, "")
     .replace(/[._-]+/g, " ")
     .toLowerCase()
+}
+
+function countryUsesImperial(countryName) {
+  var country = normalizedCountry(countryName)
   if (!country) return null
   if (country === "us" || country === "usa" || country === "united states" || country === "united states of america") return true
   if (country === "liberia" || country === "myanmar" || country === "burma") return true
@@ -120,6 +130,30 @@ function shouldUseImperial(unitOverride, localeName, countryName) {
   if (countryPreference !== null) return countryPreference
 
   return localeUsesImperial(localeName)
+}
+
+// Countries whose weather services report wind in m/s rather than km/h.
+var METERS_PER_SECOND_COUNTRIES = [
+  "belarus", "china", "czech republic", "denmark", "estonia", "finland", "iceland", "japan",
+  "kazakhstan", "latvia", "lithuania", "norway", "russia", "south korea", "sweden", "ukraine"
+]
+
+function localeUsesMetersPerSecond(localeName) {
+  var name = String(localeName || "").replace(".", "_")
+  return /^[a-z]+[_-](BY|CN|CZ|DK|EE|FI|IS|JP|KR|KZ|LT|LV|NO|RU|SE|UA)($|[_.-])/.test(name)
+}
+
+function countryUsesMetersPerSecond(countryName) {
+  var country = normalizedCountry(countryName)
+  if (!country) return null
+  return METERS_PER_SECOND_COUNTRIES.indexOf(country) !== -1
+}
+
+function shouldUseMetersPerSecond(localeName, countryName) {
+  var countryPreference = countryUsesMetersPerSecond(countryName)
+  if (countryPreference !== null) return countryPreference
+
+  return localeUsesMetersPerSecond(localeName)
 }
 
 function dayName(dateString, formatter) {
@@ -274,11 +308,15 @@ if (typeof module !== "undefined") {
     isFutureForecastDate: isFutureForecastDate,
     roundedTemp: roundedTemp,
     celsiusToFahrenheit: celsiusToFahrenheit,
+    kmphToMetersPerSecond: kmphToMetersPerSecond,
     formatTemp: formatTemp,
     normalizedUnit: normalizedUnit,
     localeUsesImperial: localeUsesImperial,
     countryUsesImperial: countryUsesImperial,
     shouldUseImperial: shouldUseImperial,
+    localeUsesMetersPerSecond: localeUsesMetersPerSecond,
+    countryUsesMetersPerSecond: countryUsesMetersPerSecond,
+    shouldUseMetersPerSecond: shouldUseMetersPerSecond,
     dayName: dayName,
     openMeteoForecastDays: openMeteoForecastDays,
     openMeteoCurrentCondition: openMeteoCurrentCondition,

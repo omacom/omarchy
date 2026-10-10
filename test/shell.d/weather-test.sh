@@ -59,6 +59,12 @@ assertEqual(weather.shouldUseImperial('', 'en_US', 'Denmark'), false, 'weather p
 assertEqual(weather.shouldUseImperial('', 'da_DK', 'United States of America'), true, 'weather prefers reported imperial country over metric locale')
 assertEqual(weather.shouldUseImperial('metric', 'en_US', 'United States of America'), false, 'weather metric override wins')
 assertEqual(weather.shouldUseImperial('imperial', 'da_DK', 'Denmark'), true, 'weather imperial override wins')
+assertEqual(weather.kmphToMetersPerSecond('14'), '3.9', 'weather converts km/h wind to m/s with one decimal')
+assertEqual(weather.kmphToMetersPerSecond(''), '', 'weather ignores missing wind speeds')
+assertEqual(weather.shouldUseMetersPerSecond('lv_LV', ''), true, 'weather falls back to locale for m/s wind')
+assertEqual(weather.shouldUseMetersPerSecond('en_US', 'Latvia'), true, 'weather prefers reported m/s country over km/h locale')
+assertEqual(weather.shouldUseMetersPerSecond('lv_LV', 'Germany'), false, 'weather prefers reported km/h country over m/s locale')
+assertEqual(weather.shouldUseMetersPerSecond('en_US', ''), false, 'weather keeps km/h wind for other locales')
 assertEqual(weather.dayName('2026-05-25'), 'Monday', 'weather derives day names')
 
 const openMeteo = {
@@ -182,3 +188,28 @@ pass "weather location rejects malformed coordinates"
 weather_location --clear
 [[ ! -e "$test_tmp/.local/state/omarchy/settings/weather.json" ]] || fail "weather location clear removes the state file"
 pass "weather location clear removes the state file"
+
+stub_bin="$test_tmp/bin"
+mkdir -p "$stub_bin"
+
+cat >"$stub_bin/omarchy-weather-location" <<'SH'
+#!/bin/bash
+echo "riga"
+SH
+
+cat >"$stub_bin/curl" <<'SH'
+#!/bin/bash
+printf '+13°C|↗14km/h\n'
+SH
+
+chmod +x "$stub_bin/omarchy-weather-location" "$stub_bin/curl"
+
+weather_status() {
+  PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-weather-status" "$@"
+}
+
+[[ $(weather_status) == "Riga  ·  Temp 13°C  ·  Wind ↗14km/h" ]] || fail "weather status keeps wttr's km/h wind by default"
+pass "weather status keeps wttr's km/h wind by default"
+
+[[ $(weather_status --meters-per-second) == "Riga  ·  Temp 13°C  ·  Wind ↗3.9m/s" ]] || fail "weather status converts wind to m/s with one decimal"
+pass "weather status converts wind to m/s with one decimal"
