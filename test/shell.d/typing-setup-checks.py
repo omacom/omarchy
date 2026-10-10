@@ -30,6 +30,12 @@ class TypingSetupTest(unittest.TestCase):
     self.assertEqual(catalog["us:colemak"], "English (US, Colemak)")
     self.assertEqual(catalog["ch"], "German (Switzerland)")
     self.assertEqual(catalog["la"], "Lao")
+    # Converted as the installer does, without renaming French.
+    self.assertEqual(catalog["fr"], "French")
+    self.assertEqual(catalog["bg:phonetic"], "Bulgarian")
+    self.assertEqual(catalog["cz:qwerty"], "Czech")
+    self.assertNotIn("az", catalog)
+    self.assertEqual(catalog["latam"], "Spanish (Latin American)")
     self.assertEqual(catalog["latam"], "Spanish (Latin American)")
     self.assertNotIn("us:intl", catalog)
     self.assertLess(len(catalog), 60)
