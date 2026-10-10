@@ -136,6 +136,11 @@ pi)
   ;;
 esac
 
+# Tell the harness (and any Omarchy skill it loads) how it was launched. Skills
+# and user hooks can key off these without scraping the process tree.
+export OMARCHY_AGENT="$agent"
+export OMARCHY_AGENT_CWD="$PWD"
+
 # A new session uses the current selection rather than its parent's account
 # pin. Explicit provider homes still override the selection. Carry the new pin
 # in the command, since terminals launched through uwsm don't inherit our env.
@@ -164,5 +169,5 @@ if [[ $inline == "true" ]]; then
 else
   # A fixed app-id rather than the default org.omarchy.<binary>, so every agent
   # window shares one class for window rules and themes to single out.
-  exec omarchy-launch-tui --app-id=org.omarchy.agent "${command[@]}"
+  exec omarchy-launch-tui --app-id=org.omarchy.agent env "OMARCHY_AGENT=$agent" "OMARCHY_AGENT_CWD=$PWD" "${command[@]}"
 fi
