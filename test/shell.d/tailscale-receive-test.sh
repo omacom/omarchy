@@ -9,7 +9,7 @@ cleanup() { rm -rf "$WORKDIR"; }
 trap cleanup EXIT
 
 downloads="$WORKDIR/downloads"
-mkdir -p "$WORKDIR/bin" "$downloads" "$WORKDIR/outbox"
+mkdir -p "$WORKDIR/bin" "$WORKDIR/notifications" "$downloads" "$WORKDIR/outbox"
 printf 'mine' >"$downloads/unrelated.txt"
 
 # Stands in for the daemon handing over whatever is waiting in the inbox. A
@@ -22,9 +22,9 @@ target="\${*: -1}"
 mv "$WORKDIR/outbox/"* "\$target/"
 SH
 
-cat >"$WORKDIR/bin/omarchy-notification-send" <<SH
+cat >"$WORKDIR/bin/busctl" <<SH
 #!/bin/bash
-printf '%s\n' "\$*" >>"$WORKDIR/notifications"
+printf '%s\0' "\$@" >"\$(mktemp "$WORKDIR/notifications/call.XXXXXXXX")"
 SH
 
 chmod +x "$WORKDIR/bin/"*
@@ -33,50 +33,76 @@ receive() {
   local expected="$1"
   shift
 
-  : >"$WORKDIR/notifications"
-  PATH="$WORKDIR/bin:$PATH" "$@" "$ROOT/bin/omarchy-tailscale-receive" --once "$downloads"
+  rm -f "$WORKDIR/notifications/"*
+  PATH="$WORKDIR/bin:$ROOT/bin:$PATH" "$@" "$ROOT/bin/omarchy-tailscale-receive" --once "$downloads"
 
   for _ in {1..50}; do
-    (($(wc -l <"$WORKDIR/notifications") >= expected)) && break
+    (($(find "$WORKDIR/notifications" -type f | wc -l) >= expected)) && break
     sleep 0.1
   done
 }
 
 printf 'png' >"$WORKDIR/outbox/photo.png"
+printf 'png' >"$WORKDIR/outbox/Vacation Photo.PNG"
 printf 'pdf' >"$WORKDIR/outbox/notes with space.pdf"
-receive 2 env
+receive 3 env
 
-notifications=$(<"$WORKDIR/notifications")
+notification_files=("$WORKDIR/notifications/"*)
+(( ${#notification_files[@]} == 3 )) || fail "taildrop receive announces each delivery once"
 
-[[ -f $downloads/photo.png && -f "$downloads/notes with space.pdf" ]] ||
+[[ -f $downloads/photo.png && -f "$downloads/Vacation Photo.PNG" && -f "$downloads/notes with space.pdf" ]] ||
   fail "taildrop receive saves incoming files" "$(ls "$downloads")"
 pass "taildrop receive saves incoming files"
 
-grep -qF -- "Received photo.png Saved to $downloads -u critical --image $downloads/photo.png" <<<"$notifications" ||
-  fail "taildrop receive previews received images" "$notifications"
-pass "taildrop receive previews received images"
+assert_notification() {
+  local path=$1 name=${1##*/} file i key open_json='' open_index=-1 urgency_found=false glyph_found=false
+  local -a args
 
-while IFS= read -r line; do
-  [[ $line == *"-u critical"* ]] || fail "taildrop receive announcements wait to be answered" "$line"
-done <<<"$notifications"
-pass "taildrop receive announcements wait to be answered"
+  for file in "$WORKDIR/notifications/"*; do
+    mapfile -d '' -t args <"$file"
+    [[ ${args[11]} == "Received $name" ]] || continue
+    [[ ${args[10]} == '' && ${args[12]} == "Saved to $downloads" ]] ||
+      fail "taildrop receive keeps the app icon empty and reports the save location" "$name"
 
-grep -q "^Received notes with space.pdf .* -g " <<<"$notifications" ||
-  fail "taildrop receive announces other files with a glyph" "$notifications"
-pass "taildrop receive announces other files with a glyph"
+    for ((i = 15; i < 15 + 3 * ${args[14]}; i += 3)); do
+      key=${args[i]}
+      [[ $key != "image-path" && $key != "image-data" ]] ||
+        fail "taildrop receive does not request a notification image preview" "$name: $key"
+      case $key in
+      urgency)
+        urgency_found=true
+        [[ ${args[i + 2]} == 2 ]] || fail "taildrop receive keeps critical urgency" "$name"
+        ;;
+      omarchy-glyph)
+        glyph_found=true
+        [[ ${args[i + 2]} == 󰒊 ]] || fail "taildrop receive uses the file glyph" "$name"
+        ;;
+      omarchy-exec-argv) open_json=${args[i + 2]}; open_index=$((i + 2)) ;;
+      esac
+    done
 
-# The shell keeps the click command with the toast, so receiving does not have
-# to sit blocked on an answer -- and the toast still opens the file after a shell
-# restart. The path rides as its own discrete --exec argument, so the shell runs
-# it as literal data with no quoting for a name with spaces to get wrong.
-grep -qF -- "--exec xdg-open $downloads/photo.png" <<<"$notifications" ||
-  fail "taildrop receive attaches the open command to the notification" "$notifications"
-grep -qF -- "--exec xdg-open $downloads/notes with space.pdf" <<<"$notifications" ||
-  fail "taildrop receive carries spaced names as a literal open argument" "$notifications"
-pass "taildrop receive lets a click open the received file"
+    $urgency_found || fail "taildrop receive sets critical urgency" "$name"
+    $glyph_found || fail "taildrop receive sets the file glyph" "$name"
+    [[ -n $open_json ]] && jq -e --arg path "$path" '. == ["xdg-open", $path]' <<<"$open_json" >/dev/null ||
+      fail "taildrop receive keeps the literal click-to-open argv" "$name: $open_json"
+    for ((i = 0; i < ${#args[@]}; i++)); do
+      if [[ ${args[i]} == *"$path"* ]] && (( i != open_index )); then
+        fail "taildrop receive exposes the file path only in the open argv" "$name: ${args[i]}"
+      fi
+    done
+    return 0
+  done
 
-grep -q "unrelated.txt" <<<"$notifications" &&
-  fail "taildrop receive leaves the rest of the downloads directory alone" "$notifications"
+  fail "taildrop receive announces the expected file" "$name"
+}
+
+assert_notification "$downloads/photo.png"
+assert_notification "$downloads/Vacation Photo.PNG"
+assert_notification "$downloads/notes with space.pdf"
+pass "taildrop receive gives all files a glyph without previewing former image types"
+pass "taildrop receive keeps critical urgency and literal click-to-open paths"
+
+[[ -f $downloads/unrelated.txt ]] || fail "taildrop receive leaves unrelated downloads alone"
 pass "taildrop receive leaves the rest of the downloads directory alone"
 
 # A second delivery of the same name, alongside a download that arrives while
@@ -84,15 +110,14 @@ pass "taildrop receive leaves the rest of the downloads directory alone"
 printf 'png' >"$WORKDIR/outbox/photo.png"
 receive 1 env DECOY=browser-download.iso
 
-notifications=$(<"$WORKDIR/notifications")
+notification_files=("$WORKDIR/notifications/"*)
 
 [[ -f $downloads/photo-1.png ]] || fail "taildrop receive keeps both files on a name clash" "$(ls "$downloads")"
-grep -q "^Received photo-1.png " <<<"$notifications" ||
-  fail "taildrop receive keeps both files on a name clash" "$notifications"
+(( ${#notification_files[@]} == 1 )) || fail "taildrop receive announces the collision once"
+assert_notification "$downloads/photo-1.png"
 pass "taildrop receive keeps both files on a name clash"
 
-grep -q "browser-download.iso" <<<"$notifications" &&
-  fail "taildrop receive ignores downloads that arrive while it waits" "$notifications"
+[[ -f $downloads/browser-download.iso ]] || fail "taildrop receive keeps the concurrent download"
 pass "taildrop receive ignores downloads that arrive while it waits"
 
 [[ -z $(ls -A "$downloads/.omarchy-taildrop") ]] ||
