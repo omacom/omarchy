@@ -72,6 +72,10 @@ The manual lives in [`manual/`](manual/), which is its authoritative source.
 - [Dual Boot Install](manual/50-dual-boot-install.md)
 - [Unattended Installs](manual/51-unattended-installs.md)
 
+**По-русски**
+
+- [Руководство пользователя на русском](manual/ru/01-welcome-to-omarchy.md)
+
 ## License
 
 Omarchy is released under the [MIT License](https://opensource.org/licenses/MIT).
