@@ -31,7 +31,9 @@ grep -F 'sync_clamshell_after_monitor_change' "$monitor_watch" >/dev/null
 grep -F 'socat -U - "UNIX-CONNECT:$SOCKET"' "$monitor_watch" >/dev/null
 pass "monitor watcher reconciles clamshell state on startup"
 
-grep -F 'omarchy-hw-laptop && omarchy-hyprland-monitor-external-active' "$monitor_watch" >/dev/null
+grep -F 'if omarchy-hw-laptop; then' "$monitor_watch" >/dev/null
+grep -F 'omarchy-hyprland-monitor-external-active || external_state=$?' "$monitor_watch" >/dev/null
+grep -F '(( external_state <= 1 )) || return 0' "$monitor_watch" >/dev/null
 grep -F 'sync_poll_state' "$monitor_watch" >/dev/null
 grep -F 'done < <(socat' "$monitor_watch" >/dev/null
 pass "clamshell poll only runs on a docked laptop, not desktops or undocked laptops"
@@ -56,7 +58,7 @@ grep -F 'omarchy-hyprland-reload-guard paused' "$monitor_watch" >/dev/null
 pass "modeless recovery does not reload into a package transaction"
 
 grep -F '.disabled != true and (.width == 0 or .height == 0)' "$ROOT/bin/omarchy-hyprland-monitor-modeless" >/dev/null
-grep -F 'hyprctl monitors all -j' "$ROOT/bin/omarchy-hyprland-monitor-modeless" >/dev/null
+grep -F 'omarchy-hyprland-monitor-snapshot' "$ROOT/bin/omarchy-hyprland-monitor-modeless" >/dev/null
 pass "modeless helper sees mirrors and ignores monitors disabled on purpose"
 
 grep -F 'omarchy-hw-laptop-closed && omarchy-hw-external-monitors' "$hw_clamshell" >/dev/null
@@ -66,9 +68,9 @@ pass "clamshell helper detects closed-lid external monitor state"
 
 # A mirrored external is absent from plain `monitors`, so asking without `all`
 # reads as a disconnect and hands the mirror toggle straight to recovery.
-grep -F 'hyprctl monitors all -j' "$monitor_external_active" >/dev/null
-grep -F 'select(.name | test("^(eDP|LVDS|DSI)-") | not)' "$monitor_external_active" >/dev/null
-grep -F 'select(.disabled == false)' "$monitor_external_active" >/dev/null
+grep -F 'omarchy-hyprland-monitor-snapshot' "$monitor_external_active" >/dev/null
+grep -F '(.name | test("^(eDP|LVDS|DSI)-") | not)' "$monitor_external_active" >/dev/null
+grep -F '.disabled == false' "$monitor_external_active" >/dev/null
 pass "active external monitor helper sees mirrors and ignores monitors disabled on purpose"
 
 grep -F 'omarchy-hyprland-monitor-internal recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
@@ -81,14 +83,14 @@ grep -F 'MANUAL_DISABLE_FLAG' "$clamshell" >/dev/null
 grep -F 'read_monitor_scale' "$clamshell" >/dev/null
 grep -F 'scale = $scale' "$clamshell" >/dev/null
 grep -F 'hyprctl dispatch "hl.dsp.dpms({ action = \"$action\", monitor = \"$INTERNAL\" })"' "$clamshell" >/dev/null
-grep -F 'hyprctl monitors all -j' "$clamshell" >/dev/null
+grep -F 'omarchy-hyprland-monitor-snapshot' "$clamshell" >/dev/null
 grep -F 'omarchy-hyprland-monitor-external-active' "$clamshell" >/dev/null
 grep -F 'omarchy-hw-clamshell' "$clamshell" >/dev/null
 pass "clamshell monitor sync disables laptop output and force-recovers it"
 
 grep -F "hyprctl dispatch 'hl.dsp.dpms({ action = \"enable\" })' >/dev/null 2>&1 || true" "$monitor_internal" >/dev/null
 grep -F 'omarchy-hyprland-monitor-laptop' "$monitor_internal" >/dev/null
-grep -F 'hyprctl monitors all -j' "$monitor_laptop" >/dev/null
+grep -F 'omarchy-hyprland-monitor-snapshot' "$monitor_laptop" >/dev/null
 grep -F 'omarchy-hyprland-monitor-external-active' "$monitor_internal" >/dev/null
 grep -F 'wake' "$monitor_internal" >/dev/null
 grep -F 'omarchy-hyprland-toggle-enabled $TOGGLE || return 0' "$monitor_internal" >/dev/null

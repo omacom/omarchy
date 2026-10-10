@@ -110,7 +110,7 @@ assert_state() {
   local expected="$1" actual=0
 
   printf '%s' "$2" >"$monitors_file"
-  PATH="$fake_bin:$PATH" OMARCHY_TEST_MONITORS_FILE="$monitors_file" \
+  PATH="$fake_bin:$ROOT/bin:$PATH" OMARCHY_TEST_MONITORS_FILE="$monitors_file" \
   OMARCHY_TEST_HYPRCTL_FAIL_FLAG="$hyprctl_fail" \
     "$ROOT/bin/omarchy-hyprland-monitor-modeless" || actual=$?
 
@@ -153,7 +153,7 @@ assert_state $UNDETERMINED 'not json' "an unreadable monitor payload cannot say"
 printf '%s' '[{"name":"DP-1","width":0,"height":0,"disabled":false}]' >"$monitors_file"
 touch "$hyprctl_fail"
 unreachable=0
-PATH="$fake_bin:$PATH" OMARCHY_TEST_MONITORS_FILE="$monitors_file" \
+PATH="$fake_bin:$ROOT/bin:$PATH" OMARCHY_TEST_MONITORS_FILE="$monitors_file" \
 OMARCHY_TEST_HYPRCTL_FAIL_FLAG="$hyprctl_fail" \
   "$ROOT/bin/omarchy-hyprland-monitor-modeless" || unreachable=$?
 rm -f "$hyprctl_fail"
@@ -165,7 +165,7 @@ start_watcher() {
   rm -f "$events"
   mkfifo "$events"
 
-  PATH="$fake_bin:$PATH" \
+  PATH="$fake_bin:$ROOT/bin:$PATH" \
   XDG_RUNTIME_DIR="$test_tmp" \
   HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_EVENTS="$events" \
