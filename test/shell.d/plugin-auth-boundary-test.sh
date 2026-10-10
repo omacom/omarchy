@@ -83,6 +83,12 @@ qml_matches "$shell_qml" 'target\.barConfig *= *shell\.barConfigFor\( *manifest 
   fail "initial replacement-bar configuration is not detached"
 qml_matches "$shell_qml" 'bar\.barConfig *= *shell\.barConfigFor\( *shell\.activeBarManifest *\)' ||
   fail "replacement-bar configuration updates are not detached"
+public_bar_config=$(sed -n '/^  function publicBarConfig(/,/^  }/p' "$shell_qml")
+tr '\n\r\t' '   ' <<<"$public_bar_config" | grep -Eq 'shell\.shellConfig\.bar' ||
+  fail "plugin bar configuration snapshots do not read the current shellConfig"
+if tr '\n\r\t' '   ' <<<"$public_bar_config" | grep -Eq 'shell\.barConfig'; then
+  fail "plugin bar configuration snapshots read the barConfig binding, which lags onShellConfigChanged"
+fi
 pass "replacement bars receive detached configuration snapshots"
 
 qml_matches "$bar_qml" 'target\.bar *= *firstParty *\? *root *: *root\.pluginBarApiFor\( *pluginApiId, *moduleName, *registered *\)' ||
