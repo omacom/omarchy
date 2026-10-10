@@ -2,6 +2,11 @@
 
 # omarchy:summary=Toggle suspend availability in the system menu
 
+if omarchy-sleep-disabled; then
+  omarchy-notification-send -g 󰒲 "Suspend is turned off on this machine"
+  exit 0
+fi
+
 omarchy-toggle suspend-off
 
 if omarchy-toggle-enabled suspend-off; then

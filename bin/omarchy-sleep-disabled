@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Check whether Omarchy has turned off system sleep on this machine.
+# omarchy:hidden=true
+
+[[ -f ${OMARCHY_SLEEP_CONFIG_DIR:-/etc/systemd/sleep.conf.d}/omarchy-sleep-disabled.conf ]]
