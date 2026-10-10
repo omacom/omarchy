@@ -98,6 +98,37 @@ fi
 headline=$1
 shift
 
+# i18n translation layer for pt-BR when active
+if [[ "${LANG:-}" =~ ^(pt_BR|pt-BR) ]]; then
+  case "$headline" in
+    "Time to recharge!") headline="Hora de recarregar!" ;;
+    "QR code copied to clipboard") headline="QR code copiado para a área de transferência" ;;
+    "No QR code found") headline="Nenhum QR code encontrado" ;;
+    "Copied text from selection to clipboard") headline="Texto copiado para a área de transferência" ;;
+    "Screen recording saved") headline="Gravação de tela salva" ;;
+    "Screen recording error") headline="Erro na gravação de tela" ;;
+    "Animations disabled") headline="Animações desativadas" ;;
+    "Animations enabled") headline="Animações ativadas" ;;
+    "Crash capture disabled") headline="Captura de crash desativada" ;;
+    "Crash capture enabled") headline="Captura de crash ativada" ;;
+    "Screensaver disabled") headline="Protetor de tela desativado" ;;
+    "Screensaver enabled") headline="Protetor de tela ativado" ;;
+    "Herdr theme sync enabled") headline="Sincronização de tema ativada" ;;
+    "Herdr theme sync disabled") headline="Sincronização de tema desativada" ;;
+    "Upcoming reminders") headline="Lembretes agendados" ;;
+    "All reminders have been cleared") headline="Todos os lembretes foram limpos" ;;
+    "Reminder") headline="Lembrete" ;;
+    "Laptop display enabled") headline="Tela do laptop ativada" ;;
+    "Laptop display disabled") headline="Tela do laptop desativada" ;;
+    "Extended mode restored") headline="Modo estendido restaurado" ;;
+    "Shutdown failed") headline="Falha ao desligar o sistema" ;;
+    "Timezone is now set to"*) headline="Fuso horário alterado para ${headline#Timezone is now set to }" ;;
+    "Theme removed") headline="Tema removido" ;;
+    "Download complete") headline="Download concluído" ;;
+    "Download failed") headline="Falha no download" ;;
+  esac
+fi
+
 # The description is the next positional, taken as text even when it begins with
 # a dash — a body like "-50% off" or a negative number is content, not options.
 # Only a recognized option flag or --exec in that slot is not the description.

@@ -1,0 +1,123 @@
+{
+  // Definição de menu traduzido para Português do Brasil (pt-BR).
+  // Compatível com o esquema oficial do Omarchy Menu.
+
+  // Menu Raiz
+  "apps": {"icon":"󰀻","label":"Aplicativos","aliases":["app","aplicativos","apps"],"provider":"apps"},
+  "learn": {"icon":"󰧑","label":"Aprender"},
+  "trigger": {"icon":"󱓞","label":"Ações Rápidas"},
+  "style": {"icon":"","label":"Aparência e Estilo"},
+  "setup": {"icon":"","label":"Configurações","aliases":["settings","config"]},
+  "install": {"icon":"󰉉","label":"Instalar"},
+  "remove": {"icon":"󰭌","label":"Remover","aliases":["uninstall","desinstalar"]},
+  "update": {"icon":"","label":"Atualizar","aliases":["restart","refresh"]},
+  "about": {"icon":"","label":"Sobre o Omarchy","action":"omarchy-launch-about"},
+  "system": {"icon":"","label":"Sistema","aliases":["power-menu","desligar"]},
+
+  // Sistema
+  "system.screensaver": {"icon":"󱄄","label":"Protetor de Tela","action":"omarchy-launch-screensaver force"},
+  "system.lock": {"icon":"","label":"Bloquear Tela","action":"omarchy-system-lock"},
+  "system.suspend": {"icon":"󰒲","label":"Suspender","when":"! omarchy-toggle-enabled suspend-off","action":"systemctl suspend"},
+  "system.hibernate": {"icon":"󰤁","label":"Hibernar","when":"omarchy-hibernation-available","action":"systemctl hibernate"},
+  "system.logout": {"icon":"󰍃","label":"Encerrar Sessão","action":"omarchy-system-logout"},
+  "system.reboot": {"icon":"󰜉","label":"Reiniciar","action":"omarchy-system-reboot"},
+  "system.shutdown": {"icon":"󰐥","label":"Desligar","action":"omarchy-system-shutdown"},
+
+  // Aprende
+  "learn.keybindings": {"icon":"","label":"Atalhos de Teclado","action":"omarchy-menu-keybindings"},
+  "learn.omarchy": {"icon":"","label":"Manual do Omarchy","action":"omarchy-launch-webapp 'https://omarchy.org/manual/'"},
+  "learn.hyprland": {"icon":"","label":"Documentação Hyprland","action":"omarchy-launch-webapp 'https://wiki.hypr.land/'"},
+  "learn.arch": {"icon":"󰣇","label":"Wiki do Arch Linux","action":"omarchy-launch-webapp 'https://wiki.archlinux.org/title/Main_page'"},
+  "learn.neovim": {"icon":"","label":"Atalhos Neovim","action":"omarchy-launch-webapp 'https://www.lazyvim.org/keymaps'"},
+  "learn.bash": {"icon":"󱆃","label":"Guia Rápido Bash","action":"omarchy-launch-webapp 'https://devhints.io/bash'"},
+  "learn.tmux-keybindings": {"icon":"","label":"Atalhos Tmux","action":"omarchy-menu-tmux-keybindings"},
+  "learn.community": {"icon":"󰙯","label":"Comunidade Discord","action":"omarchy-launch-discord-community"},
+
+  // Ações Rápidas (Trigger)
+  "trigger.emoji": {"icon":"","label":"Emojis","aliases":["emoji","emojis"],"action":"omarchy-menu-emoji"},
+  "trigger.reminder": {"icon":"󰢌","label":"Lembretes","aliases":["reminder","lembrete"]},
+  "trigger.capture": {"icon":"","label":"Captura de Tela","aliases":["capture","screenshot","captura"]},
+  "trigger.capture.screenshot": {"icon":"","label":"Captura de Tela (Imagem)","action":"omarchy-capture-screenshot"},
+  "trigger.capture.screenrecord.stop": {"icon":"","label":"Parar Gravação","when":"pgrep -f '^gpu-screen-recorder'","action":"omarchy-capture-screenrecording --stop-recording"},
+  "trigger.capture.screenrecord": {"icon":"","label":"Gravar Tela"},
+  "trigger.capture.text": {"icon":"󰴑","label":"Extrair Texto (OCR)","action":"omarchy-capture-text"},
+  "trigger.capture.qr": {"icon":"󰐲","label":"Ler QR Code","action":"omarchy-capture-qr"},
+  "trigger.capture.color": {"icon":"󰃉","label":"Conta-gotas (Cor)","action":"pkill hyprpicker || hyprpicker -a"},
+  "trigger.transcode": {"icon":"󰧸","label":"Converter Mídia","action":"omarchy-transcode"},
+  "trigger.share": {"icon":"","label":"Compartilhar","aliases":["share"]},
+  "trigger.toggle": {"icon":"󰔎","label":"Alternar Recursos","aliases":["toggle","alternar"]},
+  "trigger.hardware": {"icon":"","label":"Hardware","aliases":["hardware","hw"]},
+  "trigger.tests": {"icon":"󰓅","label":"Testes de Desempenho"},
+  "trigger.reminder.set": {"icon":"󰢌","label":"Criar Lembrete","aliases":["reminder-set","remind"],"action":"omarchy-reminder -i"},
+  "trigger.reminder.show": {"icon":"󰢌","label":"Ver Todos os Lembretes","action":"omarchy-reminder show"},
+  "trigger.reminder.clear": {"icon":"󰢌","label":"Limpar Todos","action":"omarchy-reminder clear"},
+  "trigger.share.clipboard": {"icon":"","label":"Área de Transferência","action":"omarchy-menu-share clipboard"},
+  "trigger.share.file": {"icon":"","label":"Arquivo","action":"omarchy-menu-share file"},
+  "trigger.share.folder": {"icon":"","label":"Pasta","action":"omarchy-menu-share folder"},
+  "trigger.share.receive": {"icon":"󰥦","label":"Receber Arquivos","action":"uwsm-app -- localsend"},
+  "trigger.toggle.idle-lock": {"icon":"󰅶","label":"Manter Ligado (Sem Suspensão)","action":"omarchy-toggle-idle"},
+  "trigger.toggle.notifications": {"icon":"󰂛","label":"Modo Não Perturbe (Notificações)","action":"omarchy-toggle-notification-silencing"},
+  "trigger.toggle.nightlight": {"icon":"󰔎","label":"Luz Noturna","action":"omarchy-toggle-nightlight"},
+  "trigger.toggle.top-bar": {"icon":"󰍜","label":"Barra Superior","action":"omarchy-toggle-bar"},
+  "trigger.toggle.animations": {"icon":"󰕟","label":"Animações","action":"omarchy-toggle-animations"},
+  "trigger.tests.network-speedtest": {"icon":"󰓅","label":"Teste de Velocidade de Rede","action":"omarchy-shell shell summon omarchy.speedtest"},
+  "trigger.tests.disk-speedtest": {"icon":"󰋊","label":"Teste de Velocidade de Disco","action":"omarchy-shell shell summon omarchy.disk-speedtest"},
+
+  // Estilo & Aparência
+  "style.theme": {"icon":"󰸌","label":"Tema Global","aliases":["theme","tema"],"action":"omarchy-shell shell summon omarchy.image-picker '{\"source\":\"themes\"}'"},
+  "style.background": {"icon":"","label":"Plano de Fundo (Wallpaper)","aliases":["background","papel-de-parede"],"action":"background=$(omarchy-theme-bg-switcher); [[ -n $background ]] && omarchy-theme-bg-set \"$background\""},
+  "style.font": {"icon":"","label":"Fontes do Sistema","provider":"fonts"},
+  "style.bar": {"icon":"󰍜","label":"Barra de Menus"},
+  "style.bar.position": {"icon":"","label":"Posição da Barra"},
+  "style.bar.transparency": {"icon":"󰂵","label":"Transparência da Barra","action":"omarchy-bar transparent toggle"},
+  "style.bar.position.top": {"icon":"󰁝","label":"Superior","action":"omarchy-bar position top"},
+  "style.bar.position.bottom": {"icon":"󰁅","label":"Inferior","action":"omarchy-bar position bottom"},
+  "style.bar.position.left": {"icon":"󰁍","label":"Esquerda","action":"omarchy-bar position left"},
+  "style.bar.position.right": {"icon":"󰁔","label":"Direita","action":"omarchy-bar position right"},
+
+  // Configurações
+  "setup.localization": {"icon":"󰗊","label":"Idioma e Região","aliases":["idioma","teclado","localizacao"]},
+  "setup.localization.keyboard": {"icon":"","label":"Layout de Teclado (ABNT2 / US)","action":"omarchy-menu-keyboard"},
+  "setup.localization.language": {"icon":"󰗊","label":"Idioma do Sistema","action":"omarchy-menu-locale"},
+  "setup.localization.timezone": {"icon":"󰥔","label":"Fuso Horário","action":"omarchy-menu-timezone"},
+  "setup.monitors": {"icon":"󰍹","label":"Monitores e Telas","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/monitors.lua\""},
+  "setup.keybindings": {"icon":"","label":"Editar Atalhos","when":"[[ -f ~/.config/hypr/bindings.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/bindings.lua\""},
+  "setup.input": {"icon":"","label":"Configurar Entrada e Mouse","when":"[[ -f ~/.config/hypr/input.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/input.lua\""},
+  "setup.network": {"icon":"󰛳","label":"Rede e DNS","aliases":["network","rede"]},
+  "setup.default": {"icon":"","label":"Aplicativos Padrão","aliases":["padrao","defaults"]},
+  "setup.default.browser": {"icon":"","label":"Navegador Padrão"},
+  "setup.default.terminal": {"icon":"","label":"Terminal Padrão"},
+  "setup.default.editor": {"icon":"","label":"Editor de Código Padrão"},
+  "setup.default.agent": {"icon":"󰚩","label":"Agente de IA Padrão"},
+  "setup.plugin": {"icon":"󰐱","label":"Plugins do Desktop","aliases":["plugins"]},
+  "setup.plugin.enable": {"icon":"󰄬","label":"Ativar Plugin","action":"omarchy-menu-plugin enable"},
+  "setup.plugin.disable": {"icon":"󰅖","label":"Desativar Plugin","action":"omarchy-menu-plugin disable"},
+  "setup.plugin.add": {"icon":"󰖟","label":"Instalar Novo Plugin","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-plugin-add'"},
+  "setup.security": {"icon":"","label":"Segurança e Autenticação"},
+  "setup.reset": {"icon":"󰑓","label":"Restaurar Padrões de Fábrica","when":"[[ $(findmnt -no FSTYPE /) == btrfs ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-system-factory-reset"},
+
+  // Instala
+  "install.package": {"icon":"󰣇","label":"Pacote Arch (Pacman)","action":"xdg-terminal-exec --app-id=org.omarchy.terminal omarchy-pkg-install"},
+  "install.aur": {"icon":"󰣇","label":"Pacote AUR","action":"xdg-terminal-exec --app-id=org.omarchy.terminal omarchy-pkg-aur-install"},
+  "install.ai": {"icon":"󱚤","label":"Ferramentas de IA"},
+  "install.service": {"icon":"","label":"Serviços e Utilitários"},
+  "install.development": {"icon":"󰵮","label":"Ambientes de Desenvolvimento"},
+  "install.editor": {"icon":"","label":"Editores de Código"},
+  "install.style": {"icon":"","label":"Temas e Fontes"},
+  "install.gaming": {"icon":"","label":"Jogos e Emuladores"},
+  "install.browser": {"icon":"","label":"Navegadores de Internet"},
+  "install.terminal": {"icon":"","label":"Emuladores de Terminal"},
+
+  // Remove
+  "remove.package": {"icon":"󰣇","label":"Desinstalar Pacote","action":"xdg-terminal-exec --app-id=org.omarchy.terminal omarchy-pkg-remove"},
+  "remove.theme": {"icon":"󰸌","label":"Remover Tema","action":"omarchy-theme-remove"},
+  "remove.webapp": {"icon":"","label":"Remover Aplicativo Web","when":"grep -qE '^Exec=.*(omarchy-launch-webapp|omarchy-webapp-handler)' $HOME/.local/share/applications/*.desktop","action":"omarchy-webapp-remove"},
+
+  // Atualiza
+  "update.omarchy": {"icon":"","iconFont":"omarchy","label":"Atualizar Omarchy","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update"},
+  "update.channel": {"icon":"󰔫","label":"Canal de Atualização (Stable / RC)"},
+  "update.themes": {"icon":"󰸌","label":"Atualizar Temas Extras","when":"omarchy-theme-extras","action":"omarchy-launch-floating-terminal-with-presentation omarchy-theme-update"},
+  "update.firmware": {"icon":"","label":"Atualizar Firmware do Sistema","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-firmware"},
+  "update.timezone": {"icon":"","label":"Ajustar Fuso Horário","action":"omarchy-menu-timezone"},
+  "update.time": {"icon":"","label":"Sincronizar Relógio","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-time"}
+}

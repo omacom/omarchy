@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# omarchy:summary=Select and set the system locale interactively
+# omarchy:group=menu
+# omarchy:name=locale
+
+set -e
+
+locales=(
+  "Português (Brasil) - pt_BR.UTF-8|pt_BR.UTF-8"
+  "English (United States) - en_US.UTF-8|en_US.UTF-8"
+  "Español (España) - es_ES.UTF-8|es_ES.UTF-8"
+  "Français (France) - fr_FR.UTF-8|fr_FR.UTF-8"
+  "Deutsch (Deutschland) - de_DE.UTF-8|de_DE.UTF-8"
+)
+
+display_rows=()
+for entry in "${locales[@]}"; do
+  display_rows+=("${entry%%|*}")
+done
+
+selection=$(omarchy-menu-select "Set System Language" "${display_rows[@]}" -- --width 540 --maxheight 480) || exit 0
+
+target_locale=""
+for entry in "${locales[@]}"; do
+  label="${entry%%|*}"
+  if [[ $label == "$selection" ]]; then
+    target_locale="${entry#*|}"
+    break
+  fi
+done
+
+if [[ -n $target_locale ]]; then
+  omarchy-locale-set "$target_locale"
+fi

@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# omarchy:summary=Configure the system locale and language settings
+# omarchy:group=locale
+# omarchy:name=set
+# omarchy:args=<locale>
+# omarchy:desc=Set the system locale (e.g. pt_BR.UTF-8, en_US.UTF-8) and generate it if needed
+
+set -e
+
+target_locale="$1"
+
+if [[ -z $target_locale ]]; then
+  echo "Usage: omarchy locale set <locale>" >&2
+  echo "Example: omarchy locale set pt_BR.UTF-8" >&2
+  exit 1
+fi
+
+# Normalize shorthand like "pt-br" or "pt_BR"
+if [[ $target_locale =~ ^(pt-br|pt_br|pt_BR)$ ]]; then
+  target_locale="pt_BR.UTF-8"
+elif [[ $target_locale =~ ^(en-us|en_us|en_US)$ ]]; then
+  target_locale="en_US.UTF-8"
+fi
+
+if [[ ! $target_locale =~ \.UTF-8$ ]]; then
+  target_locale="${target_locale}.UTF-8"
+fi
+
+echo "Setting system locale to $target_locale..."
+
+elevate() {
+  if [[ -t 0 ]]; then
+    sudo "$@"
+  else
+    pkexec "$@"
+  fi
+}
+
+# Ensure locale is uncommented in /etc/locale.gen
+if [[ -f /etc/locale.gen ]]; then
+  if ! grep -q "^${target_locale}" /etc/locale.gen; then
+    echo "Enabling $target_locale in /etc/locale.gen..."
+    elevate sed -i "s/^#\s*${target_locale}/${target_locale}/" /etc/locale.gen
+  fi
+  echo "Generating locales..."
+  elevate locale-gen
+fi
+
+# Set system locale via localectl or /etc/locale.conf
+if command -v localectl >/dev/null 2>&1; then
+  elevate localectl set-locale LANG="$target_locale" LC_TIME="$target_locale"
+else
+  elevate bash -c "echo 'LANG=$target_locale' > /etc/locale.conf"
+fi
+
+omarchy-notification-send -g 󰗊 "Locale set to $target_locale (log out to apply system-wide)"

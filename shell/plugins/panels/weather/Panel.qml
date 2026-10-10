@@ -275,8 +275,9 @@ Panel {
 
   function startGeocode() {
     geocodeActiveQuery = geocodePendingQuery
+    var geocodeLang = I18n.isPtBr ? "pt" : "en"
     geocodeProc.command = ["curl", "-fsS", "--max-time", "5",
-      "https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(geocodeActiveQuery) + "&count=5&language=en&format=json"]
+      "https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(geocodeActiveQuery) + "&count=5&language=" + geocodeLang + "&format=json"]
     geocodeProc.running = true
   }
 

@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# omarchy:summary=Select and set the system keyboard layout interactively
+# omarchy:group=menu
+# omarchy:name=keyboard
+
+set -e
+
+# Format: Label | layout | variant
+layouts=(
+  "Português (Brasil - ABNT2)|br|abnt2"
+  "Português (Brasil - Nativo)|br|"
+  "English (US - International with altgr dead keys)|us|intl"
+  "English (US - Standard)|us|"
+  "Español (Latinoamérica)|latam|"
+  "Español (España)|es|"
+  "Français (AZERTY)|fr|"
+  "Deutsch (QWERTZ)|de|"
+)
+
+display_rows=()
+for entry in "${layouts[@]}"; do
+  display_rows+=("${entry%%|*}")
+done
+
+selection=$(omarchy-menu-select "Set Keyboard Layout" "${display_rows[@]}" -- --width 540 --maxheight 480) || exit 0
+
+target_layout=""
+target_variant=""
+
+for entry in "${layouts[@]}"; do
+  label="${entry%%|*}"
+  if [[ $label == "$selection" ]]; then
+    rest="${entry#*|}"
+    target_layout="${rest%%|*}"
+    target_variant="${rest#*|}"
+    break
+  fi
+done
+
+if [[ -n $target_layout ]]; then
+  omarchy-keyboard-set "$target_layout" "$target_variant"
+fi
