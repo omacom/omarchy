@@ -71,6 +71,12 @@ Item {
 
   Process { id: warningProcess }
 
+  // Plugging in makes any "Time to recharge!" toast stale, so clear it.
+  Process {
+    id: dismissWarningProcess
+    command: ["omarchy-notification-dismiss", "Time to recharge"]
+  }
+
   Process {
     id: powerProfileProcess
     onExited: {
@@ -116,6 +122,7 @@ Item {
   Connections {
     target: UPower
     function onOnBatteryChanged() {
+      if (!UPower.onBattery) dismissWarningProcess.running = true
       root.checkBattery()
       root.applyPowerProfile()
       root.refreshPowerProfile()
