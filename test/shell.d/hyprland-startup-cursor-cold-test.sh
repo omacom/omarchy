@@ -67,6 +67,13 @@ with tempfile.TemporaryDirectory() as directory:
         time.sleep(0.01)
 
     wait_phase("holding")
+    # Reload after hyprland.start has reset the application cursor theme. A
+    # fresh Lua state must retain the pending reveal and the original settings.
+    subprocess.run(["hyprctl", "reload"], env=env, check=True, timeout=5,
+             stdout=subprocess.DEVNULL)
+    subprocess.run(["hyprctl", "eval", 'local f = assert(io.open(os.getenv("CURSOR_TEST_STAGE") .. "/pending", "w")); f:write(tostring(omarchy_startup_cursor_pending)); f:close()'],
+             env=env, check=True, timeout=5, stdout=subprocess.DEVNULL)
+    assert (stage / "pending").read_text() == "true", "reload after application startup lost the pending reveal"
     (stage / "release").write_text("reveal")
     wait_phase("revealed")
     # Cursor visibility is polled by the compositor independently of the fade.
