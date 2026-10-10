@@ -49,13 +49,25 @@ if (( PI_ACTIVATE == 0 )) && [[ ! -d $PI_AGENT_DIR ]]; then
 fi
 
 write_setting_theme() {
-  local tmp
+  local tmp current
 
   mkdir -p "$PI_AGENT_DIR"
 
   if [[ -f $PI_SETTINGS_PATH ]]; then
+    # Leave a theme the user chose themselves alone: re-provisioning runs
+    # --activate on every refresh and must not stomp it back to the Omarchy
+    # theme (mirrors omarchy-theme-set-hermes, which leaves a non-default
+    # skin in place).
+    current=$(jq -r 'if (.theme|type) == "string" then .theme else "" end' "$PI_SETTINGS_PATH" 2>/dev/null || true)
+    if [[ -n $current && $current != "omarchy-system" ]]; then
+      return 0
+    fi
     tmp=$(mktemp "$PI_SETTINGS_PATH.XXXXXX")
-    jq '.theme = "omarchy-system"' "$PI_SETTINGS_PATH" >"$tmp"
+    if ! jq '.theme = "omarchy-system"' "$PI_SETTINGS_PATH" >"$tmp"; then
+      rm -f "$tmp"
+      echo "omarchy-theme-set-pi: could not update $PI_SETTINGS_PATH" >&2
+      return 1
+    fi
     mv "$tmp" "$PI_SETTINGS_PATH"
   else
     cat >"$PI_SETTINGS_PATH" <<EOF
