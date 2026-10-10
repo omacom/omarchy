@@ -6,7 +6,8 @@ nvim_provider="$nvim_config_dir/lua/config/remote_clipboard.lua"
 
 provider_source="/usr/share/omarchy-nvim/config/lua/config/remote_clipboard.lua"
 
-if [[ -d $nvim_config_dir ]]; then
+# The provider ships in omarchy-nvim, which a user may have removed.
+if [[ -d $nvim_config_dir && -f $provider_source ]]; then
   mkdir -p "$(dirname "$nvim_provider")"
   install -m 0644 "$provider_source" "$nvim_provider"
 
