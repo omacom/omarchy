@@ -147,16 +147,6 @@ if [[ ! -f $RESUME_DROP_IN ]]; then
   fi
 fi
 
-# Use ACPI alarm for RTC wakeup on s2idle systems (needed for suspend-then-hibernate)
-if grep -q "\[s2idle\]" /sys/power/mem_sleep 2>/dev/null; then
-  LIMINE_DROP_IN="/etc/limine-entry-tool.d/rtc-alarm.conf"
-  if [[ ! -f $LIMINE_DROP_IN ]]; then
-    echo "Enabling ACPI RTC alarm for s2idle suspend"
-    sudo mkdir -p /etc/limine-entry-tool.d
-    echo 'KERNEL_CMDLINE[default]+=" rtc_cmos.use_acpi_alarm=1"' | sudo tee "$LIMINE_DROP_IN" >/dev/null
-  fi
-fi
-
 if ! $NO_REBUILD; then
   # limine-mkinitcpio rebuilds initramfs/UKI for all kernels and updates the
   # /boot/limine.conf entries via limine-entry-tool. The limine bootloader
