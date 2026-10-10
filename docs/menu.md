@@ -130,6 +130,15 @@ Adding a provider means adding an entry to the `providers` map in `Menu.qml`
 (script, icon, `actionFor`, optionally `volatile`) and pointing a submenu at
 it with `provider:`.
 
+## Quick answers
+
+Searching from the root menu also answers the query itself, the way Spotlight does. `quickRows` in `MenuModel.js` builds these rows from the query alone; they never come from JSONC and are not routable:
+
+- An address (`github.com`, `omarchy.org/manual`, `localhost:3000`, a full `http(s)://` URL) leads the results as Open, and Enter hands it to `omarchy-launch-browser`. Bare hosts get https; localhost and IPs get http. A word or a version number like `v1.2` is not an address.
+- Anything else ends the list with a web search, under a divider, so a query is never a dead end.
+
+Inside a submenu the query only narrows that submenu, so neither appears.
+
 ## Driving the menu from the CLI
 
 `bin/omarchy-menu` is a thin wrapper over the standard plugin IPC surface:

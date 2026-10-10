@@ -384,6 +384,68 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
   }
 }
 
+// Quick answers: rows the root search builds from the query itself rather
+// than finding in the menu, the way Spotlight opens an address or offers a web
+// search. They never come from JSONC and are never routable.
+
+function shellQuote(value) {
+  return "'" + String(value || "").replace(/'/g, "'\\''") + "'"
+}
+
+// An address typed into the launcher: a full http(s) URL, or a bare host
+// with a real-looking top-level domain (github.com, omarchy.org/manual).
+// Local hosts and IPs get http, since that is what they almost always serve.
+function urlFor(query) {
+  var value = String(query || "").trim()
+  if (!value || /\s/.test(value)) return ""
+  if (/^https?:\/\/[^\s/]+/i.test(value)) return value
+
+  var local = /^(localhost|\d{1,3}(\.\d{1,3}){3})(:\d+)?([/?#]\S*)?$/i
+  if (local.test(value)) return "http://" + value
+
+  var host = /^([a-z0-9-]+\.)+[a-z]{2,}(:\d+)?([/?#]\S*)?$/i
+  if (host.test(value)) return "https://" + value
+
+  return ""
+}
+
+function quickRow(id, icon, label, detail, action) {
+  return {
+    itemId: "quick." + id,
+    disabled: false,
+    kind: "action",
+    icon: icon,
+    iconFont: "",
+    appIcon: "",
+    appId: "",
+    label: label,
+    target: "",
+    detail: detail,
+    path: "",
+    childCount: 0,
+    action: action,
+    provider: "",
+    score: 0,
+    section: ""
+  }
+}
+
+// `top` leads the results so Enter takes it: an address is what the query
+// unambiguously is. `fallback` closes the list otherwise, so a query is never
+// a dead end.
+function quickRows(query) {
+  var value = String(query || "").trim()
+  if (!value) return { top: [], fallback: null }
+
+  var url = urlFor(value)
+  if (url) {
+    return { top: [quickRow("url", "󰖟", "Open " + value, url, "omarchy-launch-browser " + shellQuote(url))], fallback: null }
+  }
+
+  var search = "https://www.google.com/search?q=" + encodeURIComponent(value)
+  return { top: [], fallback: quickRow("search", "󰍉", "Search the web", "Google · " + value, "omarchy-launch-browser " + shellQuote(search)) }
+}
+
 // Commands a `checked:` expression reads a value out of. Every sibling row
 // asks the same one -- Defaults > Browser has seven rows all comparing
 // against `omarchy-default-browser` -- so the batch runs it once and the rows
@@ -531,6 +593,8 @@ if (typeof module !== "undefined") {
     descriptionTextMatches: descriptionTextMatches,
     matchesQuery: matchesQuery,
     searchScore: searchScore,
-    displayRow: displayRow
+    displayRow: displayRow,
+    urlFor: urlFor,
+    quickRows: quickRows
   }
 }
