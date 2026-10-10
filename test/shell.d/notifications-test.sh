@@ -623,6 +623,82 @@ assert(!('exec' in legacyRestored), 'a restored legacy popup drops the old exec 
 assertEqual(notifications.parseExecArgv(legacyRestored.execArgv || ''), null, 'a restored legacy popup has no runnable click action')
 
 const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/notifications/Service.qml'), 'utf8')
+const vm = require('vm')
+function qmlFunction(name) {
+  return serviceQml.match(new RegExp('  (function ' + name + '\\([^]*?\\n  \\})'))[1]
+}
+
+// Exercise the actual timer callback before and after transferring a toast
+// between delegates. Only the visible delegate is ticked, just as in QML.
+const clockRow = { remainingLifetime: 1.0 }
+let clockExpiries = 0
+const clockModel = {
+  count: 1,
+  get: () => clockRow,
+  setProperty: (_index, role, value) => { clockRow[role] = value }
+}
+const clockService = { expirePopup: () => { clockExpiries++ } }
+if (/function tickPopup\(/.test(serviceQml)) {
+  clockService.tickPopup = vm.runInNewContext('(' + qmlFunction('tickPopup') + ')', {
+    popupModel: clockModel, service: clockService, Math
+  })
+}
+const timerBody = serviceQml.match(/running: cardSlot\.ticking\s+onTriggered: \{([^]*?)\n              \}/)[1]
+function clockDelegate() {
+  const slot = { index: 0, lifetime: 8000, remainingLifetime: 1.0 }
+  if (/required property real remainingLifetime/.test(serviceQml)) {
+    Object.defineProperty(slot, 'remainingLifetime', { get: () => clockRow.remainingLifetime })
+  }
+  return { slot, tick: vm.runInNewContext('(function() {' + timerBody + '\n})', {
+    cardSlot: slot, service: clockService
+  }) }
+}
+const arrivalClock = clockDelegate()
+const fallbackClock = clockDelegate()
+for (let tick = 0; tick < 140; tick++) arrivalClock.tick()
+assert(Math.abs(arrivalClock.slot.remainingLifetime - 0.125) < 0.001, 'a toast has one second left after seven seconds')
+assert(
+  Math.abs(fallbackClock.slot.remainingLifetime - arrivalClock.slot.remainingLifetime) < 0.001,
+  'the fallback delegate inherits the remaining lifetime when its monitor disappears'
+)
+for (let tick = 0; tick < 21 && clockExpiries === 0; tick++) fallbackClock.tick()
+assertEqual(clockExpiries, 1, 'moving a toast does not give it another full countdown')
+
+const clockNotification = { id: 1, appName: 'Test', summary: 'Before', urgency: 1 }
+Object.assign(clockRow, notifications.snapshotOf(clockNotification, 50), { screenName: 'DP-1', remainingLifetime: 0.125 })
+clockService.liveRefs = { 1: clockNotification }
+const refreshClock = vm.runInNewContext('(' + qmlFunction('refreshPopup') + ')', {
+  NotificationLogic: notifications, popupModel: clockModel, service: clockService,
+  persistPopupFile: () => {}
+})
+refreshClock(clockNotification, 1, 50)
+assertEqual(clockRow.remainingLifetime, 0.125, 'an unchanged refresh preserves the shared countdown')
+clockNotification.summary = 'After'
+refreshClock(clockNotification, 1, 50)
+assertEqual(clockRow.remainingLifetime, 1.0, 'new text restarts the shared countdown')
+assertEqual(clockRow.screenName, 'DP-1', 'new text preserves the arrival monitor')
+
+// Restore while the original monitor is absent, including the file rewrite
+// for timed toasts. Render on a fallback without changing the saved target.
+for (const urgency of [1, 2]) {
+  const restoredRows = []
+  const restoredFiles = []
+  const restore = vm.runInNewContext('(' + qmlFunction('restorePopups') + ')', {
+    NotificationLogic: notifications, NotificationUrgency: { Normal: 1 }, Date,
+    Quickshell: { screens: [{ name: 'eDP-1' }] }, focusedScreenName: () => 'eDP-1',
+    durationFor: value => value === 2 ? 0 : 8000,
+    archivePopupFileFor: () => { throw new Error('fresh popup was expired') },
+    persistPopupFile: entry => restoredFiles.push({ ...entry }),
+    popupModel: { count: 0, append: entry => restoredRows.push(entry) },
+    Qt: { callLater: callback => callback() }, service: { restoredPopups: {} }
+  })
+  restore(notifications.serializePopup({ id: 1, originalId: 1, timestamp: Date.now(), screenName: 'DP-1', urgency }, 1))
+  assertEqual(restoredRows[0].screenName, 'DP-1', 'restore preserves the disconnected arrival monitor')
+  assertEqual(notifications.popupScreenName(restoredRows[0].screenName, [{ name: 'eDP-1' }]), 'eDP-1', 'a restored toast displays on the fallback')
+  assertEqual(notifications.popupScreenName(restoredRows[0].screenName, screens), 'DP-1', 'a reconnected monitor recovers its restored toast')
+  if (urgency === 1) assertEqual(restoredFiles[0].screenName, 'DP-1', 'the restore deadline rewrite preserves the arrival monitor on disk')
+}
+
 assert(
   /snapshot\.screenName = focusedScreenName\(\)/.test(serviceQml) &&
     /var monitor = Hyprland\.focusedMonitor/.test(serviceQml),
@@ -759,10 +835,6 @@ assert(
 assert(
   /id: readHistoryProc[\s\S]{0,300}?onExited: service\.runNextPopupFileJob\(\)/.test(serviceQml),
   'notifications service releases the file queue even when a history read comes back empty'
-)
-assert(
-  /onSummaryChanged: cardSlot\.remainingLifetime = 1\.0/.test(serviceQml),
-  'notifications service restarts the countdown when a toast is updated under it'
 )
 assert(
   /awk 1 \\"\$1\\"\/\*\.json 2>\/dev\/null \|\| true", "--", historyDir/.test(serviceQml),
