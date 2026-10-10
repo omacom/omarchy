@@ -39,9 +39,12 @@ assertEqual(
 const headphones = { ready: true, name: 'bluez_output.airpods', properties: { 'device.product.name': 'AirPods Headphones' } }
 assert(audio.isHeadphones(headphones), 'audio detects headphone devices')
 assertEqual(audio.sinkGlyph(headphones), '󰋋', 'audio uses headphone sink glyph')
-const jabra = { ready: true, name: 'alsa_output.usb-Jabra_Link_380-00.analog-stereo', properties: { 'device.product.name': 'Jabra Link 380' } }
+const jabra = { ready: true, name: 'alsa_output.usb-Generic_USB_Audio-00.analog-stereo', properties: { 'device.product.name': 'Jabra Link 380' } }
 assert(audio.isHeadphones(jabra), 'audio detects a Jabra headset by its product name')
 assertEqual(audio.sinkGlyph(jabra), '󰋋', 'audio uses the headset glyph for a Jabra')
+const netcom = { ready: true, name: 'alsa_output.usb-Netcom-00.analog-stereo', properties: {} }
+assert(audio.isHeadphones(netcom), 'audio detects a Netcom headset by its node name')
+assertEqual(audio.sinkGlyph(netcom), '󰋋', 'audio uses the headset glyph for a Netcom')
 assert(audio.sourceGlyph({ ready: true, properties: { 'device.icon-name': 'camera-webcam' } }).length > 0, 'audio maps webcam source glyph')
 
 assertEqual(audio.friendlyStreamLabel('spotify'), 'Spotify', 'audio normalizes known stream labels')
