@@ -62,13 +62,12 @@ BarWidget {
         font.pixelSize: Style.font.body
         anchors.verticalCenter: parent.verticalCenter
 
-        property bool needsScroll: implicitWidth > scrollClip.width
+        property bool needsScroll: implicitWidth > root.maxLabelWidth
 
         NumberAnimation on x {
           id: scrollAnim
           running: labelText.needsScroll && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
-          // Stopped for reduced motion, the title reads from its start again.
-          onRunningChanged: if (!running && Style.reduceMotion) labelText.x = 0
+          onRunningChanged: if (!running) labelText.x = 0
           loops: Animation.Infinite
           duration: Math.max(6000, labelText.implicitWidth * 25)
           from: scrollClip.width
