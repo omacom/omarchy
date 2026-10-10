@@ -337,6 +337,7 @@ assertDeepEqual(
     'remove.dictation',
     'remove.service',
     'remove.development',
+    'remove.maker',
     'remove.theme',
     'remove.gaming',
     'remove.browser',
@@ -347,6 +348,11 @@ assertDeepEqual(
     'remove.security'
   ],
   'menu keeps the Remove category order'
+)
+assert(
+  defaultById['install.maker.raspberry-pi-imager'].action.includes("'rpi-imager xorg-xhost'")
+    && defaultById['install.maker.raspberry-pi-imager'].disabled === 'omarchy-pkg-present rpi-imager',
+  'Raspberry Pi Imager installs its required Xwayland authorization helper'
 )
 assert(
   defaultById['setup.security.passwordless-sudo'].action.includes('omarchy-sudo-passwordless'),
