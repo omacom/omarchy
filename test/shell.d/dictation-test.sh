@@ -380,3 +380,32 @@ printf '%s\n' future-backend > "$config"
 VOXTYPE_PACKAGE=1 /bin/bash -euo pipefail "$ROOT/migrations/1791479273.sh"
 [[ $(cat "$config") == "future-backend" ]] || fail "upgrade preserves explicit backend selections"
 pass "one-time upgrade preserves existing Voxtype without runtime autodetection"
+
+hook_dir="$HOME/.config/omarchy/hooks/post-update.d"
+mkdir -p "$hook_dir"
+hook="$hook_dir/install-voxtype.hook"
+cat >"$hook" <<'SH'
+#!/bin/bash
+
+set -e
+
+if omarchy-done ensure voxtype-install-invitation; then
+  omarchy-notification-send -u critical -g  "Install Dictation with Voxtype" \
+    "Click to install voice dictation for Omarchy." \
+    --exec omarchy-launch-floating-terminal-with-presentation omarchy-voxtype-install
+fi
+SH
+cp "$hook" "$test_tmp/original-hook"
+bash -euo pipefail "$ROOT/migrations/1791506046.sh" >/dev/null
+[[ ! -e $hook ]] || fail "the exact obsolete invitation is retired"
+bash -euo pipefail "$ROOT/migrations/1791506046.sh" >/dev/null
+cp "$test_tmp/original-hook" "$hook"
+printf '\n# My custom invitation\n' >>"$hook"
+cp "$hook" "$test_tmp/custom-hook"
+bash -euo pipefail "$ROOT/migrations/1791506046.sh" >/dev/null
+cmp -s "$hook" "$test_tmp/custom-hook" || fail "custom hooks are preserved"
+rm "$hook"
+ln -s "$test_tmp/original-hook" "$hook"
+bash -euo pipefail "$ROOT/migrations/1791506046.sh" >/dev/null
+[[ -L $hook && -f $test_tmp/original-hook ]] || fail "user invitation links are preserved"
+pass "retired invitation cleanup is idempotent and preserves custom hooks and links"

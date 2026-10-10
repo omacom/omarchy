@@ -1811,6 +1811,14 @@ copy_missing_config_defaults() {
     target_path="$target_dir/$rel"
     [[ -e $target_path || -L $target_path ]] && continue
 
+    # The ordered backend migration must see this missing for legacy Voxtype
+    # users. Seeding Superwhisper first would turn it into an explicit choice.
+    if [[ $rel == omarchy/defaults/dictation && -f $root/migrations/1791479273.sh
+      && ! -f "${OMARCHY_MIGRATION_STATE:-$HOME/.local/state/omarchy/migrations}/1791479273.sh" ]] &&
+      "$root/bin/omarchy-pkg-present" voxtype-bin; then
+      continue
+    fi
+
     mkdir -p "$(dirname "$target_path")"
     cp -P "$source_path" "$target_path"
   done < <(find "$source_dir" \( -type f -o -type l \) -print0)
