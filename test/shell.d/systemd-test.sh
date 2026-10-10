@@ -104,3 +104,23 @@ pass "systemd-oomd acts on sustained memory stall"
 grep -Fx 'systemctl enable systemd-oomd.service' "$ROOT/install/config/enable-services.sh" >/dev/null ||
   fail "new installs ship the oomd drop-ins with the daemon that reads them disabled"
 pass "new installs enable systemd-oomd"
+
+# Mount binfmt_misc when sysinit starts. Left to its automount, the first
+# binfmt registration fires it inside the opening mount burst, where systemd's
+# mount rate limit holds the start back about a second, and sysinit.target
+# waits with it. The enable only works while systemd's unit keeps its
+# [Install] section; that proves the link resolves, not the ordering or the
+# timing of a live boot.
+grep -Fx 'systemctl enable proc-sys-fs-binfmt_misc.mount' "$ROOT/install/config/enable-services.sh" >/dev/null ||
+  fail "new installs do not enable the binfmt_misc mount, so sysinit waits on its rate-limited automount"
+pass "new installs enable the binfmt_misc mount for sysinit"
+
+grep -rq 'systemctl enable proc-sys-fs-binfmt_misc.mount' "$ROOT/migrations" ||
+  fail "existing installs have no migration enabling the binfmt_misc mount"
+pass "a migration enables the binfmt_misc mount on existing installs"
+
+[[ -f /usr/lib/systemd/system/proc-sys-fs-binfmt_misc.mount ]] ||
+  fail "systemd ships proc-sys-fs-binfmt_misc.mount, the unit both enables name"
+grep -qx 'WantedBy=sysinit.target' /usr/lib/systemd/system/proc-sys-fs-binfmt_misc.mount ||
+  fail "proc-sys-fs-binfmt_misc.mount must keep WantedBy=sysinit.target, or the enable creates no sysinit link"
+pass "the enabled unit is systemd's own, pulled into sysinit.target"
