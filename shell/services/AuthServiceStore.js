@@ -10,6 +10,12 @@ function has(id) {
   return services[String(id || "")] !== undefined
 }
 
+// Own-plugin lookup only. Callers must already have proved pluginOwnsTarget
+// before reading this; the store itself does not enforce that gate.
+function get(id) {
+  return services[String(id || "")] || null
+}
+
 function put(id, service) {
   var key = String(id || "")
   if (!key || !service) return
