@@ -24,8 +24,15 @@ printf '%s\n' '#!/bin/bash' 'echo "notify-send was invoked" >"$OMARCHY_TEST_NOTI
 chmod +x "$tmpdir/notify-send"
 tripwire="$tmpdir/notify-send-was-used"
 
+# --exec needs the live session token that omarchy-shell writes under
+# XDG_RUNTIME_DIR. Mint one here the same way the service does.
+mkdir -p -m 700 "$tmpdir/run/omarchy"
+printf 'test-exec-token' >"$tmpdir/run/omarchy/notification-exec-token"
+chmod 600 "$tmpdir/run/omarchy/notification-exec-token"
+
 send() {
   OMARCHY_TEST_BUSCTL_ARGS="$args_file" OMARCHY_TEST_NOTIFY_TRIPWIRE="$tripwire" \
+    XDG_RUNTIME_DIR="$tmpdir/run" \
     PATH="$tmpdir:$ROOT/bin:$PATH" omarchy-notification-send "$@"
 }
 
@@ -63,7 +70,8 @@ load
 [[ $(hint_value urgency) == "2" ]] || fail "notification wrapper maps critical urgency to 2"
 [[ $(hint_value omarchy-glyph) == "K" ]] || fail "notification wrapper sets the glyph hint"
 [[ $(hint_value omarchy-exec-argv) == '["mpv","--","/tmp/a b.mp4"]' ]] || fail "notification wrapper builds the click argv hint" "$(hint_value omarchy-exec-argv)"
-pass "notification wrapper issues a Notify call with app, icon, urgency, glyph, and click argv"
+[[ $(hint_value omarchy-exec-token) == "test-exec-token" ]] || fail "notification wrapper attaches the session exec token" "$(hint_value omarchy-exec-token)"
+pass "notification wrapper issues a Notify call with app, icon, urgency, glyph, click argv, and token"
 
 [[ -f $tripwire ]] && fail "notification wrapper must never invoke notify-send"
 pass "notification wrapper never invokes notify-send"
@@ -182,6 +190,15 @@ if send "Head" --exec "" 2>/dev/null; then
   fail "notification wrapper rejects --exec with an empty program"
 fi
 pass "notification wrapper rejects --exec with an empty program"
+
+# Without a readable session token, --exec fails closed at send time.
+rm -f "$tmpdir/run/omarchy/notification-exec-token"
+if send "Head" --exec true 2>/dev/null; then
+  fail "notification wrapper rejects --exec without a session token"
+fi
+printf 'test-exec-token' >"$tmpdir/run/omarchy/notification-exec-token"
+chmod 600 "$tmpdir/run/omarchy/notification-exec-token"
+pass "notification wrapper rejects --exec without a session token"
 
 # A description that begins with a dash is content, not options: a price, a
 # negative number, a diff line. It must reach the body, not error out.
