@@ -154,6 +154,7 @@ BarWidget {
     horizontalMargin: 8.75
     verticalPadding: 8.75
     tooltipText: "Right-click to toggle format"
+    accessibleName: "Clock"
 
     onPressed: function(b) {
       if (b === Qt.RightButton) root.cycleFormat()

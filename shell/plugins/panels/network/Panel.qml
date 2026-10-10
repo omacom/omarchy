@@ -1076,6 +1076,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: "Network"
     anchors.fill: parent
     bar: root.bar
     text: root.icon
@@ -1101,6 +1102,7 @@ Panel {
   // here is the wifi-specific UI inside.
   KeyboardPanel {
     id: panel
+    accessibleName: "Network"
     anchorItem: button
     owner: root
     bar: root.bar
@@ -1276,6 +1278,7 @@ Panel {
 
           ToggleSwitch {
             id: powerSwitch
+            accessibleName: "Wi-Fi"
             visible: root.canToggleWifi
             checked: Networking.wifiEnabled
             hasCursor: root.toggleHeaderHasCursor
@@ -1492,6 +1495,7 @@ Panel {
             // plain verticalCenter would sit the switch visibly high.
             ToggleSwitch {
               id: bandAutoSwitch
+              accessibleName: "Automatic band"
               trackHeight: Math.round(bandAutoLabel.font.pixelSize * 1.2)
               cursorPad: Style.space(3)
               anchors.verticalCenter: bandAutoLabel.verticalCenter
@@ -1785,6 +1789,8 @@ Panel {
     readonly property bool forgetFocused: isSelected && root.wifiActionFocused && canForget
     readonly property bool forgetVisible: canForget && (!requiresCredentials || forgetFocused || rightMouse.containsMouse)
 
+    accessibleName: net ? (net.ssid || "Hidden") : ""
+    Accessible.onPressAction: row.activate()
     hasCursor: root.cursorActive && isSelected && !root.wifiActionFocused
     current: isConnected
     foreground: root.bar.foreground
@@ -1795,6 +1801,21 @@ Panel {
     readonly property bool isBusy: root.actionKind !== "" && root.actionSsid === (net ? net.ssid : "")
     readonly property bool isFailed: root.failureReason !== "" && root.failureSsid === (net ? net.ssid : "")
     readonly property bool isPasswordOpen: root.passwordSsid !== "" && root.passwordSsid === (net ? net.ssid : "")
+
+    function activate() {
+      if (!net || root.busy) return
+      root.cursorActive = true
+      root.focusSection = "wifi"
+      root.selectedIndex = row.index
+      root.wifiActionFocused = false
+      if (row.isConnected) {
+        root.disconnectRow(row.net.ssid)
+      } else if (row.requiresCredentials && !row.isKnown) {
+        root.openPasswordPrompt(row.net.ssid)
+      } else {
+        root.connectDirectly(row.net.ssid)
+      }
+    }
 
     function submitCredentials() {
       if (!net || root.busy || root.passwordText.length === 0) return
@@ -1861,24 +1882,7 @@ Panel {
       // subsequent j/k pick up from this row).
       onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = false }
 
-      onClicked: {
-        if (!row.net) return
-        // Resync cursor in case keyboard nav moved it away while the mouse
-        // stayed parked on this row — the click target is unambiguously here.
-        root.cursorActive = true
-        root.focusSection = "wifi"
-        root.selectedIndex = row.index
-        root.wifiActionFocused = false
-        if (row.isConnected) {
-          root.disconnectRow(row.net.ssid)
-          return
-        }
-        if (row.requiresCredentials && !row.isKnown) {
-          root.openPasswordPrompt(row.net.ssid)
-          return
-        }
-        root.connectDirectly(row.net.ssid)
-      }
+      onClicked: row.activate()
     }
 
     Item {

@@ -380,6 +380,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: "Tailscale"
     anchors.fill: parent
     bar: root.bar
     iconComponent: Component {
@@ -403,6 +404,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: "Tailscale"
     anchorItem: button
     owner: root
     bar: root.bar
@@ -480,6 +482,7 @@ Panel {
               trailingControl: Component {
                 ToggleSwitch {
                   id: powerSwitch
+                  accessibleName: "Tailscale"
                   visible: tailscale.installed
                   checked: tailscale.active
                   busy: tailscale.busy
@@ -741,10 +744,16 @@ Panel {
   component AuthRow: CursorSurface {
     id: authRow
 
+    accessibleName: "Authorize Tailscale operator"
+    Accessible.onPressAction: authRow.activate()
     hasCursor: root.cursorActive && root.focusSection === "auth"
     foreground: root.foreground
 
     implicitHeight: row.implicitHeight + Style.spacing.rowPaddingX
+
+    function activate() {
+      if (!tailscale.busy) tailscale.authorizeTailscaleOperator()
+    }
 
     MouseArea {
       anchors.fill: parent
@@ -752,7 +761,7 @@ Panel {
       cursorShape: tailscale.busy ? Qt.ArrowCursor : Qt.PointingHandCursor
       enabled: !tailscale.busy
       onEntered: root.setAuthCursor()
-      onClicked: tailscale.authorizeTailscaleOperator()
+      onClicked: authRow.activate()
     }
 
     RowLayout {
@@ -806,6 +815,8 @@ Panel {
     readonly property bool switchingAccount: account && tailscale.switchingAccountId === String(account.id || "")
     readonly property string accountText: account ? tailscale.accountLabel(account) : "Account"
 
+    accessibleName: account ? accountText : ""
+    Accessible.onPressAction: accountRow.activate()
     hasCursor: root.cursorActive && root.focusSection === "accounts" && root.accountIndex === rowIndex
     current: selectedAccount
     foreground: root.foreground
@@ -813,6 +824,10 @@ Panel {
     currentFill: root.selectedFill
 
     implicitHeight: accountInner.implicitHeight + Style.spacing.xl
+
+    function activate() {
+      if (account) tailscale.switchAccount(account.id)
+    }
 
     Row {
       id: accountInner
@@ -860,7 +875,7 @@ Panel {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onEntered: root.setAccountCursor(accountRow.rowIndex)
-      onClicked: if (accountRow.account) tailscale.switchAccount(accountRow.account.id)
+      onClicked: accountRow.activate()
     }
   }
 
@@ -885,6 +900,7 @@ Panel {
     }
     property int copyIndex: 0
 
+    accessibleName: peer ? peerName : ""
     hasCursor: root.cursorActive && root.focusSection === "peers" && root.peerIndex === rowIndex
     foreground: root.foreground
 
@@ -988,6 +1004,7 @@ Panel {
 
       PanelActionButton {
         id: copyButton
+        accessibleName: "Copy"
         iconText: "󰆏"
         foreground: root.foreground
         fontFamily: root.fontFamily
@@ -1072,9 +1089,12 @@ Panel {
     property string label: ""
     property bool selected: false
 
+    accessibleName: label
+    Accessible.onPressAction: copyChoice.chosen()
     visible: enabled
     foreground: root.foreground
     hasCursor: selected
+    current: selected
     implicitHeight: Style.space(48)
     radius: 0
 
@@ -1122,6 +1142,8 @@ Panel {
     readonly property string peerName: peer ? String(peer.DisplayName || peer.HostName || "Unknown") : "Unknown"
     readonly property string actionTooltip: addMullvad ? "" : (activeExitNode ? "Disconnect" : "Connect")
 
+    accessibleName: peer ? peerName : ""
+    Accessible.onPressAction: exitNodeRow.activate()
     hasCursor: root.cursorActive && root.focusSection === "exitNodes" && root.exitNodeIndex === rowIndex
     current: activeExitNode || settingExitNode || (addMullvad && root.mullvadPickerOpen)
     foreground: root.foreground
@@ -1129,6 +1151,10 @@ Panel {
     currentFill: root.selectedFill
 
     implicitHeight: exitNodeInner.implicitHeight + Style.spacing.xl
+
+    function activate() {
+      if (peer) root.chooseExitNode(peer)
+    }
 
     Row {
       id: exitNodeInner
@@ -1180,7 +1206,7 @@ Panel {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onEntered: root.setExitNodeCursor(exitNodeRow.rowIndex)
-      onClicked: root.chooseExitNode(exitNodeRow.peer)
+      onClicked: exitNodeRow.activate()
     }
 
     PanelToolTip {
@@ -1202,11 +1228,17 @@ Panel {
     readonly property bool selectedRegion: root.mullvadPickerOpen && root.mullvadRegionIndex === rowIndex
     readonly property string actionTooltip: activeExitNode ? "Disconnect" : "Connect"
 
+    accessibleName: peer ? regionName : ""
+    Accessible.onPressAction: regionRow.activate()
     foreground: root.foreground
     fill: root.hoverFill
     currentFill: root.selectedFill
     current: activeExitNode || settingExitNode || selectedRegion
     implicitHeight: row.implicitHeight + Style.spacing.lg
+
+    function activate() {
+      if (peer) root.chooseExitNode(peer)
+    }
 
     Row {
       id: row
@@ -1262,7 +1294,7 @@ Panel {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onEntered: root.mullvadRegionIndex = regionRow.rowIndex
-      onClicked: root.chooseExitNode(regionRow.peer)
+      onClicked: regionRow.activate()
     }
 
     PanelToolTip {
