@@ -7,6 +7,7 @@ run_node_test <<'JS'
 const fs = require('fs')
 const read = name => fs.readFileSync(path.join(root, name), 'utf8')
 const indicator = read('shell/plugins/bar/indicators/PasswordlessSudo.qml')
+const collector = read('shell/Commons/PasswordlessSudoStatus.qml')
 const widget = read('shell/plugins/bar/widgets/Indicators.qml')
 const manifest = JSON.parse(read('shell/plugins/bar/widgets/Indicators.manifest.json'))
 assert(widget.match(/defaultIndicatorEntries: \[ "PasswordlessSudo", "ScreenRecording"/), 'passwordless sudo is included in the default indicator tray')
@@ -15,9 +16,11 @@ assert(indicator.includes('useActiveColor: true') && indicator.includes('activeC
 assertEqual(indicator.match(/activeText: "([^"]+)"/)[1], indicator.match(/inactiveText: "([^"]+)"/)[1], 'sudo keeps the same icon in both states')
 assert(!widget.includes('sudoHorizontal') && !widget.includes('sudoVertical'), 'sudo participates in the normal indicator blocks')
 assert(!indicator.includes('visible:'), 'sudo uses the shared indicator visibility and hover behavior')
-assert(indicator.includes('command: ["omarchy-sudo-passwordless", "--active"]'), 'indicator uses the noninteractive grant probe')
-assert(indicator.includes('root.granted = exitCode === 0 && exitStatus === 0'), 'failed or interrupted probes do not claim an active grant')
-assert(indicator.includes('interval: 5000') && indicator.includes('onTriggered: root.refresh()'), 'indicator refreshes after activation, revocation, and expiry')
+assert(collector.startsWith('pragma Singleton') && read('shell/Commons/qmldir').includes('singleton PasswordlessSudoStatus 1.0 PasswordlessSudoStatus.qml'), 'grant status is collected once per QML engine')
+assert(indicator.includes('readonly property bool granted: PasswordlessSudoStatus.granted') && !indicator.includes('Timer {') && !indicator.includes('"--active"'), 'every monitor and indicator view reads the shared probe instead of starting another')
+assert(collector.includes('command: ["omarchy-sudo-passwordless", "--active"]'), 'shared collector uses the noninteractive grant probe')
+assert(collector.includes('interval: 5000') && collector.includes('onTriggered: root.refresh()'), 'shared collector preserves activation, revocation, and expiry polling')
+assert(!collector.includes('"--disable"') && !collector.includes('"--enable"') && !collector.includes('PAM'), 'shared state carries no grant-changing or authentication API')
 assert(indicator.includes('command: ["omarchy-sudo-passwordless", "--disable"]'), 'active indicator revokes access through a background process')
 assert(indicator.includes('if (root.granted) disableProc.running = true'), 'active click bypasses the terminal launcher')
 assert(indicator.includes('root.indicatorHost.refresh()'), 'disabling access refreshes all indicator instances immediately')
@@ -33,4 +36,5 @@ assert(launched.length === 0, 'repeat clicks during revocation cannot open the e
 revoke.running = false
 press(button, revoke)
 assertDeepEqual(launched, ['omarchy-launch-floating-terminal-with-presentation omarchy-sudo-passwordless'], 'inactive click still opens interactive setup')
+
 JS
