@@ -38,6 +38,13 @@ case "$2" in
       '           PID: 1002 (other)' \
       '        Signal: 6 (ABRT)' \
       '    Executable: /usr/bin/other-real' ;;
+  COREDUMP_PID=1004) printf '%s\n' \
+      '           PID: 1004 (omarchy-agent-foo)' \
+      '        Signal: 11 (SEGV)' \
+      '    Executable: /usr/bin/omarchy-agent-foo' ;;
+  COREDUMP_PID=1005) printf '%s\n' \
+      '           PID: 1005 (sigonly)' \
+      '        Signal: 6 (ABRT)' ;;
   COREDUMP_PID=5001)
     fails=$(cat "$FAIL_COUNT" 2>/dev/null || printf '0')
     if (( fails < 2 )); then
@@ -106,7 +113,7 @@ pass "watcher announces crashes with name, executable, and signal"
 
 : >"$NOTIFY_LOG"
 run_watch \
-  "$(core_file alien 424242 3001) $(core_file omarchy-agent-foo "$uid" 1002) $(core_file other "$uid" 1002)" \
+  "$(core_file alien 424242 3001) $(core_file omarchy-agent-foo "$uid" 1004) $(core_file other "$uid" 1002)" \
   OMARCHY_CRASH_DEDUPE_SECONDS=0
 [[ $(notify_count) -eq 1 ]] ||
   fail "foreign-uid and omarchy-own crashes are skipped" "got: $(notify_count) toasts"
@@ -157,3 +164,19 @@ grep -Fq "Process crashed: slowcore-real" "$NOTIFY_LOG" ||
 grep -Fq "omarchy-agent-crash 5001 slowcore-real /usr/bin/slowcore-real ABRT" "$NOTIFY_LOG" ||
   fail "the retry recovered the signal"
 pass "watcher retries the lookup until the journal entry lands"
+
+: >"$NOTIFY_LOG"
+run_watch "$(core_file "" "$uid" 1001)"
+[[ $(notify_count) -eq 1 ]] ||
+  fail "a core file with an empty comm is still announced" "got: $(notify_count) toasts"
+grep -Fq "Process crashed: foo-bar-real" "$NOTIFY_LOG" ||
+  fail "the empty comm falls back to the executable name"
+pass "watcher accepts a core file whose comm is empty"
+
+: >"$NOTIFY_LOG"
+run_watch "$(core_file sigonly "$uid" 1005)"
+[[ $(notify_count) -eq 1 ]] ||
+  fail "a crash with no executable is still announced" "got: $(notify_count) toasts"
+grep -Fq "omarchy-agent-crash 1005 sigonly unknown ABRT" "$NOTIFY_LOG" ||
+  fail "a missing executable does not shift the signal into its place"
+pass "watcher keeps the signal when coredumpctl has no executable"
