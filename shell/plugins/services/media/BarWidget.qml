@@ -64,9 +64,30 @@ BarWidget {
 
         property bool needsScroll: implicitWidth > scrollClip.width
 
+        // NumberAnimation latches `from`/`to` at the instant it starts, and
+        // `scrollClip.width` (the source of `from`) is still 0 on the frame
+        // where a new title lands. Starting then latches a degenerate
+        // animation, and the corrected bindings only take effect on the next
+        // loop -- so for a whole loop (6s or more) the label sits motionless
+        // showing only its first maxLabelWidth px, while `running` and
+        // `needsScroll` both stay true. Arm one tick later so the width
+        // bindings have settled, and re-arm on every width change so a stale
+        // animation cannot be inherited.
+        property bool scrollArmed: false
+        function rearmScroll() { scrollArmed = false; Qt.callLater(armScroll) }
+        function armScroll() { scrollArmed = true }
+        onImplicitWidthChanged: rearmScroll()
+        Component.onCompleted: rearmScroll()
+
+        // A value source owns `x` and leaves it wherever it stopped, which
+        // parks the label outside scrollClip once scrolling is no longer
+        // needed. Keyed on needsScroll rather than running so opening the
+        // popup pauses in place instead of snapping back to the start.
+        onNeedsScrollChanged: if (!needsScroll) x = 0
+
         NumberAnimation on x {
           id: scrollAnim
-          running: labelText.needsScroll && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
+          running: labelText.scrollArmed && labelText.needsScroll && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
           // Stopped for reduced motion, the title reads from its start again.
           onRunningChanged: if (!running && Style.reduceMotion) labelText.x = 0
           loops: Animation.Infinite
