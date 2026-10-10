@@ -8,6 +8,8 @@ On a laptop, Omarchy remembers your power profile separately for plugged in and 
 
 You can see what your machine offers with `omarchy powerprofiles list`, and set the one you want for the state you're currently in with `omarchy powerprofiles set autodetect power-saver`. To set the other state without unplugging anything, name it directly: `omarchy powerprofiles set battery power-saver`. Whatever you pick is what you'll get back the next time you're in that state.
 
+If the laptop stays plugged in most of the time, turn on _Trigger > Toggle > Battery Cap_ (`omarchy toggle battery-limit`) so charging stops at 80%. Power profiles change how hard the machine runs; the cap is what keeps the battery from sitting full.
+
 ### Toggle suspend
 
 You toggle suspend by running `omarchy toggle suspend` from the terminal. That just reveals/hides the option under _System_ (or `Super + Esc`), and then you can see if it works consistently on your system. If not, you can hide it again with the same command.

@@ -1,0 +1,180 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle the 80% battery charge cap
+# omarchy:args=[on|off]
+# omarchy:examples=omarchy toggle battery-limit | omarchy toggle battery-limit on
+
+set -euo pipefail
+
+# Whenever this runs as root — invoked directly through the passwordless
+# sudoers rule, or spawned by require_root below — sudo's secure_path decides
+# where a bare helper resolves, and a dev link (etc/sudoers.d/omarchy-dev-path)
+# prepends a user-writable checkout bin/ to it. Every helper this script calls
+# by bare name (install, rm, mktemp) is a system tool, never an omarchy-*
+# command, so pin PATH to trusted system directories and keep root from
+# resolving one out of that checkout. The unprivileged wrapper phase keeps the
+# caller's PATH so it can still find sudo/pkexec.
+if (( EUID == 0 )); then
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+fi
+
+CAP_PERCENT=80
+FULL_PERCENT=100
+PACKAGED_PATH=/usr/bin/omarchy-toggle-battery-limit
+power_supply_path="${OMARCHY_POWER_SUPPLY_PATH:-/sys/class/power_supply}"
+udev_rules_dir="${OMARCHY_UDEV_RULES_DIR:-/etc/udev/rules.d}"
+udev_control="${OMARCHY_UDEV_CONTROL:-/run/udev/control}"
+rule_file="$udev_rules_dir/99-omarchy-battery-limit.rules"
+
+usage() {
+  echo "Usage: omarchy-toggle-battery-limit [on|off]" >&2
+}
+
+sudo_grants_passwordless() {
+  sudo -n -l -l "$PACKAGED_PATH" "$@" 2>/dev/null | grep -q '!authenticate'
+}
+
+require_root() {
+  if (( EUID == 0 )); then
+    return
+  elif [[ -t 0 ]] || sudo_grants_passwordless "$@"; then
+    sudo "$PACKAGED_PATH" "$@"
+  else
+    pkexec "$PACKAGED_PATH" "$@"
+  fi
+}
+
+threshold_files() {
+  local f
+  for f in "$power_supply_path"/BAT*/charge_control_end_threshold; do
+    [[ -e $f ]] || continue
+    printf '%s\n' "$f"
+  done
+}
+
+supported() {
+  local files
+  files=$(threshold_files)
+  [[ -n $files ]]
+}
+
+current_threshold() {
+  local f
+  f=$(threshold_files | head -1)
+  [[ -n $f ]] || return 1
+  local value
+  value=$(<"$f")
+  printf '%s' "${value//$'\n'/}"
+}
+
+cap_enabled() {
+  local value
+  value=$(current_threshold) || return 1
+  (( 10#$value == CAP_PERCENT ))
+}
+
+write_thresholds() {
+  local value=$1
+  local f written=0
+  while IFS= read -r f; do
+    [[ -n $f ]] || continue
+    printf '%s\n' "$value" >"$f"
+    written=1
+  done < <(threshold_files)
+
+  (( written == 1 ))
+}
+
+write_udev_rule() {
+  local staged
+  mkdir -p "$udev_rules_dir"
+  staged=$(mktemp)
+  cat >"$staged" <<EOF
+# Set by omarchy-toggle-battery-limit. Do not edit.
+ACTION=="add|change", SUBSYSTEM=="power_supply", KERNEL=="BAT*", TEST=="charge_control_end_threshold", ATTR{charge_control_end_threshold}="$CAP_PERCENT"
+EOF
+  if ! install -m 0644 -o root -g root -T "$staged" "$rule_file"; then
+    rm -f "$staged"
+    return 1
+  fi
+  rm -f "$staged"
+}
+
+reload_udev() {
+  [[ -e $udev_control ]] || return 0
+  udevadm control --reload
+}
+
+apply() {
+  local want=$1
+
+  if [[ $want == "on" ]]; then
+    write_thresholds "$CAP_PERCENT"
+    write_udev_rule
+  else
+    write_thresholds "$FULL_PERCENT"
+    rm -f -- "$rule_file"
+  fi
+
+  reload_udev
+}
+
+notify_state() {
+  if cap_enabled; then
+    omarchy-notification-send -g 󰂏 "Battery cap on" "Charging stops at ${CAP_PERCENT}%"
+  else
+    omarchy-notification-send -g 󰂏 "Battery cap off" "Charging to full"
+  fi
+}
+
+action="${1:-toggle}"
+
+case "$action" in
+  --supported)
+    (( $# == 1 )) || { usage; exit 1; }
+    supported
+    ;;
+  --enabled)
+    (( $# == 1 )) || { usage; exit 1; }
+    cap_enabled
+    ;;
+  --status)
+    (( $# == 1 )) || { usage; exit 1; }
+    if ! supported; then
+      echo "unsupported" >&2
+      exit 1
+    fi
+    if cap_enabled; then
+      echo "on"
+    else
+      echo "off"
+    fi
+    ;;
+  on | off | toggle)
+    (( $# <= 1 )) || { usage; exit 1; }
+    if ! supported; then
+      echo "omarchy-toggle-battery-limit: no charge-control threshold on this machine" >&2
+      exit 1
+    fi
+
+    if [[ $action == "toggle" ]]; then
+      if cap_enabled; then
+        action=off
+      else
+        action=on
+      fi
+    fi
+
+    if (( EUID != 0 )); then
+      require_root "$action"
+      notify_state
+      exit 0
+    fi
+
+    apply "$action"
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac

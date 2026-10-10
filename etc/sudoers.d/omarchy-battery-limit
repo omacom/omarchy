@@ -1,0 +1,2 @@
+# The Toggle menu flips this without a terminal, so it must not stop for a password.
+%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-toggle-battery-limit, /usr/bin/omarchy-toggle-battery-limit on, /usr/bin/omarchy-toggle-battery-limit off
