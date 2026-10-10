@@ -5,6 +5,17 @@ omarchy-cmd-present vivaldi-stable || exit 0
 
 JSON=${VIVALDI_OMARCHY_JSON:-$HOME/.local/state/omarchy/vivaldi/theme.json}
 
+# Serialize refreshes for this channel. A refresh reads the palette and the
+# Hyprland look before it publishes, and the theme setter releases its lock
+# before the app hooks run, so two refreshes can otherwise interleave: an older
+# read that publishes after a newer one puts the running Vivaldi back on the old
+# palette. Hold the lock from before the first read through the native write
+# below, so a waiting refresh reads the current state instead of a stale one.
+channel_dir=$(dirname "$JSON")
+install -d -m 0700 "$channel_dir"
+exec 9>"$channel_dir/.lock"
+flock 9
+
 # A palette key can be absent (accent is optional); under set -e a missing key
 # must fall through to the guard below, not abort the refresh.
 bg=$(omarchy-theme-color background || true)
@@ -89,8 +100,6 @@ read_appearance
 # Only the loader code is shared. Each user's browser reads its own private
 # channel through Vivaldi's file API, so updates need neither sudo nor a shared
 # writable resource. Publish a complete JSON even when refreshes overlap.
-channel_dir=$(dirname "$JSON")
-install -d -m 0700 "$channel_dir"
 staged=$(mktemp "$channel_dir/.theme.XXXXXX")
 trap 'rm -f "$staged"' EXIT
 jq -n \
