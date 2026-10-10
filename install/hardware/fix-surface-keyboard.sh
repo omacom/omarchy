@@ -14,10 +14,13 @@ if omarchy-hw-surface; then
   pinctrl_module=$(lsmod | grep pinctrl_ | cut -f 1 -d" " || true)
   if [[ -z $pinctrl_module ]]; then
     echo "Failed to autodetect pinctrl module."
+    mkdir -p /etc/mkinitcpio.conf.d
+    echo "MODULES+=(surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd hid_multitouch 8250_dw)" > \
+      /etc/mkinitcpio.conf.d/surface_device_modules.conf
   else
     echo "Detected pinctrl module: $pinctrl_module"
     mkdir -p /etc/mkinitcpio.conf.d
-    echo "MODULES=(${pinctrl_module} surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)" > \
+    echo "MODULES+=(${pinctrl_module} surface_aggregator surface_aggregator_registry surface_aggregator_hub surface_hid_core surface_hid surface_kbd intel_lpss_pci 8250_dw)" > \
       /etc/mkinitcpio.conf.d/surface_device_modules.conf
   fi
 fi
