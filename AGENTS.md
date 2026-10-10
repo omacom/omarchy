@@ -89,9 +89,7 @@ The experience should be the same on every platform. When a package or feature i
 
 # Privileged Commands
 
-- Follow the "Privilege Escalation" section of `default/agents/skills/omarchy/SKILL.md`. It draws the
-  `sudo`/`pkexec` line by whether the caller has a terminal to enter a password in, and the repo's
-  own scripts follow it.
+- Follow the "Privilege Escalation" section of `default/agents/skills/omarchy/SKILL.md`. A script uses `sudo` when a person can type at its terminal and `pkexec` otherwise. An agent's own shell is not that terminal, so the end-user skill tells the agent to run `pkexec` itself.
 
 # Git
 

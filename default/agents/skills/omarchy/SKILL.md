@@ -50,7 +50,7 @@ matching guide before starting:
 
 ## Critical Safety Rules
 
-For privileged commands, follow the Privilege Escalation rules below: `sudo` when a terminal is available for the password prompt, `pkexec` when it is not. Do not wrap commands that already manage privilege elevation themselves.
+For privileged commands, follow the Privilege Escalation rules below. An agent uses `pkexec`. A person at a visible terminal uses `sudo`. Do not wrap a command that already elevates itself, except as that section says for an agent.
 
 **For end-user customization tasks, NEVER modify anything in `/usr/share/omarchy/`** - but READING is safe and encouraged.
 
@@ -83,15 +83,25 @@ If the request is to develop Omarchy itself, this skill is out of scope. Follow 
 
 ## Privilege Escalation
 
-For an interactive script or command run in a visible terminal, use `sudo` for
-privileged work. Omarchy may grant passwordless `sudo` access to particular
-commands, and the terminal is the appropriate place to request a password
-when one is needed.
+An agent does not have a terminal the user can type a password into. The shell an agent runs is not that terminal, even when the process has a pty. `sudo` from an agent waits on a prompt the user never sees, or fails with `a password is required`, and the command stops.
 
-Use `pkexec` only when the caller cannot interact with a terminal or cannot
-enter a password there, such as a command launched by an agent or a graphical
-background process. Do not replace `sudo` with `pkexec` merely because a
-command changes system state.
+When an agent needs root, run the command with `pkexec --disable-internal-agent`. Pass the program as an absolute path. That shows the graphical polkit prompt, so leave the call running long enough for the user to answer it. `pkexec` starts in root's home with a minimal environment, so a relative path or a variable exported in the agent shell is not there.
+
+```bash
+pkexec --disable-internal-agent /usr/bin/systemctl enable --now bluetooth
+```
+
+Do not run `sudo` from an agent. Do not set `SUDO_ASKPASS` or open another password dialog. Do not hand the command back for the user to run. Passwordless `sudo` is not the default, and it is not a reason to try `sudo` first.
+
+If `pkexec` exits 126 or 127, read its output before deciding why. `pkexec` uses 126 when the user dismisses the prompt and 127 when authorization fails or no polkit agent is running, but the program can exit with those same statuses after authorization succeeds. A dismissed prompt or a missing agent means stop. Do not retry, and do not look for another way to become root. Without `--disable-internal-agent`, a missing polkit agent makes `pkexec` ask for a password on the agent's own terminal.
+
+A person typing in a visible terminal uses `sudo`.
+
+Do not put `sudo` or `pkexec` in front of a command that already elevates itself. The only exception is a command checked to be safe as root: it does nothing but the privileged work, it does not need the caller's environment, and it does not write the user's home. A `requires-sudo` header is not that check. `omarchy-pkg-add` is safe. It calls `sudo` unless it is already root, and that `sudo` only runs `pacman`, so an agent runs it as `pkexec --disable-internal-agent /usr/bin/omarchy-pkg-add <pkgs>`.
+
+Do not wrap a command that also sets up the user. `omarchy-install-terminal` installs the package, then copies a desktop entry and config and writes `xdg-terminals.list` under the caller's home. Those copies need `OMARCHY_PATH`. Under `pkexec` the package installs as root, the writes land in root's home, and `OMARCHY_PATH` is not in the minimal environment, so the user's terminal settings never change. Install the package with `omarchy-pkg-add` under `pkexec`, then run `omarchy-install-terminal` as the user. The package is already present, so that second run does not call `sudo`, and the setup is written for the user. Do not assume another installer is sudo-free on a second run. If it still elevates for something other than the package, do not wrap it; run only the root step under `pkexec` and do the user step as the user.
+
+Do not run `omarchy pkg aur add` under `pkexec`. `yay` will not build as root, so that stays on a visible terminal.
 
 ## System Architecture
 
@@ -253,7 +263,7 @@ When user requests system changes:
 2. **Is it a config edit?** Edit in `~/.config/`, never `/usr/share/omarchy/`
 3. **Is it a theme customization?** Follow [`theming.md`](theming.md); create a NEW custom theme directory
 4. **Is it automation?** Follow [`hooks.md`](hooks.md); use `omarchy hook install` and the hook `.d` directories
-5. **Is it a package install?** Use `omarchy pkg add <pkgs...>` (or `omarchy pkg aur add <pkgs...>` for AUR-only packages)
+5. **Is it a package install?** Use `omarchy pkg add <pkgs...>` (or `omarchy pkg aur add <pkgs...>` for AUR-only packages). An agent runs `pkg add` under `pkexec` as the Privilege Escalation section says. `pkg aur add` still needs a person at a visible terminal. Do not run a mixed installer such as `omarchy-install-terminal` under `pkexec`; that section says to install the package first, then do the user setup as the user.
 6. **Is it built-in shell/plugin code?** Follow [`plugins.md`](plugins.md); clone it with `omarchy plugin clone`, never edit the packaged copy
 7. **Unsure if command exists?** Run `omarchy commands` (or `omarchy <group> --help` for one group)
 
