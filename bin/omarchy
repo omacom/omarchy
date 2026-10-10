@@ -590,6 +590,10 @@ print_command_table() {
     (( width > max_width )) && max_width=$width
   done <<<"$rows"
 
+  # Cap the column so the few usages past 200 characters push only their own summary
+  # along, rather than padding every row out past the edge of a normal terminal.
+  (( max_width > 48 )) && max_width=48
+
   while IFS=$'\t' read -r command rest; do
     [[ -n $command ]] || continue
 
