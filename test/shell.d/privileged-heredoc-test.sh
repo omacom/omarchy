@@ -547,6 +547,14 @@ continued_heredoc_command() {
   printf '%s' "$command"
 }
 
+normalize_heredoc_body() {
+  local text="$1"
+
+  text=${text//$'\\\n'/}
+  text=${text//$'\n'/ }
+  printf '%s' "$text"
+}
+
 # Count the \001 placeholders in a masked token.
 count_placeholders() {
   local text="$1" count=0
@@ -595,8 +603,8 @@ scan_file() {
   local file="$1" display="${2:-$1}"
   local -a lines=()
   local index lineno line command scan rest raw operator match prefix guard slot delim candidate candidate_delim body_start
-  local body_text unescaped destination destination_command body_line masked_line token name
-  local declared_paths annotation look shown_paths shown_plain count next slots terminated
+  local body_text unescaped destination destination_command masked_line token name
+  local declared_paths annotation look shown_paths shown_plain count next slots terminated has_command_substitution
   local hd_re='(<<-?)[[:space:]]*("[A-Za-z_][A-Za-z0-9_]*"|'"'"'[A-Za-z_][A-Za-z0-9_]*'"'"'|[A-Za-z_][A-Za-z0-9_]*)'
 
   mapfile -t lines <"$file"
@@ -690,10 +698,15 @@ scan_file() {
 
       # A quoted delimiter cannot expand anything.
       ((quoted[slot] == 1)) || continue
+      has_command_substitution=0
 
       printf -v body_text '%s\n' "${body[@]:-}"
+      body_text=$(normalize_heredoc_body "$body_text")
       unescaped=$(strip_escapes "$body_text")
       [[ $unescaped =~ $EXPANSION_RE || $unescaped == *'`'* ]] || continue
+      if [[ $unescaped == *'$('* || $unescaped == *'`'* ]]; then
+        has_command_substitution=1
+      fi
 
       destination_command=$(continued_heredoc_command "$command" "$index" lines)
       destination=$(privileged_destination "$destination_command" "$index" lines) || continue
@@ -701,29 +714,28 @@ scan_file() {
       # Sort the expansions into the ones that bake a path into the file and
       # the ones that only interpolate a scalar.
       local -a path_expansions=() plain_expansions=() scanned=() names=()
-      while IFS= read -r body_line; do
-        mapfile -t scanned < <(mask_and_names "$body_line")
-        masked_line=${scanned[0]}
-        names=("${scanned[@]:1}")
-        next=0
+      mapfile -t scanned < <(mask_and_names "$unescaped")
+      masked_line=${scanned[0]}
+      names=("${scanned[@]:1}")
+      next=0
 
-        for token in $masked_line; do
-          count=$(count_placeholders "$token")
-          ((count > 0)) || continue
+      for token in $masked_line; do
+        count=$(count_placeholders "$token")
+        ((count > 0)) || continue
 
-          for ((slots = 0; slots < count; slots++)); do
-            name=${names[next]:-}
-            next=$((next + 1))
-            [[ -n $name ]] || continue
+        for ((slots = 0; slots < count; slots++)); do
+          name=${names[next]:-}
+          next=$((next + 1))
+          [[ -n $name ]] || continue
+          [[ $name == "$COMMAND_SUBSTITUTION" ]] && has_command_substitution=1
 
-            if classify_expansion "$token" "$name"; then
-              in_list "$name" "${path_expansions[@]:-}" || path_expansions+=("$name")
-            else
-              in_list "$name" "${plain_expansions[@]:-}" || plain_expansions+=("$name")
-            fi
-          done
+          if classify_expansion "$token" "$name"; then
+            in_list "$name" "${path_expansions[@]:-}" || path_expansions+=("$name")
+          else
+            in_list "$name" "${plain_expansions[@]:-}" || plain_expansions+=("$name")
+          fi
         done
-      done <<<"$unescaped"
+      done
 
       declared_paths=""
       annotation=""
@@ -749,6 +761,11 @@ scan_file() {
           IFS=,
           printf '%s' "${plain_expansions[*]}"
         )
+      fi
+
+      if ((has_command_substitution == 1)); then
+        FINDINGS+=("$display:$lineno: unquoted heredoc <<$delim contains an unescaped command substitution and its output reaches $destination")
+        continue
       fi
 
       if [[ -z $annotation ]]; then
@@ -892,6 +909,18 @@ fixture_flags annotated-paths-none-still-fails.sh \
 fixture_flags annotated-special-parameter-before-home.sh \
   "a shell special parameter cannot hide a later baked \$HOME path" \
   "declares paths=none but the path-shaped expansions are HOME"
+fixture_flags annotated-command-substitution-still-fails.sh \
+  "an annotation cannot silence a command substitution" \
+  "command substitution"
+fixture_flags annotated-multiline-command-substitution-still-fails.sh \
+  "an annotation cannot silence a multiline command substitution" \
+  "command substitution"
+fixture_flags annotated-multiline-backtick-still-fails.sh \
+  "an annotation cannot silence a multiline backtick substitution" \
+  "command substitution"
+fixture_flags annotated-multiline-continuation-still-fails.sh \
+  "an annotation cannot silence a multiline command continuation" \
+  "command substitution"
 
 # A path can hide one or more hops away from the heredoc. In each of these the
 # token in the body has no slash and the value never resolves to a literal path,
