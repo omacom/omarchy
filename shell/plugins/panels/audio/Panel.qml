@@ -896,7 +896,7 @@ Panel {
                 maximum: 1
                 step: 0.05
                 value: root.outputVolume
-                opacity: root.outputMuted ? 0.5 : 1.0
+                dimmed: root.outputMuted
                 enabled: !!root.sink
 
                 onMoved: function(v) { root.setOutputVolume(v) }
@@ -993,7 +993,7 @@ Panel {
                   maximum: 1
                   step: 0.05
                   value: root.inputVolume
-                  opacity: root.inputMuted ? 0.5 : 1.0
+                  dimmed: root.inputMuted
                   enabled: !!root.source
 
                   onMoved: function(v) { root.setInputVolume(v) }
@@ -1288,7 +1288,7 @@ Panel {
         maximum: 1.5
         step: 0.05
         value: streamRow.streamVolume
-        opacity: streamRow.streamMuted ? 0.5 : 1.0
+        dimmed: streamRow.streamMuted
 
         onMoved: function(v) {
           if (streamRow.node && streamRow.node.audio) streamRow.node.audio.volume = v
