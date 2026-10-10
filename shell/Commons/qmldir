@@ -6,4 +6,5 @@ singleton IpcRegistry 1.0 IpcRegistry.qml
 singleton Style 1.0 Style.qml
 singleton UntypedInput 1.0 UntypedInput.qml
 singleton Util 1.0 Util.qml
+singleton Wallclock 1.0 Wallclock.qml
 ShellIpc 1.0 ShellIpc.qml
