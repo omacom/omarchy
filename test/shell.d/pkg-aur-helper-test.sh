@@ -51,6 +51,26 @@ printf "aur-accessible\n" >>"$OMARCHY_AUR_TEST_LOG"
 exit 0
 '
 
+# Shadow command-presence checks so installed host helpers (yay/paru) can not
+# leak into the test through PATH; presence is decided by the stubs alone.
+write_stub omarchy-cmd-present '#!/bin/bash
+dir=$(dirname "$0")
+for cmd in "$@"; do
+  [[ -x "$dir/$cmd" ]] || exit 1
+done
+exit 0
+'
+
+write_stub omarchy-cmd-missing '#!/bin/bash
+dir=$(dirname "$0")
+for cmd in "$@"; do
+  if [[ ! -x "$dir/$cmd" ]]; then
+    exit 0
+  fi
+done
+exit 1
+'
+
 run_env() {
   : >"$log_file"
   OMARCHY_AUR_TEST_LOG="$log_file" HOME="$test_home" PATH="$stub_bin:$ROOT/bin:$PATH" "$@"
