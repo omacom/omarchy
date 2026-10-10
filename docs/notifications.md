@@ -167,12 +167,17 @@ Everything goes through the same sender contract, so the pieces are small:
 
 - **Low battery** — `omarchy-battery-low` sends a critical toast and runs the
   `battery-low` hook.
-- **Crash capture** — `omarchy-crash-watch` follows the systemd-coredump
-  journal stream and announces each crashed program (deduped per minute) as a
-  critical toast whose click runs `omarchy-agent-crash` (via `--exec`, so a
-  hostile process name stays a discrete argument). It waits for the
-  server first: a shell crash takes the notification server down with it, and
-  that crash is the one most worth reporting.
+- **Crash capture** — `omarchy-crash-watch` watches `/run/omarchy-crash-events`
+  with inotify for coredump completion events and announces
+  each crashed program (deduped per minute) as a critical toast whose click
+  runs `omarchy-agent-crash` (via `--exec`, so a hostile process name stays
+  a discrete argument). It waits for the server first: a shell crash takes
+  the notification server down with it, and that crash is the one most
+  worth reporting.
+
+  The package-owned `systemd-coredump@.service` drop-in emits its unique `InvocationID` through an ephemeral, root-owned marker in `ExecStopPost`. Tmpfiles creates the directory before user sessions start; only root can write it. The marker is immediately removed, but inotify retains its name. This does not depend on retaining a core file, so the event also arrives with `Storage=journal`, `Storage=none` (including `ProcessSizeMax=0`), or when a core exceeds `ExternalSizeMax`.
+
+  Each event triggers a short-lived JSON journal query matching the coredump `MESSAGE_ID` and `_SYSTEMD_INVOCATION_ID`, with brief retries for journal delivery. Only the current user's crashes are announced. The invocation match cannot select an older crash after PID reuse, and the original journal fields preserve empty names, spaces, leading dots and `SIG`-prefixed signals. No journal reader remains running between events; this is not independence from the journal or a guarantee of a particular memory saving. Missing journal metadata is logged and the event skipped, since an invocation alone cannot safely identify a program. Events missed while the watcher is stopped are not replayed.
 - **Pending migrations** — `omarchy-migrate-notify` (from its user service
   after `graphical-session.target`) waits for the server, then sends a
   critical toast whose click opens a terminal running `omarchy-migrate`,
