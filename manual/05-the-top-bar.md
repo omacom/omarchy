@@ -128,6 +128,14 @@ All of it is stored in `~/.config/omarchy/shell.json`, under the `bar` key. Here
 
 Every widget is one entry in one of the three layout arrays, and its settings sit inline on that entry — there's no separate settings file and no `config` sub-object. The clock's `format`, `formatAlt` (what right-click cycles to), and `verticalFormat` all live right there on `{ "id": "omarchy.clock" }`.
 
+The workspaces widget's `monitorOnly` setting defaults to `false`: every bar shows workspaces 1–5, plus any other workspace Hyprland reports up to 10. To show only the workspaces on each bar's monitor, set it to `true` on the `omarchy.workspaces` entry in one of the `bar.layout` arrays in `~/.config/omarchy/shell.json`:
+
+```json
+{ "id": "omarchy.workspaces", "monitorOnly": true }
+```
+
+You can also enable it with `omarchy bar set omarchy.workspaces monitorOnly true --json`; `--json` stores a boolean value. The widget follows the monitor assignments Hyprland reports, including persistent workspace rules. If a workspace moves to another monitor, its button moves to that monitor's bar. Only workspace IDs 1–10 are shown; a monitor with no matching workspaces has no workspace buttons. If the bar's screen is not yet known, the widget shows all reported workspaces in that range until it can filter them.
+
 `centerAnchor` names the one center widget that gets pinned to the exact center of the screen, with the others flanking it. That's how the clock stays dead center even as the weather and update badge come and go. Set it to an empty string and the center list is just centered as a group instead.
 
 One rule worth internalizing: **once you have your own `shell.json`, it's canonical**. Until you customize anything, the shell reads Omarchy's default file. The moment you drag a widget, run `omarchy bar`, or edit the file yourself, you own it — there's no deep merge, so new default widgets in future Omarchy releases won't appear on your bar automatically. `omarchy bar defaults` puts the shipped layout back whenever you want a clean slate.
