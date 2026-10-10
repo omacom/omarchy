@@ -579,6 +579,8 @@ def duration(delta: dt.timedelta) -> str:
 def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, stale: frozenset[str] = frozenset()) -> dict[str, Any] | None:
   threshold = float(registry["threshold"])
   current = active(registry)
+  if current["id"] in stale:
+    return None
   current_peak = peak(usage.get(current["id"]), now)
   if current_peak is None or current_peak < threshold:
     return {"action": "clear"} if registry.get("alert") else None

@@ -11,6 +11,7 @@ panel only ever reads the JSON this prints.
 """
 
 import argparse
+import base64
 import fcntl
 import hashlib
 import json
@@ -879,9 +880,86 @@ def has_codex_credentials(codex_home, env):
   return (codex_home / "auth.json").is_file()
 
 
-def fetch_codex_rpc(home=None):
-  result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": AUTH_HELP}
+def codex_identity(home, env):
+  # auth.json only identifies the active login when Codex uses the file store.
+  if env.get("CODEX_ACCESS_TOKEN"):
+    return {}
+  try:
+    with (home / "config.toml").open("rb") as handle:
+      config = tomllib.load(handle)
+  except FileNotFoundError:
+    config = {}
+  except Exception:
+    return {}
+  if str(config.get("cli_auth_credentials_store") or "file") != "file":
+    return {}
+  try:
+    auth = json.loads((home / "auth.json").read_text(encoding="utf-8"))
+    tokens = auth.get("tokens") or {}
+    if not isinstance(tokens, dict):
+      tokens = {}
+  except Exception:
+    tokens = {}
+  try:
+    payload = str(tokens.get("id_token") or "").split(".")[1]
+    claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+    openai = claims.get("https://api.openai.com/auth") or {}
+    email = str(claims.get("email") or "")
+    account_id = str(openai.get("chatgpt_account_id") or "")
+  except Exception:
+    email, account_id = "", ""
+  return {"email": email, "accountId": str(tokens.get("account_id") or account_id)}
+
+
+def matching_identity(current, previous):
+  shared = False
+  for key in ("email", "accountId"):
+    if current.get(key) and previous.get(key):
+      if current[key] != previous[key]:
+        return False
+      shared = True
+  return shared
+
+
+def read_previous_record():
+  """Read last-known meters independently of the local scan cache's freshness."""
+  state = Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state"))
+  try:
+    record = json.loads((state / "omarchy" / "agents" / "usage" / "codex.json").read_text(encoding="utf-8"))
+    if not isinstance(record, dict) or record.get("schemaVersion") != 1 or record.get("id") != AGENT_ID:
+      return {}
+    entries = [record] + record.get("accounts", [])
+    for entry in entries:
+      if not isinstance(entry, dict) or not isinstance(entry.get("limits"), list):
+        return {}
+      for limit in entry["limits"]:
+        if not isinstance(limit, dict) or not isinstance(limit.get("label"), str):
+          return {}
+        if type(limit.get("percent")) not in (int, float) or not 0 <= limit["percent"] <= 1:
+          return {}
+        if not isinstance(limit.get("resetsAt"), str):
+          return {}
+    return record
+  except (OSError, ValueError, TypeError):
+    return {}
+
+
+def transient_failure(result, previous_limits):
+  result.update({
+    "limits": previous_limits or [],
+    "limitsStale": True,
+    "retryAdvised": True,
+    "usageStatusText": "Codex limits unavailable",
+    "authHelpText": "Codex did not respond. Retrying soon.",
+  })
+
+
+def fetch_codex_rpc(home=None, previous=None):
+  result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": AUTH_HELP, "retryAdvised": False, "email": "", "accountId": ""}
   env = dict(ENV, CODEX_HOME=str(home)) if home else ENV
+  identity = codex_identity(Path(env.get("CODEX_HOME") or (Path.home() / ".codex")), env)
+  result.update(identity)
+  previous_limits = (previous or {}).get("limits") if matching_identity(identity, previous or {}) else None
   codex = find_codex_binary()
   if not codex:
     result["usageStatusText"] = "Codex unavailable"
@@ -918,12 +996,18 @@ def fetch_codex_rpc(home=None):
   except Exception as exc:
     if stderr_file:
       stderr_file.close()
-    result["usageStatusText"] = "Codex unavailable"
-    result["authHelpText"] = str(exc)
+    result["usageStatusText"] = "Codex limits unavailable"
+    result["authHelpText"] = str(exc)[:300]
     return result
 
   try:
-    rpc_request(proc, 1, "initialize", {"clientInfo": {"name": "omarchy-agent-usage", "version": "1"}}, timeout=8)
+    initialized = rpc_request(proc, 1, "initialize", {"clientInfo": {"name": "omarchy-agent-usage", "version": "1"}}, timeout=8)
+    if initialized.get("error"):
+      message = str(initialized["error"].get("message") or "Codex initialization failed")
+      if "auth" in message.lower():
+        result["usageStatusText"] = "Waiting for auth"
+        return result
+      raise ValueError(message)
     rpc_send(proc, {"method": "initialized", "params": {}}, "initialized")
     limits_msg = rpc_request(proc, 2, "account/rateLimits/read", timeout=8)
 
@@ -968,7 +1052,12 @@ def fetch_codex_rpc(home=None):
       result["resetCredits"] = credits
   except Exception as exc:
     result["usageStatusText"] = "Codex limits unavailable"
-    result["authHelpText"] = codex_rpc_help(proc, stderr_file, exc)
+    result["authHelpText"] = str(exc)[:300] if isinstance(exc, ValueError) else codex_rpc_help(proc, stderr_file, exc)
+    help_text = result["authHelpText"]
+    # Exited-server diagnostics and protocol errors are permanent failures.
+    transport_failure = isinstance(exc, RuntimeError) and str(exc).startswith("Codex app-server exited before ")
+    if (isinstance(exc, TimeoutError) or transport_failure) and help_text != AUTH_HELP and not help_text.startswith("codex app-server exited:") and "auth" not in help_text.lower():
+      transient_failure(result, previous_limits)
   finally:
     try:
       proc.terminate()
@@ -1009,19 +1098,21 @@ def registered_accounts():
 
 # Each account's app-server runs in that account's home, so it answers for that
 # login and refreshes that login's tokens there.
-def account_limits(account):
+def account_limits(account, previous):
   # The primary is ~/.codex by definition, not whatever CODEX_HOME this run
   # happened to inherit — that would report another account's limits as Main's.
-  rpc = fetch_codex_rpc(account.get("home") or (Path.home() / ".codex"))
+  rpc = fetch_codex_rpc(account.get("home") or (Path.home() / ".codex"), previous)
   return {
     "id": account["id"],
     "label": str(account.get("label") or account["id"]),
-    "email": str(account.get("email") or ""),
+    "email": rpc["email"],
+    "accountId": rpc["accountId"],
     "plan": rpc["tierLabel"] or str(account.get("plan") or ""),
     "active": account["active"],
     "primary": bool(account.get("primary")),
     "limits": rpc["limits"],
-    "stale": not rpc["limits"],
+    "stale": rpc.get("limitsStale", not rpc["limits"]),
+    "retryAdvised": rpc.get("retryAdvised", False),
     "usageStatusText": rpc["usageStatusText"],
     "authHelpText": rpc["authHelpText"],
     "resetCredits": rpc.get("resetCredits"),
@@ -1040,14 +1131,26 @@ def main():
   args = parser.parse_args()
 
   max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
+  previous = read_previous_record()
   stats = cached_local_stats(max_age)
   registered = registered_accounts()
-  accounts = [account_limits(account) for account in registered]
+  previous_accounts = {a["id"]: a for a in previous.get("accounts", []) if isinstance(a.get("id"), str)}
+  # Before the first secondary is registered, only the primary's top-level
+  # meters exist. Seed that account without lending its meters to secondaries.
+  if "accounts" not in previous:
+    for account in registered:
+      if account.get("primary"):
+        previous_accounts[account["id"]] = previous
+  accounts = [account_limits(account, previous_accounts.get(account["id"], {})) for account in registered]
   current = next((a for a in accounts if a["active"]), None)
   if current:
     # The top-level fields keep describing the account new sessions use.
     rpc = {
+      "email": current["email"],
+      "accountId": current["accountId"],
       "limits": current["limits"],
+      "limitsStale": current["stale"],
+      "retryAdvised": any(a["retryAdvised"] for a in accounts),
       "tierLabel": current["plan"],
       "usageStatusText": current["usageStatusText"],
       "authHelpText": current["authHelpText"],
@@ -1055,7 +1158,13 @@ def main():
     if current.get("resetCredits"):
       rpc["resetCredits"] = current["resetCredits"]
   else:
-    rpc = fetch_codex_rpc()
+    # A multi-account record's top-level meters belong to its active account,
+    # which may have been removed. Only the cached primary belongs here.
+    if "accounts" in previous:
+      previous_primary = next((a for a in previous["accounts"] if a.get("primary")), {})
+    else:
+      previous_primary = previous
+    rpc = fetch_codex_rpc(previous=previous_primary)
 
   record = {
     "schemaVersion": 1,
