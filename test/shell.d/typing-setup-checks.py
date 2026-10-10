@@ -63,6 +63,13 @@ class TypingSetupTest(unittest.TestCase):
           typing.save_inputs(["mozc"])
       self.assertFalse((Path(temporary) / "fontconfig/conf.d/50-omarchy-input-method.conf").exists())
 
+  def test_failed_font_write_restores_the_input_group(self):
+    before = [["keyboard-us", ""]]
+    with patch.object(typing.setup, "live_group", return_value=("Default", "us", before)), patch.object(typing.setup, "available_methods", return_value=[["mozc", "Mozc"]]), patch.object(typing, "set_inputs"), patch.object(typing.setup, "font_default", side_effect=OSError("read-only")), patch.object(typing.setup, "live_set") as setter:
+      with self.assertRaises(OSError):
+        typing.save_inputs(["mozc"])
+    setter.assert_called_once_with("Default", "us", before)
+
   def test_cancellation_does_not_change_input_settings(self):
     with patch.object(typing.setup, "live_group", return_value=("Default", "us", [["keyboard-us", ""]])), patch.object(typing, "input_catalog", return_value=({"mozc": "Japanese"}, {"mozc": "Japanese"})), patch.object(typing, "choose", return_value=None), patch.object(typing.setup, "live_set") as setter:
       self.assertFalse(typing.configure_inputs())
