@@ -42,11 +42,15 @@ Item {
   readonly property real progress: Math.max(0, Math.min(1, (liveValue - minimum) / range))
   readonly property bool _hot: mouseArea.containsMouse || root.dragging
 
+  readonly property real knobCenter: track.x + track.width * progress
+
   Rectangle {
     id: track
     anchors.verticalCenter: parent.verticalCenter
     anchors.left: parent.left
     anchors.right: parent.right
+    anchors.leftMargin: root.knobSize / 2
+    anchors.rightMargin: root.knobSize / 2
     height: root.trackHeight
     radius: height / 2
     color: root.trackColor
@@ -76,8 +80,7 @@ Item {
       radius: 1
       color: root.tickColor
       anchors.verticalCenter: track.verticalCenter
-      x: Math.max(0, Math.min(track.width - width,
-                              track.width * (index / (root.tickCount - 1)) - width / 2))
+      x: track.x + track.width * (index / (root.tickCount - 1)) - width / 2
     }
   }
 
@@ -89,7 +92,7 @@ Item {
     color: root.knobColor
     borderSpec: Border.flat(root.bar ? root.bar.background : "#101315", Math.max(1, Style.space(2)))
     anchors.verticalCenter: track.verticalCenter
-    x: Math.max(0, Math.min(track.width - width, track.width * root.progress - width / 2))
+    x: root.knobCenter - width / 2
     scale: root._hot ? 1.15 : 1.0
 
     Behavior on x {
@@ -110,8 +113,9 @@ Item {
     acceptedButtons: Qt.LeftButton | Qt.RightButton
 
     function valueFromX(x) {
-      var clamped = Math.max(0, Math.min(track.width, x))
-      var raw = root.minimum + (clamped / track.width) * root.range
+      if (track.width <= 0) return root.minimum
+      var clamped = Math.max(0, Math.min(1, (x - track.x) / track.width))
+      var raw = root.minimum + clamped * root.range
       if (root.integer) raw = Math.round(raw)
       return Math.max(root.minimum, Math.min(root.maximum, raw))
     }
