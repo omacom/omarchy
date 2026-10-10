@@ -38,6 +38,16 @@ const url = new URL(network.captivePortalUrl)
 assertEqual(url.protocol, 'http:', 'browser entry point uses plain HTTP so a portal can intercept it')
 assertEqual(url.hostname, 'ping.archlinux.org', 'browser entry point is fixed rather than portal-supplied')
 assertEqual(url.username + url.password, '', 'browser entry point contains no credentials')
+assertEqual(network.wifiToggleVisible('ethernet', true, true), false,
+  'Ethernet-connected state does not offer a Wi-Fi radio toggle')
+assertEqual(network.wifiToggleVisible('wifi', true, true), true,
+  'Wi-Fi-connected state offers a Wi-Fi radio toggle')
+assertEqual(network.wifiToggleVisible('disconnected', true, true), true,
+  'disconnected state can still turn Wi-Fi on')
+assertEqual(network.wifiToggleVisible('wifi', false, true), false,
+  'non-NetworkManager backend does not offer the toggle')
+assertEqual(network.wifiToggleVisible('wifi', true, false), false,
+  'missing Wi-Fi station does not offer the toggle')
 JS
 
 require_compositor "network captive-portal runtime test"

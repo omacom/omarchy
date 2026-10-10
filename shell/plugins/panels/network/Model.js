@@ -8,6 +8,10 @@ function parseNetworkStatus(raw) {
   }
 }
 
+function wifiToggleVisible(kind, networkManagerAvailable, wifiStationAvailable) {
+  return networkManagerAvailable && wifiStationAvailable && kind !== "ethernet"
+}
+
 function wifiIconFor(strength) {
   var icons = ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"]
   var index = Math.max(0, Math.min(4, Math.ceil(strength / 20) - 1))
@@ -414,6 +418,7 @@ if (typeof module !== "undefined") {
     sortWifiRows: sortWifiRows,
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
+    wifiToggleVisible: wifiToggleVisible,
     canForgetNetwork: canForgetNetwork,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,

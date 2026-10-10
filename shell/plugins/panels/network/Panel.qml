@@ -127,10 +127,9 @@ Panel {
   readonly property bool canDisconnect: !!connectedWifiNetwork
   readonly property bool headerHasDisconnect: false
   readonly property bool canShareWifi: info.type === "wifi" && canShareNetwork(connectedWifiNetwork)
-  // The hero switch is the Wi-Fi radio, so it only exists when there is a
-  // radio to switch. On a wired box it would otherwise sit there reading
-  // "off" beside a perfectly live Ethernet connection.
-  readonly property bool canToggleWifi: networkManagerAvailable && wifiStationAvailable
+  // The radio toggle describes the active link. Keep it out of the way while
+  // Ethernet carries the connection; the wired link remains the visible state.
+  readonly property bool canToggleWifi: Model.wifiToggleVisible(kind, networkManagerAvailable, wifiStationAvailable)
   readonly property int qrHeaderIndex: canShareWifi ? 0 : -1
   readonly property int speedHeaderIndex: canRunSpeedTest ? (canShareWifi ? 1 : 0) : -1
   readonly property int toggleHeaderIndex: canToggleWifi ? (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) : -1
@@ -778,6 +777,12 @@ Panel {
     root.pendingDnsProvider = provider
     actionProc.command = ["bash", "-c", root.dnsCommand(provider)]
     actionProc.running = true
+    root.close()
+  }
+
+  function configureWiredConnection() {
+    if (!root.bar || root.kind !== "ethernet") return
+    root.bar.run("omarchy-launch-floating-terminal-with-presentation " + Util.shellQuote("nmtui edit"))
     root.close()
   }
 
@@ -1572,6 +1577,36 @@ Panel {
           }
         }
 
+      }
+
+      // Delegate IP mode, addresses, gateway, and DNS to NetworkManager's
+      // connection editor rather than duplicating profile validation here.
+      PanelSeparator {
+        visible: root.kind === "ethernet"
+        foreground: root.bar.foreground
+      }
+
+      Column {
+        visible: root.kind === "ethernet"
+        width: parent.width
+        spacing: Style.space(10)
+
+        PanelSectionHeader {
+          text: "WIRED CONNECTION"
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+        }
+
+        Button {
+          width: parent.width
+          text: "Configure IP, DHCP, gateway, and DNS"
+          iconText: "󰈀"
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          verticalPadding: Style.space(8)
+          bordered: true
+          onClicked: root.configureWiredConnection()
+        }
       }
 
       // DNS provider selection.
