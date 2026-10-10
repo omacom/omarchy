@@ -17,8 +17,57 @@ export PATH="$OMARCHY_PATH/bin:/usr/local/bin:/usr/bin:$PATH"
 
 DOWNLOAD_DIR="${OMARCHY_YTDLP_DIR:-$HOME/Videos}"
 
+# The browser session lands in a file for yt-dlp's --cookies; keep it on the
+# user-private runtime tmpfs rather than a world-readable /tmp on disk.
+COOKIE_DIR="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}"
+COOKIE_FILE=""
+
 parse_url() {
   jq -r '.url // empty' 2>/dev/null <<<"$1" || true
+}
+
+# Render the cookies the extension read for the page (chrome.cookies.getAll) in
+# the Netscape format yt-dlp's --cookies reads: domain, subdomain flag, path,
+# secure flag, expiry, name, value, tab-separated. A domain cookie keeps its
+# leading dot and the TRUE flag the loader asserts they agree on; a session
+# cookie expires at 0 (yt-dlp loads with ignore_expires); an httpOnly cookie
+# carries the #HttpOnly_ prefix the cookie-export extensions use. A field with
+# a control character would start a new record, so that cookie is dropped whole.
+render_cookies() {
+  jq -r '
+    (.cookies // []) | (if type == "array" then . else [] end) | .[]
+    | select(type == "object" and (.name | type) == "string" and (.value | type) == "string" and (.domain | type) == "string")
+    | (if .hostOnly == true then (.domain | ltrimstr(".")) elif (.domain | startswith(".")) then .domain else "." + .domain end) as $domain
+    | select(($domain | ltrimstr(".") | length) > 0)
+    | [
+        (if .httpOnly == true then "#HttpOnly_" + $domain else $domain end),
+        (if .hostOnly == true then "FALSE" else "TRUE" end),
+        (if (.path | type) == "string" and (.path | startswith("/")) then .path else "/" end),
+        (if .secure == true then "TRUE" else "FALSE" end),
+        (if (.expirationDate | type) == "number" then (.expirationDate | floor | tostring) else "0" end),
+        .name,
+        .value
+      ]
+    | select(all(.[]; test("[\\x00-\\x1f\\x7f]") | not))
+    | join("\t")
+  ' 2>/dev/null <<<"$1" || true
+}
+
+# Prints the path of a fresh 0600 cookie file, or fails when the page sent none.
+write_cookie_file() {
+  local rendered file
+
+  rendered=$(render_cookies "$1")
+  [[ -n $rendered ]] || return 1
+
+  file=$(mktemp -p "$COOKIE_DIR" omarchy-ytdlp-cookies.XXXXXX) || return 1
+  printf '# Netscape HTTP Cookie File\n%s\n' "$rendered" >"$file"
+  printf '%s' "$file"
+}
+
+remove_cookie_file() {
+  [[ -n $COOKIE_FILE ]] && rm -f -- "$COOKIE_FILE"
+  COOKIE_FILE=""
 }
 
 valid_url() {
@@ -80,13 +129,33 @@ osd_close() {
   omarchy-shell -q osd close >/dev/null 2>&1 || true
 }
 
+probe_url() {
+  yt-dlp --no-playlist --simulate --quiet --no-warnings --no-exec --no-exec-before-download "$@" >/dev/null 2>&1
+}
+
 download_url() {
   local url="$1"
+  local -a cookie_args=()
+
+  # The cookie file holds the browser's signed-in session: it must not outlive
+  # this download, whichever way it ends.
+  COOKIE_FILE="${2:-}"
+  trap remove_cookie_file EXIT
+  if [[ -n $COOKIE_FILE && -f $COOKIE_FILE ]]; then
+    cookie_args=(--cookies "$COOKIE_FILE")
+  fi
 
   mkdir -p "$DOWNLOAD_DIR"
 
   # Don't show anything until yt-dlp confirms there's actually a video to grab.
-  if ! yt-dlp --no-playlist --simulate --quiet --no-warnings --no-exec --no-exec-before-download -- "$url" >/dev/null 2>&1; then
+  # Try as a guest first and only sign in when the page needs it (age-restricted,
+  # members-only, private): yt-dlp advises using an account as little as possible,
+  # since YouTube rate-limits and rotates the cookies of a session it sees reused.
+  if probe_url -- "$url"; then
+    cookie_args=()
+  elif (( ${#cookie_args[@]} )) && probe_url "${cookie_args[@]}" -- "$url"; then
+    :
+  else
     omarchy-notification-send -u critical -g 󰅖 "No video found for download" "$url"
     exit 0
   fi
@@ -128,7 +197,7 @@ download_url() {
     --paths "$DOWNLOAD_DIR" -o '%(title)s.%(ext)s' \
     --print $'after_move:OMARCHY_FILE\t%(filepath)s' \
     --print $'after_move:OMARCHY_TITLE\t%(title)j' \
-    -- "$url" 2>&1)
+    "${cookie_args[@]}" -- "$url" 2>&1)
 
   osd_close
 
@@ -167,11 +236,11 @@ download_url() {
 }
 
 main() {
-  local length payload url
+  local length payload url cookie_file
 
   # Detached worker: this is what actually runs yt-dlp and fires notifications.
   if [[ ${1:-} == "--download" ]]; then
-    download_url "$2"
+    download_url "$2" "${3:-}"
   fi
 
   # Native messaging frame: 4-byte little-endian length prefix, then UTF-8 JSON.
@@ -187,8 +256,12 @@ main() {
   [[ -n $url ]] || exit 0
   valid_url "$url" || exit 0
 
+  # The cookies travel by file, never by argv: the command line is visible to
+  # every process on the machine.
+  cookie_file=$(write_cookie_file "$payload") || cookie_file=""
+
   # Detach the download so this host exits promptly and frees the browser's port.
-  setsid -f "$SCRIPT_PATH" --download "$url" </dev/null >/dev/null 2>&1
+  setsid -f "$SCRIPT_PATH" --download "$url" "$cookie_file" </dev/null >/dev/null 2>&1
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
