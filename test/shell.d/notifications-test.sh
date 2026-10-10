@@ -629,8 +629,20 @@ assert(
   'notifications service keeps history in a subdirectory of the popup state dir'
 )
 assert(
-  /if \(entry\) \{\s*\n\s*archivePopupFileFor\(entry\)[\s\S]{0,200}?popupModel\.remove\(index\)/.test(serviceQml),
+  /if \(entry\) \{\s*\n\s*if \(collect\) collect\.push\(NotificationLogic\.popupFileName\(entry\)\)\s*\n\s*else archivePopupFileFor\(entry\)[\s\S]{0,250}?popupModel\.remove\(index\)/.test(serviceQml),
   'notifications service archives the popup file when a popup leaves the screen'
+)
+assert(
+  /readonly property int archiveBatchSize: \d+/.test(serviceQml),
+  'notifications service bounds each bulk archive job to a fixed batch size'
+)
+assert(
+  /if \(batch\.length === service\.archiveBatchSize\) \{\s*\n\s*service\.enqueueArchivePopupBatch\(batch\)/.test(serviceQml),
+  'notifications service splits the dismissed batch into bounded jobs instead of one unbounded argv'
+)
+assert(
+  /if \(batch\.length > 0\) service\.enqueueArchivePopupBatch\(batch\)/.test(serviceQml),
+  'notifications service flushes a trailing partial batch so no popup is left unarchived'
 )
 assert(
   /mv -f \\"\$4\/\$3\\" \\"\$1\/\$3\\"/.test(serviceQml),
