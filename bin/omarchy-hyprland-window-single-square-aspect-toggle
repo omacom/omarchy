@@ -2,6 +2,20 @@
 
 # omarchy:summary=Toggle single-window square aspect ratio.
 
+CURRENT_LAYOUT=$(hyprctl activeworkspace -j 2>/dev/null | jq -r '.tiledLayout // empty' 2>/dev/null)
+
+case "$CURRENT_LAYOUT" in
+  "")
+    exit 1
+    ;;
+  scrolling)
+    if omarchy-hyprland-toggle-disabled single-window-aspect-ratio; then
+      omarchy-notification-send -g  "Single-window square aspect does not apply to scrolling workspaces"
+      exit 0
+    fi
+    ;;
+esac
+
 case $(omarchy-hyprland-toggle single-window-aspect-ratio) in
   on) omarchy-notification-send -g  "Enable single-window square aspect ratio" ;;
   off) omarchy-notification-send -g  "Disable single-window square aspect ratio" ;;
