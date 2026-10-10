@@ -1,0 +1,199 @@
+#!/bin/bash
+
+# omarchy:summary=Browse community themes and install one
+# omarchy:group=theme
+# omarchy:args=[--dark|--light] [--hue <hue>] [--search <text>] [--featured] [--new] [--installed] [--refresh] [--print-name]
+# omarchy:examples=omarchy theme browse --light | omarchy theme browse --hue blue --featured
+
+set -euo pipefail
+
+NEW_WINDOW_DAYS=14
+
+mode=""
+hue=""
+search=""
+featured=0
+only_new=0
+installed_only=0
+refresh=0
+print_name=0
+
+# Opened from the menu there is no terminal to print into and the picker never
+# appears, so a failure has to arrive as a notification or it arrives as nothing
+# happening at all.
+fail() {
+  echo "omarchy-theme-browse: $*" >&2
+
+  if [[ ! -t 2 ]]; then
+    omarchy-notification-send "Could not browse themes" "$*"
+  fi
+
+  exit 1
+}
+
+usage() {
+  cat <<USAGE
+Usage: omarchy theme browse [filters]
+
+Filters:
+  --dark, --light   Only themes of that mode
+  --hue <hue>       blue, teal, green, yellow, orange, red, pink, purple, gray
+  --search <text>   Match the name, id or artist
+  --featured        Only featured themes
+  --new             Only themes listed in the last $NEW_WINDOW_DAYS days
+  --installed       Only themes already installed from the marketplace
+
+Other:
+  --refresh         Re-download the catalog before browsing
+  --print-name      Print the chosen theme instead of installing it
+USAGE
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+  --dark)
+    mode="dark"
+    shift
+    ;;
+  --light)
+    mode="light"
+    shift
+    ;;
+  --hue)
+    (( $# >= 2 )) || fail "--hue requires a value"
+    hue="$2"
+    shift 2
+    ;;
+  --search)
+    (( $# >= 2 )) || fail "--search requires a value"
+    search="$2"
+    shift 2
+    ;;
+  --featured)
+    featured=1
+    shift
+    ;;
+  --new)
+    only_new=1
+    shift
+    ;;
+  --installed)
+    installed_only=1
+    shift
+    ;;
+  --refresh)
+    refresh=1
+    shift
+    ;;
+  --print-name)
+    print_name=1
+    shift
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+  esac
+done
+
+json_bool() {
+  (( $1 )) && echo true || echo false
+}
+
+# With the desktop up the overlay does the browsing, opening in the state these
+# flags describe rather than throwing them away.
+if (( ! print_name )) && omarchy-shell shell ping >/dev/null 2>&1; then
+  dark=0
+  light=0
+  [[ $mode == "dark" ]] && dark=1
+  [[ $mode == "light" ]] && light=1
+
+  payload=$(jq -nc \
+    --arg search "$search" --arg hue "$hue" \
+    --argjson dark "$(json_bool "$dark")" \
+    --argjson light "$(json_bool "$light")" \
+    --argjson featured "$(json_bool "$featured")" \
+    --argjson onlyNew "$(json_bool "$only_new")" \
+    --argjson installed "$(json_bool "$installed_only")" \
+    --argjson refresh "$(json_bool "$refresh")" \
+    '$ARGS.named')
+  omarchy-shell shell summon omarchy.theme-browser "$payload" >/dev/null
+  exit 0
+fi
+
+# No overlay without a shell. This is still worth having
+# so the same catalog is offered as a list.
+catalog_args=()
+(( refresh )) && catalog_args+=(--refresh)
+
+# Only --new needs a field the minimal catalog leaves out.
+(( only_new )) && catalog_args+=(--full)
+
+catalog=$(omarchy-theme-catalog "${catalog_args[@]}") ||
+  fail "the theme catalog could not be read"
+cutoff=$(date -u -d "$NEW_WINDOW_DAYS days ago" +%Y-%m-%d)
+
+rows=$(jq -r \
+  --arg mode "$mode" --arg hue "$hue" --arg search "${search,,}" --arg cutoff "$cutoff" \
+  --argjson featured "$featured" --argjson only_new "$only_new" '
+  def artist: if (.author | type) == "object" then (.author.login // "") else (.author // "") end;
+  .themes
+  | map(select($mode == "" or .mode == $mode))
+  | map(select($hue == "" or .hue == $hue))
+  | map(select($featured == 0 or .featured == true))
+  | map(select($only_new == 0 or ((.added_at // "") >= $cutoff)))
+  | map(select($search == "" or
+      ((.name // "") + " " + (.slug // "") + " " + artist | ascii_downcase | contains($search))))
+  | .[]
+  | [.slug, .name, .mode, .hue, artist]
+  | @tsv
+' <<<"$catalog")
+
+if (( installed_only )); then
+  installed=$(omarchy-theme-pinned --names || true)
+  if [[ -z $installed ]]; then
+    rows=""
+  else
+    rows=$(awk -F'\t' 'NR == FNR { keep[$0] = 1; next } keep[$1]' \
+      <(printf '%s\n' "$installed") <(printf '%s\n' "$rows"))
+  fi
+fi
+
+[[ -n $rows ]] || fail "no themes match those filters; try fewer of them, or --refresh"
+count=$(wc -l <<<"$rows")
+
+# The theme name rides along as a second column and is cut back off the choice,
+# so two themes with the same title still resolve to different repositories.
+pick_from_text() {
+  local menu
+  local choice
+
+  menu=$(awk -F'\t' '{
+    meta = $3
+    if ($4 != "") meta = meta " \xc2\xb7 " $4
+    if ($5 != "") meta = meta " \xc2\xb7 " $5
+    printf "%s  (%s)\t%s\n", $2, meta, $1
+  }' <<<"$rows")
+
+  choice=$(cut -f1 <<<"$menu" | gum filter --placeholder "Search $count themes" --height 20) || return 1
+  [[ -n $choice ]] || return 1
+  awk -F'\t' -v want="$choice" '$1 == want { print $2; exit }' <<<"$menu"
+}
+
+theme=$(pick_from_text) || exit 0
+[[ -n $theme ]] || exit 0
+
+if (( print_name )); then
+  printf '%s\n' "$theme"
+elif [[ -t 1 ]]; then
+  omarchy-theme-install "$theme"
+else
+  # Launched from the menu there is no terminal yet, and cloning a theme takes
+  # long enough to need somewhere to report itself.
+  omarchy-launch-floating-terminal-with-presentation \
+    "omarchy-theme-install $(printf '%q' "$theme")"
+fi
