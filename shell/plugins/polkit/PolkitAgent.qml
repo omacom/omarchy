@@ -55,6 +55,10 @@ Item {
     return PolkitModel.authorizationLabel(message)
   }
 
+  function promptLabel(prompt) {
+    return PolkitModel.promptLabel(prompt)
+  }
+
   function loadPamConfig(raw) {
     fingerprintConfigured = PolkitModel.fingerprintConfiguredFromPamConfig(raw)
   }
@@ -337,7 +341,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.errorFlash ? "Wrong" : (root.submitted ? "Checking..." : "Enter password")
+            text: root.errorFlash ? "Wrong" : (root.submitted ? "Checking..." : root.promptLabel(root.currentPrompt))
             color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
             opacity: root.errorFlash ? 1 : 0.36
             font.family: root.fontFamily
