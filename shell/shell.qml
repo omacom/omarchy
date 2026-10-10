@@ -1741,8 +1741,17 @@ ShellRoot {
   ShellIpc {
     target: "shell"
 
+    function prepareThemeIntroCover(fromPath: string, token: string): void {
+      shell.bootIntro.prepareThemeCover(fromPath, token)
+    }
+
     function prepareThemeIntro(fromPath: string, token: string, colorsB64: string, shellB64: string): void {
       shell.bootIntro.prepareTheme(fromPath, token, colorsB64, shellB64)
+    }
+
+    function cancelThemeIntro(token: string): void {
+      // A failed activation must not reveal its empty palette or cancel a newer cover.
+      if (token && token === shell.bootIntro.themeToken) shell.bootIntro.cancelTheme()
     }
 
     function finishThemeIntro(token: string): void {
