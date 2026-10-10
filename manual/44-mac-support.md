@@ -58,6 +58,7 @@ The Apple T1 chip was introduced in late 2016 and used exclusively in the first-
 The Apple T2 Security Chip was introduced in 2017. The T2 chip was discontinued with the transition to Apple silicon (M-series chips) starting in 2020.
 
 - iMac Pro (2017) – Model: A1862
+- iMac 27-inch (2020) – Model: A2115 (iMac20,1 / iMac20,2)
 - MacBook Pro 13-inch (2018, four Thunderbolt 3 ports) – Model: A1989
 - MacBook Pro 15-inch (2018) – Model: A1990
 - MacBook Air (Retina, 13-inch, 2018) – Model: A1932
@@ -69,3 +70,9 @@ The Apple T2 Security Chip was introduced in 2017. The T2 chip was discontinued 
 - MacBook Pro 15-inch (2020) – Model: A1990
 
 On these models, the installer automatically sets up the patched `linux-t2` kernel, the T2 audio configuration, Apple's Broadcom Wi-Fi/Bluetooth firmware, and fan control via `t2fanrd`. The Touch Bar runs on the kernel's built-in Boot Camp-style support.
+
+On the 2020 27-inch iMac with Radeon Pro 5300/5500 (Navi 14), `amdgpu` kernel modesetting fails during SMU init and can blank the panel before the LUKS prompt. The installer keeps the EFI framebuffer on those machines with `plymouth.enable=0 nomodeset` so the LUKS prompt and the desktop are reachable.
+
+This reaches a desktop without GPU acceleration. The stock `linux-t2` `amdgpu` still fails SMU init intermittently on these machines, because t2linux patch 6001 enables memory-clock DPM (UCLK) during init ([t2linux/wiki#743](https://github.com/t2linux/wiki/issues/743)), so Omarchy keeps the safe flags until `linux-t2` ships a fix.
+
+For hardware acceleration now, the community [imac20-amdgpu-patch](https://github.com/McoreD/imac20-amdgpu-patch) tooling rebuilds only `amdgpu` with the deferred-UCLK fix from wiki#743. It adds an `imac20-hwaccel` Limine entry next to the safe entry and rebuilds both on every `linux-t2` upgrade. It is not part of Omarchy, so read its README before installing.

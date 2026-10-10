@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Detect 2020 27-inch 5K iMacs with AMD Navi 14 (Radeon Pro 5300/5500).
+
+# iMac20,1 / iMac20,2 are AMD-only 5K panels. Navi 14 (1002:7340) is the
+# Radeon Pro 5300/5500 in those machines. Do not key off the GPU alone:
+# MacBookPro16,1 also uses 1002:7340 as a discrete GPU.
+product_name="${OMARCHY_DMI_PRODUCT_NAME:-/sys/class/dmi/id/product_name}"
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+
+grep -qi 'iMac20,' "$product_name" 2>/dev/null || exit 1
+
+# Read cached sysfs IDs rather than lspci, which touches PCI config space.
+shopt -s nullglob
+
+for device in "$pci_devices_path"/*; do
+  [[ -r $device/vendor && -r $device/device && -r $device/class ]] || continue
+  [[ $(< "$device/vendor") == "0x1002" ]] || continue
+  [[ $(< "$device/device") == "0x7340" ]] || continue
+  [[ $(< "$device/class") == 0x03* ]] && exit 0
+done
+
+exit 1
