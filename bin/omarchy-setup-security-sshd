@@ -5,11 +5,12 @@
 # omarchy:examples=omarchy-setup-security-sshd | omarchy-setup-security-sshd --gh-keys dhh | omarchy-setup-security-sshd --key="ssh-ed25519 AAAA... user@host"
 # omarchy:requires-sudo=true
 
-set -e
+set -euo pipefail
 
 AUTHORIZED_KEYS="$HOME/.ssh/authorized_keys"
 KEY=""
 GITHUB_USER=""
+PENDING_KEYS=()
 
 # Checked while parsing, before anything is installed or opened: an empty or
 # option-shaped username otherwise falls through to the interactive menu having
@@ -58,9 +59,14 @@ if [[ -n $KEY && -n $GITHUB_USER ]]; then
 fi
 
 setup_sshd() {
-  echo "Installing and starting the OpenSSH server..."
-  omarchy-pkg-add openssh
-  sudo systemctl enable --now sshd.service
+  # A running server must reload before the firewall changes; start alone is a
+  # no-op for it and would leave its previous authentication policy in memory.
+  if sudo systemctl is-active --quiet sshd.service; then
+    sudo systemctl reload sshd.service
+  else
+    sudo systemctl start sshd.service
+  fi
+  sudo systemctl enable sshd.service
 }
 
 open_firewall() {
@@ -75,16 +81,14 @@ open_firewall() {
 }
 
 valid_key() {
-  ssh-keygen -lf /dev/stdin <<<"$1" >/dev/null 2>&1
+  # --key is one public key, never a batch whose first valid line hides later
+  # invalid lines. GitHub keys are collected and validated individually below.
+  [[ $1 != *$'\n'* && $1 != *$'\r'* ]] &&
+    ssh-keygen -lf /dev/stdin <<<"$1" >/dev/null 2>&1
 }
 
 authorize_key() {
   local key="$1"
-
-  if ! valid_key "$key"; then
-    echo -e "\e[31mNot a valid SSH public key: $key\e[0m" >&2
-    return 1
-  fi
 
   mkdir -p "$HOME/.ssh"
   chmod 700 "$HOME/.ssh"
@@ -94,29 +98,29 @@ authorize_key() {
   if grep -qxF "$key" "$AUTHORIZED_KEYS"; then
     echo "Key already authorized: $(ssh-keygen -lf /dev/stdin <<<"$key")"
   else
-    echo "$key" >>"$AUTHORIZED_KEYS"
+    # A pre-existing final key need not end with a newline. Keep it intact when
+    # appending, instead of joining the new key onto its comment/key material.
+    if [[ -s $AUTHORIZED_KEYS && $(tail -c 1 "$AUTHORIZED_KEYS" | wc -l) == 0 ]]; then
+      printf '\n' >>"$AUTHORIZED_KEYS"
+    fi
+    printf '%s\n' "$key" >>"$AUTHORIZED_KEYS"
     echo "Authorized key: $(ssh-keygen -lf /dev/stdin <<<"$key")"
   fi
 }
 
-authorize_keys_from_github() {
-  local username="$1" keys added=0
+collect_keys_from_github() {
+  local username="$1" keys key
 
   echo "Fetching keys from https://github.com/$username.keys..."
   if ! keys=$(curl -fsSL "https://github.com/$username.keys") || [[ -z $keys ]]; then
-    echo -e "\e[31mCould not fetch any SSH keys for GitHub user '$username'.\e[0m" >&2
+    echo "Could not fetch any SSH keys for GitHub user '$username'." >&2
     exit 1
   fi
 
   while IFS= read -r key; do
     [[ -z $key ]] && continue
-    authorize_key "$key" && added=$((added + 1))
+    PENDING_KEYS+=("$key")
   done <<<"$keys"
-
-  if (( added == 0 )); then
-    echo -e "\e[31mNo valid SSH keys found for GitHub user '$username'.\e[0m" >&2
-    exit 1
-  fi
 }
 
 prompt_for_github_user() {
@@ -128,10 +132,10 @@ prompt_for_github_user() {
     exit 1
   fi
 
-  authorize_keys_from_github "$username"
+  collect_keys_from_github "$username"
 }
 
-authorize_pasted_key() {
+collect_pasted_key() {
   local key
 
   key=$(gum input --prompt "Public key> " --placeholder "ssh-ed25519 AAAA... user@host") || exit 1
@@ -140,73 +144,134 @@ authorize_pasted_key() {
     exit 1
   fi
 
-  authorize_key "$key" || exit 1
+  PENDING_KEYS+=("$key")
 }
 
-# Only called after a key is authorized. Disabling password authentication
-# before then could lock the owner out of the machine.
+# Keep a root-only backup while validating the candidate against the actual
+# sshd Include order. A failed validation restores the prior file (including a
+# symlink), instead of deleting a policy which may already protect remote access.
+hardening_config=/etc/ssh/sshd_config.d/10-omarchy-hardening.conf
+hardening_stage=""
+hardening_previous=0
+hardening_pending=0
+hardening_committed=0
+
+cleanup() {
+  local status=$?
+  trap - EXIT
+  if (( hardening_pending )); then
+    if (( hardening_previous )); then
+      if ! sudo mv -fT -- "$hardening_stage/previous" "$hardening_config"; then
+        echo "Could not restore the prior SSH policy; its backup is $hardening_stage/previous." >&2
+        exit 1
+      fi
+    else
+      if ! sudo rm -f -- "$hardening_config"; then
+        echo "Could not remove the unvalidated SSH policy at $hardening_config." >&2
+        exit 1
+      fi
+    fi
+  fi
+  if [[ -n $hardening_stage ]]; then
+    sudo rm -rf -- "$hardening_stage" || status=1
+  fi
+  if (( status != 0 && hardening_committed )); then
+    echo "Key-only SSH configuration was saved, but service or firewall setup did not finish." >&2
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 disable_password_auth() {
-  local config=/etc/ssh/sshd_config.d/10-omarchy-hardening.conf
   local effective_config
 
-  if [[ ! -s $AUTHORIZED_KEYS ]]; then
-    echo -e "\e[31mCannot disable SSH password authentication without an authorized key.\e[0m" >&2
-    return 1
+  sudo install -d -m755 /etc/ssh/sshd_config.d
+  hardening_stage=$(sudo mktemp -d /etc/ssh/.omarchy-sshd.XXXXXX)
+  if sudo test -e "$hardening_config" || sudo test -L "$hardening_config"; then
+    sudo cp -a -- "$hardening_config" "$hardening_stage/previous"
+    hardening_previous=1
   fi
 
-  echo "Disabling SSH password authentication, now that a key is authorized..."
-  sudo install -Dm644 /dev/stdin "$config" <<'CONF'
-# Written by omarchy-setup-security-sshd once an SSH key was authorized.
-# Delete this file and reload sshd to allow password logins again.
-PasswordAuthentication no
-KbdInteractiveAuthentication no
-CONF
+  # Keep unrelated administrator settings. Replace only the two authentication
+  # directives in the global section; a Match block remains administrator-owned.
+  {
+    printf '%s\n' 'PasswordAuthentication no' 'KbdInteractiveAuthentication no'
+    if (( hardening_previous )); then
+      sudo cat -- "$hardening_config" | awk '
+        /^[[:space:]]*[Mm][Aa][Tt][Cc][Hh][[:space:]]/ { in_match = 1 }
+        !in_match && tolower($1) ~ /^(passwordauthentication|kbdinteractiveauthentication)$/ { next }
+        { print }
+      '
+    fi
+  } | sudo install -m644 /dev/stdin "$hardening_stage/candidate"
 
-  # Validate before reloading: a config sshd rejects would otherwise take the
-  # service down on its next restart, potentially stranding a remote owner.
+  hardening_pending=1
+  sudo mv -fT -- "$hardening_stage/candidate" "$hardening_config"
+
   if ! sudo sshd -t; then
-    echo -e "\e[31msshd rejected the hardening config; removing it and leaving passwords on.\e[0m" >&2
-    sudo rm -f "$config"
+    echo "sshd rejected the candidate policy; restoring the previous configuration." >&2
     return 1
   fi
 
-  # Syntax alone is insufficient because sshd uses the first value it reads for
-  # these settings. An earlier administrator rule could leave passwords enabled.
-  # Match keywords case-insensitively: OpenSSH 9.x dumps them lowercase, 10.x
-  # in CamelCase.
+  # OpenSSH takes the first global value read. Earlier administrator rules can
+  # therefore defeat a syntactically valid drop-in. Do not expose a new server
+  # or reload an existing one until the effective defaults are key-only.
   if ! effective_config=$(sudo sshd -T) ||
     ! grep -qixF "passwordauthentication no" <<<"$effective_config" ||
     ! grep -qixF "kbdinteractiveauthentication no" <<<"$effective_config"; then
-    echo -e "\e[31msshd did not apply the password-authentication restrictions; removing the ineffective config.\e[0m" >&2
-    sudo rm -f "$config"
+    echo "sshd did not apply the authentication restrictions; restoring the previous configuration." >&2
     return 1
   fi
-
-  # Reload rather than restart so an administrator already connected keeps
-  # their session.
-  sudo systemctl reload sshd.service
 }
 
-echo -e "\e[32mSetting up SSH server access with key-based authentication.\n\e[0m"
+echo "Setting up SSH server access with key-based authentication."
 
-setup_sshd
-open_firewall
-
-echo
+# Collect everything before mutating keys, services, or the firewall. A cancel,
+# failed download, or invalid member of a GitHub key batch leaves access alone.
 if [[ -n $KEY ]]; then
-  authorize_key "$KEY" || exit 1
+  PENDING_KEYS+=("$KEY")
 elif [[ -n $GITHUB_USER ]]; then
-  authorize_keys_from_github "$GITHUB_USER"
+  collect_keys_from_github "$GITHUB_USER"
 else
   case $(gum choose "Grab key from GitHub" "Paste key manually" --header "How would you like to add your SSH key?") in
   "Grab key from GitHub") prompt_for_github_user ;;
-  "Paste key manually") authorize_pasted_key ;;
+  "Paste key manually") collect_pasted_key ;;
   *) exit 1 ;;
   esac
 fi
 
-disable_password_auth
+(( ${#PENDING_KEYS[@]} > 0 )) || { echo "No SSH keys provided." >&2; exit 1; }
+# openssh is optional; its validator can be missing before the first setup.
+if omarchy-cmd-missing ssh-keygen; then
+  omarchy-pkg-add openssh
+fi
+for key in "${PENDING_KEYS[@]}"; do
+  if ! valid_key "$key"; then
+    echo "Not a valid SSH public key: $key" >&2
+    exit 1
+  fi
+done
 
-echo -e "\e[32m\nPerfect! The SSH server is running and your key is authorized.\e[0m"
-echo "Password logins are off; this machine now accepts authorized keys only."
+omarchy-pkg-add openssh
+# Arch normally generates missing host keys at service start. Validation now
+# precedes startup, so generate only missing keys first; existing ones survive.
+sudo ssh-keygen -A
+
+disable_password_auth
+for key in "${PENDING_KEYS[@]}"; do
+  authorize_key "$key"
+done
+
+# From this point the persisted configuration is valid and keys exist. Keep it
+# on a later startup/firewall failure: rolling it back could enable password
+# logins at the next boot, or disagree with a daemon already reloaded below.
+hardening_pending=0
+hardening_committed=1
+setup_sshd
+open_firewall
+
+echo "The SSH server is running and your key is authorized."
+echo "Password logins are off by default; any administrator Match rules still apply."
 echo "You can now connect with: ssh $USER@$(hostname)"
