@@ -275,3 +275,17 @@ TEST_SUDO_FAIL_COMMAND=install run spark "$scratch/marker-failed" bash -euo pipe
 grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "the marker failure follows the rebuild"
 [[ ! -e $scratch/marker-failed/marker ]] || fail "a failed marker write records no rebuild"
 pass "the migration leaves other machines alone and retries after a failure"
+
+# Direct Boot points the firmware at the UKI, which a Spark booting without one
+# does not have, so the menu hides it there. Its guard reads the fixed drop-in
+# path; point that at a fixture.
+when=$(grep -F '"setup.direct-boot"' "$ROOT/default/omarchy/omarchy-menu.jsonc" | sed -E 's/.*"when":"([^"]*)".*/\1/')
+[[ $when == *"/etc/limine-entry-tool.d/$config_name"* ]] || fail "the Direct Boot row checks the DGX Spark setting" "$when"
+mkdir -p "$scratch/menu/limine-entry-tool.d"
+when=${when//\/etc\/limine-entry-tool.d/$scratch/menu/limine-entry-tool.d}
+printf '#!/bin/bash\nexit 1\n' >"$scratch/bin/omarchy-hw-aarch64-apple"
+chmod +x "$scratch/bin/omarchy-hw-aarch64-apple"
+PATH="$scratch/bin:$PATH" bash -c "$when" || fail "Direct Boot shows on a machine with a UKI"
+printf 'ENABLE_UKI=no\n' >"$scratch/menu/limine-entry-tool.d/$config_name"
+PATH="$scratch/bin:$PATH" bash -c "$when" && fail "Direct Boot is hidden on a Spark without a UKI"
+pass "the menu hides Direct Boot on a Spark that boots without a UKI"
