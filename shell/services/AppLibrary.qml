@@ -163,7 +163,7 @@ Item {
     root.launchActiveToplevel = ToplevelManager.activeToplevel
     root.launchOsdMessage = "Launching " + String(name || "application") + "…"
     launchDelay.restart()
-    launchTimeout.restart()
+    if (!launchTimeout.running) launchTimeout.start()
   }
 
   function closeLaunchFeedback(serial) {
