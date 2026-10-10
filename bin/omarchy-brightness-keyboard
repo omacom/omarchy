@@ -25,11 +25,19 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
+# Present from an off until the next restore or adjustment, so a repeated off is told apart from a user-chosen 0.
+blanked="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-keyboard-$device.blanked"
+
 if [[ $direction == "off" ]]; then
-  brightnessctl -sd "$device" set 0 >/dev/null
+  current_brightness="$(brightnessctl -d "$device" get)"
+  if (( current_brightness > 0 )) || [[ ! -f $blanked ]]; then
+    brightnessctl -sd "$device" set 0 >/dev/null
+  fi
+  touch "$blanked"
   exit 0
 elif [[ $direction == "restore" ]]; then
   brightnessctl -rd "$device" >/dev/null
+  rm -f "$blanked"
   exit 0
 fi
 
@@ -55,4 +63,5 @@ fi
 
 # Set the new brightness.
 brightnessctl -d "$device" set "$new_brightness" >/dev/null
+rm -f "$blanked"
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"
