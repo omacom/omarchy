@@ -8,6 +8,8 @@ set -e
 
 source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
 
+opt_path="${OMARCHY_OPT_PATH:-/opt}"
+
 setup_chromium_policy_directory() {
   browser_policy_setup_dir "$1"
 }
@@ -15,6 +17,17 @@ setup_chromium_policy_directory() {
 announce_browser_installed() {
   echo ""
   echo "$1 browser installed. Make it the default via Setup > Defaults > Browser."
+}
+
+# The widevine package registers its CDM for Chromium and Firefox only; Brave
+# looks for one in its own install directory.
+link_widevine_cdm() {
+  local cdm="$opt_path/WidevineCdm/chromium"
+  local install_dir="$opt_path/$1"
+
+  if [[ -d $cdm && -d $install_dir && ! -e $install_dir/WidevineCdm ]]; then
+    as_root ln -sfn "$cdm" "$install_dir/WidevineCdm"
+  fi
 }
 
 copy_chromium_flags() {
@@ -37,6 +50,7 @@ chromium)
   setup_chromium_policy_directory /etc/chromium/policies/managed
   copy_chromium_flags ~/.config/chromium-flags.conf
   omarchy-theme-set-browser
+  omarchy-lifecycle-dispatch post-install chromium
   announce_browser_installed "Chromium"
   ;;
 chrome)
@@ -46,6 +60,7 @@ chrome)
   setup_chromium_policy_directory /etc/opt/chrome/policies/managed
   copy_chromium_flags ~/.config/chrome-flags.conf
   omarchy-theme-set-browser
+  omarchy-lifecycle-dispatch post-install chrome
   announce_browser_installed "Chrome"
   ;;
 edge)
@@ -55,6 +70,7 @@ edge)
   setup_chromium_policy_directory /etc/opt/edge/policies/managed
   copy_chromium_flags ~/.config/microsoft-edge-stable-flags.conf
   omarchy-theme-set-browser
+  omarchy-lifecycle-dispatch post-install edge
   announce_browser_installed "Edge"
   ;;
 brave)
@@ -63,7 +79,9 @@ brave)
 
   setup_chromium_policy_directory /etc/brave/policies/managed
   copy_chromium_flags ~/.config/brave-flags.conf
+  link_widevine_cdm brave-bin
   omarchy-theme-set-browser
+  omarchy-lifecycle-dispatch post-install brave
   announce_browser_installed "Brave"
   ;;
 brave-origin)
@@ -72,7 +90,9 @@ brave-origin)
 
   setup_chromium_policy_directory /etc/brave/policies/managed
   copy_chromium_flags ~/.config/brave-origin-flags.conf
+  link_widevine_cdm brave-origin-bin
   omarchy-theme-set-browser
+  omarchy-lifecycle-dispatch post-install brave-origin
   announce_browser_installed "Brave Origin"
   ;;
 firefox)
@@ -81,6 +101,7 @@ firefox)
 
   browser_policy_setup_firefox_distribution /usr/lib/firefox/distribution
   setup_firefox_wayland
+  omarchy-lifecycle-dispatch post-install firefox
   announce_browser_installed "Firefox"
   ;;
 zen)
@@ -89,6 +110,7 @@ zen)
 
   browser_policy_setup_firefox_distribution /opt/zen-browser/distribution
   setup_firefox_wayland
+  omarchy-lifecycle-dispatch post-install zen
   announce_browser_installed "Zen"
   ;;
 *)

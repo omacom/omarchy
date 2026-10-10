@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 import "Sun.js" as Sun
@@ -22,7 +23,7 @@ Item {
   property bool hovered: false
   property bool hour24: false
   property real moonPhase: 0
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property color fainter: Qt.darker(foreground, 2.1)
   property color daylightMarker: "#E5C736"
   property string fontFamily: Style.font.family
@@ -115,7 +116,7 @@ Item {
         color: strip.foreground
       }
 
-      Behavior on x { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+      Behavior on x { NumberAnimation { duration: Style.duration(400); easing.type: Easing.OutCubic } }
     }
   }
 
@@ -182,7 +183,7 @@ Item {
       // Gone rather than faded, so a hidden arrow is also untappable.
       opacity: strip.hovered && !arrow.covered ? 1 : 0
       visible: opacity > 0
-      Behavior on opacity { NumberAnimation { duration: 160 } }
+      Behavior on opacity { NumberAnimation { duration: Style.duration(160) } }
 
       // Sunrise sits a little high and sunset a little low: a cue that needs no reading.
       transform: Translate { y: arrow.rising ? -Style.space(2) : Style.space(2) }
