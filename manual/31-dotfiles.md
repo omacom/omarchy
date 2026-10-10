@@ -43,7 +43,9 @@ Omarchy fires hooks at a handful of moments, and you can hang your own scripts o
 | `font-set` | After a font change (font name in `$1`) |
 | `battery-low` | When the battery gets low (percentage in `$1`) |
 
-The `pre-refresh-pacman` hook is where custom repositories or `IgnorePkg` lines belong, since it runs before the package transaction. Both update-related hooks run as your user after Omarchy clears its cached sudo authorization, so a hook that uses `sudo` needs its own authorization and may ask for your password.
+The `pre-refresh-pacman` hook is where custom repositories or `IgnorePkg` lines belong, since it runs before the package transaction. It runs after the refresh clears its cached sudo authorization, so privileged commands in this hook need their own authorization and may ask for your password.
+
+`post-update` also runs as your user, but the update keeps its sudo authorization active through this hook and the following mise update. Privileged commands allowed by your sudo policy may reuse it without another prompt. That authorization is cleared before AUR updates and again when the update exits.
 
 Each of those directories already holds a `.sample` file showing the shape of a hook — drop the `.sample` from the name to put it to work. To install a script you've written elsewhere, use `omarchy hook install post-boot ~/my-hook`, which copies it in and makes it executable.
 

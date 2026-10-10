@@ -362,7 +362,7 @@ scripts.
    - `omarchy-update-mise` intentionally runs as part of `omarchy update`.
 
 5. **Orphan cleanup stays in the update path for now**
-   - It is prompt-only and never removes packages noninteractively.
+   - Normal and unattended updates pass `-y` to remove listed orphans without another confirmation. The standalone helper still prompts unless given `-y`, and only reports when run noninteractively without that flag.
 
 6. **Direct pacman user follow-up is based on actual migration state**
    - Direct `sudo pacman -Syu` no longer uses a fake user-update marker.
