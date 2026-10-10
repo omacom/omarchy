@@ -18,5 +18,5 @@ if [[ ${1:-} == "cycle" ]]; then
     exit 1
   fi
 else
-  python "$OMARCHY_PATH/default/input-methods/configure.py" "$@"
+  /usr/bin/python3 "$OMARCHY_PATH/default/input-methods/configure.py" "$@"
 fi

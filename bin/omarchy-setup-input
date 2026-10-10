@@ -14,7 +14,7 @@ fi
 
 method=${1:-}
 if [[ -z $method ]]; then
-  python "$OMARCHY_PATH/default/input-methods/typing_setup.py" input
+  /usr/bin/python3 "$OMARCHY_PATH/default/input-methods/typing_setup.py" input
   exit
 fi
 
@@ -25,5 +25,5 @@ esac
 
 mapfile -t packages < <(jq -r --arg method "$method" '.[$method].packages[]' "$OMARCHY_PATH/default/input-methods/presets.json")
 omarchy-pkg-add "${packages[@]}"
-python "$OMARCHY_PATH/default/input-methods/typing_setup.py" add "$method"
+/usr/bin/python3 "$OMARCHY_PATH/default/input-methods/typing_setup.py" add "$method"
 echo "Input method added. Use Super+I or the Japanese/Korean input key to switch; existing custom Fcitx keys are preserved."

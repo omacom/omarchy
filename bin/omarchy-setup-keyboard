@@ -4,4 +4,4 @@
 
 set -euo pipefail
 
-python "$OMARCHY_PATH/default/input-methods/typing_setup.py" keyboard
+/usr/bin/python3 "$OMARCHY_PATH/default/input-methods/typing_setup.py" keyboard

@@ -16,7 +16,7 @@ Singleton {
   // One reader and pending selection for every monitor's keyboard widget.
   Process {
     id: watcher
-    command: ["/usr/bin/python", Quickshell.env("OMARCHY_PATH") + "/default/input-methods/indicator.py"]
+    command: ["/usr/bin/python3", Quickshell.env("OMARCHY_PATH") + "/default/input-methods/indicator.py"]
     running: true
     stdinEnabled: true
     stdout: SplitParser {

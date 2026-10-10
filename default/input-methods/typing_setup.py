@@ -56,7 +56,7 @@ def choose(title, catalog, selected, kind, overrides=None):
   catalog = {**catalog, **{key: catalog.get(key, key) for key in selected}}
   rows = picker_rows(catalog, selected)
   args = ["omarchy-menu-select", title] + list(rows.values())
-  on_change = ["python", str(setup.ROOT / "default/input-methods/typing_setup.py"), "apply", kind, json.dumps({"catalog": catalog, "overrides": overrides or {}})]
+  on_change = ["/usr/bin/python3", str(setup.ROOT / "default/input-methods/typing_setup.py"), "apply", kind, json.dumps({"catalog": catalog, "overrides": overrides or {}})]
   args += ["--", "--multiple", "--width", "620", "--maxheight", "650", "--on-change", json.dumps(on_change), "--change-key", "typing:" + kind]
   for key in selected:
     args += ["--selected", rows[key][1:]]
