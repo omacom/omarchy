@@ -53,7 +53,15 @@ if [[ -d $THEME_PATH ]]; then
 fi
 
 # Clone the repo directly to ~/.config/omarchy/themes
-if ! git clone --depth=1 -- "$REPO_URL" "$THEME_PATH"; then
+clone_args=(--depth=1)
+if [[ ${OMARCHY_GIT_FULL_CLONE:-0} == "1" ]]; then
+  clone_args=()
+fi
+
+if ! git clone "${clone_args[@]}" -- "$REPO_URL" "$THEME_PATH"; then
+  if [[ ${OMARCHY_GIT_FULL_CLONE:-0} != "1" ]]; then
+    echo "If the server does not support shallow clones, retry with OMARCHY_GIT_FULL_CLONE=1." >&2
+  fi
   echo "Error: Failed to clone theme repo."
   exit 1
 fi
