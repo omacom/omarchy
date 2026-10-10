@@ -25,8 +25,19 @@ elif [[ ${1:-} == "--inhibit" ]]; then
     exit "$status"
   }
 else
+  # tmux/SSH/bare TTY often drop the session bus even when a graphical session exists.
+  if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+    export XDG_RUNTIME_DIR=/run/user/$(id -u)
+  fi
+  if [[ -z ${DBUS_SESSION_BUS_ADDRESS:-} && -S $XDG_RUNTIME_DIR/bus ]]; then
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+  fi
+
   # Schedule the shutdown in the user manager so closing the terminal's systemd
-  # scope cannot terminate it before it runs.
-  systemd-run --user --collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s \
-    "$OMARCHY_PATH/bin/omarchy-system-shutdown" --inhibit
+  # scope cannot terminate it. Fall back to the system manager when no user bus is available.
+  if ! systemd-run --user --collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s \
+    "$OMARCHY_PATH/bin/omarchy-system-shutdown" --inhibit; then
+    systemd-run --system --collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s \
+      "$OMARCHY_PATH/bin/omarchy-system-shutdown" --inhibit
+  fi
 fi

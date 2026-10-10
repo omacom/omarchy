@@ -9,12 +9,18 @@ mock_bin="$test_tmp/bin"
 call_log="$test_tmp/calls.log"
 mkdir -p "$mock_bin"
 export PATH="$mock_bin:$PATH" CALL_LOG="$call_log" OMARCHY_PATH="$ROOT"
+export XDG_RUNTIME_DIR="$test_tmp/runtime" DBUS_SESSION_BUS_ADDRESS="unix:path=$test_tmp/runtime/bus"
 
 cat >"$mock_bin/systemd-run" <<'SH'
 #!/bin/bash
 
 printf 'systemd-run %s\n' "$*" >>"$CALL_LOG"
 [[ ${FAIL_SYSTEMD_RUN:-false} == "true" ]] && exit 1
+if [[ ${1:-} == "--user" ]]; then
+  printf '%s %s\n' "${XDG_RUNTIME_DIR:-}" "${DBUS_SESSION_BUS_ADDRESS:-}" >"$CALL_LOG.bus"
+  [[ ${FAIL_USER_BUS:-false} == "true" ]] && exit 1
+  [[ -n ${DBUS_SESSION_BUS_ADDRESS:-} && -n ${XDG_RUNTIME_DIR:-} ]] || exit 1
+fi
 [[ " $* " == *" --on-active="* ]] && exit 0
 while [[ $1 == --* ]]; do shift; done
 # Capture the service command so its exit status is tested separately.
@@ -132,8 +138,8 @@ for action in reboot shutdown; do
     fail "$action aborts when scheduling fails"
   fi
 
-  if (( $(wc -l <"$call_log") != 1 )); then
-    fail "$action leaves state and windows alone when scheduling fails"
+  if (( $(wc -l <"$call_log") != 2 )); then
+    fail "$action leaves state and windows alone when scheduling fails" "$(cat "$call_log")"
   fi
   pass "$action leaves state and windows alone when scheduling fails"
 done
@@ -162,3 +168,54 @@ done
 FAIL_INHIBIT=true FAIL_NOTIFICATION=true bash "$CALL_LOG.worker"
 [[ $? == 17 ]] || fail "notification failure preserves the shutdown error"
 pass "notification failure preserves the shutdown error"
+
+empty_runtime="$test_tmp/empty-runtime"
+mkdir -p "$empty_runtime"
+
+: >"$call_log"
+FAIL_USER_BUS=true XDG_RUNTIME_DIR="$empty_runtime" env -u DBUS_SESSION_BUS_ADDRESS "$ROOT/bin/omarchy-system-reboot"
+grep -Fq "systemd-run --user --collect --quiet --on-active=2s --timer-property=AccuracySec=100ms systemctl reboot --no-wall" "$call_log" ||
+  fail "reboot still tries the user manager first" "$(cat "$call_log")"
+grep -Fq "systemd-run --system --collect --quiet --on-active=2s --timer-property=AccuracySec=100ms systemctl reboot --no-wall" "$call_log" ||
+  fail "reboot falls back to the system manager without a user bus" "$(cat "$call_log")"
+grep -Fq "omarchy-hyprland-window-close-all" "$call_log" ||
+  fail "reboot still closes windows after the system-manager fallback"
+pass "reboot falls back to the system manager without a user bus"
+
+: >"$call_log"
+FAIL_USER_BUS=true XDG_RUNTIME_DIR="$empty_runtime" env -u DBUS_SESSION_BUS_ADDRESS "$ROOT/bin/omarchy-system-shutdown" ||
+  fail "shutdown service is scheduled without a user bus"
+grep -q '^systemd-run --user --collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s .* --inhibit$' "$call_log" ||
+  fail "shutdown still tries the user manager first" "$(cat "$call_log")"
+grep -q '^systemd-run --system --collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s .* --inhibit$' "$call_log" ||
+  fail "shutdown falls back to the system manager without a user bus" "$(cat "$call_log")"
+pass "shutdown falls back to the system manager without a user bus"
+
+for action in reboot shutdown; do
+  : >"$call_log"
+  rm -f "$CALL_LOG.grace"
+  FAIL_USER_BUS=true env -u XDG_RUNTIME_DIR -u DBUS_SESSION_BUS_ADDRESS "$ROOT/bin/omarchy-system-$action"
+  [[ $(<"$CALL_LOG.bus") == /run/user/$(id -u)* ]] ||
+    fail "$action restores XDG_RUNTIME_DIR for the user manager" "$(cat "$CALL_LOG.bus")"
+  pass "$action restores XDG_RUNTIME_DIR for the user manager"
+done
+
+bus_runtime="$test_tmp/session-runtime"
+mkdir -p "$bus_runtime"
+# Some sandboxes deny binding a Unix socket, so skip only the case that needs one.
+if ! command -v python3 >/dev/null ||
+  ! python3 -c 'import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' "$bus_runtime/bus" 2>/dev/null; then
+  skip "cannot bind a Unix socket here; skipping session bus reconstruction"
+  exit 0
+fi
+
+for action in reboot shutdown; do
+  : >"$call_log"
+  rm -f "$CALL_LOG.grace"
+  XDG_RUNTIME_DIR="$bus_runtime" env -u DBUS_SESSION_BUS_ADDRESS "$ROOT/bin/omarchy-system-$action"
+  [[ $(<"$CALL_LOG.bus") == "$bus_runtime unix:path=$bus_runtime/bus" ]] ||
+    fail "$action reconstructs the session bus from XDG_RUNTIME_DIR/bus" "$(cat "$CALL_LOG.bus")"
+  ! grep -q '^systemd-run --system' "$call_log" ||
+    fail "$action does not use the system manager when the session bus socket exists" "$(cat "$call_log")"
+  pass "$action reconstructs the session bus from XDG_RUNTIME_DIR/bus"
+done
