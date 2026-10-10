@@ -77,7 +77,47 @@ if [[ $exec_line =~ (^|[[:space:]])(\$TERMINAL|xdg-terminal-exec)[[:space:]].*-e
   exit 0
 fi
 
+plugin_owner_for_desktop() {
+  local plugins_dir commands command candidate path plugin_id
+  plugins_dir="$HOME/.config/omarchy/plugins"
+
+  [[ -d $plugins_dir ]] || return 1
+
+  # A plugin owns a launcher whose own command lives in its tree. The desktop id,
+  # Path=, Icon= and secondary actions can name a plugin without belonging to it.
+  commands=$(awk '/^\[/ { main = ($0 == "[Desktop Entry]") } main && /^(Exec|TryExec)[ \t]*=/ { sub(/^[^=]*=[ \t]*/, ""); print }' "$desktop_file")
+  while IFS= read -r command; do
+    if [[ $command == \"* ]]; then
+      command=${command#\"}
+      command=${command%%\"*}
+    else
+      command=${command%%[[:space:]]*}
+    fi
+    [[ $command == /* && $command != */../* ]] || continue
+
+    # The literal path catches a symlinked plugin, the resolved one a symlinked command.
+    for candidate in "$command" "$(readlink -f "$command" 2>/dev/null || true)"; do
+      case "$candidate" in
+        "$plugins_dir"/*/*)
+          path=${candidate#"$plugins_dir"/}
+          plugin_id=${path%%/*}
+          if [[ $plugin_id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && ( -e $plugins_dir/$plugin_id || -L $plugins_dir/$plugin_id ) ]]; then
+            printf '%s\n' "$plugin_id"
+            return 0
+          fi
+          ;;
+      esac
+    done
+  done <<<"$commands"
+
+  return 1
+}
+
 if is_user_desktop_file; then
+  if plugin_id="$(plugin_owner_for_desktop)"; then
+    omarchy-plugin-remove --yes "$plugin_id"
+  fi
+
   display_name="${entry_name:-$desktop_name}"
   rm -f "$desktop_file"
   update-desktop-database "${desktop_file%/*}" &>/dev/null || true
