@@ -116,11 +116,10 @@ BarWidget {
   }
 
   function openTrayMenu(item, anchorItem, mouse) {
-    if (!item || !item.menu) {
-      var point = anchorItem.QsWindow.contentItem.mapFromItem(anchorItem, mouse.x, mouse.y)
-      item.display(anchorItem.QsWindow.window, point.x, point.y)
-      return
-    }
+    // Unready SNI (Menu/IconName Get still failing) has no menu handle.
+    // Taking the popup grab before QsMenuOpener has children leaves an empty
+    // input owner over the bar, so an unready item is a no-op.
+    if (!item || !item.menu) return
 
     // Reset before switching items: trayMenuOpener.menu binds to
     // activeTrayItem.menu, so assigning a new item invalidates the old root's
@@ -129,7 +128,7 @@ BarWidget {
     resetTrayMenu()
     activeTrayItem = item
     activeTrayAnchor = anchorItem
-    trayMenuOpen = true
+    trayMenuOpen = trayMenuOpener.children.values.length > 0
   }
 
   function trayIconSource(icon) {
@@ -517,6 +516,12 @@ BarWidget {
   QsMenuOpener {
     id: trayMenuOpener
     menu: root.activeTrayItem ? root.activeTrayItem.menu : null
+    onChildrenChanged: {
+      if (root.activeTrayItem && children.values.length > 0 && !root.trayMenuOpen)
+        root.trayMenuOpen = true
+      else if (root.trayMenuOpen && children.values.length === 0)
+        root.close()
+    }
   }
 
   PopupCard {
