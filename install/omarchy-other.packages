@@ -9,8 +9,10 @@ broadcom-wl-dkms
 btrfs-progs
 dkms
 egl-wayland
+gst-plugin-libcamera
 gst-plugin-pipewire
 gtk4-layer-shell
+libcamera
 libpulse
 intel-ipu7-camera
 intel-lpmd
@@ -34,6 +36,7 @@ lib32-nvidia-utils
 pipewire
 pipewire-alsa
 pipewire-jack
+pipewire-libcamera
 pipewire-pulse
 qt6-wayland
 snapper
