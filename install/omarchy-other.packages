@@ -61,6 +61,10 @@ dell-xps-touchpad-haptics
 dell-xps13-sidecar-amps
 linux-firmware-cirrus-dx13260
 
+# Steam Deck back-button scrolling
+python-evdev
+steam-devices
+
 # Speaker tunings (LV2 limiter every tuning ends in)
 lsp-plugins-lv2
 
