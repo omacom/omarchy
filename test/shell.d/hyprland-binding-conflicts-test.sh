@@ -34,15 +34,30 @@ hl = setmetatable({
   dsp = proxy(),
   bind = function(keys, dispatcher, opts)
     opts = opts or {}
-    table.insert(bindings, {
+    local binding = {
       keys = keys,
       description = opts.description or "(no description)",
       release = opts.release == true,
+      active = true,
+      enabled = true,
+    }
+    table.insert(bindings, binding)
+    return setmetatable({
+      is_enabled = function()
+        assert(binding.active, "expired handles must not be queried on Hyprland 0.56.2")
+        return binding.enabled
+      end,
+      set_enabled = function(_, enabled) binding.enabled = enabled end,
+    }, {
+      __tostring = function()
+        return binding.active and "HL.Keybind(mock)" or "HL.Keybind(expired)"
+      end,
     })
   end,
   unbind = function(keys)
     for index = #bindings, 1, -1 do
       if bindings[index].keys == keys then
+        bindings[index].active = false
         table.remove(bindings, index)
       end
     end
@@ -194,9 +209,11 @@ probe=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
 grep -Fqx "SUPER+1" <<<"$probe" ||
   fail "the conflict check catches a keysym colliding with a bound keycode"
 
-# Modifier order is cosmetic; Hyprland binds the same chord either way.
+# Modifier order is cosmetic; Hyprland binds the same chord either way. Add the
+# reordered chord with hl.bind directly, so this checks the signature
+# normalization rather than o.bind's override behavior.
 probe=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
-  'o.bind("SUPER + ALT + SHIFT + RIGHT", "Conflict probe", "true")' | duplicate_signatures)
+  'hl.bind("SUPER + ALT + SHIFT + RIGHT", "true")' | duplicate_signatures)
 grep -Fqx "ALT+SHIFT+SUPER+RIGHT" <<<"$probe" ||
   fail "the conflict check ignores modifier order"
 pass "the conflict check catches collisions across keycodes and modifier order"
@@ -214,3 +231,30 @@ rebound=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
 [[ $rebound == $'F9 (release)\tF9\tDictation on release' ]] ||
   fail "rebinding replaces all bindings for a key and preserves binding options" "$rebound"
 pass "rebinding replaces all bindings for a key and preserves binding options"
+
+# Hyprland treats modifier order as cosmetic, so an override written in another
+# order still has to find and replace the default it means to.
+probe=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
+  'o.bind("SHIFT + SUPER + F", "Flea", "flea")' | \
+  awk -F'\t' '$1 == "SHIFT+SUPER+F"')
+[[ $probe == $'SHIFT+SUPER+F\tSHIFT + SUPER + F\tFlea' ]] ||
+  fail "an override in another modifier order replaces the default" "$probe"
+pass "an override replaces a default regardless of modifier order"
+
+# Overriding only the release half of a push-to-talk key must keep the press
+# half, which a key-wide unbind would take with it.
+probe=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
+  'o.bind("F9", "Dictation off", "omarchy-dictation stop", { release = true })' | \
+  awk -F'\t' '$2 == "F9"')
+[[ $probe == $'F9\tF9\tStart dictation (push-to-talk)\nF9 (release)\tF9\tDictation off' ]] ||
+  fail "overriding the release half keeps the press half" "$probe"
+pass "overriding one event keeps the other event on the same key"
+
+# A callback override replaces the default callback binding instead of stacking
+# both actions on the key.
+probe=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
+  'o.bind("SUPER + RETURN", "Kitty", function() hl.exec_cmd("kitty") end)' | \
+  awk -F'\t' '$1 == "SUPER+RETURN"')
+[[ $probe == $'SUPER+RETURN\tSUPER + RETURN\tKitty' ]] ||
+  fail "a callback override replaces the default callback binding" "$probe"
+pass "a callback override replaces a default callback binding"
