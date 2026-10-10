@@ -60,6 +60,8 @@ ShellRoot {
 
   property var defaultsConfig: builtinShellConfig
   property var shellConfig: builtinShellConfig
+  // shell.json has text the shell could not use; persisting would replace it with defaults.
+  property bool userConfigUnreadable: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
 
@@ -90,6 +92,7 @@ ShellRoot {
         console.warn("shell.json parse failed, using defaults:", e)
       }
     }
+    userConfigUnreadable = !!userText.trim() && !user
     shellConfig = user || defaults
   }
 
@@ -115,6 +118,10 @@ ShellRoot {
     var payload = JSON.parse(JSON.stringify(nextConfig))
     payload.version = 1
     shellConfig = payload
+    if (userConfigUnreadable) {
+      console.warn("shell.json is unreadable, not overwriting it; fix it to save bar changes")
+      return
+    }
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
