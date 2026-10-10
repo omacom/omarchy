@@ -1,0 +1,39 @@
+system: "base24"
+name: "Cozy Night"
+slug: "cozy-night"
+author: "OldJobobo; Nord foundation / Omarchy; draft by Harris / kenhara"
+variant: "dark"
+
+# Exported from colors.toml; base04 is derived, all other source roles are preserved.
+# base04 separates duplicate muted/dark foreground: 50% base03 + 50% base06 (sRGB).
+
+palette:
+  # --- bedtime window / nord shadows ---
+  base00: "#2E3440" # Night Window - default background
+  base01: "#3B4252" # Quiet Blanket - lighter background
+  base02: "#434C5E" # Folded Quilt - selection background
+  base03: "#AAB7C8" # Moonlit Wool - comments / muted text
+  base04: "#B6C2D2" # Frosted Glass - dark foreground
+  base05: "#D8DEE9" # Cloud Pillow - default foreground
+  base06: "#C2CDDD" # Blue Linen - light foreground
+  base07: "#ECEFF4" # Moon Milk - brightest foreground
+
+  # --- cocoa counter lights ---
+  base08: "#E4A0A6" # Rose Pajamas - red / error
+  base09: "#E5B08E" # Biscuit Crumb - orange / warning
+  base0A: "#EBCB8B" # Lamplight - yellow
+  base0B: "#AECB9A" # Pistachio Mug - green
+  base0C: "#93CCD9" # Frosted Pane - cyan
+  base0D: "#98B9DC" # Bedtime Blue - blue
+  base0E: "#CBAAD0" # Lilac Teddy - purple
+  base0F: "#CBB197" # Cocoa Foam - brown / special
+
+  # --- base24 extension ---
+  base10: "#222730" # Curtain Shadow - darker background
+  base11: "#191C23" # Sleeping Street - darkest background
+  base12: "#F0BBC0" # Bright Rose Pajamas - bright red
+  base13: "#F5DDA9" # Bright Lamplight - bright orange / yellow
+  base14: "#C6DFB5" # Bright Pistachio Mug - bright green
+  base15: "#B2E0E8" # Bright Frosted Pane - bright cyan
+  base16: "#B9D4EF" # Bright Bedtime Blue - bright blue
+  base17: "#E1C5E4" # Bright Lilac Teddy - bright purple
