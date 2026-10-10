@@ -119,6 +119,18 @@ jq -e '
   fail_with_log "screenshot test shell rendered visible bar widgets"
 }
 
+# A fresh private home can still be covered by the real startup animation
+# after the bar has layout geometry. Wait for this shell's overlay to leave;
+# the regular background layer remains and every pixel assertion stays intact.
+startup_deadline=$((SECONDS + 15))
+until hyprctl -j layers | jq -e --argjson pid "$QS_PID" '
+  [.[] | .levels["3"][]? | select(.pid == $pid and .namespace == "omarchy-background")] | length == 0
+' >/dev/null; do
+  kill -0 "$QS_PID" 2>/dev/null || fail_with_log "screenshot test shell exited during startup"
+  (( SECONDS < startup_deadline )) || fail_with_log "screenshot test shell startup cover did not clear"
+  sleep 0.1
+done
+
 OMARCHY_PATH="$test_root" \
 OMASNAP_SCREENSHOT_DIR="$screenshot_dir" \
 HOME="$test_home" \
