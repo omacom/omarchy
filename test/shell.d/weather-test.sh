@@ -125,6 +125,14 @@ assert(
   'weather widget injects itself as the panel host'
 )
 assert(
+  widgetSource.includes('setting("onRightClick", "")') && widgetSource.includes('root.bar.run(root.rightClickCommand)'),
+  'weather widget runs the onRightClick setting on right-click'
+)
+assert(
+  widgetSource.includes('|| "omarchy-notification-send \\"$(omarchy-weather-status)\\""'),
+  'weather widget falls back to the weather notification on right-click'
+)
+assert(
   widgetSource.includes('readonly property bool popoutSwitchClosing:') && widgetSource.includes('function closeForPopoutSwitch()'),
   'weather widget forwards the popout-switch handshake'
 )
