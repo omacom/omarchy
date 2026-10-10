@@ -18,7 +18,8 @@ assert(
 )
 
 const readyExpression = /readonly property bool contentReady: ([^\n]*(?:\n    &&[^\n]*)*)/.exec(overlay)[1]
-const ready = new Function('shown', 'backingWindowVisible', 'width', 'height', 'targetScreen', 'targetMonitor', 'devicePixelRatio', `return ${readyExpression}`)
+const readyReserving = new Function('shown', 'backingWindowVisible', 'width', 'height', 'targetScreen', 'targetMonitor', 'devicePixelRatio', 'reservedSpace', `return ${readyExpression}`)
+const ready = (...args) => readyReserving(...args, [0, 0, 0, 0])
 const screen = { name: 'eDP-1', width: 1200, height: 750 }
 const monitor = { name: 'eDP-1', scale: 1.6 }
 for (const scale of [2, 1, 1.6]) {
@@ -168,6 +169,98 @@ for (const file of Object.keys(overlays)) {
   const namespace = /WlrLayershell\.namespace: "([^"]+)"/.exec(read(file))
   assert(namespace && unanimated.includes(namespace[1]), `${file} is exempt from Hyprland's layer animation`)
 }
+
+// Cooperative focus is off unless the overlay and the user both ask for it.
+assert(overlay.includes('property bool cooperativeFocus: false'), 'overlays keep exclusive focus by default')
+const cooperatingExpression = /readonly property bool cooperating: ([^\n]+)/.exec(overlay)[1]
+const WlrKeyboardFocus = { None: 0, Exclusive: 1, OnDemand: 2 }
+const cooperating = new Function('shown', 'cooperativeFocus', 'shownKeyboardFocus', 'WlrKeyboardFocus', `return ${cooperatingExpression}`)
+assert(cooperating(true, true, WlrKeyboardFocus.Exclusive, WlrKeyboardFocus), 'a shown overlay that opted in cooperates')
+assert(!cooperating(true, false, WlrKeyboardFocus.Exclusive, WlrKeyboardFocus), 'an overlay that did not opt in never cooperates')
+assert(!cooperating(false, true, WlrKeyboardFocus.Exclusive, WlrKeyboardFocus), 'a closed overlay does not cooperate')
+assert(!cooperating(true, true, WlrKeyboardFocus.None, WlrKeyboardFocus), 'an overlay without the keyboard has no focus to yield')
+const focusExpression = /WlrLayershell\.keyboardFocus: ([^\n]+)/.exec(overlay)[1]
+const focusMode = new Function('cooperating', 'focusHeld', 'shownKeyboardFocus', 'WlrKeyboardFocus', `return ${focusExpression}`)
+assertEqual(focusMode(false, false, WlrKeyboardFocus.Exclusive, WlrKeyboardFocus), WlrKeyboardFocus.Exclusive, 'stock overlays stay exclusive')
+assertEqual(focusMode(true, false, WlrKeyboardFocus.Exclusive, WlrKeyboardFocus), WlrKeyboardFocus.Exclusive, 'a cooperative overlay holds exclusive focus until the keyboard arrives')
+assertEqual(focusMode(true, true, WlrKeyboardFocus.Exclusive, WlrKeyboardFocus), WlrKeyboardFocus.OnDemand, 'a cooperative overlay yields the pointer once it has the keyboard')
+assertEqual(focusMode(false, true, WlrKeyboardFocus.None, WlrKeyboardFocus), WlrKeyboardFocus.None, 'an overlay waiting on its content stays keyboard-free')
+
+const activeBody = /onActiveChanged: \{([\s\S]*?)\n    \}/.exec(overlay)[1]
+const changeActive = new Function('window', 'active', activeBody)
+let dismissals = 0
+const cooperative = { shown: true, visible: true, cooperating: true, focusHeld: false, dismissRequested() { dismissals++ } }
+changeActive(cooperative, false)
+assertEqual(dismissals, 0, 'an overlay still waiting for the keyboard is not dismissed')
+changeActive(cooperative, true)
+assert(cooperative.focusHeld, 'keyboard focus arriving releases exclusive pointer routing')
+changeActive(cooperative, false)
+assertEqual(dismissals, 1, 'losing the keyboard asks the owner to dismiss')
+assert(cooperative.focusHeld, 'a dismissed overlay does not return to exclusive and take focus back')
+dismissals = 0
+changeActive({ ...cooperative, shown: false }, false)
+changeActive({ ...cooperative, visible: false }, false)
+changeActive({ ...cooperative, cooperating: false }, false)
+assertEqual(dismissals, 0, 'closing, unmapping and stock overlays never request dismissal')
+assert(
+  /model: window\.cooperating \? Quickshell\.screens : \[\]/.test(overlay) &&
+    /WlrLayershell\.namespace: "omarchy-overlay-dismiss"[\s\S]*?WlrLayershell\.keyboardFocus: WlrKeyboardFocus\.None[\s\S]*?onPressed: window\.dismissRequested\(\)/.test(overlay),
+  'only cooperative overlays map keyboard-free dismissal surfaces on other outputs'
+)
+
+// A cooperative overlay sits beside reserved space instead of covering it.
+assert(
+  overlay.includes('exclusionMode: cooperativeFocus ? ExclusionMode.Normal : ExclusionMode.Ignore'),
+  'only cooperative overlays leave reserved space uncovered'
+)
+const reservedBody = /readonly property var reservedSpace: \{([\s\S]*?)\n  \}/.exec(overlay)[1]
+const reservedSpace = new Function('cooperativeFocus', 'targetMonitor', reservedBody)
+assertDeepEqual(reservedSpace(false, { lastIpcObject: { reserved: [0, 26, 0, 300] } }), [0, 0, 0, 0],
+  'stock overlays still measure against the whole screen')
+assertDeepEqual(reservedSpace(true, { lastIpcObject: { reserved: [0, 26, 0, 300] } }), [0, 26, 0, 300],
+  'a cooperative overlay reads the reserved space Hyprland reports')
+assertDeepEqual(reservedSpace(true, { lastIpcObject: {} }), [0, 0, 0, 0],
+  'missing reserved space falls back to the whole screen')
+assertDeepEqual(reservedSpace(true, null), [0, 0, 0, 0], 'reserved space waits for monitor information')
+const tablet = { name: 'eDP-1', width: 1200, height: 750 }
+const tabletMonitor = { name: 'eDP-1', scale: 1.6 }
+assert(readyReserving(true, true, 1200, 424, tablet, tabletMonitor, 1.6, [0, 26, 0, 300]),
+  'a cooperative overlay reveals at the size left above an on-screen keyboard')
+assert(!readyReserving(true, true, 1200, 724, tablet, tabletMonitor, 1.6, [0, 26, 0, 300]),
+  'a stale reserved space keeps content transparent until Hyprland is asked again')
+assert(
+  overlay.includes('onWidthChanged: if (shown && cooperativeFocus) Hyprland.refreshMonitors()') &&
+    overlay.includes('onHeightChanged: if (shown && cooperativeFocus) Hyprland.refreshMonitors()'),
+  'a keyboard appearing or leaving refreshes the reserved space'
+)
+
+const shellQml = read('shell/shell.qml')
+const switchExpression = /readonly property bool overlaysCooperativeFocus: ([^\n]+\n[^\n]+)/.exec(shellQml)[1]
+const cooperativeSwitch = new Function('shellConfig', 'Util', `return ${switchExpression}`)
+const plainObject = { isPlainObject: (value) => !!value && typeof value === 'object' && !Array.isArray(value) }
+assert(!cooperativeSwitch({ version: 1 }, plainObject), 'cooperative focus is off without a shell.json setting')
+assert(!cooperativeSwitch({ overlays: { cooperativeFocus: 'yes' } }, plainObject), 'cooperative focus needs an explicit true')
+assert(cooperativeSwitch({ overlays: { cooperativeFocus: true } }, plainObject), 'shell.json turns cooperative focus on')
+
+const dismissPaths = {
+  'shell/plugins/menu/Menu.qml': 'cancel',
+  'shell/plugins/emojis/Emojis.qml': 'dismiss',
+  'shell/plugins/clipboard/Clipboard.qml': 'close',
+  'shell/plugins/image-picker/ImagePicker.qml': 'cancel',
+}
+for (const file of Object.keys(overlays)) {
+  const qml = read(file)
+  if (dismissPaths[file]) {
+    assert(
+      qml.includes('cooperativeFocus: !!root.shell && root.shell.overlaysCooperativeFocus === true') &&
+        qml.includes(`onDismissRequested: root.${dismissPaths[file]}()`),
+      `${file} cooperates only on the user's setting and dismisses through its own ${dismissPaths[file]} path`
+    )
+  } else {
+    assert(!qml.includes('cooperativeFocus'), `${file} keeps exclusive focus`)
+  }
+}
+assert(!read('shell/plugins/polkit/PolkitAgent.qml').includes('cooperativeFocus'), 'the password prompt never yields exclusive focus')
 
 // The OSD never takes the keyboard or input, shown or not.
 const osd = read('shell/plugins/osd/Osd.qml')

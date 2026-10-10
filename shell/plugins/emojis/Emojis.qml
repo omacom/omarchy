@@ -161,6 +161,8 @@ Item {
   OverlayWindow {
     id: panel
     shown: root.opened
+    cooperativeFocus: !!root.shell && root.shell.overlaysCooperativeFocus === true
+    onDismissRequested: root.dismiss()
     WlrLayershell.namespace: "omarchy-emojis"
 
     Rectangle {

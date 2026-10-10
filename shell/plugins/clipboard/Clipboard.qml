@@ -11,6 +11,7 @@ Item {
   id: root
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
+  property var shell: null
   property bool opened: false
   property string filterText: ""
   property int selectedIndex: 0
@@ -315,6 +316,8 @@ Item {
   OverlayWindow {
     id: panel
     shown: root.opened
+    cooperativeFocus: !!root.shell && root.shell.overlaysCooperativeFocus === true
+    onDismissRequested: root.close()
     WlrLayershell.namespace: "omarchy-clipboard"
 
     Rectangle {
