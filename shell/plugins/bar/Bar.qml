@@ -1429,7 +1429,9 @@ Item {
 
         Text {
           id: tooltipLabel
-          textFormat: Text.PlainText
+          // StyledText: deliberate rich tooltips (custom plugins) without the
+          // AutoText→RichText path that fetches remote <img> URLs (#9940).
+          textFormat: Text.StyledText
           anchors.centerIn: parent
           text: root.tooltipText
           color: Commons.Color.tooltip.text
