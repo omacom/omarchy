@@ -87,7 +87,7 @@ local function shell_dispatcher(kind, target, command)
   return command
 end
 
-local function command_from(value, description)
+local function command_from(value, id)
   if type(value) ~= "table" then
     return value
   end
@@ -112,7 +112,7 @@ local function command_from(value, description)
     return o.launch(value.launch)
   elseif value.webapp then
     if value.focus then
-      return o.launch_webapp_sole(description, value.webapp)
+      return o.launch_webapp_sole(id, value.webapp)
     else
       return o.launch_webapp(value.webapp)
     end
@@ -136,13 +136,26 @@ function o.preinstalled_bindings_enabled()
 end
 
 function o.bind(keys, description, dispatcher, options)
-  local opts = options or {}
+  -- Copy what the caller handed over rather than writing into it. The id below
+  -- fills in only when none is set yet, so a config reusing one options table
+  -- across several binds would give every later bind the first one's id.
+  local opts = {}
+
+  for key, value in pairs(options or {}) do
+    opts[key] = value
+  end
 
   if description then
     opts.description = description
   end
 
-  dispatcher = command_from(dispatcher, description)
+  -- A description is what a bind is called; an id is what it is. Anything that
+  -- has to recognize a bind again later (a cache key, a window match) keys on
+  -- the id, so a renamed description does not drag behaviour along with it.
+  -- The description is the only name most binds need, so it is the default.
+  opts.id = opts.id or description
+
+  dispatcher = command_from(dispatcher, opts.id)
 
   if type(dispatcher) == "string" then
     dispatcher = hl.dsp.exec_cmd(dispatcher)

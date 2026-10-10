@@ -213,26 +213,27 @@ pass "chords whose dispatch is unknown stay apart"
 # What the menu is expected to pair up, written out here rather than read from
 # the script, so dropping an action from the list fails instead of shrinking
 # what gets checked.
-expected_alternatives=(
+expected_alternative_ids=(
   "Close window"
   "Calculator"
   "Toggle scratchpad"
   "Move window to scratchpad"
 )
 
-eval "$(sed -n '/^alternative_chord_actions()/,/^}/p' "$ROOT/bin/omarchy-menu-keybindings")"
+eval "$(sed -n '/^alternative_chord_ids()/,/^}/p' "$ROOT/bin/omarchy-menu-keybindings")"
 
-[[ $(alternative_chord_actions) == "$(printf '%s\n' "${expected_alternatives[@]}")" ]] ||
-  fail "the menu pairs up the actions Omarchy means it to" "$(alternative_chord_actions)"
+[[ $(alternative_chord_ids) == "$(printf '%s\n' "${expected_alternative_ids[@]}")" ]] ||
+  fail "the menu pairs up the actions Omarchy means it to" "$(alternative_chord_ids)"
 pass "the menu pairs up the actions Omarchy means it to"
 
-# A renamed description would leave an action named here matching nothing, and
-# the row it was meant to share would quietly split in two. Only real binds
-# count: a commented-out example is not a second chord.
-for action in "${expected_alternatives[@]}"; do
+# An id named here that matches no bind would quietly split the row it was meant
+# to share. A bind answers to the id it declares, or to its description when it
+# declares none, so either spelling counts. Only real binds count too: a
+# commented-out example is not a second chord.
+for id in "${expected_alternative_ids[@]}"; do
   (( $(grep -rhE '^[[:space:]]*o\.bind\(' "$ROOT/default/hypr/bindings" |
-       grep -cF ", \"$action\",") >= 2 )) ||
-    fail "every action named as having an alternative is bound twice" "$action"
+       grep -cF -e ", \"$id\"," -e "id = \"$id\"") >= 2 )) ||
+    fail "every action named as having an alternative is bound twice" "$id"
 done
 pass "every action named as having an alternative is bound twice"
 
@@ -247,3 +248,112 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# The id decides what pairs up and what sorts where, and then it comes off: a
+# cached record is the three fields the menu has always read. Nothing here writes
+# an arg with a tab in it, so every record is exactly three fields wide. The shape
+# is the only thing an older cache still gets right, though, which is what the
+# assertion below is about.
+[[ $(awk -F '\t' '{ print NF }' "$tmpdir"/cache/omarchy/keybindings-*.records | sort -u) == "3" ]] ||
+  fail "a cached record carries display text, dispatcher, and arg, and no id" \
+    "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
+pass "a cached record carries display text, dispatcher, and arg, and no id"
+
+# Rows are paired and sorted before they are cached, and the key holds nothing
+# that says how. So a cache an earlier version wrote reads back in that version's
+# order on a machine whose keymap and binds have not moved, and the version in the
+# key is the only thing that retires it. Plant a record under the key the version
+# before this one would have written: it has to be ignored rather than served.
+rm -f "$tmpdir"/cache/omarchy/keybindings-*.records
+stale_key=$(
+  {
+    printf 'v14\n'
+    PATH="$stub_bin:$PATH" hyprctl devices 2>/dev/null | grep -F 'active keymap:'
+    PATH="$stub_bin:$PATH" hyprctl binds 2>/dev/null
+  } | sha256sum | awk '{ print $1 }'
+)
+printf 'SUPER + RETURN  → a row an older version cached\tstale\t\n' \
+  >"$tmpdir/cache/omarchy/keybindings-$stale_key.records"
+
+! grep -q 'an older version cached' <<<"$(keybindings)" ||
+  fail "a cache written before rows paired and sorted by id is not served"
+pass "a cache written before rows paired and sorted by id is not served"
+
+# An id and the description beside it only differ once something translates the
+# description, so from here on the config declares both. It declares nothing
+# else: the shipped config loads far more than these assertions are about, and
+# the menu's scan gives up partway through it, so a bind appended to the end of
+# it never reaches the scan at all.
+cat >"$home/.config/hypr/hyprland.lua" <<LUA
+dofile("$ROOT/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+
+o.bind("SUPER + ALT + W", "關閉視窗", "true", { id = "Close window" })
+o.bind("SUPER + ALT + Q", "關閉視窗", "true", { id = "Close window" })
+o.bind("SUPER + ALT + RETURN", "終端機", "true", { id = "Terminal" })
+LUA
+
+# A description is not what a row is called. The id is, and both chords of a
+# paired action carry the same one, so translating the label leaves the pair on
+# one row.
+stub_hyprctl <<BINDS
+$(lua_bind 72 "SUPER ALT + W" "關閉視窗")
+$(lua_bind 72 "SUPER ALT + Q" "關閉視窗")
+BINDS
+
+rendered=$(keybindings)
+grep -q 'SUPER ALT + W / SUPER ALT + Q  *→ 關閉視窗' <<<"$rendered" ||
+  fail "a pair whose label is translated still shares a row" "$rendered"
+pass "a pair whose label is translated still shares a row"
+
+# Where a row sorts reads the id as well. Translate the terminal and it stays at
+# the head of the list. ALT sorts before SUPER, so the untranslated row would
+# lead instead if the translated one had lost the place its id gives it.
+stub_hyprctl <<BINDS
+$(lua_bind 72 "SUPER ALT + RETURN" "終端機")
+$(exec_bind 8 "ALT + V" "Zoom in" "omarchy-zoom in")
+BINDS
+
+rendered=$(keybindings)
+(( $(grep -n '→ 終端機$' <<<"$rendered" | cut -d: -f1) <
+   $(grep -n '→ Zoom in$' <<<"$rendered" | cut -d: -f1) )) ||
+  fail "a translated label keeps the place its id sorts to" "$rendered"
+pass "a translated label keeps the place its id sorts to"
+
+# The tail the menu keeps for media keys is decided by the chord and not by the
+# label: XF86AudioMute is a key, and translating "Mute" must not lift its row out
+# of that tail. This is the one classification the id deliberately leaves alone.
+# Revealing the active window sorts near the end of the list but ahead of the
+# media keys, so a row that lost the tail lands above it rather than below.
+stub_hyprctl <<BINDS
+$(exec_bind 0 "XF86AudioMute" "靜音" "omarchy-audio-output-mute")
+$(exec_bind 8 "ALT + TAB" "Reveal active window on top" "true")
+BINDS
+
+rendered=$(keybindings)
+(( $(grep -n '→ 靜音$' <<<"$rendered" | cut -d: -f1) >
+   $(grep -n '→ Reveal active window on top$' <<<"$rendered" | cut -d: -f1) )) ||
+  fail "a media key whose label is translated stays in the tail" "$rendered"
+pass "a media key whose label is translated stays in the tail"
+
+# An id is written by hand, and the record the parser reads is comma separated
+# with only its last field rebuilt out of the leftovers. A comma in an id would
+# push the dispatcher into the field behind it, leaving a row that renders and
+# then runs nothing.
+cat >"$home/.config/hypr/hyprland.lua" <<LUA
+dofile("$ROOT/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+
+o.bind("SUPER + ALT + Z", "Zoom out", "omarchy-zoom out", { id = "Zoom, out" })
+LUA
+
+stub_hyprctl <<BINDS
+$(lua_bind 72 "SUPER ALT + Z" "Zoom out")
+BINDS
+
+rm -rf "$tmpdir/cache"
+keybindings >/dev/null
+grep -qP '→ Zoom out\texec\tomarchy-zoom out$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "an id holding a comma still dispatches what its bind declared" \
+    "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
+pass "an id holding a comma still dispatches what its bind declared"
