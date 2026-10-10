@@ -133,14 +133,14 @@ pass "a call for another display does not reach this shell's socket"
 
 run_node_test <<'JS'
 const fs = require('fs')
-const { execSync } = require('child_process')
+const { spawnSync } = require('child_process')
 const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
 const registry = fs.readFileSync(path.join(root, 'shell/Commons/IpcRegistry.qml'), 'utf8')
 
 // Only handlers that register can answer over the socket, so every
 // first-party one does; the registry's own bare handler is the reference for
 // the functions a handler never exposes.
-const bare = execSync(`grep -rln 'IpcHandler {' ${path.join(root, 'shell')} --include=*.qml || true`).toString().trim().split('\n').filter(Boolean)
+const bare = spawnSync('grep', ['-rln', 'IpcHandler {', path.join(root, 'shell'), '--include=*.qml']).stdout.toString().trim().split('\n').filter(Boolean)
 assertDeepEqual(bare.map((f) => path.relative(root, f)).sort(), ['shell/Commons/IpcRegistry.qml', 'shell/Commons/ShellIpc.qml'], 'first-party IPC handlers register through ShellIpc')
 
 // Declared functions are allowed by name: destroy() and other QObject
