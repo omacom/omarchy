@@ -7,7 +7,7 @@ require_command mise
 
 test_dir=$(mktemp -d)
 trap 'rm -rf "$test_dir"' EXIT
-migration="$ROOT/migrations/1789095456.sh"
+migration="$ROOT/migrations/1789584463.sh"
 
 run_migration() {
   local test_home="$1"
