@@ -57,8 +57,9 @@ fi
 
 # Largest font size that still fits the whole art on this monitor.
 # A JetBrains Mono Nerd Font cell is about 0.8x the font size wide and 1.76x
-# tall (18 pt measures 14.4x31.68 px). One spare row and column keep the art
-# off the very edge.
+# tall (18 pt measures 14.4x31.68 px in foot). Ghostty renders the cell a bit
+# wider (about 0.81x), so the width uses 0.82 to stay on the safe side. One
+# spare row and two spare columns keep the art off the very edge.
 screensaver_font_size() {
   local monitor=$1 geometry
 
@@ -89,7 +90,7 @@ screensaver_font_size() {
     logical_height = height / scale
 
     by_height = logical_height / ((rows + 1) * 1.76)
-    by_width  = logical_width  / ((cols + 1) * 0.8)
+    by_width  = logical_width  / ((cols + 2) * 0.82)
 
     size = (by_height < by_width) ? by_height : by_width
     size = int(size)
