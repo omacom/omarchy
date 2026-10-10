@@ -30,7 +30,11 @@ exec_bind() {
   printf 'bind\n\tmodmask: %s\n\tsubmap: \n\tkey: %s\n\tkeycode: 0\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: exec\n\targ: %s\n' "$1" "$2" "$3" "$4"
 }
 
+# Takes the bind records on stdin, as before; an optional first argument
+# replaces the `hyprctl devices` output, for tests that need a specific
+# keyboard layout active rather than the English (US) default.
 stub_hyprctl() {
+  local devices_output="${1:-active keymap: English (US)}"
   {
     echo '#!/bin/bash'
     echo 'case "$1" in'
@@ -38,7 +42,7 @@ stub_hyprctl() {
     cat
     echo 'BINDS'
     echo '  ;;'
-    echo '  devices) echo "active keymap: English (US)" ;;'
+    printf '  devices) cat <<'"'"'DEVICES'"'"'\n%s\nDEVICES\n  ;;\n' "$devices_output"
     echo 'esac'
   } >"$stub_bin/hyprctl"
   chmod +x "$stub_bin/hyprctl"
@@ -46,7 +50,7 @@ stub_hyprctl() {
 
 keybindings() {
   env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
-    XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+    XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" ${KEYBINDINGS_LANG:+LANG="$KEYBINDINGS_LANG"} \
     bash "$menu" --print
 }
 
@@ -145,6 +149,62 @@ rendered=$(keybindings)
 grep -q 'SUPER + ~  *→ Toggle scratchpad' <<<"$rendered" ||
   fail "a keycode resolves to the symbol printed on the key too" "$rendered"
 pass "a keycode resolves to the symbol printed on the key too"
+
+# A code: bind names a physical position, not a character, and that position
+# carries a different symbol once the active layout isn't US. On French AZERTY
+# code:20 is the key printed ")" / "°", not "-" / "_", and code:10 prints "&",
+# so resolving them against the US keymap mislabels them.
+if xkbcli compile-keymap --layout fr --test </dev/null >/dev/null 2>&1; then
+  # keyboard <layout> <active layout index> <main>: one `hyprctl devices`
+  # keyboard. An empty variant between two non-empty fields (a real layout
+  # plus the compose option Omarchy ships by default) is what exposed a prior
+  # bug: splitting on a literal tab collapsed the empty field and shifted
+  # options into variant's place.
+  keyboard() {
+    printf '\tKeyboard at deadbeef000%s:\n\t\tkeyboard-%s\n\t\t\trules: r "", m "", l "%s", v "", o "compose:caps,shift:both_capslock_cancel"\n\t\t\tactive layout index: %s\n\t\t\tactive keymap: %s\n\t\t\tmain: %s\n' \
+      "$2" "$1" "$1" "$2" "$1/$2" "$3"
+  }
+  layout_binds() {
+    exec_bind 64 "SUPER + code:20" "Expand window left" "true"
+    exec_bind 64 "SUPER + code:10" "Switch to workspace 1" "true"
+    exec_bind 64 "SUPER + code:11" "Switch to workspace 2" "true"
+  }
+
+  stub_hyprctl "$(printf 'Keyboards:\n'; keyboard fr 0 yes)" <<<"$(layout_binds)"
+  rendered=$(keybindings)
+  grep -q 'SUPER + )  *→ Expand window left' <<<"$rendered" && grep -q 'SUPER + &  *→ Switch to workspace 1' <<<"$rendered" ||
+    fail "a code: bind reads as the symbol the active layout prints on the key" "$rendered"
+  # Without a UTF-8 locale an accented letter keeps its keysym name rather
+  # than becoming a stray byte; with one it reads as printed.
+  grep -q 'SUPER + EACUTE  *→ Switch to workspace 2' <<<"$rendered" ||
+    fail "outside UTF-8 an accented key keeps its keysym name" "$rendered"
+  rendered=$(KEYBINDINGS_LANG=C.UTF-8 keybindings)
+  grep -q 'SUPER + é  *→ Switch to workspace 2' <<<"$rendered" ||
+    fail "in UTF-8 an accented key reads as printed" "$rendered"
+  pass "a code: bind resolves against the active layout, not always US"
+
+  # Hyprland marks no keyboard main until one is typed on; the first one
+  # still names the keys rather than the US default.
+  stub_hyprctl "$(printf 'Keyboards:\n'; keyboard fr 0 no; keyboard us 0 no)" <<<"$(layout_binds)"
+  rendered=$(keybindings)
+  grep -q 'SUPER + )  *→ Expand window left' <<<"$rendered" ||
+    fail "with no main keyboard the first keyboard names the keys" "$rendered"
+  pass "with no main keyboard the first keyboard names the keys"
+
+  # With several layouts the active one names the keys, and switching layouts
+  # refreshes the cached menu.
+  stub_hyprctl "$(printf 'Keyboards:\n'; keyboard us,fr 1 yes)" <<<"$(layout_binds)"
+  rendered=$(keybindings)
+  grep -q 'SUPER + )  *→ Expand window left' <<<"$rendered" ||
+    fail "the active one of several layouts names the keys" "$rendered"
+  stub_hyprctl "$(printf 'Keyboards:\n'; keyboard us,fr 0 yes)" <<<"$(layout_binds)"
+  rendered=$(keybindings)
+  grep -q 'SUPER + -  *→ Expand window left' <<<"$rendered" && grep -q 'SUPER + 1  *→ Switch to workspace 1' <<<"$rendered" ||
+    fail "switching to the other layout relabels the keys" "$rendered"
+  pass "the active one of several layouts names the keys, and switching relabels them"
+else
+  skip "a code: bind resolves against the active layout, not always US (no French xkb data installed)"
+fi
 
 # A chord refused for width opens a row of its own, and the next chord tries
 # that row rather than reaching back past it and printing out of order.
