@@ -38,6 +38,7 @@ BarWidget {
       color: root.bar ? root.bar.barForeground : Commons.Color.foreground
       font.family: root.bar ? root.bar.fontFamily : Style.font.family
       font.pixelSize: Style.font.body
+      renderType: Text.NativeRendering
       elide: Text.ElideRight
       opacity: 0.85
     }
