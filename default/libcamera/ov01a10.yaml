@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: CC0-1.0
+# OmniVision OV01A10 tuning for libcamera's software ISP.
+#
+# Colour matrices come from the libcamera-devel series "OV01A10 sensor
+# support and simple IPA improvements" (May 2026), calibrated from the Intel
+# AIQB tuning binary shipped with the Dell XPS 13 9320. Only the keys that
+# libcamera 0.7 reads are kept; the AWB/Adjust/Agc tuning keys of that series
+# need a newer IPA.
+%YAML 1.1
+---
+version: 1
+algorithms:
+  # Black level is not specified in the AIQB calibration binary; auto-detected
+  # from the histogram dark end at runtime.
+  - BlackLevel:
+  - Awb:
+  - Ccm:
+      ccms:
+        - ct: 2856
+          ccm: [  1.1248,  0.2210, -0.3458,
+                 -0.4616,  1.7736, -0.3120,
+                 -0.4342, -0.9348,  2.3690 ]
+        - ct: 3000
+          ccm: [  1.5839, -0.4188, -0.1650,
+                 -0.3670,  1.6565, -0.2895,
+                 -0.1213, -1.0442,  2.1655 ]
+        - ct: 3450
+          ccm: [  1.6411, -0.5127, -0.1284,
+                 -0.3680,  1.6337, -0.2657,
+                 -0.1384, -1.0869,  2.2253 ]
+        - ct: 4000
+          ccm: [  1.5414, -0.4024, -0.1390,
+                 -0.3304,  1.6352, -0.3048,
+                 -0.1237, -0.6699,  1.7936 ]
+        - ct: 4150
+          ccm: [  1.7334, -0.6629, -0.0706,
+                 -0.3121,  1.6267, -0.3146,
+                 -0.0920, -0.9183,  2.0103 ]
+        - ct: 5000
+          ccm: [  1.5015, -0.3165, -0.1850,
+                 -0.2277,  1.6190, -0.3913,
+                 -0.0699, -0.7285,  1.7984 ]
+        - ct: 6500
+          ccm: [  1.8163, -0.7062, -0.1100,
+                 -0.1640,  1.5736, -0.4096,
+                 -0.0084, -0.8294,  1.8378 ]
+        - ct: 7500
+          ccm: [  1.8953, -0.7980, -0.0973,
+                 -0.1539,  1.6001, -0.4462,
+                 -0.0101, -0.7800,  1.7902 ]
+  - Adjust:
+  - Agc:
+...
