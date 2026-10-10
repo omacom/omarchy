@@ -55,8 +55,33 @@ pass "config hook reports changed config files in filename order"
 
 run_hook
 (( $(grep -c '^HOOK CALL:' "$test_tmp/log.txt") == 3 )) || fail "unchanged reload still fires the hook"
-grep -Fx 'HOOK CALL: hyprland-config ' "$test_tmp/log.txt" >/dev/null
+[[ $(tail -n1 "$test_tmp/log.txt") == 'HOOK CALL: hyprland-config ' ]] || fail "unchanged reload fires the hook with no files"
 pass "unchanged reload fires the hook with no files"
+
+# A snapshot row keyed by `bindings.lua` must not match `mybindings.lua`: the
+# next unchanged reload would otherwise keep reporting `bindings`.
+echo '-- new' >"$config_dir/mybindings.lua"
+run_hook
+[[ $(tail -n1 "$test_tmp/log.txt") == 'HOOK CALL: hyprland-config mybindings' ]] || fail "added suffix file reported once"
+run_hook
+[[ $(tail -n1 "$test_tmp/log.txt") == 'HOOK CALL: hyprland-config ' ]] || fail "suffix file keeps the base file changed"
+pass "config hook compares full filenames, not substrings"
+
+rm "$config_dir/foo.lua"
+run_hook
+[[ $(tail -n1 "$test_tmp/log.txt") == 'HOOK CALL: hyprland-config foo' ]] || fail "removed config file reported"
+run_hook
+[[ $(tail -n1 "$test_tmp/log.txt") == 'HOOK CALL: hyprland-config ' ]] || fail "removed config file reported only once"
+pass "config hook reports removed config files"
+
+# A broken symlink stays in the glob; it must not abort the run before the
+# snapshot is written and the hook fires.
+ln -s "$config_dir/missing.lua" "$config_dir/broken.lua"
+calls_before=$(grep -c '^HOOK CALL:' "$test_tmp/log.txt")
+run_hook
+(( $(grep -c '^HOOK CALL:' "$test_tmp/log.txt") == calls_before + 1 )) || fail "broken symlink still fires the hook"
+rm "$config_dir/broken.lua"
+pass "config hook skips broken symlinks"
 
 cat >"$test_tmp/hooks-check.lua" <<'LUA_EOF'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
