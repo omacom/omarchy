@@ -23,6 +23,14 @@ Item {
     var payload = ({})
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
 
+    // A select/input request left in flight when a new summon arrives
+    // (e.g. the trigger key repeated before the prior one was answered)
+    // would otherwise have its doneFile silently abandoned by
+    // openDmenu/openExistingMenu below, leaving the caller that's still
+    // polling for it (bin/omarchy-menu-select) blocked forever. Answer it
+    // as cancelled first so every summon always resolves.
+    if (root.requestActive) root.finishRequest(null)
+
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
 
     if (payload.mode === "select" || payload.mode === "input") {
@@ -67,8 +75,6 @@ Item {
   property string filterText: ""
   property int selectedIndex: 0
   property bool cursorActive: false
-  property int requestSerial: 0
-  property int applySerial: 0
   property var items: ({})
   property var itemOrder: []
   property var navStack: []
@@ -127,12 +133,13 @@ Item {
     root.selectionFile = ""
     root.doneFile = ""
 
+    // Each answer gets its own process: a shared Process drops a command set
+    // while it is still running, which strands the caller waiting on it.
     if (selection === null || selection === undefined) {
-      resultProc.command = ["bash", "-c", ": > " + Util.shellQuote(activeDoneFile)]
+      Quickshell.execDetached(["bash", "-c", ": > " + Util.shellQuote(activeDoneFile)])
     } else {
-      resultProc.command = ["bash", "-c", "printf '%s\\n' " + Util.shellQuote(selection) + " > " + Util.shellQuote(activeSelectionFile) + "; : > " + Util.shellQuote(activeDoneFile)]
+      Quickshell.execDetached(["bash", "-c", "printf '%s\\n' " + Util.shellQuote(selection) + " > " + Util.shellQuote(activeSelectionFile) + "; : > " + Util.shellQuote(activeDoneFile)])
     }
-    resultProc.running = true
   }
 
   function runAction(action) {
@@ -781,7 +788,6 @@ Item {
     } else if (row.kind === "app") {
       var appId = row.appId
       var label = row.label
-      applySerial = requestSerial
       opened = false
       filterText = ""
       if (root.appLibrary) root.appLibrary.launch(appId, label)
@@ -817,7 +823,6 @@ Item {
   }
 
   function applyDmenuSelection(value) {
-    applySerial = requestSerial
     opened = false
     filterText = ""
     root.finishRequest(value)
@@ -826,7 +831,6 @@ Item {
   function applySelected(id, action) {
     if (!id) { cancel(); return }
 
-    applySerial = requestSerial
     opened = false
     filterText = ""
     root.runAction(action)
@@ -839,7 +843,6 @@ Item {
   }
 
   function openExistingMenu(initialMenu) {
-    requestSerial += 1
     mode = "menu"
     requestActive = false
     selectionFile = ""
@@ -863,7 +866,6 @@ Item {
   }
 
   function openDmenu(payload) {
-    requestSerial += 1
     mode = payload.mode === "input" ? "input" : "select"
     dmenuPrompt = String(payload.prompt || (mode === "input" ? "Input" : "Select"))
     dmenuOptions = Array.isArray(payload.options) ? payload.options : []
@@ -940,14 +942,6 @@ Item {
         if (root.filterText.trim()) root.loadProvidersForSearch()
       }
       root.startNextProvider()
-    }
-  }
-
-  Process {
-    id: resultProc
-    onExited: {
-      if (root.applySerial === root.requestSerial)
-        root.opened = false
     }
   }
 
