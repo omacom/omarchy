@@ -7,7 +7,7 @@ description: >
   Triggers: Hyprland, window rules, animations, keybindings, monitors, gaps, borders,
   blur, opacity, omarchy-shell, bar, terminal config, themes, background,
   night light, idle, lock screen, screenshots, reminders, layer rules, workspace
-  settings, display config, and user-facing omarchy commands. Excludes Omarchy
+  settings, display config, Bluetooth keyboard pairing, and user-facing omarchy commands. Excludes Omarchy
   source development through `omarchy dev link` workflows.
 ---
 
@@ -43,6 +43,7 @@ matching guide before starting:
 
 - [`hyprland.md`](hyprland.md) - keybindings, monitors, window rules, and other Hyprland config
 - [`plugins.md`](plugins.md) - the Omarchy shell: bar layout, widgets, plugins, idle behavior
+- [`bluetooth.md`](bluetooth.md) - Bluetooth keyboard pairing, agent prompts, and connection state
 - [`theming.md`](theming.md) - themes, backgrounds, and fonts
 - [`hooks.md`](hooks.md) - automation hooks that run on system events
 - [`capture.md`](capture.md) - screenshots, screen recordings, OCR text capture, and file sharing
