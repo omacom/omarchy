@@ -44,6 +44,20 @@ SH
   chmod +x "$stub_bin/$1"
 }
 stub_rebuild mkinitcpio
+# limine-mkinitcpio prints what it built, as the real one does: a line per
+# image it starts, then mkinitcpio's own line for each image that succeeds.
+# The text comes from $LIMINE_OUTPUT, and it exits 0 whatever that says.
+stub_limine() {
+  cat >"$stub_bin/limine-mkinitcpio" <<'SH'
+#!/bin/bash
+printf '%s %s\n' "${0##*/}" "$*" >>"$REBUILDS"
+cat "$LIMINE_OUTPUT"
+SH
+  chmod +x "$stub_bin/limine-mkinitcpio"
+}
+limine_built() {
+  printf '%s\n' "$@" >"$LIMINE_OUTPUT"
+}
 # Only the stubs count as present, so a machine with Limine never runs its own
 # limine-mkinitcpio here.
 cat >"$stub_bin/omarchy-cmd-present" <<SH
@@ -51,7 +65,7 @@ cat >"$stub_bin/omarchy-cmd-present" <<SH
 [[ -x $stub_bin/\$1 ]]
 SH
 chmod +x "$stub_bin"/*
-export LEAF_CALLS="$test_tmp/leaf-calls" REBUILDS="$test_tmp/rebuilds"
+export LEAF_CALLS="$test_tmp/leaf-calls" REBUILDS="$test_tmp/rebuilds" LIMINE_OUTPUT="$test_tmp/limine-output"
 
 fake_platform "$test_tmp/hw" aarch64-apple
 base_path="$test_tmp/hw/bin:$stub_bin:$ROOT/bin:/usr/local/bin:/usr/bin:/bin"
@@ -299,7 +313,8 @@ output=$(first_boot "$root" 2>&1) || status=$?
 pass "a failed step stays queued with the steps after it"
 
 rm -f "$FAIL_B" "$RUNS"
-stub_rebuild limine-mkinitcpio
+stub_limine
+limine_built 'Building initramfs for linux (6.18.0)' '==> Initcpio image generation successful'
 output=$(first_boot "$root") || fail "the next boot finishes the deferred hardware setup" "$output"
 [[ $(cat "$RUNS") == $'b\nc' ]] || fail "the next boot resumes at the failed step" "$(cat "$RUNS")"
 [[ $(cat "$REBUILDS") == "limine-mkinitcpio " ]] ||
@@ -323,6 +338,118 @@ first_boot "$root" >/dev/null || fail "the next boot finishes the deferred hardw
 [[ $(cat "$RUNS") == $'b\nc' && $(cat "$REBUILDS" 2>/dev/null) == "mkinitcpio -P" ]] ||
   fail "a step that changed the initramfs and then failed still gets it rebuilt" "$(cat "$REBUILDS" 2>/dev/null)"
 pass "a step that changed the initramfs and then failed still gets it rebuilt"
+
+# limine-mkinitcpio skips a kernel it could not build (a full boot partition,
+# say) and still exits 0. The rebuild counts only when every image it started
+# says it succeeded and nothing it ran reported an error; otherwise the rebuild
+# stays owed and the service stays armed for the next boot.
+owed_rebuild_root() {
+  reset_logs
+  root=$(new_root "$1")
+  write_manifest "$root"
+  build "$root" >/dev/null || fail "the fixture image builds"
+  printf '%s\n' install/hardware/apple/b.sh >"$root/var/lib/omarchy/image/deferred-steps"
+}
+assert_rebuild_kept() {
+  local status=0 output
+  output=$(first_boot "$root" 2>&1) || status=$?
+  (( status != 0 )) || fail "$1: the first boot reports the rebuild failed" "$output"
+  [[ $output == *"Could not confirm the initramfs rebuild"* ]] || fail "$1: the first boot says it could not confirm the rebuild" "$output"
+  [[ $(cat "$REBUILDS" 2>/dev/null) == "limine-mkinitcpio " ]] || fail "$1: Limine was asked to rebuild" "$(cat "$REBUILDS" 2>/dev/null)"
+  [[ -e $root/var/lib/omarchy/image/initramfs-inputs && -e $root/var/lib/omarchy/image/deferred-steps &&
+    -L $root/etc/systemd/system/multi-user.target.wants/$unit_name ]] ||
+    fail "$1: the rebuild stays owed and the service stays armed"
+  pass "$1"
+}
+stub_limine
+
+owed_rebuild_root limine-skipped
+limine_built 'Building initramfs for linux (6.18.0)' '==> ERROR: module not found: b' \
+  $'\e[31mERROR: mkinitcpio failed for kernel 6.18.0, skipping.\e[0m'
+assert_rebuild_kept "a kernel Limine skipped keeps the rebuild owed"
+
+owed_rebuild_root limine-uki-skipped
+limine_built 'Building UKI for linux (6.18.0)' '==> Initcpio image generation successful' \
+  '==> ERROR: Unified kernel image generation FAILED' 'ERROR: mkinitcpio failed for kernel 6.18.0, skipping.'
+assert_rebuild_kept "a unified kernel image Limine skipped keeps the rebuild owed"
+
+owed_rebuild_root limine-second-kernel
+limine_built 'Building initramfs for linux (6.18.0)' '==> Initcpio image generation successful' \
+  'Building initramfs for linux-lts (6.12.0)'
+assert_rebuild_kept "a second kernel that never finished keeps the rebuild owed"
+
+owed_rebuild_root limine-nothing
+limine_built ''
+assert_rebuild_kept "a Limine run that built nothing keeps the rebuild owed"
+
+# A full boot partition: mkinitcpio built the image in /tmp and said so, then
+# limine-entry-tool (1.40.0) could not copy it, in red with no ERROR prefix.
+owed_rebuild_root limine-esp-full
+limine_built 'Building UKI for linux (6.18.0)' '==> Initcpio image generation successful' \
+  '==> Unified kernel image generation successful' \
+  $'\e[31mFailed to copy: /tmp/limine-mkinitcpio.Xy12Ab/linux.efi -> /boot/EFI/Linux/omarchy_linux.efi (No space left on device)\e[0m'
+assert_rebuild_kept "an image Limine could not copy to a full boot partition keeps the rebuild owed"
+
+owed_rebuild_root limine-command-failed
+limine_built 'Building initramfs for linux (6.18.0)' '==> Initcpio image generation successful' \
+  'Command failed: limine-enroll-config'
+assert_rebuild_kept "a command Limine's entry tool could not run keeps the rebuild owed"
+
+# limine-entry-tool's other add-path errors, as 1.40.0 prints them.
+entry_tool_errors=(
+  'The file: /tmp/limine-mkinitcpio.Xy12Ab/linux.efi not found'
+  "Invalid 'initrd=/omarchy/amd-ucode.img' path: /boot/omarchy/amd-ucode.img not found"
+  'Repeated hash mismatches. Hardware is faulty. Returning corrupted hash for file:/boot/EFI/Linux/omarchy_linux.efi'
+)
+for entry_error in "${entry_tool_errors[@]}"; do
+  owed_rebuild_root limine-entry-error
+  limine_built 'Building UKI for linux (6.18.0)' '==> Initcpio image generation successful' \
+    '==> Unified kernel image generation successful' $'\e[1;31m'"${entry_error%% *}"$'\e[0m '"${entry_error#* }"
+  assert_rebuild_kept "Limine's entry tool reporting '${entry_error:0:24}...' keeps the rebuild owed"
+done
+
+owed_rebuild_root limine-uki
+limine_built 'Building UKI for linux (6.18.0)' '==> Initcpio image generation successful' \
+  '==> Unified kernel image generation successful' 'Building UKI fallback for linux (6.18.0)' \
+  '==> Initcpio image generation successful' '==> Unified kernel image generation successful'
+first_boot "$root" >/dev/null || fail "a unified kernel image Limine built finishes the setup"
+[[ ! -e $root/var/lib/omarchy/image/initramfs-inputs && ! -L $root/etc/systemd/system/multi-user.target.wants/$unit_name ]] ||
+  fail "a unified kernel image Limine built clears the rebuild and disarms the service"
+pass "a unified kernel image Limine built clears the rebuild and disarms the service"
+
+# The service runs before the login screen and waits for this, so a Limine run
+# this can't confirm is retried on the next two boots, then accepted with a
+# warning in the journal and the install log rather than held on every boot.
+owed_rebuild_root limine-unconfirmed-thrice
+limine_built 'Building initramfs for linux (6.18.0)' 'Something Limine prints that this does not know'
+for boot in 1 2; do
+  rm -f "$REBUILDS"
+  first_boot "$root" >/dev/null 2>&1 && fail "unconfirmed boot $boot keeps the rebuild owed"
+  [[ -e $root/var/lib/omarchy/image/initramfs-inputs && -L $root/etc/systemd/system/multi-user.target.wants/$unit_name ]] ||
+    fail "unconfirmed boot $boot keeps the rebuild owed and the service armed"
+done
+rm -f "$REBUILDS"
+output=$(first_boot "$root" 2>&1) || fail "the third unconfirmed boot finishes the setup" "$output"
+[[ $(cat "$REBUILDS") == "limine-mkinitcpio " ]] || fail "the third boot still tries the rebuild" "$(cat "$REBUILDS" 2>/dev/null)"
+[[ $output == *"Could not confirm the initramfs rebuild after 3 tries"* ]] &&
+  grep -q 'Could not confirm the initramfs rebuild after 3 tries' "$root/var/log/omarchy-install.log" ||
+  fail "the third boot warns that the rebuild went unconfirmed" "$output"
+[[ ! -e $root/var/lib/omarchy/image/initramfs-inputs && ! -e $root/var/lib/omarchy/image/boot-rebuild-unconfirmed &&
+  ! -L $root/etc/systemd/system/multi-user.target.wants/$unit_name ]] ||
+  fail "the third boot clears the rebuild and its count and disarms the service"
+pass "a rebuild Limine leaves unconfirmed is retried twice, then accepted with a warning"
+
+# A confirmed rebuild after an unconfirmed one clears the count with it.
+owed_rebuild_root limine-unconfirmed-then-built
+limine_built 'Building initramfs for linux (6.18.0)'
+first_boot "$root" >/dev/null 2>&1 && fail "an unconfirmed boot keeps the rebuild owed"
+[[ -e $root/var/lib/omarchy/image/boot-rebuild-unconfirmed ]] || fail "an unconfirmed boot is counted"
+limine_built 'Building initramfs for linux (6.18.0)' '==> Initcpio image generation successful'
+first_boot "$root" >/dev/null || fail "a confirmed rebuild finishes the setup"
+[[ ! -e $root/var/lib/omarchy/image/boot-rebuild-unconfirmed && ! -e $root/var/lib/omarchy/image/initramfs-inputs ]] ||
+  fail "a confirmed rebuild clears the unconfirmed count"
+pass "a confirmed rebuild clears the count an unconfirmed one left"
+rm -f "$stub_bin/limine-mkinitcpio"
 
 # A step that only adds to the kernel command line Limine's entry tool builds
 # (as intel/fred.sh does) gets the rebuild too.

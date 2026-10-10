@@ -85,6 +85,45 @@ initramfs_inputs() {
   done | cksum
 }
 
+# limine-mkinitcpio skips a kernel it could not build or install (a full boot
+# partition, say) and still exits 0, so its output ($1) decides: at least one
+# image started, every image it started reports success in mkinitcpio's own
+# line, and nothing it ran reported an error. A UKI build reports both an
+# initcpio and a unified image. mkinitcpio and the hook script prefix errors
+# with ERROR; limine-entry-tool, which copies the images to the boot partition,
+# prints most of its own as "Failed to ...", "Command failed: ...", "The file:
+# ... not found", "Invalid 'initrd=..." or "Repeated hash mismatches...".
+limine_rebuild_confirmed() {
+  local output uki initcpio built_uki built_initcpio
+
+  output=$(sed 's/\x1b\[[0-9;]*m//g' <<<"$1")
+  ! grep -Eq '^((==> )?(ERROR|Error|error)\b|Failed to |Command failed:|The file: |Invalid '"'"'initrd=|Repeated hash mismatches)' <<<"$output" || return 1
+  uki=$(grep -Ec '^Building UKI (fallback )?for ' <<<"$output") || true
+  initcpio=$(grep -Ec '^Building (fallback )?initramfs for ' <<<"$output") || true
+  built_uki=$(grep -Ec '^==> Unified kernel image generation successful' <<<"$output") || true
+  built_initcpio=$(grep -Ec '^==> Initcpio image generation successful' <<<"$output") || true
+  (( uki + initcpio > 0 && built_uki >= uki && built_initcpio >= initcpio + uki ))
+}
+
+# The service holds the login screen until this finishes, so a Limine run that
+# can't be confirmed (one whose output this doesn't recognise, say) is retried
+# on the next two boots, then accepted with a warning rather than rebuilt
+# before the login screen on every boot.
+rebuild_unconfirmed=$omarchy_image_dir/boot-rebuild-unconfirmed
+limine_rebuild_unconfirmed() {
+  local tries=0
+
+  [[ ! -f $rebuild_unconfirmed ]] || tries=$(<"$rebuild_unconfirmed")
+  [[ $tries =~ ^[0-9]+$ ]] || tries=0
+  tries=$(( tries + 1 ))
+  if (( tries < 3 )); then
+    echo "$tries" >"$rebuild_unconfirmed" || fail "could not record the unconfirmed rebuild"
+    fail "Could not confirm the initramfs rebuild (see $OMARCHY_INSTALL_LOG_FILE); the next run retries it"
+  fi
+  echo "Warning: Could not confirm the initramfs rebuild after $tries tries (see $OMARCHY_INSTALL_LOG_FILE); finishing the deferred hardware setup without it" |
+    tee -a "$OMARCHY_INSTALL_LOG_FILE" >&2
+}
+
 # Recorded before the first step and kept until a rebuild lands, so a step that
 # changed the initramfs and then failed or lost power still gets one.
 if [[ ! -f $omarchy_image_initramfs_baseline ]]; then
@@ -142,14 +181,17 @@ done
 if [[ -e $omarchy_image_boot_rebuild || $(initramfs_inputs) != "$(<"$omarchy_image_initramfs_baseline")" ]]; then
   echo "Rebuilding the initramfs for the deferred hardware setup"
   if omarchy-cmd-present limine-mkinitcpio; then
-    limine-mkinitcpio </dev/null >>"$OMARCHY_INSTALL_LOG_FILE" 2>&1
+    rebuild_output=$(limine-mkinitcpio </dev/null 2>&1 | tee -a "$OMARCHY_INSTALL_LOG_FILE") ||
+      fail "Initramfs rebuild failed (see $OMARCHY_INSTALL_LOG_FILE); the next run retries it"
+    limine_rebuild_confirmed "$rebuild_output" || limine_rebuild_unconfirmed
   else
-    mkinitcpio -P </dev/null >>"$OMARCHY_INSTALL_LOG_FILE" 2>&1
-  fi || fail "Initramfs rebuild failed (see $OMARCHY_INSTALL_LOG_FILE); the next run retries it"
+    mkinitcpio -P </dev/null >>"$OMARCHY_INSTALL_LOG_FILE" 2>&1 ||
+      fail "Initramfs rebuild failed (see $OMARCHY_INSTALL_LOG_FILE); the next run retries it"
+  fi
   # The new image must be on disk before the queue that owes it is cleared.
   sync || fail "could not flush the rebuilt initramfs to disk"
 fi
-rm -f "$omarchy_image_initramfs_baseline" "$omarchy_image_boot_rebuild"
+rm -f "$omarchy_image_initramfs_baseline" "$omarchy_image_boot_rebuild" "$rebuild_unconfirmed"
 
 # Disabled, not deleted: a platform first boot that runs this while the
 # service's start job waits would otherwise fail that job at the next
