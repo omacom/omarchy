@@ -383,7 +383,7 @@ assert(
 )
 assertDeepEqual(
   defaultItems.filter(item => item.parent === 'setup.plugin').map(item => item.label),
-  ['Enable Plugin', 'Disable Plugin', 'Add Plugin', 'Clone Plugin', 'Remove Plugin'],
+  ['Enable Plugin', 'Disable Plugin', 'Add Plugin', 'Create Plugin', 'Clone Plugin', 'Remove Plugin'],
   'menu manages plugins from Setup > Plugins'
 )
 assert(
@@ -403,6 +403,10 @@ assert(
 assert(
   defaultById['setup.plugin.add'].action.includes('omarchy-plugin-add'),
   'menu adds a plugin through the CLI, where the trust warning and clone output are visible'
+)
+assert(
+  defaultById['setup.plugin.create'].action.includes('omarchy-plugin-create'),
+  'menu scaffolds a plugin through the CLI, where its prompts and output are visible'
 )
 
 const pluginPicker = fs.readFileSync(path.join(root, 'bin/omarchy-menu-plugin'), 'utf8')
