@@ -136,6 +136,21 @@ pi)
   ;;
 esac
 
+# A small receipt for hooks, panels, and skills that need to know which harness
+# Omarchy just started without scraping the process tree. Best-effort only —
+# a full disk must not block the launch.
+(
+  umask 077
+  receipt_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy"
+  mkdir -p "$receipt_dir" || exit 0
+  receipt_tmp=$(mktemp "$receipt_dir/.agent-session.XXXXXX") || exit 0
+  trap 'rm -f -- "$receipt_tmp"' EXIT
+  started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ) || exit 0
+  printf 'OMARCHY_AGENT=%q\nOMARCHY_AGENT_CWD=%q\nOMARCHY_AGENT_STARTED_AT=%q\nOMARCHY_AGENT_INLINE=%q\n' \
+    "$agent" "$PWD" "$started_at" "$inline" >"$receipt_tmp" &&
+    mv -f -- "$receipt_tmp" "$receipt_dir/agent-session.env"
+) 2>/dev/null || true
+
 # A new session uses the current selection rather than its parent's account
 # pin. Explicit provider homes still override the selection. Carry the new pin
 # in the command, since terminals launched through uwsm don't inherit our env.
