@@ -31,6 +31,12 @@ prompt themselves. Migrations must be idempotent: if one user already applied a
 machine-wide repair, the same migration running for another user should detect
 that and no-op.
 
+The marker file contains the sha256 hash of the migration file that wrote it.
+`omarchy-migrate` treats a marker with missing or unexpected content as pending,
+so the migration runs instead of being silently skipped. This keeps a planted
+or corrupted marker from permanently suppressing a migration; because migrations
+are idempotent, re-running is always safe.
+
 ## When migrations run
 
 ### During `omarchy update`
