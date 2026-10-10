@@ -39,6 +39,11 @@ ShellRoot {
     function setNightlight(value) {
       enabled = !!value
     }
+    // The real service re-reads hyprsunset before flipping; the effect the
+    // indicator relies on is the same.
+    function toggle() {
+      setNightlight(!enabled)
+    }
   }
 
   QtObject {

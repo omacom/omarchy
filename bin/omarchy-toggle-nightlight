@@ -4,9 +4,23 @@
 # omarchy:args=[--status]
 # omarchy:examples=omarchy toggle nightlight
 
-ON_TEMP=4000
 OFF_TEMP=6500
 IDENTITY_TEMP=6000
+SCHEDULE_FILE="$HOME/.local/state/omarchy/settings/nightlight.json"
+
+# A saved schedule carries its own warmth; the toggle uses it too, so night
+# light looks the same however it came on. Keep the default in sync with
+# shell/plugins/services/nightlight/NightlightModel.js.
+on_temp() {
+  local temp
+
+  temp=$(jq -r '.temperature // empty' "$SCHEDULE_FILE" 2>/dev/null)
+  if [[ $temp =~ ^[0-9]+$ ]] && (( temp >= 2500 && temp < IDENTITY_TEMP )); then
+    echo "$temp"
+  else
+    echo 4000
+  fi
+}
 
 current_temp() {
   local output
@@ -34,6 +48,13 @@ if [[ ${1:-} == "--status" ]]; then
   exit 0
 fi
 
+# The shell's night light service owns the toggle when it is running, so the
+# keybinding, the menu, and the bar indicator all behave alike, including
+# offering to set up a schedule the first time night light is turned on.
+if [[ $(omarchy-shell nightlight toggle 2>/dev/null) == "toggled" ]]; then
+  exit 0
+fi
+
 # Ensure hyprsunset is running
 if ! pgrep -x hyprsunset >/dev/null; then
   setsid uwsm-app -- hyprsunset &
@@ -43,7 +64,7 @@ fi
 CURRENT_TEMP=$(current_temp)
 
 if [[ -z $CURRENT_TEMP || $CURRENT_TEMP == $OFF_TEMP ]]; then
-  TARGET_TEMP=$ON_TEMP
+  TARGET_TEMP=$(on_temp)
 else
   TARGET_TEMP=$OFF_TEMP
 fi

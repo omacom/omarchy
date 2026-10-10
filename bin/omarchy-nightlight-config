@@ -1,0 +1,270 @@
+#!/bin/bash
+
+# omarchy:summary=Show, set, or edit the night light config (schedule and warmth)
+# omarchy:args=[--json] | edit | set [--keep-on] <on|off> <day HH:MM> <night HH:MM> <kelvin> | apply
+# omarchy:examples=omarchy nightlight config | omarchy nightlight config edit | omarchy nightlight config set on 07:00 20:30 3800 | omarchy nightlight config set off 07:00 20:00 3500
+#
+# State lives in ~/.local/state/omarchy/settings/nightlight.json as
+# {"scheduled": true, "day": "07:00", "night": "20:00", "temperature": 4000}.
+# A missing file means no schedule has ever been saved, which is how the
+# night light offers to set one up the first time it is turned on.
+#
+# The schedule is carried out by hyprsunset itself: saving rewrites
+# ~/.config/hypr/hyprsunset.conf with a day and a night profile (or the
+# identity-only profile when the schedule is off) and restarts hyprsunset.
+# A hand-written hyprsunset.conf is copied to hyprsunset.conf.bak.<epoch>
+# before the first save replaces it.
+#
+#   (no args)   the schedule in words; --json for the saved state
+#   edit        open the night light config in the Omarchy shell
+#   set ...     save the config and apply it; --keep-on re-applies the new
+#               warmth once the restarted hyprsunset answers, for callers
+#               that had night light on before saving
+#   apply       start hyprsunset at login when a schedule is on
+#
+# Saves are serialized with a lock: two overlapping saves would otherwise race
+# for hyprsunset's restart and could leave settings and profiles from
+# different saves.
+
+set -euo pipefail
+
+STATE_FILE="$HOME/.local/state/omarchy/settings/nightlight.json"
+CONFIG_FILE="$HOME/.config/hypr/hyprsunset.conf"
+LOCK_FILE="$HOME/.local/state/omarchy/settings/nightlight.lock"
+
+# Keep in sync with shell/plugins/services/nightlight/NightlightModel.js.
+MIN_TEMP=2500
+MAX_TEMP=5500
+TIME_PATTERN='^([01][0-9]|2[0-3]):[0-5][0-9]$'
+
+usage() {
+  echo "Usage: omarchy-nightlight-config [--json] | edit | set [--keep-on] <on|off> <day HH:MM> <night HH:MM> <kelvin> | apply" >&2
+  exit 1
+}
+
+state_json() {
+  local saved=false
+
+  if [[ -s $STATE_FILE ]] && jq -e 'type == "object"' "$STATE_FILE" >/dev/null 2>&1; then
+    saved=true
+    jq -c --argjson saved "$saved" '{
+      saved: $saved,
+      scheduled: (.scheduled == true),
+      day: (.day // "07:00"),
+      night: (.night // "20:00"),
+      temperature: (.temperature // 4000)
+    }' "$STATE_FILE"
+  else
+    jq -cn '{saved: false, scheduled: false, day: "07:00", night: "20:00", temperature: 4000}'
+  fi
+}
+
+scheduled() {
+  [[ $(state_json | jq -r .scheduled) == "true" ]]
+}
+
+render_config() {
+  local scheduled=$1 day=$2 night=$3 temperature=$4
+
+  if [[ $scheduled == "on" ]]; then
+    cat <<EOF
+# Written by omarchy-nightlight-config. Change the schedule from
+# Setup > Config > Night Light Config in the Omarchy menu, or with:
+#   omarchy nightlight config edit
+# Hand edits are replaced the next time the schedule is saved.
+
+# Day: leave the screen untouched
+profile {
+    time = $day
+    identity = true
+}
+
+# Night: warm the screen
+profile {
+    time = $night
+    temperature = $temperature
+}
+EOF
+  else
+    cat <<EOF
+# Makes hyprsunset do nothing to the screen by default
+# Without this, the default applies some tint to the monitor
+profile {
+    time = 07:00
+    identity = true
+}
+
+# To switch to night light on a schedule, run:
+#   omarchy nightlight config edit
+# or pick Setup > Config > Night Light Config in the Omarchy menu.
+EOF
+  fi
+}
+
+hyprsunset_answers() {
+  [[ $(hyprctl hyprsunset temperature 2>/dev/null) =~ ^[[:space:]]*[0-9]+ ]]
+}
+
+# hyprsunset reads its profiles only at startup. The old instance has to be
+# gone before the new one starts: a replacement that races it for the control
+# socket exits, leaving no night light at all. Returns once the replacement
+# answers, so whatever comes next talks to the new process.
+restart_hyprsunset() {
+  if pkill -x hyprsunset 2>/dev/null; then
+    for _ in {1..50}; do
+      pgrep -x hyprsunset >/dev/null || break
+      sleep 0.1
+    done
+  fi
+
+  if pgrep -x hyprsunset >/dev/null; then
+    echo "hyprsunset did not stop; the new profiles apply on its next start" >&2
+    return 1
+  fi
+
+  # 9>&- keeps the save lock out of hyprsunset: a daemon that inherited it
+  # would hold it for as long as it runs and block every later save.
+  setsid uwsm-app -- hyprsunset >/dev/null 2>&1 9>&- &
+
+  for _ in {1..50}; do
+    hyprsunset_answers && return 0
+    sleep 0.1
+  done
+
+  echo "hyprsunset did not start" >&2
+  return 1
+}
+
+# The profiles with comments and blank lines dropped and whitespace squeezed,
+# so a file can be compared by what it tells hyprsunset to do.
+profile_content() {
+  sed -e 's/#.*//' -e 's/[[:space:]]\+//g' -e '/^$/d'
+}
+
+# True when hyprsunset.conf holds nothing a person wrote: this command
+# generated it, or it is the shipped identity-only profile (current or older
+# comments alike). Anything else is someone's hand-written schedule.
+config_is_ours() {
+  [[ ! -s $CONFIG_FILE ]] && return 0
+  grep -q '^# Written by omarchy-nightlight-config' "$CONFIG_FILE" && return 0
+  [[ $(profile_content <"$CONFIG_FILE") == "$(render_config off 07:00 20:00 4000 | profile_content)" ]]
+}
+
+# Keeps a hand-written hyprsunset.conf before the first save replaces it.
+# Before this command, hand-writing profiles there was the only way to get a
+# schedule, so the people trying it are the ones most likely to have one.
+backup_hand_written_config() {
+  config_is_ours && return 0
+
+  BACKUP_FILE="$CONFIG_FILE.bak.$(date +%s)"
+  cp -p "$CONFIG_FILE" "$BACKUP_FILE" || { echo "Could not back up $CONFIG_FILE; not replacing it" >&2; return 1; }
+  echo "Saved your hyprsunset.conf as $BACKUP_FILE"
+}
+
+# Writes stdin to a file through a temp file of its own, so concurrent writers
+# never share one and a failed write leaves the old file alone.
+write_atomically() {
+  local target=$1 tmp
+
+  tmp=$(mktemp "$target.XXXXXX")
+  if ! cat >"$tmp" || ! mv -f "$tmp" "$target"; then
+    rm -f "$tmp"
+    echo "Could not write $target" >&2
+    return 1
+  fi
+}
+
+save() {
+  local keep_on=false
+
+  if [[ ${1:-} == "--keep-on" ]]; then
+    keep_on=true
+    shift
+  fi
+  (( $# == 4 )) || usage
+
+  local scheduled=$1 day=$2 night=$3 temperature=$4
+
+  [[ $scheduled == "on" || $scheduled == "off" ]] || usage
+  [[ $day =~ $TIME_PATTERN ]] || { echo "Invalid day start: $day (expected HH:MM)" >&2; exit 1; }
+  [[ $night =~ $TIME_PATTERN ]] || { echo "Invalid night start: $night (expected HH:MM)" >&2; exit 1; }
+  [[ $day != "$night" ]] || { echo "Day and night need different start times" >&2; exit 1; }
+  [[ $temperature =~ ^[0-9]+$ ]] || { echo "Invalid temperature: $temperature" >&2; exit 1; }
+  if (( temperature < MIN_TEMP || temperature > MAX_TEMP )); then
+    echo "Temperature must be between ${MIN_TEMP}K and ${MAX_TEMP}K" >&2
+    exit 1
+  fi
+
+  mkdir -p "$(dirname "$STATE_FILE")" "$(dirname "$CONFIG_FILE")"
+
+  exec 9>"$LOCK_FILE"
+  flock -w 30 9 || { echo "Another night light save is still running" >&2; exit 1; }
+
+  BACKUP_FILE=""
+  backup_hand_written_config || exit 1
+
+  # Profiles first: if they cannot be written, the saved settings stay as they
+  # were instead of describing a schedule hyprsunset never got.
+  render_config "$scheduled" "$day" "$night" "$temperature" | write_atomically "$CONFIG_FILE" || exit 1
+
+  jq -n --argjson scheduled "$([[ $scheduled == "on" ]] && echo true || echo false)" \
+    --arg day "$day" --arg night "$night" --argjson temperature "$temperature" \
+    '{$scheduled, $day, $night, $temperature}' | write_atomically "$STATE_FILE" || exit 1
+
+  restart_hyprsunset || exit 1
+
+  # The restarted hyprsunset comes back at whatever its profiles say for this
+  # hour. Night light that was on stays on, at the new warmth.
+  if [[ $keep_on == "true" ]]; then
+    hyprctl hyprsunset temperature "$temperature" >/dev/null 2>&1
+  fi
+
+  omarchy-shell -q nightlight refresh
+
+  local backup_note=""
+  [[ -z $BACKUP_FILE ]] || backup_note=" Your previous hyprsunset.conf is saved as ${BACKUP_FILE/#$HOME/\~}."
+
+  if [[ $scheduled == "on" ]]; then
+    omarchy-notification-send -g "󰔎" "Night light config saved" "Warm at ${temperature}K from $night to $day. Change it anytime in Setup > Config > Night Light Config.$backup_note"
+  else
+    omarchy-notification-send -g "󰔎" "Night light schedule off" "Night light is manual again, at ${temperature}K. Turn the schedule on in Setup > Config > Night Light Config.$backup_note"
+  fi
+}
+
+describe() {
+  local state
+  state=$(state_json)
+
+  if [[ $(jq -r .scheduled <<<"$state") == "true" ]]; then
+    jq -r '"Warm at \(.temperature)K from \(.night) to \(.day)"' <<<"$state"
+  elif [[ $(jq -r .saved <<<"$state") == "true" ]]; then
+    echo "Schedule off"
+  else
+    echo "No schedule set"
+  fi
+}
+
+case "${1:-}" in
+"")
+  describe
+  ;;
+--json)
+  state_json
+  ;;
+edit)
+  omarchy-shell shell summon omarchy.nightlight
+  ;;
+set)
+  shift
+  save "$@"
+  ;;
+apply)
+  # Login hook: hyprsunset only follows its profiles while it runs.
+  if scheduled && ! pgrep -x hyprsunset >/dev/null; then
+    setsid uwsm-app -- hyprsunset >/dev/null 2>&1 &
+  fi
+  ;;
+*)
+  usage
+  ;;
+esac

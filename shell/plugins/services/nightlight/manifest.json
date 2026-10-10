@@ -2,13 +2,15 @@
   "schemaVersion": 1,
   "id": "omarchy.nightlight",
   "name": "Night Light",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Omarchy",
-  "description": "Owns the hyprsunset night light temperature for the bar indicator and CLI.",
+  "description": "Owns the hyprsunset night light temperature and its config (schedule and warmth) for the bar indicator and CLI.",
   "kinds": [
-    "service"
+    "service",
+    "overlay"
   ],
   "entryPoints": {
-    "service": "Service.qml"
+    "service": "Service.qml",
+    "overlay": "Config.qml"
   }
 }
