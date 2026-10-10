@@ -38,11 +38,25 @@ function ownedByOmarchy(item, layout) {
     || (layoutHasWidget(layout, "omarchy.dropbox") && itemNamed(item, "dropbox"))
 }
 
+// Left-click action for an SNI tray item. Menu-only items (ItemIsMenu) always
+// open the menu. libayatana-appindicator never sets ItemIsMenu and implements
+// Activate as a silent no-op, so any item that exposes a menu must open it on
+// left-click too — otherwise those icons look dead. Items with no menu still
+// take Activate.
+function leftClickOpensMenu(item) {
+  if (!item) return false
+  if (item.onlyMenu) return true
+  if (item.hasMenu) return true
+  if (item.menu) return true
+  return false
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     itemNamed: itemNamed,
     entryId: entryId,
     layoutHasWidget: layoutHasWidget,
-    ownedByOmarchy: ownedByOmarchy
+    ownedByOmarchy: ownedByOmarchy,
+    leftClickOpensMenu: leftClickOpensMenu
   }
 }
