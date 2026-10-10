@@ -9,7 +9,11 @@ import tempfile
 import time
 
 root = pathlib.Path(os.environ['ROOT'])
-with tempfile.TemporaryDirectory(prefix='theme-ssh-') as directory:
+# Straight under /tmp: ssh's control socket sits four folders down and gets a
+# 17-character suffix, and a socket's path is capped at 108 bytes. Under a
+# TMPDIR of its own (pam_tmpdir's /tmp/user/1000, a test runner's) it would
+# not fit.
+with tempfile.TemporaryDirectory(prefix='theme-ssh-', dir='/tmp') as directory:
   stage = pathlib.Path(directory)
   for name in ('host', 'identity'):
     subprocess.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(stage / name)], check=True)
