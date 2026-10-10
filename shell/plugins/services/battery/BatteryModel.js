@@ -19,10 +19,23 @@ function shouldWarnLowBattery(device, onBattery, dischargingState, threshold, al
   }
 }
 
+function gateStartupWarning(state, alreadyNotified, checksReady) {
+  if (checksReady) {
+    return state
+  } else {
+    return {
+      level: state.level,
+      notify: false,
+      notifiedLowBattery: alreadyNotified && state.notifiedLowBattery
+    }
+  }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     batteryPercentage: batteryPercentage,
     isDischarging: isDischarging,
-    shouldWarnLowBattery: shouldWarnLowBattery
+    shouldWarnLowBattery: shouldWarnLowBattery,
+    gateStartupWarning: gateStartupWarning
   }
 }
