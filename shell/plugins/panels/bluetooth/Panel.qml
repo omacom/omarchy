@@ -24,6 +24,28 @@ Panel {
 
   readonly property var adapter: Bluetooth.defaultAdapter
 
+  // Turning Bluetooth off moves an rfkill soft block, and on hardware whose
+  // block cuts power to the radio the controller leaves the bus outright:
+  // BlueZ drops it and `adapter` goes null. Visibility keyed on the adapter
+  // alone then takes the widget away with it, stranding the only control that
+  // turns Bluetooth back on. rfkill keeps listing the switch while it is
+  // blocked, so probe for a blocked one to tell a turned-off radio from a
+  // machine that has none, and keep the widget up in the first case.
+  property bool radioPresent: false
+
+  onAdapterChanged: radioProbe.running = true
+  Component.onCompleted: radioProbe.running = true
+
+  Process {
+    id: radioProbe
+    running: false
+    // Blocked, not merely listed: an unblocked switch with no adapter is a
+    // stopped bluetoothd, which the toggle cannot bring back. rfkill translates
+    // the states, hence the C locale.
+    command: ["sh", "-c", "LC_ALL=C rfkill --noheadings --output SOFT,HARD list bluetooth 2>/dev/null | grep -qw blocked"]
+    onExited: function(exitCode) { root.radioPresent = exitCode === 0 }
+  }
+
   // True while this instance owes BlueZ a StopDiscovery: set when it starts
   // discovery (or opens onto a session already running) and cleared once
   // discovery is confirmed down after close. Ownership, not state — BlueZ's
@@ -57,7 +79,7 @@ Panel {
   readonly property var discoveredDevices: deviceGroups.discovered || []
 
   readonly property string icon: {
-    if (!adapter) return ""
+    if (!adapter) return radioPresent ? "󰂲" : ""
     if (!adapter.enabled) return "󰂲"
     if (connectedDevices.length > 0) return "󰂱"
     return "󰂯"
@@ -76,7 +98,7 @@ Panel {
   ]
   readonly property bool rotatingPhrases: adapter && adapter.enabled
   readonly property string heroStatusText: {
-    if (!adapter) return "No adapter"
+    if (!adapter) return radioPresent ? "Turned Off" : "No adapter"
     if (!adapter.enabled) return "Turned Off"
     return activePhrases[phraseIndex % activePhrases.length]
   }
@@ -498,7 +520,7 @@ Panel {
     if (selectedIndex < 0) selectedIndex = 0
   }
 
-  visible: adapter !== null
+  visible: adapter !== null || radioPresent
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -634,7 +656,12 @@ Panel {
   // switch only moves once BlueZ catches up, so a second click inside that window
   // would re-read the old state and undo the first.
   function toggleBluetooth() {
-    if (!adapter) return
+    // A null adapter here is the blocked radio, not a missing one — the probe
+    // keeps the widget on the bar precisely so this path can switch it on.
+    if (!adapter) {
+      if (radioPresent) Quickshell.execDetached(["omarchy-bluetooth-power", "on"])
+      return
+    }
     Quickshell.execDetached(["omarchy-bluetooth-power", adapter.enabled ? "off" : "on"])
   }
 
@@ -713,7 +740,7 @@ Panel {
           // header's only cursor target.
           ToggleSwitch {
             id: powerSwitch
-            visible: !!root.adapter
+            visible: !!root.adapter || root.radioPresent
             checked: !!root.adapter && root.adapter.enabled
             hasCursor: root.headerHasCursor
             foreground: root.bar.foreground
@@ -868,8 +895,8 @@ Panel {
         Text {
           textFormat: Text.PlainText
           visible: root.connectedDevices.length === 0 && root.scrollRows.length === 0
-          text: !root.adapter ? "No Bluetooth adapter"
-              : !root.adapter.enabled ? "Turn Bluetooth on to scan"
+          text: !root.adapter && !root.radioPresent ? "No Bluetooth adapter"
+              : !root.adapter || !root.adapter.enabled ? "Turn Bluetooth on to scan"
               : "Scanning for devices…"
           color: Qt.darker(root.bar.foreground, 1.5)
           font.family: root.bar.fontFamily
