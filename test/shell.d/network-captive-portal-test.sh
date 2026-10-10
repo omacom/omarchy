@@ -34,10 +34,27 @@ for (const state of ['full', 'unknown', 'none', undefined]) {
   }
   assertEqual(network.connectionIcon('ethernet', -1, state), '󰈀', `${state} preserves the Ethernet icon`)
 }
-const url = new URL(network.captivePortalUrl)
-assertEqual(url.protocol, 'http:', 'browser entry point uses plain HTTP so a portal can intercept it')
-assertEqual(url.hostname, 'ping.archlinux.org', 'browser entry point is fixed rather than portal-supplied')
-assertEqual(url.username + url.password, '', 'browser entry point contains no credentials')
+const fs = require('fs')
+const vm = require('vm')
+const portal = vm.createContext({})
+vm.runInContext(fs.readFileSync(root + '/shell/plugins/panels/network/PortalState.js', 'utf8')
+  .replace(/^\.pragma library\s*/, ''), portal)
+assert(!portal.claimAutomatic('wifi:a', 'portal', false), 'automatic sign-in is opt-in')
+assert(portal.claimAutomatic('wifi:a', 'portal', true), 'first opted-in panel claims portal')
+assert(!portal.claimAutomatic('wifi:a', 'portal', true), 'second monitor cannot duplicate launch')
+assert(!portal.claimAutomatic('wifi:a', 'limited', true), 'limited is not a portal')
+assert(!portal.claimAutomatic('wifi:a', 'portal', true), 'temporary limited status does not reopen the same portal')
+portal.claimAutomatic('wifi:a', 'full', true)
+assert(portal.claimAutomatic('wifi:a', 'portal', true), 'a new portal after full connectivity can open')
+portal.claimAutomatic('', 'none', true)
+assert(portal.claimAutomatic('wifi:a', 'portal', true), 'reconnection rearms automatic sign-in')
+portal.markOpened('wifi:b')
+assert(!portal.claimAutomatic('wifi:b', 'portal', true), 'manual launch consumes automatic launch for the same connection')
+assert(portal.claimAutomatic('wifi:c', 'portal', true), 'another network is independently eligible')
+const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
+assert(!/ping\.archlinux\.org|captive\.apple\.com/.test(panelSource), 'panel contains no hardcoded Arch or Apple URL')
+assert(!/--print-config/.test(panelSource), 'panel does not cache on-disk NM configuration')
+
 JS
 
 require_compositor "network captive-portal runtime test"
@@ -51,7 +68,7 @@ ln -s "$ROOT/shell/Ui" "$stage/Ui"
 ln -s "$ROOT/shell/Commons" "$stage/Commons"
 cp -r "$fixture/mocks" "$stage/mocks"
 cp "$fixture/shell.qml" "$stage/shell.qml"
-cp "$ROOT/shell/plugins/panels/network/Model.js" "$stage/network/Model.js"
+cp "$ROOT/shell/plugins/panels/network/"{Model,PortalState}.js "$stage/network/"
 node - "$ROOT" "$stage" <<'JS'
 const fs = require('fs')
 const [root, stage] = process.argv.slice(2)
@@ -61,6 +78,7 @@ let source = fs.readFileSync(`${root}/shell/plugins/panels/network/Panel.qml`, '
 source = source.replace('import Quickshell.Networking', 'import Quickshell.Networking\nimport "../mocks"')
 source = source.replace(/\bNetworking\./g, 'NetworkMock.')
 source = source.replace('  id: root', `  id: root
+  property alias testPortalProcess: portalProcess
   property alias testButton: portalAction
   property alias testKeys: keyCatcher
   property alias testMeta: heroMeta
@@ -78,18 +96,55 @@ done
 # Normal assertions keep the details empty to exercise missing-route handling.
 printf '#!/bin/bash\nif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then\n  printf "type\\twifi\\niface\\ttest-wifi\\nssid\\tGuest Wi-Fi\\nip\\t192.0.2.10\\ngateway\\t192.0.2.1\\n"\nfi\n' > "$stage/bin/omarchy-network-status"
 chmod +x "$stage/bin/omarchy-network-status"
-printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$NETWORK_TEST_BROWSER_LOG"\n' > "$stage/bin/omarchy-launch-browser"
-chmod +x "$stage/bin/omarchy-launch-browser"
+# Both the old and the new entry point are stubbed, so the run can prove which
+# one was used: the sign-in view must be, and the real browser must not.
+cat > "$stage/bin/argv-log" <<'PY_STUB'
+#!/usr/bin/python3
+import json, os, signal, sys
+with open(os.environ["NETWORK_TEST_LOG_DIR"] + "/" + os.path.basename(sys.argv[0]) + ".log", "a") as log:
+  log.write(json.dumps(sys.argv[1:]) + "\n")
+if os.environ.get("NETWORK_TEST_HOLD") == "1":
+  def stop(*args):
+    with open(os.environ["NETWORK_TEST_LOG_DIR"] + "/stopped.log", "w") as log:
+      log.write("stopped\n")
+    sys.exit(0)
+  signal.signal(signal.SIGTERM, stop)
+  print("READY", flush=True)
+  signal.pause()
+PY_STUB
+chmod +x "$stage/bin/argv-log"
+for command in omarchy-launch-browser omarchy-network-portal-signin; do
+  ln -s argv-log "$stage/bin/$command"
+done
 
 # All networking and external actions are mocked; the real connection and
 # browser are never touched, and the fixture writes only to its scratch HOME.
 output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
-  NETWORK_TEST_BROWSER_LOG="$stage/browser.log" \
+  NETWORK_TEST_LOG_DIR="$stage" \
   timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "network portal fixture exits cleanly" "$output"
 [[ $output == *"RESULT pass"* ]] || fail "network portal runtime assertions pass" "$output"
 if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<< "$output"; then
   fail "network portal fixture has no QML errors" "$output"
 fi
-[[ -f $stage/browser.log ]] || fail "portal action launches the browser"
-[[ $(<"$stage/browser.log") == "http://ping.archlinux.org/nm-check.txt" ]] || fail "portal opens exactly one fixed HTTP URL"
-pass "network portal, recovery, disabled checks, outage, disconnect, keyboard navigation, and browser argv work in QML"
+if [[ -n ${NETWORK_TEST_PREVIEW:-} && -n ${NETWORK_TEST_SCREENSHOT:-} ]]; then
+  [[ -s $NETWORK_TEST_SCREENSHOT ]] || fail "portal preview produces its requested screenshot"
+fi
+signin_log="$stage/omarchy-network-portal-signin.log"
+[[ -f $signin_log ]] || fail "portal action opens the sign-in view"
+python3 - "$signin_log" <<'PY_CHECK'
+import json, sys
+with open(sys.argv[1]) as log:
+  calls = [json.loads(line) for line in log]
+# One manual action, one reconnect, one new portal after Full, one lifetime check.
+# Repeated callbacks, an extra monitor and Limited->Portal must add no launches.
+assert len(calls) == 4, calls
+for args in calls:
+  assert args[:2] == ["--ssid=Guest Wi-Fi", "--interface=test-wifi"], args
+  assert len(args) == 3 and args[2].startswith("--placement="), args
+PY_CHECK
+[[ -f $stage/stopped.log ]] || fail "closing the originating panel terminates its sign-in process"
+# The sign-in view carries no profile of the user's, which is most of the point
+# of it; letting the real browser answer a gateway again would undo that.
+[[ ! -f $stage/omarchy-launch-browser.log ]] ||
+  fail "signing in never hands the gateway the real browser" "$(<"$stage/omarchy-launch-browser.log")"
+pass "network portal, recovery, disabled checks, outage, disconnect, keyboard navigation, multi-monitor automatic sign-in, and sign-in argv work in QML"

@@ -8,6 +8,7 @@ import qs.Ui
 import qs.Commons
 import qs.Commons as Commons
 import "Model.js" as Model
+import "PortalState.js" as PortalState
 
 Panel {
   id: root
@@ -315,6 +316,7 @@ Panel {
   }
 
   Component.onDestruction: {
+    portalProcess.running = false
     if (scannerDevice) scannerDevice.scannerEnabled = false
   }
 
@@ -331,6 +333,7 @@ Panel {
       syncBandIndex()
       cursorActive = hasCaptivePortal
     } else {
+      portalProcess.running = false
       // Drop a restart armed by this open: without it a close/reopen inside
       // the 100ms window reuses the running timer and re-enables the scanner
       // almost immediately, undoing the deferral #6605 restored.
@@ -355,6 +358,7 @@ Panel {
   // The KeyboardPanel's focusTarget covers initial popup-open; this handles
   // the inline-editor case where focus was handed off to a child.
   onPasswordSsidChanged: {
+    Qt.callLater(checkAutoSignIn)
     if (passwordSsid === "" && opened) {
       passwordText = ""
       Qt.callLater(function() { if (keyCatcher) keyCatcher.forceActiveFocus() })
@@ -506,6 +510,7 @@ Panel {
   }, connectivityChecksEnabled)
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
+  readonly property bool autoSignIn: setting("autoSignIn", false) === true
   readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
   // Keyed on the device rather than the SSID: on an OWE transition-mode
   // network the listed network comes and goes with every scan while the link
@@ -514,7 +519,12 @@ Panel {
     ? kind + ":" + wifiDevice.name
     : (kind === "ethernet" && wiredDevice ? kind + ":" + wiredDevice.name : "")
 
-  onConnectionKeyChanged: Qt.callLater(checkConnectivity)
+  onConnectionKeyChanged: {
+    Qt.callLater(checkConnectivity)
+    Qt.callLater(checkAutoSignIn)
+  }
+  onConnectivityChanged: Qt.callLater(checkAutoSignIn)
+  onAutoSignInChanged: Qt.callLater(checkAutoSignIn)
   onConnectivityChecksEnabledChanged: Qt.callLater(checkConnectivity)
   onHasCaptivePortalChanged: {
     if (hasCaptivePortal && opened && passwordSsid === "") {
@@ -534,12 +544,43 @@ Panel {
     if (connectivityChecksEnabled && kind !== "disconnected") Networking.checkConnectivity()
   }
 
+  function checkAutoSignIn() {
+    // Run after bindings settle so another screen cannot reset a claim with
+    // an intermediate connection state. Limited/unknown status does not rearm.
+    if (PortalState.claimAutomatic(connectionKey, connectivity, autoSignIn && passwordSsid === "")) {
+      open()
+      openCaptivePortal()
+    }
+  }
+
   function openCaptivePortal() {
-    if (!hasCaptivePortal) return
-    // Explicit user action only. argv (not a shell string), and a fixed HTTP
-    // URL: let the browser handle the redirect without trusting portal input.
-    Quickshell.execDetached(["omarchy-launch-browser", Model.captivePortalUrl])
-    close()
+    if (!hasCaptivePortal || portalProcess.running) return
+    open()
+    PortalState.markOpened(connectionKey)
+    // Resolve the live daemon's probe in the entry point. No network-supplied
+    // redirect becomes an argument, and no shell parses the SSID or interface.
+    var device = kind === "wifi" ? wifiDevice : wiredDevice
+    var ssid = kind === "wifi" && connectedWifiNetwork ? connectedWifiNetwork.name : ""
+    var placement = {
+      screen: panel.screen ? [panel.screen.x, panel.screen.y, panel.screen.width, panel.screen.height] : [],
+      card: [panel.cardOrigin.x, panel.cardOrigin.y, panel.contentWidth, panel.contentHeight],
+      edge: panel.barPos
+    }
+    portalProcess.command = ["omarchy-network-portal-signin", "--ssid=" + ssid,
+                             "--interface=" + (device ? device.name : ""),
+                             "--placement=" + JSON.stringify(placement)]
+    portalProcess.running = true
+  }
+
+  Process {
+    id: portalProcess
+    stderr: StdioCollector { onStreamFinished: if (text.trim()) console.warn(text.trim()) }
+    onExited: function(code, status) {
+      if (root.opened && code !== 0) {
+        Quickshell.execDetached(["omarchy-notification-send", "Network sign-in failed",
+                                "The sign-in view could not start. Try opening the portal again."])
+      }
+    }
   }
 
   // Keep checking while login is needed, even with the panel closed in favour
@@ -905,7 +946,10 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  Component.onCompleted: refresh()
+  Component.onCompleted: {
+    refresh()
+    Qt.callLater(checkAutoSignIn)
+  }
 
   // Pulls everything we want about the active route's interface in one shot.
   Process {

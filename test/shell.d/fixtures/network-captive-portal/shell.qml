@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Networking
 import qs.Commons
 import qs.Commons as Commons
@@ -9,6 +10,31 @@ import "network" as Network
 ShellRoot {
   id: test
   property bool failed: false
+  property var extra: null
+  property var nextCheck: null
+  function afterProcessesStop(callback) {
+    nextCheck = callback
+    processWait.start()
+  }
+  Timer {
+    id: processWait
+    interval: 20
+    repeat: true
+    onTriggered: {
+      if (panel.testPortalProcess.running || otherPanel.testPortalProcess.running
+          || (test.extra && test.extra.testPortalProcess.running)) return
+      stop()
+      test.nextCheck()
+    }
+  }
+  property QtObject readyParser: SplitParser {
+    onRead: function(data) {
+      if (data !== "READY") return
+      test.check(panel.testPortalProcess.running, "portal child is running before panel closes")
+      panel.close()
+      test.afterProcessesStop(test.finishChecks)
+    }
+  }
   function check(ok, message) {
     if (!ok) {
       failed = true
@@ -16,28 +42,40 @@ ShellRoot {
     }
   }
 
-  // Not visible in the normal test run. The optional preview maps the real
-  // KeyboardPanel for a screenshot, without ever altering the host network.
+  component TestBar: QtObject {
+    property color foreground: Commons.Color.foreground
+    property color barForeground: Commons.Color.foreground
+    property color urgent: Commons.Color.urgent
+    property string fontFamily: Style.font.family
+    property string position: "top"
+    property int barSize: 24
+    property bool vertical: false
+    property bool foregroundAnimationEnabled: false
+    property var activePopout: null
+    function requestPopout(owner) { activePopout = owner }
+    function releasePopout(owner) { activePopout = null }
+    function registerClickTarget(target) {}
+    function unregisterClickTarget(target) {}
+    function hideTooltip(target) {}
+    function showTooltip(target, text) {}
+  }
+
+  // Real panels with synthetic network state; no host connection is changed.
   Item {
     Network.Panel {
       id: panel
-      bar: QtObject {
-        property color foreground: Commons.Color.foreground
-        property color barForeground: Commons.Color.foreground
-        property color urgent: Commons.Color.urgent
-        property string fontFamily: Style.font.family
-        property string position: "top"
-        property int barSize: 24
-        property bool vertical: false
-        property bool foregroundAnimationEnabled: false
-        property var activePopout: null
-        function requestPopout(owner) { activePopout = owner }
-        function releasePopout(owner) { activePopout = null }
-        function registerClickTarget(target) {}
-        function unregisterClickTarget(target) {}
-        function hideTooltip(target) {}
-        function showTooltip(target, text) {}
-      }
+      bar: TestBar {}
+    }
+  }
+
+  Item {
+    Network.Panel { id: otherPanel; bar: TestBar {} }
+  }
+  Component {
+    id: extraPanel
+    Network.Panel {
+      bar: TestBar {}
+      settings: ({ autoSignIn: true })
     }
   }
 
@@ -86,11 +124,16 @@ ShellRoot {
     panel.testKeys.moveRequested(0, -1)
     check(panel.focusSection === "portal", "up from band reaches portal")
     panel.testKeys.activateRequested()
-    NetworkMock.connectivity = NetworkConnectivity.Full
-    Qt.callLater(recoveryChecks)
+    // A repeated action must not start a second process while this one runs.
+    panel.openCaptivePortal()
+    afterProcessesStop(function() {
+      NetworkMock.connectivity = NetworkConnectivity.Full
+      Qt.callLater(recoveryChecks)
+    })
   }
 
   function recoveryChecks() {
+    panel.close()
     check(!panel.hasCaptivePortal && !panel.restricted, "login recovery clears restriction")
     check(!panel.testPoll.running, "recovery stops extra checks")
     check(!panel.testButton.visible && !panel.testBarButton.active, "recovery hides button and warning color")
@@ -125,6 +168,51 @@ ShellRoot {
   function disconnectedChecks() {
     check(panel.kind === "disconnected" && !panel.hasCaptivePortal, "disconnect clears stale portal")
     check(!panel.testButton.visible && panel.icon === "󰤮", "disconnected icon not portal icon")
+    check(!panel.autoSignIn && !otherPanel.autoSignIn, "automatic sign-in defaults off on both monitors")
+    panel.settings = ({ autoSignIn: true })
+    otherPanel.settings = ({ autoSignIn: true })
+    NetworkMock.network.connected = true
+    NetworkMock.wifi.connected = true
+    Qt.callLater(autoSignInChecks)
+  }
+
+  function autoSignInChecks() {
+    check(panel.hasCaptivePortal && otherPanel.hasCaptivePortal, "both monitors observe the same portal")
+    check(panel.opened !== otherPanel.opened, "only one panel opens automatically")
+    panel.checkAutoSignIn()
+    otherPanel.checkAutoSignIn()
+    // A newly created monitor must share the existing claim too.
+    extra = extraPanel.createObject(test)
+    afterProcessesStop(function() {
+      NetworkMock.connectivity = NetworkConnectivity.Limited
+      Qt.callLater(limitedAgainChecks)
+    })
+  }
+
+  function limitedAgainChecks() {
+    NetworkMock.connectivity = NetworkConnectivity.Portal
+    Qt.callLater(samePortalChecks)
+  }
+
+  function samePortalChecks() {
+    panel.checkAutoSignIn()
+    otherPanel.checkAutoSignIn()
+    NetworkMock.connectivity = NetworkConnectivity.Full
+    Qt.callLater(newPortalChecks)
+  }
+
+  function newPortalChecks() {
+    NetworkMock.connectivity = NetworkConnectivity.Portal
+    afterProcessesStop(lifetimeChecks)
+  }
+
+  function lifetimeChecks() {
+    panel.testPortalProcess.environment = ({ NETWORK_TEST_HOLD: "1" })
+    panel.testPortalProcess.stdout = readyParser
+    panel.openCaptivePortal()
+  }
+
+  function finishChecks() {
     if (failed) { Qt.quit(); return }
     console.log("RESULT pass")
     var preview = Quickshell.env("NETWORK_TEST_PREVIEW")
@@ -136,7 +224,7 @@ ShellRoot {
       previewCapture.start()
       previewDone.start()
     } else {
-      // Give the detached, stubbed browser command time to append its argv.
+      // Allow queued QML callbacks to finish before teardown.
       done.start()
     }
   }
@@ -158,5 +246,12 @@ ShellRoot {
     }
   }
   Timer { id: done; interval: 300; onTriggered: Qt.quit() }
-  Timer { id: previewDone; interval: 15000; onTriggered: Qt.quit() }
+  Timer {
+    id: previewDone
+    interval: 15000
+    onTriggered: {
+      test.check(false, "preview did not produce a rendered frame")
+      Qt.quit()
+    }
+  }
 }

@@ -4,6 +4,22 @@ Networking in Omarchy is handled by NetworkManager, and you drive it from the ne
 
 That panel scans for Wi-Fi networks, shows signal strength, and connects. Ethernet needs nothing at all — plug it in and it works. If you'd rather stay in the terminal, `nmtui` gives you the same controls, and there's an `omarchy network` command group too.
 
+## Signing in to a captive portal
+
+When a network requires sign-in, open the network panel and select **Sign in**. The page opens beside the panel in a private browsing session. `Esc` closes it; `F5` or `Ctrl + R` reloads it. Closing the network panel also closes its sign-in view. A popup opened by the sign-in page stays in the same private session; its close button returns to the previous page.
+
+Use **Open in browser** for a portal that needs your browser's password manager or extensions. To always use the browser, run `omarchy toggle portal-in-browser` or use its toggle in the network menu. Existing installations missing the dropdown's GUI dependencies also use the browser. Browser sign-in uses your normal browser profile.
+
+To open sign-in automatically when a portal is detected, add `autoSignIn` to your network widget in `~/.config/omarchy/shell.json`:
+
+```json
+{ "id": "omarchy.network", "autoSignIn": true }
+```
+
+See [bar configuration](05-the-top-bar.md) for where widget entries belong. Automatic opening is off by default and opens once per detected portal episode across your screens. You can reopen the page manually after dismissing it.
+
+Discovery uses NetworkManager's configured HTTP check when suitable, with NeverSSL as the fallback. The fallback contacts NeverSSL if the network does not intercept it. Invalid HTTPS certificates stop the page from loading; there is no certificate-acceptance button or automatic retry over HTTP. Contact the network operator if their HTTPS sign-in page has a certificate error. Ordinary HTTP portals still work, but HTTP does not protect credentials in transit.
+
 ## Sharing your Wi-Fi
 
 Rather than reading a long password out loud, run _Setup > Network > QR Code_ while you're on Wi-Fi. That puts a QR code on screen that any phone camera can scan to join. It's one of those things you'll use more than you'd expect once you know it's there.
