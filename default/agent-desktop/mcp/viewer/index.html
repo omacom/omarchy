@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#121413"><meta name="apple-mobile-web-app-title" content="Desktops">
+<title>Agent desktops</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header id="top">
+<a href="#/" class="brand"><img src="/favicon.svg" width="22" height="22" alt=""><span>Desktops</span></a>
+<ul id="hosts" aria-label="Machines"></ul>
+<p id="notice" role="status"></p>
+</header>
+<nav id="rail" aria-label="Agents">
+<p id="rail-state" role="status">Finding desktops…</p>
+<ul id="agents"></ul>
+</nav>
+<p id="idle" hidden>Select an agent</p>
+<main id="work" hidden>
+<div id="stage-head">
+<button id="back" type="button" aria-label="All agents">‹</button>
+<img id="stage-icon" alt="" hidden>
+<h1 id="stage-title"></h1>
+<span id="stage-status" class="status"></span>
+<button id="dismiss" type="button" hidden>Dismiss</button>
+<div id="tabs" role="tablist" aria-label="Panes"><button id="tab-desktops" type="button" role="tab" aria-selected="true">Desktops</button><button id="tab-chat" type="button" role="tab" aria-selected="false">Chat</button></div>
+</div>
+<div id="panes">
+<section id="stage" aria-label="Desktops">
+<div id="desktops"></div>
+<p id="stage-empty" hidden></p>
+<div id="typing" hidden><input id="keys" aria-label="Text to type" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Type, then Send or Enter"><button id="send-keys" type="button">Send</button><button id="enter" type="button">Enter</button><button id="escape" type="button">Esc</button><button id="backspace" type="button">Backspace</button><button id="hide-keyboard" type="button">Done</button></div>
+</section>
+<aside id="chat" aria-label="Chat">
+<div id="chat-head"><span id="chat-label">Chat</span><span id="chat-state" role="status"></span></div>
+<div id="history" tabindex="-1"><button id="older" type="button" hidden>Earlier</button></div>
+<button id="jump" type="button" hidden>Latest</button>
+<form id="composer"><textarea id="draft" aria-label="Message" placeholder="Message · Ctrl+Enter sends"></textarea><button id="send" type="submit">Send</button></form>
+<p id="send-error" role="alert"></p>
+</aside>
+</div>
+</main>
+<video id="fullscreen-video" muted autoplay playsinline controls hidden aria-label="Live desktop video"></video>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

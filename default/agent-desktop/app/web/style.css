@@ -1,0 +1,62 @@
+@font-face { font-family: Plex; src: url('font.woff2'); }
+:root { color-scheme: dark; font-family: Plex, sans-serif; color: #eee; background: #121416; }
+* { box-sizing: border-box; }
+body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+header { min-height: 34px; padding: 6px 12px; display: flex; gap: 12px; align-items: center; background: #1d2023; font-size: 13px; }
+#status { margin-left: auto; overflow-wrap: anywhere; }
+button, textarea { font: inherit; color: inherit; border: 1px solid #51565b; border-radius: 3px; background: #262a2e; }
+button { cursor: pointer; padding: 5px 10px; }
+button:hover { background: #3c4248; } button:disabled { opacity: .5; cursor: default; }
+button[aria-pressed=true] { background: #e8e9ea; color: #151719; }
+#tiles { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 8px; overflow-y: auto; justify-items: center; align-items: center; }
+.tile { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: #090b0d; }
+.screen { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+.tile-footer { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 4px 8px; background: #24282c; }
+.identity { min-width: 0; flex: 1; display: flex; align-items: center; gap: 7px; font-size: 13px; }
+.identity img { width: 20px; height: 20px; object-fit: contain; }
+.identity span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tile-footer button { font-size: 12px; padding: 3px 7px; }
+.stream-status { position: absolute; top: 8px; left: 8px; background: #151719; padding: 4px 8px; font-size: 12px; pointer-events: none; }
+[hidden] { display: none !important; }
+#history { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 16px max(16px, calc((100vw - 850px) / 2)); overflow-anchor: none; }
+.message { margin: 0 0 24px; min-width: 0; overflow-wrap: anywhere; }
+.role { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: #b8c3cd; margin-bottom: 8px; }
+.markdown { line-height: 1.55; }
+.markdown > :first-child { margin-top: 0; }
+.markdown pre { background: #080b0e; padding: 12px; overflow-x: auto; max-width: 100%; font-size: 13px; }
+.markdown code { font-family: monospace; }
+.markdown table { display: block; overflow-x: auto; border-collapse: collapse; max-width: 100%; }
+.markdown td, .markdown th { padding: 7px 12px; border: 1px solid #50565b; text-align: left; }
+.markdown img { max-width: 100%; height: auto; }
+.markdown a { color: #a7d8ff; }
+.markdown blockquote { margin-left: 0; border-left: 3px solid #808b95; padding-left: 14px; }
+.placeholder { overflow: hidden; }
+#older { margin-bottom: 18px; }
+#composer { border-top: 1px solid #454b50; padding: 12px; display: flex; gap: 8px; align-items: end; }
+#draft { resize: vertical; flex: 1; min-width: 0; min-height: 72px; max-height: 35vh; padding: 9px; }
+#send-error { padding: 0 12px 8px; color: #ffaaa6; }
+#jump { position: fixed; right: 16px; bottom: 120px; }
+
+.overview #status { position: fixed; z-index: 3; top: 0; right: 0; background: #24282c; max-width: 80%; }
+.overview #status:empty { display: none; }
+#pager { position: fixed; z-index: 3; bottom: 42px; right: 4px; }
+#tiles { gap: 0; padding: 0; overflow: hidden; align-items: stretch; justify-items: stretch; }
+.tile { width: 100%; height: 100%; overflow: hidden; }
+.tile-footer { gap: 4px; padding: 4px; }
+.tile-footer button { padding: 3px 4px; }
+@media (max-width: 600px) { .tile-footer .size, .tile-footer .control { display: none; } }
+
+.tile { border: 2px solid var(--agent-color, transparent); }
+.agent-status { font-size: 11px; white-space: nowrap; color: #d1d8df; }
+.overview #overview { position: fixed; top: 4px; right: 4px; z-index: 4; }
+@media (max-width: 600px) { .agent-status { max-width: 70px; overflow: hidden; text-overflow: ellipsis; } }
+
+.host { flex-shrink: 0; font-size: 11px; color: #c9d1d9; }
+.attention .agent-status { color: #ffce59; font-weight: 700; }
+.attention .chat::before { content: '● '; color: #ffce59; }
+.control-note { position: absolute; z-index: 2; top: 40px; left: 8px; background: #ffce59; color: #161616; padding: 6px 10px; font-size: 13px; }
+.controlling .screen { outline: 2px solid #ffce59; outline-offset: -2px; }
+
+#empty { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; text-align: center; pointer-events: none; }
+#empty p { margin: 0 0 12px; font-size: 24px; }
+#empty span { font-size: 15px; color: #c9d1d9; max-width: 420px; }

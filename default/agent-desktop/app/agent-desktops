@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+from urllib.parse import urlencode, urlparse
+
+import gi
+gi.require_version('Gtk', '3.0')
+gi.require_version('WebKit2', '4.1')
+from gi.repository import Gio, GLib, Gtk, WebKit2
+
+HERE = Path(__file__).resolve().parent
+
+
+class Desktops(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id='org.omarchy.AgentDesktops', flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
+        self.add_main_option('auto-open', 0, GLib.OptionFlags.NONE, GLib.OptionArg.NONE,
+                             'Open only if the viewer is not already running', None)
+        self.backend = None
+        self.main = None
+        self.chats = {}
+        self.groups = {}
+        self.navigation = 0
+        self.attention = {}
+
+    def do_command_line(self, command):
+        if not command.get_options_dict().contains('auto-open') or not self.get_windows():
+            self.do_activate()
+        return 0
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        action = Gio.SimpleAction.new('open-agent', GLib.VariantType.new('s'))
+        action.connect('activate', self.open_attention)
+        self.add_action(action)
+        self.add_action(Gio.SimpleAction.new_stateful('viewer-ready', None, GLib.Variant('b', False)))
+
+    def open_attention(self, action, target):
+        data = self.attention.get(target.get_string())
+        if data:
+            self.dispatch({'type': 'chat', **data})
+        else:
+            self.do_activate()
+
+    def update_attention(self, chats):
+        current = {chat['id']: chat for chat in chats
+                   if isinstance(chat, dict) and all(isinstance(chat.get(k), str)
+                   and len(chat[k]) <= (4096 if k == 'title' else 200) for k in ('id', 'agentId', 'title'))}
+        for identity in self.attention.keys() - current.keys():
+            self.withdraw_notification('agent-' + identity)
+        for identity, chat in current.items():
+            if identity not in self.attention:
+                notification = Gio.Notification.new('Agent needs your input')
+                notification.set_body(chat['title'])
+                notification.set_icon(Gio.ThemedIcon.new('dialog-warning'))
+                notification.set_default_action_and_target('app.open-agent', GLib.Variant('s', identity))
+                self.send_notification('agent-' + identity, notification)
+        self.attention = current
+        for window in self.get_windows():
+            window.set_urgency_hint(bool(current))
+            window.set_icon_name('dialog-warning' if current else 'preferences-desktop-remote-desktop')
+        if self.main:
+            self.main.set_title(f'Agent Desktops · {len(current)} waiting' if current else 'Agent Desktops')
+
+    def do_activate(self):
+        self.navigation += 1
+        if self.main:
+            for window in [*self.groups.values(), *self.chats.values()]:
+                window.hide()
+            self.main.show_all()
+            self.main.present()
+            return
+        if not self.backend:
+            self.backend = subprocess.Popen(['node', str(HERE / 'server.mjs')],
+                                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+            line = self.backend.stdout.readline()
+            if not line:
+                self.backend.wait()
+                self.backend = None
+                dialog = Gtk.MessageDialog(message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CLOSE, text='Agent Desktops could not start.')
+                dialog.format_secondary_text('Check ~/.config/agent-desktops/fleet.json and the private token file. Run omarchy install ai agent-desktop to set up the local viewer.')
+                dialog.run()
+                dialog.destroy()
+                return
+            self.url = json.loads(line)['url']
+        self.main = self.window('Agent Desktops', self.url, chat=False)
+        self.main.connect('destroy', lambda *_: setattr(self, 'main', None))
+
+    def window(self, title, url, chat):
+        window = Gtk.ApplicationWindow(application=self, title=title)
+        window.set_decorated(False)
+        window.set_default_size(720 if chat else 1200, 850 if chat else 760)
+        window.set_wmclass('agent-desktops-chat' if chat else 'agent-desktops', 'AgentDesktops')
+        manager = WebKit2.UserContentManager()
+        manager.register_script_message_handler('native')
+        manager.connect('script-message-received::native', self.message, window)
+        view = WebKit2.WebView(user_content_manager=manager)
+        view.get_settings().set_enable_developer_extras(False)
+        view.connect('decide-policy', self.policy)
+        view.connect('permission-request', lambda _view, request: (request.deny(), True)[1])
+        view.load_uri(url)
+        window.add(view)
+        window.connect('destroy', lambda *_: GLib.idle_add(self.restore_overview))
+        window.show_all()
+        self.lookup_action('viewer-ready').set_state(GLib.Variant('b', True))
+        return window
+
+    def restore_overview(self):
+        if self.main and not any(w.get_visible() for w in self.get_windows()):
+            self.main.show_all()
+            self.main.present()
+        return False
+
+    def policy(self, view, decision, kind):
+        if kind in (WebKit2.PolicyDecisionType.NAVIGATION_ACTION, WebKit2.PolicyDecisionType.NEW_WINDOW_ACTION):
+            url = decision.get_navigation_action().get_request().get_uri()
+            if not url.startswith(self.url):
+                decision.ignore()
+                return True
+        return False
+
+    def message(self, manager, result, parent):
+        try:
+            data = json.loads(result.get_js_value().to_string())
+            self.dispatch(data)
+        except (ValueError, KeyError, TypeError) as error:
+            print(f'Agent Desktops: invalid window request: {error}', file=sys.stderr)
+
+    def dispatch(self, data):
+        try:
+            if data['type'] == 'attention':
+                self.update_attention(data['chats'])
+            elif data['type'] == 'overview':
+                self.do_activate()
+            elif data['type'] == 'chat':
+                identity = data['id']
+                if not isinstance(identity, str) or len(identity) > 100:
+                    return
+                agent = data.get('agentId')
+                if not isinstance(agent, str) or len(agent) > 200:
+                    return
+                self.navigation += 1
+                navigation = self.navigation
+                if self.main:
+                    self.main.hide()
+                for key, window in [*self.groups.items(), *self.chats.items()]:
+                    if key != identity:
+                        window.hide()
+                group = self.groups.get(identity)
+                if not group:
+                    group = self.window('Desktops · ' + identity, self.url + '?' + urlencode({'agent': agent}), chat=False)
+                    self.groups[identity] = group
+                    group.connect('destroy', lambda *_: self.groups.pop(identity, None))
+                group.show_all()
+                group.present()
+                attempts = 0
+                def open_chat():
+                    nonlocal attempts
+                    if navigation != self.navigation or identity not in self.groups or not group.get_visible():
+                        return False
+                    attempts += 1
+                    if not self.adjacent(group) and attempts < 20:
+                        return True
+                    child = self.chats.get(identity)
+                    if child:
+                        child.show_all()
+                        child.present()
+                    else:
+                        child = self.window('Chat · ' + str(data['title']), self.url + 'chat.html?' + urlencode({'id': identity}), chat=True)
+                        self.chats[identity] = child
+                        child.connect('destroy', lambda *_: self.chats.pop(identity, None))
+                    return False
+                GLib.timeout_add(100, open_chat)
+            elif data['type'] == 'link' and urlparse(data['url']).scheme in ('http', 'https'):
+                Gio.AppInfo.launch_default_for_uri(data['url'], None)
+        except (ValueError, KeyError, TypeError) as error:
+            print(f'Agent Desktops: invalid window request: {error}', file=sys.stderr)
+
+    def adjacent(self, parent):
+        # A user click chooses the parent. Restrict placement to this process's
+        # exact window; never select another app by its title alone.
+        if not os.environ.get('HYPRLAND_INSTANCE_SIGNATURE'):
+            return True
+        try:
+            windows = json.loads(subprocess.check_output(['hyprctl', '-j', 'clients'], timeout=2))
+            target = next(w for w in windows if w['pid'] == os.getpid() and w['title'] == parent.get_title())
+            address = json.dumps('address:' + target['address'])
+            subprocess.run(['hyprctl', 'dispatch', f'hl.dsp.focus({{ window = {address} }})'], check=True, timeout=2, stdout=subprocess.DEVNULL)
+            subprocess.run(['hyprctl', 'dispatch', 'hl.dsp.layout("preselect r")'], check=True, timeout=2, stdout=subprocess.DEVNULL)
+            return True
+        except StopIteration:
+            return False
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            print(f'Agent Desktops: compositor placement unavailable: {error}', file=sys.stderr)
+            return False
+
+    def do_shutdown(self):
+        for identity in self.attention:
+            self.withdraw_notification('agent-' + identity)
+        if self.backend:
+            self.backend.stdin.close()
+            try:
+                self.backend.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                self.backend.terminate()
+        Gtk.Application.do_shutdown(self)
+
+
+if __name__ == '__main__':
+    raise SystemExit(Desktops().run(sys.argv))

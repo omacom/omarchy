@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Agent Desktops
+Comment=Watch agent desktops and continue their chats
+Exec=agent-desktops
+Icon=preferences-desktop-remote-desktop
+Terminal=false
+Categories=Development;
+StartupNotify=true
+StartupWMClass=agent-desktops
