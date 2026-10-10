@@ -128,4 +128,4 @@ o.bind("SUPER + CTRL + ALT + Z", "Reset zoom", function()
   hl.config({ cursor = { zoom_factor = 1 } })
 end)
 
-o.bind("SUPER + CTRL + L", "Lock system", "omarchy-system-lock")
+o.bind("SUPER + L", "Lock system", "omarchy-system-lock")

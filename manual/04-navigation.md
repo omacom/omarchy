@@ -32,7 +32,7 @@ Omarchy's default layout is called dwindle. It keeps all the windows you open on
 
  ![navigation-dwindle-layout](images/navigation-dwindle-layout.webp)
 
-But you can also choose to turn a workspace into the scrolling layout where windows are lined up side-by-side, beyond the visible edge of the display. You turn a single workspace into this layout via `Super + L`.
+But you can also choose to turn a workspace into the scrolling layout where windows are lined up side-by-side, beyond the visible edge of the display. You turn a single workspace into this layout via `Super + Ctrl + L`.
 
  ![navigation-scrolling-layout](images/navigation-scrolling-layout.webp)
 

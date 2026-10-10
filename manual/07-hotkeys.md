@@ -9,13 +9,13 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Space`           | Omarchy menu (apps and everything else)    |
 | `Super + Alt + Space` | Apps menu |
 | `Super + Escape` | System menu (suspend, restart, etc)  |
-| `Super + Ctrl + L` | Lock computer |
+| `Super + L`        | Lock computer |
 | `Super + W` or `Super + Q` | Close window             |
 | `Ctrl + Alt + Del` | Close all windows |
 | `Super + T`               | Toggle window between tiling/floating             |
 | `Super + J` | Toggle window position (horizontal/vertical) |
 | `Super + O`               | Toggle popping window into sticky'n'floating |
-| `Super + L`               | Toggle between dwindle and scrolling layout |
+| `Super + Ctrl + L`        | Toggle between dwindle and scrolling layout |
 | `Super + P`               | Toggle pseudo window style (natural v stretch) |
 | `Super + F`                 | Go full screen              |
 | `Super + Alt + F`                 | Go full width              |
