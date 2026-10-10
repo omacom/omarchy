@@ -396,6 +396,16 @@ size-vertical   = 28   # left/right bar width at base-size 12
 
 Set `scale-with-font = false` to keep those bar sizes as fixed pixels.
 
+A panel with a camera cutout (a notch) at its top keeps a top bar out of it: the bar is never shorter than the cutout, and its center section sits beside the right one. Omarchy knows no panel's cutout itself; the platform's own package describes them in `/usr/share/omarchy-platform/display-cutouts.json`, a fixed path no environment variable moves (see [file-layout.md](file-layout.md#platform-root)):
+
+```json
+{ "panels": [ { "connector": "eDP", "width": 3024, "height": 1964, "top": 64 } ] }
+```
+
+A panel matches a screen whose connector name starts with `connector` and whose mode, as `hyprctl monitors` reports it, is `width` x `height` physical pixels, at any scale; `top` is the physical rows the cutout covers. On such a panel, `[bar] notch-height` (logical pixels, not scaled with the font) sets the floor by hand. The bar reads the file when the shell starts and whenever it changes; a file installed where its directory didn't exist yet (the platform root itself, on a first install) is read at the next shell start.
+
+Until Hyprland reports a screen's mode, a top bar there waits to appear if a description names the screen's connector, unless the logical size times Qt's whole-number scale already matches a panel. It then appears at its floor rather than growing once windows are laid out, and never guesses a floor for a panel nothing describes. After two seconds without a mode it appears without a floor. Notifications clear the bar as thick as it is on their screen. A plugin's `shell.bar` gives the same through `barSizeFor(screenName)` and the `barSizes` map (screen name to thickness); its `barSize` stays the configured size, which the widgets are drawn at.
+
 ## Custom bar modules
 
 If a full plugin is overkill, declare a one-off module inline in

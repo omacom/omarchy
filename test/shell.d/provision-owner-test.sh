@@ -42,9 +42,10 @@ create=$(section create_user)
 pass "create_user keeps root for the parent and applies the posture"
 
 rekey=$(section rekey_luks)
-[[ $rekey == *'<(printf '"'"'%s'"'"' "$parent_password")'* ]] || fail "rekey_luks adds the parent password as a LUKS key"
-[[ $rekey == *'passphrases+=("$parent_password")'* ]] || fail "rekey_luks identifies the parent slot as one to keep"
-[[ $rekey == *'[[ $keep_slots == *" $slot "* ]] && continue'* ]] || fail "rekey_luks retires every slot but the ones it keeps"
-[[ $rekey == *'log_step "could not identify a LUKS slot to keep after re-key; keeping the staged key for retry"'* ]] ||
-  fail "rekey_luks keeps the staged key when a slot to keep cannot be confirmed"
+[[ $rekey == *'extra_passwords=("$parent_password")'* ]] || fail "rekey_luks hands the parent password to the shared re-key as a slot to keep"
+[[ $rekey == *'if ${CHILD_INSTALL:-false}; then'* ]] || fail "rekey_luks keys the disk to the parent only on a child install"
+helper="$ROOT/install/provisioning/luks-rekey.sh"
+grep -Fq 'rekey_state_put owner_slot "$owner" extra_slots "$kept" phase owner' "$helper" || fail "the shared re-key journals the extra slots it keeps"
+grep -Fq '[[ $slot == "$owner" || " $extras " == *" $slot "* ]] && continue' "$helper" || fail "the shared re-key retires every slot but the ones it keeps"
+grep -Fq 'luks_record_slots "$(rekey_state_get owner_slot)" "${extras_kept%% *}"' "$helper" || fail "the shared re-key records the parent slot as the second kept slot"
 pass "rekey_luks keys the disk to the kid and parent passwords and keeps both"

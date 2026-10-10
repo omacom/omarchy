@@ -24,17 +24,29 @@ omarchy_security_install_sudo_cleanup_traps
 omarchy_security_revoke_sudo_timestamp || exit 1
 omarchy_security_enable_no_update_sudo
 
-channel="${1:-stable}"
-if [[ $channel != "stable" && $channel != "rc" && $channel != "edge" ]]; then
+channel="${1:-}"
+if [[ -n $channel && $channel != "stable" && $channel != "rc" && $channel != "edge" ]]; then
   echo "Invalid channel: $channel" >&2
   exit 2
+fi
+
+source "$OMARCHY_PATH/install/helpers/pacman.sh"
+if ! platform=$(omarchy-hw-platform); then
+  echo "Cannot tell this machine's platform. No repository configuration changed." >&2
+  exit 1
+fi
+templates=$(omarchy_pacman_templates "$platform") || exit 1
+[[ -n $channel ]] || channel=$(omarchy_pacman_default_channel "$platform") || exit 1
+if [[ ! -f $templates/pacman-$channel.conf || ! -f $templates/mirrorlist-$channel ]]; then
+  echo "Omarchy has no $channel channel for $platform. No repository configuration changed." >&2
+  exit 1
 fi
 
 sudo cp -f /etc/pacman.conf /etc/pacman.conf.bak
 sudo cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
 echo "Setting channel to $channel"
-sudo cp -f "$OMARCHY_PATH/default/pacman/pacman-$channel.conf" /etc/pacman.conf
-sudo cp -f "$OMARCHY_PATH/default/pacman/mirrorlist-$channel" /etc/pacman.d/mirrorlist
+sudo cp -f "$templates/pacman-$channel.conf" /etc/pacman.conf
+sudo cp -f "$templates/mirrorlist-$channel" /etc/pacman.d/mirrorlist
 
 # Allow user customization of /etc/pacman.conf before the upgrade runs, so
 # custom repositories and IgnorePkg entries shape the downgrade-capable

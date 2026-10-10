@@ -1,7 +1,9 @@
 module qs.Commons
+singleton AudioNodes 1.0 AudioNodes.qml
 singleton Border 1.0 Border.qml
 singleton Color 1.0 Color.qml
 singleton IpcRegistry 1.0 IpcRegistry.qml
 singleton Style 1.0 Style.qml
+singleton UntypedInput 1.0 UntypedInput.qml
 singleton Util 1.0 Util.qml
 ShellIpc 1.0 ShellIpc.qml

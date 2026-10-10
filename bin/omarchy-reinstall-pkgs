@@ -1,21 +1,24 @@
 #!/bin/bash
 
-# omarchy:summary=Reinstall all default Omarchy packages from the stable channel
+# omarchy:summary=Reinstall all default Omarchy packages from the stable channel, or on aarch64 the edge channel
 # omarchy:requires-sudo=true
 
 set -e
 
-# Reinstall all default Omarchy packages from the stable channel and downgrade any packages that are too new.
+# Reinstall all default Omarchy packages from the platform's default channel
+# (stable, or edge on aarch64) and downgrade any packages that are too new.
 
-# Set the package repository to the stable mirrors
+# Set the package repository to the platform's default channel
 omarchy-refresh-pacman
 
-# Downgrade any packages to the stable setup
+# Downgrade any packages to that channel's setup
 omarchy-update-pacman -Suu --noconfirm
 
-# Ensure all packages are installed. A child install (kids mode) also carries
-# the child list the ISO installed on top of the base set.
-package_lists=("$OMARCHY_PATH/install/omarchy-base.packages")
-omarchy-profile-child && package_lists+=("$OMARCHY_PATH/install/omarchy-child.packages")
-mapfile -t packages < <(grep -hv '^#' "${package_lists[@]}" | grep -v '^$')
+# Ensure this platform's default packages are installed. A child install (kids
+# mode) also carries the child list the ISO installed on top of them.
+default_packages=$(omarchy-pkg-defaults)
+mapfile -t packages <<<"$default_packages"
+if omarchy-profile-child; then
+  mapfile -t -O "${#packages[@]}" packages < <(grep -hv '^#' "$OMARCHY_PATH/install/omarchy-child.packages" | grep -v '^$')
+fi
 omarchy-update-pacman -Syu --noconfirm --needed "${packages[@]}"

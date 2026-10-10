@@ -43,6 +43,7 @@ fontconfig
 foot
 fzf
 git
+gliff
 gnome-keyring
 gnome-themes-extra
 grim
@@ -143,6 +144,7 @@ udiskie
 ufw
 ufw-docker
 unzip
+usbguard
 usage
 uwsm
 vi
