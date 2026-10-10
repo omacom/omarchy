@@ -1,9 +1,13 @@
 #!/bin/bash
 
-# omarchy:summary=Launch the default browser as determined by xdg-settings.
+# omarchy:summary=Launch the default browser as determined by the text/html handler.
 # omarchy:args=[url]
 
 default_browser=$(omarchy-cmd-default-browser)
+if [[ $default_browser == "omarchy-url-open.desktop" ]]; then
+  # Never launch the URL dispatcher as a browser; it falls back to this script
+  exit 1
+fi
 browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
 
 if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then

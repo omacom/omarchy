@@ -16,13 +16,12 @@ export XDG_CONFIG_DIRS="$test_tmp/etc"
 export XDG_DATA_HOME="$test_tmp/data"
 export XDG_DATA_DIRS="$test_tmp/system"
 export XDG_CURRENT_DESKTOP=Hyprland
-export BROWSER=omarchy-launch-browser
-export OMARCHY_TEST_XDG_SETTINGS_LOG="$test_tmp/xdg-settings"
+export OMARCHY_TEST_XDG_MIME_LOG="$test_tmp/xdg-mime"
 
-cat >"$mock_bin/xdg-settings" <<'SH'
+cat >"$mock_bin/xdg-mime" <<'SH'
 #!/bin/bash
-printf '%s\n' "${BROWSER:-unset}" >"$OMARCHY_TEST_XDG_SETTINGS_LOG"
-echo fallback.desktop
+printf '%s\n' "$*" >"$OMARCHY_TEST_XDG_MIME_LOG"
+[[ $* == "query default text/html" ]] && echo fallback.desktop
 SH
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 
@@ -39,34 +38,36 @@ echo "Exec=brave %U" >"$XDG_DATA_DIRS/applications/brave-browser.desktop"
 echo "Exec=removed-browser %U" >"$XDG_DATA_HOME/applications/removed.desktop"
 echo "Exec=brave %U" >"$XDG_DATA_DIRS/applications/removed.desktop"
 
+# x-scheme-handler/http points at omarchy-url-open now, so the lookup must read
+# the real browser from text/html and ignore the http handler entirely.
 cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'EOF'
 [Added Associations]
-x-scheme-handler/http=firefox.desktop;
+text/html=firefox.desktop;
 
 [Default Applications]
-text/html=firefox.desktop
-x-scheme-handler/http=missing.desktop;removed.desktop;chromium.desktop;
+x-scheme-handler/http=omarchy-url-open.desktop
+text/html=missing.desktop;removed.desktop;chromium.desktop;
 EOF
 
 [[ $(omarchy-cmd-default-browser) == "chromium.desktop" ]] ||
-  fail "default browser is the first installed http handler in mimeapps.list"
-[[ ! -e $OMARCHY_TEST_XDG_SETTINGS_LOG ]] ||
-  fail "default browser skips xdg-settings when mimeapps.list names one"
+  fail "default browser is the first installed text/html handler in mimeapps.list"
+[[ ! -e $OMARCHY_TEST_XDG_MIME_LOG ]] ||
+  fail "default browser skips xdg-mime when mimeapps.list names one"
 
 cat >"$XDG_CONFIG_HOME/hyprland-mimeapps.list" <<'EOF'
 [Default Applications]
-x-scheme-handler/http=brave-browser.desktop
+text/html=brave-browser.desktop
 EOF
 
 [[ $(omarchy-cmd-default-browser) == "brave-browser.desktop" ]] ||
   fail "default browser prefers the desktop-specific mimeapps.list"
 
 rm "$XDG_CONFIG_HOME/hyprland-mimeapps.list"
-printf '[Default Applications]\nx-scheme-handler/http=missing.desktop\n' >"$XDG_CONFIG_HOME/mimeapps.list"
+printf '[Default Applications]\ntext/html=missing.desktop\n' >"$XDG_CONFIG_HOME/mimeapps.list"
 
 [[ $(omarchy-cmd-default-browser) == "fallback.desktop" ]] ||
-  fail "default browser falls back to xdg-settings when no listed handler is installed"
-[[ $(<"$OMARCHY_TEST_XDG_SETTINGS_LOG") == "unset" ]] ||
-  fail "default browser unsets BROWSER before asking xdg-settings"
+  fail "default browser falls back to xdg-mime when no listed handler is installed"
+[[ $(<"$OMARCHY_TEST_XDG_MIME_LOG") == "query default text/html" ]] ||
+  fail "default browser asks xdg-mime for the text/html handler"
 
-pass "default browser reads mimeapps.list and falls back to xdg-settings"
+pass "default browser reads mimeapps.list and falls back to xdg-mime"
