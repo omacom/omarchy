@@ -13,6 +13,12 @@ Item {
 
   property var shell: null
   property bool suspended: false
+  // OWE suspends the background while an intro plays, and the theme switch
+  // replaces the current theme's files underneath it. Resuming re-reads the
+  // link and reloads instantly, so the still OWE handed back is shown rather
+  // than the path, or the cached pixels, from before the switch.
+  onSuspendedChanged: if (!suspended) refreshBackground(true)
+  property bool refreshInstant: false
   readonly property string home: Quickshell.env("HOME")
   readonly property string stateHome: home + "/.local/state"
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
@@ -62,7 +68,8 @@ Item {
     return Util.fileUrl(path)
   }
 
-  function refreshBackground() {
+  function refreshBackground(instant) {
+    if (instant) refreshInstant = true
     if (!readlinkProc.running) readlinkProc.running = true
   }
 
@@ -216,7 +223,11 @@ Item {
     id: readlinkProc
     command: ["readlink", "-f", root.currentBackgroundLink]
     stdout: StdioCollector {
-      onStreamFinished: root.setBackground(String(text || "").trim(), false)
+      onStreamFinished: {
+        var instant = root.refreshInstant
+        root.refreshInstant = false
+        root.setBackground(String(text || "").trim(), instant)
+      }
     }
   }
 
