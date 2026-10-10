@@ -235,8 +235,16 @@ assert(
   'positional panels are one-based, and anything off the end lands on no slot'
 )
 assert(
-  /function togglePanelAt\(section: string, index: string\): string \{[\s\S]*?shell\.bar\.panelWidgetIdAt\(section, index\)[\s\S]*?shell\.toggle\(id, "\{\}"\)/.test(shellSource),
-  'shell toggles a bar panel by its position over IPC'
+  /function toggleBarWidget\(pluginId\) \{[\s\S]*?findPanelWidget\(pluginId\)[\s\S]*?item\.opened === true[\s\S]*?item\.close\(\)[\s\S]*?item\.open\(\)/.test(barSource),
+  'bar toggles the resolved live panel widget directly'
+)
+assert(
+  /function togglePanelAt\(section: string, index: string\): string \{[\s\S]*?shell\.bar\.panelWidgetIdAt\(section, index\)[\s\S]*?shell\.bar\.toggleBarWidget\(id\)/.test(shellSource),
+  'shell toggles a positional panel through its bar widget even when the plugin also has another surface'
+)
+assert(
+  /function togglePanelAt\(section: string, index: string\): string \{[\s\S]*?typeof shell\.bar\.toggleBarWidget === "function"[\s\S]*?\} else \{\s*shell\.toggle\(id, "\{\}"\)\s*return id\s*\}\s*\}/.test(shellSource),
+  'a replacement bar without toggleBarWidget still toggles its positional panels through the shell'
 )
 
 const clockSlot = { id: 'clock' }
