@@ -12,7 +12,7 @@ fi
 
 # Only the X Elite OLED model has been tested. The LCD and X Plus models share
 # the DMI product name but use other device trees and panels.
-if omarchy-hw-qualcomm-soc && grep -qx 'microsoft,denali-oled' <<<"$surface_pro11_compatible"; then
+if omarchy-hw-aarch64-qualcomm && grep -qx 'microsoft,denali-oled' <<<"$surface_pro11_compatible"; then
   echo "Detected Microsoft Surface Pro 11, applying board-specific support..."
 
   # Boot configuration comes first, so the Surface kernel's image is built with
