@@ -228,14 +228,17 @@ function popupRowChanged(row, updated) {
 // single reminder, all within the same moment — what the user means by that
 // is one toast, not a stack of identical ones. The image and click target
 // count too: every screen recording toast shares its text but previews and
-// opens a different file.
-var DUPLICATE_ROLES = ["app", "summary", "body", "image", "execArgv"]
+// opens a different file. Urgency and lifetime count too: an ordinary toast
+// must not dismiss a persistent critical alert with the same text.
+var DUPLICATE_ROLES = ["app", "summary", "body", "image", "execArgv", "urgency", "expireTimeout"]
 
 function isDuplicatePopup(row, snapshot) {
   if (!row || !snapshot || row.originalId === snapshot.originalId) return false
   for (var i = 0; i < DUPLICATE_ROLES.length; i++) {
     var role = DUPLICATE_ROLES[i]
-    if ((row[role] || "") !== (snapshot[role] || "")) return false
+    if (role === "urgency" || role === "expireTimeout") {
+      if (row[role] !== snapshot[role]) return false
+    } else if ((row[role] || "") !== (snapshot[role] || "")) return false
   }
   return true
 }

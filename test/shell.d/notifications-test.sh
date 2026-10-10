@@ -389,6 +389,29 @@ assert(
   !notifications.isDuplicatePopup(heyReminder, Object.assign({}, heyReminder, { originalId: 21, app: 'Slack' })),
   'notifications keep identical text from a different sender'
 )
+const criticalReminder = Object.assign({}, heyReminder, { urgency: 2, expireTimeout: 0 })
+assert(
+  !notifications.isDuplicatePopup(criticalReminder, Object.assign({}, criticalReminder, { originalId: 21, urgency: 1 })),
+  'a normal alert cannot dismiss an otherwise identical critical alert'
+)
+assert(
+  !notifications.isDuplicatePopup(criticalReminder, Object.assign({}, criticalReminder, { originalId: 21, expireTimeout: 5000 })),
+  'an expiring alert cannot replace an otherwise identical persistent alert'
+)
+assert(
+  notifications.isDuplicatePopup(criticalReminder, Object.assign({}, criticalReminder, { originalId: 21 })),
+  'matching critical alerts with the same lifetime still collapse'
+)
+assert(
+  !notifications.isDuplicatePopup(heyReminder, Object.assign({}, heyReminder, { originalId: 21, urgency: 0 })),
+  'an explicit low urgency is distinct from unspecified urgency'
+)
+assert(
+  notifications.isDuplicatePopup(
+    notifications.snapshotOf({ id: 40, appName: 'Slack', summary: 'Reminder', urgency: 1 }),
+    notifications.snapshotOf({ id: 41, appName: 'Slack', summary: 'Reminder', urgency: 1, expireTimeout: 0 })),
+  'default and zero timeouts collapse after the normal snapshot normalization'
+)
 assert(
   !notifications.isDuplicatePopup(
     { originalId: 30, app: 'omarchy-action', summary: 'Screen recording saved', body: '', image: '/tmp/a.png', execArgv: '["mpv","--","/tmp/a.mp4"]' },
