@@ -26,16 +26,37 @@ QtObject {
   property var _isOpen: null
   property var _updateSettings: null
   property var _mutateBarConfig: null
+  property var _warnedLookups: ({})
+
+  // Denied lookups return null, which looks the same as a service that isn't
+  // loaded yet. Say so once, so a plugin cloned before the API was scoped can
+  // be diagnosed from the log instead of silently doing nothing.
+  function warnDenied(lookup, id, hint) {
+    var key = lookup + ":" + id
+    if (_warnedLookups[key]) return
+    _warnedLookups[key] = true
+    console.warn("Plugin " + pluginId + " was denied " + lookup + "(\"" + id + "\"). " + hint)
+  }
 
   function serviceFor(id) {
-    return _serviceLookup ? _serviceLookup(String(id || "")) : null
+    var requested = String(id || "")
+    var service = _serviceLookup ? _serviceLookup(requested) : null
+    if (!service && requested && requested !== pluginId)
+      warnDenied("serviceFor", requested, "Plugins can only look up their own service; "
+        + "bar widgets use firstPartyServiceFor() for omarchy.idle, omarchy.media, "
+        + "omarchy.nightlight and omarchy.notifications.")
+    return service
   }
 
   // Only full-bar facades receive narrow proxies for the specific
   // non-authentication services used by the built-in bar widgets.
   function firstPartyServiceFor(id) {
-    return _firstPartyServiceLookup
-      ? _firstPartyServiceLookup(String(id || "")) : null
+    var requested = String(id || "")
+    var service = _firstPartyServiceLookup ? _firstPartyServiceLookup(requested) : null
+    if (!service && requested && requested !== pluginId)
+      warnDenied("firstPartyServiceFor", requested, "Only bar widgets can reach "
+        + "omarchy.idle, omarchy.media, omarchy.nightlight and omarchy.notifications.")
+    return service
   }
 
   function pluginShellForBarEntry(ownerId, moduleName) {

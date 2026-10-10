@@ -199,3 +199,19 @@ if ! jq -e '.ok == true' "$result" >/dev/null; then
 fi
 
 pass "plugin authentication boundary runtime behavior"
+
+denials() {
+  grep -cF "Plugin example.safe was denied $1" "$log" || true
+}
+
+if [[ $(denials 'serviceFor("omarchy.idle")') != 1 ||
+  $(denials 'resolveEnabledId("omarchy.idle")') != 1 ||
+  $(denials 'firstPartyServiceFor("omarchy.polkit")') != 1 ||
+  $(denials 'resolveEnabledId("constructor")') != 1 ||
+  $(denials 'serviceFor("example.safe")') != 0 ||
+  $(denials 'resolveEnabledId("example.safe")') != 0 ]]; then
+  sed -n '1,220p' "$log" >&2
+  fail "denied plugin lookups warn once per id"
+fi
+
+pass "denied plugin lookups warn once per id"
