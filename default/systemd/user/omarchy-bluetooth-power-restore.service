@@ -1,0 +1,17 @@
+[Unit]
+Description=Restore Omarchy Bluetooth on/off preference
+Documentation=man:rfkill(8)
+# bluetoothd may AutoEnable before systemd-rfkill finishes restoring a soft
+# block across reboot (#13342). Re-apply the user's last omarchy-bluetooth-power
+# choice once the session and bluetooth stack are up.
+After=bluetooth.service graphical-session-pre.target
+PartOf=graphical-session.target
+ConditionPathIsDirectory=/sys/class/bluetooth
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-bluetooth-power restore
+RemainAfterExit=yes
+
+[Install]
+WantedBy=graphical-session.target
