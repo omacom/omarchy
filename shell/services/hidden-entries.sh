@@ -92,6 +92,12 @@ scan_dir() {
   done < <(find "$dir" -type f -name '*.desktop' -print0 2>/dev/null | sort -z)
 }
 
+# The packaged Hermes Desktop launcher replaces the runtime's launcher while
+# the package owns the app. A standalone runtime keeps its only launcher.
+if omarchy-pkg-present hermes-desktop; then
+  printf '%s\n' com.nousresearch.hermes
+fi
+
 scan_dir "$HOME/.local/share/applications"
 
 IFS=":" read -ra data_dirs <<< "${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
