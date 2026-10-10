@@ -78,6 +78,13 @@ HOME="$skip_home" OMARCHY_PATH="$ROOT" PATH="$mock_bin:$ROOT/bin:$PATH" \
 
 pass "Sublime install provides its scheme even when theme changes are skipped"
 
+rm "$skip_home/.config/sublime-text/Packages/User/Omarchy.sublime-color-scheme"
+HOME="$skip_home" PATH="$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set-sublime" || fail "skipped theme change succeeds"
+[[ ! -e $skip_home/.config/sublime-text/Packages/User/Omarchy.sublime-color-scheme ]] ||
+  fail "a skipped theme change does not restore a removed scheme"
+
+pass "Sublime theme changes keep a removed scheme removed while skipped"
+
 fresh_home="$test_tmp/fresh"
 mkdir -p "$fresh_home/.local/state/omarchy/current/theme"
 printf '{"name":"fresh"}\n' >"$fresh_home/.local/state/omarchy/current/theme/Omarchy.sublime-color-scheme"

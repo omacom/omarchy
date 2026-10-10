@@ -22,4 +22,4 @@ python3 "$OMARCHY_PATH/default/sublime/set-preferences.py" --backup "$preference
 if [[ ! -f $HOME/.local/state/omarchy/current/theme/Omarchy.sublime-color-scheme ]]; then
   omarchy-theme-refresh
 fi
-omarchy-theme-set-sublime
+omarchy-theme-set-sublime --install
