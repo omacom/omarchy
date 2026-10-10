@@ -96,11 +96,12 @@ reset_entries() {
 # One core dump as systemd-coredump journals it. The UID must be this user's, or
 # the watcher discards it as somebody else's crash before anything under test.
 crash_entry() {
-  local comm="$1" exe="$2"
+  local comm="$1" exe="$2" user_unit="${3:-}"
 
-  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" \
+  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" --arg user_unit "$user_unit" \
     '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
-      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV"}' >>"$JOURNAL_ENTRIES"
+      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV",
+      COREDUMP_USER_UNIT: $user_unit}' >>"$JOURNAL_ENTRIES"
 }
 
 # The stubbed journalctl ends after the entries, so the watcher's loop ends too.
@@ -141,6 +142,25 @@ announced hyprland ||
   fail "a crash nobody muted still announces itself"
 pass "a crash nobody muted still announces itself"
 
+# The watcher's shell-health probe is launched inside its own user service but
+# crashes as quickshell, so name-based self-exclusion cannot recognize it.
+reset_entries
+crash_entry quickshell /usr/bin/quickshell omarchy-crash-watch.service
+run_watch
+! announced quickshell ||
+  fail "the crash watcher announces a coredump caused by its own service and sustains the loop"
+pass "a crash caused by the watcher service is not announced"
+
+# Excluded by the service it ran in, not by name: the shell crashing for real is
+# exactly the crash worth announcing, and one after the probe's must still reach it.
+crash_entry quickshell /usr/bin/quickshell
+run_watch
+announced quickshell ||
+  fail "a quickshell crash outside the watcher's service is dropped along with the watcher's own"
+pass "a quickshell crash outside the watcher's service still announces itself"
+
+reset_entries
+crash_entry hyprland /usr/bin/hyprland
 mute hyprland on
 run_watch
 ! announced hyprland ||
