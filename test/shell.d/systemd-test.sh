@@ -86,6 +86,28 @@ grep -Fx 'ManagedOOMMemoryPressure=kill' "$oomd_slice" >/dev/null ||
 grep -Fx 'ManagedOOMSwap=kill' "$oomd_slice" >/dev/null ||
   fail "no swap backstop for the slower shape of the same failure"
 
+oomd_generator="$ROOT/default/systemd/user-generators/omarchy-oomd-generator"
+[[ -x $oomd_generator ]] ||
+  fail "app.slice candidacy is not installed through an executable user generator"
+
+oomd_generator_test=$(mktemp -d)
+mkdir -p "$oomd_generator_test/proc" "$oomd_generator_test/private-output"
+OMARCHY_OOMD_PROC_ROOT="$oomd_generator_test/proc" \
+  OMARCHY_OOMD_DROPIN="$oomd_slice" \
+  "$oomd_generator" "$oomd_generator_test/private-output"
+[[ ! -e $oomd_generator_test/private-output/app.slice.d/10-oomd.conf ]] ||
+  fail "OOM candidacy is generated when procfs hides PID 1, which makes app.slice unloadable"
+
+mkdir -p "$oomd_generator_test/proc/1" "$oomd_generator_test/normal-output"
+touch "$oomd_generator_test/proc/1/cgroup"
+OMARCHY_OOMD_PROC_ROOT="$oomd_generator_test/proc" \
+  OMARCHY_OOMD_DROPIN="$oomd_slice" \
+  "$oomd_generator" "$oomd_generator_test/normal-output"
+[[ $(readlink "$oomd_generator_test/normal-output/app.slice.d/10-oomd.conf") == "$oomd_slice" ]] ||
+  fail "OOM candidacy is not generated when systemd can inspect PID 1's cgroup"
+rm -rf "$oomd_generator_test"
+pass "systemd-oomd candidacy stays compatible with private procfs mounts"
+
 # Hyprland lives in session.slice/wayland-wm@hyprland.desktop.service. Marking
 # any ancestor of that as a kill candidate puts the compositor back in the
 # victim pool, which is the crash this whole thing exists to prevent.
@@ -104,3 +126,8 @@ pass "systemd-oomd acts on sustained memory stall"
 grep -Fx 'systemctl enable systemd-oomd.service' "$ROOT/install/config/enable-services.sh" >/dev/null ||
   fail "new installs ship the oomd drop-ins with the daemon that reads them disabled"
 pass "new installs enable systemd-oomd"
+
+oomd_compat_migration="$ROOT/migrations/1785620124.sh"
+grep -F 'systemctl --user daemon-reload' "$oomd_compat_migration" >/dev/null ||
+  fail "existing user managers keep the unconditional OOM drop-in loaded after upgrade"
+pass "existing user managers drop app.slice candidacy when procfs hides PID 1"

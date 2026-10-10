@@ -161,6 +161,7 @@ package_defaults = [
   ("default/systemd/user/omarchy-tailscale-receive.service", "/usr/lib/systemd/user/omarchy-tailscale-receive.service", "systemd/user/omarchy-tailscale-receive.service"),
   ("default/systemd/user/omarchy-fcitx5.service", "/usr/lib/systemd/user/omarchy-fcitx5.service", "systemd/user/omarchy-fcitx5.service"),
   ("default/systemd/user/omarchy-crash-watch.service", "/usr/lib/systemd/user/omarchy-crash-watch.service", "systemd/user/omarchy-crash-watch.service"),
+  ("default/systemd/user-generators/omarchy-oomd-generator", "/usr/lib/systemd/user-generators/omarchy-oomd-generator", "systemd/user-generators/omarchy-oomd-generator"),
   ("default/systemd/zram-generator.conf.d/90-omarchy.conf", "/usr/lib/systemd/zram-generator.conf.d/90-omarchy.conf", "systemd/zram-generator.conf.d/90-omarchy.conf"),
   ("default/systemd/system/plocate-updatedb.service.d/10-omarchy.conf", "/usr/lib/systemd/system/plocate-updatedb.service.d/10-omarchy.conf", "systemd/system/plocate-updatedb.service.d/10-omarchy.conf"),
   ("default/fonts/omarchy/omarchy.ttf", "/usr/share/fonts/omarchy/omarchy.ttf", "omarchy.ttf"),
@@ -174,6 +175,14 @@ for source, destination, legacy in package_defaults:
     errors.append(f"legacy path still in config/: {legacy}")
   if destination and (source not in pkgbuild or destination not in pkgbuild):
     errors.append(f"PKGBUILD does not explicitly install {source} -> {destination}")
+
+oomd_vendor_source = "default/systemd/user/app.slice.d/10-oomd.conf"
+oomd_vendor_destination = "/usr/lib/systemd/user/app.slice.d/10-oomd.conf"
+if oomd_vendor_source in pkgbuild and oomd_vendor_destination in pkgbuild:
+  errors.append(
+    "PKGBUILD installs app.slice OOM candidacy unconditionally instead of through "
+    "omarchy-oomd-generator"
+  )
 
 # A user unit has to be on the machine before anything turns it on: shipped in
 # /usr/lib/systemd/user, or copied out of default/ by the command enabling it.
