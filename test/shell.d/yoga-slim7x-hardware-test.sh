@@ -153,4 +153,46 @@ printf 'offline\n' >"$remoteprocs/remoteproc0/state"
   if run_starter; then fail "a failed ADSP start must be reported"; fi
 )
 
+# The compute DSP can appear once the audio DSP is already up.
+late="$scratch/late"
+mkdir -p "$late/remoteproc0"
+printf 'qcadsp8380.mbn\n' >"$late/remoteproc0/firmware"
+printf 'offline\n' >"$late/remoteproc0/state"
+run_late_starter() {
+  OMARCHY_YOGA_REMOTEPROC_ROOT="$late" \
+    OMARCHY_YOGA_REMOTEPROC_ATTEMPTS=2 \
+    OMARCHY_YOGA_REMOTEPROC_SLEEP=0 \
+    bash "$starter"
+}
+(
+  sleep() {
+    mkdir -p "$late/remoteproc1"
+    printf 'qccdsp8380.mbn\n' >"$late/remoteproc1/firmware"
+    printf 'offline\n' >"$late/remoteproc1/state"
+  }
+  export late
+  export -f sleep
+  run_late_starter
+)
+[[ $(<"$late/remoteproc1/state") == start ]] ||
+  fail "a compute DSP that appears after the audio DSP is still started"
+
+# A compute DSP that never starts is tried to the end, and the audio DSP still
+# decides the result.
+printf 'offline\n' >"$late/remoteproc0/state"
+printf 'offline\n' >"$late/remoteproc1/state"
+(
+  printf() {
+    [[ $1 != "start\n" || ${kind:-} != CDSP ]] || return 1
+    # shellcheck disable=SC2059 # Forward the caller's format unchanged.
+    builtin printf "$@"
+  }
+  export -f printf
+  run_late_starter 2>"$scratch/late.err" ||
+    fail "a compute DSP that cannot start does not fail a started audio DSP"
+)
+[[ $(<"$late/remoteproc0/state") == start ]] || fail "the audio DSP is started beside a failing compute DSP"
+(( $(grep -c 'could not start CDSP' "$scratch/late.err") == 2 )) ||
+  fail "a compute DSP that cannot start is tried on every attempt"
+
 pass "Yoga Slim 7x adds only its board-specific keyboard, display, CPU and DSP setup"
