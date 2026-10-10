@@ -98,3 +98,17 @@ pass "taildrop receive ignores downloads that arrive while it waits"
 [[ -z $(ls -A "$downloads/.omarchy-taildrop") ]] ||
   fail "taildrop receive empties its staging directory" "$(ls -A "$downloads/.omarchy-taildrop")"
 pass "taildrop receive empties its staging directory"
+
+# A downloads directory under home is shown the way people know it, as ~/...
+# The home path carries glob characters so it must be matched as a literal prefix.
+home="$WORKDIR/home[1]"
+mkdir -p "$home/Downloads"
+printf 'pdf' >"$WORKDIR/outbox/report.pdf"
+: >"$WORKDIR/notifications"
+HOME="$home" PATH="$WORKDIR/bin:$PATH" "$ROOT/bin/omarchy-tailscale-receive" --once "$home/Downloads"
+
+notifications=$(<"$WORKDIR/notifications")
+
+grep -qF -- "Received report.pdf Saved to ~/Downloads -u critical" <<<"$notifications" ||
+  fail "taildrop receive shortens a downloads directory under home to ~" "$notifications"
+pass "taildrop receive shortens a downloads directory under home to ~"
