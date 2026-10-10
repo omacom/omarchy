@@ -28,9 +28,15 @@ cat >"$TMPDIR/bin/hyprctl" <<'SH'
 if [[ ${1:-} == "hyprsunset" && ${2:-} == "temperature" ]]; then
   if [[ -n ${3:-} ]]; then
     printf '%s\n' "$3" >"$HYPRSUNSET_STATE"
+    printf 'false\n' >"$HYPRSUNSET_STATE.identity"
   else
     cat "$HYPRSUNSET_STATE" 2>/dev/null || exit 1
   fi
+  exit 0
+fi
+
+if [[ ${1:-} == "hyprsunset" && ${2:-} == "identity" ]]; then
+  printf 'true\n' >"$HYPRSUNSET_STATE.identity"
   exit 0
 fi
 
@@ -82,9 +88,25 @@ pass "nightlight toggle warms the screen from daylight"
 grep -Fqx -- '-q nightlight refresh' "$SHELL_LOG" || fail "nightlight toggle nudges the shell nightlight service"
 pass "nightlight toggle nudges the shell nightlight service"
 
+[[ $(<"$STATE.identity") == "false" ]] || fail "nightlight toggle leaves identity when warming the screen"
+pass "nightlight toggle leaves identity when warming the screen"
+
 nightlight_cli >/dev/null
 [[ $(<"$STATE") == 6500 ]] || fail "nightlight toggle restores daylight from night light"
 pass "nightlight toggle restores daylight from night light"
+
+[[ $(<"$STATE.identity") == "true" ]] || fail "nightlight toggle resets to the identity matrix when turning off"
+pass "nightlight toggle resets to the identity matrix when turning off"
+
+# hyprsunset's own default, as the shipped identity profile starts it
+printf '6000\n' >"$STATE"
+nightlight_cli >/dev/null
+[[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle warms the screen from hyprsunset's default"
+pass "nightlight toggle warms the screen from hyprsunset's default"
+
+rg -F '(temp === dayTemperature ? " && hyprctl hyprsunset identity" : "")' "$ROOT/shell/plugins/services/nightlight/Service.qml" >/dev/null ||
+  fail "nightlight service resets to the identity matrix when turning off"
+pass "nightlight service resets to the identity matrix when turning off"
 
 if rg -q 'omarchy.indicators' "$ROOT/bin/omarchy-toggle-nightlight"; then
   fail "nightlight toggle leaves indicator refresh to the nightlight service"

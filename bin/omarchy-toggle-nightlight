@@ -42,10 +42,10 @@ fi
 # Query the current temperature
 CURRENT_TEMP=$(current_temp)
 
-if [[ -z $CURRENT_TEMP || $CURRENT_TEMP == $OFF_TEMP ]]; then
-  TARGET_TEMP=$ON_TEMP
-else
+if [[ -n $CURRENT_TEMP ]] && (( CURRENT_TEMP < IDENTITY_TEMP )); then
   TARGET_TEMP=$OFF_TEMP
+else
+  TARGET_TEMP=$ON_TEMP
 fi
 
 # A freshly-started hyprsunset applies its default temperature at the end of
@@ -55,5 +55,11 @@ for _ in {1..10}; do
   sleep 0.2
   [[ $(current_temp) == "$TARGET_TEMP" ]] && break
 done
+
+# Even 6500K tints the screen, so off also resets to the identity matrix;
+# hyprsunset keeps reporting 6500K, which --status reads as off
+if (( TARGET_TEMP == OFF_TEMP )); then
+  hyprctl hyprsunset identity >/dev/null 2>&1
+fi
 
 omarchy-shell -q nightlight refresh
