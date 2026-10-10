@@ -255,7 +255,8 @@ When user requests system changes:
 4. **Is it automation?** Follow [`hooks.md`](hooks.md); use `omarchy hook install` and the hook `.d` directories
 5. **Is it a package install?** Use `omarchy pkg add <pkgs...>` (or `omarchy pkg aur add <pkgs...>` for AUR-only packages)
 6. **Is it built-in shell/plugin code?** Follow [`plugins.md`](plugins.md); clone it with `omarchy plugin clone`, never edit the packaged copy
-7. **Unsure if command exists?** Run `omarchy commands` (or `omarchy <group> --help` for one group)
+7. **Could a shell plugin plausibly cover it?** First check what Omarchy already has (`omarchy plugin list`, including disabled first-party plugins, plus existing keybindings), then search https://plugins.omarchy.org/ (see [`plugins.md`](plugins.md#check-what-exists-before-building)) and offer a matching plugin before building or configuring anything. This includes requests that could also be done in config, such as a custom lock screen, workspace overviews, launchers, or anything that shows information or controls on screen. If the config route only partly does what was asked (e.g. a fixed time instead of real sunset, manual instead of automatic, a one-shot instead of a schedule), search the marketplace too. If a plugin matches, present it next to the config option and let the user choose
+8. **Unsure if command exists?** Run `omarchy commands` (or `omarchy <group> --help` for one group)
 
 ### Reminder Requests
 
