@@ -26,4 +26,16 @@ EOF
   cat > /etc/mkinitcpio.conf.d/nvidia.conf <<'EOF'
 MODULES+=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
 EOF
+
+  # Chromium cannot import NVIDIA VA-API dmabufs; pin software video decode on
+  # the install user's Chromium-family flag files when they already exist.
+  if omarchy-hw-nvidia-gsp; then
+    install_user=${OMARCHY_INSTALL_USER:-${SUDO_USER:-}}
+    if [[ -n $install_user ]]; then
+      install_home=$(getent passwd "$install_user" | cut -d: -f6)
+      if [[ -n $install_home ]]; then
+        sudo -u "$install_user" HOME="$install_home" omarchy-chromium-nvidia-video-flags || true
+      fi
+    fi
+  fi
 fi

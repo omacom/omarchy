@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# omarchy:summary=Disable Chromium VA-API video decode on NVIDIA GSP GPUs
+# omarchy:hidden=true
+
+# LIBVA_DRIVER_NAME=nvidia (session-wide for Firefox) makes Chromium decode to
+# a dmabuf it cannot import, so video paints black while audio plays
+# (issue #13188). Chromium has no other NVIDIA hardware decode path on Linux,
+# so disabling accelerated video decode restores software decode without
+# changing Firefox's VA-API setup.
+
+set -euo pipefail
+
+omarchy-hw-nvidia-gsp >/dev/null 2>&1 || exit 0
+
+FLAG='--disable-accelerated-video-decode'
+
+append_flag() {
+  local conf="$1"
+
+  [[ -f $conf ]] || return 0
+  grep -qxF -- "$FLAG" "$conf" && return 0
+
+  [[ -n $(tail -c1 "$conf" 2>/dev/null || true) ]] && echo >>"$conf"
+  echo "$FLAG" >>"$conf"
+}
+
+for conf in \
+  "$HOME/.config/chromium-flags.conf" \
+  "$HOME/.config/brave-flags.conf" \
+  "$HOME/.config/brave-origin-flags.conf" \
+  "$HOME/.config/chrome-flags.conf" \
+  "$HOME/.config/microsoft-edge-stable-flags.conf"; do
+  append_flag "$conf"
+done
