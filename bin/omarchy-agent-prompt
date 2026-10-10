@@ -1,23 +1,81 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent with a prompt
-# omarchy:args=[--inline] <prompt...>
-# omarchy:examples=omarchy agent prompt "Review this project"
+# omarchy:args=[--inline] [--clipboard] [<prompt...>|-]
+# omarchy:examples=omarchy agent prompt "Review this project" | omarchy agent prompt - | omarchy agent prompt --clipboard
 
 # Prompts live here rather than on `omarchy agent`, where a bare prompt would
 # shadow the subcommands under that group.
 
 set -euo pipefail
 
-inline=()
-if [[ ${1:-} == "--inline" ]]; then
-  inline=(--inline)
-  shift
-fi
+inline=false
+from_clipboard=false
 
-if (($# == 0)); then
-  echo "Usage: omarchy agent prompt [--inline] <prompt...>" >&2
+while (($#)); do
+  case "$1" in
+    --inline)
+      inline=true
+      shift
+      ;;
+    --clipboard)
+      from_clipboard=true
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -)
+      # Bare "-" is the stdin prompt sentinel, not an option flag.
+      break
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+prompt=""
+
+if [[ $from_clipboard == "true" ]]; then
+  if (($#)); then
+    echo "--clipboard cannot be combined with another prompt source" >&2
+    exit 1
+  fi
+  if ! omarchy-cmd-present wl-paste; then
+    echo "wl-paste is required for --clipboard" >&2
+    exit 1
+  fi
+  if ! prompt=$(wl-paste --no-newline --type text); then
+    echo "Unable to read clipboard" >&2
+    exit 1
+  fi
+  if [[ -z $prompt ]]; then
+    echo "Clipboard is empty" >&2
+    exit 1
+  fi
+elif (($# == 1)) && [[ $1 == "-" ]]; then
+  # Accept piped input; the launcher still passes the prompt as an argument
+  # to the selected harness, so this is not a private prompt channel.
+  prompt=$(cat)
+  if [[ -z $prompt ]]; then
+    echo "Prompt on stdin was empty" >&2
+    exit 1
+  fi
+elif (($# > 0)); then
+  prompt="$*"
+else
+  echo "Usage: omarchy agent prompt [--inline] [--clipboard] [<prompt...>|-]" >&2
   exit 1
 fi
 
-exec omarchy-agent "${inline[@]}" --prompt "$*"
+if [[ $from_clipboard == "true" ]]; then
+  printf 'Launching agent with %s clipboard characters; the prompt is visible in process arguments.\n' "${#prompt}" >&2
+fi
+
+if [[ $inline == "true" ]]; then
+  exec omarchy-agent --inline --prompt "$prompt"
+else
+  exec omarchy-agent --prompt "$prompt"
+fi
