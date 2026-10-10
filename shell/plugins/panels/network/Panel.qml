@@ -357,6 +357,7 @@ Panel {
   onPasswordSsidChanged: {
     if (passwordSsid === "" && opened) {
       passwordText = ""
+      syncWifiNetworks()
       Qt.callLater(function() { if (keyCatcher) keyCatcher.forceActiveFocus() })
     }
   }
@@ -694,6 +695,8 @@ Panel {
   }
 
   function syncWifiNetworks() {
+    if (passwordSsid !== "" && actionKind === "") return
+
     var nets = []
     var networks = wifiNetworkObjects || []
 
