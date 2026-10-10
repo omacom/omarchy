@@ -55,12 +55,20 @@ const entries = [
   }
 ]
 
-// Keep the packaged launcher when upstream rebuilds register their own entry.
+// The upstream runtime registers its own Hermes launcher. The hide moves with
+// ownership: the packaged app's entry is the only one while the hermes-desktop
+// package owns Hermes, and the standalone entry is the only one otherwise --
+// hidden-entries.sh answers that, this list only covers the rest.
 const configuredHides = new Set(fs.readFileSync(path.join(root, 'default/omarchy/launcher.hides'), 'utf8').trim().split(/\n/))
+assert(!configuredHides.has('hermes'), 'the standalone Hermes launcher is not statically hidden')
+
 const hermesEntries = [{ name: 'Hermes', id: 'hermes' }, { name: 'Hermes', id: 'hermes-desktop' }]
+const packagedHides = new Set([...configuredHides, 'hermes'])
 for (const query of ['', 'hermes']) {
-  const visible = search.sortedEntries(hermesEntries, query, entry => configuredHides.has(entry.id))
+  const visible = search.sortedEntries(hermesEntries, query, entry => packagedHides.has(entry.id))
   assertDeepEqual(visible.map(row => row.entry.id), ['hermes-desktop'], 'only the packaged Hermes launcher is visible')
+  const standalone = search.sortedEntries(hermesEntries, query, entry => configuredHides.has(entry.id))
+  assertDeepEqual(standalone.map(row => row.entry.id), ['hermes', 'hermes-desktop'], 'a Hermes installed without the package stays launchable')
 }
 
 const contactMatches = search.sortedEntries(entries, 'contact').map(row => search.entryName(row.entry))

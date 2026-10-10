@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true if a complete standalone Hermes Desktop installation is present
+# omarchy:hidden=true
+
+# The Install > AI > Hermes row uses this to recognize a Hermes the packaged
+# app never installed. It mirrors how omarchy-install-ai-hermes locates the
+# runtime: HERMES_HOME wins over the default, a path inside a profiles
+# directory belongs to the shared root above it, and the runtime sits at
+# <home>/hermes-agent.
+#
+# Completeness is the installer's own readiness checks minus the probes that
+# would run Hermes: the runtime needs its bootstrap marker and a working venv,
+# and the native app needs its binary, app.asar and install stamp. File tests
+# only, because the menu's guard batch runs this on every open.
+
+hermes_home=$(realpath -ms -- "${HERMES_HOME:-$HOME/.hermes}")
+home_parent=$(dirname -- "$hermes_home")
+if [[ ${home_parent##*/} == [Pp][Rr][Oo][Ff][Ii][Ll][Ee][Ss] ]]; then
+  hermes_home=$(dirname -- "$home_parent")
+fi
+
+runtime="$hermes_home/hermes-agent"
+native_app="$runtime/apps/desktop/release/linux-unpacked"
+
+[[ -f $runtime/.hermes-bootstrap-complete &&
+   -f $runtime/venv/bin/hermes && -x $runtime/venv/bin/hermes &&
+   -f $runtime/venv/bin/python && -x $runtime/venv/bin/python &&
+   -f $native_app/Hermes && -x $native_app/Hermes &&
+   -f $native_app/resources/app.asar &&
+   -f $native_app/resources/install-stamp.json ]]
