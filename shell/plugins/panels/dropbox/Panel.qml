@@ -139,7 +139,6 @@ Panel {
   onOpenedChanged: if (opened) {
     cursorActive = false
     if (panelFlick) panelFlick.contentY = 0
-    dropbox.refresh()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
   onFileIndexChanged: scrollCursorIntoView()
@@ -148,6 +147,7 @@ Panel {
     id: dropbox
     settings: root.settings
     omarchyPath: root.omarchyPath
+    inventoryRequested: root.opened
   }
 
   Connections {
@@ -283,10 +283,10 @@ Panel {
 
           Text {
             textFormat: Text.PlainText
-            visible: dropbox.actionStatus !== "" || dropbox.lastError !== ""
+            visible: dropbox.actionStatus !== "" || dropbox.lastError !== "" || dropbox.inventoryError !== ""
             width: parent.width
-            text: dropbox.actionStatus !== "" ? dropbox.actionStatus : dropbox.lastError
-            color: dropbox.lastError !== "" && dropbox.actionStatus === "" ? root.urgent : root.dim
+            text: dropbox.actionStatus !== "" ? dropbox.actionStatus : (dropbox.lastError || dropbox.inventoryError)
+            color: (dropbox.lastError !== "" || dropbox.inventoryError !== "") && dropbox.actionStatus === "" ? root.urgent : root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
             wrapMode: Text.WordWrap
@@ -305,7 +305,7 @@ Panel {
             Column {
               width: parent.width
               spacing: Style.spacing.labelGap
-              InfoPair { label: "Stored"; value: Model.usageText(dropbox.usedBytes, dropbox.quotaBytes, dropbox.quotaKnown) }
+              InfoPair { label: "Stored"; value: dropbox.inventoryLoaded ? Model.usageText(dropbox.usedBytes, dropbox.quotaBytes, dropbox.quotaKnown) : (dropbox.inventoryRefreshing ? "Loading…" : "Unavailable") }
             }
           }
 
@@ -327,8 +327,9 @@ Panel {
 
             Text {
               visible: dropbox.files.length === 0
+              textFormat: Text.PlainText
               width: parent.width
-              text: "No synced files found."
+              text: dropbox.inventoryLoaded ? "No synced files found." : (dropbox.inventoryRefreshing ? "Loading recent files…" : "Recent files unavailable.")
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.body

@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import qs.Commons
 import "Model.js" as Model
 
 Item {
@@ -13,6 +12,11 @@ Item {
   property bool installed: false
   property bool running: false
   property bool authenticated: false
+  property bool inventoryRequested: false
+  property bool inventoryLoaded: false
+  readonly property bool inventoryRefreshing: inventoryProcess.running
+  property string inventoryError: ""
+  property bool inventoryPending: false
 
   // Optimistic sync state so the UI reacts the instant you click, rather than
   // waiting for dropboxd to actually settle. _desired is -1 while we just
@@ -56,13 +60,38 @@ Item {
     return n
   }
 
-  function refresh() {
+  function refresh(includeInventory) {
+    if (root.inventoryRequested && includeInventory !== false) root.inventoryPending = true
     if (statusProcess.running || helperPath === "/shell/plugins/panels/dropbox/status.py") return
     _statusOutput = ""
     _statusError = ""
     refreshing = true
-    statusProcess.command = ["python3", helperPath, "25"]
+    statusProcess.command = ["timeout", "--kill-after=2s", "8s", "python3", helperPath, "--status-only"]
     statusProcess.running = true
+  }
+
+  function refreshInventory() {
+    if (!root.inventoryRequested || !root.authenticated || inventoryProcess.running) return
+    root.inventoryPending = false
+    inventoryProcess.accountPath = root.accountPath
+    inventoryProcess.cancelRequested = false
+    inventoryProcess.command = ["timeout", "--kill-after=2s", "15s", "python3", helperPath, "--inventory-only", "25"]
+    inventoryProcess.running = true
+  }
+
+  function cancelInventory() {
+    root.inventoryPending = false
+    if (inventoryProcess.running) {
+      inventoryProcess.cancelRequested = true
+      // Signal timeout, which forwards TERM to the scan's process group and
+      // escalates after its grace period if a helper does not stop.
+      inventoryProcess.signal(15)
+    }
+  }
+
+  onInventoryRequestedChanged: {
+    if (inventoryRequested) refresh()
+    else cancelInventory()
   }
 
   function applyStatus(raw) {
@@ -77,14 +106,37 @@ Item {
     // Reality caught up to the pending pause/resume — stop overriding.
     if (_desired !== -1 && running === (_desired === 1)) _desired = -1
     statusText = String(parsed.statusText || (installed ? "Stopped" : "Not installed"))
-    accountPath = String(parsed.accountPath || "")
+    var nextPath = String(parsed.accountPath || "")
+    if (nextPath !== accountPath || !authenticated) {
+      cancelInventory()
+      inventoryLoaded = false
+      inventoryError = ""
+      usedBytes = 0
+      usagePercent = 0
+      files = []
+      inventoryPending = inventoryRequested && authenticated
+    }
+    accountPath = nextPath
     plan = String(parsed.plan || "")
-    usedBytes = Number(parsed.usedBytes || 0)
     quotaBytes = Number(parsed.quotaBytes || 0)
-    usagePercent = Number(parsed.usagePercent || 0)
+    usagePercent = quotaBytes > 0 ? usedBytes / quotaBytes * 100 : 0
     quotaKnown = parsed.quotaKnown === true
-    files = parsed.files || []
     lastError = ""
+  }
+
+  function applyInventory(raw, expectedPath) {
+    var parsed = Model.parseStatus(raw)
+    if (!parsed.ok || parsed.inventoryLoaded !== true || parsed.authenticated !== true) {
+      inventoryError = "Could not read Dropbox file inventory"
+      return
+    }
+    // A status refresh can change account while a scan is still exiting.
+    if (!authenticated || expectedPath !== accountPath || String(parsed.accountPath || "") !== accountPath) return
+    usedBytes = Number(parsed.usedBytes || 0)
+    usagePercent = quotaBytes > 0 ? usedBytes / quotaBytes * 100 : 0
+    files = parsed.files || []
+    inventoryLoaded = true
+    inventoryError = ""
   }
 
   function elideStatus(text) {
@@ -179,7 +231,7 @@ Item {
     onTriggered: {
       ticks += 1
       if (root.running || ticks >= 15) startupRamp.running = false
-      else root.refresh()
+      else root.refresh(false)
     }
   }
 
@@ -187,7 +239,7 @@ Item {
     id: delayedRefresh
     interval: 1000
     repeat: false
-    onTriggered: root.refresh()
+    onTriggered: root.refresh(false)
   }
 
   Timer {
@@ -208,7 +260,7 @@ Item {
     running: false
     onTriggered: {
       settleTimer.ticks += 1
-      root.refresh()
+      root.refresh(false)
       if (settleTimer.ticks >= 4) {
         settleTimer.ticks = 0
         settleTimer.running = false
@@ -227,8 +279,27 @@ Item {
       root.refreshing = false
       var stdout = String(statusStdout.text || root._statusOutput || "")
       var stderr = String(statusStderr.text || root._statusError || "")
-      if (exitCode === 0) root.applyStatus(stdout)
+      if (exitCode === 0) {
+        root.applyStatus(stdout)
+        if (root.inventoryPending) root.refreshInventory()
+      }
       else root.lastError = root.elideStatus(stderr || stdout || "Could not read Dropbox status")
+    }
+  }
+
+  Process {
+    id: inventoryProcess
+    property string accountPath: ""
+    property bool cancelRequested: false
+    stdout: StdioCollector { id: inventoryStdout; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (!cancelRequested && root.inventoryRequested && accountPath === root.accountPath) {
+        if (exitCode === 0) root.applyInventory(inventoryStdout.text, accountPath)
+        else root.inventoryError = exitCode === 124 || exitCode === 137
+          ? "Dropbox file inventory timed out"
+          : "Could not read Dropbox file inventory"
+      }
+      if (root.inventoryPending) root.refreshInventory()
     }
   }
 
