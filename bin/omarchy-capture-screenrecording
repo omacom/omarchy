@@ -389,6 +389,8 @@ start_screenrecording() {
     rm -f "$filename"
   done
 
+  start_cancelled && return 1
+
   omarchy-notification-send -u critical -t 3000 "Screen recording failed to start" \
     "Set OMARCHY_SCREENRECORD_DEBUG=true and retry to log why."
   return 1
