@@ -151,6 +151,11 @@ if [[ -z $dev_checkout && $OMARCHY_PATH != "/usr/share/omarchy" ]]; then
   leaving_dev=1
 fi
 
+# Channel switch runs refresh-pacman, pacman -S, then a full update with many
+# sudo steps (migrations, keyring, orphans). Prompt once and keep the ticket
+# alive so the menu action does not ask for the password on every step.
+source omarchy-sudo-keepalive
+
 if [[ -n $dev_checkout ]]; then
   link_dev_checkout "$dev_checkout"
   export OMARCHY_PATH="$dev_checkout"
@@ -175,4 +180,10 @@ if [[ -z $dev_checkout ]]; then
   omarchy_security_enable_no_update_sudo 2>/dev/null || stop_for_older_destination
 fi
 
-OMARCHY_UPDATE_USER_PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update" -y
+# -y suppresses the post-update reboot offer. Keep it for non-interactive
+# callers; from a TTY (menu/terminal) let update ask about reboot (#13416).
+if [[ -t 0 && -z ${OMARCHY_UPDATE_UNATTENDED:-} ]]; then
+  OMARCHY_UPDATE_USER_PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update"
+else
+  OMARCHY_UPDATE_USER_PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update" -y
+fi
