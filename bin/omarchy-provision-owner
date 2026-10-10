@@ -616,7 +616,6 @@ keyboard_form() {
     confirm_reboot && exec systemctl reboot
   done
 
-  apply_keyboard "$keyboard"
   omarchy_persist_input_selection
 }
 
