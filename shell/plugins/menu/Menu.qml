@@ -689,13 +689,27 @@ Item {
   // the neighbor entirely and losing the fold affordance. Keep the next
   // hidden row peeking past the cursor in the direction of travel.
   function revealCursor() {
-    if (displayModel.count === 0) return
+    // Opening the overlay resizes it asynchronously. Wait for usable surface
+    // geometry, then apply any model changes queued by Qt before scrolling.
+    if (!root.opened || panel.width <= 1 || panel.height <= 1
+        || resultList.width <= 0 || resultList.height <= 0 || displayModel.count === 0) return
+    resultList.cancelFlick()
+    resultList.forceLayout()
+
+    // Peeking at the next row must never scroll the first row out of view.
+    if (root.selectedIndex === 0) {
+      resultList.positionViewAtBeginning()
+      return
+    }
     resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
 
     var item = resultList.itemAtIndex(root.selectedIndex)
     if (!item) return
 
-    var reach = root.rowPeek + root.rowSpacing
+    // Only reserve space for neighbors when the entire cursor row still fits.
+    var reach = Math.min(root.rowPeek + root.rowSpacing,
+      Math.max(0, (resultList.height - item.height) / 2))
+    if (reach === 0) return
     if (root.selectedIndex < displayModel.count - 1) {
       var maxY = Math.max(resultList.originY, resultList.originY + resultList.contentHeight - resultList.height)
       var overhang = item.y + item.height + reach - (resultList.contentY + resultList.height)
@@ -1224,6 +1238,10 @@ Item {
             clip: true
             spacing: root.rowSpacing
             boundsBehavior: Flickable.StopAtBounds
+
+            // Showing the overlay changes the list size after open() returns.
+            onWidthChanged: if (root.opened && root.cursorActive) Qt.callLater(root.revealCursor)
+            onHeightChanged: if (root.opened && root.cursorActive) Qt.callLater(root.revealCursor)
 
             section.property: "section"
             section.criteria: ViewSection.FullString
