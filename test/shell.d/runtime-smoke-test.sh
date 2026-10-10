@@ -75,6 +75,32 @@ Item {
 }
 QML
 
+# Edited plugin code must run after a hot reload, not just edited manifests:
+# Qt caches compiled components by URL, so the entry point below changes its
+# marker between reloads and the test calls it each time.
+hot_code_id="acme.hot-code"
+hot_code_dir="$test_home/.config/omarchy/plugins/$hot_code_id"
+mkdir -p "$hot_code_dir"
+cat >"$hot_code_dir/manifest.json" <<JSON
+{
+  "schemaVersion": 1,
+  "id": "$hot_code_id",
+  "name": "Hot Code",
+  "version": "1.0.0",
+  "kinds": ["overlay"],
+  "entryPoints": {"overlay": "Overlay.qml"}
+}
+JSON
+cat >"$hot_code_dir/Overlay.qml" <<'QML'
+import QtQuick
+
+Item {
+  function open(payloadJson) {}
+  function close() {}
+  function marker(arg) { return "code-v1" }
+}
+QML
+
 # A keepLoaded service must keep its instance (and in-memory state) across a
 # plugin rescan. The marker below can only survive if the object does.
 keep_service_id="acme.keep-service"
@@ -397,6 +423,33 @@ pass "installed plugin changes reload without an explicit rescan"
 shell_ipc_quiet shell hide omarchy.emojis >/dev/null
 shell_ipc_quiet shell setPluginEnabled "$hot_reload_id" false >/dev/null
 pass "shell IPC routes built-in ids to enabled clones"
+
+# Summons the hot-code overlay (a reload unloads it) until marker() answers.
+hot_code_marker() {
+  local expected="$1" marker=""
+  for _ in {1..80}; do
+    shell_ipc_quiet shell summon "$hot_code_id" "{}" >/dev/null 2>&1 || true
+    marker=$(shell_ipc shell call "$hot_code_id" marker "" 2>/dev/null || true)
+    [[ $marker == "$expected" ]] && return 0
+    if ! kill -0 "$QS_PID" 2>/dev/null; then
+      fail_with_log "test shell exited while reloading edited plugin code"
+    fi
+    sleep 0.1
+  done
+  echo "last marker: ${marker:-<none>}" >&2
+  return 1
+}
+
+[[ $(shell_ipc shell setPluginEnabled "$hot_code_id" true) == "ok" ]] ||
+  fail_with_log "hot-code plugin could not be enabled"
+hot_code_marker "code-v1" || fail_with_log "hot-code plugin runs its initial code"
+sed -i 's/code-v1/code-v2/' "$hot_code_dir/Overlay.qml"
+hot_code_marker "code-v2" || fail_with_log "edited plugin QML runs after a hot reload"
+sed -i 's/code-v2/code-v3/' "$hot_code_dir/Overlay.qml"
+hot_code_marker "code-v3" || fail_with_log "edited plugin QML runs after successive hot reloads"
+shell_ipc_quiet shell hide "$hot_code_id" >/dev/null
+shell_ipc_quiet shell setPluginEnabled "$hot_code_id" false >/dev/null
+pass "edited plugin QML runs after successive hot reloads"
 
 shell_config=$(shell_ipc shell listShellConfig)
 jq -e '
