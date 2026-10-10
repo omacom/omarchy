@@ -2,6 +2,11 @@
 
 # omarchy:summary=Reload opencode configuration (used by the Omarchy theme switching).
 
-if pgrep -x opencode >/dev/null; then
-  killall -SIGUSR2 opencode
-fi
+# Only processes that catch SIGUSR2 (bit 0x800 of SigCgt) get it: plain `opencode run`
+# and `opencode serve` have no handler, so the default disposition would kill them.
+for pid in $(pgrep -x opencode); do
+  caught=$(awk '/^SigCgt:/ { print $2 }' "/proc/$pid/status" 2>/dev/null)
+  if [[ -n $caught ]] && (( 0x$caught & 0x800 )); then
+    kill -USR2 "$pid" 2>/dev/null
+  fi
+done
