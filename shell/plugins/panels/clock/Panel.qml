@@ -307,9 +307,9 @@ Panel {
                   : root.contentForeground
                 font.family: root.contentFontFamily
                 // Decorative, and deliberately outside the Style.font.*
-                // scale. Sized so the glyph reads at the cap height of the
-                // date beside it rather than towering over it.
-                font.pixelSize: 48
+                // scale: it follows Style.space, like the card around it. Sized
+                // so the glyph reads at the cap height of the date beside it.
+                font.pixelSize: Style.space(48)
               }
 
               Text {
@@ -321,7 +321,7 @@ Panel {
                   ? Style.hoverStateColor(root.contentForeground, Commons.Color.accent)
                   : root.contentForeground
                 font.family: root.contentFontFamily
-                font.pixelSize: 52
+                font.pixelSize: Style.space(52)
                 font.bold: true
               }
             }

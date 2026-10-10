@@ -213,6 +213,10 @@ assert(/width: Math\.max\(calendarScroll\.width, gridColumn\.width\)/.test(panel
 assert(/enabled: !root\.viewingCurrentMonth/.test(panelSource) && /onClicked: root\.goToToday\(\)/.test(panelSource), 'calendar hero returns to today once the view has stepped away')
 assert(!/clampMonth/.test(panelSource), 'calendar steps freely into future months')
 assert(/Qt\.formatDate\(root\.today, "MMMM d"\)/.test(panelSource), 'calendar hero spells out today')
+assert(
+  /font\.pixelSize: Style\.space\(52\)/.test(panelSource) && /font\.pixelSize: Style\.space\(48\)/.test(panelSource),
+  'calendar hero date and glyph scale with the card through Style.space'
+)
 assert(/id: yearLabel/.test(panelSource) && /root\.yearDone/.test(panelSource), 'calendar panel shows the year progress bar')
 
 // The memento mori bar is opt-in: double-tapping the year bar asks for an age,
