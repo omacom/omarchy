@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # omarchy:summary=Remove a development environment that was previously installed via omarchy-install-dev-env.
-# omarchy:args=<ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|ocaml|clojure|scala>
+# omarchy:args=<ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|flutter|ocaml|clojure|scala>
 # omarchy:requires-sudo=true
 
 if [[ -z $1 ]]; then
-  echo "Usage: omarchy-remove-dev-env <ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|ocaml|clojure|scala>" >&2
+  echo "Usage: omarchy-remove-dev-env <ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|flutter|ocaml|clojure|scala>" >&2
   exit 1
 fi
 
@@ -121,6 +121,11 @@ dotnet)
   echo -e "Removing .NET...\n"
   mise uninstall dotnet --all
   mise rm -g dotnet
+  ;;
+flutter)
+  echo -e "Removing Flutter...\n"
+  mise uninstall flutter --all
+  mise rm -g flutter
   ;;
 ocaml)
   begin_ocaml_sudo_boundary
