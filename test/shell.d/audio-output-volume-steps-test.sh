@@ -35,19 +35,34 @@ echo test_sink
 STUB
 cat >"$test_dir/bin/omarchy-osd" <<'STUB'
 #!/bin/bash
+touch "$TEST_DATA/osd/$$"
+for _ in {1..300}; do
+  osd_runs=("$TEST_DATA/osd/"*)
+  ((${#osd_runs[@]} >= 10)) && exit 0
+  sleep 0.01
+done
+exit 1
 STUB
 chmod +x "$test_dir/bin/"*
 
 change_volume_concurrently() {
   local action="$1"
-  local _
+  local pid _
+  local -a pids=()
+
+  rm -rf "$test_dir/osd"
+  mkdir "$test_dir/osd"
 
   for _ in {1..10}; do
     TEST_DATA="$test_dir" XDG_RUNTIME_DIR="$test_dir/runtime" PATH="$test_dir/bin:$PATH" \
       bash "$ROOT/bin/omarchy-audio-output-volume" "$action" &
+    pids+=("$!")
     sleep 0.01
   done
-  wait
+
+  for pid in "${pids[@]}"; do
+    wait "$pid" || fail "overlapping volume ${action}s all finish with their OSD shown together" "a run exited non-zero"
+  done
 }
 
 printf '20\n' >"$test_dir/volume"
