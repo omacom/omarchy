@@ -236,19 +236,28 @@ Item {
     function onActiveToplevelChanged() { root.maybeFinishLaunchFeedback() }
   }
 
+
+  Timer {
+    id: launchPoll
+    interval: 250
+    repeat: true
+    running: launchDelay.running || launchTimeout.running || root.launchOsdOpen
+    onTriggered: root.maybeFinishLaunchFeedback()
+  }
+
   Timer {
     id: launchDelay
     interval: 2000
     onTriggered: {
       if (root.toplevelCount() > root.launchToplevelCount || ToplevelManager.activeToplevel !== root.launchActiveToplevel) return
       root.launchOsdOpen = true
-      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 0 })])
+      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 5000 })])
     }
   }
 
   Timer {
     id: launchTimeout
-    interval: 15000
+    interval: 8000
     onTriggered: root.closeLaunchFeedback(root.launchSerial)
   }
 
