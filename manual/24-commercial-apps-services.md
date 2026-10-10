@@ -18,6 +18,8 @@ You start 1Password with `Super + Shift + /`. If it isn't installed yet, that ho
 
 You start Spotify using `Super + Shift + M`. Like 1Password, the hotkey kicks off the installation first if Spotify isn't installed yet (or use _Install > Service > Spotify_ from the Omarchy menu).
 
+Local Files work too. Turn on _Settings > Library > Show Local Files_ in Spotify, then switch on a folder or use _Add a source_. The Linux client still needs the older FFmpeg 4.4 libraries to decode those tracks, so the installer also pulls in `ffmpeg4.4` and `zenity` for the folder picker. Without them, a file starts for a second then Spotify says it cannot play the content — even when the file is already on disk.
+
 ## Slack
 
 [Slack](https://slack.com/) is where a lot of teams do their chatting, both inside the company and with outside collaborators. Install it with _Install > Service > Slack_ from the Omarchy menu, and it'll open as soon as it's ready.
