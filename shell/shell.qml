@@ -111,11 +111,24 @@ ShellRoot {
     applyShellConfig()
   }
 
+  Timer {
+    id: secureUserConfigTimer
+    interval: 50
+    repeat: false
+    onTriggered: shell.secureUserConfigFile()
+  }
+
+  function secureUserConfigFile() {
+    Quickshell.execDetached(["bash", "-c", "[[ -f \"$0\" ]] && chmod 0600 \"$0\" || true", shell.userConfigPath])
+  }
+
   function persistShellConfig(nextConfig) {
     var payload = JSON.parse(JSON.stringify(nextConfig))
     payload.version = 1
     shellConfig = payload
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
+    secureUserConfigFile()
+    secureUserConfigTimer.restart()
   }
 
   readonly property var barConfig: shellConfig && Util.isPlainObject(shellConfig.bar) ? shellConfig.bar : builtinShellConfig.bar
@@ -142,9 +155,15 @@ ShellRoot {
     watchChanges: true
     atomicWrites: true
     printErrors: false
-    onLoaded: shell.applyShellConfig()
+    onLoaded: {
+      shell.secureUserConfigFile()
+      shell.applyShellConfig()
+    }
     onLoadFailed: function(error) { shell.applyShellConfig() }
-    onFileChanged: reload()
+    onFileChanged: {
+      shell.secureUserConfigFile()
+      reload()
+    }
   }
 
   Component.onCompleted: {
@@ -154,6 +173,7 @@ ShellRoot {
       "firstPartyPluginsDir=" + shell.firstPartyPluginsDir,
       "defaultsPath=" + shell.defaultsPath,
       "userConfigPath=" + shell.userConfigPath)
+    shell.secureUserConfigFile()
     pluginRegistry.firstPartyDir = shell.firstPartyPluginsDir
     pluginRegistry.shellConfigProvider = function() { return shell.shellConfig }
     pluginRegistry.shellConfigMutator = function(mutate) { shell.mutateShellConfig(mutate) }

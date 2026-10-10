@@ -461,6 +461,9 @@ jq -e '
 [[ -f $TMPDIR/home/.local/state/omarchy/restart-shell-called ]] || fail "shell refresh restarts shell"
 pass "shell refresh places optional service widgets when services are available"
 
+[[ $(stat -c '%a' "$TMPDIR/home/.config/omarchy/shell.json") == "600" ]] || fail "shell refresh enforces mode 0600 on shell.json"
+pass "shell refresh enforces mode 0600 on shell.json"
+
 if grep -RIl 'upgrade-to-quattro\|Omarchy 4\.0 is upgraded' "$ROOT/migrations" >/dev/null; then
   fail "4.0 upgrade is not modeled as a migration"
 fi

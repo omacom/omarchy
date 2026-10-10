@@ -55,8 +55,10 @@ commit() {
   shift
   mkdir -p "$(dirname "$CONFIG_FILE")"
   _SHELL_CONFIG_TMP=$(mktemp)
+  chmod 0600 "$_SHELL_CONFIG_TMP"
   jq -S -e "$@" "$program" "$(source_file)" >"$_SHELL_CONFIG_TMP" || fail "could not update shell config"
   mv "$_SHELL_CONFIG_TMP" "$CONFIG_FILE"
   _SHELL_CONFIG_TMP=""
+  chmod 0600 "$CONFIG_FILE"
   refresh_shell_config
 }
