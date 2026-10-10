@@ -337,6 +337,14 @@ Ghostty terminal is installed using _Install > Terminal_ via the Omarchy menu.
 
 You can use `Super + Ctrl + E` to show a complete emoji picker that'll put the selection on the clipboard or you can use these quick access options.
 
+Emojis you use all the time can be pinned to a `Favorites` row at the top of the picker, so they're in the same cell every time you open it. Pin one with `Ctrl + F` on the highlighted emoji, or with a right-click on it; pinned cells carry a small star. Click and hold a pinned emoji to drag it into a new position in the row. The list lives in `~/.local/state/omarchy/emoji-favorites.json` as an ordered array, so seeding it is the quickest way to carry a phone's favorites over:
+
+```json
+["👍", "🔥", "🎉", "❤️"]
+```
+
+The picker writes that file only once it has read it, so a file it cannot read — or one that is not a JSON array — is shown as no favorites and left alone rather than being overwritten.
+
 | Hotkey       | EM | Clue       |
 | ------------ | -- | ---------- |
 | `CapsLock M S` | 😄 | smile      |
