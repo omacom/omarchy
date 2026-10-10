@@ -164,13 +164,26 @@ read_monitor_position() {
   echo auto
 }
 
+# A new panel rule without a transform resets it to 0, unrotating a panel the
+# catch-all rotated. Hyprland never mixes a panel's own rule with the catch-all.
+read_monitor_transform() {
+  local transform
+  if monitor_rules | grep -qE "$(monitor_rule_regex "$INTERNAL")"; then
+    transform=$(configured_internal_monitor_value transform)
+  else
+    transform=$(configured_monitor_value "" transform)
+  fi
+  [[ $transform =~ ^[0-7]$ ]] && echo ", transform = $transform"
+}
+
 enable_internal_output() {
   [[ -n $INTERNAL ]] || return 0
   local scale="${1:-}"
-  local position
+  local position transform
   [[ -n $scale ]] || scale=$(read_monitor_scale)
   position=$(read_monitor_position)
-  hyprctl eval "hl.monitor({ output = \"$INTERNAL\", mode = \"preferred\", position = \"$position\", scale = $scale })" >/dev/null 2>&1 || true
+  transform=$(read_monitor_transform)
+  hyprctl eval "hl.monitor({ output = \"$INTERNAL\", mode = \"preferred\", position = \"$position\", scale = $scale$transform })" >/dev/null 2>&1 || true
 }
 
 sync_internal_scale() {

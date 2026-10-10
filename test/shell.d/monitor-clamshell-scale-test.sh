@@ -209,6 +209,22 @@ hl.monitor({ output = "eDP-1"; position = "0x0"; scale = 1.25; transform = 1 })
 LUA
 }
 
+# A rotated panel, as a GPD handheld's portrait-mounted one runs (#7066).
+write_rotated_catch_all_config() {
+  cat >"$monitor_lua" <<'LUA'
+local omarchy_monitor_scale = "1.2"
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale, transform = 3 })
+LUA
+}
+
+# The panel's own rule names no transform, so the catch-all's never reaches it.
+write_unrotated_internal_rule_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = 1.25 })
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1, transform = 3 })
+LUA
+}
+
 remember_scale() {
   mkdir -p "$state_dir"
   printf '%s\n' "$1" >"$scale_state"
@@ -401,6 +417,25 @@ remember_scale 1.75
 OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
 grep -F 'scale = 1.25' "$eval_log" >/dev/null || fail "clamshell recovery does not read a scale out of a trailing comment"
 pass "clamshell recovery does not read a scale out of a trailing comment"
+
+# Regression (#7066): correcting the scale must not reset the panel's rotation.
+write_rotated_catch_all_config
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=1.25 run_clamshell
+grep -F 'scale = 1.2, transform = 3' "$eval_log" >/dev/null || fail "clamshell recovery keeps the catch-all transform"
+pass "clamshell recovery keeps the catch-all transform"
+
+write_internal_monitor_scaleless_config
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'transform = 1' "$eval_log" >/dev/null || fail "clamshell recovery keeps the internal rule's transform"
+pass "clamshell recovery keeps the internal rule's transform"
+
+write_unrotated_internal_rule_config
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'scale = 1.25 })' "$eval_log" >/dev/null || fail "clamshell recovery leaves the catch-all transform off a panel with its own rule"
+pass "clamshell recovery leaves the catch-all transform off a panel with its own rule"
 
 for config in nested_table semicolon block_comment; do
   "write_${config}_config"
