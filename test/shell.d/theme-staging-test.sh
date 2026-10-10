@@ -173,6 +173,25 @@ assert_no_marker hyprland.lua "a user overlay cannot add Lua to a stock theme"
 
 pass "an overlay on a stock theme repaints it without adding code"
 
+# A first-party theme may ship its own Helix theme instead of taking the
+# generated one, because omarchy-theme-set-templates only renders a template
+# whose staged output is missing.
+set_theme catppuccin || fail "omarchy-theme-set applies a stock theme that ships helix.toml"
+grep -q 'inherits = "catppuccin_mocha"' "$(staged helix.toml)" ||
+  fail "a stock theme's own helix.toml is staged instead of the generated theme"
+
+pass "a stock theme's own helix.toml is staged instead of the generated theme"
+
+# Shipping helix.toml suppresses the generated theme, so every overlay has to
+# inherit a vendor theme and clear the background itself; a bare inherit would
+# take the vendor theme's opaque background.
+for overlay in "$ROOT"/themes/*/helix.toml; do
+  grep -q '^inherits = "' "$overlay" || fail "a shipped helix.toml inherits a vendor theme" "$overlay"
+  grep -q '^"ui.background" = { }$' "$overlay" || fail "a shipped helix.toml keeps the editor background transparent" "$overlay"
+done
+
+pass "every shipped helix.toml inherits a theme and keeps the background transparent"
+
 # A theme the user wrote themselves has no git repo behind it and is theirs.
 mine="$themes/mine"
 mkdir -p "$mine"
