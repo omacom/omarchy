@@ -97,6 +97,11 @@ Install rows should therefore carry `disabled:` with the presence check, not
 `when:`; Remove rows are the opposite, hiding via `when:` what is not there
 to remove. `menu-test.sh` enforces the Install side of this convention.
 
+A few Install rows keep a `when:` because no package fixes another machine:
+the Windows VM needs an x86_64 host, and `install.ai.mlx` needs an Apple
+Silicon Mac, since `omarchy-mac-ml` runs MLX on the Mac's GPU and its Core ML
+models on its Neural Engine.
+
 ## Providers
 
 A submenu with `provider: "name"` gets its rows at runtime instead of from
