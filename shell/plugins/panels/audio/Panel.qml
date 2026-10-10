@@ -1300,12 +1300,8 @@ Panel {
       }
     }
 
-    MouseArea {
-      anchors.fill: parent
-      hoverEnabled: true
-      acceptedButtons: Qt.NoButton
-      propagateComposedEvents: true
-      onContainsMouseChanged: if (containsMouse) {
+    HoverHandler {
+      onHoveredChanged: if (hovered) {
         root.cursorActive = true
         root.focusSection = "streams"
         root.selectedIndex = streamRow.rowIndex
