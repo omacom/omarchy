@@ -209,6 +209,11 @@ Item {
     logEvent("lock-requested")
     queueSessionLock()
 
+    // Let user hooks react to the lock (e.g. lock a keyring or password
+    // manager). Detached, so a slow hook never holds up the lock. Every new
+    // lock (key binding, menu, idle, suspend, lid) begins here, once.
+    Quickshell.execDetached(["omarchy-hook", "lock"])
+
     Qt.callLater(function() {
       root.refreshBackground()
       root.refreshFingerprintStatus()
