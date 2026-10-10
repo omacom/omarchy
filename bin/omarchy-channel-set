@@ -175,4 +175,4 @@ if [[ -z $dev_checkout ]]; then
   omarchy_security_enable_no_update_sudo 2>/dev/null || stop_for_older_destination
 fi
 
-OMARCHY_UPDATE_USER_PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update" -y
+OMARCHY_UPDATE_USER_PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update" --skip-confirm

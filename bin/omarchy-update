@@ -2,8 +2,8 @@
 
 # omarchy:summary=Update Omarchy and system packages
 # omarchy:alias=omarchy up
-# omarchy:args=[-y]
-# omarchy:examples=omarchy update | omarchy update -y
+# omarchy:args=[-y|--skip-confirm]
+# omarchy:examples=omarchy update | omarchy update -y | omarchy update --skip-confirm
 # omarchy:requires-sudo=true
 
 if [[ $- != *p* ]]; then
@@ -100,9 +100,11 @@ omarchy-update-requires-free-space
 
 # -y suppresses Omarchy confirmation prompts; sudo authorization is still
 # required. Interactive review steps report and move on instead of waiting.
+# --skip-confirm skips only the opening "Ready to update?" prompt so callers
+# that already asked (channel switch) can still offer a reboot.
 [[ ${1:-} != "-y" ]] || export OMARCHY_UPDATE_UNATTENDED=1
 
-if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
+if [[ ${1:-} == "-y" || ${1:-} == "--skip-confirm" ]] || omarchy-update-confirm; then
   authorize_update
 
   # Before the snapshot: the cache is on the snapshotted subvolume, so pruning
