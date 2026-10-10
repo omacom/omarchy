@@ -15,6 +15,8 @@ foot_osc=$(omarchy-theme-osc "$colors_toml")
 for foot_pid in $(pgrep -x foot); do
   for child_pid in $(pgrep -P "$foot_pid"); do
     tty=$(readlink "/proc/$child_pid/fd/1" 2>/dev/null)
-    [[ $tty == /dev/pts/* ]] && printf '%b' "$foot_osc" >"$tty"
+    if [[ $tty == /dev/pts/* ]]; then
+      printf '%b' "$foot_osc" >"$tty"
+    fi
   done
 done
