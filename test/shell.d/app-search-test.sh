@@ -154,4 +154,39 @@ assert(
   openMatch[1].includes('root.appLibrary.refreshIcons()'),
   'menu refreshes the shared icon index when opened'
 )
+
+const refreshIconsMatch = appLibraryQml.match(/function refreshIcons\(\) \{([\s\S]*?)\n  \}/)
+assert(
+  refreshIconsMatch &&
+    /if \(iconIndexScan\.running\) \{[\s\S]*?root\.pendingIconIndexRescan = true[\s\S]*?\}[\s\S]*?iconIndexScan\.running = true/.test(refreshIconsMatch[1]),
+  'app library queues an icon rescan when a scan is already running, instead of dropping the request'
+)
+const debounceMatch = appLibraryQml.match(/id: iconIndexDebounce[\s\S]*?onTriggered: \{([\s\S]*?)\n    \}/)
+assert(
+  debounceMatch &&
+    /if \(iconIndexScan\.running\) \{[\s\S]*?root\.pendingIconIndexRescan = true[\s\S]*?\} else \{[\s\S]*?iconIndexScan\.running = true/.test(debounceMatch[1]),
+  'app library queues a debounced icon rescan that fires while a scan is running'
+)
+assert(
+  /onExited: \{[\s\S]*?root\.iconIndex = root\.pendingIconIndex[\s\S]*?if \(root\.pendingIconIndexRescan\) \{[\s\S]*?root\.pendingIconIndexRescan = false[\s\S]*?iconIndexDebounce\.restart\(\)/.test(appLibraryQml),
+  'app library runs exactly one follow-up scan after the in-flight scan exits when a rescan was queued'
+)
+
+const flatpakFallback = appLibraryQml.match(/XDG_DATA_DIRS:-([^};]+)/)
+assert(flatpakFallback, 'app library declares a flatpak-aware XDG_DATA_DIRS fallback')
+const fallbackDirs = (flatpakFallback && flatpakFallback[1]) ? flatpakFallback[1].split(':').filter(Boolean) : []
+const userFlatpakDirIndex = fallbackDirs.indexOf('$HOME/.local/share/flatpak/exports/share')
+const systemFlatpakDirIndex = fallbackDirs.indexOf('/var/lib/flatpak/exports/share')
+const standardDirOffset = fallbackDirs.findIndex(d => d.endsWith('/usr/local/share') || d.endsWith('/usr/share'))
+assert(
+  userFlatpakDirIndex > -1 &&
+    systemFlatpakDirIndex > -1 &&
+    userFlatpakDirIndex < systemFlatpakDirIndex &&
+    userFlatpakDirIndex < standardDirOffset,
+  'app library keeps user flatpak exports before system flatpak and standard dirs so a user install wins over a duplicate system id'
+)
+assert(
+  fallbackDirs.some(d => d.indexOf('flatpak/exports/share') !== -1),
+  'app library fallback restores user and system flatpak icon dirs that the login shell used to populate'
+)
 JS
