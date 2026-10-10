@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Cloudmail, leaving its worker and mail in your Cloudflare account.
+# omarchy:requires-sudo=true
+
+omarchy-pkg-drop cloudmail
+
+echo ""
+echo "Cloudmail has been removed."
+echo "Your mail worker and its mail stay in your Cloudflare account, and ~/.config/cloudmail keeps its token."
