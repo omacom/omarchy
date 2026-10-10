@@ -220,13 +220,16 @@ Item {
   function finishUnlock() {
     if (!root.locked && !lockRequested) return
 
-    lockRequested = false
     pendingSessionLock = false
     sessionLockStabilizeTimer.stop()
     pendingSessionLockTimer.stop()
     resetAuthenticationState()
     idleBlankTimer.stop()
+    // WlSessionLock does not always notify when it releases, which left
+    // `locked` stuck true and every later lock request ignored. Release it
+    // first so clearing lockRequested re-evaluates `locked` against it.
     sessionLock.locked = false
+    lockRequested = false
     logEvent("unlocked")
     runWake()
   }
@@ -833,7 +836,8 @@ Item {
 
     function lock(): string {
       if (!root.passwordPamConfigured) return "missing-pam"
-      if (!root.locked && !root.beginLock()) return "failed"
+      const active = root.lockRequested || sessionLock.locked || sessionLock.secure
+      if (!active && !root.beginLock()) return "failed"
       return "ok"
     }
 
