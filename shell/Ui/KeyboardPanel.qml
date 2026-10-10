@@ -83,7 +83,13 @@ PanelWindow {
   color: "transparent"
   exclusionMode: ExclusionMode.Ignore
 
-  WlrLayershell.namespace: "omarchy-keyboard-panel"
+  // One namespace per panel (omarchy-keyboard-panel-bluetooth, …), so layer
+  // rules and Hyprland's openlayer/closelayer events can tell panels apart;
+  // a panel without an owner keeps the shared name.
+  WlrLayershell.namespace: {
+    var module = owner && owner.moduleName ? String(owner.moduleName).replace(/^omarchy\./, "") : ""
+    return module ? "omarchy-keyboard-panel-" + module : "omarchy-keyboard-panel"
+  }
   WlrLayershell.layer: WlrLayer.Overlay
   // Keyboard focus follows `open` (NOT `visible`). The window remains
   // mapped during the fade-out so the opacity animation has something to
