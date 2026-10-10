@@ -102,6 +102,37 @@ grep -q '// "color_scheme": "Old"' "$commented" || fail "line comment is preserv
 
 pass "Sublime settings ignore commented values"
 
+nested="$test_tmp/nested.sublime-settings"
+printf '{"plugin_options":{"theme":"Nested"},"theme":"Root"}\n' >"$nested"
+python3 "$ROOT/default/sublime/set-preferences.py" "$nested" theme=Omarchy.sublime-theme
+[[ $(<"$nested") == '{"plugin_options":{"theme":"Nested"},"theme":"Omarchy.sublime-theme"}' ]] ||
+  fail "only the root-level setting is updated" "$(<"$nested")"
+
+pass "Sublime settings leave nested keys alone"
+
+typed="$test_tmp/typed.sublime-settings"
+printf '{\n  "theme": null,\n  "ignored_packages": ["Vintage", {"theme": 1}], /* } */\n}\n' >"$typed"
+python3 "$ROOT/default/sublime/set-preferences.py" "$typed" theme=Omarchy.sublime-theme color_scheme=Omarchy.sublime-color-scheme
+grep -q '^  "theme": "Omarchy.sublime-theme",$' "$typed" || fail "a non-string root value is replaced"
+grep -q '^  "color_scheme": "Omarchy.sublime-color-scheme",$' "$typed" || fail "a missing key is inserted with the file's indent"
+grep -Fq '"ignored_packages": ["Vintage", {"theme": 1}], /* } */' "$typed" || fail "other values and comments are untouched"
+
+pass "Sublime settings replace any value type and insert missing keys"
+
+empty="$test_tmp/empty.sublime-settings"
+printf '{}' >"$empty"
+python3 "$ROOT/default/sublime/set-preferences.py" "$empty" theme=Omarchy.sublime-theme
+grep -q '"theme": "Omarchy.sublime-theme"' "$empty" || fail "an empty settings object receives the setting"
+
+broken="$test_tmp/broken.sublime-settings"
+printf '{"theme": "unterminated\n' >"$broken"
+if python3 "$ROOT/default/sublime/set-preferences.py" "$broken" theme=Omarchy.sublime-theme 2>/dev/null; then
+  fail "malformed settings are reported"
+fi
+[[ $(<"$broken") == '{"theme": "unterminated' ]] || fail "malformed settings are left unchanged"
+
+pass "Sublime settings handle empty and malformed files"
+
 python3 - "$ROOT/default/sublime/OmarchyWindow.py" <<'PY' || fail "Sublime window defaults respect existing choices"
 import runpy
 import sys
