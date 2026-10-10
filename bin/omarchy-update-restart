@@ -20,19 +20,26 @@ confirm_reboot() {
 }
 
 if [[ $mode != "--services-only" ]]; then
-  running_kernel=$(uname -r)
-  kernel_updated=true
+  # Upgrading a kernel package removes the running kernel's modules, and
+  # kernel-modules-hook then restores them unowned, pkgbase marker included.
+  # So the running kernel was updated when its modules are gone, or when they
+  # are unowned and the package their pkgbase names now owns another release.
+  # A kernel installed outside pacman has no marker, or names no installed
+  # kernel package, so pacman never updated it.
+  running_modules=/usr/lib/modules/$(uname -r)
+  kernel_updated=false
 
-  for kernel in /usr/lib/modules/*/vmlinuz; do
-    if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
-      installed_kernel=$(basename "$(dirname "$kernel")")
-
-      if [[ $installed_kernel == $running_kernel ]]; then
-        kernel_updated=false
+  if [[ ! -d $running_modules ]]; then
+    kernel_updated=true
+  elif [[ -f $running_modules/pkgbase ]] && ! pacman -Qo "$running_modules/pkgbase" &>/dev/null; then
+    for pkgbase in /usr/lib/modules/*/pkgbase; do
+      if [[ $pkgbase != "$running_modules/pkgbase" ]] && cmp -s "$pkgbase" "$running_modules/pkgbase" &&
+        pacman -Qo "$pkgbase" &>/dev/null; then
+        kernel_updated=true
         break
       fi
-    fi
-  done
+    done
+  fi
 
   if [[ $kernel_updated == "true" ]]; then
     confirm_reboot "Linux kernel has been updated. Reboot?"
