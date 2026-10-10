@@ -211,7 +211,10 @@ BarWidget {
     persistTrayState(p, h)
   }
 
-  visible: pinnedItems.length > 0 || drawerCount > 0
+  // Keyed on every reporting item, hidden ones included, like the chevron:
+  // the chevron's manage menu is the only way to unhide an item, so hiding
+  // the last visible one must not take the tray (and the menu) with it.
+  visible: allItems.length > 0
   clip: false
   implicitWidth: root.vertical ? root.barSize : trayContent.implicitWidth
   implicitHeight: root.vertical ? trayContent.implicitHeight : root.barSize
