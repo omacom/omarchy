@@ -3,10 +3,24 @@
 # omarchy:summary=Remove Tailscale and its bar plugin.
 # omarchy:requires-sudo=true
 
+set -euo pipefail
+
+# Authenticate before any teardown, with a command: sudo -v prompts even under passwordless sudo.
+# Keep actual Ctrl+C distinct from authentication or sudo-policy failures.
+trap 'exit 130' INT
+sudo true
+trap - INT
+
+# A package can remain installed after its service file has gone. Query before
+# teardown so lookup errors remain visible, while an absent unit needs no disable.
+daemon_unit=$(systemctl list-unit-files --no-legend tailscaled.service)
+
 tailscale down 2>/dev/null || true
 systemctl --user disable --now omarchy-tailscale-receive.service 2>/dev/null || true
-sudo systemctl disable --now tailscaled.service 2>/dev/null || true
-omarchy-plugin-disable omarchy.tailscale
+if [[ -n $daemon_unit ]]; then
+  sudo systemctl disable --now tailscaled.service
+fi
+omarchy-plugin-disable omarchy.tailscale || true
 omarchy-webapp-remove "Tailscale" 2>/dev/null || true
 omarchy-pkg-drop tailscale
 
