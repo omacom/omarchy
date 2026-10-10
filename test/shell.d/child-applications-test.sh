@@ -14,12 +14,19 @@ mock_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
 mkdir -p "$mock_bin" "$test_home/.local/share/applications"
 
-for command in omarchy-cmd-present omarchy-mise-install omarchy-install-hermes-cli update-desktop-database; do
+for command in omarchy-cmd-present omarchy-mise-install omarchy-install-hermes-cli update-desktop-database mise; do
   printf '#!/bin/bash\nexit 1\n' >"$mock_bin/$command"
 done
 # mise.sh is sourced after the copy; the installers must succeed so the
-# refresh does not look like it failed for an unrelated reason.
+# refresh does not look like it failed for an unrelated reason. Each wrapper
+# install is recorded, since a config reset must not replace the wrappers.
+export MISE_INSTALL_CALLS="$test_tmp/mise-install-calls"
 cat >"$mock_bin/omarchy-mise-install" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$MISE_INSTALL_CALLS"
+exit 0
+SH
+cat >"$mock_bin/mise" <<'SH'
 #!/bin/bash
 exit 0
 SH
@@ -51,6 +58,7 @@ OMARCHY_PROFILE_FILE="$adult_marker" omarchy-refresh-applications
   fail "a default profile keeps WhatsApp"
 [[ -f $test_home/.local/share/applications/YouTube.desktop ]] ||
   fail "a default profile keeps YouTube"
+[[ -s $MISE_INSTALL_CALLS ]] || fail "a full refresh sets up the mise wrappers"
 pass "a default profile keeps the adult launcher set"
 
 OMARCHY_PROFILE_FILE="$child_marker" omarchy-refresh-applications
@@ -75,8 +83,24 @@ OMARCHY_PROFILE_FILE="$child_marker" omarchy-refresh-applications
   fail "a child profile removes a WhatsApp launcher that skel planted"
 pass "a child profile removes hidden launchers that skel planted"
 
-grep -Fq 'omarchy-refresh-applications' "$ROOT/bin/omarchy-reinstall-configs" ||
-  fail "omarchy-reinstall-configs refreshes launchers after replaying skel"
+# The config reset refreshes launchers only: skel replanted the adult set, the
+# child install drops its hidden names again, and the mise wrappers in
+# ~/.local/bin, which skel never carried, keep whatever the user made of them.
+rm -f "$MISE_INSTALL_CALLS"
+cp "$ROOT/applications/WhatsApp.desktop" "$test_home/.local/share/applications/WhatsApp.desktop"
+OMARCHY_PROFILE_FILE="$child_marker" omarchy-refresh-applications --launchers-only
+[[ ! -e $test_home/.local/share/applications/WhatsApp.desktop ]] ||
+  fail "the launchers-only refresh still drops the hidden launchers on a child install"
+[[ -f $test_home/.local/share/applications/YouTube.desktop ]] ||
+  fail "the launchers-only refresh still installs the launchers"
+[[ ! -e $MISE_INSTALL_CALLS ]] || fail "the launchers-only refresh leaves the mise wrappers alone" "$(cat "$MISE_INSTALL_CALLS")"
+if omarchy-refresh-applications --no-such-flag 2>/dev/null; then
+  fail "an unknown flag is refused"
+fi
+pass "a launchers-only refresh drops hidden launchers without touching the mise wrappers"
+
+grep -Fq 'omarchy-refresh-applications --launchers-only' "$ROOT/bin/omarchy-reinstall-configs" ||
+  fail "omarchy-reinstall-configs refreshes launchers only after replaying skel"
 grep -Fq 'omarchy-profile-child' "$ROOT/bin/omarchy-provision-user" ||
   fail "omarchy-provision-user skips the HEY mailto handler on a child install"
 pass "config resync and user finalize honor the child launcher set"

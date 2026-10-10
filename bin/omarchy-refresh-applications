@@ -1,6 +1,20 @@
 #!/bin/bash
 
 # omarchy:summary=Ensure default application launchers and mise wrappers are installed.
+# omarchy:args=[--launchers-only]
+
+# --launchers-only refreshes the .desktop launchers and leaves the mise
+# wrappers in ~/.local/bin alone. omarchy-reinstall-configs calls it that way:
+# a config reset is not the moment to replace a wrapper the user customized.
+launchers_only=false
+case "${1:-}" in
+  --launchers-only) launchers_only=true ;;
+  "") ;;
+  *)
+    echo "Usage: omarchy-refresh-applications [--launchers-only]" >&2
+    exit 1
+    ;;
+esac
 
 # Copy .desktop declarations
 mkdir -p ~/.local/share/applications
@@ -22,7 +36,7 @@ if omarchy-cmd-present alacritty; then
   cp "$OMARCHY_PATH/default/alacritty/Alacritty.desktop" ~/.local/share/applications/
 fi
 
-if [[ -f "$OMARCHY_PATH/install/user/mise.sh" ]]; then
+if ! $launchers_only && [[ -f "$OMARCHY_PATH/install/user/mise.sh" ]]; then
   bash "$OMARCHY_PATH/install/user/mise.sh"
 fi
 

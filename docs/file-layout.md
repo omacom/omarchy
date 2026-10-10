@@ -261,7 +261,7 @@ It only does the things `/etc/skel` can't:
   from `/etc/vconsole.conf`; no per-user Hyprland config rewrite is needed.
 - `xdg-settings set default-web-browser chromium.desktop` and
   `xdg-mime default HEY.desktop x-scheme-handler/mailto` (XDG-aware paths).
-- `omarchy-refresh-applications` (composes generated `.desktop` launchers).
+- `omarchy-refresh-applications` (composes generated `.desktop` launchers; `--launchers-only` leaves the mise wrappers in `~/.local/bin` alone, which is how the config reset calls it).
 - Sources `install/user/all.sh` — theme, chromium, git, xcompose, mise,
   keyring, per-user hardware quirks (asus mic/mixer, framework f13 audio, …).
 - On `--first-install`, marks every shipped user migration as already applied
