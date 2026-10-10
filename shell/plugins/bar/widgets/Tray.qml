@@ -772,19 +772,31 @@ BarWidget {
     id: trayIconRoot
     required property var icon
     readonly property bool symbolic: root.iconIsSymbolic(icon)
+    // Decode at physical pixels: IconImage uses the logical size,
+    // which leaves PNG icons upscaled and blurry on HiDPI displays.
+    readonly property int decodeSize: Math.round(Math.min(width, height) * Screen.devicePixelRatio)
 
+    // Drawn directly, since a layer would resample the physical-pixel decode.
+    Image {
+      anchors.fill: parent
+      fillMode: Image.PreserveAspectFit
+      sourceSize.width: trayIconRoot.decodeSize
+      sourceSize.height: trayIconRoot.decodeSize
+      source: root.trayIconSource(trayIconRoot.icon)
+      visible: !trayIconRoot.symbolic
+    }
+
+    // The effect's source, hidden and always layered: flipping layer.enabled when
+    // an icon changes symbolic state leaves the layer empty and the icon blank.
     Image {
       id: trayIconImage
       anchors.fill: parent
       fillMode: Image.PreserveAspectFit
-      // Decode at physical pixels: IconImage uses the logical size,
-      // which leaves PNG icons upscaled and blurry on HiDPI displays.
-      sourceSize.width: Math.round(Math.min(width, height) * Screen.devicePixelRatio)
-      sourceSize.height: Math.round(Math.min(width, height) * Screen.devicePixelRatio)
+      sourceSize.width: trayIconRoot.decodeSize
+      sourceSize.height: trayIconRoot.decodeSize
       source: root.trayIconSource(trayIconRoot.icon)
-      // Kept as a hidden layer so the effect can sample it as a texture.
-      visible: !trayIconRoot.symbolic
-      layer.enabled: trayIconRoot.symbolic
+      visible: false
+      layer.enabled: true
     }
 
     MultiEffect {
