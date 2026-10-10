@@ -5,6 +5,17 @@
 
 set -e
 
+# Keep the follow-up helper in the same packaged or dev-linked tree as this
+# command instead of selecting executable code from inherited environment.
+command_path=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || {
+  echo "Could not resolve the Omarchy fingerprint setup command." >&2
+  exit 1
+}
+source_root=${command_path%/bin/*}
+if [[ $source_root == "$command_path" ]]; then
+  echo "Could not resolve the Omarchy source root." >&2
+  exit 1
+fi
 
 setup_pam_config() {
   # A clamshell gate runs before pam_fprintd in every stack: when the lid is
@@ -89,7 +100,7 @@ if sudo fprintd-enroll "$USER"; then
     # Editing the stacks up front would leave those machines pointing at
     # pam_fprintd with nothing to match.
     setup_pam_config
-    "$OMARCHY_PATH/bin/omarchy-apply-lock"
+    "$source_root/bin/omarchy-apply-lock"
     if [[ ! -f /etc/pam.d/omarchy-lock-fingerprint ]]; then
       echo "Fingerprint enrollment succeeded, but lock-screen configuration could not be confirmed. Run omarchy-apply-lock and try again." >&2
       exit 1

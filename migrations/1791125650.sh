@@ -3,11 +3,23 @@ echo "Install the fingerprint resume hook on existing fingerprint setups"
 # Existing enrolled machines never rerun setup. Install only missing files
 # so administrator changes survive an upgrade.
 
-hook_src="${OMARCHY_FPRINTD_RESUME_SRC:-$OMARCHY_PATH/default/systemd/system-sleep/fprintd-resume}"
-hook_dst="${OMARCHY_FPRINTD_RESUME_DST:-/usr/lib/systemd/system-sleep/fprintd-resume}"
-stop_timeout_src="${OMARCHY_FPRINTD_STOP_TIMEOUT_SRC:-$OMARCHY_PATH/default/systemd/system/fprintd.service.d/10-stop-timeout.conf}"
-stop_timeout_dst="${OMARCHY_FPRINTD_STOP_TIMEOUT_DST:-/etc/systemd/system/fprintd.service.d/10-stop-timeout.conf}"
-lock_pam="${OMARCHY_LOCK_FINGERPRINT_PAM:-/etc/pam.d/omarchy-lock-fingerprint}"
+# Resolve shipped inputs beside the migration itself. Migration environments
+# are caller state and must not choose privileged sources or destinations.
+migration_path=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || {
+  echo "Could not resolve the fingerprint recovery migration." >&2
+  exit 1
+}
+source_root=${migration_path%/migrations/*}
+if [[ $source_root == "$migration_path" ]]; then
+  echo "Could not resolve the Omarchy source root." >&2
+  exit 1
+fi
+
+hook_src="$source_root/default/systemd/system-sleep/fprintd-resume"
+hook_dst=/usr/lib/systemd/system-sleep/fprintd-resume
+stop_timeout_src="$source_root/default/systemd/system/fprintd.service.d/10-stop-timeout.conf"
+stop_timeout_dst=/etc/systemd/system/fprintd.service.d/10-stop-timeout.conf
+lock_pam=/etc/pam.d/omarchy-lock-fingerprint
 
 [[ -f $lock_pam ]] || exit 0
 
