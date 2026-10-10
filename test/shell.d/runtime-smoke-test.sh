@@ -66,12 +66,24 @@ cat >"$hot_reload_dir/manifest.json" <<JSON
   "omarchy": {"clonedFrom": "omarchy.emojis"}
 }
 JSON
+cat >"$hot_reload_dir/Model.js" <<'JS'
+function version() { return "js-before" }
+JS
 cat >"$hot_reload_dir/Overlay.qml" <<'QML'
 import QtQuick
+import Quickshell.Io
+import "Model.js" as Model
 
 Item {
+  id: root
+  property string marker: "qml-before"
   function open(payloadJson) {}
   function close() {}
+
+  IpcHandler {
+    target: "acme-hot-reload"
+    function sourceVersion(): string { return root.marker + ":" + Model.version() }
+  }
 }
 QML
 
@@ -394,6 +406,29 @@ pass "installed plugin changes reload without an explicit rescan"
   fail_with_log "installed plugin could not be enabled"
 [[ $(shell_ipc shell summon omarchy.emojis "{}") == "ok" ]] ||
   fail_with_log "calls to a cloned source id do not reach its enabled clone"
+# Exercise the real inotify watcher, signal, debounce timer, engine reload,
+# and component cache. A registry-only rescan keeps the old compiled source.
+wait_source_version() {
+  local expected="$1" actual=""
+  for _ in {1..100}; do
+    # Engine reload clears openPanelIds, so remount the overlay's IPC probe.
+    shell_ipc_quiet shell summon "$hot_reload_id" "{}" >/dev/null 2>&1 || true
+    actual=$(shell_ipc acme-hot-reload sourceVersion 2>/dev/null || true)
+    [[ $actual == "$expected" ]] && return 0
+    kill -0 "$QS_PID" 2>/dev/null || fail_with_log "test shell exited during source hot reload"
+    sleep 0.1
+  done
+  fail_with_log "plugin source version becomes $expected (got $actual)"
+}
+wait_source_version "qml-before:js-before"
+sed -i 's/qml-before/qml-after/' "$hot_reload_dir/Overlay.qml"
+wait_source_version "qml-after:js-before"
+pass "QML edits refresh the mounted plugin through the live watcher and shell reload"
+
+sed -i 's/js-before/js-after/' "$hot_reload_dir/Model.js"
+wait_source_version "qml-after:js-after"
+pass "imported JavaScript edits refresh through the live watcher and shell reload"
+
 shell_ipc_quiet shell hide omarchy.emojis >/dev/null
 shell_ipc_quiet shell setPluginEnabled "$hot_reload_id" false >/dev/null
 pass "shell IPC routes built-in ids to enabled clones"

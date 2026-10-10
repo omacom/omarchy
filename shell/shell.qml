@@ -11,6 +11,7 @@ import qs.Commons as Commons
 import "plugins/bar"
 import "services"
 import "services/AuthServiceStore.js" as AuthServiceStore
+import "services/PluginReload.js" as PluginReload
 
 ShellRoot {
   id: shell
@@ -62,11 +63,23 @@ ShellRoot {
   property var shellConfig: builtinShellConfig
   property bool pluginReloading: false
   property bool pluginReloadPending: false
+  property bool localPluginQmlReloadPending: false
 
   Timer {
     id: localPluginReloadTimer
     interval: 150
-    onTriggered: shell.reloadPlugins()
+    onTriggered: {
+      shell.localPluginQmlReloadPending = PluginReload.flush(
+        shell.localPluginQmlReloadPending,
+        AuthServiceStore.hasActiveLock(),
+        function() { Quickshell.reload(false) },
+        function() { shell.reloadPlugins() })
+      if (shell.localPluginQmlReloadPending) {
+        // Keep the edit queued until unlock without polling the idle shell.
+        localPluginReloadTimer.interval = 1000
+        localPluginReloadTimer.start()
+      }
+    }
   }
 
   onShellConfigChanged: {
@@ -1524,14 +1537,15 @@ ShellRoot {
       shell.pluginReloadPending = true
       return
     }
-    if (typeof Qt.clearComponentCache === "function") Qt.clearComponentCache()
     shell.pluginRegistry.rescan()
   }
 
   Connections {
     target: shell.pluginRegistry
-    function onLocalPluginChanged(pluginId) {
+    function onLocalPluginChanged(pluginId, qmlSourceChanged) {
       console.log("Local plugin changed, reloading:", pluginId)
+      if (qmlSourceChanged) shell.localPluginQmlReloadPending = true
+      localPluginReloadTimer.interval = 150
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {
