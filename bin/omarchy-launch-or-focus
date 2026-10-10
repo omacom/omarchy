@@ -14,6 +14,16 @@ WINDOW_ADDRESS=$(hyprctl clients -j | jq -r --arg p "$WINDOW_PATTERN" '.[]|selec
 
 if [[ -n $WINDOW_ADDRESS ]]; then
   hyprctl dispatch "hl.dsp.focus({ window = \"address:$WINDOW_ADDRESS\" })" >/dev/null 2>&1 || hyprctl dispatch focuswindow "address:$WINDOW_ADDRESS"
+elif [[ $LAUNCH_COMMAND =~ ^\[[^]]+\][[:space:]]+[^[:space:]] ]]; then
+  # A leading [rule] is a Hyprland exec rule. setsid would run `[workspace` as
+  # the program; only the exec dispatcher applies the rule and launches the rest.
+  expression="hl.dsp.exec_cmd($(jq -Rnr --arg value "$LAUNCH_COMMAND" '$value | @json'))"
+  output=$(hyprctl dispatch "$expression" 2>&1)
+  status=$?
+
+  if (( status != 0 )) || [[ -n $output && $output != "ok" ]]; then
+    hyprctl dispatch exec "$LAUNCH_COMMAND" >/dev/null
+  fi
 else
   eval exec setsid $LAUNCH_COMMAND
 fi
