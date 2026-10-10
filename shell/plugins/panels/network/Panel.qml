@@ -442,52 +442,14 @@ Panel {
   readonly property var wiredDevice: findDevice(DeviceType.Wired)
   readonly property string kind: {
     if (wiredDevice && wiredDevice.connected) return "ethernet"
-    if (connectedWifiNetwork) return "wifi"
-    // NetworkManager can leave the active profile out of the device's
-    // AvailableConnections, and Quickshell only builds known networks from
-    // that list. An OWE transition-mode network does this between scans: the
-    // in-use access point carries the hidden "_owetm_" SSID, so the profile
-    // for the open SSID looks out of range even while it is connected. Trust
-    // the device's own state then instead of flickering to disconnected.
-    if (wifiDevice && wifiDevice.connected) return "wifi"
+    if (connectedWifiNetwork || (wifiDevice && wifiDevice.connected)) return "wifi"
     return "disconnected"
   }
-  readonly property int signalStrength: kind === "wifi"
-    ? Model.connectedSignalStrength(connectedWifiNetwork ? connectedWifiNetwork.signalStrength : 0, activeApSignal)
-    : -1
-  // Filled by activeApSignalPoll from nmcli while the connected network has no
-  // strength of its own to report.
-  property int activeApSignal: -1
-  readonly property bool needsActiveApSignal: kind === "wifi"
-    && !(connectedWifiNetwork && connectedWifiNetwork.signalStrength > 0)
-  // Bumped whenever the cached reading stops describing the current link, so
-  // an nmcli read still in flight from before cannot write a stale strength.
-  property int activeApSignalGeneration: 0
-  property int activeApSignalRequest: -1
-  onKindChanged: if (kind !== "wifi") resetActiveApSignal()
-
-  // Switching Wi-Fi networks always passes through a non-"wifi" kind (both the
-  // device and the old network drop out of the connected state while the new
-  // profile activates), so this also covers a change of network.
-  function resetActiveApSignal() {
-    activeApSignal = -1
-    activeApSignalGeneration++
-  }
-
-  function pollActiveApSignal() {
-    if (activeApSignalProc.running) return
-    activeApSignalRequest = activeApSignalGeneration
-    activeApSignalProc.running = true
-  }
-
-  function finishActiveApSignal(raw) {
-    if (activeApSignalRequest !== activeApSignalGeneration) {
-      // The link changed mid-read and the restarted poll skipped while this
-      // one was running; read again now instead of a full interval later.
-      if (needsActiveApSignal) activeApSignalPoll.restart()
-      return
-    }
-    activeApSignal = Model.parseActiveApSignal(raw)
+  readonly property int signalStrength: {
+    if (connectedWifiNetwork) return Math.round((connectedWifiNetwork.signalStrength || 0) * 100)
+    if (info.signal_dbm) return Math.max(0, Math.min(100, Math.round(2 * (parseFloat(info.signal_dbm) + 100))))
+    if (wifiDevice && wifiDevice.connected) return 100
+    return -1
   }
 
   function copyToClipboard(value) {
