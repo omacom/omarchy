@@ -57,10 +57,21 @@ if [[ -n $KEY && -n $GITHUB_USER ]]; then
   exit 2
 fi
 
-setup_sshd() {
-  echo "Installing and starting the OpenSSH server..."
+install_openssh() {
+  echo "Installing the OpenSSH server..."
   omarchy-pkg-add openssh
-  sudo systemctl enable --now sshd.service
+
+  # sshd validates no config without host keys, and the server is not started
+  # until its config has been validated.
+  sudo ssh-keygen -A >/dev/null
+}
+
+# Reload rather than restart a server that is already running, so an
+# administrator already connected keeps their session.
+start_sshd() {
+  echo "Starting the OpenSSH server..."
+  sudo systemctl enable sshd.service
+  sudo systemctl reload-or-restart sshd.service
 }
 
 open_firewall() {
@@ -181,16 +192,13 @@ CONF
     sudo rm -f "$config"
     return 1
   fi
-
-  # Reload rather than restart so an administrator already connected keeps
-  # their session.
-  sudo systemctl reload sshd.service
 }
 
 echo -e "\e[32mSetting up SSH server access with key-based authentication.\n\e[0m"
 
-setup_sshd
-open_firewall
+# Nothing listens and no port opens until a key is authorized and passwords are
+# off, so a cancelled prompt or a rejected key leaves the machine as it was.
+install_openssh
 
 echo
 if [[ -n $KEY ]]; then
@@ -206,6 +214,8 @@ else
 fi
 
 disable_password_auth
+start_sshd
+open_firewall
 
 echo -e "\e[32m\nPerfect! The SSH server is running and your key is authorized.\e[0m"
 echo "Password logins are off; this machine now accepts authorized keys only."
