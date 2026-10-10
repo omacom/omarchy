@@ -75,7 +75,9 @@ crush)
   fi
   ;;
 claude)
-  command=(claude --permission-mode auto)
+  # Match grok and the table's "don't stop to ask" contract: `auto` still
+  # prompts for some tool uses; bypassPermissions is the real unattended mode.
+  command=(claude --permission-mode bypassPermissions)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 grok)

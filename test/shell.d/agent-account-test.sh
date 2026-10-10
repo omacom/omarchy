@@ -217,7 +217,7 @@ pass "use makes an account active and says so"
 [[ $(omarchy-agent-account-exec codex) == "codex home=default args=" ]] || fail "codex stays on its primary until switched"
 pass "account dispatch follows the active account"
 
-[[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=$work args=--permission-mode auto" ]] ||
+[[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=$work args=--permission-mode bypassPermissions" ]] ||
   fail "omarchy-agent starts Claude as the active account"
 omarchy-agent-account-use codex side >/dev/null
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=codex omarchy-agent --inline) == "codex home=$accounts/codex/side args=--approve-for-me" ]] ||
