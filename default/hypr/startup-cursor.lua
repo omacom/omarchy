@@ -22,18 +22,24 @@ hl.on("config.reloaded", function()
     omarchy_startup_cursor_pending = #hl.get_monitors() == 0
     if omarchy_startup_cursor_pending then
       local hyprcursor = hl.get_config("cursor.enable_hyprcursor")
+      local x_theme = os.getenv("XCURSOR_THEME") or "default"
+      local hypr_theme = os.getenv("HYPRCURSOR_THEME") or x_theme
+      local size_env = (hyprcursor and os.getenv("HYPRCURSOR_SIZE")) or os.getenv("XCURSOR_SIZE")
+      local size = tonumber(size_env) or 24
+      if size <= 0 then size = 24 end
+
       omarchy_startup_cursor = {
         config = {
           invisible = hl.get_config("cursor.invisible"),
           enable_hyprcursor = hyprcursor,
           sync_gsettings_theme = hl.get_config("cursor.sync_gsettings_theme"),
         },
-        hyprcursor = os.getenv("HYPRCURSOR_THEME"),
-        size = tonumber((hyprcursor and os.getenv("HYPRCURSOR_SIZE")) or os.getenv("XCURSOR_SIZE")) or 24,
+        hyprcursor = hypr_theme,
+        size = size,
         path = os.getenv("XCURSOR_PATH") or "~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmaps",
-        xcursor = os.getenv("XCURSOR_THEME") or "default",
+        xcursor = x_theme,
       }
-      if omarchy_startup_cursor.size <= 0 then omarchy_startup_cursor.size = 24 end
+
       hl.env("XCURSOR_PATH", os.getenv("OMARCHY_PATH") .. "/default/hypr/cursors:" .. omarchy_startup_cursor.path)
       hl.env("XCURSOR_THEME", "omarchy-startup")
     end
