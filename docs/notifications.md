@@ -151,7 +151,8 @@ as a `busctl` option; the summary/body themselves are never parsed as options.)
   *and* has claimed the bus name. Anything sending near session start or a
   shell restart uses it, or the toast is sent into the void.
 - `omarchy-notification-dismiss <summary>` — dismiss by summary substring,
-  used by the first-run toasts once their action has been clicked.
+  used by the first-run toasts once their action has been clicked and by
+  the battery service to clear the low battery toast.
 - `omarchy-notification-time` / `-battery` — the hotkey notices: one-line
   low-urgency glyph toasts wrapping `date` and `omarchy-battery-status`.
 - `omarchy-notification-weather` — despite the name, not a sender: it toggles
@@ -166,7 +167,8 @@ variants map to the IPC methods `dismissOne`, `dismissAll`, `invokeLast`,
 Everything goes through the same sender contract, so the pieces are small:
 
 - **Low battery** — `omarchy-battery-low` sends a critical toast and runs the
-  `battery-low` hook.
+  `battery-low` hook. The battery service dismisses the toast again once the
+  charger is connected or the level recovers.
 - **Crash capture** — `omarchy-crash-watch` follows the systemd-coredump
   journal stream and announces each crashed program (deduped per minute) as a
   critical toast whose click runs `omarchy-agent-crash` (via `--exec`, so a
