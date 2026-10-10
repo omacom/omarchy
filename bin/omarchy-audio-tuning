@@ -38,7 +38,7 @@ force=0
 [[ ${2:-} == "--force" ]] && force=1
 
 sink_matching() {
-  pactl list sinks short 2>/dev/null | awk -v p="$1" '$2 ~ p {print $2; exit}'
+  timeout 2 pactl list sinks short 2>/dev/null | awk -v p="$1" '$2 ~ p {print $2; exit}'
 }
 
 # Dell keys its Cirrus speaker firmware on the DMI product SKU, which makes it the
@@ -73,7 +73,7 @@ tuning_match() {
   for dir in "$tunings_dir"/*/; do
     [[ -r $dir/tuning.conf ]] || continue
 
-    unset match_dmi match_sku match_command sink_pattern
+    unset match_dmi match_sku match_command sink_pattern sink_port
     # shellcheck disable=SC1090
     source "$dir/tuning.conf"
 
@@ -120,7 +120,7 @@ tuned_hardware_sink() {
 }
 
 tuning_present() {
-  pactl list sinks short 2>/dev/null | awk '{print $2}' | grep -x "$sink_name" >/dev/null
+  timeout 2 pactl list sinks short 2>/dev/null | awk '{print $2}' | grep -x "$sink_name" >/dev/null
 }
 
 # Only real application streams may be moved. A filter-chain's own output is also
@@ -147,7 +147,7 @@ move_apps_to() {
 # WirePlumber can link the output elsewhere if the target is missing when the host
 # starts. node.dont-fallback guards against it, but verify rather than assume.
 tuning_downstream_sink() {
-  omarchy-audio-output-sink "$sink_name" 2>/dev/null
+  timeout 2 omarchy-audio-output-sink "$sink_name" 2>/dev/null
 }
 
 easyeffects_running() {
@@ -169,7 +169,127 @@ drop_stale_daemon_config() {
   done
 }
 
+# A shared ALSA sink is safe to tune only on the port named by the profile.
+# Hardware matching stays independent of the live audio graph for ISO installs.
+speaker_port_active() {
+  [[ -z ${sink_port:-} ]] && return 0
+  local port
+  port=$(timeout 2 pactl -f json list sinks 2>/dev/null |
+    jq -r --arg sink "$speaker_sink" '.[] | select(.name == $sink) | .active_port // ""') || return 1
+  [[ $port == "$sink_port" ]]
+}
+
+# Move only application streams on the source sink. HDMI, Bluetooth and USB
+# outputs, and the filter-chain's own playback stream, retain their routing.
+move_sink_apps() {
+  local from="$1" to="$2" index input
+  index=$(timeout 2 pactl -f json list sinks 2>/dev/null |
+    jq -r --arg sink "$from" '.[] | select(.name == $sink) | .index') || return
+  [[ -n $index ]] || return 0
+  while read -r input; do
+    [[ -n $input ]] && timeout 2 pactl move-sink-input "$input" "$to" >/dev/null 2>&1 || true
+  done < <(timeout 2 pactl -f json list sink-inputs 2>/dev/null |
+    jq -r --argjson sink "$index" '.[] | select(.sink == $sink)
+      | select(.properties["application.name"] != null and .properties["application.name"] != "EasyEffects") | .index')
+}
+
+watch_speaker_port() {
+  local selected events_fd event status event_deadline
+  # EXIT also runs after this function returns on an error, so the PIDs kept
+  # by its cleanup cannot be function-local variables.
+  port_host_pid=""
+  port_events_pid=""
+  selected=$(tuning_match) || return 1
+  unset sink_port sink_pattern
+  # shellcheck disable=SC1090
+  source "$selected/tuning.conf"
+  [[ -n ${sink_port:-} ]] || return 1
+  speaker_sink=$(sink_matching "$sink_pattern")
+
+  stop_host() {
+    if [[ $(timeout 2 pactl get-default-sink 2>/dev/null) == "$sink_name" && -n $speaker_sink ]]; then
+      timeout 2 pactl set-default-sink "$speaker_sink" >/dev/null 2>&1 || true
+    fi
+    [[ -n $speaker_sink ]] && move_sink_apps "$sink_name" "$speaker_sink"
+    if [[ -n $port_host_pid ]]; then
+      kill "$port_host_pid" 2>/dev/null || true
+      wait "$port_host_pid" 2>/dev/null || true
+      port_host_pid=""
+    fi
+  }
+
+  cleanup_port_watch() {
+    stop_host
+    kill "$port_events_pid" 2>/dev/null || true
+    wait "$port_events_pid" 2>/dev/null || true
+  }
+
+  # Subscribe before checking the initial state, so plugging a headset in
+  # during startup cannot be lost between the snapshot and the subscription.
+  coproc PORT_EVENTS { LC_ALL=C exec pactl subscribe; }
+  port_events_pid=$PORT_EVENTS_PID
+  exec {events_fd}<&"${PORT_EVENTS[0]}"
+  trap cleanup_port_watch EXIT
+  trap 'exit 0' TERM INT
+
+  while true; do
+    if [[ -n $port_host_pid ]] && ! kill -0 "$port_host_pid" 2>/dev/null; then
+      wait "$port_host_pid" || return 1
+      port_host_pid=""
+      return 1
+    fi
+    # Re-resolve after device removal/recreation: the name, and its numeric
+    # index used to move streams, can change across an audio-server restart.
+    speaker_sink=$(sink_matching "$sink_pattern")
+    if [[ -n $speaker_sink ]] && speaker_port_active; then
+      if [[ -z $port_host_pid ]]; then
+        pipewire -c "$host_config_name" &
+        port_host_pid=$!
+        for _ in {1..40}; do
+          speaker_port_active || break
+          kill -0 "$port_host_pid" 2>/dev/null || return 1
+          if tuning_present && [[ $(tuning_downstream_sink) == "$speaker_sink" ]]; then
+            break
+          fi
+          sleep 0.25
+        done
+        if ! speaker_port_active; then
+          stop_host
+        elif ! tuning_present || [[ $(tuning_downstream_sink) != "$speaker_sink" ]]; then
+          return 1
+        else
+          if [[ $(timeout 2 pactl get-default-sink 2>/dev/null) == "$speaker_sink" ]]; then
+            timeout 2 pactl set-default-sink "$sink_name" >/dev/null 2>&1 || return 1
+          fi
+          move_sink_apps "$speaker_sink" "$sink_name"
+        fi
+      fi
+    else
+      stop_host
+    fi
+    # Each pactl query creates client events. Ignore those rather than querying
+    # again in response to our own connections. Sink/card events handle jack
+    # changes immediately, and a deadline keeps the periodic recheck bounded
+    # even while unrelated events keep arriving. EOF restarts the service.
+    event_deadline=$((SECONDS + 1))
+    while ((SECONDS < event_deadline)); do
+      if read -r -t 1 -u "$events_fd" event; then
+        case "$event" in
+          *" on sink #"* | *" on card #"*) break ;;
+        esac
+      else
+        status=$?
+        (( status > 128 )) || return 1
+        break
+      fi
+    done
+  done
+}
+
 case "$action" in
+  watch-port)
+    watch_speaker_port
+    ;;
   match)
     tuning_match
     ;;
@@ -181,7 +301,12 @@ case "$action" in
     # "is a tuning in place", not "where should volume go" -- for the latter see
     # omarchy-audio-output-sink, which follows the current default output.
     tuning_present || exit 1
-    tuned_hardware_sink
+    speaker_sink=$(tuned_hardware_sink) || exit 1
+    unset sink_port
+    # shellcheck disable=SC1090
+    source "$(tuning_match)/tuning.conf"
+    speaker_port_active || exit 1
+    printf '%s\n' "$speaker_sink"
     ;;
 
   status)
@@ -220,6 +345,14 @@ case "$action" in
 
     speakers="$(tuned_hardware_sink)" || speakers=""
 
+    unset sink_port
+    if selected=$(tuning_match); then
+      # shellcheck disable=SC1090
+      source "$selected/tuning.conf"
+    fi
+    # A port-aware host restores only its own streams in its EXIT cleanup.
+    # Capture the policy before stopping it; do not grab unrelated outputs.
+    port_aware=${sink_port:-}
     systemctl --user disable --now "$unit_name" >/dev/null 2>&1
     rm -f "$fragment" "$host_config" "$unit" "$stale_shared"
     rmdir "$config_home/pipewire/$host_config_name.d" 2>/dev/null
@@ -231,7 +364,7 @@ case "$action" in
       sleep 0.25
     done
 
-    if [[ -n $speakers ]]; then
+    if [[ -n $speakers && -z $port_aware ]]; then
       pactl set-default-sink "$speakers" >/dev/null 2>&1
       # Streams left on the vanished tuning sink reconnect wherever PipeWire puts
       # them, which is not necessarily the speakers.
@@ -251,9 +384,13 @@ case "$action" in
       exit 0
     }
 
-    unset description sink_pattern
+    unset description sink_pattern sink_port
     # shellcheck disable=SC1090
     source "$selected/tuning.conf"
+
+    if [[ -n ${sink_port:-} ]]; then
+      unit_source="$OMARCHY_PATH/default/systemd/user/omarchy-speaker-tuning-port.service"
+    fi
 
     # At first-run the session is up but the sink can still be settling.
     for _ in {1..20}; do
@@ -313,10 +450,20 @@ EOF
     systemctl --user restart "$unit_name" >/dev/null 2>&1
     echo "Installed speaker tuning: $description"
 
+    if ! speaker_port_active; then
+      echo "Speaker tuning installed; waiting for the $sink_port port. Headphones bypass tuning."
+      exit 0
+    fi
+
     for _ in {1..40}; do
+      speaker_port_active || break
       tuning_present && break
       sleep 0.25
     done
+    if ! speaker_port_active; then
+      echo "Speaker tuning installed; waiting for the $sink_port port. Headphones bypass tuning."
+      exit 0
+    fi
     if ! tuning_present; then
       systemctl --user disable --now "$unit_name" >/dev/null 2>&1
       rm -f "$fragment" "$host_config" "$unit"
@@ -332,6 +479,10 @@ EOF
       sleep 0.25
     done
     downstream="$(tuning_downstream_sink)"
+    if ! speaker_port_active; then
+      echo "Speaker tuning installed; waiting for the $sink_port port. Headphones bypass tuning."
+      exit 0
+    fi
     if [[ $downstream != "$speaker_sink" ]]; then
       systemctl --user disable --now "$unit_name" >/dev/null 2>&1
       rm -f "$fragment" "$host_config" "$unit"
@@ -342,6 +493,12 @@ EOF
       exit 1
     fi
 
+    # The port watcher owns routing for shared sinks and checks the port again
+    # during startup. It moves only streams on that device, preserving other outputs.
+    if [[ -n ${sink_port:-} ]]; then
+      echo "Speaker port tuning is managed automatically."
+      exit 0
+    fi
     pactl set-default-sink "$sink_name" >/dev/null 2>&1
     # A default sink only captures newly created streams, so anything already
     # playing would keep bypassing the tuning until its app was restarted.
