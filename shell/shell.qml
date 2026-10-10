@@ -11,6 +11,7 @@ import qs.Commons as Commons
 import "plugins/bar"
 import "services"
 import "services/AuthServiceStore.js" as AuthServiceStore
+import "services/BarEntryServiceBoundary.js" as BarEntryServiceBoundary
 
 ShellRoot {
   id: shell
@@ -393,6 +394,19 @@ ShellRoot {
     return shell.serviceFor(shell.pluginRegistry.resolveEnabledId(requestedId))
   }
 
+  // The service id a bar may be handed for one of its hosted entries, if
+  // any. The manifest, authentication, and hosting checks live in
+  // BarEntryServiceBoundary.js, so the plugin authentication boundary test
+  // exercises the real boundary logic rather than the wiring around it.
+  function barWidgetEntryServiceId(requestedId) {
+    return BarEntryServiceBoundary.hostedWidgetServiceId(
+      requestedId,
+      shell.pluginRegistry,
+      function(manifest, id) { return shell.isAuthenticationService(manifest, id) },
+      function(id) { return shell.barEntryConfigured(id) }
+    )
+  }
+
   function barEntryConfigured(pluginId) {
     var location = shell.pluginRegistry.findEntryLocation(shell.shellConfig, pluginId)
     return location && location.kind === "bar"
@@ -630,7 +644,25 @@ ShellRoot {
       barConfig: shell.publicBarConfig(),
       idleConfig: shell.publicIdleConfigFor(manifest),
       _serviceLookup: function(requestedId) {
-        return allowOwnService ? shell.pluginServiceFor(key, requestedId) : null
+        if (allowOwnService && shell.pluginOwnsTarget(key, requestedId))
+          return shell.pluginServiceFor(key, requestedId)
+        // A bar-capable plugin hosts its bar's entries and already drives
+        // their panels — summon, hide, toggle, inline settings — so reaching
+        // a hosted entry's service crosses no new boundary, and this is how
+        // a replacement bar hands a widget its own service: the widget asks
+        // through the bar-level shell the bar passes down as `bar.shell`,
+        // where the trusted bar satisfies the same request through
+        // pluginShellForId() instead. barWidgetEntryServiceId() carries the
+        // whole grant: third-party bar-widget manifests only, authentication
+        // services never, and hosting checked across every name the entry
+        // answers to, so nothing the bar stages into its layout beyond a
+        // hosted widget comes back.
+        if (hasCurrentBarCapabilities()) {
+          var widgetId = shell.barWidgetEntryServiceId(requestedId)
+          if (widgetId)
+            return shell.serviceFor(widgetId)
+        }
+        return null
       },
       _firstPartyServiceLookup: function(requestedId) {
         if (allowOwnService && shell.pluginOwnsTarget(key, requestedId))
@@ -723,6 +755,19 @@ ShellRoot {
     var api = pluginShellApiComponent.createObject(null, {
       pluginId: target,
       barConfig: shell.publicBarConfig(),
+      // The widget this facade is handed to may reach its own service, the
+      // same capability the trusted bar grants through pluginShellForId().
+      // owns() resolves both the built-in name and the enabled clone, and
+      // barWidgetEntryServiceId() carries the whole grant — third-party
+      // bar-widget manifests only, authentication services never, and the
+      // hosting check across every name the entry answers to — so the bar
+      // cannot stage a first-party service or a service-only plugin into
+      // reach by editing its layout.
+      _serviceLookup: function(requestedId) {
+        if (!owns(requestedId)) return null
+        var serviceId = shell.barWidgetEntryServiceId(requestedId)
+        return serviceId ? shell.serviceFor(serviceId) : null
+      },
       _summon: function(requestedId, payloadJson) {
         if (!owns(requestedId)
             && !shell.pluginCloneMaySummon(currentManifest(), requestedId)) return false

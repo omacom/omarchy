@@ -252,9 +252,11 @@ Item {
       // service-capable facade for the widget it is instantiating.
       pluginShell = root.shell.pluginShellForId(moduleName)
     } else if (root.shell && typeof root.shell.pluginShellForBarEntry === "function") {
-      // Replacement bars receive a service-less entry facade. Giving an
-      // untrusted bar a generic facade factory would let it retrieve another
-      // third-party plugin's live service object.
+      // Replacement bars receive a per-entry facade. It can resolve the
+      // service of a hosted entry that is an installed third-party
+      // bar-widget plugin, and nothing else: there is no generic facade
+      // factory, and first-party services and service-only plugins stay out
+      // of reach no matter what the bar stages into its layout.
       pluginShell = root.shell.pluginShellForBarEntry(key, moduleName)
     }
 
