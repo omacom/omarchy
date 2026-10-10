@@ -83,7 +83,7 @@ Item {
     color: root.checked
       ? Style.selectedFillFor(root.foreground, root.accent)
       : Style.normalFillFor(root.foreground, root.accent)
-    borderSpec: Border.controlSpec(root.checked ? "selected" : "normal", root.foreground, root.accent)
+    borderSpec: Border.controlSpec(root.checked && Border.controlHasWidth("selected") ? "selected" : "normal", root.foreground, root.accent)
 
     Behavior on color { ColorAnimation { duration: Style.duration(120) } }
 

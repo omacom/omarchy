@@ -565,7 +565,7 @@ Item {
                     radius: Math.max(2, Style.cornerRadius / 2)
                     anchors.verticalCenter: parent.verticalCenter
                     color: selected ? Style.selectedFillFor(root.foreground, root.accent) : "transparent"
-                    borderSpec: selected
+                    borderSpec: selected && Border.controlHasWidth("selected")
                       ? Border.controlSpec("selected", root.foreground, root.accent)
                       : Border.controlSpec("normal", root.foreground, root.accent)
 
