@@ -29,6 +29,22 @@ status_json() {
     '{enabled:$enabled, temperature:(($temp | tonumber?) // null)}'
 }
 
+# Without a CTM-capable display pipeline hyprsunset still answers "ok" and
+# reports the temperature back, so the retry loop below would run to completion
+# and this command would claim success over a panel that never changed. Say so
+# instead. The menu hides this row on such hardware; this covers the keybind,
+# the CLI, and anything reading --status.
+if ! omarchy-hw-nightlight; then
+  if [[ ${1:-} == "--status" ]]; then
+    jq -cn '{enabled:false, temperature:null}'
+    exit 0
+  fi
+
+  omarchy-notification-send -u normal "Nightlight unavailable" \
+    "This GPU's display driver cannot apply a color temperature."
+  exit 1
+fi
+
 if [[ ${1:-} == "--status" ]]; then
   status_json
   exit 0
