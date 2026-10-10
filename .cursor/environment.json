@@ -1,0 +1,8 @@
+{
+  "name": "Omarchy CLI and shell tests",
+  "install": "bash .cursor/install.sh",
+  "repositoryDependencies": [
+    "github.com/omacom-io/omarchy-pkgs",
+    "github.com/omacom/omarchy-iso"
+  ]
+}
