@@ -12,6 +12,7 @@ opt_path="${OMARCHY_OPT_PATH:-/opt}"
 
 setup_chromium_policy_directory() {
   browser_policy_setup_dir "$1"
+  browser_policy_install_privacy "$1"
 }
 
 announce_browser_installed() {
