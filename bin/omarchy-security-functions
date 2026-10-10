@@ -140,3 +140,27 @@ omarchy_security_prepare_private_root_directory() {
     omarchy_security_assert_root_directory "$path" 700
   fi
 }
+
+# Run a command (the migration runner) with caller-supplied OMARCHY_* path
+# overrides removed from its environment. Migrations read variables such as
+# OMARCHY_ZRAM_CONF or OMARCHY_FPRINTD_RESUME_DST only as test seams; in
+# production every migration must fall back to its built-in default. Left in the
+# environment during an update they are a local privilege-escalation seam: a user
+# can export an OMARCHY_* path override and, after deleting the migration's
+# user-writable state marker, have the next `omarchy update` retarget a root-run
+# migration's write, deletion, or truncation to a path of their choosing. Keep
+# only the OMARCHY_* variables the runtime legitimately provides. The test suite
+# runs omarchy-migrate directly, so its seams are unaffected.
+omarchy_security_run_migrations_sanitized() {
+  local name
+  local -a scrubbed=()
+
+  while IFS='=' read -r -d '' name _; do
+    case "$name" in
+      OMARCHY_PATH | OMARCHY_MIGRATION_STATE | OMARCHY_UPGRADE_TO_QUATTRO_LIVE | OMARCHY_SESSION_ID) ;;
+      OMARCHY_*) scrubbed+=(--unset="$name") ;;
+    esac
+  done < <(/usr/bin/env -0)
+
+  /usr/bin/env "${scrubbed[@]}" "$@"
+}
