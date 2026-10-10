@@ -34,7 +34,7 @@ Inside the panel:
 
 ## Receiving files
 
-Incoming Taildrop files are saved to `~/Downloads` by the
+Incoming Taildrop files are saved to your downloads folder (`~/Downloads` by default) by the
 `omarchy-tailscale-receive` service, which announces each one with a
 notification (an image preview when the file is an image, and a click to open
 it). The Tailscale service install enables it; `omarchy tailscale receive`
