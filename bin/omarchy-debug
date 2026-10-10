@@ -26,7 +26,23 @@ while (( $# > 0 )); do
   esac
 done
 
-LOG_FILE="/tmp/omarchy-debug.log"
+# Keep the collected report in the per-user runtime directory rather than a
+# predictable, world-readable path in /tmp. The report embeds `sudo dmesg` and
+# journal output, which a 0644 file in shared /tmp would expose to other local
+# users (and leave behind). Mirrors omarchy-capture-screenrecording's fallback.
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}"
+mkdir -p "$RUNTIME_DIR" || {
+  echo "Error: could not create the report directory $RUNTIME_DIR" >&2
+  exit 1
+}
+# XDG_STATE_HOME may be outside a private home; protect the fallback dir too.
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  chmod 700 "$RUNTIME_DIR" || {
+    echo "Error: could not protect the report directory $RUNTIME_DIR" >&2
+    exit 1
+  }
+fi
+LOG_FILE="$RUNTIME_DIR/omarchy-debug.log"
 
 if [[ $NO_SUDO = "true" ]]; then
   DMESG_OUTPUT="(skipped - --no-sudo flag used)"
