@@ -63,6 +63,19 @@ function chargeThresholdActive(device, onBattery, states) {
   return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
 }
 
+// Plug status is the freshest signal right after a charger is (un)plugged:
+// UPower flips onBattery at once while the battery's own state can lag for
+// seconds. Once that settles, a battery still reporting Discharging on
+// external power is draining because the charger cannot cover the load.
+function drawingFromBattery(device, onBattery, states, plugSettling) {
+  var d = device || {}
+  var s = states || {}
+  if (!d.isPresent) return false
+  if (onBattery) return true
+  if (plugSettling) return false
+  return d.state === s.Discharging
+}
+
 function batteryIcon(device, onBattery, states) {
   var d = device || {}
   if (!d.isPresent) return ""
@@ -98,6 +111,7 @@ if (typeof module !== "undefined") {
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
+    drawingFromBattery: drawingFromBattery,
     batteryIcon: batteryIcon,
     modeLabel: modeLabel
   }
