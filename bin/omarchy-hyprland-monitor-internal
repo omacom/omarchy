@@ -40,7 +40,12 @@ off() {
     exit 1
   fi
 
-  if omarchy-hyprland-toggle-disabled $TOGGLE && omarchy-hyprland-toggle-disabled $MIRROR_TOGGLE; then
+  # A mirrored laptop display can't be disabled, so drop the mirror first.
+  if omarchy-hyprland-toggle-enabled $MIRROR_TOGGLE; then
+    omarchy-hyprland-toggle $MIRROR_TOGGLE off
+  fi
+
+  if omarchy-hyprland-toggle-disabled $TOGGLE; then
     printf 'hl.monitor({ output = "%s", disabled = true })\n' "$INTERNAL" >"$TOGGLE_FLAG"
     omarchy-notification-send -g 󰍹 "Laptop display disabled"
     hyprctl reload
