@@ -140,7 +140,7 @@ The boundaries are where the language moves rather than where a clock does, and 
 
 The panel's own monospace family carries none of these scripts. Fontconfig substitutes per character, so a Japanese greeting is set in whatever the system has for Japanese and only the Latin ones stay monospaced; Arabic sits right-to-left with its pronunciation in a separate item beside it, which is what keeps the two from being reordered into each other.
 
-**Every zone the picker offers is covered.** The picker offers every zone `timedatectl list-timezones` returns - 598 of them, not just the 74 in `cities.json` - so the table is built from the system's own `zone.tab`. English is checked at the source rather than in the result: a zone may only be greeted in English because some country asked for English, and a zone missing from the table is a failure rather than a silent fall-through to English.
+**Every zone the picker offers is covered.** The picker offers every zone `timedatectl list-timezones` returns - 598 of them, not just the 75 in `cities.json` - so the table is built from the system's own `zone.tab`. English is checked at the source rather than in the result: a zone may only be greeted in English because some country asked for English, and a zone missing from the table is a failure rather than a silent fall-through to English.
 
 The overrides earn their place by being few. Honolulu is Hawaiian though the United States is English, Montreal is French though Canada is not, and that is nearly the whole list - the country is the right answer almost everywhere.
 

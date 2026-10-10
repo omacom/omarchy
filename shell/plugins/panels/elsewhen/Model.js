@@ -488,6 +488,11 @@ var CITY_ALIASES = [
   { label: "Gothenburg", id: "Europe/Stockholm" },
   { label: "Porto", id: "Europe/Lisbon" },
   { label: "Krakow", id: "Europe/Warsaw" },
+  { label: "Split", id: "Europe/Zagreb" },
+  { label: "Rijeka", id: "Europe/Zagreb" },
+  { label: "Osijek", id: "Europe/Zagreb" },
+  { label: "Dubrovnik", id: "Europe/Zagreb" },
+  { label: "Zadar", id: "Europe/Zagreb" },
   { label: "St Petersburg", id: "Europe/Moscow" },
   // Asia
   { label: "Beijing", id: "Asia/Shanghai" },
