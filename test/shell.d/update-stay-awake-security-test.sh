@@ -182,6 +182,16 @@ wait_dead "$valid_pid" || fail "valid inhibitor identity is stopped"
 [[ ! -e $state_dir ]] || fail "valid state is cleaned after stop"
 pass "valid XDG runtime uses private atomic inhibitor state"
 
+# Non-English locales (where coreutils stat translates %F to e.g. "pasta", "directorio")
+# must not cause root_owned_parent_chain to reject a valid runtime directory.
+available_non_c_locale=$(locale -a 2>/dev/null | grep -Eiv '^(c|posix|en_)' | head -n 1 || true)
+if [[ -n $available_non_c_locale ]]; then
+  LC_ALL="$available_non_c_locale" run_helper start
+  [[ -s $state_dir/inhibit-pid ]] || fail "non-English locale ($available_non_c_locale) publishes inhibitor state"
+  LC_ALL="$available_non_c_locale" run_helper stop
+  pass "valid runtime state works under non-English locale ($available_non_c_locale)"
+fi
+
 # omarchy update owns its one authorization; the helper must not revoke it.
 # Run on its own, the helper still starts and ends cold.
 sudo_events="$test_tmp/sudo-events"

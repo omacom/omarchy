@@ -68,7 +68,7 @@ root_owned_parent_chain() {
     [[ -d $parent && ! -L $parent ]] || return 1
     canonical=$(/usr/bin/readlink -e -- "$parent") || return 1
     [[ $canonical == "$parent" ]] || return 1
-    read -r owner mode type < <(/usr/bin/stat -Lc '%u %a %F' -- "$parent") || return 1
+    read -r owner mode type < <(LC_ALL=C /usr/bin/stat -Lc '%u %a %F' -- "$parent") || return 1
     [[ $owner == 0 && $type == "directory" ]] || return 1
     ! ((8#$mode & 022)) || return 1
     [[ $parent == / ]] && break
