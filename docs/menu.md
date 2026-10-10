@@ -70,8 +70,9 @@ the batch's runtime is exactly how long a row can contradict the state it
 describes — which is why the batch works hard to be fast:
 
 - Package and command presence (`omarchy-pkg-present` and friends) are
-  answered in-process from one `pacman -Q` snapshot instead of a fork per
-  row. The snapshot resolves provides too, so gvim answers for vim.
+  answered in-process from one `expac` snapshot of the installed packages
+  instead of a fork per row. The snapshot carries provides too, so gvim
+  answers for vim.
 - Commands that several rows read a value from — every Defaults > Browser row
   compares against `$(omarchy-default-browser)` — run once, with the captured
   answer substituted into each expression. The reader list is

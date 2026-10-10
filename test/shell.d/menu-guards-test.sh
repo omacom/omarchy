@@ -95,28 +95,12 @@ stub_dir=$(mktemp -d)
 trap 'rm -rf "$stub_dir"' EXIT
 
 # `pacman -Q` resolves a name through what installed packages provide, so gvim
-# answers for vim and bash answers for sh. A set built from `pacman -Qq` alone
+# answers for vim and bash answers for sh. A set built from package names alone
 # would miss both and offer to install what is already there.
-#
-# `-Qi` wraps a long list onto indented continuation lines whenever COLUMNS is
-# set, so gvim's provides arrive the way a wrapped terminal would emit them.
 cat >"$stub_dir/pacman" <<'STUB'
 #!/bin/bash
+printf '%s\n' "$*" >>"${0%/*}/pacman.calls"
 case "$1" in
--Qq)
-  printf '%s\n' bash gvim
-  ;;
--Qi)
-  cat <<'INFO'
-Name            : bash
-Provides        : sh
-Version         : 5.3.0-1
-Name            : gvim
-Provides        : vim=9.2.0849-1
-                  xxd
-Version         : 9.2-1
-INFO
-  ;;
 -Q)
   if [[ $2 == "--" ]]; then
     shift 2
@@ -124,17 +108,46 @@ INFO
     shift
   fi
   for want in "$@"; do
-    case "${want%%[<>=]*}" in bash | gvim | sh | vim | xxd) ;; *) exit 1 ;; esac
+    case "${want%%[<>=]*}" in bash | filesystem | gvim | sh | vim | xxd) ;; *) exit 1 ;; esac
   done
   ;;
 esac
 exit 0
 STUB
 chmod +x "$stub_dir/pacman"
+
+# expac prints one record per installed package: the format with %n replaced by
+# the name and %S by what the package provides, versions already dropped, the
+# items joined by the -l delimiter. filesystem provides nothing, so its %S is
+# empty, and gvim comes after it.
+cat >"$stub_dir/expac" <<'STUB'
+#!/bin/bash
+[[ $1 == "-l" ]] || exit 1
+delim=$2 format=$3
+while read -r name provides; do
+  record=${format//%n/$name}
+  printf '%b\n' "${record//%S/${provides// /$delim}}"
+done <<'PACKAGES'
+bash sh
+filesystem
+gvim vim xxd
+PACKAGES
+STUB
+chmod +x "$stub_dir/expac"
 printf '#!/bin/bash\nexit 0\n' >"$stub_dir/gvim"
 chmod +x "$stub_dir/gvim"
 
 guard_prelude=$(prelude)
+
+# `pacman -Qi` also works out what requires each package it prints, so reading
+# provides from it took several times as long as reading them from the
+# database. Whatever the set is read from, it must not be that.
+: >"$stub_dir/pacman.calls"
+PATH="$stub_dir:$PATH" bash -c "$guard_prelude" >/dev/null 2>&1
+pacman_calls=$(<"$stub_dir/pacman.calls")
+[[ $pacman_calls != *-Qi* ]] ||
+  fail "guard prelude reads the package set without pacman -Qi" "pacman ran with: ${pacman_calls//$'\n'/, }"
+pass "guard prelude reads the package set without pacman -Qi"
 
 # Arguments reach both sides as argv. Interpolating them into the shadow's
 # script text would let `bash>=1` parse as a redirection, so the case that
@@ -149,16 +162,17 @@ assert_helper_agrees() {
   ((real == shadowed)) || fail "$description" "$helper $*: real=$real shadowed=$shadowed"
 }
 
-# vim, sh and xxd are provided rather than installed, and xxd only appears on a
-# wrapped continuation line; bash>=1 is a version constraint no set can answer.
-pkg_cases=("bash" "vim" "sh" "xxd" "absent" "bash vim" "bash absent" "bash>=1" "vim>=1" "")
+# vim, sh and xxd are provided rather than installed. filesystem provides
+# nothing, and the empty line that leaves in the list must cost neither it nor
+# gvim, which comes after. bash>=1 is a version constraint no set can answer.
+pkg_cases=("bash" "vim" "sh" "xxd" "filesystem" "gvim" "absent" "bash vim" "bash absent" "bash>=1" "vim>=1" "")
 for helper in omarchy-pkg-present omarchy-pkg-missing; do
   for case in "${pkg_cases[@]}"; do
     read -r -a argv <<<"$case"
     assert_helper_agrees "guard prelude resolves packages as pacman does" "$helper" "${argv[@]}"
   done
 done
-pass "guard prelude resolves packages through provides, wrapping, and constraints as pacman does"
+pass "guard prelude resolves packages through provides and constraints as pacman does"
 
 # cd is a shell builtin `command -v` finds and a PATH search does not.
 cmd_cases=("gvim" "cd" "absent" "gvim absent" "gvim cd" "")
