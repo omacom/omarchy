@@ -17,6 +17,12 @@ if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI w
        ~/.local/bin/gh ~/.local/bin/opencode ~/.local/bin/playwright ~/.local/bin/playwright-cli ~/.local/bin/pi \
        ~/.local/bin/omp ~/.local/bin/ori ~/.local/bin/grok ~/.local/bin/crush ~/.local/bin/ghui ~/.local/bin/hunk
 
+  # Preserve a user-managed AFK launcher at the same path.
+  if [[ -f ~/.local/bin/afk && ! -L ~/.local/bin/afk ]] &&
+    grep -Fq 'mise use -g --quiet "forgejo:mooglest/public[api_url=https://git.mooglest.com/api/v1]"' ~/.local/bin/afk; then
+    rm -f ~/.local/bin/afk
+  fi
+
   # Cursor's own installer links ~/.local/bin/cursor-agent as well, so only
   # the mise wrapper omarchy-mise-install wrote is a preinstall.
   if [[ -f ~/.local/bin/cursor-agent && ! -L ~/.local/bin/cursor-agent ]] &&

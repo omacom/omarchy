@@ -234,6 +234,7 @@ assertEqual(
   'menu lists Reset Computer last under Setup'
 )
 const expectedAgents = {
+  afk: { icon: '\ue90e', iconFont: 'omarchy', label: 'AFK' },
   agy: { icon: '󰫢', label: 'Antigravity' },
   pi: { icon: '\ue901', iconFont: 'omarchy', label: 'Pi' },
   omp: { icon: '\ue903', iconFont: 'omarchy', label: 'omp' },
@@ -267,8 +268,13 @@ assertDeepEqual(
   defaultItems
     .filter(item => item.parent === 'setup.default.agent')
     .map(item => item.label),
-  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
+  ['AFK', 'Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
   'menu sorts coding agents alphabetically'
+)
+const claudeDesktopEntries = ['install.ai.claude', 'remove.ai.claude'].map(id => defaultById[id])
+assert(
+  claudeDesktopEntries.every(entry => entry && entry.icon === '󰛄' && entry.iconFont === ''),
+  'menu keeps Claude Desktop entries on the Claude glyph'
 )
 const expectedDefaults = {
   browser: ['Chromium', 'Chrome', 'Brave', 'Brave Origin', 'Edge', 'Firefox', 'Zen'],
@@ -326,6 +332,11 @@ assert(
   defaultItems.filter(item => item.id.startsWith('remove.')).every(item => !item.disabled)
     && defaultById['remove.browser.zen'].when === 'omarchy-pkg-present zen-browser-bin',
   'menu still hides Remove rows for software that is not installed'
+)
+assert(
+  defaultById['install.ai.dictation'].action.includes('omarchy-install-dictation-voxtype')
+    && defaultById['remove.ai.dictation'].action.includes('omarchy-remove-dictation-voxtype'),
+  'menu uses the current dictation installer and remover commands'
 )
 assertDeepEqual(
   defaultItems
