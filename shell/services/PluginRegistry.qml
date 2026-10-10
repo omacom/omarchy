@@ -438,6 +438,17 @@ QtObject {
     return ""
   }
 
+  // The bar pins its center row on centerAnchor by exact id, so a widget
+  // swapped for its clone (or back) has to carry the anchor with it.
+  // The anchor follows only when the swap took its widget out of the center:
+  // a widget listed in another section too is swapped there first, and the
+  // center entry the anchor names is still in place.
+  function moveCenterAnchor(config, fromId, toId) {
+    if (Util.canonicalWidgetId(String(config.bar.centerAnchor || "")) !== fromId) return
+    if (findBarLocation(config, fromId, "center").found) return
+    config.bar.centerAnchor = toId
+  }
+
   function restoreCloneSource(config, cloneId, sourceId) {
     var cloneManifest = installedPlugins[cloneId]
     var isBarOption = cloneManifest && Array.isArray(cloneManifest.kinds)
@@ -462,6 +473,7 @@ QtObject {
           restoredEntry.id = sourceId
           config.bar.layout[cloneLocation.section][cloneLocation.index] = restoredEntry
         }
+        moveCenterAnchor(config, cloneId, sourceId)
       } else if (cloneLocation.kind === "plugin") {
         config.plugins.splice(cloneLocation.index, 1)
       }
@@ -532,6 +544,7 @@ QtObject {
             var replacement = Util.isPlainObject(sourceEntry) ? Util.cloneJson(sourceEntry) : entry
             replacement.id = key
             config.bar.layout[sourceLocation.section][sourceLocation.index] = replacement
+            moveCenterAnchor(config, clonedFrom, key)
           } else {
             var section = defaultBarWidgetSection(manifest)
             var target = barTarget(config, placement || {}, section)
