@@ -687,19 +687,20 @@ keyboard_hook_copy="$test_tmp/keyboard-backlight-hook"
 keyboard_calls="$test_tmp/keyboard-backlight-calls"
 keyboard_led_dir="$test_tmp/leds"
 mkdir -p "$keyboard_led_dir/asus::kbd_backlight"
-sed "s|/sys/class/leds/\*kbd_backlight\*|$keyboard_led_dir/*kbd_backlight*|" \
+sed -e "s|/sys/class/leds/|$keyboard_led_dir/|" \
+  -e "s|=/run/omarchy-keyboard-backlight$|=$test_tmp/keyboard-backlight-state|" \
   "$ROOT/default/systemd/system-sleep/keyboard-backlight" >"$keyboard_hook_copy"
-cat >"$stub_bin/brightnessctl" <<'SH'
+cat >"$stub_bin/omarchy-brightness-keyboard" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$KEYBOARD_CALLS"
 SH
-chmod +x "$stub_bin/brightnessctl"
+chmod +x "$stub_bin/omarchy-brightness-keyboard"
 
 SYSTEMD_SLEEP_ACTION=suspend KEYBOARD_CALLS="$keyboard_calls" PATH="$stub_bin:$PATH" \
   bash "$keyboard_hook_copy" pre suspend-then-hibernate
 [[ ! -e $keyboard_calls ]] || fail "keyboard-backlight runs during the suspend phase of compound sleep"
 SYSTEMD_SLEEP_ACTION=hibernate KEYBOARD_CALLS="$keyboard_calls" PATH="$stub_bin:$PATH" \
   bash "$keyboard_hook_copy" pre suspend-then-hibernate
-grep -Fqx -- '-d asus::kbd_backlight set 0' "$keyboard_calls" ||
+grep -Fqx -- 'off' "$keyboard_calls" ||
   fail "keyboard-backlight skips the hibernate phase of compound sleep"
 pass "keyboard-backlight handles the hibernate phase of suspend-then-hibernate"
