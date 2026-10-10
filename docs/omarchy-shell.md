@@ -176,6 +176,7 @@ Rules:
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
 7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
 8. `version: 1` is required.
+9. `audio.volumeScale` is `"linear"` (default) or `"decibel"`. Clicking the audio panel's output readout switches it; it sets the output slider, readout, and volume-key steps.
 
 `config/omarchy/shell.json` describes the fresh-install state. When no
 user `shell.json` exists, defaults are used verbatim. Once the user

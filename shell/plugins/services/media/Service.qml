@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Services.Mpris
 import Quickshell.Services.Pipewire
 import "MediaModel.js" as MediaModel
+import "../../../Commons/AudioVolume.js" as AudioVolume
 import qs.Commons
 
 Item {
@@ -475,8 +476,11 @@ Item {
     var audio = volumeSink && volumeSink.audio
     if (!audio) return false
 
-    var step = MediaModel.volumeKeyStep(action, Math.round(audio.volume * 100), audio.muted)
-    if (!step) return false
+    var steps = { "raise": 1, "lower": -1, "raise-precise": 1, "lower-precise": -1 }[action]
+    if (!steps && action !== "mute-toggle") return false
+    var scale = AudioVolume.scale(shell.shellConfig)
+    var volume = steps ? AudioVolume.step(audio.volume, steps, scale, action.endsWith("-precise")) : audio.volume
+    var muted = steps ? false : !audio.muted
 
     if (action === "mute-toggle") {
       // Some keyboards bounce the mute key; the script ignores a second
@@ -484,19 +488,19 @@ Item {
       var now = Date.now()
       if (now - lastMuteToggle < 250) return true
       lastMuteToggle = now
-      audio.muted = step.muted
+      audio.muted = muted
     } else {
       audio.muted = false
-      audio.volume = step.percent / 100
+      audio.volume = volume
     }
 
     // The payload omarchy-osd builds, from the values just set: the node may
     // not report them back before the OSD draws.
     shell.summon("omarchy.osd", JSON.stringify({
-      icon: MediaModel.volumeOsdIcon(step.percent, step.muted),
+      icon: MediaModel.volumeOsdIcon(Math.round(volume * 100), muted),
       message: "",
-      value: String(step.percent),
-      progressText: step.percent + "%",
+      value: String(Math.round(AudioVolume.position(volume, scale) * 100)),
+      progressText: AudioVolume.readout(volume, scale),
       max: "100",
       duration: ""
     }))
