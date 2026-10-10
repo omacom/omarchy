@@ -23,26 +23,35 @@ set -uo pipefail
 # call or playback routed to another output (a headset, an HDMI TV) instead of
 # always moving the default. A communication stream (media.role
 # "phone"/"communication", PipeWire's canonical VOIP role) outranks background
-# playback when several streams are playing; with no non-default stream the
-# answer is the default, unchanged.
+# playback wherever it plays, even on the default sink; with no non-default
+# stream the answer is the default, unchanged.
 
 # The sink an uncorked stream is playing into, when that is not the default
 # sink. Prints the sink name, or nothing to keep the default.
 active_stream_sink() {
-  local default_sink indices idx name
+  local default_sink idx name
   default_sink="$(pactl get-default-sink 2>/dev/null)"
   [[ -n $default_sink ]] || return 0
 
-  # Sink indices carrying an uncorked stream, call streams first, so a meeting
-  # outranks background playback when several streams are playing at once.
-  indices="$(pactl -f json list sink-inputs 2>/dev/null |
-    jq -r '
-      (.[] | select(.corked == false)
-        | select((.properties["media.role"] // "") | test("phone|communication|voip"; "i"))
-        | .sink),
-      (.[] | select(.corked == false) | .sink)' 2>/dev/null)"
+  # A communication stream (media.role phone/communication/voip) wins wherever
+  # it plays, including on the default sink, so a call on the speakers is not
+  # drowned out by music routed to another output.
+  for idx in $(pactl -f json list sink-inputs 2>/dev/null |
+    jq -r '.[] | select(.corked == false)
+      | select((.properties["media.role"] // "") | test("phone|communication|voip"; "i"))
+      | .sink' 2>/dev/null); do
+    name="$(pactl -f json list sinks 2>/dev/null |
+      jq -r --argjson i "$idx" '.[] | select(.index == $i) | .name' 2>/dev/null)"
+    [[ -n $name ]] || continue
+    [[ $name == *.monitor ]] && continue
+    printf '%s\n' "$name"
+    return 0
+  done
 
-  for idx in $indices; do
+  # Otherwise ordinary playback on a non-default output wins; the default is
+  # the fallback and is left to the caller.
+  for idx in $(pactl -f json list sink-inputs 2>/dev/null |
+    jq -r '.[] | select(.corked == false) | .sink' 2>/dev/null); do
     name="$(pactl -f json list sinks 2>/dev/null |
       jq -r --argjson i "$idx" '.[] | select(.index == $i) | .name' 2>/dev/null)"
     [[ -n $name ]] || continue

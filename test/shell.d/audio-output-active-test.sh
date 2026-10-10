@@ -87,6 +87,13 @@ printf '[{"index":12,"sink":105,"corked":false,"properties":{}},{"index":13,"sin
 [[ $(resolve --active) == "$hdmi" ]] || fail "a communication stream outranks background playback"
 pass "--active prefers a call over background playback"
 
+# A call on the default sink still outranks music on another output: the call
+# is not skipped just because it plays on the default speakers.
+reset_scenario
+printf '[{"index":12,"sink":70,"corked":false,"properties":{"media.role":"phone"}},{"index":13,"sink":105,"corked":false,"properties":{}}]\n' >"$test_home/data/sink-inputs.json"
+[[ $(resolve --active) == "$default" ]] || fail "a call on the default sink outranks music elsewhere"
+pass "--active keeps a call on the default sink over music on another output"
+
 # With no call, an ordinary playback stream is still followed.
 reset_scenario
 printf '[{"index":12,"sink":105,"corked":false,"properties":{"media.role":"music"}}]\n' >"$test_home/data/sink-inputs.json"
