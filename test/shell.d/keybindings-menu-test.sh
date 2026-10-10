@@ -247,3 +247,69 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# Most rows tie on both sort keys, so a whole-line comparison decides where they
+# land, and that comparison follows the collation. These two tie, and they swap:
+# a C collation puts every SUPER + <key> row ahead of the SUPER ALT rows because
+# + sorts below A, while en_US ignores the spaces and the + and reads them as
+# SUPERSLASH against SUPERALTSLASH. One cheatsheet order per install is the
+# point, so the same binds have to render the same way under either collation.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + SLASH" "Monitor scaling up")
+$(lua_bind 72 "SUPER ALT + SLASH" "Monitor scaling down")
+BINDS
+
+keybindings_under() {
+  rm -rf "$tmpdir/cache"
+  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+    XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" LC_ALL="$1" \
+    bash "$ROOT/bin/omarchy-menu-keybindings" --print
+}
+
+if locale -a 2>/dev/null | grep -qix 'en_US.utf-\?8'; then
+  ordered_under_c=$(keybindings_under C)
+  ordered_under_en=$(keybindings_under en_US.UTF-8)
+
+  # Both renders have to carry the two rows this is about before comparing them
+  # proves anything, and there is no empty render to notice instead: a hyprctl
+  # that reports no binds still leaves the two rows static_bindings prints, and
+  # those tie the same way under either collation.
+  for order in "$ordered_under_c" "$ordered_under_en"; do
+    (( $(grep -c 'SLASH' <<<"$order") == 2 )) ||
+      fail "both collations render the rows the comparison is about" "$order"
+  done
+
+  collation_diff=$(diff <(printf '%s\n' "$ordered_under_c") \
+    <(printf '%s\n' "$ordered_under_en")) ||
+    fail "the row order does not follow the collation" "$collation_diff"
+  pass "the row order does not follow the collation"
+else
+  # With no second collation generated, sort falls back to comparing bytes and
+  # the check above cannot fail, which would leave it reading as proof.
+  skip "the row order does not follow the collation (no en_US.UTF-8 locale)"
+fi
+
+# Since that check needs a locale not every box has, pin the mechanism too.
+grep -qF 'LC_ALL=C sort -k1,1n -k2,2' "$ROOT/bin/omarchy-menu-keybindings" ||
+  fail "the sort that orders the rows names the collation it wants"
+pass "the sort that orders the rows names the collation it wants"
+
+# Rows are sorted before they are cached and the key holds nothing that says how,
+# so a cache written before the collation was pinned reads back in whatever order
+# it was written on a machine whose keymap and binds have not moved. The version
+# in the key is the only thing that retires it. Plant a record under the key the
+# version before this one would have written: it has to be ignored, not served.
+rm -f "$tmpdir"/cache/omarchy/keybindings-*.records
+stale_key=$(
+  {
+    printf 'v14\n'
+    PATH="$stub_bin:$PATH" hyprctl devices 2>/dev/null | grep -F 'active keymap:'
+    PATH="$stub_bin:$PATH" hyprctl binds 2>/dev/null
+  } | sha256sum | awk '{ print $1 }'
+)
+printf 'SUPER + SLASH  → a row an older version cached\tstale\t\n' \
+  >"$tmpdir/cache/omarchy/keybindings-$stale_key.records"
+
+! grep -q 'an older version cached' <<<"$(keybindings)" ||
+  fail "a cache written before the row order was pinned is not served"
+pass "a cache written before the row order was pinned is not served"
