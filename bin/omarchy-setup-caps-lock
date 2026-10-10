@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Choose normal Caps Lock or Compose key behaviour
+# omarchy:args=<normal|compose|reset>
+
+set -euo pipefail
+
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+state_file="$state_dir/caps-lock"
+
+case "${1:-}" in
+  normal | compose)
+    mkdir -p "$state_dir"
+    temporary=$(mktemp "$state_file.XXXXXX")
+    trap 'rm -f "$temporary"' EXIT
+    printf '%s\n' "$1" >"$temporary"
+    mv "$temporary" "$state_file"
+    ;;
+  reset)
+    rm -f "$state_file"
+    ;;
+  *)
+    echo "Usage: omarchy-setup-caps-lock <normal|compose|reset>" >&2
+    exit 1
+    ;;
+esac
+
+hyprctl reload
