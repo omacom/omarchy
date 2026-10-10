@@ -1,16 +1,11 @@
-#!/bin/bash
+echo "Fix blank Spotify video player"
 
-# omarchy:summary=Install Spotify.
-# omarchy:requires-sudo=true
-
-set -e
-
-echo "Installing Spotify..."
-omarchy-pkg-add spotify
+[[ -x /usr/bin/spotify ]] || exit 0
 
 flags_file="$HOME/.config/spotify-flags.conf"
 
-# Keep any flags the user already set and only add the video decode switch
+# Spotify's hardware video decoding renders music videos and video podcasts as a blank white
+# box under XWayland. Keep any flags the user already set and only add the decode switch.
 if [[ ! -f $flags_file ]]; then
   mkdir -p "$HOME/.config"
   cp "$OMARCHY_PATH/config/spotify-flags.conf" "$flags_file"
@@ -18,9 +13,3 @@ elif ! grep -qx -- '--disable-accelerated-video-decode' "$flags_file"; then
   [[ -n $(tail -c1 "$flags_file") ]] && echo >>"$flags_file"
   echo '--disable-accelerated-video-decode' >>"$flags_file"
 fi
-
-echo "Opening Spotify..."
-setsid uwsm-app -- /usr/bin/spotify >/dev/null 2>&1 &
-
-echo ""
-echo "Spotify has been installed."
