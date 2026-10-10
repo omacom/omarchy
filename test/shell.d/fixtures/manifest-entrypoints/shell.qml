@@ -161,6 +161,7 @@ ShellRoot {
     property color foreground: "white"
     property color background: "black"
     property color urgent: "red"
+    property color warning: "yellow"
     property var shell: mockShell
     function run(command) {}
     function showTooltip(target, text) {}

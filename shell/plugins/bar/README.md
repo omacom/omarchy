@@ -155,7 +155,7 @@ Item {
 
 Widgets receive `bar` (the shell root), `moduleName` (string), and `settings` (object) injected at load time. The bar exposes:
 
-- `bar.foreground`, `bar.background`, `bar.urgent` — theme colors (live-updated)
+- `bar.foreground`, `bar.background`, `bar.urgent`, `bar.warning` — theme colors (live-updated)
 - `bar.fontFamily` — current monospace family
 - `bar.position` — `"top" | "bottom" | "left" | "right"`
 - `bar.vertical` — boolean shortcut

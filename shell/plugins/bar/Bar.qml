@@ -78,12 +78,13 @@ Item {
   property color foreground: themeForeground
   property color barForeground: useTransparentForeground ? transparentForeground : themeForeground
   property bool foregroundAnimationEnabled: true
-  property color background: Commons.Color.bar.background
-  property color urgent: Commons.Color.bar.active
-
+  property color background: Color.bar.background
+  property color urgent: Color.bar.active
+  property color warning: Color.bar.warning
   Behavior on barForeground { enabled: root.foregroundAnimationEnabled; ColorAnimation { duration: Style.duration(420); easing.type: Easing.OutCubic } }
   Behavior on background { ColorAnimation { duration: Style.duration(420); easing.type: Easing.OutCubic } }
   Behavior on urgent { ColorAnimation { duration: Style.duration(420); easing.type: Easing.OutCubic } }
+  Behavior on warning { ColorAnimation { duration: Style.duration(420); easing.type: Easing.OutCubic } }
   property var tooltipTarget: null
   property var pendingTooltipTarget: null
   property string tooltipText: ""
@@ -132,6 +133,7 @@ Item {
     api.barForeground = Qt.binding(function() { return root.barForeground })
     api.background = Qt.binding(function() { return root.background })
     api.urgent = Qt.binding(function() { return root.urgent })
+    api.warning = Qt.binding(function() { return root.warning })
     api.fontFamily = Qt.binding(function() { return root.fontFamily })
     api.position = Qt.binding(function() { return root.position })
     api.vertical = Qt.binding(function() { return root.vertical })
