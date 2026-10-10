@@ -17,6 +17,137 @@ if (( sinks_count == 0 )); then
   exit 1
 fi
 
+# One sink can still mean two outputs. On unified chips the analog and HDMI
+# outputs of a single HDA card are mutually exclusive card profiles, so PipeWire
+# never exposes more than one sink for it and rotating sinks lands back on the
+# one it started from: (0 + 1) % 1 = 0. The key looks dead. Switch the profile
+# instead, and leave every other case to the sink rotation below.
+if (( sinks_count == 1 )); then
+  # The card behind the lone sink, not merely the first ALSA card: machines that
+  # enumerate the GPU's HDMI card first would otherwise switch the wrong one.
+  card=$(jq -r '.[0].properties."device.name" // empty' <<<"$sinks")
+  card_json=$(timeout 2 pactl -f json list cards 2>/dev/null |
+    jq -c --arg c "$card" 'map(select(.name == $c))[0] // empty')
+  active=$(jq -r '.active_profile // empty' <<<"$card_json")
+
+  # Swap only the output half, matched exactly. Profiles read "output:x" or
+  # "output:x+input:y", and carrying the input half over is what keeps the
+  # internal mic from vanishing on every switch. An exact match also leaves
+  # look-alikes such as output:hdmi-stereo-extra1 alone instead of rewriting
+  # them into a profile that does not exist.
+  output_profile=${active%%+*}
+  input_profile=${active#"$output_profile"}
+
+  case "$output_profile" in
+    output:analog-stereo)
+      next_profile="output:hdmi-stereo${input_profile}"
+      profile_icon="display"
+      profile_message="Digital Output (HDMI)"
+      ;;
+    output:hdmi-stereo)
+      next_profile="output:analog-stereo${input_profile}"
+      profile_icon="volume-high"
+      profile_message="Analog Output (Headphones)"
+      ;;
+    *)
+      next_profile=""
+      ;;
+  esac
+
+  # Only switch to a profile the card reports as available, so unplugging the
+  # HDMI display cannot strand the machine on an output with nothing attached.
+  # pactl 17 reports availability as a JSON boolean; accept "yes" as well rather
+  # than have the switch quietly do nothing if that ever changes.
+  if [[ -n $next_profile ]] &&
+    jq -e --arg p "$next_profile" '(.profiles[$p].available // false) | . == true or . == "yes"' <<<"$card_json" >/dev/null 2>&1; then
+
+    previous_sink=$(timeout 2 pactl get-default-sink 2>/dev/null)
+
+    # Remember which player is playing, not merely that one is: the pause below
+    # can hand the shell's active-player spot to a second player. Identity only,
+    # never the track, which can advance while the sink is being rebuilt.
+    media_before=$(timeout 2 omarchy-shell media status 2>/dev/null)
+    if [[ $(jq -r '.playing // false' <<<"$media_before" 2>/dev/null) == true ]]; then
+      was_playing=true
+      playing_identity=$(jq -r '.identity // ""' <<<"$media_before" 2>/dev/null)
+      playing_title=$(jq -r '.title // ""' <<<"$media_before" 2>/dev/null)
+    else
+      was_playing=false
+    fi
+
+    if timeout 2 pactl set-card-profile "$card" "$next_profile" 2>/dev/null; then
+      # Mute is deliberately left alone. WirePlumber restores each sink's own
+      # remembered mute when the profile brings that sink back, asynchronously
+      # and after this script could set it, so carrying mute across the switch
+      # both loses the race and fights a policy that already does the right
+      # thing. Rotating between sinks above does not touch mute either.
+      omarchy-osd -i "$profile_icon" -m "$profile_message"
+
+      # Tearing down the old sink pauses whatever was playing through it, so wait
+      # for the replacement to be both present and the default before resuming:
+      # resuming into a sink that is still registering pauses straight back, or
+      # plays somewhere other than the output just chosen. A nonempty name is no
+      # evidence of that, since the outgoing sink keeps resolving meanwhile.
+      if [[ $was_playing == true ]]; then
+        for _ in {1..40}; do
+          new_sink=$(timeout 2 pactl get-default-sink 2>/dev/null)
+          [[ -n $new_sink && $new_sink != "$previous_sink" ]] &&
+            timeout 2 pactl -f json list sinks 2>/dev/null |
+              jq -e --arg n "$new_sink" 'any(.[]; .name == $n)' >/dev/null 2>&1 &&
+            break
+          sleep 0.05
+        done
+
+        # The app's pause reaches the shell shortly after its sink goes away,
+        # measured at 26ms to 86ms over eight switches on the hardware this was
+        # written for, and after the replacement sink is already the default --
+        # so watch for it rather than sampling once. Sampling once can read the
+        # player as still playing, skip the resume, and leave playback stopped
+        # when the pause lands. Nothing to resume if it never pauses, which also
+        # happens.
+        #
+        # One second of watching is more than ten times that measured delay, and
+        # the pause is usually there on the first look. The full window only runs
+        # when playback survives the swap, by which point the profile is set and
+        # the OSD is up, and the keybind that started this waits on neither.
+        #
+        # It is also a deliberate ceiling: a pause the user makes inside the
+        # window cannot be told apart from the switch's own through this IPC, so
+        # the shorter the window, the less of a deliberate pause can be undone.
+        #
+        # `media play` takes no target and acts on whichever player the shell
+        # considers active, so give up the moment that is a different player.
+        resume=false
+        first_look=true
+        for _ in {1..10}; do
+          media_after=$(timeout 2 omarchy-shell media status 2>/dev/null)
+          [[ $(jq -r '.identity // ""' <<<"$media_after" 2>/dev/null) == "$playing_identity" ]] || break
+
+          if [[ $(jq -r '.playing // false' <<<"$media_after" 2>/dev/null) != true ]]; then
+            # Paused already on the first look is ambiguous when two players
+            # share an identity: ours with the pause delivered quickly, or a
+            # second one paused on purpose that has taken the active spot. The
+            # track settles it, since a paused player's track does not advance.
+            [[ $first_look == true ]] &&
+              [[ $(jq -r '.title // ""' <<<"$media_after" 2>/dev/null) != "$playing_title" ]] &&
+              break
+
+            resume=true
+            break
+          fi
+
+          first_look=false
+          sleep 0.1
+        done
+
+        [[ $resume == true ]] && omarchy-shell -q media play >/dev/null 2>&1
+      fi
+
+      exit 0
+    fi
+  fi
+fi
+
 current_sink_name=$(timeout 2 pactl get-default-sink)
 current_sink_index=$(jq -r --arg name "$current_sink_name" 'map(.name) | index($name)' <<<"$sinks")
 
