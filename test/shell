@@ -1,51 +1,372 @@
 #!/bin/bash
+# Run the shell tests. The same file, the same way, on your machine and in CI.
+#
+#   test/shell [options] [name ...]
+#
+#   -j N           files in flight at once (default: nproc, at most 4)
+#   --seed N       order seed (default: random; printed, so a run can be replayed)
+#   --rounds N     run the selection N times, each in a fresh order (default: 1)
+#   --for DUR      keep starting rounds until DUR has passed: 30m, 2h (a soak)
+#   --timeout S    wall-clock limit per file, in seconds (default: 180, or
+#                  $OMARCHY_TEST_TIMEOUT)
+#   --report F     append one JSON line per file run to F
+#   --slow-first F start files F lists as slow ("<ms> <name>" lines) first,
+#                  longest first; the rest keep the seeded order
+#   --shard K/N    run only shard K of N: the files split into N groups of
+#                  equal expected time (by --slow-first's durations), the
+#                  same split on every machine
+#   name ...       only these files (foo, foo-test or foo-test.sh)
+#
+# Every file runs in its own sandbox:
+#   - a fresh TMPDIR and HOME, removed afterwards: a test can't reach your ~/.config
+#   - a clean environment, identical everywhere: PATH is this checkout's bin/,
+#     the system's and your mise tools' (node), never an installed Omarchy's;
+#     in a desktop session, the live compositor for the runtime tests
+#   - its output to a log file, never a pipe, so nothing it leaves running can
+#     hang the run; the log is printed when the file finishes
+#   - a time limit, and containment: when the file exits, everything it started
+#     is killed, at any depth, even if it detached with setsid. How depends on
+#     the machine, best available first:
+#       systemd  a transient user unit per file; its cgroup is killed (desktops)
+#       pidns    a PID namespace per file; used when run as root, e.g. in a CI
+#                container, with the tests run as $OMARCHY_TEST_USER
+#       pgroup   a process group per file; a test calling setsid can escape it,
+#                so this one warns
+#     OMARCHY_TEST_CONTAIN=systemd|pidns|pgroup overrides the choice.
+# The run fails if any file fails, times out, or changes the source tree.
 
 set -euo pipefail
 
-ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+SELF=$(realpath -- "${BASH_SOURCE[0]}")
+ROOT=$(cd -- "$(dirname -- "$SELF")/.." && pwd)
 TEST_DIR="$ROOT/test/shell.d"
 
-shopt -s nullglob
-tests=()
-for test in "$TEST_DIR"/*-test.sh; do
-  [[ $(basename "$test") == "base-test.sh" ]] && continue
-  tests+=("$test")
-done
-shopt -u nullglob
+# ---------------------------------------------------------------------------
+# Internal: PID 1 of a file's namespace (pidns mode). The kernel drops
+# default-action signals sent to a namespace's init, so the test must not be
+# PID 1 itself; this init starts it as PID 2 and forwards TERM/INT/HUP. When
+# init exits, the kernel kills whatever is left in the namespace.
+if [[ ${1-} == --pid1 ]]; then
+  shift
+  "$@" &
+  child=$!
+  trap 'kill -TERM "$child" 2>/dev/null' TERM INT HUP
+  while :; do
+    rc=0
+    wait "$child" || rc=$?
+    kill -0 "$child" 2>/dev/null || break
+  done
+  # A glob, not $(...): a subshell would count itself.
+  procs=(/proc/[0-9]*)
+  left=$(( ${#procs[@]} - 1 ))
+  (( left > 0 )) && echo "# contain: killed $left leftover process(es)" >&2
+  exit "$rc"
+fi
 
+# ---------------------------------------------------------------------------
+# Internal: run one file. Called by xargs, one process per file.
+if [[ ${1-} == --one ]]; then
+  test=$2
+  name=$(basename "$test" .sh)
+  # Short on purpose: a socket's path is capped at 108 bytes, and tests put
+  # theirs several folders below TMPDIR.
+  work=$(mktemp -d /tmp/ot.XXXXXX)
+  mkdir "$work/home" "$work/t"
+  log="$RUN_DIR/logs/$name.$ROUND.log"
+
+  # Built from nothing, so a laptop and a CI container see the same thing.
+  # --default-signal: bash starts background jobs with SIGINT/SIGQUIT
+  # ignored, and that would be inherited; every file starts from defaults.
+  run=(env -i --default-signal
+    # bin before sbin, as Arch has it: sbin links to bin there, and tests
+    # compare `type -P` results against /usr/bin paths.
+    PATH="$ROOT/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin${TOOL_PATH:+:$TOOL_PATH}"
+    HOME="$work/home" TMPDIR="$work/t"
+    # In a desktop session the runtime tests drive the live compositor, as they do
+    # under a plain `bash test/shell.d/x-test.sh`; without one they skip, as in CI.
+    ${HYPRLAND_INSTANCE_SIGNATURE:+HYPRLAND_INSTANCE_SIGNATURE="$HYPRLAND_INSTANCE_SIGNATURE"
+      WAYLAND_DISPLAY="${WAYLAND_DISPLAY-}" XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR-}"}
+    USER="$TEST_USER" LOGNAME="$TEST_USER"
+    SHELL=/bin/bash LANG=C.UTF-8 TERM=dumb PYTHONDONTWRITEBYTECODE=1
+    OMARCHY_PATH="$ROOT"
+    ${OMARCHY_PKGS_PATH:+OMARCHY_PKGS_PATH="$OMARCHY_PKGS_PATH"}
+    ${OMARCHY_ISO_PATH:+OMARCHY_ISO_PATH="$OMARCHY_ISO_PATH"}
+    timeout --kill-after=10 "$TIMEOUT" bash "$test")
+
+  start=$(date +%s%N)
+  rc=0
+  case $CONTAIN in
+    systemd)
+      systemd-run --user --quiet --collect --wait --pipe --same-dir \
+        --unit="omarchy-test-$name-$$" \
+        -p KillMode=control-group -p TimeoutStopSec=5 \
+        -p TasksMax=1024 -p MemoryMax=2G \
+        -- "${run[@]}" >"$log" 2>&1 </dev/null || rc=$?
+      ;;
+    pidns)
+      chown -R "$TEST_USER": "$work"
+      unshare --pid --fork --kill-child --mount --mount-proc \
+        "$SELF" --pid1 \
+        setpriv --reuid="$TEST_USER" --regid="$TEST_USER" --init-groups \
+        "${run[@]}" >"$log" 2>&1 </dev/null || rc=$?
+      ;;
+    pgroup)
+      # A background job isn't a group leader, so setsid execs in place and
+      # its PID is the new process group's ID.
+      setsid "${run[@]}" >"$log" 2>&1 </dev/null &
+      pgid=$!
+      wait "$pgid" || rc=$?
+      kill -KILL -- "-$pgid" 2>/dev/null || true
+      ;;
+  esac
+  ms=$(( ($(date +%s%N) - start) / 1000000 ))
+  rm -rf "$work"
+
+  status=pass
+  (( rc != 0 )) && status=fail
+  (( rc == 124 || rc == 137 )) && status=timeout
+  skip=false
+  grep -q '^ok - .* # SKIP' "$log" && skip=true
+
+  # One writer at a time: the log, whole, then its result line.
+  {
+    flock 9
+    printf '==> test/shell.d/%s.sh\n' "$name"
+    cat "$log"
+    case $status in
+      timeout) printf 'not ok - %s timed out after %ss\n' "$name" "$TIMEOUT" ;;
+      fail) printf 'not ok - %s exited %d\n' "$name" "$rc" ;;
+    esac
+    printf '{"round":%d,"test":"%s","status":"%s","rc":%d,"ms":%d,"skip":%s,"contain":"%s"}\n' \
+      "$ROUND" "$name" "$status" "$rc" "$ms" "$skip" "$CONTAIN" >>"$RUN_DIR/results.jsonl"
+  } 9>>"$RUN_DIR/lock"
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Options
+jobs=$(nproc)
+(( jobs > 4 )) && jobs=4 # -P8 breaks emojis-test under load (ci-proposal/FASTER.md)
+seed=$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')
+rounds=1
+duration=
+TIMEOUT=${OMARCHY_TEST_TIMEOUT:-180}
+report=
+slow=
+shard=
+names=()
+while (( $# > 0 )); do
+  case $1 in
+    -j) jobs=$2; shift 2 ;;
+    --seed) seed=$2; shift 2 ;;
+    --rounds) rounds=$2; shift 2 ;;
+    --for) duration=$2; rounds=0; shift 2 ;;
+    --timeout) TIMEOUT=$2; shift 2 ;;
+    --report) report=$2; shift 2 ;;
+    --slow-first) slow=$2; shift 2 ;;
+    --shard) shard=$2; shift 2 ;;
+    -h|--help) sed -n '2,/^$/p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -*) echo "test/shell: unknown option $1" >&2; exit 2 ;;
+    *) names+=("$1"); shift ;;
+  esac
+done
+
+deadline=
+if [[ -n $duration ]]; then
+  case $duration in
+    *h) deadline=$(( $(date +%s) + ${duration%h} * 3600 )) ;;
+    *m) deadline=$(( $(date +%s) + ${duration%m} * 60 )) ;;
+    *s) deadline=$(( $(date +%s) + ${duration%s} )) ;;
+    *) echo "test/shell: --for takes 30m, 2h or 90s" >&2; exit 2 ;;
+  esac
+fi
+
+# ---------------------------------------------------------------------------
+# Which files
+tests=()
+if (( ${#names[@]} == 0 )); then
+  shopt -s nullglob
+  for test in "$TEST_DIR"/*-test.sh; do
+    [[ $(basename "$test") == base-test.sh ]] && continue
+    tests+=("$test")
+  done
+  shopt -u nullglob
+else
+  for n in "${names[@]}"; do
+    n=${n%.sh}
+    n=${n%-test}
+    [[ -f "$TEST_DIR/$n-test.sh" ]] || { echo "test/shell: no test $n" >&2; exit 2; }
+    tests+=("$TEST_DIR/$n-test.sh")
+  done
+fi
 if (( ${#tests[@]} == 0 )); then
   echo "No shell tests found in $TEST_DIR" >&2
   exit 1
 fi
 
-# Keep going after a failing file. A test file exits at its first failed
-# assertion, so aborting the run there too would hide every file after it --
-# one packaging failure was masking 114 of 134 files.
-output=$(mktemp)
-trap 'rm -f "$output"' EXIT
-failed=()
-skipped=()
-for test in "${tests[@]}"; do
-  printf '==> %s\n' "${test#$ROOT/}"
-  bash "$test" | tee "$output" || failed+=("${test#$ROOT/}")
-  if grep -q '^ok - .* # SKIP$' "$output"; then
-    skipped+=("${test#$ROOT/}")
-  fi
-done
-
-if (( ${#skipped[@]} > 0 )); then
-  printf '\nSkipped checks in %d of %d test files:\n' "${#skipped[@]}" "${#tests[@]}"
-  printf '  %s\n' "${skipped[@]}"
+# Sharding: longest first, each file to the shard with the least expected time
+# so far (1 s for a file with no known duration). Deterministic, so every
+# shard computes the same split without talking to the others.
+if [[ -n $shard ]]; then
+  [[ $shard =~ ^([0-9]+)/([0-9]+)$ ]] && (( BASH_REMATCH[1] >= 1 && BASH_REMATCH[1] <= BASH_REMATCH[2] )) ||
+    { echo "test/shell: --shard takes K/N with 1 <= K <= N" >&2; exit 2; }
+  mapfile -t tests < <(awk -v k="${BASH_REMATCH[1]}" -v n="${BASH_REMATCH[2]}" -v dir="$TEST_DIR" '
+    NR == FNR { if ($1 ~ /^[0-9]+$/) ms[dir "/" $2 ".sh"] = $1; next }
+    { print (($0 in ms) ? ms[$0] : 1000), $0 }
+  ' "${slow:-/dev/null}" <(printf '%s\n' "${tests[@]}") | sort -k1,1nr -k2 | awk -v k="${BASH_REMATCH[1]}" -v n="${BASH_REMATCH[2]}" '
+    { best = 1; for (i = 2; i <= n; i++) if (load[i] < load[best]) best = i
+      load[best] += $1; if (best == k) print $2 }')
+  (( ${#tests[@]} > 0 )) || { echo "test/shell: shard $shard is empty" >&2; exit 2; }
 fi
 
+# ---------------------------------------------------------------------------
+# How to contain them
+TEST_USER=$(id -un)
+if [[ -n ${OMARCHY_TEST_CONTAIN-} ]]; then
+  CONTAIN=$OMARCHY_TEST_CONTAIN
+elif (( EUID == 0 )); then
+  CONTAIN=pidns
+elif systemd-run --user --quiet --collect --wait true >/dev/null 2>&1; then
+  CONTAIN=systemd
+else
+  CONTAIN=pgroup
+fi
+if (( EUID == 0 )); then
+  # Root reads and owns everything, so tests of permissions and ownership
+  # pass or fail for the wrong reason. Run them as someone else.
+  TEST_USER=${OMARCHY_TEST_USER:-}
+  if [[ -z $TEST_USER || $TEST_USER == root ]] || ! id "$TEST_USER" >/dev/null 2>&1; then
+    echo "test/shell: as root, set OMARCHY_TEST_USER to an unprivileged user to run the tests as" >&2
+    exit 2
+  fi
+  if [[ $CONTAIN == pidns ]] && ! unshare --pid --fork --kill-child --mount --mount-proc true 2>/dev/null; then
+    echo "test/shell: cannot create PID and mount namespaces here (a container needs --cap-add SYS_ADMIN, and --security-opt apparmor=unconfined where AppArmor confines it)" >&2
+    exit 2
+  fi
+fi
+case $CONTAIN in
+  systemd|pidns) ;;
+  pgroup) echo "# contain: pgroup only (no systemd user session, not root): a test that calls setsid can outlive its file" >&2 ;;
+  *) echo "test/shell: OMARCHY_TEST_CONTAIN must be systemd, pidns or pgroup" >&2; exit 2 ;;
+esac
+
+# Omarchy installs node with mise, and its shims need the real HOME, which no
+# file gets; hand over the tools' real directories instead. After the system's,
+# so a machine with system tools (CI) sees exactly what it did.
+TOOL_PATH=
+command -v mise >/dev/null && TOOL_PATH=$(cd "$ROOT" && mise bin-paths 2>/dev/null | paste -sd:) || true
+
+# Under $TMPDIR, so test-runner-test's nested runs are cleaned with its sandbox.
+RUN_DIR=$(mktemp -d "${TMPDIR:-/tmp}/omarchy-test-run.XXXXXX")
+mkdir "$RUN_DIR/logs"
+: >"$RUN_DIR/results.jsonl"
+[[ $CONTAIN == pidns ]] && chmod 755 "$RUN_DIR" && chmod 777 "$RUN_DIR/logs"
+export ROOT SELF RUN_DIR TIMEOUT CONTAIN TEST_USER TOOL_PATH
+export OMARCHY_PKGS_PATH="${OMARCHY_PKGS_PATH-}" OMARCHY_ISO_PATH="${OMARCHY_ISO_PATH-}"
+
+tree_state() { git -C "$ROOT" status --porcelain --untracked-files=all 2>/dev/null || true; }
+tree_before=$(tree_state)
+
+printf '# %d files, %d at a time, contain=%s, timeout=%ss, seed=%s\n' \
+  "${#tests[@]}" "$jobs" "$CONTAIN" "$TIMEOUT" "$seed"
+
+# ---------------------------------------------------------------------------
+# Rounds
+# Files that take 3 s or more, by a previous run's timings, longest first.
+slow_tests=() fast_tests=("${tests[@]}")
+if [[ -n $slow ]]; then
+  mapfile -t slow_tests < <(awk -v dir="$TEST_DIR" '
+    NR == FNR { selected[$0] = 1; next }
+    $1 + 0 >= 3000 && ((dir "/" $2 ".sh") in selected) { print $1, dir "/" $2 ".sh" }
+  ' <(printf '%s\n' "${tests[@]}") "$slow" | sort -rn | cut -d' ' -f2-)
+  mapfile -t fast_tests < <(printf '%s\n' "${tests[@]}" | grep -vxF -f <(printf '%s\n' "${slow_tests[@]}" | grep .) || true)
+fi
+
+round=0
+tree_dirty=0
+while :; do
+  (( rounds > 0 && round >= rounds )) && break
+  [[ -n $deadline ]] && (( $(date +%s) >= deadline )) && break
+  round=$(( round + 1 ))
+  export ROUND=$round
+  round_seed=$(( seed + round - 1 ))
+
+  # A seeded shuffle: random order, replayable with --seed. A round lasts as
+  # long as its last file, so the known-slow ones go first, longest first.
+  { printf '%s\n' "${slow_tests[@]}"
+    printf '%s\n' "${fast_tests[@]}" | shuf --random-source=<(yes "$round_seed"); } \
+    | grep . | xargs -d '\n' -P "$jobs" -I{} "$SELF" --one {}
+
+  if [[ $(tree_state) != "$tree_before" ]]; then
+    echo "not ok - round $round changed the source tree:" >&2
+    diff <(printf '%s\n' "$tree_before") <(tree_state) >&2 || true
+    tree_dirty=1
+  fi
+  (( rounds == 1 )) || printf '# round %d done (seed %d)\n' "$round" "$round_seed"
+done
+
+# ---------------------------------------------------------------------------
+# Summary. The wording of these lines is a contract: test-runner-test.sh
+# checks it, and people grep for it. Rounds only add a suffix to a line.
+[[ -n $report ]] && cat "$RUN_DIR/results.jsonl" >>"$report"
+# One line per file that failed or skipped: path, failed runs, runs,
+# timed-out runs, skipped (0/1).
+tally=$(awk '
+  {
+    match($0, /"test":"[^"]*"/); t = substr($0, RSTART + 8, RLENGTH - 9)
+    match($0, /"status":"[^"]*"/); s = substr($0, RSTART + 10, RLENGTH - 11)
+    runs[t]++; total++
+    if (s != "pass") bad[t]++
+    if (s == "timeout") slow[t]++
+    if ($0 ~ /"skip":true/) skipped[t] = 1
+  }
+  END {
+    print "total", total
+    for (t in runs) if ((t in bad) || (t in skipped))
+      print "file", t, bad[t] + 0, runs[t], slow[t] + 0, (t in skipped) ? 1 : 0
+  }' "$RUN_DIR/results.jsonl" | sort -k2)
+
+reported=$(awk '$1 == "total" { print $2 }' <<<"$tally")
+skipped=()
+failed=()
+while read -r kind name bad runs slow skip; do
+  [[ $kind == file ]] || continue
+  (( skip )) && skipped+=("test/shell.d/$name.sh")
+  (( bad == 0 )) && continue
+  line="test/shell.d/$name.sh"
+  if (( round > 1 )); then
+    (( bad == runs )) && line+=" (failed all $runs rounds)" || line+=" (failed $bad of $runs rounds: flaky)"
+  fi
+  (( slow > 0 )) && line+=" (timed out)"
+  failed+=("$line")
+done <<<"$tally"
+
+printf '\n'
+if (( ${#skipped[@]} > 0 )); then
+  printf 'Skipped checks in %d of %d test files:\n' "${#skipped[@]}" "${#tests[@]}"
+  printf '  %s\n' "${skipped[@]}"
+fi
+status=0
+if (( ${reported:-0} != ${#tests[@]} * round )); then
+  printf '%d of %d file runs reported a result\n' "${reported:-0}" "$(( ${#tests[@]} * round ))" >&2
+  status=1
+fi
 if (( ${#failed[@]} > 0 )); then
   printf '\n%d of %d test files failed:\n' "${#failed[@]}" "${#tests[@]}" >&2
   printf '  %s\n' "${failed[@]}" >&2
+  status=1
+fi
+(( tree_dirty )) && status=1
+if (( status != 0 )); then
+  printf '\nLogs in %s; replay the order with --seed %s\n' "$RUN_DIR/logs" "$seed" >&2
   exit 1
 fi
-
+rm -rf "$RUN_DIR"
+suffix=
+(( round > 1 )) && suffix=" ($round rounds)"
 if (( ${#skipped[@]} == 0 )); then
-  printf '\nAll %d test files passed.\n' "${#tests[@]}"
+  printf 'All %d test files passed.%s\n' "${#tests[@]}" "$suffix"
 else
-  printf '\n%d test files completed without failures; %d had skipped checks.\n' "${#tests[@]}" "${#skipped[@]}"
+  printf '%d test files completed without failures; %d had skipped checks.%s\n' \
+    "${#tests[@]}" "${#skipped[@]}" "$suffix"
 fi
