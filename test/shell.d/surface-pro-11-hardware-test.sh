@@ -15,7 +15,7 @@ grep -Fxq 'run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-pro-11.sh"' "
 run_setup() (
   set -eE
   local dir=$1
-  omarchy-hw-qualcomm-soc() { return 0; }
+  omarchy-hw-aarch64-qualcomm() { return 0; }
   omarchy-pkg-add() {
     printf 'add %s\n' "$*" >>"$dir/packages.log"
     [[ ! -e $dir/pkg-add-fails ]]
