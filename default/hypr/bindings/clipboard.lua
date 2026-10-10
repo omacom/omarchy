@@ -32,9 +32,23 @@ local function active_window_is_terminal()
   return false
 end
 
+-- Emacs (and Doom) bind Super+C/V/X natively. Remapping those to Ctrl chords
+-- steals the Super bindings and collides with Emacs's C-c / C-x prefixes (#13515).
+local function active_window_wants_super_clipboard()
+  local window = hl.get_active_window()
+  if not window then
+    return false
+  end
+
+  local class = string.lower(window.class or window.initial_class or "")
+  return class == "emacs" or class:match("^emacs%-") ~= nil
+end
+
 local function universal_clipboard_shortcut(default_mods, default_key, terminal_mods, terminal_key)
   return function()
-    if active_window_is_terminal() then
+    if active_window_wants_super_clipboard() then
+      send_shortcut_once("SUPER", default_key)()
+    elseif active_window_is_terminal() then
       send_shortcut_once(terminal_mods, terminal_key)()
     else
       send_shortcut_once(default_mods, default_key)()
@@ -45,5 +59,11 @@ end
 o.bind("SUPER + A", "Select all", send_shortcut_once("CTRL", "A"))
 o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "C", "CTRL SHIFT", "C"))
 o.bind("SUPER + V", "Universal paste", universal_clipboard_shortcut("CTRL", "V", "CTRL SHIFT", "V"))
-o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "X"))
+o.bind("SUPER + X", "Universal cut", function()
+  if active_window_wants_super_clipboard() then
+    send_shortcut_once("SUPER", "X")()
+  else
+    send_shortcut_once("CTRL", "X")()
+  end
+end)
 o.bind("SUPER + CTRL + V", "Clipboard manager", { panel = "omarchy.clipboard" })
