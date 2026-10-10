@@ -95,6 +95,8 @@ expect_binding $'global\tomarchy:menu.theme\tTheme menu' "the theme menu binding
 expect_binding $'global\tomarchy:panel.omarchy.clipboard\tClipboard manager' "the clipboard binding uses its shortcut"
 expect_binding $'global\tomarchy:audio.raise\tVolume up' "the volume up key steps the volume in the shell"
 expect_binding $'global\tomarchy:audio.lower\tVolume down' "the volume down key steps the volume in the shell"
+expect_binding $'global\tomarchy:audio.raise-precise\tVolume up precise' "precise volume up uses the selected mode"
+expect_binding $'global\tomarchy:audio.lower-precise\tVolume down precise' "precise volume down uses the selected mode"
 expect_binding $'global\tomarchy:audio.mute-toggle\tMute' "the mute key toggles mute in the shell"
 expect_binding $'global\tomarchy:brightness.raise\tBrightness up' "the brightness up key steps the backlight in the shell"
 expect_binding $'global\tomarchy:brightness.lower\tBrightness down' "the brightness down key steps the backlight in the shell"

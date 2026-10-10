@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # omarchy:summary=Adjust output volume and show the Omarchy OSD
-# omarchy:args=<raise|lower|mute-toggle|+N|-N>
-# omarchy:examples=omarchy audio output volume raise | omarchy audio output volume lower | omarchy audio output volume mute-toggle | omarchy audio output volume +1
+# omarchy:args=<raise|lower|raise-precise|lower-precise|mute-toggle|+N|-N>
+# omarchy:examples=omarchy audio output volume raise | omarchy audio output volume lower-precise | omarchy audio output volume mute-toggle | omarchy audio output volume +1
 
 action="${1:-}"
 
 if [[ -z $action ]]; then
-  echo "Usage: omarchy-audio-output-volume <raise|lower|mute-toggle|+N|-N>"
+  echo "Usage: omarchy-audio-output-volume <raise|lower|raise-precise|lower-precise|mute-toggle|+N|-N>"
   exit 1
 fi
 
@@ -34,9 +34,35 @@ volume_muted() {
   [[ $(pactl get-sink-mute "$sink" 2>/dev/null) == *yes ]]
 }
 
+# The raw volume over PA_VOLUME_NORM. Rounding to whole percents would stall
+# small decibel steps near the floor.
+volume_raw() {
+  pactl get-sink-volume "$sink" 2>/dev/null |
+    awk 'NR == 1 {
+      for (i = 1; i <= NF; i++)
+        if ($i ~ /%$/) {print $(i - 2) / 65536; exit}
+    }'
+}
+
+# The scale picked in the audio panel. On the decibel scale, the volume keys
+# step in dB like shell/Commons/AudioVolume.js does.
+scale=$(jq -r '.audio.volumeScale? // empty' "$HOME/.config/omarchy/shell.json" 2>/dev/null)
+floor=-60
+
+if [[ $scale == "decibel" ]]; then
+  case "$action" in
+    raise) decibels=2 ;;
+    lower) decibels=-2 ;;
+    raise-precise) decibels=0.5 ;;
+    lower-precise) decibels=-0.5 ;;
+  esac
+fi
+
 case "$action" in
   raise) action="+5" ;;
   lower) action="-5" ;;
+  raise-precise) action="+1" ;;
+  lower-precise) action="-1" ;;
 esac
 
 if [[ $action == "mute-toggle" ]]; then
@@ -51,6 +77,25 @@ if [[ $action == "mute-toggle" ]]; then
   printf '%s\n' "$now" >"$debounce_file"
 
   pactl set-sink-mute "$sink" toggle
+elif [[ -n $decibels ]]; then
+  current="$(volume_raw)"
+  if [[ -z $current ]]; then
+    echo "Could not read volume for $sink." >&2
+    exit 1
+  fi
+
+  # PipeWire's volume is cubic, so its gain is 60*log10(volume). The floor and
+  # below is silence; a boosted sink steps down but never up past 0 dB.
+  next=$(awk -v volume="$current" -v step="$decibels" -v floor="$floor" 'BEGIN {
+    db = volume > 0 ? 60 * log(volume) / log(10) : floor
+    if (db < floor) db = floor
+    db += step
+    if (step > 0 && db > 0) db = 0
+    printf "%.4f%%\n", db <= floor + 0.01 ? 0 : 100 * 10 ^ (db / 60)
+  }')
+
+  pactl set-sink-mute "$sink" 0
+  pactl set-sink-volume "$sink" "$next"
 elif [[ $action =~ ^([+-])([0-9]+)$ ]]; then
   direction="${BASH_REMATCH[1]}"
   step="${BASH_REMATCH[2]}"
@@ -83,4 +128,15 @@ else
   icon="volume-high"
 fi
 
-omarchy-osd -i "$icon" -p "${percent:-0}"
+if [[ $scale == "decibel" ]]; then
+  read -r position readout < <(awk -v volume="$(volume_raw)" -v floor="$floor" 'BEGIN {
+    db = volume > 0 ? 60 * log(volume) / log(10) : floor
+    position = db < floor ? 0 : 1 - db / floor
+    if (position > 1) position = 1
+    readout = volume > 0 ? sprintf("%.1f dB", db) : "Silent"
+    printf "%d %s\n", position * 100 + 0.5, readout
+  }')
+  omarchy-osd -i "$icon" -p "$position" -t "$readout"
+else
+  omarchy-osd -i "$icon" -p "${percent:-0}"
+fi

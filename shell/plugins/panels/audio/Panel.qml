@@ -8,6 +8,7 @@ import qs.Ui
 import qs.Commons
 import qs.Commons as Commons
 import "Model.js" as Model
+import "../../../Commons/AudioVolume.js" as AudioVolume
 
 Panel {
   id: root
@@ -20,6 +21,17 @@ Panel {
   readonly property var mprisPlayers: Mpris.players ? Mpris.players.values : []
   readonly property var mediaService: bar?.shell?.firstPartyServiceFor("omarchy.media")
   readonly property var activeMediaPlayer: mediaService ? mediaService.activePlayer : null
+  readonly property string volumeScale: AudioVolume.scale(bar?.shell?.shellConfig)
+  readonly property real shownOutputVolume: outputSlider.dragging
+    ? AudioVolume.volume(outputSlider.liveValue, volumeScale) : outputVolume
+
+  function toggleVolumeScale() {
+    var next = volumeScale === "decibel" ? "linear" : "decibel"
+    bar.shell.mutateShellConfig(function(config) {
+      if (!Util.isPlainObject(config.audio)) config.audio = {}
+      config.audio.volumeScale = next
+    })
+  }
 
   // Nodes of a platform's audio processing, which are neither devices nor apps,
   // stay out of every list (AudioNodes.platformHides). Most machines have none.
@@ -182,6 +194,7 @@ Panel {
   //   "input"   — input slider + source device list
   //   "streams" — per-app playback streams
   // selectedIndex semantics within a section:
+  //   -2            → on the output readout (Enter switches percent/decibels)
   //   -1            → on the slider row (h/l adjusts volume, m/Enter mute)
   //   0..N-1        → on the Nth device/stream row
   // Visuals derive from hasCursor/current via CursorSurface, never
@@ -223,6 +236,13 @@ Panel {
     return false
   }
 
+  // The first cursor stop in a section: the output readout, a slider, or the
+  // first row.
+  function sectionFloor(section) {
+    if (section === "output") return -2
+    return sectionHasSlider(section) ? -1 : 0
+  }
+
   function sectionHasSlider(section) {
     if (section === "output") return true
     if (section === "input") return !!source
@@ -243,7 +263,7 @@ Panel {
     var sections = visibleSections
     if (sections.length === 0) return
     if (focusSection === "header") {
-      if (delta > 0) { focusSection = sections[0]; selectedIndex = sectionHasSlider(sections[0]) ? -1 : 0 }
+      if (delta > 0) { focusSection = sections[0]; selectedIndex = sectionFloor(sections[0]) }
       return
     }
     var sIdx = sections.indexOf(focusSection)
@@ -251,15 +271,14 @@ Panel {
 
     var idx = selectedIndex
     var max = sectionCount(focusSection) - 1  // last device index
-    var hasSlider = sectionHasSlider(focusSection)
-    var floor = hasSlider ? -1 : 0  // -1 = slider row
+    var floor = sectionFloor(focusSection)
 
     if (delta > 0) {
       if (idx < max) { selectedIndex = idx + 1; return }
       // Fall through to next section.
       if (sIdx < sections.length - 1) {
         focusSection = sections[sIdx + 1]
-        selectedIndex = sectionHasSlider(focusSection) ? -1 : 0
+        selectedIndex = sectionFloor(focusSection)
       }
     } else {
       if (idx > floor) { selectedIndex = idx - 1; return }
@@ -267,7 +286,7 @@ Panel {
       if (sIdx > 0) {
         focusSection = sections[sIdx - 1]
         var prevMax = sectionCount(focusSection) - 1
-        selectedIndex = prevMax >= 0 ? prevMax : (sectionHasSlider(focusSection) ? -1 : 0)
+        selectedIndex = prevMax >= 0 ? prevMax : sectionFloor(focusSection)
       } else {
         focusSection = "header"
       }
@@ -299,7 +318,7 @@ Panel {
   // moving the global slider would surprise the user.
   function adjustVolume(delta) {
     if (focusSection === "output" && selectedIndex === -1) {
-      setOutputVolume(outputVolume + delta)
+      setOutputVolume(AudioVolume.step(outputVolume, Math.sign(delta), volumeScale, false))
       return
     }
     if (focusSection === "input" && selectedIndex === -1) {
@@ -316,6 +335,7 @@ Panel {
   function activateCursor() {
     if (focusSection === "header") { toggleAllMuted(); return }
     if (focusSection === "output") {
+      if (selectedIndex === -2) { toggleVolumeScale(); return }
       if (selectedIndex === -1) { toggleOutputMute(); return }
       var sink = nodeFor(displayAudioSinks[selectedIndex])
       if (sink) setDefaultSink(sink)
@@ -430,8 +450,7 @@ Panel {
       return
     }
     var count = sectionCount(focusSection)
-    var hasSlider = sectionHasSlider(focusSection)
-    var floor = hasSlider ? -1 : 0
+    var floor = sectionFloor(focusSection)
     if (selectedIndex > count - 1) selectedIndex = Math.max(floor, count - 1)
     if (selectedIndex < floor) selectedIndex = floor
   }
@@ -472,7 +491,8 @@ Panel {
     if (!bar || !bar.shell) return
     bar.shell.summon("omarchy.osd", JSON.stringify({
       icon: outputIcon(volume),
-      value: Math.round(volume * 100)
+      value: Math.round(AudioVolume.position(volume, volumeScale) * 100),
+      progressText: AudioVolume.readout(volume, volumeScale)
     }))
   }
 
@@ -704,7 +724,7 @@ Panel {
       var wheel = Util.wheelSteps(root.wheelAccumulator, delta)
       root.wheelAccumulator = wheel.remainder
       if (wheel.steps === 0) return
-      var volume = root.setOutputVolume(root.outputVolume + wheel.steps * 0.05)
+      var volume = root.setOutputVolume(AudioVolume.step(root.outputVolume, wheel.steps, root.volumeScale, false))
       root.showVolumeOsd(volume)
     }
   }
@@ -825,10 +845,7 @@ Panel {
               Text {
                 id: heroLabel
                 textFormat: Text.PlainText
-                text: root.outputVolumeName(
-                  outputSlider.dragging ? outputSlider.liveValue : root.outputVolume,
-                  root.outputMuted
-                ).toUpperCase()
+                text: root.outputVolumeName(root.shownOutputVolume, root.outputMuted).toUpperCase()
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -862,18 +879,28 @@ Panel {
                 anchors.verticalCenter: parent.verticalCenter
               }
 
-              Text {
+              // The readout switches between percent and decibels.
+              Button {
                 id: outputPercent
-                textFormat: Text.PlainText
-                text: Math.round((outputSlider.dragging ? outputSlider.liveValue : root.outputVolume) * 100) + "%"
-                color: Qt.darker(root.bar.foreground, 1.4)
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
+                text: AudioVolume.readout(root.shownOutputVolume, root.volumeScale)
+                tooltipText: root.volumeScale === "decibel" ? "Switch to percent" : "Switch to decibels"
+                foreground: Qt.darker(root.bar.foreground, 1.4)
+                fontFamily: root.bar.fontFamily
+                fontSize: Style.font.caption
+                horizontalPadding: Style.space(6)
+                verticalPadding: Style.space(2)
+                bordered: true
+                hasCursor: root.cursorActive && root.focusSection === "output" && root.selectedIndex === -2
                 anchors.right: parent.right
-                anchors.rightMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
                 opacity: root.outputMuted ? 0.5 : 1.0
+                onClicked: root.toggleVolumeScale()
+                onHovered: function(on) {
+                  if (!on) return
+                  root.cursorActive = true
+                  root.focusSection = "output"
+                  root.selectedIndex = -2
+                }
               }
             }
 
@@ -894,12 +921,12 @@ Panel {
                 anchors.rightMargin: Style.space(6)
                 minimum: 0
                 maximum: 1
-                step: 0.05
-                value: root.outputVolume
+                step: root.volumeScale === "decibel" ? 2 / -AudioVolume.floor : 0.05
+                value: AudioVolume.position(root.outputVolume, root.volumeScale)
                 opacity: root.outputMuted ? 0.5 : 1.0
                 enabled: !!root.sink
 
-                onMoved: function(v) { root.setOutputVolume(v) }
+                onMoved: function(v) { root.setOutputVolume(AudioVolume.volume(v, root.volumeScale)) }
                 onRightClicked: root.toggleOutputMute()
               }
 
