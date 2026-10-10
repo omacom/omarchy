@@ -26,10 +26,10 @@ The touchpad, touchscreen, and hybrid GPU switches live under _Trigger > Hardwar
 
 The Toggle menu also carries a few things that aren't `omarchy toggle` commands but behave the same: battery percentage in the bar, workspace layout (`Super + L`), window gaps (`Super + Shift + Backspace`), and the 1-window square aspect (`Super + Ctrl + Backspace`).
 
-Most of these are just a flag file under `~/.local/state/omarchy/toggles/`. If you want to branch on one in a script, `omarchy-toggle-enabled` gives you an exit code instead of making you go looking:
+Most of these are just a flag file under `~/.local/state/omarchy/toggles/`. If you want to branch on one in a script, `omarchy toggle enabled` gives you an exit code instead of making you go looking:
 
 ```bash
-omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
+omarchy toggle enabled screensaver-off && echo "screensaver is off"
 ```
 
 The flags are named for the off state — `screensaver-off`, `suspend-off`, `bar-off` — so their presence means the feature is disabled.

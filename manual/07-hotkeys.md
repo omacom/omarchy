@@ -371,4 +371,4 @@ You can use `Super + Ctrl + E` to show a complete emoji picker that'll put the s
 | `CapsLock Space N` | Your name (as entered on setup)  |
 | `CapsLock Space E` | Your email (as entered on setup)  |
 
-You can add more of your own by editing `~/.XCompose`, then running `omarchy-restart-xcompose` in the terminal to get the changes picked up.
+You can add more of your own by editing `~/.XCompose`, then running `omarchy restart xcompose` in the terminal to get the changes picked up.
