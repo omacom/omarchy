@@ -18,7 +18,7 @@ Before any new major release, we'll be doing final validation using the RC chann
 
 Finally, there's the dev channel, which links Omarchy directly to a git checkout of the source code in `~/omarchy`, combined with the edge packages. You should only use this channel if you're an experienced Linux user, working directly on Omarchy, and willing to tolerate breakage.
 
-You can switch between channels using _Update > Channel_ from the Omarchy menu (or `omarchy-channel-set` in the terminal).
+You can switch between channels using _Update > Channel_ from the Omarchy menu (or `omarchy channel set` in the terminal).
 
 ### Firmware updates
 

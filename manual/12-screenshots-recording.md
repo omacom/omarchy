@@ -59,7 +59,7 @@ When you record with a webcam, the camera appears as a pinned, cropped portrait 
 
 There are three sizes — small, medium, and large — and the hotkeys step between them. Medium is the default. They're proportional to the recording, so the camera takes up the same share of the frame whether you're recording a 1080p monitor or a 6K one. And if you recorded a region rather than a whole display, the overlay anchors to that region's corner rather than the monitor's, so it stays inside the shot.
 
-You can also call it directly with `omarchy-capture-webcam-resize small`, or `reset` to go back to medium.
+You can also call it directly with `omarchy capture webcam resize small`, or `reset` to go back to medium.
 
 ## Text, QR codes, and colours
 
