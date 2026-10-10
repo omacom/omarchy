@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Print Chromium/Electron flags for software GL when no render GPU is present
+# omarchy:hidden=true
+
+if ! omarchy-hw-render-gpu; then
+  printf '%s\n' --ozone-platform=wayland --disable-gpu
+fi

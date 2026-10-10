@@ -1,0 +1,76 @@
+#!/usr/bin/python3
+# omarchy:summary=Preserve desktop customizations while repairing a known executable token
+# omarchy:args=<desktop> <vendor-desktop> <wrapper> <known-executable>...
+# omarchy:hidden=true
+
+import os
+from pathlib import Path
+import re
+import shutil
+import sys
+import tempfile
+
+
+def repair(target, vendor, wrapper, known):
+    if target.is_symlink() or (target.exists() and not target.is_file()):
+        print(f"Preserving custom desktop route: {target}", file=sys.stderr)
+        return
+    existing = target.exists()
+    source = target if existing else vendor
+    if not source.is_file():
+        return
+    data = source.read_bytes()
+    text = data.decode("utf-8")
+    # Desktop Exec is not a shell command. Only replace a literal leading token;
+    # env, shell commands, escaped/complex routes and all following bytes survive.
+    pattern = re.compile(r'^(Exec)=([ \t]*)("[^"\\\n]+"|[^\s"\\]+)(?=[ \t\r\n]|$)', re.MULTILINE)
+    def replace(match):
+        token = match[3]
+        value = token[1:-1] if token.startswith('"') else token
+        if value not in known:
+            return match[0]
+        new = wrapper
+        if token.startswith('"') or any(c.isspace() for c in new):
+            new = '"' + new.replace('\\', '\\\\').replace('"', '\\"') + '"'
+        return match[1] + '=' + match[2] + new
+    # TryExec is a desktop string containing the whole executable path, not an
+    # Exec command line. Quotes are literal bytes to its availability resolver.
+    escapes = {'s': ' ', 'n': '\n', 't': '\t', 'r': '\r', '\\': '\\'}
+    def replace_try_exec(match):
+        value = re.sub(r'\\([sntr\\])', lambda part: escapes[part[1]], match[1])
+        # Repair the quoted form emitted by older versions of this helper too.
+        if value.startswith('"') and value.endswith('"'):
+            value = value[1:-1]
+        if value not in known and value != wrapper:
+            return match[0]
+        new = wrapper.replace('\\', '\\\\').replace('\n', '\\n').replace('\t', '\\t').replace('\r', '\\r')
+        return 'TryExec=' + new + match[2]
+    updated = re.sub(r'^TryExec=([^\r\n]*)(\r?)$', replace_try_exec,
+                     pattern.sub(replace, text), flags=re.MULTILINE).encode("utf-8")
+    if updated == data:
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    staged = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=target.parent, prefix='.' + target.name + '.', delete=False) as stream:
+            staged = stream.name
+            stream.write(updated)
+        os.chmod(staged, source.stat().st_mode & 0o777)
+        if existing:
+            with tempfile.NamedTemporaryFile(dir=target.parent, prefix=target.name + '.bak.', delete=False) as backup:
+                backup.write(data)
+            shutil.copystat(target, backup.name)
+        os.replace(staged, target)
+        staged = None
+    finally:
+        if staged:
+            os.unlink(staged)
+
+
+if __name__ == '__main__':
+    if len(sys.argv) < 5:
+        sys.exit('Usage: omarchy-cmd-desktop-exec-repair <desktop> <vendor-desktop> <wrapper> <known-executable>...')
+    try:
+        repair(Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3], set(sys.argv[4:]))
+    except (OSError, UnicodeError) as error:
+        sys.exit(f'Desktop repair failed: {error}')
