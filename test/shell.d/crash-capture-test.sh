@@ -197,11 +197,11 @@ pass "a muted crash does not stop the watcher reading the next one"
 # The fixture carries two slashes so that dropping only the first is not mistaken
 # for dropping all of them.
 reset_entries
-crash_entry a/../bar-off -
-sibling_flag="$watch_home/.local/state/omarchy/toggles/bar-off"
+crash_entry a/../bar-hidden -
+sibling_flag="$watch_home/.local/state/omarchy/toggles/bar-hidden"
 touch "$sibling_flag"
 run_watch
-announced bar-off ||
+announced bar-hidden ||
   fail "a comm that climbs out of crash-ignore/ reads an unrelated toggle, letting a crash suppress its own notification"
 pass "a comm that climbs out of crash-ignore/ cannot reach an unrelated toggle"
 rm -f "$sibling_flag"
@@ -322,9 +322,9 @@ grep -Fq "Not an action" <<<"$refusal" ||
   fail "an unknown action is refused without naming it, leaving the user nothing to correct"
 pass "the command names the action it refused"
 
-crash_mute ../bar-off >/dev/null
-[[ ! -e "$mute_home/.local/state/omarchy/toggles/bar-off" ]] ||
-  fail "a name that climbs out writes a sibling toggle, so muting a crash could turn off the bar instead"
+crash_mute ../bar-hidden >/dev/null
+[[ ! -e "$mute_home/.local/state/omarchy/toggles/bar-hidden" ]] ||
+  fail "a name that climbs out writes a sibling toggle, so muting a crash could hide the bar instead"
 pass "the command cannot be talked into writing outside crash-ignore/"
 
 # A program may be called -h, and the router answers that with its own help

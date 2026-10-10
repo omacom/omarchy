@@ -36,7 +36,7 @@ Item {
     property int revision: 0
     function metadataFor(id) { return null }
   }
-  // Mirrors the on-disk `bar-off` flag so the user can hide the bar without
+  // Mirrors the on-disk `bar-hidden` flag so the user can hide the bar without
   // killing the entire shell. Hidden panels stay mapped but park off-screen
   // without an exclusion zone; updated by the FileView watcher further down.
   property bool barHidden: false
@@ -1231,13 +1231,13 @@ Item {
     onTriggered: if (!root.targetTooltipHovered(root.tooltipTarget)) root.hideTooltip(root.tooltipTarget)
   }
 
-  // Presence of the `bar-off` flag = bar hidden. Watching the parent toggles
+  // Presence of the `bar-hidden` flag = bar hidden. Watching the parent toggles
   // directory because FileView can't observe a file that doesn't exist yet,
   // and the flag is created/removed by `omarchy-toggle-bar`.
   Process {
     id: barHiddenProbe
     running: true
-    command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/bar-off ]] && echo yes || echo no"]
+    command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/bar-hidden ]] && echo yes || echo no"]
     stdout: SplitParser { onRead: function(line) { root.barHidden = String(line).trim() === "yes" } }
   }
   FileView {
