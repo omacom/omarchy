@@ -70,6 +70,10 @@ if (( ${OMARCHY_TEST_HYPRCTL_MISSES:-0} > 0 )); then
   fi
 fi
 
+if (( ${OMARCHY_TEST_HYPRCTL_SIGNAL_ON_SUCCESS:-0} )); then
+  kill -TERM "$PPID"
+fi
+
 printf '[]\n'
 SH
 
@@ -81,6 +85,20 @@ printf '%s\n' "$*" >>"$OMARCHY_TEST_LOGGER_LOG"
 SH
 
 chmod +x "$fake_bin/quickshell" "$fake_bin/systemd-cat" "$fake_bin/hyprctl" "$fake_bin/logger"
+
+# A bound AF_UNIX socket is the only file that passes -S, and it is what a live
+# compositor leaves in place while it is too busy to answer. Sandboxes that deny
+# the bind get the fixture skipped rather than a failure.
+runtime_dir="$test_tmp/run"
+signature="test-instance"
+mkdir -p "$runtime_dir/hypr/$signature"
+socket_bound=1
+if command -v python3 >/dev/null; then
+  python3 -c 'import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' \
+    "$runtime_dir/hypr/$signature/.socket.sock" 2>/dev/null || socket_bound=0
+else
+  socket_bound=0
+fi
 
 qs_log="$test_tmp/quickshell.log"
 qs_env_log="$test_tmp/quickshell-env.log"
@@ -103,8 +121,11 @@ launch_shell() {
   OMARCHY_TEST_LOGGER_LOG="$logger_log" \
   OMARCHY_TEST_QS_TERMINATED="$qs_terminated" \
   OMARCHY_TEST_HYPRCTL_MISSES="${3:-0}" \
+  OMARCHY_TEST_HYPRCTL_SIGNAL_ON_SUCCESS="${5:-0}" \
   OMARCHY_TEST_HYPRCTL_MISS_COUNT="$hyprctl_misses" \
-    timeout 30 "$ROOT/bin/omarchy-launch-shell"
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  HYPRLAND_INSTANCE_SIGNATURE="${4:-}" \
+    timeout 45 "$ROOT/bin/omarchy-launch-shell"
 }
 
 launches() {
@@ -145,6 +166,73 @@ rm -f "$hyprctl_misses"
 launch_shell $'255\n0' 0 2 || fail "a shell survives a compositor that misses a query"
 [[ $(launches) == 2 ]] || fail "a missed compositor query does not end supervision" "$(<"$qs_log")"
 pass "a compositor too busy to answer is not mistaken for one that is gone"
+
+# Resume from suspend keeps the outputs down for tens of seconds, and the shell
+# holding the session lock is the one that dies there. The socket stays while the
+# compositor cannot answer, so supervision has to outlast the blackout.
+if (( socket_bound )); then
+  rm -f "$hyprctl_misses"
+  launch_shell $'255\n0' 0 62 "$signature" || fail "a shell survives a compositor that is slow to resume"
+  [[ $(launches) == 2 ]] || fail "a slow resume does not end supervision" "$(<"$qs_log")"
+  pass "a compositor slow to answer after resume is not mistaken for one that is gone"
+
+  rm -f "$hyprctl_misses"
+  launch_shell $'255\n0' 0 3 "$signature" 1 || fail "a teardown when the compositor answers exits cleanly"
+  [[ $(launches) == 1 ]] || fail "a teardown when the compositor answers does not relaunch" "$(<"$qs_log")"
+  [[ ! -s $logger_log ]] || fail "a teardown when the compositor answers is not logged as a relaunch" "$(<"$logger_log")"
+  pass "a teardown when the compositor answers ends supervision without a relaunch"
+else
+  skip "cannot bind a Unix socket here; skipping the slow resume case"
+fi
+
+# Without a socket there is nothing to wait for, and the short budget decides.
+rm -f "$hyprctl_misses"
+launch_shell $'255\n0' 0 12 "no-socket-instance" || fail "a shell outliving the compositor exits cleanly"
+[[ $(launches) == 1 ]] || fail "a compositor that left no socket ends supervision" "$(<"$qs_log")"
+grep -F 'stopped answering' "$logger_log" >/dev/null || fail "standing down is recorded in the journal"
+pass "a compositor that left no socket is not waited on"
+
+# A session teardown during the socket wait ends supervision at once, and the
+# journal does not blame the compositor for it.
+if (( socket_bound )); then
+  : >"$qs_log"
+  : >"$qs_env_log"
+  : >"$logger_log"
+  rm -f "$hyprctl_misses"
+
+  PATH="$fake_bin:$PATH" \
+  OMARCHY_PATH="$shell_root" \
+  OMARCHY_TEST_QS_LOG="$qs_log" \
+  OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
+  OMARCHY_TEST_QS_STATUSES=$'255\n0' \
+  OMARCHY_TEST_COMPOSITOR_GONE=0 \
+  OMARCHY_TEST_LOGGER_LOG="$logger_log" \
+  OMARCHY_TEST_QS_TERMINATED="$qs_terminated" \
+  OMARCHY_TEST_HYPRCTL_MISSES=1000 \
+  OMARCHY_TEST_HYPRCTL_MISS_COUNT="$hyprctl_misses" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  HYPRLAND_INSTANCE_SIGNATURE="$signature" \
+    "$ROOT/bin/omarchy-launch-shell" &
+  launch_pid=$!
+
+  # Past the three quick queries and inside the wait.
+  for (( waited = 0; waited < 200; waited++ )); do
+    (( $(cat "$hyprctl_misses" 2>/dev/null || printf '0') >= 5 )) && break
+    sleep 0.05
+  done
+
+  signalled=$SECONDS
+  kill -TERM "$launch_pid"
+  wait "$launch_pid" || fail "a supervisor signalled during the wait exits cleanly"
+  launch_pid=""
+  (( SECONDS - signalled <= 2 )) || fail "a teardown during the wait ends supervision promptly" "took $(( SECONDS - signalled ))s"
+  [[ $(launches) == 1 ]] || fail "a supervisor signalled during the wait does not relaunch" "$(<"$qs_log")"
+  grep -F 'stopped answering' "$logger_log" >/dev/null &&
+    fail "a teardown during the wait is not logged as a compositor that stopped answering" "$(<"$logger_log")"
+  pass "a teardown during the wait ends supervision without blaming the compositor"
+else
+  skip "cannot bind a Unix socket here; skipping the teardown during the wait case"
+fi
 
 # A signal mid-backoff only reaches the trap once the sleep is over.
 : >"$qs_log"
