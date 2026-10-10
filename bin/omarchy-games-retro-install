@@ -46,9 +46,52 @@ if [[ ! -f $core_path ]]; then
   exit 1
 fi
 
+desktop_exec_quote() {
+  # One Exec argument, double-quoted per the freedesktop Exec spec: inside quotes
+  # " ` $ \ take a backslash and a literal % becomes %%. The whole Exec line then
+  # goes through desktop_string_escape, as in omarchy-webapp-install.
+  local value="$1"
+
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  value=${value//\`/\\\`}
+  value=${value//\$/\\\$}
+  value=${value//%/%%}
+
+  printf '"%s"' "$value"
+}
+
+desktop_string_escape() {
+  # Desktop Entry "string" value (Name, Comment): a raw newline would start a
+  # new key line and let a value inject a second Exec=. Escape backslash
+  # first, then tab/CR/LF. Mirrors omarchy-webapp-install's helper.
+  local value="$1"
+
+  value=${value//\\/\\\\}
+  value=${value//$'\t'/\\t}
+  value=${value//$'\r'/\\r}
+  value=${value//$'\n'/\\n}
+
+  printf '%s' "$value"
+}
+
 game_name=$(printf '%s' "${game_path##*/}" | sed 's/\.[^.]*$//; s/[[:space:]]*([^)]*)//g; s/[[:space:]]\+/ /g; s/^ //; s/ $//' | perl -Mopen=locale -pe 's/(^|[[:space:]])([^[:space:]])/$1\U$2/g')
+
+# A name that cleans to nothing (e.g. "(Europe).sfc") still needs a real
+# Name= and file stem; fall back to the raw filename.
+if [[ -z $game_name ]]; then
+  game_name="${game_path##*/}"
+fi
+
 desktop_name="$game_name"
 desktop_id=$(printf '%s' "$desktop_name" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' '-' | sed 's/^-//; s/-$//')
+
+# A name with no ASCII letters or digits (e.g. Japanese titles) slugs to nothing;
+# key the fallback on the ROM path so a second such game keeps its own launcher.
+if [[ -z $desktop_id ]]; then
+  desktop_id="retro-game-$(printf '%s' "$game_path" | md5sum | cut -d' ' -f1)"
+fi
+
 desktop_dir="$HOME/.local/share/applications"
 desktop_file="$desktop_dir/$desktop_id.desktop"
 mkdir -p "$desktop_dir"
@@ -56,9 +99,9 @@ mkdir -p "$desktop_dir"
 cat >"$desktop_file" <<EOF
 [Desktop Entry]
 Version=1.0
-Name=$desktop_name
-Comment=Play $game_name with RetroArch
-Exec=retroarch -L "$core_path" "$game_path"
+Name=$(desktop_string_escape "$desktop_name")
+Comment=Play $(desktop_string_escape "$game_name") with RetroArch
+Exec=$(desktop_string_escape "retroarch -L $(desktop_exec_quote "$core_path") $(desktop_exec_quote "$game_path")")
 Terminal=false
 Type=Application
 Icon=retro-gaming
