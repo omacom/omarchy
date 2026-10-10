@@ -29,6 +29,8 @@ if [[ -n $OMARCHY_THEME_SYNC_FROM ]] || ! omarchy-toggle-enabled herdr-theme-syn
 fi
 
 theme=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
+control_dir="$XDG_RUNTIME_DIR/omarchy-theme-sync"
+mkdir -m 700 -p "$control_dir"
 
 # Runs on the remote machine under a login shell, so OMARCHY_PATH and PATH are set there.
 # SSH carries no desktop session, so the environment comes from the live Hyprland instance.
@@ -66,10 +68,13 @@ read -r -d '' REMOTE_SCRIPT <<'EOF'
 } </dev/null
 EOF
 
-# One machine at a time, so an SSH agent like 1Password asks for approval at most once.
+# Reuse each authenticated connection for ten idle minutes, so an SSH agent like
+# 1Password does not need to approve every theme change. Connect one machine at a time.
 # SSH joins its arguments into a shell command, so the theme travels on stdin as a quoted assignment.
 for target in $targets; do
   result=$(printf 'theme=%q from=%q\n%s\n' "$theme" "$(hostname)" "$REMOTE_SCRIPT" |
-    timeout 60 ssh -o BatchMode=yes -o ConnectTimeout=5 "$target" bash -l -s 2>&1 | tail -n 1)
+    timeout 60 ssh -o BatchMode=yes -o ConnectTimeout=5 \
+      -o ControlMaster=auto -o ControlPersist=600 -o "ControlPath=$control_dir/%C" \
+      "$target" bash -l -s 2>&1 | tail -n 1)
   echo "$(date '+%F %T') $target: ${result:-unreachable}"
 done

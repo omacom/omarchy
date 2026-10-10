@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 import "Greetings.js" as Greet
@@ -52,7 +53,7 @@ Rectangle {
   // arrow keys never reads darker than the daytime rows around it.
   readonly property bool picked: panel.focusIndex === index && !panel.addSelected
   readonly property bool lit: rowHover.hovered || picked
-  color: Model.mix(Color.popups.background, foreground,
+  color: Model.mix(Commons.Color.popups.background, foreground,
     picked ? dayFill + hoverLift : rowHover.hovered ? phaseFill + hoverLift : phaseFill)
 
   // Transforms leave the Column's layout alone: the knock that clears the
@@ -297,8 +298,8 @@ Rectangle {
     anchors.verticalCenter: parent.top
     size: fontSize + (Style.space(22) - fontSize) * 0.85
     radius: size / 2
-    color: Model.mix(Color.popups.background, row.foreground, _hot ? 0.24 : 0.14)
-    borderSpec: Border.flat(Model.mix(Color.popups.background, row.foreground, _hot ? 0.65 : 0.35), Style.space(1))
+    color: Model.mix(Commons.Color.popups.background, row.foreground, _hot ? 0.24 : 0.14)
+    borderSpec: Border.flat(Model.mix(Commons.Color.popups.background, row.foreground, _hot ? 0.65 : 0.35), Style.space(1))
     iconText: "\u00d7"
     tooltipText: "Remove"
     foreground: row.dim

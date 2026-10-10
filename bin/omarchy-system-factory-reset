@@ -17,7 +17,9 @@
 # The heavy lifting happens on the next boot via omarchy-system-factory-reset-finish, staged
 # here. On encrypted installs the LUKS volume is re-keyed to a throwaway
 # passphrase with an auto-unlock keyfile for the provisioning window; first-boot setup
-# re-keys it to the new owner's password and removes the keyfile.
+# re-keys it to the new owner's password and removes the keyfile. A platform
+# whose boot chain the Limine UKI path can't drive rebuilds, verifies and
+# unlocks it through omarchy-lifecycle-dispatch.
 #
 # Honest limitations:
 #  - On unencrypted disks this is deletion, not forensic erasure. fstrim helps
@@ -29,17 +31,25 @@
 set -euo pipefail
 
 PROVISIONING_DIR=/var/lib/omarchy/provisioning
+PACKAGED_PATH=/usr/bin/omarchy-system-factory-reset
 OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 TOP_MNT=/run/omarchy-system-factory-reset/top
 NEXT_NAME=@omarchy-reset-next
 LOG_FILE=/var/log/omarchy-system-factory-reset.log
 
+# Never replace a newer checkout reset with a different installed implementation.
+if ! /usr/bin/cmp -s -- "${BASH_SOURCE[0]}" "$PACKAGED_PATH"; then
+  echo "Factory reset differs from the installed command. Install the matching Omarchy package before resetting." >&2
+  exit 1
+fi
+
 # Self-elevate so the menu entry (and a bare shell invocation) need no sudo
 # prefix. The caller's gum theme vars are forwarded as `env` arguments rather
 # than via `sudo -E`, so styling survives even under an env_reset sudoers.
+# Always elevate the packaged copy, including when invoked from a dev checkout.
 if (( EUID != 0 )); then
   mapfile -t gum_env < <(env | grep '^GUM_' || true)
-  exec sudo env "${gum_env[@]}" "$0" "$@"
+  exec sudo env "${gum_env[@]}" "$PACKAGED_PATH" "$@"
 fi
 
 export PATH="$OMARCHY_PATH/bin:$PATH"
@@ -62,6 +72,51 @@ root_is_btrfs_at() {
   [[ $(findmnt -no FSTYPE /) == btrfs ]] && findmnt -no OPTIONS / | grep -q "subvol=/@\(,\|$\)"
 }
 
+DISPATCH="$OMARCHY_PATH/bin/omarchy-lifecycle-dispatch"
+
+# A platform whose boot package implements the reset operations rebuilds,
+# verifies and unlocks the factory root's boot chain itself; everywhere else
+# the Limine UKI path below does. Deciding fails closed.
+RESET_BOOT=""
+
+reset_boot_owner() {
+  [[ -z $RESET_BOOT ]] || return 0
+
+  local operation path found=0 missing=0
+  for operation in reset-prepare reset-verify reset-commit reset-rollback; do
+    path=$("$DISPATCH" --resolve "$operation") || return 1
+    if [[ -n $path ]]; then
+      found=$((found + 1))
+    else
+      missing=$((missing + 1))
+    fi
+  done
+  if (( missing == 0 )); then
+    RESET_BOOT=platform
+  elif (( found == 0 )); then
+    RESET_BOOT=generic
+  else
+    echo "Error: the boot package implements only some of the factory reset operations" >&2
+    return 1
+  fi
+}
+
+# Runs a reset operation with its output in the log. A failure keeps the
+# operation's last line for the error shown.
+RESET_BOOT_ERROR=""
+
+reset_boot_op() {
+  local output status=0
+  output=$("$DISPATCH" "$@" 2>&1) || status=$?
+  [[ -z $output ]] || printf '%s\n' "$output" >>"$LOG_FILE"
+  if (( status == 0 )); then
+    return 0
+  fi
+  RESET_BOOT_ERROR=$(tail -n 1 <<<"$output")
+  RESET_BOOT_ERROR=${RESET_BOOT_ERROR:-"$1 failed"}
+  return 1
+}
+
 # Resolve the crypto_LUKS partition backing the root, or return non-zero if
 # the root is not on LUKS. Prefers the cmdline cryptdevice= spec (archinstall
 # writes PARTUUID=, the pre-mounted path UUID=), and falls back to walking the
@@ -81,7 +136,7 @@ luks_device() {
   local src part
   src=$(findmnt -no SOURCE / | sed 's/\[.*//')
   [[ -n $src ]] || return 1
-  part=$(lsblk -nspo NAME,FSTYPE "$src" 2>/dev/null | awk '$2=="crypto_LUKS"{print $1; exit}')
+  part=$(lsblk -nsrpo NAME,FSTYPE "$src" 2>/dev/null | awk '$2=="crypto_LUKS"{print $1; exit}')
   [[ -n $part ]] && { echo "$part"; return 0; }
   return 1
 }
@@ -99,6 +154,11 @@ generate_passphrase() {
 }
 
 cleanup() {
+  # Before the switch the old root still boots: the boot package gives it back
+  # its boot state before the reset's throwaway slot is revoked.
+  if [[ ${reset_committed:-0} == 0 && ${RESET_BOOT_PREPARED:-0} == 1 ]]; then
+    reset_boot_op reset-rollback || echo "Error: $RESET_BOOT_ERROR (see $LOG_FILE)" >&2
+  fi
   if mountpoint -q "$TOP_MNT" 2>/dev/null; then
     if [[ -d $TOP_MNT/$NEXT_NAME && ${swap_done:-0} == 0 ]]; then
       btrfs subvolume delete --recursive "$TOP_MNT/$NEXT_NAME" >/dev/null 2>&1 || true
@@ -106,6 +166,9 @@ cleanup() {
     umount -R "$TOP_MNT" 2>/dev/null || true
   fi
   rmdir "$TOP_MNT" 2>/dev/null || true
+  if [[ ${reset_committed:-0} == 0 ]]; then
+    revoke_reset_luks
+  fi
 }
 trap cleanup EXIT
 
@@ -127,8 +190,54 @@ confirm_reset() {
   [[ $typed == "reset" ]] || fail "Reset not confirmed."
 }
 
+# The slot the reset's throwaway key opens, or nothing. Restricting cryptsetup
+# to a token type no token has keeps an enrolled token from answering for it.
+reset_luks_slot() {
+  local -
+  set +x
+  LC_ALL=C cryptsetup open --test-passphrase --verbose --token-type passphrase-only \
+    --key-file <(printf '%s' "$RESET_THROWAWAY") "$RESET_LUKS_DEVICE" 2>&1 |
+    grep -o 'Key slot [0-9]* unlocked' | grep -o '[0-9]*' | head -1 || true
+}
+
+# Add the throwaway slot where the platform's boot package owns the unlock.
+# Called once reset-verify passed, so a failed rebuild adds no credential.
+# reset-commit writes the boot-time key only once the factory root is active:
+# a power loss before the switch leaves the old root asking for its password,
+# never unlocked unattended.
+add_reset_luks_slot() {
+  local -
+  set +x
+  [[ -n ${RESET_LUKS_DEVICE:-} && -n ${RESET_LUKS_AUTH:-} && -n ${RESET_THROWAWAY:-} ]] || fail "the reset is missing its throwaway passphrase"
+  RESET_LUKS_ADDED=1
+  { cryptsetup luksAddKey --key-file <(printf '%s' "$RESET_LUKS_AUTH") "$RESET_LUKS_DEVICE" <(printf '%s' "$RESET_THROWAWAY") ; } 2>>"$LOG_FILE" ||
+    fail "could not add the throwaway LUKS keyslot"
+  RESET_LUKS_SLOT=$(reset_luks_slot)
+  [[ -n $RESET_LUKS_SLOT ]] || fail "could not identify the throwaway LUKS keyslot"
+}
+
+# Only the slot this attempt added goes, found by its key if the add was not
+# confirmed. The platform's boot-time key is written only after activation, so
+# a failed reset has none to revoke.
+revoke_reset_luks() {
+  local -
+  set +x
+  [[ ${RESET_LUKS_ADDED:-0} == 1 && -n ${RESET_LUKS_AUTH:-} ]] || return 0
+  [[ -n ${RESET_LUKS_SLOT:-} ]] || RESET_LUKS_SLOT=$(reset_luks_slot)
+  if [[ -n $RESET_LUKS_SLOT ]]; then
+    { cryptsetup luksKillSlot -q --key-file <(printf '%s' "$RESET_LUKS_AUTH") "$RESET_LUKS_DEVICE" "$RESET_LUKS_SLOT" ; } 2>>"$LOG_FILE" || true
+  else
+    echo "Could not find the reset's throwaway LUKS slot on $RESET_LUKS_DEVICE to revoke; check its keyslots" >>"$LOG_FILE"
+  fi
+  RESET_LUKS_ADDED=0
+  RESET_LUKS_SLOT=""
+}
+
 # Re-key to a throwaway passphrase whose keyfile auto-unlocks boot during the
-# provisioning window. $1 is the root of the staged factory system.
+# provisioning window. $1 is the root of the staged factory system. Where the
+# platform's boot package owns the unlock, only the staged key is written here:
+# reset-prepare stages the unlock with the rest of the boot files, and the
+# throwaway slot follows their verification.
 stage_luks_rekey() {
   local next="$1" device passphrase
 
@@ -140,18 +249,28 @@ stage_luks_rekey() {
   local current
   while true; do
     current=$(gum input --password --placeholder "Current disk encryption passphrase" --prompt "Passphrase> ") || exit 1
-    if cryptsetup open --test-passphrase --key-file <(printf '%s' "$current") "$device" 2>/dev/null; then
+    if cryptsetup open --test-passphrase --token-type passphrase-only --key-file <(printf '%s' "$current") "$device" 2>/dev/null; then
       break
     fi
     gum style --foreground 1 "That passphrase does not unlock $device. Try again."
   done
 
   passphrase=$(generate_passphrase)
-  cryptsetup luksAddKey --key-file <(printf '%s' "$current") "$device" <(printf '%s' "$passphrase")
+  reset_boot_owner || fail "could not tell how this machine's boot chain is reset"
+  RESET_LUKS_AUTH=$current
+  RESET_LUKS_DEVICE=$device
+  RESET_THROWAWAY=$passphrase
+  if [[ $RESET_BOOT == "generic" ]]; then
+    # Revoked like the platform's slot if the reset fails before activation.
+    RESET_LUKS_ADDED=1
+    cryptsetup luksAddKey --key-file <(printf '%s' "$current") "$device" <(printf '%s' "$passphrase")
+  fi
 
   install -d -m 755 "$next$PROVISIONING_DIR"
   printf '%s' "$passphrase" >"$next$PROVISIONING_DIR/luks-key"
   chmod 600 "$next$PROVISIONING_DIR/luks-key"
+
+  [[ $RESET_BOOT == "generic" ]] || return 0
 
   install -d -m 755 "$next/etc/omarchy"
   printf '%s' "$passphrase" >"$next/etc/omarchy/provisioning.key"
@@ -235,6 +354,12 @@ verify_limine_hashes() {
 rebuild_next_boot() {
   local next="$1"
 
+  reset_boot_owner || fail "could not tell how this machine's boot chain is reset"
+  if [[ $RESET_BOOT == "platform" ]]; then
+    rebuild_next_boot_platform "$next"
+    return
+  fi
+
   local esp_source esp_mount
   esp_mount=$(awk '$3 == "vfat" && $2 ~ /^\/(boot|efi)/ { print $2; exit }' "$next/etc/fstab")
   esp_source=$(awk '$3 == "vfat" && $2 ~ /^\/(boot|efi)/ { print $1; exit }' "$next/etc/fstab")
@@ -297,6 +422,23 @@ rebuild_next_boot() {
   umount "$next$esp_mount"
 }
 
+# The boot package stages the factory root's boot files and unlock, then proves
+# they boot it; reset-rollback undoes both if the reset fails before the switch.
+# The throwaway slot is added only once they are proven.
+rebuild_next_boot_platform() {
+  local next="$1"
+  local -a luks=()
+  [[ -z ${RESET_LUKS_DEVICE:-} ]] || luks=("$RESET_LUKS_DEVICE")
+
+  RESET_BOOT_PREPARED=1
+  log "Rebuilding boot files from the factory system (this can take a minute)"
+  reset_boot_op reset-prepare "$next" "${luks[@]}" || fail "$RESET_BOOT_ERROR (see $LOG_FILE)"
+  log "Verifying that the factory system boots"
+  reset_boot_op reset-verify "$next" || fail "$RESET_BOOT_ERROR (see $LOG_FILE)"
+
+  [[ -z ${RESET_LUKS_DEVICE:-} ]] || add_reset_luks_slot
+}
+
 # Both the staged system and the retained baseline must lose the old hashes.
 scrub_factory_accounts() {
   local root="$1" user users
@@ -320,6 +462,12 @@ scrub_factory_accounts() {
 sanitize_factory_baseline() {
   local factory="$1"
   btrfs property set -ts "$factory" ro false
+  if [[ -d $factory/var/lib/omarchy/thunderbolt-authorization || -f $factory/etc/omarchy/thunderbolt-authorization.enabled || -f $factory/etc/omarchy/thunderbolt-authorization.pending ]]; then
+    if ! /usr/bin/omarchy-thunderbolt-authorization-admin reset-root "$factory"; then
+      btrfs property set -ts "$factory" ro true
+      fail "could not reset Thunderbolt authorization in the factory baseline"
+    fi
+  fi
 
   if ! scrub_factory_accounts "$factory"; then
     btrfs property set -ts "$factory" ro true
@@ -345,6 +493,14 @@ stage_full_reset() {
   [[ -f $unit_src/omarchy-provision-owner.service && -x $next/usr/bin/omarchy-provision-owner ]] ||
     fail "the factory snapshot predates provisioning support; cannot reset from it"
 
+  # A normal install's factory snapshot includes the original owner's USB
+  # policy and enabled daemon. Keep input usable during the new owner's setup;
+  # provisioning enrolls their devices before enabling USBGuard again.
+  if [[ -f $next/usr/lib/systemd/system/usbguard.service ]]; then
+    systemctl --root="$next" disable usbguard.service >>"$LOG_FILE" 2>&1 ||
+      fail "could not disable USBGuard in the factory system (see $LOG_FILE)"
+  fi
+
   log "Scrubbing machine identity from the factory system"
   systemd-id128 new >"$next/etc/machine-id"
   rm -f "$next"/etc/ssh/ssh_host_*
@@ -359,6 +515,13 @@ stage_full_reset() {
   log "Removing account credentials from the factory system"
   scrub_factory_accounts "$next" ||
     fail "could not remove account credentials from the factory system (see $LOG_FILE)"
+
+  # Leave the new owner's input available before interactive enrollment. Clear
+  # inherited accessory identities in both roots; never change the live daemon.
+  if [[ -d $next/var/lib/omarchy/thunderbolt-authorization || -f $next/etc/omarchy/thunderbolt-authorization.enabled || -f $next/etc/omarchy/thunderbolt-authorization.pending ]]; then
+    /usr/bin/omarchy-thunderbolt-authorization-admin reset-root "$next" ||
+      fail "could not reset Thunderbolt authorization in the staged root"
+  fi
 
   # @factory itself survives the wipe as the baseline for future resets. If it
   # came from a normal install it still holds the seller's account and
@@ -388,9 +551,30 @@ stage_full_reset() {
   log "Activating the factory system"
   local old="@omarchy-old-$(date +%s)"
   mv "$top/@" "$top/$old"
-  mv "$next" "$top/@"
+  # Until the factory root is at @ the reset is not committed: cleanup has the
+  # platform's boot package roll its boot state back to the old root and
+  # revokes the throwaway slot, so the old root goes back to @ first.
+  if ! mv "$next" "$top/@"; then
+    if mv "$top/$old" "$top/@"; then
+      [[ $RESET_BOOT == "platform" ]] ||
+        fail "could not activate the factory system; the current root is back at @, but its boot files were already rebuilt from the factory system: run 'sudo limine-update' before rebooting (see $LOG_FILE)"
+      fail "could not activate the factory system; the current root is back at @ (see $LOG_FILE)"
+    fi
+    # Neither root is at @. Keep the staged one as well for recovery.
+    swap_done=1
+    fail "could not activate the factory system or put the current root back; from a live USB, mount the Btrfs top level, rename $old to @, and rebuild its boot files if it does not boot"
+  fi
+  # From here the old root is gone, so the reset's unlock must survive.
+  reset_committed=1
   swap_done=1
   sync
+
+  # The boot package that prepared the reset gets the key on standard input,
+  # never in arguments. A failure costs the first boot one prompt for the
+  # current disk password.
+  if [[ ${RESET_BOOT_PREPARED:-0} == 1 ]] && ! reset_boot_op reset-commit < <(printf '%s' "${RESET_THROWAWAY:-}"); then
+    log "$RESET_BOOT_ERROR"
+  fi
 }
 
 # A reset is a clone of @factory, so a machine without one has nothing to
@@ -427,6 +611,10 @@ main() {
   mountpoint -q "$TOP_MNT" || mount -o subvolid=5 "$device" "$TOP_MNT"
 
   require_factory_snapshot
+
+  # Decided before anything is asked: a platform whose boot package is missing
+  # stops here, with the dispatcher's error naming the package.
+  reset_boot_owner || fail "this machine's boot package cannot factory-reset it"
 
   confirm_reset
 
