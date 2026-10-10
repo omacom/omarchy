@@ -60,6 +60,9 @@ ShellRoot {
 
   property var defaultsConfig: builtinShellConfig
   property var shellConfig: builtinShellConfig
+  property bool userConfigReady: false
+  property int userConfigLoadError: FileViewError.Success
+  property bool shellConfigWritable: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
 
@@ -76,11 +79,14 @@ ShellRoot {
   }
 
   function applyShellConfig() {
+    // Defaults can finish loading before the user file. Until its read has
+    // completed, a widget must not turn that temporary fallback into a save.
+    if (!userConfigReady) return
     // Decide which source is canonical: a valid user shell.json overrides
     // defaults entirely; otherwise fall back to defaults. We do not deep-merge.
     var defaults = Util.isPlainObject(defaultsConfig) ? defaultsConfig : builtinShellConfig
     var user = null
-    var userText = userConfigFile.text() || ""
+    var userText = userConfigLoadError === FileViewError.Success ? userConfigFile.text() || "" : ""
     if (userText.trim()) {
       try {
         var parsed = JSON.parse(userText)
@@ -90,6 +96,8 @@ ShellRoot {
         console.warn("shell.json parse failed, using defaults:", e)
       }
     }
+    // A missing file is a first run; an unreadable or invalid file is not.
+    shellConfigWritable = user !== null || userConfigLoadError === FileViewError.FileNotFound
     shellConfig = user || defaults
   }
 
@@ -112,10 +120,15 @@ ShellRoot {
   }
 
   function persistShellConfig(nextConfig) {
+    if (!userConfigReady || !shellConfigWritable) {
+      console.warn("shell.json save skipped: user configuration is not ready or valid")
+      return false
+    }
     var payload = JSON.parse(JSON.stringify(nextConfig))
     payload.version = 1
     shellConfig = payload
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
+    return true
   }
 
   readonly property var barConfig: shellConfig && Util.isPlainObject(shellConfig.bar) ? shellConfig.bar : builtinShellConfig.bar
@@ -142,8 +155,16 @@ ShellRoot {
     watchChanges: true
     atomicWrites: true
     printErrors: false
-    onLoaded: shell.applyShellConfig()
-    onLoadFailed: function(error) { shell.applyShellConfig() }
+    onLoaded: {
+      shell.userConfigLoadError = FileViewError.Success
+      shell.userConfigReady = true
+      shell.applyShellConfig()
+    }
+    onLoadFailed: function(error) {
+      shell.userConfigLoadError = error
+      shell.userConfigReady = true
+      shell.applyShellConfig()
+    }
     onFileChanged: reload()
   }
 
@@ -167,7 +188,7 @@ ShellRoot {
   function mutateShellConfig(mutator) {
     var copy = JSON.parse(JSON.stringify(shellConfig || builtinShellConfig))
     mutator(copy)
-    persistShellConfig(copy)
+    return persistShellConfig(copy)
   }
 
   // Exposed as a property so child plugins (notifications, future panels)
@@ -1133,8 +1154,7 @@ ShellRoot {
       }
     }
     if (!dirty) return false
-    persistShellConfig(copy)
-    return true
+    return persistShellConfig(copy)
   }
 
   // ---------------------------------------------------------- on-demand panels
