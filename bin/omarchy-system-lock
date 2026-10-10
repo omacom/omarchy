@@ -5,7 +5,37 @@
 # omarchy:name=lock
 # omarchy:examples=omarchy system lock
 
-omarchy-shell lock lock >/dev/null
+warn_unsecured() {
+  local msg="$1"
+  echo "omarchy-system-lock: $msg" >&2
+  omarchy-notification-send -u critical -g 󰌾 \
+    "Session Unsecured" \
+    "$msg" 2>/dev/null || \
+    hyprctl notify 3 5000 "rgb(ff5555)" "Session Unsecured: $msg" 2>/dev/null || true
+}
+
+lock_reply=$(omarchy-shell lock lock 2>/dev/null) || {
+  warn_unsecured "Failed to contact lock service."
+  exit 1
+}
+
+case $lock_reply in
+  ok)
+    ;;
+  missing-pam)
+    echo "omarchy-system-lock: /etc/pam.d/omarchy-lock-password is missing. Run 'omarchy-apply-lock' to configure it." >&2
+    warn_unsecured "Lock screen password PAM service is missing. Run omarchy-apply-lock to configure it."
+    exit 1
+    ;;
+  failed)
+    warn_unsecured "Lock service refused to lock the session."
+    exit 1
+    ;;
+  *)
+    warn_unsecured "Unexpected response from lock service: ${lock_reply:-empty response}"
+    exit 1
+    ;;
+esac
 
 # Set keyboard layout to default (first layout)
 hyprctl switchxkblayout all 0 > /dev/null 2>&1
