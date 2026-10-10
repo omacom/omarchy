@@ -1119,7 +1119,12 @@ Item {
   }
 
   function scheduleTransparentForegroundRefresh() {
+    // Invalidate at request time, before the debounce timer fires. This also
+    // covers wallpaper changes and off/on toggles with unchanged arguments.
+    transparentForegroundProc.requestSerial += 1
+    transparentForegroundProc.pending = requestedTransparent && transparentForegroundProc.running
     if (!requestedTransparent) {
+      transparentForegroundTimer.stop()
       transparentForeground = themeForeground
       return
     }
@@ -1127,8 +1132,15 @@ Item {
   }
 
   function refreshTransparentForeground() {
-    if (!requestedTransparent || transparentForegroundProc.running) return
+    if (!requestedTransparent) return
+    if (transparentForegroundProc.running) {
+      transparentForegroundProc.pending = true
+      return
+    }
 
+    transparentForegroundTimer.stop()
+    transparentForegroundProc.pending = false
+    transparentForegroundProc.sampledSerial = transparentForegroundProc.requestSerial
     transparentForegroundProc.command = [
       "omarchy-bar-text-color",
       root.position,
@@ -1141,6 +1153,7 @@ Item {
 
   onRequestedTransparentChanged: scheduleTransparentForegroundRefresh()
   onPositionChanged: scheduleTransparentForegroundRefresh()
+  onBarSizeChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
 
@@ -1153,10 +1166,14 @@ Item {
 
   Process {
     id: transparentForegroundProc
+    property int requestSerial: 0
+    property int sampledSerial: -1
+    property bool pending: false
     stdout: SplitParser {
       onRead: function(line) {
         var value = String(line || "").trim()
         if (!/^#[0-9A-Fa-f]{6}$/.test(value)) return
+        if (!root.requestedTransparent || transparentForegroundProc.sampledSerial !== transparentForegroundProc.requestSerial) return
 
         root.foregroundAnimationEnabled = false
         root.transparentForeground = value
@@ -1166,6 +1183,15 @@ Item {
         }
         root.restoreForegroundAnimation()
       }
+    }
+    onExited: {
+      if (!pending) return
+      pending = false
+      Qt.callLater(function() {
+        // An armed timer already owns the latest request's debounce window.
+        // Only new requests cause retries; invalid output/failure stays quiet.
+        if (!transparentForegroundTimer.running && sampledSerial !== requestSerial) root.refreshTransparentForeground()
+      })
     }
   }
 
