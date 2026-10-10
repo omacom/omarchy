@@ -79,6 +79,35 @@ function removeEntryAt(history, index) {
   return next
 }
 
+// Image files on disk outlive the history entries that reference them: the
+// capture script writes one file per copy, while trimming, deleting, or
+// clearing history only rewrites the JSON. Callers pass the history before
+// and after such a change and delete the returned paths, so image files fall
+// off together with the entries that showed them. A path still referenced by
+// the new history is never returned.
+function evictedImagePaths(previous, next) {
+  var kept = {}
+  var before = Array.isArray(previous) ? previous : []
+  var after = Array.isArray(next) ? next : []
+
+  for (var i = 0; i < after.length; i++) {
+    var keptEntry = normalizeEntry(after[i])
+    if (keptEntry && keptEntry.type === "image" && keptEntry.path) kept[keptEntry.path] = true
+  }
+
+  var seen = {}
+  var evicted = []
+  for (var j = 0; j < before.length; j++) {
+    var oldEntry = normalizeEntry(before[j])
+    if (!oldEntry || oldEntry.type !== "image" || !oldEntry.path) continue
+    if (kept[oldEntry.path] || seen[oldEntry.path]) continue
+    seen[oldEntry.path] = true
+    evicted.push(oldEntry.path)
+  }
+
+  return evicted
+}
+
 function clearHistory() {
   return []
 }
@@ -212,6 +241,7 @@ if (typeof module !== "undefined") {
     parseHistory: parseHistory,
     addEntry: addEntry,
     removeEntryAt: removeEntryAt,
+    evictedImagePaths: evictedImagePaths,
     clearHistory: clearHistory,
     parseEntryJson: parseEntryJson,
     searchableText: searchableText,

@@ -68,6 +68,37 @@ assertDeepEqual(clipboard.removeEntryAt(history, 10), history, 'clipboard remove
 assertDeepEqual(clipboard.clearHistory(), [], 'clipboard clearHistory returns an empty history')
 
 assertDeepEqual(
+  clipboard.evictedImagePaths(
+    [{ type: 'image', path: '/tmp/a.png', mime: 'image/png' }, { type: 'text', text: 'keep' }],
+    [{ type: 'text', text: 'keep' }]
+  ),
+  ['/tmp/a.png'],
+  'clipboard evictedImagePaths returns images dropped from history'
+)
+
+assertDeepEqual(
+  clipboard.evictedImagePaths(
+    [{ type: 'image', path: '/tmp/a.png', mime: 'image/png' }],
+    [{ type: 'image', path: '/tmp/a.png', mime: 'image/png' }, { type: 'text', text: 'new' }]
+  ),
+  [],
+  'clipboard evictedImagePaths keeps images still referenced by the new history'
+)
+
+assertDeepEqual(
+  clipboard.evictedImagePaths(
+    [{ type: 'image', path: '/tmp/a.png' }, { type: 'image', path: '/tmp/a.png' }, { type: 'text', text: 'x' }],
+    []
+  ),
+  ['/tmp/a.png'],
+  'clipboard evictedImagePaths dedupes evicted paths'
+)
+
+assertDeepEqual(clipboard.evictedImagePaths([], []), [], 'clipboard evictedImagePaths handles empty histories')
+assertDeepEqual(clipboard.evictedImagePaths([{ type: 'text', text: 'x' }], []), [], 'clipboard evictedImagePaths ignores text entries')
+assertDeepEqual(clipboard.evictedImagePaths(null, []), [], 'clipboard evictedImagePaths handles missing histories')
+
+assertDeepEqual(
   clipboard.displayRows(history, 'image', 50).map(row => ({ type: row.entryType, preview: row.previewText, mime: row.mime })),
   [{ type: 'image', preview: 'Image', mime: 'image/png' }],
   'clipboard display rows search image metadata'
@@ -178,6 +209,20 @@ assertEqual(
   (clipboardQml.match(/onExited: watchRestartTimer\.restart\(\)/g) || []).length,
   2,
   'clipboard respawns both watchers when they die'
+)
+
+assert(
+  /property int historyLimit: 50/.test(clipboardQml),
+  'clipboard stores as many entries as it displays'
+)
+assert(
+  /function pruneImages\(paths\)[\s\S]*omarchy-clipboard-prune-images/.test(clipboardQml),
+  'clipboard deletes evicted image files through the prune helper'
+)
+assertEqual(
+  (clipboardQml.match(/pruneImages\(ClipboardHistory\.evictedImagePaths\(/g) || []).length,
+  4,
+  'clipboard prunes images on add, remove, clear, and history load'
 )
 
 assertDeepEqual(
@@ -570,3 +615,29 @@ OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 
 [[ $(<"$TMPDIR/omasnap") == "$TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
+
+prune_home="$TMPDIR/prune-home"
+mkdir -p "$prune_home/.local/state/omarchy/clipboard-images"
+printf 'dropped' >"$prune_home/.local/state/omarchy/clipboard-images/drop.png"
+printf 'kept' >"$prune_home/.local/state/omarchy/clipboard-images/keep.png"
+printf 'outside' >"$prune_home/outside.png"
+
+HOME="$prune_home" "$ROOT/bin/omarchy-clipboard-prune-images" \
+  "$prune_home/.local/state/omarchy/clipboard-images/drop.png" \
+  "$prune_home/outside.png" \
+  /etc/hostname \
+  ""
+
+[[ ! -e $prune_home/.local/state/omarchy/clipboard-images/drop.png ]] || fail "clipboard prune helper deletes evicted images"
+pass "clipboard prune helper deletes evicted images"
+
+[[ $(<"$prune_home/.local/state/omarchy/clipboard-images/keep.png") == "kept" ]] || fail "clipboard prune helper keeps images it was not given"
+pass "clipboard prune helper keeps images it was not given"
+
+[[ $(<"$prune_home/outside.png") == "outside" ]] || fail "clipboard prune helper refuses paths outside the image directory"
+pass "clipboard prune helper refuses paths outside the image directory"
+
+empty_home="$TMPDIR/empty-home"
+mkdir -p "$empty_home"
+HOME="$empty_home" "$ROOT/bin/omarchy-clipboard-prune-images" anything.png || fail "clipboard prune helper exits zero without an image directory"
+pass "clipboard prune helper exits zero without an image directory"
