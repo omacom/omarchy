@@ -103,6 +103,16 @@ cursor-agent)
   command=(cursor-agent --yolo --trust)
   [[ -n ${prompt:-} ]] && command+=(agent -- "$prompt")
   ;;
+goose)
+  # GOOSE_MODE outranks a configured approve or smart_approve for this launch.
+  # --text= binds a prompt that starts with a dash, and --interactive keeps the
+  # session open after the prompted turn.
+  if [[ -n ${prompt:-} ]]; then
+    command=(env GOOSE_MODE=auto goose run --interactive "--text=$prompt")
+  else
+    command=(env GOOSE_MODE=auto goose)
+  fi
+  ;;
 hermes)
   if [[ -n ${prompt:-} ]]; then
     command=(env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=$prompt")
