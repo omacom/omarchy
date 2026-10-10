@@ -3,6 +3,10 @@
 mise settings set upgrade.auto_prune false
 
 omarchy-mise-install codex
+# Persist Approve-for-me defaults in config.toml so `cy` / omarchy-agent can
+# launch plain `codex` and still use the shared background server.
+source "${OMARCHY_INSTALL:-$OMARCHY_PATH/install}/helpers/codex-config.sh"
+omarchy_ensure_codex_auto_review_config
 omarchy-mise-install claude
 omarchy-mise-install crush
 omarchy-mise-install antigravity-cli agy

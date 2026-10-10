@@ -469,6 +469,8 @@ pass "--pick opens the agent defaults menu when none is set"
 source "$ROOT/default/bash/aliases"
 [[ $(alias a) == "alias a='omarchy-agent --inline'" ]] ||
   fail "terminal alias launches the default agent inline"
+[[ $(alias cy) == "alias cy='codex'" ]] ||
+  fail "cy launches codex without --approve-for-me"
 pass "terminal alias launches the default agent inline"
 
 grep -Fq 'o.bind("SUPER + SHIFT + CTRL + A", "Agent", "omarchy-agent --pick")' \
@@ -782,7 +784,7 @@ assert_launch omp omp --auto-approve -- "Review this project"
 assert_launch opencode opencode --auto --prompt "Review this project"
 assert_launch ori ori code --interactive --prompt "Review this project"
 assert_launch claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto -- "Review this project"
-assert_launch codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me -- "Review this project"
+assert_launch codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex -- "Review this project"
 assert_launch muse muse --approval-mode never -- "Review this project"
 assert_launch crush crush run "Review this project"
 assert_launch grok env -u GROK_HOME OMARCHY_AGENT_GROK_HOME= grok --permission-mode bypassPermissions -- "Review this project"
@@ -810,7 +812,7 @@ assert_bypass omp omp --auto-approve
 assert_bypass opencode opencode --auto
 assert_bypass ori ori code
 assert_bypass claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto
-assert_bypass codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me
+assert_bypass codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex
 assert_bypass muse muse --approval-mode never
 assert_bypass crush crush --yolo
 assert_bypass grok env -u GROK_HOME OMARCHY_AGENT_GROK_HOME= grok --permission-mode bypassPermissions
