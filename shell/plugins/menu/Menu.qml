@@ -730,10 +730,11 @@ Item {
     root.rebuildDisplay()
   }
 
-  function setActiveMenu(id, pushHistory, fromPointer) {
+  function setActiveMenu(id, pushHistory, fromPointer, restoreIndex) {
     panel.freezeCardTop()
     if (!root.item(id)) id = "root"
-    if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
+    if (pushHistory && id !== root.activeMenu)
+      root.navStack = root.navStack.concat([{ id: root.activeMenu, index: root.selectedIndex }])
     root.activeMenu = id
     root.filterText = ""
     root.selectedIndex = 0
@@ -743,6 +744,8 @@ Item {
     root.rebuildDisplay()
     root.invalidateVolatileProvider(id)
     root.loadProviderForMenu(id)
+    if (restoreIndex !== undefined && restoreIndex >= 0 && restoreIndex < displayModel.count)
+      root.selectedIndex = restoreIndex
   }
 
   function goBack() {
@@ -751,7 +754,7 @@ Item {
     if (root.navStack.length > 0) {
       var previous = root.navStack[root.navStack.length - 1]
       root.navStack = root.navStack.slice(0, root.navStack.length - 1)
-      root.setActiveMenu(previous, false)
+      root.setActiveMenu(previous.id, false, false, previous.index)
       return true
     }
 
