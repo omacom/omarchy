@@ -2,7 +2,11 @@
 
 # Test the real orchestration with fixed privileged paths redirected to harmless
 # stand-ins. No host sudo, package transaction, namespace root, or exploit runs.
-boundary_tmp=$(mktemp -d)
+# copy_boundary_file splices fixture paths into script text, quoted or not, so
+# the fixture root must not contain whitespace even if the runner's TMPDIR does.
+boundary_tmp_base=${TMPDIR:-/tmp}
+[[ $boundary_tmp_base != *[[:space:]]* ]] || boundary_tmp_base=/tmp
+boundary_tmp=$(TMPDIR=$boundary_tmp_base mktemp -d)
 trap 'rm -rf "$boundary_tmp"' EXIT
 export SUDO_TEST_ROOT="$boundary_tmp/omarchy"
 export SUDO_TEST_LOG="$boundary_tmp/events"
