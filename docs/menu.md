@@ -113,7 +113,9 @@ can point a submenu at an existing provider but cannot declare a new one:
   `label\tvalue\tcurrent`. The row whose value equals `current` gets the ✓
   icon, and selection runs the spec's `actionFor(value)`. Row ids are
   `<menuId>.<slugify(value)>`, with a `-` appended on collision so two values
-  that slugify alike cannot silently drop a row.
+  that slugify alike cannot silently drop a row. A provider can set
+  `placeholder` to show a disabled row while it runs and `emptyLabel` to show a
+  disabled provider-specific message when it returns no rows.
 
 A provider marked `volatile` re-runs every time its submenu is entered — a
 font installed since the shell started shows up without a restart — but not
@@ -127,8 +129,8 @@ writing into a map held by a QML `var` property occasionally loses the write,
 which used to duplicate launcher rows. Never mutate `root.items` in place.
 
 Adding a provider means adding an entry to the `providers` map in `Menu.qml`
-(script, icon, `actionFor`, optionally `volatile`) and pointing a submenu at
-it with `provider:`.
+(script, icon, `actionFor`, optionally `volatile`, `placeholder`, and
+`emptyLabel`) and pointing a submenu at it with `provider:`.
 
 ## Driving the menu from the CLI
 
