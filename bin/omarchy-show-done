@@ -5,6 +5,31 @@
 
 code="${1:-0}"
 
+# (( )) evaluates its operands as arithmetic, so a hostile $1 like
+# 'a[$(touch /tmp/pwned)]' would run command substitution. Accept only what a
+# real exit status can be: ASCII digits forced to base 10 (so a leading zero
+# like 010 means decimal 10, not octal, and 08 is valid), within the 0-255
+# exit-status range, with leading zeros stripped so zero-padded codes like
+# 0007 are accepted as 7. Anything else is a caller bug: show the Failed
+# prompt naming the offending input (shell-quoted so control characters
+# cannot inject terminal escapes) and still wait for a keypress, rather than
+# printing a misleading "Done!".
+valid=1
+case $code in
+  '' | *[!0-9]*) valid=0 ;;
+esac
+if ((valid)); then
+  # Strip leading zeros in a single expansion: removing them one at a time
+  # stalls on a pathological all-zero argument.
+  stripped=${code#"${code%%[!0]*}"}
+  [[ -z $stripped ]] && stripped=0
+  if ((${#stripped} > 3)) || ((10#$stripped > 255)); then
+    valid=0
+  else
+    code=$((10#$stripped))
+  fi
+fi
+
 # The device node is there whether or not a terminal is behind it, so opening
 # it is the only test that means anything.
 : 2>/dev/null <>/dev/tty || exit 0
@@ -16,10 +41,17 @@ while read -rsn 1 -t 0.1 _ </dev/tty; do :; done
 
 # Prompt on the terminal rather than stdout, or a caller that redirects us
 # leaves the user waiting on a prompt they were never shown.
-if (( code == 0 )); then
-  printf '\n\033[32m● \033[0mDone! Press any key to close...' >/dev/tty
+# $code only reaches (( )) inside the valid branch, where it is a plain
+# integer; on the invalid branch it still holds the hostile string.
+if ((valid)); then
+  if ((code == 0)); then
+    printf '\n\033[32m● \033[0mDone! Press any key to close...' >/dev/tty
+  else
+    printf '\n\033[31m● \033[0mFailed (exit code %d)! Press any key to close...' "$code" >/dev/tty
+  fi
 else
-  printf '\n\033[31m● \033[0mFailed (exit code %d)! Press any key to close...' "$code" >/dev/tty
+  printf -v quoted '%q' "${1-}"
+  printf '\n\033[31m● \033[0mFailed (invalid exit code %s)! Press any key to close...' "$quoted" >/dev/tty
 fi
 read -rsn 1 </dev/tty
 echo >/dev/tty
