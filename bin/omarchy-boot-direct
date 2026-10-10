@@ -1,15 +1,25 @@
 #!/bin/bash
 
 # omarchy:summary=Check whether an active Omarchy Direct Boot EFI entry is configured.
+# omarchy:args=[--number]
 # omarchy:hidden=true
 
 set -euo pipefail
 
-# An inactive entry (no *) isn't booted. efibootmgr 18 follows each label with
-# a tab and the device path. Exit 2 when that list cannot be read, so callers
-# keep the UKI instead of treating a failure as "no Direct Boot".
+# efibootmgr 18 follows each label with a tab and the device path, and marks an
+# active entry with *. Exit 2 when that list cannot be read, so callers keep the
+# UKI instead of treating a failure as "no Direct Boot".
 if ! efi_labels=$(efibootmgr | cut -f1); then
   exit 2
 fi
 
-grep -Eq '^Boot[0-9A-Fa-f]+\*[[:space:]]+Omarchy[[:space:]]*$' <<<"$efi_labels"
+if [[ ${1:-} == "--number" ]]; then
+  # The boot number of every Omarchy entry, active or not, for Setup > Direct
+  # Boot to remove.
+  numbers=$(sed -nE 's/^Boot([0-9A-Fa-f]+)\*?[[:space:]]+Omarchy[[:space:]]*$/\1/p' <<<"$efi_labels")
+  [[ -n $numbers ]] || exit 1
+  printf '%s\n' "$numbers"
+else
+  # An inactive entry (no *) isn't booted.
+  grep -Eq '^Boot[0-9A-Fa-f]+\*[[:space:]]+Omarchy[[:space:]]*$' <<<"$efi_labels"
+fi

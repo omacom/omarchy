@@ -289,3 +289,22 @@ PATH="$scratch/bin:$PATH" bash -c "$when" || fail "Direct Boot shows on a machin
 printf 'ENABLE_UKI=no\n' >"$scratch/menu/limine-entry-tool.d/$config_name"
 PATH="$scratch/bin:$PATH" bash -c "$when" && fail "Direct Boot is hidden on a Spark without a UKI"
 pass "the menu hides Direct Boot on a Spark that boots without a UKI"
+
+# Setup > Direct Boot finds the entry to remove through the same helper: any
+# Omarchy entry, active or not, and no label that merely starts with Omarchy.
+numbers() { TEST_EFI_ENTRIES="$1" PATH="$scratch/bin:$PATH" bash "$direct_boot" --number; }
+[[ $(numbers "Boot0002* Omarchy\t$uki_path") == 0002 ]] || fail "--number names an active Omarchy entry"
+[[ $(numbers "Boot0003  Omarchy\t$uki_path") == 0003 ]] || fail "--number names an inactive Omarchy entry"
+for entry in 'Boot0002* Omarchy Rescue' 'Boot0001* Omarchy - Samsung 422087P\tHD(1,GPT,1-2,0x800,0x400000)/\\EFI\\LIMINE\\LIMINE_AA64.EFI'; do
+  status=0
+  numbers "$entry" >/dev/null || status=$?
+  (( status == 1 )) || fail "--number finds no Omarchy entry in: $entry"
+done
+status=0
+TEST_EFIBOOTMGR_STATUS=1 numbers 'Boot0002* Omarchy' >/dev/null || status=$?
+(( status == 2 )) || fail "--number reports an unreadable EFI list"
+grep -Fq 'omarchy-boot-direct --number' "$ROOT/bin/omarchy-setup-direct-boot" ||
+  fail "Setup > Direct Boot finds the Omarchy entry through the helper"
+! grep -q 'efibootmgr | grep' "$ROOT/bin/omarchy-setup-direct-boot" ||
+  fail "Setup > Direct Boot keeps no pattern of its own"
+pass "the Direct Boot helper names the Omarchy entry for Setup > Direct Boot"
