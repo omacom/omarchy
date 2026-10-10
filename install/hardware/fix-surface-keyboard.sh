@@ -4,7 +4,7 @@
 # The Intel LPSS modules below do not exist on arm64, so this is an x86_64-only fix.
 mkinitcpio_dir=${OMARCHY_SURFACE_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
 
-if omarchy-hw-surface && [[ $(uname -m) == "x86_64" ]]; then
+if omarchy-hw-surface && omarchy-hw-x86; then
   product_name="$(cat /sys/class/dmi/id/product_name 2>/dev/null)"
   echo "Detected Surface Device"
 

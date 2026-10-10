@@ -23,7 +23,7 @@ run_surface_setup() (
   script=$2
   loaded_modules=${3:-}
   omarchy-hw-surface() { return 0; }
-  uname() { [[ $1 == "-m" ]] && printf '%s\n' "$machine"; }
+  omarchy-hw-x86() { [[ $machine == "x86_64" ]]; }
   omarchy-pkg-add() { printf '%s\n' "$*" >>"$scratch/packages"; }
   lsmod() {
     printf 'lsmod\n' >>"$scratch/probes"
