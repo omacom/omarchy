@@ -17,3 +17,9 @@ pass "packaged Limine defaults keep PID 1 from waiting on the console"
 grep -Fxq 'BOOT_ORDER="linux-t2, linux-omarchy, linux-omarchy-*, *, *fallback, Snapshots"' "$packaged_defaults" ||
   fail "packaged Limine defaults protect T2 Macs and prefer the exact Omarchy kernel elsewhere"
 pass "packaged Limine defaults protect T2 Macs and prefer the exact Omarchy kernel elsewhere"
+
+# usbcore is built into the kernel, so only the command line can turn off USB
+# autosuspend (#906); a modprobe.d option never reaches it.
+grep -Fq 'KERNEL_CMDLINE[default]+=" usbcore.autosuspend=-1"' "$packaged_defaults" ||
+  fail "the packaged Limine defaults turn off USB autosuspend"
+pass "packaged Limine defaults turn off USB autosuspend"
