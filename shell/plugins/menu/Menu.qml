@@ -690,6 +690,10 @@ Item {
   // hidden row peeking past the cursor in the direction of travel.
   function revealCursor() {
     if (displayModel.count === 0) return
+    if (root.selectedIndex === 0) {
+      resultList.contentY = resultList.originY
+      return
+    }
     resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
 
     var item = resultList.itemAtIndex(root.selectedIndex)
