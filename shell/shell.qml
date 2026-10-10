@@ -1408,13 +1408,17 @@ ShellRoot {
         }
         onStatusChanged: {
           if (status === Loader.Error) {
-            // Loader.errorString() reflects the source-load failure even when
-            // sourceComponent is null. Surface both so the user sees something
-            // actionable instead of a panel that silently refuses to open.
-            var detail = errorString && errorString() ? errorString() : ""
+            // Hide the panel before any diagnostics so a failure while
+            // gathering the error detail cannot leave it stuck open.
+            shell.hide(panelEntry.pluginId)
+            // Loader has no errorString member; an unqualified lookup of an
+            // undefined name throws ReferenceError, so probe with typeof.
+            // Fall back to the component's error when one is available so the
+            // user sees something actionable instead of a panel that silently
+            // refuses to open.
+            var detail = typeof errorString === "function" && errorString() ? errorString() : ""
             if (!detail && sourceComponent) detail = sourceComponent.errorString()
             console.warn("panel plugin " + panelEntry.pluginId + " failed to load:", detail)
-            shell.hide(panelEntry.pluginId)
           }
         }
         Component.onDestruction: shell.unregisterPanelLoader(panelEntry.pluginId)
