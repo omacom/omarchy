@@ -28,7 +28,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 AGENT_ID = "claude"
 AGENT_NAME = "Claude Code"
@@ -274,6 +274,22 @@ def parse_usage_records(path: Path, entry: dict[str, Any] | None) -> dict[str, A
   }
 
 
+def transcript_files(projects_path: Path) -> Iterator[Path]:
+  # A project folder can be a symlink, and several can lead to one shared
+  # directory, so the walk follows links. Each real directory is entered
+  # once, which also ends a link that points back at one of its ancestors.
+  entered: set[str] = set()
+  for directory, subdirectories, names in os.walk(projects_path, followlinks=True):
+    real_directory = os.path.realpath(directory)
+    if real_directory in entered:
+      subdirectories[:] = []
+      continue
+    entered.add(real_directory)
+    for name in names:
+      if name.endswith(".jsonl"):
+        yield Path(directory) / name
+
+
 def scan_projects(projects_path: Path, index_file: Path | None = None) -> dict[str, Any]:
   previous = load_index(index_file) if index_file else {}
   current: dict[str, Any] = {}
@@ -284,9 +300,12 @@ def scan_projects(projects_path: Path, index_file: Path | None = None) -> dict[s
   order: list[str] = []
   unreadable_count = 0
   unreadable_examples: list[str] = []
-  files = projects_path.rglob("*.jsonl") if projects_path.is_dir() else []
-  for path in files:
-    key = str(path)
+  visited: set[str] = set()
+  for path in transcript_files(projects_path):
+    key = str(path.resolve())
+    if key in visited:
+      continue
+    visited.add(key)
     try:
       current[key] = parse_usage_records(path, previous.get(key))
     except Exception as exc:
