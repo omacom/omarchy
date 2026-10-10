@@ -139,15 +139,28 @@ tb_scan() {
 }
 
 tb_watch() {
-  local watch snapshot warning warned='' failures=0
+  local watch snapshot warning warned='' failures=0 text generation clean='' clean_generation='' clean_time=0
   tb_requests
   watch=$(cat /proc/sys/kernel/random/uuid)
   while true; do
     if [[ -f $TB_PENDING && ! -f $TB_MARKER ]]; then
       if [[ $warned != "pending" ]] && tb_setup_notice; then warned=pending; fi
-      sleep 2
+      clean=''
+      tb_wait 2
       continue
     fi
+    # The last scan's snapshot, unchanged, still fresh and from the same daemon,
+    # with no device, warning or request in flight, has nothing to deliver.
+    text='' generation=''
+    [[ -r $TB_RUNTIME/snapshot.json ]] && IFS= read -r -d '' text < "$TB_RUNTIME/snapshot.json" || true
+    [[ -r $TB_RUNTIME/generation ]] && IFS= read -r generation < "$TB_RUNTIME/generation" || true
+    if [[ -n $clean && ${text%$'\n'} == "$clean" && $generation == "$clean_generation" ]] &&
+      (( EPOCHSECONDS - clean_time >= 0 && EPOCHSECONDS - clean_time < 20 )) &&
+      ! compgen -G "$TB_REQUESTS/request-*.json" >/dev/null; then
+      tb_wait 2
+      continue
+    fi
+    clean=''
     if snapshot=$(tb_scan "$watch"); then
       failures=0
       warning=$(jq -c '[.generation,.warnings,.error]' <<< "$snapshot")
@@ -157,6 +170,10 @@ tb_watch() {
         fi
       else
         warned=''
+        if jq -e '.devices == []' <<< "$snapshot" >/dev/null; then
+          IFS=' ' read -r clean_generation clean_time <<< "$(jq -r '"\(.generation) \(.time)"' <<< "$snapshot")"
+          [[ $clean_time =~ ^[0-9]+$ ]] && clean=$snapshot
+        fi
       fi
     else
       failures=$((failures + 1))
@@ -164,7 +181,7 @@ tb_watch() {
         warned=unavailable
       fi
     fi
-    sleep 2
+    tb_wait 2
   done
 }
 
