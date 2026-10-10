@@ -9,6 +9,8 @@ TCP_PORTS=(47984 47989 48010)
 UDP_PORTS=(5353 47998 47999 48000 48002 48010)
 PRIVATE_CIDRS=(10.0.0.0/8 172.16.0.0/12 192.168.0.0/16)
 UFW_COMMENT="omarchy-sunshine"
+# sunshine.service is only an Alias= of this unit, and systemd refuses to enable a unit by its alias.
+SUNSHINE_SERVICE="app-dev.lizardbyte.app.Sunshine.service"
 SUNSHINE_ADMIN_APP="Sunshine Admin"
 SUNSHINE_ADMIN_URL="https://localhost:47990"
 SUNSHINE_ADMIN_EXEC="omarchy-launch-webapp $SUNSHINE_ADMIN_URL --ignore-certificate-errors"
@@ -71,7 +73,7 @@ enable_hyprland_autostart() {
 
 echo "Installing Sunshine..."
 omarchy-pkg-add sunshine
-systemctl --user enable --now sunshine
+systemctl --user enable --now "$SUNSHINE_SERVICE"
 
 echo "Opening Sunshine firewall ports..."
 open_ufw_ports
