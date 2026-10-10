@@ -32,3 +32,41 @@ assertEqual(
   'dropbox file metadata includes relative time and folder'
 )
 JS
+
+require_command jq
+require_command python3
+
+QUOTA_HOME=$(mktemp -d)
+trap 'rm -rf "$QUOTA_HOME"' EXIT
+
+quota_dropbox_dir="$QUOTA_HOME/Dropbox"
+mkdir -p "$quota_dropbox_dir" "$QUOTA_HOME/.dropbox"
+printf 'hello' >"$quota_dropbox_dir/notes.txt"
+
+# Dropbox reports "Pro" for any paid personal plan, so the plan table guesses
+# 3 TB whether the account is 2 TB or 3 TB.
+cat >"$QUOTA_HOME/.dropbox/info.json" <<JSON
+{"personal": {"path": "$quota_dropbox_dir", "host": 1, "is_team": false, "subscription_type": "Pro"}}
+JSON
+
+guessed=$(HOME="$QUOTA_HOME" python3 "$ROOT/shell/plugins/panels/dropbox/status.py" 5)
+
+[[ $(jq -r '.quotaBytes' <<<"$guessed") == "3000000000000" ]] ||
+  fail "dropbox falls back to the plan quota" "$guessed"
+pass "dropbox falls back to the plan quota"
+
+overridden=$(HOME="$QUOTA_HOME" python3 "$ROOT/shell/plugins/panels/dropbox/status.py" 5 2000000000000)
+
+[[ $(jq -r '.quotaBytes' <<<"$overridden") == "2000000000000" ]] ||
+  fail "dropbox prefers an explicit quota override" "$overridden"
+pass "dropbox prefers an explicit quota override"
+
+[[ $(jq -r '.quotaKnown' <<<"$overridden") == "true" ]] ||
+  fail "dropbox reports an overridden quota as known" "$overridden"
+pass "dropbox reports an overridden quota as known"
+
+ignored=$(HOME="$QUOTA_HOME" python3 "$ROOT/shell/plugins/panels/dropbox/status.py" 5 0)
+
+[[ $(jq -r '.quotaBytes' <<<"$ignored") == "3000000000000" ]] ||
+  fail "dropbox treats a zero override as unset" "$ignored"
+pass "dropbox treats a zero override as unset"
