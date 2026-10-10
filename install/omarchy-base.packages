@@ -105,6 +105,8 @@ owe
 owe-lockfeed
 pacman-contrib
 pamixer
+# Makes xdg-open pick file types by name like the file manager does, not by content.
+perl-file-mimeinfo
 pinta
 plocate
 plymouth
