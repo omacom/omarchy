@@ -39,10 +39,24 @@ for command in omarchy-state omarchy-hyprland-window-close-all omarchy-osd omarc
 command=${0##*/}
 printf '%s %s\n' "$command" "$*" >>"$CALL_LOG"
 case $command in
+  omarchy-osd)
+    if [[ ${BLOCK_OSD:-false} == "true" ]]; then
+      touch "$CALL_LOG.osd-blocked"
+      for (( attempt = 0; attempt < 200; attempt++ )); do
+        if [[ -f $CALL_LOG.power-request ]]; then
+          touch "$CALL_LOG.osd-finished"
+          exit 0
+        fi
+        /usr/bin/sleep 0.01
+      done
+      touch "$CALL_LOG.osd-timeout"
+      exit 1
+    fi
+    ;;
   omarchy-hyprland-window-close-all)
     if [[ ${BLOCK_WINDOW_CLOSE:-false} == "true" ]]; then
       for (( attempt = 0; attempt < 200; attempt++ )); do
-        if [[ -f $CALL_LOG.poweroff ]]; then
+        if [[ -f $CALL_LOG.power-request ]]; then
           touch "$CALL_LOG.close-finished"
           exit 0
         fi
@@ -59,16 +73,25 @@ case $command in
     if [[ $1 == "2" ]]; then
       # Synchronize with background preparation without a fixed test-time sleep.
       for (( attempt = 0; attempt < 200; attempt++ )); do
-        grep -q '^omarchy-hyprland-window-close-all ' "$CALL_LOG" && break
+        if grep -q '^omarchy-hyprland-window-close-all ' "$CALL_LOG" &&
+          grep -q '^omarchy-osd ' "$CALL_LOG" &&
+          { [[ ${BLOCK_OSD:-false} != "true" ]] || [[ -f $CALL_LOG.osd-blocked ]]; }; then
+          break
+        fi
         /usr/bin/sleep 0.01
       done
       touch "$CALL_LOG.grace"
     fi
     ;;
   systemctl)
-    [[ $* == "poweroff --no-wall" && -f $CALL_LOG.inhibited && -f $CALL_LOG.grace ]] || exit 2
-    touch "$CALL_LOG.poweroff"
-    [[ ${FAIL_POWEROFF:-false} != "true" ]]
+    [[ $* == "$POWER_COMMAND --no-wall" && -f $CALL_LOG.inhibited && -f $CALL_LOG.grace ]] || exit 2
+    if [[ ${BLOCK_OSD:-false} == "true" ]]; then
+      grep -q '^omarchy-state clear re\*-required$' "$CALL_LOG" || exit 3
+      grep -q '^omarchy-hyprland-window-close-all ' "$CALL_LOG" || exit 3
+      [[ -f $CALL_LOG.osd-blocked && ! -f $CALL_LOG.osd-finished && ! -f $CALL_LOG.osd-timeout ]] || exit 3
+    fi
+    touch "$CALL_LOG.power-request"
+    [[ ${FAIL_POWER_REQUEST:-false} != "true" ]]
     ;;
 esac
 SH
@@ -79,54 +102,55 @@ run_power_command() {
   local action="$1"
 
   : >"$call_log"
-  rm -f "$CALL_LOG.grace"
+  rm -f "$CALL_LOG".*
   "$ROOT/bin/omarchy-system-$action"
 }
 
-run_power_command reboot
-printf '%s\n' \
-  'systemd-run --user --collect --quiet --on-active=2s --timer-property=AccuracySec=100ms systemctl reboot --no-wall' \
-  'omarchy-osd -i reboot -m Rebooting -d 5000' \
-  'omarchy-state clear re*-required' \
-  'omarchy-hyprland-window-close-all ' \
-  'sleep 1' >"$test_tmp/reboot-expected.log"
-diff -u "$test_tmp/reboot-expected.log" "$call_log" || fail "reboot runs after being scheduled outside the terminal scope"
-pass "reboot runs after being scheduled outside the terminal scope"
+for action in shutdown reboot; do
+  if [[ $action == "shutdown" ]]; then
+    export POWER_COMMAND=poweroff
+    title="Shutdown"
+    message="Shutting down"
+  else
+    export POWER_COMMAND=reboot
+    title="Reboot"
+    message="Rebooting"
+  fi
 
-run_power_command shutdown || fail "shutdown service is scheduled"
-grep -q '^systemd-run --user --collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s .* --inhibit$' "$CALL_LOG" || fail "shutdown uses a bounded service outside the launching terminal"
-bash "$CALL_LOG.worker" || fail "protected shutdown succeeds"
-grep -q '^systemd-inhibit --what=sleep:idle:handle-lid-switch .* --mode=block .* --inhibited$' "$CALL_LOG" || fail "shutdown blocks sleep and lid handling"
-inhibit_line=$(grep -n '^systemd-inhibit ' "$CALL_LOG" | cut -d: -f1)
-osd_line=$(grep -n '^omarchy-osd ' "$CALL_LOG" | cut -d: -f1)
-(( inhibit_line < osd_line )) || fail "inhibition precedes preparation"
-grep -q '^omarchy-state clear re\*-required$' "$CALL_LOG" || fail "shutdown clears restart state"
-grep -q '^omarchy-hyprland-window-close-all ' "$CALL_LOG" || fail "shutdown closes windows"
-grep -q '^systemctl poweroff --no-wall$' "$CALL_LOG" || fail "poweroff runs after the grace period while inhibited"
-[[ ! -f $CALL_LOG.inhibited ]] || fail "accepted poweroff releases inhibition"
-! grep -q '^omarchy-notification-send ' "$CALL_LOG" || fail "successful shutdown sends no failure notification"
-pass "shutdown stays inhibited through preparation and the poweroff request"
+  run_power_command "$action" || fail "$action service is scheduled"
+  grep -q '^systemd-run --user --collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s .* --inhibit$' "$CALL_LOG" || fail "$action uses a bounded service outside the launching terminal"
+  bash "$CALL_LOG.worker" || fail "protected $action succeeds"
+  grep -q '^systemd-inhibit --what=sleep:idle:handle-lid-switch .* --mode=block .* --inhibited$' "$CALL_LOG" || fail "$action blocks sleep and lid handling"
+  inhibit_line=$(grep -n '^systemd-inhibit ' "$CALL_LOG" | cut -d: -f1)
+  osd_line=$(grep -n '^omarchy-osd ' "$CALL_LOG" | cut -d: -f1)
+  grep -Fqx "omarchy-osd -i $action -m $message -d 5000" "$CALL_LOG" || fail "$action shows its progress message"
+  (( inhibit_line < osd_line )) || fail "inhibition precedes preparation"
+  grep -q '^omarchy-state clear re\*-required$' "$CALL_LOG" || fail "$action clears restart state"
+  grep -q '^omarchy-hyprland-window-close-all ' "$CALL_LOG" || fail "$action closes windows"
+  grep -q "^systemctl $POWER_COMMAND --no-wall$" "$CALL_LOG" || fail "$POWER_COMMAND runs after the grace period while inhibited"
+  [[ ! -f $CALL_LOG.inhibited ]] || fail "accepted $POWER_COMMAND releases inhibition"
+  ! grep -q '^omarchy-notification-send ' "$CALL_LOG" || fail "successful $action sends no failure notification"
+  pass "$action stays inhibited through preparation and the $POWER_COMMAND request"
 
-: >"$call_log"
-rm -f "$CALL_LOG.grace" "$CALL_LOG.poweroff"
-# Dev link/unlink can leave the user manager pointing at a removed checkout.
-OMARCHY_PATH="$test_tmp/removed-checkout" bash "$CALL_LOG.worker" || fail "shutdown uses its own script when the service environment is stale"
-[[ -f $CALL_LOG.poweroff ]] || fail "shutdown reaches poweroff with a stale service environment"
-[[ ! -f $CALL_LOG.inhibited ]] || fail "shutdown releases inhibition with a stale service environment"
-! grep -q '^omarchy-notification-send ' "$CALL_LOG" || fail "stale service environment sends no failure notification"
-pass "shutdown uses its own script when the service environment is stale"
+  : >"$call_log"
+  rm -f "$CALL_LOG.grace" "$CALL_LOG.power-request"
+  # Dev link/unlink can leave the user manager pointing at a removed checkout.
+  OMARCHY_PATH="$test_tmp/removed-checkout" bash "$CALL_LOG.worker" || fail "$action uses its own script when the service environment is stale"
+  [[ -f $CALL_LOG.power-request ]] || fail "$action reaches $POWER_COMMAND with a stale service environment"
+  [[ ! -f $CALL_LOG.inhibited ]] || fail "$action releases inhibition with a stale service environment"
+  ! grep -q '^omarchy-notification-send ' "$CALL_LOG" || fail "stale service environment sends no failure notification"
+  pass "$action uses its own script when the service environment is stale"
 
-: >"$call_log"
-rm -f "$CALL_LOG.grace" "$CALL_LOG.poweroff"
-BLOCK_WINDOW_CLOSE=true bash "$CALL_LOG.worker" || fail "shutdown proceeds while window closing is blocked"
-for (( attempt = 0; attempt < 200; attempt++ )); do
-  [[ -f $CALL_LOG.close-finished || -f $CALL_LOG.close-timeout ]] && break
-  /usr/bin/sleep 0.01
-done
-[[ -f $CALL_LOG.close-finished && ! -f $CALL_LOG.close-timeout ]] || fail "poweroff releases the blocked window helper before its timeout"
-pass "blocked window closing cannot delay poweroff"
+  : >"$call_log"
+  rm -f "$CALL_LOG.grace" "$CALL_LOG.power-request"
+  BLOCK_WINDOW_CLOSE=true bash "$CALL_LOG.worker" || fail "$action proceeds while window closing is blocked"
+  for (( attempt = 0; attempt < 200; attempt++ )); do
+    [[ -f $CALL_LOG.close-finished || -f $CALL_LOG.close-timeout ]] && break
+    /usr/bin/sleep 0.01
+  done
+  [[ -f $CALL_LOG.close-finished && ! -f $CALL_LOG.close-timeout ]] || fail "$POWER_COMMAND releases the blocked window helper before its timeout"
+  pass "blocked window closing cannot delay $POWER_COMMAND"
 
-for action in reboot shutdown; do
   : >"$call_log"
   if FAIL_SYSTEMD_RUN=true "$ROOT/bin/omarchy-system-$action"; then
     fail "$action aborts when scheduling fails"
@@ -136,29 +160,40 @@ for action in reboot shutdown; do
     fail "$action leaves state and windows alone when scheduling fails"
   fi
   pass "$action leaves state and windows alone when scheduling fails"
-done
 
-for failure in FAIL_INHIBIT FAIL_POWEROFF; do
+  for failure in FAIL_INHIBIT FAIL_POWER_REQUEST; do
+    : >"$call_log"
+    rm -f "$CALL_LOG.grace"
+    env "$failure=true" bash "$CALL_LOG.worker"
+    status=$?
+    expected_status=1
+    [[ $failure == "FAIL_INHIBIT" ]] && expected_status=17
+    if (( status != expected_status )); then
+      fail "$action $failure propagates to the service"
+    fi
+    grep -Fqx "omarchy-notification-send -u critical $title failed Could not complete $action. Please try again." "$CALL_LOG" || fail "$action $failure notifies the user"
+    [[ ! -f $CALL_LOG.inhibited ]] || fail "$action $failure releases inhibition"
+    if [[ $failure == "FAIL_INHIBIT" ]]; then
+      (( $(wc -l <"$call_log") == 2 )) || fail "inhibitor failure leaves applications alone"
+    else
+      grep -q "^systemctl $POWER_COMMAND --no-wall$" "$CALL_LOG" || fail "rejection test reaches $POWER_COMMAND"
+    fi
+    pass "$action $failure notifies the user and leaves no inhibitor behind"
+  done
+
   : >"$call_log"
-  rm -f "$CALL_LOG.grace"
-  env "$failure=true" bash "$CALL_LOG.worker"
-  status=$?
-  expected_status=1
-  [[ $failure == "FAIL_INHIBIT" ]] && expected_status=17
-  if (( status != expected_status )); then
-    fail "$failure propagates to the service"
-  fi
-  grep -q '^omarchy-notification-send -u critical Shutdown failed Could not complete shutdown. Please try again.$' "$CALL_LOG" || fail "$failure notifies the user"
-  [[ ! -f $CALL_LOG.inhibited ]] || fail "$failure releases inhibition"
-  if [[ $failure == "FAIL_INHIBIT" ]]; then
-    (( $(wc -l <"$call_log") == 2 )) || fail "inhibitor failure leaves applications alone"
-  else
-    grep -q '^systemctl poweroff --no-wall$' "$CALL_LOG" || fail "rejection test reaches poweroff"
-  fi
-  pass "$failure notifies the user and leaves no inhibitor behind"
+  FAIL_INHIBIT=true FAIL_NOTIFICATION=true bash "$CALL_LOG.worker"
+  [[ $? == 17 ]] || fail "notification failure preserves the $action error"
+  pass "notification failure preserves the $action error"
 done
 
-: >"$call_log"
-FAIL_INHIBIT=true FAIL_NOTIFICATION=true bash "$CALL_LOG.worker"
-[[ $? == 17 ]] || fail "notification failure preserves the shutdown error"
-pass "notification failure preserves the shutdown error"
+export POWER_COMMAND=reboot
+run_power_command reboot || fail "reboot service is scheduled with a stalled OSD"
+BLOCK_OSD=true bash "$CALL_LOG.worker" || fail "reboot prepares applications while its OSD is stalled"
+for (( attempt = 0; attempt < 200; attempt++ )); do
+  [[ -f $CALL_LOG.osd-finished || -f $CALL_LOG.osd-timeout ]] && break
+  /usr/bin/sleep 0.01
+done
+[[ -f $CALL_LOG.osd-finished && ! -f $CALL_LOG.osd-timeout ]] || fail "reboot completes before the stalled OSD times out"
+! grep -q '^omarchy-notification-send ' "$CALL_LOG" || fail "a stalled OSD does not report reboot failure"
+pass "reboot clears state and requests window closing before reboot even while its OSD is stalled"

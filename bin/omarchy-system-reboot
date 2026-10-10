@@ -4,14 +4,31 @@
 # omarchy:examples=omarchy reboot | omarchy system reboot
 # omarchy:aliases=omarchy reboot
 
-# Schedule the reboot in the user manager so closing the terminal's systemd
-# scope cannot terminate it before it runs.
-systemd-run --user --collect --quiet --on-active="2s" --timer-property=AccuracySec=100ms systemctl reboot --no-wall || exit 1
+if [[ ${1:-} == "--inhibited" ]]; then
+  # Optional feedback must not delay state clearing or window-close requests.
+  omarchy-osd -i reboot -m "Rebooting" -d 5000 &
 
-omarchy-osd -i reboot -m "Rebooting" -d 5000
+  # Close windows in the background so they cannot delay reboot.
+  (
+    omarchy-state clear re*-required
+    omarchy-hyprland-window-close-all
+  ) &
 
-omarchy-state clear re*-required
-
-# Now close all windows
-omarchy-hyprland-window-close-all
-sleep 1 # Allow apps like Chrome to shutdown correctly
+  sleep 2 # Allow apps like Chrome to shut down correctly
+  systemctl reboot --no-wall
+elif [[ ${1:-} == "--inhibit" ]]; then
+  # Report failures from inside the service, independently of the launching terminal.
+  # Block lid handling explicitly: it ignores high-level sleep inhibitors.
+  systemd-inhibit --what=sleep:idle:handle-lid-switch \
+    --who=Omarchy --why="Reboot in progress" --mode=block \
+    "$0" --inhibited || {
+    status=$?
+    omarchy-notification-send -u critical "Reboot failed" "Could not complete reboot. Please try again."
+    exit "$status"
+  }
+else
+  # Schedule the reboot in the user manager so closing the terminal's systemd
+  # scope cannot terminate it before it runs.
+  systemd-run --user --collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s \
+    "$OMARCHY_PATH/bin/omarchy-system-reboot" --inhibit
+fi
