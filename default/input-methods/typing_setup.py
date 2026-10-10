@@ -117,11 +117,12 @@ def save_inputs(selected, overrides=None):
   missing = [catalog.get(name, name) for name in selected if name not in available]
   if missing:
     raise RuntimeError("Restart input after updating Omarchy to use: " + ", ".join(missing))
+  set_inputs(group, layout, items, input_items(items, selected, overrides))
+  # Only a saved engine claims the CJK font fallback.
   config_home = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
   for name in selected:
     if name in setup.PRESETS:
       setup.font_default(config_home, name)
-  set_inputs(group, layout, items, input_items(items, selected, overrides))
 
 
 def keyboard_values(selected):

@@ -36,7 +36,6 @@ class TypingSetupTest(unittest.TestCase):
     self.assertEqual(catalog["cz:qwerty"], "Czech")
     self.assertNotIn("az", catalog)
     self.assertEqual(catalog["latam"], "Spanish (Latin American)")
-    self.assertEqual(catalog["latam"], "Spanish (Latin American)")
     self.assertNotIn("us:intl", catalog)
     self.assertLess(len(catalog), 60)
 
@@ -55,6 +54,14 @@ class TypingSetupTest(unittest.TestCase):
     items = [["keyboard-us", ""], ["mozc", ""], ["keyboard-fr", ""], ["hangul", ""]]
     self.assertEqual(typing.input_items(items, ["mozc"]), [["keyboard-us", ""], ["mozc", ""], ["keyboard-fr", ""]])
     self.assertEqual(typing.input_items(items, ["pinyin", "hangul", "mozc"]), items + [["pinyin", ""]])
+
+  def test_failed_input_save_leaves_fonts_alone(self):
+    with tempfile.TemporaryDirectory() as temporary:
+      before = ("Default", "us", [["keyboard-us", ""]])
+      with patch.dict(os.environ, {"XDG_CONFIG_HOME": temporary}), patch.object(typing.setup, "live_group", return_value=before), patch.object(typing.setup, "available_methods", return_value=[["mozc", "Mozc"]]), patch.object(typing, "set_inputs", side_effect=RuntimeError("rejected")):
+        with self.assertRaises(RuntimeError):
+          typing.save_inputs(["mozc"])
+      self.assertFalse((Path(temporary) / "fontconfig/conf.d/50-omarchy-input-method.conf").exists())
 
   def test_cancellation_does_not_change_input_settings(self):
     with patch.object(typing.setup, "live_group", return_value=("Default", "us", [["keyboard-us", ""]])), patch.object(typing, "input_catalog", return_value=({"mozc": "Japanese"}, {"mozc": "Japanese"})), patch.object(typing, "choose", return_value=None), patch.object(typing.setup, "live_set") as setter:
