@@ -66,19 +66,25 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# The workers below outlive a hard kill of this script: a caller that kills the
+# process outright (for example the shell unloading the speedtest overlay) never
+# runs the EXIT trap, so without a parent check they would keep downloading
+# forever. Capturing the PID here lets each worker stop once the parent is gone.
+parent_pid=$$
+
 # Round-robin across the returned URLs so we spread load across Netflix OCA nodes.
 traffic_worker() {
   local urls=("$@")
   local url_count=${#urls[@]}
   local idx=$RANDOM
   if [[ $direction == "down" ]]; then
-    while true; do
+    while kill -0 "$parent_pid" 2>/dev/null; do
       url=${urls[$((idx % url_count))]}
       curl -fsS -o /dev/null "$url" 2>/dev/null || return
       idx=$((idx + 1))
     done
   else
-    while true; do
+    while kill -0 "$parent_pid" 2>/dev/null; do
       url=${urls[$((idx % url_count))]}
       dd if=/dev/zero bs=1M count=64 2>/dev/null | curl -fsS -o /dev/null -X POST --data-binary @- "$url" 2>/dev/null || return
       idx=$((idx + 1))
