@@ -35,6 +35,8 @@ hl.config({
     col = {
       border_active = active_border_color,
       border_inactive = inactive_border_color,
+      border_locked_active = active_border_color,
+      border_locked_inactive = inactive_border_color,
     },
 
     groupbar = {
@@ -52,6 +54,8 @@ hl.config({
       col = {
         active = "rgba(00000040)",
         inactive = "rgba(00000020)",
+        locked_active = "rgba(00000040)",
+        locked_inactive = "rgba(00000020)",
       },
       gradients = true,
       gradient_rounding = 0,
