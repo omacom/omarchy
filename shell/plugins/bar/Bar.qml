@@ -8,6 +8,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "BarModel.js" as BarModel
+import "FontFamily.js" as FontFamily
 
 Item {
   id: root
@@ -66,10 +67,13 @@ Item {
   property bool centerHoverRevealSuppressed: false
   property int barConfigSerial: 0
   property string position: "top"
-  // Resolves through fontconfig at paint time (Style.font.family defaults
-  // to "monospace"), so changing the system font (via `omarchy-font-set`)
-  // updates the bar without a reload.
-  property string fontFamily: Style.font.family
+  // Prefer an installed Propo sibling for UI glyphs. Keep the fontconfig
+  // alias when no sibling exists, and leave the shared shell font unchanged.
+  property string fontFamily: {
+    var selected = Style.font.family === "monospace" ? Style.font.resolvedFamily : Style.font.family
+    var preferred = FontFamily.preferPropo(selected, Qt.fontFamilies())
+    return preferred !== selected ? preferred : Style.font.family
+  }
   // Bound to the central Color singleton so the bar tracks shell.toml's
   // [bar] section. Property names kept for the rest of this file's bindings.
   property color themeForeground: Commons.Color.bar.text
