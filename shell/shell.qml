@@ -723,6 +723,16 @@ ShellRoot {
     var api = pluginShellApiComponent.createObject(null, {
       pluginId: target,
       barConfig: shell.publicBarConfig(),
+      // Own service only, through the same owns()-restricted lookup the
+      // trusted facade gets: a bar-widget+service plugin must keep working
+      // under replacement bars, while every other service — including any
+      // authentication service — stays unreachable from a bar entry
+      // (omacom/omarchy#13289).
+      _serviceLookup: function(requestedId) {
+        return owns(requestedId)
+          ? shell.pluginServiceFor(shell.pluginRegistry.resolveEnabledId(target), requestedId)
+          : null
+      },
       _summon: function(requestedId, payloadJson) {
         if (!owns(requestedId)
             && !shell.pluginCloneMaySummon(currentManifest(), requestedId)) return false
