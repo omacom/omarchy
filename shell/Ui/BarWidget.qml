@@ -15,6 +15,9 @@ Item {
   property QtObject bar: null
   property string moduleName: ""
   property var settings: ({})
+  // The bar section this widget sits in ("left", "center", or "right"), set
+  // by the built-in bar. Empty when the host does not report one.
+  property string section: ""
 
   // Bar geometry, lifted off the host. Widgets read these constantly to pick
   // between horizontal/vertical layouts; defining them on the base keeps the

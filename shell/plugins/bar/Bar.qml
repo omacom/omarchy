@@ -63,6 +63,8 @@ Item {
   // True while the pointer is over any bar, widgets included.
   readonly property bool barHovered: barHoverCount > 0
   property bool centerSectionRevealHeld: false
+  property bool leftSectionRevealHeld: false
+  property bool rightSectionRevealHeld: false
   property bool centerHoverRevealSuppressed: false
   property int barConfigSerial: 0
   property string position: "top"
@@ -139,6 +141,8 @@ Item {
     api.transparent = Qt.binding(function() { return root.transparent })
     api.foregroundAnimationEnabled = Qt.binding(function() { return root.foregroundAnimationEnabled })
     api.centerSectionRevealHeld = Qt.binding(function() { return root.centerSectionRevealHeld })
+    api.leftSectionRevealHeld = Qt.binding(function() { return root.leftSectionRevealHeld })
+    api.rightSectionRevealHeld = Qt.binding(function() { return root.rightSectionRevealHeld })
     api._centerHoverRevealSuppressed = Qt.binding(function() { return root.centerHoverRevealSuppressed })
     root.syncPluginBarApiObjects(api)
   }
@@ -889,6 +893,15 @@ Item {
     }
   }
 
+  // Indicators placed in a side section peek from that section's hover, the
+  // way they do from the center's. The side peeks are held and released with
+  // the center one: opened by their own section, closed once the pointer has
+  // left the bar.
+  function holdSideSectionReveal(section) {
+    if (section === "left") leftSectionRevealHeld = true
+    else if (section === "right") rightSectionRevealHeld = true
+  }
+
   function setBarHovered(hovered) {
     barHoverCount = Math.max(0, barHoverCount + (hovered ? 1 : -1))
     if (barHoverCount === 0) centerSectionRevealTimer.restart()
@@ -904,7 +917,13 @@ Item {
     // Collapse only. Opening the peek is the center section's own gesture, done
     // in setCenterSectionHovered, so a timer left pending by a pointer that dipped
     // off the bar and came back cannot reveal indicators it never pointed at.
-    onTriggered: if (!root.centerSectionHovered && !root.barHovered) root.centerSectionRevealHeld = false
+    onTriggered: {
+      if (!root.centerSectionHovered && !root.barHovered) root.centerSectionRevealHeld = false
+      if (!root.barHovered) {
+        root.leftSectionRevealHeld = false
+        root.rightSectionRevealHeld = false
+      }
+    }
   }
 
   function run(command) {
@@ -1632,11 +1651,45 @@ Item {
   component LeftModules: ModuleList {
     entries: root.layoutEntries("left")
     region: "left"
+
+    HoverHandler {
+      onHoveredChanged: if (hovered) root.holdSideSectionReveal("left")
+    }
+
+    SideSectionHoverFloor { section: "left" }
   }
 
   component RightModules: ModuleList {
     entries: root.layoutEntries("right")
     region: "right"
+
+    HoverHandler {
+      onHoveredChanged: if (hovered) root.holdSideSectionReveal("right")
+    }
+
+    SideSectionHoverFloor { section: "right" }
+  }
+
+  // A side section is as large as its widgets, so one holding nothing but
+  // collapsed indicators has no extent and its own hover could never open
+  // them. This keeps a bar-size square at the section's outer edge to point
+  // at, without changing the size the section lays out with.
+  component SideSectionHoverFloor: Item {
+    id: hoverFloor
+
+    required property string section
+    readonly property bool trailing: section === "right"
+    readonly property real along: Math.max(root.vertical ? parent.height : parent.width, root.barSize)
+    readonly property real across: Math.max(root.vertical ? parent.width : parent.height, root.barSize)
+
+    width: root.vertical ? across : along
+    height: root.vertical ? along : across
+    x: root.vertical ? (parent.width - width) / 2 : (trailing ? parent.width - width : 0)
+    y: root.vertical ? (trailing ? parent.height - height : 0) : (parent.height - height) / 2
+
+    HoverHandler {
+      onHoveredChanged: if (hovered) root.holdSideSectionReveal(hoverFloor.section)
+    }
   }
 
   component CenterModules: Item {
@@ -2128,6 +2181,7 @@ Item {
         ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
       if ("moduleName" in target) target.moduleName = moduleName
       if ("settings" in target) target.settings = moduleSettings
+      if ("section" in target) target.section = region
     }
 
     Component {

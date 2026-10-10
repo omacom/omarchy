@@ -15,7 +15,12 @@ BarWidget {
   property bool indicatorAreaHovered: false
   property bool indicatorItemHovered: false
   readonly property bool alwaysShowIndicators: setting("alwaysShow", false) === true
-  readonly property bool revealInactiveIndicators: alwaysShowIndicators || indicatorAreaHovered || indicatorItemHovered || (bar && bar.centerSectionRevealHeld === true && bar.centerHoverRevealSuppressed !== true)
+  // The peek follows the section the widget sits in, so indicators moved out
+  // of the center open from their own section and not from across the bar. A
+  // host that reports no section keeps the center peek.
+  readonly property string peekSection: section === "left" || section === "right" ? section : "center"
+  readonly property bool sectionRevealHeld: !!bar && bar[peekSection + "SectionRevealHeld"] === true && bar.centerHoverRevealSuppressed !== true
+  readonly property bool revealInactiveIndicators: alwaysShowIndicators || indicatorAreaHovered || indicatorItemHovered || sectionRevealHeld
 
   signal refreshRequested()
 
