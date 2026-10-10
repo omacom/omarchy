@@ -148,7 +148,7 @@ assert(
   'app library keeps owning an OSD a previous launch left on screen'
 )
 
-const openMatch = menuQml.match(/function openExistingMenu\(initialMenu\) \{([\s\S]*?)\n  \}/)
+const openMatch = menuQml.match(/function openExistingMenu\(initialMenu(?:, initialIndex, initialId)?\) \{([\s\S]*?)\n  \}/)
 assert(openMatch, 'menu openExistingMenu function exists')
 assert(
   openMatch[1].includes('root.appLibrary.refreshIcons()'),

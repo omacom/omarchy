@@ -25,10 +25,22 @@ Item {
 
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
 
+    // checkedResults is normally filled by the async guard batch after open.
+    // A caller that already knows the ✓ state can prime the first paint to
+    // avoid stale markers until that batch lands. When the guard batch
+    // resolves, it replaces checkedResults wholesale; primed values for IDs
+    // with no checked: guard from the batch are not preserved.
+    if (payload.checked && typeof payload.checked === "object") {
+      for (var ck in payload.checked) {
+        if (Object.prototype.hasOwnProperty.call(payload.checked, ck))
+          root.checkedResults[ck] = !!payload.checked[ck]
+      }
+    }
+
     if (payload.mode === "select" || payload.mode === "input") {
       root.openDmenu(payload)
     } else {
-      root.openRoute(payload.initialMenu || payload.menu || "root")
+      root.openRoute(payload.initialMenu || payload.menu || "root", payload.initialIndex, payload.initialId)
     }
   }
 
@@ -560,6 +572,17 @@ Item {
     root.cursorActive = target >= 0
   }
 
+  // Rows are keyed by itemId, which lets a summoning caller name the row its
+  // cursor should start on even when the display order differs from item
+  // order (apps sort alphabetically, provider rows and search results reorder
+  // freely). -1 means the id is not on screen right now.
+  function indexOfItemId(id) {
+    for (var ri = 0; ri < displayModel.count; ri++) {
+      if (displayModel.get(ri).itemId === id) return ri
+    }
+    return -1
+  }
+
   function rebuildDmenuDisplay() {
     displayModel.clear()
     root.searchDivider = false
@@ -735,6 +758,7 @@ Item {
 
   function select(delta) {
     if (displayModel.count === 0) return
+    delta = Number(delta) || 0
 
     root.disarmPointer()
     var from = cursorActive ? selectedIndex + delta : (delta < 0 ? displayModel.count - 1 : 0)
@@ -879,7 +903,7 @@ Item {
     filterText = ""
   }
 
-  function openExistingMenu(initialMenu) {
+  function openExistingMenu(initialMenu, initialIndex, initialId) {
     requestSerial += 1
     mode = "menu"
     requestActive = false
@@ -888,12 +912,24 @@ Item {
     activeMenu = root.item(initialMenu) ? initialMenu : "root"
     navStack = []
     filterText = ""
-    selectedIndex = 0
+    selectedIndex = typeof initialIndex === "number" && initialIndex >= 0 ? initialIndex : 0
     cursorActive = true
     root.disarmPointer()
     root.evaluateGuards()
     opened = true
     rebuildDisplay()
+    // A summoner can name the starting row by itemId as well as by ordinal,
+    // which matters for menus whose display order differs from item order
+    // (apps sort alphabetically, provider rows reorder on refresh). settle-
+    // Cursor() then normalizes a row that turned disabled or filtered off.
+    if (initialId) {
+      var idRow = root.indexOfItemId(initialId)
+      if (idRow >= 0) selectedIndex = idRow
+    }
+    if (initialId || typeof initialIndex === "number") {
+      selectedIndex = Math.min(Math.max(selectedIndex, 0), Math.max(displayModel.count - 1, 0))
+      root.settleCursor()
+    }
     invalidateVolatileProvider(activeMenu)
     loadProviderForMenu(activeMenu)
     // The shell may start before first-install packages have finished placing
@@ -945,7 +981,7 @@ Item {
     return MenuModel.resolveRoute(root.items, root.itemOrder, input)
   }
 
-  function openRoute(initialMenu) {
+  function openRoute(initialMenu, initialIndex, initialId) {
     var id = root.resolveRoute(initialMenu)
     var entry = root.items[id]
     // If the resolved id is an action (i.e. the user invoked an alias for
@@ -959,7 +995,7 @@ Item {
     // If it's a link (a redirect to another menu), follow the link.
     if (entry && entry.kind === "link" && entry.target) id = entry.target
     root.pendingInitialMenu = id
-    root.openExistingMenu(id)
+    root.openExistingMenu(id, initialIndex, initialId)
     return "ok"
   }
 
