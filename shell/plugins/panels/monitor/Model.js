@@ -122,3 +122,11 @@ if (typeof module !== "undefined") {
     parseDisplays: parseDisplays
   }
 }
+
+// Compare only settings that affect a draft; focus/brightness may change freely.
+function monitorSnapshot(display) {
+  if (!display) return null
+  return {description: display.description, width: display.width, height: display.height,
+          x: display.x, y: display.y, scale: display.scale, transform: display.transform}
+}
+if (typeof module !== "undefined") module.exports.monitorSnapshot = monitorSnapshot
