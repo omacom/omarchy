@@ -147,12 +147,12 @@ set_terminal_size() {
     else
       printf '\nfont_size %s.0\n' "$pt" >>~/.config/kitty/kitty.conf
     fi
-    pkill -USR1 kitty 2>/dev/null || true
+    pkill -u "$UID" -USR1 kitty 2>/dev/null || true
   fi
 
   if [[ -f ~/.config/ghostty/config ]]; then
     sed -i -E "s/^font-size = .*/font-size = $pt/" ~/.config/ghostty/config
-    pkill -SIGUSR2 ghostty 2>/dev/null || true
+    pkill -u "$UID" -SIGUSR2 ghostty 2>/dev/null || true
   fi
 
   if [[ -f ~/.config/foot/foot.ini ]]; then

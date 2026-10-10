@@ -8,8 +8,8 @@ screensaver_in_focus() {
 
 exit_screensaver() {
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
-  pkill -x ttfx 2>/dev/null
-  pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
+  pkill -u "$UID" -x ttfx 2>/dev/null
+  pkill -u "$UID" -f '[o]rg.omarchy.screensaver' 2>/dev/null
   exit 0
 }
 

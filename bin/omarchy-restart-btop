@@ -2,4 +2,4 @@
 
 # omarchy:summary=Reload btop configuration (used by the Omarchy theme switching).
 
-pkill -SIGUSR2 btop
+pkill -u "$UID" -SIGUSR2 btop

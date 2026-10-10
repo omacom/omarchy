@@ -8,7 +8,7 @@ set -euo pipefail
 
 # The app rewrites ~/.config/Claude for as long as it runs, so a removal that
 # leaves it running deletes the directory and watches it come straight back.
-pkill -x claude-desktop || true
+pkill -u "$UID" -x claude-desktop || true
 
 omarchy-pkg-drop claude-desktop
 

@@ -6,5 +6,5 @@
 # instance would exit on arrival and the stale process would keep serving the
 # old ~/.XCompose -- a restart that reports success and changes nothing.
 systemctl --user stop omarchy-fcitx5.service
-pkill -x fcitx5 >/dev/null 2>&1 || true
+pkill -u "$UID" -x fcitx5 >/dev/null 2>&1 || true
 systemctl --user start omarchy-fcitx5.service

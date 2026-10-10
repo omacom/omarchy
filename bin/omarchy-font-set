@@ -38,12 +38,12 @@ if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
   else
     printf '\nfont_family %s\n' "$font_name" >>~/.config/kitty/kitty.conf
   fi
-  pkill -USR1 kitty
+  pkill -u "$UID" -USR1 kitty
 fi
 
 if [[ -f ~/.config/ghostty/config ]]; then
   sed -i "s/font-family = \".*\"/font-family = \"$font_name\"/g" ~/.config/ghostty/config
-  pkill -SIGUSR2 ghostty
+  pkill -u "$UID" -SIGUSR2 ghostty
 fi
 
 if [[ -f ~/.config/foot/foot.ini ]]; then
