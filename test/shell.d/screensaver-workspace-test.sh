@@ -78,8 +78,15 @@ grep -q 'hl.dsp.focus({ monitor = "DP-1" })' "$tmpdir/calls" ||
   fail "focus returns to the monitor that had it once the screensaver closes" "$(<"$tmpdir/calls")"
 pass "focus returns to the monitor that had it once the screensaver closes"
 
+socat_pid=$(<"$tmpdir/socat.pid")
+for (( attempt = 0; attempt < 100; attempt++ )); do
+  ! kill -0 "$socat_pid" 2>/dev/null && break
+  sleep 0.05
+done
+kill -0 "$socat_pid" 2>/dev/null && fail "the Hyprland event listener stops after focus is restored" "socat pid $socat_pid is still running"
+pass "the Hyprland event listener stops after focus is restored"
+
 # Screensavers can close while the launcher is still waiting on another monitor, consuming their events.
-kill "$(<"$tmpdir/socat.pid")"
 : >"$tmpdir/calls"
 : >"$tmpdir/spawned"
 PATH="$tmpdir/bin:$PATH" TEST_DIR="$tmpdir" XDG_RUNTIME_DIR="$tmpdir" HYPRLAND_INSTANCE_SIGNATURE=test \

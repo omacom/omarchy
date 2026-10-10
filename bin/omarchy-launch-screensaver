@@ -38,6 +38,7 @@ SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
 # Open Hyprland's event stream before spawning anything, so a terminal that maps
 # quickly can't emit its openwindow event before we are listening for it.
 exec {events}< <(socat -U - "UNIX-CONNECT:$SOCKET")
+socat_pid=$!
 
 # hypr_exec is async and a new window maps on whatever monitor is focused at that
 # moment. Block until this monitor's screensaver actually opens before moving
@@ -79,6 +80,7 @@ hypr_focus_monitor "$focused"
 # with it. Hand focus back to the monitor that had it once they are all gone.
 # The class goes through the environment, since in argv the screensaver's pgrep and pkill would match it.
 (
+  trap 'kill "$socat_pid" 2>/dev/null' EXIT
   while hyprctl clients -j | SCREENSAVER=org.omarchy.screensaver jq -e 'any(.[]; .mapped and .class == env.SCREENSAVER)' >/dev/null; do
     IFS= read -r -u "$events" line || exit
   done
