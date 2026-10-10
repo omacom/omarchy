@@ -101,6 +101,7 @@ done
 printf '#!/bin/bash\nexit 1\n' >"$test_dir/bin/pgrep"
 printf '#!/bin/bash\nprintf "Test Font\\n"\n' >"$test_dir/bin/fc-list"
 printf '#!/bin/bash\nexit 0\n' >"$test_dir/bin/kitty"
+printf '#!/bin/bash\necho kitty.desktop\n' >"$test_dir/bin/xdg-terminal-exec"
 cat >"$test_dir/bin/gsettings" <<'SH'
 #!/bin/bash
 if [[ $1 == "get" ]]; then
