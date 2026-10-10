@@ -26,9 +26,28 @@ else
   next_sink_index=0
 fi
 
+sink_description() {
+  local d
+  d=$(jq -r '
+    def valid: select(. != null and . != "" and . != "(null)" and . != "null");
+    (.description | valid) // (.properties."device.description" | valid) // empty
+  ' <<<"$1")
+  if [[ -n $d ]]; then
+    echo "$d"
+    return
+  fi
+  d=$(pw-dump 2>/dev/null | jq -r --arg n "$2" \
+    'first(.[] | select(.type == "PipeWire:Interface:Node" and .info.props."node.name" == $n) | .info.props."node.description") // empty')
+  if [[ -n $d && $d != "(null)" ]]; then
+    echo "$d"
+    return
+  fi
+  echo "$2"
+}
+
 next_sink=$(jq -c ".[$next_sink_index]" <<<"$sinks")
 next_sink_name=$(jq -r '.name' <<<"$next_sink")
-next_sink_description=$(jq -r '.description // .properties."device.description" // .name' <<<"$next_sink")
+next_sink_description=$(sink_description "$next_sink" "$next_sink_name")
 # A tuning sink sits at a fixed 100% and unmuted while real loudness lives on the
 # physical sink beneath it, so read the level from whichever sink actually carries
 # it or the OSD contradicts the volume keys.
