@@ -45,6 +45,8 @@ Item {
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
+  // A switch that arrives while a reveal runs, started when the reveal ends.
+  property var queuedTransition: null
   readonly property bool ready: {
     if (isVideo(displayedBackground)) return true
     if (backgrounds.instances.length === 0) return false
@@ -84,12 +86,26 @@ Item {
     preparedBackground = ""
     finishingTransition = false
     pruneNativeSizes()
+    if (queuedTransition) {
+      var next = queuedTransition
+      queuedTransition = null
+      transitionBackground(next.fromPath, next.path, next.finalPath, false, next.force)
+    }
   }
 
   function transitionBackground(fromPath, path, finalPath, instant, force) {
     path = String(path || "").trim()
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
+    // Restarting a running reveal starts from displayedBackground, which is
+    // still the image from before that reveal, so the screen jumped back one
+    // wallpaper. Let the running reveal finish and keep only the latest switch.
+    if (!instant && incomingBackground && revealProgress > 0 && revealProgress < 1) {
+      queuedTransition = finalPath === currentBackground ? null
+        : { fromPath: fromPath, path: path, finalPath: finalPath, force: force }
+      return
+    }
+    queuedTransition = null
     if (!path || (!force && finalPath === currentBackground)) return
     if (path !== preparedBackground) preparedBackground = ""
     preparedBackgroundTimer.stop()

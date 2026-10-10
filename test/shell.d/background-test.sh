@@ -85,4 +85,9 @@ assert(
     !/onReadyChanged: \{[\s\S]*?root\.incomingBackground = ""/.test(backgroundQml),
   'background keeps the reveal layers until every screen has drawn its base image'
 )
+assert(
+  /if \(!instant && incomingBackground && revealProgress > 0 && revealProgress < 1\) \{\s*queuedTransition =/.test(backgroundQml) &&
+    /function finishTransition\(\)[\s\S]*?if \(queuedTransition\) \{[\s\S]*?transitionBackground\(next\.fromPath/.test(backgroundQml),
+  'background lets a running reveal finish and then starts the latest queued switch'
+)
 JS
