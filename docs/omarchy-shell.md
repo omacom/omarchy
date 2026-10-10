@@ -100,7 +100,7 @@ The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
 ## Elsewhen
 
-Elsewhen (`omacom.elsewhen`) ships in the `elsewhen` package at `/usr/share/omarchy/shell/plugins/omacom.elsewhen`, where the shell discovers it automatically. New installs place it immediately before the clock; the migration uses `omarchy bar put omacom.elsewhen --before omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. Existing plugin directories and symlinks are left intact. The normal update flow restarts the shell after migrations; the migration does not interrupt plugin loading with an immediate restart. With no shell to ask, as in an update from a TTY, the migration installs the package and skips the placement rather than failing the update; `omarchy bar put omacom.elsewhen --before omarchy.clock` places the widget later.
+Elsewhen (`omarchy.elsewhen`), the world clock, is a first-party plugin in `shell/plugins/panels/elsewhen/`; [`elsewhen.md`](elsewhen.md) covers how it works. It shipped as the separate `elsewhen` package under the id `omacom.elsewhen` until it moved in. New installs place it immediately before the clock; the placement migration uses `omarchy bar put omarchy.elsewhen --before omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. With no shell to ask, as in an update from a TTY, it skips the placement rather than failing the update. A later migration renames existing `omacom.elsewhen` entries in `shell.json`, keeping their settings, and removes the retired package and any dev-checkout link to its `/usr/share/omarchy` path, leaving links and checkouts the user made alone.
 
 ## IPC
 
@@ -189,6 +189,20 @@ overrides like `omarchy display text size` survive theme switches.
 
 ## Theme tokens
 
+Shell and plugin QML must qualify the palette singleton because Qt 6.12 introduces its own `Color` type. Import `qs.Commons` with an alias and use `Commons.Color` for palette properties and signal connections:
+
+```qml
+import QtQuick
+import qs.Commons
+import qs.Commons as Commons
+
+Rectangle {
+  color: Commons.Color.background
+}
+```
+
+The unqualified import can remain for `Style`, `Util`, and `Border`. Existing third-party plugins that use bare `Color` must make the same change; fixing the host shell does not change a plugin's import scope.
+
 See [`theming.md`](theming.md) for the full theme/template workflow,
 including generated `*.tpl` files, gradient helpers, and shell border syntax.
 
@@ -200,17 +214,17 @@ or override a single section with `shell.<section>.toml`, merged in by
 `omarchy-theme-set-templates` (see [`theming.md`](theming.md)).
 
 `colors.toml` uses `foreground` and `background` for the foundational
-text/background palette, exposed to QML as `Color.foreground` and
-`Color.background`.
+text/background palette, exposed to QML as `Commons.Color.foreground` and
+`Commons.Color.background`.
 
 The shell exposes these tokens to QML via three singletons in
 `qs.Commons`:
 
 - `Color` — palette (`foreground`, `background`, `accent`, `urgent`)
-  and per-surface roles (`Color.bar.*`, `Color.popups.*`,
-  `Color.tooltip.*`, `Color.notifications.*`, `Color.menu.*`,
-  `Color.polkit.*`, `Color.lock.*`, `Color.imagePicker.*`). Clipboard
-  and emojis share `Color.menu.*`; the `[launcher]` section is consumed
+  and per-surface roles (`Commons.Color.bar.*`, `Commons.Color.popups.*`,
+  `Commons.Color.tooltip.*`, `Commons.Color.notifications.*`, `Commons.Color.menu.*`,
+  `Commons.Color.polkit.*`, `Commons.Color.lock.*`, `Commons.Color.imagePicker.*`). Clipboard
+  and emojis share `Commons.Color.menu.*`; the `[launcher]` section is consumed
   by the launcher outside shell QML.
 - `Style` — structural tokens (`cornerRadius`), shared interactive
   state tokens/helpers, spacing (`Style.spacing.*` / `Style.space(px)`),
@@ -218,7 +232,7 @@ The shell exposes these tokens to QML via three singletons in
   (`Style.bar.sizeHorizontal` / `Style.bar.sizeVertical`).
 - `Border` — border-spec helpers for QML surfaces. Use with
   `BorderSurface` from `qs.Ui` when a border should honor shell theme
-  gradients or per-side widths. `Color.<section>.border` is only the
+  gradients or per-side widths. `Commons.Color.<section>.border` is only the
   flat-color fallback for code that cannot render a real border.
 
 ### Interactive states
@@ -381,6 +395,16 @@ size-vertical   = 28   # left/right bar width at base-size 12
 ```
 
 Set `scale-with-font = false` to keep those bar sizes as fixed pixels.
+
+A panel with a camera cutout (a notch) at its top keeps a top bar out of it: the bar is never shorter than the cutout, and its center section sits beside the right one. Omarchy knows no panel's cutout itself; the platform's own package describes them in `/usr/share/omarchy-platform/display-cutouts.json`, a fixed path no environment variable moves (see [file-layout.md](file-layout.md#platform-root)):
+
+```json
+{ "panels": [ { "connector": "eDP", "width": 3024, "height": 1964, "top": 64 } ] }
+```
+
+A panel matches a screen whose connector name starts with `connector` and whose mode, as `hyprctl monitors` reports it, is `width` x `height` physical pixels, at any scale; `top` is the physical rows the cutout covers. On such a panel, `[bar] notch-height` (logical pixels, not scaled with the font) sets the floor by hand. The bar reads the file when the shell starts and whenever it changes; a file installed where its directory didn't exist yet (the platform root itself, on a first install) is read at the next shell start.
+
+Until Hyprland reports a screen's mode, a top bar there waits to appear if a description names the screen's connector, unless the logical size times Qt's whole-number scale already matches a panel. It then appears at its floor rather than growing once windows are laid out, and never guesses a floor for a panel nothing describes. After two seconds without a mode it appears without a floor. Notifications clear the bar as thick as it is on their screen. A plugin's `shell.bar` gives the same through `barSizeFor(screenName)` and the `barSizes` map (screen name to thickness); its `barSize` stays the configured size, which the widgets are drawn at.
 
 ## Custom bar modules
 

@@ -25,6 +25,27 @@ if [ "$OMARCHY_PATH" != /usr/share/omarchy ]; then
   esac
 fi
 
+# mise's command wrappers must precede real tool directories inherited from a
+# parent shell, so scripts follow account switches without Bash functions.
+# mise activate also keeps this directory ahead of its managed tool binaries.
+omarchy_wrapper_dir="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/command-wrappers/bin"
+omarchy_wrapper_path=$omarchy_wrapper_dir
+if [ -n "${PATH:-}" ]; then
+  omarchy_remaining_path=$PATH
+  while :; do
+    omarchy_path_entry=${omarchy_remaining_path%%:*}
+    if [ "$omarchy_path_entry" != "$omarchy_wrapper_dir" ]; then
+      omarchy_wrapper_path="$omarchy_wrapper_path:$omarchy_path_entry"
+    fi
+    case "$omarchy_remaining_path" in
+      *:*) omarchy_remaining_path=${omarchy_remaining_path#*:} ;;
+      *) break ;;
+    esac
+  done
+fi
+PATH=$omarchy_wrapper_path
+unset omarchy_wrapper_dir omarchy_wrapper_path omarchy_remaining_path omarchy_path_entry
+
 # User-level tool paths, appended so system binaries keep precedence. This is
 # what lets login shells (ssh, bash -lc) and the uwsm session find mise-managed
 # tools without an interactive rc. Keep these directories in sync with the PAM
