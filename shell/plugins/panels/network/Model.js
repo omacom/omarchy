@@ -315,6 +315,21 @@ function wifiRow(network) {
   }
 }
 
+// The saved networks among the live WifiNetwork objects, as one comparable
+// value. Rows copy `known` once, but Quickshell can flip it on a network that
+// is already listed: a saved profile only attaches after NetworkManager matches
+// it to a visible access point, and it loads asynchronously. That flip leaves
+// the list unchanged, so the panel binds to this key to resync the rows.
+function knownWifiKey(networks) {
+  var list = networks || []
+  var names = []
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && list[i].known) names.push(list[i].name || "")
+  }
+  names.sort()
+  return JSON.stringify(names)
+}
+
 function sortWifiRows(rows) {
   var nets = Array.isArray(rows) ? rows.slice() : []
   nets.sort(function(a, b) {
@@ -411,6 +426,7 @@ if (typeof module !== "undefined") {
     formatRate: formatRate,
     formatPingLatency: formatPingLatency,
     wifiRow: wifiRow,
+    knownWifiKey: knownWifiKey,
     sortWifiRows: sortWifiRows,
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
