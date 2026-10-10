@@ -28,7 +28,12 @@ function normalizeEntry(value) {
 
 function entryKey(entry) {
   if (!entry) return ""
-  if (entry.type === "image") return "image:" + String(entry.path || "")
+  if (entry.type === "image") {
+    var path = String(entry.path || "")
+    // Legacy captures used hash.ext; fresh captures use hash.unique.ext.
+    var hash = fileName(path).match(/^([a-f0-9]{64})(?:\.[A-Za-z0-9]{6})?\.(png|jpe?g|webp|gif|bmp|tiff?)$/)
+    return "image:" + (hash ? hash[1] : path)
+  }
   return "text:" + String(entry.text || "")
 }
 
@@ -205,6 +210,39 @@ function displayRows(history, query, limit) {
   return rows
 }
 
+function imagePaths(history) {
+  var values = Array.isArray(history) ? history : []
+  var paths = []
+  for (var i = 0; i < values.length; i++) {
+    var entry = normalizeEntry(values[i])
+    if (entry && entry.type === "image" && entry.path) {
+      paths.push(entry.path)
+    }
+  }
+  return paths
+}
+
+function prunedImagePaths(oldHistory, newHistory) {
+  var newPaths = {}
+  var newValues = Array.isArray(newHistory) ? newHistory : []
+  for (var i = 0; i < newValues.length; i++) {
+    var entry = normalizeEntry(newValues[i])
+    if (entry && entry.type === "image" && entry.path) {
+      newPaths[entry.path] = true
+    }
+  }
+
+  var dropped = []
+  var oldValues = Array.isArray(oldHistory) ? oldHistory : []
+  for (var j = 0; j < oldValues.length; j++) {
+    var oldEntry = normalizeEntry(oldValues[j])
+    if (oldEntry && oldEntry.type === "image" && oldEntry.path && !newPaths[oldEntry.path]) {
+      dropped.push(oldEntry.path)
+    }
+  }
+  return dropped
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     normalizeEntry: normalizeEntry,
@@ -220,6 +258,8 @@ if (typeof module !== "undefined") {
     filePaths: filePaths,
     fileEntryText: fileEntryText,
     fullText: fullText,
-    displayRows: displayRows
+    displayRows: displayRows,
+    imagePaths: imagePaths,
+    prunedImagePaths: prunedImagePaths
   }
 }

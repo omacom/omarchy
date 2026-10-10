@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+unset XDG_STATE_HOME
+
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
@@ -66,6 +68,40 @@ assertDeepEqual(
 
 assertDeepEqual(clipboard.removeEntryAt(history, 10), history, 'clipboard removeEntryAt ignores invalid indexes')
 assertDeepEqual(clipboard.clearHistory(), [], 'clipboard clearHistory returns an empty history')
+
+assertDeepEqual(
+  clipboard.imagePaths(history),
+  ['/tmp/a.png'],
+  'clipboard imagePaths extracts all image paths'
+)
+
+assertDeepEqual(
+  clipboard.prunedImagePaths(history, clipboard.removeEntryAt(history, 2)),
+  ['/tmp/a.png'],
+  'clipboard prunedImagePaths returns removed image paths'
+)
+
+assertDeepEqual(
+  clipboard.prunedImagePaths(history, clipboard.removeEntryAt(history, 0)),
+  [],
+  'clipboard prunedImagePaths returns empty list when text entry removed'
+)
+
+assertDeepEqual(
+  clipboard.prunedImagePaths(history, clipboard.clearHistory()),
+  ['/tmp/a.png'],
+  'clipboard prunedImagePaths returns all image paths when history is cleared'
+)
+
+const historyAtLimit = [
+  { type: 'image', path: '/tmp/new.png', mime: 'image/png' },
+  { type: 'image', path: '/tmp/old.png', mime: 'image/png' }
+]
+assertDeepEqual(
+  clipboard.prunedImagePaths(historyAtLimit, clipboard.addEntry(historyAtLimit, { type: 'text', text: 'new text' }, 2)),
+  ['/tmp/old.png'],
+  'clipboard prunedImagePaths returns image paths evicted by history limit'
+)
 
 assertDeepEqual(
   clipboard.displayRows(history, 'image', 50).map(row => ({ type: row.entryType, preview: row.previewText, mime: row.mime })),
@@ -204,6 +240,27 @@ const hugeFileRow = clipboard.displayRows([{ type: 'text', text: hugeFileList.jo
 assert(
   hugeFileRow.entryType === 'file' && hugeFileRow.fullText.split('\n').every(path => path.endsWith('.mp4')),
   'clipboard display rows cap a huge file list without truncating a path'
+)
+
+assert(
+  /function deleteImageFiles\(paths\)[\s\S]*root\.imagesDir[\s\S]*Quickshell\.execDetached\(\["rm", "-f", "--"\]/.test(clipboardQml),
+  'clipboard deletes image files safely inside imagesDir via execDetached'
+)
+assert(
+  /function removeDisplayIndex\(index\)[\s\S]*root\.deleteImageFiles\(ClipboardHistory\.prunedImagePaths/.test(clipboardQml),
+  'clipboard deletes image file when entry is removed'
+)
+assert(
+  /function confirmClearHistory\(\)[\s\S]*root\.deleteImageFiles\(ClipboardHistory\.prunedImagePaths/.test(clipboardQml),
+  'clipboard deletes image files when history is cleared'
+)
+assert(
+  /function addClipboardEntry\(entry\)[\s\S]*root\.deleteImageFiles\(pruned\)/.test(clipboardQml),
+  'clipboard deletes evicted image files when history limit is reached'
+)
+assert(
+  /function sweepOrphanImages\(\)[\s\S]*grep -Fq.*\$img.*\$hist.*rm -f/.test(clipboardQml),
+  'clipboard sweeps orphan images older than 1 minute not present in history'
 )
 JS
 
@@ -556,6 +613,8 @@ BROWSER_OUT="$TMPDIR/browser" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 [[ $(<"$TMPDIR/browser") == "https://example.com/docs" ]] || fail "clipboard open helper opens URL entries in browser"
 pass "clipboard open helper opens URL entries in browser"
 
+cp "$TMPDIR/home/.local/state/omarchy/clipboard-history.json" "$TMPDIR/state/omarchy/clipboard-history.json"
+
 EDITOR_PATH_OUT="$TMPDIR/editor-path" EDITOR_TEXT_OUT="$TMPDIR/editor-text" HOME="$TMPDIR/home" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-open" --history-index 1
 
@@ -570,3 +629,100 @@ OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 
 [[ $(<"$TMPDIR/omasnap") == "$TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
+
+# Test orphan image sweep behavior
+SWEEP_DIR="$TMPDIR/sweep-images"
+mkdir -p "$SWEEP_DIR"
+touch -d '2 minutes ago' "$SWEEP_DIR/orphan.png" "$SWEEP_DIR/kept.png" "$SWEEP_DIR/recent.png"
+touch "$SWEEP_DIR/recent.png" # recent should not be deleted (mmin <= 1)
+SWEEP_HIST="$TMPDIR/sweep-hist.json"
+printf '[{"type":"image","path":"%s"}]\n' "$SWEEP_DIR/kept.png" >"$SWEEP_HIST"
+
+# Execute the actual QML function with a detached-process stand-in.
+run_sweep() {
+  local command
+  command=$(ROOT="$ROOT" node <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+const qml = fs.readFileSync(process.env.ROOT + '/shell/plugins/clipboard/Clipboard.qml', 'utf8')
+const body = qml.match(/function sweepOrphanImages\(\) \{([\s\S]*?)\n  \}/)[1]
+vm.runInNewContext(body, {
+  root: { imagesDir: "", historyPath: "" },
+  Quickshell: { execDetached(args) { process.stdout.write(args[2]) } }
+})
+JS
+)
+  bash -c "$command" bash "$1" "$2"
+}
+run_sweep "$SWEEP_DIR" "$SWEEP_HIST"
+
+[[ -f "$SWEEP_DIR/kept.png" ]] || fail "sweep keeps images referenced in history"
+[[ -f "$SWEEP_DIR/recent.png" ]] || fail "sweep keeps newly created images within 1 minute"
+[[ ! -f "$SWEEP_DIR/orphan.png" ]] || fail "sweep removes orphan images older than 1 minute"
+pass "clipboard orphan sweep cleans unreferenced older images"
+
+
+cat >"$TMPDIR/bin/wl-paste" <<'SH'
+#!/bin/bash
+if [[ $1 == "--list-types" ]]; then
+  printf 'image/png\n'
+fi
+SH
+
+# Identical captures own separate files, even before the new history is saved.
+capture_image() {
+  printf 'recaptured-image' | XDG_STATE_HOME="$TMPDIR/state with spaces" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" image/png
+}
+old_capture=$(capture_image)
+old_path=$(jq -r .path <<<"$old_capture")
+new_capture=$(capture_image)
+new_path=$(jq -r .path <<<"$new_capture")
+[[ $old_path != "$new_path" && -s $old_path && -s $new_path ]] || fail "identical captures have distinct existing paths"
+OLD_CAPTURE="$old_capture" NEW_CAPTURE="$new_capture" run_node_test <<'JS'
+const clipboard = requireFromRoot('shell/plugins/clipboard/ClipboardHistory.js')
+const oldEntry = JSON.parse(process.env.OLD_CAPTURE)
+const newEntry = clipboard.normalizeEntry(JSON.parse(process.env.NEW_CAPTURE))
+const next = clipboard.addEntry([oldEntry], newEntry)
+assertDeepEqual(next, [newEntry], 'identical captures deduplicate by content')
+assertDeepEqual(clipboard.prunedImagePaths([oldEntry], next), [oldEntry.path], 'duplicate replacement prunes the previous path')
+const legacy = { ...oldEntry, path: oldEntry.path.replace(/\.[A-Za-z0-9]{6}\.png$/, '.png') }
+assertDeepEqual(clipboard.addEntry([legacy], newEntry), [newEntry], 'legacy hash-only captures deduplicate with fresh captures')
+assert(clipboard.entryKey({type:'image', path:'/tmp/other.png'}) !== clipboard.entryKey(newEntry), 'other image names retain pathname identity')
+JS
+rm -f -- "$old_path"
+[[ $(<"$new_path") == "recaptured-image" ]] || fail "delayed deletion preserves recapture"
+pass "delayed deletion preserves recapture"
+old_capture=$(capture_image)
+old_path=$(jq -r .path <<<"$old_capture")
+touch -d '2 minutes ago' "$old_path"
+new_capture=$(capture_image)
+new_path=$(jq -r .path <<<"$new_capture")
+run_sweep "$(dirname "$new_path")" "$TMPDIR/missing-history.json"
+[[ ! -e $old_path && $(<"$new_path") == "recaptured-image" ]] || fail "sweep preserves unsaved recapture of aged orphan"
+pass "sweep preserves unsaved recapture of aged orphan"
+
+# Conflicting histories prove both readers use the selected state directory.
+mkdir -p "$TMPDIR/selected state/omarchy"
+printf '[{"type":"text","text":"https://selected.example"}]' >"$TMPDIR/selected state/omarchy/clipboard-history.json"
+printf '[{"type":"text","text":"https://default.example"}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
+for state_mode in selected empty unset; do
+  (
+    if [[ $state_mode == "selected" ]]; then
+      export XDG_STATE_HOME="$TMPDIR/selected state"
+      expected="https://selected.example"
+    else
+      if [[ $state_mode == "empty" ]]; then
+        export XDG_STATE_HOME=""
+      else
+        unset XDG_STATE_HOME
+      fi
+      expected="https://default.example"
+    fi
+    export HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH"
+    WL_COPY_OUT="$TMPDIR/copied" "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --history-index 0
+    [[ $(<"$TMPDIR/copied") == "$expected" ]] || fail "paste reader uses $state_mode state path"
+    BROWSER_OUT="$TMPDIR/browser" "$ROOT/bin/omarchy-clipboard-open" --history-index 0
+    [[ $(<"$TMPDIR/browser") == "$expected" ]] || fail "open reader uses $state_mode state path"
+    pass "clipboard readers use $state_mode state path"
+  )
+done

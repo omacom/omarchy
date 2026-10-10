@@ -18,7 +18,9 @@ Item {
   property bool clearConfirmOpen: false
   property var history: []
 
-  property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
+  property string stateDir: Quickshell.env("XDG_STATE_HOME") ? (Quickshell.env("XDG_STATE_HOME") + "/omarchy") : (Quickshell.env("HOME") + "/.local/state/omarchy")
+  property string historyPath: root.stateDir + "/clipboard-history.json"
+  property string imagesDir: root.stateDir + "/clipboard-images"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
   // Shares the [menu] surface tokens — themes that style the menu also
   // style the clipboard. Selected-row colors composed in the
@@ -77,12 +79,45 @@ Item {
     historyFile.setText(JSON.stringify(root.history.slice(0, root.historyLimit), null, 2) + "\n")
   }
 
+  function deleteImageFiles(paths) {
+    if (!paths || paths.length === 0) return
+    var validPaths = []
+    var prefix = root.imagesDir + "/"
+    for (var i = 0; i < paths.length; i++) {
+      var p = String(paths[i] || "")
+      if (p.indexOf(prefix) === 0 && p.indexOf("..") === -1) {
+        validPaths.push(p)
+      }
+    }
+    if (validPaths.length === 0) return
+    // Capture paths are never reused, so delayed deletion cannot remove a recapture.
+    Quickshell.execDetached(["rm", "-f", "--"].concat(validPaths))
+  }
+
+  function sweepOrphanImages() {
+    // Fresh capture paths also protect against a sweep that already selected an orphan.
+    Quickshell.execDetached(["bash", "-c",
+      "dir=\"$1\"; hist=\"$2\"\n" +
+      "[[ -d \"$dir\" ]] || exit 0\n" +
+      "find \"$dir\" -type f -mmin +1 2>/dev/null | while IFS= read -r img; do\n" +
+      "  if [[ -f \"$hist\" ]]; then\n" +
+      "    grep -Fq \"$img\" \"$hist\" || rm -f -- \"$img\"\n" +
+      "  else\n" +
+      "    rm -f -- \"$img\"\n" +
+      "  fi\n" +
+      "done",
+      "bash", root.imagesDir, root.historyPath])
+  }
+
   function addClipboardEntry(entry) {
     var normalized = ClipboardHistory.normalizeEntry(entry)
     if (!normalized) return
 
+    var oldHistory = root.history
     root.history = ClipboardHistory.addEntry(root.history, normalized, root.historyLimit)
     root.saveHistory()
+    var pruned = ClipboardHistory.prunedImagePaths(oldHistory, root.history)
+    if (pruned.length > 0) root.deleteImageFiles(pruned)
     if (root.opened) root.rebuildDisplay()
   }
 
@@ -103,8 +138,11 @@ Item {
   }
 
   function confirmClearHistory() {
+    var oldHistory = root.history
     root.history = ClipboardHistory.clearHistory()
     root.saveHistory()
+    root.deleteImageFiles(ClipboardHistory.prunedImagePaths(oldHistory, root.history))
+    root.sweepOrphanImages()
     root.selectedIndex = 0
     root.cursorActive = false
     root.disarmPointer()
@@ -117,8 +155,10 @@ Item {
     if (index < 0 || index >= displayModel.count) return
 
     var row = displayModel.get(index)
+    var oldHistory = root.history
     root.history = ClipboardHistory.removeEntryAt(root.history, row.historyIndex)
     root.saveHistory()
+    root.deleteImageFiles(ClipboardHistory.prunedImagePaths(oldHistory, root.history))
 
     if (displayModel.count <= 1) {
       root.selectedIndex = 0
@@ -269,6 +309,7 @@ Item {
       currentProc.running = true
       textWatchProc.running = true
       imageWatchProc.running = true
+      root.sweepOrphanImages()
     }
   }
 

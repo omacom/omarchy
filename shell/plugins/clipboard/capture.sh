@@ -37,12 +37,9 @@ emit_image() {
   read_copy "$@" || return
 
   hash=$(sha256sum "$tmp" | awk '{print $1}')
-  file="$IMAGE_DIR/$hash.$ext"
-  if [[ -e $file ]]; then
-    rm -f "$tmp"
-  else
-    mv "$tmp" "$file"
-  fi
+  # Never reuse a path: detached cleanup may still be deleting an older capture.
+  file=$(mktemp --tmpdir="$IMAGE_DIR" "$hash.XXXXXX.$ext") || { rm -f "$tmp"; return 0; }
+  mv "$tmp" "$file"
 
   jq -cn --arg mime "$mime" --arg path "$file" --arg captured_at "$(date +'%A %H:%M')" \
     '{type:"image", mime:$mime, path:$path, capturedAt:$captured_at}'
