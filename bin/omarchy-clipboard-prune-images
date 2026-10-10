@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# omarchy:summary=Delete evicted clipboard image files
+# omarchy:group=clipboard
+# omarchy:hidden=true
+#
+# Usage: omarchy-clipboard-prune-images [--sweep] [path ...]
+#
+# With paths, deletes the ones the saved history no longer references.
+# With --sweep, deletes every unreferenced image file (the one-time cleanup).
+
+# The picker (Clipboard.qml historyPath) always saves history under $HOME,
+# while capture.sh stores images under $XDG_STATE_HOME when set. Read the
+# history where the picker writes it, and confine deletions to the image
+# directories captures actually use.
+home_dir="$HOME/.local/state/omarchy"
+xdg_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+history_path="$home_dir/clipboard-history.json"
+image_dirs=("$xdg_dir/clipboard-images")
+[[ $xdg_dir == "$home_dir" ]] || image_dirs+=("$home_dir/clipboard-images")
+
+# Prints 1 if the resolved path is a file inside one of the image
+# directories. A purely textual prefix check would let "$image_dir/../..."
+# and symlinks pointing outside through; resolving first closes both.
+in_image_dir() {
+  local real dir
+  real=$(realpath -e -- "$1" 2>/dev/null) || return 1
+  for dir in "${image_dirs[@]}"; do
+    if [[ $real == "$dir"/* && -f $real ]]; then
+      printf '%s' "$real"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Loads the saved history's image paths into $referenced. A missing history
+# means nothing is referenced; an existing-but-unreadable one bails out
+# (leak, don't delete) so a malformed file can never cause a mass delete.
+# No pipeline on the jq check: `jq ... | sort` would report sort's status and
+# hide a read failure.
+load_referenced() {
+  referenced=$(mktemp)
+  local raw
+  raw=$(mktemp)
+  if [[ -r $history_path ]]; then
+    if jq -r '.. | objects | select(.type == "image") | .path // empty' "$history_path" 2>/dev/null >"$raw"; then
+      sort -u "$raw" >"$referenced"
+    else
+      echo "Could not read clipboard history; leaving images alone" >&2
+      return 1
+    fi
+  elif [[ -e $history_path ]]; then
+    echo "Could not read clipboard history; leaving images alone" >&2
+    return 1
+  else
+    : >"$referenced"
+  fi
+  rm -f "$raw"
+  return 0
+}
+
+sweep() {
+  local referenced dir file base removed now mtime ref_count
+  load_referenced || exit 0
+  trap 'rm -f "$referenced"' EXIT
+  # An empty referenced set with images on disk means the history cannot be
+  # reconciled against them (wrong home, fresh/emptied history): deleting
+  # everything would mistake live files for orphans. Leak, don't delete.
+  ref_count=$(wc -l <"$referenced")
+  if (( ref_count == 0 )); then
+    echo "History references no images; leaving existing files alone" >&2
+    exit 0
+  fi
+  removed=0
+  for dir in "${image_dirs[@]}"; do
+    [[ -d $dir ]] || continue
+    while IFS= read -r -d '' file; do
+      base=$(basename "$file")
+      # Skip in-flight captures: capture.sh writes clipboard.XXXXXX temp
+      # files here, and anything brand new may belong to a capture whose
+      # history entry has not been written yet.
+      [[ $base == clipboard.* ]] && continue
+      now=$(date +%s)
+      mtime=$(stat -c %Y -- "$file" 2>/dev/null || echo "$now")
+      (( now - mtime < 300 )) && continue
+      if grep -Fxq "$file" "$referenced"; then
+        continue
+      else
+        rm -f -- "$file"
+        removed=$((removed + 1))
+      fi
+    done < <(find "$dir" -maxdepth 1 -type f -print0)
+  done
+  echo "Removed $removed unreferenced clipboard image(s)"
+}
+
+if [[ ${1:-} == "--sweep" ]]; then
+  shift
+  sweep "$@"
+  exit 0
+fi
+
+referenced=""
+load_referenced || exit 0
+trap 'rm -f "$referenced"' EXIT
+
+# Callers pass paths their in-memory history just evicted, but deletion runs
+# after the history file was saved, so re-check the file first: capture.sh
+# reuses filenames by content hash, and a queued delete must not remove an
+# image that was recopied (same path, referenced again) before it ran.
+for path in "$@"; do
+  [[ -n $path ]] || continue
+  grep -Fxq "$path" "$referenced" && continue
+  if real=$(in_image_dir "$path"); then
+    rm -f -- "$real"
+  fi
+done
