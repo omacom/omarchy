@@ -135,49 +135,117 @@ function o.preinstalled_bindings_enabled()
   return not file_exists((os.getenv("HOME") or "") .. "/.local/state/omarchy/preinstalls-removed")
 end
 
-local function bind_dedup_key(keys, options)
-  if not options then
-    return keys
+-- Hyprland compares modifiers without regard to order or case, so
+-- "SUPER + SHIFT + F" and "SHIFT + SUPER + F" are the same chord. Canonicalize
+-- before comparing, or an override written in another order never finds the
+-- default it means to replace.
+local function canonical_keys(keys)
+  local parts = {}
+  for raw in (keys .. "+"):gmatch("([^+]*)%+") do
+    local part = raw:match("^%s*(.-)%s*$")
+    if part ~= "" then
+      parts[#parts + 1] = part
+    end
   end
 
-  -- Internal dedup key: same keys with a different event type
-  if options.release then
-    return keys .. "|r"
-  elseif options.long_press then
-    return keys .. "|l"
+  local key = table.remove(parts) or ""
+  for index, modifier in ipairs(parts) do
+    parts[index] = modifier:upper()
   end
+  table.sort(parts)
+  parts[#parts + 1] = key:upper()
 
-  return keys
+  return table.concat(parts, "+")
 end
 
+local function bind_dedup_key(canonical, options)
+  -- Internal dedup key: the same keys with a different event type.
+  if options and options.release then
+    return canonical .. "|r"
+  elseif options and options.long_press then
+    return canonical .. "|l"
+  end
+
+  return canonical
+end
+
+-- Keep every action on a chord, including deliberate stacks. Hyprland 0.56.2
+-- removes the whole chord even through Keybind:unbind(), so rebuild its other
+-- events after an override. tostring is safe for expired handles on that version;
+-- is_enabled and unbind are not. Never restore a binding removed by hl.unbind.
 local registered = {}
 
 function o.bind(keys, description, dispatcher, options)
-  local opts = options or {}
+  local opts = {}
+  for key, value in pairs(options or {}) do
+    if key ~= "append" then
+      opts[key] = value
+    end
+  end
 
   if description then
     opts.description = description
   end
 
   dispatcher = command_from(dispatcher, description)
-  local disp_is_launch = type(dispatcher) == "string"
-  local dedup = bind_dedup_key(keys, options)
-
-  if registered[dedup] ~= nil and (disp_is_launch or registered[dedup]) then
-    hl.unbind(keys)
+  local canonical = canonical_keys(keys)
+  local dedup = bind_dedup_key(canonical, options)
+  local entries = {}
+  local replacing = false
+  for _, entry in ipairs(registered[canonical] or {}) do
+    if tostring(entry.handle) ~= "HL.Keybind(expired)" then
+      entries[#entries + 1] = entry
+      if entry.dedup == dedup then
+        replacing = true
+      end
+    end
   end
 
-  registered[dedup] = disp_is_launch
+  if replacing and not (options and options.append) then
+    -- Read every handle before the first unbind expires the whole chord.
+    for _, entry in ipairs(entries) do
+      entry.enabled = entry.handle:is_enabled()
+    end
+    for _, entry in ipairs(entries) do
+      hl.unbind(entry.keys)
+    end
 
-  if disp_is_launch then
+    local survivors = {}
+    for _, entry in ipairs(entries) do
+      if entry.dedup ~= dedup then
+        entry.handle = hl.bind(entry.keys, entry.dispatcher, entry.opts)
+        if entry.enabled == false then
+          entry.handle:set_enabled(false)
+        end
+        survivors[#survivors + 1] = entry
+      end
+    end
+    entries = survivors
+  end
+
+  if type(dispatcher) == "string" then
     dispatcher = hl.dsp.exec_cmd(dispatcher)
   end
 
-  hl.bind(keys, dispatcher, opts)
+  local handle = hl.bind(keys, dispatcher, opts)
+  if handle then
+    entries[#entries + 1] = {
+      dedup = dedup, keys = keys, dispatcher = dispatcher, opts = opts, handle = handle,
+    }
+  end
+  registered[canonical] = entries
 end
 
 function o.rebind(keys, description, dispatcher, options)
+  local canonical = canonical_keys(keys)
+
+  -- Also remove direct hl.bind calls, and every spelling recorded by o.bind.
   hl.unbind(keys)
+  for _, entry in ipairs(registered[canonical] or {}) do
+    hl.unbind(entry.keys)
+  end
+  registered[canonical] = nil
+
   o.bind(keys, description, dispatcher, options)
 end
 
