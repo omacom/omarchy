@@ -140,15 +140,16 @@ function isCommunicationStream(node) {
   return /phone|communication|voip/i.test(role)
 }
 
-// The sink the volume keys should control. An uncorked communication stream
-// wins wherever it plays -- even on the default sink, so a call on the speakers
-// is not drowned out by music routed elsewhere. Otherwise an uncorked playback
-// stream on a non-default sink wins. With neither, null, meaning the default
-// sink.
+// The sink the volume keys should control. A communication stream wins wherever
+// it plays -- even on the default sink, so a call on the speakers is not drowned
+// out by music routed elsewhere. Otherwise a playback stream linked to a
+// non-default sink wins. With neither, null, meaning the default sink.
 //
 // linkGroups are PipeWire's link groups reduced to { source, target, active }:
 // source is the stream, target the sink it feeds, and active is true while the
-// stream is uncorked (PwLinkState.Active).
+// link is up (PwLinkState.Active). A corked stream keeps an active link, so
+// this over-approximates "playing": it may answer a sink whose stream is
+// paused, and the caller's script then refines the answer with the corked flag.
 function activeVolumeSink(defaultSink, linkGroups) {
   if (!defaultSink) return null
   var defaultName = String(defaultSink.name)

@@ -469,16 +469,18 @@ Item {
   // During a call the headset is a separate, non-default sink, so Linux routes
   // the volume keys to the default sink and they would move the speakers while
   // the call plays into the headset. PipeWire's link groups say which sink each
-  // stream feeds, so the active sink is read here synchronously -- no process
-  // and no cached answer. When an uncorked stream plays on another output,
-  // handleVolumeKey defers to the script, which repeats the resolution and
-  // steps that sink.
+  // stream feeds, so that is read here synchronously -- no process and no
+  // cached answer. When a stream is linked to another output, handleVolumeKey
+  // defers to the script, which resolves with PipeWire's corked flag and steps
+  // that sink. The link state does not expose corking, so this is deliberately
+  // conservative: it may defer for a paused stream, and the script then steps
+  // the default.
   readonly property var defaultSink: Pipewire.defaultAudioSink
   readonly property var volumeSink: defaultSink && String(defaultSink.name).indexOf("alsa_output.") === 0 ? defaultSink : null
   property double lastMuteToggle: 0
 
   // PipeWire's link groups as { source, target, active }: source is the stream,
-  // target the sink it feeds, active true while the stream is uncorked.
+  // target the sink it feeds, active true while the link is up.
   function activeLinksSnapshot() {
     var links = []
     var groups = Pipewire.linkGroups ? Pipewire.linkGroups.values : []
@@ -490,9 +492,8 @@ Item {
     return links
   }
 
-  // Returns false when the default sink is not one to control here, or when an
-  // uncorked stream plays on another output, so the caller falls back to the
-  // script.
+  // Returns false when the default sink is not one to control here, or when a
+  // stream is linked to another output, so the caller falls back to the script.
   function handleVolumeKey(action) {
     var audio = volumeSink && volumeSink.audio
     if (!audio) return false

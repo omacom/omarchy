@@ -65,18 +65,19 @@ assert(media.isCommunicationStream(stream('Communication')), 'media detects a co
 assert(!media.isCommunicationStream(stream('music')), 'media rejects a music stream')
 assert(!media.isCommunicationStream({ isStream: true }), 'media rejects a stream without a role')
 assertEqual(media.activeVolumeSink(speakers, []), null, 'no links answer the default sink')
-assertEqual(media.activeVolumeSink(speakers, [link(stream(), headset)]), headset, 'an uncorked stream on another output answers that output')
+assertEqual(media.activeVolumeSink(speakers, [link(stream(), headset)]), headset, 'a stream on another output answers that output')
 assertEqual(media.activeVolumeSink(speakers, [link(stream(), speakers)]), null, 'a stream on the default sink answers the default')
 assertEqual(media.activeVolumeSink(speakers, [link(stream('phone'), headset)]), headset, 'a call on another output answers that output')
 assertEqual(media.activeVolumeSink(speakers, [link(stream('phone'), speakers), link(stream(), hdmi)]), speakers, 'a call on the default sink outranks music elsewhere')
 assertEqual(media.activeVolumeSink(speakers, [link(stream(), headset), link(stream('phone'), hdmi)]), hdmi, 'a call outranks background playback')
-assertEqual(media.activeVolumeSink(speakers, [link(stream('phone'), headset, false)]), null, 'a corked call is not followed')
+assertEqual(media.activeVolumeSink(speakers, [link(stream('phone'), headset, false)]), null, 'a link that is not up is not followed')
 assertEqual(media.activeVolumeSink(speakers, [link({ isStream: false, isSink: true, type: 'Audio/Sink' }, headset)]), null, 'a non-stream source is not followed')
 assertEqual(media.activeVolumeSink(speakers, [link(stream(), { name: 'monitor', isSink: false })]), null, 'a stream linked to a non-sink is not followed')
 
-// The shell reads the active sink from PipeWire's link groups synchronously, so
-// the fast path stays and the keys defer to the script only when an uncorked
-// stream plays on another output.
+// The shell reads the sink each stream is linked to from PipeWire's link groups
+// synchronously, so the fast path stays and the keys defer to the script when a
+// stream is linked to another output. Link state does not expose corking, so a
+// paused stream may also defer; the script then resolves the default.
 const fs = require('fs')
 const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/services/media/Service.qml'), 'utf8')
 assert(
