@@ -19,3 +19,18 @@ pass "Windows VM does not restart automatically at boot"
 rg -q 'title:"?Windows VM - Omarchy"' "$windows_vm_command" ||
   fail "Windows VM launches FreeRDP with its expected title"
 pass "Windows VM launches FreeRDP with its expected title"
+rg -q 'class = "\^xfreerdp\$", title = "\^Windows VM - Omarchy\$"' "$windows_vm_rules" ||
+  fail "Windows VM opacity rule targets its FreeRDP window"
+rg -q 'tag = "-default-opacity"' "$windows_vm_rules" ||
+  fail "Windows VM opts out of default opacity"
+rg -q 'opacity = "1 1"' "$windows_vm_rules" ||
+  fail "Windows VM stays fully opaque"
+pass "Windows VM stays fully opaque"
+
+rg -q 'while true; do' "$windows_vm_command" ||
+  fail "Windows VM retries failed RDP credentials"
+rg -q 'RDP login failed\. Enter the Windows credentials again\.' "$windows_vm_command" ||
+  fail "Windows VM prompts again after an RDP login failure"
+rg -q 'write_credentials "\$WIN_USER" "\$WIN_PASS"' "$windows_vm_command" ||
+  fail "Windows VM saves re-entered RDP credentials"
+pass "Windows VM retries failed RDP credentials"
