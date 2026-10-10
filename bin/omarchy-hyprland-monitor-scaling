@@ -80,6 +80,8 @@ set_scale() {
   local width="$(echo "$monitor_info" | jq -r '.width')"
   local height="$(echo "$monitor_info" | jq -r '.height')"
   local refresh_rate="$(echo "$monitor_info" | jq -r '.refreshRate')"
+  local pos_x="$(echo "$monitor_info" | jq -r '.x // 0')"
+  local pos_y="$(echo "$monitor_info" | jq -r '.y // 0')"
 
   # active_monitor is written into the Lua string eval'd below, so only a plain
   # connector name may pass; a hostile output name could execute otherwise.
@@ -88,27 +90,147 @@ set_scale() {
     exit 1
   fi
 
+  if [[ ! $width =~ ^[0-9]+$ ]] || [[ ! $height =~ ^[0-9]+$ ]] || [[ ! $refresh_rate =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    echo "Refusing to scale a monitor with unknown geometry" >&2
+    exit 1
+  fi
+
+  if [[ ! $pos_x =~ ^-?[0-9]+$ ]]; then
+    pos_x=0
+  fi
+  if [[ ! $pos_y =~ ^-?[0-9]+$ ]]; then
+    pos_y=0
+  fi
+
   local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
   # GTK only honors integer GDK_SCALE values, so persist the nearest whole
   # factor even when the monitor scale itself is fractional.
   local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
   local monitor_lua="$HOME/.config/hypr/monitors.lua"
 
-  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
+  # Keep the current position instead of resetting to "auto", so explicit
+  # multi-monitor layouts (e.g. DP-1 at 0x0 plus DP-2 at 1920x0) survive a
+  # scale change. The mode keeps the current refresh rate: without one,
+  # Hyprland requests 60Hz and drops a high-refresh display to it.
+  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"${pos_x}x${pos_y}\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 
-  # Persist to monitors.lua if the user still has Omarchy's generic catch-all
-  # defaults, so the scale survives reboots.
-  if [[ -f $monitor_lua ]] && grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
+  # Persist to monitors.lua so the scale survives reboots. An explicit
+  # per-output entry wins over the generic catch-all, so update it in place
+  # where one sets its own scale and leave the catch-all alone. An entry that
+  # reads omarchy_monitor_scale falls through to updating that variable.
+  # Nested tables, `;` separators and comments are understood, and only a
+  # whole scalar value is rewritten; an expression stays untouched.
+  local rewritten="$monitor_lua.scaling.$$"
+  local rewrite_status=0
+  if [[ -f $monitor_lua ]]; then
+    awk -v name="$active_monitor" -v new_scale="$new_scale" '
+      function blanks(count,   spaces) { spaces = ""; while (count-- > 0) spaces = spaces " "; return spaces }
+      {
+        line = $0
+        n = length(line)
+        masked = ""
+        in_str = 0
+        i = 1
+        while (i <= n) {
+          c = substr(line, i, 1)
+          if (in_str) {
+            masked = masked c
+            if (c == "\\") { i++; if (i <= n) masked = masked substr(line, i, 1) }
+            else if (c == "\"") in_str = 0
+            i++
+            continue
+          }
+          if (c == "\"") { in_str = 1; masked = masked c; i++; continue }
+          if (c == "-" && substr(line, i, 2) == "--") {
+            span = n - i + 1
+            if (substr(line, i, 4) == "--[[") {
+              close_at = index(substr(line, i + 4), "]]")
+              if (close_at > 0) span = close_at + 5
+            }
+            masked = masked blanks(span)
+            i += span
+            continue
+          }
+          masked = masked c
+          i++
+        }
+
+        if (match(masked, "^[[:space:]]*hl[.]monitor[(][{][[:space:]]*output[[:space:]]*=[[:space:]]*\"")) {
+          start = RSTART + RLENGTH
+          if (substr(masked, start, length(name)) == name && substr(masked, start + length(name), 1) == "\"") {
+            brace = index(masked, "{")
+            depth = 1
+            in_string = 0
+            value_start = 0
+            value_end = 0
+            for (j = brace + 1; j <= n; j++) {
+              c = substr(masked, j, 1)
+              if (in_string) {
+                if (c == "\\") j++
+                else if (c == "\"") in_string = 0
+                continue
+              }
+              if (c == "\"") { in_string = 1; continue }
+              if (c == "{") { depth++; continue }
+              if (c == "}") { depth--; if (depth == 0) break; continue }
+              if (c != "=" || depth != 1) continue
+              key_end = j - 1
+              while (key_end >= 1 && substr(masked, key_end, 1) ~ /[[:space:]]/) key_end--
+              key_start = key_end
+              while (key_start >= 1 && substr(masked, key_start, 1) ~ /[A-Za-z0-9_]/) key_start--
+              if (substr(masked, key_start + 1, key_end - key_start) != "scale") continue
+              value_start = j + 1
+              while (value_start <= n && substr(masked, value_start, 1) ~ /[[:space:]]/) value_start++
+              if (substr(masked, value_start, 1) == "\"") {
+                value_end = value_start + 1
+                while (value_end <= n && substr(masked, value_end, 1) != "\"") value_end++
+                if (substr(masked, value_start, value_end - value_start + 1) != "\"auto\"") value_start = 0
+              } else if (substr(masked, value_start, 1) ~ /[0-9.]/) {
+                value_end = value_start
+                while (value_end < n && substr(masked, value_end + 1, 1) ~ /[0-9.]/) value_end++
+                tail = value_end + 1
+                while (tail <= n && substr(masked, tail, 1) ~ /[[:space:]]/) tail++
+                if (tail <= n && substr(masked, tail, 1) !~ /[,;}]/) value_start = 0
+              } else {
+                value_start = 0
+              }
+              if (value_start > 0) {
+                line = substr(line, 1, value_start - 1) new_scale substr(line, value_end + 1)
+                changed = 1
+                break
+              }
+            }
+          }
+        }
+
+        print line
+      }
+      END { exit (changed ? 42 : 0) }
+    ' "$monitor_lua" >"$rewritten" || rewrite_status=$?
+  fi
+
+  if [[ $rewrite_status -eq 42 ]]; then
+    chmod --reference="$monitor_lua" "$rewritten" 2>/dev/null || true
+    mv "$rewritten" "$monitor_lua"
+    if grep -q '^local omarchy_gdk_scale = ' "$monitor_lua"; then
+      sed -i -E "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" "$monitor_lua"
+    fi
+    sed -i -E 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' "$monitor_lua"
+  elif [[ -f $monitor_lua ]] && grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
+    rm -f "$rewritten"
     sed -i -E \
       -e "s|^local omarchy_monitor_scale = .*|local omarchy_monitor_scale = ${new_scale}|" \
       -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" \
       "$monitor_lua"
   elif [[ -f $monitor_lua ]] && grep -Eq '^hl\.monitor\(\{ output = "", mode = "preferred", position = "auto", scale = ("auto"|[0-9.]+) \}\)' "$monitor_lua"; then
+    rm -f "$rewritten"
     sed -i -E \
       -e "s|^(hl\.monitor\(\{ output = \"\", mode = \"preferred\", position = \"auto\", scale = )([^ ]+)( \}\))|\\1${new_scale}\\3|" \
       -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' \
       "$monitor_lua"
+  else
+    rm -f "$rewritten"
   fi
 }
 
