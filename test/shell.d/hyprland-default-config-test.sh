@@ -138,6 +138,17 @@ if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$variable_output"; then
 fi
 pass "preinstalled binding variable skips optional application bindings"
 
+# Remove Preinstalls drops omacalc, so its keys must go with it wherever they are bound.
+calculator_fresh_output=$(run_omarchy_bindings "$fresh_home")
+grep -Fq $'SUPER + CTRL + Q\tCalculator' <<<"$calculator_fresh_output" || fail "default bindings include the calculator"
+grep -Fq $'XF86Calculator\tCalculator' <<<"$calculator_fresh_output" || fail "default bindings include the calculator key"
+for calculator_output in "$(run_omarchy_bindings "$removed_home")" "$(run_omarchy_bindings "$variable_home" 'omarchy_preinstalled_bindings = false')"; do
+  if grep -Fq $'\tCalculator' <<<"$calculator_output"; then
+    fail "preinstall removal skips the calculator bindings" "$(grep -F $'\tCalculator' <<<"$calculator_output")"
+  fi
+done
+pass "preinstall removal skips the calculator bindings"
+
 no_bindings_home="$tmpdir/no-bindings-home"
 mkdir -p "$no_bindings_home"
 no_bindings_output=$(run_omarchy_bindings "$no_bindings_home" 'omarchy_default_bindings = false')
