@@ -5,7 +5,7 @@
 limine_config_dir=${OMARCHY_LIMINE_CONFIG_DIR:-/etc/limine-entry-tool.d}
 config_file=$limine_config_dir/zz-omarchy-dgx-spark.conf
 
-if omarchy-hw-dgx-spark; then
+if omarchy-hw-aarch64-gb10 && omarchy-hw-match "NVIDIA_DGX_Spark"; then
   # Direct Boot loads the UKI through firmware. ENABLE_UKI=no makes the next
   # rebuild delete that file. Skip the drop-in, and remove one an earlier run
   # wrote, so a later kernel rebuild keeps the firmware entry's target.

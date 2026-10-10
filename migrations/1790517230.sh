@@ -6,7 +6,7 @@ echo "Boot the DGX Spark without a UKI to skip a 20-second firmware delay"
 limine_config_dir=${OMARCHY_LIMINE_CONFIG_DIR:-/etc/limine-entry-tool.d}
 rebuild_marker=${OMARCHY_DGX_SPARK_BOOT_MARKER:-/var/lib/omarchy/migrations/1790517230}
 
-omarchy-hw-dgx-spark || exit 0
+omarchy-hw-aarch64-gb10 && omarchy-hw-match "NVIDIA_DGX_Spark" || exit 0
 omarchy-cmd-present limine-mkinitcpio || exit 0
 [[ ! -e $rebuild_marker ]] || exit 0
 
@@ -38,7 +38,7 @@ fi
 efi_labels=$(efibootmgr | cut -f1)
 
 if [[ ! -f $limine_config_dir/zz-omarchy-dgx-spark.conf ]]; then
-  sudo bash "$OMARCHY_PATH/install/hardware/nvidia-dgx-spark-boot.sh"
+  sudo bash "$OMARCHY_PATH/install/hardware/nvidia/dgx-spark-boot.sh"
 fi
 
 if ! grep -Fxqs 'ENABLE_UKI=no' "$limine_config_dir/zz-omarchy-dgx-spark.conf"; then

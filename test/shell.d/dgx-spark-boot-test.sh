@@ -4,10 +4,10 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-setup="$ROOT/install/hardware/nvidia-dgx-spark-boot.sh"
+setup="$ROOT/install/hardware/nvidia/dgx-spark-boot.sh"
 all="$ROOT/install/hardware/all.sh"
 direct_boot="$ROOT/bin/omarchy-boot-direct"
-migration=$(grep -l "nvidia-dgx-spark-boot.sh" "$ROOT"/migrations/*.sh | head -1 || true)
+migration=$(grep -l "nvidia/dgx-spark-boot.sh" "$ROOT"/migrations/*.sh | head -1 || true)
 config_name=zz-omarchy-dgx-spark.conf
 
 scratch=$(mktemp -d)
@@ -17,7 +17,7 @@ mkdir -p "$scratch/bin"
 bash -n "$setup" || fail "DGX Spark boot script has valid syntax"
 bash -n "$direct_boot" || fail "Direct Boot check has valid syntax"
 
-grep -q 'run_logged .*hardware/nvidia-dgx-spark-boot.sh' "$all" ||
+grep -q 'run_logged .*hardware/nvidia/dgx-spark-boot.sh' "$all" ||
   fail "the DGX Spark boot setting runs during hardware setup"
 grep -q 'omarchy-boot-direct' "$setup" ||
   fail "hardware setup asks the Direct Boot helper before writing the UKI setting"
@@ -26,13 +26,27 @@ grep -q 'omarchy-boot-direct' "$migration" ||
   fail "the migration asks the Direct Boot helper before rebuilding"
 pass "the DGX Spark boot setting runs at install and through a migration"
 
-dmi() {
-  mkdir -p "$scratch/dmi/$1"
-  printf '%s\n' "$2" >"$scratch/dmi/$1/sys_vendor"
-  printf '%s\n' "$3" >"$scratch/dmi/$1/product_name"
+# The real GB10 predicate reads fixture machines, which root never does.
+require_platform_fixtures "the DGX Spark boot setting"
+
+# An aarch64 machine with a DMI product name, and the GB10's GPU or none.
+machine() {
+  local dir="$scratch/hw/$1"
+  mkdir -p "$dir/proc" "$dir/sys/bus/pci/devices" "$dir/bin" "$dir/dmi"
+  printf '%s\n' "$2" >"$dir/dmi/product_name"
+  if [[ -n ${3:-} ]]; then
+    mkdir -p "$dir/sys/bus/pci/devices/000f:01:00.0"
+    printf '0x10de\n' >"$dir/sys/bus/pci/devices/000f:01:00.0/vendor"
+    printf '%s\n' "$3" >"$dir/sys/bus/pci/devices/000f:01:00.0/device"
+  fi
+  printf '#!/bin/bash\n[[ ${1:-} == -m ]] && { echo aarch64; exit 0; }\nexec /usr/bin/uname "$@"\n' >"$dir/bin/uname"
+  # omarchy-hw-match reads the fixed /sys/class/dmi/id; read the fixture's instead.
+  printf '#!/bin/bash\ngrep -qi -- "$1" "%s/dmi/product_name"\n' "$dir" >"$dir/bin/omarchy-hw-match"
+  chmod +x "$dir/bin/uname" "$dir/bin/omarchy-hw-match"
 }
-dmi spark NVIDIA NVIDIA_DGX_Spark
-dmi other "Dell Inc." "XPS 13 9350"
+machine spark NVIDIA_DGX_Spark 0x2e12
+machine gx10 GX10 0x2e12
+machine other "XPS 13 9350"
 
 cat >"$scratch/bin/sudo" <<'SH'
 #!/bin/bash
@@ -66,8 +80,8 @@ run() {
   local machine=$1 state=$2
   shift 2
   : >"$CALL_LOG"
-  PATH="$scratch/bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
-    OMARCHY_DMI_PATH="$scratch/dmi/$machine" \
+  PATH="$scratch/hw/$machine/bin:$scratch/bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+    OMARCHY_PROC_ROOT="$scratch/hw/$machine/proc" OMARCHY_SYS_ROOT="$scratch/hw/$machine/sys" \
     OMARCHY_LIMINE_CONFIG_DIR="$state/limine-entry-tool.d" \
     OMARCHY_DGX_SPARK_BOOT_MARKER="$state/marker" "$@"
 }
@@ -78,9 +92,11 @@ grep -Fxqs "ENABLE_UKI=no" "$config" || fail "the DGX Spark boots without a UKI"
 before=$(sha256sum "$config")
 run spark "$scratch/spark" bash "$setup"
 [[ $(sha256sum "$config") == "$before" ]] || fail "rerunning the setting leaves it unchanged"
-run other "$scratch/other" bash "$setup"
-[[ ! -e $scratch/other ]] || fail "other machines keep their UKI"
-pass "the DGX Spark setting turns off the UKI and leaves other machines alone"
+for machine in gx10 other; do
+  run "$machine" "$scratch/$machine" bash "$setup"
+  [[ ! -e $scratch/$machine ]] || fail "the $machine machine keeps its UKI"
+done
+pass "the DGX Spark setting turns off the UKI and leaves other GB10s and other machines alone"
 
 # limine-entry-tool reads its drop-ins in glob order, so the last ENABLE_UKI wins.
 # The setting must follow every shipped drop-in that sets ENABLE_UKI, including
@@ -114,7 +130,7 @@ pass "the migration applies the setting and rebuilds once on a Spark"
 mkdir -p "$scratch/preset/limine-entry-tool.d"
 printf 'ENABLE_UKI=no\n' >"$scratch/preset/limine-entry-tool.d/$config_name"
 run spark "$scratch/preset" bash -euo pipefail "$migration" >/dev/null
-! grep -q "nvidia-dgx-spark-boot.sh" "$CALL_LOG" || fail "the migration keeps an existing setting"
+! grep -q "nvidia/dgx-spark-boot.sh" "$CALL_LOG" || fail "the migration keeps an existing setting"
 grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "the migration still rebuilds for an existing setting"
 pass "the migration rebuilds without rewriting an existing setting"
 
@@ -239,9 +255,12 @@ TEST_EFIBOOTMGR_STATUS=1 run spark "$scratch/efi-failed" bash -euo pipefail "$mi
   fail "an unreadable EFI configuration stays pending"
 [[ ! -e $scratch/efi-failed ]] || fail "an unreadable EFI configuration changes no boot files"
 
-run other "$scratch/migrated-other" bash -euo pipefail "$migration" >/dev/null
-! grep -q '^sudo ' "$CALL_LOG" || fail "the migration leaves other machines alone"
-[[ ! -e $scratch/migrated-other ]] || fail "the migration writes nothing on other machines"
+for machine in gx10 other; do
+  run "$machine" "$scratch/migrated-$machine" bash -euo pipefail "$migration" >/dev/null ||
+    fail "the migration finishes on the $machine machine"
+  ! grep -q '^sudo ' "$CALL_LOG" || fail "the migration leaves the $machine machine alone"
+  [[ ! -e $scratch/migrated-$machine ]] || fail "the migration writes nothing on the $machine machine"
+done
 TEST_SUDO_STATUS=1 run spark "$scratch/failed" bash -euo pipefail "$migration" >/dev/null &&
   fail "a failed migration stays pending"
 [[ ! -e $scratch/failed/marker ]] || fail "a failed migration records no rebuild"
