@@ -154,9 +154,11 @@ BorderSurface {
   Row {
     id: row
     anchors.verticalCenter: parent.verticalCenter
-    anchors.left: root.leftAlign ? parent.left : undefined
-    anchors.leftMargin: root.leftAlign ? root._reservedContentLeftInset : 0
-    anchors.horizontalCenter: root.leftAlign ? undefined : parent.horizontalCenter
+    // Not anchors.horizontalCenter: it rounds the button's centre and the row's
+    // separately, which can leave the content a whole pixel right of centre.
+    x: !root.leftAlign ? Math.round((root.width - width) / 2)
+      : LayoutMirroring.enabled ? root.width - width - root._reservedContentLeftInset
+      : root._reservedContentLeftInset
     spacing: Style.spacing.controlGap
 
     Text {
