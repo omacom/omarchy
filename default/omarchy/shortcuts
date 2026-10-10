@@ -30,6 +30,8 @@ panel omarchy.power
 panel omarchy.agents
 audio raise
 audio lower
+audio raise-precise
+audio lower-precise
 audio mute-toggle
 brightness raise
 brightness lower
