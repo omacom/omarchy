@@ -59,6 +59,29 @@ if (( review_existing )); then
   # Older Omarchy rules have no per-rule ownership marker. They cannot safely
   # be distinguished from intentionally restricted administrator rules.
   (( ! assume_yes && ! from_boot )) || { echo "Review requires individual confirmation; do not combine it with --yes or --boot." >&2; exit 2; }
+  if ! command -v usbguard >/dev/null 2>&1 || ! systemctl is-active --quiet usbguard.service; then
+    echo "USB authorization is not enabled or running. Enable it first with: omarchy setup security usb authorization" >&2
+    exit 1
+  fi
+  for required in /usr/share/omarchy/install/helpers/usb-authorization-policy.sh \
+    /usr/bin/omarchy-usb-authorization-approve; do
+    if [[ ! -r $required ]]; then
+      echo "USB authorization installation is incomplete: $required" >&2
+      if [[ $OMARCHY_PATH != "/usr/share/omarchy" ]]; then
+        echo "The installed Omarchy package does not include required fixed system paths." >&2
+        echo "Switch to the development package with 'omarchy channel set dev' or test with 'omarchy-dev-pkg-test'." >&2
+      fi
+      exit 1
+    fi
+  done
+  if [[ ! -x /usr/bin/omarchy-usb-authorization-approve ]]; then
+    echo "USB authorization command is unavailable: /usr/bin/omarchy-usb-authorization-approve" >&2
+    if [[ $OMARCHY_PATH != "/usr/share/omarchy" ]]; then
+      echo "The installed Omarchy package does not include required fixed system paths." >&2
+      echo "Switch to the development package with 'omarchy channel set dev' or test with 'omarchy-dev-pkg-test'." >&2
+    fi
+    exit 1
+  fi
   policy=$(usbguard list-rules)
   declare -A reviewed=()
   # Keep stdin attached to the terminal for gum (and any sudo prompt).
@@ -98,13 +121,27 @@ grep -Fqx -- "OMARCHY_PATH=$OMARCHY_PATH" <<<"$session_environment" || {
   exit 1
 }
 for required in "$unit_source" /usr/share/omarchy/install/helpers/usb-authorization-policy.sh; do
-  [[ -r $required ]] || { echo "USB authorization installation is incomplete: $required" >&2; exit 1; }
+  if [[ ! -r $required ]]; then
+    echo "USB authorization installation is incomplete: $required" >&2
+    if [[ $OMARCHY_PATH != "/usr/share/omarchy" ]]; then
+      echo "The installed Omarchy package does not include required fixed system paths." >&2
+      echo "Switch to the development package with 'omarchy channel set dev' or test with 'omarchy-dev-pkg-test'." >&2
+    fi
+    exit 1
+  fi
 done
 for required in "$OMARCHY_PATH/bin/omarchy-usb-authorization-watch" \
   "$OMARCHY_PATH/bin/omarchy-usb-authorization-event" \
   "$OMARCHY_PATH/bin/omarchy-usb-authorization-review" \
   /usr/bin/omarchy-usb-authorization-approve; do
-  [[ -r $required && -x $required ]] || { echo "USB authorization command is unavailable: $required" >&2; exit 1; }
+  if [[ ! -r $required || ! -x $required ]]; then
+    echo "USB authorization command is unavailable: $required" >&2
+    if [[ $OMARCHY_PATH != "/usr/share/omarchy" && $required == "/usr/bin/omarchy-usb-authorization-approve" ]]; then
+      echo "The installed Omarchy package does not include required fixed system paths." >&2
+      echo "Switch to the development package with 'omarchy channel set dev' or test with 'omarchy-dev-pkg-test'." >&2
+    fi
+    exit 1
+  fi
 done
 
 if (( ! assume_yes )); then

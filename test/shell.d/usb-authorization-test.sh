@@ -287,6 +287,8 @@ grep -Fqx 'systemctl <restart usbguard.service>' "$calls" ||
 [[ -f $home/.config/systemd/user/omarchy-usb-authorization.service && ! -L $home/.config/systemd/user/omarchy-usb-authorization.service ]] ||
   fail "USB authorization installs the graphical-session watcher"
 grep -Fqx 'pkg-add <usbguard>' "$calls" || fail "USB authorization ensures USBGuard is installed"
+grep -Eq 'sudo <install> <-Dm644> .*org\.omarchy\.usb\.policy' "$calls" ||
+  fail "USB authorization installs the Polkit policy"
 pass "USB authorization enrolls present devices before enabling default-deny"
 
 generate_count=$(grep -c '^usbguard <generate-policy>$' "$calls")
@@ -302,7 +304,7 @@ rm -f "$unit"
 ln -s "$scratch/deleted-checkout/service" "$unit"
 "$scratch/setup" --yes >/dev/null
 [[ -f $unit && ! -L $unit ]] || fail "setup repairs a dangling watcher unit"
-for failure in missing-unit missing-helper session-mismatch watcher-start; do
+for failure in missing-unit missing-helper missing-approve session-mismatch watcher-start; do
   rm -f "$TEST_GUARD_ACTIVE"
   : >"$calls"
   cp "$scratch/setup" "$scratch/failing-setup"
@@ -310,6 +312,7 @@ for failure in missing-unit missing-helper session-mismatch watcher-start; do
   case "$failure" in
   missing-unit) sed -i "s|^unit_source=.*|unit_source=$scratch/missing-unit|" "$scratch/failing-setup" ;;
   missing-helper) sed -i "s|$USB_POLICY_FIXTURE|$scratch/missing-helper|g" "$scratch/failing-setup" ;;
+  missing-approve) sed -i "s|$USB_APPROVE_FIXTURE|$scratch/missing-approve|g" "$scratch/failing-setup" ;;
   session-mismatch) options+=(TEST_SESSION_ROOT=/missing-runtime) ;;
   watcher-start) options+=(TEST_WATCHER_FAIL=1) ;;
   esac
@@ -319,6 +322,10 @@ for failure in missing-unit missing-helper session-mismatch watcher-start; do
   [[ ! -e $TEST_GUARD_ACTIVE ]] || fail "$failure starts blocking without a watcher"
   ! grep -Eq 'systemctl <(enable|restart) usbguard.service>' "$calls" || fail "$failure enables enforcement"
 done
+grep -Fq 'Switch to the development package with' "$scratch/missing-helper.log" ||
+  fail "missing helper explains how to update system package in dev checkout"
+grep -Fq 'Switch to the development package with' "$scratch/missing-approve.log" ||
+  fail "missing approve explains how to update system package in dev checkout"
 "$scratch/setup" --yes >/dev/null
 watch_line=$(grep -n '^systemctl <--user restart omarchy-usb-authorization.service>' "$calls" | tail -1 | cut -d: -f1)
 guard_line=$(grep -n '^systemctl <restart usbguard.service>' "$calls" | tail -1 | cut -d: -f1)
@@ -737,6 +744,24 @@ printf 'yes\nyes\nyes\n' | TEST_POLICY_LIST="$scratch/legacy-policy" GUM_REQUIRE
 [[ $(<"$TEST_SAVED_RULE") == 'allow id 046d:c53a name "Receiver" hash "receiver" label "omarchy-usb-authorization-v1"' ]] || fail "legacy review saves only identity constraints"
 cmp -s "$scratch/legacy-policy" "$scratch/legacy-before" || fail "legacy review rewrites existing manual rules"
 rm -f "$TEST_ALLOWED_RULE" "$TEST_SAVED_RULE"
+
+rm -f "$TEST_GUARD_ACTIVE"
+if "$scratch/setup" --review-existing >"$scratch/review-inactive" 2>&1; then
+  fail "review-existing requires active USBGuard service"
+fi
+grep -Fq 'USB authorization is not enabled or running' "$scratch/review-inactive" ||
+  fail "review-existing explains inactive service"
+touch "$TEST_GUARD_ACTIVE"
+
+mv "$USB_APPROVE_FIXTURE" "$USB_APPROVE_FIXTURE.bak"
+if "$scratch/setup" --review-existing >"$scratch/review-missing" 2>&1; then
+  fail "review-existing requires installed approve helper"
+fi
+grep -Fq 'USB authorization installation is incomplete' "$scratch/review-missing" ||
+  fail "review-existing explains incomplete installation"
+grep -Fq 'Switch to the development package with' "$scratch/review-missing" ||
+  fail "review-existing explains how to update system package in dev checkout"
+mv "$USB_APPROVE_FIXTURE.bak" "$USB_APPROVE_FIXTURE"
 
 printf '12: block id 07a6:8513\n\t17: %s\n' "$malicious_rule" >"$scratch/deny-policy"
 if TEST_POLICY_LIST="$scratch/deny-policy" "$USB_APPROVE_FIXTURE" 17 "$malicious_rule" >/dev/null 2>&1; then fail "permanent approval must respect earlier manual denial"; fi
