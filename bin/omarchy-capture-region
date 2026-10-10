@@ -20,8 +20,28 @@
 #   --match-monitor print "monitor:NAME" instead when the picked geometry
 #                   exactly matches a monitor
 
-FULLSCREEN_MARKER="${XDG_RUNTIME_DIR:-/tmp}/omarchy-capture-region-fullscreen"
-WINDOW_MARKER="${XDG_RUNTIME_DIR:-/tmp}/omarchy-capture-region-window"
+# The --take-* binds flag their intent with a marker while slurp is open, and
+# the picker reads it back after slurp exits. XDG_RUNTIME_DIR is 0700 and
+# session-scoped; without it, the state directory keeps the fixed names out of
+# world-writable /tmp, where another local account could plant or replace a
+# marker and steer the capture mode.
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}"
+FULLSCREEN_MARKER="$RUNTIME_DIR/omarchy-capture-region-fullscreen"
+WINDOW_MARKER="$RUNTIME_DIR/omarchy-capture-region-window"
+
+# XDG_STATE_HOME may be outside a private home; protect the fallback too. Only
+# the marker users pay for this: a read-only or full state filesystem must not
+# break the marker-free fullscreen mode or a select-window warp. A failed setup
+# must stop the marker user before it opens slurp or kills it without leaving a
+# marker, which would read as a cancelled capture.
+ensure_marker_dir() {
+  if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+    if ! mkdir -p "$RUNTIME_DIR" 2>/dev/null || ! chmod 700 "$RUNTIME_DIR" 2>/dev/null; then
+      echo "Cannot create the region picker's state directory: $RUNTIME_DIR" >&2
+      exit 1
+    fi
+  fi
+}
 
 # accounting for portrait/transformed displays
 JQ_MONITOR_GEO='
@@ -136,6 +156,7 @@ geo_at_cursor() {
 # --take-* modes flag the intent with a marker file and dismiss slurp.
 if [[ ${1:-} == "--take-fullscreen" ]]; then
   pgrep -x slurp >/dev/null || exit 0
+  ensure_marker_dir
   touch "$FULLSCREEN_MARKER"
   pkill -x slurp
   exit 0
@@ -143,6 +164,7 @@ fi
 
 if [[ ${1:-} == "--take-window" ]]; then
   pgrep -x slurp >/dev/null || exit 0
+  ensure_marker_dir
   touch "$WINDOW_MARKER"
   pkill -x slurp
   exit 0
@@ -288,6 +310,7 @@ done
 # selection.
 pick() {
   local selection
+  ensure_marker_dir
   rm -f "$FULLSCREEN_MARKER" "$WINDOW_MARKER"
   selection=$(slurp "$@" 2>/dev/null)
 
