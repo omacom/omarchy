@@ -28,6 +28,22 @@ Panel {
   property var displays: []
   property int enabledDisplayCount: 0
 
+  // The screen this panel instance sits on, resolved from the window hosting
+  // the widget — the same source Bar.qml's slotScreenName uses. Bound, never
+  // snapshotted: Component.onCompleted can fire before the QsWindow attached
+  // property resolves, and a binding re-evaluates on attach. Every consumer
+  // tolerates ownScreenName === "".
+  readonly property var ownWindow: root.QsWindow ? root.QsWindow.window : null
+  readonly property string ownScreenName: ownWindow && ownWindow.screen ? String(ownWindow.screen.name || "") : ""
+  // This screen's current scale; falls back to the focused monitor's scale
+  // while the own display is unknown or reports nothing usable.
+  readonly property string ownScale: {
+    var display = ownDisplay()
+    if (!display) return root.monitorScale
+    var normalized = normalizeScale(display.scale)
+    return normalized !== "" ? normalized : root.monitorScale
+  }
+
   // Carry sub-notch touchpad deltas between wheel events.
   property real wheelAccumulator: 0
 
@@ -44,12 +60,8 @@ Panel {
   // signal so keyboard cursor and pointer share one highlight.
   readonly property var scalePresets: ["1", "1.25", "1.6", "2", "3", "4"]
   readonly property var scaleValues: {
-    for (var i = 0; i < displays.length; i++) {
-      var display = displays[i]
-      if (display && display.focused)
-        return Model.availableScales(scalePresets, display.width, display.height)
-    }
-    return scalePresets
+    var display = ownDisplay()
+    return display ? Model.scalesWithCurrent(Model.availableScales(scalePresets, display.width, display.height), root.ownScale, display.width, display.height) : scalePresets
   }
   property string focusSection: "scale"
   property int selectedIndex: 0
@@ -266,22 +278,28 @@ Panel {
     return Model.normalizeScale(scale)
   }
 
-  function activeScaleIndex() {
+  // The display row this panel instance acts on: the one whose name matches
+  // the hosting screen, falling back to the focused display while
+  // ownScreenName is "" or absent from the displays JSON.
+  function ownDisplay() {
+    var fallback = null
     for (var i = 0; i < displays.length; i++) {
       var display = displays[i]
-      if (display && display.focused)
-        return Model.matchingScaleIndex(scaleValues, monitorScale, display.width, display.height)
+      if (!display) continue
+      if (display.focused) fallback = display
+      if (display.name === ownScreenName && ownScreenName !== "") return display
     }
-    return -1
+    return fallback
+  }
+
+  function activeScaleIndex() {
+    var display = ownDisplay()
+    return display ? Model.matchingScaleIndex(scaleValues, ownScale, display.width, display.height) : -1
   }
 
   function effectiveScale(scale) {
-    for (var i = 0; i < displays.length; i++) {
-      var display = displays[i]
-      if (display && display.focused)
-        return Model.cleanScale(scale, display.width, display.height)
-    }
-    return normalizeScale(scale)
+    var display = ownDisplay()
+    return display ? Model.cleanScale(scale, display.width, display.height) : normalizeScale(scale)
   }
 
   // Playful mood-name for a given brightness percent. Bands intentionally
@@ -312,7 +330,9 @@ Panel {
   }
 
   function setScale(scale) {
-    actionProc.command = ["bash", "-c", "omarchy-hyprland-monitor-scaling " + scale]
+    var cmd = ["omarchy-hyprland-monitor-scaling", String(scale)]
+    if (root.ownScreenName !== "") cmd.push(root.ownScreenName)
+    actionProc.command = cmd
     if (!actionProc.running) actionProc.running = true
   }
 
@@ -754,14 +774,13 @@ Panel {
                 anchors.verticalCenter: parent.verticalCenter
               }
 
-              // Name the monitor SCALE targets, since it only applies to the
-              // focused one.
+              // Name the monitor SCALE targets — the screen hosting this
+              // panel, plus its current scale.
               Text {
                 id: scaleMonitor
                 textFormat: Text.PlainText
-                text: root.focusedMonitor
-                // Only worth naming when more than one display is in play.
-                visible: root.focusedMonitor !== "" && root.enabledDisplayCount > 1
+                text: root.ownScreenName + " · " + root.ownScale + "x"
+                visible: root.ownScreenName !== "" && root.ownScale !== ""
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -900,7 +919,7 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        text: monitorRow.display.name + (monitorRow.display.focused ? " · focused" : "")
+        text: monitorRow.display.name + (monitorRow.display.enabled && root.normalizeScale(monitorRow.display.scale) !== "" ? " · " + root.normalizeScale(monitorRow.display.scale) + "x" : "") + (monitorRow.display.focused ? " · focused" : "")
         color: root.bar.foreground
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.body

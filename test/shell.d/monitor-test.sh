@@ -54,6 +54,43 @@ assertDeepEqual(
   'monitor keeps presets until display dimensions are known'
 )
 
+assertDeepEqual(
+  monitor.scalesWithCurrent(['1', '1.25', '1.6', '2', '3', '4'], 3.2, 1280, 800),
+  ['1', '1.25', '1.6', '2', '3', '4'],
+  'monitor leaves the preset ladder alone when the current scale is already a pill'
+)
+assertDeepEqual(
+  monitor.scalesWithCurrent(['1', '1.25', '1.6', '2', '3', '4'], 1.5, 1920, 1080),
+  ['1', '1.25', '1.5', '1.6', '2', '3', '4'],
+  'monitor inserts a non-preset current scale in numeric order'
+)
+assertDeepEqual(
+  monitor.scalesWithCurrent(['1', '1.25', '1.6', '2', '3', '4'], '', 1920, 1080),
+  ['1', '1.25', '1.6', '2', '3', '4'],
+  'monitor leaves the ladder alone without a current scale'
+)
+assertDeepEqual(
+  monitor.scalesWithCurrent(['1', '1.25', '1.6', '2', '3', '4'], 'nope', 1920, 1080),
+  ['1', '1.25', '1.6', '2', '3', '4'],
+  'monitor leaves the ladder alone for an invalid current scale'
+)
+assertDeepEqual(
+  monitor.scalesWithCurrent(
+    monitor.availableScales(['1', '1.25', '1.6', '2', '3', '4'], 5968, 3230),
+    1.5, 5968, 3230
+  ),
+  ['1', '1.5', '2'],
+  'monitor inserts the current scale into a mode-filtered ladder'
+)
+assertEqual(
+  monitor.matchingScaleIndex(
+    monitor.scalesWithCurrent(['1', '1.25', '1.6', '2', '3', '4'], 1.5, 1920, 1080),
+    1.5, 1920, 1080
+  ),
+  2,
+  'monitor marks the inserted current-scale pill active'
+)
+
 assertEqual(monitor.brightnessName(96), 'Sun blast', 'monitor names very bright displays')
 assertEqual(monitor.brightnessName(12), 'Candlelit', 'monitor names dim displays')
 
@@ -75,4 +112,76 @@ assertDeepEqual(
 )
 
 assertDeepEqual(monitor.parseDisplays('{'), { displays: [], enabledDisplayCount: 0 }, 'monitor handles invalid display JSON')
+JS
+
+# Textual assertions over Panel.qml: own-screen targeting, argv shape, and the
+# header/row bindings can't run headless, so pin the invariants in the source.
+run_node_test <<'JS'
+const fs = require('fs')
+const panelQml = fs.readFileSync(path.join(root, 'shell/plugins/panels/monitor/Panel.qml'), 'utf8')
+
+assert(
+  panelQml.includes('root.QsWindow') &&
+    panelQml.includes('readonly property string ownScreenName'),
+  'monitor panel resolves its own screen from the hosting window'
+)
+
+const setScaleMatch = panelQml.match(/function setScale\(scale\) \{([\s\S]*?)\n  \}/)
+assert(setScaleMatch, 'monitor panel setScale function exists')
+assert(
+  setScaleMatch[1].includes('"omarchy-hyprland-monitor-scaling"'),
+  'monitor panel applies scale through the scaling CLI'
+)
+assert(
+  setScaleMatch[1].includes('ownScreenName'),
+  'monitor panel passes its own screen name to the scaling CLI'
+)
+assert(
+  setScaleMatch[1].includes('!actionProc.running'),
+  'monitor panel keeps the actionProc re-spawn guard'
+)
+assert(
+  !setScaleMatch[1].includes('"bash"') &&
+    !setScaleMatch[1].includes('"omarchy-hyprland-monitor-scaling '),
+  'monitor panel builds the scaling command as direct argv'
+)
+
+const scaleMonitorMatch = panelQml.match(/id: scaleMonitor[\s\S]*?anchors\.right: parent\.right/)
+assert(scaleMonitorMatch, 'monitor panel scaleMonitor header exists')
+assert(
+  scaleMonitorMatch[0].includes('root.ownScreenName') &&
+    scaleMonitorMatch[0].includes('root.ownScale'),
+  'monitor panel scale header names the hosting screen and its scale'
+)
+assert(
+  !scaleMonitorMatch[0].includes('root.focusedMonitor') &&
+    !scaleMonitorMatch[0].includes('enabledDisplayCount'),
+  'monitor panel scale header does not follow the focused monitor or display count'
+)
+assert(
+  scaleMonitorMatch[0].includes('visible: root.ownScreenName !== "" && root.ownScale !== ""'),
+  'monitor panel scale header shows only when the own screen and its scale are known'
+)
+
+const monitorRowTextMatch = panelQml.match(/text: monitorRow\.display\.name[^\n]*/)
+assert(monitorRowTextMatch, 'monitor row name binding exists')
+assert(
+  monitorRowTextMatch[0].includes('normalizeScale(monitorRow.display.scale)'),
+  'monitor row appends the display scale'
+)
+assert(
+  monitorRowTextMatch[0].includes('monitorRow.display.focused ? " · focused" : ""'),
+  'monitor row keeps the focused suffix'
+)
+assert(
+  monitorRowTextMatch[0].indexOf('normalizeScale(monitorRow.display.scale)') <
+    monitorRowTextMatch[0].indexOf('" · focused"'),
+  'monitor row renders name, scale, then focused'
+)
+
+assert(
+  panelQml.includes('Model.parseDisplays') &&
+    !panelQml.includes('"hyprctl", "monitors"'),
+  'monitor panel keeps a single displays-JSON path through omarchy-monitor-state'
+)
 JS
