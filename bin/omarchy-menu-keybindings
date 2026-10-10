@@ -393,7 +393,9 @@ BEGIN {
 }
 {
     # Combine the modifier and key (first two fields)
-    key_combo = $1 " + " $2;
+    modifiers = $1;
+    gsub(/[ \t]+/, " + ", modifiers);
+    key_combo = modifiers " + " $2;
 
     # Clean up: strip leading "+" if present, trim spaces
     gsub(/^[ \t]*\+?[ \t]*/, "", key_combo);
@@ -460,7 +462,7 @@ prioritize_entries() {
   awk -F '\t' '
   {
     # Alternative chords are display only. Classifying on them would read
-    # "SUPER SHIFT + RETURN / SUPER SHIFT + B" as the alternate browser chord
+    # "SUPER + SHIFT + RETURN / SUPER + SHIFT + B" as the alternate browser chord
     # and drop the browser 20 rows down its own list, so match the chord that
     # leads the row and ignore the rest.
     line = $1
@@ -470,7 +472,7 @@ prioritize_entries() {
     if (match(line, /Keybindings/)) prio = 0
     if (match(line, /Omarchy menu/))  prio = 1
     if (match(line, /Terminal/)) prio = 2
-    if (match(line, /Browser/) && !match(line, /Browser[[:space:]]*\(/) && !match(line, /SUPER SHIFT.*\+.*B.*→.*Browser/)) prio = 3
+    if (match(line, /Browser/) && !match(line, /Browser[[:space:]]*\(/) && !match(line, /SUPER \+ SHIFT.*\+.*B.*→.*Browser/)) prio = 3
     if (match(line, /File manager/) && !match(line, /File manager \(cwd\)/))  prio = 4
     if (match(line, /Launch apps/))  prio = 5
     if (match(line, /System menu/))  prio = 6
@@ -494,7 +496,7 @@ prioritize_entries() {
     if (match(line, /Screenrecording/))  prio = 24
     if (match(line, /Tmux/)) prio = 25
     if (match(line, /Herdr/)) prio = 26
-    if (match(line, /SUPER SHIFT.*\+.*B.*→.*Browser/)) prio = 27
+    if (match(line, /SUPER \+ SHIFT.*\+.*B.*→.*Browser/)) prio = 27
     if (match(line, /File manager \(cwd\)/))  prio = 28
     if (match(line, /(Switch|Next|Former|Previous).*workspace/))  prio = 29
     if (match(line, /Move window to workspace/))  prio = 30
@@ -555,7 +557,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v14\n'
+    printf 'v15\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     cat "$key_names_file" 2>/dev/null
     hyprctl binds 2>/dev/null
