@@ -59,7 +59,9 @@ cat >"$stub_bin/omarchy-menu-select" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$@" >"$OMARCHY_TEST_MENU_ARGS"
-printf '%s\n' "$3"
+# Stand in for picking the second webcam. Under --print-index the answer is a
+# position in the list the caller passed in, not the row that was displayed.
+printf '%s\n' 1
 SH
 
 cat >"$stub_bin/omarchy-capture-screenrecording" <<'SH'
@@ -135,6 +137,7 @@ pass "screenrecording webcam picker rejects output-only video devices"
 
 expected_menu_args="$tmp_dir/expected-menu-args"
 printf '%s\n' \
+  "--print-index" \
   "Select Webcam" \
   "/dev/video42  Built-in Webcam: Integrated Camera" \
   "/dev/video2  USB Capture Card: External Camera" \

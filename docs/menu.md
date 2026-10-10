@@ -165,3 +165,5 @@ renders under the label, filters with it, and comes back as
 `label\tsubtext` so callers with same-named rows get a stable key. This is
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
+
+`omarchy-menu-select --print-index` answers with the option's position in the list it was handed instead of the text of the row, so a caller that carries an id looks it up in its own data rather than parsing the display text back apart. Because the position is only recoverable while every option comes back as different, non-empty text, the flag refuses a list where two options would answer alike or where one would answer as nothing, and it says so before the menu opens.
