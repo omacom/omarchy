@@ -13,7 +13,7 @@ echo
 confirm_reboot() {
   if [[ ${OMARCHY_UPDATE_UNATTENDED:-0} == "1" ]]; then
     echo "$1 Run omarchy-system-reboot when ready."
-  elif gum confirm "$1"; then
+  elif omarchy-confirm "$1"; then
     omarchy-system-reboot
     exit 0
   fi
