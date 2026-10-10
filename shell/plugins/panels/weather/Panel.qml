@@ -493,7 +493,11 @@ Panel {
     owner: root.barIdentity
     bar: root.bar
     open: root.opened
-    centerOnBar: true
+    // Anchoring is configurable: centered on the bar (default, matches the
+    // clock popup) or anchored under the pill (like the network popup). Read
+    // from the plugin's settings so it can be changed without cloning the
+    // plugin; defaults to true to preserve the existing look.
+    centerOnBar: (root.settings && root.settings.centerOnBar !== undefined) ? root.settings.centerOnBar : true
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(480))
     contentHeight: panel.fittedContentHeight(weatherColumn.implicitHeight)

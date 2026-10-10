@@ -16,6 +16,9 @@
     "description": "Weather pill with detail popup",
     "category": "Info",
     "allowMultiple": false,
-    "settingsForm": "weatherSettings"
+    "settingsForm": "weatherSettings",
+    "defaults": {
+      "centerOnBar": true
+    }
   }
 }
