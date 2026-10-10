@@ -78,6 +78,14 @@ assertDeepEqual(
   { windows: { a: true }, count: 1 },
   'idle leaves screensaver windows unchanged without an address'
 )
+
+// A force-launched screensaver stays up across idle cycles, and the bar reads
+// this count to stay below it, so starting or cancelling a cycle keeps it.
+const idleSource = require('fs').readFileSync(root + '/shell/plugins/services/idle/Service.qml', 'utf8')
+for (const name of ['startIdleCycle', 'cancelIdleCycle']) {
+  const body = idleSource.match(new RegExp('function ' + name + '\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}'))
+  assert(body && !body[0].includes('resetScreensaverWindows()'), name + ' keeps screensaver windows that are still open')
+}
 JS
 
 test_tmp=$(mktemp -d)

@@ -254,6 +254,12 @@ Item {
       return JSON.stringify({ reachable: !!service, enabled: service ? service.enabled === true : false })
     }
 
+    function probeIdleProxy(): string {
+      var service = root.shell
+        ? root.shell.firstPartyServiceFor("omarchy.idle") : null
+      return JSON.stringify({ reachable: !!service, screensaverWindowCount: service ? typeof service.screensaverWindowCount : "" })
+    }
+
     function probeMediaWidgetSummon(): string {
       var entryFacade = root.shell
         && typeof root.shell.pluginShellForBarEntry === "function"
@@ -682,6 +688,13 @@ media_proxy_probe=$(shell_ipc acme-review-bar probeMediaProxy)
 jq -e '.reachable == true and .enabled == true' <<<"$media_proxy_probe" >/dev/null || {
   printf 'Replacement-bar media proxy probe: %s\n' "$media_proxy_probe" >&2
   fail_with_log "replacement-bar service proxies resolve enabled clones"
+}
+
+# A cloned bar steps below the screensaver by this count, as the built-in one does.
+idle_proxy_probe=$(shell_ipc acme-review-bar probeIdleProxy)
+jq -e '.reachable == true and .screensaverWindowCount == "number"' <<<"$idle_proxy_probe" >/dev/null || {
+  printf 'Replacement-bar idle proxy probe: %s\n' "$idle_proxy_probe" >&2
+  fail_with_log "replacement-bar idle proxy exposes the screensaver window count"
 }
 
 media_summon_probe=$(shell_ipc acme-review-bar probeMediaWidgetSummon)

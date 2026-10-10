@@ -516,6 +516,10 @@ ShellRoot {
       var target = service()
       return target ? target.stayAwake === true : false
     })
+    api.screensaverWindowCount = Qt.binding(function() {
+      var target = service()
+      return target ? Number(target.screensaverWindowCount) || 0 : 0
+    })
     api.enabled = Qt.binding(function() {
       var target = service()
       return target ? target.enabled === true : false

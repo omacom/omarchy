@@ -93,7 +93,6 @@ Item {
     logEvent("idle-cycle-start", "screensaver=" + root.screensaverTimeoutSeconds + " lock=" + root.lockTimeoutSeconds)
     root.idledThisCycle = true
     root.screensaverStartedThisCycle = false
-    resetScreensaverWindows()
 
     // Set this cycle's deadlines once: a bound interval would restart a pending
     // timer from the moment shell.json changes, locking early or late.
@@ -124,9 +123,10 @@ Item {
 
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
-    resetScreensaverWindows()
   }
 
+  // Only the lock closes screensaver windows, so only the lock forgets them. A
+  // force-launched one outlives idle cycles, and the bar steps below it by count.
   function resetScreensaverWindows() {
     root.screensaverWindows = ({})
     root.screensaverWindowCount = 0
