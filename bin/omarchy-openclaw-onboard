@@ -31,7 +31,7 @@ gateway_timeout=${OMARCHY_OPENCLAW_ONBOARD_GATEWAY_TIMEOUT:-180}
 # OpenClaw's CLI takes a terminal on stdin out of raw mode as it is killed,
 # which leaves the wizard's next prompt echoing keys instead of reading them.
 gateway_answers() {
-  timeout 10 openclaw dashboard --json </dev/null 2>/dev/null | jq -e '.ok == true' >/dev/null 2>&1
+  timeout 30 openclaw dashboard --json </dev/null 2>/dev/null | jq -e '.ok == true' >/dev/null 2>&1
 }
 
 # A gateway already answering means OpenClaw is set up, and this run must not
@@ -85,7 +85,7 @@ config_applied() {
 gateway_ready() {
   config_applied || return 1
   local json port listener main_pid
-  json=$(timeout 10 openclaw dashboard --json </dev/null 2>/dev/null) || return 1
+  json=$(timeout 30 openclaw dashboard --json </dev/null 2>/dev/null) || return 1
   jq -e '.ok == true' <<<"$json" >/dev/null 2>&1 || return 1
   port=$(jq -r '.port // empty' <<<"$json" 2>/dev/null)
   [[ -n $port ]] || return 1

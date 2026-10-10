@@ -12,6 +12,16 @@ export TEST_LOG="$tmp_dir/log"
 export PATH="$tmp_dir/bin:$PATH"
 export HOME="$tmp_dir/home"
 export OMARCHY_OPENCLAW_ONBOARD_SETTLE_SECONDS=0
+# Record every dashboard deadline while still delegating to the real timeout.
+export TIMEOUT_LOG="$tmp_dir/timeout-log"
+real_timeout=$(command -v timeout)
+export real_timeout
+cat >"$tmp_dir/bin/timeout" <<'SCRIPT'
+#!/bin/bash
+printf 'timeout:%s\n' "$1" >>"$TIMEOUT_LOG"
+exec "$real_timeout" "$@"
+SCRIPT
+chmod +x "$tmp_dir/bin/timeout"
 unit="$HOME/.config/systemd/user/openclaw-gateway.service"
 export unit
 
@@ -298,3 +308,8 @@ grep -q '^systemctl:--user show -p MainPID --value openclaw-gateway.service$' "$
   fail "an orphan holding the port is not mistaken for the active unit" "unit ownership never checked"
 pass "an orphan holding the port is not mistaken for the active unit"
 rm -f "$listener_file"
+
+if [[ ! -s $TIMEOUT_LOG ]] || grep -vqx 'timeout:30' "$TIMEOUT_LOG"; then
+  fail "onboarding allows slow dashboard probes" "$(sort -u "$TIMEOUT_LOG" | tr '\n' ' ')"
+fi
+pass "onboarding allows slow dashboard probes"

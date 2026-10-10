@@ -39,10 +39,12 @@ if [[ ! -f $HOME/.openclaw/openclaw.json ]]; then
 fi
 
 dashboard_url() {
+  local timeout_seconds=${1:-30}
+
   # browserUrl carries a single-use browser handoff; url is the shared-auth
   # fallback for gateways predating the handoff flow. The timeout keeps a
   # wedged CLI from hanging an app-grid launch that has no terminal to ^C.
-  timeout 10 openclaw dashboard --json 2>/dev/null | jq -re '.browserUrl // .url // empty'
+  timeout "$timeout_seconds" openclaw dashboard --json 2>/dev/null | jq -re '.browserUrl // .url // empty'
 }
 
 # --json never starts the gateway, so an empty answer means it is not running.
@@ -61,11 +63,14 @@ if ! url=$(dashboard_url); then
     timeout 120 openclaw gateway install --force >&2 || true
   fi
 
-  # A first-ever service install (unit write, daemon-reload, first boot)
-  # takes materially longer than starting an installed unit, so the budget
-  # is sized for the slow case.
+  # Bound the whole retry period, not each probe: a wedged CLI must not turn
+  # 30 retries into several minutes. The optional override keeps this testable.
+  retry_timeout=${OMARCHY_OPENCLAW_LAUNCH_RETRY_TIMEOUT:-120}
+  retry_deadline=$((SECONDS + retry_timeout))
   for _ in {1..30}; do
-    url=$(dashboard_url) && break
+    remaining=$((retry_deadline - SECONDS))
+    ((remaining > 0)) || break
+    url=$(dashboard_url "$remaining") && break
     sleep 1
   done
 fi

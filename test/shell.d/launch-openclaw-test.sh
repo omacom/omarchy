@@ -108,21 +108,35 @@ grep -q '^omarchy-launch-webapp:http://127.0.0.1:18789/#cold-start$' "$TEST_LOG"
 pass "OpenClaw launch starts a stopped gateway before opening the app"
 rm -f "$tmp_dir/gateway-enabled"
 
-# A dashboard probe that hangs is cut off, so the launch still fails cleanly
-# instead of sitting forever behind an app-grid icon with no terminal.
+# A dashboard probe gets enough time for a slow machine, while the retries
+# share one overall deadline so a wedged CLI cannot multiply it 30 times.
 cat >"$tmp_dir/bin/timeout" <<SCRIPT
 #!/bin/bash
-printf 'timeout:%s\\n' "\$1" >>"\$TEST_LOG"
-exit 124
+printf 'timeout:%s:%s %s\n' "\$1" "\$2" "\${3:-}" >>"\$TEST_LOG"
+if [[ \$2 == openclaw && \${3:-} == dashboard ]]; then
+  if [[ -f $tmp_dir/initial-probe-done ]]; then
+    /usr/bin/sleep "\$1"
+  else
+    touch $tmp_dir/initial-probe-done
+  fi
+  exit 124
+fi
+exit 0
 SCRIPT
 chmod +x "$tmp_dir/bin/timeout"
 : >"$TEST_LOG"
 rc=0
-"$ROOT/bin/omarchy-launch-openclaw" >/dev/null 2>&1 || rc=$?
+OMARCHY_OPENCLAW_LAUNCH_RETRY_TIMEOUT=1 "$ROOT/bin/omarchy-launch-openclaw" >/dev/null 2>&1 || rc=$?
 [[ $rc != 0 ]] || fail "OpenClaw launch bounds a hanging dashboard probe"
-grep -q '^timeout:10$' "$TEST_LOG" || fail "OpenClaw launch bounds a hanging dashboard probe" "probe ran without a timeout"
-pass "OpenClaw launch bounds a hanging dashboard probe"
-rm -f "$tmp_dir/bin/timeout"
+grep -q '^timeout:30:openclaw dashboard$' "$TEST_LOG" ||
+  fail "OpenClaw launch allows a slow initial dashboard probe" "$(grep dashboard "$TEST_LOG")"
+grep -q '^timeout:1:openclaw dashboard$' "$TEST_LOG" ||
+  fail "OpenClaw launch bounds all dashboard retries together" "$(grep dashboard "$TEST_LOG")"
+dashboard_calls=$(grep -c ':openclaw dashboard$' "$TEST_LOG")
+((dashboard_calls == 2)) ||
+  fail "OpenClaw launch bounds all dashboard retries together" "$(grep dashboard "$TEST_LOG")"
+pass "OpenClaw launch allows a slow probe within a bounded retry period"
+rm -f "$tmp_dir/bin/timeout" "$tmp_dir/initial-probe-done"
 
 # A gateway that never answers fails the launch instead of opening a dead page.
 cat >"$tmp_dir/bin/openclaw" <<'SCRIPT'
