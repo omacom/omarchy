@@ -41,6 +41,19 @@
   "system.reboot": {"icon":"󰜉","label":"Reboot","action":"omarchy-system-reboot"},
   "system.shutdown": {"icon":"󰐥","label":"Shutdown","action":"omarchy-system-shutdown"},
 
+  "setup.dots": {"icon":"","label":"Preferences","description":"Set up preference history and sharing between computers","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-dots"},
+  "system.dots": {"icon":"","label":"Preferences","description":"History and shared personal settings"},
+  "system.dots.status": {"icon":"󰋼","label":"Status","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-dots status'"},
+  "system.dots.snapshot": {"icon":"󰆓","label":"Save Snapshot","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-dots snapshot'"},
+  "system.dots.diff": {"icon":"󰦒","label":"Review Changes","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-dots diff'"},
+  "system.dots.history": {"icon":"󰋚","label":"Local History","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-dots log'"},
+  "system.dots.push": {"icon":"󰕒","label":"Publish Settings","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-dots push'"},
+  "system.dots.pull": {"icon":"󰇚","label":"Apply Settings","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-dots pull'"},
+  "system.dots.restore": {"icon":"󰁯","label":"Restore a File","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-dots restore'"},
+  "system.dots.resolve": {"icon":"󰦒","label":"Resolve Conflicts","when":"[[ -f ${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/dots/pending.json ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-dots resolve'"},
+  "system.dots.continue": {"icon":"󰄬","label":"Continue Update","when":"[[ -f ${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/dots/pending.json ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-dots continue'"},
+  "system.dots.abort": {"icon":"󰜺","label":"Cancel Update","when":"[[ -f ${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/dots/pending.json ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-dots abort'"},
+
   // Learn
   "learn.keybindings": {"icon":"","label":"Keybindings","action":"omarchy-menu-keybindings"},
   "learn.omarchy": {"icon":"","label":"Omarchy","action":"omarchy-launch-webapp 'https://omarchy.org/manual/'"},
