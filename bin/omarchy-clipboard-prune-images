@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Delete evicted clipboard image files
+# omarchy:group=clipboard
+# omarchy:hidden=true
+
+image_dir="$HOME/.local/state/omarchy/clipboard-images"
+
+[[ -d $image_dir ]] || exit 0
+
+for path in "$@"; do
+  # Only files inside the clipboard image directory are ever removed, so a
+  # caller passing anything else cannot delete outside of it.
+  [[ -n $path && $path == $image_dir/* && -f $path ]] || continue
+  rm -f -- "$path"
+done
