@@ -63,6 +63,33 @@ power_on() {
   return 1
 }
 
+# Block only the HCI adapter switches, never the whole bluetooth type. A
+# type-wide block also trips platform switches (thinkpad_acpi, dell-laptop,
+# ideapad, ...) whose firmware answers by cutting USB power to the radio: the
+# adapter leaves the bus instead of going Powered: no, and nothing can bring
+# it back from the panel (#7936). The per-adapter soft block still drops the
+# adapter to Powered: no, and systemd-rfkill persists it under the adapter's
+# own ID, so off survives a reboot the same way. With no HCI switch in sight
+# (no radio, or an already-removed one) fall back to the type-wide block.
+block_adapters() {
+  local id=""
+  local attempted=0
+  local failed=0
+
+  while read -r id _; do
+    [[ -n $id ]] || continue
+    attempted=$((attempted + 1))
+    rfkill block "$id" || failed=$((failed + 1))
+  done < <(rfkill -n -o ID,DEVICE list bluetooth 2>/dev/null | awk '$2 ~ /^hci/ {print $1}')
+
+  if (( attempted == 0 )); then
+    rfkill block bluetooth
+    return $?
+  fi
+
+  (( failed == 0 ))
+}
+
 case "${1:-}" in
   on)
     power_on
@@ -70,11 +97,11 @@ case "${1:-}" in
   off)
     # No bluetoothctl power off to go with this: the block already drops the
     # adapter to Powered: no, and it is the half that survives the reboot.
-    rfkill block bluetooth
+    block_adapters
     ;;
   toggle)
     if powered; then
-      rfkill block bluetooth
+      block_adapters
     else
       power_on
     fi
