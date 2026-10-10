@@ -48,6 +48,12 @@ fi
 echo "Removing resume hook"
 sudo rm "$MKINITCPIO_CONF"
 
+# Remove lid-close / suspend-then-hibernate policy installed by setup.
+# Logind re-reads on reboot; sleep.conf is read per suspend, so no reload needed.
+echo "Removing lid-close sleep policy"
+sudo rm -f /etc/systemd/logind.conf.d/99-omarchy-lid-sleep.conf
+sudo rm -f /etc/systemd/sleep.conf.d/10-omarchy-suspend-then-hibernate.conf
+
 echo "Regenerating initramfs..."
 sudo limine-mkinitcpio
 
