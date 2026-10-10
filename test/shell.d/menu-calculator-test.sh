@@ -21,6 +21,10 @@ assertDeepEqual(calculator.evaluate('max(3, 9, 2)'), ['9'], 'passes every argume
 assertDeepEqual(calculator.evaluate('0.1 + 0.2'), ['0.3'], 'rounds float noise away')
 assertDeepEqual(calculator.evaluate('1e6 / 4'), ['250000'], 'reads scientific notation')
 assertDeepEqual(calculator.evaluate('round(3.14159, 2)'), ['3.14'], 'rounds to a given number of places')
+assertDeepEqual(calculator.evaluate('round(1.005, 2)'), ['1.01'], 'rounds a decimal tie up despite its binary representation')
+assertDeepEqual(calculator.evaluate('round(1.015, 2)'), ['1.02'], 'rounds another decimal tie up')
+assertDeepEqual(calculator.evaluate('round(-2.5)'), ['-3'], 'rounds a negative tie away from zero')
+assertDeepEqual(calculator.evaluate('round(1234, -2)'), ['1200'], 'rounds to tens and hundreds with negative places')
 
 // "%" is a percentage, not a remainder: the two cannot share the sign, since
 // one wants an operand on its right and the other refuses one.
