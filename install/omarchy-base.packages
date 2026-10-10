@@ -43,6 +43,7 @@ fontconfig
 foot
 fzf
 git
+gliff
 gnome-keyring
 gnome-themes-extra
 grim
@@ -127,6 +128,7 @@ sddm
 slurp
 socat
 starship
+superwhisper-bin
 sushi
 system-config-printer
 tesseract
@@ -142,6 +144,7 @@ udiskie
 ufw
 ufw-docker
 unzip
+usbguard
 usage
 uwsm
 vi

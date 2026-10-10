@@ -63,6 +63,30 @@ guidance does not drift from the router.
 - `$OMARCHY_PATH` is set at the top level by the uwsm session environment and is always available to Omarchy runtime code.
 - Commands in `bin/` and Quickshell QML should rely on `$OMARCHY_PATH` / `Quickshell.env("OMARCHY_PATH")`; do not derive fallback paths from `HOME`, `Quickshell.shellDir`, or re-export/default `OMARCHY_PATH` manually.
 
+# Platforms
+
+Omarchy runs on x86 and aarch64 (ARM). A platform name is the CPU architecture, then a hardware family only when that family needs handling of its own:
+
+- `x86` - every x86_64 machine
+- `aarch64` - every ARM machine without a family of its own (Snapdragon laptops, Raspberry Pis and ARM VMs today)
+- `aarch64-apple` - Apple Silicon Macs
+
+A new family is named `aarch64-<family>` (e.g. `aarch64-qualcomm`, `aarch64-n1x`) and is added only once it needs code of its own, so `aarch64*` always means ARM. `omarchy-hw-platform` prints the most specific name. Use these exact names wherever a platform is named: package lists, pacman template directories, image manifests, dispatch registration, tests and docs. Never introduce `generic`, `arm64`, `apple-silicon` or other spellings; the old `apple-silicon`, `generic-aarch64` and `generic` are read only for compatibility with older image builders.
+
+Ask a helper; don't read `uname -m` or the device tree in feature code:
+
+- `omarchy-hw-x86` / `omarchy-hw-aarch64` - the CPU architecture. Use them for binary and ABI availability: a package with no aarch64 build, an x86 guest VM, multilib.
+- `omarchy-hw-aarch64-apple` (and later `omarchy-hw-aarch64-<family>`) - built on `omarchy-hw-platform`, image-build aware. Use them for hardware behaviour. `omarchy-hw-apple-silicon` is a hidden alias kept for the omarchy-mac packages; don't use it in new code.
+
+Where platform code lives:
+
+- Packages: `install/omarchy-base.packages` for everyone, `install/omarchy-aarch64.packages` for every ARM machine, `install/omarchy-<platform>.packages` for one family, and base packages with no aarch64 build in `install/omarchy-x86_64-only.packages`. `omarchy-pkg-defaults` composes them.
+- Pacman templates: `default/pacman/` for x86, `default/pacman/<platform>/` for each ARM platform.
+- Hardware setup: `install/hardware/<vendor-or-family>/`, gated by a predicate. `install/hardware/apple/` holds Intel Mac quirks; Apple Silicon's own setup ships in the omarchy-mac packages.
+- Boot chains Omarchy can't drive generically: a platform package behind `omarchy-lifecycle-dispatch` ([`docs/lifecycle-dispatch.md`](docs/lifecycle-dispatch.md)). Platforms that boot Limine with UKIs like x86 keep the generic path.
+
+The experience should be the same on every platform. When a package or feature is missing or broken on one, the default is to get it fixed upstream (an aarch64 build, a bug report, a patch to the maintainer) and leave the gap visible meanwhile, not to paper over it. When asked for a platform workaround, say so and propose the upstream fix first. Hiding a menu entry or skipping a package is fine only for things that can't exist there (an x86 guest VM, an x86-only proprietary binary). Alternative packages and platform-only replacements are a last resort, used only when upstream can't or won't fix it, with the reason written next to the code.
+
 # Privileged Commands
 
 - Follow the "Privilege Escalation" section of `default/agents/skills/omarchy/SKILL.md`. It draws the

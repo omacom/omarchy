@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 
 // The selected city under the globe: name, local time and badge, then its
 // zone and offset. Blank without a selection; the parent reserves the height.
@@ -12,7 +13,7 @@ Item {
   property string offsetLabel: ""
   property string badge: ""             // "home", "tracked" or ""
   property real moonPhase: 0.5
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property color dim: Qt.darker(foreground, 1.55)
   property color fainter: Qt.darker(foreground, 2.1)
   property color daylightMarker
@@ -90,7 +91,7 @@ Item {
         textFormat: Text.PlainText
         text: root.badge
         visible: root.has && text !== ""
-        color: Color.accent
+        color: Commons.Color.accent
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
       }

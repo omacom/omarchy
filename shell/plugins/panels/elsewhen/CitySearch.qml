@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 
@@ -20,7 +21,7 @@ Column {
   property string placeholderText: "Search cities\u2026"
   property string loadingText: "Loading zones\u2026"
   property real fontSize: Style.font.bodySmall
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property color dim: Qt.darker(foreground, 1.55)
   property color fainter: Qt.darker(foreground, 2.1)
   property string fontFamily: Style.font.family

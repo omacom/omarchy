@@ -20,6 +20,15 @@ export OMARCHY_WINDOWS_DIR="$TMPDIR/win"
 export HOME="$TMPDIR/home"
 mkdir -p "$HOME"
 
+# The command refuses any CPU but x86_64 before defining anything, and sourcing
+# it there would exit this test with it. What is under test is the x86_64 path,
+# so omarchy-hw-x86 answers as one.
+STUB_BIN="$TMPDIR/bin"
+mkdir -p "$STUB_BIN"
+printf '#!/bin/bash\nexit 0\n' >"$STUB_BIN/omarchy-hw-x86"
+chmod +x "$STUB_BIN/omarchy-hw-x86"
+PATH="$STUB_BIN:$PATH"
+
 set -- help
 source "$ROOT/bin/omarchy-windows-vm" >/dev/null 2>&1
 COMPOSE="$OMARCHY_WINDOWS_DIR/docker-compose.yml"

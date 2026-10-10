@@ -807,6 +807,11 @@ install_omarchy_quattro_packages() {
   if [[ -f /usr/share/omarchy/install/omarchy-base.packages ]]; then
     log "Installing Omarchy quattro default package set"
     mapfile -t base_packages < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' /usr/share/omarchy/install/omarchy-base.packages)
+    # Some base packages have no aarch64 build.
+    if [[ $(uname -m) != "x86_64" && -f /usr/share/omarchy/install/omarchy-x86_64-only.packages ]]; then
+      mapfile -t base_packages < <(printf '%s\n' "${base_packages[@]}" |
+        grep -vxF -f <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' /usr/share/omarchy/install/omarchy-x86_64-only.packages))
+    fi
     if (( ${#base_packages[@]} )); then
       as_root pacman -S --needed --noconfirm --ask 4 --overwrite='*' "${base_packages[@]}"
       mark_packages_explicit "${base_packages[@]}"
