@@ -4,7 +4,7 @@
   "name": "Display",
   "version": "1.0.0",
   "author": "Omarchy",
-  "description": "Brightness slider and laptop display controls",
+  "description": "Brightness, display layout, orientation, refresh rate and workspace controls",
   "kinds": [
     "bar-widget"
   ],
@@ -13,7 +13,7 @@
   },
   "barWidget": {
     "displayName": "Display",
-    "description": "Brightness slider and laptop display controls",
+    "description": "Brightness, display layout, orientation, refresh rate and workspace controls",
     "category": "System",
     "allowMultiple": false
   }

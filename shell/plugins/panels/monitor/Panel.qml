@@ -27,6 +27,16 @@ Panel {
   property string monitorScale: ""
   property var displays: []
   property int enabledDisplayCount: 0
+  function openSettings() {
+    if (settingsProc.running) return
+    settingsProc.command = ["omarchy-shell", "shell", "summon", "omarchy.display-settings", JSON.stringify({ page: "layout", screen: root.focusedMonitor })]
+    settingsProc.running = true
+  }
+
+  Process {
+    id: settingsProc
+    onExited: function(code) { if (code === 0) root.close() }
+  }
 
   // Carry sub-notch touchpad deltas between wheel events.
   property real wheelAccumulator: 0
@@ -74,7 +84,7 @@ Panel {
   }
 
   readonly property var visibleSections: {
-    var list = []
+    var list = ["settings"]
     if (brightnessAvailable) list.push("brightness")
     list.push("textsize")
     list.push("scale")
@@ -83,6 +93,7 @@ Panel {
   }
 
   function sectionCount(section) {
+    if (section === "settings") return 1
     if (section === "brightness") return 0  // only the slider sentinel at -1
     if (section === "textsize") return 0    // slider sentinel at -1, like brightness
     if (section === "scale") return scaleValues.length
@@ -148,6 +159,10 @@ Panel {
   }
 
   function activateCursor() {
+    if (focusSection === "settings") {
+      openSettings()
+      return
+    }
     if (focusSection === "scale" && selectedIndex >= 0 && selectedIndex < scaleValues.length) {
       setScale(scaleValues[selectedIndex])
       return
@@ -531,10 +546,10 @@ Panel {
           width: scrollArea.availableWidth
           spacing: Style.space(14)
 
-          // ---------- Hero: display icon · title/status ----------
+          // ---------- Hero: display icon · title/status · settings ----------
           Item {
             width: parent.width
-            implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight)
+            implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, advancedButton.implicitHeight)
 
             Text {
               id: heroIcon
@@ -547,11 +562,38 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
             }
 
+            Button {
+              id: advancedButton
+              objectName: "display-advanced-button"
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              iconText: "󰒓"
+              tooltipText: "Advanced settings"
+              Accessible.name: tooltipText
+              Accessible.role: Accessible.Button
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+              iconSize: Style.font.subtitle * 1.5
+              horizontalPadding: Style.space(5)
+              verticalPadding: Style.space(2)
+              hasCursor: root.cursorActive && root.focusSection === "settings"
+              onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(this)
+              onHovered: function(hovered) {
+                if (hovered && !root.reflowingText) {
+                  root.cursorActive = true
+                  root.focusSection = "settings"
+                  root.selectedIndex = 0
+                }
+              }
+              onClicked: root.openSettings()
+            }
+
             Column {
               id: heroLabels
               anchors.left: heroIcon.right
               anchors.leftMargin: Style.space(14)
-              anchors.right: parent.right
+              anchors.right: advancedButton.left
+              anchors.rightMargin: Style.space(12)
               anchors.verticalCenter: parent.verticalCenter
               spacing: Style.space(2)
 
