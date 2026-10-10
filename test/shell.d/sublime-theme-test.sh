@@ -67,6 +67,17 @@ rm "$home/.local/state/omarchy/toggles/skip-sublime-theme-changes"
 
 pass "Sublime theme sync honors skip-sublime-theme-changes"
 
+skip_home="$test_tmp/skip"
+mkdir -p "$skip_home/.local/state/omarchy/toggles" "$skip_home/.local/state/omarchy/current/theme"
+touch "$skip_home/.local/state/omarchy/toggles/skip-sublime-theme-changes"
+printf '{"name":"skip"}\n' >"$skip_home/.local/state/omarchy/current/theme/Omarchy.sublime-color-scheme"
+HOME="$skip_home" OMARCHY_PATH="$ROOT" PATH="$mock_bin:$ROOT/bin:$PATH" \
+  bash "$ROOT/bin/omarchy-install-editor-sublime" || fail "Sublime installs with theme changes skipped"
+[[ -f $skip_home/.config/sublime-text/Packages/User/Omarchy.sublime-color-scheme ]] ||
+  fail "install with skip-sublime-theme-changes still provides the selected scheme"
+
+pass "Sublime install provides its scheme even when theme changes are skipped"
+
 fresh_home="$test_tmp/fresh"
 mkdir -p "$fresh_home/.local/state/omarchy/current/theme"
 printf '{"name":"fresh"}\n' >"$fresh_home/.local/state/omarchy/current/theme/Omarchy.sublime-color-scheme"
