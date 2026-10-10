@@ -1414,10 +1414,6 @@ apply_system_transition() {
   # root-equivalent, so it is opt-in now (Setup > Security > Sudoless Docker);
   # re-granting it on upgrade would silently undo that default for everyone.
 
-  if [[ -f /usr/bin/powerprofilesctl ]]; then
-    as_root sed -i '/env python3/ c\#!/bin/python3' /usr/bin/powerprofilesctl || true
-  fi
-
   as_root install -d -m 0755 /etc/systemd/resolved.conf.d /etc/docker
   cat <<'EOF' | as_root tee /etc/systemd/resolved.conf.d/10-disable-multicast.conf >/dev/null
 [Resolve]

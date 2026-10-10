@@ -99,6 +99,7 @@ omacalc
 omacut
 omawrite
 omarchy-nvim
+omarchy-power-profiles-daemon
 omasnap
 # OWE owns desktop video backgrounds and feeds the lock screen its frames.
 owe
@@ -109,7 +110,6 @@ pinta
 plocate
 plymouth
 postgresql-libs
-power-profiles-daemon
 python-gobject
 python-poetry-core
 qt6-base
