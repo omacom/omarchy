@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command mise
 require_command python3
+mise_bin_dir=$(dirname "$(command -v mise)")
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -52,7 +53,7 @@ run_isolated() {
   env -i HOME="$account_test_home" \
     XDG_CONFIG_HOME="$test_tmp/config" XDG_DATA_HOME="$test_tmp/data" XDG_CACHE_HOME="$test_tmp/cache" \
     MISE_DATA_DIR="$mise_data" MISE_SYSTEM_CONFIG_DIR="$ROOT/etc/mise" MISE_OFFLINE=1 \
-    OMARCHY_PATH="$ROOT" PATH="$mise_data/command-wrappers/bin:$ROOT/bin:$real_bin:/usr/bin" \
+    OMARCHY_PATH="$ROOT" PATH="$mise_data/command-wrappers/bin:$ROOT/bin:$real_bin:$mise_bin_dir:/usr/bin" \
     "$@"
 }
 
@@ -150,7 +151,7 @@ run_isolated mise trust "$test_tmp/config/mise/config.toml" >/dev/null 2>&1
 # Existing tool shims used by SSH already dispatch wrappers, including with a
 # relocated mise data directory. No additional stock-only PAM path is needed.
 run_isolated mise reshim
-output=$(run_isolated env PATH="$mise_data/shims:$ROOT/bin:/usr/bin" claude)
+output=$(run_isolated env PATH="$mise_data/shims:$ROOT/bin:$mise_bin_dir:/usr/bin" claude)
 [[ $output == "$test_tmp/accounts/claude side" ]] || fail "SSH-style mise tool shims route through account dispatch in a custom data directory" "$output"
 pass "SSH-style mise tool shims route through account dispatch in a custom data directory"
 

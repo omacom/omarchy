@@ -13,6 +13,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 mock_bin="$test_tmp/bin"
 notifications="$test_tmp/notifications"
 mkdir -p "$mock_bin" "$test_tmp/home/.claude" "$test_tmp/home/.codex"
+mkdir -p "$test_tmp/runtime"
 
 cat >"$mock_bin/omarchy-notification-send" <<'SH'
 #!/bin/bash
@@ -91,6 +92,7 @@ chmod +x "$mock_bin"/*
 
 export HOME="$test_tmp/home"
 export XDG_STATE_HOME="$test_tmp/state"
+export XDG_RUNTIME_DIR="$test_tmp/runtime"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_NOTIFICATIONS="$notifications"
@@ -217,10 +219,17 @@ pass "use makes an account active and says so"
 [[ $(omarchy-agent-account-exec codex) == "codex home=default args=" ]] || fail "codex stays on its primary until switched"
 pass "account dispatch follows the active account"
 
-[[ $(OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=$work args=--permission-mode auto" ]] ||
+# The GUI command goes through mise's dispatcher on a real install. Model that
+# boundary here while retaining the real CLI fixtures for login tests.
+mkdir -p "$test_tmp/dispatch"
+for provider in claude codex; do
+  printf '#!/bin/bash\nPATH=%q exec omarchy-agent-account-exec %q "$@"\n' "$PATH" "$provider" >"$test_tmp/dispatch/$provider"
+  chmod +x "$test_tmp/dispatch/$provider"
+done
+[[ $(PATH="$test_tmp/dispatch:$PATH" OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent --inline) == "claude home=$work args=--permission-mode auto" ]] ||
   fail "omarchy-agent starts Claude as the active account"
 omarchy-agent-account-use codex side >/dev/null
-[[ $(OMARCHY_TEST_DEFAULT_AGENT=codex omarchy-agent --inline) == "codex home=$accounts/codex/side args=--approve-for-me" ]] ||
+[[ $(PATH="$test_tmp/dispatch:$PATH" OMARCHY_TEST_DEFAULT_AGENT=codex omarchy-agent --inline) == "codex home=$accounts/codex/side args=--approve-for-me" ]] ||
   fail "omarchy-agent starts Codex as the active account"
 pass "omarchy-agent follows the active account"
 
@@ -320,6 +329,34 @@ shutil.rmtree(pending)
 PY
 pass "a failed registration rolls the new home back to pending"
 
+# Exercise the add command's EXIT trap after the real register rollback.
+cat >"$mock_bin/omarchy-agent-account-state" <<'SH'
+#!/bin/bash
+if [[ $1 != "register" ]]; then
+  exec "$ROOT/bin/omarchy-agent-account-state" "$@"
+fi
+STATE="$ROOT/bin/omarchy-agent-account-state" python3 - "$@" <<'PY'
+import importlib.machinery, importlib.util, os, sys
+loader = importlib.machinery.SourceFileLoader("state", os.environ["STATE"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+state = importlib.util.module_from_spec(spec)
+loader.exec_module(state)
+def broken_save(provider, registry):
+  raise OSError("fixture registry save failure")
+state.save = broken_save
+raise SystemExit(state.main(sys.argv[1:]))
+PY
+SH
+chmod +x "$mock_bin/omarchy-agent-account-state"
+if OMARCHY_TEST_LOGIN_UUID=u-cli-rollback OMARCHY_TEST_LOGIN_EMAIL=rollback@example.com \
+  omarchy-agent-account-add claude Rollback </dev/null >"$test_tmp/rollback-output" 2>&1; then
+  fail "a failed registry write fails the add command"
+fi
+[[ -z $(find "$accounts/claude/.pending" -mindepth 1 -maxdepth 1 -print) ]] ||
+  fail "the add command removes the rolled-back pending login"
+rm "$mock_bin/omarchy-agent-account-state"
+pass "the add command cleans a failed registration without leaving sign-in files"
+
 # ------------------------------------------------------------ panel add flow
 
 [[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional' ]] ||
@@ -415,3 +452,349 @@ omarchy-agent-account-state refresh claude
 [[ $(jq -r '.accounts[] | select(.id == "events") | .email' "$accounts/claude.json") == "switched@example.com" ]] ||
   fail "refresh saves who each home is signed in as now"
 pass "refresh saves who each home is signed in as now"
+
+# Exercise real flock/pidfd lifetime boundaries with pipe barriers. No sleeps
+# decide when a session has started, and no fixture reads real credentials.
+python3 - "$ROOT" "$test_tmp" <<'PY'
+import importlib.machinery
+import importlib.util
+import json
+import os
+from pathlib import Path
+import pty
+import select
+import signal
+import subprocess
+import sys
+
+root, temporary = map(Path, sys.argv[1:])
+script = root / "bin/omarchy-agent-account-state"
+area = temporary / "session-boundaries"
+area.mkdir()
+environment = dict(os.environ, HOME=str(area), XDG_STATE_HOME=str(area / "state"))
+for variable in ("CLAUDE_CONFIG_DIR", "OMARCHY_AGENT_CLAUDE_HOME"):
+  environment.pop(variable, None)
+os.environ.update(environment)
+loader = importlib.machinery.SourceFileLoader("account_state", str(script))
+spec = importlib.util.spec_from_loader(loader.name, loader)
+state = importlib.util.module_from_spec(spec)
+loader.exec_module(state)
+home = state.accounts_root() / "claude/side"
+registry_file = state.registry_path("claude")
+processes = []
+
+def reset():
+  home.mkdir(parents=True, exist_ok=True, mode=0o700)
+  (home / "credentials").write_text("private fixture")
+  state.save("claude", {"active": "side", "accounts": [{"id": "main", "label": "Main", "primary": True}, {"id": "side", "label": "Side", "home": str(home)}]})
+
+def run(*arguments, **options):
+  return subprocess.run([str(script), *arguments], env=environment, text=True, capture_output=True, timeout=5, **options)
+
+def barrier_read(descriptor):
+  assert select.select([descriptor], [], [], 5)[0], "session barrier timed out"
+  return os.read(descriptor, 4096)
+
+def launch(paused=False, terminal=False, setup_failure=False, closed_stdio=False):
+  ready_read, ready_write = os.pipe()
+  release_read, release_write = os.pipe()
+  selected_read, selected_write = os.pipe()
+  proceed_read, proceed_write = os.pipe()
+  program = '''import os,signal,sys
+signal.signal(signal.SIGTERM, lambda *_: sys.exit(73))
+signal.signal(signal.SIGINT, lambda *_: sys.exit(74))
+signal.signal(signal.SIGHUP, lambda *_: sys.exit(75))
+os.write(int(sys.argv[1]), (str(os.getpid()) + ":" + str(all(os.isatty(fd) for fd in (0,1,2)))).encode())
+os.read(int(sys.argv[2]), 1)
+'''
+  if closed_stdio:
+    # Re-exec without the provider env so /proc cannot conceal a lost claim.
+    # The same PID must remain protected through both real exec transitions.
+    program = "import os,sys; environment=dict(os.environ); environment.pop('CLAUDE_CONFIG_DIR',None); environment.pop('OMARCHY_AGENT_CLAUDE_HOME',None); os.execve(sys.executable,[sys.executable,'-c'," + repr(program) + ",sys.argv[1],sys.argv[2]],environment)"
+  launcher = '''import importlib.machinery,importlib.util,os,sys
+loader=importlib.machinery.SourceFileLoader("state",sys.argv[1])
+spec=importlib.util.spec_from_loader(loader.name,loader)
+state=importlib.util.module_from_spec(spec);loader.exec_module(state)
+if sys.argv[2] == "closed":
+  for descriptor in (0,1,2): os.close(descriptor)
+if sys.argv[2] == "failure":
+  def fail(): raise OSError("injected guardian setup failure")
+  state.os.setsid=fail
+elif sys.argv[2] == "paused":
+  original=state.guard_session
+  def guard(claim):
+    os.write(int(sys.argv[3]),b"claimed")
+    os.read(int(sys.argv[4]),1)
+    original(claim)
+  state.guard_session=guard
+state.exec_account("claude",sys.argv[5:])
+'''
+  arguments = [sys.executable, "-c", launcher, str(script), "failure" if setup_failure else "paused" if paused else "closed" if closed_stdio else "normal", str(selected_write), str(proceed_read), sys.executable, "-c", program, str(ready_write), str(release_read)]
+  master, slave = pty.openpty() if terminal else (None, None)
+  process = subprocess.Popen(arguments, env=environment, pass_fds=(ready_write, release_read, selected_write, proceed_read), stdin=slave or subprocess.DEVNULL, stdout=slave or subprocess.PIPE, stderr=slave or subprocess.PIPE)
+  processes.append(process)
+  if slave is not None: os.close(slave)
+  for descriptor in (ready_write, release_read, selected_write, proceed_read): os.close(descriptor)
+  return process, ready_read, release_write, selected_read, proceed_write, master
+
+def finish(session, requested_signal=None):
+  process, ready, release, selected, proceed, master = session
+  if requested_signal:
+    process.send_signal(requested_signal)
+  else:
+    os.write(release, b"1")
+  process.wait(timeout=5)
+  for descriptor in (ready, release, selected, proceed, master):
+    if descriptor is not None: os.close(descriptor)
+  # Wait on the stable inode itself, rather than racing guardian scheduling.
+  claim = state.session_claim("claude", home)
+  try:
+    import fcntl
+    fcntl.flock(claim, fcntl.LOCK_EX)
+  finally:
+    os.close(claim)
+
+try:
+  reset()
+  claim = state.session_claim("claude", home)
+  claim_inode = os.fstat(claim).st_ino
+  claim_directory = state.state_root() / "session-claims/claude"
+  claim_file = next(claim_directory.iterdir())
+  assert claim_file.stat().st_mode & 0o777 == 0o600
+  for directory in (state.state_root(), claim_directory.parent, claim_directory):
+    assert directory.stat().st_mode & 0o777 == 0o700 and directory.stat().st_uid == os.getuid()
+  alias = area / "home-alias"
+  alias.symlink_to(home, target_is_directory=True)
+  try:
+    state.session_claim("claude", alias, exclusive=True)
+    raise AssertionError("canonical home aliases must use the same inode")
+  except BlockingIOError:
+    pass
+  os.close(claim)
+  outside = area / "outside-file"
+  outside.write_text("untouched")
+  alternate = area / "custom-home"
+  link_name = state.hashlib.sha256(os.fsencode(alternate.resolve())).hexdigest() + ".lock"
+  (claim_directory / link_name).symlink_to(outside)
+  try:
+    state.session_claim("claude", alternate)
+    raise AssertionError("claim symlinks must be rejected")
+  except OSError:
+    pass
+  assert outside.read_text() == "untouched"
+  print("ok - canonical claims share stable private inodes and reject symlink substitution")
+  first = launch(paused=True)
+  assert barrier_read(first[3]) == b"claimed"
+  removal = subprocess.Popen([str(script), "remove", "claude", "side"], env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  processes.append(removal)
+  try:
+    removal.wait(timeout=0.1)
+    raise AssertionError("removal passed the launcher-held registry lock")
+  except subprocess.TimeoutExpired:
+    pass
+  os.write(first[4], b"1")
+  assert barrier_read(first[1]).decode().split(":")[0] == str(first[0].pid), "exec preserves the launcher PID"
+  _, error = removal.communicate(timeout=5)
+  assert removal.returncode == 1 and b"Quit it first" in error and home.is_dir()
+  assert run("use", "claude", "main").returncode == 0, "registry edits remain responsive during a session"
+  assert run("rename", "claude", "side", "Renamed").returncode == 0
+  assert run("remove", "claude", "renamed").returncode == 1, "renaming does not change home claim identity"
+  finish(first)
+  assert run("remove", "claude", "renamed").returncode == 0
+  assert claim_file.is_file() and claim_file.stat().st_ino == claim_inode, "removal must not unlink the stable claim inode"
+  print("ok - claim and readiness close the startup/removal gap while registry edits and renames remain responsive")
+
+  # A terminal broker can wait arbitrarily long before it dispatches the CLI.
+  # Carry only explicit overrides/unsets, never an unclaimed registry home.
+  broker = area / "broker-bin"
+  broker.mkdir()
+  (broker / "omarchy-default-agent").write_text("#!/bin/bash\necho claude\n")
+  (broker / "omarchy-cmd-missing").write_text("#!/bin/bash\nexit 1\n")
+  (broker / "omarchy-launch-tui").write_text('''#!/bin/bash
+printf '%s\\n' "$@" >"$BROKER_ARGUMENTS"
+printf 'waiting' >&$BROKER_READY
+read -r -n 1 <&$BROKER_PROCEED
+shift
+exec "$@"
+''')
+  (broker / "claude").write_text('''#!/bin/bash
+exec omarchy-agent-account-state exec claude python3 -c 'import os,sys;os.write(int(os.environ["CLI_READY"]),os.environ.get("CLAUDE_CONFIG_DIR", "default").encode());os.read(int(os.environ["CLI_RELEASE"]),1)'
+''')
+  for path in broker.iterdir(): path.chmod(0o755)
+  for explicit in (False, True, "revoked"):
+    reset()
+    if explicit == "revoked":
+      assert run("remove", "claude", "side").returncode == 0
+    ready_read, ready_write = os.pipe()
+    proceed_read, proceed_write = os.pipe()
+    cli_read, cli_write = os.pipe()
+    release_read, release_write = os.pipe()
+    gui_env = dict(environment, PATH=f"{broker}:{root / 'bin'}:/usr/bin", BROKER_ARGUMENTS=str(area / "broker-arguments"), BROKER_READY=str(ready_write), BROKER_PROCEED=str(proceed_read), CLI_READY=str(cli_write), CLI_RELEASE=str(release_read))
+    if explicit: gui_env["CLAUDE_CONFIG_DIR"] = str(home)
+    gui = subprocess.Popen([str(root / "bin/omarchy-agent")], env=gui_env, pass_fds=(ready_write, proceed_read, cli_write, release_read), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    processes.append(gui)
+    for descriptor in (ready_write, proceed_read, cli_write, release_read): os.close(descriptor)
+    assert barrier_read(ready_read) == b"waiting"
+    if not explicit:
+      assert str(home) not in (area / "broker-arguments").read_text(), "GUI broker must not embed an unclaimed selected home"
+    if explicit is True:
+      assert run("remove", "claude", "side").returncode == 1, "the legacy process guard also protects a broker's explicit override"
+    elif not explicit:
+      assert run("remove", "claude", "side").returncode == 0
+    other = home.parent / "other"
+    other.mkdir(exist_ok=True, mode=0o700)
+    accounts = [{"id": "main", "label": "Main", "primary": True}, {"id": "other", "label": "Other", "home": str(other)}]
+    if explicit is True:
+      accounts.append({"id": "side", "label": "Side", "home": str(home)})
+    state.save("claude", {"active": "other", "accounts": accounts})
+    os.write(proceed_write, b"1")
+    if explicit == "revoked":
+      gui.communicate(timeout=5)
+      assert gui.returncode == 1 and barrier_read(cli_read) == b"" and not home.exists(), "a revoked explicit GUI home must fail"
+    else:
+      selected = home if explicit else other
+      assert barrier_read(cli_read) == os.fsencode(selected), "terminal startup follows current selection or a deliberate explicit override"
+      assert run("remove", "claude", "side" if explicit else "other").returncode == 1
+      os.write(release_write, b"1")
+      gui.communicate(timeout=5)
+      assert gui.returncode == 0
+      claim = state.session_claim("claude", selected)
+      import fcntl
+      fcntl.flock(claim, fcntl.LOCK_EX)
+      os.close(claim)
+    for descriptor in (ready_read, proceed_write, cli_read, release_write): os.close(descriptor)
+  print("ok - a paused GUI broker resolves current selection at CLI startup and rejects revoked explicit managed homes")
+
+  reset()
+  interrupted = launch(paused=True)
+  assert barrier_read(interrupted[3]) == b"claimed"
+  interrupted[0].terminate()
+  interrupted[0].wait(timeout=5)
+  for descriptor in interrupted[1:5]: os.close(descriptor)
+  assert run("remove", "claude", "side").returncode == 0
+  print("ok - interruption before guardian startup releases the claim without launching the CLI")
+
+  reset()
+  closed = launch(closed_stdio=True)
+  assert barrier_read(closed[1]) == f"{closed[0].pid}:False".encode()
+  assert not state.home_in_use("claude", home), "legacy environment scanning must not mask the closed-stdio regression"
+  try:
+    state.session_claim("claude", home, exclusive=True)
+    raise AssertionError("closed stdio must not overwrite the guardian's claim or pidfd")
+  except BlockingIOError:
+    pass
+  assert run("remove", "claude", "side").returncode == 1 and home.is_dir()
+  finish(closed)
+  assert run("remove", "claude", "side").returncode == 0
+  print("ok - closed stdio preserves the guardian claim across same-PID exec without legacy environment protection")
+
+  external_alias = state.accounts_root() / "../custom"
+  external_alias.resolve().mkdir(mode=0o700)
+  for variable in ("CLAUDE_CONFIG_DIR", "OMARCHY_AGENT_CLAUDE_HOME"):
+    custom_env = dict(environment, **{variable: str(external_alias)})
+    result = subprocess.run([str(script), "exec", "claude", sys.executable, "-c", "import os; print(os.environ['CLAUDE_CONFIG_DIR']); print(os.environ['OMARCHY_AGENT_CLAUDE_HOME'])"], env=custom_env, capture_output=True, text=True, timeout=5)
+    assert result.returncode == 0 and result.stdout.splitlines() == [str(external_alias), str(external_alias)], "legitimate external .. aliases retain explicit and inherited home semantics"
+  print("ok - external custom home aliases with dot-dot remain valid through explicit and inherited selection")
+
+  reset()
+  for command in (["/usr/bin/yes"], [str(script), "exec", "claude", "/usr/bin/yes"]):
+    native = subprocess.Popen(command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    processes.append(native)
+    native.stdout.close()
+    native.wait(timeout=5)
+    assert native.returncode == -signal.SIGPIPE, "dispatch must preserve native broken-pipe termination"
+    assert native.stderr.read() == b"", "native SIGPIPE must not become a printed Broken pipe error"
+    native.stderr.close()
+  claim = state.session_claim("claude", home)
+  import fcntl
+  fcntl.flock(claim, fcntl.LOCK_EX)
+  os.close(claim)
+  print("ok - native closed-reader SIGPIPE termination matches direct exec and releases the claim")
+
+  reset()
+  failure = launch(setup_failure=True)
+  failure[0].wait(timeout=5)
+  assert failure[0].returncode != 0 and barrier_read(failure[1]) == b"", "guardian setup failure never launches the CLI"
+  for descriptor in failure[1:5]: os.close(descriptor)
+  assert run("remove", "claude", "side").returncode == 0
+  reset()
+  failed_exec = run("exec", "claude", "/nonexistent/agent")
+  assert failed_exec.returncode != 0
+  claim = state.session_claim("claude", home)
+  import fcntl
+  fcntl.flock(claim, fcntl.LOCK_EX)
+  os.close(claim)
+  assert run("remove", "claude", "side").returncode == 0
+  print("ok - guardian setup and exec failures release the claim without starting an unprotected session")
+
+  for sent, expected in ((signal.SIGTERM, 73), (signal.SIGINT, 74), (signal.SIGHUP, 75)):
+    reset()
+    session = launch(terminal=True)
+    assert barrier_read(session[1]) == f"{session[0].pid}:True".encode(), "stdin/stdout/stderr remain the caller's TTY"
+    assert run("remove", "claude", "side").returncode == 1
+    finish(session, sent)
+    assert session[0].returncode == expected, "signals reach the actual CLI at the original PID"
+    assert run("remove", "claude", "side").returncode == 0
+  print("ok - terminal descriptors, launcher PID, signals and exit statuses survive the guardian")
+
+  reset()
+  sessions = [launch(), launch()]
+  for session in sessions: barrier_read(session[1])
+  assert run("remove", "claude", "side").returncode == 1
+  # Don't ask finish to acquire EX while the other session is still alive.
+  os.write(sessions[0][2], b"1")
+  sessions[0][0].wait(timeout=5)
+  assert run("remove", "claude", "side").returncode == 1
+  finish(sessions[1])
+  for descriptor in sessions[0][1:5]: os.close(descriptor)
+  assert run("remove", "claude", "side").returncode == 0
+  for variable in ("CLAUDE_CONFIG_DIR", "OMARCHY_AGENT_CLAUDE_HOME"):
+    revoked = dict(environment, **{variable: str(home)})
+    result = subprocess.run([str(script), "exec", "claude", "/bin/true"], env=revoked, capture_output=True, timeout=5)
+    assert result.returncode == 1 and not home.exists(), "revoked managed homes cannot be recreated by stale pins"
+  print("ok - every concurrent session protects its home and stale explicit or inherited homes fail after removal")
+
+  reset()
+  original_save, original_rename, original_cleanup = state.save, Path.rename, state.shutil.rmtree
+  before = registry_file.read_bytes()
+  def fail_save(*_): raise OSError("injected registry save failure")
+  state.save = fail_save
+  try:
+    state.remove("claude", "side")
+    raise AssertionError("save failure must be reported")
+  except OSError:
+    pass
+  finally:
+    state.save = original_save
+  assert home.is_dir() and (home / "credentials").read_text() == "private fixture" and registry_file.read_bytes() == before
+  def fail_rename(path, target):
+    if path == home: raise OSError("injected rename failure")
+    return original_rename(path, target)
+  Path.rename = fail_rename
+  try:
+    state.remove("claude", "side")
+    raise AssertionError("rename failure must be reported")
+  except OSError:
+    pass
+  finally:
+    Path.rename = original_rename
+  assert home.is_dir() and registry_file.read_bytes() == before
+  def fail_cleanup(*_): raise OSError("injected cleanup failure")
+  state.shutil.rmtree = fail_cleanup
+  try:
+    state.remove("claude", "side")
+    raise AssertionError("cleanup failure must be reported")
+  except state.AccountError as error:
+    assert "private files remain" in str(error)
+  finally:
+    state.shutil.rmtree = original_cleanup
+  retained = list(home.parent.glob(".removed-side-*"))
+  assert len(retained) == 1 and (retained[0] / "credentials").read_text() == "private fixture"
+  assert not state.find(state.load("claude"), "side")
+  print("ok - removal restores credentials on save failure and reports rename or retained-file cleanup failures")
+finally:
+  for process in processes:
+    if process.poll() is None:
+      process.kill()
+      process.wait(timeout=5)
+PY

@@ -738,6 +738,9 @@ pass "selecting a user-installed Muse preserves its launcher"
 rm "$mock_bin/omarchy-agent"
 hash -r
 
+# GUI dispatch expectations start without a real caller's provider overrides.
+unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_GROK_HOME
+
 assert_launched() {
   local agent=$1
   local description=$2
@@ -781,11 +784,11 @@ assert_launch pi pi "Review this project"
 assert_launch omp omp --auto-approve -- "Review this project"
 assert_launch opencode opencode --auto --prompt "Review this project"
 assert_launch ori ori code --interactive --prompt "Review this project"
-assert_launch claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto -- "Review this project"
-assert_launch codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me -- "Review this project"
+assert_launch claude env -u CLAUDE_CONFIG_DIR -u OMARCHY_AGENT_CLAUDE_HOME claude --permission-mode auto -- "Review this project"
+assert_launch codex env -u CODEX_HOME -u OMARCHY_AGENT_CODEX_HOME codex --approve-for-me -- "Review this project"
 assert_launch muse muse --approval-mode never -- "Review this project"
 assert_launch crush crush run "Review this project"
-assert_launch grok env -u GROK_HOME OMARCHY_AGENT_GROK_HOME= grok --permission-mode bypassPermissions -- "Review this project"
+assert_launch grok env -u GROK_HOME -u OMARCHY_AGENT_GROK_HOME grok --permission-mode bypassPermissions -- "Review this project"
 assert_launch cursor-agent cursor-agent --yolo --trust agent -- "Review this project"
 assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=Review this project"
 assert_launch agy agy --dangerously-skip-permissions --prompt-interactive "Review this project"
@@ -809,16 +812,63 @@ assert_bypass pi pi
 assert_bypass omp omp --auto-approve
 assert_bypass opencode opencode --auto
 assert_bypass ori ori code
-assert_bypass claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto
-assert_bypass codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me
+assert_bypass claude env -u CLAUDE_CONFIG_DIR -u OMARCHY_AGENT_CLAUDE_HOME claude --permission-mode auto
+assert_bypass codex env -u CODEX_HOME -u OMARCHY_AGENT_CODEX_HOME codex --approve-for-me
 assert_bypass muse muse --approval-mode never
 assert_bypass crush crush --yolo
-assert_bypass grok env -u GROK_HOME OMARCHY_AGENT_GROK_HOME= grok --permission-mode bypassPermissions
+assert_bypass grok env -u GROK_HOME -u OMARCHY_AGENT_GROK_HOME grok --permission-mode bypassPermissions
 assert_bypass cursor-agent cursor-agent --yolo --trust
 assert_bypass hermes hermes --yolo
 assert_bypass agy agy --dangerously-skip-permissions
 assert_bypass copilot copilot --allow-all
 pass "agent launcher skips permission prompts for every supported agent"
+
+# The terminal broker must receive unsets, even with an active registry home:
+# selecting and protecting that home belongs to account dispatch inside it.
+managed_home="$test_tmp/managed-claude"
+export XDG_STATE_HOME="$test_tmp/agent-state"
+mkdir -p "$XDG_STATE_HOME/omarchy/agents/accounts" "$managed_home"
+printf '{"active":"work","accounts":[{"id":"main","primary":true},{"id":"work","home":"%s"}]}\n' \
+  "$managed_home" >"$XDG_STATE_HOME/omarchy/agents/accounts/claude.json"
+printf '%s\n' claude >"$agent_file"
+omarchy-agent
+assert_launched claude "defers registry selection until terminal dispatch" \
+  env -u CLAUDE_CONFIG_DIR -u OMARCHY_AGENT_CLAUDE_HOME claude --permission-mode auto
+pass "GUI launches do not embed an unclaimed active registry home"
+
+CLAUDE_CONFIG_DIR="$managed_home" OMARCHY_AGENT_CLAUDE_HOME="$managed_home" omarchy-agent
+assert_launched claude "clears an inherited same-provider home and pin" \
+  env -u CLAUDE_CONFIG_DIR -u OMARCHY_AGENT_CLAUDE_HOME claude --permission-mode auto
+OMARCHY_AGENT_CLAUDE_HOME= omarchy-agent
+assert_launched claude "clears an inherited implicit Main pin" \
+  env -u CLAUDE_CONFIG_DIR -u OMARCHY_AGENT_CLAUDE_HOME claude --permission-mode auto
+pass "new GUI sessions clear inherited account pins before terminal dispatch"
+
+explicit_home="$test_tmp/explicit Claude home"
+CLAUDE_CONFIG_DIR="$explicit_home" OMARCHY_AGENT_CLAUDE_HOME="$managed_home" omarchy-agent
+assert_launched claude "preserves a deliberate provider home override" \
+  env -u CLAUDE_CONFIG_DIR -u OMARCHY_AGENT_CLAUDE_HOME "CLAUDE_CONFIG_DIR=$explicit_home" claude --permission-mode auto
+pass "GUI launches carry explicit provider home overrides through the terminal broker"
+
+inline_environment_log="$test_tmp/inline-environment"
+export OMARCHY_TEST_AGENT_INLINE_ENV_LOG="$inline_environment_log"
+cat >"$mock_bin/claude" <<'SH'
+#!/bin/bash
+printf '%s\0' claude "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
+printf '%s\0' "${CLAUDE_CONFIG_DIR-unset}" "${OMARCHY_AGENT_CLAUDE_HOME-unset}" >"$OMARCHY_TEST_AGENT_INLINE_ENV_LOG"
+SH
+chmod +x "$mock_bin/claude"
+CLAUDE_CONFIG_DIR="$managed_home" OMARCHY_AGENT_CLAUDE_HOME="$managed_home" omarchy-agent --inline
+mapfile -d '' -t inline_environment <"$inline_environment_log"
+mapfile -d '' -t inline_args <"$inline_log"
+[[ ${inline_environment[*]} == "unset unset" && ${inline_args[*]} == "claude --permission-mode auto" ]] ||
+  fail "inline new sessions clear inherited homes while preserving the selected CLI and argv"
+CLAUDE_CONFIG_DIR="$explicit_home" OMARCHY_AGENT_CLAUDE_HOME="$managed_home" omarchy-agent --inline
+mapfile -d '' -t inline_environment <"$inline_environment_log"
+mapfile -d '' -t inline_args <"$inline_log"
+[[ ${#inline_environment[@]} == 2 && ${inline_environment[*]} == "$explicit_home unset" && ${inline_args[*]} == "claude --permission-mode auto" ]] ||
+  fail "inline launches preserve explicit homes and clear inherited pins"
+pass "inline launches preserve explicit homes and defer inherited account selection"
 
 printf '%s\n' "opencode" >"$agent_file"
 omarchy-agent

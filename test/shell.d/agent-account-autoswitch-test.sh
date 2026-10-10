@@ -147,6 +147,22 @@ mv "$test_tmp/record.json" "$usage/claude.json"
 [[ -z $(autoswitch) && $(active) == "main" ]] || fail "a signed-out account is never switched to"
 pass "a signed-out account is never switched to"
 
+for reset in "$later" "$gone"; do
+  registry main auto
+  record 0.97 "$soon" 0.10 "$reset"
+  jq '.accounts[1].usageStatusText = "Sign-in expired"' "$usage/claude.json" >"$test_tmp/record.json"
+  mv "$test_tmp/record.json" "$usage/claude.json"
+  [[ -z $(autoswitch) && $(active) == "main" ]] || fail "expired sign-ins never become active from cached limits"
+done
+pass "expired sign-ins never become active before or after a cached reset"
+
+registry main auto
+record 0.97 "$soon" 0.10 "$later"
+jq '.accounts[1].usageStatusText = "Limits paused"' "$usage/claude.json" >"$test_tmp/record.json"
+mv "$test_tmp/record.json" "$usage/claude.json"
+[[ $(autoswitch) == "claude" && $(active) == "work" ]] || fail "a limits-paused account with a usable login stays eligible"
+pass "limits-paused accounts remain eligible"
+
 # With another account unknown, nobody can say every account is over.
 registry main auto
 record 0.97 "$later" 0.98 "$soon"

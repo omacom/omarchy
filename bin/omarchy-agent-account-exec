@@ -21,16 +21,6 @@ shift
 
 # mise removes its wrapper dispatch directories before calling us, so exec
 # finds the real CLI (or its first-run installer) rather than this wrapper.
-# Pin the resolved home for children, including an implicit Main account.
-# Explicit provider homes still take precedence.
-if [[ -z ${!account_env:-} ]]; then
-  account_home=$(omarchy-agent-account-home "$provider")
-  export "OMARCHY_AGENT_${provider^^}_HOME=$account_home"
-  if [[ -n $account_home ]]; then
-    export "$account_env=$account_home"
-  fi
-fi
-
 # Resolve before restoring dispatch on PATH: mise removes the wrapper paths to
 # avoid recursion, but the agent's subprocesses need them for other providers.
 if ! agent_binary=$(type -P "$provider"); then
@@ -40,4 +30,12 @@ if ! agent_binary=$(type -P "$provider"); then
   agent_binary=$(mise which "$provider")
 fi
 export PATH="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/command-wrappers/bin:$PATH"
+account_pin="OMARCHY_AGENT_${provider^^}_HOME"
+registry="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/accounts/$provider.json"
+if [[ -f $registry || -n ${!account_env:-} || -n ${!account_pin:-} ]]; then
+  # Resolve and protect the home together, immediately before the real CLI.
+  exec omarchy-agent-account-state exec "$provider" "$agent_binary" "$@"
+fi
+# No registry and no explicit home: preserve the cheap implicit Main path.
+export "$account_pin="
 exec "$agent_binary" "$@"

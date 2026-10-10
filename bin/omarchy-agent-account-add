@@ -158,7 +158,7 @@ if [[ -n $reauth ]]; then
   else
     say "Sign in again as this account in the private window that opens."
     private_browser
-    interruptible env BROWSER="$browser" "$home_env=$account_home" "${login_command[@]}" || fail "The $name sign-in didn't finish."
+    interruptible env BROWSER="$browser" "$home_env=$account_home" omarchy-agent-account-exec "$provider" "${login_command[@]:1}" || fail "The $name sign-in didn't finish."
   fi
 
   omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
@@ -204,7 +204,7 @@ EOF
   home=$(omarchy-agent-account-state begin "$provider") || fail "Couldn't set up a home for the new account."
 
   private_browser
-  interruptible env BROWSER="$browser" "$home_env=$home" "${login_command[@]}"
+  interruptible env BROWSER="$browser" "$home_env=$home" omarchy-agent-account-exec "$provider" "${login_command[@]:1}"
 
   if account=$(omarchy-agent-account-state register "$provider" "$label" "$home" 2>&1); then
     home=""
@@ -217,7 +217,6 @@ EOF
       echo "Switch to it with: omarchy agent account use $provider $(jq -r .id <<<"$account")"
     fi
   else
-    home=""
     fail "$account"
   fi
 fi

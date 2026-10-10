@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # omarchy:summary=Read and change the registry of Claude, Codex, and Grok subscription accounts
-# omarchy:args=<registry|home|homes|list|refresh|begin|register|use|rename|remove|mode|link|autoswitch> [provider] [args...]
+# omarchy:args=<registry|home|homes|exec|list|refresh|begin|register|use|rename|remove|mode|link|autoswitch> [provider] [args...]
 # omarchy:hidden=true
 """The account registry behind `omarchy agent account`.
 
@@ -22,10 +22,14 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import fcntl
+import hashlib
 import json
 import os
 import re
+import select
+import signal
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -249,8 +253,9 @@ def save(provider: str, registry: dict[str, Any]) -> None:
 # the autoswitch run after each usage update, and a command typed at a prompt
 # can't interleave and drop each other's edits.
 class Locked:
-  def __init__(self, provider: str):
+  def __init__(self, provider: str, *, readonly: bool = False):
     self.provider = provider
+    self.readonly = readonly
 
   def __enter__(self) -> dict[str, Any]:
     accounts_root().mkdir(parents=True, exist_ok=True)
@@ -261,11 +266,158 @@ class Locked:
 
   def __exit__(self, kind, value, traceback) -> None:
     try:
-      if kind is None:
+      if kind is None and not self.readonly:
         save(self.provider, self.registry)
     finally:
       fcntl.flock(self.handle, fcntl.LOCK_UN)
       self.handle.close()
+
+
+# These inodes outlive account directories and renames. Replacing or unlinking
+# one would split the lock between an existing session and a later removal.
+def session_claim(provider: str, home: Path, exclusive: bool = False) -> int:
+  root = state_root()
+  root.mkdir(parents=True, exist_ok=True, mode=0o700)
+  directory = None
+  try:
+    for name in (root, "session-claims", provider):
+      if directory is not None:
+        try:
+          os.mkdir(name, mode=0o700, dir_fd=directory)
+        except FileExistsError:
+          pass
+      descriptor = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory)
+      details = os.fstat(descriptor)
+      if details.st_uid != os.getuid():
+        os.close(descriptor)
+        raise AccountError("The account session claim directory is not owned by this user")
+      os.fchmod(descriptor, 0o700)
+      if directory is not None:
+        os.close(directory)
+      directory = descriptor
+    key = hashlib.sha256(os.fsencode(home.resolve())).hexdigest() + ".lock"
+    descriptor = os.open(key, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=directory)
+    try:
+      details = os.fstat(descriptor)
+      if details.st_uid != os.getuid() or not stat.S_ISREG(details.st_mode) or details.st_nlink != 1:
+        raise AccountError("The account session claim is not a private regular file")
+      os.fchmod(descriptor, 0o600)
+      fcntl.flock(descriptor, (fcntl.LOCK_EX | fcntl.LOCK_NB) if exclusive else fcntl.LOCK_SH)
+      return descriptor
+    except BaseException:
+      os.close(descriptor)
+      raise
+  finally:
+    if directory is not None:
+      os.close(directory)
+
+
+def guard_session(claim: int) -> None:
+  # Open the exact launcher's lifetime before forking. A numeric PID reopened
+  # later could already refer to an unrelated process after the launcher exits.
+  lifetime = os.pidfd_open(os.getpid())
+  ready_read, ready_write = os.pipe2(os.O_CLOEXEC)
+  signals = {signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT}
+  previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, signals)
+  guardian = None
+  try:
+    guardian = os.fork()
+    if guardian == 0:
+      try:
+        os.setsid()
+        # Callers may have closed stdio before dispatch. The lock or pidfd can
+        # then occupy 0/1/2; protect them before redirecting those descriptors.
+        if claim < 3:
+          replacement = fcntl.fcntl(claim, fcntl.F_DUPFD_CLOEXEC, 3)
+          os.close(claim)
+          claim = replacement
+        if lifetime < 3:
+          replacement = fcntl.fcntl(lifetime, fcntl.F_DUPFD_CLOEXEC, 3)
+          os.close(lifetime)
+          lifetime = replacement
+        if ready_write < 3:
+          replacement = fcntl.fcntl(ready_write, fcntl.F_DUPFD_CLOEXEC, 3)
+          os.close(ready_write)
+          ready_write = replacement
+        # In particular, don't retain the registry lock or the terminal's
+        # stdout pipes. The guardian needs only the claim, pidfd and handshake.
+        keep = {claim, lifetime, ready_write}
+        for name in os.listdir("/proc/self/fd"):
+          descriptor = int(name)
+          if descriptor not in keep:
+            try:
+              os.close(descriptor)
+            except OSError:
+              pass
+        null = os.open(os.devnull, os.O_RDWR)
+        for descriptor in (0, 1, 2):
+          os.dup2(null, descriptor)
+        if null > 2:
+          os.close(null)
+        os.write(ready_write, b"1")
+        os.close(ready_write)
+        poll = select.poll()
+        poll.register(lifetime, select.POLLIN)
+        poll.poll()
+        os._exit(0)
+      except BaseException as error:
+        try:
+          os.write(ready_write, b"0" + str(error).encode()[:1024])
+        except OSError:
+          pass
+        os._exit(1)
+    os.close(ready_write)
+    ready_write = -1
+    response = os.read(ready_read, 1025)
+    if response != b"1":
+      os.waitpid(guardian, 0)
+      raise AccountError("Could not protect the account session: " + response[1:].decode(errors="replace"))
+  finally:
+    for descriptor in (lifetime, ready_read, ready_write):
+      if descriptor >= 0:
+        os.close(descriptor)
+    signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+
+
+def exec_account(provider: str, command: list[str]) -> None:
+  if not command:
+    raise AccountError("exec <provider> <binary> [args...]")
+  home_env = PROVIDERS[provider]["home_env"]
+  pin = f"OMARCHY_AGENT_{provider.upper()}_HOME"
+  with Locked(provider, readonly=True) as registry:
+    if os.environ.get(home_env):
+      selected = os.environ[home_env]
+    elif pin in os.environ:
+      selected = os.environ[pin]
+    else:
+      account = active(registry)
+      selected = "" if account.get("primary") else str(account_home(provider, account))
+    os.environ[pin] = selected
+    if selected:
+      home = Path(selected)
+      managed = Path(os.path.abspath(home)).is_relative_to(Path(os.path.abspath(accounts_root()))) or home.resolve().is_relative_to(accounts_root().resolve())
+      registered = any(not account.get("primary") and account_home(provider, account).resolve() == home.resolve() for account in registry["accounts"])
+      # Adding an account signs in to a freshly created private pending home;
+      # removed account homes elsewhere in the store must never be recreated.
+      pending = home.is_dir() and not home.is_symlink() and home.resolve().parent == (accounts_root() / provider / ".pending").resolve()
+      if managed and (not (registered or pending) or not home.is_dir()):
+        raise AccountError("This managed account home was removed or is no longer registered")
+      claim = session_claim(provider, home)
+      try:
+        guard_session(claim)
+      finally:
+        # Closing our copy leaves the guardian's shared open description locked.
+        # LOCK_UN here would release the guardian's claim too.
+        os.close(claim)
+      os.environ[home_env] = selected
+    else:
+      os.environ.pop(home_env, None)
+  # Python ignores these signals itself. Restore the native child convention
+  # used by subprocess(restore_signals=True) before replacing the launcher.
+  for name in ("SIGPIPE", "SIGXFZ", "SIGXFSZ"):
+    if (number := getattr(signal, name, None)) is not None:
+      signal.signal(number, signal.SIG_DFL)
+  os.execvpe(command[0], command, os.environ)
 
 
 def find(registry: dict[str, Any], account_id: str) -> dict[str, Any] | None:
@@ -453,23 +605,48 @@ def home_in_use(provider: str, home: Path) -> bool:
 
 
 def remove(provider: str, target: str) -> dict[str, Any]:
-  with Locked(provider) as registry:
+  with Locked(provider, readonly=True) as registry:
     account = find(registry, target)
     if not account:
       raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
     if account.get("primary"):
       raise AccountError(f"{account['label']} is the login in {primary_home(provider)}; it can't be removed here.")
     home = account_home(provider, account)
-    if home_in_use(provider, home):
+    try:
+      claim = session_claim(provider, home, exclusive=True)
+    except BlockingIOError:
       raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses {account['label']}. Quit it first, then remove the account.")
-    # Only the account's own directory goes. Its links point into the primary
-    # home, and rmtree removes a link without following it.
-    if home.resolve().parent == (accounts_root() / provider).resolve():
-      shutil.rmtree(home, ignore_errors=True)
-    registry["accounts"] = [a for a in registry["accounts"] if a["id"] != account["id"]]
-    if registry["active"] == account["id"]:
-      registry["active"] = registry["accounts"][0]["id"]
-    return account
+    try:
+      if home_in_use(provider, home):
+        raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses {account['label']}. Quit it first, then remove the account.")
+      staged = None
+      # Only this managed directory goes. Never follow a shared home or link.
+      # A recognizable staging name retains credentials if interrupted before
+      # saving; a failed save restores the original home and registry.
+      if not home.is_symlink() and home.is_dir() and home.resolve().parent == (accounts_root() / provider).resolve():
+        staged = Path(tempfile.mkdtemp(prefix=f".removed-{home.name}-", dir=home.parent))
+        staged.rmdir()
+        home.rename(staged)
+      registry["accounts"] = [a for a in registry["accounts"] if a["id"] != account["id"]]
+      if registry["active"] == account["id"]:
+        registry["active"] = registry["accounts"][0]["id"]
+      try:
+        save(provider, registry)
+      except BaseException as error:
+        if staged is not None:
+          try:
+            staged.rename(home)
+          except OSError as restore_error:
+            raise AccountError(f"Could not save the registry or restore its private home. Recover the files in {staged}: {restore_error}") from error
+        raise
+      if staged is not None:
+        try:
+          shutil.rmtree(staged)
+        except OSError as error:
+          raise AccountError(f"The registry entry was removed, but its private files remain in {staged}: {error}")
+      return account
+    finally:
+      os.close(claim)
 
 
 def set_mode(provider: str, mode: str, threshold: str | None) -> dict[str, Any]:
@@ -619,12 +796,13 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, st
 
 # Limits per account id. An account nobody is signed in to is left out, so it
 # is never a candidate: its cached headroom is no use to a session that can't
-# start. One whose token merely expired stays in, since a session refreshes it.
+# start. A collector's expired sign-in needs user authentication, while a
+# temporarily paused limits check can still have a refreshable login.
 def usage_by_account(provider: str) -> tuple[dict[str, Any], frozenset[str]]:
   record = read_json(usage_record_path(provider)) or {}
   accounts = [
     a for a in record.get("accounts") or []
-    if isinstance(a, dict) and a.get("id") and a.get("usageStatusText") != "Waiting for auth"
+    if isinstance(a, dict) and a.get("id") and a.get("usageStatusText") not in ("Waiting for auth", "Sign-in expired")
   ]
   return (
     {str(a["id"]): a.get("limits") for a in accounts},
@@ -731,6 +909,8 @@ def main(argv: list[str]) -> int:
         account = active(normalized(provider, registry))
         if not account.get("primary"):
           print(account_home(provider, account))
+    elif command == "exec":
+      exec_account(provider_arg(args), args[1:])
     elif command == "homes":
       provider = provider_arg(args)
       registry = load(provider)
