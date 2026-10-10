@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Disable Chromium GPU compositing on a pre-GCN radeon driving a display
+
+# Chromium's GPU compositor draws artifacts and glitches, or hangs the system,
+# on pre-GCN GPUs driven by radeon (see #3603, #13760). Software compositing
+# fixes it. Scope this to radeon: it makes newer GPUs worse (see #13174).
+
+set -euo pipefail
+
+CONFIG_FILE="${1:-$HOME/.config/chromium-flags.conf}"
+FLAG="--disable-gpu-compositing"
+
+if [[ -f $CONFIG_FILE ]] && omarchy-hw-radeon && ! grep -qxF -- "$FLAG" "$CONFIG_FILE"; then
+  echo "Detected a legacy radeon GPU. Disabling Chromium GPU compositing."
+  printf '%s\n' "$FLAG" >>"$CONFIG_FILE"
+fi
