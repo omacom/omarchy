@@ -678,14 +678,20 @@ Item {
     onTriggered: root.refreshFingerprintStatus()
   }
 
+  // Only the session's shell may recover a stranded lock. Hyprland hands its
+  // lock to whichever client asks last, so a test copy or hand-run checkout
+  // retaking a healthy lock would leave the lockdead failsafe up once it exits,
+  // behind a lock screen that still looks healthy.
   Process {
     id: strandedLockCheckProc
-    command: ["bash", "-c", "omarchy-hyprland-session-locked"]
+    command: ["bash", "-c", "omarchy-hyprland-session-locked; status=$?; if (( status == 0 )) && ! omarchy-shell-is-session; then exit 3; fi; exit $status"]
     onExited: function(exitCode) {
       // No output to read the lock off yet.
       if (exitCode === 2) return
 
       root.strandedLockResolved = true
+
+      if (exitCode === 3) root.logEvent("lock-stranded: left to the session shell")
 
       // A lock taken while this was in flight is this shell's own.
       root.strandedLock = exitCode === 0 && !root.locked && !root.lockRequested
