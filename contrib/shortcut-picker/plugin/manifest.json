@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "experimental.shortcuts",
+  "name": "Shortcut search",
+  "version": "1.0.0",
+  "description": "Ranked search for Hyprland, Tmux, and Herdr shortcuts",
+  "kinds": ["menu"],
+  "keepLoaded": true,
+  "entryPoints": {"menu": "Picker.qml"}
+}

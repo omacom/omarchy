@@ -563,6 +563,7 @@ Item {
       return
     }
 
+    var rows = []
     var query = root.filterText.trim().toLowerCase()
     for (var i = 0; i < root.dmenuOptions.length; i++) {
       // An option is "<label>", "<glyph>\t<label>", or
@@ -575,7 +576,7 @@ Item {
       var detail = parts.join("\t")
       if (query && label.toLowerCase().indexOf(query) < 0
           && detail.toLowerCase().indexOf(query) < 0) continue
-      displayModel.append({
+      rows.push({
         itemId: "dmenu." + i,
         disabled: false,
         kind: "dmenu",
@@ -595,6 +596,7 @@ Item {
       })
     }
 
+    if (rows.length) displayModel.append(rows)
     layoutSerial += 1
 
     if (displayModel.count === 0) selectedIndex = 0

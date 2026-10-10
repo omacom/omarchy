@@ -1,0 +1,13 @@
+#!/bin/bash
+set -euo pipefail
+picker="$HOME/.config/omarchy/plugins/experimental.shortcuts"
+case "${1:-hyprland}" in
+  hyprland) command=omarchy-menu-keybindings ;;
+  tmux) command=omarchy-menu-tmux-keybindings ;;
+  herdr) command=omarchy-menu-herdr-keybindings ;;
+  *) echo 'Usage: omarchy-shortcuts [hyprland|tmux|herdr] [arguments...]' >&2; exit 2 ;;
+esac
+if (( $# )); then shift; fi
+# Scope the picker substitution to this invocation of Omarchy's own script.
+export PATH="$picker/bin:$PATH"
+exec "${OMARCHY_PATH}/bin/$command" "$@"
