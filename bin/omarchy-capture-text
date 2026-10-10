@@ -22,5 +22,5 @@ TEXT=$(grim -g "$SELECTION" - | tesseract stdin stdout --oem 1 --psm 6 -l "${OMA
 
 [[ -z $TEXT ]] && exit 1
 
-printf "%s" "$TEXT" | wl-copy
+printf "%s" "$TEXT" | wl-copy --type "text/plain;charset=utf-8"
 omarchy-notification-send -g 󰴑 "Copied text from selection to clipboard"
