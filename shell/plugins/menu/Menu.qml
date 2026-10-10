@@ -24,6 +24,9 @@ Item {
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
 
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
+    // A summon replaces the rows an uninstall confirmation was raised for,
+    // so the confirmation must not stay up to answer the new request.
+    if (root.deleteConfirmOpen) root.cancelDelete()
 
     if (payload.mode === "select" || payload.mode === "input") {
       root.openDmenu(payload)
