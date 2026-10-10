@@ -21,6 +21,7 @@ steps=(
   omarchy-update-boot
   omarchy-update-keyring
   omarchy-update-system-pkgs
+  omarchy-plymouth-restore
   omarchy-migrate
   omarchy-hook
   omarchy-update-aur-pkgs
@@ -72,6 +73,7 @@ expected_steps() {
     omarchy-update-dev \
     omarchy-update-keyring \
     omarchy-update-system-pkgs \
+    omarchy-plymouth-restore \
     omarchy-migrate \
     omarchy-update-orphan-pkgs \
     omarchy-update-analyze-logs \
@@ -109,9 +111,14 @@ pass "a confirmed update approves orphan removal"
 if FAILING_STEP=omarchy-update-system-pkgs run_update -y; then
   fail "an update whose packages did not upgrade passes for a whole one"
 fi
-for step in omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
+for step in omarchy-plymouth-restore omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
   if grep -q "^$step " "$test_tmp/steps"; then
     fail "a blocked package upgrade still runs $step"
   fi
 done
 pass "a blocked package upgrade stops the update before it migrates"
+
+FAILING_STEP=omarchy-plymouth-restore run_update -y || fail "theme restoration failure does not stop the package update"
+grep -q '^omarchy-migrate ' "$test_tmp/steps" || fail "migrations still run after a theme failure"
+grep -q '^omarchy-update-analyze-logs ' "$test_tmp/steps" || fail "boot and update checks still run after a theme failure"
+pass "a cosmetic theme repair failure does not skip migrations or final verification"

@@ -7,3 +7,4 @@ set -euo pipefail
 
 "$OMARCHY_PATH/bin/omarchy-refresh-plymouth"
 "$OMARCHY_PATH/bin/omarchy-refresh-sddm"
+rm -f "$HOME/.local/state/omarchy/current/plymouth.name"
