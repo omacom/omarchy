@@ -206,6 +206,33 @@ function buildForecastDays(report, dailyForecastReport, todayString) {
   return days.length > 0 ? days : wttrNextForecastDays(report, todayString)
 }
 
+// Today's own hi/lo, which the forecast row skips (it only lists future
+// days). Normalized to the wttr day shape so bareTempForDay works unchanged.
+function todayForecastEntry(report, dailyForecastReport, todayString) {
+  var daily = dailyForecastReport && dailyForecastReport.daily ? dailyForecastReport.daily : null
+  if (daily && daily.time) {
+    for (var i = 0; i < daily.time.length; ++i) {
+      if (String(daily.time[i]).slice(0, 10) !== String(todayString)) continue
+      var maxC = daily.temperature_2m_max ? daily.temperature_2m_max[i] : null
+      var minC = daily.temperature_2m_min ? daily.temperature_2m_min[i] : null
+      if (maxC === undefined || maxC === null || minC === undefined || minC === null) continue
+      return {
+        date: daily.time[i],
+        maxtempC: roundedTemp(maxC),
+        mintempC: roundedTemp(minC),
+        maxtempF: roundedTemp(celsiusToFahrenheit(maxC)),
+        mintempF: roundedTemp(celsiusToFahrenheit(minC))
+      }
+    }
+  }
+
+  var days = report && report.weather ? report.weather : []
+  for (var j = 0; j < days.length; ++j) {
+    if (String(days[j].date).slice(0, 10) === String(todayString)) return days[j]
+  }
+  return null
+}
+
 function bareTempForDay(day, kind, useImperial) {
   if (!day) return ""
   var v = useImperial
@@ -287,6 +314,7 @@ if (typeof module !== "undefined") {
     weatherResponseCompletesSave: weatherResponseCompletesSave,
     wttrNextForecastDays: wttrNextForecastDays,
     buildForecastDays: buildForecastDays,
+    todayForecastEntry: todayForecastEntry,
     bareTempForDay: bareTempForDay,
     dayIcon: dayIcon,
     iconForOpenMeteoCode: iconForOpenMeteoCode,
