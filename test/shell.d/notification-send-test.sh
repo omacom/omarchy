@@ -6,6 +6,11 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
+runtime_dir="$tmpdir/runtime"
+mkdir -m 700 -p "$runtime_dir/omarchy"
+printf 'test-session-token\n' >"$runtime_dir/omarchy/notification-exec-token"
+chmod 600 "$runtime_dir/omarchy/notification-exec-token"
+export XDG_RUNTIME_DIR="$runtime_dir"
 
 args_file="$tmpdir/args"
 
@@ -197,3 +202,17 @@ send "Timed" -t 3000 >/dev/null
 load
 [[ ${args[12]} == "" && ${args[-1]} == "3000" ]] || fail "notification wrapper still parses a flag after the headline" "body=${args[12]} timeout=${args[-1]}"
 pass "notification wrapper still treats a known flag after the headline as an option"
+
+: >"$args_file"
+send "With exec" --exec true >/dev/null
+load
+[[ $(hint_value omarchy-exec-token) == "test-session-token" ]] || fail "send attaches session exec token" "$(hint_value omarchy-exec-token)"
+pass "send attaches omarchy-exec-token for --exec"
+
+chmod 000 "$runtime_dir/omarchy/notification-exec-token" || true
+if send "No token" --exec true >/dev/null 2>"$tmpdir/no-token.err"; then
+  fail "send must fail --exec when token unreadable"
+fi
+grep -qi token "$tmpdir/no-token.err" || fail "send error should mention token"
+chmod 600 "$runtime_dir/omarchy/notification-exec-token"
+pass "send fails closed when exec token is unreadable"
