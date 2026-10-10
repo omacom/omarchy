@@ -313,11 +313,95 @@ function termInSearchWords(term, text) {
 }
 
 function descriptionTextMatches(query, text) {
-  var terms = String(query || "").toLowerCase().trim().split(/\s+/)
+  var terms = queryTerms(query)
   for (var i = 0; i < terms.length; i++) {
     if (terms[i] && !termInSearchWords(terms[i], text)) return false
   }
   return true
+}
+
+// Return a lower-is-better score when every character in `term` appears in
+// order in `text`. This makes "stm" match both "System" and "Steam", while
+// keeping contiguous and word-start matches ahead of scattered ones.
+function fuzzyTextScore(term, text) {
+  var needle = String(term || "").toLowerCase()
+  var haystack = String(text || "").toLowerCase()
+  if (!needle) return 0
+  var nLen = needle.length
+  var hLen = haystack.length
+  if (nLen > hLen) return -1
+  // Fast pre-check: if characters do not appear in order at all,
+  // exit immediately without allocating DP buffers or scanning alignments.
+  var quickPos = -1
+  for (var c = 0; c < nLen; c++) {
+    quickPos = haystack.indexOf(needle.charAt(c), quickPos + 1)
+    if (quickPos < 0) return -1
+  }
+
+  function isWordStart(pos) {
+    return pos === 0 || /[\s._:/\\-]/.test(haystack.charAt(pos - 1))
+  }
+
+  // Reusable double buffers to track the minimum accumulated score
+  // without per-character allocations.
+  var dp = new Array(hLen)
+  var nextDp = new Array(hLen)
+  var ch0 = needle.charAt(0)
+  for (var j = 0; j < hLen; j++) {
+    dp[j] = haystack.charAt(j) === ch0 ? (isWordStart(j) ? -4 : 0) : Infinity
+  }
+
+  for (var i = 1; i < nLen; i++) {
+    var ch = needle.charAt(i)
+    var runningMin = Infinity
+
+    for (var k = 0; k < hLen; k++) {
+      if (k > 0 && dp[k - 1] !== Infinity) {
+        var prevVal = dp[k - 1] - 2 * (k - 1)
+        if (prevVal < runningMin) runningMin = prevVal
+      }
+
+      if (haystack.charAt(k) === ch && runningMin !== Infinity) {
+        var bonus = isWordStart(k) ? -4 : 0
+        nextDp[k] = bonus + 2 * k - 2 + runningMin
+      } else {
+        nextDp[k] = Infinity
+      }
+    }
+    var tmp = dp
+    dp = nextDp
+    nextDp = tmp
+  }
+
+  var minScore = Infinity
+  for (var m = 0; m < hLen; m++) {
+    if (dp[m] !== Infinity) {
+      var candidate = 10 + dp[m] + Math.max(0, m - nLen + 1)
+      if (candidate < minScore) minScore = candidate
+    }
+  }
+
+  if (minScore === Infinity) return -1
+  // Keep -1 reserved for no match, and floor successful matches at 1:
+  // word-start bonuses can otherwise drive a verbatim substring ("a.b.c"
+  // matching itself) negative, hiding rows the exact search used to find.
+  return Math.max(1, minScore)
+}
+
+function queryTerms(query) {
+  return String(query || "").toLowerCase().trim().split(/\s+/)
+}
+
+function fuzzyQueryScore(query, text) {
+  var terms = queryTerms(query)
+  var score = 0
+  for (var i = 0; i < terms.length; i++) {
+    if (!terms[i]) continue
+    var termScore = fuzzyTextScore(terms[i], text)
+    if (termScore < 0) return -1
+    score += termScore
+  }
+  return score
 }
 
 function matchesQuery(entry, query, visible) {
@@ -326,12 +410,13 @@ function matchesQuery(entry, query, visible) {
 
   var nameText = nameSearchText(entry)
   var descriptionText = String(entry.description || "").toLowerCase()
-  var terms = String(query || "").toLowerCase().trim().split(/\s+/)
+  var terms = queryTerms(query)
 
   for (var i = 0; i < terms.length; i++) {
     if (!terms[i]) continue
-    if (nameText.indexOf(terms[i]) >= 0) continue
+    if (fuzzyTextScore(terms[i], nameText) >= 0) continue
     if (termInSearchWords(terms[i], descriptionText)) continue
+    if (fuzzyTextScore(terms[i], descriptionText) >= 0) continue
     return false
   }
 
@@ -343,7 +428,7 @@ function searchScore(items, entry, query) {
   var label = entry.label.toLowerCase()
   var nameText = nameSearchText(entry)
   var descriptionText = String(entry.description || "").toLowerCase()
-  var score = 80
+  var score = 120
 
   if (label === needle) score = entry.parent === "root" ? 2 : 0
   // An installed app whose name contains the query as a whole word ("zen"
@@ -353,7 +438,37 @@ function searchScore(items, entry, query) {
   else if (label.indexOf(needle) >= 0) score = 30
   else if (nameText.indexOf(needle) >= 0) score = 40
   else if (descriptionTextMatches(needle, descriptionText)) score = 60
-
+  else {
+    // Fuzzy tiers rank behind every exact tier (0-60). Monotonic fractional
+    // compression keeps scores bounded within each tier so pure name matches
+    // consistently outrank mixed matches, mixed matches outrank description-only
+    // matches, and description matches outrank unmatched fallback, without
+    // flattening distinct fuzzy results at a hard cap.
+    var nameFuzzyScore = fuzzyQueryScore(needle, nameText)
+    var descriptionFuzzyScore = fuzzyQueryScore(needle, descriptionText)
+    var fuzzyOffset = function(raw) {
+      return raw / (1 + raw / 14)
+    }
+    if (nameFuzzyScore >= 0) {
+      score = 70 + fuzzyOffset(nameFuzzyScore)
+    } else {
+      var terms = queryTerms(needle)
+      var mixedScore = 0
+      var mixedMatches = terms.length > 0
+      var hasName = false
+      var hasDesc = false
+      for (var t = 0; t < terms.length; t++) {
+        if (!terms[t]) continue
+        var sName = fuzzyTextScore(terms[t], nameText)
+        var sDesc = fuzzyTextScore(terms[t], descriptionText)
+        if (sName >= 0) { mixedScore += sName; hasName = true }
+        else if (sDesc >= 0) { mixedScore += sDesc + 10; hasDesc = true }
+        else { mixedMatches = false; break }
+      }
+      if (mixedMatches && hasName && hasDesc) score = 85 + fuzzyOffset(mixedScore)
+      else if (descriptionFuzzyScore >= 0) score = 100 + fuzzyOffset(descriptionFuzzyScore)
+    }
+  }
   if (entry.kind === "menu" || entry.kind === "link") score -= 2
   // App rows sort after all menu items, so they lose the tiebreak below to an
   // equal match. Outrank those, but stay inside the tier so better ones win.
@@ -363,6 +478,13 @@ function searchScore(items, entry, query) {
 }
 
 function displayRow(items, itemOrder, checkedResults, disabledResults, entry, detail, score, section) {
+  if (typeof entry === "string" || typeof entry === "number" || (entry === undefined && disabledResults && disabledResults.id)) {
+    section = score
+    score = detail
+    detail = entry
+    entry = disabledResults
+    disabledResults = null
+  }
   var target = entry.kind === "link" ? entry.target : entry.id
   return {
     itemId: entry.id,
@@ -529,6 +651,8 @@ if (typeof module !== "undefined") {
     nameSearchText: nameSearchText,
     termInSearchWords: termInSearchWords,
     descriptionTextMatches: descriptionTextMatches,
+    fuzzyTextScore: fuzzyTextScore,
+    fuzzyQueryScore: fuzzyQueryScore,
     matchesQuery: matchesQuery,
     searchScore: searchScore,
     displayRow: displayRow
