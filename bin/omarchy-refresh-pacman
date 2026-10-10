@@ -42,8 +42,11 @@ if [[ ! -f $templates/pacman-$channel.conf || ! -f $templates/mirrorlist-$channe
   exit 1
 fi
 
-sudo cp -f /etc/pacman.conf /etc/pacman.conf.bak
-sudo cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
+# Timestamped, the way omarchy-refresh-config names its backups, so a second
+# run does not overwrite the first run's copy of the pre-refresh configuration.
+stamp=$(date +%s)
+sudo cp -f /etc/pacman.conf "/etc/pacman.conf.bak.$stamp"
+sudo cp -f /etc/pacman.d/mirrorlist "/etc/pacman.d/mirrorlist.bak.$stamp"
 echo "Setting channel to $channel"
 sudo cp -f "$templates/pacman-$channel.conf" /etc/pacman.conf
 sudo cp -f "$templates/mirrorlist-$channel" /etc/pacman.d/mirrorlist
