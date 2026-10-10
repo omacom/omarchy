@@ -148,6 +148,8 @@ sddm_layouts=$(sed -n '/^local non_latin_layouts =/,+1p' "$sddm_lua" | grep -o '
 pass "greeter non-latin layout list stays in sync with the initramfs hook"
 
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\n XKB_LAYOUT="kr" # desktop only\n' assert_input "Korean selection overrides its installer US layout" "[kr] [] [$base_options]" $'XKBLAYOUT=us\n'
+TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=la\n' assert_input "Lao selection gets Lao behind US on the desktop" "[us,la] [,] [$toggle_options]" $'XKBLAYOUT=us\n'
+TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=xx\n' assert_input "an unknown desktop override is ignored" "[us] [] [$base_options]" $'XKBLAYOUT=us\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\nXKB_LAYOUT=kr\n' assert_input "a later US variant overrides the Korean preference" "[us] [intl] [$base_options]" $'XKBLAYOUT=us\nXKBVARIANT=intl\n'
 TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\nXKB_LAYOUT=kr\n' assert_input "a later layout overrides the Korean preference" "[de] [nodeadkeys] [$base_options]" $'XKBLAYOUT=de\nXKBVARIANT=nodeadkeys\n'
 

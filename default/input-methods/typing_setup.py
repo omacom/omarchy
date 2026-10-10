@@ -31,8 +31,6 @@ def keyboard_catalog():
   for choice in choices.splitlines():
     label, keymap, *input_settings = choice.split("|")
     layout = input_settings[1] if len(input_settings) > 1 else mappings.get(keymap, keymap)
-    if label == "Lao":
-      layout = "la"
     # Composition engines belong in Input Methods, not as duplicate US layouts.
     catalog.setdefault(layout, label)
   return catalog

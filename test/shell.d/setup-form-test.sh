@@ -135,7 +135,7 @@ assert_status 0 "keyboard prompt succeeds"
 grep -qF -- '--selected English (US)' "$GUM_ARGS" || fail "keyboard prompt preselects English (US)"
 pass "keyboard prompt maps the chosen label to its keymap"
 
-for selection in 'Japanese|jp106|mozc|' 'Japanese (US keyboard)|us|mozc|' 'Korean|us|hangul|kr' 'Chinese (Simplified, Pinyin)|us|pinyin|' 'Chinese (Traditional, Zhuyin)|us|chewing|'; do
+for selection in 'Japanese|jp106|mozc|' 'Japanese (US keyboard)|us|mozc|' 'Korean|us|hangul|kr' 'Lao|us|none|la' 'Chinese (Simplified, Pinyin)|us|pinyin|' 'Chinese (Traditional, Zhuyin)|us|chewing|'; do
   IFS='|' read -r label keymap method layout <<< "$selection"
   run_prompt omarchy_prompt_keyboard "0:$label"
   assert_status 0 "$label can be selected at install"

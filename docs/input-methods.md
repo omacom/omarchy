@@ -2,7 +2,7 @@
 
 The install keyboard picker selects a console keymap plus an optional Fcitx engine. `install/provisioning/setup-form.sh` is shared by the ISO configurator and deferred first-boot owner setup. Its rows are `label|console keymap|input method|desktop XKB override`; the last two fields are optional, so ordinary keyboard choices keep their existing meaning.
 
-The ISO carries the extra fields in `omarchy_install.input_method` and `omarchy_install.input_xkb_layout`. Both installation paths persist them in `/etc/omarchy/input-method` as `INPUT_METHOD` and `XKB_LAYOUT`. This file is parsed as data, never sourced. Korean has a real US console keymap and a `kr` desktop override; Japanese uses `jp106`, or US when the US-keyboard choice is selected. Console and disk-unlock input remain ordinary keymaps.
+The ISO carries the extra fields in `omarchy_install.input_method` and `omarchy_install.input_xkb_layout`. Both installation paths persist them in `/etc/omarchy/input-method` as `INPUT_METHOD` and `XKB_LAYOUT`. This file is parsed as data, never sourced. Korean and Lao have a real US console keymap and a `kr` or `la` desktop override (Lao is non-Latin, so US still leads on the desktop); Japanese uses `jp106`, or US when the US-keyboard choice is selected. Console and disk-unlock input remain ordinary keymaps.
 
 `install/user/input-method.sh` calls `omarchy-input-method configure --seed` during user finalization, before graphical login. The standard engines are in the base package set so deferred provisioning and factory resets do not need network access to configure typing. `default/input-methods/presets.json` is the engine catalog used by the post-install selector.
 
