@@ -5,3 +5,13 @@
 echo -e "Unblocking bluetooth...\n"
 rfkill unblock bluetooth
 rfkill list bluetooth
+
+echo -e "\nRestarting bluetooth.service...\n"
+# Wedged adapters often need bluetoothd to re-register on D-Bus after the
+# controller bounces; rfkill alone is not enough (#13078).
+if systemctl restart bluetooth.service; then
+  systemctl --no-pager --full status bluetooth.service || true
+else
+  echo "omarchy-restart-bluetooth: failed to restart bluetooth.service" >&2
+  exit 1
+fi
