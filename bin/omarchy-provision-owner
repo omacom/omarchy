@@ -793,8 +793,11 @@ encrypted_install() {
 }
 
 create_user() {
-  # Pin the username so a retry after a later failure resumes this exact
-  # account rather than creating a second privileged one.
+  local status
+
+  # Pin before account creation so an interruption after useradd succeeds cannot
+  # strand the new account. If useradd rejects the username, clear the pin so
+  # the retry can choose another one.
   echo "$username" >"$PROVISIONING_DIR/setup-user"
 
   if getent passwd "$username" >/dev/null; then
@@ -803,7 +806,14 @@ create_user() {
     usermod -aG "$(user_groups)" ${full_name:+-c "$full_name"} "$username"
   else
     useradd -m -G "$(user_groups)" -s /bin/bash \
-      ${full_name:+-c "$full_name"} "$username"
+      ${full_name:+-c "$full_name"} "$username" || {
+      status=$?
+      # Some failures happen after the account is created (e.g. its home).
+      if ! getent passwd "$username" >/dev/null; then
+        rm -f "$PROVISIONING_DIR/setup-user" || true
+      fi
+      return "$status"
+    }
   fi
 
   printf '%s:%s\n' "$username" "$password" | chpasswd
