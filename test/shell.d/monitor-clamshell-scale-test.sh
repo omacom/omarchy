@@ -21,9 +21,9 @@ cat >"$stub_bin/hyprctl" <<'SH'
 
 if [[ $1 == "monitors" && $2 == "all" && $3 == "-j" ]]; then
   if [[ ${OMARCHY_TEST_INTERNAL_DISABLED:-false} == "true" ]]; then
-    printf '[{"name":"eDP-1","disabled":true,"scale":null}]'
+    printf '[{"name":"eDP-1","description":"LG Display 0x0742","disabled":true,"scale":null}]'
   else
-    printf '[{"name":"eDP-1","disabled":false,"scale":%s}]' "${OMARCHY_TEST_INTERNAL_SCALE:-2}"
+    printf '[{"name":"eDP-1","description":"LG Display 0x0742","disabled":false,"scale":%s}]' "${OMARCHY_TEST_INTERNAL_SCALE:-2}"
   fi
 elif [[ $1 == "eval" ]]; then
   printf '%s\n' "$2" >>"$OMARCHY_TEST_HYPRCTL_EVAL_LOG"
@@ -206,6 +206,109 @@ LUA
 write_semicolon_config() {
   cat >"$monitor_lua" <<'LUA'
 hl.monitor({ output = "eDP-1"; position = "0x0"; scale = 1.25; transform = 1 })
+LUA
+}
+
+# The internal panel named by its description, wrapped over several lines, as
+# monitor-profile tools like hyprmoncfg write it, beside a numeric catch-all.
+write_internal_desc_config() {
+  cat >"$monitor_lua" <<'LUA'
+local omarchy_monitor_scale = 2
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })
+
+hl.monitor({
+  output = "desc:LG Display 0x0742",
+  mode = "1920x1080@144.00",
+  position = "0x0",
+  scale = 1,
+})
+LUA
+}
+
+# Hyprland matches desc: as a prefix of the description, spaces either side trimmed.
+write_internal_desc_prefix_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "desc: LG Display ", mode = "preferred", position = "0x0", scale = 1.25 })
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+}
+
+# A desc: rule for some other display is not the internal panel's.
+write_other_desc_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "desc:Dell Inc. U2720Q", mode = "preferred", position = "0x0", scale = 1.25 })
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1.5 })
+LUA
+}
+
+write_internal_multiline_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor({
+  output = "eDP-1",
+  mode = "preferred",
+  position = "0x0",
+  scale = 1.25,
+})
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+}
+
+# Of two rules naming the panel, Hyprland applies the last.
+write_internal_name_then_desc_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = 1.5 })
+hl.monitor({ output = "desc:LG Display 0x0742", mode = "preferred", position = "0x0", scale = 1.25 })
+LUA
+}
+
+# A call nested in the rule does not end it.
+write_nested_call_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", reserved_area = area({ top = 24 }), position = "0x0", scale = 1.25 })
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+}
+
+# A rule quoted in a string is not a rule.
+write_quoted_rule_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
+local example = 'hl.monitor({ output = "eDP-1", position = "auto", scale = 2 })'
+LUA
+}
+
+# Two rules on one line are two rules.
+write_shared_line_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "DP-1", position = "auto", scale = 1 }); hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+}
+
+# A parenthesis inside a string, escaped quote and all, does not end the rule.
+write_string_paren_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", mode = string.sub("preferred\"(", 1, 9), position = "0x0", scale = 1.25 })
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+}
+
+write_split_opener_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor(
+  { output = "desc:LG Display 0x0742", position = "0x0", scale = 1.25 }
+)
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })
+LUA
+}
+
+# A rule kept in a block comment spanning lines is not the last rule.
+write_commented_profile_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "eDP-1", position = "0x0", scale = 1.25 })
+--[[ Previous profile [old]:
+hl.monitor({ output = "eDP-1", position = "auto", scale = 2 })
+]]
 LUA
 }
 
@@ -402,7 +505,7 @@ OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
 grep -F 'scale = 1.25' "$eval_log" >/dev/null || fail "clamshell recovery does not read a scale out of a trailing comment"
 pass "clamshell recovery does not read a scale out of a trailing comment"
 
-for config in nested_table semicolon block_comment; do
+for config in nested_table semicolon block_comment nested_call quoted_rule shared_line string_paren split_opener commented_profile; do
   "write_${config}_config"
   remember_scale 1.75
   : >"$eval_log"
@@ -411,3 +514,43 @@ for config in nested_table semicolon block_comment; do
   grep -F 'scale = 1.25' "$eval_log" >/dev/null || fail "clamshell recovery reads the scale out of a ${config//_/ } rule"
   pass "clamshell recovery reads a ${config//_/ } rule"
 done
+
+# Regression (#7498): a panel configured by description was invisible to the
+# parser, so the catch-all's 2 was forced onto it on every wake and every mouse
+# move on the lock screen.
+write_internal_desc_config
+rm -f "$scale_state"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=1 run_clamshell
+! grep -F 'scale = ' "$eval_log" >/dev/null || fail "clamshell recovery leaves a panel configured by description at its scale"
+pass "clamshell recovery leaves a panel configured by description at its scale"
+
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'position = "0x0"' "$eval_log" >/dev/null || fail "clamshell recovery reads the position out of a rule wrapped over lines"
+grep -F 'scale = 1 ' "$eval_log" >/dev/null || fail "clamshell recovery reads the scale out of a rule wrapped over lines"
+pass "clamshell recovery reads a desc rule wrapped over lines"
+
+write_internal_desc_prefix_config
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=3 run_clamshell
+grep -F 'scale = 1.25' "$eval_log" >/dev/null || fail "clamshell recovery matches a desc prefix to the internal panel"
+pass "clamshell recovery matches a desc prefix to the internal panel"
+
+write_other_desc_config
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=3 run_clamshell
+grep -F 'scale = 1.5' "$eval_log" >/dev/null || fail "clamshell recovery ignores a desc rule for another display"
+pass "clamshell recovery ignores a desc rule for another display"
+
+write_internal_multiline_config
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=1.25 run_clamshell
+! grep -F 'scale = ' "$eval_log" >/dev/null || fail "clamshell recovery reads a connector rule wrapped over lines"
+pass "clamshell recovery reads a connector rule wrapped over lines"
+
+write_internal_name_then_desc_config
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=3 run_clamshell
+grep -F 'scale = 1.25' "$eval_log" >/dev/null || fail "clamshell recovery takes the last rule naming the internal panel"
+pass "clamshell recovery takes the last rule naming the internal panel"

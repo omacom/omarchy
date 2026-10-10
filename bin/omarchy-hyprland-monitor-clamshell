@@ -67,31 +67,98 @@ lua_scalar() {
 }
 
 # The config with its comments cut away, so commented-out text can pose neither
-# as a rule nor as one of its keys.
+# as a rule nor as one of its keys, and each rule on a line of its own.
 monitor_rules() {
   [[ -f $MONITOR_LUA ]] || return 0
 
-  sed -E -e 's/--\[\[[^]]*\]\]//g' -e 's/--.*$//' "$MONITOR_LUA"
+  # A rule starts a statement and ends where its parentheses balance, counting
+  # none inside a string.
+  sed -zE 's/--\[\[([^]]|\][^]])*\]\]//g' "$MONITOR_LUA" | sed -E 's/--.*$//' | awk '
+    function rule_end(text,    i, c, stop) {
+      for (i = 1; i <= length(text); i++) {
+        c = substr(text, i, 1)
+        if (quote != "") {
+          if (c == "\\") i++
+          else if (c == quote) quote = ""
+        } else if (c == "\"" || c == "\047") {
+          quote = c
+        } else if (substr(text, i, 2) == "[[" && (stop = index(substr(text, i + 2), "]]"))) {
+          i += stop + 2
+        } else if (c == "(") {
+          depth++
+        } else if (c == ")" && --depth == 0) {
+          return i
+        }
+      }
+      return 0
+    }
+
+    {
+      text = $0
+      while (text != "") {
+        if (!depth) {
+          if (text !~ /^[[:space:];]*hl\.monitor[[:space:]]*\(/) { print text; break }
+          sub(/^[[:space:];]*/, "", text)
+        }
+        if (!(end = rule_end(text))) { rule = rule text " "; quote = ""; break }
+        print rule substr(text, 1, end)
+        rule = ""
+        text = substr(text, end + 1)
+      }
+    }
+
+    END { if (rule != "") print rule }'
 }
 
 monitor_rule_regex() {
-  printf '^[[:space:]]*hl\\.monitor\\(\\{.*output[[:space:]]*=[[:space:]]*"%s"' "$1"
+  printf '^[[:space:]]*hl\\.monitor[[:space:]]*\\([[:space:]]*\\{.*output[[:space:]]*=[[:space:]]*"%s"' "$1"
 }
 
 # A key is preceded by a table separator, so a longer key cannot stand in for it,
 # and its value is the whole of what sits between the `=` and the next separator.
 # Anything else is an expression this cannot evaluate.
-configured_monitor_value() {
-  local output="$1" key="$2" value
+rule_value() {
+  local key="$1" value
 
-  value=$(monitor_rules | sed -nE '/'"$(monitor_rule_regex "$output")"'/s/.*[{,;[:space:]]'"$key"'[[:space:]]*=[[:space:]]*("[^"]*"|[^,;}[:space:]]+)[[:space:]]*([,;}].*)?$/\1/p' | head -1)
+  value=$(sed -nE 's/.*[{,;[:space:]]'"$key"'[[:space:]]*=[[:space:]]*("[^"]*"|[^,;}[:space:]]+)[[:space:]]*([,;}].*)?$/\1/p' | head -1)
   lua_scalar "$value"
 }
 
-configured_internal_monitor_value() {
+configured_monitor_value() {
+  monitor_rules | grep -E "$(monitor_rule_regex "$1")" | rule_value "$2"
+}
+
+internal_description() {
+  hyprctl monitors all -j | jq -r --arg internal "$INTERNAL" '.[] | select(.name == $internal) | .description // empty' | head -1
+}
+
+# The rule Hyprland applies to the internal panel: the last one naming it, by
+# connector or by desc: with a prefix of its description, as Hyprland matches.
+internal_monitor_rule() {
   [[ -n $INTERNAL ]] || return 0
 
-  configured_monitor_value "$INTERNAL" "$1"
+  # The description travels in the environment, which awk -v would unescape.
+  monitor_rules | INTERNAL_DESCRIPTION="$(internal_description)" awk -v name="$INTERNAL" '
+    /^[[:space:]]*hl\.monitor[[:space:]]*\([[:space:]]*\{/ && match($0, /[{,;[:space:]]output[[:space:]]*=[[:space:]]*"[^"]*"/) {
+      output = substr($0, RSTART, RLENGTH)
+      sub(/^[^"]*"/, "", output)
+      sub(/"$/, "", output)
+
+      if (output ~ /^desc:/) {
+        output = substr(output, 6)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", output)
+        if (output == "" || index(ENVIRON["INTERNAL_DESCRIPTION"], output) != 1) next
+      } else if (output != name) {
+        next
+      }
+
+      rule = $0
+    }
+    END { if (rule != "") print rule }'
+}
+
+configured_internal_monitor_value() {
+  internal_monitor_rule | rule_value "$1"
 }
 
 configured_monitor_scale() {
