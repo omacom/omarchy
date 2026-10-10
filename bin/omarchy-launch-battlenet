@@ -37,6 +37,18 @@ if [[ ! -f $LAUNCHER ]]; then
   exit 1
 fi
 
+# Battle.net "close" minimises to tray; another launch would stack a second
+# headless Proton tree (#13344). Focus the existing window when we can, else
+# exit quietly so a second umu/Proton tree is not stacked.
+if pgrep -f 'Battle\.net\.exe|Battle\.net Launcher\.exe|umu-battlenet' >/dev/null 2>&1; then
+  window_address=$(hyprctl clients -j 2>/dev/null | jq -r '.[]|select((.class|test("battle\\.net";"i")) or (.title|test("battle\\.net";"i")))|.address' | head -n1)
+  if [[ -n $window_address ]]; then
+    hyprctl dispatch "hl.dsp.focus({ window = \"address:$window_address\" })" >/dev/null 2>&1 ||
+      hyprctl dispatch focuswindow "address:$window_address" >/dev/null 2>&1 || true
+  fi
+  exit 0
+fi
+
 env_args=(
   WINEPREFIX="$PREFIX"
   PROTONPATH=GE-Proton
