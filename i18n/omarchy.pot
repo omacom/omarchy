@@ -1,0 +1,43 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the Omarchy package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Omarchy\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-20 14:28+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#, sh-printf-format
+msgid "Unsupported UTF-8 locale: %s"
+msgstr ""
+
+#, sh-printf-format
+msgid "Locale is missing from %s: %s"
+msgstr ""
+
+#, sh-printf-format
+msgid "Failed to generate locale: %s"
+msgstr ""
+
+msgid "Usage: omarchy menu language"
+msgstr ""
+
+msgid "Set system language and region"
+msgstr ""
+
+#, sh-printf-format
+msgid "System language set to %s. Log out and back in to apply it."
+msgstr ""
+
+msgid "Language & Region"
+msgstr ""
