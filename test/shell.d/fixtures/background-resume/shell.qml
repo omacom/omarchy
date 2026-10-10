@@ -10,7 +10,6 @@ ShellRoot {
   FileView { id: result; path: Quickshell.env("RESUME_TEST_RESULT"); atomicWrites: true }
 
   Timer { interval: 600; running: true; onTriggered: result.setText("initial") }
-  Timer { id: settled; interval: 600; onTriggered: result.setText(handled) }
   Timer {
     interval: 100
     running: true
@@ -26,7 +25,7 @@ ShellRoot {
         result.setText(next)
       } else if (next.startsWith("resume")) {
         background.suspended = false
-        settled.start()
+        result.setText(next)
       }
     }
   }

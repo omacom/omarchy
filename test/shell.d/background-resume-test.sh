@@ -39,8 +39,16 @@ pixel() {
   timeout -k 1 3 grim -o "$output" "$stage/pixel.png"
   magick "$stage/pixel.png" -format '%[hex:p{32,256}]' info:
 }
+# Image loading and the compositor take their own time, so wait for the color.
+shows() {
+  for attempt in {1..30}; do
+    [[ $(pixel) == "$1" ]] && return 0
+    sleep 0.1
+  done
+  return 1
+}
 wait_phase initial
-[[ $(pixel) == FF00FF ]] || fail "the initial background is visible"
+shows FF00FF || fail "the initial background is visible"
 
 # A theme switch removes the old theme's still and links the new one while
 # OWE has the background suspended.
@@ -51,7 +59,7 @@ ln -sfn "$stage/new/still.png" "$current/background"
 rm -f "$stage/old/still.png"
 printf 'resume 1\n' >"$stage/command"
 wait_phase "resume 1"
-[[ $(pixel) == 00FFFF ]] || fail "resuming shows the newly linked still instead of the removed one"
+shows 00FFFF || fail "resuming shows the newly linked still instead of the removed one"
 
 # A new theme can ship a still with the same filename, replacing the pixels
 # behind an unchanged path.
@@ -60,7 +68,7 @@ wait_phase "suspend 2"
 magick -size 128x128 xc:yellow "$stage/new/still.png"
 printf 'resume 2\n' >"$stage/command"
 wait_phase "resume 2"
-[[ $(pixel) == FFFF00 ]] || fail "resuming reloads new pixels behind an unchanged path"
+shows FFFF00 || fail "resuming reloads new pixels behind an unchanged path"
 
 printf 'done\n' >"$stage/command"
 wait "$qs_pid" || fail "the resume fixture exits cleanly" "$(cat "$stage/quickshell.log")"
