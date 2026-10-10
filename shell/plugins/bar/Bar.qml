@@ -2126,8 +2126,12 @@ Item {
       if (!target) return
       if ("bar" in target) target.bar = firstParty
         ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
-      if ("moduleName" in target) target.moduleName = moduleName
-      if ("settings" in target) target.settings = moduleSettings
+      // CustomCommandModule derives moduleName and settings from its entry as
+      // readonly properties, and `in` is true for those too: writing them throws.
+      if (!commandCustom) {
+        if ("moduleName" in target) target.moduleName = moduleName
+        if ("settings" in target) target.settings = moduleSettings
+      }
     }
 
     Component {
