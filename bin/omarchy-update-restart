@@ -21,8 +21,10 @@ confirm_reboot() {
 
 if [[ $mode != "--services-only" ]]; then
   running_kernel=$(uname -r)
-  kernel_updated=true
+  kernel_updated=false
 
+  # Only a kernel pacman installed can have been updated. A system that boots a kernel pacman
+  # doesn't manage (WSL, containers, a self-built kernel) has nothing to reboot into.
   for kernel in /usr/lib/modules/*/vmlinuz; do
     if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
       installed_kernel=$(basename "$(dirname "$kernel")")
@@ -31,6 +33,7 @@ if [[ $mode != "--services-only" ]]; then
         kernel_updated=false
         break
       fi
+      kernel_updated=true
     fi
   done
 
