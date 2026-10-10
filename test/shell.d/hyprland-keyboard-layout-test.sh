@@ -76,8 +76,16 @@ assert_greeter_input() {
   assert_resolved_input resolved_greeter_input "$@"
 }
 
-base_options="compose:caps,shift:both_capslock_cancel"
+base_options="compose:caps"
 toggle_options="$base_options,grp:alts_toggle"
+
+# shift:both_capslock_cancel must stay out of the default options: it places
+# Caps_Lock on level 2 of both Shift keys, and XWayland then maps Left Shift to
+# the lock modifier (#10545).
+if grep -Eq 'kb_options = ".*shift:both_capslock' "$ROOT/default/hypr/input.lua"; then
+  fail "default kb_options must not use shift:both_capslock*"
+fi
+pass "default kb_options omit shift:both_capslock*"
 
 assert_input "missing vconsole.conf falls back to us" "[us] [] [$base_options]"
 
@@ -128,3 +136,30 @@ sddm_layouts=$(sed -n '/^local non_latin_layouts =/,+1p' "$sddm_lua" | grep -o '
 [[ $hooks_layouts == "$sddm_layouts" ]] ||
   fail "greeter non-latin layout list stays in sync" "$(diff <(echo "$hooks_layouts") <(echo "$sddm_layouts"))"
 pass "greeter non-latin layout list stays in sync with the initramfs hook"
+
+# Real xkb map: with compose:caps alone, both Shift keys stay Shift-only. The
+# old shift:both_capslock_cancel pair put Caps_Lock on level 2 of <LFSH>/<RTSH>.
+if command -v xkbcli >/dev/null; then
+  map=$(xkbcli compile-keymap --layout us --options "$base_options" 2>/dev/null) ||
+    fail "xkbcli compiles the default kb_options"
+
+  lfsh=$(awk '/key <LFSH>/,/};/' <<<"$map")
+  rtsh=$(awk '/key <RTSH>/,/};/' <<<"$map")
+  caps=$(awk '/key <CAPS>/,/};/' <<<"$map")
+
+  [[ $lfsh == *Shift_L* ]] || fail "Left Shift keeps Shift_L" "$lfsh"
+  [[ $lfsh != *Caps_Lock* ]] || fail "Left Shift must not carry Caps_Lock" "$lfsh"
+  [[ $rtsh == *Shift_R* ]] || fail "Right Shift keeps Shift_R" "$rtsh"
+  [[ $rtsh != *Caps_Lock* ]] || fail "Right Shift must not carry Caps_Lock" "$rtsh"
+  [[ $caps == *Multi_key* ]] || fail "Caps Lock stays Multi_key (compose)" "$caps"
+  pass "xkb map keeps Shift pure under compose:caps"
+
+  broken=$(xkbcli compile-keymap --layout us --options 'compose:caps,shift:both_capslock_cancel' 2>/dev/null) ||
+    fail "xkbcli compiles the legacy broken options for contrast"
+  broken_lfsh=$(awk '/key <LFSH>/,/};/' <<<"$broken")
+  [[ $broken_lfsh == *Caps_Lock* ]] ||
+    fail "contrast: legacy options still put Caps_Lock on Left Shift" "$broken_lfsh"
+  pass "legacy shift:both_capslock_cancel still demonstrates the XWayland trap"
+else
+  skip "xkbcli not installed; keymap shape checks not run"
+fi
