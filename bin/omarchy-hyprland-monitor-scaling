@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# omarchy:summary=Show, set, or adjust focused Hyprland monitor scaling
-# omarchy:args=[up|down|SCALE]
-# omarchy:examples=omarchy hyprland monitor scaling | omarchy hyprland monitor scaling 1.6 | omarchy hyprland monitor scaling up | omarchy hyprland monitor scaling down
+# omarchy:summary=Show, set, or adjust Hyprland monitor scaling
+# omarchy:args=[up|down|SCALE] [monitor]
+# omarchy:examples=omarchy hyprland monitor scaling | omarchy hyprland monitor scaling 1.6 | omarchy hyprland monitor scaling up | omarchy hyprland monitor scaling down | omarchy hyprland monitor scaling 1.6 HDMI-A-1
 
 SCALES=(1 1.25 1.6 2 3 4)
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
 SCALE_LOG="$STATE_DIR/monitor-scaling.log"
 
 usage() {
-  echo "Usage: omarchy-hyprland-monitor-scaling [up|down|SCALE]"
+  echo "Usage: omarchy-hyprland-monitor-scaling [up|down|SCALE] [monitor]"
 }
 
 focused_monitor_scale() {
@@ -28,6 +28,8 @@ audit_scale_change() {
   local active_monitor="$2"
   local current_scale="$3"
   local new_scale="$4"
+  local pos="${5:-}"
+  local note="${6:-}"
   local parent_pid="$PPID"
   local grandparent_pid
   local parent_cmd
@@ -39,7 +41,13 @@ audit_scale_change() {
   parent_cmd=$(cmdline_for_pid "$parent_pid")
   grandparent_cmd=$(cmdline_for_pid "$grandparent_pid")
 
-  printf 'at=%s\trequested=%s\tcurrent=%s\tnew=%s\tmonitor=%s\tpid=%s\tppid=%s\tparent=%s\tgppid=%s\tgrandparent=%s\n' \
+  # pos= and note= append at the end of the line only: mid-line field order
+  # is load-bearing for log consumers grepping contiguous field runs.
+  local pos_field="" note_field=""
+  [[ -n $pos ]] && pos_field=$'\t'"pos=$pos"
+  [[ -n $note ]] && note_field=$'\t'"note=$note"
+
+  printf 'at=%s\trequested=%s\tcurrent=%s\tnew=%s\tmonitor=%s\tpid=%s\tppid=%s\tparent=%s\tgppid=%s\tgrandparent=%s%s%s\n' \
     "$(date --iso-8601=seconds)" \
     "$requested" \
     "$current_scale" \
@@ -49,7 +57,9 @@ audit_scale_change() {
     "$parent_pid" \
     "$parent_cmd" \
     "$grandparent_pid" \
-    "$grandparent_cmd" >>"$SCALE_LOG"
+    "$grandparent_cmd" \
+    "$pos_field" \
+    "$note_field" >>"$SCALE_LOG"
 }
 
 # Hyprland only accepts scales where the mode divides into whole logical
@@ -71,15 +81,186 @@ normalize_scale() {
   awk 'NR == 1 { printf "%g\n", $0 }'
 }
 
+# Recomputes the target monitor's position for a new scale so an edge that
+# touches (or nearly touches, within ~5 logical px) a neighbor keeps touching
+# after the logical box resizes: shrinking would strand a cursor-trapping gap
+# and growing would overlap. Per axis the adjacency candidate sharing the
+# largest edge wins and ties keep the target's own top-left edge fixed;
+# sacrificed sides of a same-axis contest are reported. Deliberate gaps keep
+# their stored coordinates verbatim, growth into a non-adjacent monitor gets
+# a minimal clamp, and a recompute that would create a new overlap aborts to
+# the live position rather than produce a worse state than doing nothing.
+# Prints "<X>x<Y> <kind> <dropped>" where kind is unchanged|adjacency|clamp|
+# abort and dropped is "-" or a comma-joined list of sacrificed adjacency
+# sides (left-of|right-of|above|below). Returns non-zero only when the target
+# is absent from the monitor array; abort is signaled in-band via kind.
+recompute_monitor_position() {
+  printf '%s\n' "$1" | jq -r '.[] | [.name,.x,.y,.width,.height,.scale,(.transform//0)] | @tsv' |
+    awk -F '\t' -v target="$2" -v new_scale="$3" -v tol=5 '
+      function abs(v) { return v < 0 ? -v : v }
+      function min(a, b) { return a < b ? a : b }
+      function max(a, b) { return a > b ? a : b }
+      # Positive-area intersection of the candidate box against monitor i.
+      function overlaps(i, bx, by) {
+        return min(bx + nlw, R[i]) - max(bx, L[i]) > 0 && min(by + nlh, B[i]) - max(by, T[i]) > 0
+      }
+      # The box at (bx,by) overlaps a monitor the live box did not already
+      # overlap -- pre-existing overlaps elsewhere are not ours to fix.
+      function new_overlap(bx, by,   i) {
+        for (i = 1; i <= n; i++) {
+          if (i == t) continue
+          if (overlaps(i, bx, by) && !old_overlap[i]) return 1
+        }
+        return 0
+      }
+
+      {
+        name[NR] = $1
+        X[NR] = $2 + 0
+        Y[NR] = $3 + 0
+        W[NR] = $4 + 0
+        H[NR] = $5 + 0
+        S[NR] = $6 + 0
+        TR[NR] = $7 + 0
+        if ($1 == target) t = NR
+      }
+
+      END {
+        n = NR
+        if (!t) exit 1
+
+        # Odd transforms rotate the output, so the pixel axes swap before the
+        # scale divides; logical dims round to whole pixels to bake float
+        # noise out of reported scales.
+        for (i = 1; i <= n; i++) {
+          pw = (TR[i] % 2 == 1) ? H[i] : W[i]
+          ph = (TR[i] % 2 == 1) ? W[i] : H[i]
+          L[i] = X[i]
+          T[i] = Y[i]
+          R[i] = X[i] + int(pw / S[i] + 0.5)
+          B[i] = Y[i] + int(ph / S[i] + 0.5)
+        }
+        nlw = int(((TR[t] % 2 == 1) ? H[t] : W[t]) / new_scale + 0.5)
+        nlh = int(((TR[t] % 2 == 1) ? W[t] : H[t]) / new_scale + 0.5)
+
+        for (i = 1; i <= n; i++) {
+          if (i == t) continue
+          old_overlap[i] = (min(R[t], R[i]) - max(L[t], L[i]) > 0 && min(B[t], B[i]) - max(T[t], T[i]) > 0)
+        }
+
+        # Adjacency candidates: an edge within tol of a neighbor edge counts
+        # as touching once the boxes share more than a corner on the other
+        # axis.
+        nxc = 0
+        nyc = 0
+        for (i = 1; i <= n; i++) {
+          if (i == t) continue
+          shared = min(B[t], B[i]) - max(T[t], T[i])
+          if (shared > 0) {
+            if (abs(R[t] - L[i]) <= tol) { nxc++; xv[nxc] = L[i] - nlw; xs[nxc] = "left-of"; xsh[nxc] = shared }
+            if (abs(L[t] - R[i]) <= tol) { nxc++; xv[nxc] = R[i]; xs[nxc] = "right-of"; xsh[nxc] = shared }
+          }
+          shared = min(R[t], R[i]) - max(L[t], L[i])
+          if (shared > 0) {
+            if (abs(B[t] - T[i]) <= tol) { nyc++; yv[nyc] = T[i] - nlh; ys[nyc] = "above"; ysh[nyc] = shared }
+            if (abs(T[t] - B[i]) <= tol) { nyc++; yv[nyc] = B[i]; ys[nyc] = "below"; ysh[nyc] = shared }
+          }
+        }
+
+        # Keep the adjacency with the largest shared edge per axis; a tie
+        # keeps the target top-left edge fixed (right-of on x, below on y --
+        # the minimal move).
+        bx = 0
+        for (i = 1; i <= nxc; i++)
+          if (bx == 0 || xsh[i] > xsh[bx] || (xsh[i] == xsh[bx] && xs[i] == "right-of" && xs[bx] != "right-of")) bx = i
+        by = 0
+        for (i = 1; i <= nyc; i++)
+          if (by == 0 || ysh[i] > ysh[by] || (ysh[i] == ysh[by] && ys[i] == "below" && ys[by] != "below")) by = i
+
+        # Every unchosen candidate of a contested axis is a sacrificed
+        # adjacency; record the dropped sides for the audit log.
+        split("", dropped_set)
+        if (nxc >= 2) for (i = 1; i <= nxc; i++) if (i != bx) dropped_set[xs[i]] = 1
+        if (nyc >= 2) for (i = 1; i <= nyc; i++) if (i != by) dropped_set[ys[i]] = 1
+        dropped = ""
+        split("left-of right-of above below", order, " ")
+        for (i = 1; i <= 4; i++)
+          if (order[i] in dropped_set) dropped = dropped (dropped == "" ? "" : ",") order[i]
+
+        nx = (bx ? xv[bx] : X[t])
+        ny = (by ? yv[by] : Y[t])
+        kind = (nxc > 0 || nyc > 0) ? "adjacency" : "unchanged"
+
+        if (new_overlap(nx, ny)) {
+          # A growth overlap on a candidate-less axis gets the smallest
+          # separating move that clears every new overlap; a contested-axis
+          # recompute that lands in an overlap aborts outright.
+          best_delta = -1
+          if (nxc == 0) {
+            for (i = 1; i <= n; i++) {
+              if (i == t) continue
+              for (k = 0; k < 2; k++) {
+                cx = (k == 0) ? L[i] - nlw : R[i]
+                if (!new_overlap(cx, ny)) {
+                  d = abs(cx - X[t])
+                  if (best_delta < 0 || d < best_delta) { best_delta = d; best_nx = cx; best_ny = ny }
+                }
+              }
+            }
+          }
+          if (nyc == 0) {
+            for (i = 1; i <= n; i++) {
+              if (i == t) continue
+              for (k = 0; k < 2; k++) {
+                cy = (k == 0) ? T[i] - nlh : B[i]
+                if (!new_overlap(nx, cy)) {
+                  d = abs(cy - Y[t])
+                  if (best_delta < 0 || d < best_delta) { best_delta = d; best_nx = nx; best_ny = cy }
+                }
+              }
+            }
+          }
+          if (best_delta >= 0) {
+            nx = best_nx
+            ny = best_ny
+            kind = "clamp"
+          } else {
+            printf "%dx%d %s %s\n", X[t], Y[t], "abort", "-"
+            exit 0
+          }
+        }
+
+        printf "%dx%d %s %s\n", nx, ny, kind, (dropped == "" ? "-" : dropped)
+      }'
+}
+
 set_scale() {
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
-  local monitor_info="$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')"
+  local target_monitor="${3:-}"
+  # One fetch serves the target row, the neighbor geometry for the position
+  # recompute, and the GDK max. monitors -j (not all) already excludes
+  # disabled and mirror outputs, which is the right set for all three.
+  local monitors_json
+  monitors_json=$(hyprctl monitors -j)
+  local monitor_info
+  monitor_info=$(printf '%s\n' "$monitors_json" | jq -e -c --arg monitor "$target_monitor" '
+    .[] | select(if $monitor == "" then .focused == true else .name == $monitor end)') || {
+    echo "No such monitor: ${target_monitor:-focused}" >&2
+    exit 1
+  }
   local active_monitor="$(echo "$monitor_info" | jq -r '.name')"
   local current_scale="$(echo "$monitor_info" | jq -r '.scale')"
   local width="$(echo "$monitor_info" | jq -r '.width')"
   local height="$(echo "$monitor_info" | jq -r '.height')"
   local refresh_rate="$(echo "$monitor_info" | jq -r '.refreshRate')"
+  local x="$(echo "$monitor_info" | jq -r '.x // 0')"
+  local y="$(echo "$monitor_info" | jq -r '.y // 0')"
+  local transform="$(echo "$monitor_info" | jq -r '.transform // 0')"
+  local description="$(echo "$monitor_info" | jq -r '.description // ""')"
+  local make="$(echo "$monitor_info" | jq -r '.make // ""')"
+  local model="$(echo "$monitor_info" | jq -r '.model // ""')"
+  local serial="$(echo "$monitor_info" | jq -r '.serial // ""')"
 
   # active_monitor is written into the Lua string eval'd below, so only a plain
   # connector name may pass; a hostile output name could execute otherwise.
@@ -90,26 +271,485 @@ set_scale() {
 
   local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
   # GTK only honors integer GDK_SCALE values, so persist the nearest whole
-  # factor even when the monitor scale itself is fractional.
-  local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
+  # factor even when the monitor scale itself is fractional. The global
+  # follows the densest monitor: the target's new scale plus every other
+  # monitor's reported scale, rounded half up.
+  local new_gdk_scale="$(printf '%s\n' "$monitors_json" | jq -r --arg name "$active_monitor" --argjson new "$new_scale" \
+    '[.[] | select(.name != $name) | .scale] + [$new] | max' | awk '{ printf "%d", int($1 + 0.5) }')"
   local monitor_lua="$HOME/.config/hypr/monitors.lua"
 
-  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
-  audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
-
-  # Persist to monitors.lua if the user still has Omarchy's generic catch-all
-  # defaults, so the scale survives reboots.
-  if [[ -f $monitor_lua ]] && grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
-    sed -i -E \
-      -e "s|^local omarchy_monitor_scale = .*|local omarchy_monitor_scale = ${new_scale}|" \
-      -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" \
-      "$monitor_lua"
-  elif [[ -f $monitor_lua ]] && grep -Eq '^hl\.monitor\(\{ output = "", mode = "preferred", position = "auto", scale = ("auto"|[0-9.]+) \}\)' "$monitor_lua"; then
-    sed -i -E \
-      -e "s|^(hl\.monitor\(\{ output = \"\", mode = \"preferred\", position = \"auto\", scale = )([^ ]+)( \}\))|\\1${new_scale}\\3|" \
-      -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' \
-      "$monitor_lua"
+  # The scale change resizes the monitor's logical box, so the position is
+  # recomputed to keep edge-adjacent monitors touching their neighbors (a
+  # fixed offset encodes the old logical size -- upstream #10922). On unusable
+  # input or an abort the live position is replayed verbatim.
+  local recompute_out recompute_status=0 new_pos new_x new_y recompute_note recompute_dropped
+  recompute_out=$(recompute_monitor_position "$monitors_json" "$active_monitor" "$new_scale") || recompute_status=$?
+  read -r new_pos recompute_note recompute_dropped <<<"$recompute_out"
+  if (( recompute_status != 0 )) || [[ ! $new_pos =~ ^-?[0-9]+x-?[0-9]+$ ]]; then
+    new_pos="${x}x${y}"
+    recompute_note=abort
+    recompute_dropped="-"
   fi
+  new_x=${new_pos%x*}
+  new_y=${new_pos#*x}
+
+  # Scale and position apply in one eval so the monitor never occupies a
+  # broken intermediate layout; a nonzero transform rides along so a rotated
+  # output stays rotated.
+  local transform_eval=""
+  (( transform != 0 )) && transform_eval=", transform = $transform"
+  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"$new_pos\", scale = $new_scale$transform_eval })" >/dev/null
+
+  # Hyprland can still snap the requested scale upstream; one re-read catches
+  # a divergence between the computed and the applied scale for the audit log.
+  local applied_scale scale_diverged=0
+  applied_scale=$(hyprctl monitors -j | jq -r --arg m "$active_monitor" '[.[] | select(.name == $m) | .scale][0] // empty')
+  if [[ -n $applied_scale ]]; then
+    awk -v applied="$applied_scale" -v expected="$new_scale" \
+      'BEGIN { exit !((applied - expected) < 0.006 && (expected - applied) < 0.006) }' || scale_diverged=1
+  fi
+
+  # Sacrificed adjacency sides and a scale divergence join the audit note; an
+  # unchanged recompute emits no note at all.
+  local audit_note="" side
+  [[ $recompute_note != "unchanged" ]] && audit_note="$recompute_note"
+  if [[ $recompute_dropped != "-" ]]; then
+    for side in ${recompute_dropped//,/ }; do
+      audit_note+="${audit_note:+,}drop-${side}"
+    done
+  fi
+  (( scale_diverged == 1 )) && audit_note+="${audit_note:+,}scale-divergence"
+
+  audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale" "$new_pos" "$audit_note"
+
+  # The persisted position rewrite only runs when the recompute actually
+  # moved the monitor; identical-to-live positions leave the rule untouched.
+  local position_update=""
+  [[ $new_x != $x || $new_y != $y ]] && position_update="${new_x}x${new_y}"
+
+  OMARCHY_NEW_POSITION="$position_update" persist_monitor_scale "$active_monitor" "$new_scale" "$new_gdk_scale" "$monitor_lua" \
+    "$width" "$height" "$refresh_rate" "$new_x" "$new_y" "$description" "$make" "$model" "$serial" "$transform"
+}
+
+# Persist the scale on the target monitor's own hl.monitor() rule so it
+# survives reload and reboot. A monitor with a named rule gets its scale
+# rewritten in place (inserted when the rule has none); a monitor with no rule
+# gets an appended single-line rule, which beats the output = "" catch-all by
+# Hyprland's last-matching-rule semantics. The shared scale variable and the
+# catch-all are never written for a targeted monitor.
+persist_monitor_scale() {
+  local active_monitor="$1" new_scale="$2" new_gdk_scale="$3" monitor_lua="$4"
+  local width="$5" height="$6" refresh_rate="$7" x="$8" y="$9"
+  local description="${10}" make="${11}" model="${12}" serial="${13}" transform="${14:-0}"
+
+  if [[ ! -f $monitor_lua ]]; then
+    echo "$monitor_lua not found; skipping persistence" >&2
+    return 0
+  fi
+  if [[ ! -r $monitor_lua ]]; then
+    echo "$monitor_lua is not readable; skipping persistence" >&2
+    return 1
+  fi
+
+  # A timestamped monitors.lua.bak.<timestamp> backup precedes every write so
+  # a bad rewrite never costs the user's file.
+  cp -- "$monitor_lua" "$monitor_lua.bak.$(date +%s)" || return 1
+
+  local tmp
+  tmp=$(mktemp) || return 1
+  # `local` itself resets $?, so status is declared up front and the awk exit is
+  # captured through || below.
+  local status=0
+
+  # Monitor identity travels through the environment, never -v: EDID-derived
+  # description text can carry backslashes that -v would eat. The awk pass
+  # blanks comments and string contents to spaces at identical byte offsets so
+  # neither can fake a key or a block boundary, then rewrites scale = inside
+  # every hl.monitor() block naming this output -- connector name or a desc:
+  # selector prefix-matching the monitor's description -- and answers through
+  # its exit code: 0 rewrote at least one block, 3 no rule names this output.
+  env OMARCHY_TARGET_NAME="$active_monitor" \
+    OMARCHY_TARGET_DESC="$description" \
+    OMARCHY_TARGET_MAKE="$make" \
+    OMARCHY_TARGET_MODEL="$model" \
+    OMARCHY_TARGET_SERIAL="$serial" \
+    OMARCHY_NEW_SCALE="$new_scale" \
+    awk '
+      BEGIN {
+        target = ENVIRON["OMARCHY_TARGET_NAME"]
+        desc = ENVIRON["OMARCHY_TARGET_DESC"]
+        short = ENVIRON["OMARCHY_TARGET_MAKE"] " " ENVIRON["OMARCHY_TARGET_MODEL"] " " ENVIRON["OMARCHY_TARGET_SERIAL"]
+        new_scale = ENVIRON["OMARCHY_NEW_SCALE"]
+        new_position = ENVIRON["OMARCHY_NEW_POSITION"]
+        squote = sprintf("%c", 39)
+
+        # Hyprland compares a desc: selector against the monitor description
+        # and its "make model serial" short description, commas stripped.
+        gsub(/,/, "", desc)
+        gsub(/,/, "", short)
+        desc = trim(desc)
+        short = trim(short)
+
+        in_comment = 0   # inside a multi-line --[=*[ ]=*] comment
+        in_long = 0      # inside a [=*[ ]=*] long string
+        comment_close = ""  # ]=*] matching the open comment level
+        long_close = ""     # ]=*] matching the open string level
+        in_str = 0       # inside a quoted string (reset each line)
+        depth = 0
+        in_block = 0
+        matched = 0
+      }
+
+      function trim(s) {
+        sub(/^[[:space:]]+/, "", s)
+        sub(/[[:space:]]+$/, "", s)
+        return s
+      }
+
+      function sp(n,   s) {
+        s = ""
+        while (n > 0) { s = s " "; n-- }
+        return s
+      }
+
+      function eq_str(n,   s) {
+        s = ""
+        while (n > 0) { s = s "="; n-- }
+        return s
+      }
+
+      # Produces two shadows of the line in the globals b_out and s_out: b_out
+      # blanks comments (multi-line --[=*[ ]=*] regions tracked via in_comment)
+      # and s_out additionally blanks string contents. Both keep byte offsets
+      # aligned with $0 so positions found in them splice back into it. Long
+      # brackets carry a level: a --[==[ comment only closes on ]==] and a [=[
+      # string only on ]=], so the matching ]=*] is remembered on open.
+      function scan_line(line,   i, n, c, two) {
+        b_out = ""
+        s_out = ""
+        in_str = 0
+        n = length(line)
+        i = 1
+        while (i <= n) {
+          c = substr(line, i, 1)
+          two = substr(line, i, 2)
+          if (in_comment) {
+            if (c == "]" && substr(line, i, length(comment_close)) == comment_close) {
+              b_out = b_out sp(length(comment_close))
+              s_out = s_out sp(length(comment_close))
+              in_comment = 0
+              i += length(comment_close)
+            } else {
+              b_out = b_out " "; s_out = s_out " "; i++
+            }
+            continue
+          }
+          if (in_long) {
+            if (c == "]" && substr(line, i, length(long_close)) == long_close) {
+              b_out = b_out long_close; s_out = s_out long_close
+              in_long = 0
+              i += length(long_close)
+            } else {
+              b_out = b_out c; s_out = s_out " "; i++
+            }
+            continue
+          }
+          if (in_str) {
+            if (c == "\\") {
+              b_out = b_out substr(line, i, 2)
+              s_out = s_out "  "
+              i += 2
+              continue
+            }
+            b_out = b_out c
+            if (c == quote) { s_out = s_out c; in_str = 0 } else { s_out = s_out " " }
+            i++
+            continue
+          }
+          if (two == "--") {
+            if (match(substr(line, i + 2), /^\[=*\[/)) {
+              b_out = b_out sp(2 + RLENGTH)
+              s_out = s_out sp(2 + RLENGTH)
+              in_comment = 1
+              comment_close = "]" eq_str(RLENGTH - 2) "]"
+              i += 2 + RLENGTH
+            } else {
+              b_out = b_out sp(n - i + 1); s_out = s_out sp(n - i + 1); i = n + 1
+            }
+            continue
+          }
+          if (c == "[" && match(substr(line, i + 1), /^=*\[/)) {
+            in_long = 1
+            long_close = "]" eq_str(RLENGTH - 1) "]"
+            b_out = b_out substr(line, i, RLENGTH + 1)
+            s_out = s_out substr(line, i, RLENGTH + 1)
+            i += RLENGTH + 1
+            continue
+          }
+          if (c == "\"" || c == squote) {
+            b_out = b_out c; s_out = s_out c; in_str = 1; quote = c; i++
+            continue
+          }
+          b_out = b_out c
+          s_out = s_out c
+          i++
+        }
+      }
+
+      function depth_delta(s,   i, n, d, c) {
+        d = 0
+        n = length(s)
+        for (i = 1; i <= n; i++) {
+          c = substr(s, i, 1)
+          if (c == "(" || c == "{") d++
+          else if (c == ")" || c == "}") d--
+        }
+        return d
+      }
+
+      # The offset in block_nostr of the first `key =` pair at the top level of
+      # the monitor table, or 0 when the table has none. A key inside a nested
+      # table like extra = { scale = 99 } is not a key of the rule, so the scan
+      # tracks { } ( ) depth from the table constructor opening brace and
+      # only accepts keys at depth 1. Offsets align 1:1 with block_orig, so a
+      # hit splices straight back into the original text.
+      function top_level_key(key,   brace, i, n, d, c, prev, j) {
+        if (!match(block_nostr, /hl\.monitor[[:space:]]*\(/)) return 0
+        brace = index(substr(block_nostr, RSTART + RLENGTH - 1), "{")
+        if (brace == 0) return 0
+        brace += RSTART + RLENGTH - 2
+        d = 1
+        n = length(block_nostr)
+        for (i = brace + 1; i <= n && d > 0; i++) {
+          c = substr(block_nostr, i, 1)
+          if (c == "{" || c == "(") { d++; continue }
+          if (c == "}" || c == ")") { d--; continue }
+          if (d != 1) continue
+          prev = substr(block_nostr, i - 1, 1)
+          if (prev !~ /[{,;[:space:]]/) continue
+          if (substr(block_nostr, i, length(key)) != key) continue
+          j = i + length(key)
+          while (j <= n && substr(block_nostr, j, 1) ~ /[[:space:]]/) j++
+          if (substr(block_nostr, j, 1) != "=") continue
+          return i
+        }
+        return 0
+      }
+
+      # The first value char of the `key =` pair whose key starts at pos in
+      # block_nostr.
+      function value_start(pos,   j) {
+        j = pos
+        while (substr(block_nostr, j, 1) != "=") j++
+        j++
+        while (substr(block_nostr, j, 1) ~ /[[:space:]]/) j++
+        return j
+      }
+
+      # The last char of the value starting at pos in block_nostr: the first
+      # , ; } or unbalanced closer at the depth the value starts at, so a
+      # comma inside a nested call like math.max(1, 1.5) cannot truncate the
+      # expression and splice invalid Lua into the file.
+      function value_end(pos,   i, n, d, c) {
+        d = 0
+        n = length(block_nostr)
+        for (i = pos; i <= n; i++) {
+          c = substr(block_nostr, i, 1)
+          if (c == "(" || c == "{" || c == "[") { d++; continue }
+          if (c == ")" || c == "}" || c == "]") {
+            if (d == 0) return i - 1
+            d--
+            continue
+          }
+          if (d == 0 && (c == "," || c == ";")) return i - 1
+        }
+        return n
+      }
+
+      # The output selector of the block, read from the comment-blanked text at
+      # offsets located in the string-blanked text so key-like text inside a
+      # string cannot pose as the output key. Only the top-level output key of
+      # the monitor table counts; a nested one does not select the rule.
+      function block_output(   kstart, vstart, p, q2) {
+        kstart = top_level_key("output")
+        if (!kstart) return ""
+        vstart = value_start(kstart)
+        if (substr(block_nostr, vstart, 1) != "\"") return ""
+        p = index(substr(block_nostr, vstart + 1), "\"")
+        if (p == 0) return ""
+        q2 = vstart + p
+        return substr(block_blank, vstart + 1, q2 - vstart - 1)
+      }
+
+      # Mirror of the Hyprland static selector: the literal connector name, or
+      # desc: followed by text that prefix-matches the monitor description or
+      # its "make model serial" short description. An empty output never
+      # matches, so the output = "" catch-all is never rewritten.
+      function selector_matches(value,   sel) {
+        if (value == target) return 1
+        if (substr(value, 1, 5) == "desc:") {
+          sel = substr(value, 6)
+          gsub(/,/, "", sel)
+          sel = trim(sel)
+          if (length(sel) == 0) return 0
+          if (substr(desc, 1, length(sel)) == sel) return 1
+          if (substr(short, 1, length(sel)) == sel) return 1
+        }
+        return 0
+      }
+
+      # In-place edits are collected as (start, end, replacement) spans whose
+      # offsets all come from the untouched block_nostr, then spliced into
+      # block_orig highest-offset-first. Splicing immediately would shift the
+      # block and invalidate every later span offset -- with position
+      # before scale in a rule, the scale splice would land on stale bytes.
+      # An insertion span carries end = start - 1 (empty range).
+      function add_edit(start, end, text) {
+        nedit++
+        edit_start[nedit] = start
+        edit_end[nedit] = end
+        edit_text[nedit] = text
+      }
+
+      function apply_edits(   i, j, best) {
+        for (i = 1; i <= nedit; i++) {
+          best = 0
+          for (j = 1; j <= nedit; j++)
+            if (edit_start[j] >= 0 && (best == 0 || edit_start[j] > edit_start[best])) best = j
+          if (best == 0) break
+          block_orig = substr(block_orig, 1, edit_start[best] - 1) edit_text[best] substr(block_orig, edit_end[best] + 1)
+          edit_start[best] = -1
+        }
+        nedit = 0
+      }
+
+      # The top-level scale = key of the monitor table, rewritten in place or
+      # inserted before the closing brace when the rule has none. Positions
+      # come from the string-blanked text; the splice lands in the original
+      # so comments and strings survive the edit.
+      function collect_scale_edit(   kstart, vstart, vend, i, j, c, insertion) {
+        kstart = top_level_key("scale")
+        if (kstart) {
+          vstart = value_start(kstart)
+          vend = value_end(vstart)
+          while (vend > vstart && substr(block_nostr, vend, 1) ~ /[[:space:]]/) vend--
+          add_edit(kstart, vend, "scale = " new_scale)
+          return
+        }
+
+        i = length(block_nostr)
+        while (i >= 1 && substr(block_nostr, i, 1) != "}") i--
+        if (i < 1) return
+        j = i - 1
+        while (j >= 1 && substr(block_nostr, j, 1) ~ /[[:space:]]/) j--
+        c = (j >= 1) ? substr(block_nostr, j, 1) : ""
+        if (c == "," || c == ";" || c == "{") {
+          insertion = " scale = " new_scale
+        } else {
+          insertion = ", scale = " new_scale
+        }
+        add_edit(j + 1, j, insertion)
+      }
+
+      # The top-level position = key, rewritten to the recomputed literal. A
+      # missing position is auto-derived on every reload so it is never
+      # inserted, and an auto* value re-derives too, so only a literal or a
+      # variable reference can hold a stale coordinate. The value text is
+      # read from block_blank because block_nostr blanks string interiors.
+      function collect_position_edit(   kstart, vstart, vend, value) {
+        if (new_position == "") return
+        kstart = top_level_key("position")
+        if (!kstart) return
+        vstart = value_start(kstart)
+        vend = value_end(vstart)
+        while (vend > vstart && substr(block_nostr, vend, 1) ~ /[[:space:]]/) vend--
+        value = trim(substr(block_blank, vstart, vend - vstart + 1))
+        if (length(value) >= 2 &&
+            (substr(value, 1, 1) == "\"" || substr(value, 1, 1) == squote) &&
+            substr(value, length(value), 1) == substr(value, 1, 1))
+          value = trim(substr(value, 2, length(value) - 2))
+        if (value == "auto" || substr(value, 1, 5) == "auto-") return
+        add_edit(kstart, vend, "position = \"" new_position "\"")
+      }
+
+      function process_block() {
+        if (selector_matches(block_output())) {
+          matched++
+          nedit = 0
+          collect_scale_edit()
+          collect_position_edit()
+          apply_edits()
+        }
+        print block_orig
+      }
+
+      {
+        scan_line($0)
+
+        if (in_block) {
+          block_orig = block_orig "\n" $0
+          block_blank = block_blank "\n" b_out
+          block_nostr = block_nostr "\n" s_out
+          depth += depth_delta(s_out)
+          if (depth <= 0) { in_block = 0; depth = 0; process_block() }
+          next
+        }
+
+        if (depth == 0 && b_out ~ /hl\.monitor[[:space:]]*\(/) {
+          in_block = 1
+          block_orig = $0
+          block_blank = b_out
+          block_nostr = s_out
+          depth += depth_delta(s_out)
+          if (depth <= 0) { in_block = 0; depth = 0; process_block() }
+          next
+        }
+
+        depth += depth_delta(s_out)
+        if (depth < 0) depth = 0
+        print $0
+      }
+
+      END {
+        # An unterminated block is still user text: emit it verbatim.
+        if (in_block) print block_orig
+        exit(matched > 0 ? 0 : 3)
+      }
+    ' "$monitor_lua" >"$tmp" || status=$?
+
+  case $status in
+  0)
+    # cat through the target rather than mv so a symlinked config stays a
+    # symlink.
+    cat "$tmp" >"$monitor_lua"
+    ;;
+  3)
+    # A file that does not end in a newline would merge the append into its
+    # last line.
+    if [[ -s $monitor_lua ]] && [[ -n $(tail -c 1 "$monitor_lua") ]]; then
+      printf '\n' >>"$monitor_lua"
+    fi
+    # A nonzero transform is appended after scale so an appended rule keeps a
+    # rotated output rotated, matching the shipped key order.
+    local transform_rule=""
+    (( transform != 0 )) && transform_rule=", transform = $transform"
+    printf 'hl.monitor({ output = "%s", mode = "%sx%s@%s", position = "%sx%s", scale = %s%s })\n' \
+      "$active_monitor" "$width" "$height" "$refresh_rate" "$x" "$y" "$new_scale" "$transform_rule" >>"$monitor_lua"
+    ;;
+  *)
+    echo "Failed to rewrite $monitor_lua; left unchanged" >&2
+    rm -f "$tmp"
+    return 1
+    ;;
+  esac
+  rm -f "$tmp"
+
+  # GTK only honors integer GDK_SCALE values; update whichever shipped form is
+  # present on every persist path. Each pattern no-ops when it is absent.
+  sed -i --follow-symlinks -E \
+    -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" \
+    -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' \
+    "$monitor_lua"
 }
 
 scale_from_current() {
@@ -171,33 +811,54 @@ scale_from_current() {
     }'
 }
 
-case "${1:-}" in
-"")
-  focused_monitor_scale | normalize_scale
-  ;;
--h | --help)
-  usage
-  ;;
-up)
-  monitor_info=$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')
-  set_scale "$(echo "$monitor_info" | jq -r '.scale' | scale_from_current next \
-    "$(echo "$monitor_info" | jq -r '.width')" "$(echo "$monitor_info" | jq -r '.height')")" "up"
-  ;;
-down)
-  monitor_info=$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')
-  set_scale "$(echo "$monitor_info" | jq -r '.scale' | scale_from_current previous \
-    "$(echo "$monitor_info" | jq -r '.width')" "$(echo "$monitor_info" | jq -r '.height')")" "down"
-  ;;
-1 | 1.25 | 1.6 | 2 | 3 | 4)
-  set_scale "$1" "$1"
-  ;;
-*)
-  if [[ $1 =~ ^[0-9]+([.][0-9]+)?$ ]] &&
-    awk -v scale="$1" 'BEGIN { exit !(scale >= 1 && scale <= 4) }'; then
-    set_scale "$1" "$1"
-  else
+# The dispatch guard keeps the file sourceable so tests can unit-call
+# recompute_monitor_position without running the CLI.
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  if (( $# > 2 )); then
     usage >&2
     exit 1
   fi
-  ;;
-esac
+
+  case "${1:-}" in
+  "")
+    if (( $# > 1 )); then
+      usage >&2
+      exit 1
+    fi
+    focused_monitor_scale | normalize_scale
+    ;;
+  -h | --help)
+    usage
+    ;;
+  up)
+    monitor_info=$(hyprctl monitors -j | jq -e -c --arg monitor "${2:-}" '
+      .[] | select(if $monitor == "" then .focused == true else .name == $monitor end)') || {
+      echo "No such monitor: ${2:-focused}" >&2
+      exit 1
+    }
+    set_scale "$(echo "$monitor_info" | jq -r '.scale' | scale_from_current next \
+      "$(echo "$monitor_info" | jq -r '.width')" "$(echo "$monitor_info" | jq -r '.height')")" "up" "${2:-}"
+    ;;
+  down)
+    monitor_info=$(hyprctl monitors -j | jq -e -c --arg monitor "${2:-}" '
+      .[] | select(if $monitor == "" then .focused == true else .name == $monitor end)') || {
+      echo "No such monitor: ${2:-focused}" >&2
+      exit 1
+    }
+    set_scale "$(echo "$monitor_info" | jq -r '.scale' | scale_from_current previous \
+      "$(echo "$monitor_info" | jq -r '.width')" "$(echo "$monitor_info" | jq -r '.height')")" "down" "${2:-}"
+    ;;
+  1 | 1.25 | 1.6 | 2 | 3 | 4)
+    set_scale "$1" "$1" "${2:-}"
+    ;;
+  *)
+    if [[ $1 =~ ^[0-9]+([.][0-9]+)?$ ]] &&
+      awk -v scale="$1" 'BEGIN { exit !(scale >= 1 && scale <= 4) }'; then
+      set_scale "$1" "$1" "${2:-}"
+    else
+      usage >&2
+      exit 1
+    fi
+    ;;
+  esac
+fi
