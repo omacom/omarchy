@@ -242,17 +242,32 @@ wifi_report() {
   fi
 }
 
+# The setting and the rule that follows from it change under the writers'
+# lock as one step (conf_locked): two commands racing could otherwise leave
+# parent.conf saying one thing and the polkit rule another.
+wifi_set() {
+  local user="$1" mode="$2"
+  conf_set wifi "$mode" || fail "could not record wifi=$mode in $PARENT_CONF"
+  install_wifi_rule "$user" "$mode"
+}
+
+wifi_apply() {
+  local user="$1"
+  conf_document wifi parent \
+    "wifi: who may join and change Wi-Fi networks." \
+    "  parent  joining or changing a network asks for the parent password (default)" \
+    "  kid     the kid account may join networks and enter their passwords alone" ||
+    fail "could not document the Wi-Fi setting in $PARENT_CONF"
+  install_wifi_rule "$user" "$(wifi_mode)"
+}
+
 apply_posture() {
   local user="$1"
 
   require_root_password
   install_sudoers omarchy-parent "$(system_sudoers)"
   install_polkit_rule
-  conf_document wifi parent \
-    "wifi: who may join and change Wi-Fi networks." \
-    "  parent  joining or changing a network asks for the parent password (default)" \
-    "  kid     the kid account may join networks and enter their passwords alone"
-  install_wifi_rule "$user" "$(wifi_mode)"
+  conf_locked wifi_apply "$user"
 
   # The account's own grant lands, validated, before it leaves wheel, so there
   # is never a moment without a working sudo path. 00-omarchy-wheel stays: it
@@ -369,8 +384,7 @@ case "$command" in
       kid|parent)
         [[ -n $user ]] || user="${SUDO_USER:-}"
         require_user wifi
-        conf_set wifi "${positional[0]}"
-        install_wifi_rule "$user" "${positional[0]}"
+        conf_locked wifi_set "$user" "${positional[0]}"
         wifi_report
         ;;
       *)

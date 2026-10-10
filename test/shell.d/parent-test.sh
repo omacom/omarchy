@@ -192,6 +192,9 @@ grep -Fq 'return polkit.Result.AUTH_ADMIN_KEEP;' "$POLKIT_RULES_DIR/45-omarchy-p
 [[ $(wifi_report 2>/dev/null) == "wifi=parent: joining or changing a Wi-Fi network asks for the parent password." ]] || fail "wifi_report reads the file" "$(wifi_report 2>&1)"
 rm -rf "$conf_tmp"
 unset OMARCHY_PARENT_CONF OMARCHY_POLKIT_RULES_DIR
+grep -Fq 'conf_locked wifi_set "$user" "${positional[0]}"' "$parent" || fail "wifi records the setting and publishes the rule under one lock"
+grep -Fq 'conf_locked wifi_apply "$user"' "$parent" || fail "apply reads the setting and publishes the rule under one lock"
+grep -q '^conf_locked() (' "$ROOT/install/helpers/parent.sh" || fail "the shared helper can hold the lock around a whole operation"
 pass "the Wi-Fi rule asks the parent by default and hands the kid the school's network on request"
 
 # Two menu entries would hand the invoking account passwordless root, which

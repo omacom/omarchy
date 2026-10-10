@@ -40,13 +40,17 @@ install_sudoers() {
 # rename, so documenting a default cannot overwrite a concurrent explicit
 # choice. Readers need no lock: they see either complete version. The subshell
 # closes the lock descriptor and keeps its umask/trap local to this operation.
+# Under conf_locked the caller already holds the lock, and taking it again on
+# a second descriptor would wait forever, so the writer leaves it alone.
 conf_change() (
   local operation="$1" key="${2:-}" value="${3:-}" directory lock_fd stage line
   directory=$(dirname "$PARENT_CONF") || return
   mkdir -p "$directory" || return
   umask 077
-  exec {lock_fd}>"$directory/.${PARENT_CONF##*/}.lock" || return
-  flock -x "$lock_fd" || return
+  if [[ -z ${PARENT_CONF_LOCKED:-} ]]; then
+    exec {lock_fd}>"$directory/.${PARENT_CONF##*/}.lock" || return
+    flock -x "$lock_fd" || return
+  fi
 
   if [[ $operation == "init" && -f $PARENT_CONF ]]; then
     return 0
@@ -84,6 +88,20 @@ CONF
   fi
   chmod 644 "$stage" || return
   mv -f -- "$stage" "$PARENT_CONF"
+)
+
+# Hold the writers' lock around a whole operation: a command that records a
+# setting and publishes what follows from it (omarchy-parent's Wi-Fi rule) runs
+# as one step, so two commands racing cannot leave the file saying one thing
+# and the rule another. The command runs in this subshell with the lock held;
+# the writers above see PARENT_CONF_LOCKED and do not take it again.
+conf_locked() (
+  local directory lock_fd
+  directory=$(dirname "$PARENT_CONF") || return
+  mkdir -p "$directory" || return
+  exec {lock_fd}>"$directory/.${PARENT_CONF##*/}.lock" || return
+  flock -x "$lock_fd" || return
+  PARENT_CONF_LOCKED=1 "$@"
 )
 
 conf_init() {

@@ -8,7 +8,7 @@ require_command flock
 test_tmp=$(mktemp -d)
 worker_pids=()
 cleanup() {
-  touch "$test_tmp/document.release"
+  touch "$test_tmp/document.release" "$test_tmp/holder.release"
   for pid in "${worker_pids[@]}"; do kill "$pid" 2>/dev/null || true; done
   for pid in "${worker_pids[@]}"; do wait "$pid" 2>/dev/null || true; done
   rm -rf -- "$test_tmp"
@@ -109,6 +109,45 @@ for operation in flock sed mv; do
   fi
 done
 pass "lock, content-generation and publication failures preserve settings and clean up staging files"
+
+# A command may hold the writers' lock around several steps: its own writes go
+# through without waiting on the lock it holds, another writer waits until it
+# is done, and the lock is released afterwards. This is how omarchy-parent
+# records a Wi-Fi choice and publishes its polkit rule as one step.
+hold_and_write() {
+  conf_set wifi kid || return
+  : >"$TEST_CONFIG_RACE/holder.wrote"
+  while [[ ! -f $TEST_CONFIG_RACE/holder.release ]]; do sleep 0.01; done
+  conf_set screen kid
+}
+( conf_locked hold_and_write ) &
+holder_pid=$!
+worker_pids+=("$holder_pid")
+wait_for_any "$test_tmp/holder.wrote" || fail "a locked command writes its first setting without waiting on its own lock"
+[[ $(conf_get wifi parent) == "kid" ]] || fail "a write under the held lock is published"
+bash -euo pipefail -c '
+  source "$1"
+  flock() {
+    : >"$TEST_CONFIG_RACE/latecomer.waiting"
+    command flock "$@"
+  }
+  conf_set wifi parent
+  : >"$TEST_CONFIG_RACE/latecomer.done"
+' _ "$ROOT/install/helpers/parent.sh" &
+late_pid=$!
+worker_pids+=("$late_pid")
+wait_for_any "$test_tmp/latecomer.waiting" || fail "a concurrent writer reaches the lock"
+sleep 0.2
+[[ ! -f $test_tmp/latecomer.done ]] || fail "a concurrent writer waits for the held lock"
+touch "$test_tmp/holder.release"
+wait "$holder_pid" || fail "the locked command completes"
+wait "$late_pid" || fail "the concurrent writer completes once the lock is released"
+worker_pids=()
+[[ $(conf_get wifi kid) == "parent" && $(conf_get screen parent) == "kid" ]] ||
+  fail "the concurrent writer's change lands after both of the locked command's writes" "$(<"$PARENT_CONF")"
+conf_set wifi kid
+[[ $(conf_get wifi parent) == "kid" ]] || fail "the lock is released after the locked command"
+pass "a command can hold the writers' lock across its steps while other writers wait"
 
 # A fresh file has the same header and permission contract through either
 # initialization path; creating a default also obeys the writer lock.
