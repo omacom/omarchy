@@ -141,7 +141,7 @@ BarWidget {
     return String(icon || "")
   }
 
-  // Symbolic icons ship a fixed fill (often near-white) that the host is meant
+  // Symbolic icons ship a fixed fill (light or dark) that the host is meant
   // to recolor to its foreground; detect them by the freedesktop "-symbolic"
   // name suffix so they can be tinted instead of rendered as-is.
   function iconIsSymbolic(icon) {
@@ -787,12 +787,19 @@ BarWidget {
       layer.enabled: trayIconRoot.symbolic
     }
 
-    MultiEffect {
+    // Paint the foreground through the icon's alpha. MultiEffect's colorization
+    // keeps the source's lightness, so a dark fill stayed dark on a dark bar.
+    Rectangle {
       anchors.fill: trayIconImage
-      source: trayIconImage
+      color: root.foreground
       visible: trayIconRoot.symbolic
-      colorization: 1.0
-      colorizationColor: root.foreground
+      layer.enabled: trayIconRoot.symbolic
+      layer.effect: MultiEffect {
+        maskEnabled: true
+        maskSource: trayIconImage
+        maskThresholdMin: 0.5
+        maskSpreadAtMin: 1.0
+      }
     }
   }
 
