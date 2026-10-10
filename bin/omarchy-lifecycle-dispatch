@@ -86,8 +86,8 @@ if ! platform=$("${detect[@]}"); then
   exit 1
 fi
 
-# x86, plain aarch64, Snapdragon and N1x machines have no registered package:
-# every operation is a no-op there and callers keep their generic path.
+# x86, plain aarch64, Snapdragon, N1x and GB10 machines have no registered
+# package: every operation is a no-op there and callers keep their generic path.
 # Apple Silicon's boot operations belong to omarchy-mac-boot, and its system and
 # user setup and app-install hooks to omarchy-mac (both omacom/omarchy-mac-pkgs).
 # Provisioning and factory reset have no other path on a Mac, only update-verify

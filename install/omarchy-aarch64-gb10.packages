@@ -1,0 +1,14 @@
+# NVIDIA GB10 additions, composed after omarchy-base.packages and
+# omarchy-aarch64.packages (omarchy-pkg-defaults aarch64-gb10): what every GB10
+# desktop (the DGX Spark, the ASUS Ascent GX10) runs, as DGX OS does. The driver
+# is the one install/hardware/nvidia.sh installs for any NVIDIA GPU.
+nvidia-open-dkms
+nvidia-utils
+libva-nvidia-driver
+# GPU containers (Docker's NVIDIA runtime and CDI).
+nvidia-container-toolkit
+# The ConnectX-7 network's RDMA userspace and module loading.
+rdma-core
+# NVIDIA's GPU profilers.
+nsight-compute
+nsight-systems

@@ -72,13 +72,14 @@ Omarchy runs on x86 and aarch64 (ARM). A platform name is the CPU architecture, 
 - `aarch64-apple` - Apple Silicon Macs
 - `aarch64-qualcomm` - Snapdragon laptops
 - `aarch64-n1x` - NVIDIA N1x laptops
+- `aarch64-gb10` - NVIDIA GB10 desktops (DGX Spark, ASUS Ascent GX10)
 
 A new family is named `aarch64-<family>` (e.g. `aarch64-qualcomm`, `aarch64-n1x`) and is added only once it needs code of its own, so `aarch64*` always means ARM. `omarchy-hw-platform` prints the most specific name. Use these exact names wherever a platform is named: package lists, pacman template directories, image manifests, dispatch registration, tests and docs. Never introduce `generic`, `arm64`, `apple-silicon` or other spellings; the old `apple-silicon`, `generic-aarch64` and `generic` are read only for compatibility with older image builders.
 
 Ask a helper; don't read `uname -m` or the device tree in feature code:
 
 - `omarchy-hw-x86` / `omarchy-hw-aarch64` - the CPU architecture. Use them for binary and ABI availability: a package with no aarch64 build, an x86 guest VM, multilib.
-- `omarchy-hw-aarch64-apple`, `omarchy-hw-aarch64-qualcomm`, `omarchy-hw-aarch64-n1x` (one per family) - built on `omarchy-hw-platform`, image-build aware. Use them for hardware behaviour that the whole family shares; a single model's quirks stay behind `omarchy-hw-match` on its DMI name. `omarchy-hw-apple-silicon` and `omarchy-hw-n1x` are hidden aliases kept for the omarchy-mac packages and older N1x images; don't use them in new code.
+- `omarchy-hw-aarch64-apple`, `omarchy-hw-aarch64-qualcomm`, `omarchy-hw-aarch64-n1x`, `omarchy-hw-aarch64-gb10` (one per family) - built on `omarchy-hw-platform`, image-build aware. Use them for hardware behaviour that the whole family shares; a single model's quirks stay behind `omarchy-hw-match` on its DMI name. `omarchy-hw-apple-silicon` and `omarchy-hw-n1x` are hidden aliases kept for the omarchy-mac packages and older N1x images; don't use them in new code.
 
 Where platform code lives:
 

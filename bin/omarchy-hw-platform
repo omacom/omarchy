@@ -1,12 +1,12 @@
 #!/bin/bash -p
 
-# omarchy:summary=Print the hardware platform: x86, aarch64, aarch64-apple, aarch64-qualcomm or aarch64-n1x.
+# omarchy:summary=Print the hardware platform: x86, aarch64, aarch64-apple, aarch64-qualcomm, aarch64-n1x or aarch64-gb10.
 
 # Platform names are the CPU architecture, then the hardware family when it
 # needs handling of its own: x86, aarch64 (every ARM machine without one),
-# aarch64-apple (Apple Silicon), aarch64-qualcomm (Snapdragon) and aarch64-n1x
-# (NVIDIA N1x). A later family is aarch64-<family>, so "aarch64*" always means
-# ARM (AGENTS.md, Platforms).
+# aarch64-apple (Apple Silicon), aarch64-qualcomm (Snapdragon), aarch64-n1x
+# (NVIDIA N1x) and aarch64-gb10 (NVIDIA GB10 desktops). A later family is
+# aarch64-<family>, so "aarch64*" always means ARM (AGENTS.md, Platforms).
 #
 # Device-tree ARM laptops have no DMI, so the board identity is the root node of
 # the device tree the firmware hands the kernel: "apple,<model>" from Asahi's
@@ -18,6 +18,10 @@
 # machines whose CPU-side I2C controllers are ACPI NVDA0200 (MediaTek MT8901 IP)
 # or whose on-package GPU is PCI 10de:2e06 (GB20B "RTX Spark N1X"); either one
 # is enough, so a firmware revision that renames one does not lose the platform.
+#
+# The NVIDIA GB10 desktops (the DGX Spark, and the ASUS Ascent GX10 and other
+# systems built on the same superchip) boot with ACPI too. Their GPU is PCI
+# 10de:2e12.
 #
 # An image is built away from the machine it will run on, so while this root is
 # being built rather than booted, the image-target manifest the builder wrote
@@ -143,7 +147,7 @@ image_platform() {
     generic) platform=x86 ;;
     qualcomm) platform=aarch64-qualcomm ;;
   esac
-  if [[ ! $platform =~ ^(x86|aarch64|aarch64-apple|aarch64-qualcomm|aarch64-n1x)$ ]]; then
+  if [[ ! $platform =~ ^(x86|aarch64|aarch64-apple|aarch64-qualcomm|aarch64-n1x|aarch64-gb10)$ ]]; then
     echo "Error: the image manifest $manifest names no known platform: ${platform:-none}" >&2
     return 1
   fi
@@ -208,11 +212,34 @@ if [[ -n $sys ]]; then
   fi
 fi
 
+# An NVIDIA GB10 desktop: PCI 10de:2e12.
+gb10_source=""
+if [[ -n $sys ]]; then
+  for device in "$sys"/bus/pci/devices/*; do
+    [[ -r $device/vendor && -r $device/device ]] || continue
+    read -r pci_vendor <"$device/vendor" || continue
+    read -r pci_device <"$device/device" || continue
+    [[ $pci_vendor == "0x10de" && $pci_device == "0x2e12" ]] && { gb10_source=$device; break; }
+  done
+fi
+
+if [[ -n $n1x_source && -n $gb10_source ]]; then
+  contradiction "$n1x_source is an NVIDIA N1x but $gb10_source is an NVIDIA GB10"
+fi
+
 if [[ -n $n1x_source ]]; then
   [[ $vendor != apple && $vendor != qcom ]] ||
     contradiction "$vendor_source names $vendor hardware but $n1x_source is an NVIDIA N1x"
   [[ $machine == "aarch64" ]] || contradiction "$n1x_source is an NVIDIA N1x but the CPU is $machine"
   echo aarch64-n1x
+  exit 0
+fi
+
+if [[ -n $gb10_source ]]; then
+  [[ $vendor != apple && $vendor != qcom ]] ||
+    contradiction "$vendor_source names $vendor hardware but $gb10_source is an NVIDIA GB10"
+  [[ $machine == "aarch64" ]] || contradiction "$gb10_source is an NVIDIA GB10 but the CPU is $machine"
+  echo aarch64-gb10
   exit 0
 fi
 

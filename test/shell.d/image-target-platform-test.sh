@@ -272,6 +272,12 @@ pid1 legacy-x86 chroot
 manifest legacy-x86 $'format=1\nplatform=generic\n'
 expect legacy-x86 x86 "an old builder's generic manifest reads as x86"
 
+# A family's own name, as a builder for that family writes it.
+world gb10-image aarch64
+pid1 gb10-image chroot
+manifest gb10-image $'format=1\nplatform=aarch64-gb10\n'
+expect gb10-image aarch64-gb10 "a GB10 image's manifest reads as aarch64-gb10"
+
 # Comments and keys a later format adds are ignored.
 world commented aarch64
 pid1 commented chroot
@@ -440,3 +446,23 @@ pass "the default package set follows the image target"
 units=$(grep -rlE '^[[:space:]]*PrivatePIDs=' "$ROOT" --include='*.service' --include='*.conf' --exclude-dir=.git || true)
 [[ -z $units ]] || fail "no unit runs in a private PID namespace" "$units"
 pass "no unit runs in a private PID namespace"
+
+# The image setup that defers hardware steps reads the same platform names.
+# Root never reads a fixture root, so this runs unprivileged only.
+if (( EUID == 0 )); then
+  skip "running as root, where image setup ignores fixture roots; skipping the manifest names"
+else
+  for platform in x86 aarch64 aarch64-apple aarch64-qualcomm aarch64-n1x aarch64-gb10; do
+    image_root="$test_tmp/image-names/$platform"
+    mkdir -p "$image_root/var/lib/omarchy/image"
+    chmod 755 "$image_root/var/lib/omarchy/image"
+    printf 'format=1\nplatform=%s\n' "$platform" >"$image_root/var/lib/omarchy/image/target"
+    chmod 644 "$image_root/var/lib/omarchy/image/target"
+    (
+      source "$ROOT/install/helpers/image-target.sh"
+      OMARCHY_IMAGE_ROOT=$image_root
+      omarchy_image_init && omarchy_image_read_manifest && [[ $omarchy_image_platform == "$platform" ]]
+    ) 2>"$test_tmp/error" || fail "the image setup reads platform=$platform from a manifest" "$(cat "$test_tmp/error")"
+  done
+  pass "the image setup reads every platform name"
+fi

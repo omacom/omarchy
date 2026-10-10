@@ -74,10 +74,10 @@ for platform in aarch64-apple aarch64 x86; do
 done
 pass "a platform list joins only its own platform's set"
 
-# Snapdragon and the N1x add their own lists after the aarch64 additions; no
-# other platform gets them.
+# Snapdragon, the N1x and the GB10 add their own lists after the aarch64
+# additions; no other platform gets them.
 names_of() { sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$ROOT/install/omarchy-$1.packages"; }
-for family in aarch64-qualcomm aarch64-n1x; do
+for family in aarch64-qualcomm aarch64-n1x aarch64-gb10; do
   defaults=$(OMARCHY_PATH="$ROOT" omarchy-pkg-defaults "$family")
   [[ $(tail -n "$(names_of "$family" | wc -l)" <<<"$defaults") == "$(names_of "$family")" ]] ||
     fail "$family's own list comes last" "$defaults"
@@ -93,7 +93,7 @@ for family in aarch64-qualcomm aarch64-n1x; do
 done
 grep -Fxq linux-omarchy-n1x <<<"$(names_of aarch64-n1x)" || fail "the N1x runs its own kernel"
 ! grep -Eq 'proart|asus|xps' <<<"$(names_of aarch64-n1x)" || fail "a single N1x model's packages stay with its hardware setup"
-pass "Snapdragon and the N1x add their own lists, and only they do"
+pass "Snapdragon, the N1x and the GB10 add their own lists, and only they do"
 
 # Image builders written before the platform names settled pass the old names.
 for legacy in apple-silicon:aarch64-apple generic-aarch64:aarch64 generic:x86 qualcomm:aarch64-qualcomm; do

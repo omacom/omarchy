@@ -21,7 +21,7 @@ if (( EUID != 0 )); then
 fi
 if (( EUID == 0 )) || unshare --user --map-root-user true 2>/dev/null; then
   live=$("${root_runner[@]}" "$detector") || fail "root detects the live platform"
-  [[ $live =~ ^(aarch64-apple|aarch64-qualcomm|aarch64-n1x|aarch64|x86)$ ]] || fail "root detects the live platform" "live: $live"
+  [[ $live =~ ^(aarch64-apple|aarch64-qualcomm|aarch64-n1x|aarch64-gb10|aarch64|x86)$ ]] || fail "root detects the live platform" "live: $live"
   for platform in aarch64-apple aarch64 x86; do
     fixture="$test_tmp/$platform"
     if [[ -f $fixture/proc/device-tree/compatible ]]; then
@@ -41,7 +41,7 @@ fi
 
 # -p in the shebang is what keeps exported functions and BASH_ENV out, so an
 # ordinary Bash launch with a decoy -p argument is refused before it reads anything.
-for command in omarchy-hw-platform omarchy-hw-aarch64-apple omarchy-hw-apple-silicon omarchy-hw-aarch64-qualcomm omarchy-hw-aarch64-n1x omarchy-hw-n1x; do
+for command in omarchy-hw-platform omarchy-hw-aarch64-apple omarchy-hw-apple-silicon omarchy-hw-aarch64-qualcomm omarchy-hw-aarch64-n1x omarchy-hw-n1x omarchy-hw-aarch64-gb10; do
   if /usr/bin/bash "$ROOT/bin/$command" -p >/dev/null 2>"$test_tmp/error"; then
     fail "$command refuses an ordinary Bash launch"
   fi
@@ -202,10 +202,26 @@ expect_contradiction n1x-apple aarch64 "an N1x with an Apple device tree fails"
 n1x_acpi n1x-qcom
 write_tree n1x-qcom proc lenovo,yoga-slim7x qcom,x1e80100
 expect_contradiction n1x-qcom aarch64 "an N1x with a Qualcomm device tree fails"
-for family in n1x qualcomm; do
+# The NVIDIA GB10 desktops boot with ACPI too; their GPU (PCI 10de:2e12) names
+# them.
+gb10_pci() { n1x_pci "$1" 0x2e12; }
+gb10_pci gb10
+expect gb10 aarch64 aarch64-gb10 "the GB10's GPU names it"
+expect_contradiction gb10 x86_64 "a GB10 on an x86 CPU fails"
+gb10_pci gb10-apple
+write_tree gb10-apple proc apple,j314s apple,t6000 apple,arm-platform
+expect_contradiction gb10-apple aarch64 "a GB10 with an Apple device tree fails"
+gb10_pci gb10-qcom
+write_tree gb10-qcom proc lenovo,yoga-slim7x qcom,x1e80100
+expect_contradiction gb10-qcom aarch64 "a GB10 with a Qualcomm device tree fails"
+n1x_acpi gb10-n1x
+gb10_pci gb10-n1x
+expect_contradiction gb10-n1x aarch64 "a GB10 with the N1x's I2C controllers fails"
+for family in n1x qualcomm gb10; do
   case $family in
     n1x) yes=n1x-acpi no=qemu-virt ;;
     qualcomm) yes=yoga-slim7x no=n1x-acpi ;;
+    gb10) yes=gb10 no=n1x-gpu ;;
   esac
   for case_name in "$yes" "$no"; do
     status=0
@@ -220,7 +236,7 @@ for family in n1x qualcomm; do
 done
 TEST_ARCH=aarch64 OMARCHY_PROC_ROOT="$test_tmp/cases/n1x-gpu/proc" OMARCHY_SYS_ROOT="$test_tmp/cases/n1x-gpu/sys" \
   PATH="$stub_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hw-n1x" || fail "the old omarchy-hw-n1x name still answers"
-pass "the NVIDIA N1x is its own platform, and Snapdragon and the N1x have predicates of their own"
+pass "the NVIDIA N1x and GB10 are platforms of their own, and Snapdragon, the N1x and the GB10 have predicates of their own"
 
 failing_uname="$test_tmp/failing-uname"
 mkdir -p "$failing_uname"
