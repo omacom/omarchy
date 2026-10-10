@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# omarchy:summary=Print the private directory for Omarchy runtime lock files
+# omarchy:hidden=true
+
+# Lock files must never live in a directory another local user can write to:
+# a planted symlink at the lock pathname would hand the truncating open to an
+# attacker-chosen file. XDG_RUNTIME_DIR is created per-user, mode 0700, by
+# pam_systemd, so it is already private. When it is unset we fall back to a
+# per-UID directory under /tmp that we create mode 700 and verify we own
+# before trusting anything inside it.
+
+set -euo pipefail
+
+if [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+  printf '%s\n' "$XDG_RUNTIME_DIR"
+  exit 0
+fi
+
+dir="/tmp/omarchy-lock-$UID"
+
+# -m 700 closes the window between creation and chmod: a directory we create
+# is private from the start.
+mkdir -p -m 700 "$dir" 2>/dev/null || {
+  echo "omarchy-lock-dir: cannot create $dir" >&2
+  exit 1
+}
+
+# Owner-verified: a pre-existing symlink, non-directory, or another user's
+# directory is refused rather than used.
+if [[ ! -d $dir || -L $dir ]]; then
+  echo "omarchy-lock-dir: refusing non-directory lock location: $dir" >&2
+  exit 1
+fi
+
+owner=$(stat -c %u "$dir" 2>/dev/null || echo "")
+if [[ $owner != "$UID" ]]; then
+  echo "omarchy-lock-dir: refusing lock directory owned by uid ${owner:-unknown}: $dir" >&2
+  exit 1
+fi
+
+# Harden a directory we inherited from an earlier run.
+chmod 700 "$dir" 2>/dev/null || true
+
+printf '%s\n' "$dir"
