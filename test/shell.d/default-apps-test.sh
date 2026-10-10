@@ -305,15 +305,9 @@ pass "editor defaults install every missing editor before selection"
 : >"$setup_log"
 touch "$installed_dir/subl"
 omarchy-default-editor sublime_text
-grep -Fxq 'omarchy-setup-sublime:' "$setup_log" || fail "selecting installed Sublime applies its Omarchy theme"
-pass "installed Sublime receives theme setup when selected"
-
-omarchy-default-editor code
-if OMARCHY_TEST_SETUP_FAIL=omarchy-setup-sublime omarchy-default-editor sublime_text; then
-  fail "failed Sublime setup returns an error"
-fi
-[[ $(omarchy-default-editor) == code ]] || fail "failed Sublime setup preserves the default editor"
-pass "failed Sublime setup preserves the default editor"
+[[ ! -s $setup_log ]] || fail "selecting installed Sublime leaves its preferences alone"
+[[ $(omarchy-default-editor) == subl ]] || fail "installed Sublime becomes the default editor"
+pass "selecting installed Sublime does not rerun its setup"
 
 : >"$install_log"
 : >"$terminal_log"
