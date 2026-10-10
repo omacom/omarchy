@@ -121,6 +121,7 @@ assertEqual(model.isTypedKeyboard('power-button'), false, 'a power button is not
 assertEqual(model.isTypedKeyboard('lid-switch'), false, 'a lid switch is not')
 assertEqual(model.isTypedKeyboard('sleep-button'), false, 'a sleep button is not')
 assertEqual(model.isTypedKeyboard('hl-virtual-keyboard-1'), false, 'the keyboard an input method injects through is not')
+assertEqual(model.isTypedKeyboard('apple-smc-power/lid-events'), false, 'the SMC power/lid device an Apple laptop reports is not')
 assertEqual(model.isTypedKeyboard(''), true, 'a keyboard reporting no name is left where it was found')
 
 // The activelayout event names the keyboard ahead of the layout it moved to,
@@ -131,6 +132,7 @@ const parsedEvent = data => ({ data, parse: count => data.split(',', count - 1).
 assertEqual(model.eventKeyboardName(rawEvent('at-translated-set-2-keyboard,French')), 'at-translated-set-2-keyboard', 'the event names its keyboard')
 assertEqual(model.eventKeyboardName(parsedEvent('at-translated-set-2-keyboard,English (US, intl.)')), 'at-translated-set-2-keyboard', 'a description carrying a comma leaves the name alone')
 assertEqual(model.eventKeyboardName(rawEvent('hl-virtual-keyboard,English (US)')), '', 'the keyboard an input method injects through is not typed on')
+assertEqual(model.eventKeyboardName(rawEvent('apple-smc-power/lid-events,French')), '', 'a device nobody types on names no keyboard either')
 assertEqual(model.eventKeyboardName({ parse: () => { throw new Error('unsupported') }, data: 'kb,French' }), 'kb', 'a binding without parse falls back to the raw data')
 assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names no keyboard')
 JS
