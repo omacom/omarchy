@@ -1,0 +1,6 @@
+singleton Backend 1.0 Backend.qml
+Keyboard 1.0 Keyboard.qml
+Indicator 1.0 Indicator.qml
+Picker 1.0 Picker.qml
+LayoutRow 1.0 LayoutRow.qml
+HelperProcess 1.0 HelperProcess.qml
