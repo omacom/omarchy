@@ -42,6 +42,9 @@ run_logged "$OMARCHY_INSTALL/hardware/apple/fix-suspend-nvme.sh"
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-t2.sh"
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-brcmfmac-supplicant.sh"
 
+# These write boot settings and build nothing, like the other leaves: the
+# installer's final limine-update builds the UKIs, and an image's first boot
+# rebuilds once after its last step.
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/dtb-uki.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/kernel-params.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/firmware.sh"
