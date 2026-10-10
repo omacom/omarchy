@@ -6,7 +6,7 @@ source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
 # an error. Rewriting the theme color writes the policy without it.
 for dir in "${BROWSER_POLICY_MANAGED_DIRS[@]}"; do
   if [[ -f $dir/color.json ]] && grep -Fq '"BrowserColorScheme"' "$dir/color.json"; then
-    omarchy-theme-set-browser || true
+    omarchy-theme-set-browser
     break
   fi
 done
