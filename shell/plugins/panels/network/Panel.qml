@@ -79,8 +79,10 @@ Panel {
   // Wi-Fi band state from `omarchy-network-band`. `bandCurrent` is the band
   // the radio is actually on; `bandSelected` is the pinned choice ("auto" when
   // nothing is pinned), and the two differ whenever Auto is in effect.
+  // `bandMlo` is true when the radio is on a Wi-Fi 7 Multi-Link Device.
   property string bandCurrent: ""
   property string bandSelected: "auto"
+  property bool bandMlo: false
   property var bandAvailable: []
   property string pendingBand: ""
 
@@ -160,7 +162,7 @@ Panel {
   // Under Automatic there is nothing to pick, so the pills collapse away and
   // the header states the live band instead.
   readonly property bool bandPillsVisible: canSelectBand && bandPinned
-  readonly property string bandSectionTitle: Model.bandSectionTitle(bandEffective, bandCurrent)
+  readonly property string bandSectionTitle: Model.bandSectionTitle(bandEffective, bandCurrent, bandMlo)
   readonly property bool bandBusy: pendingBand !== ""
   // The speed test needs an interface to test, so its hero action only
   // appears once there is one.
@@ -732,6 +734,7 @@ Panel {
 
     bandCurrent = status.band
     bandSelected = status.selected
+    bandMlo = status.mlo
     bandAvailable = status.available
   }
 
