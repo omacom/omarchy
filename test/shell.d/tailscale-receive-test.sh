@@ -98,3 +98,18 @@ pass "taildrop receive ignores downloads that arrive while it waits"
 [[ -z $(ls -A "$downloads/.omarchy-taildrop") ]] ||
   fail "taildrop receive empties its staging directory" "$(ls -A "$downloads/.omarchy-taildrop")"
 pass "taildrop receive empties its staging directory"
+
+# Bash expands every word of a `local` before binding any of them, so a name
+# derived in the same statement would read the caller's variable instead.
+printf 'txt' >"$WORKDIR/loose.txt"
+claimed=$(
+  unset staged
+  dir="$WORKDIR/claimed"
+  mkdir -p "$dir"
+  eval "$(sed -n '/^claim_path()/,/^}/p' "$ROOT/bin/omarchy-tailscale-receive")"
+  claim_path "$WORKDIR/loose.txt"
+) || true
+
+[[ $claimed == "$WORKDIR/claimed/loose.txt" ]] ||
+  fail "taildrop receive names a file from its own path, whoever calls it" "$claimed"
+pass "taildrop receive names a file from its own path, whoever calls it"
