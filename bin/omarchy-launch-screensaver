@@ -21,12 +21,37 @@ case $terminal in
   ;;
 esac
 
+# Hyprland monitor and special-workspace names are written into the Lua
+# expression the dispatchers below carry, so a name that is not a plain
+# connector string could execute Lua. A headless output can carry any name, so
+# only the shapes the sibling monitor toggles accept are allowed through.
+require_safe_monitor_name() {
+  local name=$1
+  if [[ ! $name =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "Refusing unsafe monitor name" >&2
+    exit 1
+  fi
+}
+
+# A special workspace is named "special:<name>"; the colon is the one character
+# the monitor guard rejects, so allow it here and refuse anything else that
+# could leave the Lua string.
+require_safe_workspace_name() {
+  local name=$1
+  if [[ ! $name =~ ^[A-Za-z0-9._:-]+$ ]]; then
+    echo "Refusing unsafe workspace name" >&2
+    exit 1
+  fi
+}
+
 hypr_focus_monitor() {
+  require_safe_monitor_name "$1"
   hyprctl dispatch "hl.dsp.focus({ monitor = \"$1\" })" >/dev/null 2>&1 || hyprctl dispatch focusmonitor "$1" >/dev/null
 }
 
 hypr_exec() {
   local command
+  require_safe_workspace_name "$workspace"
   printf -v command '%q ' "$@"
 
   hyprctl dispatch "hl.dsp.exec_cmd([[[workspace $workspace] $command]])" >/dev/null 2>&1 ||
@@ -50,10 +75,22 @@ wait_for_screensaver_window() {
   done
 }
 
-while read -r m special; do
-  hypr_focus_monitor "$m"
+mapfile -t monitors < <(hyprctl monitors -j | jq -r '.[] | "\(.name) \(.specialWorkspace.name)"')
+
+# Validate every name up front, before moving focus or launching a terminal: a
+# refusal on a later monitor would otherwise leave an earlier screen on the
+# wrong monitor, with the close-time focus restore never reached.
+for entry in "${monitors[@]}"; do
+  read -r monitor_name special_workspace <<<"$entry"
+  require_safe_monitor_name "$monitor_name"
+  require_safe_workspace_name "${special_workspace:-special:screensaver-$monitor_name}"
+done
+
+for entry in "${monitors[@]}"; do
+  read -r m special <<<"$entry"
   # Share a special workspace that is already showing, like the scratchpad, so it is still open afterwards.
   workspace=${special:-special:screensaver-$m}
+  hypr_focus_monitor "$m"
 
   case $terminal in
   *Alacritty*)
@@ -71,7 +108,7 @@ while read -r m special; do
   esac
 
   wait_for_screensaver_window
-done < <(hyprctl monitors -j | jq -r '.[] | "\(.name) \(.specialWorkspace.name)"')
+done
 
 hypr_focus_monitor "$focused"
 
