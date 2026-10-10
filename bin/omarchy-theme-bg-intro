@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=Enable or disable background intros
+# omarchy:args=<enable|disable|toggle|status>
+# omarchy:examples=omarchy theme bg intro toggle | omarchy theme bg intro disable
+
+set -euo pipefail
+
+toggle="$HOME/.local/state/omarchy/toggles/background-intros-off"
+case ${1:-} in
+  enable)
+    rm -f "$toggle"
+    omarchy-notification-send "Background Intros" "Enabled"
+    ;;
+  disable)
+    mkdir -p "$(dirname "$toggle")"
+    touch "$toggle"
+    omarchy-notification-send "Background Intros" "Disabled"
+    ;;
+  toggle)
+    if [[ -f $toggle ]]; then
+      omarchy-theme-bg-intro enable
+    else
+      omarchy-theme-bg-intro disable
+    fi
+    ;;
+  status)
+    [[ ! -f $toggle ]]
+    ;;
+  *)
+    echo "Usage: omarchy-theme-bg-intro <enable|disable|toggle|status>" >&2
+    exit 1
+    ;;
+esac

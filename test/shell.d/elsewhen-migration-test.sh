@@ -52,11 +52,11 @@ pass "Elsewhen ships in the shell tree as omarchy.elsewhen"
 
 # Placement
 migration="$ROOT/migrations/1790042972.sh"
-expected=$'-q shell rescanPlugins\nshell putBarWidget omarchy.elsewhen {"before":"omarchy.clock"}'
+expected=$'-q shell rescanPlugins\nshell putBarWidget omarchy.elsewhen {"after":"omarchy.clock"}'
 
 run
 [[ $(cat "$CALL_LOG") == "$expected" ]] || fail "scan and placement run in order" "$(cat "$CALL_LOG")"
-pass "real bar helper places Elsewhen before the clock without restarting the shell"
+pass "real bar helper places Elsewhen after the clock without restarting the shell"
 
 run
 [[ $(cat "$CALL_LOG") == "$expected" ]] || fail "placement can be rerun"

@@ -1,5 +1,5 @@
 [Unit]
-Description=Fcitx5 input method (XCompose sequences)
+Description=Fcitx5 input methods and XCompose sequences
 # fcitx5 turns the CapsLock compose sequences in ~/.XCompose into text for
 # Wayland clients.
 #
@@ -19,7 +19,8 @@ PartOf=graphical-session.target
 ConditionEnvironment=WAYLAND_DISPLAY
 
 [Service]
-Type=simple
+Type=dbus
+BusName=org.fcitx.Fcitx5
 # notificationitem duplicates the tray entry omarchy already renders itself.
 ExecStart=/usr/bin/fcitx5 --disable notificationitem
 # always, not on-failure: fcitx5 exits 0 when it detects another instance owning
