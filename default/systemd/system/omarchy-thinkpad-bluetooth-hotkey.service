@@ -1,0 +1,11 @@
+[Unit]
+Description=Enable the ThinkPad Bluetooth hotkey
+After=systemd-modules-load.service
+ConditionPathExists=/sys/devices/platform/thinkpad_acpi/hotkey_mask
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /usr/local/lib/omarchy/thinkpad-bluetooth-hotkey.sh
+
+[Install]
+WantedBy=multi-user.target
