@@ -526,7 +526,7 @@ declare -A expected_packages=(
   [copilot]="copilot"
   [cursor-agent]="$cursor_agent_package"
   [muse]="$muse_package"
-  [vibe]="uv:mistral-vibe"
+  [vibe]="pipx:mistral-vibe"
 )
 
 for selection in "${!expected_agents[@]}"; do
