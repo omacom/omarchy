@@ -35,11 +35,17 @@ It is necessary to disable Apple's Secure Boot in order to boot the bootable USB
 3. Select the orange EFI Boot device
 4. Proceed with the [install as normal](02-getting-started.md)
 
-The installer detects Mac hardware and applies the needed fixes automatically: Broadcom Wi-Fi drivers and firmware, the SPI keyboard driver on the MacBook models that need it, and an NVMe suspend fix for those same models.
+The installer detects Mac hardware and applies fixes automatically: Broadcom Wi-Fi drivers and firmware on supported models, the SPI keyboard driver on the MacBook models that need it, and an NVMe suspend fix for those same models. The MacBookAir4,1 Wi-Fi exception below requires manual preparation.
 
 ### Known Limitations
 
 Members of the community are constantly working on solutions to these challenges so if these are problematic for you, join #omarchy-on-other in our [Discord](https://discord.gg/tXFUdasqhY) and see if there's any up-to-date methods for resolving these.
+
+#### MacBook Air (11-inch, mid-2011)
+
+On MacBookAir4,1 with a BCM4331 Wi-Fi chip, `broadcom-wl` has been [reported to freeze the machine](https://github.com/omacom/omarchy/issues/7593). The installer skips that driver on this model. Other BCM4331 models still receive `broadcom-wl-dkms`.
+
+The alternative in-kernel `b43` driver needs firmware that the installer does not supply. `linux-firmware-broadcom` does not contain it; the separately maintained AUR package `b43-firmware` does. Arrange Ethernet or USB tethering and obtain the firmware separately before relying on Wi-Fi. This exception prevents the installer from adding `wl`; it does not provide working Wi-Fi on a fresh installation or remove `wl` and its blacklist from an existing installation.
 
 #### Devices with T1 Chip
 
