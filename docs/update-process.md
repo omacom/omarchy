@@ -123,13 +123,13 @@ omarchy-update
   ├─ ensure transcript logging through script(1) → /tmp/omarchy-update.log
   ├─ omarchy-update-lock
   │    └─ acquire the update lock and run omarchy-update inside it
-  ├─ omarchy-update-requires-free-space
-  │    └─ abort below the configured free-space threshold on /
   ├─ confirm unless -y
   ├─ authorize sudo once, then keep the timestamp fresh in the background
   ├─ omarchy-update-pkg-prune
   │    └─ trim the pacman cache to two versions per package, deliberately
   │       before the snapshot since the cache lives on the snapshotted subvolume
+  ├─ omarchy-update-requires-free-space
+  │    └─ abort below the configured free-space threshold after bounded cleanup
   ├─ create snapper snapshot (skipped silently without snapper; snapper
   │  installed but unconfigured fails the snapshot loudly, pointing at
   │  install/config/snapper.sh, and the update continues without one)
@@ -140,9 +140,10 @@ omarchy-update
   ├─ omarchy-update-status
   │    └─ refresh or clear the shell update indicator
   ├─ restart marked services and the shell
-  ├─ run the post-update hook, then update mise tools
-  ├─ stop the keepalive and invalidate sudo, then update AUR packages with
-  │  no-update authentication, and invalidate again
+  ├─ stop the keepalive and invalidate sudo
+  ├─ run the post-update hook, then update mise tools with no-update
+  │  authentication, invalidating again after each phase
+  ├─ update AUR packages with no-update authentication, and invalidate again
   ├─ omarchy-update-boot, with no-update authentication, and invalidate again
   │    └─ the platform's boot package proves the boot files boot the updated system
   ├─ omarchy-update-stay-awake stop
@@ -152,18 +153,16 @@ omarchy-update
 
 Important behavior:
 
-- Protected update entrypoints require the session's canonical `OMARCHY_PATH` to match their own checkout or the packaged `/usr/bin` entrypoint before selecting commands or the sudo wrapper. This preserves intentionally trusted development checkouts while rejecting a command paired with a different source root. System phases use a fixed command search path; user PATH is restored for hooks and mise.
+- Protected update entrypoints require the session's canonical `OMARCHY_PATH` to match their own checkout or the packaged `/usr/bin` entrypoint before selecting commands or the sudo wrapper. This preserves intentionally trusted development checkouts while rejecting a command paired with a different source root. System phases use a fixed command search path; user PATH is restored for hooks and mise with the no-update sudo wrapper first.
 - Mixed-trust update entrypoints start Bash in privileged mode, discard `BASH_ENV`, `ENV`, and exported-function records before launching helpers, and reject an ordinary `bash path/to/command` invocation. Run them as executables (normally through the `omarchy` CLI); `/usr/bin/bash -p path/to/command` is the explicit interpreter form. This keeps shell startup injection from replacing the no-update sudo boundary.
 - In dev-link mode, `omarchy update` fast-forwards the active checkout from its configured upstream before changing system packages or running migrations.
-- The update asks for the sudo password once, right after confirmation. It first invalidates any existing timestamp so that prompt always belongs to this update, then a background keepalive refreshes the timestamp every minute so long downloads, migrations, hooks, and mise never outlast it. Everything except AUR shares that one authorization: package prune, snapshot, stay-awake, keyring, system packages, migrations, orphan removal, service restarts, the post-update hook, and mise. Stay-awake sees `OMARCHY_UPDATE_SUDO_SESSION=1`, uses that authorization non-interactively whatever its stdin is, and leaves it to the update instead of revoking it. The authorization runs a command rather than `sudo -v`, so passwordless sudo still needs no prompt. Standalone commands that keep their own cold boundary, such as `omarchy-refresh-pacman`, still revoke if a post-update hook calls them.
-- AUR builds run third-party PKGBUILD code, so they run last and never see the update's authorization. The update stops the keepalive, invalidates the timestamp, and runs yay with the no-update wrapper as its sudo command and its credential loop disabled; an AUR install prompts per command without publishing a reusable timestamp. The timestamp is invalidated again afterwards and on every exit.
+- The update asks for the sudo password once, right after confirmation. It first invalidates any existing timestamp so that prompt always belongs to this update, then a background keepalive refreshes the timestamp every minute so long system-package downloads and migrations never outlast it. Only the trusted system phases share that authorization: package prune, snapshot, stay-awake, keyring, system packages, migrations, orphan removal, and service restarts. Stay-awake sees `OMARCHY_UPDATE_SUDO_SESSION=1`, uses that authorization non-interactively whatever its stdin is, and leaves it to the update instead of revoking it. The authorization runs a command rather than `sudo -v`, so passwordless sudo still needs no prompt. Standalone commands that keep their own cold boundary, such as `omarchy-refresh-pacman`, still revoke if a post-update hook calls them.
+- Hooks, mise installers, and AUR builds run after the keepalive stops and the system-update timestamp is invalidated. They keep the no-update sudo wrapper first on PATH; yay also names it explicitly and disables its own credential loop. The timestamp is invalidated between these phases and on every exit, so authorization created by a hook cannot pass into downloaded installer code. The standalone AUR install menu and `omarchy update aur-pkgs` establish the same cold entry/exit boundary and no-update yay configuration. The install menu leaves file indexing to the scheduled plocate service instead of scanning the filesystem after each install.
 - This lifecycle controls authorization created by the protected workflow. `sudo -N` prevents cache updates but can use an existing valid credential, and `sudo -k` revokes the current session's timestamp. It does not isolate the account from unrelated concurrent authentication in another workflow.
 - Sleep inhibition authenticates before detaching, drops the held command back to the caller, and closes both update lock descriptors before the persistent process starts. Cleanup accepts only caller-owned, mode-0600, single-link state and revalidates the recorded PID, process start time, owner, and random token immediately before every signal.
 - Channel switching establishes the same boundary before dev link/unlink, refresh and package operations. It keeps the wrapper first when changing source roots, carries the original user PATH into update hooks and mise, and checks after each package transaction that the wrapper still exists before any further privileged step, since a transaction can replace the running tree with a release that predates it; when it is gone, or the destination otherwise lacks it, the switch stops after the package switch with instructions to run that release's update from a fresh session rather than letting a bare `sudo` or an updater that authenticates without `--no-update` publish a timestamp. Failed and interrupted channel switches revoke on exit.
-- `-y` exports `OMARCHY_UPDATE_UNATTENDED=1` and suppresses Omarchy confirmation prompts. Conflict handoff reports and skips instead of blocking. Orphan packages are automatically removed during every update. Privileged commands still require the one sudo authorization, and AUR installs can prompt separately.
-- The free-space requirement uses a 10 GiB threshold and stops the update before
-  confirmation when it is not met. If free space cannot be determined, the
-  check is silently skipped. Set `OMARCHY_UPDATE_FORCE=1` to bypass the check.
+- `-y` exports `OMARCHY_UPDATE_UNATTENDED=1` and suppresses Omarchy confirmation prompts. Conflict handoff reports and skips instead of blocking. Orphan packages are automatically removed during every update. Privileged commands still require the one sudo authorization, and hooks or third-party installers that need privilege can prompt separately.
+- After confirmation, the update prunes only superseded pacman cache versions, keeping two per package, then enforces the existing 10 GiB free-space requirement before creating a snapshot or changing packages. This lets bounded cleanup recover a low-space system; declining confirmation performs no cleanup. If free space cannot be determined, the check is silently skipped. Set `OMARCHY_UPDATE_FORCE=1` to bypass the check explicitly.
 - `omarchy update` checks/runs migrations in the same visible terminal via
   `omarchy-migrate` after pacman finishes.
 - A failure should leave enough output in `/tmp/omarchy-update.log` and the
@@ -334,7 +333,7 @@ scripts.
 | `omarchy-update-user-notify` | Hidden compatibility wrapper for `omarchy-migrate-notify`. | **Temporary.** Keep only for old callers. |
 | `omarchy-update-available` | Update checker for shell widget and post-update refresh. | **Keep.** Could eventually be renamed `omarchy-update-check`, but current name matches widget semantics. |
 | `omarchy-update-aur-pkgs` | Updates AUR packages with `yay -Sua` if foreign packages exist and AUR is reachable. | **Question.** Omarchy is package-backed now, but users may still install AUR packages. Keep for now. |
-| `omarchy-update-mise` | Runs `MISE_MINIMUM_RELEASE_AGE=0 mise up` for mise-managed tools — the override of mise's release-age cooldown is the point. | **Keep.** Mise-managed tools are intentionally part of the blessed update path. |
+| `omarchy-update-mise` | Runs `mise up` for mise-managed tools, respecting the configured release-age policy and explicit user environment overrides. | **Keep.** Mise-managed tools are intentionally part of the blessed update path. |
 | `omarchy-update-orphan-pkgs` | Lists orphans and prompts before removal unless passed `-y`, as the update pipeline does; standalone noninteractive mode only reports. | **Keep for now.** Automates cleanup during updates and supports standalone review. |
 | `omarchy-update-analyze-logs` | Scans `/tmp/omarchy-update.log` for known failure patterns, currently initramfs generation. | **Keep/expand.** Useful safety net; should grow only for high-signal checks. |
 | `omarchy-update-boot` | Hidden helper that runs the platform's `update-verify` lifecycle operation through `omarchy-lifecycle-dispatch`, with `sudo` only when the platform implements it. | **Keep internal/hidden.** Keeps platform boot checks out of the pipeline and stubbable in tests. |

@@ -230,13 +230,8 @@ for command in omarchy-hook omarchy-update-mise; do
   rm "$SUDO_TEST_ROOT/bin/$command"
   cat >"$SUDO_TEST_ROOT/bin/$command" <<'STUB'
 #!/bin/bash
-if [[ ${1:-} == "pre-refresh-pacman" ]]; then
-  [[ ! -e $SUDO_TEST_CACHE ]] || exit 91
-  [[ $(command -v sudo) == "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 92
-else
-  [[ -e $SUDO_TEST_CACHE ]] || exit 94
-  [[ $(command -v sudo) != "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 95
-fi
+[[ ! -e $SUDO_TEST_CACHE ]] || exit 91
+[[ $(command -v sudo) == "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 92
 channel-user-tool "${0##*/}" "$@"
 STUB
   chmod +x "$SUDO_TEST_ROOT/bin/$command"

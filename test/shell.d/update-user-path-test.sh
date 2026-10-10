@@ -38,9 +38,16 @@ for step in omarchy-hook omarchy-update-mise; do
   rm "$SUDO_TEST_ROOT/bin/$step"
   cat >"$SUDO_TEST_ROOT/bin/$step" <<'STUB'
 #!/bin/bash
-[[ -e $SUDO_TEST_CACHE ]] || exit 91
-[[ $(command -v sudo) != "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 92
+[[ ! -e $SUDO_TEST_CACHE ]] || exit 91
+[[ $(command -v sudo) == "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 92
+[[ ${OMARCHY_UPDATE_SUDO_SESSION:-} != "1" ]] || exit 93
+if sudo -n /usr/bin/true; then exit 94; fi
 update-user-tool "${0##*/}"
+# Model an explicit authentication by user-owned hook code. The next phase
+# must still start cold even when the hook bypassed the PATH wrapper.
+if [[ ${0##*/} == "omarchy-hook" ]]; then
+  touch "$SUDO_TEST_CACHE"
+fi
 STUB
   chmod +x "$SUDO_TEST_ROOT/bin/$step"
 done
@@ -63,5 +70,5 @@ for entry in fresh logged locked; do
     grep -q '^locked-reexec$' "$SUDO_TEST_LOG" || fail "$entry update did not exercise the lock exec"
   fi
   assert_boundary_cold "$entry update"
-  pass "$entry update preserves the original user PATH through logging and locking and shares its authorization"
+  pass "$entry update preserves user tools through logging and locking with a cold credential boundary"
 done

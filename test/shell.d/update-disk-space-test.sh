@@ -16,6 +16,7 @@ test_home="$SUDO_TEST_HOME"
 runtime_dir="$test_tmp/runtime"
 snapshot_marker="$test_tmp/snapshot"
 gum_marker="$test_tmp/gum"
+prune_marker="$test_tmp/prune"
 mkdir -p "$runtime_dir"
 for command in omarchy-update omarchy-update-requires-free-space omarchy-update-confirm; do
   rm -f "$stub_bin/$command"
@@ -32,7 +33,9 @@ run_update() {
   TEST_DF_INVALID=${TEST_DF_INVALID:-0} \
   SNAPSHOT_MARKER="$snapshot_marker" \
   GUM_MARKER="$gum_marker" \
-  GUM_STATUS=${GUM_STATUS:-1} \
+  PRUNE_MARKER="$prune_marker" \
+  TEST_RECOVER_SPACE=${TEST_RECOVER_SPACE:-0} \
+  GUM_STATUS=${GUM_STATUS:-0} \
     "$SUDO_TEST_ROOT/bin/omarchy-update" "$@"
 }
 
@@ -51,6 +54,8 @@ SH
 write_stub df '
 if (( TEST_DF_INVALID )); then
   printf "Avail\nunknown\n"
+elif (( TEST_RECOVER_SPACE )) && [[ -e $PRUNE_MARKER ]]; then
+  printf "Avail\n10737418240\n"
 else
   printf "Avail\n%s\n" "$TEST_AVAILABLE_BYTES"
 fi'
@@ -72,7 +77,6 @@ for command in \
   pkexec \
   systemd-inhibit \
   omarchy-update-dev \
-  omarchy-update-pkg-prune \
   omarchy-update-keyring \
   omarchy-update-system-pkgs \
   omarchy-migrate \
@@ -88,6 +92,9 @@ for command in \
 done
 write_stub omarchy-update-available 'exit 1'
 write_stub pkexec 'exec "$@"'
+write_stub omarchy-update-pkg-prune '
+printf "pruned\n" >>"$PRUNE_MARKER"
+exit 0'
 
 set +e
 TEST_AVAILABLE_BYTES=$((9 * 1024 * 1024 * 1024)) \
@@ -106,18 +113,39 @@ set -e
 [[ $output == *"You need at least 10 GiB free to safely update Omarchy."* ]] || fail "low disk space emits a warning"
 [[ ! -f $gum_marker ]] || fail "non-interactive update does not prompt for low disk space"
 [[ ! -f $snapshot_marker ]] || fail "non-interactive update stops before snapshotting with low disk space"
+[[ $(wc -l <"$prune_marker") == 1 ]] || fail "low-space update prunes the bounded cache once before checking"
+assert_boundary_cold "low-space update"
 pass "non-interactive update stops with low disk space"
 
-rm -f "$snapshot_marker" "$gum_marker"
+rm -f "$snapshot_marker" "$gum_marker" "$prune_marker"
 set +e
 output=$(run_update)
 status=$?
 set -e
 (( status == 1 )) || fail "interactive update exits non-zero with low disk space"
 [[ $output == *"You need at least 10 GiB free to safely update Omarchy."* ]] || fail "interactive low-space update explains the requirement"
-[[ ! -f $gum_marker ]] || fail "interactive update stops before confirmation with low disk space"
+grep -q 'confirm Continue with update?' "$gum_marker" || fail "interactive cleanup requires normal update confirmation"
 [[ ! -f $snapshot_marker ]] || fail "interactive update stops before snapshotting with low disk space"
-pass "interactive update stops before confirmation with low disk space"
+[[ -f $prune_marker ]] || fail "confirmed update attempts bounded cleanup before refusing low space"
+assert_boundary_cold "confirmed low-space update"
+pass "confirmed update attempts bounded cleanup and retains the space guard"
+
+rm -f "$snapshot_marker" "$gum_marker" "$prune_marker"
+reset_boundary
+GUM_STATUS=1 run_update >/dev/null
+[[ ! -f $prune_marker && ! -f $snapshot_marker ]] || fail "declining an update must not prune or snapshot"
+if grep -q '^sudo /usr/bin/true$' "$SUDO_TEST_LOG"; then
+  fail "declining an update must not authorize cleanup"
+fi
+assert_boundary_cold "declined update"
+pass "declining an update performs no cleanup and leaves authorization revoked"
+
+rm -f "$snapshot_marker" "$gum_marker" "$prune_marker"
+TEST_RECOVER_SPACE=1 run_update -y >/dev/null
+[[ -f $snapshot_marker ]] || fail "bounded cleanup can recover enough space to proceed"
+[[ $(wc -l <"$prune_marker") == 1 ]] || fail "recovered update prunes only once"
+assert_boundary_cold "recovered update"
+pass "an update proceeds when bounded cache cleanup recovers sufficient space"
 
 rm -f "$snapshot_marker" "$gum_marker"
 output=$(OMARCHY_UPDATE_FORCE=1 run_update -y)
