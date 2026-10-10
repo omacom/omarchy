@@ -36,7 +36,11 @@ hl = {
   end,
 }
 
-o = { window = function() end }
+o = {
+  window = function() end,
+  shell_quote = function(value) return value end,
+  shell_succeeds = function() return false end,
+}
 
 require(os.getenv("OMARCHY_MODULE"))
 LUA
