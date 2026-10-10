@@ -143,7 +143,7 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | ------------------- | ------------------------------ |
 | `Super + Ctrl + C` | Capture menu (for keyboards w/o PrintScr button) |
 | `Print Screen`            | Screenshot                      |
-| `Alt + Print Screen`            | Screenrecord                     |
+| `Ctrl + Print Screen`            | Screenrecord                     |
 | `Super + Print Screen` | Color picker |
 | `Super + Ctrl + Print Screen` | Text extraction to clipboard |
 | `Super + Alt + [` | Make webcam overlay smaller while recording |
