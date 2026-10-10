@@ -45,3 +45,5 @@ run_logged "$OMARCHY_INSTALL/hardware/fix-yt6801-ethernet-adapter.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-tuxedo-backlight.sh"
 run_logged "$OMARCHY_INSTALL/hardware/speaker-tuning.sh"
 run_logged "$OMARCHY_INSTALL/hardware/pacman.sh"
+
+run_logged "$OMARCHY_INSTALL/hardware/platform-setup.sh"

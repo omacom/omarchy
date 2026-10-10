@@ -6,7 +6,7 @@ It's also the one piece of the desktop that's always on screen, so it's worth kn
 
 ## What's on it by default
 
-The bar has three sections. On the left sits the Omarchy logo (the menu launcher) and the workspace indicators. In the center you get the status indicators, the clock, the keyboard layout, the weather, and an Omarchy update badge. On the right: the system tray, agents, bluetooth, network, audio, display, and power.
+The bar has three sections. On the left sits the Omarchy logo (the menu launcher) and the workspace indicators. In the center you get the status indicators, the clock, Elsewhen (a world clock), the weather, and an Omarchy update badge. On the right: the keyboard layout (when more than one is configured), the system tray, agents, bluetooth, network, audio, display, and power.
 
 A few of those only show up when they have something to say. The keyboard layout appears only if you've configured more than one layout. The update badge appears only when there's an Omarchy update waiting. And the agents icon appears the first time Omarchy finds AI coding usage on the machine (see [AI](17-ai.md)).
 
@@ -73,7 +73,7 @@ Removing either service takes its widget back off the bar.
 
 ## Indicators
 
-The little cluster in the center is the indicators widget. These are status glyphs for modes you've turned on: do not disturb, night light, a queued [reminder](09-reminders.md), an active screen recording, stay awake, and [dictation](11-text-extraction-dictation.md). They light up when the mode is active and otherwise stay out of the way — hover to the left of the clock (above it on a vertical bar) to peek at the inactive ones. Clicking an indicator toggles that mode.
+The little cluster in the center is the indicators widget. These are status glyphs for modes you've turned on: do not disturb, night light, a queued [reminder](09-reminders.md), an active screen recording, stay awake, and [dictation](11-text-extraction-dictation.md). They light up when the mode is active and otherwise stay out of the way — hover to the left of the clock (above it on a vertical bar) to peek at the inactive ones. Clicking an indicator toggles that mode. One more is status only: a remote session lights up red while someone is connected to this machine through gliff.
 
 If you'd rather they were always visible, set `alwaysShow` to `true` on the widget. And if you only care about some of them, list the ones you want in `items`: `["Dnd", "Reminder", "NightLight"]`. You can have more than one indicators widget, so different sections can show different subsets.
 

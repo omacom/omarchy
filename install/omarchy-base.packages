@@ -34,7 +34,11 @@ eza
 fakeroot
 fastfetch
 fcitx5
+fcitx5-chewing
+fcitx5-chinese-addons
 fcitx5-gtk
+fcitx5-hangul
+fcitx5-mozc
 fcitx5-qt
 fd
 ffmpeg
@@ -43,6 +47,7 @@ fontconfig
 foot
 fzf
 git
+gliff
 gnome-keyring
 gnome-themes-extra
 grim
@@ -143,6 +148,7 @@ udiskie
 ufw
 ufw-docker
 unzip
+usbguard
 usage
 uwsm
 vi

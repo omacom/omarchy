@@ -13,6 +13,24 @@ local vconsole = os.getenv("OMARCHY_VCONSOLE")
 local real_open = io.open
 
 io.open = function(path, mode)
+  if path:match("/omarchy/keyboard%-layouts$") then
+    local selected = os.getenv("TEST_KEYBOARD_SELECTION")
+    if not selected then return nil end
+    local file = io.tmpfile()
+    file:write(selected)
+    file:seek("set")
+    return file
+  end
+
+  if path == "/etc/omarchy/input-method" then
+    local preference = os.getenv("TEST_INPUT_PREFERENCE")
+    if not preference then return nil end
+    local file = io.tmpfile()
+    file:write(preference)
+    file:seek("set")
+    return file
+  end
+
   if path ~= "/etc/vconsole.conf" then
     return real_open(path, mode)
   end
@@ -128,3 +146,14 @@ sddm_layouts=$(sed -n '/^local non_latin_layouts =/,+1p' "$sddm_lua" | grep -o '
 [[ $hooks_layouts == "$sddm_layouts" ]] ||
   fail "greeter non-latin layout list stays in sync" "$(diff <(echo "$hooks_layouts") <(echo "$sddm_layouts"))"
 pass "greeter non-latin layout list stays in sync with the initramfs hook"
+
+TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\n XKB_LAYOUT="kr" # desktop only\n' assert_input "Korean selection overrides its installer US layout" "[kr] [] [$base_options]" $'XKBLAYOUT=us\n'
+TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=la\n' assert_input "Lao selection gets Lao behind US on the desktop" "[us,la] [,] [$toggle_options]" $'XKBLAYOUT=us\n'
+TEST_INPUT_PREFERENCE=$'INPUT_METHOD=none\nXKB_LAYOUT=xx\n' assert_input "an unknown desktop override is ignored" "[us] [] [$base_options]" $'XKBLAYOUT=us\n'
+TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\nXKB_LAYOUT=kr\n' assert_input "a later US variant overrides the Korean preference" "[us] [intl] [$base_options]" $'XKBLAYOUT=us\nXKBVARIANT=intl\n'
+TEST_INPUT_PREFERENCE=$'INPUT_METHOD=hangul\nXKB_LAYOUT=kr\n' assert_input "a later layout overrides the Korean preference" "[de] [nodeadkeys] [$base_options]" $'XKBLAYOUT=de\nXKBVARIANT=nodeadkeys\n'
+
+TEST_KEYBOARD_SELECTION=$'XKBLAYOUT=us,fr\nXKBVARIANT=intl,\n' assert_input "menu selections replace installer desktop defaults" "[us,fr] [intl,] [$base_options]" $'XKBLAYOUT=jp\n'
+TEST_KEYBOARD_SELECTION=$'XKBLAYOUT=us,fr\nXKBVARIANT=intl,\n' assert_greeter_input "menu selections leave the greeter keyboard unchanged" "[jp] [] []" $'XKBLAYOUT=jp\n'
+
+TEST_KEYBOARD_SELECTION=$'XKBLAYOUT=us,ru\nXKBVARIANT=,phonetic\n' assert_input "saved non-Latin selections retain the layout shortcut" "[us,ru] [,phonetic] [$toggle_options]" $'XKBLAYOUT=us\n'

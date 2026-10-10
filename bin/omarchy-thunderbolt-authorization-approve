@@ -1,0 +1,25 @@
+#!/bin/bash -p
+
+# omarchy:summary=Approve one verified Thunderbolt connection
+# omarchy:hidden=true
+
+# pkexec permits this exact program for an active local wheel user. Suppress
+# startup injection before reading input; it cannot dispatch general root work.
+if [[ $- != *p* ]]; then exit 126; fi
+source /usr/bin/omarchy-security-functions || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+omarchy_security_sanitize_bash_environment "$0" "$@"
+set -euo pipefail
+(( EUID == 0 )) || exit 126
+export PATH=/usr/bin:/bin LC_ALL=C
+unset DBUS_SYSTEM_BUS_ADDRESS DBUS_SESSION_BUS_ADDRESS
+source /usr/share/omarchy/install/helpers/thunderbolt-policy.sh
+
+[[ $# == 2 && ( $1 == "true" || $1 == "false" ) ]] || exit 64
+(( ${#2} <= 16384 )) || exit 64
+jq -e 'type == "object"' <<< "$2" >/dev/null
+exec 9> "$TB_LOCK"
+flock -x 9
+result=$(tb_approve "$2" "$1" true)
+tb_json_write "$TB_RUNTIME/snapshot.json" 644 <<< "$result"
+printf '%s\n' "$result"
