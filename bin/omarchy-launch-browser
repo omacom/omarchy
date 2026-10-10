@@ -6,6 +6,13 @@
 default_browser=$(omarchy-cmd-default-browser)
 browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
 
+# Persist the theme before startup; theme changes refresh an already-running
+# Vivaldi through the live channel, without doing that work on every link open.
+if [[ $browser_exec == *vivaldi* ]] &&
+  ! pgrep -u "$UID" -x 'vivaldi|vivaldi-bin' >/dev/null 2>&1; then
+  "$OMARCHY_PATH/default/vivaldi/vivaldi-theme-refresh" || true
+fi
+
 if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
   private_flag="--private-window"
 elif [[ $browser_exec =~ edge ]]; then
