@@ -1,28 +1,54 @@
 #!/bin/bash
 
 # omarchy:summary=Focus a Hyprland window by application identity
-# omarchy:args=<app-name>
+# omarchy:args=[--address <address>] <app-name> [desktop-entry]
 # omarchy:examples=omarchy hyprland focus app Slack
 
 usage() {
-  echo "Usage: omarchy-hyprland-focus-app <app-name>" >&2
+  echo "Usage: omarchy-hyprland-focus-app [--address <address>] <app-name> [desktop-entry]" >&2
   exit 1
 }
 
-app=${1:-}
-[[ -n $app ]] || usage
+# With --address, only that window is a candidate, and it is focused only if
+# it belongs to the app. The notification service uses it to follow the
+# urgent event of a sender whose own activation Hyprland blocked.
+only_address=""
+if [[ ${1:-} == "--address" ]]; then
+  only_address=${2:-}
+  [[ -n $only_address ]] || usage
+  shift 2
+fi
 
-# Agent terminals notify as kitty/foot/etc. while their shared window class is
-# org.omarchy.agent, leaving the terminal name only in initialTitle. So match
-# by class first, then fall back to the launch-time title of agent windows.
+app=${1:-}
+desktop_entry=${2:-}
+[[ -n $app || -n $desktop_entry ]] || usage
+
+# A notification names its sender in three ways, tried from most to least exact:
+#
+# 1. The desktop-entry hint, which is the app id and so the Wayland window
+#    class (Telegram: "org.telegram.desktop"). Compared whole.
+# 2. The app name as a regex against the class, then against the launch-time
+#    title of agent terminals, which notify as kitty/foot/etc. while their
+#    shared class is org.omarchy.agent.
+# 3. The app name against the trailing words of the class, ignoring spaces,
+#    dots, dashes and underscores: "Telegram Desktop" is the tail of
+#    "org.telegram.desktop", but not of "org.telegram.desktop.beta".
 address=$(
   hyprctl clients -j 2>/dev/null |
-    jq -r --arg pattern "$app" \
-      'def matches($value): ($value // "") | test($pattern; "i");
-       first(
-         (.[] | select(matches(.class))),
-         (.[] | select(.initialClass == "org.omarchy.agent" and matches(.initialTitle)))
-       ).address // empty'
+    jq -r --arg pattern "$app" --arg entry "$desktop_entry" --arg only "$only_address" \
+      'def words: ascii_downcase | [splits("[ ._-]+")] | map(select(. != ""));
+       ($pattern | words | join("")) as $name
+       | def by_entry($v): $entry != "" and (($v // "") | ascii_downcase) == ($entry | ascii_downcase);
+         def by_regex($v): $pattern != "" and (($v // "") | test($pattern; "i"));
+         def by_words($v): $name != "" and ((($v // "") | words) as $w
+           | any(range(0; $w | length); $w[.:] | join("") == $name));
+         [.[] | select($only == "" or (.address | ltrimstr("0x")) == ($only | ltrimstr("0x")))] as $clients
+         | first(
+             ($clients[] | select(by_entry(.class))),
+             ($clients[] | select(by_regex(.class))),
+             ($clients[] | select(.initialClass == "org.omarchy.agent" and by_regex(.initialTitle))),
+             ($clients[] | select(by_words(.class)))
+           ).address // empty'
 )
 
 [[ -n $address ]] || exit 1

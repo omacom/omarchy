@@ -97,7 +97,11 @@ clicks through exactly like a live one, and oneshot senders can exit
 immediately. For third-party clients the click falls back to the libnotify
 `default` action while the sender is alive, then to focusing the sender's
 window by class via `omarchy-hyprland-focus-app` — chat apps rarely register
-an action and just expect click-to-jump.
+an action and just expect click-to-jump. The window is matched by the
+`desktop-entry` hint first, then by app name. When a `default` action was
+invoked, the sender raises its own window; if a window rule blocks that
+activation (Telegram's `focus_on_activate = false`), the shell focuses the
+window named in Hyprland's `urgent` event instead.
 
 ### Click commands are argv, never shell strings
 
