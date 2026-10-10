@@ -34,6 +34,11 @@ cat >"$fake_bin/lspci" <<'STUB'
 for _ in $(seq "${GPU_COUNT:-1}"); do
   echo "0000:00:02.0 VGA compatible controller: Stub GPU"
 done
+
+if ((${T2_BRIDGE:-0})); then
+  echo "e6:00.1 Non-VGA unclassified device: Apple Inc. T2 Bridge Controller (rev 01)"
+  echo "e6:00.2 Non-VGA unclassified device: Apple Inc. T2 Secure Enclave Processor (rev 01)"
+fi
 STUB
 
 chmod +x "$fake_bin"/*
@@ -89,3 +94,13 @@ chmod +x "$fake_bin/omarchy-cmd-present"
 GPU_COUNT=2 hybrid_gpu ||
   fail "hybrid GPU detection counts GPUs without supergfxctl"
 pass "hybrid GPU detection counts GPUs without supergfxctl"
+
+T2_BRIDGE=1 GPU_COUNT=1 hybrid_gpu
+status=$?
+((status == 1)) ||
+  fail "hybrid GPU detection does not count the T2 chip as a GPU" "exit status: $status"
+pass "hybrid GPU detection does not count the T2 chip as a GPU"
+
+T2_BRIDGE=1 GPU_COUNT=2 hybrid_gpu ||
+  fail "hybrid GPU detection still sees both GPUs on a dual-GPU T2 Mac"
+pass "hybrid GPU detection still sees both GPUs on a dual-GPU T2 Mac"
