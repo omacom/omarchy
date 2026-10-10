@@ -1655,6 +1655,8 @@ Item {
     HoverHandler {
       onHoveredChanged: if (hovered) root.holdSideSectionReveal("left")
     }
+
+    SideSectionHoverFloor { section: "left" }
   }
 
   component RightModules: ModuleList {
@@ -1663,6 +1665,30 @@ Item {
 
     HoverHandler {
       onHoveredChanged: if (hovered) root.holdSideSectionReveal("right")
+    }
+
+    SideSectionHoverFloor { section: "right" }
+  }
+
+  // A side section is as large as its widgets, so one holding nothing but
+  // collapsed indicators has no extent and its own hover could never open
+  // them. This keeps a bar-size square at the section's outer edge to point
+  // at, without changing the size the section lays out with.
+  component SideSectionHoverFloor: Item {
+    id: hoverFloor
+
+    required property string section
+    readonly property bool trailing: section === "right"
+    readonly property real along: Math.max(root.vertical ? parent.height : parent.width, root.barSize)
+    readonly property real across: Math.max(root.vertical ? parent.width : parent.height, root.barSize)
+
+    width: root.vertical ? across : along
+    height: root.vertical ? along : across
+    x: root.vertical ? (parent.width - width) / 2 : (trailing ? parent.width - width : 0)
+    y: root.vertical ? (trailing ? parent.height - height : 0) : (parent.height - height) / 2
+
+    HoverHandler {
+      onHoveredChanged: if (hovered) root.holdSideSectionReveal(hoverFloor.section)
     }
   }
 

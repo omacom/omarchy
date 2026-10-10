@@ -69,6 +69,17 @@ done
 if ! rg -q 'bar\[peekSection \+ "SectionRevealHeld"\] === true' "$ROOT/shell/plugins/bar/widgets/Indicators.qml"; then
   fail "indicators follow the peek of the section they sit in"
 fi
+# A side section holding only collapsed indicators has no extent of its own, so
+# its hover needs an area that does not shrink with its widgets.
+for section in left right; do
+  if ! rg -q "SideSectionHoverFloor \{ section: \"$section\" \}" "$ROOT/shell/plugins/bar/Bar.qml"; then
+    fail "the $section section keeps a hover area when its widgets collapse"
+  fi
+done
+if ! rg -q 'readonly property real along: Math\.max\(root\.vertical \? parent\.height : parent\.width, root\.barSize\)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "a collapsed side section stays at least a bar-size square to hover"
+fi
 pass "indicators peek from the section they sit in"
 
 run_node_test <<'JS'
