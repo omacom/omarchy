@@ -148,23 +148,45 @@ fi
   fail "pacman -Qo is not consulted before moving a file"
 pass "an owned path is left alone even when the report reads as unowned"
 
-# A name prefix is not a namespace; only the packages that own system paths.
+# An unowned leftover is the same problem regardless of which package is
+# taking the path — including optional omarchy-* packages and third-party
+# ones installed by migrations (owe / owe-lockfeed).
 fresh_work
 echo "stray" >"$stray"
 write_report omarchy-chromium-bin "$stray"
-if run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
-  fail "an optional omarchy-prefixed package gets its conflicts auto-resolved"
-fi
-pass "only the packages that own system paths get their conflicts resolved"
+run_update >"$test_tmp/out" 2>"$test_tmp/err" ||
+  fail "an unowned conflict for an optional omarchy-* package is not resolved"
+[[ ! -e $stray && -f $replaced$stray ]] ||
+  fail "an unowned conflict for an optional omarchy-* package is left in place"
+pass "an unowned conflict for an optional omarchy-* package is resolved"
 
-# Not Omarchy's conflict to resolve.
 fresh_work
-echo "stray" >"$stray"
-write_report some-other-pkg "$stray"
-if run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
-  fail "a conflict from an unrelated package is auto-resolved"
-fi
-pass "a conflict from a non-Omarchy package is left for a human"
+owe_bin="$work/owe"
+echo "stub" >"$owe_bin"
+write_report owe "$owe_bin"
+run_update >"$test_tmp/out" 2>"$test_tmp/err" ||
+  fail "an unowned conflict for a non-Omarchy package is not resolved"
+[[ ! -e $owe_bin && -f $replaced$owe_bin ]] ||
+  fail "an unowned conflict for a non-Omarchy package is left in place"
+pass "an unowned conflict for a non-Omarchy package is resolved"
+
+# Several unowned paths blamed on different packages — the owe / owe-lockfeed
+# shape from an interrupted install — must all move together.
+fresh_work
+owe_bin="$work/owe"
+owe_so="$work/libowe_lockfeed.so"
+echo "stub-bin" >"$owe_bin"
+echo "stub-so" >"$owe_so"
+write_raw_report \
+  "owe: $owe_bin exists in filesystem" \
+  "owe-lockfeed: $owe_so exists in filesystem"
+run_update >"$test_tmp/out" 2>"$test_tmp/err" ||
+  fail "multi-package unowned conflicts are not resolved together"
+[[ ! -e $owe_bin && ! -e $owe_so ]] ||
+  fail "multi-package unowned conflicts leave a path in pacman's way"
+[[ -f $replaced$owe_bin && -f $replaced$owe_so ]] ||
+  fail "multi-package unowned conflicts are not quarantined"
+pass "multi-package unowned conflicts are quarantined together"
 
 # The path is used literally, so glob characters in a name mean nothing.
 fresh_work
@@ -290,6 +312,18 @@ fi
 [[ -f $stray ]] ||
   fail "the handler moved a live file when run outside an update"
 pass "the handler refuses a report handed to it outside an update"
+
+# Every failed upgrade reaches the handler; one that isn't a file conflict is
+# not explained as one.
+fresh_work
+echo 0 >"$test_tmp/attempts"
+echo "error: failed to retrieve some files" >"$test_tmp/report"
+if run_update >"$test_tmp/out" 2>"$test_tmp/err"; then
+  fail "a failed download reports success"
+fi
+grep -q "owned by other packages" "$test_tmp/out" "$test_tmp/err" &&
+  fail "a failure that is not a file conflict is blamed on owned files"
+pass "a failure that is not a file conflict is left as pacman reported it"
 
 # The happy path must not pay for any of this.
 fresh_work
