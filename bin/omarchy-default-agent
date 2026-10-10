@@ -50,6 +50,11 @@ esac
 
 agent_package=${agent_package:-$agent}
 
+if [[ $agent == claude || $agent == pi ]] && ! omarchy-hw-cpu-sse4_2; then
+  echo "Cannot install $name: this CPU lacks SSE4.2/POPCNT, which Bun's linux-x64 builds need" >&2
+  exit 1
+fi
+
 # Hermes and OpenClaw are not mise tools: each is a self-updating runtime in
 # the user's home, Hermes the desktop app's and OpenClaw the one its Control
 # UI updates. Each has its own installer with the same --check/--now contract
@@ -66,9 +71,23 @@ else
   # Anything at the wrapper's path other than the wrapper is the user's own
   # install, such as the symlink Cursor's installer leaves. A mise copy would
   # only shadow it, since the mise shims precede ~/.local/bin on PATH.
+  managed_wrapper() {
+    local wrapper="$HOME/.local/bin/$agent"
+    grep -Eq '^mise use -g|^# omarchy:mise-managed=true$' "$wrapper" && return 0
+    # Recognize the exact old template only for this agent's own package and
+    # executable; a user's two-line wrapper can deliberately run another tool.
+    local package_arg bin_arg text
+    printf -v package_arg '%q' "$agent_package"
+    printf -v bin_arg '%q' "$agent"
+    text=$(cat "$wrapper")
+    (( $(wc -l <"$wrapper") == 2 )) &&
+      { [[ $text == $'#!/bin/bash\nexec mise x '"\"$agent_package\" -- \"$agent\" \"\$@\"" ]] ||
+        [[ $text == $'#!/bin/bash\nexec mise x '"$package_arg -- $bin_arg \"\$@\"" ]]; }
+
+  }
   user_install() {
     [[ -x $HOME/.local/bin/$agent ]] &&
-      { [[ -L $HOME/.local/bin/$agent ]] || ! grep -q '^mise use -g' "$HOME/.local/bin/$agent"; }
+      { [[ -L $HOME/.local/bin/$agent ]] || ! managed_wrapper; }
   }
   agent_present() { user_install || mise where "$agent_package" &>/dev/null; }
   agent_install() { user_install || mise use -g "$agent_package"; }
