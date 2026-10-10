@@ -75,7 +75,7 @@ pass "third-party entry points receive scoped shell facades"
 if qml_matches "$plugin_shell_api" 'function +pluginShellForId\('; then
   fail "replacement-bar facade exposes a generic plugin-shell factory"
 fi
-qml_matches "$bar_qml" 'else if *\( *root\.shell *&& *typeof root\.shell\.pluginShellForBarEntry *=== *"function" *\) *\{[^}]*pluginShell *= *root\.shell\.pluginShellForBarEntry\( *key, *moduleName *\)' ||
+qml_matches "$bar_qml" 'else if *\( *root\.shell *&& *typeof root\.shell\.pluginShellForBarEntry *=== *"function" *\) *\{[^}]*pluginShell *= *root\.shell\.pluginShellForBarEntry\( *ownerId, *moduleName *\)' ||
   fail "replacement bars do not fall back to a service-less entry facade"
 pass "replacement bars cannot manufacture another plugin's service facade"
 
@@ -85,7 +85,7 @@ qml_matches "$shell_qml" 'bar\.barConfig *= *shell\.barConfigFor\( *shell\.activ
   fail "replacement-bar configuration updates are not detached"
 pass "replacement bars receive detached configuration snapshots"
 
-qml_matches "$bar_qml" 'target\.bar *= *firstParty *\? *root *: *root\.pluginBarApiFor\( *pluginApiId, *moduleName, *registered *\)' ||
+qml_matches "$bar_qml" 'target\.bar *= *firstParty *\? *root *: *root\.pluginBarApiFor\( *pluginApiId, *moduleName, *registered, *slot *\)' ||
   fail "third-party widgets receive a bar facade instead of the host bar"
 qml_matches "$bar_qml" 'api\.clickTargets *= *root\.pluginClickTargets\( *api\.pluginId *\)' ||
   fail "third-party bar facades exclude other widgets from their object graph"
@@ -93,9 +93,9 @@ pass "third-party widgets receive a bar facade instead of the host bar"
 
 qml_matches "$shell_qml" 'widgets: *shell\.publicBarWidgetSnapshot\( *\)' ||
   fail "third-party widget registries receive detached snapshots"
-qml_matches "$bar_qml" 'root\.markPluginObject\( *pluginId, *target, *"clickTarget" *\)' ||
+qml_matches "$bar_qml" 'root\.markPluginObject\( *pluginId, *target, *"clickTarget", *scopeKey *\)' ||
   fail "third-party bar-object ownership is stamped by the host callback"
-qml_matches "$bar_qml" 'root\.markPluginObject\( *pluginId, *owner, *"popout" *\)' ||
+qml_matches "$bar_qml" 'root\.markPluginObject\( *pluginId, *owner, *"popout", *scopeKey *\)' ||
   fail "owner-less popouts receive trusted ownership before activation"
 qml_matches "$shell_qml" 'manifest\.__hostCapabilities\.indexOf\( *"authentication" *\)' ||
   fail "authentication isolation follows host-stamped capabilities"
