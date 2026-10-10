@@ -104,3 +104,13 @@ pass "systemd-oomd acts on sustained memory stall"
 grep -Fx 'systemctl enable systemd-oomd.service' "$ROOT/install/config/enable-services.sh" >/dev/null ||
   fail "new installs ship the oomd drop-ins with the daemon that reads them disabled"
 pass "new installs enable systemd-oomd"
+
+user_shutdown_conf="$ROOT/etc/systemd/user.conf.d/10-faster-shutdown.conf"
+system_shutdown_conf="$ROOT/etc/systemd/system.conf.d/10-faster-shutdown.conf"
+[[ -f $user_shutdown_conf ]] || fail "user manager 10-faster-shutdown.conf exists"
+[[ -f $system_shutdown_conf ]] || fail "system manager 10-faster-shutdown.conf exists"
+grep -Fx 'DefaultTimeoutStopSec=5s' "$user_shutdown_conf" >/dev/null || fail "user manager sets 5s shutdown timeout"
+grep -Fx 'DefaultTimeoutStopSec=5s' "$system_shutdown_conf" >/dev/null || fail "system manager sets 5s shutdown timeout"
+grep -F '/etc/systemd/user.conf.d/10-faster-shutdown.conf' "$upgrade_to_quattro" >/dev/null || fail "upgrade-to-quattro overwrites user faster shutdown drop-in"
+pass "system and user managers enforce 5s shutdown timeout"
+
