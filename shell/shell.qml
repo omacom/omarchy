@@ -1227,6 +1227,16 @@ ShellRoot {
     return true
   }
 
+  // Drop every open panel (bar widgets and keepLoaded panels) so a screensaver
+  // or lock can take focus without fighting a KeyboardPanel overlay.
+  function hideOpenPanels() {
+    if (shell.bar && typeof shell.bar.hideOpenBarWidgets === "function")
+      shell.bar.hideOpenBarWidgets()
+    var ids = []
+    for (var id in openPanelIds) ids.push(id)
+    for (var i = 0; i < ids.length; i++) hide(ids[i])
+  }
+
   function isPluginOpen(pluginId) {
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
     if (shell.isBarWidgetPanelPlugin(id)) {
@@ -1897,6 +1907,10 @@ ShellRoot {
 
     function hide(id: string): void {
       shell.hide(id)
+    }
+
+    function hideOpenPanels(): void {
+      shell.hideOpenPanels()
     }
 
     function toggle(id: string, payloadJson: string): void {
