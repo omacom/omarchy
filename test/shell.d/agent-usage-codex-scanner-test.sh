@@ -146,6 +146,18 @@ result=$(HOME="$PI_HOME" CODEX_HOME="$PI_HOME/.codex" XDG_DATA_HOME="$PI_HOME/.l
   fail "Codex collector attributes new fork usage to its own session" "$result"
 pass "Codex collector deduplicates Pi forks without collapsing ID collisions, profiles included"
 
+# A Pi transcript can be partially written or use a timestamp unit this
+# collector does not understand. Skip that entry without losing neighboring
+# Codex usage from the same scan.
+cat >"$PI_HOME/.pi/agent/sessions/project/pi-malformed.jsonl" <<EOF
+{"type":"message","id":"bad-time","timestamp":1.7e18,"message":{"role":"assistant","provider":"openai-codex","model":"gpt-pi","usage":{"input":999}}}
+EOF
+result=$(HOME="$PI_HOME" CODEX_HOME="$PI_HOME/.codex" XDG_DATA_HOME="$PI_HOME/.local/share" \
+  PATH="$PI_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --force)
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "77" ]] ||
+  fail "Codex collector skips a Pi entry with an out-of-range timestamp" "$result"
+pass "Codex collector skips a Pi entry with an out-of-range timestamp"
+
 # A $HOME that is itself a git checkout (a common dotfiles setup with a
 # whitelist .gitignore) must not hide the session files from the scan:
 # ripgrep applies the parent repo's ignore rules to searched directories,

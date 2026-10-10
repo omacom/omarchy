@@ -178,3 +178,23 @@ mv "$test_tmp/stats.json" "$XDG_CACHE_HOME/omarchy/agent-usage/grok-stats.json"
 record=$(COLLECT_ARGS="--limits-only" collect)
 [[ $(jq -r '.totalSessions' <<<"$record") == 4 ]] || fail "a scan from another day is made again" "$record"
 pass "a scan from another day is made again"
+
+# A partially written or newer session shape must not take down the whole
+# collector. Keep the valid neighboring sessions and skip only bad values.
+mkdir -p "$sessions/bad-summary" "$sessions/bad-usage"
+printf '{"last_active_at":"%s","num_messages":"3.0"}\n' "$now" >"$sessions/bad-summary/summary.json"
+printf '{"turns":[{"endedAt":"%s","modelUsage":{"grok-survivor":{"inputTokens":20,"outputTokens":5}}}]}\n' "$now" >"$sessions/bad-summary/usage.json"
+printf '{"turns":[{"endedAt":"%s","modelUsage":{"grok-discarded":{"inputTokens":50},"grok-bad":{"inputTokens":"12.5"}}}]}\n' "$now" >"$sessions/bad-usage/usage.json"
+record=$(collect)
+[[ $(jq -c '{totalSessions, totalPrompts, todayPrompts, todayTotalTokens, survivor: .modelUsage["grok-survivor"], discarded: .modelUsage["grok-discarded"]}' <<<"$record") == '{"totalSessions":4,"totalPrompts":11,"todayPrompts":3,"todayTotalTokens":1290,"survivor":{"inputTokens":20,"outputTokens":5,"cacheReadInputTokens":0,"cacheCreationInputTokens":0},"discarded":null}' ]] ||
+  fail "Grok collector skips malformed session values without losing valid sessions" "$record"
+
+# This timestamp only overflows while converting to a negative UTC offset.
+# Fix the timezone so the regression does not depend on the test host.
+bad_time_home="$test_tmp/bad-time-home"
+mkdir -p "$bad_time_home/sessions/project/session"
+printf '{"last_active_at":"0001-01-01T00:00:00+00:00","num_messages":1}\n' >"$bad_time_home/sessions/project/session/summary.json"
+record=$(TZ=America/New_York GROK_HOME="$bad_time_home" XDG_STATE_HOME="$test_tmp/bad-time-state" collect)
+[[ $(jq -r '.totalSessions' <<<"$record") == 0 ]] ||
+  fail "Grok collector skips a timestamp that overflows in the local timezone" "$record"
+pass "Grok collector skips malformed session values without losing valid sessions"
