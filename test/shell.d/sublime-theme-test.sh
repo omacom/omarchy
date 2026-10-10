@@ -42,7 +42,7 @@ preferences="$user_package/Preferences.sublime-settings"
 grep -q '"theme": "Omarchy.sublime-theme"' "$preferences" || fail "installer selects the Omarchy UI theme"
 grep -q '"color_scheme": "Omarchy.sublime-color-scheme"' "$preferences" || fail "installer selects the generated scheme"
 grep -q '"overlay_scroll_bars": "enabled"' "$preferences" || fail "installer enables overlay scrollbars"
-grep -q '"font_face": "monospace"' "$preferences" || fail "installer uses the system monospace font"
+! grep -q '"font_face"' "$preferences" || fail "installer leaves the font to fontconfig"
 grep -q '"font_size": 14' "$preferences" || fail "installer preserves unrelated preferences"
 grep -q '// Keep the user' "$preferences" || fail "installer preserves settings comments"
 [[ -f $user_package/Omarchy.sublime-theme && -f $user_package/OmarchyWindow.py ]] || fail "installer copies Sublime resources"
@@ -58,12 +58,6 @@ cmp -s "$source_scheme" "$user_package/Omarchy.sublime-color-scheme" || fail "th
 
 pass "Sublime theme sync replaces the scheme without a symlink"
 
-HOME="$home" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-font-set-sublime" 'Adwaita Mono' || fail "Sublime font sync succeeds"
-grep -q '"font_face": "Adwaita Mono"' "$preferences" || fail "font sync writes the selected font"
-grep -q '"font_size": 14' "$preferences" || fail "font sync preserves the user's font size"
-
-pass "Sublime font sync preserves other preferences"
-
 fresh_home="$test_tmp/fresh"
 mkdir -p "$fresh_home/.local/state/omarchy/current/theme"
 printf '{"name":"fresh"}\n' >"$fresh_home/.local/state/omarchy/current/theme/Omarchy.sublime-color-scheme"
@@ -72,7 +66,7 @@ HOME="$fresh_home" OMARCHY_PATH="$ROOT" PATH="$mock_bin:$ROOT/bin:$PATH" \
   bash "$ROOT/bin/omarchy-install-editor-sublime" || fail "Sublime installs with no prior preferences"
 
 fresh_preferences="$fresh_home/.config/sublime-text/Packages/User/Preferences.sublime-settings"
-grep -q '"font_face": "monospace"' "$fresh_preferences" || fail "fresh install uses the system font"
+! grep -q '"font_face"' "$fresh_preferences" || fail "fresh install leaves the font to fontconfig"
 ! compgen -G "$fresh_preferences.bak.*" >/dev/null || fail "fresh install needs no preferences backup"
 
 pass "Sublime installer sets defaults on a fresh profile"
