@@ -1,7 +1,7 @@
 # Embed Qualcomm device trees so systemd-stub can select one from SMBIOS data.
 # DeviceTreeAuto requires literal paths, so hardware setup refreshes the list.
 
-if omarchy-hw-qualcomm-soc; then
+if omarchy-hw-aarch64-qualcomm; then
   omarchy-pkg-add systemd-ukify
 
   dtb_dir=${OMARCHY_QUALCOMM_DTB_DIR:-/boot/dtbs/qcom}

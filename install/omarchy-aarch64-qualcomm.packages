@@ -1,3 +1,11 @@
 # Qualcomm (Snapdragon) additions, composed after omarchy-base.packages and
-# omarchy-aarch64.packages (omarchy-pkg-defaults aarch64-qualcomm).
+# omarchy-aarch64.packages (omarchy-pkg-defaults aarch64-qualcomm): what every
+# Snapdragon laptop runs, which install/hardware/qualcomm/ and vulkan.sh also
+# install.
 linux-firmware-qcom
+# Copies the vendor-signed firmware (GPU zap shader, DSP images) from Windows.
+qcom-firmware-extract
+# Builds the UKI with the device trees systemd-stub picks one from.
+systemd-ukify
+# Adreno GPUs.
+vulkan-freedreno

@@ -1,7 +1,7 @@
 # Install packaged Qualcomm firmware and vendor-signed blobs extracted from Windows.
 # Keep the DSP driver disabled when starting it could disconnect the root disk.
 
-if omarchy-hw-qualcomm-soc; then
+if omarchy-hw-aarch64-qualcomm; then
   omarchy-pkg-add linux-firmware-qcom qcom-firmware-extract
 
   qcom-firmware-extract --install --no-rebuild || true

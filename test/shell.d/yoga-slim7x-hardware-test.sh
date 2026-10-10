@@ -15,14 +15,12 @@ done
 
 matching="$scratch/matching"
 mkdir -p "$matching"
-printf 'qcom,x1e80100\0lenovo,yoga-slim7x\0' >"$matching/compatible"
 (
-  omarchy-hw-qualcomm-soc() { return 0; }
-  omarchy-hw-match() { return 1; }
+  omarchy-hw-aarch64-qualcomm() { return 0; }
+  omarchy-hw-match() { [[ $1 == "83ED" ]]; }
   systemctl() { printf '%s\n' "$*" >>"$matching/systemctl.log"; }
 
-  OMARCHY_YOGA_COMPATIBLE_PATH="$matching/compatible" \
-    OMARCHY_YOGA_MODULES_LOAD_DIR="$matching/modules-load.d" \
+  OMARCHY_YOGA_MODULES_LOAD_DIR="$matching/modules-load.d" \
     OMARCHY_YOGA_MKINITCPIO_DIR="$matching/mkinitcpio.conf.d" \
     OMARCHY_YOGA_LIMINE_CONFIG_DIR="$matching/limine-entry-tool.d" \
     OMARCHY_YOGA_SYSTEMD_DIR="$matching/systemd" \
@@ -74,14 +72,12 @@ grep -Fxq 'enable yoga-slim7x-remoteprocs.service' "$matching/systemctl.log" ||
 
 nonmatching="$scratch/nonmatching"
 mkdir -p "$nonmatching"
-printf 'qcom,x1e80100\0hp,elitebook-ultra-g1q\0' >"$nonmatching/compatible"
 (
-  omarchy-hw-qualcomm-soc() { return 0; }
+  omarchy-hw-aarch64-qualcomm() { return 0; }
   omarchy-hw-match() { return 1; }
   systemctl() { fail "nonmatching Qualcomm hardware does not enable Yoga services"; }
 
-  OMARCHY_YOGA_COMPATIBLE_PATH="$nonmatching/compatible" \
-    OMARCHY_YOGA_MODULES_LOAD_DIR="$nonmatching/modules-load.d" \
+  OMARCHY_YOGA_MODULES_LOAD_DIR="$nonmatching/modules-load.d" \
     OMARCHY_YOGA_MKINITCPIO_DIR="$nonmatching/mkinitcpio.conf.d" \
     OMARCHY_YOGA_LIMINE_CONFIG_DIR="$nonmatching/limine-entry-tool.d" \
     OMARCHY_YOGA_SYSTEMD_DIR="$nonmatching/systemd" \
@@ -98,18 +94,17 @@ printf 'qcom,x1e80100\0hp,elitebook-ultra-g1q\0' >"$nonmatching/compatible"
   fail "nonmatching Qualcomm hardware does not get Yoga services"
 
 (
-  omarchy-hw-qualcomm-soc() { return 0; }
-  omarchy-hw-match() { [[ $1 == "83ED" ]]; }
-  systemctl() { :; }
-  OMARCHY_YOGA_COMPATIBLE_PATH="$scratch/no-compatible" \
-    OMARCHY_YOGA_MODULES_LOAD_DIR="$nonmatching/modules-load.d" \
+  omarchy-hw-aarch64-qualcomm() { return 1; }
+  omarchy-hw-match() { return 0; }
+  systemctl() { fail "a machine off Snapdragon does not enable Yoga services"; }
+  OMARCHY_YOGA_MODULES_LOAD_DIR="$nonmatching/modules-load.d" \
     OMARCHY_YOGA_MKINITCPIO_DIR="$nonmatching/mkinitcpio.conf.d" \
     OMARCHY_YOGA_LIMINE_CONFIG_DIR="$nonmatching/limine-entry-tool.d" \
     OMARCHY_YOGA_SYSTEMD_DIR="$nonmatching/systemd" \
     source "$setup"
 )
-[[ -f $nonmatching/modules-load.d/yoga-slim7x.conf ]] ||
-  fail "Lenovo DMI matching works without a device-tree compatible property"
+[[ ! -e $nonmatching/modules-load.d/yoga-slim7x.conf ]] ||
+  fail "a matching DMI name off Snapdragon does not get Yoga setup"
 
 remoteprocs="$scratch/remoteproc"
 mkdir -p "$remoteprocs/remoteproc0" "$remoteprocs/remoteproc1" "$remoteprocs/remoteproc2"

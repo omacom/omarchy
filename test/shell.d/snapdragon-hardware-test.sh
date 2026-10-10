@@ -14,7 +14,7 @@ for script in "$firmware_setup" "$dtb_setup"; do
 done
 
 (
-  omarchy-hw-qualcomm-soc() { return 0; }
+  omarchy-hw-aarch64-qualcomm() { return 0; }
   omarchy-pkg-add() { :; }
   qcom-firmware-extract() {
     if [[ $1 == "--install" ]]; then
@@ -40,7 +40,7 @@ done
   fail "Snapdragon firmware setup protects a USB-backed root disk"
 
 run_internal_firmware_setup() (
-  omarchy-hw-qualcomm-soc() { return 0; }
+  omarchy-hw-aarch64-qualcomm() { return 0; }
   omarchy-pkg-add() { :; }
   findmnt() { printf '/dev/mapper/root\n'; }
   lsblk() { printf 'nvme\n'; }
@@ -70,7 +70,7 @@ PCRPrivateKey=/secure/pcr.key
 CONF
 
 run_dtb_setup() (
-  omarchy-hw-qualcomm-soc() { return 0; }
+  omarchy-hw-aarch64-qualcomm() { return 0; }
   omarchy-pkg-add() { :; }
 
   OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs"
@@ -98,9 +98,9 @@ fi
 
 pass "Snapdragon setup tolerates missing firmware and preserves UKI settings"
 
-other_packages="$ROOT/install/omarchy-other.packages"
+defaults=$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-pkg-defaults" aarch64-qualcomm)
 for package in linux-firmware-qcom qcom-firmware-extract systemd-ukify vulkan-freedreno; do
-  grep -qx "$package" "$other_packages" ||
-    fail "the ISO caches $package for offline Snapdragon setup"
+  grep -qx "$package" <<<"$defaults" ||
+    fail "the Snapdragon package set has $package for offline setup"
 done
-pass "the ISO caches every package Snapdragon setup installs"
+pass "the Snapdragon package set has every package its setup installs"

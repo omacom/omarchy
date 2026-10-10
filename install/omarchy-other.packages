@@ -52,7 +52,6 @@ vpl-gpu-rt
 vulkan-intel
 vulkan-radeon
 vulkan-asahi
-vulkan-freedreno
 
 # Surface laptop support packages
 linux-firmware-marvell
@@ -74,8 +73,3 @@ t2fanrd
 
 # Framework 16
 qmk-hid
-
-# Qualcomm Snapdragon support packages
-linux-firmware-qcom
-qcom-firmware-extract
-systemd-ukify

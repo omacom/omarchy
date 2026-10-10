@@ -1,19 +1,11 @@
-# Lenovo Yoga Slim 7x (14Q8X9 / 83ED) board-specific setup.
+# Lenovo Yoga Slim 7x (14Q8X9, DMI product name 83ED) board-specific setup.
 
-yoga_slim7x_compatible=""
-compatible_path=${OMARCHY_YOGA_COMPATIBLE_PATH:-/sys/firmware/devicetree/base/compatible}
 modules_load_dir=${OMARCHY_YOGA_MODULES_LOAD_DIR:-/etc/modules-load.d}
 mkinitcpio_dir=${OMARCHY_YOGA_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
 limine_config_dir=${OMARCHY_YOGA_LIMINE_CONFIG_DIR:-/etc/limine-entry-tool.d}
 systemd_dir=${OMARCHY_YOGA_SYSTEMD_DIR:-/etc/systemd/system}
 
-if [[ -r $compatible_path ]]; then
-  yoga_slim7x_compatible=$(tr '\0' '\n' <"$compatible_path")
-fi
-
-if omarchy-hw-qualcomm-soc &&
-  { grep -qi '^lenovo,yoga-slim7x$' <<<"$yoga_slim7x_compatible" ||
-    omarchy-hw-match 'Yoga Slim 7x' || omarchy-hw-match '83ED'; }; then
+if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "83ED"; then
   echo "Detected Lenovo Yoga Slim 7x, applying board-specific support..."
 
   # The Yoga exposes its CPU performance domains through SCMI.

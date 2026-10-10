@@ -16,7 +16,7 @@ for vendor in "${!VULKAN_DRIVERS[@]}"; do
 done
 
 # Adreno GPUs are platform devices, so lspci never sees them.
-if omarchy-hw-qualcomm-soc; then
+if omarchy-hw-aarch64-qualcomm; then
   PACKAGES+=(vulkan-freedreno)
 fi
 
