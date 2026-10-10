@@ -18,10 +18,13 @@ local SCRATCHPAD = "special:scratchpad"
 -- has to pin the workspace itself: Hyprland only tags a spawn with the workspace
 -- it came from while misc.initial_workspace_tracking is on, and looknfeel turns
 -- it off. Herdr's profile points its new panes at omarchy-scratchpad-agent,
--- which starts the configured Omarchy agent.
+-- which starts the configured Omarchy agent. The profile path rides with the
+-- command, not the launch: terminals started through uwsm do not inherit the
+-- invoker's environment, so a setting exported around omarchy-launch-tui would
+-- not survive to Herdr.
 local seed = '[workspace special:scratchpad silent] '
-  .. 'env HERDR_CONFIG_PATH="$HOME/.config/herdr/scratchpad.toml" '
-  .. 'omarchy-launch-tui --app-id=org.omarchy.scratchpad herdr --session scratchpad'
+  .. 'omarchy-launch-tui --app-id=org.omarchy.scratchpad '
+  .. 'env HERDR_CONFIG_PATH="$HOME/.config/herdr/scratchpad.toml" herdr --session scratchpad'
 
 -- Dimming only applies while a special workspace is open, so the console gets
 -- its separation from the workspace underneath without costing anything the
