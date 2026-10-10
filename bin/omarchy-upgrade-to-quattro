@@ -1543,6 +1543,7 @@ apply_user_transition() {
     OMARCHY_UPGRADE_YES="$yes" \
     OMARCHY_USER_NAME="${OMARCHY_USER_NAME:-}" \
     OMARCHY_USER_EMAIL="${OMARCHY_USER_EMAIL:-}" \
+    PI_CODING_AGENT_DIR="${PI_CODING_AGENT_DIR:-}" \
     bash <<'USER_SETUP'
 set -euo pipefail
 root=/usr/share/omarchy
@@ -2037,12 +2038,13 @@ done
 repair_sleep_lock_unit_override
 install_bash_startup
 
-mkdir -p "$HOME/.agents/skills" "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.pi/agent/skills"
+pi_agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+mkdir -p "$HOME/.agents/skills" "$HOME/.claude/skills" "$HOME/.codex/skills" "$pi_agent_dir/skills"
 if [[ -d $root/default/agents/skills/omarchy ]]; then
   ln -sfn "$root/default/agents/skills/omarchy" "$HOME/.agents/skills/omarchy"
   ln -sfn "$root/default/agents/skills/omarchy" "$HOME/.claude/skills/omarchy"
   ln -sfn "$root/default/agents/skills/omarchy" "$HOME/.codex/skills/omarchy"
-  ln -sfn "$root/default/agents/skills/omarchy" "$HOME/.pi/agent/skills/omarchy"
+  ln -sfn "$root/default/agents/skills/omarchy" "$pi_agent_dir/skills/omarchy"
 fi
 
 mkdir -p "$HOME/.local/state/omarchy/toggles/hypr"
