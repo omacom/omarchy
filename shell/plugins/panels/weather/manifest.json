@@ -2,20 +2,34 @@
   "schemaVersion": 1,
   "id": "omarchy.weather",
   "name": "Weather",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Omarchy",
-  "description": "Weather pill with detail popup",
+  "description": "Weather pill with detail popup and wallpaper animations",
   "kinds": [
-    "bar-widget"
+    "bar-widget",
+    "service"
   ],
   "entryPoints": {
-    "barWidget": "BarWidget.qml"
+    "barWidget": "BarWidget.qml",
+    "service": "Service.qml"
   },
   "barWidget": {
     "displayName": "Weather",
     "description": "Weather pill with detail popup",
     "category": "Info",
     "allowMultiple": false,
-    "settingsForm": "weatherSettings"
+    "settingsForm": "weatherSettings",
+    "defaults": {
+      "animations": false
+    },
+    "schema": [
+      {
+        "key": "animations",
+        "type": "boolean",
+        "label": "Animate the wallpaper",
+        "defaultValue": false,
+        "description": "Draw the current conditions over the wallpaper: rain, snow, fog, cloud shadow, and a soft flash in a thunderstorm. Costs roughly 5-9% of a core per screen showing the desktop, so it is off by default. Stops while the session is locked, on a screensaver, in power saving on battery, and under a fullscreen window."
+      }
+    ]
   }
 }
