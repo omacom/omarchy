@@ -189,6 +189,42 @@ if exercise_post_upgrade_migrations 0 2 >/dev/null 2>&1; then
 fi
 pass "Omarchy 4 upgrade cannot finish with pending migrations"
 
+# Auto-login cannot hand a password to pam_gnome_keyring, so an install whose
+# root lives inside LUKS must not have it switched on just for being encrypted.
+# Only a prior auto-login decision (the file, or the legacy seamless-login
+# service) may carry one forward.
+autologin_body=$(function_body should_enable_sddm_autologin)
+
+exercise_sddm_autologin() {
+  local stub_autologin_conf="$1" stub_seamless_login="$2"
+
+  (
+    # Every other probe, and any helper the body calls, reports a LUKS root, so an encryption check under any name turns auto-login on.
+    command_not_found_handle() { return 0; }
+    findmnt() { echo /dev/mapper/root; }
+    lsblk() { echo crypt; }
+    as_root() {
+      case "$*" in
+        "test -f /etc/sddm.conf.d/autologin.conf") return "$stub_autologin_conf" ;;
+        "systemctl is-enabled omarchy-seamless-login.service") return "$stub_seamless_login" ;;
+        *) return 0 ;;
+      esac
+    }
+    eval "should_enable_sddm_autologin() { $autologin_body
+}"
+    should_enable_sddm_autologin
+  )
+}
+
+if exercise_sddm_autologin 1 1 >/dev/null 2>&1; then
+  fail "quattro upgrade does not tie SDDM auto-login to an encrypted root"
+fi
+exercise_sddm_autologin 0 1 >/dev/null 2>&1 ||
+  fail "quattro upgrade keeps an existing autologin.conf"
+exercise_sddm_autologin 1 0 >/dev/null 2>&1 ||
+  fail "quattro upgrade keeps auto-login from the legacy seamless-login service"
+pass "quattro upgrade keeps password login on encrypted roots"
+
 if function_body cleanup_retired_services | grep -F 'systemctl disable iwd' >/dev/null; then
   fail "Omarchy 4 upgrade does not retire iwd in a step separate from the NetworkManager enable"
 fi
