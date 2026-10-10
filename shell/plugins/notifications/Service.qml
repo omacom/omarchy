@@ -167,8 +167,13 @@ Item {
     // Guard the delete: a newer notification may have reused this originalId
     // (freedesktop replaces_id) and taken over the map slot.
     notification.closed.connect(function() {
-      if (service.liveRefs[snapshot.originalId] === notification)
-        delete service.liveRefs[snapshot.originalId]
+      if (!NotificationLogic.ownsLiveNotification(service.liveRefs[snapshot.originalId], notification)) return
+      delete service.liveRefs[snapshot.originalId]
+      // A sender can withdraw its own notification after it has been shown.
+      // Mirror a local dismissal so the stale toast does not stay on screen.
+      Qt.callLater(function() {
+        service.removeWithdrawnPopup(snapshot.originalId, snapshot.timestamp)
+      })
     })
 
     // DND bypass rules: chat apps abuse urgency=critical to force
@@ -313,6 +318,20 @@ Item {
       if (NotificationLogic.popupFileName(row) !== keepFileName) deletePopupFileFor(row)
       popupModel.remove(i)
     }
+  }
+
+  // The closed signal also fires after a local dismissal or expiry, where the
+  // row is already gone. Match both id and timestamp so an old close cannot
+  // remove a newer notification that reused the same server id.
+  // A history replay dismisses the live toasts and re-shows them as restored
+  // rows under the same identity, so those are left alone.
+  function removeWithdrawnPopup(originalId, timestamp) {
+    var index = NotificationLogic.popupIndexByIdentity(popupModel, originalId, timestamp)
+    if (index < 0) return
+    var row = popupModel.get(index)
+    if (isRestoredRow(row)) return
+    archivePopupFileFor(row)
+    popupModel.remove(index)
   }
 
   // What the notification says now: a replaces_id update may have landed
