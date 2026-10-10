@@ -13,6 +13,15 @@ assertEqual(nightlight.isNightlight(4000), true, 'nightlight reports warm temper
 assertEqual(nightlight.isNightlight(5999), true, 'nightlight reports warmer-than-identity values as enabled')
 assertEqual(nightlight.isNightlight(6000), false, 'nightlight reports identity temperature as disabled')
 assertEqual(nightlight.isNightlight(null), false, 'nightlight reports unknown temperature as disabled')
+assertEqual(nightlight.temperaturesFromConfig(undefined).night, 4000, 'nightlight defaults night temperature without config')
+assertEqual(nightlight.temperaturesFromConfig(undefined).day, 6500, 'nightlight defaults day temperature without config')
+assertEqual(nightlight.temperaturesFromConfig({ night: 2700, day: 4000 }).night, 2700, 'nightlight reads night temperature from config')
+assertEqual(nightlight.temperaturesFromConfig({ night: 2700, day: 4000 }).day, 4000, 'nightlight reads day temperature from config')
+assertEqual(nightlight.temperaturesFromConfig({ night: 'warm', day: 4000 }).night, 4000, 'nightlight ignores a non-numeric night temperature')
+assertEqual(nightlight.temperaturesFromConfig({ night: 5000, day: 4000 }).day, 6500, 'nightlight falls back when night is not below day')
+assertEqual(nightlight.isNightlight(4000, 4000), false, 'nightlight reports the configured day temperature as disabled')
+assertEqual(nightlight.isNightlight(2700, 4000), true, 'nightlight reports below-day temperatures as enabled')
+assertEqual(nightlight.isNightlight(6000, 6500), false, 'nightlight keeps identity disabled with a default day temperature')
 JS
 
 TMPDIR=$(mktemp -d)
@@ -53,6 +62,8 @@ nightlight_cli() {
   PATH="$TMPDIR/bin:$PATH" \
   HYPRSUNSET_STATE="$STATE" \
   OMARCHY_SHELL_LOG="$SHELL_LOG" \
+  XDG_CONFIG_HOME="$TMPDIR/config" \
+  OMARCHY_PATH="$ROOT" \
     "$ROOT/bin/omarchy-toggle-nightlight" "$@"
 }
 
@@ -90,3 +101,29 @@ if rg -q 'omarchy.indicators' "$ROOT/bin/omarchy-toggle-nightlight"; then
   fail "nightlight toggle leaves indicator refresh to the nightlight service"
 fi
 pass "nightlight toggle leaves indicator refresh to the nightlight service"
+
+# Custom temperatures from shell.json: a warm day baseline that still toggles.
+mkdir -p "$TMPDIR/config/omarchy"
+jq '.nightlight = { night: 2700, day: 4000 }' "$ROOT/config/omarchy/shell.json" >"$TMPDIR/config/omarchy/shell.json"
+
+[[ $(nightlight_status 4000 | jq -r .enabled) == "false" ]] || fail "nightlight status reports the configured day temperature as disabled"
+pass "nightlight status reports the configured day temperature as disabled"
+
+[[ $(nightlight_status 2700 | jq -r .enabled) == "true" ]] || fail "nightlight status reports the configured night temperature as enabled"
+pass "nightlight status reports the configured night temperature as enabled"
+
+printf '4000\n' >"$STATE"
+nightlight_cli >/dev/null
+[[ $(<"$STATE") == 2700 ]] || fail "nightlight toggle warms to the configured night temperature"
+pass "nightlight toggle warms to the configured night temperature"
+
+nightlight_cli >/dev/null
+[[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle restores the configured day temperature"
+pass "nightlight toggle restores the configured day temperature"
+
+# Inverted or invalid values fall back to the defaults.
+jq '.nightlight = { night: 5000, day: 4000 }' "$ROOT/config/omarchy/shell.json" >"$TMPDIR/config/omarchy/shell.json"
+printf '6500\n' >"$STATE"
+nightlight_cli >/dev/null
+[[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle ignores an inverted temperature pair"
+pass "nightlight toggle ignores an inverted temperature pair"
