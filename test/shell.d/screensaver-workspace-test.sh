@@ -62,6 +62,13 @@ pass "the screensaver opens on its own special workspace, leaving a fullscreen w
   fail "the screensaver shares a special workspace that is already showing" "${spawns[1]}"
 pass "the screensaver shares a special workspace that is already showing"
 
+# A window that maps without focus, as under an open bar panel, skips its fullscreen rule.
+for address in 1 2; do
+  grep -qF "hl.dsp.window.fullscreen({ action = \"set\", window = \"address:0x$address\" })" "$tmpdir/calls" ||
+    fail "each screensaver is fullscreened once it opens, even without focus" "$(<"$tmpdir/calls")"
+done
+pass "each screensaver is fullscreened once it opens, even without focus"
+
 # Emptying a special workspace focuses its monitor; the last screensaver to close must not keep focus.
 : >"$tmpdir/calls"
 printf 'closewindow>>1\n' >&"$events"

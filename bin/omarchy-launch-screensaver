@@ -43,10 +43,18 @@ exec {events}< <(socat -U - "UNIX-CONNECT:$SOCKET")
 # moment. Block until this monitor's screensaver actually opens before moving
 # focus on -- otherwise slow-starting terminals all pile onto the last monitor.
 # The deadline is a safety net in case the window never appears.
+#
+# Hyprland only applies the fullscreen rule to a window that takes focus as it maps, and an open bar panel
+# keeps the keyboard on the focused monitor, so that monitor's screensaver opened as a small floating window.
+# Fullscreen each one by address once it opens.
 wait_for_screensaver_window() {
-  local line deadline=$((SECONDS + 5))
+  local line address deadline=$((SECONDS + 5))
   while ((SECONDS < deadline)) && IFS= read -r -t $((deadline - SECONDS)) -u "$events" line; do
-    [[ $line == openwindow\>\>*,org.omarchy.screensaver,* ]] && return 0
+    if [[ $line == openwindow\>\>*,org.omarchy.screensaver,* ]]; then
+      address=${line#openwindow>>}
+      hyprctl dispatch "hl.dsp.window.fullscreen({ action = \"set\", window = \"address:0x${address%%,*}\" })" >/dev/null 2>&1
+      return 0
+    fi
   done
 }
 
