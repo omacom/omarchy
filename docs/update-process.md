@@ -260,7 +260,8 @@ tracking state.
 Exit codes:
 
 - `0` — Omarchy updates are available; stdout is the update list.
-- non-zero — no Omarchy updates are available; stdout says Omarchy is up to date.
+- `1` — no Omarchy updates are available; stdout says Omarchy is up to date.
+- `2` — the package check failed and found nothing else; the widget keeps what it last showed.
 
 The widget runs this check on shell startup and every six hours. Clicking the
 update icon launches `omarchy-update` in a floating terminal.
