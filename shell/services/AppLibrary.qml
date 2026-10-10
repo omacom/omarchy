@@ -36,6 +36,25 @@ Item {
   // entries appeared or vanished, or the hidden-entry filters reloaded.
   signal appsChanged()
 
+  // Last-seen signature of DesktopEntries.applications.values, used to
+  // suppress spurious appsChanged() emissions (see appsChangedDebounce
+  // below) when the underlying set has not actually changed.
+  property string lastAppsSignature: ""
+
+  function appsSignature() {
+    var values = DesktopEntries.applications.values || []
+    var entries = []
+    // Quickshell updates entries in place by id, so the fields consumers copy
+    // into their rows belong here too, or a renamed app keeps its old label.
+    for (var i = 0; i < values.length; i++) {
+      var entry = values[i]
+      if (!entry) continue
+      entries.push([entry.id, entry.name, entry.genericName, entry.icon, AppSearch.keywordText(entry)].join("\u0002"))
+    }
+    entries.sort()
+    return entries.join("\u0001")
+  }
+
   function entryName(entry) {
     return AppSearch.entryName(entry)
   }
@@ -115,6 +134,7 @@ Item {
       var id = root.normalizeDesktopId(lines[i])
       if (id.length > 0) next[id] = true
     }
+    if (Object.keys(next).sort().join("\n") === Object.keys(root.desktopHiddenEntryIds).sort().join("\n")) return
     root.desktopHiddenEntryIds = next
     root.appsChanged()
   }
@@ -217,6 +237,35 @@ Item {
     onTriggered: if (!iconIndexScan.running) iconIndexScan.running = true
   }
 
+  // DesktopEntries.applications can report onValuesChanged repeatedly for
+  // a single underlying change (observed as a dozen-plus signals within
+  // ~100ms, with its values.length oscillating up and down before
+  // settling — not distinct real changes). Each signal used to trigger an
+  // immediate hidden-entry rescan and appsChanged() emission; appsChanged()
+  // drives every consumer's full list rebuild (e.g. the launcher menu's
+  // ListView model), so that churn was rebuilding the visible app list
+  // several times a second even at idle, which is what made keyboard
+  // navigation through it look like it was jumping around randomly.
+  // Debounce the burst down to one settle-and-check (same pattern as the
+  // icon index above), then compare the entry signature before emitting:
+  // DesktopEntries.applications itself was observed to fire onValuesChanged
+  // periodically with no net change to the set (the same ids, just
+  // reordered/rebuilt internally), so most debounced wake-ups still need
+  // to be no-ops rather than a full rebuild. The hidden-entry scan runs
+  // regardless, since OnlyShowIn/NotShowIn edits never reach the signature,
+  // and emits only when the hidden set it finds differs.
+  Timer {
+    id: appsChangedDebounce
+    interval: 200
+    onTriggered: {
+      hiddenEntryScan.running = true
+      var sig = root.appsSignature()
+      if (sig === root.lastAppsSignature) return
+      root.lastAppsSignature = sig
+      root.appsChanged()
+    }
+  }
+
   FileView {
     path: root.omarchyPath + "/default/omarchy/launcher.hides"
     watchChanges: true
@@ -255,9 +304,8 @@ Item {
   Connections {
     target: DesktopEntries.applications
     function onValuesChanged() {
-      hiddenEntryScan.running = true
       iconIndexDebounce.restart()
-      root.appsChanged()
+      appsChangedDebounce.restart()
     }
   }
 
