@@ -501,9 +501,101 @@ function summonAction(action) {
   return { id: match[1], payload: match[2] || "{}" }
 }
 
+// A query that starts with "=" turns the launcher into a calculator. QML's
+// JavaScript has no eval, so the arithmetic is parsed here, in-process, with
+// no fork per keystroke. Grammar: numbers, + - * / %, ^ (power), parentheses,
+// unary +/-; × and ÷ are accepted as typed. Any syntax error or division by
+// zero returns null, which the menu renders as no row at all — the expression
+// is probably still being typed.
+function calcEvaluate(expr) {
+  var src = String(expr || "").replace(/×/g, "*").replace(/÷/g, "/")
+  var pos = 0
+
+  function skip() {
+    while (pos < src.length && /\s/.test(src.charAt(pos))) pos += 1
+  }
+  function peek() {
+    skip()
+    return pos < src.length ? src.charAt(pos) : ""
+  }
+  function parseSum() {
+    var v = parseTerm()
+    while (true) {
+      var c = peek()
+      if (c === "+") { pos += 1; v += parseTerm() }
+      else if (c === "-") { pos += 1; v -= parseTerm() }
+      else return v
+    }
+  }
+  function parseTerm() {
+    var v = parseUnary()
+    while (true) {
+      var c = peek()
+      if (c === "*") { pos += 1; v *= parseUnary() }
+      else if (c === "/") { pos += 1; var d = parseUnary(); if (d === 0) throw new Error("division by zero"); v /= d }
+      else if (c === "%") { pos += 1; v %= parseUnary() }
+      else return v
+    }
+  }
+  function parseUnary() {
+    var c = peek()
+    if (c === "-") { pos += 1; return -parseUnary() }
+    if (c === "+") { pos += 1; return parseUnary() }
+    return parsePower()
+  }
+  // Unary minus binds looser than the power operator, so -2^2 is -(2^2).
+  function parsePower() {
+    var base = parseAtom()
+    if (peek() === "^") { pos += 1; return Math.pow(base, parseUnary()) }
+    return base
+  }
+  function parseAtom() {
+    if (peek() === "(") {
+      pos += 1
+      var v = parseSum()
+      if (peek() !== ")") throw new Error("unbalanced parenthesis")
+      pos += 1
+      return v
+    }
+    skip()
+    var start = pos
+    while (pos < src.length && /[0-9.]/.test(src.charAt(pos))) pos += 1
+    var token = src.slice(start, pos)
+    // parseFloat would happily read the 1.2 prefix of 1.2.3, making a
+    // mistyped expression look like a valid calculation, so the token has
+    // to be a well-formed number on its own.
+    if (!/^(\d+(\.\d*)?|\.\d+)$/.test(token)) throw new Error("malformed number")
+    var num = parseFloat(token)
+    if (isNaN(num)) throw new Error("expected a number")
+    return num
+  }
+
+  try {
+    var value = parseSum()
+    skip()
+    if (pos < src.length) return null
+    return value
+  } catch (e) {
+    return null
+  }
+}
+
+// 0.1+0.2 must read 0.3, not 0.30000000000000004: round through 12
+// significant digits and drop the padding zeros. Values too large or small
+// for that precision switch to exponent notation, also at 12 significant
+// digits.
+function calcFormat(value) {
+  if (value === null || value === undefined || !isFinite(value)) return ""
+  var abs = Math.abs(value)
+  if (abs !== 0 && (abs < 1e-9 || abs >= 1e15)) return String(parseFloat(value.toExponential(11)))
+  return String(parseFloat(value.toPrecision(12)))
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     summonAction: summonAction,
+    calcEvaluate: calcEvaluate,
+    calcFormat: calcFormat,
     guardReaders: GUARD_READERS,
     guardScript: guardScript,
     stripJsonc: stripJsonc,

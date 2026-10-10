@@ -165,3 +165,21 @@ renders under the label, filters with it, and comes back as
 `label\tsubtext` so callers with same-named rows get a stable key. This is
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
+
+## Calculator
+
+A query that starts with `=` (`=10+2`) is arithmetic, not a search: the menu
+evaluates it in-process and offers the result as the only row, with the
+expression as its subtext. Running the row copies the result to the clipboard
+and closes the menu. An invalid or incomplete expression shows no row at all,
+the same way a query nothing matches shows none — the expression is probably
+still being typed.
+
+The grammar is numbers, `+ - * / %`, `^` (power), parentheses, and unary
+`+/-`, with `×` and `÷` accepted as typed. Division by zero is invalid. QML's
+JavaScript has no eval, so the expression is parsed by
+`calcEvaluate`/`calcFormat` in `MenuModel.js` — pure functions, covered by
+`test/shell.d/menu-calculator-test.sh` — with no fork per keystroke. Results
+round through 12 significant digits so `=0.1+0.2` reads `0.3`, and values
+outside that precision switch to exponent notation.
+
