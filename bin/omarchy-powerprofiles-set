@@ -55,6 +55,23 @@ if [[ -z ${profile:-} ]] || ! profile_available "$profile"; then
   fi
 fi
 
+current_profile() {
+  local active
+  if active=$(busctl get-property --json=short net.hadess.PowerProfiles /net/hadess/PowerProfiles net.hadess.PowerProfiles ActiveProfile 2>/dev/null); then
+    local name
+    name=$(jq -r '.data // empty' <<<"$active" 2>/dev/null)
+    if [[ -n $name ]]; then
+      printf '%s\n' "$name"
+      return
+    fi
+  fi
+  powerprofilesctl get 2>/dev/null || true
+}
+
+if [[ $profile == "power-saver" ]] && profile_available balanced && [[ $(current_profile) == "performance" ]]; then
+  powerprofilesctl set balanced || exit
+fi
+
 powerprofilesctl set "$profile" || exit
 
 if [[ -n $requested_profile ]]; then
