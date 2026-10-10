@@ -52,6 +52,7 @@ vpl-gpu-rt
 vulkan-intel
 vulkan-radeon
 vulkan-asahi
+vulkan-virtio
 
 # Surface laptop support packages
 linux-firmware-marvell
