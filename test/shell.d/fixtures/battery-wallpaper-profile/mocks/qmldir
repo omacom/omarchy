@@ -1,0 +1,7 @@
+singleton UPowerMock 1.0 UPowerMock.qml
+singleton PowerProfilesMock 1.0 PowerProfilesMock.qml
+singleton DisplayMock 1.0 DisplayMock.qml
+MockPanelWindow 1.0 MockPanelWindow.qml
+MockMediaPlayer 1.0 MockMediaPlayer.qml
+MockVideoOutput 1.0 MockVideoOutput.qml
+MockAudioOutput 1.0 MockAudioOutput.qml
