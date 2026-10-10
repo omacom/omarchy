@@ -1,20 +1,52 @@
 #!/bin/bash
 
 # omarchy:summary=Adjust output volume and show the Omarchy OSD
-# omarchy:args=<raise|lower|mute-toggle|+N|-N>
-# omarchy:examples=omarchy audio output volume raise | omarchy audio output volume lower | omarchy audio output volume mute-toggle | omarchy audio output volume +1
+# omarchy:args=[--no-osd] [--preserve-mute] [--sink <name>] <raise|lower|mute-toggle|+N|-N|N%>
+# omarchy:examples=omarchy audio output volume raise | omarchy audio output volume lower | omarchy audio output volume mute-toggle | omarchy audio output volume +1 | omarchy audio output volume 50%
+
+show_osd=true
+preserve_mute=false
+target_sink=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --no-osd)
+      show_osd=false
+      shift
+      ;;
+    --preserve-mute)
+      preserve_mute=true
+      shift
+      ;;
+    --sink)
+      if [[ $# -lt 2 || -z ${2:-} || ${2:-} == --* ]]; then
+        echo "Missing sink name after --sink." >&2
+        exit 1
+      fi
+      target_sink="$2"
+      shift 2
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 
 action="${1:-}"
 
 if [[ -z $action ]]; then
-  echo "Usage: omarchy-audio-output-volume <raise|lower|mute-toggle|+N|-N>"
+  echo "Usage: omarchy-audio-output-volume [--no-osd] [--preserve-mute] [--sink <name>] <raise|lower|mute-toggle|+N|-N|N%>"
   exit 1
 fi
 
-# Resolve through any DSP sink to the physical one, so the keys always move real
-# loudness and the processing always sees full-scale input. Shared with the audio
-# panel and the output switcher.
-sink="$(omarchy-audio-output-sink)"
+sink="$target_sink"
+if [[ -z $sink ]]; then
+  # Resolve through any DSP sink to the physical one, so the keys always move real
+  # loudness and the processing always sees full-scale input. Shared with the audio
+  # panel and the output switcher.
+  sink="$(omarchy-audio-output-sink)"
+fi
+
 if [[ -z $sink ]]; then
   echo "Could not resolve an audio sink to control." >&2
   exit 1
@@ -53,13 +85,14 @@ if [[ $action == "mute-toggle" ]]; then
   pactl set-sink-mute "$sink" toggle
 elif [[ $action =~ ^([+-])([0-9]+)$ ]]; then
   direction="${BASH_REMATCH[1]}"
-  step="${BASH_REMATCH[2]}"
+  step=$((10#${BASH_REMATCH[2]}))
 
   current="$(volume_percent)"
   if [[ -z $current ]]; then
     echo "Could not read volume for $sink." >&2
     exit 1
   fi
+  current=$((10#$current))
 
   if [[ $direction == "+" ]]; then
     next=$((current + step))
@@ -69,18 +102,31 @@ elif [[ $action =~ ^([+-])([0-9]+)$ ]]; then
     ((next >= 0)) || next=0
   fi
 
-  pactl set-sink-mute "$sink" 0
+  if [[ $preserve_mute != true ]]; then
+    pactl set-sink-mute "$sink" 0
+  fi
+  pactl set-sink-volume "$sink" "${next}%"
+elif [[ $action =~ ^([0-9]+)%?$ ]]; then
+  next=$((10#${BASH_REMATCH[1]}))
+  ((next <= 100)) || next=100
+  ((next >= 0)) || next=0
+
+  if [[ $preserve_mute != true ]]; then
+    pactl set-sink-mute "$sink" 0
+  fi
   pactl set-sink-volume "$sink" "${next}%"
 else
   echo "Unknown volume action: $action"
   exit 1
 fi
 
-percent=$(volume_percent)
-if volume_muted || ((${percent:-0} == 0)); then
-  icon="volume-muted"
-else
-  icon="volume-high"
-fi
+if [[ $show_osd == true ]]; then
+  percent=$(volume_percent)
+  if volume_muted || ((${percent:-0} == 0)); then
+    icon="volume-muted"
+  else
+    icon="volume-high"
+  fi
 
-omarchy-osd -i "$icon" -p "${percent:-0}"
+  omarchy-osd -i "$icon" -p "${percent:-0}"
+fi
