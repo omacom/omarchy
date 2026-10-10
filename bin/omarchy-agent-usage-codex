@@ -822,6 +822,19 @@ def limit_window(window):
   }
 
 
+def rate_limit_buckets(result):
+  # New app-servers return every metered bucket; rateLimits is only the
+  # backward-compatible single-bucket view. Never count both views.
+  buckets = result.get("rateLimitsByLimitId")
+  if isinstance(buckets, dict):
+    entries = [(key, value) for key, value in buckets.items() if isinstance(value, dict)]
+    if entries:
+      # Keep the subscription's general limits and plan ahead of model limits.
+      return sorted(entries, key=lambda entry: entry[0] != "codex")
+  legacy = result.get("rateLimits")
+  return [("codex", legacy)] if isinstance(legacy, dict) else []
+
+
 def codex_rpc_help(proc, stderr_file, exc):
   """Explain an app-server RPC failure: a live server's stall, a dead one's own
   stderr, or the login hint when it died saying nothing."""
@@ -940,9 +953,14 @@ def fetch_codex_rpc(home=None):
         result["usageStatusText"] = "Codex limits unavailable"
         result["authHelpText"] = message
       return result
-    limits = (limits_msg.get("result") or {}).get("rateLimits") or {}
+    rpc_result = limits_msg.get("result") or {}
+    buckets = rate_limit_buckets(rpc_result)
     result["authHelpText"] = ""
-    plan = limits.get("planType") or ""
+    plan = next((bucket.get("planType") for _, bucket in buckets if bucket.get("planType")), "")
+    if not plan:
+      legacy = rpc_result.get("rateLimits")
+      if isinstance(legacy, dict):
+        plan = legacy.get("planType") or ""
 
     # The limits name the plan themselves. account/read is only a fallback
     # for when they don't, and never a reason to lose them: Codex 0.158's
@@ -956,14 +974,18 @@ def fetch_codex_rpc(home=None):
         pass
     result["tierLabel"] = str(plan) if plan else ""
 
-    for window in (limits.get("primary"), limits.get("secondary")):
-      entry = limit_window(window)
-      if entry:
-        result["limits"].append(entry)
+    for limit_id, bucket in buckets:
+      for window in (bucket.get("primary"), bucket.get("secondary")):
+        entry = limit_window(window)
+        if entry:
+          name = bucket.get("limitName")
+          if name or len(buckets) > 1:
+            entry["title"] = f"{name or limit_id} · {entry['label']}"
+          result["limits"].append(entry)
 
     # OpenAI hands out free "full reset" credits that wipe the rate limits on
     # demand and lapse after a month. Worth knowing about before a limit bites.
-    credits = reset_credits(limits_msg.get("result") or {})
+    credits = reset_credits(rpc_result)
     if credits:
       result["resetCredits"] = credits
   except Exception as exc:
