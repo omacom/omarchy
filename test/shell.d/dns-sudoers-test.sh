@@ -47,8 +47,8 @@ gated=$(grep -A1 -E '^if \(\( EUID == 0 \)\); then$' "$dns" || true)
   fail "omarchy-dns gates the trusted-PATH pin on holding root"
 
 # The no-argument path only reads DNS config, so exercise the privileged phase
-# directly when the suite is root and as namespaced root otherwise. This reaches
-# tr while EUID is 0 without giving an ordinary test run any host privileges.
+# directly when the suite is root and as namespaced root otherwise. Only the
+# packaged module path is redirected to the checkout's read-only status action.
 root_runner=()
 if (( EUID != 0 )); then
   root_runner=(unshare --user --map-root-user)
@@ -60,8 +60,9 @@ fi
 # above and the elevation checks below run either way.
 if (( EUID == 0 )) || unshare --user --map-root-user true 2>/dev/null; then
   poison_dir=$(mktemp -d)
+  sed "s|/usr/share/omarchy/default/dns/dns.py|$ROOT/default/dns/dns.py|g" "$dns" >"$poison_dir/dns"
   poison_ran="$poison_dir/ran"
-  for helper in tr awk dirname install tee; do
+  for helper in python3 tr awk dirname install tee; do
     cat >"$poison_dir/$helper" <<SH
 #!/bin/bash
 printf 'x' >"$poison_ran"
@@ -69,8 +70,13 @@ exec "/usr/bin/$helper" "\$@"
 SH
     chmod +x "$poison_dir/$helper"
   done
+  cat >"$poison_dir/json.py" <<PY
+from pathlib import Path
+Path('$poison_ran').write_text('python import')
+raise RuntimeError('untrusted Python module loaded')
+PY
 
-  if ! PATH="$poison_dir:$PATH" "${root_runner[@]}" bash "$dns" </dev/null >/dev/null 2>&1; then
+  if ! PYTHONPATH="$poison_dir" PATH="$poison_dir:$PATH" "${root_runner[@]}" bash "$poison_dir/dns" </dev/null >/dev/null 2>&1; then
     rm -rf "$poison_dir"
     fail "root omarchy-dns failed its read-only trusted-PATH probe"
   fi

@@ -12,9 +12,11 @@ If you actually need the password itself, `omarchy network password <interface>`
 
 ## DNS
 
-Omarchy uses whatever DNS your network hands out over DHCP. You can override that for the whole machine under _Setup > Network > DNS_, where Cloudflare and Google are one click away. Pick _Custom_ to type in your own servers.
+Omarchy uses your connections' DNS settings, normally supplied over DHCP. Choose a provider for ordinary network connections under _Setup > Network > DNS_, where Cloudflare and Google are one click away. Pick _Custom_ to enter IPv4 or IPv6 server addresses. VPN DNS keeps its own routing rules.
 
 From the terminal, `omarchy dns` prints the current provider and `omarchy dns Cloudflare` sets one.
+
+Select _DHCP_ or run `omarchy dns DHCP` to restore each connection's original DNS, including any manually configured servers. Switching providers leaves saved connections and their encryption settings intact. If a public provider prevents a captive portal or a router-only name from working, switch back to DHCP.
 
 ## Pinning the Wi-Fi band
 
