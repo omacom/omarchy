@@ -47,7 +47,9 @@ if [[ -f $platform_keyrings ]]; then
   done <"$platform_keyrings"
 fi
 echo -e "\e[32m\nUpdate Arch signing keys\e[0m"
-sudo pacman -Sy --noconfirm "${keyrings[@]}" >/dev/null 2> >(grep -vE '^warning: [a-z0-9@._+-]+-keyring-[^ ]+ is up to date -- reinstalling$' >&2)
+# LC_ALL=C keeps pacman's messages English, so the "reinstalling" filter below
+# matches regardless of the user's locale (the filter is English-only).
+sudo env LC_ALL=C pacman -Sy --noconfirm "${keyrings[@]}" >/dev/null 2> >(grep -vE '^warning: [a-z0-9@._+-]+-keyring-[^ ]+ is up to date -- reinstalling$' >&2)
 
 # Say "correct" only once the key verifiably is: before the failure checks
 # above, a failed recv or reinstall still ended here with exit 0.

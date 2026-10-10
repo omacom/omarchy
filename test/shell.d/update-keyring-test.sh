@@ -25,6 +25,14 @@ for arg in "$@"; do
 done
 printf '\n' >>"$KEYRING_TEST_LOG"
 
+# The reinstall pins its locale through sudo env; match on the command after it.
+if [[ $1 == "env" ]]; then
+  shift
+  while [[ $1 == *=* ]]; do
+    shift
+  done
+fi
+
 if [[ $1 == "pacman-key" && $2 == "--list-keys" ]]; then
   calls_file="$KEYRING_TEST_DIR/list-calls"
   calls=$(( $(cat "$calls_file" 2>/dev/null || echo 0) + 1 ))
@@ -104,9 +112,9 @@ grep -F "Keys are correct" "$test_tmp/ok.out" >/dev/null ||
   fail "update-keyring reports success when the keyring is healthy" "$(cat "$test_tmp/ok.out")"
 pass "update-keyring reports success when the keyring is healthy"
 
-grep -Eq $'^sudo\tpacman\t-Sy\t--noconfirm\tarchlinux-keyring$' "$log_file" ||
-  fail "update-keyring still reinstalls archlinux-keyring" "$(cat "$log_file")"
-pass "update-keyring still reinstalls archlinux-keyring"
+grep -Eq $'^sudo\tenv\tLC_ALL=C\tpacman\t-Sy\t--noconfirm\tarchlinux-keyring$' "$log_file" ||
+  fail "update-keyring reinstalls archlinux-keyring in the C locale" "$(cat "$log_file")"
+pass "update-keyring reinstalls archlinux-keyring in the C locale"
 
 # An aarch64 machine keeps Arch Linux ARM's keyring current alongside Arch's.
 : >"$log_file"
@@ -115,13 +123,13 @@ for platform in aarch64-apple aarch64; do
   : >"$log_file"
   rm -f "$test_tmp/list-calls"
   KEYRING_TEST_ARM=1 KEYRING_TEST_PLATFORM=$platform run_keyring >"$test_tmp/arm.out"
-  grep -Eq $'^sudo\tpacman\t-Sy\t--noconfirm\tarchlinux-keyring\tarchlinuxarm-keyring$' "$log_file" ||
+  grep -Eq $'^sudo\tenv\tLC_ALL=C\tpacman\t-Sy\t--noconfirm\tarchlinux-keyring\tarchlinuxarm-keyring$' "$log_file" ||
     fail "update-keyring also reinstalls Arch Linux ARM's keyring on $platform" "$(cat "$log_file")"
 done
 : >"$log_file"
 rm -f "$test_tmp/list-calls"
 KEYRING_TEST_ARM=1 run_keyring >"$test_tmp/x86.out"
-grep -Eq $'^sudo\tpacman\t-Sy\t--noconfirm\tarchlinux-keyring$' "$log_file" ||
+grep -Eq $'^sudo\tenv\tLC_ALL=C\tpacman\t-Sy\t--noconfirm\tarchlinux-keyring$' "$log_file" ||
   fail "x86 reinstalls only Arch's keyring, even with Arch Linux ARM's installed" "$(cat "$log_file")"
 pass "aarch64 machines also reinstall Arch Linux ARM's keyring where it is installed, x86 never"
 
@@ -132,7 +140,7 @@ printf 'asahi-alarm-keyring' >>"$platform_keyrings"
 : >"$log_file"
 rm -f "$test_tmp/list-calls"
 KEYRING_TEST_ARM=1 KEYRING_TEST_PLATFORM=aarch64-apple KEYRING_TEST_INSTALLED=asahi-alarm-keyring run_keyring >"$test_tmp/platform.out"
-grep -Eq $'^sudo\tpacman\t-Sy\t--noconfirm\tarchlinux-keyring\tarchlinuxarm-keyring\tasahi-alarm-keyring$' "$log_file" ||
+grep -Eq $'^sudo\tenv\tLC_ALL=C\tpacman\t-Sy\t--noconfirm\tarchlinux-keyring\tarchlinuxarm-keyring\tasahi-alarm-keyring$' "$log_file" ||
   fail "update-keyring reinstalls the installed keyrings the platform names, once each" "$(cat "$log_file")"
 pass "update-keyring reinstalls the installed keyrings the platform names, once each"
 
@@ -144,7 +152,7 @@ for listed in 'asahi-alarm-keyring;reboot' '../asahi-alarm-keyring' 'asahi-alarm
     fail "update-keyring carries on past a platform list line naming $listed" "$(cat "$test_tmp/invalid.out")"
   grep -qF "skipping $listed" "$test_tmp/invalid.out" ||
     fail "update-keyring warns about $listed" "$(cat "$test_tmp/invalid.out")"
-  grep -Eq $'^sudo\tpacman\t-Sy\t--noconfirm\tarchlinux-keyring\tasahi-alarm-keyring$' "$log_file" ||
+  grep -Eq $'^sudo\tenv\tLC_ALL=C\tpacman\t-Sy\t--noconfirm\tarchlinux-keyring\tasahi-alarm-keyring$' "$log_file" ||
     fail "update-keyring skips $listed and still reinstalls the valid keyrings, and nothing else" "$(cat "$log_file")"
 done
 rm -f "$platform_keyrings"
