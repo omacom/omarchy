@@ -7,6 +7,13 @@ echo "Installing NordVPN..."
 omarchy-pkg-add nordvpn-bin
 
 echo "Enabling NordVPN daemon..."
+# Like the migration, keep a drop-in that is already in place, so administrator
+# changes survive a reinstall.
+drop_in_dst="${OMARCHY_NORDVPN_DROP_IN_DST:-/etc/systemd/system/nordvpnd.service.d/10-omarchy.conf}"
+if [[ ! -e $drop_in_dst ]]; then
+  sudo install -Dm644 "$OMARCHY_PATH/default/systemd/system/nordvpnd.service.d/10-omarchy.conf" "$drop_in_dst"
+fi
+sudo systemctl daemon-reload
 sudo systemctl enable --now nordvpnd
 
 echo "Adding user to nordvpn group..."
