@@ -22,6 +22,8 @@ QtObject {
   property bool transparent: false
   property bool foregroundAnimationEnabled: true
   property bool centerSectionRevealHeld: false
+  property bool leftSectionRevealHeld: false
+  property bool rightSectionRevealHeld: false
   property bool _centerHoverRevealSuppressed: false
   readonly property bool centerHoverRevealSuppressed: _centerHoverRevealSuppressed
   property var activePopout: null
