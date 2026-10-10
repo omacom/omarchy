@@ -11,6 +11,7 @@ Item {
 
   property bool installed: false
   property bool running: false
+  property bool usingExitNode: false
   property bool needsLogin: false
 
   // Optimistic off state so the UI reacts the instant you click, rather than
@@ -209,6 +210,7 @@ Item {
     selfUserId = ""
     fileSharing = false
     authUrl = ""
+    usingExitNode = false
     peers = []
     exitNodes = []
     tailnetExitNodes = []
@@ -237,6 +239,7 @@ Item {
 
     backendState = parsed.backendState
     running = parsed.running
+    usingExitNode = parsed.usingExitNode
     // Reality caught up to the pending toggle — stop overriding.
     if (_desired !== -1 && running === (_desired === 1)) _desired = -1
     needsLogin = parsed.needsLogin

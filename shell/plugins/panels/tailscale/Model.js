@@ -255,6 +255,7 @@ function parseStatus(raw) {
       unavailable: false,
       backendState: backendState,
       running: backendState === "Running",
+      usingExitNode: backendState === "Running" && !!data.ExitNodeStatus && data.ExitNodeStatus.Online === true,
       needsLogin: backendState === "NeedsLogin",
       authUrl: String(data.AuthURL || ""),
       selfName: displayHostName(self.HostName, self.DNSName),

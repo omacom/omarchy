@@ -11,6 +11,7 @@ Item {
   property color badgeColor: Commons.Color.urgent
   property bool crossed: false
   property bool warning: false
+  property bool exitNode: false
 
   width: iconSize
   height: iconSize
@@ -33,6 +34,27 @@ Item {
   Dot { x: 0; y: root.end; opacity: 0.24 }
   Dot { x: root.mid; y: root.end; opacity: 1.0 }
   Dot { x: root.end; y: root.end; opacity: 0.24 }
+
+  Rectangle {
+    visible: root.exitNode && !root.warning && !root.crossed
+    width: Math.max(9, parent.width * 0.55)
+    height: width
+    radius: width / 2
+    color: Commons.Color.accent
+    anchors.right: parent.right
+    anchors.bottom: parent.bottom
+    border.color: Commons.Color.popups.background
+    border.width: 1
+
+    Text {
+      anchors.centerIn: parent
+      text: "↗"
+      color: Commons.Color.background
+      font.family: Style.font.family
+      font.pixelSize: Math.max(8, parent.height * 0.85)
+      font.bold: true
+    }
+  }
 
   Rectangle {
     visible: root.crossed
