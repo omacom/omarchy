@@ -4,9 +4,80 @@
 # omarchy:args=[url]
 
 default_browser=$(omarchy-cmd-default-browser)
-browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
 
-if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
+desktop_exec_argv() {
+  local desktop=$1
+  local file line
+  desktop_exec_argv=()
+  for file in "$HOME/.local/share/applications/$desktop" \
+              "$HOME/.nix-profile/share/applications/$desktop" \
+              "/usr/share/applications/$desktop"; do
+    [[ -f $file ]] || continue
+    line=$(sed -n 's/^Exec=//p' "$file" | head -1)
+    [[ -n $line ]] && break
+  done
+  [[ -n $line ]] || return 1
+
+  # Undo the escapes every desktop entry string carries, then split the result
+  # by the Exec key's own quoting, dropping field codes but keeping %% as %.
+  local value="" arg="" char i quoted=0 started=0
+  for (( i = 0; i < ${#line}; i++ )); do
+    char=${line:i:1}
+    if [[ $char == "\\" ]]; then
+      (( i++ ))
+      case ${line:i:1} in
+      s) char=" " ;;
+      n) char=$'\n' ;;
+      t) char=$'\t' ;;
+      r) char=$'\r' ;;
+      "\\") char="\\" ;;
+      *) char="\\${line:i:1}" ;;
+      esac
+    fi
+    value+=$char
+  done
+
+  for (( i = 0; i < ${#value}; i++ )); do
+    char=${value:i:1}
+    if [[ $char == '"' ]]; then
+      (( quoted = !quoted, started = 1 ))
+    elif [[ $char == "\\" ]] && (( quoted )); then
+      (( i++ ))
+      arg+=${value:i:1}
+    elif [[ $char == "%" ]]; then
+      (( i++ ))
+      if [[ ${value:i:1} == "%" ]]; then
+        arg+="%" started=1
+      fi
+    elif [[ $char == " " ]] && (( ! quoted )); then
+      if (( started )); then
+        desktop_exec_argv+=("$arg")
+      fi
+      arg="" started=0
+    else
+      arg+=$char started=1
+    fi
+  done
+  if (( started )); then
+    desktop_exec_argv+=("$arg")
+  fi
+
+  (( ${#desktop_exec_argv[@]} > 0 ))
+}
+
+desktop_exec_argv "$default_browser" || exit 1
+
+browser_exec=""
+for token in "${desktop_exec_argv[@]}"; do
+  if [[ $token == env || $token == */env || $token == *=* || $token == -* || $token == run || $token == flatpak || $token == */flatpak ]]; then
+    continue
+  fi
+  browser_exec=$token
+  break
+done
+[[ -n $browser_exec ]] || browser_exec=${desktop_exec_argv[0]}
+
+if "$browser_exec" --help 2>/dev/null | grep -q MOZ_LOG; then
   private_flag="--private-window"
 elif [[ $browser_exec =~ edge ]]; then
   private_flag="--inprivate"
@@ -14,10 +85,10 @@ else
   private_flag="--incognito"
 fi
 
-if ! omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
+if ! omarchy-cmd-browser-handoff "${desktop_exec_argv[@]}" "${@/--private/$private_flag}"; then
   systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
     --property=StandardOutput=null --property=StandardError=null \
-    uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
+    uwsm-app -- "${desktop_exec_argv[@]}" "${@/--private/$private_flag}"
 fi
 
 url=""
