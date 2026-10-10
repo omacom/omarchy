@@ -109,6 +109,15 @@ set_tokyo_night_colors() {
   clear
 }
 
+# Scroll Lock is the console's Hold key: one press stops output on the VT until
+# it is pressed again, so setup looks frozen. Some keyboards wire their backlight
+# key to it. Void every keymap entry that holds, in every modifier column.
+disable_console_hold() {
+  [[ $(tty 2>/dev/null) == /dev/tty* ]] || return 0
+  dumpkeys --full-table 2>/dev/null | grep -E '^keymaps|Scroll_Lock' |
+    sed 's/Scroll_Lock/VoidSymbol/g' | loadkeys >/dev/null 2>&1 || true
+}
+
 measure_terminal() {
   TERM_WIDTH=$(stty size 2>/dev/null </dev/tty | awk '{print $2}')
   (( TERM_WIDTH > 0 )) || TERM_WIDTH=${COLUMNS:-80}
@@ -695,6 +704,11 @@ apply_keyboard() {
     log_step "/etc/vconsole.conf does not read back as keymap $keymap with an XKB layout"
     return 1
   fi
+
+  # Every keymap load above brings Hold back. Starting vconsole-setup waits out
+  # a reload localectl queued without waiting; once it has run, it is a no-op.
+  systemctl start systemd-vconsole-setup.service >/dev/null 2>&1 || true
+  disable_console_hold
 }
 
 # The same username/password/name/email form as the ISO configurator's Step 2.
@@ -1292,6 +1306,7 @@ main() {
   # greeter_screen (which owns that settle) rather than running here on a VT
   # that may still be in a transitional mode this early in first boot.
   set_tokyo_night_colors
+  disable_console_hold
   greeter_screen
 
   while ! "$0" --attempt; do
