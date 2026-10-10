@@ -36,7 +36,7 @@ function iconFor(name, percent) {
 
 function stateForShow(iconName, rawMessage, rawValue, rawMax, rawProgressText, rawDuration) {
   var maxValue = Math.max(1, parseInt(rawMax || "100", 10))
-  var parsedValue = parseInt(rawValue || "0", 10)
+  var parsedValue = parseFloat(rawValue || "0")
   var hasProgress = rawValue !== "" && !isNaN(parsedValue) && rawMessage === ""
   var value = hasProgress ? clamp(parsedValue, 0, maxValue) : 0
   var percent = hasProgress ? Math.round(value * 100 / maxValue) : -1
