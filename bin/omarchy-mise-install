@@ -53,7 +53,14 @@ cat >"$HOME/.local/bin/$command" <<EOF
 #!/bin/bash
 export MISE_MINIMUM_RELEASE_AGE=0
 mise use -g --quiet $package_arg || exit 1
-exec mise x $package_arg -- $bin_arg "\$@"
+# A bare name can find this wrapper again when it precedes mise's shims in PATH.
+# Keep mise's runtime environment, but execute only the resolved absolute path.
+resolved_bin=\$(mise which --tool $package_arg $bin_arg) || exit 1
+if [[ \$resolved_bin != /* || ! -f \$resolved_bin || ! -x \$resolved_bin || \$resolved_bin -ef \${BASH_SOURCE[0]} ]]; then
+  printf '%s: mise did not resolve a usable executable\\n' $bin_arg >&2
+  exit 1
+fi
+exec mise x $package_arg -- "\$resolved_bin" "\$@"
 EOF
 
 chmod +x "$HOME/.local/bin/$command"
