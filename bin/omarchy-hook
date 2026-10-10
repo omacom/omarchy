@@ -27,14 +27,21 @@ HOOK_PATH="$HOME/.config/omarchy/hooks/$1"
 HOOK_DIR="$HOOK_PATH.d"
 shift
 
+status=0
 if [[ -f $HOOK_PATH ]]; then
-  bash "$HOOK_PATH" "$@" || echo "Hook failed: $HOOK_PATH"
+  bash "$HOOK_PATH" "$@" || { echo "Hook failed: $HOOK_PATH"; status=1; }
 fi
 
 if [[ -d $HOOK_DIR ]]; then
   for hook in "$HOOK_DIR"/*; do
     [[ -f $hook ]] || continue
     [[ $hook == *.sample ]] && continue
-    bash "$hook" "$@" || echo "Hook failed: $hook"
+    bash "$hook" "$@" || { echo "Hook failed: $hook"; status=1; }
   done
+fi
+
+# Existing callers keep best-effort semantics; launch supervisors can request
+# a status without depending on parsing or retaining the hook's output.
+if [[ ${OMARCHY_HOOK_REPORT_STATUS:-0} == 1 ]]; then
+  exit "$status"
 fi

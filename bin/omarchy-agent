@@ -136,6 +136,21 @@ pi)
   ;;
 esac
 
+# Notification hooks must not inherit the terminal input or output. /dev/null
+# also lets detached background work keep writing without a logger pipe or
+# a temporary file whose size grows after the launcher returns.
+if command -v omarchy-hook >/dev/null 2>&1; then
+  (
+    # A caught TERM resets in child processes, allowing hook cleanup handlers.
+    # Keep the supervisor alive past the kill-after interval for descendants.
+    timeout --kill-after=1s 5s bash -c 'trap "sleep 2" TERM; OMARCHY_HOOK_REPORT_STATUS=1 omarchy-hook "$@"' bash agent-launch "$agent" "$PWD" </dev/null >/dev/null 2>&1
+    hook_status=$?
+    if (( hook_status != 0 )); then
+      printf 'agent-launch hook failed or timed out (status %s)\n' "$hook_status" | logger --tag omarchy-agent-hook || true
+    fi
+  ) </dev/null 2>/dev/null || true
+fi
+
 # A new session uses the current selection rather than its parent's account
 # pin. Explicit provider homes still override the selection. Carry the new pin
 # in the command, since terminals launched through uwsm don't inherit our env.
