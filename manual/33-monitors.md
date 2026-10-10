@@ -36,6 +36,14 @@ When you connect an external screen to your laptop, the display is automatically
 
 When you're extending, closing the lid on the laptop will automatically turn off the internal screen. Opening the lid will turn it back on. You can also control this manually using _Trigger > Hardware_ in the Omarchy menu or `Super + Ctrl + Delete`.
 
+### Rotating with the screen
+
+On a convertible or detachable with an accelerometer, the built-in display follows the device: turn it into portrait and the screen turns with it. Rotation is on whenever the hardware can report an orientation, and there is nothing to configure.
+
+Flip it off with _Trigger > Hardware > Auto-rotate_ in the Omarchy menu, or `omarchy toggle autorotate`. That works as a rotation lock: the screen stays wherever it was when you turned it off, which is what you want on the couch. Turning it back on catches up with however the device is being held.
+
+Machines with no accelerometer never see any of this, and an external monitor is never rotated for you — it keeps whatever `transform` you gave it in `~/.config/hypr/monitors.lua`.
+
 ### Arranging multiple screens
 
 Hyprland works great with multiple screens. Read more about how to lay them out in [the Hyprland monitor documentation](https://wiki.hypr.land/Configuring/Basics/Monitors/). You can [bind specific workspaces to specific monitors](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) as well. In Omarchy, these rules go in `~/.config/hypr/monitors.lua` as `hl.monitor` entries — the file ships with commented examples for pinning a specific monitor to a resolution, position, and rotation.

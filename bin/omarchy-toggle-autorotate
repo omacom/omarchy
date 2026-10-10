@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle rotating the laptop display with the accelerometer
+
+# nf-md-monitor, escaped so this file reads without a Nerd Font.
+readonly ROTATE_GLYPH=$'\U000f0379'
+
+omarchy-toggle autorotate-off
+
+if omarchy-toggle-enabled autorotate-off; then
+  omarchy-notification-send -g "$ROTATE_GLYPH" "Auto-rotate disabled"
+else
+  # The lock left the panel wherever the device was when it went on, so picking
+  # rotation back up means catching up with where the device is now.
+  omarchy-hyprland-monitor-autorotate apply
+  omarchy-notification-send -g "$ROTATE_GLYPH" "Auto-rotate enabled"
+fi
