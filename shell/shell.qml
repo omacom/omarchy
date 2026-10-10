@@ -518,7 +518,11 @@ ShellRoot {
     })
     api.enabled = Qt.binding(function() {
       var target = service()
-      return target ? target.enabled === true : false
+      return target ? (id === "omarchy.nightlight" ? target.nightlightOn === true : target.enabled === true) : false
+    })
+    api.nightlightOn = Qt.binding(function() {
+      var target = service()
+      return id === "omarchy.nightlight" && target ? target.nightlightOn === true : false
     })
     api.doNotDisturb = Qt.binding(function() {
       var target = service()
