@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.keyboard-backlight",
+  "name": "Keyboard Backlight",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Show keyboard backlight changes handled by the hardware driver.",
+  "kinds": ["service"],
+  "keepLoaded": true,
+  "entryPoints": {"service": "Service.qml"}
+}
