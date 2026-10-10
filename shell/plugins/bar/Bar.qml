@@ -2145,6 +2145,7 @@ Item {
     property string outputText: ""
     property string outputTooltip: ""
     property bool outputActive: false
+    property bool jsonProvidedText: false
 
     function setting(name, fallback) {
       var value = settings ? settings[name] : undefined
@@ -2155,13 +2156,22 @@ Item {
       var data = Util.parseModuleJson(raw)
       var klass = data.class || data.alt || ""
 
-      outputText = data.text || String(raw || "").trim()
+      if (Util.isPlainObject(data) && data.text !== undefined && data.text !== null) {
+        outputText = String(data.text)
+        jsonProvidedText = true
+      } else if (Util.isPlainObject(data)) {
+        outputText = ""
+        jsonProvidedText = false
+      } else {
+        outputText = String(raw || "").trim()
+        jsonProvidedText = false
+      }
       outputTooltip = data.tooltip || String(setting("tooltip", ""))
       outputActive = klass === "active" || (Array.isArray(klass) && klass.indexOf("active") !== -1)
     }
 
     bar: root
-    text: outputText || String(setting("text", ""))
+    text: jsonProvidedText ? outputText : (outputText || String(setting("text", "")))
     tooltipText: outputTooltip || String(setting("tooltip", ""))
     active: outputActive
     keepSpace: setting("keepSpace", false) === true
