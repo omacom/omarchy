@@ -38,9 +38,10 @@ jq -e '
   (.bar.layout.center | ids) as $ids |
   ($ids | index("omarchy.elsewhen")) as $elsewhen |
   ($ids | index("omarchy.clock")) as $clock |
-  $elsewhen != null and $clock == $elsewhen + 1
+  ($ids | index("omarchy.weather")) as $weather |
+  $clock != null and $elsewhen == $clock + 1 and $weather > $elsewhen
 ' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default center layout puts elsewhen immediately before the clock"
+pass "default center layout puts elsewhen immediately after the clock and before weather"
 
 jq -e '
   any(.bar.layout.center[]; (.id // .) == "omarchy.clock" and (.formatAlt // "") == "d MMMM \u0027W\u0027ww yyyy")
