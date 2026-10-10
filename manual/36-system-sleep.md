@@ -17,3 +17,5 @@ You toggle suspend by running `omarchy toggle suspend` from the terminal. That j
 You set up hibernation by running `omarchy hibernation setup` from the terminal. Hibernation creates a /swap subvolume on your boot drive the size of your physical RAM allocation, so make sure you have plenty of room to spare. On a 32GB machine, you'll always need 32GB+ free for this volume. Hibernation also requires the default Limine bootloader.
 
 When set up, you'll see the hibernate option under _System_ (or `Super + Esc`), and then you can see if it works consistently on your system. If not, you can remove it again by running `omarchy hibernation remove`.
+
+On a laptop, setup also makes the machine hibernate when the battery reaches 5% instead of suspending with a nearly empty battery. To pick another level, put `PercentageAction=3.0` under `[UPower]` in `/etc/UPower/UPower.conf.d/99-local.conf` (keep it below `PercentageCritical`, which is 8), then run `sudo systemctl restart upower`.

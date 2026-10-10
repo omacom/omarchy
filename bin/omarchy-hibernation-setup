@@ -35,6 +35,7 @@ fi
 MKINITCPIO_CONF="/etc/mkinitcpio.conf.d/omarchy_resume.conf"
 SWAP_FILE="/swap/swapfile"
 RESUME_DROP_IN="/etc/limine-entry-tool.d/resume.conf"
+UPOWER_DROP_IN="/etc/UPower/UPower.conf.d/70-omarchy-critical-hibernate.conf"
 
 install_root_file() {
   local source="$1"
@@ -65,6 +66,34 @@ safe_stage_path() {
   [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
 }
 
+# The kernel can only restore a hibernated session once it knows where the
+# image is: the resume parameters carry the swapfile's offset.
+resume_ready() {
+  [[ -f $RESUME_DROP_IN ]] && grep -q 'resume_offset=' "$RESUME_DROP_IN" && ! grep -q 'resume_offset="$' "$RESUME_DROP_IN"
+}
+
+# On a laptop, hibernate when the battery runs critically low instead of
+# suspending into it. Rerunning setup installs it on machines set up before.
+# Only once resume works, so a dying battery never powers off a session that
+# cannot be restored.
+setup_critical_battery_hibernate() {
+  omarchy-battery-present || return 0
+  if ! resume_ready; then
+    echo "Not hibernating on critical battery until the resume offset is set" >&2
+    return 0
+  fi
+  cmp -s "$OMARCHY_PATH/default/upower/omarchy-critical-hibernate.conf" "$UPOWER_DROP_IN" && return 0
+
+  echo "Hibernating on critical battery"
+  sudo mkdir -p "${UPOWER_DROP_IN%/*}"
+  if install_root_file "$OMARCHY_PATH/default/upower/omarchy-critical-hibernate.conf" "$UPOWER_DROP_IN" 0644; then
+    sudo systemctl try-restart upower.service
+  else
+    echo "Could not install the critical battery action" >&2
+    return 1
+  fi
+}
+
 # Check if hibernation is already configured
 if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
   # Fix empty resume_offset if btrfs map-swapfile failed during initial setup
@@ -78,6 +107,7 @@ if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; 
       fi
     fi
   fi
+  setup_critical_battery_hibernate || exit 1
   echo "Hibernation is already set up"
   exit 0
 fi
@@ -157,14 +187,20 @@ if grep -q "\[s2idle\]" /sys/power/mem_sleep 2>/dev/null; then
   fi
 fi
 
+rebuilt=true
 if ! $NO_REBUILD; then
   # limine-mkinitcpio rebuilds initramfs/UKI for all kernels and updates the
   # /boot/limine.conf entries via limine-entry-tool. The limine bootloader
   # binary on the ESP doesn't change here, so we don't need limine-update
   # (which would also re-deploy the binary and rebuild a second time).
   echo "Regenerating initramfs..."
-  sudo limine-mkinitcpio
+  sudo limine-mkinitcpio || rebuilt=false
   echo
+fi
+
+# With --no-rebuild the caller rebuilds, so the resume parameters land then.
+if $rebuilt; then
+  setup_critical_battery_hibernate
 fi
 
 if ! $FORCE && ! $NO_REBUILD && gum confirm "Reboot to enable hibernation?"; then
