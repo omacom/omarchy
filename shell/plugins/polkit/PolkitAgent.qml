@@ -45,7 +45,8 @@ Item {
   // waiting on the reader (lid open, sensor enrolled); the moment PAM asks for
   // a password — including immediately when the lid is shut and the clamshell
   // gate skips pam_fprintd — we switch to the password field instead.
-  readonly property bool fingerprintMode: fingerprintConfigured && !laptopClosed && dialogVisible && !responseRequired && !submitted && !errorFlash
+  readonly property bool fingerprintPending: fingerprintConfigured && !laptopClosed && dialogVisible && !responseRequired && !submitted
+  readonly property bool fingerprintMode: fingerprintPending && !errorFlash
   readonly property int cardHeight: panel.height > 0 ? Math.min(fieldHeight + contentMargin * 2, panel.height - Style.gapsOut * 2) : fieldHeight + contentMargin * 2
   // Password mode is a wide field; fingerprint mode collapses to a square that
   // just frames the centered sensor icon.
@@ -110,6 +111,8 @@ Item {
   function submitResponse() {
     var flow = polkitAgent.flow
     if (!flow || !flow.isResponseRequired) return
+    // The failure just emptied the field, so an Enter here would send an empty password.
+    if (errorFlash && passwordInput.text.length === 0) return
     submitted = true
     errorFlash = false
     flow.submit(passwordInput.text)
@@ -321,8 +324,15 @@ Item {
             passwordCharacter: "\u2022"
             color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
             cursorVisible: activeFocus && !root.submitted && !root.errorFlash
-            readOnly: root.submitted || root.errorFlash
+            // Typing straight after a failure is the retry, so the flash keeps it unless fingerprint takes over next.
+            readOnly: root.submitted || (root.errorFlash && root.fingerprintPending)
             enabled: root.dialogVisible
+            onTextEdited: {
+              if (root.errorFlash) {
+                root.errorFlash = false
+                errorTimer.stop()
+              }
+            }
             onAccepted: root.submitResponse()
             Keys.onPressed: function(event) {
               if (event.key === Qt.Key_Escape) {
