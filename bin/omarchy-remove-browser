@@ -68,3 +68,5 @@ zen)
   exit 1
   ;;
 esac
+
+omarchy-refresh-browser-handoff

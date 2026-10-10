@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Open a URL or window in a browser, handing it to the running one and focusing it
+# omarchy:args=<browser-command> [browser-args...]
+# omarchy:hidden=true
+
+# The Exec of the default browser's desktop entry points here (see
+# omarchy-refresh-browser-handoff), so links from any app take the same path as
+# omarchy-launch-browser: to the running browser, then focus on its window.
+browser_exec=$1
+shift
+
+if ! omarchy-cmd-browser-handoff "$browser_exec" "$@"; then
+  systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
+    --property=StandardOutput=null --property=StandardError=null \
+    uwsm-app -- "$browser_exec" "$@"
+fi
+
+url=""
+for argument in "$@"; do
+  if [[ $argument != -* ]]; then
+    url=$argument
+    break
+  fi
+done
+
+if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  omarchy-hyprland-focus-app "^$(basename "$browser_exec" -stable).*$" || true
+fi

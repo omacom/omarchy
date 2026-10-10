@@ -19,7 +19,7 @@ installed() {
 
   for data_dir in "${data_dirs[@]}"; do
     [[ -r $data_dir/applications/$1 ]] || continue
-    command=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$data_dir/applications/$1" | head -1)
+    command=$(sed -n 's/^Exec=\(omarchy-cmd-browser-open \)\{0,1\}\([^ ]*\).*/\2/p' "$data_dir/applications/$1" | head -1)
     [[ -n $command ]] && command -v "$command" >/dev/null
     return
   done

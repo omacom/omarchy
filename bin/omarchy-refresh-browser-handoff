@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# omarchy:summary=Route links from every app through the running default browser
+# omarchy:hidden=true
+
+# Apps open links through xdg-open or the desktop portal, both of which run the
+# default browser's desktop entry straight from mimeapps.list. Shadow that entry
+# with a copy whose commands go through omarchy-cmd-browser-open, which hands
+# the link to the running browser and focuses its window. The copy keeps the
+# browser's desktop ID, so xdg-settings and the browser itself still see it as
+# the default.
+applications="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+marker="X-Omarchy-Browser-Handoff=true"
+default_browser=$(omarchy-cmd-default-browser)
+
+mkdir -p "$applications"
+
+# Drop the copies of browsers that are no longer the default, or are gone.
+for entry in "$applications"/*.desktop; do
+  if [[ -f $entry ]] && grep -qxF "$marker" "$entry"; then
+    rm -f "$entry"
+  fi
+done
+
+if [[ -n $default_browser && $default_browser == *.desktop ]]; then
+  # Leave an entry the user made in place of the browser's own alone.
+  if [[ ! -e $applications/$default_browser ]]; then
+    IFS=: read -ra data_dirs <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+    for data_dir in "$HOME/.nix-profile/share" "${data_dirs[@]}"; do
+      source_entry="$data_dir/applications/$default_browser"
+      [[ -r $source_entry ]] || continue
+
+      # D-Bus activation would bypass Exec entirely.
+      sed -e "s/^Exec=/Exec=omarchy-cmd-browser-open /" \
+        -e "/^DBusActivatable=/d" \
+        -e "/^\[Desktop Entry\]$/a $marker" \
+        "$source_entry" >"$applications/$default_browser"
+      break
+    done
+  fi
+fi
+
+update-desktop-database "$applications" 2>/dev/null || true
