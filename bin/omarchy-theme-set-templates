@@ -313,6 +313,18 @@ apply_shell_section_overrides() {
   done
 }
 
+apply_neovim_declaration() {
+  [[ -f $NEXT_THEME_DIR/neovim.toml ]] || return
+  [[ ${OMARCHY_THEME_KEEP_NEOVIM_LUA:-0} != "1" ]] || return
+
+  if ! omarchy-theme-neovim \
+    --file "$NEXT_THEME_DIR/neovim.toml" \
+    --colors "$COLORS_FILE" \
+    --out "$NEXT_THEME_DIR/neovim.lua"; then
+    echo "omarchy-theme-set-templates: keeping the existing neovim.lua" >&2
+  fi
+}
+
 # Substitute every template in one awk process. Each {{ ... }} span is looked
 # up whole, as the per-template sed script used to match it. A mix is rounded
 # with awk's floating point exactly as before, so no generated color moves.
@@ -328,6 +340,9 @@ render_templates() {
     if [[ ! -f $NEXT_THEME_DIR/$filename && -z ${rendered[$filename]:-} ]]; then
       rendered[$filename]=1
       pairs+=("$tpl" "$NEXT_THEME_DIR/$filename")
+      if [[ $tpl == "$USER_TEMPLATES_DIR/neovim.lua.tpl" ]]; then
+        OMARCHY_THEME_KEEP_NEOVIM_LUA=1
+      fi
     fi
   done
 
@@ -450,4 +465,5 @@ if [[ -f $COLORS_FILE ]]; then
   rm "$value_table" "$mix_table"
 fi
 
+apply_neovim_declaration
 apply_shell_section_overrides
