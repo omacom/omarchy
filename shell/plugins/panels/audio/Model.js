@@ -107,6 +107,8 @@ function isHeadphones(node) {
     || blob.indexOf("earbud") !== -1
     || blob.indexOf("earphone") !== -1
     || blob.indexOf("airpod") !== -1
+    || blob.indexOf("jabra") !== -1
+    || blob.indexOf("netcom") !== -1
 }
 
 function sinkGlyph(node) {
