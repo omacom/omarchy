@@ -161,6 +161,9 @@ Item {
       MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
+        // CloseOnPressOutsideParent treats a press on the trigger as inside,
+        // so the popup is still open here and a second click collapses it
+        // instead of reopening.
         onClicked: {
           trigger.forceActiveFocus()
           popup.opened ? popup.close() : popup.open()
@@ -172,6 +175,7 @@ Item {
         x: 0
         y: trigger.height + Style.spacing.xxs
         width: trigger.width
+        closePolicy: QQC.Popup.CloseOnPressOutsideParent | QQC.Popup.CloseOnEscape
         implicitHeight: Math.max(root.popupMinHeight,
                                  Math.min(resultList.contentHeight + Style.space(50),
                                           root.popupRowHeight * 6 + 5 * Style.spacing.labelGap + Style.space(50)))
