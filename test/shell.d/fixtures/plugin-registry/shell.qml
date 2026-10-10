@@ -454,8 +454,16 @@ ShellRoot {
     var cloneBase = registry.pluginsDir + "/dhh.clock"
     root.assertEqual(registry.localPluginIdForPath(cloneBase + "/BarWidget.qml"), "dhh.clock", "personal clone changes are watched")
     root.assertEqual(registry.localPluginIdForPath(registry.pluginsDir + "/acme.clock/BarWidget.qml"), "acme.clock", "installed plugin changes are watched")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/manifest.json"), "dhh.clock", "manifest changes are watched")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/lib/util.js"), "dhh.clock", "plugin javascript changes are watched")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase, true), "dhh.clock", "a plugin directory moved in or out whole is watched")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/components", true), "dhh.clock", "a source directory moved within a plugin is watched")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/cache", false), "", "a runtime directory created by a plugin is ignored")
     root.assertEqual(registry.localPluginIdForPath(cloneBase + "/.git/index"), "", "plugin git metadata is ignored")
     root.assertEqual(registry.localPluginIdForPath(registry.pluginsDir + "/.clone.abc123/manifest.json"), "", "hidden staging and backup dirs are ignored")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/data.json"), "", "plugin runtime state files are ignored")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/cache.bin"), "", "plugin binary caches are ignored")
+    root.assertEqual(registry.localPluginIdForPath(cloneBase + "/__pycache__/helper.pyc"), "", "python bytecode is ignored")
 
     root.assertTrue(changeCount > 0, "registry emits change notifications")
     writeResult()
