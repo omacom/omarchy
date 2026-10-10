@@ -27,6 +27,7 @@ Panel {
     passwordSsid = ""
     passwordText = ""
     identityText = ""
+    credentialField = ""
   }
 
   // Live connection details from `ip` / /sys / iw.
@@ -98,6 +99,9 @@ Panel {
   property string passwordSsid: ""
   property string passwordText: ""
   property string identityText: ""
+  // Which prompt field holds the caret, so a rebuilt row hands it back to
+  // that field. "" until one is focused: Identity first for enterprise.
+  property string credentialField: ""
 
   // ConnectionFailReason values as a plain object, so Model.js helpers stay
   // pure JS and Node-testable.
@@ -789,6 +793,7 @@ Panel {
     if (passwordSsid !== ssid) {
       passwordText = ""
       identityText = ""
+      credentialField = ""
     }
     passwordSsid = ssid
   }
@@ -2037,8 +2042,13 @@ Panel {
         onTextChanged: if (row.isPasswordOpen && text !== root.identityText) root.identityText = text
         Keys.onEscapePressed: root.cancelPasswordPrompt()
 
-        onVisibleChanged: if (visible) Qt.callLater(forceActiveFocus)
-        Component.onCompleted: if (visible) Qt.callLater(forceActiveFocus)
+        readonly property bool ownsCaret: root.credentialField === "identity" || root.credentialField === ""
+        // Checked when the deferred call runs, so an explicit focus in between wins.
+        function claimCaret() { if (visible && ownsCaret) forceActiveFocus() }
+
+        onActiveFocusChanged: if (activeFocus && row.isPasswordOpen) root.credentialField = "identity"
+        onVisibleChanged: if (visible) Qt.callLater(claimCaret)
+        Component.onCompleted: Qt.callLater(claimCaret)
       }
 
       TextField {
@@ -2063,8 +2073,12 @@ Panel {
         onTextChanged: if (row.isPasswordOpen && text !== root.passwordText) root.passwordText = text
         Keys.onEscapePressed: root.cancelPasswordPrompt()
 
-        onVisibleChanged: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
-        Component.onCompleted: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
+        readonly property bool ownsCaret: !(idField.visible && idField.ownsCaret)
+        function claimCaret() { if (visible && ownsCaret) forceActiveFocus() }
+
+        onActiveFocusChanged: if (activeFocus && row.isPasswordOpen) root.credentialField = "passphrase"
+        onVisibleChanged: if (visible) Qt.callLater(claimCaret)
+        Component.onCompleted: Qt.callLater(claimCaret)
       }
 
       BorderSurface {
