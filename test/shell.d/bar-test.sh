@@ -30,6 +30,18 @@ if ! perl -0ne 'exit(/onPressAndHold:\s*function[^{]*\{[^}]*?\bpressed\b[^}]*?\b
 fi
 pass "bar move ignores a press-and-hold propagated from a widget above"
 
+# A double-click nobody accepts propagates to the gesture area under every
+# widget, so double-clicking a workspace or a tray icon toggled transparency.
+if ! perl -0ne 'exit(/id:\s*modulePointer\b.*?onDoubleClicked:\s*function\(mouse\)\s*\{\s*mouse\.accepted = root\.moduleClickTargetAt\(slot, mouse\.x, mouse\.y\) !== null\s*\}/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar module slots accept double-clicks on their click targets"
+fi
+if ! perl -0ne 'exit(/component TrayItem\b.*?onDoubleClicked:\s*function\(mouse\)\s*\{\s*if \(mouse\.button === Qt\.MiddleButton\) trayItemRoot\.modelData\.secondaryActivate\(\)\s*mouse\.accepted = true\s*\}/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/widgets/Tray.qml"; then
+  fail "tray items accept their own double-clicks and keep the second middle click"
+fi
+pass "double-clicking a workspace or tray icon leaves the bar's transparency alone"
+
 # Every click target registration used to resync every plugin api inline. With
 # six monitors' worth of widgets that is hundreds of full walks at startup, so
 # the change handlers coalesce into one deferred resync and ownership lookups

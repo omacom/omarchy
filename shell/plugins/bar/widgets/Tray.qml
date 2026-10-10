@@ -841,6 +841,12 @@ BarWidget {
           trayItemRoot.modelData.activate()
         }
       }
+      // Tray items are not bar click targets, so the slot hands their double-clicks down here.
+      // Handling one swallows its second click, so a middle double-click still activates twice.
+      onDoubleClicked: function(mouse) {
+        if (mouse.button === Qt.MiddleButton) trayItemRoot.modelData.secondaryActivate()
+        mouse.accepted = true
+      }
       onWheel: function(wheel) {
         trayItemRoot.modelData.scroll(wheel.angleDelta.y, false)
       }
