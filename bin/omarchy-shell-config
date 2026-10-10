@@ -53,10 +53,13 @@ trap cleanup_shell_config_tmp EXIT
 commit() {
   local program="$1"
   shift
-  mkdir -p "$(dirname "$CONFIG_FILE")"
-  _SHELL_CONFIG_TMP=$(mktemp)
+  local target
+  target=$(realpath -m -- "$CONFIG_FILE")
+  mkdir -p "$(dirname "$target")"
+  _SHELL_CONFIG_TMP=$(mktemp "$(dirname "$target")/.shell-config.XXXXXX")
   jq -S -e "$@" "$program" "$(source_file)" >"$_SHELL_CONFIG_TMP" || fail "could not update shell config"
-  mv "$_SHELL_CONFIG_TMP" "$CONFIG_FILE"
+  if [[ -f $target ]]; then chmod --reference="$target" "$_SHELL_CONFIG_TMP"; fi
+  mv -- "$_SHELL_CONFIG_TMP" "$target"
   _SHELL_CONFIG_TMP=""
   refresh_shell_config
 }
