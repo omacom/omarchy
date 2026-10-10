@@ -35,7 +35,9 @@ function normalizeItem(id, raw) {
     aliases: aliases,
     when: value.when || "",
     checked: value.checked || "",
-    disabled: value.disabled || ""
+    disabled: value.disabled || "",
+    after: value.after || "",
+    before: value.before || ""
   }
 }
 
@@ -63,6 +65,24 @@ function parseMenuJsonc(raw) {
   return out
 }
 
+// Moves entries that declare `after` or `before` next to that sibling, in
+// list order. A target that is missing or under another parent leaves the
+// entry where it was, so a renamed shipped id degrades to "appended".
+function placeItems(items, order) {
+  var placed = order.slice()
+  for (var i = 0; i < order.length; i++) {
+    var entry = items[order[i]]
+    var anchor = entry.after || entry.before
+    if (!anchor || anchor === entry.id) continue
+    var target = items[anchor]
+    if (!target || target.parent !== entry.parent) continue
+    placed.splice(placed.indexOf(entry.id), 1)
+    var at = placed.indexOf(anchor)
+    placed.splice(entry.after ? at + 1 : at, 0, entry.id)
+  }
+  return placed
+}
+
 function mergeMenuSources(defaultItems, userItems) {
   var nextItems = ({})
   var nextOrder = []
@@ -87,6 +107,7 @@ function mergeMenuSources(defaultItems, userItems) {
     nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: "Go", title: "", target: "", description: "", aliases: [], when: "", checked: "", disabled: "", action: "", provider: "" }
     nextOrder.unshift("root")
   }
+  nextOrder = placeItems(nextItems, nextOrder)
   for (var k3 = 0; k3 < nextOrder.length; k3++) nextItems[nextOrder[k3]].order = k3
 
   return {

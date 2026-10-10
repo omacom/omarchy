@@ -42,6 +42,7 @@ submenu. The fields:
 | `aliases` | Alternate `omarchy menu summon <name>` routes; also searchable |
 | `description` | Subtitle shown while searching, and extra search text matched by whole word |
 | `when` / `checked` / `disabled` | Shell conditions (see Guards) |
+| `after` / `before` | Sibling id to sit next to instead of the default position (see Load and merge) |
 
 Do not add `aliases` to new entries. They are reserved for established
 alternate names users already type (`power-menu`, `settings`), kept for
@@ -55,6 +56,13 @@ shipped id replaces only the fields you declare, so an extension can retitle
 or re-icon a row without re-declaring its action, and an overridden entry
 keeps its original position in the list. New ids append. A `root` entry is
 injected if neither file declares one.
+
+`after` or `before` names a sibling — an entry with the same parent — to move
+the entry next to, which is how an extension can put a new root category
+beside a shipped one instead of at the bottom. Placement runs after the merge,
+in list order, and a target that does not exist or sits under another parent
+leaves the entry where it was. Children stay with their parent, so moving a
+submenu needs only the one key.
 
 The sample extension at `config/omarchy/extensions/omarchy-menu.jsonc`
 (refreshed into `~/.config/`) documents the format in its header and ships
