@@ -56,6 +56,23 @@ assertEqual(bluetooth.normalizedAddress('AA:BB_CC-dd-ee-ff'), 'aabbccddeeff', 'b
 assert(!bluetooth.hasHumanName({ name: 'AA:BB:CC:DD:EE:FF' }), 'bluetooth rejects address-only device labels')
 assert(bluetooth.hasHumanName({ deviceName: 'MX Master 3S' }), 'bluetooth accepts human device labels')
 
+assert(bluetooth.deviceLists([{
+  connected: true,
+  name: '08-FF-44-4F-EE-C5',
+  address: '08:FF:44:4F:EE:C5'
+}]).connected.length === 1, 'bluetooth keeps connected devices with address-like names')
+assert(bluetooth.deviceLists([{
+  paired: true,
+  name: 'AA:BB:CC:DD:EE:FF',
+  address: 'AA:BB:CC:DD:EE:FF'
+}]).known.length === 1, 'bluetooth keeps paired devices with address-like names')
+assert(bluetooth.deviceLists([{
+  connected: false,
+  paired: false,
+  name: 'AA:BB:CC:DD:EE:FF',
+  address: 'AA:BB:CC:DD:EE:FF'
+}]).discovered.length === 0, 'bluetooth still hides address-only discovered devices')
+
 const devices = [
   { name: 'Speaker', connected: false, paired: true, address: '2' },
   { name: 'Headphones', connected: true, address: '1' },
@@ -76,7 +93,8 @@ assertDeepEqual(
 )
 
 const lists = bluetooth.deviceLists(devices)
-assertDeepEqual(lists.connected.map(bluetooth.deviceLabel), ['Headphones'], 'bluetooth groups connected devices')
+// Address-like connected devices stay listed (AirPods Max placeholder names).
+assertDeepEqual(lists.connected.map(bluetooth.deviceLabel), ['AA:BB:CC:DD:EE:FF', 'Headphones'], 'bluetooth groups connected devices')
 assertDeepEqual(lists.known.map(bluetooth.deviceLabel), ['Mouse', 'Speaker'], 'bluetooth groups known devices by label')
 assertDeepEqual(lists.discovered.map(bluetooth.deviceLabel), ['Keyboard'], 'bluetooth groups discovered devices')
 assertDeepEqual(bluetooth.visibleSections(lists, true), ['connected', 'known', 'discovered'], 'bluetooth shows discovered section while scanning')
