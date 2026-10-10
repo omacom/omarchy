@@ -93,6 +93,28 @@ enter a password there, such as a command launched by an agent or a graphical
 background process. Do not replace `sudo` with `pkexec` merely because a
 command changes system state.
 
+An agent cannot assume a command has passwordless `sudo`.
+Try `sudo -n <command>` first. If it fails with `a password is required`,
+rerun the same command with `pkexec --disable-internal-agent <command>`
+instead of handing it back to the user to run. `pkexec` shows a graphical
+polkit prompt on the desktop, so give the call a generous timeout while the
+user answers it. Without `--disable-internal-agent`, a missing polkit agent
+makes `pkexec` fall back to a password prompt in the agent's own terminal,
+where the user cannot see it.
+
+```bash
+sudo -n systemctl enable --now bluetooth   # fails: a password is required
+pkexec --disable-internal-agent systemctl enable --now bluetooth
+```
+
+`pkexec` is not a drop-in `sudo`: it runs the command in root's home directory
+with a minimal environment, so use absolute paths and do not rely on the
+current directory or exported variables.
+
+If `pkexec` exits with 126 (the user dismissed the prompt) or 127 (not
+authorized, or no polkit agent is running), stop and tell the user. Do not
+retry the command or look for another way to gain privileges.
+
 ## System Architecture
 
 Omarchy is built on:
