@@ -10,6 +10,8 @@ preferences="$user_package/Preferences.sublime-settings"
 mkdir -p "$user_package"
 
 cp "$OMARCHY_PATH/default/sublime/Omarchy.sublime-theme" "$user_package/"
+# Forget earlier window defaults so the plugin hides the menu and minimap again.
+rm -f "$user_package/Omarchy.sublime-settings"
 cp "$OMARCHY_PATH/default/sublime/OmarchyWindow.py" "$user_package/"
 
 python3 "$OMARCHY_PATH/default/sublime/set-preferences.py" --backup "$preferences" \
