@@ -17,6 +17,7 @@ Item {
   property real fixedWidth: -1
   property real fixedHeight: -1
   property real textRotation: 0
+  property real labelVerticalOffset: 0
   property bool keepSpace: false
   property bool dimmed: false
   property bool concealed: false
@@ -83,9 +84,9 @@ Item {
     // Centering the line box puts the figures above the bar's middle, since
     // the box keeps room for descenders. Center the figure height instead, so
     // labels line up with the icons beside them.
-    anchors.verticalCenterOffset: !root.centerFigures || root.vertical || root.text.indexOf("\n") !== -1
+    anchors.verticalCenterOffset: root.labelVerticalOffset + (!root.centerFigures || root.vertical || root.text.indexOf("\n") !== -1
       ? 0
-      : (labelMetrics.descent - labelMetrics.ascent + labelMetrics.tightBoundingRect("0").height) / 2
+      : (labelMetrics.descent - labelMetrics.ascent + labelMetrics.tightBoundingRect("0").height) / 2)
     text: root.text
     color: root.active && root.useActiveColor ? root.activeColor : root.foreground
     font.family: root.fontFamily

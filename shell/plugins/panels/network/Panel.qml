@@ -1660,7 +1660,10 @@ Panel {
         boundsBehavior: Flickable.StopAtBounds
         interactive: contentHeight > height
 
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        ScrollBar.vertical: ScrollBar {
+          id: networkScrollBar
+          policy: ScrollBar.AsNeeded
+        }
 
         model: root.wifiStationAvailable ? root.wifiNetworks : []
         currentIndex: root.selectedIndex
@@ -1673,7 +1676,9 @@ Panel {
           required property var modelData
           required property int index
           readonly property string sectionTitle: root.wifiSectionTitle(index)
-          width: ListView.view.width
+          // Narrow only the rows, and only while the list scrolls: an as-needed
+          // scrollbar is still `visible`, just transparent, when everything fits.
+          width: ListView.view.width - (ListView.view.interactive ? networkScrollBar.width : 0)
           height: delegateColumn.implicitHeight
 
           Column {
