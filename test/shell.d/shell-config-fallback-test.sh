@@ -16,6 +16,7 @@ cleanup() {
   # killed shell, and it inherits the runner's lock fd: leaving one behind wedges
   # every later shell test. The temp path makes the match ours alone.
   [[ -n $TMPDIR ]] && pkill -f "$TMPDIR" 2>/dev/null || true
+  [[ -n ${test_root:-} ]] && rm -f "$(shell_ipc_socket "$test_root")"
   [[ -n $TMPDIR && -d $TMPDIR ]] && rm -rf "$TMPDIR"
   return 0
 }
