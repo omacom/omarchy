@@ -13,6 +13,7 @@ stub_dir="$tmpdir/bin"
 home_dir="$tmpdir/home"
 xdg_decoy="$tmpdir/xdg-decoy"
 log_file="$tmpdir/hyprctl.log"
+osd_log="$tmpdir/osd.log"
 marker="$tmpdir/marker"
 mkdir -p "$stub_dir" "$home_dir" "$xdg_decoy"
 
@@ -23,15 +24,31 @@ state_lua="$state_dir/touchpad-disabled.lua"
 cat >"$stub_dir/hyprctl" <<'EOF'
 #!/bin/bash
 case $1 in
-  eval) printf '%s\n' "$2" >>"$HYPRCTL_LOG" ;;
+  eval)
+    printf '%s\n' "$2" >>"$HYPRCTL_LOG"
+    if [[ -n ${HYPRCTL_EVAL_FAIL_NAME:-} && $2 == *"name = \"$HYPRCTL_EVAL_FAIL_NAME\", enabled = true"* ]]; then
+      exit 1
+    fi
+    ;;
   reload) printf 'reload\n' >>"$HYPRCTL_LOG" ;;
+  devices)
+    if [[ ${HYPRCTL_DEVICES_FAIL:-} == 1 ]]; then
+      echo 'hyprctl devices failed' >&2
+      exit 1
+    fi
+    if [[ -n ${HYPRCTL_DEVICES:-} && -f $HYPRCTL_DEVICES ]]; then
+      cat "$HYPRCTL_DEVICES"
+    else
+      printf '{"mice":[]}\n'
+    fi
+    ;;
 esac
 EOF
 chmod +x "$stub_dir/hyprctl"
 
 cat >"$stub_dir/omarchy-osd" <<'EOF'
 #!/bin/bash
-:
+printf '%s\n' "$*" >>"$OSD_LOG"
 EOF
 chmod +x "$stub_dir/omarchy-osd"
 
@@ -53,6 +70,8 @@ run_toggle() {
   HOME="$home_dir" \
     XDG_STATE_HOME="$xdg_decoy" \
     HYPRCTL_LOG="$log_file" \
+    OSD_LOG="$osd_log" \
+    HYPRCTL_DEVICES="${HYPRCTL_DEVICES:-}" \
     PATH="$stub_dir:$ROOT/bin:$PATH" \
     "$ROOT/bin/omarchy-toggle-input-device" "$@"
 }
@@ -284,3 +303,143 @@ assert(disabled[1].enabled == false)
 LUA
 [[ ! -e $reload_marker ]] || fail "a leftover legacy generated toggle Lua must not execute on reload"
 pass "reload excludes leftover legacy toggle Lua while applying the data disable"
+
+devices_json="$tmpdir/devices.json"
+cat >"$devices_json" <<'JSON'
+{"mice":[
+  {"name":"msft0001:00-093a:0255-touchpad"},
+  {"name":"msft0001:00-093a:0255-mouse"},
+  {"name":"razer-razer-viper-8khz"}
+]}
+JSON
+stub_device touchpad 'msft0001:00-093a:0255-touchpad'
+rm -f "$name_file"
+: >"$log_file"
+HYPRCTL_DEVICES="$devices_json" run_toggle touchpad off
+[[ $(<"$name_file") == $'msft0001:00-093a:0255-touchpad\nmsft0001:00-093a:0255-mouse' ]] ||
+  fail "touchpad disable persists the mouse-emulation sibling" "$(<"$name_file")"
+grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-touchpad", enabled = false })' "$log_file" >/dev/null ||
+  fail "touchpad disable applies to the touchpad node"
+grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-mouse", enabled = false })' "$log_file" >/dev/null ||
+  fail "touchpad disable applies to the mouse-emulation sibling"
+if grep -Fq 'razer-razer-viper-8khz' "$log_file"; then
+  fail "touchpad disable does not toggle an unrelated mouse"
+fi
+pass "touchpad disable toggles the mouse-emulation sibling"
+
+: >"$log_file"
+HYPRCTL_DEVICES="$devices_json" run_toggle touchpad on
+grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-touchpad", enabled = true })' "$log_file" >/dev/null ||
+  fail "touchpad enable applies to the touchpad node"
+grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-mouse", enabled = true })' "$log_file" >/dev/null ||
+  fail "touchpad enable applies to the mouse-emulation sibling"
+[[ ! -e $name_file ]] || fail "touchpad enable still clears persisted names"
+pass "touchpad enable toggles the mouse-emulation sibling"
+
+printf '%s\n' 'msft0001:00-093a:0255-touchpad' 'msft0001:00-093a:0255-mouse' >"$name_file"
+: >"$log_file"
+HYPRCTL_DEVICES_FAIL=1 run_toggle touchpad on
+grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-touchpad", enabled = true })' "$log_file" >/dev/null ||
+  fail "touchpad enable restores the saved touchpad when the devices query fails"
+grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-mouse", enabled = true })' "$log_file" >/dev/null ||
+  fail "touchpad enable restores the saved mouse sibling when the devices query fails"
+[[ ! -e $name_file ]] || fail "touchpad enable still clears persisted names when the devices query fails"
+pass "touchpad enable restores saved siblings when the devices query fails"
+
+# An IPC failure must retain the saved pair for a later on/toggle, and must not
+# report success. Try both failure positions to ensure every name is attempted.
+for failed_name in msft0001:00-093a:0255-touchpad msft0001:00-093a:0255-mouse; do
+  printf '%s\n' 'msft0001:00-093a:0255-touchpad' 'msft0001:00-093a:0255-mouse' >"$name_file"
+  : >"$log_file"
+  : >"$osd_log"
+  if HYPRCTL_EVAL_FAIL_NAME="$failed_name" HYPRCTL_DEVICES_FAIL=1 run_toggle touchpad on >/dev/null 2>&1; then
+    fail "a failed saved-device restore reports failure"
+  fi
+  [[ $(<"$name_file") == $'msft0001:00-093a:0255-touchpad\nmsft0001:00-093a:0255-mouse' ]] ||
+    fail "a failed restore preserves the saved pair for retry"
+  for name in msft0001:00-093a:0255-touchpad msft0001:00-093a:0255-mouse; do
+    grep -Fx "hl.device({ name = \"$name\", enabled = true })" "$log_file" >/dev/null ||
+      fail "a failed restore still attempts each saved node" "$name"
+  done
+  [[ ! -s $osd_log ]] || fail "a failed restore does not announce that the touchpad is enabled"
+
+  : >"$log_file"
+  HYPRCTL_DEVICES_FAIL=1 run_toggle touchpad toggle
+  [[ ! -e $name_file ]] || fail "a successful retry clears the saved disable"
+  (( $(wc -l <"$log_file") == 2 )) || fail "the next toggle retries both saved restores"
+  if grep -Fq 'enabled = false' "$log_file"; then
+    fail "the next toggle must retry on rather than switch to off"
+  fi
+done
+pass "failed saved-device restores retain retry state and never announce success"
+
+printf '%s\n' 'msft0001:00-093a:0255-touchpad' 'msft0001:00-093a:0255-mouse' >"$name_file"
+: >"$log_file"
+HYPRCTL_DEVICES_FAIL=1 run_toggle touchpad off
+[[ $(<"$name_file") == $'msft0001:00-093a:0255-touchpad\nmsft0001:00-093a:0255-mouse' ]] ||
+  fail "a repeated disable keeps the saved sibling when the devices query fails" "$(<"$name_file")"
+pass "a repeated disable keeps the saved sibling when the devices query fails"
+
+# Switching the detected primary does not enable the previous pair. Keep its
+# names so reload mirrors the live disabled devices and on can restore both.
+HYPRCTL_DEVICES="$devices_json" run_toggle touchpad off
+stub_device touchpad 'elan-touchpad'
+cat >"$devices_json" <<'JSON'
+{"mice":[{"name":"elan-touchpad"},{"name":"elan-mouse"}]}
+JSON
+HYPRCTL_DEVICES="$devices_json" run_toggle touchpad off
+for name in elan-touchpad elan-mouse msft0001:00-093a:0255-touchpad msft0001:00-093a:0255-mouse; do
+  grep -Fx "$name" "$name_file" >/dev/null ||
+    fail "switching touchpads keeps every previously disabled node recoverable" "$name"
+done
+HOME="$home_dir" XDG_STATE_HOME="$xdg_decoy" OMARCHY_PATH="$ROOT" lua - <<'LUA'
+local seen = {}
+hl = { device = function(opts) seen[opts.name] = opts.enabled end }
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.toggles")
+for _, name in ipairs({"elan-touchpad", "elan-mouse", "msft0001:00-093a:0255-touchpad", "msft0001:00-093a:0255-mouse"}) do
+  assert(seen[name] == false, "reload preserves the existing disable for " .. name)
+end
+LUA
+pass "switching touchpads keeps both disabled pairs across reload"
+
+: >"$log_file"
+HYPRCTL_DEVICES="$devices_json" run_toggle touchpad on
+for name in elan-touchpad elan-mouse msft0001:00-093a:0255-touchpad msft0001:00-093a:0255-mouse; do
+  grep -Fx "hl.device({ name = \"$name\", enabled = true })" "$log_file" >/dev/null ||
+    fail "on restores both disabled touchpad pairs" "$name"
+done
+[[ ! -e $name_file ]] || fail "restoring both touchpad pairs clears the saved disable"
+pass "on restores both pairs after the detected touchpad changes"
+
+cat >"$stub_dir/omarchy-hw-touchpad" <<'EOF'
+#!/bin/bash
+exit 1
+EOF
+chmod +x "$stub_dir/omarchy-hw-touchpad"
+printf '%s\n' 'msft0001:00-093a:0255-touchpad' 'msft0001:00-093a:0255-mouse' >"$name_file"
+: >"$log_file"
+set +e
+run_toggle touchpad on >/dev/null 2>&1
+status=$?
+set -e
+(( status != 0 )) || fail "enable still reports a missing touchpad"
+grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-touchpad", enabled = true })' "$log_file" >/dev/null ||
+  fail "touchpad enable restores the saved touchpad when the device query fails"
+grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-mouse", enabled = true })' "$log_file" >/dev/null ||
+  fail "touchpad enable restores the saved mouse sibling when the device query fails"
+[[ ! -e $name_file ]] || fail "touchpad enable still clears persisted names when the device query fails"
+pass "touchpad enable restores saved names when the device query fails"
+
+printf '%s\n' 'msft0001:00-093a:0255-touchpad' 'msft0001:00-093a:0255-mouse' >"$name_file"
+HOME="$home_dir" XDG_STATE_HOME="$xdg_decoy" OMARCHY_PATH="$ROOT" lua - <<'LUA'
+local seen = {}
+hl = { device = function(opts) table.insert(seen, opts) end }
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.toggles")
+assert(#seen == 2, "reload disables every persisted sibling")
+assert(seen[1].name == "msft0001:00-093a:0255-touchpad")
+assert(seen[2].name == "msft0001:00-093a:0255-mouse")
+assert(seen[1].enabled == false and seen[2].enabled == false)
+LUA
+pass "Hyprland reload disables persisted touchpad siblings"
