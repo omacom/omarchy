@@ -27,7 +27,6 @@ BorderSurface {
   property int urgency: 1
   property double timestamp: 0
   property int cornerRadius: 0
-  property var actions: []
 
   // System monospace font injected by the container.
   property string fontFamily: ""
@@ -36,7 +35,6 @@ BorderSurface {
 
   signal closeRequested()
   signal cardClicked()
-  signal actionClicked(string identifier)
   // Prefer per-notification media/avatar data, then fall back to the app icon.
   // The `check` flag avoids Qt's missing-texture placeholder for unknown names.
   readonly property string smallIconSource: image.length > 0 ? image : iconSource(appIcon)
@@ -193,27 +191,6 @@ BorderSurface {
           wrapMode: Text.WordWrap
           elide: Text.ElideRight
           maximumLineCount: 3
-        }
-      }
-    }
-
-    Flow {
-      Layout.fillWidth: true
-      Layout.leftMargin: Style.space(12)
-      Layout.rightMargin: Style.space(12)
-      Layout.bottomMargin: visible ? Style.space(10) : 0
-      visible: root.actions.length > 0
-      spacing: Style.space(8)
-
-      Repeater {
-        model: root.actions
-        delegate: Button {
-          required property var modelData
-          text: modelData.text
-          bordered: true
-          foreground: Color.notifications.text
-          fontFamily: root.fontFamily
-          onClicked: root.actionClicked(modelData.identifier)
         }
       }
     }

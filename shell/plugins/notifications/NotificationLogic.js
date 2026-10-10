@@ -185,12 +185,6 @@ function snapshotOf(notification, timestamp) {
   var id = n.id || 0
   var expireTimeout = Number(n.expireTimeout || 0)
   if (!isFinite(expireTimeout) || expireTimeout < 0) expireTimeout = 0
-  var actions = []
-  for (var i = 0; n.actions && i < n.actions.length; i++) {
-    var action = n.actions[i]
-    if (action && action.identifier && action.identifier !== "default")
-      actions.push({ identifier: String(action.identifier), text: String(action.text || action.identifier) })
-  }
   return {
     id: id,
     originalId: id,
@@ -201,7 +195,6 @@ function snapshotOf(notification, timestamp) {
     image: n.image || "",
     glyph: glyphFromHints(n.hints),
     execArgv: execArgvFromHints(n.hints),
-    actionsJson: JSON.stringify(actions),
     urgency: n.urgency,
     expireTimeout: expireTimeout,
     timestamp: timestamp === undefined ? Date.now() : timestamp
@@ -210,7 +203,7 @@ function snapshotOf(notification, timestamp) {
 
 // Everything the popup card draws, and therefore everything an in-place
 // update has to write through to the row and its file.
-var POPUP_ROLES = ["app", "appIcon", "summary", "body", "image", "glyph", "execArgv", "actionsJson", "urgency", "expireTimeout"]
+var POPUP_ROLES = ["app", "appIcon", "summary", "body", "image", "glyph", "execArgv", "urgency", "expireTimeout"]
 
 function popupRoles() {
   return POPUP_ROLES
@@ -270,8 +263,6 @@ function historyEntry(value, normalUrgency) {
     image: e.image || "",
     glyph: e.glyph || "",
     execArgv: e.execArgv || "",
-    // Libnotify actions belong to a live sender; never replay stale buttons.
-    actionsJson: "[]",
     urgency: typeof e.urgency === "number" ? e.urgency : normalUrgency,
     expireTimeout: 0,
     timestamp: e.timestamp || 0
