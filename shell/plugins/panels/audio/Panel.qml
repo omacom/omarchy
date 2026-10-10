@@ -180,6 +180,7 @@ Panel {
   // Single cursor model shared by keyboard and mouse. Sections:
   //   "output"  — output slider + sink device list
   //   "input"   — input slider + source device list
+  //   "microphone-test" — explicit microphone capture toggle
   //   "streams" — per-app playback streams
   // selectedIndex semantics within a section:
   //   -1            → on the slider row (h/l adjusts volume, m/Enter mute)
@@ -212,6 +213,7 @@ Panel {
   function sectionCount(section) {
     if (section === "output") return displayAudioSinks.length
     if (section === "input") return displayAudioSources.length
+    if (section === "microphone-test") return 1
     if (section === "streams") return displayAudioStreams.length
     return 0
   }
@@ -219,6 +221,7 @@ Panel {
   function sectionVisible(section) {
     if (section === "output") return true
     if (section === "input") return displayAudioSources.length > 0 || !!source
+    if (section === "microphone-test") return hasInput
     if (section === "streams") return displayAudioStreams.length > 0
     return false
   }
@@ -235,6 +238,7 @@ Panel {
     var list = []
     if (sectionVisible("output")) list.push("output")
     if (sectionVisible("input")) list.push("input")
+    if (sectionVisible("microphone-test")) list.push("microphone-test")
     if (sectionVisible("streams")) list.push("streams")
     return list
   }
@@ -315,6 +319,7 @@ Panel {
   // Enter/Space: activate whatever the cursor is on.
   function activateCursor() {
     if (focusSection === "header") { toggleAllMuted(); return }
+    if (focusSection === "microphone-test") { microphoneTest.toggle(); return }
     if (focusSection === "output") {
       if (selectedIndex === -1) { toggleOutputMute(); return }
       var sink = nodeFor(displayAudioSinks[selectedIndex])
@@ -633,6 +638,12 @@ Panel {
     enabled: root.opened && !!root.inputPeakNode
   }
 
+  MicrophoneTest {
+    id: microphoneTest
+    target: root.source ? String(root.source.name || "") : ""
+    available: root.opened
+  }
+
   Process {
     id: sinkAvailabilityProc
     command: ["omarchy-audio-sink-availability"]
@@ -739,7 +750,7 @@ Panel {
               && root.selectedIndex < root.displayAudioStreams.length) {
             var s = root.nodeFor(root.displayAudioStreams[root.selectedIndex])
             if (s && s.audio) s.audio.muted = !s.audio.muted
-          } else if (root.focusSection === "input") {
+          } else if (root.focusSection === "input" || root.focusSection === "microphone-test") {
             root.toggleInputMute()
           } else {
             root.toggleOutputMute()
@@ -1035,6 +1046,52 @@ Panel {
                 node: root.nodeFor(modelData)
                 rowIndex: index
               }
+            }
+
+            CursorSurface {
+              id: microphoneTestRow
+              visible: root.hasInput
+              width: parent.width
+              implicitHeight: microphoneTestLabel.implicitHeight + Style.spacing.xl
+              hasCursor: root.cursorActive && root.focusSection === "microphone-test"
+              onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(microphoneTestRow)
+              current: microphoneTest.running
+              foreground: root.bar.foreground
+
+              Text {
+                id: microphoneTestLabel
+                textFormat: Text.PlainText
+                text: microphoneTest.running ? "Stop microphone test" : "Test microphone"
+                anchors.centerIn: parent
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.body
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onContainsMouseChanged: if (containsMouse) {
+                  root.cursorActive = true
+                  root.focusSection = "microphone-test"
+                  root.selectedIndex = 0
+                }
+                onClicked: microphoneTest.toggle()
+              }
+            }
+
+            Text {
+              visible: root.hasInput
+              width: parent.width
+              textFormat: Text.PlainText
+              text: microphoneTest.error || (microphoneTest.running
+                ? "Speak to check the meter. Stops after 30 seconds."
+                : "Test your input without saving audio.")
+              wrapMode: Text.WordWrap
+              color: Qt.darker(root.bar.foreground, 1.4)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
             }
           }
 
