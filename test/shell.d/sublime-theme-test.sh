@@ -52,11 +52,20 @@ compgen -G "$preferences.bak.*" >/dev/null || fail "installer backs up existing 
 pass "Sublime installer keeps existing settings and applies Omarchy defaults"
 
 printf '{"name":"second"}\n' >"$source_scheme"
-HOME="$home" bash "$ROOT/bin/omarchy-theme-set-sublime" || fail "Sublime theme sync succeeds"
+HOME="$home" PATH="$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set-sublime" || fail "Sublime theme sync succeeds"
 cmp -s "$source_scheme" "$user_package/Omarchy.sublime-color-scheme" || fail "theme sync updates the scheme"
 [[ ! -L $user_package/Omarchy.sublime-color-scheme ]] || fail "theme sync writes a real file"
 
 pass "Sublime theme sync replaces the scheme without a symlink"
+
+mkdir -p "$home/.local/state/omarchy/toggles"
+touch "$home/.local/state/omarchy/toggles/skip-sublime-theme-changes"
+printf '{"name":"skipped"}\n' >"$source_scheme"
+HOME="$home" PATH="$ROOT/bin:$PATH" bash "$ROOT/bin/omarchy-theme-set-sublime" || fail "skipped Sublime theme sync succeeds"
+grep -q '"second"' "$user_package/Omarchy.sublime-color-scheme" || fail "skip-sublime-theme-changes keeps the current scheme"
+rm "$home/.local/state/omarchy/toggles/skip-sublime-theme-changes"
+
+pass "Sublime theme sync honors skip-sublime-theme-changes"
 
 fresh_home="$test_tmp/fresh"
 mkdir -p "$fresh_home/.local/state/omarchy/current/theme"
