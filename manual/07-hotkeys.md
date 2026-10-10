@@ -301,7 +301,8 @@ Ghostty terminal is installed using _Install > Terminal_ via the Omarchy menu.
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Go to path                     |
 | `Space`               | Preview file (arrows navigate) |
-| `Backspace`      | Go back one folder             |
+| `Alt + Up`            | Go to parent folder            |
+| `Alt + Left`          | Go back                        |
 
 ## Neovim (w/ lazyvim)
 
