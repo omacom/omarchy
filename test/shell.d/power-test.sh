@@ -26,6 +26,15 @@ assertEqual(power.batteryFraction({ isPresent: true, percentage: 1.5 }), 1, 'pow
 assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.PendingCharge }, false, states), 'power detects threshold by pending charge state')
 assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0.1, timeToFull: 120 }, false, states), 'power detects threshold by stalled charging')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, false, states), 'power does not flag active charging as threshold')
+const slowCharge = { isPresent: true, percentage: 0.34, state: states.Charging, changeRate: 2.191, timeToFull: 41783 }
+assert(!power.chargeThresholdActive(slowCharge, false, states), 'power does not flag measured charging with a long estimate as threshold')
+assertEqual(power.modeLabel(slowCharge, false, states), 'Charging', 'power labels slow charging with a long estimate as charging')
+assertEqual(
+  power.batteryIcon(slowCharge, false, states),
+  '󰂈',
+  'power shows the charging icon when the time-to-full estimate is long'
+)
+assert(!power.chargeThresholdActive({ ...slowCharge, timeToFull: 8 * 60 * 60 }, false, states), 'power does not infer a threshold at the eight-hour estimate boundary')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'power does not flag discharging as threshold')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 1, state: states.FullyCharged }, false, states), 'Fully charged', 'power labels full battery')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 0.5, state: states.Discharging }, true, states), 'On battery', 'power labels battery mode')
