@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# omarchy:summary=Refine OCR text via a configured OCR refine service (no-op without one)
+# omarchy:group=capture
+# omarchy:examples=echo text | omarchy capture text-refine
+# omarchy:hidden=true
+
+# Stdin: raw OCR text. Stdout: refined text, or nothing (then the caller keeps
+# the raw text). Exit 0 even when nothing is configured — this helper is a
+# pass-through hook, not a dependency.
+
+# Refine service contract (asymmetric OCR):
+#   OMARCHY_OCR_REFINE_URL   full POST endpoint accepting JSON
+#                            {"text": "<raw ocr text>"} and answering with
+#                            cleaned text: either a JSON object
+#                            {"text": "<cleaned text>"} or a raw text body
+#   OMARCHY_OCR_REFINE_KEY   optional bearer token sent as Authorization
+#   OMARCHY_OCR_REFINE_TIMEOUT   seconds, default 60
+#
+# The endpoint can wrap any engine pair (e.g. RapidOCR + PaddleOCR) and an
+# LLM cleanup pass — local or hosted, anything that speaks this contract.
+# Rejection rules keep a broken service from degrading the keybind: unset or
+# empty URL -> silent no-op (stock tesseract text ships untouched); HTTP
+# errors, redirects, timeouts and non-string JSON answers -> treated as
+# "no refinement", never as text.
+
+REFINE_URL="${OMARCHY_OCR_REFINE_URL:-}"
+[[ -z $REFINE_URL ]] && exit 0
+
+TEXT=$(cat)
+[[ -z $TEXT ]] && exit 0
+
+TIMEOUT="${OMARCHY_OCR_REFINE_TIMEOUT:-60}"
+
+BODY=$(printf '%s' "$TEXT" | python3 -c 'import json,sys
+print(json.dumps({"text": sys.stdin.read()}))') || exit 0
+
+AUTH=()
+[[ -n ${OMARCHY_OCR_REFINE_KEY:-} ]] && AUTH=(-H "Authorization: Bearer $OMARCHY_OCR_REFINE_KEY")
+
+# Write the HTTP status after the body separated by a newline (-w), then
+# accept the body only on a 2xx status. This rejects 4xx/5xx (error bodies
+# like {"text":"Service unavailable"}) AND redirects (301/302 serving an HTML
+# page) — neither can ever become clipboard text. Following redirects to
+# another origin would also leak the bearer token, so they are treated as
+# failure by design.
+RAW=$(curl -s --max-time "$TIMEOUT" -X POST "$REFINE_URL" \
+  -H 'Content-Type: application/json' \
+  "${AUTH[@]}" \
+  --data-binary "$BODY" \
+  -w '\n%{http_code}') || exit 0
+
+STATUS=${RAW##*$'\n'}
+RESPONSE=${RAW%$'\n'*}
+[[ $STATUS =~ ^2[0-9][0-9]$ ]] || exit 0
+
+[[ -z $RESPONSE ]] && exit 0
+
+# Accept both contract forms: JSON {"text": "<string>"} or a raw text body.
+# Non-string JSON values are rejected — a malformed answer must not become
+# OCR text.
+CLEANED=$(printf '%s' "$RESPONSE" | python3 -c 'import json,sys
+raw = sys.stdin.read()
+try:
+    d = json.loads(raw)
+except Exception:
+    # Not JSON: documented raw text contract.
+    print(raw)
+    sys.exit(0)
+if isinstance(d, dict):
+    t = d.get("text")
+    print(t if isinstance(t, str) else "")
+') || exit 0
+
+printf '%s' "$CLEANED"

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Extract text from a screenshot region with OCR
+# omarchy:summary=Extract text from a screenshot region with OCR, upgraded by an OCR refine service when one is configured
 # omarchy:group=capture
 # omarchy:examples=omarchy capture text
 
@@ -18,9 +18,18 @@ SELECTION=$(slurp 2>/dev/null)
 
 [[ -z $SELECTION ]] && exit 0
 
+# Asymmetric OCR: the stock single-pass tesseract result is ALWAYS produced
+# (never slower, never dependent on anything beyond the default package set),
+# and is then REPLACED only when the user configured a refine service that
+# returns better text. Everything degrades silently back to tesseract.
 TEXT=$(grim -g "$SELECTION" - | tesseract stdin stdout --oem 1 --psm 6 -l "${OMARCHY_OCR_LANGS:-eng}" --dpi 300 -c preserve_interword_spaces=1 2>/dev/null) || exit 1
 
 [[ -z $TEXT ]] && exit 1
 
-printf "%s" "$TEXT" | wl-copy
+REFINED=$(printf '%s' "$TEXT" | omarchy-capture-text-refine 2>/dev/null)
+if [[ -n $REFINED ]]; then
+  TEXT=$REFINED
+fi
+
+printf "%s" "$TEXT" | wl-copy 9>&- >/dev/null 2>&1
 omarchy-notification-send -g 󰴑 "Copied text from selection to clipboard"
