@@ -32,7 +32,8 @@ trap 'rm -f "$CALL_LOG.inhibited"' EXIT
 "$@"
 SH
 
-for command in omarchy-state omarchy-hyprland-window-close-all omarchy-osd omarchy-notification-send sleep systemctl; do
+# Keep the logout backend stubbed too, so a regression cannot stop the session.
+for command in omarchy-state omarchy-hyprland-window-close-all omarchy-osd omarchy-notification-send sleep systemctl uwsm; do
   cat >"$mock_bin/$command" <<'SH'
 #!/bin/bash
 
@@ -126,7 +127,16 @@ done
 [[ -f $CALL_LOG.close-finished && ! -f $CALL_LOG.close-timeout ]] || fail "poweroff releases the blocked window helper before its timeout"
 pass "blocked window closing cannot delay poweroff"
 
-for action in reboot shutdown; do
+run_power_command logout
+printf '%s\n' \
+  'systemd-run --user --collect --quiet --on-active=2s --timer-property=AccuracySec=100ms uwsm stop' \
+  'omarchy-osd -i logout -m Logging out -d 5000' \
+  'omarchy-hyprland-window-close-all ' \
+  'sleep 1' >"$test_tmp/logout-expected.log"
+diff -u "$test_tmp/logout-expected.log" "$call_log" || fail "logout runs after being scheduled outside the terminal scope"
+pass "logout runs after being scheduled outside the terminal scope"
+
+for action in reboot shutdown logout; do
   : >"$call_log"
   if FAIL_SYSTEMD_RUN=true "$ROOT/bin/omarchy-system-$action"; then
     fail "$action aborts when scheduling fails"
