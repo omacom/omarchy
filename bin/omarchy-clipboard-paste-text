@@ -2,13 +2,14 @@
 
 # omarchy:summary=Copy text to the clipboard and type or paste it
 # omarchy:group=clipboard
-# omarchy:args=[--shift-insert] [--copy-only] [--history-index <index>|<text>]
+# omarchy:args=[--shift-insert] [--copy-only] [--history-index <index>|--history-id <id>|<text>]
 # omarchy:examples=omarchy clipboard paste text "hello" | omarchy clipboard paste text --shift-insert "hello"
 # omarchy:hidden=true
 
 use_shift_insert=false
 copy_only=false
 history_index=""
+history_id=""
 text=""
 
 while (( $# > 0 )); do
@@ -22,7 +23,13 @@ while (( $# > 0 )); do
       shift
       ;;
     --history-index)
+      (( $# >= 2 )) && [[ $2 =~ ^[0-9]+$ ]] || exit 1
       history_index="${2:-}"
+      shift 2
+      ;;
+    --history-id)
+      (( $# >= 2 )) && [[ $2 =~ ^[0-9a-f]{64}$ ]] || exit 1
+      history_id="${2:-}"
       shift 2
       ;;
     *)
@@ -32,22 +39,26 @@ while (( $# > 0 )); do
 done
 
 copy_history_entry() {
-  local history_path="$HOME/.local/state/omarchy/clipboard-history.json"
-
-  [[ $history_index =~ ^[0-9]+$ ]] || exit
-  jq -e --argjson index "$history_index" '.[$index].type == "text" and (.[$index].text | type == "string")' "$history_path" >/dev/null || exit
-  jq -j --argjson index "$history_index" '.[$index].text' "$history_path" | wl-copy
+  if [[ -n $history_id ]]; then
+    [[ $history_id =~ ^[0-9a-f]{64}$ ]] || return 1
+    # Read once: a capture may shift indexes between checking and copying.
+    # A missing/evicted identity must not replace the current clipboard.
+    python3 "$OMARCHY_PATH/shell/plugins/clipboard/storage.py" copy "$history_id" text
+  else
+    [[ $history_index =~ ^[0-9]+$ ]] || return 1
+    python3 "$OMARCHY_PATH/shell/plugins/clipboard/storage.py" copy-index "$history_index" text
+  fi
 }
 
-if [[ -n $history_index ]]; then
-  copy_history_entry
+if [[ -n $history_index || -n $history_id ]]; then
+  copy_history_entry || exit 1
   if [[ $copy_only != "true" ]]; then
     use_shift_insert=true
   fi
 else
   text=${1:-}
   [[ -n $text ]] || exit
-  printf '%s' "$text" | wl-copy
+  printf '%s' "$text" | wl-copy || exit 1
 fi
 
 if [[ $copy_only == "true" ]]; then

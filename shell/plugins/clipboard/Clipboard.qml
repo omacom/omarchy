@@ -18,8 +18,12 @@ Item {
   property bool clearConfirmOpen: false
   property var history: []
 
-  property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
+  property string storageScript: root.omarchyPath + "/shell/plugins/clipboard/storage.py"
+  property bool storageBlocked: false
+  property bool storageReloadPending: false
+  property bool storageMutationPending: false
+  property var storageOperations: []
   // Shares the [menu] surface tokens — themes that style the menu also
   // style the clipboard. Selected-row colors composed in the
   // singleton so consumers drop them straight into Rectangle bindings.
@@ -68,30 +72,52 @@ Item {
     return ClipboardHistory.entryKey(entry)
   }
 
-  function loadHistory(raw) {
-    root.history = ClipboardHistory.parseHistory(raw)
-    if (root.opened) root.rebuildDisplay()
+  function requestStorage(action, entry) {
+    if (action === "load") {
+      root.storageReloadPending = true
+    } else {
+      // Serialize user mutations; remove by identity rather than an index that
+      // a concurrent capture could have shifted before storage receives it.
+      if (root.storageMutationPending) return
+      root.storageMutationPending = true
+      root.storageOperations.push({ action: action, entry: entry })
+    }
+    root.runStorage()
   }
 
-  function saveHistory() {
-    historyFile.setText(JSON.stringify(root.history.slice(0, root.historyLimit), null, 2) + "\n")
+  function runStorage() {
+    if (storageProc.running) return
+    if (root.storageOperations.length > 0) {
+      storageProc.request = root.storageOperations.shift()
+    } else if (root.storageReloadPending) {
+      root.storageReloadPending = false
+      storageProc.request = { action: "load" }
+    } else {
+      return
+    }
+    storageProc.running = true
   }
 
-  function addClipboardEntry(entry) {
-    var normalized = ClipboardHistory.normalizeEntry(entry)
-    if (!normalized) return
-
-    root.history = ClipboardHistory.addEntry(root.history, normalized, root.historyLimit)
-    root.saveHistory()
-    if (root.opened) root.rebuildDisplay()
+  function acceptStorage(raw) {
+    try {
+      var result = JSON.parse(raw)
+      if (!Array.isArray(result.history)) return
+      root.storageBlocked = result.blocked === true
+      root.history = result.history
+      if (root.opened) root.rebuildDisplay()
+    } catch (error) {
+      console.warn("Clipboard history storage did not return a valid response")
+    }
   }
 
   function addClipboardJson(line) {
-    root.addClipboardEntry(ClipboardHistory.parseEntryJson(line))
+    // Capture has already committed the complete entry. Load the authoritative
+    // bounded list instead of serializing the whole history on the UI thread.
+    if (line.length > 0) root.requestStorage("load")
   }
 
   function requestClearHistory() {
-    if (root.history.length === 0) return
+    if ((root.history.length === 0 && !root.storageBlocked) || root.storageMutationPending) return
     clearConfirm.selectedIndex = 1
     root.clearConfirmOpen = true
   }
@@ -103,8 +129,7 @@ Item {
   }
 
   function confirmClearHistory() {
-    root.history = ClipboardHistory.clearHistory()
-    root.saveHistory()
+    root.requestStorage("clear")
     root.selectedIndex = 0
     root.cursorActive = false
     root.disarmPointer()
@@ -117,8 +142,7 @@ Item {
     if (index < 0 || index >= displayModel.count) return
 
     var row = displayModel.get(index)
-    root.history = ClipboardHistory.removeEntryAt(root.history, row.historyIndex)
-    root.saveHistory()
+    root.requestStorage("remove", root.history[row.historyIndex])
 
     if (displayModel.count <= 1) {
       root.selectedIndex = 0
@@ -214,32 +238,35 @@ Item {
   }
 
   function applySelected(row) {
-    if (!row) return
+    if (!row || root.storageMutationPending) return
     root.opened = false
     if (row.entryType === "image") {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", row.mime, row.path])
+      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", "--history-id", root.history[row.historyIndex].id])
     } else if (row.fullText) {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-index", String(row.historyIndex)])
+      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-id", root.history[row.historyIndex].id])
     }
   }
 
   function copySelected(row) {
-    if (!row) return
+    if (!row || root.storageMutationPending) return
     root.opened = false
     if (row.entryType === "image") {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", "--copy-only", row.mime, row.path])
+      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", "--copy-only", "--history-id", root.history[row.historyIndex].id])
     } else if (row.fullText) {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--copy-only", "--history-index", String(row.historyIndex)])
+      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--copy-only", "--history-id", root.history[row.historyIndex].id])
     }
   }
 
   function openSelected(row) {
-    if (!row) return
+    if (!row || root.storageMutationPending) return
     root.opened = false
-    Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-open", "--history-index", String(row.historyIndex)])
+    Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-open", "--history-id", root.history[row.historyIndex].id])
   }
 
-  Component.onCompleted: initProc.running = true
+  Component.onCompleted: {
+    root.requestStorage("load")
+    initProc.running = true
+  }
 
   ListModel { id: displayModel }
 
@@ -248,15 +275,22 @@ Item {
     referenceItem: card
   }
 
-  FileView {
-    id: historyFile
-    path: root.historyPath
-    watchChanges: true
-    atomicWrites: true
-    printErrors: false
-    onLoaded: root.loadHistory(text())
-    onLoadFailed: root.loadHistory("[]")
-    onFileChanged: reload()
+  // The helper checks the file size before reading and parses it outside the
+  // shell. A legacy oversized file never reaches FileView or the UI thread.
+  Process {
+    id: storageProc
+    property var request: ({ action: "load" })
+    command: ["timeout", "--kill-after=0.2s", "5s", "python3", root.storageScript, "apply"]
+    stdinEnabled: true
+    onStarted: write(JSON.stringify(request) + "\n")
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.acceptStorage(text)
+    }
+    onExited: {
+      if (request.action !== "load") root.storageMutationPending = false
+      Qt.callLater(root.runStorage)
+    }
   }
 
   // Reap watchers left behind by a previous shell instance, then start our
@@ -491,6 +525,7 @@ Item {
                       width: visible ? parent.height : 0
                       height: parent.height
                       source: parent.parent.previewImage
+                      sourceSize: Qt.size(Math.ceil(width), Math.ceil(height))
                       fillMode: Image.PreserveAspectFit
                       asynchronous: true
                       smooth: true
@@ -568,6 +603,7 @@ Item {
                 anchors.topMargin: 0
                 anchors.bottomMargin: 0
                 source: parent.activeRow ? parent.activeRow.previewImage : ""
+                sourceSize: Qt.size(Math.ceil(width), Math.ceil(height))
                 fillMode: Image.PreserveAspectFit
                 verticalAlignment: Image.AlignTop
                 asynchronous: true
