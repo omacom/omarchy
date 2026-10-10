@@ -10,6 +10,24 @@ function normalizeAliases(value) {
   return []
 }
 
+// A provider is either the name of one the shell defines or an extension's own
+// object: a `command` printing `label\tvalue\tcurrent\tdescription` lines and
+// an `action` run with `{value}` replaced by the chosen row's quoted value.
+// Anything else is dropped rather than leaving a submenu that can never fill.
+function normalizeProvider(value) {
+  if (typeof value === "string") return value
+  if (!value || typeof value !== "object") return ""
+  if (typeof value.command !== "string" || !value.command.trim()) return ""
+  if (typeof value.action !== "string" || value.action.indexOf("{value}") < 0) return ""
+
+  return {
+    command: value.command,
+    action: value.action,
+    icon: typeof value.icon === "string" ? value.icon : "",
+    volatile: value.volatile === true
+  }
+}
+
 function normalizeItem(id, raw) {
   var value = raw || {}
   var aliases = normalizeAliases(value.aliases)
@@ -31,7 +49,7 @@ function normalizeItem(id, raw) {
     target: value.target || "",
     description: value.description || "",
     action: value.action || "",
-    provider: value.provider || "",
+    provider: normalizeProvider(value.provider),
     aliases: aliases,
     when: value.when || "",
     checked: value.checked || "",
@@ -162,6 +180,72 @@ function swapProviderRows(items, itemOrder, menuId, rows) {
   }
 
   return { items: nextItems, itemOrder: nextOrder }
+}
+
+// Drops every row the listed submenus' providers contributed. Opening the menu
+// clears volatile lists this way before they run again, so a search cannot
+// match, and run, a row from the last time the menu was open.
+function clearProviderRows(items, itemOrder, menuIds) {
+  var cleared = { items: items, itemOrder: itemOrder }
+  var ids = Array.isArray(menuIds) ? menuIds : []
+  for (var i = 0; i < ids.length; i++)
+    cleared = swapProviderRows(cleared.items, cleared.itemOrder, ids[i], [])
+  return cleared
+}
+
+// Matches Util.shellQuote, which this pure-JS model cannot import.
+function shellQuote(value) {
+  return "'" + String(value || "").replace(/'/g, "'\\''") + "'"
+}
+
+// An extension provider's action with every {value} replaced by the row's
+// value, quoted, so a value can never break out of the command.
+function providerAction(template, value) {
+  return String(template || "").split("{value}").join(shellQuote(value))
+}
+
+// Turns a provider's output, one `label\tvalue\tcurrent\tdescription` line per
+// row, into menu rows under `menuId`. `spec.actionFor(value)` builds each
+// row's command, and the row whose value equals `current` gets the ✓ icon.
+function providerRows(menuId, output, spec) {
+  var lines = String(output || "").split("\n")
+  var rows = []
+  var takenIds = ({})
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim()
+    if (!line) continue
+    var parts = line.split("\t")
+    var label = parts[0] || ""
+    var value = parts[1] || parts[0] || ""
+    var current = parts[2] || ""
+    var description = parts[3] || ""
+    if (!label) continue
+    // Distinct values can slugify alike — Fira Code and Fira-Code both give
+    // fira-code — and a repeated id is dropped, which would silently lose a
+    // row from the list. Nudge it until it is the row's own.
+    var rowId = menuId + "." + slugify(value)
+    while (takenIds[rowId]) rowId += "-"
+    takenIds[rowId] = true
+
+    rows.push({
+      id: rowId,
+      parent: menuId,
+      kind: "action",
+      icon: (value === current) ? "✓" : (spec.icon || ""),
+      label: label,
+      title: "",
+      target: "",
+      description: description,
+      action: spec.actionFor(value),
+      provider: "",
+      aliases: [],
+      when: "",
+      checked: "",
+      disabled: "",
+      order: 0
+    })
+  }
+  return rows
 }
 
 function item(items, id) {
@@ -378,7 +462,9 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
     path: pathFor(items, entry.id),
     childCount: (entry.kind === "menu" || entry.kind === "link") ? childCount(items, itemOrder, target) : 0,
     action: entry.action || "",
-    provider: entry.provider || "",
+    // The display model's roles are typed, so an extension's provider object
+    // is shown as a marker string rather than breaking the row's insertion.
+    provider: typeof entry.provider === "string" ? entry.provider : (entry.provider ? "extension" : ""),
     score: score || 0,
     section: section || ""
   }
@@ -513,6 +599,9 @@ if (typeof module !== "undefined") {
     mergeMenuSources: mergeMenuSources,
     mergeAppRows: mergeAppRows,
     swapProviderRows: swapProviderRows,
+    clearProviderRows: clearProviderRows,
+    providerAction: providerAction,
+    providerRows: providerRows,
     item: item,
     resolveRoute: resolveRoute,
     slugify: slugify,

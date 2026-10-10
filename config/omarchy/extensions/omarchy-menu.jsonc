@@ -10,7 +10,8 @@
   //   label       Visible row title.
   //   action      Shell command to run. If omitted, the row is a submenu.
   //   target      Existing submenu id to open. Use for links/aliases.
-  //   provider    Name of a shell-defined runtime row source (e.g. "fonts").
+  //   provider    Runtime row source: a shell-defined name (e.g. "fonts"), or
+  //               {"command","action","icon","volatile"} for rows of your own.
   //   aliases     alternate `omarchy menu summon <name>` routes; also searchable.
   //   description Optional subtitle and extra search text.
   //   when        Shell condition; hide row when it fails.
@@ -21,8 +22,14 @@
   // "personal.notes": {"icon":"󰎞","label":"Notes","action":"omarchy-launch-editor ~/notes"},
   // "personal.files": {"icon":"","label":"Files","action":"uwsm-app -- nautilus ~/Documents"},
   //
-  // provider can only reference row sources the shell already defines (the
-  // providers map in Menu.qml). Static submenus only need dotted ids.
+  // A provider object's command prints one row per line,
+  // label<TAB>value<TAB>current<TAB>description, and selecting a row runs its
+  // action with {value} replaced by the row's value, already shell-quoted. Use
+  // {value} bare, never inside quotes: "focus-tab {value}" is right, but
+  // "focus-tab '{value}'" lets a value with spaces or $(...) run as shell. With
+  // "volatile": true the rows are listed again each time the menu opens.
+  // Static submenus only need dotted ids.
+  // "notes": {"icon":"󰎞","label":"Notes","provider":{"command":"ls ~/notes","action":"omarchy-launch-editor ~/notes/{value}","volatile":true}},
   //
   // Example: replace the default About action by reusing the same id. Existing
   // fields are kept unless overridden.
