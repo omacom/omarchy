@@ -352,7 +352,7 @@ function parseSum(state) {
 }
 
 function parseProduct(state) {
-  var left = parsePower(state)
+  var left = parseUnary(state)
   if (left === null) return null
 
   for (;;) {
@@ -363,7 +363,7 @@ function parseProduct(state) {
     take(state)
     state.operators++
 
-    var right = parsePower(state)
+    var right = parseUnary(state)
     if (right === null) return null
 
     // Multiplied or divided, a percentage is simply its fraction: the operand
@@ -374,21 +374,9 @@ function parseProduct(state) {
   }
 }
 
-// Right associative, so 2^3^2 is 2^9 rather than 64.
-function parsePower(state) {
-  var base = parseUnary(state)
-  if (base === null) return null
-
-  var token = peek(state)
-  if (!token || token.type !== "^") return base
-  take(state)
-  state.operators++
-
-  var exponent = parsePower(state)
-  if (exponent === null) return null
-  return plain(Math.pow(fraction(base), fraction(exponent)))
-}
-
+// A sign sits below the power, so -2^2 is -(2^2) = -4 as written on paper;
+// (-2)^2 is how to ask for 4. The exponent starts over at this level, which is
+// what lets 2^-2 carry its own sign.
 function parseUnary(state) {
   var token = peek(state)
   if (token && (token.type === "-" || token.type === "+")) {
@@ -399,6 +387,25 @@ function parseUnary(state) {
     return { value: -operand.value, percent: operand.percent }
   }
 
+  return parsePower(state)
+}
+
+// Right associative, so 2^3^2 is 2^9 rather than 64.
+function parsePower(state) {
+  var base = parsePostfix(state)
+  if (base === null) return null
+
+  var token = peek(state)
+  if (!token || token.type !== "^") return base
+  take(state)
+  state.operators++
+
+  var exponent = parseUnary(state)
+  if (exponent === null) return null
+  return plain(Math.pow(fraction(base), fraction(exponent)))
+}
+
+function parsePostfix(state) {
   var value = parsePrimary(state)
   if (value === null) return null
 
