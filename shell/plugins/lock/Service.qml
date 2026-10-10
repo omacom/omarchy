@@ -624,6 +624,11 @@ Item {
     onTriggered: root.timeoutFingerprintReach()
   }
 
+  // Desktop apps are notified only after the compositor confirms a secure lock.
+  SessionLockBridge {
+    secure: sessionLock.secure
+  }
+
   Process {
     id: readlinkProc
     command: ["bash", "-c", "path=$(readlink -f -- \"$1\") && printf '%s\\n%s\\n' \"$path\" \"$(stat -Lc %Y:%s -- \"$path\" 2>/dev/null)\"", "_", root.currentBackgroundLink]
