@@ -232,7 +232,17 @@ test_write_failure_retains_retry() {
 }
 test_firmware_bypass_warns() {
   edit_inventory '.domains[0].SecurityLevel="none" | .devices[0] |= (.Status="authorized" | .AuthFlags="boot")'
-  tb_snapshot > "$T/result"; check '.warnings|length==2' "$T/result"; [[ ! -s $T/operations ]]
+  tb_snapshot > "$T/result"
+  check '.warnings|length==2' "$T/result"
+  check '[.warnings[] | select(contains("IOMMU DMA protection") and contains("cannot block") and (contains("Select user authorization") | not))] | length==1' "$T/result"
+  edit_inventory '.domains[0].IOMMU=false'
+  tb_snapshot > "$T/result"
+  check '.warnings|length==2' "$T/result"
+  check '[.warnings[] | select(contains("Select user authorization"))] | length==1' "$T/result"
+  edit_inventory 'del(.domains[0].IOMMU)'
+  tb_snapshot > "$T/result"
+  check '[.warnings[] | select(contains("Select user authorization"))] | length==1' "$T/result"
+  [[ ! -s $T/operations ]]
 }
 test_global_enable_not_protected() {
   edit_inventory '.manager.AuthMode="enabled"'

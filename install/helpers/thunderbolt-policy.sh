@@ -114,6 +114,9 @@ tb_snapshot() {
   inventory=$(tb_read_inventory) || return 1
   generation=$(< "$TB_RUNTIME/generation") || return 1
   [[ -f ${TB_STATE%/*}/boot-recovery.json ]] && recovery=true
+  # Security level none is a pre-driver bypass either way. IOMMU DMA protection
+  # makes the older firmware levels redundant, and some firmwares then omit
+  # them. Only a controller without that protection still has a level to select.
   jq -c --argjson state "$state" --arg generation "$generation" --argjson recovery "$recovery" \
     --arg error "${1:-}" --argjson time "$(date +%s)" "$TB_TRUST_JQ"'
     .owner as $owner |
@@ -128,7 +131,11 @@ tb_snapshot() {
      warnings: ([
        (if $recovery then "A firmware boot-access change needs recovery. Boot protection is not confirmed." else empty end),
        (.domains[] | if .SecurityLevel == "none" then
-         "This controller allows PCIe connections in firmware. Select user authorization in firmware settings; Omarchy cannot block its devices before their drivers load."
+         if .IOMMU == true then
+           "This controller allows PCIe connections in firmware, so Omarchy cannot block its devices before their drivers load. IOMMU DMA protection is already active and is not approval consent. This controller is not reporting a user or secure firmware security level."
+         else
+           "This controller allows PCIe connections in firmware. Select user authorization in firmware settings; Omarchy cannot block its devices before their drivers load."
+         end
          else empty end),
        (.domains[] | .SecurityLevel as $level | select(["none","user","secure","dponly","usbonly","nopcie"] | index($level) | not) |
          "The controller authorization mode could not be verified."),
