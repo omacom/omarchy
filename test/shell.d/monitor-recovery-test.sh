@@ -91,7 +91,7 @@ grep -F 'omarchy-hyprland-monitor-laptop' "$monitor_internal" >/dev/null
 grep -F 'hyprctl monitors all -j' "$monitor_laptop" >/dev/null
 grep -F 'omarchy-hyprland-monitor-external-active' "$monitor_internal" >/dev/null
 grep -F 'wake' "$monitor_internal" >/dev/null
-grep -F 'omarchy-hyprland-toggle-enabled $TOGGLE || return 0' "$monitor_internal" >/dev/null
+grep -F 'elif [[ ! -s $BACKLIGHT_STATE ]]; then' "$monitor_internal" >/dev/null
 pass "internal monitor helper can re-enable disabled laptop displays"
 pass "internal monitor recovery only wakes displays when it re-enables one"
 
