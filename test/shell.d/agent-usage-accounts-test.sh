@@ -16,6 +16,9 @@ export XDG_CACHE_HOME="$test_tmp/cache"
 export XDG_DATA_HOME="$test_tmp/data"
 unset CLAUDE_CONFIG_DIR CODEX_HOME
 
+primary_cache_key=$(python3 -c 'import hashlib, os; print(hashlib.sha1((os.environ["HOME"] + "/.claude").encode()).hexdigest()[:16])')
+primary_cache="$XDG_CACHE_HOME/omarchy/agent-usage/claude-limits-$primary_cache_key.json"
+
 accounts="$XDG_STATE_HOME/omarchy/agents/accounts"
 mkdir -p "$HOME/.claude/projects" "$HOME/.codex/sessions" "$accounts/claude/work" "$accounts/claude/old" "$accounts/codex/side"
 
@@ -87,7 +90,7 @@ pass "a lapsed account keeps its last-known limits and says why"
   fail "the record's own limits describe the active account" "$claude_record"
 pass "the record's own limits describe the active account"
 
-[[ -f $XDG_CACHE_HOME/omarchy/agent-usage/claude-limits.json && -f $XDG_CACHE_HOME/omarchy/agent-usage/claude-limits-u-work.json ]] ||
+[[ ! -f $XDG_CACHE_HOME/omarchy/agent-usage/claude-limits.json && -f $primary_cache && -f $XDG_CACHE_HOME/omarchy/agent-usage/claude-limits-u-work.json ]] ||
   fail "each account keeps its own limits cache, keyed by subscription"
 pass "each account keeps its own limits cache"
 
@@ -192,7 +195,7 @@ pass "a single account record is unchanged"
 # A failed probe falls back on hour-old numbers, and the record says so.
 hour_ago_ms=$(( ($(date +%s) - 3600) * 1000 ))
 jq -nc --arg open "$open_at" --argjson at "$hour_ago_ms" '{fetchedAtMs: $at, limits: [{label: "Session (5-hour)", percent: 0.42, resetsAt: $open}]}' \
-  >"$XDG_CACHE_HOME/omarchy/agent-usage/claude-limits.json"
+  >"$primary_cache"
 kept=$(COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" python3 - <<'PY'
 import importlib.machinery, importlib.util, os, sys
 
