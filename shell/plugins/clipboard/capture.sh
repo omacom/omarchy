@@ -6,13 +6,17 @@
 
 set -o pipefail
 
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
-IMAGE_DIR="$STATE_DIR/clipboard-images"
-mkdir -p "$IMAGE_DIR"
+storage_script="$(dirname -- "${BASH_SOURCE[0]}")/storage.py"
 
-types=$(timeout 2s wl-paste --list-types 2>/dev/null || true)
+[[ ${CLIPBOARD_STATE:-} == "sensitive" ]] && exit 0
+# A clear during type enumeration or payload transfer invalidates this event;
+# delayed producers must not repopulate history without a new copy.
+generation=$(python3 "$storage_script" begin)
+[[ $generation =~ ^[0-9a-f]{32}$ ]] || exit 0
+types=$(timeout --kill-after=0.1s 2s wl-paste --list-types 2>/dev/null | head -c 65537) || exit 0
+(( ${#types} <= 65536 )) || exit 0
 
-if [[ ${CLIPBOARD_STATE:-} == "sensitive" ]] || grep -qx 'x-kde-passwordManagerHint' <<<"$types"; then
+if grep -qx 'x-kde-passwordManagerHint' <<<"$types"; then
   exit 0
 fi
 
@@ -22,35 +26,37 @@ trap 'rm -f -- "$tmp"' EXIT
 # The clipboard owner streams the copy and can stall without closing its end, so
 # every read is bounded, and a copy cut off at the deadline is dropped, not kept.
 read_copy() {
-  timeout 2s "$@" >"$tmp" 2>/dev/null && [[ -s $tmp ]]
+  local limit=$1 status
+  shift
+  timeout --kill-after=0.1s 2s "$@" 2>/dev/null | head -c "$((limit + 1))" >"$tmp"
+  status=$?
+  if (( $(stat -c %s "$tmp") > limit )); then
+    local message="This copy exceeds the clipboard history size limit and was not recorded. The current clipboard is unchanged."
+    printf '%s\n' "$message" >&2
+    timeout --kill-after=0.1s 1s omarchy-notification-send "Clipboard history" "$message" >/dev/null 2>&1 || true
+    return 1
+  fi
+  (( status == 0 )) || return "$status"
+  [[ -s $tmp ]]
 }
 
 emit_image() {
   local mime="$1"
-  local ext hash file
   shift
 
-  ext=${mime#image/}
-  [[ $ext == jpeg ]] && ext=jpg
+  # The private staging file is bounded before hashing, decoding, or publishing.
+  # Storage publishes the image and history reference in one locked transaction.
+  tmp=$(mktemp --tmpdir="${XDG_RUNTIME_DIR:-/tmp}" omarchy-clipboard.XXXXXX) || return 0
+  read_copy 16777216 "$@" || return
 
-  tmp=$(mktemp --tmpdir="$IMAGE_DIR" clipboard.XXXXXX) || return 0
-  read_copy "$@" || return
-
-  hash=$(sha256sum "$tmp" | awk '{print $1}')
-  file="$IMAGE_DIR/$hash.$ext"
-  if [[ -e $file ]]; then
-    rm -f "$tmp"
-  else
-    mv "$tmp" "$file"
-  fi
-
-  jq -cn --arg mime "$mime" --arg path "$file" --arg captured_at "$(date +'%A %H:%M')" \
-    '{type:"image", mime:$mime, path:$path, capturedAt:$captured_at}'
+  python3 "$storage_script" image "$mime" "$(date +'%A %H:%M')" "$generation" <"$tmp"
 }
 
 emit_text() {
-  tmp=$(mktemp --tmpdir="$STATE_DIR" clipboard.XXXXXX) || return 0
-  read_copy "$@" || return
+  tmp=$(mktemp --tmpdir="${XDG_RUNTIME_DIR:-/tmp}" omarchy-clipboard.XXXXXX) || return 0
+  # Allow a UTF-16 representation plus its BOM; storage enforces 1 MiB after
+  # decoding to UTF-8. Rejected copies are never truncated into history.
+  read_copy 2097154 "$@" || return
 
   perl -MEncode=decode,FB_CROAK,LEAVE_SRC -MJSON::PP=encode_json -0777 -e '
     my $raw = <STDIN>;
@@ -95,7 +101,7 @@ emit_text() {
     }
     $text = decode("UTF-8", $raw) unless defined $text;
     print "{\"type\":\"text\",\"text\":", encode_json($text), "}\n";
-  ' <"$tmp"
+  ' <"$tmp" | python3 "$storage_script" add "$generation"
 }
 
 case "${1:-}" in

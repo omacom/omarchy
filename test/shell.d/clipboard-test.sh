@@ -3,6 +3,7 @@
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+export OMARCHY_PATH="$ROOT"
 
 run_node_test <<'JS'
 const fs = require('fs')
@@ -255,6 +256,7 @@ SH
 cat >"$TMPDIR/bin/wl-paste" <<'SH'
 #!/bin/bash
 if [[ $1 == "--list-types" ]]; then
+  [[ ${WL_PASTE_FAIL_TYPES:-0} == "1" ]] && exit 1
   [[ ${WL_PASTE_STALL:-} == "list-types" ]] && sleep 10
   printf '%b' "${WL_PASTE_TYPES:-text/plain\n}"
 elif [[ $1 == "--type" && $2 == "text" ]]; then
@@ -288,7 +290,12 @@ cat >"$TMPDIR/bin/omasnap" <<'SH'
 printf '%s\n' "$*" >"$OMASNAP_OUT"
 SH
 
-chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wl-paste" "$TMPDIR/bin/wtype" "$TMPDIR/bin/omarchy-launch-browser" "$TMPDIR/bin/omarchy-launch-editor" "$TMPDIR/bin/omasnap"
+cat >"$TMPDIR/bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+exit 0
+SH
+
+chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wl-paste" "$TMPDIR/bin/wtype" "$TMPDIR/bin/omarchy-launch-browser" "$TMPDIR/bin/omarchy-launch-editor" "$TMPDIR/bin/omasnap" "$TMPDIR/bin/omarchy-notification-send"
 
 capture_output=$(XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh")
 [[ $capture_output == '{"type":"text","text":"terminal copy"}' ]] || fail "clipboard capture records normal text events"
@@ -303,10 +310,12 @@ if capture_output=$(printf 'watched copy after stalled types' | WL_PASTE_STALL="
 else
   capture_status=$?
 fi
-[[ $capture_status -eq 0 ]] || fail "clipboard watched text survives a stalled type query" "capture exited with status $capture_status"
-[[ $capture_output == '{"type":"text","text":"watched copy after stalled types"}' ]] || fail "clipboard watched text remains intact after a stalled type query"
-pass "clipboard watched text survives a stalled type query"
-pass "clipboard watched text remains intact after a stalled type query"
+[[ $capture_status -eq 0 && -z $capture_output ]] || fail "clipboard skips capture when sensitivity markers cannot be checked" "capture exited with status $capture_status"
+pass "clipboard skips capture when sensitivity markers cannot be checked"
+
+capture_output=$(printf 'copy with unavailable types' | WL_PASTE_FAIL_TYPES=1 XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" text)
+[[ -z $capture_output ]] || fail "clipboard skips capture after a failed type query"
+pass "clipboard skips capture after a failed type query"
 
 if capture_output=$(WL_PASTE_STALL="text" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" timeout --preserve-status 4s "$ROOT/shell/plugins/clipboard/capture.sh"); then
   capture_status=0
@@ -556,6 +565,7 @@ BROWSER_OUT="$TMPDIR/browser" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 [[ $(<"$TMPDIR/browser") == "https://example.com/docs" ]] || fail "clipboard open helper opens URL entries in browser"
 pass "clipboard open helper opens URL entries in browser"
 
+cp "$TMPDIR/home/.local/state/omarchy/clipboard-history.json" "$TMPDIR/state/omarchy/clipboard-history.json"
 EDITOR_PATH_OUT="$TMPDIR/editor-path" EDITOR_TEXT_OUT="$TMPDIR/editor-text" HOME="$TMPDIR/home" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-open" --history-index 1
 
