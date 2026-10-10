@@ -98,10 +98,17 @@ assertEqual(network.connectionIcon('wifi', 80), network.wifiIconFor(80), 'networ
 // of flickering to disconnected.
 const kindBinding = panelSource.match(/readonly property string kind: \{[\s\S]*?\n {2}\}/)
 assert(kindBinding, 'network has a kind binding')
-assert(/if \(wifiDevice && wifiDevice\.connected\) return "wifi"/.test(kindBinding[0]), 'network keeps showing Wi-Fi while the device is connected but no network is listed as connected')
 assert(
-  kindBinding[0].indexOf('connectedWifiNetwork) return "wifi"') < kindBinding[0].indexOf('wifiDevice.connected) return "wifi"'),
+  /if \(wifiDevice && wifiDevice\.connected && wifiDevice\.mode !== WifiDeviceMode\.AccessPoint\) return "wifi"/.test(kindBinding[0]),
+  'network keeps showing Wi-Fi while the device is connected but no network is listed as connected'
+)
+assert(
+  kindBinding[0].indexOf('connectedWifiNetwork) return "wifi"') < kindBinding[0].indexOf('wifiDevice.connected && wifiDevice.mode !== WifiDeviceMode.AccessPoint) return "wifi"'),
   'network prefers the listed connected network before falling back to device state'
+)
+assert(
+  !/if \(wifiDevice && wifiDevice\.connected\) return "wifi"/.test(kindBinding[0]),
+  'network does not count a connected hotspot device as an uplink'
 )
 assertEqual(network.connectedSignalStrength(0.8, 40), 80, 'network prefers the connected network strength')
 assertEqual(network.connectedSignalStrength(0, 67), 67, 'network falls back to the in-use access point strength')
