@@ -71,6 +71,8 @@ ShellRoot {
 
   onShellConfigChanged: {
     if (failedBarId !== "") failedBarId = ""
+    var localeName = shellConfig && typeof shellConfig.locale === "string" ? shellConfig.locale.trim() : ""
+    Dates.localeName = localeName || "en_US"
     pluginRegistry.registryRevision++
     pluginRegistry.pluginsChanged()
   }
