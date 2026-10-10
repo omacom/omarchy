@@ -181,6 +181,8 @@ Rules:
 user `shell.json` exists, defaults are used verbatim. Once the user
 customizes, `shell.json` is canonical — there is no deep-merge.
 
+Shell-side mutations synchronously read the current user file rather than the asynchronously watched config. Invalid, empty or unreadable existing files are refused; only a missing file is initialized from defaults. Inline settings still replace the targeted entry with the caller's supplied settings; other entries and top-level keys are retained. The shell checks for edits made during the mutation and publishes its new in-memory config only after a successful atomic write. This prevents stale-cache overwrites, but does not serialize independent writers: a writer replacing the file after the final comparison can still race the shell write. CLI writers and manual editors do not currently participate in a shared lock protocol.
+
 `shell.json` is shell configuration; theme tokens live in `shell.toml`
 (next section). Both are current — they answer different questions. A
 machine-level `~/.config/omarchy/shell.toml` is watched live by the
