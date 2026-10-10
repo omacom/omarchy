@@ -282,6 +282,21 @@ const notification = {
   urgency: 1,
   expireTimeout: 1.5
 }
+assertEqual(
+  notifications.snapshotOf({ image: 'image://icon//tmp/.org.chromium.Chromium.x/icon.png' }, 1).image,
+  'file:///tmp/.org.chromium.Chromium.x/icon.png',
+  'notifications read a bare image-path (Chromium avatars) as a file'
+)
+assertEqual(
+  notifications.snapshotOf({ image: 'image://icon/avatar-default' }, 1).image,
+  'image://icon/avatar-default',
+  'notifications keep a themed image-path icon as an icon'
+)
+assertEqual(
+  notifications.persistablePopup(notifications.snapshotOf({ id: 3, image: 'image://icon//tmp/a/icon.png' }, 9), '/state/images/').entry.image,
+  'file:///state/images/9-3-image',
+  'notifications persist a copy of a bare image-path avatar'
+)
 const snapshot = notifications.snapshotOf(notification, 12345)
 assertDeepEqual(
   {

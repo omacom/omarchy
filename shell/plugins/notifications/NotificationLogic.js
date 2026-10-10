@@ -192,7 +192,9 @@ function snapshotOf(notification, timestamp) {
     appIcon: n.appIcon || "",
     summary: String(n.summary || ""),
     body: n.body || "",
-    image: n.image || "",
+    // Quickshell reads a bare path in image-path (how Chromium sends avatars)
+    // as an icon name, image://icon//tmp/…; it is a file.
+    image: String(n.image || "").replace(/^image:\/\/icon\/(?=\/)/, "file://"),
     glyph: glyphFromHints(n.hints),
     execArgv: execArgvFromHints(n.hints),
     urgency: n.urgency,
