@@ -195,6 +195,7 @@ assert(/anchorItem: root\.anchorItem/.test(panelSource), 'calendar panel anchors
 assert(/function toggleWeekStart\(\)/.test(panelSource), 'calendar panel exposes a week start toggle')
 assert(/function toggleWeekStart\(\): void \{ root\.toggleWeekStart\(\) \}/.test(widgetSource), 'clock exposes the week start toggle over IPC')
 assert(/precision: root\.showsSeconds \? SystemClock\.Seconds : SystemClock\.Minutes/.test(widgetSource), 'clock ticks per second only for a format that prints seconds')
+assert(/precision: root\.showsSeconds \? SystemClock\.Seconds : SystemClock\.Minutes/.test(panelSource), 'calendar panel ticks in lockstep with the bar clock')
 // Both halves of the tick, because either one alone can be true while the
 // label sits frozen: the precision must follow the format, and every tick
 // must reach the label.
