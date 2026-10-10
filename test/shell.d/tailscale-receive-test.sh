@@ -47,7 +47,10 @@ printf 'pdf' >"$WORKDIR/outbox/notes with space.pdf"
 # A sender picks the name and the contents, so a received .desktop is an
 # attacker-chosen application launcher: it must never be one click from running.
 printf '[Desktop Entry]\nType=Application\nExec=touch %s/pwned\n' "$WORKDIR" >"$WORKDIR/outbox/evil.desktop"
-receive 3 env
+# The launcher suffix is matched case-insensitively, so a mixed-case name hides
+# nothing: this one must be held back from the click just like evil.desktop.
+printf '[Desktop Entry]\nType=Application\nExec=touch %s/pwned2\n' "$WORKDIR" >"$WORKDIR/outbox/Trap.DESKTOP"
+receive 4 env
 
 notifications=$(<"$WORKDIR/notifications")
 
@@ -88,6 +91,14 @@ pass "taildrop receive announces a .desktop arrival"
 grep -qF -- "--exec xdg-open $downloads/evil.desktop" <<<"$notifications" &&
   fail "taildrop receive refuses to one-click launch a received .desktop file" "$notifications"
 pass "taildrop receive refuses to one-click launch a received .desktop file"
+
+# A mixed-case suffix must be held back the same way: the guard lowercases the
+# name before matching, so Trap.DESKTOP is still a launcher.
+grep -q "^Received Trap.DESKTOP " <<<"$notifications" ||
+  fail "taildrop receive announces a mixed-case .desktop arrival" "$notifications"
+grep -qF -- "--exec xdg-open $downloads/Trap.DESKTOP" <<<"$notifications" &&
+  fail "taildrop receive holds back a mixed-case .desktop name from the click" "$notifications"
+pass "taildrop receive holds back a mixed-case .desktop name from the click"
 
 grep -q "unrelated.txt" <<<"$notifications" &&
   fail "taildrop receive leaves the rest of the downloads directory alone" "$notifications"
