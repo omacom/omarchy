@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Read a validated monitor snapshot for one display reconciliation
+# omarchy:hidden=true
+
+# A reconciliation exports its snapshot only to its helpers, never to the
+# session. Direct invocations still read current compositor state. An unanswered
+# or malformed query is unknown (2), not a successful empty monitor list.
+if [[ ${OMARCHY_MONITOR_SNAPSHOT+x} ]]; then
+  monitors=$OMARCHY_MONITOR_SNAPSHOT
+else
+  monitors=$(timeout --kill-after=1s 2s hyprctl monitors all -j 2>/dev/null) || exit 2
+fi
+
+jq -ces 'if length == 1 and (.[0] | type == "array" and all(.[];
+  type == "object" and (.name | type == "string") and (.disabled | type == "boolean")))
+  then .[0] else error("invalid monitor snapshot") end' <<<"$monitors" 2>/dev/null || exit 2

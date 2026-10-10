@@ -10,7 +10,7 @@
 # Exits 0 modeless, 1 not, 2 when the compositor cannot say. Nothing fires an
 # event for this state, so a caller that gave up on an unanswered query would
 # leave the screen black for good.
-monitors=$(hyprctl monitors all -j 2>/dev/null) || exit 2
+monitors=$(omarchy-hyprland-monitor-snapshot) || exit 2
 
 state=$(jq 'if any(.[]; .disabled != true and (.width == 0 or .height == 0)) then 0 else 1 end' \
   <<<"$monitors" 2>/dev/null)

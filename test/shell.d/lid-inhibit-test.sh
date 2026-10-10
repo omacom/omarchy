@@ -152,7 +152,7 @@ printf '0::/user.slice/user-1000.slice/session-3.scope\n' >"$cgroup"
 clamshell='[{"name":"eDP-1","disabled":true,"dpmsStatus":true},{"name":"USB-2","disabled":false,"dpmsStatus":true}]'
 
 sync_inhibit() {
-  PATH="$fake_bin:$PATH" "$lid_inhibit"
+  PATH="$fake_bin:$ROOT/bin:$PATH" "$lid_inhibit"
 }
 
 held() {
@@ -345,7 +345,7 @@ start_watcher() {
   rm -f "$events"
   mkfifo "$events"
 
-  PATH="$fake_bin:$PATH" \
+  PATH="$fake_bin:$ROOT/bin:$PATH" \
   XDG_RUNTIME_DIR="$test_tmp" \
   HYPRLAND_INSTANCE_SIGNATURE=test \
   OMARCHY_TEST_EVENTS="$events" \

@@ -50,7 +50,7 @@ outputs=$(uncounted_outputs)
 # driver. A compositor that does not answer, as while it reconfigures outputs
 # around a lid close, changes nothing: releasing then would suspend a closed lid.
 if [[ -n $outputs ]]; then
-  monitors=$(hyprctl monitors all -j 2>/dev/null) || exit 0
+  monitors=$(omarchy-hyprland-monitor-snapshot) || exit 0
   [[ -n $monitors ]] || exit 0
   jq -e --arg outputs "$outputs" \
     '($outputs | split("\n")) as $names | any(.[]; .disabled == false and (.name | IN($names[])))' \
