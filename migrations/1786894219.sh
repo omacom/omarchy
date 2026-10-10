@@ -1,11 +1,9 @@
-echo "Restart the crash watcher so it picks up the inotify rewrite"
+echo "Enable coredump completion events and restart the crash watcher"
 
-# omarchy-crash-watch followed the journal with journalctl -f, mapping the
-# whole journal into memory; the rewrite watches the systemd-coredump
-# directory with inotify instead, at a few MB. pacman replaces the script on
-# update, but the running service keeps the old one in memory until it
-# restarts, so restart it here for the memory win to land during the update
-# instead of at the next login.
+# Package-owned drop-ins are already installed. Create the event directory
+# without waiting for reboot and load ExecStopPost for future coredumps.
+sudo systemd-tmpfiles --create /etc/tmpfiles.d/omarchy-crash-events.conf
+sudo systemctl daemon-reload
 
 # The unit's ConditionPathExists re-checks the same toggle flag at every
 # start, so a watcher the user disabled stays off: honoring the flag here
