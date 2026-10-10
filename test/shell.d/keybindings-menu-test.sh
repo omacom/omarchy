@@ -247,3 +247,14 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# The split toggle is a Lua function too, so the menu runs it through hyprctl eval.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + J" "Toggle window split")
+BINDS
+
+rm -rf "$tmpdir/cache"
+keybindings >/dev/null
+grep -qP "→ Toggle window split\texec\thyprctl eval 'o.toggle_window_split\(\)'$" "$tmpdir"/cache/omarchy/keybindings-*.records ||
+  fail "picking the split toggle from the menu toggles the split" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
+pass "picking the split toggle from the menu toggles the split"

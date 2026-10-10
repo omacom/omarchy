@@ -180,6 +180,22 @@ function o.launch_terminal()
   return launch
 end
 
+-- Only dwindle splits windows, and other layouts, such as scrolling, raise a
+-- Lua error for togglesplit, so say why nothing happened instead. Check the
+-- special workspace first, since that is where Hyprland sends the layout message.
+function o.toggle_window_split()
+  local workspace = hl.get_active_special_workspace() or hl.get_active_workspace()
+
+  if workspace and workspace.tiled_layout ~= "dwindle" then
+    hl.exec_cmd("omarchy-notification-send -g 󱂬 " ..
+      shell_quote("Can't toggle window split in the " .. workspace.tiled_layout .. " layout"))
+  else
+    hl.dispatch(hl.dsp.layout("togglesplit"))
+  end
+end
+
+o.bind_commands[o.toggle_window_split] = "hyprctl eval 'o.toggle_window_split()'"
+
 function o.exec_on_start(command)
   hl.on("hyprland.start", function()
     hl.exec_cmd(command)
