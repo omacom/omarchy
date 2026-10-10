@@ -91,7 +91,7 @@ read_brightness() {
 
   bus="$(find_bus)" || return 1
   values="$(read_vcp "$bus")" || {
-    rm -f "$cache_file"
+    cache_unavailable
     return 1
   }
 
