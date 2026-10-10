@@ -649,12 +649,33 @@ assert(
   'notifications service keeps image copies beside the popup and history files'
 )
 assert(
-  /copyImagesScript \+\n\s*"printf/.test(serviceQml),
-  'notifications service copies images before writing the JSON that references them'
+  /readonly property string persistScript: omarchyPath \+ "\/bin\/omarchy-notification-persist"/.test(serviceQml),
+  'notifications service persists through the notification persist helper'
 )
 assert(
-  /timeout 5 head -c 5242881 -- \\"\$1\\" > \\"\$2\.tmp\\"[\s\S]{0,120}?mv -f -- \\"\$2\.tmp\\" \\"\$2\\"/.test(serviceQml),
-  'notifications service bounds image copies through a validated temp file'
+  /stdinEnabled: true/.test(serviceQml),
+  'notifications service enables stdin on the popup file process'
+)
+assert(
+  /popupFileProc\.write\(service\.runningPopupFileJobInput \+ "\\n"\)/.test(serviceQml),
+  'notifications service writes notification JSON to the child stdin, not argv'
+)
+assert(
+  /input: input === undefined \? null : input/.test(serviceQml),
+  'notifications service carries an optional stdin payload on every file job'
+)
+assert(
+  /enqueuePopupFileJob\(command, null, json\)/.test(serviceQml),
+  'notifications service passes the popup JSON as a stdin payload'
+)
+assert(
+  /enqueuePopupFileJob\(command, done, json\)/.test(serviceQml),
+  'notifications service passes the silenced history JSON as a stdin payload'
+)
+assertEqual(
+  (serviceQml.match(/NotificationLogic\.serializePopup\(/g) || []).length,
+  2,
+  'notifications service serializes popups only for the stdin payload, never for argv'
 )
 assert(
   /rm -f \\"\$1\/\$2\.json\\" \\"\$3\/\$2\\"-\*/.test(serviceQml),

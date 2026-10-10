@@ -37,6 +37,10 @@ Item {
   // originals don't outlive the notification (see persistablePopup). Each
   // copy lives and dies with the JSON file whose stem it carries.
   readonly property string imagesDir: popupStateDir + "images/"
+  // Writes a popup or history file from stdin: the JSON must never travel in
+  // argv, where MAX_ARG_STRLEN would fail an oversized notification and stall
+  // the whole serialized persistence queue behind it.
+  readonly property string persistScript: omarchyPath + "/bin/omarchy-notification-persist"
   // Corner radius is shared with the menu and shell panels.
   // It mirrors Hyprland's current decoration:rounding value.
   readonly property int cornerRadius: Style.cornerRadius
@@ -479,8 +483,18 @@ Item {
   // Done callback of the job popupFileProc is currently running.
   property var runningPopupFileJobDone: null
 
-  function enqueuePopupFileJob(command, done) {
-    popupFileQueue = popupFileQueue.concat([{ command: command, done: done || null }])
+  // Optional stdin payload for the currently running file job. Notification
+  // JSON must never travel in argv: Linux caps a single argument string at
+  // MAX_ARG_STRLEN (131072 bytes), and one oversized job wedges the serialized
+  // queue for every job behind it.
+  property var runningPopupFileJobInput: null
+
+  function enqueuePopupFileJob(command, done, input) {
+    popupFileQueue = popupFileQueue.concat([{
+      command: command,
+      input: input === undefined ? null : input,
+      done: done || null
+    }])
     runNextPopupFileJob()
   }
 
@@ -502,6 +516,7 @@ Item {
     }
 
     popupFileProc.command = job.command
+    service.runningPopupFileJobInput = job.input
     service.runningPopupFileJobDone = job.done || null
     popupFileProc.running = true
   }
@@ -509,9 +524,22 @@ Item {
   Process {
     id: popupFileProc
     running: false
+    stdinEnabled: true
+
+    // Write the payload once the child is up. JSON.stringify() escapes embedded
+    // newlines, so the child reads it back as a single `read -r` line. The
+    // trailing newline terminates that read; no length or EOF protocol needed.
+    onStarted: {
+      if (service.runningPopupFileJobInput !== null) {
+        popupFileProc.write(service.runningPopupFileJobInput + "\n")
+        service.runningPopupFileJobInput = null
+      }
+    }
+
     onExited: {
       var done = service.runningPopupFileJobDone
       service.runningPopupFileJobDone = null
+      service.runningPopupFileJobInput = null
       if (done) {
         try {
           done()
@@ -523,36 +551,22 @@ Item {
     }
   }
 
-  // Consumes the remaining args as from/to pairs. Bounded read into a temp
-  // file, validated, then renamed into place: the source path is
-  // sender-controlled and may grow, block, or become a FIFO mid-copy, and
-  // must neither hang the serialized queue nor fill the state dir.
-  readonly property string copyImagesScript:
-    "while (( $# >= 2 )); do\n" +
-    "  if [[ -f $1 ]] && timeout 5 head -c 5242881 -- \"$1\" > \"$2.tmp\" 2>/dev/null &&\n" +
-    "     (( $(stat -c%s -- \"$2.tmp\") <= 5242880 )); then mv -f -- \"$2.tmp\" \"$2\"; else rm -f -- \"$2.tmp\"; fi\n" +
-    "  shift 2\n" +
-    "done\n"
-
   function persistPopupFile(snapshot) {
-    // The JSON travels as an argument, not through shell interpolation, so
-    // summaries/bodies with quotes or backticks can't break the command. The
-    // mkdir guards notifications that arrive before ensureDirsProc has run.
-    // Copies run before the JSON referencing them, while the source exists.
+    // The JSON is fed on stdin and read back by the persist helper as one line;
+    // it never enters argv, where MAX_ARG_STRLEN would fail an oversized body
+    // and stall the whole serialized queue behind it.
     var persistable = NotificationLogic.persistablePopup(snapshot, imagesDir)
-    var command = ["bash", "-c",
-      "mkdir -p \"$1\" \"$2\" || exit 0\n" +
-      "dir=\"$1\" json=\"$3\" name=\"$4\"\n" +
-      "shift 4\n" +
-      copyImagesScript +
-      "printf '%s\\n' \"$json\" > \"$dir/$name\"", "--",
+    var json = NotificationLogic.serializePopup(persistable.entry, NotificationUrgency.Normal)
+    // Run the helper through bash: a direct exec of a missing or unexecutable
+    // file fails to spawn, and a failed spawn emits no `exited`, which would
+    // wedge this serialized queue exactly like the bug being fixed.
+    var command = ["bash", persistScript,
       popupStateDir,
       imagesDir,
-      NotificationLogic.serializePopup(persistable.entry, NotificationUrgency.Normal),
       NotificationLogic.popupFileName(snapshot)]
     for (var i = 0; i < persistable.copies.length; i++)
       command.push(persistable.copies[i].from, persistable.copies[i].to)
-    enqueuePopupFileJob(command)
+    enqueuePopupFileJob(command, null, json)
   }
 
   function deletePopupFileFor(row) {
@@ -607,21 +621,15 @@ Item {
       return
     }
     var persistable = NotificationLogic.persistablePopup(entry, imagesDir)
-    var command = ["bash", "-c",
-      "mkdir -p \"$1\" \"$5\" || exit 0\n" +
-      "hist=\"$1\" limit=\"$2\" name=\"$3\" json=\"$4\" imgs=\"$5\"\n" +
-      "shift 5\n" +
-      copyImagesScript +
-      "printf '%s\\n' \"$json\" > \"$hist/$name\" || exit 0\n" +
-      trimHistoryScript, "--",
-      historyDir,
+    var json = NotificationLogic.serializePopup(persistable.entry, NotificationUrgency.Normal)
+    var command = ["bash", persistScript, "--history",
       String(historyLimit),
-      NotificationLogic.popupFileName(entry),
-      NotificationLogic.serializePopup(persistable.entry, NotificationUrgency.Normal),
-      imagesDir]
+      historyDir,
+      imagesDir,
+      NotificationLogic.popupFileName(entry)]
     for (var i = 0; i < persistable.copies.length; i++)
       command.push(persistable.copies[i].from, persistable.copies[i].to)
-    enqueuePopupFileJob(command, done)
+    enqueuePopupFileJob(command, done, json)
   }
 
   function clearHistory() {
