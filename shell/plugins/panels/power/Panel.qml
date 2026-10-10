@@ -50,12 +50,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.batteryInfo.threshold)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates())
+    return Model.modeLabel(device, root.discharging, upowerStates(), root.batteryInfo.threshold)
   }
 
   function profileIcon(name) {
@@ -72,10 +72,14 @@ Panel {
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates())
+    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.batteryInfo.threshold)
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
-  readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
+  readonly property bool pendingCharge: {
+    var device = UPower.displayDevice
+    return !!(device && device.isPresent && !UPower.onBattery && device.state === UPowerDeviceState.PendingCharge)
+  }
+  readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive || pendingCharge
 
   // 0..1 charge level, used by the visual progress bar.
   readonly property real batteryFraction: {
@@ -446,8 +450,8 @@ Panel {
               value: root.chargeThresholdActive ? (root.batteryInfo.threshold || "-") : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—"))
             }
             InfoPair {
-              label: root.chargeThresholdActive ? "Battery state" : (root.discharging ? "Discharging" : "Charging")
-              value: root.chargeThresholdActive ? "Holding" : (root.batteryFull ? "-" : (root.batteryInfo.rate || ""))
+              label: (root.chargeThresholdActive || root.pendingCharge) ? "Battery state" : (root.discharging ? "Discharging" : "Charging")
+              value: root.chargeThresholdActive ? "Holding" : (root.pendingCharge ? "Not charging" : (root.batteryFull ? "-" : (root.batteryInfo.rate || "")))
             }
           }
         }
