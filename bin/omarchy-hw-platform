@@ -1,17 +1,23 @@
 #!/bin/bash -p
 
-# omarchy:summary=Print the hardware platform: x86, aarch64 or aarch64-apple.
+# omarchy:summary=Print the hardware platform: x86, aarch64, aarch64-apple, aarch64-qualcomm or aarch64-n1x.
 
 # Platform names are the CPU architecture, then the hardware family when it
-# needs handling of its own: x86, aarch64 (every ARM machine without one) and
-# aarch64-apple (Apple Silicon). A later family is aarch64-<family>, so
-# "aarch64*" always means ARM (AGENTS.md, Platforms).
+# needs handling of its own: x86, aarch64 (every ARM machine without one),
+# aarch64-apple (Apple Silicon), aarch64-qualcomm (Snapdragon) and aarch64-n1x
+# (NVIDIA N1x). A later family is aarch64-<family>, so "aarch64*" always means
+# ARM (AGENTS.md, Platforms).
 #
-# ARM laptops have no DMI, so the board identity is the root node of the device
-# tree the firmware hands the kernel: "apple,<model>" from Asahi's m1n1 on every
-# Apple Silicon Mac, "qcom,<soc>" on Snapdragon laptops, which are plain aarch64
-# here and must never pass for a Mac. Each compatible string is a NUL-separated
-# list, and only a token's vendor prefix counts.
+# Device-tree ARM laptops have no DMI, so the board identity is the root node of
+# the device tree the firmware hands the kernel: "apple,<model>" from Asahi's
+# m1n1 on every Apple Silicon Mac, "qcom,<soc>" on Snapdragon laptops, which
+# must never pass for a Mac. Each compatible string is a NUL-separated list, and
+# only a token's vendor prefix counts.
+#
+# The NVIDIA N1x laptops boot with ACPI and no device tree. They are the ARM
+# machines whose CPU-side I2C controllers are ACPI NVDA0200 (MediaTek MT8901 IP)
+# or whose on-package GPU is PCI 10de:2e06 (GB20B "RTX Spark N1X"); either one
+# is enough, so a firmware revision that renames one does not lose the platform.
 #
 # An image is built away from the machine it will run on, so while this root is
 # being built rather than booted, the image-target manifest the builder wrote
@@ -43,6 +49,7 @@ fi
 if [[ -z $fixtures ]]; then
   proc=/proc
   sources=(/proc/device-tree/compatible /sys/firmware/devicetree/base/compatible)
+  sys=/sys
   image_root=""
   image_dir=/var/lib/omarchy/image
   image_owner=0
@@ -51,6 +58,7 @@ else
   sources=()
   [[ -z ${OMARCHY_PROC_ROOT:-} ]] || sources+=("$OMARCHY_PROC_ROOT/device-tree/compatible")
   [[ -z ${OMARCHY_SYS_ROOT:-} ]] || sources+=("$OMARCHY_SYS_ROOT/firmware/devicetree/base/compatible")
+  sys=${OMARCHY_SYS_ROOT:-}
   image_root=${OMARCHY_IMAGE_ROOT:-}
   image_dir=${image_root:+$image_root/var/lib/omarchy/image}
   image_owner=$EUID
@@ -100,8 +108,8 @@ trusted() {
 
 # The manifest: format=1, platform= one of the platform names, comments and
 # unknown keys ignored, and any other line refused. Image builders written before
-# the names settled say apple-silicon, generic-aarch64 or generic, which still
-# read as aarch64-apple, aarch64 and x86. The detector reads it itself, so it
+# the names settled say apple-silicon, generic-aarch64, generic or qualcomm,
+# which still read as aarch64-apple, aarch64, x86 and aarch64-qualcomm. The detector reads it itself, so it
 # stands alone wherever a package ships a copy of it.
 image_platform() {
   local line key value format="" platform=""
@@ -133,8 +141,9 @@ image_platform() {
     apple-silicon) platform=aarch64-apple ;;
     generic-aarch64) platform=aarch64 ;;
     generic) platform=x86 ;;
+    qualcomm) platform=aarch64-qualcomm ;;
   esac
-  if [[ ! $platform =~ ^(x86|aarch64|aarch64-apple)$ ]]; then
+  if [[ ! $platform =~ ^(x86|aarch64|aarch64-apple|aarch64-qualcomm|aarch64-n1x)$ ]]; then
     echo "Error: the image manifest $manifest names no known platform: ${platform:-none}" >&2
     return 1
   fi
@@ -183,13 +192,37 @@ for source in "${sources[@]}"; do
   vendor_source=$source
 done
 
+# An NVIDIA N1x: ACPI NVDA0200, or PCI 10de:2e06.
+n1x_source=""
+if [[ -n $sys ]]; then
+  for device in "$sys"/bus/acpi/devices/NVDA0200:*; do
+    [[ -d $device ]] && { n1x_source=$device; break; }
+  done
+  if [[ -z $n1x_source ]]; then
+    for device in "$sys"/bus/pci/devices/*; do
+      [[ -r $device/vendor && -r $device/device ]] || continue
+      read -r pci_vendor <"$device/vendor" || continue
+      read -r pci_device <"$device/device" || continue
+      [[ $pci_vendor == "0x10de" && $pci_device == "0x2e06" ]] && { n1x_source=$device; break; }
+    done
+  fi
+fi
+
+if [[ -n $n1x_source ]]; then
+  [[ $vendor != apple && $vendor != qcom ]] ||
+    contradiction "$vendor_source names $vendor hardware but $n1x_source is an NVIDIA N1x"
+  [[ $machine == "aarch64" ]] || contradiction "$n1x_source is an NVIDIA N1x but the CPU is $machine"
+  echo aarch64-n1x
+  exit 0
+fi
+
 case $vendor in
   apple | qcom)
     [[ $machine == "aarch64" ]] || contradiction "$vendor_source names $vendor hardware but the CPU is $machine"
     if [[ $vendor == "apple" ]]; then
       echo aarch64-apple
     else
-      echo aarch64
+      echo aarch64-qualcomm
     fi
     ;;
   *)

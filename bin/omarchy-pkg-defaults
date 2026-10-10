@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Print the default package set for this computer's platform, or for the named one: the base list plus its architecture's and platform's additions.
-# omarchy:args=[x86|aarch64|aarch64-apple]
+# omarchy:args=[x86|aarch64|aarch64-apple|aarch64-qualcomm|aarch64-n1x]
 # omarchy:hidden=true
 
 set -eo pipefail
@@ -16,12 +16,13 @@ case $platform in
   apple-silicon) platform=aarch64-apple ;;
   generic-aarch64) platform=aarch64 ;;
   generic) platform=x86 ;;
+  qualcomm) platform=aarch64-qualcomm ;;
 esac
 
 case $platform in
   x86) lists=(base) ;;
   aarch64) lists=(base aarch64) ;;
-  aarch64-apple) lists=(base aarch64 "$platform") ;;
+  aarch64-apple | aarch64-qualcomm | aarch64-n1x) lists=(base aarch64 "$platform") ;;
   *)
     echo "Error: unknown platform '$platform'" >&2
     exit 1

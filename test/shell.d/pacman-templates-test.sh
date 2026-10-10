@@ -27,6 +27,10 @@ channels_for() {
 [[ $(omarchy_pacman_templates x86) == "$ROOT/default/pacman" ]] || fail "x86 keeps its templates where they were"
 [[ $(omarchy_pacman_templates aarch64) == "$ROOT/default/pacman/aarch64" ]] || fail "plain aarch64 uses the aarch64 templates"
 [[ $(omarchy_pacman_templates aarch64-apple) == "$ROOT/default/pacman/aarch64-apple" ]] || fail "Apple Silicon uses its own templates"
+for platform in aarch64-qualcomm aarch64-n1x; do
+  [[ $(omarchy_pacman_templates "$platform") == "$ROOT/default/pacman/aarch64" ]] || fail "$platform shares the aarch64 templates"
+  [[ $(omarchy_pacman_default_channel "$platform") == edge ]] || fail "$platform defaults to edge"
+done
 ! omarchy_pacman_templates riscv 2>/dev/null || fail "an unknown platform has no templates"
 pass "each platform's templates sit in a directory of their own, x86_64's where they always were"
 

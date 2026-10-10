@@ -8,7 +8,7 @@
 #
 #   /var/lib/omarchy/image/target
 #     format=1
-#     platform=x86|aarch64|aarch64-apple
+#     platform=x86|aarch64|aarch64-apple|aarch64-qualcomm|aarch64-n1x
 #
 # While it exists, omarchy-apply-hardware queues each hardware leaf in
 # /var/lib/omarchy/image/deferred-steps instead of running it, and arms
@@ -95,14 +95,15 @@ omarchy_image_read_manifest() {
     return 1
   fi
   # Builders written before the platform names settled say apple-silicon,
-  # generic-aarch64 or generic (as omarchy-hw-platform reads them too).
+  # generic-aarch64, generic or qualcomm (as omarchy-hw-platform reads them too).
   case $platform in
     apple-silicon) platform=aarch64-apple ;;
     generic-aarch64) platform=aarch64 ;;
     generic) platform=x86 ;;
+    qualcomm) platform=aarch64-qualcomm ;;
   esac
   case $platform in
-    x86 | aarch64 | aarch64-apple) ;;
+    x86 | aarch64 | aarch64-apple | aarch64-qualcomm | aarch64-n1x) ;;
     *)
       echo "Error: $omarchy_image_manifest names no known platform: ${platform:-none}" >&2
       return 1

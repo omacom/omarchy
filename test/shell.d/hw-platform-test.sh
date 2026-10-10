@@ -21,7 +21,7 @@ if (( EUID != 0 )); then
 fi
 if (( EUID == 0 )) || unshare --user --map-root-user true 2>/dev/null; then
   live=$("${root_runner[@]}" "$detector") || fail "root detects the live platform"
-  [[ $live =~ ^(aarch64-apple|aarch64|x86)$ ]] || fail "root detects the live platform" "live: $live"
+  [[ $live =~ ^(aarch64-apple|aarch64-qualcomm|aarch64-n1x|aarch64|x86)$ ]] || fail "root detects the live platform" "live: $live"
   for platform in aarch64-apple aarch64 x86; do
     fixture="$test_tmp/$platform"
     if [[ -f $fixture/proc/device-tree/compatible ]]; then
@@ -41,13 +41,13 @@ fi
 
 # -p in the shebang is what keeps exported functions and BASH_ENV out, so an
 # ordinary Bash launch with a decoy -p argument is refused before it reads anything.
-for command in omarchy-hw-platform omarchy-hw-aarch64-apple omarchy-hw-apple-silicon; do
+for command in omarchy-hw-platform omarchy-hw-aarch64-apple omarchy-hw-apple-silicon omarchy-hw-aarch64-qualcomm omarchy-hw-aarch64-n1x omarchy-hw-n1x; do
   if /usr/bin/bash "$ROOT/bin/$command" -p >/dev/null 2>"$test_tmp/error"; then
     fail "$command refuses an ordinary Bash launch"
   fi
   grep -Fq "Refusing an unsafe Bash startup" "$test_tmp/error" || fail "$command explains the refusal" "$(cat "$test_tmp/error")"
 done
-pass "the detector and the Apple predicate refuse an ordinary Bash launch with a decoy -p"
+pass "the detector and the family predicates refuse an ordinary Bash launch with a decoy -p"
 
 require_platform_fixtures "the platform fixtures"
 
@@ -132,7 +132,7 @@ for board in m1-pro m2-max m1-mini; do
   expect "$board" aarch64 aarch64-apple "the $board device tree is Apple Silicon"
 done
 for board in yoga-slim7x xps13-9345 t14s; do
-  expect "$board" aarch64 aarch64 "the $board device tree is plain aarch64, never Apple Silicon"
+  expect "$board" aarch64 aarch64-qualcomm "the $board device tree is Snapdragon, never Apple Silicon"
 done
 pass "real Apple and Snapdragon device trees are recognised"
 
@@ -154,7 +154,7 @@ pass "only a token's vendor prefix identifies the board"
 # /proc/device-tree is a link into sysfs; read sysfs when it is missing.
 write_tree sysfs-qualcomm sys lenovo,yoga-slim7x qcom,x1e80100
 write_tree sysfs-apple sys apple,j314s apple,t6000 apple,arm-platform
-expect sysfs-qualcomm aarch64 aarch64 "sysfs reads a Snapdragon tree without /proc/device-tree"
+expect sysfs-qualcomm aarch64 aarch64-qualcomm "sysfs reads a Snapdragon tree without /proc/device-tree"
 expect sysfs-apple aarch64 aarch64-apple "sysfs identifies Apple Silicon without /proc/device-tree"
 write_tree agree proc apple,j314s apple,t6000 apple,arm-platform
 write_tree agree sys apple,j314s apple,t6000 apple,arm-platform
@@ -176,6 +176,51 @@ if TEST_ARCH=x86_64 OMARCHY_PROC_ROOT="$test_tmp/cases/m1-pro/proc" PATH="$stub_
   fail "the Apple predicate fails closed on contradictory identity"
 fi
 pass "contradictory identity fails with an explanation"
+
+# The NVIDIA N1x boots with ACPI and no device tree: its MediaTek I2C
+# controllers (ACPI NVDA0200) or its GPU (PCI 10de:2e06) name it, either alone.
+n1x_acpi() { mkdir -p "$test_tmp/cases/$1/sys/bus/acpi/devices/NVDA0200:00" "$test_tmp/cases/$1/proc"; }
+n1x_pci() {
+  local device="$test_tmp/cases/$1/sys/bus/pci/devices/000${3:-1}:00:00.0"
+  mkdir -p "$device" "$test_tmp/cases/$1/proc"
+  printf '0x10de\n' >"$device/vendor"
+  printf '%s\n' "${2:-0x2e06}" >"$device/device"
+}
+n1x_acpi n1x-acpi
+n1x_pci n1x-gpu
+n1x_acpi n1x-both
+n1x_pci n1x-both
+n1x_pci other-nvidia 0x2e03
+expect n1x-acpi aarch64 aarch64-n1x "the N1x's ACPI I2C controllers name it"
+expect n1x-gpu aarch64 aarch64-n1x "the N1x's GPU names it"
+expect n1x-both aarch64 aarch64-n1x "both N1x signatures agree"
+expect other-nvidia aarch64 aarch64 "another NVIDIA GPU is not an N1x"
+expect_contradiction n1x-acpi x86_64 "an N1x on an x86 CPU fails"
+n1x_acpi n1x-apple
+write_tree n1x-apple proc apple,j314s apple,t6000 apple,arm-platform
+expect_contradiction n1x-apple aarch64 "an N1x with an Apple device tree fails"
+n1x_acpi n1x-qcom
+write_tree n1x-qcom proc lenovo,yoga-slim7x qcom,x1e80100
+expect_contradiction n1x-qcom aarch64 "an N1x with a Qualcomm device tree fails"
+for family in n1x qualcomm; do
+  case $family in
+    n1x) yes=n1x-acpi no=qemu-virt ;;
+    qualcomm) yes=yoga-slim7x no=n1x-acpi ;;
+  esac
+  for case_name in "$yes" "$no"; do
+    status=0
+    TEST_ARCH=aarch64 OMARCHY_PROC_ROOT="$test_tmp/cases/$case_name/proc" OMARCHY_SYS_ROOT="$test_tmp/cases/$case_name/sys" \
+      PATH="$stub_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hw-aarch64-$family" 2>/dev/null || status=$?
+    if [[ $case_name == "$yes" ]]; then
+      (( status == 0 )) || fail "omarchy-hw-aarch64-$family accepts $case_name"
+    else
+      (( status != 0 )) || fail "omarchy-hw-aarch64-$family rejects $case_name"
+    fi
+  done
+done
+TEST_ARCH=aarch64 OMARCHY_PROC_ROOT="$test_tmp/cases/n1x-gpu/proc" OMARCHY_SYS_ROOT="$test_tmp/cases/n1x-gpu/sys" \
+  PATH="$stub_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hw-n1x" || fail "the old omarchy-hw-n1x name still answers"
+pass "the NVIDIA N1x is its own platform, and Snapdragon and the N1x have predicates of their own"
 
 failing_uname="$test_tmp/failing-uname"
 mkdir -p "$failing_uname"

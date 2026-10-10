@@ -294,7 +294,7 @@ world booted-qualcomm aarch64 lenovo,yoga-slim7x qcom,x1e80100
 pid1 booted-qualcomm own
 systemd_runs booted-qualcomm
 manifest booted-qualcomm "$apple_manifest"
-expect booted-qualcomm aarch64 "a booted Snapdragon laptop with an Apple manifest is plain aarch64"
+expect booted-qualcomm aarch64-qualcomm "a booted Snapdragon laptop with an Apple manifest is Snapdragon"
 
 world booted-x86 x86_64
 pid1 booted-x86 own

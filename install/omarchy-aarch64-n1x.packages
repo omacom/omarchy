@@ -1,0 +1,13 @@
+# NVIDIA N1x additions, composed after omarchy-base.packages and
+# omarchy-aarch64.packages (omarchy-pkg-defaults aarch64-n1x): what every N1x
+# laptop runs, which install/hardware/n1x.sh also installs. Board-specific
+# packages (the ASUS ProArt P14's amplifier firmware) stay with their model's
+# hardware setup.
+linux-omarchy-n1x
+linux-omarchy-n1x-headers
+# Release firmware (1.0 and later) drives the panel from the GPU.
+nvidia-open-dkms
+nvidia-utils
+libva-nvidia-driver
+# omarchy-n1x-probe uses lspci.
+pciutils

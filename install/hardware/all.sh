@@ -8,6 +8,7 @@ run_logged "$OMARCHY_INSTALL/hardware/set-wireless-regdom.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-fkeys.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-synaptic-touchpad.sh"
 run_logged "$OMARCHY_INSTALL/hardware/bluetooth.sh"
+run_logged "$OMARCHY_INSTALL/hardware/n1x.sh"
 run_logged "$OMARCHY_INSTALL/hardware/nvidia.sh"
 run_logged "$OMARCHY_INSTALL/hardware/vulkan.sh"
 
@@ -29,6 +30,10 @@ run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-display-backlight.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-b9406-display.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-b9406-touchpad.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-z13-touchpad.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-proart-p14-touchpad.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-proart-p14-speakers.sh"
+run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-proart-p14-fkeys.sh"
+run_logged "$OMARCHY_INSTALL/hardware/fix-n1x-gpu-memory.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/framework/qmk-hid.sh"
 

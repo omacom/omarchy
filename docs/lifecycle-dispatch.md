@@ -13,7 +13,7 @@ The first form runs the operation. `--resolve` prints the entrypoint the operati
 
 | Situation | Run | `--resolve` |
 | --- | --- | --- |
-| The platform registers no package (`x86` and `aarch64` today) | no-op, exit 0 | prints nothing, exit 0 |
+| The platform registers no package (`x86`, `aarch64`, `aarch64-qualcomm` and `aarch64-n1x` today) | no-op, exit 0 | prints nothing, exit 0 |
 | The entrypoint exists and passes the trust rules | execs it; its exit status is the result | prints its path |
 | A required operation has no entrypoint, and the package is not installed | exit 3 (an entrypoint's own status could also be 3; with `--resolve` it is only this): `Error: <operation> on <platform> needs <package>, which provides <path>; it is not installed` | same error |
 | A required operation has no entrypoint, but the package is installed (its pacman record says so) | exit 1: `Error: <operation> on <platform> needs <path>, which <package> <version> does not provide; update <package>` | same error |
@@ -55,7 +55,7 @@ Registration is code in `bin/omarchy-lifecycle-dispatch`, not configuration. No 
 | --- | --- | --- | --- |
 | `aarch64-apple` | `/usr/lib/omarchy/mac-boot` | `omarchy-mac-boot` | all its operations |
 | `aarch64-apple`: `setup-system`, `setup-user`, `post-install`, `pre-remove` | `/usr/lib/omarchy/mac` | `omarchy-mac` | none |
-| `x86`, `aarch64` | none | none | none: every operation is a no-op, and callers keep their generic path |
+| `x86`, `aarch64`, `aarch64-qualcomm`, `aarch64-n1x` | none | none | none: every operation is a no-op, and callers keep their generic path |
 
 The entrypoint for an operation is `<implementation directory>/<operation>`. A registered platform's required operations must be shipped. Its optional operations may be left out, and then they are no-ops.
 
@@ -88,7 +88,7 @@ Failing closed holds on every platform: where `omarchy-hw-platform` can't settle
 
 ### Factory reset (`bin/omarchy-system-factory-reset`)
 
-- `reset_boot_owner` resolves the four reset operations before the reset is confirmed. If all resolve, the platform owns the factory root's boot chain; if none do, the generic path runs unchanged (x86, Snapdragon, other aarch64: throwaway slot, keyfile in the Limine UKI, `limine-update`, `verify_limine_hashes`). If only some resolve, or resolution fails (a Mac without `omarchy-mac-boot`'s entrypoints), the reset stops before anything changes.
+- `reset_boot_owner` resolves the four reset operations before the reset is confirmed. If all resolve, the platform owns the factory root's boot chain; if none do, the generic path runs unchanged (x86, Snapdragon, the N1x, other aarch64: throwaway slot, keyfile in the Limine UKI, `limine-update`, `verify_limine_hashes`). If only some resolve, or resolution fails (a Mac without `omarchy-mac-boot`'s entrypoints), the reset stops before anything changes.
 - Where the platform owns it, the order is: authorise with the current passphrase and stage the throwaway in the factory root's `/var/lib/omarchy/provisioning/luks-key`; `reset-prepare`; `reset-verify`; add the throwaway slot; switch the subvolumes; `reset-commit` with the throwaway on standard input. The slot comes after verification, so a failed rebuild adds no credential, and the platform writes its boot-time key only after the switch, so a power loss before it leaves the previous root asking for its password, never unlocked unattended.
 - Any failure before the switch runs `reset-rollback` (once `reset-prepare` started), then revokes the slot this attempt added (found by the throwaway key when the add was not confirmed) and deletes the clone: the previous root stays the one that boots, with its boot files and encryption state. Operation output goes to the reset log; a failure shows the operation's last line.
 - Everything else stays as it is: the @factory clone, identity and account scrub, provisioning markers and units, LUKS discovery, the passphrase check, the throwaway slot, and the subvolume switch.
@@ -138,7 +138,7 @@ A platform's runtime package describes its hardware in files under the platform 
 
 ## Snapdragon
 
-Snapdragon laptops are `aarch64` here: they boot Limine with unified kernel images, like x86, every operation is a no-op there, and provisioning uses the Limine UKI callbacks, so Dragon behaves exactly as before.
+Snapdragon laptops are `aarch64-qualcomm`, which registers no package: they boot Limine with unified kernel images, like x86, every operation is a no-op there, and provisioning uses the Limine UKI callbacks, so Dragon behaves exactly as before.
 
 ## Tests
 

@@ -8,15 +8,24 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
   exit 64
 fi
 
+# The checker names its caller by its own parent PID, read from /proc/self/stat,
+# so the PID is the one the mounted /proc uses. The caller's $$ is not: under
+# arch-chroot, which runs commands in a PID namespace of their own with the
+# outer /proc mounted, $$ names no process there and every guarded entrypoint
+# the installer runs in the target was refused.
 omarchy_security_require_privileged_bash_startup() {
   [[ $- == *p* ]] || return 1
   /usr/bin/env -i /usr/bin/bash -p -c '
-    mapfile -d "" -t argv <"/proc/$1/cmdline" || exit 1
-    executable=$(/usr/bin/readlink -e -- "/proc/$1/exe") || exit 1
+    read -r stat </proc/self/stat || exit 1
+    stat=${stat##*) }
+    read -r _ caller _ <<<"$stat"
+    [[ $caller =~ ^[1-9][0-9]*$ ]] || exit 1
+    mapfile -d "" -t argv <"/proc/$caller/cmdline" || exit 1
+    executable=$(/usr/bin/readlink -e -- "/proc/$caller/exe") || exit 1
     [[ $executable == "/usr/bin/bash" &&
       ( ${argv[0]:-} == "/bin/bash" || ${argv[0]:-} == "/usr/bin/bash" ) &&
       ${argv[1]:-} == "-p" ]]
-  ' omarchy-bash-startup "$$"
+  ' omarchy-bash-startup
 }
 
 omarchy_security_sanitize_bash_environment() {

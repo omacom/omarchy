@@ -56,7 +56,11 @@ Item {
   property bool strandedLock: false
   property bool strandedLockResolved: false
 
-  readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
+  // Quickshell does not always emit lockStateChanged when the session lock is
+  // released, so a binding over sessionLock.locked can stay true after the lock
+  // is gone. Every later lock request then reads as already locked and suspend
+  // goes out unlocked. Recompute from the live values instead.
+  property bool locked: false
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
   readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
   readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
@@ -86,6 +90,12 @@ Item {
     if (!pendingSessionLockTimer.running) pendingSessionLockTimer.start()
   }
 
+  function syncLocked() {
+    locked = lockRequested || sessionLock.locked || sessionLock.secure
+  }
+
+  onLockRequestedChanged: syncLocked()
+
   function requestSessionLock() {
     if (!lockRequested || sessionLock.locked || sessionLock.secure) return
     if (sessionLockStabilizeTimer.running) return
@@ -100,6 +110,7 @@ Item {
     pendingSessionLock = false
     pendingSessionLockTimer.stop()
     sessionLock.locked = true
+    syncLocked()
   }
 
   // ext-session-lock outlives its client, and a restart carries no lock over, so
@@ -227,6 +238,7 @@ Item {
     resetAuthenticationState()
     idleBlankTimer.stop()
     sessionLock.locked = false
+    syncLocked()
     logEvent("unlocked")
     runWake()
   }
@@ -438,6 +450,7 @@ Item {
     locked: false
 
     onSecureStateChanged: {
+      root.syncLocked()
       root.logEvent("secure=" + secure)
       if (secure) {
         root.pendingSessionLock = false
@@ -448,6 +461,7 @@ Item {
     }
 
     onLockStateChanged: {
+      root.syncLocked()
       root.logEvent("session-locked=" + locked)
 
       if (locked) {
@@ -832,16 +846,19 @@ Item {
     target: "lock"
 
     function lock(): string {
+      root.syncLocked()
       if (!root.passwordPamConfigured) return "missing-pam"
       if (!root.locked && !root.beginLock()) return "failed"
       return "ok"
     }
 
     function isLocked(): string {
+      root.syncLocked()
       return root.locked ? "true" : "false"
     }
 
     function status(): string {
+      root.syncLocked()
       return JSON.stringify({
         locked: root.locked,
         requested: root.lockRequested,

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Ensure the Omarchy and Arch keyring packages are installed and populated
+# omarchy:summary=Ensure the Omarchy, Arch and (on aarch64) Arch Linux ARM keyring packages are installed and populated
 # omarchy:requires-sudo=true
 
 # omarchy-update runs this under set -e as a trusted pre-step, so a failed recv
@@ -20,12 +20,37 @@ if omarchy-pkg-missing omarchy-keyring || ! sudo pacman-key --list-keys 40DFB630
   sudo pacman-key --list-keys 40DFB630FF42BCFFB047046CF0134EE680CAC571
 fi
 
+# Arch Linux ARM signs every package in its repositories, archlinux-keyring
+# included, with its build key, and only archlinuxarm-keyring carries it.
+# pacman's "Import PGP key?" prompt adds that key without trusting it, after
+# which every update stops at "unknown trust", so check that it is valid, not
+# just present: populate it from the installed keyring, or fetch it by
+# fingerprint and sign it locally when the package is missing, the way the
+# Omarchy key is bootstrapped, and install the package with the refresh below.
+# keys.openpgp.org does not carry it.
+alarm_key=68B3537F39A313B3E574D06777193F152BDBE6A6
+alarm_keyring_missing=0
+
+alarm_key_trusted() {
+  [[ $(sudo gpg --homedir /etc/pacman.d/gnupg --no-permission-warning --batch --with-colons --list-keys "$alarm_key" 2>/dev/null) =~ (^|$'\n')pub:[fu]: ]]
+}
+
+if omarchy-hw-aarch64 && ! alarm_key_trusted; then
+  if omarchy-pkg-present archlinuxarm-keyring; then
+    sudo pacman-key --populate archlinuxarm
+  else
+    sudo pacman-key --recv-keys "$alarm_key" --keyserver keyserver.ubuntu.com
+    sudo pacman-key --lsign-key "$alarm_key"
+    alarm_keyring_missing=1
+  fi
+fi
+
 # Ensure we have the latest archlinux-keyring, maintainer keys might have changed
 # Always reinstall, as the keyring can be updated without a package version bump.
 # An aarch64 machine's Arch Linux ARM repositories are signed with keys of
 # their own, so its keyring is kept current the same way.
 keyrings=(archlinux-keyring)
-if omarchy-hw-aarch64 && omarchy-pkg-present archlinuxarm-keyring; then
+if omarchy-hw-aarch64 && { omarchy-pkg-present archlinuxarm-keyring || (( alarm_keyring_missing )); }; then
   keyrings+=(archlinuxarm-keyring)
 fi
 # A platform package names the signing keyrings of the repositories it adds,
@@ -48,6 +73,11 @@ if [[ -f $platform_keyrings ]]; then
 fi
 echo -e "\e[32m\nUpdate Arch signing keys\e[0m"
 sudo pacman -Sy --noconfirm "${keyrings[@]}" >/dev/null 2> >(grep -vE '^warning: [a-z0-9@._+-]+-keyring-[^ ]+ is up to date -- reinstalling$' >&2)
+
+if omarchy-hw-aarch64 && ! alarm_key_trusted; then
+  echo "Arch Linux ARM's signing key $alarm_key is still not trusted" >&2
+  exit 1
+fi
 
 # Say "correct" only once the key verifiably is: before the failure checks
 # above, a failed recv or reinstall still ended here with exit 0.
