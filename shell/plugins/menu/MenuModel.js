@@ -1,7 +1,49 @@
 function stripJsonc(raw) {
-  return String(raw || "")
-    .replace(/^\s*\/\/[^\n]*(\n|$)/gm, "")
-    .replace(/,(\s*[}\]])/g, "$1")
+  // Comments and trailing commas are stripped string-aware in a single pass:
+  // string contents are copied verbatim, and outside any string // starts a
+  // comment dropped up to (not including) the end of the line wherever the
+  // opener sits, and a comma is dropped only when the next character that is
+  // neither whitespace nor part of a // comment is } or ].
+  var input = String(raw || "")
+  var out = ""
+  var inString = false
+  for (var i = 0; i < input.length; i++) {
+    var ch = input[i]
+    if (inString) {
+      out += ch
+      if (ch === "\\") {
+        if (i + 1 < input.length) out += input[++i]
+      } else if (ch === "\"") {
+        inString = false
+      }
+    } else if (ch === "\"") {
+      inString = true
+      out += ch
+    } else if (ch === "/" && input[i + 1] === "/") {
+      // Keep the newline so the tokens on either side stay apart.
+      while (i + 1 < input.length && input[i + 1] !== "\n") i++
+    } else if (ch === ",") {
+      var next = i + 1
+      while (next < input.length) {
+        if (/\s/.test(input[next])) {
+          next++
+        } else if (input[next] === "/" && input[next + 1] === "/") {
+          while (next < input.length && input[next] !== "\n") next++
+        } else {
+          break
+        }
+      }
+      if (next >= input.length || (input[next] !== "}" && input[next] !== "]"))
+        out += ch
+    } else if (/\s/.test(ch)) {
+      // JSON.parse only takes ASCII whitespace, so a byte order mark, no-break
+      // space or other Unicode space between tokens is passed on as a space.
+      out += ch === "\n" ? ch : " "
+    } else {
+      out += ch
+    }
+  }
+  return out
 }
 
 function normalizeAliases(value) {
@@ -49,7 +91,10 @@ function parseMenuJsonc(raw) {
   } catch (e) {
     return []
   }
-  if (typeof parsed !== "object" || parsed === null) return []
+  // A JSON array root is not a menu entry map either. Treat it like the
+  // scalars above and return no rows; walking it with for..in would turn
+  // the array indices into entry ids "0", "1" and so on.
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return []
 
   var source = (parsed.items && typeof parsed.items === "object" && !Array.isArray(parsed.items))
     ? parsed.items
