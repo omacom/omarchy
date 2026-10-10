@@ -307,6 +307,47 @@ Item {
 }
 QML
 
+# A widget host uses the same module-slot registration as drawer plugins.
+host_dir="$test_root/shell/plugins/test-widget-host"
+mkdir -p "$host_dir"
+cat >"$host_dir/manifest.json" <<'JSON'
+{
+  "schemaVersion": 1, "id": "omarchy.test-widget-host", "name": "Test Widget Host",
+  "version": "1.0.0", "kinds": ["service"], "entryPoints": {"service": "Service.qml"}
+}
+JSON
+cat >"$host_dir/Service.qml" <<'QML'
+import QtQuick
+import Quickshell.Io
+
+Item {
+  id: root
+  property var shell: null
+  property var attachedBar: null
+  Item {
+    id: slot
+    property string moduleName: ""
+    readonly property var activeItem: child.item
+  }
+  Loader { id: child }
+  IpcHandler {
+    target: "test-widget-host"
+    function attach(id: string): string {
+      root.attachedBar = root.shell.bar
+      slot.moduleName = id
+      child.sourceComponent = root.shell.barWidgetRegistry.widgets[id].component
+      root.attachedBar.registerModuleSlot(slot)
+      return "ok"
+    }
+    function detach(): void {
+      if (root.attachedBar) root.attachedBar.unregisterModuleSlot(slot)
+      child.sourceComponent = null
+      root.attachedBar = null
+    }
+  }
+}
+QML
+
 cat >"$stub_bin/omarchy-update-available" <<'SH'
 #!/bin/bash
 echo "Omarchy update available (test)"
@@ -372,6 +413,9 @@ jq -e '
   fail_with_log "shell IPC lists plugin metadata"
 }
 pass "shell IPC lists plugin metadata"
+
+jq -e 'any(.[]; .id == "omarchy.clock" and .enabled and .canDisable)' <<<"$plugins" >/dev/null ||
+  fail_with_log "directly placed widgets remain enabled and can be disabled"
 
 jq '.name = "After Hot Reload"' "$hot_reload_dir/manifest.json" >"$hot_reload_dir/manifest.json.tmp"
 mv "$hot_reload_dir/manifest.json.tmp" "$hot_reload_dir/manifest.json"
@@ -748,3 +792,48 @@ jq -e '.currentAllowed == false and .retainedAllowed == false' \
   fail_with_log "cached plugin facades revoke capabilities removed from the manifest"
 }
 pass "manifest reload revokes cached facade capabilities"
+
+# Loading a service or widget component is not a bar placement. A host's
+# registered live child is, even when its drawer is currently hidden.
+shell_ipc_quiet shell setPluginEnabled "$review_bar_id" false >/dev/null
+status_config="$test_home/.config/omarchy/shell.json"
+shell_ipc shell listShellConfig | jq --arg hybrid "$media_clone_id" '
+  .bar.layout |= with_entries(.value |= map(select((.id // .) != "omarchy.clock" and (.id // .) != $hybrid))) |
+  .plugins |= map(select(.id != "omarchy.clock" and .id != $hybrid)) + [{id: "omarchy.clock"}, {id: $hybrid}]
+' >"$status_config.tmp"
+mv "$status_config.tmp" "$status_config"
+shell_ipc_quiet shell reloadConfig >/dev/null
+for _ in {1..50}; do
+  shell_config=$(shell_ipc shell listShellConfig)
+  jq -e --arg hybrid "$media_clone_id" '
+    any(.plugins[]; .id == "omarchy.clock") and any(.plugins[]; .id == $hybrid) and
+    all(.bar.layout[][]; (.id // .) != "omarchy.clock" and (.id // .) != $hybrid)
+  ' <<<"$shell_config" >/dev/null && break
+  sleep 0.1
+done
+jq -e --arg hybrid "$media_clone_id" '
+  any(.plugins[]; .id == "omarchy.clock") and any(.plugins[]; .id == $hybrid) and
+  all(.bar.layout[][]; (.id // .) != "omarchy.clock" and (.id // .) != $hybrid)
+' <<<"$shell_config" >/dev/null || fail_with_log "hosted widget configuration loads"
+plugins=$(shell_ipc shell listPlugins)
+jq -e --arg hybrid "$media_clone_id" '
+  any(.[]; .id == "omarchy.clock" and (.enabled | not)) and
+  any(.[]; .id == $hybrid and (.enabled | not))
+' <<<"$plugins" >/dev/null || fail_with_log "component and service activation do not enable unplaced widgets"
+pass "shell IPC keeps service-only and unplaced widgets disabled"
+
+for widget_id in omarchy.clock "$media_clone_id"; do
+  [[ $(shell_ipc test-widget-host attach "$widget_id") == "ok" ]] || fail_with_log "host attaches its child"
+  for _ in {1..50}; do
+    plugins=$(shell_ipc shell listPlugins)
+    jq -e --arg id "$widget_id" 'any(.[]; .id == $id and .enabled and (.canDisable | not))' <<<"$plugins" >/dev/null && break
+    sleep 0.1
+  done
+  jq -e --arg id "$widget_id" 'any(.[]; .id == $id and .enabled and (.canDisable | not))' <<<"$plugins" >/dev/null ||
+    fail_with_log "shell IPC reports a live hosted widget as enabled and managed by its host"
+  shell_ipc_quiet test-widget-host detach >/dev/null
+  plugins=$(shell_ipc shell listPlugins)
+  jq -e --arg id "$widget_id" 'any(.[]; .id == $id and (.enabled | not))' <<<"$plugins" >/dev/null ||
+    fail_with_log "shell IPC follows a widget out of its host"
+done
+pass "shell IPC reports built-in and third-party hosted widgets as enabled only while attached"
