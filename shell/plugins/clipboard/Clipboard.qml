@@ -20,6 +20,12 @@ Item {
 
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
+  // The picked entry travels to the helper scripts in this file instead of as
+  // a positional index: history rewrites between opening the picker and
+  // pressing Enter (a re-copied entry dedups to the front, new captures
+  // prepend) shift those indexes, and the scripts would act on a different
+  // entry than the one on screen.
+  property string entryRequestPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-entry-request.json"
   // Shares the [menu] surface tokens — themes that style the menu also
   // style the clipboard. Selected-row colors composed in the
   // singleton so consumers drop them straight into Rectangle bindings.
@@ -131,7 +137,23 @@ Item {
     root.rebuildDisplay()
   }
 
+  function rowKey(row) {
+    if (!row) return ""
+    if (row.fullText) return ClipboardHistory.entryKey({ type: "text", text: row.fullText })
+    if (row.entryType === "image" || row.path) return ClipboardHistory.entryKey({ type: "image", path: row.path, mime: row.mime })
+    return ""
+  }
+
   function rebuildDisplay() {
+    // Track the selected entry by content across rebuilds. A history rewrite
+    // while the picker is open shifts positional indexes: without this the
+    // highlight jumps to whatever lands on the same position and Enter applies
+    // an entry the user never picked.
+    var selectedKey = ""
+    if (root.cursorActive && root.selectedIndex >= 0 && root.selectedIndex < displayModel.count) {
+      selectedKey = rowKey(displayModel.get(root.selectedIndex))
+    }
+
     var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50)
 
     displayModel.clear()
@@ -148,9 +170,22 @@ Item {
       })
     }
 
-    if (displayModel.count === 0) selectedIndex = 0
-    else if (selectedIndex >= displayModel.count) selectedIndex = displayModel.count - 1
-    else if (selectedIndex < 0) selectedIndex = 0
+    var restored = false
+    if (selectedKey) {
+      for (var j = 0; j < displayModel.count; j++) {
+        if (rowKey(displayModel.get(j)) === selectedKey) {
+          root.selectedIndex = j
+          restored = true
+          break
+        }
+      }
+    }
+
+    if (!restored) {
+      if (displayModel.count === 0) selectedIndex = 0
+      else if (selectedIndex >= displayModel.count) selectedIndex = displayModel.count - 1
+      else if (selectedIndex < 0) selectedIndex = 0
+    }
 
     Qt.callLater(function() {
       if (displayModel.count > 0) resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
@@ -213,13 +248,26 @@ Item {
     root.openSelected(row)
   }
 
+  // Writes the picked entry and only returns once the bytes are on disk
+  // (waitForJob), so the helper script always reads exactly what the picker
+  // showed, however the history file changes afterwards. Text is the displayed
+  // text: the full entry up to the display cap, a prefix of it beyond that —
+  // the scripts resolve it against the history.
+  function writeEntryRequest(row) {
+    var entry = row.entryType === "image" ? { type: "image", path: row.path, mime: row.mime }
+                                          : { type: "text", text: row.fullText }
+    entryRequest.setText(JSON.stringify(entry))
+    entryRequest.waitForJob()
+  }
+
   function applySelected(row) {
     if (!row) return
     root.opened = false
     if (row.entryType === "image") {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", row.mime, row.path])
     } else if (row.fullText) {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-index", String(row.historyIndex)])
+      root.writeEntryRequest(row)
+      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--request-file", root.entryRequestPath])
     }
   }
 
@@ -229,14 +277,16 @@ Item {
     if (row.entryType === "image") {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", "--copy-only", row.mime, row.path])
     } else if (row.fullText) {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--copy-only", "--history-index", String(row.historyIndex)])
+      root.writeEntryRequest(row)
+      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--copy-only", "--request-file", root.entryRequestPath])
     }
   }
 
   function openSelected(row) {
     if (!row) return
     root.opened = false
-    Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-open", "--history-index", String(row.historyIndex)])
+    root.writeEntryRequest(row)
+    Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-open", "--request-file", root.entryRequestPath])
   }
 
   Component.onCompleted: initProc.running = true
@@ -257,6 +307,13 @@ Item {
     onLoaded: root.loadHistory(text())
     onLoadFailed: root.loadHistory("[]")
     onFileChanged: reload()
+  }
+
+  FileView {
+    id: entryRequest
+    path: root.entryRequestPath
+    atomicWrites: true
+    printErrors: false
   }
 
   // Reap watchers left behind by a previous shell instance, then start our
