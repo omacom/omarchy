@@ -13,6 +13,7 @@ Item {
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   property bool opened: false
   property string filterText: ""
+  property bool favoritesOnly: false
   property int selectedIndex: 0
   property bool cursorActive: false
   property bool clearConfirmOpen: false
@@ -43,6 +44,7 @@ Item {
   function open(payloadJson) {
     root.opened = true
     root.filterText = ""
+    root.favoritesOnly = false
     root.selectedIndex = 0
     root.cursorActive = true
     root.disarmPointer()
@@ -74,7 +76,7 @@ Item {
   }
 
   function saveHistory() {
-    historyFile.setText(JSON.stringify(root.history.slice(0, root.historyLimit), null, 2) + "\n")
+    historyFile.setText(JSON.stringify(ClipboardHistory.capHistory(root.history, root.historyLimit), null, 2) + "\n")
   }
 
   function addClipboardEntry(entry) {
@@ -131,8 +133,23 @@ Item {
     root.rebuildDisplay()
   }
 
+  function toggleFavoriteAt(index) {
+    if (index < 0 || index >= displayModel.count) return
+
+    var row = displayModel.get(index)
+    root.history = ClipboardHistory.toggleFavorite(root.history, row.historyIndex)
+    root.saveHistory()
+    root.rebuildDisplay()
+  }
+
+  function toggleFavoritesOnly() {
+    root.favoritesOnly = !root.favoritesOnly
+    root.selectedIndex = 0
+    root.rebuildDisplay()
+  }
+
   function rebuildDisplay() {
-    var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50)
+    var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50, root.favoritesOnly)
 
     displayModel.clear()
     for (var i = 0; i < rows.length; i++) {
@@ -144,6 +161,7 @@ Item {
         previewImage: row.previewImage ? Util.fileUrl(row.previewImage) : "",
         path: row.path,
         mime: row.mime,
+        favorite: row.favorite,
         historyIndex: row.index
       })
     }
@@ -428,16 +446,36 @@ Item {
           color: "transparent"
 
           Text {
-            textFormat: Text.PlainText
             anchors.left: parent.left
-            anchors.right: parent.right
+            anchors.right: favoritesToggle.left
+            anchors.rightMargin: Style.space(10)
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || "Search clipboard…"
+            text: root.filterText || (root.favoritesOnly ? "Search favorites…" : "Search clipboard…")
+            textFormat: Text.PlainText
             color: root.foreground
             opacity: root.filterText ? 1 : 0.58
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
+          }
+
+          Text {
+            id: favoritesToggle
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: ""
+            color: root.favoritesOnly ? Color.accent : root.foreground
+            opacity: root.favoritesOnly ? 1 : 0.5
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.heading
+
+            MouseArea {
+              anchors.fill: parent
+              anchors.margins: -Style.space(6)
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.toggleFavoritesOnly()
+            }
           }
         }
 
@@ -470,8 +508,10 @@ Item {
                   required property string previewText
                   required property string fullText
                   required property string previewImage
+                  required property bool favorite
 
                   readonly property bool hasCursor: root.cursorActive && index === root.selectedIndex
+                  readonly property int starWidth: Style.space(28)
 
                   width: ListView.view.width
                   height: root.rowHeight
@@ -497,10 +537,10 @@ Item {
                     }
 
                     Text {
-                      textFormat: Text.PlainText
-                      width: parent.width - (parent.parent.previewImage.length > 0 ? parent.height + parent.spacing : 0)
+                      width: parent.width - row.starWidth - (parent.parent.previewImage.length > 0 ? parent.height + parent.spacing : 0)
                       height: parent.height
                       text: parent.parent.previewText
+                      textFormat: Text.PlainText
                       color: parent.parent.hasCursor ? root.selectedText : root.foreground
                       font.family: root.fontFamily
                       font.pixelSize: Style.font.title
@@ -524,6 +564,26 @@ Item {
                       root.activateIndex(row.index)
                     }
                   }
+
+                  Text {
+                    id: starIcon
+                    anchors.right: parent.right
+                    anchors.rightMargin: Style.space(12)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "\uf005"
+                    color: row.favorite ? Color.accent : (row.hasCursor ? root.selectedText : root.foreground)
+                    opacity: row.favorite ? 1 : 0.35
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.title
+
+                    MouseArea {
+                      anchors.fill: parent
+                      anchors.margins: -Style.space(6)
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.toggleFavoriteAt(row.index)
+                    }
+                  }
                 }
               }
             }
@@ -544,7 +604,6 @@ Item {
               }
 
               Text {
-                textFormat: Text.PlainText
                 visible: parent.activeRow && !parent.activeRow.previewImage
                 anchors.fill: parent
                 anchors.leftMargin: root.contentMargin
@@ -552,6 +611,7 @@ Item {
                 anchors.topMargin: 0
                 anchors.bottomMargin: 0
                 text: parent.activeRow ? parent.activeRow.fullText : ""
+                textFormat: Text.PlainText
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.title
@@ -592,8 +652,12 @@ Item {
             }
 
             Text {
+              text: root.history.length === 0
+                ? "Clipboard is empty"
+                : (root.favoritesOnly && !root.filterText
+                  ? "No favorites yet"
+                  : "No matches for “" + root.filterText + "”")
               textFormat: Text.PlainText
-              text: root.history.length === 0 ? "Clipboard is empty" : "No matches for “" + root.filterText + "”"
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily
