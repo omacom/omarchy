@@ -61,6 +61,16 @@ const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
 
 assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.toggleTransparency\(\)/.test(shellSource), 'shell exposes the bar transparency toggle over IPC')
 
+assertEqual(bar.normalizeBackgroundOpacity(undefined), 100, 'bar opacity defaults to fully opaque for older configs')
+assertEqual(bar.normalizeBackgroundOpacity(null), 100, 'bar opacity treats a non-number as fully opaque')
+assertEqual(bar.normalizeBackgroundOpacity(63.7), 64, 'bar opacity is rounded to a percentage')
+assertEqual(bar.normalizeBackgroundOpacity(0), 20, 'bar opacity is clamped to 20 percent')
+assertEqual(bar.normalizeBackgroundOpacity(120), 100, 'bar opacity is clamped to 100 percent')
+assert(/config\.bar\.backgroundOpacity\s*=\s*nextOpacity/.test(barSource), 'bar persists wheel opacity in shell.json')
+const barPanelSource = barSource.slice(barSource.indexOf('component BarPanel:'))
+const barContentLoader = barPanelSource.match(/^    Loader \{[\s\S]*?^    \}/m)
+assert(barContentLoader && /WheelHandler\s*\{[\s\S]*?acceptedDevices:\s*PointerDevice\.Mouse\s*\|\s*PointerDevice\.TouchPad/.test(barContentLoader[0]), 'bar wheel handler takes mouse and touchpad input on the full-size Item loader')
+
 // put tolerates a placement target the bar does not carry, so the IPC call
 // must reach the registry's put rather than route back through enable.
 assert(
