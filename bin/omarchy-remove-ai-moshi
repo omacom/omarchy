@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the Moshi desktop window
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+omarchy-pkg-drop moshi-desktop
+
+echo ""
+echo "Moshi has been removed."
+echo "moshi-hook was left installed."
+echo "Its config in ~/.config/moshi and its state in ~/.local/state/moshi were left in place."
+echo "The window profile in ~/.local/share/app.getmoshi.desktop.tauri was left in place."
