@@ -1,0 +1,9 @@
+{
+  "name": "com.omarchy.webapp_links",
+  "description": "Open Omarchy web app external links in the default browser",
+  "path": "__HOST_PATH__",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://ndiopnocceadldgbdhgcgeijlpkhlhnk/"
+  ]
+}

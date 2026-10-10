@@ -35,6 +35,9 @@ copy_chromium_flags() {
   cp -f "$OMARCHY_PATH/config/chromium-flags.conf" "$1"
   omarchy-install-chromium-copy-url
   omarchy-install-chromium-ytdlp
+  if omarchy-toggle-enabled webapp-links; then
+    omarchy-toggle-webapp-links on
+  fi
 }
 
 setup_firefox_wayland() {

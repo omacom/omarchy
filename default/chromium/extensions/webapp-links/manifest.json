@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Web App External Links",
+  "version": "1.0",
+  "description": "Open external links from Omarchy web apps in the default browser",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsbKpfQxVRBpB88C4Hhwvw2JvWcnMHHyQKTPgXtZF+GewpGrqHn6YTDDI6UoS1euBIjR5+FgciGZDzeMm1MBQ1WIUOxMNZOw927QDQkuimKd1rpn+wE1iytEoXp3alX6xmxBkE/OnS+ANiPUFiORcEzbYqk8NXrWVcJisssagAhPDmYP0tioyd8aPZH3PGbAYr8cqpm8rUOH6IZP+nlyyHtjY+SoRIEO6aUg/DU96MHEA0wAiq+N2sFD/x1HgXEVGOs9R51LrOVrhu8GCUHZHHOKdDnOPWv8F04dikM/j+YVdEl5XNXFKd0YD2qeqy2jYq6SdFz/yp9yeQkH3N9wBYQIDAQAB",
+  "permissions": ["nativeMessaging", "webNavigation", "scripting"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {"service_worker": "background.js"},
+  "content_scripts": [{
+    "matches": ["http://*/*", "https://*/*"],
+    "js": ["policy.js", "links.js"],
+    "run_at": "document_start"
+  }]
+}
