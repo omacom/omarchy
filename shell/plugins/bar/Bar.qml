@@ -1062,6 +1062,7 @@ Item {
     for (var i = clickTargets.length - 1; i >= 0; i--) {
       var target = clickTargets[i]
       if (!moduleTargetClickable(target)) continue
+      if (!targetBelongsToWindow(target, slotWindow(slot))) continue
 
       var targetPoint = { x: localX, y: localY }
       try {

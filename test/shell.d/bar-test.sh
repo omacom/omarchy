@@ -45,6 +45,14 @@ if ! rg -q 'pluginObjectOwners\.get\(target\)' "$ROOT/shell/plugins/bar/Bar.qml"
 fi
 pass "bar coalesces plugin api resyncs and looks ownership up by target"
 
+# Every bar surface registers its widgets into one shared array. Where two
+# outputs overlap, a click must resolve against its own surface's widgets.
+if ! perl -0ne 'exit(/function moduleClickTargetAt\(slot,[^)]*\)\s*\{[^}]*?if \(!targetBelongsToWindow\(target, slotWindow\(slot\)\)\) continue/ ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar click hit-testing skips targets on other bar surfaces"
+fi
+pass "bar click hit-testing skips targets on other bar surfaces"
+
 # Both bar orientations used to be instantiated and toggled with `visible`,
 # doubling every indicator (and every process an indicator spawns) per bar.
 if ! rg -q 'sourceComponent: root\.vertical \? verticalIndicatorsTree : horizontalIndicatorsTree' \
