@@ -2038,7 +2038,16 @@ Item {
       propagateComposedEvents: true
       // Only the hovered slot needs the hit test; without the guard every
       // slot on every monitor re-ran it on each click target change.
-      cursorShape: moduleHover.hovered && root.moduleClickTargetAt(slot, mouseX, mouseY) ? Qt.PointingHandCursor : Qt.ArrowCursor
+      // moduleHover, not mouseX/mouseY: without hoverEnabled (deliberately
+      // off -- a hover-enabled MouseArea here would block hover from the
+      // widget-internal MouseAreas below, killing tooltips and hover
+      // styling), mouseX/mouseY only update while a button is pressed, so
+      // this binding used to evaluate at stale coordinates and the hand
+      // cursor never appeared until the slot's first click. The undefined
+      // branch resets the cursor claim so widgets that set their own
+      // cursor beneath are no longer shadowed.
+      cursorShape: moduleHover.hovered && root.moduleClickTargetAt(slot, moduleHover.point.position.x, moduleHover.point.position.y)
+        ? Qt.PointingHandCursor : undefined
       // Do not assign drag.target here: ModuleSlot is owned by Row/Column
       // positioners, and mutating slot.x/slot.y can leave stale offsets that
       // make neighboring modules overlap after a small aborted drag.
