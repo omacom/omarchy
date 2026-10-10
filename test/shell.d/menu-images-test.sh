@@ -177,6 +177,33 @@ while IFS=$'\t' read -r row_image row_thumbnail; do
 done <<<"$rows"
 pass "image menu prints its rows for the shell to hold"
 
+# Filenames may contain glob characters; the fallback check must compare them as strings.
+rm -rf "$cache_home"
+mkdir -p "$cache_home"
+
+glob_images="$tmp/glob-images"
+mkdir -p "$glob_images"
+printf 'image-bracket' >"$glob_images/photo[1].png"
+
+glob_cache_key=$(printf '%s' "$glob_images" | md5sum | cut -d ' ' -f 1)
+
+# Its detached pool must finish before the gated stub below replaces this one.
+setsid env PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
+  "$ROOT/bin/omarchy-menu-images" --lazy-thumbnails --print-rows "$glob_images" >/dev/null &
+glob_group=$!
+lazy_groups+=("$glob_group")
+wait "$glob_group" || fail "lazy image menu prints rows for a globbing filename"
+for attempt in {1..500}; do
+  kill -0 -- "-$glob_group" 2>/dev/null || break
+  sleep 0.02
+done
+! kill -0 -- "-$glob_group" 2>/dev/null || fail "lazy image menu finishes the globbing filename's thumbnail"
+
+cache_dir="$cache_home/omarchy/image-selector"
+[[ ! -e $cache_dir/$glob_cache_key.rows ]] ||
+  fail "image menu does not cache placeholder rows for a globbing filename"
+pass "image menu leaves lazy placeholder rows uncached for globbing filenames"
+
 # Block converters behind a gate: printing lazy rows must neither await them
 # nor start one process per image. Repeated refreshes share one worker pool.
 lazy_images="$tmp/lazy-images"
