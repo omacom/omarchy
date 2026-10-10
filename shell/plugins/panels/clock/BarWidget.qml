@@ -35,9 +35,13 @@ BarWidget {
   readonly property string displayText: formatted(displayDate)
   readonly property var verticalLines: displayText.split("\n")
 
-  function refresh() {
+  function refresh(keepView) {
     displayDate = new Date()
-    if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
+    if (panelLoader.item) {
+      var viewingCurrentMonth = panelLoader.item.viewingCurrentMonth
+      panelLoader.item.today = new Date()
+      if ((!keepView || viewingCurrentMonth) && panelLoader.item.refresh) panelLoader.item.refresh()
+    }
   }
 
   function cycleFormat() {
@@ -119,6 +123,25 @@ BarWidget {
     onDateChanged: root.displayDate = date
   }
 
+  // Quickshell's SystemClock arms a one-shot QTimer using CLOCK_MONOTONIC for the delay
+  // until the next minute. Monotonic time freezes during suspend, so the remaining delay
+  // has to elapse after resume before SystemClock ticks. Watching wall-clock time ensures
+  // any suspend/resume gap refreshes the displayDate to the current minute immediately.
+  Timer {
+    id: sleepWatch
+    interval: 1000
+    repeat: true
+    running: true
+    property double lastTickMs: Date.now()
+    onTriggered: {
+      var now = Date.now()
+      if (Math.abs(now - lastTickMs) > 2500) {
+        root.refresh(true)
+      }
+      lastTickMs = now
+    }
+  }
+
   Loader {
     id: panelLoader
     active: true
@@ -133,7 +156,7 @@ BarWidget {
   ShellIpc {
     target: "omarchy.clock"
 
-    function refresh(): void { root.broadcast("refresh") }
+    function refresh(): void { root.broadcast("refresh", [true]) }
     function cycleFormat(): void { root.cycleFormat() }
     function toggleWeekStart(): void { root.toggleWeekStart() }
     function open(): void { root.open() }

@@ -26,11 +26,11 @@ Item {
   // ever routes to one handler, but a bar surface exists per monitor, so the
   // instance that owns the target relays the call to its peers — otherwise a
   // refresh would land on a single screen and leave the others stale.
-  function broadcast(method) {
+  function broadcast(method, args) {
     var items = bar && typeof bar.moduleWidgets === "function"
       ? bar.moduleWidgets(moduleName) : [root]
     for (var i = 0; i < items.length; i++) {
-      if (items[i] && typeof items[i][method] === "function") items[i][method]()
+      if (items[i] && typeof items[i][method] === "function") items[i][method].apply(items[i], args || [])
     }
   }
 

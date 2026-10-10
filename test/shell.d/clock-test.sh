@@ -200,6 +200,69 @@ assert(/precision: root\.showsSeconds \? SystemClock\.Seconds : SystemClock\.Min
 // must reach the label.
 assert(/showsSeconds: Model\.clockNeedsSeconds\(activeFormat\)/.test(widgetSource), 'clock decides its tick rate from the format it is showing')
 assert(/onDateChanged: root\.displayDate = date/.test(widgetSource), 'clock repaints the label on every tick')
+const baseWidgetSource = fs.readFileSync(root + '/shell/Ui/BarWidget.qml', 'utf8')
+  .replace(/^\s*\/\/.*$/gm, '')
+const broadcastMatch = baseWidgetSource.match(/function broadcast\(method, args\) \{([\s\S]*?)\n  \}/)
+assert(broadcastMatch, 'bar broadcast accepts optional arguments')
+const broadcast = new Function('bar', 'moduleName', 'root', 'method', 'args', broadcastMatch[1])
+const firstWidget = { calls: [], refresh(...args) { this.calls.push(args) } }
+const secondWidget = { calls: [], refresh(...args) { this.calls.push(args) } }
+const widgetBar = { moduleWidgets(name) {
+  assertEqual(name, 'omarchy.clock', 'broadcast selects instances by module name')
+  return [firstWidget, null, {}, { refresh: false }, secondWidget]
+} }
+broadcast(widgetBar, 'omarchy.clock', firstWidget, 'refresh', [true])
+assertDeepEqual(firstWidget.calls, [[true]], 'broadcast forwards arguments with the first instance as receiver')
+assertDeepEqual(secondWidget.calls, [[true]], 'broadcast forwards arguments with each peer as receiver')
+broadcast(widgetBar, 'omarchy.clock', firstWidget, 'refresh')
+assertDeepEqual(secondWidget.calls, [[true], []], 'broadcast remains compatible with omitted arguments')
+broadcast(null, 'omarchy.clock', firstWidget, 'refresh')
+assertDeepEqual(firstWidget.calls, [[true], [], []], 'broadcast falls back to the root instance without a bar')
+assert(/function refresh\(\): void \{ root\.broadcast\("refresh", \[true\]\) \}/.test(widgetSource), 'clock IPC forwards keepView to every instance')
+
+const refreshMatch = widgetSource.match(/function refresh\(keepView\) \{([\s\S]*?)\n  \}/)
+assert(refreshMatch, 'clock exposes its refresh function')
+const refreshBody = refreshMatch[1]
+const captureIndex = refreshBody.indexOf('var viewingCurrentMonth = panelLoader.item.viewingCurrentMonth')
+assert(captureIndex >= 0 && captureIndex < refreshBody.indexOf('panelLoader.item.today ='), 'clock captures the current-month state before updating today')
+const refreshClock = new Function('panelLoader', 'Date', 'keepView', refreshBody + '\nreturn displayDate')
+function checkRefresh(previousToday, viewedMonth, nextToday, keepView, expectedMonth, expectedRefreshes, description) {
+  const panel = {
+    today: previousToday,
+    viewYear: viewedMonth[0],
+    viewMonth: viewedMonth[1],
+    refreshes: 0,
+    get viewingCurrentMonth() {
+      return this.viewYear === this.today.getFullYear() && this.viewMonth === this.today.getMonth()
+    },
+    refresh() {
+      this.refreshes++
+      this.viewYear = this.today.getFullYear()
+      this.viewMonth = this.today.getMonth()
+    }
+  }
+  class FixedDate extends Date { constructor() { super(nextToday.getTime()) } }
+  const displayDate = refreshClock({ item: panel }, FixedDate, keepView)
+  assertEqual(displayDate.getTime(), nextToday.getTime(), description + ': clock shows the new date')
+  assertEqual(panel.today.getTime(), nextToday.getTime(), description + ': calendar today updates')
+  assertDeepEqual([panel.viewYear, panel.viewMonth], expectedMonth, description + ': viewed month')
+  assertEqual(panel.refreshes, expectedRefreshes, description + ': panel refresh count')
+}
+checkRefresh(new Date(2026, 6, 31), [2026, 6], new Date(2026, 7, 1), true, [2026, 7], 1, 'current month follows today across month rollover')
+checkRefresh(new Date(2026, 11, 31), [2026, 11], new Date(2027, 0, 1), true, [2027, 0], 1, 'current month follows today across year rollover')
+checkRefresh(new Date(2026, 6, 31), [2026, 5], new Date(2026, 7, 1), true, [2026, 5], 0, 'wake refresh preserves a browsed month')
+checkRefresh(new Date(2026, 6, 31), [2026, 5], new Date(2026, 7, 1), undefined, [2026, 7], 1, 'ordinary refresh resets a browsed month to today')
+const shouldTriggerSleepRefresh = (now, lastTickMs) => Math.abs(now - lastTickMs) > 2500
+assert(!shouldTriggerSleepRefresh(1000, 0), 'normal 1s interval does not trigger clock refresh')
+assert(!shouldTriggerSleepRefresh(2400, 0), 'sub-2.5s jitter does not trigger clock refresh')
+assert(shouldTriggerSleepRefresh(60000, 0), 'forward gap across suspend triggers clock refresh')
+assert(shouldTriggerSleepRefresh(0, 60000), 'backward gap across NTP step triggers clock refresh')
+assert(
+  /id: sleepWatch\s+interval: 1000/.test(widgetSource) &&
+    /Math\.abs\(now - lastTickMs\) > 2500/.test(widgetSource) &&
+    /root\.refresh\(true\)/.test(widgetSource),
+  'clock monitors wall-clock time in both directions to refresh immediately across suspend/resume while keeping calendar view'
+)
 assert(/setting\("weekStartDay", null\)/.test(panelSource) && /persistSettings\(\{ weekStartDay:/.test(panelSource), 'calendar reads and writes the week start as weekStartDay')
 assert(/updateEntryInline/.test(panelSource), 'calendar panel persists the week start to shell.json')
 assert(/function moveMonth\(delta\)/.test(panelSource), 'calendar panel steps between months')
@@ -269,3 +332,7 @@ grep -q 'o.bind("SUPER + CTRL + ALT + D", "Calendar", { panel = "omarchy.clock" 
   "$ROOT/default/hypr/bindings/utilities.lua" ||
   fail "SUPER+CTRL+ALT+D toggles the calendar panel"
 pass "SUPER+CTRL+ALT+D toggles the calendar panel"
+
+grep -q 'omarchy-shell -q omarchy.clock refresh' "$ROOT/bin/omarchy-system-wake" ||
+  fail "system wake triggers clock refresh"
+pass "system wake triggers clock refresh"
