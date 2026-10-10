@@ -1,0 +1,10 @@
+#!/bin/bash
+set -euo pipefail
+(( EUID == 0 )) || exit 1
+# Keep files for inspection; remove only automatic activation. Stop the hook
+# first so a pending post action cannot re-enable the controller afterward.
+systemctl disable --now mbp2019-amdgpu-sleep.service
+systemctl disable --now mbp2019-amdgpu-demand.service
+systemctl restart mbp2019-amdgpu-power-prep.service
+[[ $(< /sys/bus/pci/devices/0000:03:00.0/power_dpm_force_performance_level) == "low" ]]
+echo 'Automatic switching disabled; original conservative low-clock policy restored.'
