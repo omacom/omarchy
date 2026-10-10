@@ -26,7 +26,12 @@ case "$*" in
     printf '[{"name":"DP-1","specialWorkspace":{"name":""}},{"name":"DP-2","specialWorkspace":{"name":"special:scratchpad"}}]\n'
     ;;
   'clients -j')
-    cat "$TEST_DIR/clients.json"
+    # No screensaver is up until the launcher spawns one, or its already-running gate would exit.
+    if [[ -s $TEST_DIR/spawned ]]; then
+      cat "$TEST_DIR/clients.json"
+    else
+      echo '[]'
+    fi
     ;;
   *exec_cmd*)
     count=$(($(wc -l <"$TEST_DIR/spawned") + 1))
@@ -40,7 +45,7 @@ cat >"$tmpdir/bin/socat" <<'SH'
 printf '%s\n' "$$" >"$TEST_DIR/socat.pid"
 exec cat "$TEST_DIR/events"
 SH
-printf '#!/bin/bash\nexit 1\n' >"$tmpdir/bin/pgrep"
+printf '#!/bin/bash\nexit 1\n' >"$tmpdir/bin/pidof"
 printf '#!/bin/bash\nexit 1\n' >"$tmpdir/bin/omarchy-toggle-enabled"
 printf '#!/bin/bash\necho DP-1\n' >"$tmpdir/bin/omarchy-hyprland-monitor-focused"
 printf '#!/bin/bash\necho foot.desktop\n' >"$tmpdir/bin/xdg-terminal-exec"
