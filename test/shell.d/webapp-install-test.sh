@@ -40,12 +40,12 @@ grep -Fxq 'Exec=omarchy-launch-webapp "https://example.org/app"' "$(desktop_for 
   fail "webapp install stores the prefixed https URL" "$(cat "$(desktop_for Plain)")"
 pass "webapp install prefixes a schemeless URL with https"
 
-if install_webapp "Local" "https://localhost:47990" "webapp" "omarchy-launch-webapp https://localhost:47990 --ignore-certificate-errors" >"$tmpdir/out" 2>"$tmpdir/err"; then
+if install_webapp "Local" "https://example.com" "webapp" "omarchy-launch-webapp https://example.com --new-window" >"$tmpdir/out" 2>"$tmpdir/err"; then
   :
 else
   fail "webapp install keeps a custom https exec" "$(cat "$tmpdir/err")"
 fi
-grep -Fxq 'Exec=omarchy-launch-webapp https://localhost:47990 --ignore-certificate-errors' "$(desktop_for Local)" ||
+grep -Fxq 'Exec=omarchy-launch-webapp https://example.com --new-window' "$(desktop_for Local)" ||
   fail "webapp install writes the custom exec" "$(cat "$(desktop_for Local)")"
 pass "webapp install keeps a custom https exec"
 
