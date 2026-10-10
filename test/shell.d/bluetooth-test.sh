@@ -17,8 +17,31 @@ assert(/IpcHandler[\s\S]*?function toggleBluetooth\(\) \{ root\.toggleBluetooth\
 assert(/manageIpc: false/.test(panelSource), 'bluetooth owns its IPC handler so it can extend the target methods')
 
 // Writing adapter.enabled sets BlueZ Powered, which does not survive a reboot.
-assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", adapter\.enabled \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
+assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", radioEnabled \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
 assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the adapter power state directly')
+
+// The block takes the adapter off D-Bus wherever it cuts power to the controller
+// rather than just parking it, so BlueZ reports a radio that is merely off
+// exactly as it reports a machine with no Bluetooth at all. A widget keyed on
+// the adapter left the bar the moment Bluetooth was switched off, carrying its
+// own on switch with it and leaving no way back that wasn't a terminal.
+assert(/\n  visible: radioPresent\n/.test(panelSource), 'bluetooth keeps the bar widget on screen while the radio is blocked')
+assert(/onExited: function\(exitCode\) \{ root\.radioPresent = root\.adapter !== null \|\| exitCode === 0 \}/.test(panelSource), 'bluetooth counts a blocked radio as hardware that is present')
+assert(/readonly property bool radioEnabled: adapter !== null && adapter\.enabled/.test(panelSource), 'bluetooth still reads on/off from the adapter whenever there is one')
+assert(/visible: root\.radioPresent[\s\S]{0,120}checked: root\.radioEnabled/.test(panelSource), 'bluetooth leaves the power switch on screen and usable while the radio is off')
+
+// rfkill is the only thing that can tell the two apart, and it is asked exactly
+// when BlueZ has nothing to say: a present adapter already carries the state.
+assert(/command: \["omarchy-bluetooth-power", "is-blocked"\]/.test(panelSource), 'bluetooth asks rfkill what an absent adapter means')
+assert(/onAdapterChanged: \{[\s\S]{0,200}blockedQuery\.running = true/.test(panelSource), 'bluetooth re-reads the block when the adapter disappears')
+assert(/Component\.onCompleted: \{[\s\S]{0,80}if \(adapter === null\) blockedQuery\.running = true/.test(panelSource), 'bluetooth reads the block at startup for a radio already off')
+assert(/onAdapterChanged: \{\s*\n\s*if \(adapter !== null\) radioPresent = true/.test(panelSource), 'bluetooth shows the widget as soon as an adapter is back')
+
+// The adapter leaves D-Bus a few milliseconds before rfkill can answer for it.
+// Bound to the adapter, presence dropped in that gap and the widget blinked off
+// the bar on every turn-off, from the panel or from omarchy-bluetooth-power off.
+assert(/\n  property bool radioPresent: false\n/.test(panelSource), 'bluetooth holds the widget on the bar until rfkill has answered')
+assert(!/radioPresent: adapter/.test(panelSource), 'bluetooth never binds widget presence to the adapter')
 
 // Discovery is a BlueZ session that nothing ends at panel close: it persists
 // until StopDiscovery or until quickshell's D-Bus connection drops with the
@@ -172,6 +195,21 @@ cat >"$mock_bin/rfkill" <<'SH'
 #!/bin/bash
 
 printf 'rfkill %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
+# The is-blocked read: one SOFT column per bluetooth switch, and no output at all
+# on a machine that has none.
+# util-linux translates the cell values, so a German session prints "gesperrt"
+# where the C locale prints "blocked": the mock does the same unless the caller
+# pinned the locale.
+if [[ $1 == "--noheadings" ]]; then
+  if [[ -n ${MOCK_SOFT_STATE:-} ]]; then
+    if [[ ${LC_ALL:-} == "C" ]]; then
+      printf '%s\n' "$MOCK_SOFT_STATE"
+    else
+      printf '%s\n' "$MOCK_SOFT_STATE" | sed 's/^unblocked$/nicht gesperrt/; s/^blocked$/gesperrt/'
+    fi
+  fi
+  exit 0
+fi
 # Lifting the block is normally all it takes: AutoEnable is left at its default,
 # so bluetoothd powers the adapter up on its own. RFKILL_INERT stands in for the
 # adapter that was powered down without a block, where it does not.
@@ -280,3 +318,73 @@ pass "bluetooth counts a secondary controller as on"
 grep -q 'AutoEnable=false' "$ROOT/install/hardware/bluetooth.sh" &&
   fail "bluetooth install leaves AutoEnable at its default"
 pass "bluetooth install leaves AutoEnable at its default"
+
+# What the bar widget asks when BlueZ hands it no adapter: a soft block means
+# Bluetooth is off and the widget stays put, no bluetooth switch at all means the
+# machine has no radio and the widget is right to go.
+blocked_state() {
+  MOCK_SOFT_STATE="$1" PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" \
+    "$ROOT/bin/omarchy-bluetooth-power" is-blocked
+}
+
+blocked_state $'unblocked\nblocked' ||
+  fail "bluetooth reports a soft-blocked radio as blocked"
+pass "bluetooth reports a soft-blocked radio as blocked"
+
+blocked_state $'unblocked\nunblocked' &&
+  fail "bluetooth reports an unblocked radio as not blocked"
+pass "bluetooth reports an unblocked radio as not blocked"
+
+# "unblocked" contains "blocked", so a loose match here would pin the widget to
+# the bar on every machine that has no Bluetooth at all.
+blocked_state "" &&
+  fail "bluetooth reports a machine with no rfkill switch as not blocked"
+pass "bluetooth reports a machine with no rfkill switch as not blocked"
+
+# The mock rfkill translates the column unless the query pins the locale, the
+# way util-linux does on a localized system. A helper that read the English
+# word from a translated column would hide the widget again on those machines.
+LC_ALL= blocked_state $'unblocked\nblocked' ||
+  fail "bluetooth reads the rfkill block in a localized session"
+pass "bluetooth reads the rfkill block in a localized session"
+
+# The same transitions in the running panel: adapter gone with the radio
+# blocked, adapter back, adapter gone with no block, and a shell started with
+# the radio already blocked.
+require_compositor "bluetooth radio-off runtime test"
+require_command quickshell
+
+stage=$(mktemp -d)
+trap 'rm -rf -- "$device_tmp" "$stage"' EXIT
+fixture="$SHELL_TEST_DIR/fixtures/bluetooth-radio-off"
+mkdir -p "$stage/bluetooth" "$stage/bin" "$stage/home"
+ln -s "$ROOT/shell/Ui" "$stage/Ui"
+ln -s "$ROOT/shell/Commons" "$stage/Commons"
+cp -r "$fixture/mocks" "$stage/mocks"
+cp "$fixture/shell.qml" "$stage/shell.qml"
+cp "$ROOT/shell/plugins/panels/bluetooth/Model.js" "$stage/bluetooth/Model.js"
+sed -e 's|^import Quickshell.Bluetooth$|import Quickshell.Bluetooth\nimport "../mocks"|' \
+  -e 's/\bBluetooth\.\(defaultAdapter\|devices\)/BluetoothMock.\1/g' \
+  "$ROOT/shell/plugins/panels/bluetooth/Panel.qml" >"$stage/bluetooth/Panel.qml"
+
+# Only the soft block is faked: off sets it, on lifts it, is-blocked reads it.
+cat >"$stage/bin/omarchy-bluetooth-power" <<'SH'
+#!/bin/bash
+printf '%s\n' "$1" >>"$BT_TEST_DIR/log"
+case $1 in
+  off) echo blocked >"$BT_TEST_DIR/rfkill" ;;
+  on) echo unblocked >"$BT_TEST_DIR/rfkill" ;;
+  is-blocked) [[ $(<"$BT_TEST_DIR/rfkill") == blocked ]] ;;
+esac
+SH
+chmod +x "$stage/bin/omarchy-bluetooth-power"
+echo unblocked >"$stage/rfkill"
+
+output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" BT_TEST_DIR="$stage" \
+  timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "bluetooth radio-off fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "bluetooth radio-off runtime assertions pass" "$output"
+if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<< "$output"; then
+  fail "bluetooth radio-off fixture has no QML errors" "$output"
+fi
+grep -qx on "$stage/log" || fail "the panel switch turns a blocked radio back on"
+pass "bluetooth keeps the widget through turn-off, turn-on, no hardware and a blocked startup in QML"
