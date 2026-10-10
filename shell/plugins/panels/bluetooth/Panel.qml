@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Bluetooth
 import Quickshell.Services.Pipewire
+import Quickshell.Services.UPower
 import qs.Ui
 import qs.Commons
 import qs.Commons as Commons
@@ -32,6 +33,14 @@ Panel {
   property bool owesDiscoveryStop: false
   readonly property var devices: Bluetooth.devices ? Bluetooth.devices.values : []
   readonly property var pipewireNodes: Pipewire.nodes ? Pipewire.nodes.values : []
+
+  // BlueZ publishes org.bluez.Battery1 only for peripherals that report battery
+  // over GATT, so classic-HID devices (a Magic Mouse, say) never set
+  // batteryAvailable even though the kernel reads their level over a HID
+  // feature report. UPower surfaces those, keyed by an address-carrying
+  // nativePath, so fold them in as a fallback for rows BlueZ leaves blank.
+  readonly property var upowerDevices: UPower.devices ? UPower.devices.values : []
+  readonly property var hidBatteries: Model.hidBatteryMap(upowerDevices)
   property var pendingAudioOutputDevice: null
   property int pendingAudioOutputAttempts: 0
 
@@ -140,10 +149,10 @@ Panel {
   readonly property var scrollRows: {
     var rows = []
     for (var k = 0; k < knownDevices.length; k++)
-      rows.push({ dev: Model.deviceRow(knownDevices[k]), section: "known", indexInSection: k })
+      rows.push({ dev: Model.deviceRow(knownDevices[k], hidBatteries), section: "known", indexInSection: k })
     if (sectionVisible("discovered"))
       for (var d = 0; d < discoveredDevices.length; d++)
-        rows.push({ dev: Model.deviceRow(discoveredDevices[d]), section: "discovered", indexInSection: d })
+        rows.push({ dev: Model.deviceRow(discoveredDevices[d], hidBatteries), section: "discovered", indexInSection: d })
     return rows
   }
 
@@ -152,7 +161,7 @@ Panel {
   readonly property var connectedRows: {
     var rows = []
     for (var i = 0; i < connectedDevices.length; i++)
-      rows.push(Model.deviceRow(connectedDevices[i]))
+      rows.push(Model.deviceRow(connectedDevices[i], hidBatteries))
     return rows
   }
 
