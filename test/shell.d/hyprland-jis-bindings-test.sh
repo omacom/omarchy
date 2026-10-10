@@ -133,5 +133,7 @@ TEST_KEYBOARD_ONLY=true TEST_FCITX5_CONFIG=$freed assert_fires "keyboard-only pr
 
 assert_fires "Super + I cycles configured input independently of custom Fcitx keys" \
   "exec omarchy-input-method cycle" "SUPER + I" "chromium"
+assert_fires "Super + Shift + I cycles configured input back" \
+  "exec omarchy-input-method cycle back" "SUPER + SHIFT + I" "chromium"
 TEST_KEYBOARD_ONLY=true assert_fires "Super + I cycles keyboard layouts without an input engine" \
   "exec omarchy-input-method cycle" "SUPER + I" "foot" "terminal"

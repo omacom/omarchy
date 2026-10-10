@@ -36,6 +36,7 @@ end
 -- Keep the desktop shortcut independent of Fcitx's custom switching keys.
 -- Read the live Fcitx group so setup works without a compositor reload.
 o.bind("SUPER + I", "Switch input language", "omarchy-input-method cycle")
+o.bind("SUPER + SHIFT + I", "Switch input language back", "omarchy-input-method cycle back")
 
 -- Preserve custom Ctrl + Space triggers. Without a
 -- [Hotkey/TriggerKeys] list in the config, fcitx5 uses its default, which has

@@ -7,9 +7,9 @@ Singleton {
   id: root
   property var state: ({})
 
-  function cycle() {
+  function cycle(back) {
     if (!watcher.running) return false
-    watcher.write("cycle\n")
+    watcher.write(back ? "cycle back\n" : "cycle\n")
     return true
   }
 

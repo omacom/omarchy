@@ -176,6 +176,16 @@ with patch.object(indicator, "snapshot", side_effect=indicator.GLib.Error("no fc
   assert keyboards[0]["active_layout_index"] == 1
 print("ok - the shortcut reader cycles compositor layouts when Fcitx is unavailable")
 
+keyboards = [{"name": "physical", "layout": "us,dk", "active_layout_index": 0}]
+state = {"methods": ["keyboard-us", "mozc", "hangul"], "current": "keyboard-us"}
+assert indicator.cycle_choice(state, keyboards) == ("keyboard-us", 1)
+assert indicator.cycle_choice(state, keyboards, -1) == ("hangul", None)
+state["current"] = "mozc"
+assert indicator.cycle_choice(state, keyboards, -1) == ("keyboard-us", 1)
+assert indicator.cycle_choice({"methods": ["keyboard-us", "mozc", "hangul"], "current": "keyboard-us"}, [], -1) == ("hangul", None)
+assert indicator.layout_switches(keyboards, step=-1)[0][-1] == "1"
+print("ok - cycling back walks the same choices in reverse")
+
 PY
 
 stubs=$(mktemp -d)
@@ -193,10 +203,18 @@ SH
 chmod +x "$stubs/omarchy-shell" "$stubs/python"
 
 CALLS=$calls SHELL_REPLY=ok PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-input-method" cycle
-[[ $(<"$calls") == "shell shell cycleInput" ]] || fail "Super+I goes through the shell's reader" "$(<"$calls")"
+[[ $(<"$calls") == "shell shell cycleInput next" ]] || fail "Super+I goes through the shell's reader" "$(<"$calls")"
 pass "Super+I goes through the shell's reader, which retains a choice made without focus"
 
 : >"$calls"
 CALLS=$calls SHELL_REPLY="" PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-input-method" cycle
-[[ $(<"$calls") == $'shell shell cycleInput\npython indicator.py cycle' ]] || fail "Super+I switches directly without the shell" "$(<"$calls")"
+[[ $(<"$calls") == $'shell shell cycleInput next\npython indicator.py cycle next' ]] || fail "Super+I switches directly without the shell" "$(<"$calls")"
 pass "Super+I switches directly when the shell does not answer"
+
+: >"$calls"
+CALLS=$calls SHELL_REPLY="" PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-input-method" cycle back
+[[ $(<"$calls") == $'shell shell cycleInput back\npython indicator.py cycle back' ]] || fail "Super+Shift+I cycles back" "$(<"$calls")"
+if CALLS=$calls PATH="$stubs:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-input-method" cycle sideways 2>/dev/null; then
+  fail "an unknown cycle direction is rejected"
+fi
+pass "Super+Shift+I cycles back through the shell or directly, and other directions are rejected"

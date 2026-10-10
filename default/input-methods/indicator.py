@@ -51,24 +51,24 @@ def layout_keyboard(keyboards):
   return keyboard
 
 
-def layout_switches(keyboards, index=None):
+def layout_switches(keyboards, index=None, step=1):
   keyboard = layout_keyboard(keyboards)
   if keyboard is None:
     return []
   layout = keyboard["layout"]
-  following = index if index is not None else (keyboard.get("active_layout_index", 0) + 1) % len(layout.split(","))
+  following = index if index is not None else (keyboard.get("active_layout_index", 0) + step) % len(layout.split(","))
   return [["hyprctl", "switchxkblayout", item["name"], str(following)]
           for item in keyboards if item.get("layout") == layout and item.get("name")]
 
 
-def cycle_choice(state, keyboards):
+def cycle_choice(state, keyboards, step=1):
   methods = state.get("methods", [])
   keyboard = layout_keyboard(keyboards)
   primary = next((method for method in methods if method.startswith("keyboard-")), None)
   if keyboard is None or primary is None:
     current = state.get("current")
     if len(methods) > 1 and current in methods:
-      return methods[(methods.index(current) + 1) % len(methods)], None
+      return methods[(methods.index(current) + step) % len(methods)], None
     return None, None
   # One direct-input method represents all compositor layouts. Composition
   # engines follow them in the user's configured order.
@@ -82,10 +82,10 @@ def cycle_choice(state, keyboards):
   position = (current, keyboard.get("active_layout_index", 0) if current == primary else None)
   if position not in choices:
     return None, None
-  return choices[(choices.index(position) + 1) % len(choices)]
+  return choices[(choices.index(position) + step) % len(choices)]
 
 
-def cycle_input():
+def cycle_input(step=1):
   try:
     bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
     state = snapshot(bus)
@@ -94,9 +94,9 @@ def cycle_input():
   devices = subprocess.run(["hyprctl", "-j", "devices"], check=True, text=True, capture_output=True)
   keyboards = json.loads(devices.stdout).get("keyboards", [])
   if not state.get("methods"):
-    switches = layout_switches(keyboards)
+    switches = layout_switches(keyboards, step=step)
   else:
-    method, index = cycle_choice(state, keyboards)
+    method, index = cycle_choice(state, keyboards, step)
     if method is not None and method != state.get("current"):
       call(bus, "SetCurrentIM", GLib.Variant("(s)", (method,)))
     switches = layout_switches(keyboards, index) if index is not None else []
@@ -111,20 +111,20 @@ class Indicator:
     self.last = ""
     self.entries = {}
 
-  def select_next(self):
+  def select_next(self, step=1):
     devices = subprocess.run(["hyprctl", "-j", "devices"], check=True, text=True, capture_output=True)
     keyboards = json.loads(devices.stdout).get("keyboards", [])
     try:
       state = snapshot(self.bus)
     except GLib.Error:
       # Without Fcitx, Super+I still cycles the compositor layouts.
-      for command in layout_switches(keyboards):
+      for command in layout_switches(keyboards, step=step):
         subprocess.run(command, check=True, capture_output=True)
       return
     methods = state["methods"]
     current = self.pending or state["current"] or self.last
     state["current"] = current if current in methods else next(iter(methods), "")
-    following, index = cycle_choice(state, keyboards)
+    following, index = cycle_choice(state, keyboards, step)
     if following is None:
       return
     self.pending = following
@@ -191,9 +191,9 @@ def watch(bus):
     buffer += data.decode()
     while "\n" in buffer:
       line, buffer = buffer.split("\n", 1)
-      if line == "cycle":
+      if line in ("cycle", "cycle back"):
         try:
-          indicator.select_next()
+          indicator.select_next(-1 if line == "cycle back" else 1)
         except (GLib.Error, OSError, ValueError, subprocess.CalledProcessError):
           indicator.pending = ""
         refresh()
@@ -211,8 +211,8 @@ def watch(bus):
 
 if __name__ == "__main__":
   try:
-    if sys.argv[1:] == ["cycle"]:
-      cycle_input()
+    if sys.argv[1:] in (["cycle"], ["cycle", "next"], ["cycle", "back"]):
+      cycle_input(-1 if sys.argv[2:] == ["back"] else 1)
     else:
       watch(Gio.bus_get_sync(Gio.BusType.SESSION, None))
   except (GLib.Error, OSError, ValueError, subprocess.CalledProcessError) as error:
