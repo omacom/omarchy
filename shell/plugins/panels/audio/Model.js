@@ -123,6 +123,17 @@ function sinkGlyph(node) {
   return "󰓃"
 }
 
+// Waybar's pulseaudio glyphs: Material's speakers render smaller in JetBrainsMono.
+// Mute outranks the device class, so muted headphones read as muted.
+function outputGlyph(node, muted, volume) {
+  if (!node || !node.audio || muted) return ""
+  if (isHeadphones(node)) return "󰋋"
+  if (volume >= 0.67) return ""
+  if (volume >= 0.34) return ""
+  if (volume > 0) return ""
+  return ""
+}
+
 function sourceGlyph(node) {
   if (!node) return "󰍬"
   var p = nodeProps(node)
@@ -279,6 +290,7 @@ if (typeof module !== "undefined") {
     nodeLabel: nodeLabel,
     isHeadphones: isHeadphones,
     sinkGlyph: sinkGlyph,
+    outputGlyph: outputGlyph,
     sourceGlyph: sourceGlyph,
     friendlyStreamLabel: friendlyStreamLabel,
     streamLabelKey: streamLabelKey,
