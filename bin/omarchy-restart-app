@@ -3,5 +3,10 @@
 # omarchy:summary=Restart an application by killing it and relaunching via uwsm.
 # omarchy:args=<application-name> [application-args...]
 
+if [[ -z ${1:-} ]]; then
+  echo "Usage: $(basename "$0") <application-name> [application-args...]" >&2
+  exit 1
+fi
+
 pkill -x -- "$1"
 setsid uwsm-app -- "$@" >/dev/null 2>&1 &
