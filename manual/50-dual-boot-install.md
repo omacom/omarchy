@@ -42,3 +42,15 @@ In order to do that, run `limine-scan` and follow the prompts to add whichever i
 It's important to note that this install method is not compatible with Bitlocker as it encrypts the entire drive, not just the partition. If you encounter an error stating that Bitlocker is enabled, boot to Windows, go to **Settings -> Privacy & Security -> Device encryption** and toggle Bitlocker off. It may take some time to decrypt the drive.
 
  ![dual-boot-7](images/dual-boot-7.webp)
+
+## Hardware Clock
+
+Windows keeps the hardware clock in local time by default; Linux expects UTC. After a Windows session Omarchy can boot with the system clock ahead by your UTC offset until NTP corrects it. A snapshot taken in that window gets a future timestamp, and Limine may hide later snapshots until real time catches up.
+
+Prefer one convention on a dual-boot machine:
+
+1. Tell Windows to keep UTC: in Registry Editor set `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\TimeZoneInformation\RealTimeIsUniversal` to `dword:00000001`, then reboot.
+2. Or tell Linux to use local time: `timedatectl set-local-rtc 1`.
+
+Omarchy's update snapshot waits briefly for NTP before creating a snapshot, but aligning the hardware clock avoids the skew entirely.
+
