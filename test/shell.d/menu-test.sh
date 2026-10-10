@@ -62,7 +62,9 @@ assertDeepEqual(
     aliases: ['theme'],
     when: '',
     checked: '',
-    disabled: ''
+    disabled: '',
+    after: '',
+    before: ''
   },
   'menu normalizes parsed items'
 )
@@ -75,6 +77,19 @@ const merged = menu.mergeMenuSources(parsed, user)
 assertEqual(merged.items['style.theme'].label, 'Theme picker', 'menu user entries override default entries')
 assertEqual(merged.items['style.theme'].order, 2, 'menu preserves original order on override')
 assert(merged.items.root, 'menu injects root when merging sources')
+
+const placementDefaults = ['apps', 'learn', 'style', 'style.theme', 'system'].map(id => menu.normalizeItem(id, {}))
+const placed = menu.mergeMenuSources(placementDefaults, [
+  menu.normalizeItem('tools', { after: 'apps' }),
+  menu.normalizeItem('tools.editor', { action: 'edit' }),
+  menu.normalizeItem('first', { before: 'apps' }),
+  menu.normalizeItem('nested', { after: 'style.theme' }),
+  menu.normalizeItem('orphan', { after: 'missing' }),
+  menu.normalizeItem('system', { after: 'learn' })
+])
+const rootRows = placed.itemOrder.filter(id => placed.items[id].parent === 'root')
+assertDeepEqual(rootRows, ['first', 'apps', 'tools', 'learn', 'system', 'style', 'nested', 'orphan'], 'menu places entries after or before a sibling')
+assertDeepEqual(placed.itemOrder.map(id => placed.items[id].order), placed.itemOrder.map((id, i) => i), 'menu renumbers order after placement')
 
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')

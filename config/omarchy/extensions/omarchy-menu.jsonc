@@ -15,11 +15,16 @@
   //   description Optional subtitle and extra search text.
   //   when        Shell condition; hide row when it fails.
   //   checked     Shell condition; append ✓ when it succeeds.
+  //   after       Sibling id to appear after; new ids otherwise go last.
+  //   before      Sibling id to appear before.
   //
   // Examples:
   // "personal": {"icon":"","label":"Personal"},
   // "personal.notes": {"icon":"󰎞","label":"Notes","action":"omarchy-launch-editor ~/notes"},
   // "personal.files": {"icon":"","label":"Files","action":"uwsm-app -- nautilus ~/Documents"},
+  //
+  // New root entries go last; add "after":"apps" to Personal to list it
+  // right below Apps instead.
   //
   // provider can only reference row sources the shell already defines (the
   // providers map in Menu.qml). Static submenus only need dotted ids.
