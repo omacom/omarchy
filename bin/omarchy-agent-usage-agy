@@ -143,7 +143,7 @@ def slugify_model(name):
     clean = name.lower().strip()
     clean = re.sub(r"\s*\([^)]*\)", "", clean)
     slug = re.sub(r"[^a-z0-9.]+", "-", clean).strip("-")
-    return slug or "default"
+    return slug or "gemini-3.8-flash"
 
 
 def parse_transcripts(brain_dir, now):
@@ -162,82 +162,122 @@ def parse_transcripts(brain_dir, now):
             "recentDays": [{"date": d, "messageCount": 0} for d in recent_dates],
         }
 
-    for root, dirs, files in os.walk(brain_dir):
-        for f in files:
-            if f.startswith("transcript") and f.endswith(".jsonl"):
-                full_path = os.path.join(root, f)
-                session_model = None
+    for entry in os.listdir(brain_dir):
+        conv_dir = os.path.join(brain_dir, entry)
+        if not os.path.isdir(conv_dir) or entry.startswith("."):
+            continue
+
+        logs_dir = os.path.join(conv_dir, ".system_generated", "logs")
+        target_path = None
+        for candidate in [
+            os.path.join(logs_dir, "transcript_full.jsonl"),
+            os.path.join(logs_dir, "transcript.jsonl"),
+            os.path.join(conv_dir, "transcript.jsonl"),
+        ]:
+            if os.path.isfile(candidate):
+                target_path = candidate
+                break
+
+        if not target_path:
+            continue
+
+        session_model = None
+        records = []
+        has_explicit_tokens = False
+
+        try:
+            with open(target_path, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                    except Exception:
+                        continue
+                    records.append(data)
+
+                    if data.get("input_tokens") is not None or data.get("output_tokens") is not None:
+                        has_explicit_tokens = True
+
+                    content = str(data.get("content", ""))
+                    if data.get("type") == "USER_INPUT" and "<USER_SETTINGS_CHANGE>" in content:
+                        match = re.search(
+                            r"<USER_SETTINGS_CHANGE>.*?Model Selection.*?to\s+([^\n<]+?)\.(?:\s*No need|\s*If reporting|\n|</USER_SETTINGS_CHANGE>)",
+                            content,
+                            re.DOTALL,
+                        )
+                        if match:
+                            session_model = slugify_model(match.group(1))
+        except Exception:
+            continue
+
+        active_model = session_model or "gemini-3.8-flash"
+        bucket = model_usage.setdefault(
+            active_model,
+            {
+                "inputTokens": 0,
+                "outputTokens": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0,
+            },
+        )
+
+        for data in records:
+            in_t = data.get("input_tokens")
+            out_t = data.get("output_tokens")
+            cache_t = data.get("cache_read_tokens") or 0
+
+            created_at = data.get("created_at", "")
+            step_day = None
+            if created_at:
                 try:
-                    with open(full_path, encoding="utf-8", errors="replace") as fh:
-                        for line in fh:
-                            line = line.strip()
-                            if not line:
-                                continue
-                            try:
-                                data = json.loads(line)
-                            except Exception:
-                                continue
-
-                            content = str(data.get("content", ""))
-                            if "Model Selection" in content:
-                                match = re.search(
-                                    r"Model Selection.*?\sto\s+([^.\n<]+(?:\.[0-9]+[^.\n<]*)?)",
-                                    content,
-                                )
-                                if match:
-                                    session_model = slugify_model(match.group(1))
-
-                            step_type = data.get("type")
-                            created_at = data.get("created_at", "")
-
-                            step_day = None
-                            if created_at:
-                                try:
-                                    clean_ts = created_at.replace("Z", "+00:00")
-                                    clean_ts = re.sub(r"(\.\d{6})\d+", r"\1", clean_ts)
-                                    dt = datetime.fromisoformat(clean_ts).astimezone()
-                                    step_day = dt.strftime("%Y-%m-%d")
-                                except Exception:
-                                    step_day = created_at[:10]
-
-                            in_chars = 0
-                            out_chars = 0
-                            if step_type in ("USER_INPUT", "GENERIC", "SYSTEM_MESSAGE"):
-                                in_chars += len(content)
-                            elif step_type == "PLANNER_RESPONSE":
-                                out_chars += len(str(data.get("thinking", "")))
-                                out_chars += len(content)
-                                out_chars += len(str(data.get("tool_calls", "")))
-
-                            in_tok = max(1, in_chars // 4) if in_chars else 0
-                            out_tok = max(1, out_chars // 4) if out_chars else 0
-                            tok_sum = in_tok + out_tok
-                            if tok_sum == 0:
-                                continue
-
-                            active_model = session_model or "default"
-                            bucket = model_usage.setdefault(
-                                active_model,
-                                {
-                                    "inputTokens": 0,
-                                    "outputTokens": 0,
-                                    "cacheReadInputTokens": 0,
-                                    "cacheCreationInputTokens": 0,
-                                },
-                            )
-                            bucket["inputTokens"] += in_tok
-                            bucket["outputTokens"] += out_tok
-
-                            if step_day and step_day in tokens_by_day:
-                                tokens_by_day[step_day] += tok_sum
-
-                            if step_day == today_str:
-                                today_total_tokens += tok_sum
-                                today_tokens_by_model[active_model] = (
-                                    today_tokens_by_model.get(active_model, 0) + tok_sum
-                                )
+                    clean_ts = created_at.replace("Z", "+00:00")
+                    clean_ts = re.sub(r"(\.\d{6})\d+", r"\1", clean_ts)
+                    dt = datetime.fromisoformat(clean_ts).astimezone()
+                    step_day = dt.strftime("%Y-%m-%d")
                 except Exception:
+                    step_day = created_at[:10]
+
+            if has_explicit_tokens:
+                if in_t is None and out_t is None:
                     continue
+                in_val = int(in_t or 0)
+                out_val = int(out_t or 0)
+                cache_val = int(cache_t or 0)
+            else:
+                step_type = data.get("type")
+                content = str(data.get("content", ""))
+                in_chars = 0
+                out_chars = 0
+                if step_type in ("USER_INPUT", "GENERIC", "SYSTEM_MESSAGE"):
+                    in_chars += len(content)
+                elif step_type == "PLANNER_RESPONSE":
+                    out_chars += (
+                        len(str(data.get("thinking", "")))
+                        + len(content)
+                        + len(str(data.get("tool_calls", "")))
+                    )
+                in_val = max(1, in_chars // 4) if in_chars else 0
+                out_val = max(1, out_chars // 4) if out_chars else 0
+                cache_val = 0
+
+            tok_sum = in_val + out_val
+            if tok_sum == 0 and cache_val == 0:
+                continue
+
+            bucket["inputTokens"] += in_val
+            bucket["outputTokens"] += out_val
+            bucket["cacheReadInputTokens"] += cache_val
+
+            if step_day and step_day in tokens_by_day:
+                tokens_by_day[step_day] += tok_sum
+
+            if step_day == today_str:
+                today_total_tokens += tok_sum
+                today_tokens_by_model[active_model] = (
+                    today_tokens_by_model.get(active_model, 0) + tok_sum
+                )
 
     recent_days = [{"date": day, "messageCount": tokens_by_day[day]} for day in recent_dates]
 
@@ -282,13 +322,6 @@ def main():
     default_target = os.path.join(default_target_dir, f"{AGENT_ID}.json")
     target_file = args.output or default_target
 
-    # Clean up legacy alias record if present to avoid duplicate panel entries
-    legacy_alias = os.path.join(default_target_dir, "antigravity.json")
-    if os.path.exists(legacy_alias) and target_file != legacy_alias:
-        try:
-            os.remove(legacy_alias)
-        except OSError:
-            pass
 
     now = datetime.now().astimezone()
     now_ts = now.timestamp()
