@@ -202,9 +202,7 @@ ShellRoot {
   }
 
   function isBarOptionManifest(manifest) {
-    return manifest
-      && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf("bar") !== -1
+    return shell.manifestHasKind(manifest, "bar")
       && manifest.entryPoints
       && manifest.entryPoints.bar
   }
@@ -353,8 +351,9 @@ ShellRoot {
   }
 
   function manifestHasKind(manifest, kind) {
-    return !!manifest && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf(kind) !== -1
+    var kinds = manifest && manifest.kinds
+    return !!kinds && typeof kinds === "object" && typeof kinds.indexOf === "function"
+      && kinds.indexOf(kind) !== -1
   }
 
   function pluginHasBarCapabilities(manifest) {
