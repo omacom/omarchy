@@ -418,6 +418,11 @@ Panel {
       else { focusSection = "header" }
       actionFocused = false
       cursorActive = false
+    } else {
+      // Each visit starts the discovery retries over. Reset on the way out, not
+      // the way in: the retry's running binding reads `opened` too, and nothing
+      // orders a binding against a handler on the same property.
+      discoveryRetry.attempts = 0
     }
   }
 
@@ -504,14 +509,20 @@ Panel {
 
   // BlueZ rejects StartDiscovery while the adapter is still powering up, and
   // discovery can also time out on its own. While the panel is open, keep
-  // nudging it back on so an enabled adapter is always scanning.
+  // nudging it back on so an enabled adapter is always scanning. A controller
+  // that keeps refusing is asked less and less often, then not at all, and the
+  // timer stops. A confirmed scan, a new panel visit, or the user turning the
+  // radio back on starts the retries over at one second; an adapter that
+  // resets itself does not.
   Timer {
     id: discoveryRetry
-    interval: 1000
+    property int attempts: 0
+    interval: Model.discoveryRetryInterval(attempts)
     repeat: true
     triggeredOnStart: true
-    running: root.opened && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering
+    running: root.opened && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering && Model.discoveryRetryAllowed(attempts)
     onTriggered: {
+      attempts += 1
       root.owesDiscoveryStop = true
       root.adapter.discovering = true
     }
@@ -557,11 +568,14 @@ Panel {
   // The debt is settled the moment BlueZ reports discovery down — whether
   // because the stop above landed or the session ended some other way — so a
   // stale claim never touches a scan another client starts later. While the
-  // panel is open, discoveryRetry re-incurs it as it restarts the scan.
+  // panel is open, discoveryRetry re-incurs it as it restarts the scan. A
+  // confirmed scan also starts the retries over: a controller that answered
+  // has earned another round if the session later ends on its own.
   Connections {
     target: root.adapter
     function onDiscoveringChanged() {
-      if (!root.adapter.discovering) root.owesDiscoveryStop = false
+      if (root.adapter.discovering) discoveryRetry.attempts = 0
+      else root.owesDiscoveryStop = false
     }
   }
 
@@ -635,6 +649,8 @@ Panel {
   // would re-read the old state and undo the first.
   function toggleBluetooth() {
     if (!adapter) return
+    // Asking for the radio back starts the discovery retries over.
+    if (!adapter.enabled) discoveryRetry.attempts = 0
     Quickshell.execDetached(["omarchy-bluetooth-power", adapter.enabled ? "off" : "on"])
   }
 
