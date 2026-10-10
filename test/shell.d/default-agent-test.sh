@@ -508,6 +508,9 @@ declare -A expected_agents=(
   [muse]="muse"
   [muse-code]="muse"
   [musecode]="muse"
+  [vibe]="vibe"
+  [mistral]="vibe"
+  [mistral-vibe]="vibe"
 )
 
 declare -A expected_packages=(
@@ -523,6 +526,7 @@ declare -A expected_packages=(
   [copilot]="copilot"
   [cursor-agent]="$cursor_agent_package"
   [muse]="$muse_package"
+  [vibe]="uv:mistral-vibe"
 )
 
 for selection in "${!expected_agents[@]}"; do
@@ -790,6 +794,7 @@ assert_launch cursor-agent cursor-agent --yolo --trust agent -- "Review this pro
 assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=Review this project"
 assert_launch agy agy --dangerously-skip-permissions --prompt-interactive "Review this project"
 assert_launch copilot copilot --allow-all --interactive "Review this project"
+assert_launch vibe vibe --auto-approve -- "Review this project"
 pass "agent launcher adapts initial prompts for every supported agent"
 
 literal_muse_prompt=$'--disable-sandbox !Crash {$(touch must-not-run)}\ntrailing\\ '
@@ -818,6 +823,7 @@ assert_bypass cursor-agent cursor-agent --yolo --trust
 assert_bypass hermes hermes --yolo
 assert_bypass agy agy --dangerously-skip-permissions
 assert_bypass copilot copilot --allow-all
+assert_bypass vibe vibe --auto-approve
 pass "agent launcher skips permission prompts for every supported agent"
 
 printf '%s\n' "opencode" >"$agent_file"
