@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Clear the preferred CJK font variant
+# omarchy:examples=omarchy font cjk unset
+
+cjk_file="$HOME/.config/fontconfig/conf.d/50-omarchy-cjk.conf"
+
+if [[ ! -f "$cjk_file" ]]; then
+  echo "CJK variant is already unset"
+  exit 0
+fi
+
+rm -f -- "$cjk_file"
+echo "CJK variant unset"
+
+omarchy-restart-shell 2>/dev/null || true
+
+omarchy-hook font-set "cjk-unset" 2>/dev/null || true
