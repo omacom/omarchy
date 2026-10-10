@@ -65,6 +65,15 @@ Item {
   // Width of the painted label, for bar chrome that wants to line up with the
   // text rather than with the slot it sits in. Zero on icon-only buttons.
   readonly property real labelWidth: label.visible ? label.implicitWidth : 0
+  // Tight painted width of the label: implicitWidth above includes the
+  // font's side bearings, which would pad pills a pixel or two wider per
+  // side than tight-measured icon glyphs. Zero on icon-only buttons.
+  readonly property real labelTightWidth: label.visible ? Math.max(0, labelTightMetrics.tightBoundingRect.width) : 0
+  // Tight painted height of the label, for ink-to-ink gaps on a vertical bar.
+  // Single-line only: TextMetrics tight bounds do not span stacked lines, so
+  // a multi-line stack reports 0 and keeps the full-bleed fallback instead
+  // of collapsing its slot. Zero on icon-only buttons.
+  readonly property real labelTightHeight: label.visible && root.text.indexOf("\n") === -1 ? Math.max(0, labelTightMetrics.tightBoundingRect.height) : 0
 
   visible: hasVisualContent || keepSpace
   opacity: !hasVisualContent || concealed ? 0 : (dimmed ? 0.45 : 1)
@@ -73,6 +82,14 @@ Item {
 
   Behavior on opacity {
     NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+  }
+
+  TextMetrics {
+    id: labelTightMetrics
+    // Same font the label paints with, so tight bounds match the ink.
+    font.family: root.fontFamily
+    font.pixelSize: root.fontSize
+    text: root.text
   }
 
   Text {

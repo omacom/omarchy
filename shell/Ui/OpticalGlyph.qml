@@ -13,6 +13,9 @@ Item {
 
   readonly property int renderedFontSize: Math.max(1, Math.round(fontSize))
   readonly property real tightWidth: Math.max(1, glyphMetrics.tightBoundingRect.width)
+  // Tight painted height, for bar chrome that measures ink-to-ink gaps on a
+  // vertical bar. Positioning still uses the shared line box (see below).
+  readonly property real tightHeight: Math.max(1, glyphMetrics.tightBoundingRect.height)
   readonly property real horizontalCorrection: glyph.implicitWidth / 2 - (glyphMetrics.tightBoundingRect.x + tightWidth / 2)
   readonly property real paintedCenterX: glyph.x + glyphMetrics.tightBoundingRect.x + tightWidth / 2
   readonly property real baselineY: glyph.y + glyph.baselineOffset

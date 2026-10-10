@@ -1062,6 +1062,10 @@ Item {
     for (var i = clickTargets.length - 1; i >= 0; i--) {
       var target = clickTargets[i]
       if (!moduleTargetClickable(target)) continue
+      // Each slot owns the MouseArea that caught this press, so only its
+      // own targets compete: a neighbour's button can extend past a
+      // negatively padded slot edge, and must not steal the click.
+      if (!BarModel.targetInSlot(target, slot)) continue
 
       var targetPoint = { x: localX, y: localY }
       try {
@@ -1450,6 +1454,7 @@ Item {
         CenterModules {
           anchors.fill: parent
           entries: barWindow.centerBesideRight ? [] : root.layoutEntries("center")
+          hoverEnabled: !barWindow.centerBesideRight
         }
 
         LeftModules {
@@ -1474,6 +1479,12 @@ Item {
           anchors.right: rightModules.left
           anchors.rightMargin: Style.space(4)
           anchors.verticalCenter: parent.verticalCenter
+
+          HoverHandler {
+            enabled: barWindow.centerBesideRight
+            onHoveredChanged: root.setCenterSectionHovered(hovered)
+            Component.onDestruction: if (hovered) root.setCenterSectionHovered(false)
+          }
         }
       }
     }
@@ -1643,6 +1654,7 @@ Item {
     id: centerRoot
 
     property var entries: root.layoutEntries("center")
+    property bool hoverEnabled: true
     readonly property bool hasAnchor: root.entryIndex(entries, root.centerAnchor) !== -1
     readonly property var anchorEntry: root.findCenterAnchorEntry(entries)
 
@@ -1666,7 +1678,9 @@ Item {
           anchors.bottom: parent.bottom
 
           HoverHandler {
+            enabled: centerRoot.hoverEnabled
             onHoveredChanged: root.setCenterSectionHovered(hovered)
+            Component.onDestruction: if (hovered) root.setCenterSectionHovered(false)
           }
         }
 
@@ -1718,7 +1732,9 @@ Item {
           anchors.bottom: centerRoot.hasAnchor ? centerAnchorModule.top : parent.bottom
 
           HoverHandler {
+            enabled: centerRoot.hoverEnabled
             onHoveredChanged: root.setCenterSectionHovered(hovered)
+            Component.onDestruction: if (hovered) root.setCenterSectionHovered(false)
           }
         }
 
@@ -1859,6 +1875,10 @@ Item {
       id: horizontalModuleList
 
       Row {
+        // No spacing here: every ModuleSlot pads itself from its own
+        // painted width (see slotPad), so ink-to-ink stays uniform whatever
+        // each widget paints. A fixed spacing would stack on top of the
+        // widest bearings instead of absorbing them.
         spacing: 0
 
         Repeater {
@@ -1877,6 +1897,7 @@ Item {
       id: verticalModuleList
 
       Column {
+        // As above: per-slot padding carries the gaps, not the positioner.
         spacing: 0
 
         Repeater {
@@ -1931,10 +1952,75 @@ Item {
       var key = root.vertical ? "openPanelIndicatorHeight" : "openPanelIndicatorWidth"
       var hint = activeItem && key in activeItem ? activeItem[key] : undefined
       if (hint !== undefined && hint !== null && hint > 0) return Math.round(hint)
-      return Math.max(Style.space(10), Math.round((root.vertical ? slot.height : slot.width) * 0.55))
+      return Math.max(Style.space(10), Math.round((root.vertical ? slot.contentHeight : slot.contentWidth) * 0.55))
     }
-    implicitWidth: activeItem && activeItem.visible ? (root.vertical ? root.barSize : activeItem.implicitWidth) : 0
-    implicitHeight: activeItem && activeItem.visible ? activeItem.implicitHeight : 0
+    // Painted half-gap every slot holds its content away from the slot edge.
+    // Adjacent slots then land exactly 2*paintHalfGap ink-to-ink, whatever
+    // each widget paints — icon slots, text pills, and paint that overflows
+    // its slot all end up on the same rhythm.
+    readonly property int paintHalfGap: Style.space(6)
+    // How far slot padding may intrude into a widget's own empty margins to
+    // enforce the gap above when a widget demands wider bearings. Never
+    // reaches paint. Neighbouring hit areas can still overlap by up to this
+    // much, but presses resolve per slot (see moduleClickTargetAt), so the
+    // overlap never activates the wrong module. Sized to cover the widest
+    // production bearing spread: a text pill at a scaled bar font carries
+    // ~halfGap + 4.5px of bearing per side against an icon's ~halfGap, so
+    // the cap must clear that or the pair keeps a subpixel residual
+    // (16.34px vs 16px at font 16).
+    readonly property int paintIntrude: Style.space(4)
+    // Size the slot lays out for its content (what implicitWidth used to be).
+    readonly property real contentWidth: activeItem && activeItem.visible
+      ? (root.vertical ? root.barSize : activeItem.implicitWidth) : 0
+    readonly property real contentHeight: activeItem && activeItem.visible
+      ? activeItem.implicitHeight : 0
+    // Tight painted extent along the layout axis, best effort, measured on
+    // the bar button: widgets keep paint metrics on the button inside the
+    // root, never on the root itself. Popup buttons nest deeper and must
+    // never be measured, so only the root and its direct children qualify.
+    // Tray is exempt: its chevron is a direct child but does not represent
+    // the drawer it opens.
+    readonly property var paintItem: {
+      if (!activeItem) return null
+      var id = root.canonicalWidgetId(moduleName)
+      if (id === "omarchy.spacer" || id === "omarchy.tray") return activeItem
+      return BarModel.paintChild(activeItem) || activeItem
+    }
+    // BarIconButton glyphs (which also covers text painted wider than its
+    // slot), WidgetButton labels, vector icon content, icon canvases.
+    // Opaque customs fall back to full-bleed — extra air, never overlap.
+    // The decision tree lives in BarModel.paintedExtent so every branch is
+    // unit-testable; the slot only gathers already-measured paint metrics.
+    readonly property real paintedExtent: {
+      var item = paintItem
+      if (!item) return 0
+      var vector = ("iconContentItem" in item)
+        ? BarModel.vectorPaintedExtent(item.iconContentItem) : null
+      return BarModel.paintedExtent({
+        vertical: root.vertical,
+        glyphPaintedWidth: ("glyphPaintedWidth" in item) ? item.glyphPaintedWidth : 0,
+        glyphPaintedHeight: ("glyphPaintedHeight" in item) ? item.glyphPaintedHeight : 0,
+        labelTightWidth: ("labelTightWidth" in item) ? item.labelTightWidth : 0,
+        labelTightHeight: ("labelTightHeight" in item) ? item.labelTightHeight : 0,
+        labelWidth: ("labelWidth" in item) ? item.labelWidth : 0,
+        vectorWidth: vector ? vector.width : 0,
+        vectorHeight: vector ? vector.height : 0,
+        opticalSize: ("opticalSize" in item) ? item.opticalSize : 0,
+        contentWidth: contentWidth,
+        contentHeight: contentHeight
+      })
+    }
+    // Symmetric compensation for this slot's own bearing. Negative bearings
+    // (paint wider than the slot) pad extra; the pure-gap spacer keeps its
+    // authored span and stays out of this.
+    readonly property real slotPad: {
+      var span = root.vertical ? contentHeight : contentWidth
+      if (!(span > 0)) return 0
+      if (root.canonicalWidgetId(moduleName) === "omarchy.spacer") return 0
+      return BarModel.slotPad(span, paintedExtent, paintHalfGap, paintIntrude)
+    }
+    implicitWidth: contentWidth + (root.vertical ? 0 : 2 * slotPad)
+    implicitHeight: contentHeight + (root.vertical ? 2 * slotPad : 0)
     width: implicitWidth
     height: implicitHeight
     z: modulePointer.dragging ? 100 : 0
@@ -1961,7 +2047,9 @@ Item {
       id: componentLoader
       active: !slot.qmlCustom && !slot.registered
       sourceComponent: slot.commandCustom ? customCommandModuleComponent : emptyModuleComponent
-      anchors.fill: parent
+      width: root.vertical ? parent.width : slot.contentWidth
+      height: root.vertical ? slot.contentHeight : parent.height
+      anchors.centerIn: parent
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()
@@ -1973,7 +2061,9 @@ Item {
       id: registryLoader
       active: slot.registered
       sourceComponent: slot.registered ? slot.registryComponent : null
-      anchors.fill: parent
+      width: root.vertical ? parent.width : slot.contentWidth
+      height: root.vertical ? slot.contentHeight : parent.height
+      anchors.centerIn: parent
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()
@@ -1985,7 +2075,9 @@ Item {
       id: qmlLoader
       active: slot.qmlCustom
       source: slot.qmlCustom ? root.customModuleSource(slot.entry) : ""
-      anchors.fill: parent
+      width: root.vertical ? parent.width : slot.contentWidth
+      height: root.vertical ? slot.contentHeight : parent.height
+      anchors.centerIn: parent
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()

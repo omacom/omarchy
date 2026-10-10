@@ -133,7 +133,7 @@ assert(
   'each bar surface decides the move from its own screen'
 )
 assert(
-  /CenterModules \{\s*anchors\.fill: parent\s*entries: barWindow\.centerBesideRight \? \[\] : root\.layoutEntries\("center"\)\s*\}/.test(barSource),
+  /CenterModules \{\s*anchors\.fill: parent\s*entries: barWindow\.centerBesideRight \? \[\] : root\.layoutEntries\("center"\)\s*hoverEnabled: !barWindow\.centerBesideRight\s*\}/.test(barSource),
   'a moved center section draws nothing in the middle of the bar'
 )
 assert(
