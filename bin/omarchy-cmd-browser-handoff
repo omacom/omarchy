@@ -27,7 +27,7 @@ shift
 # from the environment is another browser, so leave those to the launcher.
 if [[ -n ${CHROME_USER_DATA_DIR:-}${CHROME_CONFIG_HOME:-} ]] ||
   cat "/etc/$flags" "$config/$flags" 2>/dev/null | sed 's/#.*//' | tr -s '[:space:]' '\n' |
-    grep -vE '^(--(ozone-platform|ozone-platform-hint|password-store|enable-features|load-extension)=.*)?$' | grep -q .; then
+    grep -vE '^(--(ozone-platform|ozone-platform-hint|password-store|enable-features|load-extension)=.*|--enable-wayland-ime)?$' | grep -q .; then
   exit 1
 fi
 
