@@ -142,10 +142,14 @@ ShellRoot {
     watchChanges: true
     atomicWrites: true
     printErrors: false
-    onLoaded: shell.applyShellConfig()
-    onLoadFailed: function(error) { shell.applyShellConfig() }
+    onLoaded: { shell.applyShellConfig(); shell.userConfigRead = true }
+    onLoadFailed: function(error) { shell.applyShellConfig(); shell.userConfigRead = true }
     onFileChanged: reload()
   }
+
+  // shell.json loads asynchronously, so until it has been read selectedBarId
+  // still names the stock bar even when a replacement is configured.
+  property bool userConfigRead: false
 
   Component.onCompleted: {
     console.log("omarchy-shell paths",
@@ -246,7 +250,12 @@ ShellRoot {
   Loader {
     id: defaultBarLoader
 
-    active: shell.activeBarId === shell.defaultBarId
+    // Before shell.json is read, and before the first plugin scan, a configured
+    // replacement bar is only unknown or undiscovered yet. Building the stock
+    // bar in either window and destroying it once the replacement appears left
+    // its queued injectProps() calls running against a dead object, so wait.
+    active: shell.activeBarId === shell.defaultBarId && shell.userConfigRead
+      && (shell.selectedBarId === shell.defaultBarId || shell.pluginRegistry.scannedOnce)
     sourceComponent: defaultBarComponent
     onLoaded: shell.configureBar(item, shell.barManifestFor(shell.defaultBarId))
     onActiveChanged: if (!active && shell.activeBarId !== shell.defaultBarId) shell.bar = null

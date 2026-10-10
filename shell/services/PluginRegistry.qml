@@ -24,6 +24,9 @@ QtObject {
   property var installedPlugins: ({})
   property int registryRevision: 0
   property bool scanning: false
+  // Until the first scan finishes, a plugin missing from installedPlugins may
+  // simply not be discovered yet.
+  property bool scannedOnce: false
   property string lastEnableError: ""
 
   signal pluginsChanged()
@@ -638,6 +641,7 @@ QtObject {
     installedPlugins = merged
     registryRevision++
     scanning = false
+    scannedOnce = true
     pluginsChanged()
     scanFinished()
   }
