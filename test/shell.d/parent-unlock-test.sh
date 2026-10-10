@@ -84,15 +84,18 @@ fi
 [[ ! -s $CALLS ]] || fail "a refused call never reaches sudo or runuser" "$(<"$CALLS")"
 pass "omarchy-parent-unlock checks the parent password as the kid, from the lock screen and the login screen, and nothing else"
 
-# The stack omarchy-apply-lock writes, with /etc/pam.d redirected into scratch.
+# The stack omarchy-apply-lock writes, run from a copy of the helper with every
+# privileged destination redirected into scratch. The helper names /etc/pam.d
+# for the lock stack by literal path, and as root it replaces the caller's
+# PATH (these stubs) and runs its writes directly rather than through sudo, so
+# a root run of this suite would otherwise rewrite the live PAM files. The copy
+# keeps it off the live system, the way apply-lock-test.sh does.
 stub_bin="$test_tmp/bin"
 pam_dir="$test_tmp/pam.d"
 mkdir -p "$stub_bin" "$pam_dir"
-cat >"$stub_bin/sudo" <<SH
+cat >"$stub_bin/sudo" <<'SH'
 #!/bin/bash
-args=()
-for arg in "\$@"; do args+=("\${arg//\/etc\/pam.d/$pam_dir}"); done
-exec "\${args[@]}"
+exec "$@"
 SH
 cat >"$stub_bin/omarchy-cmd-present" <<'SH'
 #!/bin/bash
@@ -108,8 +111,22 @@ cat >"$stub_bin/omarchy-profile-child" <<'SH'
 SH
 chmod +x "$stub_bin"/*
 
+apply_lock_copy="$test_tmp/omarchy-apply-lock"
+sed -e "s|/etc/pam\.d|$pam_dir|g" \
+  -e 's|^if (( EUID == 0 )); then$|if (( 0 )); then|' \
+  -e "s|^resume_hook_dst=.*|resume_hook_dst=\"$test_tmp/system-sleep/fprintd-resume\"|" \
+  -e "s|^stop_timeout_dst=.*|stop_timeout_dst=\"$test_tmp/fprintd.service.d/10-stop-timeout.conf\"|" \
+  -e "s|/usr/bin/fprintd-list|$test_tmp/no-fprintd-list|g" \
+  -e 's|as_root systemctl daemon-reload|:|' \
+  "$apply_lock" >"$apply_lock_copy"
+if grep -Fq '/etc/pam.d' "$apply_lock_copy" || grep -Fq '/usr/lib/systemd' "$apply_lock_copy" ||
+  grep -Fq '/etc/systemd/system/' "$apply_lock_copy" || grep -Fq 'systemctl daemon-reload' "$apply_lock_copy" ||
+  grep -q '^if (( EUID == 0 )); then$' "$apply_lock_copy"; then
+  fail "the test copy of omarchy-apply-lock names no live-system destination and keeps the test PATH as root"
+fi
+
 run_apply_lock() {
-  OMARCHY_INSTALL_USER=kid OMARCHY_PAM_DIR="$pam_dir" PATH="$stub_bin:$PATH" bash "$apply_lock" >/dev/null
+  OMARCHY_INSTALL_USER=kid OMARCHY_PAM_DIR="$pam_dir" PATH="$stub_bin:$PATH" bash "$apply_lock_copy" >/dev/null
 }
 
 # The packaged SDDM stack as install/login/sddm.sh leaves it: tabs and all.
