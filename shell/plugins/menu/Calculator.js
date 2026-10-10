@@ -19,10 +19,7 @@ var FUNCTIONS = {
   round: {
     arity: 1,
     maxArity: 2,
-    apply: function(args) {
-      var factor = Math.pow(10, args.length > 1 ? Math.round(args[1]) : 0)
-      return Math.round(args[0] * factor) / factor
-    }
+    apply: function(args) { return roundTo(args[0], args.length > 1 ? Math.round(args[1]) : 0) }
   },
   floor: { arity: 1, maxArity: 1, apply: function(args) { return Math.floor(args[0]) } },
   ceil: { arity: 1, maxArity: 1, apply: function(args) { return Math.ceil(args[0]) } },
@@ -203,6 +200,20 @@ var SYMBOLS = {
   kib: "KiB", mib: "MiB", gib: "GiB", tib: "TiB",
   ml: "mL", cl: "cL", l: "L",
   c: "°C", f: "°F", k: "K"
+}
+
+// Shifts the decimal point by rewriting the exponent instead of multiplying:
+// 1.005 * 100 is 100.49999999999999 in binary, which would round 1.005 down to
+// 1. Ties go away from zero, the way they are taught, where Math.round alone
+// would take -2.5 to -2.
+function shiftDecimal(value, places) {
+  var parts = String(value).split("e")
+  return Number(parts[0] + "e" + (Number(parts[1] || 0) + places))
+}
+
+function roundTo(value, places) {
+  var sign = value < 0 ? -1 : 1
+  return sign * shiftDecimal(Math.round(shiftDecimal(Math.abs(value), places)), -places)
 }
 
 function isDigit(character) {
