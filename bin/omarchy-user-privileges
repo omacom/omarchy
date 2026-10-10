@@ -1,0 +1,137 @@
+#!/bin/bash
+
+# omarchy:summary=Set a user's sudo level: password sudo or none (via wheel group)
+# omarchy:args=[username] [--level password|none] [--yes]
+# omarchy:examples=omarchy user privileges | omarchy user privileges alice --level password --yes
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+source "${BASH_SOURCE[0]%/*}/omarchy-user-functions" || exit 1
+
+PROG="omarchy user privileges"
+ASSUME_YES=0
+USERNAME=""
+LEVEL=""
+
+fail() {
+  echo "$PROG: $*" >&2
+  exit 1
+}
+
+interactive() {
+  [[ -t 0 && -t 1 ]]
+}
+
+show_logo() {
+  if interactive && [[ -n ${OMARCHY_PATH:-} && -f $OMARCHY_PATH/logo.txt ]]; then
+    echo -e "\033[32m"
+    cat <"$OMARCHY_PATH/logo.txt"
+    echo -e "\033[0m"
+    echo
+  fi
+}
+
+confirm() {
+  local prompt="$1"
+  if ((ASSUME_YES)); then
+    return 0
+  fi
+  if interactive; then
+    gum confirm "$prompt"
+  else
+    fail "refusing to continue without confirmation; pass --yes"
+  fi
+}
+
+need_gum() {
+  omarchy-cmd-present gum || fail "gum is required for the interactive menu"
+}
+
+login_users() {
+  getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 { print $1 }' | sort
+}
+
+while (($# > 0)); do
+  case "$1" in
+  --level)
+    if [[ -z ${2:-} || $2 == -* ]]; then
+      fail "--level needs one of: password, none"
+    fi
+    LEVEL="$2"
+    shift 2
+    ;;
+  --yes | -y)
+    ASSUME_YES=1
+    shift
+    ;;
+  -h | --help)
+    echo "Usage: $PROG [username] [--level password|none] [--yes]"
+    echo
+    echo "Sets a user's sudo level via the wheel group: password sudo (add to wheel) or no sudo (remove from wheel)."
+    echo "'none' removes the user from the wheel group only when they are a member; anything else is left alone with a warning."
+    echo
+    echo "With no arguments it walks you through each step with gum."
+    exit 0
+    ;;
+  -*)
+    fail "unknown option: $1 (try --help)"
+    ;;
+  *)
+    if [[ -n $USERNAME ]]; then
+      fail "unexpected argument: $1"
+    fi
+    USERNAME="$1"
+    shift
+    ;;
+  esac
+done
+
+if [[ -n $LEVEL && $LEVEL != password && $LEVEL != none ]]; then
+  fail "--level must be one of: password, none"
+fi
+
+show_logo
+
+if [[ -z $USERNAME ]]; then
+  interactive || fail "a username is required"
+  need_gum
+  USERNAME=$(login_users | gum choose --header="Set privileges for which user?") || fail "cancelled"
+  [[ -n $USERNAME ]] || fail "nothing selected"
+fi
+id "$USERNAME" &>/dev/null || fail "no such user: $USERNAME"
+
+if [[ -z $LEVEL ]]; then
+  interactive || fail "--level is required (password, none)"
+  need_gum
+  choice=$(gum choose --header="Sudo level for $USERNAME?" "Password sudo" "No sudo") || fail "cancelled"
+  if [[ $choice == "Password sudo" ]]; then
+    LEVEL="password"
+  else
+    LEVEL="none"
+  fi
+fi
+
+if [[ $LEVEL == "none" ]] && in_group "$USERNAME" wheel; then
+  guard_wheel_removal "$USERNAME"
+fi
+
+echo
+echo "About to set:"
+echo "  user:  $USERNAME"
+echo "  level: $LEVEL"
+confirm "Grant $LEVEL sudo to $USERNAME?" || fail "aborted"
+
+if [[ $LEVEL == "password" ]]; then
+  # Add user to wheel group for sudo
+  sudo gpasswd -a "$USERNAME" wheel
+  echo "Sudo (password) granted to $USERNAME via wheel group."
+elif in_group "$USERNAME" wheel; then
+  # Remove user from wheel group
+  sudo gpasswd -d "$USERNAME" wheel
+  echo "Sudo removed for $USERNAME (removed from wheel group)."
+else
+  echo "$USERNAME is not in wheel; no sudo to remove."
+fi
+
+echo "Change takes effect on next login."

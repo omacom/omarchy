@@ -1,0 +1,156 @@
+#!/bin/bash
+
+# omarchy:summary=Remove a login user, optionally its home (sudo managed via wheel group)
+# omarchy:args=[username] [--remove-home|--keep-home] [--yes]
+# omarchy:examples=omarchy user remove | omarchy user remove alice --remove-home --yes
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+source "${BASH_SOURCE[0]%/*}/omarchy-user-functions" || exit 1
+
+PROG="omarchy user remove"
+ASSUME_YES=0
+USERNAME=""
+HOME_MODE=""
+
+fail() {
+  echo "$PROG: $*" >&2
+  exit 1
+}
+
+interactive() {
+  [[ -t 0 && -t 1 ]]
+}
+
+show_logo() {
+  if interactive && [[ -n ${OMARCHY_PATH:-} && -f $OMARCHY_PATH/logo.txt ]]; then
+    echo -e "\033[32m"
+    cat <"$OMARCHY_PATH/logo.txt"
+    echo -e "\033[0m"
+    echo
+  fi
+}
+
+confirm() {
+  local prompt="$1"
+  if ((ASSUME_YES)); then
+    return 0
+  fi
+  if interactive; then
+    gum confirm "$prompt"
+  else
+    fail "refusing to continue without confirmation; pass --yes"
+  fi
+}
+
+need_gum() {
+  omarchy-cmd-present gum || fail "gum is required for the interactive menu"
+}
+
+# Login users: real accounts (UID 1000..59999), one per line.
+login_users() {
+  getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 { print $1 }' | sort
+}
+
+while (($# > 0)); do
+  case "$1" in
+  --remove-home)
+    if [[ -n $HOME_MODE ]]; then
+      fail "pass only one of --remove-home, --keep-home"
+    fi
+    HOME_MODE="remove"
+    shift
+    ;;
+  --keep-home)
+    if [[ -n $HOME_MODE ]]; then
+      fail "pass only one of --remove-home, --keep-home"
+    fi
+    HOME_MODE="keep"
+    shift
+    ;;
+  --yes | -y)
+    ASSUME_YES=1
+    shift
+    ;;
+  -h | --help)
+    echo "Usage: $PROG [username] [--remove-home|--keep-home] [--yes]"
+    echo
+    echo "Removes a login user. Never touches root, system accounts (UID < 1000),"
+    echo "or the account running this script. The user's sudo access (via wheel"
+    echo "group) is removed automatically when the user is removed."
+    echo
+    echo "With no arguments it lets you pick the user with gum."
+    exit 0
+    ;;
+  -*)
+    fail "unknown option: $1 (try --help)"
+    ;;
+  *)
+    if [[ -n $USERNAME ]]; then
+      fail "unexpected argument: $1"
+    fi
+    USERNAME="$1"
+    shift
+    ;;
+  esac
+done
+
+show_logo
+
+if [[ -z $USERNAME ]]; then
+  interactive || fail "a username is required"
+  need_gum
+  USERNAME=$(login_users | gum choose --header="Remove which user?") || fail "cancelled"
+  [[ -n $USERNAME ]] || fail "nothing selected"
+fi
+
+entry=$(getent passwd "$USERNAME") || fail "no such user: $USERNAME"
+IFS=: read -r _ _ uid _ _ home _ <<<"$entry"
+if ((uid == 0)); then
+  fail "refusing to remove root"
+fi
+if ((uid < 1000 || uid >= 60000)); then
+  fail "refusing to remove system account '$USERNAME' (UID $uid)"
+fi
+if ((uid == $(caller_uid))); then
+  fail "refusing to remove your own account (UID $uid)"
+fi
+
+if [[ -z $HOME_MODE ]]; then
+  if interactive; then
+    need_gum
+    if gum choose --header="Home directory $home?" "Keep home directory" "Remove home directory" | grep -q Remove; then
+      HOME_MODE="remove"
+    else
+      HOME_MODE="keep"
+    fi
+  else
+    HOME_MODE="keep"
+  fi
+fi
+
+echo
+echo "About to remove:"
+echo "  user: $USERNAME (UID $uid)"
+echo "  home: $home ($HOME_MODE)"
+confirm "Remove user $USERNAME? This cannot be undone." || fail "aborted"
+
+# Log the user out first so userdel doesn't fail on a live session.
+sudo loginctl terminate-user "$USERNAME" >/dev/null 2>&1 || true
+
+userdel_flags=()
+if [[ $HOME_MODE == "remove" ]]; then
+  userdel_flags=(-r)
+fi
+if ! userdel_output=$(sudo userdel "${userdel_flags[@]}" -- "$USERNAME" 2>&1); then
+  printf '%s\n' "$userdel_output" >&2
+  fail "could not remove $USERNAME"
+fi
+# userdel warns when the mail spool was never created. That is not a failure.
+printf '%s\n' "$userdel_output" | grep -vF 'mail spool' | awk NF >&2 || true
+
+# Note: The user's sudo access (via wheel group) is removed automatically by userdel.
+
+id "$USERNAME" &>/dev/null && fail "user '$USERNAME' still exists"
+echo "Removed $USERNAME."

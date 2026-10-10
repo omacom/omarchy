@@ -1,0 +1,233 @@
+#!/bin/bash
+
+# omarchy:summary=Change a user's supplementary groups (pick, add, remove, or set)
+# omarchy:args=[username] [--add g1,g2] [--remove g1,g2] [--set g1,g2] [--yes]
+# omarchy:examples=omarchy user groups | omarchy user groups alice --add wheel --yes
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+source "${BASH_SOURCE[0]%/*}/omarchy-user-functions" || exit 1
+
+PROG="omarchy user groups"
+ASSUME_YES=0
+USERNAME=""
+ADD_ARG=""
+REMOVE_ARG=""
+SET_ARG=""
+
+fail() {
+  echo "$PROG: $*" >&2
+  exit 1
+}
+
+interactive() {
+  [[ -t 0 && -t 1 ]]
+}
+
+show_logo() {
+  if interactive && [[ -n ${OMARCHY_PATH:-} && -f $OMARCHY_PATH/logo.txt ]]; then
+    echo -e "\033[32m"
+    cat <"$OMARCHY_PATH/logo.txt"
+    echo -e "\033[0m"
+    echo
+  fi
+}
+
+confirm() {
+  local prompt="$1"
+  if ((ASSUME_YES)); then
+    return 0
+  fi
+  if interactive; then
+    gum confirm "$prompt"
+  else
+    fail "refusing to continue without confirmation; pass --yes"
+  fi
+}
+
+need_gum() {
+  omarchy-cmd-present gum || fail "gum is required for the interactive menu"
+}
+
+login_users() {
+  getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 { print $1 }' | sort
+}
+
+CURATED_GROUPS="wheel video audio optical storage input scanner network power uucp"
+
+existing_groups() {
+  local g out=""
+  for g in $CURATED_GROUPS; do
+    if getent group "$g" >/dev/null; then
+      out+="$g"$'\n'
+    fi
+  done
+  printf '%s' "$out"
+}
+
+# Primary group never changes here; only supplementary groups are managed.
+primary_group() {
+  id -gn "$1"
+}
+
+supplementary_groups() {
+  local primary current g out=""
+  primary=$(primary_group "$1")
+  current=$(id -nG "$1")
+  for g in $current; do
+    if [[ $g != "$primary" ]]; then
+      out+="$g "
+    fi
+  done
+  printf '%s' "${out% }"
+}
+
+check_groups_exist() {
+  local csv="$1" g
+  IFS=',' read -ra arr <<<"$csv"
+  for g in "${arr[@]}"; do
+    [[ -n $g ]] || fail "empty group name in '$csv'"
+    getent group "$g" >/dev/null || fail "unknown group: $g"
+  done
+}
+
+while (($# > 0)); do
+  case "$1" in
+  --add)
+    if [[ -z ${2:-} || $2 == -* ]]; then
+      fail "--add needs a comma-separated list"
+    fi
+    if [[ -n $ADD_ARG || -n $SET_ARG ]]; then
+      fail "combine --add/--remove, or use --set alone"
+    fi
+    SET_ARG=""
+    ADD_ARG="$2"
+    shift 2
+    ;;
+  --remove)
+    if [[ -z ${2:-} || $2 == -* ]]; then
+      fail "--remove needs a comma-separated list"
+    fi
+    if [[ -n $REMOVE_ARG || -n $SET_ARG ]]; then
+      fail "combine --add/--remove, or use --set alone"
+    fi
+    SET_ARG=""
+    REMOVE_ARG="$2"
+    shift 2
+    ;;
+  --set)
+    if [[ -z ${2:-} || $2 == -* ]]; then
+      fail "--set needs a comma-separated list"
+    fi
+    if [[ -n $ADD_ARG || -n $REMOVE_ARG || -n $SET_ARG ]]; then
+      fail "combine --add/--remove, or use --set alone"
+    fi
+    SET_ARG="$2"
+    ADD_ARG=""
+    REMOVE_ARG=""
+    shift 2
+    ;;
+  --yes | -y)
+    ASSUME_YES=1
+    shift
+    ;;
+  -h | --help)
+    echo "Usage: $PROG [username] [--add g1,g2] [--remove g1,g2] [--set g1,g2] [--yes]"
+    echo
+    echo "Changes a user's supplementary groups. The primary group is never"
+    echo "touched. --add/--remove adjust the current set, --set replaces it."
+    echo
+    echo "With no group flags it shows a gum checklist preselected with the"
+    echo "user's current groups; the checked set becomes the new set."
+    exit 0
+    ;;
+  -*)
+    fail "unknown option: $1 (try --help)"
+    ;;
+  *)
+    if [[ -n $USERNAME ]]; then
+      fail "unexpected argument: $1"
+    fi
+    USERNAME="$1"
+    shift
+    ;;
+  esac
+done
+
+show_logo
+
+if [[ -z $USERNAME ]]; then
+  interactive || fail "a username is required"
+  need_gum
+  USERNAME=$(login_users | gum choose --header="Change groups for which user?") || fail "cancelled"
+  [[ -n $USERNAME ]] || fail "nothing selected"
+fi
+id "$USERNAME" &>/dev/null || fail "no such user: $USERNAME"
+
+current=$(supplementary_groups "$USERNAME")
+final=""
+
+if [[ -n $SET_ARG ]]; then
+  check_groups_exist "$SET_ARG"
+  final="$SET_ARG"
+elif [[ -n $ADD_ARG || -n $REMOVE_ARG ]]; then
+  if [[ -n $ADD_ARG ]]; then
+    check_groups_exist "$ADD_ARG"
+  fi
+  if [[ -n $REMOVE_ARG ]]; then
+    check_groups_exist "$REMOVE_ARG"
+  fi
+  # Union of current + added, minus removed.
+  declare -A keep=()
+  g=""
+  for g in $current; do keep[$g]=1; done
+  IFS=',' read -ra arr <<<"${ADD_ARG:-}"
+  for g in ${arr[@]+"${arr[@]}"}; do
+    if [[ -n $g ]]; then
+      keep[$g]=1
+    fi
+  done
+  IFS=',' read -ra arr <<<"${REMOVE_ARG:-}"
+  for g in ${arr[@]+"${arr[@]}"}; do
+    if [[ -n $g ]]; then
+      unset "keep[$g]"
+    fi
+  done
+  final=$(printf '%s,' "${!keep[@]}")
+  final="${final%,}"
+else
+  interactive || fail "a group change is required (--add, --remove, or --set)"
+  need_gum
+  options=$(printf '%s\n%s' "$(existing_groups)" "$current" | tr ' ' '\n' | awk NF | awk '!seen[$0]++')
+  selected=""
+  if [[ -n $current ]]; then
+    want="--selected=$(printf '%s' "$current" | tr ' ' ',')"
+    selected=$(printf '%s' "$options" | gum choose --no-limit "$want" --header="Groups for $USERNAME? (x to toggle)") || fail "cancelled"
+  else
+    selected=$(printf '%s' "$options" | gum choose --no-limit --header="Groups for $USERNAME? (x to toggle)") || fail "cancelled"
+  fi
+  final=$(printf '%s' "$selected" | tr '\n' ',' | sed 's/,$//')
+fi
+
+if in_group "$USERNAME" wheel && [[ ,$final, != *,wheel,* ]]; then
+  guard_wheel_removal "$USERNAME"
+fi
+
+echo
+echo "Group change for $USERNAME (primary: $(primary_group "$USERNAME") untouched):"
+echo "  before: ${current:-<none>}"
+echo "  after:  ${final:-<none>}"
+current_csv=$(printf '%s' "$current" | tr ' ' '\n' | awk NF | sort | tr '\n' ',')
+final_csv=$(printf '%s' "$final" | tr ',' '\n' | awk NF | sort | tr '\n' ',')
+if [[ $current_csv == "$final_csv" ]]; then
+  fail "no change - groups already match"
+fi
+confirm "Apply this group change?" || fail "aborted"
+
+# -G replaces the supplementary set; the primary group is unaffected.
+# An empty set clears supplementary groups.
+sudo usermod -G "$final" -- "$USERNAME"
+
+echo "Groups for $USERNAME now: $(supplementary_groups "$USERNAME" | tr ' ' ',' | sed 's/^$/<none>/')"
+echo "Takes effect on next login."

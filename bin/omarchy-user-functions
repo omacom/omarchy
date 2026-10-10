@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Provide internal helpers for managing login users and their sudo access
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  echo "omarchy-user-functions is an internal function library." >&2
+  exit 64
+fi
+
+# Callers define fail(). Login users are real accounts (UID 1000..59999).
+
+caller_uid() {
+  id -u "${SUDO_USER:-$(id -un)}"
+}
+
+is_login_uid() {
+  (($1 >= 1000 && $1 < 60000))
+}
+
+in_group() {
+  [[ " $(id -nG "$1") " == *" $2 "* ]]
+}
+
+# Refuses to drop wheel from the account running the command, from a system
+# account, or from the last login user in wheel.
+guard_wheel_removal() {
+  local username=$1 member uid count=0
+
+  uid=$(id -u "$username")
+  is_login_uid "$uid" || fail "refusing to change wheel for system account '$username' (UID $uid)"
+  if ((uid == $(caller_uid))); then
+    fail "refusing to remove wheel from your own account"
+  fi
+
+  for member in $(getent group wheel | cut -d: -f4 | tr ',' ' '); do
+    uid=$(id -u "$member" 2>/dev/null) || continue
+    if is_login_uid "$uid"; then
+      ((++count))
+    fi
+  done
+  if ((count <= 1)); then
+    fail "refusing to remove wheel: would leave the wheel group with no login users"
+  fi
+}

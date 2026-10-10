@@ -1,0 +1,174 @@
+#!/bin/bash
+
+# omarchy:summary=Create a login user with groups and password (sudo managed via 'omarchy user privileges')
+# omarchy:args=[username] [--groups g1,g2] [--yes]
+# omarchy:examples=omarchy user add | omarchy user add alice --groups wheel --yes
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+PROG="omarchy user add"
+ASSUME_YES=0
+SKIP_PASSWORD=0
+USERNAME=""
+GROUPS_ARG=""
+
+fail() {
+  echo "$PROG: $*" >&2
+  exit 1
+}
+
+interactive() {
+  [[ -t 0 && -t 1 ]]
+}
+
+show_logo() {
+  if interactive && [[ -n ${OMARCHY_PATH:-} && -f $OMARCHY_PATH/logo.txt ]]; then
+    echo -e "\033[32m"
+    cat <"$OMARCHY_PATH/logo.txt"
+    echo -e "\033[0m"
+    echo
+  fi
+}
+
+confirm() {
+  local prompt="$1"
+  if ((ASSUME_YES)); then
+    return 0
+  fi
+  if interactive; then
+    gum confirm "$prompt"
+  else
+    fail "refusing to continue without confirmation; pass --yes"
+  fi
+}
+
+need_gum() {
+  omarchy-cmd-present gum || fail "gum is required for the interactive menu"
+}
+
+# Groups worth offering on an Omarchy desktop. wheel is the admin group;
+# the rest grant hardware/device access. Filtered at runtime to groups
+# that actually exist on this machine.
+# Note: wheel is omitted here; sudo is managed exclusively via 'omarchy user privileges'.
+CURATED_GROUPS="video audio optical storage input scanner network power uucp"
+
+existing_groups() {
+  local g out=""
+  for g in $CURATED_GROUPS; do
+    if getent group "$g" >/dev/null; then
+      out+="$g"$'\n'
+    fi
+  done
+  printf '%s' "$out"
+}
+
+while (($# > 0)); do
+  case "$1" in
+  --groups)
+    if [[ -z ${2:-} || $2 == -* ]]; then
+      fail "--groups needs a comma-separated list"
+    fi
+    GROUPS_ARG="$2"
+    shift 2
+    ;;
+  --skip-password)
+    SKIP_PASSWORD=1
+    shift
+    ;;
+  --yes | -y)
+    ASSUME_YES=1
+    shift
+    ;;
+  -h | --help)
+    echo "Usage: $PROG [username] [--groups g1,g2] [--skip-password] [--yes]"
+    echo
+    echo "Creates a login user, puts it in the given groups (default: none),"
+    echo "sets its password via passwd (or skip it with --skip-password). Sudo is"
+    echo "managed separately via 'omarchy user privileges'."
+    echo
+    echo "With no arguments it walks you through each step with gum."
+    exit 0
+    ;;
+  -*)
+    fail "unknown option: $1 (try --help)"
+    ;;
+  *)
+    if [[ -n $USERNAME ]]; then
+      fail "unexpected argument: $1"
+    fi
+    USERNAME="$1"
+    shift
+    ;;
+  esac
+done
+
+show_logo
+
+if [[ -z $USERNAME ]]; then
+  interactive || fail "a username is required"
+  need_gum
+  USERNAME=$(gum input --placeholder "alice" --prompt "Username: ") || fail "cancelled"
+  [[ -n $USERNAME ]] || fail "nothing entered"
+fi
+valid_username() {
+  [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]
+}
+valid_username "$USERNAME" || fail "invalid username '$USERNAME' (lowercase letters, digits, _ or -)"
+is_reserved() {
+  local reserved='^(root|bin|daemon|mail|ftp|http|nobody|dbus|systemd-coredump|systemd-network|systemd-oom|systemd-journal-remote|systemd-resolve|systemd-timesync|tss|uuidd|alpm|git|avahi|cups|cups-browsed|lp|_talkd|polkitd|rtkit|qemu|brltty|gluster|rpc|libvirt-qemu|pcscd|nvidia-persistenced|sddm)$'
+  [[ $1 =~ $reserved ]]
+}
+is_reserved "$USERNAME" && fail "username '$USERNAME' is reserved for the system"
+id "$USERNAME" &>/dev/null && fail "user '$USERNAME' already exists (see omarchy user groups)"
+
+if [[ -z $GROUPS_ARG ]]; then
+  if interactive; then
+    need_gum
+    GROUPS_ARG=$(existing_groups | gum choose --no-limit --header="Groups for $USERNAME? (x to toggle)") || fail "cancelled"
+    GROUPS_ARG=$(printf '%s' "$GROUPS_ARG" | tr '\n' ',' | sed 's/,$//')
+  else
+    GROUPS_ARG=""
+  fi
+fi
+GROUPS_CSV=""
+if [[ -n $GROUPS_ARG ]]; then
+  IFS=',' read -ra GROUP_ARR <<<"$GROUPS_ARG"
+  for g in "${GROUP_ARR[@]}"; do
+    [[ -n $g ]] || fail "empty group name in '$GROUPS_ARG'"
+    getent group "$g" >/dev/null || fail "unknown group: $g"
+  done
+  GROUPS_CSV=$(IFS=,; printf '%s' "${GROUP_ARR[*]}")
+fi
+
+if ((SKIP_PASSWORD == 0)) && ! interactive; then
+  fail "setting a password needs a terminal; pass --skip-password or run interactively"
+fi
+
+if [[ -x /usr/bin/bash ]]; then
+  USER_SHELL=/usr/bin/bash
+else
+  USER_SHELL=/bin/bash
+fi
+
+echo
+echo "About to create:"
+echo "  user:   $USERNAME (shell $USER_SHELL)"
+echo "  groups: ${GROUPS_CSV:-<none>}"
+confirm "Create user $USERNAME?" || fail "aborted"
+
+sudo useradd -m -s "$USER_SHELL" "$USERNAME"
+if [[ -n $GROUPS_CSV ]]; then
+  sudo usermod -aG "$GROUPS_CSV" "$USERNAME"
+fi
+
+if ((SKIP_PASSWORD)); then
+  echo "Skipped password (--skip-password). The greeter needs one: run 'sudo passwd $USERNAME'."
+else
+  echo "Set the password for $USERNAME:"
+  sudo passwd "$USERNAME"
+fi
+
+echo
+echo "Created $USERNAME: $(id "$USERNAME")"
+echo "First graphical login provisions the desktop (or run 'omarchy finalize user' as $USERNAME)."
