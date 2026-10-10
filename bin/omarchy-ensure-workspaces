@@ -1,0 +1,120 @@
+#!/bin/bash
+# omarchy:summary=Ensure persistent workspaces exist on all monitors (with retry)
+# omarchy:hidden=true
+#
+# Delayed verification helper: confirm that all workspace slots (1-30) exist
+# as persistent workspaces after global workspace mode initializes.
+#
+# Called by workspace-global.lua as a backgrounded post-init check:
+#   os.execute("omarchy-ensure-workspaces &")
+#
+# This runs after a short delay to give hl.workspace_rule() time to materialize
+# workspaces asynchronously (the rule registration is not synchronous).
+# If any expected workspace is missing, re-dispatches focus to create it.
+#
+# Slot range: 1-10 per monitor, for however many monitors are in the bases file.
+# If monitor-bases.json is absent or empty, exits silently (local mode active).
+
+sleep 1  # Give Hyprland time to materialize workspace rules
+
+BASES_FILE="$HOME/.local/state/omarchy/monitor-bases.json"
+if [[ ! -f "$BASES_FILE" ]]; then
+  exit 0
+fi
+
+# Only run inside a live Hyprland session
+if [[ -z "$HYPRLAND_INSTANCE_SIGNATURE" ]]; then
+  exit 0
+fi
+
+python3 - "$BASES_FILE" <<'PYEOF'
+import json, subprocess, sys, os
+
+bases_file = sys.argv[1]
+try:
+    with open(bases_file) as f:
+        bases = json.load(f)
+except Exception:
+    sys.exit(0)
+
+if not bases:
+    sys.exit(0)
+
+# Get currently connected monitor names — only check slots for monitors
+# that are physically present. Disconnected monitors keep their bases in
+# the JSON (by design, for reconnect stability), but iterating them here
+# would focus-create workspaces on the wrong monitor and leave focus on
+# workspace 1 after every reload or login. (llstrk Issue C)
+try:
+    result = subprocess.run(
+        ["hyprctl", "monitors", "-j"],
+        capture_output=True, text=True, timeout=5
+    )
+    if result.returncode != 0:
+        sys.exit(0)
+    connected_names = {m["name"] for m in json.loads(result.stdout)}
+except Exception:
+    sys.exit(0)
+
+# Get existing workspace IDs from hyprctl
+try:
+    result = subprocess.run(
+        ["hyprctl", "workspaces", "-j"],
+        capture_output=True, text=True, timeout=5
+    )
+    existing_ids = set()
+    if result.returncode == 0:
+        workspaces = json.loads(result.stdout)
+        existing_ids = {ws["id"] for ws in workspaces}
+except Exception:
+    sys.exit(0)
+
+# Record which workspace is currently active so we can restore focus after
+# creating any missing workspaces (rather than unconditionally landing on 1).
+try:
+    result = subprocess.run(
+        ["hyprctl", "activeworkspace", "-j"],
+        capture_output=True, text=True, timeout=5
+    )
+    active_ws_id = None
+    if result.returncode == 0:
+        active_ws_id = json.loads(result.stdout).get("id")
+except Exception:
+    active_ws_id = None
+
+# Check slots only for currently connected monitors.
+missing = []
+for name, base in bases.items():
+    if name not in connected_names:
+        continue  # skip disconnected monitors
+    for slot in range(1, 11):
+        ws_id = base + slot
+        if ws_id not in existing_ids:
+            missing.append(ws_id)
+
+if not missing:
+    sys.exit(0)
+
+# Re-dispatch focus to missing workspaces to force materialization.
+for ws_id in sorted(missing):
+    try:
+        subprocess.run(
+            ["hyprctl", "dispatch", f'hl.dsp.focus({{ workspace = "{ws_id}" }})'],
+            capture_output=True, timeout=3
+        )
+    except Exception:
+        pass
+
+# Restore focus to the workspace that was active before we started.
+# Only do this if we know what it was; otherwise leave focus where it landed.
+if active_ws_id is not None:
+    try:
+        subprocess.run(
+            ["hyprctl", "dispatch", f'hl.dsp.focus({{ workspace = "{active_ws_id}" }})'],
+            capture_output=True, timeout=3
+        )
+    except Exception:
+        pass
+
+sys.exit(0)
+PYEOF

@@ -1,0 +1,78 @@
+#!/bin/bash
+# omarchy:summary=Move focused window to slot N on the focused monitor (global mode)
+# omarchy:args=<slot-number>
+# omarchy:hidden=true
+#
+# Always targets the FOCUSED monitor (keyboard focus), not the window's current
+# monitor. SUPER+SHIFT+N moves the active window to slot N on whichever monitor
+# the user is actively using.
+#
+# The stable base is stored in ~/.local/state/omarchy/monitor-bases.json and
+# managed by omarchy-monitor-base.
+
+set -euo pipefail
+
+SLOT="${1:-}"
+if [[ -z "$SLOT" || ! "$SLOT" =~ ^([1-9]|10)$ ]]; then
+  echo "Usage: $0 <slot 1-10>" >&2
+  exit 1
+fi
+
+BASES_FILE="$HOME/.local/state/omarchy/monitor-bases.json"
+
+# Get the active window address.
+WIN_ADDRESS=$(hyprctl activewindow -j 2>/dev/null | python3 -c "
+import json, sys
+try:
+    w = json.load(sys.stdin)
+    print(w.get('address', ''))
+except Exception:
+    print('')
+" 2>/dev/null)
+
+if [[ -z "$WIN_ADDRESS" ]]; then
+  exit 0  # no active window; silent no-op
+fi
+
+# Snapshot the monitor list and find the FOCUSED monitor by name.
+# Use hyprctl monitors -j .focused — never read .monitor from activewindow,
+# which is a transient numeric id that doesn't match the name-keyed bases map.
+MONITORS_JSON=$(hyprctl monitors -j 2>/dev/null)
+FOCUSED_MONITOR=$(echo "$MONITORS_JSON" | python3 -c "
+import json, sys
+try:
+    mons = json.load(sys.stdin)
+    focused = [m for m in mons if m.get('focused')]
+    print(focused[0]['name'] if focused else '')
+except Exception:
+    print('')
+" 2>/dev/null)
+
+if [[ -z "$FOCUSED_MONITOR" ]]; then
+  exec hyprctl dispatch "hl.dsp.window.move({ workspace = \"$SLOT\", follow = false })"
+fi
+
+if [[ ! -f "$BASES_FILE" ]]; then
+  exec hyprctl dispatch "hl.dsp.window.move({ workspace = \"$SLOT\", follow = false })"
+fi
+
+if ! TARGET_WS=$(python3 - "$BASES_FILE" "$FOCUSED_MONITOR" "$SLOT" << 'PYEOF'
+import json, sys
+bases_file, monitor_name, slot = sys.argv[1], sys.argv[2], int(sys.argv[3])
+try:
+    with open(bases_file) as f:
+        bases = json.load(f)
+    base = bases.get(monitor_name)
+    if base is None:
+        sys.exit(1)
+    print(base + slot)
+except Exception:
+    sys.exit(1)
+PYEOF
+) || [[ -z "$TARGET_WS" ]]; then
+  # Monitor not yet in the bases map (edge case: new monitor before first sync).
+  # Fall back to moving to the raw slot number so the window is not stranded.
+  exec hyprctl dispatch "hl.dsp.window.move({ workspace = \"$SLOT\", follow = false })"
+fi
+
+exec hyprctl dispatch "hl.dsp.window.move({ workspace = \"$TARGET_WS\", follow = false })"
