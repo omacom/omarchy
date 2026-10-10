@@ -22,7 +22,7 @@ esac
 print_status() {
   local device nm state ssid signal freq
 
-  device=$(ip route get "$internet_probe" 2>/dev/null | awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }')
+  device=$(uplink_route | jq -r '.dev // ""')
 
   if [[ -z $device ]]; then
     printf 'disconnected\t\t\t\n'
@@ -46,6 +46,19 @@ print_status() {
   fi
 
   printf 'wifi\t%s\t%s\t%s\n' "${ssid:-$device}" "$signal" "$freq"
+}
+
+# A TUN proxy can send route lookups for the probe through its virtual
+# interface. The main table's default route still identifies the uplink the
+# network panel should describe. Fall back to the probe route if it has none.
+uplink_route() {
+  local routes
+  routes=$(ip -j -4 route show table main default 2>/dev/null)
+  if [[ -n $routes && $routes != "[]" ]]; then
+    jq -c 'sort_by(.metric // 0) | .[0]' <<<"$routes"
+  else
+    ip -j -4 route get "$internet_probe" 2>/dev/null | jq -c '.[0] // {}'
+  fi
 }
 
 ping_latency_ms() {
@@ -85,12 +98,15 @@ print_ping_samples() {
 print_verbose() {
   local route_json iface gw src prefix link
 
-  route_json=$(ip -j route get "$internet_probe" 2>/dev/null)
+  route_json=$(uplink_route)
   [[ -z $route_json ]] && return
 
-  iface=$(jq -r '.[0].dev // ""' <<<"$route_json" 2>/dev/null)
-  gw=$(jq -r '.[0].gateway // ""' <<<"$route_json" 2>/dev/null)
-  src=$(jq -r '.[0].prefsrc // ""' <<<"$route_json" 2>/dev/null)
+  iface=$(jq -r '.dev // ""' <<<"$route_json" 2>/dev/null)
+  gw=$(jq -r '.gateway // ""' <<<"$route_json" 2>/dev/null)
+  src=$(jq -r '.prefsrc // ""' <<<"$route_json" 2>/dev/null)
+  if [[ -z $src && -n $iface ]]; then
+    src=$(ip -j -4 addr show "$iface" 2>/dev/null | jq -r '.[0].addr_info[]? | select(.family == "inet" and .scope == "global") | .local' | head -n 1)
+  fi
 
   [[ -z $iface ]] && return
 
