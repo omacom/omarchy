@@ -201,6 +201,14 @@ function snapshotOf(notification, timestamp) {
   }
 }
 
+// A missing output falls back to one screen without following focus changes.
+function popupScreenName(screenName, screens) {
+  for (var i = 0; i < screens.length; i++) {
+    if (screens[i].name === screenName) return screenName
+  }
+  return screens.length > 0 ? screens[0].name : ""
+}
+
 // Everything the popup card draws, and therefore everything an in-place
 // update has to write through to the row and its file.
 var POPUP_ROLES = ["app", "appIcon", "summary", "body", "image", "glyph", "execArgv", "urgency", "expireTimeout"]
@@ -263,6 +271,7 @@ function historyEntry(value, normalUrgency) {
     image: e.image || "",
     glyph: e.glyph || "",
     execArgv: e.execArgv || "",
+    screenName: String(e.screenName || ""),
     urgency: typeof e.urgency === "number" ? e.urgency : normalUrgency,
     expireTimeout: 0,
     timestamp: e.timestamp || 0
@@ -490,6 +499,7 @@ if (typeof module !== "undefined") {
     parseExecArgv: parseExecArgv,
     shouldRenderCompactGlyph: shouldRenderCompactGlyph,
     snapshotOf: snapshotOf,
+    popupScreenName: popupScreenName,
     popupRoles: popupRoles,
     popupRowChanged: popupRowChanged,
     isDuplicatePopup: isDuplicatePopup,

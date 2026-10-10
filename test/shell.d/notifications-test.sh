@@ -8,6 +8,22 @@ run_node_test <<'JS'
 const fs = require('fs')
 const notifications = requireFromRoot('shell/plugins/notifications/NotificationLogic.js')
 
+const screens = [{ name: 'eDP-1' }, { name: 'DP-1' }, { name: 'HDMI-A-1' }]
+assertEqual(notifications.popupScreenName('DP-1', screens), 'DP-1', 'a toast stays on its arrival screen')
+assertEqual(notifications.popupScreenName('DP-1', [...screens].reverse()), 'DP-1', 'screen order changes do not move a pinned toast')
+assertEqual(notifications.popupScreenName('', screens), 'eDP-1', 'a toast has one fallback before focus is known')
+assertEqual(notifications.popupScreenName('unplugged', screens), 'eDP-1', 'a toast on a disconnected output has one fallback')
+assertEqual(notifications.popupScreenName('DP-1', []), '', 'a toast tolerates having no outputs')
+for (const screenName of ['DP-1', '', 'unplugged']) {
+  const target = notifications.popupScreenName(screenName, screens)
+  assertEqual(screens.filter(screen => screen.name === target).length, 1, 'each toast selects exactly one of three monitors')
+}
+const pinned = notifications.parsePopupFiles(
+  notifications.serializePopup({ id: 1, originalId: 1, timestamp: 5, screenName: 'DP-1' }, 1), 1
+)[0]
+assertEqual(pinned.screenName, 'DP-1', 'a toast retains its arrival screen through persistence')
+assertEqual(notifications.popupEntry({ id: 1, timestamp: 5 }, 1).screenName, '', 'an older popup without a screen remains restorable')
+
 assert(notifications.isChromiumDerived('Brave Browser', ''), 'notifications detect chromium-derived apps by name')
 assert(notifications.isChromiumDerived('', 'microsoft-edge'), 'notifications detect chromium-derived apps by icon')
 assert(!notifications.isChromiumDerived('Slack', ''), 'notifications do not treat unrelated apps as chromium-derived')
@@ -607,6 +623,22 @@ assert(!('exec' in legacyRestored), 'a restored legacy popup drops the old exec 
 assertEqual(notifications.parseExecArgv(legacyRestored.execArgv || ''), null, 'a restored legacy popup has no runnable click action')
 
 const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/notifications/Service.qml'), 'utf8')
+assert(
+  /snapshot\.screenName = focusedScreenName\(\)/.test(serviceQml) &&
+    /var monitor = Hyprland\.focusedMonitor/.test(serviceQml),
+  'a toast captures the focused monitor before its deferred model insert'
+)
+assert(/updated\.screenName = row\.screenName/.test(serviceQml), 'an in-place update persists the original monitor')
+assert(
+  /visible: onScreen/.test(serviceQml) && /ticking: cardSlot\.onScreen &&/.test(serviceQml),
+  'only the chosen screen displays a card and runs its expiry timer'
+)
+assert(
+  /service\.replayScreenName = focusedScreenName\(\)/.test(serviceQml) &&
+    /rows\[i\]\.screenName = service\.replayScreenName/.test(serviceQml) &&
+    /screenName: service\.replayScreenName/.test(serviceQml),
+  'history and its empty placeholder use the screen focused when replay was requested'
+)
 assert(
   /function barClearanceFor\(screenName\) \{\s*return NotificationLogic\.barClearance\(shell \? shell\.bar : null, screenName, defaultBarSize, Style\.gapsOut\)\s*\}/.test(serviceQml) &&
     /NotificationLogic\.popupPlacement\(\s*service\.barPosition, service\.barClearanceFor\(modelData \? modelData\.name : ""\), Style\.gapsOut\)/.test(serviceQml),

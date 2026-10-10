@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import Quickshell.Services.Notifications
 import qs.Commons
 
@@ -136,7 +137,14 @@ Item {
   }
 
   function snapshotOf(notification) {
-    return NotificationLogic.snapshotOf(notification, Date.now())
+    var snapshot = NotificationLogic.snapshotOf(notification, Date.now())
+    snapshot.screenName = focusedScreenName()
+    return snapshot
+  }
+
+  function focusedScreenName() {
+    var monitor = Hyprland.focusedMonitor
+    return NotificationLogic.popupScreenName(monitor ? monitor.name : "", Quickshell.screens)
   }
 
   // A notification nobody looks back at:
@@ -276,6 +284,7 @@ Item {
       var row = popupModel.get(i)
       if (!row || row.originalId !== originalId || row.timestamp !== timestamp) continue
       if (!NotificationLogic.popupRowChanged(row, updated)) return
+      updated.screenName = row.screenName
       for (var r = 0; r < roles.length; r++) popupModel.setProperty(i, roles[r], updated[roles[r]])
       // The file name is the timestamp and id this popup was persisted under,
       // so the rewrite lands on the same file: a restart restores the version
@@ -663,6 +672,7 @@ Item {
   // replayHistory archives them, but the directory read is already in flight
   // by then, so they're handed over in memory instead of being waited for.
   property var replayCarryOver: []
+  property string replayScreenName: ""
 
   // Set from the moment a read is queued until it starts, so a second
   // showHistory while one is still waiting its turn doesn't queue another.
@@ -674,6 +684,7 @@ Item {
   function showRecentHistory() {
     if (readHistoryProc.running || service.historyReadQueued) return "ok"
     service.replayCarryOver = liveRowsForReplay()
+    service.replayScreenName = focusedScreenName()
     service.historyReadQueued = true
     enqueueHistoryRead()
     return "ok"
@@ -730,6 +741,7 @@ Item {
         image: "",
         glyph: "󰂚",
         execArgv: "",
+        screenName: service.replayScreenName,
         urgency: NotificationUrgency.Low,
         expireTimeout: 0,
         timestamp: Date.now()
@@ -744,6 +756,7 @@ Item {
       // sender long ago, so they must never resolve to a live server object
       // that has since been handed their old id.
       service.restoredPopups[NotificationLogic.popupFileName(rows[i])] = true
+      rows[i].screenName = service.replayScreenName
       popupModel.append(rows[i])
     }
   }
@@ -763,6 +776,7 @@ Item {
     var live = []
     for (var i = 0; i < entries.length; i++) {
       var entry = entries[i]
+      entry.screenName = NotificationLogic.popupScreenName(entry.screenName || focusedScreenName(), Quickshell.screens)
       var duration = durationFor(entry.urgency, entry.expireTimeout)
       if (NotificationLogic.popupExpired(entry, duration, now)) {
         // It would have expired on screen had the shell kept running, so it
@@ -992,8 +1006,8 @@ Item {
 
   // -------------------------------------------------------------- popup UI
   //
-  // One PanelWindow per output (Variants on Quickshell.screens) holding the
-  // stacked toast cards. Layer is Overlay, exclusionMode Ignore, no
+  // One PanelWindow per output holding only that output's toast cards.
+  // Layer is Overlay, exclusionMode Ignore, no
   // keyboard focus — popups are passive surfaces and must never steal input
   // from the focused application.
 
@@ -1051,6 +1065,11 @@ Item {
             required property int urgency
             required property double expireTimeout
             required property double timestamp
+            required property string screenName
+
+            readonly property bool onScreen: popupWindow.modelData.name ===
+              NotificationLogic.popupScreenName(screenName, Quickshell.screens)
+            visible: onScreen
 
             // Each card sizes itself based on mode (text vs media); the slot
             // tracks the card so the column auto-fits to whichever is widest.
@@ -1060,7 +1079,7 @@ Item {
 
             readonly property real lifetime: service.durationFor(cardSlot.urgency, cardSlot.expireTimeout)
             property real remainingLifetime: 1.0
-            readonly property bool ticking: cardSlot.lifetime > 0 && !card.hovered
+            readonly property bool ticking: cardSlot.onScreen && cardSlot.lifetime > 0 && !card.hovered
 
             // A client updating this notification in place rewrites the row
             // under the card (see refreshPopup). New text deserves a full look,
