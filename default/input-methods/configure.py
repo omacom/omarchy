@@ -108,7 +108,6 @@ def defaults(config_home, fresh=False):
         stock_lists = {
           "Hotkey/ActivateKeys": {"0": "Hangul_Hanja"},
           "Hotkey/DeactivateKeys": {"0": "Hangul_Romaja"},
-          "Hotkey/AltTriggerKeys": {"0": "Shift_L"},
           "Hotkey/EnumerateGroupForwardKeys": {"0": "Super+space"},
           "Hotkey/EnumerateGroupBackwardKeys": {"0": "Super+Shift+space"},
           "TriggerKey": {"0": "Super+grave", "1": "Super+semicolon"},
