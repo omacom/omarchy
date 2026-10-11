@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Configure, inspect, or switch input methods
+# omarchy:args=<status|cycle [back]|configure --seed|--defaults>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+if [[ ${1:-} == "cycle" ]]; then
+  direction=${2:-next}
+  if [[ $direction != "next" && $direction != "back" ]]; then
+    echo "Usage: omarchy-input-method cycle [back]" >&2
+    exit 1
+  fi
+  # The shell's reader retains a choice made while nothing has focus.
+  if [[ $(omarchy-shell shell cycleInput "$direction") != "ok" ]]; then
+    echo "The shell's input reader is not running" >&2
+    exit 1
+  fi
+else
+  /usr/bin/python3 "$OMARCHY_PATH/default/input-methods/configure.py" "$@"
+fi

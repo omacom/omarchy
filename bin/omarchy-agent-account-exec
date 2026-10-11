@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# omarchy:summary=Run Claude, Codex, or Grok as the selected subscription account
+# omarchy:args=<claude|codex|grok> [args...]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+case "${1:-}" in
+  claude) account_env="CLAUDE_CONFIG_DIR" ;;
+  codex) account_env="CODEX_HOME" ;;
+  grok) account_env="GROK_HOME" ;;
+  *)
+    echo "Usage: omarchy-agent-account-exec <claude|codex|grok> [args...]" >&2
+    exit 1
+    ;;
+esac
+
+provider=$1
+shift
+
+# mise removes its wrapper dispatch directories before calling us, so exec
+# finds the real CLI (or its first-run installer) rather than this wrapper.
+# Pin the resolved home for children, including an implicit Main account.
+# Explicit provider homes still take precedence.
+if [[ -z ${!account_env:-} ]]; then
+  account_home=$(omarchy-agent-account-home "$provider")
+  export "OMARCHY_AGENT_${provider^^}_HOME=$account_home"
+  if [[ -n $account_home ]]; then
+    export "$account_env=$account_home"
+  fi
+fi
+
+# Resolve before restoring dispatch on PATH: mise removes the wrapper paths to
+# avoid recursion, but the agent's subprocesses need them for other providers.
+if ! agent_binary=$(type -P "$provider"); then
+  # A mise dispatcher can exist before its CLI or first-run installer does.
+  export MISE_MINIMUM_RELEASE_AGE=0
+  mise use -g --quiet "$provider"
+  agent_binary=$(mise which "$provider")
+fi
+export PATH="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/command-wrappers/bin:$PATH"
+exec "$agent_binary" "$@"

@@ -9,12 +9,25 @@ declare -A LUA_BIND_KEY_MAP
 declare -A LUA_BIND_DISPATCHER_MAP
 declare -A LUA_BIND_ARG_MAP
 
+# A platform package can name keys the way its keyboards print them: one
+# "<keysym> <name>" per line (on a MacBook, XF86MonBrightnessUp is F2), in the
+# fixed platform root, which no environment variable moves.
+key_names_file=/usr/share/omarchy-platform/key-names
+
 # Hyprland reports XKB keycodes for code: bindings. Resolve them to symbols
 # via the compiled keymap, with a small fallback for common keys so the menu
 # remains readable if xkbcli cannot resolve a symbol.
 parse_keycodes() {
-  awk '
+  awk -v key_names="$key_names_file" '
     BEGIN {
+      while ((getline line < key_names) > 0) {
+        # Blanks around a line and a CRLF line end read the same, as in
+        # displays.conf.
+        gsub(/^[ \t\r]+|[ \t\r]+$/, "", line)
+        if (split(line, name_parts, /[ \t]+/) == 2 && name_parts[1] ~ /^[A-Za-z0-9_]+$/ && name_parts[2] ~ /^[A-Za-z0-9_]+$/) key_name[name_parts[1]] = name_parts[2]
+      }
+      close(key_names)
+
       split("10=1 11=2 12=3 13=4 14=5 15=6 16=7 17=8 18=9 19=0 20=MINUS 21=EQUAL 59=COMMA 60=PERIOD 61=SLASH", fallbacks, " ")
       for (i in fallbacks) {
         separator = index(fallbacks[i], "=")
@@ -59,6 +72,13 @@ parse_keycodes() {
         symbol = mouse_symbol[code]
         if (symbol == "") symbol = "mouse:" code
         sub("mouse:" code, symbol)
+      } else if ((first = index($0, ",")) > 0) {
+        # Only the key (the second field) is renamed: the description, the
+        # dispatcher and its argument are left as they are.
+        rest = substr($0, first + 1)
+        second = index(rest, ",")
+        key = second > 0 ? substr(rest, 1, second - 1) : rest
+        if (key in key_name) $0 = substr($0, 1, first) key_name[key] (second > 0 ? substr(rest, second) : "")
       }
 
       print
@@ -81,7 +101,9 @@ build_lua_bind_cache() {
     LUA_BIND_DISPATCHER_MAP["$cache_key"]="$dispatcher"
     LUA_BIND_ARG_MAP["$cache_key"]="$arg"
   done < <(
-    lua <<'LUA'
+    # -E keeps LUA_INIT and LUA_PATH from the environment out of the scan, which
+    # loads the user's config.
+    lua -E - <<'LUA'
 local modifiers = { SHIFT = 1, CTRL = 4, CONTROL = 4, ALT = 8, SUPER = 64 }
 
 local function split_keys(keys)
@@ -533,8 +555,9 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v14\n'
+    printf 'v15\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
+    cat "$key_names_file" 2>/dev/null
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
 }
