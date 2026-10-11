@@ -25,6 +25,7 @@ BarWidget {
   implicitHeight: button.implicitHeight
 
   ShellIpc {
+    enabled: root.ipcOwner
     target: "omarchy.system-update"
 
     function refresh(): void {
