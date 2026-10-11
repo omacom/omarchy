@@ -202,6 +202,15 @@ grep -Fxq "$parameter" "$dropin_dir/micron-2400-apst.conf" ||
   fail "the migration ignores a commented-out parameter"
 pass "the migration ignores a commented-out parameter"
 
+# limine-entry-tool loads only *.conf, so a backup beside them configures nothing.
+reset_machine
+mkdir -p "$dropin_dir"
+printf '%s\n' "$parameter" >"$dropin_dir/nvme-apst.conf.bak"
+run_migration || fail "the migration ignores a parameter in an inactive file"
+grep -Fxq "$parameter" "$dropin_dir/micron-2400-apst.conf" ||
+  fail "the migration ignores a parameter in an inactive file"
+pass "the migration ignores a parameter in an inactive file"
+
 reset_machine
 run_migration "$other" || fail "the migration no-ops on another drive"
 [[ -e $dropin_dir ]] && fail "the migration no-ops on another drive"

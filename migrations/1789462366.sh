@@ -13,7 +13,7 @@ rebuild_marker="${OMARCHY_LIMINE_REBUILD_MARKER:-/var/lib/omarchy/migrations/178
 omarchy-cmd-present limine-mkinitcpio || exit 0
 omarchy-hw-micron-2400-nvme || exit 0
 
-if ! grep -rqsE '^[^#]*nvme_core\.default_ps_max_latency_us=' "$dropin_dir" "$limine_conf"; then
+if ! grep -qsE '^[^#]*nvme_core\.default_ps_max_latency_us=' "$dropin_dir"/*.conf "$limine_conf"; then
   source "$OMARCHY_PATH/install/hardware/fix-micron-2400-apst.sh"
 fi
 
