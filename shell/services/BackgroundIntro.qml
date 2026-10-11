@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 
 // Keep startup and theme covers alive across background service handoffs.
 Item {
@@ -80,8 +81,8 @@ Item {
     framePoll.stop()
     themeFallback.stop()
     if (themeToken) {
-      Color.loadColors(Util.decodeBase64(themeColors))
-      Color.loadShell(Util.decodeBase64(themeShell))
+      Commons.Color.loadColors(Util.decodeBase64(themeColors))
+      Commons.Color.loadShell(Util.decodeBase64(themeShell))
       Style.scheduleRefresh()
     }
     cover = false
@@ -289,7 +290,7 @@ Item {
       Rectangle {
         anchors.fill: parent
         visible: root.cover
-        color: Color.background
+        color: Commons.Color.background
       }
 
       Image {

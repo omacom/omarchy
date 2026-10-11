@@ -87,18 +87,6 @@ You start Signal with `Super + Shift + G`. It's not part of the base install, so
 
 You start mpv via the application launcher (`Super + Space`) or just double-click on a video in the file manager.
 
-## OBS Studio
-
-[OBS Studio](https://obsproject.com/) lets you record or stream video from multiple inputs. You can mix a screencast with a webcam with a microphone input. It's what was used to record the Omarchy screencasts.
-
-You start OBS Studio via the application launcher (`Super + Space`).
-
-## Kdenlive
-
-[Kdenlive](https://kdenlive.org/) is an excellent video editor. Perfect for working on video that comes out of OBS Studio before sharing it.
-
-You start Kdenlive via the application launcher (`Super + Space`).
-
 ## Omacut
 
 [Omacut](https://github.com/omacom-io/omacut) is Omarchy's own dead-simple video trimmer. When all you need is to cut the start and end off a clip, it beats firing up a full video editor.

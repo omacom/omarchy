@@ -67,6 +67,9 @@ with tempfile.TemporaryDirectory() as directory:
         time.sleep(0.01)
 
     wait_phase("holding")
+    subprocess.run(["hyprctl", "reload"], env=env, check=True, capture_output=True, timeout=5)
+    subprocess.run(["hyprctl", "eval", "assert(omarchy_startup_cursor_pending, 'reload lost the pending cursor reveal')"],
+             env=env, check=True, capture_output=True, timeout=5)
     (stage / "release").write_text("reveal")
     wait_phase("revealed")
     # Cursor visibility is polled by the compositor independently of the fade.
@@ -78,6 +81,9 @@ with tempfile.TemporaryDirectory() as directory:
       if float(green) > 20:
         break
       assert time.monotonic() < deadline, "the normal cursor did not return with the desktop"
+  except Exception:
+    print((stage / "compositor.log").read_text())
+    raise
   finally:
     os.killpg(compositor.pid, signal.SIGTERM)
     compositor.wait(timeout=10)

@@ -32,14 +32,14 @@
             "description": "Warning while passwordless root access is enabled"
           },
           {
-            "value": "Dictation",
-            "label": "Dictation",
-            "description": "Voice typing status"
-          },
-          {
             "value": "ScreenRecording",
             "label": "Screen recording",
             "description": "GPU screen recorder status"
+          },
+          {
+            "value": "RemoteSession",
+            "label": "Remote session",
+            "description": "Warning while someone is connected through gliff"
           },
           {
             "value": "Reminder",

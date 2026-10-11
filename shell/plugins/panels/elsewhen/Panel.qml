@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 import "GlobeModel.js" as Solar
@@ -80,7 +81,7 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
+  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property color fainter: Qt.darker(foreground, 2.1)
   // A literal gold: several themes' "yellow" is not yellow.
@@ -830,7 +831,7 @@ Panel {
             width: parent.width
             caption: root.hereLine
             // Accent while scrubbed, so a shifted time is never taken for now.
-            captionColor: root.scrubMinutes !== 0 ? Color.accent : root.dim
+            captionColor: root.scrubMinutes !== 0 ? Commons.Color.accent : root.dim
             captionClickable: root.focusIndex >= 0
             foreground: root.foreground
             dim: root.dim
