@@ -476,6 +476,30 @@ function historyRows(raw, liveRows, normalUrgency, limit) {
   return out.slice(0, max)
 }
 
+// The app id the screensaver terminal is launched with (see
+// bin/omarchy-launch-screensaver and the window rules in
+// default/hypr/apps/system.lua).
+var SCREENSAVER_APP_ID = "org.omarchy.screensaver"
+
+// Whether a screensaver window is currently mapped. Toasts are Overlay-layer
+// surfaces, so the compositor draws them over the screensaver unless they are
+// hidden; this is the condition that hides them. It asks the toplevels
+// themselves, which is true for as long as a window exists however it was
+// launched, rather than any bookkeeping of when one was started.
+//
+// Quickshell hands the toplevels over as an ObjectModel, whose values live
+// behind `.values`; a test hands over a plain array, whose own `.values` is
+// Array.prototype.values. Read the array first, or the fallback finds a
+// function with no length and concludes there are no windows.
+function hasScreensaverToplevel(toplevels) {
+  var list = Array.isArray(toplevels) ? toplevels : (toplevels ? toplevels.values : null)
+  if (!list || !list.length) return false
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && list[i].appId === SCREENSAVER_APP_ID) return true
+  }
+  return false
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isChromiumDerived: isChromiumDerived,
@@ -506,6 +530,7 @@ if (typeof module !== "undefined") {
     parsePopupFiles: parsePopupFiles,
     popupExpired: popupExpired,
     barClearance: barClearance,
-    popupPlacement: popupPlacement
+    popupPlacement: popupPlacement,
+    hasScreensaverToplevel: hasScreensaverToplevel
   }
 }
