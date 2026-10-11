@@ -1,4 +1,4 @@
-# Set default XCompose that is triggered with CapsLock
+# Set default XCompose that is triggered with Shift + CapsLock
 tee ~/.XCompose >/dev/null <<EOF
 # Run omarchy-restart-xcompose to apply changes
 

@@ -36,6 +36,9 @@ BarWidget {
   // xkb's own table rather than maintained by hand.
   property var layoutBriefs: ({})
   readonly property string layoutLabel: KeyboardLayoutModel.shortLabel(layoutFull, layoutBriefs)
+  readonly property var inputState: InputMethodState.state
+  readonly property bool multipleInputs: (inputState.methods || []).length > 1
+  readonly property string inputLabel: KeyboardLayoutModel.inputLabel(inputState, layoutLabel)
 
   // A query already in flight was started before this event, so it may read the
   // layout the switch replaced. Remember the request and re-run once it lands
@@ -228,7 +231,7 @@ BarWidget {
     onTriggered: root.refresh()
   }
 
-  visible: layoutLabel !== "" && multipleLayouts
+  visible: inputLabel !== "" && KeyboardLayoutModel.showIndicator(layoutLabel, multipleLayouts, multipleInputs)
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -236,10 +239,16 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.layoutLabel
+    text: root.inputLabel
     fontSize: Style.font.caption
     horizontalMargin: 6
-    tooltipText: root.layoutFull
-    onPressed: function() { root.cycleLayout() }
+    tooltipText: KeyboardLayoutModel.inputTooltip(root.inputState, root.layoutFull, root.multipleLayouts)
+    onPressed: function(button) {
+      if (root.multipleInputs && button === Qt.LeftButton) {
+        InputMethodState.cycle()
+      } else if (root.multipleLayouts) {
+        root.cycleLayout()
+      }
+    }
   }
 }

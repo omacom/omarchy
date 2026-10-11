@@ -81,6 +81,11 @@ layer_absent() {
   ! layer_present "$1"
 }
 
+# Fullscreen overlays map on the overlay layer and unmap when closed.
+layer_on_overlay() {
+  hyprctl -j layers | jq -e --arg ns "$1" '[.[].levels["3"][]? | select(.namespace == $ns)] | length > 0'
+}
+
 # A layer can be mapped but parked off the monitor: the bar hides that way so
 # revealing it does not have to rebuild the surface. Assert on geometry when
 # what matters is that the user can actually see it. Layer boxes are local to

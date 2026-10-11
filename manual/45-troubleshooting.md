@@ -10,18 +10,6 @@ Omarchy assumes a 2x high-resolution display, which requires setting `GDK_SCALE`
 
 For Spotify, you can use `Ctrl + Minus` to shrink the UI (and `Ctrl + Plus` to make it bigger).
 
-### Why isn't Caps Lock working?
-
-In Omarchy, Caps Lock has been designated to be the xcompose key. That's how you get [quick emojis](07-hotkeys.md#quick-emojis) and [other autocompletions](07-hotkeys.md#quick-completions) done. If you really miss using Caps Lock, you can remap the xcompose key to something else by editing `~/.config/hypr/input.lua`, like setting it to the right alt key:
-
-```
-hl.config({
-  input = {
-    kb_options = "compose:ralt",
-  },
-})
-```
-
 ### My Wi-Fi, Bluetooth, audio, or trackpad just stopped working
 
 Before you reboot, try restarting the offending subsystem on its own. _Update > Hardware_ in the Omarchy menu has Wi-Fi, Bluetooth, Audio, and Trackpad, and reloading one of those clears up the majority of "it worked five minutes ago" situations — a Bluetooth headset that won't reconnect, a trackpad that went dead after a suspend, sound that vanished when you unplugged a monitor.

@@ -398,6 +398,7 @@ var GUARD_READERS = [
   "omarchy-default-browser",
   "omarchy-default-editor",
   "omarchy-default-terminal",
+  "omarchy-default-dictation",
   "omarchy-dns"
 ]
 
@@ -490,8 +491,39 @@ function guardScript(items) {
   return guards ? guardPrelude(guards) + guards : ""
 }
 
+// An action that only asks this shell to summon one of its own plugins can be
+// run in-process, skipping the bash and qs ipc spawns. Anything more than the
+// bare call, such as a second command or a shell-expanded payload, is left to
+// bash.
+function summonAction(action) {
+  var match = /^omarchy-shell shell summon ([A-Za-z0-9._-]+)(?: '([^']*)')?$/.exec(String(action || ""))
+  if (!match) return null
+  return { id: match[1], payload: match[2] || "{}" }
+}
+
+
+// Multi-select requests return stable values, without icons, in option order.
+function dmenuValue(option) {
+  var parts = String(option || "").split("\t")
+  if (parts.length > 1) parts.shift()
+  return parts.join("\t")
+}
+
+function dmenuSelections(options, selected, preserveOrder) {
+  var available = options.map(dmenuValue)
+  return (preserveOrder ? selected : available).filter(function(value, index, values) {
+    return available.indexOf(value) !== -1 && selected.indexOf(value) !== -1 && values.indexOf(value) === index
+  })
+}
+
+function toggleDmenuSelection(selected, value) {
+  return selected.indexOf(value) === -1 ? selected.concat([value])
+    : selected.filter(function(item) { return item !== value })
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    summonAction: summonAction,
     guardReaders: GUARD_READERS,
     guardScript: guardScript,
     stripJsonc: stripJsonc,
@@ -519,6 +551,9 @@ if (typeof module !== "undefined") {
     descriptionTextMatches: descriptionTextMatches,
     matchesQuery: matchesQuery,
     searchScore: searchScore,
+    dmenuValue: dmenuValue,
+    dmenuSelections: dmenuSelections,
+    toggleDmenuSelection: toggleDmenuSelection,
     displayRow: displayRow
   }
 }
