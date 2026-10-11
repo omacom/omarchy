@@ -6,7 +6,7 @@ uki_config=${OMARCHY_SURFACE_PRO11_UKI_CONFIG:-/etc/kernel/uki.conf}
 
 # Only the X Elite OLED model has been tested. The LCD and X Plus models share
 # the DMI product name but use other device trees and panels.
-if omarchy-hw-aarch64-qualcomm && omarchy-hw-dt-match microsoft,denali-oled; then
+if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree microsoft,denali-oled; then
   echo "Detected Microsoft Surface Pro 11, applying board-specific support..."
 
   # Boot configuration comes first, so the kernel's image is built with
