@@ -35,15 +35,13 @@ Clone it into the user plugin directory instead:
 
 ```bash
 omarchy plugin clone omarchy.workspaces
-# Edit ~/.config/omarchy/plugins/<username>.workspaces/; saved changes reload automatically.
+# Edit ~/.config/omarchy/plugins/<username>.workspaces/
 ```
 
 Cloning switches the bar to the cloned copy (e.g. `<username>.workspaces`),
 which is yours to edit and survives updates.
 
-Saving a file anywhere under `~/.config/omarchy/plugins/` reloads plugin code
-automatically. If a change somehow fails to apply, force a reload with
-`omarchy-shell shell rescanPlugins`.
+Saving a file under `~/.config/omarchy/plugins/` rescans the plugins, as does `omarchy-shell shell rescanPlugins`. A service whose `manifest.json` sets `"keepLoaded": true` (notifications, lock and idle, and their clones) keeps its running instance across a rescan, so changes to its code need `omarchy restart shell`. Other plugins can also keep running their old code after a rescan; if an edit does not appear, run `omarchy restart shell`.
 
 ## Idle and Lock
 
