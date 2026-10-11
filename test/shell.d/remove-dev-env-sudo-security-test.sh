@@ -29,7 +29,7 @@ if [[ ${OMARCHY_REMOVE_DEV_ENV_SECURITY_NS:-0} != "1" ]]; then
   )
 
   # Probe only the prerequisites; failures from the actual test must propagate.
-  if unshare "${namespace_args[@]}" /usr/bin/true; then
+  if user_namespace_available && unshare "${namespace_args[@]}" /usr/bin/true; then
     exec unshare "${namespace_args[@]}" env OMARCHY_REMOVE_DEV_ENV_SECURITY_NS=1 bash "$0"
   else
     pass "user/mount namespace setup unavailable; skipping OCaml sudo namespace proof"

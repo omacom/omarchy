@@ -5,7 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 if ((EUID != 0)); then
-  if unshare --user --map-auto --map-root-user --mount true 2>/dev/null; then
+  if user_namespace_available && unshare --user --map-auto --map-root-user --mount true 2>/dev/null; then
     exec unshare --user --map-auto --map-root-user --mount --propagation private bash "$0"
   fi
   skip "automatic subordinate-id namespace unavailable; skipping root Windows VM boundary probe"
