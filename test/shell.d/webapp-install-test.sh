@@ -11,7 +11,7 @@ home="$tmpdir/home"
 mkdir -p "$home/.local/share/applications"
 
 install_webapp() {
-  HOME="$home" "$ROOT/bin/omarchy-webapp-install" "$@"
+  HOME="$home" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-webapp-install" "$@"
 }
 
 desktop_for() {
@@ -31,6 +31,20 @@ grep -Fxq 'Exec=omarchy-launch-webapp "https://example.com"' "$desktop" ||
   fail "webapp install launches the https URL" "$(cat "$desktop")"
 pass "webapp install writes an https desktop entry"
 
+grep -Fxq 'StartupWMClass=chrome-example.com__-Default' "$desktop" ||
+  fail "webapp install names the window Chromium opens" "$(cat "$desktop")"
+pass "webapp install names the window Chromium opens, so titlebars can show the app's name"
+
+for case in \
+  "https://web.whatsapp.com/|chrome-web.whatsapp.com__-Default" \
+  "https://maps.google.com|chrome-maps.google.com__-Default" \
+  "https://discord.com/channels/@me|chrome-discord.com__channels_@me-Default" \
+  "https://Example.com:8443/a/b?x=1#y|chrome-example.com__a_b-Default"; do
+  [[ $("$ROOT/bin/omarchy-webapp-window-class" "${case%%|*}") == "${case#*|}" ]] ||
+    fail "the window class of ${case%%|*} is ${case#*|}" "$("$ROOT/bin/omarchy-webapp-window-class" "${case%%|*}")"
+done
+pass "web app window classes follow Chromium's host and path naming"
+
 if install_webapp "Plain" "example.org/app" "webapp" >"$tmpdir/out" 2>"$tmpdir/err"; then
   :
 else
@@ -47,6 +61,8 @@ else
 fi
 grep -Fxq 'Exec=omarchy-launch-webapp https://localhost:47990 --ignore-certificate-errors' "$(desktop_for Local)" ||
   fail "webapp install writes the custom exec" "$(cat "$(desktop_for Local)")"
+! grep -q '^StartupWMClass=' "$(desktop_for Local)" ||
+  fail "a custom exec does not get a guessed window class" "$(cat "$(desktop_for Local)")"
 pass "webapp install keeps a custom https exec"
 
 for url in "javascript:alert(1)" "file:///etc/passwd" "data:text/html,hi" "ftp://example.com" "ext://x"; do
