@@ -1,0 +1,24 @@
+#!/bin/bash -p
+
+# omarchy:summary=Restore device access after retiring automatic approval
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# Suppress BASH_ENV and exported functions before trusting installed root code.
+if [[ $- != *p* ]]; then exit 126; fi
+source /usr/bin/omarchy-security-functions || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+omarchy_security_sanitize_bash_environment "$0" "$@"
+set -euo pipefail
+(( EUID == 0 && $# == 1 )) || exit 126
+[[ $1 == "0" || $1 == "1" ]] || exit 64
+export PATH=/usr/bin:/bin LC_ALL=C
+unset DBUS_SYSTEM_BUS_ADDRESS DBUS_SESSION_BUS_ADDRESS
+source /usr/share/omarchy/install/helpers/thunderbolt-policy.sh
+source /usr/share/omarchy/install/helpers/thunderbolt-setup.sh
+source /usr/bin/omarchy-usb-authorization-boot
+source /usr/share/omarchy/install/helpers/accessory-authorization-rollback-root.sh
+omarchy_security_prepare_private_root_directory /run/omarchy-accessory-authorization-rollback /run
+exec 8>/run/omarchy-accessory-authorization-rollback/lock
+flock -x 8
+accessory_rollback_root "$1"

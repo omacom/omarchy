@@ -162,6 +162,9 @@ if [[ $1 == awk && ${!#} == /etc/usbguard/usbguard-daemon.conf ]]; then
   exec "${args[@]}"
 elif [[ $1 == test && $2 == -s && $3 == /etc/usbguard/rules.conf ]]; then
   exec /usr/bin/test -s "$TEST_RULES"
+elif [[ $1 == test && $2 == -f && $3 == /etc/usbguard/IPCAccessControl.d/tester ]]; then
+  [[ ${TEST_ACL_MISSING:-0} == 0 ]]
+  exit
 elif [[ $1 == install && $2 == -Dm600 && $3 == -o && $4 == root && $5 == -g && $6 == root && $8 == /etc/usbguard/rules.conf ]]; then
   exec /usr/bin/install -Dm600 "$7" "$TEST_RULES"
 elif [[ $1 == install && ${!#} == /usr/share/polkit-1/actions/org.omarchy.usb.policy ]]; then
@@ -498,14 +501,13 @@ grep -Fq 'takes effect after reboot' "$scratch/remove-boot-output" ||
 pass "early-boot denial can be removed without disabling USBGuard"
 
 grep -qx 'usbguard' "$ROOT/install/omarchy-base.packages" || fail "USBGuard is installed by default"
-grep -Fq 'config/usb-authorization.sh' "$ROOT/install/config/all.sh" ||
-  fail "fresh installs configure the USB authorization policy"
-grep -Fq 'omarchy-usb-authorization.service' "$ROOT/install/user/first-run/enable-user-units.sh" ||
-  fail "fresh installs enable the USB approval watcher"
-grep -Fq 'usb_authorization_provision_owner "$username"' "$ROOT/bin/omarchy-provision-owner" ||
-  fail "deferred provisioning enrolls the owner before finishing"
-grep -Fqx 'omarchy-setup-security-usb-authorization --yes' "$ROOT/migrations/1789433473.sh" ||
-  fail "existing installs enable USB authorization during migration"
+! grep -Fq 'config/usb-authorization.sh' "$ROOT/install/config/all.sh" ||
+  fail "fresh installs no longer enable USB authorization"
+! grep -Fq 'omarchy-usb-authorization.service' "$ROOT/install/user/first-run/enable-user-units.sh" ||
+  fail "fresh installs no longer enable the USB approval watcher"
+! grep -Fq 'usb_authorization_provision_owner "$username"' "$ROOT/bin/omarchy-provision-owner" ||
+  fail "deferred provisioning no longer enrolls devices"
+[[ ! -e $ROOT/migrations/1789433473.sh ]] || fail "the default-on migration is withdrawn"
 
 : >"$rules"
 : >"$calls"
@@ -953,18 +955,11 @@ grep -Fqx 'sudo <omarchy-usb-authorization-boot> <disable>' "$calls" ||
   fail "removal deletes the graphical-session watcher"
 pass "USB authorization removal restores the original default-allow behavior"
 
-cat >"$stub_bin/omarchy-setup-security-usb-authorization" <<'STUB'
-#!/bin/bash
-printf 'migrate-setup <%s>\n' "$*" >>"$CALLS"
-STUB
-chmod +x "$stub_bin/omarchy-setup-security-usb-authorization"
-: >"$calls"
-bash -euo pipefail "$ROOT/migrations/1790608617.sh" >/dev/null
-! grep -q '^migrate-setup' "$calls" || fail "migration overrides USB opt-out"
-touch "$TEST_GUARD_ACTIVE"
-bash -euo pipefail "$ROOT/migrations/1790608617.sh" >/dev/null
-grep -Fqx 'migrate-setup <--yes>' "$calls" || fail "migration repairs an active daemon without a watcher"
-pass "USB migration repairs enabled protection and preserves opt-out"
+TEST_ACL_MISSING=1 "$ROOT/bin/omarchy-remove-security-usb-authorization" --yes >"$scratch/retry-remove-output" ||
+  fail "removal can be retried by an account without a USBGuard ACL"
+pass "removal tolerates an already removed or absent account ACL"
+
+[[ ! -e $ROOT/migrations/1790608617.sh ]] || fail "the migration that re-enables protection is withdrawn"
 
 # Boot-time denial writes Limine's own configuration, which a Mac's boot
 # package owns: it is refused there before anything changes. Root's platform

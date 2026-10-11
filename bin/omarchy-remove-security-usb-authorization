@@ -69,7 +69,11 @@ if omarchy-pkg-present usbguard; then
     exit 1
   fi
   sudo omarchy-usb-authorization-restore-default
-  sudo usbguard remove-user "$USER"
+  # Another account may run the machine-wide rollback first, and retrying a
+  # partially completed removal must not fail on an already removed ACL.
+  if sudo test -f "/etc/usbguard/IPCAccessControl.d/$USER"; then
+    sudo usbguard remove-user "$USER"
+  fi
 fi
 
 systemctl --user disable --now omarchy-usb-authorization.service 2>/dev/null || true

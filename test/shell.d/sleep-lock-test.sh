@@ -339,3 +339,45 @@ budget_cap_ms=$(sed -n 's/^budget_cap_ms=//p' "$sleep_lock")
   fail "sleep lock cap leaves logind room to act" \
     "cap: ${budget_cap_ms}ms window: ${inhibit_delay}s"
 pass "sleep lock cap stays inside the shipped logind inhibitor window"
+
+# A secure screen must not release the suspend inhibitor while the USB policy
+# is still being applied. Older shells without this optional field still work.
+setup_scenario usb_pending
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+printf 'shell %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == "lock lock" ]]; then
+  echo ok
+elif [[ $* == "lock status" ]]; then
+  if [[ -e $STATE_DIR/usb-pending-seen ]]; then
+    echo '{"secure":true,"requested":true,"usbPolicyReady":true}'
+  else
+    touch "$STATE_DIR/usb-pending-seen"
+    echo '{"secure":true,"requested":true,"usbPolicyReady":false}'
+  fi
+fi
+SH
+chmod +x "$mock_bin/omarchy-shell"
+mock_clamshell 0
+run_sleep_lock 2000
+(( exit_status == 0 )) || fail "sleep lock waits for USB protection"
+[[ $(grep -c 'shell lock status' "$call_log") == 2 ]] || fail "USB pending state must delay suspend"
+pass "sleep lock waits for USB policy as well as the screen"
+
+setup_scenario usb_timeout
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+printf 'shell %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == "lock lock" ]]; then
+  echo ok
+else
+  echo '{"secure":true,"requested":true,"usbPolicyReady":false}'
+fi
+SH
+chmod +x "$mock_bin/omarchy-shell"
+mock_clamshell 0
+run_sleep_lock 300
+(( exit_status != 0 )) || fail "unconfirmed USB protection must report suspend failure"
+grep -q 'USB protection was not ready' "$notify_log" || fail "USB failure needs its own warning"
+! grep -q 'session was left unlocked' "$notify_log" || fail "a USB failure must not claim the secure screen was unlocked"
+pass "USB timeout reports the unconfirmed protection without misreporting the screen lock"

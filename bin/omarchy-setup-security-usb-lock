@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Block unfamiliar USB devices while the screen is locked
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+echo "USB works normally at boot and while unlocked."
+echo "While locked, devices connected at lock time may reconnect; unfamiliar devices stay blocked."
+echo "Unlocking automatically allows devices plugged in while locked."
+echo "A malicious device left connected can therefore attack when you unlock."
+echo "Keep an existing keyboard available: a new keyboard cannot unlock the screen."
+echo
+gum confirm "Try USB protection while locked?" || exit 0
+omarchy-pkg-add usbguard
+sudo install -Dm644 "$OMARCHY_PATH/default/polkit/org.omarchy.usb-lock.policy" /usr/share/polkit-1/actions/org.omarchy.usb-lock.policy
+sudo /usr/bin/omarchy-usb-lock-admin enable
+echo "USB protection while locked is enabled."

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <action id="org.omarchy.usb-lock.state">
+    <description>Change USB authorization with the desktop lock</description>
+    <message>Authentication is required to change USB authorization.</message>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-usb-lock-state</annotate>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>no</allow_active>
+    </defaults>
+  </action>
+</policyconfig>

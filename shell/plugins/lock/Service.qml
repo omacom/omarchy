@@ -55,6 +55,24 @@ Item {
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
+  property string usbTarget: ""
+  property string usbApplied: ""
+  property string usbInFlight: ""
+  property bool usbFailureReported: false
+  readonly property bool usbPolicyReady: usbTarget !== "lock" || usbApplied === "lock"
+
+  function requestUsbPolicy(action) {
+    usbTarget = action
+    usbApplied = ""
+    startUsbPolicy()
+  }
+
+  function startUsbPolicy() {
+    if (usbPolicyProc.running || usbTarget === "" || usbApplied === usbTarget) return
+    usbInFlight = usbTarget
+    usbPolicyProc.command = [omarchyPath + "/bin/omarchy-usb-lock-session", usbInFlight]
+    usbPolicyProc.running = true
+  }
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
@@ -205,6 +223,7 @@ Item {
 
     resetAuthenticationState()
     lockRequested = true
+    requestUsbPolicy("lock")
     armBlankTimer()
     logEvent("lock-requested")
     queueSessionLock()
@@ -227,6 +246,7 @@ Item {
     resetAuthenticationState()
     idleBlankTimer.stop()
     sessionLock.locked = false
+    requestUsbPolicy("unlock")
     logEvent("unlocked")
     runWake()
   }
@@ -689,6 +709,9 @@ Item {
 
       // A lock taken while this was in flight is this shell's own.
       root.strandedLock = exitCode === 0 && !root.locked && !root.lockRequested
+      // A fresh login may inherit a locked USB policy from the previous
+      // session. Release it only after the compositor confirms no lock.
+      if (exitCode === 1 && !root.locked) root.requestUsbPolicy("unlock")
       root.recoverStrandedLock()
     }
   }
@@ -828,6 +851,41 @@ Item {
     checkStrandedLock()
   }
 
+  Process {
+    id: usbPolicyProc
+    stdout: StdioCollector { id: usbPolicyOutput; waitForEnd: true }
+    onExited: function(exitCode) {
+      var reply = usbPolicyOutput.text.trim()
+      var expected = root.usbInFlight === "lock" ? "locked" : "unlocked"
+      if (exitCode === 0 && (reply === expected || reply === "off")) {
+        root.usbApplied = root.usbInFlight
+        root.usbFailureReported = false
+      } else {
+        root.logEvent("usb-policy-failed:" + root.usbInFlight)
+        if (!root.usbFailureReported) {
+          root.usbFailureReported = true
+          usbFailureNotice.running = true
+        }
+      }
+      // Serialize rapid lock/unlock requests. A late completion cannot cancel
+      // a newer lock or authorize devices on a recovered, still-locked screen.
+      if (root.usbTarget !== root.usbInFlight) Qt.callLater(root.startUsbPolicy)
+      else if (root.usbApplied !== root.usbTarget) usbPolicyRetry.restart()
+    }
+  }
+
+  Timer {
+    id: usbPolicyRetry
+    interval: 2000
+    onTriggered: root.startUsbPolicy()
+  }
+
+  Process {
+    id: usbFailureNotice
+    command: [omarchyPath + "/bin/omarchy-notification-send", "-u", "critical",
+      "USB lock policy could not be applied", "The screen lock still works. USB policy will retry; check the service before relying on it."]
+  }
+
   ShellIpc {
     target: "lock"
 
@@ -848,6 +906,7 @@ Item {
         pending: root.pendingSessionLock,
         sessionLocked: sessionLock.locked,
         secure: sessionLock.secure,
+        usbPolicyReady: root.usbPolicyReady,
         realScreens: root.realScreenCount(),
         passwordPam: root.passwordPamConfigured,
         fingerprint: root.fingerprintConfigured,
