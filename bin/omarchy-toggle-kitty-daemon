@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Enable or disable Kitty's single-instance mode
+# omarchy:args=[on|off|toggle]
+
+exec omarchy-toggle-terminal-daemon kitty "${1:-toggle}"
