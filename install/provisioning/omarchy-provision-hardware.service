@@ -1,0 +1,21 @@
+# Runs the hardware setup an image build deferred, on the machine it was built
+# for, before owner setup and the login screen. Armed with its queue by
+# omarchy-apply-hardware during the build (install/helpers/image-target.sh);
+# retried on every boot until the queue is empty and any keyring an image build
+# asked for exists, then it disables itself (the unit file stays; with neither
+# file left it no longer runs).
+[Unit]
+Description=Omarchy first-boot hardware setup deferred from the image build
+ConditionPathExists=|/var/lib/omarchy/image/deferred-steps
+ConditionPathExists=|/var/lib/omarchy/image/pacman-keyring
+Before=omarchy-provision-owner.service display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-provision-hardware
+TimeoutStartSec=infinity
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

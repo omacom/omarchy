@@ -69,6 +69,51 @@ for channel in stable rc edge dev; do
   pass "$channel starts cold, authorizes the switch per command, runs the refresh hook cold, hands off to one update authorization and exits cold"
 done
 
+# Every aarch64 platform switches to edge and dev, copying its own templates.
+for platform in aarch64 aarch64-apple; do
+  case $platform in
+    aarch64-apple) templates=default/pacman/aarch64-apple ;;
+    *) templates=default/pacman/aarch64 ;;
+  esac
+  for channel in edge dev; do
+    # dev refreshes from the checkout it links, on edge.
+    pacman_channel=$channel root=$SUDO_TEST_ROOT
+    [[ $channel != "dev" ]] || pacman_channel=edge root=$SUDO_TEST_HOME/omarchy
+    reset_boundary
+    SUDO_TEST_PLATFORM=$platform run_channel "$channel" || fail "$platform $channel failed" "$(<"$boundary_tmp/output")"
+    assert_scoped_channel "$platform $channel"
+    grep -Fqx "step:cp -f $root/$templates/pacman-$pacman_channel.conf /etc/pacman.conf" "$SUDO_TEST_LOG" ||
+      fail "$platform $channel copies its own template" "$(<"$SUDO_TEST_LOG")"
+  done
+done
+pass "aarch64 platforms switch to edge and dev through their own templates"
+
+# stable and rc would install the release line, which has no aarch64 support:
+# an aarch64 machine refuses them before anything changes.
+for platform in aarch64 aarch64-apple; do
+  for channel in stable rc; do
+    reset_boundary
+    if SUDO_TEST_PLATFORM=$platform run_channel "$channel"; then fail "$platform accepted $channel"; fi
+    if grep -Eq '^step:|^sudo -N ' "$SUDO_TEST_LOG"; then fail "$platform $channel was refused before any change" "$(<"$SUDO_TEST_LOG")"; fi
+    grep -q "Omarchy has no $channel channel for $platform" "$boundary_tmp/output" || fail "$platform $channel: the refusal says why" "$(<"$boundary_tmp/output")"
+    assert_boundary_cold "$platform $channel"
+  done
+done
+pass "aarch64 platforms refuse stable and rc before any change"
+
+# A channel the platform has no template for stops before anything, the dev
+# confirmation included.
+mv "$SUDO_TEST_ROOT/default/pacman/aarch64-apple/pacman-edge.conf" "$boundary_tmp/saved-template"
+for channel in edge dev; do
+  reset_boundary
+  if SUDO_TEST_PLATFORM=aarch64-apple run_channel "$channel"; then fail "a channel without a template was accepted ($channel)"; fi
+  if grep -Eq '^step:|^sudo -N ' "$SUDO_TEST_LOG"; then fail "$channel was refused before any change" "$(<"$SUDO_TEST_LOG")"; fi
+  grep -q "Omarchy has no edge channel for aarch64-apple" "$boundary_tmp/output" || fail "the refusal says why" "$(<"$boundary_tmp/output")"
+  assert_boundary_cold "missing template $channel"
+done
+mv "$boundary_tmp/saved-template" "$SUDO_TEST_ROOT/default/pacman/aarch64-apple/pacman-edge.conf"
+pass "a channel without a template for the platform is refused before any change"
+
 reset_boundary
 wrapper="$SUDO_TEST_HOME/omarchy/default/omarchy/sudo-no-update/sudo"
 mv "$wrapper" "$boundary_tmp/saved-wrapper"
@@ -80,6 +125,40 @@ grep -q 'Update the checkout before switching to dev' "$boundary_tmp/output" || 
 assert_boundary_cold "stale checkout"
 mv "$boundary_tmp/saved-wrapper" "$wrapper"
 pass "a stale dev checkout is rejected before linking or privileged work"
+
+# On aarch64 the checkout's own refresh keeps the machine's repositories only
+# once it tells platforms apart: a checkout without that is refused the same way.
+checkout="$SUDO_TEST_HOME/omarchy"
+for required in bin/omarchy-hw-platform install/helpers/pacman.sh; do
+  for platform in aarch64; do
+    reset_boundary
+    mv "$checkout/$required" "$boundary_tmp/saved-required"
+    if SUDO_TEST_PLATFORM=$platform run_channel dev; then fail "$platform: a dev checkout without $required was accepted"; fi
+    mv "$boundary_tmp/saved-required" "$checkout/$required"
+    if grep -Eq '^step:omarchy-(dev-link|state)|^step:pacman|^sudo -N ' "$SUDO_TEST_LOG"; then
+      fail "$platform: a dev checkout without $required changed the system before rejection" "$(<"$SUDO_TEST_LOG")"
+    fi
+    grep -q "Update the checkout before switching to dev; on $platform it needs $required" "$boundary_tmp/output" ||
+      fail "$platform: the rejection names $required" "$(<"$boundary_tmp/output")"
+    assert_boundary_cold "$platform checkout without $required"
+  done
+done
+pass "on aarch64 a dev checkout that can't keep the machine's repositories is rejected before linking"
+
+# The checkout's own refresh copies its own templates, so one without them for
+# this platform is refused before linking.
+template=$checkout/default/pacman/aarch64/mirrorlist-edge
+mv "$template" "$boundary_tmp/saved-template"
+reset_boundary
+if SUDO_TEST_PLATFORM=aarch64 run_channel dev; then fail "a dev checkout without its templates was accepted"; fi
+mv "$boundary_tmp/saved-template" "$template"
+if grep -Eq '^step:omarchy-(dev-link|state)|^step:pacman|^sudo -N ' "$SUDO_TEST_LOG"; then
+  fail "a dev checkout without its templates changed the system before rejection" "$(<"$SUDO_TEST_LOG")"
+fi
+grep -q "Update the checkout before switching to dev; it has no edge templates for aarch64" "$boundary_tmp/output" ||
+  fail "the rejection names the missing templates" "$(<"$boundary_tmp/output")"
+assert_boundary_cold "checkout without templates"
+pass "a dev checkout without its templates for the platform is rejected before linking"
 
 reset_boundary
 OMARCHY_PATH="$SUDO_TEST_HOME/omarchy" run_channel stable || fail "leaving dev failed" "$(<"$boundary_tmp/output")"

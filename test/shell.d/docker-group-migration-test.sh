@@ -20,9 +20,9 @@ trap 'rm -rf "$test_dir"' EXIT
 home="$test_dir/home"
 omarchy_path="$test_dir/omarchy"
 stub_bin="$test_dir/bin"
-mkdir -p "$home/.local/share/applications" "$omarchy_path/applications" "$stub_bin"
+mkdir -p "$home/.local/share/applications" "$omarchy_path/default/applications" "$stub_bin"
 
-printf 'NEW-LAUNCHER\n' >"$omarchy_path/applications/Docker.desktop"
+printf 'NEW-LAUNCHER\n' >"$omarchy_path/default/applications/Docker.desktop"
 printf 'OLD-LAUNCHER\n' >"$home/.local/share/applications/Docker.desktop"
 
 # id reports a controllable group set; sudo just drops the prefix; gpasswd

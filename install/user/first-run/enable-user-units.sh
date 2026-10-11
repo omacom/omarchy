@@ -11,8 +11,14 @@
 
 set -euo pipefail
 
+omarchy-input-method configure --defaults || echo "Input method defaults deferred; run omarchy setup input after login." >&2
+
 systemctl --user daemon-reload
-systemctl --user enable --now \
+
+# One at a time: given a list, systemctl enables none of it when it cannot find
+# one unit, and that should not cost the session its bluetooth agent as well.
+failed=0
+for unit in \
   bt-agent.service \
   owed.service \
   omarchy-recover-internal-monitor.service \
@@ -20,6 +26,11 @@ systemctl --user enable --now \
   omarchy-migrate-notify.service \
   omarchy-fcitx5.service \
   omarchy-crash-watch.service \
-  omarchy-sni-watcher.service
+  omarchy-sni-watcher.service \
+  omarchy-usb-authorization.service \
+  omarchy-thunderbolt-authorization.service; do
+  systemctl --user enable --now "$unit" || failed=1
+done
 
 omarchy-hook-install theme-set /usr/share/owe/10-owe-sync
+exit "$failed"

@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 
 Item {
   id: root
@@ -8,8 +9,8 @@ Item {
   property string text: ""
   property string fontFamily: bar ? bar.fontFamily : Style.font.family
   property real fontSize: Style.font.body
-  property color foreground: bar ? bar.barForeground : Color.foreground
-  property color activeColor: bar ? bar.urgent : Color.urgent
+  property color foreground: bar ? bar.barForeground : Commons.Color.foreground
+  property color activeColor: bar ? bar.urgent : Commons.Color.urgent
   property bool active: false
   property real horizontalMargin: 8.5
   property real verticalPadding: 6
@@ -24,6 +25,8 @@ Item {
   property bool useActiveColor: true
   property bool maintainIndicatorReveal: false
   property bool labelVisible: true
+  // Off for icon-font labels, whose figure metrics say nothing about the glyph.
+  property bool centerFigures: true
   property bool hasVisualContent: text !== ""
   property var revealHost: bar
   property string tooltipText: ""
@@ -77,6 +80,12 @@ Item {
     textFormat: Text.PlainText
     visible: root.labelVisible
     anchors.centerIn: parent
+    // Centering the line box puts the figures above the bar's middle, since
+    // the box keeps room for descenders. Center the figure height instead, so
+    // labels line up with the icons beside them.
+    anchors.verticalCenterOffset: !root.centerFigures || root.vertical || root.text.indexOf("\n") !== -1
+      ? 0
+      : (labelMetrics.descent - labelMetrics.ascent + labelMetrics.tightBoundingRect("0").height) / 2
     text: root.text
     color: root.active && root.useActiveColor ? root.activeColor : root.foreground
     font.family: root.fontFamily
@@ -90,6 +99,11 @@ Item {
       enabled: !root.bar || root.bar.foregroundAnimationEnabled
       ColorAnimation { duration: Style.duration(160) }
     }
+  }
+
+  FontMetrics {
+    id: labelMetrics
+    font: label.font
   }
 
   MouseArea {

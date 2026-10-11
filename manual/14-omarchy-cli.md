@@ -25,7 +25,7 @@ Common commands:
   omarchy debug               Print debugging information
 
 Groups:
-  agent          AI coding agent usage data
+  agent          AI coding agents, their usage, and subscription accounts
   audio          Audio input and output controls
   bar            Omarchy shell bar layout and settings
   battery        Battery status helpers
