@@ -20,12 +20,12 @@ run_setup() (
     printf 'add %s\n' "$*" >>"$dir/packages.log"
     [[ ! -e $dir/pkg-add-fails ]]
   }
+  omarchy-pkg-drop() { printf 'drop %s\n' "$*" >>"$dir/packages.log"; }
   surface-pro-11-sensors-extract() { printf 'extract\n' >>"$dir/packages.log"; return 1; }
   systemctl() { printf 'systemctl %s\n' "$*" >>"$dir/packages.log"; }
   pacman() {
     case $1 in
       -Q) [[ $2 == linux-aarch64 || ( $2 == linux-aarch64-headers && -e $dir/headers ) ]] ;;
-      -Rdd) printf 'remove %s\n' "${*: -1}" >>"$dir/packages.log" ;;
       -S) printf 'replace %s\n' "$*" >>"$dir/packages.log" ;;
       *) fail "unexpected pacman call: $*" ;;
     esac
@@ -53,7 +53,7 @@ CONF
 run_setup "$matching" >/dev/null
 run_setup "$matching" >/dev/null
 
-expected_packages=$'add linux-sp11 surface-pro-11-support\nremove linux-aarch64\nreplace -S --needed --noconfirm --ask 4 libcamera-surface-pro-11 pipewire-libcamera\nadd iptsd surface-pro-11-sensors power-profiles-daemon-surface-pro-11\nextract\nsystemctl enable surface-pro-11-sensors.service surface-pro-11-power-profile-cpufreq.service'
+expected_packages=$'add linux-sp11 surface-pro-11-support\ndrop linux-aarch64 linux-aarch64-headers\nreplace -S --needed --noconfirm --ask 4 libcamera-surface-pro-11 pipewire-libcamera\nadd iptsd surface-pro-11-sensors power-profiles-daemon-surface-pro-11\nextract\nsystemctl enable surface-pro-11-sensors.service surface-pro-11-power-profile-cpufreq.service'
 [[ $(head -n6 "$matching/packages.log") == "$expected_packages" ]] ||
   fail "Surface Pro 11 setup replaces the stock kernel first, then adds its hardware support and enables the light sensor even without Windows"
 [[ ! -e $matching/mkinitcpio.conf.d/surface_device_modules.conf ]] ||
@@ -121,7 +121,7 @@ run_setup "$failing" >/dev/null 2>&1
 status=$?
 set -e
 (( status != 0 )) || fail "a failed Surface kernel install stops the setup"
-! grep -q '^remove' "$failing/packages.log" ||
+! grep -q '^drop' "$failing/packages.log" ||
   fail "the stock kernel stays installed when the Surface kernel fails to install"
 grep -Fxq 'DeviceTree=/boot/dtbs/linux-sp11/qcom/x1e80100-microsoft-denali-oled.dtb' "$failing/kernel/uki.conf" ||
   fail "boot configuration is written before the kernel install"

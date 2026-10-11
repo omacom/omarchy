@@ -94,12 +94,7 @@ CONF
   fi
   omarchy-pkg-add "${surface_pro11_kernel[@]}" surface-pro-11-support
   unset surface_pro11_kernel
-  for stock_kernel in linux-aarch64 linux-aarch64-headers; do
-    if pacman -Q "$stock_kernel" &>/dev/null; then
-      pacman -Rdd --noconfirm "$stock_kernel"
-    fi
-  done
-  unset stock_kernel
+  omarchy-pkg-drop linux-aarch64 linux-aarch64-headers
 
   # libcamera with IMX681 support replaces a stock libcamera if something
   # already installed one; --noconfirm alone would answer that prompt with N.
