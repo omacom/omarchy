@@ -210,7 +210,7 @@ wait "$reader" || fail "concurrent readers always see a complete selection"
 printf '%s\n' voxtype > "$config"
 pass "selection updates are atomic for concurrent readers"
 
-lua <<'LUA'
+lua - <<'LUA' || fail "dictation shortcuts require a selection without limiting backend names"
 local root = os.getenv("ROOT")
 local selected, installed, bindings = nil, true, {}
 io.popen = function(command)
@@ -274,7 +274,7 @@ run_leaf TEST_ARCH=x86_64
 printf '%s\n' voxtype >"$config"
 pass "aarch64 new users start with no dictation backend instead of an unbuildable one"
 
-lua <<'LUA'
+lua - <<'LUA' || fail "desktop integration follows the selected backend without personal Hyprland config"
 local root = os.getenv("ROOT")
 package.path = root .. "/?.lua;" .. package.path
 package.loaded["default.hypr.paths"] = { config_home = "/config" }

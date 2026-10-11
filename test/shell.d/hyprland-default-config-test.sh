@@ -8,7 +8,7 @@ run_application_bindings() {
   local home="$1"
   local prelude="${2:-}"
 
-  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua <<'LUA'
+  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
 package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local prelude = os.getenv("OMARCHY_BINDING_PRELUDE") or ""
@@ -39,7 +39,7 @@ run_omarchy_bindings() {
   local home="$1"
   local prelude="${2:-}"
 
-  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua <<'LUA'
+  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
 package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local function proxy()
@@ -140,7 +140,8 @@ pass "preinstalled binding variable skips optional application bindings"
 
 no_bindings_home="$tmpdir/no-bindings-home"
 mkdir -p "$no_bindings_home"
-no_bindings_output=$(run_omarchy_bindings "$no_bindings_home" 'omarchy_default_bindings = false')
+no_bindings_output=$(run_omarchy_bindings "$no_bindings_home" 'omarchy_default_bindings = false') ||
+  fail "default binding variable disables all Omarchy bindings"
 [[ -z $no_bindings_output ]] || fail "default binding variable disables all Omarchy bindings" "$no_bindings_output"
 pass "default binding variable disables all Omarchy bindings"
 
@@ -150,7 +151,8 @@ mkdir -p "$dictation_home" "$missing_bin"
 ln -s "$(command -v lua)" "$missing_bin/lua"
 ln -s "$(command -v lspci)" "$missing_bin/lspci"
 ln -s "$(command -v sort)" "$missing_bin/sort"
-dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home")
+dictation_output=$(PATH="$missing_bin" run_omarchy_bindings "$dictation_home") ||
+  fail "unconfigured dictation leaves application shortcuts available"
 if grep -Fq 'dictation' <<<"$dictation_output"; then fail "unconfigured dictation leaves application shortcuts available"; fi
 cat > "$missing_bin/omarchy-default-dictation" <<'SH'
 #!/bin/bash
@@ -182,7 +184,8 @@ grep -Fqx $'SUPER + SHIFT + D\tDocker' <<<"$lazydocker_output" ||
   fail "installed Lazydocker keeps its Docker shortcut"
 pass "installed Lazydocker keeps its Docker shortcut"
 
-missing_lazydocker_output=$(PATH="$missing_bin" run_application_bindings "$fresh_home")
+missing_lazydocker_output=$(PATH="$missing_bin" run_application_bindings "$fresh_home") ||
+  fail "missing Lazydocker skips its Docker shortcut"
 if grep -Fq $'SUPER + SHIFT + D\tDocker' <<<"$missing_lazydocker_output"; then
   fail "missing Lazydocker skips its Docker shortcut"
 fi
