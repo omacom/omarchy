@@ -105,13 +105,14 @@ done
 
 # A pack whose firmware reports nothing must not hide a sibling's real count,
 # but a real count on the resolved battery wins over a sibling's.
-mkdir -p "$tmp_dir/power/BAT1"
+mkdir -p "$tmp_dir/power/BAT0" "$tmp_dir/power/BAT1"
+printf '0\n' >"$tmp_dir/power/BAT0/cycle_count"
 printf '450\n' >"$tmp_dir/power/BAT1/cycle_count"
 printf '0\n' >"$tmp_dir/power/CMB0/cycle_count"
 battery_status | grep -Fx $'cycles\t450' >/dev/null || fail "battery status reports a real cycle count from a second pack"
 printf '300\n' >"$tmp_dir/power/CMB0/cycle_count"
 battery_status | grep -Fx $'cycles\t300' >/dev/null || fail "battery status prefers the resolved battery's cycle count"
-rm -r "$tmp_dir/power/BAT1"
+rm -r "$tmp_dir/power/BAT0" "$tmp_dir/power/BAT1"
 
 pass "battery status reports a real cycle count"
 
