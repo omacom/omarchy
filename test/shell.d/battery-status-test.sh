@@ -120,6 +120,73 @@ grep -Fx $'percentage\t80%' <<<"$held_output" >/dev/null || fail "threshold perc
 grep -Fx $'state\tholding' <<<"$held_output" >/dev/null || fail "idle charging at the threshold is holding"
 pass "battery status reports holding once the raw percentage reaches the threshold"
 
+# Dual-battery laptops (e.g. ThinkPad BAT0 + BAT1) provide a combined DisplayDevice.
+dual_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir" "$hold_dir" "$dual_dir"' EXIT
+
+mkdir -p "$dual_dir/bin" "$dual_dir/power/BAT0" "$dual_dir/power/BAT1"
+printf '100\n' >"$dual_dir/power/BAT0/capacity"
+printf '80\n' >"$dual_dir/power/BAT1/capacity"
+printf '120\n' >"$dual_dir/power/BAT0/cycle_count"
+printf '0\n' >"$dual_dir/power/BAT0/power_now"
+
+cat >"$dual_dir/bin/upower" <<'STUB'
+#!/bin/bash
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT0"
+  echo "/org/freedesktop/UPower/devices/battery_BAT1"
+  echo "/org/freedesktop/UPower/devices/DisplayDevice"
+  exit 0
+fi
+
+if [[ $1 == "-i" && $2 == */DisplayDevice ]]; then
+  cat <<'INFO'
+  power supply:         yes
+  state:                discharging
+  energy:               54.0 Wh
+  energy-full:          63.0 Wh
+  energy-rate:          12.5 W
+  time to empty:        4.3 hours
+  percentage:           86%
+INFO
+  exit 0
+fi
+
+if [[ $1 == "-i" && $2 == */battery_BAT0 ]]; then
+  cat <<'INFO'
+  native-path:          BAT0
+  power supply:         yes
+  state:                fully-charged
+  energy:               18.0 Wh
+  energy-full:          18.0 Wh
+  percentage:           100%
+INFO
+  exit 0
+fi
+
+if [[ $1 == "-i" && $2 == */battery_BAT1 ]]; then
+  cat <<'INFO'
+  native-path:          BAT1
+  power supply:         yes
+  state:                discharging
+  energy:               36.0 Wh
+  energy-full:          45.0 Wh
+  percentage:           80%
+INFO
+  exit 0
+fi
+
+exit 1
+STUB
+chmod +x "$dual_dir/bin/upower"
+
+dual_output=$(OMARCHY_POWER_SUPPLY_PATH="$dual_dir/power" PATH="$dual_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t86%' <<<"$dual_output" >/dev/null || fail "battery status prefers combined DisplayDevice percentage on dual-battery systems"
+grep -Fx $'rate\t12.5W' <<<"$dual_output" >/dev/null || fail "battery status preserves combined DisplayDevice rate on dual-battery systems"
+grep -Fx $'size\t63Wh' <<<"$dual_output" >/dev/null || fail "battery status prefers combined DisplayDevice capacity on dual-battery systems"
+grep -Fx $'cycles\t120' <<<"$dual_output" >/dev/null || fail "battery status falls back to BAT* cycle count when DisplayDevice lacks native path"
+pass "battery status prefers combined DisplayDevice on multi-battery systems"
+
 if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
   fail "battery status owns capacity and remaining calculations" "$matches"
 fi

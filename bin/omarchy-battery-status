@@ -18,21 +18,40 @@ case "${1:-}" in
     ;;
 esac
 
-# UPower names the device after the sysfs entry, and only some kernels call
-# that BAT*: Apple Silicon reports battery_macsmc_battery. Match on the class,
-# then take the first one that powers the machine: a wireless mouse or keyboard
-# is a battery_ device too, and UPower marks it "power supply: no".
-battery=""
-battery_info=""
+# Match on the class and find the primary battery that powers the machine
+# (excluding wireless peripherals). This identifies the physical battery path
+# in sysfs for live telemetry, cycle counts, and charge thresholds.
+primary_battery=""
+primary_battery_info=""
 while read -r candidate; do
   [[ -n $candidate ]] || continue
-  candidate_info=$(upower -i "$candidate" 2>/dev/null) || continue
+  candidate_info=$(LC_ALL=C upower -i "$candidate" 2>/dev/null) || continue
   if grep -qE '^\s*power supply:\s+yes' <<<"$candidate_info"; then
-    battery=$candidate
-    battery_info=$candidate_info
+    primary_battery=$candidate
+    primary_battery_info=$candidate_info
     break
   fi
 done < <(upower -e 2>/dev/null | grep '/battery_')
+
+# Prefer UPower's combined DisplayDevice when available (e.g. dual-battery
+# laptops like ThinkPads with BAT0 + BAT1), so the panel reflects the same
+# combined capacity, rate, and percentage as the bar's UPower.displayDevice.
+# Otherwise, fall back to the primary physical battery.
+battery=""
+battery_info=""
+display_device=$(upower -e 2>/dev/null | grep -E '/DisplayDevice$' | head -n 1)
+if [[ -n $display_device ]]; then
+  display_info=$(LC_ALL=C upower -i "$display_device" 2>/dev/null || true)
+  if grep -qE '^\s*power supply:\s+yes' <<<"$display_info"; then
+    battery=$display_device
+    battery_info=$display_info
+  fi
+fi
+
+if [[ -z $battery ]]; then
+  battery=$primary_battery
+  battery_info=$primary_battery_info
+fi
 [[ -z $battery ]] && exit 0
 
 percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$battery_info")
@@ -54,18 +73,26 @@ time_remaining=$(awk '/time to (empty|full)/ {
   exit
 }' <<<"$battery_info")
 power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
+
 native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
-battery_path="$power_supply_path/$native_path"
+[[ -n $native_path ]] || native_path=$(awk '/native-path/ { print $2; exit }' <<<"$primary_battery_info")
+battery_path=""
+[[ -n $native_path ]] && battery_path="$power_supply_path/$native_path"
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
 # the instantaneous sysfs reading when available so the open panel stays live.
-if [[ -r $battery_path/power_now ]]; then
-  power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
-elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
-  power_rate_raw=$(awk \
-    -v microamps="$(<"$battery_path/current_now")" \
-    -v microvolts="$(<"$battery_path/voltage_now")" \
-    'BEGIN { print microamps * microvolts / 1000000000000 }')
+# On single-battery systems, read from battery_path. When using DisplayDevice
+# on multi-battery laptops, preserve UPower's aggregated rate so a single
+# battery's sysfs telemetry does not overwrite total system draw.
+if [[ $battery != "$display_device" ]]; then
+  if [[ -r $battery_path/power_now ]]; then
+    power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
+  elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
+    power_rate_raw=$(awk \
+      -v microamps="$(<"$battery_path/current_now")" \
+      -v microvolts="$(<"$battery_path/voltage_now")" \
+      'BEGIN { print microamps * microvolts / 1000000000000 }')
+  fi
 fi
 
 # Some kernels sign power_now by direction (negative while discharging on
