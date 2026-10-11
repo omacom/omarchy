@@ -51,9 +51,9 @@ SH
 cat > "$scratch/bin/limine-entry-tool" <<'SH'
 #!/bin/bash
 [[ $* == "--tree" ]] || exit 99
-printf '%s\n' 'Omarchy' '  linux-ptl' '  linux-omarchy-ptl-novrr-mm' '  linux-omarchy-bore' '  linux-omarchy-fallback' '  Snapshots'
+printf '%s\n' 'Omarchy' '  linux-ptl' '  linux-omarchy-ptl-novrr-mm' '  linux-omarchy-fallback' '  Snapshots'
 if [[ ${MISSING_ENTRY:-0} == "0" ]]; then
-  printf '%s\n' '  linux-omarchy'
+  printf '%s\n' "  ${TEST_ENTRY:-linux-omarchy-bore}"
 fi
 SH
 
@@ -214,6 +214,11 @@ fi
 run_migration
 [[ -f $OMARCHY_KERNEL_REBUILD_MARKER ]] || fail "a missing boot entry can be repaired on retry"
 pass "older Omarchy variants and fallback entries cannot satisfy generic kernel verification"
+
+reset_fixture
+TEST_ENTRY=linux-omarchy run_migration
+[[ -f $OMARCHY_KERNEL_REBUILD_MARKER ]] || fail "legacy linux-omarchy boot entry is accepted"
+pass "legacy linux-omarchy boot entry satisfies generic kernel verification"
 
 reset_fixture
 cat >> "$OMARCHY_KERNEL_LIMINE_CONF" <<'CONF'

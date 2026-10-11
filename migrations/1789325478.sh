@@ -33,7 +33,8 @@ sudo limine-mkinitcpio "$kernel"
 
 # limine-mkinitcpio can return success after skipping a failed kernel build.
 # Do not mark the migration complete unless the new kernel is in the menu.
-if ! sudo limine-entry-tool --tree | grep -E "(^|[^[:alnum:]_-])$kernel([^[:alnum:]_-]|$)" >/dev/null; then
+# linux-omarchy is a meta package for linux-omarchy-bore; allow both.
+if ! sudo limine-entry-tool --tree | grep -E "(^|[^[:alnum:]_-])$kernel(-bore)?([^[:alnum:]_-]|$)" >/dev/null; then
   echo "The Omarchy kernel has no Limine boot entry; rerun omarchy-migrate after fixing the boot image build." >&2
   exit 1
 fi
