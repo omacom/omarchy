@@ -37,6 +37,11 @@ else
   omarchy-notification-send -g 󱂬 "Workspace layout set to $NEW_MODE but could not be saved"
 fi
 
+# The bar shows the focused workspace's layout.
+if (( APPLIED )); then
+  omarchy-shell -q omarchy.workspaces refresh
+fi
+
 # Titlebars and shadows are set up while the config loads, and only
 # when something floats, so the first floating workspace needs a reload to get
 # them. Once the titlebar plugin is in, later ones have them already.

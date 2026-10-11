@@ -40,3 +40,4 @@ else
 fi
 
 hyprctl reload >/dev/null
+omarchy-shell -q omarchy.workspaces refresh

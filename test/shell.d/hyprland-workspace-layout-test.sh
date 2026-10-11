@@ -37,6 +37,13 @@ printf '%s\n' "$*" >>"$NOTIFICATION_LOG"
 EOF
 chmod +x "$stub_dir/omarchy-notification-send"
 
+# The toggle asks the bar to show the new layout; never reach a live shell.
+cat >"$stub_dir/omarchy-shell" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >>"$NOTIFICATION_LOG"
+EOF
+chmod +x "$stub_dir/omarchy-shell"
+
 layout_file="$home_dir/.local/state/omarchy/workspace-layouts/3.lua"
 notification_log="$tmpdir/notifications.log"
 
@@ -66,6 +73,8 @@ toggle
 applied scrolling || fail "scrolling is applied immediately" "$(cat "$log_file")"
 grep -q "set to scrolling" "$notification_log" ||
   fail "the new mode is announced" "$(cat "$notification_log")"
+grep -qx -- "-q omarchy.workspaces refresh" "$notification_log" ||
+  fail "the bar is asked to show the new layout" "$(cat "$notification_log")"
 if grep -q "could not be saved" "$notification_log"; then
   fail "a saved mode is announced as saved" "$(cat "$notification_log")"
 fi

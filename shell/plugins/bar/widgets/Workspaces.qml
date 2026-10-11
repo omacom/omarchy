@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
@@ -35,6 +37,60 @@ BarWidget {
     root.bar.run("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ workspace = \"" + id + "\" })"))
   }
 
+  // The focused workspace shows its layout: a square tiles, a triangle scrolls,
+  // and a circle floats. Clicking it cycles to the next one, as Super + L does.
+  property string focusedMode: "dwindle"
+  property bool modeStale: false
+
+  function modeGlyph(mode) {
+    if (mode === "scrolling") return "\uDB81\uDD36"
+    if (mode === "floating") return "\uDB81\uDF65"
+    return "\uDB85\uDCFB"
+  }
+
+  function refresh() {
+    if (modeProc.running) {
+      root.modeStale = true
+      return
+    }
+    modeProc.running = true
+  }
+
+  function cycleLayout() {
+    if (root.bar) root.bar.run("omarchy-hyprland-workspace-layout-toggle")
+  }
+
+  Component.onCompleted: refresh()
+
+  Connections {
+    target: Hyprland
+    function onFocusedWorkspaceChanged() { root.refresh() }
+  }
+
+  Process {
+    id: modeProc
+    command: ["omarchy-hyprland-workspace-layout-current"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var mode = text.trim()
+        if (mode) root.focusedMode = mode
+      }
+    }
+    onExited: {
+      if (!root.modeStale) return
+      root.modeStale = false
+      root.refresh()
+    }
+  }
+
+  // Super + L and Float All Workspaces change the mode without a focus change,
+  // so they ask every bar to read it again.
+  ShellIpc {
+    target: "omarchy.workspaces"
+
+    function refresh(): void { root.broadcast("refresh") }
+  }
+
   readonly property real trailingGap: root.vertical ? 0 : Style.spaceReal(1.5)
 
   implicitWidth: grid.implicitWidth + trailingGap
@@ -59,13 +115,16 @@ BarWidget {
         readonly property bool focused: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData
 
         bar: root.bar
-        text: focused ? "\uDB85\uDCFB" : (modelData === 10 ? "0" : String(modelData))
+        text: focused ? root.modeGlyph(root.focusedMode) : (modelData === 10 ? "0" : String(modelData))
         opacity: occupied || focused ? 1 : 0.5
         horizontalMargin: 6
         verticalPadding: 6
         fixedWidth: root.vertical ? root.barSize : Style.space(20)
         fixedHeight: root.barSize
-        onPressed: function() { root.focusWorkspace(modelData) }
+        onPressed: function() {
+          if (focused) root.cycleLayout()
+          else root.focusWorkspace(modelData)
+        }
       }
     }
   }
