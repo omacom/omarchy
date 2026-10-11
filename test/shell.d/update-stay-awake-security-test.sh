@@ -182,6 +182,27 @@ wait_dead "$valid_pid" || fail "valid inhibitor identity is stopped"
 [[ ! -e $state_dir ]] || fail "valid state is cleaned after stop"
 pass "valid XDG runtime uses private atomic inhibitor state"
 
+# Non-English locales (where coreutils stat translates %F to e.g. "pasta", "directorio")
+# must not cause root_owned_parent_chain to reject a valid runtime directory.
+# Only a locale whose unpinned `stat %F` output differs from "directory" can expose the
+# regression, so pick the first such locale and skip when none qualifies.
+available_non_c_locale=""
+while IFS= read -r candidate_locale; do
+  candidate_type=$(LC_ALL="$candidate_locale" /usr/bin/stat -Lc '%F' -- / 2>/dev/null || true)
+  if [[ -n $candidate_type && $candidate_type != "directory" ]]; then
+    available_non_c_locale=$candidate_locale
+    break
+  fi
+done < <(locale -a 2>/dev/null | grep -Eiv '^(c|c\.utf-?8|posix|en_)' || true)
+if [[ -n $available_non_c_locale ]]; then
+  LC_ALL="$available_non_c_locale" run_helper start
+  [[ -s $state_dir/inhibit-pid ]] || fail "non-English locale ($available_non_c_locale) publishes inhibitor state"
+  LC_ALL="$available_non_c_locale" run_helper stop
+  pass "valid runtime state works under non-English locale ($available_non_c_locale)"
+else
+  skip "no installed locale translates stat file types; locale regression test needs one"
+fi
+
 # omarchy update owns its one authorization; the helper must not revoke it.
 # Run on its own, the helper still starts and ends cold.
 sudo_events="$test_tmp/sudo-events"
