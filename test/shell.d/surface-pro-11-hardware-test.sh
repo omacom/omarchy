@@ -12,9 +12,12 @@ bash -n "$setup" || fail "Surface Pro 11 hardware script has valid syntax"
 grep -Fxq 'run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-pro-11.sh"' "$ROOT/install/hardware/all.sh" ||
   fail "Surface Pro 11 setup runs with the other hardware scripts"
 
+require_platform_fixtures "the Surface Pro 11 setup"
+
 run_setup() (
   set -eE
   local dir=$1
+  PATH="$ROOT/bin:$PATH"
   omarchy-hw-aarch64-qualcomm() { return 0; }
   omarchy-pkg-add() {
     printf 'add %s\n' "$*" >>"$dir/packages.log"
@@ -31,7 +34,7 @@ run_setup() (
     esac
   }
 
-  OMARCHY_SURFACE_PRO11_COMPATIBLE_PATH="$dir/compatible" \
+  OMARCHY_PROC_ROOT="$dir/proc" \
     OMARCHY_SURFACE_PRO11_MKINITCPIO_DIR="$dir/mkinitcpio.conf.d" \
     OMARCHY_SURFACE_PRO11_LIMINE_CONFIG_DIR="$dir/limine-entry-tool.d" \
     OMARCHY_SURFACE_PRO11_UKI_CONFIG="$dir/kernel/uki.conf" \
@@ -41,7 +44,8 @@ run_setup() (
 matching="$scratch/matching"
 mkdir -p "$matching/kernel" "$matching/mkinitcpio.conf.d"
 printf 'MODULES=(pinctrl_tigerlake intel_lpss_pci 8250_dw)\n' >"$matching/mkinitcpio.conf.d/surface_device_modules.conf"
-printf 'microsoft,denali-oled\0microsoft,denali\0qcom,x1e80100\0' >"$matching/compatible"
+mkdir -p "$matching/proc/device-tree"
+printf 'microsoft,denali-oled\0microsoft,denali\0qcom,x1e80100\0' >"$matching/proc/device-tree/compatible"
 cat >"$matching/kernel/uki.conf" <<'CONF'
 [UKI]
 Cmdline=@/etc/kernel/cmdline
@@ -108,7 +112,7 @@ grep -Fxq 'Cmdline=@/etc/kernel/cmdline' "$matching/kernel/uki.conf" ||
   fail "the Surface Pro 11 leaves the boot order to Omarchy's defaults"
 stale="$scratch/stale"
 mkdir -p "$stale/limine-entry-tool.d"
-cp "$matching/compatible" "$stale/compatible"
+mkdir -p "$stale/proc/device-tree" && cp "$matching/proc/device-tree/compatible" "$stale/proc/device-tree/compatible"
 printf 'BOOT_ORDER="linux-sp11*, *fallback, Snapshots"\n' >"$stale/limine-entry-tool.d/zz-surface-pro-11.conf"
 run_setup "$stale" >/dev/null
 [[ ! -e $stale/limine-entry-tool.d/zz-surface-pro-11.conf ]] ||
@@ -116,7 +120,7 @@ run_setup "$stale" >/dev/null
 
 failing="$scratch/failing"
 mkdir -p "$failing"
-cp "$matching/compatible" "$failing/compatible"
+mkdir -p "$failing/proc/device-tree" && cp "$matching/proc/device-tree/compatible" "$failing/proc/device-tree/compatible"
 touch "$failing/pkg-add-fails"
 # Hardware scripts run with errexit, which an `if` would suspend.
 set +e
@@ -131,7 +135,7 @@ grep -Fxq 'DeviceTree=/boot/dtbs/linux-omarchy-n1x/qcom/x1e80100-microsoft-denal
 
 headers="$scratch/headers"
 mkdir -p "$headers"
-cp "$matching/compatible" "$headers/compatible"
+mkdir -p "$headers/proc/device-tree" && cp "$matching/proc/device-tree/compatible" "$headers/proc/device-tree/compatible"
 touch "$headers/headers"
 run_setup "$headers" >/dev/null
 grep -Fxq 'add linux-omarchy-n1x linux-omarchy-n1x-headers surface-pro-11-support' "$headers/packages.log" ||
@@ -139,7 +143,7 @@ grep -Fxq 'add linux-omarchy-n1x linux-omarchy-n1x-headers surface-pro-11-suppor
 
 fresh="$scratch/fresh"
 mkdir -p "$fresh"
-cp "$matching/compatible" "$fresh/compatible"
+mkdir -p "$fresh/proc/device-tree" && cp "$matching/proc/device-tree/compatible" "$fresh/proc/device-tree/compatible"
 run_setup "$fresh" >/dev/null
 grep -Fxq 'DeviceTree=/boot/dtbs/linux-omarchy-n1x/qcom/x1e80100-microsoft-denali-oled.dtb' "$fresh/kernel/uki.conf" ||
   fail "a missing UKI configuration is created with the Surface device tree"
@@ -148,7 +152,8 @@ for model in 'microsoft,denali\0qcom,x1p64100' 'lenovo,yoga-slim7x\0qcom,x1e8010
   other="$scratch/other"
   rm -rf "$other"
   mkdir -p "$other"
-  printf '%b\0' "$model" >"$other/compatible"
+  mkdir -p "$other/proc/device-tree"
+  printf '%b\0' "$model" >"$other/proc/device-tree/compatible"
   run_setup "$other" >/dev/null
   [[ ! -e $other/packages.log && ! -e $other/mkinitcpio.conf.d && ! -e $other/limine-entry-tool.d && ! -e $other/kernel ]] ||
     fail "untested Denali variants and other boards are left unchanged"

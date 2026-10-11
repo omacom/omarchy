@@ -1,18 +1,12 @@
 # Microsoft Surface Pro 11 (Snapdragon X Elite, OLED) board-specific setup.
 
-surface_pro11_compatible=""
-compatible_path=${OMARCHY_SURFACE_PRO11_COMPATIBLE_PATH:-/sys/firmware/devicetree/base/compatible}
 mkinitcpio_dir=${OMARCHY_SURFACE_PRO11_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
 limine_config_dir=${OMARCHY_SURFACE_PRO11_LIMINE_CONFIG_DIR:-/etc/limine-entry-tool.d}
 uki_config=${OMARCHY_SURFACE_PRO11_UKI_CONFIG:-/etc/kernel/uki.conf}
 
-if [[ -r $compatible_path ]]; then
-  surface_pro11_compatible=$(tr '\0' '\n' <"$compatible_path")
-fi
-
 # Only the X Elite OLED model has been tested. The LCD and X Plus models share
 # the DMI product name but use other device trees and panels.
-if omarchy-hw-aarch64-qualcomm && grep -qx 'microsoft,denali-oled' <<<"$surface_pro11_compatible"; then
+if omarchy-hw-aarch64-qualcomm && omarchy-hw-dt-match microsoft,denali-oled; then
   echo "Detected Microsoft Surface Pro 11, applying board-specific support..."
 
   # Boot configuration comes first, so the kernel's image is built with
