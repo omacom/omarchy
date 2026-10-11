@@ -44,16 +44,25 @@ EOF
 }
 chmod +x "$fakes/uwsm-app" "$fakes/logger"
 
+# Each run gets its own HOME, so the shell.json under test is the only one.
 run_command() {
   FAKE_LOG_DIR=$(mktemp -d -p "$fakes")
-  PATH="$fakes:$PATH" FAKE_LOG_DIR="$FAKE_LOG_DIR" "$command_path" "$@"
+  HOME="$FAKE_HOME" PATH="$fakes:$PATH" FAKE_LOG_DIR="$FAKE_LOG_DIR" "$command_path" "$@"
 }
+
+write_shell_config() {
+  FAKE_HOME=$(mktemp -d -p "$fakes")
+  mkdir -p "$FAKE_HOME/.config/omarchy"
+  printf '%s\n' "$1" >"$FAKE_HOME/.config/omarchy/shell.json"
+}
+
+FAKE_HOME=$(mktemp -d -p "$fakes")
 
 # Bus name present: wait once, then launch with the arguments untouched.
 write_gdbus 0
 run_command chromium --new-window --app="https://example.com/" "two words"
 
-expected_wait=$'wait\n--session\n--activate\n--timeout\n15\norg.freedesktop.Notifications'
+expected_wait=$'wait\n--session\n--timeout\n15\norg.freedesktop.Notifications'
 [[ $(cat "$FAKE_LOG_DIR/gdbus") == "$expected_wait" ]] ||
   fail "autostart waits for the notification service before launching" "$(cat "$FAKE_LOG_DIR/gdbus")"
 pass "autostart waits for the notification service before launching"
@@ -65,6 +74,30 @@ pass "autostart passes the command to uwsm-app unchanged"
 
 [[ ! -e $FAKE_LOG_DIR/logger ]] || fail "autostart logs nothing when the service is up" "$(cat "$FAKE_LOG_DIR/logger")"
 pass "autostart logs nothing when the service is up"
+
+# Only a disabled shell plugin activates a stand-in daemon: with the plugin on,
+# an installed mako or dunst must not get started and beat the shell to the name.
+expected_activate=$'wait\n--session\n--activate\n--timeout\n15\norg.freedesktop.Notifications'
+
+write_shell_config '{"version":1,"disabledPlugins":["omarchy.notifications"]}'
+run_command my-app
+[[ $(cat "$FAKE_LOG_DIR/gdbus") == "$expected_activate" ]] ||
+  fail "autostart activates a notification daemon when the shell plugin is disabled" "$(cat "$FAKE_LOG_DIR/gdbus")"
+pass "autostart activates a notification daemon when the shell plugin is disabled"
+
+write_shell_config '{"version":1,"disabledPlugins":["omarchy.weather"]}'
+run_command my-app
+[[ $(cat "$FAKE_LOG_DIR/gdbus") == "$expected_wait" ]] ||
+  fail "autostart does not activate a daemon when the shell plugin is enabled" "$(cat "$FAKE_LOG_DIR/gdbus")"
+pass "autostart does not activate a daemon when the shell plugin is enabled"
+
+write_shell_config 'not json'
+run_command my-app
+[[ $(cat "$FAKE_LOG_DIR/gdbus") == "$expected_wait" ]] ||
+  fail "autostart treats an unreadable shell.json as the plugin being enabled" "$(cat "$FAKE_LOG_DIR/gdbus")"
+pass "autostart treats an unreadable shell.json as the plugin being enabled"
+
+FAKE_HOME=$(mktemp -d -p "$fakes")
 
 # Bus name never appears: launch anyway, exit clean, leave one journal line.
 write_gdbus 1

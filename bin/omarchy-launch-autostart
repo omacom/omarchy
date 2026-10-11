@@ -10,10 +10,11 @@
 # its own bare popup windows for the rest of the session. Wait for the name,
 # bounded, before the launch.
 #
-# --activate starts a D-Bus-activatable daemon (mako, dunst, swaync all ship a
-# service file for this name) for someone who turned the shell's plugin off;
-# when the shell owns the name it changes nothing, and when nothing is
-# activatable the wait runs out as usual.
+# With the shell's notifications plugin turned off, --activate starts a
+# D-Bus-activatable daemon (mako, dunst and swaync all ship a service file for
+# this name) so the wait ends at once. Never with the plugin on: an installed
+# daemon would be activated during the shell's own startup and claim the name
+# first, and every app would then notify outside Omarchy.
 #
 # Past the deadline the app launches anyway: a disabled notifications plugin
 # must cost a delay, never a missing app. Leave one journal line saying why
@@ -25,8 +26,14 @@
 
 timeout=15
 name=org.freedesktop.Notifications
+shell_config="$HOME/.config/omarchy/shell.json"
 
-if ! gdbus wait --session --activate --timeout "$timeout" "$name" >/dev/null 2>&1; then
+wait_args=(--session)
+if jq -e '.disabledPlugins? | arrays | index("omarchy.notifications")' "$shell_config" >/dev/null 2>&1; then
+  wait_args+=(--activate)
+fi
+
+if ! gdbus wait "${wait_args[@]}" --timeout "$timeout" "$name" >/dev/null 2>&1; then
   logger -t omarchy-autostart "$name was not available after waiting up to ${timeout}s; launching $1 without it."
 fi
 

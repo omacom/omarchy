@@ -194,8 +194,8 @@ whole lifetime: Chromium draws its own bare popup windows for the rest of the
 session instead of sending toasts here.
 
 So `o.launch_on_start` routes through `bin/omarchy-launch-autostart`, which
-waits with `gdbus wait --activate` for the notification service (up to 15 s)
-and then execs `uwsm-app -- <command>` unchanged. In the normal case the name
+waits with `gdbus wait` for the notification service (up to 15 s) and then
+execs `uwsm-app -- <command>` unchanged. In the normal case the name
 is on the bus within a couple of seconds. Past the deadline the app launches
 anyway and one `omarchy-autostart` line in the journal names the missing
 service, so a disabled notifications plugin costs a slower login, never a
@@ -207,9 +207,13 @@ the helper in the exec string, where Hyprland consumes it; anywhere later it
 would reach the launched program as an argument. Hyprland keeps an exec rule
 for a minute, so the wait fits inside it.
 
-With the shell's notifications plugin disabled, `--activate` starts a
+When `~/.config/omarchy/shell.json` lists `omarchy.notifications` under
+`disabledPlugins[]`, the wait adds `--activate`, which starts a
 D-Bus-activatable daemon (mako, dunst and swaync all ship a service file for
-the name) so the wait ends at once. A daemon started from `autostart.lua`
+the name) so the wait ends at once. With the plugin enabled it never
+activates anything: an installed daemon would otherwise start during the
+shell's own startup, claim the name first, and take every app's
+notifications away from the shell. A daemon started from `autostart.lua`
 instead would wait for the name it is about to claim itself, so it must use
 the no-wait form `o.exec_on_start(o.launch("mako"))`; the same form suits any
 launch that must not wait.
