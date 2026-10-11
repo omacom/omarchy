@@ -24,6 +24,7 @@ Item {
   property bool powerSaverActive: false
   property string passwordText: ""
   property bool syncingPasswordText: false
+  readonly property bool passwordActiveFocus: passwordInput.activeFocus
 
   readonly property string placeholderText: "Enter Password"
   readonly property int fieldWidth: 381
@@ -80,6 +81,9 @@ Item {
   onPasswordTextChanged: syncPasswordText()
   onInputEnabledChanged: {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
+  }
+  onDisplaysBlankChanged: {
+    if (!displaysBlank && inputEnabled) Qt.callLater(forcePasswordFocus)
   }
   Component.onCompleted: {
     syncPasswordText()
