@@ -26,8 +26,9 @@ unset OMARCHY_UPDATE_USER_PATH
 # prompt below always belongs to this update, never to an earlier session.
 omarchy_security_install_sudo_cleanup_traps
 omarchy_security_revoke_sudo_timestamp || exit 1
-# Validate the no-update wrapper up front: the AUR phase depends on it. Every
-# other phase shares the one authorization, so it stays off PATH until then.
+# Validate the no-update wrapper up front: the AUR, mise and boot phases depend
+# on it. The phases before them share the one authorization, so it stays off
+# PATH until then.
 omarchy_security_enable_no_update_sudo
 PATH="$OMARCHY_PATH/bin:/usr/bin:/usr/sbin:/bin:/sbin"
 unset OMARCHY_SUDO_NO_UPDATE
@@ -38,7 +39,7 @@ update_stay_awake_stopped=0
 sudo_keepalive_pid=""
 
 # Ask for the password once, then keep sudo's timestamp fresh so long package
-# downloads, migrations, hooks, and mise never outlast it and prompt again.
+# downloads, migrations, and the hook never outlast it and prompt again.
 # Authorize by running a command rather than sudo -v: under the default
 # verifypw=all, -v prompts even when passwordless sudo is enabled.
 authorize_update() {
@@ -136,9 +137,9 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # performs no privileged work.
   omarchy-update-restart --services-only
 
-  # Hooks and mise run with the caller's PATH so user-installed tools resolve.
+  # The hook is the user's own code and runs with the caller's PATH so
+  # user-installed tools resolve.
   PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-hook" post-update
-  PATH="$user_path" "$OMARCHY_PATH/bin/omarchy-update-mise"
 
   # AUR builds run third-party PKGBUILD code, so they go last and never see the
   # update's authorization: revoke it, then authenticate each sudo call with
@@ -146,6 +147,15 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # install prompts without caching anything.
   end_update_authorization
   PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$PATH" OMARCHY_SUDO_NO_UPDATE=1 omarchy-update-aur-pkgs
+  omarchy_security_revoke_sudo_timestamp
+
+  # mise installs come from third parties too. The backends Omarchy itself
+  # uses (aqua, GitHub releases, http, npm with install scripts blocked) only
+  # download and unpack, but cargo, pipx, gem, asdf and vfox tools run build
+  # code at install time, so mise gets the same cold start and no-update
+  # wrapper as AUR, with the caller's PATH so user-installed tools still
+  # resolve.
+  PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$user_path" OMARCHY_SUDO_NO_UPDATE=1 "$OMARCHY_PATH/bin/omarchy-update-mise"
   omarchy_security_revoke_sudo_timestamp
 
   # The last sudo-capable step: the boot files every package step left, AUR

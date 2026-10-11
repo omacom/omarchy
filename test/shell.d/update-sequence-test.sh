@@ -78,8 +78,8 @@ expected_steps() {
     omarchy-update-status \
     omarchy-update-restart \
     omarchy-hook \
-    omarchy-update-mise \
     omarchy-update-aur-pkgs \
+    omarchy-update-mise \
     omarchy-update-boot \
     omarchy-update-stay-awake \
     omarchy-update-restart

@@ -107,11 +107,11 @@ if [[ $step == "systemd-run" ]]; then
   while (( $# )) && [[ $1 == -* ]]; do shift; done
   exec "$@"
 fi
-# omarchy update shares one authorization with its post-update hook and mise.
-# Standalone hooks, such as the pre-refresh one, and AUR builds run cold.
-if [[ $step == "omarchy-hook" && ${1:-} == "post-update" ]] || [[ $step == "omarchy-update-mise" ]]; then
+# omarchy update shares one authorization with its post-update hook.
+# Standalone hooks, such as the pre-refresh one, AUR builds and mise run cold.
+if [[ $step == "omarchy-hook" && ${1:-} == "post-update" ]]; then
   [[ -e $SUDO_TEST_CACHE ]] || exit 94
-elif [[ $step == "omarchy-hook" || $step == "yay" ]]; then
+elif [[ $step == "omarchy-hook" || $step == "yay" || $step == "omarchy-update-mise" ]]; then
   [[ ! -e $SUDO_TEST_CACHE ]] || exit 91
 fi
 if [[ -n ${SUDO_TEST_REMOVE_WRAPPER_STEP:-} && "$step $*" == $SUDO_TEST_REMOVE_WRAPPER_STEP ]]; then
@@ -138,6 +138,10 @@ case "$step" in
   yay)
     [[ $* == *"--sudo $OMARCHY_PATH/default/omarchy/sudo-no-update/sudo"* ]] || exit 92
     [[ $* == *"--sudoloop=false"* ]] || exit 93
+    [[ $(command -v sudo) == "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 95
+    ;;
+  omarchy-update-mise)
+    # A build script's bare sudo must reach the no-update wrapper.
     [[ $(command -v sudo) == "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 95
     ;;
 esac

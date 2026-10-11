@@ -226,11 +226,13 @@ cat >"$boundary_tmp/user tools/channel-user-tool" <<'STUB'
 printf 'user-tool:%s\n' "$*" >>"$SUDO_TEST_LOG"
 STUB
 chmod +x "$boundary_tmp/user tools/channel-user-tool"
+# The post-update hook shares the update's authorization; the pre-refresh hook
+# and mise run cold behind the no-update wrapper. All must see the user's PATH.
 for command in omarchy-hook omarchy-update-mise; do
   rm "$SUDO_TEST_ROOT/bin/$command"
   cat >"$SUDO_TEST_ROOT/bin/$command" <<'STUB'
 #!/bin/bash
-if [[ ${1:-} == "pre-refresh-pacman" ]]; then
+if [[ ${0##*/} == "omarchy-update-mise" || ${1:-} == "pre-refresh-pacman" ]]; then
   [[ ! -e $SUDO_TEST_CACHE ]] || exit 91
   [[ $(command -v sudo) == "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 92
 else

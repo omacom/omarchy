@@ -32,17 +32,22 @@ auth=s.index('sudo /usr/bin/true')
 assert auth < prune, s
 assert [l for l in s[:prune] if l.startswith('sudo ') and l not in ('sudo -k','sudo -h')]==['sudo /usr/bin/true'], s
 assert 'sudo -v' not in s, s
-positions=[next(i for i,line in enumerate(s) if line.startswith(prefix)) for prefix in ['step:omarchy-update-system-pkgs','step:omarchy-migrate','step:omarchy-update-restart --services-only','step:omarchy-hook post-update','step:omarchy-update-mise','step:yay','step:omarchy-update-stay-awake stop','step:omarchy-update-restart --reboot-only']]
+positions=[next(i for i,line in enumerate(s) if line.startswith(prefix)) for prefix in ['step:omarchy-update-system-pkgs','step:omarchy-migrate','step:omarchy-update-restart --services-only','step:omarchy-hook post-update','step:yay','step:omarchy-update-mise','step:omarchy-update-stay-awake stop','step:omarchy-update-restart --reboot-only']]
 assert positions==sorted(positions), s
-yay=positions[5]
-# Everything before AUR shares the one authorization: plain sudo, no revokes.
-assert not any(line=='sudo -k' or line.startswith('sudo -N ') for line in s[auth:positions[4]]), s
+hook=positions[3]
+yay=positions[4]
+mise=positions[5]
+# Everything through the hook shares the one authorization: plain sudo, no revokes.
+assert not any(line=='sudo -k' or line.startswith('sudo -N ') for line in s[auth:hook]), s
 assert 'sudo /usr/bin/true' in s[auth:positions[0]+1], s
-# AUR builds start from a revoked credential and cannot refresh one.
-assert 'sudo -k' in s[positions[4]:yay], s
+# AUR builds and mise start from a revoked credential and cannot refresh one.
+assert 'sudo -k' in s[hook:yay], s
+assert 'sudo -k' in s[yay:mise], s
+# The revoke after mise, before the boot step takes its own cold start.
+assert 'sudo -k' in s[mise:next(i for i,l in enumerate(s) if l.startswith('step:omarchy-update-boot'))], s
 assert not any(line.startswith('sudo ') and line!='sudo -k' and not line.startswith('sudo -N ') for line in s[yay:]), s
 PY
-  pass "update $args authorizes once for everything but AUR, which runs cold last, and exits cold"
+  pass "update $args authorizes once for everything but AUR and mise, which run cold last, and exits cold"
 done
 
 for step in omarchy-update-system-pkgs yay omarchy-hook omarchy-update-mise; do
