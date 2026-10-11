@@ -74,7 +74,9 @@ generic_output=$(OMARCHY_TEST_NATIVE_PATH=CMB0 OMARCHY_POWER_SUPPLY_PATH="$tmp_d
 grep -Fx $'rate\t7.3W' <<<"$generic_output" >/dev/null || fail "battery status accepts arbitrary UPower battery paths"
 pass "battery status supports Apple Silicon and arbitrary native battery paths"
 
-# An 80% hold threshold doesn't trip while the battery is still below it.
+# Display rounding is half-up to match the bar widget, but the charge-hold
+# check must compare UPower's raw percentage: 79.5% displays as 80%, and an
+# 80% hold threshold must not trip while the raw value is still below it.
 hold_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir" "$hold_dir"' EXIT
 
@@ -110,8 +112,9 @@ chmod +x "$hold_dir/bin/upower"
 
 hold_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
 
+grep -Fx $'percentage\t80%' <<<"$hold_output" >/dev/null || fail "display percentage rounds half-up"
 grep -Fx $'state\tcharging' <<<"$hold_output" >/dev/null || fail "a hold below its threshold is still charging"
-pass "battery status doesn't trip a hold early"
+pass "battery status rounds display percentage without tripping a hold early"
 
 # Once the battery reaches the threshold, idle charging is holding.
 sed -i 's/percentage:           79.5%/percentage:           80.0%/' "$hold_dir/bin/upower"
