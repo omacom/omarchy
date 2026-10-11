@@ -131,8 +131,8 @@ dispatched 'window.pin({ action = "disable", window = "address:0xabc" })' ||
   fail "a pinned window is unpinned to set it aside" "$(cat "$fake/hyprctl.log")"
 dispatched 'window.move({ workspace = "special:shelf", follow = false, window = "address:0xabc" })' ||
   fail "the window moves onto the Shelf" "$(cat "$fake/hyprctl.log")"
-grep -qF 'omarchy-bar put omarchy.shelf' "$fake/commands.log" ||
-  fail "the Shelf is put on the bar so the window can be found again"
+! grep -qF 'omarchy-bar' "$fake/commands.log" ||
+  fail "setting a window aside leaves the bar layout to the user" "$(cat "$fake/commands.log")"
 pass "setting a window aside notes its place and moves it to the Shelf"
 
 # A fullscreen window comes out of fullscreen first, and the size it comes back

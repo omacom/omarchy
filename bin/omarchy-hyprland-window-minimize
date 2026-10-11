@@ -20,10 +20,6 @@ CLIENT=$(client)
 # window on one is already set aside.
 (( $(jq '.workspace.id' <<<"$CLIENT") >= 1 )) || exit 0
 
-# The Shelf lives in the bar, so make sure it is there to restore from. A Shelf
-# the user has moved stays where they put it.
-omarchy-bar put omarchy.shelf --section left --after omarchy.workspaces >/dev/null 2>&1
-
 # Restoring a window drops its note, and the notes of windows closed while set
 # aside are dropped here. A window still on its way to the Shelf keeps its own.
 mkdir -p "$SHELF_DIR"
