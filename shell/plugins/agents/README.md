@@ -75,6 +75,7 @@ light surfaces — and the bar glyph stands in when there is none.
 | `codex` | The Codex app-server RPC | native Codex CLI session files on the built-in `openai` provider (plus pi and opencode sessions) |
 | `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage) | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn), plus `summary.json` for sessions |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `devin` | Daily and weekly quota from the TUI's user-status cache (`~/.cache/devin/cli/user_status.*.bin`) | Devin CLI session database at `~/.local/share/devin/cli/sessions.db` |
 
 When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json`
 registers more than one account, the `claude`, `codex`, and `grok` records
@@ -104,6 +105,13 @@ again. Fireworks reads
 pi stores in `~/.pi/agent/auth.json` when Fireworks is signed in there
 (honoring `PI_CODING_AGENT_DIR`, and pi's literal and `$ENV_VAR` key forms),
 and finally the key opencode stores in `~/.local/share/opencode/auth.json`.
+Devin reads token stats from the CLI's own SQLite database
+(`~/.local/share/devin/cli/sessions.db`), so no credentials are needed.
+Devin's rate limits come from the user-status cache the TUI writes on every
+startup — the same data the `/usage` slash command renders — so the collector
+reads that cache instead of making its own API call. The cache is refreshed
+whenever you start a Devin session; if it is missing or stale the panel
+shows token stats without limits.
 
 ### Fireworks balance
 

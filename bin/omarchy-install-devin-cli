@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# omarchy:summary=Install the Devin CLI via its own installer
+# omarchy:args=[--check|--now|--owns]
+# omarchy:examples=omarchy install devin cli | omarchy install devin cli --now
+
+# Devin ships its own installer (curl -fsSL https://cli.devin.ai/install.sh |
+# bash) and is not available through mise, so it gets its own installer script
+# following the same --check/--now interface as omarchy-install-hermes-cli.
+
+set -euo pipefail
+
+mode=${1:-}
+
+# The upstream installer links devin under ~/.local/bin. A devin there counts
+# even when this process's PATH predates the directory — launches open a
+# fresh, profile-loaded shell.
+devin_present() {
+  omarchy-cmd-present devin || [[ -x $HOME/.local/bin/devin ]]
+}
+
+case "$mode" in
+  --check)
+    devin_present
+    ;;
+  --now)
+    if devin_present; then
+      exit 0
+    fi
+    bash -c 'set -o pipefail; curl -fsSL https://cli.devin.ai/install.sh | bash'
+    # A successful installer run can still leave nothing to launch (broken
+    # symlink, interrupted write); the next step execs the bare command.
+    if ! devin_present; then
+      echo "The Devin installer finished, but no devin command is on PATH or at ~/.local/bin." >&2
+      exit 1
+    fi
+    ;;
+  --owns)
+    # Devin's installer owns the binary; we don't manage a wrapper.
+    devin_present
+    ;;
+  "")
+    echo "Usage: omarchy-install-devin-cli <--check|--now|--owns>" >&2
+    exit 1
+    ;;
+  *)
+    echo "Unknown mode: $mode" >&2
+    exit 1
+    ;;
+esac
