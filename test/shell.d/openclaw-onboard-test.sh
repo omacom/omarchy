@@ -55,6 +55,7 @@ onboard)
   while :; do sleep 0.2; done
   ;;
 dashboard)
+  printf 'dashboard-stdin:%s\n' "$(readlink /proc/$$/fd/0)" >>"$TEST_LOG"
   [[ -f $HOME/.openclaw/openclaw.json ]] && echo '{"ok":true,"port":18789}' || { echo '{"ok":false}'; exit 1; }
   ;;
 esac
@@ -63,7 +64,10 @@ chmod +x "$tmp_dir/bin/openclaw"
 
 start=$SECONDS
 rc=0
-"$ROOT/bin/omarchy-openclaw-onboard" </dev/null >/dev/null 2>&1 || rc=$?
+# A file stands in for the terminal the wizard reads, so where each probe's
+# stdin points can be told apart from it.
+: >"$tmp_dir/terminal"
+"$ROOT/bin/omarchy-openclaw-onboard" <"$tmp_dir/terminal" >/dev/null 2>&1 || rc=$?
 elapsed=$((SECONDS - start))
 
 grep -q '^openclaw:onboard --flow quickstart --install-daemon --skip-ui$' "$TEST_LOG" ||
@@ -75,6 +79,14 @@ grep -q '^terminated$' "$TEST_LOG" ||
   fail "a wizard that lingers after the gateway is up is stopped and counts as success" "wizard was never signalled"
 (( elapsed < 30 )) || fail "a wizard that lingers after the gateway is up is stopped and counts as success" "took ${elapsed}s"
 pass "a wizard that lingers after the gateway is up is stopped and counts as success"
+
+# OpenClaw's CLI takes a terminal on stdin out of raw mode as the timeout kills
+# it, so a probe that inherited the wizard's terminal would leave its prompts
+# unable to read keys. The wizard writes its config while prompts remain.
+grep -q '^dashboard-stdin:' "$TEST_LOG" || fail "gateway probes never read from the wizard's terminal" "no probe ran"
+! grep '^dashboard-stdin:' "$TEST_LOG" | grep -vqx 'dashboard-stdin:/dev/null' ||
+  fail "gateway probes never read from the wizard's terminal" "$(grep '^dashboard-stdin:' "$TEST_LOG" | sort -u)"
+pass "gateway probes never read from the wizard's terminal"
 
 # The wizard only starts being stopped once the gateway actually answers: a
 # stub that never writes the config is left alone and must be ended by its own

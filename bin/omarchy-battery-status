@@ -18,21 +18,38 @@ case "${1:-}" in
     ;;
 esac
 
+# UPower names the device after the sysfs entry, and only some kernels call
+# that BAT*: Apple Silicon reports battery_macsmc_battery. Match on the class,
+# then take the first one that powers the machine: a wireless mouse or keyboard
+# is a battery_ device too, and UPower marks it "power supply: no".
 upower_devices=$(upower -e 2>/dev/null)
-pack_count=$(grep -c BAT <<<"$upower_devices" || true)
+pack=""
+pack_info=""
+pack_count=0
+while read -r candidate; do
+  [[ -n $candidate ]] || continue
+  candidate_info=$(upower -i "$candidate" 2>/dev/null) || continue
+  if grep -qE '^\s*power supply:\s+yes' <<<"$candidate_info"; then
+    (( ++pack_count ))
+    if [[ -z $pack ]]; then
+      pack=$candidate
+      pack_info=$candidate_info
+    fi
+  fi
+done < <(grep '/battery_' <<<"$upower_devices")
+battery=$pack
+battery_info=$pack_info
+
 # DisplayDevice is the combined view. Use it only when more than one pack
-# exists; a single pack must stay on BAT* so sysfs power_now still applies.
+# exists; a single pack must stay on its own device so sysfs power_now applies.
 if (( pack_count > 1 )); then
-  battery=$(grep DisplayDevice <<<"$upower_devices" | head -n 1)
-else
-  battery=""
-fi
-if [[ -z $battery ]]; then
-  battery=$(grep BAT <<<"$upower_devices" | head -n 1)
+  display_device=$(grep DisplayDevice <<<"$upower_devices" | head -n 1)
+  if [[ -n $display_device ]] && display_info=$(upower -i "$display_device" 2>/dev/null); then
+    battery=$display_device
+    battery_info=$display_info
+  fi
 fi
 [[ -z $battery ]] && exit 0
-
-battery_info=$(upower -i "$battery")
 
 percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$battery_info")
 capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$battery_info")
@@ -53,33 +70,41 @@ time_remaining=$(awk '/time to (empty|full)/ {
   exit
 }' <<<"$battery_info")
 power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
-native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
+# Thresholds and cycle count belong to a physical pack, even when DisplayDevice
+# reports the totals.
+native_path=$(awk '/native-path/ { print $2; exit }' <<<"$pack_info")
 battery_path="$power_supply_path/$native_path"
-# DisplayDevice's native-path is not a sysfs battery node.
-[[ -d $battery_path && -r $battery_path/type ]] || battery_path=""
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
 # the instantaneous sysfs reading when available so the open panel stays live.
-if [[ -n $battery_path && -r $battery_path/power_now ]]; then
+# DisplayDevice's rate already sums every pack, so one pack's reading won't do.
+if [[ $battery == "$pack" && -r $battery_path/power_now ]]; then
   power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
-elif [[ -n $battery_path && -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
+elif [[ $battery == "$pack" && -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
   power_rate_raw=$(awk \
     -v microamps="$(<"$battery_path/current_now")" \
     -v microvolts="$(<"$battery_path/voltage_now")" \
     'BEGIN { print microamps * microvolts / 1000000000000 }')
 fi
 
+# Some kernels sign power_now by direction (negative while discharging on
+# Apple Silicon); the state field already says which way it flows.
 power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
+  if (rate < 0) rate = -rate
   rounded = sprintf("%.1f", rate)
   sub(/\.0$/, "", rounded)
   print rounded
 }')
 state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
-threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
-threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$pack_info")
+threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$pack_info")
 
-[[ -z $threshold_end ]] && threshold_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
-[[ -z $threshold_start ]] && threshold_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
+# Read the thresholds from the battery UPower resolved rather than a BAT* glob,
+# which misses every battery with another name.
+[[ -n $threshold_end || ! -r $battery_path/charge_control_end_threshold ]] || threshold_end=$(<"$battery_path/charge_control_end_threshold")
+[[ -n $threshold_start || ! -r $battery_path/charge_control_start_threshold ]] || threshold_start=$(<"$battery_path/charge_control_start_threshold")
+[[ -n $threshold_end ]] || threshold_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
+[[ -n $threshold_start ]] || threshold_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
 
 ac_online=false
 for supply in "$power_supply_path"/*; do
@@ -120,7 +145,9 @@ if [[ $shell_output == "true" ]]; then
   printf 'size\t%s\n' "${capacity}Wh"
   printf 'time\t%s\n' "$time_remaining"
 
-  cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
+  cycles=""
+  [[ ! -r $battery_path/cycle_count ]] || cycles=$(<"$battery_path/cycle_count")
+  [[ -n $cycles ]] || cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
 
   [[ -n $cycles ]] && printf 'cycles\t%s\n' "$cycles"
 

@@ -22,8 +22,32 @@ fi
 
 # Ensure we have the latest archlinux-keyring, maintainer keys might have changed
 # Always reinstall, as the keyring can be updated without a package version bump.
+# An aarch64 machine's Arch Linux ARM repositories are signed with keys of
+# their own, so its keyring is kept current the same way.
+keyrings=(archlinux-keyring)
+if omarchy-hw-aarch64 && omarchy-pkg-present archlinuxarm-keyring; then
+  keyrings+=(archlinuxarm-keyring)
+fi
+# A platform package names the signing keyrings of the repositories it adds,
+# one package per line. Only installed ones are refreshed, so this adds no
+# repository the machine didn't already trust; a refreshed keyring may carry
+# that repository's new keys. A line that isn't one keyring package name is
+# skipped with a warning, so a mistake in the list can't stop every update.
+platform_keyrings=/usr/share/omarchy-platform/keyrings
+if [[ -f $platform_keyrings ]]; then
+  while read -r keyring extra || [[ -n $keyring ]]; do
+    [[ -n $keyring && $keyring != \#* ]] || continue
+    if [[ -n $extra || ! $keyring =~ ^[a-z0-9][a-z0-9@._+-]*-keyring$ ]]; then
+      echo "Warning: skipping ${keyring}${extra:+ $extra} in $platform_keyrings: not a keyring package name" >&2
+      continue
+    fi
+    if omarchy-pkg-present "$keyring" && [[ " ${keyrings[*]} " != *" $keyring "* ]]; then
+      keyrings+=("$keyring")
+    fi
+  done <"$platform_keyrings"
+fi
 echo -e "\e[32m\nUpdate Arch signing keys\e[0m"
-sudo pacman -Sy --noconfirm archlinux-keyring >/dev/null 2> >(grep -vE '^warning: archlinux-keyring-[^ ]+ is up to date -- reinstalling$' >&2)
+sudo pacman -Sy --noconfirm "${keyrings[@]}" >/dev/null 2> >(grep -vE '^warning: [a-z0-9@._+-]+-keyring-[^ ]+ is up to date -- reinstalling$' >&2)
 
 # Say "correct" only once the key verifiably is: before the failure checks
 # above, a failed recv or reinstall still ended here with exit 0.
