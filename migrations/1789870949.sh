@@ -13,8 +13,9 @@ if [[ ! -f $source ]]; then
   exit 1
 fi
 
-# Another user on this machine may already have installed it.
-if cmp -s "$source" "$dest"; then
+# Another user on this machine may already have installed it. A copy made by
+# hand from the 0644 source matches but never runs.
+if [[ -x $dest ]] && cmp -s "$source" "$dest"; then
   exit 0
 fi
 
