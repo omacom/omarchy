@@ -125,3 +125,138 @@ if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/
 fi
 
 pass "battery status owns capacity and remaining calculations"
+
+# Ordinary laptops still enumerate DisplayDevice. Combined capacity is only
+# for multiple packs; one BAT* must keep the sysfs live rate.
+mkdir -p "$tmp_dir/power/BAT0"
+printf '900000\n' >"$tmp_dir/power/BAT0/current_now"
+printf '12000000\n' >"$tmp_dir/power/BAT0/voltage_now"
+cat >"$tmp_dir/bin/upower" <<'STUB'
+#!/bin/bash
+
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT0"
+  echo "/org/freedesktop/UPower/devices/DisplayDevice"
+  exit 0
+fi
+
+if [[ $1 == "-i" ]]; then
+  if [[ $* == *DisplayDevice* ]]; then
+    cat <<'INFO'
+  native-path:          DisplayDevice
+  state:                discharging
+  energy-full:          56.7 Wh
+  energy-rate:          7.3 W
+  time to empty:        2.5 hours
+  percentage:           12%
+INFO
+  else
+    cat <<'INFO'
+  native-path:          BAT0
+  power supply:         yes
+  state:                discharging
+  energy-full:          56.7 Wh
+  energy-rate:          7.3 W
+  time to empty:        2.5 hours
+  percentage:           51%
+INFO
+  fi
+  exit 0
+fi
+
+exit 1
+STUB
+chmod +x "$tmp_dir/bin/upower"
+
+shell_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t51%' <<<"$shell_output" >/dev/null ||
+  fail "single-pack status stays on BAT0 when DisplayDevice is also listed" "$shell_output"
+grep -Fx $'rate\t10.8W' <<<"$shell_output" >/dev/null ||
+  fail "single-pack status keeps the live sysfs power rate" "$shell_output"
+pass "single-pack status stays on BAT0 when DisplayDevice is also listed"
+
+# Dual-battery machines report a combined DisplayDevice; reading only the first
+# pack leaves the power panel stuck on the idle internal one. Its thresholds
+# and cycle count still come from that pack, whatever it is called.
+mkdir -p "$tmp_dir/power/CMB0"
+printf '60\n' >"$tmp_dir/power/CMB0/charge_control_end_threshold"
+printf '48\n' >"$tmp_dir/power/CMB0/cycle_count"
+cat >"$tmp_dir/bin/upower" <<'STUB'
+#!/bin/bash
+
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_CMB0"
+  echo "/org/freedesktop/UPower/devices/battery_CMB1"
+  echo "/org/freedesktop/UPower/devices/DisplayDevice"
+  exit 0
+fi
+
+if [[ $1 == "-i" ]]; then
+  if [[ $* == *DisplayDevice* ]]; then
+    cat <<'INFO'
+  native-path:          DisplayDevice
+  state:                discharging
+  energy:               24.76 Wh
+  energy-full:          66.01 Wh
+  energy-rate:          12.0 W
+  time to empty:        2.0 hours
+  percentage:           37%
+INFO
+  else
+    cat <<'INFO'
+  native-path:          CMB0
+  power supply:         yes
+  state:                fully-charged
+  energy:               23.5 Wh
+  energy-full:          24.0 Wh
+  energy-rate:          0.0 W
+  percentage:           98%
+INFO
+  fi
+  exit 0
+fi
+
+exit 1
+STUB
+chmod +x "$tmp_dir/bin/upower"
+
+shell_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'percentage\t37%' <<<"$shell_output" >/dev/null ||
+  fail "battery status uses UPower DisplayDevice on dual-battery systems" "$shell_output"
+grep -Fx $'state\tdischarging' <<<"$shell_output" >/dev/null ||
+  fail "battery status uses DisplayDevice state, not the first pack's" "$shell_output"
+grep -Fx $'rate\t12W' <<<"$shell_output" >/dev/null ||
+  fail "battery status uses DisplayDevice rate, not the first pack's sysfs reading" "$shell_output"
+grep -Fx $'threshold\t60%' <<<"$shell_output" >/dev/null ||
+  fail "battery status reads thresholds from the first pack under DisplayDevice" "$shell_output"
+grep -Fx $'cycles\t48' <<<"$shell_output" >/dev/null ||
+  fail "battery status reads cycle count from the first pack under DisplayDevice" "$shell_output"
+pass "battery status uses UPower DisplayDevice on dual-battery systems"
+
+# DisplayDevice exists on desktops with no pack. Combined-capacity display is
+# only meaningful when a BAT* device is also enumerated.
+cat >"$tmp_dir/bin/upower" <<'STUB'
+#!/bin/bash
+
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/DisplayDevice"
+  exit 0
+fi
+
+if [[ $1 == "-i" ]]; then
+  cat <<'INFO'
+  native-path:          DisplayDevice
+  state:                unknown
+  percentage:           0%
+INFO
+  exit 0
+fi
+
+exit 1
+STUB
+chmod +x "$tmp_dir/bin/upower"
+
+shell_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+[[ -z $shell_output ]] ||
+  fail "battery status ignores DisplayDevice when no BAT pack exists" "$shell_output"
+pass "battery status ignores DisplayDevice when no BAT pack exists"

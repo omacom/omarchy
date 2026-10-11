@@ -22,17 +22,33 @@ esac
 # that BAT*: Apple Silicon reports battery_macsmc_battery. Match on the class,
 # then take the first one that powers the machine: a wireless mouse or keyboard
 # is a battery_ device too, and UPower marks it "power supply: no".
-battery=""
-battery_info=""
+upower_devices=$(upower -e 2>/dev/null)
+pack=""
+pack_info=""
+pack_count=0
 while read -r candidate; do
   [[ -n $candidate ]] || continue
   candidate_info=$(upower -i "$candidate" 2>/dev/null) || continue
   if grep -qE '^\s*power supply:\s+yes' <<<"$candidate_info"; then
-    battery=$candidate
-    battery_info=$candidate_info
-    break
+    (( ++pack_count ))
+    if [[ -z $pack ]]; then
+      pack=$candidate
+      pack_info=$candidate_info
+    fi
   fi
-done < <(upower -e 2>/dev/null | grep '/battery_')
+done < <(grep '/battery_' <<<"$upower_devices")
+battery=$pack
+battery_info=$pack_info
+
+# DisplayDevice is the combined view. Use it only when more than one pack
+# exists; a single pack must stay on its own device so sysfs power_now applies.
+if (( pack_count > 1 )); then
+  display_device=$(grep DisplayDevice <<<"$upower_devices" | head -n 1)
+  if [[ -n $display_device ]] && display_info=$(upower -i "$display_device" 2>/dev/null); then
+    battery=$display_device
+    battery_info=$display_info
+  fi
+fi
 [[ -z $battery ]] && exit 0
 
 percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$battery_info")
@@ -54,14 +70,17 @@ time_remaining=$(awk '/time to (empty|full)/ {
   exit
 }' <<<"$battery_info")
 power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
-native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
+# Thresholds and cycle count belong to a physical pack, even when DisplayDevice
+# reports the totals.
+native_path=$(awk '/native-path/ { print $2; exit }' <<<"$pack_info")
 battery_path="$power_supply_path/$native_path"
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
 # the instantaneous sysfs reading when available so the open panel stays live.
-if [[ -r $battery_path/power_now ]]; then
+# DisplayDevice's rate already sums every pack, so one pack's reading won't do.
+if [[ $battery == "$pack" && -r $battery_path/power_now ]]; then
   power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
-elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
+elif [[ $battery == "$pack" && -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
   power_rate_raw=$(awk \
     -v microamps="$(<"$battery_path/current_now")" \
     -v microvolts="$(<"$battery_path/voltage_now")" \
@@ -77,8 +96,8 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
   print rounded
 }')
 state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
-threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
-threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$pack_info")
+threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$pack_info")
 
 # Read the thresholds from the battery UPower resolved rather than a BAT* glob,
 # which misses every battery with another name.
