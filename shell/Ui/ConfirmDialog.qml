@@ -9,6 +9,8 @@ Item {
   property string message: ""
   property string cancelText: "Cancel"
   property string confirmText: "Confirm"
+  property int cancelKey: 0
+  property int confirmKey: 0
   property int selectedIndex: 1
   property color background: Commons.Color.background
   property color foreground: Commons.Color.foreground
@@ -24,8 +26,11 @@ Item {
   function handleKey(event) {
     if (!root.opened) return false
 
-    if (event.key === Qt.Key_Escape) {
+    if (event.key === Qt.Key_Escape || (root.cancelKey && event.key === root.cancelKey)) {
       root.canceled()
+      return true
+    } else if (root.confirmKey && event.key === root.confirmKey) {
+      root.confirmed()
       return true
     } else if (event.key === Qt.Key_Left || event.key === Qt.Key_Right || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
       root.selectedIndex = root.selectedIndex === 0 ? 1 : 0
@@ -36,7 +41,8 @@ Item {
       return true
     }
 
-    return false
+    // An open dialog owns the keyboard. Other keys must not reach the surface underneath.
+    return true
   }
 
   visible: opened
@@ -96,7 +102,7 @@ Item {
               readonly property bool selected: root.selectedIndex === index
               readonly property bool destructive: index === 1
 
-              width: Style.space(88)
+              width: Math.max(Style.space(88), label.implicitWidth + Style.space(20))
               height: Style.space(34)
               color: selected
                 ? (destructive ? Util.alpha(Commons.Color.urgent, 0.22) : root.selectedBackground)
@@ -107,6 +113,7 @@ Item {
               radius: 0
 
               Text {
+                id: label
                 textFormat: Text.PlainText
                 anchors.centerIn: parent
                 text: modelData
