@@ -255,8 +255,14 @@ SH
 cat >"$TMPDIR/bin/wl-paste" <<'SH'
 #!/bin/bash
 if [[ $1 == "--list-types" ]]; then
+  [[ ${WL_PASTE_STALL:-} == "list-types" ]] && sleep 10
   printf '%b' "${WL_PASTE_TYPES:-text/plain\n}"
 elif [[ $1 == "--type" && $2 == "text" ]]; then
+  [[ ${WL_PASTE_STALL:-} == "text" ]] && sleep 10
+  if [[ ${WL_PASTE_STALL:-} == "text-midway" ]]; then
+    printf 'first half '
+    sleep 10
+  fi
   printf '%s' "${WL_PASTE_TEXT:-terminal copy}"
 fi
 SH
@@ -277,12 +283,12 @@ printf '%s\n' "$1" >"$EDITOR_PATH_OUT"
 cat "$1" >"$EDITOR_TEXT_OUT"
 SH
 
-cat >"$TMPDIR/bin/tensaku-edit" <<'SH'
+cat >"$TMPDIR/bin/omasnap" <<'SH'
 #!/bin/bash
-printf '%s\n' "$*" >"$TENSAKU_OUT"
+printf '%s\n' "$*" >"$OMASNAP_OUT"
 SH
 
-chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wl-paste" "$TMPDIR/bin/wtype" "$TMPDIR/bin/omarchy-launch-browser" "$TMPDIR/bin/omarchy-launch-editor" "$TMPDIR/bin/tensaku-edit"
+chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wl-paste" "$TMPDIR/bin/wtype" "$TMPDIR/bin/omarchy-launch-browser" "$TMPDIR/bin/omarchy-launch-editor" "$TMPDIR/bin/omasnap"
 
 capture_output=$(XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh")
 [[ $capture_output == '{"type":"text","text":"terminal copy"}' ]] || fail "clipboard capture records normal text events"
@@ -291,6 +297,52 @@ pass "clipboard capture records normal text events"
 capture_output=$(printf 'closing app copy' | WL_PASTE_TEXT="stale read" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" text)
 [[ $capture_output == '{"type":"text","text":"closing app copy"}' ]] || fail "clipboard capture records watched text from stdin"
 pass "clipboard capture records watched text from stdin"
+
+if capture_output=$(printf 'watched copy after stalled types' | WL_PASTE_STALL="list-types" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" timeout --preserve-status 4s "$ROOT/shell/plugins/clipboard/capture.sh" text); then
+  capture_status=0
+else
+  capture_status=$?
+fi
+[[ $capture_status -eq 0 ]] || fail "clipboard watched text survives a stalled type query" "capture exited with status $capture_status"
+[[ $capture_output == '{"type":"text","text":"watched copy after stalled types"}' ]] || fail "clipboard watched text remains intact after a stalled type query"
+pass "clipboard watched text survives a stalled type query"
+pass "clipboard watched text remains intact after a stalled type query"
+
+if capture_output=$(WL_PASTE_STALL="text" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" timeout --preserve-status 4s "$ROOT/shell/plugins/clipboard/capture.sh"); then
+  capture_status=0
+else
+  capture_status=$?
+fi
+[[ $capture_status -eq 124 ]] || fail "clipboard snapshot text read uses its internal timeout" "capture exited with status $capture_status"
+[[ -z $capture_output ]] || fail "clipboard snapshot timeout emits no partial entry" "actual: $capture_output"
+pass "clipboard snapshot text read uses its internal timeout"
+pass "clipboard snapshot timeout emits no partial entry"
+
+if capture_output=$(WL_PASTE_STALL="text-midway" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" timeout --preserve-status 4s "$ROOT/shell/plugins/clipboard/capture.sh"); then
+  capture_status=0
+else
+  capture_status=$?
+fi
+[[ $capture_status -eq 124 ]] || fail "clipboard snapshot text read stalled midway uses its internal timeout" "capture exited with status $capture_status"
+[[ -z $capture_output ]] || fail "clipboard snapshot stalled midway emits no partial entry" "actual: $capture_output"
+pass "clipboard snapshot text read stalled midway uses its internal timeout"
+pass "clipboard snapshot stalled midway emits no partial entry"
+
+for watched_mime in text image/png; do
+  if capture_output=$({ printf 'copy whose owner never closes'; sleep 5; } | XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" timeout --preserve-status 4s "$ROOT/shell/plugins/clipboard/capture.sh" "$watched_mime"); then
+    capture_status=0
+  else
+    capture_status=$?
+  fi
+  [[ $capture_status -eq 0 ]] || fail "clipboard watched $watched_mime read is bounded when the owner stalls" "capture exited with status $capture_status"
+  [[ -z $capture_output ]] || fail "clipboard watched $watched_mime cut off by a stalled owner emits no entry" "actual: $capture_output"
+  pass "clipboard watched $watched_mime read is bounded when the owner stalls"
+  pass "clipboard watched $watched_mime cut off by a stalled owner emits no entry"
+done
+
+leftover=$(find "$TMPDIR/state/omarchy" -name 'clipboard.*' -print)
+[[ -z $leftover ]] || fail "clipboard capture removes copies it dropped" "left: $leftover"
+pass "clipboard capture removes copies it dropped"
 
 capture_output=$(printf '%s' 'UTF-16 clipboard - fixed' | iconv -f UTF-8 -t UTF-16LE | XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" text)
 [[ $capture_output == '{"type":"text","text":"UTF-16 clipboard - fixed"}' ]] || fail "clipboard capture decodes UTF-16LE text"
@@ -513,8 +565,8 @@ pass "clipboard open helper opens text entries in editor"
 [[ $(<"$TMPDIR/editor-path") == "$TMPDIR"/state/omarchy/clipboard-open/clipboard.*.txt ]] || fail "clipboard open helper writes text entries to a temporary file"
 pass "clipboard open helper writes text entries to a temporary file"
 
-TENSAKU_OUT="$TMPDIR/tensaku" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-open" --history-index 2
 
-[[ $(<"$TMPDIR/tensaku") == "$TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Tensaku"
-pass "clipboard open helper opens image entries in Tensaku"
+[[ $(<"$TMPDIR/omasnap") == "$TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
+pass "clipboard open helper opens image entries in Omasnap"

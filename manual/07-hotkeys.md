@@ -68,6 +68,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Ctrl + D`           | Display panel    |
 | `Super + Ctrl + P`           | Power panel    |
 | `Super + Ctrl + Alt + D`           | Calendar panel    |
+| `Super + Ctrl + Alt + E`           | World clock panel    |
 | `Super + Ctrl + 1-9`           | Toggle bar panel by position    |
 | `Super + Ctrl + S` | Share menu (via LocalSend) |
 | `Super + Ctrl + T`           | Activity (btop)    |
@@ -117,7 +118,6 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Shift + S`           | Google Maps  |
 | `Super + Shift + Alt + G`           | Messenger (WhatsApp)  |
 | `Super + Shift + Ctrl + G`           | Messenger (Google)  |
-| `Super + Shift + D`           | Docker (LazyDocker)  |
 | `Super + Shift + O`           | Obsidian  |
 | `Super + Shift + W`           | Writing (Omawrite)  |
 | `Super + Shift + X`           | X |
@@ -150,8 +150,8 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | `Super + Alt + ]` | Make webcam overlay larger while recording |
 | `Alt + Shift + L` | Copy current URL from webapp or Chromium |
 | `Alt + Shift + D` | Download the video on the current page to `~/Videos` |
-| `Super + Ctrl + X` | Start/stop dictation (requires _Install > AI > Dictation_) |
-| `F9` | Push-to-talk dictation (requires _Install > AI > Dictation_) |
+| `Super + Ctrl + X` | Start/stop dictation (requires _Setup > Defaults > Dictation_) |
+| `Right Alt` / `F9` | Push-to-talk dictation (requires Voxtype or Superwhisper) |
 
 With screenrecordings, the hotkey first asks which audio you want, then starts recording. Hit it again to stop. See [screenshots and recording](12-screenshots-recording.md) for the details.
 
@@ -339,36 +339,36 @@ You can use `Super + Ctrl + E` to show a complete emoji picker that'll put the s
 
 | Hotkey       | EM | Clue       |
 | ------------ | -- | ---------- |
-| `CapsLock M S` | 😄 | smile      |
-| `CapsLock M C` | 😂 | cry        |
-| `CapsLock M L` | 😍 | love       |
-| `CapsLock M V` | ✌️ | victory    |
-| `CapsLock M H` | ❤️ | heart      |
-| `CapsLock M Y` | 👍 | yes        |
-| `CapsLock M N` | 👎 | no         |
-| `CapsLock M F` | 🖕 | fuck       |
-| `CapsLock M W` | 🤞 | wish       |
-| `CapsLock M R` | 🤘 | rock       |
-| `CapsLock M K` | 😘 | kiss       |
-| `CapsLock M E` | 🙄 | eyeroll    |
-| `CapsLock M I` | 😉 | wink       |
-| `CapsLock M P` | 🙏 | pray |
-| `CapsLock M D` | 🤤 | drool      |
-| `CapsLock M M` | 💰 | money      |
-| `CapsLock M X` | 🎉 | xellebrate |
-| `CapsLock M 1` | 💯 | 100%       |
-| `CapsLock M T` | 🥂 | toast      |
-| `CapsLock M O` |👌 | ok |
-| `CapsLock M G` |👋 | greeting |
-| `CapsLock M A` |💪 | arm |
-| `CapsLock M B` |🤯 | blowing |
+| `Shift + CapsLock M S` | 😄 | smile      |
+| `Shift + CapsLock M C` | 😂 | cry        |
+| `Shift + CapsLock M L` | 😍 | love       |
+| `Shift + CapsLock M V` | ✌️ | victory    |
+| `Shift + CapsLock M H` | ❤️ | heart      |
+| `Shift + CapsLock M Y` | 👍 | yes        |
+| `Shift + CapsLock M N` | 👎 | no         |
+| `Shift + CapsLock M F` | 🖕 | fuck       |
+| `Shift + CapsLock M W` | 🤞 | wish       |
+| `Shift + CapsLock M R` | 🤘 | rock       |
+| `Shift + CapsLock M K` | 😘 | kiss       |
+| `Shift + CapsLock M E` | 🙄 | eyeroll    |
+| `Shift + CapsLock M I` | 😉 | wink       |
+| `Shift + CapsLock M P` | 🙏 | pray |
+| `Shift + CapsLock M D` | 🤤 | drool      |
+| `Shift + CapsLock M M` | 💰 | money      |
+| `Shift + CapsLock M X` | 🎉 | xellebrate |
+| `Shift + CapsLock M 1` | 💯 | 100%       |
+| `Shift + CapsLock M T` | 🥂 | toast      |
+| `Shift + CapsLock M O` |👌 | ok |
+| `Shift + CapsLock M G` |👋 | greeting |
+| `Shift + CapsLock M A` |💪 | arm |
+| `Shift + CapsLock M B` |🤯 | blowing |
 
 ## Quick Completions
 
 | Hotkey       | Completion       |
 | ------------ |  ---------- |
-| `CapsLock Space Space` | — (mdash)   |
-| `CapsLock Space N` | Your name (as entered on setup)  |
-| `CapsLock Space E` | Your email (as entered on setup)  |
+| `Shift + CapsLock Space Space` | — (mdash)   |
+| `Shift + CapsLock Space N` | Your name (as entered on setup)  |
+| `Shift + CapsLock Space E` | Your email (as entered on setup)  |
 
 You can add more of your own by editing `~/.XCompose`, then running `omarchy-restart-xcompose` in the terminal to get the changes picked up.
