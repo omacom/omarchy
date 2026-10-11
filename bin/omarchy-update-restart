@@ -23,7 +23,8 @@ if [[ $mode != "--services-only" ]]; then
   running_kernel=$(uname -r)
   kernel_updated=true
 
-  for kernel in /usr/lib/modules/*/vmlinuz; do
+  modules_dir="${OMARCHY_MODULES_DIR:-/usr/lib/modules}"
+  for kernel in "$modules_dir"/*/vmlinuz; do
     if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
       installed_kernel=$(basename "$(dirname "$kernel")")
 
@@ -34,10 +35,28 @@ if [[ $mode != "--services-only" ]]; then
     fi
   done
 
+  nvidia_proc="${OMARCHY_NVIDIA_PROC_VERSION:-/proc/driver/nvidia/version}"
+  nvidia_sys="${OMARCHY_NVIDIA_SYS_VERSION:-/sys/module/nvidia/version}"
+  running_nvidia=""
+  if [[ -f $nvidia_proc ]]; then
+    running_nvidia=$(sed -nE 's/.*[Kk]ernel [Mm]odule[[:space:]]+([0-9.]+).*/\1/p' "$nvidia_proc" | head -n 1)
+  elif [[ -f $nvidia_sys ]]; then
+    running_nvidia=$(< "$nvidia_sys")
+  fi
+
+  installed_nvidia=""
+  if [[ -n $running_nvidia ]]; then
+    nvidia_pkg_version=$(pacman -Q nvidia-utils nvidia-580xx-utils 2>/dev/null | awk '{ print $2; exit }')
+    installed_nvidia="${nvidia_pkg_version#*:}"
+    installed_nvidia="${installed_nvidia%-*}"
+  fi
+
   if [[ $kernel_updated == "true" ]]; then
     confirm_reboot "Linux kernel has been updated. Reboot?"
   elif [[ -f $HOME/.local/state/omarchy/reboot-required ]]; then
     confirm_reboot "Updates require reboot. Ready?"
+  elif [[ -n $running_nvidia && -n $installed_nvidia && $running_nvidia != "$installed_nvidia" ]]; then
+    confirm_reboot "NVIDIA driver has been updated. Reboot?"
   fi
 
   running_hyprland=$(readlink /proc/$(pgrep -x Hyprland)/exe 2>/dev/null)
