@@ -13,6 +13,13 @@ assert(!audio.isPlaybackStream({ isStream: false, isSink: true }), 'audio reject
 assert(audio.isAudioSource({ audio: {} }), 'audio detects nodes with audio as sources')
 assert(audio.isAudioSource({ type: 'Audio/Source' }), 'audio detects typed source nodes')
 
+const AUX = 4096
+assert(!audio.needsProcessMeter([3, 4], AUX), 'audio meters positioned channels natively')
+assert(!audio.needsProcessMeter([], AUX), 'audio meters unbound nodes natively until channels are known')
+assert(!audio.needsProcessMeter(null, AUX), 'audio meters nodes without a channel list natively')
+assert(audio.needsProcessMeter([AUX, AUX + 1], AUX), 'audio meters AUX channels through the process')
+assert(audio.needsProcessMeter([3, 0], AUX), 'audio meters unknown channels through the process')
+
 // A destroyed PwNode stays truthy but reads back no id, which is the shape the
 // third entry stands in for: it must not reach a Repeater row. The first carries
 // an object like a live node's audio, so a row that is the node itself fails here.
@@ -71,9 +78,9 @@ assert(!audio.isUntypedSource({ name: 'virtual_mic', isSink: false, isStream: fa
 
 const nodes = requireFromRoot('shell/Commons/AudioNodesModel.js')
 
-for (const name of ['quickshell', 'quickshell-peak-monitor'])
+for (const name of ['quickshell', 'quickshell-peak-monitor', 'omarchy-input-meter'])
   assert(nodes.isShellLevelMeter(name), 'audio knows the shell meter ' + name)
-for (const name of ['Firefox', 'quickshell-other', '', undefined])
+for (const name of ['Firefox', 'quickshell-other', 'pw-record', '', undefined])
   assert(!nodes.isShellLevelMeter(name), 'audio counts ' + name + ' as a recording')
 
 // Platform hints: none by default, whole-name patterns, and "replaced" only
@@ -123,6 +130,107 @@ for (const file of sources)
 
 const panel = read('shell/plugins/panels/audio/Panel.qml')
 assert(/inputPeakNode: inputViaWpctl \? null : source/.test(panel) && /inputLevelShown: !!inputPeakNode/.test(panel) &&
-  /visible: root\.inputLevelShown[^}]*inputPeakMonitor\.peak/.test(panel),
+  /visible: root\.inputLevelShown[^}]*inputMeter\.peak/.test(panel),
   'the input level bar is hidden when the input is driven through wpctl')
 JS
+
+# input-peak's arithmetic, with a stub pw-record on PATH standing in for the
+# device: three 40 ms windows of stereo f32 samples, peaking at 0.5, 0.25 and a
+# quiet 0.000001, which the panel still shows once the source volume is divided out.
+# It emits nothing unless asked for the node, for headerless samples (without
+# --raw pw-record writes an AU header) and for a latency pw-record can parse.
+stub_dir=$(mktemp -d)
+trap 'rm -rf "$stub_dir"' EXIT
+cat > "$stub_dir/pw-record" <<'STUB'
+#!/bin/bash
+[[ " $* " == *" --target stub-node "* && " $* " == *" --raw "* && " $* " =~ \ --latency\ [0-9]+(ns|us|ms|s)?\  ]] || exit 1
+node -e '
+  const frames = 640, channels = 2
+  const out = new Float32Array(frames * channels * 3)
+  out[0] = -0.5
+  out[frames * channels + 1] = 0.25
+  out[frames * channels * 2] = 0.000001
+  process.stdout.write(Buffer.from(out.buffer))
+'
+STUB
+chmod +x "$stub_dir/pw-record"
+
+peaks=$(PATH="$stub_dir:$PATH" bash "$ROOT/shell/plugins/panels/audio/input-peak" stub-node 2 | tr '\n' ' ')
+if [[ $peaks == "0.5 0.25 1e-06 " ]]; then
+  pass "input-peak reports the largest magnitude per window across channels"
+else
+  fail "input-peak reports the largest magnitude per window across channels" "got: $peaks"
+fi
+
+peaks=$(PATH="$stub_dir:$PATH" bash "$ROOT/shell/plugins/panels/audio/input-peak" stub-node 0 | tr '\n' ' ')
+if [[ $peaks == "0.5 0 0.25 0 1e-06 0 " ]]; then
+  pass "input-peak treats a channel count below one as mono"
+else
+  fail "input-peak treats a channel count below one as mono" "got: $peaks"
+fi
+
+if ! command -v quickshell >/dev/null 2>&1; then
+  skip "quickshell unavailable; skipping InputMeter process lifecycle"
+  exit 0
+fi
+
+# InputMeter itself, offscreen, against a stand-in AUX node and a stub
+# pw-record that streams a constant 0.5 for about ten seconds and logs each start.
+work=$(mktemp -d)
+work_exit=$(mktemp -d)
+trap 'rm -rf "$stub_dir" "$work" "$work_exit"' EXIT
+mkdir -p "$work/bin" "$work/config" "$work/runtime" "$work/home"
+chmod 700 "$work/runtime"
+node -e 'process.stdout.write(Buffer.from(new Float32Array(1280).fill(0.5).buffer))' > "$work/bin/chunk"
+cat > "$work/bin/pw-record" <<'STUB'
+#!/bin/bash
+echo "$$" >> "${0%/*}/starts"
+for _ in {1..250}; do
+  cat "${0%/*}/chunk"
+  sleep 0.04
+done
+STUB
+chmod +x "$work/bin/pw-record"
+cp "$SHELL_TEST_DIR/fixtures/input-meter/shell.qml" "$work/config/shell.qml"
+ln -s "$ROOT/shell/plugins/panels/audio" "$work/config/audio"
+
+PATH="$work/bin:$PATH" HOME="$work/home" XDG_RUNTIME_DIR="$work/runtime" \
+  OMARCHY_PATH="$ROOT" QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= \
+  QT_STYLE_OVERRIDE= QT_QUICK_BACKEND=software \
+  timeout 15 quickshell -p "$work/config" --no-color >"$work/log" 2>&1 || true
+starts=$(wc -l < "$work/bin/starts" 2>/dev/null || echo 0)
+if grep -q 'INPUT_METER_TEST_PASS' "$work/log" && (( starts == 2 )); then
+  pass "InputMeter restarts its capture after a stop and start in one turn"
+else
+  fail "InputMeter restarts its capture after a stop and start in one turn" "captures started: $starts; $(grep -E 'INPUT_METER|ERROR|WARN' "$work/log")"
+fi
+
+# A capture that exits while the panel stays open, as pw-record does when
+# PipeWire restarts, is started again. The stub's first run lasts half a second.
+mkdir -p "$work_exit/bin" "$work_exit/config" "$work_exit/runtime" "$work_exit/home"
+chmod 700 "$work_exit/runtime"
+cp "$work/bin/chunk" "$work_exit/bin/chunk"
+cat > "$work_exit/bin/pw-record" <<'STUB'
+#!/bin/bash
+runs=12
+[[ -f ${0%/*}/starts ]] && runs=250
+echo "$$" >> "${0%/*}/starts"
+for (( i = 0; i < runs; i++ )); do
+  cat "${0%/*}/chunk"
+  sleep 0.04
+done
+STUB
+chmod +x "$work_exit/bin/pw-record"
+cp "$SHELL_TEST_DIR/fixtures/input-meter-exit/shell.qml" "$work_exit/config/shell.qml"
+ln -s "$ROOT/shell/plugins/panels/audio" "$work_exit/config/audio"
+
+PATH="$work_exit/bin:$PATH" HOME="$work_exit/home" XDG_RUNTIME_DIR="$work_exit/runtime" \
+  OMARCHY_PATH="$ROOT" QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= \
+  QT_STYLE_OVERRIDE= QT_QUICK_BACKEND=software \
+  timeout 15 quickshell -p "$work_exit/config" --no-color >"$work_exit/log" 2>&1 || true
+starts=$(wc -l < "$work_exit/bin/starts" 2>/dev/null || echo 0)
+if grep -q 'INPUT_METER_TEST_PASS' "$work_exit/log" && (( starts == 2 )); then
+  pass "InputMeter starts its capture again after it exits on its own"
+else
+  fail "InputMeter starts its capture again after it exits on its own" "captures started: $starts; $(grep -E 'INPUT_METER|ERROR|WARN' "$work_exit/log")"
+fi
