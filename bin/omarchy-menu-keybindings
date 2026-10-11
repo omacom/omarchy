@@ -358,12 +358,9 @@ chromium_extension_enabled() {
 
   [[ -d $OMARCHY_PATH/default/chromium/extensions/$extension ]] || return 1
 
-  for flags_file in \
-    "$HOME/.config/chromium-flags.conf" \
-    "$HOME/.config/chrome-flags.conf" \
-    "$HOME/.config/brave-flags.conf" \
-    "$HOME/.config/brave-origin-flags.conf" \
-    "$HOME/.config/microsoft-edge-stable-flags.conf"; do
+  # Every flags file, since migrations add the extensions to more browsers'
+  # files (brave-beta, google-chrome, ...) than omarchy-install-browser writes.
+  for flags_file in "$HOME"/.config/*-flags.conf; do
     if [[ -f $flags_file ]] && grep -Eq "^[[:space:]]*--load-extension=.*[/]extensions/$extension([,[:space:]]|$)" "$flags_file"; then
       return 0
     fi

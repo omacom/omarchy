@@ -110,6 +110,15 @@ grep -q 'Copy URL from Web App' <<<"$rendered" ||
   fail "the keybindings cache follows the current Chromium extension flags" "$rendered"
 pass "Chromium extension changes invalidate the keybindings cache"
 
+# Migrations add the extensions to browsers omarchy-install-browser never sets up.
+echo "--load-extension=$ROOT/default/chromium/extensions/yt-dlp" >"$home/.config/brave-beta-flags.conf"
+
+rendered=$(keybindings)
+grep -q 'Download Video from Web App' <<<"$rendered" ||
+  fail "an extension loaded by any browser's flags file advertises its shortcut" "$rendered"
+pass "an extension loaded by any browser's flags file advertises its shortcut"
+rm "$home/.config/brave-beta-flags.conf"
+
 (( $(grep -c '→ Close window$' <<<"$rendered") == 1 )) ||
   fail "an alternative chord joins the row of the first one" "$rendered"
 grep -q 'SUPER + W / SUPER + Q  *→ Close window' <<<"$rendered" ||
