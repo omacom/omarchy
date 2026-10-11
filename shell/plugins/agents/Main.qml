@@ -64,6 +64,13 @@ Item {
     onObjectRemoved: (index, object) => root.rebuildAgents()
   }
 
+  // Each record's FileView follows its file on its own; this catches the ones
+  // whose watch was lost when an update replaced the file underneath them.
+  function reloadRecords() {
+    for (var i = 0; i < agents.length; i++)
+      if (agents[i]) agents[i].reload()
+  }
+
   function rebuildAgents() {
     var result = []
     for (var i = 0; i < agentInstantiator.count; i++) {
@@ -150,6 +157,7 @@ Item {
     running: false
     onExited: {
       root.rescanAgents()
+      root.reloadRecords()
       if (root.pendingUpdateKind !== "") {
         var kind = root.pendingUpdateKind
         root.pendingUpdateKind = ""
@@ -226,7 +234,52 @@ Item {
       var syncedDisplay = displayProvider({ id: syncedId, name: stats.providerName || syncedId })
       if (providerHasData(syncedDisplay)) result.push(syncedDisplay)
     }
-    return result
+    return orderedProviders(result)
+  }
+
+  // ----------------------------------------------------------------- order
+  //
+  // The panel's agents in the order someone dragged them into, kept beside the
+  // usage records. An agent the order doesn't name yet keeps its place after
+  // the ones it does.
+  readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/order.json"
+  property var providerOrder: []
+
+  function orderedProviders(list) {
+    var order = providerOrder
+    var rank = function(p) {
+      var i = order.indexOf(p.providerId)
+      return i < 0 ? order.length : i
+    }
+    return list.slice().sort(function(a, b) { return rank(a) - rank(b) })
+  }
+
+  // Moves one agent to a position among the ones shown, and saves the result.
+  function moveProvider(id, to) {
+    var ids = enabledProviders.map(function(p) { return p.providerId })
+    var from = ids.indexOf(id)
+    if (from < 0) return
+    to = Math.max(0, Math.min(ids.length - 1, to))
+    if (from === to) return
+    ids.splice(to, 0, ids.splice(from, 1)[0])
+    for (var i = 0; i < providerOrder.length; i++)
+      if (ids.indexOf(providerOrder[i]) < 0) ids.push(providerOrder[i])
+    providerOrder = ids
+    orderFile.setText(JSON.stringify(ids) + "\n")
+  }
+
+  FileView {
+    id: orderFile
+    path: root.orderPath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      var parsed = []
+      try { parsed = JSON.parse(text()) } catch (e) { parsed = [] }
+      root.providerOrder = Array.isArray(parsed) ? parsed.map(String) : []
+    }
+    onFileChanged: reload()
   }
 
   function providerEnabled(id) {
@@ -235,12 +288,15 @@ Item {
   }
 
   // All-time keeps a quiet day from hiding an agent; today's counts admit a
-  // machine whose only source is history.jsonl, which knows nothing older.
+  // machine whose only source is history.jsonl, which knows nothing older. A
+  // signed-in agent with a plan shows before its first numbers arrive, so a
+  // lapsed sign-in still has somewhere to say so.
   function providerHasData(p) {
     return numberValue(p.totalPrompts) > 0 || numberValue(p.totalSessions) > 0
       || numberValue(p.activeDays) > 0 || numberValue(p.todayPrompts) > 0
       || numberValue(p.todaySessions) > 0 || (p.limits && p.limits.length > 0)
       || (p.accounts && p.accounts.length > 0) || !!p.balance
+      || (p.ready === true && p.tierLabel !== "")
   }
 
   // A prepaid agent's credit ledger. Like rate limits, the balance is
