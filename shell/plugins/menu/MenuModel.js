@@ -416,17 +416,17 @@ var GUARD_READERS = [
 // constraint (`bash>=1`) is not a name any set can answer, so it goes to
 // pacman itself; no shipped guard writes one.
 //
-// `pacman -Qi` wraps a long list across continuation lines whenever COLUMNS
-// is set in the environment, which a login shell may well have done, so the
-// parser follows the indented lines rather than reading the first one and
-// dropping half of what is installed.
+// expac reads names and provides straight from the local database, one per
+// line, the versions already dropped from the provides. `pacman -Qi` prints
+// them too, but it also works out what requires each package, and takes
+// several times as long over it. A package that provides nothing leaves an
+// empty line after its name, and an empty subscript is an error that ends the
+// loop, so those are skipped rather than stored.
 function guardHelpers() {
   return 'declare -A __omarchy_pkgs=()\n'
-    + 'mapfile -t __omarchy_pkg_names < <({ pacman -Qq; LC_ALL=C pacman -Qi'
-    + " | awk '/^[A-Za-z]/ { provides = ($0 ~ /^Provides/); sub(/^[^:]*: /, \"\") }"
-    + ' provides && $0 != "None" { n = split($0, p, " ");'
-    + ' for (i = 1; i <= n; i++) { sub(/[<>=].*/, "", p[i]); print p[i] } }\'; } 2>/dev/null)\n'
-    + 'for __omarchy_pkg in "${__omarchy_pkg_names[@]}"; do __omarchy_pkgs[$__omarchy_pkg]=1; done\n'
+    + "mapfile -t __omarchy_pkg_names < <(expac -l '\\n' '%n\\n%S' 2>/dev/null)\n"
+    + 'for __omarchy_pkg in "${__omarchy_pkg_names[@]}"; do'
+    + ' [[ -z $__omarchy_pkg ]] || __omarchy_pkgs[$__omarchy_pkg]=1; done\n'
     + '__omarchy_pkg_has() { [[ -n ${__omarchy_pkgs[$1]-} ]] && return 0; '
     + '[[ $1 == *[\\<\\>=]* ]] && { pacman -Q "$1" &>/dev/null; return; }; return 1; }\n'
     + 'omarchy-pkg-present() { local p; for p in "$@"; do __omarchy_pkg_has "$p" || return 1; done; return 0; }\n'
