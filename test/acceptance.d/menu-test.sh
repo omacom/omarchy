@@ -63,7 +63,7 @@ source_file=$DEFAULTS_FILE
 original_position=$(jq -r '.bar.position // "top"' "$source_file")
 
 omarchy-shell shell summon omarchy.menu '{"menu":"root"}' >/dev/null
-wait_until "root menu opens" 15 layer_present "omarchy-menu"
+wait_until "root menu opens" 15 layer_on_overlay "omarchy-menu"
 wait_until "root menu content is visible" 15 screen_contains "Apps"
 screenshot "success-menu-01-root"
 
