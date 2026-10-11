@@ -222,6 +222,11 @@ fun layout() {
 
   entry.x = global.layout_width / 2 - entry.image.GetWidth() / 2;
   entry.y = logo.sprite.GetY() + logo.image.GetHeight() + 40;
+
+  # A logo as tall as the screen would push the prompt off the bottom edge
+  entry.max_y = global.layout_height - entry.image.GetHeight() - 40;
+  if (entry.y > entry.max_y) entry.y = entry.max_y;
+
   entry.sprite.SetPosition(entry.x, entry.y, 10001);
 
   lock.x = entry.x - lock.width - 15;
