@@ -68,6 +68,19 @@ elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
     'BEGIN { print microamps * microvolts / 1000000000000 }')
 fi
 
+# UPower can report energy-full as 0 Wh while the kernel has the real figure
+# (seen on a ThinkPad P1 Gen 2), so fall back to sysfs until one source answers.
+capacity=${capacity:-0}
+if (( capacity == 0 )) && [[ -r $battery_path/energy_full ]]; then
+  capacity=$(awk -v microwatthours="$(<"$battery_path/energy_full")" 'BEGIN { printf "%d", microwatthours / 1000000 }')
+fi
+if (( capacity == 0 )) && [[ -r $battery_path/charge_full && -r $battery_path/voltage_min_design ]]; then
+  capacity=$(awk \
+    -v microamphours="$(<"$battery_path/charge_full")" \
+    -v microvolts="$(<"$battery_path/voltage_min_design")" \
+    'BEGIN { printf "%d", microamphours * microvolts / 1000000000000 }')
+fi
+
 # Some kernels sign power_now by direction (negative while discharging on
 # Apple Silicon); the state field already says which way it flows.
 power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
