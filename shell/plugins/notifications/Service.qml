@@ -26,8 +26,8 @@ Item {
   readonly property string settingsPath: stateDir + "notifications.json"
   // One file per on-screen popup, so live toasts survive shell restarts.
   // A file exists exactly as long as its popup is showing: written when the
-  // toast appears, moved into historyDir when it expires, is dismissed, or is
-  // acted upon.
+  // toast appears, moved into historyDir when it expires, and deleted when
+  // manually dismissed or acted upon.
   readonly property string popupStateDir: stateDir + "notifications/"
   // The notifications that already left the screen, one file each, trimmed to
   // the newest historyLimit. This directory IS the history: `showHistory`
@@ -146,8 +146,8 @@ Item {
   //     ephemeral test/feedback noise)
   //   - app_name is "omarchy-action" (Omarchy's own user-action toasts —
   //     the user just triggered them)
-  // Their toasts still land in history like any other once they've been on
-  // screen; the distinction only decides whether a DND-silenced one is worth
+  // Their toasts still land in history like any other when they expire;
+  // the distinction only decides whether a DND-silenced one is worth
   // recording at all.
   function isEphemeral(notification) {
     var transient = false
@@ -366,12 +366,11 @@ Item {
     // id would dismiss that unrelated notification at the server.
     var restored = isRestoredRow(entry)
     var ref = !restored && originalId >= 0 ? liveRefs[originalId] : null
-    // The popup is leaving the screen — for any reason — so its file must not
-    // survive to the next shell restart. It becomes the newest history entry
-    // instead. Rows that never had a file (a history replay, the empty-history
-    // placeholder) archive to nothing, which the move tolerates.
+    // A manual close or click acknowledges the notification. Keep history
+    // for popups that expired or are being moved into a history replay.
     if (entry) {
-      archivePopupFileFor(entry)
+      if (reason === "dismiss") forgetPopupFileFor(entry)
+      else archivePopupFileFor(entry)
       if (restored) delete restoredPopups[NotificationLogic.popupFileName(entry)]
     }
     popupModel.remove(index)
@@ -387,8 +386,8 @@ Item {
     }
   }
 
-  function clearPopups() {
-    while (popupModel.count > 0) dismissPopup(0)
+  function clearPopups(reason) {
+    while (popupModel.count > 0) removePopup(0, reason || "dismiss")
   }
 
   // Run the popup's click action, then dismiss. Omarchy's own toasts carry the
@@ -564,9 +563,20 @@ Item {
       popupStateDir, NotificationLogic.imageStem(row), imagesDir])
   }
 
+  // Unlike a superseded live popup, an acknowledged history replay also has
+  // a history file to remove. Use the timestamp/id key so an old server id
+  // cannot erase an unrelated fresh notification. Queue after pending writes
+  // so clicking a popup immediately cannot leave its file behind.
+  function forgetPopupFileFor(row) {
+    if (!row || row.originalId < 0) return
+    enqueuePopupFileJob(["bash", "-c",
+      "rm -f -- \"$1/$3.json\" \"$2/$3.json\" \"$4/$3\"-*", "--",
+      popupStateDir, historyDir, NotificationLogic.imageStem(row), imagesDir])
+  }
+
   // ---------------------------------------------------- history
   //
-  // A popup that leaves the screen keeps its file — it just moves one level
+  // A popup that expires keeps its file — it just moves one level
   // down, into historyDir. Trimming happens right there in the same shell
   // job: the names sort numerically by their leading millisecond timestamp,
   // so everything but the newest historyLimit files is the tail to drop,
@@ -737,7 +747,9 @@ Item {
       return
     }
 
-    clearPopups()
+    // Replaying live popups preserves their history and closes their live
+    // server objects as before; it is not a manual acknowledgement.
+    clearPopups("replay")
     // Rows arrive newest-first, and index 0 is the top of the toast stack.
     for (var i = 0; i < rows.length; i++) {
       // Replayed rows are restored rows: their notification died with the
