@@ -237,6 +237,9 @@ CODEX_HOME="$tmpdir/codex-elsewhere" run agents >/dev/null
 [[ $(<"$state/homes") == "CODEX_HOME=$tmpdir/codex-elsewhere" ]] || fail "an agent home set in the terminal reaches a holder already running" "$(cat "$state/homes")"
 (cd "$tmpdir" && CODEX_HOME=relative PATH="$fake_bin:$PATH" "$awake" agents >/dev/null)
 [[ $(<"$state/homes") == "CODEX_HOME=$tmpdir/relative" ]] || fail "a relative agent home is resolved where it was given" "$(cat "$state/homes")"
+mkdir -p "$tmpdir/odd"$'\n'"dir"
+(cd "$tmpdir/odd"$'\n'"dir" && CODEX_HOME=relative PATH="$fake_bin:$PATH" "$awake" agents >/dev/null)
+[[ -z $(<"$state/homes") ]] || fail "a home that would span lines is dropped, not split" "$(cat "$state/homes")"
 pass "agent homes set in the terminal reach the holder, new or running"
 
 # --- a running session

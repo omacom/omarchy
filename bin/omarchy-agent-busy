@@ -27,6 +27,7 @@ fi
 
 found=0
 incomplete=0
+named=()
 
 # A root that seems missing may only be hidden behind a directory this account
 # cannot search, and that is not the same as having nothing in it.
@@ -48,50 +49,58 @@ unsearchable() {
   return 1
 }
 
-# Globbed roots vanish when their directory cannot be listed, so look at the
-# directory itself first.
-unlistable() {
-  local directory
-  for directory in "$@"; do
-    [[ -d $directory && ( ! -r $directory || ! -x $directory ) ]] && incomplete=1
-  done
-  return 0
-}
-
-# -H follows a root that is itself a symlink, as an account home's projects is.
+# Roots are directories handed to find whole, never globbed: a glob silently
+# drops what it cannot list, while find says so. -L follows links anywhere
+# below, as an account home's projects is one. --name narrows to file names at
+# the top of each root, --path to the session stores inside it. Under -L only
+# a link that leads nowhere is still a link, and a store that has gone missing
+# is not a quiet one.
 check() {
-  local name=$1 root recent
+  local name=$1 root found_types depth=() match=()
   shift
+  case $1 in
+    --name) depth=(-maxdepth 1); match=(-name "$2"); shift 2 ;;
+    --path) match=(-path "$2"); shift 2 ;;
+  esac
+
+  local seen
+  for seen in "${named[@]}"; do
+    [[ $seen == "$name" ]] && return
+  done
 
   for root in "$@"; do
     if [[ ! -e $root ]]; then
       unsearchable "$root" && incomplete=1
       continue
     fi
-    if recent=$(find -H "$root" -type f -mmin "-$within" -print -quit 2>/dev/null) && [[ -z $recent ]]; then
-      continue
-    elif [[ -n $recent ]]; then
+    found_types=$(find -L "$root" "${depth[@]}" \
+      \( -type f "${match[@]}" -mmin "-$within" -printf 'f\n' -quit \) -o \( -type l -printf 'l\n' \) 2>/dev/null)
+    local status=$?
+    if [[ $found_types == *f* ]]; then
       printf '%s\n' "$name"
+      named+=("$name")
       found=1
       return
     fi
-    incomplete=1
+    [[ $status == 0 && $found_types != *l* ]] || incomplete=1
   done
 }
 
 data_home=${XDG_DATA_HOME:-$HOME/.local/share}
 hermes_home=${HERMES_HOME:-$HOME/.hermes}
 
-unlistable "$HOME/.pi/profiles" "$HOME/.omp/profiles" "$data_home/opencode" "$hermes_home" "$hermes_home/profiles" "$HOME/.openclaw/agents"
-shopt -s nullglob
 check "Claude Code" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
 check "Codex" "${CODEX_HOME:-$HOME/.codex}/sessions"
 check "Grok" "${GROK_HOME:-$HOME/.grok}/sessions"
-check "Pi" "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/sessions" "$HOME"/.pi/profiles/*/agent/sessions
-check "Oh My Pi" "$HOME/.omp/agent/sessions" "$HOME"/.omp/profiles/*/agent/sessions
-check "OpenCode" "$data_home"/opencode/opencode*.db*
-check "Hermes" "$hermes_home/sessions" "$hermes_home"/state.db* "$hermes_home"/profiles/*/sessions
-check "OpenClaw" "$HOME"/.openclaw/agents/*/sessions
+check "Pi" "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/sessions"
+check "Pi" --path "*/agent/sessions/*" "$HOME/.pi/profiles"
+check "Oh My Pi" "$HOME/.omp/agent/sessions"
+check "Oh My Pi" --path "*/agent/sessions/*" "$HOME/.omp/profiles"
+check "OpenCode" --name "opencode*.db*" "$data_home/opencode"
+check "Hermes" "$hermes_home/sessions"
+check "Hermes" --path "*/sessions/*" "$hermes_home/profiles"
+check "Hermes" --name "state.db*" "$hermes_home"
+check "OpenClaw" --path "*/sessions/*" "$HOME/.openclaw/agents"
 check "GitHub Copilot" "${COPILOT_HOME:-$HOME/.copilot}/session-state"
 check "Antigravity" "$HOME/.gemini/antigravity-cli/conversations"
 

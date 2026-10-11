@@ -229,8 +229,9 @@ start() {
   local homes="" name value
   for name in ${HOMES//|/ }; do
     value=${!name:-}
-    [[ -n $value && $value != *$'\n'* ]] || continue
+    [[ -n $value ]] || continue
     [[ $value == /* ]] || value=$PWD/$value
+    [[ $value != *$'\n'* ]] || continue
     homes+="$name=$value"$'\n'
   done
 

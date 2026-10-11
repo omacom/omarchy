@@ -111,7 +111,19 @@ status=0
 scan >/dev/null || status=$?
 chmod 755 "$home/.openclaw/agents"
 (( status == 3 )) || fail "an unlistable directory of globbed stores is unknown, not quiet" "status=$status"
-pass "an unlistable directory of globbed stores is unknown, not quiet"
+fresh_home nested
+mkdir -p "$home/.openclaw/agents/main/sessions"
+chmod 000 "$home/.openclaw/agents/main"
+status=0
+scan >/dev/null || status=$?
+chmod 755 "$home/.openclaw/agents/main"
+(( status == 3 )) || fail "a store under an unsearchable agent directory is unknown, not quiet" "status=$status"
+
+fresh_home hermes
+write "$home/.hermes/state.db-wal"
+write "$home/.hermes/sessions/new.json"
+[[ $(scan) == "Hermes" ]] || fail "Hermes is named once across its stores"
+pass "an unlistable directory of stores is unknown, not quiet"
 
 fresh_home link
 mkdir -p "$tmpdir/locked-primary/projects" "$tmpdir/linked-account"
@@ -128,6 +140,35 @@ status=0
 (cd "$home" && timeout 5 env HOME="$home" CODEX_HOME=missing "$busy" >/dev/null) || status=$?
 (( status == 1 )) || fail "a relative home that does not exist is quiet, not a hang" "status=$status"
 pass "a relative home that does not exist is quiet, not a hang"
+
+# Configuration beside the stores is not work, and stores reached through a
+# link still are.
+fresh_home beside
+write "$home/.hermes/profiles/work/config.yaml"
+write "$home/.pi/profiles/work/agent/settings.json"
+write "$home/.openclaw/agents/main/agent.json"
+status=0
+scan >/dev/null || status=$?
+(( status == 1 )) || fail "files beside the session stores are not activity" "status=$status"
+write "$tmpdir/elsewhere/sessions/s.jsonl"
+mkdir -p "$home/.openclaw/agents/work"
+ln -s "$tmpdir/elsewhere/sessions" "$home/.openclaw/agents/work/sessions"
+write "$tmpdir/elsewhere/opencode.db-wal"
+mkdir -p "$home/.local/share/opencode"
+ln -s "$tmpdir/elsewhere/opencode.db-wal" "$home/.local/share/opencode/opencode.db-wal"
+mapfile -t names < <(scan)
+[[ ${names[*]} == "OpenCode OpenClaw" ]] || fail "stores reached through a link are followed" "got: ${names[*]}"
+pass "only session stores count, through links too"
+
+fresh_home dangling
+mkdir -p "$home/.openclaw/agents/main"
+ln -s "$tmpdir/gone/sessions" "$home/.openclaw/agents/main/sessions"
+status=0
+scan >/dev/null || status=$?
+(( status == 3 )) || fail "a store link that leads nowhere is unknown, not quiet" "status=$status"
+write "$home/.codex/sessions/rollout.jsonl"
+[[ $(scan) == "Codex" ]] || fail "a dangling link elsewhere does not hide activity"
+pass "a store link that leads nowhere is unknown, not quiet"
 
 for bad in "--within 0" "--within x" "--bogus"; do
   # shellcheck disable=SC2086
