@@ -34,6 +34,8 @@ submenu. The fields:
 |---|---|
 | `icon` | Glyph in the icon column (usually Nerd Font) |
 | `iconFont` | Font family for the glyph when it differs from the menu font — how the private `omarchy` font's brand glyphs render |
+| `iconName` | Image icon for a custom row: a themed icon name, absolute path, or `file://`/`image://` URL. Takes precedence over `icon` when both are set |
+| `iconSymbolic` | `true` to recolor the `iconName` image to the row's text colour, like a glyph, so a monochrome mark follows the theme and the selected row. Leave unset for full-colour icons |
 | `label` | Visible row title; defaults to the id |
 | `title` | Header text when the submenu is open; defaults to `label`. Lets a row read "Browser" under Defaults while the open menu says "Default Browser" |
 | `action` | Shell command to run, detached, when selected |

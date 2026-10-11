@@ -26,6 +26,8 @@ function normalizeItem(id, raw) {
     kind: kind,
     icon: value.icon || "",
     iconFont: value.iconFont || "",
+    iconName: value.iconName || "",
+    iconSymbolic: value.iconSymbolic === true,
     label: value.label || id,
     title: value.title || "",
     target: value.target || "",
@@ -84,7 +86,7 @@ function mergeMenuSources(defaultItems, userItems) {
   }
 
   if (!nextItems.root) {
-    nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: "Go", title: "", target: "", description: "", aliases: [], when: "", checked: "", disabled: "", action: "", provider: "" }
+    nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", iconName: "", iconSymbolic: false, label: "Go", title: "", target: "", description: "", aliases: [], when: "", checked: "", disabled: "", action: "", provider: "" }
     nextOrder.unshift("root")
   }
   for (var k3 = 0; k3 < nextOrder.length; k3++) nextItems[nextOrder[k3]].order = k3
@@ -370,6 +372,8 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
     kind: entry.kind,
     icon: entry.icon,
     iconFont: entry.iconFont || "",
+    iconName: entry.iconName || "",
+    iconSymbolic: entry.iconSymbolic === true,
     appIcon: entry.appIcon || "",
     appId: entry.appId || "",
     label: labelFor(entry, checkedResults, disabledResults),

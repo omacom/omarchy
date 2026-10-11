@@ -7,6 +7,9 @@
   //
   // Fields:
   //   icon        Nerd Font glyph shown in the icon column.
+  //   iconFont    Font family used for the glyph.
+  //   iconName    Image icon name or path. Takes precedence over icon.
+  //   iconSymbolic true recolors the iconName image to the row's text colour.
   //   label       Visible row title.
   //   action      Shell command to run. If omitted, the row is a submenu.
   //   target      Existing submenu id to open. Use for links/aliases.
@@ -19,7 +22,7 @@
   // Examples:
   // "personal": {"icon":"","label":"Personal"},
   // "personal.notes": {"icon":"󰎞","label":"Notes","action":"omarchy-launch-editor ~/notes"},
-  // "personal.files": {"icon":"","label":"Files","action":"uwsm-app -- nautilus ~/Documents"},
+  // "personal.files": {"iconName":"folder","label":"Files","action":"uwsm-app -- nautilus ~/Documents"},
   //
   // provider can only reference row sources the shell already defines (the
   // providers map in Menu.qml). Static submenus only need dotted ids.
