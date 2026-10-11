@@ -1,0 +1,25 @@
+#!/bin/bash -p
+
+# omarchy:hidden=true
+# omarchy:summary=Save portable trust for one verified USB device
+
+# This narrow Polkit boundary accepts a live device snapshot, never a policy or
+# file path. Privileged Bash suppresses startup code from the caller's environment.
+if [[ $- != *p* ]]; then exit 126; fi
+source /usr/bin/omarchy-security-functions || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+omarchy_security_sanitize_bash_environment "$0" "$@"
+set -euo pipefail
+(( EUID == 0 )) || exit 126
+export PATH=/usr/bin:/bin LC_ALL=C
+unset USBGUARD_DAEMON_CONF USBGUARD_DEBUG
+source /usr/share/omarchy/install/helpers/usb-authorization-policy.sh
+
+(( $# == 2 )) || exit 64
+# Omarchy persists to this file. Refuse custom daemon storage rather than
+# mistaking a stale copy of a rule for a successful persistent decision.
+rules_file=$(awk -F= '/^[[:space:]]*RuleFile[[:space:]]*=/ { value=$2; gsub(/^[[:space:]]+|[[:space:]]+$/, "", value); print value; exit }' /etc/usbguard/usbguard-daemon.conf)
+[[ $rules_file == "/etc/usbguard/rules.conf" ]] || exit 1
+exec 8>/run/omarchy-usb-authorization.lock
+flock -x 8
+usb_authorization_permanent "$1" "$2"
