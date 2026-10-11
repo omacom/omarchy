@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle the window split on layouts that support it
+
+set -euo pipefail
+
+active_workspace=$(hyprctl activeworkspace -j 2>/dev/null || true)
+tiled_layout=$(jq -r '.tiledLayout // empty' <<<"$active_workspace")
+
+# togglesplit is only supported on the dwindle layout.
+# Silently no-op on scrolling or if the workspace layout is unavailable.
+if [[ $tiled_layout != "dwindle" ]]; then
+  exit 0
+fi
+
+hyprctl dispatch 'hl.dsp.layout("togglesplit")' >/dev/null 2>&1 || \
+  hyprctl dispatch layoutmsg togglesplit >/dev/null 2>&1 || true
