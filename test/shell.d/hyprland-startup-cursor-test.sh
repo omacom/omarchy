@@ -127,6 +127,10 @@ env.OMARCHY_STARTUP_CURSOR_PATH = "/stale/icons"
 env.OMARCHY_STARTUP_CURSOR_SESSION = "old-session"
 events["config.reloaded"]()
 assert(omarchy_startup_cursor.xcursor == "next-theme" and omarchy_startup_cursor.path == "/next/icons", "a new session must honor changed cursor settings instead of inherited snapshots")
+omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
+env.XCURSOR_THEME, env.OMARCHY_STARTUP_CURSOR_SESSION, gsettings = "", "old-session", "'custom-cursor'\n"
+events["config.reloaded"]()
+assert(omarchy_startup_cursor.xcursor == "default", "an ordinary boot without a cursor theme keeps the default alias instead of adopting GSettings")
 io.popen = popen
 LUA
 pass "the first compositor frame starts blank and the reveal restores user cursor settings"

@@ -3,10 +3,11 @@ local function cursor_theme(value)
 end
 
 local function normal_theme(interrupted)
-  local theme = cursor_theme(os.getenv("XCURSOR_THEME"))
-  if not theme and (interrupted or os.getenv("XCURSOR_THEME") == "omarchy-startup") then
-    theme = cursor_theme(os.getenv("OMARCHY_STARTUP_CURSOR_THEME"))
-  end
+  local current = os.getenv("XCURSOR_THEME")
+  local theme = cursor_theme(current)
+  -- Only a lost preference needs recovering; an unset theme still means the default alias.
+  if theme or not (interrupted or current == "omarchy-startup") then return theme or "default" end
+  theme = cursor_theme(os.getenv("OMARCHY_STARTUP_CURSOR_THEME"))
   if theme then return theme end
   local pipe = io.popen("gsettings get org.gnome.desktop.interface cursor-theme 2>/dev/null", "r")
   if pipe then
