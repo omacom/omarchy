@@ -6,6 +6,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "../NotificationLogic.js" as NotificationLogic
 
@@ -46,10 +47,10 @@ BorderSurface {
   readonly property string sanitizedBody: sanitizeBody(body)
   readonly property string styledBody: NotificationLogic.styledBody(body, app, appIcon)
 
-  readonly property color dimColor: Qt.darker(Color.notifications.text, 1.4)
-  readonly property color bodyColor: Qt.darker(Color.notifications.text, 1.15)
-  readonly property color accentColor: urgency === 2 ? Color.urgent : (urgency === 0 ? dimColor : Color.notifications.countdown)
-  readonly property var cardBorderSpec: Border.surfaceSpec("notifications", "border", Color.notifications.border, Math.max(1, Style.space(2)))
+  readonly property color dimColor: Qt.darker(Commons.Color.notifications.text, 1.4)
+  readonly property color bodyColor: Qt.darker(Commons.Color.notifications.text, 1.15)
+  readonly property color accentColor: urgency === 2 ? Commons.Color.urgent : (urgency === 0 ? dimColor : Commons.Color.notifications.countdown)
+  readonly property var cardBorderSpec: Border.surfaceSpec("notifications", "border", Commons.Color.notifications.border, Math.max(1, Style.space(2)))
 
   function sanitizeBody(s) {
     return NotificationLogic.sanitizeBody(s, app, appIcon)
@@ -68,7 +69,7 @@ BorderSurface {
   // doesn't push content under the bottom edge.
   implicitHeight: mainColumn.implicitHeight + borderTop + borderBottom
   radius: cornerRadius
-  color: Color.notifications.background
+  color: Commons.Color.notifications.background
   borderSpec: cardBorderSpec
   clip: true
 
@@ -137,7 +138,7 @@ BorderSurface {
           anchors.centerIn: parent
           visible: root.hasGlyph && smallIconImage.status !== Image.Ready
           text: root.glyph
-          color: Color.notifications.text
+          color: Commons.Color.notifications.text
           font.family: root.fontFamily
           font.pixelSize: Style.font.displayLarge
         }
@@ -148,7 +149,7 @@ BorderSurface {
         Layout.alignment: Qt.AlignVCenter
         visible: root.compactGlyph
         text: root.glyph
-        color: Color.notifications.text
+        color: Commons.Color.notifications.text
         font.family: root.fontFamily
         font.pixelSize: Style.font.icon
       }
@@ -170,7 +171,7 @@ BorderSurface {
           visible: root.summary.length > 0
           text: root.summary
           font.family: "Liberation Sans"
-          color: Color.notifications.text
+          color: Commons.Color.notifications.text
           font.pixelSize: Style.font.title
           font.bold: true
           wrapMode: Text.WordWrap
@@ -207,12 +208,12 @@ BorderSurface {
     visible: opacity > 0
     opacity: root.hovered ? 1 : 0
 
-    Behavior on opacity { NumberAnimation { duration: 100 } }
+    Behavior on opacity { NumberAnimation { duration: Style.duration(100) } }
 
     Text {
       anchors.centerIn: parent
       text: "✕"
-      color: closeArea.containsMouse ? Color.notifications.text : root.dimColor
+      color: closeArea.containsMouse ? Commons.Color.notifications.text : root.dimColor
       font.pixelSize: Math.round(Style.font.caption * 1.44)
     }
 

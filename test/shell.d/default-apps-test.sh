@@ -69,7 +69,7 @@ omarchy-pkg-add|omarchy-pkg-aur-add)
   firefox) command=firefox ;;
   zen-browser-bin) command=zen-browser ;;
   cursor-bin) command=cursor ;;
-  sublime-text-4) command=sublime_text ;;
+  sublime-text-4) command=subl ;;
   vim) command=vim ;;
   neovim) command=nvim ;;
   esac
@@ -125,6 +125,9 @@ for setup_command in \
   ln -s omarchy-test-setup-call "$mock_bin/$setup_command"
 done
 
+# The real browser installer below calls the platform's post-install hook; on a
+# Mac with the platform package installed that would run, so answer it here.
+printf '#!/bin/bash\nexit 0\n' >"$mock_bin/omarchy-lifecycle-dispatch"
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
@@ -169,7 +172,7 @@ editor_cases=(
   'code code editor:vscode'
   'cursor cursor pkg:cursor-bin'
   'zed zeditor editor:zed'
-  'sublime_text sublime_text pkg:sublime-text-4'
+  'sublime_text subl pkg:sublime-text-4'
   'helix helix editor:helix'
   'vim vim pkg:vim'
   'emacs emacs editor:emacs'

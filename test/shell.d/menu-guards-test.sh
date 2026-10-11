@@ -71,7 +71,7 @@ const fs = require('fs')
 const defaultItems = menu.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8'))
 const guardText = defaultItems.map(item => `${item.when}\n${item.checked}\n${item.disabled}`).join('\n')
 const repeated = [...new Set(
-  (guardText.match(/\$\((omarchy-[a-z0-9-]+)\)/g) || []).map(match => match.slice(2, -1))
+  (guardText.match(/\$\((omarchy-[a-z0-9-]+(?: [a-z0-9-]+)*)\)/g) || []).map(match => match.slice(2, -1))
 )].filter(command => guardText.split(`$(${command})`).length > 2)
 assertDeepEqual(
   repeated.filter(command => !menu.guardReaders.includes(command)),
@@ -118,7 +118,11 @@ Version         : 9.2-1
 INFO
   ;;
 -Q)
-  shift
+  if [[ $2 == "--" ]]; then
+    shift 2
+  else
+    shift
+  fi
   for want in "$@"; do
     case "${want%%[<>=]*}" in bash | gvim | sh | vim | xxd) ;; *) exit 1 ;; esac
   done
