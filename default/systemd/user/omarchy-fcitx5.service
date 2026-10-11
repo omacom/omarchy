@@ -1,6 +1,6 @@
 [Unit]
 Description=Fcitx5 input methods and XCompose sequences
-# fcitx5 turns the CapsLock compose sequences in ~/.XCompose into text for
+# fcitx5 turns the Shift + CapsLock compose sequences in ~/.XCompose into text for
 # Wayland clients.
 #
 # Wait for the compositor: fcitx5 needs WAYLAND_DISPLAY and DISPLAY, which uwsm
