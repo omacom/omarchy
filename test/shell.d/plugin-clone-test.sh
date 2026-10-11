@@ -24,7 +24,7 @@ elif [[ $* == *"listPlugins"* ]]; then
     find "$HOME/.config/omarchy/plugins" -mindepth 2 -maxdepth 2 -name manifest.json -print0 |
       xargs -0 -r jq -s 'map({id: .id, enabled: true})'
   fi
-elif [[ $* == *"setPluginEnabled"* ]]; then
+elif [[ $* == *"setPluginEnabled"* || $* == *"recordCloneProvenance"* ]]; then
   printf 'omarchy-shell %s\n' "$*" >>"$FAKE_CALLS"
   printf 'ok\n'
 fi
@@ -87,6 +87,10 @@ grep -qx 'omarchy-plugin-enable tester.clock' "$CALLS" ||
 grep -qx 'omarchy-notification-send -g 󰐱 Editing Cloned Plugin Original plugin has been replace by clone.' "$CALLS" ||
   fail "clone does not notify that the editable clone is active"
 pass "clone enables bar widgets and confirms the editable clone"
+
+grep -qx 'omarchy-shell shell recordCloneProvenance tester.clock omarchy.clock' "$CALLS" ||
+  fail "clone does not record its provenance, so the shell will ignore its clone claim"
+pass "clone records its provenance for the shell to verify"
 
 clone_plugin omarchy.keyboard-layout >/dev/null
 grep -qx 'omarchy-plugin-enable tester.keyboard-layout' "$CALLS" ||

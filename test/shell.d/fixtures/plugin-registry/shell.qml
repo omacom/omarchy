@@ -11,7 +11,17 @@ ShellRoot {
   property var config: ({
     version: 1,
     bar: { layout: { left: [], center: [], right: [] } },
-    plugins: []
+    plugins: [],
+    // What `omarchy plugin clone` writes: the only evidence of a clone
+    // relationship, since a manifest travels with the plugin it describes.
+    clonedPlugins: {
+      "local.first-widget": "omarchy.first-widget",
+      "local.weather": "omarchy.weather",
+      "local.hybrid": "omarchy.hybrid",
+      "local.grouped-panel": "omarchy.grouped-panel",
+      "local.bar": "omarchy.bar",
+      "local.future-auth": "omarchy.future-auth"
+    }
   })
 
   function fail(message) {
@@ -109,6 +119,9 @@ ShellRoot {
     var localFutureAuth = manifest("local.future-auth", ["service"], { service: "Service.qml" })
     localFutureAuth.omarchy = { clonedFrom: "omarchy.future-auth" }
     scan += block("thirdparty", "/third/local-future-auth", localFutureAuth)
+    var forgedClone = manifest("third.forged-clone", ["service"], { service: "Service.qml" })
+    forgedClone.omarchy = { clonedFrom: "omarchy.future-auth" }
+    scan += block("thirdparty", "/third/forged-clone", forgedClone)
     var spoofedAuth = manifest("third.spoofed-auth", ["service"], { service: "Service.qml" })
     spoofedAuth.omarchy = { capabilities: ["authentication"] }
     scan += block("thirdparty", "/third/spoofed-auth", spoofedAuth)
@@ -136,6 +149,7 @@ ShellRoot {
       "omarchy.hybrid",
       "third.bar",
       "third.center-widget",
+      "third.forged-clone",
       "third.panel",
       "third.right-widget",
       "third.spoofed-auth",
@@ -145,7 +159,10 @@ ShellRoot {
     root.assertTrue(registry.installedPlugins["omarchy.first-widget"].__isFirstParty === true, "first-party manifests are stamped")
     root.assertTrue(registry.installedPlugins["third.panel"].__isFirstParty === false, "third-party manifests are stamped")
     root.assertDeepEqual(registry.installedPlugins["omarchy.future-auth"].__hostCapabilities, ["authentication"], "trusted manifests stamp authentication capability")
-    root.assertDeepEqual(registry.installedPlugins["local.future-auth"].__hostCapabilities, ["authentication"], "clones inherit trusted host capabilities")
+    root.assertDeepEqual(registry.installedPlugins["local.future-auth"].__hostCapabilities, ["authentication"], "recorded clones inherit trusted host capabilities")
+    root.assertDeepEqual(registry.installedPlugins["third.forged-clone"].__hostCapabilities, [], "an unrecorded clone claim inherits nothing")
+    root.assertTrue(registry.installedPlugins["third.forged-clone"].omarchy.clonedFrom === undefined, "an unrecorded clone claim is dropped from the manifest")
+    root.assertEqual(registry.resolveEnabledId("omarchy.future-auth"), "omarchy.future-auth", "an unrecorded clone claim does not stand in for its source id")
     root.assertDeepEqual(registry.installedPlugins["third.spoofed-auth"].__hostCapabilities, [], "third-party manifests cannot self-grant host capabilities")
     root.assertEqual(registry.installedPlugins["omarchy.grouped-panel"].__sourceDir, "/first/panels/grouped", "grouped plugin source paths are preserved")
     root.assertEqual(registry.entryPointUrl(registry.installedPlugins["third.panel"], "panel"), "file:///third/panel/Panel.qml", "entryPointUrl resolves plugin-relative paths")

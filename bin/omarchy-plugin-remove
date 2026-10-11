@@ -115,6 +115,9 @@ else
 fi
 
 omarchy-shell shell rescanPlugins >/dev/null
+# A plugin that is gone must not leave its provenance behind: the record is what
+# lets a clone claim a built-in id, so it goes with the plugin.
+omarchy-shell shell forgetCloneProvenance "$id" >/dev/null 2>&1 || true
 
 if [[ -n $cloned_from && $was_enabled == "true" ]]; then
   echo "Restored $cloned_from."

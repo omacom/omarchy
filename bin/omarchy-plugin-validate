@@ -115,4 +115,12 @@ done
 link=$(find "$PLUGIN_DIR" -name .git -prune -o -type l -print -quit 2>/dev/null)
 [[ -z $link ]] || fail "symlinks are not allowed inside a plugin folder: $link"
 
+# omarchy.clonedFrom is honoured only for a plugin `omarchy plugin clone`
+# created locally, because the shell checks its own record rather than the
+# manifest. Say so, instead of letting a published plugin assume it will
+# displace the built-in it names.
+if jq -e '(.omarchy? | type) == "object" and (.omarchy | has("clonedFrom"))' "$MANIFEST" >/dev/null 2>&1; then
+  echo "omarchy-plugin-validate: note: omarchy.clonedFrom is only honoured for a plugin created locally by 'omarchy plugin clone'; it is ignored otherwise" >&2
+fi
+
 exit 0

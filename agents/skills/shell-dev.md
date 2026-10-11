@@ -31,7 +31,8 @@ Run `omarchy-restart-shell` after making changes to QML files.
   direct Quickshell socket calls in every CLI.
 - The `shell` IPC target exposes lifecycle and configuration methods including
   `ping`, `summon`, `hide`, `toggle`, `call`, `rescanPlugins`, `reloadConfig`,
-  `setPluginEnabled`, and `listPlugins`. `shell.qml` also registers
+  `setPluginEnabled`, `listPlugins`, `recordCloneProvenance`, and
+  `forgetCloneProvenance`. `shell.qml` also registers
   `image-selector`, which drives the `omarchy.image-picker` panel.
 - Individual plugins register their own IPC targets, named for the plugin rather
   than for where they appear: the background switcher registers `background`, and
