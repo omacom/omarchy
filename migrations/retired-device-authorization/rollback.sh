@@ -27,10 +27,8 @@ da_prepare_thunderbolt_units() {
   local content
   if [[ -f $unit ]]; then
     content=$(<"$unit") || return 1
-    if [[ $content == *"ExecStart=/usr/bin/omarchy-thunderbolt-authorization-daemon"* ]]; then
-      content=${content//ExecStart=\/usr\/bin\/omarchy-thunderbolt-authorization-daemon/ExecStart=\/bin\/bash -p \"\/usr\/share\/omarchy\/migrations\/retired-device-authorization\/rollback.sh\" daemon}
-      da_publish_file "$unit" "$content" || return 1
-    elif [[ $content != *"ExecStart=/bin/bash -p /usr/share/omarchy/migrations/retired-device-authorization/rollback.sh daemon"* &&
+    if [[ $content != *"ExecStart=/usr/bin/omarchy-thunderbolt-authorization-daemon"* &&
+      $content != *"ExecStart=/bin/bash -p /usr/share/omarchy/migrations/retired-device-authorization/rollback.sh daemon"* &&
       $content != *'ExecStart=/bin/bash -p "/usr/share/omarchy/migrations/retired-device-authorization/rollback.sh" daemon'* ]]; then
       echo "Unrecognized Thunderbolt controller entrypoint; repair its unit before retrying." >&2
       return 1
@@ -67,8 +65,11 @@ WantedBy=multi-user.target'
   fi
   if [[ -f $guard ]]; then
     content=$(<"$guard") || return 1
-    content=${content//ExecStartPre=\/usr\/bin\/omarchy-thunderbolt-authorization-admin guard/ExecStartPre=\/bin\/bash -p \"\/usr\/share\/omarchy\/migrations\/retired-device-authorization\/rollback.sh\" guard}
-    da_publish_file "$guard" "$content" || return 1
+    if [[ $content != *"ExecStartPre=/usr/bin/omarchy-thunderbolt-authorization-admin guard"* &&
+      $content != *'ExecStartPre=/bin/bash -p "/usr/share/omarchy/migrations/retired-device-authorization/rollback.sh" guard'* ]]; then
+      echo "Unrecognized Bolt guard entrypoint; repair its unit before retrying." >&2
+      return 1
+    fi
   fi
   systemctl daemon-reload || return 1
   for unit in bolt.service "$TB_SERVICE"; do
@@ -114,24 +115,28 @@ da_remove_thunderbolt() {
     da_stop_unit "$TB_SERVICE" system "$DA_ROOT" || return 1
     rm -f -- "$TB_MARKER" "$TB_PENDING"
   fi
-  da_archive "$DA_ROOT/etc/systemd/system/bolt.service.d/omarchy-authorization.conf" || return 1
-  da_archive "$DA_ROOT/etc/systemd/system/omarchy-thunderbolt-authorization.service" || return 1
   systemctl daemon-reload || return 1
 }
 
 da_remove_usb() {
-  local requested=$1 attribute boot_pending="$DA_STATE/usb-boot-pending"
+  local requested=$1 attribute boot_pending="$DA_STATE/usb-boot-pending" boot_removed="$DA_STATE/usb-boot-removed"
   if [[ -e "$DA_ROOT/etc/limine-entry-tool.d/usb-authorization.conf" || -f $boot_pending ]] ||
     grep -Fq '# Omarchy USB authorization begin' "$DA_ROOT/etc/default/limine" 2>/dev/null; then
     install -d -m755 "$DA_STATE" || return 1
     da_publish_file "$boot_pending" 'Omarchy USB boot rollback pending' || return 1
     /bin/bash -p "$da_support/usb-boot.sh" disable || return 1
+    da_publish_file "$boot_removed" "$(<"$DA_ROOT/proc/sys/kernel/random/boot_id")" || return 1
     rm -- "$boot_pending" || return 1
     echo "USB boot protection removed; reboot to use the restored boot images."
     requested=1
   fi
   if (( requested )) || grep -Fq 'label "omarchy-usb-authorization-v1"' "$DA_ROOT/etc/usbguard/rules.conf" 2>/dev/null ||
     grep -Fqx '# No USB devices were present during enrollment.' "$DA_ROOT/etc/usbguard/rules.conf" 2>/dev/null; then
+    if grep -Eq '(^|[[:space:]])usbcore\.authorized_default=0([[:space:]]|$)' "$DA_ROOT/proc/cmdline" &&
+      [[ ! -f $boot_removed || $(<"$boot_removed") != $(<"$DA_ROOT/proc/sys/kernel/random/boot_id") ]]; then
+      echo "Remove your USB default-deny boot parameter, rebuild the boot images, reboot, then rerun the migration. USBGuard is retained to keep boot input working." >&2
+      return 1
+    fi
     da_stop_unit usbguard.service system "$DA_ROOT" || return 1
     attribute=$DA_ROOT/sys/module/usbcore/parameters/authorized_default
     if [[ -e $attribute && $(<"$attribute") == "0" ]]; then

@@ -3,7 +3,7 @@
 # omarchy:summary=Keep installed Thunderbolt protection recoverable until its removal migration
 # omarchy:hidden=true
 
-# Existing boot units need a protected entrypoint until installed policy has been retired.
+# Privileged Bash suppresses BASH_ENV and exported functions before a retired boot controller runs.
 if [[ $- != *p* ]]; then exit 126; fi
 source /usr/bin/omarchy-security-functions || exit 126
 omarchy_security_require_privileged_bash_startup || exit 126

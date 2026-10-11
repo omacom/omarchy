@@ -76,7 +76,7 @@ fixture() {
   rm -rf "$scratch"/*
   mkdir -p "$scratch/etc/systemd/system/bolt.service.d" "$scratch/etc/usbguard" "$scratch/run/systemd/system" \
     "$scratch/sys/bus/usb/devices/usb1" "$scratch/sys/bus/usb/devices/1-1" \
-    "$scratch/sys/module/usbcore/parameters" "$scratch/proc" "$scratch/support"
+    "$scratch/sys/module/usbcore/parameters" "$scratch/proc/sys/kernel/random" "$scratch/support"
   da_support=$scratch/support
   DA_ROOT=$scratch DA_STATE=$scratch/var/lib/omarchy/retired-device-authorization
   mkdir -p "$scratch/var/lib/omarchy"
@@ -85,6 +85,7 @@ fixture() {
   TB_STATE=$scratch/policy.json TB_CONFIG=$scratch/boltd.conf TB_MARKER=$scratch/enabled
   TB_PENDING=$scratch/pending TB_LOCK=$scratch/root.lock TB_SERVICE=omarchy-thunderbolt-authorization.service
   : >"$scratch/proc/cmdline"
+  echo fixture-boot >"$scratch/proc/sys/kernel/random/boot_id"
   : >"$scratch/units"
   printf '0\n' >"$scratch/sys/bus/usb/devices/usb1/authorized_default"
   printf '0\n' >"$scratch/sys/bus/usb/devices/1-1/authorized"
@@ -197,6 +198,19 @@ da_remove_usb 0
 pass "manual USB boot and USBGuard policy remain untouched"
 
 fixture
+echo 'usbcore.authorized_default=0' >"$scratch/proc/cmdline"
+echo 'allow label "omarchy-usb-authorization-v1"' >"$scratch/etc/usbguard/rules.conf"
+reject da_remove_usb 0
+! grep -q 'disable.*usbguard' "$scratch/units" || fail "manual boot deny must keep USBGuard"
+[[ $(<"$scratch/sys/bus/usb/devices/1-1/authorized") == "0" ]] || fail "unsafe manual boot remains pending before live authorization"
+mkdir -p "$DA_STATE"
+echo earlier-boot >"$DA_STATE/usb-boot-removed"
+reject da_remove_usb 0
+echo fixture-boot >"$DA_STATE/usb-boot-removed"
+da_remove_usb 0
+pass "manual boot denial keeps USBGuard while a current-boot verified-removal receipt permits retry"
+
+fixture
 mkdir -p "$scratch/etc/limine-entry-tool.d"
 touch "$scratch/etc/limine-entry-tool.d/usb-authorization.conf" "$scratch/boot-failure"
 reject da_remove_usb 0
@@ -222,7 +236,7 @@ da_remove_thunderbolt
 jq -e '.enabled==false and .enrolled==null' "$TB_STATE" >/dev/null || fail "Thunderbolt state is disabled"
 jq -e '.manager.AuthMode=="enabled" and .stored[0].Policy=="auto" and .stored[1].Policy=="manual" and all(.stored[]; .Key=="have")' \
   "$scratch/inventory" >/dev/null || fail "handoff preserves independent manual policies and keys, including disconnected accessories"
-[[ ! -f $TB_MARKER && -f $scratch/etc/systemd/system/bolt.service.d/omarchy-authorization.conf.retired ]] || fail "obsolete Bolt guard is archived"
+[[ ! -f $TB_MARKER && -f $scratch/etc/systemd/system/bolt.service.d/omarchy-authorization.conf ]] || fail "the guard remains packaged and inert after its marker is removed"
 da_remove_thunderbolt
 pass "Thunderbolt rollback hands our records to Bolt and preserves manual policies and keys"
 
@@ -252,13 +266,16 @@ fixture
 unit=$scratch/etc/systemd/system/omarchy-thunderbolt-authorization.service
 printf '[Service]\nExecStart=/usr/bin/omarchy-thunderbolt-authorization-daemon\n' >"$unit"
 original_unit=$(<"$unit")
+da_prepare_thunderbolt_units
+[[ $(<"$unit") == "$original_unit" ]] || fail "package-owned controller entrypoints must stay unchanged"
+rm "$unit"
 mv() { return 1; }
 reject da_prepare_thunderbolt_units
-[[ $(<"$unit") == "$original_unit" ]] || fail "failed unit publication must not truncate the controller"
+[[ ! -f $unit ]] || fail "failed publication of a missing controller must not leave a partial unit"
 unset -f mv
 da_prepare_thunderbolt_units
-grep -Fq "/usr/share/omarchy/migrations/retired-device-authorization/rollback.sh" "$unit" || fail "unit repair can retry with the original file intact"
-pass "Thunderbolt unit write failures preserve the controller and permit retry"
+grep -Fq "/usr/share/omarchy/migrations/retired-device-authorization/rollback.sh" "$unit" || fail "missing controller publication can retry"
+pass "packaged units remain unchanged and missing-unit publication can retry"
 
 fixture
 unit=$scratch/etc/systemd/system/omarchy-thunderbolt-authorization.service
@@ -435,6 +452,26 @@ fixture
     ! -L $scratch/run/systemd/user/default.target.wants/omarchy-thunderbolt-authorization.service ]] || fail "success removes global user enable links"
 )
 pass "complete rollback retires privilege definitions and global links before publishing completion"
+
+fixture
+unit=$scratch/etc/systemd/system/omarchy-thunderbolt-authorization.service
+guard=$scratch/etc/systemd/system/bolt.service.d/omarchy-authorization.conf
+cp "$ROOT/etc/systemd/system/omarchy-thunderbolt-authorization.service" "$unit"
+cp "$ROOT/etc/systemd/system/bolt.service.d/omarchy-authorization.conf" "$guard"
+touch "$scratch/boot-failure" "$scratch/etc/limine-entry-tool.d-placeholder"
+mkdir -p "$scratch/etc/limine-entry-tool.d"
+touch "$scratch/etc/limine-entry-tool.d/usb-authorization.conf"
+(
+  da_clean_factory() { return 0; }
+  reject da_main 1
+  jq -e '.enabled==false' "$TB_STATE" >/dev/null || fail "Thunderbolt repair completes independently of USB failure"
+  cp "$ROOT/etc/systemd/system/omarchy-thunderbolt-authorization.service" "$unit"
+  cp "$ROOT/etc/systemd/system/bolt.service.d/omarchy-authorization.conf" "$guard"
+  rm "$scratch/boot-failure"
+  da_main 1
+  [[ -f $DA_STATE/completed && -f $unit && -f $guard ]] || fail "package-file reinstallation must permit a complete retry"
+)
+pass "package-owned Thunderbolt units can be reinstalled between independent repair and retry"
 
 fixture
 source "$original_support/usb-boot.sh"
