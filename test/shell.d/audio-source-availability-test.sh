@@ -63,3 +63,15 @@ actual=$(LC_ALL=de_DE.UTF-8 PATH="$work/bin:$PATH" "$ROOT/bin/omarchy-audio-sink
 [[ $actual == $'alsa_output.pci-0000_00_1f.3.analog-stereo\t0' ]] || fail 'sink availability reports an empty headphone jack unavailable' "$actual"
 grep -qx 'C list sinks' "$CALLS" || fail 'sink availability reads pactl in the C locale whatever the caller'"'"'s' "$(cat "$CALLS")"
 pass 'sink availability reports an empty headphone jack unavailable, in the C locale'
+
+run_node_test <<'JS'
+const fs = require('fs')
+const panel = fs.readFileSync(root + '/shell/plugins/panels/audio/Panel.qml', 'utf8')
+assert(/readonly property var rawAudioSources: \{\s*var list = \[\]\s*for \(var i = 0; i < candidateSources\.length; i\+\+\)\s*if \(sourceAvailable\(candidateSources\[i\]\)\) list\.push/.test(panel),
+  'the audio panel leaves unplugged inputs out of its list')
+assert(/if \(source && list\.indexOf\(source\) < 0\) list\.unshift\(source\)/.test(panel),
+  'the audio panel keeps the actual default input listed even when unplugged')
+assert(/readonly property var audioSources: rawAudioSources\.length > 0 \|\| candidateSources\.length > 0\s*\? rawAudioSources : cachedAudioSources/.test(panel) &&
+  /onRawAudioSourcesChanged: if \(rawAudioSources\.length > 0 \|\| candidateSources\.length > 0\) cachedAudioSources = rawAudioSources/.test(panel),
+  'the audio panel does not restore cached inputs when every current input is unplugged')
+JS

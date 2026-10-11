@@ -102,13 +102,19 @@ Panel {
   }
 
   readonly property var rawAudioSources: {
-    var list = candidateSources.slice()
+    var list = []
+    for (var i = 0; i < candidateSources.length; i++)
+      if (sourceAvailable(candidateSources[i])) list.push(candidateSources[i])
+    // Keep the actual default visible, matching the output list above.
     if (source && list.indexOf(source) < 0) list.unshift(source)
     return list
   }
 
   readonly property var audioSinks: rawAudioSinks.length > 0 ? rawAudioSinks : cachedAudioSinks
-  readonly property var audioSources: rawAudioSources.length > 0 ? rawAudioSources : cachedAudioSources
+  // The cache bridges PipeWire briefly dropping its nodes. When nodes are
+  // present but every input is unplugged, the empty list is the real answer.
+  readonly property var audioSources: rawAudioSources.length > 0 || candidateSources.length > 0
+    ? rawAudioSources : cachedAudioSources
 
   readonly property var audioStreams: {
     var list = []
@@ -175,7 +181,7 @@ Panel {
   readonly property bool inputLevelShown: !!inputPeakNode
 
   onRawAudioSinksChanged: if (rawAudioSinks.length > 0) cachedAudioSinks = rawAudioSinks
-  onRawAudioSourcesChanged: if (rawAudioSources.length > 0) cachedAudioSources = rawAudioSources
+  onRawAudioSourcesChanged: if (rawAudioSources.length > 0 || candidateSources.length > 0) cachedAudioSources = rawAudioSources
 
   // Single cursor model shared by keyboard and mouse. Sections:
   //   "output"  — output slider + sink device list
@@ -540,6 +546,13 @@ Panel {
   function updateSinkAvailability(raw) {
     sinkAvailability = Model.parseSinkAvailability(raw)
     sinkAvailabilityLoaded = true
+  }
+
+  // An input whose every port is unplugged, such as the mic on an empty combo
+  // jack, cannot become the default, so leave it out like unplugged outputs.
+  function sourceAvailable(node) {
+    if (!node || !node.name) return true
+    return sourceAvailability[String(node.name)] !== false
   }
 
   function friendlyDeviceLabel(text) {
