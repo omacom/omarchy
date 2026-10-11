@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 
@@ -32,8 +33,8 @@ Panel {
     "Cataloging chaos"
   ]
   readonly property string heroPhraseText: activePhrases[phraseIndex % activePhrases.length]
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
-  readonly property color urgent: bar ? bar.urgent : Color.urgent
+  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
+  readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color iconColor: dropbox.authenticated && dropbox.active ? foreground : dim
@@ -155,7 +156,7 @@ Panel {
     function onFilesChanged() { root.ensureCursor() }
   }
 
-  IpcHandler {
+  ShellIpc {
     target: root.ipcTarget
     function open(): void { root.open() }
     function close(): void { root.close() }
@@ -369,14 +370,14 @@ Panel {
     id: phraseSwap
     PropertyAnimation {
       target: hero; property: "metaOpacity"
-      to: 0.0; duration: 180; easing.type: Easing.OutQuad
+      to: 0.0; duration: Style.duration(180); easing.type: Easing.OutQuad
     }
     ScriptAction {
       script: root.phraseIndex = (root.phraseIndex + 1) % root.activePhrases.length
     }
     PropertyAnimation {
       target: hero; property: "metaOpacity"
-      to: 1.0; duration: 260; easing.type: Easing.InQuad
+      to: 1.0; duration: Style.duration(260); easing.type: Easing.InQuad
     }
   }
 

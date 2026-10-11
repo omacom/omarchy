@@ -90,6 +90,27 @@ assertDeepEqual(
   'network parses bar status'
 )
 assertEqual(network.connectionIcon('wifi', 80), network.wifiIconFor(80), 'network maps wifi icon from signal')
+
+// OWE transition mode: between scans NetworkManager files the in-use access
+// point under the hidden "_owetm_" SSID and drops the active profile from the
+// device's AvailableConnections, so Quickshell lists no connected network. The
+// bar trusts the device's own state and reads the in-use AP's strength instead
+// of flickering to disconnected.
+const kindBinding = panelSource.match(/readonly property string kind: \{[\s\S]*?\n {2}\}/)
+assert(kindBinding, 'network has a kind binding')
+assert(/if \(wifiDevice && wifiDevice\.connected\) return "wifi"/.test(kindBinding[0]), 'network keeps showing Wi-Fi while the device is connected but no network is listed as connected')
+assert(
+  kindBinding[0].indexOf('connectedWifiNetwork) return "wifi"') < kindBinding[0].indexOf('wifiDevice.connected) return "wifi"'),
+  'network prefers the listed connected network before falling back to device state'
+)
+assertEqual(network.connectedSignalStrength(0.8, 40), 80, 'network prefers the connected network strength')
+assertEqual(network.connectedSignalStrength(0, 67), 67, 'network falls back to the in-use access point strength')
+assertEqual(network.connectedSignalStrength(0, -1), 0, 'network reports no strength when the in-use access point is unknown')
+assertEqual(network.parseActiveApSignal(' :82\n*:67\n :50\n'), 67, 'network parses the in-use access point strength from nmcli')
+assertEqual(network.parseActiveApSignal(' :82\n'), -1, 'network reports no in-use access point when none is marked')
+assertEqual(network.parseActiveApSignal(''), -1, 'network tolerates empty nmcli output')
+assert(/running: root\.needsActiveApSignal/.test(panelSource), 'network only polls the in-use access point while the connected network lacks a strength')
+assert(/"--rescan", "no"/.test(panelSource), 'network reads the in-use access point without triggering a scan')
 assertEqual(network.formatHeaderSpeed('1000'), '1gbit', 'network formats gigabit speed')
 assertEqual(network.formatHeaderSpeed('2500'), '2.5gbit', 'network formats fractional gigabit speed')
 assertEqual(network.formatHeaderFreq('2462'), '2.4ghz', 'network formats 2.4GHz wifi band')

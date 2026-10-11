@@ -307,7 +307,8 @@ pass "webcam size rules place the initial window in its final corner"
 recording_dir="$tmp_dir/recordings"
 mkdir -p "$recording_dir"
 
-cat >"$stub_bin/pgrep" <<'SH'
+# Nothing is recording yet, whatever else runs on the machine.
+cat >"$stub_bin/omarchy-capture-screenrecording-process" <<'SH'
 #!/bin/bash
 exit 1
 SH
@@ -331,7 +332,7 @@ cat >"$stub_bin/omarchy-shell" <<'SH'
 exit 0
 SH
 
-chmod +x "$stub_bin"/pgrep "$stub_bin"/omarchy-hyprland-monitor-focused \
+chmod +x "$stub_bin"/omarchy-capture-screenrecording-process "$stub_bin"/omarchy-hyprland-monitor-focused \
   "$stub_bin"/gpu-screen-recorder "$stub_bin"/omarchy-shell
 
 # Compare that name across the run rather than demanding it be absent: the
@@ -411,68 +412,211 @@ mode=$(stat -c '%a' "$state_home/omarchy" 2>/dev/null || stat -f '%Lp' "$state_h
 [[ $mode == "700" ]] || fail "fallback directory is private even when it already existed" "mode: $mode"
 pass "fallback directory is private even when it already existed"
 
+# gpu-screen-recorder aborts before recording on a GPU it does not know, such
+# as Apple Silicon's. wf-recorder takes over when it is installed, on the same
+# monitor, and its pid is the one stop and status act on.
+cat >"$stub_bin/gpu-screen-recorder" <<'SH'
+#!/bin/bash
+echo "gsr error: unknown gpu vendor" >&2
+exit 1
+SH
+
+cat >"$stub_bin/wf-recorder" <<'SH'
+#!/bin/bash
+printf '%s\n' "$@" >"$OMARCHY_TEST_WF_ARGS"
+echo "$$" >"$OMARCHY_TEST_WF_PID"
+for i in "$@"; do
+  [[ -n ${take_next:-} ]] && { : >"$i"; break; }
+  [[ $i == "-f" ]] && take_next=1
+done
+sleep 5
+SH
+chmod +x "$stub_bin/gpu-screen-recorder" "$stub_bin/wf-recorder"
+
+# Fresh directories: a recording named for the same second must not exist yet.
+wf_runtime="$tmp_dir/wf-runtime"
+wf_recordings="$tmp_dir/wf-recordings"
+mkdir -p "$wf_runtime" "$wf_recordings"
+wf_args="$tmp_dir/wf-args"
+wf_pid="$tmp_dir/wf-pid"
+XDG_RUNTIME_DIR="$wf_runtime" OMARCHY_TEST_WF_ARGS="$wf_args" OMARCHY_TEST_WF_PID="$wf_pid" \
+  OMARCHY_SCREENRECORD_DIR="$wf_recordings" \
+  "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1
+
+pkill -f "$stub_bin/wf-recorder" 2>/dev/null || true
+
+[[ -s $wf_args ]] || fail "wf-recorder records when gpu-screen-recorder cannot start"
+grep -Fxq -- '-o' "$wf_args" && grep -Fxq DP-1 "$wf_args" && grep -Fxq 48000 "$wf_args" ||
+  fail "wf-recorder records the focused monitor at 48 kHz" "$(<"$wf_args")"
+[[ $(<"$wf_runtime/omarchy-screenrecord-pid") == "$(<"$wf_pid")" ]] ||
+  fail "the recorder pid is the wf-recorder that is recording" "$(ls -a "$wf_runtime")"
+[[ $(<"$wf_runtime/omarchy-screenrecord-filename") == "$wf_recordings"/* ]] ||
+  fail "the wf-recorder recording is the one recorded as started"
+pass "wf-recorder records when gpu-screen-recorder cannot start"
+
+# Without wf-recorder, a recorder that cannot start leaves nothing behind.
+rm "$stub_bin/wf-recorder"
+none_runtime="$tmp_dir/none-runtime"
+none_recordings="$tmp_dir/none-recordings"
+mkdir -p "$none_runtime" "$none_recordings"
+echo 424242 >"$none_runtime/omarchy-screenrecord-pid"
+XDG_RUNTIME_DIR="$none_runtime" OMARCHY_SCREENRECORD_DIR="$none_recordings" \
+  "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1 || true
+[[ ! -e $none_runtime/omarchy-screenrecord-pid && ! -e $none_runtime/omarchy-screenrecord-filename ]] ||
+  fail "a recorder that cannot start records no state, and clears a stale pid" "$(ls -a "$none_runtime")"
+pass "a recorder that cannot start records no state, and clears a stale pid"
+
+# Another recorder runs in both cases below: the helper answers for any
+# selection but a pid, and a stop by name ends it.
+helper_calls="$tmp_dir/helper-calls"
+recording_flag="$tmp_dir/recording"
+cat >"$stub_bin/omarchy-capture-screenrecording-process" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_HELPER_CALLS"
+if [[ $1 == "--pid" ]]; then
+  [[ $2 == "${OMARCHY_TEST_LIVE_PID:-}" ]]
+  exit
+fi
+if [[ $* == *"--signal INT" ]]; then
+  rm -f "$OMARCHY_TEST_RECORDING"
+  exit 0
+fi
+[[ -e $OMARCHY_TEST_RECORDING ]]
+SH
+chmod +x "$stub_bin/omarchy-capture-screenrecording-process"
+
+# A saved pid that is no longer a recorder is a recording that ended without a
+# stop: nothing of ours records, so stop has nothing to do and signals no other
+# recorder the user runs.
+stale_runtime="$tmp_dir/stale-runtime"
+mkdir -p "$stale_runtime"
+echo 424242 >"$stale_runtime/omarchy-screenrecord-pid"
+touch "$recording_flag"
+: >"$helper_calls"
+if XDG_RUNTIME_DIR="$stale_runtime" OMARCHY_TEST_HELPER_CALLS="$helper_calls" OMARCHY_TEST_RECORDING="$recording_flag" \
+  OMARCHY_SCREENRECORD_DIR="$recording_dir" \
+  "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1; then
+  fail "stop finds no recording of ours behind a stale pid" "$(<"$helper_calls")"
+fi
+! grep -q -- '--signal' "$helper_calls" ||
+  fail "stop signals nothing when the saved pid is stale" "$(<"$helper_calls")"
+[[ -e $recording_flag ]] || fail "the other recorder keeps recording"
+pass "a stale saved pid leaves every other recorder alone"
+
+# Without a saved pid (a recording started before the pid was saved), status
+# and stop select every recorder the user runs, as the bar and the menu do.
+legacy_runtime="$tmp_dir/legacy-runtime"
+mkdir -p "$legacy_runtime"
+touch "$recording_flag"
+: >"$helper_calls"
+XDG_RUNTIME_DIR="$legacy_runtime" OMARCHY_TEST_HELPER_CALLS="$helper_calls" OMARCHY_TEST_RECORDING="$recording_flag" \
+  OMARCHY_SCREENRECORD_DIR="$recording_dir" \
+  "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1 ||
+  fail "stop finds a recording started before the pid was saved" "$(<"$helper_calls")"
+grep -Fxq -- '--signal INT' "$helper_calls" ||
+  fail "stop signals the user's recorders when no pid was saved" "$(<"$helper_calls")"
+! grep -Fq -- '--signal KILL' "$helper_calls" ||
+  fail "a recorder that stops on INT is not killed" "$(<"$helper_calls")"
+pass "without a saved pid, status and stop select the user's recorders"
+
+# The bar indicator and the menu's Stop row ask --status, so they show a stop
+# exactly when the toggle has a recording of ours to end. It needs no
+# recordings directory, never notifies and never signals.
+status() {
+  XDG_RUNTIME_DIR="$1" OMARCHY_TEST_HELPER_CALLS="$helper_calls" OMARCHY_TEST_RECORDING="$recording_flag" \
+    OMARCHY_TEST_LIVE_PID="${2:-}" OMARCHY_SCREENRECORD_DIR="$tmp_dir/no-such-recordings" \
+    "$ROOT/bin/omarchy-capture-screenrecording" --status >/dev/null 2>&1
+}
+touch "$recording_flag"
+: >"$helper_calls"
+rm -f "$OMARCHY_TEST_NOTIFICATION_ARGS"
+echo 424242 >"$stale_runtime/omarchy-screenrecord-pid"
+if status "$stale_runtime"; then fail "--status reports nothing of ours behind a stale pid"; fi
+status "$legacy_runtime" || fail "--status reports a recording started before the pid was saved"
+status "$stale_runtime" 424242 || fail "--status reports the recorder its saved pid names"
+rm -f "$recording_flag"
+if status "$legacy_runtime"; then fail "--status reports nothing when no recorder runs"; fi
+! grep -q -- '--signal' "$helper_calls" || fail "--status signals nothing" "$(<"$helper_calls")"
+[[ ! -e $OMARCHY_TEST_NOTIFICATION_ARGS ]] || fail "--status never notifies, even without a recordings directory" "$(<"$OMARCHY_TEST_NOTIFICATION_ARGS")"
+pass "--status answers what stop would act on, without a recordings directory, notifications or signals"
+
 # The bar indicator only stays honest if the refresh happens after the recorder
 # is actually gone -- refreshing while it is still alive (the force-kill path)
 # or not refreshing at all (a redundant --stop-recording) leaves it stuck
 # 'active', dead-ending every later click on it.
-sequence_file="$tmp_dir/sequence"
-export OMARCHY_TEST_SEQUENCE="$sequence_file"
-
-cat >"$stub_bin/pkill" <<'SH'
-#!/bin/bash
-printf 'pkill %s\n' "$*" >>"$OMARCHY_TEST_SEQUENCE"
-[[ $1 == "-9" ]] && touch "$OMARCHY_TEST_KILL_SENT"
-exit 0
-SH
-
-cat >"$stub_bin/pgrep" <<'SH'
-#!/bin/bash
-if [[ ${OMARCHY_TEST_GSR_ALIVE:-false} == "true" ]]; then
-  [[ ! -f $OMARCHY_TEST_KILL_SENT ]] && exit 0
-  [[ -f $OMARCHY_TEST_GSR_HELD ]] && exit 0
-  remaining=$(cat "$OMARCHY_TEST_EXIT_DELAY")
-  if ((remaining > 0)); then
-    echo "$((remaining - 1))" >"$OMARCHY_TEST_EXIT_DELAY"
-    printf 'recorder still exiting\n' >>"$OMARCHY_TEST_SEQUENCE"
-    exit 0
-  fi
-fi
-exit 1
-SH
-
-cat >"$stub_bin/omarchy-shell" <<'SH'
-#!/bin/bash
-printf 'omarchy-shell %s\n' "$*" >>"$OMARCHY_TEST_SEQUENCE"
-if pgrep -f "^gpu-screen-recorder" >/dev/null; then
-  echo recording >"$OMARCHY_TEST_INDICATOR_STATE"
-else
-  echo idle >"$OMARCHY_TEST_INDICATOR_STATE"
-fi
-exit 0
-SH
-
-cat >"$stub_bin/sleep" <<'SH'
-#!/bin/bash
-exit 0
-SH
-
-chmod +x "$stub_bin"/pkill "$stub_bin"/pgrep "$stub_bin"/omarchy-shell "$stub_bin"/sleep
-
-# A recorder that is still alive when the grace period ends gets SIGKILLed; the
-# indicator must read idle even when exiting takes multiple probes after SIGKILL.
+export OMARCHY_TEST_SEQUENCE="$tmp_dir/sequence"
+export OMARCHY_TEST_RECORDER_RUNNING="$tmp_dir/recorder-running"
 export OMARCHY_TEST_KILL_SENT="$tmp_dir/kill-sent"
 export OMARCHY_TEST_EXIT_DELAY="$tmp_dir/exit-delay"
 export OMARCHY_TEST_GSR_HELD="$tmp_dir/gsr-held"
 export OMARCHY_TEST_INDICATOR_STATE="$tmp_dir/indicator-state"
+sequence_file=$OMARCHY_TEST_SEQUENCE
+
+# A recorder that ignores SIGINT unless OMARCHY_TEST_GRACEFUL is set, and after
+# SIGKILL stays visible while held or for OMARCHY_TEST_EXIT_DELAY more probes.
+cat >"$stub_bin/omarchy-capture-screenrecording-process" <<'SH'
+#!/bin/bash
+case "$*" in
+*"--signal INT")
+  printf 'signal INT\n' >>"$OMARCHY_TEST_SEQUENCE"
+  [[ ${OMARCHY_TEST_GRACEFUL:-false} == "true" ]] && rm -f "$OMARCHY_TEST_RECORDER_RUNNING"
+  exit 0
+  ;;
+*"--signal KILL")
+  printf 'signal KILL\n' >>"$OMARCHY_TEST_SEQUENCE"
+  touch "$OMARCHY_TEST_KILL_SENT"
+  exit 0
+  ;;
+esac
+[[ -f $OMARCHY_TEST_RECORDER_RUNNING ]] || exit 1
+[[ -f $OMARCHY_TEST_KILL_SENT && ! -f $OMARCHY_TEST_GSR_HELD ]] || exit 0
+remaining=$(cat "$OMARCHY_TEST_EXIT_DELAY" 2>/dev/null || echo 0)
+if ((remaining > 0)); then
+  echo "$((remaining - 1))" >"$OMARCHY_TEST_EXIT_DELAY"
+  printf 'recorder still exiting\n' >>"$OMARCHY_TEST_SEQUENCE"
+  exit 0
+fi
+rm -f "$OMARCHY_TEST_RECORDER_RUNNING"
+exit 1
+SH
+
+# The bar asks --status on refresh; record what it would see at that moment.
+cat >"$stub_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+printf 'omarchy-shell %s\n' "$*" >>"$OMARCHY_TEST_SEQUENCE"
+if [[ -f $OMARCHY_TEST_RECORDER_RUNNING ]]; then
+  echo recording >"$OMARCHY_TEST_INDICATOR_STATE"
+else
+  echo idle >"$OMARCHY_TEST_INDICATOR_STATE"
+fi
+SH
+
+cat >"$stub_bin/sleep" <<'SH'
+#!/bin/bash
+[[ $1 == "1" ]] && /usr/bin/sleep 0.01
+exit 0
+SH
+
+chmod +x "$stub_bin"/omarchy-capture-screenrecording-process "$stub_bin"/omarchy-shell "$stub_bin"/sleep
+
+stop_runtime="$tmp_dir/stop-runtime"
+mkdir -p "$stop_runtime"
+stop_recording() {
+  XDG_RUNTIME_DIR="$stop_runtime" OMARCHY_SCREENRECORD_DIR="$recording_dir" \
+    timeout 3 "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1
+}
+
+# A recorder still alive when the grace period ends gets SIGKILLed; the
+# indicator must read idle even when exiting takes several probes after it.
+touch "$OMARCHY_TEST_RECORDER_RUNNING"
+rm -f "$OMARCHY_TEST_KILL_SENT" "$OMARCHY_TEST_NOTIFICATION_ARGS"
 echo 3 >"$OMARCHY_TEST_EXIT_DELAY"
 : >"$sequence_file"
-OMARCHY_TEST_GSR_ALIVE=true \
-  OMARCHY_SCREENRECORD_DIR="$recording_dir" \
-  "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1
+stop_recording || true
 
-kill_line=$(grep -n 'pkill -9' "$sequence_file" | head -1 | cut -d: -f1)
-refresh_line=$(grep -n 'omarchy.indicators refresh' "$sequence_file" | head -1 | cut -d: -f1)
-[[ -n $kill_line && -n $refresh_line && $refresh_line -gt $kill_line ]] ||
+kill_line=$(grep -n '^signal KILL' "$sequence_file" | head -1 | cut -d: -f1 || true)
+refresh_line=$(grep -n 'omarchy.indicators refresh' "$sequence_file" | head -1 | cut -d: -f1 || true)
+[[ -n $kill_line && -n $refresh_line ]] && ((refresh_line > kill_line)) ||
   fail "indicator refresh runs after the force-kill, not before it" "$(cat "$sequence_file")"
 pass "indicator refresh runs after the force-kill, not before it"
 
@@ -486,20 +630,12 @@ pass "a force-killed recording posts the error notification"
 
 # If the recorder remains visible beyond the bounded foreground wait, stopping
 # still returns and posts the error, then refreshes when the recorder disappears.
+touch "$OMARCHY_TEST_RECORDER_RUNNING" "$OMARCHY_TEST_GSR_HELD"
 rm -f "$OMARCHY_TEST_KILL_SENT" "$OMARCHY_TEST_INDICATOR_STATE" "$OMARCHY_TEST_NOTIFICATION_ARGS"
 echo 0 >"$OMARCHY_TEST_EXIT_DELAY"
-touch "$OMARCHY_TEST_GSR_HELD"
 : >"$sequence_file"
 
-cat >"$stub_bin/sleep" <<'SH'
-#!/bin/bash
-[[ $1 == "1" ]] && /usr/bin/sleep 0.01
-exit 0
-SH
-
-if ! timeout 3 env OMARCHY_TEST_GSR_ALIVE=true \
-  OMARCHY_SCREENRECORD_DIR="$recording_dir" \
-  "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1; then
+if ! stop_recording; then
   rm -f "$OMARCHY_TEST_GSR_HELD"
   fail "a recorder held after SIGKILL does not block stopping"
 fi
@@ -510,18 +646,25 @@ grep -F 'force-killed' "$OMARCHY_TEST_NOTIFICATION_ARGS" >/dev/null ||
 pass "a recorder held after SIGKILL returns without a premature refresh"
 
 # Stopping again while it is still stuck must not start a second watcher.
-if ! timeout 3 env OMARCHY_TEST_GSR_ALIVE=true \
-  OMARCHY_SCREENRECORD_DIR="$recording_dir" \
-  "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1; then
+if ! stop_recording; then
   rm -f "$OMARCHY_TEST_GSR_HELD"
   fail "a second stop while the recorder is stuck does not block stopping"
 fi
 
+# Count by the watch lock: an earlier stop's preview cleanup shares the command line.
+count_watchers() {
+  local pid count=0
+  for pid in $(/usr/bin/pgrep -f "$ROOT/bin/omarchy-capture-screenrecording --stop-recording"); do
+    [[ $(readlink "/proc/$pid/fd/9" 2>/dev/null) == "$stop_runtime/omarchy-screenrecord-watch.lock" ]] && ((++count))
+  done
+  echo "$count"
+}
+
 for attempt in {1..100}; do
-  (($(/usr/bin/pgrep -cf "$ROOT/bin/omarchy-capture-screenrecording") == 1)) && break
+  (($(count_watchers) == 1)) && break
   /usr/bin/sleep 0.01
 done
-watchers=$(/usr/bin/pgrep -cf "$ROOT/bin/omarchy-capture-screenrecording" || true)
+watchers=$(count_watchers)
 if ((watchers != 1)); then
   rm -f "$OMARCHY_TEST_GSR_HELD"
   fail "repeated stops while the recorder is stuck leave one watcher" "watchers: $watchers"
@@ -530,7 +673,7 @@ pass "repeated stops while the recorder is stuck leave one watcher"
 
 rm -f "$OMARCHY_TEST_GSR_HELD"
 for attempt in {1..100}; do
-  [[ -f $OMARCHY_TEST_INDICATOR_STATE ]] && break
+  [[ $(cat "$OMARCHY_TEST_INDICATOR_STATE" 2>/dev/null) == "idle" ]] && break
   /usr/bin/sleep 0.01
 done
 [[ $(cat "$OMARCHY_TEST_INDICATOR_STATE" 2>/dev/null) == "idle" ]] ||
@@ -539,10 +682,9 @@ pass "a recorder that outlasts the foreground wait eventually refreshes idle"
 
 # Clicking the indicator while it shows a stale 'active' state runs
 # --stop-recording; refreshing there lets the dead button recover by itself.
+rm -f "$OMARCHY_TEST_RECORDER_RUNNING"
 : >"$sequence_file"
-if OMARCHY_TEST_GSR_ALIVE=false \
-  OMARCHY_SCREENRECORD_DIR="$recording_dir" \
-  "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1; then
+if stop_recording; then
   fail "a redundant --stop-recording exits nonzero"
 fi
 pass "a redundant --stop-recording exits nonzero"
@@ -555,14 +697,7 @@ pass "a redundant --stop-recording resyncs the indicator"
 # take seconds per recorded minute; only finalize_recording runs ffprobe.
 recording_file="$recording_dir/screenrecording-graceful.mp4"
 : >"$recording_file"
-echo "$recording_file" >"$XDG_RUNTIME_DIR/omarchy-screenrecord-filename"
-
-cat >"$stub_bin/pgrep" <<'SH'
-#!/bin/bash
-count=$(($(cat "$OMARCHY_TEST_PGREP_COUNT" 2>/dev/null || echo 0) + 1))
-echo "$count" >"$OMARCHY_TEST_PGREP_COUNT"
-((count == 1))
-SH
+echo "$recording_file" >"$stop_runtime/omarchy-screenrecord-filename"
 
 cat >"$stub_bin/ffprobe" <<'SH'
 #!/bin/bash
@@ -576,15 +711,17 @@ printf 'ffmpeg %s\n' "$*" >>"$OMARCHY_TEST_SEQUENCE"
 exit 1
 SH
 
-chmod +x "$stub_bin"/pgrep "$stub_bin"/ffprobe "$stub_bin"/ffmpeg
+chmod +x "$stub_bin"/ffprobe "$stub_bin"/ffmpeg
 
+touch "$OMARCHY_TEST_RECORDER_RUNNING"
+rm -f "$OMARCHY_TEST_KILL_SENT"
 : >"$sequence_file"
-OMARCHY_TEST_PGREP_COUNT="$tmp_dir/pgrep-count" \
-  OMARCHY_SCREENRECORD_DIR="$recording_dir" \
-  "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1
+OMARCHY_TEST_GRACEFUL=true stop_recording || true
 
 refresh_line=$(grep -n 'omarchy.indicators refresh' "$sequence_file" | head -1 | cut -d: -f1 || true)
 finalize_line=$(grep -n '^ffprobe ' "$sequence_file" | head -1 | cut -d: -f1 || true)
 [[ -n $refresh_line && -n $finalize_line ]] && ((refresh_line < finalize_line)) ||
   fail "a graceful stop refreshes the indicator before post-processing" "$(cat "$sequence_file")"
+! grep -q '^signal KILL' "$sequence_file" ||
+  fail "a recorder that stops on INT is not killed" "$(cat "$sequence_file")"
 pass "a graceful stop refreshes the indicator before post-processing"

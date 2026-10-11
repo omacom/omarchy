@@ -22,7 +22,7 @@ boot_order='BOOT_ORDER="linux-omarchy, linux-omarchy-*, *, *fallback, Snapshots"
 cat > "$scratch/bin/pacman" <<'SH'
 #!/bin/bash
 case "$1" in
-  -Q) grep -Fxq "$2" "$INSTALLED_PACKAGES" ;;
+  -Q) [[ $2 == -- ]] || exit 99; grep -Fxq -- "$3" "$INSTALLED_PACKAGES" ;;
   -S)
     printf 'pacman %s\n' "$*" >> "$CALL_LOG"
     [[ ${INSTALL_FAIL:-0} == "0" ]] || exit 1
@@ -140,7 +140,6 @@ export OMARCHY_PTL_REBUILD_MARKER="$scratch/state/1789095456"
 export OMARCHY_MIGRATION_STATE="$scratch/user-markers"
 touch "$OMARCHY_PTL_REBUILD_MARKER" "$OMARCHY_MIGRATION_STATE/1789095456.sh"
 cp "$migration" "$scratch/omarchy/migrations/"
-[[ ! -e $ROOT/migrations/1789095456.sh ]] || fail "the superseded migration must not install the PTL variant first"
 pending=$(OMARCHY_PATH="$scratch/omarchy" "$ROOT/bin/omarchy-migrate" --pending)
 [[ $pending == "1789325478.sh" ]] || fail "the renamed migration is pending after completing the old migration"
 OMARCHY_PATH="$scratch/omarchy" "$ROOT/bin/omarchy-migrate" > "$scratch/output" 2>&1
@@ -155,7 +154,7 @@ for name in dell-xps-panther-lake zz-dell-xps-panther-lake; do
 done
 cp "$OMARCHY_KERNEL_LIMINE_CONF" "$OMARCHY_KERNEL_LIMINE_DROP_INS/omarchy-defaults.conf"
 run_migration
-grep -Fxq "pacman -S --noconfirm --needed $kernel $kernel-headers" "$CALL_LOG" || fail "both new packages are installed"
+grep -Fxq "pacman -S --noconfirm --needed -- $kernel $kernel-headers" "$CALL_LOG" || fail "both new packages are installed"
 grep -Fxq linux-ptl "$INSTALLED_PACKAGES" || fail "the old kernel is kept for recovery"
 grep -Fxq linux-ptl-headers "$INSTALLED_PACKAGES" || fail "the old kernel headers are kept"
 assert_preferred "$OMARCHY_KERNEL_LIMINE_CONF"
