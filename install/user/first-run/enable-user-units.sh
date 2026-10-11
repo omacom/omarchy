@@ -19,7 +19,6 @@ systemctl --user daemon-reload
 # one unit, and that should not cost the session its bluetooth agent as well.
 failed=0
 for unit in \
-  bt-agent.service \
   owed.service \
   omarchy-recover-internal-monitor.service \
   omarchy-sleep-lock.service \
@@ -30,6 +29,10 @@ for unit in \
   omarchy-thunderbolt-authorization.service; do
   systemctl --user enable --now "$unit" || failed=1
 done
+
+# bt-agent fails its start until bluetoothd is up and retries on its own, so
+# don't wait on it.
+systemctl --user enable --no-block --now bt-agent.service || failed=1
 
 omarchy-hook-install theme-set /usr/share/owe/10-owe-sync
 exit "$failed"
