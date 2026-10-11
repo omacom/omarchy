@@ -453,6 +453,19 @@ function popupCountdown(state, lifetime, event, now) {
   return { remaining: remaining, lastTick: at, expired: remaining <= 0 }
 }
 
+// How far a toast on a screen keeps from a top or right bar: the bar's
+// thickness on that screen (a notch floor can make a top bar thicker than its
+// configured size on one screen), plus the gap. A bar without per-screen
+// sizes counts its configured size; a hidden or missing one, the default size.
+function barClearance(bar, screenName, defaultBarSize, gapsOut) {
+  var size = Number(defaultBarSize)
+  if (bar && !bar.barHidden) {
+    size = Number(typeof bar.barSizeFor === "function" ? bar.barSizeFor(screenName) : bar.barSize)
+    size = isFinite(size) ? Math.max(0, size) : 0
+  }
+  return size + Number(gapsOut)
+}
+
 function popupPlacement(barPosition, barClearance, gapsOut) {
   var position = String(barPosition || "top")
   var clearance = Number(barClearance)
@@ -534,6 +547,7 @@ if (typeof module !== "undefined") {
     parsePopupFiles: parsePopupFiles,
     popupExpired: popupExpired,
     popupCountdown: popupCountdown,
+    barClearance: barClearance,
     popupPlacement: popupPlacement
   }
 }
