@@ -30,6 +30,9 @@ CREDITS_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits"
 # Grok's own CLI watches its subscription once a minute; a panel opened and
 # shut repeatedly reuses an answer for about that long.
 PROBE_REUSE_SECONDS = 60
+# Grok's docs give a saved sign-in 30 days; a refresh token older than that
+# can't renew the access token, so it no longer counts as signed in.
+REFRESH_LIFETIME_SECONDS = 30 * 24 * 3600
 # A limits-only refresh needs fresh limits, not a fresh history scan.
 LIMITS_ONLY_SCAN_REUSE_SECONDS = 900
 
@@ -190,6 +193,22 @@ def credits_limit(data):
   }
 
 
+# A window whose reset has passed starts over empty. A weekly one's next
+# reset is a whole number of weeks later; a monthly one's isn't known.
+def rolled_forward(limits):
+  now = datetime.now(timezone.utc)
+  rolled = []
+  for limit in limits:
+    resets = parse_time(limit.get("resetsAt"))
+    if resets and resets <= now:
+      limit = dict(limit, percent=0.0, resetsAt="")
+      if limit.get("label") == "Weekly":
+        weeks = (now - resets) // timedelta(weeks=1) + 1
+        limit["resetsAt"] = (resets + weeks * timedelta(weeks=1)).isoformat()
+    rolled.append(limit)
+  return rolled
+
+
 def collect_limits(home, key, force):
   result = {"limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP, "live": False, "fetchedAtMs": 0}
   entry = login(home)
@@ -203,17 +222,25 @@ def collect_limits(home, key, force):
   fetched_at = float(cached.get("fetchedAtMs") or 0)
   result["fetchedAtMs"] = fetched_at
 
-  # The CLI refreshes its token while it runs; one left to lapse can't be
-  # used until Grok starts again.
   expires = parse_time(entry.get("expires_at"))
   if expires and expires.timestamp() <= time.time():
     result["limits"] = cached.get("limits") or []
-    result["usageStatusText"] = "Sign-in expired"
-    result["authHelpText"] = "Grok's saved sign-in expired. Start Grok to refresh it."
+    # The access token lives six hours and Grok mints a new one from its
+    # refresh token whenever it starts, so a lapsed one is routine, not a
+    # sign-out. And while Grok hasn't run, nothing here has spent its
+    # allowance, so the last numbers still stand, rolled past any reset.
+    if entry.get("refresh_token") and time.time() - expires.timestamp() < REFRESH_LIFETIME_SECONDS:
+      result.update(limits=rolled_forward(result["limits"]), live=True)
+      if not result["limits"]:
+        result["usageStatusText"] = "Limits paused"
+        result["authHelpText"] = "Start Grok to see its limits; signing in again is not needed."
+    else:
+      result["usageStatusText"] = "Sign-in expired"
+      result["authHelpText"] = "Grok's saved sign-in expired. Start Grok to refresh it."
     return result
 
   if cached.get("limits") and not force and time.time() - fetched_at / 1000 < PROBE_REUSE_SECONDS:
-    result.update(limits=cached["limits"], live=True)
+    result.update(limits=cached["limits"], live=True, authHelpText="")
     return result
 
   request = urllib.request.Request(CREDITS_URL, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
@@ -228,7 +255,7 @@ def collect_limits(home, key, force):
     limit = None
 
   if limit:
-    result.update(limits=[limit], live=True, fetchedAtMs=round(time.time() * 1000))
+    result.update(limits=[limit], live=True, fetchedAtMs=round(time.time() * 1000), authHelpText="")
     write_json(cache, {"fetchedAtMs": result["fetchedAtMs"], "limits": result["limits"]})
   else:
     result["limits"] = cached.get("limits") or []

@@ -781,11 +781,11 @@ assert_launch pi pi "Review this project"
 assert_launch omp omp --auto-approve -- "Review this project"
 assert_launch opencode opencode --auto --prompt "Review this project"
 assert_launch ori ori code --interactive --prompt "Review this project"
-assert_launch claude claude --permission-mode auto -- "Review this project"
-assert_launch codex codex --approve-for-me -- "Review this project"
+assert_launch claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto -- "Review this project"
+assert_launch codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me -- "Review this project"
 assert_launch muse muse --approval-mode never -- "Review this project"
 assert_launch crush crush run "Review this project"
-assert_launch grok grok --permission-mode bypassPermissions -- "Review this project"
+assert_launch grok env -u GROK_HOME OMARCHY_AGENT_GROK_HOME= grok --permission-mode bypassPermissions -- "Review this project"
 assert_launch cursor-agent cursor-agent --yolo --trust agent -- "Review this project"
 assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=Review this project"
 assert_launch agy agy --dangerously-skip-permissions --prompt-interactive "Review this project"
@@ -809,11 +809,11 @@ assert_bypass pi pi
 assert_bypass omp omp --auto-approve
 assert_bypass opencode opencode --auto
 assert_bypass ori ori code
-assert_bypass claude claude --permission-mode auto
-assert_bypass codex codex --approve-for-me
+assert_bypass claude env -u CLAUDE_CONFIG_DIR OMARCHY_AGENT_CLAUDE_HOME= claude --permission-mode auto
+assert_bypass codex env -u CODEX_HOME OMARCHY_AGENT_CODEX_HOME= codex --approve-for-me
 assert_bypass muse muse --approval-mode never
 assert_bypass crush crush --yolo
-assert_bypass grok grok --permission-mode bypassPermissions
+assert_bypass grok env -u GROK_HOME OMARCHY_AGENT_GROK_HOME= grok --permission-mode bypassPermissions
 assert_bypass cursor-agent cursor-agent --yolo --trust
 assert_bypass hermes hermes --yolo
 assert_bypass agy agy --dangerously-skip-permissions
@@ -874,15 +874,16 @@ grep -F "missing is not installed" "$test_tmp/missing-output" >/dev/null ||
   fail "agent launcher explains when the default command is missing"
 pass "agent launcher reports a missing default command"
 
-# OpenClaw comes from its pacman package, not mise: choosing it must route
+# OpenClaw is its own self-updating runtime, not mise's: choosing it must route
 # through omarchy-install-openclaw-cli and never touch a mise environment.
-cat >"$mock_bin/omarchy-pkg-present" <<'SH'
+# openclaw-cli-test.sh covers the installer itself.
+cat >"$mock_bin/omarchy-install-openclaw-cli" <<'SH'
 #!/bin/bash
-[[ $1 == openclaw && ${OMARCHY_TEST_OPENCLAW_INSTALLED:-false} == "true" ]]
-SH
-cat >"$mock_bin/omarchy-pkg-add" <<'SH'
-#!/bin/bash
-printf '%s\n' "pkg-add $*" >>"$OMARCHY_TEST_STUB_LOG"
+if [[ $1 == "--check" ]]; then
+  [[ ${OMARCHY_TEST_OPENCLAW_INSTALLED:-false} == "true" ]]
+else
+  printf '%s\n' "install-openclaw-cli $*" >>"$OMARCHY_TEST_STUB_LOG"
+fi
 SH
 cat >"$mock_bin/omarchy-launch-openclaw" <<'SH'
 #!/bin/bash
@@ -892,7 +893,7 @@ cat >"$mock_bin/openclaw" <<'SH'
 #!/bin/bash
 exit 0
 SH
-chmod +x "$mock_bin/omarchy-pkg-present" "$mock_bin/omarchy-pkg-add" \
+chmod +x "$mock_bin/omarchy-install-openclaw-cli" \
   "$mock_bin/omarchy-launch-openclaw" "$mock_bin/openclaw"
 
 : >"$launch_log"
@@ -906,7 +907,7 @@ mapfile -d '' -t launch_args <"$launch_log"
   fail "choosing OpenClaw launches its terminal UI"
 [[ ! -s $terminal_log ]] || fail "an installed OpenClaw needs no install terminal"
 ! grep -q 'use -g openclaw' "$mise_history" || fail "OpenClaw never installs through mise"
-pass "choosing OpenClaw uses the package and launches its terminal UI"
+pass "choosing OpenClaw uses its runtime and launches its terminal UI"
 
 : >"$terminal_log"
 OMARCHY_TEST_OPENCLAW_INSTALLED=false omarchy-default-agent openclaw
@@ -918,12 +919,12 @@ pass "a missing OpenClaw routes through the install terminal"
 : >"$stub_log"
 : >"$inline_log"
 OMARCHY_TEST_OPENCLAW_INSTALLED=false omarchy-default-agent --install openclaw >/dev/null
-grep -Fx "pkg-add openclaw" "$stub_log" >/dev/null ||
-  fail "installing OpenClaw as default agent adds its package"
+grep -Fx "install-openclaw-cli --now" "$stub_log" >/dev/null ||
+  fail "installing OpenClaw as default agent sets up its runtime"
 mapfile -d '' -t inline_args <"$inline_log"
 [[ ${inline_args[*]} == "omarchy-launch-openclaw --tui" ]] ||
   fail "installing OpenClaw as default agent hands over to its terminal UI"
-pass "installing OpenClaw as default agent adds its package"
+pass "installing OpenClaw as default agent sets up its runtime"
 
 : >"$launch_log"
 omarchy agent prompt "Review this project"
