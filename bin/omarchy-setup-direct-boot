@@ -34,11 +34,9 @@ case "${bios_vendor,,}" in
     ;;
 esac
 
-existing_entry=$(efibootmgr | grep -E "^Boot[0-9A-Fa-f]+\*? Omarchy([[:space:]]|$)" | head -1)
+boot_num=$(omarchy-boot-direct --number | head -1)
 
-if [[ -n $existing_entry ]]; then
-  boot_num=$(echo "$existing_entry" | sed -n 's/^Boot\([0-9A-Fa-f]\+\).*/\1/p')
-
+if [[ -n $boot_num ]]; then
   if gum confirm "Disable direct boot (remove Omarchy EFI entry)?"; then
     echo "Removing EFI boot entry $boot_num"
     sudo efibootmgr --bootnum "$boot_num" --delete-bootnum >/dev/null

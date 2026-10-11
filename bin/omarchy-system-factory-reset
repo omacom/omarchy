@@ -332,9 +332,11 @@ reset_limine_config() {
   done
 }
 
-# Every UKI entry in limine.conf carries a #blake2b hash of the file it
-# points at; a mismatch makes Limine stop at a scary warning. Never hand over
-# a staged reset in that state.
+# Every boot entry in limine.conf carries a #blake2b hash of each file it
+# loads: the UKI, or the kernel and initramfs where UKIs are off (the DGX
+# Spark). A mismatch makes Limine stop at a scary warning. Never hand over a
+# staged reset in that state. Snapshot entries keep their own copies under
+# limine_history, which the rebuild does not touch.
 verify_limine_hashes() {
   local root="$1" esp="$2" line path hash file
   while IFS= read -r line; do
@@ -345,7 +347,7 @@ verify_limine_hashes() {
     [[ -f $file ]] || fail "limine.conf points at missing $path"
     [[ $(b2sum "$file" | cut -d' ' -f1) == "$hash" ]] ||
       fail "limine.conf hash for $path does not match the rebuilt file"
-  done < <(grep -o 'boot():/EFI/Linux/[^#]*#[0-9a-f]*' "$root$esp/limine.conf")
+  done < <(grep -o 'boot():/[^#[:space:]]*#[0-9a-f]*' "$root$esp/limine.conf" | grep -v '/limine_history/')
 }
 
 # Rebuild the UKI from inside the next root so the deployed kernel/initramfs

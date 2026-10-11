@@ -88,6 +88,6 @@ const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
 const items = menu.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8'))
 const when = id => (items.find(entry => entry.id === id) || {}).when
 assertEqual(when('install.windows'), 'omarchy-hw-x86', 'install.windows is offered on x86_64 only')
-assertEqual(when('setup.direct-boot'), '! omarchy-hw-aarch64-apple', 'setup.direct-boot is hidden on Apple Silicon only')
+assertEqual(when('setup.direct-boot'), '! omarchy-hw-aarch64-apple && [[ ! -f /etc/limine-entry-tool.d/zz-omarchy-dgx-spark.conf ]]', 'setup.direct-boot is hidden on Apple Silicon, and on a DGX Spark that boots without a UKI')
 JS
 pass "the menu offers Windows on x86_64 only and hides Direct Boot on Apple Silicon only"
