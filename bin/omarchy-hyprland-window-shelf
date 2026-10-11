@@ -1,8 +1,0 @@
-#!/bin/bash
-
-# omarchy:summary=Show the Shelf of windows set aside, to restore one onto this workspace
-
-# The Shelf opens from its place in the bar. A Shelf the user has moved stays
-# where they put it.
-omarchy-bar put omarchy.shelf --section left --after omarchy.workspaces >/dev/null
-omarchy-shell omarchy.shelf toggle

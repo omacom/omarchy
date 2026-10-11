@@ -56,7 +56,6 @@ Example `shell.json` (bar subtree only shown):
 |---|---|---|
 | `omarchy.menu` | Omarchy menu launcher | left = menu · right = terminal |
 | `omarchy.workspaces` | Hyprland workspace switcher | left = focus workspace |
-| `omarchy.shelf` | Workspace layout and the Shelf of windows set aside; shown once a workspace floats or a window is set aside | left = open the Shelf |
 | `omarchy.clock` | Date/time label + popup with a month grid, ISO week numbers, and month stepping | left = popup · right = cycle label format · middle = timezone selector |
 | `omarchy.media` | MPRIS now-playing — scrolling track + artist, cover-art popup | left = play/pause · middle = next · scroll = prev/next · right = popup |
 | `omarchy.indicators` | Manual state indicators | left = indicator action |

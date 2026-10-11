@@ -16,8 +16,6 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + J` | Toggle window position (horizontal/vertical) |
 | `Super + O`               | Toggle popping window into sticky'n'floating |
 | `Super + L`               | Cycle through the dwindle, scrolling, and floating layouts |
-| `Super + M`               | Set window aside on the Shelf |
-| `Super + Alt + M`         | Show the Shelf to bring a window back |
 | `Super + P`               | Toggle pseudo window style (natural v stretch) |
 | `Super + F`                 | Go full screen              |
 | `Super + Alt + F`                 | Go full width              |

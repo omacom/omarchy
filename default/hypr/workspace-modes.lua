@@ -20,7 +20,6 @@ local paths = require("default.hypr.paths")
 
 local FLOATED_TAG = "omarchy-mode-floated"
 local WORKSPACE_TAG = "omarchy-floating-workspace"
-local RESTORING_TAG = "omarchy-shelf-restoring"
 local TITLEBARS = "/usr/lib/omarchy-hyprland-titlebars/titlebars.so"
 
 local M = {}
@@ -52,20 +51,8 @@ local function claimed()
   return addresses
 end
 
-local function tagged(window, tag)
-  for _, held in ipairs(window.tags or {}) do
-    -- hyprctl marks a tag added at runtime with a trailing "*".
-    if held == tag or held == tag .. "*" then
-      return true
-    end
-  end
-
-  return false
-end
-
--- Special workspaces -- the Shelf, the scratchpad -- and named ones, which report
--- a negative id, keep whatever state a window arrived with. Restoring from the
--- Shelf puts a window back itself, and the mode must not undo that halfway.
+-- Special workspaces, such as the scratchpad, and named ones, which report a
+-- negative id, keep whatever state a window arrived with.
 local function floating_workspace(id)
   id = tonumber(id)
 
@@ -173,7 +160,7 @@ local function arrange(windows, workspace)
   for _, window in ipairs(windows) do
     local id = tonumber(workspace and workspace.id or (window.workspace and window.workspace.id))
 
-    if id and id >= 1 and not tagged(window, RESTORING_TAG) then
+    if id and id >= 1 then
       if floating_workspace(id) then
         table.insert(floating, window)
       else
@@ -232,13 +219,8 @@ local function watch()
   end)
 
   -- A move is still being committed when this fires, and changing the window's
-  -- floating state underneath it loses the move. Let it land first. Restoring
-  -- from the Shelf tags the window before moving it, so that is checked now.
+  -- floating state underneath it loses the move. Let it land first.
   hl.on("window.move_to_workspace", function(window, workspace)
-    if tagged(window, RESTORING_TAG) then
-      return
-    end
-
     hl.timer(function()
       arrange({ window }, workspace)
     end, { type = "oneshot", timeout = 1 })
@@ -247,10 +229,6 @@ local function watch()
   -- A fullscreen window is left as it is, so it is arranged once it comes back
   -- out: a tiled one leaving fullscreen on a floating workspace floats then.
   hl.on("window.fullscreen", function(window)
-    if tagged(window, RESTORING_TAG) then
-      return
-    end
-
     hl.timer(function()
       arrange({ window })
     end, { type = "oneshot", timeout = 1 })
@@ -359,9 +337,6 @@ local function titlebars()
         icon_on_hover = false,
         inactive_button_color = colors.titlebar,
         on_double_click = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'",
-        edge_snap = true,
-        edge_threshold = 24,
-        snap_gap = 10,
       },
     },
   })
@@ -369,7 +344,6 @@ local function titlebars()
   for _, button in ipairs({
     { icon = "×", action = "hyprctl dispatch 'hl.dsp.window.close({ " .. window .. " })'" },
     { icon = "□", action = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'" },
-    { icon = "−", action = "omarchy-hyprland-window-minimize %WINDOW%" },
   }) do
     hl.plugin.hyprbars.add_button({
       bg_color = colors.titlebar,

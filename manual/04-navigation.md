@@ -52,19 +52,9 @@ hl.config({
 
 ### Floating workspaces
 
-A floating workspace works like a traditional desktop: windows overlap, and you move and size them yourself. Each window gets a titlebar in your theme's colors, with buttons to set it aside, maximize, and close. Click a window to bring it forward. Resize it from any edge or corner.
+A floating workspace works like a traditional desktop: windows overlap, and you move and size them yourself. Each window gets a titlebar in your theme's colors, with buttons to maximize and close. Click a window to bring it forward. Resize it from any edge or corner. Double-click a titlebar to maximize the window while keeping the top bar in view, and again to get its old size back.
 
-- Drag a titlebar to the left or right edge of the screen to fill that half. A preview shows where the window will land before you let go.
-- Drag a titlebar to the top edge, or double-click it, to maximize the window while keeping the top bar in view. Drag it away from the edge to get its old size back.
-- Windows too big to fit in half the screen stay where you drop them rather than overlapping the other half.
-
-To make every workspace float, turn on _Trigger > Toggle > Float All Workspaces_ in the Omarchy menu, or the switch in the Shelf. `Super + L` still gives a single workspace its own layout, and turning floating everywhere off brings back the layouts your workspaces had before.
-
-### The Shelf
-
-`Super + M`, or the minus button in a titlebar, sets a window aside on the Shelf. The app keeps running out of sight, and the Shelf button in the top bar shows how many windows are waiting there. Open the Shelf from that button or with `Super + Alt + M`, and pick a window to bring it back.
-
-The Shelf is shared by all workspaces, and a window comes back to the workspace you are on, not the one it left: set something aside on workspace 2, switch to 4, and restore it there. On a floating workspace it returns to its old size and place; on a tiled one it joins the layout. The Shelf works on any workspace, floating or not, and is separate from the scratchpad.
+To make every workspace float, turn on _Trigger > Toggle > Float All Workspaces_ in the Omarchy menu. `Super + L` still gives a single workspace its own layout, and turning floating everywhere off brings back the layouts your workspaces had before.
 
 ### Grouping windows
 
