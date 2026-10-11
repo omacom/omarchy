@@ -234,6 +234,11 @@ if [[ -n $MIME_TYPES ]]; then
   printf 'MimeType=%s\n' "$(desktop_string_escape "$MIME_TYPES")" >>"$DESKTOP_FILE"
 fi
 
+# Floating titlebars name the window after this entry rather than its page title.
+if [[ -z $CUSTOM_EXEC ]]; then
+  printf 'StartupWMClass=%s\n' "$(desktop_string_escape "$(omarchy-webapp-window-class "$APP_URL")")" >>"$DESKTOP_FILE"
+fi
+
 chmod +x "$DESKTOP_FILE"
 
 if [[ $INTERACTIVE_MODE == "true" ]]; then

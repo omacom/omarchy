@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle floating windows on every workspace
+
+MODES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layouts"
+ALL_FILE="$MODES_DIR/all.lua"
+SET_ASIDE_DIR="$MODES_DIR/before-floating"
+
+mkdir -p "$MODES_DIR"
+
+if [[ -f $ALL_FILE ]]; then
+  rm -f "$ALL_FILE"
+
+  # Bring back the layouts workspaces had before. One changed with Super + L in
+  # the meantime keeps that newer choice.
+  for saved in "$SET_ASIDE_DIR"/*.lua; do
+    [[ -f $saved ]] || continue
+
+    if [[ -e $MODES_DIR/${saved##*/} ]]; then
+      rm -f "$saved"
+    else
+      mv "$saved" "$MODES_DIR/"
+    fi
+  done
+
+  rmdir "$SET_ASIDE_DIR" 2>/dev/null
+  omarchy-notification-send -g 󱂬 "Workspaces back to their own layouts"
+else
+  # Floating every workspace means every one, including those given a layout of
+  # their own earlier. Those are set aside rather than lost, out of the folder
+  # Hyprland loads, and Super + L can still give a workspace its own layout.
+  mkdir -p "$SET_ASIDE_DIR"
+
+  for saved in "$MODES_DIR"/*.lua; do
+    [[ -f $saved ]] && mv -f "$saved" "$SET_ASIDE_DIR/"
+  done
+
+  printf 'o.workspace_mode({ default = "floating" })\n' >"$ALL_FILE"
+  omarchy-notification-send -g 󱂬 "Floating windows on every workspace"
+fi
+
+hyprctl reload >/dev/null
+omarchy-shell -q omarchy.workspaces refresh

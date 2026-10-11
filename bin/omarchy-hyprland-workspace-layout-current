@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Print the layout of a workspace: dwindle, scrolling, or floating
+# omarchy:args=[workspace-id]
+
+if [[ -n $1 ]]; then
+  WORKSPACE_ID=$1
+  TILED_LAYOUT=$(hyprctl workspaces -j | jq -r --arg id "$WORKSPACE_ID" 'first(.[] | select((.id | tostring) == $id) | .tiledLayout) // empty')
+else
+  read -r WORKSPACE_ID TILED_LAYOUT < <(hyprctl activeworkspace -j | jq -r '"\(.id) \(.tiledLayout // "")"')
+fi
+
+MODES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layouts"
+
+# Hyprland only reports the tiled layout, and floating is not one, so the mode is
+# read back from the file omarchy-hyprland-workspace-layout-toggle wrote. Files
+# saved before floating existed name no mode, and Float All Workspaces covers
+# every workspace without one of its own.
+if [[ $WORKSPACE_ID =~ ^[0-9]+$ ]] && (( WORKSPACE_ID >= 1 )); then
+  MODE=$(sed -n 's/.*mode = "\([a-z]*\)".*/\1/p' "$MODES_DIR/$WORKSPACE_ID.lua" 2>/dev/null)
+
+  if [[ -z $MODE && -f $MODES_DIR/all.lua ]]; then
+    MODE=floating
+  fi
+fi
+
+MODE=${MODE:-$TILED_LAYOUT}
+echo "${MODE:-dwindle}"

@@ -14,7 +14,9 @@ hl.config({
       inactive_border = inactive_border_color,
     },
 
-    resize_on_border = false,
+    resize_on_border = true,
+    extend_border_grab_area = 8,
+    hover_icon_on_border = true,
     allow_tearing = false,
     layout = "dwindle",
   },
