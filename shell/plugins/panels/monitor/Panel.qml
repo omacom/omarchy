@@ -25,6 +25,7 @@ Panel {
   property bool internalEnabled: false
   property bool mirrorEnabled: false
   property string monitorScale: ""
+  property string scaleError: ""
   property var displays: []
   property int enabledDisplayCount: 0
 
@@ -35,14 +36,14 @@ Panel {
   //   "brightness" - single slider row, selectedIndex = -1 sentinel
   //                  (mirrors Audio's slider rows). Only present if a
   //                  controllable backlight was detected.
-  //   "scale"      - 6 Button scale presets; treated as a single
-  //                  horizontal row from j/k's perspective. h/l moves
-  //                  between presets, identical to bluetooth's header.
+  //   "scale"      - a three-column grid; j/k moves between rows and h/l
+  //                  moves between presets.
   //   "monitors"   - vertical display row list for enabling/disabling displays;
   //                  j/k walks each row.
   // Mouse hover on a target updates root state via the components' `hovered`
   // signal so keyboard cursor and pointer share one highlight.
-  readonly property var scalePresets: ["1", "1.25", "1.6", "2", "3", "4"]
+  readonly property int scaleColumns: 3
+  readonly property var scalePresets: ["0.75", "0.8", String(5 / 6), "1", "1.25", "1.6", "2", "3", "4"]
   readonly property var scaleValues: {
     for (var i = 0; i < displays.length; i++) {
       var display = displays[i]
@@ -91,7 +92,7 @@ Panel {
   }
 
   function sectionIsSingleRow(section) {
-    // brightness and text size are lone sliders; scale presets sit horizontally.
+    // The scale grid handles movement between its rows in moveCursor().
     return section === "brightness" || section === "textsize" || section === "scale"
   }
 
@@ -109,6 +110,14 @@ Panel {
       selectedIndex = sectionFirstIndex(focusSection)
       return
     }
+    if (focusSection === "scale") {
+      var row = Math.floor(selectedIndex / scaleColumns)
+      var lastRow = Math.floor((scaleValues.length - 1) / scaleColumns)
+      if ((delta > 0 && row < lastRow) || (delta < 0 && row > 0)) {
+        selectedIndex = Math.min(scaleValues.length - 1, Math.max(0, selectedIndex + delta * scaleColumns))
+        return
+      }
+    }
     var inSingleRow = sectionIsSingleRow(focusSection)
     var max = inSingleRow ? 0 : sectionCount(focusSection) - 1
 
@@ -125,7 +134,8 @@ Panel {
         focusSection = prev
         // Coming up from below — land on the last navigable row of the prev
         // section, or its sentinel for single-row sections.
-        selectedIndex = sectionIsSingleRow(prev) ? sectionFirstIndex(prev) : sectionCount(prev) - 1
+        selectedIndex = prev === "scale" ? sectionCount(prev) - 1
+          : sectionIsSingleRow(prev) ? sectionFirstIndex(prev) : sectionCount(prev) - 1
       }
     }
   }
@@ -284,6 +294,22 @@ Panel {
     return normalizeScale(scale)
   }
 
+  function desktopSize(scale) {
+    for (var i = 0; i < displays.length; i++) {
+      var display = displays[i]
+      if (display && display.focused)
+        return Model.desktopSize(scale, display.width, display.height)
+    }
+    return ""
+  }
+
+  function currentDesktopSize() {
+    // Resolve the active preset before calculating dimensions: hyprctl can
+    // report 5/6 as 0.83 or 7/8 as 0.88, neither of which is the exact scale.
+    var index = activeScaleIndex()
+    return desktopSize(index >= 0 ? effectiveScale(scaleValues[index]) : monitorScale)
+  }
+
   // Playful mood-name for a given brightness percent. Bands intentionally
   // span ~10–20 points so casual tweaks change the label, while small
   // nudges within one band don't.
@@ -312,8 +338,10 @@ Panel {
   }
 
   function setScale(scale) {
-    actionProc.command = ["bash", "-c", "omarchy-hyprland-monitor-scaling " + scale]
-    if (!actionProc.running) actionProc.running = true
+    if (scaleProc.running) return
+    scaleError = ""
+    scaleProc.command = ["omarchy-hyprland-monitor-scaling", String(scale)]
+    scaleProc.running = true
   }
 
   // ---- Text size (shell base font + GTK text-scaling, via one CLI) ----
@@ -440,6 +468,17 @@ Panel {
     id: actionProc
     stdout: StdioCollector { waitForEnd: true }
     onRunningChanged: if (!running) root.refresh()
+  }
+
+  Process {
+    id: scaleProc
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { id: scaleStderr; waitForEnd: true }
+    onExited: function(exitCode, exitStatus) {
+      if (exitCode !== 0 || exitStatus !== 0)
+        root.scaleError = String(scaleStderr.text || "Could not change display scale.").trim()
+      root.refresh()
+    }
   }
 
   // Applies text size via the CLI, which rewrites the shell override file;
@@ -775,7 +814,7 @@ Panel {
             Grid {
               id: scaleRow
               width: parent.width
-              columns: root.scaleValues.length
+              columns: root.scaleColumns
               spacing: Style.spacing.xs
 
               readonly property real cellWidth: root.scaleValues.length > 0
@@ -794,6 +833,16 @@ Panel {
                   width: scaleRow.cellWidth
                 }
               }
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              text: root.scaleError || ("Desktop: " + root.currentDesktopSize())
+              width: parent.width
+              wrapMode: Text.Wrap
+              color: Qt.darker(root.bar.foreground, 1.4)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
             }
           }
 
@@ -842,7 +891,8 @@ Panel {
     required property string scaleValue
     required property int scaleIndex
 
-    text: root.effectiveScale(scaleValue) + "x"
+    text: Model.scaleLabel(root.effectiveScale(scaleValue))
+    tooltipText: root.desktopSize(root.effectiveScale(scaleValue)) + " desktop"
     fontSize: Style.font.caption
     foreground: root.bar.foreground
     fontFamily: root.bar.fontFamily
@@ -852,6 +902,7 @@ Panel {
 
     active: root.activeScaleIndex() === scaleIndex
     hasCursor: root.cursorActive && root.focusSection === "scale" && root.selectedIndex === scaleIndex
+    onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(pill)
 
     onClicked: root.setScale(scaleValue)
     onHovered: function(isHovered) {

@@ -32,7 +32,7 @@ make_stub omarchy-hw-clamshell 'exit 0'
 make_stub omarchy-hyprland-monitor-laptop 'printf "%s\n" "$LAPTOP_NAME"'
 make_stub hyprctl 'case "$1" in
   monitors) cat "$MONITORS_JSON" ;;
-  eval) printf "%s\n" "$2" >>"$EVAL_LOG" ;;
+  eval) printf "%s\n" "$2" >>"$EVAL_LOG"; echo ok ;;
 esac'
 
 eval_log="$tmpdir/eval.log"
