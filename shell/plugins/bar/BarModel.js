@@ -154,6 +154,27 @@ function pickDrawnSlot(slots) {
   return placeholder
 }
 
+// With every monitor unplugged, Qt substitutes a nameless placeholder screen
+// and Hyprland its headless FALLBACK output. A bar built for either outlives
+// the monitors' return: the compositor drops it onto whichever monitor comes
+// back first, where it stacks over that monitor's own bar until torn down.
+// The name check alone rejects both the placeholder (no name) and FALLBACK;
+// the size check is for a real, already-named screen whose geometry hasn't
+// arrived yet.
+function isRealScreen(screen) {
+  if (!screen || !screen.name || screen.name === "FALLBACK") return false
+  return screen.width > 0 && screen.height > 0
+}
+
+function realScreens(screens) {
+  var real = []
+  var list = screens || []
+  for (var i = 0; i < list.length; i++) {
+    if (isRealScreen(list[i])) real.push(list[i])
+  }
+  return real
+}
+
 // A bar surface is built per monitor, so a panel hotkey has several live
 // copies of the same widget to route to, and the panel opens on whichever
 // monitor's copy answers. Candidates are `{ slot, screenName, opened }`.
@@ -322,10 +343,12 @@ if (typeof module !== "undefined") {
     cutoutPending: cutoutPending,
     cutoutTop: cutoutTop,
     isDrawnSlot: isDrawnSlot,
+    isRealScreen: isRealScreen,
     notchFloor: notchFloor,
     parseCutouts: parseCutouts,
     pickDrawnSlot: pickDrawnSlot,
     pickPanelSlot: pickPanelSlot,
+    realScreens: realScreens,
     nearestDropTarget: nearestDropTarget,
     normalizePosition: normalizePosition,
     entrySettings: entrySettings,
