@@ -32,7 +32,7 @@ run_leaf() {
   : >"$tmp_dir/pkg-add.log"
   PKG_ADD_LOG="$tmp_dir/pkg-add.log" \
     PATH="$tmp_dir/bin:$PATH" \
-    bash "$leaf"
+    bash -eE "$leaf"
 }
 
 # A matched MacBook: the initramfs drop-in has to keep the SPI modules (this
@@ -57,6 +57,24 @@ run_leaf "MacBookPro15,2"
 [[ -e $tmp_dir/mkinitcpio.conf.d ]] &&
   fail "an unmatched machine does not write the drop-in"
 pass "unmatched hardware is untouched"
+
+# Not every machine has a DMI product name, and under errexit a missing or
+# unreadable one must not abort the hardware pass or touch anything.
+cat >"$tmp_dir/bin/cat" <<EOF
+#!/bin/bash
+[[ \$1 == $tmp_dir/product_name ]] && exit "\$DMI_STATUS"
+exec /usr/bin/cat "\$@"
+EOF
+chmod +x "$tmp_dir/bin/cat"
+for failure in 1 13; do
+  : >"$tmp_dir/pkg-add.log"
+  DMI_STATUS=$failure PKG_ADD_LOG="$tmp_dir/pkg-add.log" PATH="$tmp_dir/bin:$PATH" bash -eE "$leaf" ||
+    fail "missing or unreadable DMI does not abort the hardware pass"
+  [[ ! -s $tmp_dir/pkg-add.log && ! -e $tmp_dir/mkinitcpio.conf.d ]] ||
+    fail "missing or unreadable DMI installs and writes nothing"
+done
+rm "$tmp_dir/bin/cat"
+pass "missing or unreadable DMI survives errexit and is left alone"
 
 # Nothing installs the package now, so the ISO has no reason to cache it.
 ! grep -qx 'macbook12-spi-driver-dkms' "$ROOT/install/omarchy-other.packages" ||

@@ -55,9 +55,7 @@ PROVIDERS = {
   "grok": {
     "name": "Grok",
     "home_env": "GROK_HOME",
-    # bin holds the unpacked CLI itself: sharing it spares every added account
-    # its own 160MB copy, which the npm launcher unpacks into an empty home.
-    "shared_dirs": ["bin", "sessions", "skills", "agents", "plugins", "installed-plugins", "marketplace-cache", "hooks", "memory", "memory-v2", "rules", "commands", "workflows", "personas", "worktrees"],
+    "shared_dirs": ["sessions", "skills", "agents", "plugins", "installed-plugins", "marketplace-cache", "hooks", "memory", "memory-v2", "rules", "commands", "workflows", "personas", "worktrees"],
     "shared_files": ["config.toml", "settings.json", "lsp.json", "pager.toml", "sandbox.toml", "trusted_folders.toml", "statusline.sh", "worktrees.db"],
     "carried_keys": [],
   },

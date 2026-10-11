@@ -89,6 +89,58 @@ require_compositor() {
   exit 0
 }
 
+# Fake the hardware identity omarchy-hw-platform reads: a device tree under
+# $1/proc and a uname in $1/bin reporting the platform's CPU. Run the code under
+# test with OMARCHY_PROC_ROOT="$1/proc" and PATH="$1/bin:$ROOT/bin:...", so the
+# real detector and its wrappers answer from the fixture.
+fake_platform() {
+  local dir="$1" platform="$2" machine=aarch64
+  local -a compatible=()
+
+  case $platform in
+    aarch64-apple) compatible=(apple,j416c apple,t6021 apple,arm-platform) ;;
+    aarch64) compatible=(raspberrypi,5-model-b brcm,bcm2712) ;;
+    x86) machine=x86_64 ;;
+    *) fail "fake_platform knows the platform $platform" ;;
+  esac
+
+  rm -rf "$dir/proc"
+  mkdir -p "$dir/proc" "$dir/bin"
+  if (( ${#compatible[@]} > 0 )); then
+    mkdir -p "$dir/proc/device-tree"
+    printf '%s\0' "${compatible[@]}" >"$dir/proc/device-tree/compatible"
+  fi
+
+  cat >"$dir/bin/uname" <<SH
+#!/bin/bash
+[[ \${1:-} == -m ]] && { printf '%s\\n' $machine; exit 0; }
+exec /usr/bin/uname "\$@"
+SH
+  chmod +x "$dir/bin/uname"
+}
+
+# omarchy-hw-platform ignores fixture roots when it runs as root, so a root run
+# cannot fake a platform. Skip the rest of the file there.
+require_platform_fixtures() {
+  (( EUID != 0 )) && return 0
+  skip "running as root, where omarchy-hw-platform ignores fixtures; skipping $1"
+  exit 0
+}
+
+# A script reads the installed platform package's files from the fixed
+# /usr/share/omarchy-platform, which nothing in its environment moves. Copies
+# script $1 to $2 reading fixture root $3 instead (a directory that doesn't
+# exist stands for no platform package), the way the security tests rewrite
+# other fixed paths.
+platform_root_copy() {
+  local script="$1" copy="$2" fixture="$3"
+
+  sed -e "s|/usr/share/omarchy-platform|$fixture|g" "$script" >"$copy" &&
+    chmod +x "$copy" || fail "copy $script for a fixture platform root"
+  grep -qF -- "$fixture" "$copy" && ! grep -qF /usr/share/omarchy-platform "$copy" ||
+    fail "$(basename -- "$script") reads the platform root from the fixture"
+}
+
 run_node_test() {
   require_command node
 

@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Panel {
@@ -11,11 +12,11 @@ Panel {
   ipcTarget: "omarchy.agents"
   manageIpc: false
 
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
-  readonly property color urgent: bar ? bar.urgent : Color.urgent
+  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
+  readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.55)
-  readonly property color surface: Color.popups.background
-  readonly property color track: Style.selectedFillFor(foreground, Color.accent)
+  readonly property color surface: Commons.Color.popups.background
+  readonly property color track: Style.selectedFillFor(foreground, Commons.Color.accent)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   // Every subscription on one page, limits first: the question this panel
@@ -24,7 +25,7 @@ Panel {
 
   property bool cursorActive: false
 
-  // Countdowns and "as of" ages read this instead of Date.now() so the
+  // Countdowns and "last updated" ages read this instead of Date.now() so the
   // panel keeps telling the truth while it sits open.
   property double nowMs: Date.now()
 
@@ -46,8 +47,8 @@ Panel {
 
   // The keyboard walks everything on the page that does something, in
   // reading order, one row at a time: the hero's buttons, then each agent's
-  // Sign-in required link or switchable accounts, and the starter tiles, or
-  // the agents to add while picking one. Up and down change rows, left and right move along one.
+  // header, its Sign-in required link or switchable accounts, and the starter
+  // tiles, or the agents to add while picking one. Up and down change rows, left and right move along one.
   // Hovering moves the same cursor, so only one thing is lit.
   readonly property var keyRows: {
     var rows = []
@@ -66,6 +67,8 @@ Panel {
       // fix is skipped.
       var entry = 0
       for (var p = 0; p < providers.length; p++) {
+        // Every agent's header is a stop, so Ctrl+Up/Down can move it.
+        rows.push([{ kind: "provider", index: p }])
         var accounts = providerAccounts(providers[p])
         if (accounts.length < 2) {
           if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
@@ -133,6 +136,56 @@ Panel {
     } else if (dx !== 0) {
       keyColumn = clamp(Math.min(keyColumn, keyRows[keyRow].length - 1) + dx, 0, keyRows[keyRow].length - 1)
     }
+  }
+
+  // The agent the cursor is in, by its position on the page.
+  function providerIndexOfKey() {
+    var target = keyTarget
+    if (!target) return -1
+    if (target.kind === "provider" || target.kind === "providerSignin") return target.index
+    if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
+    var entry = accountEntries[target.index]
+    return entry ? providers.indexOf(entry.provider) : -1
+  }
+
+  // Ctrl+Up/Down carries the agent the cursor is in up or down the page, and
+  // the cursor along with it.
+  function reorderProvider(dy) {
+    var from = providerIndexOfKey()
+    if (from < 0) return
+    var to = clamp(from + dy, 0, providers.length - 1)
+    if (to === from) return
+    usage.moveProvider(providers[from].providerId, to)
+    Qt.callLater(function() { pointAt("provider", to) })
+  }
+
+  // Dragging an agent by its mark lights the header it would land on, and
+  // moves it there on release: the sections are rebuilt when the order
+  // changes, which would drop a drag still in progress.
+  property string dragProviderId: ""
+  property int dragTarget: -1
+  // An account name being edited keeps Ctrl+Up/Down: moving its agent would
+  // rebuild the section and drop the unfinished name.
+  property bool renaming: false
+
+  function dragProviderOver(y) {
+    for (var i = 0; i < providerSections.count; i++) {
+      var item = providerSections.itemAt(i)
+      if (item && y >= item.y && y < item.y + item.height) {
+        dragTarget = i
+        return
+      }
+    }
+  }
+
+  function dropProvider() {
+    var id = dragProviderId
+    var to = dragTarget
+    dragProviderId = ""
+    dragTarget = -1
+    if (id === "" || to < 0) return
+    usage.moveProvider(id, to)
+    Qt.callLater(function() { pointAt("provider", to) })
   }
 
   // Keeps whatever the cursor lands on inside the scrolled view.
@@ -367,7 +420,11 @@ Panel {
 
   function otherTrouble(item) {
     var status = String(item && item.usageStatusText || "")
-    return status !== "" && !needsSignIn(item) ? status : ""
+    return status !== "" && status !== "Limits paused" && !needsSignIn(item) ? status : ""
+  }
+
+  function pausedWithoutLimits(item) {
+    return !!item && item.usageStatusText === "Limits paused" && limitWindows(item).length === 0
   }
 
   // Sign an account that's already here in again, following along in the
@@ -447,10 +504,12 @@ Panel {
   // titled after its model, and a name like "Opus 5 (1M context)" would parse
   // as a one-minute window.
   function limitWindow(label, percent, resetAt, title) {
+    var reset = new Date(String(resetAt || "")).getTime()
+    var expired = isFinite(reset) && reset <= root.nowMs
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
-      percent: Number(percent),
-      resetAt: String(resetAt || "")
+      percent: expired ? 0 : Number(percent),
+      resetAt: expired ? "" : String(resetAt || "")
     }
   }
 
@@ -661,7 +720,7 @@ Panel {
   function iconCandidatesForProvider(p, surfaceColor) {
     if (!p) return []
     var candidates = []
-    if (colorLuminance(surfaceColor || Color.background) >= 0.5)
+    if (colorLuminance(surfaceColor || Commons.Color.background) >= 0.5)
       candidates.push(Qt.resolvedUrl("assets/" + p.providerId + "-light.svg"))
     candidates.push(Qt.resolvedUrl("assets/" + p.providerId + ".svg"))
     return candidates
@@ -827,6 +886,8 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      reorderable: root.addStage === "" && !root.renaming
+      onReorderRequested: function(dy) { root.reorderProvider(dy) }
 
       onMoveRequested: function(dx, dy) {
         // Naming and signing in have their own fields; there the arrows scroll.
@@ -849,7 +910,12 @@ Panel {
 
       Flickable {
         id: panelFlick
+        // Reaches a little into the panel's padding on the left, with the
+        // content shifted back, so the box around a lit agent mark isn't
+        // clipped where it overhangs the content's edge.
+        readonly property real overhang: Style.space(8)
         anchors.fill: parent
+        anchors.leftMargin: -overhang
         contentWidth: width
         contentHeight: column.implicitHeight
         clip: true
@@ -863,9 +929,10 @@ Panel {
 
         Column {
           id: column
+          x: panelFlick.overhang
           // When the panel scrolls, the bar gets its own strip rather than
           // sitting on top of the right-aligned numbers.
-          width: panelFlick.width - (panelFlick.interactive ? panelScroll.width + Style.space(6) : 0)
+          width: panelFlick.width - panelFlick.overhang - (panelFlick.interactive ? panelScroll.width + Style.space(6) : 0)
           spacing: Style.space(16)
 
           // ---------- Hero: agents · rotating summary · add ----------
@@ -920,6 +987,7 @@ Panel {
           }
 
           Repeater {
+            id: providerSections
             model: root.addStage === "" ? root.providers : []
 
             ProviderSection {
@@ -1042,7 +1110,7 @@ Panel {
               anchors.horizontalCenter: parent.horizontalCenter
               textFormat: Text.PlainText
               text: choice.modelData.providerName
-              color: choice.hasCursor ? Color.accent : root.foreground
+              color: choice.hasCursor ? Commons.Color.accent : root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
               font.bold: true
@@ -1120,7 +1188,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           text: root.addCode
-          color: Color.accent
+          color: Commons.Color.accent
           font.family: root.fontFamily
           font.pixelSize: Style.font.display
           font.bold: true
@@ -1186,18 +1254,50 @@ Panel {
     readonly property var windows: root.displayWindows(provider)
     readonly property var balance: provider ? (provider.balance || null) : null
     spacing: Style.space(16)
+    opacity: root.dragProviderId !== "" && provider && root.dragProviderId === provider.providerId ? 0.5 : 1.0
 
     PanelSeparator { foreground: root.foreground }
 
     Item {
+      id: sectionHead
       width: parent.width
       implicitHeight: Math.max(sectionMark.height, sectionName.implicitHeight)
+      // Lit for the keyboard, and as the drop spot while an agent is dragged.
+      readonly property bool lit: root.dragProviderId !== "" ? root.dragTarget === section.providerIndex : root.hasKey("provider", section.providerIndex)
+      onLitChanged: if (lit && root.dragProviderId === "") root.revealItem(sectionHead)
+
+      // Only the mark is lit: it's the handle the agent moves by.
+      CursorSurface {
+        anchors.fill: sectionMark
+        anchors.margins: -Style.space(5)
+        z: -1
+        hasCursor: sectionHead.lit
+        foreground: root.foreground
+      }
 
       ProviderIcon {
         id: sectionMark
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         provider: section.provider
+
+        // The mark is the handle for dragging the agent up or down the page.
+        MouseArea {
+          anchors.fill: parent
+          anchors.margins: -Style.space(4)
+          hoverEnabled: true
+          preventStealing: true
+          cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+          onPressed: {
+            root.dragProviderId = section.provider ? section.provider.providerId : ""
+            root.dragTarget = section.providerIndex
+          }
+          onPositionChanged: function(mouse) {
+            if (pressed) root.dragProviderOver(mapToItem(column, mouse.x, mouse.y).y)
+          }
+          onReleased: root.dropProvider()
+          onCanceled: { root.dragProviderId = ""; root.dragTarget = -1 }
+        }
       }
 
       Text {
@@ -1240,11 +1340,18 @@ Panel {
       visible: !section.multi && root.otherTrouble(section.provider) !== ""
       width: parent.width
       textFormat: Text.PlainText
-      text: section.provider ? String(section.provider.authHelpText || "") : ""
+      // Shown for the status, so a record with no help to offer says the status rather than nothing.
+      text: section.provider ? String(section.provider.authHelpText || section.provider.usageStatusText || "") : ""
       color: root.urgent
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
       wrapMode: Text.WordWrap
+    }
+
+    UnavailableUsage {
+      visible: !section.multi && root.pausedWithoutLimits(section.provider)
+      width: parent.width
+      record: section.provider
     }
 
     Column {
@@ -1353,6 +1460,11 @@ Panel {
           width: parent.width
           spacing: Style.space(12)
 
+          UnavailableUsage {
+            width: parent.width
+            record: accountBlock.modelData
+          }
+
           Repeater {
             model: root.displayWindows({ limits: accountBlock.modelData.limits || [] })
 
@@ -1417,7 +1529,7 @@ Panel {
     property bool hasCursor: false
     implicitHeight: tileBody.implicitHeight + Style.space(20)
     radius: Style.cornerRadius
-    color: hasCursor ? root.alpha(Color.accent, 0.14) : root.alpha(root.foreground, 0.05)
+    color: hasCursor ? root.alpha(Commons.Color.accent, 0.14) : root.alpha(root.foreground, 0.05)
     onHasCursorChanged: if (hasCursor) root.revealItem(tile)
 
     Row {
@@ -1429,7 +1541,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         text: tile.glyph
-        color: Color.accent
+        color: Commons.Color.accent
         font.family: root.fontFamily
         font.pixelSize: Style.font.heading
       }
@@ -1438,7 +1550,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         text: tile.title
-        color: tile.hasCursor ? Color.accent : root.foreground
+        color: tile.hasCursor ? Commons.Color.accent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: true
@@ -1472,16 +1584,16 @@ Panel {
     implicitHeight: implicitWidth
     radius: Style.cornerRadius
     // The cursor needs more than a shade deeper to read on a tinted square.
-    color: root.alpha(Color.accent, hasCursor ? 0.3 : 0.12)
+    color: root.alpha(Commons.Color.accent, hasCursor ? 0.3 : 0.12)
     border.width: hasCursor ? Math.max(1, Style.hoverBorderWidth) : 0
-    border.color: Color.accent
+    border.color: Commons.Color.accent
     onHasCursorChanged: if (hasCursor) root.revealItem(heroButton)
 
     Text {
       anchors.centerIn: parent
       textFormat: Text.PlainText
       text: heroButton.glyph
-      color: Color.accent
+      color: Commons.Color.accent
       font.family: root.fontFamily
       font.pixelSize: Style.font.heading
     }
@@ -1513,7 +1625,7 @@ Panel {
     readonly property bool hot: linkMouse.containsMouse || picked
     onPickedChanged: if (picked) root.revealItem(link)
     textFormat: Text.PlainText
-    color: current ? Color.accent : (hot ? root.foreground : idleColor)
+    color: current ? Commons.Color.accent : (hot ? root.foreground : idleColor)
     font.family: root.fontFamily
     font.pixelSize: Style.font.caption
     font.bold: current
@@ -1552,6 +1664,7 @@ Panel {
     readonly property string label: renamedTo !== "" ? renamedTo : String(account.label || account.id || "")
 
     onAccountChanged: renamedTo = ""
+    onEditingChanged: root.renaming = editing
     onPickedChanged: if (picked) root.revealItem(head)
 
     // Anywhere on the line counts, so Use can show up when it's hidden.
@@ -1593,7 +1706,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         width: Math.min(implicitWidth, parent.width * 0.6)
         text: head.label
-        color: head.picked ? Color.accent : root.foreground
+        color: head.picked ? Commons.Color.accent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.bold: head.isActive
@@ -1698,7 +1811,7 @@ Panel {
         visible: head.isActive
         anchors.right: parent.right
         text: "ACTIVE"
-        color: Color.accent
+        color: Commons.Color.accent
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
         font.bold: true
@@ -1736,16 +1849,38 @@ Panel {
     }
   }
 
+  // With no measured windows, leave a place to discover how to get usage.
+  component UnavailableUsage: Item {
+    id: unavailable
+    property var record: null
+    visible: root.pausedWithoutLimits(record)
+    implicitHeight: unavailableLabel.implicitHeight
+
+    Text {
+      id: unavailableLabel
+      text: "Usage unavailable"
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+    }
+
+    HoverHandler { id: unavailableHover }
+
+    PanelToolTip {
+      visible: unavailableHover.hovered && unavailable.visible
+      text: unavailable.record ? String(unavailable.record.authHelpText || "Usage has not been updated yet.") : ""
+    }
+  }
+
   // One line per limit window: title, meter, percentage, and reset. A
   // model-scoped allowance on the same clock ("Fable" on Weekly) is a marker
   // on this row's meter, named in the row's tooltip.
   component CompactLimit: Item {
     id: compact
     property var window: null
-    // Numbers kept past a failed check dim, and say how old they are on hover.
+    // The age of numbers kept past a failed check is shown only on hover.
     property bool stale: false
     property real fetchedAt: 0
-    opacity: stale ? 0.5 : 1.0
     readonly property var scoped: window && window.scoped ? window.scoped : []
     readonly property bool alarming: window && window.percent >= 0.9
     readonly property real resetMs: root.resetMsFor(window)
@@ -1763,8 +1898,8 @@ Panel {
         }
         if (compact.stale)
           lines.push(compact.fetchedAt > 0 && root.nowMs - compact.fetchedAt > 60000
-            ? "As of " + root.formatDuration(root.nowMs - compact.fetchedAt) + " ago"
-            : "Last known")
+            ? "Last updated " + root.formatDuration(root.nowMs - compact.fetchedAt) + " ago"
+            : compact.fetchedAt > 0 ? "Last updated less than a minute ago" : "Last updated time unavailable")
         for (var i = 0; i < compact.scoped.length; i++)
           lines.push(compact.scoped[i].title + ": " + Math.round(compact.scoped[i].percent * 100) + "% of its "
             + String(compact.window ? compact.window.title : "").toLowerCase() + " allowance")

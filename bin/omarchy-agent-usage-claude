@@ -122,12 +122,209 @@ def empty_bucket() -> dict[str, int]:
 # ---------------------------------------------------------------- local scan
 
 
-def scan_projects(projects_path: Path) -> dict[str, Any]:
+# Transcripts are append-only, and most of the corpus never changes between
+# ticks, so the scan keeps a per-file index: the unique usage records already
+# parsed out of each file plus the byte offset they end at. A file whose size
+# and mtime match the index is not opened; a file that grew is read from the
+# stored offset; anything else (truncated, rewritten, replaced, unknown) is
+# read from the start. Without this the whole history was re-parsed every
+# refresh, and the cost grew for the life of the machine.
+
+INDEX_VERSION = 4
+
+# How much of each end of what was read the index remembers a hash of, so a
+# file replaced or rewritten with more than it had is not mistaken for an
+# append.
+INDEX_HEAD_BYTES = 4096
+
+
+# Records hold local days, so an index is only true in the timezone that
+# wrote it; after a change every transcript is read again.
+def index_zone() -> list[Any]:
+  return [os.environ.get("TZ"), list(time.tzname), time.timezone, time.altzone]
+
+
+def load_index(index_file: Path) -> dict[str, Any]:
+  try:
+    data = json.loads(index_file.read_text(encoding="utf-8"))
+    if (
+      isinstance(data, dict)
+      and data.get("version") == INDEX_VERSION
+      and data.get("zone") == index_zone()
+      and isinstance(data.get("files"), dict)
+    ):
+      return data["files"]
+  except Exception:
+    pass
+  return {}
+
+
+# What was already read, by its first and last few kilobytes: a transcript
+# rewritten in place rather than appended to changes one or the other.
+def read_digest(path: Path, length: int) -> str:
+  digest = hashlib.sha1()
+  with path.open("rb") as handle:
+    digest.update(handle.read(min(length, INDEX_HEAD_BYTES)))
+    handle.seek(max(0, length - INDEX_HEAD_BYTES))
+    digest.update(handle.read(min(length, INDEX_HEAD_BYTES)))
+  return digest.hexdigest()
+
+
+def parse_usage_records(path: Path, entry: dict[str, Any] | None) -> dict[str, Any]:
+  """Return the index entry for one transcript, reusing `entry` where the file
+  only grew. Records are [key, model, day, input, output, cacheRead,
+  cacheWrite, session]; `day` is None when the line carries no timestamp."""
+  stat = path.stat()
+  size = stat.st_size
+  mtime = stat.st_mtime_ns
+
+  if entry and entry.get("size") == size and entry.get("mtime") == mtime:
+    return entry
+
+  # Only the same file, grown past what was read with what was read still in
+  # place, is an append. A transcript replaced by a larger one is a new file,
+  # and one rewritten in place has a different start or end.
+  if (
+    entry
+    and size > number(entry.get("size"))
+    and entry.get("file") == [stat.st_dev, stat.st_ino]
+    and entry.get("head") == read_digest(path, number(entry.get("offset")))
+  ):
+    records = list(entry.get("records") or [])
+    offset = number(entry.get("offset"))
+    line_number = number(entry.get("lines"))
+  else:
+    records = []
+    offset = 0
+    line_number = 0
+
+  # A streamed response is several lines sharing one message id, and the
+  # first line's output_tokens is a placeholder while the last carries the
+  # real count. Keep each message's line with the highest output count (the
+  # last one read wins a tie), whole: a response that fell back to another
+  # model mid-stream has lines that are separate snapshots, and mixing fields
+  # across them over-counts cache tokens and credits the wrong model.
+  positions = {record[0]: index for index, record in enumerate(records)}
+  with path.open("rb") as handle:
+    handle.seek(offset)
+    for raw in handle:
+      if not raw.endswith(b"\n"):
+        # A line still being written; pick it up whole next time.
+        break
+      offset += len(raw)
+      line_number += 1
+
+      # Cheap pre-filter before JSON parsing keeps files with unrelated
+      # lines inexpensive.
+      if b'"usage":' not in raw:
+        continue
+
+      try:
+        parsed = json.loads(raw.decode("utf-8", errors="replace"))
+      except Exception:
+        continue
+
+      message = parsed.get("message") if isinstance(parsed.get("message"), dict) else {}
+      if parsed.get("type") != "assistant" and message.get("role") != "assistant":
+        continue
+
+      usage = message.get("usage") or parsed.get("usage")
+      if not isinstance(usage, dict):
+        continue
+
+      message_id = message.get("id") or parsed.get("messageId") or ""
+      key = str(message_id) if message_id else f"{path}:{parsed.get('uuid') or parsed.get('requestId') or line_number}"
+
+      input_tokens = usage_token(usage, "input_tokens", "inputTokens")
+      output_tokens = usage_token(usage, "output_tokens", "outputTokens")
+      cache_read = usage_token(usage, "cache_read_input_tokens", "cacheReadInputTokens")
+      cache_write = usage_token(usage, "cache_creation_input_tokens", "cacheCreationInputTokens")
+      if input_tokens + output_tokens + cache_read + cache_write <= 0:
+        continue
+
+      held = positions.get(key)
+      if held is not None and output_tokens < records[held][4]:
+        continue
+
+      timestamp = parsed.get("timestamp") or message.get("timestamp")
+      record = [
+        key,
+        str(message.get("model") or parsed.get("model") or "claude"),
+        local_date_from_timestamp(timestamp) if timestamp is not None else None,
+        input_tokens,
+        output_tokens,
+        cache_read,
+        cache_write,
+        str(parsed.get("sessionId") or path),
+      ]
+      if held is None:
+        positions[key] = len(records)
+        records.append(record)
+      else:
+        records[held] = record
+
+  return {
+    "size": size,
+    "file": [stat.st_dev, stat.st_ino],
+    "mtime": mtime,
+    "head": read_digest(path, offset),
+    "offset": offset,
+    "lines": line_number,
+    "records": records,
+  }
+
+
+def scan_projects(projects_path: Path, index_file: Path | None = None) -> dict[str, Any]:
+  previous = load_index(index_file) if index_file else {}
+  current: dict[str, Any] = {}
+
+  # Directory order, as before: when one API message shows up in several
+  # transcripts with the same output count, the last file visited wins, and
+  # the numbers must not move because the scan got faster.
+  order: list[str] = []
+  unreadable_count = 0
+  unreadable_examples: list[str] = []
+  files = projects_path.rglob("*.jsonl") if projects_path.is_dir() else []
+  for path in files:
+    key = str(path)
+    try:
+      current[key] = parse_usage_records(path, previous.get(key))
+    except Exception as exc:
+      unreadable_count += 1
+      if len(unreadable_examples) < 3:
+        unreadable_examples.append(f"{path}: {exc}")
+      # What was read before is still true of the file.
+      if key in previous:
+        current[key] = previous[key]
+    if key in current:
+      order.append(key)
+
+  if unreadable_count:
+    examples = "; ".join(unreadable_examples)
+    print(
+      f"Ignoring {unreadable_count} unreadable Claude project files"
+      f" (examples: {examples})",
+      file=sys.stderr,
+    )
+
+  if index_file and current != previous:
+    try:
+      write_json(index_file, {"version": INDEX_VERSION, "zone": index_zone(), "files": current})
+    except Exception as exc:
+      print(f"Could not write Claude scan index {index_file}: {exc}", file=sys.stderr)
+
+  return summarize_records(current, order)
+
+
+def summarize_records(indexed: dict[str, Any], order: list[str]) -> dict[str, Any]:
   today = local_date_string()
   recent_dates = recent_date_strings()
   recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
 
-  seen: set[str] = set()
+  # One API message can show up in several transcripts (a resumed session
+  # carries the earlier ones). As within a file, the record with the highest
+  # output count wins, the last one visited breaking a tie.
+  seen: dict[str, list[Any]] = {}
   sessions: set[str] = set()
   active_days: set[str] = set()
   today_sessions: set[str] = set()
@@ -137,68 +334,38 @@ def scan_projects(projects_path: Path) -> dict[str, Any]:
   today_prompt_count = 0
   today_token_total = 0
 
-  files = projects_path.rglob("*.jsonl") if projects_path.is_dir() else []
-  for path in files:
-    try:
-      with path.open("r", encoding="utf-8", errors="replace") as handle:
-        for line_number, line in enumerate(handle, 1):
-          # Cheap pre-filter before JSON parsing keeps files with unrelated
-          # lines inexpensive.
-          if '"usage":' not in line:
-            continue
+  for key in order:
+    for record in indexed[key].get("records") or []:
+      held = seen.get(record[0])
+      if held is not None and record[4] < held[4]:
+        continue
+      seen[record[0]] = record
 
-          try:
-            entry = json.loads(line)
-          except Exception:
-            continue
+  for _, model, day, input_tokens, output_tokens, cache_read, cache_write, session_key in seen.values():
+    if day is None:
+      day = today
+    total = input_tokens + output_tokens + cache_read + cache_write
 
-          message = entry.get("message") if isinstance(entry.get("message"), dict) else {}
-          if entry.get("type") != "assistant" and message.get("role") != "assistant":
-            continue
+    sessions.add(session_key)
+    active_days.add(day)
+    prompts += 1
 
-          usage = message.get("usage") or entry.get("usage")
-          if not isinstance(usage, dict):
-            continue
+    bucket = usage_by_model.setdefault(model, empty_bucket())
+    bucket["inputTokens"] += input_tokens
+    bucket["outputTokens"] += output_tokens
+    bucket["cacheReadInputTokens"] += cache_read
+    bucket["cacheCreationInputTokens"] += cache_write
 
-          message_id = message.get("id") or entry.get("messageId") or ""
-          unique_key = str(message_id) if message_id else f"{path}:{entry.get('uuid') or entry.get('requestId') or line_number}"
-          if unique_key in seen:
-            continue
-          seen.add(unique_key)
+    if day in recent:
+      # recentDays.messageCount is actually a token total, despite the
+      # legacy name shared with synced snapshots.
+      recent[day]["messageCount"] += total
 
-          input_tokens = usage_token(usage, "input_tokens", "inputTokens")
-          output_tokens = usage_token(usage, "output_tokens", "outputTokens")
-          cache_read = usage_token(usage, "cache_read_input_tokens", "cacheReadInputTokens")
-          cache_write = usage_token(usage, "cache_creation_input_tokens", "cacheCreationInputTokens")
-          total = input_tokens + output_tokens + cache_read + cache_write
-          if total <= 0:
-            continue
-
-          model = str(message.get("model") or entry.get("model") or "claude")
-          day = local_date_from_timestamp(entry.get("timestamp") or message.get("timestamp"))
-          session_key = str(entry.get("sessionId") or path)
-          sessions.add(session_key)
-          active_days.add(day)
-          prompts += 1
-
-          bucket = usage_by_model.setdefault(model, empty_bucket())
-          bucket["inputTokens"] += input_tokens
-          bucket["outputTokens"] += output_tokens
-          bucket["cacheReadInputTokens"] += cache_read
-          bucket["cacheCreationInputTokens"] += cache_write
-
-          if day in recent:
-            # recentDays.messageCount is actually a token total, despite the
-            # legacy name shared with synced snapshots.
-            recent[day]["messageCount"] += total
-
-          if day == today:
-            today_prompt_count += 1
-            today_sessions.add(session_key)
-            today_token_total += total
-            today_tokens[model] = today_tokens.get(model, 0) + total
-    except Exception as exc:
-      print(f"Ignoring unreadable Claude project file {path}: {exc}", file=sys.stderr)
+    if day == today:
+      today_prompt_count += 1
+      today_sessions.add(session_key)
+      today_token_total += total
+      today_tokens[model] = today_tokens.get(model, 0) + total
 
   return {
     "todayPrompts": today_prompt_count,
@@ -217,18 +384,28 @@ def scan_projects(projects_path: Path) -> dict[str, Any]:
   }
 
 
-def scan_cache_paths(projects_path: Path) -> tuple[Path, Path]:
+def scan_cache_paths(projects_path: Path) -> tuple[Path, Path, Path]:
   digest = hashlib.sha1(str(projects_path).encode("utf-8")).hexdigest()[:16]
   root = cache_root()
-  return root / f"claude-scan-{digest}.json", root / f"claude-scan-{digest}.lock"
+  return root / f"claude-scan-{digest}.json", root / f"claude-scan-{digest}.lock", root / f"claude-index-{digest}.json"
+
+
+def read_json(path: Path) -> dict[str, Any] | None:
+  try:
+    return json.loads(path.read_text(encoding="utf-8"))
+  except Exception:
+    return None
 
 
 def read_fresh_json(path: Path, max_age_seconds: float) -> dict[str, Any] | None:
   if max_age_seconds <= 0 or not path.exists():
     return None
   try:
-    if time.time() - path.stat().st_mtime <= max_age_seconds:
-      return json.loads(path.read_text(encoding="utf-8"))
+    # A negative age means the mtime is in the future: the clock moved
+    # backwards since the write, so the cache's freshness cannot be trusted.
+    age = time.time() - path.stat().st_mtime
+    if 0 <= age <= max_age_seconds:
+      return read_json(path)
   except Exception:
     return None
   return None
@@ -252,8 +429,8 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     raise
 
 
-def cached_scan(projects_path: Path, max_age_seconds: float) -> dict[str, Any]:
-  cache_file, lock_file = scan_cache_paths(projects_path)
+def cached_scan(projects_path: Path, max_age_seconds: float, use_index: bool = True) -> dict[str, Any]:
+  cache_file, lock_file, index_file = scan_cache_paths(projects_path)
 
   cached = read_fresh_json(cache_file, max_age_seconds)
   if cached is not None:
@@ -264,7 +441,9 @@ def cached_scan(projects_path: Path, max_age_seconds: float) -> dict[str, Any]:
     cached = read_fresh_json(cache_file, max_age_seconds)
     if cached is not None:
       return cached
-    summary = scan_projects(projects_path)
+    if not use_index:
+      index_file.unlink(missing_ok=True)
+    summary = scan_projects(projects_path, index_file)
     write_json(cache_file, summary)
     return summary
 
@@ -341,11 +520,27 @@ def today_prompts_from_history(claude_dir: Path) -> tuple[int, int]:
 # provider, model, and token usage on every assistant message.
 
 
+# `omp --profile=<name>` (and pi's equivalent) relocates the whole agent tree
+# under <base>/profiles/<name>/, so a subscription driven entirely through a
+# profile leaves the default root empty and its usage uncounted. Sessions are
+# keyed by file path, so a profile adds sessions rather than double-counting
+# the default root.
+def pi_session_roots() -> list[Path]:
+  roots: list[Path] = []
+  for base in (Path.home() / ".pi", Path.home() / ".omp"):
+    roots.append(base / "agent" / "sessions")
+    profiles = base / "profiles"
+    try:
+      # Sorted so the scan order does not depend on directory order.
+      roots.extend(sorted(child / "agent" / "sessions" for child in profiles.iterdir() if child.is_dir()))
+    except OSError:
+      # No profiles directory, or it is unreadable: the default root stands.
+      pass
+  return roots
+
+
 def scan_pi_usage(max_age_seconds: float) -> dict[str, Any] | None:
-  roots = [
-    Path.home() / ".pi" / "agent" / "sessions",
-    Path.home() / ".omp" / "agent" / "sessions",
-  ]
+  roots = pi_session_roots()
   cache_file = cache_root() / "claude-pi-sessions.json"
   cached = read_fresh_json(cache_file, max_age_seconds)
   if cached is not None:
@@ -477,16 +672,36 @@ def scan_opencode_usage(max_age_seconds: float) -> dict[str, Any] | None:
     return None
   try:
     conn.execute("PRAGMA query_only = ON")
-    for session_id, raw in conn.execute("SELECT session_id, data FROM message"):
+    tables = {name for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    # opencode v1 keeps messages in `message`, with the role, provider and model
+    # in each row's data. v2 writes `session_message` instead: the role moves to
+    # the `type` column and the provider and model nest under data.model. A
+    # database can hold either or both.
+    queries = []
+    if "message" in tables:
+      queries.append(("opencode:", "SELECT session_id, data, NULL FROM message"))
+    if "session_message" in tables:
+      queries.append(("opencode-v2:", "SELECT session_id, data, type FROM session_message"))
+    rows = ((prefix, row) for prefix, query in queries for row in conn.execute(query))
+    for session_prefix, (session_id, raw, row_type) in rows:
       # One malformed row must not abort the scan, so every shape assumption
       # lives inside the try.
       try:
         entry = json.loads(raw)
+        if not isinstance(entry, dict):
+          continue
+        if row_type is None:
+          role = entry.get("role")
+          provider = entry.get("providerID")
+          model_id = entry.get("modelID")
+        else:
+          role = row_type
+          model_info = entry.get("model") or {}
+          provider = model_info.get("providerID")
+          model_id = model_info.get("id")
         # Exact match: opencode provider ids are free-form, and a custom
         # "anthropic-proxy" gateway is not this subscription.
-        if not isinstance(entry, dict) or entry.get("role") != "assistant":
-          continue
-        if str(entry.get("providerID") or "") != "anthropic":
+        if role != "assistant" or str(provider or "") != "anthropic":
           continue
         tokens = entry.get("tokens") or {}
         cache = tokens.get("cache") or {}
@@ -501,10 +716,10 @@ def scan_opencode_usage(max_age_seconds: float) -> dict[str, Any] | None:
 
         created = number((entry.get("time") or {}).get("created"))
         day = dt.datetime.fromtimestamp(created / 1000).strftime("%Y-%m-%d") if created > 0 else today
-        model = str(entry.get("modelID") or "claude").rstrip("/").split("/")[-1]
+        model = str(model_id or "claude").rstrip("/").split("/")[-1]
       except Exception:
         continue
-      session_key = "opencode:" + str(session_id)
+      session_key = session_prefix + str(session_id)
       sessions.add(session_key)
       active_days.add(day)
       prompts += 1
@@ -585,26 +800,73 @@ def merge_stats(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
 # CLI's login. Nothing else leaves the credential store: the token goes
 # nowhere but the Authorization header of the limits probe, and only the
 # plan label may travel into the printed record.
-def oauth_login(claude_dir: Path) -> tuple[str, int, str]:
+def oauth_login(claude_dir: Path) -> tuple[str, int, int, str]:
   try:
     data = json.loads((claude_dir / ".credentials.json").read_text(encoding="utf-8"))
   except Exception:
-    return "", 0, ""
+    return "", 0, 0, ""
   login = data.get("claudeAiOauth")
   if not isinstance(login, dict):
-    return "", 0, ""
-  plan = plan_label(str(login.get("rateLimitTier") or ""), str(login.get("subscriptionType") or ""))
-  return str(login.get("accessToken") or ""), number(login.get("expiresAt")), plan
+    return "", 0, 0, ""
+  # The profile's tier is asked first, but only one that names a multiplier
+  # outranks the credentials'. The subscription still leads the label, so a
+  # Team seat keeps reading Team.
+  tier = profile_tier(claude_dir)
+  if not re.search(r"max_(\d+x)", tier, re.IGNORECASE):
+    tier = str(login.get("rateLimitTier") or "")
+  plan = plan_label(tier, str(login.get("subscriptionType") or ""))
+  return (
+    str(login.get("accessToken") or ""),
+    number(login.get("expiresAt")),
+    number(login.get("refreshTokenExpiresAt")),
+    plan,
+  )
 
 
-def plan_label(tier: str, subscription: str) -> str:
-  if tier:
-    match = re.search(r"max_(\d+x)", tier, re.IGNORECASE)
-    if match:
-      return "Max " + match.group(1)
-  if subscription:
-    return subscription[0].upper() + subscription[1:]
+# The credentials carry the tier their token was minted with, and an upgrade
+# does not restamp it: a refresh rewrites the file and keeps the old value, so
+# an account moved to Max 20x keeps reading Max 5x. The CLI's own profile is
+# refreshed against the account, so the tier it states there is asked first.
+def profile_tier(claude_dir: Path) -> str:
+  try:
+    account = json.loads(profile_path(claude_dir).read_text(encoding="utf-8")).get("oauthAccount")
+  except Exception:
+    return ""
+  if not isinstance(account, dict):
+    return ""
+  # A seat with no tier of its own is limited by its organization, which is
+  # the shape a personal Max subscription takes.
+  for key in ("userRateLimitTier", "organizationRateLimitTier"):
+    tier = str(account.get(key) or "")
+    if tier:
+      return tier
   return ""
+
+
+# The CLI's profile for a config home: a legacy .config.json inside it, else
+# ~/.claude.json for the default home and <home>/.claude.json for one it was
+# pointed at with CLAUDE_CONFIG_DIR. A copy anywhere else is never refreshed,
+# and another home's profile describes another account.
+def profile_path(home: Path) -> Path:
+  legacy = home / ".config.json"
+  if legacy.exists():
+    return legacy
+  configured = os.environ.get("CLAUDE_CONFIG_DIR")
+  if home == expand_path("~/.claude") and not (configured and expand_path(configured) == home):
+    return Path.home() / ".claude.json"
+  return home / ".claude.json"
+
+
+# The rate-limit tier names the ceiling, not the plan: a Team premium seat
+# runs on `default_claude_max_5x` while paying for Team. Lead with the
+# subscription and keep the multiplier as its qualifier, so Max still reads
+# "Max 5x" and a Team seat reads "Team 5x" rather than passing as Max.
+def plan_label(tier: str, subscription: str) -> str:
+  plan = subscription[0].upper() + subscription[1:] if subscription else ""
+  match = re.search(r"max_(\d+x)", tier, re.IGNORECASE) if tier else None
+  if not match:
+    return plan
+  return (plan or "Max") + " " + match.group(1)
 
 
 def parse_utilization(value: Any) -> float:
@@ -769,11 +1031,8 @@ def probe_limits(access_token: str) -> dict[str, Any]:
   return {"ok": True, "limits": limits}
 
 
-# A cached percentage outlives the probe that measured it, but only until its
-# window rolls over: once a window has reset, the figure describes a period
-# that is over, and a stale 78% would misreport an allowance that is now
-# untouched. A window with no reset time, or one that will not parse, is kept
-# — an unreadable timestamp is no reason to throw away a real number.
+# Cached windows reset to zero when their measured period ends. Without a
+# fresh probe, the next rolling window has no known reset time yet.
 def limit_window_open(entry: dict[str, Any], now: dt.datetime) -> bool:
   raw = str(entry.get("resetsAt") or "")
   if raw == "":
@@ -792,10 +1051,13 @@ def usable_cached_limits(cached: dict[str, Any]) -> list[dict[str, Any]]:
   if not isinstance(entries, list):
     return []
   now = dt.datetime.now(dt.timezone.utc)
-  return [entry for entry in entries if isinstance(entry, dict) and limit_window_open(entry, now)]
+  return [
+    entry if limit_window_open(entry, now) else dict(entry, percent=0.0, resetsAt="")
+    for entry in entries if isinstance(entry, dict)
+  ]
 
 
-def collect_limits(access_token: str, expires_at_ms: int, force: bool, cache_name: str = "claude-limits.json") -> dict[str, Any]:
+def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms: int, force: bool, cache_name: str = "claude-limits.json") -> dict[str, Any]:
   # `live` says the numbers came from Anthropic just now (or within the reuse
   # window) rather than from a cache kept past a failed or impossible probe.
   result = {"limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP, "live": False}
@@ -809,7 +1071,7 @@ def collect_limits(access_token: str, expires_at_ms: int, force: bool, cache_nam
   # kept as the answer of record when a later probe fails. Every account
   # keeps its own, so one account's allowance never stands in for another's.
   probe_cache = cache_root() / cache_name
-  cached = read_fresh_json(probe_cache, float("inf")) or {}
+  cached = read_json(probe_cache) or {}
   fallback = usable_cached_limits(cached)
   result["fetchedAtMs"] = number(cached.get("fetchedAtMs"))
 
@@ -817,13 +1079,26 @@ def collect_limits(access_token: str, expires_at_ms: int, force: bool, cache_nam
   # refreshes the credential file when it runs, so a machine left alone long
   # enough finds the saved token lapsed. Say so — an empty limits list with
   # nothing else set hides the whole section and explains nothing — and keep
-  # showing the last numbers whose window has not since reset.
+  # showing the last numbers, resetting elapsed windows to zero.
   if access_token == "":
     result["limits"] = fallback
     result["usageStatusText"] = "Waiting for auth"
     return result
   if expires_at_ms > 0 and expires_at_ms <= time.time() * 1000:
     result["limits"] = fallback
+    # A lapsed access token is routine, not a sign-out: it lives about eight
+    # hours, and the CLI mints a new one from the refresh token the next time
+    # it runs. Only a lapsed *refresh* token is a sign-in a person must redo,
+    # and saying so either way sends people to `claude auth login` nightly --
+    # which does not restore anything the CLI would not have restored itself.
+    if refresh_expires_at_ms > time.time() * 1000:
+      result["usageStatusText"] = "Limits paused"
+      result["authHelpText"] = (
+        "Claude Code's access token has lapsed"
+        + (" — showing the last known limits." if fallback else ".")
+        + " Start Claude Code to refresh it; signing in again is not needed."
+      )
+      return result
     result["usageStatusText"] = "Sign-in expired"
     result["authHelpText"] = (
       "Claude Code's saved sign-in expired"
@@ -836,15 +1111,18 @@ def collect_limits(access_token: str, expires_at_ms: int, force: bool, cache_nam
   # entirely; the interval is there to absorb repeated panel opens, not to
   # overrule someone who pressed refresh.
   fetched_at = number(cached.get("fetchedAtMs")) / 1000
-  if fallback and not force and time.time() - fetched_at < PROBE_MIN_INTERVAL_SECONDS:
+  fetched_age = time.time() - fetched_at
+  if fallback and not force and 0 <= fetched_age < PROBE_MIN_INTERVAL_SECONDS:
     result["limits"] = fallback
     result["live"] = True
+    result["authHelpText"] = ""
     return result
 
   probe = probe_limits(access_token)
   if probe["ok"]:
     result["limits"] = probe["limits"]
     result["live"] = True
+    result["authHelpText"] = ""
     result["fetchedAtMs"] = round(time.time() * 1000)
     write_json(probe_cache, {"fetchedAtMs": result["fetchedAtMs"], "limits": probe["limits"]})
     return result
@@ -855,7 +1133,8 @@ def collect_limits(access_token: str, expires_at_ms: int, force: bool, cache_nam
     result["retryAdvised"] = True
   if fallback:
     result["limits"] = fallback
-    result["live"] = time.time() - result["fetchedAtMs"] / 1000 < CURRENT_ENOUGH_SECONDS
+    fetched_age = time.time() - result["fetchedAtMs"] / 1000
+    result["live"] = 0 <= fetched_age < CURRENT_ENOUGH_SECONDS
   else:
     result["usageStatusText"] = "Claude limits unavailable"
     result["authHelpText"] = probe["helpText"]
@@ -889,28 +1168,9 @@ def registered_accounts() -> list[dict[str, Any]]:
   return accounts
 
 
-# A parked account whose sign-in lapsed can't be probed, and once every window
-# it last saw has reset, the cache has nothing current to offer. That is not
-# "unknown" — a reset window is an untouched allowance, and switching needs to
-# know this account is the one with the most room. Each window it last saw
-# comes back at 0%.
-def replenished_limits(cache_name: str) -> list[dict[str, Any]]:
-  cached = read_fresh_json(cache_root() / cache_name, float("inf")) or {}
-  entries = cached.get("limits")
-  if not isinstance(entries, list):
-    return []
-  now = dt.datetime.now(dt.timezone.utc)
-  return [
-    dict(entry, percent=0.0, resetsAt="")
-    for entry in entries
-    if isinstance(entry, dict) and not limit_window_open(entry, now)
-  ]
-
-
 def current_account_id(home: Path) -> str:
-  path = Path.home() / ".claude.json" if home == expand_path("~/.claude") else home / ".claude.json"
   try:
-    account = json.loads(path.read_text(encoding="utf-8")).get("oauthAccount") or {}
+    account = json.loads(profile_path(home).read_text(encoding="utf-8")).get("oauthAccount") or {}
   except Exception:
     return ""
   return str(account.get("accountUuid") or "")
@@ -918,7 +1178,7 @@ def current_account_id(home: Path) -> str:
 
 def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
   home = expand_path(account["home"]) if account.get("home") else expand_path("~/.claude")
-  access_token, expires_at_ms, plan = oauth_login(home)
+  access_token, expires_at_ms, refresh_expires_at_ms, plan = oauth_login(home)
   # Keyed by the subscription, not the label: forget "Work" and add a different
   # "Work", and the new one must never fall back on the old one's allowance.
   # Who the home is signed in as now, not when it was added: a `claude auth
@@ -932,9 +1192,7 @@ def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
     cache_name = "claude-limits.json"
   else:
     cache_name = f"claude-limits-{key}.json"
-  limits = collect_limits(access_token, expires_at_ms, force, cache_name)
-  if not limits["live"] and not limits["limits"]:
-    limits["limits"] = replenished_limits(cache_name)
+  limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, force, cache_name)
   return {
     "id": account["id"],
     "label": str(account.get("label") or account["id"]),
@@ -956,14 +1214,14 @@ def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
 
 def main() -> int:
   parser = argparse.ArgumentParser()
-  parser.add_argument("--force", action="store_true", help="rescan transcripts and re-probe limits, ignoring caches")
+  parser.add_argument("--force", action="store_true", help="rescan transcripts from scratch and re-probe limits, ignoring caches")
   parser.add_argument("--limits-only", action="store_true", help="reuse any recent transcript scan; only the limits probe must be fresh")
   parser.add_argument("--cache-seconds", type=float, default=20)
   args = parser.parse_args()
 
   claude_dir = config_dir()
   scan_age = 0 if args.force else (900 if args.limits_only else args.cache_seconds)
-  stats = cached_scan(claude_dir / "projects", scan_age)
+  stats = cached_scan(claude_dir / "projects", scan_age, use_index=not args.force)
 
   if number(stats.get("totalPrompts")) <= 0:
     fallback = stats_cache_fallback(claude_dir)
@@ -994,8 +1252,8 @@ def main() -> int:
     limits = {key: current[key] for key in ("limits", "usageStatusText", "authHelpText", "retryAdvised")}
     stale, fetched_at = current["stale"], current["fetchedAt"]
   else:
-    access_token, expires_at_ms, plan = oauth_login(claude_dir)
-    limits = collect_limits(access_token, expires_at_ms, args.force)
+    access_token, expires_at_ms, refresh_expires_at_ms, plan = oauth_login(claude_dir)
+    limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, args.force)
     stale, fetched_at = not limits["live"], limits["fetchedAtMs"]
 
   record = {
