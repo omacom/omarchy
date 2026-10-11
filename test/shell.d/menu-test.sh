@@ -248,7 +248,7 @@ const expectedAgents = {
   crush: { icon: '󰋑', label: 'Crush' },
   muse: { icon: '󰛤', label: 'Muse Code' },
   'cursor-agent': { icon: '\ue90d', iconFont: 'omarchy', label: 'Cursor CLI' },
-  zeroclaw: { icon: '\uf010', iconFont: 'omarchy', label: 'ZeroClaw' },
+  zeroclaw: { icon: '🦀', label: 'ZeroClaw' },
 
 }
 assert(

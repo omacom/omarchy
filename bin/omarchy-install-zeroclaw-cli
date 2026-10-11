@@ -29,6 +29,13 @@ case "${1:---now}" in
     echo "Installing ZeroClaw..."
     curl -fsSL https://zeroclaw.com/install.sh | bash
   fi
+  # Verify the install actually left a working command, not just a broken
+  # binary on PATH. A failed install that left a non-running zeroclaw would
+  # otherwise be treated as complete by default-agent.
+  if ! installed; then
+    echo "ZeroClaw installation did not leave a working command" >&2
+    exit 1
+  fi
   ;;
 *)
   echo "Usage: omarchy-install-zeroclaw-cli [--check|--now]" >&2

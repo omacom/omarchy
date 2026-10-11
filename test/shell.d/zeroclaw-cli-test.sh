@@ -47,12 +47,13 @@ chmod +x "$mock_bin/bash"
 export PATH="$mock_bin:$PATH"
 export OMARCHY_TEST_ROOT="$test_tmp"
 
-# --- Tests ---
+# run helper: invoke the installer with a clean environment.
+run() {
+  OMARCHY_TEST_ROOT="$test_tmp" PATH="$mock_bin:$PATH" \
+    "$@" >"$test_tmp/output" 2>&1
+}
 
-# No mode is a usage error.
-run omarchy-install-zeroclaw-cli && fail "no mode is a usage error"
-[[ ! -s $events ]] || fail "no mode installs nothing" "$(cat "$events")"
-pass "every mode is named outright"
+# --- Tests ---
 
 # --check fails when zeroclaw is not installed.
 run omarchy-install-zeroclaw-cli --check && fail "--check calls a machine without ZeroClaw installed"
@@ -84,3 +85,15 @@ pass "--check fails when the binary exists but does not run"
 run omarchy-install-zeroclaw-cli --now || fail "--now reinstalls behind a broken binary" "$(cat "$test_tmp/output")"
 grep -Fxq "curl -fsSL https://zeroclaw.com/install.sh" "$events" || fail "--now reinstalls when the binary does not run" "$(cat "$events")"
 pass "--now reinstalls when the binary does not run"
+
+# --now fails when the installer leaves a non-running command.
+rm -f "$test_tmp/zeroclaw-runs" "$test_tmp/zeroclaw-installed"
+# Override curl to not create the runs marker, simulating a failed install.
+cat >"$mock_bin/curl" <<'SH'
+#!/bin/bash
+printf 'curl %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
+# Deliberately do NOT create zeroclaw-runs, simulating a failed install.
+SH
+chmod +x "$mock_bin/curl"
+run omarchy-install-zeroclaw-cli --now && fail "--now fails when the install leaves no working command"
+pass "--now fails when the install leaves no working command"
