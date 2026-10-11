@@ -1,0 +1,337 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import qs.Commons
+import qs.Commons as Commons
+import qs.Ui
+import "../lib/Analyze.js" as Analyze
+import "../lib/Compare.js" as Compare
+import "../lib/Parser.js" as Parser
+
+// What could make the pattern faster, safer, or clearer. Every suggested
+// rewrite is run on the real engine against the test text before it can be
+// applied, and a backtracking risk can be measured on texts built to
+// trigger it.
+Item {
+  id: root
+
+  property var app
+
+  readonly property color foreground: app.foreground
+  readonly property color accent: app.accent
+  readonly property color dim: Qt.darker(foreground, 1.5)
+  readonly property var findings: app.findings
+
+  // finding index -> { id, verdict, detail } for rewrites being checked
+  property var checks: ({})
+  // finding index -> { ids, sizes, times } for witness measurements
+  property var measures: ({})
+  property int generation: 0
+
+  TestRunner {
+    id: rewriteTests
+    engine: root.app.engine
+    channel: "verify-tests"
+  }
+
+  function setCheck(index, check) {
+    var next = {}
+    for (var k in checks) next[k] = checks[k]
+    next[index] = check
+    checks = next
+  }
+
+  // A rewrite that matches the same on the text must also pass the tests.
+  function checkTests(index, detail) {
+    var f = findings[index]
+    var id = checks[index].id
+    setCheck(index, { id: id, verdict: "checking", detail: detail + "; running the tests…" })
+    rewriteTests.run("finding-" + index + "-" + generation, f.rewrite, app.flavor, app.flags, referenceTests, function(results) {
+      if (!root.checks[index] || root.checks[index].id !== id) return
+      var failed = results.filter(function(r) { return r && !r.pass }).length
+      setCheck(index, failed
+        ? { id: id, verdict: "different", detail: detail + ", but " + failed + " of " + results.length + " tests fail" }
+        : { id: id, verdict: "same", detail: detail + ", and all " + results.length + " tests pass" })
+    })
+  }
+
+  function severityColor(s) {
+    if (s === "danger") return Commons.Color.urgent
+    if (s === "warning") return Qt.hsla(0.1, 0.8, 0.6, 1)
+    if (s === "tip") return root.accent
+    return root.dim
+  }
+
+  // Each rewrite runs as soon as the original's result is in.
+  // What the checks under way were started against: the original's result
+  // and the tests, so a reply is judged by the inputs it was run on.
+  property var reference: null
+  property var referenceTests: []
+
+  // Any change to what a rewrite was checked against withdraws every
+  // approval at once, before new checks start.
+  function invalidate() {
+    generation++
+    checks = ({})
+    verifyTimer.restart()
+  }
+
+  function verifyAll() {
+    generation++
+    measures = ({})
+    var next = {}
+    if (!app.result.done || app.result.ok === false || app.result.id === undefined) { checks = next; return }
+    reference = { ok: true, matches: app.result.matches, stride: app.result.stride, count: app.result.count }
+    referenceTests = app.tests
+    for (var i = 0; i < findings.length; i++) {
+      var f = findings[i]
+      if (!f.rewrite) continue
+      var id = app.engine.match({
+        flavor: app.flavor,
+        pattern: f.rewrite,
+        flags: app.flags,
+        text: app.testText,
+        textPath: app.textFile,
+        textVersion: app.textVersion,
+        all: app.all,
+        limit: app.matchLimit,
+        parsed: Parser.parse(f.rewrite, app.flavor, app.flags),
+        channel: "verify",
+        keep: true,
+      })
+      next[i] = { id: id, verdict: "checking", detail: "Checking on your text…", matches: [] }
+    }
+    checks = next
+  }
+
+  function measure(index) {
+    var f = findings[index]
+    var sizes = [6, 10, 14, 18, 22, 26]
+    var ids = []
+    for (var s = 0; s < sizes.length; s++) {
+      var text = Analyze.witness(f, sizes[s])
+      ids.push(app.engine.match({
+        flavor: app.flavor, pattern: app.pattern, flags: app.flags, text: text,
+        textVersion: 1000000 + generation * 100 + s, all: false, limit: 1,
+        parsed: app.parsed, channel: "measure", keep: true,
+      }))
+    }
+    var next = {}
+    for (var k in measures) next[k] = measures[k]
+    next[index] = { ids: ids, sizes: sizes, times: sizes.map(function() { return null }) }
+    measures = next
+  }
+
+  Timer { id: verifyTimer; interval: 150; onTriggered: root.verifyAll() }
+  onFindingsChanged: invalidate()
+  Connections {
+    target: root.app
+    function onTestsChanged() { root.invalidate() }
+    function onResultChanged() { root.invalidate() }
+    function onTestTextChanged() { root.invalidate() }
+    function onFlagsChanged() { root.invalidate() }
+    function onFlavorChanged() { root.invalidate() }
+  }
+
+  Connections {
+    target: root.app.engine
+    function onResult(reply) {
+      for (var key in root.checks) {
+        var c = root.checks[key]
+        if (c.id !== reply.id) continue
+        // Streaming engines send their matches in batches; gather them all.
+        for (var b = 0; b < reply.matches.length; b++) c.matches.push(reply.matches[b])
+        if (!reply.done) return
+        var f = root.findings[key]
+        // In text order, as the workbench's own result is.
+        var ordered = reply.ok ? root.app.inTextOrder(c.matches, reply.stride) : []
+        var result = { ok: reply.ok, matches: ordered, stride: reply.stride, count: reply.ok ? ordered.length / reply.stride : 0, error: reply.error }
+        var verdict, detail
+        if (reply.ok === false) { verdict = "error"; detail = "The rewrite does not compile: " + reply.error }
+        else {
+          var cmp = Compare.compare(root.reference, result)
+          if (cmp.verdict === "same" || (cmp.verdict === "groups" && f.changesGroups)) { verdict = "same"; detail = "The same matches on your text" + (f.changesGroups ? " (group numbers change)" : "") + (reply.elapsed !== undefined ? ", in " + root.app.formatMs(reply.elapsed) + " against " + root.app.formatMs(root.app.result.elapsed) : "") }
+          else { verdict = "different"; detail = "Not the same on your text: " + cmp.detail }
+        }
+        root.setCheck(key, { id: c.id, verdict: verdict, detail: detail })
+        if (verdict === "same" && root.referenceTests.length) root.checkTests(key, detail)
+        return
+      }
+      if (!reply.done) return
+      for (var m in root.measures) {
+        var entry = root.measures[m]
+        var at = entry.ids.indexOf(reply.id)
+        if (at < 0) continue
+        var times = entry.times.slice()
+        times[at] = reply.ok === false ? ({ timeout: "timed out", limit: "hit the engine's limit" }[reply.kind] || "error") : reply.elapsed
+        var updated = {}
+        for (var n in root.measures) updated[n] = root.measures[n]
+        updated[m] = { ids: entry.ids, sizes: entry.sizes, times: times }
+        root.measures = updated
+        return
+      }
+    }
+  }
+
+  ListView {
+    id: list
+    anchors.fill: parent
+    clip: true
+    model: root.findings
+    spacing: Style.spacing.md
+    boundsBehavior: Flickable.StopAtBounds
+    ScrollBar.vertical: ScrollBar {}
+
+    delegate: Rectangle {
+      id: card
+      required property int index
+      required property var modelData
+      readonly property var check: root.checks[index]
+      readonly property var measured: root.measures[index]
+
+      width: list.width - Style.spacing.lg
+      height: content.implicitHeight + Style.spacing.lg * 2
+      radius: Style.cornerRadius
+      color: Util.alpha(root.foreground, 0.03)
+      border.width: 1
+      border.color: Util.alpha(root.severityColor(modelData.severity), 0.35)
+
+      HoverHandler {
+        onHoveredChanged: root.app.patternHighlight = hovered && card.modelData.end > card.modelData.start ? [card.modelData.start, card.modelData.end] : []
+      }
+
+      ColumnLayout {
+        id: content
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: Style.spacing.lg
+        spacing: Style.spacing.sm
+
+        RowLayout {
+          Layout.fillWidth: true
+          spacing: Style.spacing.md
+
+          Text {
+            text: { return { danger: "Danger", warning: "Warning", tip: "Tip", info: "Note" }[card.modelData.severity] }
+            textFormat: Text.PlainText
+            color: root.severityColor(card.modelData.severity)
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
+
+          Text {
+            Layout.fillWidth: true
+            text: card.modelData.title
+            color: root.foreground
+            wrapMode: Text.Wrap
+            font.family: Style.font.family
+            font.pixelSize: Style.font.bodySmall
+            textFormat: Text.PlainText
+          }
+        }
+
+        Text {
+          Layout.fillWidth: true
+          text: card.modelData.detail
+          color: root.dim
+          wrapMode: Text.Wrap
+          font.family: Style.font.family
+          font.pixelSize: Style.font.caption
+          textFormat: Text.PlainText
+        }
+
+        Rectangle {
+          Layout.fillWidth: true
+          visible: card.modelData.rewrite !== ""
+          implicitHeight: rewriteText.implicitHeight + Style.spacing.md * 2
+          radius: Style.cornerRadius
+          color: Util.alpha(root.foreground, 0.05)
+
+          Text {
+            id: rewriteText
+            anchors.fill: parent
+            anchors.margins: Style.spacing.md
+            text: card.modelData.rewrite
+            color: root.foreground
+            wrapMode: Text.WrapAnywhere
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body
+            textFormat: Text.PlainText
+          }
+        }
+
+        RowLayout {
+          Layout.fillWidth: true
+          visible: card.modelData.rewrite !== "" || !!card.modelData.witness
+          spacing: Style.spacing.md
+
+          Text {
+            Layout.fillWidth: true
+            visible: card.modelData.rewrite !== ""
+            text: card.check ? card.check.detail : "Waiting for the original's matches…"
+            color: card.check && card.check.verdict === "same" ? root.accent : (card.check && card.check.verdict !== "checking" ? Commons.Color.urgent : root.dim)
+            wrapMode: Text.Wrap
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+            textFormat: Text.PlainText
+          }
+
+          Item { Layout.fillWidth: true; visible: card.modelData.rewrite === "" }
+
+          Button {
+            visible: !!card.modelData.witness
+            text: "Measure"
+            tooltipText: "Time the pattern on texts built to trigger this, of growing length"
+            bordered: true
+            onClicked: root.measure(card.index)
+          }
+
+          Button {
+            visible: card.modelData.rewrite !== ""
+            text: "Apply"
+            tooltipText: card.check && card.check.verdict === "same" ? "Use the rewritten pattern" : "Only a rewrite that matches the same on your text can be applied"
+            bordered: true
+            enabled: !!card.check && card.check.verdict === "same"
+            opacity: enabled ? 1 : 0.4
+            onClicked: root.app.pattern = card.modelData.rewrite
+          }
+        }
+
+        // Timings on texts of growing length: steady doubling is exponential.
+        Flow {
+          Layout.fillWidth: true
+          visible: !!card.measured
+          spacing: Style.spacing.lg
+
+          Repeater {
+            model: card.measured ? card.measured.sizes.length : 0
+            Text {
+              required property int index
+              readonly property var time: card.measured.times[index]
+              text: card.measured.sizes[index] + " chars: " + (time === null ? "…" : (typeof time === "number" ? root.app.formatMs(time) : time))
+              textFormat: Text.PlainText
+              color: typeof time === "string" ? Commons.Color.urgent : root.foreground
+              font.family: Style.font.family
+              font.pixelSize: Style.font.caption
+            }
+          }
+        }
+      }
+    }
+  }
+
+  Text {
+    anchors.centerIn: parent
+    width: parent.width - Style.spacing.xxl * 2
+    horizontalAlignment: Text.AlignHCenter
+    visible: root.findings.length === 0
+    text: root.app.pattern === "" ? "Type a pattern to have it reviewed" : (root.app.parsed.errors.length ? "Fix the pattern's errors first" : "Nothing to improve that Rex can see")
+    textFormat: Text.PlainText
+    color: root.dim
+    wrapMode: Text.Wrap
+    font.family: Style.font.family
+    font.pixelSize: Style.font.body
+  }
+}

@@ -38,6 +38,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Lock screen   | `omarchy.lock`            | `service`               | `lock/Service.qml`                    |
 | OSD           | `omarchy.osd`             | `panel`                 | `osd/Osd.qml`                         |
 | Polkit agent  | `omarchy.polkit`          | `service`               | `polkit/PolkitAgent.qml`              |
+| Rex           | `omarchy.rex`             | `panel`                 | `rex/Rex.qml`                         |
 
 First-party bar-only widgets also carry manifests next to their QML files,
 e.g. `bar/widgets/Workspaces.manifest.json`. Rich popup widgets live in their
@@ -117,6 +118,10 @@ bash expressions in a single batched subprocess, and executes the
 selected `action:` string directly via `Quickshell.execDetached`. The
 long-running shell process keeps the parsed menu in memory, so the
 keybind → IPC → visible path costs ~30ms cold.
+
+## Rex
+
+Offline regular expression workbench, listed under Apps through `applications/Rex.desktop` and opened with `omarchy-launch-rex`. It is a `panel` plugin whose window is an ordinary tiled toplevel titled `Rex`; closing the window unloads the plugin. See [`plans/rex.md`](../../plans/rex.md) for the design.
 
 ## Coming soon
 
