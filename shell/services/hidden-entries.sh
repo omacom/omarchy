@@ -30,7 +30,7 @@ desktop_id_for_file() {
   local rel=${file#"$dir"/}
 
   rel=${rel%.desktop}
-  printf '%s\n' "${rel//\//-}"
+  desktop_id=${rel//\//-}
 }
 
 is_hidden_desktop_file() {
@@ -77,12 +77,13 @@ is_hidden_desktop_file() {
 
 scan_dir() {
   local dir=$1
-  local file id
+  local file id desktop_id
 
-  [[ -d $dir ]] || return
+  [[ -d $dir ]] || return 0
 
   while IFS= read -r -d '' file; do
-    id=$(desktop_id_for_file "$dir" "$file")
+    desktop_id_for_file "$dir" "$file"
+    id=$desktop_id
     [[ -n ${seen_ids[$id]+set} ]] && continue
     seen_ids[$id]=1
 
