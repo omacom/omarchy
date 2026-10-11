@@ -301,9 +301,19 @@ local function theme_colors()
     file:close()
   end
 
+  local background = colors.background or "rgb(1a1b26)"
+  -- A titlebar in the window's own background color runs into the window, so it
+  -- takes the theme's raised surface. Themes that make that the background too
+  -- fall back to their selection color.
+  local titlebar = colors.lighter_background
+  if not titlebar or titlebar == background then
+    titlebar = colors.selection or background
+  end
+
   return {
-    background = colors.background or "rgb(1a1b26)",
+    background = background,
     foreground = colors.foreground or "rgb(c0caf5)",
+    titlebar = titlebar,
   }
 end
 
@@ -334,7 +344,7 @@ local function titlebars()
         enabled = true,
         workspace_tag = WORKSPACE_TAG,
         bar_height = 30,
-        bar_color = colors.background,
+        bar_color = colors.titlebar,
         col = { text = colors.foreground },
         bar_text_font = "monospace",
         bar_text_size = 12,
@@ -347,7 +357,7 @@ local function titlebars()
         bar_button_padding = 8,
         button_rounding = 0,
         icon_on_hover = false,
-        inactive_button_color = colors.background,
+        inactive_button_color = colors.titlebar,
         on_double_click = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'",
         edge_snap = true,
         edge_threshold = 24,
@@ -362,7 +372,7 @@ local function titlebars()
     { icon = "−", action = "omarchy-hyprland-window-minimize %WINDOW%" },
   }) do
     hl.plugin.hyprbars.add_button({
-      bg_color = colors.background,
+      bg_color = colors.titlebar,
       fg_color = colors.foreground,
       size = 20,
       icon = button.icon,

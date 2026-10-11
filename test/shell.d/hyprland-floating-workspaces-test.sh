@@ -291,6 +291,8 @@ pass "only a window on the Shelf can be restored"
 mkdir -p "$state_home/omarchy/current/theme"
 cat >"$state_home/omarchy/current/theme/colors.toml" <<'EOF'
 background = "#112233"
+lighter_background = "#223344"
+selection = "#334455"
 foreground = "#ddeeff"
 accent = "#ff8800"
 EOF
@@ -584,7 +586,11 @@ assert(s.plugin_loads == 1, "the titlebar plugin was not loaded with a workspace
 local bar = s.titlebar_config
 assert(bar, "the titlebars were not configured once loaded")
 assert(bar.workspace_tag == "omarchy-floating-workspace", "titlebars are not limited to floating workspaces")
-assert(bar.bar_color == "rgb(112233)", "titlebars do not follow the theme background: " .. tostring(bar.bar_color))
+assert(bar.bar_color == "rgb(223344)", "titlebars do not stand out from the window background: " .. tostring(bar.bar_color))
+assert(bar.inactive_button_color == "rgb(223344)", "titlebar buttons do not match the titlebar")
+for _, button in ipairs(s.buttons) do
+  assert(button.bg_color == "rgb(223344)", "a titlebar button does not match the titlebar")
+end
 assert(bar.col.text == "rgb(ddeeff)", "titlebar text does not follow the theme foreground")
 assert(bar.edge_snap == true, "edge snapping is off")
 assert(#s.buttons == 3, "the titlebars do not have three buttons")
@@ -597,6 +603,22 @@ assert(bar.on_double_click:find("maximized", 1, true), "double-clicking a titleb
 fi
 pass "titlebars load when a workspace floats and follow the theme"
 
+# A theme whose raised surface is its background would hide the titlebar again,
+# so it takes the selection color instead.
+theme="$state_home/omarchy/current/theme/colors.toml"
+cp "$theme" "$theme.saved"
+sed -i 's/^lighter_background = .*/lighter_background = "#112233"/' "$theme"
+if ! run_lua '
+window("0x1", 1)
+require("default.hypr.workspace-layouts")
+local bar = state().titlebar_config
+assert(bar and bar.bar_color == "rgb(334455)", "a flat theme does not fall back to its selection color: " .. tostring(bar and bar.bar_color))
+' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1; then
+  fail "titlebars stand out on a theme whose raised surface is its background"
+fi
+mv "$theme.saved" "$theme"
+pass "titlebars stand out on a theme whose raised surface is its background"
+
 # omarchy-theme-set writes the current theme under ~/.local/state even when
 # XDG_STATE_HOME points elsewhere, so that is where the titlebars find it.
 other_state="$tmpdir/other-state"
@@ -606,7 +628,7 @@ if ! run_lua '
 window("0x1", 1)
 require("default.hypr.workspace-layouts")
 local bar = state().titlebar_config
-assert(bar and bar.bar_color == "rgb(112233)", "titlebars missed the theme with XDG_STATE_HOME elsewhere: " .. tostring(bar and bar.bar_color))
+assert(bar and bar.bar_color == "rgb(223344)", "titlebars missed the theme with XDG_STATE_HOME elsewhere: " .. tostring(bar and bar.bar_color))
 ' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1 XDG_STATE_HOME="$other_state"; then
   fail "titlebars follow the theme when XDG_STATE_HOME points elsewhere"
 fi
