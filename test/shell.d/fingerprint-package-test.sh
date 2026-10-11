@@ -53,10 +53,20 @@ cat > "$scratch/bin/fprintd-enroll" <<'STUB'
 echo enroll >> "$CALL_LOG"
 exit "${ENROLL_STATUS:-1}"
 STUB
+# The first CLAIM_FAILURES verifications cannot claim the reader, as a VFS5011
+# was reported to fail straight after enrollment.
 cat > "$scratch/bin/fprintd-verify" <<'STUB'
 #!/bin/bash
 echo verify >> "$CALL_LOG"
+if (( $(grep -cx verify "$CALL_LOG") <= ${CLAIM_FAILURES:-0} )); then
+  echo "failed to claim device: GDBus.Error:net.reactivated.Fprint.Error.Internal: Open failed with error: transfer failed"
+  exit 1
+fi
 exit "${VERIFY_STATUS:-1}"
+STUB
+cat > "$scratch/bin/sleep" <<'STUB'
+#!/bin/bash
+echo "sleep $*" >> "$CALL_LOG"
 STUB
 chmod +x "$scratch/bin/"*
 
@@ -133,3 +143,37 @@ if grep -q 'Perfect!\|You can use your fingerprint' "$scratch/output"; then
   fail "inconclusive setup does not promise fingerprint unlock"
 fi
 pass "an inconclusive lock installer cannot report successful lock setup"
+
+# A reader still busy after enrollment is waited for, not reported as a mismatch.
+: > "$CALL_LOG"
+OMARCHY_PATH="$scratch" ENROLL_STATUS=0 VERIFY_STATUS=0 CLAIM_FAILURES=2 \
+  "$setup_script" > "$scratch/output" 2>&1 || fail "a reader that frees up is verified"
+[[ $(grep -E '^(enroll|verify|sleep.*|apply-lock)$' "$CALL_LOG") == $'enroll\nverify\nsleep 5\nverify\nsleep 5\nverify\napply-lock' ]] ||
+  fail "a claim failure is retried after a pause" "$(<"$CALL_LOG")"
+grep -q '^pam ' "$CALL_LOG" || fail "a reader that frees up still gets PAM configured"
+pass "a reader still busy after enrollment is retried, then configured"
+
+: > "$CALL_LOG"
+OMARCHY_PATH="$scratch" ENROLL_STATUS=0 VERIFY_STATUS=0 CLAIM_FAILURES=3 \
+  "$setup_script" > "$scratch/output" 2>&1 || true
+(( $(grep -cx verify "$CALL_LOG") == 3 )) || fail "a reader that stays busy is tried three times" "$(<"$CALL_LOG")"
+if grep -Eq '^(pam |apply-lock$)' "$CALL_LOG"; then
+  fail "an unverified print leaves PAM alone"
+fi
+grep -q 'reader could not be opened' "$scratch/output" || fail "a busy reader is reported as the reader" "$(<"$scratch/output")"
+if grep -q 'try enrolling again' "$scratch/output"; then
+  fail "a busy reader does not send the user back to enrollment"
+fi
+grep -q "Let's setup your right index finger" "$scratch/output" || fail "retries keep earlier setup output" "$(<"$scratch/output")"
+(( $(grep -c '^failed to claim device' "$scratch/output") == 3 )) || fail "every attempt's output reaches the user" "$(<"$scratch/output")"
+pass "a reader that stays busy is reported as the reader and leaves PAM alone"
+
+: > "$CALL_LOG"
+OMARCHY_PATH="$scratch" ENROLL_STATUS=0 VERIFY_STATUS=1 \
+  "$setup_script" > "$scratch/output" 2>&1 || true
+[[ $(grep -E '^(verify|sleep.*)$' "$CALL_LOG") == verify ]] || fail "a mismatch is not retried" "$(<"$CALL_LOG")"
+grep -q 'try enrolling again' "$scratch/output" || fail "a mismatch suggests enrolling again"
+if grep -Eq '^(pam |apply-lock$)' "$CALL_LOG"; then
+  fail "a mismatch leaves PAM alone"
+fi
+pass "a finger that does not match is reported once, without a retry"
