@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# omarchy:summary=Drive the agent seat's pointer in one of its windows
+# omarchy:args=<window> move <x> <y> | <window> click <x> <y> [--button left|right|middle] [--double] | <window> drag <x1> <y1> <x2> <y2> | <window> scroll <x> <y> <dy> [<dx>]
+# omarchy:examples=omarchy agent seat pointer 1 click 640 360 | omarchy agent seat pointer 1 scroll 640 360 3
+
+# Coordinates are pixels of the window's screenshot (omarchy agent seat
+# screenshot), so what an agent sees is where it points. Nothing here can move
+# the user's cursor: the events only reach apps on the agent seat.
+
+usage() {
+  echo "Usage: omarchy agent seat pointer <window> move|click|drag|scroll ..." >&2
+  exit 1
+}
+
+(($# >= 4)) || usage
+window=$1
+action=$2
+shift 2
+
+# jq refuses a coordinate that is not a number, so each arm falls back to usage.
+case $action in
+  move)
+    args=$(jq -n --argjson x "$1" --argjson y "$2" '{x: $x, y: $y}') || usage
+    ;;
+  click)
+    x=$1 y=$2 button=left double=false
+    shift 2
+    while (($# > 0)); do
+      case $1 in
+        --button)
+          (($# >= 2)) || usage
+          button=$2
+          shift 2
+          ;;
+        --double)
+          double=true
+          shift
+          ;;
+        *)
+          usage
+          ;;
+      esac
+    done
+    args=$(jq -n --argjson x "$x" --argjson y "$y" --arg button "$button" --argjson double "$double" '{x: $x, y: $y, button: $button, double: $double}') || usage
+    ;;
+  drag)
+    (($# == 4)) || usage
+    args=$(jq -n --argjson x1 "$1" --argjson y1 "$2" --argjson x2 "$3" --argjson y2 "$4" '{x1: $x1, y1: $y1, x2: $x2, y2: $y2}') || usage
+    ;;
+  scroll)
+    (($# >= 3)) || usage
+    args=$(jq -n --argjson x "$1" --argjson y "$2" --argjson dy "$3" --argjson dx "${4:-0}" '{x: $x, y: $y, dy: $dy, dx: $dx}') || usage
+    ;;
+  *)
+    usage
+    ;;
+esac
+
+omarchy-agent-seat-broker call "$(jq -cn --arg command "$action" --argjson window "$window" --argjson args "$args" '{command: $command, args: ($args + {window: $window})}')" >/dev/null
