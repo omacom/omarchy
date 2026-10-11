@@ -16,7 +16,7 @@ def invoke(script, env, *args):
     return subprocess.run(["bash", str(script), *args], env=env, text=True, capture_output=True)
 
 
-def fixture(root, ghostty="font-size = 13\n", linked=False):
+def fixture(root, ghostty="font-size = 13\n", linked=False, kitty_available=False):
     home = root / "home"
     home.mkdir()
     config = home / ".config/ghostty/config"
@@ -46,15 +46,23 @@ def fixture(root, ghostty="font-size = 13\n", linked=False):
     pkill = bin_dir / "pkill"
     pkill.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$PKILL_LOG"\n')
     pkill.chmod(0o755)
+    cmd_present = bin_dir / "omarchy-cmd-present"
+    cmd_present.write_text(
+        '#!/bin/sh\n'
+        '[ "$1" = kitty ] && [ "$KITTY_AVAILABLE" = 1 ]\n'
+    )
+    cmd_present.chmod(0o755)
     env = dict(os.environ, HOME=str(home), FACTOR_FILE=str(root / "factor"),
-               PKILL_LOG=str(root / "pkill.log"), PATH=f"{bin_dir}:{os.environ['PATH']}")
+               PKILL_LOG=str(root / "pkill.log"), KITTY_AVAILABLE=str(int(kitty_available)),
+               PATH=f"{bin_dir}:{os.environ['PATH']}")
     return env, config, alacritty
 
 
-def test_roundtrip(size, linked=False):
+def test_roundtrip(size, linked=False, kitty_available=False):
     with tempfile.TemporaryDirectory(prefix="omarchy-ghostty-size-") as temporary:
         root = Path(temporary)
-        env, config, alacritty = fixture(root, f"font-size = {size}\n", linked)
+        env, config, alacritty = fixture(root, f"font-size = {size}\n", linked,
+                                         kitty_available)
         original = config.read_bytes()
         set_result = invoke(SCRIPT, env, "20")
         assert set_result.returncode == 0, set_result.stderr
@@ -73,7 +81,10 @@ def test_roundtrip(size, linked=False):
         assert config.read_bytes() == original
         assert alacritty.read_text() == "size = 9\n"
         assert "base-size" not in shell.read_text()
-        assert not (root / "pkill.log").exists(), "Ghostty must not be reloaded"
+        signals = (root / "pkill.log").read_text().splitlines() if (root / "pkill.log").exists() else []
+        assert signals == (["-USR1 kitty", "-USR1 kitty"] if kitty_available else []), signals
+        if kitty_available:
+            assert "font_size 9.0" in (root / "home/.config/kitty/kitty.conf").read_text()
 
 
 def test_failed_settings_write():
@@ -103,6 +114,7 @@ def test_no_ghostty_config():
 for base in (9, 13, 15):
     test_roundtrip(base)
 test_roundtrip(12, linked=True)
+test_roundtrip(13, kitty_available=True)
 test_failed_settings_write()
 test_no_ghostty_config()
-print("PASS: stock/personal/prior-15/symlink set-reset-relogin and failed GSettings writes")
+print("PASS: stock/personal/prior-15/symlink, Kitty present/absent, set-reset, and failed GSettings writes")
