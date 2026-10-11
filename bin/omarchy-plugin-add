@@ -117,8 +117,16 @@ mkdir -p "$PLUGINS_DIR"
 
 stage="$PLUGINS_DIR/.add.tmp.$$"
 rm -rf "$stage"
-if ! git clone -- "$url" "$stage"; then
+clone_args=(--depth=1)
+if [[ ${OMARCHY_GIT_FULL_CLONE:-0} == "1" ]]; then
+  clone_args=()
+fi
+
+if ! git clone "${clone_args[@]}" -- "$url" "$stage"; then
   rm -rf "$stage"
+  if [[ ${OMARCHY_GIT_FULL_CLONE:-0} != "1" ]]; then
+    echo "If the server does not support shallow clones, retry with OMARCHY_GIT_FULL_CLONE=1." >&2
+  fi
   fail "failed to clone $url"
 fi
 
