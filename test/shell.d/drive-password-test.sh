@@ -543,12 +543,28 @@ fixture
 export TEST_CHANGE_PARTIAL=1 TEST_KILL_FAIL=1
 attempt 0 "$old_password" "$new_password" "$new_password" || true
 unset TEST_CHANGE_PARTIAL TEST_KILL_FAIL
-for answers in "$old_password not-the-new-one" "$new_password not-the-new-one $old_password" "$new_password $new_password not-the-old-one"; do
-  read -r -a answer_list <<<"$answers"
-  if attempt 0 "${answer_list[@]}"; then fail "a rerun with both keys refuses unconfirmed passwords: $answers"; fi
-  said "so no key is removed"
+# Each case's answers stay whole (the new password has a space in it), and
+# each case is judged on its own output and prompts.
+for c in 1 2 3; do
+  case $c in
+    1) answers=("$old_password" not-the-new-one) ;;
+    2) answers=("$new_password" not-the-new-one "$old_password") ;;
+    3) answers=("$new_password" "$new_password" not-the-old-one) ;;
+  esac
+  : >"$tmp/output"
+  : >"$tmp/prompts"
+  if attempt 0 "${answers[@]}"; then fail "a rerun with both keys refuses unconfirmed passwords: case $c"; fi
+  grep -q 'New encryption password you chose for this change' "$tmp/prompts" ||
+    fail "a rerun with both keys asks to confirm the added slot: case $c" "$(cat "$tmp/prompts" "$tmp/output")"
+  if (( c == 3 )); then
+    said "The new password opens key slot 2, but the old password didn't open slot 0, so no key is removed."
+    said "Check that you typed the old password correctly"
+  else
+    said "Those passwords don't show that slot 2 holds this change's new password, so no key is removed."
+    said "Settle it by hand"
+  fi
   [[ -e $journal && -n $(opens "$system" "$old_password") && -n $(opens "$system" "$new_password") ]] ||
-    fail "a rerun with unconfirmed passwords removes neither key: $answers" "$(cat "$tmp/output")"
+    fail "a rerun with unconfirmed passwords removes neither key: case $c" "$(cat "$tmp/output")"
 done
 pass "with both keys on the disk, a rerun removes neither until both passwords confirm the added slot"
 
@@ -641,14 +657,14 @@ attempt "$change_step" "$old_password" "$new_password" "$new_password" || true
 awk -F'\t' -v OFS='\t' '$1 == 0 { $2 = "overwritten" } 1' "$system.slots" >"$system.slots.next" && mv -f "$system.slots.next" "$system.slots"
 printf '2\t%s\n' "$new_password" >>"$system.slots"
 if attempt 0 "$new_password" "$new_password" "$old_password"; then fail "a rerun with the old slot rewritten removes nothing"; fi
-said "The new password opens key slot 2, but the old password doesn't open slot 0"
-said "removing it is safe: sudo cryptsetup luksKillSlot $system 0"
+said "The new password opens key slot 2, but the old password didn't open slot 0"
+said "remove it (sudo cryptsetup luksKillSlot $system 0)"
 ! grep -q 'luksKillSlot' "$tmp/sudo-calls" && grep -q '^0'$'\t' "$system.slots" && [[ -e $journal ]] ||
   fail "a rerun with the old slot rewritten kills no slot and keeps the journal" "$(cat "$tmp/sudo-calls")"
 awk -F'\t' '$1 != 0' "$system.slots" >"$system.slots.next" && mv -f "$system.slots.next" "$system.slots"
 attempt 0 "$new_password" || fail "the rerun finishes once the rewritten slot is removed" "$(cat "$tmp/output")"
 consistent "rewritten old slot removed by hand" "$new_password"
-pass "a rerun with the old slot rewritten says it is safe to remove, then finishes once it is gone"
+pass "a rerun with the old slot rewritten says how to check it before removing it, then finishes once it is gone"
 
 fixture
 printf '/dev/mapper/root crypt btrfs\n%s part \n/dev/fake-disk disk \n' "$system" >"$tmp/root-ancestry"
