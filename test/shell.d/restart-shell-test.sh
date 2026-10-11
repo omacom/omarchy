@@ -323,3 +323,54 @@ grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null 
 [[ -f $restart_state.locked ]] || fail "lock recovery did not re-secure the session without notifications"
 grep -q "notification service did not become ready" "$test_tmp/dead-notifications.out" || fail "a missing notification service is not reported" "$(cat "$test_tmp/dead-notifications.out")"
 pass "restart recovers the lock even when the notification service never returns"
+
+# Exercise both real cleanup functions with argv boundaries preserved and no
+# live processes involved. Only explicit Omarchy selectors establish ownership.
+orphan_proc="$test_tmp/orphan-proc"
+omarchy_path="$test_tmp/omarchy checkout"
+config_dir="$omarchy_path/shell"
+
+proc_fixture() {
+  local pid=$1
+  shift
+  mkdir -p "$orphan_proc/$pid"
+  printf '%s\0' "$@" >"$orphan_proc/$pid/cmdline"
+}
+
+proc_fixture 9001 quickshell -c clock
+proc_fixture 9002 /usr/bin/quickshell --path=/independent/shell
+proc_fixture 9003 quickshell
+proc_fixture 9004 quickshell -c omarchy-clock
+proc_fixture 9005 quickshell --config=omarchy-clock
+proc_fixture 9006 quickshell --path="$config_dir-extra"
+proc_fixture 9007 /usr/bin/not-quickshell -c omarchy
+proc_fixture 9008 /usr/bin/quickshell-helper -p "$config_dir"
+proc_fixture 9009 quickshell -p /independent/shell
+proc_fixture 9010 quickshell --path /independent/shell
+proc_fixture 9011 quickshell --config clock
+proc_fixture 9012 quickshell -p "$config_dir-extra"
+proc_fixture 9013 quickshell --path "$config_dir-extra"
+proc_fixture 9014 quickshell -p
+proc_fixture 9015 quickshell -c
+proc_fixture 9101 quickshell -n -p "$config_dir"
+proc_fixture 9102 /usr/bin/quickshell --path "$config_dir"
+proc_fixture 9103 quickshell --path="$config_dir"
+proc_fixture 9104 quickshell -c omarchy
+proc_fixture 9105 quickshell --config omarchy
+proc_fixture 9106 quickshell --config=omarchy
+
+for command in omarchy-launch-shell omarchy-restart-shell; do
+  reaped=$(
+    # Source only the function so the command's other lifecycle actions do not run.
+    source <(sed -n '/^reap_orphan_quickshell()/,/^}/p' "$ROOT/bin/$command")
+    killed=()
+    kill() { killed+=("$1"); }
+    OMARCHY_PATH="$omarchy_path"
+    CONFIG_DIR="$config_dir"
+    OMARCHY_TEST_PROC_ROOT="$orphan_proc" reap_orphan_quickshell
+    printf '%s\n' "${killed[@]}"
+  )
+  [[ $reaped == $'9101\n9102\n9103\n9104\n9105\n9106' ]] ||
+    fail "$command cleanup targets only explicit Omarchy configs" "reaped=$reaped"
+  pass "$command cleanup spares independent widgets and targets exact Omarchy configs"
+done
