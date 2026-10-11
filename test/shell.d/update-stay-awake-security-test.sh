@@ -83,6 +83,7 @@ cat >"$stub_bin/systemd-inhibit" <<'SH'
 #!/bin/bash
 [[ ${SYSTEMD_FAIL:-0} == "0" ]] || exit 42
 printf '%s\n' "$$" >>"$INHIBITOR_LOG"
+printf '%s\n' "$*" >>"$INHIBITOR_LOG.args"
 if [[ -n ${CREATE_BAD_IDLE:-} ]]; then
   ln -s "$CREATE_BAD_IDLE" "$TEST_STATE_DIR/idle-owner"
 fi
@@ -178,6 +179,8 @@ read -r version valid_pid valid_start valid_owner valid_token <"$state_dir/inhib
   fail "inhibitor state is private, caller-owned, and singly linked"
 run_helper stop
 wait_dead "$valid_pid" || fail "valid inhibitor identity is stopped"
+grep -q -- '^--what=sleep:idle:handle-lid-switch ' "$inhibitor_log.args" ||
+  fail "update inhibitor blocks lid handling, which ignores sleep inhibitors"
 
 [[ ! -e $state_dir ]] || fail "valid state is cleaned after stop"
 pass "valid XDG runtime uses private atomic inhibitor state"
