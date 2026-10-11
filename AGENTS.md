@@ -81,8 +81,8 @@ Search the open pull requests before writing a fix. The backlog is large enough 
 Search by symptom, then again in wider terms, because a PR describing the same area in different words will not match the first query:
 
 ```bash
-gh pr list --state open --search "password focus in:title"
-gh pr list --state open --search "lock screen suspend focus"
+gh pr list --repo omacom/omarchy --state open --search "password focus in:title"
+gh pr list --repo omacom/omarchy --state open --search "lock screen suspend focus"
 ```
 
 When an open PR already covers the change, add to that one rather than opening a competing one: confirm the bug on your hardware, review the approach, or contribute a test it lacks.
