@@ -418,14 +418,35 @@ stop_screenrecording() {
     count=$((count + 1))
   done
 
-  toggle_screenrecording_indicator
   cleanup_webcam
   wf_audio_cleanup
 
+  # Refresh only once the recorder is gone: sending SIGKILL does not wait for exit.
   if omarchy-capture-screenrecording-process "${RECORDER[@]}"; then
     omarchy-capture-screenrecording-process "${RECORDER[@]}" --signal KILL
+    count=0
+    while omarchy-capture-screenrecording-process "${RECORDER[@]}" && ((count < 10)); do
+      sleep 0.1
+      count=$((count + 1))
+    done
+
+    if omarchy-capture-screenrecording-process "${RECORDER[@]}"; then
+      # Uninterruptible I/O can outlast the foreground wait. Refresh when it
+      # finally exits without holding up the error notification or stop command.
+      # The lock keeps one watcher however often stop is pressed while it is stuck.
+      (
+        flock -n 9 || exit 0
+        while omarchy-capture-screenrecording-process "${RECORDER[@]}"; do
+          sleep 1
+        done
+        toggle_screenrecording_indicator
+      ) 9>"$RUNTIME_DIR/omarchy-screenrecord-watch.lock" </dev/null >/dev/null 2>&1 &
+    else
+      toggle_screenrecording_indicator
+    fi
     omarchy-notification-send -u critical -t 5000 "Screen recording error" "Recording process had to be force-killed. Video may be corrupted."
   else
+    toggle_screenrecording_indicator
     finalize_recording
     local filename=$(cat "$RECORDING_FILE" 2>/dev/null)
     echo "$filename"
@@ -534,6 +555,9 @@ fi
     if screenrecording_active; then
       stop_screenrecording
     elif [[ $STOP_RECORDING == "true" ]]; then
+      # No recorder is running: resync the indicator so a stale 'active' state
+      # self-heals instead of dead-ending every later click.
+      toggle_screenrecording_indicator
       exit 1
     else
       rm -f "$CANCEL_FILE"

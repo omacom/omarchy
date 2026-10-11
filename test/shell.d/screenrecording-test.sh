@@ -539,3 +539,189 @@ if status "$legacy_runtime"; then fail "--status reports nothing when no recorde
 ! grep -q -- '--signal' "$helper_calls" || fail "--status signals nothing" "$(<"$helper_calls")"
 [[ ! -e $OMARCHY_TEST_NOTIFICATION_ARGS ]] || fail "--status never notifies, even without a recordings directory" "$(<"$OMARCHY_TEST_NOTIFICATION_ARGS")"
 pass "--status answers what stop would act on, without a recordings directory, notifications or signals"
+
+# The bar indicator only stays honest if the refresh happens after the recorder
+# is actually gone -- refreshing while it is still alive (the force-kill path)
+# or not refreshing at all (a redundant --stop-recording) leaves it stuck
+# 'active', dead-ending every later click on it.
+export OMARCHY_TEST_SEQUENCE="$tmp_dir/sequence"
+export OMARCHY_TEST_RECORDER_RUNNING="$tmp_dir/recorder-running"
+export OMARCHY_TEST_KILL_SENT="$tmp_dir/kill-sent"
+export OMARCHY_TEST_EXIT_DELAY="$tmp_dir/exit-delay"
+export OMARCHY_TEST_GSR_HELD="$tmp_dir/gsr-held"
+export OMARCHY_TEST_INDICATOR_STATE="$tmp_dir/indicator-state"
+sequence_file=$OMARCHY_TEST_SEQUENCE
+
+# A recorder that ignores SIGINT unless OMARCHY_TEST_GRACEFUL is set, and after
+# SIGKILL stays visible while held or for OMARCHY_TEST_EXIT_DELAY more probes.
+cat >"$stub_bin/omarchy-capture-screenrecording-process" <<'SH'
+#!/bin/bash
+case "$*" in
+*"--signal INT")
+  printf 'signal INT\n' >>"$OMARCHY_TEST_SEQUENCE"
+  [[ ${OMARCHY_TEST_GRACEFUL:-false} == "true" ]] && rm -f "$OMARCHY_TEST_RECORDER_RUNNING"
+  exit 0
+  ;;
+*"--signal KILL")
+  printf 'signal KILL\n' >>"$OMARCHY_TEST_SEQUENCE"
+  touch "$OMARCHY_TEST_KILL_SENT"
+  exit 0
+  ;;
+esac
+[[ -f $OMARCHY_TEST_RECORDER_RUNNING ]] || exit 1
+[[ -f $OMARCHY_TEST_KILL_SENT && ! -f $OMARCHY_TEST_GSR_HELD ]] || exit 0
+remaining=$(cat "$OMARCHY_TEST_EXIT_DELAY" 2>/dev/null || echo 0)
+if ((remaining > 0)); then
+  echo "$((remaining - 1))" >"$OMARCHY_TEST_EXIT_DELAY"
+  printf 'recorder still exiting\n' >>"$OMARCHY_TEST_SEQUENCE"
+  exit 0
+fi
+rm -f "$OMARCHY_TEST_RECORDER_RUNNING"
+exit 1
+SH
+
+# The bar asks --status on refresh; record what it would see at that moment.
+cat >"$stub_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+printf 'omarchy-shell %s\n' "$*" >>"$OMARCHY_TEST_SEQUENCE"
+if [[ -f $OMARCHY_TEST_RECORDER_RUNNING ]]; then
+  echo recording >"$OMARCHY_TEST_INDICATOR_STATE"
+else
+  echo idle >"$OMARCHY_TEST_INDICATOR_STATE"
+fi
+SH
+
+cat >"$stub_bin/sleep" <<'SH'
+#!/bin/bash
+[[ $1 == "1" ]] && /usr/bin/sleep 0.01
+exit 0
+SH
+
+chmod +x "$stub_bin"/omarchy-capture-screenrecording-process "$stub_bin"/omarchy-shell "$stub_bin"/sleep
+
+stop_runtime="$tmp_dir/stop-runtime"
+mkdir -p "$stop_runtime"
+stop_recording() {
+  XDG_RUNTIME_DIR="$stop_runtime" OMARCHY_SCREENRECORD_DIR="$recording_dir" \
+    timeout 3 "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1
+}
+
+# A recorder still alive when the grace period ends gets SIGKILLed; the
+# indicator must read idle even when exiting takes several probes after it.
+touch "$OMARCHY_TEST_RECORDER_RUNNING"
+rm -f "$OMARCHY_TEST_KILL_SENT" "$OMARCHY_TEST_NOTIFICATION_ARGS"
+echo 3 >"$OMARCHY_TEST_EXIT_DELAY"
+: >"$sequence_file"
+stop_recording || true
+
+kill_line=$(grep -n '^signal KILL' "$sequence_file" | head -1 | cut -d: -f1 || true)
+refresh_line=$(grep -n 'omarchy.indicators refresh' "$sequence_file" | head -1 | cut -d: -f1 || true)
+[[ -n $kill_line && -n $refresh_line ]] && ((refresh_line > kill_line)) ||
+  fail "indicator refresh runs after the force-kill, not before it" "$(cat "$sequence_file")"
+pass "indicator refresh runs after the force-kill, not before it"
+
+[[ $(cat "$OMARCHY_TEST_INDICATOR_STATE") == "idle" ]] ||
+  fail "a delayed SIGKILL exit is idle at indicator refresh" "$(cat "$sequence_file")"
+pass "a delayed SIGKILL exit is idle at indicator refresh"
+
+grep -F 'force-killed' "$OMARCHY_TEST_NOTIFICATION_ARGS" >/dev/null ||
+  fail "a force-killed recording posts the error notification" "$(cat "$OMARCHY_TEST_NOTIFICATION_ARGS")"
+pass "a force-killed recording posts the error notification"
+
+# If the recorder remains visible beyond the bounded foreground wait, stopping
+# still returns and posts the error, then refreshes when the recorder disappears.
+touch "$OMARCHY_TEST_RECORDER_RUNNING" "$OMARCHY_TEST_GSR_HELD"
+rm -f "$OMARCHY_TEST_KILL_SENT" "$OMARCHY_TEST_INDICATOR_STATE" "$OMARCHY_TEST_NOTIFICATION_ARGS"
+echo 0 >"$OMARCHY_TEST_EXIT_DELAY"
+: >"$sequence_file"
+
+if ! stop_recording; then
+  rm -f "$OMARCHY_TEST_GSR_HELD"
+  fail "a recorder held after SIGKILL does not block stopping"
+fi
+[[ ! -f $OMARCHY_TEST_INDICATOR_STATE ]] ||
+  fail "a recorder still present is not prematurely refreshed"
+grep -F 'force-killed' "$OMARCHY_TEST_NOTIFICATION_ARGS" >/dev/null ||
+  fail "a recorder held after SIGKILL posts the error notification"
+pass "a recorder held after SIGKILL returns without a premature refresh"
+
+# Stopping again while it is still stuck must not start a second watcher.
+if ! stop_recording; then
+  rm -f "$OMARCHY_TEST_GSR_HELD"
+  fail "a second stop while the recorder is stuck does not block stopping"
+fi
+
+# Count by the watch lock: an earlier stop's preview cleanup shares the command line.
+count_watchers() {
+  local pid count=0
+  for pid in $(/usr/bin/pgrep -f "$ROOT/bin/omarchy-capture-screenrecording --stop-recording"); do
+    [[ $(readlink "/proc/$pid/fd/9" 2>/dev/null) == "$stop_runtime/omarchy-screenrecord-watch.lock" ]] && ((++count))
+  done
+  echo "$count"
+}
+
+for attempt in {1..100}; do
+  (($(count_watchers) == 1)) && break
+  /usr/bin/sleep 0.01
+done
+watchers=$(count_watchers)
+if ((watchers != 1)); then
+  rm -f "$OMARCHY_TEST_GSR_HELD"
+  fail "repeated stops while the recorder is stuck leave one watcher" "watchers: $watchers"
+fi
+pass "repeated stops while the recorder is stuck leave one watcher"
+
+rm -f "$OMARCHY_TEST_GSR_HELD"
+for attempt in {1..100}; do
+  [[ $(cat "$OMARCHY_TEST_INDICATOR_STATE" 2>/dev/null) == "idle" ]] && break
+  /usr/bin/sleep 0.01
+done
+[[ $(cat "$OMARCHY_TEST_INDICATOR_STATE" 2>/dev/null) == "idle" ]] ||
+  fail "a recorder that outlasts the foreground wait eventually refreshes idle" "$(cat "$sequence_file")"
+pass "a recorder that outlasts the foreground wait eventually refreshes idle"
+
+# Clicking the indicator while it shows a stale 'active' state runs
+# --stop-recording; refreshing there lets the dead button recover by itself.
+rm -f "$OMARCHY_TEST_RECORDER_RUNNING"
+: >"$sequence_file"
+if stop_recording; then
+  fail "a redundant --stop-recording exits nonzero"
+fi
+pass "a redundant --stop-recording exits nonzero"
+
+grep -F 'omarchy.indicators refresh' "$sequence_file" >/dev/null ||
+  fail "a redundant --stop-recording resyncs the indicator" "$(cat "$sequence_file")"
+pass "a redundant --stop-recording resyncs the indicator"
+
+# A graceful stop must clear the indicator before post-processing, which can
+# take seconds per recorded minute; only finalize_recording runs ffprobe.
+recording_file="$recording_dir/screenrecording-graceful.mp4"
+: >"$recording_file"
+echo "$recording_file" >"$stop_runtime/omarchy-screenrecord-filename"
+
+cat >"$stub_bin/ffprobe" <<'SH'
+#!/bin/bash
+printf 'ffprobe %s\n' "$*" >>"$OMARCHY_TEST_SEQUENCE"
+exit 1
+SH
+
+cat >"$stub_bin/ffmpeg" <<'SH'
+#!/bin/bash
+printf 'ffmpeg %s\n' "$*" >>"$OMARCHY_TEST_SEQUENCE"
+exit 1
+SH
+
+chmod +x "$stub_bin"/ffprobe "$stub_bin"/ffmpeg
+
+touch "$OMARCHY_TEST_RECORDER_RUNNING"
+rm -f "$OMARCHY_TEST_KILL_SENT"
+: >"$sequence_file"
+OMARCHY_TEST_GRACEFUL=true stop_recording || true
+
+refresh_line=$(grep -n 'omarchy.indicators refresh' "$sequence_file" | head -1 | cut -d: -f1 || true)
+finalize_line=$(grep -n '^ffprobe ' "$sequence_file" | head -1 | cut -d: -f1 || true)
+[[ -n $refresh_line && -n $finalize_line ]] && ((refresh_line < finalize_line)) ||
+  fail "a graceful stop refreshes the indicator before post-processing" "$(cat "$sequence_file")"
+! grep -q '^signal KILL' "$sequence_file" ||
+  fail "a recorder that stops on INT is not killed" "$(cat "$sequence_file")"
+pass "a graceful stop refreshes the indicator before post-processing"
