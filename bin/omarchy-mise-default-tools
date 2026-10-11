@@ -1,0 +1,112 @@
+#!/bin/bash
+
+# omarchy:summary=List, disable, or re-enable Omarchy's default mise tools for this user
+# omarchy:args=<list|disable|enable [tool...]>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# The settings package owns this file, so opting out happens per user through
+# mise's disable_tools setting rather than by deleting it.
+tools_config="${OMARCHY_MISE_CONFIG_PATH:-/etc/mise/conf.d/omarchy-tools.toml}"
+
+# disable_tools is one list in the user's config, possibly with their own
+# entries. Record what was added here so enabling removes only those.
+disabled_record="$HOME/.local/state/omarchy/mise-disabled-default-tools"
+
+list_tools() {
+  [[ -f $tools_config ]] || return 0
+  awk '
+    /^\[/ { in_tools = ($0 == "[tools]"); next }
+    in_tools && match($0, /^("[^"]+"|[^ =]+) = /) {
+      key = substr($0, RSTART, RLENGTH - 3)
+      gsub(/"/, "", key)
+      print key
+    }
+  ' "$tools_config"
+}
+
+# mise prints the list as ["a", "b"]; tool names never contain quotes or commas.
+disabled_tools() {
+  mise settings get disable_tools 2>/dev/null | tr -d '[]" ' | tr ',' '\n' | grep . || true
+}
+
+reshim() {
+  mise reshim --system
+  mise reshim
+}
+
+case "${1:-}" in
+list)
+  list_tools
+  ;;
+disable)
+  mkdir -p "$(dirname "$disabled_record")"
+  mapfile -t already < <(disabled_tools)
+  recorded=()
+  if [[ -f $disabled_record ]]; then
+    mapfile -t recorded <"$disabled_record"
+  fi
+  while read -r tool; do
+    [[ -n $tool ]] || continue
+    if [[ " ${already[*]} " != *" $tool "* ]]; then
+      if [[ " ${recorded[*]} " != *" $tool "* ]]; then
+        record_tmp=$(mktemp "$disabled_record.XXXXXX")
+        trap 'rm -f "$record_tmp"' EXIT
+        if [[ -f $disabled_record ]]; then
+          cat "$disabled_record" >"$record_tmp"
+        fi
+        printf '%s\n' "$tool" >>"$record_tmp"
+        mv "$record_tmp" "$disabled_record"
+        trap - EXIT
+        recorded+=("$tool")
+      fi
+      mise settings add disable_tools "$tool"
+    fi
+  done < <(list_tools)
+  reshim
+  ;;
+enable)
+  shift
+  if [[ ! -f $disabled_record ]]; then
+    reshim
+    exit 0
+  fi
+  mapfile -t recorded <"$disabled_record"
+  if (($# > 0)); then
+    targets=("$@")
+  else
+    targets=("${recorded[@]}")
+  fi
+
+  remaining=()
+  while read -r tool; do
+    [[ -n $tool ]] || continue
+    if [[ " ${targets[*]} " == *" $tool "* && " ${recorded[*]} " == *" $tool "* ]]; then
+      continue
+    fi
+    remaining+=("$tool")
+  done < <(disabled_tools)
+
+  if ((${#remaining[@]} == 0)); then
+    mise settings unset disable_tools
+  else
+    mise settings set disable_tools "$(IFS=,; echo "${remaining[*]}")"
+  fi
+
+  still_recorded=()
+  for tool in "${recorded[@]}"; do
+    [[ " ${targets[*]} " == *" $tool "* ]] || still_recorded+=("$tool")
+  done
+  if ((${#still_recorded[@]} == 0)); then
+    rm -f "$disabled_record"
+  else
+    printf '%s\n' "${still_recorded[@]}" >"$disabled_record"
+  fi
+  reshim
+  ;;
+*)
+  echo "Usage: omarchy-mise-default-tools <list|disable|enable [tool...]>" >&2
+  exit 1
+  ;;
+esac

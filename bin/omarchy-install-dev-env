@@ -70,7 +70,14 @@ python)
   echo -e "Installing Python...\n"
   mise use --global python@latest
   echo -e "\nInstalling uv...\n"
-  curl -fsSL https://astral.sh/uv/install.sh | sh
+  # Omarchy declares uv as a default tool; re-enable it if this user removed the
+  # preinstalls. Without Omarchy's declarations, select it in the user's config.
+  if omarchy-mise-default-tools list | grep -qx uv; then
+    omarchy-mise-default-tools enable uv
+    mise install uv
+  else
+    mise use --global uv
+  fi
   ;;
 elixir)
   echo -e "Installing Elixir...\n"
