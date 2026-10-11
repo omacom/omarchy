@@ -71,7 +71,7 @@ grep -Fx 'WantedBy=graphical-session.target' "$fcitx_service" >/dev/null ||
 grep -Fx 'ConditionEnvironment=WAYLAND_DISPLAY' "$fcitx_service" >/dev/null ||
   fail "an update over SSH has a live user manager and no display; starting fcitx5 there wedges the unit active-but-blind, and Wants= will not replace it at graphical login"
 
-grep -F 'pkill -x fcitx5' "$ROOT/bin/omarchy-restart-xcompose" >/dev/null ||
+grep -F 'pkill -u "$UID" -x fcitx5' "$ROOT/bin/omarchy-restart-xcompose" >/dev/null ||
   fail "restart-xcompose cannot reload a fcitx5 running outside the unit, so it silently keeps serving the old table"
 
 grep -F 'omarchy-fcitx5.service' "$first_run_units" >/dev/null ||

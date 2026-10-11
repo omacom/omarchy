@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# omarchy:summary=Require approval for new Thunderbolt PCIe accessories
+# omarchy:args=[--quiet|status|recover]
+
+set -euo pipefail
+source "$OMARCHY_PATH/install/helpers/thunderbolt-policy.sh"
+source "$OMARCHY_PATH/install/helpers/thunderbolt-review.sh"
+
+if [[ ${1:-} == "status" ]]; then
+  tb_status
+elif [[ ${1:-} == "recover" && $# == 1 ]]; then
+  sudo /usr/bin/omarchy-thunderbolt-authorization-admin recover
+elif [[ $# == 0 || ( $# == 1 && $1 == "--quiet" ) ]]; then
+  if [[ ${1:-} != "--quiet" ]]; then
+    if [[ -f $TB_PENDING ]]; then tb_status; fi
+    echo "First setup, including a deferred setup, trusts connected accessories. Re-enabling a completed setup preserves saved trust."
+    gum confirm "Require approval for new Thunderbolt accessories?" || exit 0
+  fi
+  # System units and rules are shipped by omarchy-settings.
+  sudo install -Dm644 "$OMARCHY_PATH/default/polkit/org.omarchy.thunderbolt.policy" /usr/share/polkit-1/actions/org.omarchy.thunderbolt.policy
+  sudo systemctl daemon-reload
+  action=enable
+  if [[ ${1:-} == "--quiet" ]]; then
+    action=migrate
+  fi
+  sudo /usr/bin/omarchy-thunderbolt-authorization-admin "$action"
+  systemctl --user daemon-reload
+  systemctl --user enable --now omarchy-thunderbolt-authorization.service
+  if [[ -f /etc/omarchy/thunderbolt-authorization.enabled ]]; then
+    for ((attempt=0; attempt<10; attempt++)); do
+      if tb_public_snapshot >/dev/null 2>&1; then break; fi
+      sleep 1
+    done
+    tb_status
+  elif [[ -f $TB_PENDING ]]; then
+    tb_status
+  fi
+else
+  echo "Usage: omarchy-setup-security-thunderbolt-authorization [--quiet|status|recover]" >&2
+  exit 1
+fi
