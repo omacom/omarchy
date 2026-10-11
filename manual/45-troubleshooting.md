@@ -10,18 +10,6 @@ Omarchy assumes a 2x high-resolution display, which requires setting `GDK_SCALE`
 
 For Spotify, you can use `Ctrl + Minus` to shrink the UI (and `Ctrl + Plus` to make it bigger).
 
-### Why isn't Caps Lock working?
-
-In Omarchy, Caps Lock has been designated to be the xcompose key. That's how you get [quick emojis](07-hotkeys.md#quick-emojis) and [other autocompletions](07-hotkeys.md#quick-completions) done. If you really miss using Caps Lock, you can remap the xcompose key to something else by editing `~/.config/hypr/input.lua`, like setting it to the right alt key:
-
-```
-hl.config({
-  input = {
-    kb_options = "compose:ralt",
-  },
-})
-```
-
 ### Why did all my Super key binds stop working?
 
 On some ASUS ROG and TUF laptops, `Fn + Super` is an easy-to-miss chord that toggles a firmware Windows-key lock (meant for gaming so you don't leave a game by accident). Nothing on screen tells you it happened. While the lock is on, Super emits nothing at all — so every Omarchy bind that uses Super just stops, and it looks like Hyprland broke.

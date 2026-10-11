@@ -20,7 +20,17 @@ wait).
   "author": "You",
   "description": "A clock that does cool things",
   "kinds": ["bar-widget"],
-  "entryPoints": { "barWidget": "Widget.qml" }
+  "entryPoints": { "barWidget": "Widget.qml" },
+  "barWidget": {
+    "displayName": "Cool clock",
+    "category": "Time",
+    "allowMultiple": false,
+    "defaultSection": "left",
+    "defaults": { "format": "HH:mm" },
+    "schema": [
+      { "key": "format", "type": "string", "label": "Format" }
+    ]
+  }
 }
 ```
 
@@ -37,7 +47,7 @@ wait).
 
 Only one full bar option is active at a time. The built-in `omarchy.bar` is
 used when `bar.id` is omitted or when a selected third-party bar cannot load.
-Panels, overlays, and menus are loaded when summoned. Plugins can set the top-level manifest key `keepLoaded: true` to survive between summons, and to keep a service mounted across plugin hot-reload (so `omarchy.lock` is not destroyed while Hyprland still holds the session lock). First-party services are loaded at startup.
+Panels, overlays, and menus are loaded when summoned. Plugins can set the top-level manifest key `keepLoaded: true` to survive between summons, and to keep a service mounted across plugin hot-reload (so `omarchy.lock` is not destroyed while Hyprland still holds the session lock). The kept service instance is not replaced, so changes to its code take effect on a shell restart. First-party services are loaded at startup.
 
 Entry points are QML `Item`s. Panel, overlay, and menu entry points expose `open(payloadJson)` and `close()` for summon/hide; on load the host injects `omarchyPath`, `shell`, `manifest`, and the registries (`pluginRegistry` / `barWidgetRegistry`) as properties. Built-in plugins receive the trusted host objects. Third-party plugins receive capability-scoped facades instead: ordinary plugins may look up and control only their own service and lifecycle, built-in clones retain narrow source-specific configuration and UI compatibility, menu plugins receive an application-library facade, and plugins can read detached scalar bar state. A full-bar plugin additionally receives detached bar configuration and widget-catalog snapshots, narrow proxies for the non-authentication services used by built-in bar widgets, and lifecycle control over configured non-authentication UI plugins. Authentication capabilities are stamped from trusted first-party manifests, authentication services are kept out of the host's public service map and QML object tree, and third-party registry/configuration snapshots can be changed only locally without mutating host state. The facades are API boundaries, not same-process QML sandboxes: a visual widget shares the host bar's scene and can walk its parent hierarchy to ordinary host objects. Sensitive state must not rely on the facade alone for isolation.
 
@@ -88,6 +98,10 @@ bar from the CLI — `use | reset | defaults | position | transparent | put |
 move | set`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
+## Elsewhen
+
+Elsewhen (`omarchy.elsewhen`), the world clock, is a first-party plugin in `shell/plugins/panels/elsewhen/`; [`elsewhen.md`](elsewhen.md) covers how it works. It shipped as the separate `elsewhen` package under the id `omacom.elsewhen` until it moved in. New installs place it immediately after the clock, before Weather; the placement migration uses `omarchy bar put omarchy.elsewhen --after omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. With no shell to ask, as in an update from a TTY, it skips the placement rather than failing the update. A later migration renames existing `omacom.elsewhen` entries in `shell.json`, keeping their settings, and removes the retired package and any dev-checkout link to its `/usr/share/omarchy` path, leaving links and checkouts the user made alone.
+
 ## IPC
 
 The shell exposes a `shell` target (the host also registers
@@ -108,6 +122,7 @@ or `omarchy.power`. There is no `bar` target.
 | `reloadConfig`                        | reload shell.json               |
 | `applyTheme <colorsB64> <shellB64>`   | push theme colors + shell.toml  |
 | `toggleBarTransparency`               | flip the bar background between solid and transparent |
+| `cycleInput <next\|back>`             | switch to the next or previous input method or layout (Super+I, Super+Shift+I); `not running` without the input reader |
 | `setPluginEnabled <id> <"true"\|…>`   | flip enabled bit (`ok` / `unknown`) |
 | `enablePlugin <id> <placementJson>`   | enable and place in one mutation |
 | `putBarWidget <id> <placementJson>`   | place a widget only where absent (`omarchy bar put`) |
@@ -175,6 +190,20 @@ overrides like `omarchy display text size` survive theme switches.
 
 ## Theme tokens
 
+Shell and plugin QML must qualify the palette singleton because Qt 6.12 introduces its own `Color` type. Import `qs.Commons` with an alias and use `Commons.Color` for palette properties and signal connections:
+
+```qml
+import QtQuick
+import qs.Commons
+import qs.Commons as Commons
+
+Rectangle {
+  color: Commons.Color.background
+}
+```
+
+The unqualified import can remain for `Style`, `Util`, and `Border`. Existing third-party plugins that use bare `Color` must make the same change; fixing the host shell does not change a plugin's import scope.
+
 See [`theming.md`](theming.md) for the full theme/template workflow,
 including generated `*.tpl` files, gradient helpers, and shell border syntax.
 
@@ -186,17 +215,17 @@ or override a single section with `shell.<section>.toml`, merged in by
 `omarchy-theme-set-templates` (see [`theming.md`](theming.md)).
 
 `colors.toml` uses `foreground` and `background` for the foundational
-text/background palette, exposed to QML as `Color.foreground` and
-`Color.background`.
+text/background palette, exposed to QML as `Commons.Color.foreground` and
+`Commons.Color.background`.
 
 The shell exposes these tokens to QML via three singletons in
 `qs.Commons`:
 
 - `Color` — palette (`foreground`, `background`, `accent`, `urgent`)
-  and per-surface roles (`Color.bar.*`, `Color.popups.*`,
-  `Color.tooltip.*`, `Color.notifications.*`, `Color.menu.*`,
-  `Color.polkit.*`, `Color.lock.*`, `Color.imagePicker.*`). Clipboard
-  and emojis share `Color.menu.*`; the `[launcher]` section is consumed
+  and per-surface roles (`Commons.Color.bar.*`, `Commons.Color.popups.*`,
+  `Commons.Color.tooltip.*`, `Commons.Color.notifications.*`, `Commons.Color.menu.*`,
+  `Commons.Color.polkit.*`, `Commons.Color.lock.*`, `Commons.Color.imagePicker.*`). Clipboard
+  and emojis share `Commons.Color.menu.*`; the `[launcher]` section is consumed
   by the launcher outside shell QML.
 - `Style` — structural tokens (`cornerRadius`), shared interactive
   state tokens/helpers, spacing (`Style.spacing.*` / `Style.space(px)`),
@@ -204,7 +233,7 @@ The shell exposes these tokens to QML via three singletons in
   (`Style.bar.sizeHorizontal` / `Style.bar.sizeVertical`).
 - `Border` — border-spec helpers for QML surfaces. Use with
   `BorderSurface` from `qs.Ui` when a border should honor shell theme
-  gradients or per-side widths. `Color.<section>.border` is only the
+  gradients or per-side widths. `Commons.Color.<section>.border` is only the
   flat-color fallback for code that cannot render a real border.
 
 ### Interactive states
@@ -367,6 +396,16 @@ size-vertical   = 28   # left/right bar width at base-size 12
 ```
 
 Set `scale-with-font = false` to keep those bar sizes as fixed pixels.
+
+A panel with a camera cutout (a notch) at its top keeps a top bar out of it: the bar is never shorter than the cutout, and its center section sits beside the right one. Omarchy knows no panel's cutout itself; the platform's own package describes them in `/usr/share/omarchy-platform/display-cutouts.json`, a fixed path no environment variable moves (see [file-layout.md](file-layout.md#platform-root)):
+
+```json
+{ "panels": [ { "connector": "eDP", "width": 3024, "height": 1964, "top": 64 } ] }
+```
+
+A panel matches a screen whose connector name starts with `connector` and whose mode, as `hyprctl monitors` reports it, is `width` x `height` physical pixels, at any scale; `top` is the physical rows the cutout covers. On such a panel, `[bar] notch-height` (logical pixels, not scaled with the font) sets the floor by hand. The bar reads the file when the shell starts and whenever it changes; a file installed where its directory didn't exist yet (the platform root itself, on a first install) is read at the next shell start.
+
+Until Hyprland reports a screen's mode, a top bar there waits to appear if a description names the screen's connector, unless the logical size times Qt's whole-number scale already matches a panel. It then appears at its floor rather than growing once windows are laid out, and never guesses a floor for a panel nothing describes. After two seconds without a mode it appears without a floor. Notifications clear the bar as thick as it is on their screen. A plugin's `shell.bar` gives the same through `barSizeFor(screenName)` and the `barSizes` map (screen name to thickness); its `barSize` stays the configured size, which the widgets are drawn at.
 
 ## Custom bar modules
 

@@ -47,24 +47,14 @@ setup_pam_config() {
     sudo tee /etc/pam.d/polkit-1 >/dev/null <<EOF
 $fprintd_gate
 auth      sufficient pam_fprintd.so
-auth      required pam_unix.so
+auth      include system-auth
 
-account   required pam_unix.so
-password  required pam_unix.so
-session   required pam_unix.so
+account   include system-auth
+password  include system-auth
+session   include system-auth
 EOF
   fi
 }
-
-setup_lock_fingerprint_pam() {
-  echo "Configuring lock screen for fingerprint authentication..."
-  sudo tee /etc/pam.d/omarchy-lock-fingerprint >/dev/null <<'EOF'
-#%PAM-1.0
-auth       required                    pam_fprintd.so
-account    include                     system-local-login
-EOF
-}
-
 
 echo -e "\e[32mSetting up fingerprint scanner for authentication.\n\e[0m"
 
@@ -80,7 +70,7 @@ fi
 # one transaction, so a failed install leaves the existing driver in place.
 if omarchy-pkg-missing libfprint-git fprintd usbutils; then
   echo "Installing required packages..."
-  sudo pacman -S --needed --noconfirm --ask 4 libfprint-git fprintd usbutils
+  sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
 fi
 
 # Enroll first fingerprint
@@ -99,7 +89,11 @@ if sudo fprintd-enroll "$USER"; then
     # Editing the stacks up front would leave those machines pointing at
     # pam_fprintd with nothing to match.
     setup_pam_config
-    setup_lock_fingerprint_pam
+    "$OMARCHY_PATH/bin/omarchy-apply-lock"
+    if [[ ! -f /etc/pam.d/omarchy-lock-fingerprint ]]; then
+      echo "Fingerprint enrollment succeeded, but lock-screen configuration could not be confirmed. Run omarchy-apply-lock and try again." >&2
+      exit 1
+    fi
     echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
     echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
   else

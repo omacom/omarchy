@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Restore the kernel's default USB authorization state
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -euo pipefail
+
+if (( EUID != 0 )); then
+  echo "Error: omarchy-usb-authorization-restore-default must run as root" >&2
+  exit 1
+fi
+
+# USBGuard intentionally leaves root hubs in default-deny mode when it exits.
+# Restore both the hub defaults and devices that are still connected.
+shopt -s nullglob
+for attribute in /sys/bus/usb/devices/usb*/authorized_default; do
+  echo 1 >"$attribute"
+done
+for attribute in /sys/bus/usb/devices/*/authorized; do
+  echo 1 >"$attribute"
+done
+shopt -u nullglob
