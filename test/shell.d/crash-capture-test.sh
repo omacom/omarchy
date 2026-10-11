@@ -96,11 +96,12 @@ reset_entries() {
 # One core dump as systemd-coredump journals it. The UID must be this user's, or
 # the watcher discards it as somebody else's crash before anything under test.
 crash_entry() {
-  local comm="$1" exe="$2"
+  local comm="$1" exe="$2" ts="${3:-}"
 
-  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" \
+  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" --arg ts "$ts" \
     '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
-      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV"}' >>"$JOURNAL_ENTRIES"
+      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV"} +
+     (if $ts != "" then {COREDUMP_TIMESTAMP: $ts} else {} end)' >>"$JOURNAL_ENTRIES"
 }
 
 # The stubbed journalctl ends after the entries, so the watcher's loop ends too.
@@ -116,6 +117,7 @@ run_watch() {
   JOURNAL_ENTRIES="$JOURNAL_ENTRIES" \
   NOTIFY_LOG="$NOTIFY_LOG" \
   HOME="$watch_home" \
+  OMARCHY_CRASH_WATCH_STARTED_US="${WATCH_STARTED_US:-}" \
     "$ROOT/bin/omarchy-crash-watch" || status=$?
 
   (( status == 0 )) ||
@@ -141,6 +143,27 @@ announced hyprland ||
   fail "a crash nobody muted still announces itself"
 pass "a crash nobody muted still announces itself"
 
+# A crash from before the watcher started (e.g. from the previous session,
+# delayed by coredump compression) must not be announced, even when it occurred
+# earlier within the very same second as startup.
+reset_entries
+base_sec=1700000000
+crash_entry proton-pass /usr/bin/proton-pass "$((base_sec * 1000000 + 200000))"
+WATCH_STARTED_US="$((base_sec * 1000000 + 800000))" run_watch
+! announced proton-pass ||
+  fail "a crash that occurred before the watcher started is announced, misattributing a previous session's crash to the new session"
+pass "a crash that occurred before the watcher started is ignored, even within the same second"
+
+# A crash from after the watcher started in the same second must be announced.
+reset_entries
+crash_entry signal-desktop /usr/bin/signal-desktop "$((base_sec * 1000000 + 900000))"
+WATCH_STARTED_US="$((base_sec * 1000000 + 800000))" run_watch
+announced signal-desktop ||
+  fail "a crash that occurred after the watcher started is not announced"
+pass "a crash that occurred after the watcher started is announced"
+
+reset_entries
+crash_entry hyprland /usr/bin/hyprland
 mute hyprland on
 run_watch
 ! announced hyprland ||

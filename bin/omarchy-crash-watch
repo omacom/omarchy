@@ -45,6 +45,12 @@ announce() {
     --exec omarchy-agent-crash "$pid" "$comm" "$exe" "$signal"
 }
 
+# Record the watcher's start time in microseconds. -n 0 tells journalctl not to
+# replay old journal records, but slow coredump compression can cause a crash
+# from the previous session to be journaled well after this watcher has started.
+# EPOCHREALTIME renders with the locale's decimal separator, so strip non-digits.
+readonly started_at_us=${OMARCHY_CRASH_WATCH_STARTED_US:-$((10#${EPOCHREALTIME//[!0-9]/}))}
+
 # -n 0 so a restart does not re-announce crashes already dealt with.
 journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
   while IFS= read -r entry; do
@@ -52,16 +58,23 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # IFS whitespace, so an empty field collapses into the next delimiter and
     # every field after it shifts along one. A process can set its own comm to
     # nothing, and that crash used to be read as somebody else's and dropped.
-    IFS=$'\t' read -r uid comm pid exe signal < <(
+    IFS=$'\t' read -r uid comm pid exe signal crash_ts < <(
       jq -r 'def field: if . == null or . == "" then "-" else . end;
              [(._UID | field),
               (.COREDUMP_COMM | field),
               (.COREDUMP_PID | field),
               (.COREDUMP_EXE | field),
-              (.COREDUMP_SIGNAL_NAME | field)] | @tsv' <<<"$entry" 2>/dev/null
+              (.COREDUMP_SIGNAL_NAME | field),
+              (.COREDUMP_TIMESTAMP | field)] | @tsv' <<<"$entry" 2>/dev/null
     )
 
     [[ $pid =~ ^[0-9]+$ ]] || continue
+
+    # Ignore crashes that occurred before this watcher instance started.
+    # systemd-coredump stores COREDUMP_TIMESTAMP in microseconds since the epoch.
+    if [[ $crash_ts =~ ^[0-9]+$ ]]; then
+      ((10#$crash_ts >= started_at_us)) || continue
+    fi
 
     # The toast only offers a diagnosis, so it has nothing to offer until an
     # agent is chosen. Checked per crash, not at startup, so picking one takes
