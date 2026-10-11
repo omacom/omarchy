@@ -6,6 +6,10 @@ screensaver_in_focus() {
   hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
 }
 
+screensaver_launch_in_progress() {
+  [[ -n ${OMARCHY_SCREENSAVER_LAUNCH_PID:-} ]] && kill -0 "$OMARCHY_SCREENSAVER_LAUNCH_PID" 2>/dev/null
+}
+
 exit_screensaver() {
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
   pkill -x ttfx 2>/dev/null
@@ -21,6 +25,19 @@ printf '\033]11;rgb:00/00/00\007'  # Set background color to black
 hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprctl keyword cursor:invisible true &>/dev/null
 
 tty=$(tty 2>/dev/null)
+
+# The launcher starts one instance per monitor and focuses each monitor before
+# that monitor's window has mapped, so early on a screensaver can look unfocused
+# purely because a sibling instance has not appeared yet. screensaver_in_focus
+# is a global check and exit_screensaver's pkill is global, so acting on it then
+# tears down every instance on multi-monitor setups. Hold off for the launcher's
+# entire lifetime, including its final focus restore. For standalone instances,
+# wait until a screensaver has held focus once, with a deadline for a window
+# that never appears. Slow-starting terminals like WezTerm widen this race.
+LAUNCH_GRACE_SECONDS=10
+
+seen_focus=false
+launch_deadline=$((SECONDS + LAUNCH_GRACE_SECONDS))
 
 # Terminals allocate the pty at the default 80x24 and only resize it once the
 # compositor has told the window how big it is. ttfx measures the terminal once,
@@ -41,7 +58,11 @@ while true; do
     --random-effect --no-eol --no-restore-cursor &
 
   while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
-    if read -n1 -t 1 || ! screensaver_in_focus; then
+    if read -n1 -t 1; then
+      exit_screensaver
+    elif screensaver_in_focus; then
+      seen_focus=true
+    elif ! screensaver_launch_in_progress && { [[ $seen_focus == "true" ]] || ((SECONDS >= launch_deadline)); }; then
       exit_screensaver
     fi
   done

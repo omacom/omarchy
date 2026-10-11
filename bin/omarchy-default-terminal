@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set the default terminal used by xdg-terminal-exec
-# omarchy:args=[alacritty|foot|ghostty|kitty]
+# omarchy:args=[alacritty|foot|ghostty|kitty|wezterm]
 # omarchy:examples=omarchy default terminal ghostty | omarchy default terminal kitty
 
 installing=false
@@ -18,6 +18,7 @@ if (($# == 0)); then
   foot.desktop) echo "foot" ;;
   com.mitchellh.ghostty.desktop) echo "ghostty" ;;
   kitty.desktop) echo "kitty" ;;
+  org.wezfurlong.wezterm.desktop) echo "wezterm" ;;
   *) echo "$desktop_id" ;;
   esac
   exit 0
@@ -28,8 +29,9 @@ alacritty) terminal="alacritty"; desktop_id="Alacritty.desktop"; name="Alacritty
 foot) terminal="foot"; desktop_id="foot.desktop"; name="Foot"; glyph= ;;
 ghostty) terminal="ghostty"; desktop_id="com.mitchellh.ghostty.desktop"; name="Ghostty"; glyph= ;;
 kitty) terminal="kitty"; desktop_id="kitty.desktop"; name="Kitty"; glyph= ;;
+wezterm) terminal="wezterm"; desktop_id="org.wezfurlong.wezterm.desktop"; name="WezTerm"; glyph= ;;
 *)
-  echo "Usage: omarchy-default-terminal <alacritty|foot|ghostty|kitty>"
+  echo "Usage: omarchy-default-terminal <alacritty|foot|ghostty|kitty|wezterm>"
   exit 1
   ;;
 esac
