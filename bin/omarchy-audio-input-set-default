@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Set the default audio input and move active streams
+# omarchy:args=<node-id> <source-name>
+# omarchy:examples=omarchy audio input set default 43 alsa_input.pci-0000_00_1f.3.analog-stereo
+
+node_id=${1:-}
+source_name=${2:-}
+
+if [[ -z $node_id || -z $source_name ]]; then
+  echo "Usage: omarchy-audio-input-set-default <node-id> <source-name>" >&2
+  exit 1
+fi
+
+wpctl set-default "$node_id" 2>/dev/null || true
+pactl set-default-source "$source_name" 2>/dev/null || true
+
+# A filter's own capture (the input half of a filter chain, loopback or echo
+# canceller, which PipeWire joins to its output by node.link-group) is the
+# processing, not an app: moving it would feed the filter from the new input, or
+# from its own output. pactl translates the listing, so it is read in the C
+# locale.
+LC_ALL=C pactl list source-outputs 2>/dev/null | awk '
+  /^Source Output #/ { if (id != "" && !filter) print id; id = substr($3, 2); filter = 0 }
+  /^[[:space:]]*node\.link-group = / { filter = 1 }
+  END { if (id != "" && !filter) print id }' | while read -r output; do
+  [[ -n $output ]] && pactl move-source-output "$output" "$source_name" 2>/dev/null || true
+done

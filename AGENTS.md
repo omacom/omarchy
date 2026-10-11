@@ -1,18 +1,43 @@
+# Task Guides
+
+Deeper instructions for specific kinds of work live in `agents/skills/`. Read the
+matching guide before starting:
+
+- [`agents/skills/command-metadata.md`](agents/skills/command-metadata.md) - adding or changing commands in `bin/`
+- [`agents/skills/install-scripts.md`](agents/skills/install-scripts.md) - working under `install/` or on system/user setup commands
+- [`agents/skills/shell-dev.md`](agents/skills/shell-dev.md) - editing the Quickshell desktop under `shell/`
+- [`agents/skills/icon-font.md`](agents/skills/icon-font.md) - adding branded glyphs to `default/fonts/omarchy/omarchy.ttf`
+- [`agents/skills/acceptance-tests.md`](agents/skills/acceptance-tests.md) - writing or running graphical acceptance tests under `test/acceptance.d/`
+- [`agents/skills/visual-verification.md`](agents/skills/visual-verification.md) - verifying any change with a visual effect in the running UI
+- [`agents/skills/migrations.md`](agents/skills/migrations.md) - creating or changing migrations under `migrations/`
+
+# Documentation Layout
+
+Three documentation trees, split by genre and audience:
+
+- `agents/skills/` - task procedure ("do this when doing X"), for anyone working on the codebase
+- `docs/` - reference on how the system is shaped (file layout, update pipeline, theming, shell architecture), for anyone working on the codebase; skills link here for depth
+- `manual/` - end-user documentation for using Omarchy, published; never codebase internals
+
 # Style
 
+- In markdown documents (`plans/`, `docs/`, `manual/`), write full lines — no hard wrapping at 80 columns; break only at structural boundaries like headings and list items
 - Two spaces for indentation, no tabs
 - Use bash 5 conditionals: use `[[ ]]` for string/file tests and `(( ))` for numeric tests
 - In `[[ ]]`, don't quote variables, but do quote string literals when comparing values (e.g., `[[ $branch == "dev" ]]`)
 - Prefer `(( ))` over numeric operators inside `[[ ]]` (e.g., `(( count < 50 ))`, not `[[ $count -lt 50 ]]`)
+- Prefer a full `if`/`else` conditional for simple two-path control flow; don't rely on `exec` or `exit` in one branch to make following statements unreachable
 - For strings/paths with spaces, quote them instead of escaping spaces with `\ ` (e.g., `"$APP_DIR/Disk Usage.desktop"`, not `$APP_DIR/Disk\ Usage.desktop`)
-- Shebangs must use `#!/bin/bash` consistently (never `#!/usr/bin/env bash`)
+- Shebangs must use `#!/bin/bash` consistently (never `#!/usr/bin/env bash`). A security-sensitive entrypoint may use the exact `#!/bin/bash -p` form only when it must suppress `BASH_ENV` and exported-function startup injection before its first command; that exception must be explained at the boundary and covered by a regression that rejects an ordinary Bash launch with a decoy `-p` argument.
 - Scripts under `install/` and `migrations/` may be sourced and intentionally omit shebangs
 
 # Command Naming
 
 All commands start with `omarchy-`. Prefixes indicate purpose.
 
-The authoritative command group list lives in `bin/omarchy` in `GROUP_DESCRIPTIONS`. Keep `GROUP_DESCRIPTIONS` updated when adding a new command prefix.
+The authoritative list of user-facing command groups lives in `bin/omarchy` in `GROUP_DESCRIPTIONS`. Keep `GROUP_DESCRIPTIONS` updated when adding a new command prefix users are meant to browse to.
+
+A group whose commands are all `# omarchy:hidden=true` gets no entry. That table drives the top-level group listing on its own, so an entry there advertises the group even when every command in it is hidden. `apply-` and `provision-` are deliberately absent for that reason; both still route, and `omarchy <group>` still prints a group header without one.
 
 Common prefixes include:
 
@@ -29,109 +54,104 @@ Common prefixes include:
 - `theme-` - theme management
 - `update-` - update components
 
-Other current prefixes include:
+Do not maintain a second exhaustive prefix list here. Consult
+`GROUP_DESCRIPTIONS` when selecting or checking a command group so this
+guidance does not drift from the router.
 
-- `ac-`, `audio-`, `battery-`, `branch-`, `brightness-`, `channel-`, `config-`, `debug-`, `dev-`, `drive-`, `first-`, `font-`, `haptic-`, `hibernation-`, `hook-`, `hyprland-`, `menu-`, `migrate-`, `notification-`, `npx-`, `plymouth-`, `powerprofiles-`, `reinstall-`, `remove-`, `screensaver-`, `show-`, `snapshot-`, `state-`, `sudo-`, `swayosd-`, `system-`, `transcode-`, `tui-`, `tz-`, `upload-`, `version-`, `voxtype-`, `webapp-`, `wifi-`, `windows-`
+# Runtime Environment
 
-# Command Metadata
+- `$OMARCHY_PATH` is set at the top level by the uwsm session environment and is always available to Omarchy runtime code.
+- Commands in `bin/` and Quickshell QML should rely on `$OMARCHY_PATH` / `Quickshell.env("OMARCHY_PATH")`; do not derive fallback paths from `HOME`, `Quickshell.shellDir`, or re-export/default `OMARCHY_PATH` manually.
 
-Commands in `bin/` can declare CLI metadata in comments near the top of the file. `bin/omarchy` scans the first 80 lines, and tests expect command metadata to remain valid.
+# Platforms
 
-Supported metadata keys:
+Omarchy runs on x86 and aarch64 (ARM). A platform name is the CPU architecture, then a hardware family only when that family needs handling of its own:
 
-- `# omarchy:summary=...` - short help text
-- `# omarchy:group=...` - command group when it differs from the filename-derived prefix
-- `# omarchy:name=...` - command name within the group
-- `# omarchy:args=...` - usage arguments
-- `# omarchy:examples=...` - examples separated with ` | `
-- `# omarchy:alias=...` / `# omarchy:aliases=...` - alternate routes
-- `# omarchy:hidden=true` - hide from default command listings
-- `# omarchy:requires-sudo=true` - mark commands that require sudo
+- `x86` - every x86_64 machine
+- `aarch64` - every ARM machine without a family of its own (Snapdragon laptops, Raspberry Pis and ARM VMs today)
+- `aarch64-apple` - Apple Silicon Macs
 
-Prefer explicit metadata for user-facing commands. Keep routes consistent with the filename unless there is a deliberate alias or compatibility route.
+A new family is named `aarch64-<family>` (e.g. `aarch64-qualcomm`, `aarch64-n1x`) and is added only once it needs code of its own, so `aarch64*` always means ARM. `omarchy-hw-platform` prints the most specific name. Use these exact names wherever a platform is named: package lists, pacman template directories, image manifests, dispatch registration, tests and docs. Never introduce `generic`, `arm64`, `apple-silicon` or other spellings; the old `apple-silicon`, `generic-aarch64` and `generic` are read only for compatibility with older image builders.
 
-Example:
+Ask a helper; don't read `uname -m` or the device tree in feature code:
 
-```bash
-# omarchy:summary=Take a screenshot
-# omarchy:group=capture
-# omarchy:args=[smart|region|windows|fullscreen] [slurp|copy]
-# omarchy:examples=omarchy screenshot | omarchy capture screenshot region
-# omarchy:aliases=omarchy screenshot
-```
+- `omarchy-hw-x86` / `omarchy-hw-aarch64` - the CPU architecture. Use them for binary and ABI availability: a package with no aarch64 build, an x86 guest VM, multilib.
+- `omarchy-hw-aarch64-apple` (and later `omarchy-hw-aarch64-<family>`) - built on `omarchy-hw-platform`, image-build aware. Use them for hardware behaviour. `omarchy-hw-apple-silicon` is a hidden alias kept for the omarchy-mac packages; don't use it in new code.
 
-# Install Scripts
+Where platform code lives:
 
-Install entry points (`install.sh`, `boot.sh`) use `#!/bin/bash`. Many scripts under `install/` are sourced via `run_logged` and intentionally do not have shebangs.
+- Packages: `install/omarchy-base.packages` for everyone, `install/omarchy-aarch64.packages` for every ARM machine, `install/omarchy-<platform>.packages` for one family, and base packages with no aarch64 build in `install/omarchy-x86_64-only.packages`. `omarchy-pkg-defaults` composes them.
+- Pacman templates: `default/pacman/` for x86, `default/pacman/<platform>/` for each ARM platform.
+- Hardware setup: `install/hardware/<vendor-or-family>/`, gated by a predicate. `install/hardware/apple/` holds Intel Mac quirks; Apple Silicon's own setup ships in the omarchy-mac packages.
+- Boot chains Omarchy can't drive generically: a platform package behind `omarchy-lifecycle-dispatch` ([`docs/lifecycle-dispatch.md`](docs/lifecycle-dispatch.md)). Platforms that boot Limine with UKIs like x86 keep the generic path.
 
-Install stage files follow this pattern:
+The experience should be the same on every platform. When a package or feature is missing or broken on one, the default is to get it fixed upstream (an aarch64 build, a bug report, a patch to the maintainer) and leave the gap visible meanwhile, not to paper over it. When asked for a platform workaround, say so and propose the upstream fix first. Hiding a menu entry or skipping a package is fine only for things that can't exist there (an x86 guest VM, an x86-only proprietary binary). Alternative packages and platform-only replacements are a last resort, used only when upstream can't or won't fix it, with the reason written next to the code.
 
-- `install/*/all.sh` lists scripts in execution order
-- leaf scripts are sourced by `run_logged $OMARCHY_INSTALL/path/to/script.sh`
-- avoid `exit` in sourced install scripts unless intentionally aborting the install
-- use `$OMARCHY_INSTALL` and `$OMARCHY_PATH` instead of hard-coded Omarchy paths
-- keep hardware-specific logic under `install/config/hardware/`
-- prefer helper commands for package and command checks where available
+# Privileged Commands
 
-Raw `command -v`, `pacman`, and `pacman-key` are acceptable in bootstrap/preflight/package-helper contexts where the helper commands may not be available yet or where direct package-manager behavior is the point of the script.
+- Follow the "Privilege Escalation" section of `default/agents/skills/omarchy/SKILL.md`. It draws the
+  `sudo`/`pkexec` line by whether the caller has a terminal to enter a password in, and the repo's
+  own scripts follow it.
+
+# Git
+
+- Commits should be atomic: include only one coherent change or fix, and do not mix unrelated work.
+- Commit messages should be succinct and describe the change being made.
 
 # Helper Commands
 
 Use these instead of raw shell commands:
 
 - `omarchy-cmd-missing` / `omarchy-cmd-present` - check for commands
-- `omarchy-pkg-missing` / `omarchy-pkg-present` - check for packages
-- `omarchy-pkg-add` - install packages (handles both pacman and AUR)
+- `omarchy-pkg-missing` / `omarchy-pkg-present` - check for packages (don't use these if you can just use `omarchy-pkg-add`/`omarchy-pkg-drop`)
+- `omarchy-pkg-add` - install packages from the configured pacman repos, Omarchy's included; use `omarchy-pkg-aur-add` for AUR packages
 - `omarchy-pkg-drop` - remove packages; use this instead of raw `pacman -R*`
 - `omarchy-notification-send` - send desktop notifications; do not call `notify-send` directly
 - `omarchy-hw-asus-rog` - detect ASUS ROG hardware (and similar `hw-*` commands)
 
-Exceptions are allowed for bootstrap, preflight, migration, and package-helper scripts where the helper may not be available yet, where the helper itself is being implemented, or where direct package-manager behavior is required.
+Commands installed by Omarchy's default package set are runtime invariants. Invoke them directly; do not add defensive `omarchy-cmd-present` / `omarchy-cmd-missing` checks around them. Use command-presence helpers only for genuinely optional dependencies or code that can run before the default package set is installed.
+
+Exceptions are allowed for migration and package-helper scripts where the helper may not be available yet, where the helper itself is being implemented, or where direct package-manager behavior is required.
+
+# Menu
+
+- The menu definition lives in `default/omarchy/omarchy-menu.jsonc`;
+  [`docs/menu.md`](docs/menu.md) covers the schema, guards, and providers.
+- Do not add `aliases` to new menu entries. Aliases are reserved for
+  established alternate names users already type, kept for compatibility.
 
 # Config Structure
 
 - `config/` - default configs copied to `~/.config/`
 - `default/themed/*.tpl` - templates with `{{ variable }}` placeholders for theme colors
-- `themes/*/colors.toml` - theme color definitions (accent, background, foreground, color0-15)
+- `themes/*/colors.toml` - theme color definitions (accent, background, foreground, red/green/yellow/blue/magenta/cyan and bright_* variants)
 
-# Visual Changes
+# Tests
 
-When making visual changes, such as Waybar styles or desktop appearance, always take and analyze a screenshot after applying the change to verify the result. Use `omarchy capture screenshot fullscreen save` for fullscreen screenshots.
+Run focused automated tests for the area you changed;
+[`docs/testing.md`](docs/testing.md) covers how the suites are shaped. Current
+test entry points:
 
-For interactive UI work, use `wtype` to simulate keyboard input when available. Example: start the UI in the background, wait briefly for focus, then run `wtype -k Right -k Return` to exercise keyboard selection and confirm the resulting command output or state change. Prefer this over manual-only verification when a UI returns a selected value or changes a symlink/config.
+- `./test/all` - aggregate runner for CLI and shell tests; it intentionally does not run graphical acceptance tests
+- `./test/cli` - CLI routing, command metadata, theme helpers, and safe dispatch coverage
+- `./test/shell` - all Omarchy shell tests under `test/shell.d/`
 
-When testing layer-shell UI, capture the reference and candidate states as separate screenshots, then compare them visually before further edits. If a launched UI would otherwise remain open, keep track of its PID and stop it after the screenshot; avoid broad process kills unless checking with `ps` first.
+New Omarchy shell tests should live in `test/shell.d/*-test.sh` so `./test/shell` picks them up automatically. Source `test/shell.d/base-test.sh` for shared root-path discovery, assertions, and Node test helpers.
+
+The graphical acceptance suite runs in a disposable VM, not in the active
+development session; see [`agents/skills/acceptance-tests.md`](agents/skills/acceptance-tests.md).
+
+Visual changes must be verified in the running UI in addition to automated
+tests; follow [`agents/skills/visual-verification.md`](agents/skills/visual-verification.md).
 
 # Refresh Pattern
 
 To copy a default config to user config with automatic backup:
 
 ```bash
-omarchy-refresh-config hypr/hyprlock.conf
+omarchy-refresh-config hypr/hyprland.lua
 ```
 
-This copies `~/.local/share/omarchy/config/hypr/hyprlock.conf` to `~/.config/hypr/hyprlock.conf`.
-
-# Migrations
-
-To create a new migration, run `omarchy-dev-add-migration --no-edit`. This creates a migration file named after the unix timestamp of the last commit.
-
-New migration format:
-- File permissions must be `0644` (`-rw-r--r--`); migrations are sourced, not executed directly
-- No shebang line
-- Start with an `echo` describing what the migration does
-- Use `$OMARCHY_PATH` to reference the omarchy directory
-- Prefer helper commands such as `omarchy-cmd-present`, `omarchy-cmd-missing`, `omarchy-pkg-present`, and `omarchy-pkg-missing`
-
-Some older migrations predate these rules. Do not copy older migrations that start with shebangs, omit the leading `echo`, or hard-code `~/.local/share/omarchy`.
-
-Migrations may use raw `pacman`, `command -v`, or direct config edits when needed for historical compatibility or one-off repair work.
-
-Example:
-```bash
-echo "Disable fingerprint in hyprlock if fingerprint auth is not configured"
-
-if omarchy-cmd-missing fprintd-list || ! fprintd-list "$USER" 2>/dev/null | grep -q "finger"; then
-  sed -i 's/fingerprint:enabled = .*/fingerprint:enabled = false/' ~/.config/hypr/hyprlock.conf
-fi
-```
+This copies `$OMARCHY_PATH/config/hypr/hyprland.lua` to `~/.config/hypr/hyprland.lua`. The argument
+is interpolated into both paths and only checked with `[[ -e ]]`, so pass a plain relative path: a
+name containing `..` resolves and copies, landing outside `~/.config` rather than being rejected.

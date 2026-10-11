@@ -1,0 +1,133 @@
+import QtQuick
+import qs.Commons
+import qs.Commons as Commons
+
+Item {
+  id: root
+
+  property var bar: null
+  property string text: ""
+  property string fontFamily: bar ? bar.fontFamily : Style.font.family
+  property real fontSize: Style.font.body
+  property color foreground: bar ? bar.barForeground : Commons.Color.foreground
+  property color activeColor: bar ? bar.urgent : Commons.Color.urgent
+  property bool active: false
+  property real horizontalMargin: 8.5
+  property real verticalPadding: 6
+  property real fixedWidth: -1
+  property real fixedHeight: -1
+  property real textRotation: 0
+  property bool keepSpace: false
+  property bool dimmed: false
+  property bool concealed: false
+  property bool interactive: true
+  property bool pressable: true
+  property bool useActiveColor: true
+  property bool maintainIndicatorReveal: false
+  property bool labelVisible: true
+  // Off for icon-font labels, whose figure metrics say nothing about the glyph.
+  property bool centerFigures: true
+  property bool hasVisualContent: text !== ""
+  property var revealHost: bar
+  property string tooltipText: ""
+  property var registeredBar: null
+
+  signal pressed(int button)
+  signal wheelMoved(int delta)
+
+  function triggerPress(button) {
+    if (root.bar) root.bar.hideTooltip(root)
+    root.pressed(button)
+  }
+
+  function hideOwnTooltip() {
+    if (root.bar) root.bar.hideTooltip(root)
+  }
+
+  function syncClickRegistration() {
+    if (registeredBar && registeredBar.unregisterClickTarget) registeredBar.unregisterClickTarget(root)
+    registeredBar = root.bar
+    if (registeredBar && registeredBar.registerClickTarget) registeredBar.registerClickTarget(root)
+  }
+
+  onBarChanged: syncClickRegistration()
+  onVisibleChanged: if (!visible) hideOwnTooltip()
+  onInteractiveChanged: if (!interactive) hideOwnTooltip()
+  onConcealedChanged: if (concealed) hideOwnTooltip()
+  Component.onCompleted: syncClickRegistration()
+  Component.onDestruction: if (registeredBar && registeredBar.unregisterClickTarget) registeredBar.unregisterClickTarget(root)
+
+  readonly property bool vertical: bar ? bar.vertical : false
+  readonly property int barSize: bar ? bar.barSize : Style.bar.sizeHorizontal
+  readonly property real scaledHorizontalMargin: Style.spaceReal(horizontalMargin)
+  readonly property real scaledVerticalPadding: Style.spaceReal(verticalPadding)
+  readonly property bool tooltipHovered: visible && interactive && !concealed && mouseArea.containsMouse
+  // Width of the painted label, for bar chrome that wants to line up with the
+  // text rather than with the slot it sits in. Zero on icon-only buttons.
+  readonly property real labelWidth: label.visible ? label.implicitWidth : 0
+
+  visible: hasVisualContent || keepSpace
+  opacity: !hasVisualContent || concealed ? 0 : (dimmed ? 0.45 : 1)
+  implicitWidth: fixedWidth > 0 ? fixedWidth : (vertical ? barSize : Math.max(12, label.implicitWidth + scaledHorizontalMargin * 2))
+  implicitHeight: fixedHeight > 0 ? fixedHeight : (vertical ? Math.max(12, label.implicitHeight + scaledVerticalPadding * 2) : barSize)
+
+  Behavior on opacity {
+    NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+  }
+
+  Text {
+    id: label
+    textFormat: Text.PlainText
+    visible: root.labelVisible
+    anchors.centerIn: parent
+    // Centering the line box puts the figures above the bar's middle, since
+    // the box keeps room for descenders. Center the figure height instead, so
+    // labels line up with the icons beside them.
+    anchors.verticalCenterOffset: !root.centerFigures || root.vertical || root.text.indexOf("\n") !== -1
+      ? 0
+      : (labelMetrics.descent - labelMetrics.ascent + labelMetrics.tightBoundingRect("0").height) / 2
+    text: root.text
+    color: root.active && root.useActiveColor ? root.activeColor : root.foreground
+    font.family: root.fontFamily
+    font.pixelSize: root.fontSize
+    renderType: Text.NativeRendering
+    rotation: root.textRotation
+    horizontalAlignment: Text.AlignHCenter
+    verticalAlignment: Text.AlignVCenter
+
+    Behavior on color {
+      enabled: !root.bar || root.bar.foregroundAnimationEnabled
+      ColorAnimation { duration: Style.duration(160) }
+    }
+  }
+
+  FontMetrics {
+    id: labelMetrics
+    font: label.font
+  }
+
+  MouseArea {
+    id: mouseArea
+    anchors.fill: parent
+    acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+    enabled: root.interactive
+    hoverEnabled: true
+    cursorShape: root.pressable ? Qt.PointingHandCursor : Qt.ArrowCursor
+    onEntered: {
+      if (root.bar) {
+        root.bar.showTooltip(root, root.tooltipText)
+      }
+      if (root.maintainIndicatorReveal && root.revealHost && root.revealHost.setIndicatorItemHovered)
+        root.revealHost.setIndicatorItemHovered(true)
+    }
+    onExited: {
+      if (root.bar) {
+        root.bar.hideTooltip(root)
+      }
+      if (root.maintainIndicatorReveal && root.revealHost && root.revealHost.setIndicatorItemHovered)
+        root.revealHost.setIndicatorItemHovered(false)
+    }
+    onClicked: function(mouse) { if (root.pressable) root.triggerPress(mouse.button) }
+    onWheel: function(wheel) { root.wheelMoved(wheel.angleDelta.y) }
+  }
+}

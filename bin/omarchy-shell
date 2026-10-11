@@ -1,0 +1,126 @@
+#!/bin/bash
+
+# omarchy:summary=Send an IPC call to the running Omarchy shell
+# omarchy:args=[-q] <target> <method> [args...]
+# omarchy:examples=omarchy shell shell ping | omarchy-shell shell toggle omarchy.menu '{"menu":"root"}'
+
+QUIET=0
+if [[ ${1:-} == "-q" ]]; then
+  QUIET=1
+  shift
+fi
+
+fail() {
+  (( QUIET )) && exit 0
+  echo "$1" >&2
+  exit 1
+}
+
+if (( $# == 0 )) || [[ $1 == "-h" || $1 == "--help" ]]; then
+  cat <<USAGE
+Usage: omarchy-shell [-q] <target> <method> [args...]
+
+Forwards an IPC call to the running Omarchy shell. The shell is expected
+to already be running; this command does not start it.
+
+Options:
+  -q  Quiet best-effort mode. Suppress output and return success even when
+      the shell, target, method, or arguments are unavailable.
+
+Examples:
+  omarchy-shell shell ping
+  omarchy-shell -q omarchy.indicators refresh
+  omarchy-shell shell listPlugins
+  omarchy-shell shell toggle omarchy.menu '{"menu":"root"}'
+USAGE
+  exit 0
+fi
+
+(( $# >= 2 )) || fail "Usage: omarchy-shell <target> <method> [args...]"
+[[ -n ${OMARCHY_PATH:-} ]] || fail "OMARCHY_PATH is not set"
+[[ -f $OMARCHY_PATH/shell/shell.qml ]] || fail "omarchy-shell config not found: $OMARCHY_PATH/shell/shell.qml"
+
+# qs matches instances by display, and a caller from outside the session (an
+# ssh or TTY omarchy-restart-shell, and the migrations it runs for) has none,
+# so recover it from the compositor socket.
+if [[ -z ${WAYLAND_DISPLAY:-} ]]; then
+  socket=$(ls -t "${XDG_RUNTIME_DIR:-/run/user/$UID}"/wayland-[0-9]* 2>/dev/null | grep -v '\.lock$' | head -n1)
+  [[ -n $socket ]] && export WAYLAND_DISPLAY=${socket##*/}
+fi
+
+if [[ $1 == "shell" && ( $2 == "summon" || $2 == "toggle" ) ]] && (( $# == 3 )); then
+  set -- "$1" "$2" "$3" "{}"
+fi
+
+# The shell answers on its own socket first: socat starts in ~5ms where a qs
+# ipc client takes ~45ms. Fields are split by unit separators and the request
+# ends with a record separator, so an argument holding either goes through qs
+# ipc instead. The shell replies "OK" with the output once the call has run,
+# or "SKIP" when it ran nothing (no such target or function, the wrong number
+# of arguments), and qs ipc then gives its exact answer. A timeout after the
+# request is out is reported, not retried: the call may already have run.
+# Like qs ipc, the socket belongs to one shell, the one running this config on
+# this display, and the shell derives its name from the same two values.
+socket_id=$(printf '%s\n%s' "$OMARCHY_PATH/shell" "${WAYLAND_DISPLAY:-}" | md5sum)
+socket="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy-shell-${socket_id:0:16}.sock"
+request="$*"
+if [[ -S $socket && $request != *$'\x1e'* && $request != *$'\x1f'* ]]; then
+  saved_ifs=$IFS
+  IFS=$'\x1f'
+  request="$*"
+  IFS=$saved_ifs
+  # socat waits as long as the shell takes; the timeout alone bounds the call.
+  # Its own errors land in the reply too, so a connection it could not make
+  # is told apart from one that failed after the request went out.
+  reply=$(printf '%s\x1e' "$request" | timeout --kill-after=1s "${OMARCHY_SHELL_IPC_TIMEOUT:-2s}" socat -t 86400 - "UNIX-CONNECT:$socket" 2>&1)
+
+  # An answer counts only once its record separator arrived: a reply cut off
+  # partway must not pass for the whole of it.
+  if [[ $reply == OK$'\x1f'*$'\x1e'* ]]; then
+    output=${reply#OK$'\x1f'}
+    output=${output%$'\x1e'*}
+    # Match qs ipc's path, whose $(...) drops trailing newlines.
+    while [[ $output == *$'\n' ]]; do output=${output%$'\n'}; done
+    if (( !QUIET )) && [[ -n $output ]]; then
+      echo "$output"
+    fi
+    exit 0
+  elif [[ $reply == "SKIP"$'\x1e'* ]]; then
+    : # The shell ran nothing; qs ipc gives its exact answer below.
+  elif [[ $reply != OK* && $reply == *" E connect("* ]]; then
+    : # socat never connected, a stale socket; qs ipc answers below.
+  else
+    # Out of time, cut off, or failed after the request went out: the call
+    # may have run, so it is reported rather than retried.
+    fail "omarchy-shell is not responding"
+  fi
+fi
+
+# The -- keeps function names that shadow qs subcommands (e.g. show) as
+# positionals. qs reports connection failures with a nonzero exit, but IPC-level
+# failures (unknown target/function, bad arguments) go to stdout with exit 0.
+ipc_timeout=${OMARCHY_SHELL_IPC_TIMEOUT:-2s}
+output=$(timeout --kill-after=1s "$ipc_timeout" qs ipc -n -p "$OMARCHY_PATH/shell" call -- "$@" 2>/dev/null)
+ipc_status=$?
+
+if (( ipc_status == 124 || ipc_status == 137 )); then
+  fail "omarchy-shell is not responding"
+elif (( ipc_status != 0 )); then
+  fail "omarchy-shell is not running"
+fi
+
+case $output in
+  "Target not found." | "Function not found." | "Too few arguments provided"* | "Too many arguments provided"*)
+    fail "$output"
+    ;;
+  # A starting shell answers on stdout and exits 0, so a ping reads it as up
+  # and the next call's answer as a result. It is as unreachable as none.
+  "Not ready to accept queries yet"*)
+    fail "omarchy-shell is not ready"
+    ;;
+esac
+
+if (( !QUIET )) && [[ -n $output ]]; then
+  echo "$output"
+fi
+exit 0

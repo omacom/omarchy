@@ -5,9 +5,24 @@
 # omarchy:requires-sudo=true
 
 installed=()
+declare -A installed_exact=()
+declare -A selected=()
+
+if ! installed_packages=$(pacman -Qq); then
+  echo "Unable to query installed packages; no packages were removed." >&2
+  exit 1
+fi
+
+while IFS= read -r package_name; do
+  if [[ -n $package_name ]]; then
+    installed_exact[$package_name]=1
+  fi
+done <<< "$installed_packages"
+
 for pkg in "$@"; do
-  if pacman -Q "$pkg" &>/dev/null; then
+  if [[ -n ${installed_exact[$pkg]} && -z ${selected[$pkg]} ]]; then
     installed+=("$pkg")
+    selected[$pkg]=1
   fi
 done
 

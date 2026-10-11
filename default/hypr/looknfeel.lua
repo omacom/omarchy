@@ -23,19 +23,11 @@ hl.config({
     rounding = 0,
 
     shadow = {
-      enabled = true,
-      range = 2,
-      render_power = 3,
-      color = "rgba(1a1a1aee)",
+      enabled = false,
     },
 
     blur = {
-      enabled = true,
-      size = 2,
-      passes = 2,
-      special = true,
-      brightness = 0.60,
-      contrast = 0.75,
+      enabled = false,
     },
   },
 
@@ -50,7 +42,7 @@ hl.config({
       font_family = "monospace",
       font_weight_active = "ultraheavy",
       font_weight_inactive = "normal",
-      indicator_height = 0,
+      indicator_height = 1,
       indicator_gap = 5,
       height = 22,
       gaps_in = 5,
@@ -87,13 +79,13 @@ hl.animation({ leaf = "windowsOut", enabled = true, speed = 1.49, bezier = "line
 hl.animation({ leaf = "fadeIn", enabled = true, speed = 1.73, bezier = "almostLinear" })
 hl.animation({ leaf = "fadeOut", enabled = true, speed = 1.46, bezier = "almostLinear" })
 hl.animation({ leaf = "fade", enabled = true, speed = 3.03, bezier = "quick" })
+hl.animation({ leaf = "fadeSwitch", enabled = false })
 hl.animation({ leaf = "layers", enabled = true, speed = 3.81, bezier = "easeOutQuint" })
 hl.animation({ leaf = "layersIn", enabled = true, speed = 4, bezier = "easeOutQuint", style = "fade" })
 hl.animation({ leaf = "layersOut", enabled = true, speed = 1.5, bezier = "linear", style = "fade" })
 hl.animation({ leaf = "fadeLayersIn", enabled = true, speed = 1.79, bezier = "almostLinear" })
 hl.animation({ leaf = "fadeLayersOut", enabled = true, speed = 1.39, bezier = "almostLinear" })
 hl.animation({ leaf = "workspaces", enabled = false })
-hl.animation({ leaf = "specialWorkspace", enabled = true, speed = 3, bezier = "easeOutQuint", style = "slidevert" })
 
 hl.config({
   dwindle = {
@@ -112,10 +104,15 @@ hl.config({
   misc = {
     disable_hyprland_logo = true,
     disable_splash_rendering = true,
+    background_color = "rgb(000000)",
     disable_scale_notification = true,
     focus_on_activate = true,
     anr_missed_pings = 3,
     on_focus_under_fullscreen = 1,
+    initial_workspace_tracking = 0,
+    -- Let a fresh shell re-acquire the session lock after the lock client
+    -- died, so omarchy-restart-shell can recover the LOCK failsafe.
+    allow_session_lock_restore = true,
   },
 
   cursor = {

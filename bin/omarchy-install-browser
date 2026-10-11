@@ -1,12 +1,17 @@
 #!/bin/bash
 
 # omarchy:summary=Install a supported browser
-# omarchy:args=<chrome|brave|brave-origin|edge|firefox|zen>
-# omarchy:examples=omarchy install browser firefox | omarchy install browser brave
+# omarchy:args=<chromium|chrome|brave|brave-origin|edge|firefox|zen>
+# omarchy:examples=omarchy install browser chromium | omarchy install browser firefox
 
-setup_policy_directory() {
-  sudo mkdir -p "$1"
-  sudo chmod a+rw "$1"
+set -e
+
+source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+
+opt_path="${OMARCHY_OPT_PATH:-/opt}"
+
+setup_chromium_policy_directory() {
+  browser_policy_setup_dir "$1"
 }
 
 announce_browser_installed() {
@@ -14,16 +19,22 @@ announce_browser_installed() {
   echo "$1 browser installed. Make it the default via Setup > Defaults > Browser."
 }
 
-copy_chromium_flags() {
-  mkdir -p ~/.config
-  cp -f "${OMARCHY_PATH:-$HOME/.local/share/omarchy}/config/chromium-flags.conf" "$1"
+# The widevine package registers its CDM for Chromium and Firefox only; Brave
+# looks for one in its own install directory.
+link_widevine_cdm() {
+  local cdm="$opt_path/WidevineCdm/chromium"
+  local install_dir="$opt_path/$1"
+
+  if [[ -d $cdm && -d $install_dir && ! -e $install_dir/WidevineCdm ]]; then
+    as_root ln -sfn "$cdm" "$install_dir/WidevineCdm"
+  fi
 }
 
-setup_firefox_preferences() {
-  local distribution_dir="$1"
-
-  setup_policy_directory "$distribution_dir"
-  sudo cp -f "$OMARCHY_PATH/default/firefox/policies.json" "$distribution_dir/policies.json"
+copy_chromium_flags() {
+  mkdir -p ~/.config
+  cp -f "$OMARCHY_PATH/config/chromium-flags.conf" "$1"
+  omarchy-install-chromium-copy-url
+  omarchy-install-chromium-ytdlp
 }
 
 setup_firefox_wayland() {
@@ -32,62 +43,78 @@ setup_firefox_wayland() {
 }
 
 case $1 in
+chromium)
+  echo "Installing Chromium..."
+  omarchy-pkg-add chromium
+
+  setup_chromium_policy_directory /etc/chromium/policies/managed
+  copy_chromium_flags ~/.config/chromium-flags.conf
+  omarchy-theme-set-browser
+  omarchy-lifecycle-dispatch post-install chromium
+  announce_browser_installed "Chromium"
+  ;;
 chrome)
   echo "Installing Chrome..."
   omarchy-pkg-aur-add google-chrome || exit 1
 
-  setup_policy_directory /etc/opt/chrome/policies/managed
+  setup_chromium_policy_directory /etc/opt/chrome/policies/managed
   copy_chromium_flags ~/.config/chrome-flags.conf
   omarchy-theme-set-browser
+  omarchy-lifecycle-dispatch post-install chrome
   announce_browser_installed "Chrome"
   ;;
 edge)
   echo "Installing Edge..."
   omarchy-pkg-aur-add microsoft-edge-stable-bin || exit 1
 
-  setup_policy_directory /etc/opt/edge/policies/managed
+  setup_chromium_policy_directory /etc/opt/edge/policies/managed
   copy_chromium_flags ~/.config/microsoft-edge-stable-flags.conf
   omarchy-theme-set-browser
+  omarchy-lifecycle-dispatch post-install edge
   announce_browser_installed "Edge"
   ;;
 brave)
   echo "Installing Brave..."
   omarchy-pkg-aur-add brave-bin || exit 1
 
-  setup_policy_directory /etc/brave/policies/managed
+  setup_chromium_policy_directory /etc/brave/policies/managed
   copy_chromium_flags ~/.config/brave-flags.conf
+  link_widevine_cdm brave-bin
   omarchy-theme-set-browser
+  omarchy-lifecycle-dispatch post-install brave
   announce_browser_installed "Brave"
   ;;
 brave-origin)
   echo "Installing Brave Origin..."
-  omarchy-pkg-aur-add brave-origin-beta-bin || exit 1
+  omarchy-pkg-aur-add brave-origin-bin || exit 1
 
-  setup_policy_directory /etc/brave/policies/managed
-  mkdir -p ~/.config
-  # FIXME: Use normal chromium flags when Brave Origin wrapper has been fixed
-  echo "--load-extension=~/.local/share/omarchy/default/chromium/extensions/copy-url" > ~/.config/brave-origin-beta-flags.conf
+  setup_chromium_policy_directory /etc/brave/policies/managed
+  copy_chromium_flags ~/.config/brave-origin-flags.conf
+  link_widevine_cdm brave-origin-bin
   omarchy-theme-set-browser
+  omarchy-lifecycle-dispatch post-install brave-origin
   announce_browser_installed "Brave Origin"
   ;;
 firefox)
   echo "Installing Firefox..."
   omarchy-pkg-add firefox || exit 1
 
-  setup_firefox_preferences /usr/lib/firefox/distribution
+  browser_policy_setup_firefox_distribution /usr/lib/firefox/distribution
   setup_firefox_wayland
+  omarchy-lifecycle-dispatch post-install firefox
   announce_browser_installed "Firefox"
   ;;
 zen)
   echo "Installing Zen..."
   omarchy-pkg-aur-add zen-browser-bin || exit 1
 
-  setup_firefox_preferences /opt/zen-browser/distribution
+  browser_policy_setup_firefox_distribution /opt/zen-browser/distribution
   setup_firefox_wayland
+  omarchy-lifecycle-dispatch post-install zen
   announce_browser_installed "Zen"
   ;;
 *)
-  echo "Usage: omarchy-install-browser <chrome|brave|brave-origin|edge|firefox|zen>"
+  echo "Usage: omarchy-install-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen>"
   exit 1
   ;;
 esac

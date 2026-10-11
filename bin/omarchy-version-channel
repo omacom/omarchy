@@ -14,10 +14,10 @@ fi
 
 if grep -q "https://pkgs.omarchy.org/stable/" /etc/pacman.conf; then
   pkgs="stable"
-elif grep -q "https://pkgs.omarchy.org/edge/" /etc/pacman.conf; then
-  pkgs="edge"
 elif grep -q "https://pkgs.omarchy.org/rc/" /etc/pacman.conf; then
   pkgs="rc"
+elif grep -q "https://pkgs.omarchy.org/edge/" /etc/pacman.conf; then
+  pkgs="edge"
 else
   pkgs="unknown"
 fi

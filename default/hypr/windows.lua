@@ -2,12 +2,9 @@
 
 o.window(".*", { suppress_event = "maximize" })
 
--- Tag all windows for default opacity (apps can override with -default-opacity tag).
-o.window(".*", { tag = "+default-opacity" })
-
 -- Fix some dragging issues with XWayland.
-hl.window_rule({
-  match = {
+o.window(
+  {
     class = "^$",
     title = "^$",
     xwayland = true,
@@ -15,11 +12,15 @@ hl.window_rule({
     fullscreen = false,
     pin = false,
   },
-  no_focus = true,
-})
+  { no_focus = true }
+)
 
--- App-specific tweaks (may remove default-opacity tag).
+-- App-specific tweaks and terminal tags.
 require("default.hypr.apps")
 
--- Apply default opacity after apps have had a chance to opt out.
-o.window({ tag = "default-opacity" }, { opacity = "0.97 0.9" })
+-- Terminals (including TUIs) and these desktop apps opt in to transparency.
+o.transparent_window({ tag = "terminal" })
+o.transparent_window("(omawrite|1[pP]assword|com\\.onepassword\\.OnePassword|org\\.gnome\\.Nautilus)")
+
+-- The transparency hotkey opts otherwise opaque windows in with this tag.
+o.transparent_window({ tag = "transparent" })

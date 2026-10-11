@@ -7,10 +7,9 @@ TOGGLE="internal-monitor-mirror"
 TOGGLE_FLAG="$HOME/.local/state/omarchy/toggles/hypr/$TOGGLE.lua"
 DISABLE_TOGGLE="internal-monitor-disable"
 
-# Get names dynamically
-INTERNAL=$(hyprctl monitors -j | jq -r '.[] | select(.name | contains("eDP")).name' | head -n 1)
-# Get the first available external monitor
-EXTERNAL=$(hyprctl monitors -j | jq -r '.[] | select(.name | contains("eDP") | not).name' | head -n 1)
+INTERNAL=$(omarchy-hyprland-monitor-laptop)
+# The first active external monitor
+EXTERNAL=$(hyprctl monitors -j | jq -r '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not).name' | head -n 1)
 
 on() {
   if [[ -z $EXTERNAL ]]; then
@@ -22,6 +21,15 @@ on() {
     omarchy-notification-send -g 󰍹 "No laptop monitor found to mirror"
     exit 1
   fi
+
+  # Both names are written into generated Lua below, so only plain connector
+  # names may pass; a user-created headless output can carry any name.
+  for output in "$INTERNAL" "$EXTERNAL"; do
+    if [[ ! $output =~ ^[A-Za-z0-9._-]+$ ]]; then
+      omarchy-notification-send -g 󰍹 "Refusing unsafe monitor name"
+      exit 1
+    fi
+  done
 
   omarchy-hyprland-toggle $DISABLE_TOGGLE off
 
@@ -48,7 +56,7 @@ toggle() {
 }
 
 recover() {
-  if ! omarchy-hw-external-monitors && omarchy-hyprland-toggle-enabled $TOGGLE; then
+  if ! omarchy-hyprland-monitor-external-active && omarchy-hyprland-toggle-enabled $TOGGLE; then
     omarchy-hyprland-toggle $TOGGLE off
   fi
 }
