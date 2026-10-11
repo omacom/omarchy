@@ -192,13 +192,20 @@ PanelWindow {
   // centering the card under the icon.
   readonly property real barW: anchorWindow ? anchorWindow.width : screenW
   readonly property real barH: anchorWindow ? anchorWindow.height : 0
+
+  // A camera cutout over the middle of a top bar moves its center section
+  // beside the right one (Bar.qml centerBesideRight). A centered card would
+  // then open under the cutout, away from its widget, so it opens under the
+  // widget instead.
+  readonly property bool centered: centerOnBar && !(anchorWindow && anchorWindow.centerBesideRight === true)
+
   readonly property point cardOrigin: {
     if (!anchorItem || !bar) return Qt.point(margin, margin)
     var x = 0, y = 0
-    if (centerOnBar && (barPos === "top" || barPos === "bottom")) {
+    if (centered && (barPos === "top" || barPos === "bottom")) {
       x = screenW / 2 - contentWidth / 2
       y = barPos === "bottom" ? screenH - barH - contentHeight - gap : barH + gap
-    } else if (centerOnBar) {
+    } else if (centered) {
       x = barPos === "left" ? barW + gap : screenW - barW - contentWidth - gap
       y = screenH / 2 - contentHeight / 2
     } else if (barPos === "bottom") {

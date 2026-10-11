@@ -141,6 +141,18 @@ assert(
   'the center entries sit just left of the right section in their own region'
 )
 
+// A panel that centers on the bar (the clock's and the weather's) reads the
+// move off the bar surface its widget is on, and opens under that widget
+// rather than under the cutout.
+const keyboardPanelSource = fs.readFileSync(root + '/shell/Ui/KeyboardPanel.qml', 'utf8')
+assert(
+  /readonly property bool centered: centerOnBar && !\(anchorWindow && anchorWindow\.centerBesideRight === true\)/.test(keyboardPanelSource) &&
+    /if \(centered && \(barPos === "top" \|\| barPos === "bottom"\)\) \{/.test(keyboardPanelSource) &&
+    /\} else if \(centered\) \{/.test(keyboardPanelSource) &&
+    !/if \(centerOnBar\b/.test(keyboardPanelSource),
+  'a centered panel opens under its widget once a cutout moves the center section'
+)
+
 // With no gap the last center slot and the first right slot would share an
 // edge, and a drop there would always land in whichever registered first.
 const seam = [
