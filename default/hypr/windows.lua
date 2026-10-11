@@ -24,3 +24,7 @@ o.transparent_window("(omawrite|1[pP]assword|com\\.onepassword\\.OnePassword|org
 
 -- The transparency hotkey opts otherwise opaque windows in with this tag.
 o.transparent_window({ tag = "transparent" })
+
+-- Agent seat windows last, so no app rule above can pin them, strip their
+-- outline or move them off the seat's workspace.
+require("default.hypr.agent-seat")
