@@ -13,5 +13,10 @@ if [[ ! -f $source ]]; then
   exit 1
 fi
 
+# Another user on this machine may already have installed it.
+if cmp -s "$source" "$dest"; then
+  exit 0
+fi
+
 sudo mkdir -p "${dest%/*}"
 sudo install -m 0755 -o root -g root -T "$source" "$dest"
