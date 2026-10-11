@@ -108,6 +108,27 @@ rm -f "$request"
 [[ ! -e $request ]] ||
   fail "an unchanged device tree list asks for no rebuild"
 
+# Omarchy's own kernel keeps its device trees under its package name. They come
+# before Arch Linux ARM's, so the trees match the kernel that boots.
+mkdir -p "$scratch/dtbroot/qcom" "$scratch/dtbroot/linux-omarchy-n1x/qcom"
+: >"$scratch/dtbroot/qcom/x1e80100-stock.dtb"
+: >"$scratch/dtbroot/linux-omarchy-n1x/qcom/x1e80100-own.dtb"
+run_dtb_root_setup() (
+  omarchy-hw-aarch64-qualcomm() { return 0; }
+  omarchy-pkg-add() { :; }
+
+  OMARCHY_QUALCOMM_DTB_ROOT="$scratch/dtbroot"
+  OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/uki-root.conf"
+  source "$dtb_setup"
+)
+run_dtb_root_setup
+grep -Fq "DeviceTreeAuto=$scratch/dtbroot/linux-omarchy-n1x/qcom/x1e80100-own.dtb" "$scratch/uki-root.conf" ||
+  fail "Snapdragon DTB setup takes the device trees of Omarchy's own kernel first"
+rm -r "$scratch/dtbroot/linux-omarchy-n1x"
+run_dtb_root_setup
+grep -Fq "DeviceTreeAuto=$scratch/dtbroot/qcom/x1e80100-stock.dtb" "$scratch/uki-root.conf" ||
+  fail "Snapdragon DTB setup falls back to Arch Linux ARM's device trees"
+
 pass "Snapdragon setup tolerates missing firmware and preserves UKI settings"
 
 defaults=$(OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-pkg-defaults" aarch64-qualcomm)
@@ -122,7 +143,10 @@ pass "the Snapdragon package set has every package its setup installs"
 require_platform_fixtures "Snapdragon setup under the real detector"
 
 kernel_params_setup="$ROOT/install/hardware/qualcomm/kernel-params.sh"
-bash -n "$kernel_params_setup" || fail "Snapdragon hardware scripts have valid syntax"
+initramfs_setup="$ROOT/install/hardware/qualcomm/initramfs.sh"
+for script in "$kernel_params_setup" "$initramfs_setup"; do
+  bash -n "$script" || fail "Snapdragon hardware scripts have valid syntax"
+done
 
 run_leaves_on() (
   platform=$1
@@ -143,9 +167,11 @@ run_leaves_on() (
   OMARCHY_QUALCOMM_MODPROBE_DIR="$out/modprobe.d"
   OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs"
   OMARCHY_QUALCOMM_UKI_CONFIG="$out/uki.conf"
+  OMARCHY_QUALCOMM_MKINITCPIO_DIR="$out/mkinitcpio.conf.d"
   source "$firmware_setup"
   source "$dtb_setup"
   source "$out/kernel-params.sh"
+  source "$initramfs_setup"
 )
 
 run_leaves_on aarch64-qualcomm
@@ -157,7 +183,7 @@ grep -Fq "DeviceTreeAuto=" "$snapdragon/uki.conf" ||
 (
   declare -A KERNEL_CMDLINE=([default]="quiet splash")
   source "$snapdragon/limine-entry-tool.d/qualcomm-snapdragon.conf"
-  for parameter in clk_ignore_unused pd_ignore_unused arm64.nopauth systemd.tpm2_wait=0; do
+  for parameter in clk_ignore_unused pd_ignore_unused arm64.nopauth systemd.tpm2_wait=0 iommu.passthrough=0; do
     [[ " ${KERNEL_CMDLINE[default]} " == *" $parameter "* ]] ||
       fail "a Snapdragon device tree boots with $parameter"
   done
@@ -165,9 +191,26 @@ grep -Fq "DeviceTreeAuto=" "$snapdragon/uki.conf" ||
     fail "Snapdragon setup preserves the existing boot parameters"
 )
 
+(
+  # A kernel that builds the X1 platform drivers as modules gets them named for
+  # the initramfs, each one optional so another kernel's image still builds.
+  MODULES=(first)
+  source "$snapdragon/mkinitcpio.conf.d/qualcomm-platform.conf"
+  [[ ${MODULES[0]} == first ]] ||
+    fail "Snapdragon setup preserves the initramfs modules already named"
+  for module in pinctrl-x1e80100 qnoc-x1e80100 spmi-pmic-arb i2c-qcom-geni; do
+    [[ " ${MODULES[*]} " == *" $module? "* ]] ||
+      fail "a Snapdragon device tree gets $module in its initramfs"
+  done
+  for module in "${MODULES[@]:1}"; do
+    [[ $module == *\? ]] ||
+      fail "every Snapdragon platform module is optional ($module)"
+  done
+)
+
 for platform in aarch64 aarch64-apple x86; do
   run_leaves_on "$platform"
-  for written in modprobe.d uki.conf limine-entry-tool.d; do
+  for written in modprobe.d uki.conf limine-entry-tool.d mkinitcpio.conf.d; do
     [[ ! -e $scratch/on/$platform/$written ]] ||
       fail "$platform gets no Snapdragon setup ($written)"
   done

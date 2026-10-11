@@ -4,7 +4,18 @@
 if omarchy-hw-aarch64-qualcomm; then
   omarchy-pkg-add systemd-ukify
 
-  dtb_dir=${OMARCHY_QUALCOMM_DTB_DIR:-/boot/dtbs/qcom}
+  # Arch Linux ARM's kernel keeps every board's device trees in /boot/dtbs.
+  # Omarchy's own kernel keeps its Snapdragon ones under its package name, and
+  # those come first, so the trees match the kernel that boots.
+  dtb_root=${OMARCHY_QUALCOMM_DTB_ROOT:-/boot/dtbs}
+  dtb_dir=$dtb_root/qcom
+  for kernel_dtb_dir in "$dtb_root"/linux-omarchy*/qcom; do
+    if [[ -d $kernel_dtb_dir ]]; then
+      dtb_dir=$kernel_dtb_dir
+      break
+    fi
+  done
+  dtb_dir=${OMARCHY_QUALCOMM_DTB_DIR:-$dtb_dir}
   uki_config=${OMARCHY_QUALCOMM_UKI_CONFIG:-/etc/kernel/uki.conf}
   dtbs=()
   for dtb in "$dtb_dir"/x1*.dtb "$dtb_dir"/hamoa*.dtb \

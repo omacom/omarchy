@@ -9,5 +9,9 @@ if omarchy-hw-aarch64-qualcomm; then
 # Keep display and I/O resources enabled until their drivers load.
 # Disable pointer authentication and waiting for an unavailable TPM.
 KERNEL_CMDLINE[default]+=" clk_ignore_unused pd_ignore_unused arm64.nopauth systemd.tpm2_wait=0"
+# Translate device memory access, as Arch Linux ARM's kernel does by default.
+# On a kernel that defaults to passthrough, the Yoga Slim 7x's keyboard,
+# touchpad and touchscreen read back empty descriptors and never appear.
+KERNEL_CMDLINE[default]+=" iommu.passthrough=0"
 CONF
 fi
