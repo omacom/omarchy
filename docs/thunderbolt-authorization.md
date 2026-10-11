@@ -1,6 +1,8 @@
 # Thunderbolt authorization
 
-Omarchy uses Bolt for Thunderbolt/USB4 PCIe authorization. USB functions remain separate and need USB authorization. The end-user controls and firmware limitations are documented in [the Security manual](../manual/48-security.md#thunderbolt-device-authorization).
+The default-on rollout from #11874 has been withdrawn. This implementation remains installed temporarily so the rollback migration can restore Bolt's previous policy and firmware permissions, and so an unsuccessful rollback retains functioning approval and recovery tools. Fresh installation, owner provisioning and first-run no longer enable it. The old enablement migrations and menu entries are removed. The following describes the retained implementation, not an enabled-by-default policy.
+
+The retained implementation uses Bolt for Thunderbolt/USB4 PCIe authorization. USB functions remain separate and use USBGuard.
 
 ## Policy and services
 

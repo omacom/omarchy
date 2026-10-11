@@ -1,0 +1,26 @@
+#!/bin/bash -p
+
+# omarchy:hidden=true
+# omarchy:summary=Configure USB protection while the screen is locked
+
+# Reject unsafe Bash startup before trusting installed root code.
+if [[ $- != *p* ]]; then exit 126; fi
+source /usr/bin/omarchy-security-functions || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+omarchy_security_sanitize_bash_environment "$0" "$@"
+set -euo pipefail
+(( EUID == 0 && $# == 1 )) || exit 126
+export PATH=/usr/bin:/bin LC_ALL=C
+unset DBUS_SYSTEM_BUS_ADDRESS DBUS_SESSION_BUS_ADDRESS
+source /usr/share/omarchy/install/helpers/usb-authorization-policy.sh
+source /usr/share/omarchy/install/helpers/usb-lock.sh
+# prepare runs from systemd while a state transition holds the other lock.
+case "$1" in
+  prepare) usb_lock_prepare ;;
+  enable|disable)
+    exec 9>/run/lock/omarchy-usb-lock.lock
+    flock -x 9
+    "usb_lock_$1"
+    ;;
+  *) exit 64 ;;
+esac
