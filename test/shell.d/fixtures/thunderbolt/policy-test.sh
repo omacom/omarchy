@@ -352,6 +352,7 @@ test_pending_only_factory_reset_reaches_both_roots() {
   systemd-id128() { echo new-machine-id; }
   encrypted_install() { return 1; }
   rebuild_next_boot() { :; }
+  commit_next_boot() { :; }
   sync() { :; }
   systemctl() {
     [[ ( $1 == "--root=$TOP_MNT/@next" || $1 == "--root=$TOP_MNT/@factory" ) && $2 == "disable" && $3 == "$TB_SERVICE" ]] || return 1
