@@ -77,3 +77,27 @@ omarchy font list               # Available fonts
 omarchy font current            # Current font
 omarchy font set <name>         # Change font
 ```
+
+Note that the shell font family is the fontconfig `monospace` alias, and
+`omarchy font set` is a **global user setting, not a theme setting**. A
+theme cannot scope it, so switching themes leaves the font you chose in
+place. Pick the font once for the user, then treat it as a constant while
+you work on themes.
+
+## Bar Layout
+
+Bar placement is global too, and lives in `shell.json` rather than in any
+theme. `omarchy bar position`, `omarchy bar move`, and `omarchy bar set`
+all write to that file, which the user owns as soon as they customize
+anything.
+
+```bash
+omarchy bar position <top|bottom|left|right>
+omarchy bar move <id> --section <left|center|right>
+omarchy bar defaults           # back to the shipped layout
+```
+
+Because these are not theme-scoped, changing them while building a theme
+will leak into every other theme the user applies. Scope a theme's
+contribution to its colors and templates, and leave font and bar
+placement to the user.
