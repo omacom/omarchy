@@ -89,21 +89,18 @@ parse_keycodes() {
 # Supplement `hyprctl binds` for Lua-only binds that Hyprland currently
 # reports as dispatcher __lua and without their original key for code: binds.
 build_lua_bind_cache() {
-  local modmask description key dispatcher arg cache_key
+  local modmask description key dispatcher arg cache_key records scan_status=0
 
-  omarchy-cmd-present lua || return 0
+  LUA_BIND_KEY_MAP=()
+  LUA_BIND_DISPATCHER_MAP=()
+  LUA_BIND_ARG_MAP=()
+  omarchy-cmd-present lua || return 1
 
-  while IFS=$'\t' read -r modmask description key dispatcher arg; do
-    [[ -z $modmask || -z $description || -z $key ]] && continue
-
-    LUA_BIND_KEY_MAP["$modmask,$description"]="$key"
-    cache_key="$modmask,$description,$key"
-    LUA_BIND_DISPATCHER_MAP["$cache_key"]="$dispatcher"
-    LUA_BIND_ARG_MAP["$cache_key"]="$arg"
-  done < <(
+  records=$(
     # -E keeps LUA_INIT and LUA_PATH from the environment out of the scan, which
     # loads the user's config.
     lua -E - <<'LUA'
+local records = {}
 local modifiers = { SHIFT = 1, CTRL = 4, CONTROL = 4, ALT = 8, SUPER = 64 }
 
 local function split_keys(keys)
@@ -214,7 +211,24 @@ noop = setmetatable({}, {
   __call = function()
     return noop
   end,
+  __lt = function()
+    return false
+  end,
+  __le = function()
+    return false
+  end,
 })
+
+local function empty_list()
+  return setmetatable({}, {
+    __index = function(_, key)
+      if type(key) == "number" then
+        return nil
+      end
+      return noop
+    end,
+  })
+end
 
 hl = setmetatable({
   dsp = dsp_proxy("hl.dsp"),
@@ -237,7 +251,7 @@ hl = setmetatable({
         arg = o.bind_commands[bind_dispatcher]
       end
 
-      print(table.concat({ tostring(modmask), opts.description, key, kind, arg }, "\t"))
+      records[#records + 1] = table.concat({ tostring(modmask), opts.description, key, kind, arg }, "\t")
     end
 
     return noop
@@ -246,7 +260,10 @@ hl = setmetatable({
     return nil
   end,
 }, {
-  __index = function()
+  __index = function(_, key)
+    if type(key) == "string" and key:match("^get_.*s$") then
+      return empty_list
+    end
     return noop
   end,
 })
@@ -254,15 +271,38 @@ hl = setmetatable({
 local config = os.getenv("HOME") .. "/.config/hypr/hyprland.lua"
 local file = io.open(config, "r")
 
+local ok, err = true, nil
+local instruction_exhausted = false
 if file then
   file:close()
-  local ok, err = pcall(dofile, config)
-  if not ok and os.getenv("DEBUG") == "1" then
+  debug.sethook(function()
+    instruction_exhausted = true
+    error("instruction limit exceeded")
+  end, "", 50000000)
+  ok, err = pcall(dofile, config)
+  debug.sethook()
+end
+for _, record in ipairs(records) do
+  print(record)
+end
+if not ok then
+  if os.getenv("DEBUG") == "1" then
     io.stderr:write("[DEBUG] lua bind scan failed: " .. tostring(err) .. "\n")
   end
 end
+if instruction_exhausted then
+  os.exit(2)
+end
 LUA
-  )
+  ) || scan_status=$?
+  while IFS=$'\t' read -r modmask description key dispatcher arg; do
+    [[ -z $modmask || -z $description || -z $key ]] && continue
+    LUA_BIND_KEY_MAP["$modmask,$description"]="$key"
+    cache_key="$modmask,$description,$key"
+    LUA_BIND_DISPATCHER_MAP["$cache_key"]="$dispatcher"
+    LUA_BIND_ARG_MAP["$cache_key"]="$arg"
+  done <<<"$records"
+  return "$scan_status"
 }
 
 modmask_to_text() {
@@ -534,9 +574,9 @@ dedupe_binding_records() {
 }
 
 output_binding_records_uncached() {
-  local dynamic
+  local dynamic scan_status=0
 
-  build_lua_bind_cache
+  build_lua_bind_cache || scan_status=$?
   dynamic=$(dynamic_bindings)
 
   {
@@ -548,14 +588,14 @@ output_binding_records_uncached() {
     parse_binding_records |
     prioritize_entries
 
-  # Fail when Hyprland reported no binds so the fallout of a broken hyprctl
-  # is never cached.
-  [[ -n $dynamic ]]
+  # Do not cache instruction exhaustion or missing Hyprland binds. Ordinary
+  # config errors can still cache the recovered records.
+  [[ -n $dynamic ]] && (( scan_status == 0 ))
 }
 
 keybindings_cache_key() {
   {
-    printf 'v15\n'
+    printf 'v16\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     cat "$key_names_file" 2>/dev/null
     hyprctl binds 2>/dev/null

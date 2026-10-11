@@ -2,12 +2,14 @@
 
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
+require_command jq
 require_command lua
 require_command xkbcli
 
 tmpdir=$(mktemp -d) && [[ -n $tmpdir && -d $tmpdir ]] ||
   fail "the test gets a temporary directory to stub Hyprland in"
 trap 'rm -rf "$tmpdir"' EXIT
+sed '/^if \[\[ \$1 ==/,$d' "$ROOT/bin/omarchy-menu-keybindings" >"$tmpdir/scanner.sh"
 
 home="$tmpdir/home"
 stub_bin="$tmpdir/bin"
@@ -246,8 +248,108 @@ stub_hyprctl <<BINDS
 $(lua_bind 64 "SUPER + RETURN" "Terminal")
 BINDS
 
+# The default config can encounter unsupported runtime values after its binds;
+# dispatch recovery must work even when that scan encounters an error.
+env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" OMARCHY_PATH="$ROOT" SCANNER="$tmpdir/scanner.sh" \
+  bash -c 'source "$SCANNER"; output_binding_records_uncached' >"$tmpdir/terminal-records"
+grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir/terminal-records" ||
+  fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir/terminal-records")"
+pass "picking the terminal bind from the menu launches a terminal"
+
+# Plural queries must be empty lists while singular suffix getters allow fields.
+for query in workspaces monitors clients windows devices cursor_pos status options; do
+  cat >"$home/.config/hypr/hyprland.lua" <<LUA
+local result = hl.get_$query()
+assert(#result == 0)
+for _, ws in ipairs(result) do error("unexpected list item") end
+for _, ws in pairs(result) do error("unexpected field") end
+if hl.get_cursor_pos().x > 0 then end
+if hl.get_cursor_pos().x <= 0 then end
+assert(hl.get_status().foo.bar)
+assert(hl.get_options().foo.bar)
+assert(hl[1].foo)
+assert(hl.get_config() == nil)
+hl.bind("SUPER + A", hl.dsp.exec_cmd("echo after"), {description = "After query"})
+if hl.get_active_monitor() then
+  hl.bind("SUPER + B", hl.dsp.exec_cmd("echo monitor"), {description = "Active monitor"})
+end
+LUA
+  stub_hyprctl <<BINDS
+$(lua_bind 64 "" "After query")
+$(lua_bind 64 "" "Active monitor")
+BINDS
+  rm -rf "$tmpdir/cache"
+  timeout 5 env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+    XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-menu-keybindings" --print >/dev/null || fail "$query scan terminates"
+  grep -qP 'SUPER \+ A .*→ After query\texec\techo after$' "$tmpdir"/cache/omarchy/*.records || fail "$query recovers the binding after the loop"
+  grep -qP 'SUPER \+ B .*→ Active monitor\texec\techo monitor$' "$tmpdir"/cache/omarchy/*.records || fail "singular query remains truthy"
+  pass "$query loop terminates and following bindings are recovered"
+done
+
+# Ordinary errors are cacheable; instruction exhaustion must retry unchanged config.
+for failure in error guard; do
+  if [[ $failure == "error" ]]; then
+    workload='error("scan failed")'
+  else
+    workload='while true do end'
+  fi
+  touch "$home/fail-scan"
+  rm -f "$home/scan-count"
+  cat >"$home/.config/hypr/hyprland.lua" <<LUA
+local counter = assert(io.open(os.getenv("HOME") .. "/scan-count", "a"))
+counter:write("scan\n")
+counter:close()
+hl.bind("SUPER + A", hl.dsp.exec_cmd("echo partial"), {description = "Interrupted binding"})
+local marker = io.open(os.getenv("HOME") .. "/fail-scan", "r")
+if marker then
+  marker:close()
+  $workload
+end
+LUA
+  stub_hyprctl <<BINDS
+$(lua_bind 64 "" "Interrupted binding")
+$(exec_bind 64 "SUPER + B" "Native binding" "echo native")
+BINDS
+  rm -rf "$tmpdir/cache"
+  timeout 5 env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+    XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-menu-keybindings" --print >"$tmpdir/interrupted" || fail "$failure scan still renders rows"
+  grep -q 'SUPER + A .*→ Interrupted binding' "$tmpdir/interrupted" || fail "$failure scan preserves the recovered chord"
+  grep -q '→ Native binding' "$tmpdir/interrupted" || fail "native binding remains available"
+  first_scan_count=$(wc -l <"$home/scan-count")
+  if [[ $failure == "error" ]]; then
+    (( first_scan_count == 1 )) || fail "ordinary error scans once"
+    grep -qP '→ Interrupted binding\texec\techo partial$' "$tmpdir"/cache/omarchy/*.records || fail "ordinary error publishes partial metadata cache"
+    keybindings >/dev/null
+    (( $(wc -l <"$home/scan-count") == 1 )) || fail "ordinary error uses cache without rescanning"
+  else
+    [[ -z $(find "$tmpdir/cache" -name '*.records') ]] || fail "instruction exhaustion publishes no cache"
+    keybindings >/dev/null
+    (( $(wc -l <"$home/scan-count") > first_scan_count )) || fail "instruction exhaustion rescans on next invocation"
+  fi
+  scan_status=0
+  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" OMARCHY_PATH="$ROOT" SCANNER="$tmpdir/scanner.sh" \
+    bash -c 'source "$SCANNER"; output_binding_records_uncached' >"$tmpdir/partial-records" || scan_status=$?
+  if [[ $failure == "error" ]]; then
+    (( scan_status == 0 )) || fail "ordinary error remains cacheable"
+  else
+    (( scan_status == 1 )) || fail "instruction exhaustion uncached output returns failure"
+  fi
+  grep -qP 'SUPER \+ A .*→ Interrupted binding\texec\techo partial$' "$tmpdir/partial-records" || fail "$failure scan preserves collected metadata"
+  grep -qP '→ Native binding\texec\techo native$' "$tmpdir/partial-records" || fail "$failure scan preserves native metadata"
+  rm "$home/fail-scan"
+  keybindings >/dev/null
+  grep -qP '→ Interrupted binding\texec\techo partial$' "$tmpdir"/cache/omarchy/*.records || fail "unchanged config caches after failure marker removal"
+  pass "$failure scan preserves metadata with the expected caching and retry behavior"
+done
+
+# Valid finite work must not trip the generous instruction limit.
+cat >"$home/.config/hypr/hyprland.lua" <<'LUA'
+local sum = 0; for i = 1, 2000000 do sum = sum + i end
+hl.bind("SUPER + A", hl.dsp.exec_cmd("echo finite"), {description = "Interrupted binding"})
+LUA
 rm -rf "$tmpdir/cache"
 keybindings >/dev/null
-grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
-  fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
-pass "picking the terminal bind from the menu launches a terminal"
+grep -qP '→ Interrupted binding\texec\techo finite$' "$tmpdir"/cache/omarchy/*.records || fail "finite workload succeeds"
+pass "finite workload succeeds"
