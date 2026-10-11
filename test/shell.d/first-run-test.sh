@@ -66,5 +66,10 @@ for unit in "${units[@]}"; do
   [[ $(<"$test_tmp/calls") == "$(grep -Fvx -- "--user enable --now $unit" <<<"$clean_run")" ]] ||
     fail "a unit missing from the build costs first-run only that unit" "$unit"
 done
+if enable_user_units bt-agent.service; then
+  fail "first-run reports a unit it could not enable" bt-agent.service
+fi
+[[ $(<"$test_tmp/calls") == "$(grep -Fvx -- "--user enable --no-block --now bt-agent.service" <<<"$clean_run")" ]] ||
+  fail "a unit missing from the build costs first-run only that unit" bt-agent.service
 (( ${#units[@]} > 1 )) || fail "first-run enables each unit on its own"
 pass "a unit missing from the build costs first-run only that unit"
