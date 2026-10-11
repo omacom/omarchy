@@ -49,7 +49,7 @@ esac
 
 default_target="/usr/share/omarchy"
 
-printf 'export OMARCHY_PATH="%s"\n' "$default_target" | sudo tee /etc/omarchy.conf >/dev/null
+printf 'export OMARCHY_PATH="%s"\n' "$default_target" | sudo install -Dm644 -T -o root -g root /dev/stdin /etc/omarchy.conf
 
 # omarchy-dev-link prepended the checkout to sudo's secure_path. Drop it in the
 # same step that drops the checkout, or sudo keeps running a tree nothing else

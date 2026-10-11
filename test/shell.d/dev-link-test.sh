@@ -27,8 +27,14 @@ case "$1" in
     cat >"$OMARCHY_DEV_LINK_TEST_CONF"
     ;;
   install)
-    # The staged file is the second-to-last argument.
-    cp "${@: -2:1}" "$OMARCHY_DEV_LINK_TEST_SUDOERS"
+    case "${@: -1}" in
+      /etc/omarchy.conf)
+        install "$2" "$3" "${@: -2:1}" "$OMARCHY_DEV_LINK_TEST_CONF"
+        ;;
+      /etc/sudoers.d/omarchy-dev-path)
+        cp "${@: -2:1}" "$OMARCHY_DEV_LINK_TEST_SUDOERS"
+        ;;
+    esac
     ;;
 esac
 SH
@@ -122,3 +128,53 @@ if grep -q 'sudo' "$log_file"; then
   fail "dev link touches nothing when the path does not exist" "$(cat "$log_file")"
 fi
 pass "dev link rejects a path that does not exist"
+
+# Simulate a restrictive privileged umask when the config is first created,
+# then an already unreadable config left by an earlier invocation.
+# A config link must be replaced without changing its referent.
+for config_state in missing unreadable symlink hardlink directory-symlink; do
+  rm -f "$conf_file"
+  victim="$test_tmp/victim-$config_state"
+  printf 'private fixture\n' >"$victim"
+  chmod 600 "$victim"
+  victim_dir="$test_tmp/directory-$config_state"
+  mkdir -p "$victim_dir"
+  chmod 700 "$victim_dir"
+  case "$config_state" in
+    unreadable)
+      touch "$conf_file"
+      chmod 600 "$conf_file"
+      ;;
+    symlink) ln -s "$victim" "$conf_file" ;;
+    hardlink) ln "$victim" "$conf_file" ;;
+    directory-symlink) ln -s "$victim_dir" "$conf_file" ;;
+  esac
+  (umask 077; run_link "$checkout" --no-reboot >/dev/null)
+  [[ -f $conf_file && ! -L $conf_file && $(stat -c '%a' "$conf_file") == "644" ]] ||
+    fail "dev link replaces the $config_state config with a readable file under umask 077"
+  [[ $(<"$conf_file") == "export OMARCHY_PATH=\"$checkout\"" ]] ||
+    fail "dev link preserves generated config contents under umask 077"
+  [[ $(<"$victim") == "private fixture" && $(stat -c '%a' "$victim") == "600" ]] ||
+    fail "dev link leaves the $config_state referent contents and mode unchanged"
+  [[ $(stat -c '%a' "$victim_dir") == "700" && -z $(find "$victim_dir" -mindepth 1 -print -quit) ]] ||
+    fail "dev link writes nothing inside a symlinked directory"
+  pass "dev link replaces the $config_state config without changing its referent"
+done
+
+rm -f "$conf_file"
+mkdir "$conf_file"
+chmod 700 "$conf_file"
+: >"$log_file"
+if run_link "$checkout" --no-reboot >/dev/null 2>"$test_tmp/directory.err"; then
+  fail "dev link refuses a directory at the config path"
+fi
+[[ -d $conf_file && $(stat -c '%a' "$conf_file") == "700" && -z $(find "$conf_file" -mindepth 1 -print -quit) ]] ||
+  fail "dev link leaves the config directory untouched"
+if grep -F '/etc/sudoers.d/omarchy-dev-path' "$log_file" >/dev/null; then
+  fail "dev link changes no sudoers file after the config write fails"
+fi
+pass "dev link refuses a directory at the config path"
+
+grep -Fx $'sudo\tinstall\t-Dm644\t-T\t-o\troot\t-g\troot\t/dev/stdin\t/etc/omarchy.conf' "$log_file" >/dev/null ||
+  fail "dev-link installs the config root-owned with mode 0644" "$(cat "$log_file")"
+pass "dev-link installs the config root-owned with mode 0644"
