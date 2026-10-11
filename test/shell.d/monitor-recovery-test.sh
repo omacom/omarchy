@@ -60,7 +60,8 @@ grep -F 'hyprctl monitors all -j' "$ROOT/bin/omarchy-hyprland-monitor-modeless" 
 pass "modeless helper sees mirrors and ignores monitors disabled on purpose"
 
 grep -F 'omarchy-hw-laptop-closed && omarchy-hw-external-monitors' "$hw_clamshell" >/dev/null
-grep -F '/proc/acpi/button/lid/*/state' "$hw_laptop_closed" >/dev/null
+grep -F 'org.freedesktop.login1.Manager LidClosed' "$hw_laptop_closed" >/dev/null
+grep -F 'OMARCHY_ACPI_LID_PATH:-/proc/acpi/button/lid' "$hw_laptop_closed" >/dev/null
 pass "clamshell helper detects closed-lid external monitor state"
 
 # A mirrored external is absent from plain `monitors`, so asking without `all`
@@ -99,6 +100,10 @@ pass "internal mirror helper recovers when no active external display remains"
 
 grep -F 'switch:on:Lid Switch", nil, "omarchy-system-lid-close"' "$utilities" >/dev/null
 grep -F 'switch:off:Lid Switch", nil, "omarchy-system-wake"' "$utilities" >/dev/null
+grep -F 'switch:on:Apple SMC power/lid events", nil, "omarchy-system-lid-close"' "$utilities" >/dev/null ||
+  fail "closing an Apple Silicon lid runs the same lid-close as any laptop"
+grep -F 'switch:off:Apple SMC power/lid events", nil, "omarchy-system-wake"' "$utilities" >/dev/null ||
+  fail "opening an Apple Silicon lid wakes the panel like any laptop"
 pass "lid switch bindings lock on close and wake displays on open"
 
 grep -F 'omarchy-brightness-display on' "$system_wake" >/dev/null
