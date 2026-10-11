@@ -1619,7 +1619,7 @@ ShellRoot {
     } else if (entry.kind === "audio") {
       var media = shell.serviceFor("omarchy.media")
       if (!media || !media.handleVolumeKey(entry.target))
-        Util.execArgv(["omarchy-audio-output-volume", entry.target])
+        Util.execArgv(["omarchy-audio-output-volume", "--follow-active", entry.target])
     } else {
       shell.toggle(entry.target, "{}")
     }

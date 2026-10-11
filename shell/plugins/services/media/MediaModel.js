@@ -133,6 +133,41 @@ function volumeOsdIcon(percent, muted) {
   return muted || percent === 0 ? "volume-muted" : "volume-high"
 }
 
+// A stream carrying a call or meeting, by PipeWire's canonical VOIP roles.
+function isCommunicationStream(node) {
+  var role = String(nodeProps(node)["media.role"] || "")
+  return /phone|communication|voip/i.test(role)
+}
+
+// The sink the volume keys should control. A communication stream wins wherever
+// it plays -- even on the default sink, so a call on the speakers is not drowned
+// out by music routed elsewhere. Otherwise a playback stream linked to a
+// non-default sink wins. With neither, null, meaning the default sink.
+//
+// linkGroups are PipeWire's link groups reduced to { source, target, active }:
+// source is the stream, target the sink it feeds, and active is true while the
+// link is up (PwLinkState.Active). A corked stream keeps an active link, so
+// this over-approximates "playing": it may answer a sink whose stream is
+// paused, and the caller's script then refines the answer with the corked flag.
+function activeVolumeSink(defaultSink, linkGroups) {
+  if (!defaultSink) return null
+  var defaultName = String(defaultSink.name)
+  var comm = null
+  var other = null
+  var groups = Array.isArray(linkGroups) ? linkGroups : []
+  for (var i = 0; i < groups.length; i++) {
+    var group = groups[i]
+    if (!group || !group.active || !group.source || !group.target) continue
+    if (!group.target.isSink || !isPlaybackStream(group.source)) continue
+    if (isCommunicationStream(group.source)) {
+      if (comm === null) comm = group.target
+    } else if (other === null && String(group.target.name) !== defaultName) {
+      other = group.target
+    }
+  }
+  return comm || other || null
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isProxyPlayer: isProxyPlayer,
@@ -153,6 +188,8 @@ if (typeof module !== "undefined") {
     labelFor: labelFor,
     osdMessage: osdMessage,
     volumeKeyStep: volumeKeyStep,
-    volumeOsdIcon: volumeOsdIcon
+    volumeOsdIcon: volumeOsdIcon,
+    isCommunicationStream: isCommunicationStream,
+    activeVolumeSink: activeVolumeSink
   }
 }
