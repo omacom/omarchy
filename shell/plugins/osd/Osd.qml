@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "OsdModel.js" as OsdModel
 
@@ -139,8 +140,8 @@ Item {
       anchors.horizontalCenter: parent.horizontalCenter
       anchors.bottom: parent.bottom
       anchors.bottomMargin: Style.space(67)
-      color: Util.alpha(Color.background, 0.97)
-      borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
+      color: Util.alpha(Commons.Color.background, 0.97)
+      borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Math.max(1, Style.space(2)))
       radius: Style.cornerRadius
       opacity: root.opened ? 1 : 0
 
@@ -162,7 +163,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: root.icon
             font: iconMetrics.font
-            color: Color.popups.text
+            color: Commons.Color.popups.text
           }
         }
         Rectangle {
@@ -170,11 +171,11 @@ Item {
           width: root.barWidth
           height: Math.max(Style.space(6), Style.spacing.sm)
           anchors.verticalCenter: parent.verticalCenter
-          color: Util.alpha(Color.popups.text, 0.45)
+          color: Util.alpha(Commons.Color.popups.text, 0.45)
           Rectangle {
             height: parent.height
             width: parent.width * (root.hasProgress ? root.value / root.maxValue : 0)
-            color: Color.accent
+            color: Commons.Color.accent
 
             Behavior on width {
               enabled: root.opened
@@ -192,7 +193,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           text: root.message
           font: messageMetrics.font
-          color: Color.popups.text
+          color: Commons.Color.popups.text
           elide: Text.ElideRight
           maximumLineCount: 1
         }

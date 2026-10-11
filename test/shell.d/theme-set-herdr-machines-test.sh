@@ -35,6 +35,7 @@ EOF
 # ssh runs the script it receives against a fake home for that machine, as the remote would.
 cat >"$stub_bin/ssh" <<'EOF'
 #!/bin/bash
+printf '%s\n' "$@" >>"$SYNC_TEST/ssh-options"
 while [[ $1 == "-o" ]]; do
   shift 2
 done
@@ -61,7 +62,7 @@ EOF
 chmod +x "$stub_bin"/* "$remote_bin"/*
 
 reset_remotes() {
-  rm -rf "$SYNC_TEST/remotes" "$SYNC_TEST/ssh-calls"
+  rm -rf "$SYNC_TEST/remotes" "$SYNC_TEST/ssh-calls" "$SYNC_TEST/ssh-options"
   local machine
   for machine in alpha beta gamma local-box; do
     mkdir -p "$SYNC_TEST/remotes/$machine/.local/state/omarchy/current"
@@ -111,7 +112,14 @@ pass "leaves this machine alone when it is listed"
 [[ $output == *"down: ssh: connect to host down"* ]] || fail "logs an unreachable machine"
 pass "logs an unreachable machine"
 
-# Connects one machine at a time, so an SSH agent asks for approval at most once.
+# Keep reusable connections in a directory only this user can access.
+grep -qx 'ControlMaster=auto' "$SYNC_TEST/ssh-options" || fail "reuses authenticated SSH connections"
+grep -qx 'ControlPersist=600' "$SYNC_TEST/ssh-options" || fail "keeps connections for ten idle minutes"
+grep -qxF "ControlPath=$SYNC_TEST/run/omarchy-theme-sync/%C" "$SYNC_TEST/ssh-options" || fail "keeps separate control sockets for each SSH destination"
+[[ $(stat -c %a "$SYNC_TEST/run/omarchy-theme-sync") == "700" ]] || fail "control socket directory is private"
+pass "reuses SSH connections for ten idle minutes in a private runtime directory"
+
+# Connects one machine at a time.
 [[ $(paste -sd ' ' "$SYNC_TEST/ssh-calls") == "down alpha beta gamma local-box" ]] || fail "connects to machines one at a time in order"
 pass "connects to machines one at a time in order"
 
