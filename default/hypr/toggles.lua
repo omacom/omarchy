@@ -16,6 +16,10 @@ require_all.files(toggles_dir, nil, {
   },
 })
 
+-- Settings from Setup > Config > Touchpad, plus per-app touchpad scroll speeds.
+-- This runs after the user's files, so the saved settings win over input.lua.
+require("default.hypr.touchpad").apply()
+
 local disabled_input_device = require("default.hypr.disabled-input-device")
 disabled_input_device("touchpad")
 disabled_input_device("touchscreen")

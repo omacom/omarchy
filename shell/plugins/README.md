@@ -18,6 +18,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Emojis        | `omarchy.emojis`          | `overlay`               | `emojis/Emojis.qml`                   |
 | Clipboard mgr | `omarchy.clipboard`       | `overlay`               | `clipboard/Clipboard.qml`             |
 | Reminders     | `omarchy.reminders`       | `overlay`               | `reminders/ReminderFlow.qml`          |
+| Touchpad      | `omarchy.touchpad`        | `panel`                 | `touchpad/Touchpad.qml`               |
 | Omarchy menu  | `omarchy.menu`            | `menu`, `bar-widget`    | `menu/Menu.qml`, `menu/BarWidget.qml` |
 | Notifications | `omarchy.notifications`   | `service`               | `notifications/Service.qml`           |
 | Audio         | `omarchy.audio`           | `bar-widget`            | `panels/audio/Panel.qml`              |
@@ -79,6 +80,10 @@ The plugin has `keepLoaded: true` so the layer-shell window survives
 between summons within a single shell session.
 
 The carousel renders only the slices that fit on the screen plus one prefetch slice per side, capped at 33 cards. It preserves overlapping delegates during navigation, decodes images asynchronously at card size, and loads the selected preview before its neighbors. Lazy thumbnail preparation runs below normal CPU and I/O priority in one shared worker pool per image list: one worker on single/dual-core machines and at most two on larger machines. Opening and navigating the picker does not wait for that queue to finish.
+
+## Touchpad
+
+Touchpad settings window behind _Setup > Config > Touchpad_ (`omarchy-setup-touchpad`). It is a regular floating window rather than a layer-shell overlay, so the user can try a change in the app they are tuning it for. It writes only the keys the user changed to `~/.config/omarchy/touchpad.json`; `default/hypr/touchpad.lua` validates that file as data on every Hyprland load and again through `omarchy-touchpad-apply`, which applies live changes with `hyprctl eval` and falls back to `hyprctl reload` when a setting is removed. `omarchy-touchpad-status` reports the running values, touchpads, and open window classes the window shows. The module applies from `default/hypr/toggles.lua`, after the user's own `~/.config/hypr/input.lua`, so saved settings win over that file; `watch()` runs earlier, from `default/hypr/omarchy.lua`, to record gestures the user's files add so a saved gesture can unset one using the same swipe. Options `input.lua` also sets are marked in the window.
 
 ## Lock screen
 
