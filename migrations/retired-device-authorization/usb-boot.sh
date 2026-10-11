@@ -1,4 +1,5 @@
 #!/bin/bash
+# Retained from #11874 for the one-time rollback of installed policy and boot state.
 
 # omarchy:summary=Manage USB authorization from the start of kernel boot
 # omarchy:args=<enable|disable>
@@ -274,14 +275,19 @@ usb_authorization_disable_snapshot_setting() {
     return 1
   fi
 
-  temporary=$(mktemp "${config}.XXXXXXXXXX")
-  cp --preserve=mode,ownership "$config" "$temporary"
-  awk -v begin="$snapshot_begin" '
-    $0 == begin { skip = 2; next }
-    skip > 0 { skip--; next }
-    { print }
-  ' "$config" >"$temporary"
-  mv -f "$temporary" "$config"
+  temporary=$(mktemp "${config}.XXXXXXXXXX") || return 1
+  if cp --preserve=mode,ownership "$config" "$temporary" &&
+    awk -v begin="$snapshot_begin" '
+      $0 == begin { skip = 2; next }
+      skip > 0 { skip--; next }
+      { print }
+    ' "$config" >"$temporary" && sync "$temporary" &&
+    mv -f "$temporary" "$config" && sync "${config%/*}"; then
+    return 0
+  else
+    rm -f -- "$temporary"
+    return 1
+  fi
 }
 
 usb_authorization_rewrite_boot_cmdlines() {
@@ -823,5 +829,6 @@ main() {
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  [[ ${1:-} == "disable" ]] || exit 2
   main "$@"
 fi

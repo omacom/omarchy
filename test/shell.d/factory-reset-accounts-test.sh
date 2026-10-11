@@ -3,6 +3,7 @@
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$ROOT/migrations/retired-device-authorization/rollback.sh"
 
 if (( EUID != 0 )); then
   if unshare --user --map-root-user true 2>/dev/null; then
@@ -22,10 +23,28 @@ awk '
   /^}/ { copying = 0 }
 ' "$ROOT/bin/omarchy-system-factory-reset" >"$test_tmp/functions"
 
+cat >"$test_tmp/helper-failure" <<'SH'
+echo 'fixture accessory repair failure' >&2
+exit 42
+SH
+sed "s|/usr/share/omarchy/migrations/retired-device-authorization/rollback.sh|$test_tmp/helper-failure|" \
+  "$test_tmp/functions" >"$test_tmp/logging-functions"
+(
+  source "$test_tmp/logging-functions"
+  LOG_FILE=$test_tmp/helper.log
+  if remove_factory_device_authorization "$test_tmp" 2>"$test_tmp/terminal-error"; then
+    fail "failed accessory repair must abort the reset"
+  fi
+  grep -Fq 'fixture accessory repair failure' "$LOG_FILE" || fail "accessory helper errors must reach the reset log"
+)
+pass "accessory reset failures are recorded in the advertised log"
+
 cat >"$test_tmp/reset" <<'SH'
 #!/bin/bash
 set -euo pipefail
 source "$1/functions"
+source "$ROOT/migrations/retired-device-authorization/rollback.sh"
+remove_factory_device_authorization() { da_repair_root "$1"; }
 TOP_MNT="$2"
 NEXT_NAME=@omarchy-reset-next
 PROVISIONING_DIR=/var/lib/omarchy/provisioning
@@ -51,6 +70,10 @@ install_provisioning_units() { :; }
 encrypted_install() { return 1; }
 rebuild_next_boot() { touch "$TOP_MNT/rebuilt"; }
 sync() { :; }
+systemctl() {
+  [[ $1 == --root=* && $2 == "disable" ]] || return 1
+  rm -f "${1#--root=}/etc/systemd/system/multi-user.target.wants/$3"
+}
 
 userdel() {
   [[ ${FAIL_COMMAND:-} == "userdel" && $2 == "$FAIL_ROOT" ]] && return 42
@@ -77,8 +100,35 @@ make_fixture() {
   touch "$top/@/old-system" "$factory/home/seller/private-file" \
     "$factory/usr/share/omarchy/install/provisioning/omarchy-provision-owner.service" \
     "$factory/var/lib/omarchy/provisioning/packages/node-v0.tar.gz"
-  printf '#!/bin/bash\n' >"$factory/usr/bin/omarchy-provision-owner"
+  cat >"$factory/usr/bin/omarchy-provision-owner" <<'SH'
+#!/bin/bash
+  if omarchy-pkg-present usbguard; then
+    log_step "enrolling the owner's USB devices"
+    source "$OMARCHY_PATH/install/helpers/usb-authorization.sh"
+    usb_authorization_provision_owner "$username"
+  fi
+
+  log_step "enrolling the owner's Thunderbolt accessories"
+  /usr/bin/omarchy-thunderbolt-authorization-admin owner
+
+  cleanup_oem_state
+SH
   chmod +x "$factory/usr/bin/omarchy-provision-owner"
+  mkdir -p "$factory/etc/systemd/system/multi-user.target.wants" "$factory/etc/omarchy" \
+    "$factory/usr/lib/systemd/system" "$factory/var/lib/boltd/keys" \
+    "$factory/var/lib/omarchy/thunderbolt-authorization" \
+    "$factory/usr/share/omarchy/install/user/first-run"
+  touch "$factory/usr/lib/systemd/system/usbguard.service" "$factory/etc/omarchy/thunderbolt-authorization.enabled" \
+    "$factory/var/lib/boltd/keys/seller"
+  ln -s /usr/lib/systemd/system/usbguard.service "$factory/etc/systemd/system/multi-user.target.wants/usbguard.service"
+  printf '{"original_authmode":"disabled"}\n' >"$factory/var/lib/omarchy/thunderbolt-authorization/policy.json"
+  printf '[config]\nAuthMode=disabled\n' >"$factory/var/lib/boltd/boltd.conf"
+  cat >"$factory/usr/share/omarchy/install/user/first-run/enable-user-units.sh" <<'SH'
+systemctl --user enable --now \
+  omarchy-crash-watch.service \
+  omarchy-usb-authorization.service \
+  omarchy-thunderbolt-authorization.service
+SH
   printf 'true\n' >"$factory/read-only"
   cat >"$factory/etc/passwd" <<'EOF'
 root:x:0:0:root:/root:/bin/bash
@@ -107,6 +157,12 @@ assert_scrubbed() {
   [[ ! -e $root/home/seller ]] || fail "reset removes the seller's baseline home"
   grep -q '^daemon:\*:' "$root/etc/shadow" || fail "reset preserves service accounts"
   [[ $(stat -c '%a' "$root/etc/shadow") == "600" ]] || fail "shadow stays private"
+  [[ ! -L $root/etc/systemd/system/multi-user.target.wants/usbguard.service &&
+    ! -e $root/etc/omarchy/thunderbolt-authorization.enabled && ! -e $root/var/lib/boltd/keys/seller ]] ||
+    fail "reset removes seller accessory enforcement before boot"
+  ! grep -q 'authorization' "$root/usr/bin/omarchy-provision-owner" || fail "the new owner must not be reenrolled"
+  ! grep -q 'authorization' "$root/usr/share/omarchy/install/user/first-run/enable-user-units.sh" || fail "retired watchers must not restart"
+  [[ $(tb_config_authmode "$root/var/lib/boltd/boltd.conf") == "disabled" ]] || fail "reset preserves the factory's original Bolt mode"
   for file in passwd shadow group gshadow subuid subgid; do
     [[ ! -e $root/etc/$file- ]] || fail "reset removes the $file backup"
   done

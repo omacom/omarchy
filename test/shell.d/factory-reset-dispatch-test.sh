@@ -66,6 +66,7 @@ encrypted_install() { [[ -n $DEVICE ]]; }
 luks_device() { echo "$DEVICE"; }
 scrub_factory_accounts() { :; }
 sanitize_factory_baseline() { :; }
+remove_factory_device_authorization() { :; }
 install_provisioning_units() { :; }
 systemd-id128() { printf '%032d\n' 7; }
 sync() { :; }

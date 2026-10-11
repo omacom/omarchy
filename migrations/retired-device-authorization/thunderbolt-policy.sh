@@ -1,3 +1,4 @@
+# Retained from #11874 for the one-time rollback of installed policy and boot state.
 # Shared by the root controller and session commands. These paths are fixed at
 # privileged entrypoints; tests may source the functions in an isolated fixture.
 TB_STATE=/var/lib/omarchy/thunderbolt-authorization/policy.json

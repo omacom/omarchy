@@ -1,3 +1,4 @@
+# Retained from #11874 for the one-time rollback of installed policy and boot state.
 # Root setup functions. The caller sources thunderbolt-policy.sh first.
 
 tb_config_authmode() {
