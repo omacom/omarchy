@@ -177,6 +177,22 @@ while IFS=$'\t' read -r row_image row_thumbnail; do
 done <<<"$rows"
 pass "image menu prints its rows for the shell to hold"
 
+# A name that is also a glob must still match itself: a lazy row standing in
+# with the image would otherwise be cached and never swapped for its thumbnail.
+globbed="$tmp/globbed"
+mkdir -p "$globbed"
+printf 'image' >"$globbed/wall[1].png"
+rm -rf "$cache_home"
+mkdir -p "$cache_home"
+
+PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
+  "$ROOT/bin/omarchy-menu-images" --lazy-thumbnails --prepare-only "$globbed"
+
+globbed_key=$(printf '%s' "$globbed" | md5sum | cut -d ' ' -f 1)
+[[ ! -e $cache_dir/$globbed_key.rows ]] ||
+  fail "image menu does not cache lazy rows for an image whose name is a glob"
+pass "image menu leaves lazy rows uncached for an image whose name is a glob"
+
 # Block converters behind a gate: printing lazy rows must neither await them
 # nor start one process per image. Repeated refreshes share one worker pool.
 lazy_images="$tmp/lazy-images"
