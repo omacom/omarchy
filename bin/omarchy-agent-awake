@@ -68,7 +68,7 @@ write_file() {
 
 # The directory stays so the bar can keep watching it; only the session goes.
 clear_session() {
-  rm -f "$SESSION" "$STATE_DIR"/{agents,seen,ready,homes}
+  rm -f "$SESSION" "$STATE_DIR"/{agents,seen,ready,homes,generation}
 }
 
 # Start, add, stop and the holder's decision to end take turns, so an end time
@@ -235,6 +235,7 @@ start() {
     homes+="$name=$value"$'\n'
   done
 
+  write_file "$STATE_DIR/generation" "$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')" || die "Could not record the session."
   write_file "$SESSION" "$token $deadline $mode $now $since" || die "Could not record the session."
   write_file "$STATE_DIR/homes" "${homes%$'\n'}" || die "Could not record the agent homes."
   rm -f "$STATE_DIR"/{agents,seen}
@@ -291,33 +292,43 @@ stop() {
   clear_session
 }
 
-# busy, quiet, or unknown. Names with recent activity go to the bar; seen marks
-# that this session has watched an agent work, which is what lets the agents
-# mode end. A scan that failed or timed out says nothing either way.
-record_activity() {
+# busy, quiet, or unknown on the first line, then the names of agents with
+# recent activity. A scan that failed or timed out says nothing either way.
+scan_activity() {
   local busy status line homes=()
 
-  if [[ -r $STATE_DIR/homes ]]; then
-    while IFS= read -r line; do
-      [[ $line =~ ^($HOMES)=/ ]] && homes+=("$line")
-    done <"$STATE_DIR/homes"
-  fi
+  while IFS= read -r line; do
+    [[ $line =~ ^($HOMES)=/ ]] && homes+=("$line")
+  done <<<"$1"
 
   busy=$(timeout -k 1 4 env "${homes[@]}" omarchy-agent-busy --within "$QUIET_MINUTES" 2>/dev/null)
   status=$?
 
   case $status in
-    0)
-      write_file "$STATE_DIR/agents" "$busy"
+    0) printf 'busy\n%s\n' "$busy" ;;
+    1) echo quiet ;;
+    *) echo unknown ;;
+  esac
+}
+
+# What a scan is asked about, and the homes it scans are taken from this same
+# read. A start in the meantime may have swapped the homes or cleared seen,
+# and every start draws a new generation, so even a start that puts back the
+# same record cannot pass an answer about other homes off as current.
+scan_subject() {
+  cat "$STATE_DIR/generation" "$SESSION" "$STATE_DIR/homes" 2>/dev/null
+}
+
+# Under the lock. The names go to the bar; seen marks that this session has
+# watched an agent work, which is what lets the agents mode end.
+record_activity() {
+  case $1 in
+    busy)
+      write_file "$STATE_DIR/agents" "$2"
       [[ -e $STATE_DIR/seen ]] || : >"$STATE_DIR/seen"
-      echo busy
       ;;
-    1)
+    quiet)
       rm -f "$STATE_DIR/agents"
-      echo quiet
-      ;;
-    *)
-      echo unknown
       ;;
   esac
 }
@@ -329,7 +340,7 @@ notify() {
 }
 
 hold() {
-  local token=$1 reason="" now up last_check="" unreadable=0 battery activity pause
+  local token=$1 reason="" now up last_check="" unreadable=0 battery activity scan subject pause
 
   # Lock-free: start holds the lock while it waits for this answer. The record
   # is renamed into place whole, so reading it bare is safe.
@@ -347,6 +358,7 @@ hold() {
     up=$(uptime_seconds)
     battery=""
     activity=""
+    scan=""
 
     # The slow checks run outside the lock, so start and add never wait on
     # them, and not near the end time, so they rarely delay it.
@@ -354,12 +366,23 @@ hold() {
       if read_session && (( s_deadline - now > 20 )); then
         last_check=$up
         battery=$(battery_state)
-        [[ $s_mode == "agents" ]] && activity=$(record_activity)
+        if [[ $s_mode == "agents" ]]; then
+          subject=$(scan_subject)
+          scan=$(scan_activity "$subject")
+        fi
       fi
     fi
 
     flock 9 || exit 0
     now=$(date +%s)
+    if [[ -n $scan ]]; then
+      if [[ $(scan_subject) == "$subject" ]]; then
+        activity=${scan%%$'\n'*}
+        record_activity "$activity" "${scan#*$'\n'}"
+      else
+        last_check=""
+      fi
+    fi
     if ! read_session || [[ $s_token != "$token" ]]; then
       reason="superseded"
     elif (( now >= s_deadline )); then

@@ -442,6 +442,36 @@ chmod +x "$tmpdir/on-sleep"
 rm -rf "$tmpdir/codex-elsewhere" "$tmpdir/agents-seen"
 pass "the holder scans the agent homes it was handed"
 
+# A start that lands while a scan runs draws a new generation, may swap the
+# homes, and clears seen; the answer must not arm the new session, even when
+# the start puts back a record identical to the one the scan read.
+hold_session 1028800 agents
+mkdir -p "$tmpdir/old-codex/sessions"
+touch "$tmpdir/old-codex/sessions/rollout.jsonl"
+printf 'CODEX_HOME=%s\n' "$tmpdir/old-codex" >"$state/homes"
+echo 1111111111111111 >"$state/generation"
+cat >"$clock_bin/omarchy-agent-busy" <<'SH'
+#!/bin/bash
+if [[ ! -e $TEST_DIR/restarted ]]; then
+  touch "$TEST_DIR/restarted"
+  echo 2222222222222222 >"$XDG_RUNTIME_DIR/omarchy/agent-awake/generation"
+  rm -f "$XDG_RUNTIME_DIR/omarchy/agent-awake/seen"
+  "$ROOT/bin/omarchy-agent-busy" "$@"
+  status=$?
+  # Every later scan finds the agent quiet, so only this stale answer could arm it.
+  touch -d "-20 minutes" "$TEST_DIR/old-codex/sessions/rollout.jsonl"
+  exit $status
+fi
+exec "$ROOT/bin/omarchy-agent-busy" "$@"
+SH
+chmod +x "$clock_bin/omarchy-agent-busy"
+rm -f "$tmpdir/restarted"
+hold
+rm -f "$clock_bin/omarchy-agent-busy"
+rm -rf "$tmpdir/old-codex"
+grep -q '^notify Agent Awake is over Its end time' "$log" || fail "a scan of homes a start replaced never arms the new session" "$(<"$log")"
+pass "a scan of homes a start replaced never arms the new session"
+
 hold_session 1028800 agents
 touch "$state/seen"
 hold
