@@ -120,6 +120,20 @@ grep -Fx $'percentage\t80%' <<<"$held_output" >/dev/null || fail "threshold perc
 grep -Fx $'state\tholding' <<<"$held_output" >/dev/null || fail "idle charging at the threshold is holding"
 pass "battery status reports holding once the raw percentage reaches the threshold"
 
+# UPower reports energy-full as 0 Wh on a ThinkPad P1 Gen 2 while the kernel
+# has the real figure.
+sed -i 's/energy-full:          69.6 Wh/energy-full:          0 Wh/' "$hold_dir/bin/upower"
+printf '79840000\n' >"$hold_dir/power/BAT0/energy_full"
+zero_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'size\t79Wh' <<<"$zero_output" >/dev/null || fail "battery status falls back to sysfs energy_full when UPower reports 0 Wh"
+
+printf '0\n' >"$hold_dir/power/BAT0/energy_full"
+printf '5200000\n' >"$hold_dir/power/BAT0/charge_full"
+printf '15400000\n' >"$hold_dir/power/BAT0/voltage_min_design"
+charge_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'size\t80Wh' <<<"$charge_output" >/dev/null || fail "battery status derives capacity from sysfs charge_full when energy_full reads 0 too"
+pass "battery status reads capacity from sysfs when UPower reports none"
+
 if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
   fail "battery status owns capacity and remaining calculations" "$matches"
 fi
