@@ -615,6 +615,8 @@ keyboard_form() {
     # re-key below. Confirm it so a stray Ctrl+C doesn't bounce the machine.
     confirm_reboot && exec systemctl reboot
   done
+
+  omarchy_persist_input_selection
 }
 
 confirm_reboot() {

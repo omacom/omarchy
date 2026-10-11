@@ -122,6 +122,7 @@ or `omarchy.power`. There is no `bar` target.
 | `reloadConfig`                        | reload shell.json               |
 | `applyTheme <colorsB64> <shellB64>`   | push theme colors + shell.toml  |
 | `toggleBarTransparency`               | flip the bar background between solid and transparent |
+| `cycleInput <next\|back>`             | switch to the next or previous input method or layout (Super+I, Super+Shift+I); `not running` without the input reader |
 | `setPluginEnabled <id> <"true"\|…>`   | flip enabled bit (`ok` / `unknown`) |
 | `enablePlugin <id> <placementJson>`   | enable and place in one mutation |
 | `putBarWidget <id> <placementJson>`   | place a widget only where absent (`omarchy bar put`) |

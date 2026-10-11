@@ -555,7 +555,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v14\n'
+    printf 'v15\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     cat "$key_names_file" 2>/dev/null
     hyprctl binds 2>/dev/null

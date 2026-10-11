@@ -57,6 +57,7 @@ stub_hyprctl <<BINDS
 $(lua_bind 64 "SUPER + W" "Close window")
 $(lua_bind 64 "SUPER + Q" "Close window")
 $(lua_bind 64 "SUPER + F" "Full screen")
+$(lua_bind 64 "SUPER + I" "Switch input language")
 $(lua_bind 64 "SUPER + S" "Toggle scratchpad")
 $(lua_bind 64 "SUPER + grave" "Toggle scratchpad")
 $(exec_bind 73 "SUPER SHIFT ALT + 0" "Move window silently to workspace 10" "true")
@@ -68,6 +69,9 @@ rendered=$(keybindings)
 grep -q 'SUPER + F  *→ Full screen' <<<"$rendered" ||
   fail "a chord with no alternative renders on its own" "$rendered"
 pass "the keybindings menu renders its entries"
+grep -q 'SUPER + I  *→ Switch input language' <<<"$rendered" ||
+  fail "the input switch shortcut appears in the cheatsheet" "$rendered"
+pass "the input switch shortcut appears in the cheatsheet"
 
 # The menu's own scan of the config runs lua -E, so no LUA_INIT or LUA_PATH from
 # the environment reaches it and nothing there can move the platform root.

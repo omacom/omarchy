@@ -31,9 +31,6 @@
           "id": "omarchy.elsewhen"
         },
         {
-          "id": "omarchy.keyboard-layout"
-        },
-        {
           "id": "omarchy.weather"
         },
         {
@@ -41,6 +38,9 @@
         }
       ],
       "right": [
+        {
+          "id": "omarchy.keyboard-layout"
+        },
         {
           "id": "omarchy.tray"
         },

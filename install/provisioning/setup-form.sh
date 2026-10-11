@@ -18,7 +18,8 @@
 # so it never reaches the shell as SIGINT. Act on the status, never on a trap.
 #
 # Callers supply `notice <message> <seconds>` for validation feedback, and set
-# the variables these prompts write: keyboard, keyboard_label, username,
+# the variables these prompts write: keyboard, keyboard_label,
+# keyboard_input_method, keyboard_xkb_layout, username,
 # password, password_confirmation, full_name, email_address, hostname, timezone.
 
 OMARCHY_FORM_BACK=1
@@ -36,6 +37,8 @@ English (US, Colemak)|colemak
 Belarusian|by
 Belgian|be-latin1
 Bulgarian|bg-cp1251
+Chinese (Simplified, Pinyin)|us|pinyin
+Chinese (Traditional, Zhuyin)|us|chewing
 Croatian|croat
 Czech|cz
 Danish|dk-latin1
@@ -54,10 +57,12 @@ Hungarian|hu
 Icelandic|is-latin1
 Irish|ie
 Italian|it
-Japanese|jp106
+Japanese|jp106|mozc
+Japanese (US keyboard)|us|mozc
 Kazakh|kazakh
+Korean|us|hangul|kr
 Kyrgyz|kyrgyz
-Lao|la-latin1
+Lao|us||la
 Latvian|lv
 Lithuanian|lt
 Macedonian|mk-utf
@@ -96,8 +101,22 @@ omarchy_prompt_keyboard() {
     gum choose --height 10 --selected "English (US)" --header "Select keyboard layout") && status=0 || status=$?
   ((status == 0)) || return $status
 
-  keyboard_label="$choice"
-  keyboard=$(printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | awk -F'|' -v c="$choice" '$1==c{print $2; exit}')
+  local selection
+  selection=$(printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | awk -F'|' -v c="$choice" '$1==c{print; exit}')
+  [[ -n $selection ]] || return 1
+  IFS='|' read -r keyboard_label keyboard keyboard_input_method keyboard_xkb_layout <<< "$selection"
+  keyboard_input_method=${keyboard_input_method:-none}
+  keyboard_xkb_layout=${keyboard_xkb_layout:-}
+}
+
+# Root-side persistence. Console keymaps remain real keymaps; the input
+# preference survives separately for every user of the installed system.
+omarchy_persist_input_selection() {
+  local target_root=${1:-} method=${keyboard_input_method:-none} layout=${keyboard_xkb_layout:-}
+  case "$method" in none | mozc | hangul | pinyin | chewing) ;; *) return 1 ;; esac
+  case "$layout" in "" | kr | la) ;; *) return 1 ;; esac
+  mkdir -p "$target_root/etc/omarchy"
+  printf 'INPUT_METHOD=%s\nXKB_LAYOUT=%s\n' "$method" "$layout" > "$target_root/etc/omarchy/input-method"
 }
 
 omarchy_prompt_username() {

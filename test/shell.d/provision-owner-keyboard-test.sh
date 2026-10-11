@@ -70,8 +70,10 @@ SH
 chmod +x "$stub_bin"/*
 export PATH="$stub_bin:$PATH"
 
-sed -n '/^keyboard_form() {/,/^}/p; /^keyboard_xkb_settings() {/,/^}/p; /^apply_keyboard() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" |
-  sed "s|/etc/|$root/etc/|g" >"$tmp/keyboard.sh"
+{
+  sed -n '/^keyboard_form() {/,/^}/p; /^keyboard_xkb_settings() {/,/^}/p; /^apply_keyboard() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner"
+  sed -n '/^omarchy_persist_input_selection() {/,/^}/p' "$ROOT/install/provisioning/setup-form.sh"
+} | sed "s|/etc/|$root/etc/|g" >"$tmp/keyboard.sh"
 grep -q '^keyboard_form() {' "$tmp/keyboard.sh" && grep -q '^apply_keyboard() {' "$tmp/keyboard.sh" ||
   fail "omarchy-provision-owner defines the keyboard step"
 
@@ -143,6 +145,8 @@ form || fail "a known layout is set" "$(cat "$tmp/screen" "$tmp/log")"
 grep -qx 'loadkeys dk' "$tmp/calls" && grep -qx 'systemd-firstboot --keymap=dk --force' "$tmp/calls" ||
   fail "the layout is loaded on the console and persisted" "$(cat "$tmp/calls")"
 assert_layout dk "a known layout"
+[[ $(<"$root/etc/omarchy/input-method") == $'INPUT_METHOD=none\nXKB_LAYOUT=' ]] ||
+  fail "a known layout records no input method" "$(cat "$root/etc/omarchy/input-method" 2>&1)"
 pass "a layout that loads, persists and reads back goes straight to the password form"
 
 # systemd-firstboot writes only KEYMAP= for a keymap kbd-model-map lacks, as it
@@ -191,7 +195,7 @@ model_map=/usr/share/systemd/kbd-model-map
 if [[ -r $model_map ]]; then
   source "$ROOT/install/provisioning/setup-form.sh"
   source "$tmp/keyboard.sh"
-  while IFS='|' read -r label keymap; do
+  while IFS='|' read -r label keymap _; do
     awk -v k="$keymap" '$1 == k { found = 1 } END { exit !found }' "$model_map" ||
       { declare -F keyboard_xkb_settings >/dev/null && keyboard_xkb_settings "$keymap" >/dev/null; } ||
       fail "the $label layout ($keymap) gets an XKB layout"
