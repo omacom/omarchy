@@ -122,6 +122,15 @@ if ! git clone -- "$url" "$stage"; then
   fail "failed to clone $url"
 fi
 
+# omarchy.clonedFrom is provenance, and provenance is recorded locally by
+# `omarchy plugin clone`. A repository cannot supply it: the shell ignores a
+# claim its own record does not back, so refuse it here, where the author can
+# see why, rather than installing a plugin that silently does nothing.
+if jq -e '(.omarchy? | type) == "object" and (.omarchy | has("clonedFrom"))' "$stage/manifest.json" >/dev/null 2>&1; then
+  rm -rf "$stage"
+  fail "the manifest claims omarchy.clonedFrom, which only a local 'omarchy plugin clone' can establish"
+fi
+
 if ! omarchy-plugin-validate "$stage"; then
   rm -rf "$stage"
   fail "refusing to add: validation failed"

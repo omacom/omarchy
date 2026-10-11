@@ -390,6 +390,12 @@ done
   fail_with_log "installed plugin changes reload without an explicit rescan"
 pass "installed plugin changes reload without an explicit rescan"
 
+# The fixture models a plugin `omarchy plugin clone` created, so record the
+# provenance that command writes: a clone claim the record does not back is
+# ignored, which is what keeps a repository from inheriting a built-in's trust.
+[[ $(shell_ipc shell recordCloneProvenance "$hot_reload_id" omarchy.emojis) == "ok" ]] ||
+  fail_with_log "clone provenance could not be recorded"
+shell_ipc_quiet shell rescanPlugins >/dev/null
 [[ $(shell_ipc shell setPluginEnabled "$hot_reload_id" true) == "ok" ]] ||
   fail_with_log "installed plugin could not be enabled"
 [[ $(shell_ipc shell summon omarchy.emojis "{}") == "ok" ]] ||
@@ -633,6 +639,9 @@ pass "bar put leaves a widget already on the bar alone"
 # Run the replacement-bar probes last: switching bar loaders can transiently
 # leave bar-aware panels without a visual host, which should not add noise to
 # the default-bar assertions above.
+[[ $(shell_ipc shell recordCloneProvenance "$media_clone_id" omarchy.media) == "ok" ]] ||
+  fail_with_log "media clone provenance could not be recorded"
+shell_ipc_quiet shell rescanPlugins >/dev/null
 [[ $(shell_ipc shell setPluginEnabled "$media_clone_id" true) == "ok" ]] ||
   fail_with_log "media clone fixture could not be enabled"
 clone_widget_probe=""

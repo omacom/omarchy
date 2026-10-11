@@ -101,15 +101,45 @@ QtObject {
     return out
   }
 
+  // A manifest travels with the plugin, so `omarchy.clonedFrom` is a claim, not
+  // evidence: anything that can ship a manifest can name any built-in and ask to
+  // stand in for it. Provenance is recorded locally instead, by
+  // `omarchy plugin clone`, as { pluginId: sourceId } in shell.json, and only a
+  // claim that matches that record is honoured.
+  function recordedCloneSource(config, id) {
+    if (!Util.isPlainObject(config) || !Util.isPlainObject(config.clonedPlugins)) return ""
+    return String(config.clonedPlugins[String(id)] || "")
+  }
+
+  function claimedCloneSource(manifest) {
+    var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
+    return metadata ? String(metadata.clonedFrom || "") : ""
+  }
+
+  function verifiedCloneSource(manifest) {
+    var claimed = claimedCloneSource(manifest)
+    if (!claimed) return ""
+    var config = shellConfigProvider ? shellConfigProvider() : null
+    if (claimed === recordedCloneSource(config, manifest.id)) return claimed
+    console.warn("PluginRegistry: plugin " + String(manifest.id) + " claims omarchy.clonedFrom '"
+      + claimed + "' with no matching local clone record; treating it as an ordinary third-party plugin")
+    return ""
+  }
+
   function stampHostCapabilities(firstParty, thirdParty) {
     for (var firstPartyId in firstParty)
       firstParty[firstPartyId].__hostCapabilities = trustedCapabilities(firstParty[firstPartyId])
 
     for (var thirdPartyId in thirdParty) {
       var manifest = thirdParty[thirdPartyId]
-      var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
-      var clonedFrom = metadata ? String(metadata.clonedFrom || "") : ""
-      var source = clonedFrom ? firstParty[clonedFrom] : null
+      var cloneSource = verifiedCloneSource(manifest)
+      // Drop an unverified claim where trust is decided, so nothing downstream can
+      // act on it: resolveEnabledId() routes a built-in id to whatever claims it,
+      // setEnabled() switches the named built-in off, and listPlugins() reports
+      // the claim to CLI callers and to plugins.
+      if (!cloneSource && claimedCloneSource(manifest)) delete manifest.omarchy.clonedFrom
+      manifest.__cloneSource = cloneSource
+      var source = cloneSource ? firstParty[cloneSource] : null
       manifest.__hostCapabilities = source && Array.isArray(source.__hostCapabilities)
         ? source.__hostCapabilities.slice() : []
     }
@@ -174,8 +204,7 @@ QtObject {
     // manifest is the implementation that should receive the call.
     for (var candidate in installedPlugins) {
       var manifest = installedPlugins[candidate]
-      var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
-      if (metadata && String(metadata.clonedFrom || "") === key && isEnabled(candidate))
+      if (manifest && String(manifest.__cloneSource || "") === key && isEnabled(candidate))
         return candidate
     }
     return key
@@ -426,9 +455,7 @@ QtObject {
   function activeCloneFor(config, sourceId) {
     for (var candidate in installedPlugins) {
       var candidateManifest = installedPlugins[candidate]
-      var candidateMetadata = candidateManifest && Util.isPlainObject(candidateManifest.omarchy)
-        ? candidateManifest.omarchy : null
-      if (!candidateMetadata || String(candidateMetadata.clonedFrom || "") !== sourceId) continue
+      if (!candidateManifest || String(candidateManifest.__cloneSource || "") !== sourceId) continue
       if (Array.isArray(candidateManifest.kinds) && candidateManifest.kinds.indexOf("bar") !== -1) {
         if (Util.canonicalWidgetId(String(config.bar.id || "")) === candidate) return candidate
       } else if (findEntryLocation(config, candidate).found) {
@@ -487,8 +514,10 @@ QtObject {
     var isBarWidget = manifest && Array.isArray(manifest.kinds) && manifest.kinds.indexOf("bar-widget") !== -1
     var hasNonWidgetKind = manifest && Array.isArray(manifest.kinds)
       && manifest.kinds.some(function(kind) { return kind !== "bar-widget" })
-    var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
-    var clonedFrom = metadata ? Util.canonicalWidgetId(String(metadata.clonedFrom || "")) : ""
+    // Only a clone the registry verified may stand in for the built-in it names;
+    // see stampHostCapabilities().
+    var clonedFrom = manifest && manifest.__cloneSource
+      ? Util.canonicalWidgetId(String(manifest.__cloneSource)) : ""
     shellConfigMutator(function(config) {
       ensureConfigShape(config)
 

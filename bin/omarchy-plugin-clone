@@ -138,7 +138,10 @@ stage=$(mktemp -d "$PLUGINS_DIR/.clone.XXXXXX")
 clone_complete=0
 cleanup() {
   [[ -d ${stage:-} ]] && rm -rf "$stage"
-  (( clone_complete )) || rm -rf "$target_dir"
+  if (( ! clone_complete )); then
+    rm -rf "$target_dir"
+    omarchy-shell shell forgetCloneProvenance "$new_id" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 copy_plugin "$source_dir" "$source_manifest" "$stage"
@@ -146,6 +149,10 @@ update_manifest "$stage" "$source_id" "$new_id" "$display_name"
 mv "$stage" "$target_dir"
 stage=""
 
+# Record where this clone came from before the shell scans it: the shell only
+# honours omarchy.clonedFrom for a plugin this record backs, so the field in
+# manifest.json stays a claim rather than proof.
+omarchy-shell shell recordCloneProvenance "$new_id" "$source_id" >/dev/null
 omarchy-shell shell rescanPlugins >/dev/null
 discovered=0
 for (( attempt = 0; attempt < 40; attempt++ )); do
