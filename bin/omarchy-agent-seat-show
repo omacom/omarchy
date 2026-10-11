@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Jump to the agent seat's newest window
+
+# Focusing a window rather than a workspace number finds the seat wherever the
+# user has moved it.
+address=$(omarchy-agent-seat-windows 2>/dev/null | jq -r 'map(select(.address)) | last | .address // empty')
+
+if [[ -n $address ]]; then
+  hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || hyprctl dispatch focuswindow "address:$address" >/dev/null
+else
+  omarchy-notification-send -g 󱚤 "Agent seat" "Nothing is running on the agent seat"
+fi

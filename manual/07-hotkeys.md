@@ -113,6 +113,7 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 | `Super + Ctrl + E` | Emoji picker |
 | `Super + Ctrl + .` | Transcode media |
 | `Super + Shift + Ctrl + A` | Pick an AI agent |
+| `Super + Ctrl + Alt + A` | Jump to the agent seat |
 
 ## Adjustments
 
