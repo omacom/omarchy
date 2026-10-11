@@ -11,9 +11,9 @@
 -- plugged in performs, none of which a table on this side would do.
 --
 -- Every window on a floating workspace also carries a second tag, whether the
--- mode floated it or it was floating already. Titlebars, edge snapping, shadows,
--- and full opacity follow that tag, so a dialog on a floating workspace can be
--- dragged by its titlebar too, and a window carried out to a tiled one loses it.
+-- mode floated it or it was floating already. Titlebars, shadows, and full
+-- opacity follow that tag, so a dialog on a floating workspace can be dragged by
+-- its titlebar too, and a window carried out to a tiled one loses it.
 
 require("default.hypr.helpers")
 local paths = require("default.hypr.paths")

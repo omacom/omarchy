@@ -99,7 +99,7 @@ omacalc
 omacut
 omawrite
 omarchy-nvim
-# Titlebars and edge snapping for floating workspaces, loaded only while one floats.
+# Titlebars for floating workspaces, loaded only while one floats.
 omarchy-hyprland-titlebars
 omasnap
 # OWE owns desktop video backgrounds and feeds the lock screen its frames.
