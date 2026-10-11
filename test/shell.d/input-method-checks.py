@@ -66,6 +66,7 @@ class InputMethodTest(unittest.TestCase):
         self.assertEqual(keys["Behavior"]["ActiveByDefault"], "False")
         self.assertNotIn("Control+space", keys["Hotkey/TriggerKeys"].values())
         self.assertEqual(set(keys["Hotkey/TriggerKeys"].values()), {"Zenkaku_Hankaku", "Hangul"})
+        self.assertEqual(keys["Hotkey/AltTriggerKeys"], {"0": "Shift_L"})
 
   def test_vconsole_variants_quotes_and_japanese_without_preference(self):
     self.preference.unlink()
