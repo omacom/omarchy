@@ -41,10 +41,42 @@ else
 fi
 pass "root recovery refuses a caller-selected checkout before loading controller code"
 
+printf 'printf "%%s\\n" "$@" >"%s"\nexit 127\n' "$scratch/forwarded-action" >"$scratch/compat-target"
+for command in omarchy-thunderbolt-authorization-daemon omarchy-thunderbolt-authorization-admin; do
+  sed -e "s|source /usr/bin/omarchy-security-functions|source $ROOT/bin/omarchy-security-functions|" \
+    -e "s|/usr/share/omarchy/migrations/retired-device-authorization/rollback.sh|$scratch/compat-target|" "$ROOT/bin/$command" >"$scratch/$command"
+  chmod 755 "$scratch/$command"
+  if BASH_ENV="$scratch/decoy" "${root_runner[@]}" /bin/bash "$scratch/$command" -p guard >/dev/null 2>&1; then
+    fail "compatibility entrypoint accepted ordinary Bash with a decoy -p"
+  else
+    [[ $? == 126 ]] || fail "compatibility entrypoint must reject unsafe startup"
+  fi
+  if (( EUID == 0 || ${#root_runner[@]} != 0 )); then
+    args=()
+    [[ $command != "omarchy-thunderbolt-authorization-admin" ]] || args=(guard)
+    if BASH_ENV="$scratch/startup" "${root_runner[@]}" "$scratch/$command" "${args[@]}" >/dev/null 2>&1; then
+      fail "compatibility fixture crossed its safe boundary"
+    else
+      [[ $? == 127 ]] || fail "protected compatibility launch must reach the safe fixture boundary"
+    fi
+    [[ ! -e $scratch/injected ]] || fail "compatibility entrypoint ran BASH_ENV"
+    expected=daemon
+    [[ $command != "omarchy-thunderbolt-authorization-admin" ]] || expected=guard
+    [[ $(<"$scratch/forwarded-action") == "$expected" ]] || fail "compatibility entrypoint must forward only its required boot action"
+    if "${root_runner[@]}" /bin/bash -p "$scratch/$command" owner >/dev/null 2>&1; then
+      fail "compatibility entrypoint exposed owner enrollment"
+    else
+      [[ $? == 2 ]] || fail "compatibility entrypoint accepts only its retired boot action"
+    fi
+  fi
+done
+pass "boot compatibility entrypoints reject unsafe startup and expose no enrollment actions"
+
 fixture() {
   rm -rf "$scratch"/*
   mkdir -p "$scratch/etc/systemd/system/bolt.service.d" "$scratch/etc/usbguard" "$scratch/run/systemd/system" \
-    "$scratch/sys/bus/usb/devices/usb1" "$scratch/sys/bus/usb/devices/1-1" "$scratch/proc" "$scratch/support"
+    "$scratch/sys/bus/usb/devices/usb1" "$scratch/sys/bus/usb/devices/1-1" \
+    "$scratch/sys/module/usbcore/parameters" "$scratch/proc" "$scratch/support"
   da_support=$scratch/support
   DA_ROOT=$scratch DA_STATE=$scratch/var/lib/omarchy/retired-device-authorization
   mkdir -p "$scratch/var/lib/omarchy"
@@ -56,6 +88,7 @@ fixture() {
   : >"$scratch/units"
   printf '0\n' >"$scratch/sys/bus/usb/devices/usb1/authorized_default"
   printf '0\n' >"$scratch/sys/bus/usb/devices/1-1/authorized"
+  printf '0\n' >"$scratch/sys/module/usbcore/parameters/authorized_default"
   cat >"$da_support/usb-boot.sh" <<'SH'
 echo boot >>"${BASH_SOURCE[0]%/*}/../units"
 [[ ! -f ${BASH_SOURCE[0]%/*}/../boot-failure ]]
@@ -126,7 +159,8 @@ reject da_remove_usb 1
 rm "$scratch/boot-failure"
 da_remove_usb 1
 [[ $(<"$scratch/sys/bus/usb/devices/usb1/authorized_default") == "1" &&
-  $(<"$scratch/sys/bus/usb/devices/1-1/authorized") == "1" ]] || fail "USB rollback restores root hubs and connected devices"
+  $(<"$scratch/sys/bus/usb/devices/1-1/authorized") == "1" &&
+  $(<"$scratch/sys/module/usbcore/parameters/authorized_default") == "1" ]] || fail "USB rollback restores existing devices and the default for new controllers"
 da_remove_usb 1
 pass "USB rollback verifies boot before stopping protection and can retry"
 
@@ -146,7 +180,7 @@ pass "USB rollback targets Omarchy enrollment"
 
 fixture
 echo() {
-  if [[ ${1:-} == "1" && -n ${attribute:-} ]]; then
+  if [[ ${1:-} == "1" && ${attribute:-} == *"/sys/bus/usb/devices/"* ]]; then
     rm -- "$attribute"
     return 1
   fi
@@ -225,6 +259,17 @@ unset -f mv
 da_prepare_thunderbolt_units
 grep -Fq "/usr/share/omarchy/migrations/retired-device-authorization/rollback.sh" "$unit" || fail "unit repair can retry with the original file intact"
 pass "Thunderbolt unit write failures preserve the controller and permit retry"
+
+fixture
+unit=$scratch/etc/systemd/system/omarchy-thunderbolt-authorization.service
+da_prepare_thunderbolt_units
+grep -Fq 'ExecStart=/bin/bash -p /usr/share/omarchy/migrations/retired-device-authorization/rollback.sh daemon' "$unit" || fail "missing controllers get a persistent packaged recovery unit"
+grep -q '^enable --force omarchy-thunderbolt-authorization.service$' "$scratch/units" || fail "recovery enables the missing controller"
+grep -q '^start omarchy-thunderbolt-authorization.service$' "$scratch/units" || fail "recovery starts the missing controller"
+printf '[Service]\nExecStart=/custom/controller\n' >"$unit"
+reject da_prepare_thunderbolt_units
+grep -Fq 'ExecStart=/custom/controller' "$unit" || fail "unrecognized controller entrypoints remain intact"
+pass "missing controller units are recovered while custom entrypoints are refused"
 
 fixture
 factory=$scratch/factory
@@ -371,6 +416,27 @@ da_retire_usb_access
 pass "retired IPC grants are archived outside USBGuard while custom permissions survive"
 
 fixture
+(
+  da_remove_thunderbolt() { return 0; }
+  da_remove_usb() { return 0; }
+  da_clean_factory() { return 0; }
+  mkdir -p "$scratch/etc/polkit-1/rules.d" "$scratch/usr/share/polkit-1/actions" \
+    "$scratch/etc/systemd/user/default.target.wants" "$scratch/run/systemd/user/default.target.wants"
+  echo own >"$scratch/etc/polkit-1/rules.d/40-omarchy-usb.rules"
+  echo own >"$scratch/usr/share/polkit-1/actions/org.omarchy.thunderbolt.policy"
+  for directory in "$scratch/etc/systemd/user" "$scratch/run/systemd/user"; do
+    ln -s /missing/unit "$directory/default.target.wants/omarchy-thunderbolt-authorization.service"
+  done
+  da_main 0
+  [[ -f $DA_STATE/completed && $(stat -c '%a' "$DA_STATE/completed") == "644" &&
+    -f $scratch/etc/polkit-1/rules.d/40-omarchy-usb.rules.retired &&
+    -f $scratch/usr/share/polkit-1/actions/org.omarchy.thunderbolt.policy.retired ]] || fail "success archives privilege definitions and publishes machine completion"
+  [[ ! -L $scratch/etc/systemd/user/default.target.wants/omarchy-thunderbolt-authorization.service &&
+    ! -L $scratch/run/systemd/user/default.target.wants/omarchy-thunderbolt-authorization.service ]] || fail "success removes global user enable links"
+)
+pass "complete rollback retires privilege definitions and global links before publishing completion"
+
+fixture
 source "$original_support/usb-boot.sh"
 printf '%s\n' 'keep existing boot settings' "$snapshot_begin" "$snapshot_setting" "$snapshot_end" >"$scratch/limine-defaults"
 cp "$scratch/limine-defaults" "$scratch/original-defaults"
@@ -458,3 +524,10 @@ HOME="$scratch/fresh-home" PATH="$scratch/bin:$PATH" OMARCHY_PATH="$scratch/runt
   bash -euo pipefail "$scratch/runtime/migrations/1791673477.sh"
 [[ $(grep -c '^root rollback' "$scratch/calls") == 2 ]] || fail "fresh machines with no retired state must not prompt for sudo"
 pass "fresh machines with no retired state need no root action"
+
+mkdir -p "$scratch/enrolled-home/.local/state/omarchy/usb-authorization"
+touch "$scratch/enrolled-home/.local/state/omarchy/usb-authorization/policy-generated-by-omarchy"
+HOME="$scratch/enrolled-home" PATH="$scratch/bin:$PATH" OMARCHY_PATH="$scratch/runtime" ROLLBACK_TEST=$scratch \
+  bash -euo pipefail "$scratch/runtime/migrations/1791673477.sh"
+[[ $(grep '^root rollback' "$scratch/calls" | tail -n 1) == "root rollback 1" ]] || fail "the enrolling user's marker must request machine-wide USB removal"
+pass "an enrolling user's policy marker requests USB removal"

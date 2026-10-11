@@ -8,9 +8,11 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
   omarchy_security_sanitize_bash_environment "$0" "$@"
   # Root recovery services must run package-owned code.
   [[ $(/usr/bin/readlink -e -- "$0") == "/usr/share/omarchy/migrations/retired-device-authorization/rollback.sh" ]] || exit 126
+  da_support=/usr/share/omarchy/migrations/retired-device-authorization
+else
+  da_support=$(cd -- "${BASH_SOURCE[0]%/*}" && pwd) || exit 126
 fi
 
-da_support=$(cd -- "${BASH_SOURCE[0]%/*}" && pwd) || exit 126
 source "$da_support/thunderbolt-policy.sh" || exit 126
 source "$da_support/thunderbolt-setup.sh" || exit 126
 source "$da_support/units.sh" || exit 126
@@ -131,6 +133,10 @@ da_remove_usb() {
   if (( requested )) || grep -Fq 'label "omarchy-usb-authorization-v1"' "$DA_ROOT/etc/usbguard/rules.conf" 2>/dev/null ||
     grep -Fqx '# No USB devices were present during enrollment.' "$DA_ROOT/etc/usbguard/rules.conf" 2>/dev/null; then
     da_stop_unit usbguard.service system "$DA_ROOT" || return 1
+    attribute=$DA_ROOT/sys/module/usbcore/parameters/authorized_default
+    if [[ -e $attribute && $(<"$attribute") == "0" ]]; then
+      echo 1 >"$attribute" || return 1
+    fi
     for attribute in "$DA_ROOT/sys/bus/usb/devices/usb"*/authorized_default "$DA_ROOT/sys/bus/usb/devices/"*/authorized; do
       [[ -e $attribute ]] || continue
       if ! echo 1 >"$attribute"; then

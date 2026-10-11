@@ -23,6 +23,22 @@ awk '
   /^}/ { copying = 0 }
 ' "$ROOT/bin/omarchy-system-factory-reset" >"$test_tmp/functions"
 
+cat >"$test_tmp/helper-failure" <<'SH'
+echo 'fixture accessory repair failure' >&2
+exit 42
+SH
+sed "s|/usr/share/omarchy/migrations/retired-device-authorization/rollback.sh|$test_tmp/helper-failure|" \
+  "$test_tmp/functions" >"$test_tmp/logging-functions"
+(
+  source "$test_tmp/logging-functions"
+  LOG_FILE=$test_tmp/helper.log
+  if remove_factory_device_authorization "$test_tmp" 2>"$test_tmp/terminal-error"; then
+    fail "failed accessory repair must abort the reset"
+  fi
+  grep -Fq 'fixture accessory repair failure' "$LOG_FILE" || fail "accessory helper errors must reach the reset log"
+)
+pass "accessory reset failures are recorded in the advertised log"
+
 cat >"$test_tmp/reset" <<'SH'
 #!/bin/bash
 set -euo pipefail

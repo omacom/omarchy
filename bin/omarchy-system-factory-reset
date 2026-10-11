@@ -482,7 +482,7 @@ sanitize_factory_baseline() {
 }
 
 remove_factory_device_authorization() {
-  /bin/bash -p /usr/share/omarchy/migrations/retired-device-authorization/rollback.sh reset-root "$1"
+  /bin/bash -p /usr/share/omarchy/migrations/retired-device-authorization/rollback.sh reset-root "$1" 2>>"$LOG_FILE"
 }
 
 stage_full_reset() {
