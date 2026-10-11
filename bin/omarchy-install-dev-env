@@ -70,7 +70,8 @@ python)
   echo -e "Installing Python...\n"
   mise use --global python@latest
   echo -e "\nInstalling uv...\n"
-  curl -fsSL https://astral.sh/uv/install.sh | sh
+  # ~/.local/bin is already on PATH via env-bootstrap, and uv's unguarded .profile line aborts UWSM if its env file goes missing
+  curl -fsSL https://astral.sh/uv/install.sh | UV_INSTALL_DIR="$HOME/.local/bin" UV_NO_MODIFY_PATH=1 sh
   ;;
 elixir)
   echo -e "Installing Elixir...\n"
