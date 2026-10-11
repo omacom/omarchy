@@ -1059,7 +1059,16 @@ Item {
             implicitHeight: card.implicitHeight
 
             readonly property real lifetime: service.durationFor(cardSlot.urgency, cardSlot.expireTimeout)
+            // The countdown advances by the time that actually elapsed, not by a
+            // fixed step per tick, so a suspend cannot leave a toast on screen
+            // past its lifetime. `lastTick` is the wall-clock time its elapsed
+            // accounting is based on; NotificationLogic.popupCountdown owns how a
+            // tick, a pause, a resume, and a restart move it.
             property real remainingLifetime: 1.0
+            property double lastTick: Date.now()
+            // Latched the moment the countdown reaches zero, so a delegate being
+            // torn down cannot expire a second time against a stale index.
+            property bool retired: false
             readonly property bool ticking: cardSlot.lifetime > 0 && !card.hovered
 
             // A client updating this notification in place rewrites the row
@@ -1068,22 +1077,34 @@ Item {
             // superseded text was already most of the way through. Delegates
             // keep their own row as the model changes around them, so only a
             // real content change lands here.
-            onSummaryChanged: cardSlot.remainingLifetime = 1.0
-            onBodyChanged: cardSlot.remainingLifetime = 1.0
-            onImageChanged: cardSlot.remainingLifetime = 1.0
+            onSummaryChanged: cardSlot.applyCountdown("restart")
+            onBodyChanged: cardSlot.applyCountdown("restart")
+            onImageChanged: cardSlot.applyCountdown("restart")
+
+            // The countdown reaching zero removes the popup, whether a tick ran
+            // it out or settling a pause did.
+            function applyCountdown(event) {
+              if (cardSlot.retired) return
+              var next = NotificationLogic.popupCountdown({ remaining: cardSlot.remainingLifetime, lastTick: cardSlot.lastTick }, cardSlot.lifetime, event, Date.now())
+              cardSlot.remainingLifetime = next.remaining
+              cardSlot.lastTick = next.lastTick
+              if (next.expired) {
+                cardSlot.retired = true
+                service.expirePopup(cardSlot.index)
+              }
+            }
 
             Timer {
               interval: 50
               repeat: true
               running: cardSlot.ticking
-              onTriggered: {
-                if (cardSlot.lifetime <= 0) return
-                cardSlot.remainingLifetime -= 50.0 / cardSlot.lifetime
-                if (cardSlot.remainingLifetime <= 0) {
-                  cardSlot.remainingLifetime = 0
-                  service.expirePopup(cardSlot.index)
-                }
-              }
+              // Stopping the Timer pauses: settle the partial tick first so
+              // entering between ticks cannot forgive the elapsed time, and
+              // expire if that settle ran the countdown out. Starting it again
+              // re-baselines, so the paused span (hover, covered output) is not
+              // charged.
+              onRunningChanged: cardSlot.applyCountdown(running ? "resume" : "pause")
+              onTriggered: cardSlot.applyCountdown("tick")
             }
 
             NotificationCard {

@@ -412,6 +412,47 @@ function popupExpired(entry, duration, now) {
   return (Number(now) - Number((entry || {}).timestamp || 0)) >= lifetime
 }
 
+// A popup countdown is the pair (remaining, lastTick): the fraction of the
+// lifetime still to run, and the wall-clock time its elapsed accounting is based
+// on. Events move it forward:
+//
+//   "tick"    a Timer tick while running — charge the time since lastTick
+//   "pause"   the Timer stopped (hover, a covered output) — charge the active
+//             time up to the pause, so entering between ticks cannot forgive the
+//             partial tick, then hold
+//   "resume"  the Timer restarted — re-baseline without charging the pause
+//   "restart" a content refresh — start a full lifetime over
+//
+// A suspend is a gap with no event at all, so the first tick after it charges
+// the whole sleep. Charging only the time actually run keeps a single pause
+// primitive: stopping the Timer pauses, which is what hover and a covered output
+// already do. `expired` reports that the countdown reached zero, so the caller
+// removes the popup whether a tick ran it out or settling a pause did. A lifetime
+// of 0 marks a critical popup that never counts down.
+function popupCountdown(state, lifetime, event, now) {
+  var current = state || {}
+  var at = Number(now)
+  if (!isFinite(at)) at = 0
+  var duration = Number(lifetime || 0)
+  var left = Number(current.remaining)
+  if (!isFinite(left)) left = 1
+
+  if (event === "restart") return { remaining: 1, lastTick: at, expired: false }
+  // A popup turned critical in place keeps what it had left, so a later
+  // demotion resumes from there rather than from a fresh lifetime.
+  if (!isFinite(duration) || duration <= 0) return { remaining: left, lastTick: at, expired: false }
+  if (event === "resume") return { remaining: left, lastTick: at, expired: left <= 0 }
+
+  // "tick" and "pause" both charge the active time up to `now`. A backwards,
+  // unreadable, or unset clock charges nothing rather than adding lifetime back.
+  var last = Number(current.lastTick)
+  if (!isFinite(last)) last = at
+  var span = at - last
+  if (!isFinite(span) || span < 0) span = 0
+  var remaining = Math.max(0, left - span / duration)
+  return { remaining: remaining, lastTick: at, expired: remaining <= 0 }
+}
+
 // How far a toast on a screen keeps from a top or right bar: the bar's
 // thickness on that screen (a notch floor can make a top bar thicker than its
 // configured size on one screen), plus the gap. A bar without per-screen
@@ -505,6 +546,7 @@ if (typeof module !== "undefined") {
     serializePopup: serializePopup,
     parsePopupFiles: parsePopupFiles,
     popupExpired: popupExpired,
+    popupCountdown: popupCountdown,
     barClearance: barClearance,
     popupPlacement: popupPlacement
   }
