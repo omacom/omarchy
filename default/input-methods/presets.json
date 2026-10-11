@@ -1,0 +1,7 @@
+{
+  "none": {"label": "Keyboard only", "packages": [], "font": ""},
+  "mozc": {"label": "Japanese (Mozc)", "packages": ["fcitx5-mozc"], "font": "JP"},
+  "hangul": {"label": "Korean (Hangul)", "packages": ["fcitx5-hangul"], "font": "KR"},
+  "pinyin": {"label": "Chinese (Simplified, Pinyin)", "packages": ["fcitx5-chinese-addons"], "font": "SC"},
+  "chewing": {"label": "Chinese (Traditional, Zhuyin)", "packages": ["fcitx5-chewing"], "font": "TC"}
+}
