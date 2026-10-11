@@ -22,7 +22,12 @@ if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree microsoft,denali-
   # dtb-uki.sh.
   mkdir -p "$(dirname "$uki_config")"
   uki_tmp=$(mktemp "$uki_config.XXXXXX")
+  # The previous file is kept until the kernel below installs, so a failed
+  # install leaves the stock kernel's image building as before.
+  uki_previous=""
   if [[ -f $uki_config ]]; then
+    uki_previous=$(mktemp "$uki_config.XXXXXX")
+    cp -p "$uki_config" "$uki_previous"
     cp -p "$uki_config" "$uki_tmp"
     awk '
       $0 == "# BEGIN OMARCHY QUALCOMM DEVICE TREES" || $0 == "# BEGIN OMARCHY SURFACE PRO 11 DEVICE TREE" { managed = 1; next }
@@ -87,8 +92,16 @@ CONF
   if pacman -Q linux-aarch64-headers &>/dev/null; then
     surface_pro11_kernel+=(linux-omarchy-n1x-headers)
   fi
-  omarchy-pkg-add "${surface_pro11_kernel[@]}" surface-pro-11-support
-  unset surface_pro11_kernel
+  if ! omarchy-pkg-add "${surface_pro11_kernel[@]}" surface-pro-11-support; then
+    if [[ -n $uki_previous ]]; then
+      mv -f "$uki_previous" "$uki_config"
+    else
+      rm -f "$uki_config"
+    fi
+    exit 1
+  fi
+  [[ -z $uki_previous ]] || rm -f "$uki_previous"
+  unset surface_pro11_kernel uki_previous
   omarchy-pkg-drop linux-aarch64 linux-aarch64-headers
 
   # libcamera with IMX681 support replaces a stock libcamera if something

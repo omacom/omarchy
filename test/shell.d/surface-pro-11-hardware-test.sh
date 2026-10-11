@@ -69,6 +69,8 @@ grep -Fxq 'Cmdline=@/etc/kernel/cmdline' "$matching/kernel/uki.conf" ||
   fail "the stock kernel's device-tree list is removed with the stock kernel"
 [[ $(grep -c '^DeviceTree=/boot/dtbs/linux-omarchy-n1x/qcom/x1e80100-microsoft-denali-oled.dtb$' "$matching/kernel/uki.conf") == 1 ]] ||
   fail "the UKI embeds the Surface Pro 11 device tree from Omarchy's kernel exactly once across reruns"
+[[ $(find "$matching/kernel" -type f | wc -l) == 1 ]] ||
+  fail "the kept UKI configuration is removed once the kernel installs"
 
 (
   firmware_root="$scratch/firmware"
@@ -120,7 +122,9 @@ run_setup "$stale" >/dev/null
 
 failing="$scratch/failing"
 mkdir -p "$failing"
-mkdir -p "$failing/proc/device-tree" && cp "$matching/proc/device-tree/compatible" "$failing/proc/device-tree/compatible"
+mkdir -p "$failing/proc/device-tree" "$failing/kernel" && cp "$matching/proc/device-tree/compatible" "$failing/proc/device-tree/compatible"
+printf '[UKI]\nDeviceTreeAuto=/boot/dtbs/qcom/x1e80100-microsoft-denali-oled.dtb\n' >"$failing/kernel/uki.conf"
+cp -p "$failing/kernel/uki.conf" "$scratch/failing-uki.conf"
 touch "$failing/pkg-add-fails"
 # Hardware scripts run with errexit, which an `if` would suspend.
 set +e
@@ -130,8 +134,20 @@ set -e
 (( status != 0 )) || fail "a failed kernel install stops the setup"
 ! grep -q '^drop' "$failing/packages.log" ||
   fail "the stock kernel stays installed when Omarchy's kernel fails to install"
-grep -Fxq 'DeviceTree=/boot/dtbs/linux-omarchy-n1x/qcom/x1e80100-microsoft-denali-oled.dtb' "$failing/kernel/uki.conf" ||
-  fail "boot configuration is written before the kernel install"
+cmp -s "$scratch/failing-uki.conf" "$failing/kernel/uki.conf" ||
+  fail "a failed kernel install restores the stock kernel's UKI configuration"
+[[ $(find "$failing/kernel" -type f | wc -l) == 1 ]] ||
+  fail "a failed kernel install leaves no temporary UKI configuration behind"
+
+failing_fresh="$scratch/failing-fresh"
+mkdir -p "$failing_fresh/proc/device-tree" && cp "$matching/proc/device-tree/compatible" "$failing_fresh/proc/device-tree/compatible"
+touch "$failing_fresh/pkg-add-fails"
+set +e
+run_setup "$failing_fresh" >/dev/null 2>&1
+status=$?
+set -e
+(( status != 0 )) && [[ ! -e $failing_fresh/kernel/uki.conf ]] ||
+  fail "a failed kernel install removes a UKI configuration it created"
 
 headers="$scratch/headers"
 mkdir -p "$headers"
