@@ -6,11 +6,23 @@ SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
 LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-clamshell.lock"
 MODELESS_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-modeless.lock"
 
+# Under Agent Awake no suspend locks a lid shut by undocking. Asked again after
+# the clamshell pass, which can outlast an undock and relight the panel.
+secure_closed_lid() {
+  ! omarchy-hw-external-monitors && omarchy-hw-laptop-closed && omarchy-agent-awake active || return 0
+
+  [[ $(omarchy-shell lock isLocked 2>/dev/null) == "true" ]] || omarchy-system-lock >/dev/null 2>&1
+  # The display only: keyboard off saves its level each call, so a repeat saves 0.
+  [[ ${1:-} == "blank" ]] && omarchy-brightness-display off >/dev/null 2>&1
+}
+
 sync_clamshell() {
   (
     flock -n 9 || exit 0
+    secure_closed_lid
     omarchy-hyprland-monitor-clamshell
     omarchy-system-lid-inhibit
+    secure_closed_lid blank
   ) 9>"$LOCK"
 }
 

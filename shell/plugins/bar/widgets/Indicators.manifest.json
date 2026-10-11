@@ -60,6 +60,11 @@
             "value": "StayAwake",
             "label": "Stay awake",
             "description": "Idle lock and screensaver override"
+          },
+          {
+            "value": "AgentAwake",
+            "label": "Agent awake",
+            "description": "Laptop keeps working with the lid closed"
           }
         ]
       },

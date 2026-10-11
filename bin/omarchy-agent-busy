@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# omarchy:summary=List the coding agents with session activity in the last few minutes
+# omarchy:args=[--within <minutes>]
+# omarchy:hidden=true
+
+# A write to a session store means an agent is mid-task; an idle agent keeps its
+# process and some CPU. Exits 0 with names, 1 when quiet, 3 when a store is unreadable.
+
+within=15
+
+case "${1:-}" in
+  "") ;;
+  --within) within=${2:-} ;;
+  *) within="" ;;
+esac
+
+if [[ ! $within =~ ^[1-9][0-9]*$ ]]; then
+  echo "Usage: omarchy-agent-busy [--within <minutes>]" >&2
+  exit 2
+fi
+
+found=0
+incomplete=0
+named=()
+
+# A missing root may only be hidden, behind a directory it cannot search or a
+# link, on the root or any parent, that cannot be followed.
+unsearchable() {
+  local path=$1
+
+  [[ -L $path ]] && return 0
+  while [[ $path == */* ]]; do
+    path=${path%/*}
+    [[ -n $path ]] || path=/
+    [[ ! -e $path && -L $path ]] && return 0
+    if [[ -e $path ]]; then
+      [[ -d $path && ! -x $path ]]
+      return
+    fi
+    [[ $path != / ]] || return 1
+  done
+  return 1
+}
+
+# Roots go to find whole, never globbed, since a glob drops what it cannot list.
+# Under -L only a link that leads nowhere is still a link, and that is unknown.
+check() {
+  local name=$1 root found_types depth=() match=()
+  shift
+  case $1 in
+    --name) depth=(-maxdepth 1); match=(-name "$2"); shift 2 ;;
+    --path) match=(-path "$2"); shift 2 ;;
+  esac
+
+  local seen
+  for seen in "${named[@]}"; do
+    [[ $seen == "$name" ]] && return
+  done
+
+  for root in "$@"; do
+    if [[ ! -e $root ]]; then
+      unsearchable "$root" && incomplete=1
+      continue
+    fi
+    found_types=$(find -L "$root" "${depth[@]}" \
+      \( -type f "${match[@]}" -mmin "-$within" -printf 'f\n' -quit \) -o \( -type l -printf 'l\n' \) 2>/dev/null)
+    local status=$?
+    if [[ $found_types == *f* ]]; then
+      printf '%s\n' "$name"
+      named+=("$name")
+      found=1
+      return
+    fi
+    (( status == 0 )) && [[ $found_types != *l* ]] || incomplete=1
+  done
+}
+
+data_home=${XDG_DATA_HOME:-$HOME/.local/share}
+hermes_home=${HERMES_HOME:-$HOME/.hermes}
+
+check "Claude Code" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
+check "Codex" "${CODEX_HOME:-$HOME/.codex}/sessions"
+check "Grok" "${GROK_HOME:-$HOME/.grok}/sessions"
+check "Pi" "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/sessions"
+check "Pi" --path "*/agent/sessions/*" "$HOME/.pi/profiles"
+check "Oh My Pi" "$HOME/.omp/agent/sessions"
+check "Oh My Pi" --path "*/agent/sessions/*" "$HOME/.omp/profiles"
+check "OpenCode" --name "opencode*.db*" "$data_home/opencode"
+check "Hermes" "$hermes_home/sessions"
+check "Hermes" --path "*/sessions/*" "$hermes_home/profiles"
+check "Hermes" --path "*/state.db*" "$hermes_home/profiles"
+check "Hermes" --name "state.db*" "$hermes_home"
+check "OpenClaw" --path "*/sessions/*" "$HOME/.openclaw/agents"
+check "GitHub Copilot" "${COPILOT_HOME:-$HOME/.copilot}/session-state"
+check "Antigravity" "$HOME/.gemini/antigravity-cli/conversations"
+
+if (( found )); then
+  exit 0
+elif (( incomplete )); then
+  exit 3
+else
+  exit 1
+fi

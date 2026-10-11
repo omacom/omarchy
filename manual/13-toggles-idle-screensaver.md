@@ -36,9 +36,9 @@ The flags are named for the off state — `screensaver-off`, `suspend-off`, `bar
 
 ### Indicators in the bar
 
-When a mode is on, you get a small glyph in the middle of the top bar next to the clock. That's the indicators widget, and it carries dictation, screen recording, pending reminders, night light, do not disturb, and stay awake.
+When a mode is on, you get a small glyph in the middle of the top bar next to the clock. That's the indicators widget, and it carries dictation, screen recording, pending reminders, night light, do not disturb, stay awake, and Agent Awake.
 
-Inactive indicators are hidden. Hover the area around them and they fade in dimmed, so you can click one to turn it on without knowing its hotkey. Clicking an active one turns it back off. If you'd rather see all of them all the time, set `alwaysShow` to `true` on the `omarchy.indicators` entry in `~/.config/omarchy/shell.json` — see [the top bar](05-the-top-bar.md) for how bar widgets are configured.
+Inactive indicators are hidden. Hover the area around them and they fade in dimmed, so you can click one to turn it on without knowing its hotkey. Clicking an active one turns it back off, except Agent Awake's, which opens its menu. If you'd rather see all of them all the time, set `alwaysShow` to `true` on the `omarchy.indicators` entry in `~/.config/omarchy/shell.json` — see [the top bar](05-the-top-bar.md) for how bar widgets are configured.
 
 ### Night light
 
@@ -81,7 +81,7 @@ Both numbers are seconds counted from the moment you went idle — not from each
 
 If you dismiss the screensaver before the lock deadline, that counts as activity and the pending lock is cancelled. You don't get locked out for glancing at your machine.
 
-To stop locking on idle entirely, `Super + Ctrl + I` — or `omarchy toggle idle` — flips stay awake on, and the coffee cup indicator appears in the bar. That's the one to hit before a long presentation or a build you want to watch. Hit it again to go back to normal. `omarchy toggle idle status` prints the current state as JSON if you need it from a script.
+To stop locking on idle entirely, `Super + Ctrl + I` — or `omarchy toggle idle` — flips stay awake on, and the coffee cup indicator appears in the bar. That's the one to hit before a long presentation or a build you want to watch. Hit it again to go back to normal. `omarchy toggle idle status` prints the current state as JSON if you need it from a script. Stay awake keeps the screen up; to keep a laptop working with its lid closed, while the screen locks as usual, see [Agent Awake](17-ai.md#agent-awake).
 
 This is about locking and the screensaver, not power. Suspend and hibernation have their own setup in [system sleep](36-system-sleep.md).
 
