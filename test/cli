@@ -596,6 +596,59 @@ GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI
 grep -q 'org.gnome.desktop.interface color-scheme prefer-light' "$PI_TMPDIR/gsettings.log" || fail "gnome sync reads mode from colors.toml"
 pass "gnome sync reads mode from colors.toml"
 
+make_tmpdir ICONS_TMPDIR
+mkdir -p "$ICONS_TMPDIR/Yaru" "$ICONS_TMPDIR/Yaru-dark" "$ICONS_TMPDIR/custom-icons"
+touch "$ICONS_TMPDIR/Yaru/index.theme" "$ICONS_TMPDIR/Yaru-dark/index.theme" "$ICONS_TMPDIR/custom-icons/index.theme"
+GNOME_TEST_THEME="$PI_TMPDIR/.local/state/omarchy/current/theme"
+mkdir -p "$GNOME_TEST_THEME"
+
+echo "custom-icons" > "$GNOME_TEST_THEME/icons.theme"
+: > "$PI_TMPDIR/gsettings.log"
+OMARCHY_ICONS_DIR="$ICONS_TMPDIR" GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
+grep -Fxq 'set org.gnome.desktop.interface icon-theme custom-icons' "$PI_TMPDIR/gsettings.log" || fail "gnome sync sets configured icon theme"
+pass "gnome sync sets configured icon theme when installed"
+
+make_tmpdir XDG_TMPDIR
+mkdir -p "$XDG_TMPDIR/icons/xdg-icons"
+touch "$XDG_TMPDIR/icons/xdg-icons/index.theme"
+echo "xdg-icons" > "$GNOME_TEST_THEME/icons.theme"
+: > "$PI_TMPDIR/gsettings.log"
+XDG_DATA_DIRS="$XDG_TMPDIR" OMARCHY_ICONS_DIR="" GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
+grep -Fxq 'set org.gnome.desktop.interface icon-theme xdg-icons' "$PI_TMPDIR/gsettings.log" || fail "gnome sync resolves icons from XDG_DATA_DIRS"
+pass "gnome sync resolves icons from XDG_DATA_DIRS"
+
+echo "nonexistent-icon-theme" > "$GNOME_TEST_THEME/icons.theme"
+: > "$PI_TMPDIR/gsettings.log"
+OMARCHY_ICONS_DIR="$ICONS_TMPDIR" GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
+grep -Fxq 'set org.gnome.desktop.interface icon-theme Yaru' "$PI_TMPDIR/gsettings.log" || fail "gnome sync falls back exactly to Yaru in light mode"
+pass "gnome sync falls back to Yaru when configured icon theme is missing in light mode"
+
+echo 'mode = "dark"' > "$GNOME_TEST_THEME/colors.toml"
+: > "$PI_TMPDIR/gsettings.log"
+OMARCHY_ICONS_DIR="$ICONS_TMPDIR" GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
+grep -Fxq 'set org.gnome.desktop.interface icon-theme Yaru-dark' "$PI_TMPDIR/gsettings.log" || fail "gnome sync falls back exactly to Yaru-dark in dark mode"
+pass "gnome sync falls back to Yaru-dark when configured icon theme is missing in dark mode"
+
+make_tmpdir NO_FALLBACK_TMPDIR
+: > "$PI_TMPDIR/gsettings.log"
+XDG_DATA_DIRS="$NO_FALLBACK_TMPDIR" XDG_DATA_HOME="$NO_FALLBACK_TMPDIR" OMARCHY_ICONS_DIR="$NO_FALLBACK_TMPDIR" GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
+! grep -q 'icon-theme' "$PI_TMPDIR/gsettings.log" || fail "gnome sync leaves icon setting unchanged when no fallbacks exist"
+pass "gnome sync leaves icon setting unchanged when no fallbacks exist"
+
+valid_stock_icons=("Yaru" "Yaru-bark" "Yaru-bark-dark" "Yaru-blue" "Yaru-blue-dark" "Yaru-dark" "Yaru-magenta" "Yaru-magenta-dark" "Yaru-olive" "Yaru-olive-dark" "Yaru-prussiangreen" "Yaru-prussiangreen-dark" "Yaru-purple" "Yaru-purple-dark" "Yaru-red" "Yaru-red-dark" "Yaru-sage" "Yaru-sage-dark" "Yaru-viridian" "Yaru-viridian-dark" "Yaru-wartybrown" "Yaru-yellow")
+for icons_file in "$ROOT"/themes/*/icons.theme; do
+  theme_icon=$(<"$icons_file")
+  match=0
+  for valid in "${valid_stock_icons[@]}"; do
+    if [[ $theme_icon == "$valid" ]]; then
+      match=1
+      break
+    fi
+  done
+  (( match )) || fail "stock theme $icons_file names unrecognized icon theme: '$theme_icon'"
+done
+pass "all stock themes name supported Yaru icon themes"
+
 cat >"$FAKE_BIN/omarchy-cmd-present" <<'EOF'
 #!/bin/bash
 [[ $1 == "code" ]]
