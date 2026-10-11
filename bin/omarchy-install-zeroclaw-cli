@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# omarchy:summary=Ensure the ZeroClaw CLI is installed for the default agent
+# omarchy:args=[--check|--now]
+# omarchy:examples=omarchy install zeroclaw cli --now | omarchy install zeroclaw cli --check
+
+# ZeroClaw is not a mise tool and not a pacman package: the canonical installer
+# is `curl -fsSL https://zeroclaw.com/install.sh | bash`, which writes the
+# zeroclaw command to ~/.local/bin. The default-agent flow talks to that
+# installer through the same --check/--now contract mise-backed agents get from
+# mise itself.
+
+set -euo pipefail
+
+# A command on PATH says nothing about whether it actually runs: a wrapper whose
+# interpreter or target is gone passes -x too. --check verifies the binary
+# answers --version, so a broken install is not treated as complete.
+installed() {
+  omarchy-cmd-present zeroclaw &&
+    timeout 15 zeroclaw --version >/dev/null 2>&1
+}
+
+case "${1:---now}" in
+--check)
+  installed
+  ;;
+--now)
+  if ! installed; then
+    echo "Installing ZeroClaw..."
+    curl -fsSL https://zeroclaw.com/install.sh | bash
+  fi
+  # Verify the install actually left a working command, not just a broken
+  # binary on PATH. A failed install that left a non-running zeroclaw would
+  # otherwise be treated as complete by default-agent.
+  if ! installed; then
+    echo "ZeroClaw installation did not leave a working command" >&2
+    exit 1
+  fi
+  ;;
+*)
+  echo "Usage: omarchy-install-zeroclaw-cli [--check|--now]" >&2
+  exit 1
+  ;;
+esac

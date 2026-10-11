@@ -790,6 +790,7 @@ assert_launch cursor-agent cursor-agent --yolo --trust agent -- "Review this pro
 assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=Review this project"
 assert_launch agy agy --dangerously-skip-permissions --prompt-interactive "Review this project"
 assert_launch copilot copilot --allow-all --interactive "Review this project"
+assert_launch zeroclaw zeroclaw -- "Review this project"
 pass "agent launcher adapts initial prompts for every supported agent"
 
 literal_muse_prompt=$'--disable-sandbox !Crash {$(touch must-not-run)}\ntrailing\\ '
@@ -818,6 +819,7 @@ assert_bypass cursor-agent cursor-agent --yolo --trust
 assert_bypass hermes hermes --yolo
 assert_bypass agy agy --dangerously-skip-permissions
 assert_bypass copilot copilot --allow-all
+assert_bypass zeroclaw zeroclaw
 pass "agent launcher skips permission prompts for every supported agent"
 
 printf '%s\n' "opencode" >"$agent_file"
@@ -939,3 +941,50 @@ mapfile -d '' -t launch_args <"$launch_log"
   ${launch_args[4]} == "Review this project" ]] ||
   fail "OpenClaw receives prompts through --message" "argv: ${launch_args[*]}"
 pass "OpenClaw receives prompts through --message"
+
+# ZeroClaw is its own curl|bash installer, not mise's: choosing it must route
+# through omarchy-install-zeroclaw-cli and never touch a mise environment.
+# zeroclaw-cli-test.sh covers the installer itself.
+cat >"$mock_bin/omarchy-install-zeroclaw-cli" <<'SH'
+#!/bin/bash
+if [[ $1 == "--check" ]]; then
+  [[ ${OMARCHY_TEST_ZEROCLAW_INSTALLED:-false} == "true" ]]
+else
+  printf '%s\n' "install-zeroclaw-cli $*" >>"$OMARCHY_TEST_STUB_LOG"
+fi
+SH
+cat >"$mock_bin/zeroclaw" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$mock_bin/omarchy-install-zeroclaw-cli" "$mock_bin/zeroclaw"
+
+: >"$launch_log"
+: >"$terminal_log"
+: >"$mise_history"
+OMARCHY_TEST_ZEROCLAW_INSTALLED=true omarchy-default-agent zeroclaw
+read -r chosen <"$agent_file"
+[[ $chosen == zeroclaw ]] || fail "choosing ZeroClaw records it as the default agent"
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent zeroclaw" ]] ||
+  fail "choosing ZeroClaw launches it directly"
+[[ ! -s $terminal_log ]] || fail "an installed ZeroClaw needs no install terminal"
+! grep -q 'use -g zeroclaw' "$mise_history" || fail "ZeroClaw never installs through mise"
+pass "choosing ZeroClaw uses its installer and launches directly"
+
+: >"$terminal_log"
+OMARCHY_TEST_ZEROCLAW_INSTALLED=false omarchy-default-agent zeroclaw
+mapfile -d '' -t terminal_args <"$terminal_log"
+[[ ${terminal_args[*]} == "omarchy-default-agent --install zeroclaw" ]] ||
+  fail "a missing ZeroClaw routes through the install terminal"
+pass "a missing ZeroClaw routes through the install terminal"
+
+: >"$stub_log"
+: >"$inline_log"
+OMARCHY_TEST_ZEROCLAW_INSTALLED=false omarchy-default-agent --install zeroclaw >/dev/null
+grep -Fx "install-zeroclaw-cli --now" "$stub_log" >/dev/null ||
+  fail "installing ZeroClaw as default agent sets up its CLI"
+mapfile -d '' -t inline_args <"$inline_log"
+[[ ${inline_args[*]} == "zeroclaw" ]] ||
+  fail "installing ZeroClaw as default agent hands over to the CLI"
+pass "installing ZeroClaw as default agent sets up its CLI"
