@@ -22,8 +22,10 @@ if omarchy-hw-aarch64-qualcomm && grep -qx 'microsoft,denali-oled' <<<"$surface_
   # their keyboard module file, which resets MODULES to Intel modules.
   rm -f "$mkinitcpio_dir/surface_device_modules.conf"
 
-  # Embed the Surface Pro 11's device tree instead of the generic list, whose
-  # device trees belong to the stock kernel. The markers match dtb-uki.sh.
+  # Embed the OLED model's device tree instead of the generic list. That list
+  # holds this kernel's trees too, but systemd-stub picks among them by SMBIOS
+  # identity, which the OLED, LCD and X Plus models share. The markers match
+  # dtb-uki.sh.
   mkdir -p "$(dirname "$uki_config")"
   uki_tmp=$(mktemp "$uki_config.XXXXXX")
   if [[ -f $uki_config ]]; then
