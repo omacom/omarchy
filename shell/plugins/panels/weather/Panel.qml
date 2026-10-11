@@ -477,6 +477,8 @@ Panel {
   }
 
   ShellIpc {
+    // The bar lists the widget hosting this panel, never the panel itself.
+    enabled: root.hostWidget ? root.hostWidget.ipcOwner === true : root.ipcOwner
     target: root.ipcTarget
 
     function open(): void { root.openFromHotkey() }

@@ -22,6 +22,14 @@ Item {
   readonly property bool vertical: bar ? bar.vertical : false
   readonly property int barSize: bar ? bar.barSize : Style.bar.sizeHorizontal
 
+  // Only the first per-monitor copy registers the IPC target: Quickshell warns
+  // for every other handler, and broadcast() reaches the rest.
+  readonly property bool ipcOwner: {
+    if (!bar || !moduleName) return false
+    if (typeof bar.moduleWidgets !== "function") return true
+    return bar.moduleWidgets(moduleName)[0] === root
+  }
+
   // Run `method` on every live instance of this widget. An IPC target only
   // ever routes to one handler, but a bar surface exists per monitor, so the
   // instance that owns the target relays the call to its peers — otherwise a

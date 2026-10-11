@@ -157,6 +157,7 @@ Panel {
   }
 
   ShellIpc {
+    enabled: root.ipcOwner
     target: root.ipcTarget
     function open(): void { root.open() }
     function close(): void { root.close() }

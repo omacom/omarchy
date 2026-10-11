@@ -22,6 +22,13 @@ Item {
   readonly property bool opened: panelController.open
   readonly property color barForeground: bar ? bar.barForeground : Commons.Color.foreground
 
+  // Only the first per-monitor copy registers the IPC target, as in BarWidget.
+  readonly property bool ipcOwner: {
+    if (!bar || !moduleName) return false
+    if (typeof bar.moduleWidgets !== "function") return true
+    return bar.moduleWidgets(moduleName)[0] === root
+  }
+
   function open() { panelController.show() }
   function close() { panelController.hide() }
   function closeForPopoutSwitch() {
@@ -47,7 +54,7 @@ Item {
   }
 
   ShellIpc {
-    enabled: root.manageIpc && root.ipcTarget !== ""
+    enabled: root.manageIpc && root.ipcTarget !== "" && root.ipcOwner
     target: root.ipcTarget
 
     function open(): void { root.open() }

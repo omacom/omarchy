@@ -176,6 +176,7 @@ Panel {
   }
 
   ShellIpc {
+    enabled: root.ipcOwner
     target: "omarchy.power"
 
     function open() { root.open() }

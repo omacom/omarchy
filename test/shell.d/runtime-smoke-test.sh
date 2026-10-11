@@ -547,23 +547,20 @@ for panel_id in omarchy.audio omarchy.bluetooth omarchy.monitor omarchy.network 
 done
 pass "direct panel IPC opens and closes default panels"
 
-# Each widget registers its IPC handler once per bar, and the bar is
-# instantiated once per screen, so Quickshell reports one collision per screen
-# past the first. Anything beyond that is two instances on the same screen —
-# the shape duplicate component loads produced, where a sync pass that ran
-# while a widget's asynchronous load was still in flight started a second one.
-# Checked before the reload below, which rebuilds widgets by design.
-screens=$(hyprctl -j monitors 2>/dev/null | jq 'length' 2>/dev/null || true)
-[[ $screens =~ ^[0-9]+$ ]] && (( screens > 0 )) || screens=1
+# Only the first of a widget's per-screen copies registers its IPC target, so
+# any collision is a second instance claiming it — the shape duplicate
+# component loads produced, where a sync pass that ran while a widget's
+# asynchronous load was still in flight started a second one. Checked before
+# the reload below, which rebuilds widgets by design.
 # No matches is the good case, and pipefail would otherwise abort the run.
 worst=$(grep -oE "another handler is registered for target [a-z.-]+" "$log" |
   sort | uniq -c | sort -rn | head -1 | awk '{print $1}' || true)
 worst=${worst:-0}
-if (( worst > screens - 1 )); then
+if (( worst > 0 )); then
   grep "another handler is registered for target" "$log" | sed 's/^/  /' | head -20 >&2
-  fail_with_log "each widget registers its IPC handler once per screen (saw $worst for $screens screen(s))"
+  fail_with_log "each widget registers its IPC handler once (saw $worst collisions for one target)"
 fi
-pass "each widget registers its IPC handler once per screen"
+pass "each widget registers its IPC handler once"
 
 HOME="$test_home" OMARCHY_PATH="$test_root" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-plugin-disable" omarchy.audio
 
