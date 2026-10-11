@@ -192,7 +192,7 @@
   "trigger.hardware": {"icon":"","label":"Hardware","aliases":["hardware","hw"]},
   "trigger.tests": {"icon":"󰓅","label":"Speed Test"},
   "trigger.agents": {"icon":"󰚩","label":"Agents"},
-  "trigger.agents.seat": {"icon":"󱚤","label":"Agent Seat","when":"omarchy-agent-seat-status >/dev/null","action":"omarchy-agent-seat-show"},
+  "trigger.agents.seat": {"icon":"󱚤","label":"Agent Seat","action":"omarchy-agent-seat-show --start"},
   "trigger.agents.seat-stop": {"icon":"󱚤","label":"Stop Agent Seat","when":"omarchy-agent-seat-status >/dev/null","action":"omarchy-agent-seat-stop"},
   "trigger.hardware.laptop-display-on": {"icon":"󰛧","label":"Laptop Display On","when":"omarchy-hw-laptop && omarchy-hyprland-toggle-enabled internal-monitor-disable","action":"omarchy-hyprland-monitor-internal toggle"},
   "trigger.hardware.laptop-display-off": {"icon":"󰛧","label":"Laptop Display Off","when":"omarchy-hw-laptop && ! omarchy-hyprland-toggle-enabled internal-monitor-disable","action":"omarchy-hyprland-monitor-internal toggle"},

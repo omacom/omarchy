@@ -5,7 +5,10 @@
 
 # Exits non-zero when the seat is stopped, so it can guard menu entries.
 
-if ! status=$(omarchy-agent-seat-broker call '{"command":"status"}' 2>/dev/null); then
+# The broker answers status at once. One that holds its socket open but never
+# answers would hang this call, and with it the menu's guard batch, so a call
+# that takes longer than two seconds counts as a stopped seat.
+if ! status=$(timeout 2 omarchy-agent-seat-broker call '{"command":"status"}' 2>/dev/null); then
   status='{"running": false}'
 else
   status=$(jq '. + {running: true}' <<<"$status")
