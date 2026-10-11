@@ -37,14 +37,14 @@ BarWidget {
     root.bar.run("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ workspace = \"" + id + "\" })"))
   }
 
-  // The focused workspace shows its layout: a square tiles, a triangle scrolls,
-  // and a circle floats. Clicking it cycles to the next one, as Super + L does.
+  // The focused workspace shows its layout: a square tiles, a circle scrolls,
+  // and a triangle floats. Clicking it cycles to the next one, as Super + L does.
   property string focusedMode: "dwindle"
   property bool modeStale: false
 
   function modeGlyph(mode) {
-    if (mode === "scrolling") return "\uDB81\uDD36"
-    if (mode === "floating") return "\uDB81\uDF65"
+    if (mode === "scrolling") return "\uDB81\uDF65"
+    if (mode === "floating") return "\uDB81\uDD36"
     return "\uDB85\uDCFB"
   }
 
