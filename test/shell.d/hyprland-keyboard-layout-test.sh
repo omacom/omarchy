@@ -3,6 +3,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
 require_command lua
+require_command xkbcli
 
 resolved_input_for() {
   local module="$1"
@@ -94,7 +95,7 @@ assert_greeter_input() {
   assert_resolved_input resolved_greeter_input "$@"
 }
 
-base_options="compose:caps,shift:both_capslock_cancel"
+base_options="omarchy:shift_caps_compose"
 toggle_options="$base_options,grp:alts_toggle"
 
 assert_input "missing vconsole.conf falls back to us" "[us] [] [$base_options]"
@@ -116,6 +117,11 @@ XKBVARIANT=phonetic
 
 assert_input "non-latin layout in front gains us even when us trails" "[us,il,us] [,] [$toggle_options]" 'XKBLAYOUT=il,us
 '
+
+caps=$(xkbcli compile-keymap --include "$ROOT/etc/xkb" --include-defaults --layout us,ru --options omarchy:shift_caps_compose | grep -A5 'key <CAPS>')
+[[ $caps == *"Caps_Lock,"*"Multi_key ]"* && $caps == *"LockMods(modifiers=Lock),"*"NoAction() ]"* ]] ||
+  fail "Shift + Caps Lock composes without toggling Caps Lock" "$caps"
+pass "Shift + Caps Lock composes without toggling Caps Lock"
 
 # The greeter takes no compose or capslock options: they're session comfort
 # settings with nothing to do with typing a password.
