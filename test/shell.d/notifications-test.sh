@@ -544,7 +544,31 @@ assertDeepEqual(
   'notifications restore nothing from an empty popup dir'
 )
 
-assert(!notifications.popupExpired({ timestamp: 0 }, 0, 999999), 'critical popups never expire on restore')
+assert(!notifications.popupExpired({ timestamp: 0 }, 0, 999999), 'critical popups without a timeout never expire on restore')
+const criticalWithTimeout = notifications.popupDuration(30000, true, 8000, 30000)
+assert(
+  notifications.popupExpired({ timestamp: 1000 }, criticalWithTimeout, 40000),
+  'a critical popup that requested a finite lifetime expires on restore once that lifetime elapses'
+)
+assert(
+  !notifications.popupExpired({ timestamp: 1000 }, criticalWithTimeout, 20000),
+  'a critical popup with a finite lifetime still within that window is restored'
+)
+assert(
+  !notifications.popupExpired({ timestamp: 1000 }, notifications.popupDuration(-1, true, 8000, 30000), 999999),
+  'a critical popup that requested no timeout is restored however old it is'
+)
+
+assertEqual(notifications.popupDuration(30000, true, 8000, 30000), 30000, 'critical with a positive expireTimeout gets a finite duration')
+assertEqual(notifications.popupDuration(60000, true, 8000, 30000), 30000, 'critical expireTimeout is clamped to the maximum')
+assertEqual(notifications.popupDuration(3000, true, 8000, 30000), 3000, 'critical expireTimeout ignores the urgency floor')
+assertEqual(notifications.popupDuration(0, true, 8000, 30000), 0, 'critical with expireTimeout 0 stays sticky')
+assertEqual(notifications.popupDuration(-1, true, 8000, 30000), 0, 'critical with the default expireTimeout -1 stays sticky')
+assertEqual(notifications.popupDuration(undefined, true, 8000, 30000), 0, 'critical with a missing expireTimeout stays sticky')
+assertEqual(notifications.popupDuration(1000, false, 5000, 30000), 5000, 'a short request is raised to the urgency floor')
+assertEqual(notifications.popupDuration(-1, false, 8000, 30000), 8000, 'no request gets the urgency floor')
+assertEqual(notifications.popupDuration(25000, false, 8000, 30000), 25000, 'a request above the floor is honoured')
+assertEqual(notifications.popupDuration(60000, false, 8000, 30000), 30000, 'a request above the maximum is clamped')
 assert(!notifications.popupExpired({ timestamp: 1000 }, 8000, 5000), 'popups within their lifetime are restored')
 assert(notifications.popupExpired({ timestamp: 1000 }, 8000, 9000), 'popups past their lifetime are not restored')
 assert(
@@ -615,6 +639,11 @@ assert(
 assert(
   /readonly property int historyLimit: 10/.test(serviceQml),
   'notifications service keeps the last ten notifications in history'
+)
+
+assert(
+  /var floor = urgency === NotificationUrgency\.Low \? lowPopupDuration : normalPopupDuration\s*\n\s*return NotificationLogic\.popupDuration\(expireTimeout, urgency === NotificationUrgency\.Critical, floor, maxPopupDuration\)/.test(serviceQml),
+  'notifications service times toasts by urgency through popupDuration'
 )
 assert(
   /function showHistory\(\): string \{\s*return service\.showRecentHistory\(\)\s*\}/.test(serviceQml),
