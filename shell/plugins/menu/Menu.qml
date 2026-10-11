@@ -772,6 +772,7 @@ Item {
   }
 
   function goBack() {
+    if (root.filterText) return false
     if (root.activeMenu === "root") return false
 
     if (root.navStack.length > 0) {
@@ -1222,55 +1223,63 @@ Item {
 
       MouseArea { anchors.fill: parent; onClicked: {} }
 
-      Item {
+      PanelKeyCatcher {
         id: keyCatcher
         anchors.fill: parent
         z: root.deleteConfirmOpen ? 20 : 0
-        focus: true
-
-        Keys.priority: Keys.BeforeItem
-        Keys.onPressed: function(event) {
+        searchable: true
+        onHandleCustomKeys: function(event) {
           if (root.deleteConfirmOpen) {
-            if (deleteConfirm.handleKey(event)) event.accepted = true
+            deleteConfirm.handleKey(event)
+            event.accepted = true
             return
-          }
-
-          if (event.key === Qt.Key_Delete) {
-            root.requestDeleteSelected()
-            event.accepted = true
-          } else if (event.key === Qt.Key_Escape) {
-            if (root.filterText) root.setFilter("")
-            else root.cancel()
-            event.accepted = true
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
             event.accepted = true
-          } else if ((event.key === Qt.Key_Backspace || event.key === Qt.Key_Left) && !root.filterText) {
-            root.goBack()
-            event.accepted = true
-          } else if (event.key === Qt.Key_Up) {
-            root.select(-1)
-            event.accepted = true
-          } else if (event.key === Qt.Key_Down) {
-            root.select(1)
-            event.accepted = true
-          } else if (event.key === Qt.Key_PageUp) {
-            root.select(-6)
-            event.accepted = true
-          } else if (event.key === Qt.Key_PageDown) {
-            root.select(6)
-            event.accepted = true
-          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Right) {
-            if (root.dmenuActive) {
-              if (root.mode === "input") root.applyDmenuSelection(root.filterText)
-              else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
-            } else if (root.cursorActive) root.activateIndex(root.selectedIndex)
-            else root.settleCursor()
-            event.accepted = true
-          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
-            root.setFilter(root.filterText + event.text)
-            event.accepted = true
           }
+
+          return
+        }
+        onMoveRequested: function(dx, dy) {
+          if (dy !== 0) {
+            root.select(dy)
+          } else if (dx === -1) {
+            root.goBack()
+          } else if (dx === 1) {
+            handleEnter()
+          }
+        }
+        onPageUp: function(event) {
+          root.select(-6)
+          event.accepted = true
+        }
+        onPageDown: function(event) {
+          root.select(6)
+          event.accepted = true
+        }
+        onGoBack: function(keyEvent) {
+          root.goBack()
+        }
+        onDeleteRequested: function() {
+          root.requestDeleteSelected()
+        }
+        onReturnRequested: function() {
+          handleEnter()
+        }
+        onCloseRequested: function() {
+          if (root.filterText) root.setFilter("")
+          else root.cancel()
+        }
+        onTextKey: function(text) {
+          root.setFilter(root.filterText + text)
+        }
+
+        function handleEnter() {
+          if (root.dmenuActive) {
+            if (root.mode === "input") root.applyDmenuSelection(root.filterText)
+            else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
+          } else if (root.cursorActive) root.activateIndex(root.selectedIndex)
+          else root.settleCursor()
         }
 
         ConfirmDialog {

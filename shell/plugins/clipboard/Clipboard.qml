@@ -339,41 +339,18 @@ Item {
 
       MouseArea { anchors.fill: parent; onClicked: {} }
 
-      Item {
+      PanelKeyCatcher {
         id: keyCatcher
         anchors.fill: parent
         z: root.clearConfirmOpen ? 20 : 0
         focus: true
-
-        Keys.priority: Keys.BeforeItem
-        Keys.onPressed: function(event) {
+        searchable: true
+        onHandleCustomKeys: function(event) {
           if (root.clearConfirmOpen) {
-            if (clearConfirm.handleKey(event)) event.accepted = true
-            return
-          }
-
-          if (event.key === Qt.Key_Escape) {
-            if (root.filterText) root.setFilter("")
-            else root.close()
+            clearConfirm.handleKey(event)
             event.accepted = true
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
-            event.accepted = true
-          } else if (event.key === Qt.Key_Delete) {
-            if (event.modifiers & Qt.ShiftModifier) root.requestClearHistory()
-            else root.removeDisplayIndex(root.selectedIndex)
-            event.accepted = true
-          } else if (event.key === Qt.Key_Up) {
-            root.select(-1)
-            event.accepted = true
-          } else if (event.key === Qt.Key_Down) {
-            root.select(1)
-            event.accepted = true
-          } else if (event.key === Qt.Key_PageUp) {
-            root.select(-6)
-            event.accepted = true
-          } else if (event.key === Qt.Key_PageDown) {
-            root.select(6)
             event.accepted = true
           } else if (event.key === Qt.Key_Home) {
             root.selectAbsolute(0)
@@ -381,16 +358,38 @@ Item {
           } else if (event.key === Qt.Key_End) {
             root.selectAbsolute(displayModel.count - 1)
             event.accepted = true
-          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            if (root.cursorActive && (event.modifiers & Qt.AltModifier)) root.openIndex(root.selectedIndex)
-            else if (root.cursorActive && (event.modifiers & Qt.ShiftModifier)) root.copyIndex(root.selectedIndex)
-            else if (root.cursorActive) root.activateIndex(root.selectedIndex)
-            else if (displayModel.count > 0) root.cursorActive = true
-            event.accepted = true
-          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127) {
-            root.setFilter(root.filterText + event.text)
-            event.accepted = true
           }
+          return
+        }
+        onMoveRequested: function(dx, dy) {
+          if (dy !== 0) {
+            root.select(dy)
+          }
+        }
+        onPageUp: function(event) {
+          root.select(-6)
+          event.accepted = true;
+        }
+        onPageDown: function(event) {
+          root.select(6)
+          event.accepted = true;
+        }
+        onDeleteRequested: function(event) {
+          if (event.modifiers & Qt.ShiftModifier) root.requestClearHistory()
+          else root.removeDisplayIndex(root.selectedIndex)
+        }
+        onReturnRequested: function(event) {
+          if (root.cursorActive && (event.modifiers & Qt.AltModifier)) root.openIndex(root.selectedIndex)
+          else if (root.cursorActive && (event.modifiers & Qt.ShiftModifier)) root.copyIndex(root.selectedIndex)
+          else if (root.cursorActive) root.activateIndex(root.selectedIndex)
+          else if (displayModel.count > 0) root.cursorActive = true
+        }
+        onCloseRequested: function() {
+          if (root.filterText) root.setFilter("")
+          else root.close()
+        }
+        onTextKey: function(text) {
+          root.setFilter(root.filterText + text)
         }
 
         ConfirmDialog {

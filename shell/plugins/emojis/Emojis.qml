@@ -185,46 +185,40 @@ Item {
 
       MouseArea { anchors.fill: parent; onClicked: {} }
 
-      Item {
+      PanelKeyCatcher {
         id: keyCatcher
         anchors.fill: parent
         focus: true
-
-        Keys.priority: Keys.BeforeItem
-        Keys.onPressed: function(event) {
-          if (event.key === Qt.Key_Escape) {
-            if (root.filterText) root.setFilter("")
-            else root.dismiss()
-            event.accepted = true
-          } else if (Util.editsFilter(event, root.filterText)) {
-            root.setFilter(Util.editedFilter(event, root.filterText))
-            event.accepted = true
-          } else if (event.key === Qt.Key_Left) {
-            root.select(-1)
-            event.accepted = true
-          } else if (event.key === Qt.Key_Right) {
-            root.select(1)
-            event.accepted = true
-          } else if (event.key === Qt.Key_Up) {
-            root.selectRow(-1)
-            event.accepted = true
-          } else if (event.key === Qt.Key_Down) {
-            root.selectRow(1)
-            event.accepted = true
-          } else if (event.key === Qt.Key_PageUp) {
+        searchable: true
+        onMoveRequested: function(dx, dy) {
+          if (dy !== 0) root.selectRow(dy)
+          else if (dx !== 0) root.select(dx)
+        }
+        onPageUp: function(event) {
             root.selectPage(-1)
             event.accepted = true
-          } else if (event.key === Qt.Key_PageDown) {
+        }
+        onPageDown: function(event) {
             root.selectPage(1)
             event.accepted = true
-          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            if (root.cursorActive) root.activateIndex(root.selectedIndex)
-            else if (displayModel.count > 0) root.cursorActive = true
-            event.accepted = true
-          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127) {
-            root.setFilter(root.filterText + event.text)
+        }
+        onCloseRequested: function() {
+          if (root.filterText) root.setFilter("")
+          else root.dismiss()
+        }
+        onReturnRequested: function() {
+          if (root.cursorActive) root.activateIndex(root.selectedIndex)
+          else if (displayModel.count > 0) root.cursorActive = true
+        }
+        onTextKey: function(text) {
+          root.setFilter(root.filterText + text)
+        }
+        onHandleCustomKeys: function(event) {
+          if (Util.editsFilter(event, root.filterText)) {
+            root.setFilter(Util.editedFilter(event, root.filterText))
             event.accepted = true
           }
+          return
         }
       }
 

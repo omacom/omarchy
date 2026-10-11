@@ -180,6 +180,22 @@ assertEqual(
   'clipboard respawns both watchers when they die'
 )
 
+const catcherQml = fs.readFileSync(path.join(root, 'shell/Ui/PanelKeyCatcher.qml'), 'utf8')
+// Delete carries its key event, like returnRequested, so the panel can tell
+// Shift+Delete (clear history) from Delete (remove the entry).
+assert(
+  /signal deleteRequested\(KeyEvent event\)/.test(catcherQml),
+  'panel key catcher passes the key event with delete requests'
+)
+assert(
+  /onDeleteRequested: function\(event\) \{\s*\n\s*if \(event\.modifiers & Qt\.ShiftModifier\) root\.requestClearHistory\(\)\s*\n\s*else root\.removeDisplayIndex\(root\.selectedIndex\)/.test(clipboardQml),
+  'clipboard tells shift-delete clear-history from plain delete'
+)
+assert(
+  /if \(root\.clearConfirmOpen\) \{\s*\n\s*clearConfirm\.handleKey\(event\);?\s*\n\s*event\.accepted = true;?\s*\n\s*\} else if/.test(clipboardQml),
+  'clipboard routes every key to an open confirm dialog'
+)
+
 assertDeepEqual(
   clipboard.displayRows([{ type: 'text', text: 'a'.repeat(8192) + 'needle' }], 'needle', 50),
   [],

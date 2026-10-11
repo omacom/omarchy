@@ -2,7 +2,6 @@ import QtQuick
 import QtTest
 import "../../../../shell/Ui"
 
-// Text keys carry their modifiers, so a panel can tell Alt+T from T.
 Item {
   id: root
   width: 100
@@ -36,10 +35,18 @@ Item {
       compare(root.lastModifiers & Qt.AltModifier, 0)
     }
 
-    function test_altLetterCarriesAlt() {
+    function test_altWithTextKeyDoesNotFire() {
       keyClick(Qt.Key_T, Qt.AltModifier)
-      compare(root.lastText.toLowerCase(), "t")
-      verify(root.lastModifiers & Qt.AltModifier)
+      compare(root.lastText, "")
+      // -1 is the init value: proves no emission, unlike a bitmask check,
+      // which passes vacuously since -1 & Qt.AltModifier is truthy.
+      compare(root.lastModifiers, -1)
+    }
+
+    function test_shiftWithTextKeyDoesFire() {
+      keyClick(Qt.Key_U, Qt.ShiftModifier)
+      compare(root.lastText, "u")
+      verify(root.lastModifiers & Qt.ShiftModifier)
     }
   }
 }

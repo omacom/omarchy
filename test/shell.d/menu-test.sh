@@ -539,9 +539,24 @@ assert(
   /function setActiveMenu\(id, pushHistory, fromPointer\)[\s\S]*if \(fromPointer\) pointerGate\.allowInitialSample\(\)\s*else root\.disarmPointer\(\)/.test(menuQml),
   'menu route changes only accept an initial pointer sample for mouse activation'
 )
+// The key catcher emits pageUp/pageDown signals; the menu turns them into a
+// six-row cursor jump on the same select() the vertical arrows use.
 assert(
-  /\(event\.key === Qt\.Key_Backspace \|\| event\.key === Qt\.Key_Left\) && !root\.filterText[\s\S]*root\.goBack\(\)/.test(menuQml),
+  /onPageUp:[\s\S]{0,60}?root\.select\(-6\)/.test(menuQml)
+    && /onPageDown:[\s\S]{0,60}?root\.select\(6\)/.test(menuQml),
+  'menu page keys move the cursor six rows'
+)
+assert(
+  /function goBack\(\) \{\s*\n\s*if \(root\.filterText\) return false/.test(menuQml)
+    && /dx === -1\) \{\s*\n\s*root\.goBack\(\)/.test(menuQml),
   'menu Left key follows empty-filter Backspace navigation'
+)
+// While the uninstall confirm is open it is keyboard-modal: every key goes to
+// the dialog, so arrows, letters, Backspace, and Delete cannot act on the
+// menu behind it.
+assert(
+  /if \(root\.deleteConfirmOpen\) \{\s*\n\s*deleteConfirm\.handleKey\(event\);?\s*\n\s*event\.accepted = true;?\s*\n\s*return;?\s*\n\s*\}/.test(menuQml),
+  'menu routes every key to an open confirm dialog'
 )
 assert(
   /PointerMoveGate\s*\{[\s\S]*id: pointerGate[\s\S]*referenceItem: card[\s\S]*\}/.test(menuQml),

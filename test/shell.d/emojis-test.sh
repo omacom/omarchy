@@ -44,6 +44,13 @@ assertEqual(
   '\u{1F602}',
   'emoji filtering finds face with tears of joy'
 )
+
+const emojisQml = fs.readFileSync(path.join(root, 'shell/plugins/emojis/Emojis.qml'), 'utf8')
+assert(
+  /onPageUp:[\s\S]{0,60}?root\.selectPage\(-1\)/.test(emojisQml)
+    && /onPageDown:[\s\S]{0,60}?root\.selectPage\(1\)/.test(emojisQml),
+  'emojis handles page up and down keys'
+)
 JS
 
 TMPDIR=$(mktemp -d)
