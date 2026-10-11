@@ -70,9 +70,18 @@ announce() {
     ;;
   esac
 
+  # A .desktop file is an application launcher: on a desktop that honors it, a
+  # single click to "open" runs its Exec line, and a Taildrop sender picks both
+  # the name and the contents. Announce it, but never wire the click to dispatch
+  # one -- the saved file is there for the user to inspect instead.
+  #
   # Announcing is best-effort: the file is already delivered, and under `set -e`
   # a notification outage would otherwise kill the long-running receiver.
-  omarchy-notification-send "${args[@]}" --exec xdg-open "$path" || true
+  if [[ ${name,,} == *.desktop ]]; then
+    omarchy-notification-send "${args[@]}" || true
+  else
+    omarchy-notification-send "${args[@]}" --exec xdg-open "$path" || true
+  fi
 }
 
 deliver() {
