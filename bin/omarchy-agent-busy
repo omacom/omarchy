@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# omarchy:summary=List the coding agents with session activity in the last few minutes
+# omarchy:args=[--within <minutes>]
+# omarchy:hidden=true
+
+# An agent appends to its session store at every message and tool result, so a
+# write inside the window means it is mid-task. Neither its process nor its CPU
+# says that: an agent idling at its prompt keeps both. Prints one name per agent
+# with activity and exits 0; exits 1 when there is none, and 3 when a store
+# could not be read, since a failed look is not a quiet one. An agent missing
+# here (Crush, Cursor CLI, Muse, Ori: no session store of their own to watch)
+# never counts.
+
+within=15
+
+case "${1:-}" in
+  "") ;;
+  --within) within=${2:-} ;;
+  *) within="" ;;
+esac
+
+if [[ ! $within =~ ^[1-9][0-9]*$ ]]; then
+  echo "Usage: omarchy-agent-busy [--within <minutes>]" >&2
+  exit 2
+fi
+
+found=0
+incomplete=0
+
+# -H follows a root that is itself a symlink, as an account home's projects is.
+check() {
+  local name=$1 root recent
+  shift
+
+  for root in "$@"; do
+    [[ -e $root ]] || continue
+    if recent=$(find -H "$root" -type f -mmin "-$within" -print -quit 2>/dev/null) && [[ -z $recent ]]; then
+      continue
+    elif [[ -n $recent ]]; then
+      printf '%s\n' "$name"
+      found=1
+      return
+    fi
+    incomplete=1
+  done
+}
+
+data_home=${XDG_DATA_HOME:-$HOME/.local/share}
+hermes_home=${HERMES_HOME:-$HOME/.hermes}
+
+shopt -s nullglob
+check "Claude Code" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
+check "Codex" "${CODEX_HOME:-$HOME/.codex}/sessions"
+check "Grok" "${GROK_HOME:-$HOME/.grok}/sessions"
+check "Pi" "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/sessions" "$HOME"/.pi/profiles/*/agent/sessions
+check "Oh My Pi" "$HOME/.omp/agent/sessions" "$HOME"/.omp/profiles/*/agent/sessions
+check "OpenCode" "$data_home"/opencode/opencode*.db*
+check "Hermes" "$hermes_home/sessions" "$hermes_home"/state.db* "$hermes_home"/profiles/*/sessions
+check "OpenClaw" "$HOME"/.openclaw/agents/*/sessions
+check "GitHub Copilot" "${COPILOT_HOME:-$HOME/.copilot}/session-state"
+check "Antigravity" "$HOME/.gemini/antigravity-cli/conversations"
+
+if (( found )); then
+  exit 0
+elif (( incomplete )); then
+  exit 3
+else
+  exit 1
+fi

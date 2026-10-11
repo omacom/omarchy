@@ -1,0 +1,389 @@
+#!/bin/bash
+
+# omarchy:summary=Keep a laptop working with the lid closed, until a set time or until agents go quiet
+# omarchy:args=[<duration>|<HH:MM>|agents [<duration>]|add <duration>|stop|status|active]
+# omarchy:examples=omarchy agent awake 2h | omarchy agent awake 18:30 | omarchy agent awake agents | omarchy agent awake add 30m | omarchy agent awake stop
+
+# Holds logind's lid-switch inhibitor and nothing else: Suspend from the menu,
+# the critical-battery action and the idle lock all still apply. The inhibitor
+# lives as long as its holder, so a holder that crashes or is killed hands the
+# lid back to logind's own policy and nothing needs undoing.
+
+UNIT="omarchy-agent-awake.service"
+STATE_DIR="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy/agent-awake"
+SESSION="$STATE_DIR/session"
+LIMIT=$((24 * 3600))
+AGENTS_LIMIT=$((8 * 3600))
+QUIET_MINUTES=15
+BATTERY_FLOOR=10
+TICK=5
+CHECK_EVERY=30
+
+usage() {
+  echo "Usage: omarchy-agent-awake [<duration>|<HH:MM>|agents [<duration>]|add <duration>|stop|status|active]" >&2
+  echo "Durations look like 45m, 2h or 1h30m." >&2
+  exit 1
+}
+
+die() {
+  echo "$1" >&2
+  # Started from the menu, nobody reads stderr.
+  [[ -t 2 ]] || omarchy-notification-send -g 󰈈 "Agent Awake" "$1" >/dev/null 2>&1
+  exit 1
+}
+
+running() {
+  systemctl --user is-active --quiet "$UNIT"
+}
+
+# One record, renamed into place whole: token deadline mode started since.
+# since is when the holder started, which is what RuntimeMaxSec counts from.
+read_session() {
+  local fields=()
+
+  [[ -r $SESSION ]] && read -r -a fields <"$SESSION"
+  (( ${#fields[@]} == 5 )) || return 1
+  [[ ${fields[0]} =~ ^[0-9a-f]{16}$ && ${fields[1]} =~ ^[0-9]+$ && ${fields[2]} =~ ^(time|agents)$ ]] || return 1
+  [[ ${fields[3]} =~ ^[0-9]+$ && ${fields[4]} =~ ^[0-9]+$ ]] || return 1
+
+  s_token=${fields[0]}
+  s_deadline=${fields[1]}
+  s_mode=${fields[2]}
+  s_started=${fields[3]}
+  s_since=${fields[4]}
+}
+
+write_file() {
+  local temporary
+  temporary=$(mktemp "$STATE_DIR/.${1##*/}.XXXXXX") || return 1
+  printf '%s\n' "$2" >"$temporary" && mv -f "$temporary" "$1"
+}
+
+# The directory stays so the bar can keep watching it; only the session goes.
+clear_session() {
+  rm -f "$SESSION" "$STATE_DIR"/{agents,seen,ready}
+}
+
+# Start, add, stop and the holder's decision to end take turns, so an end time
+# written as a session ends is never silently dropped.
+lock() {
+  mkdir -p -m 700 "$STATE_DIR" || die "Could not create $STATE_DIR"
+  exec 9>"$STATE_DIR/lock"
+  flock 9
+}
+
+# 45m, 2h, 1h30m -> seconds
+duration_seconds() {
+  local hours=0 minutes=0
+
+  [[ -n $1 && $1 =~ ^(([0-9]{1,2})h)?(([0-9]{1,4})m)?$ ]] || return 1
+  [[ -n ${BASH_REMATCH[2]} ]] && hours=$((10#${BASH_REMATCH[2]}))
+  [[ -n ${BASH_REMATCH[4]} ]] && minutes=$((10#${BASH_REMATCH[4]}))
+  (( hours * 60 + minutes > 0 )) || return 1
+  printf '%s\n' $((hours * 3600 + minutes * 60))
+}
+
+# HH:MM -> epoch of its next occurrence, today or tomorrow
+clock_deadline() {
+  local deadline
+
+  [[ $1 =~ ^([01]?[0-9]|2[0-3]):[0-5][0-9]$ ]] || return 1
+  deadline=$(date -d "$1" +%s) || return 1
+  if (( deadline <= $(date +%s) )); then
+    deadline=$(date -d "tomorrow $1" +%s) || return 1
+  fi
+  printf '%s\n' "$deadline"
+}
+
+# 18:30, or Sat 02:30 when not today
+end_label() {
+  if [[ $(date -d "@$1" +%F) == $(date +%F) ]]; then
+    date -d "@$1" +%H:%M
+  else
+    date -d "@$1" '+%a %H:%M'
+  fi
+}
+
+recent_agents() {
+  local agents=()
+
+  [[ -r $STATE_DIR/agents ]] && mapfile -t agents <"$STATE_DIR/agents"
+  (( ${#agents[@]} )) || return 0
+  local IFS=$'\n'
+  local text="${agents[*]}"
+  printf '%s' "${text//$'\n'/, }"
+}
+
+active() {
+  running && read_session
+}
+
+summary() {
+  local agents
+
+  if ! active; then
+    printf 'Agent Awake is off\n'
+    return
+  fi
+
+  if [[ $s_mode == "agents" ]]; then
+    printf 'Awake until agents go quiet, %s at most' "$(end_label "$s_deadline")"
+  else
+    printf 'Awake until %s' "$(end_label "$s_deadline")"
+  fi
+  agents=$(recent_agents)
+  [[ -n $agents ]] && printf ' · recent activity: %s' "$agents"
+  printf '\n'
+}
+
+# Stale state from a holder that was killed is left alone: the next start
+# rewrites it, and clearing it here could race a start in progress.
+status_json() {
+  if active; then
+    jq -cn \
+      --arg mode "$s_mode" \
+      --argjson deadline "$s_deadline" \
+      --arg until "$(end_label "$s_deadline")" \
+      --arg agents "$(recent_agents)" \
+      --arg tooltip "$(summary)" \
+      '{active: true, mode: $mode, deadline: $deadline, until: $until,
+        agents: ($agents | split(", ") | map(select(. != ""))), tooltip: $tooltip}'
+  else
+    jq -cn --arg tooltip "$(summary)" \
+      '{active: false, mode: null, deadline: null, until: null, agents: [], tooltip: $tooltip}'
+  fi
+}
+
+# low, ok, or unknown. UPower's display device is the aggregate the battery
+# service warns from; a machine with no battery is always ok.
+battery_state() {
+  local info percentage state
+
+  omarchy-battery-present || { echo ok; return; }
+
+  info=$(timeout -k 1 5 upower -i /org/freedesktop/UPower/devices/DisplayDevice 2>/dev/null)
+  percentage=$(awk '/^ *percentage:/ { print int($2); exit }' <<<"$info")
+  state=$(awk '/^ *state:/ { print $2; exit }' <<<"$info")
+
+  if [[ ! $percentage =~ ^[0-9]+$ || -z $state ]]; then
+    echo unknown
+  elif (( percentage <= BATTERY_FLOOR )) && [[ $state != "charging" && $state != "fully-charged" && $state != "pending-charge" ]]; then
+    echo low
+  else
+    echo ok
+  fi
+}
+
+start() {
+  local deadline=$1 mode=$2 now token="" since attempt new_holder=0
+
+  omarchy-hw-laptop || die "There is no lid here to keep open."
+  # Without a desktop session nothing locks a lid closed under it.
+  systemctl --user is-active --quiet graphical-session.target || die "Agent Awake needs a running desktop session."
+  now=$(date +%s)
+  (( deadline - now <= LIMIT )) || die "Agent Awake runs for 24 hours at most."
+  [[ $(battery_state) == "low" ]] && die "The battery is at ${BATTERY_FLOOR}% or less, too low to keep working with the lid closed."
+
+  lock
+
+  if running; then
+    if read_session; then
+      # A healthy holder rereads the record, so the inhibitor is never
+      # released and retaken: a closed lid would suspend in between.
+      token=$s_token
+      since=$s_since
+      (( deadline - since <= LIMIT )) || die "Agent Awake runs for 24 hours at most. Stop it and start again for longer."
+    else
+      # A holder with no record left is on its way out.
+      systemctl --user stop "$UNIT" 2>/dev/null
+    fi
+  fi
+
+  if [[ -z $token ]]; then
+    token=$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')
+    since=$now
+    new_holder=1
+  fi
+
+  write_file "$SESSION" "$token $deadline $mode $now $since" || die "Could not record the session."
+  rm -f "$STATE_DIR"/{agents,seen}
+
+  if (( new_holder )); then
+    rm -f "$STATE_DIR/ready"
+    if ! systemd-run --user --quiet --collect --unit="$UNIT" \
+      --description="Omarchy Agent Awake" \
+      --property=RuntimeMaxSec=$((LIMIT + 60)) \
+      --property=PartOf=graphical-session.target \
+      systemd-inhibit --what=handle-lid-switch --mode=block --no-ask-password --who=Omarchy \
+      --why="Agent Awake keeps the machine working with the lid closed" \
+      omarchy-agent-awake hold "$token"; then
+      clear_session
+      die "Could not start Agent Awake."
+    fi
+
+    # systemd-inhibit runs the holder only once logind has granted the
+    # inhibitor, so the holder's word is the proof the lid is held.
+    for (( attempt = 0; attempt < 50; attempt++ )); do
+      [[ -r $STATE_DIR/ready && $(<"$STATE_DIR/ready") == "$token" ]] && break
+      running || break
+      sleep 0.1
+    done
+
+    if [[ ! -r $STATE_DIR/ready || $(<"$STATE_DIR/ready") != "$token" ]]; then
+      systemctl --user stop "$UNIT" 2>/dev/null
+      clear_session
+      die "Could not hold the lid open. See: journalctl --user -u $UNIT"
+    fi
+  fi
+
+  exec 9>&-
+  summary
+}
+
+add() {
+  local seconds deadline
+
+  seconds=$(duration_seconds "${1:-}") || usage
+  lock
+  active || die "Agent Awake is not running. Start it with: omarchy agent awake $1"
+  deadline=$((s_deadline + seconds))
+  (( deadline - s_since <= LIMIT )) || die "Agent Awake runs for 24 hours at most. Stop it and start again for longer."
+  write_file "$SESSION" "$s_token $deadline $s_mode $s_started $s_since" || die "Could not record the session."
+  exec 9>&-
+  summary
+}
+
+stop() {
+  lock
+  systemctl --user stop "$UNIT" 2>/dev/null
+  clear_session
+}
+
+# busy, quiet, or unknown. Names with recent activity go to the bar; seen marks
+# that this session has watched an agent work, which is what lets the agents
+# mode end. A scan that failed or timed out says nothing either way.
+record_activity() {
+  local busy status
+
+  busy=$(timeout -k 1 10 omarchy-agent-busy --within "$QUIET_MINUTES" 2>/dev/null)
+  status=$?
+
+  case $status in
+    0)
+      write_file "$STATE_DIR/agents" "$busy"
+      [[ -e $STATE_DIR/seen ]] || : >"$STATE_DIR/seen"
+      echo busy
+      ;;
+    1)
+      rm -f "$STATE_DIR/agents"
+      echo quiet
+      ;;
+    *)
+      echo unknown
+      ;;
+  esac
+}
+
+# In a unit of its own so a slow notification server never holds the lid.
+notify() {
+  timeout -k 1 2 systemd-run --user --quiet --collect --no-block \
+    omarchy-notification-send -g 󰈈 "$@" >/dev/null 2>&1
+}
+
+hold() {
+  local token=$1 reason="" now last_check=0 unreadable=0 battery activity pause
+
+  # Lock-free: start holds the lock while it waits for this answer. The record
+  # is renamed into place whole, so reading it bare is safe.
+  if read_session && [[ $s_token == "$token" ]]; then
+    write_file "$STATE_DIR/ready" "$token"
+  else
+    exit 0
+  fi
+
+  exec 9>"$STATE_DIR/lock"
+
+  while [[ -z $reason ]]; do
+    now=$(date +%s)
+    battery=""
+    activity=""
+
+    # The slow checks run outside the lock, so start and add never wait on
+    # them, and not near the end time, so they never delay it.
+    if (( now - last_check >= CHECK_EVERY )) && read_session && (( s_deadline - now > 20 )); then
+      last_check=$now
+      battery=$(battery_state)
+      activity=$(record_activity)
+    fi
+
+    flock 9
+    now=$(date +%s)
+    if ! read_session || [[ $s_token != "$token" ]]; then
+      reason="superseded"
+    elif (( now >= s_deadline )); then
+      reason="time"
+    elif [[ $battery == "low" ]]; then
+      reason="battery"
+    elif [[ $battery == "unknown" ]] && (( ++unreadable >= 2 )); then
+      reason="battery-unknown"
+    elif [[ $s_mode == "agents" && $activity == "quiet" && -e $STATE_DIR/seen ]]; then
+      reason="agents"
+    fi
+    [[ $battery == "ok" || $battery == "low" ]] && unreadable=0
+    [[ -n $reason && $reason != "superseded" ]] && clear_session
+    flock -u 9
+
+    if [[ -z $reason ]]; then
+      pause=$((s_deadline - now))
+      (( pause > TICK )) && pause=$TICK
+      (( pause < 1 )) && pause=1
+      sleep "$pause"
+    fi
+  done
+
+  case $reason in
+    time) notify "Agent Awake is over" "Its end time came. Closing the lid works as usual again." ;;
+    agents) notify "Agent Awake is over" "No agent activity for $QUIET_MINUTES minutes. Closing the lid works as usual again." ;;
+    battery) notify -u critical "Agent Awake stopped" "The battery is at ${BATTERY_FLOOR}%. Closing the lid works as usual again." ;;
+    battery-unknown) notify -u critical "Agent Awake stopped" "Could not read the battery. Closing the lid works as usual again." ;;
+  esac
+
+  exit 0
+}
+
+case "${1:-}" in
+  "")
+    summary
+    ;;
+  status | --status)
+    status_json
+    ;;
+  active)
+    active
+    ;;
+  stop | off)
+    stop
+    ;;
+  add)
+    add "${2:-}"
+    ;;
+  agents)
+    limit=$AGENTS_LIMIT
+    if [[ -n ${2:-} ]]; then
+      limit=$(duration_seconds "$2") || usage
+    fi
+    start $(($(date +%s) + limit)) agents
+    ;;
+  hold)
+    [[ ${2:-} =~ ^[0-9a-f]{16}$ ]] || usage
+    hold "$2"
+    ;;
+  *:*)
+    deadline=$(clock_deadline "$1") || usage
+    start "$deadline" time
+    ;;
+  *)
+    seconds=$(duration_seconds "$1") || usage
+    start $(($(date +%s) + seconds)) time
+    ;;
+esac
