@@ -46,12 +46,20 @@ Item {
   property var fallbackBarConfig: ({
     position: "top",
     transparent: false,
+    backgroundOpacity: 100,
     centerAnchor: "omarchy.clock",
     layout: { left: [], center: [], right: [] }
   })
   property var layoutConfig: fallbackBarConfig.layout
   property string centerAnchor: ""
   property bool requestedTransparent: false
+  property int backgroundOpacity: 100
+  readonly property color effectiveBackground: Qt.rgba(
+    root.background.r,
+    root.background.g,
+    root.background.b,
+    root.background.a * root.backgroundOpacity / 100
+  )
   property bool useTransparentForeground: false
   property bool transparent: false
   property bool centerSectionHovered: false
@@ -652,6 +660,7 @@ Item {
 
     position = normalizePosition(config.position)
     setRequestedTransparency(config.transparent === true)
+    backgroundOpacity = BarModel.normalizeBackgroundOpacity(config.backgroundOpacity)
     centerAnchor = Util.canonicalWidgetId(config.centerAnchor || "")
 
     // layoutEntries feeds plain JS arrays to the module Repeaters, and QML
@@ -922,6 +931,19 @@ Item {
       })
     } else {
       root.setRequestedTransparency(nextTransparent)
+    }
+  }
+
+  function adjustBackgroundOpacity(steps) {
+    var nextOpacity = BarModel.normalizeBackgroundOpacity(root.backgroundOpacity + 10 * steps)
+    if (nextOpacity === root.backgroundOpacity) return
+
+    backgroundOpacity = nextOpacity
+    if (root.shell && typeof root.shell.mutateShellConfig === "function") {
+      root.shell.mutateShellConfig(function(config) {
+        if (!Util.isPlainObject(config.bar)) config.bar = {}
+        config.bar.backgroundOpacity = nextOpacity
+      })
     }
   }
 
@@ -1357,7 +1379,7 @@ Item {
 
     implicitWidth: root.vertical ? thickness : 0
     implicitHeight: root.vertical ? 0 : thickness
-    color: root.transparent ? "transparent" : root.background
+    color: root.transparent ? "transparent" : root.effectiveBackground
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
@@ -1374,6 +1396,20 @@ Item {
         // Unplugging a monitor destroys its bar without a leave event, which
         // would strand this surface's tally and hold the peek open for good.
         Component.onDestruction: if (hovered) root.setBarHovered(false)
+      }
+
+      // Pointer handlers need an Item parent; use the full-size loader.
+      // Touchpads send many small deltas, so step once per wheel notch.
+      WheelHandler {
+        property int pending: 0
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: function(event) {
+          pending += event.angleDelta.y
+          var steps = Math.trunc(pending / 120)
+          pending -= steps * 120
+          if (steps !== 0) root.adjustBackgroundOpacity(steps)
+        }
       }
     }
 

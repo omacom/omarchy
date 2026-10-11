@@ -7,6 +7,11 @@ function normalizePosition(value) {
   return /^(top|bottom|left|right)$/.test(next) ? next : "top"
 }
 
+function normalizeBackgroundOpacity(value) {
+  if (typeof value !== "number" || !isFinite(value)) return 100
+  return Math.round(Math.max(20, Math.min(100, value)))
+}
+
 function entrySettings(entry) {
   if (!isPlainObject(entry)) return {}
   var copy = {}
@@ -336,6 +341,7 @@ if (typeof module !== "undefined") {
     entriesBefore: entriesBefore,
     entriesAfter: entriesAfter,
     inlineSettingsDelta: inlineSettingsDelta,
+    normalizeBackgroundOpacity: normalizeBackgroundOpacity,
     expandPath: expandPath,
     customModuleSafeName: customModuleSafeName,
     customModuleType: customModuleType,
