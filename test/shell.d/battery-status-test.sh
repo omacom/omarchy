@@ -74,6 +74,48 @@ generic_output=$(OMARCHY_TEST_NATIVE_PATH=CMB0 OMARCHY_POWER_SUPPLY_PATH="$tmp_d
 grep -Fx $'rate\t7.3W' <<<"$generic_output" >/dev/null || fail "battery status accepts arbitrary UPower battery paths"
 pass "battery status supports Apple Silicon and arbitrary native battery paths"
 
+# The cycle count comes from the battery UPower resolved, here CMB0.
+battery_status() {
+  OMARCHY_TEST_NATIVE_PATH=CMB0 OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell
+}
+
+for unusable in "0" "-1" "unknown" "a[\$(touch $tmp_dir/evaluated)]"; do
+  printf '%s\n' "$unusable" >"$tmp_dir/power/CMB0/cycle_count"
+  unusable_output=$(battery_status)
+
+  grep -Fx $'rate\t7.3W' <<<"$unusable_output" >/dev/null || fail "battery status still reports the rest of the battery" "cycle_count=$unusable"
+
+  if grep -q $'^cycles\t' <<<"$unusable_output"; then
+    fail "battery status hides an unusable cycle count" "cycle_count=$unusable"
+  fi
+done
+
+if [[ -e $tmp_dir/evaluated ]]; then
+  fail "battery status reads the cycle count as data, not code"
+fi
+
+pass "battery status hides an unusable cycle count"
+
+for usable in "1337:1337" "010:10" " 450 :450"; do
+  printf '%s\n' "${usable%:*}" >"$tmp_dir/power/CMB0/cycle_count"
+  usable_output=$(battery_status)
+
+  grep -Fx $'cycles\t'"${usable##*:}" <<<"$usable_output" >/dev/null || fail "battery status reports a real cycle count" "cycle_count=${usable%:*}"
+done
+
+# A pack whose firmware reports nothing must not hide a sibling's real count,
+# but a real count on the resolved battery wins over a sibling's.
+mkdir -p "$tmp_dir/power/BAT0" "$tmp_dir/power/BAT1"
+printf '0\n' >"$tmp_dir/power/BAT0/cycle_count"
+printf '450\n' >"$tmp_dir/power/BAT1/cycle_count"
+printf '0\n' >"$tmp_dir/power/CMB0/cycle_count"
+battery_status | grep -Fx $'cycles\t450' >/dev/null || fail "battery status reports a real cycle count from a second pack"
+printf '300\n' >"$tmp_dir/power/CMB0/cycle_count"
+battery_status | grep -Fx $'cycles\t300' >/dev/null || fail "battery status prefers the resolved battery's cycle count"
+rm -r "$tmp_dir/power/BAT0" "$tmp_dir/power/BAT1"
+
+pass "battery status reports a real cycle count"
+
 # An 80% hold threshold doesn't trip while the battery is still below it.
 hold_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir" "$hold_dir"' EXIT
