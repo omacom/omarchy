@@ -71,8 +71,8 @@ BorderSurface {
   // Reserve the largest border any visual state can paint. Otherwise a
   // borderless idle button grows by a pixel per side on hover/focus and
   // relayouts neighboring controls.
-  implicitWidth: row.implicitWidth + horizontalPadding * 2 + _reservedBorderLeft + _reservedBorderRight
-  implicitHeight: row.implicitHeight + verticalPadding * 2 + _reservedBorderTop + _reservedBorderBottom
+  implicitWidth: Math.ceil(row.implicitWidth) + horizontalPadding * 2 + _reservedBorderLeft + _reservedBorderRight
+  implicitHeight: Math.ceil(row.implicitHeight) + verticalPadding * 2 + _reservedBorderTop + _reservedBorderBottom
   radius: Style.cornerRadius
 
   readonly property bool hot: mouseArea.containsMouse || hasCursor
@@ -156,7 +156,11 @@ BorderSurface {
     anchors.verticalCenter: parent.verticalCenter
     anchors.left: root.leftAlign ? parent.left : undefined
     anchors.leftMargin: root.leftAlign ? root._reservedContentLeftInset : 0
-    anchors.horizontalCenter: root.leftAlign ? undefined : parent.horizontalCenter
+    // Center with one rounding step. Glyph widths are fractional (e.g.
+    // 14.98px for a Nerd Font icon), and anchors.horizontalCenter rounds
+    // the parent's center and the row's half-width separately, which can
+    // leave the content a pixel right of center.
+    x: Math.round((root.width - width) / 2)
     spacing: Style.spacing.controlGap
 
     Text {
