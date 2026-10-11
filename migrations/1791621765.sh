@@ -8,6 +8,7 @@ echo "Rebuild the boot image so a non-Latin keyboard layout stays out of the LUK
 # rebuilds the boot image when a drop-in changes, so an image built since
 # plymouth updated still holds it.
 
+mkinitcpio_conf="${OMARCHY_MKINITCPIO_CONF:-/etc/mkinitcpio.conf}"
 conf_dir="${OMARCHY_MKINITCPIO_CONF_DIR:-/etc/mkinitcpio.conf.d}"
 vconsole_conf="${OMARCHY_VCONSOLE_CONF:-/etc/vconsole.conf}"
 plymouth_hook="${OMARCHY_PLYMOUTH_INSTALL_HOOK:-/usr/lib/initcpio/install/plymouth}"
@@ -22,17 +23,15 @@ omarchy-cmd-present limine-mkinitcpio || exit 0
 # Only a plymouth hook that copies the file itself can have put it in the image.
 grep -q 'vconsole\.conf' "$plymouth_hook" || exit 0
 
-# Evaluate the installed drop-ins the way mkinitcpio does, and rebuild only
-# where they now refuse the file. Skip conservatively if evaluation fails.
+# Evaluate the configuration the way mkinitcpio does, the main file and then
+# every drop-in sourced as one, and rebuild only where its final FILES now
+# leaves the file out. Skip conservatively if evaluation fails.
 added=$(bash -c '
   unset XKBLAYOUT
-  FILES=()
   add_file() { echo added; }
-  for conf in "$1/omarchy_hooks.conf" "$1/omarchy_vconsole.conf"; do
-    [[ ! -f $conf ]] || source "$conf" || exit 1
-  done
-  add_file "$2"
-' -- "$conf_dir" "$vconsole_conf") || exit 0
+  source <(cat -- "$1" "$2"/*.conf 2>/dev/null) || exit 1
+  add_file "$3"
+' -- "$mkinitcpio_conf" "$conf_dir" "$vconsole_conf") || exit 0
 [[ -z $added ]] || exit 0
 
 echo "Rebuilding the boot image without the non-Latin keyboard layout"

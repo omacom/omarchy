@@ -29,6 +29,8 @@ chmod +x "$stub_bin"/*
 
 # The drop-ins read the machine's own /etc/vconsole.conf; copies read a fixture.
 vconsole="$test_dir/vconsole.conf"
+mkinitcpio_conf="$test_dir/mkinitcpio.conf"
+printf 'MODULES=()\nBINARIES=()\nFILES=()\nHOOKS=(base udev)\n' >"$mkinitcpio_conf"
 new_conf_dir() {
   rm -rf "$test_dir/conf.d"
   mkdir -p "$test_dir/conf.d"
@@ -51,8 +53,8 @@ run() { # vconsole.conf content, plymouth hook
     rm -f "$vconsole"
   fi
   PATH="$stub_bin:$ROOT/bin:$PATH" REBUILDS="$test_dir/rebuilds" \
-    OMARCHY_MKINITCPIO_CONF_DIR="$test_dir/conf.d" OMARCHY_VCONSOLE_CONF="$vconsole" \
-    OMARCHY_PLYMOUTH_INSTALL_HOOK="$2" OMARCHY_VCONSOLE_REBUILD_MARKER="$test_dir/marker" \
+    OMARCHY_MKINITCPIO_CONF="$mkinitcpio_conf" OMARCHY_MKINITCPIO_CONF_DIR="$test_dir/conf.d" \
+    OMARCHY_VCONSOLE_CONF="$vconsole" OMARCHY_PLYMOUTH_INSTALL_HOOK="$2" OMARCHY_VCONSOLE_REBUILD_MARKER="$test_dir/marker" \
     bash -euo pipefail "$migration" >/dev/null 2>&1
 }
 rebuilds() { wc -l <"$test_dir/rebuilds"; }
@@ -112,6 +114,18 @@ printf 'FILES+=(%s)\n' "$vconsole" >"$test_dir/conf.d/omarchy_hooks.conf"
 run "$russian" "$test_dir/plymouth-new"
 (( $(rebuilds) == 0 )) || fail "a drop-in that bundles the file on purpose was rebuilt"
 pass "a drop-in that bundles the file on purpose is left alone"
+new_conf_dir
+
+# So do mkinitcpio.conf itself and a drop-in sorting after the guard.
+printf 'FILES=(%s)\n' "$vconsole" >"$mkinitcpio_conf"
+run "$russian" "$test_dir/plymouth-new"
+(( $(rebuilds) == 0 )) || fail "a mkinitcpio.conf that bundles the file on purpose was rebuilt"
+pass "a mkinitcpio.conf that bundles the file on purpose is left alone"
+printf 'FILES=()\n' >"$mkinitcpio_conf"
+printf 'FILES+=(%s)\n' "$vconsole" >"$test_dir/conf.d/zz-local.conf"
+run "$russian" "$test_dir/plymouth-new"
+(( $(rebuilds) == 0 )) || fail "a later drop-in that bundles the file on purpose was rebuilt"
+pass "a later drop-in that bundles the file on purpose is left alone"
 new_conf_dir
 
 run "" "$test_dir/plymouth-new"

@@ -45,8 +45,10 @@ image_files() {
     fi
     source "$hooks_conf"
     source "$test_tmp/omarchy_vconsole.conf"
-    # What Arch's plymouth hook does since 26.134.222-3.
-    add_file "$vconsole"
+    # What Arch's plymouth hook does since 26.134.222-3, run the way mkinitcpio
+    # runs a hook: with FILES local and empty.
+    plymouth_build() { local FILES=(); add_file "$vconsole"; }
+    plymouth_build
     for file in "${FILES[@]}"; do add_file "$file"; done
     source "$hooks_conf"
     source "$test_tmp/omarchy_vconsole.conf"
@@ -100,6 +102,22 @@ added=$(
 )
 [[ $added == "$vconsole" ]] || fail "a vconsole.conf the configuration lists in FILES still goes in" "added: $added"
 pass "a vconsole.conf the configuration lists in FILES still goes in"
+
+# A drop-in sorting after omarchy_vconsole.conf can list the file too: FILES is
+# read when a file is added, and the hook's copy is still refused.
+added=$(
+  set +u
+  FILES=()
+  add_file() { printf '%s\n' "${2:-$1}"; }
+  source "$test_tmp/omarchy_hooks.conf"
+  source "$test_tmp/omarchy_vconsole.conf"
+  FILES+=("$vconsole")
+  plymouth_build() { local FILES=(); add_file "$vconsole"; }
+  plymouth_build
+  for file in "${FILES[@]}"; do add_file "$file"; done
+)
+[[ $added == "$vconsole" ]] || fail "a vconsole.conf a later drop-in lists in FILES goes in once" "added: $added"
+pass "a vconsole.conf a later drop-in lists in FILES goes in once"
 
 # The same builds again with mkinitcpio's own add_file, where it is installed.
 functions=/usr/lib/initcpio/functions
