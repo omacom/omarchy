@@ -49,11 +49,12 @@ CONF
   # Bring up the panel and the Flex Keyboard before disk unlock. The display
   # driver waits for the USB-C DisplayPort chain, so that loads early too,
   # with the IPC router and PD mapper pmic_glink needs to initialize. The
-  # Surface modules are optional so a stock kernel's image still builds.
+  # Surface modules and the video clock controller are optional: the stock
+  # kernel has neither, and its image must still build.
   # The DSP driver stays out: listing it here would bypass the USB-root guard.
   mkdir -p "$mkinitcpio_dir"
   cat >"$mkinitcpio_dir/surface-pro-11-initramfs.conf" <<'CONF'
-MODULES+=(msm dispcc_x1e80100 gpucc_x1e80100 videocc_sm8550 phy_qcom_edp
+MODULES+=(msm dispcc_x1e80100 gpucc_x1e80100 videocc_sm8550? phy_qcom_edp
   panel_samsung_atna33xc20 phy_qcom_qmp_combo ps883x qrtr qcom_pd_mapper pmic_glink pmic_glink_altmode
   i2c_qcom_geni surface_aggregator? surface_aggregator_registry?
   surface_aggregator_hub? surface_hid_core? surface_hid?)

@@ -71,6 +71,8 @@ grep -Fxq 'Cmdline=@/etc/kernel/cmdline' "$matching/kernel/uki.conf" ||
   fail "the UKI embeds the Surface Pro 11 device tree from Omarchy's kernel exactly once across reruns"
 [[ $(find "$matching/kernel" -type f | wc -l) == 1 ]] ||
   fail "the kept UKI configuration is removed once the kernel installs"
+grep -Eq '(^|[( ])videocc_sm8550\?( |$)' "$matching/mkinitcpio.conf.d/surface-pro-11-initramfs.conf" ||
+  fail "the video clock controller the stock kernel lacks is optional in the early-boot list"
 
 (
   firmware_root="$scratch/firmware"
