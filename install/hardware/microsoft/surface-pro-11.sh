@@ -15,14 +15,14 @@ fi
 if omarchy-hw-aarch64-qualcomm && grep -qx 'microsoft,denali-oled' <<<"$surface_pro11_compatible"; then
   echo "Detected Microsoft Surface Pro 11, applying board-specific support..."
 
-  # Boot configuration comes first, so the Surface kernel's image is built with
+  # Boot configuration comes first, so the kernel's image is built with
   # it when the kernel is installed below.
 
   # Installs made before the Intel Surface fixes were limited to x86 carry
   # their keyboard module file, which resets MODULES to Intel modules.
   rm -f "$mkinitcpio_dir/surface_device_modules.conf"
 
-  # Embed the Surface kernel's device tree instead of the generic list, whose
+  # Embed the Surface Pro 11's device tree instead of the generic list, whose
   # device trees belong to the stock kernel. The markers match dtb-uki.sh.
   mkdir -p "$(dirname "$uki_config")"
   uki_tmp=$(mktemp "$uki_config.XXXXXX")
@@ -39,7 +39,7 @@ if omarchy-hw-aarch64-qualcomm && grep -qx 'microsoft,denali-oled' <<<"$surface_
   cat >>"$uki_tmp" <<'CONF'
 # BEGIN OMARCHY SURFACE PRO 11 DEVICE TREE
 [UKI]
-DeviceTree=/boot/dtbs/linux-sp11/qcom/x1e80100-microsoft-denali-oled.dtb
+DeviceTree=/boot/dtbs/linux-omarchy-n1x/qcom/x1e80100-microsoft-denali-oled.dtb
 # END OMARCHY SURFACE PRO 11 DEVICE TREE
 CONF
   mv -f "$uki_tmp" "$uki_config"
@@ -77,20 +77,19 @@ done
 unset firmware directory suffix
 CONF
 
-  # Named to sort after omarchy-defaults.conf: the last BOOT_ORDER wins.
-  mkdir -p "$limine_config_dir"
-  cat >"$limine_config_dir/zz-surface-pro-11.conf" <<'CONF'
-BOOT_ORDER="linux-sp11*, *fallback, Snapshots"
-CONF
+  # linux-omarchy-n1x already boots first under Omarchy's defaults. An earlier
+  # revision of this script put linux-sp11 first.
+  rm -f "$limine_config_dir/zz-surface-pro-11.conf"
 
-  # The Surface kernel adds touch, pen and the Surface Aggregator keyboard,
-  # and needs its own device tree. The UKI device tree setting applies to
-  # every kernel, so it replaces the stock kernel instead of sitting beside it.
+  # Omarchy's aarch64 kernel carries the Surface Pro 11 patches: touch, pen,
+  # the Surface Aggregator keyboard and the cameras. The UKI device tree
+  # setting applies to every kernel, and the stock kernel has neither those
+  # drivers nor this device tree, so it is replaced instead of kept beside it.
   # surface-pro-11-support carries Wi-Fi board data, audio and camera routing.
   # A failed install stops here, before the stock kernel is removed.
-  surface_pro11_kernel=(linux-sp11)
+  surface_pro11_kernel=(linux-omarchy-n1x)
   if pacman -Q linux-aarch64-headers &>/dev/null; then
-    surface_pro11_kernel+=(linux-sp11-headers)
+    surface_pro11_kernel+=(linux-omarchy-n1x-headers)
   fi
   omarchy-pkg-add "${surface_pro11_kernel[@]}" surface-pro-11-support
   unset surface_pro11_kernel

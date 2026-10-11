@@ -53,7 +53,7 @@ CONF
 run_setup "$matching" >/dev/null
 run_setup "$matching" >/dev/null
 
-expected_packages=$'add linux-sp11 surface-pro-11-support\ndrop linux-aarch64 linux-aarch64-headers\nreplace -S --needed --noconfirm --ask 4 libcamera-surface-pro-11 pipewire-libcamera\nadd iptsd surface-pro-11-sensors power-profiles-daemon-surface-pro-11\nextract\nsystemctl enable surface-pro-11-sensors.service surface-pro-11-power-profile-cpufreq.service'
+expected_packages=$'add linux-omarchy-n1x surface-pro-11-support\ndrop linux-aarch64 linux-aarch64-headers\nreplace -S --needed --noconfirm --ask 4 libcamera-surface-pro-11 pipewire-libcamera\nadd iptsd surface-pro-11-sensors power-profiles-daemon-surface-pro-11\nextract\nsystemctl enable surface-pro-11-sensors.service surface-pro-11-power-profile-cpufreq.service'
 [[ $(head -n6 "$matching/packages.log") == "$expected_packages" ]] ||
   fail "Surface Pro 11 setup replaces the stock kernel first, then adds its hardware support and enables the light sensor even without Windows"
 [[ ! -e $matching/mkinitcpio.conf.d/surface_device_modules.conf ]] ||
@@ -63,8 +63,8 @@ grep -Fxq 'Cmdline=@/etc/kernel/cmdline' "$matching/kernel/uki.conf" ||
   fail "unrelated UKI settings are preserved"
 ! grep -q 'DeviceTreeAuto' "$matching/kernel/uki.conf" ||
   fail "the stock kernel's device-tree list is removed with the stock kernel"
-[[ $(grep -c '^DeviceTree=/boot/dtbs/linux-sp11/qcom/x1e80100-microsoft-denali-oled.dtb$' "$matching/kernel/uki.conf") == 1 ]] ||
-  fail "the UKI embeds the Surface kernel's device tree exactly once across reruns"
+[[ $(grep -c '^DeviceTree=/boot/dtbs/linux-omarchy-n1x/qcom/x1e80100-microsoft-denali-oled.dtb$' "$matching/kernel/uki.conf") == 1 ]] ||
+  fail "the UKI embeds the Surface Pro 11 device tree from Omarchy's kernel exactly once across reruns"
 
 (
   firmware_root="$scratch/firmware"
@@ -104,12 +104,15 @@ grep -Fxq 'Cmdline=@/etc/kernel/cmdline' "$matching/kernel/uki.conf" ||
   (( ${#FILES[@]} == 3 )) || fail "missing optional firmware is skipped instead of breaking the build"
 )
 
-(
-  BOOT_ORDER="*, *fallback, Snapshots"
-  source "$matching/limine-entry-tool.d/zz-surface-pro-11.conf"
-  [[ $BOOT_ORDER == "linux-sp11*, *fallback, Snapshots" ]] ||
-    fail "Surface Pro 11 boots its kernel first"
-)
+[[ ! -e $matching/limine-entry-tool.d/zz-surface-pro-11.conf ]] ||
+  fail "the Surface Pro 11 leaves the boot order to Omarchy's defaults"
+stale="$scratch/stale"
+mkdir -p "$stale/limine-entry-tool.d"
+cp "$matching/compatible" "$stale/compatible"
+printf 'BOOT_ORDER="linux-sp11*, *fallback, Snapshots"\n' >"$stale/limine-entry-tool.d/zz-surface-pro-11.conf"
+run_setup "$stale" >/dev/null
+[[ ! -e $stale/limine-entry-tool.d/zz-surface-pro-11.conf ]] ||
+  fail "an earlier linux-sp11 boot order is removed"
 
 failing="$scratch/failing"
 mkdir -p "$failing"
@@ -120,10 +123,10 @@ set +e
 run_setup "$failing" >/dev/null 2>&1
 status=$?
 set -e
-(( status != 0 )) || fail "a failed Surface kernel install stops the setup"
+(( status != 0 )) || fail "a failed kernel install stops the setup"
 ! grep -q '^drop' "$failing/packages.log" ||
-  fail "the stock kernel stays installed when the Surface kernel fails to install"
-grep -Fxq 'DeviceTree=/boot/dtbs/linux-sp11/qcom/x1e80100-microsoft-denali-oled.dtb' "$failing/kernel/uki.conf" ||
+  fail "the stock kernel stays installed when Omarchy's kernel fails to install"
+grep -Fxq 'DeviceTree=/boot/dtbs/linux-omarchy-n1x/qcom/x1e80100-microsoft-denali-oled.dtb' "$failing/kernel/uki.conf" ||
   fail "boot configuration is written before the kernel install"
 
 headers="$scratch/headers"
@@ -131,14 +134,14 @@ mkdir -p "$headers"
 cp "$matching/compatible" "$headers/compatible"
 touch "$headers/headers"
 run_setup "$headers" >/dev/null
-grep -Fxq 'add linux-sp11 linux-sp11-headers surface-pro-11-support' "$headers/packages.log" ||
+grep -Fxq 'add linux-omarchy-n1x linux-omarchy-n1x-headers surface-pro-11-support' "$headers/packages.log" ||
   fail "kernel headers are replaced along with the stock kernel"
 
 fresh="$scratch/fresh"
 mkdir -p "$fresh"
 cp "$matching/compatible" "$fresh/compatible"
 run_setup "$fresh" >/dev/null
-grep -Fxq 'DeviceTree=/boot/dtbs/linux-sp11/qcom/x1e80100-microsoft-denali-oled.dtb' "$fresh/kernel/uki.conf" ||
+grep -Fxq 'DeviceTree=/boot/dtbs/linux-omarchy-n1x/qcom/x1e80100-microsoft-denali-oled.dtb' "$fresh/kernel/uki.conf" ||
   fail "a missing UKI configuration is created with the Surface device tree"
 
 for model in 'microsoft,denali\0qcom,x1p64100' 'lenovo,yoga-slim7x\0qcom,x1e80100'; do
