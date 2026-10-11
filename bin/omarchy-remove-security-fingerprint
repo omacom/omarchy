@@ -5,6 +5,22 @@
 
 set -e
 
+# Resolve the invoking account before changing authentication or packages.
+if (( EUID == 0 )) && [[ -v SUDO_UID ]]; then
+  if [[ ! $SUDO_UID =~ ^[0-9]+$ ]]; then
+    echo "Cannot identify the invoking fingerprint user" >&2
+    exit 1
+  fi
+  fingerprint_user=$(/usr/bin/id -nu "+$SUDO_UID") || exit 1
+else
+  fingerprint_user=$(/usr/bin/id -un) || exit 1
+fi
+
+if [[ -z $fingerprint_user || $fingerprint_user == "." || $fingerprint_user == ".." || $fingerprint_user == */* ]]; then
+  echo "Unsafe fingerprint user name" >&2
+  exit 1
+fi
+
 
 remove_pam_config() {
   # Remove from sudo (both the fingerprint module and its clamshell gate)
@@ -27,13 +43,29 @@ remove_lock_fingerprint_pam() {
   fi
 }
 
+remove_resume_hook() {
+  if [[ -f /usr/lib/systemd/system-sleep/fprintd-resume ]]; then
+    echo "Removing fingerprint resume hook..."
+    sudo rm -f /usr/lib/systemd/system-sleep/fprintd-resume
+  fi
+  if [[ -f /etc/systemd/system/fprintd.service.d/10-stop-timeout.conf ]]; then
+    echo "Removing fprintd stop timeout bound..."
+    sudo rm -f /etc/systemd/system/fprintd.service.d/10-stop-timeout.conf
+    sudo rmdir --ignore-fail-on-non-empty /etc/systemd/system/fprintd.service.d
+    sudo systemctl daemon-reload
+  fi
+}
+
 
 echo -e "\e[32mRemoving fingerprint scanner from authentication.\n\e[0m"
 
 remove_pam_config
 remove_lock_fingerprint_pam
+remove_resume_hook
+
+sudo rm -rf -- "/var/lib/fprint/$fingerprint_user"
 
 echo "Removing fingerprint packages..."
 omarchy-pkg-drop fprintd libfprint libfprint-git
 
-echo -e "\e[32mFingerprint authentication has been completely removed.\e[0m"
+echo -e "\e[32mFingerprint authentication and $fingerprint_user's local saved fingerprints have been removed.\e[0m"

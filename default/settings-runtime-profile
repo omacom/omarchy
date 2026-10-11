@@ -1,0 +1,27 @@
+# omarchy-settings ships the same files on every architecture when its source
+# has this file: the recipe stops leaving drop-ins out of the aarch64 package.
+# Each platform-specific file below, by its path in this source, takes its
+# decision at runtime instead.
+#
+# etc/mkinitcpio.conf.d/00-omarchy-hooks.conf
+#   Sets each platform's HOOKS baseline (omarchy-hw-platform), and leaves alone
+#   a Mac whose own mkinitcpio.conf carries asahi or busybox encrypt.
+# etc/mkinitcpio.conf.d/omarchy_hooks.conf
+#   Only filters kms for NVIDIA and handles the vconsole hooks, from the
+#   machine's own devices and configuration.
+# etc/mkinitcpio.conf.d/thunderbolt_module.conf
+#   Adds thunderbolt to MODULES only where modinfo finds it as a loadable module.
+# etc/limine-entry-tool.d/, default/limine/
+#   Read only where Limine and its entry tool are installed.
+# etc/systemd/oomd.conf.d/, default/systemd/user/app.slice.d/10-oomd.conf
+#   Inert unless systemd-oomd runs (install/config/enable-services.sh,
+#   migration 1785424256).
+# default/systemd/zram-generator.conf.d/90-omarchy.conf,
+# etc/sysctl.d/99-omarchy-sysctl.conf, etc/tmpfiles.d/omarchy-zswap.conf
+#   Swap on zram everywhere: the installer provides zram-generator on x86_64,
+#   install/omarchy-aarch64.packages on aarch64.
+# config/omarchy/defaults/dictation
+#   Presets Superwhisper, which has no aarch64 build; user setup removes the
+#   preset there (install/user/dictation-default.sh).
+# etc/modprobe.d/omarchy-usb-autosuspend.conf
+#   Applies where usbcore is a module; a kernel that builds it in ignores it.

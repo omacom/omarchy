@@ -4,6 +4,7 @@ import QtQuick.Shapes
 import Quickshell
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // Centered speed test overlay shared by the network and disk speed tests. No
@@ -61,7 +62,7 @@ PanelWindow {
   onRightValueChanged: expandScale(rightValue)
 
   Behavior on fullScale {
-    NumberAnimation { duration: 400; easing.type: Easing.OutCubic }
+    NumberAnimation { duration: Style.duration(400); easing.type: Easing.OutCubic }
   }
 
   // The scrim below is a fixed near-black regardless of theme, so text and
@@ -178,7 +179,7 @@ PanelWindow {
           onClicked: root.runAgainRequested()
 
           Behavior on opacity {
-            NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Style.duration(240); easing.type: Easing.OutCubic }
           }
         }
 
@@ -236,13 +237,13 @@ PanelWindow {
     opacity: engaged ? 1 : 0.5
 
     Behavior on opacity {
-      NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Style.duration(240); easing.type: Easing.OutCubic }
     }
 
     // Live readings land once a second; glide between them rather than snap.
     Behavior on shown {
       enabled: !ignition.running
-      NumberAnimation { duration: 600; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Style.duration(600); easing.type: Easing.OutCubic }
     }
 
     onValueChanged: {
@@ -257,8 +258,8 @@ PanelWindow {
     // the live figures take over.
     SequentialAnimation {
       id: ignition
-      NumberAnimation { target: dial; property: "shown"; to: dial.fullScale; duration: 550; easing.type: Easing.InOutCubic }
-      NumberAnimation { target: dial; property: "shown"; to: 0; duration: 650; easing.type: Easing.OutCubic }
+      NumberAnimation { target: dial; property: "shown"; to: dial.fullScale; duration: Style.duration(550); easing.type: Easing.InOutCubic }
+      NumberAnimation { target: dial; property: "shown"; to: 0; duration: Style.duration(650); easing.type: Easing.OutCubic }
       onFinished: dial.shown = dial.value
     }
 
@@ -288,7 +289,7 @@ PanelWindow {
       // round caps would leave a stray dot at the foot of the scale.
       ShapePath {
         strokeWidth: dial.arcWidth * 3
-        strokeColor: dial.arcVisible ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.18) : "transparent"
+        strokeColor: dial.arcVisible ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.18) : "transparent"
         fillColor: "transparent"
         capStyle: ShapePath.RoundCap
 
@@ -305,7 +306,7 @@ PanelWindow {
       // Value: fills behind the needle.
       ShapePath {
         strokeWidth: dial.arcWidth
-        strokeColor: dial.arcVisible ? Color.accent : "transparent"
+        strokeColor: dial.arcVisible ? Commons.Color.accent : "transparent"
         fillColor: "transparent"
         capStyle: ShapePath.RoundCap
 
@@ -356,8 +357,8 @@ PanelWindow {
         radius: width / 2
 
         gradient: Gradient {
-          GradientStop { position: 0.0; color: Color.accent }
-          GradientStop { position: 0.55; color: Color.accent }
+          GradientStop { position: 0.0; color: Commons.Color.accent }
+          GradientStop { position: 0.55; color: Commons.Color.accent }
           GradientStop { position: 1.0; color: "transparent" }
         }
       }

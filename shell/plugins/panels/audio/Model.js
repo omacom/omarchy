@@ -18,8 +18,31 @@ function isAudioSource(node) {
     || mediaClass.indexOf("Source") !== -1
 }
 
-function listSnapshot(list) {
-  return list && list.slice ? list.slice() : []
+// Project a node list to the primitive rows a Repeater model can hold. A row
+// holding the PwNode itself is a QObject that Qt dereferences without a null
+// check while it builds the delegate, and PipeWire deletes nodes outright, so a
+// graph teardown segfaults the shell. Primitives cannot dangle, which is what
+// closes that race -- not the check below, since the node usually dies after the
+// snapshot is taken. That is also why filtering the list here never worked.
+//
+// The name rides along because PipeWire reuses object ids: without it a row
+// could resolve to whatever inherited its id. PwNode.name is CONSTANT, so it
+// identifies the node it was taken from for as long as that node lives.
+function nodeRow(node) {
+  if (!node) return null
+  var id = node.id
+  if (id === undefined || id === null) return null
+  return { id: id, name: String(node.name || "") }
+}
+
+function rowSnapshot(list) {
+  var values = list && list.length ? list : []
+  var rows = []
+  for (var i = 0; i < values.length; i++) {
+    var row = nodeRow(values[i])
+    if (row) rows.push(row)
+  }
+  return rows
 }
 
 function outputVolumeName(volume, muted) {
@@ -233,11 +256,22 @@ function streamRepresentsPlayer(node, player, players, streams) {
   return streamRepresentsMprisPlayer(streamLabel(node, players, streams), playerLabel)
 }
 
+// Quickshell types only exact media classes, so a virtual source (an
+// Audio/Source/Virtual, such as EasyEffects' or a platform's microphone
+// mapping) is a node with no PwNode.audio. PulseAudio lists it as a source, so
+// the source availability listing names it; a non-stream node it names is one.
+function isUntypedSource(node, sourceAvailability) {
+  if (!node || node.audio || node.isStream || node.isSink) return false
+  var name = String(node.name || "")
+  return name !== "" && !!sourceAvailability && Object.prototype.hasOwnProperty.call(sourceAvailability, name)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isPlaybackStream: isPlaybackStream,
     isAudioSource: isAudioSource,
-    listSnapshot: listSnapshot,
+    nodeRow: nodeRow,
+    rowSnapshot: rowSnapshot,
     outputVolumeName: outputVolumeName,
     parseSinkAvailability: parseSinkAvailability,
     friendlyDeviceLabel: friendlyDeviceLabel,
@@ -257,6 +291,7 @@ if (typeof module !== "undefined") {
     matchingMprisStreamLabel: matchingMprisStreamLabel,
     unmatchedMprisStreamLabel: unmatchedMprisStreamLabel,
     streamLabel: streamLabel,
-    streamRepresentsPlayer: streamRepresentsPlayer
+    streamRepresentsPlayer: streamRepresentsPlayer,
+    isUntypedSource: isUntypedSource
   }
 }

@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 
@@ -475,7 +476,7 @@ Panel {
     onTriggered: root.refresh()
   }
 
-  IpcHandler {
+  ShellIpc {
     target: root.ipcTarget
 
     function open(): void { root.openFromHotkey() }
@@ -646,7 +647,7 @@ Panel {
               height: Style.space(18)
               anchors.verticalCenter: parent.verticalCenter
               radius: Math.min(4, Style.cornerRadius)
-              color: !root.savingLocation && clearLocationArea.containsMouse ? Style.hoverFillFor(root.bar.foreground, Color.accent) : "transparent"
+              color: !root.savingLocation && clearLocationArea.containsMouse ? Style.hoverFillFor(root.bar.foreground, Commons.Color.accent) : "transparent"
 
               Text {
                 textFormat: Text.PlainText
@@ -657,7 +658,7 @@ Panel {
                 font.pixelSize: Style.font.bodySmall
 
                 RotationAnimator on rotation {
-                  running: root.savingLocation
+                  running: root.savingLocation && !Style.reduceMotion
                   from: 0; to: 360
                   duration: 800
                   loops: Animation.Infinite
@@ -752,7 +753,7 @@ Panel {
             width: parent.width
             height: suggestionRow.implicitHeight + Style.space(12)
             radius: Style.cornerRadius
-            color: index === root.suggestionIndex ? Style.hoverFillFor(root.bar.foreground, Color.accent) : "transparent"
+            color: index === root.suggestionIndex ? Style.hoverFillFor(root.bar.foreground, Commons.Color.accent) : "transparent"
 
             Row {
               id: suggestionRow
@@ -764,7 +765,7 @@ Panel {
               Text {
                 textFormat: Text.PlainText
                 text: modelData.name
-                color: index === root.suggestionIndex ? Style.hoverStateColor(root.bar.foreground, Color.accent) : root.bar.foreground
+                color: index === root.suggestionIndex ? Style.hoverStateColor(root.bar.foreground, Commons.Color.accent) : root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.body
               }
