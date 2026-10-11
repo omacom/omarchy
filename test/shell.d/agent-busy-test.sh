@@ -103,6 +103,32 @@ chmod 755 "$home/.claude"
 (( status == 3 )) || fail "a store behind an unsearchable directory is unknown, not quiet" "status=$status"
 pass "a store behind an unsearchable directory is unknown, not quiet"
 
+# Globbed stores disappear when their directory cannot be listed.
+fresh_home unlistable
+mkdir -p "$home/.openclaw/agents/main/sessions"
+chmod 000 "$home/.openclaw/agents"
+status=0
+scan >/dev/null || status=$?
+chmod 755 "$home/.openclaw/agents"
+(( status == 3 )) || fail "an unlistable directory of globbed stores is unknown, not quiet" "status=$status"
+pass "an unlistable directory of globbed stores is unknown, not quiet"
+
+fresh_home link
+mkdir -p "$tmpdir/locked-primary/projects" "$tmpdir/linked-account"
+ln -s "$tmpdir/locked-primary/projects" "$tmpdir/linked-account/projects"
+chmod 000 "$tmpdir/locked-primary"
+status=0
+scan CLAUDE_CONFIG_DIR="$tmpdir/linked-account" >/dev/null || status=$?
+chmod 755 "$tmpdir/locked-primary"
+(( status == 3 )) || fail "a projects link that cannot be followed is unknown, not quiet" "status=$status"
+pass "a projects link that cannot be followed is unknown, not quiet"
+
+fresh_home relative
+status=0
+(cd "$home" && timeout 5 env HOME="$home" CODEX_HOME=missing "$busy" >/dev/null) || status=$?
+(( status == 1 )) || fail "a relative home that does not exist is quiet, not a hang" "status=$status"
+pass "a relative home that does not exist is quiet, not a hang"
+
 for bad in "--within 0" "--within x" "--bogus"; do
   # shellcheck disable=SC2086
   if HOME="$tmpdir" "$busy" $bad >/dev/null 2>&1; then fail "'$bad' is refused"; fi

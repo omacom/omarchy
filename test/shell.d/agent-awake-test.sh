@@ -111,6 +111,9 @@ SH
 
 chmod +x "$fake_bin"/* "$clock_bin"/*
 
+# Agent homes from the session running the tests would leak into the record.
+unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME PI_CODING_AGENT_DIR XDG_DATA_HOME HERMES_HOME COPILOT_HOME
+
 export TEST_DIR="$tmpdir"
 export XDG_RUNTIME_DIR="$runtime"
 export HOME="$home"
@@ -229,10 +232,12 @@ PATH="$fake_bin:$PATH" "$awake" active || fail "the session is active once grant
 pass "nothing reports the lid held until logind has granted it"
 
 reset
-CODEX_HOME="$tmpdir/codex-elsewhere" run 2h >/dev/null
-grep -q -- "--setenv=CODEX_HOME=$tmpdir/codex-elsewhere" "$log" || fail "an agent home set in the terminal reaches the holder" "$(<"$log")"
-! grep -q -- "--setenv=CLAUDE_CONFIG_DIR" "$log" || fail "unset agent homes are not invented"
-pass "agent homes set in the terminal reach the holder"
+run 2h >/dev/null
+CODEX_HOME="$tmpdir/codex-elsewhere" run agents >/dev/null
+[[ $(<"$state/homes") == "CODEX_HOME=$tmpdir/codex-elsewhere" ]] || fail "an agent home set in the terminal reaches a holder already running" "$(cat "$state/homes")"
+(cd "$tmpdir" && CODEX_HOME=relative PATH="$fake_bin:$PATH" "$awake" agents >/dev/null)
+[[ $(<"$state/homes") == "CODEX_HOME=$tmpdir/relative" ]] || fail "a relative agent home is resolved where it was given" "$(cat "$state/homes")"
+pass "agent homes set in the terminal reach the holder, new or running"
 
 # --- a running session
 
@@ -262,7 +267,8 @@ if run 4h >/dev/null 2>&1; then fail "a new end time past the running holder's 2
 run 30m >/dev/null || fail "a new end time inside the running holder's 24 hours is accepted"
 pass "a new end time cannot stretch a running holder past 24 hours"
 
-[[ $(PATH="$fake_bin:$PATH" "$awake" status | jq -r .active) == "true" ]] || fail "status reports an active session"
+status=$(PATH="$fake_bin:$PATH" "$awake" status)
+[[ $(jq -r .active <<<"$status") == "true" && $(jq -r .tooltip <<<"$status") == "Awake until "* ]] || fail "status reports an active session with its end" "$status"
 PATH="$fake_bin:$PATH" "$awake" active || fail "active succeeds while a session runs"
 pass "status and active report a running session"
 
@@ -417,6 +423,21 @@ grep -q '^notify Agent Awake is over No agent activity' "$log" || fail "seen act
 (( $(<"$tmpdir/now") >= 1003600 && $(<"$tmpdir/now") < 1003700 )) || fail "agents mode ends at the first quiet check" "now=$(<"$tmpdir/now")"
 [[ $(<"$tmpdir/agents-seen") == "Claude Code" ]] || fail "the agents with activity are recorded for the bar"
 pass "agents mode ends once the activity it saw goes quiet"
+
+hold_session 1028800 agents
+mkdir -p "$tmpdir/codex-elsewhere/sessions"
+touch "$tmpdir/codex-elsewhere/sessions/rollout.jsonl"
+printf 'CODEX_HOME=%s\n' "$tmpdir/codex-elsewhere" >"$state/homes"
+cat >"$tmpdir/on-sleep" <<'SH'
+#!/bin/bash
+cp "$XDG_RUNTIME_DIR/omarchy/agent-awake/agents" "$TEST_DIR/agents-seen" 2>/dev/null
+kill -TERM "$HOLDER"
+SH
+chmod +x "$tmpdir/on-sleep"
+{ hold || true; } 2>/dev/null
+[[ $(cat "$tmpdir/agents-seen" 2>/dev/null) == "Codex" ]] || fail "the holder scans the agent homes it was handed"
+rm -rf "$tmpdir/codex-elsewhere" "$tmpdir/agents-seen"
+pass "the holder scans the agent homes it was handed"
 
 hold_session 1028800 agents
 touch "$state/seen"

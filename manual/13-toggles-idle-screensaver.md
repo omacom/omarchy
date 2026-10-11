@@ -38,7 +38,7 @@ The flags are named for the off state — `screensaver-off`, `suspend-off`, `bar
 
 When a mode is on, you get a small glyph in the middle of the top bar next to the clock. That's the indicators widget, and it carries dictation, screen recording, pending reminders, night light, do not disturb, stay awake, and Agent Awake.
 
-Inactive indicators are hidden. Hover the area around them and they fade in dimmed, so you can click one to turn it on without knowing its hotkey. Clicking an active one turns it back off. If you'd rather see all of them all the time, set `alwaysShow` to `true` on the `omarchy.indicators` entry in `~/.config/omarchy/shell.json` — see [the top bar](05-the-top-bar.md) for how bar widgets are configured.
+Inactive indicators are hidden. Hover the area around them and they fade in dimmed, so you can click one to turn it on without knowing its hotkey. Clicking an active one turns it back off, except Agent Awake's, which opens its menu. If you'd rather see all of them all the time, set `alwaysShow` to `true` on the `omarchy.indicators` entry in `~/.config/omarchy/shell.json` — see [the top bar](05-the-top-bar.md) for how bar widgets are configured.
 
 ### Night light
 

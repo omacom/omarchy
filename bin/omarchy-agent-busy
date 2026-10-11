@@ -30,13 +30,32 @@ incomplete=0
 
 # A root that seems missing may only be hidden behind a directory this account
 # cannot search, and that is not the same as having nothing in it.
+# A symlink that cannot be followed counts too: an account's projects link
+# pointing somewhere unreadable hides the same sessions.
 unsearchable() {
-  local parent=${1%/*}
+  local path=$1
 
-  while [[ -n $parent && ! -e $parent ]]; do
-    parent=${parent%/*}
+  [[ -L $path ]] && return 0
+  while [[ $path == */* ]]; do
+    path=${path%/*}
+    [[ -n $path ]] || path=/
+    if [[ -e $path ]]; then
+      [[ -d $path && ! -x $path ]]
+      return
+    fi
+    [[ $path != / ]] || return 1
   done
-  [[ -n $parent && -d $parent && ! -x $parent ]]
+  return 1
+}
+
+# Globbed roots vanish when their directory cannot be listed, so look at the
+# directory itself first.
+unlistable() {
+  local directory
+  for directory in "$@"; do
+    [[ -d $directory && ( ! -r $directory || ! -x $directory ) ]] && incomplete=1
+  done
+  return 0
 }
 
 # -H follows a root that is itself a symlink, as an account home's projects is.
@@ -63,6 +82,7 @@ check() {
 data_home=${XDG_DATA_HOME:-$HOME/.local/share}
 hermes_home=${HERMES_HOME:-$HOME/.hermes}
 
+unlistable "$HOME/.pi/profiles" "$HOME/.omp/profiles" "$data_home/opencode" "$hermes_home" "$hermes_home/profiles" "$HOME/.openclaw/agents"
 shopt -s nullglob
 check "Claude Code" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
 check "Codex" "${CODEX_HOME:-$HOME/.codex}/sessions"

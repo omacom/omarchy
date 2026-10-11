@@ -10,6 +10,7 @@
 # lid back to logind's own policy and nothing needs undoing.
 
 UNIT="omarchy-agent-awake.service"
+HOMES="CLAUDE_CONFIG_DIR|CODEX_HOME|GROK_HOME|PI_CODING_AGENT_DIR|XDG_DATA_HOME|HERMES_HOME|COPILOT_HOME"
 STATE_DIR="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy/agent-awake"
 UPTIME="${OMARCHY_UPTIME_PATH:-/proc/uptime}"
 SESSION="$STATE_DIR/session"
@@ -67,7 +68,7 @@ write_file() {
 
 # The directory stays so the bar can keep watching it; only the session goes.
 clear_session() {
-  rm -f "$SESSION" "$STATE_DIR"/{agents,seen,ready}
+  rm -f "$SESSION" "$STATE_DIR"/{agents,seen,ready,homes}
 }
 
 # Start, add, stop and the holder's decision to end take turns, so an end time
@@ -132,13 +133,9 @@ active() {
   running && read_session && [[ -r $STATE_DIR/ready && $(<"$STATE_DIR/ready") == "$s_token" ]]
 }
 
-summary() {
+# The session just read by active, described without reading it again.
+describe() {
   local agents
-
-  if ! active; then
-    printf 'Agent Awake is off\n'
-    return
-  fi
 
   if [[ $s_mode == "agents" ]]; then
     printf 'Awake until agents go quiet, %s at most' "$(end_label "$s_deadline")"
@@ -150,6 +147,14 @@ summary() {
   printf '\n'
 }
 
+summary() {
+  if active; then
+    describe
+  else
+    printf 'Agent Awake is off\n'
+  fi
+}
+
 # Stale state from a holder that was killed is left alone: the next start
 # rewrites it, and clearing it here could race a start in progress.
 status_json() {
@@ -159,11 +164,11 @@ status_json() {
       --argjson deadline "$s_deadline" \
       --arg until "$(end_label "$s_deadline")" \
       --arg agents "$(recent_agents)" \
-      --arg tooltip "$(summary)" \
+      --arg tooltip "$(describe)" \
       '{active: true, mode: $mode, deadline: $deadline, until: $until,
         agents: ($agents | split(", ") | map(select(. != ""))), tooltip: $tooltip}'
   else
-    jq -cn --arg tooltip "$(summary)" \
+    jq -cn --arg tooltip "Agent Awake is off" \
       '{active: false, mode: null, deadline: null, until: null, agents: [], tooltip: $tooltip}'
   fi
 }
@@ -219,20 +224,24 @@ start() {
     new_holder=1
   fi
 
+  # The holder runs in the user manager's environment, so agent homes set only
+  # in this terminal are handed over with each start, to a new holder or not.
+  local homes="" name value
+  for name in ${HOMES//|/ }; do
+    value=${!name:-}
+    [[ -n $value && $value != *$'\n'* ]] || continue
+    [[ $value == /* ]] || value=$PWD/$value
+    homes+="$name=$value"$'\n'
+  done
+
   write_file "$SESSION" "$token $deadline $mode $now $since" || die "Could not record the session."
+  write_file "$STATE_DIR/homes" "${homes%$'\n'}" || die "Could not record the agent homes."
   rm -f "$STATE_DIR"/{agents,seen}
 
   if (( new_holder )); then
     rm -f "$STATE_DIR/ready"
 
-    # The unit starts from the user manager's environment, so an agent home
-    # set only in this terminal has to be handed over for the scan to see it.
-    local homes=() name
-    for name in CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME PI_CODING_AGENT_DIR XDG_DATA_HOME HERMES_HOME COPILOT_HOME; do
-      [[ -n ${!name:-} ]] && homes+=("--setenv=$name=${!name}")
-    done
-
-    if ! systemd-run --user --quiet --collect --unit="$UNIT" "${homes[@]}" \
+    if ! systemd-run --user --quiet --collect --unit="$UNIT" \
       --description="Omarchy Agent Awake" \
       --property=RuntimeMaxSec=$((LIMIT + 60)) \
       --property=PartOf=graphical-session.target \
@@ -285,9 +294,15 @@ stop() {
 # that this session has watched an agent work, which is what lets the agents
 # mode end. A scan that failed or timed out says nothing either way.
 record_activity() {
-  local busy status
+  local busy status line homes=()
 
-  busy=$(timeout -k 1 4 omarchy-agent-busy --within "$QUIET_MINUTES" 2>/dev/null)
+  if [[ -r $STATE_DIR/homes ]]; then
+    while IFS= read -r line; do
+      [[ $line =~ ^($HOMES)=/ ]] && homes+=("$line")
+    done <"$STATE_DIR/homes"
+  fi
+
+  busy=$(timeout -k 1 4 env "${homes[@]}" omarchy-agent-busy --within "$QUIET_MINUTES" 2>/dev/null)
   status=$?
 
   case $status in
