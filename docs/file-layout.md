@@ -159,6 +159,7 @@ A platform's runtime package (omarchy-mac on Apple Silicon, say) adds its deskto
   display-cutouts.json         camera cutouts the top bar keeps out of (see omarchy-shell.md)
   keyrings                     signing keyring packages of the repositories the platform adds, one per line
   audio.json                   audio processing nodes the audio panel and microphone widget leave out (below)
+  fingerprint-readers          readers the kernel drives without USB, and the file that shows each one is usable (below)
 ```
 
 See [lifecycle-dispatch.md](lifecycle-dispatch.md#platform-files).
@@ -174,6 +175,12 @@ See [lifecycle-dispatch.md](lifecycle-dispatch.md#platform-files).
 - `ddc-require-connector-ddc`: the display driver registers no DDC channel, so a probe would only walk unrelated I2C buses. An external monitor (other than an Apple Studio or XDR Display, which `omarchy-brightness-display-apple` drives with asdcontrol) is probed only when its DRM connector has a `ddc` node (`/sys/class/drm/card*-<connector>/ddc`); otherwise it gets no DDC or backlight control, and the built-in panel is never dimmed in its place.
 
 No environment variable moves the file: these commands also run under `sudo` and from the brightness keys. Their tests (`test/shell.d/hw-display-test.sh`, `test/shell.d/brightness-display-test.sh`) run a copy rewritten to read a fixture in its place.
+
+#### Fingerprint readers (`fingerprint-readers`)
+
+`omarchy-hw-fingerprint` finds USB readers by their product string or vendor. A reader the kernel drives some other way (a Mac's Touch ID sensor, behind its Secure Enclave) is named by the platform package in `/usr/share/omarchy-platform/fingerprint-readers`; Omarchy ships none. Each line is an absolute path, a shell glob, then the value that file reads once the reader is usable; the reader is present when any file the glob matches reads that value. The value must be the file's whole content, not part of it (Touch ID reads `not-ready` before it reads `ready`). Three details decide a match: the file's trailing newlines are dropped before comparing (sysfs ends every value with one), fields are split on whitespace (so neither the glob nor the value can contain a space), and the file is read as the user running the check, the session user, so it must be readable by that user and not only by root. Blank lines, whole-line `#` comments, relative paths and lines with a missing or extra word are ignored. A platform file never hides a USB reader: when no platform-named file matches, the USB scan still runs. On Apple Silicon, omarchy-mac names `/sys/bus/platform/drivers/apple_sep/*/diag/touchid ready`. That file is `0444 root:root`, so the session user can read it. The line follows the kernel's names for the Secure Enclave driver (`apple_sep`) and its `diag/touchid` attribute: if a kernel renames either, the reader and the first-run invitation quietly stop appearing, so the platform package changes the line along with its kernel.
+
+The rest of the fingerprint path is the same for every reader: the setup's first-run invitation follows `omarchy-hw-fingerprint`, so it reaches a machine once its platform's reader is usable, and `omarchy-setup-security-fingerprint` installs `libfprint-git`. Setup can only enroll a platform's reader once that package carries its driver; for a Mac's Touch ID that is the aarch64 build from omacom/omarchy-pkgs#806. `test/shell.d/hw-fingerprint-test.sh` runs a copy rewritten to read a fixture in place of the file.
 
 #### Audio hints (`audio.json`)
 
