@@ -7,24 +7,27 @@ LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-clamshell.lock"
 MODELESS_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-modeless.lock"
 
 # Agent Awake keeps a closed lid from suspending, so undocking with the lid shut
-# no longer reaches the lock that suspend takes on the way down. Lock first,
-# then blank as the lock does, since the clamshell pass can light the panel.
-closed_undocked_awake() {
-  ! omarchy-hw-external-monitors && omarchy-hw-laptop-closed && omarchy-agent-awake active
+# no longer reaches the lock that suspend takes on the way down. Asked before
+# the clamshell pass, so the lock is not kept waiting, and again after it, on
+# fresh state, since a pass can outlast the undock that its retries then skip;
+# blanking last, as the lock does, because the pass can light the panel.
+secure_closed_lid() {
+  ! omarchy-hw-external-monitors && omarchy-hw-laptop-closed && omarchy-agent-awake active || return 0
+
+  [[ $(omarchy-shell lock isLocked 2>/dev/null) == "true" ]] || omarchy-system-lock >/dev/null 2>&1
+  if [[ ${1:-} == "blank" ]]; then
+    omarchy-brightness-keyboard off >/dev/null 2>&1
+    omarchy-brightness-display off >/dev/null 2>&1
+  fi
 }
 
 sync_clamshell() {
   (
     flock -n 9 || exit 0
-    if closed_undocked_awake && [[ $(omarchy-shell lock isLocked 2>/dev/null) != "true" ]]; then
-      omarchy-system-lock >/dev/null 2>&1
-    fi
+    secure_closed_lid
     omarchy-hyprland-monitor-clamshell
     omarchy-system-lid-inhibit
-    if closed_undocked_awake; then
-      omarchy-brightness-keyboard off >/dev/null 2>&1
-      omarchy-brightness-display off >/dev/null 2>&1
-    fi
+    secure_closed_lid blank
   ) 9>"$LOCK"
 }
 

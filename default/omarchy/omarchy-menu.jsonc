@@ -89,7 +89,7 @@
   "trigger.share.receive": {"icon":"󰥦","label":"Receive","action":"uwsm-app -- localsend"},
   "trigger.toggle.idle-lock": {"icon":"󰅶","label":"Stay Awake","action":"omarchy-toggle-idle"},
   "trigger.toggle.agent-awake": {"icon":"󰈈","label":"Agent Awake","when":"omarchy-hw-laptop","description":"keep working with the lid closed"},
-  "trigger.toggle.agent-awake.agents": {"icon":"󰈈","label":"Until Agents Go Quiet","action":"omarchy-agent-awake agents"},
+  "trigger.toggle.agent-awake.agents": {"icon":"󰈈","label":"While Agents Work","action":"omarchy-agent-awake agents"},
   "trigger.toggle.agent-awake.1h": {"icon":"󰈈","label":"1 Hour","action":"omarchy-agent-awake 1h"},
   "trigger.toggle.agent-awake.2h": {"icon":"󰈈","label":"2 Hours","action":"omarchy-agent-awake 2h"},
   "trigger.toggle.agent-awake.4h": {"icon":"󰈈","label":"4 Hours","action":"omarchy-agent-awake 4h"},

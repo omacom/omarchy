@@ -28,13 +28,27 @@ fi
 found=0
 incomplete=0
 
+# A root that seems missing may only be hidden behind a directory this account
+# cannot search, and that is not the same as having nothing in it.
+unsearchable() {
+  local parent=${1%/*}
+
+  while [[ -n $parent && ! -e $parent ]]; do
+    parent=${parent%/*}
+  done
+  [[ -n $parent && -d $parent && ! -x $parent ]]
+}
+
 # -H follows a root that is itself a symlink, as an account home's projects is.
 check() {
   local name=$1 root recent
   shift
 
   for root in "$@"; do
-    [[ -e $root ]] || continue
+    if [[ ! -e $root ]]; then
+      unsearchable "$root" && incomplete=1
+      continue
+    fi
     if recent=$(find -H "$root" -type f -mmin "-$within" -print -quit 2>/dev/null) && [[ -z $recent ]]; then
       continue
     elif [[ -n $recent ]]; then

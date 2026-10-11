@@ -56,8 +56,9 @@ printf 'systemd-run %s\n' "$*" >>"$TEST_DIR/log"
 token=${@: -1}
 touch "$TEST_DIR/unit-active"
 if [[ ! -e $TEST_DIR/inhibit-fails ]]; then
-  # A unit inherits none of its caller's descriptors.
-  ( omarchy-agent-awake hold "$token"; rm -f "$TEST_DIR/unit-active" ) </dev/null >/dev/null 2>&1 9>&- &
+  # A unit inherits none of its caller's descriptors. Until logind grants the
+  # inhibitor, systemd-inhibit has not started the holder.
+  ( [[ -e $TEST_DIR/slow-inhibit ]] && /usr/bin/sleep 1; omarchy-agent-awake hold "$token"; rm -f "$TEST_DIR/unit-active" ) </dev/null >/dev/null 2>&1 9>&- &
   echo $! >"$TEST_DIR/holder.pid"
 else
   rm -f "$TEST_DIR/unit-active"
@@ -102,6 +103,8 @@ cat >"$clock_bin/sleep" <<'SH'
 #!/bin/bash
 now=$(<"$TEST_DIR/now")
 echo $((now + ${1%.*})) >"$TEST_DIR/now"
+read -r up _ <"$TEST_DIR/uptime"
+echo "$((${up%.*} + ${1%.*})).00 0.00" >"$TEST_DIR/uptime"
 [[ -x $TEST_DIR/on-sleep ]] && HOLDER=$PPID "$TEST_DIR/on-sleep"
 (( now - $(<"$TEST_DIR/epoch") < 200000 )) || kill -TERM "$PPID"
 SH
@@ -114,7 +117,7 @@ export HOME="$home"
 
 reset() {
   [[ -r $tmpdir/holder.pid ]] && { pkill -P "$(<"$tmpdir/holder.pid")" 2>/dev/null; kill "$(<"$tmpdir/holder.pid")" 2>/dev/null; } || true
-  rm -f "$tmpdir"/{unit-active,holder.pid,no-desktop,no-lid,battery,run-fails,inhibit-fails,on-sleep}
+  rm -f "$tmpdir"/{unit-active,holder.pid,no-desktop,no-lid,battery,run-fails,inhibit-fails,slow-inhibit,on-sleep}
   rm -rf "$state" "$home"
   mkdir -p "$home"
   : >"$log"
@@ -213,6 +216,24 @@ if output=$(run 2h 2>&1); then fail "an inhibitor that is never granted is repor
 [[ $output == *"Could not hold the lid"* && ! -e $state/session ]] || fail "an ungranted inhibitor is reported and cleaned up" "$output"
 pass "a holder that never confirms is reported and cleaned up"
 
+reset
+touch "$tmpdir/slow-inhibit"
+run 2h >/dev/null &
+starting=$!
+/usr/bin/sleep 0.5
+kill -0 "$starting" 2>/dev/null || fail "start waits while the inhibitor has not been granted"
+! PATH="$fake_bin:$PATH" "$awake" active || fail "a session is not active before its inhibitor is granted"
+[[ $(PATH="$fake_bin:$PATH" "$awake" status | jq -r .active) == "false" ]] || fail "status does not claim a session before its inhibitor is granted"
+wait "$starting" || fail "start succeeds once the inhibitor is granted"
+PATH="$fake_bin:$PATH" "$awake" active || fail "the session is active once granted"
+pass "nothing reports the lid held until logind has granted it"
+
+reset
+CODEX_HOME="$tmpdir/codex-elsewhere" run 2h >/dev/null
+grep -q -- "--setenv=CODEX_HOME=$tmpdir/codex-elsewhere" "$log" || fail "an agent home set in the terminal reaches the holder" "$(<"$log")"
+! grep -q -- "--setenv=CLAUDE_CONFIG_DIR" "$log" || fail "unset agent homes are not invented"
+pass "agent homes set in the terminal reach the holder"
+
 # --- a running session
 
 reset
@@ -250,6 +271,30 @@ run stop
 [[ ! -e $state/session && -d $state ]] || fail "stop clears the session but keeps the watched directory"
 pass "stop ends the session"
 
+# A refusal is announced after the lock is let go: a notification server that
+# hangs must not keep the holder from ending or stop from stopping.
+reset
+run 2h >/dev/null
+mkfifo "$tmpdir/notify-gate"
+cat >"$fake_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+echo refusal-waiting >>"$TEST_DIR/log"
+read -r _ <"$TEST_DIR/notify-gate"
+SH
+run add 30h >/dev/null 2>&1 &
+refusing=$!
+for _ in {1..50}; do grep -q refusal-waiting "$log" && break; /usr/bin/sleep 0.1; done
+grep -q refusal-waiting "$log" || fail "the refusal reached the notification"
+timeout 5 env PATH="$fake_bin:$PATH" "$awake" stop || fail "stop does not wait on a stalled refusal notification"
+echo go >"$tmpdir/notify-gate"
+wait "$refusing" || true
+cat >"$fake_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf 'refusal %s\n' "${*: -1}" >>"$TEST_DIR/log"
+SH
+chmod +x "$fake_bin/omarchy-notification-send"
+pass "a refusal never holds the lock while it is announced"
+
 reset
 if run add 30m >/dev/null 2>&1; then fail "add without a session is refused"; fi
 pass "add without a session is refused"
@@ -280,11 +325,12 @@ hold_session() {
   mkdir -p -m 700 "$state"
   echo 1000000 >"$tmpdir/now"
   echo 1000000 >"$tmpdir/epoch"
+  echo "500.00 0.00" >"$tmpdir/uptime"
   printf 'aaaaaaaaaaaaaaaa %s %s 1000000 1000000\n' "$1" "$2" >"$state/session"
 }
 
 hold() {
-  PATH="$clock_bin:$fake_bin:$PATH" "$awake" hold aaaaaaaaaaaaaaaa 2>/dev/null
+  OMARCHY_UPTIME_PATH="$tmpdir/uptime" PATH="$clock_bin:$fake_bin:$PATH" "$awake" hold aaaaaaaaaaaaaaaa 2>/dev/null
 }
 
 hold_session 1003600 time
@@ -331,6 +377,25 @@ grep -q 'Could not read the battery' "$log" || fail "a battery that cannot be re
 (( $(<"$tmpdir/now") >= 1000030 )) || fail "one unreadable answer is forgiven"
 pass "a battery that cannot be read twice in a row ends it"
 
+# The wall clock moving back must not stop the battery being watched.
+hold_session 1086400 time
+printf '  percentage:          50%%\n  state:               discharging\n' >"$tmpdir/battery"
+cat >"$tmpdir/on-sleep" <<'SH'
+#!/bin/bash
+if [[ ! -e $TEST_DIR/rolled-back ]]; then
+  touch "$TEST_DIR/rolled-back"
+  echo $(( $(<"$TEST_DIR/now") - 3600 )) >"$TEST_DIR/now"
+  printf '  percentage:          8%%\n  state:               discharging\n' >"$TEST_DIR/battery"
+fi
+exit 0
+SH
+chmod +x "$tmpdir/on-sleep"
+rm -f "$tmpdir/rolled-back"
+hold
+read -r up _ <"$tmpdir/uptime"
+grep -q 'The battery is at' "$log" && (( ${up%.*} <= 540 )) || fail "the battery is still checked every 30 seconds after the clock moves back" "uptime=$up $(<"$log")"
+pass "moving the clock back does not pause the battery check"
+
 # Agents mode ends only once activity it has seen goes quiet.
 hold_session 1028800 agents
 hold
@@ -352,6 +417,13 @@ grep -q '^notify Agent Awake is over No agent activity' "$log" || fail "seen act
 (( $(<"$tmpdir/now") >= 1003600 && $(<"$tmpdir/now") < 1003700 )) || fail "agents mode ends at the first quiet check" "now=$(<"$tmpdir/now")"
 [[ $(<"$tmpdir/agents-seen") == "Claude Code" ]] || fail "the agents with activity are recorded for the bar"
 pass "agents mode ends once the activity it saw goes quiet"
+
+hold_session 1028800 agents
+touch "$state/seen"
+hold
+(( $(<"$tmpdir/now") >= 1000900 && $(<"$tmpdir/now") < 1000940 )) || fail "agents mode never ends in its first 15 minutes" "now=$(<"$tmpdir/now")"
+grep -q '^notify Agent Awake is over No agent activity' "$log" || fail "quiet after the first 15 minutes ends it" "$(<"$log")"
+pass "agents mode never ends in its first 15 minutes"
 
 hold_session 1028800 agents
 mkdir -p "$home/.claude/projects/p"
@@ -410,9 +482,10 @@ stub omarchy-hw-external-monitors '[[ -e $TEST_DIR/docked ]]'
 stub omarchy-hw-laptop-closed '[[ -e $TEST_DIR/closed ]]'
 stub omarchy-agent-awake '[[ $1 == "active" && -e $TEST_DIR/awake ]]'
 stub omarchy-shell '[[ $* == "lock isLocked" ]] && { [[ -e $TEST_DIR/locked ]] && echo true || echo false; }'
-for command in omarchy-system-lock omarchy-hyprland-monitor-clamshell omarchy-brightness-display omarchy-brightness-keyboard; do
+for command in omarchy-hyprland-monitor-clamshell omarchy-brightness-display omarchy-brightness-keyboard; do
   stub "$command" "echo $command >>\"\$TEST_DIR/watch-log\""
 done
+stub omarchy-system-lock 'echo omarchy-system-lock >>"$TEST_DIR/watch-log"; touch "$TEST_DIR/locked"'
 
 # The startup pass runs before any event is read, and socat ending at once ends
 # the watcher; its delayed retries are left to the process group to clean up.
@@ -436,6 +509,15 @@ watch_once closed awake locked
 [[ ${watched[*]:0:3} == "omarchy-hyprland-monitor-clamshell omarchy-brightness-keyboard omarchy-brightness-display" ]] ||
   fail "an already locked session is blanked again, not locked again" "calls: ${watched[*]}"
 pass "an already locked session is blanked again, not locked again"
+
+# Undocked while the clamshell pass runs: the pass's own retries lose the lock
+# to it, so the check after the pass has to lock as well as blank.
+stub omarchy-hyprland-monitor-clamshell 'echo omarchy-hyprland-monitor-clamshell >>"$TEST_DIR/watch-log"; rm -f "$TEST_DIR/docked"'
+watch_once closed awake docked
+[[ ${watched[*]:0:4} == "omarchy-hyprland-monitor-clamshell omarchy-system-lock omarchy-brightness-keyboard omarchy-brightness-display" ]] ||
+  fail "undocking during the clamshell pass still locks before blanking" "calls: ${watched[*]}"
+stub omarchy-hyprland-monitor-clamshell 'echo omarchy-hyprland-monitor-clamshell >>"$TEST_DIR/watch-log"'
+pass "undocking during the clamshell pass still locks before blanking"
 
 for flags in "closed" "awake" "closed awake docked"; do
   # shellcheck disable=SC2086

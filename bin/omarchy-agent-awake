@@ -11,6 +11,7 @@
 
 UNIT="omarchy-agent-awake.service"
 STATE_DIR="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy/agent-awake"
+UPTIME="${OMARCHY_UPTIME_PATH:-/proc/uptime}"
 SESSION="$STATE_DIR/session"
 LIMIT=$((24 * 3600))
 AGENTS_LIMIT=$((8 * 3600))
@@ -27,8 +28,10 @@ usage() {
 
 die() {
   echo "$1" >&2
-  # Started from the menu, nobody reads stderr.
-  [[ -t 2 ]] || omarchy-notification-send -g 󰈈 "Agent Awake" "$1" >/dev/null 2>&1
+  # Started from the menu, nobody reads stderr. Let go of the lock first: a
+  # stalled notification must not keep the holder from ending on time.
+  exec 9>&-
+  [[ -t 2 ]] || timeout -k 1 3 omarchy-notification-send -g 󰈈 "Agent Awake" "$1" >/dev/null 2>&1
   exit 1
 }
 
@@ -56,7 +59,10 @@ read_session() {
 write_file() {
   local temporary
   temporary=$(mktemp "$STATE_DIR/.${1##*/}.XXXXXX") || return 1
-  printf '%s\n' "$2" >"$temporary" && mv -f "$temporary" "$1"
+  if ! printf '%s\n' "$2" >"$temporary" || ! mv -f "$temporary" "$1"; then
+    rm -f "$temporary"
+    return 1
+  fi
 }
 
 # The directory stays so the bar can keep watching it; only the session goes.
@@ -68,8 +74,15 @@ clear_session() {
 # written as a session ends is never silently dropped.
 lock() {
   mkdir -p -m 700 "$STATE_DIR" || die "Could not create $STATE_DIR"
-  exec 9>"$STATE_DIR/lock"
-  flock 9
+  exec 9>"$STATE_DIR/lock" || die "Could not open $STATE_DIR/lock"
+  flock 9 || die "Could not lock $STATE_DIR/lock"
+}
+
+# Seconds since boot, suspend included: unlike the wall clock, it never moves back.
+uptime_seconds() {
+  local up
+  read -r up _ <"$UPTIME"
+  printf '%s\n' "${up%.*}"
 }
 
 # 45m, 2h, 1h30m -> seconds
@@ -114,8 +127,9 @@ recent_agents() {
   printf '%s' "${text//$'\n'/, }"
 }
 
+# Only once the holder has confirmed logind granted the inhibitor.
 active() {
-  running && read_session
+  running && read_session && [[ -r $STATE_DIR/ready && $(<"$STATE_DIR/ready") == "$s_token" ]]
 }
 
 summary() {
@@ -161,7 +175,7 @@ battery_state() {
 
   omarchy-battery-present || { echo ok; return; }
 
-  info=$(timeout -k 1 5 upower -i /org/freedesktop/UPower/devices/DisplayDevice 2>/dev/null)
+  info=$(timeout -k 1 3 upower -i /org/freedesktop/UPower/devices/DisplayDevice 2>/dev/null)
   percentage=$(awk '/^ *percentage:/ { print int($2); exit }' <<<"$info")
   state=$(awk '/^ *state:/ { print $2; exit }' <<<"$info")
 
@@ -210,7 +224,15 @@ start() {
 
   if (( new_holder )); then
     rm -f "$STATE_DIR/ready"
-    if ! systemd-run --user --quiet --collect --unit="$UNIT" \
+
+    # The unit starts from the user manager's environment, so an agent home
+    # set only in this terminal has to be handed over for the scan to see it.
+    local homes=() name
+    for name in CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME PI_CODING_AGENT_DIR XDG_DATA_HOME HERMES_HOME COPILOT_HOME; do
+      [[ -n ${!name:-} ]] && homes+=("--setenv=$name=${!name}")
+    done
+
+    if ! systemd-run --user --quiet --collect --unit="$UNIT" "${homes[@]}" \
       --description="Omarchy Agent Awake" \
       --property=RuntimeMaxSec=$((LIMIT + 60)) \
       --property=PartOf=graphical-session.target \
@@ -265,7 +287,7 @@ stop() {
 record_activity() {
   local busy status
 
-  busy=$(timeout -k 1 10 omarchy-agent-busy --within "$QUIET_MINUTES" 2>/dev/null)
+  busy=$(timeout -k 1 4 omarchy-agent-busy --within "$QUIET_MINUTES" 2>/dev/null)
   status=$?
 
   case $status in
@@ -291,7 +313,7 @@ notify() {
 }
 
 hold() {
-  local token=$1 reason="" now last_check=0 unreadable=0 battery activity pause
+  local token=$1 reason="" now up last_check="" unreadable=0 battery activity pause
 
   # Lock-free: start holds the lock while it waits for this answer. The record
   # is renamed into place whole, so reading it bare is safe.
@@ -301,22 +323,26 @@ hold() {
     exit 0
   fi
 
-  exec 9>"$STATE_DIR/lock"
+  # Ending is the safe failure: without the lock, let the lid go.
+  exec 9>"$STATE_DIR/lock" || exit 0
 
   while [[ -z $reason ]]; do
     now=$(date +%s)
+    up=$(uptime_seconds)
     battery=""
     activity=""
 
     # The slow checks run outside the lock, so start and add never wait on
-    # them, and not near the end time, so they never delay it.
-    if (( now - last_check >= CHECK_EVERY )) && read_session && (( s_deadline - now > 20 )); then
-      last_check=$now
-      battery=$(battery_state)
-      activity=$(record_activity)
+    # them, and not near the end time, so they rarely delay it.
+    if [[ -z $last_check ]] || (( up - last_check >= CHECK_EVERY )); then
+      if read_session && (( s_deadline - now > 20 )); then
+        last_check=$up
+        battery=$(battery_state)
+        [[ $s_mode == "agents" ]] && activity=$(record_activity)
+      fi
     fi
 
-    flock 9
+    flock 9 || exit 0
     now=$(date +%s)
     if ! read_session || [[ $s_token != "$token" ]]; then
       reason="superseded"
@@ -326,7 +352,7 @@ hold() {
       reason="battery"
     elif [[ $battery == "unknown" ]] && (( ++unreadable >= 2 )); then
       reason="battery-unknown"
-    elif [[ $s_mode == "agents" && $activity == "quiet" && -e $STATE_DIR/seen ]]; then
+    elif [[ $s_mode == "agents" && $activity == "quiet" && -e $STATE_DIR/seen ]] && (( now - s_started >= QUIET_MINUTES * 60 )); then
       reason="agents"
     fi
     [[ $battery == "ok" || $battery == "low" ]] && unreadable=0

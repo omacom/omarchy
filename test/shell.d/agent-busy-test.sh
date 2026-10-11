@@ -93,6 +93,16 @@ scan >/dev/null || status=$?
 chmod 755 "$home/.claude/projects"
 pass "a store that cannot be read is unknown, not quiet"
 
+# Hidden behind a directory that cannot be searched is not the same as absent.
+fresh_home ancestor
+mkdir -p "$home/.claude/projects/p"
+chmod 000 "$home/.claude"
+status=0
+scan >/dev/null || status=$?
+chmod 755 "$home/.claude"
+(( status == 3 )) || fail "a store behind an unsearchable directory is unknown, not quiet" "status=$status"
+pass "a store behind an unsearchable directory is unknown, not quiet"
+
 for bad in "--within 0" "--within x" "--bogus"; do
   # shellcheck disable=SC2086
   if HOME="$tmpdir" "$busy" $bad >/dev/null 2>&1; then fail "'$bad' is refused"; fi
