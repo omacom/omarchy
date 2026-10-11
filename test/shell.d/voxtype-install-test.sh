@@ -26,6 +26,7 @@ cat >"$stub_bin/voxtype" <<'SH'
 #!/bin/bash
 printf 'voxtype %s\n' "$*" >>"$TEST_LOG"
 SH
+printf '#!/bin/bash\nexec "$@"\n' >"$stub_bin/sudo"
 chmod +x "$stub_bin"/*
 
 run_install() {
