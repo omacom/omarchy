@@ -192,13 +192,29 @@ PanelWindow {
   // centering the card under the icon.
   readonly property real barW: anchorWindow ? anchorWindow.width : screenW
   readonly property real barH: anchorWindow ? anchorWindow.height : 0
+
+  // Centering is for a widget in the bar's center section. Moved to an edge
+  // section, the panel opens under its icon like every other panel.
+  readonly property bool ownerOnBarEdge: {
+    var name = owner && owner.moduleName ? String(owner.moduleName) : ""
+    var layout = bar && bar.layoutConfig ? bar.layoutConfig : null
+    if (!name || !layout) return false
+    return ["left", "right"].some(function(region) {
+      var entries = Array.isArray(layout[region]) ? layout[region] : []
+      return entries.some(function(entry) {
+        return (typeof entry === "string" ? entry : entry && entry.id) === name
+      })
+    })
+  }
+  readonly property bool centered: centerOnBar && !ownerOnBarEdge
+
   readonly property point cardOrigin: {
     if (!anchorItem || !bar) return Qt.point(margin, margin)
     var x = 0, y = 0
-    if (centerOnBar && (barPos === "top" || barPos === "bottom")) {
+    if (centered && (barPos === "top" || barPos === "bottom")) {
       x = screenW / 2 - contentWidth / 2
       y = barPos === "bottom" ? screenH - barH - contentHeight - gap : barH + gap
-    } else if (centerOnBar) {
+    } else if (centered) {
       x = barPos === "left" ? barW + gap : screenW - barW - contentWidth - gap
       y = screenH / 2 - contentHeight / 2
     } else if (barPos === "bottom") {
