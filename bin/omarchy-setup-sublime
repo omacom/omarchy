@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# omarchy:summary=Apply Omarchy defaults to Sublime Text
+# omarchy:hidden=true
+
+set -e
+
+user_package="$HOME/.config/sublime-text/Packages/User"
+preferences="$user_package/Preferences.sublime-settings"
+mkdir -p "$user_package"
+
+cp "$OMARCHY_PATH/default/sublime/Omarchy.sublime-theme" "$user_package/"
+# Forget earlier window defaults so the plugin hides the menu and minimap again.
+rm -f "$user_package/Omarchy.sublime-settings"
+cp "$OMARCHY_PATH/default/sublime/OmarchyWindow.py" "$user_package/"
+
+python3 "$OMARCHY_PATH/default/sublime/set-preferences.py" --backup "$preferences" \
+  theme=Omarchy.sublime-theme \
+  color_scheme=Omarchy.sublime-color-scheme \
+  overlay_scroll_bars=enabled
+
+if [[ ! -f $HOME/.local/state/omarchy/current/theme/Omarchy.sublime-color-scheme ]]; then
+  omarchy-theme-refresh
+fi
+omarchy-theme-set-sublime --install
