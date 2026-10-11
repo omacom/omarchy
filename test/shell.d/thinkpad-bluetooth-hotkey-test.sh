@@ -96,11 +96,22 @@ for script in "$leaf" "$migration"; do
     if [[ $failure == "read" ]]; then export TEST_READ_FAIL=1; else export TEST_WRITE_FAIL=1; fi
     printf '0x5\n' >"$TEST_MASK"
     : >"$TEST_LOG"
-    run_script "$script"
-    bash -euo pipefail "$installed_helper"
+    run_script "$script" 2>"$test_tmp/stderr"
+    rg -Fq "Warning: failed to $failure ThinkPad hotkey mask" "$test_tmp/stderr" || fail "failed $failure warns during setup"
+    rg -Fq "$mask_path" "$test_tmp/stderr" || fail "failed $failure warning names mask path during setup"
+    bash -euo pipefail "$installed_helper" 2>"$test_tmp/stderr" || fail "failed $failure exits successfully"
+    rg -Fq "Warning: failed to $failure ThinkPad hotkey mask" "$test_tmp/stderr" || fail "failed $failure warns"
+    rg -Fq "$mask_path" "$test_tmp/stderr" || fail "failed $failure warning names mask path"
     [[ $(<"$TEST_MASK") == "0x5" ]] || fail "failed $failure preserves mask"
   done
   export TEST_READ_FAIL=0 TEST_WRITE_FAIL=0
+
+  printf '0xinvalid\n' >"$TEST_MASK"
+  bash -euo pipefail "$installed_helper" 2>"$test_tmp/stderr" || fail "invalid hexadecimal mask exits successfully"
+  rg -Fq 'Warning: invalid hexadecimal ThinkPad hotkey mask' "$test_tmp/stderr" || fail "invalid hexadecimal mask warns"
+  rg -Fq "$mask_path" "$test_tmp/stderr" || fail "invalid hexadecimal warning names mask path"
+  [[ $(<"$TEST_MASK") == "0xinvalid" ]] || fail "invalid hexadecimal mask is preserved"
+  printf '0x5\n' >"$TEST_MASK"
 
   rm -f "$mask_path"
   : >"$TEST_LOG"
