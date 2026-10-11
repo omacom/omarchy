@@ -21,11 +21,25 @@ Panel {
   readonly property var mediaService: bar?.shell?.firstPartyServiceFor("omarchy.media")
   readonly property var activeMediaPlayer: mediaService ? mediaService.activePlayer : null
 
+  // Nodes of a platform's audio processing, which are neither devices nor apps,
+  // stay out of every list (AudioNodes.platformHides). Most machines have none.
+  readonly property var nodeNames: {
+    var names = []
+    for (var i = 0; i < nodes.length; i++)
+      if (nodes[i] && nodes[i].name) names.push(String(nodes[i].name))
+    return names
+  }
+
+  function platformHides(node) {
+    return !!node && AudioNodes.platformHides(node.name, nodeNames)
+  }
+
   readonly property var candidateSinks: {
     var list = []
     for (var i = 0; i < nodes.length; i++) {
       var n = nodes[i]
-      if (n && n.isSink && !n.isStream) list.push(n)
+      if (!n || !n.isSink || n.isStream || platformHides(n)) continue
+      list.push(n)
     }
     return list
   }
@@ -34,11 +48,11 @@ Panel {
     var list = []
     for (var i = 0; i < nodes.length; i++) {
       var n = nodes[i]
-      if (n && !n.isSink && !n.isStream && isAudioSource(n)) {
-        var name = n.name || ""
-        if (name === "quickshell") continue
-        list.push(n)
-      }
+      if (!n || n.isSink || n.isStream) continue
+      if (!isAudioSource(n) && !Model.isUntypedSource(n, sourceAvailability)) continue
+      var name = n.name || ""
+      if (name === "quickshell" || platformHides(n)) continue
+      list.push(n)
     }
     return list
   }
@@ -51,6 +65,7 @@ Panel {
       // A tuning's output is a playback stream too, but it is the processing
       // itself rather than an application, so it does not belong in the list.
       if (String(n.name || "").indexOf("omarchy_speaker_tuning") === 0) continue
+      if (platformHides(n)) continue
       list.push(n)
     }
     return list
@@ -58,6 +73,7 @@ Panel {
 
   property var sinkAvailability: ({})
   property bool sinkAvailabilityLoaded: false
+  property var sourceAvailability: ({})
 
   // Identify true playback streams without reading node.properties here:
   // PwNode.properties is invalid until the node is bound, and reading it while
@@ -148,8 +164,15 @@ Panel {
 
   readonly property real outputVolume: volumeSink && volumeSink.audio ? volumeSink.audio.volume : 0
   readonly property bool outputMuted: volumeSink && volumeSink.audio ? volumeSink.audio.muted : false
-  readonly property real inputVolume: source && source.audio ? source.audio.volume : 0
-  readonly property bool inputMuted: source && source.audio ? source.audio.muted : false
+  // A virtual source is untyped in Quickshell (see Model.isUntypedSource), so
+  // its volume and mute go through wpctl (UntypedInput), and the panel shows no
+  // level meter for it: Quickshell's peak monitor takes typed nodes only.
+  readonly property bool inputViaWpctl: UntypedInput.active
+  readonly property bool inputLevelKnown: !inputViaWpctl || UntypedInput.known
+  readonly property real inputVolume: inputViaWpctl ? UntypedInput.volume : (source && source.audio ? source.audio.volume : 0)
+  readonly property bool inputMuted: inputViaWpctl ? UntypedInput.muted : (source && source.audio ? source.audio.muted : false)
+  readonly property var inputPeakNode: inputViaWpctl ? null : source
+  readonly property bool inputLevelShown: !!inputPeakNode
 
   onRawAudioSinksChanged: if (rawAudioSinks.length > 0) cachedAudioSinks = rawAudioSinks
   onRawAudioSourcesChanged: if (rawAudioSources.length > 0) cachedAudioSources = rawAudioSources
@@ -175,7 +198,7 @@ Panel {
   // would otherwise report "input unmuted" forever, leaving the hero switch
   // able to mute but never to unmute.
   readonly property bool hasOutput: !!(volumeSink && volumeSink.audio)
-  readonly property bool hasInput: !!(source && source.audio)
+  readonly property bool hasInput: !!(source && source.audio) || (inputViaWpctl && UntypedInput.known)
   readonly property bool anyAudible: (hasOutput && !outputMuted) || (hasInput && !inputMuted)
   readonly property string toggleHint: anyAudible ? "Mute" : "Unmute"
 
@@ -427,7 +450,7 @@ Panel {
   }
 
   function inputIcon() {
-    if (!source || !source.audio) return "󰍭"
+    if (!hasInput) return "󰍭"
     return inputMuted ? "󰍭" : "󰍬"
   }
 
@@ -454,6 +477,10 @@ Panel {
   }
 
   function setInputVolume(v) {
+    if (inputViaWpctl) {
+      UntypedInput.setVolume(v)
+      return
+    }
     if (!source || !source.audio) return
     source.audio.volume = Math.max(0, Math.min(1, v))
   }
@@ -463,7 +490,10 @@ Panel {
   }
 
   function toggleInputMute() {
-    if (source && source.audio) source.audio.muted = !source.audio.muted
+    if (inputViaWpctl) {
+      if (UntypedInput.known) UntypedInput.setMuted(!UntypedInput.muted)
+    }
+    else if (source && source.audio) source.audio.muted = !source.audio.muted
   }
 
   // The hero switch is the whole panel's on/off, so it carries both channels
@@ -472,7 +502,8 @@ Panel {
   function toggleAllMuted() {
     var mute = anyAudible
     if (hasOutput) volumeSink.audio.muted = mute
-    if (hasInput) source.audio.muted = mute
+    if (hasInput && inputViaWpctl) UntypedInput.setMuted(mute)
+    else if (hasInput) source.audio.muted = mute
   }
 
   function setDefaultSink(node) {
@@ -489,7 +520,8 @@ Panel {
 
   function setDefaultSource(node) {
     if (!node) return
-    Pipewire.preferredDefaultAudioSource = node
+    // Quickshell refuses an untyped node; the command below still selects it.
+    if (node.audio) Pipewire.preferredDefaultAudioSource = node
     if (node.id !== undefined && node.name) {
       Quickshell.execDetached([
         "omarchy-audio-input-set-default",
@@ -597,8 +629,8 @@ Panel {
 
   PwNodePeakMonitor {
     id: inputPeakMonitor
-    node: root.source
-    enabled: root.opened && !!root.source
+    node: root.inputPeakNode
+    enabled: root.opened && !!root.inputPeakNode
   }
 
   Process {
@@ -607,6 +639,15 @@ Panel {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.updateSinkAvailability(text)
+    }
+  }
+
+  Process {
+    id: sourceAvailabilityProc
+    command: ["omarchy-audio-sink-availability", "sources"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.sourceAvailability = Model.parseSinkAvailability(text)
     }
   }
 
@@ -624,7 +665,10 @@ Panel {
     running: root.opened
     repeat: true
     triggeredOnStart: true
-    onTriggered: if (!sinkAvailabilityProc.running) sinkAvailabilityProc.running = true
+    onTriggered: {
+      if (!sinkAvailabilityProc.running) sinkAvailabilityProc.running = true
+      if (!sourceAvailabilityProc.running) sourceAvailabilityProc.running = true
+    }
   }
 
   // Runs whether or not the panel is open: the bar shows and scrolls the output
@@ -908,7 +952,7 @@ Panel {
               Text {
                 id: microphonePercent
                 textFormat: Text.PlainText
-                text: Math.round((inputSlider.dragging ? inputSlider.liveValue : root.inputVolume) * 100) + "%"
+                text: root.inputLevelKnown ? Math.round((inputSlider.dragging ? inputSlider.liveValue : root.inputVolume) * 100) + "%" : "–"
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -932,9 +976,13 @@ Panel {
 
               Column {
                 id: inputControls
-                anchors.fill: parent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
                 anchors.leftMargin: Style.space(6)
                 anchors.rightMargin: Style.space(6)
+                // Alone, the slider centres in the row the way the output slider does.
+                anchors.topMargin: root.inputLevelShown ? 0 : Style.spacing.controlGap / 2
                 spacing: Style.space(5)
 
                 PanelSlider {
@@ -953,6 +1001,7 @@ Panel {
                 }
 
                 Rectangle {
+                  visible: root.inputLevelShown
                   width: parent.width
                   height: Math.max(Style.space(5), Style.spacing.xs)
                   color: Util.alpha(root.bar.foreground, 0.18)

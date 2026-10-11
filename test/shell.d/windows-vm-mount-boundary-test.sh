@@ -30,6 +30,13 @@ mount -t tmpfs -o uid=0,gid=0,mode=0710,size=1g home-alice /home/alice
 
 export HOME=/home/alice
 unset OMARCHY_WINDOWS_DIR
+# The command refuses any CPU but x86_64 before defining anything, and sourcing
+# it there would exit this test with it. What is under test is the x86_64 path,
+# so omarchy-hw-x86 answers as one.
+mkdir -p "$test_tmp/bin"
+printf '#!/bin/bash\nexit 0\n' >"$test_tmp/bin/omarchy-hw-x86"
+chmod +x "$test_tmp/bin/omarchy-hw-x86"
+PATH="$test_tmp/bin:$PATH"
 set -- help
 source "$test_tmp/omarchy-windows-vm" >/dev/null 2>&1
 

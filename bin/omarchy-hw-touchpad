@@ -2,5 +2,30 @@
 
 # omarchy:summary=Print the detected Hyprland touchpad or trackpad device name
 
-device=$(hyprctl devices -j | jq -r '[.mice[] | .name | select(test("touchpad|trackpad"; "i"))] | first // empty')
+mice=$(hyprctl devices -j | jq -r '.mice[].name')
+device=$(grep -iE -m1 'touchpad|trackpad' <<<"$mice")
+
+# Some touchpads carry neither word (Apple Silicon's is "apple-mtp-multi-touch"),
+# so ask udev which mouse is one. The name alone can't say: some touchscreens'
+# mouse interfaces are called multi-touch too.
+if [[ -z $device ]]; then
+  input_class="${OMARCHY_INPUT_CLASS_PATH:-/sys/class/input}"
+  for event in "$input_class"/event*; do
+    [[ -r $event/device/name ]] || continue
+    # Hyprland's name for a device: the kernel's, lowercased, with spaces,
+    # commas and newlines as dashes, and -1, -2 and so on after a name another
+    # device already took.
+    name=$(<"$event/device/name")
+    name=${name,,}
+    name=${name//[ ,$'\n']/-}
+    udevadm info --query=property "$event" 2>/dev/null | grep -Fxq 'ID_INPUT_TOUCHPAD=1' || continue
+    while IFS= read -r mouse; do
+      if [[ $mouse == "$name" || ( $mouse == "$name"-* && ${mouse#"$name"-} =~ ^[0-9]+$ ) ]]; then
+        device=$mouse
+        break 2
+      fi
+    done <<<"$mice"
+  done
+fi
+
 [[ -n $device ]] && echo "$device"

@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Restore Bolt's default authorization behavior
+
+set -euo pipefail
+
+gum confirm "Restore Bolt's previous policy? New accessories may be authorized automatically when IOMMU protection is active." || exit 0
+sudo /usr/bin/omarchy-thunderbolt-authorization-admin disable
+systemctl --user disable --now omarchy-thunderbolt-authorization.service
+echo "Previous Bolt policy restored. Saved Omarchy trust is retained for re-enabling."
