@@ -71,6 +71,11 @@ if [[ $1 == "where" ]]; then
   exit
 fi
 
+if [[ $1 == "which" ]]; then
+  printf '%s\n' "$OMARCHY_TEST_AGENT_BINARY"
+  exit 0
+fi
+
 if [[ $1 == "ls" && -n ${OMARCHY_TEST_MISE_HAS_NPM_GROK:-} ]]; then
   printf '%s\n' "npm:@xai-official/grok  1.0.44"
   exit 0
@@ -137,13 +142,16 @@ muse_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,versio
 assert_lazy_stub() {
   local package=$1
   local command=$2
+  export OMARCHY_TEST_AGENT_BINARY="$mock_bin/tool"
+  printf '#!/bin/bash\nexit 0\n' >"$OMARCHY_TEST_AGENT_BINARY"
+  chmod +x "$OMARCHY_TEST_AGENT_BINARY"
 
   : >"$mise_history"
   "$ROOT/bin/omarchy-mise-install" "$package" "$command"
   "$test_home/.local/bin/$command" --version
   mapfile -t mise_calls <"$mise_history"
 
-  [[ ${mise_calls[0]} == "use -g --quiet $package" && ${mise_calls[1]} == "x $package -- $command --version" ]] ||
+  [[ ${mise_calls[0]} == "use -g --quiet $package" && ${mise_calls[1]} == "which --tool $package $command" && ${mise_calls[2]} == "x $package -- $OMARCHY_TEST_AGENT_BINARY --version" ]] ||
     fail "$command lazy stub preserves its mise package"
 }
 

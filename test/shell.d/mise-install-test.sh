@@ -10,6 +10,9 @@ trap 'rm -rf "$tmpdir"' EXIT
 home="$tmpdir/home"
 stub_bin="$tmpdir/bin"
 mkdir -p "$home" "$stub_bin"
+export OMARCHY_MISE_TEST_BINARY="$stub_bin/tool"
+printf '#!/bin/bash\nexit 0\n' >"$OMARCHY_MISE_TEST_BINARY"
+chmod +x "$OMARCHY_MISE_TEST_BINARY"
 
 # Stands in for the real mise so a generated wrapper can be run and asked what
 # arguments it passed on.
@@ -21,6 +24,9 @@ for arg in "$@"; do
   printf '\t%s' "$arg" >>"$OMARCHY_MISE_TEST_LOG"
 done
 printf '\n' >>"$OMARCHY_MISE_TEST_LOG"
+if [[ $1 == "which" ]]; then
+  printf '%s\n' "$OMARCHY_MISE_TEST_BINARY"
+fi
 SH
 chmod +x "$stub_bin/mise"
 
