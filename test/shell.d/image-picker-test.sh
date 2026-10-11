@@ -129,6 +129,10 @@ assert(
   'image picker opens themes from held rows before refreshing them'
 )
 assert(
+  /root\.filterable && [^\n]*!\(event\.modifiers & \(Qt\.ControlModifier \| Qt\.AltModifier \| Qt\.MetaModifier\)\)/.test(imagePickerQml),
+  'image picker filter accepts printable text carrying Shift plus keypad or layout modifiers'
+)
+assert(
   /command: \[root\.omarchyPath \+ "\/bin\/omarchy-theme-switcher", "--print-rows"\]/.test(imagePickerQml),
   'image picker refreshes theme rows from the theme switcher'
 )
