@@ -198,16 +198,35 @@ da_remove_usb 0
 pass "manual USB boot and USBGuard policy remain untouched"
 
 fixture
+: >"$scratch/proc/sys/kernel/random/boot_id"
+reject da_remove_usb 1
+! grep -q usbguard "$scratch/units" || fail "an unreadable or empty boot identity must not remove enforcement"
+pass "an empty boot identity fails before USB enforcement changes"
+
+fixture
+echo 'quiet usbcore.authorized_default=0' >"$scratch/proc/cmdline"
+mkdir -p "$scratch/etc/limine-entry-tool.d"
+touch "$scratch/etc/limine-entry-tool.d/usb-authorization.conf"
+da_remove_usb 0
+[[ $(<"$DA_STATE/usb-boot-removed") == "fixture-boot" ]] || fail "verified conversion records the current boot"
+grep -q '^disable usbguard.service$' "$scratch/units" || fail "Omarchy's running deny must permit same-boot removal"
+[[ $(<"$scratch/sys/bus/usb/devices/1-1/authorized") == "1" ]] || fail "the freshly published receipt must permit live authorization"
+pass "same-boot removal uses the receipt written by its verified conversion"
+
+fixture
 echo 'usbcore.authorized_default=0' >"$scratch/proc/cmdline"
 echo 'allow label "omarchy-usb-authorization-v1"' >"$scratch/etc/usbguard/rules.conf"
 reject da_remove_usb 0
-! grep -q 'disable.*usbguard' "$scratch/units" || fail "manual boot deny must keep USBGuard"
+! grep -q usbguard "$scratch/units" || fail "manual boot deny must keep USBGuard"
 [[ $(<"$scratch/sys/bus/usb/devices/1-1/authorized") == "0" ]] || fail "unsafe manual boot remains pending before live authorization"
 mkdir -p "$DA_STATE"
 echo earlier-boot >"$DA_STATE/usb-boot-removed"
 reject da_remove_usb 0
+! grep -q usbguard "$scratch/units" || fail "a stale receipt must retain USBGuard"
 echo fixture-boot >"$DA_STATE/usb-boot-removed"
 da_remove_usb 0
+grep -q '^disable usbguard.service$' "$scratch/units" || fail "a verified current receipt must disable USBGuard"
+[[ $(<"$scratch/sys/bus/usb/devices/1-1/authorized") == "1" ]] || fail "a verified current receipt must authorize live input"
 pass "manual boot denial keeps USBGuard while a current-boot verified-removal receipt permits retry"
 
 fixture
@@ -219,6 +238,18 @@ da_remove_usb 0
 grep -q '^boot$' "$scratch/units" || fail "the root checkpoint must recover an interrupted boot removal"
 [[ ! -e $DA_STATE/usb-boot-pending ]] || fail "verified images clear the boot checkpoint"
 pass "Omarchy boot rollback can retry after its drop-in disappears"
+
+fixture
+mkdir -p "$scratch/etc/limine-entry-tool.d"
+touch "$scratch/etc/limine-entry-tool.d/usb-authorization.conf" "$scratch/stop-failure"
+reject da_remove_usb 0
+[[ -f $DA_STATE/usb-boot-removed ]] || fail "verified boot ownership must survive a later enforcement failure"
+rm "$scratch/stop-failure" "$scratch/etc/limine-entry-tool.d/usb-authorization.conf"
+: >"$scratch/units"
+da_remove_usb 0
+grep -q '^disable usbguard.service$' "$scratch/units" || fail "a later user without policy labels must finish saved boot ownership"
+[[ $(<"$scratch/sys/bus/usb/devices/1-1/authorized") == "1" ]] || fail "retry after boot removal must authorize live devices"
+pass "boot ownership survives independent enforcement failure and a different user retry"
 
 fixture
 touch "$scratch/missing-unit"
@@ -458,7 +489,7 @@ unit=$scratch/etc/systemd/system/omarchy-thunderbolt-authorization.service
 guard=$scratch/etc/systemd/system/bolt.service.d/omarchy-authorization.conf
 cp "$ROOT/etc/systemd/system/omarchy-thunderbolt-authorization.service" "$unit"
 cp "$ROOT/etc/systemd/system/bolt.service.d/omarchy-authorization.conf" "$guard"
-touch "$scratch/boot-failure" "$scratch/etc/limine-entry-tool.d-placeholder"
+touch "$scratch/boot-failure"
 mkdir -p "$scratch/etc/limine-entry-tool.d"
 touch "$scratch/etc/limine-entry-tool.d/usb-authorization.conf"
 (

@@ -119,21 +119,22 @@ da_remove_thunderbolt() {
 }
 
 da_remove_usb() {
-  local requested=$1 attribute boot_pending="$DA_STATE/usb-boot-pending" boot_removed="$DA_STATE/usb-boot-removed"
+  local requested=$1 attribute boot_id boot_pending="$DA_STATE/usb-boot-pending" boot_removed="$DA_STATE/usb-boot-removed"
+  boot_id=$(<"$DA_ROOT/proc/sys/kernel/random/boot_id") && [[ -n $boot_id ]] || return 1
   if [[ -e "$DA_ROOT/etc/limine-entry-tool.d/usb-authorization.conf" || -f $boot_pending ]] ||
     grep -Fq '# Omarchy USB authorization begin' "$DA_ROOT/etc/default/limine" 2>/dev/null; then
     install -d -m755 "$DA_STATE" || return 1
     da_publish_file "$boot_pending" 'Omarchy USB boot rollback pending' || return 1
     /bin/bash -p "$da_support/usb-boot.sh" disable || return 1
-    da_publish_file "$boot_removed" "$(<"$DA_ROOT/proc/sys/kernel/random/boot_id")" || return 1
+    da_publish_file "$boot_removed" "$boot_id" || return 1
     rm -- "$boot_pending" || return 1
     echo "USB boot protection removed; reboot to use the restored boot images."
     requested=1
   fi
-  if (( requested )) || grep -Fq 'label "omarchy-usb-authorization-v1"' "$DA_ROOT/etc/usbguard/rules.conf" 2>/dev/null ||
+  if (( requested )) || [[ -f $boot_removed ]] || grep -Fq 'label "omarchy-usb-authorization-v1"' "$DA_ROOT/etc/usbguard/rules.conf" 2>/dev/null ||
     grep -Fqx '# No USB devices were present during enrollment.' "$DA_ROOT/etc/usbguard/rules.conf" 2>/dev/null; then
     if grep -Eq '(^|[[:space:]])usbcore\.authorized_default=0([[:space:]]|$)' "$DA_ROOT/proc/cmdline" &&
-      [[ ! -f $boot_removed || $(<"$boot_removed") != $(<"$DA_ROOT/proc/sys/kernel/random/boot_id") ]]; then
+      [[ ! -f $boot_removed || $(<"$boot_removed") != "$boot_id" ]]; then
       echo "Remove your USB default-deny boot parameter, rebuild the boot images, reboot, then rerun the migration. USBGuard is retained to keep boot input working." >&2
       return 1
     fi
