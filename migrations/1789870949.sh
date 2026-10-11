@@ -7,7 +7,7 @@ if ! lspci -nn 2>/dev/null | grep "106b:180[12]" >/dev/null; then
 fi
 
 source="$OMARCHY_PATH/default/systemd/system-sleep/t2fanrd"
-dest=/usr/lib/systemd/system-sleep/t2fanrd
+dest="${OMARCHY_T2FANRD_HOOK:-/usr/lib/systemd/system-sleep/t2fanrd}"
 if [[ ! -f $source ]]; then
   echo "Missing $source; rerun omarchy-migrate after updating." >&2
   exit 1

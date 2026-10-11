@@ -213,9 +213,11 @@ grep -Fxq 'limine-mkinitcpio' "$calls" ||
 [[ -f $repair_marker ]] || fail "T2 rerun migration records the machine-wide repair"
 pass "T2 rerun migration repairs installs the broken hardware check skipped"
 
-# The hook migration installs into /usr/lib, so record its sudo calls rather
-# than running them.
+# The hook migration installs into /usr/lib, so point it at a scratch copy and
+# record its sudo calls rather than running them.
 fan_hook_migration="$ROOT/migrations/1789870949.sh"
+fan_hook_source="$ROOT/default/systemd/system-sleep/t2fanrd"
+fan_hook="$test_tmp/t2fanrd-hook"
 record_bin="$test_tmp/record-bin"
 mkdir -p "$record_bin"
 cat >"$record_bin/sudo" <<'SH'
@@ -226,25 +228,37 @@ printf '\t%s' "$@" >>"$TEST_LOG"
 printf '\n' >>"$TEST_LOG"
 SH
 chmod +x "$record_bin/sudo"
-: >"$calls"
 
-PATH="$record_bin:$stub_bin:$PATH" \
-  TEST_LOG="$calls" \
-  T2_HARDWARE=1 \
-  OMARCHY_PATH="$ROOT" \
-  bash -euo pipefail "$fan_hook_migration" >/dev/null
+run_fan_hook_migration() {
+  : >"$calls"
+  PATH="$record_bin:$stub_bin:$PATH" \
+    TEST_LOG="$calls" \
+    T2_HARDWARE="$1" \
+    OMARCHY_PATH="$ROOT" \
+    OMARCHY_T2FANRD_HOOK="$fan_hook" \
+    bash -euo pipefail "$fan_hook_migration" >/dev/null
+}
 
-grep -Fq $'sudo\tinstall\t-m\t0755\t-o\troot\t-g\troot\t-T\t'"$ROOT/default/systemd/system-sleep/t2fanrd"$'\t/usr/lib/systemd/system-sleep/t2fanrd' "$calls" ||
+fan_hook_install=$'sudo\tinstall\t-m\t0755\t-o\troot\t-g\troot\t-T\t'"$fan_hook_source"$'\t'"$fan_hook"
+
+rm -f "$fan_hook"
+run_fan_hook_migration 1
+grep -Fq "$fan_hook_install" "$calls" ||
   fail "T2 fan hook migration installs the resume hook despite chatty lspci" "$(cat "$calls")"
 pass "T2 fan hook migration installs the resume hook"
 
-: >"$calls"
+install -m 0755 "$fan_hook_source" "$fan_hook"
+run_fan_hook_migration 1
+[[ ! -s $calls ]] || fail "T2 fan hook migration leaves an installed hook alone" "$(cat "$calls")"
+pass "T2 fan hook migration leaves an installed hook alone"
 
-PATH="$record_bin:$stub_bin:$PATH" \
-  TEST_LOG="$calls" \
-  T2_HARDWARE=0 \
-  OMARCHY_PATH="$ROOT" \
-  bash -euo pipefail "$fan_hook_migration" >/dev/null
+install -m 0644 "$fan_hook_source" "$fan_hook"
+run_fan_hook_migration 1
+grep -Fq "$fan_hook_install" "$calls" ||
+  fail "T2 fan hook migration reinstalls a matching hook that cannot run" "$(cat "$calls")"
+pass "T2 fan hook migration reinstalls a matching hook that cannot run"
 
+rm -f "$fan_hook"
+run_fan_hook_migration 0
 [[ ! -s $calls ]] || fail "non-T2 systems skip the fan hook" "$(cat "$calls")"
 pass "T2 fan hook migration skips unrelated hardware"
