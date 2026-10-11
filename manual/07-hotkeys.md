@@ -339,36 +339,36 @@ You can use `Super + Ctrl + E` to show a complete emoji picker that'll put the s
 
 | Hotkey       | EM | Clue       |
 | ------------ | -- | ---------- |
-| `CapsLock M S` | 😄 | smile      |
-| `CapsLock M C` | 😂 | cry        |
-| `CapsLock M L` | 😍 | love       |
-| `CapsLock M V` | ✌️ | victory    |
-| `CapsLock M H` | ❤️ | heart      |
-| `CapsLock M Y` | 👍 | yes        |
-| `CapsLock M N` | 👎 | no         |
-| `CapsLock M F` | 🖕 | fuck       |
-| `CapsLock M W` | 🤞 | wish       |
-| `CapsLock M R` | 🤘 | rock       |
-| `CapsLock M K` | 😘 | kiss       |
-| `CapsLock M E` | 🙄 | eyeroll    |
-| `CapsLock M I` | 😉 | wink       |
-| `CapsLock M P` | 🙏 | pray |
-| `CapsLock M D` | 🤤 | drool      |
-| `CapsLock M M` | 💰 | money      |
-| `CapsLock M X` | 🎉 | xellebrate |
-| `CapsLock M 1` | 💯 | 100%       |
-| `CapsLock M T` | 🥂 | toast      |
-| `CapsLock M O` |👌 | ok |
-| `CapsLock M G` |👋 | greeting |
-| `CapsLock M A` |💪 | arm |
-| `CapsLock M B` |🤯 | blowing |
+| `Shift + CapsLock M S` | 😄 | smile      |
+| `Shift + CapsLock M C` | 😂 | cry        |
+| `Shift + CapsLock M L` | 😍 | love       |
+| `Shift + CapsLock M V` | ✌️ | victory    |
+| `Shift + CapsLock M H` | ❤️ | heart      |
+| `Shift + CapsLock M Y` | 👍 | yes        |
+| `Shift + CapsLock M N` | 👎 | no         |
+| `Shift + CapsLock M F` | 🖕 | fuck       |
+| `Shift + CapsLock M W` | 🤞 | wish       |
+| `Shift + CapsLock M R` | 🤘 | rock       |
+| `Shift + CapsLock M K` | 😘 | kiss       |
+| `Shift + CapsLock M E` | 🙄 | eyeroll    |
+| `Shift + CapsLock M I` | 😉 | wink       |
+| `Shift + CapsLock M P` | 🙏 | pray |
+| `Shift + CapsLock M D` | 🤤 | drool      |
+| `Shift + CapsLock M M` | 💰 | money      |
+| `Shift + CapsLock M X` | 🎉 | xellebrate |
+| `Shift + CapsLock M 1` | 💯 | 100%       |
+| `Shift + CapsLock M T` | 🥂 | toast      |
+| `Shift + CapsLock M O` |👌 | ok |
+| `Shift + CapsLock M G` |👋 | greeting |
+| `Shift + CapsLock M A` |💪 | arm |
+| `Shift + CapsLock M B` |🤯 | blowing |
 
 ## Quick Completions
 
 | Hotkey       | Completion       |
 | ------------ |  ---------- |
-| `CapsLock Space Space` | — (mdash)   |
-| `CapsLock Space N` | Your name (as entered on setup)  |
-| `CapsLock Space E` | Your email (as entered on setup)  |
+| `Shift + CapsLock Space Space` | — (mdash)   |
+| `Shift + CapsLock Space N` | Your name (as entered on setup)  |
+| `Shift + CapsLock Space E` | Your email (as entered on setup)  |
 
 You can add more of your own by editing `~/.XCompose`, then running `omarchy-restart-xcompose` in the terminal to get the changes picked up.

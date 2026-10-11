@@ -1807,6 +1807,8 @@ copy_missing_config_defaults() {
   while IFS= read -r -d '' source_path; do
     rel="${source_path#$source_dir/}"
     is_retired_config_file "$rel" && continue
+    # The input migration preserves working shortcuts in existing IME profiles.
+    [[ $rel == "fcitx5/config" ]] && continue
 
     target_path="$target_dir/$rel"
     [[ -e $target_path || -L $target_path ]] && continue

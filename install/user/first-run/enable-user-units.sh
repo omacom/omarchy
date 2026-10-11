@@ -11,6 +11,8 @@
 
 set -euo pipefail
 
+omarchy-input-method configure --defaults || echo "Input method defaults deferred; run omarchy setup input after login." >&2
+
 systemctl --user daemon-reload
 
 # One at a time: given a list, systemctl enables none of it when it cannot find

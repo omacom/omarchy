@@ -15,7 +15,6 @@ bolt
 brightnessctl
 btop
 chromium
-clang
 cliamp
 cups
 cups-filters
@@ -34,7 +33,11 @@ eza
 fakeroot
 fastfetch
 fcitx5
+fcitx5-chewing
+fcitx5-chinese-addons
 fcitx5-gtk
+fcitx5-hangul
+fcitx5-mozc
 fcitx5-qt
 fd
 ffmpeg
@@ -66,7 +69,6 @@ inotify-tools
 inxi
 networkmanager
 jq
-kdenlive
 kernel-modules-hook
 lazygit
 less
@@ -74,7 +76,6 @@ libsecret
 libvips
 libyaml
 libreoffice-fresh
-llvm
 localsend
 lua51
 luarocks
@@ -93,7 +94,6 @@ noto-fonts-cjk
 noto-fonts-emoji
 nss-mdns
 nvim
-obs-studio
 obsidian
 omacalc
 omacut

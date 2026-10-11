@@ -317,7 +317,7 @@ test_deferred_opt_out_retains_initial_enrollment() {
 test_pending_notice_retries_without_claiming_protection() {
   touch "$TB_PENDING"
   local count=0 notices=0
-  sleep() { count=$((count + 1)); (( count < 3 )) || exit 99; }
+  tb_wait() { count=$((count + 1)); (( count < 3 )) || exit 99; }
   tb_setup_notice() { notices=$((notices + 1)); (( notices > 1 )) && echo pending >> "$T/notifications"; }
   reject tb_watch
   [[ $(cat "$T/notifications") == "pending" ]]
@@ -567,7 +567,7 @@ test_trusted_reconnect_no_alert() {
 }
 test_unavailable_warns_once() {
   tb_scan() { return 1; }
-  sleep() { count=$((count+1)); ((count<4)) || exit 99; }
+  tb_wait() { count=$((count+1)); ((count<4)) || exit 99; }
   local count=0
   reject tb_watch
   [[ $(cat "$T/notifications") == "attention" ]]
@@ -628,6 +628,94 @@ test_snapshot_freshness_and_disabled_state() {
   jq '.time-=30' "$TB_RUNTIME/snapshot.json" > "$T/next"; mv "$T/next" "$TB_RUNTIME/snapshot.json"
   reject tb_public_snapshot
   echo generation-b > "$TB_RUNTIME/generation"; reject tb_public_snapshot
+}
+test_wait_times_out_without_input() {
+  local start=$EPOCHSECONDS
+  TB_TICK='' tb_wait 1
+  (( EPOCHSECONDS - start >= 1 && EPOCHSECONDS - start < 10 ))
+}
+test_daemon_rechecks_controller_free_bolt_less_often() {
+  touch "$TB_MARKER"; TB_IDLE_RECHECK=600
+  local tick=0 extra='{}'
+  expect() { [[ $(wc -l < "$T/reconciles") == "$1" ]] || fail "tick $tick: expected $1 reconciles" "$(wc -l < "$T/reconciles")"; }
+  tb_reconcile() {
+    echo >> "$T/reconciles"
+    jq -cn --argjson time "$EPOCHSECONDS" --argjson extra "$extra" \
+      '{available:true,time:$time,generation:"g",domains:[],devices:[],warnings:[],error:"",boot_protection:false} + $extra'
+  }
+  tb_wait() {
+    tick=$((tick + 1))
+    case $tick in
+      1) expect 1 ;;
+      2) expect 1; mkdir "$TB_SYSFS/domain0" ;;                      # idle: no reconcile
+      3) expect 2; rmdir "$TB_SYSFS/domain0" ;;                      # a controller appeared
+      4) expect 2; edit_state '.trusted.x={}' ;;
+      5) expect 3; touch "${TB_STATE%/*}/boot-recovery.json" ;;      # the policy changed
+      6) expect 4; rm "${TB_STATE%/*}/boot-recovery.json"            # a recovery checkpoint
+         extra='{"devices":[{"Uid":"device-1"}]}'; edit_state '.trusted.y={}' ;;
+      7) expect 5 ;;                                                 # devices from here on
+      8) expect 6; rm "$TB_MARKER" ;;                                # so every tick reconciles
+    esac
+  }
+  tb_daemon
+  [[ $tick == 8 ]]
+}
+test_daemon_rechecks_after_the_idle_interval() {
+  touch "$TB_MARKER"; TB_IDLE_RECHECK=2
+  local tick=0
+  tb_reconcile() {
+    echo >> "$T/reconciles"
+    jq -cn --argjson time "$EPOCHSECONDS" '{available:true,time:$time,generation:"g",domains:[],devices:[],warnings:[],error:"",boot_protection:false}'
+  }
+  tb_wait() {
+    tick=$((tick + 1))
+    case $tick in
+      1) sleep 2.1 ;;
+      2) [[ $(wc -l < "$T/reconciles") == 2 ]] || fail "the idle check did not expire"; rm "$TB_MARKER" ;;
+    esac
+  }
+  tb_daemon
+}
+test_daemon_failed_reconcile_keeps_every_tick() {
+  touch "$TB_MARKER"; TB_IDLE_RECHECK=600
+  local tick=0
+  tb_reconcile() { echo >> "$T/reconciles"; tb_fail 'Bolt unavailable'; }
+  tb_wait() { tick=$((tick + 1)); (( tick < 3 )) || rm "$TB_MARKER"; }
+  tb_daemon 2>/dev/null
+  [[ $(wc -l < "$T/reconciles") == 3 ]]
+  check '.available==false' "$TB_RUNTIME/snapshot.json"
+}
+test_watch_skips_only_unchanged_clean_snapshots() {
+  local tick=0 start=$EPOCHSECONDS
+  publish() { jq -cnS --argjson time "$1" --arg generation generation-a --argjson devices "${2:-[]}" \
+    '{available:true,time:$time,generation:$generation,devices:$devices,warnings:[],error:""}' > "$TB_RUNTIME/snapshot.json"; }
+  expect() { [[ $(wc -l < "$T/scans") == "$1" ]] || fail "tick $tick: expected $1 scans" "$(wc -l < "$T/scans")"; }
+  tb_scan() { echo >> "$T/scans"; cat "$TB_RUNTIME/snapshot.json"; }
+  publish "$start"
+  tb_wait() {
+    tick=$((tick + 1))
+    case $tick in
+      1) expect 1 ;;
+      2) expect 1; touch "$TB_REQUESTS/request-x.json" ;;            # unchanged: skipped
+      3) expect 2; rm "$TB_REQUESTS/request-x.json" ;;               # a request in flight
+      4) expect 2; publish "$((start - 5))" ;;
+      5) expect 3; echo generation-b > "$TB_RUNTIME/generation" ;;   # a new snapshot
+      6) expect 4; echo generation-a > "$TB_RUNTIME/generation"      # another daemon
+         publish "$start" '[{"identity":{}}]' ;;
+      7) expect 5 ;;                                                 # devices from here on
+      8) expect 6; exit 0 ;;                                         # so every tick scans
+    esac
+  }
+  (tb_watch)
+}
+test_watch_rescans_a_stale_snapshot() {
+  local tick=0
+  jq -cnS --argjson time "$((EPOCHSECONDS - 30))" \
+    '{available:true,time:$time,generation:"generation-a",devices:[],warnings:[],error:""}' > "$TB_RUNTIME/snapshot.json"
+  tb_scan() { echo >> "$T/scans"; cat "$TB_RUNTIME/snapshot.json"; }
+  tb_wait() { tick=$((tick + 1)); (( tick < 3 )) || exit 0; }
+  (tb_watch)
+  [[ $(wc -l < "$T/scans") == 3 ]]
 }
 test_invalid_state_not_skipped_by_migration() {
   echo '{"enabled":false}' > "$TB_STATE"; reject tb_admin migrate

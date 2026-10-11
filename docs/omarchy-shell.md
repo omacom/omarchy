@@ -100,7 +100,7 @@ The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
 ## Elsewhen
 
-Elsewhen (`omarchy.elsewhen`), the world clock, is a first-party plugin in `shell/plugins/panels/elsewhen/`; [`elsewhen.md`](elsewhen.md) covers how it works. It shipped as the separate `elsewhen` package under the id `omacom.elsewhen` until it moved in. New installs place it immediately before the clock; the placement migration uses `omarchy bar put omarchy.elsewhen --before omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. With no shell to ask, as in an update from a TTY, it skips the placement rather than failing the update. A later migration renames existing `omacom.elsewhen` entries in `shell.json`, keeping their settings, and removes the retired package and any dev-checkout link to its `/usr/share/omarchy` path, leaving links and checkouts the user made alone.
+Elsewhen (`omarchy.elsewhen`), the world clock, is a first-party plugin in `shell/plugins/panels/elsewhen/`; [`elsewhen.md`](elsewhen.md) covers how it works. It shipped as the separate `elsewhen` package under the id `omacom.elsewhen` until it moved in. New installs place it immediately after the clock, before Weather; the placement migration uses `omarchy bar put omarchy.elsewhen --after omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. With no shell to ask, as in an update from a TTY, it skips the placement rather than failing the update. A later migration renames existing `omacom.elsewhen` entries in `shell.json`, keeping their settings, and removes the retired package and any dev-checkout link to its `/usr/share/omarchy` path, leaving links and checkouts the user made alone.
 
 ## IPC
 
@@ -122,6 +122,7 @@ or `omarchy.power`. There is no `bar` target.
 | `reloadConfig`                        | reload shell.json               |
 | `applyTheme <colorsB64> <shellB64>`   | push theme colors + shell.toml  |
 | `toggleBarTransparency`               | flip the bar background between solid and transparent |
+| `cycleInput <next\|back>`             | switch to the next or previous input method or layout (Super+I, Super+Shift+I); `not running` without the input reader |
 | `setPluginEnabled <id> <"true"\|…>`   | flip enabled bit (`ok` / `unknown`) |
 | `enablePlugin <id> <placementJson>`   | enable and place in one mutation |
 | `putBarWidget <id> <placementJson>`   | place a widget only where absent (`omarchy bar put`) |

@@ -91,6 +91,8 @@ config/**                      ──►  omarchy-settings    /etc/skel/.config/
                                                         /usr/share/omarchy/config/** (resync source)
 etc/fastfetch/config.jsonc     ──►  omarchy-settings    /etc/fastfetch/config.jsonc
 etc/xdg/kitty/kitty.conf       ──►  omarchy-settings    /etc/xdg/kitty/kitty.conf
+etc/xkb/{rules/evdev,symbols/omarchy}
+                               ──►  omarchy-settings    /etc/xkb/                    (Shift + Caps Lock compose option)
 
 applications/*.desktop         ──►  omarchy-settings    /etc/skel/.local/share/applications/
                                                         /usr/share/omarchy/applications/

@@ -57,6 +57,12 @@ Item {
   readonly property bool dmenuActive: mode === "select" || mode === "input"
   property string dmenuPrompt: ""
   property var dmenuOptions: []
+  property bool dmenuMultiple: false
+  property var dmenuSelected: []
+  // What the last confirmed change applied; a failed change returns the checks here.
+  property var dmenuSaved: []
+  property string dmenuChangeKey: ""
+  property var dmenuOnChange: []
   property string selectionFile: ""
   property string doneFile: ""
   property int dmenuWidth: 300
@@ -563,6 +569,14 @@ Item {
       return
     }
 
+    if (root.dmenuMultiple && root.dmenuOnChange.length === 0) {
+      displayModel.append({
+        itemId: "dmenu.apply", disabled: false, kind: "dmenu", icon: "", iconFont: "",
+        appIcon: "", appId: "", label: "Apply", target: "",
+        detail: root.dmenuSelected.length + " selected", path: "", childCount: 0,
+        action: "", provider: "", score: -1, section: ""
+      })
+    }
     var query = root.filterText.trim().toLowerCase()
     for (var i = 0; i < root.dmenuOptions.length; i++) {
       // An option is "<label>", "<glyph>\t<label>", or
@@ -579,7 +593,7 @@ Item {
         itemId: "dmenu." + i,
         disabled: false,
         kind: "dmenu",
-        icon: icon,
+        icon: root.dmenuMultiple ? (root.dmenuSelected.indexOf(MenuModel.dmenuValue(root.dmenuOptions[i])) !== -1 ? "✓" : "○") : icon,
         iconFont: "",
         appIcon: "",
         appId: "",
@@ -604,6 +618,18 @@ Item {
     Qt.callLater(function() {
       if (displayModel.count > 0) root.revealCursor()
     })
+  }
+
+  function updateDmenuChecks() {
+    for (var i = 0; i < displayModel.count; i++) {
+      var row = displayModel.get(i)
+      if (row.itemId === "dmenu.apply") {
+        displayModel.setProperty(i, "detail", root.dmenuSelected.length + " selected")
+      } else if (row.kind === "dmenu") {
+        var value = MenuModel.dmenuValue(root.dmenuOptions[Number(row.itemId.substring(6))])
+        displayModel.setProperty(i, "icon", root.dmenuSelected.indexOf(value) !== -1 ? "✓" : "○")
+      }
+    }
   }
 
   function rebuildDisplay() {
@@ -769,7 +795,22 @@ Item {
       }
       if (index < 0 || index >= displayModel.count) return
       var picked = displayModel.get(index)
-      root.applyDmenuSelection(picked.detail ? picked.label + "\t" + picked.detail : picked.label)
+      if (root.dmenuMultiple) {
+        if (picked.itemId === "dmenu.apply") {
+          root.applyDmenuSelection(JSON.stringify(MenuModel.dmenuSelections(root.dmenuOptions, root.dmenuSelected)))
+        } else {
+          var value = MenuModel.dmenuValue(root.dmenuOptions[Number(picked.itemId.substring(6))])
+          var selected = MenuModel.toggleDmenuSelection(selectionProc.requestedSelection(), value)
+          if (root.dmenuOnChange.length > 0) {
+            selectionProc.enqueue(selected)
+          } else {
+            root.dmenuSelected = selected
+            root.updateDmenuChecks()
+          }
+        }
+      } else {
+        root.applyDmenuSelection(picked.detail ? picked.label + "\t" + picked.detail : picked.label)
+      }
       return
     }
 
@@ -867,6 +908,14 @@ Item {
     mode = payload.mode === "input" ? "input" : "select"
     dmenuPrompt = String(payload.prompt || (mode === "input" ? "Input" : "Select"))
     dmenuOptions = Array.isArray(payload.options) ? payload.options : []
+    dmenuMultiple = mode === "select" && payload.multiple === true
+    dmenuOnChange = dmenuMultiple && Array.isArray(payload.onChange)
+      && payload.onChange.every(function(arg) { return typeof arg === "string" }) ? payload.onChange : []
+    dmenuChangeKey = String(payload.changeKey || JSON.stringify(dmenuOnChange))
+    dmenuSelected = MenuModel.dmenuSelections(dmenuOptions, Array.isArray(payload.selected) ? payload.selected : [], dmenuOnChange.length > 0)
+    dmenuSaved = dmenuSelected
+    if (dmenuOnChange.length > 0)
+      dmenuSelected = MenuModel.dmenuSelections(dmenuOptions, selectionProc.requestedSelection(), true)
     selectionFile = String(payload.selectionFile || "")
     doneFile = String(payload.doneFile || "")
     requestActive = !!doneFile
@@ -940,6 +989,66 @@ Item {
         if (root.filterText.trim()) root.loadProvidersForSearch()
       }
       root.startNextProvider()
+    }
+  }
+
+  Process {
+    id: selectionProc
+    property int serial: 0
+    property string changeKey: ""
+    property var selected: []
+    property var queue: []
+    property string collected: ""
+
+    function requestedSelection() {
+      for (var i = queue.length - 1; i >= 0; i--) {
+        if (queue[i].key === root.dmenuChangeKey) return queue[i].selected
+      }
+      if (running && changeKey === root.dmenuChangeKey) return selected
+      return root.dmenuSelected
+    }
+
+    function enqueue(values) {
+      var selected = MenuModel.dmenuSelections(root.dmenuOptions, values, true)
+      queue = queue.concat([{
+        serial: root.requestSerial, key: root.dmenuChangeKey, selected: selected,
+        command: root.dmenuOnChange.concat([JSON.stringify(selected)])
+      }])
+      if (!running) startNext()
+    }
+
+    function startNext() {
+      if (queue.length === 0) return
+      var change = queue[0]
+      queue = queue.slice(1)
+      serial = change.serial
+      changeKey = change.key
+      selected = change.selected
+      collected = ""
+      command = change.command
+      running = true
+    }
+
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: selectionProc.collected = text
+    }
+    onExited: function(exitCode) {
+      if (changeKey === root.dmenuChangeKey && root.dmenuActive && root.dmenuOnChange.length > 0) {
+        if (exitCode === 0) {
+          var applied = selected
+          if (collected.trim()) {
+            try { applied = JSON.parse(collected) } catch (error) { applied = root.dmenuSelected }
+          }
+          if (Array.isArray(applied))
+            root.dmenuSelected = MenuModel.dmenuSelections(root.dmenuOptions, applied, true)
+          root.dmenuSaved = root.dmenuSelected
+        } else {
+          root.dmenuSelected = root.dmenuSaved
+        }
+        root.updateDmenuChecks()
+      }
+      startNext()
     }
   }
 
@@ -1224,6 +1333,16 @@ Item {
             clip: true
             spacing: root.rowSpacing
             boundsBehavior: Flickable.StopAtBounds
+
+            WheelHandler {
+              target: null
+              onWheel: function(event) {
+                var delta = event.pixelDelta.y || event.angleDelta.y / 120 * root.rowHeightForDetail("") * 3
+                var bottom = resultList.originY + Math.max(0, resultList.contentHeight - resultList.height)
+                resultList.contentY = Math.max(resultList.originY, Math.min(bottom, resultList.contentY - delta))
+                event.accepted = true
+              }
+            }
 
             section.property: "section"
             section.criteria: ViewSection.FullString
