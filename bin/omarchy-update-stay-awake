@@ -470,9 +470,10 @@ start_locked() {
 
   # The child is identifiable by the token in its arguments from the moment it
   # starts. It stays a shell so stop's TERM ends it with a clean exit, since
-  # systemd-inhibit reports a child killed by a signal as an error.
+  # systemd-inhibit reports a child killed by a signal as an error. The lid
+  # switch ignores high-level sleep inhibitors, so block its handling as well.
   local hold_command=(
-    /usr/bin/systemd-inhibit --what=sleep:idle --who=omarchy-update
+    /usr/bin/systemd-inhibit --what=sleep:idle:handle-lid-switch --who=omarchy-update
     --why="Omarchy update in progress [$token]" --mode=block
     /usr/bin/setpriv --reuid "$caller_uid" --regid "$(/usr/bin/id -g)" --clear-groups
     /usr/bin/bash -p -c '
