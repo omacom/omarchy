@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# omarchy:summary=Paint Unicode art with the mouse
+# omarchy:group=ascii
+# omarchy:name=paint
+# omarchy:args=[--preview screensaver|about] [path]
+# omarchy:examples=omarchy ascii paint | omarchy ascii paint ~/.config/omarchy/branding/screensaver.txt
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: omarchy-ascii-paint [--preview screensaver|about] [path]
+
+Opens the Unicode paint overlay. With a path, that file is loaded (and created
+on save if it does not exist yet). --preview launches the screensaver or About
+screen after each save.
+EOF
+}
+
+preview=""
+path=""
+
+while (( $# > 0 )); do
+  case "$1" in
+  --help | -h)
+    usage
+    exit 0
+    ;;
+  --preview)
+    shift
+    preview="${1:-}"
+    if [[ $preview != screensaver && $preview != about ]]; then
+      echo "omarchy-ascii-paint: --preview must be screensaver or about" >&2
+      usage >&2
+      exit 1
+    fi
+    ;;
+  --)
+    shift
+    path="${1:-}"
+    break
+    ;;
+  -*)
+    echo "omarchy-ascii-paint: unknown option: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+  *)
+    if [[ -n $path ]]; then
+      echo "omarchy-ascii-paint: unexpected argument: $1" >&2
+      usage >&2
+      exit 1
+    fi
+    path="$1"
+    ;;
+  esac
+  shift
+done
+
+if [[ -n $path && $path != /* ]]; then
+  path="$(pwd)/$path"
+fi
+
+payload=$(
+  OMARCHY_PAINT_PATH="$path" OMARCHY_PAINT_PREVIEW="$preview" python3 -c '
+import json, os
+payload = {}
+path = os.environ.get("OMARCHY_PAINT_PATH", "")
+preview = os.environ.get("OMARCHY_PAINT_PREVIEW", "")
+if path:
+    payload["path"] = path
+if preview:
+    payload["preview"] = preview
+print(json.dumps(payload, ensure_ascii=False))
+'
+)
+
+exec omarchy-shell shell summon omarchy.ascii-paint "$payload"

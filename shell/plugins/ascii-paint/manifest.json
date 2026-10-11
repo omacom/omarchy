@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.ascii-paint",
+  "name": "Unicode paint",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Paint Unicode cell art with the mouse and save it as a text file",
+  "kinds": [
+    "overlay"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "AsciiPaint.qml"
+  }
+}

@@ -3,8 +3,8 @@
 # omarchy:summary=Edit, set, or reset About branding
 # omarchy:group=branding
 # omarchy:name=about
-# omarchy:args=<image|text|reset>
-# omarchy:examples=omarchy branding about image | omarchy branding about text | omarchy branding about reset
+# omarchy:args=<image|text|paint|reset>
+# omarchy:examples=omarchy branding about image | omarchy branding about text | omarchy branding about paint | omarchy branding about reset
 
 set -euo pipefail
 
@@ -18,11 +18,18 @@ image)
 text)
   omarchy-launch-editor ~/.config/omarchy/branding/about.txt >/dev/null 2>&1 && omarchy-launch-about >/dev/null 2>&1
   ;;
+paint)
+  mkdir -p "$HOME/.config/omarchy/branding"
+  if [[ ! -f $HOME/.config/omarchy/branding/about.txt ]]; then
+    cp "$OMARCHY_PATH/icon.txt" "$HOME/.config/omarchy/branding/about.txt"
+  fi
+  exec omarchy-ascii-paint --preview about "$HOME/.config/omarchy/branding/about.txt"
+  ;;
 reset)
   cp "$OMARCHY_PATH/icon.txt" ~/.config/omarchy/branding/about.txt && omarchy-launch-about >/dev/null 2>&1
   ;;
 *)
-  echo "Usage: omarchy-branding-about <image|text|reset>" >&2
+  echo "Usage: omarchy-branding-about <image|text|paint|reset>" >&2
   exit 1
   ;;
 esac

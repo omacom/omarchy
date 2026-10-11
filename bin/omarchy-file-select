@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 
 # omarchy:summary=Pick files with the desktop file chooser
-# omarchy:args=[--title <title>] [--multiple] [--directory] [--extensions "<ext ext...>"]
-# omarchy:examples=omarchy file select --title "Send with Tailscale" --multiple | omarchy file select --title "Pick image" --extensions "png svg" | omarchy file select --title "Share folder" --directory
+# omarchy:args=[--title <title>] [--multiple] [--save] [--directory] [--extensions "<ext ext...>"]
+# omarchy:examples=omarchy file select --title "Send with Tailscale" --multiple | omarchy file select --title "Pick image" --extensions "png svg" | omarchy file select --title "Share folder" --directory | omarchy file select --save --title "Save art" --extensions "txt"
 
 # Python rather than bash, alone among the commands here, because the portal
 # answers a request with a Response signal addressed to the connection that
@@ -36,6 +36,7 @@ def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--title", default="Select file")
     parser.add_argument("--multiple", action="store_true")
+    parser.add_argument("--save", action="store_true")
     parser.add_argument("--directory", action="store_true")
     parser.add_argument("--extensions", default="")
     args, unknown = parser.parse_known_args()
@@ -75,11 +76,16 @@ def main():
 
     options = {
         "handle_token": GLib.Variant("s", token),
-        "multiple": GLib.Variant("b", args.multiple),
     }
 
-    if args.directory:
+    if not args.save:
+        options["multiple"] = GLib.Variant("b", args.multiple)
+
+    if args.directory and not args.save:
         options["directory"] = GLib.Variant("b", True)
+
+    if args.save:
+        options["current_name"] = GLib.Variant("s", "art.txt")
 
     # Filters name file formats, which a directory chooser has no use for.
     if args.extensions and not args.directory:
@@ -91,11 +97,12 @@ def main():
         options["filters"] = filters
         options["current_filter"] = GLib.Variant("(sa(us))", (label, patterns))
 
+    method = "SaveFile" if args.save else "OpenFile"
     handle = bus.call_sync(
         "org.freedesktop.portal.Desktop",
         "/org/freedesktop/portal/desktop",
         "org.freedesktop.portal.FileChooser",
-        "OpenFile",
+        method,
         GLib.Variant("(ssa{sv})", ("", args.title, options)),
         None,
         Gio.DBusCallFlags.NONE,
