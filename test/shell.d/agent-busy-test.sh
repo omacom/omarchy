@@ -119,6 +119,10 @@ scan >/dev/null || status=$?
 chmod 755 "$home/.openclaw/agents/main"
 (( status == 3 )) || fail "a store under an unsearchable agent directory is unknown, not quiet" "status=$status"
 
+fresh_home hermes-profile
+write "$home/.hermes/profiles/work/state.db-wal"
+[[ $(scan) == "Hermes" ]] || fail "a Hermes profile's own database is a session store"
+
 fresh_home hermes
 write "$home/.hermes/state.db-wal"
 write "$home/.hermes/sessions/new.json"
@@ -134,6 +138,21 @@ scan CLAUDE_CONFIG_DIR="$tmpdir/linked-account" >/dev/null || status=$?
 chmod 755 "$tmpdir/locked-primary"
 (( status == 3 )) || fail "a projects link that cannot be followed is unknown, not quiet" "status=$status"
 pass "a projects link that cannot be followed is unknown, not quiet"
+
+# The home itself can be the link that leads nowhere or somewhere unreadable.
+fresh_home home-link
+ln -s "$tmpdir/codex-gone" "$tmpdir/codex-link"
+status=0
+scan CODEX_HOME="$tmpdir/codex-link" >/dev/null || status=$?
+(( status == 3 )) || fail "a home link that leads nowhere is unknown, not quiet" "status=$status"
+mkdir -p "$tmpdir/codex-locked/home/sessions"
+ln -sfn "$tmpdir/codex-locked/home" "$tmpdir/codex-link"
+chmod 000 "$tmpdir/codex-locked"
+status=0
+scan CODEX_HOME="$tmpdir/codex-link" >/dev/null || status=$?
+chmod 755 "$tmpdir/codex-locked"
+(( status == 3 )) || fail "a home link into an unreadable directory is unknown, not quiet" "status=$status"
+pass "a home that is a link that cannot be followed is unknown, not quiet"
 
 fresh_home relative
 status=0

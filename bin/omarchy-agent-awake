@@ -4,10 +4,8 @@
 # omarchy:args=[<duration>|<HH:MM>|agents [<duration>]|add <duration>|stop|status|active]
 # omarchy:examples=omarchy agent awake 2h | omarchy agent awake 18:30 | omarchy agent awake agents | omarchy agent awake add 30m | omarchy agent awake stop
 
-# Holds logind's lid-switch inhibitor and nothing else: Suspend from the menu,
-# the critical-battery action and the idle lock all still apply. The inhibitor
-# lives as long as its holder, so a holder that crashes or is killed hands the
-# lid back to logind's own policy and nothing needs undoing.
+# Holds only logind's lid-switch inhibitor, which dies with its holder, so a
+# holder that crashes hands the lid back to logind and nothing needs undoing.
 
 UNIT="omarchy-agent-awake.service"
 HOMES="CLAUDE_CONFIG_DIR|CODEX_HOME|GROK_HOME|PI_CODING_AGENT_DIR|XDG_DATA_HOME|HERMES_HOME|COPILOT_HOME"
@@ -311,10 +309,8 @@ scan_activity() {
   esac
 }
 
-# What a scan is asked about, and the homes it scans are taken from this same
-# read. A start in the meantime may have swapped the homes or cleared seen,
-# and every start draws a new generation, so even a start that puts back the
-# same record cannot pass an answer about other homes off as current.
+# What a scan is asked about, homes included. Every start draws a new
+# generation, so an answer about a session since replaced never passes as current.
 scan_subject() {
   cat "$STATE_DIR/generation" "$SESSION" "$STATE_DIR/homes" 2>/dev/null
 }

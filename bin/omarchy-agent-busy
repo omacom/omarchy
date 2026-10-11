@@ -4,13 +4,8 @@
 # omarchy:args=[--within <minutes>]
 # omarchy:hidden=true
 
-# An agent appends to its session store at every message and tool result, so a
-# write inside the window means it is mid-task. Neither its process nor its CPU
-# says that: an agent idling at its prompt keeps both. Prints one name per agent
-# with activity and exits 0; exits 1 when there is none, and 3 when a store
-# could not be read, since a failed look is not a quiet one. An agent missing
-# here (Crush, Cursor CLI, Muse, Ori: no session store of their own to watch)
-# never counts.
+# A write to a session store means an agent is mid-task; an idle agent keeps its
+# process and some CPU. Exits 0 with names, 1 when quiet, 3 when a store is unreadable.
 
 within=15
 
@@ -29,10 +24,8 @@ found=0
 incomplete=0
 named=()
 
-# A root that seems missing may only be hidden behind a directory this account
-# cannot search, and that is not the same as having nothing in it.
-# A symlink that cannot be followed counts too: an account's projects link
-# pointing somewhere unreadable hides the same sessions.
+# A missing root may only be hidden, behind a directory it cannot search or a
+# link, on the root or any parent, that cannot be followed.
 unsearchable() {
   local path=$1
 
@@ -40,6 +33,7 @@ unsearchable() {
   while [[ $path == */* ]]; do
     path=${path%/*}
     [[ -n $path ]] || path=/
+    [[ ! -e $path && -L $path ]] && return 0
     if [[ -e $path ]]; then
       [[ -d $path && ! -x $path ]]
       return
@@ -49,12 +43,8 @@ unsearchable() {
   return 1
 }
 
-# Roots are directories handed to find whole, never globbed: a glob silently
-# drops what it cannot list, while find says so. -L follows links anywhere
-# below, as an account home's projects is one. --name narrows to file names at
-# the top of each root, --path to the session stores inside it. Under -L only
-# a link that leads nowhere is still a link, and a store that has gone missing
-# is not a quiet one.
+# Roots go to find whole, never globbed, since a glob drops what it cannot list.
+# Under -L only a link that leads nowhere is still a link, and that is unknown.
 check() {
   local name=$1 root found_types depth=() match=()
   shift
@@ -82,7 +72,7 @@ check() {
       found=1
       return
     fi
-    [[ $status == 0 && $found_types != *l* ]] || incomplete=1
+    (( status == 0 )) && [[ $found_types != *l* ]] || incomplete=1
   done
 }
 
@@ -99,6 +89,7 @@ check "Oh My Pi" --path "*/agent/sessions/*" "$HOME/.omp/profiles"
 check "OpenCode" --name "opencode*.db*" "$data_home/opencode"
 check "Hermes" "$hermes_home/sessions"
 check "Hermes" --path "*/sessions/*" "$hermes_home/profiles"
+check "Hermes" --path "*/state.db*" "$hermes_home/profiles"
 check "Hermes" --name "state.db*" "$hermes_home"
 check "OpenClaw" --path "*/sessions/*" "$HOME/.openclaw/agents"
 check "GitHub Copilot" "${COPILOT_HOME:-$HOME/.copilot}/session-state"

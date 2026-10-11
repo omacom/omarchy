@@ -321,8 +321,9 @@ pass "start after a holder began ending starts a new one"
 # Killed holder: the unit is gone but the record stays; status believes systemd.
 reset
 run 2h >/dev/null
-pkill -P "$(<"$tmpdir/holder.pid")"
-kill "$(<"$tmpdir/holder.pid")"
+# The wrapper may exit on its own once the holder is gone.
+pkill -P "$(<"$tmpdir/holder.pid")" || true
+kill "$(<"$tmpdir/holder.pid")" 2>/dev/null || true
 rm -f "$tmpdir/unit-active"
 [[ $(PATH="$fake_bin:$PATH" "$awake" status | jq -r .active) == "false" ]] || fail "a killed holder reads inactive"
 pass "a killed holder reads inactive whatever its record says"
@@ -458,6 +459,7 @@ if [[ ! -e $TEST_DIR/restarted ]]; then
   rm -f "$XDG_RUNTIME_DIR/omarchy/agent-awake/seen"
   "$ROOT/bin/omarchy-agent-busy" "$@"
   status=$?
+  echo "$status" >"$TEST_DIR/stale-scan-status"
   # Every later scan finds the agent quiet, so only this stale answer could arm it.
   touch -d "-20 minutes" "$TEST_DIR/old-codex/sessions/rollout.jsonl"
   exit $status
@@ -465,10 +467,11 @@ fi
 exec "$ROOT/bin/omarchy-agent-busy" "$@"
 SH
 chmod +x "$clock_bin/omarchy-agent-busy"
-rm -f "$tmpdir/restarted"
+rm -f "$tmpdir/restarted" "$tmpdir/stale-scan-status"
 hold
 rm -f "$clock_bin/omarchy-agent-busy"
 rm -rf "$tmpdir/old-codex"
+[[ $(cat "$tmpdir/stale-scan-status" 2>/dev/null) == "0" ]] || fail "the stale scan really found activity"
 grep -q '^notify Agent Awake is over Its end time' "$log" || fail "a scan of homes a start replaced never arms the new session" "$(<"$log")"
 pass "a scan of homes a start replaced never arms the new session"
 
@@ -491,6 +494,7 @@ SH
 chmod +x "$tmpdir/on-sleep"
 { hold || true; } 2>/dev/null
 chmod 755 "$home/.claude/projects"
+(( $(<"$tmpdir/now") >= 1001000 )) || fail "the holder outlives a failed scan until it is stopped" "now=$(<"$tmpdir/now")"
 [[ -e $state/session ]] && ! grep -q '^notify' "$log" || fail "a scan that failed is not quiet" "$(<"$log")"
 pass "a failed activity scan never ends agents mode"
 
@@ -555,20 +559,26 @@ watch_once() {
 }
 
 watch_once closed awake
-[[ ${watched[*]:0:4} == "omarchy-system-lock omarchy-hyprland-monitor-clamshell omarchy-brightness-keyboard omarchy-brightness-display" ]] ||
+[[ ${watched[*]:0:4} == "omarchy-system-lock omarchy-hyprland-monitor-clamshell omarchy-brightness-display" ]] ||
   fail "a closed, undocked lid under Agent Awake locks, reconciles, then blanks" "calls: ${watched[*]}"
 pass "a closed, undocked lid under Agent Awake locks, reconciles, then blanks"
 
 watch_once closed awake locked
-[[ ${watched[*]:0:3} == "omarchy-hyprland-monitor-clamshell omarchy-brightness-keyboard omarchy-brightness-display" ]] ||
+[[ ${watched[*]:0:2} == "omarchy-hyprland-monitor-clamshell omarchy-brightness-display" ]] ||
   fail "an already locked session is blanked again, not locked again" "calls: ${watched[*]}"
-pass "an already locked session is blanked again, not locked again"
+# The retries repeat this pass, and keyboard off saves the current level each
+# time, so a second call would save 0 for the wake to restore.
+watch_once closed awake locked
+/usr/bin/sleep 2
+mapfile -t watched <"$watch_log"
+[[ " ${watched[*]} " != *keyboard* ]] || fail "the watcher leaves the keyboard backlight to the lock" "calls: ${watched[*]}"
+pass "an already locked session is blanked again, not locked again, and the keyboard is left alone"
 
 # Undocked while the clamshell pass runs: the pass's own retries lose the lock
 # to it, so the check after the pass has to lock as well as blank.
 stub omarchy-hyprland-monitor-clamshell 'echo omarchy-hyprland-monitor-clamshell >>"$TEST_DIR/watch-log"; rm -f "$TEST_DIR/docked"'
 watch_once closed awake docked
-[[ ${watched[*]:0:4} == "omarchy-hyprland-monitor-clamshell omarchy-system-lock omarchy-brightness-keyboard omarchy-brightness-display" ]] ||
+[[ ${watched[*]:0:4} == "omarchy-hyprland-monitor-clamshell omarchy-system-lock omarchy-brightness-display" ]] ||
   fail "undocking during the clamshell pass still locks before blanking" "calls: ${watched[*]}"
 stub omarchy-hyprland-monitor-clamshell 'echo omarchy-hyprland-monitor-clamshell >>"$TEST_DIR/watch-log"'
 pass "undocking during the clamshell pass still locks before blanking"
@@ -576,7 +586,7 @@ pass "undocking during the clamshell pass still locks before blanking"
 for flags in "closed" "awake" "closed awake docked"; do
   # shellcheck disable=SC2086
   watch_once $flags
-  [[ ${watched[*]:0:1} == "omarchy-hyprland-monitor-clamshell" && ${#watched[@]} -ge 1 && " ${watched[*]} " != *" omarchy-system-lock "* && " ${watched[*]} " != *brightness* ]] ||
+  [[ ${watched[*]:0:1} == "omarchy-hyprland-monitor-clamshell" && " ${watched[*]} " != *" omarchy-system-lock "* && " ${watched[*]} " != *brightness* ]] ||
     fail "'$flags' neither locks nor blanks" "calls: ${watched[*]}"
 done
 pass "without Agent Awake, with the lid open, or docked, the watcher neither locks nor blanks"
