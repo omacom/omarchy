@@ -89,8 +89,20 @@ def test_failed_settings_write():
             assert not (root / "home/.config/omarchy/shell.toml").exists()
 
 
+def test_no_ghostty_config():
+    with tempfile.TemporaryDirectory(prefix="omarchy-ghostty-absent-") as temporary:
+        root = Path(temporary)
+        env, config, _ = fixture(root)
+        config.unlink()
+        assert invoke(SCRIPT, env, "20").returncode == 0
+        assert not config.exists()
+        assert invoke(SCRIPT, env, "reset").returncode == 0
+        assert not config.exists()
+
+
 for base in (9, 13, 15):
     test_roundtrip(base)
 test_roundtrip(12, linked=True)
 test_failed_settings_write()
+test_no_ghostty_config()
 print("PASS: stock/personal/prior-15/symlink set-reset-relogin and failed GSettings writes")
