@@ -74,6 +74,7 @@ usermod() {
 systemd-id128() { echo new-machine-id; }
 encrypted_install() { return 1; }
 rebuild_next_boot() { :; }
+commit_next_boot() { :; }
 sync() { :; }
 systemctl() {
   # All service changes must address the staged root, never the live machine.

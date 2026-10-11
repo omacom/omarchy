@@ -34,6 +34,7 @@ PROVISIONING_DIR=/var/lib/omarchy/provisioning
 PACKAGED_PATH=/usr/bin/omarchy-system-factory-reset
 OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 TOP_MNT=/run/omarchy-system-factory-reset/top
+ESP_MNT=/run/omarchy-system-factory-reset/esp
 NEXT_NAME=@omarchy-reset-next
 LOG_FILE=/var/log/omarchy-system-factory-reset.log
 
@@ -159,8 +160,33 @@ cleanup() {
   if [[ ${reset_committed:-0} == 0 && ${RESET_BOOT_PREPARED:-0} == 1 ]]; then
     reset_boot_op reset-rollback || echo "Error: $RESET_BOOT_ERROR (see $LOG_FILE)" >&2
   fi
+
+  # A reset that failed after touching the ESP, before the factory root took
+  # over, puts the running system's boot files back while the ESP is mounted.
+  # The staged root still standing apart is what says the switch hasn't
+  # happened: a signal between the rename and commit_next_boot must not put
+  # the old kernel back under the factory root.
+  # errexit still applies in this trap, so nothing here may stop the cleanup.
+  if [[ -n ${esp_restore:-} && -d $TOP_MNT/$NEXT_NAME ]]; then
+    if restore_esp "$esp_restore" "$esp_backup" "${esp_new_id:-}"; then
+      log "Restored this system's boot files" || true
+      rm -rf "$esp_backup" || true
+    else
+      log "Could not restore this system's boot files; copies are in $esp_backup" || true
+    fi
+  elif [[ -n ${esp_backup:-} ]]; then
+    rm -rf "$esp_backup" || true
+  fi
+
+  if mountpoint -q "$ESP_MNT" 2>/dev/null; then
+    umount -R "$ESP_MNT" 2>/dev/null || true
+  fi
+  rmdir "$ESP_MNT" 2>/dev/null || true
+
   if mountpoint -q "$TOP_MNT" 2>/dev/null; then
-    if [[ -d $TOP_MNT/$NEXT_NAME && ${swap_done:-0} == 0 ]]; then
+    # Never delete the staged root while there is no @: after a root switch
+    # that could not be undone, it is one of the two systems left to recover.
+    if [[ -d $TOP_MNT/$NEXT_NAME && ${swap_done:-0} == 0 && -d $TOP_MNT/@ ]]; then
       btrfs subvolume delete --recursive "$TOP_MNT/$NEXT_NAME" >/dev/null 2>&1 || true
     fi
     umount -R "$TOP_MNT" 2>/dev/null || true
@@ -299,44 +325,125 @@ install_provisioning_units() {
     "$next/etc/systemd/system/sysinit.target.wants/omarchy-system-factory-reset-finish.service"
 }
 
-# Start the ESP's limine.conf over from the shipped template and drop the
-# previous Omarchy identity's state. limine-entry-tool keys OS entries by
-# machine-id, so after a reset gives the machine a fresh identity, the
-# previous system's entry (with the now-stale UKI hash) would survive, sort
-# first, and make Limine refuse the rebuilt UKI with a hash-mismatch warning.
-# Only machine-ids the old limine.conf referenced are removed — a shared ESP
-# may hold other installations' machine-id directories.
+# Start the ESP's limine.conf settings over from the shipped template and
+# hand this installation's boot entry to the new identity. limine-entry-tool
+# keys OS entries by machine-id, so after a reset gives the machine a fresh
+# identity, the previous entry (with the now-stale UKI hash) would survive,
+# sort first, and make Limine refuse the rebuilt UKI with a hash-mismatch
+# warning.
+#
+# A shared ESP also holds other systems' entries (Windows, other Linux
+# installs), which must survive. So every entry stays where it is, and only
+# the previous identity's entry is emptied and re-keyed to the new machine-id:
+# limine-update then refills it in place, where default_entry points.
+# limine-entry-tool appends a new OS entry after all the others, so starting
+# a fresh one instead would move this system behind them. The previous
+# identity's machine-id directory stays until commit_esp_staging.
 reset_limine_config() {
-  local root="$1" esp="$2" template found=""
+  local root="$1" esp="$2" old_id="$3" template="" candidate
+  local conf="$root$esp/limine.conf"
 
-  local old_ids=""
-  if [[ -f $root$esp/limine.conf ]]; then
-    old_ids=$(grep -o 'machine-id=[0-9a-f]\{32\}' "$root$esp/limine.conf" | cut -d= -f2 | sort -u)
-  fi
-
-  for template in "$root/usr/share/omarchy/install/assets/limine/limine.conf" \
-                  "$root/usr/share/omarchy/default/limine/limine.conf"; do
-    if [[ -f $template ]]; then
-      cp "$template" "$root$esp/limine.conf"
-      found=1
+  for candidate in "$root/usr/share/omarchy/install/assets/limine/limine.conf" \
+                   "$root/usr/share/omarchy/default/limine/limine.conf"; do
+    if [[ -f $candidate ]]; then
+      template=$candidate
       break
     fi
   done
-  [[ -n $found ]] || fail "no limine.conf template in $root/usr/share/omarchy"
+  [[ -n $template ]] || fail "no limine.conf template in $root/usr/share/omarchy"
 
-  local machine_id old_id
+  local machine_id
   machine_id=$(cat "$root/etc/machine-id" 2>/dev/null || true)
-  for old_id in $old_ids; do
-    [[ $old_id == "$machine_id" ]] && continue
-    rm -rf "${root:?}$esp/$old_id"
+  [[ $machine_id =~ ^[0-9a-f]{32}$ ]] || fail "the factory system has no machine-id"
+
+  # Keep every top-level entry as it is, except the previous identity's: its
+  # first copy keeps only its header, re-keyed; its kernel and snapshot
+  # entries and any further copies are dropped.
+  local entries=""
+  if [[ -f $conf ]]; then
+    entries=$(awk -v old="$old_id" -v new="$machine_id" '
+      function flush() {
+        if (is_old && !rekeyed) { printf "%s\n", header; rekeyed = 1 }
+        else if (!is_old) printf "%s", block
+        block = header = ""; is_old = nested = 0
+      }
+      /^\/[^\/]/ { flush(); in_entry = 1 }
+      !in_entry { next }
+      {
+        line = $0
+        if (old != "" && /^comment: machine-id=/ && $0 ~ ("machine-id=" old "([[:space:]]|$)")) {
+          is_old = 1
+          sub("machine-id=" old, "machine-id=" new, line)
+        }
+        if (/^[[:space:]]*\/\//) nested = 1
+        block = block $0 "\n"
+        if (!nested) header = header line "\n"
+      }
+      END { flush() }
+    ' "$conf")
+  fi
+
+  { cat "$template"; [[ -z $entries ]] || printf '%s\n' "$entries"; } >"$conf.new"
+  mv "$conf.new" "$conf"
+}
+
+# limine-update rewrites limine.conf, the bootloader binaries and the UKIs,
+# and the UKIs carry one name across machine identities, so the rebuild
+# overwrites the running system's own. Copy them all, so that a staging that
+# fails before its entry verifies leaves this system booting as it did, and a
+# retry starts again from this system's own entry.
+esp_boot_paths() {
+  printf '%s\n' limine.conf EFI/Linux EFI/limine EFI/BOOT
+}
+
+backup_esp() {
+  local esp="$1" backup="$2" path
+  install -d "$backup/EFI"
+  for path in $(esp_boot_paths); do
+    if [[ -e $esp/$path ]]; then
+      cp -r "$esp/$path" "$backup/$path"
+    fi
   done
+}
+
+# Whatever the rebuild added, such as the UKI of a kernel only the factory
+# snapshot has, goes first: on a nearly full ESP the originals need its space.
+# Plain cp: FAT keeps no owners, so preserving them would fail.
+restore_esp() {
+  local esp="$1" backup="$2" new_id="$3" path
+  local -a present
+  mapfile -t present < <(cd "$esp" && find $(esp_boot_paths) 2>/dev/null)
+  for path in "${present[@]}"; do
+    if [[ ! -e $backup/$path ]]; then
+      rm -rf "${esp:?}/$path" || return 1
+    fi
+  done
+  cp -r "$backup/." "$esp/" || return 1
+  if [[ $new_id =~ ^[0-9a-f]{32}$ ]]; then
+    rm -rf "${esp:?}/$new_id"
+  fi
+}
+
+# The factory root is now the one that boots, so the ESP changes stand:
+# disarm the restore (the cleanup trap then just discards the backup) and
+# drop the previous identity's machine-id directory, whose kernels and
+# snapshot UKIs nothing references any more.
+commit_esp_staging() {
+  local esp="$1" old_id="$2" new_id="$3"
+  esp_restore=""
+  if [[ $old_id =~ ^[0-9a-f]{32}$ && $old_id != "$new_id" ]]; then
+    rm -rf "${esp:?}/$old_id"
+  fi
 }
 
 # Every UKI entry in limine.conf carries a #blake2b hash of the file it
 # points at; a mismatch makes Limine stop at a scary warning. Never hand over
-# a staged reset in that state.
+# a staged reset in that state. Only this installation's entry is rebuilt,
+# so only its UKIs are checked: other systems' entries are not ours to judge.
 verify_limine_hashes() {
-  local root="$1" esp="$2" line path hash file
+  local root="$1" esp="$2" line path hash file machine_id checked=0
+  machine_id=$(cat "$root/etc/machine-id")
+
   while IFS= read -r line; do
     path=${line#*boot():}
     path=${path%%#*}
@@ -345,7 +452,14 @@ verify_limine_hashes() {
     [[ -f $file ]] || fail "limine.conf points at missing $path"
     [[ $(b2sum "$file" | cut -d' ' -f1) == "$hash" ]] ||
       fail "limine.conf hash for $path does not match the rebuilt file"
-  done < <(grep -o 'boot():/EFI/Linux/[^#]*#[0-9a-f]*' "$root$esp/limine.conf")
+    checked=$((checked + 1))
+  done < <(awk -v id="$machine_id" '
+      /^\/[^\/]/ { mine = 0 }
+      $0 ~ ("^comment: machine-id=" id "([[:space:]]|$)") { mine = 1 }
+      mine
+    ' "$root$esp/limine.conf" | grep -o 'boot():/EFI/Linux/[^#]*#[0-9a-f]*')
+
+  ((checked > 0)) || fail "limine.conf has no rebuilt boot entry for this system"
 }
 
 # Rebuild the UKI from inside the next root so the deployed kernel/initramfs
@@ -371,7 +485,12 @@ rebuild_next_boot() {
   fi
   [[ -e $esp_device ]] || fail "ESP device $esp_device not found"
 
-  mount "$esp_device" "$next$esp_mount"
+  # The ESP stays mounted outside the staged root until the root switch, so
+  # the cleanup trap can still restore it after the bind into the chroot is
+  # gone.
+  mkdir -p "$ESP_MNT"
+  mount "$esp_device" "$ESP_MNT"
+  mount --bind "$ESP_MNT" "$next$esp_mount"
 
   local dir
   for dir in proc sys dev run; do
@@ -407,7 +526,17 @@ rebuild_next_boot() {
       fail "hibernation setup did not recreate $next/swap/swapfile (see $LOG_FILE)"
   fi
 
-  reset_limine_config "$next" "$esp_mount"
+  # The running system's identity is the one the reset replaces.
+  esp_old_id=$(cat /etc/machine-id 2>/dev/null || true)
+  esp_new_id=$(cat "$next/etc/machine-id" 2>/dev/null || true)
+
+  # From here until the factory root takes over, the cleanup trap restores
+  # this copy of the ESP's boot files on any failure.
+  esp_backup=$(mktemp -d /var/tmp/omarchy-system-factory-reset-esp.XXXXXX)
+  backup_esp "$ESP_MNT" "$esp_backup"
+  esp_restore=$ESP_MNT
+
+  reset_limine_config "$next" "$esp_mount" "$esp_old_id"
 
   log "Rebuilding boot files from the factory system (this can take a minute)"
   if ! chroot "$next" /usr/bin/limine-update >>"$LOG_FILE" 2>&1; then
@@ -437,6 +566,15 @@ rebuild_next_boot_platform() {
   reset_boot_op reset-verify "$next" || fail "$RESET_BOOT_ERROR (see $LOG_FILE)"
 
   [[ -z ${RESET_LUKS_DEVICE:-} ]] || add_reset_luks_slot
+}
+
+# Once the factory root is in place it is what boots, so the boot files
+# rebuild_next_boot left on the ESP stand and the ESP can be released. The
+# reset is staged by now: a leftover directory or mount only costs space
+# until the reboot, so neither may report the reset as failed.
+commit_next_boot() {
+  commit_esp_staging "$ESP_MNT" "${esp_old_id:-}" "${esp_new_id:-}" || true
+  umount "$ESP_MNT" 2>/dev/null || true
 }
 
 # Both the staged system and the retained baseline must lose the old hashes.
@@ -551,13 +689,11 @@ stage_full_reset() {
   log "Activating the factory system"
   local old="@omarchy-old-$(date +%s)"
   mv "$top/@" "$top/$old"
-  # Until the factory root is at @ the reset is not committed: cleanup has the
-  # platform's boot package roll its boot state back to the old root and
-  # revokes the throwaway slot, so the old root goes back to @ first.
+  # Until the factory root is at @ the reset is not committed: cleanup restores
+  # the old root's boot files, or has the platform's boot package roll them
+  # back, and revokes the throwaway slot, so the old root goes back to @ first.
   if ! mv "$next" "$top/@"; then
     if mv "$top/$old" "$top/@"; then
-      [[ $RESET_BOOT == "platform" ]] ||
-        fail "could not activate the factory system; the current root is back at @, but its boot files were already rebuilt from the factory system: run 'sudo limine-update' before rebooting (see $LOG_FILE)"
       fail "could not activate the factory system; the current root is back at @ (see $LOG_FILE)"
     fi
     # Neither root is at @. Keep the staged one as well for recovery.
@@ -567,6 +703,7 @@ stage_full_reset() {
   # From here the old root is gone, so the reset's unlock must survive.
   reset_committed=1
   swap_done=1
+  commit_next_boot
   sync
 
   # The boot package that prepared the reset gets the key on standard input,
