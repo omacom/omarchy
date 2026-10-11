@@ -28,13 +28,18 @@ import re
 from pathlib import Path
 
 root = Path(os.environ["ROOT"])
+gated = 0
 for path in sorted((root / "shell/plugins").glob("**/*.qml")):
   text = path.read_text()
   if not re.search(r"^(Panel|BarWidget) \{", text, re.M):
     continue
   for block in re.findall(r"^  ShellIpc \{\n(.*?)^  \}", text, re.M | re.S):
-    if not re.search(r"^    enabled:.*ipcOwner", block, re.M):
+    if re.search(r"^    enabled: .*root\.ipcOwner$", block, re.M):
+      gated += 1
+    else:
       print(path.relative_to(root))
+if gated == 0:
+  print("no gated handler found")
 PY
 )
 [[ -z $ungated ]] || fail "every bar widget's IPC handler is gated on ipcOwner" "ungated: $ungated"
@@ -87,6 +92,13 @@ if ! jq -e '.ok == true' "$result" >/dev/null; then
   fail "per-monitor copies register an IPC target once"
 fi
 pass "per-monitor copies register an IPC target once"
+
+# The copies left after the handover answer through Quickshell itself.
+reply=$(quickshell -p "$config_dir" ipc call test.widget ping 2>&1 || true)
+[[ $reply == "pong" ]] || fail "the remaining widget copy answers its IPC target" "got: $reply"
+targets=$(quickshell -p "$config_dir" ipc show 2>&1 || true)
+grep -q '^target test.panel$' <<<"$targets" || fail "the remaining panel copy holds its IPC target" "got: $targets"
+pass "the remaining copies answer their IPC targets"
 
 if grep -q 'will not be used' "$log"; then
   grep 'will not be used' "$log" >&2
