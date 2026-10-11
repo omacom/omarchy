@@ -129,6 +129,8 @@ Panel {
   function refresh() {
     root.today = new Date()
     root.goToToday()
+    clock.enabled = false
+    clock.enabled = true
   }
 
   function goToToday() {

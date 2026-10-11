@@ -105,6 +105,12 @@ ShellRoot {
     safeCall(item, "refresh", entry)
     safeCall(item, "close", entry)
 
+    if (entry.id === "omarchy.clock") {
+      item.displayDate = new Date(2000, 0, 1)
+      SystemSleep.resumed()
+      root.assertTrue(Math.abs(item.displayDate.getTime() - Date.now()) < 61000, entry.id + " catches up to the current time when the machine wakes")
+    }
+
     createdObjects.push(item)
     createdIds.push(entry.id)
   }
