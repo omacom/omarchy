@@ -4,6 +4,6 @@
 # omarchy:summary=Handle Thunderbolt device approval watch
 
 set -euo pipefail
-source "$OMARCHY_PATH/install/helpers/thunderbolt-policy.sh"
-source "$OMARCHY_PATH/install/helpers/thunderbolt-review.sh"
+source "$OMARCHY_PATH/migrations/retired-device-authorization/thunderbolt-policy.sh"
+source "$OMARCHY_PATH/migrations/retired-device-authorization/thunderbolt-review.sh"
 tb_watch

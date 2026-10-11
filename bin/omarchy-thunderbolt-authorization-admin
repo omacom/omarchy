@@ -1,6 +1,6 @@
 #!/bin/bash -p
 
-# omarchy:summary=Manage system Thunderbolt authorization settings
+# omarchy:summary=Run the retired Thunderbolt startup guard
 # omarchy:hidden=true
 
 # This root entrypoint uses installed code and rejects unsafe Bash startup.
@@ -12,6 +12,7 @@ set -euo pipefail
 (( EUID == 0 )) || exit 126
 export PATH=/usr/bin:/bin LC_ALL=C
 unset DBUS_SYSTEM_BUS_ADDRESS DBUS_SESSION_BUS_ADDRESS
-source /usr/share/omarchy/install/helpers/thunderbolt-policy.sh
-source /usr/share/omarchy/install/helpers/thunderbolt-setup.sh
-tb_admin "$@"
+source /usr/share/omarchy/migrations/retired-device-authorization/thunderbolt-policy.sh
+source /usr/share/omarchy/migrations/retired-device-authorization/thunderbolt-setup.sh
+[[ $# == 1 && $1 == "guard" ]] || exit 64
+tb_guard

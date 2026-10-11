@@ -13,7 +13,10 @@ set -euo pipefail
 (( EUID == 0 )) || exit 126
 export PATH=/usr/bin:/bin LC_ALL=C
 unset USBGUARD_DAEMON_CONF USBGUARD_DEBUG
-source /usr/share/omarchy/install/helpers/usb-authorization-policy.sh
+# Compatibility for a failed removal only; completed rollback retires this API.
+[[ ! -e /var/lib/omarchy/retired-device-authorization/completed &&
+  ! -e /var/lib/omarchy/retired-device-authorization/usb-completed ]] || exit 1
+source /usr/share/omarchy/migrations/retired-device-authorization/usb-policy.sh
 
 (( $# == 2 )) || exit 64
 # Omarchy persists to this file. Refuse custom daemon storage rather than

@@ -13,7 +13,9 @@ set -euo pipefail
 (( EUID == 0 )) || exit 126
 export PATH=/usr/bin:/bin LC_ALL=C
 unset DBUS_SYSTEM_BUS_ADDRESS DBUS_SESSION_BUS_ADDRESS
-source /usr/share/omarchy/install/helpers/thunderbolt-policy.sh
+# Compatibility for existing protection only; this cannot enable the feature.
+[[ -f /etc/omarchy/thunderbolt-authorization.enabled ]] || exit 1
+source /usr/share/omarchy/migrations/retired-device-authorization/thunderbolt-policy.sh
 
 [[ $# == 2 && ( $1 == "true" || $1 == "false" ) ]] || exit 64
 (( ${#2} <= 16384 )) || exit 64

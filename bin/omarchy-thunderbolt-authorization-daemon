@@ -12,5 +12,5 @@ set -euo pipefail
 (( EUID == 0 )) || exit 126
 export PATH=/usr/bin:/bin LC_ALL=C
 unset DBUS_SYSTEM_BUS_ADDRESS DBUS_SESSION_BUS_ADDRESS
-source /usr/share/omarchy/install/helpers/thunderbolt-policy.sh
+source /usr/share/omarchy/migrations/retired-device-authorization/thunderbolt-policy.sh
 tb_daemon
