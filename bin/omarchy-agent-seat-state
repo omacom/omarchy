@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# omarchy:summary=Show what the agent seat knows about its windows: popups, focus, size, scale
+# omarchy:args=[<window>] [--json]
+# omarchy:examples=omarchy agent seat state 1 | omarchy agent seat state --json
+
+# Straight from the broker, without a screenshot: each window's size and scale,
+# its open popups, whether the app has drawn yet, and whose input it saw last
+# (the user's or the agent's), so an agent knows not to act while the user is
+# working in a window.
+
+window=null
+as_json=false
+for arg in "$@"; do
+  case $arg in
+  --json) as_json=true ;;
+  [0-9]*) window=$arg ;;
+  *)
+    echo "Usage: omarchy agent seat state [<window>] [--json]" >&2
+    exit 1
+    ;;
+  esac
+done
+
+state=$(omarchy-agent-seat-broker call "$(jq -cn --argjson window "$window" '{command: "state", args: (if $window == null then {} else {window: $window} end)}')") || exit 1
+
+if [[ $as_json == "true" ]]; then
+  jq '.windows' <<<"$state"
+else
+  jq -r '.windows[] |
+    "window \(.window): \(.app_id) \(.title | @json)",
+    "  drawn:  \(if .drawn then "yes" else "not yet" end)",
+    "  size:   \(.size // [0, 0] | map(tostring) | join("x")) at scale \(.scale // 1 | . * 1000 | round / 1000)",
+    "  focus:  \(.focus.owner // "nobody") acted last\(if .focus.user_keyboard then ", the user is typing here" else "" end)\(if .focus.user_pointer then ", the user'"'"'s pointer is here" else "" end)",
+    "  popups: \(.popups | length)\(if (.popups | length) > 0 then " (" + (.popups | map("\(.size | map(round | tostring) | join("x")) at \(.position | map(round | tostring) | join(","))") | join(", ")) + ")" else "" end)",
+    (if .workspace then "  workspace: \(.workspace)" else empty end)' <<<"$state"
+fi
