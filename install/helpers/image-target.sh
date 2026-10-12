@@ -188,8 +188,10 @@ omarchy_image_limine_rebuild_confirmed() {
 
 # Rebuild the boot images through Limine, appending its output to the log ($1).
 # Returns 0 when the rebuild is confirmed, 1 when it ran but can't be
-# confirmed, and 2 when limine-mkinitcpio itself failed. A confirmed rebuild
-# clears the marker an unconfirmed one left for owner setup.
+# confirmed, and 2 when limine-mkinitcpio itself failed or its images couldn't
+# be flushed. A confirmed rebuild clears the marker an unconfirmed one left for
+# owner setup, only once the images are on disk: the boot partition is another
+# filesystem, so a power cut must not keep the marker's removal and lose them.
 omarchy_image_limine_rebuild() {
   local log=$1 output
   local -
@@ -197,5 +199,6 @@ omarchy_image_limine_rebuild() {
 
   output=$(limine-mkinitcpio </dev/null 2>&1 | tee -a "$log") || return 2
   omarchy_image_limine_rebuild_confirmed "$output" || return 1
+  sync || return 2
   rm -f "$omarchy_image_rebuild_unconfirmed"
 }

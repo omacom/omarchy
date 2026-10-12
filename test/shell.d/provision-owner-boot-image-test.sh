@@ -28,6 +28,12 @@ echo run >>"$REBUILDS"
 cat "$LIMINE_OUTPUT"
 SH
 chmod +x "$stub_bin/limine-mkinitcpio"
+# sync records whether the marker was still there when the images were flushed.
+cat >"$stub_bin/sync" <<'SH'
+#!/bin/bash
+if [[ -e $MARKER ]]; then echo marker-present >>"$SYNCS"; else echo marker-gone >>"$SYNCS"; fi
+SH
+chmod +x "$stub_bin/sync"
 export PATH="$stub_bin:$PATH" REBUILDS=$tmp/rebuilds LIMINE_OUTPUT=$tmp/limine-output
 
 export OMARCHY_IMAGE_ROOT=$tmp/root
@@ -36,6 +42,7 @@ mkdir -p "$OMARCHY_IMAGE_ROOT/var/lib/omarchy/image" "$OMARCHY_IMAGE_ROOT/var/lo
 source "$ROOT/install/helpers/image-target.sh"
 omarchy_image_init
 marker=$OMARCHY_IMAGE_ROOT/var/lib/omarchy/image/boot-rebuild-unconfirmed
+export MARKER=$marker SYNCS=$tmp/syncs
 [[ ${omarchy_image_rebuild_unconfirmed:-} == "$marker" ]] || fail "the helper names the marker omarchy-provision-hardware leaves"
 
 LOG_FILE=$tmp/provision-owner.log
@@ -89,8 +96,11 @@ pass "an unconfirmed rebuild fails the attempt, keeps the marker, and the retry 
 rm -f "$BOOT_IMAGE_FAILED_FLAG"
 limine_built 'Building UKI for linux (6.18.0)' '==> Initcpio image generation successful' \
   '==> Unified kernel image generation successful'
+rm -f "$SYNCS"
 confirm_boot_image || fail "a confirmed rebuild lets the attempt go on"
 [[ $(grep -c '^run$' "$REBUILDS") == 2 && ! -e $marker ]] || fail "Try again rebuilds again and clears the marker"
+[[ $(cat "$SYNCS" 2>/dev/null) == marker-present ]] ||
+  fail "the rebuilt images are flushed to disk before the marker goes" "$(cat "$SYNCS" 2>/dev/null)"
 [[ $(setup_error_message) == "Setup hit an error (details in $LOG_FILE)." ]] || fail "with the marker gone the error message is the usual one"
 pass "Try again reruns the rebuild and clears the marker once it is confirmed"
 
