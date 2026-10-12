@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.display-settings",
+  "name": "Display settings",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Display arrangement, modes and workspace assignments with guarded confirmation",
+  "kinds": ["panel"],
+  "entryPoints": { "panel": "Settings.qml" }
+}
