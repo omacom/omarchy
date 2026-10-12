@@ -2021,9 +2021,10 @@ Panel {
     property real fetchedAt: 0
     // The agent's tokens by day, for the allowance estimate. Left empty where
     // the limits belong to one of several accounts, since the days are not
-    // split by account.
+    // split by account. A stale percentage is older than the day totals, so
+    // dividing one by the other would overstate the allowance.
     property var days: []
-    readonly property real allowance: root.estimatedAllowance(days, window)
+    readonly property real allowance: stale ? -1 : root.estimatedAllowance(days, window)
     readonly property var scoped: window && window.scoped ? window.scoped : []
     readonly property bool alarming: window && window.percent >= 0.9
     readonly property real resetMs: root.resetMsFor(window)
