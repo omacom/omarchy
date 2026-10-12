@@ -152,6 +152,9 @@ if [[ -n $dev_checkout ]]; then
   omarchy-state set reboot-required
 fi
 
+# Read while the previous channel's repository is still the configured one.
+mapfile -t previous_channel_packages < <(pacman -Slq omarchy 2>/dev/null)
+
 omarchy-refresh-pacman "$pacman_channel"
 # The refresh can have installed an older release without this tree's helpers,
 # so the swap calls pacman itself. --ask 4 accepts omarchy <-> omarchy-dev
@@ -172,6 +175,21 @@ if [[ -z $dev_checkout ]]; then
     omarchy-state set reboot-required
   fi
   export OMARCHY_PATH=/usr/share/omarchy
+fi
+
+# Packages only the previous channel published are now foreign: nothing updates
+# them, and the AUR update can mistake an unrelated AUR package of the same name
+# for their upgrade. Offer to remove exactly those. Other foreign packages, like
+# the user's own AUR builds, were never in that repository and stay.
+mapfile -t left_behind < <(pacman -Qmq | grep -xFf <(printf '%s\n' "${previous_channel_packages[@]}"))
+if (( ${#left_behind[@]} > 0 )); then
+  echo -e "\nThe $channel channel doesn't provide these Omarchy packages:"
+  printf '  %s\n' "${left_behind[@]}"
+  if gum confirm --default=false "Remove ${#left_behind[@]} left-behind package(s)?"; then
+    omarchy-pkg-drop "${left_behind[@]}" || echo "Could not remove them. Try again with: omarchy-pkg-drop ${left_behind[*]}" >&2
+  else
+    echo "Keeping them. Remove them later with: omarchy-pkg-drop ${left_behind[*]}"
+  fi
 fi
 
 # The switch was already confirmed, but the user is still here: keep the
