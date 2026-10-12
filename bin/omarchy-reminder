@@ -39,6 +39,14 @@ active_reminder_timers() {
   done < <(systemctl --user list-timers --all --output=json "omarchy-reminder-*.timer" 2>/dev/null | jq -r '.[] | [.unit, .next] | @tsv')
 }
 
+# Restore and clear take this lock so a clear can't miss a timer that restore is
+# re-arming at the same moment.
+lock_reminders() {
+  mkdir -p "$reminder_dir"
+  exec 9>"$reminder_dir/.lock"
+  flock 9
+}
+
 refresh_indicator() {
   omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true
 }
@@ -119,6 +127,7 @@ show_json() {
 clear_reminders() {
   local units
 
+  lock_reminders
   units=$(systemctl --user list-timers --all --no-legend --no-pager "omarchy-reminder-*.timer" 2>/dev/null | awk '{ print $(NF - 1), $NF }')
 
   if [[ -n $units ]]; then
@@ -145,6 +154,7 @@ restore_reminders() {
   local due_file unit due delay minutes message
   local now=$(date +%s)
 
+  lock_reminders
   for due_file in "$reminder_dir"/omarchy-reminder-*.due; do
     [[ -f $due_file ]] || continue
     unit=$(basename "$due_file" .due)
@@ -215,7 +225,14 @@ shift || true
 message="$*"
 custom_message="$message"
 
-if [[ -z $minutes ]] || [[ ! $minutes =~ ^[0-9]+$ ]] || ((minutes == 0)); then
+if [[ -z $minutes ]] || [[ ! $minutes =~ ^[0-9]+$ ]]; then
+  usage
+  exit 1
+fi
+
+# Read the minutes as base 10, so "010" means ten minutes and not octal eight.
+minutes=$((10#$minutes))
+if ((minutes == 0)); then
   usage
   exit 1
 fi

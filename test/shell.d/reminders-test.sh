@@ -38,12 +38,20 @@ JS
 reminder_tmp=$(mktemp -d)
 trap 'rm -rf "$reminder_tmp"' EXIT
 mkdir -p "$reminder_tmp/bin"
-for stub in omarchy-notification-send omarchy-shell; do
-  printf '#!/bin/bash\nexit 0\n' >"$reminder_tmp/bin/$stub"
-done
+printf '#!/bin/bash\nexit 0\n' >"$reminder_tmp/bin/omarchy-shell"
+cat >"$reminder_tmp/bin/omarchy-notification-send" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$REMINDER_TEST_NOTIFY_LOG"
+STUB
+# Logs the timer it was asked to start; with REMINDER_TEST_FIRE set it also runs
+# the timer's payload right away, as if the timer had elapsed.
 cat >"$reminder_tmp/bin/systemd-run" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$*" >>"$REMINDER_TEST_LOG"
+if [[ -n $REMINDER_TEST_FIRE ]]; then
+  while (($#)) && [[ $1 != bash ]]; do shift; done
+  "$@"
+fi
 STUB
 cat >"$reminder_tmp/bin/systemctl" <<'STUB'
 #!/bin/bash
@@ -56,6 +64,7 @@ chmod +x "$reminder_tmp/bin"/*
 reminder() {
   PATH="$reminder_tmp/bin:$PATH" XDG_STATE_HOME="$reminder_tmp/state" \
     REMINDER_TEST_LOG="$reminder_tmp/runs" REMINDER_TEST_ACTIVE="${REMINDER_TEST_ACTIVE:-none}" \
+    REMINDER_TEST_NOTIFY_LOG="$reminder_tmp/notifications" REMINDER_TEST_FIRE="${REMINDER_TEST_FIRE:-}" \
     "$ROOT/bin/omarchy-reminder" "$@"
 }
 
@@ -99,3 +108,26 @@ pass "restore drops a malformed record"
 reminder clear
 [[ -z $(compgen -G "$store/*") ]] || fail "clear removes stored reminders"
 pass "clear removes stored reminders"
+
+rm -rf "$store" "$reminder_tmp/runs"
+reminder 010
+grep -q -- "--on-active=600s --unit=omarchy-reminder-10m-" "$reminder_tmp/runs" ||
+  fail "minutes with a leading zero are read as base 10"
+due_file=$(compgen -G "$store/omarchy-reminder-10m-*.due") || fail "a leading-zero reminder is stored under its base-10 minutes"
+pass "minutes with a leading zero are read as base 10"
+
+if reminder 00 >/dev/null; then
+  fail "zero minutes written with a leading zero are rejected"
+fi
+pass "zero minutes written with a leading zero are rejected"
+
+rm -rf "$store" "$reminder_tmp/runs" "$reminder_tmp/notifications"
+REMINDER_TEST_FIRE=1 reminder 5 "Stretch"
+grep -q "Reminder Stretch" "$reminder_tmp/notifications" || fail "a fired reminder sends its message"
+[[ -z $(compgen -G "$store/omarchy-reminder-*") ]] || fail "a fired reminder drops its stored due time and message"
+rm -f "$reminder_tmp/runs"
+reminder restore
+if grep -q "omarchy-reminder-5m-" "$reminder_tmp/runs" 2>/dev/null; then
+  fail "restore does not re-arm a reminder that already fired"
+fi
+pass "a fired reminder is dropped and not re-armed by restore"
