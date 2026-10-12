@@ -109,12 +109,18 @@ ColumnLayout {
             font.pixelSize: Style.font.body
           }
           Dropdown {
+            id: ownerDropdown
             objectName: "workspace-owner-" + modelData
             Layout.fillWidth: true
             showLabel: false
             options: [{value: "", label: "Choose monitor…"}].concat(root.displays.map(function(d) { return {value: d.name, label: d.label || d.name} }))
             value: Model.owner(root.workspaces, modelData)
-            onChanged: function(value) { root.requestAssignment(modelData, value) }
+            onChanged: function(value) {
+              root.requestAssignment(modelData, value)
+              // Dropdown assigns value before emitting changed, breaking the
+              // owner binding. Rebind even when transfer is declined or fails.
+              ownerDropdown.value = Qt.binding(function() { return Model.owner(root.workspaces, modelData) })
+            }
           }
         }
       }

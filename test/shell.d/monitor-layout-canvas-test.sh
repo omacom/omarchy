@@ -10,4 +10,5 @@ sandbox=$(mktemp -d)
 trap 'rm -rf "$sandbox"' EXIT
 cp -R "$ROOT/test/shell.d/fixtures/display-layout/"* "$sandbox/"
 cp "$ROOT/shell/plugins/panels/display-settings/"{LayoutCanvas.qml,LayoutModel.js,WorkspaceAssignments.qml} "$sandbox/"
+cp "$ROOT/shell/Ui/Dropdown.qml" "$sandbox/qs/Ui/Dropdown.qml"
 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software "$runner" -input "$sandbox" -import "$sandbox"

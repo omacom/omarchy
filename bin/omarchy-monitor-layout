@@ -11,8 +11,31 @@ CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/monitors.lua"
 mkdir -p "$STATE_DIR"
 exec 9>"$STATE_DIR/lock"
 flock 9
+exec 8>"${STATE_DIR%/*}/monitor-config.lock"
+flock 8
 
 fail() { echo "$*" >&2; exit 1; }
+
+publish_config() {
+  local replacement="$1" expected="$2" candidate displaced
+  [[ -f $CONFIG && ! -L $CONFIG ]] || return 1
+  sha256sum --check --status "$expected" || return 1
+  candidate=$(sha256sum "$replacement" | cut -d ' ' -f 1)
+  # Supported writers share the lock. External editors cannot be locked out:
+  # exchange retains the exact file displaced at publication, then checks it.
+  # Never discard either version when an uncooperative writer races the swap.
+  mv --exchange --no-copy -T "$replacement" "$CONFIG" || return 1
+  displaced=$(sha256sum "$replacement" | cut -d ' ' -f 1)
+  if [[ $displaced == "$(cut -d ' ' -f 1 "$expected")" && ! -L $replacement ]]; then
+    return 0
+  else
+    if [[ ! -L $CONFIG && $(sha256sum "$CONFIG" | cut -d ' ' -f 1) == "$candidate" ]]; then
+      mv --exchange --no-copy -T "$replacement" "$CONFIG" || return 1
+    fi
+    echo "Concurrent monitors.lua edit; retained displaced version at $replacement" >&2
+    return 1
+  fi
+}
 
 evaluate() {
   local result
@@ -28,9 +51,23 @@ monitor_code() {
 }
 
 move_workspaces() {
-  local code
-  code=$(jq -r '.workspaces[] | "hl.dispatch(hl.dsp.workspace.move({ workspace = \((.id|tostring)|tojson), monitor = \(.monitor|tojson) }))"' "$1")
-  evaluate "$code"
+  local id monitor code
+  while IFS=$'\t' read -r id monitor; do
+    # An earlier move can remove an empty workspace on the destination.
+    # Recheck immediately; preview must not recreate empty workspaces.
+    if hyprctl -j workspaces | jq -e --argjson id "$id" --arg monitor "$monitor" \
+      'any(.[]; .id == $id and .monitor != $monitor)' >/dev/null; then
+      code=$(jq -nr --arg id "$id" --arg monitor "$monitor" \
+        '"hl.dispatch(hl.dsp.workspace.move({ workspace = \($id|tojson), monitor = \($monitor|tojson) }))"')
+      evaluate "$code" || return 1
+    fi
+  done < <(jq -r '.workspaces[] | [.id, .monitor] | @tsv' "$1")
+}
+
+workspace_matches() {
+  jq -e --argjson actual "$(hyprctl -j workspaces)" '
+    all(.workspaces[]; . as $w | all($actual[]; .id != $w.id or .monitor == $w.monitor))
+  ' "$1" >/dev/null
 }
 
 saved_assignments() {
@@ -65,7 +102,11 @@ restore() {
       local replacement
       replacement=$(mktemp "${CONFIG%/*}/.monitors.XXXXXX")
       cp -p "$STATE_DIR/monitors.lua.backup" "$replacement"
-      mv -T "$replacement" "$CONFIG"
+      if publish_config "$replacement" "$STATE_DIR/candidate.sha256"; then
+        rm -f "$replacement"
+      else
+        echo "Recovery preserved the changed monitors.lua and $replacement" >&2
+      fi
     fi
     rm -f "$STATE_DIR/config.changed"
   fi
@@ -81,6 +122,7 @@ restore() {
   ' "$STATE_DIR/before.json" >"$STATE_DIR/restore.json"
   evaluate "$(monitor_code "$STATE_DIR/restore.json")"
   move_workspaces "$STATE_DIR/restore.json"
+  workspace_matches "$STATE_DIR/restore.json" || fail "The compositor could not restore workspace owners"
   rm -f "$STATE_DIR/pending.json"
 }
 
@@ -151,9 +193,12 @@ preview)
     /bin/bash -c 'sleep 20; exec "$1" revert "$2"' bash "$(readlink -f "${BASH_SOURCE[0]}")" "$token"
   evaluate "$(monitor_code "$STATE_DIR/after.json")"
   layout_matches || { restore; fail "The compositor could not apply the requested layout"; }
-  jq --argjson existing "$workspaces" '.workspaces |= map(select(.id as $id | any($existing[]; .id == $id)))' \
+  # Moving an active workspace can remove an empty workspace on its target.
+  # Do not dispatch unchanged owners captured before that move.
+  jq --argjson existing "$workspaces" '.workspaces |= map(select(. as $w | any($existing[]; .id == $w.id and .monitor != $w.monitor)))' \
     "$STATE_DIR/after.json" >"$STATE_DIR/moves.json"
   move_workspaces "$STATE_DIR/moves.json"
+  workspace_matches "$STATE_DIR/after.json" || { restore; fail "The compositor could not move the requested workspaces"; }
   cat "$STATE_DIR/pending.json"
   ;;
 keep | revert)
@@ -169,6 +214,7 @@ keep | revert)
       ([.displays[].name] | sort) == ([$monitors[] | select(.disabled != true) | .name] | sort)
     ' "$STATE_DIR/after.json" >/dev/null || { restore; fail "Connected displays changed during preview"; }
     layout_matches || { restore; fail "Display settings changed during preview"; }
+    workspace_matches "$STATE_DIR/after.json" || { restore; fail "Workspace owners changed during preview"; }
     begin_count=$(awk '/^-- BEGIN OMARCHY DISPLAY LAYOUT$/{n++} END{print n+0}' "$CONFIG")
     end_count=$(awk '/^-- END OMARCHY DISPLAY LAYOUT$/{n++} END{print n+0}' "$CONFIG")
     (( begin_count == end_count && begin_count <= 1 )) || { restore; fail "Invalid display layout markers"; }
@@ -178,6 +224,8 @@ keep | revert)
       END { if (inside) exit 1 }
     ' "$CONFIG" || { restore; fail "Invalid display layout marker order"; }
     cp -p "$CONFIG" "$STATE_DIR/monitors.lua.backup"
+    [[ $(sha256sum "$STATE_DIR/monitors.lua.backup" | cut -d ' ' -f 1) == "$(cut -d ' ' -f 1 "$STATE_DIR/config.sha256")" ]] || { restore; fail "monitors.lua changed while capturing the save snapshot"; }
+    sha256sum --check --status "$STATE_DIR/config.sha256" || { restore; fail "monitors.lua changed before saving"; }
     # Keep assignments for disconnected displays unless this edit explicitly
     # assigns the same workspace to a connected display.
     jq --argjson saved "$(saved_assignments)" '
@@ -186,12 +234,12 @@ keep | revert)
     ' "$STATE_DIR/after.json" >"$STATE_DIR/kept.json"
     # Own only this marked block; preserve every personal line outside it.
     awk '/^-- BEGIN OMARCHY DISPLAY LAYOUT$/{skip=1; next} /^-- END OMARCHY DISPLAY LAYOUT$/{skip=0; next} !skip' \
-      "$CONFIG" >"$STATE_DIR/monitors.lua.new"
+      "$STATE_DIR/monitors.lua.backup" >"$STATE_DIR/monitors.lua.new"
     {
       echo '-- BEGIN OMARCHY DISPLAY LAYOUT'
       # Retain our generated rules for disconnected outputs. A later hotplug
       # must not lose its arrangement when another display is edited.
-      awk '/^-- BEGIN OMARCHY DISPLAY LAYOUT$/{inside=1; next} /^-- END OMARCHY DISPLAY LAYOUT$/{inside=0} inside' "$CONFIG" |
+      awk '/^-- BEGIN OMARCHY DISPLAY LAYOUT$/{inside=1; next} /^-- END OMARCHY DISPLAY LAYOUT$/{inside=0} inside' "$STATE_DIR/monitors.lua.backup" |
         jq -Rr --argjson active "$(jq '[.displays[].name]' "$STATE_DIR/after.json")" '
           select(startswith("hl.monitor(")) | . as $line |
           capture("output = \"(?<name>[A-Za-z0-9._-]+)\"") |
@@ -201,13 +249,14 @@ keep | revert)
       echo '-- END OMARCHY DISPLAY LAYOUT'
     } >>"$STATE_DIR/monitors.lua.new"
     replacement=$(mktemp "${CONFIG%/*}/.monitors.XXXXXX")
-    cp -p "$CONFIG" "$replacement"
+    cp -p "$STATE_DIR/monitors.lua.backup" "$replacement"
     cat "$STATE_DIR/monitors.lua.new" >"$replacement"
     printf '%s  %s\n' "$(sha256sum "$replacement" | cut -d ' ' -f 1)" "$CONFIG" >"$STATE_DIR/candidate.sha256"
     touch "$STATE_DIR/config.changed"
     set -E
     trap 'trap - ERR; restore' ERR
-    mv -T "$replacement" "$CONFIG"
+    publish_config "$replacement" "$STATE_DIR/config.sha256" || { restore; fail "monitors.lua changed while saving; conflict versions were retained"; }
+    rm -f "$replacement"
     hyprctl reload >/dev/null
     errors=$(hyprctl configerrors)
     if [[ -n $errors ]]; then
@@ -215,6 +264,7 @@ keep | revert)
       fail "$errors"
     fi
     layout_matches || { restore; fail "Saved display layout did not survive reload"; }
+    workspace_matches "$STATE_DIR/after.json" || { restore; fail "Saved workspace owners did not survive reload"; }
     rm -f "$STATE_DIR/pending.json" "$STATE_DIR/config.changed"
   fi
   ;;

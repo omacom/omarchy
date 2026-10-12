@@ -53,17 +53,35 @@ case "$*" in
   if [[ -f $TEST_LAYOUT_LOG.monitors ]]; then cat "$TEST_LAYOUT_LOG.monitors"
   else echo '[{"name":"DP-1","width":1920,"height":1080,"refreshRate":60,"x":0,"y":0,"scale":1,"transform":0,"mirrorOf":"none","availableModes":["1920x1080@60.00Hz"]}]'; fi
   ;;
-'-j workspaces') echo '[{"id":1,"monitor":"DP-1"}]' ;;
+ '-j workspaces')
+  if [[ -f $TEST_LAYOUT_LOG.workspaces ]]; then cat "$TEST_LAYOUT_LOG.workspaces"
+  else echo '[{"id":1,"monitor":"DP-1"}]'; fi
+  ;;
 configerrors) [[ ${TEST_LAYOUT_ERROR:-0} == 0 ]] || echo 'invalid config' ;;
 *)
   printf '%s\n' "$*" >>"$TEST_LAYOUT_LOG"
   if [[ $1 == "eval" || $1 == "reload" ]]; then
-    python3 - "$1" "${2:-}" "$TEST_LAYOUT_LOG.monitors" "$XDG_CONFIG_HOME/hypr/monitors.lua" <<'PY_STUB'
+    python3 - "$1" "${2:-}" "$TEST_LAYOUT_LOG.monitors" "$XDG_CONFIG_HOME/hypr/monitors.lua" <<'PY_STUB' || exit 1
 import json, os, re, sys
 verb, code, runtime, config = sys.argv[1:]
 monitors = json.load(open(runtime)) if os.path.exists(runtime) else [dict(name='DP-1', width=1920, height=1080, refreshRate=60, x=0, y=0, scale=1, transform=0, mirrorOf='none', availableModes=['1920x1080@60.00Hz'])]
+workspaces_path = runtime.removesuffix('.monitors') + '.workspaces'
+workspaces = json.load(open(workspaces_path)) if os.path.exists(workspaces_path) else [dict(id=1, monitor='DP-1')]
 if verb == 'reload':
   code = open(config).read()
+for match in re.finditer(r'(?:workspace = |hl.workspace_rule\(\{ workspace = )"(\d+)", monitor = "([^"\n]+)"', code):
+  workspace_id, monitor = match.groups()
+  if verb == 'eval' and not any(w['id'] == int(workspace_id) for w in workspaces):
+    sys.exit(1)
+  if os.environ.get('TEST_LAYOUT_MOVE_FAIL') != '1' or verb == 'reload':
+    for workspace in workspaces:
+      if workspace['id'] == int(workspace_id):
+        previous = workspace['monitor']
+        workspace['monitor'] = monitor
+        if verb == 'eval' and previous != monitor and os.environ.get('TEST_LAYOUT_DROP_EMPTY') == '1':
+          workspaces[:] = [w for w in workspaces if w['id'] == int(workspace_id) or w['monitor'] != monitor or w.get('windows', 0) > 0]
+with open(workspaces_path, 'w') as f:
+  json.dump(workspaces, f)
 for match in re.finditer(r'output = "([^"\n]+)", mode = "([^"\n]+)", position = "(-?\d+)x(-?\d+)", scale = ([\d.]+), transform = (\d+)', code):
   name, mode, x, y, scale, transform = match.groups()
   width, height, rate = re.split(r'[x@]', mode)
@@ -89,6 +107,7 @@ original=$(cat "$XDG_CONFIG_HOME/hypr/monitors.lua")
 request='{"displays":[{"name":"DP-1","mode":"1920x1080@60.00","x":-1080,"y":0,"scale":1,"transform":1}],"workspaces":[{"id":1,"monitor":"DP-1"},{"id":2,"monitor":"DP-1"}]}'
 cli="$ROOT/bin/omarchy-monitor-layout"
 token=$("$cli" preview "$request" | jq -r .token)
+[[ $(jq '.workspaces | length' "$XDG_STATE_HOME/omarchy/monitor-layout/moves.json") == "0" ]] || fail 'does not dispatch unchanged workspace owners'
 [[ $(cat "$XDG_CONFIG_HOME/hypr/monitors.lua") == "$original" ]] || fail 'preview leaves config untouched'
 "$cli" state | jq -e --argjson expected "$request" '.preview == $expected and .pending != null' >/dev/null || fail 'reopened editor recovers preview assignments'
 if "$cli" keep wrong-token >/dev/null 2>&1; then fail 'rejects stale token'; fi
@@ -174,3 +193,61 @@ token=$("$cli" preview "$request" | jq -r .token)
 "$cli" keep "$token"
 rg -q 'output = "HDMI-A-1".*position = "4000x0"' "$XDG_CONFIG_HOME/hypr/monitors.lua" || fail 'retains unplugged monitor rule'
 pass 'editor Keep retains disconnected monitor rules'
+
+# Exercise actual owner dispatches on two displays, not an always-ok stub.
+jq '.[0] as $first | . + [$first | .name = "DP-2" | .x = 1920]' "$TEST_LAYOUT_LOG.monitors" >"$sandbox/two-monitors.json"
+cp "$sandbox/two-monitors.json" "$TEST_LAYOUT_LOG.monitors"
+printf '%s\n' '[{"id":1,"monitor":"DP-1"},{"id":2,"monitor":"DP-2"}]' >"$TEST_LAYOUT_LOG.workspaces"
+two_request=$(jq --argjson monitors "$(hyprctl -j monitors all)" '.displays = [$monitors[] | {name,mode:"1920x1080@60.00",x,y,scale,transform}] | .workspaces = [{id:1,monitor:"DP-2"},{id:2,monitor:"DP-1"}]' <<<"$request")
+empty_target_request=$(jq '.workspaces = [{id:1,monitor:"DP-2"},{id:2,monitor:"DP-2"}]' <<<"$two_request")
+token=$(TEST_LAYOUT_DROP_EMPTY=1 "$cli" preview "$empty_target_request" | jq -r .token)
+jq -e 'any(.[]; .id == 1 and .monitor == "DP-2") and all(.[]; .id != 2)' "$TEST_LAYOUT_LOG.workspaces" >/dev/null || fail 'moving to an empty active workspace does not redispatch its vanished owner'
+"$cli" revert "$token"
+jq -e 'any(.[]; .id == 1 and .monitor == "DP-1")' "$TEST_LAYOUT_LOG.workspaces" >/dev/null || fail 'empty-target transfer reverts'
+pass 'empty target workspace can disappear without an invalid no-op dispatch'
+printf '%s\n' '[{"id":1,"monitor":"DP-1"},{"id":2,"monitor":"DP-2"}]' >"$TEST_LAYOUT_LOG.workspaces"
+token=$(TEST_LAYOUT_DROP_EMPTY=1 "$cli" preview "$two_request" | jq -r .token)
+jq -e 'any(.[]; .id == 1 and .monitor == "DP-2") and all(.[]; .id != 2)' "$TEST_LAYOUT_LOG.workspaces" >/dev/null || fail 'empty workspace swap skips the vanished queued owner'
+"$cli" keep "$token"
+pass 'empty workspace swaps skip vanished owners and save their future rules'
+printf '%s\n' '[{"id":1,"monitor":"DP-1"},{"id":2,"monitor":"DP-2"}]' >"$TEST_LAYOUT_LOG.workspaces"
+token=$("$cli" preview "$two_request" | jq -r .token)
+jq -e 'any(.[]; .id == 1 and .monitor == "DP-2") and any(.[]; .id == 2 and .monitor == "DP-1")' "$TEST_LAYOUT_LOG.workspaces" >/dev/null || fail 'preview transfers both workspace owners'
+"$cli" revert "$token"
+jq -e 'any(.[]; .id == 1 and .monitor == "DP-1") and any(.[]; .id == 2 and .monitor == "DP-2")' "$TEST_LAYOUT_LOG.workspaces" >/dev/null || fail 'revert restores both workspace owners'
+token=$("$cli" preview "$two_request" | jq -r .token)
+"$cli" keep "$token"
+jq -e 'any(.[]; .id == 1 and .monitor == "DP-2") and any(.[]; .id == 2 and .monitor == "DP-1")' "$TEST_LAYOUT_LOG.workspaces" >/dev/null || fail 'keep survives reload with transferred owners'
+pass 'two-display workspace transfer is applied, reverted and persisted'
+
+reverse_request=$(jq '.workspaces = [{id:1,monitor:"DP-1"},{id:2,monitor:"DP-2"}]' <<<"$two_request")
+if TEST_LAYOUT_MOVE_FAIL=1 "$cli" preview "$reverse_request" >/dev/null 2>&1; then fail 'rejects ignored workspace dispatch'; fi
+[[ ! -f $pending ]] || fail 'failed workspace dispatch clears pending preview'
+pass 'ignored workspace dispatch is detected and reverted'
+
+# Inject edits at the exchange syscall, after all checksum checks/building.
+real_mv=$(command -v mv)
+cat >"$sandbox/bin/mv" <<'SH'
+#!/bin/bash
+if [[ $1 == "--exchange" && -n ${TEST_LAYOUT_RACE:-} && ! -f $TEST_LAYOUT_LOG.raced ]]; then
+  echo '-- edit at publication' >>"$XDG_CONFIG_HOME/hypr/monitors.lua"
+  touch "$TEST_LAYOUT_LOG.raced"
+fi
+exec "$TEST_LAYOUT_REAL_MV" "$@"
+SH
+chmod +x "$sandbox/bin/mv"
+export TEST_LAYOUT_REAL_MV="$real_mv"
+token=$("$cli" preview "$two_request" | jq -r .token)
+if TEST_LAYOUT_RACE=1 "$cli" keep "$token" >"$sandbox/race.log" 2>&1; then fail 'rejects publication race'; fi
+rg -q '^-- edit at publication$' "$XDG_CONFIG_HOME/hypr/monitors.lua" || fail 'preserves edit racing publication'
+pass 'Keep detects the displaced file and restores a racing external edit'
+
+rm -f "$TEST_LAYOUT_LOG.raced"
+token=$("$cli" preview "$two_request" | jq -r .token)
+cp -p "$XDG_CONFIG_HOME/hypr/monitors.lua" "$state/monitors.lua.backup"
+echo '-- interrupted Keep candidate' >>"$XDG_CONFIG_HOME/hypr/monitors.lua"
+sha256sum "$XDG_CONFIG_HOME/hypr/monitors.lua" >"$state/candidate.sha256"
+touch "$state/config.changed"
+TEST_LAYOUT_RACE=1 "$cli" revert "$token" >"$sandbox/recovery-race.log" 2>&1
+rg -q '^-- edit at publication$' "$XDG_CONFIG_HOME/hypr/monitors.lua" || fail 'preserves edit racing recovery'
+pass 'recovery detects and preserves an edit racing its exchange'

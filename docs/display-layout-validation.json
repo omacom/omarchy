@@ -1,0 +1,138 @@
+{
+  "capturedOn": "2026-10-12",
+  "environment": {
+    "compositor": "Hyprland 0.56.2",
+    "Qt": "6.11.2",
+    "shell": "Full production Quickshell config",
+    "outputs": "Two isolated headless outputs; no physical monitor changes",
+    "notVerified": [
+      "disposable VM acceptance",
+      "physical hardware preview/Keep",
+      "Qt 6.12 execution"
+    ]
+  },
+  "timedRollback": {
+    "input": "GUI selects HEADLESS-2 and Below, then Preview",
+    "before": [
+      {
+        "name": "HEADLESS-1",
+        "width": 1920,
+        "height": 1080,
+        "refreshRate": 60.0,
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "transform": 0
+      },
+      {
+        "name": "HEADLESS-2",
+        "width": 1920,
+        "height": 1080,
+        "refreshRate": 60.0,
+        "x": 1920,
+        "y": 0,
+        "scale": 1,
+        "transform": 0
+      }
+    ],
+    "preview": [
+      {
+        "name": "HEADLESS-1",
+        "width": 1920,
+        "height": 1080,
+        "refreshRate": 60.0,
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "transform": 0
+      },
+      {
+        "name": "HEADLESS-2",
+        "width": 1920,
+        "height": 1080,
+        "refreshRate": 60.0,
+        "x": 0,
+        "y": 1080,
+        "scale": 1,
+        "transform": 0
+      }
+    ],
+    "afterExpiry": [
+      {
+        "name": "HEADLESS-1",
+        "width": 1920,
+        "height": 1080,
+        "refreshRate": 60.0,
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "transform": 0
+      },
+      {
+        "name": "HEADLESS-2",
+        "width": 1920,
+        "height": 1080,
+        "refreshRate": 60.0,
+        "x": 1920,
+        "y": 0,
+        "scale": 1,
+        "transform": 0
+      }
+    ],
+    "pendingCleared": true,
+    "beforeConfigSha256": "7c2b3559bf7de40d0ed382fb5244c638bbc1c3802e896cdc3b13c77e84d032e3",
+    "afterConfigSha256": "7c2b3559bf7de40d0ed382fb5244c638bbc1c3802e896cdc3b13c77e84d032e3",
+    "recording": "images/display-timed-rollback.mp4",
+    "durationSeconds": 27,
+    "captureFramesPerSecond": 2
+  },
+  "keep": {
+    "input": "GUI Below, Preview, Keep; explicit compositor reload afterward",
+    "afterReload": [
+      {
+        "name": "HEADLESS-1",
+        "width": 1920,
+        "height": 1080,
+        "refreshRate": 60.0,
+        "x": 0,
+        "y": 0,
+        "scale": 1,
+        "transform": 0
+      },
+      {
+        "name": "HEADLESS-2",
+        "width": 1920,
+        "height": 1080,
+        "refreshRate": 60.0,
+        "x": 0,
+        "y": 1080,
+        "scale": 1,
+        "transform": 0
+      }
+    ],
+    "configErrors": "",
+    "persistedPosition": "HEADLESS-2: 0x1080"
+  },
+  "workspaceTransfer": {
+    "canceledOwner": "HEADLESS-1",
+    "previewOwner": "HEADLESS-2",
+    "revertedOwner": "HEADLESS-1",
+    "method": "production GUI selection/cancel; CLI workspace preview/revert"
+  },
+  "emptyWorkspaceSwap": {
+    "previewAndKeepOwner2": "HEADLESS-2",
+    "futureRule3": "HEADLESS-1",
+    "configerrors": ""
+  },
+  "reviewFixes": [
+    "shared layout/scaling lock and exchange-time displaced-file checksum",
+    "rebind workspace dropdown after every selection",
+    "stateful two-output workspace dispatch/revert/persistence fixtures",
+    "skip vanished empty workspace dispatches; verify remaining requested owners"
+  ],
+  "testLimits": [
+    "Race fixtures inject edits at the first publication/recovery exchange; repeated writers and already-open file descriptors are not exhaustively tested",
+    "Full CLI rerun was interrupted; focused command metadata check passed for 483 commands",
+    "Full aggregate suite was not rerun"
+  ]
+}
