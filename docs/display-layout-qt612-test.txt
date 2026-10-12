@@ -1,0 +1,10 @@
+********* Start testing of qmltestrunner *********
+Config: Using QtTest library 6.12.0, Qt 6.12.0 (x86_64-little_endian-lp64 shared (dynamic) release build; by GCC 11.5.0 20240719 (Red Hat 11.5.0-5)), omarchy 4.0.4
+PASS   : qmltestrunner::DisplayCanvas::initTestCase()
+PASS   : qmltestrunner::DisplayCanvas::test_continuous_drag()
+PASS   : qmltestrunner::DisplayCanvas::cleanupTestCase()
+PASS   : qmltestrunner::WorkspaceAssignments::initTestCase()
+PASS   : qmltestrunner::WorkspaceAssignments::test_transfer_requires_confirmation()
+PASS   : qmltestrunner::WorkspaceAssignments::cleanupTestCase()
+Totals: 6 passed, 0 failed, 0 skipped, 0 blacklisted, 654ms
+********* Finished testing of qmltestrunner *********

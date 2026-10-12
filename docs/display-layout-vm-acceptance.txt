@@ -1,0 +1,116 @@
+ok - Hyprland session is up (signature efb50993780079460b0cbed1363e2166a2de1d9f_1791796299_1016345162)
+==> test/acceptance.d/apps-test.sh
+ok - terminal opens a window
+ok - terminal window closes
+ok - browser opens a window
+ok - browser window closes
+ok - neovim opens a window
+ok - neovim window closes
+ok - writer opens a window
+ok - writer window closes
+    completed in 52s
+==> test/acceptance.d/cups-test.sh
+ok - printing packages are installed
+ok - the root CUPS-PDF backend is absent
+ok - automatic printer discovery is not installed or running
+ok - automatic printer discovery leaves no package files
+ok - CUPS is enabled, running, and answering
+ok - the CUPS authorization policy is protected
+ok - CUPS denies unauthenticated desktop administration
+    completed in 2s
+==> test/acceptance.d/menu-test.sh
+ok - root menu opens
+ok - root menu content is visible
+ok - style submenu is visible
+ok - menu bar position changes to left
+ok - menu bar becomes vertical
+ok - menu closes after selecting a position
+ok - menu bar restores its original horizontal position
+    completed in 60s
+==> test/acceptance.d/overlay-monitor-test.sh
+ok - menu starts closed
+ok - temporary overlay monitor appears
+ok - temporary overlay monitor has tall geometry
+ok - temporary overlay monitor is focused
+omarchy-shell is not responding
+    completed in 10s
+==> test/acceptance.d/panels-test.sh
+omarchy-shell is not responding
+    completed in 2s
+==> test/acceptance.d/security-test.sh
+ok - user is not in the input group
+ok - asdcontrol sudoers check skipped: sudo needs a password
+ok - sshd hardening exercise skipped: set OMARCHY_ACCEPTANCE_SUDO_PASSWORD to run it
+    completed in 1s
+==> test/acceptance.d/session-test.sh
+ok - compositor reports a monitor
+ok - omarchy-shell responds to ping
+ok - shell plugin is loaded: omarchy.audio
+ok - shell plugin is loaded: omarchy.background
+ok - shell plugin is loaded: omarchy.bar
+ok - shell plugin is loaded: omarchy.bluetooth
+ok - shell plugin is loaded: omarchy.clipboard
+ok - shell plugin is loaded: omarchy.emojis
+ok - shell plugin is loaded: omarchy.menu
+ok - shell plugin is loaded: omarchy.monitor
+ok - shell plugin is loaded: omarchy.network
+ok - shell plugin is loaded: omarchy.notifications
+ok - shell plugin is loaded: omarchy.power
+ok - shell plugin is loaded: omarchy.reminders
+ok - shell plugin is loaded: omarchy.weather
+ok - bar layer is on screen
+ok - background layer is on screen
+ok - hidden bar layer stays mapped
+ok - hidden bar layer parks off screen
+ok - revealed bar layer returns on screen
+ok - pipewire is running
+ok - root filesystem is btrfs
+ok - omarchy-version works
+ok - no failed system units
+ok - no failed user units
+    completed in 4s
+==> test/acceptance.d/shell-surfaces-test.sh
+ok - emoji picker opens
+ok - emoji picker selection closes
+ok - clipboard history captures test text
+ok - clipboard opens
+ok - clipboard search finds test text
+ok - clipboard selection closes
+ok - clipboard selection restores test text
+ok - system menu opens
+ok - system menu content is visible
+ok - system menu closes
+ok - background selector opens
+ok - background selector closes
+ok - theme selector opens
+ok - theme selector closes
+ok - reminder flow opens
+ok - reminder message prompt opens
+ok - reminder flow closes
+ok - notification popup opens
+timed out after 15s waiting for: screen_contains Acceptance notification
+not ok - notification content is visible
+    completed in 94s
+==> test/acceptance.d/system-test.sh
+ok - all Omarchy core packages are installed (0 missing)
+ok - the running linux-omarchy kernel has matching headers (7.2.5-3-omarchy)
+ok - Chromium is the default browser
+ok - Foot is the default terminal
+ok - Neovim is the default editor
+ok - a current theme is configured
+ok - a current background is configured
+ok - a monospace font is configured
+ok - desktop MIME handlers are configured
+ok - core system services are enabled
+ok - critical system services are running
+ok - user audio services are running
+ok - Docker is installed but unreachable by the desktop user without elevation
+ok - Neovim starts headlessly
+ok - Fastfetch can read system information
+mise WARN  mise version 2026.10.8 available
+mise WARN  self-update is disabled for this install, update mise the same way you installed it
+ok - core terminal tools are runnable
+ok - XDG user directories exist
+ok - Omarchy user state and shell configuration exist
+    completed in 11s
+not ok - acceptance suite failed in 236s (artifacts in /home/omarchy/pr14533-artifacts)
