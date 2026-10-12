@@ -100,7 +100,7 @@ printf "%s\n" "${OMARCHY_TEST_VERSION_CHANNEL:-unknown}"
 # The previous channel's Omarchy repository, and what is foreign after the switch.
 write_stub pacman '#!/bin/bash
 case "$1" in
-  -Slq) [[ -z ${OMARCHY_TEST_PREVIOUS_REPO:-} ]] || printf "%s\n" $OMARCHY_TEST_PREVIOUS_REPO; exit 0 ;;
+  -Slq) [[ -z ${OMARCHY_TEST_PREVIOUS_REPO:-} ]] || printf "%s\n" $OMARCHY_TEST_PREVIOUS_REPO; exit "${OMARCHY_TEST_PREVIOUS_REPO_STATUS:-0}" ;;
   -Qmq) [[ -z ${OMARCHY_TEST_FOREIGN:-} ]] || printf "%s\n" $OMARCHY_TEST_FOREIGN; exit 0 ;;
   -Q) shift ;;
   *) exit 1 ;;
@@ -187,6 +187,11 @@ assert_log_line $'update\t-y\tOMARCHY_PATH='"$package_root" "a failed removal st
 OMARCHY_TEST_PREVIOUS_REPO="omarchy omarchy-settings" OMARCHY_TEST_FOREIGN="my-aur-app" run_channel stable
 if grep -qE $'^(gum|drop)\t' "$log_file"; then fail "staying on stable offers nothing to remove" "$(cat "$log_file")"; fi
 pass "staying on stable offers nothing to remove"
+
+# An unreadable previous repository is an empty list, never a match-all.
+OMARCHY_TEST_PREVIOUS_REPO_STATUS=1 OMARCHY_TEST_FOREIGN="edge-app my-aur-app" run_channel stable
+if grep -qE $'^(gum|drop)\t' "$log_file"; then fail "an unreadable previous repository offers nothing to remove" "$(cat "$log_file")"; fi
+assert_log_line $'update\t-y\tOMARCHY_PATH='"$package_root" "an unreadable previous repository still finishes the switch"
 
 checkout="$test_tmp/home/omarchy"
 mkdir -p "$checkout"
