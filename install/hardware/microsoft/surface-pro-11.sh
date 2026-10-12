@@ -105,9 +105,9 @@ CONF
   unset surface_pro11_kernel uki_previous
   omarchy-pkg-drop linux-aarch64 linux-aarch64-headers
 
-  # libcamera with IMX681 support replaces a stock libcamera if something
-  # already installed one; --noconfirm alone would answer that prompt with N.
-  pacman -S --needed --noconfirm --ask 4 libcamera-surface-pro-11 pipewire-libcamera
+  # Stock libcamera drives the front and back cameras; PipeWire reaches them
+  # through its libcamera plugin.
+  omarchy-pkg-add pipewire-libcamera
 
   # iptsd turns the digitizer's reports into pen and touch input, the sensor
   # package serves the ADSP the light sensor's configuration, and the patched
