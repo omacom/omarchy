@@ -47,6 +47,7 @@ omarchy_image_init() {
   omarchy_image_queue=$omarchy_image_dir/deferred-steps
   omarchy_image_initramfs_baseline=$omarchy_image_dir/initramfs-inputs
   omarchy_image_boot_rebuild=$omarchy_image_dir/boot-rebuild
+  omarchy_image_rebuild_unconfirmed=$omarchy_image_dir/boot-rebuild-unconfirmed
   omarchy_image_keyring_request=$omarchy_image_dir/pacman-keyring
   omarchy_image_unit=omarchy-provision-hardware.service
   omarchy_image_systemd_dir=$omarchy_image_root/etc/systemd/system
@@ -161,4 +162,40 @@ omarchy_image_defer_hardware() {
     return 1
 
   echo "Image build for $omarchy_image_platform: deferred ${#steps[@]} hardware steps to first boot"
+}
+
+# limine-mkinitcpio skips a kernel it could not build or install (a full boot
+# partition, say) and still exits 0, so its output ($1) decides: at least one
+# image started, every image it started reports success in mkinitcpio's own
+# line, and nothing it ran reported an error. A UKI build reports both an
+# initcpio and a unified image. mkinitcpio and the hook script prefix errors
+# with ERROR; limine-entry-tool, which copies the images to the boot partition,
+# prints most of its own as "Failed to ...", "Command failed: ...", "The file:
+# ... not found", "Invalid 'initrd=...", "Repeated hash mismatches...",
+# "Kernel name: ... is invalid" or "FAT32 boot partition not found...".
+omarchy_image_limine_rebuild_confirmed() {
+  local output uki initcpio built_uki built_initcpio
+
+  output=$(sed 's/\x1b\[[0-9;]*m//g' <<<"$1")
+  ! grep -Eq '^((==> )?(ERROR|Error|error)\b|Failed to |Command failed:|The file: |Invalid '"'"'initrd=|Repeated hash mismatches|Kernel name: |FAT32 boot partition not found)' <<<"$output" ||
+    return 1
+  uki=$(grep -Ec '^Building UKI (fallback )?for ' <<<"$output") || true
+  initcpio=$(grep -Ec '^Building (fallback )?initramfs for ' <<<"$output") || true
+  built_uki=$(grep -Ec '^==> Unified kernel image generation successful' <<<"$output") || true
+  built_initcpio=$(grep -Ec '^==> Initcpio image generation successful' <<<"$output") || true
+  (( uki + initcpio > 0 && built_uki >= uki && built_initcpio >= initcpio + uki ))
+}
+
+# Rebuild the boot images through Limine, appending its output to the log ($1).
+# Returns 0 when the rebuild is confirmed, 1 when it ran but can't be
+# confirmed, and 2 when limine-mkinitcpio itself failed. A confirmed rebuild
+# clears the marker an unconfirmed one left for owner setup.
+omarchy_image_limine_rebuild() {
+  local log=$1 output
+  local -
+  set -o pipefail
+
+  output=$(limine-mkinitcpio </dev/null 2>&1 | tee -a "$log") || return 2
+  omarchy_image_limine_rebuild_confirmed "$output" || return 1
+  rm -f "$omarchy_image_rebuild_unconfirmed"
 }

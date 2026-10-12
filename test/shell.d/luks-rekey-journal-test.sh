@@ -234,6 +234,7 @@ setup_functions() {
   source "$TMP/provision.sh"
   STATE_FILE=$TMP/state
   FINALIZE_WARNING_FLAG=$TMP/finalize-warning
+  BOOT_IMAGE_FAILED_FLAG=$TMP/boot-image-unconfirmed
   username=owner hostname="" timezone=""
   create_user() { :; }
   install_authorized_keys() { :; }
@@ -251,6 +252,8 @@ setup_functions() {
     [[ -e $TMP/stale ]]
   }
   luks_device() { echo "$DEVICE"; }
+  # Covered by provision-owner-boot-image-test.sh.
+  confirm_boot_image() { :; }
   systemctl() { :; }
   clear_logo() { :; }
   sleep() { :; }
@@ -284,6 +287,7 @@ attempt() {
 # First-boot setup up to the owner form, with the screen captured.
 setup() {
   source "$TMP/provision.sh"
+  BOOT_IMAGE_FAILED_FLAG=$TMP/boot-image-unconfirmed
   clear_logo() { :; }
   sleep() { :; }
   say() { printf '%s\n' "$*" >>"$TMP/screen"; }
