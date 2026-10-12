@@ -38,6 +38,11 @@ export PATH="$OMARCHY_PATH/bin:$PATH"
 REKEY_STATE=$PROVISIONING_DIR/luks-rekey.state
 source "$OMARCHY_PATH/install/provisioning/luks-rekey.sh"
 
+# The image's deferred hardware setup leaves a marker here when it couldn't
+# confirm Limine's rebuild of the boot image (confirm_boot_image, below).
+source "$OMARCHY_PATH/install/helpers/image-target.sh"
+omarchy_image_init
+
 # The shared setup form — the same questions, prompts, and validation the ISO
 # configurator's user step asks. The ISO vendors this very file out of the
 # runtime package it bundles, so an install and the first boot that finishes it
@@ -177,6 +182,7 @@ DARK="${CSI}90m"
 
 STATE_FILE=/run/omarchy-provision-owner.state
 FINALIZE_WARNING_FLAG=/run/omarchy-provision-owner.finalize-warning
+BOOT_IMAGE_FAILED_FLAG=/run/omarchy-provision-owner.boot-image-unconfirmed
 # Rows the setup screen occupies: logo, blank, title, blank, bar, blank, tip.
 SETUP_HEIGHT=$((LOGO_HEIGHT + 6))
 SETUP_TOP_ROW=1
@@ -1122,6 +1128,37 @@ reset_limine_config() {
   done
 }
 
+# omarchy-provision-hardware couldn't confirm Limine's rebuild of the boot image
+# (a module mkinitcpio couldn't build, a boot partition too full to take the
+# image) and left a marker. Rebuild and check again before handing off: one
+# that still can't be confirmed fails the attempt, and flags it for this boot so
+# the retry screen says why (setup_error_message). The marker stays, and with
+# it the pending setup, until a rebuild is confirmed.
+confirm_boot_image() {
+  local status=0
+
+  [[ -e $omarchy_image_rebuild_unconfirmed ]] || return 0
+  log_step "rebuilding the boot image the hardware setup could not confirm"
+  echo boot >"$STATE_FILE"
+  omarchy_image_limine_rebuild "$omarchy_image_root/var/log/omarchy-install.log" || status=$?
+  if (( status != 0 )); then
+    log_step "the boot image rebuild still could not be confirmed (see /var/log/omarchy-install.log)"
+    touch "$BOOT_IMAGE_FAILED_FLAG"
+    return 1
+  fi
+  log_step "boot image rebuild confirmed"
+}
+
+# Try again reruns the same rebuild, which fails the same way until its cause
+# is fixed, so the message points to the console.
+setup_error_message() {
+  if [[ -e $BOOT_IMAGE_FAILED_FLAG ]]; then
+    echo "The boot image rebuild couldn't be confirmed (see /var/log/omarchy-install.log). Choose Drop to console to fix what it reports, such as a full boot partition, then run omarchy-provision-owner."
+  else
+    echo "Setup hit an error (details in $LOG_FILE)."
+  fi
+}
+
 cleanup_oem_state() {
   # Keep groups + packages: omarchy-system-factory-reset stages the bundled Node
   # tarball from these live copies when the factory snapshot predates it.
@@ -1174,6 +1211,8 @@ run_provisioning() {
     return 1
   fi
 
+  confirm_boot_image || return 1
+
   if omarchy-pkg-present usbguard; then
     log_step "enrolling the owner's USB devices"
     source "$OMARCHY_PATH/install/helpers/usb-authorization.sh"
@@ -1210,6 +1249,7 @@ platform_ready() {
 run_setup() {
   local status
 
+  rm -f "$BOOT_IMAGE_FAILED_FLAG"
   platform_ready || return 1
 
   while true; do
@@ -1297,13 +1337,13 @@ main() {
   while ! "$0" --attempt; do
     clear_logo
     echo
-    say --foreground 1 "Setup hit an error (details in $LOG_FILE)."
+    say --foreground 1 "$(setup_error_message)"
     echo
     if ! gum confirm --affirmative "Try again" --negative "Drop to console" "Retry first-boot setup?"; then
       # Give an actual usable console: this service owns tty1 (and Conflicts the
-      # getty), and on a failed deferred setup there's no user account and root
-      # is locked — so exiting would strand the machine with no way in. Exec a
-      # root shell on tty1; SDDM starts once it exits.
+      # getty), and a setup that failed before creating the account leaves no
+      # user and root locked, so exiting would strand the machine with no way
+      # in. Exec a root shell on tty1; SDDM starts once it exits.
       say "Dropping to a root shell. Run 'omarchy-provision-owner' to retry setup."
       exec /bin/bash
     fi
