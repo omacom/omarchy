@@ -42,6 +42,11 @@ cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
 #!/bin/bash
 printf '%s\n' "$1" >"$OMARCHY_TEST_BROWSER_FOCUS"
 SH
+ln -s "$ROOT/bin/omarchy-cmd-default-browser" "$mock_bin/omarchy-cmd-default-browser"
+cat >"$mock_bin/omarchy-cmd-browser-handoff" <<'SH'
+#!/bin/bash
+exit 1
+SH
 chmod +x "$mock_bin"/*
 
 launch_log="$test_tmp/launch"
@@ -81,7 +86,29 @@ grep -F 'https://example.test/fallback' "$launch_log" >/dev/null ||
 grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
   fail "browser launcher focuses the browser resolved from the HTTPS handler"
 
+if HOME="$test_home" PATH="$mock_bin:$PATH" \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "file:///etc/passwd" 2>"$test_tmp/err"; then
+  fail "browser launcher refuses a file: URL"
+fi
+grep -Fq 'must be http or https' "$test_tmp/err" ||
+  fail "browser launcher names the scheme refusal" "$(cat "$test_tmp/err")"
+
+if HOME="$test_home" PATH="$mock_bin:$PATH" \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "--gpu-launcher=/tmp/evil" 2>"$test_tmp/err"; then
+  fail "browser launcher refuses a leading-dash Chromium flag"
+fi
+
+if HOME="$test_home" PATH="$mock_bin:$PATH" \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test" "--proxy-server=http://evil.test" 2>"$test_tmp/err"; then
+  fail "browser launcher refuses extra browser flags after the URL"
+fi
+
 pass "browser launcher follows opened links to the browser workspace"
+pass "browser launcher refuses file URLs and extra Chromium flags"
+
 
 rm -f "$launch_log"
 cat >"$mock_bin/omarchy-cmd-browser-handoff" <<'SH'
