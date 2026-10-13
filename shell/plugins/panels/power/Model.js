@@ -67,14 +67,17 @@ function chargeThresholdActive(device, onBattery, states, rateFresh) {
   return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
 }
 
-function batteryIcon(device, onBattery, states, rateFresh) {
+// rateFresh feeds the display device's own limit check. A caller that has
+// settled the limit another way, as the panel does from the packs on a machine
+// with several, passes it as threshold and that answer stands.
+function batteryIcon(device, onBattery, states, rateFresh, threshold) {
   var d = device || {}
   if (!d.isPresent) return ""
 
   var chargingIcons = ["󰢜", "󰂆", "󰂇", "󰂈", "󰢝", "󰂉", "󰢞", "󰂊", "󰂋", "󰂅"]
   var defaultIcons = ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
   var index = Math.max(0, Math.min(9, Math.floor(d.percentage * 10)))
-  var threshold = chargeThresholdActive(d, onBattery, states, rateFresh)
+  if (threshold === undefined) threshold = chargeThresholdActive(d, onBattery, states, rateFresh)
 
   if (threshold) return defaultIcons[index]
   if (d.state === states.FullyCharged) return "󰂅"
@@ -82,13 +85,14 @@ function batteryIcon(device, onBattery, states, rateFresh) {
   return defaultIcons[index]
 }
 
-function modeLabel(device, onBattery, states, tr, rateFresh) {
+function modeLabel(device, onBattery, states, tr, rateFresh, threshold) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var d = device || {}
   if (!d.isPresent) return ""
 
   var percentage = d.isPresent ? d.percentage : 0
-  if (chargeThresholdActive(d, onBattery, states, rateFresh)) return t("power.threshold", "Threshold")
+  if (threshold === undefined) threshold = chargeThresholdActive(d, onBattery, states, rateFresh)
+  if (threshold) return t("power.threshold", "Threshold")
   if (onBattery) return t("power.onBattery", "On battery")
   if (!onBattery && percentage >= 1) return t("power.fullyCharged", "Fully charged")
   return t("power.charging", "Charging")
@@ -114,6 +118,80 @@ function profileLabel(name, tr) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+// UPower exposes no cycle count or kernel charge limit per pack, and only
+// omarchy-battery-status decides whether a pack holds charge or sits at its
+// limit, so it supplies them, keyed by device name because enumeration order
+// is not stable.
+function parsePackMetadata(info) {
+  var packs = {}
+  var kv = info || {}
+  Object.keys(kv).forEach(function(key) {
+    var match = /^pack\.([0-9]+)\.path$/.exec(key)
+    if (!match) return
+    var prefix = "pack." + match[1] + "."
+    packs[kv[key]] = {
+      cycles: kv[prefix + "cycles"] || "",
+      thresholdStart: kv[prefix + "thresholdStart"] || "",
+      thresholdEnd: kv[prefix + "thresholdEnd"] || "",
+      holdsCharge: kv[prefix + "holdsCharge"] !== "false",
+      atLimit: kv[prefix + "atLimit"] === "true"
+    }
+  })
+  return packs
+}
+
+function deviceName(device) {
+  return String(device.nativePath || "").split("/").pop()
+}
+
+// An empty bay lists a battery with no capacity, which is not a pack. Keep in
+// step with omarchy-battery-status.
+function laptopDevices(devices) {
+  return (devices || []).filter(function(device) {
+    return device && device.ready && device.isPresent && device.isLaptopBattery && !(Number(device.energyCapacity) <= 0)
+  }).sort(function(a, b) {
+    return deviceName(a).localeCompare(deviceName(b))
+  })
+}
+
+// What omarchy-battery-status reads to place a pack at its limit: the state,
+// and whether charge is still flowing. Some firmware reports charging at a
+// trickle once a pack reaches its limit, so the state alone never changes.
+function packFlow(device) {
+  return device.state + (Number(device.changeRate || 0) > 0.2 ? "+" : "")
+}
+
+// UPower's display device sums every pack, a dead one's capacity included, so
+// it can read 49% while the pack in use is at 99%. omarchy-battery-status
+// names the one pack still holding charge when the others are dead; otherwise
+// the display device describes them together.
+function headlineBattery(devices, display, name) {
+  var named = laptopDevices(devices).filter(function(pack) { return deviceName(pack) === name })
+  return named.length === 1 ? named[0] : display
+}
+
+function packSummary(device, onBattery, states, metadata, tr, fmt) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var f = typeof fmt === "function" ? fmt : String
+  var m = metadata || {}
+  var label = t("power.unknown", "Unknown")
+  if (m.holdsCharge === false) label = t("power.notHoldingCharge", "Not holding charge")
+  else if (m.atLimit) label = t("power.holding", "Holding")
+  else if (device.state === states.Charging) label = t("power.charging", "Charging")
+  else if (device.state === states.Discharging) label = t("power.discharging", "Discharging")
+  else if (device.state === states.FullyCharged) label = t("power.fullyCharged", "Fully charged")
+  else if (device.state === states.PendingCharge) label = onBattery ? t("power.idle", "Idle") : t("power.waitingToCharge", "Waiting to charge")
+  else if (device.state === states.PendingDischarge) label = t("power.idle", "Idle")
+  else if (device.state === states.Empty) label = t("power.empty", "Empty")
+  return f(Math.round(batteryFraction(device) * 100)) + "% · " + label
+}
+
+function formatThreshold(metadata) {
+  var start = metadata.thresholdStart
+  var end = metadata.thresholdEnd
+  return (start !== "" && start !== end ? start + "-" : "") + end + "%"
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     clampIndex: clampIndex,
@@ -126,6 +204,13 @@ if (typeof module !== "undefined") {
     batteryIcon: batteryIcon,
     modeLabel: modeLabel,
     profileLabel: profileLabel,
-    localizeReading: localizeReading
+    localizeReading: localizeReading,
+    parsePackMetadata: parsePackMetadata,
+    deviceName: deviceName,
+    laptopDevices: laptopDevices,
+    packFlow: packFlow,
+    headlineBattery: headlineBattery,
+    packSummary: packSummary,
+    formatThreshold: formatThreshold
   }
 }
