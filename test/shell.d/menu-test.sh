@@ -464,6 +464,26 @@ assert(
     && defaultById['trigger.appearance.animations'].action === 'omarchy-toggle-animations',
   'menu uses the existing animations toggle without separate background intro controls'
 )
+const styleIds = defaultItems.filter(item => item.parent === 'style').map(item => item.id)
+const themeAt = styleIds.indexOf('style.theme')
+assert(
+  styleIds[themeAt + 1] === 'style.theme-next' && styleIds[themeAt + 2] === 'style.theme-prev',
+  'menu offers next and previous theme under Style after Theme'
+)
+assertEqual(
+  defaultById['style.theme-next'].action,
+  'omarchy-theme-next',
+  'menu cycles to the next theme from Style'
+)
+assertEqual(
+  defaultById['style.theme-prev'].action,
+  'omarchy-theme-prev',
+  'menu cycles to the previous theme from Style'
+)
+assert(
+  defaultById['style.theme-next'].aliases.length === 0 && defaultById['style.theme-prev'].aliases.length === 0,
+  'menu does not alias the new Style theme cycle rows'
+)
 assertDeepEqual(
   defaultItems.filter(item => item.parent === 'setup.plugin').map(item => item.label),
   ['Enable Plugin', 'Disable Plugin', 'Add Plugin', 'Clone Plugin', 'Remove Plugin'],
