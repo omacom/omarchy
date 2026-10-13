@@ -32,6 +32,7 @@ class TypingSetupTest(unittest.TestCase):
     self.assertEqual(catalog["la"], "Lao")
     self.assertEqual(catalog["kr:kr104"], "Korean")
     self.assertNotIn("kr", catalog)
+    self.assertEqual(catalog["ir"], "Persian")
     # Converted as the installer does.
     self.assertEqual(catalog["fr"], "French")
     self.assertEqual(catalog["bg:phonetic"], "Bulgarian")

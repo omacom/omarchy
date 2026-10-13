@@ -156,6 +156,10 @@ class InputMethodTest(unittest.TestCase):
     self.preference.write_text("INPUT_METHOD=none\nXKB_LAYOUT=la\n")
     self.assertEqual(setup.selection(), ("none", "us"))
 
+  def test_persian_preference_keeps_a_latin_fcitx_keyboard(self):
+    self.preference.write_text("INPUT_METHOD=none\nXKB_LAYOUT=ir\n")
+    self.assertEqual(setup.selection(), ("none", "us"))
+
   def test_korean_preference_yields_to_a_later_keyboard_change(self):
     self.preference.write_text("INPUT_METHOD=hangul\nXKB_LAYOUT=kr\n")
     self.assertEqual(setup.selection(), ("hangul", "kr"))

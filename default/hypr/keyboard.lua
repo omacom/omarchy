@@ -37,10 +37,10 @@ function keyboard.vconsole()
 end
 
 -- Choices whose console keymap is plain US but whose desktop layout is not:
--- Korean keeps US letters, and Lao is non-Latin, so US still leads. Korean
--- installs take kr104, which adds Right Alt and Right Ctrl as 한/영 and 한자;
--- plain kr is what earlier installs saved.
-local desktop_overrides = { kr = true, ["kr:kr104"] = true, la = true }
+-- Korean keeps US letters, and Persian and Lao are non-Latin, so US still
+-- leads. Korean installs take kr104, which adds Right Alt and Right Ctrl as
+-- 한/영 and 한자; plain kr is what earlier installs saved.
+local desktop_overrides = { ir = true, kr = true, ["kr:kr104"] = true, la = true }
 
 function keyboard.installed()
   local values = keyboard.vconsole()
