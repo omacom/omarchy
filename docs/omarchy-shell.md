@@ -157,6 +157,20 @@ customizes, `shell.json` is canonical — there is no deep-merge.
 
 ## Theme tokens
 
+Shell and plugin QML must qualify the palette singleton because Qt 6.12 introduces its own `Color` type. Import `qs.Commons` with an alias and use `Commons.Color` for palette properties and signal connections:
+
+```qml
+import QtQuick
+import qs.Commons
+import qs.Commons as Commons
+
+Rectangle {
+  color: Commons.Color.background
+}
+```
+
+The unqualified import can remain for `Style`, `Util`, and `Border`. Existing third-party plugins that use bare `Color` must make the same change; fixing the host shell does not change a plugin's import scope.
+
 See [`theming.md`](theming.md) for the full theme/template workflow,
 including generated `*.tpl` files, gradient helpers, and shell border syntax.
 
@@ -166,24 +180,24 @@ sizing in `themes/<name>/shell.toml`. Defaults are generated from
 `shell.toml` next to its `colors.toml` to replace the generated file.
 
 `colors.toml` uses `foreground` and `background` for the foundational
-text/background palette, exposed to QML as `Color.foreground` and
-`Color.background`.
+text/background palette, exposed to QML as `Commons.Color.foreground` and
+`Commons.Color.background`.
 
 The shell exposes these tokens to QML via two singletons in
 `qs.Commons`:
 
 - `Color` — palette (`foreground`, `background`, `accent`, `urgent`)
-  and per-surface roles (`Color.bar.*`, `Color.popups.*`,
-  `Color.tooltip.*`, `Color.notifications.*`, `Color.menu.*`,
-  `Color.launcher.*`, `Color.imagePicker.*`, `Color.polkit.*`,
-  `Color.lock.*`). Clipboard and emojis share `Color.menu.*`.
+  and per-surface roles (`Commons.Color.bar.*`, `Commons.Color.popups.*`,
+  `Commons.Color.tooltip.*`, `Commons.Color.notifications.*`, `Commons.Color.menu.*`,
+  `Commons.Color.launcher.*`, `Commons.Color.imagePicker.*`, `Commons.Color.polkit.*`,
+  `Commons.Color.lock.*`). Clipboard and emojis share `Commons.Color.menu.*`.
 - `Style` — structural tokens (`cornerRadius`), shared interactive
   state tokens/helpers, spacing (`Style.spacing.*` / `Style.space(px)`),
   the type scale (`Style.font.*`), and bar dimensions
   (`Style.bar.sizeHorizontal` / `Style.bar.sizeVertical`).
 - `Border` — border-spec helpers for QML surfaces. Use with
   `BorderSurface` from `qs.Ui` when a border should honor shell theme
-  gradients or per-side widths. `Color.<section>.border` is only the
+  gradients or per-side widths. `Commons.Color.<section>.border` is only the
   flat-color fallback for code that cannot render a real border.
 
 ### Interactive states

@@ -45,3 +45,7 @@ unicode characters. Agent file-editing tools can strip multi-byte codepoints
 in some positions — do **not** rewrite widget files wholesale through those
 tools. For glyph fixes, make a targeted edit with the surrounding context, or
 use a Python script that inserts codepoints via `chr(0xXXXXX)`.
+
+## Palette references
+
+Import `qs.Commons as Commons` and use `Commons.Color` for the palette singleton, including `Connections.target`. Qt 6.12 introduces a `Color` type in `QtQuick` that shadows unqualified palette references. This applies to first-party components and third-party plugin QML alike. Keep the unqualified `qs.Commons` import when the file also uses `Style`, `Util`, or `Border`.
