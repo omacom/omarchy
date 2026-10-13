@@ -1,0 +1,87 @@
+#!/usr/bin/python3
+# omarchy:summary=Show this user's process groups by memory use (RAM + swap)
+# omarchy:args=[--json]
+# omarchy:examples=omarchy memory top | omarchy memory top --json
+
+# A group is (cgroup, process group id). Neither alone works: apps launched from
+# Hyprland all share Hyprland's pgid, while one terminal scope holds the
+# terminal, its shells, and every build they started, each in its own pgid.
+#
+# UNIT is the cgroup's last part. systemd-oomd only kills scopes under
+# app.slice, and always the whole scope, so that is what to read it by.
+
+import json
+import os
+import signal
+import sys
+
+
+def read(path, mode="r", errors=None):
+  with open(path, mode, errors=errors) as f:
+    return f.read()
+
+
+def scan():
+  uid = os.getuid()
+  groups = {}
+  for pid in os.listdir("/proc"):
+    if not pid.isdigit():
+      continue
+    try:
+      status = read(f"/proc/{pid}/status", errors="replace")
+      stat = read(f"/proc/{pid}/stat", errors="replace")
+      cmd = read(f"/proc/{pid}/cmdline", "rb").replace(b"\0", b" ")
+      cmd = cmd.decode(errors="replace").strip()
+      cgroup = read(f"/proc/{pid}/cgroup", errors="replace").strip().split("::")[-1]
+    except OSError:
+      continue
+    fields = dict(l.split(":", 1) for l in status.splitlines() if ":" in l)
+    if int(fields["Uid"].split()[0]) != uid:
+      continue
+    kb = lambda k: int(fields.get(k, "0 kB").split()[0])
+    rest = stat[stat.rindex(")") + 2:].split()
+    state, ppid, pgid = rest[0], int(rest[1]), int(rest[2])
+    name = fields["Name"].strip()
+    key = f"{cgroup}#{pgid}"
+    g = groups.setdefault(key, {
+      "key": key, "cgroup": cgroup, "unit": cgroup.rsplit("/", 1)[-1],
+      "pgid": pgid, "rss_mb": 0, "swap_mb": 0, "pids": [], "procs": [],
+      "stopped": 0, "leader": None, "leader_cmd": "",
+    })
+    g["procs"].append({
+      "pid": int(pid), "ppid": ppid, "name": name, "cmd": cmd[:160],
+      "state": state, "rss_kb": kb("VmRSS"), "swap_kb": kb("VmSwap"),
+    })
+    g["pids"].append(int(pid))
+    g["stopped"] += state == "T"
+    if int(pid) == pgid or g["leader"] is None:
+      g["leader"], g["leader_cmd"] = name, cmd[:160]
+  out = list(groups.values())
+  for g in out:
+    g["rss_mb"] = sum(p["rss_kb"] for p in g["procs"]) // 1024
+    g["swap_mb"] = sum(p["swap_kb"] for p in g["procs"]) // 1024
+    g["total_mb"] = g["rss_mb"] + g["swap_mb"]
+    g["pids"].sort()
+  out.sort(key=lambda g: -g["total_mb"])
+  return out
+
+
+def main():
+  # Piped into head, the table's writer ends quietly, as a shell tool does.
+  signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+  groups = scan()
+  if "--json" in sys.argv:
+    for g in groups:
+      del g["procs"]
+    json.dump(groups, sys.stdout, indent=1)
+    return 0
+  print(f"{'TOTAL':>7} {'RSS':>7} {'SWAP':>7} {'N':>4} S  LEADER  [UNIT PGID]  CMD")
+  for g in groups[:int(os.environ.get("OMARCHY_MEMORY_TOP_N", 20))]:
+    print(f"{g['total_mb']:>6}M {g['rss_mb']:>6}M {g['swap_mb']:>6}M "
+          f"{len(g['pids']):>4} {'T' if g['stopped'] else '-'}  "
+          f"{g['leader']}  [{g['unit']} pgid={g['pgid']}]  {g['leader_cmd'][:80]}")
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())

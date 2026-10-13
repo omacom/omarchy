@@ -14,6 +14,7 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Silence notifications | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
 | Stay awake (no idle lock) | `Super + Ctrl + I` | `omarchy toggle idle` |
 | Crash capture | — | `omarchy toggle crash-capture` |
+| Memory watchdog | — | `omarchy toggle memory-watch` |
 | Screensaver | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) theme sync | — | `omarchy toggle theme sync` |
 | Menu bar | `Super + Shift + Space` | `omarchy toggle bar` |
@@ -86,6 +87,14 @@ If you dismiss the screensaver before the lock deadline, that counts as activity
 To stop locking on idle entirely, `Super + Ctrl + I` — or `omarchy toggle idle` — flips stay awake on, and the coffee cup indicator appears in the bar. That's the one to hit before a long presentation or a build you want to watch. Hit it again to go back to normal. `omarchy toggle idle status` prints the current state as JSON if you need it from a script.
 
 This is about locking and the screensaver, not power. Suspend and hibernation have their own setup in [system sleep](36-system-sleep.md).
+
+### Memory watchdog
+
+When memory runs out, systemd-oomd kills an app to save the session. It picks only among the apps you launched, never the compositor or the desktop itself, and always takes the whole app: a terminal goes with every shell and build running in it. It does that once RAM and swap are both more than 90% full, or once your apps have spent half their time waiting on memory for 20 seconds, and nothing on the desktop says it is coming.
+
+The memory watchdog says so. It is off by default; turn it on under _Trigger > Toggle > Memory Watch On_ (or with `omarchy toggle memory-watch`, which also takes `on` or `off`). Once swap is half full while RAM is 80% full, RAM is 90% full and your apps are stalling on it, or your apps are stalling on memory a quarter of the time however full RAM is (oomd's stall line has no RAM condition either), you get a critical notification naming the largest process, while there is still time to close something. It waits for two readings in a row, two seconds apart, so a passing spike says nothing, and it says it at most once every five minutes. If oomd does kill an app, another notification names it and says why.
+
+`omarchy memory top` shows what is using memory, by process group, with the systemd unit each one runs in. The thresholds are environment variables (`OMARCHY_MEMORY_WARN_SWAP_PCT`, `OMARCHY_MEMORY_WARN_SWAP_MEM_PCT`, `OMARCHY_MEMORY_WARN_MEM_PCT`, `OMARCHY_MEMORY_WARN_PSI`, `OMARCHY_MEMORY_WARN_STALL_PSI`, `OMARCHY_MEMORY_WARN_GAP`); set them with `systemctl --user edit omarchy-memory-watch`. The toggle copies the watchdog's unit into `~/.config/systemd/user` when it turns it on, so after an Omarchy update changes that unit, turn the watchdog off and on again to pick it up. Its log is `~/.local/state/omarchy/memory-watch/watch.log`.
 
 ### The screensaver
 

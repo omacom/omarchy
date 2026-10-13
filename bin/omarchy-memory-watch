@@ -1,0 +1,164 @@
+#!/bin/bash
+
+# omarchy:summary=Watch memory pressure and warn before systemd-oomd kills an app
+# omarchy:hidden=true
+
+# systemd-oomd only kills scopes under app.slice
+# (default/systemd/user/app.slice.d/10-oomd.conf), and always a whole scope:
+# a terminal takes every shell and build in it along. It acts on one of two
+# lines: RAM and swap both more than 90% used (SwapUsedLimit), or app.slice
+# stalled on memory for half the time, held for 20s
+# (etc/systemd/oomd.conf.d/10-omarchy.conf). It cannot kill the compositor or
+# anything else in session.slice, which it does not look at. Neither line is
+# visible from the desktop, so the first sign is a window gone. This samples
+# the same numbers oomd reads:
+#
+#   warn   swap 50% used with RAM 80% used, RAM 90% used with a 20% stall,
+#          or a 25% stall at any RAM use (oomd's stall line has no RAM
+#          condition), about halfway to oomd's lines and held for two samples
+#          so one spike raises nothing: a critical toast naming the largest
+#          process group, while there is still time to close it, at most once
+#          every five minutes. Never swap alone: zram is sized to RAM, so half
+#          of it in use is routine while RAM is fine.
+#   kills  after oomd kills, a toast naming what it took (omarchy-memory-oomd-kills).
+#
+# Thresholds are environment variables; change them with a drop-in from
+# `systemctl --user edit omarchy-memory-watch`.
+
+set -uo pipefail
+
+readonly STATE=$HOME/.local/state/omarchy/memory-watch
+readonly LOG=$STATE/watch.log
+# What memory looked like when it was last tight, so a kill can be named after
+# the process is gone.
+readonly LAST_TOP=$STATE/last-top.json
+# nf-md-memory, escaped so this file reads without a Nerd Font.
+readonly MEMORY_GLYPH=$'\U000f035b'
+
+# Overridable so the tests can feed the watcher numbers.
+meminfo=${OMARCHY_MEMORY_MEMINFO:-/proc/meminfo}
+pressure=${OMARCHY_MEMORY_PRESSURE:-/proc/pressure/memory}
+# oomd's pressure line is app.slice's own stall, which can run ahead of the
+# system's, so the higher of the two counts.
+app_pressure=${OMARCHY_MEMORY_APP_PRESSURE:-/sys/fs/cgroup/user.slice/user-$UID.slice/user@$UID.service/app.slice/memory.pressure}
+
+interval=${OMARCHY_MEMORY_INTERVAL:-2}
+warn_swap_pct=${OMARCHY_MEMORY_WARN_SWAP_PCT:-50}         # with warn_swap_mem_pct; oomd: 90 and 90
+warn_swap_mem_pct=${OMARCHY_MEMORY_WARN_SWAP_MEM_PCT:-80}
+warn_mem_pct=${OMARCHY_MEMORY_WARN_MEM_PCT:-90}   # with warn_psi
+warn_psi=${OMARCHY_MEMORY_WARN_PSI:-20}           # full avg10; oomd kills at 50 held for 20s
+warn_stall_psi=${OMARCHY_MEMORY_WARN_STALL_PSI:-25} # alone, at any RAM use
+warn_gap=${OMARCHY_MEMORY_WARN_GAP:-300}
+# How soon a kill follower that has stopped is started again.
+kills_restart_gap=${OMARCHY_MEMORY_KILLS_RESTART_GAP:-30}
+
+mkdir -p "$STATE"
+
+log() {
+  printf '%s %s\n' "$(date '+%F %T')" "$*" | tee -a "$LOG" >&2
+}
+
+full_avg10() {
+  [[ -r $1 ]] && awk '/^full/ { split($2, a, "="); printf "%d", a[2] }' "$1"
+}
+
+read_metrics() {
+  local key value _ app
+  while read -r key value _; do
+    case $key in
+    MemTotal:) mem_total=$value ;;
+    MemAvailable:) mem_avail=$value ;;
+    SwapTotal:) swap_total=$value ;;
+    SwapFree:) swap_free=$value ;;
+    esac
+  done <"$meminfo"
+  mem_pct=$((100 - mem_avail * 100 / mem_total))
+  swap_pct=0
+  ((swap_total > 0)) && swap_pct=$(((swap_total - swap_free) * 100 / swap_total))
+  psi=$(full_avg10 "$pressure")
+  app=$(full_avg10 "$app_pressure")
+  psi=${psi:-0}
+  ((${app:-0} > psi)) && psi=$app
+}
+
+metrics() {
+  echo "ram ${mem_pct}% ($((mem_avail / 1024))M free), swap ${swap_pct}%, pressure ${psi}"
+}
+
+snapshot() {
+  local err
+  if err=$(omarchy-memory-top --json 2>&1 >"$LAST_TOP.tmp"); then
+    mv "$LAST_TOP.tmp" "$LAST_TOP"
+  else
+    log "snapshot failed: ${err:-no output}"
+  fi
+}
+
+warn() {
+  local leader mb line largest
+  IFS=$'\t' read -r leader mb < <(jq -r 'first(.[]) | "\(.leader)\t\(.total_mb)"' "$LAST_TOP" 2>/dev/null)
+  largest=${leader:+$leader, ${mb}M}
+  log "warn: $(metrics), largest ${largest:-unknown}"
+  # Worded in the background too, so the loop never waits on the toast.
+  {
+    if ((swap_pct >= warn_swap_pct && mem_pct >= warn_swap_mem_pct)); then
+      line=$(omarchy-i18n memory.warnSwap "$swap_pct" "$mem_pct")
+    else
+      line=$(omarchy-i18n memory.warnStall "$mem_pct" "$psi")
+    fi
+    if [[ -n $leader ]]; then
+      largest=$(omarchy-i18n memory.warnLargest "$leader" "$mb" "omarchy memory top")
+    else
+      largest=$(omarchy-i18n memory.warnLargestUnknown "omarchy memory top")
+    fi
+    # Largest first: a toast shows two lines of its body until it is hovered.
+    omarchy-notification-send --urgency critical --glyph "$MEMORY_GLYPH" \
+      "$(omarchy-i18n memory.runningOut)" "$largest $line"
+  } >/dev/null 2>&1 &
+}
+
+# The follower reads the journal with `journalctl --follow`, which ends when
+# the journal goes away under it (journald restarted, say); without it, a
+# kill goes unnamed, so the loop below starts it again.
+start_kills() {
+  omarchy-memory-oomd-kills &
+  kills_pid=$!
+  kills_started=$EPOCHSECONDS
+}
+
+start_kills
+trap 'kill "$kills_pid" 2>/dev/null' EXIT
+trap 'exit 0' TERM INT
+
+last_warn=0
+last_snapshot=0
+warm=0
+log "watching: warn at (swap>=${warn_swap_pct}% and ram>=${warn_swap_mem_pct}%) or (ram>=${warn_mem_pct}% and pressure>=${warn_psi}) or pressure>=${warn_stall_psi}"
+
+while true; do
+  read_metrics
+
+  if ! kill -0 "$kills_pid" 2>/dev/null && ((EPOCHSECONDS - kills_started >= kills_restart_gap)); then
+    log "oomd kill follower stopped; starting it again"
+    start_kills
+  fi
+
+  # Two samples in a row, so one spike doesn't raise a toast.
+  if (((swap_pct >= warn_swap_pct && mem_pct >= warn_swap_mem_pct) ||
+    (mem_pct >= warn_mem_pct && psi >= warn_psi) || psi >= warn_stall_psi)); then
+    ((warm++))
+    if ((EPOCHSECONDS - last_snapshot >= 10)); then
+      snapshot
+      last_snapshot=$EPOCHSECONDS
+    fi
+  else
+    warm=0
+  fi
+
+  if ((warm >= 2 && EPOCHSECONDS - last_warn >= warn_gap)); then
+    warn
+    last_warn=$EPOCHSECONDS
+  fi
+
+  sleep "$interval"
+done
