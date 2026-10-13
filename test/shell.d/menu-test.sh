@@ -728,14 +728,16 @@ assert(
   'menu row hover routes through pointer movement gate'
 )
 assert(
-  /function requestedSelection\(requestSerial\)[\s\S]*queue\[i\]\.serial === requestSerial[\s\S]*running && serial === requestSerial/.test(menuQml)
-    && /selectionProc\.requestedSelection\(requestSerial\)/.test(menuQml)
-    && /onExited: function\(exitCode\) \{\s*if \(serial === root\.requestSerial && changeKey === root\.dmenuChangeKey/.test(menuQml),
-  'multi-select callbacks stay isolated to the request that queued them'
+  /function requestedSelection\(changeKey\)[\s\S]*queue\[i\]\.key === changeKey[\s\S]*running && this\.changeKey === changeKey/.test(menuQml)
+    && /selectionProc\.requestedSelection\(dmenuChangeKey\)/.test(menuQml)
+    && /function startNext\(\) \{\s*if \(queue\.length === 0\) return/.test(menuQml)
+    && /confirmed\[changeKey\] = applied/.test(menuQml)
+    && !/function cancelRequest\(/.test(menuQml),
+  'multi-select saves survive menu requests and remain scoped to their setting key'
 )
 assert(
-  /dmenuSaved = dmenuSelected\s*\n\s*if \(dmenuOnChange\.length > 0\)/.test(menuQml)
-    && /root\.dmenuSaved = root\.dmenuSelected\s*\n\s*\} else \{\s*root\.dmenuSelected = root\.dmenuSaved/.test(menuQml),
+  /confirmed\[changeKey\] = applied[\s\S]*root\.dmenuConfirmedSelections = confirmed/.test(menuQml)
+    && /\} else \{\s*root\.dmenuSelected = root\.dmenuSaved/.test(menuQml),
   'a failed immediate change restores the confirmed checks, even after reopening onto queued ones'
 )
 assert(
