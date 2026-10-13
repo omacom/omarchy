@@ -728,7 +728,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v19\n'
+    printf 'v20\n'
     leading_keyboard
     omarchy-language 2>/dev/null
     cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null

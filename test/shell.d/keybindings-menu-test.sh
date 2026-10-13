@@ -359,7 +359,7 @@ pass "keybinding descriptions show in the Omarchy language"
 
 # A platform package names keys the way its keyboards print them. On a MacBook
 # XF86MonBrightnessUp/Down are the F2/F1 keys, so without the names the menu
-# shows rows like "SHIFT + XF86MonBrightnessUp". The menu reads them from the
+# shows rows like "SHIFT + BRIGHTNESS UP". The menu reads them from the
 # fixed platform root; copies of it read a fixture root with key names, one
 # saved with CRLF line ends and blanks around a line, and (the copy above) none.
 platform=$tmpdir/platform
@@ -416,8 +416,8 @@ BINDS
 # blind to the names would serve.
 names_cache=$tmpdir/cache-names
 output=$(keybindings "$menu" "$names_cache")
-tr -s ' ' <<<"$output" | grep -qF 'SHIFT + XF86MonBrightnessUp → Keyboard brightness up' ||
-  fail "without key names the brightness key keeps its own name" "$output"
+tr -s ' ' <<<"$output" | grep -qF 'SHIFT + BRIGHTNESS UP → Keyboard brightness up' ||
+  fail "without key names the brightness key takes its media label" "$output"
 
 output=$(keybindings "$platform/with-names" "$names_cache")
 
@@ -449,13 +449,13 @@ tr -s ' ' <<<"$output" | grep -qF 'SHIFT + F2 → Keyboard brightness up' && tr 
   fail "key names saved with CRLF line ends and blanks around them still apply" "$output"
 pass "keybindings menu reads key names saved with CRLF line ends"
 
-# Without a platform package the keys keep their own names, and a cache made
-# with the names is not reused.
+# Without a platform package the keys take the media label printed on most
+# keyboards, and a cache made with the platform names is not reused.
 output=$(keybindings "$menu" "$names_cache")
-tr -s ' ' <<<"$output" | grep -qF 'SHIFT + XF86MonBrightnessUp → Keyboard brightness up' ||
-  fail "without key names the brightness key keeps its own name" "$output"
+tr -s ' ' <<<"$output" | grep -qF 'SHIFT + BRIGHTNESS UP → Keyboard brightness up' ||
+  fail "without key names the brightness key takes its media label" "$output"
 grep -qF 'SHIFT + F2' <<<"$output" && fail "without key names nothing is renamed F2" "$output"
-pass "keybindings menu keeps keysym names without a platform package"
+pass "keybindings menu uses media labels without a platform package"
 
 # The menu learns about Lua-only binds by running the user's hyprland.lua under
 # a stub `hl`. That stub has to survive whatever a config does at load time, or
