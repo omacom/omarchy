@@ -813,7 +813,7 @@ Item {
           root.applyDmenuSelection(JSON.stringify(MenuModel.dmenuSelections(root.dmenuOptions, root.dmenuSelected)))
         } else {
           var value = MenuModel.dmenuValue(root.dmenuOptions[Number(picked.itemId.substring(6))])
-          var selected = MenuModel.toggleDmenuSelection(selectionProc.requestedSelection(), value)
+          var selected = MenuModel.toggleDmenuSelection(selectionProc.requestedSelection(requestSerial), value)
           if (root.dmenuOnChange.length > 0) {
             selectionProc.enqueue(selected)
           } else {
@@ -887,7 +887,11 @@ Item {
   }
 
   function cancel() {
-    if (root.dmenuActive) root.finishRequest(null)
+    if (root.dmenuActive) {
+      selectionProc.cancelRequest(requestSerial)
+      requestSerial += 1
+      root.finishRequest(null)
+    }
     opened = false
     filterText = ""
   }
@@ -928,7 +932,7 @@ Item {
     dmenuSelected = MenuModel.dmenuSelections(dmenuOptions, Array.isArray(payload.selected) ? payload.selected : [], dmenuOnChange.length > 0)
     dmenuSaved = dmenuSelected
     if (dmenuOnChange.length > 0)
-      dmenuSelected = MenuModel.dmenuSelections(dmenuOptions, selectionProc.requestedSelection(), true)
+      dmenuSelected = MenuModel.dmenuSelections(dmenuOptions, selectionProc.requestedSelection(requestSerial), true)
     selectionFile = String(payload.selectionFile || "")
     doneFile = String(payload.doneFile || "")
     requestActive = !!doneFile
@@ -1013,12 +1017,16 @@ Item {
     property var queue: []
     property string collected: ""
 
-    function requestedSelection() {
+    function requestedSelection(requestSerial) {
       for (var i = queue.length - 1; i >= 0; i--) {
-        if (queue[i].key === root.dmenuChangeKey) return queue[i].selected
+        if (queue[i].serial === requestSerial && queue[i].key === root.dmenuChangeKey) return queue[i].selected
       }
-      if (running && changeKey === root.dmenuChangeKey) return selected
+      if (running && serial === requestSerial && changeKey === root.dmenuChangeKey) return selected
       return root.dmenuSelected
+    }
+
+    function cancelRequest(requestSerial) {
+      queue = queue.filter(function(change) { return change.serial !== requestSerial })
     }
 
     function enqueue(values) {
@@ -1031,6 +1039,7 @@ Item {
     }
 
     function startNext() {
+      queue = queue.filter(function(change) { return change.serial === root.requestSerial })
       if (queue.length === 0) return
       var change = queue[0]
       queue = queue.slice(1)
@@ -1047,7 +1056,7 @@ Item {
       onStreamFinished: selectionProc.collected = text
     }
     onExited: function(exitCode) {
-      if (changeKey === root.dmenuChangeKey && root.dmenuActive && root.dmenuOnChange.length > 0) {
+      if (serial === root.requestSerial && changeKey === root.dmenuChangeKey && root.dmenuActive && root.dmenuOnChange.length > 0) {
         if (exitCode === 0) {
           var applied = selected
           if (collected.trim()) {

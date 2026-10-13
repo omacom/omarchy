@@ -728,6 +728,12 @@ assert(
   'menu row hover routes through pointer movement gate'
 )
 assert(
+  /function requestedSelection\(requestSerial\)[\s\S]*queue\[i\]\.serial === requestSerial[\s\S]*running && serial === requestSerial/.test(menuQml)
+    && /selectionProc\.requestedSelection\(requestSerial\)/.test(menuQml)
+    && /onExited: function\(exitCode\) \{\s*if \(serial === root\.requestSerial && changeKey === root\.dmenuChangeKey/.test(menuQml),
+  'multi-select callbacks stay isolated to the request that queued them'
+)
+assert(
   /dmenuSaved = dmenuSelected\s*\n\s*if \(dmenuOnChange\.length > 0\)/.test(menuQml)
     && /root\.dmenuSaved = root\.dmenuSelected\s*\n\s*\} else \{\s*root\.dmenuSelected = root\.dmenuSaved/.test(menuQml),
   'a failed immediate change restores the confirmed checks, even after reopening onto queued ones'
