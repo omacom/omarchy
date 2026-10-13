@@ -109,13 +109,12 @@ CONF
   # through its libcamera plugin.
   omarchy-pkg-add pipewire-libcamera
 
-  # iptsd turns the digitizer's reports into pen and touch input, the sensor
-  # package serves the ADSP the light sensor's configuration, and the patched
-  # power-profiles-daemon reaches the Surface's platform profile.
-  omarchy-pkg-add iptsd surface-pro-11-sensors power-profiles-daemon-surface-pro-11
+  # iptsd turns the digitizer's reports into pen and touch input, and the
+  # sensor package serves the ADSP the light sensor's configuration.
+  omarchy-pkg-add iptsd surface-pro-11-sensors
 
   # The light sensor configuration is copied from the Windows installation,
   # which a full-disk install has already erased; it can be rerun later.
   surface-pro-11-sensors-extract || true
-  systemctl enable surface-pro-11-sensors.service surface-pro-11-power-profile-cpufreq.service
+  systemctl enable surface-pro-11-sensors.service
 fi

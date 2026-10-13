@@ -56,7 +56,7 @@ CONF
 run_setup "$matching" >/dev/null
 run_setup "$matching" >/dev/null
 
-expected_packages=$'add linux-omarchy-n1x surface-pro-11-support\ndrop linux-aarch64 linux-aarch64-headers\nadd pipewire-libcamera\nadd iptsd surface-pro-11-sensors power-profiles-daemon-surface-pro-11\nextract\nsystemctl enable surface-pro-11-sensors.service surface-pro-11-power-profile-cpufreq.service'
+expected_packages=$'add linux-omarchy-n1x surface-pro-11-support\ndrop linux-aarch64 linux-aarch64-headers\nadd pipewire-libcamera\nadd iptsd surface-pro-11-sensors\nextract\nsystemctl enable surface-pro-11-sensors.service'
 [[ $(head -n6 "$matching/packages.log") == "$expected_packages" ]] ||
   fail "Surface Pro 11 setup replaces the stock kernel first, then adds its hardware support and enables the light sensor even without Windows"
 [[ ! -e $matching/mkinitcpio.conf.d/surface_device_modules.conf ]] ||
