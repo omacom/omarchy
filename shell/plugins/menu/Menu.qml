@@ -288,6 +288,11 @@ Item {
       volatile: true,
       actionFor: function(value) { return "omarchy-font-set " + Util.shellQuote(value) }
     },
+    "font-hinting": {
+      script: "current=$(omarchy-font-hinting 2>/dev/null); for h in none slight medium full; do printf '%s\\t%s\\t%s\\n' \"${h^}\" \"$h\" \"$current\"; done",
+      icon: "󰋁",
+      actionFor: function(value) { return "omarchy-font-hinting " + Util.shellQuote(value) }
+    },
     "power-profiles": {
       script: "current=$(powerprofilesctl get 2>/dev/null); omarchy-powerprofiles-list 2>/dev/null | while read -r p; do [[ -z $p ]] && continue; printf '%s\\t%s\\t%s\\n' \"$p\" \"$p\" \"$current\"; done",
       icon: "\udb81\udc0b",

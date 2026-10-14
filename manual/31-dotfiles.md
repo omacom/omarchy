@@ -41,6 +41,7 @@ Omarchy fires hooks at a handful of moments, and you can hang your own scripts o
 | `pre-refresh-pacman` | After `omarchy refresh pacman` re-syncs the package config, before it updates packages; a channel switch runs it during that same refresh step |
 | `theme-set` | After a theme change (theme name in `$1`) |
 | `font-set` | After a font change (font name in `$1`) |
+| `font-hinting` | After a font hinting change (hinting style in `$1`) |
 | `battery-low` | When the battery gets low (percentage in `$1`) |
 
 The `pre-refresh-pacman` hook is where custom repositories or `IgnorePkg` lines belong, since it runs before the package transaction. Both update-related hooks run as your user after Omarchy clears its cached sudo authorization, so a hook that uses `sudo` needs its own authorization and may ask for your password.

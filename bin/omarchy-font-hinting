@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set how strongly text is hinted to the pixel grid
+# omarchy:args=[none|slight|medium|full|reset]
+# omarchy:examples=omarchy font hinting | omarchy font hinting full | omarchy font hinting reset
+
+# Hinting snaps glyph outlines to whole pixels. Stronger hinting is crisper on
+# 1x displays and small text, at the cost of the font's true shapes and
+# spacing; fontconfig ships "slight" as the default that is never badly wrong.
+# This drives the two places apps read it from:
+#   • fontconfig hintstyle — Qt apps, the omarchy shell, and anything else
+#     that renders through fontconfig
+#   • GNOME/GTK's font-hinting
+# Qt ignores the default hint style on scaled displays, so the setting mostly
+# shows on 1x monitors.
+
+GKEY_SCHEMA="org.gnome.desktop.interface"
+GKEY_NAME="font-hinting"
+
+# Its own drop-in rather than fonts.conf, which omarchy-font-set rewrites.
+fontconfig_file="$HOME/.config/fontconfig/conf.d/20-omarchy-hinting.conf"
+
+usage() {
+  echo "Usage: omarchy-font-hinting [none|slight|medium|full|reset]"
+  echo "  (no args)   print the hinting fontconfig resolves for the monospace font"
+  echo "  <style>     set hinting for fontconfig and GTK apps together"
+  echo "  reset       return both to their defaults"
+}
+
+# fontconfig is the source of truth, so this also reports hinting set outside
+# this command.
+current_hinting() {
+  local resolved hintstyle hinting
+
+  resolved=$(fc-match monospace -f '%{hintstyle}|%{hinting}\n' 2>/dev/null | head -n1)
+  hintstyle=${resolved%%|*}
+  hinting=${resolved##*|}
+
+  if [[ $hinting == "False" ]]; then
+    echo "none"
+  else
+    case "$hintstyle" in
+      0) echo "none" ;;
+      1) echo "slight" ;;
+      2) echo "medium" ;;
+      3) echo "full" ;;
+    esac
+  fi
+}
+
+write_fontconfig() {
+  local style=$1 hinting="true"
+
+  if [[ $style == "none" ]]; then
+    hinting="false"
+  fi
+
+  mkdir -p "$(dirname "$fontconfig_file")"
+  cat >"$fontconfig_file" <<XML
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <match target="font">
+    <edit name="hinting" mode="assign">
+      <bool>$hinting</bool>
+    </edit>
+    <edit name="hintstyle" mode="assign">
+      <const>hint$style</const>
+    </edit>
+  </match>
+</fontconfig>
+XML
+}
+
+style="${1:-}"
+
+case "$style" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  "")
+    current_hinting
+    exit 0
+    ;;
+  none|slight|medium|full)
+    write_fontconfig "$style"
+    gsettings set "$GKEY_SCHEMA" "$GKEY_NAME" "$style" 2>/dev/null || true
+    ;;
+  reset)
+    rm -f "$fontconfig_file"
+    gsettings reset "$GKEY_SCHEMA" "$GKEY_NAME" 2>/dev/null || true
+    ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+esac
+
+omarchy-restart-shell
+
+omarchy-notification-send -g "Restart open apps to see the font hinting change"
+
+omarchy-hook font-hinting "$(current_hinting)"
