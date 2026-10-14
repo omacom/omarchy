@@ -1,12 +1,13 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.Commons
 import qs.Ui
 
 BarIndicator {
   id: root
 
-  accessibleName: "Reminders"
+  accessibleName: I18n.t("accessibility.reminders")
   property int reminderCount: 0
   property string tooltip: ""
 

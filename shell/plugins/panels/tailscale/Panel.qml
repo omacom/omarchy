@@ -502,7 +502,7 @@ Panel {
 
   BarIconButton {
     id: button
-    accessibleName: "Tailscale"
+    accessibleName: I18n.t("accessibility.tailscale")
     anchors.fill: parent
     bar: root.bar
     iconComponent: Component {
@@ -527,7 +527,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
-    accessibleName: "Tailscale"
+    accessibleName: I18n.t("accessibility.tailscale")
     anchorItem: button
     owner: root
     bar: root.bar
@@ -615,7 +615,7 @@ Panel {
               trailingControl: Component {
                 ToggleSwitch {
                   id: powerSwitch
-                  accessibleName: "Tailscale"
+                  accessibleName: I18n.t("accessibility.tailscale")
                   visible: tailscale.installed
                   checked: tailscale.active
                   busy: tailscale.busy
@@ -1037,7 +1037,7 @@ Panel {
   component AuthRow: CursorSurface {
     id: authRow
 
-    accessibleName: "Authorize Tailscale operator"
+    accessibleName: I18n.t("tailscale.authorizeOperator")
     Accessible.onPressAction: authRow.activate()
     hasCursor: root.cursorActive && root.focusSection === "auth"
     foreground: root.foreground
@@ -1264,7 +1264,7 @@ Panel {
 
       PanelActionButton {
         id: copyButton
-        accessibleName: "Copy"
+        accessibleName: I18n.t("accessibility.copy")
         iconText: "󰆏"
         foreground: root.foreground
         fontFamily: root.fontFamily

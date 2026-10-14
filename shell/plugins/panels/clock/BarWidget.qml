@@ -165,7 +165,7 @@ BarWidget {
     // The clock is text to read, not an icon to press, so a click never
     // shrinks it; the format it cycles to, or the panel it opens, is feedback.
     pressFeedbackButtons: Qt.NoButton
-    accessibleName: "Clock"
+    accessibleName: I18n.t("accessibility.clock")
 
     onPressed: function(b) {
       if (b === Qt.RightButton) root.cycleFormat()

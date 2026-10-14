@@ -66,7 +66,7 @@ BarWidget {
 
   BarIconButton {
     id: button
-    accessibleName: "Weather"
+    accessibleName: I18n.t("accessibility.weather")
     anchors.fill: parent
     bar: root.bar
     text: panelLoader.item ? panelLoader.item.label : ""

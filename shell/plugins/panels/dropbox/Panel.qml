@@ -176,7 +176,7 @@ Panel {
 
   BarIconButton {
     id: button
-    accessibleName: "Dropbox"
+    accessibleName: I18n.t("dropbox.title")
     anchors.fill: parent
     bar: root.bar
     iconComponent: Component {
@@ -200,7 +200,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
-    accessibleName: "Dropbox"
+    accessibleName: I18n.t("dropbox.title")
     anchorItem: button
     owner: root
     bar: root.bar
@@ -277,7 +277,7 @@ Panel {
               trailingControl: Component {
                 ToggleSwitch {
                   id: powerSwitch
-                  accessibleName: "Dropbox"
+                  accessibleName: I18n.t("dropbox.title")
                   visible: dropbox.installed
                   checked: dropbox.active
                   busy: dropbox.busy
@@ -400,7 +400,7 @@ Panel {
   component LoginButton: CursorSurface {
     id: loginButton
 
-    accessibleName: dropbox.installed ? "Login to Dropbox" : ""
+    accessibleName: dropbox.installed ? I18n.t("dropbox.login") : ""
     Accessible.onPressAction: loginButton.activate()
     hasCursor: root.cursorActive && root.focusSection === "login"
     foreground: root.foreground
@@ -466,7 +466,7 @@ Panel {
       }
 
       PanelActionButton {
-        accessibleName: "Log in to Dropbox"
+        accessibleName: I18n.t("accessibility.logInToDropbox")
         iconText: "󰌋"
         foreground: root.foreground
         fontFamily: root.fontFamily
