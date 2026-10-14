@@ -110,46 +110,122 @@ grep -F "OMARCHY_PATH is not a git checkout: $checkout" "$test_tmp/invalid.err" 
   fail "invalid dev checkout reports the configured path" "$(cat "$test_tmp/invalid.err")"
 pass "invalid dev checkout fails with a useful error"
 
-: >"$git_log"
-TEST_GIT_UPSTREAM=origin/master run_dev_update "$checkout"
-grep -Fx -- "-C $checkout branch --set-upstream-to=origin/quattro" "$git_log" >/dev/null ||
-  fail "a master upstream is retargeted to quattro" "$(cat "$git_log")"
-grep -Fx -- "-C $checkout pull --ff-only" "$git_log" >/dev/null ||
-  fail "a retargeted master checkout still pulls" "$(cat "$git_log")"
-pass "a master upstream is retargeted to quattro"
+# The master retargeting runs against real scratch repositories: the decision
+# depends on fetch --prune, @{upstream} resolution and ancestry, which a stub
+# cannot model faithfully.
+real_git() { git -c user.email=t@t -c user.name=t -c init.defaultBranch=master -c advice.detachedHead=false "$@"; }
+real_update() { # dir -> runs the real script with the system git
+  PATH="/usr/bin:$PATH" OMARCHY_PATH="$1" "$ROOT/bin/omarchy-update-dev" >"$1.out" 2>"$1.err"
+}
+# The configured tracking branch, which still names master after a prune.
+upstream_of() {
+  local branch
+  branch=$(git -C "$1" branch --show-current)
+  echo "$(git -C "$1" config "branch.$branch.remote")/$(git -C "$1" config "branch.$branch.merge" | sed 's|^refs/heads/||')"
+}
+commit_to() { echo "$2" >>"$1/readme"; real_git -C "$1" add readme; real_git -C "$1" commit -q -m "$2"; }
 
-: >"$git_log"
-if TEST_GIT_UPSTREAM=origin/master TEST_GIT_QUATTRO_REMOTE=no \
-  run_dev_update "$checkout" >"$test_tmp/master.out" 2>"$test_tmp/master.err"; then
-  fail "a master upstream without quattro fails the update"
-fi
-if grep -q ' pull ' "$git_log"; then
-  fail "a master upstream without quattro is not pulled" "$(cat "$git_log")"
-fi
-grep -F "upstream origin/master no longer exists" "$test_tmp/master.err" >/dev/null ||
-  fail "a missing master upstream reports an actionable error" "$(cat "$test_tmp/master.err")"
-pass "a master upstream without quattro fails with an actionable error"
+# new_scenario name: a bare remote whose master and quattro start at the same
+# commit, plus a checkout tracking origin/master. Leaves $remote_git, $work and
+# $checkout pointing at them.
+new_scenario() {
+  local dir="$test_tmp/real-$1"
+  mkdir -p "$dir"
+  remote_git="$dir/remote.git" work="$dir/work" checkout="$dir/checkout"
+  real_git init -q --bare "$remote_git"
+  real_git clone -q "$remote_git" "$work" 2>/dev/null
+  commit_to "$work" base
+  real_git -C "$work" push -q origin master
+  real_git -C "$work" push -q origin master:quattro
+  real_git clone -q -b master "$remote_git" "$checkout"
+}
+delete_remote_master() { real_git --git-dir="$remote_git" branch -q -D master; }
 
-gone="$test_tmp/gone-master"
-mkdir -p "$gone"
-git init -q --bare "$gone/remote.git"
-git clone -q "$gone/remote.git" "$gone/work"
-git -C "$gone/work" checkout -q -b quattro
-echo quattro >"$gone/work/readme"
-git -C "$gone/work" add readme
-git -C "$gone/work" -c user.email=t@t -c user.name=t commit -q -m quattro
-git -C "$gone/work" push -q origin quattro
-git -C "$gone/work" branch master
-git -C "$gone/work" push -q -u origin master
-git clone -q "$gone/remote.git" "$gone/checkout"
-git -C "$gone/checkout" checkout -q master
-git --git-dir="$gone/remote.git" branch -D master >/dev/null
-git -C "$gone/checkout" fetch -q --prune origin
-
-if ! PATH="/usr/bin:$PATH" OMARCHY_PATH="$gone/checkout" "$ROOT/bin/omarchy-update-dev" >/dev/null; then
-  fail "a pruned master upstream is retargeted to quattro"
-fi
-gone_upstream=$(git -C "$gone/checkout" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}')
-[[ $gone_upstream == origin/quattro ]] ||
-  fail "a pruned master upstream tracks origin/quattro after update" "$gone_upstream"
+new_scenario pruned
+delete_remote_master
+real_git -C "$checkout" fetch -q --prune origin
+real_update "$checkout" || fail "a pruned master upstream is retargeted to quattro" "$(cat "$checkout.err")"
+[[ $(upstream_of "$checkout") == origin/quattro ]] ||
+  fail "a pruned master upstream tracks origin/quattro after update" "$(upstream_of "$checkout")"
 pass "a pruned master upstream is retargeted to quattro"
+
+new_scenario stale
+commit_to "$work" quattro-only
+real_git -C "$work" push -q origin master:quattro
+delete_remote_master
+# The checkout still has refs/remotes/origin/master, so @{upstream} resolves.
+real_update "$checkout" || fail "a stale origin/master ref is pruned and retargeted" "$(cat "$checkout.err")"
+[[ $(upstream_of "$checkout") == origin/quattro ]] ||
+  fail "a stale origin/master ref ends up tracking origin/quattro" "$(upstream_of "$checkout")"
+grep -q quattro-only "$checkout/readme" || fail "a stale origin/master checkout is fast-forwarded to quattro"
+pass "a stale origin/master ref is pruned, then retargeted and pulled"
+
+new_scenario prequattro
+real_git --git-dir="$remote_git" branch -q -D quattro
+rm -rf "$checkout"
+real_git clone -q -b master "$remote_git" "$checkout"
+# quattro appears and master is deleted after this checkout last fetched.
+real_git -C "$work" push -q origin master:quattro
+delete_remote_master
+real_update "$checkout" ||
+  fail "a checkout that never fetched quattro fetches before deciding" "$(cat "$checkout.err")"
+[[ $(upstream_of "$checkout") == origin/quattro ]] ||
+  fail "a checkout that never fetched quattro tracks it after update" "$(upstream_of "$checkout")"
+pass "a pre-quattro checkout fetches before deciding and is retargeted"
+
+new_scenario fetchfail
+delete_remote_master
+mv "$remote_git" "$remote_git.offline"
+if real_update "$checkout"; then
+  fail "a failed fetch stops the update"
+fi
+[[ $(upstream_of "$checkout") == origin/master ]] ||
+  fail "a failed fetch leaves the master upstream untouched" "$(upstream_of "$checkout")"
+grep -F "could not fetch origin" "$checkout.err" >/dev/null ||
+  fail "a failed fetch reports why it stopped" "$(cat "$checkout.err")"
+pass "a failed fetch stops without changing the upstream"
+
+new_scenario diverged
+commit_to "$checkout" local-only
+delete_remote_master
+if real_update "$checkout"; then
+  fail "local commits that are not on quattro stop the update"
+fi
+[[ $(upstream_of "$checkout") == origin/master ]] ||
+  fail "local commits not on quattro keep the old upstream so the hint repeats" "$(upstream_of "$checkout")"
+if ! grep -F "not on origin/quattro" "$checkout.err" >/dev/null ||
+  ! grep -F "checkout -b quattro --track origin/quattro" "$checkout.err" >/dev/null; then
+  fail "local commits not on quattro print the checkout hint" "$(cat "$checkout.err")"
+fi
+pass "local commits not on quattro stop with a checkout hint"
+
+new_scenario noquattro
+real_git --git-dir="$remote_git" branch -q -D quattro
+real_git -C "$checkout" fetch -q --prune origin
+delete_remote_master
+if real_update "$checkout"; then
+  fail "a deleted master with no quattro fails the update"
+fi
+grep -F "upstream origin/master no longer exists" "$checkout.err" >/dev/null ||
+  fail "a deleted master with no quattro reports an actionable error" "$(cat "$checkout.err")"
+pass "a deleted master with no quattro fails with an actionable error"
+
+new_scenario fork
+commit_to "$work" master-only
+real_git -C "$work" push -q origin master
+real_update "$checkout" || fail "a master that still exists keeps updating" "$(cat "$checkout.err")"
+[[ $(upstream_of "$checkout") == origin/master ]] ||
+  fail "a master that still exists keeps its upstream" "$(upstream_of "$checkout")"
+grep -q master-only "$checkout/readme" || fail "a master that still exists is pulled"
+pass "a master that still exists on its remote is left alone"
+
+new_scenario localmaster
+real_git -C "$checkout" checkout -q -b feature
+real_git -C "$checkout" branch -q --set-upstream-to=master
+real_git -C "$checkout" checkout -q master
+commit_to "$checkout" master-ahead
+real_git -C "$checkout" checkout -q feature
+real_update "$checkout" || fail "a branch tracking a local master keeps updating" "$(cat "$checkout.err")"
+[[ $(upstream_of "$checkout") == ./master ]] ||
+  fail "a branch tracking a local master keeps its upstream" "$(upstream_of "$checkout")"
+pass "a branch tracking a local master (remote = .) is left alone"
