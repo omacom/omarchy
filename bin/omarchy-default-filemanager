@@ -5,7 +5,12 @@
 # omarchy:examples=omarchy default filemanager | omarchy default filemanager org.gnome.Nautilus.desktop
 
 if (($# == 0)); then
-  exec xdg-mime query default inode/directory
+  desktop_id=$(xdg-mime query default inode/directory) || exit 1
+  printf '%s\n' "$desktop_id"
+  if [[ -t 1 ]]; then
+    echo "File-manager shortcuts follow this folder association. Restore Nautilus with:" >&2
+    echo "  omarchy default filemanager org.gnome.Nautilus.desktop" >&2
+  fi
 elif (($# == 1)) && [[ $1 == *.desktop && $1 != */* && $1 != -* ]]; then
   xdg-mime default "$1" inode/directory || exit 1
   if [[ $(xdg-mime query default inode/directory) != "$1" ]]; then

@@ -3,6 +3,8 @@
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+require_command python3
+
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 mkdir -p "$test_tmp/bin"
@@ -50,6 +52,38 @@ assert_launch() {
 }
 
 echo 'com.thisisgm.flea.desktop' >"$FM_STATE"
+omarchy-default-filemanager >"$test_tmp/query" 2>"$test_tmp/query-errors"
+[[ $(cat "$test_tmp/query") == "com.thisisgm.flea.desktop" && ! -s $test_tmp/query-errors ]] ||
+  fail "scripted queries return only the desktop ID without interactive guidance"
+python3 - <<'PY'
+import errno, os, pty, subprocess
+
+master, slave = pty.openpty()
+try:
+    result = subprocess.run(["omarchy-default-filemanager"], stdout=slave, stderr=subprocess.PIPE, text=True)
+finally:
+    os.close(slave)
+output = b""
+try:
+    while True:
+        try:
+            chunk = os.read(master, 4096)
+        except OSError as error:
+            if error.errno == errno.EIO:
+                break
+            raise
+        if not chunk:
+            break
+        output += chunk
+finally:
+    os.close(master)
+assert result.returncode == 0, result.stderr
+assert output.decode().strip() == "com.thisisgm.flea.desktop", output
+assert "shortcuts follow this folder association" in result.stderr, result.stderr
+assert "omarchy default filemanager org.gnome.Nautilus.desktop" in result.stderr, result.stderr
+PY
+pass "interactive queries explain the shared association and how to restore Nautilus"
+
 omarchy-launch-filemanager
 assert_launch com.thisisgm.flea.desktop "$HOME"
 pass "the configured desktop entry opens the home folder"
