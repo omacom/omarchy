@@ -1749,6 +1749,10 @@ ShellRoot {
       shell.bootIntro.finishTheme(token)
     }
 
+    function cancelThemeIntro(): void {
+      if (shell.bootIntro) shell.bootIntro.cancelTheme()
+    }
+
     function themeIntroStatus(token: string): string {
       return shell.bootIntro.themeStatus(token)
     }

@@ -40,7 +40,11 @@ Item {
   property var sizeQueue: []
   property bool finishingTransition: false
   property int backgroundVersion: 0
-  property int reloadVersion: 0
+  // Bumps whenever displayedBackground is assigned, even to an identical
+  // string: a forced theme transition can re-render the same canonical path
+  // in place (new SVG raster, new mtime), so the displayed resolvers must
+  // re-resolve on assignment, not only on string change.
+  property int displayedVersion: 0
   property int revealStartedVersion: -1
   property int pendingThemeVersion: -1
   property string pendingColorsRaw: ""
@@ -48,8 +52,8 @@ Item {
   property real revealProgress: 1
   readonly property bool ready: {
     if (isVideo(displayedBackground)) return true
-    if (backgrounds.instances.length === 0) return false
-    for (var panel of backgrounds.instances) {
+    if (panelVariants.instances.length === 0) return false
+    for (var panel of panelVariants.instances) {
       if (!panel.backgroundReady) return false
     }
     return true
@@ -98,7 +102,6 @@ Item {
   }
 
   function setBackground(path, instant) {
-    if (instant) reloadVersion += 1
     transitionBackground("", path, path, instant, instant)
   }
 
@@ -129,6 +132,7 @@ Item {
       incomingBackground = ""
       preparedBackground = ""
       displayedBackground = finalPath
+      displayedVersion += 1
       revealProgress = 1
       return
     }
@@ -175,6 +179,41 @@ Item {
     revealAnimation.restart()
   }
 
+  function finishTransitionWithoutReveal() {
+    const panels = panelVariants.instances
+    for (let i = 0; i < panels.length; i++) {
+      if (!panels[i].incomingAbandoned) return
+    }
+    revealAnimation.stop()
+    displayedBackground = currentBackground || displayedBackground
+    displayedVersion += 1
+    incomingBackground = ""
+    oldBackground = ""
+    preparedBackground = ""
+    finishingTransition = false
+    revealProgress = 1
+    applyPendingTheme()
+    pruneNativeSizes()
+  }
+
+  function maybeFinishTransition() {
+    // Multi-monitor resolves and decodes land with real skew (a large panel's
+    // cold SVG raster can trail a small one by hundreds of ms), so the shared
+    // incoming/old sources are only cleared once EVERY panel's base layer has
+    // settled on the final background — clearing on the first ready panel
+    // would yank the slower panels back to the old wallpaper.
+    if (!finishingTransition) return
+    const panels = panelVariants.instances
+    for (let i = 0; i < panels.length; i++) {
+      if (!panels[i].incomingAbandoned && !panels[i].baseSettled()) return
+    }
+    incomingBackground = ""
+    oldBackground = ""
+    preparedBackground = ""
+    finishingTransition = false
+    pruneNativeSizes()
+  }
+
   function prepareBackground(path) {
     path = String(path || "").trim()
     // Only a still that is not already on screen is worth decoding ahead.
@@ -204,6 +243,12 @@ Item {
     var paths = [displayedBackground, incomingBackground, oldBackground, preparedBackground]
     for (var i = 0; i < paths.length; i++) {
       if (paths[i] && nativeSizes[paths[i]] !== undefined) kept[paths[i]] = nativeSizes[paths[i]]
+    }
+    const panels = panelVariants.instances
+    for (let i = 0; i < panels.length; i++) {
+      for (const path of [panels[i].lastDisplayedPath, panels[i].incomingPath]) {
+        if (path && nativeSizes[path] !== undefined) kept[path] = nativeSizes[path]
+      }
     }
     nativeSizes = kept
   }
@@ -259,7 +304,7 @@ Item {
     command: [
       "bash", "-c",
       'target=$(readlink -f "$1"); if [[ -e $target ]]; then echo "$target"; else ' +
-      'find "$2" -maxdepth 1 -type f \\( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" \\) | sort | head -n 1; fi',
+      'find "$2" -maxdepth 1 -type f ! -name "*@*" \\( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" -o -iname "*.svg" \\) | sort | head -n 1; fi',
       "resolve", root.currentBackgroundLink, root.currentThemeBackgrounds
     ]
     stdout: StdioCollector {
@@ -325,17 +370,20 @@ Item {
     easing.type: Easing.OutCubic
     onFinished: {
       if (root.incomingBackground) {
-        root.displayedBackground = root.currentBackground || root.incomingBackground
+        const finalPath = root.currentBackground || root.incomingBackground
+        root.displayedBackground = finalPath
+        root.displayedVersion += 1
         root.finishingTransition = true
       }
       root.revealProgress = 1
+      root.maybeFinishTransition()
     }
   }
 
   Component.onCompleted: refreshBackground()
 
   Variants {
-    id: backgrounds
+    id: panelVariants
     model: Quickshell.screens
 
     PanelWindow {
@@ -357,7 +405,6 @@ Item {
       // wallpaper costs nothing to keep enabled. OWE manages video layers.
       updatesEnabled: true
 
-      property bool maskReady: false
       property int readyFrames: 0
       readonly property bool backgroundReady: base.ready && readyFrames >= 2
 
@@ -387,12 +434,107 @@ Item {
         return Qt.size(decodeWidth, decodeHeight)
       }
 
+      property bool maskReady: false
+
+      // Last successful displayed resolution for this panel. It drives the
+      // base layer throughout the outgoing reveal and supplies fallback meta
+      // for an incoming snapshot whose directory carries no metadata.
+      property string lastDisplayedCanonical: ""
+      property string lastDisplayedPath: ""
+      property int lastDisplayedVersion: 0
+      property string lastDisplayedFill: "crop"
+      property string lastDisplayedBackdrop: "solid"
+      property color lastDisplayedFillColor: Commons.Color.background
+      property real lastDisplayedFocalX: 0.5
+      property real lastDisplayedFocalY: 0.5
+
+      // Commit incoming pixels with their own metadata once per transition.
+      // Keep the outgoing layer while resolving instead of revealing a new
+      // image using the previous wallpaper's fill and focal settings.
+      property int incomingLockedVersion: -1
+      property bool incomingFallbackTried: false
+      property bool incomingAbandoned: false
+      property string incomingPath: ""
+      property string incomingFill: "crop"
+      property string incomingBackdrop: "solid"
+      property color incomingFillColor: Commons.Color.background
+      property real incomingFocalX: 0.5
+      property real incomingFocalY: 0.5
+
+      function lockIncoming(path, fillMode, backdropMode, tint, fx, fy) {
+        if (incomingAbandoned || incomingLockedVersion === root.backgroundVersion) return
+        incomingLockedVersion = root.backgroundVersion
+        root.requestNativeSize(path)
+        incomingPath = path
+        incomingFill = fillMode
+        incomingBackdrop = backdropMode
+        incomingFillColor = tint
+        incomingFocalX = fx
+        incomingFocalY = fy
+        maybeStartReveal()
+      }
+
+      // True once this panel's base layer is painting the final background:
+      // its resolver has published for the current displayed canonical and
+      // the decode is no longer in flight.
+      function recoverDisplayedImage() {
+        if (!displayedResolver.canonicalOnly && panel.lastDisplayedPath !== root.displayedBackground) {
+          // Qt may reject a variant whose header ImageMagick can probe. Retry
+          // this screen using the canonical asset rather than the same variant.
+          displayedResolver.canonicalOnly = true
+        } else {
+          root.recoverBackground(root.displayedBackground)
+        }
+      }
+
+      function tryIncomingFallback() {
+        if (!root.incomingBackground || maskReady || incomingAbandoned) return
+        if (incomingFallbackTried) {
+          // Abandon only this panel and let its base resolve independently.
+          // Other panels retain their incoming pixels until their bases settle.
+          incomingAbandoned = true
+          incomingPath = ""
+          root.finishTransitionWithoutReveal()
+          root.maybeFinishTransition()
+          return
+        }
+        incomingFallbackTried = true
+        incomingLockedVersion = -1
+        lockSnapshotFallback()
+        incomingFallbackTimer.restart()
+      }
+
+      function lockSnapshotFallback() {
+        // Metadata can be read without waiting for variant probing, cold SVG
+        // rasterization or edge sampling. Never frame new pixels with old meta.
+        if (!incomingFallbackTried || incomingAbandoned || !snapshotResolver.ready || snapshotResolver.usedFallback) return
+        lockIncoming(root.incomingBackground, snapshotResolver.fill,
+          snapshotResolver.backdrop, snapshotResolver.fillColor,
+          snapshotResolver.focalX, snapshotResolver.focalY)
+      }
+
+      Timer {
+        id: incomingFallbackTimer
+        interval: 1500
+        repeat: false
+        onTriggered: panel.tryIncomingFallback()
+      }
+
+      function baseSettled() {
+        if (root.displayedBackground === "") return true
+        if (!displayedResolver.ready || lastDisplayedCanonical !== root.displayedBackground) return false
+        return base.status === Image.Ready || base.status === Image.Error
+      }
+
       function maybeStartReveal() {
-        if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
-        if (incomingFrame.status !== Image.Ready) return
+        // Join tolerance: a panel whose incoming frame becomes ready after
+        // the reveal's first tick still raises its mask at the current
+        // spread instead of staying hidden for the rest of the animation.
+        if (!root.incomingBackground || root.revealProgress >= 1 || maskReady) return
+        if (panel.incomingLockedVersion !== root.backgroundVersion || incomingFrame.status !== Image.Ready) return
         Qt.callLater(function() {
-          if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
-          if (incomingFrame.status !== Image.Ready) return
+          if (!root.incomingBackground || root.revealProgress >= 1 || maskReady) return
+          if (panel.incomingLockedVersion !== root.backgroundVersion || incomingFrame.status !== Image.Ready) return
           root.startReveal(panel)
         })
       }
@@ -402,43 +544,80 @@ Item {
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       exclusionMode: ExclusionMode.Ignore
 
-      // OWE owns video backgrounds. This layer draws stills, and stays empty
-      // behind a video so OWE's own layer shows through.
-      BackgroundMedia {
-        id: base
-        anchors.fill: parent
-        path: root.displayedBackground
-        version: root.reloadVersion
-        cached: true
-        constrainDecode: true
-        decodeSize: panel.decodeSize(root.displayedBackground)
-        onFailedChanged: if (failed) root.recoverBackground(path)
-        onReadyChanged: {
-          panel.readyFrames = 0
-          if (ready && root.finishingTransition) {
-            root.incomingBackground = ""
-            root.oldBackground = ""
-            root.preparedBackground = ""
-            root.finishingTransition = false
-            root.pruneNativeSizes()
+      BackgroundResolver {
+        id: displayedResolver
+        canonicalPath: panel.incomingAbandoned ? root.currentBackground : root.displayedBackground
+        screenWidth: panel.modelData.width
+        screenHeight: panel.modelData.height
+        refreshToken: panel.incomingAbandoned ? root.backgroundVersion : root.displayedVersion
+        onResolveVersionChanged: {
+          if (ready && resolvedPath !== "") {
+            root.requestNativeSize(resolvedPath)
+            panel.lastDisplayedCanonical = canonicalPath
+            panel.lastDisplayedPath = resolvedPath
+            panel.lastDisplayedVersion = refreshToken
+            panel.lastDisplayedFill = fill
+            panel.lastDisplayedBackdrop = backdrop
+            panel.lastDisplayedFillColor = fillColor
+            panel.lastDisplayedFocalX = focalX
+            panel.lastDisplayedFocalY = focalY
           }
+          root.maybeFinishTransition()
         }
       }
 
-      Image {
-        id: oldFrame
+      BackgroundResolver {
+        id: snapshotResolver
+        canonicalPath: root.incomingBackground !== "" ? root.currentBackground : ""
+        screenWidth: panel.modelData.width
+        screenHeight: panel.modelData.height
+        refreshToken: root.backgroundVersion
+        metadataOnly: true
+        onResolveVersionChanged: panel.lockSnapshotFallback()
+      }
+
+      // A theme switch hands transitionBackground a snapshot copy for pixels
+      // while root.currentBackground already holds the real post-swap
+      // canonical, whose directory carries the variants and metadata — so the
+      // incoming layer resolves against the final path and only falls back to
+      // the snapshot when that resolve fails or has not landed yet.
+      BackgroundResolver {
+        id: incomingResolver
+        canonicalPath: root.currentBackground !== "" ? root.currentBackground : root.incomingBackground
+        screenWidth: panel.modelData.width
+        screenHeight: panel.modelData.height
+        // A forced theme transition can keep the canonical string identical
+        // while re-rendering its content in place; keying on the version
+        // guarantees a fresh resolve for every transition.
+        refreshToken: root.backgroundVersion
+        onResolveVersionChanged: {
+          if (!ready || root.incomingBackground === "") return
+          panel.lockIncoming(usedFallback || resolvedPath === canonicalPath ? root.incomingBackground : resolvedPath, fill, backdrop, fillColor, focalX, focalY)
+        }
+      }
+
+      // Keep the already-decoded per-screen pixels beneath the reveal. The
+      // canonical snapshot can differ from this variant, and the old theme
+      // directory may already have been replaced. Only advance the base once
+      // the reveal finishes; no outgoing source needs to be decoded again.
+      BackgroundMedia {
+        id: base
         anchors.fill: parent
-        readonly property size decode: panel.decodeSize(root.oldBackground)
-        source: decode.width > 0 ? root.imageUrl(root.oldBackground) : ""
-        sourceSize.width: decode.width
-        sourceSize.height: decode.height
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: true
-        cache: false
-        smooth: true
-        mipmap: true
-        visible: root.oldBackground !== "" && root.revealProgress < 1
-        onStatusChanged: panel.maybeStartReveal()
+        path: panel.lastDisplayedPath
+        version: panel.lastDisplayedVersion
+        fill: panel.lastDisplayedFill
+        backdrop: panel.lastDisplayedBackdrop
+        fillColor: panel.lastDisplayedFillColor
+        focalX: panel.lastDisplayedFocalX
+        focalY: panel.lastDisplayedFocalY
+        cached: true
+        constrainDecode: true
+        decodeSize: panel.decodeSize(panel.lastDisplayedPath)
+        onFailedChanged: if (failed) panel.recoverDisplayedImage()
+        onStatusChanged: {
+          panel.readyFrames = 0
+          root.maybeFinishTransition()
+        }
       }
 
       Item {
@@ -454,17 +633,22 @@ Item {
           maskSpreadAtMin: 0.02
         }
 
-        Image {
+        WallpaperImage {
           id: incomingFrame
           anchors.fill: parent
-          // The same URL and size as a prepared frame keeps its decoded
-          // image, so a transition to it can reveal at once.
-          readonly property string framePath: root.incomingBackground || root.preparedBackground
-          readonly property size decode: panel.decodeSize(framePath)
-          source: decode.width > 0 ? root.imageUrl(framePath) : ""
-          sourceSize.width: decode.width
-          sourceSize.height: decode.height
-          fillMode: Image.PreserveAspectCrop
+          // Lock the resolved pixels and metadata for the whole reveal.
+          // Canonical raster snapshots retain the predecoded preparation;
+          // variants and SVG rasters come from the per-screen resolver.
+          readonly property string framePath: panel.incomingPath || root.preparedBackground
+          path: framePath
+          useSourceSizeCap: true
+          constrainDecode: true
+          decodeSize: panel.decodeSize(framePath)
+          fill: panel.incomingFill
+          backdrop: panel.incomingBackdrop
+          fillColor: panel.incomingFillColor
+          focalX: panel.incomingFocalX
+          focalY: panel.incomingFocalY
           asynchronous: true
           cache: false
           smooth: true
@@ -505,6 +689,12 @@ Item {
         target: root
         function onIncomingBackgroundChanged() {
           panel.maskReady = false
+          panel.incomingLockedVersion = -1
+          panel.incomingFallbackTried = false
+          panel.incomingAbandoned = false
+          panel.incomingPath = ""
+          if (root.incomingBackground) incomingFallbackTimer.restart()
+          else incomingFallbackTimer.stop()
           panel.maybeStartReveal()
         }
       }
