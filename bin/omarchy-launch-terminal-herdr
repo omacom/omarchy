@@ -2,4 +2,6 @@
 
 # omarchy:summary=Launch or attach to the persistent herdr session in a terminal
 
-exec omarchy-launch-terminal herdr
+# A fixed app-id rather than the terminal's own class, so window rules, themes
+# and notification clicks can single the herdr session out by name.
+exec omarchy-launch-terminal --app-id=org.omarchy.herdr herdr
