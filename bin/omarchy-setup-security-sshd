@@ -122,7 +122,7 @@ authorize_keys_from_github() {
 prompt_for_github_user() {
   local username
 
-  username=$(gum input --prompt "GitHub username> " --placeholder "dhh") || exit 1
+  username=$(gum input --prompt "$(omarchy-i18n sshd.githubUserPrompt)" --placeholder "dhh") || exit 1
   if [[ -z $username ]]; then
     echo -e "\e[31mNo GitHub username given.\e[0m" >&2
     exit 1
@@ -134,7 +134,7 @@ prompt_for_github_user() {
 authorize_pasted_key() {
   local key
 
-  key=$(gum input --prompt "Public key> " --placeholder "ssh-ed25519 AAAA... user@host") || exit 1
+  key=$(gum input --prompt "$(omarchy-i18n sshd.publicKeyPrompt)" --placeholder "ssh-ed25519 AAAA... user@host") || exit 1
   if [[ -z $key ]]; then
     echo -e "\e[31mNo SSH key given.\e[0m" >&2
     exit 1
@@ -198,9 +198,11 @@ if [[ -n $KEY ]]; then
 elif [[ -n $GITHUB_USER ]]; then
   authorize_keys_from_github "$GITHUB_USER"
 else
-  case $(gum choose "Grab key from GitHub" "Paste key manually" --header "How would you like to add your SSH key?") in
-  "Grab key from GitHub") prompt_for_github_user ;;
-  "Paste key manually") authorize_pasted_key ;;
+  from_github=$(omarchy-i18n sshd.keyFromGithub)
+  paste_key=$(omarchy-i18n sshd.keyPaste)
+  case $(gum choose "$from_github" "$paste_key" --header "$(omarchy-i18n sshd.howToAddKey)") in
+  "$from_github") prompt_for_github_user ;;
+  "$paste_key") authorize_pasted_key ;;
   *) exit 1 ;;
   esac
 fi

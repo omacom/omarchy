@@ -1,0 +1,1217 @@
+{
+  "root": {
+    "label": "اذهب"
+  },
+  "apps": {
+    "label": "التطبيقات"
+  },
+  "learn": {
+    "label": "تعلّم"
+  },
+  "trigger": {
+    "label": "تشغيل"
+  },
+  "style": {
+    "label": "النمط"
+  },
+  "setup": {
+    "label": "الإعداد"
+  },
+  "install": {
+    "label": "تثبيت"
+  },
+  "remove": {
+    "label": "إزالة"
+  },
+  "update": {
+    "label": "تحديث"
+  },
+  "about": {
+    "label": "حول"
+  },
+  "system": {
+    "label": "النظام"
+  },
+  "system.screensaver": {
+    "label": "شاشة التوقف"
+  },
+  "system.lock": {
+    "label": "قفل"
+  },
+  "system.suspend": {
+    "label": "تعليق"
+  },
+  "system.hibernate": {
+    "label": "إسبات"
+  },
+  "system.logout": {
+    "label": "تسجيل الخروج"
+  },
+  "system.reboot": {
+    "label": "إعادة التشغيل"
+  },
+  "system.shutdown": {
+    "label": "إيقاف التشغيل"
+  },
+  "learn.keybindings": {
+    "label": "اختصارات المفاتيح"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "المجتمع"
+  },
+  "trigger.appearance": {
+    "label": "المظهر"
+  },
+  "trigger.appearance.animations": {
+    "label": "الرسوم المتحركة"
+  },
+  "trigger.appearance.top-bar": {
+    "label": "شريط القائمة"
+  },
+  "trigger.appearance.top-bar.hide": {
+    "label": "إخفاء الشريط"
+  },
+  "trigger.appearance.top-bar.show": {
+    "label": "إظهار الشريط"
+  },
+  "trigger.appearance.top-bar.position": {
+    "label": "موضع الشريط"
+  },
+  "trigger.appearance.top-bar.background": {
+    "label": "خلفية الشريط"
+  },
+  "trigger.appearance.top-bar.background.opaque": {
+    "label": "شريط معتم"
+  },
+  "trigger.appearance.top-bar.background.glassy": {
+    "label": "شريط زجاجي"
+  },
+  "trigger.appearance.top-bar.background.clear": {
+    "label": "شريط شفاف"
+  },
+  "trigger.appearance.top-bar.indicators": {
+    "label": "مؤشرات الشريط"
+  },
+  "trigger.appearance.top-bar.indicators.battery-percentage": {
+    "label": "نسبة البطارية"
+  },
+  "trigger.appearance.top-bar.indicators.clock": {
+    "label": "الساعة"
+  },
+  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "الأحد 14:30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "الأحد 2:30 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "الأحد 14:30:05"
+  },
+  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "الأحد 2:30:05 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+    "label": "الأحد 3 مايو 14:30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+    "label": "الأحد 3 مايو 2:30 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.week": {
+    "label": "3 مايو W18 2026"
+  },
+  "trigger.appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 مايو W18 '26"
+  },
+  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "trigger.appearance.top-bar.position.top": {
+    "label": "شريط علوي"
+  },
+  "trigger.appearance.top-bar.position.bottom": {
+    "label": "شريط سفلي"
+  },
+  "trigger.appearance.top-bar.position.left": {
+    "label": "شريط أيسر"
+  },
+  "trigger.appearance.top-bar.position.right": {
+    "label": "شريط أيمن"
+  },
+  "trigger.appearance.dock": {
+    "label": "Dock"
+  },
+  "trigger.appearance.dock.autohide": {
+    "label": "إخفاء Dock تلقائيًا"
+  },
+  "trigger.appearance.dock.always-on": {
+    "label": "Dock دائم الظهور"
+  },
+  "trigger.appearance.dock.position": {
+    "label": "موضع Dock"
+  },
+  "trigger.appearance.dock.position.top": {
+    "label": "Dock علوي"
+  },
+  "trigger.appearance.dock.position.bottom": {
+    "label": "Dock سفلي"
+  },
+  "trigger.appearance.dock.position.left": {
+    "label": "Dock أيسر"
+  },
+  "trigger.appearance.dock.position.right": {
+    "label": "Dock أيمن"
+  },
+  "trigger.appearance.window-gaps": {
+    "label": "فواصل النوافذ"
+  },
+  "trigger.appearance.window-corners": {
+    "label": "زوايا النوافذ"
+  },
+  "trigger.appearance.window-corners.theme": {
+    "label": "زوايا السمة"
+  },
+  "trigger.appearance.window-corners.sharp": {
+    "label": "زوايا حادة"
+  },
+  "trigger.appearance.window-corners.rounded": {
+    "label": "زوايا مستديرة"
+  },
+  "trigger.appearance.window-transparency": {
+    "label": "عتامة النوافذ"
+  },
+  "trigger.appearance.window-transparency.opaque": {
+    "label": "نوافذ معتمة"
+  },
+  "trigger.appearance.window-transparency.transparent": {
+    "label": "نوافذ شفافة"
+  },
+  "trigger.appearance.window-transparency.glassy": {
+    "label": "نوافذ زجاجية"
+  },
+  "trigger.appearance.one-window-ratio": {
+    "label": "نسبة النافذة الواحدة"
+  },
+  "trigger.appearance.workspace-layout": {
+    "label": "تخطيط مساحة العمل",
+    "title": "تخطيط مساحة العمل الافتراضي"
+  },
+  "trigger.appearance.workspace-layout.dwindle": {
+    "label": "تبليط"
+  },
+  "trigger.appearance.workspace-layout.scrolling": {
+    "label": "تمرير"
+  },
+  "trigger.appearance.workspace-layout.floating": {
+    "label": "عائم"
+  },
+  "trigger.appearance.theme-sync": {
+    "label": "مزامنة سمة Herdr"
+  },
+  "trigger.toggle": {
+    "label": "تبديل"
+  },
+  "trigger.toggle.idle-lock": {
+    "label": "البقاء مستيقظًا"
+  },
+  "trigger.toggle.notifications": {
+    "label": "الإشعارات"
+  },
+  "trigger.toggle.nightlight": {
+    "label": "الإضاءة الليلية"
+  },
+  "trigger.toggle.screensaver": {
+    "label": "شاشة التوقف"
+  },
+  "trigger.toggle.crash-capture": {
+    "label": "التقاط الأعطال"
+  },
+  "trigger.emoji": {
+    "label": "إيموجي"
+  },
+  "trigger.clipboard-history": {
+    "label": "سجل الحافظة"
+  },
+  "trigger.reminder": {
+    "label": "تذكير"
+  },
+  "trigger.capture": {
+    "label": "التقاط"
+  },
+  "trigger.capture.screenshot": {
+    "label": "لقطة شاشة"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "إيقاف تسجيل الشاشة"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "تسجيل الشاشة"
+  },
+  "trigger.capture.text": {
+    "label": "نص"
+  },
+  "trigger.capture.qr": {
+    "label": "رمز QR"
+  },
+  "trigger.capture.color": {
+    "label": "لون"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "بدون صوت"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "مع صوت سطح المكتب"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "مع صوت سطح المكتب والميكروفون"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "مع صوت سطح المكتب والميكروفون وكاميرا الويب"
+  },
+  "trigger.transcode": {
+    "label": "تحويل الترميز"
+  },
+  "trigger.share": {
+    "label": "مشاركة"
+  },
+  "trigger.hardware": {
+    "label": "العتاد"
+  },
+  "trigger.tests": {
+    "label": "اختبار السرعة"
+  },
+  "trigger.hardware.laptop-display": {
+    "label": "شاشة المحمول"
+  },
+  "trigger.hardware.mirror-display": {
+    "label": "عكس الشاشة"
+  },
+  "trigger.hardware.hybrid-gpu": {
+    "label": "GPU هجين"
+  },
+  "trigger.hardware.touchpad": {
+    "label": "لوحة اللمس"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "اهتزاز لوحة اللمس"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "منخفض"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "متوسط"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "مرتفع"
+  },
+  "trigger.hardware.touchscreen": {
+    "label": "شاشة لمس"
+  },
+  "trigger.reminder.set": {
+    "label": "تعيين واحد"
+  },
+  "trigger.reminder.show": {
+    "label": "إظهار الكل"
+  },
+  "trigger.reminder.clear": {
+    "label": "مسح الكل"
+  },
+  "trigger.share.clipboard": {
+    "label": "الحافظة"
+  },
+  "trigger.share.file": {
+    "label": "ملف"
+  },
+  "trigger.share.folder": {
+    "label": "مجلد"
+  },
+  "trigger.share.receive": {
+    "label": "استلام"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "اختبار سرعة الشبكة"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "اختبار سرعة القرص"
+  },
+  "style.theme": {
+    "label": "السمة"
+  },
+  "style.background": {
+    "label": "الخلفية"
+  },
+  "style.unlock": {
+    "label": "فتح القفل"
+  },
+  "style.font": {
+    "label": "الخط"
+  },
+  "style.hyprland": {
+    "label": "Hyprland"
+  },
+  "style.screensaver": {
+    "label": "شاشة التوقف"
+  },
+  "style.about": {
+    "label": "حول"
+  },
+  "style.about.text": {
+    "label": "تعديل النص"
+  },
+  "style.about.image": {
+    "label": "تعيين من صورة"
+  },
+  "style.about.default": {
+    "label": "استعادة الافتراضي"
+  },
+  "style.screensaver.text": {
+    "label": "تعديل النص"
+  },
+  "style.screensaver.image": {
+    "label": "تعيين من صورة"
+  },
+  "style.screensaver.default": {
+    "label": "استعادة الافتراضي"
+  },
+  "setup.monitors": {
+    "label": "الشاشات"
+  },
+  "setup.keybindings": {
+    "label": "اختصارات المفاتيح"
+  },
+  "setup.input": {
+    "label": "الإدخال"
+  },
+  "setup.typing": {
+    "label": "الكتابة"
+  },
+  "setup.typing.keyboard": {
+    "label": "تخطيطات لوحة المفاتيح"
+  },
+  "setup.typing.input": {
+    "label": "طرق الإدخال"
+  },
+  "setup.language": {
+    "label": "اللغة"
+  },
+  "setup.network": {
+    "label": "الشبكة"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "مخصص"
+  },
+  "setup.network.qr": {
+    "label": "رمز QR"
+  },
+  "setup.default": {
+    "label": "الافتراضية"
+  },
+  "setup.default.agent": {
+    "label": "الوكيل",
+    "title": "الوكيل الافتراضي"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "المتصفح",
+    "title": "المتصفح الافتراضي"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "الإملاء الصوتي",
+    "title": "الإملاء الصوتي الافتراضي"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "الطرفية",
+    "title": "الطرفية الافتراضية"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "المحرر",
+    "title": "المحرر الافتراضي"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "الإضافات"
+  },
+  "setup.plugin.enable": {
+    "label": "تفعيل إضافة"
+  },
+  "setup.plugin.disable": {
+    "label": "تعطيل إضافة"
+  },
+  "setup.plugin.add": {
+    "label": "إضافة جديدة"
+  },
+  "setup.plugin.clone": {
+    "label": "استنساخ إضافة"
+  },
+  "setup.plugin.remove": {
+    "label": "إزالة إضافة"
+  },
+  "setup.security": {
+    "label": "الأمان"
+  },
+  "setup.config": {
+    "label": "التكوين"
+  },
+  "setup.security.fingerprint": {
+    "label": "بصمة الإصبع"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "وكيل SSH"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Docker بدون sudo"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "sudo بدون كلمة مرور"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "الإقلاع المباشر"
+  },
+  "setup.reset": {
+    "label": "إعادة تعيين الحاسوب"
+  },
+  "install.package": {
+    "label": "الحزمة"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "الخدمة"
+  },
+  "install.development": {
+    "label": "التطوير"
+  },
+  "install.editor": {
+    "label": "المحرر"
+  },
+  "install.style": {
+    "label": "النمط"
+  },
+  "install.style.theme": {
+    "label": "السمة"
+  },
+  "install.style.background": {
+    "label": "الخلفية"
+  },
+  "install.style.font": {
+    "label": "الخط"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "الألعاب"
+  },
+  "install.browser": {
+    "label": "المتصفح"
+  },
+  "install.webapp": {
+    "label": "تطبيق الويب"
+  },
+  "install.terminal": {
+    "label": "الطرفية"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "المثبتة مسبقًا"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "حساب Chromium"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "وحدات تحكم Xbox"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "مشغّل ألعاب RetroArch"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "الحزمة"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "إزالة"
+  },
+  "remove.dictation": {
+    "label": "الإملاء الصوتي"
+  },
+  "remove.service": {
+    "label": "الخدمات",
+    "title": "إزالة"
+  },
+  "remove.development": {
+    "label": "التطوير",
+    "title": "إزالة"
+  },
+  "remove.theme": {
+    "label": "السمة"
+  },
+  "remove.gaming": {
+    "label": "الألعاب",
+    "title": "إزالة"
+  },
+  "remove.browser": {
+    "label": "المتصفح",
+    "title": "إزالة"
+  },
+  "remove.webapp": {
+    "label": "تطبيق الويب"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "المثبتة مسبقًا"
+  },
+  "remove.security": {
+    "label": "الأمان",
+    "title": "إزالة"
+  },
+  "remove.security.fingerprint": {
+    "label": "بصمة الإصبع"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Docker بدون sudo"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "وكيل SSH"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "وحدات تحكم Xbox (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "إزالة"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "إزالة"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "إزالة"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "القناة"
+  },
+  "update.config": {
+    "label": "التكوين",
+    "title": "إعادة تعيين إلى الافتراضي"
+  },
+  "update.themes": {
+    "label": "سمات إضافية"
+  },
+  "update.process": {
+    "label": "العملية",
+    "title": "إعادة التشغيل"
+  },
+  "update.hardware": {
+    "label": "العتاد",
+    "title": "إعادة التشغيل"
+  },
+  "update.firmware": {
+    "label": "البرنامج الثابت"
+  },
+  "update.password": {
+    "label": "كلمة المرور"
+  },
+  "update.timezone": {
+    "label": "المنطقة الزمنية"
+  },
+  "update.time": {
+    "label": "الوقت"
+  },
+  "update.channel.stable": {
+    "label": "مستقر"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Shell"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Shell"
+  },
+  "update.hardware.audio": {
+    "label": "الصوت"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "لوحة اللمس"
+  },
+  "update.password.drive": {
+    "label": "تشفير القرص"
+  },
+  "update.password.user": {
+    "label": "المستخدم"
+  },
+  "system.reboot-boot-menu": {
+    "label": "إعادة التشغيل إلى قائمة الإقلاع"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  }
+}

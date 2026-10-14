@@ -10,6 +10,14 @@ This is very helpful for grabbing addresses out of image footers or phone number
 
 ### Dictation
 
-Omarchy offers AI dictation via [Voxtype](https://voxtype.io/). You install it via _Install > AI > Dictation_ through the Omarchy menu. By default, it'll load a base English model that takes up 150MB. But you can tweak which model you'd like to use by running `voxtype setup model` in the terminal. And you can tweak all the settings via `~/.config/voxtype/config.toml`.
+On fresh installs, [Superwhisper](https://superwhisper.com/) is the default dictation backend, using cloud processing without offline model downloads. Choose Superwhisper or [Voxtype](https://voxtype.io/) through _Setup > Defaults > Dictation_ in the Omarchy menu. Selecting a backend installs it if needed and makes it the default for dictation. Voxtype loads a base English model that takes up 150MB; change the model with `voxtype setup model` and other settings through `~/.config/voxtype/config.toml`. Superwhisper opens its settings to choose cloud or local processing, and OPR keeps the application updated.
 
-Once installed, you dictate by holding down `F9` or by toggling with `Super + Ctrl + X`, and the dictated text will appear in the focused input area.
+You dictate by holding down `Right Alt` or `F9`, or by toggling with `Super + Ctrl + X`, and the dictated text will appear in the focused input area. These shortcuts use the selected backend. Right Alt also starts dictation when used in a modifier chord; use Left Alt for those chords. On keyboard layouts where Right Alt is AltGr, use `F9` to keep AltGr available for typing.
+
+The same shortcuts work with either backend. Select your backend through Setup > Defaults > Dictation. The backend installer configures it and saves the selection. Run `omarchy default dictation` to see which one is selected. The selection is saved in `~/.config/omarchy/defaults/dictation`. Fresh installs select Superwhisper automatically.
+
+Omarchy loads the selected backend's desktop integration automatically. No Superwhisper configuration is needed in `~/.config/hypr/`.
+
+Custom bindings and scripts can use `omarchy dictation start`, `omarchy dictation stop`, and `omarchy dictation toggle`. The selected backend handles the recording and transcription. Selecting Superwhisper disables its native hold shortcut and sets its native toggle to `Alt + Space`, keeping it separate from Omarchy's recording keys. Superwhisper requires at least one native recording shortcut, and its cancellation shortcut stays available.
+
+Additional backends can integrate without changing Omarchy. Provide an executable named `omarchy-dictation-<backend>` on PATH that accepts `start`, `stop`, and `toggle` and returns promptly, with a nonzero status on failure. Its installer configures the provider and calls `omarchy-dictation-use <backend>` after successful setup. This stops the previous backend and saves the selection atomically; `stop` must succeed when the provider is idle or unavailable. Backend names use lowercase letters, digits, and hyphens. Provide `omarchy-install-dictation-<backend>` for setup; `omarchy default dictation <backend>` launches it. Add a Defaults menu entry through an Omarchy menu extension to call that selector. Optional desktop integration can live in `${XDG_CONFIG_HOME:-$HOME/.config}/<backend>/shortcuts.lua`.

@@ -14,7 +14,9 @@ hl.config({
       inactive_border = inactive_border_color,
     },
 
-    resize_on_border = false,
+    resize_on_border = true,
+    extend_border_grab_area = 8,
+    hover_icon_on_border = true,
     allow_tearing = false,
     layout = "dwindle",
   },
@@ -104,6 +106,7 @@ hl.config({
   misc = {
     disable_hyprland_logo = true,
     disable_splash_rendering = true,
+    background_color = "rgb(000000)",
     disable_scale_notification = true,
     focus_on_activate = true,
     anr_missed_pings = 3,

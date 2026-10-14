@@ -1,18 +1,20 @@
 #!/bin/bash
 
-# omarchy:summary=Reinstall all default Omarchy packages from the stable channel
+# omarchy:summary=Reinstall all default Omarchy packages from the stable channel, or on aarch64 the edge channel
 # omarchy:requires-sudo=true
 
 set -e
 
-# Reinstall all default Omarchy packages from the stable channel and downgrade any packages that are too new.
+# Reinstall all default Omarchy packages from the platform's default channel
+# (stable, or edge on aarch64) and downgrade any packages that are too new.
 
-# Set the package repository to the stable mirrors
+# Set the package repository to the platform's default channel
 omarchy-refresh-pacman
 
-# Downgrade any packages to the stable setup
+# Downgrade any packages to that channel's setup
 omarchy-update-pacman -Suu --noconfirm
 
-# Ensure all packages are installed
-mapfile -t packages < <(grep -v '^#' "$OMARCHY_PATH/install/omarchy-base.packages" | grep -v '^$')
+# Ensure this platform's default packages are installed
+default_packages=$(omarchy-pkg-defaults)
+mapfile -t packages <<<"$default_packages"
 omarchy-update-pacman -Syu --noconfirm --needed "${packages[@]}"

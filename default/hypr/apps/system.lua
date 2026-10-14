@@ -37,20 +37,6 @@ o.window("org.omarchy.screensaver", { animation = "slide" })
 -- where its fullscreen rule cannot take fullscreen from a window.
 o.window("org.omarchy.screensaver", { workspace = "special:screensaver silent" })
 
--- No transparency on media windows.
-o.window(
-  "^(zoom|vlc|mpv|org.kde.kdenlive|com.obsproject.Studio|com.github.PintaProject.Pinta|imv|org.gnome.NautilusPreviewer)$",
-  {
-    tag = "-default-opacity",
-  }
-)
-o.window(
-  "^(zoom|vlc|mpv|org.kde.kdenlive|com.obsproject.Studio|com.github.PintaProject.Pinta|imv|org.gnome.NautilusPreviewer)$",
-  {
-    opacity = "1 1",
-  }
-)
-
 -- Popped window rounding.
 o.window({ tag = "pop" }, { rounding = 8 })
 

@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# omarchy:summary=Check or signal the current user's recording processes
+# omarchy:args=[--pid <pid>] [--signal INT|KILL]
+# omarchy:hidden=true
+
+usage() {
+  echo "Usage: omarchy-capture-screenrecording-process [--pid <pid>]... [--signal INT|KILL]" >&2
+  exit 2
+}
+
+proc_root=${OMARCHY_PROC_ROOT:-/proc}
+wanted=" "
+signal=""
+
+while (($#)); do
+  case $1 in
+    --pid)
+      # Compare textually first: bash arithmetic wraps values past 64 bits.
+      [[ ${2-} =~ ^0*([0-9]+)$ ]] || usage
+      pid=${BASH_REMATCH[1]}
+      ((${#pid} <= 10 && 10#$pid <= 4194304)) || usage
+      wanted+="$((10#$pid)) "
+      shift 2
+      ;;
+    --signal)
+      [[ ${2-} == "INT" || ${2-} == "KILL" ]] || usage
+      signal=$2
+      shift 2
+      ;;
+    *)
+      usage
+      ;;
+  esac
+done
+
+is_recorder() {
+  local exe
+  exe=$(readlink "$proc_root/$1/exe" 2>/dev/null) || return 1
+  # Linux appends this when an upgrade unlinks a still-running executable.
+  exe=${exe% (deleted)}
+  exe=${exe##*/}
+  [[ $exe == "gpu-screen-recorder" || $exe == "wf-recorder" ]]
+}
+
+# Linux truncates a process name to 15 characters: gpu-screen-recorder runs as
+# gpu-screen-reco, which any executable sharing that prefix also matches, and a
+# process can rename itself, so the executable path confirms each candidate.
+matched=()
+while read -r pid; do
+  if [[ $wanted == " " || $wanted == *" $pid "* ]] && is_recorder "$pid"; then
+    matched+=("$pid")
+  fi
+done < <(pgrep -u "$UID" -x 'gpu-screen-reco(rder)?|wf-recorder')
+
+if ((${#matched[@]} == 0)); then
+  exit 1
+fi
+
+if [[ -n $signal ]]; then
+  delivered=0
+  for pid in "${matched[@]}"; do
+    # The pid can be reused between discovery and kill; re-checking exe here narrows that window.
+    if is_recorder "$pid" && kill "-$signal" "$pid" 2>/dev/null; then
+      delivered=1
+    fi
+  done
+  # A recorder that exits before its signal has stopped anyway; fail only if none was signalled.
+  ((delivered)) || exit 1
+fi
+
+exit 0

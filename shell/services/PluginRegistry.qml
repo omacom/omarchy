@@ -74,7 +74,7 @@ QtObject {
     if (manifest.barWidget !== undefined && Util.isPlainObject(manifest.barWidget)
         && manifest.barWidget.defaultSection !== undefined) {
       var defaultSection = String(manifest.barWidget.defaultSection)
-      if (["left", "center", "right"].indexOf(defaultSection) === -1) {
+      if (["left", "center", "tray", "right"].indexOf(defaultSection) === -1) {
         console.warn("PluginRegistry: invalid barWidget.defaultSection at " + sourcePath)
         return null
       }
@@ -196,7 +196,7 @@ QtObject {
   function defaultBarWidgetSection(manifest) {
     var metadata = manifest && Util.isPlainObject(manifest.barWidget) ? manifest.barWidget : null
     var section = metadata ? String(metadata.defaultSection || "") : ""
-    return ["left", "center", "right"].indexOf(section) !== -1 ? section : "center"
+    return ["left", "center", "tray", "right"].indexOf(section) !== -1 ? section : "center"
   }
 
   function barEntryId(entry) {
@@ -207,7 +207,7 @@ QtObject {
     if (!Util.isPlainObject(config) || !Util.isPlainObject(config.bar)
         || !Util.isPlainObject(config.bar.layout)) return { found: false }
     var key = Util.canonicalWidgetId(String(id))
-    var sections = ["left", "center", "right"]
+    var sections = ["left", "center", "right", "tray"]
     for (var s = 0; s < sections.length; s++) {
       if (section && sections[s] !== section) continue
       var entries = config.bar.layout[sections[s]]
@@ -249,14 +249,26 @@ QtObject {
     return { found: false }
   }
 
-  function barTarget(config, placement, fallbackSection) {
+  // The tray, or a clone standing in for it.
+  function isTray(id) {
+    var manifest = installedPlugins[id]
+    var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
+    return id === "omarchy.tray" || (!!metadata && Util.canonicalWidgetId(String(metadata.clonedFrom || "")) === "omarchy.tray")
+  }
+
+  // The tray section is drawn inside the tray, so the tray cannot go there.
+  function barTarget(config, placement, fallbackSection, id) {
     var target = placement || {}
-    var section = ["left", "center", "right"].indexOf(String(target.section || "")) !== -1
+    var section = ["left", "center", "right", "tray"].indexOf(String(target.section || "")) !== -1
       ? String(target.section) : fallbackSection
+    var tray = isTray(id)
+    var trayError = { error: "the tray cannot go in its own drawer" }
+    if (tray && section === "tray") return trayError
     var relativeId = String(target.before || target.after || "")
     if (relativeId) {
       var relative = findRelativeBarLocation(config, relativeId, section && target.section ? section : "")
       if (!relative.found) return { error: "could not find target widget " + relativeId }
+      if (tray && relative.section === "tray") return trayError
       return {
         section: relative.section,
         index: relative.index + (target.after ? 1 : 0)
@@ -269,7 +281,9 @@ QtObject {
       return { section: section, index: Math.min(requested, config.bar.layout[section].length) }
     }
 
+    // The tray section has no anchor: a widget put there goes at its end.
     var anchors = { left: "omarchy.workspaces", center: "omarchy.weather", right: "omarchy.tray" }
+    if (!anchors[section]) return { section: section, index: config.bar.layout[section].length }
     var anchor = findRelativeBarLocation(config, anchors[section], section)
     return {
       section: section,
@@ -297,7 +311,7 @@ QtObject {
 
     var entry = config.bar.layout[source.section][source.index]
     config.bar.layout[source.section].splice(source.index, 1)
-    var target = barTarget(config, placement, source.section)
+    var target = barTarget(config, placement, source.section, key)
     if (target.error) {
       config.bar.layout[source.section].splice(source.index, 0, entry)
       return target.error
@@ -451,8 +465,9 @@ QtObject {
       var cloneLocation = findEntryLocation(config, cloneId)
       if (cloneLocation.kind === "bar") {
         var cloneEntry = config.bar.layout[cloneLocation.section][cloneLocation.index]
-        var sections = ["left", "center", "right"]
+        var sections = ["left", "center", "right", "tray"]
         for (var s = 0; s < sections.length; s++) {
+          if (!Array.isArray(config.bar.layout[sections[s]])) continue
           for (var i = config.bar.layout[sections[s]].length - 1; i >= 0; i--) {
             if (barEntryId(config.bar.layout[sections[s]][i]) === sourceId)
               config.bar.layout[sections[s]].splice(i, 1)
@@ -494,10 +509,12 @@ QtObject {
     shellConfigMutator(function(config) {
       ensureConfigShape(config)
 
-      if (value && placement && (placement.before || placement.after)) {
-        var relativeId = String(placement.before || placement.after)
-        if (!findRelativeBarLocation(config, relativeId, String(placement.section || "")).found) {
-          lastEnableError = "could not find target widget " + relativeId
+      // A placement that cannot be honoured is refused before anything
+      // changes: a missing neighbour, or the tray asked into its own drawer.
+      if (value && isBarWidget && placement && Object.keys(placement).length) {
+        var requested = barTarget(config, placement, defaultBarWidgetSection(manifest), key)
+        if (requested.error) {
+          lastEnableError = requested.error
           return
         }
       }
@@ -536,7 +553,7 @@ QtObject {
             config.bar.layout[sourceLocation.section][sourceLocation.index] = replacement
           } else {
             var section = defaultBarWidgetSection(manifest)
-            var target = barTarget(config, placement || {}, section)
+            var target = barTarget(config, placement || {}, section, key)
             config.bar.layout[target.section].splice(target.index, 0, entry)
             insertedWithPlacement = true
           }
@@ -657,9 +674,40 @@ QtObject {
 
   property Process initProcess: Process {
     onExited: {
+      registry.reapOrphanedPluginWatchers()
+    }
+  }
+
+  // Quickshell does not take its Process children with it when it stops, so
+  // every shell restart leaves this watcher running, reparented to init
+  // (63 of them on one long-lived machine). Before starting our own, stop
+  // any plugin watcher whose parent is no longer a shell; a live shell's
+  // watcher — parented to it — is left alone. The [i] keeps this script's
+  // own command line from matching its search.
+  property Process watcherReaper: Process {
+    onExited: {
       localPluginWatcher.running = true
       registry.rescan()
     }
+  }
+
+  function reapOrphanedPluginWatchers() {
+    watcherReaper.command = ["bash", "-c",
+      "for p in $(pgrep -f '[i]notifywait -m -r -q -e close_write,create,delete,move' || true); do "
+        + "tr '\\0' '\\n' < \"/proc/$p/cmdline\" 2>/dev/null | grep -Fxq \"$1\" || continue; "
+        + "parent=$(ps -o ppid= -p \"$p\" 2>/dev/null | tr -d ' '); "
+        + "[[ $parent =~ ^[0-9]+$ ]] || continue; "
+        + "case \"$(ps -o comm= -p \"$parent\" 2>/dev/null)\" in quickshell|qs) ;; *) kill \"$p\" 2>/dev/null || true ;; esac; "
+        + "done; true",
+      "watcher-reaper", registry.pluginsDir]
+    watcherReaper.running = true
+  }
+
+  // A graceful stop takes the watcher with it; the reaper above covers the
+  // stops that never run this (a killed or crashed shell).
+  Component.onDestruction: {
+    localPluginWatcherRestart.stop()
+    localPluginWatcher.running = false
   }
 
   property Process localPluginWatcher: Process {
@@ -700,9 +748,9 @@ QtObject {
     // Third-party plugins stay at the top level of ~/.config/omarchy/plugins.
     var script = ""
       + "emit_manifest() { local kind=\"$1\"; local manifest=\"$2\"; local sub; "
-      + "  if [[ ${manifest##*/} == \"manifest.json\" ]]; then sub=\"${manifest%/manifest.json}\"; else sub=\"$(dirname -- \"$manifest\")\"; fi; "
+      + "  if [[ ${manifest##*/} == \"manifest.json\" ]]; then sub=\"${manifest%/manifest.json}\"; else sub=\"${manifest%/*}\"; fi; "
       + "  printf '===%s::%s===\\n' \"$kind\" \"$sub\"; "
-      + "  cat \"$manifest\"; "
+      + "  printf '%s\\n' \"$(<\"$manifest\")\"; "
       + "  printf '\\n=== EOM ===\\n'; "
       + "}; "
       + "scan_firstparty() { local dir=\"$1\"; "

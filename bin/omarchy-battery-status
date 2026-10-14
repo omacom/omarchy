@@ -18,29 +18,45 @@ case "${1:-}" in
     ;;
 esac
 
-battery=$(upower -e 2>/dev/null | grep BAT | head -n 1)
-[[ -z $battery ]] && exit 0
+# Durations and the status line read in the Omarchy language; the --shell
+# time feeds the power panel, which shows it as-is.
+# The power reading is joined with no-break spaces so a longer language wraps
+# the line between its parts rather than inside "13.1W / 53Wh".
+format_duration() {
+  local minutes=$1
+  if [[ -z $minutes ]] || (( minutes <= 0 )); then
+    return
+  elif (( minutes < 60 )); then
+    omarchy-i18n battery.durationMinutes "$minutes"
+  elif (( minutes % 60 == 0 )); then
+    omarchy-i18n battery.durationHours "$(( minutes / 60 ))"
+  else
+    omarchy-i18n battery.durationHoursMinutes "$(( minutes / 60 ))" "$(( minutes % 60 ))"
+  fi
+}
 
-battery_info=$(upower -i "$battery")
+# UPower names the device after the sysfs entry, and only some kernels call
+# that BAT*: Apple Silicon reports battery_macsmc_battery. Match on the class,
+# then take the first one that powers the machine: a wireless mouse or keyboard
+# is a battery_ device too, and UPower marks it "power supply: no".
+battery=""
+battery_info=""
+while read -r candidate; do
+  [[ -n $candidate ]] || continue
+  candidate_info=$(upower -i "$candidate" 2>/dev/null) || continue
+  if grep -qE '^\s*power supply:\s+yes' <<<"$candidate_info"; then
+    battery=$candidate
+    battery_info=$candidate_info
+    break
+  fi
+done < <(upower -e 2>/dev/null | grep '/battery_')
+[[ -z $battery ]] && exit 0
 
 percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$battery_info")
 capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$battery_info")
-time_remaining=$(awk '/time to (empty|full)/ {
-  value = $4
-  unit = $5
-  if (unit ~ /^minute/) {
-    printf "%dm", int(value)
-  } else {
-    hours = int(value)
-    minutes = int((value - hours) * 60)
-    if (minutes > 0) {
-      printf "%dh %dm", hours, minutes
-    } else {
-      printf "%dh", hours
-    }
-  }
-  exit
-}' <<<"$battery_info")
+energy=$(awk '/^ *energy:/ { print $2; exit }' <<<"$battery_info")
+energy_full=$(awk '/energy-full:/ { print $2; exit }' <<<"$battery_info")
+upower_hours=$(awk '/time to (empty|full)/ { print ($5 ~ /^minute/ ? $4 / 60 : $4); exit }' <<<"$battery_info")
 power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
 native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
 battery_path="$power_supply_path/$native_path"
@@ -56,7 +72,10 @@ elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
     'BEGIN { print microamps * microvolts / 1000000000000 }')
 fi
 
+# Some kernels sign power_now by direction (negative while discharging on
+# Apple Silicon); the state field already says which way it flows.
 power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
+  if (rate < 0) rate = -rate
   rounded = sprintf("%.1f", rate)
   sub(/\.0$/, "", rounded)
   print rounded
@@ -65,8 +84,31 @@ state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
 threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 
-[[ -z $threshold_end ]] && threshold_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
-[[ -z $threshold_start ]] && threshold_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
+# Read the thresholds from the battery UPower resolved rather than a BAT* glob,
+# which misses every battery with another name.
+[[ -n $threshold_end || ! -r $battery_path/charge_control_end_threshold ]] || threshold_end=$(<"$battery_path/charge_control_end_threshold")
+[[ -n $threshold_start || ! -r $battery_path/charge_control_start_threshold ]] || threshold_start=$(<"$battery_path/charge_control_start_threshold")
+# The time to full counts to this battery's own limit, never another one's.
+charge_limit=${threshold_end:-100}
+[[ -n $threshold_end ]] || threshold_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
+[[ -n $threshold_start ]] || threshold_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
+
+# Time left is the energy left over the draw shown beside it, so the two always
+# agree; charging counts up to the charge limit. UPower's own estimate averages
+# the draw, and stands in only when the readings to do the sum are missing.
+minutes_remaining=$(awk \
+  -v energy="$energy" -v full="$energy_full" -v rate="${power_rate_raw:-0}" \
+  -v state="$state" -v limit="$charge_limit" -v fallback="$upower_hours" 'BEGIN {
+  if (rate < 0) rate = -rate
+  if (energy != "" && full != "" && rate > 0.2) {
+    hours = state == "charging" ? (full * limit / 100 - energy) / rate : energy / rate
+  } else {
+    hours = fallback
+  }
+  if (hours == "" || hours <= 0) exit
+  printf "%d", int(hours * 60 + 0.5)
+}')
+time_remaining=$(format_duration "$minutes_remaining")
 
 ac_online=false
 for supply in "$power_supply_path"/*; do
@@ -107,7 +149,9 @@ if [[ $shell_output == "true" ]]; then
   printf 'size\t%s\n' "${capacity}Wh"
   printf 'time\t%s\n' "$time_remaining"
 
-  cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
+  cycles=""
+  [[ ! -r $battery_path/cycle_count ]] || cycles=$(<"$battery_path/cycle_count")
+  [[ -n $cycles ]] || cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
 
   [[ -n $cycles ]] && printf 'cycles\t%s\n' "$cycles"
 
@@ -122,16 +166,19 @@ if [[ $shell_output == "true" ]]; then
   exit 0
 fi
 
+# The power reading shows its numbers in the language's own way.
+power_reading="$(omarchy-i18n --number "$power_rate")W / $(omarchy-i18n --number "$capacity")Wh"
+
 if [[ $charge_holding == "true" ]]; then
   if [[ -n $threshold_start && $threshold_start != $threshold_end ]]; then
-    threshold_label="${threshold_start}-${threshold_end}%"
+    threshold_label="$(omarchy-i18n --number "$threshold_start")-$(omarchy-i18n --number "$threshold_end")%"
   else
-    threshold_label="${threshold_end}%"
+    threshold_label="$(omarchy-i18n --number "$threshold_end")%"
   fi
 
-  echo "Battery ${percentage}%  ·  Holding at ${threshold_label}  ·  ${power_rate}W / ${capacity}Wh"
+  echo "$(omarchy-i18n battery.statusLabel "$percentage")  ·  $(omarchy-i18n battery.holdingAt "$threshold_label")  ·  ${power_reading}"
 elif [[ $state == "charging" ]]; then
-  echo "Battery ${percentage}%  ·  ${time_remaining} to full  ·   ${power_rate}W / ${capacity}Wh"
+  echo "$(omarchy-i18n battery.statusLabel "$percentage")  ·  $(omarchy-i18n battery.toFull "$time_remaining")  ·   ${power_reading}"
 else
-  echo "Battery ${percentage}%  ·  ${time_remaining} left  ·   ${power_rate}W / ${capacity}Wh"
+  echo "$(omarchy-i18n battery.statusLabel "$percentage")  ·  $(omarchy-i18n battery.timeLeft "$time_remaining")  ·   ${power_reading}"
 fi

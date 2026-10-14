@@ -451,3 +451,4 @@ if [[ -f $COLORS_FILE ]]; then
 fi
 
 apply_shell_section_overrides
+omarchy-theme-set-glass "$NEXT_THEME_DIR"

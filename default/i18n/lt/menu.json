@@ -1,0 +1,1217 @@
+{
+  "root": {
+    "label": "Eiti"
+  },
+  "apps": {
+    "label": "Programos"
+  },
+  "learn": {
+    "label": "Mokytis"
+  },
+  "trigger": {
+    "label": "Veiksmai"
+  },
+  "style": {
+    "label": "Stilius"
+  },
+  "setup": {
+    "label": "Nuostatos"
+  },
+  "install": {
+    "label": "Įdiegti"
+  },
+  "remove": {
+    "label": "Pašalinti"
+  },
+  "update": {
+    "label": "Atnaujinti"
+  },
+  "about": {
+    "label": "Apie"
+  },
+  "system": {
+    "label": "Sistema"
+  },
+  "system.screensaver": {
+    "label": "Ekrano užsklanda"
+  },
+  "system.lock": {
+    "label": "Užrakinti"
+  },
+  "system.suspend": {
+    "label": "Pristabdyti"
+  },
+  "system.hibernate": {
+    "label": "Užmigdyti"
+  },
+  "system.logout": {
+    "label": "Atsijungti"
+  },
+  "system.reboot": {
+    "label": "Paleisti iš naujo"
+  },
+  "system.shutdown": {
+    "label": "Išjungti"
+  },
+  "learn.keybindings": {
+    "label": "Spartieji klavišai"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "Bendruomenė"
+  },
+  "trigger.appearance": {
+    "label": "Išvaizda"
+  },
+  "trigger.appearance.animations": {
+    "label": "Animacijos"
+  },
+  "trigger.appearance.top-bar": {
+    "label": "Meniu juosta"
+  },
+  "trigger.appearance.top-bar.hide": {
+    "label": "Slėpti juostą"
+  },
+  "trigger.appearance.top-bar.show": {
+    "label": "Rodyti juostą"
+  },
+  "trigger.appearance.top-bar.position": {
+    "label": "Juostos padėtis"
+  },
+  "trigger.appearance.top-bar.background": {
+    "label": "Juostos fonas"
+  },
+  "trigger.appearance.top-bar.background.opaque": {
+    "label": "Nepermatoma juosta"
+  },
+  "trigger.appearance.top-bar.background.glassy": {
+    "label": "Stiklinė juosta"
+  },
+  "trigger.appearance.top-bar.background.clear": {
+    "label": "Skaidri juosta"
+  },
+  "trigger.appearance.top-bar.indicators": {
+    "label": "Juostos indikatoriai"
+  },
+  "trigger.appearance.top-bar.indicators.battery-percentage": {
+    "label": "Akumuliatoriaus procentai"
+  },
+  "trigger.appearance.top-bar.indicators.clock": {
+    "label": "Laikrodis"
+  },
+  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "Sekmadienis 14:30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "Sekmadienis 2:30 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "Sekmadienis 14:30:05"
+  },
+  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "Sekmadienis 2:30:05 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+    "label": "Sek 3 geg. 14:30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+    "label": "Sek 3 geg. 2:30 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.week": {
+    "label": "3 geg. W18 2026"
+  },
+  "trigger.appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 geg. W18 '26"
+  },
+  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "trigger.appearance.top-bar.position.top": {
+    "label": "Juosta viršuje"
+  },
+  "trigger.appearance.top-bar.position.bottom": {
+    "label": "Juosta apačioje"
+  },
+  "trigger.appearance.top-bar.position.left": {
+    "label": "Juosta kairėje"
+  },
+  "trigger.appearance.top-bar.position.right": {
+    "label": "Juosta dešinėje"
+  },
+  "trigger.appearance.dock": {
+    "label": "Dokas"
+  },
+  "trigger.appearance.dock.autohide": {
+    "label": "Slėpti Dock automatiškai"
+  },
+  "trigger.appearance.dock.always-on": {
+    "label": "Visada rodyti Dock"
+  },
+  "trigger.appearance.dock.position": {
+    "label": "Dock padėtis"
+  },
+  "trigger.appearance.dock.position.top": {
+    "label": "Dock viršuje"
+  },
+  "trigger.appearance.dock.position.bottom": {
+    "label": "Dock apačioje"
+  },
+  "trigger.appearance.dock.position.left": {
+    "label": "Dock kairėje"
+  },
+  "trigger.appearance.dock.position.right": {
+    "label": "Dock dešinėje"
+  },
+  "trigger.appearance.window-gaps": {
+    "label": "Langų tarpai"
+  },
+  "trigger.appearance.window-corners": {
+    "label": "Langų kampai"
+  },
+  "trigger.appearance.window-corners.theme": {
+    "label": "Temos kampai"
+  },
+  "trigger.appearance.window-corners.sharp": {
+    "label": "Aštrūs kampai"
+  },
+  "trigger.appearance.window-corners.rounded": {
+    "label": "Apvalūs kampai"
+  },
+  "trigger.appearance.window-transparency": {
+    "label": "Langų nepermatomumas"
+  },
+  "trigger.appearance.window-transparency.opaque": {
+    "label": "Nepermatomi langai"
+  },
+  "trigger.appearance.window-transparency.transparent": {
+    "label": "Permatomi langai"
+  },
+  "trigger.appearance.window-transparency.glassy": {
+    "label": "Stikliniai langai"
+  },
+  "trigger.appearance.one-window-ratio": {
+    "label": "1 lango santykis"
+  },
+  "trigger.appearance.workspace-layout": {
+    "label": "Darbo srities išdėstymas",
+    "title": "Numatytasis darbo srities išdėstymas"
+  },
+  "trigger.appearance.workspace-layout.dwindle": {
+    "label": "Plytelės"
+  },
+  "trigger.appearance.workspace-layout.scrolling": {
+    "label": "Slinkimas"
+  },
+  "trigger.appearance.workspace-layout.floating": {
+    "label": "Plūduriuojantys"
+  },
+  "trigger.appearance.theme-sync": {
+    "label": "Herdr temos sinchronizacija"
+  },
+  "trigger.toggle": {
+    "label": "Perjungti"
+  },
+  "trigger.toggle.idle-lock": {
+    "label": "Nemiegoti"
+  },
+  "trigger.toggle.notifications": {
+    "label": "Pranešimai"
+  },
+  "trigger.toggle.nightlight": {
+    "label": "Naktinė šviesa"
+  },
+  "trigger.toggle.screensaver": {
+    "label": "Ekrano užsklanda"
+  },
+  "trigger.toggle.crash-capture": {
+    "label": "Strigčių fiksavimas"
+  },
+  "trigger.emoji": {
+    "label": "Jaustukai"
+  },
+  "trigger.clipboard-history": {
+    "label": "Iškarpinės istorija"
+  },
+  "trigger.reminder": {
+    "label": "Priminimas"
+  },
+  "trigger.capture": {
+    "label": "Fiksuoti"
+  },
+  "trigger.capture.screenshot": {
+    "label": "Ekrano nuotrauka"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "Stabdyti įrašą"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "Ekrano įrašas"
+  },
+  "trigger.capture.text": {
+    "label": "Tekstas"
+  },
+  "trigger.capture.qr": {
+    "label": "QR kodas"
+  },
+  "trigger.capture.color": {
+    "label": "Spalva"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "Be garso"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "Su darbalaukio garsu"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "Su darbalaukio ir mikrofono garsu"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "Su darbalaukio, mikrofono garsu ir kamera"
+  },
+  "trigger.transcode": {
+    "label": "Perkoduoti"
+  },
+  "trigger.share": {
+    "label": "Dalytis"
+  },
+  "trigger.hardware": {
+    "label": "Aparatinė įranga"
+  },
+  "trigger.tests": {
+    "label": "Greitis"
+  },
+  "trigger.hardware.laptop-display": {
+    "label": "Nešiojamojo ekranas"
+  },
+  "trigger.hardware.mirror-display": {
+    "label": "Dubliuoti ekraną"
+  },
+  "trigger.hardware.hybrid-gpu": {
+    "label": "Hibridinis GPU"
+  },
+  "trigger.hardware.touchpad": {
+    "label": "Jutiklinis kilimėlis"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "Kilimėlio vibracija"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "žemas"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "vidutinis"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "aukštas"
+  },
+  "trigger.hardware.touchscreen": {
+    "label": "Lietimui jautrus ekranas"
+  },
+  "trigger.reminder.set": {
+    "label": "Nustatyti"
+  },
+  "trigger.reminder.show": {
+    "label": "Rodyti visus"
+  },
+  "trigger.reminder.clear": {
+    "label": "Valyti visus"
+  },
+  "trigger.share.clipboard": {
+    "label": "Iškarpinė"
+  },
+  "trigger.share.file": {
+    "label": "Failas"
+  },
+  "trigger.share.folder": {
+    "label": "Aplankas"
+  },
+  "trigger.share.receive": {
+    "label": "Gauti"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "Tinklo greičio testas"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "Disko greičio testas"
+  },
+  "style.theme": {
+    "label": "Tema"
+  },
+  "style.background": {
+    "label": "Fonas"
+  },
+  "style.unlock": {
+    "label": "Atrakinti"
+  },
+  "style.font": {
+    "label": "Šriftas"
+  },
+  "style.hyprland": {
+    "label": "Hyprland"
+  },
+  "style.screensaver": {
+    "label": "Ekrano užsklanda"
+  },
+  "style.about": {
+    "label": "Apie"
+  },
+  "style.about.text": {
+    "label": "Redaguoti tekstą"
+  },
+  "style.about.image": {
+    "label": "Nustatyti iš paveikslėlio"
+  },
+  "style.about.default": {
+    "label": "Atkurti numatytąjį"
+  },
+  "style.screensaver.text": {
+    "label": "Redaguoti tekstą"
+  },
+  "style.screensaver.image": {
+    "label": "Nustatyti iš paveikslėlio"
+  },
+  "style.screensaver.default": {
+    "label": "Atkurti numatytąjį"
+  },
+  "setup.monitors": {
+    "label": "Monitoriai"
+  },
+  "setup.keybindings": {
+    "label": "Spartieji klavišai"
+  },
+  "setup.input": {
+    "label": "Įvestis"
+  },
+  "setup.typing": {
+    "label": "Rašymas"
+  },
+  "setup.typing.keyboard": {
+    "label": "Klaviatūros išdėstymai"
+  },
+  "setup.typing.input": {
+    "label": "Įvesties metodai"
+  },
+  "setup.language": {
+    "label": "Kalba"
+  },
+  "setup.network": {
+    "label": "Tinklas"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "Pasirinktinis"
+  },
+  "setup.network.qr": {
+    "label": "QR kodas"
+  },
+  "setup.default": {
+    "label": "Numatytosios"
+  },
+  "setup.default.agent": {
+    "label": "Agentas",
+    "title": "Numatytasis agentas"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "Naršyklė",
+    "title": "Numatytoji naršyklė"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "Diktavimas",
+    "title": "Numatytasis diktavimas"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "Terminalas",
+    "title": "Numatytasis terminalas"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "Redaktorius",
+    "title": "Numatytasis redaktorius"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "Įskiepiai"
+  },
+  "setup.plugin.enable": {
+    "label": "Įjungti įskiepį"
+  },
+  "setup.plugin.disable": {
+    "label": "Išjungti įskiepį"
+  },
+  "setup.plugin.add": {
+    "label": "Pridėti įskiepį"
+  },
+  "setup.plugin.clone": {
+    "label": "Klonuoti įskiepį"
+  },
+  "setup.plugin.remove": {
+    "label": "Pašalinti įskiepį"
+  },
+  "setup.security": {
+    "label": "Sauga"
+  },
+  "setup.config": {
+    "label": "Konfigūracija"
+  },
+  "setup.security.fingerprint": {
+    "label": "Piršto atspaudas"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH agentas"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Docker be sudo"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "Sudo be slaptažodžio"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "Tiesioginė įkrova"
+  },
+  "setup.reset": {
+    "label": "Atstatyti kompiuterį"
+  },
+  "install.package": {
+    "label": "Paketas"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "Paslauga"
+  },
+  "install.development": {
+    "label": "Kūrimas"
+  },
+  "install.editor": {
+    "label": "Redaktorius"
+  },
+  "install.style": {
+    "label": "Stilius"
+  },
+  "install.style.theme": {
+    "label": "Tema"
+  },
+  "install.style.background": {
+    "label": "Fonas"
+  },
+  "install.style.font": {
+    "label": "Šriftas"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "Žaidimai"
+  },
+  "install.browser": {
+    "label": "Naršyklė"
+  },
+  "install.webapp": {
+    "label": "Žiniatinklio programa"
+  },
+  "install.terminal": {
+    "label": "Terminalas"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "Išankstiniai"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Chromium paskyra"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Xbox valdikliai"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "RetroArch žaidimų paleidyklė"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Docker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "Paketas"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "Pašalinti"
+  },
+  "remove.dictation": {
+    "label": "Diktavimas"
+  },
+  "remove.service": {
+    "label": "Paslaugos",
+    "title": "Pašalinti"
+  },
+  "remove.development": {
+    "label": "Kūrimas",
+    "title": "Pašalinti"
+  },
+  "remove.theme": {
+    "label": "Tema"
+  },
+  "remove.gaming": {
+    "label": "Žaidimai",
+    "title": "Pašalinti"
+  },
+  "remove.browser": {
+    "label": "Naršyklė",
+    "title": "Pašalinti"
+  },
+  "remove.webapp": {
+    "label": "Žiniatinklio programa"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "Išankstiniai"
+  },
+  "remove.security": {
+    "label": "Sauga",
+    "title": "Pašalinti"
+  },
+  "remove.security.fingerprint": {
+    "label": "Piršto atspaudas"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Docker be sudo"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Xbox valdikliai (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "Pašalinti"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "Pašalinti"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "Pašalinti"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "Kanalas"
+  },
+  "update.config": {
+    "label": "Konfigūracija",
+    "title": "Atstatyti numatytąjį"
+  },
+  "update.themes": {
+    "label": "Papildomos temos"
+  },
+  "update.process": {
+    "label": "Procesas",
+    "title": "Paleisti iš naujo"
+  },
+  "update.hardware": {
+    "label": "Aparatinė įranga",
+    "title": "Paleisti iš naujo"
+  },
+  "update.firmware": {
+    "label": "Programinė įranga"
+  },
+  "update.password": {
+    "label": "Slaptažodis"
+  },
+  "update.timezone": {
+    "label": "Laiko juosta"
+  },
+  "update.time": {
+    "label": "Laikas"
+  },
+  "update.channel.stable": {
+    "label": "Stabilus"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Apvalkalas"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Apvalkalas"
+  },
+  "update.hardware.audio": {
+    "label": "Garsas"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "Jutiklinis kilimėlis"
+  },
+  "update.password.drive": {
+    "label": "Disko šifravimas"
+  },
+  "update.password.user": {
+    "label": "Vartotojas"
+  },
+  "system.reboot-boot-menu": {
+    "label": "Perkrauti į įkrovos meniu"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  }
+}

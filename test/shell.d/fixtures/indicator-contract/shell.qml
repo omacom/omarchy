@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import qs.Commons as Commons
 
 ShellRoot {
   id: root
@@ -42,11 +43,22 @@ ShellRoot {
   }
 
   QtObject {
+    id: remoteSessionService
+    property bool active: false
+    property var peers: []
+    property int refreshes: 0
+    function refresh() {
+      refreshes++
+    }
+  }
+
+  QtObject {
     id: mockShell
     function firstPartyServiceFor(id) {
       if (id === "omarchy.notifications") return notificationService
       if (id === "omarchy.idle") return idleService
       if (id === "omarchy.nightlight") return nightlightService
+      if (id === "omarchy.remote-session") return remoteSessionService
       return null
     }
   }
@@ -74,6 +86,7 @@ ShellRoot {
   QtObject {
     id: indicatorHost
     property bool revealInactiveIndicators: true
+    signal refreshRequested()
   }
 
   function createIndicator(name) {
@@ -165,9 +178,11 @@ ShellRoot {
 
   readonly property string rootPath: Quickshell.env("OMARCHY_PATH")
 
+  // Indicator text comes from the catalogs, which load just after the
+  // shell starts; check once they have.
   Timer {
     interval: 1
-    running: true
+    running: Object.keys(Commons.I18n.strings).length > 0
     repeat: false
     onTriggered: {
       var dnd = root.createIndicator("Dnd")
@@ -198,14 +213,17 @@ ShellRoot {
         root.assertTrue(root.commandCount("omarchy-capture-screenrecording --stop-recording") === 1, "Screen Recording left click stops active recording")
       }
 
-      var dictation = root.createIndicator("Dictation")
-      if (dictation) {
-        dictation.moduleName = "Dictation"
-        root.injectBar(dictation)
-        dictation.triggerPress(Qt.LeftButton)
-        dictation.triggerPress(Qt.RightButton)
-        root.assertTrue(root.commandCount("omarchy-voxtype-config") === 2, "Dictation clicks run config command")
-        root.assertTrue(root.commandCount("omarchy-voxtype-model") === 0, "Dictation clicks do not run model command")
+      var remoteSession = root.createIndicator("RemoteSession")
+      if (remoteSession) {
+        remoteSession.moduleName = "RemoteSession"
+        root.injectBar(remoteSession)
+        root.assertTrue(remoteSession.active === false, "Remote Session starts inactive without a gliff server")
+        remoteSessionService.active = true
+        remoteSessionService.peers = ["10.0.0.5"]
+        root.assertTrue(remoteSession.active === true, "Remote Session follows the service state")
+        root.assertTrue(remoteSession.tooltipText === "Remote session from 10.0.0.5", "Remote Session tooltip names the connected peer")
+        indicatorHost.refreshRequested()
+        root.assertTrue(remoteSessionService.refreshes === 1, "Remote Session refresh re-probes the service")
       }
 
       var stayAwake = root.createIndicator("StayAwake")

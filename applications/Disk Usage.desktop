@@ -1,8 +1,0 @@
-[Desktop Entry]
-Version=1.0
-Name=Disk Usage
-Exec=xdg-terminal-exec --app-id=TUI.float -e bash -c "dua i /"
-Terminal=false
-Type=Application
-Icon=disk-usage
-StartupNotify=true

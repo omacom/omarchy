@@ -210,5 +210,18 @@ check(
   '_syncServices still drops disabled or removed services'
 )
 
+const publicManifestMatch = shellSource.match(/function publicPluginManifest\(manifest\) \{[\s\S]*?\n  \}/)
+check(!!publicManifestMatch, 'publicPluginManifest is defined')
+if (publicManifestMatch) {
+  const host = {}
+  require('vm').runInNewContext(`${publicManifestMatch[0]}\nthis.publicPluginManifest = publicPluginManifest`, host)
+  const raw = { id: 'acme.demo', __sourceDir: '/plugins/acme.demo', __isFirstParty: false, __hostCapabilities: ['authentication'] }
+  const copy = host.publicPluginManifest(raw)
+  check(copy.__sourceDir === '/plugins/acme.demo', 'third-party manifests keep their own source directory')
+  check(!('__isFirstParty' in copy) && !('__hostCapabilities' in copy), 'third-party manifests drop host trust markers')
+  copy.__sourceDir = '/elsewhere'
+  check(raw.__sourceDir === '/plugins/acme.demo', 'a plugin editing its manifest copy cannot move the registry entry')
+}
+
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
 JS

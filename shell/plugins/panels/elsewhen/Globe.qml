@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "GlobeModel.js" as Solar
 import "Model.js" as Model
@@ -11,16 +12,17 @@ import "Model.js" as Model
 Item {
   id: root
 
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property color dim: Qt.darker(foreground, 1.55)
   property color fainter: Qt.darker(foreground, 2.1)
   property color daylightMarker
   // Passed in so the footer's moon agrees with the rows' strips.
   property real moonPhase: 0.5
   // Night dots are dark so they read against the bright continents.
-  readonly property color nightMarker: Util.alpha(Color.background, 0.92)
+  readonly property color nightMarker: Util.alpha(Commons.Color.background, 0.92)
   property string fontFamily: Style.font.family
   property bool hour24: false
+  property var words: null
   // The panel's offset setting, and the offset "home" is measured from.
   property string offsetMode: "home"
   property int homeOffsetMinutes: 0
@@ -30,7 +32,7 @@ Item {
   property real chromeOpacity: 1
 
   // Opaque tones mixed against the background, so the rows behind never show through.
-  readonly property color surfaceBase: Color.popups.background
+  readonly property color surfaceBase: Commons.Color.popups.background
   // Light names over sea, dark over land, split at the coastline.
   readonly property color seaInk: foreground
   readonly property color landInk: surfaceBase
@@ -201,8 +203,8 @@ Item {
   function offsetLabelFor(zone) {
     var off = offsets[zone]
     if (off === undefined) return ""
-    return offsetMode === "utc" ? Model.utcOffsetLabel(off)
-                                : Model.relativeOffsetLabel(off, homeOffsetMinutes)
+    return offsetMode === "utc" ? Model.utcOffsetLabel(off, words)
+                                : Model.relativeOffsetLabel(off, homeOffsetMinutes, words)
   }
 
   function isTracked(i) {
@@ -470,26 +472,26 @@ Item {
         ctx.fillStyle = day ? root.daylightMarker : root.nightMarker
         ctx.fill()
         ctx.lineWidth = root.scaled(1.2)
-        ctx.strokeStyle = day ? Util.alpha(Color.background, 0.7) : Util.alpha(fg, 0.85)
+        ctx.strokeStyle = day ? Util.alpha(Commons.Color.background, 0.7) : Util.alpha(fg, 0.85)
         ctx.stroke()
         if (root.isHome(i)) {
           ctx.beginPath()
           ctx.arc(p.x, p.y, root.scaled(3.4), 0, Math.PI * 2)
-          ctx.fillStyle = Color.accent
+          ctx.fillStyle = Commons.Color.accent
           ctx.fill()
           ctx.lineWidth = root.scaled(1.2)
-          ctx.strokeStyle = Util.alpha(Color.background, 0.5)
+          ctx.strokeStyle = Util.alpha(Commons.Color.background, 0.5)
           ctx.stroke()
           ctx.beginPath()
           ctx.arc(p.x, p.y, root.scaled(6.4), 0, Math.PI * 2)
           ctx.lineWidth = root.scaled(1.4)
-          ctx.strokeStyle = Util.alpha(Color.accent, 0.65)
+          ctx.strokeStyle = Util.alpha(Commons.Color.accent, 0.65)
           ctx.stroke()
         } else if (root.isTracked(i)) {
           ctx.beginPath()
           ctx.arc(p.x, p.y, root.scaled(4.6), 0, Math.PI * 2)
           ctx.lineWidth = root.scaled(1.3)
-          ctx.strokeStyle = Color.accent
+          ctx.strokeStyle = Commons.Color.accent
           ctx.stroke()
         }
         if (isSel) {
@@ -560,7 +562,7 @@ Item {
     city: root.selected >= 0 ? root.allCities[root.selected] : null
     // The globe's solar daylight, so the mark agrees with the city's dot.
     daylight: footer.has && root.cityDaylight(root.selected)
-    clock: footer.has ? Model.formatClock(root.nowMs, root.offsets[footer.city[1]], root.hour24) : ""
+    clock: footer.has ? Model.formatClock(root.nowMs, root.offsets[footer.city[1]], root.hour24, root.words) : ""
     offsetLabel: footer.has ? root.offsetLabelFor(footer.city[1]) : ""
     badge: root.isHome(root.selected) ? "home" : (root.isTracked(root.selected) ? "tracked" : "")
     moonPhase: root.moonPhase
@@ -584,9 +586,9 @@ Item {
     limit: 5
     inlineResults: false
     loading: root.jumpOptions.length === 0
-    buttonText: "Jump to a city"
-    loadingText: "Loading cities\u2026"
-    offsetLabel: function(zoneId) { return Model.utcOffsetLabel(root.offsets[zoneId]) }
+    buttonText: Commons.I18n.t("elsewhen.jumpToCity")
+    loadingText: Commons.I18n.t("elsewhen.loadingCities")
+    offsetLabel: function(zoneId) { return Model.utcOffsetLabel(root.offsets[zoneId], root.words) }
     foreground: root.foreground
     dim: root.dim
     fainter: root.fainter

@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Networking
 import qs.Commons
+import qs.Commons as Commons
 import "mocks"
 import "network" as Network
 
@@ -21,9 +22,9 @@ ShellRoot {
     Network.Panel {
       id: panel
       bar: QtObject {
-        property color foreground: Color.foreground
-        property color barForeground: Color.foreground
-        property color urgent: Color.urgent
+        property color foreground: Commons.Color.foreground
+        property color barForeground: Commons.Color.foreground
+        property color urgent: Commons.Color.urgent
         property string fontFamily: Style.font.family
         property string position: "top"
         property int barSize: 24
@@ -44,6 +45,9 @@ ShellRoot {
     interval: 250
     running: true
     onTriggered: {
+      if (!Quickshell.env("NETWORK_TEST_PREVIEW"))
+        test.check(panel.testContent === null, "closed panel has not built its content")
+      test.check(panel.testEnsureContent() !== null && panel.testContent !== null, "panel content builds on demand")
       test.check(panel.kind === "wifi", "connected Wi-Fi fixture")
       test.check(panel.connectivity === "full", "normal connectivity")
       test.check(!panel.testButton.visible && !panel.testBarButton.active, "no false portal banner")
@@ -68,7 +72,7 @@ ShellRoot {
     var before = NetworkMock.checks
     panel.testPoll.triggered()
     check(NetworkMock.checks === before + 1, "background timer rechecks through NM")
-    panel.testKeys.textKey("r")
+    panel.testKeys.textKey("r", Qt.NoModifier)
     check(NetworkMock.checks === before + 2, "r requests fresh connectivity")
     // Exercise the existing cursor model, not a separate test-only action.
     panel.cursorActive = true
@@ -149,7 +153,8 @@ ShellRoot {
     onTriggered: {
       var path = Quickshell.env("NETWORK_TEST_SCREENSHOT")
       if (!path) return
-      var card = panel.testKeys.parent.parent
+      // Content root -> Loader -> content holder -> card.
+      var card = panel.testKeys.parent.parent.parent
       card.grabToImage(function(result) {
         test.check(result.saveToFile(path), "save fresh preview screenshot")
         Qt.quit()

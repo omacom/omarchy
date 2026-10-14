@@ -259,6 +259,18 @@ assertDeepEqual(
   'notifications ignore a left bar for popup placement'
 )
 
+// A toast clears the bar as thick as it is on the toast's own screen: a notch
+// floor can make a top bar thicker on one screen only. A bar without
+// per-screen sizes (a plugin bar) counts its configured size, and a hidden or
+// missing bar the default size, as before.
+const notchBar = { barHidden: false, barSize: 26, barSizeFor: name => (name === 'eDP-1' ? 40 : 26) }
+assertEqual(notifications.barClearance(notchBar, 'eDP-1', 26, 6), 46, 'a toast clears a notch-floored bar on its screen')
+assertEqual(notifications.barClearance(notchBar, 'DP-1', 26, 6), 32, 'a toast on another screen clears the configured size')
+assertEqual(notifications.barClearance({ barHidden: false, barSize: 30 }, 'eDP-1', 26, 6), 36, 'a bar without per-screen sizes counts its configured size')
+assertEqual(notifications.barClearance({ barHidden: true, barSize: 30, barSizeFor: () => 40 }, 'eDP-1', 26, 6), 32, 'a hidden bar counts the default size')
+assertEqual(notifications.barClearance(null, 'eDP-1', 28, 6), 34, 'a missing bar counts the default size')
+assertEqual(notifications.barClearance({ barHidden: false, barSize: undefined }, 'eDP-1', 26, 6), 6, 'an unreadable size counts as none')
+
 const notification = {
   id: 12,
   appName: 'Mail',
@@ -595,6 +607,11 @@ assert(!('exec' in legacyRestored), 'a restored legacy popup drops the old exec 
 assertEqual(notifications.parseExecArgv(legacyRestored.execArgv || ''), null, 'a restored legacy popup has no runnable click action')
 
 const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/notifications/Service.qml'), 'utf8')
+assert(
+  /function barClearanceFor\(screenName\) \{\s*return NotificationLogic\.barClearance\(shell \? shell\.bar : null, screenName, defaultBarSize, Style\.gapsOut\)\s*\}/.test(serviceQml) &&
+    /NotificationLogic\.popupPlacement\(\s*service\.barPosition, service\.barClearanceFor\(modelData \? modelData\.name : ""\), Style\.gapsOut\)/.test(serviceQml),
+  'each screen\'s toasts clear the bar as thick as it is on that screen'
+)
 assert(
   /readonly property int historyLimit: 10/.test(serviceQml),
   'notifications service keeps the last ten notifications in history'

@@ -29,16 +29,25 @@ fi
 # stream down to the sink underneath.
 downstream="$(pactl list sink-inputs 2>/dev/null |
   awk -v virt="$sink" '
+    BEGIN {
+      output = virt
+      sub(/^effect_input\./, "effect_output.", output)
+    }
     /^Sink Input #/ {target = ""}
     /^[[:space:]]*Sink:/ {target = $2}
     /node\.name = / {
       name = $0
       sub(/.*node\.name = "/, "", name)
       sub(/"$/, "", name)
-      if (index(name, virt) == 1 && target != "") {print target; exit}
+      if (target != "" && (name == output || (output == virt && index(name, virt) == 1))) {selected = target; exit}
+      if (target != "" && fallback == "" && index(name, virt) == 1) fallback = target
     }
     /application\.name = "EasyEffects"/ {
-      if (virt == "easyeffects_sink" && target != "") {print target; exit}
+      if (virt == "easyeffects_sink" && target != "") {selected = target; exit}
+    }
+    END {
+      if (selected != "") print selected
+      else if (fallback != "") print fallback
     }')"
 
 if [[ -n $downstream ]]; then
@@ -46,6 +55,38 @@ if [[ -n $downstream ]]; then
     awk -v id="$downstream" '$1 == id {print $2; exit}')"
   if [[ -n $name ]]; then
     printf '%s\n' "$name"
+    exit 0
+  fi
+fi
+
+# EasyEffects 8 does not play into the physical sink through a stream of its
+# own: its output node links its ports straight to the sink's playback ports,
+# so the sink-input search above finds nothing and the keys would move the
+# EasyEffects sink -- whose volume its monitor, the input of the processing,
+# does not follow. Follow the port links instead: the first ALSA or Bluetooth
+# sink any EasyEffects output port is linked to.
+if [[ $sink == "easyeffects_sink" ]]; then
+  linked="$(pw-link -l 2>/dev/null |
+    awk '
+      /^[^ ]/ {src = $0}
+      /^[[:space:]]*\|->/ {
+        if (src ~ /^ee_/ && $2 ~ /^(alsa|bluez)_output\..*:playback_/) {
+          sub(/:playback_.*$/, "", $2); print $2; exit
+        }
+      }')"
+
+  # Idle, EasyEffects drops those links: fall back to the output device it is
+  # configured to feed, when that sink exists.
+  if [[ -z $linked ]]; then
+    configured="$(sed -n 's/^outputDevice=//p' \
+      "${XDG_CONFIG_HOME:-$HOME/.config}/easyeffects/db/easyeffectsrc" 2>/dev/null)"
+    if [[ -n $configured ]] && pactl list sinks short 2>/dev/null | awk '{print $2}' | grep -qxF -- "$configured"; then
+      linked="$configured"
+    fi
+  fi
+
+  if [[ -n $linked ]]; then
+    printf '%s\n' "$linked"
     exit 0
   fi
 fi

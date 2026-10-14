@@ -5,6 +5,7 @@
 
 set -e
 
+omarchy-lifecycle-dispatch pre-remove steam
 omarchy-pkg-drop steam
 
 rm -rf \

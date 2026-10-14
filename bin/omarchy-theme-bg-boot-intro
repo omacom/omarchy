@@ -1,0 +1,201 @@
+#!/bin/bash
+
+# omarchy:summary=Play the current background's matching theme intro
+# omarchy:hidden=true
+
+set -euo pipefail
+
+state_home="$HOME/.local/state"
+current_dir="$state_home/omarchy/current"
+current_background_link="$current_dir/background"
+marker="$state_home/omarchy/background-intro.session-id"
+toggle="$state_home/omarchy/toggles/background-intros-off"
+video_extensions=(mp4 m4v mov webm mkv avi)
+
+resolve_intro() {
+  local background
+  local stem
+  local extension
+  local intro
+
+  background=$(readlink -f "${1:-$current_background_link}" 2>/dev/null) || return 1
+  [[ -f $background ]] || return 1
+  case ${background,,} in
+  *.jpg | *.jpeg | *.png | *.bmp | *.webp) ;;
+  *) return 1 ;;
+  esac
+
+  stem=${background##*/}
+  stem=${stem%.*}
+  for extension in "${video_extensions[@]}"; do
+    intro="${background%/*}/intros/$stem.$extension"
+    if [[ -f $intro ]]; then
+      printf '%s\n' "$intro"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Preparation is speculative: the selected staged clip is compared again by OWE.
+prepare_theme_intro() {
+  local theme="$1" background remembered name source intro
+  local -a names=()
+  [[ -n $theme && $theme != .* && $theme != */* ]] || return 0
+  [[ ! -f $toggle ]] && ! animations_off || return 0
+  owe warm >/dev/null 2>&1 || return 0
+  [[ $(cat "$current_dir/theme.name" 2>/dev/null) != "$theme" ]] || return 0
+  remembered=$(cat "$state_home/omarchy/theme-backgrounds/$theme" 2>/dev/null || true)
+  if [[ ${remembered%/*} == "$current_dir/theme/backgrounds" ]]; then
+    name=${remembered##*/}
+  elif [[ -f $remembered ]]; then
+    background="$remembered"
+  else
+    mapfile -d '' -t names < <(
+      find -L "$HOME/.config/omarchy/backgrounds/$theme" -maxdepth 1 -type f -print0 2>/dev/null | sort -z
+    )
+    if (( ${#names[@]} > 0 )); then
+      background=${names[0]}
+    else
+      mapfile -d '' -t names < <(
+        find -L "$OMARCHY_PATH/themes/$theme/backgrounds" "$HOME/.config/omarchy/themes/$theme/backgrounds" -maxdepth 1 -type f \
+          \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.bmp' -o -iname '*.webp' \) -printf '%f\0' 2>/dev/null | sort -zu
+      )
+      (( ${#names[@]} > 0 )) || return 0
+      name=${names[0]}
+    fi
+  fi
+  if [[ -n ${name:-} ]]; then
+    for source in "$HOME/.config/omarchy/themes/$theme" "$OMARCHY_PATH/themes/$theme"; do
+      if [[ -f $source/backgrounds/$name ]]; then
+        background="$source/backgrounds/$name"
+        break
+      fi
+    done
+  fi
+  [[ -n ${background:-} ]] || return 0
+  intro=$(resolve_intro "$background" || true)
+  [[ -z $intro ]] || owe intro-prepare "$intro" >/dev/null 2>&1 || true
+}
+
+animations_off() {
+  [[ $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r '.bool' 2>/dev/null) == "false" ]]
+}
+
+theme_switch=false
+intro_prepared=false
+expected_background=""
+expected_theme=""
+case ${1:-} in
+  "") ;;
+  --prepare-theme)
+    prepare_theme_intro "${2:-}"
+    exit 0
+    ;;
+  --resolve-only)
+    resolve_intro "${2:-}" || true
+    exit 0
+    ;;
+  --resolve-startup)
+    if [[ ! -f $toggle ]] && ! animations_off; then
+      resolve_intro || true
+    fi
+    exit 0
+    ;;
+  --theme-switch)
+    theme_switch=true
+    expected_background=$(readlink -f "${2:-}" 2>/dev/null) || exit 1
+    expected_theme=${3:-}
+    intro_prepared=${4:-false}
+    [[ -n $expected_theme ]] || exit 1
+    ;;
+  *)
+    echo "Usage: omarchy-theme-bg-boot-intro [--resolve-only [background]|--resolve-startup|--prepare-theme theme|--theme-switch background theme-id [prepared]]" >&2
+    exit 1
+    ;;
+esac
+
+if [[ $theme_switch == false ]]; then
+  mkdir -p "$(dirname "$marker")"
+  exec 9>"$state_home/omarchy/background-intro.lock"
+  flock 9
+
+  session_id=${OMARCHY_SESSION_ID:-${HYPRLAND_INSTANCE_SIGNATURE:-}}
+  [[ -n $session_id ]] || exit 0
+  if [[ -f $marker && $(<"$marker") == "$session_id" ]]; then
+    exit 0
+  fi
+
+  marker_staged=$(mktemp "$state_home/omarchy/.background-intro.session-id.XXXXXX")
+  trap 'rm -f "$marker_staged"' EXIT
+  printf '%s\n' "$session_id" >"$marker_staged"
+  mv -f "$marker_staged" "$marker"
+  trap - EXIT
+  exec 9>&-
+fi
+
+selection_current() {
+  [[ $(readlink -f "$current_background_link") == "$expected_background" &&
+    $(stat -Lc '%d:%i' "$current_dir/theme" 2>/dev/null) == "$expected_theme" ]]
+}
+
+if [[ $theme_switch == true ]] && ! selection_current; then
+  exit 0
+fi
+
+if [[ -f $toggle ]] || animations_off; then
+  [[ $theme_switch == false ]] || exit 1
+  exit 0
+fi
+
+intro=$(resolve_intro || true)
+if [[ -z $intro ]]; then
+  [[ $theme_switch == false ]] || exit 1
+  exit 0
+fi
+
+if [[ $theme_switch == true && $intro_prepared != "true" ]]; then
+  owe refresh >/dev/null || exit 1
+elif [[ $theme_switch == false ]]; then
+  deadline=$((SECONDS + 5))
+  while ! timeout 1 owe status >/dev/null 2>&1; do
+    if (( SECONDS >= deadline )); then
+      exit 0
+    fi
+    sleep 0.2
+  done
+  (( SECONDS < deadline )) || exit 0
+fi
+
+# The asynchronous outgoing cover must reach the compositor before playback
+# can hide the shell background. Older shells have no readiness method.
+if [[ $theme_switch == true ]]; then
+  deadline=$((SECONDS + 3))
+  while true; do
+    cover_status=$(omarchy-shell shell themeIntroCoverStatus "$expected_theme" 2>/dev/null || true)
+    case $cover_status in
+      loading)
+        (( SECONDS < deadline )) || exit 1
+        sleep 0.01
+        ;;
+      error) exit 1 ;;
+      superseded) exit 0 ;;
+      *) break ;;
+    esac
+  done
+fi
+
+if [[ $theme_switch == true ]] && ! selection_current; then
+  exit 0
+fi
+
+# A selection or setting changed while OWE was starting no longer permits this intro.
+if [[ ! -f $toggle && $intro == "$(resolve_intro || true)" ]] && ! animations_off; then
+  if [[ $theme_switch == true && $intro_prepared == "true" ]]; then
+    owe intro --start first-frame --refresh "$intro"
+  else
+    owe intro --start first-frame "$intro"
+  fi
+elif [[ $theme_switch == true ]]; then
+  exit 1
+fi

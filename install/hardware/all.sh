@@ -18,6 +18,7 @@ run_logged "$OMARCHY_INSTALL/hardware/intel/ipu7-camera.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/fred.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/fix-wifi7-eht.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/sof-firmware.sh"
+run_logged "$OMARCHY_INSTALL/hardware/dell-xps13-ptl-speaker-firmware.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/fix-elgato-camlink-4k.sh"
 
@@ -44,3 +45,5 @@ run_logged "$OMARCHY_INSTALL/hardware/fix-yt6801-ethernet-adapter.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-tuxedo-backlight.sh"
 run_logged "$OMARCHY_INSTALL/hardware/speaker-tuning.sh"
 run_logged "$OMARCHY_INSTALL/hardware/pacman.sh"
+
+run_logged "$OMARCHY_INSTALL/hardware/platform-setup.sh"

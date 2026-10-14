@@ -52,10 +52,14 @@ case "$name" in
     ;;
   mv)
     [[ ${TEST_PUBLISH_FAIL:-0} != 1 ]] || exit 1
+    [[ ${TEST_REQUIRE_EXISTING_TARGET:-0} != 1 || -f ${@: -1} ]] || exit 1
     /usr/bin/mv "$@"
+    [[ ${TEST_KILL_AFTER_PUBLISH:-0} != 1 ]] || /usr/bin/kill -KILL "$PPID"
     [[ ${TEST_POST_PUBLISH_FAIL:-0} != 1 ]] || : >"$TEST_GRANT_ROOT/run/omarchy-sudo-passwordless-package-removing"
     ;;
   systemd-run)
+    # The indicator's user refresh timer is not the root expiry timer.
+    [[ ${1:-} != --user ]] || exit 0
     [[ ${TEST_TIMER_FAIL:-0} != 1 ]] || exit 1
     if [[ ${TEST_CANCEL_ENABLE:-0} == 1 ]]; then kill -TERM "$PPID"; fi
     ;;
@@ -65,25 +69,42 @@ case "$name" in
   date)
     if [[ ${TEST_EXPIRED:-0} == 1 && $* == '-u +%Y%m%d%H%M%SZ' ]]; then echo 99991231235959Z; else /usr/bin/date "$@"; fi
     ;;
+  omarchy-shell) ;;
   getent) printf '%s:x:1000:1000:Test:/nonexistent:/bin/bash\n' "${TEST_ACCOUNT:-audituser}" ;;
   sudo)
     if [[ ${1:-} == -h ]]; then echo 'usage: sudo [-N] command'; exit 0; fi
     if [[ ${1:-} == -k ]]; then exit 0; fi
-    if [[ ${1:-} == -N ]]; then shift; fi
+    if [[ ${1:-} == -n && ${3:-} == -l ]]; then
+      [[ ${TEST_POLICY_FAILURE:-0} != 1 ]] || exit 1
+      default_policy='    Options: authenticate'
+      [[ ${TEST_STATUS:-3} == 3 ]] || default_policy='    Options: !authenticate'
+      printf '%s\n' "${TEST_POLICY:-$default_policy}"
+      exit 0
+    fi
+    if [[ ${1:-} == -n ]]; then shift; fi
+    if [[ ${1:-} == -N || ${1:-} == -kn ]]; then shift; fi
     if [[ ${1:-} == -- ]]; then shift; fi
     if [[ ${TEST_MIGRATION:-0} == 1 ]]; then
       [[ ${TEST_NO_SUDO:-0} != 1 ]] || exit 1
       TEST_EUID=0 /usr/bin/bash -p "$@"
     else
       [[ ${2:-} != __status ]] || exit "${TEST_STATUS:-3}"
+      [[ ${2:-} != __enable || ${TEST_ENABLE_FAIL:-0} != 1 ]] || exit 1
     fi
     ;;
-  gum) exit 1 ;;
+  gum)
+    if [[ $1 == choose ]]; then
+      [[ ${TEST_CHOICE_CANCEL:-0} != 1 ]] || exit 130
+      printf '%s\n' "${TEST_CHOICE:-15 minutes}"
+    else
+      exit "${TEST_CONFIRM_STATUS:-1}"
+    fi
+    ;;
   *) exit 99 ;;
 esac
 STUB
 chmod +x "$test_tmp/bin/mock"
-for name in stat chown install rm mv systemd-run systemctl date getent sudo gum; do
+for name in stat chown install rm mv systemd-run systemctl date getent sudo gum omarchy-shell; do
   ln -s mock "$test_tmp/bin/$name"
 done
 
@@ -97,7 +118,7 @@ for name in ('omarchy-sudo-passwordless', 'omarchy-security-functions'):
         target = str(temp/'hooks') if path == '/usr/share/libalpm/hooks' else str(temp) + path
         text = text.replace(path, target)
     text = text.replace('((EUID == 0))', '((${TEST_EUID:-1} == 0))')
-    for command in ('stat', 'chown', 'install', 'rm', 'mv', 'systemd-run', 'systemctl', 'date', 'getent', 'sudo', 'gum'):
+    for command in ('stat', 'chown', 'install', 'rm', 'mv', 'systemd-run', 'systemctl', 'date', 'getent', 'sudo', 'gum', 'omarchy-shell'):
         text = text.replace('/usr/bin/' + command, str(temp/'bin'/command))
     (temp/name).write_text(text)
     (temp/name).chmod(0o755)
@@ -120,6 +141,6 @@ assert_status() {
   (( actual == expected )) || fail "expected status $expected, got $actual from $*"
 }
 reset_grant() {
-  rm -f "$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-1000" "$test_tmp/run/omarchy-sudo-passwordless-package-removing"
+  rm -f "$test_tmp/etc/sudoers.d/99-omarchy-permanent-nopasswd-1000" "$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-1000" "$test_tmp/run/omarchy-sudo-passwordless-package-removing"
   : >"$test_tmp/commands"
 }

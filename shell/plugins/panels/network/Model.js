@@ -1,3 +1,9 @@
+// Display numbers go through the shell's I18n.formatNumber when QML passes
+// it; Node tests leave it out and get plain English digits.
+function formatter(fmt) {
+  return typeof fmt === "function" ? fmt : function(v, d) { return d === undefined ? String(v) : Number(v).toFixed(d) }
+}
+
 function parseNetworkStatus(raw) {
   var parts = String(raw || "disconnected\t\t\t").replace(/\r?\n+$/, "").split("\t")
   return {
@@ -12,6 +18,28 @@ function wifiIconFor(strength) {
   var icons = ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"]
   var index = Math.max(0, Math.min(4, Math.ceil(strength / 20) - 1))
   return icons[index]
+}
+
+// The connected network's own strength comes from the access points
+// Quickshell grouped under its SSID. When it has none (an OWE transition-mode
+// network between scans files the in-use access point under its hidden
+// "_owetm_" twin), fall back to the strength NetworkManager reports for the
+// access point in use.
+function connectedSignalStrength(networkStrength, activeApSignal) {
+  var strength = Math.round((networkStrength || 0) * 100)
+  if (strength > 0) return strength
+  return activeApSignal > 0 ? activeApSignal : strength
+}
+
+// Reads `nmcli -t -f IN-USE,SIGNAL device wifi list` output, where the in-use
+// access point is the row marked "*".
+function parseActiveApSignal(raw) {
+  var lines = String(raw || "").split(/\r?\n/)
+  for (var i = 0; i < lines.length; i++) {
+    var match = /^\*:(\d+)$/.exec(lines[i].trim())
+    if (match) return parseInt(match[1], 10)
+  }
+  return -1
 }
 
 // A known plain-HTTP endpoint lets the network redirect the browser to its
@@ -36,56 +64,64 @@ function connectionIcon(kind, signalStrength, connectivity) {
   return "󰤮"
 }
 
-function formatHeaderSpeed(mbps) {
+function formatHeaderSpeed(mbps, fmt) {
+  var f = formatter(fmt)
   var v = parseInt(mbps, 10)
   if (!v || v < 0) return ""
-  if (v >= 1000) return (v / 1000).toFixed(v % 1000 === 0 ? 0 : 1) + "gbit"
-  return v + "mbit"
+  if (v >= 1000) return f(v / 1000, v % 1000 === 0 ? 0 : 1) + "gbit"
+  return f(v) + "mbit"
 }
 
-function formatHeaderFreq(mhz) {
+function formatHeaderFreq(mhz, fmt) {
+  var f = formatter(fmt)
   var v = parseFloat(mhz)
   if (!v) return ""
 
-  if (v >= 2400 && v < 2500) return "2.4ghz"
-  if (v >= 4900 && v < 5925) return "5ghz"
-  if (v >= 5925 && v < 7125) return "6ghz"
-  if (v >= 57000 && v < 71000) return "60ghz"
+  if (v >= 2400 && v < 2500) return f(2.4) + "ghz"
+  if (v >= 4900 && v < 5925) return f(5) + "ghz"
+  if (v >= 5925 && v < 7125) return f(6) + "ghz"
+  if (v >= 57000 && v < 71000) return f(60) + "ghz"
 
   var ghz = v / 1000
-  return ghz.toFixed(ghz % 1 === 0 ? 0 : 1) + "ghz"
+  return f(ghz, ghz % 1 === 0 ? 0 : 1) + "ghz"
 }
 
 // Wi-Fi band state belongs in the selector section, not beside the hero name.
 // Ethernet has no equivalent selector, so keep its negotiated link speed here.
-function headerDetail(info) {
+function headerDetail(info, fmt) {
   var value = info || {}
-  if (value.type === "ethernet") return formatHeaderSpeed(value.speed || "")
+  if (value.type === "ethernet") return formatHeaderSpeed(value.speed || "", fmt)
   return ""
 }
 
-function bandLabel(band) {
-  if (band === "auto") return "Auto"
+function bandLabel(band, tr, fmt) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (band === "auto") return t("network.bandAuto", "Auto")
   if (!band) return ""
-  return band + "ghz"
+  // The band stays the script's "2.4" everywhere else; only the label is
+  // written in the language's digits.
+  var number = Number(band)
+  return (isFinite(number) ? formatter(fmt)(number) : band) + "ghz"
 }
 
 // Under Automatic the pills are hidden, so the header carries the live band
 // instead -- "WI-FI BAND: 2.4GHZ". Once a band is pinned the pills are on
 // screen and say it themselves, so the header drops back to a plain label.
-function bandSectionTitle(selected, current) {
-  if (selected !== "auto") return "WI-FI BAND"
+function bandSectionTitle(selected, current, tr, fmt) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (selected !== "auto") return t("network.wifiBand", "WI-FI BAND")
 
-  var label = bandLabel(current)
-  if (label === "") return "WI-FI BAND"
+  var label = bandLabel(current, tr, fmt)
+  if (label === "") return t("network.wifiBand", "WI-FI BAND")
 
-  return "WI-FI BAND: " + label.toUpperCase()
+  return t("network.wifiBandCurrent", "WI-FI BAND: %1").replace("%1", label.toUpperCase())
 }
 
-function bandTooltip(band) {
-  if (band === "auto") return "Let Wi-Fi pick the band"
+function bandTooltip(band, tr, fmt) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (band === "auto") return t("network.bandAutoTooltip", "Let Wi-Fi pick the band")
   if (!band) return ""
-  return "Stay on " + bandLabel(band)
+  return t("network.stayOnBand", "Stay on %1").replace("%1", bandLabel(band, tr, fmt))
 }
 
 function parseBandStatus(raw) {
@@ -222,12 +258,13 @@ function pingPacketLossPercent(samples) {
   return Math.round((lost / values.length) * 100)
 }
 
-function formatPacketLoss(percent, hasSamples) {
+function formatPacketLoss(percent, hasSamples, fmt) {
+  var f = formatter(fmt)
   if (hasSamples === false) return "--"
 
   var value = parseInt(percent, 10)
-  if (!value || value < 0) return "0%"
-  return value + "%"
+  if (!value || value < 0) return f(0) + "%"
+  return f(value) + "%"
 }
 
 function pingLatencyState(previous, next, limit, averageLimit) {
@@ -253,28 +290,31 @@ function pingLatencyState(previous, next, limit, averageLimit) {
   }
 }
 
-function formatBytes(bytes) {
+function formatBytes(bytes, fmt) {
+  var f = formatter(fmt)
   var n = Number(bytes)
   if (!isFinite(n) || n < 0) n = 0
-  if (n < 1024) return Math.round(n) + " B"
-  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB"
-  if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + " MB"
-  return (n / (1024 * 1024 * 1024)).toFixed(2) + " GB"
+  if (n < 1024) return f(Math.round(n)) + " B"
+  if (n < 1024 * 1024) return f(n / 1024, 1) + " KB"
+  if (n < 1024 * 1024 * 1024) return f(n / (1024 * 1024), 1) + " MB"
+  return f(n / (1024 * 1024 * 1024), 2) + " GB"
 }
 
-function formatRate(bytesPerSec) {
-  return formatBytes(bytesPerSec) + "/s"
+function formatRate(bytesPerSec, fmt) {
+  return formatBytes(bytesPerSec, fmt) + "/s"
 }
 
 // `hasSamples` false means no probe has come back yet, which is different from
 // a probe that timed out. The rows stay mounted through that gap and read "--"
 // so the grid doesn't reflow a second after the panel opens.
-function formatPingLatency(ms, hasSamples) {
+function formatPingLatency(ms, hasSamples, tr, fmt) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var f = formatter(fmt)
   if (hasSamples === false) return "--"
 
   var value = parseFloat(ms)
-  if (!isFinite(value) || value < 0) return "Timeout"
-  return value.toFixed(value > 0 && value < 10 ? 1 : 0) + " ms"
+  if (!isFinite(value) || value < 0) return t("network.timeout", "Timeout")
+  return f(value, value > 0 && value < 10 ? 1 : 0) + " ms"
 }
 
 function wifiRow(network) {
@@ -303,15 +343,16 @@ function sortWifiRows(rows) {
   return nets
 }
 
-function wifiSectionTitle(wifiNetworks, index) {
+function wifiSectionTitle(wifiNetworks, index, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var networks = Array.isArray(wifiNetworks) ? wifiNetworks : []
   if (index < 0 || index >= networks.length) return ""
 
   var net = networks[index]
   if (!net) return ""
 
-  if (net.known && index === 0) return "KNOWN NETWORKS"
-  if (!net.known && (index === 0 || (networks[index - 1] && networks[index - 1].known))) return "OTHER NETWORKS"
+  if (net.known && index === 0) return t("network.knownNetworks", "KNOWN NETWORKS")
+  if (!net.known && (index === 0 || (networks[index - 1] && networks[index - 1].known))) return t("network.otherNetworks", "OTHER NETWORKS")
   return ""
 }
 
@@ -341,14 +382,15 @@ var enterpriseConnectScript =
   " && nmcli connection up uuid \"$u\"" +
   " || { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
 
-function networkFailureReason(reason, needsCredentials, reasons) {
+function networkFailureReason(reason, needsCredentials, reasons, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var r = reasons || {}
-  if (needsCredentials && reason === r.NoSecrets) return "Passphrase required"
-  if (needsCredentials && reason === r.WifiAuthTimeout) return "Wrong password"
-  if (reason === r.WifiNetworkLost) return "Network lost"
-  if (reason === r.WifiClientDisconnected) return "Disconnected"
-  if (reason === r.WifiClientFailed) return "Connection failed"
-  return "Failed to connect"
+  if (needsCredentials && reason === r.NoSecrets) return t("network.passphraseRequired", "Passphrase required")
+  if (needsCredentials && reason === r.WifiAuthTimeout) return t("network.wrongPassword", "Wrong password")
+  if (reason === r.WifiNetworkLost) return t("network.networkLost", "Network lost")
+  if (reason === r.WifiClientDisconnected) return t("network.disconnected", "Disconnected")
+  if (reason === r.WifiClientFailed) return t("network.connectionFailed", "Connection failed")
+  return t("network.failedToConnect", "Failed to connect")
 }
 
 // Whether a failed connect should reopen the passphrase prompt. NoSecrets
@@ -368,6 +410,8 @@ if (typeof module !== "undefined") {
     parseNetworkStatus: parseNetworkStatus,
     wifiIconFor: wifiIconFor,
     connectionIcon: connectionIcon,
+    connectedSignalStrength: connectedSignalStrength,
+    parseActiveApSignal: parseActiveApSignal,
     connectivityState: connectivityState,
     captivePortalUrl: captivePortalUrl,
     formatHeaderSpeed: formatHeaderSpeed,

@@ -2,6 +2,7 @@
 Version=1.0
 Name=Basecamp
 Exec=omarchy-launch-webapp https://launchpad.37signals.com
+StartupWMClass=chrome-launchpad.37signals.com__-Default
 Terminal=false
 Type=Application
 Icon=basecamp

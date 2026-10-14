@@ -8,32 +8,26 @@ test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
 stub_bin="$test_tmp/bin"
-shell_calls="$test_tmp/shell-calls"
+calls="$test_tmp/calls"
 mkdir -p "$stub_bin"
 
 cat >"$stub_bin/omarchy-update-available" <<'SH'
 #!/bin/bash
 
-exit "${UPDATE_AVAILABLE_STATUS:-0}"
+printf 'available\n' >>"$CALLS"
 SH
 
 cat >"$stub_bin/omarchy-shell" <<'SH'
 #!/bin/bash
 
-printf '%s\n' "$*" >>"$SHELL_CALLS"
+printf 'shell %s\n' "$*" >>"$CALLS"
 SH
 
 chmod +x "$stub_bin/omarchy-update-available" "$stub_bin/omarchy-shell"
 
-PATH="$stub_bin:$PATH" SHELL_CALLS="$shell_calls" UPDATE_AVAILABLE_STATUS=0 \
-  "$ROOT/bin/omarchy-update-status"
-grep -Fx -- "-q omarchy.system-update refresh" "$shell_calls" >/dev/null ||
-  fail "update status refreshes the shell indicator when updates remain"
-pass "update status refreshes the shell indicator when updates remain"
-
-: >"$shell_calls"
-PATH="$stub_bin:$PATH" SHELL_CALLS="$shell_calls" UPDATE_AVAILABLE_STATUS=1 \
-  "$ROOT/bin/omarchy-update-status"
-grep -Fx -- "-q omarchy.system-update clear" "$shell_calls" >/dev/null ||
-  fail "update status clears the shell indicator when no updates remain"
-pass "update status clears the shell indicator when no updates remain"
+# An older omarchy-update, already parsed when the upgrade replaced it, still
+# calls this once the packages are in.
+PATH="$stub_bin:$PATH" CALLS="$calls" "$ROOT/bin/omarchy-update-status"
+[[ $(<"$calls") == "shell -q omarchy.system-update clear" ]] ||
+  fail "update status clears the shell indicator without rechecking" "$(<"$calls")"
+pass "update status clears the shell indicator without rechecking"

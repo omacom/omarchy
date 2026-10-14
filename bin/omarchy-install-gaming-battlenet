@@ -20,7 +20,7 @@ if [[ -d $PREFIX && ! -f $LAUNCHER ]]; then
   echo
   echo "Found a partial Battle.net install at $PREFIX (no Launcher.exe)."
   echo "Battle.net's installer can't resume from this state."
-  if gum confirm "Wipe the partial prefix and start fresh?"; then
+  if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n battlenet.wipePartial)"; then
     pkill -f "$PREFIX" 2>/dev/null || true
     sleep 1
     rm -rf "$PREFIX"

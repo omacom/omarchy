@@ -30,7 +30,12 @@ if [[ -t 0 && -t 2 ]]; then
   # du answers non-zero when a directory is missing, and pipefail would turn
   # that into an aborted removal; the size is worth no such thing.
   size=$(du -shc "$HOME/.config/Perplexity" "$HOME/.local/state/perplexity" 2>/dev/null | tail -1 | cut -f1 || true)
-  if gum confirm --default=false "Also delete your Perplexity data ($size: logins, settings, secret vault and device identity)?"; then
+  # du glues the unit to the number ("1.2G"); write the number with the
+  # language's decimal separator and digits.
+  if [[ $size =~ ^([0-9]+([.,][0-9]+)?)([A-Za-z]*)$ ]] && number=$(omarchy-i18n --number "${BASH_REMATCH[1]/,/.}"); then
+    size="$number${BASH_REMATCH[3]}"
+  fi
+  if gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n perplexity.deleteData "$size")"; then
     rm -rf \
       "$HOME/.config/Perplexity" \
       "$HOME/.local/state/perplexity"

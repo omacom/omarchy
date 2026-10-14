@@ -12,8 +12,8 @@ usage() {
 }
 
 case "$KIND" in
-  touchpad) LABEL="Touchpad" ICON="touchpad" ;;
-  touchscreen) LABEL="Touchscreen" ICON="touch" ;;
+  touchpad) ICON="touchpad" ;;
+  touchscreen) ICON="touch" ;;
   *)
     usage
     exit 1
@@ -54,7 +54,11 @@ enable() {
   rm -f "$NAME_FILE"
   require_device
   apply_device true
-  omarchy-osd -i "$ICON" -m "$LABEL enabled"
+  if [[ $KIND == "touchpad" ]]; then
+    omarchy-osd -i "$ICON" -m "$(omarchy-i18n input.touchpadEnabled)"
+  else
+    omarchy-osd -i "$ICON" -m "$(omarchy-i18n input.touchscreenEnabled)"
+  fi
 }
 
 disable() {
@@ -62,7 +66,11 @@ disable() {
   apply_device false
   mkdir -p "$(dirname "$NAME_FILE")"
   printf '%s\n' "$device" >"$NAME_FILE"
-  omarchy-osd -i "$ICON" -m "$LABEL disabled"
+  if [[ $KIND == "touchpad" ]]; then
+    omarchy-osd -i "$ICON" -m "$(omarchy-i18n input.touchpadDisabled)"
+  else
+    omarchy-osd -i "$ICON" -m "$(omarchy-i18n input.touchscreenDisabled)"
+  fi
 }
 
 case "$ACTION" in

@@ -1,0 +1,1217 @@
+{
+  "root": {
+    "label": "Mine"
+  },
+  "apps": {
+    "label": "Rakendused"
+  },
+  "learn": {
+    "label": "Õpi"
+  },
+  "trigger": {
+    "label": "Käivita"
+  },
+  "style": {
+    "label": "Stiil"
+  },
+  "setup": {
+    "label": "Seaded"
+  },
+  "install": {
+    "label": "Paigalda"
+  },
+  "remove": {
+    "label": "Eemalda"
+  },
+  "update": {
+    "label": "Uuenda"
+  },
+  "about": {
+    "label": "Teave"
+  },
+  "system": {
+    "label": "Süsteem"
+  },
+  "system.screensaver": {
+    "label": "Ekraanisäästja"
+  },
+  "system.lock": {
+    "label": "Lukusta"
+  },
+  "system.suspend": {
+    "label": "Uinak"
+  },
+  "system.hibernate": {
+    "label": "Talveuni"
+  },
+  "system.logout": {
+    "label": "Logi välja"
+  },
+  "system.reboot": {
+    "label": "Taaskäivita"
+  },
+  "system.shutdown": {
+    "label": "Lülita välja"
+  },
+  "learn.keybindings": {
+    "label": "Kiirklahvid"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "Kogukond"
+  },
+  "trigger.appearance": {
+    "label": "Välimus"
+  },
+  "trigger.appearance.animations": {
+    "label": "Animatsioonid"
+  },
+  "trigger.appearance.top-bar": {
+    "label": "Menüüriba"
+  },
+  "trigger.appearance.top-bar.hide": {
+    "label": "Peida riba"
+  },
+  "trigger.appearance.top-bar.show": {
+    "label": "Näita riba"
+  },
+  "trigger.appearance.top-bar.position": {
+    "label": "Riba asukoht"
+  },
+  "trigger.appearance.top-bar.background": {
+    "label": "Riba taust"
+  },
+  "trigger.appearance.top-bar.background.opaque": {
+    "label": "Läbipaistmatu riba"
+  },
+  "trigger.appearance.top-bar.background.glassy": {
+    "label": "Klaasriba"
+  },
+  "trigger.appearance.top-bar.background.clear": {
+    "label": "Läbipaistev riba"
+  },
+  "trigger.appearance.top-bar.indicators": {
+    "label": "Riba näidikud"
+  },
+  "trigger.appearance.top-bar.indicators.battery-percentage": {
+    "label": "Aku protsent"
+  },
+  "trigger.appearance.top-bar.indicators.clock": {
+    "label": "Kell"
+  },
+  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "Pühapäev 14:30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "Pühapäev 2:30 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "Pühapäev 14:30:05"
+  },
+  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "Pühapäev 2:30:05 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+    "label": "P 3. mai 14:30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+    "label": "P 3. mai 2:30 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.week": {
+    "label": "3. mai N18 2026"
+  },
+  "trigger.appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03. mai N18 '26"
+  },
+  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "trigger.appearance.top-bar.position.top": {
+    "label": "Ülemine riba"
+  },
+  "trigger.appearance.top-bar.position.bottom": {
+    "label": "Alumine riba"
+  },
+  "trigger.appearance.top-bar.position.left": {
+    "label": "Vasak riba"
+  },
+  "trigger.appearance.top-bar.position.right": {
+    "label": "Parem riba"
+  },
+  "trigger.appearance.dock": {
+    "label": "Dokk"
+  },
+  "trigger.appearance.dock.autohide": {
+    "label": "Doki autopeitmine"
+  },
+  "trigger.appearance.dock.always-on": {
+    "label": "Alati nähtav dokk"
+  },
+  "trigger.appearance.dock.position": {
+    "label": "Doki asukoht"
+  },
+  "trigger.appearance.dock.position.top": {
+    "label": "Ülemine dokk"
+  },
+  "trigger.appearance.dock.position.bottom": {
+    "label": "Alumine dokk"
+  },
+  "trigger.appearance.dock.position.left": {
+    "label": "Vasak dokk"
+  },
+  "trigger.appearance.dock.position.right": {
+    "label": "Parem dokk"
+  },
+  "trigger.appearance.window-gaps": {
+    "label": "Aknavahed"
+  },
+  "trigger.appearance.window-corners": {
+    "label": "Aknanurgad"
+  },
+  "trigger.appearance.window-corners.theme": {
+    "label": "Teema nurgad"
+  },
+  "trigger.appearance.window-corners.sharp": {
+    "label": "Teravad nurgad"
+  },
+  "trigger.appearance.window-corners.rounded": {
+    "label": "Ümarad nurgad"
+  },
+  "trigger.appearance.window-transparency": {
+    "label": "Akna katvus"
+  },
+  "trigger.appearance.window-transparency.opaque": {
+    "label": "Läbipaistmatud aknad"
+  },
+  "trigger.appearance.window-transparency.transparent": {
+    "label": "Läbipaistvad aknad"
+  },
+  "trigger.appearance.window-transparency.glassy": {
+    "label": "Klaasaknad"
+  },
+  "trigger.appearance.one-window-ratio": {
+    "label": "1 akna suhe"
+  },
+  "trigger.appearance.workspace-layout": {
+    "label": "Tööala paigutus",
+    "title": "Vaikimisi tööala paigutus"
+  },
+  "trigger.appearance.workspace-layout.dwindle": {
+    "label": "Plaaditud"
+  },
+  "trigger.appearance.workspace-layout.scrolling": {
+    "label": "Kerimine"
+  },
+  "trigger.appearance.workspace-layout.floating": {
+    "label": "Ujuv"
+  },
+  "trigger.appearance.theme-sync": {
+    "label": "Herdr teema sünk"
+  },
+  "trigger.toggle": {
+    "label": "Lülita"
+  },
+  "trigger.toggle.idle-lock": {
+    "label": "Püsi ärkvel"
+  },
+  "trigger.toggle.notifications": {
+    "label": "Teavitused"
+  },
+  "trigger.toggle.nightlight": {
+    "label": "Öövalgus"
+  },
+  "trigger.toggle.screensaver": {
+    "label": "Ekraanisäästja"
+  },
+  "trigger.toggle.crash-capture": {
+    "label": "Krahhide salvestus"
+  },
+  "trigger.emoji": {
+    "label": "Emoji"
+  },
+  "trigger.clipboard-history": {
+    "label": "Lõikelaua ajalugu"
+  },
+  "trigger.reminder": {
+    "label": "Meeldetuletus"
+  },
+  "trigger.capture": {
+    "label": "Jäädvusta"
+  },
+  "trigger.capture.screenshot": {
+    "label": "Ekraanitõmmis"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "Peata ekraanisalvestus"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "Ekraanisalvestus"
+  },
+  "trigger.capture.text": {
+    "label": "Tekst"
+  },
+  "trigger.capture.qr": {
+    "label": "QR-kood"
+  },
+  "trigger.capture.color": {
+    "label": "Värv"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "Ilma helita"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "Töölaua heliga"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "Töölaua + mikrofoni heliga"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "Töölaua + mikrofoni heli + veebikaamera"
+  },
+  "trigger.transcode": {
+    "label": "Kodeeri ümber"
+  },
+  "trigger.share": {
+    "label": "Jaga"
+  },
+  "trigger.hardware": {
+    "label": "Riistvara"
+  },
+  "trigger.tests": {
+    "label": "Kiirustest"
+  },
+  "trigger.hardware.laptop-display": {
+    "label": "Sülearvuti ekraan"
+  },
+  "trigger.hardware.mirror-display": {
+    "label": "Ekraani peegeldamine"
+  },
+  "trigger.hardware.hybrid-gpu": {
+    "label": "Hübriid GPU"
+  },
+  "trigger.hardware.touchpad": {
+    "label": "Puuteplaat"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "Puuteplaadi haptika"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "madal"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "keskmine"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "kõrge"
+  },
+  "trigger.hardware.touchscreen": {
+    "label": "Puuteekraan"
+  },
+  "trigger.reminder.set": {
+    "label": "Loo üks"
+  },
+  "trigger.reminder.show": {
+    "label": "Näita kõiki"
+  },
+  "trigger.reminder.clear": {
+    "label": "Tühjenda kõik"
+  },
+  "trigger.share.clipboard": {
+    "label": "Lõikelaud"
+  },
+  "trigger.share.file": {
+    "label": "Fail"
+  },
+  "trigger.share.folder": {
+    "label": "Kaust"
+  },
+  "trigger.share.receive": {
+    "label": "Võta vastu"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "Võrgukiiruse test"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "Kettakiiruse test"
+  },
+  "style.theme": {
+    "label": "Teema"
+  },
+  "style.background": {
+    "label": "Taust"
+  },
+  "style.unlock": {
+    "label": "Ava lukk"
+  },
+  "style.font": {
+    "label": "Kirjatüüp"
+  },
+  "style.hyprland": {
+    "label": "Hyprland"
+  },
+  "style.screensaver": {
+    "label": "Ekraanisäästja"
+  },
+  "style.about": {
+    "label": "Teave"
+  },
+  "style.about.text": {
+    "label": "Muuda teksti"
+  },
+  "style.about.image": {
+    "label": "Sea pildist"
+  },
+  "style.about.default": {
+    "label": "Taasta vaikimisi"
+  },
+  "style.screensaver.text": {
+    "label": "Muuda teksti"
+  },
+  "style.screensaver.image": {
+    "label": "Sea pildist"
+  },
+  "style.screensaver.default": {
+    "label": "Taasta vaikimisi"
+  },
+  "setup.monitors": {
+    "label": "Kuvarid"
+  },
+  "setup.keybindings": {
+    "label": "Kiirklahvid"
+  },
+  "setup.input": {
+    "label": "Sisend"
+  },
+  "setup.typing": {
+    "label": "Trükkimine"
+  },
+  "setup.typing.keyboard": {
+    "label": "Klaviatuuri paigutused"
+  },
+  "setup.typing.input": {
+    "label": "Sisestusmeetodid"
+  },
+  "setup.language": {
+    "label": "Keel"
+  },
+  "setup.network": {
+    "label": "Võrk"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Mineogle"
+  },
+  "setup.network.dns.custom": {
+    "label": "Kohandatud"
+  },
+  "setup.network.qr": {
+    "label": "QR-kood"
+  },
+  "setup.default": {
+    "label": "Vaikimisi"
+  },
+  "setup.default.agent": {
+    "label": "Agent",
+    "title": "Vaikeagent"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.browser": {
+    "label": "Brauser",
+    "title": "Vaikebrauser"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "Dikteerimine",
+    "title": "Vaikedikteerimine"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "Terminal",
+    "title": "Vaiketerminal"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "Redaktor",
+    "title": "Vaikeredaktor"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "Pluginad"
+  },
+  "setup.plugin.enable": {
+    "label": "Luba plugin"
+  },
+  "setup.plugin.disable": {
+    "label": "Keela plugin"
+  },
+  "setup.plugin.add": {
+    "label": "Lisa plugin"
+  },
+  "setup.plugin.clone": {
+    "label": "Klooni plugin"
+  },
+  "setup.plugin.remove": {
+    "label": "Eemalda plugin"
+  },
+  "setup.security": {
+    "label": "Turvalisus"
+  },
+  "setup.config": {
+    "label": "Seadistus"
+  },
+  "setup.security.fingerprint": {
+    "label": "Sõrmejälg"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Sudota Docker"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "Paroolita sudo"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "Otsekäivitus"
+  },
+  "setup.reset": {
+    "label": "Lähtesta arvuti"
+  },
+  "install.package": {
+    "label": "Pakett"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "Teenus"
+  },
+  "install.development": {
+    "label": "Arendus"
+  },
+  "install.editor": {
+    "label": "Redaktor"
+  },
+  "install.style": {
+    "label": "Stiil"
+  },
+  "install.style.theme": {
+    "label": "Teema"
+  },
+  "install.style.background": {
+    "label": "Taust"
+  },
+  "install.style.font": {
+    "label": "Kirjatüüp"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "Mängud"
+  },
+  "install.browser": {
+    "label": "Brauser"
+  },
+  "install.webapp": {
+    "label": "Veebirakendus"
+  },
+  "install.terminal": {
+    "label": "Terminal"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "Eelpaigaldatud"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Chromiumi konto"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Xboxi kontrollerid"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "RetroArch mängukäivitaja"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Dokker DB"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Mine"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "Pakett"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "Eemalda"
+  },
+  "remove.dictation": {
+    "label": "Dikteerimine"
+  },
+  "remove.service": {
+    "label": "Teenused",
+    "title": "Eemalda"
+  },
+  "remove.development": {
+    "label": "Arendus",
+    "title": "Eemalda"
+  },
+  "remove.theme": {
+    "label": "Teema"
+  },
+  "remove.gaming": {
+    "label": "Mängud",
+    "title": "Eemalda"
+  },
+  "remove.browser": {
+    "label": "Brauser",
+    "title": "Eemalda"
+  },
+  "remove.webapp": {
+    "label": "Veebirakendus"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "Eelpaigaldatud"
+  },
+  "remove.security": {
+    "label": "Turvalisus",
+    "title": "Eemalda"
+  },
+  "remove.security.fingerprint": {
+    "label": "Sõrmejälg"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Sudota Docker"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "SSH Agent"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Xboxi kontrollerid (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "Eemalda"
+  },
+  "remove.development.go": {
+    "label": "Mine"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "Eemalda"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "Eemalda"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "Kanal"
+  },
+  "update.config": {
+    "label": "Seadistus",
+    "title": "Lähtesta vaikimisi"
+  },
+  "update.themes": {
+    "label": "Lisateemad"
+  },
+  "update.process": {
+    "label": "Protsess",
+    "title": "Taaskäivita"
+  },
+  "update.hardware": {
+    "label": "Riistvara",
+    "title": "Taaskäivita"
+  },
+  "update.firmware": {
+    "label": "Püsivara"
+  },
+  "update.password": {
+    "label": "Parool"
+  },
+  "update.timezone": {
+    "label": "Ajavöönd"
+  },
+  "update.time": {
+    "label": "Aeg"
+  },
+  "update.channel.stable": {
+    "label": "Stabiilne"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Shell"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Shell"
+  },
+  "update.hardware.audio": {
+    "label": "Heli"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "Puuteplaat"
+  },
+  "update.password.drive": {
+    "label": "Kettakrüptimine"
+  },
+  "update.password.user": {
+    "label": "Kasutaja"
+  },
+  "system.reboot-boot-menu": {
+    "label": "Taaskäivita alglaadimismenüüsse"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  }
+}

@@ -13,10 +13,11 @@ export PATH="$tmp_dir/bin:$ROOT/bin:$PATH"
 cat > "$tmp_dir/bin/pacman" <<'SH'
 #!/bin/bash
 case "$1" in
-  -Q) grep -Fxq -- "$2" "$INSTALLED_PACKAGES" ;;
+  -Q) [[ $2 == -- ]] || exit 99; grep -Fxq -- "$3" "$INSTALLED_PACKAGES" ;;
   -S)
     [[ ${FAIL_INSTALL:-0} == 0 ]] || exit 1
-    shift 3 # -S --noconfirm --needed
+    [[ $4 == -- ]] || exit 99
+    shift 4 # -S --noconfirm --needed --
     printf '%s\n' "$@" >> "$INSTALLED_PACKAGES"
     printf '%s\n' "$@" >> "$CALL_LOG"
     ;;

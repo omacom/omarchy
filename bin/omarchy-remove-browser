@@ -7,14 +7,14 @@
 
 set_fallback_default_browser() {
   local current_browser
-  current_browser=$(env -u BROWSER xdg-settings get default-web-browser)
+  current_browser=$(omarchy-cmd-default-browser)
 
   if [[ $current_browser != $1 ]]; then
     return
   fi
 
   if omarchy-cmd-present chromium; then
-    env -u BROWSER xdg-settings set default-web-browser chromium.desktop || true
+    env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser chromium.desktop || true
   fi
 }
 
@@ -24,14 +24,14 @@ chrome)
   set_fallback_default_browser google-chrome.desktop
   omarchy-pkg-drop google-chrome
   rm -f ~/.config/chrome-flags.conf
-  sudo rm -f /etc/opt/chrome/policies/managed/color.json
+  sudo rm -f /etc/opt/chrome/policies/managed/color.json /etc/opt/chrome/policies/managed/omarchy.json
   ;;
 edge)
   echo "Removing Edge..."
   set_fallback_default_browser microsoft-edge.desktop
   omarchy-pkg-drop microsoft-edge-stable-bin
   rm -f ~/.config/microsoft-edge-stable-flags.conf
-  sudo rm -f /etc/opt/edge/policies/managed/color.json
+  sudo rm -f /etc/opt/edge/policies/managed/color.json /etc/opt/edge/policies/managed/omarchy.json
   ;;
 brave)
   echo "Removing Brave..."

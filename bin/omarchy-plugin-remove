@@ -23,7 +23,7 @@ confirm() {
   local prompt="$1"
   (( ASSUME_YES )) && return 0
   if interactive; then
-    gum confirm "$prompt"
+    gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$prompt"
   else
     fail "refusing to continue without confirmation; pass --yes"
   fi
@@ -63,7 +63,7 @@ if [[ -z $id ]]; then
   id=$(find "$PLUGINS_DIR" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) \
     ! -name '.*' -printf '%f\n' 2>/dev/null |
     sort |
-    gum choose --header="Remove which plugin?") || fail "cancelled"
+    gum choose --header="$(omarchy-i18n plugin.removeWhich)") || fail "cancelled"
   [[ -n $id ]] || fail "nothing selected"
 fi
 valid_plugin_id "$id" || fail "invalid plugin id '$id'"
@@ -85,11 +85,11 @@ if [[ -f $target/manifest.json ]]; then
 fi
 
 if [[ -L $target ]]; then
-  confirm "Unlink '$id' (symlink -> $(readlink "$target"))?" || fail "aborted"
+  confirm "$(omarchy-i18n plugin.confirmUnlink "$id" "$(readlink "$target")")" || fail "aborted"
 elif [[ -d $target/.git ]]; then
-  confirm "Delete '$id'? Its git repo remains upstream." || fail "aborted"
+  confirm "$(omarchy-i18n plugin.confirmDelete "$id")" || fail "aborted"
 else
-  confirm "Remove '$id'? The folder will be backed up." || fail "aborted"
+  confirm "$(omarchy-i18n plugin.confirmRemove "$id")" || fail "aborted"
 fi
 
 if [[ $was_enabled == "true" ]]; then

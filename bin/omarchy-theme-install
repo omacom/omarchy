@@ -7,7 +7,7 @@
 
 if [[ -z $1 ]]; then
   echo -e "\e[32mSee https://omarchy.org/themes/\n\e[0m"
-  REPO_URL=$(gum input --placeholder="Git repo URL (https or git@host:org/repo.git)" --header="")
+  REPO_URL=$(gum input --placeholder="$(omarchy-i18n theme.repoPlaceholder)" --header="")
 else
   REPO_URL="$1"
 fi

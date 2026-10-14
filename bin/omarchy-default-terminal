@@ -48,4 +48,4 @@ cat >~/.config/xdg-terminals.list <<EOF
 $desktop_id
 EOF
 
-omarchy-notification-send -g $glyph "$name is now the default terminal"
+omarchy-notification-send -g $glyph "$(omarchy-i18n default.terminalSet "$name")"

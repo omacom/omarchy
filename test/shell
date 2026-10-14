@@ -18,17 +18,88 @@ if (( ${#tests[@]} == 0 )); then
   exit 1
 fi
 
+# Files that need the live compositor or desktop to themselves run one at
+# a time after the parallel batch; everything else runs through a job
+# pool sized to the machine. Timing-sensitive files stay out of the pool
+# too: the budget guards calibrate against the machine's speed, which a
+# busy pool distorts, and sleep-lock asserts tight unscaled timings.
+# A file can also opt out of the pool with an `# omarchy:exclusive`
+# marker near its top.
+is_exclusive() {
+  local name
+  name=$(basename "$1")
+  [[ $name == *budget* || $name == "sleep-lock-test.sh" || $name == "sleep-monitor-test.sh" || $name == "hyprland-window-close-all-test.sh" ]] && return 0
+  grep -q 'require_compositor\|# omarchy:exclusive' "$1"
+}
+
+# The idle-spawn guard spends most of its time passively watching its own
+# shell's process tree through an exec logger, so pool load cannot distort
+# what it counts. It starts alongside the pool instead of blocking the
+# serial compositor chain with its idle window.
+is_overlap() {
+  [[ $(basename "$1") == "shell-idle-spawn-test.sh" ]]
+}
+
+parallel_tests=()
+exclusive_tests=()
+overlap_tests=()
+for test in "${tests[@]}"; do
+  if is_overlap "$test"; then
+    overlap_tests+=("$test")
+  elif is_exclusive "$test"; then
+    exclusive_tests+=("$test")
+  else
+    parallel_tests+=("$test")
+  fi
+done
+
+workdir=$(mktemp -d)
+trap 'rm -rf "$workdir"' EXIT
+
+run_one() {
+  local test="$1"
+  local name
+  name=$(basename "$test")
+  local status=0
+  bash "$test" >"$workdir/$name.out" 2>&1 || status=$?
+  echo "$status" >"$workdir/$name.code"
+}
+export -f run_one
+export workdir
+
 # Keep going after a failing file. A test file exits at its first failed
 # assertion, so aborting the run there too would hide every file after it --
 # one packaging failure was masking 114 of 134 files.
-output=$(mktemp)
-trap 'rm -f "$output"' EXIT
+overlap_pids=()
+for test in "${overlap_tests[@]}"; do
+  run_one "$test" &
+  overlap_pids+=("$!")
+done
+if (( ${#parallel_tests[@]} > 0 )); then
+  printf '%s\0' "${parallel_tests[@]}" |
+    xargs -0 -P "$(nproc)" -n 1 bash -c 'run_one "$1"' _
+fi
+# The overlap jobs must be done before the exclusive chain starts: those
+# files launch full shells on the live compositor, and a shell starting
+# beside the idle guard (the clipboard plugin's watcher pkill, say) can
+# make the guard's own shell spawn processes it would then count.
+if (( ${#overlap_pids[@]} > 0 )); then
+  wait "${overlap_pids[@]}"
+fi
+for test in "${exclusive_tests[@]}"; do
+  run_one "$test"
+done
+
 failed=()
 skipped=()
 for test in "${tests[@]}"; do
+  name=$(basename "$test")
   printf '==> %s\n' "${test#$ROOT/}"
-  bash "$test" | tee "$output" || failed+=("${test#$ROOT/}")
-  if grep -q '^ok - .* # SKIP$' "$output"; then
+  cat "$workdir/$name.out"
+  if (( $(cat "$workdir/$name.code") != 0 )); then
+    failed+=("${test#$ROOT/}")
+  fi
+  if grep -q '^ok - .* # SKIP$' "$workdir/$name.out"; then
     skipped+=("${test#$ROOT/}")
   fi
 done

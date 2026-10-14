@@ -1,0 +1,200 @@
+#!/bin/bash -p
+
+# omarchy:summary=Run a fixed lifecycle operation through the platform's own packages
+# omarchy:args=[--resolve] <operation> [arguments...]
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+# Provisioning, factory reset, update, boot, system and user setup and app
+# installs call a fixed set of operations here. A platform that needs its own
+# handling registers directories of root-owned entrypoints below; on every other
+# platform each operation is a no-op and the caller keeps its generic path. The
+# contract is docs/lifecycle-dispatch.md.
+#
+# --resolve prints the entrypoint an operation would run, or nothing when it is
+# a no-op here, so a caller can choose between a platform implementation and
+# its own generic path.
+#
+# Root runs this from provisioning, factory reset and update, and it decides
+# what runs as root. -p keeps a root caller's environment from running code in
+# this shell before the first line (bash then ignores BASH_ENV and exported
+# functions), so a launch without it is refused.
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup." >&2
+  exit 126
+fi
+
+set -euo pipefail
+
+operations=(
+  provision-prepare provision-commit provision-verify
+  reset-prepare reset-verify reset-commit reset-rollback
+  update-verify update-takeover
+  luks-slots
+  setup-boot setup-system setup-user
+  post-install pre-remove
+)
+
+# Run as the user, never as root, with that user's session.
+user_operations=(setup-user post-install pre-remove)
+
+usage() {
+  echo "Usage: omarchy-lifecycle-dispatch [--resolve] <operation> [arguments...]" >&2
+  echo "Operations: ${operations[*]}" >&2
+  exit 2
+}
+
+listed() {
+  local item=$1 candidate
+  shift
+  for candidate in "$@"; do
+    [[ $candidate == "$item" ]] && return 0
+  done
+  return 1
+}
+
+resolve=0
+if [[ ${1:-} == "--resolve" ]]; then
+  resolve=1
+  shift
+fi
+operation=${1:-}
+[[ -n $operation ]] || usage
+shift
+listed "$operation" "${operations[@]}" || usage
+
+# A privileged caller must not let its environment choose what runs as root:
+# root resolves only the fixed paths below, and the detector beside this file
+# ignores its fixture roots. Fixture roots exist for unprivileged tests.
+fixed_path=/usr/local/sbin:/usr/local/bin:/usr/bin
+detect=("$(PATH=$fixed_path dirname -- "${BASH_SOURCE[0]}")/omarchy-hw-platform")
+if (( EUID == 0 )); then
+  export PATH=$fixed_path
+  detect=(/usr/bin/env -i PATH="$fixed_path" "${detect[@]}")
+  root=""
+else
+  root=${OMARCHY_LIFECYCLE_ROOT:-}
+  root=${root%/}
+  if [[ -n $root && $root != /* ]]; then
+    echo "Error: OMARCHY_LIFECYCLE_ROOT must be an absolute path" >&2
+    exit 1
+  fi
+fi
+
+if ! platform=$("${detect[@]}"); then
+  echo "Error: cannot determine the hardware platform for $operation" >&2
+  exit 1
+fi
+
+# x86 and plain aarch64 machines (Snapdragon laptops among them) have no
+# registered package: every operation is a no-op there and callers keep their
+# generic path.
+# Apple Silicon's boot operations belong to omarchy-mac-boot, and its system and
+# user setup and app-install hooks to omarchy-mac (both omacom/omarchy-mac-pkgs).
+# Provisioning and factory reset have no other path on a Mac, only update-verify
+# checks what an update left in its boot chain, its boot checks prove the kept
+# LUKS slots that luks-slots records, and hardware setup has no other way to run
+# the Mac's boot setup (setup-boot), so those operations are required. So is
+# update-takeover: the Mac boot chain and its image own files no package does,
+# and a Mac whose boot package can't vouch for a takeover keeps them. Setup and
+# the app-install hooks are optional: a Mac without omarchy-mac keeps Omarchy's
+# generic setup and installs. Moving an operation to required also changes
+# apple_optional in test/shell.d/lifecycle-dispatch-test.sh and the Apple column
+# and registration table in docs/lifecycle-dispatch.md.
+case $platform:$operation in
+  aarch64-apple:setup-system | aarch64-apple:setup-user | aarch64-apple:post-install | aarch64-apple:pre-remove)
+    implementation=/usr/lib/omarchy/mac
+    package=omarchy-mac
+    required=()
+    ;;
+  aarch64-apple:*)
+    implementation=/usr/lib/omarchy/mac-boot
+    package=omarchy-mac-boot
+    required=(
+      provision-prepare provision-commit provision-verify
+      reset-prepare reset-verify reset-commit reset-rollback
+      update-verify update-takeover
+      luks-slots
+      setup-boot
+    )
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+
+# Checked once the platform registers the operation, so an installer run with
+# sudo still works where the hook is a no-op.
+if listed "$operation" "${user_operations[@]}" && (( EUID == 0 )); then
+  echo "Error: $operation runs as the user, never as root" >&2
+  exit 1
+fi
+
+# Every path from the entrypoint up to / (or the fixture root) must be a real
+# file or directory owned by root, or by the unprivileged caller inside a
+# fixture root, and writable by nobody else.
+trusted() {
+  local path=$1 top=${root:-/} owner mode
+
+  [[ -f $path && -x $path ]] || return 1
+  while true; do
+    [[ ! -L $path ]] || return 1
+    read -r owner mode < <(stat -c '%u %a' -- "$path") || return 1
+    if (( owner != 0 )); then
+      [[ -n $root ]] && (( EUID != 0 && owner == EUID )) || return 1
+    fi
+    (( (8#$mode & 8#022) == 0 )) || return 1
+    [[ $path != "$top" ]] || return 0
+    [[ $path != "/" ]] || return 1
+    path=$(dirname -- "$path")
+  done
+}
+
+entrypoint=$root$implementation/$operation
+
+# The package's own pacman record tells a machine without it from one whose
+# copy predates the operation.
+installed_version() {
+  local record
+  for record in "$root/var/lib/pacman/local/$package"-[0-9]*/; do
+    [[ -d $record ]] || continue
+    record=${record%/}
+    printf '%s\n' "${record##*/"$package"-}"
+    return 0
+  done
+  return 1
+}
+
+# 3 is a machine without the platform's boot package at all, which a caller may
+# tell apart from a failure; 1 is everything else.
+if [[ ! -e $entrypoint && ! -L $entrypoint ]]; then
+  if listed "$operation" "${required[@]}"; then
+    if version=$(installed_version); then
+      echo "Error: $operation on $platform needs $implementation/$operation, which $package $version does not provide; update $package" >&2
+      exit 1
+    fi
+    echo "Error: $operation on $platform needs $package, which provides $implementation/$operation; it is not installed" >&2
+    exit 3
+  fi
+  exit 0
+fi
+
+if ! trusted "$entrypoint"; then
+  echo "Error: refusing $implementation/$operation: it must be a root-owned executable file in root-owned directories, writable by no one else" >&2
+  exit 1
+fi
+
+if (( resolve )); then
+  printf '%s\n' "$entrypoint"
+  exit 0
+fi
+
+# A user operation also gets the user's home and session, when there is one,
+# and nothing else.
+environment=(PATH="$fixed_path")
+if listed "$operation" "${user_operations[@]}"; then
+  for name in HOME USER XDG_CONFIG_HOME XDG_STATE_HOME XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS WAYLAND_DISPLAY OMARCHY_PATH; do
+    [[ -z ${!name:-} ]] || environment+=("$name=${!name}")
+  done
+fi
+exec /usr/bin/env -i "${environment[@]}" "$entrypoint" "$@"

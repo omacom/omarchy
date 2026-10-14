@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Select input methods for Japanese, Korean, or Chinese typing
+# omarchy:args=[mozc|hangul|pinyin|chewing]
+# omarchy:examples=omarchy setup input | omarchy setup input mozc
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+if (( $# > 1 )); then
+  echo "Usage: omarchy setup input [mozc|hangul|pinyin|chewing]" >&2
+  exit 1
+fi
+
+method=${1:-}
+if [[ -z $method ]]; then
+  /usr/bin/python3 "$OMARCHY_PATH/default/input-methods/typing_setup.py" input
+  exit
+fi
+
+case "$method" in
+  mozc | hangul | pinyin | chewing) ;;
+  *) echo "Unknown input method: $method" >&2; exit 1 ;;
+esac
+
+mapfile -t packages < <(jq -r --arg method "$method" '.[$method].packages[]' "$OMARCHY_PATH/default/input-methods/presets.json")
+omarchy-pkg-add "${packages[@]}"
+/usr/bin/python3 "$OMARCHY_PATH/default/input-methods/typing_setup.py" add "$method"
+echo "Input method added. Use Super+I or the Japanese/Korean input key to switch; existing custom Fcitx keys are preserved."

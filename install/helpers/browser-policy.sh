@@ -79,12 +79,23 @@ browser_policy_setup_parents_for() {
   done
 }
 
+# Links reach the browser through omarchy-browser.desktop, so the browser never
+# sees itself as the default. Hide its check and its button to become one, which
+# would rewrite mimeapps.list behind Omarchy's back.
+browser_policy_install_defaults() {
+  local policy_dir=$1
+  local policies=${2:-$OMARCHY_PATH/default/chromium/policies/omarchy.json}
+
+  as_root install -m 644 -o root -g root -T "$policies" "$policy_dir/omarchy.json"
+}
+
 browser_policy_setup_dir() {
   local dir=$1
 
   browser_policy_setup_parents_for "$dir"
   browser_policy_setup_parent "$dir"
   browser_policy_purge_dir "$dir"
+  browser_policy_install_defaults "$dir"
 }
 
 # Themes are user-installed. Accept only three 0-255 components.
@@ -156,6 +167,22 @@ browser_policy_install_firefox_policies() {
   local policies=${2:-$OMARCHY_PATH/default/firefox/policies.json}
 
   as_root install -m 644 -o root -g root -T "$policies" "$distribution_dir/policies.json"
+}
+
+# Add Omarchy's default-browser setting to an existing policies.json, keeping
+# whatever else an administrator put there.
+browser_policy_firefox_skip_default_check() {
+  local file=$1/policies.json
+  local tmp
+
+  browser_policy_firefox_policy_file_ok "$file" || return 0
+  [[ $(jq '.policies.DontCheckDefaultBrowser' "$file" 2>/dev/null) == "true" ]] && return 0
+
+  tmp=$(mktemp) || return 1
+  if jq '.policies.DontCheckDefaultBrowser = true' "$file" >"$tmp" 2>/dev/null; then
+    as_root install -m 644 -o root -g root -T "$tmp" "$file"
+  fi
+  rm -f "$tmp"
 }
 
 browser_policy_setup_firefox_distribution() {

@@ -6,6 +6,7 @@ import Quickshell.Io
 import Quickshell.Networking
 import qs.Ui
 import qs.Commons
+import qs.Commons as Commons
 import "Model.js" as Model
 
 Panel {
@@ -56,13 +57,13 @@ Panel {
   readonly property bool hasTransferStats: info.rx_bytes !== undefined
   property int connectionPhraseIndex: 0
   readonly property var connectionPhrases: [
-    "Wiring bits",
-    "Handling packets",
-    "Sorting frames",
-    "Hauling bytes",
-    "Routing crumbs",
-    "Counting collisions",
-    "Bending light",
+    Commons.I18n.t("network.phrase1"),
+    Commons.I18n.t("network.phrase2"),
+    Commons.I18n.t("network.phrase3"),
+    Commons.I18n.t("network.phrase4"),
+    Commons.I18n.t("network.phrase5"),
+    Commons.I18n.t("network.phrase6"),
+    Commons.I18n.t("network.phrase7")
   ]
   readonly property string connectionPhrase: connectionPhrases[connectionPhraseIndex % connectionPhrases.length]
   readonly property bool networkManagerAvailable: Networking.backend === NetworkBackendType.NetworkManager
@@ -137,7 +138,7 @@ Panel {
   readonly property bool qrHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === qrHeaderIndex
   readonly property bool speedHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === speedHeaderIndex
   readonly property bool toggleHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === toggleHeaderIndex
-  readonly property string toggleHint: Networking.wifiEnabled ? "Turn Wi-Fi off" : "Turn Wi-Fi on"
+  readonly property string toggleHint: Networking.wifiEnabled ? Commons.I18n.t("network.turnWifiOff") : Commons.I18n.t("network.turnWifiOn")
   readonly property var dnsProviders: ["DHCP", "Cloudflare", "Google", "Custom"]
   property int dnsIndex: 0
   // ["2.4", "5", ...], or empty when there is nothing to choose between.
@@ -159,7 +160,7 @@ Panel {
   // Under Automatic there is nothing to pick, so the pills collapse away and
   // the header states the live band instead.
   readonly property bool bandPillsVisible: canSelectBand && bandPinned
-  readonly property string bandSectionTitle: Model.bandSectionTitle(bandEffective, bandCurrent)
+  readonly property string bandSectionTitle: Model.bandSectionTitle(bandEffective, bandCurrent, Commons.I18n.t, Commons.I18n.formatNumber)
   readonly property bool bandBusy: pendingBand !== ""
   // The speed test needs an interface to test, so its hero action only
   // appears once there is one.
@@ -279,11 +280,11 @@ Panel {
   }
 
   function bandLabel(band) {
-    return Model.bandLabel(band)
+    return Model.bandLabel(band, Commons.I18n.t, Commons.I18n.formatNumber)
   }
 
   function bandTooltip(band) {
-    return Model.bandTooltip(band)
+    return Model.bandTooltip(band, Commons.I18n.t, Commons.I18n.formatNumber)
   }
 
   // Single cursor model: exactly one highlighted spot across the whole
@@ -291,8 +292,8 @@ Panel {
   // `selectedIndex`). Mouse hover and keyboard nav both mutate this state
   // at the root; items never read containsMouse for visuals. See
   // CursorSurface for the shared chrome shared by rows and pills.
-  readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Color.accent) : "transparent"
-  readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "transparent"
+  readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Commons.Color.accent) : "transparent"
+  readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Commons.Color.accent) : "transparent"
 
   // scannerEnabled lives on the shared WifiDevice, which has no reference
   // counting, and a bar widget is instantiated once per monitor. Tracking the
@@ -356,7 +357,7 @@ Panel {
   onPasswordSsidChanged: {
     if (passwordSsid === "" && opened) {
       passwordText = ""
-      Qt.callLater(function() { if (keyCatcher) keyCatcher.forceActiveFocus() })
+      Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
     }
   }
 
@@ -388,6 +389,7 @@ Panel {
   onWifiDeviceChanged: {
     setScannerEnabled(true)
     syncWifiNetworks()
+    resetActiveApSignal()
   }
 
   onWifiNetworkObjectsChanged: syncWifiNetworks()
@@ -441,11 +443,52 @@ Panel {
   readonly property string kind: {
     if (wiredDevice && wiredDevice.connected) return "ethernet"
     if (connectedWifiNetwork) return "wifi"
+    // NetworkManager can leave the active profile out of the device's
+    // AvailableConnections, and Quickshell only builds known networks from
+    // that list. An OWE transition-mode network does this between scans: the
+    // in-use access point carries the hidden "_owetm_" SSID, so the profile
+    // for the open SSID looks out of range even while it is connected. Trust
+    // the device's own state then instead of flickering to disconnected.
+    if (wifiDevice && wifiDevice.connected) return "wifi"
     return "disconnected"
   }
-  readonly property int signalStrength: connectedWifiNetwork
-    ? Math.round((connectedWifiNetwork.signalStrength || 0) * 100)
+  readonly property int signalStrength: kind === "wifi"
+    ? Model.connectedSignalStrength(connectedWifiNetwork ? connectedWifiNetwork.signalStrength : 0, activeApSignal)
     : -1
+  // Filled by activeApSignalPoll from nmcli while the connected network has no
+  // strength of its own to report.
+  property int activeApSignal: -1
+  readonly property bool needsActiveApSignal: kind === "wifi"
+    && !(connectedWifiNetwork && connectedWifiNetwork.signalStrength > 0)
+  // Bumped whenever the cached reading stops describing the current link, so
+  // an nmcli read still in flight from before cannot write a stale strength.
+  property int activeApSignalGeneration: 0
+  property int activeApSignalRequest: -1
+  onKindChanged: if (kind !== "wifi") resetActiveApSignal()
+
+  // Switching Wi-Fi networks always passes through a non-"wifi" kind (both the
+  // device and the old network drop out of the connected state while the new
+  // profile activates), so this also covers a change of network.
+  function resetActiveApSignal() {
+    activeApSignal = -1
+    activeApSignalGeneration++
+  }
+
+  function pollActiveApSignal() {
+    if (activeApSignalProc.running) return
+    activeApSignalRequest = activeApSignalGeneration
+    activeApSignalProc.running = true
+  }
+
+  function finishActiveApSignal(raw) {
+    if (activeApSignalRequest !== activeApSignalGeneration) {
+      // The link changed mid-read and the restarted poll skipped while this
+      // one was running; read again now instead of a full interval later.
+      if (needsActiveApSignal) activeApSignalPoll.restart()
+      return
+    }
+    activeApSignal = Model.parseActiveApSignal(raw)
+  }
 
   function copyToClipboard(value) {
     if (!value || !root.bar) return
@@ -464,8 +507,11 @@ Panel {
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
   readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
-  readonly property string connectionKey: kind === "wifi" && wifiDevice && connectedWifiNetwork
-    ? kind + ":" + wifiDevice.name + ":" + connectedWifiNetwork.name
+  // Keyed on the device rather than the SSID: on an OWE transition-mode
+  // network the listed network comes and goes with every scan while the link
+  // stays up, and a real network switch already passes through "disconnected".
+  readonly property string connectionKey: kind === "wifi" && wifiDevice
+    ? kind + ":" + wifiDevice.name
     : (kind === "ethernet" && wiredDevice ? kind + ":" + wiredDevice.name : "")
 
   onConnectionKeyChanged: Qt.callLater(checkConnectivity)
@@ -481,7 +527,7 @@ Panel {
   }
   onRestrictedChanged: {
     connectionPhraseSwap.stop()
-    heroMeta.opacity = 1.0
+    if (panel.loadedContent) panel.loadedContent.heroMeta.opacity = 1.0
   }
 
   function checkConnectivity() {
@@ -549,15 +595,15 @@ Panel {
   }
 
   function formatHeaderSpeed(mbps) {
-    return Model.formatHeaderSpeed(mbps)
+    return Model.formatHeaderSpeed(mbps, Commons.I18n.formatNumber)
   }
 
   function formatHeaderFreq(mhz) {
-    return Model.formatHeaderFreq(mhz)
+    return Model.formatHeaderFreq(mhz, Commons.I18n.formatNumber)
   }
 
   function headerDetail() {
-    return Model.headerDetail(info)
+    return Model.headerDetail(info, Commons.I18n.formatNumber)
   }
 
   function updateDetails(raw) {
@@ -609,19 +655,19 @@ Panel {
   }
 
   function formatBytes(bytes) {
-    return Model.formatBytes(bytes)
+    return Model.formatBytes(bytes, Commons.I18n.formatNumber)
   }
 
   function formatRate(bytesPerSec) {
-    return Model.formatRate(bytesPerSec)
+    return Model.formatRate(bytesPerSec, Commons.I18n.formatNumber)
   }
 
   function formatPingLatency(ms) {
-    return Model.formatPingLatency(ms, hasInternetPing)
+    return Model.formatPingLatency(ms, hasInternetPing, Commons.I18n.t, Commons.I18n.formatNumber)
   }
 
   function formatPacketLoss(percent) {
-    return Model.formatPacketLoss(percent, hasInternetPing)
+    return Model.formatPacketLoss(percent, hasInternetPing, Commons.I18n.formatNumber)
   }
 
   // Prefer a connected device: a machine can expose several NICs of the
@@ -664,7 +710,7 @@ Panel {
   }
 
   function wifiSectionTitle(index) {
-    return Model.wifiSectionTitle(wifiNetworks, index)
+    return Model.wifiSectionTitle(wifiNetworks, index, Commons.I18n.t)
   }
 
   function wifiIconFor(strength) {
@@ -709,7 +755,7 @@ Panel {
     cancelPasswordPrompt()
     var connection = ""
     if (info.type === "wifi") connection = info.ssid || "Wi-Fi"
-    else if (info.type === "ethernet") connection = "Ethernet"
+    else if (info.type === "ethernet") connection = Commons.I18n.t("network.ethernet")
     bar.shell.summon("omarchy.speedtest", connection ? JSON.stringify({ connection: connection }) : "{}")
   }
 
@@ -797,7 +843,7 @@ Panel {
   }
 
   function networkFailureReason(reason, needsCredentials) {
-    return Model.networkFailureReason(reason, needsCredentials, connectionFailReasons)
+    return Model.networkFailureReason(reason, needsCredentials, connectionFailReasons, Commons.I18n.t)
   }
 
   function shouldRepromptPassphrase(reason, needsCredentials) {
@@ -869,6 +915,26 @@ Panel {
       waitForEnd: true
       onStreamFinished: root.updateDetails(text)
     }
+  }
+
+  // Reads the in-use access point's strength without triggering a scan, for
+  // the connected network that has none of its own (see signalStrength).
+  Process {
+    id: activeApSignalProc
+    command: ["nmcli", "-t", "-f", "IN-USE,SIGNAL", "device", "wifi", "list", "ifname", root.wifiDevice ? root.wifiDevice.name : "", "--rescan", "no"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.finishActiveApSignal(text)
+    }
+  }
+
+  Timer {
+    id: activeApSignalPoll
+    interval: 5000
+    repeat: true
+    triggeredOnStart: true
+    running: root.needsActiveApSignal
+    onTriggered: root.pollActiveApSignal()
   }
 
   Timer {
@@ -964,14 +1030,14 @@ Panel {
   SequentialAnimation {
     id: connectionPhraseSwap
     PropertyAnimation {
-      target: heroMeta; property: "opacity"
+      target: panel.loadedContent ? panel.loadedContent.heroMeta : null; property: "opacity"
       to: 0.0; duration: Style.duration(180); easing.type: Easing.OutQuad
     }
     ScriptAction {
       script: root.connectionPhraseIndex = (root.connectionPhraseIndex + 1) % root.connectionPhrases.length
     }
     PropertyAnimation {
-      target: heroMeta; property: "opacity"
+      target: panel.loadedContent ? panel.loadedContent.heroMeta : null; property: "opacity"
       to: 1.0; duration: Style.duration(260); easing.type: Easing.InQuad
     }
   }
@@ -981,7 +1047,7 @@ Panel {
     function onInfoChanged() {
       if (!(root.info.type === "ethernet" || (root.info.type === "wifi" && root.canDisconnect))) {
         connectionPhraseSwap.stop()
-        heroMeta.opacity = 1.0
+        if (panel.loadedContent) panel.loadedContent.heroMeta.opacity = 1.0
       }
     }
   }
@@ -997,9 +1063,9 @@ Panel {
     onTriggered: {
       if (!root.actionKind) return
       var reason
-      if (root.actionKind === "connect") reason = "Timed out connecting"
-      else if (root.actionKind === "disconnect") reason = "Timed out disconnecting"
-      else reason = "Timed out forgetting"
+      if (root.actionKind === "connect") reason = Commons.I18n.t("network.timedOutConnecting")
+      else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
+      else reason = Commons.I18n.t("network.timedOutForgetting")
       root.failureSsid = root.actionSsid
       root.failureReason = reason
       root.actionSsid = ""
@@ -1014,8 +1080,8 @@ Panel {
     bar: root.bar
     text: root.icon
     active: root.restricted
-    tooltipText: root.hasCaptivePortal ? "Sign in to this network"
-      : (root.restricted ? "Limited internet access" : "")
+    tooltipText: root.hasCaptivePortal ? Commons.I18n.t("network.signInToNetwork")
+      : (root.restricted ? Commons.I18n.t("network.limitedAccess") : "")
 
     onPressed: function(b) {
       if (root.opened) root.close()
@@ -1039,15 +1105,17 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: keyCatcher
+    focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
-    contentHeight: panel.fittedContentHeight(column.implicitHeight)
+    contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
 
     // Catches all unhandled keys for keyboard navigation. AfterItem priority
     // lets the passphrase TextField (a child via focus chain) get its keys
     // first; only events the focused subtree ignores bubble back here.
-    PanelKeyCatcher {
+    content: PanelKeyCatcher {
       id: keyCatcher
+      property alias heroMeta: heroMeta
+      implicitHeight: column.implicitHeight
       anchors.fill: parent
       // Freeze the cursor model while the inline password prompt is open;
       // the TextField inside owns input until Esc/Enter/Cancel.
@@ -1180,32 +1248,28 @@ Panel {
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
 
-          Button {
+          PanelActionButton {
             id: qrAction
             visible: root.canShareWifi
             iconText: "󰐲"
-            tooltipText: "Show QR code"
+            tooltipText: Commons.I18n.t("network.showQrCode")
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
-            iconSize: Style.font.subtitle * 1.5
-            horizontalPadding: Style.space(5)
-            verticalPadding: Style.space(2)
+            fontSize: Style.font.subtitle * 1.5
             hasCursor: root.qrHeaderHasCursor
             Layout.alignment: Qt.AlignVCenter
             onHovered: function(on) { if (on) root.setHeaderCursor(root.qrHeaderIndex) }
             onClicked: root.summonWifiQr()
           }
 
-          Button {
+          PanelActionButton {
             id: speedAction
             visible: root.canRunSpeedTest
             iconText: "󰓅"
-            tooltipText: "Run a speed test"
+            tooltipText: Commons.I18n.t("network.runSpeedTest")
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
-            iconSize: Style.font.subtitle * 1.5
-            horizontalPadding: Style.space(5)
-            verticalPadding: Style.space(2)
+            fontSize: Style.font.subtitle * 1.5
             hasCursor: root.speedHeaderHasCursor
             Layout.alignment: Qt.AlignVCenter
             onHovered: function(on) { if (on) root.setHeaderCursor(root.speedHeaderIndex) }
@@ -1251,8 +1315,8 @@ Panel {
               // SSID even before route/details polling has returned anything.
               if (root.kind === "wifi" && root.connectedWifiNetwork) return root.connectedWifiNetwork.name || "Wi-Fi"
               if (root.info.type === "wifi") return root.info.ssid || "Wi-Fi"
-              if (root.info.type === "ethernet") return "Ethernet"
-              return root.info.iface || (root.kind === "disconnected" ? "Disconnected" : "No connection")
+              if (root.info.type === "ethernet") return Commons.I18n.t("network.ethernet")
+              return root.info.iface || (root.kind === "disconnected" ? Commons.I18n.t("network.disconnected") : Commons.I18n.t("network.noConnection"))
             }
             readonly property string detail: root.headerDetail()
 
@@ -1269,15 +1333,15 @@ Panel {
             textFormat: Text.PlainText
             width: parent.width
             text: {
-              if (root.hasCaptivePortal) return "SIGN-IN REQUIRED"
-              if (root.restricted) return "LIMITED INTERNET ACCESS"
+              if (root.hasCaptivePortal) return Commons.I18n.t("network.signInRequiredHeader")
+              if (root.restricted) return Commons.I18n.t("network.limitedAccessHeader")
               if (root.info.type === "wifi") {
                 if (root.canDisconnect) return root.connectionPhrase.toUpperCase()
-                if (root.kind === "disconnected") return "NOT CONNECTED"
+                if (root.kind === "disconnected") return Commons.I18n.t("network.notConnected")
                 return ""
               }
               if (root.info.type === "ethernet") return root.connectionPhrase.toUpperCase()
-              if (root.kind === "disconnected") return "NOT CONNECTED"
+              if (root.kind === "disconnected") return Commons.I18n.t("network.notConnected")
               return ""
             }
             visible: text !== ""
@@ -1300,7 +1364,7 @@ Panel {
         Button {
           id: portalAction
           width: parent.width
-          text: "Open Captive Portal"
+          text: Commons.I18n.t("network.openCaptivePortal")
           iconText: "󰏌"
           foreground: root.bar.urgent
           accent: root.bar.urgent
@@ -1319,7 +1383,7 @@ Panel {
 
         Text {
           width: parent.width
-          text: "Sign in or accept this network’s terms to access the internet."
+          text: Commons.I18n.t("network.captivePortalHelp")
           textFormat: Text.PlainText
           wrapMode: Text.WordWrap
           color: root.bar.foreground
@@ -1345,38 +1409,38 @@ Panel {
           // opened, once the first probe returned, shoving everything below
           // them down. They now hold their place and read "--" until there is
           // a sample.
-          InfoLabel { text: "Ping" }
+          InfoLabel { text: Commons.I18n.t("network.ping") }
           DetailValue {
             text: root.formatPingLatency(root.internetPingLatency)
             color: root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
           }
-          InfoLabel { text: "Packet Loss" }
+          InfoLabel { text: Commons.I18n.t("network.packetLoss") }
           DetailValue {
             text: root.formatPacketLoss(root.internetPingPacketLoss)
             color: root.internetPingPacketLoss > 0 ? root.bar.urgent : root.bar.foreground
           }
 
-          InfoLabel { text: "Receiving" }
+          InfoLabel { text: Commons.I18n.t("network.receiving") }
           DetailValue { text: root.hasTransferStats ? root.formatRate(root.downloadRate) : "--" }
-          InfoLabel { text: "Sending" }
+          InfoLabel { text: Commons.I18n.t("network.sending") }
           DetailValue { text: root.hasTransferStats ? root.formatRate(root.uploadRate) : "--" }
 
-          InfoLabel { text: "Downloaded" }
+          InfoLabel { text: Commons.I18n.t("network.downloaded") }
           DetailValue { text: root.hasTransferStats ? root.formatBytes(parseFloat(root.info.rx_bytes || "0")) : "--" }
-          InfoLabel { text: "Uploaded" }
+          InfoLabel { text: Commons.I18n.t("network.uploaded") }
           DetailValue { text: root.hasTransferStats ? root.formatBytes(parseFloat(root.info.tx_bytes || "0")) : "--" }
 
-          InfoLabel { text: "IP Address" }
+          InfoLabel { text: Commons.I18n.t("network.ipAddress") }
           DetailValue {
             text: root.info.ip || "--"
             copyable: !!root.info.ip
-            tooltipText: "Copy IP"
+            tooltipText: Commons.I18n.t("network.copyIp")
           }
-          InfoLabel { text: "Gateway" }
+          InfoLabel { text: Commons.I18n.t("network.gateway") }
           DetailValue {
             text: root.info.gateway || "--"
             copyable: !!root.info.gateway
-            tooltipText: "Copy gateway"
+            tooltipText: Commons.I18n.t("network.copyGateway")
           }
         }
       }
@@ -1417,7 +1481,7 @@ Panel {
 
             PanelSectionHeader {
               id: bandAutoLabel
-              text: "AUTOMATIC"
+              text: Commons.I18n.t("network.automatic")
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
               anchors.verticalCenter: parent.verticalCenter
@@ -1450,8 +1514,8 @@ Panel {
               PanelToolTip {
                 visible: bandAutoSwitch.containsMouse
                 text: root.bandPinned
-                  ? "Let Wi-Fi pick the band"
-                  : "Stay on " + root.bandLabel(root.bandCurrent)
+                  ? Commons.I18n.t("network.bandAutoTooltip")
+                  : Commons.I18n.t("network.stayOnBand").arg(root.bandLabel(root.bandCurrent))
                 fontFamily: root.bar.fontFamily
               }
             }
@@ -1522,7 +1586,7 @@ Panel {
         spacing: Style.space(10)
 
         PanelSectionHeader {
-          text: "DNS PROVIDER"
+          text: Commons.I18n.t("network.dnsProvider")
           foreground: root.bar.foreground
           fontFamily: root.bar.fontFamily
         }
@@ -1538,7 +1602,7 @@ Panel {
           DnsProviderPill {
             provider: "DHCP"
             index: 0
-            tooltipText: "Use DNS from DHCP"
+            tooltipText: Commons.I18n.t("network.dnsFromDhcp")
             width: dnsRow.cellWidth
             onClicked: root.setDns(provider)
           }
@@ -1546,7 +1610,7 @@ Panel {
           DnsProviderPill {
             provider: "Cloudflare"
             index: 1
-            tooltipText: "Set DNS to Cloudflare"
+            tooltipText: Commons.I18n.t("network.setDnsTo").arg("Cloudflare")
             width: dnsRow.cellWidth
             onClicked: root.setDns(provider)
           }
@@ -1554,7 +1618,7 @@ Panel {
           DnsProviderPill {
             provider: "Google"
             index: 2
-            tooltipText: "Set DNS to Google"
+            tooltipText: Commons.I18n.t("network.setDnsTo").arg("Google")
             width: dnsRow.cellWidth
             onClicked: root.setDns(provider)
           }
@@ -1562,7 +1626,7 @@ Panel {
           DnsProviderPill {
             provider: "Custom"
             index: 3
-            tooltipText: "Set custom DNS servers"
+            tooltipText: Commons.I18n.t("network.setCustomDns")
             width: dnsRow.cellWidth
             onClicked: root.setDns(provider)
           }
@@ -1578,7 +1642,7 @@ Panel {
 
       PanelSectionHeader {
         visible: root.wifiStationAvailable && root.scanning
-        text: "SCANNING WI-FI…"
+        text: Commons.I18n.t("network.scanningWifi")
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
       }
@@ -1681,7 +1745,7 @@ Panel {
     required property string provider
     required property int index
 
-    text: provider
+    text: provider === "Custom" ? Commons.I18n.t("network.dnsCustom") : provider
     fontSize: Style.font.bodySmall
     foreground: root.bar.foreground
     fontFamily: root.bar.fontFamily
@@ -1764,12 +1828,12 @@ Panel {
     readonly property string statusText: {
       if (!net) return ""
       if (isPasswordOpen) return ""
-      if (isBusy && root.actionKind === "connect") return "Connecting…"
-      if (isBusy && root.actionKind === "disconnect") return "Disconnecting…"
-      if (isBusy && root.actionKind === "forget") return "Forgetting…"
-      if (isFailed) return root.failureReason || "Failed"
-      if (isConnected && root.kind === "wifi" && root.hasCaptivePortal) return "Sign-in required"
-      if (isConnected) return "Connected"
+      if (isBusy && root.actionKind === "connect") return Commons.I18n.t("network.connecting")
+      if (isBusy && root.actionKind === "disconnect") return Commons.I18n.t("network.disconnecting")
+      if (isBusy && root.actionKind === "forget") return Commons.I18n.t("network.forgetting")
+      if (isFailed) return root.failureReason || Commons.I18n.t("network.failed")
+      if (isConnected && root.kind === "wifi" && root.hasCaptivePortal) return Commons.I18n.t("network.signInRequired")
+      if (isConnected) return Commons.I18n.t("network.connected")
       return ""
     }
 
@@ -1886,7 +1950,7 @@ Panel {
 
         PanelToolTip {
           visible: rightMouse.containsMouse || row.forgetFocused
-          text: "Forget network"
+          text: Commons.I18n.t("network.forgetNetwork")
           fontFamily: root.bar.fontFamily
         }
       }
@@ -1902,7 +1966,7 @@ Panel {
 
         Text {
           textFormat: Text.PlainText
-          text: row.net ? (row.net.ssid || "Hidden") : ""
+          text: row.net ? (row.net.ssid || Commons.I18n.t("network.hidden")) : ""
           color: root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.body
@@ -1962,7 +2026,7 @@ Panel {
         anchors.right: connectPwBtn.left
         anchors.top: parent.top
         anchors.rightMargin: Style.space(6)
-        placeholderText: "Identity (user@domain)"
+        placeholderText: Commons.I18n.t("network.identity")
         font.family: Style.font.family
         font.pixelSize: Style.font.body
         foreground: root.bar.foreground
@@ -1988,7 +2052,7 @@ Panel {
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
         password: true
-        placeholderText: "Passphrase"
+        placeholderText: Commons.I18n.t("network.passphrase")
         font.family: Style.font.family
         font.pixelSize: Style.font.body
         foreground: root.bar.foreground
@@ -2013,7 +2077,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         height: Style.spacing.controlHeight
         color: Style.normalFillFor(root.bar.foreground)
-        borderSpec: Border.controlSpec("normal", root.bar.foreground, Color.accent)
+        borderSpec: Border.controlSpec("normal", root.bar.foreground, Commons.Color.accent)
         radius: Style.cornerRadius
 
         Text {
@@ -2021,7 +2085,7 @@ Panel {
           anchors.fill: parent
           horizontalAlignment: Text.AlignHCenter
           verticalAlignment: Text.AlignVCenter
-          text: row.isFailed ? "Wrong password" : "Connecting..."
+          text: row.isFailed ? Commons.I18n.t("network.wrongPassword") : Commons.I18n.t("network.connecting")
           color: row.isFailed ? root.bar.urgent : root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.bodySmall
@@ -2038,7 +2102,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
         iconText: "󰄬"
-        tooltipText: "Connect"
+        tooltipText: Commons.I18n.t("network.connect")
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
         onClicked: row.submitCredentials()
@@ -2049,7 +2113,7 @@ Panel {
 
   component DetailValue: InfoValue {
     property bool copyable: false
-    property string tooltipText: "Copy to clipboard"
+    property string tooltipText: Commons.I18n.t("network.copyToClipboard")
 
     Layout.fillWidth: true
     horizontalAlignment: Text.AlignRight

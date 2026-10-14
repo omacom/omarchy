@@ -8,6 +8,10 @@ Plug in a USB stick or an SD card and it's mounted automatically, so it just sho
 
 Double-clicking follows sensible defaults: images open in imv, video in mpv, PDFs in Document Viewer, and plain text in Neovim.
 
+## Disktree
+
+When the drive fills up and you have no idea what's eating it, launch [Disktree](https://github.com/tobi/disktree) from the app launcher (`Super + Space`). It shows a graphical treemap of your home directory. Larger blocks take up more space; walk into directories with the keyboard or mouse, mark what should go, and review your selections before removing anything. Run `disktree --disk` to scan the whole disk.
+
 ## Obsidian
 
 [Obsidian](https://obsidian.md/) is a free and highly extensible note taking application that uses simple Markdown files for storage.
@@ -65,6 +69,12 @@ You start LibreOffice via the application launcher (`Super + Space`).
 
 You start Hype via the application launcher (`Super + Space`). Press `?` inside it to see every shortcut.
 
+## Signed
+
+[Signed](https://github.com/omacom/signed) is Omarchy's own dead-simple way to sign PDFs and fill them in. Put your saved signature, text, and today's date anywhere on a page, then save a signed copy beside the original. See [Filling out PDFs](27-filling-out-pdfs.md) for how.
+
+You start Signed via the application launcher (`Super + Space`), or open a PDF with it from the file manager.
+
 ## Omacalc
 
 [Omacalc](https://github.com/omacom-io/omacalc) is Omarchy's own dead-simple calculator, which opens in a floating window.
@@ -82,18 +92,6 @@ You start Signal with `Super + Shift + G`. It's not part of the base install, so
 [mpv](https://mpv.io/) is a simple, fast media player that'll play almost anything from any source. Great for watching videos.
 
 You start mpv via the application launcher (`Super + Space`) or just double-click on a video in the file manager.
-
-## OBS Studio
-
-[OBS Studio](https://obsproject.com/) lets you record or stream video from multiple inputs. You can mix a screencast with a webcam with a microphone input. It's what was used to record the Omarchy screencasts.
-
-You start OBS Studio via the application launcher (`Super + Space`).
-
-## Kdenlive
-
-[Kdenlive](https://kdenlive.org/) is an excellent video editor. Perfect for working on video that comes out of OBS Studio before sharing it.
-
-You start Kdenlive via the application launcher (`Super + Space`).
 
 ## Omacut
 

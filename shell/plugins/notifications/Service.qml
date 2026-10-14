@@ -7,6 +7,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Notifications
 import qs.Commons
+import qs.Commons as Commons
 
 import "components"
 import "NotificationLogic.js" as NotificationLogic
@@ -45,11 +46,15 @@ Item {
   // pull notification popups away from the expected top-right location.
   // Falls back to the bar's default size (26 horizontal / 28 vertical) when
   // shell.bar isn't reachable so the popup never lands on top of the bar.
+  // Each screen clears the bar as thick as it is there: a notch floor can make
+  // a top bar taller than its configured size on one screen only.
   readonly property string barPosition: shell && shell.barConfig ? String(shell.barConfig.position || "top") : "top"
   readonly property bool barVertical: barPosition === "left" || barPosition === "right"
   readonly property int defaultBarSize: barVertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
-  readonly property int liveBarSize: shell && shell.bar && !shell.bar.barHidden ? Math.max(0, shell.bar.barSize) : defaultBarSize
-  readonly property int barClearance: liveBarSize + Style.gapsOut
+
+  function barClearanceFor(screenName) {
+    return NotificationLogic.barClearance(shell ? shell.bar : null, screenName, defaultBarSize, Style.gapsOut)
+  }
 
   // Live Notification objects by originalId, kept OUT of the ListModels: a
   // QObject stored in a model role becomes a dangling C++ pointer when the
@@ -721,7 +726,7 @@ Item {
         originalId: -1,
         app: "omarchy-action",
         appIcon: "",
-        summary: "No recent notifications",
+        summary: I18n.t("notifications.noneRecent"),
         body: "",
         image: "",
         glyph: "󰂚",
@@ -1009,7 +1014,7 @@ Item {
       color: "transparent"
 
       readonly property var popupPlacement: NotificationLogic.popupPlacement(
-        service.barPosition, service.barClearance, Style.gapsOut)
+        service.barPosition, service.barClearanceFor(modelData ? modelData.name : ""), Style.gapsOut)
 
       // Full-screen, fixed-size surface (like the OSD overlay). Adding or
       // removing a toast changes only the content inside; the Wayland surface
@@ -1084,6 +1089,10 @@ Item {
 
             NotificationCard {
               id: card
+              // Right-to-left languages read the card mirrored; the toast
+              // column itself stays where the bar's placement puts it.
+              LayoutMirroring.enabled: Commons.I18n.rightToLeft
+              LayoutMirroring.childrenInherit: true
               anchors.right: parent.right
               app: cardSlot.app
               appIcon: cardSlot.appIcon

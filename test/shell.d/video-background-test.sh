@@ -147,10 +147,17 @@ assert(
 )
 assert(
   batteryService.includes('property string activePowerProfile') &&
-    batteryService.includes('UPower.onBattery && activePowerProfile === "power-saver"') &&
+    batteryService.includes('powerSaverOnBattery: BatteryModel.isPowerSaverOnBattery(UPower.onBattery, activePowerProfile)') &&
+    /function onProfileChanged\(\) \{\s*root\.powerProfileSignals\+\+\s*root\.activePowerProfile = root\.profileName\(PowerProfiles\.profile\)/.test(batteryService) &&
+    batteryService.includes('root.activePowerProfile = BatteryModel.profileAfterRead(root.activePowerProfile, text, root.powerProfileReadSignals, root.powerProfileSignals)') &&
+    /if \(powerProfileReadProcess\.running\) \{\s*powerProfileReadPending = true/.test(batteryService) &&
+    batteryService.includes('if (root.powerProfileReadPending) Qt.callLater(root.refreshPowerProfile)') &&
+    batteryService.includes('case PowerProfile.PowerSaver: return "power-saver"') &&
     batteryService.includes('"get-property", "net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", "net.hadess.PowerProfiles", "ActiveProfile"') &&
     !batteryService.includes('["powerprofilesctl"') &&
-    batteryService.includes('interval: 2000'),
+    !/Timer \{[^}]*refreshPowerProfile/.test(batteryService) &&
+    batteryService.includes('function refreshPowerProfile(): void { root.refreshPowerProfile() }') &&
+    fs.readFileSync(path.join(root, 'bin/omarchy-powerprofiles-set'), 'utf8').includes('omarchy-shell -q battery refreshPowerProfile'),
   'the battery service tracks the active power-saver profile'
 )
 assert(
@@ -330,7 +337,10 @@ video_snapshot=$(snapshot_background_path "$CURRENT_THEME_PATH/backgrounds/old.m
 
 CHOSEN_THEME_BACKGROUND="$transition_home/disappeared.mp4"
 BACKGROUND_TRANSITION_SNAPSHOTS=false
+THEME_BACKGROUND_INTRO=""
 OLD_BACKGROUND_SNAPSHOT=""
+PREPARED_BACKGROUND=""
+PREPARED_BACKGROUND_SNAPSHOT=""
 colors_payload=""
 shell_payload=""
 shell_ipc() { :; }

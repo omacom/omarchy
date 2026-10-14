@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 
 // Layer-shell popup attached to a bar widget icon, designed for
 // click-driven AND keyboard-driven panels (e.g. SUPER+CTRL+W summon).
@@ -44,7 +45,7 @@ PanelWindow {
   property int padding: Style.spacing.popupPadding
   property int contentWidth: Style.space(280)
   property int contentHeight: Style.space(200)
-  property var borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
+  property var borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Math.max(1, Style.space(2)))
   property bool centerOnBar: false
   property bool open: false
   property int gap: Style.gapsOut  // distance between bar edge and panel
@@ -61,6 +62,28 @@ PanelWindow {
   property Item focusTarget: null
 
   default property alias contentItem: contentHolder.children
+
+  // Lazy content. A panel that sets `content` to a Component gets it built
+  // the first time the panel opens instead of at shell startup, which is
+  // where most of a bar's memory and load time went: every panel's tree was
+  // built on every monitor whether or not it was ever opened. The content
+  // stays loaded after that first open, so reopening is instant and any
+  // state the content holds (scroll position, an edit in progress) survives
+  // a close. Root-level panel code reaches into it through `loadedContent`,
+  // which is null until then, so anything that must run while the panel is
+  // closed (timers, data, IPC) belongs outside the content. Panels that
+  // declare children directly keep the old eager behaviour.
+  property Component content: null
+  property bool contentRequested: false
+  readonly property Item loadedContent: contentLoader.item
+  readonly property real loadedContentHeight: contentLoader.item ? contentLoader.item.implicitHeight : 0
+
+  // Build the content without opening the panel, for callers that need to
+  // reach it first.
+  function ensureContent() {
+    if (content) contentRequested = true
+    return contentLoader.item
+  }
 
   readonly property var coordinatorKey: owner || root
   readonly property var anchorWindow: anchorItem ? anchorItem.QsWindow.window : null
@@ -225,6 +248,7 @@ PanelWindow {
   // animation, which made ownership transfer to a sibling popup race.
   onOpenChanged: {
     if (open) {
+      if (content) contentRequested = true
       focusPrimed = false
       beginFocusPrime()
       if (focusTarget) Qt.callLater(function() {
@@ -382,7 +406,7 @@ PanelWindow {
     y: root.cardOrigin.y
     width: root.contentWidth
     height: root.contentHeight
-    color: Color.popups.background
+    color: Commons.Color.popups.background
     borderSpec: root.borderSpec
     padding: root.padding
     radius: Style.cornerRadius
@@ -403,11 +427,23 @@ PanelWindow {
     Item {
       id: contentHolder
       anchors.fill: parent
+      // Right-to-left languages read the card mirrored; the card itself
+      // stays where the bar puts it.
+      LayoutMirroring.enabled: Commons.I18n.rightToLeft
+      LayoutMirroring.childrenInherit: true
       anchors.topMargin: card.contentTopInset
       anchors.rightMargin: card.contentRightInset
       anchors.bottomMargin: card.contentBottomInset
       anchors.leftMargin: card.contentLeftInset
       opacity: root.popoutSwitching ? (root.open ? 1.0 : 0) : 1.0
+
+      Loader {
+        id: contentLoader
+        anchors.fill: parent
+        focus: true
+        active: !!root.content && (root.open || root.contentRequested)
+        sourceComponent: root.content
+      }
 
       Behavior on opacity {
         enabled: root.popoutSwitching

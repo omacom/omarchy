@@ -1,0 +1,5 @@
+# Installed per-user so D-Bus activation uses the supervised Omarchy unit.
+[D-BUS Service]
+Name=org.fcitx.Fcitx5
+Exec=/usr/bin/fcitx5
+SystemdService=omarchy-fcitx5.service

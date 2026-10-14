@@ -27,7 +27,7 @@ confirm() {
   local prompt="$1"
   (( ASSUME_YES )) && return 0
   if interactive; then
-    gum confirm "$prompt"
+    gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$prompt"
   else
     fail "refusing to continue without confirmation; pass --yes"
   fi
@@ -46,8 +46,8 @@ select_bar_widget_placement() {
     "$PLUGINS_DIR/$id/manifest.json" >/dev/null 2>&1 || return 0
 
   default_section=$(jq -r '.barWidget.defaultSection // "center"' "$PLUGINS_DIR/$id/manifest.json")
-  section=$(printf '%s\n' left center right |
-    gum choose --header="Place $id in which bar section?" --selected "$default_section") || return 0
+  section=$(printf '%s\n' left center tray right |
+    gum choose --header="$(omarchy-i18n plugin.barSection "$id")" --selected "$default_section") || return 0
   [[ -n $section ]] || return 0
   ENABLE_PLACEMENT=(--section "$section")
 }
@@ -89,7 +89,7 @@ done
 if [[ -z $url ]]; then
   interactive ||
     fail "a git URL is required (e.g. omarchy plugin add https://github.com/acme/omarchy-weather.git)"
-  url=$(gum input --prompt "Git URL of the plugin repo: ") || fail "cancelled"
+  url=$(gum input --prompt "$(omarchy-i18n plugin.gitUrlPrompt)") || fail "cancelled"
   [[ -n $url ]] || fail "a git URL is required"
 fi
 
@@ -110,7 +110,7 @@ if (( ! ASSUME_YES )); then
       URL: $url
 
 WARN
-  confirm "Clone and add this plugin?" || fail "aborted"
+  confirm "$(omarchy-i18n plugin.confirmAdd)" || fail "aborted"
 fi
 
 mkdir -p "$PLUGINS_DIR"
@@ -151,7 +151,7 @@ omarchy-shell shell rescanPlugins >/dev/null
 if [[ -z $enable_after ]]; then
   if (( ASSUME_YES )) || ! interactive; then
     enable_after=false
-  elif confirm "Enable '$id' now?"; then
+  elif confirm "$(omarchy-i18n plugin.confirmEnable "$id")"; then
     enable_after=true
   else
     enable_after=false

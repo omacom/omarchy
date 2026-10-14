@@ -13,7 +13,9 @@ if o.preinstalled_bindings_enabled() then
   o.bind("SUPER + CTRL + RETURN", "Herdr", { omarchy = "terminal-herdr" })
   o.bind("SUPER + SHIFT + M", "Music", { omarchy = "spotify" })
   o.bind("SUPER + SHIFT + ALT + M", "Music TUI", { tui = "cliamp", focus = true })
-  o.bind("SUPER + SHIFT + D", "Docker", { tui = "omarchy-launch-docker-tui" })
+  if o.cmd_present("lazydocker") then
+    o.bind("SUPER + SHIFT + D", "Docker", { tui = "omarchy-launch-docker-tui" })
+  end
   o.bind("SUPER + SHIFT + G", "Signal", { omarchy = "signal" })
   o.bind("SUPER + SHIFT + O", "Obsidian", { launch = "obsidian", focus = "^obsidian$" })
   o.bind("SUPER + SHIFT + W", "Omawrite", { launch = "omawrite" })

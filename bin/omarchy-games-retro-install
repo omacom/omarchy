@@ -10,16 +10,16 @@ if (( $# == 0 )); then
   mapfile -t cores < <(omarchy-games-retro-cores)
 
   if (( ${#cores[@]} == 0 )); then
-    omarchy-notification-send -g 󰯉 "No RetroArch cores found" "/usr/lib/libretro"
+    omarchy-notification-send -g 󰯉 "$(omarchy-i18n games.noCores)" "/usr/lib/libretro"
     exit 1
   fi
 
-  core=$(omarchy-menu-select "RetroArch core" "${cores[@]}") || exit 0
+  core=$(omarchy-menu-select "$(omarchy-i18n games.corePrompt)" "${cores[@]}") || exit 0
   [[ -n $core ]] || exit 0
   core="${core##*(}"
   core="${core%)}"
 
-  game_path=$(omarchy-menu-file "Retro game" "$HOME/Games/roms" "7z bin ccd chd cue dmg elf fds gb gba gbc iso lha m3u md n64 nds nes pbp sfc smc swc zip z64") || exit 0
+  game_path=$(omarchy-menu-file "$(omarchy-i18n games.pickGame)" "$HOME/Games/roms" "7z bin ccd chd cue dmg elf fds gb gba gbc iso lha m3u md n64 nds nes pbp sfc smc swc zip z64") || exit 0
   [[ -n $game_path ]] || exit 0
 elif (( $# == 2 )); then
   core="$1"
@@ -69,4 +69,4 @@ EOF
 chmod +x "$desktop_file"
 update-desktop-database "$desktop_dir" &>/dev/null || true
 
-omarchy-notification-send -g 󰯉 "$game_name installed" "Start it with Super + Space"
+omarchy-notification-send -g 󰯉 "$(omarchy-i18n games.installed "$game_name")" "$(omarchy-i18n games.startHint)"

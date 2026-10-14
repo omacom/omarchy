@@ -92,6 +92,9 @@ phoenix)
   ;;
 rust)
   echo -e "Installing Rust...\n"
+  # Crates that generate C bindings with bindgen, including Ruby gems built
+  # with rb-sys, load libclang from clang.
+  omarchy-pkg-add clang
   bash -c "$(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs)" -- -y
   ;;
 java)

@@ -60,11 +60,19 @@ let source = fs.readFileSync(`${root}/shell/plugins/panels/network/Panel.qml`, '
 // and expose private IDs in the disposable copy, never in production code.
 source = source.replace('import Quickshell.Networking', 'import Quickshell.Networking\nimport "../mocks"')
 source = source.replace(/\bNetworking\./g, 'NetworkMock.')
+// The panel's content is built lazily, so its private IDs are exposed from
+// the content root and mirrored on the panel once the test builds it.
+source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
+      property alias testButton: portalAction
+      property alias testTitle: heroSsid
+`)
 source = source.replace('  id: root', `  id: root
-  property alias testButton: portalAction
-  property alias testKeys: keyCatcher
-  property alias testMeta: heroMeta
-  property alias testTitle: heroSsid
+  function testEnsureContent() { return panel.ensureContent() }
+  readonly property Item testContent: panel.loadedContent
+  readonly property Item testButton: panel.loadedContent ? panel.loadedContent.testButton : null
+  readonly property Item testKeys: panel.loadedContent
+  readonly property Item testMeta: panel.loadedContent ? panel.loadedContent.heroMeta : null
+  readonly property Item testTitle: panel.loadedContent ? panel.loadedContent.testTitle : null
   property alias testPoll: connectivityPoll
   property alias testBarButton: button`)
 fs.writeFileSync(`${stage}/network/Panel.qml`, source)

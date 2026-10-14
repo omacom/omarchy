@@ -15,6 +15,7 @@
 
 import argparse
 import os
+import subprocess
 import sys
 
 import gi
@@ -32,9 +33,20 @@ EXIT_NOTHING_PICKED = 1
 EXIT_CHOOSER_FAILED = 2
 
 
+# The dialog's own title when the caller names none, in the Omarchy language.
+def default_title():
+    try:
+        title = subprocess.run("omarchy-i18n files.selectFile".split(), capture_output=True, text=True).stdout
+    except OSError:
+        title = ""
+    if not title or title == "files.selectFile":
+        title = "Select file"
+    return title
+
+
 def main():
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--title", default="Select file")
+    parser.add_argument("--title", default=None)
     parser.add_argument("--multiple", action="store_true")
     parser.add_argument("--directory", action="store_true")
     parser.add_argument("--extensions", default="")
@@ -43,6 +55,9 @@ def main():
     if unknown:
         print("omarchy-file-select: unknown option %s" % unknown[0], file=sys.stderr)
         return EXIT_CHOOSER_FAILED
+
+    if args.title is None:
+        args.title = default_title()
 
     bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
     loop = GLib.MainLoop()

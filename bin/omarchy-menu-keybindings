@@ -9,12 +9,25 @@ declare -A LUA_BIND_KEY_MAP
 declare -A LUA_BIND_DISPATCHER_MAP
 declare -A LUA_BIND_ARG_MAP
 
+# A platform package can name keys the way its keyboards print them: one
+# "<keysym> <name>" per line (on a MacBook, XF86MonBrightnessUp is F2), in the
+# fixed platform root, which no environment variable moves.
+key_names_file=/usr/share/omarchy-platform/key-names
+
 # Hyprland reports XKB keycodes for code: bindings. Resolve them to symbols
 # via the compiled keymap, with a small fallback for common keys so the menu
 # remains readable if xkbcli cannot resolve a symbol.
 parse_keycodes() {
-  awk '
+  awk -v key_names="$key_names_file" '
     BEGIN {
+      while ((getline line < key_names) > 0) {
+        # Blanks around a line and a CRLF line end read the same, as in
+        # displays.conf.
+        gsub(/^[ \t\r]+|[ \t\r]+$/, "", line)
+        if (split(line, name_parts, /[ \t]+/) == 2 && name_parts[1] ~ /^[A-Za-z0-9_]+$/ && name_parts[2] ~ /^[A-Za-z0-9_]+$/) key_name[name_parts[1]] = name_parts[2]
+      }
+      close(key_names)
+
       split("10=1 11=2 12=3 13=4 14=5 15=6 16=7 17=8 18=9 19=0 20=MINUS 21=EQUAL 59=COMMA 60=PERIOD 61=SLASH", fallbacks, " ")
       for (i in fallbacks) {
         separator = index(fallbacks[i], "=")
@@ -59,6 +72,13 @@ parse_keycodes() {
         symbol = mouse_symbol[code]
         if (symbol == "") symbol = "mouse:" code
         sub("mouse:" code, symbol)
+      } else if ((first = index($0, ",")) > 0) {
+        # Only the key (the second field) is renamed: the description, the
+        # dispatcher and its argument are left as they are.
+        rest = substr($0, first + 1)
+        second = index(rest, ",")
+        key = second > 0 ? substr(rest, 1, second - 1) : rest
+        if (key in key_name) $0 = substr($0, 1, first) key_name[key] (second > 0 ? substr(rest, second) : "")
       }
 
       print
@@ -81,7 +101,9 @@ build_lua_bind_cache() {
     LUA_BIND_DISPATCHER_MAP["$cache_key"]="$dispatcher"
     LUA_BIND_ARG_MAP["$cache_key"]="$arg"
   done < <(
-    lua <<'LUA'
+    # -E keeps LUA_INIT and LUA_PATH from the environment out of the scan, which
+    # loads the user's config.
+    lua -E - <<'LUA'
 local modifiers = { SHIFT = 1, CTRL = 4, CONTROL = 4, ALT = 8, SUPER = 64 }
 
 local function split_keys(keys)
@@ -507,6 +529,38 @@ prioritize_entries() {
 
 # Drop repeated records while keeping the order Hyprland reported them in, so
 # the chord a user declared first is the one that leads a merged entry.
+# The bindings describe themselves in English; show the descriptions in the
+# Omarchy language from default/i18n/<code>/keybindings.json. One with a
+# number in it ("Switch to workspace 3") matches its catalog pattern
+# ("Switch to workspace %1"). A description the catalog doesn't know, like
+# one a user wrote, shows as written. Runs after the English ordering, and
+# only touches the text after the arrow, so columns and dispatch hold.
+translate_binding_records() {
+  local language catalog
+  language=$(omarchy-language 2>/dev/null) || language=en
+  catalog=$OMARCHY_PATH/default/i18n/$language/keybindings.json
+  if [[ $language == "en" || ! -f $catalog ]]; then
+    cat
+    return
+  fi
+
+  jq -R -r --slurpfile catalog "$catalog" '
+    $catalog[0] as $strings
+    | split("\t") as $fields
+    | ($fields[0] | split(" → ")) as $parts
+    | if ($parts | length) < 2 then . else
+        ($parts[1:] | join(" → ")) as $action
+        | [$action | scan("[0-9]+")] as $numbers
+        | (reduce range(0; $numbers | length) as $i ($action; sub("(?<![%0-9])[0-9]+"; "%\($i + 1)"))) as $pattern
+        | ($strings[$action] // (if ($numbers | length) > 0 then $strings[$pattern] else null end)) as $found
+        | if ($found | type) != "string" or $found == "" then . else
+            (reduce range(0; $numbers | length) as $i ($found; gsub("%\($i + 1)"; $numbers[$i]))) as $shown
+            | ([$parts[0] + " → " + $shown] + $fields[1:]) | join("\t")
+          end
+      end
+  '
+}
+
 dedupe_binding_records() {
   awk '!seen[$0]++'
 }
@@ -524,7 +578,8 @@ output_binding_records_uncached() {
     dedupe_binding_records |
     parse_keycodes |
     parse_binding_records |
-    prioritize_entries
+    prioritize_entries |
+    translate_binding_records
 
   # Fail when Hyprland reported no binds so the fallout of a broken hyprctl
   # is never cached.
@@ -533,8 +588,11 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v14\n'
+    printf 'v16\n'
+    omarchy-language 2>/dev/null
+    cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
+    cat "$key_names_file" 2>/dev/null
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
 }
@@ -660,7 +718,7 @@ if [[ $1 == "--print" || $1 == "-p" ]]; then
 else
   records=$(output_binding_records)
   selection=$(cut -f1 <<<"$records" |
-    omarchy-menu-select 'Keybindings' -- --width 800 --height 500)
+    omarchy-menu-select "$(omarchy-i18n keybindings.title)" -- --width 800 --height 500)
 
   if [[ -n $selection ]]; then
     record=$(awk -F '\t' -v selection="$selection" '$1 == selection { print; exit }' <<<"$records")

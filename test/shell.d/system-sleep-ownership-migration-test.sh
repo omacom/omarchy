@@ -522,6 +522,8 @@ sed \
   -e "s|/usr/bin/install|$stub_bin/hook-install|g" \
   -e "s|/etc/supergfxd.conf|$hook_config|g" \
   -e "s|/run/omarchy-force-igpu-integrated|$hook_marker|g" \
+  -e "s|timeout --kill-after=1s 3s|timeout --kill-after=0.2s 0.3s|" \
+  -e "s|timeout --kill-after=1s 2s|timeout --kill-after=0.2s 0.3s|" \
   "$ROOT/default/systemd/system-sleep/force-igpu" >"$hook_copy"
 cat >"$stub_bin/hook-supergfxctl" <<'SH'
 #!/bin/bash

@@ -100,6 +100,54 @@ env \
 [[ $(<"$install_log") == "use -g node@latest" ]] || fail "installer only invokes Mise for the global Node setup"
 pass "new installs do not add project bin directories to PATH"
 
+# An offline install unpacks the Node tarball the ISO bundles, and the ISO
+# bundles the one for its own architecture. Both are on offer here; each
+# machine must take its own. uname and the bundle directory are stand-ins.
+bundle="$test_dir/bundle"
+mkdir -p "$bundle" "$test_dir/node-src"
+for platform in linux-x64 linux-arm64; do
+  mkdir -p "$test_dir/node-src/node-v24.1.0-$platform/bin"
+  echo "$platform" >"$test_dir/node-src/node-v24.1.0-$platform/bin/node"
+  tar -czf "$bundle/node-v24.1.0-$platform.tar.gz" -C "$test_dir/node-src" "node-v24.1.0-$platform"
+done
+cat >"$test_dir/bin/uname" <<'SH'
+#!/bin/bash
+[[ $* == -m ]] && { echo "$UNAME_TEST_MACHINE"; exit; }
+exec /usr/bin/uname "$@"
+SH
+cat >"$test_dir/bin/find" <<'SH'
+#!/bin/bash
+[[ $1 == /opt/packages ]] && { shift; exec /usr/bin/find "$NODE_TEST_BUNDLE" "$@"; }
+exec /usr/bin/find "$@"
+SH
+chmod +x "$test_dir/bin/uname" "$test_dir/bin/find"
+
+for case in "x86_64 linux-x64" "aarch64 linux-arm64"; do
+  read -r machine platform <<<"$case"
+  arch_home="$test_dir/$machine-home"
+  arch_log="$test_dir/$machine-mise.log"
+  mkdir -p "$arch_home"
+  env \
+    HOME="$arch_home" \
+    MISE_TEST_LOG="$arch_log" \
+    NODE_TEST_BUNDLE="$bundle" \
+    UNAME_TEST_MACHINE="$machine" \
+    OMARCHY_SETUP_CONTEXT=iso-chroot \
+    PATH="$test_dir/bin:/usr/bin" \
+    bash -euo pipefail -c 'source "$1"' bash "$ROOT/install/user/mise-work.sh"
+
+  installed="$arch_home/.local/share/mise/installs/node/24.1.0/bin/node"
+  [[ -f $installed && $(<"$installed") == "$platform" ]] || fail "$machine unpacks the $platform Node tarball"
+  [[ $(head -n1 "$arch_log") == "use -g node@24.1.0" ]] || fail "$machine hands Mise the bundled Node version"
+done
+[[ ! -e $bundle/node-v24.1.0-linux-x64.tar.gz ]] || rm "$bundle/node-v24.1.0-linux-x64.tar.gz"
+if env HOME="$test_dir/missing-home" MISE_TEST_LOG="$test_dir/missing.log" NODE_TEST_BUNDLE="$bundle" \
+  UNAME_TEST_MACHINE=x86_64 OMARCHY_SETUP_CONTEXT=iso-chroot PATH="$test_dir/bin:/usr/bin" \
+  bash -euo pipefail -c 'source "$1"' bash "$ROOT/install/user/mise-work.sh" 2>/dev/null; then
+  fail "an x86_64 install accepts another architecture's Node tarball"
+fi
+pass "offline installs unpack the Node tarball for the machine's architecture"
+
 stock_home="$test_dir/stock-home"
 stock_config="$stock_home/Work/.mise.toml"
 stock_project="$stock_home/Work/tries/untrusted-repository"

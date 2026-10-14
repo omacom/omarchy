@@ -1,0 +1,6 @@
+// Omarchy's own XKB option. libxkbcommon reads /etc/xkb before the system
+// rules, which supply everything else.
+! include %S/evdev
+
+! option = symbols
+  omarchy:shift_caps_compose = +omarchy(shift_caps_compose)

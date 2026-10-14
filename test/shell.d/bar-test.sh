@@ -30,13 +30,36 @@ if ! perl -0ne 'exit(/onPressAndHold:\s*function[^{]*\{[^}]*?\bpressed\b[^}]*?\b
 fi
 pass "bar move ignores a press-and-hold propagated from a widget above"
 
+# Every click target registration used to resync every plugin api inline. With
+# six monitors' worth of widgets that is hundreds of full walks at startup, so
+# the change handlers coalesce into one deferred resync and ownership lookups
+# are keyed by target instead of scanning an array.
+if ! rg -q 'onClickTargetsChanged: schedulePluginBarApiSync\(\)' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar coalesces plugin api resyncs instead of running one per click target change"
+fi
+if ! rg -q 'Qt\.callLater\(root\.syncAllPluginBarApiObjects\)' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar defers the coalesced plugin api resync to the event loop"
+fi
+if ! rg -q 'pluginObjectOwners\.get\(target\)' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar looks plugin object ownership up by target instead of scanning"
+fi
+pass "bar coalesces plugin api resyncs and looks ownership up by target"
+
+# Both bar orientations used to be instantiated and toggled with `visible`,
+# doubling every indicator (and every process an indicator spawns) per bar.
+if ! rg -q 'sourceComponent: root\.vertical \? verticalIndicatorsTree : horizontalIndicatorsTree' \
+  "$ROOT/shell/plugins/bar/widgets/Indicators.qml"; then
+  fail "indicators instantiate only the tree for the current bar orientation"
+fi
+pass "indicators instantiate only the tree for the current bar orientation"
+
 run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
 const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
 const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
 
-assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.toggleTransparency\(\)/.test(shellSource), 'shell exposes the bar transparency toggle over IPC')
+assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.cycleBackground\(\)/.test(shellSource), 'shell exposes the bar background cycle over IPC')
 
 // put tolerates a placement target the bar does not carry, so the IPC call
 // must reach the registry's put rather than route back through enable.
@@ -58,8 +81,8 @@ assert(
 )
 for (const edge of ['top', 'bottom', 'left', 'right']) {
   assert(
-    new RegExp(`${edge}: root\\.barHidden && root\\.position === "${edge}" \\? -root\\.barSize : 0`).test(barSource),
-    `a hidden bar parks past the ${edge} edge`
+    new RegExp(`${edge}: root\\.barHidden && root\\.position === "${edge}" \\? -barWindow\\.thickness : 0`).test(barSource),
+    `a hidden bar parks past the ${edge} edge by its whole thickness`
   )
 }
 
@@ -259,7 +282,7 @@ assert(
   'bar uses nearest insertion targeting for widget and free-space drops'
 )
 assert(
-  /component DragGhostPanel:[\s\S]*?readonly property var targetRect: root\.barDragTargetGeometry[\s\S]*?color: Color\.accent/.test(barSource),
+  /component DragGhostPanel:[\s\S]*?readonly property var targetRect: root\.barDragTargetGeometry[\s\S]*?color: Commons\.Color\.accent/.test(barSource),
   'bar draws the insertion marker above the bar in the drag overlay'
 )
 
@@ -316,6 +339,22 @@ assertEqual(
   bar.inlineSettingsDelta(settingsLayout, { left: [{ id: 'omarchy.power' }, { id: 'omarchy.battery' }], center: settingsLayout.center, right: [] }),
   null,
   'bar treats added entries as structural'
+)
+assertDeepEqual(
+  bar.inlineSettingsDelta(
+    { left: [], center: [], right: [], tray: [{ id: 'omarchy.clock', format: 'HH:mm' }] },
+    { left: [], center: [], right: [], tray: [{ id: 'omarchy.clock', format: 'h:mm' }] }
+  ),
+  [{ region: 'tray', index: 0, entry: { id: 'omarchy.clock', format: 'h:mm' } }],
+  'bar patches the settings of a widget in the tray section in place'
+)
+assertEqual(
+  bar.inlineSettingsDelta(
+    { left: [], center: [], right: [{ id: 'omarchy.clock' }], tray: [] },
+    { left: [], center: [], right: [], tray: [{ id: 'omarchy.clock' }] }
+  ),
+  null,
+  'bar rebuilds when a widget moves into the tray section'
 )
 assertEqual(
   bar.inlineSettingsDelta(

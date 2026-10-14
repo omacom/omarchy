@@ -41,7 +41,7 @@ printf 'no newline {{ accent }}' >"$themed/tail.txt.tpl"
 # Function arguments may be separated by any whitespace, tabs included.
 printf '{{ mix\tbackground accent 30%% }} {{\tmix_rgb red\tblue 50%%\t}} {{ gradient_start\thyprland_active_border accent }}\n' >"$themed/tabs.txt.tpl"
 
-HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-set-templates"
+HOME="$home" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-set-templates"
 
 # Expected values were produced by the sed-based renderer this replaced, so
 # every theme keeps rendering byte for byte the same.
